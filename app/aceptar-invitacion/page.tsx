@@ -1,0 +1,93 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
+
+export default function AceptarInvitacionPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token") || "";
+
+  const [password, setPassword]               = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading]                 = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!token) {
+      toast.error("El enlace de invitación no es válido");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast.error("Las contraseñas no coinciden");
+      return;
+    }
+
+    setLoading(true);
+
+    const res = await fetch("/api/users/accept-invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, password }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      toast.error(data.error || "No se pudo completar el registro");
+      setLoading(false);
+      return;
+    }
+
+    toast.success("Cuenta creada. Ahora puedes iniciar sesión.");
+    router.push("/login");
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-muted/30">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-8 shadow-sm">
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+            <span className="text-lg font-bold text-primary">SN</span>
+          </div>
+          <h1 className="text-xl font-bold">Crea tu contraseña</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Sierra Nativa Coffee</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Contraseña</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Confirmar contraseña</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
+          >
+            {loading ? "Creando cuenta..." : "Crear cuenta"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}

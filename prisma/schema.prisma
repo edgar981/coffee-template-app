@@ -64,6 +64,19 @@ model verification {
   @@index([identifier])
 }
 
+model Invitation {
+  id        String    @id @default(cuid())
+  email     String
+  name      String?
+  role      Role
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+}
+
 enum Role {
   OWNER    // client (restaurant owner) - full access
   MANAGER  // their manager - most access
