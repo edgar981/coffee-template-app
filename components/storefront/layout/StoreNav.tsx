@@ -97,7 +97,7 @@ export default function StoreNav() {
                 <Link key={l.path} href={l.path} onClick={() => setMobileOpen(false)} className="text-[#3d2314] font-medium py-2 border-b border-[#f0e8de] last:border-0">{l.label}</Link>
               ))}
               <Link href="/cuenta" onClick={() => setMobileOpen(false)} className="text-[#3d2314] font-medium py-2">Mi Cuenta</Link>
-              <Link href="/tracking" onClick={() => setMobileOpen(false)} className="text-[#3d2314] font-medium py-2">Rastrear Pedido</Link>
+              <Link href="/rastrear-pedido" onClick={() => setMobileOpen(false)} className="text-[#3d2314] font-medium py-2">Rastrear Pedido</Link>
             </nav>
           </motion.div>
         )}

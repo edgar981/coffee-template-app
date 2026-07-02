@@ -25,11 +25,13 @@ export default function NotificationBell() {
 
   const load = async () => {
     try {
-      const res  = await fetch('/api/notifications');
+      const res = await fetch('/api/notifications');
+      if (!res.ok) throw new Error(`GET /api/notifications ${res.status}`);
       const data = await res.json();
+      if (!Array.isArray(data)) throw new Error(`Expected array, got ${typeof data}`);
       setNotifications(data);
-    } catch {
-      console.error('Error loading notifications');
+    } catch (err) {
+      console.error('Error loading notifications:', err);
     }
   };
 
