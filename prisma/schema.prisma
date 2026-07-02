@@ -1,0 +1,205 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  user      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime  @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model user {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  role          Role      @default(STAFF)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  account       account[]
+  session       session[]
+}
+
+model verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+enum Role {
+  OWNER    // client (restaurant owner) - full access
+  MANAGER  // their manager - most access
+  STAFF    // waiter/delivery - limited access
+}
+
+model Customer {
+  id              String   @id @default(cuid())
+  nombre          String
+  email           String?  @unique
+  telefono        String?
+  ciudad          String?
+  direccion       String?
+  canal           String?  @default("directo")
+  notas           String?
+  activo          Boolean  @default(true)
+  numero_ordenes  Int      @default(0)
+  total_compras   Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  nombre       String
+  slug         String   @unique
+  descripcion  String   @default("")
+  categoria    String
+  precio       Float    @default(0)
+  costo        Float    @default(0)
+  sku          String?  @unique
+  stock        Int      @default(0)
+  stock_minimo Int      @default(5)
+  activo       Boolean  @default(true)
+  peso_gramos  Int?
+  variante     String?
+  origen       String?
+  tostado      String?
+  imagen       String   @default("")
+  imagenes     String[] @default([])
+  bestseller   Boolean  @default(false)
+  badge        String?
+  agotado      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Order {
+  id                 String      @id @default(cuid())
+  numero_orden       String      @unique
+  cliente_nombre     String?
+  cliente_telefono   String?
+  canal              String      @default("directo")
+  estado             String      @default("pendiente")
+  metodo_pago        String?
+  total              Float       @default(0)
+  costo_envio        Float       @default(0)
+  direccion_entrega  String?
+  ciudad_entrega     String?
+  notas_internas     String?
+  notas_entrega      String?
+  items              OrderItem[]
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+}
+
+model OrderItem {
+  id               String  @id @default(cuid())
+  orden_id         String
+  producto_nombre  String
+  cantidad         Int
+  subtotal         Float
+  order            Order   @relation(fields: [orden_id], references: [id], onDelete: Cascade)
+}
+
+model InventoryLog {
+  id               String   @id @default(cuid())
+  producto_id      String
+  producto_nombre  String
+  tipo             String
+  cantidad         Int
+  stock_anterior   Int
+  stock_nuevo      Int
+  motivo           String?
+  createdAt        DateTime @default(now())
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  cliente_nombre  String?
+  monto           Float
+  metodo          String   @default("transferencia")
+  estado          String   @default("pendiente")
+  referencia      String?
+  notas           String?
+  fecha_pago      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Shipping {
+  id               String   @id @default(cuid())
+  orden_id         String?
+  numero_orden     String?
+  cliente_nombre   String?
+  direccion        String
+  ciudad           String   @default("Bogotá")
+  zona             String   @default("centro")
+  estado           String   @default("programado")
+  costo_envio      Float    @default(8000)
+  mensajero        String?
+  notas_entrega    String?
+  fecha_programada String?
+  fecha_entrega    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Automation {
+  id               String   @id @default(cuid())
+  tipo             String   @unique
+  nombre           String
+  canal            String
+  activa           Boolean  @default(false)
+  veces_ejecutada  Int      @default(0)
+  ultima_ejecucion DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  tipo      String   // 'stock_bajo', 'nueva_orden', etc.
+  titulo    String
+  mensaje   String
+  leida     Boolean  @default(false)
+  href      String?  // optional link to relevant page
+  createdAt DateTime @default(now())
+}

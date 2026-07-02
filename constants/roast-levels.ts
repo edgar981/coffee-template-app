@@ -1,0 +1,1 @@
+export const TOSTADO_LABELS = { ligero: 'Ligero', medio: 'Medio', oscuro: 'Oscuro', especial: 'Especial' };
