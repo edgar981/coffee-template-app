@@ -8,6 +8,7 @@ import InviteUserModal from '@/components/admin/InviteUserModal';
 import { normalize } from '@/lib/utils';
 import { AdminUser, Role } from '@/types/admin';
 import { ROLES } from '@/constants/roles';
+import { authClient } from '@/lib/auth-client';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -17,6 +18,8 @@ const initials = (name: string) =>
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ConfiguracionUsuarios() {
+  const { data: session }           = authClient.useSession();
+  const isOwner                     = session?.user?.role === 'OWNER';
   const [users, setUsers]           = useState<AdminUser[]>([]);
   const [loading, setLoading]       = useState(true);
   const [search, setSearch]         = useState('');
@@ -82,13 +85,15 @@ export default function ConfiguracionUsuarios() {
             Gestiona quién tiene acceso al panel de administración
           </p>
         </div>
-        <button
-          onClick={() => setShowInvite(true)}
-          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm shrink-0"
-        >
-          <UserPlus className="w-4 h-4" />
-          Agregar usuario
-        </button>
+        {isOwner && (
+          <button
+            onClick={() => setShowInvite(true)}
+            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm shrink-0"
+          >
+            <UserPlus className="w-4 h-4" />
+            Agregar usuario
+          </button>
+        )}
       </div>
 
       {/* Role legend */}
@@ -214,7 +219,7 @@ export default function ConfiguracionUsuarios() {
         )}
       </div>
 
-      {showInvite && (
+      {isOwner && showInvite && (
         <InviteUserModal
           onClose={() => setShowInvite(false)}
           onSuccess={handleInvited}

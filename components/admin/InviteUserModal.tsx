@@ -44,12 +44,22 @@ export default function InviteUserModal({ onClose, onSuccess }: InviteUserModalP
         body:    JSON.stringify({ email: email.trim(), name: name.trim(), role }),
       });
 
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        if (res.status === 403) {
+          toast.error('No tienes permiso para invitar usuarios.');
+        } else if (res.status === 400) {
+          const data = await res.json().catch(() => null);
+          toast.error(data?.error || 'Verifica los datos e intenta de nuevo.');
+        } else {
+          toast.error('No se pudo enviar la invitación. Intenta de nuevo.');
+        }
+        return;
+      }
 
       toast.success(`Invitación enviada a ${email}`);
       onSuccess();
     } catch {
-      toast.error('Error al crear el usuario. Verifica los datos.');
+      toast.error('No se pudo conectar. Verifica tu conexión.');
     } finally {
       setLoading(false);
     }
