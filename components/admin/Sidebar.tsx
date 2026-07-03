@@ -1,6 +1,6 @@
 "use client";
 import Link from 'next/link';
-import { cn } from '@/lib/utils';
+import { cn, getInitials } from '@/lib/utils';
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Warehouse,
   CreditCard, Truck, BarChart3, Zap, Coffee, ChevronRight,
@@ -9,6 +9,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from "next/navigation";
 import { SidebarProps, NavItem } from '@/types/admin';
+import { authClient } from "@/lib/auth-client";
 
 
 const navItems: NavItem[] = [
@@ -25,6 +26,7 @@ const navItems: NavItem[] = [
 
 export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const { data: session, isPending } = authClient.useSession();
 
   return (
     <>
@@ -76,7 +78,9 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
         {/* Nav */}
         <nav className="flex-1 py-4 space-y-0.5 px-2 overflow-y-auto overflow-x-hidden">
-          {navItems.map(({ icon: Icon, label, path }) => {
+          {navItems
+            .filter(item => !item.ownerOnly || session?.user?.role === "OWNER")
+            .map(({ icon: Icon, label, path }) => {
             const active = pathname === path || (path !== '/' && pathname.startsWith(path));
             return (
               <Link
@@ -122,13 +126,19 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         <div className="p-3 border-t border-sidebar-border">
           <div className={cn('flex items-center gap-3 px-2 py-2', collapsed && 'justify-center')}>
             <div className="w-7 h-7 rounded-full bg-sidebar-primary/20 flex items-center justify-center shrink-0">
-              <span className="text-xs font-semibold text-sidebar-primary">SN</span>
+              <span className="text-xs font-semibold text-sidebar-primary">
+                {getInitials(session?.user?.name)}
+              </span>
             </div>
             <AnimatePresence>
               {!collapsed && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                  <p className="text-xs font-medium text-sidebar-foreground whitespace-nowrap">Admin</p>
-                  <p className="text-xs text-sidebar-foreground/40 whitespace-nowrap">sierranativa.co</p>
+                  <p className="text-xs font-medium text-sidebar-foreground whitespace-nowrap">
+                    {isPending ? "…" : session?.user?.name ?? "Usuario"}
+                  </p>
+                  <p className="text-xs text-sidebar-foreground/40 whitespace-nowrap">
+                    {isPending ? "" : session?.user?.email ?? ""}
+                  </p>
                 </motion.div>
               )}
             </AnimatePresence>

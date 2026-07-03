@@ -9,6 +9,7 @@ export interface NavItem {
   icon: LucideIcon;
   label: string;
   path: string;
+  ownerOnly?: boolean;
 }
 
 export type Role = 'OWNER' | 'MANAGER' | 'STAFF';

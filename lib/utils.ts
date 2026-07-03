@@ -12,6 +12,11 @@ export const isIframe = typeof window !== "undefined"
 export const formatCOP = (n: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0);
 
+export function getInitials(name?: string | null): string {
+  if (!name) return "SN";
+  return name.trim().split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+}
+
 export function normalize(str: string): string {
   return str
     .toLowerCase()

@@ -11,17 +11,13 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import NotificationBell from '@/components/admin/NotificationBell';
 import { authClient } from '@/lib/auth-client';
+import { getInitials } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface TopBarProps {
   onMenuToggle: () => void;
   sidebarWidth: number | string;
-}
-
-interface SessionUser {
-  name?:  string | null;
-  email?: string | null;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -33,17 +29,11 @@ export default function TopBar({ onMenuToggle, sidebarWidth }: TopBarProps) {
   const [mounted, setMounted]       = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen]     = useState(false);
-  const [user, setUser]             = useState<SessionUser | null>(null);
+  const { data: session }           = authClient.useSession();
+  const user                        = session?.user;
 
   // Avoid hydration mismatch for theme icon
   useEffect(() => { setMounted(true); }, []);
-
-  // Load session user
-  useEffect(() => {
-    authClient.getSession().then(({ data: session }) => {
-      if (session?.user) setUser(session.user);
-    });
-  }, []);
 
   // ⌘K shortcut
   useEffect(() => {
@@ -73,14 +63,8 @@ export default function TopBar({ onMenuToggle, sidebarWidth }: TopBarProps) {
     router.push('/login');
   };
 
-  const initials = (user?.name || 'SN')
-    .split(' ')
-    .map(w => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-
-  const firstName = user?.name?.split(' ')[0] ?? 'Admin';
+  const initials = getInitials(user?.name);
+  const firstName = user?.name?.split(/\s+/)[0] ?? 'Usuario';
 
   return (
     <>
@@ -135,7 +119,7 @@ export default function TopBar({ onMenuToggle, sidebarWidth }: TopBarProps) {
               <div className="absolute right-0 top-11 w-56 bg-card border border-border rounded-2xl shadow-xl z-50 py-1 overflow-hidden">
                 {/* User info */}
                 <div className="px-4 py-3 border-b border-border">
-                  <p className="text-sm font-semibold text-foreground truncate">{user?.name ?? 'Admin'}</p>
+                  <p className="text-sm font-semibold text-foreground truncate">{user?.name ?? 'Usuario'}</p>
                   <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                 </div>
 
