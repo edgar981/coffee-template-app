@@ -81,7 +81,7 @@ export default function Dashboard() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Panel de Operaciones</h1>
-        <p className="text-sm text-muted-foreground mt-1">Sierra Nativa Coffee — Resumen del negocio</p>
+        <p className="text-sm text-muted-foreground mt-1">Café Nayoli — Resumen del negocio</p>
       </div>
 
       {/* Stats row 1 */}

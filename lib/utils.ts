@@ -13,7 +13,7 @@ export const formatCOP = (n: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0);
 
 export function getInitials(name?: string | null): string {
-  if (!name) return "SN";
+  if (!name) return "N";
   return name.trim().split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
 }
 

@@ -16,7 +16,7 @@ export const DEMO_PRODUCTS: Product[] = [
     variante: '250g',
     origen: 'Huila',
     tostado: 'medio',
-    descripcion: 'Mezcla insignia de Sierra Nativa. Notas de chocolate oscuro, panela y nuez. Tostado medio perfecto para espresso y filtrado.',
+    descripcion: 'Mezcla insignia de Café Nayoli. Notas de chocolate oscuro, panela y nuez. Tostado medio perfecto para espresso y filtrado.',
     notas: ['Chocolate oscuro', 'Panela', 'Nuez tostada'],
     proceso: 'Lavado',
     altitud: '1.600–1.900 msnm',

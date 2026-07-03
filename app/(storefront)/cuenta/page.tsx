@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 import Link from "next/link";
 
+import { redirect } from "next/navigation";
+
 import {
   Package,
   User,
@@ -51,6 +53,9 @@ const TABS = [
 ];
 
 export default function AccountPage() {
+  // TEMP v1: redirect until account feature is built — REMOVE this when /cuenta ships
+  redirect("/");
+
   const [tab, setTab] = useState("orders");
 
   const [orders, setOrders] = useState<any[]>([]);

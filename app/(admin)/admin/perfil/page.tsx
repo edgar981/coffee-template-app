@@ -83,7 +83,7 @@ export default function Perfil() {
     .map(w => w[0])
     .join('')
     .slice(0, 2)
-    .toUpperCase() || 'SN';
+    .toUpperCase() || 'N';
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -191,7 +191,7 @@ export default function Perfil() {
             </div>
             <h3 className="font-semibold text-sm text-foreground">Organización</h3>
           </div>
-          <p className="font-semibold text-foreground">Sierra Nativa Coffee Co.</p>
+          <p className="font-semibold text-foreground">Café Nayoli</p>
           <p className="text-xs text-muted-foreground mt-1">Bogotá, Colombia</p>
         </div>
       </div>

@@ -33,10 +33,10 @@ export default function LoginPage() {
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-8 shadow-sm">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <span className="text-lg font-bold text-primary">SN</span>
+            <span className="text-lg font-bold text-primary">N</span>
           </div>
           <h1 className="text-xl font-bold">Acceso al Panel</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Sierra Nativa Coffee</p>
+          <p className="mt-1 text-sm text-muted-foreground">Café Nayoli</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">

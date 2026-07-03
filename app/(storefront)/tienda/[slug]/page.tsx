@@ -336,6 +336,7 @@ export default function ProductPage({
                 <ProductCard
                   key={p.id}
                   product={p}
+                  sizes="(max-width: 640px) 50vw, 25vw"
                 />
               ))}
             </div>

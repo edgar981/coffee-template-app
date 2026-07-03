@@ -10,7 +10,7 @@ import NavSearch from './NavSearch';
 const links = [
   { label: 'Tienda', path: '/tienda' },
   { label: 'Suscripciones', path: '/suscripciones' },
-  { label: 'Nosotros', path: '/nosotros' },
+  { label: 'Nosotros', path: '/#nuestra-historia' },
 ];
 
 export default function StoreNav() {
@@ -43,7 +43,7 @@ export default function StoreNav() {
             {/* Logo */}
             <Link href="/" className={`flex items-center gap-2 font-playfair font-medium text-lg ${logoColor} transition-colors`}>
               <Coffee className="w-5 h-5" />
-              Sierra Nativa
+              Café Nayoli
             </Link>
 
             {/* Desktop Nav */}
@@ -75,11 +75,12 @@ export default function StoreNav() {
                   </span>
                 )}
               </button>
-              <Link href="/cuenta" className={`hidden sm:flex items-center ml-1 text-sm font-medium rounded-full transition-colors ${linkColor}`}>
+              {/* v1: /cuenta link hidden — restore when account feature ships */}
+              {/* <Link href="/cuenta" className={`hidden sm:flex items-center ml-1 text-sm font-medium rounded-full transition-colors ${linkColor}`}>
                 <button className={`p-2 pt-1.5 cursor-pointer rounded-full transition-colors ${iconColor} bg-[#8B4513]/10`}>
                   <span className="text-xs font-bold text-[#b5794e]">Mi</span>
                 </button>
-              </Link>
+              </Link> */}
               <button className={`lg:hidden p-2 ${iconColor}`} onClick={() => setMobileOpen(!mobileOpen)}>
                 {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
@@ -96,7 +97,8 @@ export default function StoreNav() {
               {links.map(l => (
                 <Link key={l.path} href={l.path} onClick={() => setMobileOpen(false)} className="text-[#3d2314] font-medium py-2 border-b border-[#f0e8de] last:border-0">{l.label}</Link>
               ))}
-              <Link href="/cuenta" onClick={() => setMobileOpen(false)} className="text-[#3d2314] font-medium py-2">Mi Cuenta</Link>
+              {/* v1: /cuenta link hidden — restore when account feature ships */}
+              {/* <Link href="/cuenta" onClick={() => setMobileOpen(false)} className="text-[#3d2314] font-medium py-2">Mi Cuenta</Link> */}
               <Link href="/rastrear-pedido" onClick={() => setMobileOpen(false)} className="text-[#3d2314] font-medium py-2">Rastrear Pedido</Link>
             </nav>
           </motion.div>

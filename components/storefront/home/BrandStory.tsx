@@ -1,15 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
-import Link from "next/link";
 import Image from "next/image";
 import { fadeUp } from "@/lib/animation";
 
 
 export default function BrandStory() {
   return (
-    <section className="py-24 bg-[#1a0f08]">
+    <section id="nuestra-historia" className="py-24 bg-[#1a0f08]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <motion.div
@@ -26,22 +24,16 @@ export default function BrandStory() {
               <br />a tu taza
             </h2>
             <p className="text-white/60 leading-relaxed mb-6 text-base">
-              Sierra Nativa nació de una idea simple: llevar el café excepcional
-              del Huila y Nariño directamente a quienes lo aprecian. Sin
-              intermediarios innecesarios, con trazabilidad completa y respeto
-              por el productor.
+              Café Nayoli nace en un solo lugar: la Finca Nayoli, en la vereda Providencia de Supatá, Cundinamarca. 
+              Cada grano viene de esta tierra, cultivado entre los 1.650 y 2.100 metros sobre el nivel del mar, 
+              donde la altura y el clima de la montaña colombiana dan al café su carácter.
             </p>
             <p className="text-white/60 leading-relaxed mb-8 text-base">
-              Cada bolsa que recibís lleva consigo la historia de una finca
-              específica, el nombre de la familia cultivadora y las notas de
-              cata de nuestro equipo.
+              Trabajamos una sola variedad, Castillo, con proceso lavado — el método que mejor revela lo que esta tierra tiene para ofrecer. 
+              El resultado es una taza con fragancia a chocolate, aroma herbal e intenso, y un balance preciso entre acidez y cuerpo. 
+              El equilibrio que buscamos en cada tostión. Somos café de especialidad, 100% colombiano, de una finca con nombre y una historia que apenas comienza a contarse. 
+              Cuando abres una bolsa de Nayoli, sabes exactamente de dónde viene — y ese, para nosotros, es el verdadero secreto de Supatá.
             </p>
-            <Link
-              href="/tienda/nosotros"
-              className="inline-flex items-center gap-2 text-[#d4a97a] text-sm font-medium hover:gap-3 transition-all"
-            >
-              Conoce nuestra historia <ArrowRight className="w-4 h-4" />
-            </Link>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}

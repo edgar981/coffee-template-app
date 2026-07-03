@@ -5,8 +5,8 @@ import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "Coffee Admin",
-  description: "Admin dashboard",
+  title: "Café Nayoli",
+  description: "Café de especialidad de origen",
 };
 
 export default function RootLayout({

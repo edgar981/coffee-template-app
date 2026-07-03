@@ -7,7 +7,8 @@ import BrandStory from "@/components/storefront/home/BrandStory";
 import CategoriesSection from "@/components/storefront/home/CategoriesSection";
 import SubscriptionCTA from "@/components/storefront/home/SubscriptionCTA";
 import TestimonialSection from "@/components/storefront/home/TestimonialSection";
-import Newsletter from "@/components/storefront/home/Newsletter";
+// v1: Newsletter hidden — restore import when the newsletter feature ships
+// import Newsletter from "@/components/storefront/home/Newsletter";
 
 export default function Home() {
   return (
@@ -19,7 +20,8 @@ export default function Home() {
       <CategoriesSection />
       <SubscriptionCTA />
       <TestimonialSection />
-      <Newsletter />
+      {/* v1: Newsletter hidden — restore when the newsletter feature ships */}
+      {/* <Newsletter /> */}
     </>
   );
 }

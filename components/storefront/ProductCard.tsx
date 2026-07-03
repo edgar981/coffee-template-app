@@ -17,10 +17,17 @@ import { formatCOP } from "@/lib/utils";
 
 interface ProductCardProps {
   product: Product;
+  /**
+   * Responsive rendered width of the card image, matching the parent grid's
+   * columns per breakpoint. Defaults to the standard product-grid shape
+   * (2 / 3 / 4 columns). Override when the grid differs.
+   */
+  sizes?: string;
 }
 
 export default function ProductCard({
   product,
+  sizes = "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw",
 }: ProductCardProps) {
   const { addItem } = useCartStore();
 
@@ -54,6 +61,7 @@ export default function ProductCard({
             src={product.imagen}
             alt={product.nombre}
             fill
+            sizes={sizes}
             className="object-cover transition-transform duration-500 group-hover:scale-105"
           />
 

@@ -26,7 +26,7 @@ export default function FeaturedProducts() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {featured.map((p, i) => (
               <motion.div key={p.id} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} transition={{ delay: i * 0.08 }}>
-                <ProductCard product={p} />
+                <ProductCard product={p} sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw" />
               </motion.div>
             ))}
           </div>

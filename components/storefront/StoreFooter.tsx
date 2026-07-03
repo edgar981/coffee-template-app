@@ -84,7 +84,7 @@ export default function StoreFooter() {
               <Coffee className="h-5 w-5 text-[#d4a97a]" />
 
               <span className="font-playfair text-xl font-medium">
-                Sierra Nativa
+                Café Nayoli
               </span>
             </div>
 
@@ -194,7 +194,7 @@ export default function StoreFooter() {
       <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-4 text-xs text-white/30 sm:flex-row sm:px-6 lg:px-8">
           <p>
-            © 2026 Sierra Nativa Coffee.
+            © 2026 Café Nayoli.
             Todos los derechos reservados.
           </p>
 

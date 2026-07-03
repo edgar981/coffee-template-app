@@ -19,7 +19,7 @@ export default function HeroSection() {
       <div className="absolute inset-0">
         <Image
           src="/images/hero-image.jpeg"
-          alt="Sierra Nativa Coffee"
+          alt="Café Nayoli"
           fill
           priority
           sizes="100vw"

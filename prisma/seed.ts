@@ -12,7 +12,7 @@ import { AUTOMATION_TEMPLATES } from "@/lib/mock/automations";
 async function main() {
   const email = process.env.ADMIN_EMAIL ?? "admin@sierranativa.co";
   const password = process.env.ADMIN_PASSWORD ?? "ChangeMe123!";
-  const name = process.env.ADMIN_NAME ?? "Admin Sierra Nativa";
+  const name = process.env.ADMIN_NAME ?? "Administrador";
 
   // Create (or reuse) user
   try {

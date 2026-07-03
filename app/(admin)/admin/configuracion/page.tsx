@@ -107,7 +107,7 @@ export default function Configuracion() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Configuración</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Personaliza y administra tu plataforma Sierra Nativa
+          Personaliza y administra tu plataforma Café Nayoli
         </p>
       </div>
 

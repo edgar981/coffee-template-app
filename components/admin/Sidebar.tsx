@@ -63,8 +63,8 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 transition={{ duration: 0.15 }}
                 className="ml-3 overflow-hidden"
               >
-                <p className="text-sm font-semibold text-sidebar-foreground font-inter leading-tight whitespace-nowrap">Sierra Nativa</p>
-                <p className="text-xs text-sidebar-foreground/50 whitespace-nowrap">Coffee Co.</p>
+                <p className="text-sm font-semibold text-sidebar-foreground font-inter leading-tight whitespace-nowrap">Café Nayoli</p>
+                <p className="text-xs text-sidebar-foreground/50 whitespace-nowrap">Origen</p>
               </motion.div>
             )}
           </AnimatePresence>
