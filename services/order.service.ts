@@ -1,19 +1,16 @@
 import { MOCK_ORDERS, MOCK_ADMIN_ORDERS } from "@/lib/mock/orders";
-import { Order, OrderStatus } from "@/types/order";
+import { Order, OrderStatus, TrackedOrder } from "@/types/order";
+import { trackOrder } from "@/lib/api/orders";
 
+// Public order tracking. Routes through the same /lib/api layer the admin panel
+// uses (no direct DB access here). Requires order number + customer email;
+// returns null ("not found") if either is missing or they don't match.
 export async function getOrderByNumber(
-  numeroOrden: string
-) {
-  await new Promise((resolve) =>
-    setTimeout(resolve, 700)
-  );
-
-  return (
-    MOCK_ORDERS.find(
-      (order) =>
-        order.numero_orden === numeroOrden
-    ) || null
-  );
+  numeroOrden: string,
+  email: string,
+): Promise<TrackedOrder | null> {
+  if (!numeroOrden.trim() || !email.trim()) return null;
+  return trackOrder(numeroOrden.trim(), email.trim());
 }
 
 export async function getOrdersByUser() {

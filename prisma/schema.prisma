@@ -129,6 +129,7 @@ model Order {
   id                 String      @id @default(cuid())
   numero_orden       String      @unique
   cliente_nombre     String?
+  cliente_email      String?
   cliente_telefono   String?
   canal              String      @default("directo")
   estado             String      @default("pendiente")

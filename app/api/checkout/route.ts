@@ -138,6 +138,7 @@ export async function POST(req: NextRequest) {
           data: {
             numero_orden,
             cliente_nombre,
+            cliente_email:     customer.email,
             cliente_telefono:  customer.telefono,
             canal:             'directo',
             // estado left to the schema default ("pendiente").

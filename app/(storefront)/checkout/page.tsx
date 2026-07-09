@@ -115,7 +115,7 @@ export default function Checkout() {
               </div>
             </div>
             <div className="flex flex-col gap-3">
-              <Link href={`/rastrear-pedido?orden=${confirmation.numero_orden}`} className="block w-full bg-[#1a0f08] text-white font-semibold py-3.5 rounded-xl text-sm hover:bg-[#2d1a0e] transition-colors">Rastrear mi pedido</Link>
+              <Link href={`/rastrear-pedido?orden=${encodeURIComponent(confirmation.numero_orden)}&email=${encodeURIComponent(info.email)}`} className="block w-full bg-[#1a0f08] text-white font-semibold py-3.5 rounded-xl text-sm hover:bg-[#2d1a0e] transition-colors">Rastrear mi pedido</Link>
               <Link href="/tienda" className="block w-full border border-[#e8ddd0] text-[#5a3a28] font-medium py-3.5 rounded-xl text-sm hover:bg-[#f0e8de] transition-colors">Seguir comprando</Link>
             </div>
           </motion.div>
