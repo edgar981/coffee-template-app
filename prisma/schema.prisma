@@ -122,6 +122,7 @@ model Product {
   agotado      Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  orderItems   OrderItem[]
 }
 
 model Order {
@@ -139,17 +140,21 @@ model Order {
   notas_internas     String?
   notas_entrega      String?
   items              OrderItem[]
+  payments           Payment[]
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 }
 
 model OrderItem {
-  id               String  @id @default(cuid())
+  id               String   @id @default(cuid())
   orden_id         String
+  producto_id      String?
   producto_nombre  String
   cantidad         Int
+  precio_unitario  Float?
   subtotal         Float
-  order            Order   @relation(fields: [orden_id], references: [id], onDelete: Cascade)
+  order            Order    @relation(fields: [orden_id], references: [id], onDelete: Cascade)
+  product          Product? @relation(fields: [producto_id], references: [id])
 }
 
 model InventoryLog {
@@ -166,6 +171,7 @@ model InventoryLog {
 
 model Payment {
   id              String   @id @default(cuid())
+  orden_id        String?
   cliente_nombre  String?
   monto           Float
   metodo          String   @default("transferencia")
@@ -175,6 +181,7 @@ model Payment {
   fecha_pago      String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  order           Order?   @relation(fields: [orden_id], references: [id], onDelete: SetNull)
 }
 
 model Shipping {

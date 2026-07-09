@@ -1,12 +1,13 @@
 "use client";
 import { useState } from 'react';
 import Link from "next/link";
-import { ArrowLeft, Shield, Lock, CreditCard, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Shield, Lock, CreditCard, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore } from '@/lib/cartStore';
-import { createOrder } from "@/services/checkout.service";
+import { createOrder, type CheckoutResult } from "@/services/checkout.service";
 import { formatCOP } from '@/lib/utils';
 import { toast } from 'sonner';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 const STEPS = ['Información', 'Pago'];
 
@@ -14,7 +15,9 @@ export default function Checkout() {
   const { items, subtotal, clearCart } = useCartStore();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [orderNumber, setOrderNumber] = useState<string | null>(null);
+  // Authoritative, server-persisted order — sourced entirely from the
+  // create-order response, never from the (soon-to-be-cleared) cart store.
+  const [confirmation, setConfirmation] = useState<CheckoutResult | null>(null);
 
   const [info, setInfo] = useState({ nombre: '', apellido: '', email: '', telefono: '' });
   const [address, setAddress] = useState({ linea1: '', ciudad: 'Bogotá', departamento: 'Cundinamarca', cp: '' });
@@ -39,64 +42,80 @@ export default function Checkout() {
 
   const handleOrder = async () => {
     setLoading(true);
-    const n = `SN-${Math.floor(1000 + Math.random() * 9000)}`;
     try {
-      await createOrder({
-  numero_orden: n,
-
-  cliente_nombre:
-    `${info.nombre} ${info.apellido}`.trim(),
-
-  cliente_telefono: info.telefono,
-
-  estado: "pendiente",
-
-  items: items.map((i) => ({
-    producto_nombre: i.nombre,
-    cantidad: i.quantity,
-    precio_unitario: i.precio,
-    subtotal: i.precio * i.quantity,
-  })),
-
-  subtotal,
-
-  costo_envio: shippingCost,
-
-  total,
-
-  metodo_pago: payment,
-
-  direccion_entrega: address.linea1,
-
-  ciudad_entrega: address.ciudad,
-
-  email: info.email,
-});
-      setOrderNumber(n);
+      // Trust only slugs + quantities and customer/shipping details. The server
+      // recomputes every price, the shipping cost, the total and the order
+      // number, and returns the authoritative order number to display.
+      const result = await createOrder({
+        customer: {
+          nombre:   info.nombre,
+          apellido: info.apellido,
+          email:    info.email,
+          telefono: info.telefono,
+        },
+        shipping: {
+          direccion: address.linea1,
+          ciudad:    address.ciudad,
+          metodo:    shipping as 'standard' | 'express',
+        },
+        payment: {
+          metodo:     payment as 'nequi' | 'daviplata' | 'transferencia' | 'efectivo',
+          referencia: refTransfer.trim() || undefined,
+        },
+        items: items.map((i) => ({
+          slug:     i.slug,
+          cantidad: i.quantity,
+        })),
+      });
+      // Capture the server response before emptying the cart.
+      setConfirmation(result);
       clearCart();
     } catch (e) {
-      toast.error('Error al procesar la orden');
+      toast.error(e instanceof Error ? e.message : 'Error al procesar la orden');
     }
     setLoading(false);
   };
 
-  if (orderNumber) {
+  if (confirmation) {
     return (
         <div className="min-h-[80vh] flex items-center justify-center pt-16 px-4">
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full text-center">
-            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle className="w-10 h-10 text-emerald-600" />
+            <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Clock className="w-10 h-10 text-amber-600" />
             </div>
-            <h1 className="text-3xl font-playfair text-[#1a0f08] mb-2">¡Pedido confirmado!</h1>
-            <p className="text-[#5a3a28] mb-2">Gracias por tu compra, {info.nombre}.</p>
-            <p className="text-sm text-[#8B6650] mb-6">Nos pondremos en contacto via WhatsApp para confirmar el pago.</p>
-            <div className="bg-[#f0e8de] rounded-2xl p-5 mb-6">
-              <p className="text-xs text-[#8B6650] mb-1">Número de orden</p>
-              <p className="text-2xl font-bold text-[#8B4513]">{orderNumber}</p>
-              <p className="text-sm text-[#5a3a28] mt-2">Total: <strong>{formatCOP(total)}</strong></p>
+            <h1 className="text-3xl font-playfair text-[#1a0f08] mb-2">¡Pedido recibido!</h1>
+            <p className="text-[#5a3a28] mb-2">Gracias, {info.nombre}. Recibimos tu pedido.</p>
+            <p className="text-sm text-[#8B6650] mb-4">Tu pedido está reservado. Confirmaremos el pago por WhatsApp y luego preparamos tu envío.</p>
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <span className="text-xs text-[#8B6650]">Estado:</span>
+              <StatusBadge status={confirmation.estado} theme="light" />
+            </div>
+            <div className="bg-[#f0e8de] rounded-2xl p-5 mb-6 text-left">
+              <p className="text-xs text-[#8B6650] mb-1 text-center">Número de orden</p>
+              <p className="text-2xl font-bold text-[#8B4513] mb-4 text-center">{confirmation.numero_orden}</p>
+              <div className="space-y-2 pt-3 border-t border-[#e8ddd0]">
+                {confirmation.items.map((item, i) => (
+                  <div key={i} className="flex justify-between text-xs text-[#5a3a28]">
+                    <span className="min-w-0 truncate pr-2">{item.producto_nombre} × {item.cantidad}</span>
+                    <span className="shrink-0 font-medium">{formatCOP(item.subtotal)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-2 pt-3 mt-3 border-t border-[#e8ddd0] text-sm">
+                <div className="flex justify-between text-[#5a3a28]">
+                  <span>Subtotal</span><span>{formatCOP(confirmation.subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-[#5a3a28]">
+                  <span>Envío</span>
+                  <span className={confirmation.costo_envio === 0 ? 'text-emerald-600' : ''}>{confirmation.costo_envio === 0 ? 'Gratis' : formatCOP(confirmation.costo_envio)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-[#1a0f08] text-base pt-1 border-t border-[#e8ddd0]">
+                  <span>Total</span><span>{formatCOP(confirmation.total)}</span>
+                </div>
+              </div>
             </div>
             <div className="flex flex-col gap-3">
-              <Link href={`/rastrear-pedido?orden=${orderNumber}`} className="block w-full bg-[#1a0f08] text-white font-semibold py-3.5 rounded-xl text-sm hover:bg-[#2d1a0e] transition-colors">Rastrear mi pedido</Link>
+              <Link href={`/rastrear-pedido?orden=${confirmation.numero_orden}`} className="block w-full bg-[#1a0f08] text-white font-semibold py-3.5 rounded-xl text-sm hover:bg-[#2d1a0e] transition-colors">Rastrear mi pedido</Link>
               <Link href="/tienda" className="block w-full border border-[#e8ddd0] text-[#5a3a28] font-medium py-3.5 rounded-xl text-sm hover:bg-[#f0e8de] transition-colors">Seguir comprando</Link>
             </div>
           </motion.div>
