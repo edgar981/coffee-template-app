@@ -256,6 +256,7 @@ export default function AccountPage() {
                         <div className="flex items-center gap-3">
                           <StatusBadge
                             status={order.estado}
+                            theme="light"
                           />
 
                           <p className="text-sm font-bold text-[#1a0f08]">

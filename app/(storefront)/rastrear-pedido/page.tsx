@@ -111,7 +111,7 @@ export default function OrderTracking() {
                     <p className="text-xs text-[#8B6650] mb-1">Número de orden</p>
                     <p className="text-2xl font-bold text-[#8B4513]">{order.numero_orden}</p>
                   </div>
-                  <StatusBadge status={order.estado} />
+                  <StatusBadge status={order.estado} theme="light" />
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>

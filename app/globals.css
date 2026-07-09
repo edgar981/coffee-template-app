@@ -1,6 +1,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
+/* Bind Tailwind's `dark:` variant to the `.dark` class (toggled by next-themes)
+   instead of the default `prefers-color-scheme` media query. Without this the
+   CSS-variable colors switch by class while `dark:*` utilities switch by OS
+   preference — so admin "light mode" on a dark-OS machine wrongly rendered the
+   dark badge styles (bright text on a translucent fill) over a light page. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ============================================
    THEME CONFIGURATION (replaces tailwind.config.js)
    ============================================ */
