@@ -26,17 +26,19 @@ interface TimelineStep {
 
 const TIMELINE: TimelineStep[] = [
   { estado: 'pendiente', label: 'Pedido recibido', desc: 'Tu orden ha sido registrada en nuestro sistema.', icon: Package },
-  { estado: 'confirmado', label: 'Pedido confirmado', desc: 'Hemos confirmado tu pago y preparamos tu café.', icon: CheckCircle },
+  { estado: 'pagado', label: 'Pago confirmado', desc: 'Hemos confirmado tu pago y preparamos tu café.', icon: CheckCircle },
   { estado: 'preparando', label: 'Preparando', desc: 'Tu pedido está siendo empacado con mucho cariño.', icon: Coffee },
   { estado: 'enviado', label: 'Enviado', desc: 'Tu pedido está en camino. ¡Pronto llegará!', icon: Truck },
   { estado: 'entregado', label: 'Entregado', desc: 'Pedido entregado. ¡Disfruta tu café!', icon: CheckCircle },
 ];
 
 // Keyed on the exact lowercase-Spanish strings the DB stores in Order.estado.
-// `pagado` maps onto the "confirmado" step (payment confirmed). `cancelado` is
+// `pagado` is the merged "payment confirmed = order confirmed" step. `confirmado`
+// is kept as a defensive legacy alias so any un-migrated legacy row still lands
+// on the right step instead of falling through to step 0. `cancelado` is
 // intentionally absent — it is handled separately and must NOT fall through to
 // the linear timeline.
-const ORDER_IDX: Record<string, number> = { pendiente: 0, confirmado: 1, pagado: 1, preparando: 2, enviado: 3, entregado: 4 };
+const ORDER_IDX: Record<string, number> = { pendiente: 0, pagado: 1, confirmado: 1, preparando: 2, enviado: 3, entregado: 4 };
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });

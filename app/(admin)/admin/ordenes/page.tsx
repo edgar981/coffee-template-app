@@ -18,7 +18,7 @@ import { findSlotLabel } from '@/lib/shipping-config';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ESTADOS: OrderStatus[] = [
-  'pendiente', 'confirmado', 'pagado', 'preparando', 'enviado', 'entregado', 'cancelado',
+  'pendiente', 'pagado', 'preparando', 'enviado', 'entregado', 'cancelado',
 ];
 
 const CANALES: OrderChannel[] = ['whatsapp', 'instagram', 'directo', 'referido'];
@@ -28,7 +28,7 @@ const METODOS_PAGO: PaymentMethod[] = [
 ];
 
 const TIMELINE_ESTADOS: OrderStatus[] = [
-  'pendiente', 'confirmado', 'pagado', 'preparando', 'enviado', 'entregado',
+  'pendiente', 'pagado', 'preparando', 'enviado', 'entregado',
 ];
 
 const EMPTY_FORM: OrderForm = {

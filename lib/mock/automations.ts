@@ -9,7 +9,7 @@ export const AUTOMATION_TEMPLATES: Automation[] = [
     descripcion: 'Envía un mensaje automático al cliente cuando se confirma su orden.',
     icon: Bell, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     canal: 'whatsapp',
-    condicion: 'Cuando una orden cambia a estado "confirmado"',
+    condicion: 'Cuando una orden cambia a estado "pagado"',
     activa: false,
     ultima_ejecucion: '2024-06-15T10:30:00Z',
     veces_ejecutada: 12,

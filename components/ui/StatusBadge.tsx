@@ -19,7 +19,7 @@ interface StatusBadgeProps {
 const statusConfig = {
   // Órdenes
   pendiente:        { label: 'Pendiente',   light: 'bg-amber-100 text-amber-800',   dark: 'dark:bg-amber-900/30 dark:text-amber-400' },
-  confirmado:       { label: 'Confirmado',  light: 'bg-blue-100 text-blue-800',     dark: 'dark:bg-blue-900/30 dark:text-blue-400' },
+  // Confirmado merged into Pagado (payment confirmed = order confirmed).
   pagado:           { label: 'Pagado',      light: 'bg-emerald-100 text-emerald-800', dark: 'dark:bg-emerald-900/30 dark:text-emerald-400' },
   preparando:       { label: 'Preparando',  light: 'bg-violet-100 text-violet-800',  dark: 'dark:bg-violet-900/30 dark:text-violet-400' },
   enviado:          { label: 'Enviado',     light: 'bg-sky-100 text-sky-800',        dark: 'dark:bg-sky-900/30 dark:text-sky-400' },

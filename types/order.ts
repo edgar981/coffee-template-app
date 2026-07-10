@@ -1,8 +1,9 @@
 import { PaymentMethod, PaymentStatus } from "./payment";
 
+// Confirmado and Pagado were merged: in the manual-payment flow, payment
+// confirmed = order confirmed. `pagado` is the surviving status.
 export type OrderStatus =
   | "pendiente"
-  | "confirmado"
   | "pagado"
   | "preparando"
   | "enviado"
