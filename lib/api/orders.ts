@@ -1,8 +1,26 @@
-import type { Order, OrderStatus } from '@/types/order';
+import type { Order, OrderStatus, TrackedOrder } from '@/types/order';
 
 export async function getOrders(): Promise<Order[]> {
   const res = await fetch('/api/orders');
   if (!res.ok) throw new Error('Error al cargar órdenes');
+  return res.json();
+}
+
+// Public order tracking: requires order number + customer email. Any failure
+// (missing/mismatched email, unknown order) resolves to `null` ("not found")
+// without revealing which field was wrong. POST keeps the email out of URLs
+// and server access logs.
+export async function trackOrder(
+  numero: string,
+  email: string,
+): Promise<TrackedOrder | null> {
+  const res = await fetch('/api/orders/track', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ numero, email }),
+  });
+  if (res.status === 429) throw new Error('Demasiadas solicitudes. Intenta de nuevo en un momento.');
+  if (!res.ok) return null;
   return res.json();
 }
 

@@ -129,6 +129,7 @@ model Order {
   id                 String      @id @default(cuid())
   numero_orden       String      @unique
   cliente_nombre     String?
+  cliente_email      String?
   cliente_telefono   String?
   canal              String      @default("directo")
   estado             String      @default("pendiente")
@@ -139,6 +140,7 @@ model Order {
   ciudad_entrega     String?
   notas_internas     String?
   notas_entrega      String?
+  deliverySlot       String?
   items              OrderItem[]
   payments           Payment[]
   createdAt          DateTime    @default(now())
