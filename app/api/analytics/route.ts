@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
+import { CATEGORIAS } from '@/constants/product';
+import type { ProductCategory } from '@/types/product';
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -12,7 +14,7 @@ export async function GET() {
 
   // ── All data needed in one query batch ──────────────────────────────────────
 
-  const [orders, customers, products] = await Promise.all([
+  const [orders, customers, products, orderItems, allProducts] = await Promise.all([
     prisma.order.findMany({
       where:   { createdAt: { gte: yearStart } },
       select:  { total: true, canal: true, estado: true, createdAt: true },
@@ -25,6 +27,14 @@ export async function GET() {
       where:  { activo: true },
       select: { costo: true, precio: true, stock: true },
     }),
+    // Line items for non-cancelled orders this year, for the sales-by-category
+    // breakdown. `producto_id` may be null on older/imported items, so we also
+    // keep the name to resolve the category by fallback below.
+    prisma.orderItem.findMany({
+      where:  { order: { createdAt: { gte: yearStart }, estado: { not: 'cancelado' } } },
+      select: { subtotal: true, producto_nombre: true, product: { select: { categoria: true } } },
+    }),
+    prisma.product.findMany({ select: { nombre: true, categoria: true } }),
   ]);
 
   // ── KPIs ───────────────────────────────────────────────────────────────────
@@ -78,6 +88,30 @@ export async function GET() {
     }))
     .sort((a, b) => b.value - a.value);
 
+  // ── Sales by product category ──────────────────────────────────────────────
+  // Resolve each line item's category via its product relation, falling back to
+  // a name match for items with no `producto_id`. Values are % of attributable
+  // sales.
+
+  const nameToCategoria = new Map(allProducts.map(p => [p.nombre, p.categoria]));
+
+  const categoriaSales = orderItems.reduce<Record<string, number>>((acc, it) => {
+    const categoria = it.product?.categoria ?? nameToCategoria.get(it.producto_nombre);
+    if (!categoria) return acc;
+    acc[categoria] = (acc[categoria] ?? 0) + it.subtotal;
+    return acc;
+  }, {});
+
+  const totalCategoriaSales =
+    Object.values(categoriaSales).reduce((sum, v) => sum + v, 0) || 1;
+
+  const categoryData = Object.entries(categoriaSales)
+    .map(([categoria, sales]) => ({
+      name:  CATEGORIAS[categoria as ProductCategory] ?? categoria,
+      value: Math.round((sales / totalCategoriaSales) * 100),
+    }))
+    .sort((a, b) => b.value - a.value);
+
   // ── Orders by day of week ──────────────────────────────────────────────────
 
   const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
@@ -103,6 +137,7 @@ export async function GET() {
     },
     salesByMonth,
     canalData,
+    categoryData,
     weekData,
   });
 }

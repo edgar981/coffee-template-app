@@ -29,5 +29,6 @@ export interface AnalyticsData {
   kpis:         AnalyticsKpis;
   salesByMonth: SalesByMonth[];
   canalData:    CanalData[];
+  categoryData: CanalData[];
   weekData:     WeekData[];
 }
