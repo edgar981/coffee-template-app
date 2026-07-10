@@ -137,6 +137,7 @@ model Order {
   total              Float       @default(0)
   costo_envio        Float       @default(0)
   direccion_entrega  String?
+  direccion_detalle  String?
   ciudad_entrega     String?
   notas_internas     String?
   notas_entrega      String?

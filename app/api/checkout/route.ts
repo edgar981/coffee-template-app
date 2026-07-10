@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { fireOrderTrigger } from '@/lib/automations/triggers';
 import { getShippingSlot, computeShippingCost } from '@/lib/shipping-config';
+import { COLOMBIA_DEPARTMENTS, isBogotaDC } from '@/lib/colombia-departments';
 
 // Guest checkout is intentionally unauthenticated — no Better Auth session.
 // The client is trusted ONLY for product slugs, quantities and customer /
@@ -14,13 +15,15 @@ const checkoutSchema = z.object({
     nombre:   z.string().trim().min(1),
     apellido: z.string().trim().default(''),
     email:    z.string().trim().email(),
-    telefono: z.string().trim().min(1),
+    // Normalized WhatsApp-ready format from the client: +57 + 10-digit mobile.
+    telefono: z.string().trim().regex(/^\+573\d{9}$/, 'Teléfono inválido'),
   }),
   shipping: z.object({
-    direccion: z.string().trim().min(1),
-    ciudad:    z.string().trim().min(1),
-    metodo:    z.enum(['bogota', 'nacional']),
-    franja:    z.string().trim().min(1).nullish(),
+    direccion:         z.string().trim().min(1),
+    direccion_detalle: z.string().trim().max(500).nullish(),
+    ciudad:            z.string().trim().min(1),
+    departamento:      z.string().trim().min(1),
+    franja:            z.string().trim().min(1).nullish(),
   }),
   payment: z.object({
     metodo:     z.enum(['nequi', 'daviplata', 'transferencia', 'efectivo']),
@@ -68,24 +71,33 @@ export async function POST(req: NextRequest) {
 
   const { customer, shipping, payment, items } = parsed.data;
 
-  // Business rule: "Contra entrega" (efectivo) is only valid for Bogotá
+  // Departamento is the single source of truth for Bogotá detection — validated
+  // against the canonical list, never free-text ciudad and never a client method.
+  if (!COLOMBIA_DEPARTMENTS.includes(shipping.departamento)) {
+    return NextResponse.json({ error: 'Departamento inválido' }, { status: 400 });
+  }
+
+  // Derive the shipping tier from departamento. The client cannot select this.
+  const metodoEnvio: 'bogota' | 'nacional' =
+    isBogotaDC(shipping.departamento) ? 'bogota' : 'nacional';
+
+  // Business rule: "Contra entrega" (efectivo) is only valid for Bogotá D.C.
   // deliveries. Client-side hiding is UX; the server is the enforcement point.
-  if (payment.metodo === 'efectivo' && shipping.metodo !== 'bogota') {
+  if (payment.metodo === 'efectivo' && metodoEnvio !== 'bogota') {
     return NextResponse.json(
-      { error: 'El pago contra entrega solo está disponible para entregas en Bogotá' },
+      { error: 'El pago contra entrega solo está disponible para entregas en Bogotá D.C.' },
       { status: 400 },
     );
   }
 
-  // Bogotá deliveries must carry a valid time slot (franja); national orders
-  // never do. Resolve the slot against shipping-config, not a client label.
+  // Bogotá deliveries carry a franja preference; validate it against config.
   const slot =
-    shipping.metodo === 'bogota'
-      ? getShippingSlot(shipping.metodo, shipping.franja)
+    metodoEnvio === 'bogota'
+      ? getShippingSlot('bogota', shipping.franja)
       : undefined;
-  if (shipping.metodo === 'bogota' && !slot) {
+  if (metodoEnvio === 'bogota' && !slot) {
     return NextResponse.json(
-      { error: 'Selecciona una franja horaria válida para tu entrega en Bogotá' },
+      { error: 'Selecciona una franja horaria válida para tu entrega en Bogotá D.C.' },
       { status: 400 },
     );
   }
@@ -120,9 +132,9 @@ export async function POST(req: NextRequest) {
   });
 
   const orderSubtotal = lines.reduce((sum, l) => sum + l.subtotal, 0);
-  // Never trust the client-sent price: recompute from shipping-config by
-  // methodId, applying the shared free-shipping threshold.
-  const costo_envio = computeShippingCost(shipping.metodo, orderSubtotal);
+  // Never trust the client: recompute from the server-derived method, applying
+  // the shared free-shipping threshold.
+  const costo_envio = computeShippingCost(metodoEnvio, orderSubtotal);
   const total = orderSubtotal + costo_envio;
 
   const cliente_nombre = `${customer.nombre} ${customer.apellido}`.trim();
@@ -163,6 +175,7 @@ export async function POST(req: NextRequest) {
             total,
             costo_envio,
             direccion_entrega: shipping.direccion,
+            direccion_detalle: shipping.direccion_detalle ?? null,
             ciudad_entrega:    shipping.ciudad,
             // Persist the slot id ("am"/"pm"); the label is resolved at render.
             deliverySlot:      slot?.id ?? null,
@@ -207,8 +220,9 @@ export async function POST(req: NextRequest) {
       subtotal:     orderSubtotal,
       costo_envio,
       total,
-      metodo_envio: shipping.metodo,
+      metodo_envio: metodoEnvio,
       franja:       slot?.id ?? null,
+      direccion_detalle: shipping.direccion_detalle ?? null,
       items: lines.map((l) => ({
         producto_nombre: l.producto_nombre,
         cantidad:        l.cantidad,

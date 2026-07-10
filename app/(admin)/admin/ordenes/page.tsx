@@ -362,6 +362,9 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
           <InfoRow label="Dirección" value={order.direccion_entrega ?? '—'} />
         </div>
         <div className="col-span-2">
+          <InfoRow label="Detalles adicionales" value={order.direccion_detalle ?? '—'} />
+        </div>
+        <div className="col-span-2">
           <InfoRow label="Franja de entrega" value={findSlotLabel(order.deliverySlot) ?? '—'} />
         </div>
       </div>

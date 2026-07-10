@@ -24,7 +24,7 @@ export const SHIPPING_METHODS: ShippingMethod[] = [
     id: 'bogota',
     label: 'Entrega en Bogotá',
     price: 8000,
-    description: 'Entrega el mismo día o siguiente, en franja horaria',
+    description: 'Coordinamos la entrega contigo por WhatsApp (1–2 días hábiles)',
     slots: [
       { id: 'am', label: 'Mañana (8:00 – 12:00)' },
       { id: 'pm', label: 'Tarde (2:00 – 6:00)' },

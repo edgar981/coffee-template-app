@@ -31,6 +31,7 @@ export interface Order {
   metodo_pago?: PaymentMethod;
   total: number;
   direccion_entrega?: string;
+  direccion_detalle?: string | null;
   ciudad_entrega?: string;
   costo_envio: number;
   notas_internas?:   string;

@@ -7,9 +7,10 @@ export interface CheckoutPayload {
   };
   shipping: {
     direccion: string;
+    direccion_detalle?: string | null;   // "Apto, torre, interior…" optional
     ciudad: string;
-    metodo: 'bogota' | 'nacional';
-    franja?: string | null;   // slot id ("am"/"pm"); only for Bogotá
+    departamento: string;                // drives Bogotá detection server-side
+    franja?: string | null;              // slot id ("am"/"pm"); Bogotá only
   };
   payment: {
     metodo: 'nequi' | 'daviplata' | 'transferencia' | 'efectivo';
@@ -36,6 +37,7 @@ export interface CheckoutResult {
   total: number;
   metodo_envio?: string;      // shipping method id, resolved to a label at render
   franja?: string | null;     // slot id ("am"/"pm"), resolved to a label at render
+  direccion_detalle?: string | null;
   items: CheckoutResultItem[];
 }
 
