@@ -8,6 +8,13 @@ import { createOrder, type CheckoutResult } from "@/services/checkout.service";
 import { formatCOP } from '@/lib/utils';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
+import {
+  SHIPPING_METHODS,
+  computeShippingCost,
+  getShippingMethod,
+  findSlotLabel,
+  type ShippingMethodId,
+} from '@/lib/shipping-config';
 
 const STEPS = ['Información', 'Pago'];
 
@@ -21,17 +28,13 @@ export default function Checkout() {
 
   const [info, setInfo] = useState({ nombre: '', apellido: '', email: '', telefono: '' });
   const [address, setAddress] = useState({ linea1: '', ciudad: 'Bogotá', departamento: 'Cundinamarca', cp: '' });
-  const [shipping, setShipping] = useState('standard');
+  const [shipping, setShipping] = useState<ShippingMethodId>('bogota');
+  const [slot, setSlot] = useState<string | null>(null);
   const [payment, setPayment] = useState('nequi');
   const [refTransfer, setRefTransfer] = useState('');
 
-  const shippingCost = subtotal > 150000 ? 0 : shipping === 'express' ? 18000 : 8000;
+  const shippingCost = computeShippingCost(shipping, subtotal);
   const total = subtotal + shippingCost;
-
-  const shippingOptions = [
-    { id: 'standard', label: 'Estándar (3–5 días)', price: subtotal > 150000 ? 0 : 8000 },
-    { id: 'express', label: 'Express (1–2 días)', price: 18000 },
-  ];
 
   const paymentOptions = [
     { id: 'nequi', label: 'Nequi', desc: 'Enviar a 300 123 4567' },
@@ -39,6 +42,22 @@ export default function Checkout() {
     { id: 'transferencia', label: 'Transferencia Bancaria', desc: 'Bancolombia · Cta Ahorro · 123-456789-00' },
     { id: 'efectivo', label: 'Contra entrega', desc: 'Solo disponible en Bogotá' },
   ];
+
+  // "Contra entrega" (efectivo) is only valid for Bogotá deliveries — hide it
+  // for national orders. Server enforces the same rule; this is UX only.
+  const availablePayments = paymentOptions.filter(
+    (o) => o.id !== 'efectivo' || shipping === 'bogota',
+  );
+
+  // Switching away from Bogotá clears the franja AND resets a contra-entrega
+  // choice, so the user can't carry an invalid combination into the Pago step.
+  const selectShipping = (id: ShippingMethodId) => {
+    setShipping(id);
+    if (id !== 'bogota') {
+      setSlot(null);
+      if (payment === 'efectivo') setPayment('nequi');
+    }
+  };
 
   const handleOrder = async () => {
     setLoading(true);
@@ -56,7 +75,8 @@ export default function Checkout() {
         shipping: {
           direccion: address.linea1,
           ciudad:    address.ciudad,
-          metodo:    shipping as 'standard' | 'express',
+          metodo:    shipping,
+          franja:    slot,
         },
         payment: {
           metodo:     payment as 'nequi' | 'daviplata' | 'transferencia' | 'efectivo',
@@ -109,6 +129,15 @@ export default function Checkout() {
                   <span>Envío</span>
                   <span className={confirmation.costo_envio === 0 ? 'text-emerald-600' : ''}>{confirmation.costo_envio === 0 ? 'Gratis' : formatCOP(confirmation.costo_envio)}</span>
                 </div>
+                {confirmation.metodo_envio && (
+                  <div className="flex justify-between text-[#5a3a28]">
+                    <span>Entrega</span>
+                    <span className="text-right">
+                      {getShippingMethod(confirmation.metodo_envio)?.label ?? confirmation.metodo_envio}
+                      {findSlotLabel(confirmation.franja) ? ` · ${findSlotLabel(confirmation.franja)}` : ''}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between font-bold text-[#1a0f08] text-base pt-1 border-t border-[#e8ddd0]">
                   <span>Total</span><span>{formatCOP(confirmation.total)}</span>
                 </div>
@@ -183,19 +212,36 @@ export default function Checkout() {
                     </div>
                     <div className="space-y-3 mt-4">
                       <p className="text-sm font-semibold text-[#1a0f08]">Método de envío</p>
-                      {shippingOptions.map(opt => (
-                        <label key={opt.id} className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${shipping === opt.id ? 'border-[#8B4513] bg-[#8B4513]/5' : 'border-[#e8ddd0]'}`}>
-                          <div className="flex items-center gap-3">
-                            <input type="radio" name="shipping" value={opt.id} checked={shipping === opt.id} onChange={() => setShipping(opt.id)} className="accent-[#8B4513]" />
-                            <span className="text-sm font-medium text-[#1a0f08]">{opt.label}</span>
-                          </div>
-                          <span className="text-sm font-bold text-[#8B4513]">{opt.price === 0 ? 'Gratis' : formatCOP(opt.price)}</span>
-                        </label>
+                      {SHIPPING_METHODS.map(opt => (
+                        <div key={opt.id}>
+                          <label className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${shipping === opt.id ? 'border-[#8B4513] bg-[#8B4513]/5' : 'border-[#e8ddd0]'}`}>
+                            <div className="flex items-center gap-3">
+                              <input type="radio" name="shipping" value={opt.id} checked={shipping === opt.id} onChange={() => selectShipping(opt.id)} className="accent-[#8B4513] mt-0.5 self-start" />
+                              <div>
+                                <span className="block text-sm font-medium text-[#1a0f08]">{opt.label}</span>
+                                <span className="block text-xs text-[#8B6650]">{opt.description}</span>
+                              </div>
+                            </div>
+                            <span className="text-sm font-bold text-[#8B4513] shrink-0">{computeShippingCost(opt.id, subtotal) === 0 ? 'Gratis' : formatCOP(opt.price)}</span>
+                          </label>
+                          {/* Franja horaria — required only for entregas en Bogotá */}
+                          {opt.id === 'bogota' && shipping === 'bogota' && opt.slots && (
+                            <div className="mt-3 ml-4 pl-4 border-l-2 border-[#e8ddd0] space-y-2">
+                              <p className="text-xs font-semibold text-[#5a3a28]">Franja horaria *</p>
+                              {opt.slots.map(s => (
+                                <label key={s.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${slot === s.id ? 'border-[#8B4513] bg-[#8B4513]/5' : 'border-[#e8ddd0]'}`}>
+                                  <input type="radio" name="slot" value={s.id} checked={slot === s.id} onChange={() => setSlot(s.id)} className="accent-[#8B4513]" />
+                                  <span className="text-sm text-[#1a0f08]">{s.label}</span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                     <div className="flex gap-3 mt-2">
                       <button onClick={() => setStep(0)} className="flex-1 border border-[#e8ddd0] text-[#5a3a28] font-medium py-3.5 rounded-xl text-sm hover:bg-[#f0e8de]">Atrás</button>
-                      <button onClick={() => setStep(1)} disabled={!address.linea1 || !address.ciudad} className="flex-1 bg-[#1a0f08] disabled:opacity-40 text-white font-semibold py-3.5 rounded-xl text-sm hover:bg-[#2d1a0e]">Continuar al pago</button>
+                      <button onClick={() => setStep(1)} disabled={!address.linea1 || !address.ciudad || (shipping === 'bogota' && !slot)} className="flex-1 bg-[#1a0f08] disabled:opacity-40 text-white font-semibold py-3.5 rounded-xl text-sm hover:bg-[#2d1a0e]">Continuar al pago</button>
                     </div>
                   </div>
                   </div>
@@ -209,7 +255,7 @@ export default function Checkout() {
                   <div className="space-y-4">
                     <h2 className="font-semibold text-[#1a0f08] mb-4">Método de pago</h2>
                     <div className="space-y-3">
-                      {paymentOptions.map(opt => (
+                      {availablePayments.map(opt => (
                         <label key={opt.id} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${payment === opt.id ? 'border-[#8B4513] bg-[#8B4513]/5' : 'border-[#e8ddd0]'}`}>
                           <input type="radio" name="payment" value={opt.id} checked={payment === opt.id} onChange={() => setPayment(opt.id)} className="mt-0.5 accent-[#8B4513]" />
                           <div>

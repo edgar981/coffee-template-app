@@ -13,6 +13,7 @@ import { getOrders, createOrder, updateOrderStatus, updateOrder } from '@/lib/ap
 import type { Order, OrderForm, OrderStatus, OrderChannel } from '@/types/order';
 import type { PaymentMethod } from '@/types/payment';
 import { formatCOP } from '@/lib/utils';
+import { findSlotLabel } from '@/lib/shipping-config';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -359,6 +360,9 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
         <InfoRow label="Envío"           value={formatCOP(order.costo_envio)} />
         <div className="col-span-2">
           <InfoRow label="Dirección" value={order.direccion_entrega ?? '—'} />
+        </div>
+        <div className="col-span-2">
+          <InfoRow label="Franja de entrega" value={findSlotLabel(order.deliverySlot) ?? '—'} />
         </div>
       </div>
 

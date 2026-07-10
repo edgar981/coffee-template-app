@@ -140,6 +140,7 @@ model Order {
   ciudad_entrega     String?
   notas_internas     String?
   notas_entrega      String?
+  deliverySlot       String?
   items              OrderItem[]
   payments           Payment[]
   createdAt          DateTime    @default(now())

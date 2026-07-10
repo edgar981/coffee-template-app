@@ -8,7 +8,8 @@ export interface CheckoutPayload {
   shipping: {
     direccion: string;
     ciudad: string;
-    metodo: 'standard' | 'express';
+    metodo: 'bogota' | 'nacional';
+    franja?: string | null;   // slot id ("am"/"pm"); only for Bogotá
   };
   payment: {
     metodo: 'nequi' | 'daviplata' | 'transferencia' | 'efectivo';
@@ -33,6 +34,8 @@ export interface CheckoutResult {
   subtotal: number;
   costo_envio: number;
   total: number;
+  metodo_envio?: string;      // shipping method id, resolved to a label at render
+  franja?: string | null;     // slot id ("am"/"pm"), resolved to a label at render
   items: CheckoutResultItem[];
 }
 

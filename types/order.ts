@@ -35,6 +35,7 @@ export interface Order {
   costo_envio: number;
   notas_internas?:   string;
   notas_entrega?:    string;
+  deliverySlot?:     string | null;   // slot id ("am"/"pm"); label resolved at render
   items: OrderItem[];
   createdAt: string;
 }
