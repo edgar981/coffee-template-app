@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 
 import { useSearchParams } from "next/navigation";
 
@@ -51,7 +51,7 @@ function computeStep(estado: string, shippingEstado: string | null): number {
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
 
-export default function OrderTracking() {
+function OrderTrackingInner() {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('orden') || '');
   const [email, setEmail] = useState(searchParams.get('email') || '');
@@ -273,5 +273,15 @@ export default function OrderTracking() {
           )}
         </div>
       </div>
+  );
+}
+
+// useSearchParams() (order number + email from the URL) requires a Suspense
+// boundary to prerender — Next.js CSR bailout.
+export default function OrderTracking() {
+  return (
+    <Suspense fallback={<div className="pt-16 min-h-screen" />}>
+      <OrderTrackingInner />
+    </Suspense>
   );
 }

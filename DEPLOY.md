@@ -100,9 +100,11 @@ npx prisma db seed
 ## 5. Deploy en Vercel
 
 1. **Import** del repo en Vercel (framework detectado: Next.js).
-2. **Build**: no requiere comando especial — `prisma generate` corre solo vía el
-   script `postinstall` (el cliente Prisma vive en `src/generated/prisma`, que
-   está gitignored). Build command por defecto: `next build`.
+2. **Build**: el cliente Prisma vive en `src/generated/prisma`, que está
+   **gitignored** → debe generarse en cada build. `vercel.json` fija el build
+   command a `prisma generate && next build` (el `postinstall` por sí solo no es
+   fiable en Vercel). No sobreescribas el Build Command en el dashboard: déjalo
+   heredar de `vercel.json`.
 3. **Env vars**: carga todas las de §2 **antes del primer build** (`DATABASE_URL`
    = string **pooled**).
 4. **Deploy**. Node 20/22 (default de Vercel; el proyecto pide Node ≥ 20.9).

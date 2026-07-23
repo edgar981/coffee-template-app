@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo, useEffect } from 'react';
+import { Suspense, useState, useMemo, useEffect } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ProductCard from '@/components/storefront/ProductCard';
@@ -17,7 +17,7 @@ const SORTBY = [
   { value: 'name', label: 'Nombre A–Z' },
 ];
 
-export default function Shop() {
+function ShopInner() {
   const searchParams = useSearchParams();
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState<
@@ -181,5 +181,15 @@ export default function Shop() {
           )}
         </div>
       </div>
+  );
+}
+
+// useSearchParams() (cat/tostado filters from the URL) requires a Suspense
+// boundary to prerender — Next.js CSR bailout.
+export default function Shop() {
+  return (
+    <Suspense fallback={<div className="pt-16 min-h-screen" />}>
+      <ShopInner />
+    </Suspense>
   );
 }
