@@ -134,19 +134,41 @@ npx prisma db seed
 
 ---
 
-## 7. Re-seedear el demo
+## 7. Re-seedear el demo (sin romper usuarios)
+
+Los pedidos demo se generan con **fechas relativas a `now`** (`buildDemoOrders` en
+`prisma/seed.ts`): 6 pagadas el **mes anterior** → limpia el piso anti-ruido de las
+tendencias (≥5, ver `lib/metrics/trend.ts`), y 8 el **mes actual** hasta hoy →
+crecimiento. El seed es idempotente por `numero_orden` con `update: {}`, así que
+**re-correrlo a secas NO refresca las fechas** de pedidos existentes. Para
+refrescar el demo hay que **borrar primero la data transaccional demo** —
+preservando SIEMPRE los usuarios.
+
+> ⚠️ **NUNCA** uses `prisma migrate reset`: borra TODA la base, incluidos los
+> usuarios admin (`admin@duna.solutions`) e invitados. Usa el reset selectivo.
+
+Apunta `DATABASE_URL` a la conexión **directa** de Neon (sin `-pooler`) y corre:
 
 ```bash
-# Opción A — re-seed idempotente (mantiene la DB, re-aplica upserts).
-#            OJO: duplica InventoryLog.
-npx prisma db seed
+# 1) Reset SELECTIVO de la data demo. Preserva user/account/session/Invitation,
+#    Product y Automation. El FK de Order cascadea OrderItem/Payment/Shipping.
+printf '%s\n' \
+  'DELETE FROM "Order";' \
+  'DELETE FROM "Customer";' \
+  'DELETE FROM "InventoryLog";' \
+  'DELETE FROM "Notification";' \
+  | npx prisma db execute --stdin --schema prisma/schema.prisma
 
-# Opción B — demo limpio desde cero (recomendado para un reset real):
-npx prisma migrate reset      # BORRA la DB, re-aplica migraciones y corre el seed
+# 2) Seed limpio: recrea clientes, pedidos (fechas relativas + items reales),
+#    pagos y envíos; re-upserta productos y automatizaciones; conserva el admin.
+npx prisma db seed
 ```
 
-`migrate reset` corre el seed automáticamente (configurado en `prisma.config.ts`
-→ `migrations.seed`). Apunta `DATABASE_URL` a Neon (directa) antes de correrlo.
+El admin se preserva: el seed hace `signUpEmail` (si ya existe lo omite) y reasigna
+rol OWNER — la contraseña (`ADMIN_PASSWORD`) no cambia. **Verifica el login después**
+(`admin@duna.solutions`). Re-seed idempotente sin refrescar fechas: `npx prisma db
+seed` a secas — pero `InventoryLog` no es idempotente (duplica), por eso el reset lo
+incluye.
 
 ---
 

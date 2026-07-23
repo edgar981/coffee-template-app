@@ -4,10 +4,93 @@ import { Prisma } from "@/src/generated/prisma/client";
 import { auth } from "@/lib/auth";
 import { MOCK_CUSTOMERS } from "@/lib/mock/customers";
 import { DEMO_PRODUCTS } from "@/prisma/seed-products";
-import { MOCK_ADMIN_ORDERS } from "@/lib/mock/orders";
 import { mockLogs } from "@/lib/mock/inventoryLogs";
 import { SHIPPING_SEED_TEMPLATES } from "@/lib/mock/shippings";
 import { AUTOMATION_TEMPLATES } from "@/lib/mock/automations";
+
+// ── Demo order fixtures dated RELATIVE to `now` ───────────────────────────────
+// The Dashboard trend pills compare the CURRENT calendar month vs the PREVIOUS
+// complete month, gated by an anti-noise floor (≥5 orders in the previous month;
+// see lib/metrics/trend.ts). Hardcoded month dates broke as real time advanced
+// (the curated June data drifted out of the trend window). Generating dates
+// relative to `now` keeps a healthy previous + current month whenever the demo is
+// (re)seeded: 6 paid orders last month (clears the floor) and 8 this month up to
+// today (shows growth). Prices come from the real catalog so totals are authentic;
+// items are real product lines; SN- marks demo fixtures (real orders use CN-).
+type DemoLine = { slug: string; cantidad: number };
+// Real seeded products (DB-generated ids — NOT the mock ids in DEMO_PRODUCTS), so
+// OrderItem.producto_id satisfies its FK to Product.
+type SeedProduct = { id: string; slug: string; nombre: string; precio: number; moliendasOpciones: unknown };
+function buildDemoOrders(now: Date, products: SeedProduct[]) {
+  const P = Object.fromEntries(products.map((p) => [p.slug, p]));
+  const molienda = (slug: string) => {
+    const ops = (P[slug].moliendasOpciones ?? []) as { nombre: string; disponible: boolean }[];
+    return (Array.isArray(ops) ? ops.find((o) => o.disponible)?.nombre : null) ?? null;
+  };
+  // `day` of the month `monthsAgo` back, at local midday (Bogotá ≈ UTC-5).
+  const at = (monthsAgo: number, day: number) =>
+    new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsAgo, day, 17, 0, 0));
+
+  const NOMBRES = ['Valentina Torres', 'Andrés Castro', 'Laura Jiménez', 'Juan Camilo Ríos', 'Sofía Mendoza', 'Diego Hernández', 'Camila Vargas', 'Carlos Mora', 'Mariana López', 'Ricardo Peña', 'Paula Gómez', 'Felipe Ramírez', 'Daniela Ospina', 'Sebastián Ruiz', 'Isabela Cardona', 'Tomás Restrepo', 'Lucía Herrera', 'Mateo Vargas'];
+  const TELS = ['+573001112233', '+573012223344', '+573023334455', '+573104445566', '+573115556677', '+573126667788', '+573207778899', '+573218889900', '+573159990011', '+573001234567'];
+  const CANALES = ['whatsapp', 'directo', 'instagram', 'whatsapp', 'directo', 'referido'];
+  const METODOS = ['nequi', 'transferencia', 'daviplata', 'efectivo'];
+
+  let n = 0;
+  const mk = (monthsAgo: number, day: number, lines: DemoLine[], estado = 'pagado') => {
+    n++;
+    const items = lines.map((l) => {
+      const p = P[l.slug];
+      return {
+        producto_id: p.id, producto_nombre: p.nombre, moliendaSeleccionada: molienda(l.slug),
+        cantidad: l.cantidad, precio_unitario: p.precio, subtotal: p.precio * l.cantidad,
+      };
+    });
+    const subtotal = items.reduce((s, i) => s + i.subtotal, 0);
+    const costo_envio = subtotal >= 120000 ? 0 : 8000; // envío gratis en pedidos grandes
+    return {
+      numero_orden: `SN-D${String(n).padStart(3, '0')}`,
+      cliente_nombre: NOMBRES[(n - 1) % NOMBRES.length],
+      cliente_telefono: TELS[(n - 1) % TELS.length],
+      canal: CANALES[n % CANALES.length],
+      estado,
+      metodo_pago: estado === 'pagado' ? METODOS[n % METODOS.length] : null,
+      costo_envio,
+      total: subtotal + costo_envio,
+      createdAt: at(monthsAgo, day),
+      items,
+    };
+  };
+
+  // Current-month order days spread across the elapsed part of THIS month only
+  // (never in the future).
+  const today = now.getUTCDate();
+  const curDay = (f: number) => Math.max(1, Math.min(today, Math.round(today * f)));
+
+  return [
+    // 2 months ago — depth for the monthly sales chart
+    mk(2, 5,  [{ slug: 'cafe-nayoli-grano-250g', cantidad: 1 }]),
+    mk(2, 12, [{ slug: 'cafe-nayoli-molido-500g', cantidad: 1 }]),
+    mk(2, 19, [{ slug: 'cafe-nayoli-molido-250g', cantidad: 2 }]),
+    mk(2, 26, [{ slug: 'cafe-nayoli-grano-500g', cantidad: 1 }, { slug: 'cafe-nayoli-molido-250g', cantidad: 1 }]),
+    // Previous complete month — 6 paid → clears the ≥5 anti-noise floor
+    mk(1, 4,  [{ slug: 'cafe-nayoli-grano-500g', cantidad: 1 }, { slug: 'cafe-nayoli-molido-250g', cantidad: 1 }]),
+    mk(1, 9,  [{ slug: 'cafe-nayoli-molido-500g', cantidad: 2 }]),
+    mk(1, 15, [{ slug: 'cafe-nayoli-grano-250g', cantidad: 2 }]),
+    mk(1, 20, [{ slug: 'cafe-nayoli-molido-250g', cantidad: 1 }]),
+    mk(1, 24, [{ slug: 'cafe-nayoli-grano-500g', cantidad: 1 }]),
+    mk(1, 28, [{ slug: 'cafe-nayoli-molido-500g', cantidad: 1 }, { slug: 'cafe-nayoli-grano-250g', cantidad: 1 }]),
+    // Current month (up to today) — 8 orders (7 paid + 1 pending) → growth
+    mk(0, curDay(0.12), [{ slug: 'cafe-nayoli-molido-500g', cantidad: 1 }, { slug: 'cafe-nayoli-molido-250g', cantidad: 1 }]),
+    mk(0, curDay(0.25), [{ slug: 'cafe-nayoli-grano-500g', cantidad: 2 }]),
+    mk(0, curDay(0.38), [{ slug: 'cafe-nayoli-grano-250g', cantidad: 1 }]),
+    mk(0, curDay(0.50), [{ slug: 'cafe-nayoli-molido-250g', cantidad: 2 }]),
+    mk(0, curDay(0.62), [{ slug: 'cafe-nayoli-molido-500g', cantidad: 1 }]),
+    mk(0, curDay(0.75), [{ slug: 'cafe-nayoli-grano-500g', cantidad: 1 }, { slug: 'cafe-nayoli-molido-250g', cantidad: 1 }]),
+    mk(0, curDay(0.85), [{ slug: 'cafe-nayoli-molido-250g', cantidad: 1 }, { slug: 'cafe-nayoli-grano-250g', cantidad: 1 }]),
+    mk(0, curDay(0.95), [{ slug: 'cafe-nayoli-molido-500g', cantidad: 2 }], 'pendiente'),
+  ];
+}
 
 async function main() {
   const email = process.env.ADMIN_EMAIL ?? "admin@sierranativa.co";
@@ -100,32 +183,34 @@ async function main() {
 
   console.log('✅ Products seeded');
 
-  for (const o of MOCK_ADMIN_ORDERS) {
+  const seedProducts = await prisma.product.findMany({
+    select: { id: true, slug: true, nombre: true, precio: true, moliendasOpciones: true },
+  });
+  for (const o of buildDemoOrders(new Date(), seedProducts)) {
     await prisma.order.upsert({
       where:  { numero_orden: o.numero_orden },
       update: {},
       create: {
-        numero_orden:      o.numero_orden,
-        cliente_nombre:    o.cliente_nombre    ?? null,
-        cliente_telefono:  o.cliente_telefono  ?? null,
-        canal:             o.canal             ?? 'directo',
-        estado:            o.estado,
-        metodo_pago:       o.metodo_pago       ?? null,
-        total:             o.total,
-        costo_envio:       o.costo_envio       ?? 0,
-        direccion_entrega: o.direccion_entrega ?? null,
-        ciudad_entrega:    o.ciudad_entrega    ?? null,
-        notas_internas:    o.notas_internas    ?? null,
-        notas_entrega:     o.notas_entrega     ?? null,
-        // Persist the mock's backdated createdAt (only on create — existing rows
-        // use `update: {}`, so this never rewrites already-seeded dates). Lets the
-        // demo carry orders dated to prior months for the dashboard trends.
-        ...(o.createdAt ? { createdAt: new Date(o.createdAt) } : {}),
+        numero_orden:     o.numero_orden,
+        cliente_nombre:   o.cliente_nombre,
+        cliente_telefono: o.cliente_telefono,
+        canal:            o.canal,
+        estado:           o.estado,
+        metodo_pago:      o.metodo_pago,
+        total:            o.total,
+        costo_envio:      o.costo_envio,
+        // Backdated createdAt (only on create — `update: {}` never rewrites an
+        // existing row's date). A clean re-seed needs the old rows deleted first
+        // so these relative dates apply (see DEPLOY.md).
+        createdAt:        o.createdAt,
         items: {
-          create: (o.items ?? []).map(item => ({
-            producto_nombre: item.producto_nombre,
-            cantidad:        item.cantidad,
-            subtotal:        item.subtotal,
+          create: o.items.map(item => ({
+            producto_id:          item.producto_id,
+            producto_nombre:      item.producto_nombre,
+            moliendaSeleccionada: item.moliendaSeleccionada,
+            cantidad:             item.cantidad,
+            precio_unitario:      item.precio_unitario,
+            subtotal:             item.subtotal,
           })),
         },
       },
