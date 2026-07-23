@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@/src/generated/prisma/client';
 import { headers } from 'next/headers';
 
 // Customer + their order history for the dedicated profile page. Orders link to
-// the customer by the email snapshot (there's no FK), so a customer with no
-// email — or none matching — simply has an empty history.
+// the customer by SNAPSHOT (there's no FK): email OR normalized phone — matching
+// the identity rules in createOrderWithCustomer, so WhatsApp orders that carry
+// only a phone show up in the customer's history too. A customer with neither —
+// or no matching orders — simply has an empty history.
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -18,9 +21,13 @@ export async function GET(
   const customer = await prisma.customer.findUnique({ where: { id } });
   if (!customer) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
 
-  const orders = customer.email
+  const orClauses: Prisma.OrderWhereInput[] = [];
+  if (customer.email)    orClauses.push({ cliente_email: customer.email });
+  if (customer.telefono) orClauses.push({ cliente_telefono: customer.telefono });
+
+  const orders = orClauses.length
     ? await prisma.order.findMany({
-        where:   { cliente_email: customer.email },
+        where:   { OR: orClauses },
         select:  { id: true, numero_orden: true, estado: true, total: true, createdAt: true, shipping: { select: { estado: true } } },
         orderBy: { createdAt: 'desc' },
       })

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { fireOrderTrigger } from '@/lib/automations/triggers';
+import { createOrderWithCustomer } from '@/lib/orders';
 import { getShippingSlot, computeShippingCost } from '@/lib/shipping-config';
 import { isBogotaDC } from '@/lib/colombia-departments';
 import {
@@ -50,20 +51,6 @@ interface MoliendaOpcion {
   nombre: string;
   metodo: string;
   disponible: boolean;
-}
-
-function generateOrderNumber(): string {
-  return `CN-${Math.floor(100_000 + Math.random() * 900_000)}`;
-}
-
-// Prisma unique-constraint violation
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: string }).code === 'P2002'
-  );
 }
 
 export async function POST(req: NextRequest) {
@@ -196,61 +183,28 @@ export async function POST(req: NextRequest) {
 
   const cliente_nombre = `${customer.nombre} ${customer.apellido}`.trim();
 
-  // Create Customer + Order + OrderItems atomically. The order number is
-  // generated server-side; retry on the (rare) unique collision. NO Payment is
-  // created here: a Payment is a RECEIVED payment (see prisma Payment model) and
-  // the order starts `pendiente`. The admin registers the payment later, which
-  // moves the order to `pagado` and writes the Payment row.
-  let order:
-    | { id: string; numero_orden: string; estado: string; cliente_nombre: string | null; cliente_telefono: string | null; total: number }
-    | null = null;
-
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const numero_orden = generateOrderNumber();
-    try {
-      order = await prisma.$transaction(async (tx) => {
-        // Upsert the customer by email only; refresh the phone if it changed.
-        await tx.customer.upsert({
-          where:  { email: customer.email },
-          update: { telefono: customer.telefono },
-          create: {
-            nombre:    cliente_nombre,
-            email:     customer.email,
-            telefono:  customer.telefono,
-            ciudad:    shipping.ciudad,
-            direccion: shipping.direccion,
-            canal:     'directo',
-          },
-        });
-
-        const created = await tx.order.create({
-          data: {
-            numero_orden,
-            cliente_nombre,
-            cliente_email:     customer.email,
-            cliente_telefono:  customer.telefono,
-            canal:             'directo',
-            // estado left to the schema default ("pendiente").
-            metodo_pago:       payment.metodo,
-            total,
-            costo_envio,
-            direccion_entrega: shipping.direccion,
-            direccion_detalle: shipping.direccion_detalle ?? null,
-            ciudad_entrega:    shipping.ciudad,
-            // Persist the slot id ("am"/"pm"); the label is resolved at render.
-            deliverySlot:      slot?.id ?? null,
-            items: { create: lines },
-          },
-        });
-
-        return created;
-      });
-      break;
-    } catch (error) {
-      if (isUniqueViolation(error) && attempt < 4) continue;
-      console.error('Checkout order creation failed:', error);
-      return NextResponse.json({ error: 'No se pudo procesar la orden' }, { status: 500 });
-    }
+  // Single creation path — upserts the Customer + creates the Order & items in
+  // one transaction (shared with the admin "Nueva Orden"). Checkout always brings
+  // an email, so identity is by email (unchanged behavior). NO Payment here: the
+  // order starts `pendiente`; the admin registers the received payment later.
+  let order: Awaited<ReturnType<typeof createOrderWithCustomer>>;
+  try {
+    order = await createOrderWithCustomer({
+      customer:          { nombre: cliente_nombre, email: customer.email, telefono: customer.telefono },
+      canal:             'directo',
+      metodo_pago:       payment.metodo,
+      total,
+      costo_envio,
+      direccion_entrega: shipping.direccion,
+      direccion_detalle: shipping.direccion_detalle ?? null,
+      ciudad_entrega:    shipping.ciudad,
+      deliverySlot:      slot?.id ?? null,
+      items:             lines,
+      numeroPrefix:      'CN',
+    });
+  } catch (error) {
+    console.error('Checkout order creation failed:', error);
+    return NextResponse.json({ error: 'No se pudo procesar la orden' }, { status: 500 });
   }
 
   if (!order) {

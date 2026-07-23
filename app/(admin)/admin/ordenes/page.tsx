@@ -35,6 +35,7 @@ const TIMELINE_ESTADOS: OrderStatus[] = ['pendiente', 'pagado'];
 
 const EMPTY_FORM: OrderForm = {
   cliente_nombre:    '',
+  cliente_email:     '',
   cliente_telefono:  '',
   canal:             'whatsapp',
   estado:            'pendiente',
@@ -97,17 +98,28 @@ export default function Ordenes() {
       toast.error('Cliente y total son requeridos');
       return;
     }
-    const created = await createOrder({
-      ...form,
-      total:       Number(form.total),
-      costo_envio: Number(form.costo_envio),
-      metodo_pago: form.metodo_pago || undefined,
-      items:       [],
-    });
-    setOrders(prev => [created, ...prev]);
-    toast.success('Orden creada');
-    setShowForm(false);
-    setForm(EMPTY_FORM);
+    // Mirror the server rule: at least one contact (email OR phone). Real orders
+    // arrive by WhatsApp, so a phone alone is enough.
+    if (!form.cliente_email.trim() && !form.cliente_telefono.trim()) {
+      toast.error('Ingresa al menos un teléfono o correo del cliente');
+      return;
+    }
+    try {
+      const created = await createOrder({
+        ...form,
+        total:         Number(form.total),
+        costo_envio:   Number(form.costo_envio),
+        metodo_pago:   form.metodo_pago || undefined,
+        cliente_email: form.cliente_email || undefined,
+        items:         [],
+      });
+      setOrders(prev => [created, ...prev]);
+      toast.success('Orden creada');
+      setShowForm(false);
+      setForm(EMPTY_FORM);
+    } catch {
+      toast.error('No se pudo crear la orden. Revisa los datos del cliente.');
+    }
   };
 
   const handleUpdateStatus = async (id: string, estado: OrderStatus) => {
@@ -327,9 +339,14 @@ export default function Ordenes() {
               <Label>Nombre del Cliente *</Label>
               <Input {...field('cliente_nombre')} className="mt-1" />
             </div>
+            <div className="col-span-2">
+              <Label>Correo electrónico</Label>
+              <Input type="email" {...field('cliente_email')} className="mt-1" placeholder="Opcional si hay teléfono" />
+              <p className="mt-1 text-xs text-muted-foreground">Ingresa al menos un teléfono o correo del cliente.</p>
+            </div>
             <div>
               <Label>Teléfono</Label>
-              <Input {...field('cliente_telefono')} className="mt-1" />
+              <Input {...field('cliente_telefono')} className="mt-1" placeholder="300 000 0000" />
             </div>
             <div>
               <Label>Canal</Label>
@@ -386,7 +403,10 @@ export default function Ordenes() {
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={!form.cliente_nombre || !form.total}>
+            <Button
+              onClick={handleSave}
+              disabled={!form.cliente_nombre || !form.total || (!form.cliente_email.trim() && !form.cliente_telefono.trim())}
+            >
               Crear Orden
             </Button>
           </div>
