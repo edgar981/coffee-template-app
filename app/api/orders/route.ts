@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { fireOrderTrigger } from '@/lib/automations/triggers';
-import { createOrderWithCustomer, normalizeCustomerPhone, OrderCustomerIdentityError } from '@/lib/orders';
+import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, OrderCustomerIdentityError, OrderLinesError } from '@/lib/orders';
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -20,11 +20,11 @@ export async function GET() {
   return NextResponse.json(orders);
 }
 
-// Admin manual order. Unlike checkout, customer identity is flexible: email is
-// OPTIONAL, but AT LEAST ONE of email or a valid Colombian mobile is required —
-// validated here (server-side), not just in the modal. Totals are trusted as
-// entered (manual bookkeeping); the storefront checkout is the path that
-// recomputes prices from Product records.
+// Admin manual order. A REAL order: same structure and rules as a web order.
+// Customer identity is flexible (email OPTIONAL, but at least one of email or a
+// valid Colombian mobile). Product lines are priced SERVER-SIDE from the catalog
+// (the admin never types the total). Shipping cost stays manual. The order is
+// always born `pendiente`; payment is registered afterwards via "Registrar pago".
 const adminOrderSchema = z
   .object({
     cliente_nombre:    z.string().trim().min(1, 'El nombre del cliente es requerido'),
@@ -34,22 +34,17 @@ const adminOrderSchema = z
     ),
     cliente_telefono:  z.string().trim().optional(),
     canal:             z.string().trim().optional(),
-    estado:            z.enum(['pendiente', 'pagado', 'cancelado']).optional(),
-    metodo_pago:       z.string().trim().optional(),
-    total:             z.coerce.number().nonnegative().optional(),
     costo_envio:       z.coerce.number().nonnegative().optional(),
     direccion_entrega: z.string().trim().optional(),
-    ciudad_entrega:    z.string().trim().optional(),
     notas_internas:    z.string().trim().optional(),
-    notas_entrega:     z.string().trim().optional(),
+    // Real product lines, priced server-side by resolveOrderLines.
     items: z
       .array(z.object({
-        producto_nombre: z.string().trim().min(1),
-        cantidad:        z.number().int().positive(),
-        subtotal:        z.number(),
+        slug:     z.string().trim().min(1),
+        cantidad: z.number().int().positive(),
+        molienda: z.string().trim().min(1).nullish(),
       }))
-      .optional()
-      .default([]),
+      .min(1, 'Agrega al menos un producto'),
     // Client-generated per-submit key; makes a double-click / retry idempotent.
     idempotencyKey: z.string().uuid().optional(),
   })
@@ -74,21 +69,42 @@ export async function POST(req: NextRequest) {
   }
   const b = parsed.data;
 
+  // Price the lines server-side (same resolver as checkout: existence, stock,
+  // molienda availability, unit prices). The admin never types the total.
+  let lines: Awaited<ReturnType<typeof resolveOrderLines>>['lines'];
+  let subtotal: number;
   try {
-    // Same creation path as checkout → the order always gets a Customer. A
-    // `pagado` order auto-creates its Shipping inside the shared transaction.
+    const resolved = await resolveOrderLines(b.items);
+    lines = resolved.lines;
+    subtotal = resolved.subtotal;
+  } catch (error) {
+    if (error instanceof OrderLinesError) {
+      return NextResponse.json(
+        { error: error.message, ...(error.productosSinStock ? { productosSinStock: error.productosSinStock } : {}) },
+        { status: 400 },
+      );
+    }
+    throw error;
+  }
+
+  // Shipping is manual (rates TBD with the client), default 0; added to the
+  // server-computed subtotal.
+  const costo_envio = b.costo_envio ?? 0;
+  const total = subtotal + costo_envio;
+
+  try {
+    // Order is always born `pendiente` (no estado/metodo_pago here). Payment is
+    // registered afterwards via "Registrar pago" → writes the Payment row and
+    // auto-creates the Shipping. Same creation path (+ Customer upsert, CN-
+    // numbering, idempotency) as checkout.
     const result = await createOrderWithCustomer({
       customer:          { nombre: b.cliente_nombre, email: b.cliente_email ?? null, telefono: b.cliente_telefono ?? null },
       canal:             b.canal || 'whatsapp',
-      estado:            b.estado || undefined,
-      metodo_pago:       b.metodo_pago || null,
-      total:             b.total ?? 0,
-      costo_envio:       b.costo_envio ?? 0,
+      total,
+      costo_envio,
       direccion_entrega: b.direccion_entrega || null,
-      ciudad_entrega:    b.ciudad_entrega || null,
       notas_internas:    b.notas_internas || null,
-      notas_entrega:     b.notas_entrega || null,
-      items:             b.items,
+      items:             lines,
       idempotencyKey:    b.idempotencyKey ?? null,
     });
 

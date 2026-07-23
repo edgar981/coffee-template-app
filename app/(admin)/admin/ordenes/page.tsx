@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, ShoppingCart, Truck, CreditCard } from 'lucide-react';
+import { Plus, Search, ShoppingCart, Truck, CreditCard, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,10 +10,11 @@ import { Label } from '@/components/ui/label';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
 import { getOrders, createOrder, updateOrder } from '@/lib/api/orders';
+import { getCatalog } from '@/lib/api/products';
 import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
 import { RegisterPaymentModal } from '@/components/admin/RegisterPaymentModal';
-import type { Order, OrderForm, OrderStatus, OrderChannel } from '@/types/order';
-import type { PaymentMethod } from '@/types/payment';
+import type { Order, OrderForm, OrderLineForm, OrderStatus, OrderChannel } from '@/types/order';
+import type { Product } from '@/types/product';
 import type { Shipping } from '@/types/shipping';
 import { formatCOP } from '@/lib/utils';
 import { findSlotLabel } from '@/lib/shipping-config';
@@ -26,10 +27,6 @@ const ESTADOS: OrderStatus[] = ['pendiente', 'pagado', 'cancelado'];
 
 const CANALES: OrderChannel[] = ['whatsapp', 'instagram', 'directo', 'referido'];
 
-const METODOS_PAGO: PaymentMethod[] = [
-  'efectivo', 'transferencia', 'nequi', 'daviplata', 'tarjeta', 'otro',
-];
-
 // Linear payment phases for the order-detail timeline (cancelado is non-linear).
 const TIMELINE_ESTADOS: OrderStatus[] = ['pendiente', 'pagado'];
 
@@ -38,14 +35,10 @@ const EMPTY_FORM: OrderForm = {
   cliente_email:     '',
   cliente_telefono:  '',
   canal:             'whatsapp',
-  estado:            'pendiente',
-  metodo_pago:       '',
-  total:             '',
   costo_envio:       '0',
   direccion_entrega: '',
-  ciudad_entrega:    '',
   notas_internas:    '',
-  notas_entrega:     '',
+  items:             [{ slug: '', cantidad: 1, molienda: '' }],
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -69,6 +62,10 @@ export default function Ordenes() {
   const [saving, setSaving]               = useState(false);
   const savingRef                         = useRef(false);
   const idemKeyRef                        = useRef<string>('');
+  // Real catalog for the New Order line selectors (same source as the storefront).
+  const [catalog, setCatalog]             = useState<Product[]>([]);
+
+  useEffect(() => { getCatalog().then(setCatalog).catch(() => setCatalog([])); }, []);
 
   useEffect(() => {
     getOrders().then(data => {
@@ -108,11 +105,32 @@ export default function Ordenes() {
     setShowForm(true);
   };
 
+  // ── New-order line editing ───────────────────────────────────────────────
+  const productBySlug = (slug: string) => catalog.find(p => p.slug === slug);
+  // First available molienda (mirrors the storefront's default selection).
+  const defaultMolienda = (slug: string) =>
+    (productBySlug(slug)?.moliendasOpciones ?? []).find(o => o.disponible)?.nombre ?? '';
+  const setLines = (items: OrderLineForm[]) => setForm(f => ({ ...f, items }));
+  const addLine = () => setLines([...form.items, { slug: '', cantidad: 1, molienda: '' }]);
+  const removeLine = (i: number) =>
+    setLines(form.items.length > 1 ? form.items.filter((_, idx) => idx !== i) : form.items);
+  const updateLine = (i: number, patch: Partial<OrderLineForm>) =>
+    setLines(form.items.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+
+  // Display-only totals — the SERVER recomputes authoritatively from the catalog
+  // on create (the admin never types the total).
+  const itemsSubtotal = form.items.reduce((sum, l) => {
+    const p = productBySlug(l.slug);
+    return sum + (p ? p.precio * l.cantidad : 0);
+  }, 0);
+  const calcTotal = itemsSubtotal + (Number(form.costo_envio) || 0);
+  const hasProduct = form.items.some(l => l.slug);
+
   const handleSave = async () => {
     // Synchronous re-entrancy guard: a second (fast) click returns immediately.
     if (savingRef.current) return;
-    if (!form.cliente_nombre || !form.total) {
-      toast.error('Cliente y total son requeridos');
+    if (!form.cliente_nombre.trim()) {
+      toast.error('El nombre del cliente es requerido');
       return;
     }
     // Mirror the server rule: at least one contact (email OR phone). Real orders
@@ -121,6 +139,19 @@ export default function Ordenes() {
       toast.error('Ingresa al menos un teléfono o correo del cliente');
       return;
     }
+    const lines = form.items.filter(l => l.slug);
+    if (lines.length === 0) {
+      toast.error('Agrega al menos un producto');
+      return;
+    }
+    // Molido products require an available molienda (the server enforces it too).
+    for (const l of lines) {
+      const p = productBySlug(l.slug);
+      if ((p?.moliendasOpciones?.length ?? 0) > 0 && !l.molienda) {
+        toast.error(`Selecciona la molienda para ${p?.nombre ?? 'el producto'}`);
+        return;
+      }
+    }
     // Guarantee a key even if the form was opened without openNewOrder.
     if (!idemKeyRef.current) idemKeyRef.current = crypto.randomUUID();
 
@@ -128,20 +159,22 @@ export default function Ordenes() {
     setSaving(true);
     try {
       const created = await createOrder({
-        ...form,
-        total:          Number(form.total),
-        costo_envio:    Number(form.costo_envio),
-        metodo_pago:    form.metodo_pago || undefined,
-        cliente_email:  form.cliente_email || undefined,
-        idempotencyKey: idemKeyRef.current,
-        items:          [],
+        cliente_nombre:    form.cliente_nombre,
+        cliente_email:     form.cliente_email || undefined,
+        cliente_telefono:  form.cliente_telefono || undefined,
+        canal:             form.canal,
+        costo_envio:       Number(form.costo_envio) || 0,
+        direccion_entrega: form.direccion_entrega || undefined,
+        notas_internas:    form.notas_internas || undefined,
+        items:             lines.map(l => ({ slug: l.slug, cantidad: l.cantidad, molienda: l.molienda || null })),
+        idempotencyKey:    idemKeyRef.current,
       });
       setOrders(prev => [created, ...prev]);
       toast.success('Orden creada');
       setShowForm(false);
       setForm(EMPTY_FORM);
-    } catch {
-      toast.error('No se pudo crear la orden. Revisa los datos del cliente.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'No se pudo crear la orden');
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -164,8 +197,8 @@ export default function Ordenes() {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, shipping } : o));
   };
 
-  const field = (key: keyof OrderForm) => ({
-    value:    form[key] as string,
+  const field = (key: Exclude<keyof OrderForm, 'items' | 'canal'>) => ({
+    value:    form[key],
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm(f => ({ ...f, [key]: e.target.value })),
   });
@@ -358,80 +391,138 @@ export default function Ordenes() {
 
       {/* New Order Dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nueva Orden</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="col-span-2">
-              <Label>Nombre del Cliente *</Label>
-              <Input {...field('cliente_nombre')} className="mt-1" />
+          <div className="space-y-4 py-2">
+            {/* Cliente */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <Label>Nombre del Cliente *</Label>
+                <Input {...field('cliente_nombre')} className="mt-1" />
+              </div>
+              <div>
+                <Label>Correo electrónico</Label>
+                <Input type="email" {...field('cliente_email')} className="mt-1" placeholder="Opcional si hay teléfono" />
+              </div>
+              <div>
+                <Label>Teléfono</Label>
+                <Input {...field('cliente_telefono')} className="mt-1" placeholder="300 000 0000" />
+              </div>
+              <p className="col-span-2 -mt-1 text-xs text-muted-foreground">Ingresa al menos un teléfono o correo del cliente.</p>
+              <div className="col-span-2">
+                <Label>Canal</Label>
+                <Select value={form.canal} onValueChange={v => setForm(f => ({ ...f, canal: v as OrderChannel }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CANALES.map(c => (
+                      <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="col-span-2">
-              <Label>Correo electrónico</Label>
-              <Input type="email" {...field('cliente_email')} className="mt-1" placeholder="Opcional si hay teléfono" />
-              <p className="mt-1 text-xs text-muted-foreground">Ingresa al menos un teléfono o correo del cliente.</p>
+
+            {/* Productos — líneas reales; el total lo calcula el servidor */}
+            <div className="border-t border-border pt-3">
+              <Label>Productos *</Label>
+              <div className="mt-2 space-y-2">
+                {form.items.map((line, i) => {
+                  const product = productBySlug(line.slug);
+                  const opciones = product?.moliendasOpciones ?? [];
+                  const lineSubtotal = product ? product.precio * line.cantidad : 0;
+                  return (
+                    <div key={i} className="flex flex-wrap items-end gap-2 rounded-lg border border-border/60 bg-muted/20 p-2">
+                      <div className="min-w-[180px] flex-1">
+                        <span className="text-xs text-muted-foreground">Producto</span>
+                        <Select value={line.slug} onValueChange={v => updateLine(i, { slug: v, molienda: defaultMolienda(v) })}>
+                          <SelectTrigger className="mt-0.5 h-9"><SelectValue placeholder="Selecciona…" /></SelectTrigger>
+                          <SelectContent>
+                            {catalog.map(p => (
+                              <SelectItem key={p.slug} value={p.slug} disabled={p.disponible === false}>
+                                {p.nombre}{p.disponible === false ? ' (Agotado)' : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="w-16">
+                        <span className="text-xs text-muted-foreground">Cant.</span>
+                        <Input
+                          type="number" min={1}
+                          value={line.cantidad}
+                          onChange={e => updateLine(i, { cantidad: Math.max(1, Number(e.target.value) || 1) })}
+                          className="mt-0.5 h-9"
+                        />
+                      </div>
+                      {opciones.length > 0 && (
+                        <div className="min-w-[130px]">
+                          <span className="text-xs text-muted-foreground">Molienda</span>
+                          <Select value={line.molienda} onValueChange={v => updateLine(i, { molienda: v })}>
+                            <SelectTrigger className="mt-0.5 h-9"><SelectValue placeholder="Molienda" /></SelectTrigger>
+                            <SelectContent>
+                              {opciones.map(o => (
+                                <SelectItem key={o.nombre} value={o.nombre} disabled={!o.disponible}>
+                                  {o.nombre}{!o.disponible ? ' (Próximamente)' : ''}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      <div className="ml-auto flex items-center gap-2 pb-1">
+                        <span className="text-sm font-medium tabular-nums">{formatCOP(lineSubtotal)}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeLine(i)}
+                          disabled={form.items.length === 1}
+                          className="text-muted-foreground hover:text-destructive disabled:opacity-30"
+                          aria-label="Quitar producto"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <Button variant="outline" size="sm" onClick={addLine} className="mt-2 gap-1">
+                <Plus className="w-3.5 h-3.5" /> Agregar producto
+              </Button>
             </div>
-            <div>
-              <Label>Teléfono</Label>
-              <Input {...field('cliente_telefono')} className="mt-1" placeholder="300 000 0000" />
+
+            {/* Envío (manual) + total calculado (solo lectura) */}
+            <div className="grid grid-cols-2 gap-4 border-t border-border pt-3">
+              <div>
+                <Label>Costo de Envío</Label>
+                <Input type="number" min={0} {...field('costo_envio')} className="mt-1" />
+              </div>
+              <div className="self-end space-y-1 text-sm">
+                <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span className="tabular-nums">{formatCOP(itemsSubtotal)}</span></div>
+                <div className="flex justify-between text-muted-foreground"><span>Envío</span><span className="tabular-nums">{formatCOP(Number(form.costo_envio) || 0)}</span></div>
+                <div className="flex justify-between border-t border-border pt-1 font-bold"><span>Total</span><span className="tabular-nums">{formatCOP(calcTotal)}</span></div>
+              </div>
             </div>
-            <div>
-              <Label>Canal</Label>
-              <Select value={form.canal} onValueChange={v => setForm(f => ({ ...f, canal: v as OrderChannel }))}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CANALES.map(c => (
-                    <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Total *</Label>
-              <Input type="number" {...field('total')} className="mt-1" />
-            </div>
-            <div>
-              <Label>Costo de Envío</Label>
-              <Input type="number" {...field('costo_envio')} className="mt-1" />
-            </div>
-            <div>
-              <Label>Método de Pago</Label>
-              <Select value={form.metodo_pago} onValueChange={v => setForm(f => ({ ...f, metodo_pago: v as PaymentMethod }))}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                <SelectContent>
-                  {METODOS_PAGO.map(m => (
-                    <SelectItem key={m} value={m} className="capitalize">{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Estado</Label>
-              <Select value={form.estado} onValueChange={v => setForm(f => ({ ...f, estado: v as OrderStatus }))}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {ESTADOS.map(e => (
-                    <SelectItem key={e} value={e} className="capitalize">{e}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-2">
-              <Label>Dirección de Entrega</Label>
-              <Input {...field('direccion_entrega')} className="mt-1" />
-            </div>
-            <div className="col-span-2">
-              <Label>Notas Internas</Label>
-              <textarea
-                {...field('notas_internas')}
-                className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background min-h-16 resize-none"
-              />
+
+            {/* Dirección + notas */}
+            <div className="space-y-4 border-t border-border pt-3">
+              <div>
+                <Label>Dirección de Entrega (opcional)</Label>
+                <Input {...field('direccion_entrega')} className="mt-1" />
+              </div>
+              <div>
+                <Label>Notas Internas</Label>
+                <textarea
+                  {...field('notas_internas')}
+                  className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background min-h-16 resize-none"
+                />
+              </div>
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
             <Button
               onClick={handleSave}
-              disabled={saving || !form.cliente_nombre || !form.total || (!form.cliente_email.trim() && !form.cliente_telefono.trim())}
+              disabled={saving || !form.cliente_nombre || (!form.cliente_email.trim() && !form.cliente_telefono.trim()) || !hasProduct}
             >
               {saving ? 'Creando…' : 'Crear Orden'}
             </Button>

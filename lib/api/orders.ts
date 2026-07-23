@@ -1,4 +1,4 @@
-import type { Order, TrackedOrder, DeliveryContext, DeliveryAddressPayload, OrderAddressResult } from '@/types/order';
+import type { Order, TrackedOrder, DeliveryContext, DeliveryAddressPayload, OrderAddressResult, AdminOrderPayload } from '@/types/order';
 
 export async function getOrders(): Promise<Order[]> {
   const res = await fetch('/api/orders');
@@ -24,15 +24,19 @@ export async function trackOrder(
   return res.json();
 }
 
-export async function createOrder(
-  data: Omit<Order, 'id' | 'numero_orden' | 'createdAt' | 'updatedAt'> & { idempotencyKey?: string }
-): Promise<Order> {
+// Admin manual order: real product lines (priced server-side), no typed total,
+// always created `pendiente`. Surfaces the server's error message (e.g. "Cantidad
+// no disponible", "Molienda no disponible…") so the modal can show it.
+export async function createOrder(payload: AdminOrderPayload): Promise<Order> {
   const res = await fetch('/api/orders', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(data),
+    body:    JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error('Error al crear orden');
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error ?? 'Error al crear orden');
+  }
   return res.json();
 }
 
