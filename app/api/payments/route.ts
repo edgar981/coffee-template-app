@@ -1,38 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 
+// Read-only payments ledger. Every row is a received payment tied to an order;
+// the customer + order number are read live through the relation. Registration
+// happens at POST /api/orders/[id]/payments — there is no independent create here.
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const payments = await prisma.payment.findMany({
-    orderBy: { createdAt: 'desc' },
-    take:    200,
+    orderBy: { fecha: 'desc' },
+    take:    500,
+    include: { order: { select: { numero_orden: true, cliente_nombre: true } } },
   });
 
   return NextResponse.json(payments);
-}
-
-export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-
-  const body    = await req.json();
-  const payment = await prisma.payment.create({
-    data: {
-      cliente_nombre: body.cliente_nombre || null,
-      monto:          Number(body.monto),
-      metodo:         body.metodo         || 'nequi',
-      estado:         body.estado         || 'pendiente',
-      referencia:     body.referencia     || null,
-      notas:          body.notas          || null,
-      fecha_pago:     body.estado === 'completado'
-                        ? new Date().toISOString().split('T')[0]
-                        : null,
-    },
-  });
-
-  return NextResponse.json(payment, { status: 201 });
 }

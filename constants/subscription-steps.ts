@@ -22,10 +22,10 @@ export const SUBSCRIPTION_STEPS = [
 
     icon: Coffee,
 
-    label: "Personalizamos",
+    label: "Elige grano o molido",
 
     description:
-      "Nuestro equipo selecciona los mejores cafés del mes para ti.",
+      "Siempre el mismo café de nuestra finca — tú eliges cómo lo prefieres.",
   },
 
   {
@@ -36,7 +36,7 @@ export const SUBSCRIPTION_STEPS = [
     label: "Tostamos fresco",
 
     description:
-      "Tostamos tu café días antes del envío para máxima frescura.",
+      "Tostamos tu café en tandas semanales, días antes del envío.",
   },
 
   {
@@ -47,6 +47,6 @@ export const SUBSCRIPTION_STEPS = [
     label: "Recíbelo en casa",
 
     description:
-      "Llega directamente a tu puerta con trazabilidad completa.",
+      "Enviamos tu café fresco a todo el país.",
   },
 ];

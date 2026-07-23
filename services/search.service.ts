@@ -1,9 +1,10 @@
 
 
 import { SearchResult } from "@/types/search";
-import { get } from "http";
 import { getOrders } from "./order.service";
-import { getProducts } from "./inventory.service";
+// Productos desde la DB vía /lib/api (contexto admin, endpoint con auth) —
+// antes buscaba sobre el mock del frontend, ya eliminado.
+import { getProducts } from "@/lib/api/products";
 import { getCustomers } from "./customers.service";
 import { normalize } from "@/lib/utils";
 

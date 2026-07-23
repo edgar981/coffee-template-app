@@ -1,6 +1,8 @@
 "use client";
 
-import { DEMO_PRODUCTS } from "@/lib/mock/products";
+import { useEffect, useState } from "react";
+import { getCatalog } from "@/lib/api/products";
+import type { Product } from "@/types/product";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
@@ -9,7 +11,13 @@ import ProductCard from "../ProductCard";
 const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 
 export default function FeaturedProducts() {
-  const featured = DEMO_PRODUCTS.slice(0, 4);
+  // Fuente única: catálogo público desde la DB (petición compartida/memoizada).
+  const [catalog, setCatalog] = useState<Product[]>([]);
+  useEffect(() => {
+    getCatalog().then(setCatalog).catch(() => setCatalog([]));
+  }, []);
+
+  const featured = catalog.slice(0, 4);
 
   return (
     <section className="py-20 bg-[#faf7f4]">

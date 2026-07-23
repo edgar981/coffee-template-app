@@ -8,6 +8,7 @@ import type { ProductCategory } from '@/types/product';
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const now       = new Date();
   const yearStart = new Date(now.getFullYear(), 0, 1);

@@ -4,17 +4,18 @@ import Link from "next/link";
 import { ArrowLeft, Shield, Lock, CreditCard, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore } from '@/lib/cartStore';
-import { createOrder, type CheckoutResult } from "@/services/checkout.service";
+import { createOrder, CheckoutError, type CheckoutResult } from "@/services/checkout.service";
 import { formatCOP } from '@/lib/utils';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
 import {
-  SHIPPING_METHODS,
   computeShippingCost,
   getShippingMethod,
   findSlotLabel,
   type ShippingMethodId,
 } from '@/lib/shipping-config';
+import { COLOMBIA_DEPARTMENTS, isBogotaDC } from '@/lib/colombia-departments';
+import { siteConfig } from '@/lib/config/site';
 
 const STEPS = ['Información', 'Pago'];
 
@@ -27,33 +28,49 @@ export default function Checkout() {
   const [confirmation, setConfirmation] = useState<CheckoutResult | null>(null);
 
   const [info, setInfo] = useState({ nombre: '', apellido: '', email: '', telefono: '' });
-  const [address, setAddress] = useState({ linea1: '', ciudad: 'Bogotá', departamento: 'Cundinamarca', cp: '' });
-  const [shipping, setShipping] = useState<ShippingMethodId>('bogota');
+  const [address, setAddress] = useState({ linea1: '', detalle: '', ciudad: '', departamento: '', cp: '' });
   const [slot, setSlot] = useState<string | null>(null);
   const [payment, setPayment] = useState('nequi');
   const [refTransfer, setRefTransfer] = useState('');
+  // IDs de producto rechazados por stock en el último intento — el carrito se
+  // conserva y se marca la línea afectada. Se limpia al reintentar.
+  const [sinStockIds, setSinStockIds] = useState<string[]>([]);
 
-  const shippingCost = computeShippingCost(shipping, subtotal);
-  const total = subtotal + shippingCost;
+  // Bogotá-ness is derived from departamento — the single source of truth.
+  const isBogota = isBogotaDC(address.departamento);
+  const metodoEnvio: ShippingMethodId | null = address.departamento
+    ? (isBogota ? 'bogota' : 'nacional')
+    : null;
+  const shippingMethod = metodoEnvio ? getShippingMethod(metodoEnvio) : null;
+  // null shipping = departamento not chosen yet → summary shows a placeholder.
+  const shippingCost = metodoEnvio ? computeShippingCost(metodoEnvio, subtotal) : null;
+  const total = subtotal + (shippingCost ?? 0);
+
+  // Phone: fixed +57 prefix, capture local digits, store normalized +57XXXXXXXXXX.
+  const phoneDigits = info.telefono.replace(/\D/g, '');
+  const phoneValid = /^3\d{9}$/.test(phoneDigits);
+
+  // Nequi/Daviplata reciben en el celular del negocio (10 dígitos locales).
+  const pagoMovilNumero = siteConfig.contacto.whatsappDisplay.replace(/^\+57\s*/, '');
 
   const paymentOptions = [
-    { id: 'nequi', label: 'Nequi', desc: 'Enviar a 300 123 4567' },
-    { id: 'daviplata', label: 'Daviplata', desc: 'Enviar a 300 123 4567' },
+    { id: 'nequi', label: 'Nequi', desc: `Enviar a ${pagoMovilNumero}` },
+    { id: 'daviplata', label: 'Daviplata', desc: `Enviar a ${pagoMovilNumero}` },
     { id: 'transferencia', label: 'Transferencia Bancaria', desc: 'Bancolombia · Cta Ahorro · 123-456789-00' },
-    { id: 'efectivo', label: 'Contra entrega', desc: 'Solo disponible en Bogotá' },
+    { id: 'efectivo', label: 'Contra entrega', desc: 'Solo disponible en Bogotá D.C.' },
   ];
 
-  // "Contra entrega" (efectivo) is only valid for Bogotá deliveries — hide it
-  // for national orders. Server enforces the same rule; this is UX only.
+  // "Contra entrega" (efectivo) is only valid for Bogotá D.C. deliveries — hide
+  // it otherwise. Server enforces the same rule off departamento; this is UX only.
   const availablePayments = paymentOptions.filter(
-    (o) => o.id !== 'efectivo' || shipping === 'bogota',
+    (o) => o.id !== 'efectivo' || isBogota,
   );
 
-  // Switching away from Bogotá clears the franja AND resets a contra-entrega
-  // choice, so the user can't carry an invalid combination into the Pago step.
-  const selectShipping = (id: ShippingMethodId) => {
-    setShipping(id);
-    if (id !== 'bogota') {
+  // Changing departamento re-derives the method; leaving Bogotá clears the franja
+  // AND resets a contra-entrega choice so no invalid combo reaches the Pago step.
+  const selectDepartamento = (value: string) => {
+    setAddress((a) => ({ ...a, departamento: value }));
+    if (!isBogotaDC(value)) {
       setSlot(null);
       if (payment === 'efectivo') setPayment('nequi');
     }
@@ -61,6 +78,7 @@ export default function Checkout() {
 
   const handleOrder = async () => {
     setLoading(true);
+    setSinStockIds([]);
     try {
       // Trust only slugs + quantities and customer/shipping details. The server
       // recomputes every price, the shipping cost, the total and the order
@@ -70,13 +88,14 @@ export default function Checkout() {
           nombre:   info.nombre,
           apellido: info.apellido,
           email:    info.email,
-          telefono: info.telefono,
+          telefono: `+57${phoneDigits}`,   // normalized, WhatsApp-ready
         },
         shipping: {
-          direccion: address.linea1,
-          ciudad:    address.ciudad,
-          metodo:    shipping,
-          franja:    slot,
+          direccion:         address.linea1,
+          direccion_detalle: address.detalle.trim() || null,
+          ciudad:            address.ciudad,
+          departamento:      address.departamento,
+          franja:            slot,
         },
         payment: {
           metodo:     payment as 'nequi' | 'daviplata' | 'transferencia' | 'efectivo',
@@ -85,12 +104,18 @@ export default function Checkout() {
         items: items.map((i) => ({
           slug:     i.slug,
           cantidad: i.quantity,
+          molienda: typeof i.options?.molienda === 'string' ? i.options.molienda : null,
         })),
       });
       // Capture the server response before emptying the cart.
       setConfirmation(result);
       clearCart();
     } catch (e) {
+      if (e instanceof CheckoutError && e.productosSinStock?.length) {
+        // No vaciamos el carrito: marcamos las líneas afectadas en el resumen
+        // (siempre visible) para que el usuario decida quitarlas o reducirlas.
+        setSinStockIds(e.productosSinStock);
+      }
       toast.error(e instanceof Error ? e.message : 'Error al procesar la orden');
     }
     setLoading(false);
@@ -116,7 +141,10 @@ export default function Checkout() {
               <div className="space-y-2 pt-3 border-t border-[#e8ddd0]">
                 {confirmation.items.map((item, i) => (
                   <div key={i} className="flex justify-between text-xs text-[#5a3a28]">
-                    <span className="min-w-0 truncate pr-2">{item.producto_nombre} × {item.cantidad}</span>
+                    <span className="min-w-0 truncate pr-2">
+                      {item.producto_nombre}
+                      {item.moliendaSeleccionada ? ` · ${item.moliendaSeleccionada}` : ''} × {item.cantidad}
+                    </span>
                     <span className="shrink-0 font-medium">{formatCOP(item.subtotal)}</span>
                   </div>
                 ))}
@@ -136,6 +164,12 @@ export default function Checkout() {
                       {getShippingMethod(confirmation.metodo_envio)?.label ?? confirmation.metodo_envio}
                       {findSlotLabel(confirmation.franja) ? ` · ${findSlotLabel(confirmation.franja)}` : ''}
                     </span>
+                  </div>
+                )}
+                {confirmation.direccion_detalle && (
+                  <div className="flex justify-between text-[#5a3a28]">
+                    <span>Detalles</span>
+                    <span className="text-right">{confirmation.direccion_detalle}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-[#1a0f08] text-base pt-1 border-t border-[#e8ddd0]">
@@ -202,33 +236,58 @@ export default function Checkout() {
                       <Field label="Apellido *" value={info.apellido} onChange={v => setInfo({ ...info, apellido: v })} />
                     </div>
                     <Field label="Correo electrónico *" type="email" value={info.email} onChange={v => setInfo({ ...info, email: v })} />
-                    <Field label="Teléfono / WhatsApp *" value={info.telefono} onChange={v => setInfo({ ...info, telefono: v })} placeholder="+57 300 000 0000" />
+                    <div>
+                      <label className="block text-xs font-medium text-[#5a3a28] mb-1.5">Teléfono / WhatsApp *</label>
+                      <div className="flex items-stretch">
+                        <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-[#e8ddd0] bg-[#f0e8de] text-sm font-medium text-[#5a3a28] select-none">+57</span>
+                        <input
+                          type="tel" inputMode="numeric" value={info.telefono}
+                          onChange={e => setInfo({ ...info, telefono: e.target.value })} placeholder="300 000 0000"
+                          className="w-full px-4 py-3 bg-[#faf7f4] border border-[#e8ddd0] rounded-r-xl text-sm text-[#1a0f08] focus:outline-none focus:ring-2 focus:ring-[#8B4513]/20 focus:border-[#8B4513]"
+                        />
+                      </div>
+                      {info.telefono && !phoneValid && (
+                        <p className="mt-1 text-xs text-red-600">Ingresa un celular colombiano de 10 dígitos (ej. 3XX XXX XXXX).</p>
+                      )}
+                    </div>
                     <div className="space-y-4">
                     <h2 className="font-semibold text-[#1a0f08] mb-4">Dirección de entrega</h2>
                     <Field label="Dirección *" value={address.linea1} onChange={v => setAddress({ ...address, linea1: v })} placeholder="Calle, Carrera, número" />
+                    <Field label="Detalles adicionales (opcional)" value={address.detalle} onChange={v => setAddress({ ...address, detalle: v })} placeholder="Apto, torre, interior, indicaciones de entrega." />
                     <div className="grid grid-cols-2 gap-4">
                       <Field label="Ciudad *" value={address.ciudad} onChange={v => setAddress({ ...address, ciudad: v })} />
-                      <Field label="Departamento" value={address.departamento} onChange={v => setAddress({ ...address, departamento: v })} />
+                      <div>
+                        <label className="block text-xs font-medium text-[#5a3a28] mb-1.5">Departamento *</label>
+                        <select
+                          value={address.departamento} onChange={e => selectDepartamento(e.target.value)}
+                          className="w-full px-4 py-3 bg-[#faf7f4] border border-[#e8ddd0] rounded-xl text-sm text-[#1a0f08] focus:outline-none focus:ring-2 focus:ring-[#8B4513]/20 focus:border-[#8B4513]"
+                        >
+                          <option value="" disabled>Selecciona departamento</option>
+                          {COLOMBIA_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                      </div>
                     </div>
                     <div className="space-y-3 mt-4">
                       <p className="text-sm font-semibold text-[#1a0f08]">Método de envío</p>
-                      {SHIPPING_METHODS.map(opt => (
-                        <div key={opt.id}>
-                          <label className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${shipping === opt.id ? 'border-[#8B4513] bg-[#8B4513]/5' : 'border-[#e8ddd0]'}`}>
-                            <div className="flex items-center gap-3">
-                              <input type="radio" name="shipping" value={opt.id} checked={shipping === opt.id} onChange={() => selectShipping(opt.id)} className="accent-[#8B4513] mt-0.5 self-start" />
-                              <div>
-                                <span className="block text-sm font-medium text-[#1a0f08]">{opt.label}</span>
-                                <span className="block text-xs text-[#8B6650]">{opt.description}</span>
-                              </div>
+                      {/* Method, price and franja are derived from departamento. */}
+                      {!shippingMethod ? (
+                        <p className="text-sm text-[#8B6650] p-4 rounded-xl border-2 border-dashed border-[#e8ddd0]">
+                          Selecciona tu departamento para ver el método y el costo de envío.
+                        </p>
+                      ) : (
+                        <div>
+                          <div className="flex items-center justify-between p-4 rounded-xl border-2 border-[#8B4513] bg-[#8B4513]/5">
+                            <div>
+                              <span className="block text-sm font-medium text-[#1a0f08]">{shippingMethod.label}</span>
+                              <span className="block text-xs text-[#8B6650]">{shippingMethod.description}</span>
                             </div>
-                            <span className="text-sm font-bold text-[#8B4513] shrink-0">{computeShippingCost(opt.id, subtotal) === 0 ? 'Gratis' : formatCOP(opt.price)}</span>
-                          </label>
-                          {/* Franja horaria — required only for entregas en Bogotá */}
-                          {opt.id === 'bogota' && shipping === 'bogota' && opt.slots && (
+                            <span className="text-sm font-bold text-[#8B4513] shrink-0">{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost!)}</span>
+                          </div>
+                          {/* Franja horaria — required for Bogotá D.C., framed as a preference */}
+                          {isBogota && shippingMethod.slots && (
                             <div className="mt-3 ml-4 pl-4 border-l-2 border-[#e8ddd0] space-y-2">
-                              <p className="text-xs font-semibold text-[#5a3a28]">Franja horaria *</p>
-                              {opt.slots.map(s => (
+                              <p className="text-xs font-semibold text-[#5a3a28]">Franja horaria * <span className="font-normal text-[#8B6650]">(preferencia)</span></p>
+                              {shippingMethod.slots.map(s => (
                                 <label key={s.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${slot === s.id ? 'border-[#8B4513] bg-[#8B4513]/5' : 'border-[#e8ddd0]'}`}>
                                   <input type="radio" name="slot" value={s.id} checked={slot === s.id} onChange={() => setSlot(s.id)} className="accent-[#8B4513]" />
                                   <span className="text-sm text-[#1a0f08]">{s.label}</span>
@@ -237,11 +296,11 @@ export default function Checkout() {
                             </div>
                           )}
                         </div>
-                      ))}
+                      )}
                     </div>
                     <div className="flex gap-3 mt-2">
                       <button onClick={() => setStep(0)} className="flex-1 border border-[#e8ddd0] text-[#5a3a28] font-medium py-3.5 rounded-xl text-sm hover:bg-[#f0e8de]">Atrás</button>
-                      <button onClick={() => setStep(1)} disabled={!address.linea1 || !address.ciudad || (shipping === 'bogota' && !slot)} className="flex-1 bg-[#1a0f08] disabled:opacity-40 text-white font-semibold py-3.5 rounded-xl text-sm hover:bg-[#2d1a0e]">Continuar al pago</button>
+                      <button onClick={() => setStep(1)} disabled={!address.linea1 || !address.ciudad || !address.departamento || !phoneValid || (isBogota && !slot)} className="flex-1 bg-[#1a0f08] disabled:opacity-40 text-white font-semibold py-3.5 rounded-xl text-sm hover:bg-[#2d1a0e]">Continuar al pago</button>
                     </div>
                   </div>
                   </div>
@@ -288,18 +347,27 @@ export default function Checkout() {
               <div className="bg-white rounded-2xl border border-[#e8ddd0] p-5 sticky top-20">
                 <h3 className="font-semibold text-[#1a0f08] mb-4">Resumen del pedido</h3>
                 <div className="space-y-3 mb-4">
-                  {items.map(item => (
-                    <div key={item.key} className="flex gap-3">
+                  {items.map(item => {
+                    const sinStock = sinStockIds.includes(item.id);
+                    return (
+                    <div key={item.key} className={`flex gap-3 ${sinStock ? 'rounded-lg -mx-1 px-1 ring-1 ring-red-300 bg-red-50/60' : ''}`}>
                       <div className="w-12 h-12 rounded-lg overflow-hidden bg-[#f0e8de] shrink-0">
                         <img src={item.imagen} alt={item.nombre} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-[#1a0f08] line-clamp-2">{item.nombre}</p>
+                        {typeof item.options?.molienda === 'string' && (
+                          <p className="text-xs text-[#a07050]">Molienda: {item.options.molienda}</p>
+                        )}
                         <p className="text-xs text-[#8B6650]">× {item.quantity}</p>
+                        {sinStock && (
+                          <p className="text-xs font-medium text-red-600 mt-0.5">Cantidad no disponible</p>
+                        )}
                       </div>
                       <p className="text-xs font-bold text-[#1a0f08] shrink-0">{formatCOP(item.precio * item.quantity)}</p>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="space-y-2 pt-3 border-t border-[#e8ddd0] text-sm">
                   <div className="flex justify-between text-[#5a3a28]">
@@ -307,7 +375,9 @@ export default function Checkout() {
                   </div>
                   <div className="flex justify-between text-[#5a3a28]">
                     <span>Envío</span>
-                    <span className={shippingCost === 0 ? 'text-emerald-600' : ''}>{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost)}</span>
+                    {shippingCost === null
+                      ? <span className="text-[#8B6650]">Selecciona departamento</span>
+                      : <span className={shippingCost === 0 ? 'text-emerald-600' : ''}>{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost)}</span>}
                   </div>
                   <div className="flex justify-between font-bold text-[#1a0f08] text-base pt-1 border-t border-[#e8ddd0]">
                     <span>Total</span><span>{formatCOP(total)}</span>

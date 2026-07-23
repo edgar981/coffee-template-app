@@ -4,74 +4,17 @@ import Link from "next/link";
 import Image from "next/image";
 
 import {
-  Coffee,
   MessageCircle,
 } from "lucide-react";
 
-const shopLinks = [
-  {
-    label: "Todos los productos",
-    href: "/tienda",
-  },
-  {
-    label: "Café en Grano",
-    href: "/tienda?cat=cafe_grano",
-  },
-  {
-    label: "Cold Brew",
-    href: "/tienda?cat=cold_brew",
-  },
-  {
-    label: "Cajas de Regalo",
-    href: "/tienda?cat=caja_regalo",
-  },
-  {
-    label: "Suscripciones",
-    href: "/suscripciones",
-  },
-];
+import { Logo } from "@/components/storefront/Logo";
+import {
+  siteConfig,
+  whatsappUrl,
+  instagramUrl,
+} from "@/lib/config/site";
 
-const helpLinks = [
-  {
-    label: "Rastrear Pedido",
-    href: "/rastrear-pedido",
-  },
-  {
-    label: "Preguntas Frecuentes",
-    href: "/preguntas-frecuentes",
-  },
-  {
-    label: "Política de Envíos",
-    href: "/tienda/envios",
-  },
-  {
-    label: "Devoluciones",
-    href: "/tienda/devoluciones",
-  },
-  {
-    label: "Contacto",
-    href: "/tienda/contacto",
-  },
-];
-
-const companyLinks = [
-  {
-    label: "Nuestra Historia",
-    href: "/tienda/nosotros",
-  },
-  {
-    label: "Blog",
-    href: "/tienda/blog",
-  },
-  {
-    label: "Sostenibilidad",
-    href: "/tienda/sostenibilidad",
-  },
-  {
-    label: "Trabaja con nosotros",
-    href: "/tienda/empleo",
-  },
-];
+const { brand, contacto, footerNav, legalNav } = siteConfig;
 
 export default function StoreFooter() {
   return (
@@ -80,28 +23,31 @@ export default function StoreFooter() {
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div className="lg:col-span-1">
-            <div className="mb-4 flex items-center gap-2">
-              <Coffee className="h-5 w-5 text-[#d4a97a]" />
-
-              <span className="font-playfair text-xl font-medium">
-                Café Nayoli
-              </span>
+            <div className="mb-4">
+              {/* Espresso background → dark (cream) stacked lockup */}
+              <Logo
+                variant="dark"
+                stacked
+                subtitle={brand.tagline}
+                className="items-start [&>div]:items-start"
+              />
             </div>
 
             <p className="mb-6 text-sm leading-relaxed text-white/50">
-              Café de especialidad colombiano.
-              Del cafetal a tu taza, con
-              trazabilidad completa.
+              {brand.descripcionFooter}
             </p>
 
             <div className="flex gap-3">
               <a
-                href="#"
+                href={instagramUrl(contacto.instagram)}
+                target="_blank"
+                rel="noopener"
+                aria-label="Instagram de Café Nayoli"
                 className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
               >
                 <Image
                     src="/icons/instagram-white.svg"
-                    alt="Instagram"
+                    alt=""
                     width={16}
                     height={16}
                     className="opacity-60"
@@ -109,7 +55,10 @@ export default function StoreFooter() {
               </a>
 
               <a
-                href="#"
+                href={whatsappUrl()}
+                target="_blank"
+                rel="noopener"
+                aria-label="WhatsApp de Café Nayoli"
                 className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
               >
                 <MessageCircle className="h-4 w-4 text-white/60" />
@@ -124,7 +73,7 @@ export default function StoreFooter() {
             </h4>
 
             <ul className="space-y-2.5 text-sm text-white/50">
-              {shopLinks.map((link) => (
+              {footerNav.tienda.map((link) => (
                 <li key={link.label}>
                   <Link
                     href={link.href}
@@ -144,16 +93,30 @@ export default function StoreFooter() {
             </h4>
 
             <ul className="space-y-2.5 text-sm text-white/50">
-              {helpLinks.map((link) => (
-                <li key={link.label}>
-                  <Link
-                    href={link.href}
-                    className="transition-colors hover:text-[#d4a97a]"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
+              {footerNav.ayuda.map((link) => {
+                const external = link.href.startsWith("http");
+                return (
+                  <li key={link.label}>
+                    {external ? (
+                      <a
+                        href={link.href}
+                        target="_blank"
+                        rel="noopener"
+                        className="transition-colors hover:text-[#d4a97a]"
+                      >
+                        {link.label}
+                      </a>
+                    ) : (
+                      <Link
+                        href={link.href}
+                        className="transition-colors hover:text-[#d4a97a]"
+                      >
+                        {link.label}
+                      </Link>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </div>
 
@@ -164,7 +127,7 @@ export default function StoreFooter() {
             </h4>
 
             <ul className="space-y-2.5 text-sm text-white/50">
-              {companyLinks.map((link) => (
+              {footerNav.empresa.map((link) => (
                 <li key={link.label}>
                   <Link
                     href={link.href}
@@ -180,10 +143,12 @@ export default function StoreFooter() {
               <p>📱 WhatsApp</p>
 
               <a
-                href="https://wa.me/573001234567"
+                href={whatsappUrl()}
+                target="_blank"
+                rel="noopener"
                 className="text-[#d4a97a] hover:text-[#e8c095]"
               >
-                +57 300 123 4567
+                {contacto.whatsappDisplay}
               </a>
             </div>
           </div>
@@ -194,25 +159,23 @@ export default function StoreFooter() {
       <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-4 text-xs text-white/30 sm:flex-row sm:px-6 lg:px-8">
           <p>
-            © 2026 Café Nayoli.
+            © 2026 {brand.nombre}.
             Todos los derechos reservados.
           </p>
 
-          <div className="flex gap-4">
-            <Link
-              href="/tienda/privacidad"
-              className="transition-colors hover:text-white/60"
-            >
-              Privacidad
-            </Link>
-
-            <Link
-              href="/tienda/terminos"
-              className="transition-colors hover:text-white/60"
-            >
-              Términos
-            </Link>
-          </div>
+          {legalNav.length > 0 && (
+            <div className="flex gap-4">
+              {legalNav.map((link) => (
+                <Link
+                  key={link.label}
+                  href={link.href}
+                  className="transition-colors hover:text-white/60"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </footer>

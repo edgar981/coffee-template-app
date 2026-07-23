@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus, Search, Edit2, Trash2, Users, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +23,7 @@ export default function Clientes() {
   const [showForm, setShowForm]   = useState(false);
   const [editing, setEditing]     = useState<Customer | null>(null);
   const [form, setForm]           = useState<CustomerForm>(EMPTY_CUSTOMER_FORM);
-  const [selected, setSelected]   = useState<Customer | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     getCustomers().then(data => { setClientes(data); setLoading(false); });
@@ -84,7 +85,6 @@ export default function Clientes() {
     if (!confirm('¿Eliminar este cliente?')) return;
     await deleteCustomer(id);
     setClientes(prev => prev.filter(c => c.id !== id));
-    if (selected?.id === id) setSelected(null);
     toast.success('Cliente eliminado');
   };
 
@@ -96,11 +96,14 @@ export default function Clientes() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  // "Compras totales" = suma del campo denormalizado `total_compras` de TODOS los
+  // clientes (histórico por cliente, dato semilla). NO son ingresos reales — esos
+  // se calculan desde Payments y viven en Dashboard/Analítica.
   const stats = [
-    { label: 'Total Clientes',    value: clientes.length,      icon: Users, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-    { label: 'Recurrentes',       value: recurrentes,           icon: Star,  color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-    { label: 'Tasa Recurrencia',  value: tasaRecurr,            icon: Star,  color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
-    { label: 'Valor Total',       value: formatCOP(totalVentas),icon: Users, color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400' },
+    { label: 'Total Clientes',   value: clientes.length,       sublabel: undefined as string | undefined, icon: Users, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+    { label: 'Recurrentes',      value: recurrentes,           sublabel: undefined as string | undefined, icon: Star,  color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+    { label: 'Tasa Recurrencia', value: tasaRecurr,            sublabel: undefined as string | undefined, icon: Star,  color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+    { label: 'Compras totales',  value: formatCOP(totalVentas),sublabel: 'Histórico de clientes',          icon: Users, color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400' },
   ];
 
   return (
@@ -125,6 +128,9 @@ export default function Clientes() {
             </div>
             <p className="text-xl font-bold">{s.value}</p>
             <p className="text-xs text-muted-foreground">{s.label}</p>
+            {s.sublabel && (
+              <p className="text-[10px] leading-tight text-muted-foreground/70">{s.sublabel}</p>
+            )}
           </div>
         ))}
       </div>
@@ -153,7 +159,7 @@ export default function Clientes() {
                   <div
                     key={c.id}
                     className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/20 cursor-pointer transition-colors"
-                    onClick={() => setSelected(c)}
+                    onClick={() => router.push(`/admin/clientes/${c.id}`)}
                   >
                     <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                       <span className="text-sm font-semibold text-primary">
@@ -219,14 +225,6 @@ export default function Clientes() {
               ))}
             </div>
           </div>
-
-          {/* Customer detail panel */}
-          {selected && (
-            <CustomerDetail
-              customer={selected}
-              onClose={() => setSelected(null)}
-            />
-          )}
         </div>
       </div>
 
@@ -285,55 +283,6 @@ export default function Clientes() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-// ─── CustomerDetail ───────────────────────────────────────────────────────────
-
-interface CustomerDetailProps {
-  customer: Customer;
-  onClose:  () => void;
-}
-
-function CustomerDetail({ customer: c, onClose }: CustomerDetailProps) {
-  const rows: [string, string | number | undefined][] = [
-    ['Email',          c.email],
-    ['Teléfono',       c.telefono],
-    ['Ciudad',         c.ciudad],
-    ['Órdenes',        c.numero_ordenes ?? 0],
-    ['Total Compras',  formatCOP(c.total_compras ?? 0)],
-  ];
-
-  return (
-    <div className="bg-card border border-border rounded-xl p-5">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-sm">Perfil de Cliente</h3>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xs">×</button>
-      </div>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-          <span className="font-bold text-primary">{c.nombre?.[0]}</span>
-        </div>
-        <div>
-          <p className="font-semibold">{c.nombre}</p>
-          <p className="text-xs text-muted-foreground capitalize">{c.canal ?? 'directo'}</p>
-        </div>
-      </div>
-      <div className="space-y-2 text-sm">
-        {rows.map(([k, v]) => (
-          <div key={k} className="flex justify-between">
-            <span className="text-muted-foreground text-xs">{k}</span>
-            <span className="text-xs font-medium">{v ?? '—'}</span>
-          </div>
-        ))}
-      </div>
-      {c.notas && (
-        <div className="mt-3 p-2.5 bg-muted/50 rounded-lg">
-          <p className="text-xs text-muted-foreground">Notas</p>
-          <p className="text-xs mt-1">{c.notas}</p>
-        </div>
-      )}
     </div>
   );
 }

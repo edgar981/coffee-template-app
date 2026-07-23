@@ -1,4 +1,4 @@
-import type { Order, OrderStatus, TrackedOrder } from '@/types/order';
+import type { Order, TrackedOrder, DeliveryContext, DeliveryAddressPayload, OrderAddressResult } from '@/types/order';
 
 export async function getOrders(): Promise<Order[]> {
   const res = await fetch('/api/orders');
@@ -36,16 +36,10 @@ export async function createOrder(
   return res.json();
 }
 
-export async function updateOrderStatus(id: string, estado: OrderStatus): Promise<Order> {
-  const res = await fetch(`/api/orders/${id}/status`, {
-    method:  'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ estado }),
-  });
-  if (!res.ok) throw new Error('Error al actualizar estado');
-  return res.json();
-}
-
+// Single write path for ALL order mutations — status changes (dropdown) and
+// full edits (modal) both go through here. The endpoint owns the Shipping
+// auto-create hook (in a transaction) and returns the order WITH its shipping,
+// so no caller re-implements the hook and every path stays consistent.
 export async function updateOrder(id: string, data: Partial<Order>): Promise<Order> {
   const res = await fetch(`/api/orders/${id}`, {
     method:  'PATCH',
@@ -53,5 +47,31 @@ export async function updateOrder(id: string, data: Partial<Order>): Promise<Ord
     body:    JSON.stringify(data),
   });
   if (!res.ok) throw new Error('Error al actualizar orden');
+  return res.json();
+}
+
+// Contact + address context for the "Programar entrega" modal (resolves the
+// linked Customer and the effective phone server-side).
+export async function getDeliveryContext(orderId: string): Promise<DeliveryContext> {
+  const res = await fetch(`/api/orders/${orderId}/delivery-context`);
+  if (!res.ok) throw new Error('Error al cargar los datos de la orden');
+  return res.json();
+}
+
+// Agregar/actualizar la dirección de entrega en la ORDEN (validada como el
+// checkout). Returns the persisted address fields.
+export async function updateOrderAddress(
+  orderId: string,
+  data: DeliveryAddressPayload,
+): Promise<OrderAddressResult> {
+  const res = await fetch(`/api/orders/${orderId}/address`, {
+    method:  'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error ?? 'Error al guardar la dirección');
+  }
   return res.json();
 }

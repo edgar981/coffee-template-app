@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
 
-export default function AceptarInvitacionPage() {
+function AceptarInvitacionForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
@@ -106,5 +106,15 @@ export default function AceptarInvitacionPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+// useSearchParams() requires a Suspense boundary to prerender (Next.js CSR
+// bailout). The form reads the invite ?token=, so it lives inside the boundary.
+export default function AceptarInvitacionPage() {
+  return (
+    <Suspense fallback={null}>
+      <AceptarInvitacionForm />
+    </Suspense>
   );
 }

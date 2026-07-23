@@ -16,6 +16,7 @@ import {
 
 import { useCartStore } from "@/lib/cartStore";
 import { formatCOP } from "@/lib/utils";
+import { freeShippingThreshold } from "@/lib/shipping-config";
 
 export default function CartDrawer() {
   const {
@@ -27,9 +28,10 @@ export default function CartDrawer() {
     subtotal,
   } = useCartStore();
 
-  const shipping = subtotal > 150000 ? 0 : 8000;
-
-  const total = subtotal + shipping;
+  // El costo de envío depende de la dirección; se calcula en el checkout. Aquí
+  // solo mostramos el subtotal (el total real lo recalcula el servidor).
+  const belowFreeShipping =
+    freeShippingThreshold !== null && subtotal < freeShippingThreshold;
 
   const totalItems = items.reduce(
     (sum, item) => sum + item.quantity,
@@ -118,7 +120,7 @@ export default function CartDrawer() {
                       {/* Image */}
                       <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-[#f0e8de]">
                         <Image
-                          src={item.imagen ?? "/placeholder.png"}
+                          src={item.imagen ?? "/images/placeholder-producto-v1.png"}
                           alt={item.nombre}
                           fill
                           className="object-cover"
@@ -131,6 +133,12 @@ export default function CartDrawer() {
                         <p className="line-clamp-2 text-sm font-medium leading-tight text-[#1a0f08]">
                           {item.nombre}
                         </p>
+
+                        {typeof item.options?.molienda === "string" && (
+                          <p className="mt-0.5 text-xs text-[#a07050]">
+                            Molienda: {item.options.molienda}
+                          </p>
+                        )}
 
                         <p className="mt-0.5 text-xs text-[#8B6650]">
                           {formatCOP(item.precio)}
@@ -194,38 +202,24 @@ export default function CartDrawer() {
               <div className="space-y-3 border-t border-[#e8ddd0] px-5 py-4">
                 <div className="space-y-1.5 text-sm">
                   <div className="flex justify-between text-[#5a3a28]">
-                    <span>Subtotal</span>
-
-                    <span>{formatCOP(subtotal)}</span>
-                  </div>
-
-                  <div className="flex justify-between text-[#5a3a28]">
                     <span>Envío</span>
 
-                    <span
-                      className={
-                        shipping === 0
-                          ? "font-medium text-emerald-600"
-                          : ""
-                      }
-                    >
-                      {shipping === 0
-                        ? "Gratis"
-                        : formatCOP(shipping)}
+                    <span className="text-[#8B6650]">
+                      Se calcula en el checkout
                     </span>
                   </div>
 
-                  {shipping > 0 && (
+                  {belowFreeShipping && (
                     <p className="text-xs text-[#8B6650]">
-                      Envío gratis en pedidos mayores a
-                      $150.000
+                      Envío gratis en pedidos mayores a{" "}
+                      {formatCOP(freeShippingThreshold!)}
                     </p>
                   )}
 
                   <div className="flex justify-between border-t border-[#e8ddd0] pt-1 text-base font-bold text-[#1a0f08]">
-                    <span>Total</span>
+                    <span>Subtotal</span>
 
-                    <span>{formatCOP(total)}</span>
+                    <span>{formatCOP(subtotal)}</span>
                   </div>
                 </div>
 

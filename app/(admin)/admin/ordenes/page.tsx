@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, ShoppingCart } from 'lucide-react';
+import { Plus, Search, ShoppingCart, Truck, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -9,17 +9,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
-import { getOrders, createOrder, updateOrderStatus, updateOrder } from '@/lib/api/orders';
+import { getOrders, createOrder, updateOrder } from '@/lib/api/orders';
+import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
+import { RegisterPaymentModal } from '@/components/admin/RegisterPaymentModal';
 import type { Order, OrderForm, OrderStatus, OrderChannel } from '@/types/order';
 import type { PaymentMethod } from '@/types/payment';
+import type { Shipping } from '@/types/shipping';
 import { formatCOP } from '@/lib/utils';
 import { findSlotLabel } from '@/lib/shipping-config';
+import { isScheduledShipping } from '@/constants/shippings';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ESTADOS: OrderStatus[] = [
-  'pendiente', 'confirmado', 'pagado', 'preparando', 'enviado', 'entregado', 'cancelado',
-];
+// Order status is payment-only now. Fulfillment lives on Shipping.
+const ESTADOS: OrderStatus[] = ['pendiente', 'pagado', 'cancelado'];
 
 const CANALES: OrderChannel[] = ['whatsapp', 'instagram', 'directo', 'referido'];
 
@@ -27,9 +30,8 @@ const METODOS_PAGO: PaymentMethod[] = [
   'efectivo', 'transferencia', 'nequi', 'daviplata', 'tarjeta', 'otro',
 ];
 
-const TIMELINE_ESTADOS: OrderStatus[] = [
-  'pendiente', 'confirmado', 'pagado', 'preparando', 'enviado', 'entregado',
-];
+// Linear payment phases for the order-detail timeline (cancelado is non-linear).
+const TIMELINE_ESTADOS: OrderStatus[] = ['pendiente', 'pagado'];
 
 const EMPTY_FORM: OrderForm = {
   cliente_nombre:    '',
@@ -55,9 +57,22 @@ export default function Ordenes() {
   const [selected, setSelected]         = useState<Order | null>(null);
   const [showForm, setShowForm]         = useState(false);
   const [form, setForm]                 = useState<OrderForm>(EMPTY_FORM);
+  // Order whose delivery is being scheduled (opens the pre-filled modal).
+  const [scheduleOrder, setScheduleOrder] = useState<Order | null>(null);
+  // Order whose payment is being registered (opens the pre-filled modal).
+  const [paymentOrder, setPaymentOrder]   = useState<Order | null>(null);
 
   useEffect(() => {
-    getOrders().then(data => { setOrders(data); setLoading(false); });
+    getOrders().then(data => {
+      setOrders(data);
+      setLoading(false);
+      // Deep-link from the Pagos ledger: /admin/ordenes?order=CN-123 opens detail.
+      const num = new URLSearchParams(window.location.search).get('order');
+      if (num) {
+        const match = data.find(o => o.numero_orden === num);
+        if (match) setSelected(match);
+      }
+    });
   }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────────
@@ -96,13 +111,19 @@ export default function Ordenes() {
   };
 
   const handleUpdateStatus = async (id: string, estado: OrderStatus) => {
-    const updated = await updateOrderStatus(id, estado);
+    // Same single write path as the modal: the response includes the (possibly
+    // just auto-created) shipping, so "Programar entrega" appears immediately.
+    const updated = await updateOrder(id, { estado });
     setOrders(prev => prev.map(o => o.id === id ? updated : o));
     toast.success(`Estado actualizado: ${estado}`);
   };
 
   const handleOrderUpdate = (updated: Order) => {
     setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
+  };
+
+  const handleScheduled = (orderId: string, shipping: Shipping) => {
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, shipping } : o));
   };
 
   const field = (key: keyof OrderForm) => ({
@@ -173,7 +194,7 @@ export default function Ordenes() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40">
-                  {['#Orden', 'Cliente', 'Canal', 'Total','Estado', 'Fecha', 'Acciones'].map(h => (
+                  {['#Orden', 'Cliente', 'Canal', 'Total', 'Estado', 'Fecha', 'Acciones', 'Entrega'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{h}</th>
                   ))}
                 </tr>
@@ -196,19 +217,56 @@ export default function Ordenes() {
                       <span className="text-xs capitalize bg-muted px-2 py-0.5 rounded">{o.canal}</span>
                     </td>
                     <td className="px-4 py-3 font-semibold">{formatCOP(o.total)}</td>
+                    {/* Estado = payment only (Pendiente/Pagado/Cancelado). */}
                     <td className="px-4 py-3"><StatusBadge status={o.estado} /></td>
+                    {/* Entrega = derived fulfillment status from the Shipping.
+                        Only Preparando/En ruta/Entregado/Fallido — suppressed for
+                        cancelled orders (don't repeat "Cancelado") and orders with
+                        no Shipping (pendiente). */}
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       {new Date(o.createdAt).toLocaleDateString('es-CO')}
                     </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      <Select value={o.estado} onValueChange={v => handleUpdateStatus(o.id, v as OrderStatus)}>
-                        <SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {ESTADOS.map(e => (
-                            <SelectItem key={e} value={e} className="text-xs capitalize">{e}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-2">
+                        <Select value={o.estado} onValueChange={v => handleUpdateStatus(o.id, v as OrderStatus)}>
+                          <SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {ESTADOS.map(e => (
+                              <SelectItem key={e} value={e} className="text-xs capitalize">{e}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {/* Registrar pago — solo para órdenes pendientes de pago.
+                            Confirma pago + pasa a Pagado + crea la entrega. */}
+                        {o.estado === 'pendiente' && (
+                          <Button
+                            variant="outline" size="sm" className="h-7 gap-1 text-xs whitespace-nowrap"
+                            onClick={() => setPaymentOrder(o)}
+                          >
+                            <CreditCard className="w-3.5 h-3.5" /> Registrar pago
+                          </Button>
+                        )}
+                        {/* Only when the delivery needs (re)scheduling — hidden once
+                            it's en ruta/entregado (real fulfillment record) or the
+                            order is cancelled. The scheduled date lives on Entregas. */}
+                        {o.estado !== 'cancelado' && (o.shipping?.estado === 'preparando' || o.shipping?.estado === 'fallido') && (
+                          <Button
+                            variant="outline" size="sm" className="h-7 gap-1 text-xs whitespace-nowrap"
+                            onClick={() => setScheduleOrder(o)}
+                          >
+                            <Truck className="w-3.5 h-3.5" /> {
+                              o.shipping?.estado === 'fallido'
+                                ? 'Reprogramar'
+                                : isScheduledShipping(o.shipping) ? 'Editar entrega' : 'Programar entrega'
+                            }
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {o.shipping && o.shipping.estado !== 'cancelado'
+                        ? <StatusBadge status={o.shipping.estado} />
+                        : <span className="text-muted-foreground">—</span>}
                     </td>
                   </tr>
                 ))}
@@ -217,6 +275,31 @@ export default function Ordenes() {
           </div>
         )}
       </div>
+
+      {/* Schedule Delivery Dialog — pre-filled from a paid order */}
+      <ScheduleDeliveryModal
+        target={scheduleOrder && scheduleOrder.shipping ? { shipping: scheduleOrder.shipping } : null}
+        onClose={() => setScheduleOrder(null)}
+        onSaved={(sh) => { if (scheduleOrder) handleScheduled(scheduleOrder.id, sh); }}
+        onAddressAdded={(orderId, address) => setOrders(prev => prev.map(o =>
+          o.id === orderId
+            ? { ...o, direccion_entrega: address.direccion_entrega, ciudad_entrega: address.ciudad_entrega }
+            : o
+        ))}
+      />
+
+      {/* Register Payment Dialog — cliente/monto read-only from the order */}
+      <RegisterPaymentModal
+        target={paymentOrder ? {
+          id:      paymentOrder.id,
+          numero:  paymentOrder.numero_orden,
+          cliente: paymentOrder.cliente_nombre ?? null,
+          monto:   paymentOrder.total,
+        } : null}
+        declaredMetodo={paymentOrder?.metodo_pago ?? null}
+        onClose={() => setPaymentOrder(null)}
+        onSaved={({ order }) => handleOrderUpdate(order)}
+      />
 
       {/* Order Detail Dialog */}
       <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
@@ -229,6 +312,7 @@ export default function Ordenes() {
               order={selected}
               onClose={() => setSelected(null)}
               onUpdate={handleOrderUpdate}
+              onRegisterPayment={(o) => { setSelected(null); setPaymentOrder(o); }}
             />
           )}
         </DialogContent>
@@ -318,9 +402,10 @@ interface OrderDetailProps {
   order:    Order;
   onClose:  () => void;
   onUpdate: (updated: Order) => void;
+  onRegisterPayment: (order: Order) => void;
 }
 
-function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
+function OrderDetail({ order, onClose, onUpdate, onRegisterPayment }: OrderDetailProps) {
   const [estado, setEstado] = useState<OrderStatus>(order.estado);
   const [notas, setNotas]   = useState(order.notas_internas ?? '');
 
@@ -362,6 +447,9 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
           <InfoRow label="Dirección" value={order.direccion_entrega ?? '—'} />
         </div>
         <div className="col-span-2">
+          <InfoRow label="Detalles adicionales" value={order.direccion_detalle ?? '—'} />
+        </div>
+        <div className="col-span-2">
           <InfoRow label="Franja de entrega" value={findSlotLabel(order.deliverySlot) ?? '—'} />
         </div>
       </div>
@@ -373,7 +461,12 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
           <div className="space-y-1.5">
             {order.items!.map((item, i) => (
               <div key={i} className="flex justify-between items-center text-sm bg-muted/30 rounded-lg px-3 py-2">
-                <span>{item.producto_nombre} × {item.cantidad}</span>
+                <span>
+                  {item.producto_nombre} × {item.cantidad}
+                  {item.moliendaSeleccionada && (
+                    <span className="block text-xs text-muted-foreground">Molienda: {item.moliendaSeleccionada}</span>
+                  )}
+                </span>
                 <span className="font-medium">{formatCOP(item.subtotal)}</span>
               </div>
             ))}
@@ -383,6 +476,13 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
 
       {/* Update */}
       <div className="space-y-3 border-t border-border pt-4">
+        {/* Registrar pago — solo para órdenes pendientes. Cierra el detalle y abre
+            el modal de pago (cliente/monto de solo lectura). */}
+        {order.estado === 'pendiente' && (
+          <Button onClick={() => onRegisterPayment(order)} className="w-full gap-2">
+            <CreditCard className="w-4 h-4" /> Registrar pago
+          </Button>
+        )}
         <div>
           <Label className="text-xs">Cambiar Estado</Label>
           <Select value={estado} onValueChange={v => setEstado(v as OrderStatus)}>

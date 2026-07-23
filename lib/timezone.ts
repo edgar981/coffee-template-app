@@ -46,3 +46,21 @@ export function startOfZonedDay(ref: Date, tz: string, dayDelta = 0): Date {
   const offset = zoneOffsetMs(new Date(utcGuess), tz);
   return new Date(utcGuess - offset);
 }
+
+/**
+ * UTC instant of 00:00 local time on the 1st of the month that `ref` falls on
+ * in `tz`, shifted by `monthDelta` months (0 = this month, -1 = last month,
+ * +1 = next month). `Date.UTC` normalises month over/underflow across years.
+ */
+export function startOfZonedMonth(ref: Date, tz: string, monthDelta = 0): Date {
+  const [y, m] = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz, year: 'numeric', month: '2-digit',
+  })
+    .format(ref)
+    .split('-')
+    .map(Number);
+
+  const utcGuess = Date.UTC(y, (m - 1) + monthDelta, 1, 0, 0, 0);
+  const offset = zoneOffsetMs(new Date(utcGuess), tz);
+  return new Date(utcGuess - offset);
+}

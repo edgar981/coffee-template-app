@@ -20,4 +20,16 @@ export interface DashboardStats {
   avgTicket: number;
   /** N most recent orders by creation date (all statuses), newest first. */
   recentOrders: Order[];
+  /**
+   * Month-over-month comparison: current calendar month (in progress) vs the
+   * previous complete month, America/Bogota, non-cancelled orders only. Revenue
+   * is Order-based (same source as `totalRevenue`) — NOT the Payments ledger.
+   * `prevMonthOrders` is the anti-noise gate basis for the trend pills.
+   */
+  monthly: {
+    revenue:   { current: number; previous: number };
+    orders:    { current: number; previous: number };
+    avgTicket: { current: number; previous: number };
+    prevMonthOrders: number;
+  };
 }

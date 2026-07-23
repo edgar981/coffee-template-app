@@ -1,4 +1,4 @@
-import type { Shipping } from '@/types/shipping';
+import type { Shipping, ScheduleDeliveryInput } from '@/types/shipping';
 
 export async function getShippings(): Promise<Shipping[]> {
   const res = await fetch('/api/shippings');
@@ -6,16 +6,14 @@ export async function getShippings(): Promise<Shipping[]> {
   return res.json();
 }
 
-export async function createShipping(
-  data: Omit<Shipping, 'id' | 'createdAt' | 'updatedAt'>
+// "Programar entrega" — edit the already auto-created Shipping (courier, zona,
+// date, notes). There is no create path: the Shipping exists once the order is
+// paid. The operator supplies only these fields.
+export async function scheduleDelivery(
+  id: string,
+  data: ScheduleDeliveryInput
 ): Promise<Shipping> {
-  const res = await fetch('/api/shippings', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error('Error al crear entrega');
-  return res.json();
+  return updateShipping(id, data);
 }
 
 export async function updateShipping(
@@ -27,6 +25,9 @@ export async function updateShipping(
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Error al actualizar entrega');
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.error ?? 'Error al actualizar entrega');
+  }
   return res.json();
 }

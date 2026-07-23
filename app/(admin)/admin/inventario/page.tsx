@@ -67,8 +67,8 @@ export default function Inventario() {
       toast.success('Inventario actualizado');
       setShowAdj(false);
       setAdjForm(EMPTY_FORM);
-    } catch {
-      toast.error('Error al ajustar el inventario');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al ajustar el inventario');
     }
   };
 

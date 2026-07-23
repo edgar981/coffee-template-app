@@ -36,7 +36,7 @@ export default function ProductCard({
   ) => {
     e.preventDefault();
 
-    if (product.agotado || product.stock === 0) return;
+    if (!product.disponible) return;
 
     addItem(product, 1);
 
@@ -55,15 +55,18 @@ export default function ProductCard({
         transition={{ duration: 0.2 }}
         className="overflow-hidden rounded-2xl border border-[#e8ddd0] bg-white transition-all duration-300 hover:shadow-lg"
       >
-        {/* Image */}
+        {/* Image — el contenedor crema de marca queda como fallback si el
+            producto no tiene imagen (evita pasar undefined a next/image). */}
         <div className="relative aspect-square overflow-hidden bg-[#f0e8de]">
-          <Image
-            src={product.imagen}
-            alt={product.nombre}
-            fill
-            sizes={sizes}
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
-          />
+          {product.imagen && (
+            <Image
+              src={product.imagen}
+              alt={product.nombre}
+              fill
+              sizes={sizes}
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+          )}
 
           {/* Badge */}
           {product.badge && (
@@ -83,8 +86,7 @@ export default function ProductCard({
           )}
 
           {/* Add to cart */}
-          {!product.agotado &&
-            product.stock > 0 && (
+          {product.disponible && (
               <button
                 onClick={handleAdd}
                 className="absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md opacity-0 transition-opacity hover:bg-[#8B4513] hover:text-white group-hover:opacity-100 cursor-pointer"
@@ -105,11 +107,11 @@ export default function ProductCard({
             {product.nombre}
           </h3>
 
-          {/* Notes */}
+          {/* Tags */}
           {product.notas && (
             <div className="mb-3 flex flex-wrap gap-1">
               {product.notas
-                .slice(0, 2)
+                .slice(0, 3)
                 .map((note) => (
                   <span
                     key={note}
@@ -135,7 +137,7 @@ export default function ProductCard({
               )}
             </div>
 
-            {product.agotado ? (
+            {!product.disponible ? (
               <span className="text-xs text-gray-400">
                 Agotado
               </span>

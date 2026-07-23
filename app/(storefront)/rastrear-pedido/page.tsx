@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 
 import { useSearchParams } from "next/navigation";
 
@@ -8,7 +8,7 @@ import { TrackedOrder } from "@/types/order";
 
 import { getOrderByNumber } from "@/services/order.service";
 
-import { Search, Package, CheckCircle, Truck, Clock, MapPin, Coffee, XCircle } from 'lucide-react';
+import { Search, Package, CheckCircle, Truck, MapPin, Coffee, XCircle, AlertTriangle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -24,24 +24,34 @@ interface TimelineStep {
   icon: React.ElementType;
 }
 
+// The timeline stitches BOTH models: steps 0–1 come from Order.status (payment),
+// steps 2–4 from Shipping.status (fulfillment).
 const TIMELINE: TimelineStep[] = [
-  { estado: 'pendiente', label: 'Pedido recibido', desc: 'Tu orden ha sido registrada en nuestro sistema.', icon: Package },
-  { estado: 'confirmado', label: 'Pedido confirmado', desc: 'Hemos confirmado tu pago y preparamos tu café.', icon: CheckCircle },
+  { estado: 'recibido',   label: 'Pedido recibido', desc: 'Tu orden ha sido registrada en nuestro sistema.', icon: Package },
+  { estado: 'pagado',     label: 'Pago confirmado', desc: 'Hemos confirmado tu pago y preparamos tu café.', icon: CheckCircle },
   { estado: 'preparando', label: 'Preparando', desc: 'Tu pedido está siendo empacado con mucho cariño.', icon: Coffee },
-  { estado: 'enviado', label: 'Enviado', desc: 'Tu pedido está en camino. ¡Pronto llegará!', icon: Truck },
-  { estado: 'entregado', label: 'Entregado', desc: 'Pedido entregado. ¡Disfruta tu café!', icon: CheckCircle },
+  { estado: 'en_ruta',    label: 'En ruta', desc: 'Tu pedido está en camino. ¡Pronto llegará!', icon: Truck },
+  { estado: 'entregado',  label: 'Entregado', desc: 'Pedido entregado. ¡Disfruta tu café!', icon: CheckCircle },
 ];
 
-// Keyed on the exact lowercase-Spanish strings the DB stores in Order.estado.
-// `pagado` maps onto the "confirmado" step (payment confirmed). `cancelado` is
-// intentionally absent — it is handled separately and must NOT fall through to
-// the linear timeline.
-const ORDER_IDX: Record<string, number> = { pendiente: 0, confirmado: 1, pagado: 1, preparando: 2, enviado: 3, entregado: 4 };
+// Combine payment (Order.status) and fulfillment (Shipping.status) into a single
+// linear index. Cancelado and Fallido are handled separately (non-linear). A
+// paid order whose Shipping doesn't exist yet caps at step 1 — no crash.
+function computeStep(estado: string, shippingEstado: string | null): number {
+  if (estado === 'pendiente') return 0;
+  // Paid or beyond → fulfillment phase is driven by the shipping.
+  switch (shippingEstado) {
+    case 'entregado':  return 4;
+    case 'en_ruta':    return 3;
+    case 'preparando': return 2;
+    default:           return 1; // paid, shipping not created yet
+  }
+}
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
 
-export default function OrderTracking() {
+function OrderTrackingInner() {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('orden') || '');
   const [email, setEmail] = useState(searchParams.get('email') || '');
@@ -73,7 +83,13 @@ export default function OrderTracking() {
   }, []);
 
   const isCancelled = order?.estado === 'cancelado' || order?.estado === 'cancelled';
-  const currentStep = order ? (ORDER_IDX[order.estado] ?? 0) : 0;
+  const isFailed = order?.shipping_estado === 'fallido';
+  const currentStep = order ? computeStep(order.estado, order.shipping_estado) : 0;
+  // Badge shows the most advanced meaningful state: cancellation, else the
+  // fulfillment state once it exists, else the payment state.
+  const displayEstado = order
+    ? (isCancelled ? 'cancelado' : (order.shipping_estado ?? order.estado))
+    : '';
 
   return (
       <div className="pt-16 min-h-screen">
@@ -151,7 +167,7 @@ export default function OrderTracking() {
                     <p className="text-xs text-[#8B6650] mb-1">Número de orden</p>
                     <p className="text-2xl font-bold text-[#8B4513]">{order.numero_orden}</p>
                   </div>
-                  <StatusBadge status={order.estado} theme="light" />
+                  <StatusBadge status={displayEstado} theme="light" />
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
@@ -171,7 +187,8 @@ export default function OrderTracking() {
                 </div>
               </div>
 
-              {/* Status: cancelled gets its own rendering; everything else uses the linear timeline. */}
+              {/* Cancelled (payment) and failed delivery (fulfillment) get their own
+                  rendering; everything else uses the combined linear timeline. */}
               {isCancelled ? (
                 <div className="bg-white rounded-2xl border border-red-200 p-6">
                   <div className="flex items-start gap-4">
@@ -181,6 +198,18 @@ export default function OrderTracking() {
                     <div>
                       <p className="text-sm font-semibold text-[#1a0f08]">Pedido cancelado</p>
                       <p className="text-xs mt-0.5 text-[#8B6650]">Este pedido fue cancelado. Si crees que es un error, contáctanos por WhatsApp y con gusto te ayudamos.</p>
+                    </div>
+                  </div>
+                </div>
+              ) : isFailed ? (
+                <div className="bg-white rounded-2xl border border-amber-200 p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                      <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-[#1a0f08]">Entrega fallida</p>
+                      <p className="text-xs mt-0.5 text-[#8B6650]">No pudimos completar la entrega. Nuestro equipo se pondrá en contacto contigo por WhatsApp para reprogramarla.</p>
                     </div>
                   </div>
                 </div>
@@ -244,5 +273,15 @@ export default function OrderTracking() {
           )}
         </div>
       </div>
+  );
+}
+
+// useSearchParams() (order number + email from the URL) requires a Suspense
+// boundary to prerender — Next.js CSR bailout.
+export default function OrderTracking() {
+  return (
+    <Suspense fallback={<div className="pt-16 min-h-screen" />}>
+      <OrderTrackingInner />
+    </Suspense>
   );
 }

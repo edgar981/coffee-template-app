@@ -21,7 +21,8 @@ import {
   motion,
 } from "framer-motion";
 
-import { DEMO_PRODUCTS } from "@/lib/mock/products";
+import { getCatalog } from "@/lib/api/products";
+import type { Product } from "@/types/product";
 
 import { formatCOP } from "@/lib/utils";
 
@@ -38,11 +39,16 @@ export default function NavSearch({
   const [query, setQuery] =
     useState("");
 
+  // Fuente única: catálogo público desde la DB. Se carga al abrir el buscador
+  // por primera vez (la petición está memoizada en lib/api).
+  const [catalog, setCatalog] = useState<Product[]>([]);
+
   const inputRef =
     useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
+      getCatalog().then(setCatalog).catch(() => setCatalog([]));
       setTimeout(() => {
         inputRef.current?.focus();
       }, 100);
@@ -74,7 +80,7 @@ export default function NavSearch({
   const filteredProducts = useMemo(() => {
     if (!query.trim()) return [];
 
-    return DEMO_PRODUCTS.filter(
+    return catalog.filter(
       (product) =>
         product.nombre
           .toLowerCase()
@@ -92,7 +98,7 @@ export default function NavSearch({
             query.toLowerCase()
           )
     ).slice(0, 6);
-  }, [query]);
+  }, [catalog, query]);
 
   return (
     <AnimatePresence>
@@ -201,7 +207,7 @@ export default function NavSearch({
                             <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-[#f0e8de]">
                               <Image
                                 src={
-                                  product.imagen ?? "/placeholder.png"
+                                  product.imagen ?? "/images/placeholder-producto-v1.png"
                                 }
                                 alt={
                                   product.nombre

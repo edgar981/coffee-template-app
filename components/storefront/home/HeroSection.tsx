@@ -18,11 +18,12 @@ export default function HeroSection() {
     <section className="relative flex min-h-[92vh] items-center overflow-hidden bg-[#1a0f08]">
       <div className="absolute inset-0">
         <Image
-          src="/images/hero-image.jpeg"
-          alt="Café Nayoli"
+          src="/images/hero-beans-v1.jpg"
+          alt="Granos de café de especialidad de Café Nayoli"
           fill
           priority
           sizes="100vw"
+          quality={85}
           className="object-cover opacity-40"
         />
 
@@ -64,10 +65,11 @@ export default function HeroSection() {
             variants={fadeUp}
             className="mb-10 max-w-md text-lg leading-relaxed text-white/70"
           >
-            Microlotes de origen colombiano.
-            Tostado artesanal. Entregado en
-            tu puerta con la cadena de
-            trazabilidad completa.
+            Café de especialidad cultivado por
+            nuestra familia en Supatá,
+            Cundinamarca. Una sola finca, una
+            sola variedad, tostado en tandas
+            semanales.
           </motion.p>
 
           <motion.div
