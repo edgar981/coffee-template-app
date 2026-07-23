@@ -1,8 +1,14 @@
 import { LucideIcon } from "lucide-react";
 
 export interface SidebarProps {
+  /** Desktop rail collapsed (72px) vs expanded (240px). Irrelevant < lg. */
   collapsed: boolean;
+  /** Toggle the desktop rail (collapse chevron). */
   onToggle: () => void;
+  /** Mobile drawer open. Irrelevant ≥ lg. */
+  mobileOpen: boolean;
+  /** Close the mobile drawer (backdrop / Escape / nav / close button). */
+  onClose: () => void;
 }
 
 export interface NavItem {

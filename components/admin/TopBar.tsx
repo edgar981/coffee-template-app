@@ -69,15 +69,16 @@ export default function TopBar({ onMenuToggle, sidebarWidth }: TopBarProps) {
   return (
     <>
       <header
-        className="fixed top-0 right-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur transition-all duration-300"
-        style={{ left: sidebarWidth }}
+        className="fixed top-0 right-0 left-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur transition-[left] duration-300 lg:left-[var(--sb-w)]"
+        style={{ "--sb-w": typeof sidebarWidth === "number" ? `${sidebarWidth}px` : sidebarWidth } as React.CSSProperties}
       >
-        {/* Mobile menu toggle */}
+        {/* Mobile menu toggle — opens the off-canvas drawer (< lg only) */}
         <Button
           variant="ghost"
           size="icon"
           className="lg:hidden cursor-pointer"
           onClick={onMenuToggle}
+          aria-label="Abrir menú"
         >
           <Menu className="h-5 w-5" />
         </Button>
