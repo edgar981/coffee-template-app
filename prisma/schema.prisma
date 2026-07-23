@@ -145,6 +145,11 @@ model Product {
 model Order {
   id                 String      @id @default(cuid())
   numero_orden       String      @unique
+  // Client-generated key that makes order creation idempotent: a double submit or
+  // network retry reuses the same key and returns the existing order instead of
+  // creating a duplicate. Nullable + unique (Postgres allows many NULLs), so
+  // legacy and checkout orders without a key are unaffected.
+  idempotencyKey     String?     @unique
   cliente_nombre     String?
   cliente_email      String?
   cliente_telefono   String?

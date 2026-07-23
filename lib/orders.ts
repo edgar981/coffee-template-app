@@ -97,8 +97,10 @@ export interface CreateOrderInput {
     precio_unitario?: number | null;
     subtotal: number;
   }>;
-  // Order-number prefix marks the origin: CN = storefront checkout, SN = admin.
-  numeroPrefix: 'CN' | 'SN';
+  // Optional client-generated idempotency key (uuid). If a request with the same
+  // key already created an order, that order is returned instead of creating a
+  // new one — a double submit or network retry can never duplicate.
+  idempotencyKey?: string | null;
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -136,9 +138,22 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
   if (!email && !telefono) throw new OrderCustomerIdentityError();
 
   const nombre = input.customer.nombre.trim();
+  const idem = input.idempotencyKey?.trim() || null;
+
+  // Idempotency fast path: if this key already produced an order, return it — a
+  // double-clicked or retried submit never creates a second order.
+  if (idem) {
+    const existing = await prisma.order.findUnique({
+      where:   { idempotencyKey: idem },
+      include: { items: true, shipping: true },
+    });
+    if (existing) return existing;
+  }
 
   for (let attempt = 0; attempt < 5; attempt++) {
-    const numero_orden = `${input.numeroPrefix}-${Math.floor(100_000 + Math.random() * 900_000)}`;
+    // Every real order (checkout AND admin) uses the CN- series. SN- is legacy
+    // demo data only.
+    const numero_orden = `CN-${Math.floor(100_000 + Math.random() * 900_000)}`;
     try {
       const created = await prisma.$transaction(async (tx) => {
         // ── Customer identity (rules a/b above) ──
@@ -172,6 +187,7 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
         const order = await tx.order.create({
           data: {
             numero_orden,
+            idempotencyKey:    idem,
             cliente_nombre:    nombre,
             cliente_email:     email,
             cliente_telefono:  telefono,
@@ -211,8 +227,19 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
 
       return created;
     } catch (error) {
-      // Retry only on the (rare) order-number collision.
-      if (isUniqueViolation(error) && attempt < 4) continue;
+      if (isUniqueViolation(error)) {
+        // Concurrent duplicate on the idempotency key → return the order the
+        // winning request created (dedup without parsing which constraint hit).
+        if (idem) {
+          const existing = await prisma.order.findUnique({
+            where:   { idempotencyKey: idem },
+            include: { items: true, shipping: true },
+          });
+          if (existing) return existing;
+        }
+        // Otherwise it was an order-number collision → retry with a new number.
+        if (attempt < 4) continue;
+      }
       throw error;
     }
   }

@@ -200,7 +200,6 @@ export async function POST(req: NextRequest) {
       ciudad_entrega:    shipping.ciudad,
       deliverySlot:      slot?.id ?? null,
       items:             lines,
-      numeroPrefix:      'CN',
     });
   } catch (error) {
     console.error('Checkout order creation failed:', error);
