@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import prisma from '@/lib/prisma';
 import { fireOrderTrigger } from '@/lib/automations/triggers';
-import { createOrderWithCustomer } from '@/lib/orders';
+import { createOrderWithCustomer, resolveOrderLines, OrderLinesError } from '@/lib/orders';
 import { getShippingSlot, computeShippingCost } from '@/lib/shipping-config';
 import { isBogotaDC } from '@/lib/colombia-departments';
 import {
@@ -45,13 +44,6 @@ const checkoutSchema = z.object({
     )
     .min(1),
 });
-
-// Forma de las opciones de molienda guardadas en Product.moliendasOpciones.
-interface MoliendaOpcion {
-  nombre: string;
-  metodo: string;
-  disponible: boolean;
-}
 
 export async function POST(req: NextRequest) {
   let raw: unknown;
@@ -100,84 +92,27 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Resolve every line against real Product records, keyed by slug.
-  const slugs = [...new Set(items.map((i) => i.slug))];
-  const products = await prisma.product.findMany({ where: { slug: { in: slugs } } });
-  const bySlug = new Map(products.map((p) => [p.slug, p]));
-
-  // Reject the whole cart if any slug no longer resolves (product renamed or
-  // deleted between add-to-cart and checkout) — never charge a partial cart.
-  const missing = items.filter((i) => !bySlug.has(i.slug));
-  if (missing.length > 0) {
-    return NextResponse.json(
-      { error: 'Uno o más productos ya no están disponibles' },
-      { status: 400 },
-    );
-  }
-
-  // Validación de stock contra la lectura fresca de DB (`products` de arriba),
-  // NUNCA contra el payload. Varias líneas pueden compartir slug (misma bolsa,
-  // distinta molienda), así que sumamos la cantidad pedida por producto y la
-  // comparamos con el stock actual. Rechazo total (no ajustamos cantidades):
-  // el cliente decide qué hacer con su carrito. Respondemos con los IDs
-  // afectados y un mensaje genérico — sin revelar el número disponible.
-  //
-  // NOTA: hoy el checkout NO decrementa stock (solo el admin lo ajusta vía
-  // /api/inventory/adjust), por lo que esta verificación no puede ir "dentro"
-  // de un decremento transaccional que no existe. Queda una ventana de carrera
-  // con compras simultáneas: dos pedidos podrían pasar esta validación sobre el
-  // mismo stock. Cerrarla requiere decremento transaccional de stock, cambio
-  // mayor fuera del alcance de esta tarea.
-  const cantidadPorSlug = new Map<string, number>();
-  for (const item of items) {
-    cantidadPorSlug.set(item.slug, (cantidadPorSlug.get(item.slug) ?? 0) + item.cantidad);
-  }
-  const productosSinStock = [...cantidadPorSlug.entries()]
-    .filter(([slug, cantidad]) => cantidad > bySlug.get(slug)!.stock)
-    .map(([slug]) => bySlug.get(slug)!.id);
-
-  if (productosSinStock.length > 0) {
-    return NextResponse.json(
-      { error: 'Cantidad no disponible', productosSinStock },
-      { status: 400 },
-    );
-  }
-
-  // La molienda enviada debe ser una opción marcada como `disponible` en el
-  // producto — ocultar chips en la UI es UX, esto es la regla de negocio. Si el
-  // producto define opciones y el cliente no envía molienda, también se rechaza.
-  for (const item of items) {
-    const product = bySlug.get(item.slug)!;
-    const opciones = (product.moliendasOpciones ?? []) as unknown as MoliendaOpcion[];
-    if (!Array.isArray(opciones) || opciones.length === 0) continue;
-    const opcion = opciones.find((o) => o?.nombre === item.molienda);
-    if (!item.molienda || !opcion || !opcion.disponible) {
+  // Resolve + price every line server-side via the shared resolver (product
+  // existence, stock, molienda availability, unit prices) — the SAME rules the
+  // admin manual order uses.
+  let lines: Awaited<ReturnType<typeof resolveOrderLines>>['lines'];
+  let orderSubtotal: number;
+  try {
+    const resolved = await resolveOrderLines(items);
+    lines = resolved.lines;
+    orderSubtotal = resolved.subtotal;
+  } catch (error) {
+    if (error instanceof OrderLinesError) {
       return NextResponse.json(
-        { error: `Molienda no disponible para ${product.nombre}` },
+        { error: error.message, ...(error.productosSinStock ? { productosSinStock: error.productosSinStock } : {}) },
         { status: 400 },
       );
     }
+    throw error;
   }
 
-  // Recompute unit price, line subtotal, order subtotal, shipping and total.
-  const lines = items.map((item) => {
-    const product = bySlug.get(item.slug)!;
-    const precio_unitario = product.precio;
-    const subtotal = precio_unitario * item.cantidad;
-    return {
-      producto_id:     product.id,
-      producto_nombre: product.nombre,
-      // Snapshot de la molienda elegida (validada arriba).
-      moliendaSeleccionada: item.molienda ?? null,
-      cantidad:        item.cantidad,
-      precio_unitario,
-      subtotal,
-    };
-  });
-
-  const orderSubtotal = lines.reduce((sum, l) => sum + l.subtotal, 0);
-  // Never trust the client: recompute from the server-derived method, applying
-  // the shared free-shipping threshold.
+  // Shipping is checkout-specific: recompute from the server-derived method with
+  // the shared free-shipping threshold. Never trust the client.
   const costo_envio = computeShippingCost(metodoEnvio, orderSubtotal);
   const total = orderSubtotal + costo_envio;
 

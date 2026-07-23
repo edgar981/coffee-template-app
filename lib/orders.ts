@@ -246,3 +246,93 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
 
   throw new Error('No se pudo generar un número de orden único');
 }
+
+// ─── Order line resolution (server-side pricing) ─────────────────────────────
+
+// Shape of Product.moliendasOpciones (Json in Prisma).
+interface MoliendaOpcion { nombre: string; metodo: string; disponible: boolean; }
+
+export interface RawOrderLine {
+  slug: string;
+  cantidad: number;
+  molienda?: string | null;
+}
+
+export interface ResolvedOrderLine {
+  producto_id: string;
+  producto_nombre: string;
+  moliendaSeleccionada: string | null;
+  cantidad: number;
+  precio_unitario: number;
+  subtotal: number;
+}
+
+// Raised when submitted lines fail resolution (missing product, insufficient
+// stock, or an unavailable molienda). Routes map it to a 400.
+export class OrderLinesError extends Error {
+  productosSinStock?: string[];
+  constructor(message: string, productosSinStock?: string[]) {
+    super(message);
+    this.name = 'OrderLinesError';
+    this.productosSinStock = productosSinStock;
+  }
+}
+
+// THE single line resolver: prices raw {slug, cantidad, molienda} lines from real
+// Product records — server-side price recompute + stock validation + molienda
+// availability. Both the storefront checkout and the admin manual order run
+// through here, so a manually created order has the SAME structure and rules as a
+// web order (the admin never types the total). Stock is validated, NOT
+// decremented — same policy as checkout (stock changes only via
+// /api/inventory/adjust). Throws OrderLinesError (→ 400) on any violation.
+export async function resolveOrderLines(
+  items: RawOrderLine[],
+): Promise<{ lines: ResolvedOrderLine[]; subtotal: number }> {
+  const slugs = [...new Set(items.map((i) => i.slug))];
+  const products = await prisma.product.findMany({ where: { slug: { in: slugs } } });
+  const bySlug = new Map(products.map((p) => [p.slug, p]));
+
+  // Reject the whole order if any slug no longer resolves.
+  if (items.some((i) => !bySlug.has(i.slug))) {
+    throw new OrderLinesError('Uno o más productos ya no están disponibles');
+  }
+
+  // Stock: sum quantities per product (lines may share a slug) vs current stock.
+  const cantidadPorSlug = new Map<string, number>();
+  for (const item of items) {
+    cantidadPorSlug.set(item.slug, (cantidadPorSlug.get(item.slug) ?? 0) + item.cantidad);
+  }
+  const productosSinStock = [...cantidadPorSlug.entries()]
+    .filter(([slug, cantidad]) => cantidad > bySlug.get(slug)!.stock)
+    .map(([slug]) => bySlug.get(slug)!.id);
+  if (productosSinStock.length > 0) {
+    throw new OrderLinesError('Cantidad no disponible', productosSinStock);
+  }
+
+  // Molienda: if the product defines options, the chosen one must exist and be
+  // `disponible` (same source — Product.moliendasOpciones — as the storefront).
+  for (const item of items) {
+    const product = bySlug.get(item.slug)!;
+    const opciones = (product.moliendasOpciones ?? []) as unknown as MoliendaOpcion[];
+    if (!Array.isArray(opciones) || opciones.length === 0) continue;
+    const opcion = opciones.find((o) => o?.nombre === item.molienda);
+    if (!item.molienda || !opcion || !opcion.disponible) {
+      throw new OrderLinesError(`Molienda no disponible para ${product.nombre}`);
+    }
+  }
+
+  const lines: ResolvedOrderLine[] = items.map((item) => {
+    const product = bySlug.get(item.slug)!;
+    const precio_unitario = product.precio;
+    return {
+      producto_id:          product.id,
+      producto_nombre:      product.nombre,
+      moliendaSeleccionada: item.molienda ?? null,
+      cantidad:             item.cantidad,
+      precio_unitario,
+      subtotal:             precio_unitario * item.cantidad,
+    };
+  });
+  const subtotal = lines.reduce((sum, l) => sum + l.subtotal, 0);
+  return { lines, subtotal };
+}

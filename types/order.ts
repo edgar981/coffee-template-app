@@ -68,19 +68,36 @@ export interface TrackedOrder {
   items: TrackedOrderItem[];
 }
 
+// One product line in the admin "Nueva Orden" modal.
+export interface OrderLineForm {
+  slug:     string;   // '' until a product is picked
+  cantidad: number;
+  molienda: string;   // '' when the product has no molienda / not yet picked
+}
+
 export interface OrderForm {
   cliente_nombre:    string;
   cliente_email:     string;
   cliente_telefono:  string;
   canal:             OrderChannel;
-  estado:            OrderStatus;
-  metodo_pago:       PaymentMethod | '';
-  total:             string;
   costo_envio:       string;
   direccion_entrega: string;
-  ciudad_entrega:    string;
   notas_internas:    string;
-  notas_entrega:     string;
+  items:             OrderLineForm[];
+}
+
+// Payload the admin modal POSTs to /api/orders. Lines are priced server-side, so
+// no total is sent; the order is always created `pendiente`.
+export interface AdminOrderPayload {
+  cliente_nombre:     string;
+  cliente_email?:     string;
+  cliente_telefono?:  string;
+  canal?:             OrderChannel;
+  costo_envio?:       number;
+  direccion_entrega?: string;
+  notas_internas?:    string;
+  items:              { slug: string; cantidad: number; molienda?: string | null }[];
+  idempotencyKey?:    string;
 }
 
 // Contact + address context for the "Programar entrega" modal. Address is read
