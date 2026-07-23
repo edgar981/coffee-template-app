@@ -1,294 +1,247 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, CreditCard, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
+import { CreditCard, DollarSign, Receipt, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import StatusBadge from '@/components/ui/StatusBadge';
-import { toast } from 'sonner';
-import { getPayments, createPayment, markPaymentComplete } from '@/lib/api/payments';
-import type { Payment, PaymentForm, PaymentMethod, PaymentStatus, MetodoStat } from '@/types/payment';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getPayments } from '@/lib/api/payments';
+import type { Payment } from '@/types/payment';
+import {
+  METODOS_PAGO, METODO_PAGO_LABEL,
+  METODO_CATEGORIA, PAYMENT_CATEGORIA_LABEL, PAYMENT_CATEGORIAS, PAYMENT_CATEGORIAS_MULTI,
+  METODO_DESGLOSE_LABEL,
+} from '@/types/payment';
+import { formatCOP } from '@/lib/utils';
+import { BUSINESS_TZ } from '@/lib/timezone';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// yyyy-mm-dd in Bogotá wall-clock, for range filtering and display consistency.
+const bogotaISODate = (iso: string) =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: BUSINESS_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(iso));
 
-const METODOS: PaymentMethod[] = [
-  'efectivo', 'transferencia', 'nequi', 'daviplata', 'tarjeta', 'otro',
-];
-
-const STATUS_FILTERS: Array<PaymentStatus | 'all'> = [
-  'all', 'pendiente', 'completado', 'fallido', 'reembolsado',
-];
-
-const EMPTY_FORM: PaymentForm = {
-  cliente_nombre: '',
-  monto:          '',
-  metodo:         'nequi',
-  estado:         'pendiente',
-  referencia:     '',
-  notas:          '',
-  fecha_pago:     '',
-};
-
-const formatCOP = (n?: number) =>
-  new Intl.NumberFormat('es-CO', {
-    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
-  }).format(n ?? 0);
+const displayDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('es-CO', {
+    timeZone: BUSINESS_TZ, day: '2-digit', month: 'short', year: 'numeric',
+  });
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Pagos() {
-  const [pagos, setPagos]       = useState<Payment[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm]         = useState<PaymentForm>(EMPTY_FORM);
-  const [filter, setFilter]     = useState<PaymentStatus | 'all'>('all');
+  const [pagos, setPagos]     = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
+  // 'all' | a MetodoPago | `cat:${PaymentCategoria}` (grouped-category filter).
+  const [metodo, setMetodo]   = useState<string>('all');
+  const [from, setFrom]       = useState('');
+  const [to, setTo]           = useState('');
 
   useEffect(() => {
-    getPayments().then(data => { setPagos(data); setLoading(false); });
+    getPayments()
+      .then(data => setPagos(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  const filtered = filter === 'all' ? pagos : pagos.filter(p => p.estado === filter);
+  const filtered = useMemo(() => pagos.filter(p => {
+    if (metodo !== 'all') {
+      if (metodo.startsWith('cat:')) {
+        if (METODO_CATEGORIA[p.metodo] !== metodo.slice(4)) return false;
+      } else if (p.metodo !== metodo) {
+        return false;
+      }
+    }
+    const d = bogotaISODate(p.fecha);
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+  }), [pagos, metodo, from, to]);
 
-  const totalCompletado = pagos
-    .filter(p => p.estado === 'completado')
-    .reduce((sum, p) => sum + p.monto, 0);
+  const totalPeriodo = filtered.reduce((sum, p) => sum + p.monto, 0);
 
-  const totalPendiente = pagos
-    .filter(p => p.estado === 'pendiente')
-    .reduce((sum, p) => sum + p.monto, 0);
+  // "Por método" summary, bucketed by category. Each category shows its count +
+  // total; multi-method categories (Transferencia) also list the method breakdown.
+  // A category only appears when it has payments (so OTRO shows only if used).
+  const categoriaStats = useMemo(() =>
+    PAYMENT_CATEGORIAS
+      .map(cat => {
+        const methods = METODOS_PAGO.filter(m => METODO_CATEGORIA[m] === cat);
+        const pays    = filtered.filter(p => METODO_CATEGORIA[p.metodo] === cat);
+        const desglose = methods
+          .map(m => ({ metodo: m, count: filtered.filter(p => p.metodo === m).length }))
+          .filter(b => b.count > 0);
+        return {
+          categoria: cat,
+          multi:     methods.length > 1,
+          count:     pays.length,
+          total:     pays.reduce((s, p) => s + p.monto, 0),
+          desglose,
+        };
+      })
+      .filter(c => c.count > 0),
+    [filtered]);
 
-  const metodosStats: MetodoStat[] = METODOS.map(m => ({
-    metodo: m,
-    count:  pagos.filter(p => p.metodo === m).length,
-    total:  pagos
-      .filter(p => p.metodo === m && p.estado === 'completado')
-      .reduce((sum, p) => sum + p.monto, 0),
-  })).filter(m => m.count > 0);
-
-  // ── Handlers ───────────────────────────────────────────────────────────────
-
-  const handleSave = async () => {
-    if (!form.monto) { toast.error('El monto es requerido'); return; }
-    const created = await createPayment({
-      ...form,
-      monto: Number(form.monto),
-    });
-    setPagos(prev => [created, ...prev]);
-    toast.success('Pago registrado');
-    setShowForm(false);
-    setForm(EMPTY_FORM);
-  };
-
-  const handleMarkComplete = async (id: string) => {
-    const updated = await markPaymentComplete(id);
-    setPagos(prev => prev.map(p => p.id === id ? updated : p));
-    toast.success('Pago marcado como completado');
-  };
-
-  const field = (key: keyof PaymentForm) => ({
-    value:    form[key],
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
-      setForm(f => ({ ...f, [key]: e.target.value })),
-  });
+  const hasFilters = metodo !== 'all' || !!from || !!to;
+  const clearFilters = () => { setMetodo('all'); setFrom(''); setTo(''); };
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Pagos</h1>
-          <p className="text-sm text-muted-foreground">Gestión de transacciones</p>
-        </div>
-        <Button onClick={() => { setForm(EMPTY_FORM); setShowForm(true); }} className="gap-2">
-          <Plus className="w-4 h-4" /> Registrar Pago
-        </Button>
+      {/* Header — no independent "Registrar pago": a payment is registered from
+          its order (Órdenes › Registrar pago). This page is a read-only ledger. */}
+      <div>
+        <h1 className="text-2xl font-bold">Pagos</h1>
+        <p className="text-sm text-muted-foreground">
+          Ledger de pagos registrados. Se registran desde cada orden.
+        </p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="stat-card">
           <DollarSign className="w-5 h-5 text-emerald-500 mb-3" />
-          <p className="text-xl font-bold text-emerald-600">{formatCOP(totalCompletado)}</p>
-          <p className="text-xs text-muted-foreground">Cobrado</p>
+          <p className="text-xl font-bold text-emerald-600">{formatCOP(totalPeriodo)}</p>
+          <p className="text-xs text-muted-foreground">Total del período</p>
         </div>
         <div className="stat-card">
-          <AlertCircle className="w-5 h-5 text-amber-500 mb-3" />
-          <p className="text-xl font-bold text-amber-600">{formatCOP(totalPendiente)}</p>
-          <p className="text-xs text-muted-foreground">Por cobrar</p>
+          <Receipt className="w-5 h-5 text-blue-500 mb-3" />
+          <p className="text-xl font-bold">{filtered.length}</p>
+          <p className="text-xs text-muted-foreground">Pagos {hasFilters ? 'filtrados' : 'registrados'}</p>
         </div>
-        <div className="stat-card">
-          <CheckCircle className="w-5 h-5 text-blue-500 mb-3" />
-          <p className="text-xl font-bold">{pagos.filter(p => p.estado === 'completado').length}</p>
-          <p className="text-xs text-muted-foreground">Pagos completados</p>
-        </div>
-        <div className="stat-card">
+        <div className="stat-card hidden lg:block">
           <CreditCard className="w-5 h-5 text-violet-500 mb-3" />
-          <p className="text-xl font-bold">{pagos.filter(p => p.estado === 'pendiente').length}</p>
-          <p className="text-xs text-muted-foreground">Pendientes</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main table */}
-        <div className="lg:col-span-2 space-y-3">
-          {/* Filters */}
-          <div className="flex gap-2 flex-wrap">
-            {STATUS_FILTERS.map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                  filter === f
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/70'
-                }`}
-              >
-                {f === 'all' ? 'Todos' : f.charAt(0).toUpperCase() + f.slice(1)}
-              </button>
-            ))}
-          </div>
-
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
-            {loading ? (
-              <div className="p-8 text-center text-muted-foreground">Cargando...</div>
-            ) : filtered.length === 0 ? (
-              <div className="p-12 text-center">
-                <CreditCard className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">No hay pagos registrados.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/40">
-                      {['Cliente', 'Monto', 'Método', 'Referencia', 'Estado', 'Fecha', 'Acción'].map(h => (
-                        <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map(p => (
-                      <tr key={p.id} className="border-b border-border/50 hover:bg-muted/20">
-                        <td className="px-4 py-3 font-medium">{p.cliente_nombre ?? '—'}</td>
-                        <td className="px-4 py-3 font-bold">{formatCOP(p.monto)}</td>
-                        <td className="px-4 py-3 text-xs capitalize">
-                          <span className="bg-muted px-2 py-0.5 rounded">{p.metodo}</span>
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{p.referencia ?? '—'}</td>
-                        <td className="px-4 py-3"><StatusBadge status={p.estado} /></td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">
-                          {p.fecha_pago ?? new Date(p.createdAt).toLocaleDateString('es-CO')}
-                        </td>
-                        <td className="px-4 py-3">
-                          {p.estado === 'pendiente' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs"
-                              onClick={() => handleMarkComplete(p.id)}
-                            >
-                              <CheckCircle className="w-3 h-3 mr-1" /> Confirmar
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-4">
-          <div className="bg-card border border-border rounded-xl p-5">
-            <h3 className="font-semibold text-sm mb-4">Por Método de Pago</h3>
-            <div className="space-y-3">
-              {metodosStats.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Sin datos</p>
-              ) : metodosStats.map(m => (
-                <div key={m.metodo} className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium capitalize">{m.metodo}</p>
-                    <p className="text-xs text-muted-foreground">{m.count} transacciones</p>
+          {categoriaStats.length === 0 ? (
+            <span className="text-xs text-muted-foreground">Sin pagos</span>
+          ) : (
+            <div className="space-y-1.5">
+              {categoriaStats.map(c => (
+                <div key={c.categoria}>
+                  <div className="flex items-baseline justify-between gap-2 text-xs">
+                    <span className="font-medium text-foreground">{PAYMENT_CATEGORIA_LABEL[c.categoria]}</span>
+                    <span className="whitespace-nowrap text-muted-foreground">
+                      <span className="font-semibold text-foreground">{c.count}</span>
+                      {' · '}{formatCOP(c.total)}
+                    </span>
                   </div>
-                  <p className="text-sm font-bold">{formatCOP(m.total)}</p>
+                  {c.multi && c.desglose.length > 0 && (
+                    <p className="text-[11px] leading-tight text-muted-foreground/80">
+                      {c.desglose.map(b => `${METODO_DESGLOSE_LABEL[b.metodo]} ${b.count}`).join(' · ')}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
-          </div>
-
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">Integraciones Próximamente</p>
-                <p className="text-xs text-amber-700 dark:text-amber-500 mt-1">
-                  Stripe, Mercado Pago y Wompi estarán disponibles para pagos en línea automáticos.
-                </p>
-              </div>
-            </div>
-          </div>
+          )}
+          <p className="text-xs text-muted-foreground mt-2">Por método</p>
         </div>
       </div>
 
-      {/* Dialog */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Registrar Pago</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <Label>Cliente</Label>
-              <Input {...field('cliente_nombre')} className="mt-1" />
-            </div>
-            <div>
-              <Label>Monto *</Label>
-              <Input type="number" {...field('monto')} className="mt-1" />
-            </div>
-            <div>
-              <Label>Método de Pago</Label>
-              <Select value={form.metodo} onValueChange={v => setForm(f => ({ ...f, metodo: v as PaymentMethod }))}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {METODOS.map(m => (
-                    <SelectItem key={m} value={m} className="capitalize">{m}</SelectItem>
+      {/* Filters */}
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <Label className="text-xs">Método</Label>
+          <Select value={metodo} onValueChange={setMetodo}>
+            <SelectTrigger className="mt-1 h-9 w-52"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {PAYMENT_CATEGORIAS_MULTI.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel>Categoría</SelectLabel>
+                  {PAYMENT_CATEGORIAS_MULTI.map(cat => (
+                    <SelectItem key={`cat:${cat}`} value={`cat:${cat}`}>
+                      {PAYMENT_CATEGORIA_LABEL[cat]} (todas)
+                    </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Estado</Label>
-              <Select value={form.estado} onValueChange={v => setForm(f => ({ ...f, estado: v as PaymentStatus }))}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pendiente">Pendiente</SelectItem>
-                  <SelectItem value="completado">Completado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Referencia / Comprobante</Label>
-              <Input {...field('referencia')} className="mt-1" placeholder="Número de transacción" />
-            </div>
-            <div>
-              <Label>Notas</Label>
-              <Input {...field('notas')} className="mt-1" />
-            </div>
+                </SelectGroup>
+              )}
+              <SelectGroup>
+                <SelectLabel>Método</SelectLabel>
+                {METODOS_PAGO.map(m => (
+                  <SelectItem key={m} value={m}>{METODO_PAGO_LABEL[m]}</SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs">Desde</Label>
+          <Input type="date" value={from} max={to || undefined} onChange={e => setFrom(e.target.value)} className="mt-1 h-9 w-40" />
+        </div>
+        <div>
+          <Label className="text-xs">Hasta</Label>
+          <Input type="date" value={to} min={from || undefined} onChange={e => setTo(e.target.value)} className="mt-1 h-9 w-40" />
+        </div>
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 gap-1 text-xs">
+            <X className="w-3.5 h-3.5" /> Limpiar
+          </Button>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center text-muted-foreground">Cargando...</div>
+        ) : filtered.length === 0 ? (
+          <div className="p-12 text-center">
+            <CreditCard className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">
+              {pagos.length === 0
+                ? 'Aún no hay pagos registrados. Registra un pago desde una orden pendiente.'
+                : 'No hay pagos que coincidan con los filtros.'}
+            </p>
           </div>
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={!form.monto}>Registrar</Button>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/40">
+                  {['Fecha', 'Orden', 'Cliente', 'Monto', 'Método', 'Referencia', 'Registrado por'].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(p => (
+                  <tr key={p.id} className="border-b border-border/50 hover:bg-muted/20">
+                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{displayDate(p.fecha)}</td>
+                    <td className="px-4 py-3">
+                      {p.order?.numero_orden ? (
+                        <Link
+                          href={`/admin/ordenes?order=${encodeURIComponent(p.order.numero_orden)}`}
+                          className="font-mono text-xs font-semibold text-primary hover:underline"
+                        >
+                          {p.order.numero_orden}
+                        </Link>
+                      ) : <span className="text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-4 py-3 font-medium">{p.order?.cliente_nombre ?? '—'}</td>
+                    <td className="px-4 py-3 font-bold">{formatCOP(p.monto)}</td>
+                    <td className="px-4 py-3 text-xs">
+                      <span className="bg-muted px-2 py-0.5 rounded">{METODO_PAGO_LABEL[p.metodo]}</span>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{p.referencia || '—'}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{p.registrado_por_nombre ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </DialogContent>
-      </Dialog>
+        )}
+      </div>
+
+      {/* Wompi note — online rails come later; today all payments are manual. */}
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 max-w-xl">
+        <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">Pagos en línea próximamente</p>
+        <p className="text-xs text-amber-700 dark:text-amber-500 mt-1">
+          Hoy los pagos se confirman manualmente (Nequi, Daviplata, efectivo, transferencia). Wompi se integrará para cobros en línea automáticos.
+        </p>
+      </div>
     </div>
   );
 }

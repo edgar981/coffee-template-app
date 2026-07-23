@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Shield, Lock, CreditCard, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore } from '@/lib/cartStore';
-import { createOrder, type CheckoutResult } from "@/services/checkout.service";
+import { createOrder, CheckoutError, type CheckoutResult } from "@/services/checkout.service";
 import { formatCOP } from '@/lib/utils';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -15,6 +15,7 @@ import {
   type ShippingMethodId,
 } from '@/lib/shipping-config';
 import { COLOMBIA_DEPARTMENTS, isBogotaDC } from '@/lib/colombia-departments';
+import { siteConfig } from '@/lib/config/site';
 
 const STEPS = ['Información', 'Pago'];
 
@@ -31,6 +32,9 @@ export default function Checkout() {
   const [slot, setSlot] = useState<string | null>(null);
   const [payment, setPayment] = useState('nequi');
   const [refTransfer, setRefTransfer] = useState('');
+  // IDs de producto rechazados por stock en el último intento — el carrito se
+  // conserva y se marca la línea afectada. Se limpia al reintentar.
+  const [sinStockIds, setSinStockIds] = useState<string[]>([]);
 
   // Bogotá-ness is derived from departamento — the single source of truth.
   const isBogota = isBogotaDC(address.departamento);
@@ -46,9 +50,12 @@ export default function Checkout() {
   const phoneDigits = info.telefono.replace(/\D/g, '');
   const phoneValid = /^3\d{9}$/.test(phoneDigits);
 
+  // Nequi/Daviplata reciben en el celular del negocio (10 dígitos locales).
+  const pagoMovilNumero = siteConfig.contacto.whatsappDisplay.replace(/^\+57\s*/, '');
+
   const paymentOptions = [
-    { id: 'nequi', label: 'Nequi', desc: 'Enviar a 300 123 4567' },
-    { id: 'daviplata', label: 'Daviplata', desc: 'Enviar a 300 123 4567' },
+    { id: 'nequi', label: 'Nequi', desc: `Enviar a ${pagoMovilNumero}` },
+    { id: 'daviplata', label: 'Daviplata', desc: `Enviar a ${pagoMovilNumero}` },
     { id: 'transferencia', label: 'Transferencia Bancaria', desc: 'Bancolombia · Cta Ahorro · 123-456789-00' },
     { id: 'efectivo', label: 'Contra entrega', desc: 'Solo disponible en Bogotá D.C.' },
   ];
@@ -71,6 +78,7 @@ export default function Checkout() {
 
   const handleOrder = async () => {
     setLoading(true);
+    setSinStockIds([]);
     try {
       // Trust only slugs + quantities and customer/shipping details. The server
       // recomputes every price, the shipping cost, the total and the order
@@ -96,12 +104,18 @@ export default function Checkout() {
         items: items.map((i) => ({
           slug:     i.slug,
           cantidad: i.quantity,
+          molienda: typeof i.options?.molienda === 'string' ? i.options.molienda : null,
         })),
       });
       // Capture the server response before emptying the cart.
       setConfirmation(result);
       clearCart();
     } catch (e) {
+      if (e instanceof CheckoutError && e.productosSinStock?.length) {
+        // No vaciamos el carrito: marcamos las líneas afectadas en el resumen
+        // (siempre visible) para que el usuario decida quitarlas o reducirlas.
+        setSinStockIds(e.productosSinStock);
+      }
       toast.error(e instanceof Error ? e.message : 'Error al procesar la orden');
     }
     setLoading(false);
@@ -127,7 +141,10 @@ export default function Checkout() {
               <div className="space-y-2 pt-3 border-t border-[#e8ddd0]">
                 {confirmation.items.map((item, i) => (
                   <div key={i} className="flex justify-between text-xs text-[#5a3a28]">
-                    <span className="min-w-0 truncate pr-2">{item.producto_nombre} × {item.cantidad}</span>
+                    <span className="min-w-0 truncate pr-2">
+                      {item.producto_nombre}
+                      {item.moliendaSeleccionada ? ` · ${item.moliendaSeleccionada}` : ''} × {item.cantidad}
+                    </span>
                     <span className="shrink-0 font-medium">{formatCOP(item.subtotal)}</span>
                   </div>
                 ))}
@@ -230,7 +247,7 @@ export default function Checkout() {
                         />
                       </div>
                       {info.telefono && !phoneValid && (
-                        <p className="mt-1 text-xs text-red-600">Ingresa un celular colombiano de 10 dígitos (ej. 300 123 4567).</p>
+                        <p className="mt-1 text-xs text-red-600">Ingresa un celular colombiano de 10 dígitos (ej. 3XX XXX XXXX).</p>
                       )}
                     </div>
                     <div className="space-y-4">
@@ -330,18 +347,27 @@ export default function Checkout() {
               <div className="bg-white rounded-2xl border border-[#e8ddd0] p-5 sticky top-20">
                 <h3 className="font-semibold text-[#1a0f08] mb-4">Resumen del pedido</h3>
                 <div className="space-y-3 mb-4">
-                  {items.map(item => (
-                    <div key={item.key} className="flex gap-3">
+                  {items.map(item => {
+                    const sinStock = sinStockIds.includes(item.id);
+                    return (
+                    <div key={item.key} className={`flex gap-3 ${sinStock ? 'rounded-lg -mx-1 px-1 ring-1 ring-red-300 bg-red-50/60' : ''}`}>
                       <div className="w-12 h-12 rounded-lg overflow-hidden bg-[#f0e8de] shrink-0">
                         <img src={item.imagen} alt={item.nombre} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-[#1a0f08] line-clamp-2">{item.nombre}</p>
+                        {typeof item.options?.molienda === 'string' && (
+                          <p className="text-xs text-[#a07050]">Molienda: {item.options.molienda}</p>
+                        )}
                         <p className="text-xs text-[#8B6650]">× {item.quantity}</p>
+                        {sinStock && (
+                          <p className="text-xs font-medium text-red-600 mt-0.5">Cantidad no disponible</p>
+                        )}
                       </div>
                       <p className="text-xs font-bold text-[#1a0f08] shrink-0">{formatCOP(item.precio * item.quantity)}</p>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="space-y-2 pt-3 border-t border-[#e8ddd0] text-sm">
                   <div className="flex justify-between text-[#5a3a28]">

@@ -3,7 +3,10 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { fireOrderTrigger } from '@/lib/automations/triggers';
 import { getShippingSlot, computeShippingCost } from '@/lib/shipping-config';
-import { COLOMBIA_DEPARTMENTS, isBogotaDC } from '@/lib/colombia-departments';
+import { isBogotaDC } from '@/lib/colombia-departments';
+import {
+  direccionField, direccionDetalleField, ciudadField, departamentoField, telefonoColombiaField,
+} from '@/lib/validation/address';
 
 // Guest checkout is intentionally unauthenticated — no Better Auth session.
 // The client is trusted ONLY for product slugs, quantities and customer /
@@ -15,14 +18,16 @@ const checkoutSchema = z.object({
     nombre:   z.string().trim().min(1),
     apellido: z.string().trim().default(''),
     email:    z.string().trim().email(),
-    // Normalized WhatsApp-ready format from the client: +57 + 10-digit mobile.
-    telefono: z.string().trim().regex(/^\+573\d{9}$/, 'Teléfono inválido'),
+    // Same phone standard as the admin add-address flow (shared validator).
+    telefono: telefonoColombiaField,
   }),
+  // Address fields share their validators with the admin "Agregar dirección"
+  // flow (lib/validation/address) — one definition of a valid address.
   shipping: z.object({
-    direccion:         z.string().trim().min(1),
-    direccion_detalle: z.string().trim().max(500).nullish(),
-    ciudad:            z.string().trim().min(1),
-    departamento:      z.string().trim().min(1),
+    direccion:         direccionField,
+    direccion_detalle: direccionDetalleField,
+    ciudad:            ciudadField,
+    departamento:      departamentoField,
     franja:            z.string().trim().min(1).nullish(),
   }),
   payment: z.object({
@@ -34,10 +39,18 @@ const checkoutSchema = z.object({
       z.object({
         slug:     z.string().trim().min(1),
         cantidad: z.number().int().positive(),
+        molienda: z.string().trim().min(1).nullish(),
       }),
     )
     .min(1),
 });
+
+// Forma de las opciones de molienda guardadas en Product.moliendasOpciones.
+interface MoliendaOpcion {
+  nombre: string;
+  metodo: string;
+  disponible: boolean;
+}
 
 function generateOrderNumber(): string {
   return `CN-${Math.floor(100_000 + Math.random() * 900_000)}`;
@@ -71,11 +84,9 @@ export async function POST(req: NextRequest) {
 
   const { customer, shipping, payment, items } = parsed.data;
 
-  // Departamento is the single source of truth for Bogotá detection — validated
-  // against the canonical list, never free-text ciudad and never a client method.
-  if (!COLOMBIA_DEPARTMENTS.includes(shipping.departamento)) {
-    return NextResponse.json({ error: 'Departamento inválido' }, { status: 400 });
-  }
+  // Departamento is the single source of truth for Bogotá detection. It's
+  // validated against the canonical list by `departamentoField` in the schema
+  // above (shared with the admin add-address flow).
 
   // Derive the shipping tier from departamento. The client cannot select this.
   const metodoEnvio: 'bogota' | 'nacional' =
@@ -117,6 +128,50 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Validación de stock contra la lectura fresca de DB (`products` de arriba),
+  // NUNCA contra el payload. Varias líneas pueden compartir slug (misma bolsa,
+  // distinta molienda), así que sumamos la cantidad pedida por producto y la
+  // comparamos con el stock actual. Rechazo total (no ajustamos cantidades):
+  // el cliente decide qué hacer con su carrito. Respondemos con los IDs
+  // afectados y un mensaje genérico — sin revelar el número disponible.
+  //
+  // NOTA: hoy el checkout NO decrementa stock (solo el admin lo ajusta vía
+  // /api/inventory/adjust), por lo que esta verificación no puede ir "dentro"
+  // de un decremento transaccional que no existe. Queda una ventana de carrera
+  // con compras simultáneas: dos pedidos podrían pasar esta validación sobre el
+  // mismo stock. Cerrarla requiere decremento transaccional de stock, cambio
+  // mayor fuera del alcance de esta tarea.
+  const cantidadPorSlug = new Map<string, number>();
+  for (const item of items) {
+    cantidadPorSlug.set(item.slug, (cantidadPorSlug.get(item.slug) ?? 0) + item.cantidad);
+  }
+  const productosSinStock = [...cantidadPorSlug.entries()]
+    .filter(([slug, cantidad]) => cantidad > bySlug.get(slug)!.stock)
+    .map(([slug]) => bySlug.get(slug)!.id);
+
+  if (productosSinStock.length > 0) {
+    return NextResponse.json(
+      { error: 'Cantidad no disponible', productosSinStock },
+      { status: 400 },
+    );
+  }
+
+  // La molienda enviada debe ser una opción marcada como `disponible` en el
+  // producto — ocultar chips en la UI es UX, esto es la regla de negocio. Si el
+  // producto define opciones y el cliente no envía molienda, también se rechaza.
+  for (const item of items) {
+    const product = bySlug.get(item.slug)!;
+    const opciones = (product.moliendasOpciones ?? []) as unknown as MoliendaOpcion[];
+    if (!Array.isArray(opciones) || opciones.length === 0) continue;
+    const opcion = opciones.find((o) => o?.nombre === item.molienda);
+    if (!item.molienda || !opcion || !opcion.disponible) {
+      return NextResponse.json(
+        { error: `Molienda no disponible para ${product.nombre}` },
+        { status: 400 },
+      );
+    }
+  }
+
   // Recompute unit price, line subtotal, order subtotal, shipping and total.
   const lines = items.map((item) => {
     const product = bySlug.get(item.slug)!;
@@ -125,6 +180,8 @@ export async function POST(req: NextRequest) {
     return {
       producto_id:     product.id,
       producto_nombre: product.nombre,
+      // Snapshot de la molienda elegida (validada arriba).
+      moliendaSeleccionada: item.molienda ?? null,
       cantidad:        item.cantidad,
       precio_unitario,
       subtotal,
@@ -139,8 +196,11 @@ export async function POST(req: NextRequest) {
 
   const cliente_nombre = `${customer.nombre} ${customer.apellido}`.trim();
 
-  // Create Customer + Order + OrderItems + Payment atomically. The order number
-  // is generated server-side; retry on the (rare) unique collision.
+  // Create Customer + Order + OrderItems atomically. The order number is
+  // generated server-side; retry on the (rare) unique collision. NO Payment is
+  // created here: a Payment is a RECEIVED payment (see prisma Payment model) and
+  // the order starts `pendiente`. The admin registers the payment later, which
+  // moves the order to `pagado` and writes the Payment row.
   let order:
     | { id: string; numero_orden: string; estado: string; cliente_nombre: string | null; cliente_telefono: string | null; total: number }
     | null = null;
@@ -183,18 +243,6 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        // Pending payment linked to this order via the FK relation.
-        await tx.payment.create({
-          data: {
-            order:          { connect: { id: created.id } },
-            cliente_nombre,
-            monto:          total,
-            metodo:         payment.metodo,
-            estado:         'pendiente',
-            referencia:     payment.referencia ?? null,
-          },
-        });
-
         return created;
       });
       break;
@@ -225,6 +273,7 @@ export async function POST(req: NextRequest) {
       direccion_detalle: shipping.direccion_detalle ?? null,
       items: lines.map((l) => ({
         producto_nombre: l.producto_nombre,
+        moliendaSeleccionada: l.moliendaSeleccionada,
         cantidad:        l.cantidad,
         precio_unitario: l.precio_unitario,
         subtotal:        l.subtotal,

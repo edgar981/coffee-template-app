@@ -7,6 +7,7 @@ import { createNotification } from '@/lib/notifications';
 export async function POST() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const automation = await prisma.automation.findUnique({
     where: { tipo: 'stock_bajo' },

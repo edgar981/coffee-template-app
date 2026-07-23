@@ -1,12 +1,12 @@
 // prisma/seed.ts
 import prisma from "@/lib/prisma";
+import { Prisma } from "@/src/generated/prisma/client";
 import { auth } from "@/lib/auth";
 import { MOCK_CUSTOMERS } from "@/lib/mock/customers";
-import { DEMO_PRODUCTS } from "@/lib/mock/products";
+import { DEMO_PRODUCTS } from "@/prisma/seed-products";
 import { MOCK_ADMIN_ORDERS } from "@/lib/mock/orders";
 import { mockLogs } from "@/lib/mock/inventoryLogs";
-import { mockPayments } from "@/lib/mock/payments";
-import { MOCK_SHIPPINGS } from "@/lib/mock/shippings";
+import { SHIPPING_SEED_TEMPLATES } from "@/lib/mock/shippings";
 import { AUTOMATION_TEMPLATES } from "@/lib/mock/automations";
 
 async function main() {
@@ -54,13 +54,31 @@ async function main() {
   }
 
   for (const p of DEMO_PRODUCTS) {
+    // Ficha técnica + copy: se actualizan también en filas existentes para que
+    // un re-seed propague el contenido real del empaque. Lo operativo (stock,
+    // precios, activo) solo se define al crear — nunca se pisa.
+    const contenido = {
+      descripcion:      p.descripcion      || '',
+      descripcionCorta: p.descripcionCorta ?? null,
+      origen:           p.origen           ?? null,
+      tostado:          p.tostado          ?? null,
+      variedad:         p.variedad         ?? null,
+      proceso:          p.proceso          ?? null,
+      altitudMin:       p.altitudMin       ?? null,
+      altitudMax:       p.altitudMax       ?? null,
+      molienda:         p.molienda         ?? null,
+      // Json de opciones de molienda (nombre/método/disponible) — el admin
+      // activa moliendas cambiando `disponible`.
+      moliendasOpciones: (p.moliendasOpciones ?? []) as unknown as Prisma.InputJsonValue,
+      notasCata:        p.notasCata        ?? [],
+      notas:            p.notas            ?? [],
+    };
     await prisma.product.upsert({
       where:  { slug: p.slug },
-      update: {},
+      update: contenido,
       create: {
         nombre:      p.nombre,
         slug:        p.slug,
-        descripcion: p.descripcion  || '',
         categoria:   p.categoria,
         precio:      p.precio,
         costo:       p.costo,
@@ -70,13 +88,12 @@ async function main() {
         activo:      p.activo       ?? true,
         peso_gramos: p.peso_gramos  ?? null,
         variante:    p.variante     ?? null,
-        origen:      p.origen       ?? null,
-        tostado:     p.tostado      ?? null,
         imagen:      p.imagen       || '',
         imagenes:    p.imagenes     || [],
         bestseller:  p.bestseller   ?? false,
         badge:       p.badge        ?? null,
         agotado:     p.agotado      ?? false,
+        ...contenido,
       },
     });
   }
@@ -100,6 +117,10 @@ async function main() {
         ciudad_entrega:    o.ciudad_entrega    ?? null,
         notas_internas:    o.notas_internas    ?? null,
         notas_entrega:     o.notas_entrega     ?? null,
+        // Persist the mock's backdated createdAt (only on create — existing rows
+        // use `update: {}`, so this never rewrites already-seeded dates). Lets the
+        // demo carry orders dated to prior months for the dashboard trends.
+        ...(o.createdAt ? { createdAt: new Date(o.createdAt) } : {}),
         items: {
           create: (o.items ?? []).map(item => ({
             producto_nombre: item.producto_nombre,
@@ -130,38 +151,50 @@ async function main() {
 
   console.log('✅ Inventory logs seeded');
 
-  for (const p of mockPayments) {
+  // A Payment is an event OF an order: seed one per already-`pagado` order,
+  // mirroring the real flow (a paid order has a registered payment). monto is
+  // snapshotted from the order total; método rotates. Idempotent per order.
+  const ordersForPayment = await prisma.order.findMany({ where: { estado: 'pagado' } });
+  const METODOS_SEED = ['NEQUI', 'DAVIPLATA', 'EFECTIVO', 'TRANSFERENCIA'] as const;
+  let pmi = 0;
+  for (const order of ordersForPayment) {
+    const already = await prisma.payment.count({ where: { orden_id: order.id } });
+    if (already > 0) continue;
     await prisma.payment.create({
       data: {
-        cliente_nombre: p.cliente_nombre ?? null,
-        monto:          p.monto,
-        metodo:         p.metodo,
-        estado:         p.estado,
-        referencia:     p.referencia     ?? null,
-        notas:          p.notas          ?? null,
-        fecha_pago:     p.fecha_pago     ?? null,
-        createdAt:      new Date(p.createdAt),
+        orden_id:              order.id,
+        monto:                 order.total,
+        metodo:                METODOS_SEED[pmi % METODOS_SEED.length],
+        registrado_por_nombre: 'Seed',
+        fecha:                 order.createdAt,
+        createdAt:             order.createdAt,
       },
     });
+    pmi++;
   }
 
   console.log('✅ Payments seeded');
 
-  for (const s of MOCK_SHIPPINGS) {
+  // One Shipping per paid order (1:1). Number/customer/address are read via the
+  // relation; only costo_envio is snapshotted. Operator fields come from the
+  // templates. Idempotent — the unique orden_id skips already-seeded orders.
+  const paidOrders = await prisma.order.findMany({ where: { estado: 'pagado' } });
+  let ti = 0;
+  for (const order of paidOrders) {
+    const already = await prisma.shipping.count({ where: { orden_id: order.id } });
+    if (already > 0) continue;
+    const t = SHIPPING_SEED_TEMPLATES[ti % SHIPPING_SEED_TEMPLATES.length];
+    ti++;
     await prisma.shipping.create({
       data: {
-        orden_id:        s.orden_id        ?? null,
-        numero_orden:    s.numero_orden    ?? null,
-        cliente_nombre:  s.cliente_nombre  ?? null,
-        direccion:       s.direccion,
-        ciudad:          s.ciudad          ?? 'Bogotá',
-        zona:            s.zona            ?? 'centro',
-        estado:          s.estado,
-        costo_envio:     s.costo_envio     ?? 8000,
-        mensajero:       s.mensajero       ?? null,
-        notas_entrega:   s.notas_entrega   ?? null,
-        fecha_programada: s.fecha_programada ?? null,
-        fecha_entrega:   s.fecha_entrega   ?? null,
+        orden_id:         order.id,
+        zona:             t.zona,
+        estado:           t.estado,
+        costo_envio:      order.costo_envio,
+        mensajero:        t.mensajero,
+        notas_entrega:    t.notas_entrega,
+        fecha_programada: t.fecha_programada,
+        fecha_entrega:    t.fecha_entrega,
       },
     });
   }

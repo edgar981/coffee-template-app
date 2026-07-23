@@ -1,7 +1,38 @@
 import { Subscription } from "@/types/subscription";
 
+// Planes de la PROPUESTA de suscripción: el MISMO café de la finca (una sola
+// variedad), variando cantidad y frecuencia. Sin precio ni descuento — el CTA
+// abre WhatsApp ("Me interesa"), no crea pedidos.
 export const SUBSCRIPTION_PLANS: Subscription[] = [
-  { id: 's1', nombre: 'Esencial', precio: 72000, descripcion: '2 bolsas de 250g / mes', beneficios: ['Selección curada mensual', 'Descuento 10%', 'Envío gratis'], theme: 'essential' },
-  { id: 's2', nombre: 'Premium', precio: 115000, descripcion: '1 microlote selecto 250g / mes', beneficios: ['Microlote de origen único', 'Descuento 15%', 'Envío gratis', 'Guía de cata'], theme: 'premium', popular: true },
-  { id: 's3', nombre: 'Barista', precio: 165000, descripcion: '3 bolsas + accesorios / mes', beneficios: ['3 cafés diferentes', 'Descuento 20%', 'Envío gratis', 'Accesorio sorpresa'], theme: 'barista' },
+  {
+    id: "plan-250",
+    nombre: "Plan 250 g",
+    descripcion: "Una bolsa de 250 g cada mes",
+    beneficios: [
+      "Grano o molido, como prefieras",
+      "El mismo café de nuestra finca en Supatá",
+      "Tostado fresco en tandas semanales",
+    ],
+  },
+  {
+    id: "plan-500",
+    nombre: "Plan 500 g",
+    descripcion: "Una bolsa de 500 g cada mes",
+    beneficios: [
+      "Grano o molido, como prefieras",
+      "El mismo café de nuestra finca en Supatá",
+      "Tostado fresco en tandas semanales",
+    ],
+    popular: true,
+  },
+  {
+    id: "plan-familiar",
+    nombre: "Plan Familiar",
+    descripcion: "Dos bolsas de 500 g cada mes",
+    beneficios: [
+      "Grano o molido, como prefieras",
+      "Ideal para el hogar o la oficina",
+      "Tostado fresco en tandas semanales",
+    ],
+  },
 ];

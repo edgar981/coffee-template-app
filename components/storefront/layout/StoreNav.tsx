@@ -2,10 +2,11 @@
 import { useState, useEffect } from 'react';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingBag, Menu, X, Search, Coffee } from 'lucide-react';
+import { ShoppingBag, Menu, X, Search } from 'lucide-react';
 import { useCartStore } from '@/lib/cartStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import NavSearch from './NavSearch';
+import { Logo } from '@/components/storefront/Logo';
 
 const links = [
   { label: 'Tienda', path: '/tienda' },
@@ -31,7 +32,6 @@ export default function StoreNav() {
     ? 'bg-transparent text-white'
     : 'bg-white/95 backdrop-blur shadow-sm text-[#1a0f08]';
 
-  const logoColor = isHome && !scrolled ? 'text-white' : 'text-[#1a0f08]';
   const linkColor = isHome && !scrolled ? 'text-white/80 hover:text-white' : 'text-[#5a3a28] hover:text-[#1a0f08]';
   const iconColor = isHome && !scrolled ? 'text-white/80 hover:text-white' : 'text-[#5a3a28] hover:text-[#1a0f08]';
 
@@ -41,9 +41,9 @@ export default function StoreNav() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 lg:h-18">
             {/* Logo */}
-            <Link href="/" className={`flex items-center gap-2 font-playfair font-medium text-lg ${logoColor} transition-colors`}>
-              <Coffee className="w-5 h-5" />
-              Café Nayoli
+            <Link href="/" aria-label="Café Nayoli — inicio" className="transition-colors">
+              {/* Cream lockup over the transparent hero, espresso once scrolled */}
+              <Logo variant={isHome && !scrolled ? 'dark' : 'light'} />
             </Link>
 
             {/* Desktop Nav */}

@@ -24,7 +24,7 @@ export default function BrandStory() {
               <br />a tu taza
             </h2>
             <p className="text-white/60 leading-relaxed mb-6 text-base">
-              Café Nayoli nace en un solo lugar: la Finca Nayoli, en la vereda Providencia de Supatá, Cundinamarca. 
+              Café Nayoli nace en un solo lugar: la Finca Nayoli, en la vereda Providencia de Supatá, Cundinamarca.
               Cada grano viene de esta tierra, cultivado entre los 1.650 y 2.100 metros sobre el nivel del mar, 
               donde la altura y el clima de la montaña colombiana dan al café su carácter.
             </p>
@@ -44,7 +44,7 @@ export default function BrandStory() {
           >
             <div className="relative h-48 overflow-hidden rounded-2xl">
               <Image
-                src="/images/products-6.jpeg"
+                src="/images/products-9.jpg"
                 alt="Café"
                 fill
                 sizes="(max-width: 768px) 50vw, 25vw"
@@ -62,7 +62,7 @@ export default function BrandStory() {
             </div>
             <div className="relative h-48 overflow-hidden rounded-2xl -mt-4">
               <Image
-                src="/images/products-8.jpeg"
+                src="/images/products-10.jpg"
                 alt="Finca"
                 fill
                 sizes="(max-width: 768px) 50vw, 25vw"
@@ -71,7 +71,7 @@ export default function BrandStory() {
             </div>
             <div className="relative h-48 overflow-hidden rounded-2xl mt-4">
               <Image
-                src="/images/products-8.jpeg"
+                src="/images/products-11.jpg"
                 alt="Barista"
                 fill
                 sizes="(max-width: 768px) 50vw, 25vw"

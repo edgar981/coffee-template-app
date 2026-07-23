@@ -1,12 +1,17 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from "sonner";
 
-import { ThemeProvider } from "@/components/ThemeProvider";
-
 export const metadata: Metadata = {
-  title: "Café Nayoli",
-  description: "Café de especialidad de origen",
+  title: { default: "Café Nayoli", template: "%s · Café Nayoli" },
+  description:
+    "Café de especialidad 100% colombiano, de la Finca Nayoli en Supatá.",
+};
+
+// La política de tema NO vive aquí: cada grupo de rutas monta su propio
+// ThemeProvider (storefront light-only, admin con dark). Ver CLAUDE.md.
+export const viewport: Viewport = {
+  themeColor: "#F9F6F4",
 };
 
 export default function RootLayout({
@@ -17,10 +22,8 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body>
-        <ThemeProvider>
-          {children}
-          <Toaster richColors position="top-center" />
-        </ThemeProvider>
+        {children}
+        <Toaster richColors position="top-center" />
       </body>
     </html>
   );

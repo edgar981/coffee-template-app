@@ -115,6 +115,23 @@ model Product {
   variante     String?
   origen       String?
   tostado      String?
+  // Ficha técnica estructurada (empaque real) — editable desde el admin.
+  // La tostión reutiliza el campo `tostado` existente (no se duplica).
+  variedad     String?
+  proceso      String?
+  altitudMin   Int?
+  altitudMax   Int?
+  // Molienda del producto (p. ej. "Media") — solo variantes molidas; null en grano.
+  molienda     String?
+  // Opciones de molienda que ve el cliente en la página de producto:
+  // [{ nombre: "Media", metodo: "Filtro / Greca tradicional", disponible: true }, …]
+  // El admin activa nuevas moliendas cambiando `disponible` — sin cambios de código.
+  moliendasOpciones Json?
+  notasCata    String[] @default([])
+  // Tags cortos del card del catálogo (p. ej. "Chocolate" · "Herbal").
+  notas        String[] @default([])
+  // Copy corto para el card del catálogo (la `descripcion` es la larga del detalle).
+  descripcionCorta String?
   imagen       String   @default("")
   imagenes     String[] @default([])
   bestseller   Boolean  @default(false)
@@ -144,6 +161,7 @@ model Order {
   deliverySlot       String?
   items              OrderItem[]
   payments           Payment[]
+  shipping           Shipping?
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 }
@@ -153,6 +171,8 @@ model OrderItem {
   orden_id         String
   producto_id      String?
   producto_nombre  String
+  // Molienda elegida por el cliente al comprar (snapshot, p. ej. "Media").
+  moliendaSeleccionada String?
   cantidad         Int
   precio_unitario  Float?
   subtotal         Float
@@ -172,31 +192,51 @@ model InventoryLog {
   createdAt        DateTime @default(now())
 }
 
+// A Payment is an event OF an Order: created when the admin registers a received
+// payment, moving the order to `pagado` in the SAME transaction. `monto` is a
+// snapshot of the order total at registration time (never typed by hand); the
+// customer is read live through the relation. There is no payment `estado` — a
+// row's existence IS the received payment; pending/paid lives on the Order.
 model Payment {
-  id              String   @id @default(cuid())
-  orden_id        String?
-  cliente_nombre  String?
-  monto           Float
-  metodo          String   @default("transferencia")
-  estado          String   @default("pendiente")
-  referencia      String?
-  notas           String?
-  fecha_pago      String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  order           Order?   @relation(fields: [orden_id], references: [id], onDelete: SetNull)
+  id                    String     @id @default(cuid())
+  orden_id              String
+  order                 Order      @relation(fields: [orden_id], references: [id], onDelete: Cascade)
+  monto                 Float
+  metodo                MetodoPago
+  referencia            String?
+  notas                 String?
+  // Who registered it (admin session). Snapshotted so it survives user deletion.
+  registrado_por        String?
+  registrado_por_nombre String?
+  // Business payment date (defaults to registration). `createdAt` is the audit ts.
+  fecha                 DateTime   @default(now())
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  @@index([orden_id])
+}
+
+// Manual payment methods. Extensible for online rails later (e.g. WOMPI) via
+// `ALTER TYPE "MetodoPago" ADD VALUE 'WOMPI'`.
+enum MetodoPago {
+  NEQUI
+  DAVIPLATA
+  EFECTIVO
+  TRANSFERENCIA
+  OTRO
 }
 
 model Shipping {
   id               String   @id @default(cuid())
-  orden_id         String?
-  numero_orden     String?
-  cliente_nombre   String?
-  direccion        String
-  ciudad           String   @default("Bogotá")
-  zona             String   @default("centro")
-  estado           String   @default("programado")
-  costo_envio      Float    @default(8000)
+  // One Shipping per Order (1:1). Auto-created in `preparando` when the order is
+  // paid. Number, customer AND address are read live via the relation — the
+  // Shipping keeps no copy of them. Only costo_envio is snapshotted (below).
+  orden_id         String   @unique
+  order            Order    @relation(fields: [orden_id], references: [id], onDelete: Cascade)
+  // Zona and courier start empty; the operator fills them when scheduling.
+  zona             String?
+  estado           String   @default("preparando")
+  costo_envio      Float    @default(0)
   mensajero        String?
   notas_entrega    String?
   fecha_programada String?

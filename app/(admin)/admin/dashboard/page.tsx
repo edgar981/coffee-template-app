@@ -21,6 +21,7 @@ import type { DashboardStats } from '@/types/dashboard';
 import type { AnalyticsData } from '@/types/analytics';
 import { formatCOP } from '@/lib/utils';
 import StatCard from '@/components/admin/StatCard';
+import { computeTrend, NEUTRAL_TREND } from '@/lib/metrics/trend';
 import { DASHBOARD_COLORS, tooltipStyle, axisTickStyle } from '@/constants/dashb-styles';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -51,11 +52,16 @@ export default function Dashboard() {
   const salesData    = analytics?.salesByMonth ?? [];
   const categoryData = analytics?.categoryData ?? [];
 
-  // Only surface a trend chip when today is actually up on yesterday — the
-  // StatCard trend renders as a green up-arrow, so a flat/down day stays in `sub`.
-  const ordersTrend = stats && stats.ordersDeltaPct !== null && stats.ordersDeltaPct > 0
-    ? `+${stats.ordersDeltaPct}%`
-    : undefined;
+  // Month-over-month trend pills: current calendar month vs previous complete
+  // month. The anti-noise floor lives in lib/metrics/trend.ts — with the demo
+  // data the previous month has < 5 orders, so these render neutral on their own.
+  const m = stats?.monthly;
+  const revenueTrend = m ? computeTrend(m.revenue.current,   m.revenue.previous,   m.prevMonthOrders) : NEUTRAL_TREND;
+  const ordersTrend  = m ? computeTrend(m.orders.current,    m.orders.previous,    m.prevMonthOrders) : NEUTRAL_TREND;
+  const avgTrend     = m ? computeTrend(m.avgTicket.current, m.avgTicket.previous, m.prevMonthOrders) : NEUTRAL_TREND;
+  // "Clientes Recurrentes" MoM needs per-month cohort logic the metrics endpoint
+  // doesn't have yet → neutral fallback (reported as backend-pending).
+  const recurrentesTrend = NEUTRAL_TREND;
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -69,8 +75,8 @@ export default function Dashboard() {
 
       {/* Stats row 1 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={DollarSign}    label="Ingresos Totales"    value={formatCOP(stats?.totalRevenue ?? 0)}                     color="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" />
-        <StatCard icon={ShoppingCart}  label="Órdenes Hoy"         value={stats?.ordersToday ?? 0}    sub={`vs ${stats?.ordersYesterday ?? 0} ayer`} trend={ordersTrend} color="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" />
+        <StatCard icon={DollarSign}    label="Ingresos Totales"    value={formatCOP(stats?.totalRevenue ?? 0)}                     sub="Histórico" trend={revenueTrend} color="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" />
+        <StatCard icon={ShoppingCart}  label="Órdenes del mes"     value={stats?.monthly.orders.current ?? 0}    sub="Mes en curso" trend={ordersTrend} color="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" />
         <StatCard icon={Clock}         label="Órdenes Pendientes"  value={stats?.pendingOrders ?? 0}  sub="Requieren atención"        color="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" />
         <StatCard icon={AlertTriangle} label="Alertas de Stock"    value={lowStock}                   sub="Productos bajo mínimo"     color="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" />
       </div>
@@ -79,8 +85,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={Users}       label="Clientes Totales"     value={customers.length}         sub="Registrados"                       color="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" />
         <StatCard icon={Package}     label="Productos Activos"    value={activeProducts}           sub="En catálogo"                       color="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" />
-        <StatCard icon={TrendingUp}  label="Ticket Promedio"      value={formatCOP(stats?.avgTicket ?? 0)}                                 color="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400" />
-        <StatCard icon={TrendingUp}  label="Clientes Recurrentes" value={`${analytics?.kpis.tasaRetencion ?? 0}%`} sub="con más de 1 compra"          color="bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400" />
+        <StatCard icon={TrendingUp}  label="Promedio por orden"   value={formatCOP(stats?.avgTicket ?? 0)}  sub="Valor promedio por orden · histórico" trend={avgTrend} color="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400" />
+        <StatCard icon={TrendingUp}  label="Clientes Recurrentes" value={`${analytics?.kpis.tasaRetencion ?? 0}%`} sub="con más de 1 compra" trend={recurrentesTrend} color="bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400" />
       </div>
 
       {/* Charts */}
@@ -96,8 +102,8 @@ export default function Dashboard() {
             <AreaChart data={salesData}>
               <defs>
                 <linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#92400e" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#92400e" stopOpacity={0} />
+                  <stop offset="5%"  stopColor="hsl(var(--chart-1))" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -110,7 +116,7 @@ export default function Dashboard() {
                 contentStyle={tooltipStyle}
                 formatter={(v) => formatCOP(v as number)}
               />
-              <Area type="monotone" dataKey="ventas" stroke="#92400e" strokeWidth={2} fill="url(#colorVentas)" />
+              <Area type="monotone" dataKey="ventas" stroke="hsl(var(--chart-1))" strokeWidth={2} fill="url(#colorVentas)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>

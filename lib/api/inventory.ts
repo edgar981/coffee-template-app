@@ -21,6 +21,11 @@ export async function adjustInventory(
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(form),
   });
-  if (!res.ok) throw new Error('Error al ajustar inventario');
+  if (!res.ok) {
+    // Propaga el motivo del servidor (p. ej. "Stock insuficiente para esta
+    // salida" en un 409) para que el admin vea por qué se rechazó.
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.error ?? 'Error al ajustar inventario');
+  }
   return res.json();
 }

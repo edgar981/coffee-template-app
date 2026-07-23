@@ -9,6 +9,7 @@ export async function PATCH(
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const { tipo } = await params;
 

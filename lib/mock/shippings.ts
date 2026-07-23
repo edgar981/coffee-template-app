@@ -1,88 +1,20 @@
-import { Shipping } from "@/types/shipping";
+import { ShippingEstado, ShippingZona } from "@/types/shipping";
 
-export const MOCK_SHIPPINGS: Shipping[] = [
-  {
-    orden_id: "1",
-    numero_orden: "SN-0041",
-    cliente_nombre: "Valentina Torres Ruiz",
-    direccion: "Cra 15 #85-32, Chapinero",
-    ciudad: "Bogotá",
-    zona: "norte",
-    estado: "programado",
-    costo_envio: 8000,
-    mensajero: "Luis Ronderos",
-    notas_entrega: "",
-    fecha_programada: "2026-05-14",
-    fecha_entrega: null,
-  },
-  {
-    orden_id: "2",
-    numero_orden: "SN-0040",
-    cliente_nombre: "Juan Camilo Ríos Medina",
-    direccion: "El Poblado, Calle 10 #43D-20",
-    ciudad: "Medellín",
-    zona: "exterior",
-    estado: "en_ruta",
-    costo_envio: 12000,
-    mensajero: "Coordinadora",
-    notas_entrega: "",
-    fecha_programada: "2026-05-13",
-    fecha_entrega: null,
-  },
-  {
-    orden_id: "3",
-    numero_orden: "SN-0039",
-    cliente_nombre: "Sofía Mendoza Giraldo",
-    direccion: "Av. 6 Norte #24-15",
-    ciudad: "Cali",
-    zona: "exterior",
-    estado: "entregado",
-    costo_envio: 10000,
-    mensajero: "",
-    notas_entrega: "",
-    fecha_programada: "2026-05-10",
-    fecha_entrega: "2026-05-10",
-  },
-  {
-    orden_id: "4",
-    numero_orden: "SN-0036",
-    cliente_nombre: "Andrés Castro Bermúdez",
-    direccion: "Álamos, Cra 23 #16-30",
-    ciudad: "Pereira",
-    zona: "exterior",
-    estado: "en_ruta",
-    costo_envio: 12000,
-    mensajero: "Servientrega",
-    notas_entrega: "",
-    fecha_programada: "2026-05-13",
-    fecha_entrega: null,
-  },
-  {
-    orden_id: "5",
-    numero_orden: "SN-0035",
-    cliente_nombre: "Carlos Eduardo Mora",
-    direccion: "Santa Bárbara, Cra 20 #118-55",
-    ciudad: "Bogotá",
-    zona: "norte",
-    estado: "entregado",
-    costo_envio: 0,
-    mensajero: "",
-    notas_entrega: "",
-    fecha_programada: "2026-05-08",
-    fecha_entrega: "2026-05-08",
-  },
-  {
-    orden_id: "6",
-    numero_orden: "SN-0033",
-    cliente_nombre: "Isabela Restrepo Vélez",
-    direccion: "Rosales, Cra 4 #69A-22",
-    ciudad: "Bogotá",
-    zona: "centro",
-    estado: "entregado",
-    costo_envio: 8000,
-    mensajero: "Luis Ronderos",
-    notas_entrega: "",
-    fecha_programada: "2026-05-07",
-    fecha_entrega: "2026-05-07",
-  },
+// Operator-owned delivery fields only. Order data (number, customer, address,
+// city, cost) is NOT stored here — a seeded delivery links to a real paid order
+// and reads those through the relation. These templates are cycled across the
+// seeded paid orders (see prisma/seed.ts).
+export interface ShippingSeedTemplate {
+  zona:              ShippingZona;
+  estado:            ShippingEstado;
+  mensajero:         string | null;
+  notas_entrega:     string | null;
+  fecha_programada:  string | null;
+  fecha_entrega:     string | null;
+}
+
+export const SHIPPING_SEED_TEMPLATES: ShippingSeedTemplate[] = [
+  { zona: 'norte',  estado: 'preparando', mensajero: 'Luis Ronderos', notas_entrega: null, fecha_programada: '2026-05-14', fecha_entrega: null },
+  { zona: 'centro', estado: 'en_ruta',    mensajero: 'Coordinadora',  notas_entrega: null, fecha_programada: '2026-05-13', fecha_entrega: null },
+  { zona: 'sur',    estado: 'entregado',  mensajero: 'Luis Ronderos', notas_entrega: null, fecha_programada: '2026-05-10', fecha_entrega: '2026-05-10' },
 ];

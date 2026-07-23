@@ -7,6 +7,7 @@ import { AUTOMATION_TEMPLATES } from '@/lib/mock/automations';
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   // Upsert all templates so every one exists in DB
   const automations = await Promise.all(

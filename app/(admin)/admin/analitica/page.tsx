@@ -114,8 +114,8 @@ export default function Analitica() {
                 ]}
               />
               <Legend formatter={v => v === 'ventas' ? 'Ventas' : 'Órdenes'} wrapperStyle={{ fontSize: 11 }} />
-              <Line yAxisId="left"  type="monotone" dataKey="ventas"  stroke="#92400e" strokeWidth={2.5} dot={false} />
-              <Line yAxisId="right" type="monotone" dataKey="ordenes" stroke="#d97706" strokeWidth={2} strokeDasharray="5 3" dot={false} />
+              <Line yAxisId="left"  type="monotone" dataKey="ventas"  stroke="hsl(var(--chart-1))" strokeWidth={2.5} dot={false} />
+              <Line yAxisId="right" type="monotone" dataKey="ordenes" stroke="hsl(var(--chart-2))" strokeWidth={2} strokeDasharray="5 3" dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -159,7 +159,7 @@ export default function Analitica() {
               <XAxis dataKey="dia"  tick={axisTickStyle} axisLine={false} tickLine={false} />
               <YAxis               tick={axisTickStyle} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={tooltipStyle} />
-              <Bar dataKey="ordenes" fill="#d97706" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="ordenes" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -211,7 +211,7 @@ export default function Analitica() {
               contentStyle={tooltipStyle}
               formatter={v => formatCOP(v as number)}
             />
-            <Bar dataKey="ingresos" fill="#92400e" radius={[0, 4, 4, 0]} />
+            <Bar dataKey="ingresos" fill="hsl(var(--chart-1))" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

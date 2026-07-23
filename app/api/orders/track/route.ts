@@ -59,6 +59,8 @@ export async function POST(req: NextRequest) {
       costo_envio:    true,
       ciudad_entrega: true,
       cliente_email:  true,
+      // Fulfillment state for the combined timeline (null if not created yet).
+      shipping: { select: { estado: true } },
       items: {
         select: { producto_nombre: true, cantidad: true, subtotal: true },
       },
@@ -85,10 +87,11 @@ export async function POST(req: NextRequest) {
   // Whitelist the response: order number, status, date, line items, money
   // breakdown and destination city ONLY. No phone, no street address.
   return NextResponse.json({
-    numero_orden:   order.numero_orden,
-    estado:         order.estado,
-    createdAt:      order.createdAt,
-    ciudad_entrega: order.ciudad_entrega,
+    numero_orden:    order.numero_orden,
+    estado:          order.estado,
+    shipping_estado: order.shipping?.estado ?? null,
+    createdAt:       order.createdAt,
+    ciudad_entrega:  order.ciudad_entrega,
     subtotal,
     costo_envio:    order.costo_envio,
     total:          order.total,

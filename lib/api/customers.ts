@@ -1,8 +1,15 @@
-import type { Customer, CustomerForm } from '@/types/customer';
+import type { Customer, CustomerForm, CustomerWithOrders } from '@/types/customer';
 
 export async function getCustomers(): Promise<Customer[]> {
   const res = await fetch('/api/customers');
   if (!res.ok) throw new Error('Error al cargar clientes');
+  return res.json();
+}
+
+// Single customer + order history for the profile page.
+export async function getCustomer(id: string): Promise<CustomerWithOrders> {
+  const res = await fetch(`/api/customers/${id}`);
+  if (!res.ok) throw new Error('Error al cargar el cliente');
   return res.json();
 }
 

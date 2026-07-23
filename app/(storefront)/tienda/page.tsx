@@ -1,13 +1,13 @@
 "use client";
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ProductCard from '@/components/storefront/ProductCard';
 import { TOSTADO_LABELS } from '@/constants/roast-levels';
 import { CATEGORIA_LABELS } from '@/constants/categories';
-import { DEMO_PRODUCTS } from '@/lib/mock/products';
+import { getCatalog } from '@/lib/api/products';
 import { useSearchParams } from 'next/navigation';
-import {ProductCategory, RoastLevel} from '@/types/product';
+import {Product, ProductCategory, RoastLevel} from '@/types/product';
 
 
 const SORTBY = [
@@ -35,8 +35,14 @@ export default function Shop() {
   const [sortBy, setSortBy] = useState('featured');
   const [showFilters, setShowFilters] = useState(false);
 
+  // Fuente única: catálogo público desde la DB (ya viene solo con activos).
+  const [catalog, setCatalog] = useState<Product[] | null>(null);
+  useEffect(() => {
+    getCatalog().then(setCatalog).catch(() => setCatalog([]));
+  }, []);
+
   const filtered = useMemo(() => {
-    let list = DEMO_PRODUCTS.filter(p => p.activo !== false);
+    let list = catalog ?? [];
     if (search) list = list.filter(p => p.nombre.toLowerCase().includes(search.toLowerCase()) || p.origen?.toLowerCase().includes(search.toLowerCase()));
     if (catFilter !== 'all') list = list.filter(p => p.categoria === catFilter);
     if (tostadoFilter !== 'all') list = list.filter(p => p.tostado === tostadoFilter);
@@ -44,7 +50,7 @@ export default function Shop() {
     else if (sortBy === 'price_desc') list = [...list].sort((a, b) => b.precio - a.precio);
     else if (sortBy === 'name') list = [...list].sort((a, b) => a.nombre.localeCompare(b.nombre));
     return list;
-  }, [search, catFilter, tostadoFilter, sortBy]);
+  }, [catalog, search, catFilter, tostadoFilter, sortBy]);
 
   interface ActiveFilter {
     key: string;
@@ -89,7 +95,7 @@ export default function Shop() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
               <h1 className="text-4xl font-playfair text-[#1a0f08] mb-2">Nuestra Tienda</h1>
-              <p className="text-[#5a3a28] text-sm">{DEMO_PRODUCTS.length} productos · Origen colombiano</p>
+              <p className="text-[#5a3a28] text-sm">{catalog === null ? "Cargando" : `${catalog.length} productos`} · Origen colombiano</p>
             </motion.div>
           </div>
         </div>

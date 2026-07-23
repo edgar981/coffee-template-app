@@ -15,6 +15,9 @@
   /* Fonts */
   --font-inter: 'Inter', sans-serif;
   --font-playfair: 'Playfair Display', serif;
+  /* Brand kit alias — Logo.tsx uses `font-display`; reuses the already-loaded
+     Playfair (do not import the font twice). */
+  --font-display: 'Playfair Display', serif;
 
   /* Border Radius */
   --radius-lg: var(--radius);
@@ -102,6 +105,10 @@
 
 html {
   scroll-behavior: smooth;
+  /* Default claro para los controles nativos del navegador (inputs, selects,
+     scrollbars). El storefront queda siempre así (fuerza `light`); el admin
+     cambia a `dark` vía el override de `.dark` de abajo. */
+  color-scheme: light;
 }
 
 /* ============================================
@@ -151,35 +158,94 @@ html {
     --coffee-900: 21 65% 11%;
   }
 
-  .dark {
-    --background: 25 20% 7%;
-    --foreground: 30 15% 93%;
-    --card: 25 18% 10%;
-    --card-foreground: 30 15% 93%;
-    --popover: 25 18% 10%;
-    --popover-foreground: 30 15% 93%;
-    --primary: 28 65% 55%;
-    --primary-foreground: 25 25% 8%;
-    --secondary: 25 18% 15%;
-    --secondary-foreground: 30 15% 88%;
-    --muted: 25 15% 14%;
-    --muted-foreground: 28 12% 55%;
-    --accent: 25 22% 18%;
-    --accent-foreground: 30 15% 88%;
-    --destructive: 0 62% 45%;
+  /* ============================================================
+     DUNA ADMIN THEME (Duna Solutions) — scoped, portal-safe
+     ------------------------------------------------------------
+     Values transplanted verbatim from duna.solutions. Applies only
+     when <html> carries the `admin` marker (added by the admin route
+     group). The storefront never carries it, so its coffee `:root`
+     palette above stays untouched. Tokens live on <html>, so
+     body-portaled UI (modals, dropdowns, toasts) inherits them.
+     Only variable/value pairs are transplanted — the existing
+     `.dark` mechanism (next-themes) is reused for dark mode.
+     ============================================================ */
+  html.admin:not(.dark) {
+    --background: 38 44% 96%;
+    --foreground: 33 20% 9%;
+    --card: 0 0% 100%;
+    --card-foreground: 33 20% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 33 20% 9%;
+    --primary: 38 92% 50%;
+    --primary-foreground: 36 91% 9%;
+    --secondary: 39 38% 91%;
+    --secondary-foreground: 33 20% 9%;
+    --muted: 39 38% 91%;
+    --muted-foreground: 41 9% 34%;
+    --accent: 26 90% 37%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 25 18% 18%;
-    --input: 25 18% 18%;
-    --ring: 28 65% 55%;
+    --border: 40 32% 87%;
+    --input: 40 32% 87%;
+    --ring: 38 92% 50%;
+    --radius: 0.75rem;
 
-    --sidebar-background: 25 25% 6%;
-    --sidebar-foreground: 30 15% 82%;
-    --sidebar-primary: 28 70% 55%;
-    --sidebar-primary-foreground: 25 25% 8%;
-    --sidebar-accent: 25 20% 12%;
-    --sidebar-accent-foreground: 30 15% 82%;
-    --sidebar-border: 25 20% 12%;
-    --sidebar-ring: 28 70% 55%;
+    --chart-1: 38 92% 50%;
+    --chart-2: 32 95% 44%;
+    --chart-3: 26 90% 37%;
+    --chart-4: 23 82% 31%;
+    --chart-5: 22 78% 26%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 33 20% 9%;
+    --sidebar-primary: 38 92% 50%;
+    --sidebar-primary-foreground: 36 91% 9%;
+    --sidebar-accent: 39 38% 91%;
+    --sidebar-accent-foreground: 33 20% 9%;
+    --sidebar-border: 40 32% 87%;
+    --sidebar-ring: 38 92% 50%;
+  }
+
+  .dark {
+    /* Solo el admin aplica `.dark` (el storefront fuerza light). Valores Duna
+       (dark). Alinea los controles nativos del navegador con el tema oscuro. */
+    color-scheme: dark;
+    --background: 33 20% 9%;
+    --foreground: 38 44% 96%;
+    --card: 35 21% 11%;
+    --card-foreground: 38 44% 96%;
+    --popover: 35 21% 11%;
+    --popover-foreground: 38 44% 96%;
+    --primary: 38 92% 50%;
+    --primary-foreground: 36 91% 9%;
+    --secondary: 34 20% 14%;
+    --secondary-foreground: 38 44% 96%;
+    --muted: 34 20% 14%;
+    --muted-foreground: 38 12% 60%;
+    --accent: 38 92% 50%;
+    --accent-foreground: 36 91% 9%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 35 20% 17%;
+    --input: 35 20% 17%;
+    --ring: 38 92% 50%;
+    --radius: 0.75rem;
+
+    --chart-1: 38 92% 50%;
+    --chart-2: 32 95% 44%;
+    --chart-3: 26 90% 37%;
+    --chart-4: 23 82% 31%;
+    --chart-5: 22 78% 26%;
+
+    --sidebar-background: 35 21% 11%;
+    --sidebar-foreground: 38 44% 96%;
+    --sidebar-primary: 38 92% 50%;
+    --sidebar-primary-foreground: 36 91% 9%;
+    --sidebar-accent: 34 20% 14%;
+    --sidebar-accent-foreground: 38 44% 96%;
+    --sidebar-border: 35 20% 17%;
+    --sidebar-ring: 38 92% 50%;
   }
 }
 
@@ -192,6 +258,17 @@ html {
   }
   body {
     @apply bg-background text-foreground font-inter;
+  }
+
+  /* Admin (Duna) typography — scoped to the admin route group's wrapper.
+     Fonts are loaded via next/font in app/(admin)/layout.tsx; the storefront
+     keeps Inter/Playfair (this never touches it). Instrument Sans for body/UI,
+     Space Grotesk for headings, JetBrains Mono for the "Duna" wordmark. */
+  .admin-shell {
+    font-family: var(--font-instrument-sans), 'Inter', ui-sans-serif, system-ui, sans-serif;
+  }
+  .admin-shell :is(h1, h2, h3, h4, h5, h6) {
+    font-family: var(--font-space-grotesk), 'Inter', ui-sans-serif, system-ui, sans-serif;
   }
 }
 
@@ -223,8 +300,5 @@ html {
 @layer utilities {
   .font-inter    { font-family: 'Inter', sans-serif; }
   .font-playfair { font-family: 'Playfair Display', serif; }
-
-  .sidebar-gradient {
-    background: linear-gradient(180deg, hsl(25, 28%, 10%) 0%, hsl(23, 32%, 8%) 100%);
-  }
+  .font-display  { font-family: 'Playfair Display', serif; }
 }
