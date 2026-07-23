@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Plus, Search, ShoppingCart, Truck, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -62,6 +62,13 @@ export default function Ordenes() {
   const [scheduleOrder, setScheduleOrder] = useState<Order | null>(null);
   // Order whose payment is being registered (opens the pre-filled modal).
   const [paymentOrder, setPaymentOrder]   = useState<Order | null>(null);
+  // Create-order submit guards. `saving` disables the button; `savingRef` blocks
+  // a re-entrant handleSave synchronously (fast double-click). `idemKeyRef` holds
+  // ONE idempotency key per opened form, so both clicks send the SAME key and the
+  // server dedups even if two requests slip through.
+  const [saving, setSaving]               = useState(false);
+  const savingRef                         = useRef(false);
+  const idemKeyRef                        = useRef<string>('');
 
   useEffect(() => {
     getOrders().then(data => {
@@ -93,7 +100,17 @@ export default function Ordenes() {
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
+  // Opens the New Order form with a FRESH idempotency key — one key per intended
+  // order, reused across double-clicks of that same form so the server can dedup.
+  const openNewOrder = () => {
+    idemKeyRef.current = crypto.randomUUID();
+    setForm(EMPTY_FORM);
+    setShowForm(true);
+  };
+
   const handleSave = async () => {
+    // Synchronous re-entrancy guard: a second (fast) click returns immediately.
+    if (savingRef.current) return;
     if (!form.cliente_nombre || !form.total) {
       toast.error('Cliente y total son requeridos');
       return;
@@ -104,14 +121,20 @@ export default function Ordenes() {
       toast.error('Ingresa al menos un teléfono o correo del cliente');
       return;
     }
+    // Guarantee a key even if the form was opened without openNewOrder.
+    if (!idemKeyRef.current) idemKeyRef.current = crypto.randomUUID();
+
+    savingRef.current = true;
+    setSaving(true);
     try {
       const created = await createOrder({
         ...form,
-        total:         Number(form.total),
-        costo_envio:   Number(form.costo_envio),
-        metodo_pago:   form.metodo_pago || undefined,
-        cliente_email: form.cliente_email || undefined,
-        items:         [],
+        total:          Number(form.total),
+        costo_envio:    Number(form.costo_envio),
+        metodo_pago:    form.metodo_pago || undefined,
+        cliente_email:  form.cliente_email || undefined,
+        idempotencyKey: idemKeyRef.current,
+        items:          [],
       });
       setOrders(prev => [created, ...prev]);
       toast.success('Orden creada');
@@ -119,6 +142,9 @@ export default function Ordenes() {
       setForm(EMPTY_FORM);
     } catch {
       toast.error('No se pudo crear la orden. Revisa los datos del cliente.');
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
@@ -154,7 +180,7 @@ export default function Ordenes() {
           <h1 className="text-2xl font-bold">Órdenes</h1>
           <p className="text-sm text-muted-foreground">{orders.length} órdenes en total</p>
         </div>
-        <Button onClick={() => { setForm(EMPTY_FORM); setShowForm(true); }} className="gap-2">
+        <Button onClick={openNewOrder} className="gap-2">
           <Plus className="w-4 h-4" /> Nueva Orden
         </Button>
       </div>
@@ -200,7 +226,7 @@ export default function Ordenes() {
         {loading ? (
           <div className="p-8 text-center text-muted-foreground">Cargando...</div>
         ) : filtered.length === 0 ? (
-          <EmptyState onNew={() => { setForm(EMPTY_FORM); setShowForm(true); }} />
+          <EmptyState onNew={openNewOrder} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -405,9 +431,9 @@ export default function Ordenes() {
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
             <Button
               onClick={handleSave}
-              disabled={!form.cliente_nombre || !form.total || (!form.cliente_email.trim() && !form.cliente_telefono.trim())}
+              disabled={saving || !form.cliente_nombre || !form.total || (!form.cliente_email.trim() && !form.cliente_telefono.trim())}
             >
-              Crear Orden
+              {saving ? 'Creando…' : 'Crear Orden'}
             </Button>
           </div>
         </DialogContent>

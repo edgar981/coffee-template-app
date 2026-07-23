@@ -25,7 +25,7 @@ export async function trackOrder(
 }
 
 export async function createOrder(
-  data: Omit<Order, 'id' | 'numero_orden' | 'createdAt' | 'updatedAt'>
+  data: Omit<Order, 'id' | 'numero_orden' | 'createdAt' | 'updatedAt'> & { idempotencyKey?: string }
 ): Promise<Order> {
   const res = await fetch('/api/orders', {
     method:  'POST',

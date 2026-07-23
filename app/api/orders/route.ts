@@ -50,6 +50,8 @@ const adminOrderSchema = z
       }))
       .optional()
       .default([]),
+    // Client-generated per-submit key; makes a double-click / retry idempotent.
+    idempotencyKey: z.string().uuid().optional(),
   })
   // At least one usable identity — a non-empty but unparseable phone with no
   // email is rejected (the phone would otherwise silently drop).
@@ -87,7 +89,7 @@ export async function POST(req: NextRequest) {
       notas_internas:    b.notas_internas || null,
       notas_entrega:     b.notas_entrega || null,
       items:             b.items,
-      numeroPrefix:      'SN',
+      idempotencyKey:    b.idempotencyKey ?? null,
     });
 
     fireOrderTrigger('nueva_orden', result as never).catch(console.error);
