@@ -27,6 +27,7 @@ export interface Order {
   id: string;
   numero_orden: string;
   cliente_nombre: string;
+  cliente_email?: string;
   cliente_telefono?: string;
   canal: OrderChannel;
   estado: OrderStatus;
@@ -69,6 +70,7 @@ export interface TrackedOrder {
 
 export interface OrderForm {
   cliente_nombre:    string;
+  cliente_email:     string;
   cliente_telefono:  string;
   canal:             OrderChannel;
   estado:            OrderStatus;
