@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ArrowUpRight, ArrowDownRight, Minus, LucideIcon } from "lucide-react";
 import type { Trend } from "@/lib/metrics/trend";
 
@@ -9,11 +10,39 @@ interface StatCardProps {
   /** Month-over-month pill. Omit for widgets that are states/queues, not trends. */
   trend?: Trend;
   color:  string;
+  /**
+   * Makes the whole card a link to the list this number came from. When set, the
+   * card gains a hover/focus affordance; cards without it render exactly as
+   * before. The href MUST filter to the same rows the value counts — see
+   * lib/metrics/month-range.ts for the shared definition that guarantees it.
+   */
+  href?:  string;
 }
 
-export default function StatCard({ icon: Icon, label, value, sub, trend, color }: StatCardProps) {
+export default function StatCard({ icon: Icon, label, value, sub, trend, color, href }: StatCardProps) {
+  const card = <StatCardBody icon={Icon} label={label} value={value} sub={sub} trend={trend} color={color} />;
+
+  if (!href) return card;
+
   return (
-    <div className="stat-card group">
+    <Link
+      href={href}
+      // `group/link` drives the extra affordance on the body below. `.stat-card`
+      // already lifts on hover for every card, so a linkable one adds a border
+      // tint — token-based, so it reads the same in light and dark. The focus
+      // ring is explicit: this is a block link, not a button.
+      className="group/link block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    >
+      {card}
+    </Link>
+  );
+}
+
+function StatCardBody({ icon: Icon, label, value, sub, trend, color }: Omit<StatCardProps, "href">) {
+  return (
+    // The `group-hover/link:` rules are inert unless a StatCard href wrapped this
+    // in `group/link`, so the non-linked cards render exactly as before.
+    <div className="stat-card group group-hover/link:border-primary/50 group-hover/link:bg-muted/30">
       <div className="flex items-start justify-between gap-2">
         {/* Pastel per-card chip — deliberate choice (see CLAUDE.md admin design system). */}
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>

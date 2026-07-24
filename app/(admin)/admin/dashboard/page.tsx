@@ -1,14 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   TrendingUp, ShoppingCart, Package, Users,
   AlertTriangle, DollarSign, Clock,
 } from 'lucide-react';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell,
-} from 'recharts';
+import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { getDashboardStats } from '@/lib/api/dashboard';
 import { getAnalytics } from '@/lib/api/analytics';
@@ -22,7 +21,9 @@ import type { AnalyticsData } from '@/types/analytics';
 import { formatCOP } from '@/lib/utils';
 import StatCard from '@/components/admin/StatCard';
 import { computeTrend, NEUTRAL_TREND } from '@/lib/metrics/trend';
-import { DASHBOARD_COLORS, tooltipStyle, axisTickStyle } from '@/constants/dashb-styles';
+import { currentMonthOrdersQuery, PENDING_ORDERS_QUERY } from '@/lib/metrics/order-stat-filters';
+import DashboardChartCarousel from '@/components/admin/DashboardChartCarousel';
+import { DASHBOARD_COLORS, tooltipStyle } from '@/constants/dashb-styles';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -49,8 +50,12 @@ export default function Dashboard() {
   const lowStock       = products.filter(p => p.stock <= (p.stock_minimo ?? 5)).length;
   const activeProducts = products.filter(p => p.activo !== false).length;
 
-  const salesData    = analytics?.salesByMonth ?? [];
   const categoryData = analytics?.categoryData ?? [];
+
+  // Same month boundary the stats endpoint counted with, plus the estado set that
+  // reproduces its `!= cancelado` filter — so this link's row count equals the
+  // number on the card.
+  const monthQuery = currentMonthOrdersQuery();
 
   // Month-over-month trend pills: current calendar month vs previous complete
   // month. The anti-noise floor lives in lib/metrics/trend.ts — with the demo
@@ -76,8 +81,11 @@ export default function Dashboard() {
       {/* Stats row 1 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={DollarSign}    label="Ingresos Totales"    value={formatCOP(stats?.totalRevenue ?? 0)}                     sub="Histórico" trend={revenueTrend} color="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" />
-        <StatCard icon={ShoppingCart}  label="Órdenes del mes"     value={stats?.monthly.orders.current ?? 0}    sub="Mes en curso" trend={ordersTrend} color="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" />
-        <StatCard icon={Clock}         label="Órdenes Pendientes"  value={stats?.pendingOrders ?? 0}  sub="Requieren atención"        color="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" />
+        <StatCard icon={ShoppingCart}  label="Órdenes del mes"     value={stats?.monthly.orders.current ?? 0}    sub="Mes en curso" trend={ordersTrend} color="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" href={`/admin/ordenes?${monthQuery}`} />
+        {/* pendingOrders EXCLUYE contraentregas despachadas (por cobrar) — la
+            plata en la calle no "requiere atención". El link (cobrar=0) filtra
+            al MISMO conjunto que el número (definición compartida). */}
+        <StatCard icon={Clock}         label="Órdenes Pendientes"  value={stats?.pendingOrders ?? 0}  sub={(stats?.porCobrar ?? 0) > 0 ? `Por cobrar: ${stats!.porCobrar}` : 'Requieren atención'} color="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" href={`/admin/ordenes?${PENDING_ORDERS_QUERY}`} />
         <StatCard icon={AlertTriangle} label="Alertas de Stock"    value={lowStock}                   sub="Productos bajo mínimo"     color="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" />
       </div>
 
@@ -91,41 +99,15 @@ export default function Dashboard() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 bg-card border border-border rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-semibold text-foreground">Ventas Mensuales {new Date().getFullYear()}</h3>
-              <p className="text-xs text-muted-foreground">Ingresos por mes</p>
-            </div>
-          </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={salesData}>
-              <defs>
-                <linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="hsl(var(--chart-1))" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="mes" tick={axisTickStyle} axisLine={false} tickLine={false} />
-              <YAxis
-                tick={axisTickStyle} axisLine={false} tickLine={false}
-                tickFormatter={v => `$${((v as number) / 1_000_000).toFixed(1)}M`}
-              />
-              <Tooltip
-                contentStyle={tooltipStyle}
-                formatter={(v) => formatCOP(v as number)}
-              />
-              <Area type="monotone" dataKey="ventas" stroke="hsl(var(--chart-1))" strokeWidth={2} fill="url(#colorVentas)" />
-            </AreaChart>
-          </ResponsiveContainer>
+        <div className="lg:col-span-2">
+          <DashboardChartCarousel />
         </div>
 
         <div className="bg-card border border-border rounded-xl p-5">
           <h3 className="font-semibold text-foreground mb-1">Por Categoría</h3>
           <p className="text-xs text-muted-foreground mb-4">Distribución de ventas</p>
           {categoryData.length === 0 ? (
-            <div className="h-[160px] flex items-center justify-center text-center text-muted-foreground text-sm">
+            <div className="h-40 flex items-center justify-center text-center text-muted-foreground text-sm">
               {loading ? 'Cargando...' : 'Sin ventas registradas todavía.'}
             </div>
           ) : (
@@ -183,7 +165,14 @@ export default function Dashboard() {
 
 // ─── OrdersTable ──────────────────────────────────────────────────────────────
 
+// Rows deep-link into the Órdenes page, which opens the matching order's detail
+// dialog from the `?order=` param (there is no per-order route). The whole row
+// navigates on click; the numero_orden cell is a real <Link> so middle-click,
+// "open in new tab" and keyboard/screen-reader navigation all work.
 function OrdersTable({ orders }: { orders: Order[] }) {
+  const router = useRouter();
+  const orderHref = (o: Order) => `/admin/ordenes?order=${encodeURIComponent(o.numero_orden)}`;
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -196,9 +185,21 @@ function OrdersTable({ orders }: { orders: Order[] }) {
         </thead>
         <tbody>
           {orders.map(o => (
-            <tr key={o.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+            <tr
+              key={o.id}
+              className="border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer"
+              onClick={() => router.push(orderHref(o))}
+            >
               <td className="px-5 py-3 font-mono text-xs text-muted-foreground">
-                {o.numero_orden ?? `#${o.id.slice(-6)}`}
+                <Link
+                  href={orderHref(o)}
+                  // The row already handles the click; this exists for middle-click
+                  // and focus order, so stop it from navigating twice.
+                  onClick={e => e.stopPropagation()}
+                  className="rounded hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {o.numero_orden ?? `#${o.id.slice(-6)}`}
+                </Link>
               </td>
               <td className="px-5 py-3 font-medium">{o.cliente_nombre}</td>
               <td className="px-5 py-3">
