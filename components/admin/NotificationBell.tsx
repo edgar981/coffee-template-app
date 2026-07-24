@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Bell, Package, ShoppingCart, X, CheckCheck } from 'lucide-react';
+import { Bell, Package, ShoppingCart, CheckCheck } from 'lucide-react';
 import Link from 'next/link';
 import { Notification } from '@/types/notification';
+import { AnimatedIcon } from '@/components/admin/AnimatedIcon';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 // ─── Icon map ─────────────────────────────────────────────────────────────────
 
@@ -19,6 +21,7 @@ const DEFAULT_ICON = <Bell className="w-4 h-4 text-muted-foreground" />;
 export default function NotificationBell() {
   const [open, setOpen]                   = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [now, setNow]                     = useState(() => Date.now());
   const ref                               = useRef<HTMLDivElement>(null);
 
   const unread = notifications.filter(n => !n.leida).length;
@@ -40,6 +43,14 @@ export default function NotificationBell() {
     load();
     const interval = setInterval(load, 30_000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Advance a "now" clock every 30s so relative timestamps (timeAgo) re-render
+  // on their own. This keeps render pure — no Date.now() read during render —
+  // while the labels still update. Cleared on unmount.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
   }, []);
 
   // Close on outside click
@@ -64,7 +75,7 @@ export default function NotificationBell() {
   };
 
   const timeAgo = (date: string) => {
-    const diff = Date.now() - new Date(date).getTime();
+    const diff = now - new Date(date).getTime();
     const mins = Math.floor(diff / 60_000);
     if (mins < 1)  return 'Ahora';
     if (mins < 60) return `Hace ${mins}m`;
@@ -75,18 +86,25 @@ export default function NotificationBell() {
 
   return (
     <div className="relative" ref={ref}>
-      {/* Bell button */}
-      <button
-        onClick={() => setOpen(!open)}
-        className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
-      >
-        <Bell className="h-4 w-4" />
-        {unread > 0 && (
-          <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
-            {unread > 9 ? '9+' : unread}
-          </span>
-        )}
-      </button>
+      {/* Bell button — icon-only control, so it always gets a tooltip; the bell
+          rings (ring-swing) on hover. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={() => setOpen(!open)}
+            aria-label="Notificaciones"
+            className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
+          >
+            <AnimatedIcon icon={Bell} anim="bell" size={16} />
+            {unread > 0 && (
+              <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
+                {unread > 9 ? '9+' : unread}
+              </span>
+            )}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Notificaciones</TooltipContent>
+      </Tooltip>
 
       {/* Dropdown */}
       {open && (

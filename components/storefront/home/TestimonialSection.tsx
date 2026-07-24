@@ -20,7 +20,7 @@ export default function TestimonialSection() {
             ].map((t, i) => (
               <motion.div key={t.name} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} transition={{ delay: i * 0.1 }} className="bg-white rounded-2xl p-6 shadow-sm border border-[#e8ddd0]">
                 <div className="flex gap-1 mb-4">{Array(t.stars).fill(0).map((_, j) => <Star key={j} className="w-4 h-4 fill-[#d4a97a] text-[#d4a97a]" />)}</div>
-                <p className="text-[#3d2314] text-sm leading-relaxed mb-4">"{t.text}"</p>
+                <p className="text-[#3d2314] text-sm leading-relaxed mb-4">&quot;{t.text}&quot;</p>
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-[#e8ddd0] flex items-center justify-center">
                     <span className="text-xs font-semibold text-[#8B4513]">{t.name[0]}</span>
