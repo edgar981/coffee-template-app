@@ -3,8 +3,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { CreditCard, DollarSign, Receipt, X } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getPayments } from '@/lib/api/payments';
@@ -168,14 +168,11 @@ export default function Pagos() {
             </SelectContent>
           </Select>
         </div>
-        <div>
-          <Label className="text-xs">Desde</Label>
-          <Input type="date" value={from} max={to || undefined} onChange={e => setFrom(e.target.value)} className="mt-1 h-9 w-40" />
-        </div>
-        <div>
-          <Label className="text-xs">Hasta</Label>
-          <Input type="date" value={to} min={from || undefined} onChange={e => setTo(e.target.value)} className="mt-1 h-9 w-40" />
-        </div>
+        <DateRangePicker
+          desde={from || null}
+          hasta={to || null}
+          onChange={(d, h) => { setFrom(d ?? ''); setTo(h ?? ''); }}
+        />
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 gap-1 text-xs">
             <X className="w-3.5 h-3.5" /> Limpiar

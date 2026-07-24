@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { fireOrderTrigger } from '@/lib/automations/triggers';
 import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, OrderCustomerIdentityError, OrderLinesError } from '@/lib/orders';
+import { MetodoPago, CondicionPago } from '@/src/generated/prisma/client';
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -24,7 +25,9 @@ export async function GET() {
 // Customer identity is flexible (email OPTIONAL, but at least one of email or a
 // valid Colombian mobile). Product lines are priced SERVER-SIDE from the catalog
 // (the admin never types the total). Shipping cost stays manual. The order is
-// always born `pendiente`; payment is registered afterwards via "Registrar pago".
+// always born `pendiente`; the DECLARED method (metodoPagoPrevisto) is just
+// intent. Payment is registered afterwards via "Registrar pago" — UNLESS
+// `pagoRecibido` is set, in which case it's registered in the same transaction.
 const adminOrderSchema = z
   .object({
     cliente_nombre:    z.string().trim().min(1, 'El nombre del cliente es requerido'),
@@ -37,6 +40,14 @@ const adminOrderSchema = z
     costo_envio:       z.coerce.number().nonnegative().optional(),
     direccion_entrega: z.string().trim().optional(),
     notas_internas:    z.string().trim().optional(),
+    // Método de pago PREVISTO (intención). Enum de Payment; opcional ("Por
+    // definir"). No crea Payment ni cambia estado por sí solo.
+    metodoPagoPrevisto: z.nativeEnum(MetodoPago).nullish(),
+    // CONDICIÓN de pago (no método): default ANTICIPADO. CONTRAENTREGA permite
+    // preparar/despachar el envío con la orden pendiente y cobrar al entregar.
+    condicion_pago:     z.nativeEnum(CondicionPago).optional(),
+    // "El pago ya fue recibido": registra el pago al crear (ver refine abajo).
+    pagoRecibido:       z.boolean().optional(),
     // Real product lines, priced server-side by resolveOrderLines.
     items: z
       .array(z.object({
@@ -53,6 +64,19 @@ const adminOrderSchema = z
   .refine(
     (d) => Boolean(d.cliente_email) || Boolean(normalizeCustomerPhone(d.cliente_telefono)),
     { message: 'Ingresa un correo válido o un teléfono (celular colombiano)', path: ['cliente_telefono'] },
+  )
+  // Marking the payment as received requires knowing the method (not "Por
+  // definir") — the Payment row can't record a null method. Server-enforced.
+  .refine(
+    (d) => !d.pagoRecibido || Boolean(d.metodoPagoPrevisto),
+    { message: 'Selecciona el método de pago para marcar la orden como pagada', path: ['metodoPagoPrevisto'] },
+  )
+  // "Pago ya recibido" contradice CONTRAENTREGA (se cobra AL ENTREGAR): si el
+  // dinero ya entró, la orden es ANTICIPADO. La UI deshabilita el checkbox;
+  // esto es el gemelo server-side.
+  .refine(
+    (d) => !(d.pagoRecibido && d.condicion_pago === 'CONTRAENTREGA'),
+    { message: 'Una orden contraentrega se cobra al entregar — no puede nacer pagada', path: ['pagoRecibido'] },
   );
 
 export async function POST(req: NextRequest) {
@@ -93,10 +117,11 @@ export async function POST(req: NextRequest) {
   const total = subtotal + costo_envio;
 
   try {
-    // Order is always born `pendiente` (no estado/metodo_pago here). Payment is
-    // registered afterwards via "Registrar pago" → writes the Payment row and
-    // auto-creates the Shipping. Same creation path (+ Customer upsert, CN-
-    // numbering, idempotency) as checkout.
+    // Order is always born `pendiente`. `metodoPagoPrevisto` records the declared
+    // intent only. If `pagoRecibido`, the SAME creation transaction also registers
+    // the payment (Payment + estado→pagado + Shipping) via the shared money-in
+    // path — otherwise payment is registered later via "Registrar pago". Same
+    // creation path (+ Customer upsert, CN- numbering, idempotency) as checkout.
     const result = await createOrderWithCustomer({
       customer:          { nombre: b.cliente_nombre, email: b.cliente_email ?? null, telefono: b.cliente_telefono ?? null },
       canal:             b.canal || 'whatsapp',
@@ -104,6 +129,15 @@ export async function POST(req: NextRequest) {
       costo_envio,
       direccion_entrega: b.direccion_entrega || null,
       notas_internas:    b.notas_internas || null,
+      metodoPagoPrevisto: b.metodoPagoPrevisto ?? null,
+      condicion_pago:    b.condicion_pago ?? null,
+      immediatePayment:  b.pagoRecibido && b.metodoPagoPrevisto
+        ? {
+            metodo:                b.metodoPagoPrevisto,
+            registrado_por:        session.user.id,
+            registrado_por_nombre: session.user.name ?? null,
+          }
+        : null,
       items:             lines,
       idempotencyKey:    b.idempotencyKey ?? null,
     });

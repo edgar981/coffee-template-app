@@ -48,6 +48,30 @@ export function startOfZonedDay(ref: Date, tz: string, dayDelta = 0): Date {
 }
 
 /**
+ * Calendar day `ref` falls on in `tz`, as a `YYYY-MM-DD` key. This is the day
+ * bucket the daily charts group by — it must agree with the SQL side, which
+ * buckets with `AT TIME ZONE 'UTC' AT TIME ZONE <tz>` (the DB columns are
+ * `timestamp without time zone` holding UTC instants).
+ */
+export function zonedDayKey(ref: Date, tz: string): string {
+  // en-CA formats as YYYY-MM-DD.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(ref);
+}
+
+/**
+ * The `days` local-day keys ending on the day `ref` falls on in `tz`, oldest
+ * first. Charts zero-fill against this list so a day with no orders renders as
+ * 0 instead of being skipped.
+ */
+export function zonedDayKeyRange(ref: Date, tz: string, days: number): string[] {
+  return Array.from({ length: days }, (_, i) =>
+    zonedDayKey(startOfZonedDay(ref, tz, i - (days - 1)), tz),
+  );
+}
+
+/**
  * UTC instant of 00:00 local time on the 1st of the month that `ref` falls on
  * in `tz`, shifted by `monthDelta` months (0 = this month, -1 = last month,
  * +1 = next month). `Date.UTC` normalises month over/underflow across years.
