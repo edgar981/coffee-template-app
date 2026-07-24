@@ -4,61 +4,92 @@ import { useCallback, useEffect, useState } from "react";
 
 import Sidebar from "@/components/admin/Sidebar";
 import TopBar from "@/components/admin/TopBar";
+import { CommandPalette } from "@/components/admin/CommandPalette";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
-interface AdminChromeProps {
-  children: React.ReactNode;
-}
+const COLLAPSE_KEY = "admin:sidebar-collapsed";
 
-// Interactive admin shell. Two independent pieces of state, because the sidebar
-// behaves as two different things across the `lg` breakpoint:
-//   • Desktop (≥ lg): an in-flow rail that pushes the content. `collapsed`
-//     switches it between the 240px expanded and 72px collapsed widths.
-//   • Mobile (< lg): an off-canvas overlay drawer. `mobileOpen` slides it in
-//     over the content — the content keeps its full width (zero reflow).
-// Conflating the two (a single `collapsed` flag) was the reflow bug: opening the
-// menu on mobile reserved 240px of margin and squeezed the page to a sliver.
-export default function AdminChrome({ children }: AdminChromeProps) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+// Interactive admin shell. Independent concerns:
+//   • collapsed — desktop rail 72↔240, toggled by CLICK (persisted in localStorage).
+//   • mobileOpen — off-canvas drawer < lg.
+//   • paletteOpen — the ⌘K command palette (global shortcut).
+export default function AdminChrome({ children }: { children: React.ReactNode }) {
+  const [collapsed, setCollapsed]     = useState(false);
+  const [mobileOpen, setMobileOpen]   = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const sidebarWidth = collapsed ? 72 : 240;
 
-  const toggleCollapsed = useCallback(() => setCollapsed((prev) => !prev), []);
-  const openMobile = useCallback(() => setMobileOpen(true), []);
-  const closeMobile = useCallback(() => setMobileOpen(false), []);
+  // Persisted collapse preference. Read post-mount (client-only) to avoid a
+  // hydration mismatch; the width transition makes the one-time settle smooth.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydrate from localStorage (client-only, can't read during SSR)
+    setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "true");
+  }, []);
 
-  // Crossing up to desktop width must force the drawer shut — otherwise a drawer
-  // left "open" would keep the body scroll lock engaged with no visible drawer.
-  // lg = 1024px (Tailwind default, the admin's breakpoint everywhere).
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(COLLAPSE_KEY, String(next)); } catch { /* private mode — non-fatal */ }
+      return next;
+    });
+  }, []);
+
+  const openMobile  = useCallback(() => setMobileOpen(true), []);
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+  const openSearch  = useCallback(() => setPaletteOpen(true), []);
+
+  // Global ⌘K / Ctrl+K → toggle palette.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Crossing up to desktop forces the mobile drawer shut (else the scroll lock
+  // would linger with no visible drawer). lg = 1024px.
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
-    const sync = () => {
-      if (mq.matches) setMobileOpen(false);
-    };
+    const sync = () => { if (mq.matches) setMobileOpen(false); };
     sync();
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar
-        collapsed={collapsed}
-        onToggle={toggleCollapsed}
-        mobileOpen={mobileOpen}
-        onClose={closeMobile}
-      />
+    // ONE TooltipProvider for the whole admin shell (no per-item nesting).
+    <TooltipProvider delayDuration={300}>
+      <div className="min-h-screen bg-background">
+        <Sidebar
+          collapsed={collapsed}
+          onToggle={toggleCollapsed}
+          mobileOpen={mobileOpen}
+          onClose={closeMobile}
+          onOpenSearch={openSearch}
+        />
 
-      <TopBar onMenuToggle={openMobile} sidebarWidth={sidebarWidth} />
+        <TopBar
+          onMenuToggle={openMobile}
+          sidebarWidth={sidebarWidth}
+          collapsed={collapsed}
+          onToggleCollapsed={toggleCollapsed}
+          onOpenSearch={openSearch}
+        />
 
-      {/* The rail offset is applied only from `lg` up. On mobile the content
-          always spans the full viewport; the drawer floats above it. */}
-      <main
-        className="min-h-screen pt-16 transition-[margin] duration-300 lg:ml-[var(--sb-w)]"
-        style={{ "--sb-w": `${sidebarWidth}px` } as React.CSSProperties}
-      >
-        <div className="animate-fade-in p-6">{children}</div>
-      </main>
-    </div>
+        <main
+          className="min-h-screen pt-16 transition-[margin] duration-300 lg:ml-(--sb-w)"
+          style={{ "--sb-w": `${sidebarWidth}px` } as React.CSSProperties}
+        >
+          <div className="animate-fade-in p-6">{children}</div>
+        </main>
+
+        <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      </div>
+    </TooltipProvider>
   );
 }

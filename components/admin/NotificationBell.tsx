@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { Notification } from '@/types/notification';
 import { AnimatedIcon } from '@/components/admin/AnimatedIcon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
 
 // ─── Icon map ─────────────────────────────────────────────────────────────────
 
@@ -93,7 +95,7 @@ export default function NotificationBell() {
           <button
             onClick={() => setOpen(!open)}
             aria-label="Notificaciones"
-            className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
+            className={cn(ADMIN_ICON_BUTTON, 'relative h-9 w-9')}
           >
             <AnimatedIcon icon={Bell} anim="bell" size={16} />
             {unread > 0 && (
