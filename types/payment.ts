@@ -29,6 +29,25 @@ export const METODO_PAGO_LABEL: Record<MetodoPago, string> = {
   OTRO:          'Otro',
 };
 
+// Coerce a loose string (e.g. Order.metodo_pago "nequi", or a form value) to the
+// canonical `MetodoPago` enum, or null when it isn't one. The single normalizer
+// used by the payment preselection and the "método previsto" label.
+export function toMetodoPago(value: string | null | undefined): MetodoPago | null {
+  const up = (value ?? '').trim().toUpperCase();
+  return (METODOS_PAGO as string[]).includes(up) ? (up as MetodoPago) : null;
+}
+
+// The order's DECLARED payment method ("previsto"), resolved from either the
+// typed `metodoPagoPrevisto` (admin orders) or the legacy free-string
+// `metodo_pago` (checkout orders), as a friendly label. null when neither is set.
+export function metodoPrevistoLabel(order: {
+  metodoPagoPrevisto?: MetodoPago | null;
+  metodo_pago?: string | null;
+}): string | null {
+  const metodo = order.metodoPagoPrevisto ?? toMetodoPago(order.metodo_pago);
+  return metodo ? METODO_PAGO_LABEL[metodo] : null;
+}
+
 // ─── Payment categories (PRESENTATION ONLY) ───────────────────────────────────
 // Groups the registered-payment methods for the "Por método" summary card. The
 // Payment enum and rows never change — this is only how the summary buckets them.

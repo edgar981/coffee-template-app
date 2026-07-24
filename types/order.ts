@@ -1,4 +1,4 @@
-import { PaymentMethod } from "./payment";
+import { PaymentMethod, MetodoPago } from "./payment";
 import { ShippingEstado, Shipping } from "./shipping";
 
 // OrderStatus covers the PAYMENT lifecycle only. Fulfillment (preparando/en
@@ -8,6 +8,20 @@ export type OrderStatus =
   | "pendiente"
   | "pagado"
   | "cancelado";
+
+/**
+ * CONDICIÓN de pago — cuándo se paga respecto al despacho. NO es un método:
+ * el instrumento real queda en Payment.metodo al recibir el dinero.
+ * ANTICIPADO: pago → envío (no se despacha sin pago, server-enforced).
+ * CONTRAENTREGA: el envío se prepara/despacha con la orden `pendiente`; el
+ * pago se registra tras la entrega. Inmutable una vez hay Shipping o Payment.
+ */
+export type CondicionPago = 'ANTICIPADO' | 'CONTRAENTREGA';
+
+export const CONDICION_PAGO_LABEL: Record<CondicionPago, string> = {
+  ANTICIPADO:    'Anticipado',
+  CONTRAENTREGA: 'Contraentrega',
+};
 
 export type OrderChannel =
   | 'whatsapp'
@@ -26,12 +40,29 @@ export interface OrderItem {
 export interface Order {
   id: string;
   numero_orden: string;
+  /**
+   * FK to the Customer this order belongs to, recorded at creation. `null` on
+   * orders that predate the relation and could not be resolved by the backfill —
+   * the UI must fall back to plain text rather than linking nowhere.
+   */
+  cliente_id?: string | null;
+  /** Purchase-time snapshots — what the customer said THEN, not who they are now. */
   cliente_nombre: string;
   cliente_email?: string;
   cliente_telefono?: string;
   canal: OrderChannel;
   estado: OrderStatus;
+  /** Free-string method declared at checkout (lowercase). Legacy/storefront. */
   metodo_pago?: PaymentMethod;
+  /**
+   * DECLARED payment intent on an admin-created order (typed, same enum as a
+   * registered Payment). Not the money: the order is still `pendiente` until a
+   * Payment is registered. Pre-selects the "Registrar pago" method. Null when
+   * "Por definir" or for checkout orders.
+   */
+  metodoPagoPrevisto?: MetodoPago | null;
+  /** Condición de pago; las órdenes existentes/checkout son ANTICIPADO. */
+  condicion_pago: CondicionPago;
   total: number;
   direccion_entrega?: string;
   direccion_detalle?: string | null;
@@ -84,6 +115,13 @@ export interface OrderForm {
   direccion_entrega: string;
   notas_internas:    string;
   items:             OrderLineForm[];
+  // Método de pago previsto (opcional). '' = "Por definir".
+  metodoPagoPrevisto: '' | MetodoPago;
+  // Condición de pago (Anticipado default / Contraentrega).
+  condicion_pago:     CondicionPago;
+  // "El pago ya fue recibido" — sólo válido con un método previsto seleccionado
+  // y condición ANTICIPADO (contraentrega se cobra al entregar).
+  pagoRecibido:       boolean;
 }
 
 // Payload the admin modal POSTs to /api/orders. Lines are priced server-side, so
@@ -97,6 +135,14 @@ export interface AdminOrderPayload {
   direccion_entrega?: string;
   notas_internas?:    string;
   items:              { slug: string; cantidad: number; molienda?: string | null }[];
+  // Método de pago previsto (enum) u omitido para "Por definir".
+  metodoPagoPrevisto?: MetodoPago;
+  // Condición de pago; omitida → ANTICIPADO (default del schema).
+  condicion_pago?:     CondicionPago;
+  // "El pago ya fue recibido": registra el pago en la misma transacción de
+  // creación (requiere metodoPagoPrevisto). La orden nace pendiente y se marca
+  // pagada acto seguido por el mismo camino que "Registrar pago".
+  pagoRecibido?:       boolean;
   idempotencyKey?:    string;
 }
 

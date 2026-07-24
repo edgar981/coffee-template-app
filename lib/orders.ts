@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma';
-import { Prisma } from '@/src/generated/prisma/client';
-import { ensureShippingForPaidOrder } from '@/lib/fulfillment';
+import { Prisma, MetodoPago, CondicionPago } from '@/src/generated/prisma/client';
+import { ensureShipping, restockShippingStock } from '@/lib/fulfillment';
 import { toWhatsappNumber } from '@/lib/whatsapp-link';
 
 // Fields any caller may change on an order. `?? undefined` semantics (a null/
@@ -11,6 +11,19 @@ export interface OrderTransitionData {
   notas_internas?: string | null;
   notas_entrega?: string | null;
   direccion_entrega?: string | null;
+  // Cambiable SOLO mientras la orden no tenga Shipping ni Payment — después el
+  // ciclo de vida ya corrió bajo una condición y cambiarla corrompe invariantes
+  // (p. ej. un despacho no pagado que era válido por CONTRAENTREGA). Guardado
+  // server-side abajo; la UI ni siquiera lo ofrece tras la creación.
+  condicion_pago?: CondicionPago | null;
+}
+
+// La condición de pago está bloqueada por el ciclo de vida. Routes → 409.
+export class CondicionPagoLockedError extends Error {
+  constructor() {
+    super('La condición de pago no puede cambiarse: la orden ya tiene un envío o un pago registrado');
+    this.name = 'CondicionPagoLockedError';
+  }
 }
 
 // THE single write path for Order.estado. Updates the order and runs the
@@ -25,6 +38,18 @@ export async function transitionOrder(
   id: string,
   data: OrderTransitionData,
 ) {
+  // condicion_pago is IMMUTABLE once the lifecycle ran under it: any Shipping or
+  // Payment locks it (server-side guard — the UI never offers the change).
+  if (data.condicion_pago != null) {
+    const current = await tx.order.findUniqueOrThrow({
+      where:  { id },
+      select: { condicion_pago: true, shipping: { select: { id: true } }, payments: { select: { id: true }, take: 1 } },
+    });
+    if (current.condicion_pago !== data.condicion_pago && (current.shipping || current.payments.length > 0)) {
+      throw new CondicionPagoLockedError();
+    }
+  }
+
   const updated = await tx.order.update({
     where: { id },
     data: {
@@ -33,25 +58,81 @@ export async function transitionOrder(
       notas_internas:    data.notas_internas    ?? undefined,
       notas_entrega:     data.notas_entrega     ?? undefined,
       direccion_entrega: data.direccion_entrega ?? undefined,
+      condicion_pago:    data.condicion_pago    ?? undefined,
       updatedAt:         new Date(),
     },
   });
 
   if (updated.estado === 'pagado') {
-    await ensureShippingForPaidOrder(tx, updated);
+    await ensureShipping(tx, updated);
   } else if (updated.estado === 'cancelado') {
     // Cancelling voids the delivery as a STATE TRANSITION (never a delete) — an
-    // auditable trail. updateMany is a no-op when there's no shipping yet.
-    await tx.shipping.updateMany({
-      where: { orden_id: id },
-      data:  { estado: 'cancelado', updatedAt: new Date() },
+    // auditable trail. If the goods had already left (dispatched → stock was
+    // decremented), they come back: restock in the SAME transaction, exactly
+    // once (marker-guarded). No-op when there's no shipping yet.
+    const shipping = await tx.shipping.findUnique({
+      where:  { orden_id: id },
+      select: { id: true, orden_id: true, estado: true, stock_descontado_at: true },
     });
+    if (shipping && shipping.estado !== 'cancelado') {
+      await restockShippingStock(tx, shipping, 'Orden cancelada');
+      await tx.shipping.update({
+        where: { id: shipping.id },
+        data:  { estado: 'cancelado', updatedAt: new Date() },
+      });
+    }
   }
 
   return tx.order.findUnique({
     where:   { id },
     include: { items: true, shipping: true },
   });
+}
+
+// ─── Payment registration (the single money-in write path) ───────────────────
+
+export interface RegisterPaymentTxInput {
+  // Snapshot of the amount, taken by the CALLER from the order total (never a
+  // client-sent value). Kept as a param so this helper stays agnostic of where
+  // the order came from.
+  monto: number;
+  metodo: MetodoPago;
+  referencia?: string | null;
+  notas?: string | null;
+  registrado_por?: string | null;
+  registrado_por_nombre?: string | null;
+}
+
+// THE single "registrar pago" write, inside a caller-supplied transaction:
+// create the Payment row and move the order to `pagado` via `transitionOrder`
+// (which owns the idempotent Shipping auto-create). Both entry points funnel
+// through here so "money in" is defined in exactly one place:
+//   • POST /api/orders/[id]/payments — pay an EXISTING pendiente order, and
+//   • createOrderWithCustomer({ immediatePayment }) — "el pago ya fue recibido"
+//     al crear la orden manual.
+// Returns the Payment and the refreshed order (with items + shipping).
+export async function registerOrderPaymentTx(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  input: RegisterPaymentTxInput,
+) {
+  const payment = await tx.payment.create({
+    data: {
+      orden_id:              orderId,
+      monto:                 input.monto,          // snapshot, server-side
+      metodo:                input.metodo,
+      referencia:            input.referencia?.trim() ? input.referencia.trim() : null,
+      notas:                 input.notas?.trim() ? input.notas.trim() : null,
+      registrado_por:        input.registrado_por ?? null,
+      registrado_por_nombre: input.registrado_por_nombre ?? null,
+    },
+  });
+
+  // Moves order → pagado AND auto-creates the Shipping in `preparando` (no-op if
+  // one already exists — e.g. it was scheduled first under ALLOW_UNPAID).
+  const order = await transitionOrder(tx, orderId, { estado: 'pagado' });
+
+  return { payment, order };
 }
 
 // ─── Order creation (customer-associating) ───────────────────────────────────
@@ -81,6 +162,14 @@ export interface CreateOrderInput {
   canal: string;
   estado?: string | null;
   metodo_pago?: string | null;
+  // Método por el que el cliente DIJO que va a pagar (intención declarada). NO
+  // crea Payment, NO cambia Order.estado, NO es el registro del dinero — sólo un
+  // dato de la orden. La orden sigue naciendo `pendiente`. Checkout lo deja null.
+  metodoPagoPrevisto?: MetodoPago | null;
+  // CONDICIÓN de pago (no método): ANTICIPADO (default) o CONTRAENTREGA. El
+  // checkout no la envía (default ANTICIPADO) — exponerla al storefront está
+  // deliberadamente pendiente de decisiones del cliente.
+  condicion_pago?: CondicionPago | null;
   total: number;
   costo_envio?: number;
   direccion_entrega?: string | null;
@@ -97,6 +186,17 @@ export interface CreateOrderInput {
     precio_unitario?: number | null;
     subtotal: number;
   }>;
+  // "El pago ya fue recibido" al crear la orden manual. Cuando está presente, la
+  // orden nace `pendiente` y ACTO SEGUIDO, en la MISMA transacción, se registra
+  // el pago por el mismo camino que "Registrar pago" (Payment + estado→pagado +
+  // Shipping). `monto` se snapshotea del total server-side, no se pasa aquí.
+  immediatePayment?: {
+    metodo: MetodoPago;
+    referencia?: string | null;
+    notas?: string | null;
+    registrado_por?: string | null;
+    registrado_por_nombre?: string | null;
+  } | null;
   // Optional client-generated idempotency key (uuid). If a request with the same
   // key already created an order, that order is returned instead of creating a
   // new one — a double submit or network retry can never duplicate.
@@ -157,8 +257,13 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
     try {
       const created = await prisma.$transaction(async (tx) => {
         // ── Customer identity (rules a/b above) ──
+        // The resolved id is captured into `cliente_id` on the order below. This
+        // upsert already KNOWS which customer it is, so recording it here is
+        // exact — every later "orders of this customer" read stops depending on
+        // matching snapshot values that the customer may since have edited.
+        let clienteId: string;
         if (email) {
-          await tx.customer.upsert({
+          const customer = await tx.customer.upsert({
             where:  { email },
             update: telefono ? { telefono } : {},
             create: {
@@ -168,11 +273,14 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
               canal:     input.canal,
             },
           });
+          clienteId = customer.id;
         } else {
           // email is null here, so the guard guarantees telefono is non-null.
           const existing = await tx.customer.findFirst({ where: { telefono: telefono! } });
-          if (!existing) {
-            await tx.customer.create({
+          if (existing) {
+            clienteId = existing.id;
+          } else {
+            const created = await tx.customer.create({
               data: {
                 nombre, telefono,
                 ciudad:    input.ciudad_entrega ?? null,
@@ -180,6 +288,7 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
                 canal:     input.canal,
               },
             });
+            clienteId = created.id;
           }
         }
 
@@ -188,12 +297,15 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
           data: {
             numero_orden,
             idempotencyKey:    idem,
+            cliente_id:        clienteId,
             cliente_nombre:    nombre,
             cliente_email:     email,
             cliente_telefono:  telefono,
             canal:             input.canal,
             estado:            input.estado ?? undefined, // undefined → schema default 'pendiente'
             metodo_pago:       input.metodo_pago ?? null,
+            metodoPagoPrevisto: input.metodoPagoPrevisto ?? null,
+            condicion_pago:    input.condicion_pago ?? undefined, // undefined → default ANTICIPADO
             total:             input.total,
             costo_envio:       input.costo_envio ?? 0,
             direccion_entrega: input.direccion_entrega ?? null,
@@ -215,8 +327,22 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
           },
         });
 
-        if (order.estado === 'pagado') {
-          await ensureShippingForPaidOrder(tx, order);
+        // "El pago ya fue recibido": born `pendiente` above, then paid RIGHT NOW
+        // through the shared money-in path (Payment + estado→pagado + Shipping) —
+        // same code as "Registrar pago", one transaction, so the ledger and the
+        // order can never disagree. Otherwise a directly-`pagado` order (rare;
+        // callers today never set estado) still gets its Shipping ensured.
+        if (input.immediatePayment) {
+          await registerOrderPaymentTx(tx, order.id, {
+            monto:                 order.total,
+            metodo:                input.immediatePayment.metodo,
+            referencia:            input.immediatePayment.referencia ?? null,
+            notas:                 input.immediatePayment.notas ?? null,
+            registrado_por:        input.immediatePayment.registrado_por ?? null,
+            registrado_por_nombre: input.immediatePayment.registrado_por_nombre ?? null,
+          });
+        } else if (order.estado === 'pagado') {
+          await ensureShipping(tx, order);
         }
 
         return tx.order.findUnique({
@@ -283,8 +409,9 @@ export class OrderLinesError extends Error {
 // availability. Both the storefront checkout and the admin manual order run
 // through here, so a manually created order has the SAME structure and rules as a
 // web order (the admin never types the total). Stock is validated, NOT
-// decremented — same policy as checkout (stock changes only via
-// /api/inventory/adjust). Throws OrderLinesError (→ 400) on any violation.
+// decremented — the decrement happens AT DISPATCH (see dispatchStockDecrement
+// in lib/fulfillment.ts); manual changes stay in /api/inventory/adjust.
+// Throws OrderLinesError (→ 400) on any violation.
 export async function resolveOrderLines(
   items: RawOrderLine[],
 ): Promise<{ lines: ResolvedOrderLine[]; subtotal: number }> {
