@@ -38,8 +38,20 @@ layout NO monta ThemeProvider. `color-scheme` sigue al tema vía CSS
   preview cuya rama trae una migración nueva fallará en runtime (P2022)
   hasta que `main` la aplique. Tradeoff aceptado frente al inverso —
   que una rama de feature migre la DB compartida antes de que `main`
-  tenga el código. Si preview y producción usan DBs separadas, se puede
-  quitar la condición.
+  tenga el código.
+- CONFIRMADO por el owner (2026-07-25): preview y producción COMPARTEN
+  la misma base de Neon. La variante condicionada es por tanto la
+  correcta — NO quitar la condición mientras esto siga así. Corolario:
+  cualquier `migrate dev` o seed corrido desde local contra esa base
+  también la toca — verificar a qué apunta `.env` antes de escrituras
+  de prueba.
+- `vercel.json#buildCommand` ANULA el script `build` de package.json —
+  incidente 2026-07-25: decía `prisma generate && next build` y el
+  `migrate deploy` condicionado nunca corrió en Vercel. Debe quedarse en
+  `"npm run build"` (o eliminarse): package.json es la única fuente del
+  build; `prisma generate` ya corre en `postinstall`. Todo cambio al
+  pipeline de build se verifica en los LOGS del deploy de Vercel, no
+  solo en el repo.
 - **Jamás `prisma migrate reset` contra Neon** — borra toda la base.
 - Migraciones nuevas deben ser aditivas/compatibles con el código
   anterior (columnas nullable o con default, enums nuevos) mientras un
