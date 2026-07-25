@@ -115,6 +115,17 @@ export default function DashboardChartCarousel() {
     [data, spec.id],
   );
 
+  // Render order for the OVERLAID areas: biggest series first (background) so
+  // smaller ones stay visible on top. Legend/tooltip keep the spec order.
+  const renderSeries = useMemo(
+    () =>
+      [...spec.series].sort((a, b) => {
+        const total = (s: Series) => rows.reduce((sum, r) => sum + Number(r[s.key] ?? 0), 0);
+        return total(b) - total(a);
+      }),
+    [spec.series, rows],
+  );
+
   // Zero-filled days are still rows, so "empty" means every series is 0.
   const isEmpty = rows.length > 0 && rows.every(row =>
     spec.series.every(s => (row[s.key] ?? 0) === 0),
@@ -182,7 +193,9 @@ export default function DashboardChartCarousel() {
             <defs>
               {spec.series.map(s => (
                 <linearGradient key={s.key} id={`fill-${spec.id}-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor={s.color} stopOpacity={0.35} />
+                  {/* Low opacity on purpose: the areas OVERLAP (not stacked), so
+                      each fill must stay readable through the ones above it. */}
+                  <stop offset="5%"  stopColor={s.color} stopOpacity={0.2} />
                   <stop offset="95%" stopColor={s.color} stopOpacity={0} />
                 </linearGradient>
               ))}
@@ -200,11 +213,14 @@ export default function DashboardChartCarousel() {
               cursor={{ stroke: 'hsl(var(--border))' }}
               content={<BreakdownTooltip spec={spec} />}
             />
-            {spec.series.map(s => (
+            {/* NO stackId: each series draws its OWN daily value. Stacked areas
+                made the top line trace the CUMULATIVE edge — the grey "Otro"
+                calcaba el total del día mientras su tooltip decía $0. The
+                per-day total lives in the tooltip, not in a line. */}
+            {renderSeries.map(s => (
               <Area
                 key={s.key}
                 type="monotone" dataKey={s.key} name={s.label}
-                stackId="1"
                 stroke={s.color} strokeWidth={2}
                 fill={`url(#fill-${spec.id}-${s.key})`}
               />
@@ -236,8 +252,8 @@ function ArrowButton({ label, onClick, children }: {
 }
 
 // Recharts passes `payload` as the hovered day's series entries. Rendered with
-// one swatch row per category plus the day's total, so the breakdown visibly
-// reconciles with the stacked height.
+// one swatch row per category plus the day's total — the ONLY place the total
+// lives now that the areas overlap instead of stacking.
 function BreakdownTooltip({ spec, active, payload, label }: {
   spec: ChartSpec;
   active?: boolean;
