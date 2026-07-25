@@ -10,8 +10,6 @@ export const EMPTY_ANALYTICS: AnalyticsData = {
     .map(mes => ({ mes, ventas: 0, ordenes: 0 })),
   canalData: [],
   categoryData: [],
-  weekData:  ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom']
-    .map(dia => ({ dia, ordenes: 0, ingresos: 0 })),
 };
 
 export const productData = [
