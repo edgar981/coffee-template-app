@@ -10,6 +10,13 @@ export default defineConfig({
     seed: 'tsx ./prisma/seed.ts',
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Este archivo lo consume SOLO el CLI de Prisma (migrate/seed/studio) — el
+    // runtime se conecta por el adapter de lib/prisma.ts con DATABASE_URL
+    // (pooled). Las migraciones usan la conexión DIRECTA de Neon (sin
+    // `-pooler`): PgBouncer rompe los advisory locks de `migrate deploy`.
+    // Prisma 7 no soporta `directUrl` en este config — esta separación de vars
+    // es el equivalente. Fallback a DATABASE_URL para entornos con una sola
+    // URL (p. ej. Postgres local).
+    url: process.env["DIRECT_DATABASE_URL"] ?? process.env["DATABASE_URL"],
   },
 });

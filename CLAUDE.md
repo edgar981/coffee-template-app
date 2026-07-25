@@ -26,6 +26,32 @@ layout NO monta ThemeProvider. `color-scheme` sigue al tema vía CSS
 (`html` claro por defecto, `.dark` oscuro — solo el admin aplica
 `.dark`).
 
+## Migraciones y deploy
+
+- Las migraciones de PRODUCCIÓN las aplica el build de Vercel
+  automáticamente: `npm run build` corre `prisma migrate deploy` antes
+  de `next build` **solo cuando `VERCEL_ENV === "production"`**. Si la
+  migración falla, el build falla y el deploy queda bloqueado — jamás
+  envolver ese paso en `|| true` (un deploy bloqueado con error claro es
+  mejor que producción corriendo contra un schema sin migrar).
+- Los PREVIEW deploys NO migran (variante condicionada, deliberada): una
+  preview cuya rama trae una migración nueva fallará en runtime (P2022)
+  hasta que `main` la aplique. Tradeoff aceptado frente al inverso —
+  que una rama de feature migre la DB compartida antes de que `main`
+  tenga el código. Si preview y producción usan DBs separadas, se puede
+  quitar la condición.
+- **Jamás `prisma migrate reset` contra Neon** — borra toda la base.
+- Migraciones nuevas deben ser aditivas/compatibles con el código
+  anterior (columnas nullable o con default, enums nuevos) mientras un
+  deploy viejo conviva con el schema nuevo; si algún día hay que romper,
+  usar expand → migrate → contract en deploys separados.
+- La env var `DIRECT_DATABASE_URL` (conexión directa de Neon, sin
+  `-pooler`) debe existir en los entornos de Vercel que migran (hoy:
+  Production). La lee `prisma.config.ts` — que consume SOLO el CLI de
+  Prisma; el runtime usa `DATABASE_URL` (pooled) vía lib/prisma.ts.
+  Prisma 7 no tiene `directUrl` en el config: esta separación de env
+  vars es el equivalente.
+
 ## Design system del admin — chips de stat cards
 
 Los icon chips de stat cards usan la paleta pastel multicolor (decisión
