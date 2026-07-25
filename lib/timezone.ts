@@ -72,6 +72,18 @@ export function zonedDayKeyRange(ref: Date, tz: string, days: number): string[] 
 }
 
 /**
+ * UTC instant of 00:00 local time on the MONDAY of the week that `ref` falls on
+ * in `tz`, shifted by `weekDelta` weeks (0 = this week, -1 = last week). Weeks
+ * are Monday–Sunday (ISO), matching the es-CO business convention.
+ */
+export function startOfZonedWeek(ref: Date, tz: string, weekDelta = 0): Date {
+  // Local weekday of `ref` in `tz`: ISO index 0 = Monday … 6 = Sunday.
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(ref);
+  const isoIndex = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(weekday);
+  return startOfZonedDay(ref, tz, -isoIndex + weekDelta * 7);
+}
+
+/**
  * UTC instant of 00:00 local time on the 1st of the month that `ref` falls on
  * in `tz`, shifted by `monthDelta` months (0 = this month, -1 = last month,
  * +1 = next month). `Date.UTC` normalises month over/underflow across years.
