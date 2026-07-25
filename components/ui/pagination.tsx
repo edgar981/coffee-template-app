@@ -8,8 +8,7 @@ import { buttonVariants } from "@/components/ui/button"
 // --------------------
 // Root
 // --------------------
-export interface PaginationProps
-  extends React.HTMLAttributes<HTMLElement> {}
+export type PaginationProps = React.HTMLAttributes<HTMLElement>
 
 const Pagination = ({ className, ...props }: PaginationProps) => (
   <nav

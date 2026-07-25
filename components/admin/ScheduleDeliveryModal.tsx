@@ -12,7 +12,8 @@ import { toast } from 'sonner';
 import { formatCOP } from '@/lib/utils';
 import { scheduleDelivery } from '@/lib/api/shippings';
 import { getDeliveryContext, updateOrderAddress } from '@/lib/api/orders';
-import type { Shipping, ShippingZona } from '@/types/shipping';
+import type { Shipping, ShippingZona, TipoEnvio } from '@/types/shipping';
+import { TIPO_ENVIO_LABEL } from '@/types/shipping';
 import type { DeliveryContext, OrderAddressResult } from '@/types/order';
 import { ZONAS, SHIPPING_ESTADO_LABEL, isScheduledShipping } from '@/constants/shippings';
 import { COLOMBIA_DEPARTMENTS } from '@/lib/colombia-departments';
@@ -75,6 +76,10 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
   const [mensajero, setMensajero] = useState(shipping.mensajero ?? '');
   const [fecha, setFecha]         = useState(shipping.fecha_programada ?? '');
   const [notas, setNotas]         = useState(shipping.notas_entrega ?? '');
+  // LOCAL (mensajero propio) o NACIONAL (transportadora + guía).
+  const [tipoEnvio, setTipoEnvio]           = useState<TipoEnvio>(shipping.tipo_envio ?? 'LOCAL');
+  const [transportadora, setTransportadora] = useState(shipping.transportadora ?? '');
+  const [numeroGuia, setNumeroGuia]         = useState(shipping.numero_guia ?? '');
   const [saving, setSaving]       = useState(false);
 
   useEffect(() => {
@@ -97,6 +102,9 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
         mensajero:        mensajero.trim() || null,
         fecha_programada: fecha || null,
         notas_entrega:    notas.trim() || null,
+        tipo_envio:       tipoEnvio,
+        transportadora:   transportadora.trim() || null,
+        numero_guia:      numeroGuia.trim() || null,
       });
       onSaved(updated);
       toast.success(isReschedule ? 'Entrega reprogramada' : 'Entrega programada');
@@ -214,6 +222,29 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
 
       {/* Operator fills only these */}
       <div className="grid grid-cols-2 gap-4">
+        <div className="col-span-2">
+          <Label>Tipo de envío</Label>
+          <Select value={tipoEnvio} onValueChange={v => setTipoEnvio(v as TipoEnvio)}>
+            <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(['LOCAL', 'NACIONAL'] as TipoEnvio[]).map(t => (
+                <SelectItem key={t} value={t}>{TIPO_ENVIO_LABEL[t]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {tipoEnvio === 'NACIONAL' && (
+          <>
+            <div>
+              <Label>Transportadora</Label>
+              <Input value={transportadora} onChange={e => setTransportadora(e.target.value)} className="mt-1" placeholder="Servientrega, Coordinadora…" />
+            </div>
+            <div>
+              <Label>Número de guía</Label>
+              <Input value={numeroGuia} onChange={e => setNumeroGuia(e.target.value)} className="mt-1" placeholder="Guía de rastreo" />
+            </div>
+          </>
+        )}
         <div>
           <Label>Mensajero</Label>
           <Input value={mensajero} onChange={e => setMensajero(e.target.value)} className="mt-1" placeholder="Nombre del mensajero" />

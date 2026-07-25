@@ -9,6 +9,20 @@ export interface NavLink {
   href: string;
 }
 
+// ─── Política de fulfillment (POR ORDEN) ─────────────────────────────────────
+// Los dos ciclos de una orden —pago y entrega— son independientes; esto define
+// SÓLO cuándo puede programarse la entrega respecto al pago.
+//
+// La política dejó de ser por tienda: ahora la determina la CONDICIÓN de pago
+// de cada orden (Order.condicion_pago) vía policyForCondicion() en
+// lib/fulfillment.ts — ANTICIPADO → 'REQUIRE_PAYMENT' (la entrega se crea sólo
+// al confirmar el pago), CONTRAENTREGA → 'ALLOW_UNPAID' (preparar/despachar
+// primero, cobrar al entregar). En ambas: una orden cancelada nunca es
+// programable, y transitionOrder sigue siendo el único que mueve Order.estado.
+// El tipo se queda aquí (config/domain compartido); el const por tienda se
+// eliminó al introducir la condición por orden.
+export type FulfillmentPolicy = 'REQUIRE_PAYMENT' | 'ALLOW_UNPAID';
+
 // Dígitos wa.me (sin "+" ni separadores) a partir de contacto.whatsapp.
 const whatsappDigits = "+573155766064".replace(/\D/g, "");
 

@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, PieChart, Pie, LineChart, Line, Legend,
 } from 'recharts';
 import { formatCOP } from '@/lib/utils';
-import { getAnalytics } from '@/lib/api/analytics';
+import { getAnalytics, getWeeklyActivity } from '@/lib/api/analytics';
 import { ANALITICS_COLORS, tooltipStyle, axisTickStyle } from '@/constants/dashb-styles';
-import type { AnalyticsData, CanalData } from '@/types/analytics';
+import type { AnalyticsData, CanalData, WeeklyActivityData } from '@/types/analytics';
 import { EMPTY_ANALYTICS, productData } from '@/constants/analytics';
+import { BUSINESS_TZ, startOfZonedDay, startOfZonedWeek, zonedDayKey } from '@/lib/timezone';
 
 // ─── Static fallback data (shown while loading) ───────────────────────────────
 
@@ -50,6 +51,113 @@ function MetricCard({ label, value, sub, trend, positive, loading }: MetricCardP
   );
 }
 
+// ─── Actividad Semanal (weekly, navigable) ────────────────────────────────────
+// ONE Monday–Sunday week (America/Bogota) at a time, navigated with ‹ › (same
+// visual pattern as the Dashboard carousel arrows). ‹ goes back without limit;
+// › is disabled on the current week — there are no future weeks. Data comes
+// from /api/analytics/weekly via lib/api (SQL weekday bucketing, CN- only,
+// non-cancelled), zero-filled, so the bars always render Lun→Dom.
+
+const ZERO_WEEK = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+  .map(dia => ({ dia, ordenes: 0, ingresos: 0 }));
+
+// "20 – 26 de jul" (same month) / "30 de jun – 6 de jul" (crossing months).
+const WEEK_DAY   = new Intl.DateTimeFormat('es-CO', { day: 'numeric', timeZone: BUSINESS_TZ });
+const WEEK_MONTH = new Intl.DateTimeFormat('es-CO', { month: 'short', timeZone: BUSINESS_TZ });
+
+function weekRangeLabel(monday: Date): string {
+  const sunday = startOfZonedDay(monday, BUSINESS_TZ, 6);
+  const month = (d: Date) => WEEK_MONTH.format(d).replace('.', '');
+  if (month(monday) === month(sunday)) {
+    return `${WEEK_DAY.format(monday)} – ${WEEK_DAY.format(sunday)} de ${month(sunday)}`;
+  }
+  return `${WEEK_DAY.format(monday)} de ${month(monday)} – ${WEEK_DAY.format(sunday)} de ${month(sunday)}`;
+}
+
+function WeeklyActivityCard() {
+  // Week shown = current week + offset (0 = current, -1 = previous, …).
+  const [offset, setOffset] = useState(0);
+  const [data, setData]     = useState<WeeklyActivityData | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  const monday  = useMemo(() => startOfZonedWeek(new Date(), BUSINESS_TZ, offset), [offset]);
+  const weekKey = zonedDayKey(monday, BUSINESS_TZ);
+
+  useEffect(() => {
+    let active = true;
+    getWeeklyActivity(weekKey)
+      .then(result => { if (active) setData(result); })
+      .catch(()     => { if (active) setFailed(weekKey); });
+    // Ignore an in-flight response once the week changed again.
+    return () => { active = false; };
+  }, [weekKey]);
+
+  // Derived, carousel-style: loading = the visible week isn't the loaded one.
+  // Navigation keeps the LAST loaded bars mounted (dimmed) — no unmount flash.
+  const error   = failed === weekKey;
+  const loading = !error && data?.week !== weekKey;
+  const rows    = data?.days ?? ZERO_WEEK;
+  const isEmpty = !loading && !error && rows.every(d => d.ordenes === 0);
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-5">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <h3 className="font-semibold mb-1">Actividad Semanal</h3>
+          {/* The number means nothing without its week — always show the range. */}
+          <p className="text-xs text-muted-foreground">
+            Órdenes por día · {weekRangeLabel(monday)}
+          </p>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setOffset(o => o - 1)}
+            aria-label="Semana anterior"
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setOffset(o => Math.min(0, o + 1))}
+            disabled={offset === 0}
+            aria-label="Semana siguiente"
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:pointer-events-none"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="relative">
+        {/* Chart stays MOUNTED while navigating; loading just dims it. */}
+        <div className={loading ? 'opacity-40 transition-opacity' : 'transition-opacity'}>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={rows} barSize={32}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="dia"  tick={axisTickStyle} axisLine={false} tickLine={false} />
+              <YAxis               tick={axisTickStyle} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip contentStyle={tooltipStyle} />
+              <Bar dataKey="ordenes" name="Órdenes" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        {error && (
+          <p className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-sm text-muted-foreground">
+            No se pudo cargar la semana.
+          </p>
+        )}
+        {isEmpty && (
+          <p className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-sm text-muted-foreground">
+            Sin órdenes esta semana
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Analitica() {
@@ -63,7 +171,7 @@ export default function Analitica() {
       .finally(() => setLoading(false));
   }, []);
 
-  const { kpis, salesByMonth, canalData, weekData } = data;
+  const { kpis, salesByMonth, canalData } = data;
 
   // Add fill colors to canal data
   const canalDataWithColors: CanalData[] = canalData.map((item, i) => ({
@@ -81,7 +189,8 @@ export default function Analitica() {
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard loading={loading} label="Ingresos Anuales"  value={formatCOP(kpis.totalRevenue)}   sub={`${kpis.totalOrders} órdenes`}      trend="+149% vs 2023"  positive />
-        <MetricCard loading={loading} label="Ticket Promedio"   value={formatCOP(kpis.ticketPromedio)} sub="Por orden"                           trend="+6.1% este mes" positive />
+        {/* Mismo nombre que la tarjeta del Dashboard — una métrica, un nombre. */}
+        <MetricCard loading={loading} label="Promedio por orden" value={formatCOP(kpis.ticketPromedio)} sub="Por orden"                          trend="+6.1% este mes" positive />
         <MetricCard loading={loading} label="Tasa Retención"    value={`${kpis.tasaRetencion}%`}       sub={`${kpis.totalCustomers} clientes`}   trend="+3.2%"          positive />
         <MetricCard loading={loading} label="Margen Bruto Est." value={`${kpis.margenBruto}%`}         sub="Promedio portafolio"                 trend="-1.2%"          positive={kpis.margenBruto >= 50} />
       </div>
@@ -150,19 +259,7 @@ export default function Analitica() {
 
       {/* Weekly + top products */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-card border border-border rounded-xl p-5">
-          <h3 className="font-semibold mb-1">Actividad Semanal</h3>
-          <p className="text-xs text-muted-foreground mb-4">Órdenes por día de la semana</p>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={weekData} barSize={32}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="dia"  tick={axisTickStyle} axisLine={false} tickLine={false} />
-              <YAxis               tick={axisTickStyle} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Bar dataKey="ordenes" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <WeeklyActivityCard />
 
         <div className="bg-card border border-border rounded-xl p-5">
           <h3 className="font-semibold mb-1">Productos Más Vendidos</h3>

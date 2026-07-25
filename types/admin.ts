@@ -3,12 +3,14 @@ import { LucideIcon } from "lucide-react";
 export interface SidebarProps {
   /** Desktop rail collapsed (72px) vs expanded (240px). Irrelevant < lg. */
   collapsed: boolean;
-  /** Toggle the desktop rail (collapse chevron). */
+  /** Toggle the desktop rail (PanelLeft control, expanded state only). */
   onToggle: () => void;
   /** Mobile drawer open. Irrelevant ≥ lg. */
   mobileOpen: boolean;
   /** Close the mobile drawer (backdrop / Escape / nav / close button). */
   onClose: () => void;
+  /** Open the ⌘K command palette (sidebar Search button). */
+  onOpenSearch: () => void;
 }
 
 export interface NavItem {

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Search, Edit2, Trash2, Package, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +20,20 @@ type ViewMode = 'grid' | 'table';
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
+// useSearchParams() (the ?producto= deep link) needs a Suspense boundary — same
+// pattern as the Órdenes page.
 export default function Productos() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Cargando...</div>}>
+      <ProductosInner />
+    </Suspense>
+  );
+}
+
+function ProductosInner() {
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+
   const [productos, setProductos] = useState<Product[]>([]);
   const [loading, setLoading]     = useState(true);
   const [search, setSearch]       = useState('');
@@ -67,6 +81,20 @@ export default function Productos() {
     });
     setShowForm(true);
   };
+
+  // Deep link from the command palette: `?producto=<id>` opens that product in the
+  // SAME edit modal the page already uses (openEdit) — no separate detail route.
+  // The param is consumed once (cleared after opening) so it doesn't re-fire.
+  useEffect(() => {
+    const id = searchParams.get('producto');
+    if (!id) return;
+    const producto = productos.find(p => p.id === id);
+    if (!producto) return;        // wait until the list has loaded
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- open the edit modal in response to the ?producto= deep link
+    openEdit(producto);
+    router.replace('/admin/productos', { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productos, searchParams]);
 
   const handleSave = async () => {
     if (!form.categoria) { toast.error('Selecciona una categoría'); return; }

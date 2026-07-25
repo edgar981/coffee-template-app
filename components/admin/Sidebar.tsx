@@ -1,43 +1,178 @@
 "use client";
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { cn, getInitials } from '@/lib/utils';
-import {
-  LayoutDashboard, Package, ShoppingCart, Users, Warehouse,
-  CreditCard, Truck, BarChart3, Zap, ChevronRight,
-  ChevronLeft, X
-} from 'lucide-react';
+import { PanelLeftClose, Search, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from "next/navigation";
-import { SidebarProps, NavItem } from '@/types/admin';
+import { SidebarProps } from '@/types/admin';
+import { ADMIN_NAV, type AdminNavItem } from '@/constants/admin-nav';
+import { AnimatedIcon } from '@/components/admin/AnimatedIcon';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { authClient } from "@/lib/auth-client";
+import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
 
+// ─── One nav row ──────────────────────────────────────────────────────────────
+// Kept a real <Link> (prefetch, middle-click, aria-current). The WHOLE row drives
+// the icon animation via local hover state. On the collapsed icon rail the row is
+// wrapped in a Radix tooltip (side="right"); everywhere labels are visible, no
+// tooltip (a repeated label is noise).
+function NavRow({ item, active, iconOnly, animateIndicator, onNavigate }: {
+  item: AdminNavItem;
+  active: boolean;
+  iconOnly: boolean;
+  animateIndicator: boolean;
+  onNavigate: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
 
-const navItems: NavItem[] = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
-  { icon: ShoppingCart, label: 'Órdenes', path: '/admin/ordenes' },
-  { icon: Package, label: 'Productos', path: '/admin/productos' },
-  { icon: Users, label: 'Clientes', path: '/admin/clientes' },
-  { icon: Warehouse, label: 'Inventario', path: '/admin/inventario' },
-  { icon: CreditCard, label: 'Pagos', path: '/admin/pagos' },
-  { icon: Truck, label: 'Entregas', path: '/admin/entregas' },
-  { icon: BarChart3, label: 'Analítica', path: '/admin/analitica' },
-  { icon: Zap, label: 'Automatizaciones', path: '/admin/automatizaciones' },
-];
+  const row = (
+    <Link
+      href={item.path}
+      onClick={onNavigate}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-150 relative outline-none',
+        'focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+        iconOnly && 'justify-center',
+        active
+          ? 'bg-sidebar-primary/10 text-sidebar-foreground font-semibold'
+          : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
+      )}
+    >
+      <AnimatedIcon
+        icon={item.icon}
+        anim={item.anim}
+        hovered={hovered}
+        className={active ? 'text-sidebar-primary' : ''}
+      />
+      {!iconOnly && (
+        <span className="text-sm font-medium whitespace-nowrap">{item.label}</span>
+      )}
+      {active && (
+        animateIndicator
+          ? <motion.div layoutId="activeIndicator" className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-sidebar-primary" />
+          : <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-sidebar-primary" />
+      )}
+    </Link>
+  );
 
-export default function Sidebar({ collapsed, onToggle, mobileOpen, onClose }: SidebarProps) {
+  if (!iconOnly) return row;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{row}</TooltipTrigger>
+      <TooltipContent side="right">{item.label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+// ─── Nav list ─────────────────────────────────────────────────────────────────
+function SidebarNav({ iconOnly, animateIndicator, onNavigate }: {
+  iconOnly: boolean;
+  animateIndicator: boolean;
+  onNavigate: () => void;
+}) {
   const pathname = usePathname();
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session } = authClient.useSession();
 
-  // Mobile drawer only: while it's open, lock the body scroll and let Escape
-  // close it. Keyed on `mobileOpen`, so it never touches desktop behaviour.
+  return (
+    <nav className="flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-2 py-4">
+      {ADMIN_NAV
+        .filter(item => !item.ownerOnly || session?.user?.role === 'OWNER')
+        .map(item => {
+          const active = pathname === item.path || (item.path !== '/' && pathname.startsWith(item.path));
+          return (
+            <NavRow
+              key={item.path}
+              item={item}
+              active={active}
+              iconOnly={iconOnly}
+              animateIndicator={animateIndicator}
+              onNavigate={onNavigate}
+            />
+          );
+        })}
+    </nav>
+  );
+}
+
+// ─── User footer ──────────────────────────────────────────────────────────────
+function UserFooter({ compact }: { compact: boolean }) {
+  const { data: session, isPending } = authClient.useSession();
+  return (
+    <div className="border-t border-sidebar-border p-3">
+      <div className={cn('flex items-center gap-3 px-2 py-2', compact && 'justify-center')}>
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/20">
+          <span className="text-xs font-semibold text-sidebar-primary">{getInitials(session?.user?.name)}</span>
+        </div>
+        {!compact && (
+          <div className="min-w-0">
+            <p className="truncate whitespace-nowrap text-xs font-medium text-sidebar-foreground">
+              {isPending ? '…' : session?.user?.name ?? 'Usuario'}
+            </p>
+            <p className="truncate whitespace-nowrap text-xs text-sidebar-foreground/40">
+              {isPending ? '' : session?.user?.email ?? ''}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Search affordance ────────────────────────────────────────────────────────
+// Icon-only control → always tooltipped ("Buscar (⌘K)"), even when the sidebar is
+// expanded (unlike nav items). Hidden on the collapsed rail (⌘K still works).
+function SearchButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          onClick={onClick}
+          aria-label="Buscar (⌘K)"
+          className={cn(ADMIN_ICON_BUTTON, 'h-8 w-8 shrink-0')}
+        >
+          <Search className="h-[18px] w-[18px]" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">Buscar (⌘K)</TooltipContent>
+    </Tooltip>
+  );
+}
+
+// ─── Brand lockup ─────────────────────────────────────────────────────────────
+// Wordmark only. The horizontal logo SVG bakes the mark + "DUNA" lettering into a
+// single file, so rather than crop it (public/ images are immutable) we render the
+// "DUNA" wordmark as text in JetBrains Mono — the wordmark typeface — and keep the
+// "Café Nayoli" store label. The unused SVGs stay in public/ untouched.
+function BrandLockup() {
+  return (
+    <div className="mt-3 min-w-0 overflow-hidden">
+      <span
+        className="block whitespace-nowrap text-[15px] font-semibold uppercase leading-none tracking-[0.2em] text-sidebar-foreground"
+        style={{ fontFamily: 'var(--font-jetbrains-mono)' }}
+      >
+        DUNA
+      </span>
+      <p className="mt-2 mb-2 whitespace-nowrap text-[13px] leading-none text-sidebar-foreground/55" style={{ fontFamily: 'var(--font-instrument-sans)' }}>
+        Café Nayoli
+      </p>
+    </div>
+  );
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+export default function Sidebar({
+  collapsed, onToggle, mobileOpen, onClose, onOpenSearch,
+}: SidebarProps) {
+  // Mobile drawer only: lock body scroll + Escape-to-close while open.
   useEffect(() => {
     if (!mobileOpen) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = prevOverflow;
@@ -47,61 +182,41 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onClose }: Si
 
   return (
     <>
-      {/* Mobile backdrop: only rendered < lg, only while the drawer is open.
-          Tapping it closes the drawer. */}
+      {/* Mobile backdrop (< lg, drawer open) */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
             onClick={onClose}
             aria-hidden="true"
           />
         )}
       </AnimatePresence>
 
-      {/* Off-canvas drawer < lg (full 240px, slides on transform); in-flow rail
-          ≥ lg (72/240 width, always on-screen). Width/transform are driven by
-          responsive classes — not JS-animated inline width — so the same element
-          can be a full-width drawer on mobile and a collapsible rail on desktop. */}
+      {/* In-flow rail (≥ lg) / off-canvas drawer (< lg). Collapsed = a static icon
+          rail: hovering shows tooltips only (no overlay); the toggle is the only
+          way to expand/collapse. */}
       <aside
         className={cn(
-          'fixed left-0 top-0 h-full z-50 bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden',
+          'fixed left-0 top-0 z-50 flex h-full flex-col overflow-hidden border-r border-sidebar-border bg-sidebar',
           'w-60 transition-[transform,width] duration-300 ease-in-out',
-          // Desktop rail width
           collapsed && 'lg:w-18',
-          // Off-canvas when the mobile drawer is closed; the desktop media query
-          // (emitted after the base rule) pins it on-screen ≥ lg regardless.
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
           'lg:translate-x-0',
         )}
       >
-        {/* Brand: the complete Duna lockup (one image) + the store it administers.
-            Theme-aware: dark-ink art on the light sidebar, light-ink "negative"
-            art on the dark sidebar (no CSS inversion). The mark-only variant is
-            shown ONLY for the collapsed desktop rail; the mobile drawer is always
-            full width and shows the horizontal lockup. */}
+        {/* Header — brand + (expanded only) search & collapse toggle */}
         <div className={cn(
-          'relative flex items-center h-16 px-4 border-b border-sidebar-border shrink-0',
+          'relative flex h-16 shrink-0 items-center gap-2 border-b border-sidebar-border px-3',
           collapsed && 'lg:justify-center',
         )}>
-          {/* Full horizontal lockup — hidden only on the collapsed desktop rail */}
-          <div className={cn('min-w-0 overflow-hidden mt-3', collapsed && 'lg:hidden')}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/duna-logo-horizontal-v1.svg" alt="Duna" className="block h-4 w-auto object-contain object-left dark:hidden" />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/duna-logo-horizontal-negative-v1.svg" alt="Duna" className="hidden h-4 w-auto object-contain object-left dark:block" />
-            <p
-              className="mt-2 mb-2 text-[13px] leading-none text-sidebar-foreground/55 whitespace-nowrap"
-              style={{ fontFamily: 'var(--font-instrument-sans)' }}
-            >
-              Café Nayoli
-            </p>
+          {/* Full lockup — hidden only on the collapsed desktop rail */}
+          <div className={cn('min-w-0 flex-1', collapsed && 'lg:hidden')}>
+            <BrandLockup />
           </div>
 
-          {/* Mark — shown ONLY on the collapsed desktop rail */}
+          {/* Mark — collapsed desktop rail only */}
           <div className={cn('hidden', collapsed && 'lg:flex lg:items-center lg:justify-center')}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/duna-mark-v1.svg" alt="Duna" className="h-6 w-6 object-contain dark:hidden" />
@@ -109,88 +224,53 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onClose }: Si
             <img src="/brand/duna-mark-negative-v1.svg" alt="Duna" className="hidden h-6 w-6 object-contain dark:block" />
           </div>
 
-          {/* Desktop rail collapse toggle (≥ lg only) */}
-          <button
-            onClick={onToggle}
-            aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
-            className={cn(
-              'hidden lg:inline-flex text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors cursor-pointer shrink-0',
-              collapsed ? 'lg:absolute lg:right-1.5 lg:top-1/2 lg:-translate-y-1/2' : 'ml-auto',
-            )}
-          >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
+          {/* Search — expanded rail + mobile drawer; hidden on the collapsed rail */}
+          <div className={cn('shrink-0', collapsed && 'lg:hidden')}>
+            <SearchButton onClick={onOpenSearch} />
+          </div>
 
-          {/* Mobile drawer close button (< lg only) */}
+          {/* Collapse toggle — expanded desktop rail only (when collapsed it lives
+              in the top bar). PanelLeftClose = "collapse". */}
+          <div className={cn('hidden', !collapsed && 'lg:block')}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={onToggle}
+                  aria-label="Colapsar panel"
+                  className={cn(ADMIN_ICON_BUTTON, 'h-8 w-8 shrink-0')}
+                >
+                  <PanelLeftClose className="h-[18px] w-[18px]" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Colapsar panel</TooltipContent>
+            </Tooltip>
+          </div>
+
+          {/* Mobile drawer close (< lg only) */}
           <button
             onClick={onClose}
             aria-label="Cerrar menú"
-            className="ml-auto inline-flex lg:hidden text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors cursor-pointer shrink-0"
+            className="ml-auto inline-flex shrink-0 text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground lg:hidden"
           >
-            <X className="w-5 h-5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 py-4 space-y-0.5 px-2 overflow-y-auto overflow-x-hidden">
-          {navItems
-            .filter(item => !item.ownerOnly || session?.user?.role === "OWNER")
-            .map(({ icon: Icon, label, path }) => {
-            const active = pathname === path || (path !== '/' && pathname.startsWith(path));
-            return (
-              <Link
-                key={path}
-                href={path}
-                onClick={onClose}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group relative',
-                  active
-                    ? 'bg-sidebar-primary/10 text-sidebar-foreground font-semibold'
-                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
-                )}
-              >
-                <Icon className={cn('w-4.5 h-4.5 shrink-0', active ? 'text-sidebar-primary' : '')} style={{ width: 18, height: 18 }} />
-                {/* Label — hidden only on the collapsed desktop rail (always
-                    visible in the mobile drawer). */}
-                <span className={cn('text-sm font-medium whitespace-nowrap', collapsed && 'lg:hidden')}>
-                  {label}
-                </span>
-                {active && (
-                  <motion.div
-                    layoutId="activeIndicator"
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-sidebar-primary rounded-full"
-                  />
-                )}
-                {/* Hover tooltip — only meaningful on the collapsed desktop rail */}
-                {collapsed && (
-                  <div className="hidden lg:block absolute left-full ml-3 px-2 py-1 bg-sidebar-accent text-sidebar-foreground text-xs rounded-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
-                    {label}
-                  </div>
-                )}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Bottom */}
-        <div className="p-3 border-t border-sidebar-border">
-          <div className={cn('flex items-center gap-3 px-2 py-2', collapsed && 'lg:justify-center')}>
-            <div className="w-7 h-7 rounded-full bg-sidebar-primary/20 flex items-center justify-center shrink-0">
-              <span className="text-xs font-semibold text-sidebar-primary">
-                {getInitials(session?.user?.name)}
-              </span>
-            </div>
-            {/* User meta — hidden only on the collapsed desktop rail */}
-            <div className={cn('min-w-0', collapsed && 'lg:hidden')}>
-              <p className="text-xs font-medium text-sidebar-foreground whitespace-nowrap truncate">
-                {isPending ? "…" : session?.user?.name ?? "Usuario"}
-              </p>
-              <p className="text-xs text-sidebar-foreground/40 whitespace-nowrap truncate">
-                {isPending ? "" : session?.user?.email ?? ""}
-              </p>
-            </div>
-          </div>
+        {/* Nav — icon-only + tooltips on the collapsed desktop rail, labelled
+            otherwise. `lg:hidden` / `lg:flex` swaps between the two on desktop; the
+            mobile drawer always uses the labelled variant. */}
+        <div className={cn('flex flex-1 flex-col overflow-hidden', collapsed && 'lg:hidden')}>
+          <SidebarNav iconOnly={false} animateIndicator onNavigate={onClose} />
         </div>
+        {collapsed && (
+          <div className="hidden flex-1 flex-col overflow-hidden lg:flex">
+            <SidebarNav iconOnly animateIndicator onNavigate={onClose} />
+          </div>
+        )}
+
+        {/* User footer — compact (avatar only) on the collapsed rail */}
+        <div className={cn(collapsed && 'lg:hidden')}><UserFooter compact={false} /></div>
+        {collapsed && <div className="hidden lg:block"><UserFooter compact /></div>}
       </aside>
     </>
   );

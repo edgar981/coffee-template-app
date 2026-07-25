@@ -97,6 +97,7 @@ model Customer {
   total_compras   Float    @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  orders          Order[]
 }
 
 model Product {
@@ -150,12 +151,38 @@ model Order {
   // creating a duplicate. Nullable + unique (Postgres allows many NULLs), so
   // legacy and checkout orders without a key are unaffected.
   idempotencyKey     String?     @unique
+  // The Customer this order belongs to. Set by createOrderWithCustomer from the
+  // very upsert that resolves identity, so it is exact — unlike matching on the
+  // snapshots below. Nullable: historical orders may not resolve to anyone, and
+  // deleting a customer must NOT delete their orders (financial records), hence
+  // onDelete: SetNull.
+  cliente_id         String?
+  cliente            Customer?   @relation(fields: [cliente_id], references: [id], onDelete: SetNull)
+  // PURCHASE-TIME SNAPSHOTS — deliberately NOT redundant with the relation.
+  // These record who bought, as stated at the time; the Customer record reflects
+  // who they are now. Editing a profile must never rewrite past orders.
   cliente_nombre     String?
   cliente_email      String?
   cliente_telefono   String?
   canal              String      @default("directo")
   estado             String      @default("pendiente")
+  // CONDICIÓN de pago — CUÁNDO se paga respecto al despacho. ANTICIPADO: pago →
+  // Shipping → despacho (no se despacha sin pago). CONTRAENTREGA: el envío puede
+  // prepararse y despacharse con la orden `pendiente`; el Payment se registra al
+  // cobrar tras la entrega (Payment.metodo = el instrumento real). NO es un
+  // método de pago. Inmutable una vez la orden tiene Shipping o Payment.
+  condicion_pago     CondicionPago @default(ANTICIPADO)
+  // Free-string method DECLARED at checkout (lowercase: "nequi", "efectivo"…).
+  // Legacy/storefront intent; kept for those orders. Admin orders use the typed
+  // `metodoPagoPrevisto` below instead.
   metodo_pago        String?
+  // DECLARED payment intent for an ADMIN-created order: the method the customer
+  // SAID they'll pay by. It is NOT the money — it does not create a Payment, does
+  // not change `estado`, and the order still starts `pendiente`. When the real
+  // payment is registered later it may differ (the Payment wins; this stays as
+  // the order's historical intent). Same enum as Payment.metodo. Checkout leaves
+  // it null (see metodo_pago above). Nullable = "Por definir".
+  metodoPagoPrevisto MetodoPago?
   total              Float       @default(0)
   costo_envio        Float       @default(0)
   direccion_entrega  String?
@@ -169,6 +196,8 @@ model Order {
   shipping           Shipping?
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
+
+  @@index([cliente_id])
 }
 
 model OrderItem {
@@ -231,6 +260,20 @@ enum MetodoPago {
   OTRO
 }
 
+// Condición de pago de la orden (ver Order.condicion_pago). Es una CONDICIÓN,
+// no un método: el instrumento real queda en Payment.metodo al recibir el dinero.
+enum CondicionPago {
+  ANTICIPADO
+  CONTRAENTREGA
+}
+
+// Tipo de envío del despacho: LOCAL (mensajero propio) o NACIONAL (transportadora
+// + número de guía en Shipping.transportadora / numero_guia).
+enum TipoEnvio {
+  LOCAL
+  NACIONAL
+}
+
 model Shipping {
   id               String   @id @default(cuid())
   // One Shipping per Order (1:1). Auto-created in `preparando` when the order is
@@ -246,6 +289,16 @@ model Shipping {
   notas_entrega    String?
   fecha_programada String?
   fecha_entrega    String?
+  // LOCAL (mensajero propio) o NACIONAL (transportadora). Los campos de guía se
+  // usan cuando NACIONAL; el operador los llena al programar.
+  tipo_envio       TipoEnvio @default(LOCAL)
+  transportadora   String?
+  numero_guia      String?
+  // Marcador de idempotencia del descuento de stock AL DESPACHAR (en_ruta): el
+  // decremento corre SOLO si esto es null y lo setea en la misma transacción;
+  // la devolución (fallido/cancelado tras despacho) restituye y lo limpia.
+  // Flapping o reintentos jamás descuentan dos veces.
+  stock_descontado_at DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }

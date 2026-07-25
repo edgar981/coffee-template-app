@@ -7,6 +7,31 @@ import { DEMO_PRODUCTS } from "@/prisma/seed-products";
 import { mockLogs } from "@/lib/mock/inventoryLogs";
 import { SHIPPING_SEED_TEMPLATES } from "@/lib/mock/shippings";
 import { AUTOMATION_TEMPLATES } from "@/lib/mock/automations";
+import { BUSINESS_TZ, startOfZonedDay } from "@/lib/timezone";
+import { normalizeCustomerPhone } from "@/lib/orders";
+
+// ── Demo customer identities ─────────────────────────────────────────────────
+// Demo orders MUST carry the identity of a real seeded Customer. They used to
+// invent names and phone numbers, so no order resolved to anybody: the Clientes
+// page showed 10 customers who had never ordered, and 97 orders belonging to
+// nobody. Drawing from MOCK_CUSTOMERS (the same rows seeded below) makes the
+// data internally consistent and lets Order.cliente_id backfill.
+//
+// The phone is stored NORMALIZED (+57XXXXXXXXXX) because that is what
+// createOrderWithCustomer writes for real orders; MOCK_CUSTOMERS keeps display
+// formatting ("+57 310 234 5678"). Matching depends on normalizing both sides.
+//
+// WhatsApp orders deliberately carry NO email — that is the real shape of a
+// WhatsApp sale, and it exercises the phone branch of the identity rules
+// (email first, else normalized phone) instead of letting email match everything.
+function demoIdentity(index: number, canal: string) {
+  const c = MOCK_CUSTOMERS[index % MOCK_CUSTOMERS.length];
+  return {
+    cliente_nombre:   c.nombre,
+    cliente_email:    canal === 'whatsapp' ? null : (c.email || null),
+    cliente_telefono: normalizeCustomerPhone(c.telefono),
+  };
+}
 
 // ── Demo order fixtures dated RELATIVE to `now` ───────────────────────────────
 // The Dashboard trend pills compare the CURRENT calendar month vs the PREVIOUS
@@ -31,8 +56,6 @@ function buildDemoOrders(now: Date, products: SeedProduct[]) {
   const at = (monthsAgo: number, day: number) =>
     new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsAgo, day, 17, 0, 0));
 
-  const NOMBRES = ['Valentina Torres', 'Andrés Castro', 'Laura Jiménez', 'Juan Camilo Ríos', 'Sofía Mendoza', 'Diego Hernández', 'Camila Vargas', 'Carlos Mora', 'Mariana López', 'Ricardo Peña', 'Paula Gómez', 'Felipe Ramírez', 'Daniela Ospina', 'Sebastián Ruiz', 'Isabela Cardona', 'Tomás Restrepo', 'Lucía Herrera', 'Mateo Vargas'];
-  const TELS = ['+573001112233', '+573012223344', '+573023334455', '+573104445566', '+573115556677', '+573126667788', '+573207778899', '+573218889900', '+573159990011', '+573001234567'];
   const CANALES = ['whatsapp', 'directo', 'instagram', 'whatsapp', 'directo', 'referido'];
   const METODOS = ['nequi', 'transferencia', 'daviplata', 'efectivo'];
 
@@ -48,11 +71,11 @@ function buildDemoOrders(now: Date, products: SeedProduct[]) {
     });
     const subtotal = items.reduce((s, i) => s + i.subtotal, 0);
     const costo_envio = subtotal >= 120000 ? 0 : 8000; // envío gratis en pedidos grandes
+    const canal = CANALES[n % CANALES.length];
     return {
       numero_orden: `SN-D${String(n).padStart(3, '0')}`,
-      cliente_nombre: NOMBRES[(n - 1) % NOMBRES.length],
-      cliente_telefono: TELS[(n - 1) % TELS.length],
-      canal: CANALES[n % CANALES.length],
+      ...demoIdentity(n - 1, canal),
+      canal,
       estado,
       metodo_pago: estado === 'pagado' ? METODOS[n % METODOS.length] : null,
       costo_envio,
@@ -90,6 +113,95 @@ function buildDemoOrders(now: Date, products: SeedProduct[]) {
     mk(0, curDay(0.85), [{ slug: 'cafe-nayoli-molido-250g', cantidad: 1 }, { slug: 'cafe-nayoli-grano-250g', cantidad: 1 }]),
     mk(0, curDay(0.95), [{ slug: 'cafe-nayoli-molido-500g', cantidad: 2 }], 'pendiente'),
   ];
+}
+
+// ── CN- demo orders, DAILY across the last 90 days ───────────────────────────
+// The dashboard chart module buckets by DAY and excludes `SN-` (grandfathered
+// demo fixtures), so the monthly SN- set above cannot drive it — all three
+// ranges would render empty. These are deliberately `CN-` (the real-order
+// series) because "only CN- counts" is the rule the chart enforces.
+//
+// DELETE THIS BLOCK for a production seed; the SN- fixtures above are unaffected.
+//
+// Deliberate shape, so the chart is actually exercised:
+//   · gaps on ~1 day in 3          → zero-fill is visible
+//   · late-evening orders (21–22h) → Bogotá-vs-UTC day bucketing is provable
+//   · all 4 payment methods        → Efectivo / Transferencia series both fill
+//   · a few `pendiente` + 1 `cancelado` → the confirmed-only filter is exercised
+const DAILY_DEMO_DAYS = 90;
+const DEMO_METODOS = ['NEQUI', 'DAVIPLATA', 'EFECTIVO', 'TRANSFERENCIA'] as const;
+
+function buildDailyDemoOrders(now: Date, products: SeedProduct[]) {
+  const P = Object.fromEntries(products.map((p) => [p.slug, p]));
+  const SLUGS = ['cafe-nayoli-grano-250g', 'cafe-nayoli-molido-250g', 'cafe-nayoli-grano-500g', 'cafe-nayoli-molido-500g'];
+  const molienda = (slug: string) => {
+    const ops = (P[slug].moliendasOpciones ?? []) as { nombre: string; disponible: boolean }[];
+    return (Array.isArray(ops) ? ops.find((o) => o.disponible)?.nombre : null) ?? null;
+  };
+
+  // Deterministic PRNG (LCG) — a re-seed reproduces the SAME dataset, so the
+  // upserts below stay idempotent and the demo numbers don't drift.
+  let seed = 20260723;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const pick = <T,>(arr: readonly T[]) => arr[Math.floor(rnd() * arr.length)];
+
+  const CANALES = ['whatsapp', 'directo', 'instagram', 'referido'];
+  // Late slots (21h, 22h) land in the NEXT UTC day — the case that proves day
+  // bucketing runs in America/Bogota and not UTC.
+  const HORAS = [9, 11, 14, 16, 18, 21, 22];
+
+  const orders = [];
+  let n = 0;
+
+  for (let offset = DAILY_DEMO_DAYS - 1; offset >= 0; offset--) {
+    // ~1 day in 3 has no orders at all. The last 6 days always do, so the
+    // "Últimos 7 días" range is never near-empty.
+    if (offset > 5 && rnd() < 0.34) continue;
+    const perDay = rnd() < 0.25 ? 2 : 1;
+
+    for (let k = 0; k < perDay; k++) {
+      n++;
+      const lines = Array.from({ length: rnd() < 0.3 ? 2 : 1 }, () => ({
+        slug:     pick(SLUGS),
+        cantidad: rnd() < 0.2 ? 2 : 1,
+      }));
+      const items = lines.map((l) => {
+        const p = P[l.slug];
+        return {
+          producto_id: p.id, producto_nombre: p.nombre, moliendaSeleccionada: molienda(l.slug),
+          cantidad: l.cantidad, precio_unitario: p.precio, subtotal: p.precio * l.cantidad,
+        };
+      });
+      const subtotal    = items.reduce((s, i) => s + i.subtotal, 0);
+      const costo_envio = subtotal >= 120000 ? 0 : 8000;
+
+      // One cancelled order mid-window (its payment must NOT count as revenue);
+      // ~1 in 9 left pending (no payment at all).
+      const estado = offset === 44 ? 'cancelado' : n % 9 === 0 ? 'pendiente' : 'pagado';
+      const metodo = estado === 'pendiente' ? null : DEMO_METODOS[n % DEMO_METODOS.length];
+
+      const dayStart = startOfZonedDay(now, BUSINESS_TZ, -offset);
+      const createdAt = new Date(dayStart.getTime() + pick(HORAS) * 3_600_000);
+
+      const canal = pick(CANALES);
+      orders.push({
+        numero_orden:     `CN-9${String(n).padStart(5, '0')}`,
+        ...demoIdentity(n - 1, canal),
+        canal,
+        estado,
+        // Declared at checkout (lowercase free text) — mirrors the real flow.
+        // The CHART reads Payment.metodo, not this field.
+        metodo_pago:      metodo ? metodo.toLowerCase() : null,
+        metodo,
+        costo_envio,
+        total:            subtotal + costo_envio,
+        createdAt,
+        items,
+      });
+    }
+  }
+
+  return orders;
 }
 
 async function main() {
@@ -189,19 +301,29 @@ async function main() {
   for (const o of buildDemoOrders(new Date(), seedProducts)) {
     await prisma.order.upsert({
       where:  { numero_orden: o.numero_orden },
-      update: {},
+      // Identity snapshots ARE refreshed on an existing demo row: rows seeded
+      // before these identities came from MOCK_CUSTOMERS point at customers who
+      // do not exist, so they can never resolve a cliente_id. Repairing them in
+      // place avoids deleting demo history. Nothing else is rewritten — notably
+      // createdAt, which must keep the date it was seeded with.
+      update: {
+        cliente_nombre:   o.cliente_nombre,
+        cliente_email:    o.cliente_email,
+        cliente_telefono: o.cliente_telefono,
+      },
       create: {
         numero_orden:     o.numero_orden,
         cliente_nombre:   o.cliente_nombre,
+        cliente_email:    o.cliente_email,
         cliente_telefono: o.cliente_telefono,
         canal:            o.canal,
         estado:           o.estado,
         metodo_pago:      o.metodo_pago,
         total:            o.total,
         costo_envio:      o.costo_envio,
-        // Backdated createdAt (only on create — `update: {}` never rewrites an
-        // existing row's date). A clean re-seed needs the old rows deleted first
-        // so these relative dates apply (see DEPLOY.md).
+        // Backdated createdAt (only on create — the `update` above never
+        // rewrites an existing row's date). A clean re-seed needs the old rows
+        // deleted first so these relative dates apply (see DEPLOY.md).
         createdAt:        o.createdAt,
         items: {
           create: o.items.map(item => ({
@@ -218,6 +340,56 @@ async function main() {
   }
 
   console.log('✅ Orders seeded');
+
+  // CN- daily demo set (see buildDailyDemoOrders). Order + its Payment are
+  // created together, mirroring the real flow where registering a payment is
+  // what moves an order to `pagado`. Idempotent: an existing row only has its
+  // identity snapshot repaired (same reason as the SN- block above), and the
+  // payment is only created for a brand-new order.
+  for (const o of buildDailyDemoOrders(new Date(), seedProducts)) {
+    const existing = await prisma.order.findUnique({ where: { numero_orden: o.numero_orden } });
+    if (existing) {
+      await prisma.order.update({
+        where: { numero_orden: o.numero_orden },
+        data: {
+          cliente_nombre:   o.cliente_nombre,
+          cliente_email:    o.cliente_email,
+          cliente_telefono: o.cliente_telefono,
+        },
+      });
+      continue;
+    }
+    const order = await prisma.order.create({
+      data: {
+        numero_orden:     o.numero_orden,
+        cliente_nombre:   o.cliente_nombre,
+        cliente_email:    o.cliente_email,
+        cliente_telefono: o.cliente_telefono,
+        canal:            o.canal,
+        estado:           o.estado,
+        metodo_pago:      o.metodo_pago,
+        total:            o.total,
+        costo_envio:      o.costo_envio,
+        createdAt:        o.createdAt,
+        items: { create: o.items },
+      },
+    });
+    if (o.metodo) {
+      await prisma.payment.create({
+        data: {
+          orden_id:              order.id,
+          monto:                 order.total,
+          metodo:                o.metodo,
+          registrado_por_nombre: 'Seed',
+          // Same instant as the order — the chart buckets this into a Bogotá day.
+          fecha:                 o.createdAt,
+          createdAt:             o.createdAt,
+        },
+      });
+    }
+  }
+
+  console.log('✅ CN- daily demo orders + payments seeded');
 
   for (const l of mockLogs) {
     await prisma.inventoryLog.create({

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
-import { transitionOrder } from '@/lib/orders';
+import { registerOrderPaymentTx } from '@/lib/orders';
 import { MetodoPago } from '@/src/generated/prisma/client';
 
 const METODOS = Object.values(MetodoPago);
@@ -42,20 +42,16 @@ export async function POST(
         return { error: 'invalid_state' as const, estado: order.estado };
       }
 
-      const payment = await tx.payment.create({
-        data: {
-          orden_id:              id,
-          monto:                 order.total,          // snapshot, server-side
-          metodo:                metodo as MetodoPago,
-          referencia:            typeof body?.referencia === 'string' && body.referencia.trim() ? body.referencia.trim() : null,
-          notas:                 typeof body?.notas === 'string' && body.notas.trim() ? body.notas.trim() : null,
-          registrado_por:        session.user.id,
-          registrado_por_nombre: session.user.name ?? null,
-        },
+      // Shared money-in path: create the Payment (monto snapshotted from the
+      // order total) + move order → pagado + auto-create the Shipping.
+      const { payment, order: updatedOrder } = await registerOrderPaymentTx(tx, id, {
+        monto:                 order.total,
+        metodo:                metodo as MetodoPago,
+        referencia:            typeof body?.referencia === 'string' ? body.referencia : null,
+        notas:                 typeof body?.notas === 'string' ? body.notas : null,
+        registrado_por:        session.user.id,
+        registrado_por_nombre: session.user.name ?? null,
       });
-
-      // Moves order → pagado AND auto-creates the Shipping in `preparando`.
-      const updatedOrder = await transitionOrder(tx, id, { estado: 'pagado' });
 
       return { payment, order: updatedOrder };
     });

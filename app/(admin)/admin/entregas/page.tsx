@@ -9,8 +9,10 @@ import { toast } from 'sonner';
 import { formatCOP } from '@/lib/utils';
 import { getShippings, updateShipping } from '@/lib/api/shippings';
 import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
-import type { Shipping, ShippingEstado, ShippingFilter } from '@/types/shipping';
+import type { Shipping, ShippingEstado, ShippingFilter, ShippingOrderRef } from '@/types/shipping';
 import { FILTER_ESTADOS, ZONA_COLORS, isScheduledShipping } from '@/constants/shippings';
+import { TIPO_ENVIO_LABEL } from '@/types/shipping';
+import { metodoPrevistoLabel } from '@/types/payment';
 
 // fecha_entrega is a server-captured ISO timestamp; older rows may be date-only.
 const formatDeliveryDate = (v: string) => {
@@ -53,8 +55,10 @@ export default function Entregas() {
       const updated = await updateShipping(id, { estado });
       setEntregas(prev => prev.map(e => e.id === id ? updated : e));
       toast.success('Estado actualizado');
-    } catch {
-      toast.error('Error al actualizar el estado');
+    } catch (e) {
+      // Surface the SERVER message — a blocked dispatch (stock insuficiente,
+      // orden anticipada sin pago) must say why, not a generic error.
+      toast.error(e instanceof Error ? e.message : 'Error al actualizar el estado');
     }
   };
 
@@ -124,7 +128,7 @@ export default function Entregas() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40">
-                  {['Orden', 'Cliente', 'Dirección', 'Zona', 'Mensajero', 'Costo', 'Estado', 'Fecha Programada', 'Acción'].map(h => (
+                  {['Orden', 'Cliente', 'Dirección', 'Zona', 'Mensajero / Guía', 'Costo', 'Estado', 'Fecha Programada', 'Acción'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{h}</th>
                   ))}
                 </tr>
@@ -133,7 +137,11 @@ export default function Entregas() {
                 {filtered.map(e => (
                   <tr key={e.id} className="border-b border-border/50 hover:bg-muted/20">
                     <td className="px-4 py-3 font-mono text-xs font-semibold text-primary">{e.order?.numero_orden ?? '—'}</td>
-                    <td className="px-4 py-3 font-medium">{e.order?.cliente_nombre ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{e.order?.cliente_nombre ?? '—'}</div>
+                      {/* Whoever delivers must know whether to collect on delivery. */}
+                      <PaymentHint order={e.order} />
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <MapPin className="w-3 h-3 shrink-0" />
@@ -143,15 +151,32 @@ export default function Entregas() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {e.zona ? (
-                        <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${ZONA_COLORS[e.zona] ?? 'bg-muted text-muted-foreground'}`}>
-                          {e.zona}
+                      <div className="flex flex-col items-start gap-1">
+                        {e.zona ? (
+                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${ZONA_COLORS[e.zona] ?? 'bg-muted text-muted-foreground'}`}>
+                            {e.zona}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">Sin asignar</span>
+                        )}
+                        {/* Local / Nacional chip (editable en Programar/Editar). */}
+                        <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {TIPO_ENVIO_LABEL[e.tipo_envio] ?? e.tipo_envio}
                         </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {e.tipo_envio === 'NACIONAL' ? (
+                        <div>
+                          <span>{e.transportadora || <span className="text-muted-foreground italic">Sin transportadora</span>}</span>
+                          {e.numero_guia && (
+                            <p className="font-mono text-[11px] text-muted-foreground">Guía {e.numero_guia}</p>
+                          )}
+                        </div>
                       ) : (
-                        <span className="text-xs text-muted-foreground italic">Sin asignar</span>
+                        e.mensajero || <span className="text-muted-foreground">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm">{e.mensajero || <span className="text-muted-foreground">—</span>}</td>
                     <td className="px-4 py-3 text-sm">{formatCOP(e.costo_envio)}</td>
                     <td className="px-4 py-3"><StatusBadge status={e.estado} /></td>
                     {/* Neutral text matching the other columns. Delivered rows
@@ -227,4 +252,49 @@ export default function Entregas() {
       />
     </div>
   );
+}
+
+// Payment state of the order behind a delivery: a Pagada / Pendiente de cobro
+// badge, plus the declared method ("cobrar al entregar: Efectivo") when unpaid —
+// so whoever runs the route knows whether, and how, to collect. Cancelled orders
+// show nothing extra (the delivery row already reads Cancelado).
+function PaymentHint({ order }: { order?: ShippingOrderRef | null }) {
+  if (!order) return null;
+
+  // Contraentrega marker — the muted pill matches the Órdenes table badge.
+  const condicion = order.condicion_pago === 'CONTRAENTREGA' && (
+    <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+      Contraentrega
+    </span>
+  );
+
+  if (order.estado === 'pagado') {
+    return (
+      <div className="mt-1 flex flex-wrap items-center gap-1">
+        <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+          Pagada
+        </span>
+        {condicion}
+      </div>
+    );
+  }
+
+  if (order.estado === 'pendiente') {
+    const previsto = metodoPrevistoLabel(order);
+    return (
+      <div className="mt-1 space-y-0.5">
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+            Pendiente de cobro
+          </span>
+          {condicion}
+        </div>
+        {previsto && (
+          <p className="text-[11px] text-muted-foreground">Cobrar al entregar: {previsto}</p>
+        )}
+      </div>
+    );
+  }
+
+  return null;
 }

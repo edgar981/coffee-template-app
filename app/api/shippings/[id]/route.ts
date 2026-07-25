@@ -2,14 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
+import { dispatchStockDecrement, restockShippingStock, DispatchStockError } from '@/lib/fulfillment';
+import { TipoEnvio } from '@/src/generated/prisma/client';
+
+const TIPOS_ENVIO = Object.values(TipoEnvio);
 
 const ORDER_SELECT = {
   select: {
-    numero_orden:      true,
-    cliente_nombre:    true,
-    cliente_telefono:  true,
-    direccion_entrega: true,
-    ciudad_entrega:    true,
+    numero_orden:       true,
+    cliente_nombre:     true,
+    cliente_telefono:   true,
+    direccion_entrega:  true,
+    ciudad_entrega:     true,
+    // Kept in sync with the collection route so the Entregas payment badge and
+    // "cobrar al entregar" hint survive a state change (this response replaces
+    // the row in the board).
+    estado:             true,
+    condicion_pago:     true,
+    metodoPagoPrevisto: true,
+    metodo_pago:        true,
   },
 } as const;
 
@@ -29,9 +40,15 @@ export async function PATCH(
 
   const current = await prisma.shipping.findUnique({
     where:   { id },
-    include: { order: { select: { direccion_entrega: true } } },
+    include: { order: { select: { direccion_entrega: true, estado: true, condicion_pago: true } } },
   });
   if (!current) return NextResponse.json({ error: 'Entrega no encontrada' }, { status: 404 });
+
+  // tipo_envio must be a valid enum value when sent (transportadora/numero_guia
+  // are free text, trimmed; they matter when NACIONAL).
+  if (body.tipo_envio !== undefined && !TIPOS_ENVIO.includes(body.tipo_envio)) {
+    return NextResponse.json({ error: 'Tipo de envío inválido' }, { status: 400 });
+  }
 
   // A voided delivery is terminal: it can't be scheduled or advanced. Only the
   // Order-cancellation path (order PATCH) ever sets `cancelado`.
@@ -75,10 +92,13 @@ export async function PATCH(
   const nextEstado =
     isScheduling && current.estado === 'fallido' ? 'preparando' : (body.estado ?? undefined);
 
-  // A delivery can't be dispatched until it's scheduled: it must have a courier
-  // AND a fecha_programada before it may go En Ruta. Enforced for every caller
-  // (Entregas board, Ordenes) since all transitions funnel through here.
-  if (nextEstado === 'en_ruta' && current.estado !== 'en_ruta') {
+  // THE dispatch transition (preparando → en_ruta). Two gates + one side effect:
+  const justDispatched = nextEstado === 'en_ruta' && current.estado !== 'en_ruta';
+
+  if (justDispatched) {
+    // 1. A delivery can't be dispatched until it's scheduled: courier AND
+    //    fecha_programada. Enforced for every caller (Entregas board, Ordenes)
+    //    since all transitions funnel through here.
     const mensajero = (body.mensajero ?? current.mensajero)?.trim();
     const fecha     = (body.fecha_programada ?? current.fecha_programada)?.trim();
     if (!mensajero || !fecha) {
@@ -87,27 +107,63 @@ export async function PATCH(
         { status: 400 },
       );
     }
+    // 2. CONDICIÓN guard: an ANTICIPADO order is NEVER dispatched unpaid — even
+    //    if its Shipping predates the condición rules or the order was flipped
+    //    back to pendiente. A CONTRAENTREGA order dispatches unpaid by design.
+    if (current.order?.condicion_pago === 'ANTICIPADO' && current.order.estado !== 'pagado') {
+      return NextResponse.json(
+        { error: 'Una orden con pago anticipado no puede despacharse sin el pago registrado' },
+        { status: 409 },
+      );
+    }
   }
+
+  // Restock trigger: a dispatched delivery coming back as fallido. (The other
+  // return path — order cancelled after dispatch — restocks via transitionOrder.)
+  const justFailed = nextEstado === 'fallido' && current.estado !== 'fallido';
 
   // Capture the real delivery timestamp server-side the moment it transitions to
   // entregado (distinct from fecha_programada). Authoritative — not client-set.
   const justDelivered = nextEstado === 'entregado' && current.estado !== 'entregado';
 
-  const updated = await prisma.shipping.update({
-    where: { id: id },
-    data:  {
-      estado:           nextEstado,
-      zona:             body.zona             ?? undefined,
-      mensajero:        body.mensajero        ?? undefined,
-      fecha_programada: body.fecha_programada ?? undefined,
-      fecha_entrega:    justDelivered ? new Date().toISOString() : (body.fecha_entrega ?? undefined),
-      notas_entrega:    body.notas_entrega    ?? undefined,
-      updatedAt:        new Date(),
-    },
-    include: { order: ORDER_SELECT },
-  });
+  try {
+    // ONE transaction: the stock movement (decrement at dispatch / restock on
+    // fallido, both marker-guarded and atomic per product) and the state write
+    // commit together or not at all — a blocked dispatch changes nothing.
+    const updated = await prisma.$transaction(async (tx) => {
+      if (justDispatched) await dispatchStockDecrement(tx, current);
+      if (justFailed)     await restockShippingStock(tx, current, 'Entrega fallida');
 
-  return NextResponse.json(updated);
+      return tx.shipping.update({
+        where: { id: id },
+        data:  {
+          estado:           nextEstado,
+          zona:             body.zona             ?? undefined,
+          mensajero:        body.mensajero        ?? undefined,
+          fecha_programada: body.fecha_programada ?? undefined,
+          fecha_entrega:    justDelivered ? new Date().toISOString() : (body.fecha_entrega ?? undefined),
+          notas_entrega:    body.notas_entrega    ?? undefined,
+          tipo_envio:       body.tipo_envio       ?? undefined,
+          transportadora:   typeof body.transportadora === 'string' ? (body.transportadora.trim() || null) : undefined,
+          numero_guia:      typeof body.numero_guia === 'string' ? (body.numero_guia.trim() || null) : undefined,
+          updatedAt:        new Date(),
+        },
+        include: { order: ORDER_SELECT },
+      });
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    // Insufficient stock blocks the dispatch — 409 naming the product(s); the
+    // transaction already rolled back every partial decrement.
+    if (error instanceof DispatchStockError) {
+      return NextResponse.json(
+        { error: error.message, productosSinStock: error.productos },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
 }
 
 export async function DELETE(

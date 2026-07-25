@@ -113,19 +113,9 @@ export async function GET() {
     }))
     .sort((a, b) => b.value - a.value);
 
-  // ── Orders by day of week ──────────────────────────────────────────────────
-
-  const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-
-  const weekData = DIAS.map((dia, i) => {
-    const dayOrders = completedOrders.filter(o => new Date(o.createdAt).getDay() === i);
-    return {
-      dia,
-      ordenes:  dayOrders.length,
-      ingresos: dayOrders.reduce((sum, o) => sum + o.total, 0),
-    };
-  // Reorder Mon-Sun
-  }).slice(1).concat({ dia: 'Dom', ordenes: 0, ingresos: 0 });
+  // Orders-by-day-of-week moved to GET /api/analytics/weekly: the card now
+  // shows ONE navigable Monday–Sunday week (Bogotá, SQL-bucketed) instead of
+  // all-history aggregation — and the old code here silently zeroed Sundays.
 
   return NextResponse.json({
     kpis: {
@@ -139,6 +129,5 @@ export async function GET() {
     salesByMonth,
     canalData,
     categoryData,
-    weekData,
   });
 }

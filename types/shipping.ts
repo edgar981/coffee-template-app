@@ -1,3 +1,5 @@
+import { MetodoPago } from "./payment";
+
 // ShippingEstado covers the FULFILLMENT lifecycle only (Order.status owns
 // payment). A shipping is auto-created in `preparando` when its order is paid;
 // the operator then schedules (zona/courier/date) and advances the state.
@@ -18,6 +20,14 @@ export type ShippingZona =
   | 'oriente'
   | 'exterior';
 
+/** LOCAL = mensajero propio; NACIONAL = transportadora + número de guía. */
+export type TipoEnvio = 'LOCAL' | 'NACIONAL';
+
+export const TIPO_ENVIO_LABEL: Record<TipoEnvio, string> = {
+  LOCAL:    'Local',
+  NACIONAL: 'Nacional',
+};
+
 // Order-owned fields read through the Shipping → Order relation — the single
 // source of truth, INCLUDING the delivery address (the Shipping no longer keeps
 // its own copy).
@@ -27,6 +37,17 @@ export interface ShippingOrderRef {
   cliente_telefono:  string | null;
   direccion_entrega: string | null;
   ciudad_entrega:    string | null;
+  // Payment state of the order (Entregas shows a Pagada / Pendiente de cobro
+  // badge — whoever delivers must know whether to collect). Kept as string to
+  // avoid a types cycle with order.ts (which already imports from here).
+  estado:            string;
+  // Condición de pago (badge Contraentrega en el board). String por la misma
+  // razón de arriba (order.ts importa de aquí).
+  condicion_pago:    string;
+  // Declared payment intent, so an unpaid delivery can show "cobrar al entregar:
+  // Efectivo". Either the typed admin field or the legacy checkout string.
+  metodoPagoPrevisto: MetodoPago | null;
+  metodo_pago:        string | null;
 }
 
 export interface Shipping {
@@ -44,6 +65,12 @@ export interface Shipping {
   notas_entrega?:   string | null;
   fecha_programada?: string | null;
   fecha_entrega?:   string | null;
+  // LOCAL (default) o NACIONAL; los campos de guía aplican cuando NACIONAL.
+  tipo_envio:       TipoEnvio;
+  transportadora?:  string | null;
+  numero_guia?:     string | null;
+  // Marcador de idempotencia del descuento de stock al despachar (server-owned).
+  stock_descontado_at?: string | null;
   createdAt:        string;
   updatedAt:        string;
 }
@@ -58,4 +85,8 @@ export interface ScheduleDeliveryInput {
   fecha_programada?: string | null;
   notas_entrega?:    string | null;
   estado?:           ShippingEstado;
+  // LOCAL/NACIONAL; transportadora + guía se usan cuando NACIONAL.
+  tipo_envio?:       TipoEnvio;
+  transportadora?:   string | null;
+  numero_guia?:      string | null;
 }

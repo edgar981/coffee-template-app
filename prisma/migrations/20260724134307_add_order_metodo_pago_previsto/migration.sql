@@ -1,0 +1,12 @@
+-- Give Order a typed, DECLARED payment method: `metodoPagoPrevisto`.
+--
+-- This is the INTENTION the customer stated when a manual (admin) order was
+-- created — "voy a pagar con Nequi" — NOT the money. It does not create a
+-- Payment, does not change Order.estado, and the order still starts `pendiente`.
+-- When the real payment is registered later it may differ; the Payment is the
+-- record of truth and this stays as the order's historical intent.
+--
+-- Same enum as a registered payment (Payment.metodo → "MetodoPago"), so the
+-- "Registrar pago" method can be pre-selected from it. Nullable = "Por definir";
+-- storefront checkout leaves it null (it keeps using the free-string metodo_pago).
+ALTER TABLE "Order" ADD COLUMN "metodoPagoPrevisto" "MetodoPago";

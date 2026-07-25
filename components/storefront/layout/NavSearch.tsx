@@ -250,7 +250,7 @@ export default function NavSearch({
                         No encontramos
                         resultados para{" "}
                         <span className="font-medium text-[#1a0f08]">
-                          "{query}"
+                          &quot;{query}&quot;
                         </span>
                       </p>
                     </div>

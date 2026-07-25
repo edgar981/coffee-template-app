@@ -4,7 +4,7 @@ import { Command as CommandPrimitive } from "cmdk"
 import { Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 const Command = React.forwardRef<
   React.ComponentRef<typeof CommandPrimitive>,
@@ -22,13 +22,23 @@ Command.displayName = CommandPrimitive.displayName
 
 const CommandDialog = ({
   children,
+  title = "Buscar",
+  description = "Busca y navega por el panel",
   ...props
 }: {
   children: React.ReactNode;
+  /** Accessible dialog name/description — rendered sr-only (Radix requires a title). */
+  title?: string;
+  description?: string;
 } & React.ComponentProps<typeof Dialog>) => {
   return (
     (<Dialog {...props}>
-      <DialogContent className="overflow-hidden p-0">
+      {/* `[&>button:last-child]:hidden` drops DialogContent's built-in close X —
+          a command palette dismisses via Escape / click-outside, and the X would
+          overlap the search input. */}
+      <DialogContent className="overflow-hidden p-0 [&>button:last-child]:hidden">
+        <DialogTitle className="sr-only">{title}</DialogTitle>
+        <DialogDescription className="sr-only">{description}</DialogDescription>
         <Command
           className="**:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 **:[[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 **:[[cmdk-input]]:h-12 **:[[cmdk-item]]:px-2 **:[[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5">
           {children}
@@ -116,7 +126,7 @@ const CommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+      "relative flex cursor-pointer gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
       className
     )}
     {...props} />

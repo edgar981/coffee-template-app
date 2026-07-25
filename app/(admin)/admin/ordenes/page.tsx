@@ -1,24 +1,34 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { z } from 'zod';
 import { Plus, Search, ShoppingCart, Truck, CreditCard, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DateRangePicker } from '@/components/admin/DateRangePicker';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { BUSINESS_TZ, zonedDayKey } from '@/lib/timezone';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
 import { getOrders, createOrder, updateOrder } from '@/lib/api/orders';
+import { ensureOrderShipping } from '@/lib/api/shippings';
 import { getCatalog } from '@/lib/api/products';
 import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
 import { RegisterPaymentModal } from '@/components/admin/RegisterPaymentModal';
-import type { Order, OrderForm, OrderLineForm, OrderStatus, OrderChannel } from '@/types/order';
+import type { Order, OrderForm, OrderLineForm, OrderStatus, OrderChannel, CondicionPago } from '@/types/order';
+import { CONDICION_PAGO_LABEL } from '@/types/order';
 import type { Product } from '@/types/product';
 import type { Shipping } from '@/types/shipping';
 import { formatCOP } from '@/lib/utils';
 import { findSlotLabel } from '@/lib/shipping-config';
 import { isScheduledShipping } from '@/constants/shippings';
+import { isPorCobrar } from '@/lib/metrics/order-stat-filters';
+import { METODOS_PAGO, METODO_PAGO_LABEL, metodoPrevistoLabel } from '@/types/payment';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -26,6 +36,10 @@ import { isScheduledShipping } from '@/constants/shippings';
 const ESTADOS: OrderStatus[] = ['pendiente', 'pagado', 'cancelado'];
 
 const CANALES: OrderChannel[] = ['whatsapp', 'instagram', 'directo', 'referido'];
+
+// Sentinel for the empty "Por definir" option — Radix Select forbids value="".
+// Mapped to '' (no metodoPagoPrevisto) in form state.
+const POR_DEFINIR = '__por_definir__';
 
 // Linear payment phases for the order-detail timeline (cancelado is non-linear).
 const TIMELINE_ESTADOS: OrderStatus[] = ['pendiente', 'pagado'];
@@ -39,16 +53,114 @@ const EMPTY_FORM: OrderForm = {
   direccion_entrega: '',
   notas_internas:    '',
   items:             [{ slug: '', cantidad: 1, molienda: '' }],
+  metodoPagoPrevisto: '',
+  condicion_pago:     'ANTICIPADO',
+  pagoRecibido:       false,
 };
+
+const CONDICIONES: CondicionPago[] = ['ANTICIPADO', 'CONTRAENTREGA'];
+
+// Muted/outline pill marking a contraentrega order (both themes via tokens).
+function CondicionBadge({ condicion }: { condicion?: string | null }) {
+  if (condicion !== 'CONTRAENTREGA') return null;
+  return (
+    <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground whitespace-nowrap">
+      Contraentrega
+    </span>
+  );
+}
+
+// ─── URL-driven filters ───────────────────────────────────────────────────────
+// The filter view lives in the query string, so a filtered list is shareable and
+// the back button restores it for free. Params:
+//   ?estado=pendiente[,pagado]  comma-separated; empty/absent = all
+//   ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD   inclusive, America/Bogota days
+//   ?order=CN-123               opens that order's detail dialog
+// `search` is deliberately NOT in the URL — it's a scratch input, not a view.
+//
+// Every value is parsed leniently: anything invalid falls back to the default
+// silently (`.catch`), so a hand-edited URL can never crash the page.
+
+const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
+const dayKeySchema = z.string().regex(DAY_KEY);
+
+const filterParamsSchema = z.object({
+  estado: z.string().optional().catch(undefined),
+  desde:  dayKeySchema.optional().catch(undefined),
+  hasta:  dayKeySchema.optional().catch(undefined),
+  order:  z.string().trim().min(1).optional().catch(undefined),
+  cobrar: z.string().optional().catch(undefined),
+});
+
+interface OrderFilters {
+  /** Empty = no estado filter ("Todas"). */
+  estados: OrderStatus[];
+  desde:   string | null;
+  hasta:   string | null;
+  /** numero_orden whose detail dialog should be open. */
+  order:   string | null;
+  /** "Por cobrar" chip active (`cobrar=1`) — contraentrega despachada sin pago. */
+  porCobrar: boolean;
+  /** `cobrar=0` — EXCLUDE the por-cobrar set (the dashboard's pendientes link). */
+  excludeCobrar: boolean;
+}
+
+function parseFilters(params: URLSearchParams): OrderFilters {
+  const raw = filterParamsSchema.parse({
+    estado: params.get('estado') ?? undefined,
+    desde:  params.get('desde')  ?? undefined,
+    hasta:  params.get('hasta')  ?? undefined,
+    order:  params.get('order')  ?? undefined,
+    cobrar: params.get('cobrar') ?? undefined,
+  });
+
+  // Unknown estado tokens are dropped, not rejected — `?estado=pendiente,bogus`
+  // still filters to pendiente.
+  const estados = [...new Set(
+    (raw.estado ?? '')
+      .split(',')
+      .map(s => s.trim())
+      .filter((s): s is OrderStatus => (ESTADOS as string[]).includes(s)),
+  )];
+
+  // An inverted range would silently show nothing; treat it as unset instead.
+  let { desde, hasta } = raw;
+  if (desde && hasta && desde > hasta) { desde = undefined; hasta = undefined; }
+
+  return {
+    estados,
+    desde: desde ?? null,
+    hasta: hasta ?? null,
+    order: raw.order ?? null,
+    porCobrar:     raw.cobrar === '1',
+    excludeCobrar: raw.cobrar === '0',
+  };
+}
+
+/** `Date` → the America/Bogota day key the filters compare against. */
+const orderDayKey = (iso: string) => zonedDayKey(new Date(iso), BUSINESS_TZ);
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function Ordenes() {
+// useSearchParams() needs a Suspense boundary — same pattern as the storefront
+// shop page.
+export default function OrdenesPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Cargando...</div>}>
+      <Ordenes />
+    </Suspense>
+  );
+}
+
+function Ordenes() {
+  const router       = useRouter();
+  const pathname     = usePathname();
+  const searchParams = useSearchParams();
+
   const [orders, setOrders]             = useState<Order[]>([]);
   const [loading, setLoading]           = useState(true);
   const [search, setSearch]             = useState('');
-  const [estadoFilter, setEstadoFilter] = useState<OrderStatus | 'all'>('all');
-  const [selected, setSelected]         = useState<Order | null>(null);
   const [showForm, setShowForm]         = useState(false);
   const [form, setForm]                 = useState<OrderForm>(EMPTY_FORM);
   // Order whose delivery is being scheduled (opens the pre-filled modal).
@@ -68,27 +180,58 @@ export default function Ordenes() {
   useEffect(() => { getCatalog().then(setCatalog).catch(() => setCatalog([])); }, []);
 
   useEffect(() => {
-    getOrders().then(data => {
-      setOrders(data);
-      setLoading(false);
-      // Deep-link from the Pagos ledger: /admin/ordenes?order=CN-123 opens detail.
-      const num = new URLSearchParams(window.location.search).get('order');
-      if (num) {
-        const match = data.find(o => o.numero_orden === num);
-        if (match) setSelected(match);
-      }
-    });
+    getOrders()
+      .then(data => { setOrders(data); setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
+
+  // ── URL state ──────────────────────────────────────────────────────────────
+
+  const { estados, desde, hasta, order: openNumero, porCobrar, excludeCobrar } = parseFilters(new URLSearchParams(searchParams.toString()));
+
+  // Filter changes `replace` (no history spam, no scroll reset); opening an order
+  // `push`es, so Back closes the dialog instead of leaving the page.
+  const setParams = useCallback((patch: Record<string, string | null>, mode: 'push' | 'replace' = 'replace') => {
+    const next = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === null || value === '') next.delete(key);
+      else next.set(key, value);
+    }
+    const qs = next.toString();
+    router[mode](qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [router, pathname, searchParams]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
+  // The open order is DERIVED from the URL + the loaded list rather than held in
+  // state: the dialog is deep-linkable, Back closes it, and an edit made through
+  // onUpdate is reflected immediately (a state snapshot used to go stale).
+  const selected = openNumero
+    ? orders.find(o => o.numero_orden === openNumero) ?? null
+    : null;
+  const closeDetail = () => setParams({ order: null });
+
   const filtered = orders.filter(o => {
-  const matchSearch =
-    o.cliente_nombre?.toLowerCase().includes(search.toLowerCase()) ||
-    o.numero_orden?.toLowerCase().includes(search.toLowerCase());
-  const matchEstado = estadoFilter === 'all' || o.estado === estadoFilter;
-  return matchSearch && matchEstado;
-});
+    const term = search.toLowerCase();
+    const matchSearch =
+      o.cliente_nombre?.toLowerCase().includes(term) ||
+      o.numero_orden?.toLowerCase().includes(term);
+    const matchEstado = estados.length === 0 || estados.includes(o.estado);
+    // Date bounds are inclusive and compared as America/Bogota day keys —
+    // YYYY-MM-DD sorts lexicographically, so string compare IS date compare.
+    const day = orderDayKey(o.createdAt);
+    const matchDesde = !desde || day >= desde;
+    const matchHasta = !hasta || day <= hasta;
+    // "Por cobrar" is orthogonal to the estado pills (it implies pendiente); the
+    // two are never active together (selecting one clears the other).
+    // cobrar=1 narrows TO the por-cobrar set; cobrar=0 EXCLUDES it (the
+    // dashboard's "Órdenes Pendientes" link — its number omits por-cobrar).
+    const matchCobrar = porCobrar ? isPorCobrar(o) : excludeCobrar ? !isPorCobrar(o) : true;
+    return matchSearch && matchEstado && matchDesde && matchHasta && matchCobrar;
+  });
+
+  // Count of receivables — drives the "Por cobrar" chip badge (ALLOW_UNPAID only).
+  const porCobrarCount = orders.filter(isPorCobrar).length;
 
   const stats = ESTADOS.reduce<Record<OrderStatus, number>>((acc, e) => {
     acc[e] = orders.filter(o => o.estado === e).length;
@@ -152,6 +295,11 @@ export default function Ordenes() {
         return;
       }
     }
+    // Mirror the server rule: "ya pagado" needs a concrete method, not "Por definir".
+    if (form.pagoRecibido && !form.metodoPagoPrevisto) {
+      toast.error('Selecciona el método de pago para marcar la orden como pagada');
+      return;
+    }
     // Guarantee a key even if the form was opened without openNewOrder.
     if (!idemKeyRef.current) idemKeyRef.current = crypto.randomUUID();
 
@@ -166,11 +314,14 @@ export default function Ordenes() {
         costo_envio:       Number(form.costo_envio) || 0,
         direccion_entrega: form.direccion_entrega || undefined,
         notas_internas:    form.notas_internas || undefined,
+        metodoPagoPrevisto: form.metodoPagoPrevisto || undefined,
+        condicion_pago:    form.condicion_pago,
+        pagoRecibido:      form.pagoRecibido,
         items:             lines.map(l => ({ slug: l.slug, cantidad: l.cantidad, molienda: l.molienda || null })),
         idempotencyKey:    idemKeyRef.current,
       });
       setOrders(prev => [created, ...prev]);
-      toast.success('Orden creada');
+      toast.success(created.estado === 'pagado' ? 'Orden creada y pago registrado' : 'Orden creada');
       setShowForm(false);
       setForm(EMPTY_FORM);
     } catch (e) {
@@ -197,7 +348,41 @@ export default function Ordenes() {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, shipping } : o));
   };
 
-  const field = (key: Exclude<keyof OrderForm, 'items' | 'canal'>) => ({
+  // Open the schedule modal. If the order has no Shipping yet (an unpaid order
+  // under ALLOW_UNPAID), create it first via the guarded endpoint — the server
+  // is the enforcement point, so a rejection (cancelled, or REQUIRE_PAYMENT) is
+  // surfaced here — then open the modal on the fresh Shipping.
+  const openSchedule = async (o: Order) => {
+    if (o.shipping) { setScheduleOrder(o); return; }
+    try {
+      const shipping = await ensureOrderShipping(o.id);
+      const updated: Order = { ...o, shipping };
+      setOrders(prev => prev.map(x => x.id === o.id ? updated : x));
+      setScheduleOrder(updated);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'No se pudo preparar la entrega');
+    }
+  };
+
+  // Whether an order can be scheduled from the table now, and the button label.
+  // An unpaid order without a Shipping is schedulable only when ITS condición is
+  // CONTRAENTREGA — "Preparar envío" (server-guarded; never if cancelled).
+  const canSchedule = (o: Order) =>
+    o.estado !== 'cancelado' && (
+      o.shipping?.estado === 'preparando' ||
+      o.shipping?.estado === 'fallido' ||
+      (!o.shipping && o.estado === 'pendiente' && o.condicion_pago === 'CONTRAENTREGA')
+    );
+
+  const scheduleLabel = (o: Order) =>
+    !o.shipping ? (o.estado === 'pendiente' ? 'Preparar envío' : 'Programar entrega')
+    : o.shipping.estado === 'fallido' ? 'Reprogramar'
+    : isScheduledShipping(o.shipping) ? 'Editar entrega'
+    : 'Programar entrega';
+
+  // Only the plain string text/textarea fields — the canal, product lines,
+  // método previsto (Select) and pagoRecibido (Checkbox) have bespoke controls.
+  const field = (key: Exclude<keyof OrderForm, 'items' | 'canal' | 'metodoPagoPrevisto' | 'pagoRecibido'>) => ({
     value:    form[key],
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm(f => ({ ...f, [key]: e.target.value })),
@@ -218,39 +403,69 @@ export default function Ordenes() {
         </Button>
       </div>
 
-      {/* Status pills */}
+      {/* Status pills — a pill is active when its estado is in the URL set, so a
+          multi-estado link (e.g. from "Órdenes del mes") lights up both. Selecting
+          an estado pill clears "Por cobrar" and vice versa (they're orthogonal). */}
       <div className="flex flex-wrap gap-2">
         {[
           { key: 'all' as const, label: 'Todas', count: orders.length },
           ...ESTADOS.map(e => ({ key: e, label: e.charAt(0).toUpperCase() + e.slice(1), count: stats[e] })),
-        ].map(s => (
-          <button
-            key={s.key}
-            onClick={() => setEstadoFilter(s.key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-              estadoFilter === s.key
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-foreground hover:bg-muted/80'
-            }`}
-          >
-            {s.label}
-            <span className={`px-1.5 py-0.5 rounded-full text-xs ${
-              estadoFilter === s.key ? 'bg-primary-foreground/20' : 'bg-background'
-            }`}>
-              {s.count}
-            </span>
-          </button>
-        ))}
+        ].map(s => {
+          const active = !porCobrar && (s.key === 'all' ? estados.length === 0 : estados.includes(s.key));
+          return (
+            <button
+              key={s.key}
+              onClick={() => setParams({ estado: s.key === 'all' ? null : s.key, cobrar: null })}
+              aria-pressed={active}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                active
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-foreground hover:bg-muted/80'
+              }`}
+            >
+              {s.label}
+              <span className={`px-1.5 py-0.5 rounded-full text-xs ${
+                active ? 'bg-primary-foreground/20' : 'bg-background'
+              }`}>
+                {s.count}
+              </span>
+            </button>
+          );
+        })}
+        {/* "Por cobrar" — contraentrega despachada sin pago (la definición
+            compartida con el dashboard: isPorCobrar). */}
+        <button
+          onClick={() => setParams({ estado: null, cobrar: porCobrar ? null : '1' })}
+          aria-pressed={porCobrar}
+          title="Contraentrega despachada, pago pendiente"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+            porCobrar
+              ? 'bg-amber-500 text-white'
+              : 'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50'
+          }`}
+        >
+          Por cobrar
+          <span className={`px-1.5 py-0.5 rounded-full text-xs ${porCobrar ? 'bg-white/25' : 'bg-background'}`}>
+            {porCobrarCount}
+          </span>
+        </button>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por cliente u orden..."
-          className="pl-9"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
+      {/* Search + date range */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative max-w-sm flex-1 min-w-[220px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por cliente u orden..."
+            className="pl-9"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <DateRangePicker
+          desde={desde}
+          hasta={hasta}
+          onChange={(d, h) => setParams({ desde: d, hasta: h })}
         />
       </div>
 
@@ -275,11 +490,11 @@ export default function Ordenes() {
                   <tr
                     key={o.id}
                     className="border-b border-border/50 hover:bg-muted/20 cursor-pointer"
-                    onClick={() => setSelected(o)}
+                    onClick={() => setParams({ order: o.numero_orden }, 'push')}
                   >
                     <td className="px-4 py-3 font-mono text-xs font-semibold text-primary">{o.numero_orden}</td>
                     <td className="px-4 py-3">
-                      <p className="font-medium">{o.cliente_nombre}</p>
+                      <CustomerLink id={o.cliente_id} nombre={o.cliente_nombre} className="font-medium" />
                       {o.cliente_telefono && (
                         <p className="text-xs text-muted-foreground">{o.cliente_telefono}</p>
                       )}
@@ -288,8 +503,14 @@ export default function Ordenes() {
                       <span className="text-xs capitalize bg-muted px-2 py-0.5 rounded">{o.canal}</span>
                     </td>
                     <td className="px-4 py-3 font-semibold">{formatCOP(o.total)}</td>
-                    {/* Estado = payment only (Pendiente/Pagado/Cancelado). */}
-                    <td className="px-4 py-3"><StatusBadge status={o.estado} /></td>
+                    {/* Estado = payment only (Pendiente/Pagado/Cancelado); the
+                        muted pill marks contraentrega orders. */}
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col items-start gap-1">
+                        <StatusBadge status={o.estado} />
+                        <CondicionBadge condicion={o.condicion_pago} />
+                      </div>
+                    </td>
                     {/* Entrega = derived fulfillment status from the Shipping.
                         Only Preparando/En ruta/Entregado/Fallido — suppressed for
                         cancelled orders (don't repeat "Cancelado") and orders with
@@ -317,19 +538,17 @@ export default function Ordenes() {
                             <CreditCard className="w-3.5 h-3.5" /> Registrar pago
                           </Button>
                         )}
-                        {/* Only when the delivery needs (re)scheduling — hidden once
-                            it's en ruta/entregado (real fulfillment record) or the
-                            order is cancelled. The scheduled date lives on Entregas. */}
-                        {o.estado !== 'cancelado' && (o.shipping?.estado === 'preparando' || o.shipping?.estado === 'fallido') && (
+                        {/* Programar entrega — hidden once en ruta/entregado (real
+                            fulfillment record) or cancelled. Under ALLOW_UNPAID it
+                            also shows for an unpaid order with no Shipping yet, and
+                            creates it on click (server-guarded). Scheduled date
+                            lives on Entregas. */}
+                        {canSchedule(o) && (
                           <Button
                             variant="outline" size="sm" className="h-7 gap-1 text-xs whitespace-nowrap"
-                            onClick={() => setScheduleOrder(o)}
+                            onClick={() => openSchedule(o)}
                           >
-                            <Truck className="w-3.5 h-3.5" /> {
-                              o.shipping?.estado === 'fallido'
-                                ? 'Reprogramar'
-                                : isScheduledShipping(o.shipping) ? 'Editar entrega' : 'Programar entrega'
-                            }
+                            <Truck className="w-3.5 h-3.5" /> {scheduleLabel(o)}
                           </Button>
                         )}
                       </div>
@@ -367,13 +586,13 @@ export default function Ordenes() {
           cliente: paymentOrder.cliente_nombre ?? null,
           monto:   paymentOrder.total,
         } : null}
-        declaredMetodo={paymentOrder?.metodo_pago ?? null}
+        declaredMetodo={paymentOrder?.metodoPagoPrevisto ?? paymentOrder?.metodo_pago ?? null}
         onClose={() => setPaymentOrder(null)}
         onSaved={({ order }) => handleOrderUpdate(order)}
       />
 
       {/* Order Detail Dialog */}
-      <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
+      <Dialog open={!!selected} onOpenChange={closeDetail}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Orden {selected?.numero_orden}</DialogTitle>
@@ -381,9 +600,9 @@ export default function Ordenes() {
           {selected && (
             <OrderDetail
               order={selected}
-              onClose={() => setSelected(null)}
+              onClose={closeDetail}
               onUpdate={handleOrderUpdate}
-              onRegisterPayment={(o) => { setSelected(null); setPaymentOrder(o); }}
+              onRegisterPayment={(o) => { closeDetail(); setPaymentOrder(o); }}
             />
           )}
         </DialogContent>
@@ -402,13 +621,13 @@ export default function Ordenes() {
               </div>
               <div>
                 <Label>Correo electrónico</Label>
-                <Input type="email" {...field('cliente_email')} className="mt-1" placeholder="Opcional si hay teléfono" />
+                <Input type="email" {...field('cliente_email')} className="mt-1" placeholder="Opcional" />
               </div>
               <div>
                 <Label>Teléfono</Label>
                 <Input {...field('cliente_telefono')} className="mt-1" placeholder="300 000 0000" />
               </div>
-              <p className="col-span-2 -mt-1 text-xs text-muted-foreground">Ingresa al menos un teléfono o correo del cliente.</p>
+              <p className="col-span-2 -mt-1 text-xs text-muted-foreground">* Ingresa al menos un teléfono o correo del cliente.</p>
               <div className="col-span-2">
                 <Label>Canal</Label>
                 <Select value={form.canal} onValueChange={v => setForm(f => ({ ...f, canal: v as OrderChannel }))}>
@@ -503,10 +722,82 @@ export default function Ordenes() {
               </div>
             </div>
 
+            {/* Pago previsto — método declarado (opcional). NO cobra ni marca la
+                orden como pagada por sí solo; la orden nace Pendiente. El checkbox
+                permite registrar el pago en el mismo acto (requiere método y
+                condición Anticipado — contraentrega se cobra al entregar). */}
+            <div className="space-y-3 border-t border-border pt-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Condición de pago</Label>
+                  <Select
+                    value={form.condicion_pago}
+                    onValueChange={v => {
+                      const condicion = v as CondicionPago;
+                      // Contraentrega se cobra AL ENTREGAR → "ya pagado" no aplica.
+                      setForm(f => ({ ...f, condicion_pago: condicion, pagoRecibido: condicion === 'CONTRAENTREGA' ? false : f.pagoRecibido }));
+                    }}
+                  >
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CONDICIONES.map(c => (
+                        <SelectItem key={c} value={c}>{CONDICION_PAGO_LABEL[c]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Método de pago</Label>
+                  <Select
+                    value={form.metodoPagoPrevisto || POR_DEFINIR}
+                    onValueChange={v => {
+                      const metodo = (v === POR_DEFINIR ? '' : v) as OrderForm['metodoPagoPrevisto'];
+                      // "Por definir" can't be "ya pagado" — reset the checkbox.
+                      setForm(f => ({ ...f, metodoPagoPrevisto: metodo, pagoRecibido: metodo ? f.pagoRecibido : false }));
+                    }}
+                  >
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={POR_DEFINIR}>Por definir</SelectItem>
+                      {METODOS_PAGO.map(m => (
+                        <SelectItem key={m} value={m}>{METODO_PAGO_LABEL[m]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {form.condicion_pago === 'CONTRAENTREGA' && (
+                <p className="text-xs text-muted-foreground">
+                  El envío podrá prepararse y despacharse con la orden pendiente; el pago se registra al entregar.
+                </p>
+              )}
+              <label className={`flex items-start gap-2 ${form.metodoPagoPrevisto && form.condicion_pago !== 'CONTRAENTREGA' ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+                <Checkbox
+                  checked={form.pagoRecibido}
+                  disabled={!form.metodoPagoPrevisto || form.condicion_pago === 'CONTRAENTREGA'}
+                  onCheckedChange={c => setForm(f => ({ ...f, pagoRecibido: c === true }))}
+                  className="mt-0.5"
+                />
+                <span className="text-sm">
+                  El pago ya fue recibido
+                  {!form.metodoPagoPrevisto && form.condicion_pago !== 'CONTRAENTREGA' && (
+                    <span className="block text-xs text-muted-foreground">
+                      Selecciona un método de pago para poder marcarlo.
+                    </span>
+                  )}
+                  {form.condicion_pago === 'CONTRAENTREGA' && (
+                    <span className="block text-xs text-muted-foreground">
+                      No aplica en contraentrega — el pago se registra al entregar.
+                    </span>
+                  )}
+                </span>
+              </label>
+            </div>
+
             {/* Dirección + notas */}
             <div className="space-y-4 border-t border-border pt-3">
               <div>
-                <Label>Dirección de Entrega (opcional)</Label>
+                <Label>Dirección de Entrega</Label>
                 <Input {...field('direccion_entrega')} className="mt-1" />
               </div>
               <div>
@@ -574,10 +865,27 @@ function OrderDetail({ order, onClose, onUpdate, onRegisterPayment }: OrderDetai
 
       {/* Info Grid */}
       <div className="grid grid-cols-2 gap-4 text-sm">
-        <InfoRow label="Cliente"         value={order.cliente_nombre} />
+        <div>
+          <p className="text-xs text-muted-foreground">Cliente</p>
+          <CustomerLink id={order.cliente_id} nombre={order.cliente_nombre} className="mt-0.5 font-medium capitalize" />
+        </div>
         <InfoRow label="Teléfono"        value={order.cliente_telefono ?? '—'} />
         <InfoRow label="Canal"           value={order.canal} />
-        <InfoRow label="Método de Pago"  value={order.metodo_pago ?? '—'} />
+        {/* DECLARED method (intent). The REAL method of a registered payment lives
+            on the Payment (see Pagos); this is what the customer said they'd use. */}
+        <InfoRow label="Método previsto" value={metodoPrevistoLabel(order) ?? '—'} />
+        <div>
+          <p className="text-xs text-muted-foreground">Condición de pago</p>
+          <p className="mt-0.5 font-medium">
+            {CONDICION_PAGO_LABEL[order.condicion_pago] ?? order.condicion_pago}
+          </p>
+          {/* Despachada sin pago: la plata está en la calle — hint sutil. */}
+          {isPorCobrar(order) && (
+            <span className="mt-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+              Por cobrar
+            </span>
+          )}
+        </div>
         <InfoRow label="Total"           value={formatCOP(order.total)} strong />
         <InfoRow label="Envío"           value={formatCOP(order.costo_envio)} />
         <div className="col-span-2">
@@ -642,6 +950,36 @@ function OrderDetail({ order, onClose, onUpdate, onRegisterPayment }: OrderDetai
         <Button onClick={handleUpdate} className="w-full">Guardar Cambios</Button>
       </div>
     </div>
+  );
+}
+
+// ─── CustomerLink ─────────────────────────────────────────────────────────────
+// The customer name, as a link to their profile ONLY when the order actually
+// resolves to one. Orders that predate the FK (or that the backfill could not
+// resolve) render plain text — no dead link, no cursor-pointer promising a
+// navigation that won't happen.
+//
+// stopPropagation matters: the table row is itself clickable (it opens the
+// order), so without it a click on the name would BOTH navigate and open the
+// order dialog.
+
+function CustomerLink({ id, nombre, className = '' }: {
+  id?: string | null;
+  nombre?: string | null;
+  className?: string;
+}) {
+  const label = nombre || '—';
+  if (!id) return <p className={className}>{label}</p>;
+
+  return (
+    <Link
+      href={`/admin/clientes/${id}`}
+      onClick={e => e.stopPropagation()}
+      title={`Ver perfil de ${label}`}
+      className={`block w-fit rounded text-primary underline-offset-2 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${className}`}
+    >
+      {label}
+    </Link>
   );
 }
 

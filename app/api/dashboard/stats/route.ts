@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { BUSINESS_TZ, startOfZonedDay, startOfZonedMonth } from '@/lib/timezone';
+import { currentMonthRange, PENDING_ESTADO, POR_COBRAR_SHIPPING_ESTADOS } from '@/lib/metrics/order-stat-filters';
 
 const RECENT_LIMIT = 6;
 
@@ -21,15 +22,17 @@ export async function GET() {
   const tomorrowStart  = startOfZonedDay(now, BUSINESS_TZ, 1);
   const yesterdayStart = startOfZonedDay(now, BUSINESS_TZ, -1);
   // Trend window (see lib/metrics/trend.ts): current calendar month in progress
-  // vs. the previous complete month.
-  const monthStart     = startOfZonedMonth(now, BUSINESS_TZ, 0);
-  const nextMonthStart = startOfZonedMonth(now, BUSINESS_TZ, 1);
+  // vs. the previous complete month. The current-month boundary comes from the
+  // SHARED helper the dashboard's "Órdenes del mes" link also uses — that shared
+  // definition is what keeps the card's count and the filtered list identical.
+  const { start: monthStart, end: nextMonthStart } = currentMonthRange(now);
   const prevMonthStart = startOfZonedMonth(now, BUSINESS_TZ, -1);
 
   const [
     ordersToday,
     ordersYesterday,
-    pendingOrders,
+    pendingTotal,
+    porCobrar,
     revenueAgg,
     revenueTodayAgg,
     recentOrders,
@@ -42,7 +45,17 @@ export async function GET() {
     prisma.order.count({
       where: { ...NOT_CANCELLED, createdAt: { gte: yesterdayStart, lt: todayStart } },
     }),
-    prisma.order.count({ where: { estado: 'pendiente' } }),
+    prisma.order.count({ where: { estado: PENDING_ESTADO } }),
+    // "Por cobrar": contraentrega, despachada (en_ruta/entregado), sin pago —
+    // the SAME definition as isPorCobrar in lib/metrics/order-stat-filters
+    // (shared constant), expressed as a Prisma relation filter.
+    prisma.order.count({
+      where: {
+        estado:         PENDING_ESTADO,
+        condicion_pago: 'CONTRAENTREGA',
+        shipping:       { estado: { in: [...POR_COBRAR_SHIPPING_ESTADOS] } },
+      },
+    }),
     prisma.order.aggregate({
       where: NOT_CANCELLED,
       _sum:  { total: true },
@@ -97,7 +110,11 @@ export async function GET() {
     ordersToday,
     ordersYesterday,
     ordersDeltaPct,
-    pendingOrders,
+    // Split so a dispatched-unpaid contraentrega (courier out collecting) doesn't
+    // read as an order that "requiere atención". pendingOrders + porCobrar =
+    // every `pendiente` order.
+    pendingOrders: pendingTotal - porCobrar,
+    porCobrar,
     totalRevenue,
     revenueToday: revenueTodayAgg._sum.total ?? 0,
     avgTicket:    orderCount > 0 ? Math.round(totalRevenue / orderCount) : 0,

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
-import { transitionOrder } from '@/lib/orders';
+import { transitionOrder, CondicionPagoLockedError } from '@/lib/orders';
 
 export async function PATCH(
   req: NextRequest,
@@ -18,9 +18,16 @@ export async function PATCH(
   // Status write + Shipping auto-create happen in ONE transaction, so a paid
   // order can never be left without its Shipping. Every UI path (dropdown, modal,
   // payment registration) funnels through the shared `transitionOrder` helper.
-  const result = await prisma.$transaction((tx) => transitionOrder(tx, id, body));
-
-  return NextResponse.json(result);
+  try {
+    const result = await prisma.$transaction((tx) => transitionOrder(tx, id, body));
+    return NextResponse.json(result);
+  } catch (error) {
+    // condicion_pago is lifecycle-locked (Shipping/Payment exists) → 409.
+    if (error instanceof CondicionPagoLockedError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    throw error;
+  }
 }
 
 export async function DELETE(
