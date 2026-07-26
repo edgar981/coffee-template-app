@@ -11,18 +11,13 @@ import {
 import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
 import { formatCOP } from '@/lib/utils';
+import { formatFecha } from '@/lib/format-fecha';
 import { getShippings, updateShipping } from '@/lib/api/shippings';
 import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
 import type { Shipping, ShippingEstado, ShippingFilter, ShippingOrderRef } from '@/types/shipping';
 import { FILTER_ESTADOS, ZONA_COLORS, isScheduledShipping } from '@/constants/shippings';
 import { TIPO_ENVIO_LABEL } from '@/types/shipping';
 import { metodoPrevistoLabel } from '@/types/payment';
-
-// fecha_entrega is a server-captured ISO timestamp; older rows may be date-only.
-const formatDeliveryDate = (v: string) => {
-  const d = new Date(v);
-  return isNaN(d.getTime()) ? v : d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
-};
 
 export default function Entregas() {
   const [entregas, setEntregas] = useState<Shipping[]>([]);
@@ -205,8 +200,8 @@ export default function Entregas() {
                         show the real delivery date; others the scheduled date. */}
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       {e.estado === 'entregado'
-                        ? (e.fecha_entrega ? formatDeliveryDate(e.fecha_entrega) : '—')
-                        : (e.fecha_programada ?? '—')}
+                        ? formatFecha(e.fecha_entrega)
+                        : formatFecha(e.fecha_programada)}
                     </td>
                     <td className="px-4 py-3" onClick={ev => ev.stopPropagation()}>
                       {/* Next-state actions advance Shipping only — never Order.
@@ -223,17 +218,17 @@ export default function Entregas() {
                             <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => setScheduleShipping(e)}>
                               <Pencil className="w-3.5 h-3.5" /> Editar
                             </Button>
-                            <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => handleDispatch(e)}>
+                            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => handleDispatch(e)}>
                               <Truck className="w-3.5 h-3.5" /> Marcar En Ruta
                             </Button>
                           </>
                         )}
                         {e.estado === 'en_ruta' && (
                           <>
-                            <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => updateEstado(e.id, 'entregado')}>
+                            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => updateEstado(e.id, 'entregado')}>
                               <CheckCircle className="w-3.5 h-3.5" /> Marcar Entregado
                             </Button>
-                            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700" onClick={() => updateEstado(e.id, 'fallido')}>
+                            <Button size="sm" variant="destructiveGhost" className="h-7 gap-1 text-xs" onClick={() => updateEstado(e.id, 'fallido')}>
                               <AlertCircle className="w-3.5 h-3.5" /> Marcar Fallido
                             </Button>
                           </>
@@ -319,7 +314,7 @@ function PaymentHint({ order }: { order?: ShippingOrderRef | null }) {
   if (order.estado === 'pagado') {
     return (
       <div className="flex flex-wrap items-center gap-1">
-        <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+        <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-800 dark:bg-green-900/30 dark:text-green-300">
           Pagada
         </span>
         {condicion}

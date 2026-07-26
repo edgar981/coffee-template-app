@@ -18,12 +18,11 @@ import { getCustomer, updateCustomer } from '@/lib/api/customers';
 import { customerWhatsappHref } from '@/lib/whatsapp-link';
 import { siteConfig } from '@/lib/config/site';
 import { CANALES } from '@/constants/customer';
-import { BUSINESS_TZ } from '@/lib/timezone';
+import { formatFecha } from '@/lib/format-fecha';
 import type { CustomerWithOrders, CustomerForm } from '@/types/customer';
 import type { OrderChannel } from '@/types/order';
 
-const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('es-CO', { timeZone: BUSINESS_TZ, day: '2-digit', month: 'short', year: 'numeric' });
+const fmtDate = formatFecha;
 
 const buildForm = (c: CustomerWithOrders): CustomerForm => ({
   nombre:    c.nombre,

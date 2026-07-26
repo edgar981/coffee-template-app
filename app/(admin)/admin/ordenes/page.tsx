@@ -26,6 +26,7 @@ import { CONDICION_PAGO_LABEL } from '@/types/order';
 import type { Product } from '@/types/product';
 import type { Shipping } from '@/types/shipping';
 import { formatCOP } from '@/lib/utils';
+import { formatFecha } from '@/lib/format-fecha';
 import { findSlotLabel } from '@/lib/shipping-config';
 import { isScheduledShipping } from '@/constants/shippings';
 import { isPorCobrar } from '@/lib/metrics/order-stat-filters';
@@ -586,7 +587,7 @@ function Ordenes() {
                         cancelled orders (don't repeat "Cancelado") and orders with
                         no Shipping (pendiente). */}
                     <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {new Date(o.createdAt).toLocaleDateString('es-CO')}
+                      {formatFecha(o.createdAt)}
                     </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-2">

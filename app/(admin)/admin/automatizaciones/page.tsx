@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { AUTOMATION_TEMPLATES } from '@/lib/mock/automations';
 import { getAutomations, toggleAutomation } from '@/lib/api/automations';
+import { formatFecha } from '@/lib/format-fecha';
 import type { Automation } from '@/types/automation';
 import type { LucideIcon } from 'lucide-react';
 
@@ -156,7 +157,7 @@ export default function Automatizaciones() {
                   </span>
                   {existing?.ultima_ejecucion && (
                     <span className="text-xs text-muted-foreground">
-                      Último: {new Date(existing.ultima_ejecucion).toLocaleDateString('es-CO')}
+                      Último: {formatFecha(existing.ultima_ejecucion)}
                     </span>
                   )}
                 </div>

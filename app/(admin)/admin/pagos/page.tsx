@@ -16,18 +16,14 @@ import {
   METODO_DESGLOSE_LABEL,
 } from '@/types/payment';
 import { formatCOP } from '@/lib/utils';
+import { formatFecha } from '@/lib/format-fecha';
 import { BUSINESS_TZ } from '@/lib/timezone';
 
-// yyyy-mm-dd in Bogotá wall-clock, for range filtering and display consistency.
+// yyyy-mm-dd in Bogotá wall-clock, for range filtering (comparison key, not shown).
 const bogotaISODate = (iso: string) =>
   new Intl.DateTimeFormat('en-CA', {
     timeZone: BUSINESS_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(new Date(iso));
-
-const displayDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('es-CO', {
-    timeZone: BUSINESS_TZ, day: '2-digit', month: 'short', year: 'numeric',
-  });
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -133,12 +129,12 @@ function PagosInner() {
           <p className="text-xs text-muted-foreground">Total del período</p>
         </div>
         <div className="stat-card">
-          <Receipt className="w-5 h-5 text-blue-500 mb-3" />
+          <Receipt className="w-5 h-5 text-muted-foreground mb-3" />
           <p className="text-xl font-bold">{filtered.length}</p>
           <p className="text-xs text-muted-foreground">Pagos {hasFilters ? 'filtrados' : 'registrados'}</p>
         </div>
         <div className="stat-card hidden lg:block">
-          <CreditCard className="w-5 h-5 text-violet-500 mb-3" />
+          <CreditCard className="w-5 h-5 text-muted-foreground mb-3" />
           {categoriaStats.length === 0 ? (
             <span className="text-xs text-muted-foreground">Sin pagos</span>
           ) : (
@@ -230,7 +226,7 @@ function PagosInner() {
               <tbody>
                 {filtered.map(p => (
                   <tr key={p.id} className="border-b border-border/50 hover:bg-muted/20">
-                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{displayDate(p.fecha)}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatFecha(p.fecha)}</td>
                     <td className="px-4 py-3">
                       {p.order?.numero_orden ? (
                         <Link

@@ -17,6 +17,7 @@ import { getCustomers, createCustomer, updateCustomer, deleteCustomer } from '@/
 import type { Customer, CustomerForm } from '@/types/customer';
 import type { OrderChannel } from '@/types/order';
 import { CANALES, EMPTY_CUSTOMER_FORM } from '@/constants/customer';
+import { STAT_CHIP } from '@/constants/stat-chip';
 
 
 // useSearchParams() needs a Suspense boundary (same pattern as Órdenes).
@@ -125,10 +126,10 @@ function ClientesInner() {
   // clientes (histórico por cliente, dato semilla). NO son ingresos reales — esos
   // se calculan desde Payments y viven en Dashboard/Analítica.
   const stats = [
-    { label: 'Total Clientes',   value: clientes.length,       sublabel: undefined as string | undefined, icon: Users, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-    { label: 'Recurrentes',      value: recurrentes,           sublabel: undefined as string | undefined, icon: Star,  color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-    { label: 'Tasa Recurrencia', value: tasaRecurr,            sublabel: undefined as string | undefined, icon: Star,  color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
-    { label: 'Compras totales',  value: formatCOP(totalVentas),sublabel: 'Histórico de clientes',          icon: Users, color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400' },
+    { label: 'Total Clientes',   value: clientes.length,       sublabel: undefined as string | undefined, icon: Users, color: STAT_CHIP.warm },
+    { label: 'Recurrentes',      value: recurrentes,           sublabel: undefined as string | undefined, icon: Star,  color: STAT_CHIP.warm },
+    { label: 'Tasa Recurrencia', value: tasaRecurr,            sublabel: undefined as string | undefined, icon: Star,  color: STAT_CHIP.warm },
+    { label: 'Compras totales',  value: formatCOP(totalVentas),sublabel: 'Histórico de clientes',          icon: Users, color: STAT_CHIP.warm },
   ];
 
   return (
@@ -254,7 +255,7 @@ function ClientesInner() {
                         </Tooltip>
                       ) : (
                         <Button
-                          size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500"
+                          size="sm" variant="destructiveGhost" className="h-7 w-7 p-0"
                           onClick={e => { e.stopPropagation(); setDeleteTarget(c); }}
                           aria-label={`Eliminar ${c.nombre}`}
                         >

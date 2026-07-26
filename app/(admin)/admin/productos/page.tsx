@@ -342,12 +342,12 @@ function ProductCard({ product: p, onEdit, onDelete }: ProductCardProps) {
       <div className="h-36 bg-linear-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 flex items-center justify-center relative">
         <Package className="w-12 h-12 text-amber-300" />
         {lowStock && (
-          <span className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+          <span className="absolute top-2 right-2 bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" /> Stock bajo
           </span>
         )}
         {!p.activo && (
-          <span className="absolute top-2 left-2 bg-gray-500 text-white text-xs px-2 py-0.5 rounded-full">
+          <span className="absolute top-2 left-2 bg-muted text-muted-foreground text-xs px-2 py-0.5 rounded-full">
             Inactivo
           </span>
         )}
@@ -371,7 +371,7 @@ function ProductCard({ product: p, onEdit, onDelete }: ProductCardProps) {
           <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => onEdit(p)}>
             <Edit2 className="w-3 h-3 mr-1" /> Editar
           </Button>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-700" onClick={() => onDelete(p)} aria-label={`Eliminar ${p.nombre}`}>
+          <Button size="sm" variant="destructiveGhost" className="h-7 w-7 p-0" onClick={() => onDelete(p)} aria-label={`Eliminar ${p.nombre}`}>
             <Trash2 className="w-3 h-3" />
           </Button>
         </div>
@@ -429,7 +429,7 @@ function ProductTable({ productos, onEdit, onDelete }: ProductTableProps) {
                       <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => onEdit(p)}>
                         <Edit2 className="w-3 h-3" />
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(p)} aria-label={`Eliminar ${p.nombre}`}>
+                      <Button size="sm" variant="destructiveGhost" className="h-7 w-7 p-0" onClick={() => onDelete(p)} aria-label={`Eliminar ${p.nombre}`}>
                         <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>
