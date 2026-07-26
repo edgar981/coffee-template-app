@@ -47,5 +47,10 @@ export async function updateProduct(id: string, data: Partial<Product>): Promise
 
 export async function deleteProduct(id: string): Promise<void> {
   const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error('Error al eliminar producto');
+  if (!res.ok) {
+    // Surface the server's reason (e.g. the 409 "aparece en N órdenes; desactívalo")
+    // so the confirm dialog can show it verbatim.
+    const msg = await res.json().then((d) => d?.error).catch(() => null);
+    throw new Error(msg || 'Error al eliminar producto');
+  }
 }

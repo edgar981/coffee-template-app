@@ -61,5 +61,10 @@ export async function updateCustomer(id: string, data: Partial<CustomerForm>): P
 
 export async function deleteCustomer(id: string): Promise<void> {
   const res = await fetch(`/api/customers/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error('Error al eliminar cliente');
+  if (!res.ok) {
+    // Surface the server's reason (e.g. the 409 "tiene N órdenes") so the confirm
+    // dialog can show it verbatim.
+    const msg = await res.json().then((d) => d?.error).catch(() => null);
+    throw new Error(msg || 'Error al eliminar cliente');
+  }
 }

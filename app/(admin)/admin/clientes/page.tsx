@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { toast } from 'sonner';
 import { formatCOP } from '@/lib/utils';
 import { getCustomers, createCustomer, updateCustomer, deleteCustomer } from '@/lib/api/customers';
@@ -33,6 +35,9 @@ function ClientesInner() {
   const [showForm, setShowForm]   = useState(false);
   const [editing, setEditing]     = useState<Customer | null>(null);
   const [form, setForm]           = useState<CustomerForm>(EMPTY_CUSTOMER_FORM);
+  // Customer pending deletion (drives the shared confirm dialog). Only customers
+  // with zero orders ever reach here — see the row action gate below.
+  const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   // `?recurrentes=1` (from the dashboard "Clientes Recurrentes" card) shows only
@@ -100,11 +105,12 @@ function ClientesInner() {
     setShowForm(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este cliente?')) return;
-    await deleteCustomer(id);
-    setClientes(prev => prev.filter(c => c.id !== id));
-    toast.success('Cliente eliminado');
+  // The actual delete, run by the confirm dialog. Throws (server message) bubble
+  // up to the dialog, which keeps itself open and toasts the error.
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    await deleteCustomer(deleteTarget.id);
+    setClientes(prev => prev.filter(c => c.id !== deleteTarget.id));
   };
 
   const field = (key: keyof CustomerForm) => ({
@@ -219,12 +225,35 @@ function ClientesInner() {
                       >
                         <Edit2 className="w-3 h-3" />
                       </Button>
-                      <Button
-                        size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500"
-                        onClick={e => { e.stopPropagation(); handleDelete(c.id); }}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
+                      {(c.numero_ordenes ?? 0) > 0 ? (
+                        // Has orders → deletion is blocked server-side (409). Don't
+                        // even offer the dialog; show why, disabled. (`span` wrapper
+                        // so the tooltip still fires over the disabled button.)
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span tabIndex={0} onClick={e => e.stopPropagation()} className="inline-flex">
+                              <Button
+                                size="sm" variant="ghost" disabled
+                                className="h-7 w-7 p-0 text-muted-foreground/40"
+                                aria-label="No se puede eliminar: tiene órdenes"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            Tiene {c.numero_ordenes} {c.numero_ordenes === 1 ? 'orden' : 'órdenes'}; el historial se conserva.
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <Button
+                          size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500"
+                          onClick={e => { e.stopPropagation(); setDeleteTarget(c); }}
+                          aria-label={`Eliminar ${c.nombre}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -314,6 +343,22 @@ function ClientesInner() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation — themed replacement for window.confirm(). Only opens
+          for customers with zero orders (the row gate); the server 409 is the real
+          backstop if the shown count ever lags reality. */}
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+        title="Eliminar cliente"
+        entityLabel={deleteTarget
+          ? [deleteTarget.nombre, deleteTarget.email ?? deleteTarget.telefono].filter(Boolean).join(' · ')
+          : ''}
+        consequence="Se eliminará permanentemente. Esta acción no se puede deshacer."
+        confirmLabel="Eliminar cliente"
+        successMessage="Cliente eliminado"
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }
