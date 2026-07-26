@@ -226,23 +226,29 @@ function ClientesInner() {
                         <Edit2 className="w-3 h-3" />
                       </Button>
                       {(c.numero_ordenes ?? 0) > 0 ? (
-                        // Has orders → deletion is blocked server-side (409). Don't
-                        // even offer the dialog; show why, disabled. (`span` wrapper
-                        // so the tooltip still fires over the disabled button.)
+                        // Has orders → deletion is blocked (server 409). Don't offer
+                        // the dialog at all: a REAL disabled control (no pointer
+                        // cursor, not focusable — the row is cursor-pointer, so the
+                        // span must reset it) with the reason on hover. The `span`
+                        // wrapper is what the tooltip hovers over, since a disabled
+                        // button swallows pointer events.
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span tabIndex={0} onClick={e => e.stopPropagation()} className="inline-flex">
+                            <span
+                              onClick={e => e.stopPropagation()}
+                              className="inline-flex cursor-not-allowed"
+                            >
                               <Button
                                 size="sm" variant="ghost" disabled
                                 className="h-7 w-7 p-0 text-muted-foreground/40"
-                                aria-label="No se puede eliminar: tiene órdenes"
+                                aria-label={`No se puede eliminar ${c.nombre}: tiene ${c.numero_ordenes} ${c.numero_ordenes === 1 ? 'orden' : 'órdenes'}`}
                               >
                                 <Trash2 className="w-3 h-3" />
                               </Button>
                             </span>
                           </TooltipTrigger>
                           <TooltipContent>
-                            Tiene {c.numero_ordenes} {c.numero_ordenes === 1 ? 'orden' : 'órdenes'}; el historial se conserva.
+                            No se puede eliminar: tiene {c.numero_ordenes} {c.numero_ordenes === 1 ? 'orden' : 'órdenes'}. El historial se conserva.
                           </TooltipContent>
                         </Tooltip>
                       ) : (
