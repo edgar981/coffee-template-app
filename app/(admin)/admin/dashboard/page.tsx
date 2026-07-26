@@ -3,16 +3,16 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  TrendingUp, ShoppingCart, Package, Users,
-  AlertTriangle, DollarSign, Clock, Banknote, Wallet, Truck,
-} from 'lucide-react';
+import { SlidersHorizontal } from 'lucide-react';
 import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { Button } from '@/components/ui/button';
 import { getDashboardStats } from '@/lib/api/dashboard';
 import { getAnalytics } from '@/lib/api/analytics';
 import { getProducts } from '@/lib/api/products';
 import { getCustomers } from '@/lib/api/customers';
+import { getDashboardPrefs, saveDashboardPrefs } from '@/lib/api/dashboardPrefs';
 import type { Order } from '@/types/order';
 import type { Product } from '@/types/product';
 import type { Customer } from '@/types/customer';
@@ -20,33 +20,38 @@ import type { DashboardStats } from '@/types/dashboard';
 import type { AnalyticsData } from '@/types/analytics';
 import { formatCOP } from '@/lib/utils';
 import StatCard from '@/components/admin/StatCard';
+import DashboardCustomizer from '@/components/admin/DashboardCustomizer';
+import type { Trend } from '@/lib/metrics/trend';
 import { computeTrend, NEUTRAL_TREND } from '@/lib/metrics/trend';
+import { currentMonthOrdersQuery, currentMonthRange } from '@/lib/metrics/order-stat-filters';
+import { isLowStock } from '@/lib/metrics/inventory-filters';
 import {
-  currentMonthOrdersQuery, currentMonthRange,
-  PENDING_ORDERS_QUERY, POR_COBRAR_QUERY,
-} from '@/lib/metrics/order-stat-filters';
-import { isLowStock, LOW_STOCK_QUERY } from '@/lib/metrics/inventory-filters';
+  WIDGET_MAP, DEFAULT_WIDGET_KEYS,
+  type WidgetFormato, type WidgetHrefContext,
+} from '@/constants/dashboard-widgets';
 import DashboardChartCarousel from '@/components/admin/DashboardChartCarousel';
 import { DASHBOARD_COLORS, tooltipStyle } from '@/constants/dashb-styles';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const [stats, setStats]         = useState<DashboardStats | null>(null);
-  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
-  const [products, setProducts]   = useState<Product[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading]     = useState(true);
+  const [stats, setStats]           = useState<DashboardStats | null>(null);
+  const [analytics, setAnalytics]   = useState<AnalyticsData | null>(null);
+  const [products, setProducts]     = useState<Product[]>([]);
+  const [customers, setCustomers]   = useState<Customer[]>([]);
+  // The admin's chosen stat-card layout (ordered visible widget keys). Defaults to
+  // the registry default until the persisted preference loads.
+  const [widgetKeys, setWidgetKeys] = useState<string[]>(DEFAULT_WIDGET_KEYS);
+  const [customizing, setCustomizing] = useState(false);
+  const [loading, setLoading]       = useState(true);
 
   useEffect(() => {
-    Promise.all([getDashboardStats(), getAnalytics(), getProducts(), getCustomers()])
-      .then(([s, a, p, c]) => {
-        setStats(s);
-        setAnalytics(a);
-        setProducts(p);
-        setCustomers(c);
-        setLoading(false);
-      });
+    Promise.all([getDashboardStats(), getAnalytics(), getProducts(), getCustomers(), getDashboardPrefs()])
+      .then(([s, a, p, c, w]) => {
+        setStats(s); setAnalytics(a); setProducts(p); setCustomers(c); setWidgetKeys(w);
+      })
+      .catch(() => {/* leave defaults; a failed sub-fetch shouldn't hang the panel */})
+      .finally(() => setLoading(false));
   }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────────
@@ -56,17 +61,14 @@ export default function Dashboard() {
 
   const categoryData = analytics?.categoryData ?? [];
 
-  // Same month boundary the stats endpoint counted with, plus the estado set that
-  // reproduces its `!= cancelado` filter — so this link's row count equals the
-  // number on the card.
+  // Deep-link context (America/Bogota day keys + the shared month query), fed to
+  // each widget's href builder so a card links to exactly the rows it counts.
   const monthQuery = currentMonthOrdersQuery();
-  // Day keys for the deep links (America/Bogota). `hasta` is today; `desde` the
-  // 1st of the month — both from the SAME shared helper the metrics use.
   const { desde: monthStartKey, hasta: todayKey } = currentMonthRange();
+  const hrefCtx: WidgetHrefContext = { today: todayKey, monthStart: monthStartKey, monthQuery };
 
   // Month-over-month trend pills: current calendar month vs previous complete
-  // month. The anti-noise floor lives in lib/metrics/trend.ts — with the demo
-  // data the previous month has < 5 orders, so these render neutral on their own.
+  // month. The anti-noise floor lives in lib/metrics/trend.ts.
   const m = stats?.monthly;
   const revenueTrend = m ? computeTrend(m.revenue.current,   m.revenue.previous,   m.prevMonthOrders) : NEUTRAL_TREND;
   const ordersTrend  = m ? computeTrend(m.orders.current,    m.orders.previous,    m.prevMonthOrders) : NEUTRAL_TREND;
@@ -77,55 +79,92 @@ export default function Dashboard() {
 
   const porCobrarN = stats?.porCobrar ?? 0;
 
+  // The ONE place widgets meet data: key → { raw value, live sub, trend }. Every
+  // number comes from the stats endpoint or a shared helper (isLowStock), so each
+  // card reconciles with its deep-linked list. Registry holds the rest (title,
+  // icon, colour, formato, href, static subtitle).
+  const widgetValues: Record<string, { raw: number; sub?: string; trend?: Trend }> = stats ? {
+    ventas_hoy:           { raw: stats.ventasHoy },
+    por_cobrar:           { raw: stats.porCobrarMonto, sub: porCobrarN > 0 ? `${porCobrarN} ${porCobrarN === 1 ? 'orden' : 'órdenes'} contraentrega` : 'Nada por cobrar' },
+    despachos_hoy:        { raw: stats.despachosHoy },
+    pedidos_hoy:          { raw: stats.pedidosHoy },
+    ingresos_mes:         { raw: stats.revenueMonth, sub: `Histórico: ${formatCOP(stats.revenueTotal)}`, trend: revenueTrend },
+    ordenes_mes:          { raw: stats.monthly.orders.current, trend: ordersTrend },
+    ordenes_pendientes:   { raw: stats.pendingOrders, sub: porCobrarN > 0 ? `Por cobrar: ${porCobrarN}` : undefined, trend: undefined },
+    promedio_por_orden:   { raw: stats.avgTicket, trend: avgTrend },
+    alertas_stock:        { raw: lowStock },
+    productos_activos:    { raw: activeProducts },
+    clientes_totales:     { raw: customers.length },
+    clientes_recurrentes: { raw: analytics?.kpis.tasaRetencion ?? 0, trend: recurrentesTrend },
+  } : {};
+
+  const formatValue = (formato: WidgetFormato, raw: number) =>
+    formato === 'cop' ? formatCOP(raw) : formato === 'pct' ? `${raw}%` : String(raw);
+
+  // Optimistic: re-render the grid immediately, then persist. A failed write
+  // surfaces a toast but keeps the on-screen layout (they can retry).
+  const applyWidgets = (keys: string[]) => {
+    setWidgetKeys(keys);
+    saveDashboardPrefs(keys).catch(() => toast.error('No se pudo guardar la configuración del panel'));
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Panel de Operaciones</h1>
-        <p className="text-sm text-muted-foreground mt-1">Café Nayoli — Resumen del negocio</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Panel de Operaciones</h1>
+          <p className="text-sm text-muted-foreground mt-1">Café Nayoli — Resumen del negocio</p>
+        </div>
+        <Button variant="outline" size="sm" className="shrink-0 gap-2" onClick={() => setCustomizing(true)} title="Personalizar panel">
+          <SlidersHorizontal className="w-4 h-4" />
+          <span className="hidden sm:inline">Personalizar</span>
+        </Button>
       </div>
 
-      {/* ── Fila "Hoy" — el pulso operativo del día ─────────────────────────── */}
-      <section>
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Hoy</h2>
-        {loading ? (
-          <StatRowSkeleton />
-        ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard icon={Banknote}     label="Ventas de hoy"   value={formatCOP(stats?.ventasHoy ?? 0)}    sub="Pagos recibidos hoy"                                            color="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" href={`/admin/pagos?desde=${todayKey}&hasta=${todayKey}`} />
-            <StatCard icon={Wallet}       label="Por cobrar"      value={formatCOP(stats?.porCobrarMonto ?? 0)} sub={porCobrarN > 0 ? `${porCobrarN} ${porCobrarN === 1 ? 'orden' : 'órdenes'} contraentrega` : 'Nada por cobrar'} color="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" href={`/admin/ordenes?${POR_COBRAR_QUERY}`} />
-            <StatCard icon={Truck}        label="Despachos de hoy" value={stats?.despachosHoy ?? 0}           sub="Salieron a ruta hoy"                                            color="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400" href="/admin/entregas" />
-            <StatCard icon={ShoppingCart} label="Pedidos de hoy"  value={stats?.pedidosHoy ?? 0}              sub="Órdenes creadas hoy"                                            color="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" href={`/admin/ordenes?desde=${todayKey}&hasta=${todayKey}`} />
-          </div>
-        )}
-      </section>
-
-      {/* Stats row 1 */}
-      {loading ? <StatRowSkeleton /> : (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Ingresos DEL MES (Payments) — el valor lleva pill MoM coherente y el
-            acumulado histórico va de subtítulo. Link → Pagos del mes. */}
-        <StatCard icon={DollarSign}    label="Ingresos del mes"    value={formatCOP(stats?.revenueMonth ?? 0)} sub={`Histórico: ${formatCOP(stats?.revenueTotal ?? 0)}`} trend={revenueTrend} color="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" href={`/admin/pagos?desde=${monthStartKey}&hasta=${todayKey}`} />
-        <StatCard icon={ShoppingCart}  label="Órdenes del mes"     value={stats?.monthly.orders.current ?? 0}    sub="Mes en curso" trend={ordersTrend} color="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" href={`/admin/ordenes?${monthQuery}`} />
-        {/* pendingOrders EXCLUYE contraentregas despachadas (por cobrar) — la
-            plata en la calle no "requiere atención". El link (cobrar=0) filtra
-            al MISMO conjunto que el número (definición compartida). */}
-        <StatCard icon={Clock}         label="Órdenes Pendientes"  value={stats?.pendingOrders ?? 0}  sub={porCobrarN > 0 ? `Por cobrar: ${porCobrarN}` : 'Requieren atención'} color="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" href={`/admin/ordenes?${PENDING_ORDERS_QUERY}`} />
-        <StatCard icon={AlertTriangle} label="Alertas de Stock"    value={lowStock}                   sub="Productos bajo mínimo"     color="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" href={`/admin/inventario?${LOW_STOCK_QUERY}`} />
-      </div>
+      {/* Customizable stat-card grid — the ONLY personalizable surface. The widgets
+          render in the admin's chosen order; the charts + recent orders below are
+          fixed. A retired key (WIDGET_MAP miss) is skipped, never crashes. */}
+      {loading ? (
+        <StatGridSkeleton />
+      ) : widgetKeys.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border p-8 text-center">
+          <p className="text-sm text-muted-foreground">Sin widgets — personaliza tu panel para elegir qué ver.</p>
+          <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={() => setCustomizing(true)}>
+            <SlidersHorizontal className="w-4 h-4" /> Personalizar
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {widgetKeys.map(key => {
+            const w = WIDGET_MAP[key];
+            if (!w) return null;
+            const v = widgetValues[key];
+            const href = typeof w.href === 'function' ? w.href(hrefCtx) : w.href;
+            return (
+              <StatCard
+                key={key}
+                icon={w.icono}
+                label={w.titulo}
+                value={formatValue(w.formato, v?.raw ?? 0)}
+                sub={v?.sub ?? w.subtitulo}
+                trend={v?.trend}
+                color={w.color}
+                href={href}
+              />
+            );
+          })}
+        </div>
       )}
 
-      {/* Stats row 2 */}
-      {loading ? <StatRowSkeleton /> : (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Users}       label="Clientes Totales"     value={customers.length}         sub="Registrados"                       color="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" href="/admin/clientes" />
-        <StatCard icon={Package}     label="Productos Activos"    value={activeProducts}           sub="En catálogo"                       color="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" />
-        <StatCard icon={TrendingUp}  label="Promedio por orden"   value={formatCOP(stats?.avgTicket ?? 0)}  sub="Promedio por venta · mes" trend={avgTrend} color="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400" />
-        <StatCard icon={TrendingUp}  label="Clientes Recurrentes" value={`${analytics?.kpis.tasaRetencion ?? 0}%`} sub="con más de 1 compra" trend={recurrentesTrend} color="bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400" href="/admin/clientes?recurrentes=1" />
-      </div>
-      )}
+      <DashboardCustomizer
+        open={customizing}
+        onOpenChange={setCustomizing}
+        value={widgetKeys}
+        onApply={applyWidgets}
+      />
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -194,12 +233,12 @@ export default function Dashboard() {
 }
 
 // ─── Loading skeleton ─────────────────────────────────────────────────────────
-// One row of four card-shaped placeholders, matching the StatCard footprint so
-// the layout doesn't jump when the real numbers arrive.
-function StatRowSkeleton() {
+// Card-shaped placeholders matching the StatCard footprint so the layout doesn't
+// jump when the real numbers arrive. Eight = the default widget count.
+function StatGridSkeleton() {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" aria-hidden>
-      {Array.from({ length: 4 }).map((_, i) => (
+      {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="stat-card animate-pulse">
           <div className="w-10 h-10 rounded-lg bg-muted" />
           <div className="mt-3 space-y-2">
