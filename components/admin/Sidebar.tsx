@@ -134,7 +134,7 @@ function SearchButton({ onClick }: { onClick: () => void }) {
           aria-label="Buscar (⌘K)"
           className={cn(ADMIN_ICON_BUTTON, 'h-8 w-8 shrink-0')}
         >
-          <Search className="h-[18px] w-[18px]" />
+          <Search className="h-4.5 w-4.5" />
         </button>
       </TooltipTrigger>
       <TooltipContent side="bottom">Buscar (⌘K)</TooltipContent>
@@ -239,7 +239,7 @@ export default function Sidebar({
                   aria-label="Colapsar panel"
                   className={cn(ADMIN_ICON_BUTTON, 'h-8 w-8 shrink-0')}
                 >
-                  <PanelLeftClose className="h-[18px] w-[18px]" />
+                  <PanelLeftClose className="h-4.5 w-4.5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">Colapsar panel</TooltipContent>
