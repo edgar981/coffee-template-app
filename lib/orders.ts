@@ -3,6 +3,42 @@ import { Prisma, MetodoPago, CondicionPago } from '@/src/generated/prisma/client
 import { ensureShipping, restockShippingStock } from '@/lib/fulfillment';
 import { toWhatsappNumber } from '@/lib/whatsapp-link';
 
+// THE rule that turns a payment method into a payment CONDITION. `condicion_pago`
+// is never asked in a form anymore — it is DERIVED here, in one place, so the day
+// the rule evolves there is a single line to change. Used at creation (from the
+// declared method, admin `metodoPagoPrevisto` or checkout `metodo_pago`) and at
+// method edits before fulfillment starts. The dispatch-of-an-unpaid-order flip
+// (markContraentregaAtDispatch) is a separate, action-driven mutation.
+//
+// EFECTIVO ("pago contra entrega") → CONTRAENTREGA: the order may be prepared and
+// dispatched while `pendiente` and the money is collected on delivery. Any other
+// method — or none declared ("Por definir") — → ANTICIPADO. Accepts the typed
+// enum or the free checkout string (case-insensitive), so both creation callers
+// funnel through it.
+export function derivarCondicionPago(
+  metodo: MetodoPago | string | null | undefined,
+): CondicionPago {
+  return String(metodo ?? '').trim().toUpperCase() === 'EFECTIVO'
+    ? 'CONTRAENTREGA'
+    : 'ANTICIPADO';
+}
+
+// The dispatch of an UNPAID order flips its condición to CONTRAENTREGA — the goods
+// left before the money did, so it IS now cash-on-delivery. This is the LAST
+// permitted mutation of condición (after it, a Payment or the dispatch itself
+// locks it). It deliberately bypasses the edit-time lock in `transitionOrder`
+// because it IS the dispatch action, run inside the dispatch transaction. Kept
+// here so every write to `condicion_pago` lives in this file.
+export async function markContraentregaAtDispatch(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+): Promise<void> {
+  await tx.order.update({
+    where: { id: orderId },
+    data:  { condicion_pago: 'CONTRAENTREGA', updatedAt: new Date() },
+  });
+}
+
 // Fields any caller may change on an order. `?? undefined` semantics (a null/
 // absent value is left untouched) match the original PATCH handler.
 export interface OrderTransitionData {
@@ -11,11 +47,13 @@ export interface OrderTransitionData {
   notas_internas?: string | null;
   notas_entrega?: string | null;
   direccion_entrega?: string | null;
-  // Cambiable SOLO mientras la orden no tenga Shipping ni Payment — después el
-  // ciclo de vida ya corrió bajo una condición y cambiarla corrompe invariantes
-  // (p. ej. un despacho no pagado que era válido por CONTRAENTREGA). Guardado
-  // server-side abajo; la UI ni siquiera lo ofrece tras la creación.
-  condicion_pago?: CondicionPago | null;
+  // Método de pago previsto (intención declarada). Editarlo RE-DERIVA la
+  // condición de pago (derivarCondicionPago) — la condición nunca se acepta
+  // cruda del cliente. La re-derivación solo procede mientras la orden no tenga
+  // Shipping ni Payment; después el ciclo de vida ya corrió bajo una condición y
+  // cambiarla corrompe invariantes (bloqueo server-side abajo). `undefined` = no
+  // se toca; `null` = "Por definir" (→ ANTICIPADO).
+  metodoPagoPrevisto?: MetodoPago | null;
 }
 
 // La condición de pago está bloqueada por el ciclo de vida. Routes → 409.
@@ -38,14 +76,17 @@ export async function transitionOrder(
   id: string,
   data: OrderTransitionData,
 ) {
-  // condicion_pago is IMMUTABLE once the lifecycle ran under it: any Shipping or
-  // Payment locks it (server-side guard — the UI never offers the change).
-  if (data.condicion_pago != null) {
+  // Editing the declared method RE-DERIVES the condición. It is IMMUTABLE once the
+  // lifecycle ran under it: any Shipping or Payment locks a CHANGE of condición
+  // (server-side guard — the UI never offers the change post-fulfillment).
+  let derivedCondicion: CondicionPago | undefined;
+  if (data.metodoPagoPrevisto !== undefined) {
+    derivedCondicion = derivarCondicionPago(data.metodoPagoPrevisto);
     const current = await tx.order.findUniqueOrThrow({
       where:  { id },
       select: { condicion_pago: true, shipping: { select: { id: true } }, payments: { select: { id: true }, take: 1 } },
     });
-    if (current.condicion_pago !== data.condicion_pago && (current.shipping || current.payments.length > 0)) {
+    if (current.condicion_pago !== derivedCondicion && (current.shipping || current.payments.length > 0)) {
       throw new CondicionPagoLockedError();
     }
   }
@@ -53,13 +94,16 @@ export async function transitionOrder(
   const updated = await tx.order.update({
     where: { id },
     data: {
-      estado:            data.estado            ?? undefined,
-      metodo_pago:       data.metodo_pago       ?? undefined,
-      notas_internas:    data.notas_internas    ?? undefined,
-      notas_entrega:     data.notas_entrega     ?? undefined,
-      direccion_entrega: data.direccion_entrega ?? undefined,
-      condicion_pago:    data.condicion_pago    ?? undefined,
-      updatedAt:         new Date(),
+      estado:             data.estado            ?? undefined,
+      metodo_pago:        data.metodo_pago       ?? undefined,
+      notas_internas:     data.notas_internas    ?? undefined,
+      notas_entrega:      data.notas_entrega     ?? undefined,
+      direccion_entrega:  data.direccion_entrega ?? undefined,
+      // `undefined` when the method wasn't touched; when it was, write both the
+      // method (null = "Por definir") and its derived condición together.
+      metodoPagoPrevisto: data.metodoPagoPrevisto === undefined ? undefined : data.metodoPagoPrevisto,
+      condicion_pago:     derivedCondicion ?? undefined,
+      updatedAt:          new Date(),
     },
   });
 
@@ -166,10 +210,9 @@ export interface CreateOrderInput {
   // crea Payment, NO cambia Order.estado, NO es el registro del dinero — sólo un
   // dato de la orden. La orden sigue naciendo `pendiente`. Checkout lo deja null.
   metodoPagoPrevisto?: MetodoPago | null;
-  // CONDICIÓN de pago (no método): ANTICIPADO (default) o CONTRAENTREGA. El
-  // checkout no la envía (default ANTICIPADO) — exponerla al storefront está
-  // deliberadamente pendiente de decisiones del cliente.
-  condicion_pago?: CondicionPago | null;
+  // NOTA: `condicion_pago` NO es un input. Se DERIVA server-side del método
+  // declarado (derivarCondicionPago) — admin `metodoPagoPrevisto` o checkout
+  // `metodo_pago`. Un valor enviado por el cliente se ignora por diseño.
   total: number;
   costo_envio?: number;
   direccion_entrega?: string | null;
@@ -305,7 +348,10 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
             estado:            input.estado ?? undefined, // undefined → schema default 'pendiente'
             metodo_pago:       input.metodo_pago ?? null,
             metodoPagoPrevisto: input.metodoPagoPrevisto ?? null,
-            condicion_pago:    input.condicion_pago ?? undefined, // undefined → default ANTICIPADO
+            // DERIVED, never taken from the client: admin declares
+            // `metodoPagoPrevisto`, checkout declares `metodo_pago` — either drives
+            // the condición through the single rule (EFECTIVO → CONTRAENTREGA).
+            condicion_pago:    derivarCondicionPago(input.metodoPagoPrevisto ?? input.metodo_pago),
             total:             input.total,
             costo_envio:       input.costo_envio ?? 0,
             direccion_entrega: input.direccion_entrega ?? null,

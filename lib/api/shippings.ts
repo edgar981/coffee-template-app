@@ -38,7 +38,10 @@ export async function scheduleDelivery(
 
 export async function updateShipping(
   id: string,
-  data: Partial<Shipping>
+  // `confirmarSinPago` is not a Shipping field — it's the operator's explicit
+  // acknowledgement to dispatch an order with no registered payment (the server
+  // then flips it to CONTRAENTREGA). Only meaningful on the en_ruta transition.
+  data: Partial<Shipping> & { confirmarSinPago?: boolean }
 ): Promise<Shipping> {
   const res = await fetch(`/api/shippings/${id}`, {
     method:  'PATCH',

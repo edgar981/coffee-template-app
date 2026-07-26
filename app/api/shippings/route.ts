@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
-import { ensureShipping, decideShippingSchedulable, policyForCondicion } from '@/lib/fulfillment';
+import { ensureShipping, decideShippingSchedulable } from '@/lib/fulfillment';
 
 // Order-owned fields read live via the relation — INCLUDING the delivery
 // address, which lives only on the Order (the Shipping no longer keeps its own
@@ -36,15 +36,15 @@ export async function GET() {
   return NextResponse.json(shippings);
 }
 
-// POST ensures a SCHEDULABLE Shipping exists for an order, honoring the ORDER's
-// condicion_pago. It is the ONLY create entry point exposed to the UI (the
-// auto-create on payment lives in lib/fulfillment via transitionOrder).
+// POST ensures a SCHEDULABLE Shipping exists for an order. It is the ONLY create
+// entry point exposed to the UI (the auto-create on payment lives in
+// lib/fulfillment via transitionOrder).
 //
-//   • ANTICIPADO (→ REQUIRE_PAYMENT): an unpaid order is rejected — pay first.
-//     (The Shipping is only ever created by confirming the payment.)
-//   • CONTRAENTREGA (→ ALLOW_UNPAID): "Preparar envío" while still `pendiente`;
-//     the Shipping is created in `preparando` (entrega primero, cobra después).
-//   • Cancelled orders are NEVER schedulable, under any condición.
+//   • Any non-cancelled order may be prepared — "Preparar envío" while still
+//     `pendiente`, regardless of payment. Preparing is harmless (no stock moves);
+//     the real gate is at DISPATCH, where an unpaid order needs explicit
+//     confirmation (shippings PATCH) and flips to CONTRAENTREGA.
+//   • Cancelled orders are NEVER schedulable.
 //   • Idempotent: if a Shipping already exists it's returned as-is (never a second
 //     one, never a state reset) — so a later payment confirmation is a no-op.
 export async function POST(req: NextRequest) {
@@ -58,14 +58,13 @@ export async function POST(req: NextRequest) {
 
   const order = await prisma.order.findUnique({
     where:  { id: ordenId },
-    select: { id: true, estado: true, condicion_pago: true, costo_envio: true, shipping: { select: { id: true } } },
+    select: { id: true, estado: true, costo_envio: true, shipping: { select: { id: true } } },
   });
   if (!order) return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 });
 
-  // The whole policy decision lives in one pure function (server is the
-  // enforcement point), fed by the ORDER's condición. Cancelled → reject;
-  // existing → return as-is; unpaid ANTICIPADO → reject; otherwise create.
-  const decision = decideShippingSchedulable(order.estado, !!order.shipping, policyForCondicion(order.condicion_pago));
+  // The whole decision lives in one pure function (server is the enforcement
+  // point). Cancelled → reject; existing → return as-is; otherwise create.
+  const decision = decideShippingSchedulable(order.estado, !!order.shipping);
 
   if (decision.action === 'reject') {
     return NextResponse.json({ error: decision.error }, { status: decision.status });

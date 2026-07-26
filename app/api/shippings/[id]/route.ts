@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { dispatchStockDecrement, restockShippingStock, DispatchStockError } from '@/lib/fulfillment';
+import { markContraentregaAtDispatch } from '@/lib/orders';
 import { TipoEnvio } from '@/src/generated/prisma/client';
 
 const TIPOS_ENVIO = Object.values(TipoEnvio);
@@ -92,8 +93,12 @@ export async function PATCH(
   const nextEstado =
     isScheduling && current.estado === 'fallido' ? 'preparando' : (body.estado ?? undefined);
 
-  // THE dispatch transition (preparando → en_ruta). Two gates + one side effect:
+  // THE dispatch transition (preparando → en_ruta). Two gates + side effects:
   const justDispatched = nextEstado === 'en_ruta' && current.estado !== 'en_ruta';
+  // Dispatching an order with no registered payment: allowed, but only with the
+  // operator's explicit confirmation. On confirm, the order becomes CONTRAENTREGA
+  // (goods left before the money) — computed once here, applied in the tx below.
+  const dispatchingUnpaid = justDispatched && current.order?.estado !== 'pagado';
 
   if (justDispatched) {
     // 1. A delivery can't be dispatched until it's scheduled: courier AND
@@ -107,12 +112,13 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    // 2. CONDICIÓN guard: an ANTICIPADO order is NEVER dispatched unpaid — even
-    //    if its Shipping predates the condición rules or the order was flipped
-    //    back to pendiente. A CONTRAENTREGA order dispatches unpaid by design.
-    if (current.order?.condicion_pago === 'ANTICIPADO' && current.order.estado !== 'pagado') {
+    // 2. Unpaid dispatch requires an EXPLICIT confirmation flag — protects against
+    //    accidental dispatch and against stale clients that don't know about it.
+    //    Paid orders dispatch freely (no flag). "La acción define la condición":
+    //    confirming here is what turns the order into CONTRAENTREGA (below).
+    if (dispatchingUnpaid && body.confirmarSinPago !== true) {
       return NextResponse.json(
-        { error: 'Una orden con pago anticipado no puede despacharse sin el pago registrado' },
+        { error: 'Esta orden no tiene un pago registrado. Confirma el despacho sin pago para continuar; la orden quedará contraentrega (por cobrar).' },
         { status: 409 },
       );
     }
@@ -132,6 +138,13 @@ export async function PATCH(
     // commit together or not at all — a blocked dispatch changes nothing.
     const updated = await prisma.$transaction(async (tx) => {
       if (justDispatched) await dispatchStockDecrement(tx, current);
+      // Confirmed unpaid dispatch → the order is now cash-on-delivery. Flip its
+      // condición in the SAME transaction (last permitted mutation of condición),
+      // so a rolled-back dispatch never leaves a stray CONTRAENTREGA. No-op if it
+      // was already CONTRAENTREGA (e.g. an Efectivo order).
+      if (dispatchingUnpaid && current.order?.condicion_pago !== 'CONTRAENTREGA') {
+        await markContraentregaAtDispatch(tx, current.orden_id);
+      }
       if (justFailed)     await restockShippingStock(tx, current, 'Entrega fallida');
 
       return tx.shipping.update({

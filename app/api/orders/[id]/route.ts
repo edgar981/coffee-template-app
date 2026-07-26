@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
-import { transitionOrder, CondicionPagoLockedError } from '@/lib/orders';
+import { transitionOrder, CondicionPagoLockedError, type OrderTransitionData } from '@/lib/orders';
 
 export async function PATCH(
   req: NextRequest,
@@ -15,11 +15,24 @@ export async function PATCH(
   const { id } = await params;
   const body   = await req.json();
 
+  // Whitelist the mutable fields. `condicion_pago` is NEVER accepted raw — it is
+  // derived from `metodoPagoPrevisto` inside transitionOrder (a value sent in the
+  // body is ignored by construction). Editing the method re-derives the condición
+  // (locked once a Shipping/Payment exists → 409 below).
+  const data: OrderTransitionData = {
+    estado:             body.estado,
+    metodo_pago:        body.metodo_pago,
+    notas_internas:     body.notas_internas,
+    notas_entrega:      body.notas_entrega,
+    direccion_entrega:  body.direccion_entrega,
+    metodoPagoPrevisto: body.metodoPagoPrevisto,
+  };
+
   // Status write + Shipping auto-create happen in ONE transaction, so a paid
   // order can never be left without its Shipping. Every UI path (dropdown, modal,
   // payment registration) funnels through the shared `transitionOrder` helper.
   try {
-    const result = await prisma.$transaction((tx) => transitionOrder(tx, id, body));
+    const result = await prisma.$transaction((tx) => transitionOrder(tx, id, data));
     return NextResponse.json(result);
   } catch (error) {
     // condicion_pago is lifecycle-locked (Shipping/Payment exists) → 409.
