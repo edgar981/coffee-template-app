@@ -96,3 +96,22 @@ Recientes son fijos, fuera del sistema (v1).
 - TODO (no implementado): el endpoint de stats calcula TODAS las métricas aunque
   el usuario muestre pocas tarjetas. Optimizar a cálculo selectivo por las keys
   visibles queda anotado, no hecho.
+
+## Matching de clientes (teléfono no es único)
+
+`Customer.telefono` NO tiene unique constraint — un teléfono puede ser compartido
+por varias personas (decisión de producto; el duplicado consciente es legal). Por
+eso el matching por teléfono puede devolver VARIOS. La ambigüedad se resuelve con
+una regla DETERMINISTA, compartida por el endpoint de lookup (orden del banner) y
+el auto-adjunte silencioso del server cuando NO llega decisión explícita (checkout
+del storefront o clients viejos): **más órdenes primero; empate → actividad más
+reciente (última orden, luego `updatedAt`)**. Vive en `rankPhoneMatches`
+(`lib/orders.ts`). Arbitrario-pero-documentado > `findFirst` accidental.
+
+La creación de órdenes (`createOrderWithCustomer`, path único) acepta la decisión
+EXPLÍCITA del admin: `cliente_id` (adjunta a ese cliente, sin matching) o
+`forzarClienteNuevo` (crea nuevo pese al match) — mutuamente excluyentes (zod 400).
+Sin decisión, aplica la regla determinista. El teléfono se normaliza siempre en
+todo write+lookup (`normalizeCustomerPhone` en `lib/whatsapp-link.ts`). NO fusionar
+duplicados automáticamente — el merge es decisión humana (feature futura); las
+órdenes ya apuntan por `cliente_id`.

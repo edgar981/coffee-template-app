@@ -6,27 +6,30 @@ export async function getCustomers(): Promise<Customer[]> {
   return res.json();
 }
 
-/** The existing customer an order upsert WOULD match by phone/email, or null. */
+/** An existing customer an order would match by phone/email. */
 export interface CustomerMatch {
-  id:      string;
-  nombre:  string;
-  ordenes: number;
+  id:       string;
+  nombre:   string;
+  ordenes:  number;
+  telefono: string | null;
+  email?:   string | null;
 }
 
-// Proactive duplicate check for the New Order modal. Returns the matching
-// customer (server normalizes the phone) or null. Never throws on "no match".
-export async function lookupCustomer(
+// Proactive duplicate check for the New Order modal. Returns ALL matching
+// customers (server normalizes the phone; capped + ordered most-orders-first) —
+// a phone can be shared by several people. Never throws on "no match".
+export async function lookupCustomers(
   params: { telefono?: string; email?: string },
-): Promise<CustomerMatch | null> {
+): Promise<CustomerMatch[]> {
   const qs = new URLSearchParams();
   if (params.telefono) qs.set('telefono', params.telefono);
   if (params.email)    qs.set('email', params.email);
-  if (![...qs.keys()].length) return null;
+  if (![...qs.keys()].length) return [];
 
   const res = await fetch(`/api/customers/lookup?${qs.toString()}`);
-  if (!res.ok) return null; // a lookup failure must never block order creation
+  if (!res.ok) return []; // a lookup failure must never block order creation
   const data = await res.json();
-  return data?.customer ?? null;
+  return Array.isArray(data?.customers) ? data.customers : [];
 }
 
 // Single customer + order history for the profile page.

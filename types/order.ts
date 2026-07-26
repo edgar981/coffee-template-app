@@ -132,6 +132,9 @@ export interface AdminOrderPayload {
   // Cliente explícito adoptado desde el banner de duplicado ("Usar este
   // cliente"): la orden se adjunta a él (validado server-side; sin upsert).
   cliente_id?:        string;
+  // "Crear cliente nuevo" pese a un match — el server salta el matching. Mutuamente
+  // excluyente con cliente_id.
+  forzarClienteNuevo?: boolean;
   canal?:             OrderChannel;
   costo_envio?:       number;
   direccion_entrega?: string;

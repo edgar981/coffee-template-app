@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { getOrders, createOrder, updateOrder } from '@/lib/api/orders';
 import { ensureOrderShipping } from '@/lib/api/shippings';
 import { getCatalog } from '@/lib/api/products';
-import { lookupCustomer, type CustomerMatch } from '@/lib/api/customers';
+import { lookupCustomers, type CustomerMatch } from '@/lib/api/customers';
 import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
 import { RegisterPaymentModal } from '@/components/admin/RegisterPaymentModal';
 import type { Order, OrderForm, OrderLineForm, OrderStatus, OrderChannel } from '@/types/order';
@@ -172,12 +172,16 @@ function Ordenes() {
   const [saving, setSaving]               = useState(false);
   const savingRef                         = useRef(false);
   const idemKeyRef                        = useRef<string>('');
-  // Proactive duplicate detection in the New Order modal. `customerMatch` is the
-  // existing customer the phone/email would match (drives the non-blocking
-  // banner); `usingClienteId` is set when the operator adopts them ("Usar este
-  // cliente") — the order then attaches to that id instead of upserting.
-  const [customerMatch, setCustomerMatch] = useState<CustomerMatch | null>(null);
-  const [usingClienteId, setUsingClienteId] = useState<string | null>(null);
+  // Proactive duplicate detection in the New Order modal. `customerMatches` are the
+  // existing customers the phone/email would match (a phone can be shared → many);
+  // `decision` is the operator's explicit choice from the banner. Submit is gated
+  // until they decide when matches exist.
+  const [customerMatches, setCustomerMatches] = useState<CustomerMatch[]>([]);
+  const [decision, setDecision] = useState<{ tipo: 'usar'; clienteId: string } | { tipo: 'nuevo' } | null>(null);
+  const [gateBlocked, setGateBlocked] = useState(false); // "elige el cliente" message + ring
+  const [gatePulse, setGatePulse]     = useState(false); // brief attention pulse
+  const bannerRef      = useRef<HTMLDivElement | null>(null);
+  const firstActionRef = useRef<HTMLButtonElement | null>(null);
   // Real catalog for the New Order line selectors (same source as the storefront).
   const [catalog, setCatalog]             = useState<Product[]>([]);
 
@@ -246,7 +250,7 @@ function Ordenes() {
 
   // Opens the New Order form with a FRESH idempotency key — one key per intended
   // order, reused across double-clicks of that same form so the server can dedup.
-  const resetCustomerDetection = () => { setCustomerMatch(null); setUsingClienteId(null); };
+  const resetCustomerDetection = () => { setCustomerMatches([]); setDecision(null); setGateBlocked(false); setGatePulse(false); };
 
   const openNewOrder = () => {
     idemKeyRef.current = crypto.randomUUID();
@@ -255,32 +259,50 @@ function Ordenes() {
     setShowForm(true);
   };
 
-  // Look up the existing customer this phone/email would match, on blur of those
-  // fields. Read-only; never blocks. Skipped once a customer is already adopted.
+  // Look up the customers this phone/email would match, on blur of those fields.
+  // Read-only; never blocks. Skipped once a decision was made (adopt/new).
   const detectCustomer = async () => {
-    if (usingClienteId) return;
-    const match = await lookupCustomer({
+    if (decision) return;
+    const matches = await lookupCustomers({
       telefono: form.cliente_telefono || undefined,
       email:    form.cliente_email || undefined,
     });
-    setCustomerMatch(match);
+    setCustomerMatches(matches);
   };
 
-  // Adopt the matched customer: the order will carry its `cliente_id` (no upsert),
-  // and its name fills the form. Editing phone/email afterwards un-adopts (below).
-  const useMatchedCustomer = () => {
-    if (!customerMatch) return;
-    setUsingClienteId(customerMatch.id);
-    setForm(f => ({ ...f, cliente_nombre: customerMatch.nombre }));
-    setCustomerMatch(null);
+  // Adopt one match: the order carries its cliente_id (no upsert); its name fills
+  // the form. Editing phone/email afterwards resets the decision (below).
+  const chooseUsar = (m: CustomerMatch) => {
+    setDecision({ tipo: 'usar', clienteId: m.id });
+    setForm(f => ({ ...f, cliente_nombre: m.nombre }));
+    setGateBlocked(false); setGatePulse(false);
   };
 
-  // "Crear nuevo de todas formas" — dismiss the banner and let the normal upsert
-  // run (a conscious duplicate is allowed; shared phones are legal).
-  const dismissMatch = () => setCustomerMatch(null);
+  // "Crear cliente nuevo" — an explicit, server-honored decision (forzarClienteNuevo)
+  // so the upsert can't silently re-match. Conscious duplicate; shared phones legal.
+  const chooseNuevo = () => {
+    setDecision({ tipo: 'nuevo' });
+    setGateBlocked(false); setGatePulse(false);
+  };
 
-  // Changing an identity field invalidates any prior detection/adoption.
-  const onIdentityChange = () => { if (usingClienteId || customerMatch) resetCustomerDetection(); };
+  // Changing an identity field invalidates any prior detection/decision.
+  const onIdentityChange = () => { if (decision || customerMatches.length) resetCustomerDetection(); };
+
+  const prefersReducedMotion = () =>
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Submit was blocked because matches exist and no decision was made: pull the
+  // banner into view, focus its first action, and flag the ring + message. The
+  // pulse is brief and skipped under reduced-motion (the static ring stays).
+  const nudgeToDecide = () => {
+    setGateBlocked(true);
+    bannerRef.current?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' });
+    firstActionRef.current?.focus();
+    if (!prefersReducedMotion()) {
+      setGatePulse(true);
+      setTimeout(() => setGatePulse(false), 1200);
+    }
+  };
 
   // ── New-order line editing ───────────────────────────────────────────────
   const productBySlug = (slug: string) => catalog.find(p => p.slug === slug);
@@ -334,6 +356,12 @@ function Ordenes() {
       toast.error('Selecciona el método de pago para marcar la orden como pagada');
       return;
     }
+    // Decision gate (UX, never blocks the SALE — only asks): matches exist but the
+    // operator hasn't chosen. Don't submit; pull them to the banner to decide.
+    if (customerMatches.length > 0 && decision === null) {
+      nudgeToDecide();
+      return;
+    }
     // Guarantee a key even if the form was opened without openNewOrder.
     if (!idemKeyRef.current) idemKeyRef.current = crypto.randomUUID();
 
@@ -344,7 +372,8 @@ function Ordenes() {
         cliente_nombre:    form.cliente_nombre,
         cliente_email:     form.cliente_email || undefined,
         cliente_telefono:  form.cliente_telefono || undefined,
-        cliente_id:        usingClienteId || undefined,
+        cliente_id:         decision?.tipo === 'usar' ? decision.clienteId : undefined,
+        forzarClienteNuevo: decision?.tipo === 'nuevo' ? true : undefined,
         canal:             form.canal,
         costo_envio:       Number(form.costo_envio) || 0,
         direccion_entrega: form.direccion_entrega || undefined,
@@ -675,27 +704,53 @@ function Ordenes() {
               </div>
               <p className="col-span-2 -mt-1 text-xs text-muted-foreground">* Ingresa al menos un teléfono o correo del cliente.</p>
 
-              {/* Detección proactiva de duplicado — banner NO bloqueante. */}
-              {customerMatch && !usingClienteId && (
-                <div className="col-span-2 flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-900/20 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-amber-900 dark:text-amber-200">
-                    Ya existe <strong>{customerMatch.nombre}</strong> con estos datos
-                    {' '}({customerMatch.ordenes} {customerMatch.ordenes === 1 ? 'orden' : 'órdenes'}).
+              {/* Detección proactiva de duplicado — banner NO bloqueante (pero el
+                  submit exige elegir; ver el gate en handleSave). Lista TODOS los
+                  clientes que comparten estos datos, uno por fila. */}
+              {customerMatches.length > 0 && !decision && (
+                <div
+                  ref={bannerRef}
+                  className={`col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-900/20 ${gateBlocked ? 'ring-2 ring-amber-500 ring-offset-2 ring-offset-background' : ''} ${gatePulse ? 'animate-pulse' : ''}`}
+                >
+                  <p className="mb-2 text-amber-900 dark:text-amber-200">
+                    {customerMatches.length === 1
+                      ? <>Estos datos ya pertenecen a un cliente:</>
+                      : <>Estos datos pertenecen a <strong>{customerMatches.length} clientes</strong>:</>}
                   </p>
-                  <div className="flex shrink-0 gap-2">
-                    <Button type="button" size="sm" onClick={useMatchedCustomer}>Usar este cliente</Button>
-                    <Button type="button" size="sm" variant="ghost" onClick={dismissMatch}>Crear nuevo</Button>
+                  <ul className="space-y-1.5">
+                    {customerMatches.map((mtch, i) => (
+                      <li key={mtch.id} className="flex items-center justify-between gap-2 rounded-md bg-background/60 px-2.5 py-1.5">
+                        <span className="min-w-0 truncate">
+                          <strong className="font-medium">{mtch.nombre}</strong>
+                          <span className="text-muted-foreground"> · {mtch.ordenes} {mtch.ordenes === 1 ? 'orden' : 'órdenes'}</span>
+                        </span>
+                        <Button ref={i === 0 ? firstActionRef : undefined} type="button" size="sm" className="shrink-0" onClick={() => chooseUsar(mtch)}>Usar</Button>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-2 flex justify-end">
+                    <Button type="button" size="sm" variant="ghost" onClick={chooseNuevo}>Crear cliente nuevo</Button>
                   </div>
                 </div>
               )}
 
-              {/* Cliente adoptado — la orden viajará con su cliente_id. */}
-              {usingClienteId && (
+              {/* Decisión tomada: adjuntar a un cliente existente. */}
+              {decision?.tipo === 'usar' && (
                 <div className="col-span-2 flex items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm dark:border-emerald-800 dark:bg-emerald-900/20">
                   <span className="text-emerald-900 dark:text-emerald-200">
                     Vinculado a <strong>{form.cliente_nombre}</strong> — la orden se adjunta a este cliente.
                   </span>
-                  <button type="button" onClick={() => setUsingClienteId(null)} aria-label="Desvincular" className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-300">
+                  <button type="button" onClick={() => setDecision(null)} aria-label="Cambiar decisión" className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-300">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* Decisión tomada: crear cliente nuevo pese al match. */}
+              {decision?.tipo === 'nuevo' && (
+                <div className="col-span-2 flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm">
+                  <span className="text-muted-foreground">Se creará un <strong className="text-foreground">cliente nuevo</strong> (duplicado consciente).</span>
+                  <button type="button" onClick={() => setDecision(null)} aria-label="Cambiar decisión" className="text-muted-foreground hover:text-foreground">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
@@ -862,14 +917,19 @@ function Ordenes() {
               </div>
             </div>
           </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-            <Button
-              onClick={handleSave}
-              disabled={saving || !form.cliente_nombre || (!form.cliente_email.trim() && !form.cliente_telefono.trim()) || !hasProduct}
-            >
-              {saving ? 'Creando…' : 'Crear Orden'}
-            </Button>
+          <div className="flex flex-col items-end gap-1.5 pt-2">
+            {gateBlocked && (
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Elige el cliente antes de crear la orden.</p>
+            )}
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
+              <Button
+                onClick={handleSave}
+                disabled={saving || !form.cliente_nombre || (!form.cliente_email.trim() && !form.cliente_telefono.trim()) || !hasProduct}
+              >
+                {saving ? 'Creando…' : 'Crear Orden'}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

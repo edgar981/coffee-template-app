@@ -4,12 +4,14 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { normalizeCustomerPhone } from '@/lib/whatsapp-link';
+import { rankPhoneMatches } from '@/lib/orders';
+
+const MATCH_CAP = 5;
 
 // Proactive duplicate detection for the admin "Nueva Orden" modal: given a phone
-// and/or email, return the existing customer that the order upsert WOULD match,
-// so the operator can adopt it instead of creating a duplicate. Read-only, never
-// creates anything. Same matching rule as createOrderWithCustomer: email first,
-// else normalized phone.
+// and/or email, return the existing customers an order WOULD match — a phone can
+// be shared, so this is an ARRAY (capped, most-orders-first, the same order the
+// server's silent auto-attach uses). Read-only; never creates anything.
 
 const querySchema = z.object({
   telefono: z.string().trim().optional(),
@@ -27,21 +29,21 @@ export async function GET(req: NextRequest) {
   });
   // An unparseable email just means "no match to offer" — not an error the modal
   // should surface. Return empty rather than 400 so the banner simply stays hidden.
-  if (!parsed.success) return NextResponse.json({ customer: null });
+  if (!parsed.success) return NextResponse.json({ customers: [] });
 
   const email    = parsed.data.email || null;
   const telefono = normalizeCustomerPhone(parsed.data.telefono);
-  if (!email && !telefono) return NextResponse.json({ customer: null });
+  if (!email && !telefono) return NextResponse.json({ customers: [] });
 
-  // Email wins (unique), else normalized phone (findFirst — phone isn't unique;
-  // shared phones are legal, so we surface the first/most relevant match).
-  const customer = email
-    ? await prisma.customer.findUnique({ where: { email }, select: { id: true, nombre: true } })
-    : await prisma.customer.findFirst({ where: { telefono: telefono! }, select: { id: true, nombre: true } });
+  // Email wins (unique) → at most one. Else the deterministic phone ranking
+  // (shared here with the server's auto-attach), capped.
+  if (email) {
+    const c = await prisma.customer.findUnique({ where: { email }, select: { id: true, nombre: true, email: true, telefono: true } });
+    if (!c) return NextResponse.json({ customers: [] });
+    const ordenes = await prisma.order.count({ where: { cliente_id: c.id } });
+    return NextResponse.json({ customers: [{ id: c.id, nombre: c.nombre, ordenes, telefono: c.telefono, email: c.email }] });
+  }
 
-  if (!customer) return NextResponse.json({ customer: null });
-
-  // Order count via the FK — the exact link, format-proof.
-  const ordenes = await prisma.order.count({ where: { cliente_id: customer.id } });
-  return NextResponse.json({ customer: { id: customer.id, nombre: customer.nombre, ordenes } });
+  const ranked = await rankPhoneMatches(prisma, telefono!);
+  return NextResponse.json({ customers: ranked.slice(0, MATCH_CAP) });
 }

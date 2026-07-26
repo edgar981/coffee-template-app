@@ -58,9 +58,17 @@ const adminOrderSchema = z
     // Explicit customer chosen via the duplicate banner ("Usar este cliente").
     // When present, the order attaches to it (validated server-side); no upsert.
     cliente_id: z.string().trim().min(1).optional(),
+    // "Crear cliente nuevo" from the banner: create despite a phone/email match.
+    forzarClienteNuevo: z.boolean().optional(),
     // Client-generated per-submit key; makes a double-click / retry idempotent.
     idempotencyKey: z.string().uuid().optional(),
   })
+  // The two decisions are mutually exclusive — "usar este cliente" vs "crear
+  // nuevo". Both together is an incoherent client, rejected.
+  .refine(
+    (d) => !(d.cliente_id && d.forzarClienteNuevo),
+    { message: 'Decisión de cliente ambigua (usar existente y crear nuevo a la vez)', path: ['forzarClienteNuevo'] },
+  )
   // At least one usable identity — a non-empty but unparseable phone with no
   // email is rejected (the phone would otherwise silently drop). An explicit
   // `cliente_id` satisfies identity on its own.
@@ -129,6 +137,7 @@ export async function POST(req: NextRequest) {
     const result = await createOrderWithCustomer({
       customer:          { nombre: b.cliente_nombre, email: b.cliente_email ?? null, telefono: b.cliente_telefono ?? null },
       cliente_id:        b.cliente_id ?? null,
+      forzarClienteNuevo: b.forzarClienteNuevo ?? false,
       canal:             b.canal || 'whatsapp',
       total,
       costo_envio,
