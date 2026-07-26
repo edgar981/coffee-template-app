@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SlidersHorizontal } from 'lucide-react';
@@ -8,6 +8,9 @@ import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/button';
+// Aliased: recharts also exports `Tooltip`. The global admin TooltipProvider
+// (AdminChrome) supplies the delay/style, so no wrapper is needed here.
+import { Tooltip as UITooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { getDashboardStats } from '@/lib/api/dashboard';
 import { getAnalytics } from '@/lib/api/analytics';
 import { getProducts } from '@/lib/api/products';
@@ -45,27 +48,32 @@ export default function Dashboard() {
   const [customizing, setCustomizing] = useState(false);
   const [loading, setLoading]       = useState(true);
 
-  useEffect(() => {
-    let alive = true;
-    // Core dashboard data: settle each INDEPENDENTLY so one failing fetch can't
-    // blank the rest (the earlier bug — prefs was folded into a single Promise.all
-    // and a rejection discarded stats+analytics, emptying the donut and Recientes).
+  // Core dashboard data. Each source settles INDEPENDENTLY so one failing fetch
+  // can't blank the rest. A rejected source is set to null/empty (not left stale),
+  // so the UI can show `—` + a retry banner instead of a lying `0`. `setLoading` on
+  // finish only — the mount path leaves the initial `loading=true` untouched.
+  const fetchCore = useCallback(() => {
     Promise.allSettled([getDashboardStats(), getAnalytics(), getProducts(), getCustomers()])
       .then(([s, a, p, c]) => {
-        if (!alive) return;
-        if (s.status === 'fulfilled') setStats(s.value);
-        if (a.status === 'fulfilled') setAnalytics(a.value);
+        setStats(s.status === 'fulfilled' ? s.value : null);
+        setAnalytics(a.status === 'fulfilled' ? a.value : null);
         if (p.status === 'fulfilled') setProducts(p.value);
         if (c.status === 'fulfilled') setCustomers(c.value);
         setLoading(false);
       });
+  }, []);
+
+  // Banner "Reintentar": back to the skeleton, then re-fetch.
+  const retry = useCallback(() => { setLoading(true); fetchCore(); }, [fetchCore]);
+
+  useEffect(() => {
+    fetchCore(); // `loading` already starts true, so no synchronous setState here.
     // Layout preference is a SEPARATE concern: if it fails, keep the default
     // layout — it must never affect the data widgets/donut/Recientes.
     getDashboardPrefs()
-      .then((w) => { if (alive) setWidgetKeys(w); })
+      .then(setWidgetKeys)
       .catch(() => {/* keep DEFAULT_WIDGET_KEYS */});
-    return () => { alive = false; };
-  }, []);
+  }, [fetchCore]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
@@ -92,33 +100,46 @@ export default function Dashboard() {
 
   const porCobrarN = stats?.porCobrar ?? 0;
 
-  // The ONE place widgets meet data: key → { raw value, live sub, trend }. Every
-  // number comes from the stats endpoint or a shared helper (isLowStock), so each
-  // card reconciles with its deep-linked list. Registry holds the rest (title,
-  // icon, colour, formato, href, static subtitle).
-  const widgetValues: Record<string, { raw: number; sub?: string; trend?: Trend }> = stats ? {
-    ventas_hoy:           { raw: stats.ventasHoy },
-    por_cobrar:           { raw: stats.porCobrarMonto, sub: porCobrarN > 0 ? `${porCobrarN} ${porCobrarN === 1 ? 'orden' : 'órdenes'} contraentrega` : 'Nada por cobrar' },
-    despachos_hoy:        { raw: stats.despachosHoy },
-    pedidos_hoy:          { raw: stats.pedidosHoy },
-    ingresos_mes:         { raw: stats.revenueMonth, sub: `Histórico: ${formatCOP(stats.revenueTotal)}`, trend: revenueTrend },
-    ordenes_mes:          { raw: stats.monthly.orders.current, trend: ordersTrend },
-    ordenes_pendientes:   { raw: stats.pendingOrders, sub: porCobrarN > 0 ? `Por cobrar: ${porCobrarN}` : undefined, trend: undefined },
-    promedio_por_orden:   { raw: stats.avgTicket, trend: avgTrend },
+  // The ONE place widgets meet data: key → { raw value, live sub, trend }, or
+  // `undefined` when THIS widget's source failed to load. `undefined` renders as
+  // `—` (a lying `0` is worse than a dash) — stats widgets go blank when the stats
+  // endpoint rejected; clientes_recurrentes when analytics did. Registry holds the
+  // rest (title, icon, colour, formato, href, static subtitle).
+  const widgetValues: Record<string, { raw: number; sub?: string; trend?: Trend } | undefined> = {
+    ventas_hoy:           stats ? { raw: stats.ventasHoy } : undefined,
+    por_cobrar:           stats ? { raw: stats.porCobrarMonto, sub: porCobrarN > 0 ? `${porCobrarN} ${porCobrarN === 1 ? 'orden' : 'órdenes'} contraentrega` : 'Nada por cobrar' } : undefined,
+    despachos_hoy:        stats ? { raw: stats.despachosHoy } : undefined,
+    pedidos_hoy:          stats ? { raw: stats.pedidosHoy } : undefined,
+    ingresos_mes:         stats ? { raw: stats.revenueMonth, sub: `Histórico: ${formatCOP(stats.revenueTotal)}`, trend: revenueTrend } : undefined,
+    ordenes_mes:          stats ? { raw: stats.monthly.orders.current, trend: ordersTrend } : undefined,
+    ordenes_pendientes:   stats ? { raw: stats.pendingOrders, sub: porCobrarN > 0 ? `Por cobrar: ${porCobrarN}` : undefined } : undefined,
+    promedio_por_orden:   stats ? { raw: stats.avgTicket, trend: avgTrend } : undefined,
+    // products/customers default to []/[] and load independently of stats.
     alertas_stock:        { raw: lowStock },
     productos_activos:    { raw: activeProducts },
     clientes_totales:     { raw: customers.length },
-    clientes_recurrentes: { raw: analytics?.kpis.tasaRetencion ?? 0, trend: recurrentesTrend },
-  } : {};
+    clientes_recurrentes: analytics ? { raw: analytics.kpis.tasaRetencion, trend: recurrentesTrend } : undefined,
+  };
 
   const formatValue = (formato: WidgetFormato, raw: number) =>
     formato === 'cop' ? formatCOP(raw) : formato === 'pct' ? `${raw}%` : String(raw);
 
-  // Optimistic: re-render the grid immediately, then persist. A failed write
-  // surfaces a toast but keeps the on-screen layout (they can retry).
+  // A metrics source (stats or analytics) failed after loading finished — surface
+  // ONE banner with a retry instead of a grid full of dashes with no explanation.
+  const metricsFailed = !loading && (stats === null || analytics === null);
+
+  // Optimistic: re-render the grid immediately, then persist. On failure, a toast
+  // whose "Reintentar" reuses the SAME keys that failed (captured here, not read
+  // from state which may have moved on).
   const applyWidgets = (keys: string[]) => {
     setWidgetKeys(keys);
-    saveDashboardPrefs(keys).catch(() => toast.error('No se pudo guardar la configuración del panel'));
+    const persist = (attemptKeys: string[]) =>
+      saveDashboardPrefs(attemptKeys).catch(() =>
+        toast.error('No se pudo guardar la configuración del panel', {
+          action: { label: 'Reintentar', onClick: () => persist(attemptKeys) },
+        }),
+      );
+    persist(keys);
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -131,17 +152,32 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold text-foreground">Panel de Operaciones</h1>
           <p className="text-sm text-muted-foreground mt-1">Café Nayoli — Resumen del negocio</p>
         </div>
-        <Button variant="outline" size="sm" className="shrink-0 gap-2" onClick={() => setCustomizing(true)} title="Personalizar panel">
-          <SlidersHorizontal className="w-4 h-4" />
-          <span className="hidden sm:inline">Personalizar</span>
-        </Button>
+        <UITooltip>
+          <TooltipTrigger asChild>
+            <Button variant="outline" size="sm" className="shrink-0 gap-2" onClick={() => setCustomizing(true)}>
+              <SlidersHorizontal className="w-4 h-4" />
+              <span className="hidden sm:inline">Personalizar</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Elige y ordena las tarjetas de tu panel</TooltipContent>
+        </UITooltip>
       </div>
+
+      {/* One-time banner when a metrics source failed — better than a grid of
+          dashes with no explanation. Retry re-fires the fetches. */}
+      {metricsFailed && (
+        <div className="flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-900/20 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-amber-900 dark:text-amber-200">No se pudieron cargar las métricas.</span>
+          <Button variant="outline" size="sm" className="shrink-0" onClick={retry}>Reintentar</Button>
+        </div>
+      )}
 
       {/* Customizable stat-card grid — the ONLY personalizable surface. The widgets
           render in the admin's chosen order; the charts + recent orders below are
-          fixed. A retired key (WIDGET_MAP miss) is skipped, never crashes. */}
+          fixed. A retired key (WIDGET_MAP miss) is skipped, never crashes. A widget
+          whose source failed shows `—` (see widgetValues). */}
       {loading ? (
-        <StatGridSkeleton />
+        <StatGridSkeleton count={widgetKeys.length} />
       ) : widgetKeys.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-8 text-center">
           <p className="text-sm text-muted-foreground">Sin widgets — personaliza tu panel para elegir qué ver.</p>
@@ -161,7 +197,9 @@ export default function Dashboard() {
                 key={key}
                 icon={w.icono}
                 label={w.titulo}
-                value={formatValue(w.formato, v?.raw ?? 0)}
+                // Source failed → `—` (no trend, static subtitle) instead of a
+                // misleading 0.
+                value={v ? formatValue(w.formato, v.raw) : '—'}
                 sub={v?.sub ?? w.subtitulo}
                 trend={v?.trend}
                 color={w.color}
@@ -231,7 +269,7 @@ export default function Dashboard() {
             <h3 className="font-semibold text-foreground">Órdenes Recientes</h3>
             <p className="text-xs text-muted-foreground">Últimas transacciones</p>
           </div>
-          <a href="/admin/ordenes" className="text-xs text-primary hover:underline font-medium">Ver todas →</a>
+          <Link href="/admin/ordenes" className="text-xs text-primary hover:underline font-medium">Ver todas →</Link>
         </div>
         {loading ? (
           <div className="p-8 text-center text-muted-foreground text-sm">Cargando...</div>
@@ -247,11 +285,13 @@ export default function Dashboard() {
 
 // ─── Loading skeleton ─────────────────────────────────────────────────────────
 // Card-shaped placeholders matching the StatCard footprint so the layout doesn't
-// jump when the real numbers arrive. Eight = the default widget count.
-function StatGridSkeleton() {
+// jump when the real numbers arrive. `count` = the admin's actual widget count,
+// so someone with 4 widgets doesn't see 8 phantoms (and the jump the skeleton
+// exists to prevent).
+function StatGridSkeleton({ count }: { count: number }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" aria-hidden>
-      {Array.from({ length: 8 }).map((_, i) => (
+      {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="stat-card animate-pulse">
           <div className="w-10 h-10 rounded-lg bg-muted" />
           <div className="mt-3 space-y-2">
