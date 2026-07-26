@@ -69,3 +69,49 @@ layout NO monta ThemeProvider. `color-scheme` sigue al tema vía CSS
 Los icon chips de stat cards usan la paleta pastel multicolor (decisión
 deliberada sobre la variante amber); rojo/destructive reservado para
 estados de alerta reales.
+
+## Dashboard personalizable — registry de widgets
+
+Las stat cards del dashboard son un CATÁLOGO (`constants/dashboard-widgets.ts`,
+`key` estable snake_case) con selección ordenada persistida por usuario
+(`DashboardPreference.widgets` = array de keys; API `/api/dashboard/prefs`).
+Toda entrada/salida pasa por `sanitizeWidgetKeys` (solo keys reales del registry,
+sin duplicados, orden preservado) → una key retirada o un payload malicioso nunca
+llega al grid. El binding key→dato vive en el dashboard (junto a los datos); el
+registry es presentación pura + deep-links que reusan los helpers compartidos
+(card=lista). SOLO las stat cards son personalizables: los gráficos y Órdenes
+Recientes son fijos, fuera del sistema (v1).
+
+- **Costura MULTITENANT (documentada, NO construida):** hoy no hay modelo de
+  tienda/tenant. Cuando exista: (a) cada `WidgetDef` gana un filtro por vertical
+  de negocio (el catálogo se scopea por vertical), (b) `DashboardPreference` gana
+  la clave de tienda y su índice único pasa a compuesto (`userId + storeId`), y
+  (c) `defaultVisible` se reemplaza por un set de default POR VERTICAL. La forma
+  (registry + preferencia ordenada) ya es genérica del template "Comercio
+  Digital"; el contenido (los widgets concretos) es de esta vertical.
+- `DashboardPreference.userId` referencia `user.id` (Better Auth) pero SIN
+  relación Prisma a propósito — una relación exigiría un campo inverso en el
+  modelo `user` de Better Auth, que no se toca. Índice único; la app scopea por
+  sesión.
+- TODO (no implementado): el endpoint de stats calcula TODAS las métricas aunque
+  el usuario muestre pocas tarjetas. Optimizar a cálculo selectivo por las keys
+  visibles queda anotado, no hecho.
+
+## Matching de clientes (teléfono no es único)
+
+`Customer.telefono` NO tiene unique constraint — un teléfono puede ser compartido
+por varias personas (decisión de producto; el duplicado consciente es legal). Por
+eso el matching por teléfono puede devolver VARIOS. La ambigüedad se resuelve con
+una regla DETERMINISTA, compartida por el endpoint de lookup (orden del banner) y
+el auto-adjunte silencioso del server cuando NO llega decisión explícita (checkout
+del storefront o clients viejos): **más órdenes primero; empate → actividad más
+reciente (última orden, luego `updatedAt`)**. Vive en `rankPhoneMatches`
+(`lib/orders.ts`). Arbitrario-pero-documentado > `findFirst` accidental.
+
+La creación de órdenes (`createOrderWithCustomer`, path único) acepta la decisión
+EXPLÍCITA del admin: `cliente_id` (adjunta a ese cliente, sin matching) o
+`forzarClienteNuevo` (crea nuevo pese al match) — mutuamente excluyentes (zod 400).
+Sin decisión, aplica la regla determinista. El teléfono se normaliza siempre en
+todo write+lookup (`normalizeCustomerPhone` en `lib/whatsapp-link.ts`). NO fusionar
+duplicados automáticamente — el merge es decisión humana (feature futura); las
+órdenes ya apuntan por `cliente_id`.

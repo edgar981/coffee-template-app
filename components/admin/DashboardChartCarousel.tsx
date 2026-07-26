@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -88,12 +89,25 @@ function formatDay(date: string): string {
 }
 
 export default function DashboardChartCarousel() {
+  const router = useRouter();
   const [range, setRange]   = useState<ChartRange>('3m');
   const [index, setIndex]   = useState(0);
   const [data, setData]     = useState<DashboardChartData | null>(null);
   const [failed, setFailed] = useState<ChartRange | null>(null);
 
   const spec = CHARTS[index];
+
+  // Clicking a day drills into that day's orders. Recharts hands the clicked
+  // point back as `activeLabel` (the x value = our bare YYYY-MM-DD day key), so
+  // we navigate to the Órdenes list filtered to that single Bogotá day — the
+  // `desde`/`hasta` params already exist there. Applies to BOTH charts (same
+  // x-axis). No manual overlay: this is the chart's own click payload.
+  const handleDayClick = (state: { activeLabel?: string | number } | null) => {
+    const day = state?.activeLabel;
+    if (typeof day === 'string' && day) {
+      router.push(`/admin/ordenes?desde=${day}&hasta=${day}`);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -189,7 +203,11 @@ export default function DashboardChartCarousel() {
         </ChartMessage>
       ) : (
         <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={rows} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+          <AreaChart
+            data={rows} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+            onClick={handleDayClick}
+            className="cursor-pointer [&_.recharts-area]:cursor-pointer"
+          >
             <defs>
               {spec.series.map(s => (
                 <linearGradient key={s.key} id={`fill-${spec.id}-${s.key}`} x1="0" y1="0" x2="0" y2="1">
@@ -285,6 +303,8 @@ function BreakdownTooltip({ spec, active, payload, label }: {
         <span className="text-muted-foreground">Total</span>
         <span className="font-semibold text-foreground tabular-nums">{spec.format(total)}</span>
       </div>
+      {/* Affordance for the chart-day drill-down (AreaChart onClick). */}
+      <p className="mt-1.5 text-[10px] italic text-muted-foreground/70">Click para ver órdenes del día</p>
     </div>
   );
 }

@@ -1,18 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  TrendingUp, ShoppingCart, Package, Users,
-  AlertTriangle, DollarSign, Clock,
-} from 'lucide-react';
+import { SlidersHorizontal } from 'lucide-react';
 import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { Button } from '@/components/ui/button';
+// Aliased: recharts also exports `Tooltip`. The global admin TooltipProvider
+// (AdminChrome) supplies the delay/style, so no wrapper is needed here.
+import { Tooltip as UITooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { getDashboardStats } from '@/lib/api/dashboard';
 import { getAnalytics } from '@/lib/api/analytics';
 import { getProducts } from '@/lib/api/products';
 import { getCustomers } from '@/lib/api/customers';
+import { getDashboardPrefs, saveDashboardPrefs } from '@/lib/api/dashboardPrefs';
 import type { Order } from '@/types/order';
 import type { Product } from '@/types/product';
 import type { Customer } from '@/types/customer';
@@ -20,46 +23,73 @@ import type { DashboardStats } from '@/types/dashboard';
 import type { AnalyticsData } from '@/types/analytics';
 import { formatCOP } from '@/lib/utils';
 import StatCard from '@/components/admin/StatCard';
+import DashboardCustomizer from '@/components/admin/DashboardCustomizer';
+import type { Trend } from '@/lib/metrics/trend';
 import { computeTrend, NEUTRAL_TREND } from '@/lib/metrics/trend';
-import { currentMonthOrdersQuery, PENDING_ORDERS_QUERY } from '@/lib/metrics/order-stat-filters';
+import { currentMonthOrdersQuery, currentMonthRange } from '@/lib/metrics/order-stat-filters';
+import { isLowStock } from '@/lib/metrics/inventory-filters';
+import {
+  WIDGET_MAP, DEFAULT_WIDGET_KEYS,
+  type WidgetFormato, type WidgetHrefContext,
+} from '@/constants/dashboard-widgets';
 import DashboardChartCarousel from '@/components/admin/DashboardChartCarousel';
 import { DASHBOARD_COLORS, tooltipStyle } from '@/constants/dashb-styles';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const [stats, setStats]         = useState<DashboardStats | null>(null);
-  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
-  const [products, setProducts]   = useState<Product[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading]     = useState(true);
+  const [stats, setStats]           = useState<DashboardStats | null>(null);
+  const [analytics, setAnalytics]   = useState<AnalyticsData | null>(null);
+  const [products, setProducts]     = useState<Product[]>([]);
+  const [customers, setCustomers]   = useState<Customer[]>([]);
+  // The admin's chosen stat-card layout (ordered visible widget keys). Defaults to
+  // the registry default until the persisted preference loads.
+  const [widgetKeys, setWidgetKeys] = useState<string[]>(DEFAULT_WIDGET_KEYS);
+  const [customizing, setCustomizing] = useState(false);
+  const [loading, setLoading]       = useState(true);
 
-  useEffect(() => {
-    Promise.all([getDashboardStats(), getAnalytics(), getProducts(), getCustomers()])
+  // Core dashboard data. Each source settles INDEPENDENTLY so one failing fetch
+  // can't blank the rest. A rejected source is set to null/empty (not left stale),
+  // so the UI can show `—` + a retry banner instead of a lying `0`. `setLoading` on
+  // finish only — the mount path leaves the initial `loading=true` untouched.
+  const fetchCore = useCallback(() => {
+    Promise.allSettled([getDashboardStats(), getAnalytics(), getProducts(), getCustomers()])
       .then(([s, a, p, c]) => {
-        setStats(s);
-        setAnalytics(a);
-        setProducts(p);
-        setCustomers(c);
+        setStats(s.status === 'fulfilled' ? s.value : null);
+        setAnalytics(a.status === 'fulfilled' ? a.value : null);
+        if (p.status === 'fulfilled') setProducts(p.value);
+        if (c.status === 'fulfilled') setCustomers(c.value);
         setLoading(false);
       });
   }, []);
 
+  // Banner "Reintentar": back to the skeleton, then re-fetch.
+  const retry = useCallback(() => { setLoading(true); fetchCore(); }, [fetchCore]);
+
+  useEffect(() => {
+    fetchCore(); // `loading` already starts true, so no synchronous setState here.
+    // Layout preference is a SEPARATE concern: if it fails, keep the default
+    // layout — it must never affect the data widgets/donut/Recientes.
+    getDashboardPrefs()
+      .then(setWidgetKeys)
+      .catch(() => {/* keep DEFAULT_WIDGET_KEYS */});
+  }, [fetchCore]);
+
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  const lowStock       = products.filter(p => p.stock <= (p.stock_minimo ?? 5)).length;
+  const lowStock       = products.filter(isLowStock).length;
   const activeProducts = products.filter(p => p.activo !== false).length;
 
   const categoryData = analytics?.categoryData ?? [];
 
-  // Same month boundary the stats endpoint counted with, plus the estado set that
-  // reproduces its `!= cancelado` filter — so this link's row count equals the
-  // number on the card.
+  // Deep-link context (America/Bogota day keys + the shared month query), fed to
+  // each widget's href builder so a card links to exactly the rows it counts.
   const monthQuery = currentMonthOrdersQuery();
+  const { desde: monthStartKey, hasta: todayKey } = currentMonthRange();
+  const hrefCtx: WidgetHrefContext = { today: todayKey, monthStart: monthStartKey, monthQuery };
 
   // Month-over-month trend pills: current calendar month vs previous complete
-  // month. The anti-noise floor lives in lib/metrics/trend.ts — with the demo
-  // data the previous month has < 5 orders, so these render neutral on their own.
+  // month. The anti-noise floor lives in lib/metrics/trend.ts.
   const m = stats?.monthly;
   const revenueTrend = m ? computeTrend(m.revenue.current,   m.revenue.previous,   m.prevMonthOrders) : NEUTRAL_TREND;
   const ordersTrend  = m ? computeTrend(m.orders.current,    m.orders.previous,    m.prevMonthOrders) : NEUTRAL_TREND;
@@ -68,34 +98,124 @@ export default function Dashboard() {
   // doesn't have yet → neutral fallback (reported as backend-pending).
   const recurrentesTrend = NEUTRAL_TREND;
 
+  const porCobrarN = stats?.porCobrar ?? 0;
+
+  // The ONE place widgets meet data: key → { raw value, live sub, trend }, or
+  // `undefined` when THIS widget's source failed to load. `undefined` renders as
+  // `—` (a lying `0` is worse than a dash) — stats widgets go blank when the stats
+  // endpoint rejected; clientes_recurrentes when analytics did. Registry holds the
+  // rest (title, icon, colour, formato, href, static subtitle).
+  const widgetValues: Record<string, { raw: number; sub?: string; trend?: Trend } | undefined> = {
+    ventas_hoy:           stats ? { raw: stats.ventasHoy } : undefined,
+    por_cobrar:           stats ? { raw: stats.porCobrarMonto, sub: porCobrarN > 0 ? `${porCobrarN} ${porCobrarN === 1 ? 'orden' : 'órdenes'} contraentrega` : 'Nada por cobrar' } : undefined,
+    despachos_hoy:        stats ? { raw: stats.despachosHoy } : undefined,
+    pedidos_hoy:          stats ? { raw: stats.pedidosHoy } : undefined,
+    ingresos_mes:         stats ? { raw: stats.revenueMonth, sub: `Histórico: ${formatCOP(stats.revenueTotal)}`, trend: revenueTrend } : undefined,
+    ordenes_mes:          stats ? { raw: stats.monthly.orders.current, trend: ordersTrend } : undefined,
+    ordenes_pendientes:   stats ? { raw: stats.pendingOrders, sub: porCobrarN > 0 ? `Por cobrar: ${porCobrarN}` : undefined } : undefined,
+    promedio_por_orden:   stats ? { raw: stats.avgTicket, trend: avgTrend } : undefined,
+    // products/customers default to []/[] and load independently of stats.
+    alertas_stock:        { raw: lowStock },
+    productos_activos:    { raw: activeProducts },
+    clientes_totales:     { raw: customers.length },
+    clientes_recurrentes: analytics ? { raw: analytics.kpis.tasaRetencion, trend: recurrentesTrend } : undefined,
+  };
+
+  const formatValue = (formato: WidgetFormato, raw: number) =>
+    formato === 'cop' ? formatCOP(raw) : formato === 'pct' ? `${raw}%` : String(raw);
+
+  // A metrics source (stats or analytics) failed after loading finished — surface
+  // ONE banner with a retry instead of a grid full of dashes with no explanation.
+  const metricsFailed = !loading && (stats === null || analytics === null);
+
+  // Optimistic: re-render the grid immediately, then persist. On failure, a toast
+  // whose "Reintentar" reuses the SAME keys that failed (captured here, not read
+  // from state which may have moved on).
+  const applyWidgets = (keys: string[]) => {
+    setWidgetKeys(keys);
+    const persist = (attemptKeys: string[]) =>
+      saveDashboardPrefs(attemptKeys).catch(() =>
+        toast.error('No se pudo guardar la configuración del panel', {
+          action: { label: 'Reintentar', onClick: () => persist(attemptKeys) },
+        }),
+      );
+    persist(keys);
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Panel de Operaciones</h1>
-        <p className="text-sm text-muted-foreground mt-1">Café Nayoli — Resumen del negocio</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Panel de Operaciones</h1>
+          <p className="text-sm text-muted-foreground mt-1">Café Nayoli — Resumen del negocio</p>
+        </div>
+        <UITooltip>
+          <TooltipTrigger asChild>
+            <Button variant="outline" size="sm" className="shrink-0 gap-2" onClick={() => setCustomizing(true)}>
+              <SlidersHorizontal className="w-4 h-4" />
+              <span className="hidden sm:inline">Personalizar</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Elige y ordena las tarjetas de tu panel</TooltipContent>
+        </UITooltip>
       </div>
 
-      {/* Stats row 1 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={DollarSign}    label="Ingresos Totales"    value={formatCOP(stats?.totalRevenue ?? 0)}                     sub="Histórico" trend={revenueTrend} color="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" />
-        <StatCard icon={ShoppingCart}  label="Órdenes del mes"     value={stats?.monthly.orders.current ?? 0}    sub="Mes en curso" trend={ordersTrend} color="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" href={`/admin/ordenes?${monthQuery}`} />
-        {/* pendingOrders EXCLUYE contraentregas despachadas (por cobrar) — la
-            plata en la calle no "requiere atención". El link (cobrar=0) filtra
-            al MISMO conjunto que el número (definición compartida). */}
-        <StatCard icon={Clock}         label="Órdenes Pendientes"  value={stats?.pendingOrders ?? 0}  sub={(stats?.porCobrar ?? 0) > 0 ? `Por cobrar: ${stats!.porCobrar}` : 'Requieren atención'} color="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" href={`/admin/ordenes?${PENDING_ORDERS_QUERY}`} />
-        <StatCard icon={AlertTriangle} label="Alertas de Stock"    value={lowStock}                   sub="Productos bajo mínimo"     color="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" />
-      </div>
+      {/* One-time banner when a metrics source failed — better than a grid of
+          dashes with no explanation. Retry re-fires the fetches. */}
+      {metricsFailed && (
+        <div className="flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-900/20 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-amber-900 dark:text-amber-200">No se pudieron cargar las métricas.</span>
+          <Button variant="outline" size="sm" className="shrink-0" onClick={retry}>Reintentar</Button>
+        </div>
+      )}
 
-      {/* Stats row 2 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Users}       label="Clientes Totales"     value={customers.length}         sub="Registrados"                       color="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" />
-        <StatCard icon={Package}     label="Productos Activos"    value={activeProducts}           sub="En catálogo"                       color="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" />
-        <StatCard icon={TrendingUp}  label="Promedio por orden"   value={formatCOP(stats?.avgTicket ?? 0)}  sub="Valor promedio por orden · histórico" trend={avgTrend} color="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400" />
-        <StatCard icon={TrendingUp}  label="Clientes Recurrentes" value={`${analytics?.kpis.tasaRetencion ?? 0}%`} sub="con más de 1 compra" trend={recurrentesTrend} color="bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400" />
-      </div>
+      {/* Customizable stat-card grid — the ONLY personalizable surface. The widgets
+          render in the admin's chosen order; the charts + recent orders below are
+          fixed. A retired key (WIDGET_MAP miss) is skipped, never crashes. A widget
+          whose source failed shows `—` (see widgetValues). */}
+      {loading ? (
+        <StatGridSkeleton count={widgetKeys.length} />
+      ) : widgetKeys.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border p-8 text-center">
+          <p className="text-sm text-muted-foreground">Sin widgets — personaliza tu panel para elegir qué ver.</p>
+          <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={() => setCustomizing(true)}>
+            <SlidersHorizontal className="w-4 h-4" /> Personalizar
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {widgetKeys.map(key => {
+            const w = WIDGET_MAP[key];
+            if (!w) return null;
+            const v = widgetValues[key];
+            const href = typeof w.href === 'function' ? w.href(hrefCtx) : w.href;
+            return (
+              <StatCard
+                key={key}
+                icon={w.icono}
+                label={w.titulo}
+                // Source failed → `—` (no trend, static subtitle) instead of a
+                // misleading 0.
+                value={v ? formatValue(w.formato, v.raw) : '—'}
+                sub={v?.sub ?? w.subtitulo}
+                trend={v?.trend}
+                color={w.color}
+                href={href}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      <DashboardCustomizer
+        open={customizing}
+        onOpenChange={setCustomizing}
+        value={widgetKeys}
+        onApply={applyWidgets}
+      />
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -149,7 +269,7 @@ export default function Dashboard() {
             <h3 className="font-semibold text-foreground">Órdenes Recientes</h3>
             <p className="text-xs text-muted-foreground">Últimas transacciones</p>
           </div>
-          <a href="/admin/ordenes" className="text-xs text-primary hover:underline font-medium">Ver todas →</a>
+          <Link href="/admin/ordenes" className="text-xs text-primary hover:underline font-medium">Ver todas →</Link>
         </div>
         {loading ? (
           <div className="p-8 text-center text-muted-foreground text-sm">Cargando...</div>
@@ -159,6 +279,28 @@ export default function Dashboard() {
           <OrdersTable orders={stats.recentOrders} />
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Loading skeleton ─────────────────────────────────────────────────────────
+// Card-shaped placeholders matching the StatCard footprint so the layout doesn't
+// jump when the real numbers arrive. `count` = the admin's actual widget count,
+// so someone with 4 widgets doesn't see 8 phantoms (and the jump the skeleton
+// exists to prevent).
+function StatGridSkeleton({ count }: { count: number }) {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" aria-hidden>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="stat-card animate-pulse">
+          <div className="w-10 h-10 rounded-lg bg-muted" />
+          <div className="mt-3 space-y-2">
+            <div className="h-6 w-24 rounded bg-muted" />
+            <div className="h-3 w-20 rounded bg-muted/70" />
+            <div className="h-2.5 w-16 rounded bg-muted/50" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

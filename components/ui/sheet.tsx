@@ -5,6 +5,7 @@ import { cva, VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { overlayClasses, sheetTiming } from "@/components/ui/overlay";
 
 const Sheet = SheetPrimitive.Root;
 
@@ -19,10 +20,9 @@ const SheetOverlay = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
-    className={cn(
-      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-      className
-    )}
+    // Shared scrim (components/ui/overlay) + the Sheet's own timing, so the fade
+    // is synced with the panel slide.
+    className={cn(overlayClasses, sheetTiming, className)}
     {...props}
     ref={ref}
   />
@@ -30,7 +30,12 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  "fixed z-50 gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out",
+  // Slide timing/easing centralized in `sheetTiming` (open ~300ms ease-out, close
+  // ~200ms ease-in). The per-side classes below add the slide direction.
+  cn(
+    "fixed z-50 gap-4 bg-background p-6 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out",
+    sheetTiming,
+  ),
   {
     variants: {
       side: {

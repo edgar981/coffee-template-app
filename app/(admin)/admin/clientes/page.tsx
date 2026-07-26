@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Plus, Search, Edit2, Trash2, Users, Star } from 'lucide-react';
+import { Suspense, useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Plus, Search, Edit2, Trash2, Users, Star, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -16,7 +17,16 @@ import type { OrderChannel } from '@/types/order';
 import { CANALES, EMPTY_CUSTOMER_FORM } from '@/constants/customer';
 
 
+// useSearchParams() needs a Suspense boundary (same pattern as Órdenes).
 export default function Clientes() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Cargando...</div>}>
+      <ClientesInner />
+    </Suspense>
+  );
+}
+
+function ClientesInner() {
   const [clientes, setClientes]   = useState<Customer[]>([]);
   const [loading, setLoading]     = useState(true);
   const [search, setSearch]       = useState('');
@@ -24,6 +34,11 @@ export default function Clientes() {
   const [editing, setEditing]     = useState<Customer | null>(null);
   const [form, setForm]           = useState<CustomerForm>(EMPTY_CUSTOMER_FORM);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // `?recurrentes=1` (from the dashboard "Clientes Recurrentes" card) shows only
+  // customers with more than one order — the SAME predicate the "Recurrentes"
+  // stat counts with, so that stat = the filtered list length.
+  const recurrentesOnly = searchParams.get('recurrentes') === '1';
 
   useEffect(() => {
     getCustomers().then(data => { setClientes(data); setLoading(false); });
@@ -31,11 +46,15 @@ export default function Clientes() {
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  const filtered = clientes.filter(c =>
-    c.nombre?.toLowerCase().includes(search.toLowerCase()) ||
-    c.email?.toLowerCase().includes(search.toLowerCase()) ||
-    c.telefono?.includes(search)
-  );
+  const filtered = clientes.filter(c => {
+    if (recurrentesOnly && (c.numero_ordenes ?? 0) <= 1) return false;
+    const q = search.toLowerCase();
+    return (
+      c.nombre?.toLowerCase().includes(q) ||
+      c.email?.toLowerCase().includes(q) ||
+      c.telefono?.includes(search)
+    );
+  });
 
   const topClientes = [...clientes]
     .sort((a, b) => (b.total_compras ?? 0) - (a.total_compras ?? 0))
@@ -147,6 +166,18 @@ export default function Clientes() {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
+
+          {/* Active recurrentes filter (arrived from the dashboard card). */}
+          {recurrentesOnly && (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 px-3 py-1 text-xs font-medium text-amber-800 dark:text-amber-300">
+                <Star className="w-3 h-3" /> Solo recurrentes ({recurrentes})
+              </span>
+              <Link href="/admin/clientes" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                <X className="w-3 h-3" /> Quitar filtro
+              </Link>
+            </div>
+          )}
 
           <div className="bg-card border border-border rounded-xl overflow-hidden">
             {loading ? (

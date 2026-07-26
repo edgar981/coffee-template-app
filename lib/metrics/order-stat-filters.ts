@@ -42,6 +42,13 @@ export const PENDING_ORDERS_QUERY = `estado=${PENDING_ESTADO}&cobrar=0`;
 export const POR_COBRAR_SHIPPING_ESTADOS = ['en_ruta', 'entregado'] as const;
 
 /**
+ * Query string (without `?`) that filters the Órdenes list to exactly the
+ * por-cobrar set. The Órdenes page parses `cobrar=1` back to `isPorCobrar`, so
+ * the dashboard "Por cobrar" card and this list show the same rows/total.
+ */
+export const POR_COBRAR_QUERY = 'cobrar=1';
+
+/**
  * "Por cobrar" = CONTRAENTREGA + pago pendiente + despacho en curso o entregado.
  * For ANTICIPADO orders this is empty by construction (they can't dispatch
  * unpaid — server-enforced).

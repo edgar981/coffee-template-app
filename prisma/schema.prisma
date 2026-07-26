@@ -324,3 +324,25 @@ model Notification {
   href      String?  // optional link to relevant page
   createdAt DateTime @default(now())
 }
+
+// Per-admin dashboard layout: which stat-card widgets they see and in what order.
+// `widgets` is an ordered JSON array of widget `key`s (see constants/dashboard-
+// widgets.ts) — validated against that registry on write, and filtered against it
+// on read, so a retired or unknown key never breaks the dashboard.
+//
+// `userId` references `user.id` (Better Auth) but is deliberately NOT a Prisma
+// relation: adding one would require a back-relation field on the Better Auth
+// `user` model, which we don't touch. It's uniquely indexed (one row per user);
+// the app scopes every read/write to the session user. An orphan row after a user
+// deletion is harmless (nothing reads it).
+//
+// MULTITENANT SEAM (not built): when a store/tenant model exists, this gains a
+// store key and the unique index becomes composite (userId + storeId), so the
+// same admin can hold a different layout per store. See CLAUDE.md.
+model DashboardPreference {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  widgets   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -57,38 +57,49 @@ export interface DashboardChartData {
 }
 
 export interface DashboardStats {
-  /** Orders created today (America/Bogota), excluding cancelled. */
-  ordersToday: number;
-  /** Orders created yesterday (America/Bogota), excluding cancelled. */
-  ordersYesterday: number;
+  // ── Fila "Hoy" (America/Bogota) ──
+  /** Sum of Payment.monto received today (CN- orders, non-cancelled). */
+  ventasHoy: number;
+  /** Orders created today, excluding cancelled and SN- demo data. */
+  pedidosHoy: number;
   /**
-   * Percentage change of today vs yesterday. `null` when yesterday had 0
-   * orders (division undefined) so the UI can show a neutral state.
+   * Shipments dispatched today — Shipping rows whose `stock_descontado_at`
+   * (stamped at the preparando→en_ruta transition) falls on today.
    */
-  ordersDeltaPct: number | null;
-  /**
-   * Orders currently `pendiente` EXCLUDING the por-cobrar set below — the ones
-   * that genuinely await action. `pendingOrders + porCobrar` = every pendiente.
-   */
-  pendingOrders: number;
+  despachosHoy: number;
+
+  // ── Cuentas por cobrar ──
   /**
    * Contraentrega orders dispatched (en_ruta/entregado) but unpaid — the courier
    * is out collecting. Same shared definition as `isPorCobrar`.
    */
   porCobrar: number;
-  /** Sum of `total` over all non-cancelled orders. */
-  totalRevenue: number;
-  /** Sum of `total` over non-cancelled orders created today (America/Bogota). */
-  revenueToday: number;
-  /** totalRevenue / count of non-cancelled orders (0 when none). */
-  avgTicket: number;
-  /** N most recent orders by creation date (all statuses), newest first. */
-  recentOrders: Order[];
+  /** Sum of `total` over the por-cobrar set — the receivable, in pesos. */
+  porCobrarMonto: number;
+
+  // ── Órdenes pendientes ──
   /**
-   * Month-over-month comparison: current calendar month (in progress) vs the
-   * previous complete month, America/Bogota, non-cancelled orders only. Revenue
-   * is Order-based (same source as `totalRevenue`) — NOT the Payments ledger.
-   * `prevMonthOrders` is the anti-noise gate basis for the trend pills.
+   * Orders currently `pendiente` EXCLUDING the por-cobrar set — the ones that
+   * genuinely await action. `pendingOrders + porCobrar` = every pendiente.
+   */
+  pendingOrders: number;
+
+  // ── Ingresos (Payments ledger, CN- orders, non-cancelled) ──
+  /** Sum of Payment.monto this calendar month (America/Bogota). */
+  revenueMonth: number;
+  /** Sum of Payment.monto all-time — the "Histórico" subtext. */
+  revenueTotal: number;
+  /** Current-month average received per sale (revenueMonth / payments this month). */
+  avgTicket: number;
+
+  /** N most recent NON-CANCELLED orders by creation date, newest first. */
+  recentOrders: Order[];
+
+  /**
+   * Month-over-month: current calendar month (in progress) vs the previous
+   * complete month, America/Bogota. Revenue + avgTicket come from the PAYMENTS
+   * ledger (same source as the Ventas chart); orders is the non-cancelled order
+   * count. `prevMonthOrders` is the anti-noise gate basis for the trend pills.
    */
   monthly: {
     revenue:   { current: number; previous: number };

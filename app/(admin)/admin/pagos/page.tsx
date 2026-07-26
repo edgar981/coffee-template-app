@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { Suspense, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { CreditCard, DollarSign, Receipt, X } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
@@ -30,13 +31,26 @@ const displayDate = (iso: string) =>
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// useSearchParams() needs a Suspense boundary (same pattern as Órdenes).
 export default function Pagos() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Cargando...</div>}>
+      <PagosInner />
+    </Suspense>
+  );
+}
+
+function PagosInner() {
+  const searchParams = useSearchParams();
+  // `?desde`/`?hasta` (yyyy-mm-dd) seed the date range so the dashboard can link
+  // straight to "hoy" (Ventas de hoy) or the month (Ingresos del mes). Same param
+  // names as Órdenes; the picker takes over from here (this is the initial view).
   const [pagos, setPagos]     = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   // 'all' | a MetodoPago | `cat:${PaymentCategoria}` (grouped-category filter).
   const [metodo, setMetodo]   = useState<string>('all');
-  const [from, setFrom]       = useState('');
-  const [to, setTo]           = useState('');
+  const [from, setFrom]       = useState(() => searchParams.get('desde') ?? '');
+  const [to, setTo]           = useState(() => searchParams.get('hasta') ?? '');
 
   useEffect(() => {
     getPayments()

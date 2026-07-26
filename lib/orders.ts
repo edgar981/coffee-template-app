@@ -1,7 +1,10 @@
 import prisma from '@/lib/prisma';
 import { Prisma, MetodoPago, CondicionPago } from '@/src/generated/prisma/client';
 import { ensureShipping, restockShippingStock } from '@/lib/fulfillment';
-import { toWhatsappNumber } from '@/lib/whatsapp-link';
+// THE phone normalizer lives in the pure phone module (lib/whatsapp-link); it is
+// re-exported here so existing importers (`@/lib/orders`) keep working.
+import { normalizeCustomerPhone } from '@/lib/whatsapp-link';
+export { normalizeCustomerPhone };
 
 // THE rule that turns a payment method into a payment CONDITION. `condicion_pago`
 // is never asked in a form anymore — it is DERIVED here, in one place, so the day
@@ -181,17 +184,6 @@ export async function registerOrderPaymentTx(
 
 // ─── Order creation (customer-associating) ───────────────────────────────────
 
-// Canonical stored phone: E.164 Colombia ("+57" + 10-digit mobile) — the SAME
-// format the checkout's `telefonoColombiaField` enforces, so phone-based customer
-// matching lines up with web-created customers. Reuses the existing normalizer
-// `toWhatsappNumber` ("573…") and prepends "+". Returns null for anything that is
-// not a Colombian mobile. Phone matching is worthless without ONE consistent
-// format, so every stored phone (Customer AND order snapshot) goes through here.
-export function normalizeCustomerPhone(phone: string | null | undefined): string | null {
-  const digits = toWhatsappNumber(phone); // "573XXXXXXXXX" | null
-  return digits ? `+${digits}` : null;
-}
-
 // Neither an email nor a usable phone was supplied. Routes map this to a 400.
 // Checkout never hits it (email is Zod-required upstream); the admin path can.
 export class OrderCustomerIdentityError extends Error {
@@ -201,8 +193,28 @@ export class OrderCustomerIdentityError extends Error {
   }
 }
 
+// An explicit `cliente_id` was passed but no such customer exists. Routes → 400,
+// so a stale/malicious id never creates an order with a broken relation.
+export class OrderCustomerNotFoundError extends Error {
+  constructor() {
+    super('El cliente seleccionado no existe');
+    this.name = 'OrderCustomerNotFoundError';
+  }
+}
+
 export interface CreateOrderInput {
   customer: { nombre: string; email?: string | null; telefono?: string | null };
+  // EXPLICIT customer chosen in the admin modal ("Usar este cliente" from the
+  // duplicate banner). When set, the order is ATTACHED to that customer — no
+  // upsert, no email/phone matching. Validated to exist first; the snapshot
+  // fields still come from the form. Checkout never sends it (can't ask).
+  cliente_id?: string | null;
+  // The operator saw the duplicate banner and chose "Crear cliente nuevo": SKIP
+  // matching and create a fresh customer even though the phone/email matches an
+  // existing one (shared phones are legal). Mutually exclusive with `cliente_id`
+  // (route enforces). Without it, the upsert re-matches and would silently
+  // override that choice — the coherence bug this closes.
+  forzarClienteNuevo?: boolean;
   canal: string;
   estado?: string | null;
   metodo_pago?: string | null;
@@ -253,15 +265,61 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
+// ─── Deterministic phone-match resolution ────────────────────────────────────
+// `Customer.telefono` is NOT unique — a phone can legitimately be shared by
+// several people — so a phone lookup can return MANY. Ambiguity is resolved the
+// SAME way everywhere (the lookup endpoint's banner order AND the server's silent
+// auto-attach when no explicit decision arrives, e.g. storefront checkout or an
+// old client): **most orders first, tie broken by most-recent activity (last
+// order, then `updatedAt`)**. An arbitrary-but-DOCUMENTED winner beats a
+// nondeterministic `findFirst`. Ranked list (not just the winner) so the modal
+// can show every candidate. See CLAUDE.md § matching de clientes.
+export interface RankedCustomerMatch {
+  id: string; nombre: string; email: string | null; telefono: string | null; ordenes: number;
+}
+export async function rankPhoneMatches(
+  client: Prisma.TransactionClient,
+  telefono: string,
+): Promise<RankedCustomerMatch[]> {
+  const candidates = await client.customer.findMany({
+    where:  { telefono },
+    select: { id: true, nombre: true, email: true, telefono: true, updatedAt: true },
+  });
+  if (candidates.length === 0) return [];
+
+  // One aggregate: order count + latest order date per candidate.
+  const stats = await client.order.groupBy({
+    by:     ['cliente_id'],
+    where:  { cliente_id: { in: candidates.map((c) => c.id) } },
+    _count: { _all: true },
+    _max:   { createdAt: true },
+  });
+  const byId = new Map(stats.map((s) => [s.cliente_id!, { count: s._count._all, last: s._max.createdAt }]));
+
+  return candidates
+    .map((c) => ({
+      id: c.id, nombre: c.nombre, email: c.email, telefono: c.telefono,
+      ordenes: byId.get(c.id)?.count ?? 0,
+      _last:   byId.get(c.id)?.last ?? null,
+      _updated: c.updatedAt,
+    }))
+    .sort((a, b) =>
+      b.ordenes - a.ordenes ||
+      (b._last?.getTime() ?? 0) - (a._last?.getTime() ?? 0) ||
+      b._updated.getTime() - a._updated.getTime())
+    .map(({ _last, _updated, ...rest }) => { void _last; void _updated; return rest; });
+}
+
 // THE single order-creation path. Both the storefront checkout and the admin
 // "Nueva Orden" funnel through here, so EVERY order upserts/associates a Customer
 // (the bug was that the admin path created the Order without touching Customer).
 //
 // Customer identity is flexible — matching rules, IN THIS ORDER:
-//   a) email present → upsert by email (unique); refresh the phone if provided.
-//   b) only phone    → match by normalized phone (findFirst — `telefono` is not a
-//                      unique column, so upsert-by-phone isn't available), else
-//                      create.
+//   a) explicit cliente_id (operator adopted a match) → attach, no matching.
+//   b) forzarClienteNuevo (operator chose "crear nuevo") → create, no matching.
+//   c) email present → upsert by email (unique); refresh the phone if provided.
+//   d) only phone    → deterministic phone match (rankPhoneMatches: most orders,
+//                      tiebreak recent activity), else create.
 // The phone is ALWAYS stored normalized (+57…), on BOTH the Customer and the
 // order snapshot, so the phone match works.
 //
@@ -274,11 +332,21 @@ function isUniqueViolation(error: unknown): boolean {
 // and per-line price/molienda. A `pagado` order (the admin can create one
 // directly) auto-creates its Shipping via the same hook the status path uses.
 export async function createOrderWithCustomer(input: CreateOrderInput) {
+  const clienteIdOverride = input.cliente_id?.trim() || null;
+  const forzarNuevo = input.forzarClienteNuevo === true && !clienteIdOverride;
   const email = input.customer.email?.trim() || null;
   const telefono = normalizeCustomerPhone(input.customer.telefono);
 
-  // Server-side identity guard (defense in depth — the routes validate too).
-  if (!email && !telefono) throw new OrderCustomerIdentityError();
+  // Server-side identity guard (defense in depth — the routes validate too). An
+  // explicit customer satisfies identity on its own.
+  if (!clienteIdOverride && !email && !telefono) throw new OrderCustomerIdentityError();
+
+  // Validate the explicit customer up front (outside the create/retry loop): a
+  // stale or forged id is rejected before any order is written.
+  if (clienteIdOverride) {
+    const chosen = await prisma.customer.findUnique({ where: { id: clienteIdOverride }, select: { id: true } });
+    if (!chosen) throw new OrderCustomerNotFoundError();
+  }
 
   const nombre = input.customer.nombre.trim();
   const idem = input.idempotencyKey?.trim() || null;
@@ -305,7 +373,26 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
         // exact — every later "orders of this customer" read stops depending on
         // matching snapshot values that the customer may since have edited.
         let clienteId: string;
-        if (email) {
+        if (clienteIdOverride) {
+          // (a) Attach to the operator's chosen customer — no upsert, no matching.
+          clienteId = clienteIdOverride;
+        } else if (forzarNuevo) {
+          // (b) Operator saw the banner and chose "crear nuevo" — SKIP matching and
+          // create, even though the phone/email matches. This is what makes that
+          // choice stick (without it the branches below would re-match and override
+          // it). A duplicate email would still hit the unique constraint (email IS
+          // the identity key) — contradictory, and rare in practice (this path is
+          // for shared phones).
+          const created = await tx.customer.create({
+            data: {
+              nombre, email, telefono,
+              ciudad:    input.ciudad_entrega ?? null,
+              direccion: input.direccion_entrega ?? null,
+              canal:     input.canal,
+            },
+          });
+          clienteId = created.id;
+        } else if (email) {
           const customer = await tx.customer.upsert({
             where:  { email },
             update: telefono ? { telefono } : {},
@@ -319,9 +406,10 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
           clienteId = customer.id;
         } else {
           // email is null here, so the guard guarantees telefono is non-null.
-          const existing = await tx.customer.findFirst({ where: { telefono: telefono! } });
-          if (existing) {
-            clienteId = existing.id;
+          // Deterministic winner among (possibly several) phone matches.
+          const [match] = await rankPhoneMatches(tx, telefono!);
+          if (match) {
+            clienteId = match.id;
           } else {
             const created = await tx.customer.create({
               data: {
