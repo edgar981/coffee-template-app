@@ -236,6 +236,16 @@ function Ordenes() {
     return acc;
   }, {} as Record<OrderStatus, number>);
 
+  // Single reset for the whole filter bar: estado pills, "Por cobrar", the date
+  // range (all URL-driven) AND the scratch `search`. `order` (the open dialog) is
+  // deliberately untouched. Shown only when at least one filter is active.
+  const hasActiveFilters =
+    estados.length > 0 || !!desde || !!hasta || porCobrar || excludeCobrar || search.trim() !== '';
+  const clearFilters = () => {
+    setSearch('');
+    setParams({ estado: null, desde: null, hasta: null, cobrar: null });
+  };
+
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   // Opens the New Order form with a FRESH idempotency key — one key per intended
@@ -521,6 +531,11 @@ function Ordenes() {
           hasta={hasta}
           onChange={(d, h) => setParams({ desde: d, hasta: h })}
         />
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 gap-1 text-xs">
+            <X className="w-3.5 h-3.5" /> Limpiar
+          </Button>
+        )}
       </div>
 
       {/* Table */}

@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { CreditCard, DollarSign, Receipt, X } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
@@ -41,6 +41,8 @@ export default function Pagos() {
 }
 
 function PagosInner() {
+  const router       = useRouter();
+  const pathname     = usePathname();
   const searchParams = useSearchParams();
   // `?desde`/`?hasta` (yyyy-mm-dd) seed the date range so the dashboard can link
   // straight to "hoy" (Ventas de hoy) or the month (Ingresos del mes). Same param
@@ -100,7 +102,15 @@ function PagosInner() {
     [filtered]);
 
   const hasFilters = metodo !== 'all' || !!from || !!to;
-  const clearFilters = () => { setMetodo('all'); setFrom(''); setTo(''); };
+  // Single reset for the whole bar: método + range, AND the seeding query params
+  // (`?desde`/`?hasta` from a dashboard deep link) so a reload can't re-apply them.
+  const clearFilters = () => {
+    setMetodo('all'); setFrom(''); setTo('');
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete('desde'); next.delete('hasta');
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
 
   // ── Render ─────────────────────────────────────────────────────────────────
 

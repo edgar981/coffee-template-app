@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarDays, X } from 'lucide-react';
+import { CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -58,41 +58,32 @@ export function DateRangePicker({ desde, hasta, onChange }: {
       ? `${RANGE_LABEL.format(dayKeyToDate(desde))} – ${RANGE_LABEL.format(dayKeyToDate(hasta))}`
       : `Desde ${RANGE_LABEL.format(dayKeyToDate((desde ?? hasta)!))}`;
 
+  // No standalone clear (✕) here: the range is cleared by each page's single
+  // "Limpiar" reset, which also resets the page's other filters and the URL.
   return (
-    <div className="flex items-center gap-1">
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className={`h-9 gap-2 ${active ? 'border-primary/50 text-foreground' : 'text-muted-foreground'}`}>
-            <CalendarDays className="w-4 h-4" />
-            {label}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="range"
-            selected={active ? range : undefined}
-            defaultMonth={leftMonth}
-            // react-day-picker v10: `endMonth` caps forward navigation (v8's
-            // `toMonth`). No `startMonth` — going back stays unrestricted.
-            endMonth={currentMonthStart}
-            disabled={{ after: today }}
-            onSelect={(r) => onChange(
-              r?.from ? dateToDayKey(r.from) : null,
-              r?.to   ? dateToDayKey(r.to)   : null,
-            )}
-            numberOfMonths={2}
-          />
-        </PopoverContent>
-      </Popover>
-      {active && (
-        <Button
-          variant="ghost" size="sm" className="h-9 w-9 p-0"
-          aria-label="Limpiar rango de fechas"
-          onClick={() => onChange(null, null)}
-        >
-          <X className="w-4 h-4" />
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className={`h-9 gap-2 ${active ? 'border-primary/50 text-foreground' : 'text-muted-foreground'}`}>
+          <CalendarDays className="w-4 h-4" />
+          {label}
         </Button>
-      )}
-    </div>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="range"
+          selected={active ? range : undefined}
+          defaultMonth={leftMonth}
+          // react-day-picker v10: `endMonth` caps forward navigation (v8's
+          // `toMonth`). No `startMonth` — going back stays unrestricted.
+          endMonth={currentMonthStart}
+          disabled={{ after: today }}
+          onSelect={(r) => onChange(
+            r?.from ? dateToDayKey(r.from) : null,
+            r?.to   ? dateToDayKey(r.to)   : null,
+          )}
+          numberOfMonths={2}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
