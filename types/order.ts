@@ -129,6 +129,9 @@ export interface AdminOrderPayload {
   cliente_nombre:     string;
   cliente_email?:     string;
   cliente_telefono?:  string;
+  // Cliente explícito adoptado desde el banner de duplicado ("Usar este
+  // cliente"): la orden se adjunta a él (validado server-side; sin upsert).
+  cliente_id?:        string;
   canal?:             OrderChannel;
   costo_envio?:       number;
   direccion_entrega?: string;

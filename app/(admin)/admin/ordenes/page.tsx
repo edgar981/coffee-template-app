@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { getOrders, createOrder, updateOrder } from '@/lib/api/orders';
 import { ensureOrderShipping } from '@/lib/api/shippings';
 import { getCatalog } from '@/lib/api/products';
+import { lookupCustomer, type CustomerMatch } from '@/lib/api/customers';
 import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
 import { RegisterPaymentModal } from '@/components/admin/RegisterPaymentModal';
 import type { Order, OrderForm, OrderLineForm, OrderStatus, OrderChannel } from '@/types/order';
@@ -171,6 +172,12 @@ function Ordenes() {
   const [saving, setSaving]               = useState(false);
   const savingRef                         = useRef(false);
   const idemKeyRef                        = useRef<string>('');
+  // Proactive duplicate detection in the New Order modal. `customerMatch` is the
+  // existing customer the phone/email would match (drives the non-blocking
+  // banner); `usingClienteId` is set when the operator adopts them ("Usar este
+  // cliente") — the order then attaches to that id instead of upserting.
+  const [customerMatch, setCustomerMatch] = useState<CustomerMatch | null>(null);
+  const [usingClienteId, setUsingClienteId] = useState<string | null>(null);
   // Real catalog for the New Order line selectors (same source as the storefront).
   const [catalog, setCatalog]             = useState<Product[]>([]);
 
@@ -239,11 +246,41 @@ function Ordenes() {
 
   // Opens the New Order form with a FRESH idempotency key — one key per intended
   // order, reused across double-clicks of that same form so the server can dedup.
+  const resetCustomerDetection = () => { setCustomerMatch(null); setUsingClienteId(null); };
+
   const openNewOrder = () => {
     idemKeyRef.current = crypto.randomUUID();
     setForm(EMPTY_FORM);
+    resetCustomerDetection();
     setShowForm(true);
   };
+
+  // Look up the existing customer this phone/email would match, on blur of those
+  // fields. Read-only; never blocks. Skipped once a customer is already adopted.
+  const detectCustomer = async () => {
+    if (usingClienteId) return;
+    const match = await lookupCustomer({
+      telefono: form.cliente_telefono || undefined,
+      email:    form.cliente_email || undefined,
+    });
+    setCustomerMatch(match);
+  };
+
+  // Adopt the matched customer: the order will carry its `cliente_id` (no upsert),
+  // and its name fills the form. Editing phone/email afterwards un-adopts (below).
+  const useMatchedCustomer = () => {
+    if (!customerMatch) return;
+    setUsingClienteId(customerMatch.id);
+    setForm(f => ({ ...f, cliente_nombre: customerMatch.nombre }));
+    setCustomerMatch(null);
+  };
+
+  // "Crear nuevo de todas formas" — dismiss the banner and let the normal upsert
+  // run (a conscious duplicate is allowed; shared phones are legal).
+  const dismissMatch = () => setCustomerMatch(null);
+
+  // Changing an identity field invalidates any prior detection/adoption.
+  const onIdentityChange = () => { if (usingClienteId || customerMatch) resetCustomerDetection(); };
 
   // ── New-order line editing ───────────────────────────────────────────────
   const productBySlug = (slug: string) => catalog.find(p => p.slug === slug);
@@ -307,6 +344,7 @@ function Ordenes() {
         cliente_nombre:    form.cliente_nombre,
         cliente_email:     form.cliente_email || undefined,
         cliente_telefono:  form.cliente_telefono || undefined,
+        cliente_id:        usingClienteId || undefined,
         canal:             form.canal,
         costo_envio:       Number(form.costo_envio) || 0,
         direccion_entrega: form.direccion_entrega || undefined,
@@ -320,6 +358,7 @@ function Ordenes() {
       toast.success(created.estado === 'pagado' ? 'Orden creada y pago registrado' : 'Orden creada');
       setShowForm(false);
       setForm(EMPTY_FORM);
+      resetCustomerDetection();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'No se pudo crear la orden');
     } finally {
@@ -617,13 +656,50 @@ function Ordenes() {
               </div>
               <div>
                 <Label>Correo electrónico</Label>
-                <Input type="email" {...field('cliente_email')} className="mt-1" placeholder="Opcional" />
+                <Input
+                  type="email"
+                  value={form.cliente_email}
+                  onChange={e => { setForm(f => ({ ...f, cliente_email: e.target.value })); onIdentityChange(); }}
+                  onBlur={detectCustomer}
+                  className="mt-1" placeholder="Opcional"
+                />
               </div>
               <div>
                 <Label>Teléfono</Label>
-                <Input {...field('cliente_telefono')} className="mt-1" placeholder="300 000 0000" />
+                <Input
+                  value={form.cliente_telefono}
+                  onChange={e => { setForm(f => ({ ...f, cliente_telefono: e.target.value })); onIdentityChange(); }}
+                  onBlur={detectCustomer}
+                  className="mt-1" placeholder="300 000 0000"
+                />
               </div>
               <p className="col-span-2 -mt-1 text-xs text-muted-foreground">* Ingresa al menos un teléfono o correo del cliente.</p>
+
+              {/* Detección proactiva de duplicado — banner NO bloqueante. */}
+              {customerMatch && !usingClienteId && (
+                <div className="col-span-2 flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-900/20 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-amber-900 dark:text-amber-200">
+                    Ya existe <strong>{customerMatch.nombre}</strong> con estos datos
+                    {' '}({customerMatch.ordenes} {customerMatch.ordenes === 1 ? 'orden' : 'órdenes'}).
+                  </p>
+                  <div className="flex shrink-0 gap-2">
+                    <Button type="button" size="sm" onClick={useMatchedCustomer}>Usar este cliente</Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={dismissMatch}>Crear nuevo</Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Cliente adoptado — la orden viajará con su cliente_id. */}
+              {usingClienteId && (
+                <div className="col-span-2 flex items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm dark:border-emerald-800 dark:bg-emerald-900/20">
+                  <span className="text-emerald-900 dark:text-emerald-200">
+                    Vinculado a <strong>{form.cliente_nombre}</strong> — la orden se adjunta a este cliente.
+                  </span>
+                  <button type="button" onClick={() => setUsingClienteId(null)} aria-label="Desvincular" className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-300">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               <div className="col-span-2">
                 <Label>Canal</Label>
                 <Select value={form.canal} onValueChange={v => setForm(f => ({ ...f, canal: v as OrderChannel }))}>

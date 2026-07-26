@@ -22,6 +22,18 @@ export function toWhatsappNumber(phone: string | null | undefined): string | nul
   return null;
 }
 
+// THE single phone normalizer — canonical stored/compared form of a Colombian
+// mobile: E.164 "+57" + 10 digits ("+573XXXXXXXXX"). Strips spaces/dashes/parens
+// via `toWhatsappNumber` and prepends "+"; returns null for anything that isn't a
+// Colombian mobile. Used at EVERY point a phone is written (Customer.telefono and
+// the order snapshot) AND at every lookup — phone matching is worthless unless
+// BOTH sides pass through here, so a stored "+57 310 234 5678" and a typed
+// "3102345678" resolve to the same "+573102345678".
+export function normalizeCustomerPhone(phone: string | null | undefined): string | null {
+  const digits = toWhatsappNumber(phone); // "573XXXXXXXXX" | null
+  return digits ? `+${digits}` : null;
+}
+
 // Enlace wa.me para escribirle AL CLIENTE (distinto de whatsappHref, que usa el
 // número del negocio). Devuelve null si el teléfono no es válido.
 export function customerWhatsappHref(phone: string | null | undefined, mensaje: string): string | null {

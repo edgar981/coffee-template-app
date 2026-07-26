@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { fireOrderTrigger } from '@/lib/automations/triggers';
-import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, derivarCondicionPago, OrderCustomerIdentityError, OrderLinesError } from '@/lib/orders';
+import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, derivarCondicionPago, OrderCustomerIdentityError, OrderCustomerNotFoundError, OrderLinesError } from '@/lib/orders';
 import { MetodoPago } from '@/src/generated/prisma/client';
 
 export async function GET() {
@@ -55,13 +55,17 @@ const adminOrderSchema = z
         molienda: z.string().trim().min(1).nullish(),
       }))
       .min(1, 'Agrega al menos un producto'),
+    // Explicit customer chosen via the duplicate banner ("Usar este cliente").
+    // When present, the order attaches to it (validated server-side); no upsert.
+    cliente_id: z.string().trim().min(1).optional(),
     // Client-generated per-submit key; makes a double-click / retry idempotent.
     idempotencyKey: z.string().uuid().optional(),
   })
   // At least one usable identity — a non-empty but unparseable phone with no
-  // email is rejected (the phone would otherwise silently drop).
+  // email is rejected (the phone would otherwise silently drop). An explicit
+  // `cliente_id` satisfies identity on its own.
   .refine(
-    (d) => Boolean(d.cliente_email) || Boolean(normalizeCustomerPhone(d.cliente_telefono)),
+    (d) => Boolean(d.cliente_id) || Boolean(d.cliente_email) || Boolean(normalizeCustomerPhone(d.cliente_telefono)),
     { message: 'Ingresa un correo válido o un teléfono (celular colombiano)', path: ['cliente_telefono'] },
   )
   // Marking the payment as received requires knowing the method (not "Por
@@ -124,6 +128,7 @@ export async function POST(req: NextRequest) {
     // creation path (+ Customer upsert, CN- numbering, idempotency) as checkout.
     const result = await createOrderWithCustomer({
       customer:          { nombre: b.cliente_nombre, email: b.cliente_email ?? null, telefono: b.cliente_telefono ?? null },
+      cliente_id:        b.cliente_id ?? null,
       canal:             b.canal || 'whatsapp',
       total,
       costo_envio,
@@ -144,7 +149,7 @@ export async function POST(req: NextRequest) {
     fireOrderTrigger('nueva_orden', result as never).catch(console.error);
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    if (error instanceof OrderCustomerIdentityError) {
+    if (error instanceof OrderCustomerIdentityError || error instanceof OrderCustomerNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
     console.error('Admin order creation failed:', error);

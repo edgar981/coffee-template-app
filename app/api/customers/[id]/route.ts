@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { Prisma } from '@/src/generated/prisma/client';
 import { headers } from 'next/headers';
+import { normalizeCustomerPhone } from '@/lib/whatsapp-link';
 
 // Customer + their order history for the dedicated profile page. Orders link to
 // the customer by SNAPSHOT (there's no FK): email OR normalized phone — matching
@@ -21,7 +22,10 @@ export async function GET(
   const customer = await prisma.customer.findUnique({ where: { id } });
   if (!customer) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
 
-  const orClauses: Prisma.OrderWhereInput[] = [];
+  // Primary link is the FK (`cliente_id`) — exact and format-proof, so it keeps
+  // working after phones are canonicalized. Email/phone snapshots stay as a
+  // fallback for any legacy order that was never linked (null cliente_id).
+  const orClauses: Prisma.OrderWhereInput[] = [{ cliente_id: id }];
   if (customer.email)    orClauses.push({ cliente_email: customer.email });
   if (customer.telefono) orClauses.push({ cliente_telefono: customer.telefono });
 
@@ -50,7 +54,9 @@ export async function PATCH(
     data: {
       nombre:    body.nombre,
       email:     body.email     || null,
-      telefono:  body.telefono  || null,
+      // Canonicalize on write — same normalizer as order matching (raw fallback
+      // for non-mobile numbers).
+      telefono:  normalizeCustomerPhone(body.telefono) ?? (body.telefono || null),
       ciudad:    body.ciudad    || null,
       direccion: body.direccion || null,
       canal:     body.canal     || 'directo',
