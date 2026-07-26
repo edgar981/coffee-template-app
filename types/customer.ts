@@ -10,6 +10,10 @@ export interface Customer {
   canal?:           OrderChannel;
   notas?:           string;
   numero_ordenes?:  number;
+  // `numero_ordenes` = BUSINESS count shown as "N órdenes" (stored/denormalized).
+  // `ordenesRef` = REFERENTIAL count (_count.orders, raw FK refs incl. canceladas/demo);
+  // it drives the delete affordance so it matches the server guard exactly.
+  ordenesRef?:      number;
   total_compras?:   number;
   activo:           boolean;
   createdAt:        string;

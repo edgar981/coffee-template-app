@@ -225,13 +225,14 @@ function ClientesInner() {
                       >
                         <Edit2 className="w-3 h-3" />
                       </Button>
-                      {(c.numero_ordenes ?? 0) > 0 ? (
-                        // Has orders → deletion is blocked (server 409). Don't offer
-                        // the dialog at all: a REAL disabled control (no pointer
-                        // cursor, not focusable — the row is cursor-pointer, so the
-                        // span must reset it) with the reason on hover. The `span`
-                        // wrapper is what the tooltip hovers over, since a disabled
-                        // button swallows pointer events.
+                      {(c.ordenesRef ?? 0) > 0 ? (
+                        // Gate on `ordenesRef` (raw FK refs = what the delete guard
+                        // counts), NOT the displayed `numero_ordenes` (business
+                        // metric): otherwise the dialog could open on a "0 órdenes"
+                        // row and the server would 409. Real disabled control (no
+                        // pointer cursor, not focusable — the row is cursor-pointer,
+                        // so the span resets it); the span is what the tooltip hovers
+                        // over, since a disabled button swallows pointer events.
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span
@@ -241,14 +242,14 @@ function ClientesInner() {
                               <Button
                                 size="sm" variant="ghost" disabled
                                 className="h-7 w-7 p-0 text-muted-foreground/40"
-                                aria-label={`No se puede eliminar ${c.nombre}: tiene ${c.numero_ordenes} ${c.numero_ordenes === 1 ? 'orden' : 'órdenes'}`}
+                                aria-label={`No se puede eliminar ${c.nombre}: tiene ${c.ordenesRef} ${c.ordenesRef === 1 ? 'orden asociada' : 'órdenes asociadas'} (incluye canceladas)`}
                               >
                                 <Trash2 className="w-3 h-3" />
                               </Button>
                             </span>
                           </TooltipTrigger>
                           <TooltipContent>
-                            No se puede eliminar: tiene {c.numero_ordenes} {c.numero_ordenes === 1 ? 'orden' : 'órdenes'}. El historial se conserva.
+                            No se puede eliminar: tiene {c.ordenesRef} {c.ordenesRef === 1 ? 'orden asociada' : 'órdenes asociadas'} (incluye canceladas). El historial se conserva.
                           </TooltipContent>
                         </Tooltip>
                       ) : (

@@ -11,9 +11,16 @@ export async function GET() {
 
   const customers = await prisma.customer.findMany({
     orderBy: { createdAt: 'desc' },
+    // Referential order count = raw FK references (Order.cliente_id), NO filter —
+    // the SAME thing the delete guard counts, so the row's delete affordance can
+    // match it exactly (no "0 órdenes" row that still 409s). One query, no per-row
+    // fetch. Distinct from the displayed `numero_ordenes` (business count).
+    include: { _count: { select: { orders: true } } },
   });
 
-  return NextResponse.json(customers);
+  const withRefs = customers.map(({ _count, ...c }) => ({ ...c, ordenesRef: _count.orders }));
+
+  return NextResponse.json(withRefs);
 }
 
 export async function POST(req: NextRequest) {

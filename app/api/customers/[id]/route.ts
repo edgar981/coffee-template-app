@@ -92,7 +92,7 @@ export async function DELETE(
   const n = customer._count.orders;
   if (n > 0) {
     return NextResponse.json(
-      { error: `Tiene ${n} ${n === 1 ? 'orden asociada' : 'órdenes asociadas'}; el historial se conserva.` },
+      { error: `Tiene ${n} ${n === 1 ? 'orden asociada' : 'órdenes asociadas'} (incluye canceladas); el historial se conserva.` },
       { status: 409 },
     );
   }
