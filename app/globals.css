@@ -1,5 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600&display=swap');
 @import "tailwindcss";
+/* Enter/exit utilities (animate-in / animate-out / slide-in-from-* / fade-in-0 /
+   zoom-in-95) used by the Radix Sheet, Dialog and ⌘K. `tailwindcss-animate` is a
+   dependency but was never wired into the v4 build, so those classes generated
+   nothing and the panels appeared/closed abruptly. */
+@plugin "tailwindcss-animate";
 
 /* Bind Tailwind's `dark:` variant to the `.dark` class (toggled by next-themes)
    instead of the default `prefers-color-scheme` media query. Without this the
@@ -109,6 +114,19 @@ html {
      scrollbars). El storefront queda siempre así (fuerza `light`); el admin
      cambia a `dark` vía el override de `.dark` de abajo. */
   color-scheme: light;
+}
+
+/* Accesibilidad: quien pide menos movimiento no ve ninguna animación —
+   Sheet, Dialog y ⌘K aparecen/desaparecen al instante (la animación de salida
+   de Radix se completa de inmediato y desmonta). Regla global para no repetir el
+   guard por componente. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ============================================

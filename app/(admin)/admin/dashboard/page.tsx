@@ -46,12 +46,25 @@ export default function Dashboard() {
   const [loading, setLoading]       = useState(true);
 
   useEffect(() => {
-    Promise.all([getDashboardStats(), getAnalytics(), getProducts(), getCustomers(), getDashboardPrefs()])
-      .then(([s, a, p, c, w]) => {
-        setStats(s); setAnalytics(a); setProducts(p); setCustomers(c); setWidgetKeys(w);
-      })
-      .catch(() => {/* leave defaults; a failed sub-fetch shouldn't hang the panel */})
-      .finally(() => setLoading(false));
+    let alive = true;
+    // Core dashboard data: settle each INDEPENDENTLY so one failing fetch can't
+    // blank the rest (the earlier bug — prefs was folded into a single Promise.all
+    // and a rejection discarded stats+analytics, emptying the donut and Recientes).
+    Promise.allSettled([getDashboardStats(), getAnalytics(), getProducts(), getCustomers()])
+      .then(([s, a, p, c]) => {
+        if (!alive) return;
+        if (s.status === 'fulfilled') setStats(s.value);
+        if (a.status === 'fulfilled') setAnalytics(a.value);
+        if (p.status === 'fulfilled') setProducts(p.value);
+        if (c.status === 'fulfilled') setCustomers(c.value);
+        setLoading(false);
+      });
+    // Layout preference is a SEPARATE concern: if it fails, keep the default
+    // layout — it must never affect the data widgets/donut/Recientes.
+    getDashboardPrefs()
+      .then((w) => { if (alive) setWidgetKeys(w); })
+      .catch(() => {/* keep DEFAULT_WIDGET_KEYS */});
+    return () => { alive = false; };
   }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────────

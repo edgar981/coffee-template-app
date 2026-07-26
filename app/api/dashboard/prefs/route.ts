@@ -23,12 +23,18 @@ export async function GET() {
   const { error, userId } = await requireAdmin();
   if (error) return error;
 
-  const pref = await prisma.dashboardPreference.findUnique({ where: { userId } });
-  // Stored keys are re-sanitized on read: a widget retired since it was saved is
-  // dropped here rather than crashing the dashboard. Empty stored array is a
-  // valid choice (the user hid everything) — only a MISSING row falls back to the
-  // default.
-  const widgets = pref ? sanitizeWidgetKeys(pref.widgets) : DEFAULT_WIDGET_KEYS;
+  // Reading the layout must NEVER 500 the dashboard. Any DB error (e.g. the table
+  // not yet migrated in some environment) degrades to the registry default so the
+  // panel still renders. Stored keys are re-sanitized: a widget retired since it
+  // was saved is dropped rather than crashing. Empty stored array is a valid
+  // choice (the user hid everything) — only a MISSING row falls back to default.
+  let widgets: string[] = DEFAULT_WIDGET_KEYS;
+  try {
+    const pref = await prisma.dashboardPreference.findUnique({ where: { userId } });
+    if (pref) widgets = sanitizeWidgetKeys(pref.widgets);
+  } catch (e) {
+    console.error('dashboard prefs read failed; using default layout:', e);
+  }
   return NextResponse.json({ widgets });
 }
 
