@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   TrendingUp, ShoppingCart, Package, Users,
-  AlertTriangle, DollarSign, Clock,
+  AlertTriangle, DollarSign, Clock, Banknote, Wallet, Truck,
 } from 'lucide-react';
 import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -21,7 +21,11 @@ import type { AnalyticsData } from '@/types/analytics';
 import { formatCOP } from '@/lib/utils';
 import StatCard from '@/components/admin/StatCard';
 import { computeTrend, NEUTRAL_TREND } from '@/lib/metrics/trend';
-import { currentMonthOrdersQuery, PENDING_ORDERS_QUERY } from '@/lib/metrics/order-stat-filters';
+import {
+  currentMonthOrdersQuery, currentMonthRange,
+  PENDING_ORDERS_QUERY, POR_COBRAR_QUERY,
+} from '@/lib/metrics/order-stat-filters';
+import { isLowStock, LOW_STOCK_QUERY } from '@/lib/metrics/inventory-filters';
 import DashboardChartCarousel from '@/components/admin/DashboardChartCarousel';
 import { DASHBOARD_COLORS, tooltipStyle } from '@/constants/dashb-styles';
 
@@ -47,7 +51,7 @@ export default function Dashboard() {
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  const lowStock       = products.filter(p => p.stock <= (p.stock_minimo ?? 5)).length;
+  const lowStock       = products.filter(isLowStock).length;
   const activeProducts = products.filter(p => p.activo !== false).length;
 
   const categoryData = analytics?.categoryData ?? [];
@@ -56,6 +60,9 @@ export default function Dashboard() {
   // reproduces its `!= cancelado` filter — so this link's row count equals the
   // number on the card.
   const monthQuery = currentMonthOrdersQuery();
+  // Day keys for the deep links (America/Bogota). `hasta` is today; `desde` the
+  // 1st of the month — both from the SAME shared helper the metrics use.
+  const { desde: monthStartKey, hasta: todayKey } = currentMonthRange();
 
   // Month-over-month trend pills: current calendar month vs previous complete
   // month. The anti-noise floor lives in lib/metrics/trend.ts — with the demo
@@ -68,6 +75,8 @@ export default function Dashboard() {
   // doesn't have yet → neutral fallback (reported as backend-pending).
   const recurrentesTrend = NEUTRAL_TREND;
 
+  const porCobrarN = stats?.porCobrar ?? 0;
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -78,24 +87,45 @@ export default function Dashboard() {
         <p className="text-sm text-muted-foreground mt-1">Café Nayoli — Resumen del negocio</p>
       </div>
 
+      {/* ── Fila "Hoy" — el pulso operativo del día ─────────────────────────── */}
+      <section>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Hoy</h2>
+        {loading ? (
+          <StatRowSkeleton />
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard icon={Banknote}     label="Ventas de hoy"   value={formatCOP(stats?.ventasHoy ?? 0)}    sub="Pagos recibidos hoy"                                            color="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" href={`/admin/pagos?desde=${todayKey}&hasta=${todayKey}`} />
+            <StatCard icon={Wallet}       label="Por cobrar"      value={formatCOP(stats?.porCobrarMonto ?? 0)} sub={porCobrarN > 0 ? `${porCobrarN} ${porCobrarN === 1 ? 'orden' : 'órdenes'} contraentrega` : 'Nada por cobrar'} color="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" href={`/admin/ordenes?${POR_COBRAR_QUERY}`} />
+            <StatCard icon={Truck}        label="Despachos de hoy" value={stats?.despachosHoy ?? 0}           sub="Salieron a ruta hoy"                                            color="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400" href="/admin/entregas" />
+            <StatCard icon={ShoppingCart} label="Pedidos de hoy"  value={stats?.pedidosHoy ?? 0}              sub="Órdenes creadas hoy"                                            color="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" href={`/admin/ordenes?desde=${todayKey}&hasta=${todayKey}`} />
+          </div>
+        )}
+      </section>
+
       {/* Stats row 1 */}
+      {loading ? <StatRowSkeleton /> : (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={DollarSign}    label="Ingresos Totales"    value={formatCOP(stats?.totalRevenue ?? 0)}                     sub="Histórico" trend={revenueTrend} color="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" />
+        {/* Ingresos DEL MES (Payments) — el valor lleva pill MoM coherente y el
+            acumulado histórico va de subtítulo. Link → Pagos del mes. */}
+        <StatCard icon={DollarSign}    label="Ingresos del mes"    value={formatCOP(stats?.revenueMonth ?? 0)} sub={`Histórico: ${formatCOP(stats?.revenueTotal ?? 0)}`} trend={revenueTrend} color="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" href={`/admin/pagos?desde=${monthStartKey}&hasta=${todayKey}`} />
         <StatCard icon={ShoppingCart}  label="Órdenes del mes"     value={stats?.monthly.orders.current ?? 0}    sub="Mes en curso" trend={ordersTrend} color="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" href={`/admin/ordenes?${monthQuery}`} />
         {/* pendingOrders EXCLUYE contraentregas despachadas (por cobrar) — la
             plata en la calle no "requiere atención". El link (cobrar=0) filtra
             al MISMO conjunto que el número (definición compartida). */}
-        <StatCard icon={Clock}         label="Órdenes Pendientes"  value={stats?.pendingOrders ?? 0}  sub={(stats?.porCobrar ?? 0) > 0 ? `Por cobrar: ${stats!.porCobrar}` : 'Requieren atención'} color="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" href={`/admin/ordenes?${PENDING_ORDERS_QUERY}`} />
-        <StatCard icon={AlertTriangle} label="Alertas de Stock"    value={lowStock}                   sub="Productos bajo mínimo"     color="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" />
+        <StatCard icon={Clock}         label="Órdenes Pendientes"  value={stats?.pendingOrders ?? 0}  sub={porCobrarN > 0 ? `Por cobrar: ${porCobrarN}` : 'Requieren atención'} color="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" href={`/admin/ordenes?${PENDING_ORDERS_QUERY}`} />
+        <StatCard icon={AlertTriangle} label="Alertas de Stock"    value={lowStock}                   sub="Productos bajo mínimo"     color="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" href={`/admin/inventario?${LOW_STOCK_QUERY}`} />
       </div>
+      )}
 
       {/* Stats row 2 */}
+      {loading ? <StatRowSkeleton /> : (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Users}       label="Clientes Totales"     value={customers.length}         sub="Registrados"                       color="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" />
+        <StatCard icon={Users}       label="Clientes Totales"     value={customers.length}         sub="Registrados"                       color="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" href="/admin/clientes" />
         <StatCard icon={Package}     label="Productos Activos"    value={activeProducts}           sub="En catálogo"                       color="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" />
-        <StatCard icon={TrendingUp}  label="Promedio por orden"   value={formatCOP(stats?.avgTicket ?? 0)}  sub="Valor promedio por orden · histórico" trend={avgTrend} color="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400" />
-        <StatCard icon={TrendingUp}  label="Clientes Recurrentes" value={`${analytics?.kpis.tasaRetencion ?? 0}%`} sub="con más de 1 compra" trend={recurrentesTrend} color="bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400" />
+        <StatCard icon={TrendingUp}  label="Promedio por orden"   value={formatCOP(stats?.avgTicket ?? 0)}  sub="Promedio por venta · mes" trend={avgTrend} color="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400" />
+        <StatCard icon={TrendingUp}  label="Clientes Recurrentes" value={`${analytics?.kpis.tasaRetencion ?? 0}%`} sub="con más de 1 compra" trend={recurrentesTrend} color="bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400" href="/admin/clientes?recurrentes=1" />
       </div>
+      )}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -159,6 +189,26 @@ export default function Dashboard() {
           <OrdersTable orders={stats.recentOrders} />
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Loading skeleton ─────────────────────────────────────────────────────────
+// One row of four card-shaped placeholders, matching the StatCard footprint so
+// the layout doesn't jump when the real numbers arrive.
+function StatRowSkeleton() {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" aria-hidden>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="stat-card animate-pulse">
+          <div className="w-10 h-10 rounded-lg bg-muted" />
+          <div className="mt-3 space-y-2">
+            <div className="h-6 w-24 rounded bg-muted" />
+            <div className="h-3 w-20 rounded bg-muted/70" />
+            <div className="h-2.5 w-16 rounded bg-muted/50" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

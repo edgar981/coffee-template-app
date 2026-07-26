@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { AlertTriangle, TrendingDown, TrendingUp, Warehouse, ArrowUpDown } from 'lucide-react';
+import { Suspense, useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { AlertTriangle, TrendingDown, TrendingUp, Warehouse, ArrowUpDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -12,6 +14,7 @@ import { getProducts, getInventoryLogs, adjustInventory } from '@/lib/api/invent
 import type { InventoryLog, InventoryAdjustmentForm, InventoryMovementType } from '@/types/inventory';
 import { Product } from '@/types/product';
 import { formatCOP } from '@/lib/utils';
+import { isLowStock, LOW_STOCK_VALUE } from '@/lib/metrics/inventory-filters';
 
 type Tab = 'stock' | 'movimientos';
 
@@ -30,7 +33,22 @@ const EMPTY_FORM: InventoryAdjustmentForm = {
   motivo: '',
 };
 
+// useSearchParams() needs a Suspense boundary (same pattern as Órdenes).
 export default function Inventario() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Cargando...</div>}>
+      <InventarioInner />
+    </Suspense>
+  );
+}
+
+function InventarioInner() {
+  const searchParams = useSearchParams();
+  // `?stock=bajo-minimo` (from the dashboard "Alertas de Stock" card) filters the
+  // stock table to exactly the low-stock rows, via the SAME `isLowStock` the card
+  // counts with — so card number = filtered row count.
+  const lowStockOnly = searchParams.get('stock') === LOW_STOCK_VALUE;
+
   const [productos, setProductos] = useState<Product[]>([]);
   const [logs, setLogs]           = useState<InventoryLog[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -49,9 +67,11 @@ export default function Inventario() {
   useEffect(() => { load(); }, []);
 
   const activeProducts = productos.filter(p => p.activo !== false);
-  const lowStock       = activeProducts.filter(p => p.stock <= (p.stock_minimo ?? 5));
+  const lowStock       = activeProducts.filter(isLowStock);
   const outOfStock     = activeProducts.filter(p => p.stock === 0);
   const totalValue     = productos.reduce((sum, p) => sum + ((p.costo ?? 0) * p.stock), 0);
+  // Rows shown in the stock table — narrowed to low-stock when the URL asks.
+  const stockRows      = lowStockOnly ? lowStock : activeProducts;
 
   const handleAdjust = async () => {
     const prod = productos.find(p => p.id === adjForm.producto_id);
@@ -128,6 +148,19 @@ export default function Inventario() {
         </div>
       )}
 
+      {/* Active low-stock filter (arrived from the dashboard card) — a clear chip
+          so it's obvious the table is narrowed, with one click back to all rows. */}
+      {lowStockOnly && tab === 'stock' && (
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 px-3 py-1 text-xs font-medium text-amber-800 dark:text-amber-300">
+            <AlertTriangle className="w-3 h-3" /> Filtrado: stock bajo mínimo ({lowStock.length})
+          </span>
+          <Link href="/admin/inventario" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+            <X className="w-3 h-3" /> Quitar filtro
+          </Link>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex border-b border-border gap-4">
         {(['stock', 'movimientos'] as Tab[]).map(t => (
@@ -161,9 +194,9 @@ export default function Inventario() {
                   </tr>
                 </thead>
                 <tbody>
-                  {activeProducts.map(p => {
+                  {stockRows.map(p => {
                     const out = p.stock === 0;
-                    const low = p.stock <= (p.stock_minimo ?? 5);
+                    const low = isLowStock(p);
                     return (
                       <tr key={p.id} className={`border-b border-border/50 hover:bg-muted/20 ${out ? 'opacity-60' : ''}`}>
                         <td className="px-4 py-3 font-medium">{p.nombre}</td>
