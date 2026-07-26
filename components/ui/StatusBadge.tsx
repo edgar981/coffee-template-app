@@ -19,8 +19,10 @@ interface StatusBadgeProps {
 const statusConfig = {
   // Órdenes
   pendiente:        { label: 'Pendiente',   light: 'bg-amber-100 text-amber-800',   dark: 'dark:bg-amber-900/30 dark:text-amber-400' },
-  // Confirmado merged into Pagado (payment confirmed = order confirmed).
-  pagado:           { label: 'Pagado',      light: 'bg-emerald-100 text-emerald-800', dark: 'dark:bg-emerald-900/30 dark:text-emerald-400' },
+  // Confirmado merged into Pagado (payment confirmed = order confirmed). Label
+  // unificado a "Pagada" (concuerda con «la orden» y con el PaymentHint de
+  // Entregas) — fuente ÚNICA del wording de pago; ninguna vista lo hardcodea.
+  pagado:           { label: 'Pagada',      light: 'bg-emerald-100 text-emerald-800', dark: 'dark:bg-emerald-900/30 dark:text-emerald-400' },
   preparando:       { label: 'Preparando',  light: 'bg-violet-100 text-violet-800',  dark: 'dark:bg-violet-900/30 dark:text-violet-400' },
   enviado:          { label: 'Enviado',     light: 'bg-sky-100 text-sky-800',        dark: 'dark:bg-sky-900/30 dark:text-sky-400' },
   entregado:        { label: 'Entregado',   light: 'bg-green-100 text-green-800',     dark: 'dark:bg-green-900/30 dark:text-green-400' },

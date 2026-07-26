@@ -553,8 +553,10 @@ function Ordenes() {
                     <td className="px-4 py-3">
                       <CustomerLink id={o.cliente_id} nombre={o.cliente_nombre} className="font-medium" />
                     </td>
+                    {/* Canal en texto plano (sin chip): el canal es dato de
+                        caso-normal; consistencia sobre condicionalidad. */}
                     <td className="px-4 py-3">
-                      <span className="text-xs capitalize bg-muted px-2 py-0.5 rounded">{o.canal}</span>
+                      <span className="text-xs capitalize text-muted-foreground">{o.canal}</span>
                     </td>
                     <td className="px-4 py-3 font-semibold">{formatCOP(o.total)}</td>
                     {/* Estado = pago (Pendiente/Pagado/Cancelado). Se etiqueta la

@@ -169,7 +169,9 @@ export default function Entregas() {
                             {e.zona}
                           </span>
                         ) : (
-                          <span className="text-xs text-muted-foreground italic">Sin asignar</span>
+                          // Estado-vacío, no información → guion tenue como las
+                          // demás celdas neutras (etiqueta la excepción, no el vacío).
+                          <span className="text-xs text-muted-foreground">—</span>
                         )}
                         {/* Se etiqueta la EXCEPCIÓN, no el default: el chip de tipo
                             de envío solo aparece para NACIONAL (Local es el default
