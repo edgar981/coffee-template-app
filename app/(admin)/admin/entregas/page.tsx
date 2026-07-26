@@ -142,7 +142,7 @@ export default function Entregas() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40">
-                  {['Orden', 'Cliente', 'Dirección', 'Zona', 'Mensajero / Guía', 'Costo', 'Estado', 'Fecha Programada', 'Acción'].map(h => (
+                  {['Orden', 'Cliente', 'Dirección', 'Zona', 'Mensajero / Guía', 'Costo', 'Estado', 'Pago', 'Fecha Programada', 'Acción'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{h}</th>
                   ))}
                 </tr>
@@ -153,8 +153,6 @@ export default function Entregas() {
                     <td className="px-4 py-3 font-mono text-xs font-semibold text-primary">{e.order?.numero_orden ?? '—'}</td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{e.order?.cliente_nombre ?? '—'}</div>
-                      {/* Whoever delivers must know whether to collect on delivery. */}
-                      <PaymentHint order={e.order} />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -173,10 +171,15 @@ export default function Entregas() {
                         ) : (
                           <span className="text-xs text-muted-foreground italic">Sin asignar</span>
                         )}
-                        {/* Local / Nacional chip (editable en Programar/Editar). */}
-                        <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                          {TIPO_ENVIO_LABEL[e.tipo_envio] ?? e.tipo_envio}
-                        </span>
+                        {/* Se etiqueta la EXCEPCIÓN, no el default: el chip de tipo
+                            de envío solo aparece para NACIONAL (Local es el default
+                            y no aporta; la transportadora/guía va en su columna). NO
+                            re-completar el par Local/Nacional en una sesión futura. */}
+                        {e.tipo_envio === 'NACIONAL' && (
+                          <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            {TIPO_ENVIO_LABEL[e.tipo_envio] ?? e.tipo_envio}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm">
@@ -193,6 +196,9 @@ export default function Entregas() {
                     </td>
                     <td className="px-4 py-3 text-sm">{formatCOP(e.costo_envio)}</td>
                     <td className="px-4 py-3"><StatusBadge status={e.estado} /></td>
+                    {/* Pago en su propia columna (no anidado bajo el nombre): quien
+                        despacha ve de un vistazo si cobra. Reusa el badge de PaymentHint. */}
+                    <td className="px-4 py-3"><PaymentHint order={e.order} /></td>
                     {/* Neutral text matching the other columns. Delivered rows
                         show the real delivery date; others the scheduled date. */}
                     <td className="px-4 py-3 text-xs text-muted-foreground">
@@ -310,7 +316,7 @@ function PaymentHint({ order }: { order?: ShippingOrderRef | null }) {
 
   if (order.estado === 'pagado') {
     return (
-      <div className="mt-1 flex flex-wrap items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
           Pagada
         </span>
@@ -322,7 +328,7 @@ function PaymentHint({ order }: { order?: ShippingOrderRef | null }) {
   if (order.estado === 'pendiente') {
     const previsto = metodoPrevistoLabel(order);
     return (
-      <div className="mt-1 space-y-0.5">
+      <div className="space-y-0.5">
         <div className="flex flex-wrap items-center gap-1">
           <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
             Pendiente de cobro

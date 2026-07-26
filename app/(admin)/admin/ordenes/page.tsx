@@ -58,16 +58,6 @@ const EMPTY_FORM: OrderForm = {
   pagoRecibido:       false,
 };
 
-// Muted/outline pill marking a contraentrega order (both themes via tokens).
-function CondicionBadge({ condicion }: { condicion?: string | null }) {
-  if (condicion !== 'CONTRAENTREGA') return null;
-  return (
-    <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground whitespace-nowrap">
-      Contraentrega
-    </span>
-  );
-}
-
 // ─── URL-driven filters ───────────────────────────────────────────────────────
 // The filter view lives in the query string, so a filtered list is shareable and
 // the back button restores it for free. Params:
@@ -557,23 +547,22 @@ function Ordenes() {
                     onClick={() => setParams({ order: o.numero_orden }, 'push')}
                   >
                     <td className="px-4 py-3 font-mono text-xs font-semibold text-primary">{o.numero_orden}</td>
+                    {/* Solo el nombre (link → perfil, con WhatsApp). El teléfono
+                        se quitó de la lista: es dato de caso-normal; el contacto
+                        vive en el perfil y en el diálogo de la orden. */}
                     <td className="px-4 py-3">
                       <CustomerLink id={o.cliente_id} nombre={o.cliente_nombre} className="font-medium" />
-                      {o.cliente_telefono && (
-                        <p className="text-xs text-muted-foreground">{o.cliente_telefono}</p>
-                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs capitalize bg-muted px-2 py-0.5 rounded">{o.canal}</span>
                     </td>
                     <td className="px-4 py-3 font-semibold">{formatCOP(o.total)}</td>
-                    {/* Estado = payment only (Pendiente/Pagado/Cancelado); the
-                        muted pill marks contraentrega orders. */}
+                    {/* Estado = pago (Pendiente/Pagado/Cancelado). Se etiqueta la
+                        EXCEPCIÓN donde importa (diálogo de la orden, tarjetas de
+                        Entregas, "Por cobrar" del dashboard), no el default en la
+                        lista → aquí NO va el badge Contraentrega. */}
                     <td className="px-4 py-3">
-                      <div className="flex flex-col items-start gap-1">
-                        <StatusBadge status={o.estado} />
-                        <CondicionBadge condicion={o.condicion_pago} />
-                      </div>
+                      <StatusBadge status={o.estado} />
                     </td>
                     {/* Entrega = derived fulfillment status from the Shipping.
                         Only Preparando/En ruta/Entregado/Fallido — suppressed for
