@@ -20,7 +20,7 @@ import { ensureOrderShipping } from '@/lib/api/shippings';
 import { getCatalog } from '@/lib/api/products';
 import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
 import { RegisterPaymentModal } from '@/components/admin/RegisterPaymentModal';
-import type { Order, OrderForm, OrderLineForm, OrderStatus, OrderChannel, CondicionPago } from '@/types/order';
+import type { Order, OrderForm, OrderLineForm, OrderStatus, OrderChannel } from '@/types/order';
 import { CONDICION_PAGO_LABEL } from '@/types/order';
 import type { Product } from '@/types/product';
 import type { Shipping } from '@/types/shipping';
@@ -54,11 +54,8 @@ const EMPTY_FORM: OrderForm = {
   notas_internas:    '',
   items:             [{ slug: '', cantidad: 1, molienda: '' }],
   metodoPagoPrevisto: '',
-  condicion_pago:     'ANTICIPADO',
   pagoRecibido:       false,
 };
-
-const CONDICIONES: CondicionPago[] = ['ANTICIPADO', 'CONTRAENTREGA'];
 
 // Muted/outline pill marking a contraentrega order (both themes via tokens).
 function CondicionBadge({ condicion }: { condicion?: string | null }) {
@@ -315,7 +312,6 @@ function Ordenes() {
         direccion_entrega: form.direccion_entrega || undefined,
         notas_internas:    form.notas_internas || undefined,
         metodoPagoPrevisto: form.metodoPagoPrevisto || undefined,
-        condicion_pago:    form.condicion_pago,
         pagoRecibido:      form.pagoRecibido,
         items:             lines.map(l => ({ slug: l.slug, cantidad: l.cantidad, molienda: l.molienda || null })),
         idempotencyKey:    idemKeyRef.current,
@@ -365,13 +361,13 @@ function Ordenes() {
   };
 
   // Whether an order can be scheduled from the table now, and the button label.
-  // An unpaid order without a Shipping is schedulable only when ITS condición is
-  // CONTRAENTREGA — "Preparar envío" (server-guarded; never if cancelled).
+  // Any non-cancelled order can "Preparar envío" — preparing is harmless (no
+  // stock moves); the real gate is the confirmation at dispatch. Server-enforced.
   const canSchedule = (o: Order) =>
     o.estado !== 'cancelado' && (
       o.shipping?.estado === 'preparando' ||
       o.shipping?.estado === 'fallido' ||
-      (!o.shipping && o.estado === 'pendiente' && o.condicion_pago === 'CONTRAENTREGA')
+      (!o.shipping && o.estado === 'pendiente')
     );
 
   const scheduleLabel = (o: Order) =>
@@ -723,71 +719,52 @@ function Ordenes() {
             </div>
 
             {/* Pago previsto — método declarado (opcional). NO cobra ni marca la
-                orden como pagada por sí solo; la orden nace Pendiente. El checkbox
-                permite registrar el pago en el mismo acto (requiere método y
-                condición Anticipado — contraentrega se cobra al entregar). */}
+                orden como pagada por sí solo; la orden nace Pendiente. La CONDICIÓN
+                de pago ya no se pregunta: se DERIVA del método (Efectivo ⇒
+                Contraentrega). El checkbox registra el pago en el mismo acto
+                (requiere un método que NO sea Efectivo). */}
             <div className="space-y-3 border-t border-border pt-3">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Condición de pago</Label>
-                  <Select
-                    value={form.condicion_pago}
-                    onValueChange={v => {
-                      const condicion = v as CondicionPago;
-                      // Contraentrega se cobra AL ENTREGAR → "ya pagado" no aplica.
-                      setForm(f => ({ ...f, condicion_pago: condicion, pagoRecibido: condicion === 'CONTRAENTREGA' ? false : f.pagoRecibido }));
-                    }}
-                  >
-                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {CONDICIONES.map(c => (
-                        <SelectItem key={c} value={c}>{CONDICION_PAGO_LABEL[c]}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Método de pago</Label>
-                  <Select
-                    value={form.metodoPagoPrevisto || POR_DEFINIR}
-                    onValueChange={v => {
-                      const metodo = (v === POR_DEFINIR ? '' : v) as OrderForm['metodoPagoPrevisto'];
-                      // "Por definir" can't be "ya pagado" — reset the checkbox.
-                      setForm(f => ({ ...f, metodoPagoPrevisto: metodo, pagoRecibido: metodo ? f.pagoRecibido : false }));
-                    }}
-                  >
-                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={POR_DEFINIR}>Por definir</SelectItem>
-                      {METODOS_PAGO.map(m => (
-                        <SelectItem key={m} value={m}>{METODO_PAGO_LABEL[m]}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div>
+                <Label>Método de pago</Label>
+                <Select
+                  value={form.metodoPagoPrevisto || POR_DEFINIR}
+                  onValueChange={v => {
+                    const metodo = (v === POR_DEFINIR ? '' : v) as OrderForm['metodoPagoPrevisto'];
+                    // Sin método, o Efectivo (⇒ contraentrega), "ya pagado" no aplica.
+                    setForm(f => ({ ...f, metodoPagoPrevisto: metodo, pagoRecibido: metodo && metodo !== 'EFECTIVO' ? f.pagoRecibido : false }));
+                  }}
+                >
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={POR_DEFINIR}>Por definir</SelectItem>
+                    {METODOS_PAGO.map(m => (
+                      <SelectItem key={m} value={m}>{METODO_PAGO_LABEL[m]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              {form.condicion_pago === 'CONTRAENTREGA' && (
+              {form.metodoPagoPrevisto === 'EFECTIVO' && (
                 <p className="text-xs text-muted-foreground">
-                  El envío podrá prepararse y despacharse con la orden pendiente; el pago se registra al entregar.
+                  Efectivo = contraentrega: el envío podrá prepararse y despacharse con la orden pendiente; el pago se registra al entregar.
                 </p>
               )}
-              <label className={`flex items-start gap-2 ${form.metodoPagoPrevisto && form.condicion_pago !== 'CONTRAENTREGA' ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+              <label className={`flex items-start gap-2 ${form.metodoPagoPrevisto && form.metodoPagoPrevisto !== 'EFECTIVO' ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
                 <Checkbox
                   checked={form.pagoRecibido}
-                  disabled={!form.metodoPagoPrevisto || form.condicion_pago === 'CONTRAENTREGA'}
+                  disabled={!form.metodoPagoPrevisto || form.metodoPagoPrevisto === 'EFECTIVO'}
                   onCheckedChange={c => setForm(f => ({ ...f, pagoRecibido: c === true }))}
                   className="mt-0.5"
                 />
                 <span className="text-sm">
                   El pago ya fue recibido
-                  {!form.metodoPagoPrevisto && form.condicion_pago !== 'CONTRAENTREGA' && (
+                  {!form.metodoPagoPrevisto && (
                     <span className="block text-xs text-muted-foreground">
                       Selecciona un método de pago para poder marcarlo.
                     </span>
                   )}
-                  {form.condicion_pago === 'CONTRAENTREGA' && (
+                  {form.metodoPagoPrevisto === 'EFECTIVO' && (
                     <span className="block text-xs text-muted-foreground">
-                      No aplica en contraentrega — el pago se registra al entregar.
+                      No aplica en efectivo (contraentrega) — el pago se registra al entregar.
                     </span>
                   )}
                 </span>

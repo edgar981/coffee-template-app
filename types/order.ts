@@ -115,12 +115,11 @@ export interface OrderForm {
   direccion_entrega: string;
   notas_internas:    string;
   items:             OrderLineForm[];
-  // Método de pago previsto (opcional). '' = "Por definir".
+  // Método de pago previsto (opcional). '' = "Por definir". La CONDICIÓN de pago
+  // ya no vive en el formulario: se DERIVA del método (EFECTIVO → Contraentrega).
   metodoPagoPrevisto: '' | MetodoPago;
-  // Condición de pago (Anticipado default / Contraentrega).
-  condicion_pago:     CondicionPago;
-  // "El pago ya fue recibido" — sólo válido con un método previsto seleccionado
-  // y condición ANTICIPADO (contraentrega se cobra al entregar).
+  // "El pago ya fue recibido" — sólo válido con un método previsto que NO sea
+  // EFECTIVO (efectivo ⇒ contraentrega, se cobra al entregar).
   pagoRecibido:       boolean;
 }
 
@@ -135,10 +134,9 @@ export interface AdminOrderPayload {
   direccion_entrega?: string;
   notas_internas?:    string;
   items:              { slug: string; cantidad: number; molienda?: string | null }[];
-  // Método de pago previsto (enum) u omitido para "Por definir".
+  // Método de pago previsto (enum) u omitido para "Por definir". La condición de
+  // pago la deriva el server de este método; enviarla no tiene efecto.
   metodoPagoPrevisto?: MetodoPago;
-  // Condición de pago; omitida → ANTICIPADO (default del schema).
-  condicion_pago?:     CondicionPago;
   // "El pago ya fue recibido": registra el pago en la misma transacción de
   // creación (requiere metodoPagoPrevisto). La orden nace pendiente y se marca
   // pagada acto seguido por el mismo camino que "Registrar pago".

@@ -4,8 +4,8 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { fireOrderTrigger } from '@/lib/automations/triggers';
-import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, OrderCustomerIdentityError, OrderLinesError } from '@/lib/orders';
-import { MetodoPago, CondicionPago } from '@/src/generated/prisma/client';
+import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, derivarCondicionPago, OrderCustomerIdentityError, OrderLinesError } from '@/lib/orders';
+import { MetodoPago } from '@/src/generated/prisma/client';
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -41,11 +41,10 @@ const adminOrderSchema = z
     direccion_entrega: z.string().trim().optional(),
     notas_internas:    z.string().trim().optional(),
     // Método de pago PREVISTO (intención). Enum de Payment; opcional ("Por
-    // definir"). No crea Payment ni cambia estado por sí solo.
+    // definir"). No crea Payment ni cambia estado por sí solo. La CONDICIÓN de
+    // pago NO se acepta aquí: se deriva server-side de este método
+    // (derivarCondicionPago) — un `condicion_pago` en el payload se ignora.
     metodoPagoPrevisto: z.nativeEnum(MetodoPago).nullish(),
-    // CONDICIÓN de pago (no método): default ANTICIPADO. CONTRAENTREGA permite
-    // preparar/despachar el envío con la orden pendiente y cobrar al entregar.
-    condicion_pago:     z.nativeEnum(CondicionPago).optional(),
     // "El pago ya fue recibido": registra el pago al crear (ver refine abajo).
     pagoRecibido:       z.boolean().optional(),
     // Real product lines, priced server-side by resolveOrderLines.
@@ -72,11 +71,12 @@ const adminOrderSchema = z
     { message: 'Selecciona el método de pago para marcar la orden como pagada', path: ['metodoPagoPrevisto'] },
   )
   // "Pago ya recibido" contradice CONTRAENTREGA (se cobra AL ENTREGAR): si el
-  // dinero ya entró, la orden es ANTICIPADO. La UI deshabilita el checkbox;
-  // esto es el gemelo server-side.
+  // método declarado es EFECTIVO la condición derivada es CONTRAENTREGA, y una
+  // orden contraentrega no puede nacer pagada. La UI deshabilita el checkbox;
+  // esto es el gemelo server-side (sobre la condición DERIVADA, no un input).
   .refine(
-    (d) => !(d.pagoRecibido && d.condicion_pago === 'CONTRAENTREGA'),
-    { message: 'Una orden contraentrega se cobra al entregar — no puede nacer pagada', path: ['pagoRecibido'] },
+    (d) => !(d.pagoRecibido && derivarCondicionPago(d.metodoPagoPrevisto) === 'CONTRAENTREGA'),
+    { message: 'Una orden en efectivo se cobra al entregar (contraentrega) — no puede nacer pagada', path: ['pagoRecibido'] },
   );
 
 export async function POST(req: NextRequest) {
@@ -130,7 +130,6 @@ export async function POST(req: NextRequest) {
       direccion_entrega: b.direccion_entrega || null,
       notas_internas:    b.notas_internas || null,
       metodoPagoPrevisto: b.metodoPagoPrevisto ?? null,
-      condicion_pago:    b.condicion_pago ?? null,
       immediatePayment:  b.pagoRecibido && b.metodoPagoPrevisto
         ? {
             metodo:                b.metodoPagoPrevisto,

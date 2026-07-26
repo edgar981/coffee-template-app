@@ -4,6 +4,10 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Truck, MapPin, Clock, CheckCircle, AlertCircle, RotateCcw, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
 import { formatCOP } from '@/lib/utils';
@@ -27,6 +31,8 @@ export default function Entregas() {
   // Shipping being scheduled/edited/rescheduled (opens the shared modal — same
   // one as Ordenes). Covers Programar, Editar and Reprogramar.
   const [scheduleShipping, setScheduleShipping] = useState<Shipping | null>(null);
+  // Shipping awaiting confirmation to dispatch WITHOUT a registered payment.
+  const [confirmDispatch, setConfirmDispatch] = useState<Shipping | null>(null);
 
   useEffect(() => {
     getShippings().then(data => { setEntregas(data); setLoading(false); });
@@ -49,17 +55,25 @@ export default function Entregas() {
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
-  const updateEstado = async (id: string, estado: ShippingEstado) => {
+  const updateEstado = async (id: string, estado: ShippingEstado, confirmarSinPago?: boolean) => {
     try {
       // fecha_entrega is captured server-side on the entregado transition.
-      const updated = await updateShipping(id, { estado });
+      const updated = await updateShipping(id, { estado, ...(confirmarSinPago ? { confirmarSinPago: true } : {}) });
       setEntregas(prev => prev.map(e => e.id === id ? updated : e));
       toast.success('Estado actualizado');
     } catch (e) {
       // Surface the SERVER message — a blocked dispatch (stock insuficiente,
-      // orden anticipada sin pago) must say why, not a generic error.
+      // sin pago sin confirmar) must say why, not a generic error.
       toast.error(e instanceof Error ? e.message : 'Error al actualizar el estado');
     }
+  };
+
+  // Dispatch (→ en_ruta). A paid order dispatches straight away; an order with no
+  // registered payment first asks the operator to confirm (the order will become
+  // contraentrega / por cobrar) — the server enforces the same via confirmarSinPago.
+  const handleDispatch = (e: Shipping) => {
+    if (e.order?.estado === 'pagado') updateEstado(e.id, 'en_ruta');
+    else setConfirmDispatch(e);
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -201,7 +215,7 @@ export default function Entregas() {
                             <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => setScheduleShipping(e)}>
                               <Pencil className="w-3.5 h-3.5" /> Editar
                             </Button>
-                            <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => updateEstado(e.id, 'en_ruta')}>
+                            <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => handleDispatch(e)}>
                               <Truck className="w-3.5 h-3.5" /> Marcar En Ruta
                             </Button>
                           </>
@@ -250,6 +264,32 @@ export default function Entregas() {
             : x
         ))}
       />
+
+      {/* Despachar sin pago registrado — confirmación explícita. Al confirmar, el
+          server marca la orden contraentrega (queda "Por cobrar" hasta el pago). */}
+      <AlertDialog open={!!confirmDispatch} onOpenChange={(open) => { if (!open) setConfirmDispatch(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Despachar sin pago registrado</AlertDialogTitle>
+            <AlertDialogDescription>
+              La orden {confirmDispatch?.order?.numero_orden ?? ''} no tiene un pago registrado.
+              Al despacharla quedará <strong>contraentrega</strong> y aparecerá como
+              «Por cobrar» hasta que registres el pago. ¿Continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmDispatch) updateEstado(confirmDispatch.id, 'en_ruta', true);
+                setConfirmDispatch(null);
+              }}
+            >
+              Despachar sin pago
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

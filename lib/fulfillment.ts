@@ -1,26 +1,20 @@
-import { Prisma, CondicionPago } from '@/src/generated/prisma/client';
-import type { FulfillmentPolicy } from '@/lib/config/site';
+import { Prisma } from '@/src/generated/prisma/client';
 
 interface OrderShippingSnapshot {
   id: string;
   costo_envio: number;
 }
 
-// The scheduling policy is PER ORDER now (Order.condicion_pago), not per store:
-// a CONTRAENTREGA order may get its delivery prepared/dispatched while unpaid;
-// an ANTICIPADO order only ever gets a Shipping by confirming its payment.
-// Expressed as the existing FulfillmentPolicy so decideShippingSchedulable
-// stays a pure function with unchanged semantics.
-export function policyForCondicion(condicion: CondicionPago): FulfillmentPolicy {
-  return condicion === 'CONTRAENTREGA' ? 'ALLOW_UNPAID' : 'REQUIRE_PAYMENT';
-}
-
-// The whole "can this order get its delivery scheduled now?" decision, as ONE
-// pure function so the route is a thin HTTP translator and both policies are
-// unit-testable. Order matters: a cancelled order is rejected even if a (voided)
-// Shipping exists; an existing Shipping is returned as-is (idempotent) before the
-// policy is consulted; only a brand-new Shipping for an UNPAID order is gated by
-// the store policy.
+// The whole "can this order get its delivery PREPARED now?" decision, as ONE pure
+// function so the route is a thin HTTP translator and it stays unit-testable.
+//
+// Preparing a Shipping is HARMLESS — no stock moves, no estado changes; it just
+// creates the `preparando` record. So it is no longer gated by payment: ANY
+// non-cancelled order may be prepared (the condición is derived, not chosen, and
+// the real safety gate lives at DISPATCH — an unpaid dispatch requires explicit
+// confirmation, see the shippings PATCH route). Order matters: a cancelled order
+// is rejected even if a (voided) Shipping exists; an existing Shipping is returned
+// as-is (idempotent, never a second one, never a state reset).
 export type SchedulingDecision =
   | { action: 'reject'; status: number; error: string }
   | { action: 'return_existing' }
@@ -29,21 +23,14 @@ export type SchedulingDecision =
 export function decideShippingSchedulable(
   estado: string,
   hasShipping: boolean,
-  policy: FulfillmentPolicy,
 ): SchedulingDecision {
-  // Cancelled orders are terminal — never schedulable, under any policy.
+  // Cancelled orders are terminal — never schedulable.
   if (estado === 'cancelado') {
     return { action: 'reject', status: 409, error: 'No se puede programar la entrega de una orden cancelada' };
   }
-  // Already has a delivery (paid, or scheduled earlier under ALLOW_UNPAID) →
-  // hand it back unchanged; never a second one, never a state reset.
+  // Already has a delivery → hand it back unchanged; never a second one.
   if (hasShipping) {
     return { action: 'return_existing' };
-  }
-  // No Shipping yet. An UNPAID order may be scheduled only when its condición
-  // lets delivery precede payment (CONTRAENTREGA → ALLOW_UNPAID).
-  if (estado === 'pendiente' && policy === 'REQUIRE_PAYMENT') {
-    return { action: 'reject', status: 409, error: 'Una orden con pago anticipado requiere el pago registrado antes de preparar el envío' };
   }
   return { action: 'create' };
 }
