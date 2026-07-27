@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import { Prisma, MetodoPago, CondicionPago } from '@/src/generated/prisma/client';
 import { ensureShipping, restockShippingStock } from '@/lib/fulfillment';
+import { notifyOrderCreated } from '@/lib/notifications';
 // THE phone normalizer lives in the pure phone module (lib/whatsapp-link); it is
 // re-exported here so existing importers (`@/lib/orders`) keep working.
 import { normalizeCustomerPhone } from '@/lib/whatsapp-link';
@@ -484,6 +485,16 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
           include: { items: true, shipping: true },
         });
       });
+
+      // Order COMMITTED. Fire the "order created" notification here — AFTER the
+      // transaction, never inside it (an email must not abort or roll back the
+      // sale). Fully guarded so it can never throw into the create flow. Reached
+      // only on genuine creation: the idempotency fast-path and the unique-
+      // violation dedup both return earlier, so a retried submit never re-sends.
+      if (created) {
+        try { await notifyOrderCreated(created.id); }
+        catch (e) { console.error(`[notify] order.created ${created.id}:`, e); }
+      }
 
       return created;
     } catch (error) {

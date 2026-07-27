@@ -41,6 +41,29 @@ export const siteConfig = {
       "Café de especialidad colombiano. De nuestra finca en Supatá a tu taza.",
   },
 
+  // ─── Identidad de la TIENDA para correos al cliente final ────────────────────
+  // Los correos al cliente llevan la marca de la tienda, NO la de Duna. Un solo
+  // lugar para el remitente/marca de todos los emails de notificación.
+  tienda: {
+    nombre: "Café Nayoli",
+    // Remitente INTERINO hasta que exista dominio propio del cliente (Preguntas v2):
+    // `mail.duna.solutions` ya está verificado en Resend. Cambiar aquí = cambia en
+    // TODOS los correos. (El remitente muestra el nombre de la tienda, no "Duna".)
+    emailRemitente: "Café Nayoli <pedidos@mail.duna.solutions>",
+    // Sin correo de contacto propio de la tienda todavía → sin Reply-To (se omite).
+    emailReplyTo: undefined as string | undefined,
+    // Paleta del STOREFRONT (cream/espresso) para los correos — NUNCA el ámbar del
+    // admin. Hex inline porque los clientes de correo no leen CSS variables.
+    emailColors: {
+      crema:    "#faf7f2",
+      papel:    "#ffffff",
+      espresso: "#2a1a10",
+      cafe:     "#8b4513",
+      muted:    "#8b6650",
+      borde:    "#e8dccd",
+    },
+  },
+
   contacto: {
     // Formato internacional con "+" — usar whatsappUrl() para el enlace wa.me.
     whatsapp: "+573155766064",

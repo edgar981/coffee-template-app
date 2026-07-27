@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { dispatchStockDecrement, restockShippingStock, DispatchStockError } from '@/lib/fulfillment';
 import { markContraentregaAtDispatch } from '@/lib/orders';
+import { notifyOrderEnRoute } from '@/lib/notifications';
 import { TipoEnvio } from '@/src/generated/prisma/client';
 
 const TIPOS_ENVIO = Object.values(TipoEnvio);
@@ -164,6 +165,15 @@ export async function PATCH(
         include: { order: ORDER_SELECT },
       });
     });
+
+    // Dispatch COMMITTED. Fire the "on its way" notification here — AFTER the
+    // transaction, once (justDispatched is the single preparando→en_ruta edge, and
+    // the transition is idempotent, so the email hangs off it, not off re-renders).
+    // Fully guarded — the email can never affect the dispatch outcome.
+    if (justDispatched) {
+      try { await notifyOrderEnRoute(current.orden_id); }
+      catch (e) { console.error(`[notify] order.enRoute orden ${current.orden_id}:`, e); }
+    }
 
     return NextResponse.json(updated);
   } catch (error) {
