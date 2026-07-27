@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { CATEGORIAS } from '@/constants/product';
+import { nonCancelledOrderCountByCustomer } from '@/lib/metrics/customer-order-stats';
 import type { ProductCategory } from '@/types/product';
 
 export async function GET() {
@@ -15,15 +16,13 @@ export async function GET() {
 
   // ── All data needed in one query batch ──────────────────────────────────────
 
-  const [orders, customers, products, orderItems, allProducts] = await Promise.all([
+  const [orders, totalCustomers, products, orderItems, allProducts, ordenesByCustomer] = await Promise.all([
     prisma.order.findMany({
       where:   { createdAt: { gte: yearStart } },
       select:  { total: true, canal: true, estado: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     }),
-    prisma.customer.findMany({
-      select: { numero_ordenes: true, total_compras: true },
-    }),
+    prisma.customer.count(),
     prisma.product.findMany({
       where:  { activo: true },
       select: { costo: true, precio: true, stock: true },
@@ -36,6 +35,9 @@ export async function GET() {
       select: { subtotal: true, producto_nombre: true, product: { select: { categoria: true } } },
     }),
     prisma.product.findMany({ select: { nombre: true, categoria: true } }),
+    // Recurrentes uses the SHARED "N órdenes" definition (non-cancelled), not the
+    // stale seed `numero_ordenes` — same as the Clientes page.
+    nonCancelledOrderCountByCustomer(),
   ]);
 
   // ── KPIs ───────────────────────────────────────────────────────────────────
@@ -46,9 +48,9 @@ export async function GET() {
     ? totalRevenue / completedOrders.length
     : 0;
 
-  const recurrentes    = customers.filter(c => (c.numero_ordenes ?? 0) > 1).length;
-  const tasaRetencion  = customers.length > 0
-    ? Math.round((recurrentes / customers.length) * 100)
+  const recurrentes    = [...ordenesByCustomer.values()].filter(n => n > 1).length;
+  const tasaRetencion  = totalCustomers > 0
+    ? Math.round((recurrentes / totalCustomers) * 100)
     : 0;
 
   const margenBruto = products.length > 0
@@ -124,7 +126,7 @@ export async function GET() {
       tasaRetencion,
       margenBruto,
       totalOrders:    completedOrders.length,
-      totalCustomers: customers.length,
+      totalCustomers,
     },
     salesByMonth,
     canalData,

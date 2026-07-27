@@ -66,13 +66,16 @@ layout NO monta ThemeProvider. `color-scheme` sigue al tema vía CSS
 
 ## Design system del admin — chips de stat cards
 
-Los icon chips de stat cards usan una familia cálida única (decisión
-2026-07-26, reemplaza los pasteles multicolor previos); rojo suave solo
-para alertas reales (Alertas de Stock). El mapa vive en
-`constants/stat-chip.ts` (`STAT_CHIP.warm` / `STAT_CHIP.alert`) y lo
-consumen el registry de widgets y las stat cards de cada página; revertir
-a pastel (o retunear) es cambiar SOLO ese mapa. No restaurar los pasteles
-por leer una versión vieja de este doc.
+Los icon chips de stat cards usan pastel multicolor = decisión deliberada
+del owner (confirmada 2026-07-27 tras evaluar la variante ámbar en
+preview); rojo/destructive reservado a alertas reales; el resto de las
+reglas de restricción cromática (un sólido por vista, hover de tinte,
+badges muted/neutros, trends de texto) SÍ aplican y no dependen de esta
+decisión. El mapa (paleta pastel + `alert`) vive en
+`constants/stat-chip.ts` (`STAT_CHIP.<tono>`) y lo consumen el registry de
+widgets y las stat cards de cada página; retunear/revertir es cambiar SOLO
+ese mapa (y qué key usa cada tarjeta). No colapsar a ámbar por leer una
+versión vieja de este doc.
 
 ## Dashboard personalizable — registry de widgets
 

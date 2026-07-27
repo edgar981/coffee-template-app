@@ -9,11 +9,15 @@ export interface Customer {
   direccion?:       string;
   canal?:           OrderChannel;
   notas?:           string;
+  // Stored/denormalized seed field — NOT the display count anymore (it was never
+  // incremented at order creation). Kept on the type for the write model only.
   numero_ordenes?:  number;
-  // `numero_ordenes` = BUSINESS count shown as "N órdenes" (stored/denormalized).
-  // `ordenesRef` = REFERENTIAL count (_count.orders, raw FK refs incl. canceladas/demo);
-  // it drives the delete affordance so it matches the server guard exactly.
+  // `ordenes` = VISIBLE "N órdenes" = LIVE non-cancelled order count (pendientes +
+  // pagadas). `ordenesRef` = REFERENTIAL count (_count.orders, incl. canceladas) that
+  // drives the delete affordance so it matches the server 409 guard exactly.
+  ordenes?:         number;
   ordenesRef?:      number;
+  // Real money paid by the customer (sum of Payments), NOT the demo seed value.
   total_compras?:   number;
   activo:           boolean;
   createdAt:        string;
@@ -45,4 +49,6 @@ export interface CustomerOrderRow {
 // dedicated profile page.
 export interface CustomerWithOrders extends Customer {
   orders: CustomerOrderRow[];
+  /** Real money paid (sum of Payments) — the profile's "Total comprado". */
+  comprasPagadas?: number;
 }

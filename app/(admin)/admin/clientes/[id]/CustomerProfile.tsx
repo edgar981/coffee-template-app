@@ -18,6 +18,8 @@ import { getCustomer, updateCustomer } from '@/lib/api/customers';
 import { customerWhatsappHref } from '@/lib/whatsapp-link';
 import { siteConfig } from '@/lib/config/site';
 import { CANALES } from '@/constants/customer';
+import { STAT_CHIP } from '@/constants/stat-chip';
+import { isCountableOrder } from '@/lib/metrics/order-stat-filters';
 import { formatFecha } from '@/lib/format-fecha';
 import type { CustomerWithOrders, CustomerForm } from '@/types/customer';
 import type { OrderChannel } from '@/types/order';
@@ -70,10 +72,13 @@ export function CustomerProfile({ id }: { id: string }) {
   const mailHref  = customer.email ? `mailto:${customer.email}?subject=${encodeURIComponent(siteConfig.brand.nombre)}` : null;
   const ultima    = customer.orders[0]?.createdAt;
 
+  // "Órdenes" = no canceladas (misma definición que la lista); "Total comprado" =
+  // dinero PAGADO (Payments), no el campo semilla.
+  const ordenesNoCanceladas = customer.orders.filter(o => isCountableOrder(o.estado)).length;
   const metrics = [
-    { icon: ShoppingBag, label: 'Órdenes',        value: String(customer.numero_ordenes ?? 0),        color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-    { icon: DollarSign,  label: 'Total comprado', value: formatCOP(customer.total_compras ?? 0),       color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
-    { icon: CalendarClock, label: 'Última compra', value: ultima ? fmtDate(ultima) : '—',              color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400' },
+    { icon: ShoppingBag, label: 'Órdenes',        value: String(ordenesNoCanceladas),                 color: STAT_CHIP.blue },
+    { icon: DollarSign,  label: 'Total comprado', value: formatCOP(customer.comprasPagadas ?? 0),      color: STAT_CHIP.emerald },
+    { icon: CalendarClock, label: 'Última compra', value: ultima ? fmtDate(ultima) : '—',              color: STAT_CHIP.violet },
   ];
 
   const contact = [

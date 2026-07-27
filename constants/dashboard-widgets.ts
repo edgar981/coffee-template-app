@@ -73,21 +73,21 @@ export interface WidgetDef {
 // top to bottom, give "fila Hoy primero, luego mes/operación" for free.
 export const DASHBOARD_WIDGETS: WidgetDef[] = [
   // ── Hoy ──
-  { key: 'ventas_hoy',      titulo: 'Ventas de hoy',      subtitulo: 'Pagos recibidos hoy', icono: Banknote,     formato: 'cop', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.warm, href: (c) => `/admin/pagos?desde=${c.today}&hasta=${c.today}` },
-  { key: 'por_cobrar',      titulo: 'Por cobrar',         subtitulo: 'Contraentrega sin pago', icono: Wallet,     formato: 'cop', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.warm,         href: `/admin/ordenes?${POR_COBRAR_QUERY}` },
-  { key: 'despachos_hoy',   titulo: 'Despachos de hoy',   subtitulo: 'Salieron a ruta hoy', icono: Truck,        formato: 'int', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.warm,                  href: '/admin/entregas' },
-  { key: 'pedidos_hoy',     titulo: 'Pedidos de hoy',     subtitulo: 'Órdenes creadas hoy', icono: ShoppingCart, formato: 'int', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.warm,              href: (c) => `/admin/ordenes?desde=${c.today}&hasta=${c.today}` },
+  { key: 'ventas_hoy',      titulo: 'Ventas de hoy',      subtitulo: 'Pagos recibidos hoy', icono: Banknote,     formato: 'cop', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.emerald, href: (c) => `/admin/pagos?desde=${c.today}&hasta=${c.today}` },
+  { key: 'por_cobrar',      titulo: 'Por cobrar',         subtitulo: 'Contraentrega sin pago', icono: Wallet,     formato: 'cop', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.amber,         href: `/admin/ordenes?${POR_COBRAR_QUERY}` },
+  { key: 'despachos_hoy',   titulo: 'Despachos de hoy',   subtitulo: 'Salieron a ruta hoy', icono: Truck,        formato: 'int', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.sky,                  href: '/admin/entregas' },
+  { key: 'pedidos_hoy',     titulo: 'Pedidos de hoy',     subtitulo: 'Órdenes creadas hoy', icono: ShoppingCart, formato: 'int', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.blue,              href: (c) => `/admin/ordenes?desde=${c.today}&hasta=${c.today}` },
   // ── Mes / operación ──
-  { key: 'ingresos_mes',       titulo: 'Ingresos del mes',   subtitulo: 'Mes en curso', icono: DollarSign,   formato: 'cop', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.warm, href: (c) => `/admin/pagos?desde=${c.monthStart}&hasta=${c.today}` },
-  { key: 'ordenes_mes',        titulo: 'Órdenes del mes',    subtitulo: 'Mes en curso', icono: ShoppingCart, formato: 'int', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.warm,              href: (c) => `/admin/ordenes?${c.monthQuery}` },
-  { key: 'ordenes_pendientes', titulo: 'Órdenes Pendientes', subtitulo: 'Requieren atención', icono: Clock,   formato: 'int', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.warm,         href: `/admin/ordenes?${PENDING_ORDERS_QUERY}` },
-  { key: 'promedio_por_orden', titulo: 'Promedio por orden', subtitulo: 'Promedio por venta · mes', icono: TrendingUp, formato: 'cop', categoria: 'mes', defaultVisible: false, color: STAT_CHIP.warm },
+  { key: 'ingresos_mes',       titulo: 'Ingresos del mes',   subtitulo: 'Mes en curso', icono: DollarSign,   formato: 'cop', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.emerald, href: (c) => `/admin/pagos?desde=${c.monthStart}&hasta=${c.today}` },
+  { key: 'ordenes_mes',        titulo: 'Órdenes del mes',    subtitulo: 'Mes en curso', icono: ShoppingCart, formato: 'int', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.blue,              href: (c) => `/admin/ordenes?${c.monthQuery}` },
+  { key: 'ordenes_pendientes', titulo: 'Órdenes Pendientes', subtitulo: 'Requieren atención', icono: Clock,   formato: 'int', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.amber,         href: `/admin/ordenes?${PENDING_ORDERS_QUERY}` },
+  { key: 'promedio_por_orden', titulo: 'Promedio por orden', subtitulo: 'Promedio por venta · mes', icono: TrendingUp, formato: 'cop', categoria: 'mes', defaultVisible: false, color: STAT_CHIP.sky },
   // ── Inventario ──
   { key: 'alertas_stock',    titulo: 'Alertas de Stock',   subtitulo: 'Productos bajo mínimo', icono: AlertTriangle, formato: 'int', categoria: 'inventario', defaultVisible: true,  color: STAT_CHIP.alert,        href: `/admin/inventario?${LOW_STOCK_QUERY}` },
-  { key: 'productos_activos', titulo: 'Productos Activos',  subtitulo: 'En catálogo', icono: Package,          formato: 'int', categoria: 'inventario', defaultVisible: false, color: STAT_CHIP.warm },
+  { key: 'productos_activos', titulo: 'Productos Activos',  subtitulo: 'En catálogo', icono: Package,          formato: 'int', categoria: 'inventario', defaultVisible: false, color: STAT_CHIP.orange },
   // ── Clientes ──
-  { key: 'clientes_totales',    titulo: 'Clientes Totales',    subtitulo: 'Registrados', icono: Users,        formato: 'int', categoria: 'clientes', defaultVisible: false, color: STAT_CHIP.warm, href: '/admin/clientes' },
-  { key: 'clientes_recurrentes', titulo: 'Clientes Recurrentes', subtitulo: 'con más de 1 compra', icono: TrendingUp, formato: 'pct', categoria: 'clientes', defaultVisible: false, color: STAT_CHIP.warm, href: '/admin/clientes?recurrentes=1' },
+  { key: 'clientes_totales',    titulo: 'Clientes Totales',    subtitulo: 'Registrados', icono: Users,        formato: 'int', categoria: 'clientes', defaultVisible: false, color: STAT_CHIP.violet, href: '/admin/clientes' },
+  { key: 'clientes_recurrentes', titulo: 'Clientes Recurrentes', subtitulo: 'con más de 1 compra', icono: TrendingUp, formato: 'pct', categoria: 'clientes', defaultVisible: false, color: STAT_CHIP.pink, href: '/admin/clientes?recurrentes=1' },
 ];
 
 export const WIDGET_MAP: Record<string, WidgetDef> = Object.fromEntries(

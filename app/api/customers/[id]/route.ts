@@ -29,15 +29,18 @@ export async function GET(
   if (customer.email)    orClauses.push({ cliente_email: customer.email });
   if (customer.telefono) orClauses.push({ cliente_telefono: customer.telefono });
 
-  const orders = orClauses.length
-    ? await prisma.order.findMany({
-        where:   { OR: orClauses },
-        select:  { id: true, numero_orden: true, estado: true, total: true, createdAt: true, shipping: { select: { estado: true } } },
-        orderBy: { createdAt: 'desc' },
-      })
-    : [];
+  const [orders, paidAgg] = await Promise.all([
+    prisma.order.findMany({
+      where:   { OR: orClauses },
+      select:  { id: true, numero_orden: true, estado: true, total: true, createdAt: true, shipping: { select: { estado: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    // Real money paid by this customer (same order set), for the "Total comprado"
+    // stat — sum of Payments, not the demo `total_compras`.
+    prisma.payment.aggregate({ where: { order: { OR: orClauses } }, _sum: { monto: true } }),
+  ]);
 
-  return NextResponse.json({ ...customer, orders });
+  return NextResponse.json({ ...customer, orders, comprasPagadas: paidAgg._sum.monto ?? 0 });
 }
 
 export async function PATCH(
