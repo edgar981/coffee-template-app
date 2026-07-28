@@ -29,6 +29,18 @@ function stateFromRow(
   };
 }
 
+export interface AutomationStates {
+  states: AutomationState[];
+  /**
+   * La lectura de la tabla falló y esto son los defaults del registry, no lo que
+   * el owner configuró. Los llamadores DEBEN propagarlo: sin esta bandera, una
+   * degradación se ve idéntica a "no había nada que hacer" — todo apagado, cero
+   * runs, 200 OK. Un barrido que no dispara nada porque no pudo leer la
+   * configuración tiene que ser distinguible de uno que no tenía trabajo.
+   */
+  degradado: boolean;
+}
+
 /**
  * Estado de TODAS las automatizaciones del registry, con o sin fila en la tabla.
  * Una fila cuya key ya no existe en el registry se ignora (misma política que los
@@ -36,17 +48,19 @@ function stateFromRow(
  *
  * Un fallo de DB degrada a los defaults del registry en vez de tumbar el barrido:
  * con todo en `defaultActivo: false` eso significa "no dispares nada", que es el
- * lado seguro del error.
+ * lado seguro del error — pero se REPORTA (ver `degradado`).
  */
-export async function loadAutomationStates(): Promise<AutomationState[]> {
+export async function loadAutomationStates(): Promise<AutomationStates> {
   let rows: { key: string; activo: boolean; config: unknown }[] = [];
+  let degradado = false;
   try {
     rows = await prisma.automationSetting.findMany();
   } catch (e) {
+    degradado = true;
     console.error('[automations] lectura de settings falló; usando defaults del registry:', e);
   }
   const byKey = new Map(rows.filter(r => isAutomationKey(r.key)).map(r => [r.key, r]));
-  return AUTOMATIONS.map(def => stateFromRow(def, byKey.get(def.key)));
+  return { states: AUTOMATIONS.map(def => stateFromRow(def, byKey.get(def.key))), degradado };
 }
 
 /** Estado de UNA automatización. `null` si la key no está en el registry. */

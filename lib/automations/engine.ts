@@ -89,8 +89,8 @@ async function ejecutarObjetivo(
  */
 export async function runEventAutomations(event: AutomationEvent): Promise<void> {
   try {
-    const now    = new Date();
-    const states = await loadAutomationStates();
+    const now = new Date();
+    const { states } = await loadAutomationStates();
 
     for (const state of states) {
       if (state.def.tipo !== 'evento' || !state.activo) continue;
@@ -119,6 +119,12 @@ export interface ScheduledReport {
   omitidasPorHora: string[];
   inactivas: string[];
   runs: RunSummary[];
+  /**
+   * No se pudo leer la configuración: lo de abajo son los defaults del registry
+   * (todo apagado), NO lo que el owner configuró. Sin esto, una DB caída se
+   * reporta igual que una hora sin trabajo pendiente.
+   */
+  degradado: boolean;
 }
 
 /**
@@ -132,11 +138,11 @@ export interface ScheduledReport {
  */
 export async function runScheduledAutomations(now: Date = new Date()): Promise<ScheduledReport> {
   const horaBogota = zonedHour(now, BUSINESS_TZ);
-  const report: ScheduledReport = {
-    horaBogota, ejecutadas: [], omitidasPorHora: [], inactivas: [], runs: [],
-  };
+  const { states, degradado } = await loadAutomationStates();
 
-  const states = await loadAutomationStates();
+  const report: ScheduledReport = {
+    horaBogota, ejecutadas: [], omitidasPorHora: [], inactivas: [], runs: [], degradado,
+  };
 
   for (const state of states) {
     const { def, config, activo } = state;

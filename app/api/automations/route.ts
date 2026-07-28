@@ -19,7 +19,12 @@ export async function GET() {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
-  const states = await loadAutomationStates();
+  const { states, degradado } = await loadAutomationStates();
+  // Si no se pudo leer la configuración, esto son defaults: NO mostrar toggles
+  // apagados como si fueran la decisión del owner.
+  if (degradado) {
+    return NextResponse.json({ error: 'No se pudo leer la configuración' }, { status: 503 });
+  }
 
   // Un groupBy para los totales y UNA consulta para las recientes — no N+1 por card.
   const [conteos, ultimos] = await Promise.all([

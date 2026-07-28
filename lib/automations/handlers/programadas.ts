@@ -41,6 +41,14 @@ export const recordatorioPago: ScheduledHandler = async ({ config, now }) => {
   const espera = Number(config.horasEspera ?? 24);
   const corte  = new Date(now.getTime() - horas(espera));
 
+  // Piso de FRESCURA: una orden vieja sin pagar ya no se cobra por WhatsApp — se
+  // cancela o se llama. Se OMITE con la razón visible en vez de filtrarse en el
+  // `where`, para que el owner vea en la card que la orden existió y por qué no se
+  // le escribió; una orden que desaparece en silencio del barrido no es
+  // información. Además el run cierra el caso: no vuelve a evaluarse cada día.
+  const maxEdad = Number(config.maxEdadDias ?? 7);
+  const pisoEdad = new Date(now.getTime() - dias(maxEdad));
+
   const atendidas = await yaAtendidos('recordatorio_pago');
 
   const ordenes = await prisma.order.findMany({
@@ -52,8 +60,8 @@ export const recordatorioPago: ScheduledHandler = async ({ config, now }) => {
       ...ORDENES_REALES,     // excluye la data de demo SN-
       createdAt:      { lt: corte },
     },
-    select:  { id: true, numero_orden: true, cliente_nombre: true, cliente_telefono: true, total: true },
-    orderBy: { createdAt: 'asc' },   // las más viejas primero
+    select:  { id: true, numero_orden: true, cliente_nombre: true, cliente_telefono: true, total: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },  // las recordables (más recientes) primero
     take:    TOPE_POR_BARRIDO * 2,   // margen para descartar las ya atendidas
   });
 
@@ -61,6 +69,15 @@ export const recordatorioPago: ScheduledHandler = async ({ config, now }) => {
   for (const o of ordenes) {
     if (atendidas.has(o.id)) continue;
     if (objetivos.length >= TOPE_POR_BARRIDO) break;
+
+    if (o.createdAt < pisoEdad) {
+      const edad = Math.floor((now.getTime() - o.createdAt.getTime()) / dias(1));
+      objetivos.push({
+        targetId: o.id,
+        omitir:   `la orden tiene ${edad} días (límite: ${maxEdad}) — demasiado vieja para recordarla por WhatsApp`,
+      });
+      continue;
+    }
 
     const to = toWhatsappNumber(o.cliente_telefono);
     objetivos.push(to

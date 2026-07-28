@@ -180,10 +180,22 @@ es del template "Comercio Digital", el CONTENIDO es de esta vertical.
 pipeline corre y el run queda `PENDIENTE_CANAL` con el mensaje renderizado
 en `payload`. Antes de conectar el adaptador real:
 
+- **`PENDIENTE_CANAL` es un LOG, nunca una cola.** Un run en ese estado
+  registra lo que se habría enviado; no es un mensaje esperando turno. Al
+  conectar Meta, el backlog acumulado se marca EXPIRADO — no se despacha.
+  Solo los eventos NUEVOS usan el canal real. Enviar el backlog sería
+  mandarle a un cliente la confirmación de una orden que ya recibió hace
+  semanas, o recordarle un pago que ya hizo: ruido que quema la reputación
+  del número y dispara reportes de spam en Meta. La migración de go-live es
+  por tanto un `UPDATE` de estado, no un reproceso.
 - **Política de reintentos de runs `FALLIDO` — PREREQUISITO, no opcional.**
   Hoy un `FALLIDO` cuenta como "ya corrió" y no se reintenta: para los
   `una_vez` (recordatorio de pago) eso quema esa orden para siempre. Con el
   canal en stub el costo es cero; con Meta conectado es plata perdida.
+  Ojo con la interacción: la política de reintentos debe distinguir un
+  `FALLIDO` reciente (reintentable) de uno viejo, o resucitará mensajes
+  igual de rancios que el backlog `PENDIENTE_CANAL`. El mismo criterio de
+  frescura que ya aplica `recordatorio_pago` con `maxEdadDias`.
 - **`reactivacion_cliente` tiene DOBLE prerequisito** y no debe activarse
   hasta cumplir ambos: (a) canal Meta conectado, y (b) campo de
   consentimiento de marketing en `Customer`, capturado en el checkout. Es
