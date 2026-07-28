@@ -149,3 +149,58 @@ neutro):
 El `--accent` de admin-light era `#B45309` (marrón de marca) y volvía marrón todo
 hover de outline/ghost/dropdown/select: ahora es un tinte cálido suave. El marrón
 vive como `--primary` y en los charts, no como fondo de hover.
+
+## Automatizaciones — arquitectura y prerequisitos de go-live
+
+El CATÁLOGO vive en el código (`constants/automations.ts`): key estable
+snake_case, canal, tipo (`evento` | `programada`), audiencia, disparador,
+estrategia de idempotencia, `configSchema` (zod con defaults) y plantillas.
+La DB guarda SOLO la decisión del owner: `AutomationSetting` (activo +
+overrides de config) y `AutomationRun` (bitácora de toda ejecución, y el
+gate de idempotencia). Mismo patrón que el registry de widgets: la FORMA
+es del template "Comercio Digital", el CONTENIDO es de esta vertical.
+
+- El motor (`lib/automations/engine.ts`) es fire-and-forget respecto al
+  negocio: `runEventAutomations` se llama SIEMPRE post-commit y jamás
+  lanza. Una automatización rota no puede tumbar una venta, un despacho
+  ni un ajuste de inventario. Todo error se vuelve run `FALLIDO` + log.
+- El orden es despachar → registrar, no al revés. Deja una ventana teórica
+  de duplicado si el proceso muere en medio; se acepta porque el orden
+  inverso cambia ese riesgo por uno peor (marcar como hecho algo que nadie
+  recibió). **Perder un mensaje es peor que repetirlo.**
+- Los disparadores de CONDICIÓN (stock bajo) se evalúan en el EVENTO que
+  cambia el valor y disparan solo al CRUZAR el umbral, usando el helper
+  compartido `isLowStock` — NO una comparación propia. Si el aviso usara un
+  criterio distinto del que pinta la card de Alertas de Stock, la card y la
+  lista dejarían de reconciliar.
+
+### Prerequisitos de go-live del canal WhatsApp (Meta)
+
+`lib/automations/channels/whatsapp.ts` es un stub deliberado: todo el
+pipeline corre y el run queda `PENDIENTE_CANAL` con el mensaje renderizado
+en `payload`. Antes de conectar el adaptador real:
+
+- **Política de reintentos de runs `FALLIDO` — PREREQUISITO, no opcional.**
+  Hoy un `FALLIDO` cuenta como "ya corrió" y no se reintenta: para los
+  `una_vez` (recordatorio de pago) eso quema esa orden para siempre. Con el
+  canal en stub el costo es cero; con Meta conectado es plata perdida.
+- **`reactivacion_cliente` tiene DOBLE prerequisito** y no debe activarse
+  hasta cumplir ambos: (a) canal Meta conectado, y (b) campo de
+  consentimiento de marketing en `Customer`, capturado en el checkout. Es
+  la única plantilla MARKETING (las otras son UTILITY): exige opt-in previo
+  y tiene otro costo; categorizarla UTILITY para saltarse el opt-in es la
+  causa #1 de suspensión de plantillas. Conecta con las páginas legales
+  pendientes (Ley 1581) — ver `siteConfig.legalNav`, hoy vacío.
+
+### El cron NO vive en vercel.json
+
+El plan de Vercel es Hobby: los cron jobs se ejecutan una vez al día, así
+que un `crons` horario en `vercel.json` NO haría lo que dice. El disparo
+horario vive en **GitHub Actions**
+(`.github/workflows/automations-cron.yml`, `schedule: '0 * * * *'`) que
+hace POST a `/api/cron/automations` con `Authorization: Bearer
+${CRON_SECRET}`. El bloque `crons` queda COMENTADO en `vercel.json` con la
+nota de activarlo al pasar a Pro y retirar el workflow entonces.
+`CRON_SECRET` debe existir con el MISMO valor en las env vars de Vercel y
+en los Actions secrets del repo. (Esto no contradice la regla de
+`vercel.json`: lo prohibido es `buildCommand`, no `crons`.)
