@@ -14,16 +14,20 @@ import { getProducts, getInventoryLogs, adjustInventory } from '@/lib/api/invent
 import type { InventoryLog, InventoryAdjustmentForm, InventoryMovementType } from '@/types/inventory';
 import { Product } from '@/types/product';
 import { formatCOP } from '@/lib/utils';
+import { formatFecha } from '@/lib/format-fecha';
 import { isLowStock, LOW_STOCK_VALUE } from '@/lib/metrics/inventory-filters';
 
 type Tab = 'stock' | 'movimientos';
 
+// Movement type collapses to the ONE piece of information it carries: direction
+// of stock. Green = stock in (entrada/devolución), red = stock out (salida/venta),
+// neutral = ajuste. No per-type decorative hues.
 const tipoConfig: Record<InventoryMovementType, { label: string; color: string; bg: string }> = {
-  entrada:    { label: 'Entrada',    color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
-  salida:     { label: 'Salida',     color: 'text-red-600',     bg: 'bg-red-50 dark:bg-red-900/20' },
-  ajuste:     { label: 'Ajuste',     color: 'text-blue-600',    bg: 'bg-blue-50 dark:bg-blue-900/20' },
-  venta:      { label: 'Venta',      color: 'text-amber-600',   bg: 'bg-amber-50 dark:bg-amber-900/20' },
-  devolucion: { label: 'Devolución', color: 'text-violet-600',  bg: 'bg-violet-50 dark:bg-violet-900/20' },
+  entrada:    { label: 'Entrada',    color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
+  salida:     { label: 'Salida',     color: 'text-red-600 dark:text-red-400',     bg: 'bg-red-50 dark:bg-red-900/20' },
+  ajuste:     { label: 'Ajuste',     color: 'text-muted-foreground',              bg: 'bg-muted' },
+  venta:      { label: 'Venta',      color: 'text-red-600 dark:text-red-400',     bg: 'bg-red-50 dark:bg-red-900/20' },
+  devolucion: { label: 'Devolución', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
 };
 
 const EMPTY_FORM: InventoryAdjustmentForm = {
@@ -211,13 +215,13 @@ function InventarioInner() {
                         <td className="px-4 py-3">{formatCOP((p.costo ?? 0) * p.stock)}</td>
                         <td className="px-4 py-3">
                           {out ? (
-                            <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Sin stock</span>
+                            <span className="text-xs bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 px-2 py-0.5 rounded-full">Sin stock</span>
                           ) : low ? (
-                            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1 w-fit">
+                            <span className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 px-2 py-0.5 rounded-full flex items-center gap-1 w-fit">
                               <AlertTriangle className="w-2.5 h-2.5" /> Stock bajo
                             </span>
                           ) : (
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">OK</span>
+                            <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 px-2 py-0.5 rounded-full">OK</span>
                           )}
                         </td>
                       </tr>
@@ -261,7 +265,7 @@ function InventarioInner() {
                         <td className="px-4 py-3">{l.stock_nuevo}</td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">{l.motivo ?? '—'}</td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">
-                          {new Date(l.createdAt).toLocaleDateString('es-CO')}
+                          {formatFecha(l.createdAt)}
                         </td>
                       </tr>
                     );

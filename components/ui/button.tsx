@@ -16,6 +16,11 @@ const buttonVariants = cva(
           "bg-primary text-primary-foreground shadow hover:bg-primary/90",
         destructive:
           "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+        // Row/card destructive action (trash, "Marcar Fallido"): destructive
+        // ICON-TEXT with a SOFT red tint on hover — never a solid fill. The solid
+        // `destructive` above is reserved for the confirm button in ConfirmDeleteDialog.
+        destructiveGhost:
+          "text-destructive hover:bg-destructive/10 hover:text-destructive",
         outline:
           "border border-input bg-transparent shadow-sm hover:bg-accent hover:text-accent-foreground",
         secondary:

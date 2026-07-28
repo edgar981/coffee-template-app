@@ -43,16 +43,6 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-
-  const { id } = await params;
-  await prisma.order.delete({ where: { id: id } });
-
-  return NextResponse.json({ ok: true });
-}
+// NO DELETE — Orders are auditable financial records: they are CANCELLED
+// (estado → 'cancelado' via PATCH/transitionOrder), never hard-deleted. Do not
+// reintroduce a delete handler here (see CLAUDE.md / AGENTS.md immutability policy).

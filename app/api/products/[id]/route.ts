@@ -49,6 +49,26 @@ export async function DELETE(
   if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const { id } = await params;
+
+  // Auditable-record guard (the REAL enforcement): a product referenced by any
+  // OrderItem is NOT deletable — deleting it would strip the product link off
+  // historical order lines. The supported path for a product with history is to
+  // DEACTIVATE it (activo: false, via PATCH), keeping the catalogue clean without
+  // rewriting the past.
+  const product = await prisma.product.findUnique({
+    where:   { id },
+    include: { _count: { select: { orderItems: true } } },
+  });
+  if (!product) return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
+
+  const n = product._count.orderItems;
+  if (n > 0) {
+    return NextResponse.json(
+      { error: `Aparece en ${n} ${n === 1 ? 'orden' : 'órdenes'}; desactívalo en lugar de eliminarlo para conservar el historial.` },
+      { status: 409 },
+    );
+  }
+
   await prisma.product.delete({ where: { id: id } });
 
   return NextResponse.json({ ok: true });

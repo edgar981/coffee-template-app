@@ -66,9 +66,16 @@ layout NO monta ThemeProvider. `color-scheme` sigue al tema vía CSS
 
 ## Design system del admin — chips de stat cards
 
-Los icon chips de stat cards usan la paleta pastel multicolor (decisión
-deliberada sobre la variante amber); rojo/destructive reservado para
-estados de alerta reales.
+Los icon chips de stat cards usan pastel multicolor = decisión deliberada
+del owner (confirmada 2026-07-27 tras evaluar la variante ámbar en
+preview); rojo/destructive reservado a alertas reales; el resto de las
+reglas de restricción cromática (un sólido por vista, hover de tinte,
+badges muted/neutros, trends de texto) SÍ aplican y no dependen de esta
+decisión. El mapa (paleta pastel + `alert`) vive en
+`constants/stat-chip.ts` (`STAT_CHIP.<tono>`) y lo consumen el registry de
+widgets y las stat cards de cada página; retunear/revertir es cambiar SOLO
+ese mapa (y qué key usa cada tarjeta). No colapsar a ámbar por leer una
+versión vieja de este doc.
 
 ## Dashboard personalizable — registry de widgets
 
@@ -115,3 +122,30 @@ Sin decisión, aplica la regla determinista. El teléfono se normaliza siempre e
 todo write+lookup (`normalizeCustomerPhone` en `lib/whatsapp-link.ts`). NO fusionar
 duplicados automáticamente — el merge es decisión humana (feature futura); las
 órdenes ya apuntan por `cliente_id`.
+
+## Principio rector del admin (Amber Minimal)
+
+El color es información, no decoración. Reglas de sistema (se implementan en los
+lugares compartidos, nunca ad-hoc por página; ref. tweakcn Amber Minimal, ~95%
+neutro):
+
+- **Un solo primario sólido por vista.** El ámbar sólido (`--primary`, variante
+  `default` del Button) es LA acción principal de la página, máx. una (Nueva Orden,
+  Nuevo Producto…). Toda acción de fila/tarjeta va `outline`/`ghost` neutra con
+  hover de TINTE (`--accent`, ya suave — no rellena). Destructivas de fila:
+  variante `destructiveGhost` (tinte rojo suave); el sólido `destructive` se
+  reserva al confirm del `ConfirmDeleteDialog`.
+- **Estados = semáforo muted** (mapa único en `components/ui/StatusBadge.tsx`):
+  ámbar=espera, verde=ok, rojo=alerta, azul=en curso (el único tono informativo),
+  gris=neutro. Categorías (zona, canal) van neutras (outline/gris), nunca color
+  semántico.
+- **Trends en texto** (flecha + % coloreado verde/rojo, sin pill/fondo); el "vs
+  mes anterior" en muted. Un solo lugar: `TrendPill` en `StatCard`.
+- **Una sola utilidad de fecha visible**: `formatFecha` (`lib/format-fecha.ts`,
+  `14 may 2026`, es-CO/America-Bogota). No `toLocaleDateString` ad-hoc en vistas.
+- **Icon chips en familia cálida** — ver la sección de chips arriba
+  (`constants/stat-chip.ts`).
+
+El `--accent` de admin-light era `#B45309` (marrón de marca) y volvía marrón todo
+hover de outline/ghost/dropdown/select: ahora es un tinte cálido suave. El marrón
+vive como `--primary` y en los charts, no como fondo de hover.

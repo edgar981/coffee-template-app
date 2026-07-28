@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { toast } from 'sonner';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '@/lib/api/products';
 import type { Product, ProductCategory, ProductForm, RoastLevel } from '@/types/product';
@@ -42,6 +43,8 @@ function ProductosInner() {
   const [editing, setEditing]     = useState<Product | null>(null);
   const [form, setForm]           = useState<ProductForm>(EMPTY_PRODUCT_FORM);
   const [view, setView]           = useState<ViewMode>('grid');
+  // Product pending deletion (drives the shared confirm dialog).
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -131,11 +134,21 @@ function ProductosInner() {
     setShowForm(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este producto?')) return;
-    await deleteProduct(id);
-    setProductos(prev => prev.filter(p => p.id !== id));
-    toast.success('Producto eliminado');
+  // Hard delete, run by the confirm dialog. The server rejects (409) any product
+  // that appears in an order; that message bubbles up to the dialog, which stays
+  // open and points the operator to "Desactivar" instead.
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    await deleteProduct(deleteTarget.id);
+    setProductos(prev => prev.filter(p => p.id !== deleteTarget.id));
+  };
+
+  // The safe alternative offered inside the same dialog: keep the record (and its
+  // order history) but hide it from the catalogue.
+  const confirmDeactivate = async () => {
+    if (!deleteTarget) return;
+    const updated = await updateProduct(deleteTarget.id, { activo: false });
+    setProductos(prev => prev.map(p => p.id === deleteTarget.id ? updated : p));
   };
 
   const field = <K extends keyof ProductForm>(key: K) => ({
@@ -198,11 +211,11 @@ function ProductosInner() {
       ) : view === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map(p => (
-            <ProductCard key={p.id} product={p} onEdit={openEdit} onDelete={handleDelete} />
+            <ProductCard key={p.id} product={p} onEdit={openEdit} onDelete={setDeleteTarget} />
           ))}
         </div>
       ) : (
-        <ProductTable productos={filtered} onEdit={openEdit} onDelete={handleDelete} />
+        <ProductTable productos={filtered} onEdit={openEdit} onDelete={setDeleteTarget} />
       )}
 
       {/* Form Dialog */}
@@ -287,6 +300,25 @@ function ProductosInner() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation — themed replacement for window.confirm(). A product
+          with sales history can't be deleted (server 409); "Desactivar" is offered
+          in its place (only while the product is still active). */}
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+        title="Eliminar producto"
+        entityLabel={deleteTarget
+          ? [deleteTarget.nombre, deleteTarget.sku].filter(Boolean).join(' · ')
+          : ''}
+        consequence="Se eliminará permanentemente del catálogo. Esta acción no se puede deshacer. Si tiene ventas registradas, desactívalo para conservar el historial."
+        confirmLabel="Eliminar producto"
+        successMessage="Producto eliminado"
+        onConfirm={confirmDelete}
+        secondaryAction={deleteTarget?.activo
+          ? { label: 'Desactivar', onAction: confirmDeactivate, successMessage: 'Producto desactivado' }
+          : undefined}
+      />
     </div>
   );
 }
@@ -296,7 +328,7 @@ function ProductosInner() {
 interface ProductCardProps {
   product:  Product;
   onEdit:   (p: Product) => void;
-  onDelete: (id: string) => void;
+  onDelete: (p: Product) => void;
 }
 
 function ProductCard({ product: p, onEdit, onDelete }: ProductCardProps) {
@@ -310,12 +342,12 @@ function ProductCard({ product: p, onEdit, onDelete }: ProductCardProps) {
       <div className="h-36 bg-linear-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 flex items-center justify-center relative">
         <Package className="w-12 h-12 text-amber-300" />
         {lowStock && (
-          <span className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+          <span className="absolute top-2 right-2 bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" /> Stock bajo
           </span>
         )}
         {!p.activo && (
-          <span className="absolute top-2 left-2 bg-gray-500 text-white text-xs px-2 py-0.5 rounded-full">
+          <span className="absolute top-2 left-2 bg-muted text-muted-foreground text-xs px-2 py-0.5 rounded-full">
             Inactivo
           </span>
         )}
@@ -339,7 +371,7 @@ function ProductCard({ product: p, onEdit, onDelete }: ProductCardProps) {
           <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => onEdit(p)}>
             <Edit2 className="w-3 h-3 mr-1" /> Editar
           </Button>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-700" onClick={() => onDelete(p.id)}>
+          <Button size="sm" variant="destructiveGhost" className="h-7 w-7 p-0" onClick={() => onDelete(p)} aria-label={`Eliminar ${p.nombre}`}>
             <Trash2 className="w-3 h-3" />
           </Button>
         </div>
@@ -351,7 +383,7 @@ function ProductCard({ product: p, onEdit, onDelete }: ProductCardProps) {
 interface ProductTableProps {
   productos: Product[];
   onEdit:    (p: Product) => void;
-  onDelete:  (id: string) => void;
+  onDelete:  (p: Product) => void;
 }
 
 function ProductTable({ productos, onEdit, onDelete }: ProductTableProps) {
@@ -397,7 +429,7 @@ function ProductTable({ productos, onEdit, onDelete }: ProductTableProps) {
                       <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => onEdit(p)}>
                         <Edit2 className="w-3 h-3" />
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(p.id)}>
+                      <Button size="sm" variant="destructiveGhost" className="h-7 w-7 p-0" onClick={() => onDelete(p)} aria-label={`Eliminar ${p.nombre}`}>
                         <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>

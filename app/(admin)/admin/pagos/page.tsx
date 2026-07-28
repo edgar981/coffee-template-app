@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { CreditCard, DollarSign, Receipt, X } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
@@ -16,18 +16,14 @@ import {
   METODO_DESGLOSE_LABEL,
 } from '@/types/payment';
 import { formatCOP } from '@/lib/utils';
+import { formatFecha } from '@/lib/format-fecha';
 import { BUSINESS_TZ } from '@/lib/timezone';
 
-// yyyy-mm-dd in Bogotá wall-clock, for range filtering and display consistency.
+// yyyy-mm-dd in Bogotá wall-clock, for range filtering (comparison key, not shown).
 const bogotaISODate = (iso: string) =>
   new Intl.DateTimeFormat('en-CA', {
     timeZone: BUSINESS_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(new Date(iso));
-
-const displayDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('es-CO', {
-    timeZone: BUSINESS_TZ, day: '2-digit', month: 'short', year: 'numeric',
-  });
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -41,6 +37,8 @@ export default function Pagos() {
 }
 
 function PagosInner() {
+  const router       = useRouter();
+  const pathname     = usePathname();
   const searchParams = useSearchParams();
   // `?desde`/`?hasta` (yyyy-mm-dd) seed the date range so the dashboard can link
   // straight to "hoy" (Ventas de hoy) or the month (Ingresos del mes). Same param
@@ -100,7 +98,15 @@ function PagosInner() {
     [filtered]);
 
   const hasFilters = metodo !== 'all' || !!from || !!to;
-  const clearFilters = () => { setMetodo('all'); setFrom(''); setTo(''); };
+  // Single reset for the whole bar: método + range, AND the seeding query params
+  // (`?desde`/`?hasta` from a dashboard deep link) so a reload can't re-apply them.
+  const clearFilters = () => {
+    setMetodo('all'); setFrom(''); setTo('');
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete('desde'); next.delete('hasta');
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -123,12 +129,12 @@ function PagosInner() {
           <p className="text-xs text-muted-foreground">Total del período</p>
         </div>
         <div className="stat-card">
-          <Receipt className="w-5 h-5 text-blue-500 mb-3" />
+          <Receipt className="w-5 h-5 text-muted-foreground mb-3" />
           <p className="text-xl font-bold">{filtered.length}</p>
           <p className="text-xs text-muted-foreground">Pagos {hasFilters ? 'filtrados' : 'registrados'}</p>
         </div>
         <div className="stat-card hidden lg:block">
-          <CreditCard className="w-5 h-5 text-violet-500 mb-3" />
+          <CreditCard className="w-5 h-5 text-muted-foreground mb-3" />
           {categoriaStats.length === 0 ? (
             <span className="text-xs text-muted-foreground">Sin pagos</span>
           ) : (
@@ -220,7 +226,7 @@ function PagosInner() {
               <tbody>
                 {filtered.map(p => (
                   <tr key={p.id} className="border-b border-border/50 hover:bg-muted/20">
-                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{displayDate(p.fecha)}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatFecha(p.fecha)}</td>
                     <td className="px-4 py-3">
                       {p.order?.numero_orden ? (
                         <Link

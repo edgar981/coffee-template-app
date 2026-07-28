@@ -29,15 +29,18 @@ export async function GET(
   if (customer.email)    orClauses.push({ cliente_email: customer.email });
   if (customer.telefono) orClauses.push({ cliente_telefono: customer.telefono });
 
-  const orders = orClauses.length
-    ? await prisma.order.findMany({
-        where:   { OR: orClauses },
-        select:  { id: true, numero_orden: true, estado: true, total: true, createdAt: true, shipping: { select: { estado: true } } },
-        orderBy: { createdAt: 'desc' },
-      })
-    : [];
+  const [orders, paidAgg] = await Promise.all([
+    prisma.order.findMany({
+      where:   { OR: orClauses },
+      select:  { id: true, numero_orden: true, estado: true, total: true, createdAt: true, shipping: { select: { estado: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    // Real money paid by this customer (same order set), for the "Total comprado"
+    // stat — sum of Payments, not the demo `total_compras`.
+    prisma.payment.aggregate({ where: { order: { OR: orClauses } }, _sum: { monto: true } }),
+  ]);
 
-  return NextResponse.json({ ...customer, orders });
+  return NextResponse.json({ ...customer, orders, comprasPagadas: paidAgg._sum.monto ?? 0 });
 }
 
 export async function PATCH(
@@ -78,6 +81,25 @@ export async function DELETE(
   if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const { id } = await params;
+
+  // Auditable-record guard (the REAL enforcement — the UI gate is only a courtesy):
+  // a customer with orders is NOT deletable. Their orders are financial history and
+  // must keep pointing at them (the FK is onDelete: SetNull, so a delete would
+  // silently orphan that history). `_count.orders` counts the FK relation.
+  const customer = await prisma.customer.findUnique({
+    where:   { id },
+    include: { _count: { select: { orders: true } } },
+  });
+  if (!customer) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
+
+  const n = customer._count.orders;
+  if (n > 0) {
+    return NextResponse.json(
+      { error: `Tiene ${n} ${n === 1 ? 'orden asociada' : 'órdenes asociadas'} (incluye canceladas); el historial se conserva.` },
+      { status: 409 },
+    );
+  }
+
   await prisma.customer.delete({ where: { id: id } });
 
   return NextResponse.json({ ok: true });

@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { dispatchStockDecrement, restockShippingStock, DispatchStockError } from '@/lib/fulfillment';
 import { markContraentregaAtDispatch } from '@/lib/orders';
+import { notifyOrderEnRoute } from '@/lib/notifications';
 import { TipoEnvio } from '@/src/generated/prisma/client';
 
 const TIPOS_ENVIO = Object.values(TipoEnvio);
@@ -165,6 +166,15 @@ export async function PATCH(
       });
     });
 
+    // Dispatch COMMITTED. Fire the "on its way" notification here — AFTER the
+    // transaction, once (justDispatched is the single preparando→en_ruta edge, and
+    // the transition is idempotent, so the email hangs off it, not off re-renders).
+    // Fully guarded — the email can never affect the dispatch outcome.
+    if (justDispatched) {
+      try { await notifyOrderEnRoute(current.orden_id); }
+      catch (e) { console.error(`[notify] order.enRoute orden ${current.orden_id}:`, e); }
+    }
+
     return NextResponse.json(updated);
   } catch (error) {
     // Insufficient stock blocks the dispatch — 409 naming the product(s); the
@@ -179,15 +189,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-
-  const { id } = await params;
-  await prisma.shipping.delete({ where: { id: id } });
-  return NextResponse.json({ ok: true });
-}
+// NO DELETE — a Shipping is an auditable fulfillment record: it is CANCELLED
+// (estado → 'cancelado', driven by the order-cancellation path), never
+// hard-deleted. Do not reintroduce a delete handler here (see CLAUDE.md /
+// AGENTS.md immutability policy).

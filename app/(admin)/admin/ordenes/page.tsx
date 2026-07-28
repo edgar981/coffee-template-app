@@ -26,6 +26,7 @@ import { CONDICION_PAGO_LABEL } from '@/types/order';
 import type { Product } from '@/types/product';
 import type { Shipping } from '@/types/shipping';
 import { formatCOP } from '@/lib/utils';
+import { formatFecha } from '@/lib/format-fecha';
 import { findSlotLabel } from '@/lib/shipping-config';
 import { isScheduledShipping } from '@/constants/shippings';
 import { isPorCobrar } from '@/lib/metrics/order-stat-filters';
@@ -235,6 +236,16 @@ function Ordenes() {
     acc[e] = orders.filter(o => o.estado === e).length;
     return acc;
   }, {} as Record<OrderStatus, number>);
+
+  // Single reset for the whole filter bar: estado pills, "Por cobrar", the date
+  // range (all URL-driven) AND the scratch `search`. `order` (the open dialog) is
+  // deliberately untouched. Shown only when at least one filter is active.
+  const hasActiveFilters =
+    estados.length > 0 || !!desde || !!hasta || porCobrar || excludeCobrar || search.trim() !== '';
+  const clearFilters = () => {
+    setSearch('');
+    setParams({ estado: null, desde: null, hasta: null, cobrar: null });
+  };
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -521,6 +532,11 @@ function Ordenes() {
           hasta={hasta}
           onChange={(d, h) => setParams({ desde: d, hasta: h })}
         />
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 gap-1 text-xs">
+            <X className="w-3.5 h-3.5" /> Limpiar
+          </Button>
+        )}
       </div>
 
       {/* Table */}
@@ -571,7 +587,7 @@ function Ordenes() {
                         cancelled orders (don't repeat "Cancelado") and orders with
                         no Shipping (pendiente). */}
                     <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {new Date(o.createdAt).toLocaleDateString('es-CO')}
+                      {formatFecha(o.createdAt)}
                     </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-2">

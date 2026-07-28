@@ -9,12 +9,15 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { toast } from 'sonner';
 import { formatCOP } from '@/lib/utils';
 import { getCustomers, createCustomer, updateCustomer, deleteCustomer } from '@/lib/api/customers';
 import type { Customer, CustomerForm } from '@/types/customer';
 import type { OrderChannel } from '@/types/order';
 import { CANALES, EMPTY_CUSTOMER_FORM } from '@/constants/customer';
+import { STAT_CHIP } from '@/constants/stat-chip';
 
 
 // useSearchParams() needs a Suspense boundary (same pattern as Órdenes).
@@ -33,6 +36,9 @@ function ClientesInner() {
   const [showForm, setShowForm]   = useState(false);
   const [editing, setEditing]     = useState<Customer | null>(null);
   const [form, setForm]           = useState<CustomerForm>(EMPTY_CUSTOMER_FORM);
+  // Customer pending deletion (drives the shared confirm dialog). Only customers
+  // with zero orders ever reach here — see the row action gate below.
+  const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   // `?recurrentes=1` (from the dashboard "Clientes Recurrentes" card) shows only
@@ -47,7 +53,7 @@ function ClientesInner() {
   // ── Derived ────────────────────────────────────────────────────────────────
 
   const filtered = clientes.filter(c => {
-    if (recurrentesOnly && (c.numero_ordenes ?? 0) <= 1) return false;
+    if (recurrentesOnly && (c.ordenes ?? 0) <= 1) return false;
     const q = search.toLowerCase();
     return (
       c.nombre?.toLowerCase().includes(q) ||
@@ -61,7 +67,8 @@ function ClientesInner() {
     .slice(0, 5);
 
   const totalVentas  = clientes.reduce((sum, c) => sum + (c.total_compras ?? 0), 0);
-  const recurrentes  = clientes.filter(c => (c.numero_ordenes ?? 0) > 1).length;
+  // Recurrente = más de UNA orden no cancelada (misma definición que "N órdenes").
+  const recurrentes  = clientes.filter(c => (c.ordenes ?? 0) > 1).length;
   const tasaRecurr   = clientes.length
     ? `${Math.round((recurrentes / clientes.length) * 100)}%`
     : '0%';
@@ -100,11 +107,12 @@ function ClientesInner() {
     setShowForm(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este cliente?')) return;
-    await deleteCustomer(id);
-    setClientes(prev => prev.filter(c => c.id !== id));
-    toast.success('Cliente eliminado');
+  // The actual delete, run by the confirm dialog. Throws (server message) bubble
+  // up to the dialog, which keeps itself open and toasts the error.
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    await deleteCustomer(deleteTarget.id);
+    setClientes(prev => prev.filter(c => c.id !== deleteTarget.id));
   };
 
   const field = (key: keyof CustomerForm) => ({
@@ -115,14 +123,14 @@ function ClientesInner() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  // "Compras totales" = suma del campo denormalizado `total_compras` de TODOS los
-  // clientes (histórico por cliente, dato semilla). NO son ingresos reales — esos
-  // se calculan desde Payments y viven en Dashboard/Analítica.
+  // "Compras totales" = suma del dinero PAGADO (Payments) de todos los clientes —
+  // dinero real, la misma fuente que el `$` de cada fila. (Ya no es el campo
+  // semilla `total_compras`.)
   const stats = [
-    { label: 'Total Clientes',   value: clientes.length,       sublabel: undefined as string | undefined, icon: Users, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-    { label: 'Recurrentes',      value: recurrentes,           sublabel: undefined as string | undefined, icon: Star,  color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-    { label: 'Tasa Recurrencia', value: tasaRecurr,            sublabel: undefined as string | undefined, icon: Star,  color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
-    { label: 'Compras totales',  value: formatCOP(totalVentas),sublabel: 'Histórico de clientes',          icon: Users, color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400' },
+    { label: 'Total Clientes',   value: clientes.length,       sublabel: undefined as string | undefined, icon: Users, color: STAT_CHIP.blue },
+    { label: 'Recurrentes',      value: recurrentes,           sublabel: undefined as string | undefined, icon: Star,  color: STAT_CHIP.amber },
+    { label: 'Tasa Recurrencia', value: tasaRecurr,            sublabel: undefined as string | undefined, icon: Star,  color: STAT_CHIP.emerald },
+    { label: 'Compras totales',  value: formatCOP(totalVentas),sublabel: 'Pagos recibidos',                icon: Users, color: STAT_CHIP.violet },
   ];
 
   return (
@@ -200,7 +208,7 @@ function ClientesInner() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-sm truncate">{c.nombre}</p>
-                        {(c.numero_ordenes ?? 0) > 2 && (
+                        {(c.ordenes ?? 0) > 2 && (
                           <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
                         )}
                       </div>
@@ -210,7 +218,7 @@ function ClientesInner() {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-semibold">{formatCOP(c.total_compras ?? 0)}</p>
-                      <p className="text-xs text-muted-foreground">{c.numero_ordenes ?? 0} órdenes</p>
+                      <p className="text-xs text-muted-foreground">{c.ordenes ?? 0} {(c.ordenes ?? 0) === 1 ? 'orden' : 'órdenes'}</p>
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <Button
@@ -219,12 +227,44 @@ function ClientesInner() {
                       >
                         <Edit2 className="w-3 h-3" />
                       </Button>
-                      <Button
-                        size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500"
-                        onClick={e => { e.stopPropagation(); handleDelete(c.id); }}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
+                      {(c.ordenesRef ?? 0) > 0 ? (
+                        // Gate on `ordenesRef` (raw FK refs = what the delete guard
+                        // counts), NOT the visible `ordenes` (non-cancelled): otherwise
+                        // the dialog could open on a "0 órdenes" (only-cancelled) row
+                        // and the server would 409. The "(incluye canceladas)" note
+                        // shows ONLY when the referential count exceeds the visible one
+                        // (i.e. there ARE cancelled orders) — no contradiction when they
+                        // match. Real disabled control (no pointer cursor, not focusable
+                        // — the row is cursor-pointer, so the span resets it); the span
+                        // is the tooltip target since a disabled button swallows hovers.
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              onClick={e => e.stopPropagation()}
+                              className="inline-flex cursor-not-allowed"
+                            >
+                              <Button
+                                size="sm" variant="ghost" disabled
+                                className="h-7 w-7 p-0 text-muted-foreground/40"
+                                aria-label={`No se puede eliminar ${c.nombre}: tiene ${c.ordenesRef} ${c.ordenesRef === 1 ? 'orden asociada' : 'órdenes asociadas'}${(c.ordenesRef ?? 0) !== (c.ordenes ?? 0) ? ' (incluye canceladas)' : ''}`}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            No se puede eliminar: tiene {c.ordenesRef} {c.ordenesRef === 1 ? 'orden asociada' : 'órdenes asociadas'}{(c.ordenesRef ?? 0) !== (c.ordenes ?? 0) ? ' (incluye canceladas)' : ''}. El historial se conserva.
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <Button
+                          size="sm" variant="destructiveGhost" className="h-7 w-7 p-0"
+                          onClick={e => { e.stopPropagation(); setDeleteTarget(c); }}
+                          aria-label={`Eliminar ${c.nombre}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -249,7 +289,9 @@ function ClientesInner() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium truncate">{c.nombre}</p>
-                    <p className="text-xs text-muted-foreground">{c.numero_ordenes ?? 0} órdenes</p>
+                    {/* Top 5 rankea por dinero PAGADO (línea de abajo); "N órdenes"
+                        cuenta las no canceladas — misma definición que la lista. */}
+                    <p className="text-xs text-muted-foreground">{c.ordenes ?? 0} {(c.ordenes ?? 0) === 1 ? 'orden' : 'órdenes'}</p>
                   </div>
                   <p className="text-xs font-bold text-primary">{formatCOP(c.total_compras ?? 0)}</p>
                 </div>
@@ -314,6 +356,22 @@ function ClientesInner() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation — themed replacement for window.confirm(). Only opens
+          for customers with zero orders (the row gate); the server 409 is the real
+          backstop if the shown count ever lags reality. */}
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+        title="Eliminar cliente"
+        entityLabel={deleteTarget
+          ? [deleteTarget.nombre, deleteTarget.email ?? deleteTarget.telefono].filter(Boolean).join(' · ')
+          : ''}
+        consequence="Se eliminará permanentemente. Esta acción no se puede deshacer."
+        confirmLabel="Eliminar cliente"
+        successMessage="Cliente eliminado"
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

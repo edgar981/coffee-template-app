@@ -97,15 +97,23 @@ export function currentMonthRange(now: Date = new Date()): CurrentMonthRange {
 }
 
 /**
- * The estados the Órdenes del mes stat counts: everything except `cancelado`.
- * The stat expresses this as a negation (`estado != 'cancelado'`); the Órdenes
- * URL can only express a positive set, so this is the enumerated equivalent.
+ * THE definition of a countable order: everything except `cancelado`. A pending
+ * order IS an order; a cancelled one is not (it's an auditable record, not a
+ * sale). One definition, N consumers — the customer "N órdenes" count (list,
+ * Top 5, profile), the recurrentes metric, and the "Órdenes del mes" stat all
+ * read from here so a displayed count can never disagree with its label.
  *
- * It is exhaustive over OrderStatus by construction — if a fourth estado is ever
- * added, the `satisfies` below still compiles but this list must be revisited,
- * or the card and the list will disagree.
+ * Enumerated (positive) form because a URL/Prisma `in` can't express negation.
+ * Exhaustive over OrderStatus by construction — if a fourth estado is ever added,
+ * the `satisfies` still compiles but this list must be revisited.
  */
-export const MONTH_STAT_ESTADOS = ['pendiente', 'pagado'] satisfies OrderStatus[];
+export const NON_CANCELLED_ESTADOS = ['pendiente', 'pagado'] satisfies OrderStatus[];
+
+/** Predicate form of {@link NON_CANCELLED_ESTADOS} for filtering loaded orders. */
+export const isCountableOrder = (estado: string): boolean => estado !== 'cancelado';
+
+/** The Órdenes del mes stat counts the same set (everything except cancelado). */
+export const MONTH_STAT_ESTADOS = NON_CANCELLED_ESTADOS;
 
 /**
  * Query string (without `?`) reproducing the Órdenes del mes stat exactly.

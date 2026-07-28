@@ -44,7 +44,8 @@ function StatCardBody({ icon: Icon, label, value, sub, trend, color }: Omit<Stat
     // in `group/link`, so the non-linked cards render exactly as before.
     <div className="stat-card group group-hover/link:border-primary/50 group-hover/link:bg-muted/30">
       <div className="flex items-start justify-between gap-2">
-        {/* Pastel per-card chip — deliberate choice (see CLAUDE.md admin design system). */}
+        {/* Icon chip — warm family (STAT_CHIP; red reserved for alerts). Callers
+            pass the class from the centralized map, see CLAUDE.md / constants/stat-chip. */}
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
           <Icon className="w-5 h-5" />
         </div>
@@ -71,15 +72,17 @@ function StatCardBody({ icon: Icon, label, value, sub, trend, color }: Omit<Stat
   );
 }
 
-// ─── Trend pill ───────────────────────────────────────────────────────────────
-// For these 4 KPIs, up is always good → emerald; down → red/destructive; flat or
-// non-comparable → neutral. Colours are subtle tints, distinct from the chips.
+// ─── Trend (text, not a pill) ─────────────────────────────────────────────────
+// Regla 3: the MoM indicator is coloured TEXT — arrow + %, no fill — so the pill
+// stops competing with the value. Up is good → green; down → red; flat/
+// non-comparable → muted. AA-safe tones (green-700/red-700 on the light card;
+// -400 on dark). The "vs. mes anterior" caption below stays muted.
 function TrendPill({ trend }: { trend: Trend }) {
   if (!trend.comparable) {
     return (
       <span
         title="Sin base comparable (el mes anterior tuvo muy pocas órdenes)"
-        className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+        className="flex items-center gap-1 text-xs font-medium text-muted-foreground"
       >
         <Minus className="w-3 h-3" /> sin comparativa
       </span>
@@ -90,16 +93,16 @@ function TrendPill({ trend }: { trend: Trend }) {
   const isDown = trend.direction === "down";
   const Icon   = isUp ? ArrowUpRight : isDown ? ArrowDownRight : Minus;
   const tone   = isUp
-    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+    ? "text-emerald-700 dark:text-emerald-400"
     : isDown
-    ? "bg-red-500/10 text-red-600 dark:text-red-400"
-    : "bg-muted text-muted-foreground";
+    ? "text-red-700 dark:text-red-400"
+    : "text-muted-foreground";
   const sign = (trend.pct ?? 0) > 0 ? "+" : "";
 
   return (
     <span
       title="vs. mes anterior"
-      className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}
+      className={`flex items-center gap-1 text-xs font-semibold ${tone}`}
     >
       <Icon className="w-3 h-3" /> {sign}{trend.pct}%
     </span>

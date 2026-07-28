@@ -112,13 +112,7 @@ export default function TopBar({
           <TooltipTrigger asChild>
             <button
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className={cn(
-                ADMIN_ICON_BUTTON,
-                'h-9 w-9',
-                // Deliberate exception to the unified top-bar hover (design decision) — do not re-unify.
-                // Solid fill on hover: amber (--primary) in dark; brand brown #B45309 (= admin light --accent) in light.
-                'hover:bg-accent hover:text-accent-foreground dark:hover:bg-primary dark:hover:text-primary-foreground',
-              )}
+              className={cn(ADMIN_ICON_BUTTON, 'h-9 w-9')}
               aria-label="Cambiar tema"
             >
               {mounted
