@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
-import { fireOrderTrigger } from '@/lib/automations/triggers';
 import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, derivarCondicionPago, OrderCustomerIdentityError, OrderCustomerNotFoundError, OrderLinesError } from '@/lib/orders';
 import { MetodoPago } from '@/src/generated/prisma/client';
 
@@ -155,7 +154,10 @@ export async function POST(req: NextRequest) {
       idempotencyKey:    b.idempotencyKey ?? null,
     });
 
-    fireOrderTrigger('nueva_orden', result as never).catch(console.error);
+    // Sin disparador de automatización aquí a propósito: "Notificación Nueva Orden"
+    // se dispara cuando la orden queda PAGADA, no cuando se crea (una orden manual
+    // nace `pendiente`). El aviso de orden creada al cliente ya lo manda
+    // `notifyOrderCreated`, dentro de createOrderWithCustomer.
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     if (error instanceof OrderCustomerIdentityError || error instanceof OrderCustomerNotFoundError) {

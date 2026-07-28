@@ -84,6 +84,46 @@ export function startOfZonedWeek(ref: Date, tz: string, weekDelta = 0): Date {
 }
 
 /**
+ * Local hour (0–23) that `ref` falls on in `tz`. THE clock the scheduled
+ * automations compare against: the hourly cron fires in UTC, and each automation
+ * declares its hour in Bogotá wall time, so the conversion happens here and
+ * nowhere else (no hardcoded "13:00 UTC = 08:00 Bogotá" scattered around).
+ */
+export function zonedHour(ref: Date, tz: string): number {
+  return Number(
+    new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', hourCycle: 'h23' })
+      .format(ref),
+  );
+}
+
+/** ISO weekday of `ref` in `tz`: 1 = Monday … 7 = Sunday. */
+export function zonedIsoWeekday(ref: Date, tz: string): number {
+  const short = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(ref);
+  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(short) + 1;
+}
+
+/**
+ * ISO-8601 week `ref` falls on in `tz`, as `2026-W31`. The idempotency key of the
+ * weekly automations (AutomationRun.periodo), so a cron that fires 24× on Monday
+ * still produces exactly one weekly report.
+ *
+ * ISO rule: a week belongs to the year containing its THURSDAY — which is why the
+ * year here is taken from that Thursday, not from `ref` (Dec 31 2026 lands in
+ * `2027-W01`). Day arithmetic runs on a UTC-anchored copy of the LOCAL calendar
+ * date, so no zone offset can shift the day mid-computation.
+ */
+export function isoWeekKey(ref: Date, tz: string): string {
+  const [y, m, d] = zonedDayKey(ref, tz).split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const isoDay = date.getUTCDay() || 7;              // 1..7, lunes = 1
+  date.setUTCDate(date.getUTCDate() + 4 - isoDay);   // el jueves de esa semana ISO
+  const year = date.getUTCFullYear();
+  const jan1 = Date.UTC(year, 0, 1);
+  const week = Math.ceil(((date.getTime() - jan1) / 86_400_000 + 1) / 7);
+  return `${year}-W${String(week).padStart(2, '0')}`;
+}
+
+/**
  * UTC instant of 00:00 local time on the 1st of the month that `ref` falls on
  * in `tz`, shifted by `monthDelta` months (0 = this month, -1 = last month,
  * +1 = next month). `Date.UTC` normalises month over/underflow across years.
