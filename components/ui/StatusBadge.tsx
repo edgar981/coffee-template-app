@@ -56,6 +56,13 @@ const statusConfig = {
   en_ruta:          semaphore('En Ruta',      INFO),
   fallido_entrega:  semaphore('Fallido',      DANGER),
   reprogramado:     semaphore('Reprogramado', WARN),
+  // Ejecuciones de automatizaciones (AutomationRunEstado — enum en MAYÚSCULAS, así
+  // que no colisiona con las keys de arriba). PENDIENTE_CANAL va ámbar porque es
+  // exactamente eso: a la espera de una acción (conectar el canal), no un éxito.
+  ENVIADO:          semaphore('Enviado',      OK),
+  PENDIENTE_CANAL:  semaphore('Sin canal',    WARN),
+  FALLIDO:          semaphore('Falló',        DANGER),
+  OMITIDO:          semaphore('Omitido',      NEUTRAL),
 };
 
 const FALLBACK = { label: '', light: 'bg-muted text-muted-foreground', dark: '' };

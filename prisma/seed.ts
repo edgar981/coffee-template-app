@@ -6,7 +6,6 @@ import { MOCK_CUSTOMERS } from "@/lib/mock/customers";
 import { DEMO_PRODUCTS } from "@/prisma/seed-products";
 import { mockLogs } from "@/lib/mock/inventoryLogs";
 import { SHIPPING_SEED_TEMPLATES } from "@/lib/mock/shippings";
-import { AUTOMATION_TEMPLATES } from "@/lib/mock/automations";
 import { BUSINESS_TZ, startOfZonedDay } from "@/lib/timezone";
 import { normalizeCustomerPhone } from "@/lib/orders";
 
@@ -458,22 +457,10 @@ async function main() {
 
   console.log('✅ Shippings seeded');
 
-  for (const t of AUTOMATION_TEMPLATES) {
-    await prisma.automation.upsert({
-      where:  { tipo: t.tipo },
-      update: {},
-      create: {
-        tipo:            t.tipo,
-        nombre:          t.nombre,
-        canal:           t.canal,
-        activa:          false,
-        veces_ejecutada: 0,
-      },
-    });
-  }
-
-  console.log('✅ Automations seeded');
-
+  // Las automatizaciones NO se siembran: su catálogo vive en el código
+  // (constants/automations.ts) y `AutomationSetting` sólo guarda overrides. Sin
+  // fila = todo por default, que es exactamente el estado inicial deseado (las 9
+  // apagadas). Sembrar filas vacías sólo crearía ruido que mantener.
 }
 
 main()

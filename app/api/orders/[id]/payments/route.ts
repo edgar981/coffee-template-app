@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { registerOrderPaymentTx } from '@/lib/orders';
+import { runEventAutomations } from '@/lib/automations/engine';
 import { MetodoPago } from '@/src/generated/prisma/client';
 
 const METODOS = Object.values(MetodoPago);
@@ -65,6 +66,12 @@ export async function POST(
         { status: 409 },
       );
     }
+
+    // Pago COMITEADO → la orden quedó `pagado`. Uno de los dos bordes que disparan
+    // "Notificación Nueva Orden" (el otro es el PATCH de estado). Ambos pueden
+    // ocurrir sobre la misma orden; la idempotencia de AutomationRun garantiza un
+    // solo mensaje. Post-commit y fire-and-forget: jamás afecta el registro del pago.
+    await runEventAutomations({ tipo: 'order.pagado', orderId: id });
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {

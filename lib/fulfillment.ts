@@ -1,4 +1,5 @@
 import { Prisma } from '@/src/generated/prisma/client';
+import { isLowStock } from '@/lib/metrics/inventory-filters';
 
 interface OrderShippingSnapshot {
   id: string;
@@ -110,11 +111,18 @@ interface ShippingStockRef {
 // stamps `stock_descontado_at` in the same transaction. No-op if already
 // stamped. Lines without a linked product (legacy demo lines) are skipped —
 // there is no stock row to decrement.
+//
+// DEVUELVE los productos que CRUZARON su stock mínimo con este decremento (antes
+// no estaban bajos, ahora sí). El cruce sólo puede detectarse aquí, porque sólo
+// aquí se conoce el valor anterior; el llamador emite el evento DESPUÉS del commit.
+// Se usa `isLowStock` —el mismo predicado de la card de Alertas de Stock y del
+// filtro de Inventario— para que el aviso y lo que se ve en pantalla no puedan
+// discrepar. Lista vacía si el decremento ya había corrido (no-op idempotente).
 export async function dispatchStockDecrement(
   tx: Prisma.TransactionClient,
   shipping: ShippingStockRef,
-): Promise<void> {
-  if (shipping.stock_descontado_at) return; // already decremented — idempotent
+): Promise<string[]> {
+  if (shipping.stock_descontado_at) return []; // already decremented — idempotent
 
   const order = await tx.order.findUniqueOrThrow({
     where:  { id: shipping.orden_id },
@@ -149,27 +157,37 @@ export async function dispatchStockDecrement(
   if (fallidos.length > 0) throw new DispatchStockError(fallidos);
 
   // Kardex trail (tipo 'venta'), with the REAL post-decrement values.
+  const cruzaronMinimo: string[] = [];
   for (const [productoId, { nombre, cantidad }] of porProducto) {
     const updated = await tx.product.findUniqueOrThrow({
-      where: { id: productoId }, select: { stock: true },
+      where: { id: productoId }, select: { stock: true, stock_minimo: true, activo: true },
     });
+    const anterior = updated.stock + cantidad;
     await tx.inventoryLog.create({
       data: {
         producto_id:     productoId,
         producto_nombre: nombre,
         tipo:            'venta',
         cantidad,
-        stock_anterior:  updated.stock + cantidad,
+        stock_anterior:  anterior,
         stock_nuevo:     updated.stock,
         motivo:          `Despacho orden ${order.numero_orden}`,
       },
     });
+    // El CRUCE, no el estado: un producto que ya estaba bajo antes del despacho no
+    // vuelve a avisar en cada venta posterior.
+    const ref = { stock_minimo: updated.stock_minimo, activo: updated.activo };
+    if (!isLowStock({ ...ref, stock: anterior }) && isLowStock({ ...ref, stock: updated.stock })) {
+      cruzaronMinimo.push(productoId);
+    }
   }
 
   await tx.shipping.update({
     where: { id: shipping.id },
     data:  { stock_descontado_at: new Date(), updatedAt: new Date() },
   });
+
+  return cruzaronMinimo;
 }
 
 // Restock twin: a dispatched delivery came back (fallido, or the order was

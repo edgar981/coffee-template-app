@@ -5,6 +5,7 @@ import { headers } from 'next/headers';
 import { dispatchStockDecrement, restockShippingStock, DispatchStockError } from '@/lib/fulfillment';
 import { markContraentregaAtDispatch } from '@/lib/orders';
 import { notifyOrderEnRoute } from '@/lib/notifications';
+import { runEventAutomations } from '@/lib/automations/engine';
 import { TipoEnvio } from '@/src/generated/prisma/client';
 
 const TIPOS_ENVIO = Object.values(TipoEnvio);
@@ -137,8 +138,13 @@ export async function PATCH(
     // ONE transaction: the stock movement (decrement at dispatch / restock on
     // fallido, both marker-guarded and atomic per product) and the state write
     // commit together or not at all — a blocked dispatch changes nothing.
+    // Productos que cruzaron su mínimo con ESTE despacho. Se recogen dentro de la
+    // transacción (es el único punto donde se conoce el stock anterior) y el evento
+    // se emite abajo, ya comiteado.
+    let cruzaronMinimo: string[] = [];
+
     const updated = await prisma.$transaction(async (tx) => {
-      if (justDispatched) await dispatchStockDecrement(tx, current);
+      if (justDispatched) cruzaronMinimo = await dispatchStockDecrement(tx, current);
       // Confirmed unpaid dispatch → the order is now cash-on-delivery. Flip its
       // condición in the SAME transaction (last permitted mutation of condición),
       // so a rolled-back dispatch never leaves a stray CONTRAENTREGA. No-op if it
@@ -173,6 +179,22 @@ export async function PATCH(
     if (justDispatched) {
       try { await notifyOrderEnRoute(current.orden_id); }
       catch (e) { console.error(`[notify] order.enRoute orden ${current.orden_id}:`, e); }
+
+      // Cruces de stock mínimo provocados por este despacho. Post-commit: el stock
+      // ya bajó de verdad, así que el aviso no puede referirse a algo que se
+      // revirtió. `runEventAutomations` nunca lanza.
+      for (const productoId of cruzaronMinimo) {
+        await runEventAutomations({ tipo: 'stock.cruzo_minimo', productoId });
+      }
+    }
+
+    // Entrega COMPLETADA. Mismo criterio que el despacho: colgado del ÚNICO borde
+    // (…→ entregado), post-commit, y con la idempotencia de AutomationRun detrás
+    // por si un cliente reenvía el PATCH.
+    if (justDelivered) {
+      await runEventAutomations({
+        tipo: 'shipping.entregado', shippingId: id, orderId: current.orden_id,
+      });
     }
 
     return NextResponse.json(updated);
