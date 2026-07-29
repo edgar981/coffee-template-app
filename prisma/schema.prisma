@@ -303,23 +303,12 @@ model Shipping {
   updatedAt        DateTime @updatedAt
 }
 
-// RETIRADO — reemplazado por AutomationSetting (activo + config) y AutomationRun
-// (contadores y auditoría reales, en vez de `veces_ejecutada`). Se mantiene en pie
-// deliberadamente: expand → migrate → CONTRACT. La migración que lo introduce
-// copió sus toggles a AutomationSetting; el `DROP TABLE` va en un deploy POSTERIOR,
-// cuando ningún despliegue viejo pueda leerlo. Nada del código nuevo lo toca.
-// Junto con ese DROP se retiran lib/whatsapp.ts (Twilio) y sus env vars.
-model Automation {
-  id               String   @id @default(cuid())
-  tipo             String   @unique
-  nombre           String
-  canal            String
-  activa           Boolean  @default(false)
-  veces_ejecutada  Int      @default(0)
-  ultima_ejecucion DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-}
+// El modelo `Automation` vivió aquí hasta la migración
+// 20260729120000_drop_automation_legacy (fase CONTRACT). Lo reemplazan los dos
+// modelos de abajo: `AutomationSetting` guarda la decisión del owner y
+// `AutomationRun` sustituye sus contadores agregados (`veces_ejecutada`,
+// `ultima_ejecucion`) por una fila por ejecución, con target, canal, estado y
+// payload. No reintroducir: el catálogo vive en constants/automations.ts.
 
 // Lo ÚNICO que el owner decide de una automatización: si está encendida y sus
 // overrides de configuración. Todo lo demás —nombre, canal, disparador, plantillas

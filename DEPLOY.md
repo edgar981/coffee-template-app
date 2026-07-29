@@ -19,11 +19,11 @@ producción real está al final.
 | Cron | GitHub Actions (`0 * * * *`) → `/api/cron/automations` | Vercel Hobby solo corre crons 1×/día |
 | DNS | Cloudflare (`duna.solutions`) → CNAME a Vercel | El dominio sigue en Cloudflare |
 
-**Por qué Vercel y no Cloudflare Workers:** el adapter `pg` (TCP) y el SDK de
-Twilio corren tal cual en el runtime Node de Vercel — cero cambios de código.
-La ruta Cloudflare exigiría cambiar el adapter Prisma a `@prisma/adapter-neon`,
-validar Twilio sobre `workerd` y configurar `wrangler` + bindings. Se decidió
-Vercel por mínima fricción; la infra definitiva llegará con el template.
+**Por qué Vercel y no Cloudflare Workers:** el adapter `pg` (TCP) corre tal cual
+en el runtime Node de Vercel — cero cambios de código. La ruta Cloudflare exigiría
+cambiar el adapter Prisma a `@prisma/adapter-neon` y configurar `wrangler` +
+bindings. Se decidió Vercel por mínima fricción; la infra definitiva llegará con
+el template.
 
 ---
 
@@ -45,9 +45,6 @@ quieres previews).
 | `ADMIN_NAME` | Opcional | Nombre del OWNER (default `Administrador`) |
 | `CRON_SECRET` | **Sí** (automatizaciones) | `openssl rand -hex 32`. MISMO valor en Vercel y en GitHub → Settings → Secrets → Actions |
 | `NOTIFICATIONS_REDIRECT_EMAIL` | Opcional | Solo dev/preview: desvía TODO correo a un buzón de pruebas. **Sin poner en Producción** |
-| `TWILIO_ACCOUNT_SID` | **En desuso** | Ya no la lee nada; pendiente de retiro |
-| `TWILIO_AUTH_TOKEN` | **En desuso** | idem |
-| `TWILIO_WHATSAPP_FROM` | **En desuso** | idem |
 
 > `ADMIN_EMAIL` ya no es solo del seed: es el destinatario por defecto de los
 > reportes al equipo (semanal y diario) cuando su config no lista ninguno. Sin
@@ -61,8 +58,8 @@ quieres previews).
 
 > WhatsApp: **no hay credenciales que poner todavía**. El canal es un stub que
 > registra el mensaje renderizado como `PENDIENTE_CANAL`; cuando llegue Meta hará
-> falta `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_ACCESS_TOKEN`. Las `TWILIO_*` de
-> arriba **ya no las lee nada** — quedan pendientes de retiro.
+> falta `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_ACCESS_TOKEN`. Las `TWILIO_*` fueron
+> retiradas: si siguen puestas en Vercel, bórralas.
 
 > `DATABASE_URL` (runtime) usa el string **pooled**. Para **migraciones** usa el
 > string **directo** (sin `-pooler`) — ver §4.
@@ -198,8 +195,9 @@ Cuando el template esté listo, migrar el demo a producción implica:
    condicionarlo por entorno) para permitir indexación.
 4. **Dominio final**: apuntar el dominio de producción y actualizar
    `BETTER_AUTH_URL`.
-5. **Twilio/Resend reales**: credenciales productivas y dominio de envío
-   definitivo; activar automatizaciones si aplica.
+5. **Resend real**: credenciales productivas y dominio de envío definitivo.
+   WhatsApp (Meta) es aparte: ver los prerequisitos de go-live en `CLAUDE.md`
+   antes de activar las automatizaciones de ese canal.
 6. **Datos reales**: no correr el seed de demo; cargar catálogo/usuarios reales.
 
 ---

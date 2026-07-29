@@ -29,8 +29,9 @@ import type { DispatchRequest, DispatchResult } from './types';
 //   5. Webhook de estados de entrega (opcional) si se quiere distinguir enviado de
 //      entregado/leído.
 //
-// NO se usa Twilio: `lib/whatsapp.ts` fue un sandbox que funcionó una vez y se
-// retira junto con el DROP de la tabla `Automation`.
+// NO se usa Twilio: `lib/whatsapp.ts` fue un sandbox que funcionó una vez y quedó
+// retirado en la migración de contracción (20260729120000_drop_automation_legacy).
+// No reintroducirlo — el destino es Meta Cloud API.
 
 export async function dispatchWhatsapp(
   req: Extract<DispatchRequest, { canal: 'whatsapp' }>,

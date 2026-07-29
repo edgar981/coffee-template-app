@@ -1,6 +1,6 @@
 // Enlace de WhatsApp de pedidos (mismo número que el footer). Client-safe:
-// solo arma la URL wa.me con mensaje precargado — no envía nada (eso es
-// lib/whatsapp.ts, server-side vía Twilio).
+// solo arma la URL wa.me con mensaje precargado — no envía nada. El ENVÍO
+// automático vive en lib/automations/channels/whatsapp.ts (stub de Meta).
 //
 // Fuente única del número: lib/config/site.ts (contacto.whatsapp).
 import { siteConfig, whatsappUrl } from "@/lib/config/site";
