@@ -123,6 +123,33 @@ todo write+lookup (`normalizeCustomerPhone` en `lib/whatsapp-link.ts`). NO fusio
 duplicados automáticamente — el merge es decisión humana (feature futura); las
 órdenes ya apuntan por `cliente_id`.
 
+## Sugerencia de zona de entrega (heurística de dirección)
+
+`sugerirZona` (`lib/zona-config.ts`) propone la zona leyendo la nomenclatura de
+la dirección — sin geocoding ni red. Es una SUGERENCIA: pre-selecciona el Select
+del modal "Programar entrega" y nada más; `zona` siempre es lo que el operador
+dejó en el Select. Aparece SOLO en ese modal, nunca mientras se escribe la
+dirección en Nueva Orden (fuera de alcance por decisión del owner, 2026-07-29).
+Misma forma que el resto del template: resolver genérico + `ZONA_CONFIG` de la
+vertical (que el día del multitenant migra a DB scopeada por tienda).
+
+- **Sin ciudad no hay sugerencia** (`null` explícito). Por eso Nueva Orden captura
+  Ciudad y Departamento — **ambos OPCIONALES**: la orden manual tiene que poder
+  crearse rápido sin ellos, y sin ciudad el modal simplemente no sugiere.
+- **`departamento` se VALIDA pero NO se persiste**: `Order` no tiene columna. Es
+  deliberado y confirmado por el owner (2026-07-29) — mismo criterio que
+  `deliveryAddressSchema` (`lib/validation/address.ts`), donde el departamento
+  solo deriva el tier de envío en checkout. **No agregar la columna** hasta que
+  algo consuma el dato; un futuro "esto está a medias" NO es un bug.
+- **Los umbrales de `ZONA_CONFIG` son placeholder del cliente.** El rango de
+  calle 26–99 devuelve `null` A PROPÓSITO (no inventar cortes), y por el umbral
+  `carreraOccidenteDesde: 68` una dirección tan común como "Ak 58" tampoco
+  sugiere. `Shipping.zona_sugerida` existe justamente para calibrar esto: la
+  corrección del operador se DERIVA de `zona_sugerida != zona` — no agregar un
+  campo "corregida" que pueda desincronizarse de esa comparación.
+- `null` = "no me consta". Preferir callar antes que sugerir mal: una sugerencia
+  equivocada que el operador acepta sin mirar cuesta más que ninguna.
+
 ## Principio rector del admin (Amber Minimal)
 
 El color es información, no decoración. Reglas de sistema (se implementan en los

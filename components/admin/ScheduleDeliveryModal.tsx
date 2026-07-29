@@ -16,6 +16,7 @@ import type { Shipping, ShippingZona, TipoEnvio } from '@/types/shipping';
 import { TIPO_ENVIO_LABEL } from '@/types/shipping';
 import type { DeliveryContext, OrderAddressResult } from '@/types/order';
 import { ZONAS, SHIPPING_ESTADO_LABEL, hasScheduleData, missingToDispatch } from '@/constants/shippings';
+import { sugerirZona } from '@/lib/zona-config';
 import { COLOMBIA_DEPARTMENTS } from '@/lib/colombia-departments';
 import { customerWhatsappHref } from '@/lib/whatsapp-link';
 import { siteConfig } from '@/lib/config/site';
@@ -84,14 +85,39 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
   const [numeroGuia, setNumeroGuia]         = useState(shipping.numero_guia ?? '');
   const [saving, setSaving]       = useState(false);
 
+  // Zona sugerida por la dirección (heurística de texto, lib/zona-config.ts).
+  // Se guarda aparte de `zona` porque viaja al servidor como auditoría: la
+  // corrección del operador se deriva de `zona_sugerida !== zona`.
+  const [zonaSugerida, setZonaSugerida] = useState<ShippingZona | null>(null);
+  // El operador movió el Select en ESTA sesión del modal. A partir de ahí la
+  // heurística no vuelve a tocar la zona (ni siquiera si cambia la dirección):
+  // una elección humana no se pisa sola.
+  const [zonaTouched, setZonaTouched]   = useState(false);
+
+  // Solo se pre-selecciona cuando no hay ninguna decisión humana que pisar:
+  // entrega recién auto-creada, sin zona, sin mensajero y sin fecha. NO se usa
+  // `hasScheduleData` aquí: una entrega `fallido` la incumple y sin embargo fue
+  // programada por una persona (por eso falló) — sugerirle encima sería
+  // sobreescribir esa decisión al reprogramar.
+  const nuncaProgramada =
+    !shipping.zona && !shipping.mensajero?.trim() && !shipping.fecha_programada?.trim();
+
   useEffect(() => {
     let active = true;
     getDeliveryContext(shipping.orden_id)
-      .then(c => { if (active) setCtx(c); })
+      .then(c => {
+        if (!active) return;
+        setCtx(c);
+        const sug = sugerirZona(c.direccion_entrega, c.ciudad_entrega);
+        setZonaSugerida(sug);
+        // `null` = la heurística no supo: se deja el default actual y no se
+        // marca nada como sugerido.
+        if (sug && nuncaProgramada) setZona(sug);
+      })
       .catch(() => { if (active) setLoadError(true); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [shipping.orden_id]);
+  }, [shipping.orden_id, nuncaProgramada]);
 
   const hasAddress   = !!ctx?.direccion_entrega?.trim();
   const isReschedule = shipping.estado === 'fallido';
@@ -118,7 +144,10 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
     setSaving(true);
     try {
       const updated = await scheduleDelivery(shipping.id, {
+        // `zona` es SIEMPRE lo que quedó en el Select; la sugerencia viaja
+        // aparte y solo para auditar la heurística (nunca la reemplaza).
         zona,
+        zona_sugerida:    zonaSugerida,
         mensajero:        mensajero.trim() || null,
         fecha_programada: fecha || null,
         notas_entrega:    notas.trim() || null,
@@ -147,6 +176,12 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
   };
 
   const handleAddressSaved = (result: OrderAddressResult) => {
+    // La dirección cambió → la sugerencia se recalcula. Si el operador ya movió
+    // el Select en esta sesión, se actualiza la auditoría pero NO la selección.
+    const sug = sugerirZona(result.direccion_entrega, result.ciudad_entrega);
+    setZonaSugerida(sug);
+    if (sug && !zonaTouched) setZona(sug);
+
     setCtx(c => c ? {
       ...c,
       direccion_entrega: result.direccion_entrega,
@@ -282,12 +317,19 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
         </div>
         <div>
           <Label>Zona *</Label>
-          <Select value={zona} onValueChange={v => setZona(v as ShippingZona)}>
+          <Select value={zona} onValueChange={v => { setZona(v as ShippingZona); setZonaTouched(true); }}>
             <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
             <SelectContent>
               {ZONAS.map(z => <SelectItem key={z} value={z} className="capitalize">{z}</SelectItem>)}
             </SelectContent>
           </Select>
+          {/* Debajo del Select, no junto al Label: en esta columna (media
+              rejilla) el texto al lado partía "Zona *" en dos líneas. Muted y
+              sin pill — la sugerencia no es un estado ni una alerta. Se cae en
+              cuanto el operador elige otra cosa. */}
+          {zonaSugerida && !zonaTouched && zona === zonaSugerida && (
+            <p className="mt-1 text-xs text-muted-foreground">Sugerida según la dirección</p>
+          )}
         </div>
         <div>
           <Label>Fecha programada</Label>

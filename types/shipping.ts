@@ -58,6 +58,10 @@ export interface Shipping {
   // `order.ciudad_entrega`) — the Shipping keeps no copy.
   // Zona and courier start empty; the operator fills them when scheduling.
   zona?:            ShippingZona | null;
+  // Lo que la heurística de dirección sugirió al programar (auditoría: una
+  // corrección del operador es `zona_sugerida !== zona`). Nunca se muestra como
+  // si fuera la zona real.
+  zona_sugerida?:   ShippingZona | null;
   estado:           ShippingEstado;
   // Snapshot of the order's costo_envio (source of truth is Order.costo_envio).
   costo_envio:      number;
@@ -78,9 +82,11 @@ export interface Shipping {
 export type ShippingFilter  = 'all' | ShippingEstado;
 
 // The fields an operator edits when scheduling an already-existing (auto-created)
-// delivery. Zona is manual — not derived from the address.
+// delivery. Zona la elige el operador en el Select — la heurística solo
+// PRE-SELECCIONA y viaja aparte en zona_sugerida (auditoría).
 export interface ScheduleDeliveryInput {
   zona:              ShippingZona;
+  zona_sugerida?:    ShippingZona | null;
   mensajero?:        string | null;
   fecha_programada?: string | null;
   notas_entrega?:    string | null;
