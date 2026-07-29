@@ -3,29 +3,13 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { BUSINESS_TZ, startOfZonedDay, startOfZonedMonth } from '@/lib/timezone';
-import { currentMonthRange, PENDING_ESTADO, POR_COBRAR_SHIPPING_ESTADOS } from '@/lib/metrics/order-stat-filters';
+import { currentMonthRange, PENDING_ESTADO } from '@/lib/metrics/order-stat-filters';
+// Los scopes de plata/órdenes viven en el módulo compartido: los reportes de las
+// automatizaciones (semanal, diario) cuentan con ESTAS mismas definiciones, así que
+// el correo del lunes no puede contradecir al dashboard.
+import { NOT_CANCELLED, REVENUE_ORDER_SCOPE, POR_COBRAR_WHERE } from '@/lib/metrics/prisma-scopes';
 
 const RECENT_LIMIT = 6;
-
-// Cancelled orders are excluded from every count, revenue and receivable figure.
-const NOT_CANCELLED = { estado: { not: 'cancelado' } };
-
-// Revenue is the PAYMENTS ledger, scoped exactly like the Ventas chart so the
-// "Ingresos del mes" card reconciles with it: money actually received (Payment),
-// on real orders only (`CN-`; `SN-` is grandfathered demo data), never on a
-// cancelled order. Expressed as a Payment→Order relation filter.
-const REVENUE_ORDER_SCOPE = {
-  order: { numero_orden: { startsWith: 'CN-' }, estado: { not: 'cancelado' } },
-} as const;
-
-// "Por cobrar": contraentrega, dispatched (en_ruta/entregado), still unpaid — the
-// SAME definition as isPorCobrar in lib/metrics/order-stat-filters (shared), as a
-// Prisma relation filter. Reused for both the count and the pesos owed.
-const POR_COBRAR_WHERE = {
-  estado:         PENDING_ESTADO,
-  condicion_pago: 'CONTRAENTREGA' as const,
-  shipping:       { estado: { in: [...POR_COBRAR_SHIPPING_ESTADOS] } },
-};
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });

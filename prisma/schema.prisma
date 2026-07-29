@@ -303,16 +303,75 @@ model Shipping {
   updatedAt        DateTime @updatedAt
 }
 
-model Automation {
-  id               String   @id @default(cuid())
-  tipo             String   @unique
-  nombre           String
-  canal            String
-  activa           Boolean  @default(false)
-  veces_ejecutada  Int      @default(0)
-  ultima_ejecucion DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+// El modelo `Automation` vivió aquí hasta la migración
+// 20260729120000_drop_automation_legacy (fase CONTRACT). Lo reemplazan los dos
+// modelos de abajo: `AutomationSetting` guarda la decisión del owner y
+// `AutomationRun` sustituye sus contadores agregados (`veces_ejecutada`,
+// `ultima_ejecucion`) por una fila por ejecución, con target, canal, estado y
+// payload. No reintroducir: el catálogo vive en constants/automations.ts.
+
+// Lo ÚNICO que el owner decide de una automatización: si está encendida y sus
+// overrides de configuración. Todo lo demás —nombre, canal, disparador, plantillas
+// y los DEFAULTS de config— vive en el REGISTRY de código (constants/automations.ts),
+// igual que el catálogo de widgets del dashboard.
+//
+// `key` es la PK: es una constante del registry (snake_case estable), no un id
+// generado — no hay identidad de fila más allá de la key. Sin fila = todo por
+// default (registry). Una key retirada del registry deja una fila inerte que nadie
+// lee; una key nueva no necesita fila hasta que alguien la toque.
+//
+// `config` guarda SOLO overrides, parseados contra el `configSchema` (zod) del
+// registry en cada lectura: un JSON viejo o corrupto degrada a los defaults en vez
+// de romper el barrido. Ver lib/automations/settings.ts (gate único).
+model AutomationSetting {
+  key       String   @id
+  activo    Boolean  @default(false)
+  config    Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum AutomationRunEstado {
+  ENVIADO          // el canal confirmó el despacho
+  PENDIENTE_CANAL  // pipeline completo, canal sin conectar todavía (WhatsApp/Meta)
+  FALLIDO          // el canal reventó; el negocio siguió intacto
+  OMITIDO          // disparó pero no había a quién/qué enviar (sin teléfono, etc.)
+}
+
+// Bitácora de TODA ejecución de una automatización: la idempotencia de los barridos
+// y la auditoría que contesta "¿ya le recordamos a esta orden?". Se escribe SIEMPRE,
+// incluso cuando el envío falla o se omite — un intento que no dejó rastro es un
+// intento que se va a repetir.
+//
+// `periodo` NUNCA es null, a propósito: en Postgres dos NULL no colisionan, así que
+// un `periodo` nulo anularía silenciosamente el unique de abajo. Su forma la decide
+// la estrategia de idempotencia de cada automatización (registry → `idempotencia`):
+//
+//   'una_vez'  → 'evt'          — una vez por target, para siempre (el unique ES el gate)
+//   'diaria'   → '2026-07-27'   — una por día local Bogotá (el unique ES el gate)
+//   'semanal'  → '2026-W31'     — una por semana ISO (el unique ES el gate)
+//   'cooldown' → ISO instant    — el unique NO aplica (cada valor es único); el gate
+//                                 real es la consulta de la última corrida dentro de
+//                                 `cooldownHoras`. Ver lib/automations/idempotency.ts.
+//
+// `targetId` es 'global' para las que no apuntan a una fila (reportes agregados).
+model AutomationRun {
+  id            String              @id @default(cuid())
+  automationKey String
+  targetType    String              // 'order' | 'product' | 'customer' | 'shipping' | 'global'
+  targetId      String
+  periodo       String
+  canal         String
+  estado        AutomationRunEstado
+  // Mensaje renderizado + destinatario + variables. Es la EVIDENCIA revisable de un
+  // run PENDIENTE_CANAL: lo que se habría enviado, listo para comparar el día que
+  // el adaptador de Meta se conecte.
+  payload       Json?
+  createdAt     DateTime            @default(now())
+
+  @@unique([automationKey, targetId, periodo])
+  // Sirve al contador "últimas ejecuciones" de cada card (3 más recientes por key).
+  @@index([automationKey, createdAt(sort: Desc)])
 }
 
 model Notification {

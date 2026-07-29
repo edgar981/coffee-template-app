@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { transitionOrder, CondicionPagoLockedError, type OrderTransitionData } from '@/lib/orders';
+import { runEventAutomations } from '@/lib/automations/engine';
 
 export async function PATCH(
   req: NextRequest,
@@ -31,8 +32,20 @@ export async function PATCH(
   // Status write + Shipping auto-create happen in ONE transaction, so a paid
   // order can never be left without its Shipping. Every UI path (dropdown, modal,
   // payment registration) funnels through the shared `transitionOrder` helper.
+  // Estado ANTES de la transición: el disparador de "Notificación Nueva Orden" es
+  // el BORDE (→ pagado), no el estado. Sin esto, cada PATCH sobre una orden ya
+  // pagada volvería a considerarse un cruce (la idempotencia lo frenaría, pero a
+  // costa de una consulta y un run espurio por cada guardado del modal).
+  const previo = await prisma.order.findUnique({ where: { id }, select: { estado: true } });
+
   try {
     const result = await prisma.$transaction((tx) => transitionOrder(tx, id, data));
+
+    // Transición COMITEADA. Fire-and-forget, jamás afecta la respuesta.
+    if (result?.estado === 'pagado' && previo?.estado !== 'pagado') {
+      await runEventAutomations({ tipo: 'order.pagado', orderId: id });
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     // condicion_pago is lifecycle-locked (Shipping/Payment exists) → 409.

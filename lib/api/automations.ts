@@ -1,13 +1,40 @@
-import type { Automation } from '@/types/automation';
+// Data-access de la página de Automatizaciones. El servidor manda sobre qué keys
+// existen y qué config es válida; esto sólo transporta.
 
-export async function getAutomations(): Promise<Automation[]> {
+export type AutomationRunEstado = 'ENVIADO' | 'PENDIENTE_CANAL' | 'FALLIDO' | 'OMITIDO';
+
+export interface AutomationRunResumen {
+  automationKey: string;
+  estado:        AutomationRunEstado;
+  targetId:      string;
+  createdAt:     string;
+}
+
+export interface AutomationEstado {
+  key:         string;
+  activo:      boolean;
+  config:      Record<string, unknown>;
+  /** Total histórico de runs — la evidencia de que la automatización está viva. */
+  ejecuciones: number;
+  /** Las 3 más recientes, para el detalle de la card. */
+  recientes:   AutomationRunResumen[];
+}
+
+export async function getAutomations(): Promise<AutomationEstado[]> {
   const res = await fetch('/api/automations');
   if (!res.ok) throw new Error('Error al cargar automatizaciones');
   return res.json();
 }
 
-export async function toggleAutomation(tipo: string): Promise<Automation[]> {
-  const res = await fetch(`/api/automations/${tipo}/toggle`, { method: 'PATCH' });
-  if (!res.ok) throw new Error('Error al actualizar automatización');
+export async function saveAutomation(
+  key: string,
+  patch: { activo?: boolean; config?: Record<string, unknown> },
+): Promise<{ key: string; activo: boolean; config: Record<string, unknown> }> {
+  const res = await fetch(`/api/automations/${encodeURIComponent(key)}`, {
+    method:  'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error('No se pudo guardar la automatización');
   return res.json();
 }

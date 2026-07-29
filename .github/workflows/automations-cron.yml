@@ -1,0 +1,71 @@
+name: Automatizaciones (cron horario)
+
+# El disparo horario de las automatizaciones programadas vive AQUÍ, no en
+# vercel.json: el plan de Vercel es Hobby, donde los cron jobs se ejecutan una sola
+# vez al día — un `"schedule": "0 * * * *"` allí no haría lo que dice.
+#
+# El endpoint decide qué toca según la hora de Bogotá y su propia idempotencia
+# (AutomationRun), así que un disparo de más es inofensivo y uno de menos se
+# recupera en el siguiente. Por eso basta un job horario para las 6 programadas.
+#
+# AL PASAR A PRO: retirar este workflow y descomentar en vercel.json:
+#   "crons": [{ "path": "/api/cron/automations", "schedule": "0 * * * *" }]
+# Vercel Cron manda el header Authorization con el CRON_SECRET del proyecto, así
+# que el handler no cambia. (vercel.json es JSON estricto y no admite comentarios,
+# por eso el bloque vive documentado aquí y en CLAUDE.md, no comentado allá.)
+
+on:
+  schedule:
+    # Cada hora en punto, UTC. GitHub Actions siempre programa en UTC; la
+    # conversión a hora de Bogotá la hace el motor (lib/timezone.zonedHour), que es
+    # el único lugar del código que conoce el huso.
+    - cron: '0 * * * *'
+  # Permite dispararlo a mano desde la pestaña Actions para probar un barrido.
+  workflow_dispatch:
+
+# Sin permisos sobre el repo: este job sólo hace una petición HTTP saliente.
+permissions: {}
+
+concurrency:
+  # Si un barrido se demora más de una hora, el siguiente espera en vez de
+  # solaparse. La idempotencia ya protege contra el duplicado, pero dos barridos
+  # simultáneos sólo malgastan conexiones a la DB.
+  group: automations-cron
+  cancel-in-progress: false
+
+jobs:
+  disparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: POST /api/cron/automations
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          CRON_URL: ${{ vars.CRON_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::error::Falta el secret CRON_SECRET (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+          # URL de producción. Configurable como variable del repo para no tener el
+          # dominio incrustado en el workflow.
+          URL="${CRON_URL:-https://nayoli-demo.duna.solutions/api/cron/automations}"
+
+          echo "POST ${URL}"
+          # --fail-with-body: un 4xx/5xx falla el job PERO imprime el cuerpo, que es
+          # donde viene el motivo (401 secreto malo, 503 env sin configurar).
+          curl --silent --show-error --fail-with-body \
+               --max-time 300 \
+               --retry 2 --retry-delay 30 --retry-connrefused \
+               -X POST "${URL}" \
+               -H "Authorization: Bearer ${CRON_SECRET}" \
+               -H "Content-Type: application/json" \
+            | tee respuesta.json
+
+          echo ""
+          echo "### Barrido de automatizaciones" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat respuesta.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

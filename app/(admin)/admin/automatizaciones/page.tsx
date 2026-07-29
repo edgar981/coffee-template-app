@@ -1,63 +1,96 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Zap } from 'lucide-react';
+import { Zap, Settings2, MessageCircleWarning } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
-import { AUTOMATION_TEMPLATES } from '@/lib/mock/automations';
-import { getAutomations, toggleAutomation } from '@/lib/api/automations';
+import { AUTOMATIONS, type AutomationCanal, type AutomationDef } from '@/constants/automations';
+import { getAutomations, saveAutomation, type AutomationEstado } from '@/lib/api/automations';
 import { formatFecha } from '@/lib/format-fecha';
-import type { Automation } from '@/types/automation';
-import type { LucideIcon } from 'lucide-react';
+import AutomationConfigDialog from '@/components/admin/AutomationConfigDialog';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// La página RENDERIZA DESDE EL REGISTRY (constants/automations.ts) y le superpone
+// el estado guardado que devuelve la API. Añadir una automatización al catálogo la
+// hace aparecer aquí sin tocar este archivo — mismo patrón que los widgets del
+// dashboard.
 
-type AutomationCanal = 'whatsapp' | 'email' | 'interno' | 'sms';
-
-const CANAL_LABELS: Record<AutomationCanal, string> = {
-  whatsapp: '📱 WhatsApp',
-  email:    '✉️ Email',
-  interno:  '🔔 Interno',
-  sms:      '💬 SMS',
+const CANAL_LABEL: Record<AutomationCanal, string> = {
+  whatsapp: 'WhatsApp',
+  email:    'Email',
+  interno:  'Campana',
 };
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+const TIPO_LABEL = { evento: 'Por evento', programada: 'Programada' } as const;
 
 export default function Automatizaciones() {
-  const [automations, setAutomations] = useState<Automation[]>([]);
-  const [loading, setLoading]         = useState(true);
+  const [estados, setEstados]   = useState<Record<string, AutomationEstado>>({});
+  const [loading, setLoading]   = useState(true);
+  const [fallo, setFallo]       = useState(false);
+  const [configurando, setConfigurando] = useState<AutomationDef | null>(null);
 
-  useEffect(() => {
-    getAutomations().then(data => { setAutomations(data); setLoading(false); });
-  }, []);
+  const cargar = () => {
+    setLoading(true);
+    setFallo(false);
+    getAutomations()
+      .then(lista => setEstados(Object.fromEntries(lista.map(e => [e.key, e]))))
+      .catch(() => setFallo(true))
+      .finally(() => setLoading(false));
+  };
 
-  // ── Derived ────────────────────────────────────────────────────────────────
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial: el estado lo escriben los callbacks del fetch
+  useEffect(cargar, []);
 
-  const getAutomation = (tipo: string): Automation | undefined =>
-    automations.find(a => a.tipo === tipo);
+  // ── Derivados ──────────────────────────────────────────────────────────────
 
-  const activeCount      = automations.filter(a => a.activa).length;
-  const totalExecutions  = automations.reduce((sum, a) => sum + a.veces_ejecutada, 0);
+  const activas       = AUTOMATIONS.filter(d => estados[d.key]?.activo).length;
+  const ejecuciones   = Object.values(estados).reduce((s, e) => s + e.ejecuciones, 0);
+  // El canal WhatsApp no está conectado todavía: si hay alguna activa, hay que
+  // decirlo — de lo contrario la página aparenta estar enviando mensajes.
+  const whatsappActivas = AUTOMATIONS.filter(d => d.canal === 'whatsapp' && estados[d.key]?.activo).length;
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
+  // ── Escritura optimista ────────────────────────────────────────────────────
+  // Se pinta el cambio de inmediato y luego se persiste. Si falla, un toast cuyo
+  // "Reintentar" reusa el MISMO patch (capturado aquí, no leído de un estado que
+  // ya pudo cambiar) y se revierte lo pintado.
 
-  const handleToggle = async (template: Automation) => {
-    const updated = await toggleAutomation(template.tipo);
-    setAutomations(updated);
+  const persistir = (key: string, patch: { activo?: boolean; config?: Record<string, unknown> }, previo: AutomationEstado) => {
+    const intentar = () => {
+      saveAutomation(key, patch)
+        .then(res => setEstados(prev => ({
+          ...prev,
+          [key]: { ...prev[key], activo: res.activo, config: res.config },
+        })))
+        .catch(() => {
+          setEstados(prev => ({ ...prev, [key]: previo }));
+          toast.error('No se pudo guardar la automatización', {
+            action: { label: 'Reintentar', onClick: intentar },
+          });
+        });
+    };
+    intentar();
+  };
 
-    const isNowActive = updated.find(a => a.tipo === template.tipo)?.activa ?? false;
-    toast.success(
-      isNowActive
-        ? `${template.nombre} activada`
-        : `${template.nombre} desactivada`
-    );
+  const toggle = (def: AutomationDef) => {
+    const previo = estados[def.key];
+    if (!previo) return;
+    const activo = !previo.activo;
+    setEstados(prev => ({ ...prev, [def.key]: { ...previo, activo } }));
+    persistir(def.key, { activo }, previo);
+  };
+
+  const guardarConfig = (def: AutomationDef, config: Record<string, unknown>) => {
+    const previo = estados[def.key];
+    if (!previo) return;
+    setEstados(prev => ({ ...prev, [def.key]: { ...previo, config } }));
+    persistir(def.key, { config }, previo);
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">Automatizaciones</h1>
         <p className="text-sm text-muted-foreground">Centro de flujos de trabajo automáticos</p>
@@ -66,113 +99,135 @@ export default function Automatizaciones() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         <div className="stat-card text-center">
-          <p className="text-3xl font-bold text-primary">{activeCount}</p>
-          <p className="text-xs text-muted-foreground mt-1">Flujos Activos</p>
+          <p className="text-3xl font-bold text-primary">{activas}</p>
+          <p className="text-xs text-muted-foreground mt-1">Flujos activos</p>
         </div>
         <div className="stat-card text-center">
-          <p className="text-3xl font-bold">{AUTOMATION_TEMPLATES.length}</p>
-          <p className="text-xs text-muted-foreground mt-1">Flujos Disponibles</p>
+          <p className="text-3xl font-bold">{AUTOMATIONS.length}</p>
+          <p className="text-xs text-muted-foreground mt-1">Flujos disponibles</p>
         </div>
         <div className="stat-card text-center">
-          <p className="text-3xl font-bold text-emerald-600">{totalExecutions}</p>
-          <p className="text-xs text-muted-foreground mt-1">Ejecuciones Totales</p>
+          <p className="text-3xl font-bold">{ejecuciones}</p>
+          <p className="text-xs text-muted-foreground mt-1">Ejecuciones totales</p>
         </div>
       </div>
 
-      {/* Active banner */}
-      {activeCount > 0 && (
-        <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/40 rounded-full flex items-center justify-center">
-            <Zap className="w-4 h-4 text-emerald-600" />
-          </div>
+      {/* Canal WhatsApp sin conectar — honestidad, no UI falsa de "enviado" */}
+      {whatsappActivas > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-900/15">
+          <MessageCircleWarning className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
           <div>
-            <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-400">
-              {activeCount} automatización{activeCount > 1 ? 'es' : ''} activa{activeCount > 1 ? 's' : ''}
+            <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+              Canal WhatsApp pendiente de conexión (Meta)
             </p>
-            <p className="text-xs text-emerald-700 dark:text-emerald-500">
-              Tu negocio está operando en piloto automático en los flujos habilitados.
+            <p className="text-xs leading-relaxed text-amber-800/80 dark:text-amber-300/80">
+              {whatsappActivas === 1 ? 'Hay 1 automatización activa' : `Hay ${whatsappActivas} automatizaciones activas`} por WhatsApp.
+              Todo el flujo se ejecuta y queda registrado con el mensaje ya redactado, pero no se envía
+              hasta conectar la cuenta de Meta.
             </p>
           </div>
+        </div>
+      )}
+
+      {fallo && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/40 p-4">
+          <p className="text-sm text-muted-foreground">No se pudieron cargar las automatizaciones.</p>
+          <Button variant="outline" size="sm" onClick={cargar}>Reintentar</Button>
         </div>
       )}
 
       {/* Cards */}
-      {loading ? (
-        <div className="text-center py-12 text-muted-foreground">Cargando automatizaciones...</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {AUTOMATION_TEMPLATES.map(template => {
-            const existing = getAutomation(template.tipo);
-            const isActive = existing?.activa ?? false;
-            const Icon     = template.icon as LucideIcon;
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {AUTOMATIONS.map(def => {
+          const estado  = estados[def.key];
+          const activo  = estado?.activo ?? false;
+          const Icon    = def.icono;
 
-            return (
-              <div
-                key={template.tipo}
-                className={`bg-card border rounded-xl p-5 transition-all ${
-                  isActive
-                    ? 'border-primary/30 shadow-sm ring-1 ring-primary/10'
-                    : 'border-border'
-                }`}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${template.color}`}>
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <Switch
-                    checked={isActive}
-                    onCheckedChange={() => handleToggle(existing ?? template)}
-                  />
+          return (
+            <div
+              key={def.key}
+              className={`rounded-xl border bg-card p-5 transition-all ${
+                activo ? 'border-primary/30 shadow-sm ring-1 ring-primary/10' : 'border-border'
+              }`}
+            >
+              <div className="mb-3 flex items-start justify-between">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${def.color}`}>
+                  <Icon className="h-5 w-5" />
                 </div>
+                <Switch
+                  checked={activo}
+                  disabled={loading || !estado}
+                  onCheckedChange={() => toggle(def)}
+                  aria-label={`${activo ? 'Desactivar' : 'Activar'} ${def.nombre}`}
+                />
+              </div>
 
-                <h3 className="font-semibold text-sm mb-1">{template.nombre}</h3>
-                <p className="text-xs text-muted-foreground mb-3 leading-relaxed">{template.descripcion}</p>
+              <h3 className="mb-1 text-sm font-semibold">{def.nombre}</h3>
+              <p className="mb-3 text-xs leading-relaxed text-muted-foreground">{def.descripcion}</p>
 
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="text-muted-foreground/60">Canal:</span>
-                    <span className="font-medium text-foreground">
-                      {CANAL_LABELS[template.canal as AutomationCanal] ?? template.canal}
-                    </span>
-                  </div>
-                  <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                    <span className="text-muted-foreground/60 shrink-0">Disparador:</span>
-                    <span className="text-foreground">{template.condicion}</span>
-                  </div>
-                  {(existing?.veces_ejecutada ?? 0) > 0 && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span className="text-muted-foreground/60">Ejecuciones:</span>
-                      <span className="font-medium text-emerald-600">{existing?.veces_ejecutada}</span>
-                    </div>
-                  )}
+              <div className="space-y-1.5 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground/60">Canal:</span>
+                  <span className="font-medium text-foreground">{CANAL_LABEL[def.canal]}</span>
+                  <span className="text-muted-foreground/60">·</span>
+                  <span className="text-muted-foreground">{TIPO_LABEL[def.tipo]}</span>
                 </div>
-
-                <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                    isActive
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                      : 'bg-muted text-muted-foreground'
-                  }`}>
-                    {isActive ? '● Activo' : '○ Inactivo'}
-                  </span>
-                  {existing?.ultima_ejecucion && (
-                    <span className="text-xs text-muted-foreground">
-                      Último: {formatFecha(existing.ultima_ejecucion)}
-                    </span>
-                  )}
+                <div className="flex items-start gap-2">
+                  <span className="shrink-0 text-muted-foreground/60">Disparador:</span>
+                  <span className="text-foreground">{def.disparador}</span>
                 </div>
               </div>
-            );
-          })}
-        </div>
+
+              {/* Evidencia de vida: cuántas veces corrió y las 3 últimas */}
+              <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+                <p className="text-xs text-muted-foreground">
+                  Últimas ejecuciones: <span className="font-medium text-foreground">{estado?.ejecuciones ?? 0}</span>
+                </p>
+                {(estado?.recientes ?? []).map(run => (
+                  <div key={`${run.targetId}-${run.createdAt}`} className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-muted-foreground">{formatFecha(run.createdAt)}</span>
+                    <StatusBadge status={run.estado} className="text-[10px]" />
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
+                <span className={`text-xs font-medium ${activo ? 'text-foreground' : 'text-muted-foreground'}`}>
+                  {activo ? 'Activa' : 'Inactiva'}
+                </span>
+                {def.campos.length > 0 && (
+                  <Button
+                    variant="outline" size="sm" className="h-7 gap-1.5 text-xs"
+                    disabled={!estado}
+                    onClick={() => setConfigurando(def)}
+                  >
+                    <Settings2 className="h-3.5 w-3.5" />
+                    Configurar
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Diálogo de configuración — `key` lo remonta con la config vigente */}
+      {configurando && estados[configurando.key] && (
+        <AutomationConfigDialog
+          key={`${configurando.key}-${JSON.stringify(estados[configurando.key].config)}`}
+          def={configurando}
+          config={estados[configurando.key].config}
+          open
+          onOpenChange={(o) => { if (!o) setConfigurando(null); }}
+          onSave={(config) => guardarConfig(configurando, config)}
+        />
       )}
 
-      {/* Coming soon */}
-      <div className="bg-muted/40 border border-dashed border-border rounded-xl p-8 text-center">
-        <Zap className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
-        <h3 className="font-semibold text-sm mb-1">Flujos Personalizados</h3>
-        <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-          Próximamente podrás crear flujos de automatización personalizados con condiciones y acciones avanzadas.
+      <div className="rounded-xl border border-dashed border-border bg-muted/40 p-8 text-center">
+        <Zap className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+        <h3 className="mb-1 text-sm font-semibold">Flujos personalizados</h3>
+        <p className="mx-auto max-w-sm text-xs text-muted-foreground">
+          Próximamente podrás crear flujos con condiciones y acciones propias.
         </p>
       </div>
     </div>

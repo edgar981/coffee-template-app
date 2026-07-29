@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { fireOrderTrigger } from '@/lib/automations/triggers';
 import { createOrderWithCustomer, resolveOrderLines, OrderLinesError } from '@/lib/orders';
 import { getShippingSlot, computeShippingCost } from '@/lib/shipping-config';
 import { isBogotaDC } from '@/lib/colombia-departments';
@@ -145,7 +144,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No se pudo procesar la orden' }, { status: 500 });
   }
 
-  fireOrderTrigger('nueva_orden', order as never).catch(console.error);
+  // Sin disparador de automatización aquí: "Notificación Nueva Orden" dispara en
+  // orden → `pagado`, no en la creación. El correo de orden creada ya sale desde
+  // createOrderWithCustomer (notifyOrderCreated).
 
   // Return the authoritative persisted figures so the confirmation screen can
   // render entirely from the server response (not from cleared cart state).

@@ -1,0 +1,26 @@
+-- CONTRACCIÓN — cierre de expand → migrate → contract.
+--
+-- Retira la tabla `Automation`, reemplazada por `AutomationSetting` (activo +
+-- overrides de config) y `AutomationRun` (bitácora e idempotencia). La migración
+-- que las introdujo (20260727120000_add_automation_setting_run) ya copió los
+-- toggles; desde entonces esta tabla no tiene un solo lector en el código.
+--
+-- ┌──────────────────────────────────────────────────────────────────────────┐
+-- │ ESTA MIGRACIÓN ES DESTRUCTIVA E IRREVERSIBLE.                            │
+-- │                                                                          │
+-- │ NO se aplica hasta que PRODUCCIÓN lleve al menos un día corriendo el      │
+-- │ motor de automatizaciones sin incidentes. Mientras un despliegue viejo    │
+-- │ siga vivo, ese despliegue LEE esta tabla (`/api/automations` la upserta,  │
+-- │ `fireOrderTrigger` y el ajuste de inventario la consultan) y el DROP lo   │
+-- │ rompe con un 500 por cada lectura.                                        │
+-- │                                                                          │
+-- │ Por eso va en su PROPIO PR, después del principal — no mergeado con él.   │
+-- └──────────────────────────────────────────────────────────────────────────┘
+--
+-- Pérdida de datos aceptada: `veces_ejecutada` y `ultima_ejecucion` eran
+-- contadores agregados sin detalle (no se sabía QUÉ orden ni con qué resultado).
+-- AutomationRun los reemplaza con la fila por ejecución, así que no hay nada que
+-- migrar: el contador viejo no es reconstruible ni interesante. Si algún día
+-- hiciera falta el histórico, está en el backup de Neon previo a este deploy.
+
+DROP TABLE "Automation";
