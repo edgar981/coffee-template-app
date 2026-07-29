@@ -79,7 +79,10 @@ export interface Shipping {
   updatedAt:        string;
 }
 
-export type ShippingFilter  = 'all' | ShippingEstado;
+// 'listas_despacho' es DERIVADO, no un ShippingEstado: se calcula en el cliente
+// con `isScheduledShipping` (preparando + mensajero + fecha) y no existe en la
+// DB. Por eso vive aquí y NO en FILTER_ESTADOS, que mapea 1:1 al enum.
+export type ShippingFilter  = 'all' | 'listas_despacho' | ShippingEstado;
 
 // The fields an operator edits when scheduling an already-existing (auto-created)
 // delivery. Zona la elige el operador en el Select — la heurística solo
