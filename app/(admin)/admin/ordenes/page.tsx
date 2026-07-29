@@ -29,6 +29,7 @@ import { formatCOP } from '@/lib/utils';
 import { formatFecha } from '@/lib/format-fecha';
 import { findSlotLabel } from '@/lib/shipping-config';
 import { hasScheduleData } from '@/constants/shippings';
+import { COLOMBIA_DEPARTMENTS } from '@/lib/colombia-departments';
 import { isPorCobrar } from '@/lib/metrics/order-stat-filters';
 import { METODOS_PAGO, METODO_PAGO_LABEL, metodoPrevistoLabel } from '@/types/payment';
 
@@ -46,6 +47,10 @@ const POR_DEFINIR = '__por_definir__';
 // Linear payment phases for the order-detail timeline (cancelado is non-linear).
 const TIMELINE_ESTADOS: OrderStatus[] = ['pendiente', 'pagado'];
 
+// Radix Select no admite '' como value; este centinela representa "sin
+// departamento" y se traduce a '' (omitido en el payload) al guardar.
+const NINGUN_DEPARTAMENTO = '__ninguno__';
+
 const EMPTY_FORM: OrderForm = {
   cliente_nombre:    '',
   cliente_email:     '',
@@ -53,6 +58,8 @@ const EMPTY_FORM: OrderForm = {
   canal:             'whatsapp',
   costo_envio:       '0',
   direccion_entrega: '',
+  ciudad_entrega:    '',
+  departamento:      '',
   notas_internas:    '',
   items:             [{ slug: '', cantidad: 1, molienda: '' }],
   metodoPagoPrevisto: '',
@@ -378,6 +385,10 @@ function Ordenes() {
         canal:             form.canal,
         costo_envio:       Number(form.costo_envio) || 0,
         direccion_entrega: form.direccion_entrega || undefined,
+        // Opcionales: se omiten cuando están vacíos para no romper la creación
+        // rápida (el server los valida solo si llegan).
+        ciudad_entrega:    form.ciudad_entrega || undefined,
+        departamento:      form.departamento || undefined,
         notas_internas:    form.notas_internas || undefined,
         metodoPagoPrevisto: form.metodoPagoPrevisto || undefined,
         pagoRecibido:      form.pagoRecibido,
@@ -918,6 +929,34 @@ function Ordenes() {
                 <Label>Dirección de Entrega</Label>
                 <Input {...field('direccion_entrega')} className="mt-1" />
               </div>
+              {/* Ciudad y departamento OPCIONALES — la orden manual se sigue
+                  creando sin ellos. La ciudad no es decorativa: sin ella el
+                  modal de "Programar entrega" no puede sugerir zona (la
+                  heurística exige ciudad para saber si es local). */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Ciudad / Municipio</Label>
+                  <Input {...field('ciudad_entrega')} className="mt-1" placeholder="Opcional" />
+                </div>
+                <div>
+                  <Label>Departamento</Label>
+                  <Select
+                    value={form.departamento || NINGUN_DEPARTAMENTO}
+                    onValueChange={v => setForm(f => ({ ...f, departamento: v === NINGUN_DEPARTAMENTO ? '' : v }))}
+                  >
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Opcional" /></SelectTrigger>
+                    <SelectContent className="max-h-64">
+                      <SelectItem value={NINGUN_DEPARTAMENTO}>Sin especificar</SelectItem>
+                      {COLOMBIA_DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {form.ciudad_entrega.trim() === '' && form.direccion_entrega.trim() !== '' && (
+                <p className="text-xs text-muted-foreground">
+                  Sin ciudad no se podrá sugerir la zona al programar la entrega.
+                </p>
+              )}
               <div>
                 <Label>Notas Internas</Label>
                 <textarea
