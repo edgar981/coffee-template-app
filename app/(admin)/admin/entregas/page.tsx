@@ -15,7 +15,8 @@ import { formatFecha } from '@/lib/format-fecha';
 import { getShippings, updateShipping } from '@/lib/api/shippings';
 import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
 import type { Shipping, ShippingEstado, ShippingFilter, ShippingOrderRef } from '@/types/shipping';
-import { FILTER_ESTADOS, ZONA_COLORS, isScheduledShipping } from '@/constants/shippings';
+import { FILTER_ESTADOS, ZONA_COLORS, isScheduledShipping, hasScheduleData, missingToDispatch } from '@/constants/shippings';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { TIPO_ENVIO_LABEL } from '@/types/shipping';
 import { metodoPrevistoLabel } from '@/types/payment';
 
@@ -205,23 +206,49 @@ export default function Entregas() {
                     </td>
                     <td className="px-4 py-3" onClick={ev => ev.stopPropagation()}>
                       {/* Next-state actions advance Shipping only — never Order.
-                          A delivery can't go En Ruta until scheduled (courier +
-                          fecha) — unscheduled rows only offer "Programar". */}
+                          Dos condiciones DISTINTAS: hay datos de programación
+                          (label Programar/Editar) y se puede despachar (courier
+                          + fecha, `isScheduledShipping`). Una entrega agendada
+                          sin mensajero muestra "Editar" y un En Ruta deshabilitado
+                          que dice por qué, en vez de esconder la acción. */}
                       <div className="flex flex-wrap gap-1.5">
-                        {e.estado === 'preparando' && !isScheduledShipping(e) && (
+                        {e.estado === 'preparando' && (
                           <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => setScheduleShipping(e)}>
-                            <Truck className="w-3.5 h-3.5" /> Programar
+                            {hasScheduleData(e)
+                              ? <><Pencil className="w-3.5 h-3.5" /> Editar</>
+                              : <><Truck className="w-3.5 h-3.5" /> Programar</>}
                           </Button>
                         )}
-                        {e.estado === 'preparando' && isScheduledShipping(e) && (
-                          <>
-                            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => setScheduleShipping(e)}>
-                              <Pencil className="w-3.5 h-3.5" /> Editar
-                            </Button>
+                        {e.estado === 'preparando' && hasScheduleData(e) && (
+                          isScheduledShipping(e) ? (
                             <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => handleDispatch(e)}>
                               <Truck className="w-3.5 h-3.5" /> Marcar En Ruta
                             </Button>
-                          </>
+                          ) : (
+                            // Botón realmente deshabilitado (no focusable); el span
+                            // es el target del tooltip porque un disabled se traga
+                            // el hover. Mismo patrón que Clientes.
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex cursor-not-allowed">
+                                  <Button
+                                    size="sm" variant="outline" disabled
+                                    className="h-7 gap-1 text-xs"
+                                    aria-label={missingToDispatch(e) === 'mensajero'
+                                      ? 'Asigna un mensajero para despachar'
+                                      : 'Asigna una fecha programada para despachar'}
+                                  >
+                                    <Truck className="w-3.5 h-3.5" /> Marcar En Ruta
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {missingToDispatch(e) === 'mensajero'
+                                  ? 'Asigna un mensajero para despachar'
+                                  : 'Asigna una fecha programada para despachar'}
+                              </TooltipContent>
+                            </Tooltip>
+                          )
                         )}
                         {e.estado === 'en_ruta' && (
                           <>

@@ -28,7 +28,7 @@ import type { Shipping } from '@/types/shipping';
 import { formatCOP } from '@/lib/utils';
 import { formatFecha } from '@/lib/format-fecha';
 import { findSlotLabel } from '@/lib/shipping-config';
-import { isScheduledShipping } from '@/constants/shippings';
+import { hasScheduleData } from '@/constants/shippings';
 import { isPorCobrar } from '@/lib/metrics/order-stat-filters';
 import { METODOS_PAGO, METODO_PAGO_LABEL, metodoPrevistoLabel } from '@/types/payment';
 
@@ -442,7 +442,10 @@ function Ordenes() {
   const scheduleLabel = (o: Order) =>
     !o.shipping ? (o.estado === 'pendiente' ? 'Preparar envío' : 'Programar entrega')
     : o.shipping.estado === 'fallido' ? 'Reprogramar'
-    : isScheduledShipping(o.shipping) ? 'Editar entrega'
+    // Presentación: basta con que HAYA datos de programación (fecha y/o
+    // mensajero) para que la acción sea "editar". Poder despachar es otra cosa
+    // — la decide `isScheduledShipping` y se explica en el modal/Entregas.
+    : hasScheduleData(o.shipping) ? 'Editar entrega'
     : 'Programar entrega';
 
   // Only the plain string text/textarea fields — the canal, product lines,

@@ -15,7 +15,7 @@ import { getDeliveryContext, updateOrderAddress } from '@/lib/api/orders';
 import type { Shipping, ShippingZona, TipoEnvio } from '@/types/shipping';
 import { TIPO_ENVIO_LABEL } from '@/types/shipping';
 import type { DeliveryContext, OrderAddressResult } from '@/types/order';
-import { ZONAS, SHIPPING_ESTADO_LABEL, isScheduledShipping } from '@/constants/shippings';
+import { ZONAS, SHIPPING_ESTADO_LABEL, hasScheduleData, missingToDispatch } from '@/constants/shippings';
 import { COLOMBIA_DEPARTMENTS } from '@/lib/colombia-departments';
 import { customerWhatsappHref } from '@/lib/whatsapp-link';
 import { siteConfig } from '@/lib/config/site';
@@ -57,7 +57,9 @@ export function ScheduleDeliveryModal({ target, onClose, onSaved, onAddressAdded
 
 function titleFor(shipping: Shipping): string {
   if (shipping.estado === 'fallido') return 'Reprogramar entrega';
-  return isScheduledShipping(shipping) ? 'Editar entrega' : 'Programar entrega';
+  // Título = presentación: hay datos de programación → se está editando, aunque
+  // todavía falte el mensajero para poder despachar.
+  return hasScheduleData(shipping) ? 'Editar entrega' : 'Programar entrega';
 }
 
 function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
@@ -93,6 +95,24 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
 
   const hasAddress   = !!ctx?.direccion_entrega?.trim();
   const isReschedule = shipping.estado === 'fallido';
+  // Estado ORIGINAL al abrir (el prop es estable: ScheduleBody se remonta por
+  // key={shipping.id}). Discrimina "programar" de "actualizar" en el toast —
+  // calcularlo sobre la respuesta del servidor haría que toda primera
+  // programación dijera "actualizada".
+  const wasScheduled = hasScheduleData(shipping);
+
+  // Vista previa del resultado de guardar, sobre lo que el operador está
+  // escribiendo ahora: el aviso aparece/desaparece mientras edita, sin guardar.
+  // Reprogramar un `fallido` lo devuelve a `preparando` (lo hace el servidor),
+  // así que el borrador usa ese estado para que el aviso también aplique ahí.
+  const draft = {
+    estado:           isReschedule ? 'preparando' : shipping.estado,
+    mensajero,
+    fecha_programada: fecha,
+  };
+  // Solo con al menos un dato puesto: en una entrega recién creada (nada
+  // diligenciado) no hay nada que reclamar todavía.
+  const faltaParaDespachar = hasScheduleData(draft) ? missingToDispatch(draft) : null;
 
   const handleSchedule = async () => {
     setSaving(true);
@@ -107,7 +127,18 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
         numero_guia:      numeroGuia.trim() || null,
       });
       onSaved(updated);
-      toast.success(isReschedule ? 'Entrega reprogramada' : 'Entrega programada');
+      // Identifica la orden y distingue programar de actualizar. Si el
+      // resultado GUARDADO todavía no alcanza para despachar, se dice — el
+      // label ya pasó a "Editar entrega" y esa brecha no puede quedar muda.
+      const orden = ctx?.numero_orden;
+      const titulo =
+        isReschedule  ? (orden ? `Orden ${orden} reprogramada para entrega` : 'Entrega reprogramada')
+        : wasScheduled ? (orden ? `Orden ${orden}: entrega actualizada`     : 'Entrega actualizada')
+        :                (orden ? `Orden ${orden} programada para entrega`  : 'Entrega programada');
+      const falta = missingToDispatch(updated);
+      toast.success(titulo, falta ? {
+        description: `Falta asignar ${falta === 'mensajero' ? 'mensajero' : 'la fecha programada'} para despachar.`,
+      } : undefined);
       onClose();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Error al programar la entrega');
@@ -262,6 +293,15 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
           <Label>Fecha programada</Label>
           <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="mt-1" />
         </div>
+        {/* La brecha, dicha: se puede guardar con datos parciales (el mensajero
+            NO es obligatorio para agendar), pero despachar exige ambos. */}
+        {faltaParaDespachar && (
+          <p className="col-span-2 -mt-2 text-xs text-muted-foreground">
+            {faltaParaDespachar === 'mensajero'
+              ? 'Falta asignar mensajero para poder despachar.'
+              : 'Falta asignar la fecha programada para poder despachar.'}
+          </p>
+        )}
         <div className="col-span-2">
           <Label>Notas de entrega</Label>
           <Input value={notas} onChange={e => setNotas(e.target.value)} className="mt-1" placeholder="Instrucciones especiales..." />
