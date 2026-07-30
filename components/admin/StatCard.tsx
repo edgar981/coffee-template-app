@@ -1,12 +1,39 @@
 import Link from "next/link";
 import { ArrowUpRight, ArrowDownRight, Minus, LucideIcon } from "lucide-react";
 import type { Trend } from "@/lib/metrics/trend";
+import { resolveStatLine } from "@/lib/stat-line";
 
 interface StatCardProps {
   icon:   LucideIcon;
   label:  string;
   value:  string | number;
+  /**
+   * Línea de contexto de FALLBACK (scope, fuente, período). Se muestra solo si la
+   * tarjeta no tiene insight — los dos compiten por el MISMO slot, ver abajo.
+   */
   sub?:   string;
+  /**
+   * Hecho derivado de los datos de la tarjeta ("3 meses consecutivos a la baja",
+   * "Último pago hace 3 días"). GANA el slot cuando existe: muted y SIN color ni
+   * icono, porque no es una alerta (el rojo es de Alertas de Stock).
+   */
+  insight?: string;
+  /**
+   * Sufijo de VENTANA TEMPORAL que se apende a la línea que gane, entre paréntesis
+   * ("últimos 30 días" → "Pagos recibidos (últimos 30 días)").
+   *
+   * Existe porque el período no puede depender de qué línea ganó el slot: una
+   * tarjeta con ventana que mañana gane un insight seguiría necesitando declararla.
+   * Solo para ventanas REALES — las métricas de estado actual (saldos, conteos
+   * vigentes) no llevan período. Ver `scopeSuffix` en el registry de widgets.
+   */
+  scopeSuffix?: string;
+  /**
+   * `true` para los hechos de TENDENCIA: un paso más de contraste que el sub y que
+   * los fallbacks, dentro de la misma familia muted (Amber Minimal: la jerarquía
+   * es de tono neutro, nunca de color semántico).
+   */
+  insightEnfasis?: boolean;
   /** Month-over-month pill. Omit for widgets that are states/queues, not trends. */
   trend?: Trend;
   color:  string;
@@ -19,8 +46,14 @@ interface StatCardProps {
   href?:  string;
 }
 
-export default function StatCard({ icon: Icon, label, value, sub, trend, color, href }: StatCardProps) {
-  const card = <StatCardBody icon={Icon} label={label} value={value} sub={sub} trend={trend} color={color} />;
+export default function StatCard({ icon: Icon, label, value, sub, insight, insightEnfasis, scopeSuffix, trend, color, href }: StatCardProps) {
+  const card = (
+    <StatCardBody
+      icon={Icon} label={label} value={value} sub={sub}
+      insight={insight} insightEnfasis={insightEnfasis} scopeSuffix={scopeSuffix}
+      trend={trend} color={color}
+    />
+  );
 
   if (!href) return card;
 
@@ -38,7 +71,13 @@ export default function StatCard({ icon: Icon, label, value, sub, trend, color, 
   );
 }
 
-function StatCardBody({ icon: Icon, label, value, sub, trend, color }: Omit<StatCardProps, "href">) {
+function StatCardBody({ icon: Icon, label, value, sub, insight, insightEnfasis, scopeSuffix, trend, color }: Omit<StatCardProps, "href">) {
+  // EL SLOT ÚNICO de contexto: máximo dos líneas bajo el valor (título + una), así
+  // que insight y sub NO coexisten. La regla (insight gana, scope se apende) vive
+  // en `lib/stat-line.ts` — pura y testeada, porque preservar el scope es un
+  // invariante de producto y no algo que deba recordarse en cada call site.
+  const contexto = resolveStatLine({ insight, sub, insightEnfasis, scopeSuffix });
+
   return (
     // The `group-hover/link:` rules are inert unless a StatCard href wrapped this
     // in `group/link`, so the non-linked cards render exactly as before.
@@ -66,7 +105,14 @@ function StatCardBody({ icon: Icon, label, value, sub, trend, color }: Omit<Stat
       <div className="mt-3">
         <p className="text-2xl font-bold text-foreground">{value}</p>
         <p className="text-sm text-muted-foreground mt-0.5">{label}</p>
-        {sub && <p className="text-xs text-muted-foreground/70 mt-1">{sub}</p>}
+        {/* UNA sola línea de contexto (insight o, en su defecto, sub). Siempre
+            muted y sin color: es un hecho, nunca una instrucción ni una alerta.
+            Los de tendencia van un paso más de contraste — misma familia neutra. */}
+        {contexto && (
+          <p className={`text-xs mt-1 ${contexto.enfasis ? 'text-muted-foreground' : 'text-muted-foreground/70'}`}>
+            {contexto.text}
+          </p>
+        )}
       </div>
     </div>
   );

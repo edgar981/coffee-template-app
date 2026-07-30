@@ -13,6 +13,8 @@ import {
 } from '@/types/dashboard';
 import { formatCOP } from '@/lib/utils';
 import { axisTickStyle } from '@/constants/dashb-styles';
+// Misma flecha que el pie de distribución (extraída de aquí para compartirla).
+import ArrowButton from '@/components/admin/ChartArrowButton';
 
 // Two daily charts in one card, flipped with the ‹ › arrows. The range selector
 // is shared: switching charts keeps the window, because `range` lives above both
@@ -251,23 +253,6 @@ export default function DashboardChartCarousel() {
 }
 
 // ─── Pieces ───────────────────────────────────────────────────────────────────
-
-function ArrowButton({ label, onClick, children }: {
-  label: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-    >
-      {children}
-    </button>
-  );
-}
 
 // Recharts passes `payload` as the hovered day's series entries. Rendered with
 // one swatch row per category plus the day's total — the ONLY place the total

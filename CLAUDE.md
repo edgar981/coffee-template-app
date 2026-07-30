@@ -123,6 +123,55 @@ todo write+lookup (`normalizeCustomerPhone` en `lib/whatsapp-link.ts`). NO fusio
 duplicados automáticamente — el merge es decisión humana (feature futura); las
 órdenes ya apuntan por `cliente_id`.
 
+## "Por cobrar" vs "Órdenes Pendientes" (dos tarjetas, un conjunto)
+
+Se ven contradictorias ("Por cobrar $0" junto a "Órdenes Pendientes 20") y NO lo
+son: son un conjunto y su recorte.
+
+- `pendiente` = todas las órdenes sin pago registrado, **sin ventana temporal**.
+- **Por cobrar** ⊂ pendiente: además CONTRAENTREGA y ya despachada
+  (`en_ruta`/`entregado`) — la plata que el mensajero anda cobrando.
+  `POR_COBRAR_WHERE` / `isPorCobrar`, misma definición en card y lista.
+- **Órdenes Pendientes** = `pendiente` MENOS por-cobrar. Por construcción,
+  `pendingOrders + porCobrar` = todo `pendiente`.
+- Por tanto "$0 por cobrar" con 20 pendientes solo dice que ninguna pendiente es
+  contraentrega despachada — con órdenes ANTICIPADO es el estado NORMAL, no un
+  bug. (Verificado 2026-07-29 en dev: las 20 eran ANTICIPADO.)
+
+Ninguna de las dos tiene scope de "hoy", aunque "Por cobrar" viva en la fila
+*Hoy* del panel. Se les puso el sufijo "(acumulado)" y se les QUITÓ (owner,
+2026-07-29): son métricas de **estado actual** — un saldo vigente y un conteo
+vigente — y un saldo no lleva declaración de período; la etiqueta sugería una
+ventana temporal inexistente. Lo que sostiene la coherencia del par es el
+**cross-reference** del sub en vivo de Pendientes ("· N por cobrar aparte"), que
+dice que ese recorte está descontado. Si alguna vez a una de las dos se le mete
+ventana temporal de verdad, ahí sí corresponde declararla — el mecanismo existe y
+está testeado (`WidgetDef.scopeSuffix` + `resolveStatLine`, hoy sin consumidores
+a propósito). No re-agregar "(acumulado)" leyendo una versión vieja de este doc.
+
+**Deuda conocida (NO arreglada a medias):** ninguno de los dos conteos excluye
+las órdenes `SN-` de demo, así que hoy "Pendientes" cuenta 1 de más. Arreglarlo
+solo en la tarjeta rompería el invariante card=lista (la lista de Órdenes tampoco
+filtra `SN-`): el fix es de los dos lados a la vez, o de ninguno.
+
+## Capa de insights de las stat cards (hechos, no consejos)
+
+`WidgetDef.insight` es opcional y opt-in: la mayoría de tarjetas no lo declara y
+se ve igual que siempre. Las reglas viven en `lib/metrics/insights.ts` — puras,
+deterministas y con tests (`npm test`). Restricciones que son del diseño, no del
+estilo:
+
+- **Solo meses CERRADOS.** El mes en curso está incompleto; compararlo como si
+  estuviera cerrado diría "a la baja" todos los días 1.
+- **Guarda de muestra** `MIN_ORDENES_INSIGHT` (15, placeholder TODO(cliente)): por
+  debajo de ese volumen un % es ruido, y un insight ruidoso entrena al operador a
+  ignorar la línea entera.
+- **Texto = hecho** ("3 meses consecutivos a la baja"), nunca instrucción ni causa
+  inventada. Muted, sin icono ni color — el rojo es de Alertas de Stock.
+- La serie mensual del insight usa la MISMA definición que el valor de su
+  tarjeta. Un insight calculado sobre otro conjunto que el número que acompaña es
+  peor que no tener insight.
+
 ## Sugerencia de zona de entrega (heurística de dirección)
 
 `sugerirZona` (`lib/zona-config.ts`) propone la zona leyendo la nomenclatura de
