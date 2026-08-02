@@ -4,12 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SlidersHorizontal } from 'lucide-react';
-import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/button';
-// Aliased: recharts also exports `Tooltip`. The global admin TooltipProvider
-// (AdminChrome) supplies the delay/style, so no wrapper is needed here.
 import { Tooltip as UITooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { getDashboardStats } from '@/lib/api/dashboard';
 import { getAnalytics } from '@/lib/api/analytics';
@@ -33,7 +30,9 @@ import {
   type WidgetFormato, type WidgetHrefContext,
 } from '@/constants/dashboard-widgets';
 import DashboardChartCarousel from '@/components/admin/DashboardChartCarousel';
-import { DASHBOARD_COLORS, tooltipStyle } from '@/constants/dashb-styles';
+import DashboardDistributionCard from '@/components/admin/DashboardDistributionCard';
+import { formatFecha } from '@/lib/format-fecha';
+import type { WidgetInsightData } from '@/lib/metrics/insights';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -80,7 +79,10 @@ export default function Dashboard() {
   const lowStock       = products.filter(isLowStock).length;
   const activeProducts = products.filter(p => p.activo !== false).length;
 
-  const categoryData = analytics?.categoryData ?? [];
+  // Las tres vistas del pie vienen del endpoint de STATS (un query base, tres
+  // agrupaciones). `analytics.categoryData` sigue existiendo para la página de
+  // Analítica; el dashboard ya no lo usa.
+  const distribuciones = stats?.distribuciones ?? null;
 
   // Deep-link context (America/Bogota day keys + the shared month query), fed to
   // each widget's href builder so a card links to exactly the rows it counts.
@@ -100,6 +102,17 @@ export default function Dashboard() {
 
   const porCobrarN = stats?.porCobrar ?? 0;
 
+  // Lo que cada widget necesita para su insight: serie mensual (tarjetas de mes) o
+  // último evento + día de referencia (tarjetas de scope HOY, que no tienen serie).
+  // Sin stats no hay nada → sin insight (la tarjeta ya muestra `—`).
+  const insightData: Record<string, WidgetInsightData | undefined> = stats ? {
+    ingresos_mes:   { serie: stats.serieMensual.revenue },
+    ordenes_mes:    { serie: stats.serieMensual.orders },
+    ventas_hoy:     { ultimoEvento: stats.ultimoPago,     hoy: stats.hoyKey },
+    despachos_hoy:  { ultimoEvento: stats.ultimoDespacho, hoy: stats.hoyKey },
+    pedidos_hoy:    { ultimoEvento: stats.ultimaOrden,    hoy: stats.hoyKey },
+  } : {};
+
   // The ONE place widgets meet data: key → { raw value, live sub, trend }, or
   // `undefined` when THIS widget's source failed to load. `undefined` renders as
   // `—` (a lying `0` is worse than a dash) — stats widgets go blank when the stats
@@ -107,12 +120,21 @@ export default function Dashboard() {
   // rest (title, icon, colour, formato, href, static subtitle).
   const widgetValues: Record<string, { raw: number; sub?: string; trend?: Trend } | undefined> = {
     ventas_hoy:           stats ? { raw: stats.ventasHoy } : undefined,
+    // Estado, no período: "Nada por cobrar" es el saldo vigente. Sin etiqueta de
+    // ventana temporal (ver el comentario de `scopeSuffix` en el registry).
     por_cobrar:           stats ? { raw: stats.porCobrarMonto, sub: porCobrarN > 0 ? `${porCobrarN} ${porCobrarN === 1 ? 'orden' : 'órdenes'} contraentrega` : 'Nada por cobrar' } : undefined,
     despachos_hoy:        stats ? { raw: stats.despachosHoy } : undefined,
     pedidos_hoy:          stats ? { raw: stats.pedidosHoy } : undefined,
-    ingresos_mes:         stats ? { raw: stats.revenueMonth, sub: `Histórico: ${formatCOP(stats.revenueTotal)}`, trend: revenueTrend } : undefined,
+    // Sub del registry ("Pagos del mes en curso"): el histórico se fue a su
+    // propio widget en vez de colgar de esta tarjeta.
+    ingresos_mes:         stats ? { raw: stats.revenueMonth, trend: revenueTrend } : undefined,
+    ingresos_historicos:  stats ? { raw: stats.revenueTotal, sub: stats.revenueSince ? `Desde ${formatFecha(stats.revenueSince)}` : undefined } : undefined,
     ordenes_mes:          stats ? { raw: stats.monthly.orders.current, trend: ordersTrend } : undefined,
-    ordenes_pendientes:   stats ? { raw: stats.pendingOrders, sub: porCobrarN > 0 ? `Por cobrar: ${porCobrarN}` : undefined } : undefined,
+    // Cuando hay por-cobrar, el sub dice explícitamente que está DESCONTADO de
+    // este número: las dos tarjetas son un conjunto y su recorte, no dos cifras
+    // rivales. ESTE cross-reference es lo que sostiene esa coherencia (ya no hay
+    // etiqueta de scope). Sin por-cobrar cae al sub del registry.
+    ordenes_pendientes:   stats ? { raw: stats.pendingOrders, sub: porCobrarN > 0 ? `Sin pago · ${porCobrarN} por cobrar aparte` : undefined } : undefined,
     promedio_por_orden:   stats ? { raw: stats.avgTicket, trend: avgTrend } : undefined,
     // products/customers default to []/[] and load independently of stats.
     alertas_stock:        { raw: lowStock },
@@ -192,6 +214,11 @@ export default function Dashboard() {
             if (!w) return null;
             const v = widgetValues[key];
             const href = typeof w.href === 'function' ? w.href(hrefCtx) : w.href;
+            // Insight: solo si el widget lo declara Y su serie llegó. La regla
+            // decide sola cuándo callar (historia corta, muestra chica, mes en
+            // curso incompleto) — aquí no hay lógica de negocio.
+            const data = insightData[key];
+            const insight = v && w.insight && data ? w.insight(data) : null;
             return (
               <StatCard
                 key={key}
@@ -200,7 +227,12 @@ export default function Dashboard() {
                 // Source failed → `—` (no trend, static subtitle) instead of a
                 // misleading 0.
                 value={v ? formatValue(w.formato, v.raw) : '—'}
+                // sub e insight compiten por UN slot; StatCard resuelve cuál gana
+                // (insight primero) y le apende el scope del widget.
                 sub={v?.sub ?? w.subtitulo}
+                insight={insight?.text}
+                insightEnfasis={insight?.enfasis}
+                scopeSuffix={w.scopeSuffix}
                 trend={v?.trend}
                 color={w.color}
                 href={href}
@@ -223,43 +255,7 @@ export default function Dashboard() {
           <DashboardChartCarousel />
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-5">
-          <h3 className="font-semibold text-foreground mb-1">Por Categoría</h3>
-          <p className="text-xs text-muted-foreground mb-4">Distribución de ventas</p>
-          {categoryData.length === 0 ? (
-            <div className="h-40 flex items-center justify-center text-center text-muted-foreground text-sm">
-              {loading ? 'Cargando...' : 'Sin ventas registradas todavía.'}
-            </div>
-          ) : (
-            <>
-              <ResponsiveContainer width="100%" height={160}>
-                <PieChart>
-                  <Pie
-                    data={categoryData} cx="50%" cy="50%"
-                    innerRadius={40} outerRadius={65}
-                    paddingAngle={3} dataKey="value"
-                  >
-                    {categoryData.map((_, i) => (
-                      <Cell key={i} fill={DASHBOARD_COLORS[i % DASHBOARD_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-1.5 mt-2">
-                {categoryData.map((item, i) => (
-                  <div key={item.name} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: DASHBOARD_COLORS[i % DASHBOARD_COLORS.length] }} />
-                      <span className="text-muted-foreground">{item.name}</span>
-                    </div>
-                    <span className="font-medium text-foreground">{item.value}%</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+        <DashboardDistributionCard data={distribuciones} loading={loading} />
       </div>
 
       {/* Recent orders */}

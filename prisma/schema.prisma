@@ -283,6 +283,12 @@ model Shipping {
   order            Order    @relation(fields: [orden_id], references: [id], onDelete: Cascade)
   // Zona and courier start empty; the operator fills them when scheduling.
   zona             String?
+  // Zona que la heurística de dirección (lib/zona-config.ts) sugirió cuando el
+  // operador programó. Solo auditoría de calidad: una CORRECCIÓN se deriva
+  // comparando `zona_sugerida != zona` — no hay (ni debe haber) un campo
+  // "corregida" que pueda desincronizarse de esa comparación. Null = no hubo
+  // sugerencia (dirección atípica o sin ciudad).
+  zona_sugerida    String?
   estado           String   @default("preparando")
   costo_envio      Float    @default(0)
   mensajero        String?

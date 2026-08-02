@@ -7,6 +7,7 @@ import { markContraentregaAtDispatch } from '@/lib/orders';
 import { notifyOrderEnRoute } from '@/lib/notifications';
 import { runEventAutomations } from '@/lib/automations/engine';
 import { TipoEnvio } from '@/src/generated/prisma/client';
+import { ZONAS } from '@/constants/shippings';
 
 const TIPOS_ENVIO = Object.values(TipoEnvio);
 
@@ -51,6 +52,18 @@ export async function PATCH(
   // are free text, trimmed; they matter when NACIONAL).
   if (body.tipo_envio !== undefined && !TIPOS_ENVIO.includes(body.tipo_envio)) {
     return NextResponse.json({ error: 'Tipo de envío inválido' }, { status: 400 });
+  }
+
+  // zona_sugerida es AUDITORÍA de la heurística de dirección, no una decisión:
+  // se guarda tal cual llega (o null si no hubo sugerencia) y jamás sustituye a
+  // `zona`, que es lo que el operador dejó en el Select. Se valida contra el
+  // mismo conjunto de zonas para que la comparación `zona_sugerida != zona`
+  // siga significando algo.
+  if (
+    body.zona_sugerida !== undefined && body.zona_sugerida !== null &&
+    !(ZONAS as readonly string[]).includes(body.zona_sugerida)
+  ) {
+    return NextResponse.json({ error: 'Zona sugerida inválida' }, { status: 400 });
   }
 
   // A voided delivery is terminal: it can't be scheduled or advanced. Only the
@@ -159,6 +172,9 @@ export async function PATCH(
         data:  {
           estado:           nextEstado,
           zona:             body.zona             ?? undefined,
+          // `!== undefined` (no `??`): un null explícito SÍ debe escribirse —
+          // significa "la heurística no supo", que es un dato de auditoría.
+          zona_sugerida:    body.zona_sugerida !== undefined ? body.zona_sugerida : undefined,
           mensajero:        body.mensajero        ?? undefined,
           fecha_programada: body.fecha_programada ?? undefined,
           fecha_entrega:    justDelivered ? new Date().toISOString() : (body.fecha_entrega ?? undefined),

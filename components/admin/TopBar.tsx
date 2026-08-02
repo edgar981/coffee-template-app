@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  Menu, Sun, Moon, PanelLeftOpen, Search,
+  Menu, Sun, Moon, Monitor, PanelLeftOpen, Search,
   User, Settings, LogOut, ChevronDown,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
@@ -11,6 +11,10 @@ import Link from 'next/link';
 import NotificationBell from '@/components/admin/NotificationBell';
 import { AnimatedIcon } from '@/components/admin/AnimatedIcon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
+  DropdownMenuRadioGroup, DropdownMenuRadioItem,
+} from '@/components/ui/dropdown-menu';
 import { authClient } from '@/lib/auth-client';
 import { cn, getInitials } from '@/lib/utils';
 import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
@@ -33,7 +37,11 @@ interface TopBarProps {
 export default function TopBar({
   onMenuToggle, sidebarWidth, collapsed, onToggleCollapsed, onOpenSearch,
 }: TopBarProps) {
-  const { theme, setTheme }     = useTheme();
+  // `theme` = la ELECCIÓN ('light' | 'dark' | 'system'); `resolvedTheme` = el tema
+  // EFECTIVO ya resuelto contra el sistema. El menú marca la elección y el icono
+  // muestra lo efectivo: con "Sistema" en un OS oscuro, la opción marcada es
+  // Sistema y el icono es la luna.
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const router                  = useRouter();
   const menuRef                 = useRef<HTMLDivElement>(null);
   const [mounted, setMounted]   = useState(false);
@@ -107,21 +115,45 @@ export default function TopBar({
       )}
 
       <div className="ml-auto flex items-center gap-2">
-        {/* Theme toggle — icon rotates on hover */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className={cn(ADMIN_ICON_BUTTON, 'h-9 w-9')}
-              aria-label="Cambiar tema"
-            >
-              {mounted
-                ? <AnimatedIcon icon={theme === 'dark' ? Sun : Moon} anim="rotate" size={16} />
-                : <div className="h-4 w-4" />}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Cambiar tema</TooltipContent>
-        </Tooltip>
+        {/* Selector de tema — TRES estados, no un toggle. Un toggle binario
+            persiste una elección explícita la primera vez que se usa y deja el
+            admin sin camino de vuelta a seguir al sistema operativo (el provider
+            monta `defaultTheme="system"`, pero nada podía volver a 'system'). */}
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <button className={cn(ADMIN_ICON_BUTTON, 'h-9 w-9')} aria-label="Cambiar tema">
+                  {/* El icono es el tema EFECTIVO; hasta `mounted` no se puede
+                      saber (el server no conoce el OS del cliente) → placeholder
+                      del mismo tamaño para no mover el layout. */}
+                  {mounted
+                    ? <AnimatedIcon icon={resolvedTheme === 'dark' ? Moon : Sun} anim="rotate" size={16} />
+                    : <div className="h-4 w-4" />}
+                </button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Cambiar tema</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="end" className="w-40">
+            {/* RadioGroup y no Items sueltos: son tres opciones mutuamente
+                excluyentes, así se marca la activa y se obtiene el
+                role=menuitemradio + aria-checked correcto. El valor leído es
+                `theme` (la elección), por eso "Sistema" aparece marcado aunque el
+                resuelto sea oscuro. */}
+            <DropdownMenuRadioGroup value={mounted ? theme : undefined} onValueChange={setTheme}>
+              <DropdownMenuRadioItem value="light">
+                <Sun className="mr-2 h-4 w-4 text-muted-foreground" /> Claro
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="dark">
+                <Moon className="mr-2 h-4 w-4 text-muted-foreground" /> Oscuro
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="system">
+                <Monitor className="mr-2 h-4 w-4 text-muted-foreground" /> Sistema
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* Notifications (tooltip + animation live inside the component) */}
         <NotificationBell />

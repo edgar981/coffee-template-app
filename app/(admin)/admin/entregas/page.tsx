@@ -15,9 +15,21 @@ import { formatFecha } from '@/lib/format-fecha';
 import { getShippings, updateShipping } from '@/lib/api/shippings';
 import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
 import type { Shipping, ShippingEstado, ShippingFilter, ShippingOrderRef } from '@/types/shipping';
-import { FILTER_ESTADOS, ZONA_COLORS, isScheduledShipping } from '@/constants/shippings';
+import { FILTER_ESTADOS, ZONA_COLORS, isScheduledShipping, hasScheduleData, missingToDispatch } from '@/constants/shippings';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { TIPO_ENVIO_LABEL } from '@/types/shipping';
 import { metodoPrevistoLabel } from '@/types/payment';
+
+// Resumen derivado de qué le falta a una entrega en `preparando` para poder
+// despacharse. Es presentación pura sobre los mismos campos que ya gatean el
+// despacho (`isScheduledShipping`) — no un estado nuevo.
+function scheduleHint(e: Shipping): string {
+  if (isScheduledShipping(e)) return 'Lista para despachar';
+  const tieneMensajero = !!e.mensajero?.trim();
+  const tieneFecha     = !!e.fecha_programada?.trim();
+  if (!tieneMensajero && !tieneFecha) return 'Sin programar';
+  return tieneMensajero ? 'Falta fecha' : 'Falta mensajero';
+}
 
 export default function Entregas() {
   const [entregas, setEntregas] = useState<Shipping[]>([]);
@@ -36,9 +48,12 @@ export default function Entregas() {
   // ── Derived ────────────────────────────────────────────────────────────────
 
   // Active board excludes cancelled deliveries; they stay reachable via the
-  // "cancelado" filter for history.
-  const filtered = filter === 'all'
-    ? entregas.filter(e => e.estado !== 'cancelado')
+  // "cancelado" filter for history. 'listas_despacho' NO es un estado guardado:
+  // se deriva con `isScheduledShipping` aquí en el cliente, por fuera del
+  // filtrado por `estado` (FILTER_ESTADOS sigue mapeando 1:1 al enum de DB).
+  const filtered =
+    filter === 'all'             ? entregas.filter(e => e.estado !== 'cancelado')
+    : filter === 'listas_despacho' ? entregas.filter(isScheduledShipping)
     : entregas.filter(e => e.estado === filter);
 
   const stats = {
@@ -105,19 +120,27 @@ export default function Entregas() {
         ))}
       </div>
 
-      {/* Filter tabs */}
+      {/* Filter tabs. Los chips de estado van primero y en el orden del enum;
+          "Listas para despachar" va al final porque es DERIVADO (checklist de
+          programación), no un estado almacenado. `capitalize` solo aplica a los
+          valores crudos del enum — las etiquetas escritas ya vienen en su forma
+          final. */}
       <div className="flex gap-2 flex-wrap">
-        {(['all', ...FILTER_ESTADOS] as ShippingFilter[]).map(f => (
+        {[
+          { key: 'all' as ShippingFilter, label: 'Todos', capitalize: false },
+          ...FILTER_ESTADOS.map(e => ({ key: e as ShippingFilter, label: e.replace('_', ' '), capitalize: true })),
+          { key: 'listas_despacho' as ShippingFilter, label: 'Listas para despachar', capitalize: false },
+        ].map(f => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all capitalize ${
-              filter === f
+            key={f.key}
+            onClick={() => setFilter(f.key)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${f.capitalize ? 'capitalize' : ''} ${
+              filter === f.key
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-muted/70'
             }`}
           >
-            {f === 'all' ? 'Todos' : f.replace('_', ' ')}
+            {f.label}
           </button>
         ))}
       </div>
@@ -130,7 +153,11 @@ export default function Entregas() {
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Truck className="w-10 h-10 text-muted-foreground/40 mb-3" />
             <h3 className="font-semibold mb-1">Sin entregas</h3>
-            <p className="text-sm text-muted-foreground mb-4">No hay entregas en este estado.</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              {filter === 'listas_despacho'
+                ? 'Ninguna entrega tiene mensajero y fecha todavía.'
+                : 'No hay entregas en este estado.'}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -192,7 +219,15 @@ export default function Entregas() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm">{formatCOP(e.costo_envio)}</td>
-                    <td className="px-4 py-3"><StatusBadge status={e.estado} /></td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={e.estado} />
+                      {/* Checklist de programación, no un estado: por eso va en
+                          texto muted debajo del badge y NO como valor nuevo de
+                          ShippingEstado. Solo aplica mientras se prepara. */}
+                      {e.estado === 'preparando' && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">{scheduleHint(e)}</p>
+                      )}
+                    </td>
                     {/* Pago en su propia columna (no anidado bajo el nombre): quien
                         despacha ve de un vistazo si cobra. Reusa el badge de PaymentHint. */}
                     <td className="px-4 py-3"><PaymentHint order={e.order} /></td>
@@ -205,23 +240,49 @@ export default function Entregas() {
                     </td>
                     <td className="px-4 py-3" onClick={ev => ev.stopPropagation()}>
                       {/* Next-state actions advance Shipping only — never Order.
-                          A delivery can't go En Ruta until scheduled (courier +
-                          fecha) — unscheduled rows only offer "Programar". */}
+                          Dos condiciones DISTINTAS: hay datos de programación
+                          (label Programar/Editar) y se puede despachar (courier
+                          + fecha, `isScheduledShipping`). Una entrega agendada
+                          sin mensajero muestra "Editar" y un En Ruta deshabilitado
+                          que dice por qué, en vez de esconder la acción. */}
                       <div className="flex flex-wrap gap-1.5">
-                        {e.estado === 'preparando' && !isScheduledShipping(e) && (
+                        {e.estado === 'preparando' && (
                           <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => setScheduleShipping(e)}>
-                            <Truck className="w-3.5 h-3.5" /> Programar
+                            {hasScheduleData(e)
+                              ? <><Pencil className="w-3.5 h-3.5" /> Editar</>
+                              : <><Truck className="w-3.5 h-3.5" /> Programar</>}
                           </Button>
                         )}
-                        {e.estado === 'preparando' && isScheduledShipping(e) && (
-                          <>
-                            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => setScheduleShipping(e)}>
-                              <Pencil className="w-3.5 h-3.5" /> Editar
-                            </Button>
+                        {e.estado === 'preparando' && hasScheduleData(e) && (
+                          isScheduledShipping(e) ? (
                             <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => handleDispatch(e)}>
                               <Truck className="w-3.5 h-3.5" /> Marcar En Ruta
                             </Button>
-                          </>
+                          ) : (
+                            // Botón realmente deshabilitado (no focusable); el span
+                            // es el target del tooltip porque un disabled se traga
+                            // el hover. Mismo patrón que Clientes.
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex cursor-not-allowed">
+                                  <Button
+                                    size="sm" variant="outline" disabled
+                                    className="h-7 gap-1 text-xs"
+                                    aria-label={missingToDispatch(e) === 'mensajero'
+                                      ? 'Asigna un mensajero para despachar'
+                                      : 'Asigna una fecha programada para despachar'}
+                                  >
+                                    <Truck className="w-3.5 h-3.5" /> Marcar En Ruta
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {missingToDispatch(e) === 'mensajero'
+                                  ? 'Asigna un mensajero para despachar'
+                                  : 'Asigna una fecha programada para despachar'}
+                              </TooltipContent>
+                            </Tooltip>
+                          )
                         )}
                         {e.estado === 'en_ruta' && (
                           <>

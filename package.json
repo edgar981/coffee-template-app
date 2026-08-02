@@ -7,6 +7,7 @@
     "build": "if [ \"$VERCEL_ENV\" = \"production\" ]; then prisma migrate deploy; fi && next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "node --import tsx --test \"lib/**/*.test.ts\"",
     "postinstall": "prisma generate"
   },
   "prisma": {

@@ -1,4 +1,5 @@
 import type { Order } from './order';
+import type { InsightMonthPoint } from '@/lib/metrics/insights';
 
 // ─── Daily chart module (Ventas / Pedidos) ───────────────────────────────────
 
@@ -56,6 +57,25 @@ export interface DashboardChartData {
   pedidos: PedidosDailyPoint[];
 }
 
+// ─── Distribución (pie conmutable del dashboard) ─────────────────────────────
+
+/** Una porción del pie: nombre de bucket + porcentaje (0–100, entero). */
+export interface DistribucionSlice {
+  name:  string;
+  value: number;
+}
+
+/**
+ * Las dos vistas del pie, mismo período y MISMA métrica (% de ingresos
+ * atribuibles = suma de `OrderItem.subtotal`), dos agrupaciones distintas.
+ * `null` sería indistinguible de "sin ventas", así que las dos siempre vienen
+ * (arrays vacíos cuando no hay datos).
+ */
+export interface DashboardDistribuciones {
+  categoria: DistribucionSlice[];
+  peso:      DistribucionSlice[];
+}
+
 export interface DashboardStats {
   // ── Fila "Hoy" (America/Bogota) ──
   /** Sum of Payment.monto received today (CN- orders, non-cancelled). */
@@ -87,8 +107,27 @@ export interface DashboardStats {
   // ── Ingresos (Payments ledger, CN- orders, non-cancelled) ──
   /** Sum of Payment.monto this calendar month (America/Bogota). */
   revenueMonth: number;
-  /** Sum of Payment.monto all-time — the "Histórico" subtext. */
+  /** Sum of Payment.monto all-time — el widget "Ingresos históricos". */
   revenueTotal: number;
+  /**
+   * Fecha del PRIMER pago del libro (ISO), o null si todavía no hay ninguno —
+   * el "Desde …" del widget histórico. Es el primer pago y no la primera orden
+   * creada a propósito: `revenueTotal` suma pagos, así que el período que
+   * describe el sub es exactamente el que cubre el valor.
+   */
+  revenueSince: string | null;
+
+  // ── Últimos eventos (insight de las tarjetas de scope HOY) ──
+  // Esas tarjetas no tienen serie mensual: su hecho es CUÁNDO fue el último
+  // evento real. Cada uno hereda el scope de su tarjeta. `null` = nunca ocurrió.
+  /** Último Payment del libro (CN-, no cancelada) — tarjeta "Ventas de hoy". */
+  ultimoPago: string | null;
+  /** Último despacho (`stock_descontado_at`) — tarjeta "Despachos de hoy". */
+  ultimoDespacho: string | null;
+  /** Última orden creada (CN-, no cancelada) — tarjeta "Pedidos de hoy". */
+  ultimaOrden: string | null;
+  /** Hoy en America/Bogota (`YYYY-MM-DD`): base del "hace N días" del cliente. */
+  hoyKey: string;
   /** Current-month average received per sale (revenueMonth / payments this month). */
   avgTicket: number;
 
@@ -107,4 +146,19 @@ export interface DashboardStats {
     avgTicket: { current: number; previous: number };
     prevMonthOrders: number;
   };
+
+  /**
+   * Serie mensual corta (7 meses: 6 cerrados + el mes en curso, ascendente) que
+   * alimenta los INSIGHTS de las tarjetas. `ordenes` viaja en cada punto porque
+   * es la base de muestra que decide si un % significa algo — ver
+   * lib/metrics/insights.ts. El último punto es el mes EN CURSO (`cerrado:
+   * false`) y las reglas lo descartan.
+   */
+  serieMensual: {
+    revenue: InsightMonthPoint[];
+    orders:  InsightMonthPoint[];
+  };
+
+  /** Las tres vistas del pie (mismo período, misma métrica). */
+  distribuciones: DashboardDistribuciones;
 }

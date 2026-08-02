@@ -113,6 +113,13 @@ export interface OrderForm {
   canal:             OrderChannel;
   costo_envio:       string;
   direccion_entrega: string;
+  // Ciudad y departamento son OPCIONALES en la orden manual (debe poder crearse
+  // rápido sin ellos). La ciudad sí se persiste — es lo que habilita la
+  // sugerencia de zona al programar la entrega (lib/zona-config). El
+  // departamento se valida pero NO se persiste: `Order` no tiene columna, igual
+  // que en el flujo de "Agregar dirección" (lib/validation/address).
+  ciudad_entrega:    string;
+  departamento:      string;
   notas_internas:    string;
   items:             OrderLineForm[];
   // Método de pago previsto (opcional). '' = "Por definir". La CONDICIÓN de pago
@@ -138,6 +145,10 @@ export interface AdminOrderPayload {
   canal?:             OrderChannel;
   costo_envio?:       number;
   direccion_entrega?: string;
+  // Opcionales; la ciudad se persiste (habilita la sugerencia de zona), el
+  // departamento solo se valida (no hay columna en Order).
+  ciudad_entrega?:    string;
+  departamento?:      string;
   notas_internas?:    string;
   items:              { slug: string; cantidad: number; molienda?: string | null }[];
   // Método de pago previsto (enum) u omitido para "Por definir". La condición de

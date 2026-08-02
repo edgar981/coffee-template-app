@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, derivarCondicionPago, OrderCustomerIdentityError, OrderCustomerNotFoundError, OrderLinesError } from '@/lib/orders';
 import { MetodoPago } from '@/src/generated/prisma/client';
+import { departamentoField } from '@/lib/validation/address';
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -38,6 +39,13 @@ const adminOrderSchema = z
     canal:             z.string().trim().optional(),
     costo_envio:       z.coerce.number().nonnegative().optional(),
     direccion_entrega: z.string().trim().optional(),
+    // Ciudad y departamento OPCIONALES: la orden manual debe poder crearse sin
+    // ellos. La ciudad se persiste (es lo que le permite a `sugerirZona`
+    // proponer una zona al programar la entrega). El departamento se valida
+    // contra la lista canónica cuando viene, pero NO se persiste — `Order` no
+    // tiene columna; mismo criterio que deliveryAddressSchema.
+    ciudad_entrega:    z.string().trim().min(1).optional(),
+    departamento:      departamentoField.optional(),
     notas_internas:    z.string().trim().optional(),
     // Método de pago PREVISTO (intención). Enum de Payment; opcional ("Por
     // definir"). No crea Payment ni cambia estado por sí solo. La CONDICIÓN de
@@ -141,6 +149,7 @@ export async function POST(req: NextRequest) {
       total,
       costo_envio,
       direccion_entrega: b.direccion_entrega || null,
+      ciudad_entrega:    b.ciudad_entrega || null,
       notas_internas:    b.notas_internas || null,
       metodoPagoPrevisto: b.metodoPagoPrevisto ?? null,
       immediatePayment:  b.pagoRecibido && b.metodoPagoPrevisto

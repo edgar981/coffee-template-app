@@ -128,6 +128,22 @@ export function isoWeekKey(ref: Date, tz: string): string {
  * in `tz`, shifted by `monthDelta` months (0 = this month, -1 = last month,
  * +1 = next month). `Date.UTC` normalises month over/underflow across years.
  */
+/**
+ * UTC instant of 00:00 local time on January 1st of the year `ref` falls on in
+ * `tz`, shifted by `yearDelta`. Same construction as {@link startOfZonedMonth} —
+ * it exists so a year-to-date window is anchored to the BUSINESS timezone
+ * instead of the server's local one (`new Date(y, 0, 1)` silently means "midnight
+ * wherever this process runs", which drifts the boundary by hours).
+ */
+export function startOfZonedYear(ref: Date, tz: string, yearDelta = 0): Date {
+  const y = Number(
+    new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(ref),
+  );
+  const utcGuess = Date.UTC(y + yearDelta, 0, 1, 0, 0, 0);
+  const offset = zoneOffsetMs(new Date(utcGuess), tz);
+  return new Date(utcGuess - offset);
+}
+
 export function startOfZonedMonth(ref: Date, tz: string, monthDelta = 0): Date {
   const [y, m] = new Intl.DateTimeFormat('en-CA', {
     timeZone: tz, year: 'numeric', month: '2-digit',

@@ -1,8 +1,13 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Banknote, Wallet, Truck, ShoppingCart, DollarSign, Clock,
-  AlertTriangle, Users, Package, TrendingUp,
+  AlertTriangle, Users, Package, TrendingUp, Coins,
 } from 'lucide-react';
+import {
+  widgetInsight, insightUltimoEvento,
+  type WidgetInsight, type WidgetInsightData,
+} from '@/lib/metrics/insights';
+import { formatFecha } from '@/lib/format-fecha';
 import { PENDING_ORDERS_QUERY, POR_COBRAR_QUERY } from '@/lib/metrics/order-stat-filters';
 import { LOW_STOCK_QUERY } from '@/lib/metrics/inventory-filters';
 import { STAT_CHIP } from '@/constants/stat-chip';
@@ -57,8 +62,33 @@ export interface WidgetDef {
   /** Stable snake_case id — the persisted identifier. */
   key:            string;
   titulo:         string;
-  /** Static fallback subtitle; the page may override it with a live one. */
+  /**
+   * Línea de contexto de FALLBACK (el page puede reemplazarla por una en vivo).
+   *
+   * La tarjeta tiene UN SOLO slot bajo el título y el `insight` lo gana cuando
+   * existe (ver StatCard): este sub es lo que se muestra cuando no hay insight.
+   * `''` = esa tarjeta no necesita segunda línea sin insight (título solo es
+   * válido) — típicamente porque el texto repetía el título.
+   */
   subtitulo:      string;
+  /**
+   * VENTANA TEMPORAL de la tarjeta, apendida entre paréntesis a CUALQUIER línea que
+   * gane el slot ("últimos 30 días" → "Pagos recibidos (últimos 30 días)").
+   *
+   * Vive en el widget y no dentro del texto del sub a propósito: el slot único lo
+   * puede ganar el insight, y una tarjeta con ventana que mañana gane un insight
+   * seguiría necesitando declarar de qué período habla. Que el sufijo no se pierda
+   * al cambiar la línea mostrada es un invariante testeado — `resolveStatLine`
+   * (lib/stat-line.ts).
+   *
+   * HOY NINGÚN WIDGET LO USA, y eso es correcto, no deuda: `por_cobrar` y
+   * `ordenes_pendientes` lo tuvieron con "acumulado" y se les quitó (owner,
+   * 2026-07-29) porque son métricas de ESTADO ACTUAL — un saldo o un conteo vigente
+   * no tiene período que declarar, y la etiqueta sugería una ventana inexistente.
+   * El campo se mantiene: es forma del template, para el primer widget con ventana
+   * real (p. ej. "ventas últimos 30 días"). No borrarlo por no tener consumidores.
+   */
+  scopeSuffix?:   string;
   icono:          LucideIcon;
   formato:        WidgetFormato;
   categoria:      WidgetCategoria;
@@ -67,26 +97,82 @@ export interface WidgetDef {
   color:          string;
   /** Deep link: a static path, or a fn of the date context for scoped links. */
   href?:          string | ((ctx: WidgetHrefContext) => string);
+  /**
+   * INSIGHT opcional: un HECHO derivado de la serie mensual del widget, no un
+   * consejo. `null` (o el campo ausente) = la tarjeta se ve como hoy, y eso es
+   * lo normal — es opt-in por diseño: solo los widgets donde una tendencia
+   * mensual significa algo lo declaran. Las reglas viven en
+   * lib/metrics/insights.ts (puras y testeadas); esto solo las conecta.
+   *
+   * La FORMA (campo opcional en el registry) es del template; el CONTENIDO (qué
+   * widget lo usa y con qué serie) es de esta vertical.
+   */
+  insight?:       (data: WidgetInsightData) => WidgetInsight | null;
 }
 
 // Catalog order doubles as the DEFAULT order: the visible-by-default widgets, read
 // top to bottom, give "fila Hoy primero, luego mes/operación" for free.
 export const DASHBOARD_WIDGETS: WidgetDef[] = [
   // ── Hoy ──
-  { key: 'ventas_hoy',      titulo: 'Ventas de hoy',      subtitulo: 'Pagos recibidos hoy', icono: Banknote,     formato: 'cop', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.emerald, href: (c) => `/admin/pagos?desde=${c.today}&hasta=${c.today}` },
-  { key: 'por_cobrar',      titulo: 'Por cobrar',         subtitulo: 'Contraentrega sin pago', icono: Wallet,     formato: 'cop', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.amber,         href: `/admin/ordenes?${POR_COBRAR_QUERY}` },
-  { key: 'despachos_hoy',   titulo: 'Despachos de hoy',   subtitulo: 'Salieron a ruta hoy', icono: Truck,        formato: 'int', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.sky,                  href: '/admin/entregas' },
-  { key: 'pedidos_hoy',     titulo: 'Pedidos de hoy',     subtitulo: 'Órdenes creadas hoy', icono: ShoppingCart, formato: 'int', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.blue,              href: (c) => `/admin/ordenes?desde=${c.today}&hasta=${c.today}` },
+  // Sin sub: "Pagos recibidos hoy" repetía el título. Su línea es el insight de
+  // último pago; si algún día no hubiera insight, esta tarjeta no necesita segunda
+  // línea.
+  { key: 'ventas_hoy',      titulo: 'Ventas de hoy',      subtitulo: '', icono: Banknote,     formato: 'cop', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.emerald, href: (c) => `/admin/pagos?desde=${c.today}&hasta=${c.today}`,
+    // Sin serie mensual: el hecho es cuándo entró el último pago. Un "$0 hoy"
+    // con "último pago hace 3 días" informa; un "$0" solo, no.
+    insight: (d) => insightUltimoEvento(d, {
+      hoy:   'Último pago registrado hoy',
+      dias:  (n) => `Último pago hace ${n} ${n === 1 ? 'día' : 'días'}`,
+      nunca: 'Sin registros todavía',
+    }) },
+  // SIN scopeSuffix, decisión de producto (owner, 2026-07-29): esto es una métrica
+  // de ESTADO ACTUAL — el saldo vigente que el mensajero anda cobrando ahora — y un
+  // saldo no lleva declaración de período. "(acumulado)" sugería una ventana
+  // temporal que no existe. El sufijo queda reservado a widgets con ventana real.
+  { key: 'por_cobrar',      titulo: 'Por cobrar',         subtitulo: 'Contraentrega despachada', icono: Wallet,     formato: 'cop', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.amber,         href: `/admin/ordenes?${POR_COBRAR_QUERY}` },
+  // Sin sub: "Salieron a ruta hoy" es la definición de despacho, o sea el título.
+  { key: 'despachos_hoy',   titulo: 'Despachos de hoy',   subtitulo: '', icono: Truck,        formato: 'int', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.sky,                  href: '/admin/entregas',
+    // Con fecha (no "hace N días"): para el que despacha, "desde el 24 jul" ubica
+    // mejor que un conteo de días. `formatFecha` es LA utilidad de fecha visible.
+    insight: (d) => insightUltimoEvento(d, {
+      hoy:   'Último despacho hoy',
+      dias:  (_n, fecha) => `Sin despachos desde ${formatFecha(fecha)}`,
+      nunca: 'Sin registros todavía',
+    }) },
+  { key: 'pedidos_hoy',     titulo: 'Pedidos de hoy',     subtitulo: 'Órdenes creadas hoy', icono: ShoppingCart, formato: 'int', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.blue,              href: (c) => `/admin/ordenes?desde=${c.today}&hasta=${c.today}`,
+    insight: (d) => insightUltimoEvento(d, {
+      hoy:   'Última orden creada hoy',
+      dias:  (n) => `Última orden hace ${n} ${n === 1 ? 'día' : 'días'}`,
+      nunca: 'Sin registros todavía',
+    }) },
   // ── Mes / operación ──
-  { key: 'ingresos_mes',       titulo: 'Ingresos del mes',   subtitulo: 'Mes en curso', icono: DollarSign,   formato: 'cop', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.emerald, href: (c) => `/admin/pagos?desde=${c.monthStart}&hasta=${c.today}` },
-  { key: 'ordenes_mes',        titulo: 'Órdenes del mes',    subtitulo: 'Mes en curso', icono: ShoppingCart, formato: 'int', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.blue,              href: (c) => `/admin/ordenes?${c.monthQuery}` },
-  { key: 'ordenes_pendientes', titulo: 'Órdenes Pendientes', subtitulo: 'Requieren atención', icono: Clock,   formato: 'int', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.amber,         href: `/admin/ordenes?${PENDING_ORDERS_QUERY}` },
-  { key: 'promedio_por_orden', titulo: 'Promedio por orden', subtitulo: 'Promedio por venta · mes', icono: TrendingUp, formato: 'cop', categoria: 'mes', defaultVisible: false, color: STAT_CHIP.sky },
+  // El sub nombra el PERÍODO y la fuente ("Pagos…", como ventas_hoy): el valor es
+  // del mes en curso y el histórico vive en su propio widget (ingresos_historicos).
+  { key: 'ingresos_mes',       titulo: 'Ingresos del mes',   subtitulo: 'Pagos del mes en curso', icono: DollarSign,   formato: 'cop', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.emerald, href: (c) => `/admin/pagos?desde=${c.monthStart}&hasta=${c.today}`, insight: widgetInsight },
+  // Sin sub: "Mes en curso" repetía el título. La línea que queda bajo el valor es
+  // el insight, que sí agrega algo (tendencia o por qué todavía no hay tendencia).
+  { key: 'ordenes_mes',        titulo: 'Órdenes del mes',    subtitulo: '', icono: ShoppingCart, formato: 'int', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.blue,              href: (c) => `/admin/ordenes?${c.monthQuery}`, insight: widgetInsight },
+  // También SIN scopeSuffix (mismo motivo: es el conteo vigente, no un período). Lo
+  // que mantiene coherente el par con "Por cobrar" es el cross-reference del sub en
+  // vivo ("· N por cobrar aparte"), no una etiqueta de scope — ver CLAUDE.md
+  // § Por cobrar vs Pendientes.
+  { key: 'ordenes_pendientes', titulo: 'Órdenes Pendientes', subtitulo: 'Sin pago registrado', icono: Clock,   formato: 'int', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.amber,         href: `/admin/ordenes?${PENDING_ORDERS_QUERY}` },
+  // El sub dice la BASE real del promedio: se divide por PAGOS registrados, no por
+  // órdenes (el título es heredado). "Promedio por venta" solo repetía el título.
+  { key: 'promedio_por_orden', titulo: 'Promedio por orden', subtitulo: 'Por pago registrado · mes en curso', icono: TrendingUp, formato: 'cop', categoria: 'mes', defaultVisible: false, color: STAT_CHIP.sky },
+  // ── Histórico ──
+  // El all-time que salió del sub de "Ingresos del mes": una cifra histórica no
+  // admite flecha mes-contra-mes, así que como widget propio queda sin trend y
+  // con su período dicho en el sub ("Desde {primera fecha}"). Off por defecto —
+  // quien lo quiera lo activa en Personalizar.
+  { key: 'ingresos_historicos', titulo: 'Ingresos históricos', subtitulo: 'Todos los pagos registrados', icono: Coins, formato: 'cop', categoria: 'historico', defaultVisible: false, color: STAT_CHIP.emerald, href: '/admin/pagos' },
   // ── Inventario ──
   { key: 'alertas_stock',    titulo: 'Alertas de Stock',   subtitulo: 'Productos bajo mínimo', icono: AlertTriangle, formato: 'int', categoria: 'inventario', defaultVisible: true,  color: STAT_CHIP.alert,        href: `/admin/inventario?${LOW_STOCK_QUERY}` },
-  { key: 'productos_activos', titulo: 'Productos Activos',  subtitulo: 'En catálogo', icono: Package,          formato: 'int', categoria: 'inventario', defaultVisible: false, color: STAT_CHIP.orange },
+  // Sin sub: "En catálogo" repetía "Productos Activos".
+  { key: 'productos_activos', titulo: 'Productos Activos',  subtitulo: '', icono: Package,          formato: 'int', categoria: 'inventario', defaultVisible: false, color: STAT_CHIP.orange },
   // ── Clientes ──
-  { key: 'clientes_totales',    titulo: 'Clientes Totales',    subtitulo: 'Registrados', icono: Users,        formato: 'int', categoria: 'clientes', defaultVisible: false, color: STAT_CHIP.violet, href: '/admin/clientes' },
+  // Sin sub: "Registrados" repetía "Clientes Totales".
+  { key: 'clientes_totales',    titulo: 'Clientes Totales',    subtitulo: '', icono: Users,        formato: 'int', categoria: 'clientes', defaultVisible: false, color: STAT_CHIP.violet, href: '/admin/clientes' },
   { key: 'clientes_recurrentes', titulo: 'Clientes Recurrentes', subtitulo: 'con más de 1 compra', icono: TrendingUp, formato: 'pct', categoria: 'clientes', defaultVisible: false, color: STAT_CHIP.pink, href: '/admin/clientes?recurrentes=1' },
 ];
 
