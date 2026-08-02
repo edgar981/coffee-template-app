@@ -39,12 +39,23 @@ layout NO monta ThemeProvider. `color-scheme` sigue al tema vía CSS
   hasta que `main` la aplique. Tradeoff aceptado frente al inverso —
   que una rama de feature migre la DB compartida antes de que `main`
   tenga el código.
-- CONFIRMADO por el owner (2026-07-25): preview y producción COMPARTEN
-  la misma base de Neon. La variante condicionada es por tanto la
-  correcta — NO quitar la condición mientras esto siga así. Corolario:
-  cualquier `migrate dev` o seed corrido desde local contra esa base
-  también la toca — verificar a qué apunta `.env` antes de escrituras
-  de prueba.
+- ⚠️ **QUÉ BASE ES PRODUCCIÓN** — verificado 2026-08-02 leyendo `process.env`
+  DESDE el deployment (`VERCEL_ENV=production`), no desde `.env`:
+  **`ep-ancient-frog-ac1v1hg5`** (pooled en `DATABASE_URL`, directo en
+  `DIRECT_DATABASE_URL`). El `.env` LOCAL apunta al MISMO endpoint, así
+  que **el dev server, los scripts con `--env-file`, `prisma db execute`
+  y los seeds escriben EN PRODUCCIÓN**. No hay base de desarrollo hoy.
+  - `ep-solitary-mouse-ac140cla` (línea comentada en `.env`) **NO es
+    producción**: base vieja, congelada el 2026-07-24. Inspeccionarla
+    creyendo lo contrario fabrica incidentes falsos — pasó el 2026-08-02
+    ("faltan 6 migraciones" cuando producción estaba 33/33).
+  - COROLARIO: "resetear la rama de dev desde el parent en Neon" sobre
+    `ep-ancient-frog` **es borrar producción**. Verificar el host contra
+    el deployment antes de cualquier reset o escritura de prueba; la
+    etiqueta que alguien le ponga a una rama no es evidencia.
+  - Preview hereda las env vars de producción salvo override, así que
+    preview y producción comparten base mientras eso siga así — de ahí
+    que el `migrate deploy` condicionado siga siendo lo correcto.
 - `vercel.json#buildCommand` ANULA el script `build` de package.json —
   incidente 2026-07-25: decía `prisma generate && next build` y el
   `migrate deploy` condicionado nunca corrió en Vercel. Debe quedarse en
