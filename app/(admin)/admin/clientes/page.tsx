@@ -40,6 +40,10 @@ function ClientesInner() {
   // Customer pending deletion (drives the shared confirm dialog). Only customers
   // with zero orders ever reach here — see the row action gate below.
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
+  // Guardado en curso. Este modal no tenía NINGÚN estado de progreso: el botón
+  // seguía habilitado y diciendo "Guardar" durante toda la mutación, así que un
+  // segundo clic disparaba una segunda creación.
+  const [guardando, setGuardando] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   // `?recurrentes=1` (from the dashboard "Clientes Recurrentes" card) shows only
@@ -93,11 +97,13 @@ function ClientesInner() {
   };
 
   const handleSave = async () => {
+    if (guardando) return;                  // clic repetido mientras ya se guarda
     if (!form.nombre) { toast.error('El nombre es requerido'); return; }
 
     // Cierre SOLO tras confirmación del server; si falla, el modal se queda
     // abierto con lo que el operador escribió. Antes no había try/catch: un
     // fallo rechazaba la promesa en silencio y el formulario quedaba mudo.
+    setGuardando(true);
     try {
       if (editing) {
         const updated = await updateCustomer(editing.id, form);
@@ -111,6 +117,8 @@ function ClientesInner() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'No se pudo guardar el cliente');
       return;
+    } finally {
+      setGuardando(false);
     }
 
     setShowForm(false);
@@ -399,7 +407,9 @@ function ClientesInner() {
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={!form.nombre}>Guardar</Button>
+            <Button onClick={handleSave} disabled={guardando || !form.nombre}>
+              {guardando ? 'Guardando…' : 'Guardar'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

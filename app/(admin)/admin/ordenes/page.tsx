@@ -990,19 +990,26 @@ interface OrderDetailProps {
 function OrderDetail({ order, onClose, onUpdate, onRegisterPayment }: OrderDetailProps) {
   const [estado, setEstado] = useState<OrderStatus>(order.estado);
   const [notas, setNotas]   = useState(order.notas_internas ?? '');
+  // Igual que el modal de Cliente: no tenía estado de progreso, así que el
+  // botón quedaba habilitado durante toda la mutación.
+  const [guardando, setGuardando] = useState(false);
 
   const handleUpdate = async () => {
+    if (guardando) return;                  // clic repetido mientras ya se guarda
     // Cierre SOLO tras confirmación. El server rechaza transiciones inválidas
     // (409 de condición de pago bloqueada, entre otras) y ese mensaje tiene que
     // llegarle al operador con el detalle todavía abierto: antes la llamada no
     // estaba en try/catch y un rechazo dejaba el modal abierto pero sin decir
     // nada, indistinguible de "no pasó nada".
     let updated: Order;
+    setGuardando(true);
     try {
       updated = await updateOrder(order.id, { estado, notas_internas: notas });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'No se pudo actualizar la orden');
       return;
+    } finally {
+      setGuardando(false);
     }
     toast.success('Orden actualizada');
     onUpdate(updated);
@@ -1112,7 +1119,9 @@ function OrderDetail({ order, onClose, onUpdate, onRegisterPayment }: OrderDetai
             className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background min-h-20 resize-none"
           />
         </div>
-        <Button onClick={handleUpdate} className="w-full">Guardar Cambios</Button>
+        <Button onClick={handleUpdate} disabled={guardando} className="w-full">
+          {guardando ? 'Guardando…' : 'Guardar Cambios'}
+        </Button>
       </div>
     </div>
   );

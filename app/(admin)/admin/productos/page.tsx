@@ -76,7 +76,12 @@ function ProductosInner() {
   // huérfanos en el store. El preview es un object URL local, gratis y revocable.
   const [imagenFile, setImagenFile]       = useState<File | null>(null);
   const [imagenPreview, setImagenPreview] = useState<string>('');
-  const [subiendo, setSubiendo]           = useState(false);
+  // Fase del guardado, para que el botón diga qué está pasando DURANTE toda la
+  // mutación y no solo durante la subida. Antes esto era un `subiendo` que
+  // cubría únicamente el upload: al entrar al write de la base el botón volvía a
+  // "Guardar" habilitado, así que el tramo más largo se veía como si no pasara
+  // nada — y admitía un segundo clic que dispararía una segunda mutación.
+  const [fase, setFase] = useState<null | 'subiendo' | 'guardando'>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Object URL vivo, en un ref y no en estado. Un object URL retiene el File en
   // memoria hasta que se revoca, así que hay que revocarlo — pero NO desde un
@@ -242,66 +247,64 @@ function ProductosInner() {
     router.replace('/admin/productos', { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productos, searchParams]);
-
   const handleSave = async () => {
+    if (fase) return;                        // clic repetido mientras ya se guarda
     if (!form.categoria) { toast.error('Selecciona una categoría'); return; }
 
-    // Orden deliberado: subir → guardar. Si la subida falla no se toca el
-    // producto; si el producto falla, el blob nuevo queda huérfano (basura
-    // barata) pero la imagen vieja sigue siendo la buena. El blob REEMPLAZADO lo
-    // borra el server dentro del PATCH, que es quien sabe cuál era el anterior.
     // Guarda cliente del tope; la que MANDA es la del endpoint.
     if (totalGaleria > MAX_GALERIA_IMAGENES) {
       toast.error(`La galería admite máximo ${MAX_GALERIA_IMAGENES} imágenes adicionales.`);
       return;
     }
 
+    // Orden deliberado: subir → guardar. Si la subida falla no se toca el
+    // producto; si el producto falla, el blob nuevo queda huérfano (basura
+    // barata) pero la imagen vieja sigue siendo la buena. El blob REEMPLAZADO lo
+    // borra el server dentro del PATCH, que es quien sabe cuál era el anterior.
+    //
+    // Las dos etapas van bajo UNA sola `fase`, así el botón queda deshabilitado
+    // y diciendo qué pasa de punta a punta. `etapa` solo sirve para que el
+    // mensaje de error nombre la que falló.
     let imagenUrl = form.imagen;
     const galeriaSubidas: string[] = [];
-    if (imagenFile || galeriaPendiente.length > 0) {
-      setSubiendo(true);
-      try {
+    let etapa: 'subiendo' | 'guardando' = 'subiendo';
+
+    try {
+      if (imagenFile || galeriaPendiente.length > 0) {
+        setFase('subiendo');
         if (imagenFile) imagenUrl = (await uploadImagen(imagenFile)).url;
         // En serie y no en paralelo: son pocas y así el primer fallo corta sin
         // dejar a medias un lote grande de blobs sin producto que los referencie.
         for (const { file } of galeriaPendiente) {
           galeriaSubidas.push((await uploadImagen(file)).url);
         }
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : 'No se pudo subir la imagen');
-        return;
-      } finally {
-        setSubiendo(false);
       }
-    }
 
-    const data = {
-      nombre:      form.nombre,
-      descripcion: form.descripcion,
-      categoria:   form.categoria as ProductCategory,
-      precio:      Number(form.precio),
-      costo:       Number(form.costo),
-      sku:         form.sku,
-      stock:       Number(form.stock),
-      stock_minimo: Number(form.stock_minimo),
-      activo:      form.activo,
-      peso_gramos: form.peso_gramos ? Number(form.peso_gramos) : undefined,
-      variante:    form.variante   || undefined,
-      origen:      form.origen     || undefined,
-      tostado:     (form.tostado   || undefined) as RoastLevel | undefined,
-      slug:        form.slug,
-      imagen:      imagenUrl,
-      // Lo que ya estaba (menos lo que el operador quitó) + lo recién subido.
-      // El orden es el de subida: v1 no tiene reordenamiento.
-      imagenes:    [...galeriaActual, ...galeriaSubidas],
-    };
+      const data = {
+        nombre:      form.nombre,
+        descripcion: form.descripcion,
+        categoria:   form.categoria as ProductCategory,
+        precio:      Number(form.precio),
+        costo:       Number(form.costo),
+        sku:         form.sku,
+        stock:       Number(form.stock),
+        stock_minimo: Number(form.stock_minimo),
+        activo:      form.activo,
+        peso_gramos: form.peso_gramos ? Number(form.peso_gramos) : undefined,
+        variante:    form.variante   || undefined,
+        origen:      form.origen     || undefined,
+        tostado:     (form.tostado   || undefined) as RoastLevel | undefined,
+        slug:        form.slug,
+        imagen:      imagenUrl,
+        // Lo que ya estaba (menos lo que el operador quitó) + lo recién subido.
+        // El orden es el de subida: v1 no tiene reordenamiento.
+        imagenes:    [...galeriaActual, ...galeriaSubidas],
+      };
 
-    // El cierre ocurre SOLO tras confirmación del server. Si falla, el modal se
-    // queda abierto con los datos intactos y el error a la vista: antes esta
-    // llamada estaba fuera del try, así que un 500 rechazaba la promesa sin que
-    // nadie la capturara — ni toast ni cierre, el operador se quedaba mirando un
-    // formulario mudo sin saber si había guardado.
-    try {
+      // El cierre ocurre SOLO tras confirmación del server. Si falla, el modal
+      // se queda abierto con los datos intactos y el error a la vista.
+      etapa = 'guardando';
+      setFase('guardando');
       if (editing) {
         const updated = await updateProduct(editing.id, data);
         setProductos(prev => prev.map(p => p.id === editing.id ? updated : p));
@@ -312,8 +315,14 @@ function ProductosInner() {
         toast.success('Producto creado');
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'No se pudo guardar el producto');
+      toast.error(
+        e instanceof Error ? e.message
+        : etapa === 'subiendo' ? 'No se pudo subir la imagen'
+        : 'No se pudo guardar el producto',
+      );
       return;
+    } finally {
+      setFase(null);
     }
 
     // El toast de éxito ya se disparó arriba: el operador lo ve aparecer con el
@@ -607,8 +616,8 @@ function ProductosInner() {
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={subiendo || !form.nombre || !form.categoria || !form.precio}>
-              {subiendo ? 'Subiendo imagen…' : 'Guardar'}
+            <Button onClick={handleSave} disabled={!!fase || !form.nombre || !form.categoria || !form.precio}>
+              {fase === 'subiendo' ? 'Subiendo imagen…' : fase === 'guardando' ? 'Guardando…' : 'Guardar'}
             </Button>
           </div>
         </DialogContent>
