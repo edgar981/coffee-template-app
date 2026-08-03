@@ -18,6 +18,7 @@ import { formatCOP } from '@/lib/utils';
 import { uploadImagen } from '@/lib/api/upload';
 import { ACCEPT_IMAGENES, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
 import { MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
+import { ImageLightbox, THUMB_INSPECCIONABLE } from '@/components/admin/ImageLightbox';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -65,6 +66,10 @@ function ProductosInner() {
     const matchCat = catFilter === 'all' || p.categoria === catFilter;
     return matchSearch && matchCat;
   });
+
+  // Imagen abierta en el lightbox de inspección (portada o galería, guardada o
+  // pendiente). `null` = overlay cerrado.
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
   // Imagen elegida pero AÚN NO SUBIDA. El upload ocurre al guardar, no al
   // seleccionar: un formulario que se abandona a medias no puede dejar blobs
@@ -483,10 +488,17 @@ function ProductosInner() {
               <div className="mt-1 flex items-start gap-4">
                 <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
                   {imagenPreview ? (
-                    // Preview: `img` y no `next/image` a propósito — un `blob:`
-                    // local no lo puede optimizar el servidor de imágenes.
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={imagenPreview} alt="Vista previa" className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setLightbox({ src: imagenPreview, alt: 'Portada del producto' })}
+                      aria-label="Ver la portada en grande"
+                      className={`block h-full w-full ${THUMB_INSPECCIONABLE}`}
+                    >
+                      {/* Preview: `img` y no `next/image` a propósito — un `blob:`
+                          local no lo puede optimizar el servidor de imágenes. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={imagenPreview} alt="Vista previa" className="h-full w-full object-cover" />
+                    </button>
                   ) : (
                     <div className="flex h-full w-full items-center justify-center">
                       <ImageIcon className="h-7 w-7 text-muted-foreground/50" />
@@ -530,7 +542,14 @@ function ProductosInner() {
                 <div className="mt-2 flex flex-wrap gap-2">
                   {galeriaActual.map(url => (
                     <figure key={url} className="group relative h-20 w-20 overflow-hidden rounded-lg border border-border bg-muted">
-                      <Image src={url} alt="" fill sizes="80px" className="object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setLightbox({ src: url, alt: 'Imagen de la galería' })}
+                        aria-label="Ver esta imagen de la galería en grande"
+                        className={`absolute inset-0 ${THUMB_INSPECCIONABLE}`}
+                      >
+                        <Image src={url} alt="" fill sizes="80px" className="object-cover" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => quitarGuardada(url)}
@@ -545,8 +564,15 @@ function ProductosInner() {
                     <figure key={preview} className="group relative h-20 w-20 overflow-hidden rounded-lg border border-dashed border-primary/50 bg-muted">
                       {/* `img` y no next/image: un `blob:` local no lo puede
                           optimizar el servidor de imágenes. */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={preview} alt={file.name} className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setLightbox({ src: preview, alt: file.name })}
+                        aria-label={`Ver ${file.name} en grande`}
+                        className={`block h-full w-full ${THUMB_INSPECCIONABLE}`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={preview} alt={file.name} className="h-full w-full object-cover" />
+                      </button>
                       <span className="absolute inset-x-0 bottom-0 bg-background/85 py-0.5 text-center text-[10px] text-muted-foreground">
                         Sin subir
                       </span>
@@ -607,6 +633,14 @@ function ProductosInner() {
           : undefined}
       />
 
+      {/* Inspección de una miniatura. Se monta fuera del formulario para que su
+          Dialog no quede anidado dentro del otro — dos Dialog anidados se pelean
+          el foco y el Esc cerraría los dos. */}
+      <ImageLightbox
+        src={lightbox?.src ?? null}
+        alt={lightbox?.alt}
+        onClose={() => setLightbox(null)}
+      />
     </div>
   );
 }
