@@ -55,6 +55,13 @@ export async function sendInvitationEmail({ to, name, link }: SendInvitationEmai
   });
 
   if (error) {
-    throw new Error(`No se pudo enviar la invitación (Resend): ${error.message ?? "error desconocido"}`);
+    // La respuesta de error de Resend (`{ name, message, statusCode }`) viaja como
+    // `cause`: el mensaje solo se quedaba con `message` y tiraba el resto, que es
+    // justo lo que distingue una API key inválida/restringida (401/403) de un
+    // dominio sin verificar o un payload rechazado (422).
+    throw new Error(
+      `No se pudo enviar la invitación (Resend): ${error.message ?? "error desconocido"}`,
+      { cause: error },
+    );
   }
 }

@@ -58,7 +58,28 @@ export async function POST(req: NextRequest) {
 
   try {
     await sendInvitationEmail({ to: normalizedEmail, name: name.trim(), link });
-  } catch {
+  } catch (e) {
+    // OBSERVABILIDAD. Este catch venía sin binding: se tragaba el error entero y
+    // un 500 acá no dejaba NADA en los runtime logs, así que no había forma de
+    // saber si el envío murió por configuración, por la API key o por el payload.
+    // No cambia el comportamiento del response — solo deja rastro.
+    console.error("[users/invite] falló el envío de la invitación", {
+      email: normalizedEmail,
+      invitationId: invitation.id,
+      // `cause` trae la respuesta de error de Resend cuando la llamada llegó a
+      // completarse: { name, message, statusCode }. Si viene `undefined`, ni
+      // siquiera hubo respuesta (config ausente, red, DNS) y el error de abajo
+      // es el que lo explica.
+      resend: (e as { cause?: unknown }).cause,
+      error: e,
+      // Discriminan las hipótesis sin exponer secretos: presencia (no valor) de
+      // la config de correo, y el origin del que se armó el enlace.
+      tieneResendApiKey: Boolean(process.env.RESEND_API_KEY),
+      emailFrom: process.env.EMAIL_FROM ?? null,
+      origin,
+      // OJO: nunca loguear `link` ni `token` — el enlace es la credencial que
+      // da acceso al panel, y los runtime logs no son un lugar para eso.
+    });
     // Don't leave a live, un-retryable invite behind if the email never went out
     await prisma.invitation.delete({ where: { id: invitation.id } });
     return NextResponse.json({ error: "No se pudo enviar la invitación" }, { status: 500 });
