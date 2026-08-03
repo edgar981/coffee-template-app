@@ -47,8 +47,20 @@ export async function POST(req: NextRequest) {
     createdUserId = created.user.id;
   } catch (e) {
     const code = (e as { body?: { code?: string } })?.body?.code;
-    const message = (code && PASSWORD_ERROR_MESSAGES[code]) || "No se pudo crear la cuenta";
-    return NextResponse.json({ error: message }, { status: 400 });
+    const conocido = code ? PASSWORD_ERROR_MESSAGES[code] : undefined;
+    // Un código CONOCIDO es una contraseña que el usuario debe corregir: no se
+    // loguea, es ruido. Uno desconocido no es validación — es un error real que
+    // estaríamos aplanando a un 400 genérico, que es justo cómo se pierde una
+    // tarde depurando (ver el 500 mudo de /api/users/invite).
+    if (!conocido) {
+      console.error("[users/accept-invite] signUpEmail falló con un error no mapeado", {
+        email: invitation.email,
+        invitationId: invitation.id,
+        code: code ?? null,
+        error: e,
+      });
+    }
+    return NextResponse.json({ error: conocido || "No se pudo crear la cuenta" }, { status: 400 });
   }
 
   try {
@@ -58,7 +70,17 @@ export async function POST(req: NextRequest) {
       prisma.user.update({ where: { id: createdUserId }, data: { role: invitation.role } }),
       prisma.invitation.update({ where: { id: invitation.id }, data: { usedAt: new Date() } }),
     ]);
-  } catch {
+  } catch (e) {
+    // MISMO patrón que tenía /api/users/invite: catch sin binding, compensación
+    // y 500 genérico. Es el paso siguiente del mismo flujo, así que sin este log
+    // el invitado ve "intenta de nuevo" para siempre y nosotros no vemos nada.
+    console.error("[users/accept-invite] falló la asignación de rol / marcado de la invitación", {
+      email: invitation.email,
+      invitationId: invitation.id,
+      createdUserId,
+      rol: invitation.role,
+      error: e,
+    });
     // Roll back the user so the invite stays valid and can be retried, instead of
     // leaving a half-provisioned account (wrong role, invite never marked used)
     await prisma.user.deleteMany({ where: { id: createdUserId } });

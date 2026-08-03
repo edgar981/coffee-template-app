@@ -179,6 +179,31 @@ storefront, y el número real exige **conteo físico del cliente**. Ajustar en l
 sesión con el cliente, antes de abrir ventas. Hasta entonces, cualquier métrica
 de inventario o alerta de stock bajo está leyendo datos inventados.
 
+## Env vars en Vercel — SIN comillas
+
+El dashboard de Vercel **no parsea** el valor: lo guarda literal. Las comillas
+de un archivo `.env` son sintaxis que el parser de dotenv quita; pegar una línea
+de `.env` en el dashboard deja **las comillas dentro del valor**.
+
+Incidente 2026-08-03: `EMAIL_FROM` quedó como `"Café Nayoli
+<no-reply@duna.solutions>"` con comillas literales. Resend rechazaba el
+remitente y `/api/users/invite` devolvía un 500 sin nada en runtime logs (ese
+catch venía sin binding — ya está instrumentado). Costó una tarde porque el
+síntoma no apunta a la causa: se lee como problema de la API key o del dominio.
+
+- **Regla: en el dashboard, el valor va crudo.** `Café Nayoli
+  <no-reply@duna.solutions>`, no `"Café Nayoli <no-reply@duna.solutions>"`.
+- Aplica a TODAS, no solo al correo. Una API key entre comillas da un 401 que
+  se lee como "key inválida" en vez de "key mal pegada".
+- `lib/email.ts` recorta comillas envolventes de `EMAIL_FROM` y
+  `RESEND_API_KEY` y **avisa por log** cuando lo hace. La limpieza es una red,
+  no un permiso: si aparece ese `[env]` en los logs, hay que arreglar el
+  dashboard igual — aceptarlo en silencio dejaría la config mal para siempre.
+- El formato de `EMAIL_FROM` se valida (`algo@dominio.com` o
+  `Nombre <algo@dominio.com>`) y se loguea con `console.error` si no matchea,
+  **sin lanzar**: el regex podría ser más estricto que Resend, y tumbar un envío
+  que funcionaba es peor que uno que falla dejando rastro.
+
 ## Migraciones y deploy
 
 - Las migraciones de PRODUCCIÓN las aplica el build de Vercel

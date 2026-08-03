@@ -11,9 +11,52 @@ interface SendInvitationEmailArgs {
 // In non-production without those vars we fall back to logging the link, so
 // local dev and previews work without a Resend account; in production a missing
 // config throws loudly instead of silently dropping the invite.
+/**
+ * Lee una env var tolerando COMILLAS ENVOLVENTES.
+ *
+ * En un archivo `.env` las comillas son sintaxis y el parser las quita; el panel
+ * de Vercel NO parsea nada: guarda el valor literal. Pegar ahí una línea de
+ * `.env` deja las comillas DENTRO del valor, y el síntoma es opaco —
+ * `EMAIL_FROM` con comillas hace que Resend rechace el remitente, y una API key
+ * entre comillas da un 401 que se lee como "key inválida" en vez de "key mal
+ * pegada". Costó una tarde el 2026-08-03.
+ *
+ * Se limpia Y se avisa: aceptar el valor en silencio dejaría el dashboard mal
+ * configurado para siempre y nadie se enteraría.
+ */
+function envSinComillas(nombre: string): string | undefined {
+  const bruto = process.env[nombre];
+  if (!bruto) return undefined;
+
+  const recortado = bruto.trim();
+  const limpio = recortado.replace(/^(["'])([\s\S]*)\1$/, "$2").trim();
+
+  if (limpio !== recortado) {
+    console.warn(
+      `[env] ${nombre} venía entre comillas y se limpiaron. Las env vars de Vercel ` +
+      `se guardan literales: el valor va SIN comillas. Corrígelo en el dashboard.`,
+    );
+  }
+  return limpio || undefined;
+}
+
+/** `algo@dominio.com` o `Nombre <algo@dominio.com>` — lo que acepta Resend. */
+const EMAIL_FROM_RE = /^(?:[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+|[^<>]+<[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+>)$/;
+
 export async function sendInvitationEmail({ to, name, link }: SendInvitationEmailArgs) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
+  const apiKey = envSinComillas("RESEND_API_KEY");
+  const from = envSinComillas("EMAIL_FROM");
+
+  // Grita ANTES de gastar la llamada: si el formato no matchea, el error de
+  // Resend llega como un 422 genérico que no dice cuál de las dos cosas falló.
+  // No se lanza a propósito — el regex podría ser más estricto que Resend, y
+  // tumbar un envío que sí funcionaba es peor que un envío que falla con log.
+  if (from && !EMAIL_FROM_RE.test(from)) {
+    console.error(
+      `[env] EMAIL_FROM no tiene un formato de remitente válido: ${JSON.stringify(from)}. ` +
+      `Se espera "algo@dominio.com" o "Nombre <algo@dominio.com>", sin comillas envolventes.`,
+    );
+  }
 
   if (!apiKey || !from) {
     if (process.env.NODE_ENV === "production") {
