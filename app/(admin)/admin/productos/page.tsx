@@ -72,14 +72,29 @@ function ProductosInner() {
   const [imagenPreview, setImagenPreview] = useState<string>('');
   const [subiendo, setSubiendo]           = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Object URL vivo, en un ref y no en estado. Un object URL retiene el File en
+  // memoria hasta que se revoca, así que hay que revocarlo — pero NO desde un
+  // efecto con `imagenPreview` en las dependencias: con Strict Mode (activo por
+  // defecto en el app router) React monta, desmonta y vuelve a montar, y ese
+  // cleanup revocaba la URL recién creada. El preview sobrevivía solo si el
+  // navegador alcanzaba a cargar el blob antes del revoke; cuando perdía la
+  // carrera, el slot quedaba vacío. Con el ref, revocar es explícito: al
+  // reemplazar la selección y al desmontar de verdad.
+  const objectUrlRef = useRef<string>('');
 
-  // Un object URL retiene el File en memoria hasta que se revoca.
-  useEffect(() => {
-    if (!imagenPreview.startsWith('blob:')) return;
-    return () => URL.revokeObjectURL(imagenPreview);
-  }, [imagenPreview]);
+  const revocarObjectUrl = () => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = '';
+    }
+  };
+
+  // Único efecto: soltar la URL viva cuando la página se va. En el ciclo doble de
+  // Strict Mode el ref todavía está vacío, así que no revoca nada.
+  useEffect(() => revocarObjectUrl, []);
 
   const limpiarImagen = () => {
+    revocarObjectUrl();
     setImagenFile(null);
     setImagenPreview('');
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -100,8 +115,13 @@ function ProductosInner() {
       e.target.value = '';
       return;
     }
+    // Reemplaza la selección anterior: se suelta su object URL antes de crear el
+    // nuevo, para que elegir archivo varias veces no acumule blobs retenidos.
+    revocarObjectUrl();
+    const url = URL.createObjectURL(file);
+    objectUrlRef.current = url;
     setImagenFile(file);
-    setImagenPreview(URL.createObjectURL(file));
+    setImagenPreview(url);
   };
 
   const openNew  = () => { setEditing(null); setForm(EMPTY_PRODUCT_FORM); limpiarImagen(); setShowForm(true); };
