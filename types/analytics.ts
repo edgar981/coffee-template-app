@@ -36,9 +36,21 @@ export interface WeeklyActivityData {
   days: WeekData[];
 }
 
+/**
+ * Producto vendido, agregado desde OrderItem del año en curso (no canceladas).
+ * `producto` es el snapshot del nombre en la línea, que es lo que se vendió —
+ * puede no existir ya en el catálogo, y aun así la venta ocurrió.
+ */
+export interface TopProduct {
+  producto: string;
+  unidades: number;
+  ingresos: number;
+}
+
 export interface AnalyticsData {
   kpis:         AnalyticsKpis;
   salesByMonth: SalesByMonth[];
   canalData:    CanalData[];
   categoryData: CanalData[];
+  topProducts:  TopProduct[];
 }

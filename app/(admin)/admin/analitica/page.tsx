@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, PieChart, Pie, LineChart, Line, Legend,
@@ -10,26 +10,26 @@ import { formatCOP } from '@/lib/utils';
 import { getAnalytics, getWeeklyActivity } from '@/lib/api/analytics';
 import { ANALITICS_COLORS, tooltipStyle, axisTickStyle } from '@/constants/dashb-styles';
 import type { AnalyticsData, CanalData, WeeklyActivityData } from '@/types/analytics';
-import { EMPTY_ANALYTICS, productData } from '@/constants/analytics';
+import { EMPTY_ANALYTICS } from '@/constants/analytics';
 import { BUSINESS_TZ, startOfZonedDay, startOfZonedWeek, zonedDayKey } from '@/lib/timezone';
 
-// ─── Static fallback data (shown while loading) ───────────────────────────────
-
-const sortedProducts = [...productData].sort((a, b) => b.ventas - a.ventas);
-const maxVentas      = sortedProducts[0]?.ventas ?? 1;
-
 // ─── MetricCard ───────────────────────────────────────────────────────────────
+// SIN trend. Las cuatro tarjetas traían uno escrito a mano ("+149% vs 2023",
+// "+6.1% este mes", "+3.2%", "-1.2%") que no salía de ningún lado: números fijos
+// en el JSX que no se movían pasara lo que pasara con el negocio. Se eliminan en
+// vez de reemplazarse porque calcular la comparativa contra el período anterior
+// no es barato desde este endpoint, y eso es del rediseño diferido. Una tarjeta
+// sin trend es honesta; una con trend inventado entrena a desconfiar de la
+// página entera.
 
 interface MetricCardProps {
-  label:     string;
-  value:     string;
-  sub?:      string;
-  trend?:    string;
-  positive?: boolean;
-  loading?:  boolean;
+  label:    string;
+  value:    string;
+  sub?:     string;
+  loading?: boolean;
 }
 
-function MetricCard({ label, value, sub, trend, positive, loading }: MetricCardProps) {
+function MetricCard({ label, value, sub, loading }: MetricCardProps) {
   return (
     <div className="stat-card">
       <p className="text-xs text-muted-foreground mb-1">{label}</p>
@@ -39,14 +39,6 @@ function MetricCard({ label, value, sub, trend, positive, loading }: MetricCardP
         <p className="text-2xl font-bold">{value}</p>
       )}
       {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
-      {trend && !loading && (
-        <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${positive ? 'text-emerald-600' : 'text-red-500'}`}>
-          {positive
-            ? <ArrowUpRight className="w-3 h-3" />
-            : <ArrowDownRight className="w-3 h-3" />}
-          {trend}
-        </div>
-      )}
     </div>
   );
 }
@@ -171,7 +163,11 @@ export default function Analitica() {
       .finally(() => setLoading(false));
   }, []);
 
-  const { kpis, salesByMonth, canalData } = data;
+  const { kpis, salesByMonth, canalData, topProducts } = data;
+
+  // Ranking real: la barra se escala contra el más vendido de la lista.
+  const maxUnidades = topProducts[0]?.unidades ?? 1;
+  const sinVentas   = !loading && topProducts.length === 0;
 
   // Add fill colors to canal data
   const canalDataWithColors: CanalData[] = canalData.map((item, i) => ({
@@ -188,11 +184,14 @@ export default function Analitica() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard loading={loading} label="Ingresos Anuales"  value={formatCOP(kpis.totalRevenue)}   sub={`${kpis.totalOrders} órdenes`}      trend="+149% vs 2023"  positive />
+        <MetricCard loading={loading} label="Ingresos Anuales"  value={formatCOP(kpis.totalRevenue)}   sub={`${kpis.totalOrders} órdenes`} />
         {/* Mismo nombre que la tarjeta del Dashboard — una métrica, un nombre. */}
-        <MetricCard loading={loading} label="Promedio por orden" value={formatCOP(kpis.ticketPromedio)} sub="Por orden"                          trend="+6.1% este mes" positive />
-        <MetricCard loading={loading} label="Tasa Retención"    value={`${kpis.tasaRetencion}%`}       sub={`${kpis.totalCustomers} clientes`}   trend="+3.2%"          positive />
-        <MetricCard loading={loading} label="Margen Bruto Est." value={`${kpis.margenBruto}%`}         sub="Promedio portafolio"                 trend="-1.2%"          positive={kpis.margenBruto >= 50} />
+        <MetricCard loading={loading} label="Promedio por orden" value={formatCOP(kpis.ticketPromedio)} sub="Por orden" />
+        {/* El sub DECLARA la fórmula: el número es recurrentes/total, el mismo
+            corte que la Tasa Recurrencia de Clientes. Sin eso, "Retención" a
+            secas se lee como cualquier cosa. */}
+        <MetricCard loading={loading} label="Tasa Retención"    value={`${kpis.tasaRetencion}%`}       sub={`Con más de 1 compra · ${kpis.totalCustomers} clientes`} />
+        <MetricCard loading={loading} label="Margen Bruto Est." value={`${kpis.margenBruto}%`}         sub="Promedio portafolio" />
       </div>
 
       {/* Revenue trend + channels */}
@@ -264,25 +263,31 @@ export default function Analitica() {
         <div className="bg-card border border-border rounded-xl p-5">
           <h3 className="font-semibold mb-1">Productos Más Vendidos</h3>
           <p className="text-xs text-muted-foreground mb-4">Ranking por unidades vendidas</p>
-          <div className="space-y-3">
-            {sortedProducts.map((p, i) => {
-              const pct = Math.round((p.ventas / maxVentas) * 100);
-              return (
-                <div key={p.producto}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="font-medium truncate">{p.producto}</span>
-                    <span className="text-muted-foreground ml-2 shrink-0">{p.ventas} uds</span>
+          {sinVentas ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Sin ventas registradas todavía.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {topProducts.map((p, i) => {
+                const pct = Math.round((p.unidades / maxUnidades) * 100);
+                return (
+                  <div key={p.producto}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="font-medium truncate">{p.producto}</span>
+                      <span className="text-muted-foreground ml-2 shrink-0">{p.unidades} uds</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-1.5">
+                      <div
+                        className="h-1.5 rounded-full"
+                        style={{ width: `${pct}%`, background: ANALITICS_COLORS[i % ANALITICS_COLORS.length] }}
+                      />
+                    </div>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-1.5">
-                    <div
-                      className="h-1.5 rounded-full"
-                      style={{ width: `${pct}%`, background: ANALITICS_COLORS[i] }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -290,8 +295,13 @@ export default function Analitica() {
       <div className="bg-card border border-border rounded-xl p-5">
         <h3 className="font-semibold mb-1">Ingresos por Producto</h3>
         <p className="text-xs text-muted-foreground mb-4">Comparativa de ingresos totales</p>
+        {sinVentas ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            Sin ventas registradas todavía.
+          </p>
+        ) : (
         <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={productData} layout="vertical" barSize={18}>
+          <BarChart data={topProducts} layout="vertical" barSize={18}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
             <XAxis
               type="number"
@@ -311,6 +321,7 @@ export default function Analitica() {
             <Bar dataKey="ingresos" fill="hsl(var(--chart-1))" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
+        )}
       </div>
     </div>
   );

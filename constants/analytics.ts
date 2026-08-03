@@ -10,13 +10,12 @@ export const EMPTY_ANALYTICS: AnalyticsData = {
     .map(mes => ({ mes, ventas: 0, ordenes: 0 })),
   canalData: [],
   categoryData: [],
+  topProducts: [],
 };
 
-export const productData = [
-  { producto: 'Café Bolsa 250g',     ventas: 245, ingresos: 20825000 },
-  { producto: 'Café Grano 500g',     ventas: 178, ingresos: 24920000 },
-  { producto: 'Cold Brew 500ml',     ventas: 134, ingresos: 14740000 },
-  { producto: 'Caja Regalo Esp.',    ventas:  89, ingresos: 18690000 },
-  { producto: 'Suscripción Mensual', ventas:  67, ingresos: 30150000 },
-  { producto: 'Café Molido 250g',    ventas: 201, ingresos: 15075000 },
-];
+// `productData` (fixture de 6 productos con ventas e ingresos inventados) se
+// eliminó: pintaba "Productos Más Vendidos" e "Ingresos por Producto" con
+// nombres que ni siquiera están en el catálogo ("Café Bolsa 250g", "Cold Brew
+// 500ml"). Ambas secciones leen ahora `topProducts` del endpoint, agregado desde
+// OrderItem. No reintroducir datos de ejemplo acá: con la base limpia lo
+// correcto es el estado vacío, no un catálogo imaginario.

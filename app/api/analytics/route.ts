@@ -32,7 +32,11 @@ export async function GET() {
     // keep the name to resolve the category by fallback below.
     prisma.orderItem.findMany({
       where:  { order: { createdAt: { gte: yearStart }, estado: { not: 'cancelado' } } },
-      select: { subtotal: true, producto_nombre: true, product: { select: { categoria: true } } },
+      // `cantidad` se suma acá para el ranking de productos: es UNA columna más
+      // sobre la consulta que ya se hacía para el desglose por categoría, no una
+      // consulta nueva. Antes ese ranking (y el gráfico de ingresos por
+      // producto) se pintaban con un fixture del repo.
+      select: { subtotal: true, cantidad: true, producto_nombre: true, product: { select: { categoria: true } } },
     }),
     prisma.product.findMany({ select: { nombre: true, categoria: true } }),
     // Recurrentes uses the SHARED "N órdenes" definition (non-cancelled), not the
@@ -115,6 +119,30 @@ export async function GET() {
     }))
     .sort((a, b) => b.value - a.value);
 
+  // ── Top productos ──────────────────────────────────────────────────────────
+  // Ranking REAL por unidades, del mismo lote de line items de arriba. Se agrupa
+  // por `producto_nombre` (el snapshot de la línea) y no por `producto_id`,
+  // porque un item viejo puede no tener FK y aun así representa una venta que
+  // ocurrió; agrupar por id perdería esas unidades.
+  //
+  // Alimenta DOS secciones —"Productos Más Vendidos" (unidades) e "Ingresos por
+  // Producto" (subtotal)— que antes se pintaban con `constants/analytics`, un
+  // fixture con productos que ni siquiera existen en el catálogo.
+
+  const porProducto = orderItems.reduce<Record<string, { unidades: number; ingresos: number }>>((acc, it) => {
+    const clave = it.producto_nombre;
+    acc[clave] ??= { unidades: 0, ingresos: 0 };
+    acc[clave].unidades += it.cantidad;
+    acc[clave].ingresos += it.subtotal;
+    return acc;
+  }, {});
+
+  const TOP_PRODUCTOS = 6;
+  const topProducts = Object.entries(porProducto)
+    .map(([producto, v]) => ({ producto, ...v }))
+    .sort((a, b) => b.unidades - a.unidades)
+    .slice(0, TOP_PRODUCTOS);
+
   // Orders-by-day-of-week moved to GET /api/analytics/weekly: the card now
   // shows ONE navigable Monday–Sunday week (Bogotá, SQL-bucketed) instead of
   // all-history aggregation — and the old code here silently zeroed Sundays.
@@ -131,5 +159,6 @@ export async function GET() {
     salesByMonth,
     canalData,
     categoryData,
+    topProducts,
   });
 }
