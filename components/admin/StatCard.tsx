@@ -3,6 +3,19 @@ import { ArrowUpRight, ArrowDownRight, Minus, LucideIcon } from "lucide-react";
 import type { Trend } from "@/lib/metrics/trend";
 import { resolveStatLine } from "@/lib/stat-line";
 
+/**
+ * Affordance de una stat card CLICKEABLE, para las páginas que arman sus tarjetas
+ * a mano (Clientes, Inventario, Entregas) en vez de usar este componente.
+ *
+ * Amber Minimal: el hover es TINTE (`--accent`, ya suave) y un borde de primario
+ * al 50% — cero color semántico nuevo, porque "se puede hacer clic" no es un
+ * estado del negocio. Definido aquí y no por página para que la señal de
+ * "navegable" sea la misma en todo el admin.
+ */
+export const STAT_CARD_LINK =
+  "block text-left w-full transition-colors cursor-pointer hover:bg-accent hover:border-primary/50 " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
 interface StatCardProps {
   icon:   LucideIcon;
   label:  string;

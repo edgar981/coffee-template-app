@@ -16,6 +16,7 @@ import { Product } from '@/types/product';
 import { formatCOP } from '@/lib/utils';
 import { formatFecha } from '@/lib/format-fecha';
 import { isLowStock, LOW_STOCK_VALUE } from '@/lib/metrics/inventory-filters';
+import { STAT_CARD_LINK } from '@/components/admin/StatCard';
 
 type Tab = 'stock' | 'movimientos';
 
@@ -116,11 +117,14 @@ function InventarioInner() {
           <p className="text-xl font-bold">{productos.length}</p>
           <p className="text-xs text-muted-foreground">Productos en sistema</p>
         </div>
-        <div className="stat-card">
+        {/* Navega a la MISMA lista filtrada que la card del dashboard, con el
+            mismo `?stock=bajo-minimo` y contando con el mismo `isLowStock`
+            compartido — card y lista no pueden divergir. */}
+        <Link href={`/admin/inventario?stock=${LOW_STOCK_VALUE}`} className={`stat-card ${STAT_CARD_LINK}`}>
           <AlertTriangle className="w-5 h-5 text-amber-500 mb-3" />
           <p className="text-xl font-bold text-amber-600">{lowStock.length}</p>
           <p className="text-xs text-muted-foreground">Stock bajo mínimo</p>
-        </div>
+        </Link>
         <div className="stat-card">
           <TrendingDown className="w-5 h-5 text-red-500 mb-3" />
           <p className="text-xl font-bold text-red-600">{outOfStock.length}</p>

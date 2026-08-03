@@ -17,6 +17,7 @@ import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal'
 import type { Shipping, ShippingEstado, ShippingFilter, ShippingOrderRef } from '@/types/shipping';
 import { FILTER_ESTADOS, ZONA_COLORS, isScheduledShipping, hasScheduleData, missingToDispatch } from '@/constants/shippings';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { STAT_CARD_LINK } from '@/components/admin/StatCard';
 import { TIPO_ENVIO_LABEL } from '@/types/shipping';
 import { metodoPrevistoLabel } from '@/types/payment';
 
@@ -102,21 +103,31 @@ export default function Entregas() {
         </Button>
       </div>
 
-      {/* Stats */}
+      {/* Stats — cada tarjeta APLICA su filtro (el mismo estado que los chips de
+          abajo, no un mecanismo paralelo): el conteo es sobre TODAS las entregas
+          y la tabla muestra el subconjunto filtrado, así que el clic es
+          justamente "muéstrame esas N". El chip correspondiente queda activo,
+          que es la confirmación visual de qué se filtró. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { icon: Clock,        label: 'Preparando', value: stats.preparando, color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400' },
-          { icon: Truck,        label: 'En Ruta',    value: stats.en_ruta,    color: 'text-sky-600 bg-sky-100 dark:bg-sky-900/30 dark:text-sky-400' },
-          { icon: CheckCircle,  label: 'Entregados', value: stats.entregados, color: 'text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400' },
-          { icon: AlertCircle,  label: 'Fallidos',   value: stats.fallidos,   color: 'text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400' },
+          { icon: Clock,        label: 'Preparando', value: stats.preparando, estado: 'preparando' as ShippingFilter, color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400' },
+          { icon: Truck,        label: 'En Ruta',    value: stats.en_ruta,    estado: 'en_ruta'    as ShippingFilter, color: 'text-sky-600 bg-sky-100 dark:bg-sky-900/30 dark:text-sky-400' },
+          { icon: CheckCircle,  label: 'Entregados', value: stats.entregados, estado: 'entregado'  as ShippingFilter, color: 'text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400' },
+          { icon: AlertCircle,  label: 'Fallidos',   value: stats.fallidos,   estado: 'fallido'    as ShippingFilter, color: 'text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400' },
         ].map(s => (
-          <div key={s.label} className="stat-card">
+          <button
+            key={s.label}
+            type="button"
+            onClick={() => setFilter(s.estado)}
+            aria-pressed={filter === s.estado}
+            className={`stat-card ${STAT_CARD_LINK}`}
+          >
             <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${s.color}`}>
               <s.icon className="w-4 h-4" />
             </div>
             <p className="text-xl font-bold">{s.value}</p>
             <p className="text-xs text-muted-foreground">{s.label}</p>
-          </div>
+          </button>
         ))}
       </div>
 

@@ -66,14 +66,23 @@ export interface DistribucionSlice {
 }
 
 /**
- * Las dos vistas del pie, mismo período y MISMA métrica (% de ingresos
- * atribuibles = suma de `OrderItem.subtotal`), dos agrupaciones distintas.
- * `null` sería indistinguible de "sin ventas", así que las dos siempre vienen
+ * Las vistas del pie del dashboard. Mismo PERÍODO en las tres (año en curso,
+ * America/Bogota) y misma exclusión de `SN-`, pero OJO con la base:
+ *
+ * - `categoria` y `peso` reparten `SUM(OrderItem.subtotal)` — ventas de producto,
+ *   sin envío.
+ * - `metodoPago` reparte `SUM(Payment.monto)` — dinero recibido, envío incluido.
+ *
+ * Son dos preguntas distintas sobre los mismos días, así que sus porcentajes no
+ * tienen por qué coincidir; el sub de cada vista declara su base.
+ *
+ * `null` sería indistinguible de "sin ventas", así que las tres siempre vienen
  * (arrays vacíos cuando no hay datos).
  */
 export interface DashboardDistribuciones {
-  categoria: DistribucionSlice[];
-  peso:      DistribucionSlice[];
+  categoria:  DistribucionSlice[];
+  peso:       DistribucionSlice[];
+  metodoPago: DistribucionSlice[];
 }
 
 export interface DashboardStats {

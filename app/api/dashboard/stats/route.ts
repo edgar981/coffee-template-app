@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { BUSINESS_TZ, startOfZonedDay, startOfZonedMonth, startOfZonedYear, zonedDayKey } from '@/lib/timezone';
 import { currentMonthRange, PENDING_ESTADO } from '@/lib/metrics/order-stat-filters';
-import { plegarDistribuciones, type DistribucionRow } from '@/lib/metrics/distribuciones';
+import { plegarDistribuciones, plegarMetodosPago, type DistribucionRow, type MetodoPagoRow } from '@/lib/metrics/distribuciones';
 import type { InsightMonthPoint } from '@/lib/metrics/insights';
 // Los scopes de plata/órdenes viven en el módulo compartido: los reportes de las
 // automatizaciones (semanal, diario) cuentan con ESTAS mismas definiciones, así que
@@ -68,6 +68,7 @@ export async function GET() {
     serieRevenueRows,
     serieOrdersRows,
     distRows,
+    metodoPagoRows,
   ] = await Promise.all([
     // ── Ingresos (Payments) ──
     // Ventas de hoy: money received today.
@@ -193,6 +194,20 @@ export async function GET() {
         AND o."estado" <> 'cancelado'
       GROUP BY 1, 2
     `,
+    // ── Tercera vista del pie: reparto del DINERO RECIBIDO por método ──
+    // Base distinta a la de arriba (pagos, no subtotales de items: incluye
+    // envío), mismo período y misma exclusión de SN-. Se filtra por la fecha del
+    // PAGO, no la de la orden: es cuándo entró la plata.
+    prisma.$queryRaw<MetodoPagoRow[]>`
+      SELECT pay."metodo"::text AS metodo,
+             SUM(pay."monto")::float8 AS total
+      FROM "Payment" pay
+      JOIN "Order" o ON o."id" = pay."orden_id"
+      WHERE pay."fecha" >= ${yearStart}
+        AND o."numero_orden" LIKE ${ORDER_PREFIX}
+        AND o."estado" <> 'cancelado'
+      GROUP BY 1
+    `,
   ]);
 
   const revenueMonth    = revenueMonthAgg._sum.monto     ?? 0;
@@ -228,7 +243,10 @@ export async function GET() {
 
   // ── Distribuciones del pie ── plegado puro y testeado (los buckets residuales
   // "Grano entero"/"Otros" son reglas de producto, no detalle de este handler).
-  const distribuciones = plegarDistribuciones(distRows);
+  const distribuciones = {
+    ...plegarDistribuciones(distRows),
+    metodoPago: plegarMetodosPago(metodoPagoRows),
+  };
 
   return NextResponse.json({
     // Fila "Hoy"

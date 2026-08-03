@@ -7,14 +7,14 @@ import ArrowButton from '@/components/admin/ChartArrowButton';
 import { DASHBOARD_COLORS, tooltipStyle } from '@/constants/dashb-styles';
 import type { DashboardDistribuciones, DistribucionSlice } from '@/types/dashboard';
 
-// El pie del dashboard con vistas conmutables: la misma métrica (% de ingresos
-// atribuibles del año en curso) repartida por categoría o por peso.
+// El pie del dashboard: título fijo ("Ventas") y tres cortes del mismo período
+// (año en curso, America/Bogota, sin `SN-`) que se ciclan con las flechas —
+// categoría de producto, presentación (peso) y método de pago.
 //
-// Hubo una tercera vista, "Por molienda": se retiró (decisión de producto) porque
-// en este catálogo la molienda replicaba el split de la categoría — dos vistas
-// distintas mostrando el mismo 54/46 no informan, solo dan trabajo a las flechas.
-// El DATO (`OrderItem.moliendaSeleccionada`) sigue vivo en órdenes y productos;
-// lo que se fue es la vista.
+// Hubo una vista "Por molienda": se retiró (decisión de producto) porque en este
+// catálogo replicaba el split de la categoría — dos vistas mostrando el mismo
+// 54/46 no informan. El DATO (`OrderItem.moliendaSeleccionada`) sigue vivo en
+// órdenes y productos; lo que se fue es la vista.
 // Las flechas son LAS del carousel Ventas/Pedidos (ChartArrowButton), así que los
 // dos módulos de gráfico se ciclan igual.
 //
@@ -26,15 +26,25 @@ import type { DashboardDistribuciones, DistribucionSlice } from '@/types/dashboa
 type VistaId = keyof DashboardDistribuciones;
 
 interface Vista {
-  id:       VistaId;
-  titulo:   string;
-  /** Qué agrupa esta vista, en una línea (va bajo el título). */
+  id: VistaId;
+  /**
+   * Sub de la tarjeta: declara QUÉ vista es y sobre QUÉ base reparte. Lo segundo
+   * no es adorno — categoría y presentación reparten ventas de producto
+   * (`OrderItem.subtotal`, sin envío) y método de pago reparte dinero recibido
+   * (`Payment.monto`, con envío), así que sus porcentajes no cuadran entre sí.
+   */
   subtitulo: string;
 }
 
+// El TÍTULO de la tarjeta es fijo ("Ventas"): las flechas cambian la vista, no el
+// tema. Con el título cambiando, el ojo leía tres tarjetas distintas apareciendo
+// en el mismo hueco en vez de una con tres cortes.
+const TITULO = 'Ventas';
+
 const VISTAS: Vista[] = [
-  { id: 'categoria', titulo: 'Por Categoría', subtitulo: 'Distribución de ventas' },
-  { id: 'peso',      titulo: 'Por Peso',      subtitulo: 'Presentación del producto' },
+  { id: 'categoria',  subtitulo: 'Distribución por categoría de producto' },
+  { id: 'peso',       subtitulo: 'Distribución por presentación (peso)' },
+  { id: 'metodoPago', subtitulo: 'Pagos registrados por método' },
 ];
 
 export default function DashboardDistributionCard({ data, loading }: {
@@ -57,7 +67,7 @@ export default function DashboardDistributionCard({ data, loading }: {
           <ChevronLeft className="w-4 h-4" />
         </ArrowButton>
         <div className="px-1 min-w-0">
-          <h3 className="font-semibold text-foreground truncate">{vista.titulo}</h3>
+          <h3 className="font-semibold text-foreground truncate">{TITULO}</h3>
         </div>
         <ArrowButton label="Vista siguiente" onClick={() => step(1)}>
           <ChevronRight className="w-4 h-4" />

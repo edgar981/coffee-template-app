@@ -1,5 +1,6 @@
 import { CATEGORIAS } from '@/constants/product';
 import type { ProductCategory } from '@/types/product';
+import { METODO_PAGO_LABEL, type MetodoPago } from '@/types/payment';
 import type { DashboardDistribuciones, DistribucionSlice } from '@/types/dashboard';
 
 // Plegado de las dos vistas del pie del dashboard: UN query base agrupado por
@@ -45,7 +46,8 @@ export function aPorcentajes(buckets: Map<string, number>): DistribucionSlice[] 
 
 const bump = (m: Map<string, number>, k: string, v: number) => m.set(k, (m.get(k) ?? 0) + v);
 
-export function plegarDistribuciones(rows: DistribucionRow[]): DashboardDistribuciones {
+/** Las vistas basadas en items; la de método de pago se pliega aparte (otra base). */
+export function plegarDistribuciones(rows: DistribucionRow[]): Omit<DashboardDistribuciones, 'metodoPago'> {
   const cat  = new Map<string, number>();
   const peso = new Map<string, number>();
 
@@ -64,4 +66,35 @@ export function plegarDistribuciones(rows: DistribucionRow[]): DashboardDistribu
     categoria: aPorcentajes(cat),
     peso:      aPorcentajes(peso),
   };
+}
+
+/** Fila del query de pagos: `SUM(Payment.monto)` agrupado por `Payment.metodo`. */
+export interface MetodoPagoRow {
+  /** Valor del enum `MetodoPago`; null solo si algún pago quedara sin método. */
+  metodo: string | null;
+  total:  number;
+}
+
+/**
+ * Distribución por MÉTODO DE PAGO. Base distinta a las otras dos vistas del pie:
+ * reparte `Payment.monto` (dinero recibido, ENVÍO INCLUIDO) y no
+ * `OrderItem.subtotal`. Por eso los porcentajes no tienen por qué coincidir con
+ * los de categoría/presentación aunque el período sea el mismo — es otra
+ * pregunta sobre los mismos días, y el sub de la tarjeta lo declara.
+ *
+ * Los labels salen del mapa único `METODO_PAGO_LABEL`: nunca se pinta el valor
+ * crudo del enum ("DAVIPLATA") en la UI.
+ */
+export function plegarMetodosPago(rows: MetodoPagoRow[]): DistribucionSlice[] {
+  const buckets = new Map<string, number>();
+  for (const row of rows) {
+    // `Payment.metodo` es NOT NULL en el schema, así que este bucket es una
+    // defensa por si eso cambia o llega data importada: un pago sin método sigue
+    // siendo plata recibida y no puede desaparecer del reparto.
+    const label = row.metodo
+      ? (METODO_PAGO_LABEL[row.metodo as MetodoPago] ?? row.metodo)
+      : 'Sin especificar';
+    bump(buckets, label, row.total);
+  }
+  return aPorcentajes(buckets);
 }

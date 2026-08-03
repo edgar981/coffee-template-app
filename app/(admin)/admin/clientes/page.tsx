@@ -18,6 +18,7 @@ import type { Customer, CustomerForm } from '@/types/customer';
 import type { OrderChannel } from '@/types/order';
 import { CANALES, EMPTY_CUSTOMER_FORM } from '@/constants/customer';
 import { STAT_CHIP } from '@/constants/stat-chip';
+import { STAT_CARD_LINK } from '@/components/admin/StatCard';
 
 
 // useSearchParams() needs a Suspense boundary (same pattern as Órdenes).
@@ -126,11 +127,20 @@ function ClientesInner() {
   // "Compras totales" = suma del dinero PAGADO (Payments) de todos los clientes —
   // dinero real, la misma fuente que el `$` de cada fila. (Ya no es el campo
   // semilla `total_compras`.)
+  // `href`: solo las tarjetas cuyo valor es un CONTEO con una lista que lo
+  // explique. Un % o un total en pesos no tienen "la lista de esos N" detrás, así
+  // que no se vuelven clickeables — una card que navega a algo que no reconcilia
+  // con su número es peor que una que no navega.
   const stats = [
-    { label: 'Total Clientes',   value: clientes.length,       sublabel: undefined as string | undefined, icon: Users, color: STAT_CHIP.blue },
-    { label: 'Recurrentes',      value: recurrentes,           sublabel: undefined as string | undefined, icon: Star,  color: STAT_CHIP.amber },
-    { label: 'Tasa Recurrencia', value: tasaRecurr,            sublabel: undefined as string | undefined, icon: Star,  color: STAT_CHIP.emerald },
-    { label: 'Compras totales',  value: formatCOP(totalVentas),sublabel: 'Pagos recibidos',                icon: Users, color: STAT_CHIP.violet },
+    // Total Clientes: su lista es esta misma página sin filtro → clic sería no-op.
+    { label: 'Total Clientes',   value: clientes.length,       sublabel: undefined as string | undefined, icon: Users, color: STAT_CHIP.blue,    href: undefined as string | undefined },
+    { label: 'Recurrentes',      value: recurrentes,           sublabel: undefined as string | undefined, icon: Star,  color: STAT_CHIP.amber,   href: '/admin/clientes?recurrentes=1' },
+    // La tasa DECLARA su fórmula: es recurrentes/total, y sin el sub el 15% se
+    // lee como cualquier cosa. Mismo conjunto que la card de al lado → sin href
+    // propio (el valor es un %, no un conteo navegable).
+    { label: 'Tasa Recurrencia', value: tasaRecurr,            sublabel: `${recurrentes} de ${clientes.length} clientes con más de 1 compra`, icon: Star, color: STAT_CHIP.emerald, href: undefined as string | undefined },
+    // Suma de Payments de todos los clientes → su "lista" es el ledger de Pagos.
+    { label: 'Compras totales',  value: formatCOP(totalVentas),sublabel: 'Pagos recibidos',                icon: Users, color: STAT_CHIP.violet,  href: '/admin/pagos' },
   ];
 
   return (
@@ -148,18 +158,25 @@ function ClientesInner() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map(s => (
-          <div key={s.label} className="stat-card">
-            <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${s.color}`}>
-              <s.icon className="w-4 h-4" />
-            </div>
-            <p className="text-xl font-bold">{s.value}</p>
-            <p className="text-xs text-muted-foreground">{s.label}</p>
-            {s.sublabel && (
-              <p className="text-[10px] leading-tight text-muted-foreground/70">{s.sublabel}</p>
-            )}
-          </div>
-        ))}
+        {stats.map(s => {
+          const cuerpo = (
+            <>
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${s.color}`}>
+                <s.icon className="w-4 h-4" />
+              </div>
+              <p className="text-xl font-bold">{s.value}</p>
+              <p className="text-xs text-muted-foreground">{s.label}</p>
+              {s.sublabel && (
+                <p className="text-[10px] leading-tight text-muted-foreground/70">{s.sublabel}</p>
+              )}
+            </>
+          );
+          return s.href ? (
+            <Link key={s.label} href={s.href} className={`stat-card ${STAT_CARD_LINK}`}>{cuerpo}</Link>
+          ) : (
+            <div key={s.label} className="stat-card">{cuerpo}</div>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -282,7 +299,14 @@ function ClientesInner() {
               {topClientes.length === 0 ? (
                 <p className="text-xs text-muted-foreground">Sin datos</p>
               ) : topClientes.map((c, i) => (
-                <div key={c.id} className="flex items-center gap-3">
+                // Cada fila navega al detalle del cliente — el mismo destino al
+                // que ya linkea el modal de entregas, así que "quién es este
+                // cliente" se responde igual desde todo el admin.
+                <Link
+                  key={c.id}
+                  href={`/admin/clientes/${c.id}`}
+                  className="flex items-center gap-3 -mx-2 rounded-lg px-2 py-1 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
                   <span className="text-xs font-bold text-muted-foreground w-4">#{i + 1}</span>
                   <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                     <span className="text-xs font-semibold text-primary">{c.nombre?.[0]}</span>
@@ -294,7 +318,7 @@ function ClientesInner() {
                     <p className="text-xs text-muted-foreground">{c.ordenes ?? 0} {(c.ordenes ?? 0) === 1 ? 'orden' : 'órdenes'}</p>
                   </div>
                   <p className="text-xs font-bold text-primary">{formatCOP(c.total_compras ?? 0)}</p>
-                </div>
+                </Link>
               ))}
             </div>
           </div>
