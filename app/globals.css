@@ -254,8 +254,16 @@ html {
     --secondary-foreground: 0 0% 89.8%;
     --muted: 0 0% 12.2%;
     --muted-foreground: 0 0% 63.9%;
-    --accent: 22.7 82.5% 31.4%;
-    --accent-foreground: 48 96.6% 76.7%;
+    /* Mismo arreglo que ya tenía el bloque claro, que faltaba acá: `--accent` es
+       el TINTE de hover/highlight (rol shadcn), no un relleno. Era el
+       22.7 82.5% 31.4% crudo del tema de referencia — un ámbar saturado que
+       rellenaba de sólido cada hover de ghost/outline, cada item de dropdown y
+       de select, y el ⌘K. Se conserva la familia cálida (hue 39, el del
+       primario) bajando saturación y subiendo apenas la luminosidad sobre
+       `--card` (14.9%): tiñe, no rellena. El ámbar fuerte sigue viviendo en
+       --primary y en los charts. */
+    --accent: 39 18% 21%;
+    --accent-foreground: 39 25% 90%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 25.1%;
@@ -273,8 +281,11 @@ html {
     --sidebar-foreground: 0 0% 89.8%;
     --sidebar-primary: 37.7 92.1% 50.2%;
     --sidebar-primary-foreground: 0 0% 0%;
-    --sidebar-accent: 22.7 82.5% 31.4%;
-    --sidebar-accent-foreground: 48 96.6% 76.7%;
+    /* Igual que --accent, pero levantado sobre el fondo de la sidebar (5.9%):
+       es el HOVER de un item inactivo. El item ACTIVO no lo usa — se marca con
+       `bg-sidebar-primary/10` — así que un sólido acá tapaba esa distinción. */
+    --sidebar-accent: 39 15% 16%;
+    --sidebar-accent-foreground: 0 0% 89.8%;
     --sidebar-border: 0 0% 25.1%;
     --sidebar-ring: 37.7 92.1% 50.2%;
   }

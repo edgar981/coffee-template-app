@@ -18,7 +18,7 @@ import type { Customer, CustomerForm } from '@/types/customer';
 import type { OrderChannel } from '@/types/order';
 import { CANALES, EMPTY_CUSTOMER_FORM } from '@/constants/customer';
 import { STAT_CHIP } from '@/constants/stat-chip';
-import { STAT_CARD_LINK } from '@/components/admin/StatCard';
+import { statCardLink } from '@/components/admin/StatCard';
 
 
 // useSearchParams() needs a Suspense boundary (same pattern as Órdenes).
@@ -131,16 +131,19 @@ function ClientesInner() {
   // explique. Un % o un total en pesos no tienen "la lista de esos N" detrás, así
   // que no se vuelven clickeables — una card que navega a algo que no reconcilia
   // con su número es peor que una que no navega.
+  // `activo`: el filtro que abre esa tarjeta YA está aplicado en esta vista, así
+  // que se marca. Solo aplica a las que filtran esta misma página — un destino a
+  // otra ruta (Pagos) nunca está "activo" acá.
   const stats = [
     // Total Clientes: su lista es esta misma página sin filtro → clic sería no-op.
-    { label: 'Total Clientes',   value: clientes.length,       sublabel: undefined as string | undefined, icon: Users, color: STAT_CHIP.blue,    href: undefined as string | undefined },
-    { label: 'Recurrentes',      value: recurrentes,           sublabel: undefined as string | undefined, icon: Star,  color: STAT_CHIP.amber,   href: '/admin/clientes?recurrentes=1' },
+    { label: 'Total Clientes',   value: clientes.length,       sublabel: undefined as string | undefined, icon: Users, color: STAT_CHIP.blue,    href: undefined as string | undefined, activo: false },
+    { label: 'Recurrentes',      value: recurrentes,           sublabel: undefined as string | undefined, icon: Star,  color: STAT_CHIP.amber,   href: '/admin/clientes?recurrentes=1', activo: recurrentesOnly },
     // La tasa DECLARA su fórmula: es recurrentes/total, y sin el sub el 15% se
     // lee como cualquier cosa. Mismo conjunto que la card de al lado → sin href
     // propio (el valor es un %, no un conteo navegable).
-    { label: 'Tasa Recurrencia', value: tasaRecurr,            sublabel: `${recurrentes} de ${clientes.length} clientes con más de 1 compra`, icon: Star, color: STAT_CHIP.emerald, href: undefined as string | undefined },
+    { label: 'Tasa Recurrencia', value: tasaRecurr,            sublabel: `${recurrentes} de ${clientes.length} clientes con más de 1 compra`, icon: Star, color: STAT_CHIP.emerald, href: undefined as string | undefined, activo: false },
     // Suma de Payments de todos los clientes → su "lista" es el ledger de Pagos.
-    { label: 'Compras totales',  value: formatCOP(totalVentas),sublabel: 'Pagos recibidos',                icon: Users, color: STAT_CHIP.violet,  href: '/admin/pagos' },
+    { label: 'Compras totales',  value: formatCOP(totalVentas),sublabel: 'Pagos recibidos',                icon: Users, color: STAT_CHIP.violet,  href: '/admin/pagos', activo: false },
   ];
 
   return (
@@ -172,7 +175,15 @@ function ClientesInner() {
             </>
           );
           return s.href ? (
-            <Link key={s.label} href={s.href} className={`stat-card ${STAT_CARD_LINK}`}>{cuerpo}</Link>
+            // Marcada (borde de primario + tinte, sin relleno) cuando el filtro
+            // que abre ESTA tarjeta ya está aplicado — patrón compartido con
+            // Inventario y Entregas.
+            <Link
+              key={s.label}
+              href={s.href}
+              aria-current={s.activo ? 'true' : undefined}
+              className={`stat-card ${statCardLink(s.activo)}`}
+            >{cuerpo}</Link>
           ) : (
             <div key={s.label} className="stat-card">{cuerpo}</div>
           );
@@ -302,10 +313,14 @@ function ClientesInner() {
                 // Cada fila navega al detalle del cliente — el mismo destino al
                 // que ya linkea el modal de entregas, así que "quién es este
                 // cliente" se responde igual desde todo el admin.
+                // `hover:bg-muted/20` es EL hover de fila del panel (Órdenes,
+                // Pagos, Productos, la lista de al lado…). Era `hover:bg-accent`,
+                // que en el tema oscuro del admin rellena de ámbar sólido — el
+                // mismo desvío que tenían las stat cards.
                 <Link
                   key={c.id}
                   href={`/admin/clientes/${c.id}`}
-                  className="flex items-center gap-3 -mx-2 rounded-lg px-2 py-1 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex items-center gap-3 -mx-2 rounded-lg px-2 py-1 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span className="text-xs font-bold text-muted-foreground w-4">#{i + 1}</span>
                   <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">

@@ -29,6 +29,7 @@ import { formatCOP } from '@/lib/utils';
 import { formatFecha } from '@/lib/format-fecha';
 import { findSlotLabel } from '@/lib/shipping-config';
 import { hasScheduleData } from '@/constants/shippings';
+import { filterChip, filterChipTono, FILTER_CHIP_COUNT } from '@/constants/filter-chip';
 import { COLOMBIA_DEPARTMENTS } from '@/lib/colombia-departments';
 import { isPorCobrar } from '@/lib/metrics/order-stat-filters';
 import { METODOS_PAGO, METODO_PAGO_LABEL, metodoPrevistoLabel } from '@/types/payment';
@@ -496,18 +497,10 @@ function Ordenes() {
               key={s.key}
               onClick={() => setParams({ estado: s.key === 'all' ? null : s.key, cobrar: null })}
               aria-pressed={active}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                active
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-foreground hover:bg-muted/80'
-              }`}
+              className={filterChip(active)}
             >
               {s.label}
-              <span className={`px-1.5 py-0.5 rounded-full text-xs ${
-                active ? 'bg-primary-foreground/20' : 'bg-background'
-              }`}>
-                {s.count}
-              </span>
+              <span className={FILTER_CHIP_COUNT}>{s.count}</span>
             </button>
           );
         })}
@@ -517,16 +510,15 @@ function Ordenes() {
           onClick={() => setParams({ estado: null, cobrar: porCobrar ? null : '1' })}
           aria-pressed={porCobrar}
           title="Contraentrega despachada, pago pendiente"
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-            porCobrar
-              ? 'bg-amber-500 text-white'
-              : 'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50'
-          }`}
+          // Conserva su ámbar muted (espera) en los dos estados; lo que dice
+          // "aplicado" es el borde, igual que en los chips neutros de al lado.
+          className={filterChipTono(
+            porCobrar,
+            'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50',
+          )}
         >
           Por cobrar
-          <span className={`px-1.5 py-0.5 rounded-full text-xs ${porCobrar ? 'bg-white/25' : 'bg-background'}`}>
-            {porCobrarCount}
-          </span>
+          <span className={FILTER_CHIP_COUNT}>{porCobrarCount}</span>
         </button>
       </div>
 

@@ -16,7 +16,7 @@ import { Product } from '@/types/product';
 import { formatCOP } from '@/lib/utils';
 import { formatFecha } from '@/lib/format-fecha';
 import { isLowStock, LOW_STOCK_VALUE } from '@/lib/metrics/inventory-filters';
-import { STAT_CARD_LINK } from '@/components/admin/StatCard';
+import { statCardLink } from '@/components/admin/StatCard';
 
 type Tab = 'stock' | 'movimientos';
 
@@ -77,6 +77,10 @@ function InventarioInner() {
   const totalValue     = productos.reduce((sum, p) => sum + ((p.costo ?? 0) * p.stock), 0);
   // Rows shown in the stock table — narrowed to low-stock when the URL asks.
   const stockRows      = lowStockOnly ? lowStock : activeProducts;
+  // El filtro solo recorta lo que se ve en la pestaña de stock: la tarjeta se
+  // marca y el chip aparece bajo la MISMA condición, para que "marcada" siempre
+  // signifique "esto es lo que estás viendo".
+  const filtroActivo   = lowStockOnly && tab === 'stock';
 
   const handleAdjust = async () => {
     const prod = productos.find(p => p.id === adjForm.producto_id);
@@ -119,15 +123,26 @@ function InventarioInner() {
         </div>
         {/* Navega a la MISMA lista filtrada que la card del dashboard, con el
             mismo `?stock=bajo-minimo` y contando con el mismo `isLowStock`
-            compartido — card y lista no pueden divergir. */}
-        <Link href={`/admin/inventario?stock=${LOW_STOCK_VALUE}`} className={`stat-card ${STAT_CARD_LINK}`}>
-          <AlertTriangle className="w-5 h-5 text-amber-500 mb-3" />
-          <p className="text-xl font-bold text-amber-600">{lowStock.length}</p>
+            compartido — card y lista no pueden divergir. Cuando el filtro ya
+            está aplicado la tarjeta se marca (borde de primario + tinte), misma
+            condición que el chip "Filtrado" de abajo. */}
+        <Link
+          href={`/admin/inventario?stock=${LOW_STOCK_VALUE}`}
+          aria-current={filtroActivo ? 'true' : undefined}
+          className={`stat-card ${statCardLink(filtroActivo)}`}
+        >
+          {/* El color es alerta, y una alerta de cero no existe: con 0 productos
+              bajo mínimo la tarjeta va neutra y solo se tiñe cuando hay algo que
+              atender. Mismo criterio que "Sin stock" al lado. */}
+          <AlertTriangle className={`w-5 h-5 mb-3 ${lowStock.length > 0 ? 'text-amber-500' : 'text-muted-foreground'}`} />
+          <p className={`text-xl font-bold ${lowStock.length > 0 ? 'text-amber-600' : ''}`}>{lowStock.length}</p>
           <p className="text-xs text-muted-foreground">Stock bajo mínimo</p>
         </Link>
         <div className="stat-card">
-          <TrendingDown className="w-5 h-5 text-red-500 mb-3" />
-          <p className="text-xl font-bold text-red-600">{outOfStock.length}</p>
+          {/* Rojo = alerta REAL. "Sin stock: 0" es el estado bueno de la tienda;
+              pintarlo de rojo entrena al operador a ignorar el rojo. */}
+          <TrendingDown className={`w-5 h-5 mb-3 ${outOfStock.length > 0 ? 'text-red-500' : 'text-muted-foreground'}`} />
+          <p className={`text-xl font-bold ${outOfStock.length > 0 ? 'text-red-600' : ''}`}>{outOfStock.length}</p>
           <p className="text-xs text-muted-foreground">Sin stock</p>
         </div>
         <div className="stat-card">
@@ -158,7 +173,7 @@ function InventarioInner() {
 
       {/* Active low-stock filter (arrived from the dashboard card) — a clear chip
           so it's obvious the table is narrowed, with one click back to all rows. */}
-      {lowStockOnly && tab === 'stock' && (
+      {filtroActivo && (
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 px-3 py-1 text-xs font-medium text-amber-800 dark:text-amber-300">
             <AlertTriangle className="w-3 h-3" /> Filtrado: stock bajo mínimo ({lowStock.length})

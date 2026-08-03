@@ -3,18 +3,54 @@ import { ArrowUpRight, ArrowDownRight, Minus, LucideIcon } from "lucide-react";
 import type { Trend } from "@/lib/metrics/trend";
 import { resolveStatLine } from "@/lib/stat-line";
 
-/**
- * Affordance de una stat card CLICKEABLE, para las páginas que arman sus tarjetas
- * a mano (Clientes, Inventario, Entregas) en vez de usar este componente.
- *
- * Amber Minimal: el hover es TINTE (`--accent`, ya suave) y un borde de primario
- * al 50% — cero color semántico nuevo, porque "se puede hacer clic" no es un
- * estado del negocio. Definido aquí y no por página para que la señal de
- * "navegable" sea la misma en todo el admin.
- */
-export const STAT_CARD_LINK =
-  "block text-left w-full transition-colors cursor-pointer hover:bg-accent hover:border-primary/50 " +
+// ─── Affordance de stat card interactiva (fuente única) ───────────────────────
+// Este bloque es EL patrón de card navegable del admin: la card del dashboard
+// (`StatCardBody`, vía group-hover) y las páginas que arman sus tarjetas a mano
+// (Clientes, Inventario, Entregas) consumen estos mismos valores. Están juntos y
+// en un solo archivo a propósito — Tailwind exige la clase escrita literal, así
+// que la única forma de que hover y activo no deriven es que sus tokens se
+// declaren aquí, uno al lado del otro.
+//
+// Amber Minimal: el estado interactivo TIÑE, nunca rellena. El tinte es NEUTRO
+// (`bg-muted/30`) y el color va solo en un borde fino de `--primary`; el sólido
+// ámbar sigue siendo exclusivo de la acción primaria de la página. Antes el hover
+// usaba `bg-accent`, que en el tema oscuro del admin es un ámbar saturado
+// (`--accent: 22.7 82.5% 31.4%`) y rellenaba la tarjeta entera — el mismo
+// incidente que ya se había corregido en el tema claro.
+
+/** Lo que no depende del estado: caja del link, cursor y anillo de foco. */
+const STAT_CARD_LINK_BASE =
+  "block text-left w-full transition-colors cursor-pointer " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
+/** Card navegable en REPOSO: al pasar el mouse, tinte + borde de primario al 50%. */
+const STAT_CARD_HOVER = "hover:bg-muted/30 hover:border-primary/50";
+
+/**
+ * Card cuyo FILTRO está aplicado. Un paso más que el hover — borde de primario
+ * completo en vez de al 50% — sobre el mismo tinte neutro y el mismo fondo de
+ * card. La diferencia entre "puedo hacer clic" y "esto es lo que estás viendo"
+ * es de intensidad de borde, no de relleno.
+ */
+const STAT_CARD_ACTIVE = "border-primary bg-muted/30";
+
+/**
+ * Clases de una stat card clickeable armada a mano. Se usa junto a `stat-card`:
+ *
+ *   className={`stat-card ${statCardLink(filtroAplicado)}`}
+ *
+ * Los dos estados se EXCLUYEN a propósito: una card activa no lleva las reglas
+ * de hover, porque `hover:border-primary/50` le bajaría el borde justo cuando el
+ * mouse está encima — y además el clic sobre la card ya activa es un no-op, así
+ * que no hay nada que previsualizar.
+ */
+export function statCardLink(activo = false): string {
+  return `${STAT_CARD_LINK_BASE} ${activo ? STAT_CARD_ACTIVE : STAT_CARD_HOVER}`;
+}
+
+/** El mismo hover, expresado desde el hijo cuando el link envuelve la card (`group/link`). */
+export const STAT_CARD_LINK_BODY_HOVER =
+  "group-hover/link:bg-muted/30 group-hover/link:border-primary/50";
 
 interface StatCardProps {
   icon:   LucideIcon;
@@ -94,7 +130,7 @@ function StatCardBody({ icon: Icon, label, value, sub, insight, insightEnfasis, 
   return (
     // The `group-hover/link:` rules are inert unless a StatCard href wrapped this
     // in `group/link`, so the non-linked cards render exactly as before.
-    <div className="stat-card group group-hover/link:border-primary/50 group-hover/link:bg-muted/30">
+    <div className={`stat-card group ${STAT_CARD_LINK_BODY_HOVER}`}>
       <div className="flex items-start justify-between gap-2">
         {/* Icon chip — warm family (STAT_CHIP; red reserved for alerts). Callers
             pass the class from the centralized map, see CLAUDE.md / constants/stat-chip. */}

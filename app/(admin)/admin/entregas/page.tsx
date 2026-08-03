@@ -17,7 +17,8 @@ import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal'
 import type { Shipping, ShippingEstado, ShippingFilter, ShippingOrderRef } from '@/types/shipping';
 import { FILTER_ESTADOS, ZONA_COLORS, isScheduledShipping, hasScheduleData, missingToDispatch } from '@/constants/shippings';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { STAT_CARD_LINK } from '@/components/admin/StatCard';
+import { statCardLink } from '@/components/admin/StatCard';
+import { filterChip } from '@/constants/filter-chip';
 import { TIPO_ENVIO_LABEL } from '@/types/shipping';
 import { metodoPrevistoLabel } from '@/types/payment';
 
@@ -120,7 +121,10 @@ export default function Entregas() {
             type="button"
             onClick={() => setFilter(s.estado)}
             aria-pressed={filter === s.estado}
-            className={`stat-card ${STAT_CARD_LINK}`}
+            // Con su filtro aplicado la tarjeta se marca con el patrón compartido
+            // (borde de primario + tinte neutro), nunca con relleno: el sólido de
+            // la vista está reservado a la acción primaria.
+            className={`stat-card ${statCardLink(filter === s.estado)}`}
           >
             <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${s.color}`}>
               <s.icon className="w-4 h-4" />
@@ -145,11 +149,8 @@ export default function Entregas() {
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${f.capitalize ? 'capitalize' : ''} ${
-              filter === f.key
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/70'
-            }`}
+            aria-pressed={filter === f.key}
+            className={`${filterChip(filter === f.key)} ${f.capitalize ? 'capitalize' : ''}`}
           >
             {f.label}
           </button>
