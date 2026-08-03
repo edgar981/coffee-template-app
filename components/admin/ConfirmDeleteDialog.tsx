@@ -82,8 +82,12 @@ export function ConfirmDeleteDialog({
     setBusy(which);
     try {
       await action();
-      onOpenChange(false);
+      // El toast va ANTES del cierre: así el operador lo ve aparecer con el
+      // diálogo todavía en pantalla y la confirmación queda ligada a lo que
+      // acaba de hacer. Al revés, el diálogo desaparecía y el toast llegaba
+      // sobre una pantalla ya distinta.
       if (okMessage) toast.success(okMessage);
+      onOpenChange(false);
     } catch (e) {
       // Surface the SERVER's message (e.g. the 409 reason) and keep the dialog
       // open so the operator can read it and retry or cancel.

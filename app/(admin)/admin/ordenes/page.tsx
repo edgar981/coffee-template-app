@@ -992,7 +992,18 @@ function OrderDetail({ order, onClose, onUpdate, onRegisterPayment }: OrderDetai
   const [notas, setNotas]   = useState(order.notas_internas ?? '');
 
   const handleUpdate = async () => {
-    const updated = await updateOrder(order.id, { estado, notas_internas: notas });
+    // Cierre SOLO tras confirmación. El server rechaza transiciones inválidas
+    // (409 de condición de pago bloqueada, entre otras) y ese mensaje tiene que
+    // llegarle al operador con el detalle todavía abierto: antes la llamada no
+    // estaba en try/catch y un rechazo dejaba el modal abierto pero sin decir
+    // nada, indistinguible de "no pasó nada".
+    let updated: Order;
+    try {
+      updated = await updateOrder(order.id, { estado, notas_internas: notas });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'No se pudo actualizar la orden');
+      return;
+    }
     toast.success('Orden actualizada');
     onUpdate(updated);
     onClose();

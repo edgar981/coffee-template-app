@@ -291,16 +291,28 @@ function ProductosInner() {
       imagenes:    [...galeriaActual, ...galeriaSubidas],
     };
 
-    if (editing) {
-      const updated = await updateProduct(editing.id, data);
-      setProductos(prev => prev.map(p => p.id === editing.id ? updated : p));
-      toast.success('Producto actualizado');
-    } else {
-      const created = await createProduct(data);
-      setProductos(prev => [created, ...prev]);
-      toast.success('Producto creado');
+    // El cierre ocurre SOLO tras confirmación del server. Si falla, el modal se
+    // queda abierto con los datos intactos y el error a la vista: antes esta
+    // llamada estaba fuera del try, así que un 500 rechazaba la promesa sin que
+    // nadie la capturara — ni toast ni cierre, el operador se quedaba mirando un
+    // formulario mudo sin saber si había guardado.
+    try {
+      if (editing) {
+        const updated = await updateProduct(editing.id, data);
+        setProductos(prev => prev.map(p => p.id === editing.id ? updated : p));
+        toast.success('Producto actualizado');
+      } else {
+        const created = await createProduct(data);
+        setProductos(prev => [created, ...prev]);
+        toast.success('Producto creado');
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'No se pudo guardar el producto');
+      return;
     }
 
+    // El toast de éxito ya se disparó arriba: el operador lo ve aparecer con el
+    // modal todavía en pantalla, y recién después se cierra.
     limpiarImagen();
     limpiarGaleria();
     setShowForm(false);

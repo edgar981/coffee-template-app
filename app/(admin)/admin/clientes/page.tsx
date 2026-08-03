@@ -95,14 +95,22 @@ function ClientesInner() {
   const handleSave = async () => {
     if (!form.nombre) { toast.error('El nombre es requerido'); return; }
 
-    if (editing) {
-      const updated = await updateCustomer(editing.id, form);
-      setClientes(prev => prev.map(c => c.id === editing.id ? updated : c));
-      toast.success('Cliente actualizado');
-    } else {
-      const created = await createCustomer(form);
-      setClientes(prev => [created, ...prev]);
-      toast.success('Cliente creado');
+    // Cierre SOLO tras confirmación del server; si falla, el modal se queda
+    // abierto con lo que el operador escribió. Antes no había try/catch: un
+    // fallo rechazaba la promesa en silencio y el formulario quedaba mudo.
+    try {
+      if (editing) {
+        const updated = await updateCustomer(editing.id, form);
+        setClientes(prev => prev.map(c => c.id === editing.id ? updated : c));
+        toast.success('Cliente actualizado');
+      } else {
+        const created = await createCustomer(form);
+        setClientes(prev => [created, ...prev]);
+        toast.success('Cliente creado');
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'No se pudo guardar el cliente');
+      return;
     }
 
     setShowForm(false);

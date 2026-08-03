@@ -61,8 +61,12 @@ export default function ConfiguracionUsuarios() {
   };
 
   const handleInvited = () => {
+    // SIN toast acá: el modal ya disparó "Invitación enviada a <correo>" antes
+    // de cerrarse. El que había ("Usuario creado correctamente") era además
+    // falso — invitar no crea ningún usuario; el usuario nace cuando la persona
+    // acepta la invitación y define su contraseña. Dos toasts para una acción, y
+    // el segundo afirmando algo que no pasó.
     setShowInvite(false);
-    toast.success('Usuario creado correctamente');
     loadUsers();
   };
 
