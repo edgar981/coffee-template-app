@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { storage } from '@/lib/storage';
+import { sanitizeGaleria, blobsRetirados, MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
 
 export async function PATCH(
   req: NextRequest,
@@ -16,13 +17,24 @@ export async function PATCH(
 
   const body    = await req.json();
 
-  // Imagen ANTERIOR, para poder borrar su blob si esta edición la reemplaza. Se
-  // lee acá y no se recibe del cliente a propósito: si el borrado se disparara
-  // con una URL enviada por el navegador, cualquier admin podría borrar
-  // cualquier blob del store mandando otra. El server ya sabe cuál era.
+  // Galería: se normaliza (solo strings no vacíos, sin duplicados) y se valida
+  // el tope ACÁ, que es la validación que manda — la del formulario es aviso
+  // temprano. El tope cuenta tomas adicionales, no la portada.
+  const galeria = sanitizeGaleria(body.imagenes);
+  if (galeria.length > MAX_GALERIA_IMAGENES) {
+    return NextResponse.json(
+      { error: `La galería admite máximo ${MAX_GALERIA_IMAGENES} imágenes adicionales (llegaron ${galeria.length}).` },
+      { status: 400 },
+    );
+  }
+
+  // Estado ANTERIOR de las imágenes, para borrar del store lo que esta edición
+  // deje sin referencias. Se lee de la BASE y no se recibe del cliente a
+  // propósito: si el borrado se disparara con URLs enviadas por el navegador,
+  // cualquier admin podría borrar cualquier blob del store mandando otras.
   const previo = await prisma.product.findUnique({
     where:  { id },
-    select: { imagen: true },
+    select: { imagen: true, imagenes: true },
   });
 
   const updated = await prisma.product.update({
@@ -43,7 +55,7 @@ export async function PATCH(
       origen:      body.origen               || null,
       tostado:     body.tostado              || null,
       imagen:      body.imagen               || '',
-      imagenes:    body.imagenes             || [],
+      imagenes:    galeria,
       updatedAt:   new Date(),
     },
   });
@@ -53,12 +65,20 @@ export async function PATCH(
   // huérfano (basura barata), mientras que borrar antes de confirmar el update
   // dejaría un producto apuntando a una imagen que ya no existe. `storage.delete`
   // ignora por sí solo las URLs que no administra (las estáticas de public/).
+  // La portada anterior solo se borra si además dejó de estar en la galería:
+  // degradar la portada a toma adicional NO puede borrar su blob.
   const anterior = previo?.imagen ?? '';
-  if (anterior && anterior !== updated.imagen) {
+  const portadaRetirada = anterior && anterior !== updated.imagen && !updated.imagenes.includes(anterior);
+
+  // De la galería sale lo que ya no está, excluyendo lo que siga en uso como
+  // portada nueva (promover una toma a portada no puede borrar ese blob).
+  const galeriaRetirada = blobsRetirados(previo?.imagenes, updated.imagenes, [updated.imagen]);
+
+  for (const url of [...(portadaRetirada ? [anterior] : []), ...galeriaRetirada]) {
     try {
-      await storage.delete(anterior);
+      await storage.delete(url);
     } catch (e) {
-      console.error('[products] no se pudo borrar la imagen anterior', anterior, e);
+      console.error('[products] no se pudo borrar la imagen retirada', url, e);
     }
   }
 
@@ -97,15 +117,17 @@ export async function DELETE(
   await prisma.product.delete({ where: { id: id } });
 
   // Mismo criterio que el reemplazo del PATCH: sin producto no queda nadie
-  // referenciando su imagen, así que el blob se va con él. Después del delete y
-  // sin poder tumbarlo — un blob huérfano es basura barata, un 500 acá dejaría
-  // al operador creyendo que el producto no se borró cuando sí. Las imágenes
-  // estáticas de `public/` las ignora el propio adaptador.
-  if (product.imagen) {
+  // referenciando sus imágenes, así que los blobs se van con él — la portada Y
+  // toda la galería. Después del delete y sin poder tumbarlo: un blob huérfano
+  // es basura barata, un 500 acá dejaría al operador creyendo que el producto no
+  // se borró cuando sí. Las estáticas de `public/` las ignora el adaptador, y en
+  // un entorno de dev `isDeletable` frena las del prefijo real.
+  const suyas = [...new Set([product.imagen, ...product.imagenes].filter(Boolean))];
+  for (const url of suyas) {
     try {
-      await storage.delete(product.imagen);
+      await storage.delete(url);
     } catch (e) {
-      console.error('[products] no se pudo borrar la imagen del producto eliminado', product.imagen, e);
+      console.error('[products] no se pudo borrar la imagen del producto eliminado', url, e);
     }
   }
 

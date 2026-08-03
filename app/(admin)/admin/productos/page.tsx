@@ -17,6 +17,7 @@ import { CATEGORIAS, EMPTY_PRODUCT_FORM, TOSTADOS } from '@/constants/product';
 import { formatCOP } from '@/lib/utils';
 import { uploadImagen } from '@/lib/api/upload';
 import { ACCEPT_IMAGENES, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
+import { MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -89,9 +90,27 @@ function ProductosInner() {
     }
   };
 
-  // Único efecto: soltar la URL viva cuando la página se va. En el ciclo doble de
-  // Strict Mode el ref todavía está vacío, así que no revoca nada.
-  useEffect(() => revocarObjectUrl, []);
+  // ── Galería (tomas adicionales del detalle del storefront) ────────────────
+  // `galeriaActual` son URLs YA guardadas; `galeriaPendiente` son archivos aún
+  // sin subir, con su preview local. Mismo trato que la portada: el upload
+  // ocurre al guardar. Quitar una guardada solo la saca del array — el blob lo
+  // borra el SERVER en el PATCH, comparando contra lo que tenía la base.
+  const [galeriaActual, setGaleriaActual]       = useState<string[]>([]);
+  const [galeriaPendiente, setGaleriaPendiente] = useState<{ file: File; preview: string }[]>([]);
+  const galeriaInputRef = useRef<HTMLInputElement>(null);
+  // Mismo motivo que `objectUrlRef`: los object URLs de la galería viven en un
+  // ref para poder revocarlos sin depender del ciclo de render.
+  const galeriaUrlsRef = useRef<string[]>([]);
+
+  const revocarGaleria = (urls?: string[]) => {
+    const objetivo = urls ?? galeriaUrlsRef.current;
+    objetivo.forEach(u => URL.revokeObjectURL(u));
+    galeriaUrlsRef.current = galeriaUrlsRef.current.filter(u => !objetivo.includes(u));
+  };
+
+  // Único efecto: soltar las URLs vivas cuando la página se va. En el ciclo doble
+  // de Strict Mode los refs todavía están vacíos, así que no revoca nada.
+  useEffect(() => () => { revocarObjectUrl(); revocarGaleria(); }, []);
 
   const limpiarImagen = () => {
     revocarObjectUrl();
@@ -99,6 +118,58 @@ function ProductosInner() {
     setImagenPreview('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  const limpiarGaleria = () => {
+    revocarGaleria();
+    setGaleriaPendiente([]);
+    setGaleriaActual([]);
+    if (galeriaInputRef.current) galeriaInputRef.current.value = '';
+  };
+
+  const totalGaleria = galeriaActual.length + galeriaPendiente.length;
+
+  const onPickGaleria = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const elegidos = [...(e.target.files ?? [])];
+    e.target.value = '';                 // permite volver a elegir el mismo archivo
+    if (elegidos.length === 0) return;
+
+    const cupo = MAX_GALERIA_IMAGENES - totalGaleria;
+    if (cupo <= 0) {
+      toast.error(`La galería ya tiene el máximo de ${MAX_GALERIA_IMAGENES} imágenes.`);
+      return;
+    }
+
+    const validos: { file: File; preview: string }[] = [];
+    for (const file of elegidos) {
+      if (validos.length >= cupo) {
+        toast.error(`Solo caben ${cupo} más — el máximo de la galería es ${MAX_GALERIA_IMAGENES}.`);
+        break;
+      }
+      // Mismos límites por archivo que la portada (constants/upload).
+      if (!(TIPOS_PERMITIDOS as readonly string[]).includes(file.type)) {
+        toast.error(`"${file.name}": formato no admitido. Usa JPG, PNG o WebP.`);
+        continue;
+      }
+      if (file.size > MAX_UPLOAD_BYTES) {
+        toast.error(`"${file.name}" pesa ${(file.size / (1024 * 1024)).toFixed(1)} MB y el máximo es ${MAX_UPLOAD_MB} MB.`);
+        continue;
+      }
+      const preview = URL.createObjectURL(file);
+      galeriaUrlsRef.current.push(preview);
+      validos.push({ file, preview });
+    }
+    if (validos.length > 0) setGaleriaPendiente(prev => [...prev, ...validos]);
+  };
+
+  const quitarPendiente = (preview: string) => {
+    revocarGaleria([preview]);
+    setGaleriaPendiente(prev => prev.filter(p => p.preview !== preview));
+  };
+
+  // Quitar una guardada NO borra nada acá: sale del array y el server se encarga
+  // del blob al guardar. Si el operador cancela el formulario, no se perdió nada.
+  const quitarGuardada = (url: string) =>
+    setGaleriaActual(prev => prev.filter(u => u !== url));
 
   const onPickImagen = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -124,11 +195,15 @@ function ProductosInner() {
     setImagenPreview(url);
   };
 
-  const openNew  = () => { setEditing(null); setForm(EMPTY_PRODUCT_FORM); limpiarImagen(); setShowForm(true); };
+  const openNew  = () => { setEditing(null); setForm(EMPTY_PRODUCT_FORM); limpiarImagen(); limpiarGaleria(); setShowForm(true); };
   const openEdit = (p: Product) => {
     setEditing(p);
     limpiarImagen();
+    limpiarGaleria();
     setImagenPreview(p.imagen ?? '');
+    // La galería que se EDITA excluye la portada aunque el registro la repita:
+    // se muestra lo que de verdad son tomas adicionales (ver galeriaCompleta).
+    setGaleriaActual((p.imagenes ?? []).filter(u => u && u !== p.imagen));
     setForm({
       nombre:      p.nombre,
       descripcion: p.descripcion,
@@ -170,11 +245,23 @@ function ProductosInner() {
     // producto; si el producto falla, el blob nuevo queda huérfano (basura
     // barata) pero la imagen vieja sigue siendo la buena. El blob REEMPLAZADO lo
     // borra el server dentro del PATCH, que es quien sabe cuál era el anterior.
+    // Guarda cliente del tope; la que MANDA es la del endpoint.
+    if (totalGaleria > MAX_GALERIA_IMAGENES) {
+      toast.error(`La galería admite máximo ${MAX_GALERIA_IMAGENES} imágenes adicionales.`);
+      return;
+    }
+
     let imagenUrl = form.imagen;
-    if (imagenFile) {
+    const galeriaSubidas: string[] = [];
+    if (imagenFile || galeriaPendiente.length > 0) {
       setSubiendo(true);
       try {
-        imagenUrl = (await uploadImagen(imagenFile)).url;
+        if (imagenFile) imagenUrl = (await uploadImagen(imagenFile)).url;
+        // En serie y no en paralelo: son pocas y así el primer fallo corta sin
+        // dejar a medias un lote grande de blobs sin producto que los referencie.
+        for (const { file } of galeriaPendiente) {
+          galeriaSubidas.push((await uploadImagen(file)).url);
+        }
       } catch (e) {
         toast.error(e instanceof Error ? e.message : 'No se pudo subir la imagen');
         return;
@@ -199,7 +286,9 @@ function ProductosInner() {
       tostado:     (form.tostado   || undefined) as RoastLevel | undefined,
       slug:        form.slug,
       imagen:      imagenUrl,
-      imagenes:    editing?.imagenes ?? [],
+      // Lo que ya estaba (menos lo que el operador quitó) + lo recién subido.
+      // El orden es el de subida: v1 no tiene reordenamiento.
+      imagenes:    [...galeriaActual, ...galeriaSubidas],
     };
 
     if (editing) {
@@ -213,6 +302,7 @@ function ProductosInner() {
     }
 
     limpiarImagen();
+    limpiarGaleria();
     setShowForm(false);
   };
 
@@ -414,6 +504,68 @@ function ProductosInner() {
                 </div>
               </div>
             </div>
+
+            {/* Galería — tomas ADICIONALES. La portada de arriba no se lista
+                acá: en el detalle del storefront va primero y estas después.
+                v1 sin reordenamiento: el orden es el de subida. */}
+            <div className="col-span-2">
+              <Label>Galería</Label>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Tomas adicionales del detalle en la tienda · {totalGaleria}/{MAX_GALERIA_IMAGENES}
+              </p>
+
+              {totalGaleria > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {galeriaActual.map(url => (
+                    <figure key={url} className="group relative h-20 w-20 overflow-hidden rounded-lg border border-border bg-muted">
+                      <Image src={url} alt="" fill sizes="80px" className="object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => quitarGuardada(url)}
+                        aria-label="Quitar de la galería"
+                        className="absolute right-1 top-1 rounded-md bg-background/85 p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </figure>
+                  ))}
+                  {galeriaPendiente.map(({ preview, file }) => (
+                    <figure key={preview} className="group relative h-20 w-20 overflow-hidden rounded-lg border border-dashed border-primary/50 bg-muted">
+                      {/* `img` y no next/image: un `blob:` local no lo puede
+                          optimizar el servidor de imágenes. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={preview} alt={file.name} className="h-full w-full object-cover" />
+                      <span className="absolute inset-x-0 bottom-0 bg-background/85 py-0.5 text-center text-[10px] text-muted-foreground">
+                        Sin subir
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => quitarPendiente(preview)}
+                        aria-label={`Quitar ${file.name}`}
+                        className="absolute right-1 top-1 rounded-md bg-background/85 p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </figure>
+                  ))}
+                </div>
+              )}
+
+              <input
+                ref={galeriaInputRef}
+                type="file"
+                accept={ACCEPT_IMAGENES}
+                multiple
+                onChange={onPickGaleria}
+                disabled={totalGaleria >= MAX_GALERIA_IMAGENES}
+                className="mt-2 block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-accent disabled:opacity-50"
+              />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {totalGaleria >= MAX_GALERIA_IMAGENES
+                  ? `Máximo alcanzado (${MAX_GALERIA_IMAGENES}). Quita alguna para agregar otra.`
+                  : `JPG, PNG o WebP · máx. ${MAX_UPLOAD_MB} MB cada una. Se suben al guardar.`}
+              </p>
+            </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
@@ -442,6 +594,7 @@ function ProductosInner() {
           ? { label: 'Desactivar', onAction: confirmDeactivate, successMessage: 'Producto desactivado' }
           : undefined}
       />
+
     </div>
   );
 }

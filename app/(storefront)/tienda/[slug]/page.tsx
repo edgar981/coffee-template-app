@@ -30,6 +30,7 @@ import { formatCOP } from "@/lib/utils";
 import { TOSTION_LABELS } from "@/constants/roast-levels";
 import { SUBSCRIPTIONS_ENABLED, SUBSCRIPTION_DISCOUNT } from "@/constants/features";
 import Chip from "@/components/storefront/ProductChip";
+import { galeriaCompleta } from "@/lib/product-gallery";
 
 interface ProductPageProps {
   params: Promise<{
@@ -108,9 +109,16 @@ export default function ProductPage({
   // el stock real); si faltara, caemos a 1 para no permitir compras ciegas.
   const maxCompra = product.maxCompra ?? 1;
 
-  // Imagen hero: galería si existe, si no la principal. Puede faltar
-  // (`undefined`) → renderizamos el bloque crema de marca en su lugar.
-  const heroSrc = product.imagenes?.[imgIdx] || product.imagen;
+  // Galería del detalle: portada primero, después las tomas adicionales, SIN
+  // repetir. La dedupe la hace `galeriaCompleta` —compartida con el admin— y es
+  // una guarda, no una limpieza pendiente: los seeds traen la portada duplicada
+  // dentro de `imagenes[]` y ese dato no se migró (ver CLAUDE.md).
+  //
+  // `imgIdx` indexa ESTA lista, no `imagenes[]`: la portada es el índice 0, así
+  // que el hero arranca en ella. Puede quedar vacía (producto sin imágenes) →
+  // se renderiza el bloque crema de marca.
+  const galeria = galeriaCompleta(product.imagen, product.imagenes);
+  const heroSrc = galeria[imgIdx] ?? galeria[0];
 
   const related = catalog.filter(
     (p) =>
@@ -200,10 +208,12 @@ export default function ProductPage({
               )}
             </motion.div>
 
-            {(product.imagenes?.length ?? 0) >
-              1 && (
+            {/* Una sola imagen no lleva fila de miniaturas: un thumbnail suelto
+                bajo su propia hero no es navegación, es ruido. Por eso un
+                producto sin tomas adicionales se ve exactamente como antes. */}
+            {galeria.length > 1 && (
               <div className="flex gap-3">
-                {product.imagenes?.map(
+                {galeria.map(
                   (img, i) => (
                     <button
                       key={i}

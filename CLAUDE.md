@@ -88,6 +88,48 @@ imposible, no una opción descartada.
   seguir respondiendo 200 en el edge un par de segundos. No es un fallo del
   borrado — no escribir tests ni verificaciones que asuman un 404 inmediato.
 
+## Galería de producto — `imagen` vs `imagenes[]`
+
+Semántica (decisión del owner): **`Product.imagen` es LA portada** en todos sus
+usos —cards del catálogo, cards del admin, hero del detalle— e
+**`imagenes[]` son tomas ADICIONALES** que solo aparecen en la galería del
+detalle del storefront. v1 **sin reordenamiento**: el orden es el de subida.
+
+- **La composición y la dedupe viven en `lib/product-gallery.ts`**
+  (`galeriaCompleta`), compartidas por el detalle y el admin. Si cada vista
+  armara su propia lista, el orden y los duplicados divergirían entre lo que el
+  operador edita y lo que el cliente ve.
+- **Los seeds traen la portada DUPLICADA dentro de `imagenes[]`, y está así a
+  propósito.** Los 4 productos del catálogo tienen `imagenes:
+  ["<la misma URL que imagen>"]`, herencia de la semántica anterior, donde
+  `imagenes[]` era "la galería completa, portada incluida" e `imagen` solo el
+  fallback. **Ese dato NO se migró y no hace falta migrarlo**: `galeriaCompleta`
+  dedupea al renderizar, así que esos productos se ven exactamente como siempre
+  (lista de 1 → sin fila de miniaturas).
+- **NO "arreglar" el dato ni quitar la dedupe creyendo que sobra.** La dedupe es
+  una **garantía defensiva** contra cualquier fuente futura —un import, un seed
+  nuevo, una edición manual, un backfill— no un parche para esos 4 registros.
+  Limpiar la base no la vuelve innecesaria; solo elimina la única evidencia de
+  por qué existe. Testeada en `lib/product-gallery.test.ts`.
+- **El dato se auto-normaliza al editar, sin backfill:** el formulario del admin
+  carga la galería excluyendo la portada, así que guardar un producto sembrado
+  deja su `imagenes[]` sin el duplicado. Es el efecto correcto de la semántica
+  nueva y no cambia nada en pantalla (`galeriaCompleta` ya daba el mismo
+  resultado). No es motivo para quitar la dedupe: los productos que nadie edite
+  siguen con el duplicado, y las fuentes futuras también pueden traerlo.
+- **El tope es `MAX_GALERIA_IMAGENES` (6) y cuenta ADICIONALES**, no la portada:
+  un producto muestra como máximo 7 miniaturas. Se valida en el cliente (aviso
+  temprano) y en el POST y el PATCH (la que manda).
+- **El borrado de blobs de galería lo hace el SERVER por diff**: compara el
+  array previo de la BASE contra el nuevo (`blobsRetirados`) y borra lo que
+  salió. El cliente jamás manda "borra esta URL" — si lo hiciera, cualquier
+  admin podría borrar cualquier blob del store enviando otra. Una toma promovida
+  a portada se excluye del borrado: seguía en uso. El `DELETE` del producto
+  borra portada + galería completa.
+- Un producto puede tener portada estática de `public/` y galería en Blob: las
+  guardas del adaptador (`isManaged`) hacen no-op las relativas, así que
+  conviven sin migrar nada.
+
 ## Política de tema (dark mode)
 
 El storefront es light-only (paleta de marca fija). El admin soporta

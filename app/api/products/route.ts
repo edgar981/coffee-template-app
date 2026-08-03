@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
+import { sanitizeGaleria, MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -22,6 +23,16 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
 
+  // Mismo tope y misma normalización que el PATCH: un producto no puede NACER
+  // con una galería fuera de límite.
+  const galeria = sanitizeGaleria(body.imagenes);
+  if (galeria.length > MAX_GALERIA_IMAGENES) {
+    return NextResponse.json(
+      { error: `La galería admite máximo ${MAX_GALERIA_IMAGENES} imágenes adicionales (llegaron ${galeria.length}).` },
+      { status: 400 },
+    );
+  }
+
   const product = await prisma.product.create({
     data: {
       nombre:      body.nombre,
@@ -39,7 +50,7 @@ export async function POST(req: NextRequest) {
       origen:      body.origen              || null,
       tostado:     body.tostado             || null,
       imagen:      body.imagen              || '',
-      imagenes:    body.imagenes            || [],
+      imagenes:    galeria,
     },
   });
 
