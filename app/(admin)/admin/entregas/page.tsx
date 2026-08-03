@@ -370,10 +370,11 @@ export default function Entregas() {
   );
 }
 
-// Payment state of the order behind a delivery: a Pagada / Pendiente de cobro
-// badge, plus the declared method ("cobrar al entregar: Efectivo") when unpaid —
-// so whoever runs the route knows whether, and how, to collect. Cancelled orders
-// show nothing extra (the delivery row already reads Cancelado).
+// Estado de pago de la orden detrás de una entrega: UN badge que le dice al que
+// hace la ruta si cobra y cómo. La instrucción y el método van dentro del badge,
+// no como texto suelto debajo — dos elementos para un solo hecho se leían como
+// dos cosas distintas. Las canceladas no muestran nada (la fila ya dice
+// Cancelado).
 function PaymentHint({ order }: { order?: ShippingOrderRef | null }) {
   if (!order) return null;
 
@@ -396,19 +397,27 @@ function PaymentHint({ order }: { order?: ShippingOrderRef | null }) {
   }
 
   if (order.estado === 'pendiente') {
-    const previsto = metodoPrevistoLabel(order);
+    // CONTRAENTREGA: el badge da la INSTRUCCIÓN ("cobrar al entregar") y, si está
+    // declarado, con qué método — label del mapa único, nunca el valor crudo del
+    // enum. Ese texto ya dice que es contraentrega, así que no se acompaña de la
+    // píldora "Contraentrega": sería el mismo hecho dos veces en la misma fila.
+    //
+    // ANTICIPADO se queda en "Pendiente de cobro" y sin método: el cobro no
+    // ocurre en la entrega, y rotular "cobrar al entregar" una orden prepagada
+    // mandaba al mensajero a cobrar algo que no le toca.
+    if (order.condicion_pago === 'CONTRAENTREGA') {
+      const previsto = metodoPrevistoLabel(order);
+      return (
+        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+          {previsto ? `Cobrar al entregar · ${previsto}` : 'Cobrar al entregar'}
+        </span>
+      );
+    }
+
     return (
-      <div className="space-y-0.5">
-        <div className="flex flex-wrap items-center gap-1">
-          <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-            Pendiente de cobro
-          </span>
-          {condicion}
-        </div>
-        {previsto && (
-          <p className="text-[11px] text-muted-foreground">Cobrar al entregar: {previsto}</p>
-        )}
-      </div>
+      <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+        Pendiente de cobro
+      </span>
     );
   }
 
