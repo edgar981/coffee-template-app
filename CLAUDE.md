@@ -11,6 +11,83 @@ sirviendo la versión vieja indefinidamente. Cuando exista upload de
 imágenes en el admin, el nombre debe incluir hash o timestamp
 automáticamente.
 
+Esa última frase ya está CUMPLIDA para las imágenes subidas desde el admin
+— ver la sección de abajo. Las estáticas de `public/` siguen exactamente
+con esta regla: no se migran y se renombran a mano.
+
+## Storage de imágenes de producto
+
+Las imágenes que se suben desde el admin NO viven en `public/`: en Vercel
+el filesystem es de solo lectura en runtime, así que escribir ahí es
+imposible, no una opción descartada.
+
+- **Proveedor v1 = Vercel Blob, y SOLO a través de `lib/storage.ts`.**
+  Ningún otro archivo del repo importa `@vercel/blob` (verificable con un
+  grep, y es la condición que hace barata la revisión de proveedor). El
+  adaptador expone una interfaz propia y mínima: `storage.put(file, opts)
+  → { url }` y `storage.delete(url)`. No devuelve ni acepta un solo tipo
+  del SDK.
+- **La decisión de proveedor es REVISABLE.** R2 es candidato al pasar a la
+  arquitectura multitenant de Duna (misma cuenta de Cloudflare, egreso
+  gratis). El costo de ese cambio debe mantenerse en "reimplementar
+  `lib/storage.ts`" y nunca en tocar call sites; si alguna vez hace falta
+  tocar un call site para cambiar de proveedor, la abstracción se rompió y
+  eso es el bug.
+- **El prefijo del pathname es el futuro SCOPE POR TIENDA.** Hoy default
+  `productos/`, parámetro del adaptador (`PutOptions.prefix`), no una
+  constante incrustada en cada llamada. El día del multitenant pasa a
+  `<storeId>/productos/` sin tocar quien lo llama.
+- **Aislamiento por entorno, porque el store es UNO SOLO.** Blob no tiene
+  ramas como Neon. El adaptador antepone `dev/` a todo lo que no sea
+  `VERCEL_ENV === 'production'` — misma condición que el `migrate deploy`
+  del build. Local y previews escriben en `dev/productos/`; producción en
+  `productos/`. Limpiar pruebas jamás puede tocar un blob real. El cálculo
+  del prefijo está testeado (`lib/storage.test.ts`); es deliberadamente
+  conservador: sin `VERCEL_ENV` se asume NO producción, de modo que el
+  error posible es ensuciar `dev/`, nunca el prefijo real.
+- **El nombre lo hace único el proveedor** (`addRandomSuffix: true`), que
+  es como se cumple de fábrica la regla de hash automático de la sección
+  anterior. La URL es entonces una clave de caché inmutable.
+- **El store es PUBLIC — decisión deliberada.** Las URLs son legibles por
+  cualquiera con el link, que es lo correcto para imágenes de catálogo (van
+  a un storefront abierto) y lo que permite que `next/image` las optimice
+  sin credenciales. **NO usar este adaptador para documentos, adjuntos ni
+  datos de clientes** sin revisar antes esta decisión.
+- **El borrado del blob viejo lo hace el SERVER**, en el `PATCH` y el
+  `DELETE` de `/api/products/[id]`, comparando contra la imagen que ya
+  tenía el producto. No se recibe del cliente a propósito: si el borrado se
+  disparara con una URL enviada por el navegador, cualquier admin podría
+  borrar cualquier blob del store mandando otra. Va siempre DESPUÉS de
+  confirmar el cambio en DB y sin poder tumbarlo — un blob huérfano es
+  basura barata; un producto apuntando a una imagen ya borrada, no.
+- **`storage.delete` ignora lo que no administra** (`isManaged`): una URL
+  relativa de `public/` o externa es un no-op. Los 4 productos del catálogo
+  hoy apuntan a `/images/*.webp`, así que esta guarda es la que impide que
+  editar uno de ellos intente borrar un estático — la regla de
+  inmutabilidad de `public/` queda imposible de violar desde el admin.
+- **Y un entorno NO-PRODUCTION solo puede borrar bajo su propio `dev/`**
+  (`isDeletable`). Un blob del prefijo real se trata como si no fuera
+  nuestro: no-op, pero CON log (no es rutina, es una señal). Producción
+  borra sin restricción de prefijo — sus blobs son suyos.
+
+  El motivo no es teórico: la base `development` se re-crea por **reset
+  desde `production`**, así que después de cada reset las filas de dev
+  apuntan a los blobs REALES que producción está sirviendo. Sin esta
+  guarda, probar un reemplazo de imagen en local dispara el borrado del
+  `PATCH` sobre esa URL heredada y tumba la imagen del catálogo en vivo.
+  Ojo con el razonamiento fácil: el aislamiento de `put` NO cubre este caso
+  — lo que se borra no es lo que subimos, es lo que vino en la copia de la
+  base. El `dev/` que se permite borrar sale de `envPrefix`, el mismo que
+  decide dónde se escribe, para que no puedan divergir. Testeado en
+  `lib/storage.test.ts`.
+- **Env vars:** el código depende SOLO de `BLOB_READ_WRITE_TOKEN` (el SDK
+  lo lee por convención). El connect del store también creó `BLOB_STORE_ID`
+  y `BLOB_WEBHOOK_PUBLIC_KEY` en Production y Preview; no se referencian en
+  ningún lado.
+- **El borrado es de consistencia eventual**: tras borrar, la URL puede
+  seguir respondiendo 200 en el edge un par de segundos. No es un fallo del
+  borrado — no escribir tests ni verificaciones que asuman un 404 inmediato.
+
 ## Política de tema (dark mode)
 
 El storefront es light-only (paleta de marca fija). El admin soporta

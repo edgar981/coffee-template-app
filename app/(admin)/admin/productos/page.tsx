@@ -1,8 +1,9 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Search, Edit2, Trash2, Package, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Package, AlertTriangle, Image as ImageIcon, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -14,6 +15,8 @@ import { getProducts, createProduct, updateProduct, deleteProduct } from '@/lib/
 import type { Product, ProductCategory, ProductForm, RoastLevel } from '@/types/product';
 import { CATEGORIAS, EMPTY_PRODUCT_FORM, TOSTADOS } from '@/constants/product';
 import { formatCOP } from '@/lib/utils';
+import { uploadImagen } from '@/lib/api/upload';
+import { ACCEPT_IMAGENES, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -62,9 +65,50 @@ function ProductosInner() {
     return matchSearch && matchCat;
   });
 
-  const openNew  = () => { setEditing(null); setForm(EMPTY_PRODUCT_FORM); setShowForm(true); };
+  // Imagen elegida pero AÚN NO SUBIDA. El upload ocurre al guardar, no al
+  // seleccionar: un formulario que se abandona a medias no puede dejar blobs
+  // huérfanos en el store. El preview es un object URL local, gratis y revocable.
+  const [imagenFile, setImagenFile]       = useState<File | null>(null);
+  const [imagenPreview, setImagenPreview] = useState<string>('');
+  const [subiendo, setSubiendo]           = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Un object URL retiene el File en memoria hasta que se revoca.
+  useEffect(() => {
+    if (!imagenPreview.startsWith('blob:')) return;
+    return () => URL.revokeObjectURL(imagenPreview);
+  }, [imagenPreview]);
+
+  const limpiarImagen = () => {
+    setImagenFile(null);
+    setImagenPreview('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const onPickImagen = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Aviso temprano con los MISMOS límites del server (constants/upload), para
+    // no gastar una subida que el endpoint va a rechazar igual.
+    if (!(TIPOS_PERMITIDOS as readonly string[]).includes(file.type)) {
+      toast.error('Formato no admitido. Usa JPG, PNG o WebP.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error(`La imagen pesa ${(file.size / (1024 * 1024)).toFixed(1)} MB y el máximo es ${MAX_UPLOAD_MB} MB.`);
+      e.target.value = '';
+      return;
+    }
+    setImagenFile(file);
+    setImagenPreview(URL.createObjectURL(file));
+  };
+
+  const openNew  = () => { setEditing(null); setForm(EMPTY_PRODUCT_FORM); limpiarImagen(); setShowForm(true); };
   const openEdit = (p: Product) => {
     setEditing(p);
+    limpiarImagen();
+    setImagenPreview(p.imagen ?? '');
     setForm({
       nombre:      p.nombre,
       descripcion: p.descripcion,
@@ -102,6 +146,23 @@ function ProductosInner() {
   const handleSave = async () => {
     if (!form.categoria) { toast.error('Selecciona una categoría'); return; }
 
+    // Orden deliberado: subir → guardar. Si la subida falla no se toca el
+    // producto; si el producto falla, el blob nuevo queda huérfano (basura
+    // barata) pero la imagen vieja sigue siendo la buena. El blob REEMPLAZADO lo
+    // borra el server dentro del PATCH, que es quien sabe cuál era el anterior.
+    let imagenUrl = form.imagen;
+    if (imagenFile) {
+      setSubiendo(true);
+      try {
+        imagenUrl = (await uploadImagen(imagenFile)).url;
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'No se pudo subir la imagen');
+        return;
+      } finally {
+        setSubiendo(false);
+      }
+    }
+
     const data = {
       nombre:      form.nombre,
       descripcion: form.descripcion,
@@ -117,7 +178,7 @@ function ProductosInner() {
       origen:      form.origen     || undefined,
       tostado:     (form.tostado   || undefined) as RoastLevel | undefined,
       slug:        form.slug,
-      imagen:      form.imagen,
+      imagen:      imagenUrl,
       imagenes:    editing?.imagenes ?? [],
     };
 
@@ -131,6 +192,7 @@ function ProductosInner() {
       toast.success('Producto creado');
     }
 
+    limpiarImagen();
     setShowForm(false);
   };
 
@@ -291,11 +353,52 @@ function ProductosInner() {
                 placeholder="Descripción del producto..."
               />
             </div>
+            {/* Imagen. El preview es local hasta que se guarda: seleccionar no
+                sube nada (ver `imagenFile`). Al reemplazar la de un producto
+                existente, el server borra el blob anterior en el PATCH. */}
+            <div className="col-span-2">
+              <Label>Imagen</Label>
+              <div className="mt-1 flex items-start gap-4">
+                <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
+                  {imagenPreview ? (
+                    // Preview: `img` y no `next/image` a propósito — un `blob:`
+                    // local no lo puede optimizar el servidor de imágenes.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={imagenPreview} alt="Vista previa" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <ImageIcon className="h-7 w-7 text-muted-foreground/50" />
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={ACCEPT_IMAGENES}
+                    onChange={onPickImagen}
+                    className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-accent"
+                  />
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    JPG, PNG o WebP · máx. {MAX_UPLOAD_MB} MB. Se sube al guardar.
+                  </p>
+                  {(imagenFile || imagenPreview) && (
+                    <Button
+                      variant="ghost" size="sm"
+                      className="mt-1 h-7 px-2 text-xs text-muted-foreground"
+                      onClick={() => { limpiarImagen(); setForm(f => ({ ...f, imagen: '' })); }}
+                    >
+                      <X className="mr-1 h-3 w-3" /> Quitar imagen
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={!form.nombre || !form.categoria || !form.precio}>
-              Guardar
+            <Button onClick={handleSave} disabled={subiendo || !form.nombre || !form.categoria || !form.precio}>
+              {subiendo ? 'Subiendo imagen…' : 'Guardar'}
             </Button>
           </div>
         </DialogContent>
@@ -340,7 +443,17 @@ function ProductCard({ product: p, onEdit, onDelete }: ProductCardProps) {
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-all group">
       <div className="h-36 bg-linear-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 flex items-center justify-center relative">
-        <Package className="w-12 h-12 text-amber-300" />
+        {p.imagen ? (
+          <Image
+            src={p.imagen}
+            alt={p.nombre}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1280px) 33vw, 25vw"
+            className="object-cover"
+          />
+        ) : (
+          <Package className="w-12 h-12 text-amber-300" />
+        )}
         {lowStock && (
           <span className="absolute top-2 right-2 bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" /> Stock bajo

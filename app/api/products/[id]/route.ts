@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
+import { storage } from '@/lib/storage';
 
 export async function PATCH(
   req: NextRequest,
@@ -14,6 +15,16 @@ export async function PATCH(
   const { id } = await params;
 
   const body    = await req.json();
+
+  // Imagen ANTERIOR, para poder borrar su blob si esta edición la reemplaza. Se
+  // lee acá y no se recibe del cliente a propósito: si el borrado se disparara
+  // con una URL enviada por el navegador, cualquier admin podría borrar
+  // cualquier blob del store mandando otra. El server ya sabe cuál era.
+  const previo = await prisma.product.findUnique({
+    where:  { id },
+    select: { imagen: true },
+  });
+
   const updated = await prisma.product.update({
     where: { id: id },
     data: {
@@ -36,6 +47,20 @@ export async function PATCH(
       updatedAt:   new Date(),
     },
   });
+
+  // Reemplazo de imagen: el blob viejo queda sin referencias, se borra. Va
+  // DESPUÉS del update y sin poder tumbarlo — si el borrado falla queda un blob
+  // huérfano (basura barata), mientras que borrar antes de confirmar el update
+  // dejaría un producto apuntando a una imagen que ya no existe. `storage.delete`
+  // ignora por sí solo las URLs que no administra (las estáticas de public/).
+  const anterior = previo?.imagen ?? '';
+  if (anterior && anterior !== updated.imagen) {
+    try {
+      await storage.delete(anterior);
+    } catch (e) {
+      console.error('[products] no se pudo borrar la imagen anterior', anterior, e);
+    }
+  }
 
   return NextResponse.json(updated);
 }
@@ -70,6 +95,19 @@ export async function DELETE(
   }
 
   await prisma.product.delete({ where: { id: id } });
+
+  // Mismo criterio que el reemplazo del PATCH: sin producto no queda nadie
+  // referenciando su imagen, así que el blob se va con él. Después del delete y
+  // sin poder tumbarlo — un blob huérfano es basura barata, un 500 acá dejaría
+  // al operador creyendo que el producto no se borró cuando sí. Las imágenes
+  // estáticas de `public/` las ignora el propio adaptador.
+  if (product.imagen) {
+    try {
+      await storage.delete(product.imagen);
+    } catch (e) {
+      console.error('[products] no se pudo borrar la imagen del producto eliminado', product.imagen, e);
+    }
+  }
 
   return NextResponse.json({ ok: true });
 }
