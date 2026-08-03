@@ -105,14 +105,15 @@ layout NO monta ThemeProvider. `color-scheme` sigue al tema vía CSS
 
 ## Bases de datos (Neon) — qué es cada endpoint
 
-Tres ramas, tres roles. El hostname es el identificador; el NOMBRE de la rama
-no lo es (ver la regla de abajo).
+Cuatro ramas, cuatro roles. El hostname es el identificador; el NOMBRE de la
+rama no lo es (ver la regla de abajo).
 
 | Rama (Neon) | Endpoint | Rol |
 | --- | --- | --- |
 | `production` | `ep-ancient-frog-ac1v1hg5` | **PRODUCCIÓN.** La que sirve Vercel (pooled en `DATABASE_URL`, directo en `DIRECT_DATABASE_URL`). Preview hereda estas env vars salvo override, así que **preview escribe en producción**. |
 | `development` | `ep-still-sound-acfmedf2` | Base de desarrollo. Es a la que apunta el `.env` local (pooled + directo). Ramificada de production, 33/33 migraciones. |
 | `quarantine-prod-snapshot-jul24` | `ep-solitary-mouse-ac140cla` | Snapshot CONGELADO del 2026-07-24. **No tocar ni decomisar sin decisión explícita del owner.** No es producción ni desarrollo: no leerla para diagnosticar nada. |
+| `backup-pre-purge-ago03` | `ep-super-frost-acy9dryk` | Snapshot CONGELADO del 2026-08-03, child de production, tomado justo antes de la purga pre-lanzamiento (ver abajo). Es el ÚNICO respaldo de las 120 órdenes borradas. **No tocar ni decomisar** mientras la purga siga siendo reversible por decisión del owner. |
 
 **REGLA DURA — verificar el ROL en la CONSOLA de Neon antes de cualquier
 operación destructiva o de escritura masiva** (reset de rama, `migrate reset`,
@@ -130,6 +131,53 @@ Para verificar el rol desde fuera de la consola, la única fuente válida es el
 `process.env` DEL deployment (así se resolvió el 2026-08-02: un route handler
 temporal, gateado a OWNER, que devolvía `new URL(...).hostname` — nunca la
 cadena de conexión — y `VERCEL_ENV`).
+
+### Purga pre-lanzamiento del 2026-08-03 — EXCEPCIÓN ÚNICA, no precedente
+
+Se borró TODO lo transaccional de producción: 120 órdenes, 151 OrderItems, 89
+Payments, 99 Shippings, 20 Customers, 8 InventoryLogs. Sobrevivieron intactos
+productos, stock, usuarios/sesiones de Better Auth, `AutomationSetting` y
+`DashboardPreference`. Motivo: la base traía únicamente data de demo (seed) y
+pruebas manuales, y el cliente arranca con historial en cero.
+
+**La regla de no-borrado SIGUE VIGENTE para operación normal.** Los paths de la
+app cancelan, no borran, y eso es lo correcto: una orden es un registro
+financiero. Esta purga fue una excepción de una sola vez, con respaldo previo y
+aprobación explícita del owner. No es precedente para "limpiar" nada.
+
+Lo que hizo segura la operación, por si alguna vez hay que repetirla:
+
+- **Respaldo ANTES**, en una rama propia (`backup-pre-purge-ago03`), y una
+  aserción en la transacción de que toda orden a borrar existía en él y que
+  producción no tenía nada posterior al snapshot. Sin esa cobertura verificada,
+  la purga aborta.
+- **Cerrojos por hostname, no por confianza.** El primer intento de esta sesión
+  llegó con la cadena de `backup-pre-purge-ago03` etiquetada como producción —
+  el mismo modo de falla del 2026-08-02. Se detectó comparando el hostname
+  contra la tabla de arriba y el contenido contra `development`. Un wipe con esa
+  cadena habría destruido el respaldo dejando producción sucia.
+- **Todo en UNA transacción**, con aserciones de que las tablas a conservar no
+  cambiaron de conteo. Cualquier fallo → `ROLLBACK`.
+
+**Los criterios "obvios" de data de prueba NO servían.** El seed genera órdenes
+con prefijo `CN-9#####` (no solo `SN-`) e identidades realistas tomadas de
+`MOCK_CUSTOMERS` (`valentina.torres@gmail.com`, teléfonos `+5731…` válidos): ni
+"nombres QA" ni "@example.com" las tocan. Y como las órdenes reales se numeran
+`CN-` + 6 dígitos aleatorios, ~1 de cada 9 reales empieza por `CN-9` — borrar
+por prefijo habría destruido órdenes legítimas. Los marcadores que sí
+discriminan son `Payment.registrado_por_nombre = 'Seed'` y la coincidencia de
+identidad contra `MOCK_CUSTOMERS`. Si alguna vez hay que volver a clasificar
+data de prueba, empezar por ahí y no por el número de orden.
+
+Las identidades no-fixture que quedaban (Juan Henao, Luis / lUIS Cagua, Carlos,
+`CN-299035`) las resolvió el owner el 2026-08-03: **todas del círculo de pruebas**
+(él, su socio Carlos, el dueño de Nayoli). No había clientes reales.
+
+**PENDIENTE — el stock NO se tocó y sus números son falsos.** Quedó en 42/28/42/28
+(los valores del seed). No se puso en cero a propósito: cero apagaría el
+storefront, y el número real exige **conteo físico del cliente**. Ajustar en la
+sesión con el cliente, antes de abrir ventas. Hasta entonces, cualquier métrica
+de inventario o alerta de stock bajo está leyendo datos inventados.
 
 ## Migraciones y deploy
 
