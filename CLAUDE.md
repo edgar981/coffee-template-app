@@ -26,6 +26,34 @@ layout NO monta ThemeProvider. `color-scheme` sigue al tema vía CSS
 (`html` claro por defecto, `.dark` oscuro — solo el admin aplica
 `.dark`).
 
+## Bases de datos (Neon) — qué es cada endpoint
+
+Tres ramas, tres roles. El hostname es el identificador; el NOMBRE de la rama
+no lo es (ver la regla de abajo).
+
+| Rama (Neon) | Endpoint | Rol |
+| --- | --- | --- |
+| `production` | `ep-ancient-frog-ac1v1hg5` | **PRODUCCIÓN.** La que sirve Vercel (pooled en `DATABASE_URL`, directo en `DIRECT_DATABASE_URL`). Preview hereda estas env vars salvo override, así que **preview escribe en producción**. |
+| `development` | `ep-still-sound-acfmedf2` | Base de desarrollo. Es a la que apunta el `.env` local (pooled + directo). Ramificada de production, 33/33 migraciones. |
+| `quarantine-prod-snapshot-jul24` | `ep-solitary-mouse-ac140cla` | Snapshot CONGELADO del 2026-07-24. **No tocar ni decomisar sin decisión explícita del owner.** No es producción ni desarrollo: no leerla para diagnosticar nada. |
+
+**REGLA DURA — verificar el ROL en la CONSOLA de Neon antes de cualquier
+operación destructiva o de escritura masiva** (reset de rama, `migrate reset`,
+borrado o reescritura en lote, seeds, restore, decomisar una rama).
+
+No sirve como evidencia del rol: el nombre de la rama, lo que diga `.env`, un
+comentario en el código, ni lo que alguien recuerde. Los tres fallaron el
+2026-08-02: `ep-ancient-frog` estaba etiquetado en sesión como "la rama de
+desarrollo" y era producción; el diagnóstico se hizo contra
+`ep-solitary-mouse` creyéndola producción y fabricó un incidente falso ("faltan
+6 migraciones" con producción en 33/33); y por poco se ejecuta un "reset de la
+rama de dev desde el parent" que habría **borrado producción**.
+
+Para verificar el rol desde fuera de la consola, la única fuente válida es el
+`process.env` DEL deployment (así se resolvió el 2026-08-02: un route handler
+temporal, gateado a OWNER, que devolvía `new URL(...).hostname` — nunca la
+cadena de conexión — y `VERCEL_ENV`).
+
 ## Migraciones y deploy
 
 - Las migraciones de PRODUCCIÓN las aplica el build de Vercel
@@ -39,23 +67,14 @@ layout NO monta ThemeProvider. `color-scheme` sigue al tema vía CSS
   hasta que `main` la aplique. Tradeoff aceptado frente al inverso —
   que una rama de feature migre la DB compartida antes de que `main`
   tenga el código.
-- ⚠️ **QUÉ BASE ES PRODUCCIÓN** — verificado 2026-08-02 leyendo `process.env`
-  DESDE el deployment (`VERCEL_ENV=production`), no desde `.env`:
-  **`ep-ancient-frog-ac1v1hg5`** (pooled en `DATABASE_URL`, directo en
-  `DIRECT_DATABASE_URL`). El `.env` LOCAL apunta al MISMO endpoint, así
-  que **el dev server, los scripts con `--env-file`, `prisma db execute`
-  y los seeds escriben EN PRODUCCIÓN**. No hay base de desarrollo hoy.
-  - `ep-solitary-mouse-ac140cla` (línea comentada en `.env`) **NO es
-    producción**: base vieja, congelada el 2026-07-24. Inspeccionarla
-    creyendo lo contrario fabrica incidentes falsos — pasó el 2026-08-02
-    ("faltan 6 migraciones" cuando producción estaba 33/33).
-  - COROLARIO: "resetear la rama de dev desde el parent en Neon" sobre
-    `ep-ancient-frog` **es borrar producción**. Verificar el host contra
-    el deployment antes de cualquier reset o escritura de prueba; la
-    etiqueta que alguien le ponga a una rama no es evidencia.
-  - Preview hereda las env vars de producción salvo override, así que
-    preview y producción comparten base mientras eso siga así — de ahí
-    que el `migrate deploy` condicionado siga siendo lo correcto.
+- **Preview y producción comparten base** — la de `production`
+  (`ep-ancient-frog`): preview hereda sus env vars salvo override. Por eso
+  el `migrate deploy` condicionado a `VERCEL_ENV === "production"` es lo
+  correcto: sin la condición, una rama de feature migraría producción
+  antes de que `main` tenga el código. **Local ya NO comparte con nadie**
+  (apunta a `development`, ver la tabla arriba), así que las pruebas
+  locales dejaron de ser escrituras en vivo — situación vigente desde el
+  2026-08-02, antes de esa fecha sí lo eran.
 - `vercel.json#buildCommand` ANULA el script `build` de package.json —
   incidente 2026-07-25: decía `prisma generate && next build` y el
   `migrate deploy` condicionado nunca corrió en Vercel. Debe quedarse en
@@ -63,7 +82,9 @@ layout NO monta ThemeProvider. `color-scheme` sigue al tema vía CSS
   build; `prisma generate` ya corre en `postinstall`. Todo cambio al
   pipeline de build se verifica en los LOGS del deploy de Vercel, no
   solo en el repo.
-- **Jamás `prisma migrate reset` contra Neon** — borra toda la base.
+- **Jamás `prisma migrate reset` contra Neon** — borra toda la base. Ni
+  siquiera contra `development`: es una operación destructiva y cae bajo la
+  regla de verificar el rol en la consola primero.
 - Migraciones nuevas deben ser aditivas/compatibles con el código
   anterior (columnas nullable o con default, enums nuevos) mientras un
   deploy viejo conviva con el schema nuevo; si algún día hay que romper,
