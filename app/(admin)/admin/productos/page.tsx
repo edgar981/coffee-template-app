@@ -18,6 +18,7 @@ import { formatCOP } from '@/lib/utils';
 import { uploadImagen } from '@/lib/api/upload';
 import { ACCEPT_IMAGENES, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
 import { MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
+import { puedeGuardarProducto } from '@/lib/product-form';
 import { ImageLightbox, THUMB_INSPECCIONABLE } from '@/components/admin/ImageLightbox';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -616,7 +617,10 @@ function ProductosInner() {
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={!!fase || !form.nombre || !form.categoria || !form.precio}>
+            {/* El predicado vive en `lib/product-form` y está testeado: inline
+                nadie podía cubrirlo, y un requisito de más ahí bloquea el ALTA
+                sin romper la edición. */}
+            <Button onClick={handleSave} disabled={!puedeGuardarProducto(form, !!fase)}>
               {fase === 'subiendo' ? 'Subiendo imagen…' : fase === 'guardando' ? 'Guardando…' : 'Guardar'}
             </Button>
           </div>
