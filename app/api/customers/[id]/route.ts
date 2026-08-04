@@ -95,7 +95,10 @@ export async function DELETE(
   const n = customer._count.orders;
   if (n > 0) {
     return NextResponse.json(
-      { error: `Tiene ${n} ${n === 1 ? 'orden asociada' : 'órdenes asociadas'} (incluye canceladas); el historial se conserva.` },
+      // Este texto es el que ve el operador tal cual (el 409 sube al diálogo y
+      // se muestra en el toast), así que dice lo esencial y nada más: por qué no
+      // se puede y cuántas. Sin paréntesis aclaratorios ni coda tranquilizadora.
+      { error: `No se puede eliminar: tiene ${n} ${n === 1 ? 'orden asociada' : 'órdenes asociadas'}.` },
       { status: 409 },
     );
   }

@@ -290,14 +290,14 @@ function ClientesInner() {
                               <Button
                                 size="sm" variant="ghost" disabled
                                 className="h-7 w-7 p-0 text-muted-foreground/40"
-                                aria-label={`No se puede eliminar ${c.nombre}: tiene ${c.ordenesRef} ${c.ordenesRef === 1 ? 'orden asociada' : 'órdenes asociadas'}${(c.ordenesRef ?? 0) !== (c.ordenes ?? 0) ? ' (incluye canceladas)' : ''}`}
+                                aria-label={`No se puede eliminar ${c.nombre}: tiene ${c.ordenesRef} ${c.ordenesRef === 1 ? 'orden asociada' : 'órdenes asociadas'}`}
                               >
                                 <Trash2 className="w-3 h-3" />
                               </Button>
                             </span>
                           </TooltipTrigger>
                           <TooltipContent>
-                            No se puede eliminar: tiene {c.ordenesRef} {c.ordenesRef === 1 ? 'orden asociada' : 'órdenes asociadas'}{(c.ordenesRef ?? 0) !== (c.ordenes ?? 0) ? ' (incluye canceladas)' : ''}. El historial se conserva.
+                            No se puede eliminar: tiene {c.ordenesRef} {c.ordenesRef === 1 ? 'orden asociada' : 'órdenes asociadas'}.
                           </TooltipContent>
                         </Tooltip>
                       ) : (
