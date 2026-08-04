@@ -93,11 +93,31 @@ botón, no del tipo de operación.
    del mismo bug y con tipos delta produce movimiento doble real. **Va antes que
    los errores inline.** (Evidencia: dos filas `7→28` idénticas el 2026-08-04, a
    749 ms; se limpiaron de dev por DELETE registrado.)
-2. **Guarda `R` uniforme** en los 9 modales que hoy solo tienen `disabled`. No
+2. **Una supresión por cooldown/idempotencia debe DEJAR RASTRO.** Hoy
+   `ejecutarObjetivo` retorna `DUPLICADO` **antes** de `registrarRun`, así que no
+   escribe nada: desde la base, "callé porque el cooldown lo pidió" y "callé
+   porque estoy roto" **se ven idénticos — cero filas en los dos casos**. Costó el
+   diagnóstico completo de la tarde del 2026-08-04, y solo se distinguió
+   calculando a mano la ventana contra el run anterior.
+
+   Misma filosofía que el borrado OMITIDO del blob (`isDeletable` en
+   `lib/storage.ts`: no-op **pero con log**, porque no es rutina sino una señal) y
+   que el `Objetivo.omitir` que ya existe acá: **una guarda que actúa en silencio
+   absoluto no se puede auditar.**
+
+   Dos apuntes que cambian el tamaño de la tarea:
+   - `DUPLICADO` **ya existe** en `RunSummary` (el reporte del cron) pero **no en
+     el enum `AutomationRunEstado`** de la base. El concepto está a medio hacer:
+     hoy se puede reportar en la respuesta del cron y no se puede persistir.
+   - Persistirlo (como `SUPRIMIDO` o reusando `DUPLICADO`) es **valor nuevo de
+     enum → MIGRACIÓN**. Sería el **primer PR con migración** desde el 2026-08-04,
+     así que de paso cierra la verificación diferida (2) del pipeline (§ Migraciones
+     y deploy). Vale planearlo con esa doble intención.
+3. **Guarda `R` uniforme** en los 8 modales que hoy solo tienen `disabled`. No
    corren riesgo material —el server los cubre por idempotencia o por bloqueo de
    fila (el POST de pagos hace `SELECT … FOR UPDATE` + chequeo de estado)—, así
    que es consistencia, no incendio.
-3. **Botones de fila de Entregas** (`updateEstado`, `handleDispatch`): sin guarda
+4. **Botones de fila de Entregas** (`updateEstado`, `handleDispatch`): sin guarda
    alguna. Los absorbe el server por bordes idempotentes (`justDelivered`,
    `stock_descontado_at`), pero la dimensión aplica igual.
 
