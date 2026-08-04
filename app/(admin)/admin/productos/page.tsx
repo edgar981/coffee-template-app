@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { toast } from 'sonner';
+import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '@/lib/api/products';
 import type { Product, ProductCategory, ProductForm, RoastLevel } from '@/types/product';
 import { CATEGORIAS, EMPTY_PRODUCT_FORM, TOSTADOS } from '@/constants/product';
@@ -83,13 +84,13 @@ function ProductosInner() {
   // "Guardar" habilitado, así que el tramo más largo se veía como si no pasara
   // nada — y admitía un segundo clic que dispararía una segunda mutación.
   const [fase, setFase] = useState<null | 'subiendo' | 'guardando'>(null);
-  // `fase` deshabilita el botón y nombra la etapa; `guardandoRef` corta la
-  // re-entrada SÍNCRONA. Hacen falta las dos: `fase` es estado, así que dos
-  // clicks dentro del mismo tick la leen `null` los dos y pasan ambos. Acá el
-  // costo de que pase no es un toast repetido — es una SEGUNDA subida a Blob,
-  // que deja un blob huérfano que nadie va a borrar (el PATCH solo sabe borrar
-  // el que el producto tenía antes, no el gemelo que se subió en paralelo).
-  const guardandoRef = useRef(false);
+  // `fase` se queda porque lleva información que un booleano no tiene: nombra la
+  // ETAPA ('subiendo' / 'guardando') para el texto del botón. La guarda de
+  // re-entrada la pone el hook compartido. Acá el costo de un doble-submit no es
+  // un toast repetido — es una SEGUNDA subida a Blob, que deja un blob huérfano
+  // que nadie va a borrar (el PATCH solo sabe borrar el que el producto tenía
+  // antes, no el gemelo que se subió en paralelo).
+  const guarda = useAccionGuardada();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Object URL vivo, en un ref y no en estado. Un object URL retiene el File en
   // memoria hasta que se revoca, así que hay que revocarlo — pero NO desde un
@@ -257,10 +258,7 @@ function ProductosInner() {
     router.replace('/admin/productos', { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productos, searchParams]);
-  const handleSave = async () => {
-    // Guarda de re-entrada síncrona: el segundo click vuelve de inmediato, sin
-    // depender de que React haya re-renderizado con `fase` puesta.
-    if (guardandoRef.current) return;
+  const handleSave = () => guarda.ejecutar(async () => {
     if (!form.categoria) { toast.error('Selecciona una categoría'); return; }
 
     // Guarda cliente del tope; la que MANDA es la del endpoint.
@@ -281,10 +279,6 @@ function ProductosInner() {
     const galeriaSubidas: string[] = [];
     let etapa: 'subiendo' | 'guardando' = 'subiendo';
 
-    // Se marca DESPUÉS de las validaciones que retornan temprano (si no, un
-    // formulario incompleto dejaría el ref trabado y el botón muerto) y ANTES
-    // del primer `await`, que es lo único que cierra la ventana del mismo tick.
-    guardandoRef.current = true;
     try {
       if (imagenFile || galeriaPendiente.length > 0) {
         setFase('subiendo');
@@ -338,7 +332,6 @@ function ProductosInner() {
       );
       return;
     } finally {
-      guardandoRef.current = false;
       setFase(null);
     }
 
@@ -347,7 +340,7 @@ function ProductosInner() {
     limpiarImagen();
     limpiarGaleria();
     setShowForm(false);
-  };
+  });
 
   // Hard delete, run by the confirm dialog. The server rejects (409) any product
   // that appears in an order; that message bubbles up to the dialog, which stays

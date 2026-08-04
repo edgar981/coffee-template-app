@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { BUSINESS_TZ, zonedDayKey } from '@/lib/timezone';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
+import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { getOrders, createOrder, updateOrder } from '@/lib/api/orders';
 import { ensureOrderShipping } from '@/lib/api/shippings';
 import { getCatalog } from '@/lib/api/products';
@@ -164,12 +165,13 @@ function Ordenes() {
   const [scheduleOrder, setScheduleOrder] = useState<Order | null>(null);
   // Order whose payment is being registered (opens the pre-filled modal).
   const [paymentOrder, setPaymentOrder]   = useState<Order | null>(null);
-  // Create-order submit guards. `saving` disables the button; `savingRef` blocks
-  // a re-entrant handleSave synchronously (fast double-click). `idemKeyRef` holds
-  // ONE idempotency key per opened form, so both clicks send the SAME key and the
-  // server dedups even if two requests slip through.
-  const [saving, setSaving]               = useState(false);
-  const savingRef                         = useRef(false);
+  // Guarda de envío de Nueva Orden, en la primitiva compartida. `idemKeyRef`
+  // sigue aparte porque resuelve otra cosa: mantiene UNA clave de idempotencia
+  // por formulario abierto, así que si dos peticiones se escaparan igual, el
+  // server las dedupea. La guarda evita el segundo click; la clave cubre el caso
+  // en que el click no fue el problema (un reintento de red, por ejemplo).
+  const guardaCrear                       = useAccionGuardada();
+  const saving                            = guardaCrear.enVuelo;
   const idemKeyRef                        = useRef<string>('');
   // Proactive duplicate detection in the New Order modal. `customerMatches` are the
   // existing customers the phone/email would match (a phone can be shared → many);
@@ -334,9 +336,7 @@ function Ordenes() {
   const calcTotal = itemsSubtotal + (Number(form.costo_envio) || 0);
   const hasProduct = form.items.some(l => l.slug);
 
-  const handleSave = async () => {
-    // Synchronous re-entrancy guard: a second (fast) click returns immediately.
-    if (savingRef.current) return;
+  const handleSave = () => guardaCrear.ejecutar(async () => {
     if (!form.cliente_nombre.trim()) {
       toast.error('El nombre del cliente es requerido');
       return;
@@ -374,8 +374,6 @@ function Ordenes() {
     // Guarantee a key even if the form was opened without openNewOrder.
     if (!idemKeyRef.current) idemKeyRef.current = crypto.randomUUID();
 
-    savingRef.current = true;
-    setSaving(true);
     try {
       const created = await createOrder({
         cliente_nombre:    form.cliente_nombre,
@@ -403,11 +401,8 @@ function Ordenes() {
       resetCustomerDetection();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'No se pudo crear la orden');
-    } finally {
-      savingRef.current = false;
-      setSaving(false);
     }
-  };
+  });
 
   const handleUpdateStatus = async (id: string, estado: OrderStatus) => {
     // Same single write path as the modal: the response includes the (possibly
@@ -994,7 +989,11 @@ function OrderDetail({ order, onClose, onUpdate, onRegisterPayment }: OrderDetai
   // botón quedaba habilitado durante toda la mutación.
   const [guardando, setGuardando] = useState(false);
 
-  const handleUpdate = async () => {
+  // Mitad SÍNCRONA de la guarda. El `if (guardando)` de abajo es estado: dos
+  // clicks del mismo tick lo leen `false` los dos. (La Nueva Orden de esta misma
+  // página ya tenía las dos mitades — es el patrón de referencia.)
+  const guardaDetalle = useAccionGuardada();
+  const handleUpdate = () => guardaDetalle.ejecutar(async () => {
     if (guardando) return;                  // clic repetido mientras ya se guarda
     // Cierre SOLO tras confirmación. El server rechaza transiciones inválidas
     // (409 de condición de pago bloqueada, entre otras) y ese mensaje tiene que
@@ -1014,7 +1013,7 @@ function OrderDetail({ order, onClose, onUpdate, onRegisterPayment }: OrderDetai
     toast.success('Orden actualizada');
     onUpdate(updated);
     onClose();
-  };
+  });
 
   const currentIdx = TIMELINE_ESTADOS.indexOf(order.estado);
 

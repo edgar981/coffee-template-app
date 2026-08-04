@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -72,13 +73,17 @@ export function ConfirmDeleteDialog({
   // dialog can't be dismissed (Escape / programmatic close are swallowed below).
   const [busy, setBusy] = useState<'confirm' | 'secondary' | null>(null);
   const loading = busy !== null;
+  // `busy` ya deshabilitaba los dos botones, pero es estado: dos clicks en el
+  // mismo tick lo leen `null` los dos. `guarda` agrega la mitad síncrona — la
+  // única que cierra esa ventana. Ver CLAUDE.md § Doble-submit.
+  const guarda = useAccionGuardada();
 
-  const run = async (
+  const run = (
     which: 'confirm' | 'secondary',
     action: () => Promise<void>,
     okMessage: string | undefined,
     fallbackError: string,
-  ) => {
+  ) => guarda.ejecutar(async () => {
     setBusy(which);
     try {
       await action();
@@ -95,7 +100,7 @@ export function ConfirmDeleteDialog({
     } finally {
       setBusy(null);
     }
-  };
+  });
 
   return (
     <AlertDialog open={open} onOpenChange={(o) => { if (!loading) onOpenChange(o); }}>

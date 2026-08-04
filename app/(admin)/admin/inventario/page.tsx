@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, TrendingDown, TrendingUp, Warehouse, ArrowUpDown, X } from 'lucide-react';
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { getProducts, getInventoryLogs, adjustInventory } from '@/lib/api/inventory';
 import type { InventoryLog, InventoryAdjustmentForm, InventoryMovementType } from '@/types/inventory';
 import { Product } from '@/types/product';
@@ -59,14 +60,9 @@ function InventarioInner() {
   const [loading, setLoading]     = useState(true);
   const [showAdj, setShowAdj]     = useState(false);
   const [adjForm, setAdjForm]     = useState<InventoryAdjustmentForm>(EMPTY_FORM);
-  // Guardas de envío del ajuste, las MISMAS que Nueva Orden: `aplicando`
-  // deshabilita el botón y le pone estado intermedio; `aplicandoRef` corta una
-  // re-entrada SÍNCRONA. Hacen falta las dos y no son redundantes: `disabled`
-  // depende de un re-render, así que dos clicks dentro del mismo tick leen ambos
-  // `aplicando === false` y pasan los dos. El ref se escribe antes de cualquier
-  // `await`, que es lo único que cierra esa ventana.
-  const [aplicando, setAplicando] = useState(false);
-  const aplicandoRef              = useRef(false);
+  // Las dos mitades de la guarda, en una primitiva (ver CLAUDE.md § Doble-submit).
+  const ajuste = useAccionGuardada();
+  const aplicando = ajuste.enVuelo;
   const [tab, setTab]             = useState<Tab>('stock');
 
   const load = async () => {
@@ -90,15 +86,10 @@ function InventarioInner() {
   // signifique "esto es lo que estás viendo".
   const filtroActivo   = lowStockOnly && tab === 'stock';
 
-  const handleAdjust = async () => {
-    // Guarda de re-entrada síncrona: el segundo click vuelve de inmediato.
-    if (aplicandoRef.current) return;
-
+  const handleAdjust = () => ajuste.ejecutar(async () => {
     const prod = productos.find(p => p.id === adjForm.producto_id);
     if (!prod || !adjForm.cantidad) return;
 
-    aplicandoRef.current = true;
-    setAplicando(true);
     try {
       const { product: updatedProduct, log } = await adjustInventory(adjForm);
 
@@ -111,11 +102,8 @@ function InventarioInner() {
       setAdjForm(EMPTY_FORM);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Error al ajustar el inventario');
-    } finally {
-      aplicandoRef.current = false;
-      setAplicando(false);
     }
-  };
+  });
 
   return (
     <div className="space-y-6">

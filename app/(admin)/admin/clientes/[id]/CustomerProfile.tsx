@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
+import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { formatCOP } from '@/lib/utils';
 import { getCustomer, updateCustomer } from '@/lib/api/customers';
 import { customerWhatsappHref } from '@/lib/whatsapp-link';
@@ -245,7 +246,8 @@ function EditForm({ customer, onClose, onSaved }: {
       setForm(f => ({ ...f, [key]: e.target.value })),
   });
 
-  const handleSave = async () => {
+  const guarda = useAccionGuardada();
+  const handleSave = () => guarda.ejecutar(async () => {
     if (!form.nombre.trim()) { toast.error('El nombre es requerido'); return; }
     setSaving(true);
     try {
@@ -257,7 +259,7 @@ function EditForm({ customer, onClose, onSaved }: {
       toast.error(e instanceof Error ? e.message : 'Error al actualizar el cliente');
     }
     setSaving(false);
-  };
+  });
 
   return (
     <>

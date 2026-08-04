@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Notification } from '@/types/notification';
 import { AnimatedIcon } from '@/components/admin/AnimatedIcon';
 import { Button } from '@/components/ui/button';
+import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
@@ -187,10 +188,15 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const markAllRead = async () => {
+  // Guarda de doble-submit. Era el tercer caso confirmado del patrón
+  // sin-feedback: el owner clickeó dos veces porque nada indicaba que la primera
+  // hubiera tomado. El PATCH es idempotente, así que lo que se arregla no es la
+  // base — es que el control no decía nada.
+  const marcarTodas = useAccionGuardada();
+  const markAllRead = () => marcarTodas.ejecutar(async () => {
     await fetch('/api/notifications/read-all', { method: 'PATCH' });
     setNotifications(prev => prev.map(n => ({ ...n, leida: true })));
-  };
+  });
 
   const markRead = async (id: string) => {
     await fetch(`/api/notifications/${id}/read`, { method: 'PATCH' });
@@ -264,10 +270,11 @@ export default function NotificationBell() {
                   variant="ghost"
                   size="sm"
                   onClick={markAllRead}
+                  disabled={marcarTodas.enVuelo}
                   className="h-7 gap-1.5 px-2 text-xs text-muted-foreground"
                 >
                   <CheckCheck className="h-3.5 w-3.5" />
-                  Marcar todas
+                  {marcarTodas.enVuelo ? 'Marcando…' : 'Marcar todas'}
                 </Button>
               )}
               <Tooltip>

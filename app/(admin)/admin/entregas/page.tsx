@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
+import { useAccionesPorFila } from '@/hooks/useAccionGuardada';
 import { formatCOP } from '@/lib/utils';
 import { formatFecha } from '@/lib/format-fecha';
 import { getShippings, updateShipping } from '@/lib/api/shippings';
@@ -67,7 +68,18 @@ export default function Entregas() {
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
-  const updateEstado = async (id: string, estado: ShippingEstado, confirmarSinPago?: boolean) => {
+  // Guarda POR FILA, no global: bloquear la tabla entera mientras una entrega se
+  // despacha sería una traba, no una guarda — el operador despacha varias
+  // seguidas, y ese roce es justo lo que hace que la gente vuelva a clickear. Lo
+  // que se impide es repetir la MISMA fila.
+  //
+  // El server ya absorbe el duplicado por bordes idempotentes (`justDelivered`,
+  // `stock_descontado_at`), así que esto no arregla datos: le da al operador la
+  // señal de que su click tomó, que es la mitad que faltaba.
+  const filas = useAccionesPorFila();
+
+  const updateEstado = (id: string, estado: ShippingEstado, confirmarSinPago?: boolean) =>
+    filas.ejecutar(id, async () => {
     try {
       // fecha_entrega is captured server-side on the entregado transition.
       const updated = await updateShipping(id, { estado, ...(confirmarSinPago ? { confirmarSinPago: true } : {}) });
@@ -78,7 +90,7 @@ export default function Entregas() {
       // sin pago sin confirmar) must say why, not a generic error.
       toast.error(e instanceof Error ? e.message : 'Error al actualizar el estado');
     }
-  };
+  });
 
   // Dispatch (→ en_ruta). A paid order dispatches straight away; an order with no
   // registered payment first asks the operator to confirm (the order will become
@@ -267,7 +279,7 @@ export default function Entregas() {
                         )}
                         {e.estado === 'preparando' && hasScheduleData(e) && (
                           isScheduledShipping(e) ? (
-                            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => handleDispatch(e)}>
+                            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" disabled={filas.enVuelo(e.id)} onClick={() => handleDispatch(e)}>
                               <Truck className="w-3.5 h-3.5" /> Marcar En Ruta
                             </Button>
                           ) : (
@@ -298,10 +310,10 @@ export default function Entregas() {
                         )}
                         {e.estado === 'en_ruta' && (
                           <>
-                            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => updateEstado(e.id, 'entregado')}>
+                            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" disabled={filas.enVuelo(e.id)} onClick={() => updateEstado(e.id, 'entregado')}>
                               <CheckCircle className="w-3.5 h-3.5" /> Marcar Entregado
                             </Button>
-                            <Button size="sm" variant="destructiveGhost" className="h-7 gap-1 text-xs" onClick={() => updateEstado(e.id, 'fallido')}>
+                            <Button size="sm" variant="destructiveGhost" className="h-7 gap-1 text-xs" disabled={filas.enVuelo(e.id)} onClick={() => updateEstado(e.id, 'fallido')}>
                               <AlertCircle className="w-3.5 h-3.5" /> Marcar Fallido
                             </Button>
                           </>

@@ -16,6 +16,7 @@ import type { Shipping, ShippingZona, TipoEnvio } from '@/types/shipping';
 import { TIPO_ENVIO_LABEL } from '@/types/shipping';
 import type { DeliveryContext, OrderAddressResult } from '@/types/order';
 import { ZONAS, SHIPPING_ESTADO_LABEL, hasScheduleData, missingToDispatch } from '@/constants/shippings';
+import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { sugerirZona } from '@/lib/zona-config';
 import { COLOMBIA_DEPARTMENTS } from '@/lib/colombia-departments';
 import { customerWhatsappHref } from '@/lib/whatsapp-link';
@@ -152,7 +153,8 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
   // diligenciado) no hay nada que reclamar todavía.
   const faltaParaDespachar = hasScheduleData(draft) ? missingToDispatch(draft) : null;
 
-  const handleSchedule = async () => {
+  const guardaProgramar = useAccionGuardada();
+  const handleSchedule = () => guardaProgramar.ejecutar(async () => {
     setSaving(true);
     try {
       const updated = await scheduleDelivery(shipping.id, {
@@ -185,7 +187,7 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
       toast.error(e instanceof Error ? e.message : 'Error al programar la entrega');
     }
     setSaving(false);
-  };
+  });
 
   const handleAddressSaved = (result: OrderAddressResult) => {
     // La dirección cambió → la sugerencia se recalcula. Si el operador ya movió
@@ -392,7 +394,8 @@ function AddressForm({ orderId, initialPhone, onCancel, onSaved }: {
   const phoneValid = /^3\d{9}$/.test(digits);
   const canSave    = !!direccion.trim() && !!ciudad.trim() && !!departamento && phoneValid;
 
-  const handleSave = async () => {
+  const guardaDireccion = useAccionGuardada();
+  const handleSave = () => guardaDireccion.ejecutar(async () => {
     setSaving(true);
     try {
       const result = await updateOrderAddress(orderId, {
@@ -408,7 +411,7 @@ function AddressForm({ orderId, initialPhone, onCancel, onSaved }: {
       toast.error(e instanceof Error ? e.message : 'Error al guardar la dirección');
     }
     setSaving(false);
-  };
+  });
 
   return (
     <div className="space-y-3 rounded-lg border border-border p-3">
@@ -447,7 +450,7 @@ function AddressForm({ orderId, initialPhone, onCancel, onSaved }: {
         )}
       </div>
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel}>Cancelar</Button>
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={saving}>Cancelar</Button>
         <Button size="sm" onClick={handleSave} disabled={!canSave || saving}>
           {saving ? 'Guardando…' : 'Guardar dirección'}
         </Button>
