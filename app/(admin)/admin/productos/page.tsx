@@ -18,7 +18,7 @@ import { formatCOP } from '@/lib/utils';
 import { uploadImagen } from '@/lib/api/upload';
 import { ACCEPT_IMAGENES, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
 import { MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
-import { puedeGuardarProducto } from '@/lib/product-form';
+import { puedeGuardarProducto, obligatoriosFaltantes } from '@/lib/product-form';
 import { ImageLightbox, THUMB_INSPECCIONABLE } from '@/components/admin/ImageLightbox';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -138,6 +138,8 @@ function ProductosInner() {
   };
 
   const totalGaleria = galeriaActual.length + galeriaPendiente.length;
+  // Obligatorios vacíos, para el aviso bajo el botón deshabilitado.
+  const faltantes = obligatoriosFaltantes(form);
 
   const onPickGaleria = (e: React.ChangeEvent<HTMLInputElement>) => {
     const elegidos = [...(e.target.files ?? [])];
@@ -615,7 +617,8 @@ function ProductosInner() {
               </p>
             </div>
           </div>
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex flex-col items-end gap-1.5 pt-2">
+            <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
             {/* El predicado vive en `lib/product-form` y está testeado: inline
                 nadie podía cubrirlo, y un requisito de más ahí bloquea el ALTA
@@ -623,6 +626,16 @@ function ProductosInner() {
             <Button onClick={handleSave} disabled={!puedeGuardarProducto(form, !!fase)}>
               {fase === 'subiendo' ? 'Subiendo imagen…' : fase === 'guardando' ? 'Guardando…' : 'Guardar'}
             </Button>
+            </div>
+            {/* Un botón muerto sin explicación no distingue "te falta un campo"
+                de "la app está rota" — mismo patrón muted del aviso de mensajero
+                en el modal de entregas. Se calla mientras se guarda: ahí el
+                estado del botón ya cuenta lo que pasa. */}
+            {!fase && faltantes.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {faltantes.length === 1 ? 'Falta' : 'Faltan'}: {faltantes.join(', ')}
+              </p>
+            )}
           </div>
         </DialogContent>
       </Dialog>

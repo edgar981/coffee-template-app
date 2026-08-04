@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  puedeGuardarProducto, faltanObligatorios, CAMPOS_OBLIGATORIOS_PRODUCTO,
+  puedeGuardarProducto, faltanObligatorios, obligatoriosFaltantes,
+  CAMPOS_OBLIGATORIOS_PRODUCTO,
 } from './product-form';
 import { EMPTY_PRODUCT_FORM } from '@/constants/product';
 import type { ProductForm } from '@/types/product';
@@ -74,4 +75,47 @@ test('al terminar (con éxito o error) vuelve a habilitarse', () => {
 test('faltanObligatorios distingue completo de incompleto', () => {
   assert.equal(faltanObligatorios(MINIMO), false);
   assert.equal(faltanObligatorios({ ...MINIMO, categoria: '' }), true);
+});
+
+// ─── obligatoriosFaltantes — lo que se le dice al operador ───────────────────
+// El aviso bajo el botón existe porque un botón muerto sin explicación no
+// distingue "te falta un campo" de "la app está rota".
+
+test('nombra el único campo que falta', () => {
+  assert.deepEqual(obligatoriosFaltantes({ ...MINIMO, categoria: '' }), ['categoría']);
+});
+
+test('nombra varios en el orden del formulario, no en el de escritura', () => {
+  assert.deepEqual(
+    obligatoriosFaltantes({ nombre: '', categoria: '', precio: '' }),
+    ['nombre', 'categoría', 'precio'],
+  );
+  assert.deepEqual(obligatoriosFaltantes({ ...MINIMO, nombre: '', precio: '' }), ['nombre', 'precio']);
+});
+
+test('con todo lleno no hay nada que avisar', () => {
+  assert.deepEqual(obligatoriosFaltantes(MINIMO), []);
+});
+
+test('las etiquetas son las que ve el operador, con tilde', () => {
+  // "categoria" es la key; "categoría" es lo que se lee en pantalla.
+  assert.ok(obligatoriosFaltantes(EMPTY_PRODUCT_FORM).includes('categoría'));
+});
+
+test('el aviso y el botón nunca se contradicen', () => {
+  // Invariante: hay aviso si y solo si el guardado está bloqueado por campos.
+  const casos = [
+    MINIMO,
+    { ...MINIMO, nombre: '' },
+    { ...MINIMO, categoria: '' as typeof MINIMO.categoria },
+    { ...MINIMO, precio: '' },
+    EMPTY_PRODUCT_FORM,
+  ];
+  for (const form of casos) {
+    assert.equal(
+      obligatoriosFaltantes(form).length > 0,
+      !puedeGuardarProducto(form, false),
+      `desincronizados para ${JSON.stringify(form.nombre)}/${JSON.stringify(form.categoria)}`,
+    );
+  }
 });

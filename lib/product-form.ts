@@ -21,9 +21,28 @@ export const CAMPOS_OBLIGATORIOS_PRODUCTO = ['nombre', 'categoria', 'precio'] as
 
 type CamposObligatorios = Pick<ProductForm, (typeof CAMPOS_OBLIGATORIOS_PRODUCTO)[number]>;
 
+/** Etiqueta con la que cada obligatorio se nombra al operador. */
+export const ETIQUETA_OBLIGATORIO: Record<(typeof CAMPOS_OBLIGATORIOS_PRODUCTO)[number], string> = {
+  nombre:    'nombre',
+  categoria: 'categoría',
+  precio:    'precio',
+};
+
 /** ¿Falta alguno de los obligatorios? Un valor de solo espacios cuenta como vacío. */
 export function faltanObligatorios(form: CamposObligatorios): boolean {
-  return CAMPOS_OBLIGATORIOS_PRODUCTO.some(campo => !String(form[campo] ?? '').trim());
+  return obligatoriosFaltantes(form).length > 0;
+}
+
+/**
+ * Nombres de los obligatorios vacíos, en el orden en que aparecen en el
+ * formulario. Alimenta el aviso bajo el botón: un botón deshabilitado sin
+ * explicación no dice si falta algo o si la app está rota — fue exactamente lo
+ * que convirtió un campo vacío en un reporte de bug bloqueante.
+ */
+export function obligatoriosFaltantes(form: CamposObligatorios): string[] {
+  return CAMPOS_OBLIGATORIOS_PRODUCTO
+    .filter(campo => !String(form[campo] ?? '').trim())
+    .map(campo => ETIQUETA_OBLIGATORIO[campo]);
 }
 
 /**
