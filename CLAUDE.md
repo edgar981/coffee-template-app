@@ -1,5 +1,64 @@
 @AGENTS.md
 
+## PRECONDICIÓN — verificación local sobre dev server reiniciado EN FRÍO
+
+Toda verificación manual en local se corre contra un dev server **reiniciado con
+`.next` limpio**. No sobre el que quedó abierto de la sesión anterior.
+
+```bash
+rm -rf .next && npm run dev
+```
+
+**El motivo es que un artefacto rancio no se ve como un artefacto rancio: se ve
+como un bug en el código nuevo.** Y el diagnóstico que provoca es caro, porque
+todo lo demás está correcto — la fuente, el dato, la config— así que se busca el
+error en el único sitio donde no está.
+
+Incidente 2026-08-04 (segundo fantasma de HMR de la semana): la campana no
+notificaba una orden del storefront. La fuente tenía el emisor
+(`app/api/checkout/route.ts`), pero `.next/dev/server/app/api/checkout/route.js`
+lo traía con **cero** apariciones, mientras el MISMO servidor había compilado
+`inventory/adjust` dos minutos después **sí** con el código nuevo. Un módulo
+nuevo importado por una ruta ya compilada es el caso que más lo dispara.
+
+Cómo se confirma en 10 segundos, antes de abrir cualquier otra hipótesis —
+grepear el ARTEFACTO, no la fuente:
+
+```bash
+grep -c "miFuncionNueva" .next/dev/server/app/api/<ruta>/route.js
+```
+
+Cero apariciones con la fuente correcta = artefacto rancio, no bug. La fuente
+nunca es evidencia de lo que el servidor está ejecutando; ése es el mismo modo de
+falla que la regla de las bases de datos (§ Bases de datos): **lo que está escrito
+no prueba lo que está corriendo**.
+
+Aplica también al `AutomationSetting` de las automatizaciones y a cualquier
+toggle: antes de declarar que algo "no dispara", verificar que esté ENCENDIDO en
+la base, no en la memoria de quien lo miró. Una fila existente siempre gana sobre
+el `defaultActivo` del registry — por diseño.
+
+### AGENDADO — decidir si el repo tendrá tests con base
+
+**Decisión pendiente, con fecha: el cierre de la campana del operador.**
+
+Hoy la suite es 100% pura (`node --test` sin `--env-file`), así que **ninguna
+cadena que termine en un INSERT está cubierta** — ni
+`resolveOrderLines`, ni evento→motor→canal→`Notification`. Los tests de esas
+features cubren sus reglas puras y eso es todo lo que miden; un "todo verde" NO
+es evidencia de que el pipeline escriba.
+
+Caso de costo, para que la decisión no se tome en abstracto: el mismo 2026-08-04,
+la suite reportaba 143/143 mientras la cadena de la campana no escribía una sola
+fila. Lo que encontró el fallo fue un checklist manual del owner, dos rondas de
+diagnóstico y este documento. Un test de cadena lo habría atrapado en segundos.
+
+Lo que hay que decidir no es "¿tests?" sino contra QUÉ base corren y quién la
+levanta: nunca `development` (la comparten previews y el `.env` local — ver
+§ Bases de datos), así que la opción es una base efímera por corrida. Hasta que
+se decida, **al reportar una suite verde hay que decir explícitamente qué queda
+fuera**; omitirlo es lo que convirtió un dato correcto en una impresión falsa.
+
 ## Imágenes en `public/`
 
 Los archivos de imagen en `public/` son inmutables: nunca sobrescribir
