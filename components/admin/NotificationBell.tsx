@@ -48,7 +48,14 @@ export default function NotificationBell() {
   // recrearse (y sin reiniciar el intervalo en cada toggle).
   const silencioRef  = useRef(false);
 
-  const unread = notifications.filter(n => !n.leida).length;
+  const noLeidas = notifications.filter(n => !n.leida);
+  const unread   = noLeidas.length;
+
+  // Amber Minimal: el color es información. El rojo aparece SÓLO si algo entre lo
+  // no leído es una alerta real —plata sin cobrar, stock agotado, entrega que
+  // volvió—, y sale del registry (`severidad`), no de un segundo mapa aquí. Tres
+  // órdenes nuevas dejan la campana en el primario: son buenas noticias.
+  const hayAlerta = noLeidas.some(n => AUTOMATION_MAP[n.tipo]?.severidad === 'alerta');
 
   // ── Preferencia de silencio ────────────────────────────────────────────────
   useEffect(() => {
@@ -211,7 +218,14 @@ export default function NotificationBell() {
           >
             <AnimatedIcon icon={Bell} anim="bell" size={16} />
             {unread > 0 && (
-              <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
+              <span
+                className={cn(
+                  'absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold',
+                  hayAlerta
+                    ? 'bg-destructive text-destructive-foreground'
+                    : 'bg-primary text-primary-foreground',
+                )}
+              >
                 {unread > 9 ? '9+' : unread}
               </span>
             )}
@@ -228,7 +242,16 @@ export default function NotificationBell() {
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-sm">Notificaciones</h3>
               {unread > 0 && (
-                <span className="text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 px-1.5 py-0.5 rounded-full font-medium">
+                // Mismo criterio de tono que el badge: el rojo lo enciende una
+                // alerta real, no el mero hecho de haber algo sin leer.
+                <span
+                  className={cn(
+                    'rounded-full px-1.5 py-0.5 text-xs font-medium',
+                    hayAlerta
+                      ? 'bg-destructive/10 text-destructive'
+                      : 'bg-primary/10 text-primary',
+                  )}
+                >
                   {unread} nuevas
                 </span>
               )}
