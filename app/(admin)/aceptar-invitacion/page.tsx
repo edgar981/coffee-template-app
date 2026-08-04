@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -30,6 +30,30 @@ function AceptarInvitacionForm() {
     // Sin token en la URL ya se sabe de entrada, sin ir al servidor.
     token ? null : "Este enlace de invitación no es válido.",
   );
+  // Con token hay que preguntarle al servidor: vencida, usada o inexistente no
+  // se distinguen desde acá. Se comprueba AL ABRIR y no al enviar — antes el
+  // invitado solo se enteraba de que el enlace estaba muerto después de
+  // inventar una contraseña, confirmarla y darle a Crear cuenta.
+  const [comprobando, setComprobando] = useState(!!token);
+
+  useEffect(() => {
+    if (!token) return;
+    let vigente = true;
+    fetch(`/api/users/accept-invite?token=${encodeURIComponent(token)}`)
+      .then(async res => {
+        if (!vigente) return;
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          setEnlaceMuerto(data?.error ?? "Este enlace de invitación no es válido.");
+        }
+      })
+      // Un fallo de red NO es un enlace muerto: se deja pasar al formulario y
+      // que el canje decida. Marcarlo como vencido sería mentir por una
+      // conexión intermitente.
+      .catch(() => {})
+      .finally(() => { if (vigente) setComprobando(false); });
+    return () => { vigente = false; };
+  }, [token]);
 
   // Validación EN VIVO, antes del submit: el invitado se entera al escribir y no
   // al chocar contra el botón. Solo se reclama cuando ya hay algo que comparar.
@@ -70,6 +94,16 @@ function AceptarInvitacionForm() {
     toast.success("Cuenta creada. Ahora puedes iniciar sesión.");
     router.push("/login");
   };
+
+  // Mientras se comprueba no se muestra el formulario: aparecer y desaparecer
+  // sería peor que esperar un instante.
+  if (comprobando) {
+    return (
+      <PreAuthShell titulo="Crea tu contraseña">
+        <p className="py-4 text-center text-sm text-muted-foreground">Comprobando la invitación…</p>
+      </PreAuthShell>
+    );
+  }
 
   if (enlaceMuerto) {
     return (

@@ -9,37 +9,72 @@ const PASSWORD_ERROR_MESSAGES: Record<string, string> = {
   INVALID_PASSWORD: "Contraseña inválida",
 };
 
-export async function POST(req: NextRequest) {
-  const { token, password } = await req.json();
+// Rechazo TERMINAL del enlace: no sirve y no hay contraseña que lo arregle.
+// `code: "enlace"` es lo que le permite a la UI decidir si deja el formulario
+// (corrige un campo) o lo reemplaza por el final con marca (pide otra
+// invitación). Sin esa marca ambos casos son el mismo 400 y solo se
+// distinguirían comparando strings de mensaje.
+type RechazoEnlace = { error: string; code: "enlace" };
 
-  if (typeof token !== "string" || !token || typeof password !== "string" || !password) {
-    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+const rechazo = (error: string) =>
+  ({ ok: false as const, rechazo: { error, code: "enlace" } satisfies RechazoEnlace });
+
+/**
+ * Estado del enlace de invitación. COMPARTIDO por el GET (pre-chequeo al abrir
+ * la pantalla) y el POST (canje), para que no puedan divergir: si el pre-chequeo
+ * dijera "sirve" y el canje "expiró", el invitado llenaría el formulario para
+ * nada — que es exactamente lo que este helper evita.
+ *
+ * El token viaja en claro en el enlace; en la base solo vive su SHA-256, así que
+ * la búsqueda hashea lo recibido. Ojo: un `tokenHash` copiado de la base NO
+ * sirve como token — se volvería a hashear y no encontraría nada.
+ */
+async function evaluarInvitacion(token: unknown) {
+  if (typeof token !== "string" || !token) {
+    return rechazo("Este enlace de invitación no es válido.");
   }
-
-  // `code: "enlace"` marca los rechazos TERMINALES: el enlace no sirve y no hay
-  // contraseña que lo arregle. Sin esa marca el cliente ve el mismo 400 para
-  // "tu contraseña es corta" que para "esta invitación venció", y solo puede
-  // distinguirlos comparando strings de mensaje — frágil, y la diferencia
-  // importa: en uno se corrige el campo, en el otro hay que pedir otra
-  // invitación. La UI decide con esto si deja el formulario o lo reemplaza.
 
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const invitation = await prisma.invitation.findUnique({ where: { tokenHash } });
 
-  if (!invitation) {
-    return NextResponse.json({ error: "Este enlace de invitación no es válido.", code: "enlace" }, { status: 400 });
-  }
-  if (invitation.usedAt) {
-    return NextResponse.json({ error: "Esta invitación ya fue utilizada.", code: "enlace" }, { status: 400 });
-  }
+  if (!invitation) return rechazo("Este enlace de invitación no es válido.");
+  if (invitation.usedAt) return rechazo("Esta invitación ya fue utilizada.");
   if (invitation.expiresAt < new Date()) {
-    return NextResponse.json({ error: "Esta invitación expiró. Las invitaciones vencen a las 48 horas.", code: "enlace" }, { status: 400 });
+    return rechazo("Esta invitación expiró. Las invitaciones vencen a las 48 horas.");
   }
 
   const existingUser = await prisma.user.findUnique({ where: { email: invitation.email } });
-  if (existingUser) {
-    return NextResponse.json({ error: "Ya existe una cuenta con este correo.", code: "enlace" }, { status: 400 });
+  if (existingUser) return rechazo("Ya existe una cuenta con este correo.");
+
+  return { ok: true as const, invitation };
+}
+
+/**
+ * PRE-CHEQUEO del enlace, sin canjearlo. Existe para que una invitación muerta
+ * se vea muerta AL ABRIR: antes la pantalla mostraba el formulario y el invitado
+ * solo se enteraba después de inventar una contraseña y enviarla.
+ *
+ * No devuelve NADA de la invitación —ni correo ni nombre—, solo si es usable.
+ * Quien tiene el token ya podría intentar el canje, así que esto no expone nada
+ * que el POST no expusiera igual.
+ */
+export async function GET(req: NextRequest) {
+  const estado = await evaluarInvitacion(req.nextUrl.searchParams.get("token"));
+  return estado.ok
+    ? NextResponse.json({ ok: true })
+    : NextResponse.json(estado.rechazo, { status: 400 });
+}
+
+export async function POST(req: NextRequest) {
+  const { token, password } = await req.json();
+
+  if (typeof password !== "string" || !password) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
   }
+
+  const estado = await evaluarInvitacion(token);
+  if (!estado.ok) return NextResponse.json(estado.rechazo, { status: 400 });
+  const { invitation } = estado;
 
   let createdUserId: string;
   try {
