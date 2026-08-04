@@ -1,4 +1,5 @@
 import type { DispatchRequest } from './channels/types';
+import type { OrderOrigen } from './reglas';
 
 // Contrato entre el motor y los handlers. Vive aparte para que handlers ↔ engine
 // no se importen en círculo.
@@ -10,10 +11,16 @@ import type { DispatchRequest } from './channels/types';
  * `stock.cruzo_minimo` lo emite quien MUEVE el stock, no un barrido: sólo el que
  * hizo el cambio conoce el valor de antes, y el disparador es el CRUCE del umbral,
  * no el estado "está bajo" (que sería cierto en cada despacho posterior).
+ *
+ * `order.creada` lleva el ORIGEN porque ningún dato de la orden lo delata: quién
+ * la creó es el code path, no una columna (ver `OrderOrigen` en ./reglas). Lo
+ * declara el endpoint que la creó, así que el navegador no puede mentir sobre él.
  */
 export type AutomationEvent =
+  | { tipo: 'order.creada';        orderId: string; origen: OrderOrigen }
   | { tipo: 'order.pagado';        orderId: string }
   | { tipo: 'shipping.entregado';  shippingId: string; orderId: string }
+  | { tipo: 'shipping.fallido';    shippingId: string; orderId: string }
   | { tipo: 'stock.cruzo_minimo';  productoId: string };
 
 export type AutomationEventTipo = AutomationEvent['tipo'];

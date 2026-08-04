@@ -4,7 +4,10 @@ import { toWhatsappNumber } from '@/lib/whatsapp-link';
 import { BUSINESS_TZ, zonedIsoWeekday } from '@/lib/timezone';
 import { POR_COBRAR_WHERE, ORDENES_REALES } from '@/lib/metrics/prisma-scopes';
 import { PENDING_ESTADO } from '@/lib/metrics/order-stat-filters';
-import { AUTOMATION_HREF } from '@/constants/automations';
+import { AUTOMATION_HREF, hrefOrden } from '@/constants/automations';
+import {
+  HORAS_ENTREGA_SIN_COBRO, corteEntregaISO, entregaVencidaSinCobro, horasDesdeEntrega,
+} from '../reglas';
 import { parseRecipients } from '../channels/email';
 import { nombreCorto } from './eventos';
 import { construirReporteSemanal, construirResumenDiario } from '../reportes';
@@ -210,6 +213,63 @@ export const envioEstancado: ScheduledHandler = async ({ config, now }) => {
       },
     };
   });
+};
+
+// ── 11. Entregado sin cobrar — campana del operador ──────────────────────────
+// ESCALADA de `contraentrega_sin_cobrar`, no un duplicado suyo: aquella mide
+// desde el DESPACHO en días ("la plata está en la calle"), esta desde la ENTREGA
+// en horas ("el mensajero volvió y no liquidó"). Ver la nota de solapes
+// deliberados al final de constants/automations.ts.
+//
+// No se filtra por CONTRAENTREGA aunque en la práctica toda orden aquí lo sea (un
+// despacho sin pago flipea la condición): la condición de este aviso es
+// literalmente "entregada y sin pago", y hacerla depender de ese invariante la
+// volvería silenciosamente vacía el día que el invariante cambie.
+export const entregaSinCobro: ScheduledHandler = async ({ config, now }) => {
+  const horasLimite = Number(config.horasEntrega ?? HORAS_ENTREGA_SIN_COBRO);
+  const atendidas   = await yaAtendidos('entrega_sin_cobro');
+
+  const ordenes = await prisma.order.findMany({
+    where: {
+      // `pendiente` ya significa "sin pago registrado" — excluye pagadas y
+      // canceladas por sí solo.
+      estado:   PENDING_ESTADO,
+      ...ORDENES_REALES,          // excluye la data de demo SN-
+      shipping: {
+        estado:        'entregado',
+        // Pre-filtro barato sobre una columna de TEXTO; la decisión real la toma
+        // `entregaVencidaSinCobro` abajo. Ver el comentario de `corteEntregaISO`.
+        fecha_entrega: { lt: corteEntregaISO(horasLimite, now) },
+      },
+    },
+    select:  {
+      id: true, numero_orden: true, total: true,
+      shipping: { select: { fecha_entrega: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take:    TOPE_POR_BARRIDO * 2,  // margen para descartar las ya atendidas
+  });
+
+  const objetivos: Objetivo[] = [];
+  for (const o of ordenes) {
+    if (atendidas.has(o.id)) continue;
+    if (objetivos.length >= TOPE_POR_BARRIDO) break;
+    // Re-verificación en JS: el `lt` de arriba es lexicográfico sobre texto.
+    if (!entregaVencidaSinCobro(o.shipping ?? {}, horasLimite, now)) continue;
+
+    const horas = horasDesdeEntrega(o.shipping ?? {}, now) ?? horasLimite;
+    objetivos.push({
+      targetId: o.id,
+      dispatch: {
+        canal:   'interno',
+        tipo:    'entrega_sin_cobro',
+        titulo:  'Entregado sin cobrar',
+        mensaje: `La orden ${o.numero_orden} se entregó hace ${horas} horas y no hay pago registrado (${formatCOP(o.total)}).`,
+        href:    hrefOrden(o.numero_orden),
+      },
+    });
+  }
+  return objetivos;
 };
 
 // ── 9. Resumen diario ────────────────────────────────────────────────────────

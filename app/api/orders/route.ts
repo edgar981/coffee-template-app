@@ -6,6 +6,7 @@ import { headers } from 'next/headers';
 import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, derivarCondicionPago, OrderCustomerIdentityError, OrderCustomerNotFoundError, OrderLinesError } from '@/lib/orders';
 import { MetodoPago } from '@/src/generated/prisma/client';
 import { departamentoField } from '@/lib/validation/address';
+import { runEventAutomations } from '@/lib/automations/engine';
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -163,10 +164,21 @@ export async function POST(req: NextRequest) {
       idempotencyKey:    b.idempotencyKey ?? null,
     });
 
-    // Sin disparador de automatización aquí a propósito: "Notificación Nueva Orden"
-    // se dispara cuando la orden queda PAGADA, no cuando se crea (una orden manual
-    // nace `pendiente`). El aviso de orden creada al cliente ya lo manda
+    // Se emite `order.creada` con `origen: 'admin'` aunque HOY nada la escuche:
+    // el filtro de "orden nueva" vive en el handler (`esOrigenNotificable`), no en
+    // el emisor. Callar aquí escondería la decisión en el silencio de un endpoint
+    // y dejaría al catálogo sin poder decir por qué las manuales no notifican;
+    // además, cualquier automatización futura sobre creación de órdenes recibe el
+    // evento sin tener que tocar este archivo.
+    //
+    // La campana no avisa de esta: el operador acaba de teclearla.
+    // Y ojo, no confundir con "Notificación Nueva Orden" (WhatsApp al cliente),
+    // que dispara en orden → `pagado`; el correo de orden creada ya sale desde
     // `notifyOrderCreated`, dentro de createOrderWithCustomer.
+    if (result) {
+      await runEventAutomations({ tipo: 'order.creada', orderId: result.id, origen: 'admin' });
+    }
+
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     if (error instanceof OrderCustomerIdentityError || error instanceof OrderCustomerNotFoundError) {

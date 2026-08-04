@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createOrderWithCustomer, resolveOrderLines, OrderLinesError } from '@/lib/orders';
 import { getShippingSlot, computeShippingCost } from '@/lib/shipping-config';
 import { isBogotaDC } from '@/lib/colombia-departments';
+import { runEventAutomations } from '@/lib/automations/engine';
 import {
   direccionField, direccionDetalleField, ciudadField, departamentoField, telefonoColombiaField,
 } from '@/lib/validation/address';
@@ -144,9 +145,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No se pudo procesar la orden' }, { status: 500 });
   }
 
-  // Sin disparador de automatización aquí: "Notificación Nueva Orden" dispara en
-  // orden → `pagado`, no en la creación. El correo de orden creada ya sale desde
+  // Campana del operador: entró una orden que nadie tecleó. Post-commit y
+  // fire-and-forget — `runEventAutomations` nunca lanza, así que un aviso roto no
+  // puede tumbar una venta ya cobrada al cliente.
+  //
+  // `origen: 'storefront'` lo declara ESTE endpoint, no el cuerpo de la petición:
+  // es el code path lo que distingue una orden de la tienda de una manual, porque
+  // `Order.canal` ('directo' aquí) también lo puede elegir el admin.
+  //
+  // Ojo, no confundir con "Notificación Nueva Orden": esa es WhatsApp al CLIENTE
+  // y dispara en orden → `pagado`. El correo de orden creada ya sale desde
   // createOrderWithCustomer (notifyOrderCreated).
+  await runEventAutomations({ tipo: 'order.creada', orderId: order.id, origen: 'storefront' });
 
   // Return the authoritative persisted figures so the confirmation screen can
   // render entirely from the server response (not from cleared cart state).

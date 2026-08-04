@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
-import { isLowStock } from '@/lib/metrics/inventory-filters';
+import { cruzoMinimo } from '@/lib/metrics/inventory-filters';
 import { runEventAutomations } from '@/lib/automations/engine';
 
 // Salida que excede el stock disponible: el decremento atómico condicional no
@@ -75,15 +75,16 @@ export async function POST(req: NextRequest) {
     throw e;
   }
 
-  // CRUCE del mínimo, no estado bajo: se compara el stock de antes contra el de
-  // después con el MISMO predicado que pinta la card de Alertas de Stock
-  // (`isLowStock`). Antes esto avisaba en CADA ajuste que dejara el producto bajo
+  // CRUCE del mínimo, no estado bajo: `cruzoMinimo` compara el stock de antes
+  // contra el de después con el MISMO predicado que pinta la card de Alertas de
+  // Stock (`isLowStock`), y es literalmente la misma función que usa el descuento
+  // al despachar. Antes esto avisaba en CADA ajuste que dejara el producto bajo
   // mínimo — un producto ya agotado generaba una notificación por cada movimiento.
   // Post-commit y fire-and-forget: `runEventAutomations` nunca lanza, así que un
   // fallo de aviso no puede tumbar un ajuste de inventario ya persistido.
-  const ref = { stock_minimo: product.stock_minimo, activo: product.activo };
-  if (!isLowStock({ ...ref, stock: product.stock }) &&
-       isLowStock({ ...ref, stock: updatedProduct.stock })) {
+  if (cruzoMinimo(product.stock, updatedProduct.stock, {
+    stock_minimo: product.stock_minimo, activo: product.activo,
+  })) {
     await runEventAutomations({ tipo: 'stock.cruzo_minimo', productoId: producto_id });
   }
 
