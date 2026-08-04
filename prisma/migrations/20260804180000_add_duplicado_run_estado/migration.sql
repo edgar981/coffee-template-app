@@ -1,0 +1,13 @@
+-- Valor nuevo del enum: rastro de una supresión deliberada por idempotencia.
+--
+-- ADITIVA y compatible con el deploy anterior: agregar un valor no invalida
+-- ninguna fila existente, y el único escritor de 'DUPLICADO' es el código nuevo.
+-- Durante la ventana en que la migración ya corrió y el código viejo todavía
+-- sirve, nadie produce el valor, así que ese deploy nunca se topa con un enum
+-- que no sabe parsear. El orden `migrate deploy` → `next build` del pipeline es
+-- lo que lo garantiza.
+--
+-- `ADD VALUE` sin `IF NOT EXISTS` a propósito: si por alguna razón ya existiera,
+-- queremos que la migración FALLE ruidosamente en vez de seguir en silencio
+-- sobre un estado que no entendemos.
+ALTER TYPE "AutomationRunEstado" ADD VALUE 'DUPLICADO';

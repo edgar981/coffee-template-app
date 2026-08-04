@@ -30,9 +30,13 @@ export function periodoFor(def: AutomationDef, now: Date): string {
 
 /**
  * ¿Esta automatización ya corrió para este target dentro de la ventana de cooldown?
- * Sólo aplica a `idempotencia: 'cooldown'`. Cuenta CUALQUIER estado previo —
- * incluido FALLIDO— a propósito: si el canal está caído, reintentar cada minuto
- * sólo multiplica el ruido; el próximo barrido tras la ventana lo reintenta solo.
+ * Sólo aplica a `idempotencia: 'cooldown'`.
+ *
+ * Cuenta todo lo que OCURRIÓ —incluido FALLIDO, a propósito: si el canal está
+ * caído, reintentar cada minuto sólo multiplica el ruido y el barrido siguiente
+ * tras la ventana lo reintenta solo— y EXCLUYE los DUPLICADO, que son rastro de
+ * un intento suprimido y no un evento. Ver el `where` de abajo: contarlos volvería
+ * la supresión auto-perpetua.
  */
 export async function estaEnCooldown(
   automationKey: string,
@@ -42,7 +46,19 @@ export async function estaEnCooldown(
 ): Promise<boolean> {
   const desde = new Date(now.getTime() - cooldownHoras * 3_600_000);
   const previo = await prisma.automationRun.findFirst({
-    where:  { automationKey, targetId, createdAt: { gte: desde } },
+    where: {
+      automationKey,
+      targetId,
+      createdAt: { gte: desde },
+      // Las filas DUPLICADO son rastro del intento suprimido, NO un evento que
+      // reinicie la ventana. Si contaran, cada silencio dejaría la evidencia que
+      // causa el siguiente: con el cron horario, un producto bajo mínimo
+      // suprimiría indefinidamente y la automatización quedaría MUDA PARA
+      // SIEMPRE. La ventana la abre lo que sí ocurrió — incluido FALLIDO, que
+      // sigue contando a propósito (si el canal está caído, reintentar cada
+      // minuto solo multiplica el ruido).
+      estado: { not: 'DUPLICADO' },
+    },
     select: { id: true },
   });
   return previo !== null;

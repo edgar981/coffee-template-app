@@ -43,12 +43,35 @@ async function ejecutarObjetivo(
     // Gate de idempotencia. Para 'cooldown' es la consulta de ventana; para el
     // resto, un chequeo previo barato (el gate DURO sigue siendo el unique al
     // escribir el run, más abajo).
+    //
+    // UNA SUPRESIÓN DEJA RASTRO. Antes se retornaba acá sin escribir nada, y
+    // desde la base "callé porque ya estaba hecho" y "callé porque estoy roto"
+    // eran el mismo vacío de cero filas. Misma filosofía que el borrado OMITIDO
+    // del blob y que el `Objetivo.omitir` de abajo: una guarda que actúa en
+    // silencio absoluto no se puede auditar.
     if (def.idempotencia === 'cooldown') {
       const horas = Number(config.cooldownHoras ?? 24);
       if (await estaEnCooldown(def.key, objetivo.targetId, horas, now)) {
+        // El periodo de 'cooldown' es el instante, así que el unique deja pasar
+        // esta fila. Y `estaEnCooldown` la EXCLUYE al mirar la ventana: si la
+        // contara, cada silencio causaría el siguiente para siempre.
+        await registrarRun({
+          ...base, targetType: def.targetType, periodo, canal: def.canal,
+          estado: 'DUPLICADO',
+          payload: { motivo: `suprimido: cooldown de ${horas} h todavía vigente` },
+        });
         return { ...base, estado: 'DUPLICADO' };
       }
     } else if (await yaCorrio(def.key, objetivo.targetId, periodo)) {
+      // ASIMETRÍA DELIBERADA: acá NO se escribe fila y no es un olvido. El
+      // periodo de estas estrategias es fijo ('evt', el día, la semana), así que
+      // el unique (key, target, periodo) ya está ocupado por el run original —
+      // una fila de supresión chocaría con P2002. Y no hace falta: ese run
+      // existente ES la explicación del silencio, visible con una query por
+      // target. Queda el log para que el barrido del cron también lo diga.
+      console.log(
+        `[automations] ${def.key} suprimida sobre ${objetivo.targetId}: ya corrió en el periodo ${periodo}`,
+      );
       return { ...base, estado: 'DUPLICADO' };
     }
 

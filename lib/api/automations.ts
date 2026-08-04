@@ -1,7 +1,11 @@
 // Data-access de la página de Automatizaciones. El servidor manda sobre qué keys
 // existen y qué config es válida; esto sólo transporta.
 
-export type AutomationRunEstado = 'ENVIADO' | 'PENDIENTE_CANAL' | 'FALLIDO' | 'OMITIDO';
+// Espejo del enum de la base. `DUPLICADO` entra acá porque las supresiones por
+// cooldown ahora dejan fila, así que pueden aparecer entre las "3 más recientes"
+// de una card — antes el tipo del cliente no las contemplaba porque no existían.
+export type AutomationRunEstado =
+  'ENVIADO' | 'PENDIENTE_CANAL' | 'FALLIDO' | 'OMITIDO' | 'DUPLICADO';
 
 export interface AutomationRunResumen {
   automationKey: string;

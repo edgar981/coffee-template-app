@@ -63,6 +63,9 @@ const statusConfig = {
   PENDIENTE_CANAL:  semaphore('Sin canal',    WARN),
   FALLIDO:          semaphore('Falló',        DANGER),
   OMITIDO:          semaphore('Omitido',      NEUTRAL),
+  // Se evaluó y se calló porque ya estaba atendido. Va NEUTRAL y no WARN: no hay
+  // nada que hacer al respecto — es la idempotencia funcionando, no una espera.
+  DUPLICADO:        semaphore('Sin repetir',  NEUTRAL),
 };
 
 const FALLBACK = { label: '', light: 'bg-muted text-muted-foreground', dark: '' };
