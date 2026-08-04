@@ -102,6 +102,11 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
   const nuncaProgramada =
     !shipping.zona && !shipping.mensajero?.trim() && !shipping.fecha_programada?.trim();
 
+  // Esta entrega no trae mensajero, así que el campo puede pre-llenarse con el
+  // último usado. Derivado acá arriba —como `nuncaProgramada`— para que el efecto
+  // dependa de un booleano estable y no de una cadena que se lee dentro.
+  const sinMensajero = !shipping.mensajero?.trim();
+
   useEffect(() => {
     let active = true;
     getDeliveryContext(shipping.orden_id)
@@ -113,11 +118,18 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
         // `null` = la heurística no supo: se deja el default actual y no se
         // marca nada como sugerido.
         if (sug && nuncaProgramada) setZona(sug);
+
+        // Default inteligente del mensajero: el último usado. Solo cuando ESTA
+        // entrega no tiene uno — nunca pisa lo que hay, ni siquiera al
+        // reprogramar una fallida (ahí el mensajero anterior es información, no
+        // un hueco). Se decide con el prop y no con el estado, porque el estado
+        // ya pudo haberlo tecleado el operador mientras cargaba la fetch.
+        if (sinMensajero && c.ultimoMensajero) setMensajero(c.ultimoMensajero);
       })
       .catch(() => { if (active) setLoadError(true); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [shipping.orden_id, nuncaProgramada]);
+  }, [shipping.orden_id, nuncaProgramada, sinMensajero]);
 
   const hasAddress   = !!ctx?.direccion_entrega?.trim();
   const isReschedule = shipping.estado === 'fallido';
