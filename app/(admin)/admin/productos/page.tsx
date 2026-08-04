@@ -83,6 +83,13 @@ function ProductosInner() {
   // "Guardar" habilitado, así que el tramo más largo se veía como si no pasara
   // nada — y admitía un segundo clic que dispararía una segunda mutación.
   const [fase, setFase] = useState<null | 'subiendo' | 'guardando'>(null);
+  // `fase` deshabilita el botón y nombra la etapa; `guardandoRef` corta la
+  // re-entrada SÍNCRONA. Hacen falta las dos: `fase` es estado, así que dos
+  // clicks dentro del mismo tick la leen `null` los dos y pasan ambos. Acá el
+  // costo de que pase no es un toast repetido — es una SEGUNDA subida a Blob,
+  // que deja un blob huérfano que nadie va a borrar (el PATCH solo sabe borrar
+  // el que el producto tenía antes, no el gemelo que se subió en paralelo).
+  const guardandoRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Object URL vivo, en un ref y no en estado. Un object URL retiene el File en
   // memoria hasta que se revoca, así que hay que revocarlo — pero NO desde un
@@ -251,7 +258,9 @@ function ProductosInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productos, searchParams]);
   const handleSave = async () => {
-    if (fase) return;                        // clic repetido mientras ya se guarda
+    // Guarda de re-entrada síncrona: el segundo click vuelve de inmediato, sin
+    // depender de que React haya re-renderizado con `fase` puesta.
+    if (guardandoRef.current) return;
     if (!form.categoria) { toast.error('Selecciona una categoría'); return; }
 
     // Guarda cliente del tope; la que MANDA es la del endpoint.
@@ -272,6 +281,10 @@ function ProductosInner() {
     const galeriaSubidas: string[] = [];
     let etapa: 'subiendo' | 'guardando' = 'subiendo';
 
+    // Se marca DESPUÉS de las validaciones que retornan temprano (si no, un
+    // formulario incompleto dejaría el ref trabado y el botón muerto) y ANTES
+    // del primer `await`, que es lo único que cierra la ventana del mismo tick.
+    guardandoRef.current = true;
     try {
       if (imagenFile || galeriaPendiente.length > 0) {
         setFase('subiendo');
@@ -325,6 +338,7 @@ function ProductosInner() {
       );
       return;
     } finally {
+      guardandoRef.current = false;
       setFase(null);
     }
 

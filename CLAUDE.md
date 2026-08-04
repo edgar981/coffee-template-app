@@ -59,6 +59,48 @@ levanta: nunca `development` (la comparten previews y el `.env` local — ver
 se decida, **al reportar una suite verde hay que decir explícitamente qué queda
 fuera**; omitirlo es lo que convirtió un dato correcto en una impresión falsa.
 
+## Doble-submit — la guarda va en DOS mitades, y no son redundantes
+
+Todo botón que dispare una mutación lleva las dos. El patrón de referencia es
+`handleSave` de Nueva Orden (`app/(admin)/admin/ordenes/page.tsx`):
+
+- **`xRef` (síncrono)** — `if (xRef.current) return;` y se marca ANTES del primer
+  `await`. Es lo ÚNICO que cierra la ventana del mismo tick.
+- **`x` (estado)** — `disabled={x}` + texto de estado intermedio ("Aplicando…",
+  "Guardando…"). Cierra la ventana del re-click lento.
+
+**Un `disabled` solo NO alcanza, y un ref solo tampoco.** `disabled` depende de un
+re-render: dos clicks dentro del mismo tick leen ambos el estado en `false` y
+pasan los dos. Y el ref, sin el texto visible, deja al operador sin señal — que es
+lo que provoca el re-click en primer lugar: en el incidente del 2026-08-04 los dos
+clicks llegaron con **2,5 s de diferencia**, no fue un doble-click, fue volver a
+clickear porque el botón no decía nada.
+
+Se bloquean también las otras dos salidas mientras la mutación viaja: Cancelar
+`disabled`, y el Dialog sin cerrar por click-fuera ni Esc. Cerrar a mitad no
+cancela nada en el server y deja al operador sin saber si se aplicó.
+
+**Que el server sea idempotente no exime al botón.** El ajuste de inventario
+`tipo: 'ajuste'` fija valor absoluto, así que el doble-submit no corrompió stock —
+pero `entrada`/`devolucion`/`salida` son delta y ahí sí duplican. La guarda es del
+botón, no del tipo de operación.
+
+### AGENDADO — deuda de esta familia, en orden
+
+1. **`stock_anterior` se lee FUERA de la transacción** en
+   `/api/inventory/adjust`: dos peticiones concurrentes snapshotean el mismo
+   valor y el kardex reporta dos movimientos donde hubo uno. Es la mitad SERVIDOR
+   del mismo bug y con tipos delta produce movimiento doble real. **Va antes que
+   los errores inline.** (Evidencia: dos filas `7→28` idénticas el 2026-08-04, a
+   749 ms; se limpiaron de dev por DELETE registrado.)
+2. **Guarda `R` uniforme** en los 9 modales que hoy solo tienen `disabled`. No
+   corren riesgo material —el server los cubre por idempotencia o por bloqueo de
+   fila (el POST de pagos hace `SELECT … FOR UPDATE` + chequeo de estado)—, así
+   que es consistencia, no incendio.
+3. **Botones de fila de Entregas** (`updateEstado`, `handleDispatch`): sin guarda
+   alguna. Los absorbe el server por bordes idempotentes (`justDelivered`,
+   `stock_descontado_at`), pero la dimensión aplica igual.
+
 ## Imágenes en `public/`
 
 Los archivos de imagen en `public/` son inmutables: nunca sobrescribir
