@@ -182,31 +182,7 @@ Reglas de la lista, para que siga sirviendo:
 - **Un item que se completa se BORRA de acá** y su decisión, si tiene, se
   documenta en la sección que le corresponda. Esto no es un historial.
 
-### 1. Una supresión por cooldown/idempotencia debe DEJAR RASTRO
-
-`ejecutarObjetivo` retorna `DUPLICADO` **antes** de `registrarRun`, así que no
-escribe nada: desde la base, "callé porque el cooldown lo pidió" y "callé porque
-estoy roto" **se ven idénticos — cero filas en los dos casos**.
-
-Misma filosofía que el borrado OMITIDO del blob (`isDeletable` en
-`lib/storage.ts`: no-op **pero con log**, porque no es rutina sino una señal) y
-que el `Objetivo.omitir` que ya existe en el motor: **una guarda que actúa en
-silencio absoluto no se puede auditar.**
-
-Costo pagado: el diagnóstico completo de la tarde del 2026-08-04. La cadena
-estaba entera y funcionando; solo se distinguió calculando a mano la ventana de
-24 h contra el run anterior.
-
-Dos apuntes que cambian el tamaño:
-- `DUPLICADO` **ya existe** en `RunSummary` (el reporte del cron) pero **no en el
-  enum `AutomationRunEstado`**. El concepto está a medio hacer: hoy se reporta y
-  no se persiste.
-- Persistirlo es **valor nuevo de enum → MIGRACIÓN**, y sería el **primer PR con
-  migración** desde el 2026-08-04, así que cierra de paso la verificación
-  diferida (2) del pipeline (§ Migraciones y deploy). Planearlo con esa doble
-  intención.
-
-### 2. Patrón `R` uniforme — modales, botones de fila y "marcar todas"
+### 1. Patrón `R` uniforme — modales, botones de fila y "marcar todas"
 
 Los que hoy tienen `disabled` pero no guarda síncrona, más los que no tienen
 ninguna de las dos. Ninguno corre riesgo material —el server los cubre por
@@ -224,7 +200,7 @@ después de los dos de arriba. Ver § Doble-submit para el patrón.
   y confirma que la mitad visible de la guarda (el estado intermedio) es la que
   evita el segundo click, no la que lo bloquea.
 
-### 3. La ventana de 45 s del polling de la campana
+### 2. La ventana de 45 s del polling de la campana
 
 `POLL_MS = 45_000`. El badge se computa sobre el snapshot del cliente, así que una
 notificación de severidad `alerta` puede tardar **hasta un poll** en teñir el
@@ -548,6 +524,13 @@ síntoma no apunta a la causa: se lee como problema de la API key o del dominio.
      la APLICA en el preview y que la preview levanta sin P2022.
   Hasta que (2) ocurra, esta política está verificada a medias y así hay
   que tratarla. Si (1) falla, el fix es de env vars, no del script.
+
+  **(2) le toca a `20260804180000_add_duplicado_run_estado`** — el
+  `ALTER TYPE … ADD VALUE` del rastro de supresión, la primera migración
+  desde que se retiró la condición. **Al mergear ese PR hay que MIRAR EL
+  LOG del preview** y confirmar las dos cosas: que la aplica contra
+  `ep-still-sound` y que la preview levanta sin P2022. Si sale bien, esta
+  viñeta se borra y la política queda verificada entera.
 - **La red gratis del 7.9.1:** el primer preview posterior a este cambio
   estrena el `migrate deploy` del CLI 7.9.1 contra `development` — es
   decir, contra una base desechable y ANTES de que producción lo corra.
@@ -915,6 +898,36 @@ reconciliar.
   órdenes nuevas dejan la campana en el primario.
 - **`PENDIENTE_CANAL` no aplica acá**: el canal interno está conectado de verdad,
   así que sus runs son `ENVIADO`. Esa política es del stub de WhatsApp.
+
+### La supresión deja rastro — `DUPLICADO` y sus dos asimetrías
+
+Un silencio deliberado escribe una fila `AutomationRun` con estado `DUPLICADO`.
+Antes se retornaba sin escribir nada y, desde la base, "callé porque ya estaba
+hecho" y "callé porque estoy roto" eran el mismo vacío de cero filas — eso costó
+una tarde entera de diagnóstico. Misma filosofía que el borrado OMITIDO del blob
+y que `Objetivo.omitir`: **una guarda que actúa en silencio absoluto no se puede
+auditar.**
+
+Dos asimetrías que NO son descuidos y conviene no "corregir":
+
+- **Sólo la escriben las estrategias `cooldown`.** En `una_vez`/`diaria`/`semanal`
+  el periodo es fijo, así que el unique `(automationKey, targetId, periodo)` ya
+  está ocupado por el run original y una fila de supresión chocaría con P2002.
+  Tampoco hace falta: ese run existente ES la explicación del silencio, visible
+  con una query por target. Para esos casos queda un `console.log`.
+- **Las filas `DUPLICADO` NO alimentan la ventana de cooldown** (`estaEnCooldown`
+  las excluye). Si contaran, cada silencio dejaría la evidencia que causa el
+  siguiente: con el cron horario, un producto bajo mínimo suprimiría
+  indefinidamente y la automatización quedaría **muda para siempre** — peor que el
+  bug que esto arregla. Lo fija la "tercera pata" de
+  `tests/integracion/supresion-con-rastro.test.ts`, con el ENVIADO envejecido más
+  allá de la ventana y la fila `DUPLICADO` reciente; es la única disposición en la
+  que la exclusión y el filtro por tiempo dan resultados distintos. **No borrar ese
+  test.**
+
+`FALLIDO` sigue contando para la ventana a propósito (§ el comentario de
+`estaEnCooldown`): si el canal está caído, reintentar cada minuto sólo multiplica
+el ruido.
 
 ### El cron NO vive en vercel.json
 

@@ -342,6 +342,19 @@ enum AutomationRunEstado {
   PENDIENTE_CANAL  // pipeline completo, canal sin conectar todavía (WhatsApp/Meta)
   FALLIDO          // el canal reventó; el negocio siguió intacto
   OMITIDO          // disparó pero no había a quién/qué enviar (sin teléfono, etc.)
+  // Se evaluó el target y se calló A PROPÓSITO porque ya estaba atendido. Es
+  // rastro del INTENTO, no de un envío: sin él, "callé porque el cooldown lo
+  // pidió" y "callé porque estoy roto" se ven idénticos desde la base (cero
+  // filas en ambos casos), que es lo que costó una tarde de diagnóstico.
+  //
+  // OJO: estas filas NO cuentan para la ventana de cooldown (ver
+  // `estaEnCooldown`). Si contaran, cada silencio generaría la evidencia que
+  // causa el siguiente y la automatización quedaría muda para siempre.
+  //
+  // Solo la escriben las estrategias `cooldown`: en las demás el periodo es fijo
+  // y el unique (key, target, periodo) ya está ocupado por el run original, que
+  // ES la explicación del silencio.
+  DUPLICADO
 }
 
 // Bitácora de TODA ejecución de una automatización: la idempotencia de los barridos

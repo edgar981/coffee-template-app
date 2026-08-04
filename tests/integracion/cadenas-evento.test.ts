@@ -145,11 +145,13 @@ test('cooldown por PRODUCTO: el segundo cruce dentro de la ventana no avisa', as
   const notis = await notificacionesDe('stock_bajo');
   assert.equal(notis.length, 2, 'uno por producto, no uno por evento');
 
-  // Y la asimetría que costó una tarde de diagnóstico, fijada como test: la
-  // supresión por cooldown NO deja fila, así que desde la base no se distingue
-  // de una cadena rota. Está en el backlog (item 2); si algún día se persiste,
-  // este assert se cae y hay que actualizarlo A CONCIENCIA.
-  assert.equal((await runsDe('stock_bajo')).length, 2, 'hoy la supresión es invisible — ver backlog item 1');
+  // ACTUALIZADO A CONCIENCIA: este assert decía 2 y afirmaba que la supresión
+  // era invisible. Desde que la supresión deja rastro son 3 —dos ENVIADO y un
+  // DUPLICADO—, que es exactamente el cambio que el comentario anterior pedía
+  // revisar a mano en vez de "arreglar" el número.
+  const runs = await runsDe('stock_bajo');
+  assert.equal(runs.length, 3, 'dos envíos reales y el rastro del intento suprimido');
+  assert.equal(runs.filter(r => r.estado === 'DUPLICADO').length, 1);
 });
 
 test('cooldown vencido: pasada la ventana vuelve a avisar', async () => {
