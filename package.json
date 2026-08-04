@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --import tsx --test \"lib/**/*.test.ts\"",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:integracion": "bash scripts/test-integracion.sh"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
