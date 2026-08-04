@@ -13,7 +13,7 @@ import { Product } from "@/types/product";
 
 import { useCartStore } from "@/lib/cartStore";
 
-import { decidirMolienda } from "@/lib/molienda";
+import { decidirMolienda } from "@/lib/moliendas-opciones";
 
 import { formatCOP } from "@/lib/utils";
 

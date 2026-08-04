@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   decidirMolienda, moliendaAceptada, moliendasDisponibles, moliendaPorDefecto,
   agregableDirecto, normalizarOpciones,
-} from './molienda';
+} from './moliendas-opciones';
 
 // Estos tests existen por un bug de go-live, no por cobertura: había DOS formas de
 // construir una línea de carrito. El detalle mandaba la molienda preseleccionada;

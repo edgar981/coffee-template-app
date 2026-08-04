@@ -8,4 +8,4 @@ export const CATEGORIA_LABELS = {
 // prisma/seed-products.ts) y sus nombres reales no coincidían con los de esa
 // lista. Una constante muerta que describe una semántica inexistente no es código
 // sobrante: es documentación falsa, y ya costó una sesión de diagnóstico.
-// La regla que las interpreta vive en lib/molienda.ts.
+// La regla que las interpreta vive en lib/moliendas-opciones.ts.

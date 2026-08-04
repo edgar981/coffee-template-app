@@ -1,5 +1,15 @@
-// LA regla de molienda, una sola vez, para los TRES consumidores: la card del
-// catálogo, la página de detalle y la validación del servidor.
+// LA regla de `Product.moliendasOpciones`, una sola vez, para los TRES
+// consumidores: la card del catálogo, la página de detalle y la validación del
+// servidor.
+//
+// OJO — son DOS campos distintos y este módulo gobierna UNO SOLO:
+//   `Product.moliendasOpciones` (Json) → las opciones que el CLIENTE elige en la
+//     página de producto. Es lo único que se decide acá.
+//   `Product.molienda` (String) → ficha técnica de la variante ("esta bolsa es
+//     molienda Media"). Texto descriptivo del producto; NO se lee ni se escribe
+//     desde acá, y no debe fusionarse con el anterior.
+// El archivo se llamó `lib/molienda.ts` un rato y el nombre invitaba justo a esa
+// confusión; de ahí el plural.
 //
 // Existe por un bug concreto: había dos formas de construir una línea de carrito.
 // La página de detalle preseleccionaba la primera molienda disponible y la

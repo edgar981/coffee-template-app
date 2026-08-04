@@ -24,7 +24,7 @@ import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 
 import { useCartStore } from "@/lib/cartStore";
-import { moliendasDisponibles, moliendaAceptada } from "@/lib/molienda";
+import { moliendasDisponibles, moliendaAceptada } from "@/lib/moliendas-opciones";
 
 import { toast } from "sonner";
 import { formatCOP } from "@/lib/utils";

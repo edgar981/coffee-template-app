@@ -2,7 +2,7 @@ import prisma from '@/lib/prisma';
 import { Prisma, MetodoPago, CondicionPago } from '@/src/generated/prisma/client';
 import { ensureShipping, restockShippingStock } from '@/lib/fulfillment';
 import { notifyOrderCreated } from '@/lib/notifications';
-import { moliendaAceptada } from '@/lib/molienda';
+import { moliendaAceptada } from '@/lib/moliendas-opciones';
 // THE phone normalizer lives in the pure phone module (lib/whatsapp-link); it is
 // re-exported here so existing importers (`@/lib/orders`) keep working.
 import { normalizeCustomerPhone } from '@/lib/whatsapp-link';
@@ -521,8 +521,9 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
 
 // ─── Order line resolution (server-side pricing) ─────────────────────────────
 
-// La forma de `Product.moliendasOpciones` vive en lib/molienda junto a la regla
-// que la interpreta; acá se declaraba una copia local que ya no hace falta.
+// La forma de `Product.moliendasOpciones` vive en lib/moliendas-opciones junto
+// a la regla que la interpreta; acá se declaraba una copia local que ya no hace
+// falta.
 
 export interface RawOrderLine {
   slug: string;
@@ -585,12 +586,12 @@ export async function resolveOrderLines(
   // Molienda: if the product defines options, the chosen one must exist and be
   // `disponible` (same source — Product.moliendasOpciones — as the storefront).
   //
-  // La regla se DELEGA a `moliendaAceptada` (lib/molienda), sin cambiarla: es la
-  // misma que aplica el storefront al armar la línea, así que un cliente no puede
-  // construir una línea que este validador rechace en el último paso del pago.
-  // Eso pasó — la card del catálogo agregaba sin molienda y todo el catálogo
-  // quedaba incompraable. El servidor sigue siendo quien manda; lo que se comparte
-  // es la definición, no la autoridad.
+  // La regla se DELEGA a `moliendaAceptada` (lib/moliendas-opciones), sin
+  // cambiarla: es la misma que aplica el storefront al armar la línea, así que
+  // un cliente no puede construir una línea que este validador rechace en el
+  // último paso del pago. Eso pasó — la card del catálogo agregaba sin molienda
+  // y todo el catálogo quedaba incompraable. El servidor sigue siendo quien
+  // manda; lo que se comparte es la definición, no la autoridad.
   for (const item of items) {
     const product = bySlug.get(item.slug)!;
     if (!moliendaAceptada(product.moliendasOpciones, item.molienda)) {
