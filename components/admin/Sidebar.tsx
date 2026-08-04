@@ -1,7 +1,7 @@
 "use client";
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { cn, getInitials } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { PanelLeftClose, Search, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from "next/navigation";
@@ -11,6 +11,7 @@ import { AnimatedIcon } from '@/components/admin/AnimatedIcon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { authClient } from "@/lib/auth-client";
 import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
+import { UserMenu } from '@/components/admin/UserMenu';
 
 // ─── One nav row ──────────────────────────────────────────────────────────────
 // Kept a real <Link> (prefetch, middle-click, aria-current). The WHOLE row drives
@@ -99,25 +100,15 @@ function SidebarNav({ iconOnly, animateIndicator, onNavigate }: {
 }
 
 // ─── User footer ──────────────────────────────────────────────────────────────
+// El bloque de usuario del footer ES el menú de cuenta: era información sin
+// acción mientras las acciones vivían en la topbar, lejos de la identidad que
+// las contextualiza. El contenido no cambia — lo que cambia es que ahora se
+// puede hacer clic. Ver `UserMenu` para las variantes y para por qué la topbar
+// conserva una copia por debajo de `lg`.
 function UserFooter({ compact }: { compact: boolean }) {
-  const { data: session, isPending } = authClient.useSession();
   return (
     <div className="border-t border-sidebar-border p-3">
-      <div className={cn('flex items-center gap-3 px-2 py-2', compact && 'justify-center')}>
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/20">
-          <span className="text-xs font-semibold text-sidebar-primary">{getInitials(session?.user?.name)}</span>
-        </div>
-        {!compact && (
-          <div className="min-w-0">
-            <p className="truncate whitespace-nowrap text-xs font-medium text-sidebar-foreground">
-              {isPending ? '…' : session?.user?.name ?? 'Usuario'}
-            </p>
-            <p className="truncate whitespace-nowrap text-xs text-sidebar-foreground/40">
-              {isPending ? '' : session?.user?.email ?? ''}
-            </p>
-          </div>
-        )}
-      </div>
+      <UserMenu variant={compact ? 'compact' : 'sidebar'} />
     </div>
   );
 }

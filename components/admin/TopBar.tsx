@@ -2,12 +2,9 @@
 
 import {
   Menu, Sun, Moon, Monitor, PanelLeftOpen, Search,
-  User, Settings, LogOut, ChevronDown,
 } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import NotificationBell from '@/components/admin/NotificationBell';
 import { AnimatedIcon } from '@/components/admin/AnimatedIcon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -15,9 +12,9 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
   DropdownMenuRadioGroup, DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
-import { authClient } from '@/lib/auth-client';
-import { cn, getInitials } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
+import { UserMenu } from '@/components/admin/UserMenu';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,35 +39,13 @@ export default function TopBar({
   // muestra lo efectivo: con "Sistema" en un OS oscuro, la opción marcada es
   // Sistema y el icono es la luna.
   const { theme, setTheme, resolvedTheme } = useTheme();
-  const router                  = useRouter();
-  const menuRef                 = useRef<HTMLDivElement>(null);
   const [mounted, setMounted]   = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const { data: session }       = authClient.useSession();
-  const user                    = session?.user;
 
   // Avoid hydration mismatch for the theme icon (server can't know the theme).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- standard next-themes mount guard
     setMounted(true);
   }, []);
-
-  // Close user menu on outside click.
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const handleLogout = async () => {
-    await authClient.signOut();
-    router.push('/login');
-  };
-
-  const initials  = getInitials(user?.name);
-  const firstName = user?.name?.split(/\s+/)[0] ?? 'Usuario';
 
   return (
     <header
@@ -158,41 +133,15 @@ export default function TopBar({
         {/* Notifications (tooltip + animation live inside the component) */}
         <NotificationBell />
 
-        {/* User menu */}
-        <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="flex items-center gap-2 rounded-xl py-1 pl-1 pr-2 transition-colors hover:bg-muted"
-          >
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
-              <span className="text-xs font-semibold text-primary">{initials}</span>
-            </div>
-            <span className="hidden max-w-20 truncate text-xs font-medium text-foreground sm:block">{firstName}</span>
-            <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${menuOpen ? 'rotate-180' : ''}`} />
-          </button>
-
-          {menuOpen && (
-            <div className="absolute right-0 top-11 z-50 w-56 overflow-hidden rounded-2xl border border-border bg-card py-1 shadow-xl">
-              <div className="border-b border-border px-4 py-3">
-                <p className="truncate text-sm font-semibold text-foreground">{user?.name ?? 'Usuario'}</p>
-                <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
-              </div>
-              <div className="py-1">
-                <Link href="/admin/perfil" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground transition-colors hover:bg-muted">
-                  <User className="h-4 w-4 text-muted-foreground" /> Mi perfil
-                </Link>
-                <Link href="/admin/configuracion" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground transition-colors hover:bg-muted">
-                  <Settings className="h-4 w-4 text-muted-foreground" /> Configuración
-                </Link>
-              </div>
-              <div className="border-t border-border py-1">
-                <button onClick={handleLogout} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-destructive transition-colors hover:bg-destructive/10">
-                  <LogOut className="h-4 w-4" /> Cerrar sesión
-                </button>
-              </div>
-            </div>
-          )}
+        {/* Menú de usuario — SOLO por debajo de `lg`. En escritorio vive en el
+            footer del sidebar, que está siempre a la vista; en móvil el sidebar
+            es un drawer oculto tras la hamburguesa, así que dejar ahí la única
+            salida de sesión la escondería detrás de dos toques y de un panel de
+            navegación. Es el mismo componente, no una copia. */}
+        <div className="lg:hidden">
+          <UserMenu variant="topbar" />
         </div>
+
       </div>
     </header>
   );
