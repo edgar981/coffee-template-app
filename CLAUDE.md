@@ -39,9 +39,13 @@ imposible, no una opción descartada.
   `<storeId>/productos/` sin tocar quien lo llama.
 - **Aislamiento por entorno, porque el store es UNO SOLO.** Blob no tiene
   ramas como Neon. El adaptador antepone `dev/` a todo lo que no sea
-  `VERCEL_ENV === 'production'` — misma condición que el `migrate deploy`
-  del build. Local y previews escriben en `dev/productos/`; producción en
-  `productos/`. Limpiar pruebas jamás puede tocar un blob real. El cálculo
+  `VERCEL_ENV === 'production'`. Local y previews escriben en
+  `dev/productos/`; producción en `productos/`. **Esta condición es AHORA
+  la única de su tipo en el repo**: el build tenía la misma y se retiró el
+  2026-08-04 (cada entorno migra su base). No "unificarlas" leyendo una
+  versión vieja de este doc — Blob tiene UN store y por eso necesita el
+  prefijo; Neon tiene una base por entorno y por eso no necesita la
+  condición. Limpiar pruebas jamás puede tocar un blob real. El cálculo
   del prefijo está testeado (`lib/storage.test.ts`); es deliberadamente
   conservador: sin `VERCEL_ENV` se asume NO producción, de modo que el
   error posible es ensuciar `dev/`, nunca el prefijo real.
@@ -262,17 +266,56 @@ síntoma no apunta a la causa: se lee como problema de la API key o del dominio.
 
 ## Migraciones y deploy
 
-- Las migraciones de PRODUCCIÓN las aplica el build de Vercel
-  automáticamente: `npm run build` corre `prisma migrate deploy` antes
-  de `next build` **solo cuando `VERCEL_ENV === "production"`**. Si la
-  migración falla, el build falla y el deploy queda bloqueado — jamás
-  envolver ese paso en `|| true` (un deploy bloqueado con error claro es
-  mejor que producción corriendo contra un schema sin migrar).
-- Los PREVIEW deploys NO migran todavía (la condición sigue en el script):
-  una preview cuya rama trae una migración nueva falla en runtime (P2022)
-  hasta que `main` la aplique. **Ese tradeoff ya no se sostiene** — se
-  aceptó cuando preview escribía en producción, y desde el 2026-08-02 no
-  lo hace. Retirar la condición es tanda aparte.
+- **CADA ENTORNO MIGRA SU PROPIA BASE.** `npm run build` corre `prisma
+  migrate deploy` antes de `next build`, **sin condición** (desde el
+  2026-08-04). Production migra `ep-ancient-frog`; Preview migra
+  `ep-still-sound`; un `npm run build` local migra la base de tu `.env`
+  (hoy también `ep-still-sound`). Lo que hace correcta a la política es
+  que cada entorno tiene YA su propia base — no al revés. Si algún día
+  Preview volviera a apuntar a producción, esta línea es una bomba: la
+  condición se retiró PORQUE las cuatro filas de env vars existen.
+- Si la migración falla, el build falla y el deploy queda bloqueado —
+  jamás envolver ese paso en `|| true` (un deploy bloqueado con error
+  claro es mejor que un entorno corriendo contra un schema sin migrar).
+- **`DIRECT_DATABASE_URL` es ahora prerequisito en Preview, no solo en
+  Production.** La lee `prisma.config.ts`, que cae a `DATABASE_URL` si
+  falta — y esa es la POOLED: PgBouncer rompe los advisory locks de
+  `migrate deploy`. Un Preview sin esa var no falla al configurarse, falla
+  al migrar. Hoy existe (es una de las cuatro filas).
+- **Tradeoff real: las migraciones de ramas en vuelo conviven en
+  `development`.** Dos ramas abiertas con migraciones distintas las
+  aplican las dos a la misma base, y una migración de una rama que nunca
+  se mergea se queda ahí. Con UN dev el riesgo es bajo y el síntoma es
+  local, no en producción. **La limpieza no es una tarea nueva: es el
+  reset periódico de `development` desde `production` que ya existe** —
+  ese reset devuelve dev al estado de migraciones de producción y con eso
+  se lleva por delante las de ramas muertas. Ojo con el efecto conocido
+  de ese reset: deja las filas de dev apuntando a blobs REALES de
+  producción (ver la sección de storage y la guarda `isDeletable`).
+  Una rama que siga viva simplemente re-aplica su migración en el
+  siguiente preview deploy, porque `migrate deploy` corre en cada build.
+- **Efecto secundario bueno: muere el P2022 crónico de las previews.**
+  Antes, una preview cuya rama traía una migración nueva reventaba en
+  runtime hasta que `main` la aplicara; ahora la aplica ella misma a
+  `development` en su propio deploy. Ese era el costo aceptado de la
+  condición y deja de pagarse.
+- **VERIFICACIÓN DIFERIDA (pendiente al 2026-08-04).** Al retirar la
+  condición no había ninguna migración en vuelo (`development` en 33/33),
+  así que el cambio se mergea sin haber visto todavía el caso completo.
+  Son dos comprobaciones distintas y conviene no confundirlas:
+  1. **Cualquier preview deploy** ya prueba lo básico: en su log debe
+     aparecer `prisma migrate deploy` corriendo contra
+     `ep-still-sound` y reportando 0 pendientes. Eso confirma host
+     correcto y que `DIRECT_DATABASE_URL` de Preview resuelve.
+  2. **El primer PR que traiga una migración** prueba lo que falta: que
+     la APLICA en el preview y que la preview levanta sin P2022.
+  Hasta que (2) ocurra, esta política está verificada a medias y así hay
+  que tratarla. Si (1) falla, el fix es de env vars, no del script.
+- **La red gratis del 7.9.1:** el primer preview posterior a este cambio
+  estrena el `migrate deploy` del CLI 7.9.1 contra `development` — es
+  decir, contra una base desechable y ANTES de que producción lo corra.
+  Esa cobertura no existía cuando se mergeó el upgrade (`2a0f1d4`), y es
+  un argumento para no volver a condicionar el paso.
 - **Preview YA NO comparte base con producción** — desde el 2026-08-02 el
   dashboard de Vercel tiene entradas SEPARADAS de `DATABASE_URL` y
   `DIRECT_DATABASE_URL` para Production (`ep-ancient-frog`) y para Preview

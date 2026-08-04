@@ -33,9 +33,16 @@ Verificadas contra el código (no de memoria). Configúralas en **Vercel →
 Project → Settings → Environment Variables** (scope: Production, y Preview si
 quieres previews).
 
+> ⚠️ **Las dos vars de base de datos van por entorno, con valores DISTINTOS.**
+> El build corre `prisma migrate deploy` sin condición: cada entorno migra la
+> base a la que apunta. Si le das a Preview el mismo valor que a Production,
+> una rama de feature migra PRODUCCIÓN antes de que `main` tenga el código.
+> Preview debe apuntar a una base propia (acá: la rama `development` de Neon).
+
 | Var | Requerida | Valor / fuente |
 |---|---|---|
-| `DATABASE_URL` | **Sí** | Neon **pooled** (`...-pooler.neon.tech`), `sslmode=require` |
+| `DATABASE_URL` | **Sí** | Neon **pooled** (`...-pooler.neon.tech`), `sslmode=require`. **Una entrada por entorno** (ver aviso arriba) |
+| `DIRECT_DATABASE_URL` | **Sí** | Neon **directa** (SIN `-pooler`), misma base que su `DATABASE_URL`. La lee `prisma.config.ts` para `migrate deploy`; si falta cae a la pooled y PgBouncer rompe los advisory locks. **Una entrada por entorno** |
 | `BETTER_AUTH_SECRET` | **Sí** | Secreto nuevo: `openssl rand -base64 32` |
 | `BETTER_AUTH_URL` | **Sí** | `https://nayoli-demo.duna.solutions` |
 | `RESEND_API_KEY` | **Sí** (email) | Dashboard de Resend (`re_...`) |
