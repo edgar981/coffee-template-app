@@ -1,7 +1,7 @@
-import { nuevaOrden, stockBajo, ordenEntregada } from './eventos';
+import { nuevaOrden, stockBajo, ordenEntregada, ordenRecibida, entregaFallida } from './eventos';
 import {
   recordatorioPago, reporteSemanal, clienteInactivo,
-  contraentregaSinCobrar, envioEstancado, resumenDiario,
+  contraentregaSinCobrar, envioEstancado, resumenDiario, entregaSinCobro,
 } from './programadas';
 import type { EventHandler, ScheduledHandler } from '../types';
 
@@ -17,6 +17,8 @@ export const EVENT_HANDLERS: Record<string, EventHandler> = {
   nueva_orden:     nuevaOrden,
   stock_bajo:      stockBajo,
   orden_entregada: ordenEntregada,
+  orden_recibida:  ordenRecibida,
+  entrega_fallida: entregaFallida,
 };
 
 export const SCHEDULED_HANDLERS: Record<string, ScheduledHandler> = {
@@ -26,4 +28,5 @@ export const SCHEDULED_HANDLERS: Record<string, ScheduledHandler> = {
   contraentrega_sin_cobrar: contraentregaSinCobrar,
   envio_estancado:          envioEstancado,
   resumen_diario:           resumenDiario,
+  entrega_sin_cobro:        entregaSinCobro,
 };

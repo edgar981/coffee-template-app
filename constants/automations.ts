@@ -2,11 +2,12 @@ import { z } from 'zod';
 import type { LucideIcon } from 'lucide-react';
 import {
   Bell, Package, CreditCard, BarChart2, UserX, CheckCircle,
-  Wallet, Truck, Sunrise,
+  Wallet, Truck, Sunrise, ShoppingBag, HandCoins, PackageX,
 } from 'lucide-react';
 import { STAT_CHIP } from '@/constants/stat-chip';
 import { POR_COBRAR_QUERY } from '@/lib/metrics/order-stat-filters';
 import { LOW_STOCK_QUERY } from '@/lib/metrics/inventory-filters';
+import { HORAS_ENTREGA_SIN_COBRO } from '@/lib/automations/reglas';
 
 // ─── Registry de automatizaciones ────────────────────────────────────────────
 // EL catálogo. Todo lo que define una automatización —nombre, canal, disparador,
@@ -18,6 +19,8 @@ import { LOW_STOCK_QUERY } from '@/lib/metrics/inventory-filters';
 // next/headers — la página de Automatizaciones lo importa desde un componente
 // cliente. La EJECUCIÓN (a quién le toca, qué datos lleva) vive en
 // lib/automations/handlers.ts, del lado servidor, junto a los datos.
+// (`lib/automations/reglas` cumple la misma condición y por eso puede importarse
+// desde aquí: es sólo predicados y constantes, sin una sola dependencia.)
 //
 // `key` es el identificador estable que se persiste (AutomationSetting.key y
 // AutomationRun.automationKey). Renombrar una key es un cambio ROMPEDOR: la
@@ -33,6 +36,27 @@ import { LOW_STOCK_QUERY } from '@/lib/metrics/inventory-filters';
 // CONTENIDO (estas 9) es de esta vertical.
 
 export type AutomationCanal = 'interno' | 'email' | 'whatsapp';
+
+/**
+ * REGLA DE `defaultActivo` — la decide el DESTINATARIO del canal, no el gusto de
+ * quien agrega la automatización. Así una automatización futura se clasifica sola
+ * y nadie tiene que recordar la política:
+ *
+ *   canal `interno` (la campana, le habla al OPERADOR) → nace ENCENDIDA.
+ *     Es información sobre su propio negocio, en su propio panel, sin costo por
+ *     mensaje, sin terceros y sin consentimiento de nadie. Una campana que hay
+ *     que configurar antes de que sirva es una campana que nadie enciende.
+ *
+ *   canales `whatsapp` / `email` (le hablan al CLIENTE o salen de la casa) →
+ *     nacen APAGADAS, con opt-in explícito del owner. Cuestan plata por mensaje,
+ *     dependen de credenciales de terceros (Meta, Resend) y pueden quemar la
+ *     reputación del número. Que el owner decida enviar es parte del producto,
+ *     no una fricción a eliminar.
+ *
+ * `defaultActivo` es solo el ARRANQUE: una fila en AutomationSetting (el toggle
+ * de la página) siempre manda sobre esto. Apagar una interna es una decisión que
+ * se respeta igual.
+ */
 
 /** `evento`: la dispara un cambio del negocio. `programada`: la dispara el cron. */
 export type AutomationTipo = 'evento' | 'programada';
@@ -58,6 +82,22 @@ export type AutomationTarget = 'order' | 'product' | 'customer' | 'shipping' | '
  *              de la última corrida dentro de `config.cooldownHoras`
  */
 export type AutomationIdempotencia = 'una_vez' | 'diaria' | 'semanal' | 'cooldown';
+
+/**
+ * Qué tan grave es lo que avisa una notificación de campana. ÚNICO consumidor: el
+ * tono del badge del bell — Amber Minimal dice que el color es información, así
+ * que el rojo tiene que significar algo y no ser el color de "hay algo".
+ *
+ *   `alerta` → algo salió mal o hay plata en riesgo (stock agotado, entrega
+ *     fallida, dinero entregado sin cobrar). Es el mismo rojo que la card de
+ *     Alertas de Stock: si aparece, hay que hacer algo.
+ *   `info` (default cuando no se declara) → algo bueno o esperado pasó (entró una
+ *     orden). Badge en el primario, no en rojo.
+ *
+ * El badge pinta rojo solo si alguna NO LEÍDA es `alerta`; tres órdenes nuevas no
+ * ponen la campana en rojo.
+ */
+export type AutomationSeveridad = 'alerta' | 'info';
 
 // ─── Plantillas de WhatsApp (gramática Meta) ─────────────────────────────────
 // Escritas para ser APROBABLES TAL CUAL por Meta, no para leerse bonito aquí:
@@ -112,8 +152,11 @@ export interface AutomationDef {
   /** Defaults incluidos: `schema.parse({})` devuelve la configuración por defecto. */
   configSchema: z.ZodType<Record<string, unknown>>;
   campos: ConfigCampo[];
-  /** Encendida de fábrica. Las 3 sugeridas por el asesor llegan APAGADAS. */
+  /** Encendida de fábrica. NO se decide caso por caso — ver la regla por canal
+   *  documentada en AutomationCanal (interno → true, externos → false). */
   defaultActivo: boolean;
+  /** Solo para `canal: 'interno'`: tono del badge de la campana. Default `info`. */
+  severidad?: AutomationSeveridad;
   icono: LucideIcon;
   color: string;
   plantilla?: WhatsappTemplate;
@@ -170,7 +213,10 @@ export const AUTOMATIONS: AutomationDef[] = [
         sufijo: 'horas', min: 1, max: 720,
         ayuda: 'Por producto. Evita una lluvia de avisos por el mismo producto en un día de ventas.' },
     ],
-    defaultActivo: false,
+    // Canal interno → encendida de fábrica (regla en AutomationCanal). Estaba en
+    // false y por eso la campana no mostraba nada pese a estar implementada.
+    defaultActivo: true,
+    severidad: 'alerta',
     icono: Package, color: STAT_CHIP.alert,
   },
 
@@ -304,7 +350,8 @@ export const AUTOMATIONS: AutomationDef[] = [
         sufijo: 'días', min: 1, max: 90 },
       horaCampo('Hora del barrido'),
     ],
-    defaultActivo: false,
+    defaultActivo: true, // canal interno — ver la regla en AutomationCanal
+    severidad: 'alerta',
     icono: Wallet, color: STAT_CHIP.amber,
   },
 
@@ -324,7 +371,8 @@ export const AUTOMATIONS: AutomationDef[] = [
         sufijo: 'días', min: 1, max: 60 },
       horaCampo('Hora del barrido'),
     ],
-    defaultActivo: false,
+    defaultActivo: true, // canal interno — ver la regla en AutomationCanal
+    severidad: 'alerta',
     icono: Truck, color: STAT_CHIP.sky,
   },
 
@@ -343,7 +391,89 @@ export const AUTOMATIONS: AutomationDef[] = [
     defaultActivo: false,
     icono: Sunrise, color: STAT_CHIP.orange,
   },
+
+  // ── 10–12. Campana del operador (v1 de notificaciones internas) ────────────
+  // Las tres son canal `interno`: le hablan al operador en su propio panel, así
+  // que nacen encendidas (regla en AutomationCanal). No cuestan un peso ni
+  // dependen de Meta — el aviso ES el producto.
+
+  {
+    key: 'orden_recibida',
+    nombre: 'Orden nueva en la tienda',
+    descripcion: 'Avisa en la campana cuando entra una orden que nadie tecleó: del storefront o de cualquier canal de entrada futuro.',
+    canal: 'interno', tipo: 'evento', audiencia: 'equipo',
+    disparador: 'Cuando se crea una orden desde fuera del admin',
+    idempotencia: 'una_vez', targetType: 'order',
+    configSchema: z.object({}),
+    campos: [],
+    defaultActivo: true,
+    // Una venta no es una alarma: badge en primario, no en rojo.
+    severidad: 'info',
+    icono: ShoppingBag, color: STAT_CHIP.emerald,
+  },
+
+  {
+    key: 'entrega_sin_cobro',
+    nombre: 'Entregado sin cobrar',
+    descripcion: 'La orden llegó a su destino pero el dinero no entró. Avisa una sola vez por orden, pasadas las horas configuradas.',
+    canal: 'interno', tipo: 'programada', audiencia: 'equipo',
+    disparador: 'Órdenes entregadas sin pago registrado tras las horas configuradas',
+    idempotencia: 'una_vez', targetType: 'order',
+    configSchema: z.object({
+      horasEntrega: z.coerce.number().int().min(1).max(720).default(HORAS_ENTREGA_SIN_COBRO),
+    }),
+    campos: [
+      { name: 'horasEntrega', tipo: 'numero', label: 'Avisar cuando la entrega lleve',
+        sufijo: 'horas', min: 1, max: 720,
+        ayuda: 'Desde el momento en que se marcó entregada. Un aviso por orden: cuando el mensajero liquide, deja de importar.' },
+    ],
+    // SIN campo `hora`: es un umbral en HORAS, así que se evalúa en cada corrida
+    // del cron horario. Ponerle hora fija lo volvería un barrido diario y el
+    // umbral de 24h se convertiría en "entre 24 y 48h", según cuándo cayera.
+    defaultActivo: true,
+    severidad: 'alerta',
+    icono: HandCoins, color: STAT_CHIP.alert,
+  },
+
+  {
+    key: 'entrega_fallida',
+    nombre: 'Entrega fallida',
+    descripcion: 'El pedido volvió: nadie recibió, dirección mala o el cliente rechazó. Requiere decidir qué se hace con esa orden.',
+    canal: 'interno', tipo: 'evento', audiencia: 'equipo',
+    disparador: 'Cuando una entrega cambia a estado "fallido"',
+    idempotencia: 'cooldown', targetType: 'shipping',
+    configSchema: z.object({
+      // Una entrega fallida se reprograma (fallido → preparando) y puede volver a
+      // fallar: cada intento fallido ES noticia, así que NO se usa `una_vez`. El
+      // cooldown corto solo absorbe un doble PATCH del mismo intento.
+      cooldownHoras: z.coerce.number().int().min(1).max(720).default(6),
+    }),
+    campos: [
+      { name: 'cooldownHoras', tipo: 'numero', label: 'Esperar antes de repetir el aviso',
+        sufijo: 'horas', min: 1, max: 720,
+        ayuda: 'Por entrega. Un reintento que vuelve a fallar más tarde sí avisa de nuevo: cada intento perdido es plata y tiempo.' },
+    ],
+    defaultActivo: true,
+    severidad: 'alerta',
+    icono: PackageX, color: STAT_CHIP.alert,
+  },
 ];
+
+// ─── Solapes DELIBERADOS del catálogo ────────────────────────────────────────
+// Una MISMA orden contraentrega puede disparar `contraentrega_sin_cobrar` y
+// `entrega_sin_cobro`, y eso NO es un duplicado que haya que arreglar: son dos
+// momentos distintos del mismo dinero, y el segundo es una ESCALADA del primero.
+//
+//   contraentrega_sin_cobrar → despachada hace N días y aún sin cobrar. La plata
+//     está EN LA CALLE. Mide desde `stock_descontado_at` (el despacho), en días,
+//     y se repite semanalmente mientras el saldo siga vivo.
+//   entrega_sin_cobro → YA SE ENTREGÓ hace N horas y el dinero no entró. El
+//     mensajero volvió con la mercancía entregada y sin liquidar: es más grave y
+//     más urgente. Mide desde `fecha_entrega`, en horas, una sola vez por orden.
+//
+// Silenciar una porque "ya avisó la otra" perdería justo la señal de la escalada.
+// Si al owner le sobra ruido, la respuesta es apagar UNA en su toggle, no
+// fusionarlas.
 
 // ─── Acceso ──────────────────────────────────────────────────────────────────
 
@@ -376,3 +506,13 @@ export const AUTOMATION_HREF = {
   porCobrar:  `/admin/ordenes?${POR_COBRAR_QUERY}`,
   entregas:   '/admin/entregas',
 } as const;
+
+/**
+ * Enlace al detalle de UNA orden. La página de Órdenes abre su diálogo con
+ * `?order=<numero_orden>` — por NÚMERO, no por id, que es lo que ya parsea
+ * `parseFilters`. Una notificación que no lleva a la fila de la que habla obliga
+ * a buscarla a mano, que es justo el trabajo que la campana debería ahorrar.
+ */
+export function hrefOrden(numeroOrden: string): string {
+  return `/admin/ordenes?order=${encodeURIComponent(numeroOrden)}`;
+}

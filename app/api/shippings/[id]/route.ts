@@ -213,6 +213,17 @@ export async function PATCH(
       });
     }
 
+    // Entrega FALLIDA. Mismo patrón: el único borde (… → fallido), post-commit —
+    // el stock ya se restituyó, así que el aviso no puede referirse a una
+    // devolución que se revirtió. Una entrega reprogramada que vuelve a fallar
+    // pasa por acá otra vez y SÍ avisa de nuevo (la automatización usa cooldown,
+    // no `una_vez`): cada intento perdido es un hecho nuevo.
+    if (justFailed) {
+      await runEventAutomations({
+        tipo: 'shipping.fallido', shippingId: id, orderId: current.orden_id,
+      });
+    }
+
     return NextResponse.json(updated);
   } catch (error) {
     // Insufficient stock blocks the dispatch — 409 naming the product(s); the
