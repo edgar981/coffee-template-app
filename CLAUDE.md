@@ -166,8 +166,8 @@ rama no lo es (ver la regla de abajo).
 
 | Rama (Neon) | Endpoint | Rol |
 | --- | --- | --- |
-| `production` | `ep-ancient-frog-ac1v1hg5` | **PRODUCCIÓN.** La que sirve Vercel (pooled en `DATABASE_URL`, directo en `DIRECT_DATABASE_URL`). Preview hereda estas env vars salvo override, así que **preview escribe en producción**. |
-| `development` | `ep-still-sound-acfmedf2` | Base de desarrollo. Es a la que apunta el `.env` local (pooled + directo). Ramificada de production, 33/33 migraciones. |
+| `production` | `ep-ancient-frog-ac1v1hg5` | **PRODUCCIÓN.** La que sirve Vercel **en el entorno Production únicamente** (pooled en `DATABASE_URL`, directo en `DIRECT_DATABASE_URL`). Desde el 2026-08-02 Preview YA NO hereda estas vars — ver la fila de abajo. |
+| `development` | `ep-still-sound-acfmedf2` | Base de desarrollo. La usan el `.env` local (pooled + directo) **y los PREVIEW deploys**: desde el 2026-08-02 el entorno Preview de Vercel tiene entradas PROPIAS de `DATABASE_URL` y `DIRECT_DATABASE_URL` apuntando acá. Ramificada de production, 33/33 migraciones. |
 | `quarantine-prod-snapshot-jul24` | `ep-solitary-mouse-ac140cla` | Snapshot CONGELADO del 2026-07-24. **No tocar ni decomisar sin decisión explícita del owner.** No es producción ni desarrollo: no leerla para diagnosticar nada. |
 | `backup-pre-purge-ago03` | `ep-super-frost-acy9dryk` | Snapshot CONGELADO del 2026-08-03, child de production, tomado justo antes de la purga pre-lanzamiento (ver abajo). Es el ÚNICO respaldo de las 120 órdenes borradas. **No tocar ni decomisar** mientras la purga siga siendo reversible por decisión del owner. |
 
@@ -268,19 +268,25 @@ síntoma no apunta a la causa: se lee como problema de la API key o del dominio.
   migración falla, el build falla y el deploy queda bloqueado — jamás
   envolver ese paso en `|| true` (un deploy bloqueado con error claro es
   mejor que producción corriendo contra un schema sin migrar).
-- Los PREVIEW deploys NO migran (variante condicionada, deliberada): una
-  preview cuya rama trae una migración nueva fallará en runtime (P2022)
-  hasta que `main` la aplique. Tradeoff aceptado frente al inverso —
-  que una rama de feature migre la DB compartida antes de que `main`
-  tenga el código.
-- **Preview y producción comparten base** — la de `production`
-  (`ep-ancient-frog`): preview hereda sus env vars salvo override. Por eso
-  el `migrate deploy` condicionado a `VERCEL_ENV === "production"` es lo
-  correcto: sin la condición, una rama de feature migraría producción
-  antes de que `main` tenga el código. **Local ya NO comparte con nadie**
-  (apunta a `development`, ver la tabla arriba), así que las pruebas
-  locales dejaron de ser escrituras en vivo — situación vigente desde el
-  2026-08-02, antes de esa fecha sí lo eran.
+- Los PREVIEW deploys NO migran todavía (la condición sigue en el script):
+  una preview cuya rama trae una migración nueva falla en runtime (P2022)
+  hasta que `main` la aplique. **Ese tradeoff ya no se sostiene** — se
+  aceptó cuando preview escribía en producción, y desde el 2026-08-02 no
+  lo hace. Retirar la condición es tanda aparte.
+- **Preview YA NO comparte base con producción** — desde el 2026-08-02 el
+  dashboard de Vercel tiene entradas SEPARADAS de `DATABASE_URL` y
+  `DIRECT_DATABASE_URL` para Production (`ep-ancient-frog`) y para Preview
+  (`ep-still-sound`). Preview y local escriben los dos en `development`,
+  así que ni las previews ni las pruebas locales son ya escrituras en
+  vivo; antes del 2026-08-02 ambas lo eran.
+
+  **Esta sección afirmó lo contrario entre el 2026-08-02 y el 2026-08-04**
+  ("preview hereda las env vars de producción", "preview escribe en
+  producción"): el cambio se hizo en el dashboard de Vercel y la doc no se
+  actualizó. Queda anotado porque el modo de falla es el de siempre acá —
+  la doc, el nombre de la rama y la memoria NO son evidencia del rol de una
+  base. Lo que cerró esto fue la evidencia primaria: las cuatro filas de env
+  vars en Vercel.
 - `vercel.json#buildCommand` ANULA el script `build` de package.json —
   incidente 2026-07-25: decía `prisma generate && next build` y el
   `migrate deploy` condicionado nunca corrió en Vercel. Debe quedarse en
