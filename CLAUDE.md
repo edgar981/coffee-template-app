@@ -688,6 +688,80 @@ en `payload`. Antes de conectar el adaptador real:
   causa #1 de suspensión de plantillas. Conecta con las páginas legales
   pendientes (Ley 1581) — ver `siteConfig.legalNav`, hoy vacío.
 
+### `defaultActivo` se decide por el DESTINATARIO del canal
+
+Regla general del catálogo, no caso por caso — así una automatización nueva se
+clasifica sola:
+
+- **canal `interno`** (la campana; le habla al OPERADOR en su propio panel) →
+  **nace ENCENDIDA**. No cuesta por mensaje, no depende de terceros, no requiere
+  consentimiento de nadie. Una campana que hay que configurar antes de que sirva
+  es una campana que nadie enciende.
+- **canales `whatsapp` / `email`** (le hablan al CLIENTE o salen de la casa) →
+  **nacen APAGADAS**, con opt-in del owner. Cuestan plata, dependen de
+  credenciales de terceros y pueden quemar la reputación del número.
+
+`defaultActivo` es solo el ARRANQUE: una fila en `AutomationSetting` (el toggle
+de la página) siempre manda. Al aplicar la regla el 2026-08-04 se encendieron las
+tres internas que estaban en `false` (`stock_bajo`, `contraentrega_sin_cobrar`,
+`envio_estancado`) — `stock_bajo` estaba completa desde `b94e17e` y esa era la
+única razón de que la campana no mostrara nada.
+
+### Campana del operador — notificaciones internas
+
+La campana **no es un subsistema**: es el canal `interno` del motor de
+automatizaciones (`lib/automations/channels/interno.ts` escribe la fila
+`Notification`; la mitad cliente es `components/admin/NotificationBell.tsx`). Un
+aviso nuevo = una entrada más en el catálogo, no detección paralela. Si un
+criterio de la campana difiriera del que usan las cards, las vistas dejarían de
+reconciliar.
+
+- **El origen de una orden NO es `Order.canal`.** `canal` es el canal de VENTA
+  (cómo llegó el cliente) y el admin puede elegir `directo` en Nueva Orden — el
+  MISMO valor que escribe el checkout. Filtrar por él notificaría las órdenes
+  manuales. El discriminador es el **code path**: el evento `order.creada` lleva
+  un `origen: 'storefront' | 'admin'` que declara el endpoint que la creó
+  (`lib/automations/reglas.ts`). No se persiste: nadie lo consume después del
+  evento, y una columna nueva sería un dato que puede mentir. **No "simplificar"
+  esto a un filtro por `canal`.**
+  El filtro es "todo lo que no es admin", no "solo storefront", para que un canal
+  de entrada futuro notifique de fábrica — el silencio debe ser la excepción
+  explícita. Testeado en `lib/automations/reglas.test.ts`.
+- **`contraentrega_sin_cobrar` y `entrega_sin_cobro` se solapan A PROPÓSITO.** Una
+  misma orden puede disparar las dos y no es un duplicado: la primera mide desde
+  el DESPACHO en días ("la plata está en la calle"), la segunda desde la ENTREGA
+  en horas ("el mensajero volvió y no liquidó"). La segunda es la ESCALADA de la
+  primera; fusionarlas pierde justo esa señal. Si sobra ruido, se apaga UNA en su
+  toggle.
+- **El umbral del caso "entregado sin cobrar" es placeholder**:
+  `HORAS_ENTREGA_SIN_COBRO = 24`, TODO(cliente) — el real sale de la sesión con el
+  cliente. Es el default del `configSchema`, así que el owner ya puede ajustarlo
+  desde "Configurar" sin developer; cambiar la constante solo mueve el arranque de
+  una tienda nueva.
+- **`fecha_entrega` es una columna de TEXTO, no DateTime.** El `where` la filtra
+  con `lt` lexicográfico (válido: la escribe siempre el servidor con
+  `toISOString()`, la UI nunca la manda) pero eso es un PRE-FILTRO; quien decide es
+  `entregaVencidaSinCobro` en JS sobre las filas cargadas. Sin fecha o con una
+  impareseable NO avisa — un aviso fabricado sobre un dato roto manda al operador
+  a revisar una orden que quizá ya se cobró.
+- **`entrega_fallida` usa `cooldown`, no `una_vez`, y es deliberado**: una entrega
+  fallida se reprograma (`fallido → preparando`) y puede volver a fallar. Cada
+  intento perdido es un hecho nuevo; el cooldown corto solo absorbe un doble PATCH
+  del mismo intento.
+- **El cruce del mínimo vive en `cruzoMinimo`** (`lib/metrics/inventory-filters.ts`,
+  construido sobre `isLowStock`), y lo llaman los DOS emisores — el ajuste de
+  inventario y el descuento al despachar. Estaba duplicado en ambos; el día que una
+  copia se desincronizara, la campana y la card de Alertas de Stock dejarían de
+  reconciliar. El disparador es el CRUCE, nunca el estado "está bajo" (que sería
+  cierto en cada venta posterior). Ojo: dentro de la ventana de cooldown, un
+  segundo movimiento a la baja tampoco avisa — eso lo hace el cooldown, no la regla
+  de cruce.
+- **El rojo del badge lo enciende `severidad: 'alerta'` del registry**, no el mero
+  hecho de haber algo sin leer (Amber Minimal: el color es información). Tres
+  órdenes nuevas dejan la campana en el primario.
+- **`PENDIENTE_CANAL` no aplica acá**: el canal interno está conectado de verdad,
+  así que sus runs son `ENVIADO`. Esa política es del stub de WhatsApp.
+
 ### El cron NO vive en vercel.json
 
 El plan de Vercel es Hobby: los cron jobs se ejecutan una vez al día, así
