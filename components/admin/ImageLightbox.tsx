@@ -26,7 +26,24 @@ export function ImageLightbox({ src, alt, onClose }: ImageLightboxProps) {
 
   return (
     <Dialog open={!!src} onOpenChange={o => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-3xl border-none bg-transparent p-0 shadow-none">
+      {/* La X la renderiza el propio DialogContent, y acá queda sobre la IMAGEN,
+          no sobre el fondo del diálogo: sin tratamiento propio hereda el color de
+          texto del tema y desaparece en cuanto la foto tiene esa misma
+          luminosidad — el caso real es el empaque negro, que en tema claro se
+          come una X oscura. Se le da su propia pastilla con tokens (`background`
+          translúcido + `foreground`), que invierte junto con el tema: en claro es
+          chip claro con aspa oscura, en oscuro chip oscuro con aspa clara. Así el
+          contraste lo garantiza el chip y no lo que haya detrás.
+          El selector apunta al botón que inyecta DialogContent — el contenido de
+          este overlay es solo la imagen, así que no hay otro `button` que tocar. */}
+      <DialogContent
+        className="max-w-3xl border-none bg-transparent p-0 shadow-none
+          [&>button]:right-2 [&>button]:top-2 [&>button]:rounded-full
+          [&>button]:bg-background/80 [&>button]:p-2 [&>button]:text-foreground
+          [&>button]:opacity-100 [&>button]:shadow-lg [&>button]:backdrop-blur-sm
+          [&>button]:ring-1 [&>button]:ring-border
+          [&>button]:transition-colors hover:[&>button]:bg-background"
+      >
         {/* Radix exige un título accesible; acá el contenido es la imagen. */}
         <DialogTitle className="sr-only">{alt || 'Vista ampliada de la imagen'}</DialogTitle>
         {src && (
