@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, TrendingDown, TrendingUp, Warehouse, ArrowUpDown, X } from 'lucide-react';
@@ -59,6 +59,14 @@ function InventarioInner() {
   const [loading, setLoading]     = useState(true);
   const [showAdj, setShowAdj]     = useState(false);
   const [adjForm, setAdjForm]     = useState<InventoryAdjustmentForm>(EMPTY_FORM);
+  // Guardas de envío del ajuste, las MISMAS que Nueva Orden: `aplicando`
+  // deshabilita el botón y le pone estado intermedio; `aplicandoRef` corta una
+  // re-entrada SÍNCRONA. Hacen falta las dos y no son redundantes: `disabled`
+  // depende de un re-render, así que dos clicks dentro del mismo tick leen ambos
+  // `aplicando === false` y pasan los dos. El ref se escribe antes de cualquier
+  // `await`, que es lo único que cierra esa ventana.
+  const [aplicando, setAplicando] = useState(false);
+  const aplicandoRef              = useRef(false);
   const [tab, setTab]             = useState<Tab>('stock');
 
   const load = async () => {
@@ -83,9 +91,14 @@ function InventarioInner() {
   const filtroActivo   = lowStockOnly && tab === 'stock';
 
   const handleAdjust = async () => {
+    // Guarda de re-entrada síncrona: el segundo click vuelve de inmediato.
+    if (aplicandoRef.current) return;
+
     const prod = productos.find(p => p.id === adjForm.producto_id);
     if (!prod || !adjForm.cantidad) return;
 
+    aplicandoRef.current = true;
+    setAplicando(true);
     try {
       const { product: updatedProduct, log } = await adjustInventory(adjForm);
 
@@ -98,6 +111,9 @@ function InventarioInner() {
       setAdjForm(EMPTY_FORM);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Error al ajustar el inventario');
+    } finally {
+      aplicandoRef.current = false;
+      setAplicando(false);
     }
   };
 
@@ -297,7 +313,10 @@ function InventarioInner() {
       )}
 
       {/* Adjust Dialog */}
-      <Dialog open={showAdj} onOpenChange={setShowAdj}>
+      {/* En vuelo el modal no se cierra por click-fuera ni por Esc: son las otras
+          dos formas de "salir" mientras la mutación viaja, y dejan al operador
+          sin saber si se aplicó. Mismo criterio que ConfirmDeleteDialog. */}
+      <Dialog open={showAdj} onOpenChange={(o) => { if (!aplicando) setShowAdj(o); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Ajustar Inventario</DialogTitle>
@@ -356,9 +375,17 @@ function InventarioInner() {
             </div>
           </div>
           <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setShowAdj(false)}>Cancelar</Button>
-            <Button onClick={handleAdjust} disabled={!adjForm.producto_id || !adjForm.cantidad}>
-              Aplicar
+            {/* Cancelar también se bloquea en vuelo: cerrar el modal a mitad del
+                ajuste no cancela nada en el server y deja al operador sin saber
+                si se aplicó. */}
+            <Button variant="outline" onClick={() => setShowAdj(false)} disabled={aplicando}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleAdjust}
+              disabled={aplicando || !adjForm.producto_id || !adjForm.cantidad}
+            >
+              {aplicando ? 'Aplicando…' : 'Aplicar'}
             </Button>
           </div>
         </DialogContent>
