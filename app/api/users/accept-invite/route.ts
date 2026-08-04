@@ -16,22 +16,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
   }
 
+  // `code: "enlace"` marca los rechazos TERMINALES: el enlace no sirve y no hay
+  // contraseña que lo arregle. Sin esa marca el cliente ve el mismo 400 para
+  // "tu contraseña es corta" que para "esta invitación venció", y solo puede
+  // distinguirlos comparando strings de mensaje — frágil, y la diferencia
+  // importa: en uno se corrige el campo, en el otro hay que pedir otra
+  // invitación. La UI decide con esto si deja el formulario o lo reemplaza.
+
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const invitation = await prisma.invitation.findUnique({ where: { tokenHash } });
 
   if (!invitation) {
-    return NextResponse.json({ error: "Invitación no válida" }, { status: 400 });
+    return NextResponse.json({ error: "Este enlace de invitación no es válido.", code: "enlace" }, { status: 400 });
   }
   if (invitation.usedAt) {
-    return NextResponse.json({ error: "Esta invitación ya fue utilizada" }, { status: 400 });
+    return NextResponse.json({ error: "Esta invitación ya fue utilizada.", code: "enlace" }, { status: 400 });
   }
   if (invitation.expiresAt < new Date()) {
-    return NextResponse.json({ error: "Esta invitación ha expirado" }, { status: 400 });
+    return NextResponse.json({ error: "Esta invitación expiró. Las invitaciones vencen a las 48 horas.", code: "enlace" }, { status: 400 });
   }
 
   const existingUser = await prisma.user.findUnique({ where: { email: invitation.email } });
   if (existingUser) {
-    return NextResponse.json({ error: "Ya existe un usuario con este correo" }, { status: 400 });
+    return NextResponse.json({ error: "Ya existe una cuenta con este correo.", code: "enlace" }, { status: 400 });
   }
 
   let createdUserId: string;
