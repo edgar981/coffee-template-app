@@ -1,5 +1,5 @@
 import { Prisma } from '@/src/generated/prisma/client';
-import { isLowStock } from '@/lib/metrics/inventory-filters';
+import { cruzoMinimo } from '@/lib/metrics/inventory-filters';
 
 interface OrderShippingSnapshot {
   id: string;
@@ -115,9 +115,10 @@ interface ShippingStockRef {
 // DEVUELVE los productos que CRUZARON su stock mínimo con este decremento (antes
 // no estaban bajos, ahora sí). El cruce sólo puede detectarse aquí, porque sólo
 // aquí se conoce el valor anterior; el llamador emite el evento DESPUÉS del commit.
-// Se usa `isLowStock` —el mismo predicado de la card de Alertas de Stock y del
-// filtro de Inventario— para que el aviso y lo que se ve en pantalla no puedan
-// discrepar. Lista vacía si el decremento ya había corrido (no-op idempotente).
+// Se usa `cruzoMinimo` —construido sobre el mismo `isLowStock` de la card de
+// Alertas de Stock y del filtro de Inventario— para que el aviso y lo que se ve
+// en pantalla no puedan discrepar. Lista vacía si el decremento ya había corrido
+// (no-op idempotente).
 export async function dispatchStockDecrement(
   tx: Prisma.TransactionClient,
   shipping: ShippingStockRef,
@@ -175,9 +176,12 @@ export async function dispatchStockDecrement(
       },
     });
     // El CRUCE, no el estado: un producto que ya estaba bajo antes del despacho no
-    // vuelve a avisar en cada venta posterior.
-    const ref = { stock_minimo: updated.stock_minimo, activo: updated.activo };
-    if (!isLowStock({ ...ref, stock: anterior }) && isLowStock({ ...ref, stock: updated.stock })) {
+    // vuelve a avisar en cada venta posterior. `cruzoMinimo` vive junto a
+    // `isLowStock` para que este emisor y el del ajuste de inventario no puedan
+    // discrepar entre sí ni con la card de Alertas de Stock.
+    if (cruzoMinimo(anterior, updated.stock, {
+      stock_minimo: updated.stock_minimo, activo: updated.activo,
+    })) {
       cruzaronMinimo.push(productoId);
     }
   }
