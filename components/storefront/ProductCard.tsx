@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { ShoppingBag, Star } from "lucide-react";
+import { ShoppingBag, SlidersHorizontal, Star } from "lucide-react";
 
 import { motion } from "framer-motion";
 
@@ -12,6 +12,8 @@ import { toast } from "sonner";
 import { Product } from "@/types/product";
 
 import { useCartStore } from "@/lib/cartStore";
+
+import { decidirMolienda } from "@/lib/molienda";
 
 import { formatCOP } from "@/lib/utils";
 
@@ -31,14 +33,33 @@ export default function ProductCard({
 }: ProductCardProps) {
   const { addItem } = useCartStore();
 
+  // La card SOLO agrega cuando no hay nada que preguntar. Si la elección de
+  // molienda es real, el botón deja pasar el click al <Link> que ya envuelve la
+  // card y el cliente elige en el detalle. La regla no vive acá: sale de
+  // `decidirMolienda`, la misma que usan el detalle y el servidor — la línea que
+  // esta card construía por su cuenta (sin molienda) era incompraable en el
+  // checkout para todo el catálogo.
+  const decision = decidirMolienda(product.moliendasOpciones);
+  const agregaDirecto = decision.modo === 'ninguna' || decision.modo === 'automatica';
+
   const handleAdd = (
     e: React.MouseEvent<HTMLButtonElement>
   ) => {
+    if (!product.disponible) {
+      e.preventDefault();
+      return;
+    }
+
+    // Sin preventDefault: el click sigue al <Link> y navega al detalle.
+    if (!agregaDirecto) return;
+
     e.preventDefault();
 
-    if (!product.disponible) return;
-
-    addItem(product, 1);
+    addItem(
+      product,
+      1,
+      decision.modo === 'automatica' ? { molienda: decision.nombre } : {}
+    );
 
     toast.success(
       `${product.nombre} agregado al carrito`
@@ -85,13 +106,23 @@ export default function ProductCard({
             </div>
           )}
 
-          {/* Add to cart */}
+          {/* Add to cart — o "elegir molienda", según lo que haya que preguntar.
+              El ícono cambia con la acción: un carrito que en realidad navega a
+              otra página es una promesa que el botón no cumple. */}
           {product.disponible && (
               <button
                 onClick={handleAdd}
+                aria-label={
+                  agregaDirecto
+                    ? `Agregar ${product.nombre} al carrito`
+                    : `Elegir molienda de ${product.nombre}`
+                }
+                title={agregaDirecto ? 'Agregar al carrito' : 'Elegir molienda'}
                 className="absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md opacity-0 transition-opacity hover:bg-[#8B4513] hover:text-white group-hover:opacity-100 cursor-pointer"
               >
-                <ShoppingBag className="h-4 w-4" />
+                {agregaDirecto
+                  ? <ShoppingBag className="h-4 w-4" />
+                  : <SlidersHorizontal className="h-4 w-4" />}
               </button>
             )}
         </div>

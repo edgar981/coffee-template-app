@@ -24,6 +24,7 @@ import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 
 import { useCartStore } from "@/lib/cartStore";
+import { moliendasDisponibles, moliendaAceptada } from "@/lib/molienda";
 
 import { toast } from "sonner";
 import { formatCOP } from "@/lib/utils";
@@ -64,13 +65,17 @@ export default function ProductPage({
   const [wishlisted, setWishlisted] =
     useState(false);
 
-  // Molienda elegida — por defecto la primera opción disponible del producto
+  // Molienda elegida — por defecto la primera opción DISPONIBLE del producto
   // ("Media" en molido, "Grano entero" en grano). Como el producto llega
   // async desde la DB, el default se fija cuando carga.
+  //
+  // Sale de `moliendasDisponibles`, el helper compartido con la card y con el
+  // servidor: cuando esta preselección la calculaba este archivo por su cuenta, la
+  // card construía la línea distinto y el checkout la rechazaba.
   const [molienda, setMolienda] = useState<string | null>(null);
   useEffect(() => {
     if (product && molienda === null) {
-      setMolienda(product.moliendasOpciones?.find((o) => o.disponible)?.nombre ?? null);
+      setMolienda(moliendasDisponibles(product.moliendasOpciones)[0]?.nombre ?? null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product]);
@@ -128,10 +133,11 @@ export default function ProductPage({
   ).slice(0, 4);
 
   const handleAdd = () => {
-    // Solo una molienda marcada como disponible puede ir al carrito (el
-    // servidor lo valida de nuevo en el checkout).
-    const opcion = product.moliendasOpciones?.find((o) => o.nombre === molienda);
-    if (product.moliendasOpciones?.length && (!opcion || !opcion.disponible)) {
+    // Se comprueba con `moliendaAceptada`, LA MISMA función que decide en el
+    // servidor: así lo que la UI deja pasar y lo que el checkout acepta no pueden
+    // separarse. El servidor sigue revalidando — esto es para dar el error acá y
+    // no en el último paso del pago.
+    if (!moliendaAceptada(product.moliendasOpciones, molienda)) {
       toast.error("Selecciona una molienda disponible");
       return;
     }
