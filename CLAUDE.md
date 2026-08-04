@@ -61,10 +61,16 @@ imposible, no una opción descartada.
   confirmar el cambio en DB y sin poder tumbarlo — un blob huérfano es
   basura barata; un producto apuntando a una imagen ya borrada, no.
 - **`storage.delete` ignora lo que no administra** (`isManaged`): una URL
-  relativa de `public/` o externa es un no-op. Los 4 productos del catálogo
-  hoy apuntan a `/images/*.webp`, así que esta guarda es la que impide que
+  relativa de `public/` o externa es un no-op. Los productos sembrados nacen
+  apuntando a `/images/*.webp`, así que esta guarda es la que impide que
   editar uno de ellos intente borrar un estático — la regla de
   inmutabilidad de `public/` queda imposible de violar desde el admin.
+- **Al reemplazar portadas del seed, revisar `imagenes[]` por estáticas
+  residuales**: subir la portada nueva cambia `imagen` a un blob pero deja la
+  ruta `/images/*.webp` sembrada dentro de `imagenes[]`, y como ya son URLs
+  distintas la dedupe (correctamente) no las colapsa → el detalle muestra dos
+  miniaturas. Es metadata, no storage: se limpia con `imagenes: []` y no borra
+  nada del store. Los 4 de Nayoli se limpiaron así el 2026-08-03.
 - **Y un entorno NO-PRODUCTION solo puede borrar bajo su propio `dev/`**
   (`isDeletable`). Un blob del prefijo real se trata como si no fuera
   nuestro: no-op, pero CON log (no es rutina, es una señal). Producción
@@ -100,12 +106,20 @@ detalle del storefront. v1 **sin reordenamiento**: el orden es el de subida.
   armara su propia lista, el orden y los duplicados divergirían entre lo que el
   operador edita y lo que el cliente ve.
 - **Los seeds traen la portada DUPLICADA dentro de `imagenes[]`, y está así a
-  propósito.** Los 4 productos del catálogo tienen `imagenes:
-  ["<la misma URL que imagen>"]`, herencia de la semántica anterior, donde
-  `imagenes[]` era "la galería completa, portada incluida" e `imagen` solo el
-  fallback. **Ese dato NO se migró y no hace falta migrarlo**: `galeriaCompleta`
-  dedupea al renderizar, así que esos productos se ven exactamente como siempre
-  (lista de 1 → sin fila de miniaturas).
+  propósito.** `prisma/seed-products.ts` trae `imagenes: ["<la misma URL que
+  imagen>"]`, herencia de la semántica anterior, donde `imagenes[]` era "la
+  galería completa, portada incluida" e `imagen` solo el fallback. **Ese dato NO se migró y no hace
+  falta migrarlo**: `galeriaCompleta` dedupea al renderizar, así que un producto
+  recién sembrado se ve exactamente como siempre (lista de 1 → sin fila de
+  miniaturas).
+  **Ojo: el duplicado deja de serlo cuando se reemplaza la portada.** En
+  producción, al subir las portadas reales, `imagen` pasó a un blob y el
+  `/images/*.webp` sembrado quedó como una toma DISTINTA dentro de `imagenes[]`
+  — dos miniaturas por producto. El owner decidió limpiar (`imagenes: []` en los
+  4, 2026-08-03; ver la sección de storage). Es solo metadata: no se borró ningún
+  blob ni ningún estático. La limpieza no se deshace sola: en `prisma/seed.ts`
+  `imagen`/`imagenes` van SOLO en el `create` del upsert, así que re-sembrar no
+  vuelve a meter la estática.
 - **NO "arreglar" el dato ni quitar la dedupe creyendo que sobra.** La dedupe es
   una **garantía defensiva** contra cualquier fuente futura —un import, un seed
   nuevo, una edición manual, un backfill— no un parche para esos 4 registros.
