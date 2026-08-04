@@ -134,7 +134,36 @@ cancela nada en el server y deja al operador sin saber si se aplicó.
 pero `entrada`/`devolucion`/`salida` son delta y ahí sí duplican. La guarda es del
 botón, no del tipo de operación.
 
-La deuda que dejó esta familia vive en § Backlog técnico, no acá.
+### La mitad SERVIDOR: el kardex tiene que ENCADENAR
+
+El ajuste manual vive en `lib/inventory.ts` (`aplicarAjusteInventario`), no en el
+route handler — se extrajo para poder testear su concurrencia, que es donde
+estaba el defecto.
+
+**El `SELECT … FOR UPDATE` del principio de la transacción no es opcional.**
+Postgres corre en READ COMMITTED: sin el lock, dos peticiones concurrentes leen
+el mismo stock antes de que cualquiera escriba, las dos registran el mismo
+`stock_anterior`, y el kardex afirma **dos movimientos donde hubo uno**. Con
+tipos delta se aplican además los dos, y el asiento de la segunda miente sobre
+cuánto había. Mismo patrón que el POST de pagos.
+
+El invariante que lo define, y que el test afirma: **partiendo del stock inicial,
+los asientos deben poder recorrerse en cadena** — cada uno arranca donde terminó
+el anterior. Un kardex que no encadena no es un log impreciso, es un libro
+equivocado.
+
+Se arregló con el test primero: `tests/integracion/ajuste-concurrente.test.ts` se
+escribió contra el código defectuoso y se lo vio fallar reproduciendo la firma
+real del incidente del 2026-08-04 (`7→28, 7→28`, dos filas idénticas a 749 ms).
+**No borrar ese archivo al refactorizar `lib/inventory.ts`**: es la única cosa que
+prueba que el lock hace algo.
+
+Efecto secundario que también se cierra: el CRUCE del mínimo se evalúa ahora con
+los dos valores de la MISMA transacción, así que dos movimientos concurrentes ya
+no pueden creerse ambos "el que cruzó" y hacer que la campana avise dos veces del
+mismo hecho.
+
+La deuda que queda de esta familia vive en § Backlog técnico, no acá.
 
 ## Backlog técnico
 
@@ -153,17 +182,7 @@ Reglas de la lista, para que siga sirviendo:
 - **Un item que se completa se BORRA de acá** y su decisión, si tiene, se
   documenta en la sección que le corresponda. Esto no es un historial.
 
-### 1. `stock_anterior` se lee FUERA de la transacción
-
-En `/api/inventory/adjust`: dos peticiones concurrentes snapshotean el mismo
-valor y el kardex reporta **dos movimientos donde hubo uno**. Es la mitad
-SERVIDOR del doble-submit (§ Doble-submit) y con tipos delta produce **movimiento
-doble real**, no solo un log mentiroso.
-
-**Va antes que los errores inline.** Evidencia: dos filas `7→28` idénticas el
-2026-08-04, a 749 ms; se limpiaron de dev por DELETE registrado.
-
-### 2. Una supresión por cooldown/idempotencia debe DEJAR RASTRO
+### 1. Una supresión por cooldown/idempotencia debe DEJAR RASTRO
 
 `ejecutarObjetivo` retorna `DUPLICADO` **antes** de `registrarRun`, así que no
 escribe nada: desde la base, "callé porque el cooldown lo pidió" y "callé porque
@@ -187,7 +206,7 @@ Dos apuntes que cambian el tamaño:
   diferida (2) del pipeline (§ Migraciones y deploy). Planearlo con esa doble
   intención.
 
-### 3. Patrón `R` uniforme — modales, botones de fila y "marcar todas"
+### 2. Patrón `R` uniforme — modales, botones de fila y "marcar todas"
 
 Los que hoy tienen `disabled` pero no guarda síncrona, más los que no tienen
 ninguna de las dos. Ninguno corre riesgo material —el server los cubre por
@@ -205,7 +224,7 @@ después de los dos de arriba. Ver § Doble-submit para el patrón.
   y confirma que la mitad visible de la guarda (el estado intermedio) es la que
   evita el segundo click, no la que lo bloquea.
 
-### 4. La ventana de 45 s del polling de la campana
+### 3. La ventana de 45 s del polling de la campana
 
 `POLL_MS = 45_000`. El badge se computa sobre el snapshot del cliente, así que una
 notificación de severidad `alerta` puede tardar **hasta un poll** en teñir el

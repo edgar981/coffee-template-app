@@ -54,21 +54,34 @@ export interface AjusteInventarioResult {
 /**
  * Aplica el movimiento y escribe el asiento de kardex en UNA transacción: o
  * cuajan los dos o ninguno.
+ *
+ * EL `SELECT … FOR UPDATE` NO ES OPCIONAL. Postgres corre en READ COMMITTED, así
+ * que dos transacciones concurrentes pueden LEER el mismo stock antes de que
+ * cualquiera escriba: sin el lock, las dos registran el mismo `stock_anterior` y
+ * el kardex reporta dos movimientos donde hubo uno. Con tipos delta
+ * (`entrada`/`devolucion`/`salida`) además se aplican los dos, y el asiento de la
+ * segunda miente sobre cuánto había de verdad.
+ *
+ * El lock serializa a los concurrentes SOBRE ESA FILA: el segundo espera, lee el
+ * valor que el primero ya escribió, y su asiento encadena. Mismo patrón que el
+ * POST de pagos. Testeado en tests/integracion/ajuste-concurrente.test.ts, que
+ * se escribió antes de este fix y se vio fallar.
  */
 export async function aplicarAjusteInventario(
   input: AjusteInventarioInput,
 ): Promise<AjusteInventarioResult> {
-  // ⚠ DEFECTO CONOCIDO (backlog item 1): esta lectura ocurre FUERA de la
-  // transacción de abajo, así que dos peticiones concurrentes snapshotean el
-  // mismo `stock`. Se conserva tal cual en esta extracción a propósito — el
-  // commit siguiente trae el test que lo demuestra, y recién después el fix.
-  const product = await prisma.product.findUnique({ where: { id: input.producto_id } });
-  if (!product) throw new ProductoNoEncontradoError();
-
   const qty = Number(input.cantidad);
   if (!Number.isFinite(qty) || qty < 0) throw new CantidadInvalidaError();
 
-  const { updated, log } = await prisma.$transaction(async (tx) => {
+  const { anterior, updated, log } = await prisma.$transaction(async (tx) => {
+    // Estado ANTERIOR real, ya serializado contra cualquier otro ajuste sobre
+    // este mismo producto. Todo lo que el asiento afirma sale de acá.
+    const [product] = await tx.$queryRaw<
+      { nombre: string; stock: number; stock_minimo: number; activo: boolean }[]
+    >`SELECT "nombre", "stock", "stock_minimo", "activo"
+        FROM "Product" WHERE "id" = ${input.producto_id} FOR UPDATE`;
+    if (!product) throw new ProductoNoEncontradoError();
+
     if (input.tipo === 'salida') {
       // `where stock >= qty` impide sobrevender aunque dos salidas se crucen: si
       // el stock ya no alcanza, no toca ninguna fila y se rechaza.
@@ -98,20 +111,23 @@ export async function aplicarAjusteInventario(
         producto_nombre: product.nombre,
         tipo:            input.tipo,
         cantidad:        qty,
-        stock_anterior:  product.stock,   // ⚠ del snapshot de AFUERA — ver arriba
+        stock_anterior:  product.stock,   // de la fila LOCKEADA, no de un snapshot
         stock_nuevo:     post.stock,
         motivo:          input.motivo || null,
       },
     });
-    return { updated: post, log: asiento };
+    return { anterior: product, updated: post, log: asiento };
   });
 
   return {
     product: updated,
     log,
-    cruzoElMinimo: cruzoMinimo(product.stock, updated.stock, {
-      stock_minimo: product.stock_minimo,
-      activo:       product.activo,
+    // El cruce se evalúa con los DOS valores de la misma transacción, así que dos
+    // movimientos concurrentes ya no pueden creerse ambos "el que cruzó" y hacer
+    // que la campana avise dos veces del mismo hecho.
+    cruzoElMinimo: cruzoMinimo(anterior.stock, updated.stock, {
+      stock_minimo: anterior.stock_minimo,
+      activo:       anterior.activo,
     }),
   };
 }

@@ -32,19 +32,26 @@ async function kardexDe(productoId: string) {
 }
 
 /**
- * El invariante. Se ordena por `stock_nuevo` y no solo por `createdAt` porque dos
- * asientos concurrentes pueden compartir timestamp al milisegundo: lo que importa
- * es que exista UN orden en el que la cadena cierre, no cuál.
+ * El invariante: partiendo del stock inicial, los asientos deben poder RECORRERSE
+ * en cadena — cada uno arranca donde terminó el anterior — hasta consumirlos
+ * todos.
+ *
+ * Es un recorrido y no un `sort`: ordenar por `stock_nuevo` asume que el stock
+ * sube, y una salida lo baja. `createdAt` tampoco sirve de desempate, porque dos
+ * asientos concurrentes pueden compartir el milisegundo. Lo que se afirma es que
+ * EXISTA un orden en el que la cadena cierre, no cuál sea.
  */
 function cadenaContinua(
   asientos: { stock_anterior: number; stock_nuevo: number }[],
   stockInicial: number,
 ): boolean {
-  const orden = [...asientos].sort((a, b) => a.stock_nuevo - b.stock_nuevo);
+  const pendientes = [...asientos];
   let esperado = stockInicial;
-  for (const a of orden) {
-    if (a.stock_anterior !== esperado) return false;
-    esperado = a.stock_nuevo;
+  while (pendientes.length > 0) {
+    const i = pendientes.findIndex(a => a.stock_anterior === esperado);
+    if (i === -1) return false;          // nadie continúa desde acá: la cadena se rompió
+    esperado = pendientes[i].stock_nuevo;
+    pendientes.splice(i, 1);
   }
   return true;
 }

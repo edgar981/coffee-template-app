@@ -149,7 +149,7 @@ test('cooldown por PRODUCTO: el segundo cruce dentro de la ventana no avisa', as
   // supresión por cooldown NO deja fila, así que desde la base no se distingue
   // de una cadena rota. Está en el backlog (item 2); si algún día se persiste,
   // este assert se cae y hay que actualizarlo A CONCIENCIA.
-  assert.equal((await runsDe('stock_bajo')).length, 2, 'hoy la supresión es invisible — ver backlog item 2');
+  assert.equal((await runsDe('stock_bajo')).length, 2, 'hoy la supresión es invisible — ver backlog item 1');
 });
 
 test('cooldown vencido: pasada la ventana vuelve a avisar', async () => {
