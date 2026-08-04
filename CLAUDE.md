@@ -38,26 +38,11 @@ toggle: antes de declarar que algo "no dispara", verificar que esté ENCENDIDO e
 la base, no en la memoria de quien lo miró. Una fila existente siempre gana sobre
 el `defaultActivo` del registry — por diseño.
 
-### AGENDADO — decidir si el repo tendrá tests con base
-
-**Decisión pendiente, con fecha: el cierre de la campana del operador.**
-
-Hoy la suite es 100% pura (`node --test` sin `--env-file`), así que **ninguna
-cadena que termine en un INSERT está cubierta** — ni
-`resolveOrderLines`, ni evento→motor→canal→`Notification`. Los tests de esas
-features cubren sus reglas puras y eso es todo lo que miden; un "todo verde" NO
-es evidencia de que el pipeline escriba.
-
-Caso de costo, para que la decisión no se tome en abstracto: el mismo 2026-08-04,
-la suite reportaba 143/143 mientras la cadena de la campana no escribía una sola
-fila. Lo que encontró el fallo fue un checklist manual del owner, dos rondas de
-diagnóstico y este documento. Un test de cadena lo habría atrapado en segundos.
-
-Lo que hay que decidir no es "¿tests?" sino contra QUÉ base corren y quién la
-levanta: nunca `development` (la comparten previews y el `.env` local — ver
-§ Bases de datos), así que la opción es una base efímera por corrida. Hasta que
-se decida, **al reportar una suite verde hay que decir explícitamente qué queda
-fuera**; omitirlo es lo que convirtió un dato correcto en una impresión falsa.
+**Regla de reporte, vigente hasta que se decida lo de los tests con base (§ Backlog
+técnico, item 0): al declarar una suite verde hay que decir explícitamente qué
+queda fuera.** La suite es 100% pura, así que ninguna cadena que termine en un
+INSERT está cubierta; omitirlo es lo que convirtió un dato correcto en una
+impresión falsa.
 
 ## Doble-submit — la guarda va en DOS mitades, y no son redundantes
 
@@ -85,41 +70,109 @@ cancela nada en el server y deja al operador sin saber si se aplicó.
 pero `entrada`/`devolucion`/`salida` son delta y ahí sí duplican. La guarda es del
 botón, no del tipo de operación.
 
-### AGENDADO — deuda de esta familia, en orden
+La deuda que dejó esta familia vive en § Backlog técnico, no acá.
 
-1. **`stock_anterior` se lee FUERA de la transacción** en
-   `/api/inventory/adjust`: dos peticiones concurrentes snapshotean el mismo
-   valor y el kardex reporta dos movimientos donde hubo uno. Es la mitad SERVIDOR
-   del mismo bug y con tipos delta produce movimiento doble real. **Va antes que
-   los errores inline.** (Evidencia: dos filas `7→28` idénticas el 2026-08-04, a
-   749 ms; se limpiaron de dev por DELETE registrado.)
-2. **Una supresión por cooldown/idempotencia debe DEJAR RASTRO.** Hoy
-   `ejecutarObjetivo` retorna `DUPLICADO` **antes** de `registrarRun`, así que no
-   escribe nada: desde la base, "callé porque el cooldown lo pidió" y "callé
-   porque estoy roto" **se ven idénticos — cero filas en los dos casos**. Costó el
-   diagnóstico completo de la tarde del 2026-08-04, y solo se distinguió
-   calculando a mano la ventana contra el run anterior.
+## Backlog técnico
 
-   Misma filosofía que el borrado OMITIDO del blob (`isDeletable` en
-   `lib/storage.ts`: no-op **pero con log**, porque no es rutina sino una señal) y
-   que el `Objetivo.omitir` que ya existe acá: **una guarda que actúa en silencio
-   absoluto no se puede auditar.**
+**EL registro único de deuda conocida.** Existe porque antes vivía repartida
+entre cuerpos de PR y secciones sueltas de este archivo: nadie podía responder
+"¿qué falta y en qué orden?" sin releer tres merges. Una deuda que no está acá,
+para efectos prácticos, no está.
 
-   Dos apuntes que cambian el tamaño de la tarea:
-   - `DUPLICADO` **ya existe** en `RunSummary` (el reporte del cron) pero **no en
-     el enum `AutomationRunEstado`** de la base. El concepto está a medio hacer:
-     hoy se puede reportar en la respuesta del cron y no se puede persistir.
-   - Persistirlo (como `SUPRIMIDO` o reusando `DUPLICADO`) es **valor nuevo de
-     enum → MIGRACIÓN**. Sería el **primer PR con migración** desde el 2026-08-04,
-     así que de paso cierra la verificación diferida (2) del pipeline (§ Migraciones
-     y deploy). Vale planearlo con esa doble intención.
-3. **Guarda `R` uniforme** en los 8 modales que hoy solo tienen `disabled`. No
-   corren riesgo material —el server los cubre por idempotencia o por bloqueo de
-   fila (el POST de pagos hace `SELECT … FOR UPDATE` + chequeo de estado)—, así
-   que es consistencia, no incendio.
-4. **Botones de fila de Entregas** (`updateEstado`, `handleDispatch`): sin guarda
-   alguna. Los absorbe el server por bordes idempotentes (`justDelivered`,
-   `stock_descontado_at`), pero la dimensión aplica igual.
+Reglas de la lista, para que siga sirviendo:
+
+- **Va ordenada, y el orden es la decisión.** Reordenar es una decisión del
+  owner, no del que agrega el item.
+- **Cada entrada dice el COSTO YA PAGADO**, no solo el problema. "Costó el
+  diagnóstico de una tarde" es lo que hace que la decisión de priorizar no se
+  tome en abstracto.
+- **Un item que se completa se BORRA de acá** y su decisión, si tiene, se
+  documenta en la sección que le corresponda. Esto no es un historial.
+
+### 0. DECIDIR si el repo tendrá tests con base — vence al cerrar la campana
+
+Va en el puesto 0 porque no es una tarea sino una **decisión que condiciona a las
+demás**: sin ella, cada item de abajo se entrega con la misma cobertura parcial
+que produjo este backlog.
+
+Hoy la suite es 100% pura (`node --test` sin `--env-file`), así que **ninguna
+cadena que termine en un INSERT está cubierta** — ni `resolveOrderLines`, ni
+evento→motor→canal→`Notification`. Esos tests cubren las reglas puras y eso es
+todo lo que miden.
+
+Costo pagado: el 2026-08-04 la suite reportaba **143/143 en verde mientras la
+cadena de la campana no escribía una sola fila**. Lo encontró un checklist manual
+del owner, más dos rondas de diagnóstico. Un test de cadena lo habría atrapado en
+segundos.
+
+Lo que hay que decidir no es "¿tests?" sino **contra qué base corren y quién la
+levanta**: nunca `development` (la comparten previews y el `.env` local — ver
+§ Bases de datos), así que la opción es una base efímera por corrida.
+
+### 1. `stock_anterior` se lee FUERA de la transacción
+
+En `/api/inventory/adjust`: dos peticiones concurrentes snapshotean el mismo
+valor y el kardex reporta **dos movimientos donde hubo uno**. Es la mitad
+SERVIDOR del doble-submit (§ Doble-submit) y con tipos delta produce **movimiento
+doble real**, no solo un log mentiroso.
+
+**Va antes que los errores inline.** Evidencia: dos filas `7→28` idénticas el
+2026-08-04, a 749 ms; se limpiaron de dev por DELETE registrado.
+
+### 2. Una supresión por cooldown/idempotencia debe DEJAR RASTRO
+
+`ejecutarObjetivo` retorna `DUPLICADO` **antes** de `registrarRun`, así que no
+escribe nada: desde la base, "callé porque el cooldown lo pidió" y "callé porque
+estoy roto" **se ven idénticos — cero filas en los dos casos**.
+
+Misma filosofía que el borrado OMITIDO del blob (`isDeletable` en
+`lib/storage.ts`: no-op **pero con log**, porque no es rutina sino una señal) y
+que el `Objetivo.omitir` que ya existe en el motor: **una guarda que actúa en
+silencio absoluto no se puede auditar.**
+
+Costo pagado: el diagnóstico completo de la tarde del 2026-08-04. La cadena
+estaba entera y funcionando; solo se distinguió calculando a mano la ventana de
+24 h contra el run anterior.
+
+Dos apuntes que cambian el tamaño:
+- `DUPLICADO` **ya existe** en `RunSummary` (el reporte del cron) pero **no en el
+  enum `AutomationRunEstado`**. El concepto está a medio hacer: hoy se reporta y
+  no se persiste.
+- Persistirlo es **valor nuevo de enum → MIGRACIÓN**, y sería el **primer PR con
+  migración** desde el 2026-08-04, así que cierra de paso la verificación
+  diferida (2) del pipeline (§ Migraciones y deploy). Planearlo con esa doble
+  intención.
+
+### 3. Patrón `R` uniforme — modales, botones de fila y "marcar todas"
+
+Los que hoy tienen `disabled` pero no guarda síncrona, más los que no tienen
+ninguna de las dos. Ninguno corre riesgo material —el server los cubre por
+idempotencia o por bloqueo de fila (el POST de pagos hace `SELECT … FOR UPDATE` +
+chequeo de estado)—, así que es **consistencia, no incendio**, y por eso va
+después de los dos de arriba. Ver § Doble-submit para el patrón.
+
+- **8 modales** con `disabled` sin ref.
+- **Botones de fila de Entregas** (`updateEstado`, `handleDispatch`): sin guarda
+  alguna. Los absorbe el server por bordes idempotentes (`justDelivered`,
+  `stock_descontado_at`).
+- **"Marcar todas" de la campana**: sin `disabled` ni ref. **Tercer caso
+  confirmado del patrón sin-feedback** — el owner clickeó dos veces porque nada
+  indicaba que la primera hubiera tomado. Es el mismo síntoma que Ajustar Stock,
+  y confirma que la mitad visible de la guarda (el estado intermedio) es la que
+  evita el segundo click, no la que lo bloquea.
+
+### 4. La ventana de 45 s del polling de la campana
+
+`POLL_MS = 45_000`. El badge se computa sobre el snapshot del cliente, así que una
+notificación de severidad `alerta` puede tardar **hasta un poll** en teñir el
+badge de rojo: durante esa ventana el conteo puede quedar en primario aunque en
+la base ya haya una alerta.
+
+**Decisión aceptada para la v1** (owner, 2026-08-04): no es un bug, es el costo
+del polling sin push. Se anota porque es exactamente el tipo de rareza que en dos
+meses alguien reporta como defecto y vuelve a costar un diagnóstico. La salida
+real es push (SSE/websocket), que está **fuera de alcance de la v1** por decisión
+explícita.
 
 ## Imágenes en `public/`
 

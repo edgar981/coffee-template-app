@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Notification } from '@/types/notification';
 import { AnimatedIcon } from '@/components/admin/AnimatedIcon';
+import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
@@ -237,34 +238,37 @@ export default function NotificationBell() {
       {/* Dropdown */}
       {open && (
         <div className="absolute right-0 top-11 z-50 w-80 rounded-2xl border border-border bg-card shadow-xl overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-sm">Notificaciones</h3>
+          {/* Header — UNA línea. El conteo va integrado en el título y no en un
+              chip-píldora: el chip repetía lo que el badge de la campana acaba de
+              decir, y dos elementos compitiendo por decir "4" en 320 px es lo que
+              hacía ver amontonado el header. El único color acá es el número, con
+              el mismo tono de severidad que el badge — una vez, no tres veces. */}
+          <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
+            <h3 className="text-sm font-medium">
+              Notificaciones
               {unread > 0 && (
-                // Mismo criterio de tono que el badge: el rojo lo enciende una
-                // alerta real, no el mero hecho de haber algo sin leer.
-                <span
-                  className={cn(
-                    'rounded-full px-1.5 py-0.5 text-xs font-medium',
-                    hayAlerta
-                      ? 'bg-destructive/10 text-destructive'
-                      : 'bg-primary/10 text-primary',
-                  )}
-                >
-                  {unread} nuevas
-                </span>
+                <>
+                  <span className="text-muted-foreground"> · </span>
+                  <span className={cn('font-semibold', hayAlerta ? 'text-destructive' : 'text-primary')}>
+                    {unread}
+                  </span>
+                </>
               )}
-            </div>
-            <div className="flex items-center gap-1">
+            </h3>
+            <div className="flex shrink-0 items-center gap-0.5">
+              {/* Acción SECUNDARIA: ghost + muted, el patrón que ya usan los
+                  "Limpiar filtros" del admin. Antes iba en color de primario, que
+                  la ponía al nivel de una acción principal que no es. */}
               {unread > 0 && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={markAllRead}
-                  className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                  className="h-7 gap-1.5 px-2 text-xs text-muted-foreground"
                 >
-                  <CheckCheck className="w-3.5 h-3.5" />
+                  <CheckCheck className="h-3.5 w-3.5" />
                   Marcar todas
-                </button>
+                </Button>
               )}
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -295,18 +299,29 @@ export default function NotificationBell() {
               </div>
             ) : (
               notifications.map(n => {
-                // El ícono sale del REGISTRY: `tipo` es la key de la automatización
-                // que la generó, así que la campana y la card de Automatizaciones
-                // muestran el mismo símbolo sin un segundo mapa que mantener.
-                const Icon = AUTOMATION_MAP[n.tipo]?.icono ?? DEFAULT_ICON;
+                // El ícono Y el tono salen del REGISTRY: `tipo` es la key de la
+                // automatización que la generó, así que la campana y la card de
+                // Automatizaciones muestran el mismo símbolo sin un segundo mapa
+                // que mantener.
+                const def  = AUTOMATION_MAP[n.tipo];
+                const Icon = def?.icono ?? DEFAULT_ICON;
+                // El chip seguía el MISMO ámbar para toda no-leída, así que dentro
+                // del dropdown una alerta de plata y una orden nueva se veían
+                // idénticas — justo lo que el badge ya distinguía afuera. Ahora
+                // sigue `severidad`, con tokens del tema y no con ámbar a mano.
+                const tono = n.leida
+                  ? 'bg-muted text-muted-foreground'
+                  : def?.severidad === 'alerta'
+                    ? 'bg-destructive/10 text-destructive'
+                    : 'bg-primary/10 text-primary';
 
                 const content = (
                   <div
                     className={`flex items-start gap-3 px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer ${!n.leida ? 'bg-primary/5' : ''}`}
                     onClick={() => !n.leida && markRead(n.id)}
                   >
-                    <div className={`mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${!n.leida ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-muted'}`}>
-                      <Icon className={cn('w-4 h-4', !n.leida ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground')} />
+                    <div className={cn('mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', tono)}>
+                      <Icon className="h-4 w-4" />
                     </div>
 
                     <div className="flex-1 min-w-0">
