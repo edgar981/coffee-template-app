@@ -38,11 +38,75 @@ toggle: antes de declarar que algo "no dispara", verificar que esté ENCENDIDO e
 la base, no en la memoria de quien lo miró. Una fila existente siempre gana sobre
 el `defaultActivo` del registry — por diseño.
 
-**Regla de reporte, vigente hasta que se decida lo de los tests con base (§ Backlog
-técnico, item 0): al declarar una suite verde hay que decir explícitamente qué
-queda fuera.** La suite es 100% pura, así que ninguna cadena que termine en un
-INSERT está cubierta; omitirlo es lo que convirtió un dato correcto en una
-impresión falsa.
+**Regla de reporte: al declarar una suite verde hay que decir explícitamente qué
+capa quedó fuera** (ver § Las tres capas de verificación). Omitirlo es lo que
+convirtió un dato correcto en una impresión falsa el 2026-08-04.
+
+## Las tres capas de verificación
+
+Cada una mide algo que las otras no pueden, y **ninguna sustituye a las otras**.
+Al reportar verde hay que nombrar la capa: "143/143" sin decir cuál no dice nada
+sobre las otras dos.
+
+| capa | cómo se corre | qué cubre |
+| --- | --- | --- |
+| **Reglas puras** | `npm test` (node nativo + tsx, SIN base) | predicados y cálculos: `isLowStock`, `cruzoMinimo`, `entregaVencidaSinCobro`, `moliendaAceptada`, insights, storage… |
+| **Cadenas del motor** | `npm run test:integracion` (Postgres efímero) | evento → handler → run → INSERT en `Notification`, idempotencia y gates |
+| **UI y flujos completos** | checklist manual del owner | pantallas, interacciones, y todo lo que cruza el navegador |
+
+El corte no es arbitrario: **una regla pura que se testea con base es lenta sin
+ganar nada, y una cadena que se testea con mocks no prueba que escriba.** El
+2026-08-04 la suite pura reportaba 143/143 mientras la cadena de la campana no
+escribía una sola fila; eso no fue un test mentiroso, fue una capa faltante.
+
+### El carril de integración
+
+```bash
+npm run test:integracion
+```
+
+**Prerequisito único: Postgres instalado localmente** (`brew install postgresql@14`).
+El script lo dice con esa línea si falta. No hace falta Docker, ni credenciales,
+ni red.
+
+Qué hace `scripts/test-integracion.sh`: `initdb` en un temp propio → arranca en
+**:55432** (puerto propio; 5432 suele estar ocupado) → `CREATE DATABASE` →
+`migrate deploy` → corre `tests/integracion/**` → para el cluster y borra el
+datadir. El teardown va en `trap` para que un test que revienta no deje el
+cluster colgado ocupando el puerto.
+
+Decisiones que NO son estilo:
+
+- **Base efímera local, nunca `development`.** La comparten el `.env` local y los
+  previews (§ Bases de datos): un `deleteMany` mal escrito borraría datos que
+  alguien está mirando. Y se descartó la rama efímera de Neon a propósito —
+  exigía una API key de larga vida con poder de crear y destruir ramas **en el
+  proyecto donde vive `production`**, que es justo lo que la doctrina de este
+  repo existe para no repartir.
+- **Binario, no Docker.** Docker puede estar instalado con el daemon apagado, y
+  entonces el comando falla pidiendo abrir Docker Desktop.
+- **`-k ''` (solo TCP).** El datadir vive bajo un temp cuyo path supera los 103
+  bytes que Postgres admite para un socket unix; sin esto no arranca.
+- **`--test-concurrency=1`.** `node --test` paraleliza los ARCHIVOS y todos
+  comparten una base: sin esto se pisan entre sí y fallan por razones ajenas al
+  código.
+- **Fixtures propios, NO `prisma/seed.ts`.** Ese seed arma una tienda de demo; un
+  test que dependa de él falla el día que alguien ajusta la demo. Cada test
+  declara las filas exactas que su cadena necesita.
+- **`soloActiva(key)` en cada test.** `runScheduledAutomations` barre TODAS las
+  programadas y varias declaran su hora en reloj de Bogotá: sin apagar el resto,
+  un test que corriera a las 9:00 dispararía otras dos, y a las 7:00 intentaría
+  mandar un correo real. Un test que pasa según la hora del día no es un test.
+
+**SKEW DE VERSIÓN, aceptado con su condición** (owner, 2026-08-04): el carril
+corre Postgres 14.20 local y producción corre la versión de Neon. Se acepta
+porque el alcance son cadenas del motor —CRUD, uniques, enums—, no SQL exótico, y
+porque las 34 migraciones aplican limpias en 14. **Si el carril crece hacia SQL
+específico de versión, esta decisión se revisa.**
+
+**Lo que el carril NO cubre, y sigue siendo del checklist manual:** UI, handlers
+HTTP completos, y el resto de la suite. Ampliarlo es una decisión, no un
+descuido.
 
 ## Doble-submit — la guarda va en DOS mitades, y no son redundantes
 
@@ -88,26 +152,6 @@ Reglas de la lista, para que siga sirviendo:
   tome en abstracto.
 - **Un item que se completa se BORRA de acá** y su decisión, si tiene, se
   documenta en la sección que le corresponda. Esto no es un historial.
-
-### 0. DECIDIR si el repo tendrá tests con base — vence al cerrar la campana
-
-Va en el puesto 0 porque no es una tarea sino una **decisión que condiciona a las
-demás**: sin ella, cada item de abajo se entrega con la misma cobertura parcial
-que produjo este backlog.
-
-Hoy la suite es 100% pura (`node --test` sin `--env-file`), así que **ninguna
-cadena que termine en un INSERT está cubierta** — ni `resolveOrderLines`, ni
-evento→motor→canal→`Notification`. Esos tests cubren las reglas puras y eso es
-todo lo que miden.
-
-Costo pagado: el 2026-08-04 la suite reportaba **143/143 en verde mientras la
-cadena de la campana no escribía una sola fila**. Lo encontró un checklist manual
-del owner, más dos rondas de diagnóstico. Un test de cadena lo habría atrapado en
-segundos.
-
-Lo que hay que decidir no es "¿tests?" sino **contra qué base corren y quién la
-levanta**: nunca `development` (la comparten previews y el `.env` local — ver
-§ Bases de datos), así que la opción es una base efímera por corrida.
 
 ### 1. `stock_anterior` se lee FUERA de la transacción
 
