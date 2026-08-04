@@ -660,6 +660,44 @@ vertical (que el día del multitenant migra a DB scopeada por tienda).
 - `null` = "no me consta". Preferir callar antes que sugerir mal: una sugerencia
   equivocada que el operador acepta sin mirar cuesta más que ninguna.
 
+## Principio rector del admin — defaults inteligentes sobre opciones explícitas
+
+Decisión del owner, y es de PRODUCTO, no de estilo: **el admin optimiza por
+defaults inteligentes, no por opciones. Menos decisiones por operación, no más.**
+
+Cuando el sistema puede inferir un valor con confianza razonable, lo pre-llena y
+se calla. NO se agrega un chip que anuncie la inferencia, ni un ajuste de
+configuración para desactivarla, ni un toggle de "recordar mi elección". Todo eso
+convierte una decisión ahorrada en dos decisiones nuevas —usarla y configurarla—,
+que es exactamente lo contrario de lo que se buscaba.
+
+Las tres reglas que hacen que un default sea seguro:
+
+- **Solo llena huecos.** Un default JAMÁS pisa un valor que ya existe. Si el
+  campo trae algo, es porque alguien lo puso; una elección humana no se
+  sobreescribe sola.
+- **Es sugerencia, no decisión.** Lo que se guarda es siempre lo que quedó en el
+  campo. El default no viaja al server como dato propio ni se persiste aparte.
+- **Preferir callar a adivinar mal.** Sin base para inferir → se deja vacío. Un
+  default equivocado que el operador acepta sin mirar cuesta más que ninguno
+  (mismo criterio que el `null` de `sugerirZona`).
+
+Ejemplos vivos, los dos en el modal de "Programar entrega": la zona sugerida por
+la dirección (`sugerirZona`) y el **mensajero pre-llenado con el último usado**.
+
+El mensajero sale del **último `Shipping` que tenga uno** — cero columnas nuevas,
+cero tabla de preferencias, y el dato se mantiene solo porque ES el historial de
+despachos. Se resuelve en `/api/orders/[id]/delivery-context` (la fetch que el
+modal ya hacía) y no en el cliente, porque el modal se abre desde Órdenes y desde
+Entregas y solo una de las dos tiene la lista de envíos cargada; en el server las
+dos entradas ven lo mismo, sin endpoint nuevo. Una tienda usa uno o dos
+mensajeros durante meses: teclear el mismo nombre en cada entrega es una decisión
+que el admin no debería pedir.
+
+**El gate `isScheduledShipping` no cambia.** Pre-llenar un campo no programa nada:
+una entrega sigue estando "lista para despachar" solo con mensajero Y fecha, y la
+fecha la sigue poniendo una persona.
+
 ## Principio rector del admin (Amber Minimal)
 
 El color es información, no decoración. Reglas de sistema (se implementan en los

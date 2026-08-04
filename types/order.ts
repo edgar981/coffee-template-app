@@ -173,6 +173,12 @@ export interface DeliveryContext {
   ciudad_entrega:    string | null;
   direccion_detalle: string | null;
   customer:          { id: string; nombre: string } | null;
+  /**
+   * Último mensajero usado en cualquier entrega — default del campo, no un dato
+   * de ESTA orden. Solo pre-llena el input cuando está vacío; lo que se guarda es
+   * siempre lo que quedó escrito. `null` = todavía no hay ninguno.
+   */
+  ultimoMensajero:   string | null;
 }
 
 // Payload for the add-address endpoint — same shape/standard as checkout's

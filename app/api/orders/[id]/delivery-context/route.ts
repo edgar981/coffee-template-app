@@ -40,6 +40,28 @@ export async function GET(
   // Phone priority: order snapshot first, then the Customer record.
   const telefono = order.cliente_telefono ?? customer?.telefono ?? null;
 
+  // ÚLTIMO MENSAJERO USADO — default inteligente del campo, no configuración.
+  // La fuente es el último Shipping que tenga uno: cero columnas nuevas, cero
+  // tablas de preferencias, y el dato se mantiene solo porque ES el historial de
+  // despachos. Una tienda usa uno o dos mensajeros durante meses; teclear el
+  // mismo nombre en cada entrega es una decisión que el admin no debería pedir.
+  //
+  // Es una SUGERENCIA, no una decisión: el modal la usa solo para pre-llenar un
+  // campo vacío y lo que se guarda es siempre lo que quedó en el input. Por eso
+  // no viaja al server como dato propio ni se persiste en ningún lado.
+  //
+  // Se resuelve ACÁ y no en el cliente porque el modal se abre desde Órdenes y
+  // desde Entregas, y solo una de las dos tiene la lista de envíos cargada. En el
+  // server las dos entradas ven exactamente lo mismo, con la fetch que el modal ya
+  // hacía — sin endpoint nuevo.
+  const ultimo = await prisma.shipping.findFirst({
+    where:   { mensajero: { not: null } },
+    orderBy: { updatedAt: 'desc' },
+    select:  { mensajero: true },
+  });
+  // `not: null` no descarta la cadena vacía ni los espacios; el trim lo hace.
+  const ultimoMensajero = ultimo?.mensajero?.trim() || null;
+
   return NextResponse.json({
     numero_orden:      order.numero_orden,
     cliente_nombre:    order.cliente_nombre,
@@ -49,5 +71,6 @@ export async function GET(
     ciudad_entrega:    order.ciudad_entrega,
     direccion_detalle: order.direccion_detalle,
     customer:          customer ? { id: customer.id, nombre: customer.nombre } : null,
+    ultimoMensajero,
   });
 }
