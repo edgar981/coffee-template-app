@@ -56,6 +56,16 @@ async function crearProductoCompleto() {
       altitudMin:   1650,
       altitudMax:   2100,
       molienda:     'Media',
+      // Las opciones que el cliente elige. Van en el fixture a propósito: la
+      // aserción de este archivo es sobre la fila COMPLETA, así que con esto el
+      // caso "desactivar no puede vaciar la lista de moliendas" queda cubierto
+      // sin un test aparte. Vaciarla no sería perder un campo — le cambiaría el
+      // comportamiento a la card en la tienda (una disponible agrega directo,
+      // varias mandan al detalle).
+      moliendasOpciones: [
+        { nombre: 'Media',  metodo: 'Filtro / Greca', disponible: true },
+        { nombre: 'Gruesa', metodo: 'Prensa francesa', disponible: false },
+      ],
       notas:        ['Chocolate', 'Herbal'],
       notasCata:    ['Fragancia a chocolate'],
       descripcionCorta: 'Origen único de Supatá.',

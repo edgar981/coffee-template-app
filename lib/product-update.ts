@@ -1,5 +1,6 @@
 import type { Prisma } from '@/src/generated/prisma/client';
 import { sanitizeGaleria } from '@/lib/product-gallery';
+import { sanitizeOpciones } from '@/lib/moliendas-opciones';
 
 // ─── Qué escribe un PATCH de producto ────────────────────────────────────────
 // Un PATCH es PARCIAL por definición: escribe los campos que el body TRAE y no
@@ -75,6 +76,19 @@ export function datosDelPatch(body: Record<string, unknown>): Prisma.ProductUnch
   // —`sanitizeGaleria(undefined)` es `[]`— así que un body sin la clave vaciaba
   // la galería y el borrado se llevaba todos sus blobs.
   if (hay('imagenes'))     data.imagenes     = sanitizeGaleria(body.imagenes);
+  // Las opciones de molienda del cliente. Un campo más con la misma regla, y ese
+  // es el punto: cuando se construyó su editor, la presencia de clave vivía en un
+  // bloque propio dentro del handler porque el endpoint todavía pisaba todo lo
+  // demás. Al volverse general la regla, el caso especial dejó de serlo.
+  //
+  // Que se escriba acá NO reescribe historia: las órdenes guardan la molienda como
+  // STRING (`OrderItem.moliendaSeleccionada`) y ninguna vista la re-deriva del
+  // producto, así que renombrar o quitar una opción sólo cambia lo que se ofrece
+  // de ahora en adelante. El cast es el de `prisma/seed.ts`: la columna es Json y
+  // el cliente generado no acepta una interfaz sin index signature.
+  if (hay('moliendasOpciones')) {
+    data.moliendasOpciones = sanitizeOpciones(body.moliendasOpciones) as unknown as Prisma.InputJsonValue;
+  }
 
   return data;
 }

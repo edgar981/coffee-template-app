@@ -20,6 +20,8 @@ import { ACCEPT_IMAGENES, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS } fr
 import { MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
 import { puedeGuardarProducto, obligatoriosFaltantes, accionEstadoProducto, alternativaAlEliminar } from '@/lib/product-form';
 import { ImageLightbox, THUMB_INSPECCIONABLE } from '@/components/admin/ImageLightbox';
+import { MoliendasOpcionesEditor } from '@/components/admin/MoliendasOpcionesEditor';
+import { sanitizeOpciones, validarOpciones, revisarEdicion, type MoliendaOpcion } from '@/lib/moliendas-opciones';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -144,6 +146,44 @@ function ProductosInner() {
     if (galeriaInputRef.current) galeriaInputRef.current.value = '';
   };
 
+  // ── Opciones de molienda del CLIENTE (`Product.moliendasOpciones`) ────────
+  // Estado propio y no dentro de `form`, igual que la galería: `ProductForm` es
+  // de campos de texto y este es una lista de objetos. Lo que se guarda es
+  // exactamente este array — sin ids de cliente que después haya que limpiar.
+  //
+  // NO confundir con `form.molienda`: ese campo (ficha técnica) no lo toca este
+  // editor y hoy no tiene UI, que es una ausencia conocida y anotada.
+  const [moliendas, setMoliendas] = useState<MoliendaOpcion[]>([]);
+  // Quitar una molienda es DESHACIBLE hasta guardar (decisión del owner): la X no
+  // borra la fila, la marca. Lo que la hace barata es que el borrado sea diferido
+  // —la lista no se reindexa mientras el modal está abierto—, así que un Set de
+  // ÍNDICES es estable: agregar solo apendiza y nada se corre de lugar.
+  //
+  // El motivo es la asimetría del error: un click accidental en la X borraba una
+  // opción con su método escrito, y rehacerla es teclear de nuevo; con la marca,
+  // el mismo click accidental cuesta un segundo click. Y el operador ve lo que va
+  // a pasar ANTES de que pase, que es lo que un `confirm()` no da.
+  const [moliendasQuitadas, setMoliendasQuitadas] = useState<Set<number>>(new Set());
+
+  const toggleQuitada = (i: number) => setMoliendasQuitadas(prev => {
+    const siguiente = new Set(prev);
+    if (siguiente.has(i)) siguiente.delete(i); else siguiente.add(i);
+    return siguiente;
+  });
+
+  // Qué se va a guardar y qué está mal, con los índices ya traducidos a la lista
+  // que el editor pinta. Vive en `lib/moliendas-opciones` y está testeado: el
+  // remapeo es un off-by-one que no rompe el guardado, solo señala la fila
+  // equivocada, y por eso nadie lo ve hasta que confunde a alguien.
+  const { vivas: moliendasVivas, problemas } = revisarEdicion(moliendas, moliendasQuitadas);
+
+  // Los problemas se pintan recién DESPUÉS del primer intento de guardar: marcar
+  // en rojo una fila que el operador acaba de crear —y todavía no alcanzó a
+  // nombrar— es regañarlo por estar escribiendo. Una vez que se muestran, se
+  // recalculan en vivo, así que corregir apaga el rojo sin volver a guardar.
+  const [moliendasRevisadas, setMoliendasRevisadas] = useState(false);
+  const problemasMoliendas = moliendasRevisadas ? problemas : [];
+
   const totalGaleria = galeriaActual.length + galeriaPendiente.length;
   // Obligatorios vacíos, para el aviso bajo el botón deshabilitado.
   const faltantes = obligatoriosFaltantes(form);
@@ -215,11 +255,24 @@ function ProductosInner() {
     setImagenPreview(url);
   };
 
-  const openNew  = () => { setEditing(null); setForm(EMPTY_PRODUCT_FORM); limpiarImagen(); limpiarGaleria(); setShowForm(true); };
+  // Un producto nuevo NACE sin opciones: es el caso permisivo (no pide molienda,
+  // la card agrega directo) y el default que no le cambia la tienda a nadie.
+  const limpiarMoliendas = () => {
+    setMoliendas([]);
+    setMoliendasQuitadas(new Set());
+    setMoliendasRevisadas(false);
+  };
+
+  const openNew  = () => { setEditing(null); setForm(EMPTY_PRODUCT_FORM); limpiarImagen(); limpiarGaleria(); limpiarMoliendas(); setShowForm(true); };
   const openEdit = (p: Product) => {
     setEditing(p);
     limpiarImagen();
     limpiarGaleria();
+    // Se normaliza al cargar: la columna es Json, así que un registro viejo o
+    // sembrado a mano puede traer campos faltantes o basura. El editor trabaja
+    // siempre sobre la forma canónica.
+    limpiarMoliendas();
+    setMoliendas(sanitizeOpciones(p.moliendasOpciones));
     setImagenPreview(p.imagen ?? '');
     // La galería que se EDITA excluye la portada aunque el registro la repita:
     // se muestra lo que de verdad son tomas adicionales (ver galeriaCompleta).
@@ -269,6 +322,21 @@ function ProductosInner() {
       return;
     }
 
+    // Opciones de molienda. Aviso temprano con el MISMO predicado del endpoint
+    // (`validarOpciones`), y ANTES de subir nada: una lista inválida hace que el
+    // POST/PATCH devuelva 400, y llegar hasta ahí habría dejado los blobs ya
+    // subidos sin producto que los referencie.
+    //
+    // Guardar es lo que hace EFECTIVO el quitar: viajan solo las vivas. Hasta
+    // acá, la X era reversible.
+    const moliendasLimpias = sanitizeOpciones(moliendasVivas);
+    const problemas = validarOpciones(moliendasLimpias);
+    if (problemas.length > 0) {
+      setMoliendasRevisadas(true);   // desde acá el rojo se recalcula en vivo
+      toast.error(problemas[0].mensaje);
+      return;
+    }
+
     // Orden deliberado: subir → guardar. Si la subida falla no se toca el
     // producto; si el producto falla, el blob nuevo queda huérfano (basura
     // barata) pero la imagen vieja sigue siendo la buena. El blob REEMPLAZADO lo
@@ -315,6 +383,9 @@ function ProductosInner() {
         // Lo que ya estaba (menos lo que el operador quitó) + lo recién subido.
         // El orden es el de subida: v1 no tiene reordenamiento.
         imagenes:    [...galeriaActual, ...galeriaSubidas],
+        // Renombrar o quitar una opción no reescribe historia: las órdenes ya
+        // guardaron su molienda como string (`OrderItem.moliendaSeleccionada`).
+        moliendasOpciones: moliendasLimpias,
       };
 
       // El cierre ocurre SOLO tras confirmación del server. Si falla, el modal
@@ -346,6 +417,7 @@ function ProductosInner() {
     // modal todavía en pantalla, y recién después se cierra.
     limpiarImagen();
     limpiarGaleria();
+    limpiarMoliendas();
     setShowForm(false);
   };
 
@@ -530,6 +602,20 @@ function ProductosInner() {
                 placeholder="Descripción del producto..."
               />
             </div>
+            {/* Opciones de molienda del CLIENTE. Editar esto no es llenar un
+                campo de la ficha: la cantidad de opciones DISPONIBLES decide si
+                la card del catálogo agrega directo o manda al detalle. Va
+                deshabilitado mientras la mutación viaja — misma mitad de estado
+                que el botón Guardar. */}
+            <MoliendasOpcionesEditor
+              opciones={moliendas}
+              onChange={setMoliendas}
+              quitadas={moliendasQuitadas}
+              onToggleQuitada={toggleQuitada}
+              problemas={problemasMoliendas}
+              disabled={!!fase}
+            />
+
             {/* Imagen. El preview es local hasta que se guarda: seleccionar no
                 sube nada (ver `imagenFile`). Al reemplazar la de un producto
                 existente, el server borra el blob anterior en el PATCH. */}

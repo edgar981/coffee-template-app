@@ -504,6 +504,82 @@ detalle del storefront. v1 **sin reordenamiento**: el orden es el de subida.
   guardas del adaptador (`isManaged`) hacen no-op las relativas, así que
   conviven sin migrar nada.
 
+## Opciones de molienda — el editor del admin
+
+`Product.moliendasOpciones` (Json) se edita en el modal de producto, sección
+**"Opciones de molienda para el cliente"**. El label es largo a propósito: son
+DOS campos distintos y confundirlos es fácil — `Product.molienda` (String) es
+ficha técnica ("esta bolsa es molienda Media") y **no lo toca este editor**; hoy
+sigue sin UI, y eso está anotado, no es un descuido de esta tanda.
+
+**Editar esta lista es OPERAR LA TIENDA, no llenar un campo de la ficha.** Con el
+fix híbrido-por-cardinalidad, la cantidad de opciones DISPONIBLES decide el
+comportamiento de la card del catálogo: una → agrega directo; varias → manda al
+detalle a elegir (`decidirMolienda`, `lib/moliendas-opciones.ts`). Por eso el
+editor lleva una línea muted que lo dice; sin ella el operador mueve un toggle y
+la tienda cambia sin que nada lo anuncie.
+
+- **Las reglas de escritura son puras y viven al lado de las de lectura**
+  (`sanitizeOpciones` + `validarOpciones`, testeadas en `npm test` — capa 1). Las
+  corren el modal (aviso temprano) y el POST/PATCH (la que MANDA). Son tres:
+  nombre no vacío; único por producto **comparando sin mayúsculas ni espacios**
+  (`moliendaAceptada` busca por nombre EXACTO, así que dos filas que el ojo lee
+  iguales se comportarían distinto — una compraría y la otra daría 400); y **al
+  menos una disponible**.
+- **La regla de "al menos una disponible" es la que cierra una trampa real**:
+  siete opciones con cero disponibles deja `decidirMolienda` en `agotada` y
+  `moliendaAceptada` rechazando todas, o sea un producto vivo en el catálogo e
+  incompraable — el mismo modo de falla del bug de go-live. Para dejar de vender
+  un producto existe `activo`, no una lista de opciones muertas.
+- **Lista VACÍA es válida y es el default del alta.** Un producto sin opciones no
+  pide molienda y su card agrega directo; las reglas solo aplican desde la primera
+  fila.
+- **`sanitizeOpciones` NO descarta las filas sin nombre** (a diferencia de
+  `sanitizeGaleria` con las URLs vacías): las conserva para que
+  `validarOpciones` las REPORTE. Tirarlas en silencio haría que una fila a medias
+  desapareciera al guardar y el operador la diera por creada.
+- **La escritura sigue la regla general del endpoint** (§ El PATCH de producto es
+  PARCIAL de verdad): `moliendasOpciones` es un campo más de `datosDelPatch` y se
+  escribe sólo si el body TRAE la clave. Acá importa el doble, porque ese endpoint
+  también lo llama el "Desactivar" con un body de un solo campo
+  (`{ activo: false }`): escribirlo sin condición vaciaría la lista por desactivar
+  un producto, y eso no es perder un campo — es cambiarle el comportamiento a su
+  card. Cuando se construyó este editor la guarda vivía en un bloque propio del
+  handler, porque el endpoint todavía pisaba todo lo demás; al volverse general la
+  regla, el caso especial dejó de serlo. **La VALIDACIÓN, en cambio, se queda en el
+  handler**: produce un 400, y eso es del protocolo HTTP, no de qué campos se
+  escriben. Las dos mitades comparten las funciones puras, así que no pueden
+  discrepar sobre qué es una lista válida.
+- **Renombrar o quitar una opción NO reescribe historia.** Las órdenes guardan la
+  molienda como STRING (`OrderItem.moliendaSeleccionada`) y ninguna vista la
+  re-deriva del producto: el detalle de la orden, el checkout y las plantillas de
+  correo imprimen el string tal cual. Verificado al construir el editor; si alguna
+  vista futura quisiera "resolver" ese string contra `moliendasOpciones`, eso sería
+  el bug.
+- **Los 400 de `/api/products` llegan al operador con su texto.** `createProduct` y
+  `updateProduct` propagan el `error` del servidor (como ya hacía `deleteProduct`
+  con su 409): un "Error al guardar" genérico borraría justo la frase que dice qué
+  corregir.
+- **Quitar una molienda es DESHACIBLE hasta guardar** (decisión del owner, contra
+  clicks accidentales). La X no borra la fila: la marca, la deja tachada a la
+  vista y cambia el botón por "Deshacer" en el mismo lugar. La asimetría es lo que
+  lo justifica — un click accidental borraba una opción con su método ya escrito y
+  rehacerla es teclear de nuevo; con la marca cuesta un segundo click. Y el
+  operador ve lo que va a pasar ANTES de que pase, que es lo que un `confirm()` no
+  da. Los conteos de la sección hablan del RESULTADO de guardar, no de lo que hay
+  en pantalla.
+- **El borrado diferido es lo que hace seguros los índices.** Nada se reindexa
+  mientras el modal está abierto: agregar apendiza y quitar solo marca. Por eso el
+  Set de índices marcados y las `key` por índice de las filas son correctos. El día
+  que se agregue reordenamiento, las dos cosas necesitan un id propio.
+- **Se valida y se guarda solo lo que SOBREVIVE.** Una fila marcada para quitar no
+  puede bloquear el guardado por estar sin nombre ni contar para "al menos una
+  disponible". Como `validarOpciones` numera sobre las vivas y el editor pinta la
+  lista completa, los índices de los problemas se remapean — sin eso el borde rojo
+  cae en la fila de al lado apenas hay una marcada por encima.
+- v1 **sin reordenamiento** y sin catálogo global de moliendas: siguen siendo Json
+  por producto, igual que la galería.
+
 ## Política de tema (dark mode)
 
 El storefront es light-only (paleta de marca fija). El admin soporta
