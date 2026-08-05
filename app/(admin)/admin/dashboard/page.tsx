@@ -140,7 +140,11 @@ export default function Dashboard() {
     alertas_stock:        { raw: lowStock },
     productos_activos:    { raw: activeProducts },
     clientes_totales:     { raw: customers.length },
-    clientes_recurrentes: analytics ? { raw: analytics.kpis.tasaRetencion, trend: recurrentesTrend } : undefined,
+    // `recurrencia.pct` es el MISMO número que traía `kpis.tasaRetencion`
+    // (recurrentes sobre el total de clientes); el rediseño de Analítica solo lo
+    // movió a un campo que dice qué es. La fórmula sigue viviendo en un único
+    // lugar del server, así que esta tarjeta y la de Clientes no pueden divergir.
+    clientes_recurrentes: analytics ? { raw: analytics.recurrencia.pct, trend: recurrentesTrend } : undefined,
   };
 
   const formatValue = (formato: WidgetFormato, raw: number) =>

@@ -421,6 +421,45 @@ meses alguien reporta como defecto y vuelve a costar un diagnóstico. La salida
 real es push (SSE/websocket), que está **fuera de alcance de la v1** por decisión
 explícita.
 
+## Mejoras post-multitenant
+
+**NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
+mejoras que esperan un HITO —la arquitectura multitenant de Duna— y que hacerlas
+antes significaría construirlas dos veces. Un item de acá no se prioriza contra
+uno del backlog: están en escalas distintas.
+
+Cada entrada dice **de qué decisión salió**, porque una mejora sin su origen se
+vuelve una idea suelta que nadie sabe si sigue vigente.
+
+### Reporte PDF descargable de Analítica
+
+**La evidencia densa pertenece a un documento, no a la pantalla.** La tabla de
+rentabilidad completa, las series mensuales y los desgloses por cliente son
+material para leer sentado, archivar o mandarle al contador; la pantalla existe
+para responder cuatro preguntas en 30 segundos.
+
+Origen: el pase de jerarquía del 2026-08-05 (§ Analítica — LA RESPUESTA PRIMERO).
+Ese pase plegó el detalle en vez de eliminarlo, y al hacerlo dejó explícito que
+hay dos consumos distintos del mismo dato con formatos distintos. El PDF es el
+segundo consumo, y **se decidió NO construirlo entonces** para no volver a mezclar
+los dos.
+
+Va después del multitenant porque el reporte lleva identidad de tienda
+(encabezado, logo, período, moneda) y hoy no existe el modelo que la sostenga —
+sería un template hardcodeado a Nayoli que habría que rehacer entero.
+
+### Snapshot del costo en `OrderItem`
+
+Columna `costo_unitario` nullable, llenada de aquí en adelante (migración
+aditiva). Convierte el margen futuro en un hecho contable y deja el histórico
+como está.
+
+Origen: el rediseño de Analítica del 2026-08-05, donde se descubrió que
+`OrderItem` no snapshotea costo y el margen histórico sólo puede estimarse contra
+el costo ACTUAL del catálogo (§ El COSTO no está snapshoteado). No depende
+técnicamente del multitenant, pero **sí de la sesión de costos reales con el
+cliente**: snapshotear el costo del seed sólo congelaría un dato inventado.
+
 ## Imágenes en `public/`
 
 Los archivos de imagen en `public/` son inmutables: nunca sobrescribir
@@ -1064,6 +1103,210 @@ estilo:
 - La serie mensual del insight usa la MISMA definición que el valor de su
   tarjeta. Un insight calculado sobre otro conjunto que el número que acompaña es
   peor que no tener insight.
+
+## Analítica — cuatro preguntas de dueño, no un grid de métricas
+
+Rediseño del 2026-08-05 (decisión del owner). La página dejó de ser el grid
+heredado del template y responde CUATRO preguntas, cada una atada a una decisión:
+**rentabilidad** (¿estoy ganando o solo vendiendo? → qué SKU sostener),
+**cartera** (¿cuánta plata mía está en la calle? → a quién cobrar),
+**trayectoria** (¿el negocio crece? → si el rumbo sirve) y **clientes y canales**
+(¿quién y por dónde? → dónde concentrar).
+
+**El principio de corte: si una sección no cambia ninguna decisión, es
+decoración.** Es lo que justifica que murieran cosas que "funcionaban".
+
+### LA RESPUESTA PRIMERO, LA EVIDENCIA DESPUÉS
+
+Segundo pase, mismo día, tras usar la página (owner). **Las preguntas estaban
+bien; la presentación era de analista, no de dueño.** Cada bloque abría con la
+EVIDENCIA —una tabla de cinco columnas, un chart de dos líneas, tres tarjetas de
+buckets— y dejaba que el lector dedujera la respuesta.
+
+> Cada bloque LIDERA con una frase en lenguaje natural y un número. El detalle
+> denso se pliega.
+
+**NADA se eliminó en ese pase: todo se re-jerarquizó.** La tabla por SKU sigue
+completa detrás de "Ver detalle por producto"; la línea de margen sigue en el
+chart detrás de "Ver margen". Es el patrón de insights de las stat cards
+(§ Capa de insights) aplicado a la página que se construyó sin él, y hereda sus
+dos reglas: **texto = hecho** (nunca instrucción ni causa inventada) y **preferir
+callar a afirmar sin base**.
+
+La prueba de aceptación es de 30 segundos: abrir la página y responder en voz
+alta las cuatro preguntas **sin abrir un solo pliegue**. Si una exige abrir algo
+o leer una tabla, ese bloque falló.
+
+- **Las frases viven en `lib/metrics/titulares.ts`, puras y testeadas**, no en el
+  JSX. La redacción ES la decisión de producto de este pase: dentro de un
+  componente, cambiar un `if` de plural rompería la respuesta a "¿gané plata?"
+  sin que nada lo notara.
+- **`hayVentas` viaja aparte del margen** porque cero y "no hubo ventas" son
+  hechos distintos: margen 0 CON ventas significa que se vendió justo al costo
+  —alarmante—, y sin ventas sólo significa que no pasó nada. Colapsarlos haría
+  que un mes tranquilo se leyera como uno catastrófico.
+- **La pérdida se nombra pérdida** ("perdiste $X"), no un negativo con signo. Un
+  signo hay que decodificarlo, y es justo el caso en que leerlo mal cuesta caro.
+- **El bucket VIEJO de la cartera sube al titular.** Es el único dato de la
+  página que puede exigir una llamada hoy mismo, y antes había que leer y
+  comparar tres tarjetas para descubrirlo.
+- **La advertencia del costo estimado se queda en el header, NO dentro del
+  pliegue.** Esconderla tras "Ver detalle" la haría invisible justo para quien
+  más la necesita: el que no abre el detalle.
+- **El estado de los pliegues es local y NO se persiste.** La página debe abrir
+  siempre en su forma corta, porque es esa forma la que responde en 30 segundos;
+  un pliegue recordado volvería la pantalla del analista el default de alguien.
+- **La línea de margen de la trayectoria nace APAGADA.** Dos series con escalas
+  distintas obligan a comparar antes de leer, y "¿el negocio crece?" lo responde
+  la de ingresos sola. La leyenda del chart sólo aparece con las dos series: con
+  una sola no distingue nada.
+
+`/api/analytics` se REESCRIBIÓ EN SU SITIO; no hay `/v2`. No es preferencia de
+estilo: el endpoint viejo tenía su propia definición de "ingreso" (sumaba
+`Order.total` en vez del libro de pagos) y un `/v2` lo habría dejado vivo, sin
+consumidores que lo mantuvieran honesto — que es exactamente cómo
+`razonDelServidor` y `cruzoMinimo` terminaron duplicados y divergiendo. Además
+ninguna de sus salidas sobrevivía intacta, así que no había convivencia que
+comprar.
+
+Los cinco defectos que tenía, por si alguien los reintroduce creyéndolos
+inofensivos: no excluía `SN-` en ninguna métrica; bucketeaba los meses en JS con
+el reloj del SERVIDOR (`new Date(...).getMonth()`), no en SQL con Bogotá;
+`margenBruto` promediaba el % del CATÁLOGO sin ponderar por ventas —un número que
+no miraba una sola orden—; `tasaRetencion` dividía entre TODOS los clientes,
+incluidos los que nunca compraron; y `categoryData` ya era payload muerto.
+**Sobrevivió intacto `/api/analytics/weekly`**: era la única parte que ya cumplía
+el estándar (día bucketeado en SQL, Bogotá, solo `CN-`, no canceladas).
+
+### El COSTO no está snapshoteado — y eso es una decisión escrita, no un detalle
+
+`OrderItem` guarda `precio_unitario` y `subtotal`, **no el costo al momento de la
+venta**. El margen histórico se calcula por tanto contra `Product.costo` ACTUAL:
+si el costo cambió, el margen de una venta vieja se recalcula con el de hoy.
+Aproximación aceptada a esta escala, y por eso la página lo DECLARA ("margen
+estimado con el costo actual del catálogo") en vez de presentarlo como contable.
+
+**Mejora futura propuesta, NO ejecutada:** una columna `costo_unitario` en
+`OrderItem` (migración aditiva, nullable) llenada de aquí en adelante. Convierte
+el margen futuro en un hecho y deja el histórico como está.
+
+Tres consecuencias que se descubrieron construyéndolo y que NO son obvias:
+
+- **El margen va sobre MERCANCÍA, sin envío.** Los ingresos del cálculo son suma
+  de `OrderItem.subtotal`, no de `Payment.monto`. El pago incluye el costo de
+  envío y el costo de la mercancía no, así que restar uno del otro **inflaría el
+  margen por cada despacho**. El envío es un costo trasladado, no utilidad. Por
+  eso el chart de trayectoria dibuja dos líneas con bases distintas y lo dice.
+- **`producto_id` es NULLABLE**, así que hay líneas sin costo resoluble. Se
+  resuelven por FK → nombre exacto → **residual DECLARADO**. Jamás con costo 0:
+  un costo 0 se renderiza como **margen 100%** y convierte un dato que falta en la
+  mejor noticia del mes. Un nombre AMBIGUO (`Product.nombre` no es único — solo
+  `slug` y `sku` lo son) cuenta como costo faltante, no como una moneda al aire;
+  mismo criterio que el `null` de `sugerirZona`.
+- **Un margen negativo se muestra en rojo y NO se recorta a cero.** Vender por
+  debajo del costo es justo lo que esta página existe para mostrar; un
+  `Math.max(0, …)` ahí borraría el único hallazgo que importa. Es la única
+  excepción de color semántico de la tabla (Amber Minimal).
+
+**El margen se calcula SOLO sobre órdenes pagadas, y el período se mide por la
+fecha del PAGO.** Si incluyera pendientes, la misma orden sería utilidad en el
+bloque 1 y cartera en el bloque 2 — **la página se contradiría a sí misma**.
+Consecuencia que conviene tener escrita: cuando una orden pendiente se cobra entra
+al margen del mes EN QUE SE PAGÓ, no del mes en que se creó. Es coherente con el
+libro de pagos del dashboard, y es lo que explica que un mes muestre margen de
+ventas viejas. **Si alguna vez eso confunde, la respuesta es la nota, no cambiar
+la base.**
+
+### La CARTERA no excluye `SN-`, y el criterio es lo que hay que recordar
+
+Es la única excepción de exclusión en toda la página, y no es un olvido:
+
+> **La cartera es una lista de TRABAJO, no una medición.** Su contrato es
+> card=lista y su fuente es la misma que la página de Órdenes. El resto de la
+> página es analítica y sí excluye `SN-`.
+
+Cada bucket linkea a `/admin/ordenes`, que tampoco filtra `SN-`; un conteo que no
+cuadre con la lista a la que lleva es peor que uno que incluye una orden de demo.
+La nota de la sección se lo dice al operador en una línea. **En producción no hay
+`SN-` desde la purga del 2026-08-03**, así que la incoherencia es solo de
+`development`; la exclusión en Órdenes queda como la deuda que ya era (§ "Por
+cobrar" vs "Órdenes Pendientes" — se arregla de los dos lados a la vez o de
+ninguno).
+
+**Cartera = órdenes `pendiente`, y su saldo ES `Order.total`.** No hay pagos
+parciales: `registrarPago` snapshotea el monto del total server-side y transiciona
+a `pagado` (`lib/orders.ts`). Por eso no hay aritmética de saldos. Si algún día
+existen pagos parciales, ESTA es la línea que deja de ser cierta.
+
+**Los buckets de edad se expresan con el filtro que YA existe.** Un bucket de
+envejecimiento es un rango de FECHA DE CREACIÓN, y `parseFilters` de Órdenes ya
+soporta `desde`/`hasta` como day keys de `createdAt` en Bogotá, inclusivos por
+ambos extremos. No se construyó un filtro por edad porque no hacía falta — el
+deep link es EXACTO, no aproximado, y `cartera.test.ts` lo afirma recorriendo día
+por día que el rango del query contiene justo las edades de su bucket. Los cortes
+(7 y 15 días) son constantes `TODO(cliente)`.
+
+### Lo demás, en corto
+
+- **Las reglas puras viven en `lib/metrics/`** (`margen.ts`, `cartera.ts`,
+  `concentracion.ts`, `periodo.ts`, `titulares.ts`) con tests en capa 1, por el criterio de
+  siempre: se extrae lo que tiene la decisión para poder afirmarlo. El endpoint
+  agrega en SQL y **llama a las mismas funciones que la página**, así que el total
+  del header, las filas de la tabla y la línea del chart no pueden discrepar.
+- **`types/analytics.ts` REUSA los tipos de los predicados**, no los redeclara: dos
+  tipos que nunca se comparan pueden divergir sin que el compilador avise.
+
+### Qué mueve el chip de período, y qué NO
+
+Cuatro chips, sin date-picker: **Este mes · Mes pasado · Últimos 3 meses · Este
+año**. Viven en el HEADER de la página, no dentro de un bloque — colgarlos de una
+sección haría creer que sólo mueven esa.
+
+**"Últimos 3 meses" es una ventana MÓVIL que incluye el mes en curso, NO el
+trimestre calendario** (owner, 2026-08-05). La pregunta real es "cómo me ha ido
+últimamente"; un trimestre calendario responde otra cosa — el 1 de abril
+mostraría enero-marzo y ocultaría todo lo reciente.
+
+| bloque | ¿respeta el chip? | por qué |
+| --- | --- | --- |
+| Rentabilidad | **sí** | por fecha de PAGO |
+| Concentración de clientes | **sí** | por fecha de PAGO — misma base que rentabilidad |
+| Canales | **sí**, pero por fecha de CREACIÓN | una orden "llega" cuando se crea, no cuando se paga |
+| Cartera | no | saldo VIGENTE; un saldo no lleva período (§ "Por cobrar") |
+| Trayectoria | no | ES la serie larga: recortarla con el chip la vaciaría |
+| Recurrencia | no | métrica de la BASE de clientes, y debe cuadrar con la página de Clientes |
+| Actividad semanal | no | su pregunta se responde mirando UNA semana; trae su propio navegador |
+
+**Clientes y canales estuvieron CLAVADOS en "año en curso" durante el primer
+pase, y era un defecto silencioso**: el chip decía "Mes pasado" y esas dos
+secciones seguían mostrando el año entero sin que nada en pantalla lo delatara.
+Por eso se afirma en el carril y no en el checklist manual — **un humano no puede
+ver que un número no se movió.** `analitica.test.ts` cubre las dos direcciones:
+los tres que se mueven y los cuatro que no.
+
+La diferencia de base de Canales (creación vs pago) está DICHA en su subtítulo
+("órdenes creadas"), no deducida. Dos bloques bajo el mismo chip contando cosas
+distintas es correcto sólo si cada uno declara qué cuenta.
+- **La concentración tiene guarda de muestra** (`MIN_CLIENTES_CONCENTRACION` = 6):
+  con 5 clientes el top-5 da 100% por aritmética, y ese 100% se lee como alarma
+  cuando solo dice que el negocio tiene cinco clientes. La LISTA se muestra igual;
+  lo que se calla es el titular. Misma familia que `MIN_ORDENES_INSIGHT`.
+- **La recurrencia usa la fórmula unificada** con el sub "N de M", idéntica a la
+  de la página de Clientes. El dashboard pasó de `kpis.tasaRetencion` a
+  `recurrencia.pct` — es el MISMO número, en un campo que dice qué es.
+- **Los insights de la escalera se aplicaron a la serie larga** tal cual
+  (`widgetInsight`), incluido el descarte del mes en curso y el corte de
+  prehistoria. Muted y sin color, como en las stat cards.
+- **Canales pasó de pie a barras**: son 2–4 categorías y lo que se compara son
+  magnitudes, que una barra responde de un vistazo y un pie obliga a estimar
+  ángulos.
+- **`loading` es DERIVADO, no seteado en el effect** (`data?.periodo.key !==
+  periodo`), apoyado en que el endpoint hace eco del período que resolvió — el
+  mismo mecanismo del `week` de la card semanal. Un `setLoading(true)` síncrono
+  dentro del effect dispara renders en cascada y el lint lo marca.
+- **Fuera de alcance por decisión**: estacionalidad, cohortes y forecasting (sin
+  historia ni volumen), snapshot de costo, filtro por edad en Órdenes, y
+  export/PDF/comparativas configurables.
 
 ## Sugerencia de zona de entrega (heurística de dirección)
 
