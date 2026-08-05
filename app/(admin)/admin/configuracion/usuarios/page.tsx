@@ -9,6 +9,7 @@ import { normalize } from '@/lib/utils';
 import { AdminUser, Role } from '@/types/admin';
 import { ROLES } from '@/constants/roles';
 import { authClient } from '@/lib/auth-client';
+import { useAccionesPorFila } from '@/hooks/useAccionGuardada';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,7 +44,15 @@ export default function ConfiguracionUsuarios() {
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
-  const handleRoleChange = async (userId: string, newRole: Role) => {
+  // Guarda POR USUARIO. El valor es absoluto (poner el rol en X), así que un
+  // duplicado no corrompe nada — pero el menú se cierra recién en el `finally`,
+  // o sea que durante todo el vuelo queda abierto y sin decir nada. Es
+  // exactamente el silencio que invita al segundo click, que es lo que esta
+  // guarda existe para cubrir. Ver CLAUDE.md § Doble-submit.
+  const filasRol = useAccionesPorFila();
+
+  const handleRoleChange = (userId: string, newRole: Role) =>
+    filasRol.ejecutar(userId, async () => {
     try {
       const res = await fetch(`/api/users/${userId}/role`, {
         method:  'PATCH',
@@ -58,7 +67,7 @@ export default function ConfiguracionUsuarios() {
     } finally {
       setActiveMenu(null);
     }
-  };
+    });
 
   const handleInvited = () => {
     // SIN toast acá: el modal ya disparó "Invitación enviada a <correo>" antes
@@ -199,10 +208,13 @@ export default function ConfiguracionUsuarios() {
                           <button
                             key={r}
                             onClick={() => handleRoleChange(u.id, r)}
-                            className="flex items-center justify-between w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
+                            disabled={filasRol.enVuelo(u.id)}
+                            className="flex items-center justify-between w-full px-3 py-2 text-sm hover:bg-muted transition-colors disabled:opacity-60"
                           >
                             <RoleBadge role={r} />
-                            {u.role === r && <Check className="w-3.5 h-3.5 text-primary" />}
+                            {filasRol.enVuelo(u.id)
+                              ? <span className="text-xs text-muted-foreground">Aplicando…</span>
+                              : u.role === r && <Check className="w-3.5 h-3.5 text-primary" />}
                           </button>
                         ))}
                       </div>

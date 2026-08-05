@@ -202,6 +202,35 @@ cancela nada en el server y deja al operador sin saber si se aplicó.
 pero `entrada`/`devolucion`/`salida` son delta y ahí sí duplican. La guarda es del
 botón, no del tipo de operación.
 
+### La FRONTERA del patrón: guarda donde el silencio invita al reintento
+
+El patrón se cerró entero el 2026-08-04 (Invitar usuario, los dos controles de
+fila de Órdenes, el cambio de rol, y marcar una notificación). **El item salió del
+backlog y NO se repone**: la categoría está cerrada, y para que siga cerrada hay
+que decir dónde TERMINA — si no, cada control nuevo reabre la discusión.
+
+La regla no es "toda mutación lleva guarda". Es: **guarda donde el silencio invita
+al reintento.** El modo de falla que el patrón ataca no es el doble click en
+abstracto, es la secuencia *el control no dice nada → el operador vuelve a
+clickear*. Donde esa secuencia no puede ocurrir, la guarda no agrega seguridad:
+agrega ceremonia, y una ceremonia sin motivo es lo que hace que la próxima persona
+la copie donde sí importaba y la omita donde no.
+
+Dos controles quedaron DELIBERADAMENTE fuera, y conviene que estén escritos para
+no re-auditarlos cada seis meses:
+
+- **El toggle de Automatizaciones.** Escritura optimista: el switch se mueve en el
+  acto y el valor es absoluto. No hay silencio — el control responde antes que el
+  server. Y un doble click en un switch es prender-apagar: intención legítima del
+  operador, no un submit duplicado. Ponerle una guarda haría que el segundo
+  movimiento se descarte en silencio, que es peor que lo que arregla.
+- **"Guardar" de `AutomationConfigDialog`.** Cierra el diálogo en el mismo click,
+  así que no existe un segundo click que dar.
+
+El criterio para decidir un caso nuevo, en una línea: **¿puede el operador clickear
+otra vez sin que nada haya cambiado en pantalla?** Si sí, lleva las dos mitades. Si
+la pantalla ya respondió —cerró, se movió, cambió de estado— no.
+
 ### La mitad SERVIDOR: el kardex tiene que ENCADENAR
 
 El ajuste manual vive en `lib/inventory.ts` (`aplicarAjusteInventario`), no en el

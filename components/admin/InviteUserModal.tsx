@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { X, UserPlus, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import RoleBadge from '@/components/admin/RoleBadge';
+import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,10 +32,28 @@ export default function InviteUserModal({ onClose, onSuccess }: InviteUserModalP
   const [email, setEmail]     = useState('');
   const [role, setRole]       = useState<Role>('STAFF');
   const [loading, setLoading] = useState(false);
+  // Mitad SÍNCRONA de la guarda. `loading` es estado, así que dos envíos del
+  // MISMO tick lo leen `false` los dos y pasan ambos — y acá eso no es un toast
+  // repetido: es una segunda invitación y un SEGUNDO CORREO a una persona real,
+  // que no se des-envía. El riesgo es mayor que en un botón porque esto es un
+  // `<form onSubmit>`: Enter también dispara, así que ni siquiera hace falta un
+  // doble click.
+  //
+  // DEUDA DEL SERVIDOR, anotada y NO arreglada en esta tanda: el endpoint
+  // `POST /api/users/invite` chequea usuario e invitación existentes y recién
+  // después crea, pero ese check-then-create no va en transacción y
+  // `Invitation.email` NO tiene unique (sólo `@@index([email])`; el unique está
+  // en `tokenHash`). Dos peticiones del mismo tick pueden pasar ambas la
+  // verificación. Hoy lo cubre ESTA guarda, que es cliente — o sea que la
+  // protección depende del navegador, que es exactamente donde no debería vivir.
+  // El arreglo real es un unique en el email de invitaciones pendientes, o el
+  // check dentro de la transacción del create.
+  const guarda = useAccionGuardada();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !name.trim()) return;
+    return guarda.ejecutar(async () => {
     setLoading(true);
 
     try {
@@ -63,6 +82,7 @@ export default function InviteUserModal({ onClose, onSuccess }: InviteUserModalP
     } finally {
       setLoading(false);
     }
+    });
   };
 
   return (
@@ -164,10 +184,14 @@ export default function InviteUserModal({ onClose, onSuccess }: InviteUserModalP
 
           {/* Actions */}
           <div className="flex gap-3 pt-1">
+            {/* Cancelar también se bloquea mientras la invitación viaja: cerrar a
+                mitad no cancela nada en el server y deja al operador sin saber si
+                el correo salió. */}
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
+              disabled={loading}
+              className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60"
             >
               Cancelar
             </button>
@@ -179,7 +203,10 @@ export default function InviteUserModal({ onClose, onSuccess }: InviteUserModalP
               {loading
                 ? <div className="w-4 h-4 border-2 border-primary-foreground/40 border-t-primary-foreground rounded-full animate-spin" />
                 : <UserPlus className="w-4 h-4" />}
-              Crear usuario
+              {/* El texto cambia, no sólo el spinner: un ícono girando dice "algo
+                  pasa", el verbo dice QUÉ pasa — y es la mitad que evita el
+                  reintento. */}
+              {loading ? 'Enviando invitación…' : 'Crear usuario'}
             </button>
           </div>
         </form>
