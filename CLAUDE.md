@@ -1065,6 +1065,137 @@ estilo:
   tarjeta. Un insight calculado sobre otro conjunto que el número que acompaña es
   peor que no tener insight.
 
+## Analítica — cuatro preguntas de dueño, no un grid de métricas
+
+Rediseño del 2026-08-05 (decisión del owner). La página dejó de ser el grid
+heredado del template y responde CUATRO preguntas, cada una atada a una decisión:
+**rentabilidad** (¿estoy ganando o solo vendiendo? → qué SKU sostener),
+**cartera** (¿cuánta plata mía está en la calle? → a quién cobrar),
+**trayectoria** (¿el negocio crece? → si el rumbo sirve) y **clientes y canales**
+(¿quién y por dónde? → dónde concentrar).
+
+**El principio de corte: si una sección no cambia ninguna decisión, es
+decoración.** Es lo que justifica que murieran cosas que "funcionaban".
+
+`/api/analytics` se REESCRIBIÓ EN SU SITIO; no hay `/v2`. No es preferencia de
+estilo: el endpoint viejo tenía su propia definición de "ingreso" (sumaba
+`Order.total` en vez del libro de pagos) y un `/v2` lo habría dejado vivo, sin
+consumidores que lo mantuvieran honesto — que es exactamente cómo
+`razonDelServidor` y `cruzoMinimo` terminaron duplicados y divergiendo. Además
+ninguna de sus salidas sobrevivía intacta, así que no había convivencia que
+comprar.
+
+Los cinco defectos que tenía, por si alguien los reintroduce creyéndolos
+inofensivos: no excluía `SN-` en ninguna métrica; bucketeaba los meses en JS con
+el reloj del SERVIDOR (`new Date(...).getMonth()`), no en SQL con Bogotá;
+`margenBruto` promediaba el % del CATÁLOGO sin ponderar por ventas —un número que
+no miraba una sola orden—; `tasaRetencion` dividía entre TODOS los clientes,
+incluidos los que nunca compraron; y `categoryData` ya era payload muerto.
+**Sobrevivió intacto `/api/analytics/weekly`**: era la única parte que ya cumplía
+el estándar (día bucketeado en SQL, Bogotá, solo `CN-`, no canceladas).
+
+### El COSTO no está snapshoteado — y eso es una decisión escrita, no un detalle
+
+`OrderItem` guarda `precio_unitario` y `subtotal`, **no el costo al momento de la
+venta**. El margen histórico se calcula por tanto contra `Product.costo` ACTUAL:
+si el costo cambió, el margen de una venta vieja se recalcula con el de hoy.
+Aproximación aceptada a esta escala, y por eso la página lo DECLARA ("margen
+estimado con el costo actual del catálogo") en vez de presentarlo como contable.
+
+**Mejora futura propuesta, NO ejecutada:** una columna `costo_unitario` en
+`OrderItem` (migración aditiva, nullable) llenada de aquí en adelante. Convierte
+el margen futuro en un hecho y deja el histórico como está.
+
+Tres consecuencias que se descubrieron construyéndolo y que NO son obvias:
+
+- **El margen va sobre MERCANCÍA, sin envío.** Los ingresos del cálculo son suma
+  de `OrderItem.subtotal`, no de `Payment.monto`. El pago incluye el costo de
+  envío y el costo de la mercancía no, así que restar uno del otro **inflaría el
+  margen por cada despacho**. El envío es un costo trasladado, no utilidad. Por
+  eso el chart de trayectoria dibuja dos líneas con bases distintas y lo dice.
+- **`producto_id` es NULLABLE**, así que hay líneas sin costo resoluble. Se
+  resuelven por FK → nombre exacto → **residual DECLARADO**. Jamás con costo 0:
+  un costo 0 se renderiza como **margen 100%** y convierte un dato que falta en la
+  mejor noticia del mes. Un nombre AMBIGUO (`Product.nombre` no es único — solo
+  `slug` y `sku` lo son) cuenta como costo faltante, no como una moneda al aire;
+  mismo criterio que el `null` de `sugerirZona`.
+- **Un margen negativo se muestra en rojo y NO se recorta a cero.** Vender por
+  debajo del costo es justo lo que esta página existe para mostrar; un
+  `Math.max(0, …)` ahí borraría el único hallazgo que importa. Es la única
+  excepción de color semántico de la tabla (Amber Minimal).
+
+**El margen se calcula SOLO sobre órdenes pagadas, y el período se mide por la
+fecha del PAGO.** Si incluyera pendientes, la misma orden sería utilidad en el
+bloque 1 y cartera en el bloque 2 — **la página se contradiría a sí misma**.
+Consecuencia que conviene tener escrita: cuando una orden pendiente se cobra entra
+al margen del mes EN QUE SE PAGÓ, no del mes en que se creó. Es coherente con el
+libro de pagos del dashboard, y es lo que explica que un mes muestre margen de
+ventas viejas. **Si alguna vez eso confunde, la respuesta es la nota, no cambiar
+la base.**
+
+### La CARTERA no excluye `SN-`, y el criterio es lo que hay que recordar
+
+Es la única excepción de exclusión en toda la página, y no es un olvido:
+
+> **La cartera es una lista de TRABAJO, no una medición.** Su contrato es
+> card=lista y su fuente es la misma que la página de Órdenes. El resto de la
+> página es analítica y sí excluye `SN-`.
+
+Cada bucket linkea a `/admin/ordenes`, que tampoco filtra `SN-`; un conteo que no
+cuadre con la lista a la que lleva es peor que uno que incluye una orden de demo.
+La nota de la sección se lo dice al operador en una línea. **En producción no hay
+`SN-` desde la purga del 2026-08-03**, así que la incoherencia es solo de
+`development`; la exclusión en Órdenes queda como la deuda que ya era (§ "Por
+cobrar" vs "Órdenes Pendientes" — se arregla de los dos lados a la vez o de
+ninguno).
+
+**Cartera = órdenes `pendiente`, y su saldo ES `Order.total`.** No hay pagos
+parciales: `registrarPago` snapshotea el monto del total server-side y transiciona
+a `pagado` (`lib/orders.ts`). Por eso no hay aritmética de saldos. Si algún día
+existen pagos parciales, ESTA es la línea que deja de ser cierta.
+
+**Los buckets de edad se expresan con el filtro que YA existe.** Un bucket de
+envejecimiento es un rango de FECHA DE CREACIÓN, y `parseFilters` de Órdenes ya
+soporta `desde`/`hasta` como day keys de `createdAt` en Bogotá, inclusivos por
+ambos extremos. No se construyó un filtro por edad porque no hacía falta — el
+deep link es EXACTO, no aproximado, y `cartera.test.ts` lo afirma recorriendo día
+por día que el rango del query contiene justo las edades de su bucket. Los cortes
+(7 y 15 días) son constantes `TODO(cliente)`.
+
+### Lo demás, en corto
+
+- **Las reglas puras viven en `lib/metrics/`** (`margen.ts`, `cartera.ts`,
+  `concentracion.ts`, `periodo.ts`) con tests en capa 1, por el criterio de
+  siempre: se extrae lo que tiene la decisión para poder afirmarlo. El endpoint
+  agrega en SQL y **llama a las mismas funciones que la página**, así que el total
+  del header, las filas de la tabla y la línea del chart no pueden discrepar.
+- **`types/analytics.ts` REUSA los tipos de los predicados**, no los redeclara: dos
+  tipos que nunca se comparan pueden divergir sin que el compilador avise.
+- **El selector de período gobierna SOLO el bloque 1**, que es donde vive. Los
+  otros tres declaran su propio período en su subtítulo (la cartera es saldo
+  VIGENTE y no lleva ninguno, § "Por cobrar"). Un selector que moviera números
+  tres pantallas más abajo sin decirlo sería peor que no tenerlo.
+- **La concentración tiene guarda de muestra** (`MIN_CLIENTES_CONCENTRACION` = 6):
+  con 5 clientes el top-5 da 100% por aritmética, y ese 100% se lee como alarma
+  cuando solo dice que el negocio tiene cinco clientes. La LISTA se muestra igual;
+  lo que se calla es el titular. Misma familia que `MIN_ORDENES_INSIGHT`.
+- **La recurrencia usa la fórmula unificada** con el sub "N de M", idéntica a la
+  de la página de Clientes. El dashboard pasó de `kpis.tasaRetencion` a
+  `recurrencia.pct` — es el MISMO número, en un campo que dice qué es.
+- **Los insights de la escalera se aplicaron a la serie larga** tal cual
+  (`widgetInsight`), incluido el descarte del mes en curso y el corte de
+  prehistoria. Muted y sin color, como en las stat cards.
+- **Canales pasó de pie a barras**: son 2–4 categorías y lo que se compara son
+  magnitudes, que una barra responde de un vistazo y un pie obliga a estimar
+  ángulos.
+- **`loading` es DERIVADO, no seteado en el effect** (`data?.periodo.key !==
+  periodo`), apoyado en que el endpoint hace eco del período que resolvió — el
+  mismo mecanismo del `week` de la card semanal. Un `setLoading(true)` síncrono
+  dentro del effect dispara renders en cascada y el lint lo marca.
+- **Fuera de alcance por decisión**: estacionalidad, cohortes y forecasting (sin
+  historia ni volumen), snapshot de costo, filtro por edad en Órdenes, y
+  export/PDF/comparativas configurables.
+
 ## Sugerencia de zona de entrega (heurística de dirección)
 
 `sugerirZona` (`lib/zona-config.ts`) propone la zona leyendo la nomenclatura de
