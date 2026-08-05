@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { Notification } from '@/types/notification';
 import { AnimatedIcon } from '@/components/admin/AnimatedIcon';
 import { Button } from '@/components/ui/button';
-import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { useAccionGuardada, useAccionesPorFila } from '@/hooks/useAccionGuardada';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { tiempoRelativo } from '@/lib/format-fecha';
@@ -199,10 +199,22 @@ export default function NotificationBell() {
     setNotifications(prev => prev.map(n => ({ ...n, leida: true })));
   });
 
-  const markRead = async (id: string) => {
-    await fetch(`/api/notifications/${id}/read`, { method: 'PATCH' });
+  // Marcar UNA como leída. Es idempotente en el server, así que la guarda no
+  // protege el dato — cierra la ventana de silencio: el estado se actualizaba
+  // DESPUÉS del await, así que durante todo el vuelo la fila seguía viéndose sin
+  // leer y admitía otro click.
+  //
+  // Por eso el pintado pasa a ser OPTIMISTA y va ANTES del fetch: en una fila de
+  // notificación no cabe un "Marcando…" —el feedback correcto es que el punto de
+  // no-leída desaparezca—, y hacerlo al instante es a la vez la mitad visible de
+  // la guarda y lo que vuelve imposible el segundo click (el `!n.leida` del call
+  // site ya no pasa). Si el PATCH falla, el badge queda desactualizado como
+  // máximo hasta el próximo poll.
+  const filasLeida = useAccionesPorFila();
+  const markRead = (id: string) => filasLeida.ejecutar(id, async () => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, leida: true } : n));
-  };
+    await fetch(`/api/notifications/${id}/read`, { method: 'PATCH' });
+  });
 
   return (
     <div className="relative" ref={ref}>

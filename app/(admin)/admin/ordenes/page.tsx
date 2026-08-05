@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { BUSINESS_TZ, zonedDayKey } from '@/lib/timezone';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
-import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { useAccionGuardada, useAccionesPorFila } from '@/hooks/useAccionGuardada';
 import { getOrders, createOrder, updateOrder } from '@/lib/api/orders';
 import { ensureOrderShipping } from '@/lib/api/shippings';
 import { getCatalog } from '@/lib/api/products';
@@ -404,13 +404,22 @@ function Ordenes() {
     }
   });
 
-  const handleUpdateStatus = async (id: string, estado: OrderStatus) => {
-    // Same single write path as the modal: the response includes the (possibly
-    // just auto-created) shipping, so "Programar entrega" appears immediately.
-    const updated = await updateOrder(id, { estado });
-    setOrders(prev => prev.map(o => o.id === id ? updated : o));
-    toast.success(`Estado actualizado: ${estado}`);
-  };
+  // Guardas POR FILA y no globales: el operador cambia estados y prepara envíos
+  // de varias órdenes seguidas, y bloquear la tabla entera convertiría la guarda
+  // en una traba — que es justo el roce que hace que la gente vuelva a clickear.
+  // Dos instancias separadas para que cambiar el estado de una fila no bloquee
+  // "Programar entrega" de esa misma fila: son acciones distintas.
+  const filasEstado  = useAccionesPorFila();
+  const filasPrepara = useAccionesPorFila();
+
+  const handleUpdateStatus = (id: string, estado: OrderStatus) =>
+    filasEstado.ejecutar(id, async () => {
+      // Same single write path as the modal: the response includes the (possibly
+      // just auto-created) shipping, so "Programar entrega" appears immediately.
+      const updated = await updateOrder(id, { estado });
+      setOrders(prev => prev.map(o => o.id === id ? updated : o));
+      toast.success(`Estado actualizado: ${estado}`);
+    });
 
   const handleOrderUpdate = (updated: Order) => {
     setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
@@ -424,8 +433,13 @@ function Ordenes() {
   // under ALLOW_UNPAID), create it first via the guarded endpoint — the server
   // is the enforcement point, so a rejection (cancelled, or REQUIRE_PAYMENT) is
   // surfaced here — then open the modal on the fresh Shipping.
-  const openSchedule = async (o: Order) => {
+  // El server es idempotente de verdad acá —chequea el existente dentro de la
+  // transacción y `Shipping.orden_id` es único—, así que la guarda no protege el
+  // dato: protege al operador. Sin ella, el botón se queda mudo mientras viaja y
+  // no hay nada que distinga "está creando el envío" de "no pasó nada".
+  const openSchedule = (o: Order) => {
     if (o.shipping) { setScheduleOrder(o); return; }
+    return filasPrepara.ejecutar(o.id, async () => {
     try {
       const shipping = await ensureOrderShipping(o.id);
       const updated: Order = { ...o, shipping };
@@ -434,6 +448,7 @@ function Ordenes() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'No se pudo preparar la entrega');
     }
+    });
   };
 
   // Whether an order can be scheduled from the table now, and the button label.
@@ -592,7 +607,7 @@ function Ordenes() {
                     </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
-                        <Select value={o.estado} onValueChange={v => handleUpdateStatus(o.id, v as OrderStatus)}>
+                        <Select value={o.estado} onValueChange={v => handleUpdateStatus(o.id, v as OrderStatus)} disabled={filasEstado.enVuelo(o.id)}>
                           <SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {ESTADOS.map(e => (
@@ -618,9 +633,11 @@ function Ordenes() {
                         {canSchedule(o) && (
                           <Button
                             variant="outline" size="sm" className="h-7 gap-1 text-xs whitespace-nowrap"
+                            disabled={filasPrepara.enVuelo(o.id)}
                             onClick={() => openSchedule(o)}
                           >
-                            <Truck className="w-3.5 h-3.5" /> {scheduleLabel(o)}
+                            <Truck className="w-3.5 h-3.5" />
+                            {filasPrepara.enVuelo(o.id) ? 'Preparando…' : scheduleLabel(o)}
                           </Button>
                         )}
                       </div>
