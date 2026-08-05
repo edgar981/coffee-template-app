@@ -179,6 +179,61 @@ específico de versión, esta decisión se revisa.**
 HTTP completos, y el resto de la suite. Ampliarlo es una decisión, no un
 descuido.
 
+## Toast = éxito, inline = error — la división de vehículos
+
+Regla del admin, y aplica a **todo diálogo con mutación**:
+
+- **`toast.success`** para el ÉXITO. Efímero está bien: la acción cerró y no hay
+  nada que hacer con la información.
+- **`<ErrorDialogo>`** para el ERROR, DENTRO del diálogo. Persistente, porque hay
+  algo que corregir y el operador sigue parado ahí.
+
+El contrato de cierre ya garantizaba lo difícil —el diálogo queda ABIERTO y con
+los datos intactos cuando falla—, pero el motivo aparecía en una esquina de la
+pantalla y se desvanecía solo. **La atención está capturada por el modal, que es
+exactamente lo que un modal hace**; el error tiene que vivir donde está mirando.
+
+El precedente es del propio repo: login y aceptar-invitación ya usaban error
+inline (`AvisoError` en `PreAuthShell`) con el argumento de que "en pre-auth el
+toast se pierde". Dentro de un diálogo aplica igual.
+
+- **El patrón es `components/admin/ErrorDialogo.tsx`**: el componente y su hook
+  (`useErrorDialogo`). Es un hook por el mismo motivo que `useAccionGuardada` —
+  lo que se olvida no es MOSTRAR el error, es LIMPIARLO. Un error que sobrevive a
+  un reintento exitoso afirma un fallo que ya no existe, y eso es peor que no
+  tener error inline.
+- **Se limpia en dos momentos**: al reintentar (primera línea del submit) y al
+  cerrar. Los modales cuyo cuerpo se desmonta al cerrar (`{target && <Body
+  key=… />}`) lo obtienen gratis; los que mantienen el `Dialog` montado lo hacen
+  explícito en `onOpenChange`.
+- **LA COLOCACIÓN NO ES DECORATIVA.** Va como hermano flexible a la IZQUIERDA de
+  los botones, ocupando espacio horizontal que la fila ya tenía libre — nunca
+  como banner encima. Un banner que aparece al fallar empuja el layout y mueve
+  los botones justo cuando el cursor está sobre el que se acaba de clickear: el
+  error que explica el fallo no puede ser, además, la causa del siguiente. Como
+  la altura de la fila la fija el botón (h-9 ≈ 36 px) y el texto es `xs`, uno o
+  dos renglones entran sin mover nada.
+- **Excepción declarada**: el Detalle de Orden tiene su botón `w-full` y no deja
+  espacio al lado, así que ahí el error va DEBAJO — que es lo que mantiene quieto
+  al botón, porque su posición la fija el contenido de arriba. Ese diálogo además
+  tiene `max-h-[85vh]` con scroll, que absorbe el crecimiento.
+- **`mostrar(e, fallback)` centraliza sacar el mensaje del servidor.** Mientras
+  fue un `e instanceof Error ? e.message : '…'` repetido en cada catch, cada
+  modal podía tragarse el mensaje por su cuenta — y varios lo hacían.
+- **Lo que NO migra**: validaciones client-side previas al submit (son otro
+  mecanismo y ya tienen su propio aviso), errores de página no-modales, y las
+  escrituras optimistas cuyo diálogo ya cerró (el toggle de Automatizaciones, el
+  panel del dashboard) — ahí no hay diálogo donde poner nada, y su toast lleva
+  "Reintentar".
+
+**`razonDelServidor` vive en `lib/api/errors.ts`** y lo usan todos los helpers de
+mutación. Los endpoints responden `{ error }` con la frase que dice qué corregir
+("Aparece en 3 órdenes; desactívalo…", "Deja al menos una molienda disponible");
+un `throw new Error('Error al guardar')` genérico borra exactamente esa frase.
+Estaba duplicado como función local en `lib/api/products.ts` y por eso tres
+mutaciones seguían tragándose el mensaje — dos definiciones del mismo helper es
+cómo vuelve a pasar.
+
 ## Doble-submit — `useAccionGuardada`, no una receta a recordar
 
 Toda mutación disparada por un control va por el hook de

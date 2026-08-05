@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { formatCOP } from '@/lib/utils';
 import { getCustomer, updateCustomer } from '@/lib/api/customers';
 import { customerWhatsappHref } from '@/lib/whatsapp-link';
@@ -247,7 +248,9 @@ function EditForm({ customer, onClose, onSaved }: {
   });
 
   const guarda = useAccionGuardada();
+  const error = useErrorDialogo();
   const handleSave = () => guarda.ejecutar(async () => {
+    error.limpiar();
     if (!form.nombre.trim()) { toast.error('El nombre es requerido'); return; }
     setSaving(true);
     try {
@@ -256,7 +259,7 @@ function EditForm({ customer, onClose, onSaved }: {
       toast.success('Cliente actualizado');
       onClose();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error al actualizar el cliente');
+      error.mostrar(e, 'Error al actualizar el cliente');
     }
     setSaving(false);
   });
@@ -303,7 +306,8 @@ function EditForm({ customer, onClose, onSaved }: {
             />
           </div>
         </div>
-      <div className="flex justify-end gap-3 pt-2">
+      <div className="flex items-center justify-end gap-3 pt-2">
+        <ErrorDialogo mensaje={error.mensaje} />
         <Button variant="outline" onClick={onClose}>Cancelar</Button>
         <Button onClick={handleSave} disabled={saving || !form.nombre.trim()}>
           {saving ? 'Guardando...' : 'Guardar'}

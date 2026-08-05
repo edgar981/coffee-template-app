@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { toast } from 'sonner';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '@/lib/api/products';
 import type { Product, ProductCategory, ProductForm, RoastLevel } from '@/types/product';
 import { CATEGORIAS, EMPTY_PRODUCT_FORM, TOSTADOS } from '@/constants/product';
@@ -93,6 +94,7 @@ function ProductosInner() {
   // que nadie va a borrar (el PATCH solo sabe borrar el que el producto tenía
   // antes, no el gemelo que se subió en paralelo).
   const guarda = useAccionGuardada();
+  const error  = useErrorDialogo();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Object URL vivo, en un ref y no en estado. Un object URL retiene el File en
   // memoria hasta que se revoca, así que hay que revocarlo — pero NO desde un
@@ -316,6 +318,7 @@ function ProductosInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productos, searchParams]);
   const handleSave = () => guarda.ejecutar(async () => {
+    error.limpiar();
     if (!form.categoria) { toast.error('Selecciona una categoría'); return; }
 
     // Guarda cliente del tope; la que MANDA es la del endpoint.
@@ -400,11 +403,7 @@ function ProductosInner() {
         toast.success('Producto creado');
       }
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message
-        : etapa === 'subiendo' ? 'No se pudo subir la imagen'
-        : 'No se pudo guardar el producto',
-      );
+      error.mostrar(e, etapa === 'subiendo' ? 'No se pudo subir la imagen' : 'No se pudo guardar el producto');
       return;
     } finally {
       setFase(null);
@@ -527,7 +526,7 @@ function ProductosInner() {
       )}
 
       {/* Form Dialog */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) error.limpiar(); setShowForm(o); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Editar Producto' : 'Nuevo Producto'}</DialogTitle>
@@ -739,7 +738,8 @@ function ProductosInner() {
             </div>
           </div>
           <div className="flex flex-col items-end gap-1.5 pt-2">
-            <div className="flex justify-end gap-3">
+            <div className="flex w-full items-center justify-end gap-3">
+            <ErrorDialogo mensaje={error.mensaje} />
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
             {/* El predicado vive en `lib/product-form` y está testeado: inline
                 nadie podía cubrirlo, y un requisito de más ahí bloquea el ALTA

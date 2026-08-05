@@ -5,6 +5,7 @@ import { X, UserPlus, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import RoleBadge from '@/components/admin/RoleBadge';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,12 +50,14 @@ export default function InviteUserModal({ onClose, onSuccess }: InviteUserModalP
   // El arreglo real es un unique en el email de invitaciones pendientes, o el
   // check dentro de la transacción del create.
   const guarda = useAccionGuardada();
+  const error  = useErrorDialogo();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !name.trim()) return;
     return guarda.ejecutar(async () => {
     setLoading(true);
+    error.limpiar();
 
     try {
       const res = await fetch('/api/users/invite', {
@@ -64,13 +67,15 @@ export default function InviteUserModal({ onClose, onSuccess }: InviteUserModalP
       });
 
       if (!res.ok) {
+        // El motivo se queda DENTRO del modal: el formulario sigue lleno y el
+        // operador corrige el correo o el rol sin perder lo escrito.
         if (res.status === 403) {
-          toast.error('No tienes permiso para invitar usuarios.');
+          error.mostrarMensaje('No tienes permiso para invitar usuarios.');
         } else if (res.status === 400) {
           const data = await res.json().catch(() => null);
-          toast.error(data?.error || 'Verifica los datos e intenta de nuevo.');
+          error.mostrarMensaje(data?.error || 'Verifica los datos e intenta de nuevo.');
         } else {
-          toast.error('No se pudo enviar la invitación. Intenta de nuevo.');
+          error.mostrarMensaje('No se pudo enviar la invitación. Intenta de nuevo.');
         }
         return;
       }
@@ -78,7 +83,7 @@ export default function InviteUserModal({ onClose, onSuccess }: InviteUserModalP
       toast.success(`Invitación enviada a ${email}`);
       onSuccess();
     } catch {
-      toast.error('No se pudo conectar. Verifica tu conexión.');
+      error.mostrarMensaje('No se pudo conectar. Verifica tu conexión.');
     } finally {
       setLoading(false);
     }
@@ -183,7 +188,10 @@ export default function InviteUserModal({ onClose, onSuccess }: InviteUserModalP
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-1">
+          {/* El error va en la fila de acciones, a la izquierda de los botones:
+              aparecer no los desplaza bajo el cursor. */}
+          <div className="flex items-center gap-3 pt-1">
+            <ErrorDialogo mensaje={error.mensaje} />
             {/* Cancelar también se bloquea mientras la invitación viaja: cerrar a
                 mitad no cancela nada en el server y deja al operador sin saber si
                 el correo salió. */}
