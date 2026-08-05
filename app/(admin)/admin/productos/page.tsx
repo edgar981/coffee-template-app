@@ -284,7 +284,11 @@ function ProductosInner() {
       categoria:   p.categoria,
       precio:      String(p.precio),
       costo:       String(p.costo),
-      sku:         p.sku,
+      // `?? ''` y no `p.sku` a secas: la columna es nullable y `ProductForm` es
+      // de strings. Un `null` acá llega como `value={null}` a un input
+      // controlado, y React lo reporta en consola. Era el ÚNICO nullable sin
+      // fallback en este mapeo.
+      sku:         p.sku ?? '',
       stock:       String(p.stock),
       stock_minimo: String(p.stock_minimo ?? 5),
       activo:      p.activo,
