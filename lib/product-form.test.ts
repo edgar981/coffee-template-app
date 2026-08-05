@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   puedeGuardarProducto, faltanObligatorios, obligatoriosFaltantes,
-  CAMPOS_OBLIGATORIOS_PRODUCTO,
+  CAMPOS_OBLIGATORIOS_PRODUCTO, accionEstadoProducto,
 } from './product-form';
 import { EMPTY_PRODUCT_FORM } from '@/constants/product';
 import type { ProductForm } from '@/types/product';
@@ -118,4 +118,52 @@ test('el aviso y el botón nunca se contradicen', () => {
       `desincronizados para ${JSON.stringify(form.nombre)}/${JSON.stringify(form.categoria)}`,
     );
   }
+});
+
+// ─── La alternativa de estado del diálogo de borrado ─────────────────────────
+// Existía en una sola dirección: "Desactivar" cuando el producto estaba activo y
+// NADA cuando estaba inactivo. Como el modal tampoco tiene control de `activo`,
+// un producto desactivado quedaba atrapado y la única salida era la base. Lo
+// encontró el owner el 2026-08-04 desactivando un producto para probar el PATCH
+// parcial y descubriendo que no podía devolverlo.
+
+test('activo → se ofrece Desactivar, y manda activo:false', () => {
+  const accion = accionEstadoProducto({ activo: true });
+  assert.equal(accion?.label, 'Desactivar');
+  assert.equal(accion?.activo, false);
+});
+
+test('inactivo → se ofrece Activar, y manda activo:true (EL INVERSO QUE FALTABA)', () => {
+  const accion = accionEstadoProducto({ activo: false });
+  assert.equal(accion?.label, 'Activar');
+  assert.equal(accion?.activo, true);
+});
+
+test('EL INVARIANTE: la acción ofrecida es siempre el inverso del estado actual', () => {
+  // Lo que hay que garantizar no es el texto de cada botón sino que nunca se
+  // ofrezca el estado en el que el producto YA está — ofrecerlo es lo que deja a
+  // alguien sin salida, y no rompe ninguna pantalla mientras pasa.
+  for (const activo of [true, false]) {
+    const accion = accionEstadoProducto({ activo });
+    assert.equal(accion?.activo, !activo, `no es el inverso para activo:${activo}`);
+  }
+});
+
+test('siempre hay alternativa: ningún estado se queda sin salida', () => {
+  for (const activo of [true, false]) {
+    assert.ok(accionEstadoProducto({ activo }), `sin acción para activo:${activo}`);
+  }
+});
+
+test('sin producto no hay acción — el diálogo cerrado no ofrece nada', () => {
+  assert.equal(accionEstadoProducto(null), undefined);
+  assert.equal(accionEstadoProducto(undefined), undefined);
+});
+
+test('cada dirección trae su propio toast, y no se repiten', () => {
+  const a = accionEstadoProducto({ activo: true })!;
+  const b = accionEstadoProducto({ activo: false })!;
+  assert.notEqual(a.successMessage, b.successMessage);
+  assert.match(a.successMessage, /desactivado/i);
+  assert.match(b.successMessage, /activado/i);
 });
