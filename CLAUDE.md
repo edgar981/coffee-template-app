@@ -42,6 +42,33 @@ el `defaultActivo` del registry — por diseño.
 capa quedó fuera** (ver § Las tres capas de verificación). Omitirlo es lo que
 convirtió un dato correcto en una impresión falsa el 2026-08-04.
 
+### GATE DE CAPA 3 = rama declarada + server frío + verificación del artefacto
+
+**Ningún gate manual del owner arranca sin las tres.** No es ceremonia: es el
+protocolo, y las tres son la MISMA pregunta —¿qué está corriendo?— hecha en los
+tres puntos donde se puede mentir.
+
+1. **Rama declarada.** Quien monta el gate dice contra qué rama y qué commit se
+   va a probar, antes de que el owner toque nada.
+2. **Server frío** (`rm -rf .next && npm run dev`) y navegador recargado.
+3. **Evidencia del artefacto compilado**, pegada en el reporte: el `grep -c` de
+   arriba sobre el símbolo que el cambio introduce, dando distinto de cero. Y,
+   cuando el cambio REEMPLAZA algo, también el grep del símbolo VIEJO dando cero
+   — que el nuevo esté no prueba que el viejo se haya ido.
+
+Incidente que lo instaura, 2026-08-04: el owner corrió el gate del PATCH parcial
+(§ El PATCH de producto es PARCIAL de verdad) contra un dev server que servía la
+OTRA rama, porque el fix vivía en una rama propia y nadie lo dijo. Desactivó un
+producto y **ejecutó el bug original contra `development`**: la fila se vació y
+el endpoint intentó borrar la portada del store (la salvó `isDeletable` por el
+prefijo `dev/`, que en producción no aplica). El costo no fue solo el dato — fue
+que por un rato el fix pareció roto y su test del carril pareció mentiroso,
+cuando el test nunca se había ejercido.
+
+**Un gate que no declara su build no está probando el código; está probando lo
+que haya quedado.** Y el modo de falla es peor que no probar: devuelve un
+veredicto con toda la apariencia de ser válido.
+
 ## Las tres capas de verificación
 
 Cada una mide algo que las otras no pueden, y **ninguna sustituye a las otras**.
