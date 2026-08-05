@@ -697,6 +697,33 @@ síntoma no apunta a la causa: se lee como problema de la API key o del dominio.
   **sin lanzar**: el regex podría ser más estricto que Resend, y tumbar un envío
   que funcionaba es peor que uno que falla dejando rastro.
 
+### `sslmode=verify-full` explícito en las cadenas de Postgres
+
+Las dos cadenas (`DATABASE_URL` pooled y `DIRECT_DATABASE_URL` directa) llevan
+`sslmode=verify-full`, no `require`. **No cambia el comportamiento: lo congela.**
+
+`pg-connection-string` hoy trata `prefer`, `require` y `verify-ca` como alias de
+`verify-full`, y avisa que en pg v9 / pg-connection-string v3 van a adoptar la
+semántica de libpq — que es MÁS DÉBIL. O sea que dejar `require` es aceptar que
+un upgrade futuro degrade la verificación del certificado en silencio. Escribir
+`verify-full` deja lo que ya pasa, dicho.
+
+**PENDIENTE DEL OWNER: las cuatro filas del dashboard de Vercel** (Production y
+Preview × pooled y directa). El `.env` local ya está; producción y preview siguen
+con `require` hasta que se editen a mano, y aplica la regla de arriba — el valor
+va crudo, sin comillas.
+
+Sobre el warning que lo destapó, para no volver a investigarlo: **el driver nunca
+se movió.** `pg` (8.21.0) y `pg-connection-string` (2.13.0) están así desde el
+commit inicial; lo único que cambió en el vecindario fue `@prisma/adapter-pg`
+7.8.0 → 7.9.1 en `2a0f1d4`. El aviso sale de `pg-connection-string/index.js` y
+tiene guarda de una sola vez (`deprecatedSslModeWarning.warned`), así que **se
+emite una vez por proceso de Node**: sólo se ve en arranques en frío. Pareció
+nuevo el 2026-08-05 porque el protocolo del gate (§ GATE DE CAPA 3) nos tenía
+reiniciando en frío cinco veces seguidas — no porque hubiera una regresión. Es el
+mismo modo de falla de siempre en este repo: **lo que se ve cambiar no es
+necesariamente lo que cambió.**
+
 ## Migraciones y deploy
 
 - **CADA ENTORNO MIGRA SU PROPIA BASE.** `npm run build` corre `prisma

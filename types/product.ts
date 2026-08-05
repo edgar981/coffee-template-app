@@ -27,7 +27,20 @@ export interface Product {
   categoria: ProductCategory;
   precio: number;
   costo: number;
-  sku: string;
+  /**
+   * NULLABLE, como la columna (`sku String? @unique` en Prisma). Un producto
+   * puede vivir sin SKU —el formulario no lo exige y el POST hace
+   * `body.sku || null`— así que la API devuelve `null`, no `undefined`: por eso
+   * es `string | null` y no `sku?: string`.
+   *
+   * Estuvo declarado `string` a secas y ese tipo MENTÍA. Costó un error de React
+   * en pantalla: `openEdit` hacía `sku: p.sku` sin fallback —el único de los
+   * nullables sin `?? ''`— y tsc no podía verlo porque, según el tipo, `p.sku`
+   * siempre era string. Salió a la luz cuando el PATCH destructivo dejó un SKU
+   * en null y el `<Input value={null}>` gritó. El bug era anterior e
+   * independiente: cualquier producto creado sin SKU lo dispara igual.
+   */
+  sku: string | null;
   stock: number;
   stock_minimo?: number;
   activo: boolean;
