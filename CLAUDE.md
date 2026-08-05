@@ -56,6 +56,28 @@ tres puntos donde se puede mentir.
    cuando el cambio REEMPLAZA algo, también el grep del símbolo VIEJO dando cero
    — que el nuevo esté no prueba que el viejo se haya ido.
 
+**El grep del símbolo viejo tiene que usar algo que el cambio BORRE, no algo que
+REUBIQUE.** Es la parte que se hace mal sola. Verificando el PATCH parcial, el
+primer intento grepeó `Number(body.precio)` y dio 1 — con toda la pinta de que el
+código viejo seguía vivo. No lo estaba: el fix conserva a propósito el manejo de
+cada valor PRESENTE, así que esa expresión ahora vive DENTRO de `datosDelPatch`.
+El discriminador real era el patrón que el fix elimina de veras (el objeto
+literal incondicional, `nombre: body.nombre` → 0). Un discriminador flojo miente
+en las dos direcciones: da falso positivo de "artefacto rancio", y —peor— puede
+dar cero por una refactorización de nombres sin que el cambio esté.
+
+**LÍMITE CONOCIDO: rutas de cliente detrás de sesión.** El paso 3 no lo puede
+hacer quien monta el gate. `/admin/*` pasa por `proxy.ts`, que responde 307 sin
+sesión, así que en un build frío la página **no compila** hasta que la cargue
+alguien logueado — y el artefacto no existe para grepear. En esos gates:
+
+- quien monta el gate declara rama, server frío, y entrega el `grep` ya escrito;
+- **quien tiene la sesión corre el grep en su PRIMERA carga**, antes de probar;
+- y su checklist incluye **confirmar que VE el comportamiento nuevo**, no sólo
+  que "funciona". Una pantalla que funciona igual que antes es indistinguible de
+  una pantalla que sigue siendo la de antes — que es exactamente el modo de falla
+  del 2026-08-04, donde el veredicto pareció válido porque nada se veía roto.
+
 Incidente que lo instaura, 2026-08-04: el owner corrió el gate del PATCH parcial
 (§ El PATCH de producto es PARCIAL de verdad) contra un dev server que servía la
 OTRA rama, porque el fix vivía en una rama propia y nadie lo dijo. Desactivó un
