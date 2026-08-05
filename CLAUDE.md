@@ -42,6 +42,28 @@ el `defaultActivo` del registry — por diseño.
 capa quedó fuera** (ver § Las tres capas de verificación). Omitirlo es lo que
 convirtió un dato correcto en una impresión falsa el 2026-08-04.
 
+**Regla de reporte: todo reporte CIERRA con el estado de `main` local contra
+`origin/main`** — cuántos commits adelante y cuántos atrás, aunque sea cero.
+
+Es una línea y se pone siempre, no sólo cuando hay algo que decir. El día que se
+pone sólo "cuando corresponde", vuelve a depender de que alguien se acuerde — y
+acordarse es justo lo que falla. El 2026-08-05 un merge gateado se quedó local un
+turno entero sin que nadie lo mencionara, y el turno siguiente el reporte habló de
+"un merge sin pushear" cuando eran dos. No costó un incidente de milagro: `main`
+divergido es cómo empiezan los que sí cuestan (§ Bases de datos, § GATE DE CAPA 3
+— las tres son la misma pregunta, *¿qué está corriendo?*, en tres capas
+distintas).
+
+```bash
+git log --oneline origin/main..main | wc -l   # adelante
+git log --oneline main..origin/main | wc -l   # atrás
+```
+
+Y el push a `main` **se sigue pidiendo cada vez**, con lo que el deploy incluye
+dicho en el reporte (decisión del owner, 2026-08-05: la liturgia del deploy
+declarado se queda porque es barata y ya pagó). Reportar el desfase no es
+autorización para cerrarlo.
+
 ### GATE DE CAPA 3 = rama declarada + server frío + verificación del artefacto
 
 **Ningún gate manual del owner arranca sin las tres.** No es ceremonia: es el
