@@ -51,7 +51,10 @@ export interface Product {
   molienda?: string;
   /**
    * Opciones de molienda que ve el cliente (espejo del Json en Prisma).
-   * El admin activa nuevas moliendas con `disponible` — sin cambios de código.
+   * El admin las edita en el modal de producto ("Opciones de molienda para el
+   * cliente"): agregar, renombrar y activar con `disponible` — sin SQL ni
+   * cambios de código. Distinto de `molienda`, que es ficha técnica.
+   * Las reglas de escritura viven en `lib/moliendas-opciones` (`validarOpciones`).
    */
   moliendasOpciones?: MoliendaOpcion[];
   /** Notas de cata completas del empaque — detalle del producto */

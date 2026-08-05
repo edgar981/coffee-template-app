@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { sanitizeGaleria, MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
+import { sanitizeOpciones, validarOpciones } from '@/lib/moliendas-opciones';
+import type { Prisma } from '@/src/generated/prisma/client';
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -33,6 +35,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Opciones de molienda: mismas reglas que el PATCH — un producto no puede
+  // NACER con una lista que lo deje incompraable. Solo se tocan si el body las
+  // trae; ausentes = producto que no pide molienda (columna null).
+  const opciones = body.moliendasOpciones !== undefined
+    ? sanitizeOpciones(body.moliendasOpciones)
+    : null;
+  if (opciones) {
+    const problemas = validarOpciones(opciones);
+    if (problemas.length > 0) {
+      return NextResponse.json({ error: problemas[0].mensaje }, { status: 400 });
+    }
+  }
+
   const product = await prisma.product.create({
     data: {
       nombre:      body.nombre,
@@ -51,6 +66,9 @@ export async function POST(req: NextRequest) {
       tostado:     body.tostado             || null,
       imagen:      body.imagen              || '',
       imagenes:    galeria,
+      // El cast es el mismo de `prisma/seed.ts`: la columna es Json y el cliente
+      // generado no acepta una interfaz sin index signature.
+      ...(opciones ? { moliendasOpciones: opciones as unknown as Prisma.InputJsonValue } : {}),
     },
   });
 

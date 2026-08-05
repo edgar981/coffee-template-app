@@ -4,6 +4,8 @@ import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { storage } from '@/lib/storage';
 import { sanitizeGaleria, blobsRetirados, MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
+import { datosDelPatch, trae } from '@/lib/product-update';
+import { sanitizeOpciones, validarOpciones } from '@/lib/moliendas-opciones';
 
 export async function PATCH(
   req: NextRequest,
@@ -19,13 +21,38 @@ export async function PATCH(
 
   // Galería: se normaliza (solo strings no vacíos, sin duplicados) y se valida
   // el tope ACÁ, que es la validación que manda — la del formulario es aviso
-  // temprano. El tope cuenta tomas adicionales, no la portada.
-  const galeria = sanitizeGaleria(body.imagenes);
-  if (galeria.length > MAX_GALERIA_IMAGENES) {
-    return NextResponse.json(
-      { error: `La galería admite máximo ${MAX_GALERIA_IMAGENES} imágenes adicionales (llegaron ${galeria.length}).` },
-      { status: 400 },
-    );
+  // temprano. El tope cuenta tomas adicionales, no la portada. Solo si el body
+  // TRAE la clave: un PATCH que no habla de la galería no la valida ni la toca.
+  if (trae(body, 'imagenes')) {
+    const galeria = sanitizeGaleria(body.imagenes);
+    if (galeria.length > MAX_GALERIA_IMAGENES) {
+      return NextResponse.json(
+        { error: `La galería admite máximo ${MAX_GALERIA_IMAGENES} imágenes adicionales (llegaron ${galeria.length}).` },
+        { status: 400 },
+      );
+    }
+  }
+
+  // Opciones de molienda. Esta es la validación que MANDA — la del modal es aviso
+  // temprano — y su regla dura es la del checkout: si el producto declara
+  // opciones, al menos una tiene que estar disponible. Sin eso, `moliendaAceptada`
+  // rechaza todas y el producto queda vivo en el catálogo pero incompraable.
+  //
+  // Sólo si el body TRAE la clave — la misma regla general del endpoint
+  // (§ El PATCH de producto es PARCIAL de verdad). Acá importa el doble: este
+  // PATCH también lo llama el "Desactivar" con un body de un solo campo, y
+  // escribir `moliendasOpciones` sin condición vaciaría la lista por desactivar
+  // un producto. Eso no sería perder un campo: sería cambiarle el comportamiento
+  // a su card en la tienda.
+  //
+  // ESTA validación se queda en el handler porque produce un 400; QUIÉN escribe
+  // el campo es de `datosDelPatch`. Las dos comparten las funciones puras, así
+  // que no pueden discrepar sobre qué es una lista válida.
+  if (trae(body, 'moliendasOpciones')) {
+    const problemas = validarOpciones(sanitizeOpciones(body.moliendasOpciones));
+    if (problemas.length > 0) {
+      return NextResponse.json({ error: problemas[0].mensaje }, { status: 400 });
+    }
   }
 
   // Estado ANTERIOR de las imágenes, para borrar del store lo que esta edición
@@ -37,27 +64,12 @@ export async function PATCH(
     select: { imagen: true, imagenes: true },
   });
 
+  // SOLO los campos que el body trae. La selección vive en `lib/product-update`
+  // porque es donde estaba el defecto y es lo que el carril de integración
+  // afirma contra una base real: un PATCH parcial no puede tocar nada más.
   const updated = await prisma.product.update({
     where: { id: id },
-    data: {
-      nombre:      body.nombre,
-      slug:        body.slug        || undefined,
-      descripcion: body.descripcion || '',
-      categoria:   body.categoria,
-      precio:      Number(body.precio)       || 0,
-      costo:       Number(body.costo)        || 0,
-      sku:         body.sku                  || null,
-      stock:       Number(body.stock)        || 0,
-      stock_minimo: Number(body.stock_minimo) || 5,
-      activo:      body.activo               ?? true,
-      peso_gramos: body.peso_gramos ? Number(body.peso_gramos) : null,
-      variante:    body.variante             || null,
-      origen:      body.origen               || null,
-      tostado:     body.tostado              || null,
-      imagen:      body.imagen               || '',
-      imagenes:    galeria,
-      updatedAt:   new Date(),
-    },
+    data: { ...datosDelPatch(body), updatedAt: new Date() },
   });
 
   // Reemplazo de imagen: el blob viejo queda sin referencias, se borra. Va
@@ -67,6 +79,12 @@ export async function PATCH(
   // ignora por sí solo las URLs que no administra (las estáticas de public/).
   // La portada anterior solo se borra si además dejó de estar en la galería:
   // degradar la portada a toma adicional NO puede borrar su blob.
+  //
+  // ESTO SE DEFIENDE SOLO desde que el update es parcial, y por una razón que hay
+  // que conservar: el diff es BASE-ANTES contra BASE-DESPUÉS, nunca contra el
+  // body. Un PATCH que no habla de imágenes deja las dos lecturas idénticas, así
+  // que no hay nada retirado y no se borra nada. Reescribir esto para decidir
+  // desde `body` reabriría el agujero: era el update el que mentía, no el diff.
   const anterior = previo?.imagen ?? '';
   const portadaRetirada = anterior && anterior !== updated.imagen && !updated.imagenes.includes(anterior);
 

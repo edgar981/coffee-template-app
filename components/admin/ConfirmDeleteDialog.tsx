@@ -56,6 +56,18 @@ interface ConfirmDeleteDialogProps {
    * product with sales history). Rendered as an outline button beside Cancel.
    */
   secondaryAction?: SecondaryAction;
+  /**
+   * Naturaleza de la acción confirmada. `'destructive'` (default) es la forma de
+   * siempre: botón rojo sólido, "Eliminando…" mientras viaja.
+   *
+   * `'default'` lo vuelve una confirmación NO destructiva —ámbar, y el verbo del
+   * propio `confirmLabel` como texto intermedio— para acciones sensibles que no
+   * borran nada: hoy, activar un producto desde el badge "Inactivo". El diálogo
+   * ya sabía hacer lo difícil (candado único, error del server a la vista, no se
+   * cierra si falla); lo que hacía falta era no pintar de rojo algo que no
+   * destruye. Los demás call sites no pasan el prop y quedan idénticos.
+   */
+  confirmKind?: 'destructive' | 'default';
 }
 
 export function ConfirmDeleteDialog({
@@ -68,7 +80,16 @@ export function ConfirmDeleteDialog({
   onConfirm,
   successMessage,
   secondaryAction,
+  confirmKind = 'destructive',
 }: ConfirmDeleteDialogProps) {
+  // El texto intermedio y el error de respaldo salen de la naturaleza de la
+  // acción: "Eliminando…" sobre una activación sería una mentira en el momento
+  // exacto en que el operador está mirando el botón para saber qué pasa.
+  const destructiva = confirmKind === 'destructive';
+  const busyLabel   = destructiva ? 'Eliminando…' : `${confirmLabel}…`;
+  const errorLabel  = destructiva
+    ? 'No se pudo completar la eliminación'
+    : 'No se pudo completar la acción';
   // ONE lock for both buttons: while either action runs, both are disabled and the
   // dialog can't be dismissed (Escape / programmatic close are swallowed below).
   const [busy, setBusy] = useState<'confirm' | 'secondary' | null>(null);
@@ -127,11 +148,11 @@ export function ConfirmDeleteDialog({
             </Button>
           )}
           <Button
-            variant="destructive"
+            variant={destructiva ? 'destructive' : 'default'}
             disabled={loading}
-            onClick={() => run('confirm', onConfirm, successMessage, 'No se pudo completar la eliminación')}
+            onClick={() => run('confirm', onConfirm, successMessage, errorLabel)}
           >
-            {busy === 'confirm' ? 'Eliminando…' : confirmLabel}
+            {busy === 'confirm' ? busyLabel : confirmLabel}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

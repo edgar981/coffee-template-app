@@ -19,8 +19,10 @@ import { formatCOP } from '@/lib/utils';
 import { uploadImagen } from '@/lib/api/upload';
 import { ACCEPT_IMAGENES, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
 import { MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
-import { puedeGuardarProducto, obligatoriosFaltantes } from '@/lib/product-form';
+import { puedeGuardarProducto, obligatoriosFaltantes, accionEstadoProducto, alternativaAlEliminar } from '@/lib/product-form';
 import { ImageLightbox, THUMB_INSPECCIONABLE } from '@/components/admin/ImageLightbox';
+import { MoliendasOpcionesEditor } from '@/components/admin/MoliendasOpcionesEditor';
+import { sanitizeOpciones, validarOpciones, revisarEdicion, type MoliendaOpcion } from '@/lib/moliendas-opciones';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -145,6 +147,44 @@ function ProductosInner() {
     if (galeriaInputRef.current) galeriaInputRef.current.value = '';
   };
 
+  // ── Opciones de molienda del CLIENTE (`Product.moliendasOpciones`) ────────
+  // Estado propio y no dentro de `form`, igual que la galería: `ProductForm` es
+  // de campos de texto y este es una lista de objetos. Lo que se guarda es
+  // exactamente este array — sin ids de cliente que después haya que limpiar.
+  //
+  // NO confundir con `form.molienda`: ese campo (ficha técnica) no lo toca este
+  // editor y hoy no tiene UI, que es una ausencia conocida y anotada.
+  const [moliendas, setMoliendas] = useState<MoliendaOpcion[]>([]);
+  // Quitar una molienda es DESHACIBLE hasta guardar (decisión del owner): la X no
+  // borra la fila, la marca. Lo que la hace barata es que el borrado sea diferido
+  // —la lista no se reindexa mientras el modal está abierto—, así que un Set de
+  // ÍNDICES es estable: agregar solo apendiza y nada se corre de lugar.
+  //
+  // El motivo es la asimetría del error: un click accidental en la X borraba una
+  // opción con su método escrito, y rehacerla es teclear de nuevo; con la marca,
+  // el mismo click accidental cuesta un segundo click. Y el operador ve lo que va
+  // a pasar ANTES de que pase, que es lo que un `confirm()` no da.
+  const [moliendasQuitadas, setMoliendasQuitadas] = useState<Set<number>>(new Set());
+
+  const toggleQuitada = (i: number) => setMoliendasQuitadas(prev => {
+    const siguiente = new Set(prev);
+    if (siguiente.has(i)) siguiente.delete(i); else siguiente.add(i);
+    return siguiente;
+  });
+
+  // Qué se va a guardar y qué está mal, con los índices ya traducidos a la lista
+  // que el editor pinta. Vive en `lib/moliendas-opciones` y está testeado: el
+  // remapeo es un off-by-one que no rompe el guardado, solo señala la fila
+  // equivocada, y por eso nadie lo ve hasta que confunde a alguien.
+  const { vivas: moliendasVivas, problemas } = revisarEdicion(moliendas, moliendasQuitadas);
+
+  // Los problemas se pintan recién DESPUÉS del primer intento de guardar: marcar
+  // en rojo una fila que el operador acaba de crear —y todavía no alcanzó a
+  // nombrar— es regañarlo por estar escribiendo. Una vez que se muestran, se
+  // recalculan en vivo, así que corregir apaga el rojo sin volver a guardar.
+  const [moliendasRevisadas, setMoliendasRevisadas] = useState(false);
+  const problemasMoliendas = moliendasRevisadas ? problemas : [];
+
   const totalGaleria = galeriaActual.length + galeriaPendiente.length;
   // Obligatorios vacíos, para el aviso bajo el botón deshabilitado.
   const faltantes = obligatoriosFaltantes(form);
@@ -216,11 +256,24 @@ function ProductosInner() {
     setImagenPreview(url);
   };
 
-  const openNew  = () => { setEditing(null); setForm(EMPTY_PRODUCT_FORM); limpiarImagen(); limpiarGaleria(); setShowForm(true); };
+  // Un producto nuevo NACE sin opciones: es el caso permisivo (no pide molienda,
+  // la card agrega directo) y el default que no le cambia la tienda a nadie.
+  const limpiarMoliendas = () => {
+    setMoliendas([]);
+    setMoliendasQuitadas(new Set());
+    setMoliendasRevisadas(false);
+  };
+
+  const openNew  = () => { setEditing(null); setForm(EMPTY_PRODUCT_FORM); limpiarImagen(); limpiarGaleria(); limpiarMoliendas(); setShowForm(true); };
   const openEdit = (p: Product) => {
     setEditing(p);
     limpiarImagen();
     limpiarGaleria();
+    // Se normaliza al cargar: la columna es Json, así que un registro viejo o
+    // sembrado a mano puede traer campos faltantes o basura. El editor trabaja
+    // siempre sobre la forma canónica.
+    limpiarMoliendas();
+    setMoliendas(sanitizeOpciones(p.moliendasOpciones));
     setImagenPreview(p.imagen ?? '');
     // La galería que se EDITA excluye la portada aunque el registro la repita:
     // se muestra lo que de verdad son tomas adicionales (ver galeriaCompleta).
@@ -267,6 +320,21 @@ function ProductosInner() {
       return;
     }
 
+    // Opciones de molienda. Aviso temprano con el MISMO predicado del endpoint
+    // (`validarOpciones`), y ANTES de subir nada: una lista inválida hace que el
+    // POST/PATCH devuelva 400, y llegar hasta ahí habría dejado los blobs ya
+    // subidos sin producto que los referencie.
+    //
+    // Guardar es lo que hace EFECTIVO el quitar: viajan solo las vivas. Hasta
+    // acá, la X era reversible.
+    const moliendasLimpias = sanitizeOpciones(moliendasVivas);
+    const problemas = validarOpciones(moliendasLimpias);
+    if (problemas.length > 0) {
+      setMoliendasRevisadas(true);   // desde acá el rojo se recalcula en vivo
+      toast.error(problemas[0].mensaje);
+      return;
+    }
+
     // Orden deliberado: subir → guardar. Si la subida falla no se toca el
     // producto; si el producto falla, el blob nuevo queda huérfano (basura
     // barata) pero la imagen vieja sigue siendo la buena. El blob REEMPLAZADO lo
@@ -309,6 +377,9 @@ function ProductosInner() {
         // Lo que ya estaba (menos lo que el operador quitó) + lo recién subido.
         // El orden es el de subida: v1 no tiene reordenamiento.
         imagenes:    [...galeriaActual, ...galeriaSubidas],
+        // Renombrar o quitar una opción no reescribe historia: las órdenes ya
+        // guardaron su molienda como string (`OrderItem.moliendaSeleccionada`).
+        moliendasOpciones: moliendasLimpias,
       };
 
       // El cierre ocurre SOLO tras confirmación del server. Si falla, el modal
@@ -339,6 +410,7 @@ function ProductosInner() {
     // modal todavía en pantalla, y recién después se cierra.
     limpiarImagen();
     limpiarGaleria();
+    limpiarMoliendas();
     setShowForm(false);
   });
 
@@ -351,12 +423,36 @@ function ProductosInner() {
     setProductos(prev => prev.filter(p => p.id !== deleteTarget.id));
   };
 
-  // The safe alternative offered inside the same dialog: keep the record (and its
-  // order history) but hide it from the catalogue.
-  const confirmDeactivate = async () => {
-    if (!deleteTarget) return;
-    const updated = await updateProduct(deleteTarget.id, { activo: false });
-    setProductos(prev => prev.map(p => p.id === deleteTarget.id ? updated : p));
+  // La alternativa NO destructiva del mismo diálogo, en las DOS direcciones:
+  // desactivar conserva el registro y su historial sacándolo del catálogo, y
+  // activar lo devuelve. El inverso vive acá y no en un toggle del modal para que
+  // el par sea una sola decisión, en un solo lugar.
+  //
+  // Manda un PATCH de UN campo, que es exactamente el caso que el endpoint tiene
+  // que respetar: escribe `activo` y no toca nada más (§ El PATCH de producto es
+  // PARCIAL de verdad). Antes del arreglo, este mismo llamado vaciaba la ficha y
+  // le borraba los blobs.
+  const confirmCambiarEstado = async (activo: boolean, id?: string) => {
+    const objetivo = id ?? deleteTarget?.id;
+    if (!objetivo) return;
+    const updated = await updateProduct(objetivo, { activo });
+    setProductos(prev => prev.map(p => p.id === objetivo ? updated : p));
+  };
+
+  // La alternativa del diálogo de ELIMINAR: desactivar, y sólo eso. Activar salió
+  // de acá — vive en el badge, que es el affordance que la promete.
+  const alternativaBorrado = alternativaAlEliminar(deleteTarget);
+
+  // Producto que el operador pidió ACTIVAR desde su badge "Inactivo". Estado
+  // aparte de `deleteTarget` a propósito: son dos intenciones distintas y
+  // mezclarlas en un solo target obligaría a un modo, que es justo la forma en que
+  // un diálogo termina mostrando el verbo equivocado.
+  const [activarTarget, setActivarTarget] = useState<Product | null>(null);
+  const accionActivar = accionEstadoProducto(activarTarget);
+
+  const confirmActivar = async () => {
+    if (!activarTarget) return;
+    await confirmCambiarEstado(true, activarTarget.id);
   };
 
   const field = <K extends keyof ProductForm>(key: K) => ({
@@ -419,11 +515,11 @@ function ProductosInner() {
       ) : view === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map(p => (
-            <ProductCard key={p.id} product={p} onEdit={openEdit} onDelete={setDeleteTarget} />
+            <ProductCard key={p.id} product={p} onEdit={openEdit} onDelete={setDeleteTarget} onActivar={setActivarTarget} />
           ))}
         </div>
       ) : (
-        <ProductTable productos={filtered} onEdit={openEdit} onDelete={setDeleteTarget} />
+        <ProductTable productos={filtered} onEdit={openEdit} onDelete={setDeleteTarget} onActivar={setActivarTarget} />
       )}
 
       {/* Form Dialog */}
@@ -499,6 +595,20 @@ function ProductosInner() {
                 placeholder="Descripción del producto..."
               />
             </div>
+            {/* Opciones de molienda del CLIENTE. Editar esto no es llenar un
+                campo de la ficha: la cantidad de opciones DISPONIBLES decide si
+                la card del catálogo agrega directo o manda al detalle. Va
+                deshabilitado mientras la mutación viaja — misma mitad de estado
+                que el botón Guardar. */}
+            <MoliendasOpcionesEditor
+              opciones={moliendas}
+              onChange={setMoliendas}
+              quitadas={moliendasQuitadas}
+              onToggleQuitada={toggleQuitada}
+              problemas={problemasMoliendas}
+              disabled={!!fase}
+            />
+
             {/* Imagen. El preview es local hasta que se guarda: seleccionar no
                 sube nada (ver `imagenFile`). Al reemplazar la de un producto
                 existente, el server borra el blob anterior en el PATCH. */}
@@ -648,8 +758,11 @@ function ProductosInner() {
       </Dialog>
 
       {/* Delete confirmation — themed replacement for window.confirm(). A product
-          with sales history can't be deleted (server 409); "Desactivar" is offered
-          in its place (only while the product is still active). */}
+          with sales history can't be deleted (server 409); la alternativa NO
+          destructiva se ofrece en su lugar, y va en las DOS direcciones: activo →
+          "Desactivar", inactivo → "Activar". Cuál corresponde lo decide
+          `accionEstadoProducto`, que está testeado — ofrecer el estado en el que el
+          producto YA está es lo que dejaba productos atrapados en Inactivo. */}
       <ConfirmDeleteDialog
         open={!!deleteTarget}
         onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
@@ -657,13 +770,40 @@ function ProductosInner() {
         entityLabel={deleteTarget
           ? [deleteTarget.nombre, deleteTarget.sku].filter(Boolean).join(' · ')
           : ''}
-        consequence="Se eliminará permanentemente del catálogo. Esta acción no se puede deshacer. Si tiene ventas registradas, desactívalo para conservar el historial."
+        // El texto sigue al estado. Para uno ya inactivo no hay alternativa que
+        // ofrecer, así que la descripción hace el trabajo que hacía el botón:
+        // decir que su historial está a salvo y que volver al catálogo se hace
+        // desde su badge, no desde acá.
+        consequence={deleteTarget && !deleteTarget.activo
+          ? 'Se eliminará permanentemente del catálogo. Esta acción no se puede deshacer. Ya está inactivo: no aparece en la tienda y su historial sigue intacto. Para devolverlo al catálogo, usa el badge "Inactivo" de su tarjeta.'
+          : 'Se eliminará permanentemente del catálogo. Esta acción no se puede deshacer. Si tiene ventas registradas, desactívalo para conservar el historial.'}
         confirmLabel="Eliminar producto"
         successMessage="Producto eliminado"
         onConfirm={confirmDelete}
-        secondaryAction={deleteTarget?.activo
-          ? { label: 'Desactivar', onAction: confirmDeactivate, successMessage: 'Producto desactivado' }
-          : undefined}
+        secondaryAction={alternativaBorrado && {
+          label:          alternativaBorrado.label,
+          onAction:       () => confirmCambiarEstado(alternativaBorrado.activo),
+          successMessage: alternativaBorrado.successMessage,
+        }}
+      />
+
+      {/* Activar, disparado por el badge "Inactivo". Confirma —poner un producto
+          en la tienda es una acción hacia afuera— pero NO es destructivo, así que
+          `confirmKind="default"` lo pinta ámbar y no rojo. Reusa el mismo diálogo
+          por lo que ya resuelve: candado único, mensaje del servidor a la vista y
+          no se cierra si falla. */}
+      <ConfirmDeleteDialog
+        open={!!activarTarget}
+        onOpenChange={(o) => { if (!o) setActivarTarget(null); }}
+        title="Activar producto"
+        entityLabel={activarTarget
+          ? [activarTarget.nombre, activarTarget.sku].filter(Boolean).join(' · ')
+          : ''}
+        consequence="Volverá al catálogo de la tienda y los clientes podrán comprarlo. Podrás desactivarlo de nuevo cuando quieras."
+        confirmLabel="Activar producto"
+        confirmKind="default"
+        successMessage={accionActivar?.successMessage}
+        onConfirm={confirmActivar}
       />
 
       {/* Inspección de una miniatura. Se monta fuera del formulario para que su
@@ -680,13 +820,25 @@ function ProductosInner() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+// Affordance del badge "Inactivo", que es una MANIJA y no una etiqueta: es lo que
+// promete la acción que antes vivía escondida detrás del ícono de basura. Una
+// constante compartida por la cuadrícula y la tabla —igual que
+// `THUMB_INSPECCIONABLE`— para que las dos vistas no puedan divergir en cuánto se
+// nota que se puede clickear. Hover de TINTE (`--accent`), nunca relleno sólido:
+// el badge es neutro y lo sigue siendo (Amber Minimal).
+const BADGE_ACTIVABLE =
+  'cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ' +
+  'focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+
 interface ProductCardProps {
-  product:  Product;
-  onEdit:   (p: Product) => void;
-  onDelete: (p: Product) => void;
+  product:   Product;
+  onEdit:    (p: Product) => void;
+  onDelete:  (p: Product) => void;
+  onActivar: (p: Product) => void;
 }
 
-function ProductCard({ product: p, onEdit, onDelete }: ProductCardProps) {
+function ProductCard({ product: p, onEdit, onDelete, onActivar }: ProductCardProps) {
   const lowStock = p.stock <= (p.stock_minimo ?? 5);
   const margin   = p.precio && p.costo
     ? Math.round(((p.precio - p.costo) / p.precio) * 100)
@@ -711,10 +863,19 @@ function ProductCard({ product: p, onEdit, onDelete }: ProductCardProps) {
             <AlertTriangle className="w-3 h-3" /> Stock bajo
           </span>
         )}
+        {/* No es una etiqueta: es LA manija para devolver el producto al catálogo.
+            Antes esa acción sólo existía dentro del diálogo de eliminar, o sea que
+            el ícono de basura prometía una cosa y escondía la contraria. */}
         {!p.activo && (
-          <span className="absolute top-2 left-2 bg-muted text-muted-foreground text-xs px-2 py-0.5 rounded-full">
+          <button
+            type="button"
+            onClick={() => onActivar(p)}
+            aria-label={`Activar ${p.nombre}`}
+            title="Activar producto"
+            className={`absolute top-2 left-2 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground ${BADGE_ACTIVABLE}`}
+          >
             Inactivo
-          </span>
+          </button>
         )}
       </div>
       <div className="p-4">
@@ -749,9 +910,10 @@ interface ProductTableProps {
   productos: Product[];
   onEdit:    (p: Product) => void;
   onDelete:  (p: Product) => void;
+  onActivar: (p: Product) => void;
 }
 
-function ProductTable({ productos, onEdit, onDelete }: ProductTableProps) {
+function ProductTable({ productos, onEdit, onDelete, onActivar }: ProductTableProps) {
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
@@ -780,14 +942,25 @@ function ProductTable({ productos, onEdit, onDelete }: ProductTableProps) {
                     <span className={lowStock ? 'text-red-500 font-semibold' : ''}>{p.stock}</span>
                     {lowStock && <AlertTriangle className="w-3 h-3 text-red-500 inline ml-1" />}
                   </td>
+                  {/* Mismo trato que en la cuadrícula: "Inactivo" es manija, no
+                      etiqueta. Sin esto, quien trabaja en vista Tabla se queda con
+                      el callejón sin salida que esta tanda vino a cerrar. */}
                   <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      p.activo
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {p.activo ? 'Activo' : 'Inactivo'}
-                    </span>
+                    {p.activo ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                        Activo
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onActivar(p)}
+                        aria-label={`Activar ${p.nombre}`}
+                        title="Activar producto"
+                        className={`text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 ${BADGE_ACTIVABLE}`}
+                      >
+                        Inactivo
+                      </button>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">

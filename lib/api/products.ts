@@ -25,13 +25,22 @@ export function getCatalog(): Promise<Product[]> {
   return catalogPromise;
 }
 
+// El mensaje del servidor, cuando lo trae. Los 400 de este endpoint explican una
+// regla concreta ("deja al menos una molienda disponible", el tope de galería) y
+// un "Error al guardar" genérico borraría justo la parte que le dice al operador
+// qué corregir. Mismo trato que ya tenía `deleteProduct` con su 409.
+async function razonDelServidor(res: Response, fallback: string): Promise<Error> {
+  const msg = await res.json().then((d) => d?.error).catch(() => null);
+  return new Error(msg || fallback);
+}
+
 export async function createProduct(data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>): Promise<Product> {
   const res = await fetch('/api/products', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Error al crear producto');
+  if (!res.ok) throw await razonDelServidor(res, 'Error al crear producto');
   return res.json();
 }
 
@@ -41,16 +50,13 @@ export async function updateProduct(id: string, data: Partial<Product>): Promise
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Error al actualizar producto');
+  if (!res.ok) throw await razonDelServidor(res, 'Error al actualizar producto');
   return res.json();
 }
 
 export async function deleteProduct(id: string): Promise<void> {
   const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
-  if (!res.ok) {
-    // Surface the server's reason (e.g. the 409 "aparece en N órdenes; desactívalo")
-    // so the confirm dialog can show it verbatim.
-    const msg = await res.json().then((d) => d?.error).catch(() => null);
-    throw new Error(msg || 'Error al eliminar producto');
-  }
+  // Surface the server's reason (e.g. the 409 "aparece en N órdenes; desactívalo")
+  // so the confirm dialog can show it verbatim.
+  if (!res.ok) throw await razonDelServidor(res, 'Error al eliminar producto');
 }

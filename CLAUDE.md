@@ -42,6 +42,55 @@ el `defaultActivo` del registry — por diseño.
 capa quedó fuera** (ver § Las tres capas de verificación). Omitirlo es lo que
 convirtió un dato correcto en una impresión falsa el 2026-08-04.
 
+### GATE DE CAPA 3 = rama declarada + server frío + verificación del artefacto
+
+**Ningún gate manual del owner arranca sin las tres.** No es ceremonia: es el
+protocolo, y las tres son la MISMA pregunta —¿qué está corriendo?— hecha en los
+tres puntos donde se puede mentir.
+
+1. **Rama declarada.** Quien monta el gate dice contra qué rama y qué commit se
+   va a probar, antes de que el owner toque nada.
+2. **Server frío** (`rm -rf .next && npm run dev`) y navegador recargado.
+3. **Evidencia del artefacto compilado**, pegada en el reporte: el `grep -c` de
+   arriba sobre el símbolo que el cambio introduce, dando distinto de cero. Y,
+   cuando el cambio REEMPLAZA algo, también el grep del símbolo VIEJO dando cero
+   — que el nuevo esté no prueba que el viejo se haya ido.
+
+**El grep del símbolo viejo tiene que usar algo que el cambio BORRE, no algo que
+REUBIQUE.** Es la parte que se hace mal sola. Verificando el PATCH parcial, el
+primer intento grepeó `Number(body.precio)` y dio 1 — con toda la pinta de que el
+código viejo seguía vivo. No lo estaba: el fix conserva a propósito el manejo de
+cada valor PRESENTE, así que esa expresión ahora vive DENTRO de `datosDelPatch`.
+El discriminador real era el patrón que el fix elimina de veras (el objeto
+literal incondicional, `nombre: body.nombre` → 0). Un discriminador flojo miente
+en las dos direcciones: da falso positivo de "artefacto rancio", y —peor— puede
+dar cero por una refactorización de nombres sin que el cambio esté.
+
+**LÍMITE CONOCIDO: rutas de cliente detrás de sesión.** El paso 3 no lo puede
+hacer quien monta el gate. `/admin/*` pasa por `proxy.ts`, que responde 307 sin
+sesión, así que en un build frío la página **no compila** hasta que la cargue
+alguien logueado — y el artefacto no existe para grepear. En esos gates:
+
+- quien monta el gate declara rama, server frío, y entrega el `grep` ya escrito;
+- **quien tiene la sesión corre el grep en su PRIMERA carga**, antes de probar;
+- y su checklist incluye **confirmar que VE el comportamiento nuevo**, no sólo
+  que "funciona". Una pantalla que funciona igual que antes es indistinguible de
+  una pantalla que sigue siendo la de antes — que es exactamente el modo de falla
+  del 2026-08-04, donde el veredicto pareció válido porque nada se veía roto.
+
+Incidente que lo instaura, 2026-08-04: el owner corrió el gate del PATCH parcial
+(§ El PATCH de producto es PARCIAL de verdad) contra un dev server que servía la
+OTRA rama, porque el fix vivía en una rama propia y nadie lo dijo. Desactivó un
+producto y **ejecutó el bug original contra `development`**: la fila se vació y
+el endpoint intentó borrar la portada del store (la salvó `isDeletable` por el
+prefijo `dev/`, que en producción no aplica). El costo no fue solo el dato — fue
+que por un rato el fix pareció roto y su test del carril pareció mentiroso,
+cuando el test nunca se había ejercido.
+
+**Un gate que no declara su build no está probando el código; está probando lo
+que haya quedado.** Y el modo de falla es peor que no probar: devuelve un
+veredicto con toda la apariencia de ser válido.
+
 ## Las tres capas de verificación
 
 Cada una mide algo que las otras no pueden, y **ninguna sustituye a las otras**.
@@ -312,6 +361,100 @@ imposible, no una opción descartada.
   seguir respondiendo 200 en el edge un par de segundos. No es un fallo del
   borrado — no escribir tests ni verificaciones que asuman un 404 inmediato.
 
+## El PATCH de producto es PARCIAL de verdad
+
+`PATCH /api/products/[id]` escribe **solo los campos que el body TRAE**. La
+selección vive en `lib/product-update.ts` (`datosDelPatch` + `trae`) y no dentro
+del route handler, por el mismo criterio que `lib/inventory.ts`: **se extrae lo
+que tiene el defecto para poder afirmarlo en un test.**
+
+Incidente 2026-08-04 (encontrado al construir el editor de moliendas, arreglado
+en tanda propia): el endpoint aplicaba un fallback a CADA campo
+(`body.descripcion || ''`, `Number(body.precio) || 0`, `body.sku || null`). **Un
+fallback sobre una clave ausente no es un default, es un borrado.**
+
+Lo disparaba un botón visible del admin, no un cliente exótico: "Desactivar", la
+acción secundaria del `ConfirmDeleteDialog`, manda `{ activo: false }` y nada
+más. Ese click vaciaba la descripción, ponía precio, costo y stock en CERO,
+borraba SKU, variante, origen, tostado y peso, y dejaba `imagen: ''` con
+`imagenes: []`. Sobrevivían `nombre`, `categoria` y `slug` **porque su valor
+`undefined` lo ignora Prisma** — y son justo los que se ven en la lista de
+Productos, que es lo que mantuvo el daño invisible.
+
+Y después venía lo irreversible: el borrado de blobs del propio endpoint veía la
+portada y la galería enteras como "retiradas" y las borraba del store. En
+producción `isDeletable` no frena nada (producción borra sin restricción de
+prefijo), así que desactivar un producto le borraba las imágenes de verdad. **La
+base tiene respaldos; los blobs no.**
+
+- **Presencia de la clave, no verdad del valor.** `''`, `0`, `false` y `null` son
+  ediciones legítimas —vaciar un SKU, poner el costo en cero— y tienen que poder
+  escribirse. `undefined` cuenta como AUSENTE: es lo que manda un cliente que arma
+  el body con campos opcionales (`variante: form.variante || undefined`), así que
+  un `Object.hasOwn` a secas no alcanza.
+- **El manejo de cada valor PRESENTE quedó idéntico.** Esta tanda arregló la
+  ausencia, no la semántica. Única excepción anotada: `imagenes`, que es la que
+  dispara el borrado de blobs.
+- **Un `slug` vacío NO borra el slug.** La columna es única y sostiene la URL del
+  producto en la tienda.
+- **El diff de blobs es BASE-ANTES contra BASE-DESPUÉS, nunca contra el body**, y
+  por eso se defiende solo desde que el update es parcial: un PATCH que no habla
+  de imágenes deja las dos lecturas idénticas. Reescribirlo para decidir desde
+  `body` reabre el agujero — era el update el que mentía, no el diff.
+- **Los campos que el endpoint nunca escribió siguen sin escribirse**
+  (`variedad`, `proceso`, `altitudMin`, `altitudMax`, `molienda`, `notas`,
+  `notasCata`, `descripcionCorta`, `bestseller`, `badge`, `agotado`). Agregarlos
+  es una decisión de producto, no parte de este arreglo.
+- **El test va en el CARRIL, no en la suite pura**
+  (`tests/integracion/patch-producto-parcial.test.ts`), y la razón importa: lo que
+  se afirma no es la forma del objeto que se construye sino lo que la fila TIENE
+  DESPUÉS de escribir. Un test con mocks habría pasado en verde contra el código
+  defectuoso —el objeto que se armaba era exactamente el que Prisma escribió—; lo
+  que delata el bug es releer la fila. Se escribió contra el código roto y se lo
+  vio fallar 6 de 7. **No borrar ese archivo**; la aserción es sobre la fila
+  COMPLETA (`deepEqual` neutralizando `updatedAt`) a propósito, para que una
+  columna nueva del schema quede cubierta el día que alguien la agrega.
+
+### Activar y desactivar: cada dirección por su puerta
+
+Las dos acciones existen y **no viven en el mismo lugar**, que es una decisión y
+no una asimetría accidental:
+
+- **Desactivar** sigue dentro del diálogo de ELIMINAR, como la alternativa no
+  destructiva que se ofrece "en su lugar". Ahí tiene sentido: es la respuesta al
+  409 de un producto con ventas.
+- **Activar** vive en el badge "Inactivo" de la card (y de la fila, en vista
+  Tabla), que se vuelve una manija clickeable y abre su propia confirmación.
+
+El primer intento puso las dos detrás del ícono de basura y duró un solo gate.
+**Una papelera que además activa promete una cosa y esconde la contraria** — es
+la misma regla que hace que `CustomerLink` renderice texto plano cuando no hay
+perfil al que ir ("no dead link, no cursor-pointer promising a navigation that
+won't happen"), aplicada al caso simétrico. Reactivar quedaba reachable pero no
+descubrible: nadie busca "activar" dentro de "Eliminar".
+
+- **`accionEstadoProducto` resuelve el par** (verbo, `activo`, toast) y
+  **`alternativaAlEliminar` filtra por dirección**, derivándose de la primera. Que
+  sea una derivación y no una segunda condición es el punto: el invariante "del
+  flujo de eliminar nunca sale una activación" es una propiedad del filtro, no una
+  convención que haya que recordar. Ambas testeadas en `npm test` (capa 1).
+- **Para un producto ya inactivo el diálogo de eliminar no ofrece alternativa**, y
+  su texto dice dónde está la manija. Un botón menos, pero ninguna salida menos.
+- **`confirmKind` en `ConfirmDeleteDialog`**: `'destructive'` (default, los tres
+  call sites de siempre) o `'default'` para una confirmación que no borra nada —
+  ámbar en vez de rojo, y el verbo del `confirmLabel` como texto intermedio en vez
+  de "Eliminando…". Se reusa el diálogo por lo que ya resuelve (candado único,
+  error del servidor a la vista, no se cierra si falla); lo único que faltaba era
+  no pintar de rojo algo que no destruye. El nombre del componente quedó corto —
+  hoy confirma acciones sensibles, no solo borrados.
+- **La affordance es una constante compartida** (`BADGE_ACTIVABLE`), como
+  `THUMB_INSPECCIONABLE`, para que cuadrícula y tabla no diverjan en cuánto se
+  nota que el badge se puede clickear. Hover de TINTE, nunca relleno: el badge es
+  neutro y lo sigue siendo (Amber Minimal).
+- **Sólo "Inactivo" es clickeable, "Activo" no.** No es descuido: desactivar ya
+  tiene su lugar, y un tercer camino al mismo dato es cómo se llega a dos puertas
+  que se desincronizan.
+
 ## Galería de producto — `imagen` vs `imagenes[]`
 
 Semántica (decisión del owner): **`Product.imagen` es LA portada** en todos sus
@@ -361,6 +504,82 @@ detalle del storefront. v1 **sin reordenamiento**: el orden es el de subida.
 - Un producto puede tener portada estática de `public/` y galería en Blob: las
   guardas del adaptador (`isManaged`) hacen no-op las relativas, así que
   conviven sin migrar nada.
+
+## Opciones de molienda — el editor del admin
+
+`Product.moliendasOpciones` (Json) se edita en el modal de producto, sección
+**"Opciones de molienda para el cliente"**. El label es largo a propósito: son
+DOS campos distintos y confundirlos es fácil — `Product.molienda` (String) es
+ficha técnica ("esta bolsa es molienda Media") y **no lo toca este editor**; hoy
+sigue sin UI, y eso está anotado, no es un descuido de esta tanda.
+
+**Editar esta lista es OPERAR LA TIENDA, no llenar un campo de la ficha.** Con el
+fix híbrido-por-cardinalidad, la cantidad de opciones DISPONIBLES decide el
+comportamiento de la card del catálogo: una → agrega directo; varias → manda al
+detalle a elegir (`decidirMolienda`, `lib/moliendas-opciones.ts`). Por eso el
+editor lleva una línea muted que lo dice; sin ella el operador mueve un toggle y
+la tienda cambia sin que nada lo anuncie.
+
+- **Las reglas de escritura son puras y viven al lado de las de lectura**
+  (`sanitizeOpciones` + `validarOpciones`, testeadas en `npm test` — capa 1). Las
+  corren el modal (aviso temprano) y el POST/PATCH (la que MANDA). Son tres:
+  nombre no vacío; único por producto **comparando sin mayúsculas ni espacios**
+  (`moliendaAceptada` busca por nombre EXACTO, así que dos filas que el ojo lee
+  iguales se comportarían distinto — una compraría y la otra daría 400); y **al
+  menos una disponible**.
+- **La regla de "al menos una disponible" es la que cierra una trampa real**:
+  siete opciones con cero disponibles deja `decidirMolienda` en `agotada` y
+  `moliendaAceptada` rechazando todas, o sea un producto vivo en el catálogo e
+  incompraable — el mismo modo de falla del bug de go-live. Para dejar de vender
+  un producto existe `activo`, no una lista de opciones muertas.
+- **Lista VACÍA es válida y es el default del alta.** Un producto sin opciones no
+  pide molienda y su card agrega directo; las reglas solo aplican desde la primera
+  fila.
+- **`sanitizeOpciones` NO descarta las filas sin nombre** (a diferencia de
+  `sanitizeGaleria` con las URLs vacías): las conserva para que
+  `validarOpciones` las REPORTE. Tirarlas en silencio haría que una fila a medias
+  desapareciera al guardar y el operador la diera por creada.
+- **La escritura sigue la regla general del endpoint** (§ El PATCH de producto es
+  PARCIAL de verdad): `moliendasOpciones` es un campo más de `datosDelPatch` y se
+  escribe sólo si el body TRAE la clave. Acá importa el doble, porque ese endpoint
+  también lo llama el "Desactivar" con un body de un solo campo
+  (`{ activo: false }`): escribirlo sin condición vaciaría la lista por desactivar
+  un producto, y eso no es perder un campo — es cambiarle el comportamiento a su
+  card. Cuando se construyó este editor la guarda vivía en un bloque propio del
+  handler, porque el endpoint todavía pisaba todo lo demás; al volverse general la
+  regla, el caso especial dejó de serlo. **La VALIDACIÓN, en cambio, se queda en el
+  handler**: produce un 400, y eso es del protocolo HTTP, no de qué campos se
+  escriben. Las dos mitades comparten las funciones puras, así que no pueden
+  discrepar sobre qué es una lista válida.
+- **Renombrar o quitar una opción NO reescribe historia.** Las órdenes guardan la
+  molienda como STRING (`OrderItem.moliendaSeleccionada`) y ninguna vista la
+  re-deriva del producto: el detalle de la orden, el checkout y las plantillas de
+  correo imprimen el string tal cual. Verificado al construir el editor; si alguna
+  vista futura quisiera "resolver" ese string contra `moliendasOpciones`, eso sería
+  el bug.
+- **Los 400 de `/api/products` llegan al operador con su texto.** `createProduct` y
+  `updateProduct` propagan el `error` del servidor (como ya hacía `deleteProduct`
+  con su 409): un "Error al guardar" genérico borraría justo la frase que dice qué
+  corregir.
+- **Quitar una molienda es DESHACIBLE hasta guardar** (decisión del owner, contra
+  clicks accidentales). La X no borra la fila: la marca, la deja tachada a la
+  vista y cambia el botón por "Deshacer" en el mismo lugar. La asimetría es lo que
+  lo justifica — un click accidental borraba una opción con su método ya escrito y
+  rehacerla es teclear de nuevo; con la marca cuesta un segundo click. Y el
+  operador ve lo que va a pasar ANTES de que pase, que es lo que un `confirm()` no
+  da. Los conteos de la sección hablan del RESULTADO de guardar, no de lo que hay
+  en pantalla.
+- **El borrado diferido es lo que hace seguros los índices.** Nada se reindexa
+  mientras el modal está abierto: agregar apendiza y quitar solo marca. Por eso el
+  Set de índices marcados y las `key` por índice de las filas son correctos. El día
+  que se agregue reordenamiento, las dos cosas necesitan un id propio.
+- **Se valida y se guarda solo lo que SOBREVIVE.** Una fila marcada para quitar no
+  puede bloquear el guardado por estar sin nombre ni contar para "al menos una
+  disponible". Como `validarOpciones` numera sobre las vivas y el editor pinta la
+  lista completa, los índices de los problemas se remapean — sin eso el borde rojo
+  cae en la fila de al lado apenas hay una marcada por encima.
+- v1 **sin reordenamiento** y sin catálogo global de moliendas: siguen siendo Json
+  por producto, igual que la galería.
 
 ## Política de tema (dark mode)
 

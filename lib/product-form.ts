@@ -52,3 +52,76 @@ export function obligatoriosFaltantes(form: CamposObligatorios): string[] {
 export function puedeGuardarProducto(form: CamposObligatorios, guardando: boolean): boolean {
   return !guardando && !faltanObligatorios(form);
 }
+
+// ─── La acción de estado del diálogo de borrado ──────────────────────────────
+// El diálogo de eliminar ofrece, al lado de Cancelar, la alternativa NO
+// destructiva. Durante un tiempo esa alternativa existió en una sola dirección:
+// se ofrecía "Desactivar" cuando el producto estaba activo y NADA cuando estaba
+// inactivo. El modal tampoco tiene control de `activo` —lo lleva invisible y lo
+// reescribe tal como vino—, así que un producto desactivado quedaba ATRAPADO: la
+// única salida era la base.
+//
+// Lo encontró el owner el 2026-08-04, desactivando un producto para probar el
+// PATCH parcial y descubriendo que no podía devolverlo. Un botón que desactiva
+// sin su inverso no es una acción, es una trampa.
+//
+// Es una función y no un ternario en el JSX por el mismo motivo que
+// `puedeGuardarProducto`: lo que hay que garantizar es que la acción ofrecida sea
+// SIEMPRE el inverso del estado actual, y esa es justo la clase de condición que
+// nadie puede cubrir mientras vive inline. La forma la impone el tipo — un
+// booleano `activo` y su verbo — así que ofrecer el estado en el que ya se está
+// deja de ser expresable.
+//
+// DÓNDE SE OFRECE CADA DIRECCIÓN (y por qué no es la misma puerta): activar vive
+// en el badge "Inactivo" de la card, y desactivar sigue viviendo en el flujo de
+// eliminar. El primer intento puso las dos detrás del ícono de basura, y eso
+// viola la regla del repo de que un affordance promete su acción — la misma que
+// hace que `CustomerLink` renderice texto plano cuando no hay perfil al que ir:
+// "no dead link, no cursor-pointer promising a navigation that won't happen".
+// Una basura que además activa es el caso simétrico: promete eliminar y esconde
+// lo contrario.
+
+export interface AccionEstadoProducto {
+  /** Verbo del botón: el INVERSO de lo que el producto es ahora. */
+  label: string;
+  /** Lo que se manda en el PATCH. Siempre `!activo`. */
+  activo: boolean;
+  /** Toast al resolver. */
+  successMessage: string;
+}
+
+/**
+ * La acción de estado que le corresponde a un producto: el INVERSO de lo que es
+ * ahora. Activo → "Desactivar"; inactivo → "Activar". Sin producto no hay acción.
+ *
+ * Es la resolución de verbo y copy para las DOS superficies; cuál se muestra en
+ * cada una lo decide quien la consume (ver `alternativaAlEliminar`).
+ */
+export function accionEstadoProducto(
+  producto: { activo: boolean } | null | undefined,
+): AccionEstadoProducto | undefined {
+  if (!producto) return undefined;
+  return producto.activo
+    ? { label: 'Desactivar', activo: false, successMessage: 'Producto desactivado' }
+    : { label: 'Activar',    activo: true,  successMessage: 'Producto activado' };
+}
+
+/**
+ * Lo que el diálogo de ELIMINAR ofrece "en su lugar": desactivar, y sólo eso.
+ *
+ * **Nunca activa.** Se deriva de `accionEstadoProducto` filtrando por dirección
+ * en vez de repetir la condición, así que no hay dos definiciones del par que
+ * puedan desincronizarse — y el invariante ("de acá no sale una activación") es
+ * una propiedad del filtro, no una convención que haya que recordar.
+ *
+ * Para un producto ya inactivo devuelve `undefined` y el diálogo se queda sin
+ * alternativa, que es lo correcto: ahí no hay nada no-destructivo que ofrecer, el
+ * 409 del servidor explica por qué no se puede eliminar, y la manija de activar
+ * vive en el badge "Inactivo" de la card.
+ */
+export function alternativaAlEliminar(
+  producto: { activo: boolean } | null | undefined,
+): AccionEstadoProducto | undefined {
+  const accion = accionEstadoProducto(producto);
+  return accion && !accion.activo ? accion : undefined;
+}
