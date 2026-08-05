@@ -4,7 +4,7 @@ import { nonCancelledOrderCountByCustomer } from '@/lib/metrics/customer-order-s
 import { agregarMargenPorSku, type CostoProducto, type LineaVendida } from '@/lib/metrics/margen';
 import { agruparCartera, type OrdenPendiente } from '@/lib/metrics/cartera';
 import { concentracionIngresos, type ClienteIngreso } from '@/lib/metrics/concentracion';
-import { PERIODOS, type PeriodoKey } from '@/lib/metrics/periodo';
+import { PERIODOS, ULTIMOS_MESES_VENTANA, type PeriodoKey } from '@/lib/metrics/periodo';
 import type { AnalyticsData, PuntoTrayectoria } from '@/types/analytics';
 
 // EL CÓMPUTO de la página de Analítica. Vive acá y no en el route handler por el
@@ -49,28 +49,38 @@ function etiquetaMes(month: string): string {
 }
 
 /**
- * Rango del período de RENTABILIDAD. Se mide por la fecha del PAGO, no por la de
+ * Rango del período seleccionado. Se mide por la fecha del PAGO, no por la de
  * creación de la orden.
+ *
+ * `ultimos_3_meses` es una ventana MÓVIL que incluye el mes en curso, no el
+ * trimestre calendario: la pregunta del dueño es "cómo me ha ido últimamente", y
+ * un trimestre calendario responde otra cosa —el 1 de abril mostraría
+ * enero-marzo y ocultaría todo lo reciente—. Decisión del owner, 2026-08-05.
  *
  * `now` es parámetro para que el carril pueda fijar el reloj: un test que
  * dependiera de la hora del día no es un test (mismo criterio que `soloActiva` en
  * los tests de automatizaciones).
  */
 export function rangoDelPeriodo(periodo: PeriodoKey, now: Date): { desde: Date; hasta: Date } {
+  // Todos los períodos terminan al inicio del mes SIGUIENTE (exclusivo), así que
+  // el mes en curso entra completo hasta hoy. El único que no arranca en un mes
+  // es `anio`.
+  const finDeMesActual = startOfZonedMonth(now, BUSINESS_TZ, 1);
   switch (periodo) {
     case 'mes_anterior':
       return { desde: startOfZonedMonth(now, BUSINESS_TZ, -1), hasta: startOfZonedMonth(now, BUSINESS_TZ, 0) };
+    case 'ultimos_3_meses':
+      return { desde: startOfZonedMonth(now, BUSINESS_TZ, -(ULTIMOS_MESES_VENTANA - 1)), hasta: finDeMesActual };
     case 'anio':
-      return { desde: startOfZonedYear(now, BUSINESS_TZ, 0),   hasta: startOfZonedMonth(now, BUSINESS_TZ, 1) };
+      return { desde: startOfZonedYear(now, BUSINESS_TZ, 0), hasta: finDeMesActual };
     default:
-      return { desde: startOfZonedMonth(now, BUSINESS_TZ, 0),  hasta: startOfZonedMonth(now, BUSINESS_TZ, 1) };
+      return { desde: startOfZonedMonth(now, BUSINESS_TZ, 0), hasta: finDeMesActual };
   }
 }
 
 export async function calcularAnalitica(periodoKey: PeriodoKey, now: Date = new Date()): Promise<AnalyticsData> {
   const { desde: periodoDesde, hasta: periodoHasta } = rangoDelPeriodo(periodoKey, now);
 
-  const yearStart       = startOfZonedYear(now, BUSINESS_TZ, 0);
   const nextMonthStart  = startOfZonedMonth(now, BUSINESS_TZ, 1);
   const serieStart      = startOfZonedMonth(now, BUSINESS_TZ, -(SERIE_MESES - 1));
   const hoy             = zonedDayKey(now, BUSINESS_TZ);
@@ -190,8 +200,14 @@ export async function calcularAnalitica(periodoKey: PeriodoKey, now: Date = new 
     `,
 
     // ── 4. CLIENTES Y CANALES ───────────────────────────────────────────────
+    // AMBOS respetan el chip de período. Estuvieron clavados en "año en curso"
+    // durante el primer pase y era un defecto silencioso: el chip decía "Mes
+    // pasado" y estas dos secciones seguían mostrando el año entero, sin que nada
+    // en pantalla lo delatara.
+    //
     // Dinero PAGADO por cliente (no `Customer.total_compras`, que es data de
-    // demo). Año en curso, mismas exclusiones.
+    // demo), por fecha de PAGO — la misma base que la rentabilidad, así que "de
+    // quién dependo" y "cuánto gané" hablan del mismo dinero.
     prisma.$queryRaw<ClienteRow[]>`
       SELECT c."id"                    AS id,
              c."nombre"                AS nombre,
@@ -199,7 +215,8 @@ export async function calcularAnalitica(periodoKey: PeriodoKey, now: Date = new 
       FROM "Payment" pay
       JOIN "Order" o    ON o."id" = pay."orden_id"
       JOIN "Customer" c ON c."id" = o."cliente_id"
-      WHERE pay."fecha" >= ${yearStart}
+      WHERE pay."fecha" >= ${periodoDesde}
+        AND pay."fecha" <  ${periodoHasta}
         AND o."numero_orden" LIKE ${ORDER_PREFIX}
         AND o."estado" <> 'cancelado'
       GROUP BY 1, 2
@@ -211,10 +228,18 @@ export async function calcularAnalitica(periodoKey: PeriodoKey, now: Date = new 
     // Distribución por canal. `canal` es el canal de VENTA (cómo llegó el
     // cliente), no el code path que creó la orden — para eso está `origen` en el
     // evento, y no se persiste (ver CLAUDE.md § Campana del operador).
+    //
+    // Filtra por `createdAt` y NO por fecha de pago, a diferencia de las otras
+    // tres. No es un descuido: la pregunta es "por dónde llegaron las órdenes de
+    // este período", y una orden llega cuando se crea. Medirla por su pago
+    // atribuiría al canal el mes en que alguien pagó, que no dice nada sobre por
+    // dónde entró. El subtítulo de la card dice "órdenes creadas" justamente para
+    // que esa diferencia de base esté a la vista y no haya que deducirla.
     prisma.$queryRaw<CanalRow[]>`
       SELECT o."canal" AS canal, COUNT(*)::int AS n
       FROM "Order" o
-      WHERE o."createdAt" >= ${yearStart}
+      WHERE o."createdAt" >= ${periodoDesde}
+        AND o."createdAt" <  ${periodoHasta}
         AND o."numero_orden" LIKE ${ORDER_PREFIX}
         AND o."estado" <> 'cancelado'
       GROUP BY 1

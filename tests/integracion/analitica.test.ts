@@ -385,5 +385,101 @@ test('base sin ventas: todo en cero, sin explotar y sin inventar', async () => {
 test('el payload hace ECO del período resuelto — el cliente deriva su carga de eso', async () => {
   const r = await calcularAnalitica('mes_anterior', AHORA);
   assert.equal(r.periodo.key, 'mes_anterior');
-  assert.equal(r.periodo.label, 'Mes anterior');
+  assert.equal(r.periodo.label, 'Mes pasado');
+});
+
+// ─── El chip mueve TODOS los bloques del período ──────────────────────────────
+// Punto que motiva esta tanda: en el primer pase, clientes y canales quedaron
+// clavados en "año en curso" mientras el chip decía otra cosa. Era un defecto
+// SILENCIOSO —nada en pantalla lo delataba— y por eso se afirma acá, no en el
+// checklist manual: un humano no puede ver que un número no se movió.
+
+/** Siembra ventas en tres meses distintos, cada una con su cliente y canal. */
+async function sembrarTresMeses() {
+  const p = await producto({ slug: 'origen', nombre: 'Origen 500g', precio: 20_000, costo: 12_000 });
+  const meses = [
+    { etiqueta: 'mayo',   fecha: new Date('2026-05-10T15:00:00Z'), canal: 'instagram' },
+    { etiqueta: 'julio',  fecha: new Date('2026-07-10T15:00:00Z'), canal: 'whatsapp'  },
+    { etiqueta: 'agosto', fecha: new Date('2026-08-10T15:00:00Z'), canal: 'directo'   },
+  ];
+  for (const [i, m] of meses.entries()) {
+    const c = await prisma.customer.create({ data: { nombre: `Cliente ${m.etiqueta}`, email: `${m.etiqueta}@test.co` } });
+    await vender({
+      numero: `CN-5000${i}0`, productoId: p.id, nombre: p.nombre, cantidad: 1, precio: 20_000,
+      creadaEl: m.fecha, pagadaEl: m.fecha, canal: m.canal, clienteId: c.id,
+    });
+  }
+}
+
+test('CLIENTES respeta el chip — no queda clavado en el año', async () => {
+  await sembrarTresMeses();
+
+  const agosto = await calcularAnalitica('mes', AHORA);
+  assert.deepEqual(agosto.concentracion.top.map(c => c.nombre), ['Cliente agosto']);
+
+  const julio = await calcularAnalitica('mes_anterior', AHORA);
+  assert.deepEqual(julio.concentracion.top.map(c => c.nombre), ['Cliente julio']);
+
+  // El año los ve a los tres: es el conjunto más amplio, no el default de todos.
+  const anio = await calcularAnalitica('anio', AHORA);
+  assert.equal(anio.concentracion.clientes, 3);
+});
+
+test('CANALES respeta el chip — no queda clavado en el año', async () => {
+  await sembrarTresMeses();
+
+  const agosto = await calcularAnalitica('mes', AHORA);
+  assert.deepEqual(agosto.canales.map(c => c.name), ['Directo']);
+
+  const julio = await calcularAnalitica('mes_anterior', AHORA);
+  assert.deepEqual(julio.canales.map(c => c.name), ['Whatsapp']);
+
+  const anio = await calcularAnalitica('anio', AHORA);
+  assert.equal(anio.canales.length, 3);
+});
+
+test('ÚLTIMOS 3 MESES es ventana móvil: incluye el mes en curso y deja fuera el 4º', async () => {
+  // Hoy es agosto → la ventana es junio, julio y agosto. Mayo queda fuera. Un
+  // trimestre CALENDARIO habría mostrado julio-septiembre y perdido junio.
+  await sembrarTresMeses();
+
+  const r = await calcularAnalitica('ultimos_3_meses', AHORA);
+  assert.equal(r.rentabilidad.filas[0]?.unidades, 2);          // julio + agosto
+  assert.equal(r.concentracion.clientes, 2);
+  assert.deepEqual(r.canales.map(c => c.name).sort(), ['Directo', 'Whatsapp']);   // sin Instagram (mayo)
+});
+
+test('la RECURRENCIA es acumulada y NO se mueve con el chip', async () => {
+  // Deliberado, y afirmado para que nadie lo "arregle": es una métrica de la BASE
+  // de clientes y tiene que cuadrar con la página de Clientes, que es acumulada.
+  // Restringirla al período respondería otra pregunta ("quién compró 2+ veces
+  // este mes") con muestras minúsculas.
+  await sembrarTresMeses();
+
+  const agosto = await calcularAnalitica('mes', AHORA);
+  const anio   = await calcularAnalitica('anio', AHORA);
+  assert.equal(agosto.recurrencia.clientes, anio.recurrencia.clientes);
+  assert.equal(agosto.recurrencia.recurrentes, anio.recurrencia.recurrentes);
+});
+
+test('la CARTERA es saldo vigente y tampoco se mueve con el chip', async () => {
+  const p = await producto({ slug: 'origen', nombre: 'Origen 500g', precio: 20_000, costo: 12_000 });
+  await vender({ numero: 'CN-510001', productoId: p.id, nombre: p.nombre, cantidad: 1, precio: 40_000, creadaEl: new Date('2026-08-14T15:00:00Z') });
+
+  const agosto = await calcularAnalitica('mes', AHORA);
+  const julio  = await calcularAnalitica('mes_anterior', AHORA);
+  assert.equal(agosto.cartera.total, 40_000);
+  assert.equal(julio.cartera.total, 40_000);
+});
+
+test('la TRAYECTORIA es la serie larga y tampoco se recorta con el chip', async () => {
+  await sembrarTresMeses();
+  const agosto = await calcularAnalitica('mes', AHORA);
+  const julio  = await calcularAnalitica('mes_anterior', AHORA);
+  assert.deepEqual(
+    agosto.trayectoria.map(t => t.ingresos),
+    julio.trayectoria.map(t => t.ingresos),
+  );
+  // Y sigue viendo mayo, que ningún chip corto alcanza.
+  assert.equal(agosto.trayectoria.find(t => t.month === '2026-05')?.ingresos, 20_000);
 });
