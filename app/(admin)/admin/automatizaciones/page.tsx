@@ -4,11 +4,10 @@ import { useState, useEffect } from 'react';
 import { Zap, Settings2, MessageCircleWarning } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
 import { AUTOMATIONS, type AutomationCanal, type AutomationDef } from '@/constants/automations';
 import { getAutomations, saveAutomation, type AutomationEstado } from '@/lib/api/automations';
-import { formatFecha } from '@/lib/format-fecha';
+import { tiempoRelativo } from '@/lib/format-fecha';
 import AutomationConfigDialog from '@/components/admin/AutomationConfigDialog';
 
 // La página RENDERIZA DESDE EL REGISTRY (constants/automations.ts) y le superpone
@@ -142,6 +141,10 @@ export default function Automatizaciones() {
           const estado  = estados[def.key];
           const activo  = estado?.activo ?? false;
           const Icon    = def.icono;
+          // La API devuelve las 3 más recientes en orden desc; sólo se usa la
+          // primera. Se deja que siga mandando tres: cambiar el endpoint por
+          // esto acoplaría la forma del dato a una decisión de layout.
+          const ultima  = estado?.recientes?.[0];
 
           return (
             <div
@@ -178,17 +181,28 @@ export default function Automatizaciones() {
                 </div>
               </div>
 
-              {/* Evidencia de vida: cuántas veces corrió y las 3 últimas */}
-              <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+              {/* Evidencia de vida en UNA línea. La lista de las 3 últimas se
+                  retiró: una fecha y un badge por corrida no informan nada
+                  accionable —quién quiere el detalle quiere el target, no el
+                  timestamp— y hacían crecer la card de forma distinta según
+                  cuántas veces hubiera corrido cada automatización, así que la
+                  grilla no cerraba. El detalle por corrida, si algún día hace
+                  falta, va dentro de "Configurar". */}
+              <div className="mt-3 border-t border-border pt-3">
                 <p className="text-xs text-muted-foreground">
-                  Últimas ejecuciones: <span className="font-medium text-foreground">{estado?.ejecuciones ?? 0}</span>
+                  {estado?.ejecuciones ?? 0} {(estado?.ejecuciones ?? 0) === 1 ? 'ejecución' : 'ejecuciones'}
+                  {ultima && (
+                    <>
+                      {' · '}
+                      {/* El caso normal no grita y el fallo sí: la última corrida
+                          sólo se tiñe cuando FALLÓ, que es lo único que pide una
+                          acción. Amber Minimal — el color es información. */}
+                      {ultima.estado === 'FALLIDO'
+                        ? <span className="font-medium text-destructive">última falló</span>
+                        : <>última {tiempoRelativo(ultima.createdAt)}</>}
+                    </>
+                  )}
                 </p>
-                {(estado?.recientes ?? []).map(run => (
-                  <div key={`${run.targetId}-${run.createdAt}`} className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] text-muted-foreground">{formatFecha(run.createdAt)}</span>
-                    <StatusBadge status={run.estado} className="text-[10px]" />
-                  </div>
-                ))}
               </div>
 
               <div className="mt-4 flex items-center justify-between border-t border-border pt-3">

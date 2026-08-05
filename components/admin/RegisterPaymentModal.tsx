@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { formatCOP } from '@/lib/utils';
 import { registerOrderPayment } from '@/lib/api/payments';
 import type { Order } from '@/types/order';
@@ -67,7 +68,12 @@ function RegisterForm({ target, declaredMetodo, onClose, onSaved }: {
   const [notas, setNotas]           = useState('');
   const [saving, setSaving]         = useState(false);
 
-  const handleSave = async () => {
+  // `saving` ya deshabilitaba el botón; falta la mitad SÍNCRONA, que es la única
+  // que corta dos clicks del mismo tick. El server acá es idempotente (SELECT …
+  // FOR UPDATE + chequeo de estado devuelve 409 al segundo), así que esto es
+  // consistencia — pero la guarda es del botón, no del endpoint.
+  const guarda = useAccionGuardada();
+  const handleSave = () => guarda.ejecutar(async () => {
     setSaving(true);
     try {
       const result = await registerOrderPayment(target.id, {
@@ -82,7 +88,7 @@ function RegisterForm({ target, declaredMetodo, onClose, onSaved }: {
       toast.error(e instanceof Error ? e.message : 'Error al registrar el pago');
     }
     setSaving(false);
-  };
+  });
 
   return (
     <div className="space-y-4">
@@ -129,7 +135,7 @@ function RegisterForm({ target, declaredMetodo, onClose, onSaved }: {
       </div>
 
       <div className="flex justify-end gap-3">
-        <Button variant="outline" onClick={onClose}>Cancelar</Button>
+        <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
         <Button onClick={handleSave} disabled={saving}>
           {saving ? 'Registrando...' : 'Registrar pago'}
         </Button>

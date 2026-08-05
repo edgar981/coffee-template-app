@@ -28,3 +28,31 @@ export function formatFecha(input: string | Date | null | undefined): string {
   if (isNaN(d.getTime())) return typeof input === 'string' ? input : '—';
   return compact(FMT_TZ.format(d));
 }
+
+/**
+ * `recién` · `hace 5 m` · `hace 3 h` · `hace 2 d`. La OTRA forma legítima de
+ * mostrar una fecha en el admin: cuando lo que importa no es qué día fue sino
+ * cuánto hace. Vive junto a `formatFecha` y no suelta en cada componente por la
+ * misma razón que aquella — dos implementaciones divergen y el mismo instante
+ * termina leyéndose distinto en dos pantallas.
+ *
+ * `ahora` es parámetro para que quien necesite un reloj vivo (la campana lo
+ * refresca cada 30 s) lo pase, y para que sea testeable sin depender de Date.now.
+ */
+export function tiempoRelativo(
+  input: string | Date | null | undefined,
+  ahora: number = Date.now(),
+): string {
+  if (input == null || input === '') return '—';
+  const d = input instanceof Date ? input : new Date(input);
+  if (isNaN(d.getTime())) return '—';
+
+  const mins = Math.floor((ahora - d.getTime()) / 60_000);
+  // Un instante futuro (reloj torcido, fila sembrada) se lee como recién y no
+  // como "hace -3 m", que no significa nada para quien lo mira.
+  if (mins < 1) return 'recién';
+  if (mins < 60) return `hace ${mins} m`;
+  const horas = Math.floor(mins / 60);
+  if (horas < 24) return `hace ${horas} h`;
+  return `hace ${Math.floor(horas / 24)} d`;
+}

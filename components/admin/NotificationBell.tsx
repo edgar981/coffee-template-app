@@ -8,8 +8,10 @@ import { toast } from 'sonner';
 import { Notification } from '@/types/notification';
 import { AnimatedIcon } from '@/components/admin/AnimatedIcon';
 import { Button } from '@/components/ui/button';
+import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { tiempoRelativo } from '@/lib/format-fecha';
 import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
 import { AUTOMATION_MAP } from '@/constants/automations';
 
@@ -171,7 +173,7 @@ export default function NotificationBell() {
     return () => { parar(); document.removeEventListener('visibilitychange', onVisibilidad); };
   }, [load]);
 
-  // Reloj de los timestamps relativos (timeAgo), para que se actualicen solos sin
+  // Reloj de los timestamps relativos (`tiempoRelativo`), para que se actualicen solos sin
   // leer Date.now() durante el render.
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000);
@@ -187,24 +189,19 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const markAllRead = async () => {
+  // Guarda de doble-submit. Era el tercer caso confirmado del patrón
+  // sin-feedback: el owner clickeó dos veces porque nada indicaba que la primera
+  // hubiera tomado. El PATCH es idempotente, así que lo que se arregla no es la
+  // base — es que el control no decía nada.
+  const marcarTodas = useAccionGuardada();
+  const markAllRead = () => marcarTodas.ejecutar(async () => {
     await fetch('/api/notifications/read-all', { method: 'PATCH' });
     setNotifications(prev => prev.map(n => ({ ...n, leida: true })));
-  };
+  });
 
   const markRead = async (id: string) => {
     await fetch(`/api/notifications/${id}/read`, { method: 'PATCH' });
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, leida: true } : n));
-  };
-
-  const timeAgo = (date: string) => {
-    const diff = now - new Date(date).getTime();
-    const mins = Math.floor(diff / 60_000);
-    if (mins < 1)  return 'Ahora';
-    if (mins < 60) return `Hace ${mins}m`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs  < 24) return `Hace ${hrs}h`;
-    return `Hace ${Math.floor(hrs / 24)}d`;
   };
 
   return (
@@ -264,10 +261,11 @@ export default function NotificationBell() {
                   variant="ghost"
                   size="sm"
                   onClick={markAllRead}
+                  disabled={marcarTodas.enVuelo}
                   className="h-7 gap-1.5 px-2 text-xs text-muted-foreground"
                 >
                   <CheckCheck className="h-3.5 w-3.5" />
-                  Marcar todas
+                  {marcarTodas.enVuelo ? 'Marcando…' : 'Marcar todas'}
                 </Button>
               )}
               <Tooltip>
@@ -330,7 +328,7 @@ export default function NotificationBell() {
                           {n.titulo}
                         </p>
                         <span className="text-[10px] text-muted-foreground shrink-0">
-                          {timeAgo(n.createdAt)}
+                          {tiempoRelativo(n.createdAt, now)}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">

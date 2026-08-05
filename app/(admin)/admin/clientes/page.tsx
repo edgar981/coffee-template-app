@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { toast } from 'sonner';
+import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { formatCOP } from '@/lib/utils';
 import { getCustomers, createCustomer, updateCustomer, deleteCustomer } from '@/lib/api/customers';
 import type { Customer, CustomerForm } from '@/types/customer';
@@ -96,7 +97,11 @@ function ClientesInner() {
     setShowForm(true);
   };
 
-  const handleSave = async () => {
+  // El `if (guardando) return` de abajo era la mitad de ESTADO — depende de un
+  // re-render, así que dos clicks del mismo tick lo leen `false` los dos. La
+  // guarda síncrona es la que cierra esa ventana.
+  const guarda = useAccionGuardada();
+  const handleSave = () => guarda.ejecutar(async () => {
     if (guardando) return;                  // clic repetido mientras ya se guarda
     if (!form.nombre) { toast.error('El nombre es requerido'); return; }
 
@@ -122,7 +127,7 @@ function ClientesInner() {
     }
 
     setShowForm(false);
-  };
+  });
 
   // The actual delete, run by the confirm dialog. Throws (server message) bubble
   // up to the dialog, which keeps itself open and toasts the error.

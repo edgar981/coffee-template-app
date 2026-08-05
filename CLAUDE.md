@@ -108,22 +108,41 @@ específico de versión, esta decisión se revisa.**
 HTTP completos, y el resto de la suite. Ampliarlo es una decisión, no un
 descuido.
 
-## Doble-submit — la guarda va en DOS mitades, y no son redundantes
+## Doble-submit — `useAccionGuardada`, no una receta a recordar
 
-Todo botón que dispare una mutación lleva las dos. El patrón de referencia es
-`handleSave` de Nueva Orden (`app/(admin)/admin/ordenes/page.tsx`):
+Toda mutación disparada por un control va por el hook de
+`hooks/useAccionGuardada.ts`. **No se escribe la guarda a mano**: existe como
+primitiva justamente porque escribirla a mano salía mal.
 
-- **`xRef` (síncrono)** — `if (xRef.current) return;` y se marca ANTES del primer
-  `await`. Es lo ÚNICO que cierra la ventana del mismo tick.
-- **`x` (estado)** — `disabled={x}` + texto de estado intermedio ("Aplicando…",
-  "Guardando…"). Cierra la ventana del re-click lento.
+```tsx
+const guarda = useAccionGuardada();
+const handleSave = () => guarda.ejecutar(async () => { /* … */ });
+// <Button disabled={guarda.enVuelo}>{guarda.enVuelo ? 'Guardando…' : 'Guardar'}</Button>
+```
 
-**Un `disabled` solo NO alcanza, y un ref solo tampoco.** `disabled` depende de un
-re-render: dos clicks dentro del mismo tick leen ambos el estado en `false` y
-pasan los dos. Y el ref, sin el texto visible, deja al operador sin señal — que es
-lo que provoca el re-click en primer lugar: en el incidente del 2026-08-04 los dos
-clicks llegaron con **2,5 s de diferencia**, no fue un doble-click, fue volver a
-clickear porque el botón no decía nada.
+Para listas con una acción por fila (el tablero de Entregas), `useAccionesPorFila`
+hace lo mismo **por id**: bloquear la tabla entera mientras una entrega se
+despacha sería una traba, no una guarda.
+
+La guarda son DOS mitades y **no son redundantes**:
+
+- **el ref (síncrono)** corta la re-entrada del mismo tick. Es lo ÚNICO que la
+  cierra: `disabled` depende de un re-render, así que dos clicks seguidos leen
+  ambos el estado en `false` y pasan los dos;
+- **el estado** deshabilita el control y le pone texto intermedio. Sin esa señal
+  el operador vuelve a clickear — en el incidente del 2026-08-04 los dos clicks
+  llegaron con **2,5 s de diferencia**: no fue un doble-click, fue volver a
+  clickear porque el botón no decía nada.
+
+**Por qué es un hook y no un patrón documentado:** la auditoría del 2026-08-04
+encontró ocho modales con la mitad de estado y sin la síncrona. La receta estaba
+escrita y aun así se aplicó a medias ocho veces. Con el hook, tener una mitad sin
+la otra deja de ser posible.
+
+Excepción legítima: un control puede conservar su propio estado si lleva
+información que un booleano no tiene — Productos mantiene `fase`
+(`'subiendo' | 'guardando'`) para nombrar la ETAPA en el botón, y usa el hook para
+la guarda. Lo que no se conserva es un ref de re-entrada propio.
 
 Se bloquean también las otras dos salidas mientras la mutación viaja: Cancelar
 `disabled`, y el Dialog sin cerrar por click-fuera ni Esc. Cerrar a mitad no
@@ -182,25 +201,7 @@ Reglas de la lista, para que siga sirviendo:
 - **Un item que se completa se BORRA de acá** y su decisión, si tiene, se
   documenta en la sección que le corresponda. Esto no es un historial.
 
-### 1. Patrón `R` uniforme — modales, botones de fila y "marcar todas"
-
-Los que hoy tienen `disabled` pero no guarda síncrona, más los que no tienen
-ninguna de las dos. Ninguno corre riesgo material —el server los cubre por
-idempotencia o por bloqueo de fila (el POST de pagos hace `SELECT … FOR UPDATE` +
-chequeo de estado)—, así que es **consistencia, no incendio**, y por eso va
-después de los dos de arriba. Ver § Doble-submit para el patrón.
-
-- **8 modales** con `disabled` sin ref.
-- **Botones de fila de Entregas** (`updateEstado`, `handleDispatch`): sin guarda
-  alguna. Los absorbe el server por bordes idempotentes (`justDelivered`,
-  `stock_descontado_at`).
-- **"Marcar todas" de la campana**: sin `disabled` ni ref. **Tercer caso
-  confirmado del patrón sin-feedback** — el owner clickeó dos veces porque nada
-  indicaba que la primera hubiera tomado. Es el mismo síntoma que Ajustar Stock,
-  y confirma que la mitad visible de la guarda (el estado intermedio) es la que
-  evita el segundo click, no la que lo bloquea.
-
-### 2. La ventana de 45 s del polling de la campana
+### 1. La ventana de 45 s del polling de la campana
 
 `POLL_MS = 45_000`. El badge se computa sobre el snapshot del cliente, así que una
 notificación de severidad `alerta` puede tardar **hasta un poll** en teñir el
@@ -512,25 +513,6 @@ síntoma no apunta a la causa: se lee como problema de la API key o del dominio.
   runtime hasta que `main` la aplicara; ahora la aplica ella misma a
   `development` en su propio deploy. Ese era el costo aceptado de la
   condición y deja de pagarse.
-- **VERIFICACIÓN DIFERIDA (pendiente al 2026-08-04).** Al retirar la
-  condición no había ninguna migración en vuelo (`development` en 33/33),
-  así que el cambio se mergea sin haber visto todavía el caso completo.
-  Son dos comprobaciones distintas y conviene no confundirlas:
-  1. **Cualquier preview deploy** ya prueba lo básico: en su log debe
-     aparecer `prisma migrate deploy` corriendo contra
-     `ep-still-sound` y reportando 0 pendientes. Eso confirma host
-     correcto y que `DIRECT_DATABASE_URL` de Preview resuelve.
-  2. **El primer PR que traiga una migración** prueba lo que falta: que
-     la APLICA en el preview y que la preview levanta sin P2022.
-  Hasta que (2) ocurra, esta política está verificada a medias y así hay
-  que tratarla. Si (1) falla, el fix es de env vars, no del script.
-
-  **(2) le toca a `20260804180000_add_duplicado_run_estado`** — el
-  `ALTER TYPE … ADD VALUE` del rastro de supresión, la primera migración
-  desde que se retiró la condición. **Al mergear ese PR hay que MIRAR EL
-  LOG del preview** y confirmar las dos cosas: que la aplica contra
-  `ep-still-sound` y que la preview levanta sin P2022. Si sale bien, esta
-  viñeta se borra y la política queda verificada entera.
 - **La red gratis del 7.9.1:** el primer preview posterior a este cambio
   estrena el `migrate deploy` del CLI 7.9.1 contra `development` — es
   decir, contra una base desechable y ANTES de que producción lo corra.
