@@ -18,7 +18,7 @@ import { formatCOP } from '@/lib/utils';
 import { uploadImagen } from '@/lib/api/upload';
 import { ACCEPT_IMAGENES, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
 import { MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
-import { puedeGuardarProducto, obligatoriosFaltantes } from '@/lib/product-form';
+import { puedeGuardarProducto, obligatoriosFaltantes, accionEstadoProducto } from '@/lib/product-form';
 import { ImageLightbox, THUMB_INSPECCIONABLE } from '@/components/admin/ImageLightbox';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -358,13 +358,27 @@ function ProductosInner() {
     setProductos(prev => prev.filter(p => p.id !== deleteTarget.id));
   };
 
-  // The safe alternative offered inside the same dialog: keep the record (and its
-  // order history) but hide it from the catalogue.
-  const confirmDeactivate = async () => {
+  // La alternativa NO destructiva del mismo diálogo, en las DOS direcciones:
+  // desactivar conserva el registro y su historial sacándolo del catálogo, y
+  // activar lo devuelve. El inverso vive acá y no en un toggle del modal para que
+  // el par sea una sola decisión, en un solo lugar.
+  //
+  // Manda un PATCH de UN campo, que es exactamente el caso que el endpoint tiene
+  // que respetar: escribe `activo` y no toca nada más (§ El PATCH de producto es
+  // PARCIAL de verdad). Antes del arreglo, este mismo llamado vaciaba la ficha y
+  // le borraba los blobs.
+  const confirmCambiarEstado = async (activo: boolean) => {
     if (!deleteTarget) return;
-    const updated = await updateProduct(deleteTarget.id, { activo: false });
+    const updated = await updateProduct(deleteTarget.id, { activo });
     setProductos(prev => prev.map(p => p.id === deleteTarget.id ? updated : p));
   };
+
+  // Qué alternativa ofrece el diálogo para ESTE producto. El predicado vive en
+  // `lib/product-form` y está testeado: mientras fue un ternario inline nadie
+  // podía cubrirlo, y su modo de falla —ofrecer el estado en el que el producto ya
+  // está, o no ofrecer nada— no rompe ninguna pantalla; solo deja al operador sin
+  // salida.
+  const accionEstado = accionEstadoProducto(deleteTarget);
 
   const field = <K extends keyof ProductForm>(key: K) => ({
     value: form[key] as string,
@@ -655,8 +669,11 @@ function ProductosInner() {
       </Dialog>
 
       {/* Delete confirmation — themed replacement for window.confirm(). A product
-          with sales history can't be deleted (server 409); "Desactivar" is offered
-          in its place (only while the product is still active). */}
+          with sales history can't be deleted (server 409); la alternativa NO
+          destructiva se ofrece en su lugar, y va en las DOS direcciones: activo →
+          "Desactivar", inactivo → "Activar". Cuál corresponde lo decide
+          `accionEstadoProducto`, que está testeado — ofrecer el estado en el que el
+          producto YA está es lo que dejaba productos atrapados en Inactivo. */}
       <ConfirmDeleteDialog
         open={!!deleteTarget}
         onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
@@ -664,13 +681,19 @@ function ProductosInner() {
         entityLabel={deleteTarget
           ? [deleteTarget.nombre, deleteTarget.sku].filter(Boolean).join(' · ')
           : ''}
-        consequence="Se eliminará permanentemente del catálogo. Esta acción no se puede deshacer. Si tiene ventas registradas, desactívalo para conservar el historial."
+        // El texto sigue al estado: mandar a "desactivarlo" a un producto que ya
+        // está inactivo es un consejo que no se puede seguir.
+        consequence={deleteTarget && !deleteTarget.activo
+          ? 'Se eliminará permanentemente del catálogo. Esta acción no se puede deshacer. Ya está inactivo: no aparece en la tienda y su historial sigue intacto.'
+          : 'Se eliminará permanentemente del catálogo. Esta acción no se puede deshacer. Si tiene ventas registradas, desactívalo para conservar el historial.'}
         confirmLabel="Eliminar producto"
         successMessage="Producto eliminado"
         onConfirm={confirmDelete}
-        secondaryAction={deleteTarget?.activo
-          ? { label: 'Desactivar', onAction: confirmDeactivate, successMessage: 'Producto desactivado' }
-          : undefined}
+        secondaryAction={accionEstado && {
+          label:          accionEstado.label,
+          onAction:       () => confirmCambiarEstado(accionEstado.activo),
+          successMessage: accionEstado.successMessage,
+        }}
       />
 
       {/* Inspección de una miniatura. Se monta fuera del formulario para que su

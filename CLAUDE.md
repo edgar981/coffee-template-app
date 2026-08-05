@@ -42,6 +42,33 @@ el `defaultActivo` del registry — por diseño.
 capa quedó fuera** (ver § Las tres capas de verificación). Omitirlo es lo que
 convirtió un dato correcto en una impresión falsa el 2026-08-04.
 
+### GATE DE CAPA 3 = rama declarada + server frío + verificación del artefacto
+
+**Ningún gate manual del owner arranca sin las tres.** No es ceremonia: es el
+protocolo, y las tres son la MISMA pregunta —¿qué está corriendo?— hecha en los
+tres puntos donde se puede mentir.
+
+1. **Rama declarada.** Quien monta el gate dice contra qué rama y qué commit se
+   va a probar, antes de que el owner toque nada.
+2. **Server frío** (`rm -rf .next && npm run dev`) y navegador recargado.
+3. **Evidencia del artefacto compilado**, pegada en el reporte: el `grep -c` de
+   arriba sobre el símbolo que el cambio introduce, dando distinto de cero. Y,
+   cuando el cambio REEMPLAZA algo, también el grep del símbolo VIEJO dando cero
+   — que el nuevo esté no prueba que el viejo se haya ido.
+
+Incidente que lo instaura, 2026-08-04: el owner corrió el gate del PATCH parcial
+(§ El PATCH de producto es PARCIAL de verdad) contra un dev server que servía la
+OTRA rama, porque el fix vivía en una rama propia y nadie lo dijo. Desactivó un
+producto y **ejecutó el bug original contra `development`**: la fila se vació y
+el endpoint intentó borrar la portada del store (la salvó `isDeletable` por el
+prefijo `dev/`, que en producción no aplica). El costo no fue solo el dato — fue
+que por un rato el fix pareció roto y su test del carril pareció mentiroso,
+cuando el test nunca se había ejercido.
+
+**Un gate que no declara su build no está probando el código; está probando lo
+que haya quedado.** Y el modo de falla es peor que no probar: devuelve un
+veredicto con toda la apariencia de ser válido.
+
 ## Las tres capas de verificación
 
 Cada una mide algo que las otras no pueden, y **ninguna sustituye a las otras**.
@@ -310,6 +337,60 @@ imposible, no una opción descartada.
 - **El borrado es de consistencia eventual**: tras borrar, la URL puede
   seguir respondiendo 200 en el edge un par de segundos. No es un fallo del
   borrado — no escribir tests ni verificaciones que asuman un 404 inmediato.
+
+## El PATCH de producto es PARCIAL de verdad
+
+`PATCH /api/products/[id]` escribe **solo los campos que el body TRAE**. La
+selección vive en `lib/product-update.ts` (`datosDelPatch` + `trae`) y no dentro
+del route handler, por el mismo criterio que `lib/inventory.ts`: **se extrae lo
+que tiene el defecto para poder afirmarlo en un test.**
+
+Incidente 2026-08-04 (encontrado al construir el editor de moliendas, arreglado
+en tanda propia): el endpoint aplicaba un fallback a CADA campo
+(`body.descripcion || ''`, `Number(body.precio) || 0`, `body.sku || null`). **Un
+fallback sobre una clave ausente no es un default, es un borrado.**
+
+Lo disparaba un botón visible del admin, no un cliente exótico: "Desactivar", la
+acción secundaria del `ConfirmDeleteDialog`, manda `{ activo: false }` y nada
+más. Ese click vaciaba la descripción, ponía precio, costo y stock en CERO,
+borraba SKU, variante, origen, tostado y peso, y dejaba `imagen: ''` con
+`imagenes: []`. Sobrevivían `nombre`, `categoria` y `slug` **porque su valor
+`undefined` lo ignora Prisma** — y son justo los que se ven en la lista de
+Productos, que es lo que mantuvo el daño invisible.
+
+Y después venía lo irreversible: el borrado de blobs del propio endpoint veía la
+portada y la galería enteras como "retiradas" y las borraba del store. En
+producción `isDeletable` no frena nada (producción borra sin restricción de
+prefijo), así que desactivar un producto le borraba las imágenes de verdad. **La
+base tiene respaldos; los blobs no.**
+
+- **Presencia de la clave, no verdad del valor.** `''`, `0`, `false` y `null` son
+  ediciones legítimas —vaciar un SKU, poner el costo en cero— y tienen que poder
+  escribirse. `undefined` cuenta como AUSENTE: es lo que manda un cliente que arma
+  el body con campos opcionales (`variante: form.variante || undefined`), así que
+  un `Object.hasOwn` a secas no alcanza.
+- **El manejo de cada valor PRESENTE quedó idéntico.** Esta tanda arregló la
+  ausencia, no la semántica. Única excepción anotada: `imagenes`, que es la que
+  dispara el borrado de blobs.
+- **Un `slug` vacío NO borra el slug.** La columna es única y sostiene la URL del
+  producto en la tienda.
+- **El diff de blobs es BASE-ANTES contra BASE-DESPUÉS, nunca contra el body**, y
+  por eso se defiende solo desde que el update es parcial: un PATCH que no habla
+  de imágenes deja las dos lecturas idénticas. Reescribirlo para decidir desde
+  `body` reabre el agujero — era el update el que mentía, no el diff.
+- **Los campos que el endpoint nunca escribió siguen sin escribirse**
+  (`variedad`, `proceso`, `altitudMin`, `altitudMax`, `molienda`, `notas`,
+  `notasCata`, `descripcionCorta`, `bestseller`, `badge`, `agotado`). Agregarlos
+  es una decisión de producto, no parte de este arreglo.
+- **El test va en el CARRIL, no en la suite pura**
+  (`tests/integracion/patch-producto-parcial.test.ts`), y la razón importa: lo que
+  se afirma no es la forma del objeto que se construye sino lo que la fila TIENE
+  DESPUÉS de escribir. Un test con mocks habría pasado en verde contra el código
+  defectuoso —el objeto que se armaba era exactamente el que Prisma escribió—; lo
+  que delata el bug es releer la fila. Se escribió contra el código roto y se lo
+  vio fallar 6 de 7. **No borrar ese archivo**; la aserción es sobre la fila
+  COMPLETA (`deepEqual` neutralizando `updatedAt`) a propósito, para que una
+  columna nueva del schema quede cubierta el día que alguien la agrega.
 
 ## Galería de producto — `imagen` vs `imagenes[]`
 

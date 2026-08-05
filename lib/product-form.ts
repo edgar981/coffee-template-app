@@ -52,3 +52,48 @@ export function obligatoriosFaltantes(form: CamposObligatorios): string[] {
 export function puedeGuardarProducto(form: CamposObligatorios, guardando: boolean): boolean {
   return !guardando && !faltanObligatorios(form);
 }
+
+// ─── La acción de estado del diálogo de borrado ──────────────────────────────
+// El diálogo de eliminar ofrece, al lado de Cancelar, la alternativa NO
+// destructiva. Durante un tiempo esa alternativa existió en una sola dirección:
+// se ofrecía "Desactivar" cuando el producto estaba activo y NADA cuando estaba
+// inactivo. El modal tampoco tiene control de `activo` —lo lleva invisible y lo
+// reescribe tal como vino—, así que un producto desactivado quedaba ATRAPADO: la
+// única salida era la base.
+//
+// Lo encontró el owner el 2026-08-04, desactivando un producto para probar el
+// PATCH parcial y descubriendo que no podía devolverlo. Un botón que desactiva
+// sin su inverso no es una acción, es una trampa.
+//
+// Es una función y no un ternario en el JSX por el mismo motivo que
+// `puedeGuardarProducto`: lo que hay que garantizar es que la acción ofrecida sea
+// SIEMPRE el inverso del estado actual, y esa es justo la clase de condición que
+// nadie puede cubrir mientras vive inline. La forma la impone el tipo — un
+// booleano `activo` y su verbo — así que ofrecer el estado en el que ya se está
+// deja de ser expresable.
+
+export interface AccionEstadoProducto {
+  /** Verbo del botón: el INVERSO de lo que el producto es ahora. */
+  label: string;
+  /** Lo que se manda en el PATCH. Siempre `!activo`. */
+  activo: boolean;
+  /** Toast al resolver. */
+  successMessage: string;
+}
+
+/**
+ * La alternativa de estado para un producto dado. Activo → "Desactivar";
+ * inactivo → "Activar". Sin producto no hay acción.
+ *
+ * Reactivar es deliberadamente el MISMO lugar que desactivar y no un toggle en el
+ * modal de edición (decisión del owner): un toggle sería más superficie para lo
+ * mismo, y separaría el par de acciones que son una sola decisión.
+ */
+export function accionEstadoProducto(
+  producto: { activo: boolean } | null | undefined,
+): AccionEstadoProducto | undefined {
+  if (!producto) return undefined;
+  return producto.activo
+    ? { label: 'Desactivar', activo: false, successMessage: 'Producto desactivado' }
+    : { label: 'Activar',    activo: true,  successMessage: 'Producto activado' };
+}
