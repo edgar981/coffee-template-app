@@ -513,15 +513,6 @@ síntoma no apunta a la causa: se lee como problema de la API key o del dominio.
   runtime hasta que `main` la aplicara; ahora la aplica ella misma a
   `development` en su propio deploy. Ese era el costo aceptado de la
   condición y deja de pagarse.
-- **VERIFICADA ENTERA el 2026-08-04.** Al retirar la condición no había
-  ninguna migración en vuelo, así que la política se mergeó sin haber
-  visto el caso completo y estuvo "a medias" unos días. Las dos
-  comprobaciones ya ocurrieron: los previews mostraron `migrate deploy`
-  corriendo contra `ep-still-sound`, y
-  `20260804180000_add_duplicado_run_estado` —el `ALTER TYPE … ADD VALUE`
-  del rastro de supresión— la APLICÓ en su preview y la preview levantó
-  sin P2022. Queda anotado en vez de borrado del todo porque es la
-  evidencia de que la política funciona, no una tarea pendiente.
 - **La red gratis del 7.9.1:** el primer preview posterior a este cambio
   estrena el `migrate deploy` del CLI 7.9.1 contra `development` — es
   decir, contra una base desechable y ANTES de que producción lo corra.

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { tiempoRelativo } from '@/lib/format-fecha';
 import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
 import { AUTOMATION_MAP } from '@/constants/automations';
 
@@ -172,7 +173,7 @@ export default function NotificationBell() {
     return () => { parar(); document.removeEventListener('visibilitychange', onVisibilidad); };
   }, [load]);
 
-  // Reloj de los timestamps relativos (timeAgo), para que se actualicen solos sin
+  // Reloj de los timestamps relativos (`tiempoRelativo`), para que se actualicen solos sin
   // leer Date.now() durante el render.
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000);
@@ -201,16 +202,6 @@ export default function NotificationBell() {
   const markRead = async (id: string) => {
     await fetch(`/api/notifications/${id}/read`, { method: 'PATCH' });
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, leida: true } : n));
-  };
-
-  const timeAgo = (date: string) => {
-    const diff = now - new Date(date).getTime();
-    const mins = Math.floor(diff / 60_000);
-    if (mins < 1)  return 'Ahora';
-    if (mins < 60) return `Hace ${mins}m`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs  < 24) return `Hace ${hrs}h`;
-    return `Hace ${Math.floor(hrs / 24)}d`;
   };
 
   return (
@@ -337,7 +328,7 @@ export default function NotificationBell() {
                           {n.titulo}
                         </p>
                         <span className="text-[10px] text-muted-foreground shrink-0">
-                          {timeAgo(n.createdAt)}
+                          {tiempoRelativo(n.createdAt, now)}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
