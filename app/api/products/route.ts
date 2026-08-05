@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { sanitizeGaleria, MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
 import { sanitizeOpciones, validarOpciones } from '@/lib/moliendas-opciones';
+import { crearProductoConAsiento } from '@/lib/product-update';
 import type { Prisma } from '@/src/generated/prisma/client';
 
 export async function GET() {
@@ -48,8 +49,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const product = await prisma.product.create({
-    data: {
+  // Crea el producto Y su asiento inaugural en una transacción, para que la
+  // cadena del kardex de TODO producto empiece en su primera fila (ver
+  // `crearProductoConAsiento`).
+  const product = await crearProductoConAsiento({
       nombre:      body.nombre,
       slug:        body.slug || body.nombre.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
       descripcion: body.descripcion  || '',
@@ -68,8 +71,7 @@ export async function POST(req: NextRequest) {
       imagenes:    galeria,
       // El cast es el mismo de `prisma/seed.ts`: la columna es Json y el cliente
       // generado no acepta una interfaz sin index signature.
-      ...(opciones ? { moliendasOpciones: opciones as unknown as Prisma.InputJsonValue } : {}),
-    },
+    ...(opciones ? { moliendasOpciones: opciones as unknown as Prisma.InputJsonValue } : {}),
   });
 
   return NextResponse.json(product, { status: 201 });

@@ -1,4 +1,5 @@
-import type { Prisma } from '@/src/generated/prisma/client';
+import prisma from '@/lib/prisma';
+import type { Prisma, Product } from '@/src/generated/prisma/client';
 import { sanitizeGaleria } from '@/lib/product-gallery';
 import { sanitizeOpciones } from '@/lib/moliendas-opciones';
 
@@ -91,4 +92,119 @@ export function datosDelPatch(body: Record<string, unknown>): Prisma.ProductUnch
   }
 
   return data;
+}
+
+// ─── El asiento del kardex que faltaba: la puerta del modal ──────────────────
+// El stock se puede editar por DOS puertas: `/api/inventory/adjust` (Ajustar
+// Stock) y el campo Stock del modal de producto. Eso se mantiene — decisión del
+// owner, 2026-08-05: la de Ajustar Stock es la operación de inventario, la del
+// modal es la corrección de ficha, y las dos son legítimas.
+//
+// Lo que NO se mantiene es que la segunda fuera SILENCIOSA. El PATCH escribía
+// `stock` directo, sin asiento, así que el kardex se desfasaba del stock real
+// sin una sola fila que lo explicara. Se descubrió al reconstruir el incidente
+// del PATCH destructivo: el stock fue 28 → 0 → 28 y el kardex no registró nada;
+// la cadena cerró de casualidad porque el owner reteclé el mismo número.
+//
+// **Dos puertas al mismo dato con una sola dejando asiento es cómo el kardex
+// deja de ser confiable.** No se cierra la puerta: se le pone la firma.
+
+/** Motivo fijo del asiento que deja una edición de ficha. */
+export const MOTIVO_EDICION_PRODUCTO = 'Edición de producto';
+/** Motivo del asiento inaugural, el que hace que toda cadena empiece en cero. */
+export const MOTIVO_STOCK_INICIAL = 'Stock inicial';
+
+export interface PatchProductoResult {
+  /** Imágenes ANTES de la edición, para el diff de blobs del endpoint. */
+  previo:  { imagen: string; imagenes: string[] };
+  updated: Product;
+}
+
+/**
+ * Aplica el PATCH y, si tocó el stock, escribe su asiento — en UNA transacción:
+ * o cuajan los dos o ninguno. Devuelve `null` si el producto no existe.
+ *
+ * EL `SELECT … FOR UPDATE` NO ES OPCIONAL, por lo mismo que en
+ * `aplicarAjusteInventario`: en READ COMMITTED dos ediciones concurrentes leen
+ * el mismo stock antes de que cualquiera escriba, registran el mismo
+ * `stock_anterior` y el kardex afirma dos movimientos donde hubo uno. El lock
+ * serializa a los concurrentes SOBRE ESA FILA, así que el segundo lee lo que el
+ * primero ya escribió y su asiento ENCADENA. Y como el lock es de la misma
+ * tabla, también serializa contra un Ajustar Stock simultáneo: las dos puertas
+ * comparten la cola, que es lo que hace que la cadena sea una sola.
+ *
+ * El asiento se escribe SÓLO si el body TRAE `stock` **y** el valor cambió.
+ * Editar la descripción no es un movimiento de inventario: sin esa segunda
+ * condición, cada guardado del modal dejaría un asiento fantasma de N → N y el
+ * kardex se volvería ilegible por exceso, que es otra forma de no ser confiable.
+ */
+export async function aplicarPatchProducto(
+  id: string,
+  body: Record<string, unknown>,
+): Promise<PatchProductoResult | null> {
+  return prisma.$transaction(async (tx) => {
+    // Fila lockeada: todo lo que el asiento afirma sale de acá, no de un
+    // snapshot leído antes de la transacción.
+    const [bloqueado] = await tx.$queryRaw<{ nombre: string; stock: number }[]>`
+      SELECT "nombre", "stock" FROM "Product" WHERE "id" = ${id} FOR UPDATE`;
+    if (!bloqueado) return null;
+
+    // Ya bajo el lock, así que es el mismo estado que vio el SELECT de arriba.
+    const previo = await tx.product.findUniqueOrThrow({
+      where:  { id },
+      select: { imagen: true, imagenes: true },
+    });
+
+    const updated = await tx.product.update({
+      where: { id },
+      data:  { ...datosDelPatch(body), updatedAt: new Date() },
+    });
+
+    if (trae(body, 'stock') && updated.stock !== bloqueado.stock) {
+      await tx.inventoryLog.create({
+        data: {
+          producto_id:     id,
+          producto_nombre: bloqueado.nombre,
+          // `ajuste` es el tipo de valor ABSOLUTO, que es exactamente lo que hace
+          // el campo del modal: fija el stock, no lo mueve por un delta.
+          tipo:            'ajuste',
+          cantidad:        updated.stock,
+          stock_anterior:  bloqueado.stock,   // de la fila lockeada
+          stock_nuevo:     updated.stock,
+          motivo:          MOTIVO_EDICION_PRODUCTO,
+        },
+      });
+    }
+
+    return { previo, updated };
+  });
+}
+
+/**
+ * Crea el producto y su asiento INAUGURAL, en una transacción.
+ *
+ * El asiento va SIEMPRE, incluso con stock 0, y eso es el punto: hace que la
+ * cadena de todo producto arranque en su primera fila, desde cero. Sin él, un
+ * producto nacido con stock 42 tiene un kardex que empieza en el aire y ningún
+ * recorrido puede reconciliarlo con el stock real — es el mismo agujero que la
+ * puerta silenciosa, sólo que en el origen.
+ */
+export async function crearProductoConAsiento(
+  data: Prisma.ProductUncheckedCreateInput,
+): Promise<Product> {
+  return prisma.$transaction(async (tx) => {
+    const product = await tx.product.create({ data });
+    await tx.inventoryLog.create({
+      data: {
+        producto_id:     product.id,
+        producto_nombre: product.nombre,
+        tipo:            'ajuste',
+        cantidad:        product.stock,
+        stock_anterior:  0,
+        stock_nuevo:     product.stock,
+        motivo:          MOTIVO_STOCK_INICIAL,
+      },
+    });
+    return product;
+  });
 }

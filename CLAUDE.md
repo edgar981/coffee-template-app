@@ -202,6 +202,58 @@ cancela nada en el server y deja al operador sin saber si se aplicó.
 pero `entrada`/`devolucion`/`salida` son delta y ahí sí duplican. La guarda es del
 botón, no del tipo de operación.
 
+### Las DOS puertas del stock, y por qué las dos dejan asiento
+
+El stock se edita por dos lugares y **los dos se mantienen** (decisión del owner,
+2026-08-05): `/api/inventory/adjust` (Ajustar Stock) es la operación de
+inventario, y el campo Stock del modal de producto es la corrección de ficha.
+Cerrar la segunda sería quitarle al operador una corrección legítima.
+
+Lo que no se mantiene es que una de las dos fuera **silenciosa**. El PATCH
+escribía `stock` directo, sin asiento, así que el kardex se desfasaba del stock
+real sin una sola fila que lo explicara. **Dos puertas al mismo dato con una sola
+dejando firma es cómo el kardex deja de ser confiable.** No se cierra la puerta:
+se le pone la firma.
+
+Se descubrió reconstruyendo el incidente del PATCH destructivo: el stock fue
+28 → 0 → 28 y el kardex no registró nada. La cadena cerró de casualidad porque el
+owner retecleó el mismo número; con otro habría quedado desfasada para siempre.
+
+- **El asiento se escribe si el body TRAE `stock` Y el valor CAMBIÓ.** Las dos
+  condiciones, y la segunda no es una optimización: sin ella cada guardado del
+  modal dejaría un asiento fantasma de N → N —editar la descripción no es un
+  movimiento de inventario— y el kardex se volvería ilegible por exceso, que es
+  otra forma de no ser confiable. La comparación va contra el valor YA
+  normalizado por `datosDelPatch`, no contra lo que vino en el body: un `'28'`
+  string tampoco es un movimiento.
+- **Motivo fijo `'Edición de producto'`, tipo `'ajuste'`** — el tipo de valor
+  ABSOLUTO, que es exactamente lo que hace ese campo: fija el stock, no lo mueve
+  por un delta.
+- **`SELECT … FOR UPDATE`, por lo mismo que en `aplicarAjusteInventario`.** Y hay
+  una razón extra acá: como el lock es de la misma fila, **las dos puertas
+  comparten la cola**. Eso es lo que hace que sea UNA cadena y no dos que se
+  pisan. Testeado con las dos corriendo en paralelo.
+- **Todo producto nace con su asiento inaugural** (`'Stock inicial'`, 0 → N), y va
+  incluso con stock 0. Sin él, un producto nacido con 42 tiene un kardex que
+  empieza en el aire y ningún recorrido lo reconcilia con el stock real — el mismo
+  agujero de la puerta silenciosa, en el origen.
+- **La escritura vive en `lib/product-update.ts`** (`aplicarPatchProducto`,
+  `crearProductoConAsiento`) y no en los route handlers, por el criterio de
+  siempre: el carril no monta HTTP, así que la única forma de afirmar esto contra
+  una base real es que sea una función. `tests/integracion/kardex-edicion-producto.test.ts`
+  se escribió contra el código silencioso y se lo vio fallar 8 de 8. **No borrar
+  ese archivo.**
+- **Sin cambios de UI**: el modal sigue igual, y el operador no tiene que decidir
+  nada nuevo. La firma es del sistema, no una casilla más.
+
+**HUECO CONOCIDO, no arreglado en esta tanda:** `aplicarAjusteInventario` devuelve
+`cruzoElMinimo` y su llamador emite el evento `stock_bajo`; el PATCH **no**. O sea
+que bajar el stock por debajo del mínimo desde el modal deja su asiento pero **no
+avisa por la campana**. Es la misma clase de puerta silenciosa que esta tanda
+cierra, una capa más arriba. Se anota acá y no en el backlog porque pertenece a
+esta decisión; arreglarlo es mover el cálculo de `cruzoMinimo` dentro de
+`aplicarPatchProducto` y emitir post-commit, igual que hace el ajuste.
+
 ### La FRONTERA del patrón: guarda donde el silencio invita al reintento
 
 El patrón se cerró entero el 2026-08-04 (Invitar usuario, los dos controles de

@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { storage } from '@/lib/storage';
 import { sanitizeGaleria, blobsRetirados, MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
-import { datosDelPatch, trae } from '@/lib/product-update';
+import { aplicarPatchProducto, trae } from '@/lib/product-update';
 import { sanitizeOpciones, validarOpciones } from '@/lib/moliendas-opciones';
 
 export async function PATCH(
@@ -55,22 +55,19 @@ export async function PATCH(
     }
   }
 
-  // Estado ANTERIOR de las imágenes, para borrar del store lo que esta edición
-  // deje sin referencias. Se lee de la BASE y no se recibe del cliente a
-  // propósito: si el borrado se disparara con URLs enviadas por el navegador,
-  // cualquier admin podría borrar cualquier blob del store mandando otras.
-  const previo = await prisma.product.findUnique({
-    where:  { id },
-    select: { imagen: true, imagenes: true },
-  });
-
-  // SOLO los campos que el body trae. La selección vive en `lib/product-update`
-  // porque es donde estaba el defecto y es lo que el carril de integración
-  // afirma contra una base real: un PATCH parcial no puede tocar nada más.
-  const updated = await prisma.product.update({
-    where: { id: id },
-    data: { ...datosDelPatch(body), updatedAt: new Date() },
-  });
+  // La escritura entera —campos presentes + el asiento de kardex si tocó el
+  // stock— vive en `lib/product-update`, en UNA transacción y bajo
+  // `SELECT … FOR UPDATE`. Está ahí y no acá porque es lo que el carril de
+  // integración tiene que poder afirmar contra una base real: que un PATCH
+  // parcial no toca nada más, y que la puerta del modal deja su firma.
+  //
+  // `previo` son las imágenes ANTES de la edición, leídas de la BASE dentro de
+  // la misma transacción: si el borrado de blobs se disparara con URLs enviadas
+  // por el navegador, cualquier admin podría borrar cualquier blob del store
+  // mandando otras.
+  const resultado = await aplicarPatchProducto(id, body);
+  if (!resultado) return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
+  const { previo, updated } = resultado;
 
   // Reemplazo de imagen: el blob viejo queda sin referencias, se borra. Va
   // DESPUÉS del update y sin poder tumbarlo — si el borrado falla queda un blob
@@ -85,12 +82,12 @@ export async function PATCH(
   // body. Un PATCH que no habla de imágenes deja las dos lecturas idénticas, así
   // que no hay nada retirado y no se borra nada. Reescribir esto para decidir
   // desde `body` reabriría el agujero: era el update el que mentía, no el diff.
-  const anterior = previo?.imagen ?? '';
+  const anterior = previo.imagen;
   const portadaRetirada = anterior && anterior !== updated.imagen && !updated.imagenes.includes(anterior);
 
   // De la galería sale lo que ya no está, excluyendo lo que siga en uso como
   // portada nueva (promover una toma a portada no puede borrar ese blob).
-  const galeriaRetirada = blobsRetirados(previo?.imagenes, updated.imagenes, [updated.imagen]);
+  const galeriaRetirada = blobsRetirados(previo.imagenes, updated.imagenes, [updated.imagen]);
 
   for (const url of [...(portadaRetirada ? [anterior] : []), ...galeriaRetirada]) {
     try {
