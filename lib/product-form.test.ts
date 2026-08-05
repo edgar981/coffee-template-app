@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   puedeGuardarProducto, faltanObligatorios, obligatoriosFaltantes,
-  CAMPOS_OBLIGATORIOS_PRODUCTO, accionEstadoProducto,
+  CAMPOS_OBLIGATORIOS_PRODUCTO, accionEstadoProducto, alternativaAlEliminar,
 } from './product-form';
 import { EMPTY_PRODUCT_FORM } from '@/constants/product';
 import type { ProductForm } from '@/types/product';
@@ -139,7 +139,7 @@ test('inactivo → se ofrece Activar, y manda activo:true (EL INVERSO QUE FALTAB
   assert.equal(accion?.activo, true);
 });
 
-test('EL INVARIANTE: la acción ofrecida es siempre el inverso del estado actual', () => {
+test('EL INVARIANTE: la acción resuelta es siempre el inverso del estado actual', () => {
   // Lo que hay que garantizar no es el texto de cada botón sino que nunca se
   // ofrezca el estado en el que el producto YA está — ofrecerlo es lo que deja a
   // alguien sin salida, y no rompe ninguna pantalla mientras pasa.
@@ -149,10 +149,44 @@ test('EL INVARIANTE: la acción ofrecida es siempre el inverso del estado actual
   }
 });
 
-test('siempre hay alternativa: ningún estado se queda sin salida', () => {
+test('ningún estado se queda sin salida: los dos resuelven una acción', () => {
   for (const activo of [true, false]) {
     assert.ok(accionEstadoProducto({ activo }), `sin acción para activo:${activo}`);
   }
+});
+
+// ─── Cada dirección por su puerta ────────────────────────────────────────────
+// Resolver el par no es lo mismo que ofrecerlo en cualquier lado. Activar vive en
+// el badge "Inactivo" de la card; el flujo de ELIMINAR sólo ofrece desactivar.
+// El primer intento puso las dos detrás del ícono de basura, y eso viola la regla
+// del repo de que un affordance promete su acción: una papelera que además activa
+// promete una cosa y esconde la contraria.
+
+test('EL INVARIANTE NUEVO: del flujo de eliminar NUNCA sale una activación', () => {
+  for (const producto of [{ activo: true }, { activo: false }, null, undefined]) {
+    const accion = alternativaAlEliminar(producto);
+    assert.notEqual(accion?.activo, true, `el borrado ofreció activar para ${JSON.stringify(producto)}`);
+  }
+});
+
+test('producto ACTIVO: el borrado sigue ofreciendo Desactivar (el flujo no se tocó)', () => {
+  const accion = alternativaAlEliminar({ activo: true });
+  assert.equal(accion?.label, 'Desactivar');
+  assert.equal(accion?.activo, false);
+});
+
+test('producto INACTIVO: el borrado no ofrece alternativa — esa manija es del badge', () => {
+  assert.equal(alternativaAlEliminar({ activo: false }), undefined);
+  // Y la acción SÍ existe: lo que cambió es la puerta, no la disponibilidad.
+  assert.equal(accionEstadoProducto({ activo: false })?.label, 'Activar');
+});
+
+test('las dos superficies coinciden en el verbo cuando ambas ofrecen algo', () => {
+  // Se derivan de la misma función justamente para que no puedan divergir: si
+  // alguien reescribe una de las dos a mano, esto se cae.
+  const desdeElBorrado = alternativaAlEliminar({ activo: true });
+  const desdeElEstado  = accionEstadoProducto({ activo: true });
+  assert.deepEqual(desdeElBorrado, desdeElEstado);
 });
 
 test('sin producto no hay acción — el diálogo cerrado no ofrece nada', () => {

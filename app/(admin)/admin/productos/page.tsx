@@ -18,7 +18,7 @@ import { formatCOP } from '@/lib/utils';
 import { uploadImagen } from '@/lib/api/upload';
 import { ACCEPT_IMAGENES, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
 import { MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
-import { puedeGuardarProducto, obligatoriosFaltantes, accionEstadoProducto } from '@/lib/product-form';
+import { puedeGuardarProducto, obligatoriosFaltantes, accionEstadoProducto, alternativaAlEliminar } from '@/lib/product-form';
 import { ImageLightbox, THUMB_INSPECCIONABLE } from '@/components/admin/ImageLightbox';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -367,18 +367,28 @@ function ProductosInner() {
   // que respetar: escribe `activo` y no toca nada más (§ El PATCH de producto es
   // PARCIAL de verdad). Antes del arreglo, este mismo llamado vaciaba la ficha y
   // le borraba los blobs.
-  const confirmCambiarEstado = async (activo: boolean) => {
-    if (!deleteTarget) return;
-    const updated = await updateProduct(deleteTarget.id, { activo });
-    setProductos(prev => prev.map(p => p.id === deleteTarget.id ? updated : p));
+  const confirmCambiarEstado = async (activo: boolean, id?: string) => {
+    const objetivo = id ?? deleteTarget?.id;
+    if (!objetivo) return;
+    const updated = await updateProduct(objetivo, { activo });
+    setProductos(prev => prev.map(p => p.id === objetivo ? updated : p));
   };
 
-  // Qué alternativa ofrece el diálogo para ESTE producto. El predicado vive en
-  // `lib/product-form` y está testeado: mientras fue un ternario inline nadie
-  // podía cubrirlo, y su modo de falla —ofrecer el estado en el que el producto ya
-  // está, o no ofrecer nada— no rompe ninguna pantalla; solo deja al operador sin
-  // salida.
-  const accionEstado = accionEstadoProducto(deleteTarget);
+  // La alternativa del diálogo de ELIMINAR: desactivar, y sólo eso. Activar salió
+  // de acá — vive en el badge, que es el affordance que la promete.
+  const alternativaBorrado = alternativaAlEliminar(deleteTarget);
+
+  // Producto que el operador pidió ACTIVAR desde su badge "Inactivo". Estado
+  // aparte de `deleteTarget` a propósito: son dos intenciones distintas y
+  // mezclarlas en un solo target obligaría a un modo, que es justo la forma en que
+  // un diálogo termina mostrando el verbo equivocado.
+  const [activarTarget, setActivarTarget] = useState<Product | null>(null);
+  const accionActivar = accionEstadoProducto(activarTarget);
+
+  const confirmActivar = async () => {
+    if (!activarTarget) return;
+    await confirmCambiarEstado(true, activarTarget.id);
+  };
 
   const field = <K extends keyof ProductForm>(key: K) => ({
     value: form[key] as string,
@@ -440,11 +450,11 @@ function ProductosInner() {
       ) : view === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map(p => (
-            <ProductCard key={p.id} product={p} onEdit={openEdit} onDelete={setDeleteTarget} />
+            <ProductCard key={p.id} product={p} onEdit={openEdit} onDelete={setDeleteTarget} onActivar={setActivarTarget} />
           ))}
         </div>
       ) : (
-        <ProductTable productos={filtered} onEdit={openEdit} onDelete={setDeleteTarget} />
+        <ProductTable productos={filtered} onEdit={openEdit} onDelete={setDeleteTarget} onActivar={setActivarTarget} />
       )}
 
       {/* Form Dialog */}
@@ -681,19 +691,40 @@ function ProductosInner() {
         entityLabel={deleteTarget
           ? [deleteTarget.nombre, deleteTarget.sku].filter(Boolean).join(' · ')
           : ''}
-        // El texto sigue al estado: mandar a "desactivarlo" a un producto que ya
-        // está inactivo es un consejo que no se puede seguir.
+        // El texto sigue al estado. Para uno ya inactivo no hay alternativa que
+        // ofrecer, así que la descripción hace el trabajo que hacía el botón:
+        // decir que su historial está a salvo y que volver al catálogo se hace
+        // desde su badge, no desde acá.
         consequence={deleteTarget && !deleteTarget.activo
-          ? 'Se eliminará permanentemente del catálogo. Esta acción no se puede deshacer. Ya está inactivo: no aparece en la tienda y su historial sigue intacto.'
+          ? 'Se eliminará permanentemente del catálogo. Esta acción no se puede deshacer. Ya está inactivo: no aparece en la tienda y su historial sigue intacto. Para devolverlo al catálogo, usa el badge "Inactivo" de su tarjeta.'
           : 'Se eliminará permanentemente del catálogo. Esta acción no se puede deshacer. Si tiene ventas registradas, desactívalo para conservar el historial.'}
         confirmLabel="Eliminar producto"
         successMessage="Producto eliminado"
         onConfirm={confirmDelete}
-        secondaryAction={accionEstado && {
-          label:          accionEstado.label,
-          onAction:       () => confirmCambiarEstado(accionEstado.activo),
-          successMessage: accionEstado.successMessage,
+        secondaryAction={alternativaBorrado && {
+          label:          alternativaBorrado.label,
+          onAction:       () => confirmCambiarEstado(alternativaBorrado.activo),
+          successMessage: alternativaBorrado.successMessage,
         }}
+      />
+
+      {/* Activar, disparado por el badge "Inactivo". Confirma —poner un producto
+          en la tienda es una acción hacia afuera— pero NO es destructivo, así que
+          `confirmKind="default"` lo pinta ámbar y no rojo. Reusa el mismo diálogo
+          por lo que ya resuelve: candado único, mensaje del servidor a la vista y
+          no se cierra si falla. */}
+      <ConfirmDeleteDialog
+        open={!!activarTarget}
+        onOpenChange={(o) => { if (!o) setActivarTarget(null); }}
+        title="Activar producto"
+        entityLabel={activarTarget
+          ? [activarTarget.nombre, activarTarget.sku].filter(Boolean).join(' · ')
+          : ''}
+        consequence="Volverá al catálogo de la tienda y los clientes podrán comprarlo. Podrás desactivarlo de nuevo cuando quieras."
+        confirmLabel="Activar producto"
+        confirmKind="default"
+        successMessage={accionActivar?.successMessage}
+        onConfirm={confirmActivar}
       />
 
       {/* Inspección de una miniatura. Se monta fuera del formulario para que su
@@ -710,13 +741,25 @@ function ProductosInner() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+// Affordance del badge "Inactivo", que es una MANIJA y no una etiqueta: es lo que
+// promete la acción que antes vivía escondida detrás del ícono de basura. Una
+// constante compartida por la cuadrícula y la tabla —igual que
+// `THUMB_INSPECCIONABLE`— para que las dos vistas no puedan divergir en cuánto se
+// nota que se puede clickear. Hover de TINTE (`--accent`), nunca relleno sólido:
+// el badge es neutro y lo sigue siendo (Amber Minimal).
+const BADGE_ACTIVABLE =
+  'cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ' +
+  'focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+
 interface ProductCardProps {
-  product:  Product;
-  onEdit:   (p: Product) => void;
-  onDelete: (p: Product) => void;
+  product:   Product;
+  onEdit:    (p: Product) => void;
+  onDelete:  (p: Product) => void;
+  onActivar: (p: Product) => void;
 }
 
-function ProductCard({ product: p, onEdit, onDelete }: ProductCardProps) {
+function ProductCard({ product: p, onEdit, onDelete, onActivar }: ProductCardProps) {
   const lowStock = p.stock <= (p.stock_minimo ?? 5);
   const margin   = p.precio && p.costo
     ? Math.round(((p.precio - p.costo) / p.precio) * 100)
@@ -741,10 +784,19 @@ function ProductCard({ product: p, onEdit, onDelete }: ProductCardProps) {
             <AlertTriangle className="w-3 h-3" /> Stock bajo
           </span>
         )}
+        {/* No es una etiqueta: es LA manija para devolver el producto al catálogo.
+            Antes esa acción sólo existía dentro del diálogo de eliminar, o sea que
+            el ícono de basura prometía una cosa y escondía la contraria. */}
         {!p.activo && (
-          <span className="absolute top-2 left-2 bg-muted text-muted-foreground text-xs px-2 py-0.5 rounded-full">
+          <button
+            type="button"
+            onClick={() => onActivar(p)}
+            aria-label={`Activar ${p.nombre}`}
+            title="Activar producto"
+            className={`absolute top-2 left-2 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground ${BADGE_ACTIVABLE}`}
+          >
             Inactivo
-          </span>
+          </button>
         )}
       </div>
       <div className="p-4">
@@ -779,9 +831,10 @@ interface ProductTableProps {
   productos: Product[];
   onEdit:    (p: Product) => void;
   onDelete:  (p: Product) => void;
+  onActivar: (p: Product) => void;
 }
 
-function ProductTable({ productos, onEdit, onDelete }: ProductTableProps) {
+function ProductTable({ productos, onEdit, onDelete, onActivar }: ProductTableProps) {
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
@@ -810,14 +863,25 @@ function ProductTable({ productos, onEdit, onDelete }: ProductTableProps) {
                     <span className={lowStock ? 'text-red-500 font-semibold' : ''}>{p.stock}</span>
                     {lowStock && <AlertTriangle className="w-3 h-3 text-red-500 inline ml-1" />}
                   </td>
+                  {/* Mismo trato que en la cuadrícula: "Inactivo" es manija, no
+                      etiqueta. Sin esto, quien trabaja en vista Tabla se queda con
+                      el callejón sin salida que esta tanda vino a cerrar. */}
                   <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      p.activo
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {p.activo ? 'Activo' : 'Inactivo'}
-                    </span>
+                    {p.activo ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                        Activo
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onActivar(p)}
+                        aria-label={`Activar ${p.nombre}`}
+                        title="Activar producto"
+                        className={`text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 ${BADGE_ACTIVABLE}`}
+                      >
+                        Inactivo
+                      </button>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">

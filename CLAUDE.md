@@ -392,6 +392,46 @@ base tiene respaldos; los blobs no.**
   COMPLETA (`deepEqual` neutralizando `updatedAt`) a propósito, para que una
   columna nueva del schema quede cubierta el día que alguien la agrega.
 
+### Activar y desactivar: cada dirección por su puerta
+
+Las dos acciones existen y **no viven en el mismo lugar**, que es una decisión y
+no una asimetría accidental:
+
+- **Desactivar** sigue dentro del diálogo de ELIMINAR, como la alternativa no
+  destructiva que se ofrece "en su lugar". Ahí tiene sentido: es la respuesta al
+  409 de un producto con ventas.
+- **Activar** vive en el badge "Inactivo" de la card (y de la fila, en vista
+  Tabla), que se vuelve una manija clickeable y abre su propia confirmación.
+
+El primer intento puso las dos detrás del ícono de basura y duró un solo gate.
+**Una papelera que además activa promete una cosa y esconde la contraria** — es
+la misma regla que hace que `CustomerLink` renderice texto plano cuando no hay
+perfil al que ir ("no dead link, no cursor-pointer promising a navigation that
+won't happen"), aplicada al caso simétrico. Reactivar quedaba reachable pero no
+descubrible: nadie busca "activar" dentro de "Eliminar".
+
+- **`accionEstadoProducto` resuelve el par** (verbo, `activo`, toast) y
+  **`alternativaAlEliminar` filtra por dirección**, derivándose de la primera. Que
+  sea una derivación y no una segunda condición es el punto: el invariante "del
+  flujo de eliminar nunca sale una activación" es una propiedad del filtro, no una
+  convención que haya que recordar. Ambas testeadas en `npm test` (capa 1).
+- **Para un producto ya inactivo el diálogo de eliminar no ofrece alternativa**, y
+  su texto dice dónde está la manija. Un botón menos, pero ninguna salida menos.
+- **`confirmKind` en `ConfirmDeleteDialog`**: `'destructive'` (default, los tres
+  call sites de siempre) o `'default'` para una confirmación que no borra nada —
+  ámbar en vez de rojo, y el verbo del `confirmLabel` como texto intermedio en vez
+  de "Eliminando…". Se reusa el diálogo por lo que ya resuelve (candado único,
+  error del servidor a la vista, no se cierra si falla); lo único que faltaba era
+  no pintar de rojo algo que no destruye. El nombre del componente quedó corto —
+  hoy confirma acciones sensibles, no solo borrados.
+- **La affordance es una constante compartida** (`BADGE_ACTIVABLE`), como
+  `THUMB_INSPECCIONABLE`, para que cuadrícula y tabla no diverjan en cuánto se
+  nota que el badge se puede clickear. Hover de TINTE, nunca relleno: el badge es
+  neutro y lo sigue siendo (Amber Minimal).
+- **Sólo "Inactivo" es clickeable, "Activo" no.** No es descuido: desactivar ya
+  tiene su lugar, y un tercer camino al mismo dato es cómo se llega a dos puertas
+  que se desincronizan.
+
 ## Galería de producto — `imagen` vs `imagenes[]`
 
 Semántica (decisión del owner): **`Product.imagen` es LA portada** en todos sus

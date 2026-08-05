@@ -71,6 +71,15 @@ export function puedeGuardarProducto(form: CamposObligatorios, guardando: boolea
 // nadie puede cubrir mientras vive inline. La forma la impone el tipo — un
 // booleano `activo` y su verbo — así que ofrecer el estado en el que ya se está
 // deja de ser expresable.
+//
+// DÓNDE SE OFRECE CADA DIRECCIÓN (y por qué no es la misma puerta): activar vive
+// en el badge "Inactivo" de la card, y desactivar sigue viviendo en el flujo de
+// eliminar. El primer intento puso las dos detrás del ícono de basura, y eso
+// viola la regla del repo de que un affordance promete su acción — la misma que
+// hace que `CustomerLink` renderice texto plano cuando no hay perfil al que ir:
+// "no dead link, no cursor-pointer promising a navigation that won't happen".
+// Una basura que además activa es el caso simétrico: promete eliminar y esconde
+// lo contrario.
 
 export interface AccionEstadoProducto {
   /** Verbo del botón: el INVERSO de lo que el producto es ahora. */
@@ -82,12 +91,11 @@ export interface AccionEstadoProducto {
 }
 
 /**
- * La alternativa de estado para un producto dado. Activo → "Desactivar";
- * inactivo → "Activar". Sin producto no hay acción.
+ * La acción de estado que le corresponde a un producto: el INVERSO de lo que es
+ * ahora. Activo → "Desactivar"; inactivo → "Activar". Sin producto no hay acción.
  *
- * Reactivar es deliberadamente el MISMO lugar que desactivar y no un toggle en el
- * modal de edición (decisión del owner): un toggle sería más superficie para lo
- * mismo, y separaría el par de acciones que son una sola decisión.
+ * Es la resolución de verbo y copy para las DOS superficies; cuál se muestra en
+ * cada una lo decide quien la consume (ver `alternativaAlEliminar`).
  */
 export function accionEstadoProducto(
   producto: { activo: boolean } | null | undefined,
@@ -96,4 +104,24 @@ export function accionEstadoProducto(
   return producto.activo
     ? { label: 'Desactivar', activo: false, successMessage: 'Producto desactivado' }
     : { label: 'Activar',    activo: true,  successMessage: 'Producto activado' };
+}
+
+/**
+ * Lo que el diálogo de ELIMINAR ofrece "en su lugar": desactivar, y sólo eso.
+ *
+ * **Nunca activa.** Se deriva de `accionEstadoProducto` filtrando por dirección
+ * en vez de repetir la condición, así que no hay dos definiciones del par que
+ * puedan desincronizarse — y el invariante ("de acá no sale una activación") es
+ * una propiedad del filtro, no una convención que haya que recordar.
+ *
+ * Para un producto ya inactivo devuelve `undefined` y el diálogo se queda sin
+ * alternativa, que es lo correcto: ahí no hay nada no-destructivo que ofrecer, el
+ * 409 del servidor explica por qué no se puede eliminar, y la manija de activar
+ * vive en el badge "Inactivo" de la card.
+ */
+export function alternativaAlEliminar(
+  producto: { activo: boolean } | null | undefined,
+): AccionEstadoProducto | undefined {
+  const accion = accionEstadoProducto(producto);
+  return accion && !accion.activo ? accion : undefined;
 }
