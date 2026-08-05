@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { formatCOP } from '@/lib/utils';
 import { registerOrderPayment } from '@/lib/api/payments';
@@ -73,7 +74,9 @@ function RegisterForm({ target, declaredMetodo, onClose, onSaved }: {
   // FOR UPDATE + chequeo de estado devuelve 409 al segundo), así que esto es
   // consistencia — pero la guarda es del botón, no del endpoint.
   const guarda = useAccionGuardada();
+  const error  = useErrorDialogo();
   const handleSave = () => guarda.ejecutar(async () => {
+    error.limpiar();
     setSaving(true);
     try {
       const result = await registerOrderPayment(target.id, {
@@ -85,7 +88,7 @@ function RegisterForm({ target, declaredMetodo, onClose, onSaved }: {
       toast.success('Pago registrado — orden marcada como pagada');
       onClose();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error al registrar el pago');
+      error.mostrar(e, 'Error al registrar el pago');
     }
     setSaving(false);
   });
@@ -134,7 +137,10 @@ function RegisterForm({ target, declaredMetodo, onClose, onSaved }: {
         </div>
       </div>
 
-      <div className="flex justify-end gap-3">
+      {/* El error comparte la fila de los botones: ocupa el espacio libre de la
+          izquierda, así que aparecer no los mueve. */}
+      <div className="flex items-center justify-end gap-3">
+        <ErrorDialogo mensaje={error.mensaje} />
         <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
         <Button onClick={handleSave} disabled={saving}>
           {saving ? 'Registrando...' : 'Registrar pago'}

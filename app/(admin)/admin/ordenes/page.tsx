@@ -16,6 +16,7 @@ import { BUSINESS_TZ, zonedDayKey } from '@/lib/timezone';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
 import { useAccionGuardada, useAccionesPorFila } from '@/hooks/useAccionGuardada';
+import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { getOrders, createOrder, updateOrder } from '@/lib/api/orders';
 import { ensureOrderShipping } from '@/lib/api/shippings';
 import { getCatalog } from '@/lib/api/products';
@@ -336,7 +337,9 @@ function Ordenes() {
   const calcTotal = itemsSubtotal + (Number(form.costo_envio) || 0);
   const hasProduct = form.items.some(l => l.slug);
 
+  const errorCrear = useErrorDialogo();
   const handleSave = () => guardaCrear.ejecutar(async () => {
+    errorCrear.limpiar();
     if (!form.cliente_nombre.trim()) {
       toast.error('El nombre del cliente es requerido');
       return;
@@ -400,7 +403,7 @@ function Ordenes() {
       setForm(EMPTY_FORM);
       resetCustomerDetection();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'No se pudo crear la orden');
+      errorCrear.mostrar(e, 'No se pudo crear la orden');
     }
   });
 
@@ -698,7 +701,7 @@ function Ordenes() {
       </Dialog>
 
       {/* New Order Dialog */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) errorCrear.limpiar(); setShowForm(o); }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nueva Orden</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
@@ -974,7 +977,8 @@ function Ordenes() {
             {gateBlocked && (
               <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Elige el cliente antes de crear la orden.</p>
             )}
-            <div className="flex justify-end gap-3">
+            <div className="flex w-full items-center justify-end gap-3">
+              <ErrorDialogo mensaje={errorCrear.mensaje} />
               <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
               <Button
                 onClick={handleSave}
@@ -1010,7 +1014,11 @@ function OrderDetail({ order, onClose, onUpdate, onRegisterPayment }: OrderDetai
   // clicks del mismo tick lo leen `false` los dos. (La Nueva Orden de esta misma
   // página ya tenía las dos mitades — es el patrón de referencia.)
   const guardaDetalle = useAccionGuardada();
+  const errorDetalle  = useErrorDialogo();
+  // El panel de detalle se monta por orden (`key`), así que cerrar y reabrir lo
+  // desmonta y el error se va con él — no hace falta limpiarlo a mano.
   const handleUpdate = () => guardaDetalle.ejecutar(async () => {
+    errorDetalle.limpiar();
     if (guardando) return;                  // clic repetido mientras ya se guarda
     // Cierre SOLO tras confirmación. El server rechaza transiciones inválidas
     // (409 de condición de pago bloqueada, entre otras) y ese mensaje tiene que
@@ -1022,7 +1030,7 @@ function OrderDetail({ order, onClose, onUpdate, onRegisterPayment }: OrderDetai
     try {
       updated = await updateOrder(order.id, { estado, notas_internas: notas });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'No se pudo actualizar la orden');
+      errorDetalle.mostrar(e, 'No se pudo actualizar la orden');
       return;
     } finally {
       setGuardando(false);
@@ -1138,6 +1146,12 @@ function OrderDetail({ order, onClose, onUpdate, onRegisterPayment }: OrderDetai
         <Button onClick={handleUpdate} disabled={guardando} className="w-full">
           {guardando ? 'Guardando…' : 'Guardar Cambios'}
         </Button>
+        {/* EXCEPCIÓN de colocación: este botón es `w-full`, así que no queda
+            espacio horizontal a su lado. El error va DEBAJO y no encima, que es
+            lo que mantiene quieto al botón — su posición la fija el contenido de
+            arriba, que no cambia. El diálogo tiene `max-h-[85vh]` con scroll, así
+            que a esa altura el crecimiento lo absorbe el scroll. */}
+        <ErrorDialogo mensaje={errorDetalle.mensaje} />
       </div>
     </div>
   );

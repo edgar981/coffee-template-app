@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { getProducts, getInventoryLogs, adjustInventory } from '@/lib/api/inventory';
 import type { InventoryLog, InventoryAdjustmentForm, InventoryMovementType } from '@/types/inventory';
 import { Product } from '@/types/product';
@@ -86,7 +87,9 @@ function InventarioInner() {
   // signifique "esto es lo que estás viendo".
   const filtroActivo   = lowStockOnly && tab === 'stock';
 
+  const errorAjuste = useErrorDialogo();
   const handleAdjust = () => ajuste.ejecutar(async () => {
+    errorAjuste.limpiar();
     const prod = productos.find(p => p.id === adjForm.producto_id);
     if (!prod || !adjForm.cantidad) return;
 
@@ -101,7 +104,7 @@ function InventarioInner() {
       setShowAdj(false);
       setAdjForm(EMPTY_FORM);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error al ajustar el inventario');
+      errorAjuste.mostrar(e, 'Error al ajustar el inventario');
     }
   });
 
@@ -304,7 +307,7 @@ function InventarioInner() {
       {/* En vuelo el modal no se cierra por click-fuera ni por Esc: son las otras
           dos formas de "salir" mientras la mutación viaja, y dejan al operador
           sin saber si se aplicó. Mismo criterio que ConfirmDeleteDialog. */}
-      <Dialog open={showAdj} onOpenChange={(o) => { if (!aplicando) setShowAdj(o); }}>
+      <Dialog open={showAdj} onOpenChange={(o) => { if (aplicando) return; if (!o) errorAjuste.limpiar(); setShowAdj(o); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Ajustar Inventario</DialogTitle>
@@ -362,7 +365,8 @@ function InventarioInner() {
               />
             </div>
           </div>
-          <div className="flex justify-end gap-3">
+          <div className="flex items-center justify-end gap-3">
+            <ErrorDialogo mensaje={errorAjuste.mensaje} />
             {/* Cancelar también se bloquea en vuelo: cerrar el modal a mitad del
                 ajuste no cancela nada en el server y deja al operador sin saber
                 si se aplicó. */}

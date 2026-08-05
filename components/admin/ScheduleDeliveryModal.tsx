@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { formatCOP } from '@/lib/utils';
 import { scheduleDelivery } from '@/lib/api/shippings';
 import { getDeliveryContext, updateOrderAddress } from '@/lib/api/orders';
@@ -154,7 +155,9 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
   const faltaParaDespachar = hasScheduleData(draft) ? missingToDispatch(draft) : null;
 
   const guardaProgramar = useAccionGuardada();
+  const errorProgramar  = useErrorDialogo();
   const handleSchedule = () => guardaProgramar.ejecutar(async () => {
+    errorProgramar.limpiar();
     setSaving(true);
     try {
       const updated = await scheduleDelivery(shipping.id, {
@@ -184,7 +187,7 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
       } : undefined);
       onClose();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error al programar la entrega');
+      errorProgramar.mostrar(e, 'Error al programar la entrega');
     }
     setSaving(false);
   });
@@ -364,7 +367,8 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
         </div>
       </div>
 
-      <div className="flex justify-end gap-3">
+      <div className="flex items-center justify-end gap-3">
+        <ErrorDialogo mensaje={errorProgramar.mensaje} />
         <Button variant="outline" onClick={onClose}>Cancelar</Button>
         <Button onClick={handleSchedule} disabled={saving || !hasAddress}>
           {saving ? 'Guardando...' : isReschedule ? 'Reprogramar' : 'Guardar entrega'}
@@ -395,7 +399,9 @@ function AddressForm({ orderId, initialPhone, onCancel, onSaved }: {
   const canSave    = !!direccion.trim() && !!ciudad.trim() && !!departamento && phoneValid;
 
   const guardaDireccion = useAccionGuardada();
+  const errorDireccion  = useErrorDialogo();
   const handleSave = () => guardaDireccion.ejecutar(async () => {
+    errorDireccion.limpiar();
     setSaving(true);
     try {
       const result = await updateOrderAddress(orderId, {
@@ -408,7 +414,7 @@ function AddressForm({ orderId, initialPhone, onCancel, onSaved }: {
       toast.success('Dirección agregada a la orden');
       onSaved(result);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error al guardar la dirección');
+      errorDireccion.mostrar(e, 'Error al guardar la dirección');
     }
     setSaving(false);
   });
@@ -449,7 +455,8 @@ function AddressForm({ orderId, initialPhone, onCancel, onSaved }: {
           <p className="mt-1 text-xs text-red-600">Celular colombiano inválido (10 dígitos, empieza por 3).</p>
         )}
       </div>
-      <div className="flex justify-end gap-2">
+      <div className="flex items-center justify-end gap-2">
+        <ErrorDialogo mensaje={errorDireccion.mensaje} />
         <Button variant="ghost" size="sm" onClick={onCancel} disabled={saving}>Cancelar</Button>
         <Button size="sm" onClick={handleSave} disabled={!canSave || saving}>
           {saving ? 'Guardando…' : 'Guardar dirección'}

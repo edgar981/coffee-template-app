@@ -13,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { toast } from 'sonner';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { formatCOP } from '@/lib/utils';
 import { getCustomers, createCustomer, updateCustomer, deleteCustomer } from '@/lib/api/customers';
 import type { Customer, CustomerForm } from '@/types/customer';
@@ -101,7 +102,9 @@ function ClientesInner() {
   // re-render, así que dos clicks del mismo tick lo leen `false` los dos. La
   // guarda síncrona es la que cierra esa ventana.
   const guarda = useAccionGuardada();
+  const error = useErrorDialogo();
   const handleSave = () => guarda.ejecutar(async () => {
+    error.limpiar();
     if (guardando) return;                  // clic repetido mientras ya se guarda
     if (!form.nombre) { toast.error('El nombre es requerido'); return; }
 
@@ -120,7 +123,7 @@ function ClientesInner() {
         toast.success('Cliente creado');
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'No se pudo guardar el cliente');
+      error.mostrar(e, 'No se pudo guardar el cliente');
       return;
     } finally {
       setGuardando(false);
@@ -362,7 +365,7 @@ function ClientesInner() {
       </div>
 
       {/* Form Dialog */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) error.limpiar(); setShowForm(o); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{editing ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
@@ -410,7 +413,8 @@ function ClientesInner() {
               />
             </div>
           </div>
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <ErrorDialogo mensaje={error.mensaje} />
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
             <Button onClick={handleSave} disabled={guardando || !form.nombre}>
               {guardando ? 'Guardando…' : 'Guardar'}

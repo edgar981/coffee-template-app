@@ -1,4 +1,5 @@
 import type { Product } from '@/types/product';
+import { razonDelServidor } from '@/lib/api/errors';
 
 // Admin: catálogo completo (requiere sesión; incluye costo/stock_minimo).
 export async function getProducts(): Promise<Product[]> {
@@ -23,15 +24,6 @@ export function getCatalog(): Promise<Product[]> {
     });
   }
   return catalogPromise;
-}
-
-// El mensaje del servidor, cuando lo trae. Los 400 de este endpoint explican una
-// regla concreta ("deja al menos una molienda disponible", el tope de galería) y
-// un "Error al guardar" genérico borraría justo la parte que le dice al operador
-// qué corregir. Mismo trato que ya tenía `deleteProduct` con su 409.
-async function razonDelServidor(res: Response, fallback: string): Promise<Error> {
-  const msg = await res.json().then((d) => d?.error).catch(() => null);
-  return new Error(msg || fallback);
 }
 
 export async function createProduct(data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>): Promise<Product> {

@@ -13,6 +13,7 @@ import {
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 
 // Shared confirmation for ANY sensitive delete in the admin — the template that
 // replaces native window.confirm(). Built on Radix AlertDialog (shadcn): themed
@@ -30,7 +31,7 @@ import { Button } from '@/components/ui/button';
 interface SecondaryAction {
   /** Verb for the non-destructive alternative, e.g. "Desactivar". */
   label: string;
-  /** Runs the alternative. Throw with a message to keep the dialog open + toast it. */
+  /** Runs the alternative. Throw with a message: el diálogo queda abierto y lo muestra INLINE. */
   onAction: () => Promise<void>;
   /** Brief success toast when it resolves. */
   successMessage?: string;
@@ -47,7 +48,7 @@ interface ConfirmDeleteDialogProps {
   consequence: string;
   /** Specific verb on the destructive button, e.g. "Eliminar cliente" — never "OK". */
   confirmLabel: string;
-  /** Runs the delete. Throw with a message to keep the dialog open + toast it. */
+  /** Runs the delete. Throw with a message: el diálogo queda abierto y lo muestra INLINE. */
   onConfirm: () => Promise<void>;
   /** Brief success toast shown when onConfirm resolves. */
   successMessage?: string;
@@ -94,6 +95,9 @@ export function ConfirmDeleteDialog({
   // dialog can't be dismissed (Escape / programmatic close are swallowed below).
   const [busy, setBusy] = useState<'confirm' | 'secondary' | null>(null);
   const loading = busy !== null;
+  // El motivo del fallo va DENTRO del diálogo, no a un toast: el operador está
+  // mirando acá, y acá es donde puede corregir o reintentar.
+  const error = useErrorDialogo();
   // `busy` ya deshabilitaba los dos botones, pero es estado: dos clicks en el
   // mismo tick lo leen `null` los dos. `guarda` agrega la mitad síncrona — la
   // única que cierra esa ventana. Ver CLAUDE.md § Doble-submit.
@@ -106,6 +110,7 @@ export function ConfirmDeleteDialog({
     fallbackError: string,
   ) => guarda.ejecutar(async () => {
     setBusy(which);
+    error.limpiar();          // un reintento no arrastra el error del intento anterior
     try {
       await action();
       // El toast va ANTES del cierre: así el operador lo ve aparecer con el
@@ -115,16 +120,23 @@ export function ConfirmDeleteDialog({
       if (okMessage) toast.success(okMessage);
       onOpenChange(false);
     } catch (e) {
-      // Surface the SERVER's message (e.g. the 409 reason) and keep the dialog
-      // open so the operator can read it and retry or cancel.
-      toast.error(e instanceof Error ? e.message : fallbackError);
+      // El mensaje del SERVIDOR (p. ej. el motivo del 409), con el diálogo
+      // abierto para poder leerlo y reintentar o cancelar.
+      error.mostrar(e, fallbackError);
     } finally {
       setBusy(null);
     }
   });
 
   return (
-    <AlertDialog open={open} onOpenChange={(o) => { if (!loading) onOpenChange(o); }}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(o) => {
+        if (loading) return;
+        if (!o) error.limpiar();   // cerrar y reabrir no revive un error viejo
+        onOpenChange(o);
+      }}
+    >
       <AlertDialogContent onEscapeKeyDown={(e) => { if (loading) e.preventDefault(); }}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
@@ -136,7 +148,11 @@ export function ConfirmDeleteDialog({
           {entityLabel}
         </p>
 
+        {/* El error va DENTRO de la fila de acciones y como hermano flexible, no
+            como banner encima: así ocupa espacio horizontal que la fila ya tenía
+            libre y los botones no se mueven bajo el cursor al fallar. */}
         <AlertDialogFooter>
+          <ErrorDialogo mensaje={error.mensaje} />
           <AlertDialogCancel disabled={loading}>Cancelar</AlertDialogCancel>
           {secondaryAction && (
             <Button

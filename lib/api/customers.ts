@@ -1,3 +1,4 @@
+import { razonDelServidor } from '@/lib/api/errors';
 import type { Customer, CustomerForm, CustomerWithOrders } from '@/types/customer';
 
 export async function getCustomers(): Promise<Customer[]> {
@@ -45,7 +46,7 @@ export async function createCustomer(data: CustomerForm): Promise<Customer> {
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Error al crear cliente');
+  if (!res.ok) throw await razonDelServidor(res, 'Error al crear cliente');
   return res.json();
 }
 
@@ -55,7 +56,7 @@ export async function updateCustomer(id: string, data: Partial<CustomerForm>): P
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Error al actualizar cliente');
+  if (!res.ok) throw await razonDelServidor(res, 'Error al actualizar cliente');
   return res.json();
 }
 
@@ -64,7 +65,6 @@ export async function deleteCustomer(id: string): Promise<void> {
   if (!res.ok) {
     // Surface the server's reason (e.g. the 409 "tiene N órdenes") so the confirm
     // dialog can show it verbatim.
-    const msg = await res.json().then((d) => d?.error).catch(() => null);
-    throw new Error(msg || 'Error al eliminar cliente');
+    throw await razonDelServidor(res, 'Error al eliminar cliente');
   }
 }

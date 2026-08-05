@@ -1,3 +1,4 @@
+import { razonDelServidor } from '@/lib/api/errors';
 import type { Order, TrackedOrder, DeliveryContext, DeliveryAddressPayload, OrderAddressResult, AdminOrderPayload } from '@/types/order';
 
 export async function getOrders(): Promise<Order[]> {
@@ -50,7 +51,7 @@ export async function updateOrder(id: string, data: Partial<Order>): Promise<Ord
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Error al actualizar orden');
+  if (!res.ok) throw await razonDelServidor(res, 'Error al actualizar orden');
   return res.json();
 }
 
