@@ -1162,6 +1162,41 @@ este pedido?" sin que nada lo notara. Mismo criterio que `lib/metrics/titulares.
 - **El board de Entregas no cambió de badges**: sigue siendo la vista de flota
   (una fila por envío, con su checklist muted). Esta columna es la vista de orden.
 
+### La FILA ofrece el siguiente paso, no un menú
+
+Ajuste posterior al gate del centro de mando (owner, 2026-08-06). Con el detalle
+operando la orden completa, la fila dejó de necesitar un repertorio.
+
+- **Orden de columnas: Orden · Cliente · Canal · Total · Estado · Entrega ·
+  Fecha · Acciones.** Los DOS ciclos de la orden —pago y entrega— quedan
+  adyacentes y se leen sin cruzar la tabla; Acciones cierra la fila, que es donde
+  la mano la busca. Antes Entrega estaba al final, después de Acciones: el dato
+  más nuevo en el sitio donde nadie mira.
+- **"Editar entrega" MURIÓ.** En su lugar la TRANSICIÓN única que el estado
+  permite: "Programar entrega" / "Marcar En Ruta" / "Marcar Entregado". Es la
+  TERCERA montura de `useTransicionEntrega` (board, detalle, fila) — y la razón
+  de que extraerlo fuera correcto se ve acá: una tercera copia inline de la
+  transición que mueve stock habría sido insostenible.
+- **Cuál acción va en cada estado lo decide `accionFilaEntrega`**
+  (`lib/entrega-estado.ts`, capa 1), no un `if` en el JSX. Consume el MISMO
+  `isScheduledShipping`: si la fila decidiera por su cuenta cuándo se puede
+  despachar, prometería una transición que el servidor devuelve en 400.
+- **Reprogramar NO está en la fila, y es deliberado.** Una entrega fallida se
+  reprograma después de ver POR QUÉ falló, y eso está en el detalle. La fila es
+  el carril rápido del caso normal; los casos raros tienen su sitio.
+- **El "Marcar En Ruta" bloqueado se MUESTRA deshabilitado diciendo qué falta**
+  (`missingToDispatch`), no se esconde — una acción ausente manda al operador a
+  buscarla a otra pantalla. Lo que falta se completa en el detalle.
+- **Guarda D+R en el botón nuevo**, con texto intermedio propio por verbo
+  ("Despachando…", "Marcando…"): el `disabled` sale del estado del hook y el ref
+  síncrono de `useAccionesPorFila` corta el segundo click del mismo tick. Sin el
+  texto el botón se queda mudo mientras viaja, que es la mitad que hace que el
+  operador vuelva a clickear.
+- **"Ver detalle" terciario al final de Acciones.** La fila entera ya abría el
+  detalle y el número se lee como link, pero **ninguna de las dos cosas se
+  anuncia**. La redundancia ES la señal: un operador que no descubre el detalle
+  no usa nada de lo que vive adentro, y ahí vive ahora la operación completa.
+
 ### El detalle de la orden es el CENTRO DE MANDO
 
 Tenía estado y notas; programar, despachar, entregar y reprogramar vivían sólo en

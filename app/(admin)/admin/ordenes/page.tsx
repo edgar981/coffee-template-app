@@ -31,8 +31,8 @@ import { formatCOP } from '@/lib/utils';
 import { formatFecha } from '@/lib/format-fecha';
 import { findSlotLabel } from '@/lib/shipping-config';
 import { hasScheduleData, isScheduledShipping, missingToDispatch } from '@/constants/shippings';
-import { estadoEntrega } from '@/lib/entrega-estado';
-import { useTransicionEntrega } from '@/hooks/useTransicionEntrega';
+import { estadoEntrega, accionFilaEntrega } from '@/lib/entrega-estado';
+import { useTransicionEntrega, type TransicionEntrega } from '@/hooks/useTransicionEntrega';
 import { ConfirmDespachoSinPago } from '@/components/admin/ConfirmDespachoSinPago';
 import { Pliegue } from '@/components/admin/Pliegue';
 import { filterChip, filterChipTono, FILTER_CHIP_COUNT } from '@/constants/filter-chip';
@@ -455,24 +455,16 @@ function Ordenes() {
     });
   };
 
-  // Whether an order can be scheduled from the table now, and the button label.
-  // Any non-cancelled order can "Preparar envío" — preparing is harmless (no
-  // stock moves); the real gate is the confirmation at dispatch. Server-enforced.
-  const canSchedule = (o: Order) =>
-    o.estado !== 'cancelado' && (
-      o.shipping?.estado === 'preparando' ||
-      o.shipping?.estado === 'fallido' ||
-      (!o.shipping && o.estado === 'pendiente')
-    );
-
-  const scheduleLabel = (o: Order) =>
-    !o.shipping ? (o.estado === 'pendiente' ? 'Preparar envío' : 'Programar entrega')
-    : o.shipping.estado === 'fallido' ? 'Reprogramar'
-    // Presentación: basta con que HAYA datos de programación (fecha y/o
-    // mensajero) para que la acción sea "editar". Poder despachar es otra cosa
-    // — la decide `isScheduledShipping` y se explica en el modal/Entregas.
-    : hasScheduleData(o.shipping) ? 'Editar entrega'
-    : 'Programar entrega';
+  // TERCERA montura de las transiciones (board, detalle, y ahora la fila). La
+  // fila ofrece UNA sola —la que el estado permite, resuelta por
+  // `accionFilaEntrega`— y nunca la de reprogramar: eso exige ver por qué falló y
+  // vive en el detalle.
+  //
+  // Toast y no error inline: la fila no está dentro de ningún diálogo, así que
+  // aplica la mitad de la división de vehículos que corresponde a una página.
+  const transicionFila = useTransicionEntrega({
+    onUpdated: (sh) => setOrders(prev => prev.map(o => o.shipping?.id === sh.id ? { ...o, shipping: sh } : o)),
+  });
 
   // Only the plain string text/textarea fields — the canal, product lines,
   // método previsto (Select) and pagoRecibido (Checkbox) have bespoke controls.
@@ -570,7 +562,7 @@ function Ordenes() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40">
-                  {['#Orden', 'Cliente', 'Canal', 'Total', 'Estado', 'Fecha', 'Acciones', 'Entrega'].map(h => (
+                  {['#Orden', 'Cliente', 'Canal', 'Total', 'Estado', 'Entrega', 'Fecha', 'Acciones'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{h}</th>
                   ))}
                 </tr>
@@ -602,6 +594,12 @@ function Ordenes() {
                     <td className="px-4 py-3">
                       <StatusBadge status={o.estado} />
                     </td>
+                    {/* Entrega va JUNTO a Estado —los dos ciclos de la orden se
+                        leen de un vistazo, sin cruzar la tabla— y Acciones cierra
+                        la fila, que es donde la mano la busca. */}
+                    <td className="px-4 py-3">
+                      <CeldaEntrega orden={o} />
+                    </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       {formatFecha(o.createdAt)}
                     </td>
@@ -625,25 +623,24 @@ function Ordenes() {
                             <CreditCard className="w-3.5 h-3.5" /> Registrar pago
                           </Button>
                         )}
-                        {/* Programar entrega — hidden once en ruta/entregado (real
-                            fulfillment record) or cancelled. Under ALLOW_UNPAID it
-                            also shows for an unpaid order with no Shipping yet, and
-                            creates it on click (server-guarded). Scheduled date
-                            lives on Entregas. */}
-                        {canSchedule(o) && (
-                          <Button
-                            variant="outline" size="sm" className="h-7 gap-1 text-xs whitespace-nowrap"
-                            disabled={filasPrepara.enVuelo(o.id)}
-                            onClick={() => openSchedule(o)}
-                          >
-                            <Truck className="w-3.5 h-3.5" />
-                            {filasPrepara.enVuelo(o.id) ? 'Preparando…' : scheduleLabel(o)}
-                          </Button>
-                        )}
+                        <AccionEntregaFila
+                          orden={o}
+                          transicion={transicionFila}
+                          preparando={filasPrepara.enVuelo(o.id)}
+                          onProgramar={() => openSchedule(o)}
+                        />
+                        {/* Terciario y al final: la fila entera ya abre el detalle
+                            y el número se lee como link, pero ninguna de las dos
+                            cosas se ANUNCIA. La redundancia ES la señal — un
+                            operador que no descubre el detalle no usa nada de lo
+                            que vive adentro. */}
+                        <Button
+                          variant="ghost" size="sm" className="h-7 gap-1 text-xs whitespace-nowrap text-muted-foreground"
+                          onClick={() => setParams({ order: o.numero_orden }, 'push')}
+                        >
+                          Ver detalle
+                        </Button>
                       </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <CeldaEntrega orden={o} />
                     </td>
                   </tr>
                 ))}
@@ -677,6 +674,10 @@ function Ordenes() {
         onClose={() => setPaymentOrder(null)}
         onSaved={({ order }) => handleOrderUpdate(order)}
       />
+
+      {/* Despachar sin pago desde la FILA — la misma confirmación del board y
+          del detalle, tercera montura. */}
+      <ConfirmDespachoSinPago {...transicionFila.confirmacion} />
 
       {/* Order Detail Dialog */}
       <Dialog open={!!selected} onOpenChange={closeDetail}>
@@ -985,6 +986,92 @@ function Ordenes() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// ─── AccionEntregaFila ────────────────────────────────────────────────────────
+// UNA acción de fulfillment por fila: la que el estado permite. Cuál es lo
+// decide `accionFilaEntrega` (puro, testeado) — acá sólo se pinta.
+//
+// "Editar entrega" ya no existe en la fila. Editar una programación hecha,
+// reprogramar una fallida y cualquier caso raro viven en el detalle, que es
+// donde está el contexto para decidirlos; la fila es el carril rápido.
+
+function AccionEntregaFila({ orden, transicion, preparando, onProgramar }: {
+  orden:      Order;
+  transicion: TransicionEntrega;
+  preparando: boolean;
+  onProgramar: () => void;
+}) {
+  const accion   = accionFilaEntrega(orden);
+  const shipping = orden.shipping ?? null;
+  // Guarda D+R: el `disabled` sale del estado del hook y el ref síncrono de
+  // `useAccionesPorFila` corta el segundo click del mismo tick. El texto
+  // intermedio es la otra mitad — sin él el botón se queda mudo mientras viaja,
+  // que es lo que hace que el operador vuelva a clickear.
+  const enVuelo = shipping ? transicion.enVuelo(shipping.id) : false;
+
+  if (accion.tipo === 'ninguna') return null;
+
+  if (accion.tipo === 'programar') {
+    return (
+      <Button
+        variant="outline" size="sm" className="h-7 gap-1 text-xs whitespace-nowrap"
+        disabled={preparando}
+        onClick={onProgramar}
+      >
+        <Truck className="w-3.5 h-3.5" />
+        {preparando ? 'Preparando…' : 'Programar entrega'}
+      </Button>
+    );
+  }
+
+  // Las tres restantes operan sobre un Shipping existente (el resolver lo
+  // garantiza; el guard es para el compilador).
+  if (!shipping) return null;
+
+  if (accion.tipo === 'despachar_bloqueado') {
+    const motivo = accion.falta === 'mensajero'
+      ? 'Asigna un mensajero para despachar'
+      : 'Asigna una fecha programada para despachar';
+    // El `span` lleva el title: un button deshabilitado se traga el hover. Se
+    // muestra y no se esconde — lo que falta se completa en el detalle, y una
+    // acción ausente mandaría a buscarla a otra pantalla.
+    return (
+      <span className="inline-flex cursor-not-allowed" title={motivo}>
+        <Button variant="outline" size="sm" disabled className="h-7 gap-1 text-xs whitespace-nowrap" aria-label={motivo}>
+          <Truck className="w-3.5 h-3.5" /> Marcar En Ruta
+        </Button>
+      </span>
+    );
+  }
+
+  if (accion.tipo === 'despachar') {
+    return (
+      <Button
+        variant="outline" size="sm" className="h-7 gap-1 text-xs whitespace-nowrap"
+        disabled={enVuelo}
+        onClick={() => transicion.despachar({
+          id:          shipping.id,
+          ordenPagada: orden.estado === 'pagado',
+          numeroOrden: orden.numero_orden,
+        })}
+      >
+        <Truck className="w-3.5 h-3.5" />
+        {enVuelo ? 'Despachando…' : 'Marcar En Ruta'}
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      variant="outline" size="sm" className="h-7 gap-1 text-xs whitespace-nowrap"
+      disabled={enVuelo}
+      onClick={() => transicion.marcarEntregado(shipping.id)}
+    >
+      <CheckCircle className="w-3.5 h-3.5" />
+      {enVuelo ? 'Marcando…' : 'Marcar Entregado'}
+    </Button>
   );
 }
 

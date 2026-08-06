@@ -1,5 +1,5 @@
 import { formatFecha } from '@/lib/format-fecha';
-import { hasScheduleData, isScheduledShipping } from '@/constants/shippings';
+import { hasScheduleData, isScheduledShipping, missingToDispatch } from '@/constants/shippings';
 import { isPorCobrar } from '@/lib/metrics/order-stat-filters';
 import type { SemaphoreTone } from '@/components/ui/StatusBadge';
 
@@ -160,4 +160,54 @@ export function estadoEntrega(orden: OrdenParaEntrega): EstadoEntrega {
   // prefiere callar a inventar: un estado desconocido rotulado "Sin programar"
   // mandaría al operador a programar algo que quizá ya salió.
   return vacio(`Estado de entrega no reconocido: ${s.estado}`);
+}
+
+// ─── La acción ÚNICA de la fila ──────────────────────────────────────────────
+//
+// La fila de Órdenes no ofrece un menú de fulfillment: ofrece EL siguiente paso.
+// "Editar entrega" murió al montar el centro de mando — editar una programación
+// ya hecha, reprogramar una fallida y cualquier caso raro viven en el detalle,
+// que es donde está el contexto para decidirlos. Lo que queda en la fila es la
+// transición que el estado permite, y sólo una.
+//
+// Es una función pura y no un `if` en el JSX por lo de siempre: qué acción se
+// ofrece en cada estado es la decisión, y dentro de un componente una condición
+// cambiada la rompería sin que nada lo notara.
+//
+// `despachar_bloqueado` NO es un caso aparte inventado acá: es el mismo gate de
+// `isScheduledShipping` que aplican el board, el detalle y el servidor. Se
+// muestra deshabilitado DICIENDO qué falta en vez de esconderse, porque una
+// acción ausente manda al operador a buscarla en otra pantalla — y lo que falta
+// se completa en el detalle.
+export type AccionFilaEntrega =
+  | { tipo: 'ninguna' }
+  | { tipo: 'programar' }
+  | { tipo: 'despachar' }
+  | { tipo: 'despachar_bloqueado'; falta: 'mensajero' | 'fecha' }
+  | { tipo: 'entregar' };
+
+export function accionFilaEntrega(orden: OrdenParaEntrega): AccionFilaEntrega {
+  if (orden.estado === 'cancelado') return { tipo: 'ninguna' };
+
+  const s = orden.shipping;
+  // Sin registro de envío: el primer paso es programarlo (el Shipping lo crea el
+  // servidor al abrir el modal, idempotente).
+  if (!s) return { tipo: 'programar' };
+
+  if (s.estado === 'preparando') {
+    if (isScheduledShipping(s)) return { tipo: 'despachar' };
+    if (hasScheduleData(s)) {
+      // `missingToDispatch` no puede devolver null acá (hay datos parciales y el
+      // estado es preparando), pero el fallback evita que un refactor de ese
+      // predicado deje la fila sin acción en silencio.
+      return { tipo: 'despachar_bloqueado', falta: missingToDispatch(s) ?? 'mensajero' };
+    }
+    return { tipo: 'programar' };
+  }
+
+  if (s.estado === 'en_ruta') return { tipo: 'entregar' };
+
+  // fallido (reprogramar), entregado y cancelado: la fila calla. Reprogramar es
+  // una decisión que necesita ver por qué falló, y eso está en el detalle.
+  return { tipo: 'ninguna' };
 }
