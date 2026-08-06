@@ -252,13 +252,21 @@ título solo rara vez alcanza ("Orden CN-123456" no dice qué se puede hacer ah�
 - `AlertDialog` tiene su propio `AlertDialogDescription`, que ya se usaba en los
   dos confirms.
 
-**PENDIENTE — el hueco sigue abierto en cinco diálogos** de otras pantallas:
-`admin/inventario`, `admin/productos`, `admin/clientes`,
-`admin/clientes/[id]/CustomerProfile` e `ImageLightbox`. Se cerraron los cuatro
-de los flujos de Órdenes (detalle, Nueva Orden, programar entrega, registrar
-pago) cuando el warning apareció en su gate; los otros son de sus propias tandas.
-Se anota acá y no en el backlog porque es una regla de UI, no deuda que esté
-costando.
+- **`ImageLightbox` es la ÚNICA excepción**, y va por la otra rama:
+  `aria-describedby={undefined}`. Su contenido ES la imagen, ya descrita por el
+  `alt` que va en el título; una descripción sólo podría repetir ese texto, y un
+  lector de pantalla anunciando dos veces lo mismo es peor que el silencio. La
+  excepción se DECLARA en el código — un diálogo sin descripción y sin el
+  `undefined` explícito es indistinguible de un descuido.
+
+**La regla está cumplida en los diez `DialogContent` del repo** (2026-08-06).
+Verificable de un vistazo, y conviene correrlo al agregar un diálogo nuevo:
+
+```bash
+for f in $(grep -rl "<DialogContent" --include="*.tsx" . | grep -v node_modules); do
+  grep -q "DialogDescription\|aria-describedby" "$f" || echo "PENDIENTE: $f"
+done
+```
 
 ## Doble-submit — `useAccionGuardada`, no una receta a recordar
 

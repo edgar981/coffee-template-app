@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
@@ -226,7 +226,12 @@ function EditCustomerDialog({ open, customer, onOpenChange, onSaved }: {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Editar Cliente</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Editar Cliente</DialogTitle>
+          <DialogDescription className="sr-only">
+            Datos de contacto y dirección del cliente. No modifica sus órdenes.
+          </DialogDescription>
+        </DialogHeader>
         {open && <EditForm customer={customer} onClose={() => onOpenChange(false)} onSaved={onSaved} />}
       </DialogContent>
     </Dialog>

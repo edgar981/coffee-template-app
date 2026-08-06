@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, TrendingDown, TrendingUp, Warehouse, ArrowUpDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
@@ -311,6 +311,12 @@ function InventarioInner() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Ajustar Inventario</DialogTitle>
+            {/* Nombra lo que el operador tiene que DECIDIR —el tipo, que es lo
+                único que cambia el efecto— y la consecuencia. `sr-only`: el
+                formulario ya lo muestra a la vista. */}
+            <DialogDescription className="sr-only">
+              Registra un movimiento de stock: entrada, salida, devolución o ajuste a un valor absoluto. Queda asentado en el kardex del producto.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
