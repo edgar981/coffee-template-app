@@ -1305,6 +1305,13 @@ este pedido?" sin que nada lo notara. Mismo criterio que `lib/metrics/titulares.
   etiqueta la EXCEPCIÓN (contraentrega despachada sin cobro, la plata en la
   calle), no el default. Es la misma regla que ya mantenía la lista de Órdenes sin
   la píldora de condición de pago, y por eso esa decisión NO se reabrió.
+- **Y va SÓLO en la lista, no en el detalle** (owner, 2026-08-06). En la sección
+  Pago del detalle el mismo hecho ya está dicho dos veces —"Saldo pendiente" con
+  su monto, y "Contraentrega" en la línea de abajo—; el chip era una tercera. En
+  una fila de la lista no hay ninguna de las dos, y "despachada sin cobrar" no se
+  deduce de las columnas. **Etiquetar la excepción es útil donde no hay contexto;
+  donde lo hay, es ruido** — que es la misma regla de Amber Minimal leída al
+  derecho, no una inconsistencia entre las dos vistas.
 - **El board de Entregas no cambió de badges**: sigue siendo la vista de flota
   (una fila por envío, con su checklist muted). Esta columna es la vista de orden.
 

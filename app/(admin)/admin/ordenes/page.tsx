@@ -1393,10 +1393,14 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
       <section className="space-y-3 border-t border-border pt-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Pago</p>
-          <div className="flex items-center gap-1.5">
-            <StatusBadge status={order.estado} />
-            {entrega.porCobrar && <BadgePorCobrar />}
-          </div>
+          {/* SIN badge "Por cobrar" acá, a diferencia de la columna de la lista.
+              En el detalle el hecho ya está dicho dos veces —"Saldo pendiente"
+              con su monto, y "Contraentrega" en la línea de abajo—; el chip era
+              una tercera. En la LISTA sí va, porque ahí no hay ninguna de las
+              dos y el recorte "despachada sin cobrar" no se puede deducir de una
+              fila. Etiquetar la excepción es útil donde no hay contexto; donde
+              lo hay, es ruido. */}
+          <StatusBadge status={order.estado} />
         </div>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
