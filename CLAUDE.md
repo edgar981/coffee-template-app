@@ -1024,6 +1024,70 @@ la tienda cambia sin que nada lo anuncie.
 - v1 **sin reordenamiento** y sin catálogo global de moliendas: siguen siendo Json
   por producto, igual que la galería.
 
+## Identidad: cada producto declara la suya
+
+El admin mostraba el favicon de Café Nayoli aunque su chrome ya fuera Duna. La
+causa no era un archivo mal puesto: **todo lo de identidad vivía en la raíz**
+(`app/layout.tsx` + las convenciones de archivo `app/favicon.ico`, `app/icon.svg`,
+`app/apple-icon.png`), y Next las aplica a **toda la app**, no sólo al storefront.
+Ninguno de los tres layouts de grupo declaraba nada propio, y ninguna página del
+repo exportaba `metadata`.
+
+Es la misma frontera que ya rige la política de tema: **storefront y admin son
+productos distintos que comparten repo temporalmente**, así que cada uno declara
+sus metadatos en el layout de su grupo.
+
+| metadato | storefront | admin |
+| --- | --- | --- |
+| `title` | `Café Nayoli` (raíz) | `Panel Duna`, `%s · Panel Duna` |
+| `description` | copy de Nayoli (raíz) | "Panel de operación Duna." |
+| `themeColor` | `#F9F6F4` (raíz) | `#F9F6F0` claro / `#171717` oscuro |
+| favicon / icon / apple | `public/` + `metadata.icons` del grupo | `/brand/*-duna.*` |
+| manifest | Nayoli — **sigue global**, ver abajo | *(hereda el de Nayoli)* |
+
+- **`title.absolute`, no `title.default`.** Un `default` de segmento hijo SIGUE
+  pasando por el `template` del padre: la pestaña del panel salía
+  **"Panel Duna · Café Nayoli"**. Se vio en el `<head>` real, no en la teoría.
+  `absolute` es la forma que Next define para ignorar el template heredado.
+- **Los íconos del storefront salieron de `app/` a `public/`.** Declararlos en el
+  admin NO alcanzaba: `metadata.icons` de un hijo agrega sus links pero **no
+  retira** los que la raíz emite por convención de archivo, así que el `<head>`
+  del panel seguía trayendo el `favicon.ico` de Nayoli. Con los archivos en
+  `public/` y declarados desde `app/(storefront)/layout.tsx`, las URLs y los bytes
+  son los mismos de siempre (`/favicon.ico` responde 200 para los pedidos ciegos
+  de crawlers) y dejan de aplicar fuera del storefront. Ojo con el intermedio que
+  NO sirve: moverlos a `app/(storefront)/` los hace servir con URL hasheada
+  (`/icon-utz4wr.svg`) y `/favicon.ico` pasa a 404.
+- **Los títulos de sección los DERIVA `ADMIN_NAV`** (`lib/admin-titulo.ts`, capa 1):
+  la pestaña dice exactamente lo que dice el sidebar. Una segunda lista dejaría
+  que renombrar "Analítica" en el menú no moviera la pestaña — y el título de
+  pestaña es justo el texto que nadie mira hasta que está mal. Como las páginas
+  del admin son `'use client'` y un componente de cliente no puede exportar
+  `metadata`, cada sección lleva un `layout.tsx` de cuatro líneas.
+- **El detalle de orden NO lleva título propio**: es un modal sobre
+  `/admin/ordenes` (`?order=CN-…`), no una ruta. No se inventa un
+  "CN-132453 · Panel Duna" para algo que no existe como página.
+- **CASO BORDE del `themeColor`, y no es un bug**: `prefers-color-scheme` sigue la
+  preferencia del SISTEMA, no el toggle de tres estados del panel. Con el sistema
+  en claro y el panel forzado a oscuro, la barra del navegador queda clara. Es
+  límite de un `themeColor` estático en metadata; **no vale sincronizarlo por JS**
+  — la mejora es marginal y el costo (un meta tag mutando en cliente) no.
+
+**PENDIENTE DECLARADO — el manifest sigue siendo de Nayoli en las dos
+superficies.** `app/manifest.ts` se sirve en `/manifest.webmanifest` y lo enlazan
+todas las rutas, así que instalar el panel como PWA diría "Café Nayoli". No se
+arregló en esta tanda a propósito: darle manifest propio al admin exige decidir
+nombre, colores de instalación e íconos PNG 192/512 en marca Duna, que hoy no
+existen (sólo hay SVG e ICO) — y eso es una decisión de asset, no una corrección
+de fuga. Tampoco existen `openGraph` ni `twitter` en ningún lado: es una ausencia,
+no una fuga.
+
+**NOTA PARA EL TEMPLATE — esto es CONTENIDO DE TENANT.** El `title`, la
+`description` y el `themeColor` de la raíz, los íconos del storefront y todo
+`app/manifest.ts` son de la TIENDA, no de Duna. Van al inventario de la fase 1
+(`SiteSetting`) el día del multitenant. Lo que queda del lado del producto es lo
+que declara `app/(admin)/layout.tsx`.
+
 ## Política de tema (dark mode)
 
 El storefront es light-only (paleta de marca fija). El admin soporta

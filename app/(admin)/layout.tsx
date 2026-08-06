@@ -1,8 +1,10 @@
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
 import { AdminThemeProvider } from "@/components/theme/AdminThemeProvider";
 import { AdminScope } from "@/components/theme/AdminScope";
 import { spaceGrotesk, instrumentSans, jetbrainsMono } from "./fonts";
+import { SUFIJO_PANEL } from "@/lib/admin-titulo";
 
 // Layout del grupo admin (dashboard, login, aceptar-invitación). Monta el
 // ThemeProvider del admin aquí para que TODO el producto interno — no solo
@@ -14,6 +16,51 @@ import { spaceGrotesk, instrumentSans, jetbrainsMono } from "./fonts";
 // el <script> inline lo aplica antes del primer paint en cargas completas para
 // evitar un flash del paladar coffee del storefront. Las fuentes Duna viven en
 // el wrapper `.admin-shell`.
+// ─── La identidad del PANEL, declarada acá ───────────────────────────────────
+//
+// El grupo admin es un producto distinto del storefront y por eso declara sus
+// propios metadatos. Sin esto, TODO —favicon, título, theme-color— cae en
+// cascada desde `app/layout.tsx`, que es de Café Nayoli: el panel de Duna
+// mostraba el favicon del cliente en la pestaña.
+//
+// `icons` acá SOBREESCRIBE las convenciones de archivo de la raíz
+// (`app/icon.svg`, `app/favicon.ico`, `app/apple-icon.png`), que Next aplica a
+// toda la app y no sólo al storefront. Los del storefront no se tocan.
+//
+// Los títulos de sección los declara cada `layout.tsx` de ruta y salen de
+// `ADMIN_NAV` (§ lib/admin-titulo): la pestaña dice lo que dice el menú.
+export const metadata: Metadata = {
+  // `absolute` y no `default`: un `default` de segmento hijo SIGUE pasando por
+  // el `template` del padre, así que la pestaña del panel salía
+  // "Panel Duna · Café Nayoli" — verificado en el <head> real. `absolute` es la
+  // forma que Next define para ignorar el template heredado, y el `template` de
+  // esta misma línea es el que aplican las secciones de abajo.
+  title: { absolute: SUFIJO_PANEL, template: `%s · ${SUFIJO_PANEL}` },
+  description: "Panel de operación Duna.",
+  icons: {
+    icon: [
+      { url: "/brand/icon-duna.svg", type: "image/svg+xml" },
+      { url: "/brand/favicon-duna.ico", sizes: "any" },
+    ],
+    shortcut: "/brand/favicon-duna.ico",
+  },
+};
+
+// Los dos fondos reales de `html.admin` (--background en globals.css): #F9F6F0
+// claro, #171717 oscuro.
+//
+// CASO BORDE CONOCIDO, no un bug: `prefers-color-scheme` sigue la preferencia
+// del SISTEMA, no el toggle de tres estados del panel. Un usuario con el sistema
+// en claro y el panel forzado a oscuro verá la barra del navegador clara. Es
+// límite de un `themeColor` estático en metadata, y NO vale sincronizarlo por JS:
+// la mejora es marginal y el costo —un meta tag mutando en el cliente— no.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F9F6F0" },
+    { media: "(prefers-color-scheme: dark)",  color: "#171717" },
+  ],
+};
+
 export default function AdminGroupLayout({ children }: { children: ReactNode }) {
   return (
     <AdminThemeProvider>
