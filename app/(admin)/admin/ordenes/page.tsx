@@ -40,7 +40,8 @@ import {
   ComprobanteVista, SelectorComprobante, AyudaComprobante, useLightboxComprobante,
 } from '@/components/admin/Comprobantes';
 import { subirComprobante, decidirComprobante, getComprobantes } from '@/lib/api/comprobantes';
-import { accionAlVerificar, puedeDecidirse } from '@/lib/comprobante';
+import { accionAlVerificar, puedeDecidirse, nombreArchivo } from '@/lib/comprobante';
+import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { MAX_COMPROBANTE_MB } from '@/constants/comprobante';
 import type { Comprobante } from '@/types/comprobante';
 import { filterChip, filterChipTono, FILTER_CHIP_COUNT } from '@/constants/filter-chip';
@@ -510,19 +511,18 @@ function Ordenes() {
       }
     });
 
-  const resolverComprobante = (ordenId: string, id: string, accion: 'verificar' | 'rechazar') =>
-    filasComprobante.ejecutar(id, async () => {
-      errorComprobante.limpiar();
-      try {
-        const actualizado = await decidirComprobante(id, accion);
-        setOrders(prev => prev.map(o => o.id === ordenId
-          ? { ...o, comprobantes: (o.comprobantes ?? []).map(c => c.id === id ? actualizado : c) }
-          : o));
-        toast.success(accion === 'verificar' ? 'Comprobante verificado' : 'Comprobante rechazado');
-      } catch (e) {
-        errorComprobante.mostrar(e, 'No se pudo actualizar el comprobante');
-      }
+  // LANZA en vez de tragarse el error: quién lo muestra depende de por dónde se
+  // pidió. Rechazar va detrás de un confirm y ése tiene su propio error inline
+  // (y se queda abierto al fallar); verificar no, y lo manda al de la sección.
+  const resolverComprobante = async (ordenId: string, id: string, accion: 'verificar' | 'rechazar') => {
+    await filasComprobante.ejecutar(id, async () => {
+      const actualizado = await decidirComprobante(id, accion);
+      setOrders(prev => prev.map(o => o.id === ordenId
+        ? { ...o, comprobantes: (o.comprobantes ?? []).map(c => c.id === id ? actualizado : c) }
+        : o));
+      toast.success(accion === 'verificar' ? 'Comprobante verificado' : 'Comprobante rechazado');
     });
+  };
 
   const controlComprobantes: ControlComprobantes = {
     adjuntar:     adjuntarComprobante,
@@ -531,6 +531,7 @@ function Ordenes() {
     subiendo:     guardaComprobante.enVuelo,
     enVuelo:      filasComprobante.enVuelo,
     error:        errorComprobante.mensaje,
+    mostrarError: errorComprobante.mostrar,
     limpiarError: errorComprobante.limpiar,
   };
 
@@ -1245,12 +1246,14 @@ function BadgePorCobrar() {
  */
 export interface ControlComprobantes {
   adjuntar:     (ordenId: string, file: File) => void;
-  decidir:      (ordenId: string, id: string, accion: 'verificar' | 'rechazar') => void;
+  /** LANZA si el servidor rechaza; quien llama decide dónde mostrar el motivo. */
+  decidir:      (ordenId: string, id: string, accion: 'verificar' | 'rechazar') => Promise<void>;
   /** Trae del SERVIDOR y mergea. Se llama al abrir el detalle. */
   refrescar:    (ordenId: string) => void;
   subiendo:     boolean;
   enVuelo:      (id: string) => boolean;
   error:        string | null;
+  mostrarError: (e: unknown, fallback: string) => void;
   limpiarError: () => void;
 }
 
@@ -1315,23 +1318,31 @@ function OrderDetail({ order, onClose, onUpdate, comprobantes: control }: OrderD
   useEffect(() => { refrescar(order.id); }, [order.id, refrescar]);
 
   /**
-   * Comprobante que hay que SELLAR cuando el pago que se está registrando
-   * termine bien. Existe porque verificar un soporte de una orden sin plata no
-   * puede limitarse a sellar la fila: la verificación CREA la plata (§3.1), así
-   * que primero se abre Registrar Pago y el sello viene después.
+   * Comprobante EN VERIFICACIÓN. Guarda el objeto y no sólo el id porque el modal
+   * de pago lo muestra: entrar por "Verificar" tiene que decir de cuál soporte
+   * se está hablando antes de que el operador confirme una plata.
+   *
+   * Existe porque verificar un soporte de una orden sin plata no puede limitarse
+   * a sellar la fila: la verificación CREA la plata (§3.1), así que primero se
+   * abre Registrar Pago y el sello viene después.
    */
-  const [sellarTrasPago, setSellarTrasPago] = useState<string | null>(null);
+  const [enVerificacion, setEnVerificacion] = useState<Comprobante | null>(null);
+
+  // Rechazar pasa por confirmación: el copy es lo que vuelve DESCUBRIBLE que
+  // rechazar no borra y que se puede adjuntar el correcto.
+  const [rechazando, setRechazando] = useState<Comprobante | null>(null);
 
   // Verificar: con la orden pendiente abre Registrar Pago y deja el sello
   // pendiente; con la plata ya adentro, sella directo.
   const verificar = (c: Comprobante) => {
+    control.limpiarError();
     if (accionAlVerificar(order.estado) === 'cobrar') {
-      control.limpiarError();
-      setSellarTrasPago(c.id);
+      setEnVerificacion(c);
       setCobrando(true);
       return;
     }
-    control.decidir(order.id, c.id, 'verificar');
+    control.decidir(order.id, c.id, 'verificar')
+      .catch(e => control.mostrarError(e, 'No se pudo verificar el comprobante'));
   };
 
   const guardaPreparar = useAccionGuardada();
@@ -1557,7 +1568,7 @@ function OrderDetail({ order, onClose, onUpdate, comprobantes: control }: OrderD
                       <Button
                         size="sm" variant="destructiveGhost" className="h-7 gap-1 text-xs"
                         disabled={control.enVuelo(c.id)}
-                        onClick={() => control.decidir(order.id, c.id, 'rechazar')}
+                        onClick={() => { control.limpiarError(); setRechazando(c); }}
                       >
                         <AlertCircle className="h-3.5 w-3.5" /> Rechazar
                       </Button>
@@ -1665,7 +1676,8 @@ function OrderDetail({ order, onClose, onUpdate, comprobantes: control }: OrderD
           monto:   order.total,
         } : null}
         declaredMetodo={order.metodoPagoPrevisto ?? order.metodo_pago ?? null}
-        onClose={() => { setCobrando(false); setSellarTrasPago(null); }}
+        verificando={enVerificacion}
+        onClose={() => { setCobrando(false); setEnVerificacion(null); }}
         onSaved={({ order: actualizada, comprobante }) => {
           // La respuesta del pago no incluye el soporte recién subido (se sube
           // DESPUÉS del Payment), así que se concatena en vez de confiar en el
@@ -1675,14 +1687,38 @@ function OrderDetail({ order, onClose, onUpdate, comprobantes: control }: OrderD
             ...actualizada,
             comprobantes: comprobante ? [...previos, comprobante] : previos,
           });
-          // El sello va DESPUÉS y por separado: si falla, la orden ya quedó
-          // pagada y un segundo click en Verificar lo cierra (ahí ya cae en
-          // `sellar`). Al revés se afirmaría un cobro que no ocurrió.
-          if (sellarTrasPago) {
-            const id = sellarTrasPago;
-            setSellarTrasPago(null);
-            control.decidir(order.id, id, 'verificar');
+          // EL ENLACE: entrar por Verificar deja este comprobante marcado, y al
+          // volver el pago se sella con verificado_por/at. Va DESPUÉS y por
+          // separado — si falla, la orden ya quedó pagada y un segundo click en
+          // Verificar lo cierra (ahí ya cae en `sellar`). Al revés se afirmaría
+          // un cobro que no ocurrió.
+          if (enVerificacion) {
+            const id = enVerificacion.id;
+            setEnVerificacion(null);
+            control.decidir(order.id, id, 'verificar')
+              .catch(e => control.mostrarError(e, 'El pago quedó registrado, pero no se pudo sellar el comprobante. Vuelve a pulsar Verificar.'));
           }
+        }}
+      />
+
+      {/* Rechazar CONFIRMA, y el copy declara el camino: el mecanismo de
+          corrección ya existía —adjuntar otro— pero nada lo decía, así que era
+          invisible justo cuando hace falta. `confirmKind='default'` porque no
+          destruye nada: ámbar, no rojo. */}
+      <ConfirmDeleteDialog
+        open={!!rechazando}
+        onOpenChange={(abierto) => { if (!abierto) setRechazando(null); }}
+        title="Rechazar comprobante"
+        entityLabel={rechazando ? nombreArchivo(rechazando.url) : ''}
+        consequence="Quedará marcado como rechazado y NO se elimina: el archivo se conserva como constancia de que se revisó. Podrás adjuntar el comprobante correcto en esta misma orden."
+        confirmLabel="Rechazar comprobante"
+        confirmKind="default"
+        onConfirm={async () => {
+          if (!rechazando) return;
+          // Lanza si el servidor rechaza: el diálogo se queda abierto y lo
+          // muestra inline, que es su contrato.
+          await control.decidir(order.id, rechazando.id, 'rechazar');
+          setRechazando(null);
         }}
       />
 

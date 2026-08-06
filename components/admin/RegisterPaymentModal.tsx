@@ -13,7 +13,7 @@ import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { formatCOP } from '@/lib/utils';
 import { registerOrderPayment } from '@/lib/api/payments';
 import { subirComprobante } from '@/lib/api/comprobantes';
-import { SelectorComprobante, AyudaComprobante } from '@/components/admin/Comprobantes';
+import { SelectorComprobante, AyudaComprobante, ComprobanteEnVerificacion } from '@/components/admin/Comprobantes';
 import { formatearTamano } from '@/lib/comprobante';
 import type { Comprobante } from '@/types/comprobante';
 import type { Order } from '@/types/order';
@@ -37,9 +37,22 @@ function defaultMetodo(declared?: string | null): MetodoPago {
   return (METODOS_PAGO as string[]).includes(up) ? (up as MetodoPago) : 'NEQUI';
 }
 
-export function RegisterPaymentModal({ target, declaredMetodo, onClose, onSaved }: {
+export function RegisterPaymentModal({ target, declaredMetodo, verificando, onClose, onSaved }: {
   target: RegisterPaymentTarget | null;
   declaredMetodo?: string | null;
+  /**
+   * El modal es CONSCIENTE de por dónde entró.
+   *
+   * Con un comprobante acá, se llegó por "Verificar": el soporte ya existe y lo
+   * que falta es la plata (§3.1 — la verificación crea el pago, no al revés). Se
+   * muestra CUÁL se está verificando y **se oculta el campo Adjuntar**: ofrecer
+   * adjuntar otro en ese momento invita a subir un segundo soporte de la misma
+   * plata, y deja al operador decidiendo algo que no tiene que decidir.
+   *
+   * `null`/ausente = se entró directo por "Registrar pago", y el adjunto
+   * opcional se ofrece como siempre.
+   */
+  verificando?: Comprobante | null;
   onClose: () => void;
   onSaved: (result: { payment: Payment; order: Order; comprobante?: Comprobante }) => void;
 }) {
@@ -57,6 +70,7 @@ export function RegisterPaymentModal({ target, declaredMetodo, onClose, onSaved 
             key={target.id}
             target={target}
             declaredMetodo={declaredMetodo}
+            verificando={verificando ?? null}
             onClose={onClose}
             onSaved={onSaved}
           />
@@ -66,9 +80,10 @@ export function RegisterPaymentModal({ target, declaredMetodo, onClose, onSaved 
   );
 }
 
-function RegisterForm({ target, declaredMetodo, onClose, onSaved }: {
+function RegisterForm({ target, declaredMetodo, verificando, onClose, onSaved }: {
   target: RegisterPaymentTarget;
   declaredMetodo?: string | null;
+  verificando: Comprobante | null;
   onClose: () => void;
   onSaved: (result: { payment: Payment; order: Order; comprobante?: Comprobante }) => void;
 }) {
@@ -101,6 +116,8 @@ function RegisterForm({ target, declaredMetodo, onClose, onSaved }: {
       // quedó registrado y se avisa que el soporte no subió — el operador lo
       // adjunta desde el detalle. Al revés (subir y que falle el pago) dejaría un
       // comprobante colgado de una orden que nadie cobró.
+      // Sólo por la puerta DIRECTA: por la de Verificar no existe el campo, así
+      // que `archivo` es siempre null y esta rama no corre.
       let comprobante: Comprobante | undefined;
       if (archivo) {
         try {
@@ -168,8 +185,19 @@ function RegisterForm({ target, declaredMetodo, onClose, onSaved }: {
           />
         </div>
 
-        {/* Comprobante OPCIONAL. Un pago sin soporte es legítimo —el efectivo no
-            tiene nada que fotografiar—, así que esto jamás bloquea el registro. */}
+        {/* DOS PUERTAS, dos renders. Por "Verificar" el soporte ya existe: se
+            muestra cuál y no se ofrece adjuntar. Directo, el adjunto opcional. */}
+        {verificando ? (
+          <div>
+            <Label>Comprobante</Label>
+            <div className="mt-1">
+              <ComprobanteEnVerificacion comprobante={verificando} />
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Al registrar el pago, este comprobante queda verificado con tu nombre y la fecha.
+            </p>
+          </div>
+        ) : (
         <div>
           <Label>Comprobante</Label>
           <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -196,6 +224,7 @@ function RegisterForm({ target, declaredMetodo, onClose, onSaved }: {
             Opcional. Se sube después de registrar el pago.
           </p>
         </div>
+        )}
       </div>
 
       {/* El error comparte la fila de los botones: ocupa el espacio libre de la

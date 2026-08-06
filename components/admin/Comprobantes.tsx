@@ -152,6 +152,41 @@ export function SelectorComprobante({ onArchivo, disabled, label = 'Adjuntar com
   );
 }
 
+/**
+ * El comprobante que se está verificando, dentro del modal de Registrar Pago.
+ *
+ * Es la MISMA entidad que `ComprobanteVista` pero en su forma mínima: sin badge
+ * (su estado es obvio — se está verificando), sin acciones (la acción es el pago)
+ * y sin lightbox (ampliar es del detalle, que quedó abierto detrás). Lo que hace
+ * es responder "¿de cuál soporte estamos hablando?" antes de que el operador
+ * confirme una plata.
+ */
+export function ComprobanteEnVerificacion({ comprobante }: { comprobante: Comprobante }) {
+  const imagen = esImagen(comprobante.content_type);
+  const nombre = nombreArchivo(comprobante.url);
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-2.5">
+      {imagen ? (
+        <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border">
+          <Image src={comprobante.url} alt={`Comprobante ${nombre}`} fill sizes="48px" className="object-cover" />
+        </span>
+      ) : (
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-border bg-background">
+          <FileText className="h-5 w-5 text-muted-foreground" />
+        </span>
+      )}
+      <div className="min-w-0">
+        <p className="text-xs font-medium">Verificando este comprobante</p>
+        <p className="truncate text-[11px] text-muted-foreground">{nombre}</p>
+        <p className="text-[11px] text-muted-foreground">
+          {imagen ? 'Imagen' : 'PDF'} · {formatearTamano(comprobante.size_bytes)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /** La línea que dice qué se acepta. Va junto al selector, no dentro de un tooltip. */
 export function AyudaComprobante() {
   return (

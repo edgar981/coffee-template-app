@@ -608,6 +608,48 @@ encuentra quien va a adjuntar y no los lee quien no.
 Pago coexiste sin reemplazarlo. **El error va FUERA de la caja**, para que se vea
 igual con la caja colapsada — que es justo cuando falla la primera subida.
 
+### Las DOS puertas de Registrar Pago, y el enlace del sello
+
+El modal es consciente de por dónde entró, y no es cosmético: son dos
+conversaciones distintas con el operador.
+
+- **Por "Verificar"** (`verificando={comprobante}`): el soporte YA existe y lo que
+  falta es la plata. Se muestra CUÁL se está verificando —miniatura, nombre,
+  peso— y **se OCULTA el campo Adjuntar**. Ofrecer adjuntar ahí invitaría a subir
+  un segundo soporte de la misma plata y pondría al operador a decidir algo que
+  no tiene que decidir.
+- **Directo** (sin la prop): el adjunto opcional, como siempre.
+
+**El enlace del sello es real, no una apariencia.** El detalle guarda el
+comprobante en `enVerificacion` al pulsar Verificar, se lo pasa al modal, y en el
+`onSaved` del pago llama a `decidir(…, 'verificar')` — que es el mismo `PATCH
+/api/comprobantes/[id]` que escribe `verificado_por`, `verificado_por_nombre` y
+`verificado_at`. El carril afirma la cadena entera contra Postgres real
+(`comprobante-verificacion.test.ts`: el Payment queda, el sello estampa quién y
+cuándo, y la orden la movió el Payment). Guardar el OBJETO y no sólo el id es lo
+que permite mostrarlo; el sello usa su `id`.
+
+Si el sello falla tras un pago exitoso, el error dice exactamente qué pasó ("el
+pago quedó registrado, pero no se pudo sellar… vuelve a pulsar Verificar") — y
+ese segundo click ya cae en `sellar`, porque la orden pasó a pagada.
+
+### Rechazar CONFIRMA, y el copy declara el camino
+
+El mecanismo de corrección ya existía —rechazar y adjuntar el correcto— pero
+nada lo decía, así que era invisible justo cuando hace falta. La confirmación
+reusa `ConfirmDeleteDialog` con **`confirmKind='default'`**: ámbar y no rojo,
+porque no destruye nada.
+
+> Quedará marcado como rechazado y NO se elimina: el archivo se conserva como
+> constancia de que se revisó. Podrás adjuntar el comprobante correcto en esta
+> misma orden.
+
+**`decidir` LANZA en vez de tragarse el error**, y quién lo muestra depende de por
+dónde se pidió: rechazar va detrás del confirm, que tiene su propio error inline y
+se queda abierto al fallar; verificar no tiene diálogo propio y lo manda al
+`ErrorDialogo` de la sección. Una sola implementación, dos vehículos — la misma
+división de siempre, parametrizada en vez de duplicada.
+
 ### Sin borrado físico, incluido el RECHAZADO
 
 `RECHAZADO` conserva la fila **y el blob**. Un comprobante rechazado ES la prueba
