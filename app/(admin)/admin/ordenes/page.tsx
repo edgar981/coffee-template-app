@@ -31,7 +31,7 @@ import { formatCOP } from '@/lib/utils';
 import { formatFecha } from '@/lib/format-fecha';
 import { findSlotLabel } from '@/lib/shipping-config';
 import { hasScheduleData, isScheduledShipping, missingToDispatch } from '@/constants/shippings';
-import { estadoEntrega, accionFilaEntrega } from '@/lib/entrega-estado';
+import { estadoEntrega, accionFilaEntrega, fechaEntrega } from '@/lib/entrega-estado';
 import { useTransicionEntrega, type TransicionEntrega } from '@/hooks/useTransicionEntrega';
 import { ConfirmDespachoSinPago } from '@/components/admin/ConfirmDespachoSinPago';
 import { Pliegue } from '@/components/admin/Pliegue';
@@ -562,7 +562,7 @@ function Ordenes() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40">
-                  {['#Orden', 'Cliente', 'Canal', 'Total', 'Estado', 'Entrega', 'Fecha', 'Acciones'].map(h => (
+                  {['#Orden', 'Cliente', 'Canal', 'Total', 'Estado', 'Entrega', 'Programada', 'Acciones'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{h}</th>
                   ))}
                 </tr>
@@ -600,8 +600,13 @@ function Ordenes() {
                     <td className="px-4 py-3">
                       <CeldaEntrega orden={o} />
                     </td>
+                    {/* "Programada" = la fecha de la ENTREGA (la real si ya
+                        llegó), no la de creación. La fecha en que se creó una
+                        orden no mueve ninguna decisión del día; la de entrega sí,
+                        y ahora se escanea en vertical en vez de ir colgada del
+                        chip. La creación vive en el detalle. */}
                     <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {formatFecha(o.createdAt)}
+                      {fechaEntrega(o)}
                     </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
@@ -652,7 +657,9 @@ function Ordenes() {
 
       {/* Schedule Delivery Dialog — pre-filled from a paid order */}
       <ScheduleDeliveryModal
-        target={scheduleOrder && scheduleOrder.shipping ? { shipping: scheduleOrder.shipping } : null}
+        target={scheduleOrder && scheduleOrder.shipping
+          ? { shipping: scheduleOrder.shipping, ordenId: scheduleOrder.id }
+          : null}
         onClose={() => setScheduleOrder(null)}
         onSaved={(sh) => { if (scheduleOrder) handleScheduled(scheduleOrder.id, sh); }}
         onAddressAdded={(orderId, address) => setOrders(prev => prev.map(o =>
@@ -1403,7 +1410,7 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
           se cierra: queda debajo y se refresca solo, porque la orden abierta se
           deriva de la lista por número. */}
       <ScheduleDeliveryModal
-        target={programando ? { shipping: programando } : null}
+        target={programando ? { shipping: programando, ordenId: order.id } : null}
         onClose={() => setProgramando(null)}
         onSaved={(sh) => onUpdate({ ...order, shipping: sh })}
         onAddressAdded={(_, address) => onUpdate({

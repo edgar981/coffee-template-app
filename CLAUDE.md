@@ -1162,6 +1162,57 @@ este pedido?" sin que nada lo notara. Mismo criterio que `lib/metrics/titulares.
 - **El board de Entregas no cambió de badges**: sigue siendo la vista de flota
   (una fila por envío, con su checklist muted). Esta columna es la vista de orden.
 
+### El modal de programar recibe el ID DE LA ORDEN, no lo deduce
+
+Bug encontrado en el gate del centro de mando (2026-08-06): "Editar entrega"
+desde el detalle fallaba con "No se pudieron cargar los datos de la orden",
+mientras el detalle de atrás mostraba mensajero, zona y fecha — o sea que el
+Shipping SÍ tenía datos de programación.
+
+`ScheduleBody` pedía su contexto con `shipping.orden_id`. Ese campo es sólido en
+el board (su fuente es `/api/shippings`, donde el Shipping es la fila RAÍZ), pero
+en el detalle el Shipping viaja **anidado dentro de la orden** y lo reemplazan
+tres respuestas distintas —el PATCH de entregas, el POST de pago, el PATCH de
+orden—. Basta que una lo entregue recortado para que la URL quede
+`/api/orders/undefined/delivery-context` y su 404 se traduzca a un fallo de carga
+genérico.
+
+**Es el riesgo de "modal que asume el contexto de su página" en su forma menos
+visible: no falta una prop, falta un CAMPO DENTRO de una prop** — y por eso el
+compilador no ayuda y la revisión tampoco.
+
+- **`ScheduleTarget` gana `ordenId` opcional**, con `shipping.orden_id` como
+  default. Quien monta el modal desde una ORDEN pasa el id que ya tiene en mano
+  (`order.id`); el board sigue sin pasar nada y no cambió una línea. Se adaptó el
+  modal, no se duplicó — la regla de la tanda.
+- **El motivo del fallo se propaga.** `getDeliveryContext` usaba un
+  `throw new Error` genérico y el modal pintaba un texto fijo: "no autorizado",
+  "orden no encontrada" y "el payload no traía el id" se veían idénticos, y esa
+  indistinción es lo que volvió caro el diagnóstico. Ahora va por
+  `razonDelServidor`, igual que el resto de las mutaciones.
+- **El caso sin id se DERIVA, no se setea en el efecto** (`useState(!!ordenId)` +
+  una rama de render): un `setState` síncrono dentro del efecto dispara renders
+  en cascada y el lint lo marca — mismo criterio que el `loading` derivado de
+  Analítica.
+
+### El chip dice el ESTADO; la columna dice el CUÁNDO
+
+Ajuste del mismo día. El chip de Entrega llevaba la fecha pegada
+("Lista para despacho · 14 may 2026") y la columna Fecha mostraba la CREACIÓN.
+
+- **La fecha sale del chip.** Colgada de la etiqueta hacía que cada fila creciera
+  distinto y obligaba a leer una frase entera para encontrar un dato que se
+  escanea en vertical. El tooltip del chip conserva lo que ya tenía.
+- **La columna pasa a llamarse "Programada"** y muestra la fecha de la ENTREGA:
+  la programada, o la REAL si ya se entregó. Cuál va no es un detalle — una
+  entrega hecha se mide por cuándo llegó, y mostrar la prometida diría la fecha
+  equivocada justo en la fila que alguien va a citar. Mismo criterio que la
+  columna del board. Vive en `fechaEntrega` (capa 1).
+- **La fecha de creación queda sólo en el detalle.** No mueve ninguna decisión
+  del día. **Ojo con el efecto lateral:** el filtro de rango del encabezado sigue
+  filtrando por FECHA DE CREACIÓN, que ahora es una columna invisible — un rango
+  aplicado puede recortar la lista por un dato que ya no está a la vista.
+
 ### La FILA ofrece el siguiente paso, no un menú
 
 Ajuste posterior al gate del centro de mando (owner, 2026-08-06). Con el detalle

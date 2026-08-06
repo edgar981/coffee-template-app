@@ -95,7 +95,7 @@ export function estadoEntrega(orden: OrdenParaEntrega): EstadoEntrega {
   if (s.estado === 'entregado') {
     return {
       key: 'entregada',
-      etiqueta: s.fecha_entrega ? `Entregada · ${formatFecha(s.fecha_entrega)}` : 'Entregada',
+      etiqueta: 'Entregada',
       tono: 'ok',
       detalle: porCobrar
         ? 'Entregada, pero el pago contraentrega todavía no se ha registrado.'
@@ -126,7 +126,7 @@ export function estadoEntrega(orden: OrdenParaEntrega): EstadoEntrega {
     // El gate de despacho, CONSUMIDO. Único caso que puede pasar a En Ruta.
     if (isScheduledShipping(s)) {
       return {
-        key: 'lista', etiqueta: `Lista para despacho · ${formatFecha(s.fecha_programada)}`,
+        key: 'lista', etiqueta: 'Lista para despacho',
         tono: 'info', detalle: 'Mensajero y fecha asignados: ya puede despacharse.',
         porCobrar,
       };
@@ -144,7 +144,7 @@ export function estadoEntrega(orden: OrdenParaEntrega): EstadoEntrega {
     // programación.
     if (s.fecha_programada?.trim()) {
       return {
-        key: 'programada', etiqueta: `Programada · ${formatFecha(s.fecha_programada)}`,
+        key: 'programada', etiqueta: 'Programada',
         tono: 'warn', detalle: 'Falta asignar mensajero para poder despachar.',
         porCobrar,
       };
@@ -210,4 +210,28 @@ export function accionFilaEntrega(orden: OrdenParaEntrega): AccionFilaEntrega {
   // fallido (reprogramar), entregado y cancelado: la fila calla. Reprogramar es
   // una decisión que necesita ver por qué falló, y eso está en el detalle.
   return { tipo: 'ninguna' };
+}
+
+// ─── La fecha de la ENTREGA, para su propia columna ──────────────────────────
+//
+// El chip dice el ESTADO y la columna dice el CUÁNDO: dos preguntas, dos sitios.
+// Colgar la fecha del chip la hacía crecer distinto en cada fila y obligaba a
+// leer una etiqueta entera para encontrar un dato que se escanea en vertical.
+//
+// Qué fecha es depende del estado, y no es un detalle: una entrega ya hecha se
+// mide por cuándo LLEGÓ (`fecha_entrega`, que estampa el servidor), y una que no
+// por cuándo se PROMETIÓ (`fecha_programada`). Mostrar la programada de algo ya
+// entregado diría la fecha equivocada justo en la fila que alguien va a citar.
+// Es el mismo criterio de la columna del board de Entregas.
+//
+// La fecha de CREACIÓN ya no vive en la lista: es dato del detalle. Ojo — el
+// filtro de rango del encabezado sigue filtrando por creación, que ahora es una
+// columna invisible.
+export function fechaEntrega(orden: OrdenParaEntrega): string {
+  const s = orden.shipping;
+  if (!s || s.estado === 'cancelado' || orden.estado === 'cancelado') return '—';
+  // `formatFecha` ya devuelve '—' para vacío/nulo.
+  return s.estado === 'entregado'
+    ? formatFecha(s.fecha_entrega)
+    : formatFecha(s.fecha_programada);
 }

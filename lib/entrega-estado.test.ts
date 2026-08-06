@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { estadoEntrega, accionFilaEntrega, type OrdenParaEntrega } from './entrega-estado';
+import { estadoEntrega, accionFilaEntrega, fechaEntrega, type OrdenParaEntrega } from './entrega-estado';
 
 // Todos los casos del mapeo aprobado. La aserción es sobre la ETIQUETA VISIBLE y
 // no sobre la key: el vocabulario ES la decisión de producto de esta tanda, así
@@ -61,7 +61,7 @@ test('una fecha en blanco o de puros espacios no cuenta como programación', () 
 
 test('con fecha y sin mensajero: Programada · fecha (no puede despachar todavía)', () => {
   const r = estadoEntrega(orden({ shipping: envio({ fecha_programada: '2026-05-14' }) }));
-  assert.equal(r.etiqueta, 'Programada · 14 may 2026');
+  assert.equal(r.etiqueta, 'Programada');
   assert.equal(r.tono, 'warn');
   assert.match(r.detalle, /mensajero/);
 });
@@ -77,7 +77,7 @@ test('con mensajero y sin fecha: Falta fecha — no se finge una programación',
 test('mensajero + fecha: Lista para despacho · fecha', () => {
   const r = estadoEntrega(orden({ shipping: envio({ mensajero: 'Juan', fecha_programada: '2026-05-14' }) }));
   assert.equal(r.key, 'lista');
-  assert.equal(r.etiqueta, 'Lista para despacho · 14 may 2026');
+  assert.equal(r.etiqueta, 'Lista para despacho');
   assert.equal(r.tono, 'info');
 });
 
@@ -97,7 +97,7 @@ test('en ruta: En ruta, azul, con la fecha programada en el detalle', () => {
   assert.match(r.detalle, /14 may 2026/);
 });
 
-test('entregada: lleva la fecha REAL de entrega, no la programada', () => {
+test('entregada: el chip dice sólo el estado — la fecha vive en su columna', () => {
   const r = estadoEntrega(orden({
     estado: 'pagado',
     shipping: envio({
@@ -106,11 +106,11 @@ test('entregada: lleva la fecha REAL de entrega, no la programada', () => {
       fecha_entrega:    '2026-05-16T15:00:00.000Z',
     }),
   }));
-  assert.equal(r.etiqueta, 'Entregada · 16 may 2026');
+  assert.equal(r.etiqueta, 'Entregada');
   assert.equal(r.tono, 'ok');
 });
 
-test('entregada sin fecha registrada: no inventa una', () => {
+test('entregada sin fecha registrada: el chip no cambia', () => {
   const r = estadoEntrega(orden({ estado: 'pagado', shipping: envio({ estado: 'entregado' }) }));
   assert.equal(r.etiqueta, 'Entregada');
 });
@@ -215,4 +215,35 @@ test('fallida: la fila calla — reprogramar exige ver por qué falló', () => {
 test('entregada y anulada: la fila calla', () => {
   assert.equal(accionFilaEntrega(orden({ shipping: envio({ estado: 'entregado' }) })).tipo, 'ninguna');
   assert.equal(accionFilaEntrega(orden({ shipping: envio({ estado: 'cancelado' }) })).tipo, 'ninguna');
+});
+
+// ─── La columna "Programada" ─────────────────────────────────────────────────
+
+test('sin envío: la columna no muestra fecha', () => {
+  assert.equal(fechaEntrega(orden()), '—');
+});
+
+test('programada pero sin despachar: muestra la fecha PROMETIDA', () => {
+  assert.equal(fechaEntrega(orden({ shipping: envio({ fecha_programada: '2026-05-14' }) })), '14 may 2026');
+});
+
+test('en ruta: sigue mostrando la programada', () => {
+  const f = fechaEntrega(orden({ shipping: envio({ estado: 'en_ruta', mensajero: 'Juan', fecha_programada: '2026-05-14' }) }));
+  assert.equal(f, '14 may 2026');
+});
+
+test('entregada: muestra cuándo LLEGÓ, no cuándo se prometió', () => {
+  const f = fechaEntrega(orden({
+    estado: 'pagado',
+    shipping: envio({ estado: 'entregado', fecha_programada: '2026-05-14', fecha_entrega: '2026-05-16T15:00:00.000Z' }),
+  }));
+  assert.equal(f, '16 may 2026');
+});
+
+test('preparando sin fecha todavía: guion, no una fecha inventada', () => {
+  assert.equal(fechaEntrega(orden({ shipping: envio({ mensajero: 'Juan' }) })), '—');
+});
+
+test('orden cancelada o entrega anulada: sin fecha', () => {
+  assert.equal(fechaEntrega(orden({ estado: 'cancelado', shipping: envio({ estado: 'cancelado', fecha_programada: '2026-05-14' }) })), '—');
 });

@@ -59,7 +59,10 @@ export async function updateOrder(id: string, data: Partial<Order>): Promise<Ord
 // linked Customer and the effective phone server-side).
 export async function getDeliveryContext(orderId: string): Promise<DeliveryContext> {
   const res = await fetch(`/api/orders/${orderId}/delivery-context`);
-  if (!res.ok) throw new Error('Error al cargar los datos de la orden');
+  // El motivo del servidor, no un genérico: "Orden no encontrada" y "No
+  // autorizado" mandan a revisar cosas distintas, y colapsarlos en un solo texto
+  // es lo que convirtió este fallo en un diagnóstico caro.
+  if (!res.ok) throw await razonDelServidor(res, 'Error al cargar los datos de la orden');
   return res.json();
 }
 
