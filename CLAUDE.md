@@ -550,6 +550,64 @@ evidencia afirmando un cobro que nunca ocurrió. La misma asimetría rige el
 adjunto del modal de pago: **primero la plata, después la evidencia**, y si la
 subida falla el toast dice que el pago SÍ quedó registrado.
 
+### El dato vive en la PÁGINA, no dentro del diálogo
+
+Incidente del gate del 2026-08-06, y es la lección más cara de esta tanda.
+Adjuntar un comprobante desde el detalle terminó así: **el diálogo se cerró y
+reabrió solo, y quedó "Sin soportes" — sin miniatura y sin error**. La base decía
+otra cosa: la fila estaba escrita, `RECIBIDO`, y el blob subido bajo
+`dev/comprobantes/`.
+
+**Tres síntomas, UNA causa: el detalle se remontó con el POST en vuelo.**
+
+1. La página se remonta → `orders` vuelve a `[]` → `selected` (derivado de
+   `orders.find`) pasa a `null` → el diálogo se cierra.
+2. `getOrders()` re-corre y resuelve ANTES de que el POST commitee → la orden
+   vuelve sin comprobantes → el diálogo reabre vacío.
+3. La continuación del `await` —el `onUpdate` del éxito y el `mostrar` del
+   catch— cae sobre un componente muerto: ni evidencia ni error.
+
+El "cerrar y reabrir solo" no era una violación del contrato de cierre: era
+`open={!!selected}` siguiendo a un `orders` que se vació y se volvió a llenar.
+
+**La regla que queda: una mutación jamás debe depender de que el diálogo que la
+disparó siga montado.** Las mutaciones de comprobantes viven en `Ordenes` —el
+componente de la ruta, dueño de `orders`— y el detalle sólo RENDERIZA, recibiendo
+un `ControlComprobantes` por props. Un remonte deja de poder tragarse una subida;
+el peor caso pasa a ser que el modal reabra ya con el comprobante puesto.
+
+Dos refuerzos que van con la regla:
+
+- **Al abrir, la verdad la trae el SERVIDOR** (`GET /api/orders/[id]/comprobantes`
+  → merge). Es lo que cura el caso en que algo se perdió igual: el modal abierto
+  se ACTUALIZA en vez de mostrar un vacío que la base contradice. Depende sólo de
+  `order.id`, así que el merge que provoca no lo vuelve a disparar.
+- **`onOpenChange` recibe el estado NUEVO y hay que leerlo.** Estaba como
+  `onOpenChange={closeDetail}`, y `closeDetail` ignoraba el argumento y cerraba
+  siempre — cualquier `onOpenChange(true)` habría borrado el parámetro de la URL.
+  Nada se cierra sin que Radix lo pida.
+
+**Y el disparador del remonte quedó sin confirmar.** El candidato que encaja con
+los tres síntomas es una recarga completa de Fast Refresh —este proyecto las
+registra (`⚠ Fast Refresh had to perform a full reload`)— porque el gate se corrió
+sobre un dev server al que se le editaron archivos DEBAJO, rompiendo la
+precondición del server frío. No se pudo confirmar y no se afirma. **El arreglo no
+depende de saberlo**, que es justamente por qué se arregló así: lo que se cerró no
+es el disparador sino la fragilidad que lo volvió invisible.
+
+### La caja de comprobantes VACÍA es una línea
+
+El bloque grande —borde, encabezado, texto explicativo, línea de formatos— se
+gana con evidencia. Vacía colapsa a `Comprobantes (0) · Adjuntar`, porque el caso
+normal de una orden es no tener soportes y ahí ese bloque ocupaba más que la
+sección que sí responde algo. Los formatos pasan al `title` del botón: los
+encuentra quien va a adjuntar y no los lee quien no.
+
+**El botón Adjuntar SE QUEDA en el detalle** (decisión del owner): el flujo
+`RECIBIDO`-antes-del-pago es el caso de uso central, y adjuntar desde Registrar
+Pago coexiste sin reemplazarlo. **El error va FUERA de la caja**, para que se vea
+igual con la caja colapsada — que es justo cuando falla la primera subida.
+
 ### Sin borrado físico, incluido el RECHAZADO
 
 `RECHAZADO` conserva la fila **y el blob**. Un comprobante rechazado ES la prueba

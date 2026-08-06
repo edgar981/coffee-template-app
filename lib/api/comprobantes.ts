@@ -32,3 +32,18 @@ export async function decidirComprobante(
   if (!res.ok) throw await razonDelServidor(res, 'No se pudo actualizar el comprobante');
   return res.json();
 }
+
+/**
+ * Los comprobantes de la orden, tal como están EN EL SERVIDOR.
+ *
+ * Existe porque el detalle no puede depender de haber sobrevivido a la mutación
+ * que lo cambió: si el diálogo se remonta —una recarga de Fast Refresh, una
+ * navegación, cualquier cosa— el estado optimista que quedó a medias se pierde,
+ * y sin esto la pantalla se queda mostrando un vacío que la base contradice.
+ * Al abrir, la verdad la trae el servidor.
+ */
+export async function getComprobantes(ordenId: string): Promise<Comprobante[]> {
+  const res = await fetch(`/api/orders/${ordenId}/comprobantes`);
+  if (!res.ok) throw await razonDelServidor(res, 'No se pudieron cargar los comprobantes');
+  return res.json();
+}

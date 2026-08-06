@@ -108,10 +108,12 @@ export function ComprobanteVista({ comprobante, onAmpliar, acciones }: {
  * el llamador: el detalle lo manda de una, y el modal de pago espera a que el
  * Payment exista (primero la plata, después la evidencia).
  */
-export function SelectorComprobante({ onArchivo, disabled, label = 'Adjuntar comprobante' }: {
+export function SelectorComprobante({ onArchivo, disabled, label = 'Adjuntar comprobante', title }: {
   onArchivo: (file: File) => void;
   disabled?: boolean;
   label?: string;
+  /** Formatos y tope, cuando la caja está colapsada y no hay sitio para la línea. */
+  title?: string;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -141,6 +143,7 @@ export function SelectorComprobante({ onArchivo, disabled, label = 'Adjuntar com
       <Button
         type="button" variant="outline" size="sm" className="gap-1.5"
         disabled={disabled}
+        title={title}
         onClick={() => inputRef.current?.click()}
       >
         <Paperclip className="h-3.5 w-3.5" /> {label}

@@ -39,8 +39,9 @@ import { ImageLightbox } from '@/components/admin/ImageLightbox';
 import {
   ComprobanteVista, SelectorComprobante, AyudaComprobante, useLightboxComprobante,
 } from '@/components/admin/Comprobantes';
-import { subirComprobante, decidirComprobante } from '@/lib/api/comprobantes';
+import { subirComprobante, decidirComprobante, getComprobantes } from '@/lib/api/comprobantes';
 import { accionAlVerificar, puedeDecidirse } from '@/lib/comprobante';
+import { MAX_COMPROBANTE_MB } from '@/constants/comprobante';
 import type { Comprobante } from '@/types/comprobante';
 import { filterChip, filterChipTono, FILTER_CHIP_COUNT } from '@/constants/filter-chip';
 import { COLOMBIA_DEPARTMENTS } from '@/lib/colombia-departments';
@@ -462,6 +463,77 @@ function Ordenes() {
     });
   };
 
+  // ─── Comprobantes: el dato vive ACÁ, no dentro del diálogo ─────────────────
+  //
+  // Estaban dentro de `OrderDetail` y ése fue el defecto del gate del
+  // 2026-08-06: el resultado de la subida dependía de que el modal siguiera
+  // montado. Cuando el detalle se remontó con el POST en vuelo —la página
+  // recarga, `orders` vuelve a `[]`, `selected` pasa a `null` y el diálogo se
+  // cierra y reabre solo— la continuación cayó sobre un componente muerto: la
+  // fila SÍ se escribió en la base y el blob SÍ subió, pero ni el comprobante ni
+  // el error llegaron a pantalla. Tres síntomas, una causa.
+  //
+  // `Ordenes` es el componente de la ruta y dueño de `orders`: sobrevive a que el
+  // diálogo se cierre. Con la mutación acá, un remonte del detalle deja de poder
+  // tragarse una subida — el peor caso pasa a ser que el modal reabra ya con el
+  // comprobante puesto.
+  const guardaComprobante = useAccionGuardada();
+  const filasComprobante  = useAccionesPorFila();
+  const errorComprobante  = useErrorDialogo();
+
+  // La VERDAD la trae el servidor al abrir. Es la otra mitad: si algo se perdió
+  // en el camino (una subida cuya continuación murió, otra pestaña), el detalle
+  // se cura solo al abrirse en vez de mostrar un vacío que la base contradice.
+  const refrescarComprobantes = useCallback(async (ordenId: string) => {
+    try {
+      const lista = await getComprobantes(ordenId);
+      setOrders(prev => prev.map(o => o.id === ordenId ? { ...o, comprobantes: lista } : o));
+    } catch (e) {
+      // Silencioso a propósito: es un REFRESCO, no una acción que el operador
+      // pidió. Lo que ya estaba en pantalla se queda; el log deja el rastro.
+      console.error('[comprobantes] no se pudo refrescar', e);
+    }
+  }, []);
+
+  const adjuntarComprobante = (ordenId: string, file: File) =>
+    guardaComprobante.ejecutar(async () => {
+      errorComprobante.limpiar();
+      try {
+        const creado = await subirComprobante(ordenId, file);
+        setOrders(prev => prev.map(o => o.id === ordenId
+          ? { ...o, comprobantes: [...(o.comprobantes ?? []), creado] }
+          : o));
+        // Adjuntar NO registra un pago ni mueve la orden: sólo entra la evidencia.
+        toast.success('Comprobante adjuntado', { description: 'Queda RECIBIDO hasta que lo verifiques.' });
+      } catch (e) {
+        errorComprobante.mostrar(e, 'No se pudo subir el comprobante');
+      }
+    });
+
+  const resolverComprobante = (ordenId: string, id: string, accion: 'verificar' | 'rechazar') =>
+    filasComprobante.ejecutar(id, async () => {
+      errorComprobante.limpiar();
+      try {
+        const actualizado = await decidirComprobante(id, accion);
+        setOrders(prev => prev.map(o => o.id === ordenId
+          ? { ...o, comprobantes: (o.comprobantes ?? []).map(c => c.id === id ? actualizado : c) }
+          : o));
+        toast.success(accion === 'verificar' ? 'Comprobante verificado' : 'Comprobante rechazado');
+      } catch (e) {
+        errorComprobante.mostrar(e, 'No se pudo actualizar el comprobante');
+      }
+    });
+
+  const controlComprobantes: ControlComprobantes = {
+    adjuntar:     adjuntarComprobante,
+    decidir:      resolverComprobante,
+    refrescar:    refrescarComprobantes,
+    subiendo:     guardaComprobante.enVuelo,
+    enVuelo:      filasComprobante.enVuelo,
+    error:        errorComprobante.mensaje,
+    limpiarError: errorComprobante.limpiar,
+  };
+
   // TERCERA montura de las transiciones (board, detalle, y ahora la fila). La
   // fila ofrece UNA sola —la que el estado permite, resuelta por
   // `accionFilaEntrega`— y nunca la de reprogramar: eso exige ver por qué falló y
@@ -701,7 +773,10 @@ function Ordenes() {
       <ConfirmDespachoSinPago {...transicionFila.confirmacion} />
 
       {/* Order Detail Dialog */}
-      <Dialog open={!!selected} onOpenChange={closeDetail}>
+      {/* `onOpenChange` recibe el estado NUEVO. `closeDetail` lo ignoraba y
+          cerraba siempre, así que cualquier `onOpenChange(true)` habría borrado
+          el parámetro de la URL — nada debe cerrarse sin que Radix lo pida. */}
+      <Dialog open={!!selected} onOpenChange={(abierto) => { if (!abierto) closeDetail(); }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Orden {selected?.numero_orden}</DialogTitle>
@@ -720,6 +795,7 @@ function Ordenes() {
               order={selected}
               onClose={closeDetail}
               onUpdate={handleOrderUpdate}
+              comprobantes={controlComprobantes}
             />
           )}
         </DialogContent>
@@ -1162,13 +1238,30 @@ function BadgePorCobrar() {
 // productos, edición manual— vive en pliegues. El timeline de dos puntos que
 // había antes se retiró: la sección Pago dice el mismo hecho Y ofrece la acción.
 
-interface OrderDetailProps {
-  order:    Order;
-  onClose:  () => void;
-  onUpdate: (updated: Order) => void;
+/**
+ * Todo lo que el detalle necesita para operar comprobantes SIN ser el dueño del
+ * dato. Vive en la página (§ Comprobantes: el dato vive acá): así una subida no
+ * puede perderse porque el diálogo se cerró en medio.
+ */
+export interface ControlComprobantes {
+  adjuntar:     (ordenId: string, file: File) => void;
+  decidir:      (ordenId: string, id: string, accion: 'verificar' | 'rechazar') => void;
+  /** Trae del SERVIDOR y mergea. Se llama al abrir el detalle. */
+  refrescar:    (ordenId: string) => void;
+  subiendo:     boolean;
+  enVuelo:      (id: string) => boolean;
+  error:        string | null;
+  limpiarError: () => void;
 }
 
-function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
+interface OrderDetailProps {
+  order:        Order;
+  onClose:      () => void;
+  onUpdate:     (updated: Order) => void;
+  comprobantes: ControlComprobantes;
+}
+
+function OrderDetail({ order, onClose, onUpdate, comprobantes: control }: OrderDetailProps) {
   // Estado del Select: la orden MANDA salvo que el operador haya elegido otra
   // cosa en esta sesión. No es un `useState(order.estado)` porque el detalle ya
   // no se cierra al registrar un pago: con una copia congelada, "Guardar
@@ -1209,11 +1302,18 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
   const [cobrando, setCobrando]       = useState(false);
 
   // ── Comprobantes ───────────────────────────────────────────────────────────
+  // El detalle sólo RENDERIZA: las mutaciones y el error viven en la página, que
+  // sobrevive a que este diálogo se cierre.
   const comprobantes = order.comprobantes ?? [];
   const lightbox     = useLightboxComprobante();
-  const guardaSubida = useAccionGuardada();
-  const filasVeredicto = useAccionesPorFila();
-  const errorPago    = useErrorDialogo();
+
+  // Al abrir, la lista se recontrasta contra el servidor. Es lo que cura el caso
+  // en que una subida anterior perdió su continuación: en vez de mostrar un
+  // vacío que la base contradice, el modal abierto se ACTUALIZA. Depende sólo de
+  // `order.id`, así que el merge que provoca no lo vuelve a disparar.
+  const refrescar = control.refrescar;
+  useEffect(() => { refrescar(order.id); }, [order.id, refrescar]);
+
   /**
    * Comprobante que hay que SELLAR cuando el pago que se está registrando
    * termine bien. Existe porque verificar un soporte de una orden sin plata no
@@ -1222,44 +1322,16 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
    */
   const [sellarTrasPago, setSellarTrasPago] = useState<string | null>(null);
 
-  const reemplazar = (c: Comprobante) => onUpdate({
-    ...order,
-    comprobantes: comprobantes.map(x => x.id === c.id ? c : x),
-  });
-
-  const adjuntar = (file: File) => guardaSubida.ejecutar(async () => {
-    errorPago.limpiar();
-    try {
-      const creado = await subirComprobante(order.id, file);
-      onUpdate({ ...order, comprobantes: [...comprobantes, creado] });
-      // Adjuntar NO registra un pago ni mueve la orden: sólo entra la evidencia.
-      toast.success('Comprobante adjuntado', { description: 'Queda RECIBIDO hasta que lo verifiques.' });
-    } catch (e) {
-      errorPago.mostrar(e, 'No se pudo subir el comprobante');
-    }
-  });
-
-  const sellar = (id: string, accion: 'verificar' | 'rechazar') =>
-    filasVeredicto.ejecutar(id, async () => {
-      errorPago.limpiar();
-      try {
-        reemplazar(await decidirComprobante(id, accion));
-        toast.success(accion === 'verificar' ? 'Comprobante verificado' : 'Comprobante rechazado');
-      } catch (e) {
-        errorPago.mostrar(e, 'No se pudo actualizar el comprobante');
-      }
-    });
-
   // Verificar: con la orden pendiente abre Registrar Pago y deja el sello
   // pendiente; con la plata ya adentro, sella directo.
   const verificar = (c: Comprobante) => {
     if (accionAlVerificar(order.estado) === 'cobrar') {
-      errorPago.limpiar();
+      control.limpiarError();
       setSellarTrasPago(c.id);
       setCobrando(true);
       return;
     }
-    sellar(c.id, 'verificar');
+    control.decidir(order.id, c.id, 'verificar');
   };
 
   const guardaPreparar = useAccionGuardada();
@@ -1426,30 +1498,46 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
             que habla, pero su estado no mueve la orden: eso lo hace el Payment
             y sólo él (§3.1). Por eso un comprobante VERIFICADO sobre una orden
             pendiente no puede existir — verificar cobra primero. */}
-        <div className="space-y-2 rounded-lg border border-border/60 p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Comprobantes{comprobantes.length > 0 ? ` (${comprobantes.length})` : ''}
-            </p>
-            <div className="flex items-center gap-2">
-              <SelectorComprobante
-                onArchivo={adjuntar}
-                disabled={guardaSubida.enVuelo || order.estado === 'cancelado'}
-                label={guardaSubida.enVuelo ? 'Subiendo…' : 'Adjuntar'}
-              />
-            </div>
-          </div>
+        {/* VACÍA colapsa a UNA LÍNEA. El bloque grande se gana con evidencia:
+            una caja con borde, texto explicativo y línea de formatos ocupaba en
+            el caso normal —que es no tener soportes— el espacio de la sección que
+            sí responde algo. Los formatos pasan al `title` del botón, donde el
+            que va a adjuntar los encuentra y el que no, no los lee.
 
-          {comprobantes.length === 0 ? (
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">
-                {order.estado === 'cancelado'
-                  ? 'La orden está cancelada; no admite comprobantes.'
-                  : 'Sin soportes. Adjuntar uno no registra el pago — sólo deja la evidencia.'}
+            El botón Adjuntar SE QUEDA en el detalle: "el cliente mandó la foto,
+            verifico después" es el caso de uso central, y adjuntar desde
+            Registrar Pago coexiste sin reemplazarlo. */}
+        {comprobantes.length === 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              Comprobantes (0)
+              {order.estado === 'cancelado' && ' · la orden está cancelada'}
+            </p>
+            {order.estado !== 'cancelado' && (
+              <SelectorComprobante
+                onArchivo={(file) => control.adjuntar(order.id, file)}
+                disabled={control.subiendo}
+                label={control.subiendo ? 'Subiendo…' : 'Adjuntar'}
+                title={`JPG, PNG, WebP o PDF · máx. ${MAX_COMPROBANTE_MB} MB. Adjuntar no registra el pago.`}
+              />
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2 rounded-lg border border-border/60 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Comprobantes ({comprobantes.length})
               </p>
-              {order.estado !== 'cancelado' && <AyudaComprobante />}
+              <div className="flex items-center gap-2">
+                <AyudaComprobante />
+                <SelectorComprobante
+                  onArchivo={(file) => control.adjuntar(order.id, file)}
+                  disabled={control.subiendo || order.estado === 'cancelado'}
+                  label={control.subiendo ? 'Subiendo…' : 'Adjuntar'}
+                />
+              </div>
             </div>
-          ) : (
+
             <div className="space-y-2">
               {comprobantes.map(c => (
                 <ComprobanteVista
@@ -1460,16 +1548,16 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
                     <>
                       <Button
                         size="sm" variant="outline" className="h-7 gap-1 text-xs"
-                        disabled={filasVeredicto.enVuelo(c.id)}
+                        disabled={control.enVuelo(c.id)}
                         onClick={() => verificar(c)}
                       >
                         <CheckCircle className="h-3.5 w-3.5" />
-                        {filasVeredicto.enVuelo(c.id) ? 'Verificando…' : 'Verificar'}
+                        {control.enVuelo(c.id) ? 'Verificando…' : 'Verificar'}
                       </Button>
                       <Button
                         size="sm" variant="destructiveGhost" className="h-7 gap-1 text-xs"
-                        disabled={filasVeredicto.enVuelo(c.id)}
-                        onClick={() => sellar(c.id, 'rechazar')}
+                        disabled={control.enVuelo(c.id)}
+                        onClick={() => control.decidir(order.id, c.id, 'rechazar')}
                       >
                         <AlertCircle className="h-3.5 w-3.5" /> Rechazar
                       </Button>
@@ -1478,9 +1566,11 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
                 />
               ))}
             </div>
-          )}
-          <ErrorDialogo mensaje={errorPago.mensaje} />
-        </div>
+          </div>
+        )}
+        {/* El error va FUERA de la caja: tiene que verse igual con la caja
+            colapsada, que es justo cuando falla la primera subida. */}
+        <ErrorDialogo mensaje={control.error} />
       </section>
 
       {/* ── La evidencia, plegada ───────────────────────────────────────────── */}
@@ -1591,7 +1681,7 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
           if (sellarTrasPago) {
             const id = sellarTrasPago;
             setSellarTrasPago(null);
-            sellar(id, 'verificar');
+            control.decidir(order.id, id, 'verificar');
           }
         }}
       />
