@@ -1,3 +1,4 @@
+import type { ComprobanteEstado } from "./comprobante";
 // Método with which a customer DECLARES they'll pay at checkout (stored on
 // Order.metodo_pago). Lowercase, free-ish — distinct from the enum below, which
 // is the method actually used for a REGISTERED payment.
@@ -98,7 +99,17 @@ export interface Payment {
   registrado_por_nombre?: string | null;
   fecha:                  string;
   createdAt:              string;
-  order?: { numero_orden: string; cliente_nombre: string | null } | null;
+  /**
+   * Datos de la orden, leídos en vivo por la relación. `comprobantes` viene con
+   * lo mínimo para el indicador: los soportes cuelgan de la ORDEN, no del pago
+   * — un pago en efectivo no tiene ninguno y una orden puede tener uno sin que
+   * exista pago (§3.1).
+   */
+  order?: {
+    numero_orden:   string;
+    cliente_nombre: string | null;
+    comprobantes?:  { id: string; estado: ComprobanteEstado }[];
+  } | null;
 }
 
 // Payload the admin submits from the "Registrar pago" modal. No monto/cliente —

@@ -14,7 +14,19 @@ export async function GET() {
   const payments = await prisma.payment.findMany({
     orderBy: { fecha: 'desc' },
     take:    500,
-    include: { order: { select: { numero_orden: true, cliente_nombre: true } } },
+    // Los comprobantes son de la ORDEN, no del Payment (§3.1): un pago en
+    // efectivo no tiene ninguno y una orden puede tener uno sin pago. Sólo se
+    // traen `id` y `estado` — lo justo para el indicador, sin arrastrar URLs
+    // que esta lista no muestra.
+    include: {
+      order: {
+        select: {
+          numero_orden:   true,
+          cliente_nombre: true,
+          comprobantes:   { select: { id: true, estado: true } },
+        },
+      },
+    },
   });
 
   return NextResponse.json(payments);

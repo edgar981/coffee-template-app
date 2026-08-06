@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getPayments } from '@/lib/api/payments';
 import type { Payment } from '@/types/payment';
+import { tienePendienteDeVerificar } from '@/lib/comprobante';
+import { Paperclip } from 'lucide-react';
 import {
   METODOS_PAGO, METODO_PAGO_LABEL,
   METODO_CATEGORIA, PAYMENT_CATEGORIA_LABEL, PAYMENT_CATEGORIAS, PAYMENT_CATEGORIAS_MULTI,
@@ -218,7 +220,7 @@ function PagosInner() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40">
-                  {['Fecha', 'Orden', 'Cliente', 'Monto', 'Método', 'Referencia', 'Registrado por'].map(h => (
+                  {['Fecha', 'Orden', 'Cliente', 'Monto', 'Método', 'Soporte', 'Referencia', 'Registrado por'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{h}</th>
                   ))}
                 </tr>
@@ -242,6 +244,15 @@ function PagosInner() {
                     <td className="px-4 py-3 text-xs">
                       <span className="bg-muted px-2 py-0.5 rounded">{METODO_PAGO_LABEL[p.metodo]}</span>
                     </td>
+                    {/* SOPORTE — indicador, no acción: verificar y ampliar viven
+                        en el detalle de la orden, que es donde está el contexto.
+                        Se etiqueta la EXCEPCIÓN (hay algo por verificar) con
+                        ámbar; "con soporte" ya verificado va neutro, y un pago
+                        sin soporte no lleva nada — el efectivo no tiene qué
+                        fotografiar, así que su vacío no es una falta. */}
+                    <td className="px-4 py-3">
+                      <SoportePago comprobantes={p.order?.comprobantes ?? []} />
+                    </td>
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{p.referencia || '—'}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{p.registrado_por_nombre ?? '—'}</td>
                   </tr>
@@ -260,5 +271,34 @@ function PagosInner() {
         </p>
       </div>
     </div>
+  );
+}
+
+// ─── SoportePago ──────────────────────────────────────────────────────────────
+// Los comprobantes cuelgan de la ORDEN, no del Payment (§3.1). Acá sólo se dice
+// si los hay y si alguno sigue sin mirar; el veredicto se da en el detalle de la
+// orden, a un click del número de la fila.
+
+function SoportePago({ comprobantes }: { comprobantes: { id: string; estado: string }[] }) {
+  if (comprobantes.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
+
+  const pendiente = tienePendienteDeVerificar(
+    comprobantes as { estado: 'RECIBIDO' | 'VERIFICADO' | 'RECHAZADO' }[],
+  );
+
+  return (
+    <span
+      title={pendiente
+        ? 'Tiene un comprobante sin verificar. Ábrelo desde la orden.'
+        : 'Comprobante adjunto y ya revisado.'}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+        pendiente
+          ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+          : 'bg-muted text-muted-foreground'
+      }`}
+    >
+      <Paperclip className="h-3 w-3" />
+      {pendiente ? 'Por verificar' : comprobantes.length > 1 ? `${comprobantes.length} soportes` : 'Con soporte'}
+    </span>
   );
 }

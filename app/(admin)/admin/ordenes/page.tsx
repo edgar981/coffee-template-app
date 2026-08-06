@@ -35,6 +35,13 @@ import { estadoEntrega, accionFilaEntrega, fechaEntrega } from '@/lib/entrega-es
 import { useTransicionEntrega, type TransicionEntrega } from '@/hooks/useTransicionEntrega';
 import { ConfirmDespachoSinPago } from '@/components/admin/ConfirmDespachoSinPago';
 import { Pliegue } from '@/components/admin/Pliegue';
+import { ImageLightbox } from '@/components/admin/ImageLightbox';
+import {
+  ComprobanteVista, SelectorComprobante, AyudaComprobante, useLightboxComprobante,
+} from '@/components/admin/Comprobantes';
+import { subirComprobante, decidirComprobante } from '@/lib/api/comprobantes';
+import { accionAlVerificar, puedeDecidirse } from '@/lib/comprobante';
+import type { Comprobante } from '@/types/comprobante';
 import { filterChip, filterChipTono, FILTER_CHIP_COUNT } from '@/constants/filter-chip';
 import { COLOMBIA_DEPARTMENTS } from '@/lib/colombia-departments';
 import { isPorCobrar } from '@/lib/metrics/order-stat-filters';
@@ -679,7 +686,14 @@ function Ordenes() {
         } : null}
         declaredMetodo={paymentOrder?.metodoPagoPrevisto ?? paymentOrder?.metodo_pago ?? null}
         onClose={() => setPaymentOrder(null)}
-        onSaved={({ order }) => handleOrderUpdate(order)}
+        onSaved={({ order: actualizada, comprobante }) => handleOrderUpdate(
+          // El soporte se sube DESPUÉS del Payment, así que no viene en la
+          // respuesta de la orden: se concatena. Sin esto, adjuntar desde la
+          // fila dejaría el comprobante invisible hasta recargar.
+          comprobante
+            ? { ...actualizada, comprobantes: [...(actualizada.comprobantes ?? []), comprobante] }
+            : actualizada,
+        )}
       />
 
       {/* Despachar sin pago desde la FILA — la misma confirmación del board y
@@ -1194,6 +1208,60 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
   const [programando, setProgramando] = useState<Shipping | null>(null);
   const [cobrando, setCobrando]       = useState(false);
 
+  // ── Comprobantes ───────────────────────────────────────────────────────────
+  const comprobantes = order.comprobantes ?? [];
+  const lightbox     = useLightboxComprobante();
+  const guardaSubida = useAccionGuardada();
+  const filasVeredicto = useAccionesPorFila();
+  const errorPago    = useErrorDialogo();
+  /**
+   * Comprobante que hay que SELLAR cuando el pago que se está registrando
+   * termine bien. Existe porque verificar un soporte de una orden sin plata no
+   * puede limitarse a sellar la fila: la verificación CREA la plata (§3.1), así
+   * que primero se abre Registrar Pago y el sello viene después.
+   */
+  const [sellarTrasPago, setSellarTrasPago] = useState<string | null>(null);
+
+  const reemplazar = (c: Comprobante) => onUpdate({
+    ...order,
+    comprobantes: comprobantes.map(x => x.id === c.id ? c : x),
+  });
+
+  const adjuntar = (file: File) => guardaSubida.ejecutar(async () => {
+    errorPago.limpiar();
+    try {
+      const creado = await subirComprobante(order.id, file);
+      onUpdate({ ...order, comprobantes: [...comprobantes, creado] });
+      // Adjuntar NO registra un pago ni mueve la orden: sólo entra la evidencia.
+      toast.success('Comprobante adjuntado', { description: 'Queda RECIBIDO hasta que lo verifiques.' });
+    } catch (e) {
+      errorPago.mostrar(e, 'No se pudo subir el comprobante');
+    }
+  });
+
+  const sellar = (id: string, accion: 'verificar' | 'rechazar') =>
+    filasVeredicto.ejecutar(id, async () => {
+      errorPago.limpiar();
+      try {
+        reemplazar(await decidirComprobante(id, accion));
+        toast.success(accion === 'verificar' ? 'Comprobante verificado' : 'Comprobante rechazado');
+      } catch (e) {
+        errorPago.mostrar(e, 'No se pudo actualizar el comprobante');
+      }
+    });
+
+  // Verificar: con la orden pendiente abre Registrar Pago y deja el sello
+  // pendiente; con la plata ya adentro, sella directo.
+  const verificar = (c: Comprobante) => {
+    if (accionAlVerificar(order.estado) === 'cobrar') {
+      errorPago.limpiar();
+      setSellarTrasPago(c.id);
+      setCobrando(true);
+      return;
+    }
+    sellar(c.id, 'verificar');
+  };
+
   const guardaPreparar = useAccionGuardada();
   const errorEntrega   = useErrorDialogo();
 
@@ -1348,6 +1416,67 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
             </Button>
           )}
         </div>
+
+        {/* ── Comprobantes ─────────────────────────────────────────────────
+            La EVIDENCIA, no la plata. Vive bajo Pago porque es sobre el pago
+            que habla, pero su estado no mueve la orden: eso lo hace el Payment
+            y sólo él (§3.1). Por eso un comprobante VERIFICADO sobre una orden
+            pendiente no puede existir — verificar cobra primero. */}
+        <div className="space-y-2 rounded-lg border border-border/60 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Comprobantes{comprobantes.length > 0 ? ` (${comprobantes.length})` : ''}
+            </p>
+            <div className="flex items-center gap-2">
+              <SelectorComprobante
+                onArchivo={adjuntar}
+                disabled={guardaSubida.enVuelo || order.estado === 'cancelado'}
+                label={guardaSubida.enVuelo ? 'Subiendo…' : 'Adjuntar'}
+              />
+            </div>
+          </div>
+
+          {comprobantes.length === 0 ? (
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">
+                {order.estado === 'cancelado'
+                  ? 'La orden está cancelada; no admite comprobantes.'
+                  : 'Sin soportes. Adjuntar uno no registra el pago — sólo deja la evidencia.'}
+              </p>
+              {order.estado !== 'cancelado' && <AyudaComprobante />}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {comprobantes.map(c => (
+                <ComprobanteVista
+                  key={c.id}
+                  comprobante={c}
+                  onAmpliar={lightbox.ampliar}
+                  acciones={puedeDecidirse(c.estado) ? (
+                    <>
+                      <Button
+                        size="sm" variant="outline" className="h-7 gap-1 text-xs"
+                        disabled={filasVeredicto.enVuelo(c.id)}
+                        onClick={() => verificar(c)}
+                      >
+                        <CheckCircle className="h-3.5 w-3.5" />
+                        {filasVeredicto.enVuelo(c.id) ? 'Verificando…' : 'Verificar'}
+                      </Button>
+                      <Button
+                        size="sm" variant="destructiveGhost" className="h-7 gap-1 text-xs"
+                        disabled={filasVeredicto.enVuelo(c.id)}
+                        onClick={() => sellar(c.id, 'rechazar')}
+                      >
+                        <AlertCircle className="h-3.5 w-3.5" /> Rechazar
+                      </Button>
+                    </>
+                  ) : undefined}
+                />
+              ))}
+            </div>
+          )}
+          <ErrorDialogo mensaje={errorPago.mensaje} />
+        </div>
       </section>
 
       {/* ── La evidencia, plegada ───────────────────────────────────────────── */}
@@ -1442,8 +1571,33 @@ function OrderDetail({ order, onClose, onUpdate }: OrderDetailProps) {
           monto:   order.total,
         } : null}
         declaredMetodo={order.metodoPagoPrevisto ?? order.metodo_pago ?? null}
-        onClose={() => setCobrando(false)}
-        onSaved={({ order: actualizada }) => onUpdate(actualizada)}
+        onClose={() => { setCobrando(false); setSellarTrasPago(null); }}
+        onSaved={({ order: actualizada, comprobante }) => {
+          // La respuesta del pago no incluye el soporte recién subido (se sube
+          // DESPUÉS del Payment), así que se concatena en vez de confiar en el
+          // payload.
+          const previos = actualizada.comprobantes ?? comprobantes;
+          onUpdate({
+            ...actualizada,
+            comprobantes: comprobante ? [...previos, comprobante] : previos,
+          });
+          // El sello va DESPUÉS y por separado: si falla, la orden ya quedó
+          // pagada y un segundo click en Verificar lo cierra (ahí ya cae en
+          // `sellar`). Al revés se afirmaría un cobro que no ocurrió.
+          if (sellarTrasPago) {
+            const id = sellarTrasPago;
+            setSellarTrasPago(null);
+            sellar(id, 'verificar');
+          }
+        }}
+      />
+
+      {/* El lightbox COMPARTIDO. Sólo lo abren las imágenes: un PDF sale a una
+          pestaña nueva (ver ComprobanteVista). */}
+      <ImageLightbox
+        src={lightbox.abierto?.src ?? null}
+        alt={lightbox.abierto?.alt}
+        onClose={lightbox.cerrar}
       />
 
       <ConfirmDespachoSinPago {...transicion.confirmacion} />

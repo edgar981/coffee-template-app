@@ -509,6 +509,118 @@ Esa última frase ya está CUMPLIDA para las imágenes subidas desde el admin
 — ver la sección de abajo. Las estáticas de `public/` siguen exactamente
 con esta regla: no se migran y se renombran a mano.
 
+## Comprobantes de pago — la EVIDENCIA no es la plata
+
+Decisión de arquitectura (documento Duna §3.1), construida en su versión canónica
+desde el día uno. `Payment` y `Comprobante` son **dos tablas** porque son dos
+hechos distintos, y las dos combinaciones que sólo existen si están separados son
+casos reales, no teóricos:
+
+- **comprobante SIN pago** — el cliente mandó la foto por WhatsApp y nadie la
+  verificó todavía;
+- **pago SIN comprobante** — efectivo contraentrega, no hay nada que fotografiar.
+
+Un campo `Payment.comprobante_url` haría **imposible el primero**, que es
+justamente el que esta tanda existe para resolver. No se colapsa "porque hoy casi
+siempre van juntos".
+
+### El comprobante NO mueve la orden
+
+**El único que pasa una orden a `pagado` sigue siendo el Payment.** Ninguna
+función de `lib/comprobantes.ts` escribe `Order.estado`, y el carril lo afirma.
+Un comprobante es evidencia SOBRE la plata; si su estado moviera la orden, una
+foto se convertiría en un asiento contable.
+
+Consecuencia que conviene tener escrita: **sellar la evidencia sin registrar el
+pago deja la orden `pendiente`**, y eso es correcto — la plata no entró. Que la
+UI cobre primero es una decisión del FLUJO, no una garantía de la capa de datos.
+
+### La verificación CREA la plata, no al revés
+
+`accionAlVerificar(order.estado)` (capa 1) decide qué hace el botón Verificar:
+
+- orden `pendiente` → **`cobrar`**: abre Registrar Pago pre-llenado, y el sello
+  viene DESPUÉS del Payment;
+- orden ya pagada → **`sellar`**: sólo estampa quién y cuándo.
+
+**El ORDEN no es reversible.** Si el sello falla tras un pago exitoso queda una
+orden pagada con un comprobante `RECIBIDO` — un segundo click lo cierra, porque
+ahí ya cae en `sellar`. Al revés (sellar y que el pago falle) dejaría una
+evidencia afirmando un cobro que nunca ocurrió. La misma asimetría rige el
+adjunto del modal de pago: **primero la plata, después la evidencia**, y si la
+subida falla el toast dice que el pago SÍ quedó registrado.
+
+### Sin borrado físico, incluido el RECHAZADO
+
+`RECHAZADO` conserva la fila **y el blob**. Un comprobante rechazado ES la prueba
+de que se rechazó; borrarlo dejaría una orden sin explicación de por qué su pago
+nunca entró. Es la regla no-delete del repo, aplicada al caso donde más tienta
+saltársela.
+
+**Un veredicto no se reescribe** (`puedeDecidirse`): sólo un `RECIBIDO` se decide.
+Re-verificar pisaría quién decidió y cuándo, que es el dato de auditoría que hace
+útil a la tabla. La transición es condicional en UNA sentencia (`updateMany` con
+el estado en el `where`), así que dos veredictos concurrentes no pueden ambos
+escribir su nombre — el segundo recibe 409. Testeado en el carril.
+
+### La imagen vive en Blob; la fila guarda un puntero
+
+Bajo el prefijo `comprobantes/` a través de `lib/storage.ts`, con su `dev/` por
+entorno. **Jamás bytes en Postgres**: hincharían los backups y las copias de rama
+por un dato que un CDN sirve mejor.
+
+- **`SUBIR → INSERTAR`, nunca al revés.** Si la subida funciona y el insert falla
+  queda un blob huérfano, que es basura barata; al revés quedaría una fila
+  apuntando a una imagen inexistente y el operador vería un comprobante roto sin
+  saber si el cliente lo mandó. Misma asimetría que el borrado de imágenes de
+  producto.
+- **La subida va FUERA de la transacción** — `storage.put` habla con un servicio
+  externo, y meterlo adentro dejaría una transacción de Postgres abierta durante
+  una llamada de red.
+- **No hay columna `nombre_archivo`**: `storage.put` ya construye el pathname con
+  el nombre saneado, así que la URL lo lleva (`nombreArchivo`). Una columna sería
+  un segundo lugar donde el mismo dato puede decir otra cosa.
+
+### PDF es un formato de primera clase, y por eso son DOS listas
+
+`TIPOS_COMPROBANTE` acepta JPG, PNG, WebP **y PDF**; `TIPOS_PERMITIDOS` (imágenes
+de producto) sigue sin PDF. No es una lista ampliada: **Bancolombia entrega sus
+soportes de transferencia en PDF**, y rechazarlos obligaría al cliente a
+fotografiar una pantalla para mandar algo peor — mientras que una portada de
+catálogo en PDF sería un bug (`next/image` no la renderiza). Unificarlas lo
+volvería posible.
+
+- **Un PDF NO va al lightbox ni a un visor embebido**: chip de documento con
+  nombre y peso, y abre en pestaña nueva. Un PDF dentro de un `<img>` no falla
+  ruidosamente — se queda en blanco, y el operador concluye que el comprobante
+  llegó roto cuando el archivo está perfecto. El navegador ya tiene un buen visor;
+  embeber uno propio es competir con él y perder.
+- **El flujo de verificación es IDÉNTICO para los dos tipos.** Lo único que
+  cambia es cómo se mira el archivo.
+- **`validarArchivoComprobante` es UNA función** que corren el formulario (aviso
+  temprano, para no gastar una subida de 4 MB) y el endpoint (la que MANDA). El
+  tope se comparte con el de imágenes porque el límite real no es de producto: el
+  body de una función serverless de Vercel se corta en 4.5 MB.
+
+### Presentación
+
+- **`RECHAZADO` va NEUTRO, no rojo.** El rojo del admin está reservado a lo que
+  exige una acción, y un comprobante rechazado ya se resolvió. Pintarlo de alerta
+  dejaría una orden vieja gritando para siempre por algo cerrado.
+- **En la lista de Pagos hay un INDICADOR, no una acción**: "Por verificar" en
+  ámbar cuando queda algo sin mirar, neutro cuando ya se revisó, y **nada**
+  cuando no hay soportes — el efectivo no tiene qué
+  fotografiar, así que su vacío no es una falta. Verificar y ampliar viven en el
+  detalle de la orden, que es donde está el contexto.
+- Los comprobantes cuelgan de la ORDEN, no del Payment, también en ese payload.
+
+### Fuera de alcance de esta tanda (declarado)
+
+Recepción automática por WhatsApp —la entidad queda lista para que ese canal la
+alimente cuando llegue el bot—, verificación en lote, y notificaciones de
+comprobante pendiente. `tienePendienteDeVerificar` es la definición única que ese
+aviso futuro debe consumir, para que la campana y la lista no diverjan.
+
 ## Storage de imágenes de producto
 
 Las imágenes que se suben desde el admin NO viven en `public/`: en Vercel

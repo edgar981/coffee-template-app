@@ -31,7 +31,7 @@ model session {
   expiresAt DateTime
   token     String   @unique
   createdAt DateTime @default(now())
-  updatedAt DateTime  @updatedAt
+  updatedAt DateTime @updatedAt
   ipAddress String?
   userAgent String?
   userId    String
@@ -78,94 +78,94 @@ model Invitation {
 }
 
 enum Role {
-  OWNER    // client (restaurant owner) - full access
-  MANAGER  // their manager - most access
-  STAFF    // waiter/delivery - limited access
+  OWNER // client (restaurant owner) - full access
+  MANAGER // their manager - most access
+  STAFF // waiter/delivery - limited access
 }
 
 model Customer {
-  id              String   @id @default(cuid())
-  nombre          String
-  email           String?  @unique
-  telefono        String?
-  ciudad          String?
-  direccion       String?
-  canal           String?  @default("directo")
-  notas           String?
-  activo          Boolean  @default(true)
-  numero_ordenes  Int      @default(0)
-  total_compras   Float    @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  orders          Order[]
+  id             String   @id @default(cuid())
+  nombre         String
+  email          String?  @unique
+  telefono       String?
+  ciudad         String?
+  direccion      String?
+  canal          String?  @default("directo")
+  notas          String?
+  activo         Boolean  @default(true)
+  numero_ordenes Int      @default(0)
+  total_compras  Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  orders         Order[]
 }
 
 model Product {
-  id           String   @id @default(cuid())
-  nombre       String
-  slug         String   @unique
-  descripcion  String   @default("")
-  categoria    String
-  precio       Float    @default(0)
-  costo        Float    @default(0)
-  sku          String?  @unique
-  stock        Int      @default(0)
-  stock_minimo Int      @default(5)
-  activo       Boolean  @default(true)
-  peso_gramos  Int?
-  variante     String?
-  origen       String?
-  tostado      String?
+  id                String      @id @default(cuid())
+  nombre            String
+  slug              String      @unique
+  descripcion       String      @default("")
+  categoria         String
+  precio            Float       @default(0)
+  costo             Float       @default(0)
+  sku               String?     @unique
+  stock             Int         @default(0)
+  stock_minimo      Int         @default(5)
+  activo            Boolean     @default(true)
+  peso_gramos       Int?
+  variante          String?
+  origen            String?
+  tostado           String?
   // Ficha técnica estructurada (empaque real) — editable desde el admin.
   // La tostión reutiliza el campo `tostado` existente (no se duplica).
-  variedad     String?
-  proceso      String?
-  altitudMin   Int?
-  altitudMax   Int?
+  variedad          String?
+  proceso           String?
+  altitudMin        Int?
+  altitudMax        Int?
   // Molienda del producto (p. ej. "Media") — solo variantes molidas; null en grano.
-  molienda     String?
+  molienda          String?
   // Opciones de molienda que ve el cliente en la página de producto:
   // [{ nombre: "Media", metodo: "Filtro / Greca tradicional", disponible: true }, …]
   // El admin activa nuevas moliendas cambiando `disponible` — sin cambios de código.
   moliendasOpciones Json?
-  notasCata    String[] @default([])
+  notasCata         String[]    @default([])
   // Tags cortos del card del catálogo (p. ej. "Chocolate" · "Herbal").
-  notas        String[] @default([])
+  notas             String[]    @default([])
   // Copy corto para el card del catálogo (la `descripcion` es la larga del detalle).
-  descripcionCorta String?
-  imagen       String   @default("")
-  imagenes     String[] @default([])
-  bestseller   Boolean  @default(false)
-  badge        String?
-  agotado      Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  orderItems   OrderItem[]
+  descripcionCorta  String?
+  imagen            String      @default("")
+  imagenes          String[]    @default([])
+  bestseller        Boolean     @default(false)
+  badge             String?
+  agotado           Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  orderItems        OrderItem[]
 }
 
 model Order {
-  id                 String      @id @default(cuid())
-  numero_orden       String      @unique
+  id                 String        @id @default(cuid())
+  numero_orden       String        @unique
   // Client-generated key that makes order creation idempotent: a double submit or
   // network retry reuses the same key and returns the existing order instead of
   // creating a duplicate. Nullable + unique (Postgres allows many NULLs), so
   // legacy and checkout orders without a key are unaffected.
-  idempotencyKey     String?     @unique
+  idempotencyKey     String?       @unique
   // The Customer this order belongs to. Set by createOrderWithCustomer from the
   // very upsert that resolves identity, so it is exact — unlike matching on the
   // snapshots below. Nullable: historical orders may not resolve to anyone, and
   // deleting a customer must NOT delete their orders (financial records), hence
   // onDelete: SetNull.
   cliente_id         String?
-  cliente            Customer?   @relation(fields: [cliente_id], references: [id], onDelete: SetNull)
+  cliente            Customer?     @relation(fields: [cliente_id], references: [id], onDelete: SetNull)
   // PURCHASE-TIME SNAPSHOTS — deliberately NOT redundant with the relation.
   // These record who bought, as stated at the time; the Customer record reflects
   // who they are now. Editing a profile must never rewrite past orders.
   cliente_nombre     String?
   cliente_email      String?
   cliente_telefono   String?
-  canal              String      @default("directo")
-  estado             String      @default("pendiente")
+  canal              String        @default("directo")
+  estado             String        @default("pendiente")
   // CONDICIÓN de pago — CUÁNDO se paga respecto al despacho. ANTICIPADO: pago →
   // Shipping → despacho (no se despacha sin pago). CONTRAENTREGA: el envío puede
   // prepararse y despacharse con la orden `pendiente`; el Payment se registra al
@@ -183,8 +183,8 @@ model Order {
   // the order's historical intent). Same enum as Payment.metodo. Checkout leaves
   // it null (see metodo_pago above). Nullable = "Por definir".
   metodoPagoPrevisto MetodoPago?
-  total              Float       @default(0)
-  costo_envio        Float       @default(0)
+  total              Float         @default(0)
+  costo_envio        Float         @default(0)
   direccion_entrega  String?
   direccion_detalle  String?
   ciudad_entrega     String?
@@ -193,37 +193,38 @@ model Order {
   deliverySlot       String?
   items              OrderItem[]
   payments           Payment[]
+  comprobantes       Comprobante[]
   shipping           Shipping?
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   @@index([cliente_id])
 }
 
 model OrderItem {
-  id               String   @id @default(cuid())
-  orden_id         String
-  producto_id      String?
-  producto_nombre  String
+  id                   String   @id @default(cuid())
+  orden_id             String
+  producto_id          String?
+  producto_nombre      String
   // Molienda elegida por el cliente al comprar (snapshot, p. ej. "Media").
   moliendaSeleccionada String?
-  cantidad         Int
-  precio_unitario  Float?
-  subtotal         Float
-  order            Order    @relation(fields: [orden_id], references: [id], onDelete: Cascade)
-  product          Product? @relation(fields: [producto_id], references: [id])
+  cantidad             Int
+  precio_unitario      Float?
+  subtotal             Float
+  order                Order    @relation(fields: [orden_id], references: [id], onDelete: Cascade)
+  product              Product? @relation(fields: [producto_id], references: [id])
 }
 
 model InventoryLog {
-  id               String   @id @default(cuid())
-  producto_id      String
-  producto_nombre  String
-  tipo             String
-  cantidad         Int
-  stock_anterior   Int
-  stock_nuevo      Int
-  motivo           String?
-  createdAt        DateTime @default(now())
+  id              String   @id @default(cuid())
+  producto_id     String
+  producto_nombre String
+  tipo            String
+  cantidad        Int
+  stock_anterior  Int
+  stock_nuevo     Int
+  motivo          String?
+  createdAt       DateTime @default(now())
 }
 
 // A Payment is an event OF an Order: created when the admin registers a received
@@ -248,6 +249,62 @@ model Payment {
   updatedAt             DateTime   @updatedAt
 
   @@index([orden_id])
+}
+
+// ─── El comprobante es la EVIDENCIA, no la plata ─────────────────────────────
+//
+// `Payment` y `Comprobante` son dos hechos distintos y por eso son dos tablas
+// (decisión de arquitectura, documento Duna §3.1). Una orden puede tener:
+//   • comprobante SIN pago — el cliente mandó la foto y nadie la verificó aún;
+//   • pago SIN comprobante — efectivo contraentrega, no hay nada que fotografiar.
+// Colapsarlos en un campo `Payment.comprobante_url` haría imposible el primer
+// caso, que es justamente el que esta tanda existe para resolver.
+//
+// La IMAGEN NO VIVE ACÁ: `url` es un puntero a Vercel Blob (lib/storage.ts, bajo
+// el prefijo `comprobantes/` con su `dev/` por entorno). Bytes en Postgres
+// hincharían los backups y las copias de rama por un dato que un CDN sirve mejor.
+//
+// SIN BORRADO FÍSICO, como el resto del repo: `RECHAZADO` conserva la fila Y la
+// imagen. Un comprobante rechazado es la prueba de que se rechazó — borrarlo
+// dejaría una orden sin explicación de por qué su pago nunca entró.
+model Comprobante {
+  id                    String            @id @default(cuid())
+  // `orden_id` y no `order_id`, por la convención que ya fijó Payment.
+  orden_id              String
+  order                 Order             @relation(fields: [orden_id], references: [id], onDelete: Cascade)
+  // Puntero al blob. La URL es inmutable (el proveedor le pone sufijo aleatorio),
+  // así que sirve de clave de caché.
+  url                   String
+  // Se snapshotean del archivo subido: el content-type decide si hay miniatura o
+  // chip de documento, y el tamaño se muestra sin tener que pedirle nada al CDN.
+  content_type          String
+  size_bytes            Int
+  estado                ComprobanteEstado @default(RECIBIDO)
+  // Quién subió y quién verificó, con NOMBRE snapshoteado — mismo criterio que
+  // `Payment.registrado_por_nombre`: sobrevive a que el usuario se elimine, y la
+  // pantalla tiene que poder decir "verificado por X" sin un join a Better Auth.
+  subido_por            String?
+  subido_por_nombre     String?
+  verificado_por        String?
+  verificado_por_nombre String?
+  verificado_at         DateTime?
+  notas_verificacion    String?
+  createdAt             DateTime          @default(now())
+
+  @@index([orden_id])
+}
+
+// RECIBIDO: llegó, nadie lo miró. VERIFICADO: un humano confirmó que la plata
+// entró. RECHAZADO: un humano lo miró y no sirve (monto que no cuadra, captura
+// de otra orden, imagen ilegible).
+//
+// NINGUNO de los tres mueve `Order.estado`: el único que pasa una orden a
+// `pagado` sigue siendo el Payment. El comprobante es evidencia sobre la plata,
+// no la plata.
+enum ComprobanteEstado {
+  RECIBIDO
+  VERIFICADO
+  RECHAZADO
 }
 
 // Manual payment methods. Extensible for online rails later (e.g. WOMPI) via
@@ -275,38 +332,38 @@ enum TipoEnvio {
 }
 
 model Shipping {
-  id               String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   // One Shipping per Order (1:1). Auto-created in `preparando` when the order is
   // paid. Number, customer AND address are read live via the relation — the
   // Shipping keeps no copy of them. Only costo_envio is snapshotted (below).
-  orden_id         String   @unique
-  order            Order    @relation(fields: [orden_id], references: [id], onDelete: Cascade)
+  orden_id            String    @unique
+  order               Order     @relation(fields: [orden_id], references: [id], onDelete: Cascade)
   // Zona and courier start empty; the operator fills them when scheduling.
-  zona             String?
+  zona                String?
   // Zona que la heurística de dirección (lib/zona-config.ts) sugirió cuando el
   // operador programó. Solo auditoría de calidad: una CORRECCIÓN se deriva
   // comparando `zona_sugerida != zona` — no hay (ni debe haber) un campo
   // "corregida" que pueda desincronizarse de esa comparación. Null = no hubo
   // sugerencia (dirección atípica o sin ciudad).
-  zona_sugerida    String?
-  estado           String   @default("preparando")
-  costo_envio      Float    @default(0)
-  mensajero        String?
-  notas_entrega    String?
-  fecha_programada String?
-  fecha_entrega    String?
+  zona_sugerida       String?
+  estado              String    @default("preparando")
+  costo_envio         Float     @default(0)
+  mensajero           String?
+  notas_entrega       String?
+  fecha_programada    String?
+  fecha_entrega       String?
   // LOCAL (mensajero propio) o NACIONAL (transportadora). Los campos de guía se
   // usan cuando NACIONAL; el operador los llena al programar.
-  tipo_envio       TipoEnvio @default(LOCAL)
-  transportadora   String?
-  numero_guia      String?
+  tipo_envio          TipoEnvio @default(LOCAL)
+  transportadora      String?
+  numero_guia         String?
   // Marcador de idempotencia del descuento de stock AL DESPACHAR (en_ruta): el
   // decremento corre SOLO si esto es null y lo setea en la misma transacción;
   // la devolución (fallido/cancelado tras despacho) restituye y lo limpia.
   // Flapping o reintentos jamás descuentan dos veces.
   stock_descontado_at DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }
 
 // El modelo `Automation` vivió aquí hasta la migración
@@ -338,10 +395,10 @@ model AutomationSetting {
 }
 
 enum AutomationRunEstado {
-  ENVIADO          // el canal confirmó el despacho
-  PENDIENTE_CANAL  // pipeline completo, canal sin conectar todavía (WhatsApp/Meta)
-  FALLIDO          // el canal reventó; el negocio siguió intacto
-  OMITIDO          // disparó pero no había a quién/qué enviar (sin teléfono, etc.)
+  ENVIADO // el canal confirmó el despacho
+  PENDIENTE_CANAL // pipeline completo, canal sin conectar todavía (WhatsApp/Meta)
+  FALLIDO // el canal reventó; el negocio siguió intacto
+  OMITIDO // disparó pero no había a quién/qué enviar (sin teléfono, etc.)
   // Se evaluó el target y se calló A PROPÓSITO porque ya estaba atendido. Es
   // rastro del INTENTO, no de un envío: sin él, "callé porque el cooldown lo
   // pidió" y "callé porque estoy roto" se ven idénticos desde la base (cero
@@ -377,7 +434,7 @@ enum AutomationRunEstado {
 model AutomationRun {
   id            String              @id @default(cuid())
   automationKey String
-  targetType    String              // 'order' | 'product' | 'customer' | 'shipping' | 'global'
+  targetType    String // 'order' | 'product' | 'customer' | 'shipping' | 'global'
   targetId      String
   periodo       String
   canal         String
@@ -395,11 +452,11 @@ model AutomationRun {
 
 model Notification {
   id        String   @id @default(cuid())
-  tipo      String   // 'stock_bajo', 'nueva_orden', etc.
+  tipo      String // 'stock_bajo', 'nueva_orden', etc.
   titulo    String
   mensaje   String
   leida     Boolean  @default(false)
-  href      String?  // optional link to relevant page
+  href      String? // optional link to relevant page
   createdAt DateTime @default(now())
 }
 

@@ -134,7 +134,7 @@ export async function transitionOrder(
 
   return tx.order.findUnique({
     where:   { id },
-    include: { items: true, shipping: true },
+    include: { items: true, shipping: true, comprobantes: { orderBy: { createdAt: 'asc' } } },
   });
 }
 
@@ -358,7 +358,7 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
   if (idem) {
     const existing = await prisma.order.findUnique({
       where:   { idempotencyKey: idem },
-      include: { items: true, shipping: true },
+      include: { items: true, shipping: true, comprobantes: { orderBy: { createdAt: 'asc' } } },
     });
     if (existing) return existing;
   }
@@ -483,7 +483,7 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
 
         return tx.order.findUnique({
           where:   { id: order.id },
-          include: { items: true, shipping: true },
+          include: { items: true, shipping: true, comprobantes: { orderBy: { createdAt: 'asc' } } },
         });
       });
 
@@ -505,7 +505,7 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
         if (idem) {
           const existing = await prisma.order.findUnique({
             where:   { idempotencyKey: idem },
-            include: { items: true, shipping: true },
+            include: { items: true, shipping: true, comprobantes: { orderBy: { createdAt: 'asc' } } },
           });
           if (existing) return existing;
         }
