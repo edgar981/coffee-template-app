@@ -8,7 +8,7 @@ import { Plus, Search, ShoppingCart, Truck, CreditCard, X, CheckCircle, AlertCir
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -691,6 +691,15 @@ function Ordenes() {
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Orden {selected?.numero_orden}</DialogTitle>
+            {/* `sr-only`: Radix EXIGE una descripción (o un
+                `aria-describedby={undefined}` explícito) y sin ella el lector de
+                pantalla anuncia un diálogo sin decir de qué trata. Va oculta
+                porque el contenido ya lo dice a la vista, y una línea de chrome
+                encima competiría con la respuesta — que es lo que este diálogo
+                existe para dar primero. Mismo patrón que el ⌘K. */}
+            <DialogDescription className="sr-only">
+              Estado de entrega y de pago de la orden, con las acciones disponibles según su estado.
+            </DialogDescription>
           </DialogHeader>
           {selected && (
             <OrderDetail
@@ -705,7 +714,12 @@ function Ordenes() {
       {/* New Order Dialog */}
       <Dialog open={showForm} onOpenChange={(o) => { if (!o) errorCrear.limpiar(); setShowForm(o); }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Nueva Orden</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Nueva Orden</DialogTitle>
+            <DialogDescription className="sr-only">
+              Crea una orden manual: cliente, productos, costo de envío y método de pago previsto.
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-4 py-2">
             {/* Cliente */}
             <div className="grid grid-cols-2 gap-4">

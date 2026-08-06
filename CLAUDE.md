@@ -234,6 +234,32 @@ Estaba duplicado como función local en `lib/api/products.ts` y por eso tres
 mutaciones seguían tragándose el mensaje — dos definiciones del mismo helper es
 cómo vuelve a pasar.
 
+## Todo `DialogContent` lleva `DialogDescription`
+
+Radix lo exige: sin descripción (o sin un `aria-describedby={undefined}`
+explícito que diga "no lleva") avisa por consola. **No es ruido de librería** —
+sin ella el lector de pantalla anuncia un diálogo sin decir de qué trata, y el
+título solo rara vez alcanza ("Orden CN-123456" no dice qué se puede hacer ahí).
+
+- **Va `sr-only`, salvo que el texto aporte a la vista.** El contenido del
+  diálogo ya lo explica al que ve, y una línea de chrome bajo el título compite
+  con la respuesta — que en el detalle de orden es justo lo que el diálogo existe
+  para dar primero. El precedente es del repo: el ⌘K (`components/ui/command.tsx`)
+  ya la monta así. `AutomationConfigDialog` la usa VISIBLE porque ahí el texto es
+  el disparador de la automatización, que sí es información.
+- **La descripción dice qué se puede HACER, no qué es.** "Estado de entrega y de
+  pago, con las acciones disponibles" sirve; "Diálogo de orden" no.
+- `AlertDialog` tiene su propio `AlertDialogDescription`, que ya se usaba en los
+  dos confirms.
+
+**PENDIENTE — el hueco sigue abierto en cinco diálogos** de otras pantallas:
+`admin/inventario`, `admin/productos`, `admin/clientes`,
+`admin/clientes/[id]/CustomerProfile` e `ImageLightbox`. Se cerraron los cuatro
+de los flujos de Órdenes (detalle, Nueva Orden, programar entrega, registrar
+pago) cuando el warning apareció en su gate; los otros son de sus propias tandas.
+Se anota acá y no en el backlog porque es una regla de UI, no deuda que esté
+costando.
+
 ## Doble-submit — `useAccionGuardada`, no una receta a recordar
 
 Toda mutación disparada por un control va por el hook de

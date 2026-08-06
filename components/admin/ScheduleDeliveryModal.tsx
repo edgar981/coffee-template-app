@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { MessageCircle, Mail, Plus, ExternalLink } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -59,6 +59,9 @@ export function ScheduleDeliveryModal({ target, onClose, onSaved, onAddressAdded
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{target ? titleFor(target.shipping) : 'Programar entrega'}</DialogTitle>
+          <DialogDescription className="sr-only">
+            Asigna mensajero, zona y fecha de entrega. Despachar exige mensajero Y fecha.
+          </DialogDescription>
         </DialogHeader>
         {target && (
           <ScheduleBody
