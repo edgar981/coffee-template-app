@@ -1104,6 +1104,120 @@ estilo:
   tarjeta. Un insight calculado sobre otro conjunto que el número que acompaña es
   peor que no tener insight.
 
+## La orden se opera desde la orden — columna compuesta y centro de mando
+
+Dos problemas de superficie sobre un modelo que NO cambió (Order / Payment /
+Shipping separados sigue siendo correcto y quedó revalidado por diseño).
+
+### La columna "Entrega" COMPONE, y por eso es pura
+
+`Shipping.estado` crudo no distingue una orden programada con fecha y mensajero
+de una que nadie tocó: las dos dicen "Preparando". **El dato para separarlas ya
+existía** —`hasScheduleData` / `isScheduledShipping`, los predicados que gatean
+el despacho en el board— y la columna simplemente no lo consumía.
+
+`estadoEntrega` (`lib/entrega-estado.ts`, capa 1) los **consume, jamás los
+redefine**. Es la regla dura de esta tanda: `isScheduledShipping` es EL gate de
+despacho (cliente y servidor) y una segunda opinión sobre qué es "lista para
+despacho" haría que la lista y el botón discreparan.
+
+Vive en `lib/` y no dentro del componente porque **el vocabulario ES la decisión
+de producto**: un `if` cambiado dentro del JSX rompería la respuesta a "¿dónde va
+este pedido?" sin que nada lo notara. Mismo criterio que `lib/metrics/titulares.ts`.
+
+| caso | etiqueta | tono |
+| --- | --- | --- |
+| orden cancelada · entrega anulada | *(celda vacía)* | — |
+| sin registro de envío · envío creado y vacío | Sin programar | neutro |
+| preparando con fecha, sin mensajero | Programada · 14 may 2026 | ámbar |
+| preparando con mensajero, sin fecha | Falta fecha | ámbar |
+| mensajero + fecha (`isScheduledShipping`) | Lista para despacho · 14 may 2026 | azul |
+| `en_ruta` | En ruta | azul |
+| `entregado` | Entregada · *(fecha REAL de entrega)* | verde |
+| `fallido` | Fallida | rojo |
+
+- **Los dos "Sin programar" comparten etiqueta A PROPÓSITO** (decisión del owner):
+  desde la lista, "no existe el Shipping" y "existe y está vacío" son la misma
+  respuesta —nadie la programó— y la columna Acciones ya distingue ("Preparar
+  envío" vs "Programar entrega"). El matiz **existe para diagnóstico y vive en el
+  `title`** del badge, no en el vocabulario. Etiquetarlo sería gastar una palabra
+  en una distinción que no cambia ninguna decisión desde esa pantalla.
+- **Las dos mitades parciales NO son intercambiables.** Con fecha ya hay un
+  compromiso con el cliente y se imprime; sin fecha no hay nada que prometerle, y
+  rotularla "Programada" sin fecha que mostrar sería una etiqueta que miente.
+- **"Sin programar" va NEUTRO y no ámbar.** Es el estado normal de toda orden
+  recién creada: pintarlo de ámbar teñiría la lista entera, que es exactamente lo
+  que Amber Minimal prohíbe. El ámbar queda para las dos programaciones a medias,
+  que sí son una brecha.
+- **El semáforo sigue viviendo SOLO en `StatusBadge`.** La etiqueta compuesta no
+  es un valor del enum, así que el badge ganó `tone` + `label` (y `title`) en vez
+  de un mapa de colores propio en la vista. Un segundo mapa es cómo dos pantallas
+  terminan pintando el mismo hecho de distinto color.
+- **Un estado desconocido CALLA** (celda vacía) en vez de caer en "Sin programar":
+  mandar a programar algo que quizá ya salió es peor que no decir nada.
+- **Badge secundario: sólo "Por cobrar"**, nunca "Contraentrega" a secas — se
+  etiqueta la EXCEPCIÓN (contraentrega despachada sin cobro, la plata en la
+  calle), no el default. Es la misma regla que ya mantenía la lista de Órdenes sin
+  la píldora de condición de pago, y por eso esa decisión NO se reabrió.
+- **El board de Entregas no cambió de badges**: sigue siendo la vista de flota
+  (una fila por envío, con su checklist muted). Esta columna es la vista de orden.
+
+### El detalle de la orden es el CENTRO DE MANDO
+
+Tenía estado y notas; programar, despachar, entregar y reprogramar vivían sólo en
+Entregas, y el pago sólo como botón de fila. Ahora el ciclo completo —crear →
+programar → despachar → entregar (o reprogramar) → cobrar— se opera desde el
+diálogo de UNA orden.
+
+- **No se reimplementó una sola mutación.** `ScheduleDeliveryModal` y
+  `RegisterPaymentModal` ya eran agnósticos de página (el primero se hizo así al
+  compartirlo entre Órdenes y Entregas) y se montan desde el detalle tal cual. El
+  detalle queda ABIERTO debajo y se refresca solo, porque la orden abierta se
+  deriva de la lista por `numero_orden`.
+- **Las transiciones se extrajeron a `hooks/useTransicionEntrega.ts`** (despachar
+  / entregado / fallido + la confirmación de despacho sin pago, hoy
+  `components/admin/ConfirmDespachoSinPago.tsx`) **y el board de Entregas las
+  consume desde ahí.** Vivían inline en esa página; dejar una copia en el detalle
+  era repetir el modo de falla de `razonDelServidor` y `cruzoMinimo` —dos
+  definiciones del mismo helper es cómo vuelven a divergir— con el agravante de
+  que acá lo que divergiría es una transición de estado con movimiento de stock.
+  El board quedó idéntico en aspecto y conducta: **sólo cambió de dónde sale su
+  lógica**, y por eso su regresión entra al mismo checklist que lo nuevo.
+- **`ordenPagada` lo aporta quien llama, no lo deriva el hook.** El board lo lee
+  del `order` anidado del Shipping; el detalle, de la orden que ya tiene en mano
+  —y el payload de `/api/orders` trae el Shipping SIN ese anidado. Derivarlo
+  dentro del hook habría hecho que toda orden pagada abriera el diálogo de
+  "despachar sin pago" desde el detalle: la confirmación equivocada, en el sitio
+  donde el operador la va a aceptar sin leerla.
+- **El hook toma `onError`.** En una PÁGINA el error va por toast; dentro de un
+  diálogo va INLINE, donde está mirando el operador. Es la misma división de
+  vehículos de siempre, ahora parametrizada en vez de duplicada.
+- **El `estado` del Select ya no es una copia congelada de la orden.** Antes era
+  `useState(order.estado)` y funcionaba porque el detalle se CERRABA al registrar
+  un pago. Ahora no se cierra: con la copia vieja, "Guardar Cambios" después de
+  cobrar reenviaría `pendiente` y **revertiría el pago**. Se resolvió con
+  `estadoElegido ?? order.estado` — la orden manda salvo que el operador haya
+  elegido otra cosa. Es el bug que introduce dejar un modal abierto, y no existía
+  antes de esta tanda.
+- **Las acciones que no aplican NO están, no se deshabilitan** — un botón muerto
+  es una pregunta. La única excepción es "Marcar En Ruta" con la programación a
+  medias: ahí se deshabilita DICIENDO qué falta (`missingToDispatch`), porque
+  esconderla mandaría al operador a buscarla en otra pantalla. Mismo criterio y
+  mismo texto que el board.
+- **Densidad**: arriba las dos respuestas (entrega y pago) con sus acciones;
+  contacto, dirección, productos y la edición manual de estado/notas viven en
+  pliegues. El `Pliegue` salió de Analítica a `components/admin/Pliegue.tsx` — el
+  mismo widget escrito dos veces se separa en cuanto uno de los dos se ajusta.
+- **Se retiró el timeline de dos puntos** (pendiente → pagado): la sección Pago
+  dice el mismo hecho Y ofrece la acción. Dos representaciones del mismo dato es
+  justo la redundancia que este pase vino a quitar.
+- **Sin subpágina.** El diálogo ya es `max-h-[85vh]` con scroll y los dos flujos
+  que faltaban son modales que se apilan encima.
+- **Ni un gate del servidor se relajó.** El detalle es otra puerta a los MISMOS
+  endpoints: `POST /api/shippings` sigue rechazando la orden cancelada, y el
+  `PATCH` sigue exigiendo mensajero + fecha y el `confirmarSinPago` explícito. Lo
+  que el cliente decide es qué botón ofrecer, no qué se permite.
+
 ## Analítica — cuatro preguntas de dueño, no un grid de métricas
 
 Rediseño del 2026-08-05 (decisión del owner). La página dejó de ser el grid

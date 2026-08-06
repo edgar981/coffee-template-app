@@ -4,18 +4,14 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Truck, MapPin, Clock, CheckCircle, AlertCircle, RotateCcw, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
-  AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
-} from '@/components/ui/alert-dialog';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { toast } from 'sonner';
-import { useAccionesPorFila } from '@/hooks/useAccionGuardada';
+import { useTransicionEntrega } from '@/hooks/useTransicionEntrega';
+import { ConfirmDespachoSinPago } from '@/components/admin/ConfirmDespachoSinPago';
 import { formatCOP } from '@/lib/utils';
 import { formatFecha } from '@/lib/format-fecha';
-import { getShippings, updateShipping } from '@/lib/api/shippings';
+import { getShippings } from '@/lib/api/shippings';
 import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
-import type { Shipping, ShippingEstado, ShippingFilter, ShippingOrderRef } from '@/types/shipping';
+import type { Shipping, ShippingFilter, ShippingOrderRef } from '@/types/shipping';
 import { FILTER_ESTADOS, ZONA_COLORS, isScheduledShipping, hasScheduleData, missingToDispatch } from '@/constants/shippings';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { statCardLink } from '@/components/admin/StatCard';
@@ -41,8 +37,6 @@ export default function Entregas() {
   // Shipping being scheduled/edited/rescheduled (opens the shared modal — same
   // one as Ordenes). Covers Programar, Editar and Reprogramar.
   const [scheduleShipping, setScheduleShipping] = useState<Shipping | null>(null);
-  // Shipping awaiting confirmation to dispatch WITHOUT a registered payment.
-  const [confirmDispatch, setConfirmDispatch] = useState<Shipping | null>(null);
 
   useEffect(() => {
     getShippings().then(data => { setEntregas(data); setLoading(false); });
@@ -68,37 +62,22 @@ export default function Entregas() {
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
-  // Guarda POR FILA, no global: bloquear la tabla entera mientras una entrega se
-  // despacha sería una traba, no una guarda — el operador despacha varias
-  // seguidas, y ese roce es justo lo que hace que la gente vuelva a clickear. Lo
-  // que se impide es repetir la MISMA fila.
+  // Las transiciones (despachar / entregado / fallido + la confirmación de
+  // despacho sin pago) viven en el hook COMPARTIDO con el detalle de la orden:
+  // son dos puertas al mismo endpoint y no pueden divergir. La guarda sigue
+  // siendo POR FILA — bloquear la tabla entera mientras una entrega se despacha
+  // sería una traba, no una guarda, y ese roce es justo lo que hace que la gente
+  // vuelva a clickear.
   //
   // El server ya absorbe el duplicado por bordes idempotentes (`justDelivered`,
   // `stock_descontado_at`), así que esto no arregla datos: le da al operador la
   // señal de que su click tomó, que es la mitad que faltaba.
-  const filas = useAccionesPorFila();
-
-  const updateEstado = (id: string, estado: ShippingEstado, confirmarSinPago?: boolean) =>
-    filas.ejecutar(id, async () => {
-    try {
-      // fecha_entrega is captured server-side on the entregado transition.
-      const updated = await updateShipping(id, { estado, ...(confirmarSinPago ? { confirmarSinPago: true } : {}) });
-      setEntregas(prev => prev.map(e => e.id === id ? updated : e));
-      toast.success('Estado actualizado');
-    } catch (e) {
-      // Surface the SERVER message — a blocked dispatch (stock insuficiente,
-      // sin pago sin confirmar) must say why, not a generic error.
-      toast.error(e instanceof Error ? e.message : 'Error al actualizar el estado');
-    }
+  //
+  // Sin `onError`: en una PÁGINA el toast es el vehículo correcto (el error
+  // inline es la regla de los diálogos, y acá no hay ninguno abierto).
+  const transicion = useTransicionEntrega({
+    onUpdated: (updated) => setEntregas(prev => prev.map(e => e.id === updated.id ? updated : e)),
   });
-
-  // Dispatch (→ en_ruta). A paid order dispatches straight away; an order with no
-  // registered payment first asks the operator to confirm (the order will become
-  // contraentrega / por cobrar) — the server enforces the same via confirmarSinPago.
-  const handleDispatch = (e: Shipping) => {
-    if (e.order?.estado === 'pagado') updateEstado(e.id, 'en_ruta');
-    else setConfirmDispatch(e);
-  };
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -279,7 +258,15 @@ export default function Entregas() {
                         )}
                         {e.estado === 'preparando' && hasScheduleData(e) && (
                           isScheduledShipping(e) ? (
-                            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" disabled={filas.enVuelo(e.id)} onClick={() => handleDispatch(e)}>
+                            <Button
+                              size="sm" variant="outline" className="h-7 gap-1 text-xs"
+                              disabled={transicion.enVuelo(e.id)}
+                              onClick={() => transicion.despachar({
+                                id:          e.id,
+                                ordenPagada: e.order?.estado === 'pagado',
+                                numeroOrden: e.order?.numero_orden ?? null,
+                              })}
+                            >
                               <Truck className="w-3.5 h-3.5" /> Marcar En Ruta
                             </Button>
                           ) : (
@@ -310,10 +297,10 @@ export default function Entregas() {
                         )}
                         {e.estado === 'en_ruta' && (
                           <>
-                            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" disabled={filas.enVuelo(e.id)} onClick={() => updateEstado(e.id, 'entregado')}>
+                            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" disabled={transicion.enVuelo(e.id)} onClick={() => transicion.marcarEntregado(e.id)}>
                               <CheckCircle className="w-3.5 h-3.5" /> Marcar Entregado
                             </Button>
-                            <Button size="sm" variant="destructiveGhost" className="h-7 gap-1 text-xs" disabled={filas.enVuelo(e.id)} onClick={() => updateEstado(e.id, 'fallido')}>
+                            <Button size="sm" variant="destructiveGhost" className="h-7 gap-1 text-xs" disabled={transicion.enVuelo(e.id)} onClick={() => transicion.marcarFallido(e.id)}>
                               <AlertCircle className="w-3.5 h-3.5" /> Marcar Fallido
                             </Button>
                           </>
@@ -353,31 +340,10 @@ export default function Entregas() {
         ))}
       />
 
-      {/* Despachar sin pago registrado — confirmación explícita. Al confirmar, el
-          server marca la orden contraentrega (queda "Por cobrar" hasta el pago). */}
-      <AlertDialog open={!!confirmDispatch} onOpenChange={(open) => { if (!open) setConfirmDispatch(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Despachar sin pago registrado</AlertDialogTitle>
-            <AlertDialogDescription>
-              La orden {confirmDispatch?.order?.numero_orden ?? ''} no tiene un pago registrado.
-              Al despacharla quedará <strong>contraentrega</strong> y aparecerá como
-              «Por cobrar» hasta que registres el pago. ¿Continuar?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (confirmDispatch) updateEstado(confirmDispatch.id, 'en_ruta', true);
-                setConfirmDispatch(null);
-              }}
-            >
-              Despachar sin pago
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Despachar sin pago registrado — confirmación explícita, la MISMA que ve
+          el detalle de la orden. Al confirmar, el server marca la orden
+          contraentrega (queda "Por cobrar" hasta el pago). */}
+      <ConfirmDespachoSinPago {...transicion.confirmacion} />
     </div>
   );
 }
