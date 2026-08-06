@@ -1,5 +1,6 @@
 import { PaymentMethod, MetodoPago } from "./payment";
 import { ShippingEstado, Shipping } from "./shipping";
+import { Comprobante } from "./comprobante";
 
 // OrderStatus covers the PAYMENT lifecycle only. Fulfillment (preparando/en
 // ruta/entregado/fallido) lives on Shipping — see ShippingEstado. When an order
@@ -73,6 +74,9 @@ export interface Order {
   deliverySlot?:     string | null;   // slot id ("am"/"pm"); label resolved at render
   // Fulfillment record (1:1). Auto-created when the order is paid; null before.
   shipping?:         Shipping | null;
+  // Soportes de pago (0..N). EVIDENCIA, no plata: una orden puede tener
+  // comprobante sin Payment y Payment sin comprobante.
+  comprobantes?:     Comprobante[];
   items: OrderItem[];
   createdAt: string;
 }

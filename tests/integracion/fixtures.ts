@@ -71,6 +71,30 @@ export async function crearEnvio(opts: {
   });
 }
 
+/**
+ * Un `Comprobante` colgado de una orden. La `url` es un literal: el carril NO
+ * habla con Vercel Blob —no hay red ni credenciales en los tests— y no hace
+ * falta, porque lo que se afirma es la CADENA (evidencia → veredicto → plata),
+ * no la subida.
+ */
+export async function crearComprobanteFixture(opts: {
+  ordenId: string;
+  estado?: 'RECIBIDO' | 'VERIFICADO' | 'RECHAZADO';
+  contentType?: string;
+}) {
+  return prisma.comprobante.create({
+    data: {
+      orden_id:          opts.ordenId,
+      url:               `https://x.public.blob.vercel-storage.com/dev/comprobantes/soporte-${opts.ordenId}.png`,
+      content_type:      opts.contentType ?? 'image/png',
+      size_bytes:        102_400,
+      estado:            opts.estado ?? 'RECIBIDO',
+      subido_por:        'user_test',
+      subido_por_nombre: 'Operador Test',
+    },
+  });
+}
+
 /** ISO-8601 UTC de hace `h` horas — el formato que el servidor escribe siempre. */
 export const haceHoras = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
 
@@ -110,6 +134,7 @@ export async function limpiar() {
   await prisma.automationRun.deleteMany({});
   await prisma.automationSetting.deleteMany({});
   await prisma.inventoryLog.deleteMany({});
+  await prisma.comprobante.deleteMany({});
   await prisma.payment.deleteMany({});
   await prisma.shipping.deleteMany({});
   await prisma.orderItem.deleteMany({});

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +12,10 @@ import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { formatCOP } from '@/lib/utils';
 import { registerOrderPayment } from '@/lib/api/payments';
+import { subirComprobante } from '@/lib/api/comprobantes';
+import { SelectorComprobante, AyudaComprobante, ComprobanteEnVerificacion } from '@/components/admin/Comprobantes';
+import { formatearTamano } from '@/lib/comprobante';
+import type { Comprobante } from '@/types/comprobante';
 import type { Order } from '@/types/order';
 import type { Payment, MetodoPago } from '@/types/payment';
 import { METODOS_PAGO, METODO_PAGO_LABEL } from '@/types/payment';
@@ -32,11 +37,24 @@ function defaultMetodo(declared?: string | null): MetodoPago {
   return (METODOS_PAGO as string[]).includes(up) ? (up as MetodoPago) : 'NEQUI';
 }
 
-export function RegisterPaymentModal({ target, declaredMetodo, onClose, onSaved }: {
+export function RegisterPaymentModal({ target, declaredMetodo, verificando, onClose, onSaved }: {
   target: RegisterPaymentTarget | null;
   declaredMetodo?: string | null;
+  /**
+   * El modal es CONSCIENTE de por dónde entró.
+   *
+   * Con un comprobante acá, se llegó por "Verificar": el soporte ya existe y lo
+   * que falta es la plata (§3.1 — la verificación crea el pago, no al revés). Se
+   * muestra CUÁL se está verificando y **se oculta el campo Adjuntar**: ofrecer
+   * adjuntar otro en ese momento invita a subir un segundo soporte de la misma
+   * plata, y deja al operador decidiendo algo que no tiene que decidir.
+   *
+   * `null`/ausente = se entró directo por "Registrar pago", y el adjunto
+   * opcional se ofrece como siempre.
+   */
+  verificando?: Comprobante | null;
   onClose: () => void;
-  onSaved: (result: { payment: Payment; order: Order }) => void;
+  onSaved: (result: { payment: Payment; order: Order; comprobante?: Comprobante }) => void;
 }) {
   return (
     <Dialog open={!!target} onOpenChange={o => { if (!o) onClose(); }}>
@@ -52,6 +70,7 @@ export function RegisterPaymentModal({ target, declaredMetodo, onClose, onSaved 
             key={target.id}
             target={target}
             declaredMetodo={declaredMetodo}
+            verificando={verificando ?? null}
             onClose={onClose}
             onSaved={onSaved}
           />
@@ -61,16 +80,21 @@ export function RegisterPaymentModal({ target, declaredMetodo, onClose, onSaved 
   );
 }
 
-function RegisterForm({ target, declaredMetodo, onClose, onSaved }: {
+function RegisterForm({ target, declaredMetodo, verificando, onClose, onSaved }: {
   target: RegisterPaymentTarget;
   declaredMetodo?: string | null;
+  verificando: Comprobante | null;
   onClose: () => void;
-  onSaved: (result: { payment: Payment; order: Order }) => void;
+  onSaved: (result: { payment: Payment; order: Order; comprobante?: Comprobante }) => void;
 }) {
   const [metodo, setMetodo]         = useState<MetodoPago>(defaultMetodo(declaredMetodo));
   const [referencia, setReferencia] = useState('');
   const [notas, setNotas]           = useState('');
   const [saving, setSaving]         = useState(false);
+  // Soporte OPCIONAL. Se elige acá y se sube DESPUÉS del pago (ver el orden en
+  // handleSave): el comprobante es evidencia sobre una plata que primero tiene
+  // que existir.
+  const [archivo, setArchivo]       = useState<File | null>(null);
 
   // `saving` ya deshabilitaba el botón; falta la mitad SÍNCRONA, que es la única
   // que corta dos clicks del mismo tick. El server acá es idempotente (SELECT …
@@ -87,8 +111,30 @@ function RegisterForm({ target, declaredMetodo, onClose, onSaved }: {
         referencia: referencia.trim() || undefined,
         notas:      notas.trim() || undefined,
       });
-      onSaved(result);
-      toast.success('Pago registrado — orden marcada como pagada');
+
+      // PRIMERO la plata, DESPUÉS la evidencia. Si la subida falla, el pago YA
+      // quedó registrado y se avisa que el soporte no subió — el operador lo
+      // adjunta desde el detalle. Al revés (subir y que falle el pago) dejaría un
+      // comprobante colgado de una orden que nadie cobró.
+      // Sólo por la puerta DIRECTA: por la de Verificar no existe el campo, así
+      // que `archivo` es siempre null y esta rama no corre.
+      let comprobante: Comprobante | undefined;
+      if (archivo) {
+        try {
+          comprobante = await subirComprobante(target.id, archivo);
+        } catch (e) {
+          toast.error(
+            e instanceof Error ? e.message : 'No se pudo subir el comprobante',
+            { description: 'El pago SÍ quedó registrado. Adjunta el soporte desde el detalle de la orden.' },
+          );
+        }
+      }
+
+      onSaved({ ...result, comprobante });
+      toast.success(
+        'Pago registrado — orden marcada como pagada',
+        comprobante ? { description: 'Comprobante adjuntado.' } : undefined,
+      );
       onClose();
     } catch (e) {
       error.mostrar(e, 'Error al registrar el pago');
@@ -138,6 +184,47 @@ function RegisterForm({ target, declaredMetodo, onClose, onSaved }: {
             placeholder="Opcional"
           />
         </div>
+
+        {/* DOS PUERTAS, dos renders. Por "Verificar" el soporte ya existe: se
+            muestra cuál y no se ofrece adjuntar. Directo, el adjunto opcional. */}
+        {verificando ? (
+          <div>
+            <Label>Comprobante</Label>
+            <div className="mt-1">
+              <ComprobanteEnVerificacion comprobante={verificando} />
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Al registrar el pago, este comprobante queda verificado con tu nombre y la fecha.
+            </p>
+          </div>
+        ) : (
+        <div>
+          <Label>Comprobante</Label>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            {archivo ? (
+              <span className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs">
+                <span className="max-w-[12rem] truncate font-medium">{archivo.name}</span>
+                <span className="shrink-0 text-muted-foreground">{formatearTamano(archivo.size)}</span>
+                <button
+                  type="button"
+                  onClick={() => setArchivo(null)}
+                  disabled={saving}
+                  aria-label="Quitar comprobante"
+                  className="shrink-0 text-muted-foreground transition-colors hover:text-destructive disabled:opacity-40"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            ) : (
+              <SelectorComprobante onArchivo={setArchivo} disabled={saving} label="Adjuntar" />
+            )}
+            <AyudaComprobante />
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Opcional. Se sube después de registrar el pago.
+          </p>
+        </div>
+        )}
       </div>
 
       {/* El error comparte la fila de los botones: ocupa el espacio libre de la

@@ -14,8 +14,9 @@ export async function GET() {
   if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const orders = await prisma.order.findMany({
-    // shipping drives the "Programar entrega" edit flow and fulfillment display.
-    include:  { items: true, shipping: true },
+    // shipping drives the "Programar entrega" edit flow and fulfillment display;
+    // `comprobantes` alimenta la sección Pago del detalle (evidencia, no plata).
+    include:  { items: true, shipping: true, comprobantes: { orderBy: { createdAt: 'asc' } } },
     orderBy: { createdAt: 'desc' },
   });
 

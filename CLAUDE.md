@@ -509,6 +509,218 @@ Esa última frase ya está CUMPLIDA para las imágenes subidas desde el admin
 — ver la sección de abajo. Las estáticas de `public/` siguen exactamente
 con esta regla: no se migran y se renombran a mano.
 
+## Comprobantes de pago — la EVIDENCIA no es la plata
+
+Decisión de arquitectura (documento Duna §3.1), construida en su versión canónica
+desde el día uno. `Payment` y `Comprobante` son **dos tablas** porque son dos
+hechos distintos, y las dos combinaciones que sólo existen si están separados son
+casos reales, no teóricos:
+
+- **comprobante SIN pago** — el cliente mandó la foto por WhatsApp y nadie la
+  verificó todavía;
+- **pago SIN comprobante** — efectivo contraentrega, no hay nada que fotografiar.
+
+Un campo `Payment.comprobante_url` haría **imposible el primero**, que es
+justamente el que esta tanda existe para resolver. No se colapsa "porque hoy casi
+siempre van juntos".
+
+### El comprobante NO mueve la orden
+
+**El único que pasa una orden a `pagado` sigue siendo el Payment.** Ninguna
+función de `lib/comprobantes.ts` escribe `Order.estado`, y el carril lo afirma.
+Un comprobante es evidencia SOBRE la plata; si su estado moviera la orden, una
+foto se convertiría en un asiento contable.
+
+Consecuencia que conviene tener escrita: **sellar la evidencia sin registrar el
+pago deja la orden `pendiente`**, y eso es correcto — la plata no entró. Que la
+UI cobre primero es una decisión del FLUJO, no una garantía de la capa de datos.
+
+### La verificación CREA la plata, no al revés
+
+`accionAlVerificar(order.estado)` (capa 1) decide qué hace el botón Verificar:
+
+- orden `pendiente` → **`cobrar`**: abre Registrar Pago pre-llenado, y el sello
+  viene DESPUÉS del Payment;
+- orden ya pagada → **`sellar`**: sólo estampa quién y cuándo.
+
+**El ORDEN no es reversible.** Si el sello falla tras un pago exitoso queda una
+orden pagada con un comprobante `RECIBIDO` — un segundo click lo cierra, porque
+ahí ya cae en `sellar`. Al revés (sellar y que el pago falle) dejaría una
+evidencia afirmando un cobro que nunca ocurrió. La misma asimetría rige el
+adjunto del modal de pago: **primero la plata, después la evidencia**, y si la
+subida falla el toast dice que el pago SÍ quedó registrado.
+
+### El dato vive en la PÁGINA, no dentro del diálogo
+
+Incidente del gate del 2026-08-06, y es la lección más cara de esta tanda.
+Adjuntar un comprobante desde el detalle terminó así: **el diálogo se cerró y
+reabrió solo, y quedó "Sin soportes" — sin miniatura y sin error**. La base decía
+otra cosa: la fila estaba escrita, `RECIBIDO`, y el blob subido bajo
+`dev/comprobantes/`.
+
+**Tres síntomas, UNA causa: el detalle se remontó con el POST en vuelo.**
+
+1. La página se remonta → `orders` vuelve a `[]` → `selected` (derivado de
+   `orders.find`) pasa a `null` → el diálogo se cierra.
+2. `getOrders()` re-corre y resuelve ANTES de que el POST commitee → la orden
+   vuelve sin comprobantes → el diálogo reabre vacío.
+3. La continuación del `await` —el `onUpdate` del éxito y el `mostrar` del
+   catch— cae sobre un componente muerto: ni evidencia ni error.
+
+El "cerrar y reabrir solo" no era una violación del contrato de cierre: era
+`open={!!selected}` siguiendo a un `orders` que se vació y se volvió a llenar.
+
+**La regla que queda: una mutación jamás debe depender de que el diálogo que la
+disparó siga montado.** Las mutaciones de comprobantes viven en `Ordenes` —el
+componente de la ruta, dueño de `orders`— y el detalle sólo RENDERIZA, recibiendo
+un `ControlComprobantes` por props. Un remonte deja de poder tragarse una subida;
+el peor caso pasa a ser que el modal reabra ya con el comprobante puesto.
+
+Dos refuerzos que van con la regla:
+
+- **Al abrir, la verdad la trae el SERVIDOR** (`GET /api/orders/[id]/comprobantes`
+  → merge). Es lo que cura el caso en que algo se perdió igual: el modal abierto
+  se ACTUALIZA en vez de mostrar un vacío que la base contradice. Depende sólo de
+  `order.id`, así que el merge que provoca no lo vuelve a disparar.
+- **`onOpenChange` recibe el estado NUEVO y hay que leerlo.** Estaba como
+  `onOpenChange={closeDetail}`, y `closeDetail` ignoraba el argumento y cerraba
+  siempre — cualquier `onOpenChange(true)` habría borrado el parámetro de la URL.
+  Nada se cierra sin que Radix lo pida.
+
+**Y el disparador del remonte quedó sin confirmar.** El candidato que encaja con
+los tres síntomas es una recarga completa de Fast Refresh —este proyecto las
+registra (`⚠ Fast Refresh had to perform a full reload`)— porque el gate se corrió
+sobre un dev server al que se le editaron archivos DEBAJO, rompiendo la
+precondición del server frío. No se pudo confirmar y no se afirma. **El arreglo no
+depende de saberlo**, que es justamente por qué se arregló así: lo que se cerró no
+es el disparador sino la fragilidad que lo volvió invisible.
+
+### La caja de comprobantes VACÍA es una línea
+
+El bloque grande —borde, encabezado, texto explicativo, línea de formatos— se
+gana con evidencia. Vacía colapsa a `Comprobantes (0) · Adjuntar`, porque el caso
+normal de una orden es no tener soportes y ahí ese bloque ocupaba más que la
+sección que sí responde algo. Los formatos pasan al `title` del botón: los
+encuentra quien va a adjuntar y no los lee quien no.
+
+**El botón Adjuntar SE QUEDA en el detalle** (decisión del owner): el flujo
+`RECIBIDO`-antes-del-pago es el caso de uso central, y adjuntar desde Registrar
+Pago coexiste sin reemplazarlo. **El error va FUERA de la caja**, para que se vea
+igual con la caja colapsada — que es justo cuando falla la primera subida.
+
+### Las DOS puertas de Registrar Pago, y el enlace del sello
+
+El modal es consciente de por dónde entró, y no es cosmético: son dos
+conversaciones distintas con el operador.
+
+- **Por "Verificar"** (`verificando={comprobante}`): el soporte YA existe y lo que
+  falta es la plata. Se muestra CUÁL se está verificando —miniatura, nombre,
+  peso— y **se OCULTA el campo Adjuntar**. Ofrecer adjuntar ahí invitaría a subir
+  un segundo soporte de la misma plata y pondría al operador a decidir algo que
+  no tiene que decidir.
+- **Directo** (sin la prop): el adjunto opcional, como siempre.
+
+**El enlace del sello es real, no una apariencia.** El detalle guarda el
+comprobante en `enVerificacion` al pulsar Verificar, se lo pasa al modal, y en el
+`onSaved` del pago llama a `decidir(…, 'verificar')` — que es el mismo `PATCH
+/api/comprobantes/[id]` que escribe `verificado_por`, `verificado_por_nombre` y
+`verificado_at`. El carril afirma la cadena entera contra Postgres real
+(`comprobante-verificacion.test.ts`: el Payment queda, el sello estampa quién y
+cuándo, y la orden la movió el Payment). Guardar el OBJETO y no sólo el id es lo
+que permite mostrarlo; el sello usa su `id`.
+
+Si el sello falla tras un pago exitoso, el error dice exactamente qué pasó ("el
+pago quedó registrado, pero no se pudo sellar… vuelve a pulsar Verificar") — y
+ese segundo click ya cae en `sellar`, porque la orden pasó a pagada.
+
+### Rechazar CONFIRMA, y el copy declara el camino
+
+El mecanismo de corrección ya existía —rechazar y adjuntar el correcto— pero
+nada lo decía, así que era invisible justo cuando hace falta. La confirmación
+reusa `ConfirmDeleteDialog` con **`confirmKind='default'`**: ámbar y no rojo,
+porque no destruye nada.
+
+> Quedará marcado como rechazado y NO se elimina: el archivo se conserva como
+> constancia de que se revisó. Podrás adjuntar el comprobante correcto en esta
+> misma orden.
+
+**`decidir` LANZA en vez de tragarse el error**, y quién lo muestra depende de por
+dónde se pidió: rechazar va detrás del confirm, que tiene su propio error inline y
+se queda abierto al fallar; verificar no tiene diálogo propio y lo manda al
+`ErrorDialogo` de la sección. Una sola implementación, dos vehículos — la misma
+división de siempre, parametrizada en vez de duplicada.
+
+### Sin borrado físico, incluido el RECHAZADO
+
+`RECHAZADO` conserva la fila **y el blob**. Un comprobante rechazado ES la prueba
+de que se rechazó; borrarlo dejaría una orden sin explicación de por qué su pago
+nunca entró. Es la regla no-delete del repo, aplicada al caso donde más tienta
+saltársela.
+
+**Un veredicto no se reescribe** (`puedeDecidirse`): sólo un `RECIBIDO` se decide.
+Re-verificar pisaría quién decidió y cuándo, que es el dato de auditoría que hace
+útil a la tabla. La transición es condicional en UNA sentencia (`updateMany` con
+el estado en el `where`), así que dos veredictos concurrentes no pueden ambos
+escribir su nombre — el segundo recibe 409. Testeado en el carril.
+
+### La imagen vive en Blob; la fila guarda un puntero
+
+Bajo el prefijo `comprobantes/` a través de `lib/storage.ts`, con su `dev/` por
+entorno. **Jamás bytes en Postgres**: hincharían los backups y las copias de rama
+por un dato que un CDN sirve mejor.
+
+- **`SUBIR → INSERTAR`, nunca al revés.** Si la subida funciona y el insert falla
+  queda un blob huérfano, que es basura barata; al revés quedaría una fila
+  apuntando a una imagen inexistente y el operador vería un comprobante roto sin
+  saber si el cliente lo mandó. Misma asimetría que el borrado de imágenes de
+  producto.
+- **La subida va FUERA de la transacción** — `storage.put` habla con un servicio
+  externo, y meterlo adentro dejaría una transacción de Postgres abierta durante
+  una llamada de red.
+- **No hay columna `nombre_archivo`**: `storage.put` ya construye el pathname con
+  el nombre saneado, así que la URL lo lleva (`nombreArchivo`). Una columna sería
+  un segundo lugar donde el mismo dato puede decir otra cosa.
+
+### PDF es un formato de primera clase, y por eso son DOS listas
+
+`TIPOS_COMPROBANTE` acepta JPG, PNG, WebP **y PDF**; `TIPOS_PERMITIDOS` (imágenes
+de producto) sigue sin PDF. No es una lista ampliada: **Bancolombia entrega sus
+soportes de transferencia en PDF**, y rechazarlos obligaría al cliente a
+fotografiar una pantalla para mandar algo peor — mientras que una portada de
+catálogo en PDF sería un bug (`next/image` no la renderiza). Unificarlas lo
+volvería posible.
+
+- **Un PDF NO va al lightbox ni a un visor embebido**: chip de documento con
+  nombre y peso, y abre en pestaña nueva. Un PDF dentro de un `<img>` no falla
+  ruidosamente — se queda en blanco, y el operador concluye que el comprobante
+  llegó roto cuando el archivo está perfecto. El navegador ya tiene un buen visor;
+  embeber uno propio es competir con él y perder.
+- **El flujo de verificación es IDÉNTICO para los dos tipos.** Lo único que
+  cambia es cómo se mira el archivo.
+- **`validarArchivoComprobante` es UNA función** que corren el formulario (aviso
+  temprano, para no gastar una subida de 4 MB) y el endpoint (la que MANDA). El
+  tope se comparte con el de imágenes porque el límite real no es de producto: el
+  body de una función serverless de Vercel se corta en 4.5 MB.
+
+### Presentación
+
+- **`RECHAZADO` va NEUTRO, no rojo.** El rojo del admin está reservado a lo que
+  exige una acción, y un comprobante rechazado ya se resolvió. Pintarlo de alerta
+  dejaría una orden vieja gritando para siempre por algo cerrado.
+- **En la lista de Pagos hay un INDICADOR, no una acción**: "Por verificar" en
+  ámbar cuando queda algo sin mirar, neutro cuando ya se revisó, y **nada**
+  cuando no hay soportes — el efectivo no tiene qué
+  fotografiar, así que su vacío no es una falta. Verificar y ampliar viven en el
+  detalle de la orden, que es donde está el contexto.
+- Los comprobantes cuelgan de la ORDEN, no del Payment, también en ese payload.
+
+### Fuera de alcance de esta tanda (declarado)
+
+Recepción automática por WhatsApp —la entidad queda lista para que ese canal la
+alimente cuando llegue el bot—, verificación en lote, y notificaciones de
+comprobante pendiente. `tienePendienteDeVerificar` es la definición única que ese
+aviso futuro debe consumir, para que la campana y la lista no diverjan.
+
 ## Storage de imágenes de producto
 
 Las imágenes que se suben desde el admin NO viven en `public/`: en Vercel
@@ -811,6 +1023,70 @@ la tienda cambia sin que nada lo anuncie.
   cae en la fila de al lado apenas hay una marcada por encima.
 - v1 **sin reordenamiento** y sin catálogo global de moliendas: siguen siendo Json
   por producto, igual que la galería.
+
+## Identidad: cada producto declara la suya
+
+El admin mostraba el favicon de Café Nayoli aunque su chrome ya fuera Duna. La
+causa no era un archivo mal puesto: **todo lo de identidad vivía en la raíz**
+(`app/layout.tsx` + las convenciones de archivo `app/favicon.ico`, `app/icon.svg`,
+`app/apple-icon.png`), y Next las aplica a **toda la app**, no sólo al storefront.
+Ninguno de los tres layouts de grupo declaraba nada propio, y ninguna página del
+repo exportaba `metadata`.
+
+Es la misma frontera que ya rige la política de tema: **storefront y admin son
+productos distintos que comparten repo temporalmente**, así que cada uno declara
+sus metadatos en el layout de su grupo.
+
+| metadato | storefront | admin |
+| --- | --- | --- |
+| `title` | `Café Nayoli` (raíz) | `Panel Duna`, `%s · Panel Duna` |
+| `description` | copy de Nayoli (raíz) | "Panel de operación Duna." |
+| `themeColor` | `#F9F6F4` (raíz) | `#F9F6F0` claro / `#171717` oscuro |
+| favicon / icon / apple | `public/` + `metadata.icons` del grupo | `/brand/*-duna.*` |
+| manifest | Nayoli — **sigue global**, ver abajo | *(hereda el de Nayoli)* |
+
+- **`title.absolute`, no `title.default`.** Un `default` de segmento hijo SIGUE
+  pasando por el `template` del padre: la pestaña del panel salía
+  **"Panel Duna · Café Nayoli"**. Se vio en el `<head>` real, no en la teoría.
+  `absolute` es la forma que Next define para ignorar el template heredado.
+- **Los íconos del storefront salieron de `app/` a `public/`.** Declararlos en el
+  admin NO alcanzaba: `metadata.icons` de un hijo agrega sus links pero **no
+  retira** los que la raíz emite por convención de archivo, así que el `<head>`
+  del panel seguía trayendo el `favicon.ico` de Nayoli. Con los archivos en
+  `public/` y declarados desde `app/(storefront)/layout.tsx`, las URLs y los bytes
+  son los mismos de siempre (`/favicon.ico` responde 200 para los pedidos ciegos
+  de crawlers) y dejan de aplicar fuera del storefront. Ojo con el intermedio que
+  NO sirve: moverlos a `app/(storefront)/` los hace servir con URL hasheada
+  (`/icon-utz4wr.svg`) y `/favicon.ico` pasa a 404.
+- **Los títulos de sección los DERIVA `ADMIN_NAV`** (`lib/admin-titulo.ts`, capa 1):
+  la pestaña dice exactamente lo que dice el sidebar. Una segunda lista dejaría
+  que renombrar "Analítica" en el menú no moviera la pestaña — y el título de
+  pestaña es justo el texto que nadie mira hasta que está mal. Como las páginas
+  del admin son `'use client'` y un componente de cliente no puede exportar
+  `metadata`, cada sección lleva un `layout.tsx` de cuatro líneas.
+- **El detalle de orden NO lleva título propio**: es un modal sobre
+  `/admin/ordenes` (`?order=CN-…`), no una ruta. No se inventa un
+  "CN-132453 · Panel Duna" para algo que no existe como página.
+- **CASO BORDE del `themeColor`, y no es un bug**: `prefers-color-scheme` sigue la
+  preferencia del SISTEMA, no el toggle de tres estados del panel. Con el sistema
+  en claro y el panel forzado a oscuro, la barra del navegador queda clara. Es
+  límite de un `themeColor` estático en metadata; **no vale sincronizarlo por JS**
+  — la mejora es marginal y el costo (un meta tag mutando en cliente) no.
+
+**PENDIENTE DECLARADO — el manifest sigue siendo de Nayoli en las dos
+superficies.** `app/manifest.ts` se sirve en `/manifest.webmanifest` y lo enlazan
+todas las rutas, así que instalar el panel como PWA diría "Café Nayoli". No se
+arregló en esta tanda a propósito: darle manifest propio al admin exige decidir
+nombre, colores de instalación e íconos PNG 192/512 en marca Duna, que hoy no
+existen (sólo hay SVG e ICO) — y eso es una decisión de asset, no una corrección
+de fuga. Tampoco existen `openGraph` ni `twitter` en ningún lado: es una ausencia,
+no una fuga.
+
+**NOTA PARA EL TEMPLATE — esto es CONTENIDO DE TENANT.** El `title`, la
+`description` y el `themeColor` de la raíz, los íconos del storefront y todo
+`app/manifest.ts` son de la TIENDA, no de Duna. Van al inventario de la fase 1
+(`SiteSetting`) el día del multitenant. Lo que queda del lado del producto es lo
+que declara `app/(admin)/layout.tsx`.
 
 ## Política de tema (dark mode)
 
@@ -1193,6 +1469,13 @@ este pedido?" sin que nada lo notara. Mismo criterio que `lib/metrics/titulares.
   etiqueta la EXCEPCIÓN (contraentrega despachada sin cobro, la plata en la
   calle), no el default. Es la misma regla que ya mantenía la lista de Órdenes sin
   la píldora de condición de pago, y por eso esa decisión NO se reabrió.
+- **Y va SÓLO en la lista, no en el detalle** (owner, 2026-08-06). En la sección
+  Pago del detalle el mismo hecho ya está dicho dos veces —"Saldo pendiente" con
+  su monto, y "Contraentrega" en la línea de abajo—; el chip era una tercera. En
+  una fila de la lista no hay ninguna de las dos, y "despachada sin cobrar" no se
+  deduce de las columnas. **Etiquetar la excepción es útil donde no hay contexto;
+  donde lo hay, es ruido** — que es la misma regla de Amber Minimal leída al
+  derecho, no una inconsistencia entre las dos vistas.
 - **El board de Entregas no cambió de badges**: sigue siendo la vista de flota
   (una fila por envío, con su checklist muted). Esta columna es la vista de orden.
 
