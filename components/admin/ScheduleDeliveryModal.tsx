@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { MessageCircle, Mail, Plus, ExternalLink } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,11 +23,27 @@ import { COLOMBIA_DEPARTMENTS } from '@/lib/colombia-departments';
 import { customerWhatsappHref } from '@/lib/whatsapp-link';
 import { siteConfig } from '@/lib/config/site';
 
-// The modal now takes just the Shipping — it fetches the order's delivery
-// context (contact + address + linked customer) itself, so it behaves the same
-// from Entregas and Ordenes and always reflects the latest address.
+// The modal takes the Shipping — it fetches the order's delivery context
+// (contact + address + linked customer) itself, so it behaves the same from
+// Entregas, Órdenes y el detalle de la orden, y siempre refleja la última
+// dirección.
 export interface ScheduleTarget {
   shipping: Shipping;
+  /**
+   * Id de la ORDEN, explícito. Por defecto se toma de `shipping.orden_id`, que es
+   * lo que tiene el board (su fuente es `/api/shippings`, donde el Shipping es la
+   * fila raíz y su FK viene completa).
+   *
+   * Existe porque quien monta el modal desde una ORDEN sí tiene el id a la mano y
+   * no debería depender de que el Shipping ANIDADO en su payload traiga la FK:
+   * ése es el dato que viaja por más manos —lo reemplazan la respuesta del PATCH
+   * de entregas, la del POST de pago, la del PATCH de orden— y basta que una lo
+   * entregue recortado para que el modal pida `/api/orders/undefined/...` y
+   * muestre "no se pudieron cargar los datos". Es el riesgo de "modal que asume
+   * el contexto de su página", en su forma menos visible: no falta una prop,
+   * falta un campo DENTRO de una prop.
+   */
+  ordenId?: string;
 }
 
 export function ScheduleDeliveryModal({ target, onClose, onSaved, onAddressAdded }: {
@@ -43,11 +59,15 @@ export function ScheduleDeliveryModal({ target, onClose, onSaved, onAddressAdded
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{target ? titleFor(target.shipping) : 'Programar entrega'}</DialogTitle>
+          <DialogDescription className="sr-only">
+            Asigna mensajero, zona y fecha de entrega. Despachar exige mensajero Y fecha.
+          </DialogDescription>
         </DialogHeader>
         {target && (
           <ScheduleBody
             key={target.shipping.id}
             shipping={target.shipping}
+            ordenId={target.ordenId ?? target.shipping.orden_id}
             onClose={onClose}
             onSaved={onSaved}
             onAddressAdded={onAddressAdded}
@@ -65,15 +85,24 @@ function titleFor(shipping: Shipping): string {
   return hasScheduleData(shipping) ? 'Editar entrega' : 'Programar entrega';
 }
 
-function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
+function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
   shipping: Shipping;
+  ordenId: string | undefined;
   onClose: () => void;
   onSaved: (shipping: Shipping) => void;
   onAddressAdded?: (orderId: string, address: { direccion_entrega: string; ciudad_entrega: string }) => void;
 }) {
   const [ctx, setCtx]             = useState<DeliveryContext | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [loadError, setLoadError] = useState(false);
+  // Sin id de orden no hay nada que cargar, así que ni siquiera arranca en
+  // "cargando": el caso se DERIVA del prop y se resuelve en el render, no con un
+  // setState dentro del efecto (que dispara renders en cascada y el lint marca —
+  // mismo criterio que el `loading` derivado de Analítica).
+  const [loading, setLoading]     = useState(!!ordenId);
+  // El MOTIVO, no un booleano. Un "no se pudieron cargar los datos" a secas es
+  // indistinguible entre un 404, una sesión vencida y un campo que llegó vacío —
+  // y esa indistinción es lo que vuelve caro el diagnóstico (misma regla que
+  // `razonDelServidor`: un mensaje genérico borra la única frase que sirve).
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showAddrForm, setShowAddrForm] = useState(false);
 
   // Operator-supplied scheduling fields.
@@ -111,7 +140,11 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
 
   useEffect(() => {
     let active = true;
-    getDeliveryContext(shipping.orden_id)
+    // Sin id de orden no se dispara `/api/orders/undefined/delivery-context`
+    // para después traducir su 404 a un fallo de carga genérico: el caso se
+    // nombra abajo, en el render.
+    if (!ordenId) return;
+    getDeliveryContext(ordenId)
       .then(c => {
         if (!active) return;
         setCtx(c);
@@ -128,10 +161,12 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
         // ya pudo haberlo tecleado el operador mientras cargaba la fetch.
         if (sinMensajero && c.ultimoMensajero) setMensajero(c.ultimoMensajero);
       })
-      .catch(() => { if (active) setLoadError(true); })
+      .catch((e) => {
+        if (active) setLoadError(e instanceof Error && e.message ? e.message : 'No se pudieron cargar los datos de la orden.');
+      })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [shipping.orden_id, nuncaProgramada, sinMensajero]);
+  }, [ordenId, nuncaProgramada, sinMensajero]);
 
   const hasAddress   = !!ctx?.direccion_entrega?.trim();
   const isReschedule = shipping.estado === 'fallido';
@@ -207,17 +242,28 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
       telefono:          result.cliente_telefono ?? c.telefono,
     } : c);
     setShowAddrForm(false);
-    onAddressAdded?.(shipping.orden_id, {
+    onAddressAdded?.(ordenId ?? '', {
       direccion_entrega: result.direccion_entrega ?? '',
       ciudad_entrega:    result.ciudad_entrega ?? '',
     });
   };
 
+  if (!ordenId) {
+    return (
+      <div className="py-10 text-center text-sm text-red-600">
+        Esta entrega no trae la orden asociada. Recarga la página e intenta de nuevo.
+      </div>
+    );
+  }
   if (loading) {
     return <div className="py-10 text-center text-sm text-muted-foreground">Cargando datos de la orden…</div>;
   }
   if (loadError || !ctx) {
-    return <div className="py-10 text-center text-sm text-red-600">No se pudieron cargar los datos de la orden.</div>;
+    return (
+      <div className="py-10 text-center text-sm text-red-600">
+        {loadError ?? 'No se pudieron cargar los datos de la orden.'}
+      </div>
+    );
   }
 
   const nombre  = ctx.cliente_nombre?.trim();
@@ -296,7 +342,7 @@ function ScheduleBody({ shipping, onClose, onSaved, onAddressAdded }: {
       )}
       {showAddrForm && (
         <AddressForm
-          orderId={shipping.orden_id}
+          orderId={ordenId ?? ''}
           initialPhone={ctx.telefono}
           onCancel={() => setShowAddrForm(false)}
           onSaved={handleAddressSaved}

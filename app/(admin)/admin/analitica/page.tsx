@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, ChevronDown, ArrowRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, LineChart, Line, Legend,
@@ -18,6 +18,8 @@ import {
 import { CARTERA_DIAS_MEDIO } from '@/lib/metrics/cartera';
 import type { AnalyticsData, WeeklyActivityData } from '@/types/analytics';
 import { BUSINESS_TZ, startOfZonedDay, startOfZonedWeek, zonedDayKey } from '@/lib/timezone';
+// El pliegue nació acá y ahora lo comparte el detalle de la orden.
+import { Pliegue } from '@/components/admin/Pliegue';
 
 // ANALÍTICA — cuatro preguntas de dueño, cada una atada a una decisión:
 //
@@ -97,31 +99,6 @@ function Vacio({ children }: { children: React.ReactNode }) {
 
 function Skeleton({ className = '' }: { className?: string }) {
   return <div className={`bg-muted animate-pulse rounded ${className}`} />;
-}
-
-/**
- * El pliegue que guarda la evidencia densa. Estado LOCAL y no persistido a
- * propósito: la página tiene que abrir siempre en su forma corta, porque es esa
- * forma la que responde en 30 segundos. Un pliegue recordado convertiría la
- * pantalla del analista en el default de alguien, que es justo lo que este pase
- * deshizo.
- */
-function Pliegue({ label, children }: { label: string; children: React.ReactNode }) {
-  const [abierto, setAbierto] = useState(false);
-  return (
-    <div className="mt-4 pt-4 border-t border-border">
-      <button
-        type="button"
-        onClick={() => setAbierto(a => !a)}
-        aria-expanded={abierto}
-        className="flex items-center gap-1.5 rounded text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${abierto ? '' : '-rotate-90'}`} />
-        {label}
-      </button>
-      {abierto && <div className="mt-4">{children}</div>}
-    </div>
-  );
 }
 
 // ─── Selector de período ──────────────────────────────────────────────────────

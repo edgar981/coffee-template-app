@@ -37,6 +37,14 @@ export function ImageLightbox({ src, alt, onClose }: ImageLightboxProps) {
           El selector apunta al botón que inyecta DialogContent — el contenido de
           este overlay es solo la imagen, así que no hay otro `button` que tocar. */}
       <DialogContent
+        // El ÚNICO diálogo del admin sin descripción, y es deliberado: su
+        // contenido ES la imagen, ya descrita por el `alt` que va en el título de
+        // abajo. Una descripción acá sólo podría repetir ese texto, y un lector
+        // de pantalla anunciando dos veces lo mismo es peor que el silencio.
+        // `aria-describedby={undefined}` es la forma que Radix define para decir
+        // "no lleva" — sin esto avisa por consola, y ese aviso es correcto en
+        // todos los demás diálogos.
+        aria-describedby={undefined}
         className="max-w-3xl border-none bg-transparent p-0 shadow-none
           [&>button]:right-2 [&>button]:top-2 [&>button]:rounded-full
           [&>button]:bg-background/80 [&>button]:p-2 [&>button]:text-foreground

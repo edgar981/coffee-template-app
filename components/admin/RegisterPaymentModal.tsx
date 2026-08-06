@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -43,6 +43,9 @@ export function RegisterPaymentModal({ target, declaredMetodo, onClose, onSaved 
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Registrar pago</DialogTitle>
+          <DialogDescription className="sr-only">
+            Cliente y monto vienen de la orden y no se digitan. Elige el método y, si aplica, la referencia.
+          </DialogDescription>
         </DialogHeader>
         {target && (
           <RegisterForm

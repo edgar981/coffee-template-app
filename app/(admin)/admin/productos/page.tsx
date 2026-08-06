@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Search, Edit2, Trash2, Package, AlertTriangle, Image as ImageIcon, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
@@ -530,6 +530,9 @@ function ProductosInner() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Editar Producto' : 'Nuevo Producto'}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Ficha del producto: precio, costo, stock, imágenes y las opciones de molienda que verá el cliente.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
             <div className="col-span-2">
