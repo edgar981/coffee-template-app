@@ -40,6 +40,17 @@ export const auth = betterAuth({
         defaultValue: "STAFF",
         input: false,   // client can no longer set this
       },
+      // Acceso al panel. Viaja en la sesión por el mismo mecanismo que `role`
+      // para que el gate del layout lo lea sin una consulta extra — y como
+      // `getSession` consulta la base en cada request (no hay cookieCache),
+      // desactivar corta el acceso en el request siguiente, no al expirar.
+      // `input: false`: jamás se acepta desde el cliente.
+      activo: {
+        type: "boolean",
+        required: false,
+        defaultValue: true,
+        input: false,
+      },
     },
   },
   session: {

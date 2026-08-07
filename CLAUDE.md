@@ -442,7 +442,41 @@ Reglas de la lista, para que siga sirviendo:
 - **Un item que se completa se BORRA de acá** y su decisión, si tiene, se
   documenta en la sección que le corresponda. Esto no es un historial.
 
-### 1. La ventana de 45 s del polling de la campana
+### 1. Invitaciones pendientes: invisibles y sin cancelar
+
+`POST /api/users/invite` crea la fila y **no hay forma de verla ni de anularla**.
+No existe listado ni `DELETE`, así que una invitación pendiente sólo se conoce
+por el correo que salió.
+
+**Costo YA pagado, y es lo que le da la prioridad:** el propio POST rechaza
+invitar si hay una viva (`usedAt: null`, sin expirar), así que **un correo mal
+tecleado bloquea esa dirección durante 48 horas sin ninguna salida desde el
+panel** — ni reenviar, ni corregir, ni cancelar. La única salida hoy es SQL, que
+es exactamente el hueco que la tanda de desactivar usuarios vino a cerrar un
+nivel más arriba.
+
+Forma acordada (owner, 2026-08-06): sección **"Invitaciones pendientes"** en la
+MISMA página de Usuarios —no una pantalla nueva— con listar + cancelar. Es la
+tanda siguiente inmediata.
+
+### 2. `InventoryLog` no registra QUIÉN ajustó el stock
+
+Es la única mutación auditable del panel sin columna de actor: `Payment` guarda
+`registrado_por` + `registrado_por_nombre` y `Comprobante` guarda `subido_por` y
+`verificado_por` con sus nombres, pero un ajuste de inventario no deja rastro de
+la persona.
+
+Aditiva y con el patrón que ya existe: `ajustado_por` + `ajustado_por_nombre`,
+`String?`, snapshot y **sin FK** — igual que los otros dos, para que el historial
+sobreviva a que el usuario se vaya. Se llena de aquí en adelante; las filas
+viejas quedan en `null`, que es honesto (nadie sabe quién las hizo).
+
+Se descubrió haciendo el descubrimiento de la tanda de usuarios: la premisa era
+que borrar un usuario dejaría referencias colgando, y resultó que **el historial
+ya está blindado** porque todo es snapshot… salvo acá, donde directamente no hay
+nada que blindar.
+
+### 3. La ventana de 45 s del polling de la campana
 
 `POLL_MS = 45_000`. El badge se computa sobre el snapshot del cliente, así que una
 notificación de severidad `alerta` puede tardar **hasta un poll** en teñir el

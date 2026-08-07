@@ -9,8 +9,10 @@ export async function GET() {
   if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const users = await prisma.user.findMany({
-    select: { id: true, name: true, email: true, role: true },
-    orderBy: { createdAt: 'desc' },
+    select: { id: true, name: true, email: true, role: true, activo: true },
+    // Los inactivos al final: la lista es de gente que trabaja, y quien salió del
+    // equipo no debería competir por la atención con quien está adentro.
+    orderBy: [{ activo: 'desc' }, { createdAt: 'desc' }],
   });
 
   return NextResponse.json(users);

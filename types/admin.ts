@@ -27,4 +27,6 @@ export interface AdminUser {
   name:  string;
   email: string;
   role:  Role;
+  /** Acceso al panel. Un usuario inactivo conserva su historial y puede volver. */
+  activo: boolean;
 }

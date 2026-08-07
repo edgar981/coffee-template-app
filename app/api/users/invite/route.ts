@@ -6,7 +6,11 @@ import { headers } from "next/headers";
 import { randomBytes, createHash } from "crypto";
 
 const INVITE_EXPIRY_MS = 48 * 60 * 60 * 1000;
-const ALLOWED_ROLES = ["STAFF", "MANAGER"] as const;
+// STAFF sale de la lista ofrecida y el valor del enum SE QUEDA (append-only).
+// Motivo: hoy es un rol MUERTO — el gate del panel exige OWNER o MANAGER, así
+// que un invitado STAFF crea su contraseña y se estrella contra el redirect a
+// /login sin explicación. Ver `ROLES_INVITABLES` en lib/usuarios.
+const ALLOWED_ROLES = ["MANAGER"] as const;
 
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });

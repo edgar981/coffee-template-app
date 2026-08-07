@@ -47,6 +47,15 @@ model user {
   emailVerified Boolean   @default(false)
   image         String?
   role          Role      @default(STAFF)
+  // Acceso al panel. NO se borra un usuario: aparece como actor en columnas de
+  // auditoría (Payment.registrado_por, Comprobante.verificado_por) y una salida
+  // del equipo es un hecho reversible, no la desaparición de la persona. Misma
+  // semántica que `Product.activo` y `Customer.activo`.
+  //
+  // El gate del panel lo exige (app/(admin)/admin/layout.tsx) y al desactivar se
+  // borran además sus filas de `session`: el chequeo corta el acceso en el
+  // siguiente request, y el borrado no deja una credencial válida colgando.
+  activo        Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   account       account[]

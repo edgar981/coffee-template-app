@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X, UserPlus, Mail } from 'lucide-react';
 import { toast } from 'sonner';
+import { ROLES_INVITABLES } from '@/lib/usuarios';
 import RoleBadge from '@/components/admin/RoleBadge';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
@@ -18,7 +19,10 @@ interface InviteUserModalProps {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ROLES: Role[] = ['OWNER', 'MANAGER', 'STAFF'];
+// Los roles que se pueden INVITAR salen de lib/usuarios y no de una lista local:
+// esta ofrecía OWNER y STAFF, que el endpoint rechaza — un formulario que ofrece
+// lo que el servidor no acepta es un 400 esperando a que alguien lo encuentre.
+const ROLES = ROLES_INVITABLES;
 
 const roleDescriptions: Record<Role, string> = {
   OWNER:   'Acceso total: configuración, datos críticos y gestión del equipo.',
@@ -31,7 +35,10 @@ const roleDescriptions: Record<Role, string> = {
 export default function InviteUserModal({ onClose, onSuccess }: InviteUserModalProps) {
   const [name, setName]       = useState('');
   const [email, setEmail]     = useState('');
-  const [role, setRole]       = useState<Role>('STAFF');
+  // El default sale de la MISMA lista que se ofrece: dejarlo en 'STAFF' fijo
+  // preseleccionaba un rol que ya no está entre las opciones, así que el
+  // formulario nacía con un valor que el servidor rechaza.
+  const [role, setRole]       = useState<Role>(ROLES_INVITABLES[0]);
   const [loading, setLoading] = useState(false);
   // Mitad SÍNCRONA de la guarda. `loading` es estado, así que dos envíos del
   // MISMO tick lo leen `false` los dos y pasan ambos — y acá eso no es un toast
