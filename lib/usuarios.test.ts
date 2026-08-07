@@ -85,6 +85,29 @@ test('REACTIVAR al último dueño no se bloquea — la guarda es sobre quitar ac
   );
 });
 
+test('el MISMO motivo sirve para el servidor y para el botón deshabilitado', () => {
+  // La pantalla no reimplementa las guardas: llama a esta función con los datos
+  // que ya tiene cargados y muestra la frase que devuelve. Por eso el motivo
+  // tiene que ser una frase legible por un humano y no un código de error — es
+  // literalmente lo que el operador lee bajo el botón gris.
+  const propio = motivoRechazoCambioEstado({
+    actorRol: 'OWNER', actorId: OWNER.id, objetivo: OWNER,
+    activo: false, ownersActivos: 2,
+  });
+  assert.equal(propio, 'No puedes desactivarte a ti mismo');
+});
+
+test('la sesión del cliente puede traer el rol en null y la regla no revienta', () => {
+  // `authClient.useSession()` tipa el rol como nullable. Si esto lanzara, la fila
+  // entera dejaría de renderizar por un dato ausente.
+  assert.match(
+    motivoRechazoCambioEstado({
+      actorRol: null, actorId: 'x', objetivo: MANAGER, activo: false, ownersActivos: 2,
+    }) ?? '',
+    /Solo el dueño/,
+  );
+});
+
 // ─── La regla compartida con el cambio de rol ────────────────────────────────
 
 test('`esUltimoOwnerConAcceso` cubre las DOS vías de perder el acceso', () => {

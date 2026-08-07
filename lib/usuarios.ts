@@ -34,8 +34,10 @@ export function accionEstadoUsuario(
 
 /** Lo que el servidor necesita saber para decidir. Todo ya leído de la base. */
 export interface ContextoCambioEstado {
-  /** Rol de quien ejecuta la acción. */
-  actorRol: Role | string | undefined;
+  /** Rol de quien ejecuta. Admite `null` porque el cliente lo lee de la sesión
+   *  de Better Auth, donde el campo es nullable — y la MISMA función corre en el
+   *  navegador (para mostrar el motivo) y en el servidor (para decidir). */
+  actorRol: Role | string | null | undefined;
   /** Id de quien ejecuta. */
   actorId: string;
   /** El usuario objetivo, tal como está HOY en la base. */

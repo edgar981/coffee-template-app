@@ -8,7 +8,7 @@ import InviteUserModal from '@/components/admin/InviteUserModal';
 import { normalize } from '@/lib/utils';
 import { AdminUser, Role } from '@/types/admin';
 import { ROLES } from '@/constants/roles';
-import { accionEstadoUsuario } from '@/lib/usuarios';
+import { accionEstadoUsuario, motivoRechazoCambioEstado } from '@/lib/usuarios';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { authClient } from '@/lib/auth-client';
 import { useAccionesPorFila } from '@/hooks/useAccionGuardada';
@@ -55,6 +55,11 @@ export default function ConfiguracionUsuarios() {
 
   // Usuario cuyo cambio de estado se está confirmando. `null` = diálogo cerrado.
   const [estadoTarget, setEstadoTarget] = useState<AdminUser | null>(null);
+
+  // Dueños CON ACCESO, contados sobre la lista que ya está en pantalla. Alimenta
+  // la MISMA función que decide en el servidor, así que el motivo que se muestra
+  // deshabilitado es literalmente el que devolvería el endpoint.
+  const ownersActivos = users.filter(x => x.role === 'OWNER' && x.activo).length;
 
   // Activar / desactivar. El servidor es quien MANDA sobre las tres guardas
   // (último dueño activo, uno mismo, sólo OWNER); acá sólo se propaga su frase,
@@ -255,17 +260,40 @@ export default function ConfiguracionUsuarios() {
                             No se ofrece sobre uno mismo: el server lo rechaza
                             igual, y un botón que sólo sirve para recibir un error
                             es una pregunta que no hay que hacer. */}
-                        {isOwner && u.id !== session?.user?.id && (
-                          <>
-                            <div className="my-1 border-t border-border" />
-                            <button
-                              onClick={() => { setActiveMenu(null); setEstadoTarget(u); }}
-                              className="flex w-full items-center px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            >
-                              {accionEstadoUsuario(u)?.label}
-                            </button>
-                          </>
-                        )}
+                        {isOwner && (() => {
+                          const accion = accionEstadoUsuario(u)!;
+                          // MISMA función que el servidor. Si hay motivo, el botón
+                          // se muestra DESHABILITADO diciéndolo — no se esconde.
+                          // Esconderlo fue el error de la primera versión: con dos
+                          // usuarios, abrir el menú sobre uno mismo no mostraba
+                          // nada y la acción parecía no existir. Es la regla del
+                          // "Marcar En Ruta" bloqueado (§ La FILA ofrece el
+                          // siguiente paso): una acción ausente manda a buscarla a
+                          // otra pantalla.
+                          const motivo = motivoRechazoCambioEstado({
+                            actorRol: session?.user?.role,
+                            actorId:  session?.user?.id ?? '',
+                            objetivo: u,
+                            activo:   accion.activo,
+                            ownersActivos,
+                          });
+                          return (
+                            <>
+                              <div className="my-1 border-t border-border" />
+                              <button
+                                onClick={() => { setActiveMenu(null); setEstadoTarget(u); }}
+                                disabled={!!motivo}
+                                title={motivo || undefined}
+                                className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+                              >
+                                <span>{accion.label}</span>
+                                {motivo && (
+                                  <span className="text-[11px] leading-tight">{motivo}</span>
+                                )}
+                              </button>
+                            </>
+                          );
+                        })()}
                       </div>
                     </>
                   )}
