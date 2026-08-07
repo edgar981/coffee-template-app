@@ -264,9 +264,9 @@ function PagosInner() {
       </div>
 
       {/* Wompi note — online rails come later; today all payments are manual. */}
-      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 max-w-xl">
-        <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">Pagos en línea próximamente</p>
-        <p className="text-xs text-amber-700 dark:text-amber-500 mt-1">
+      <div className="bg-muted border border-border rounded-xl p-4 max-w-xl">
+        <p className="text-sm font-semibold text-foreground">Pagos en línea próximamente</p>
+        <p className="text-xs text-muted-foreground mt-1">
           Hoy los pagos se confirman manualmente (Nequi, Daviplata, efectivo, transferencia). Wompi se integrará para cobros en línea automáticos.
         </p>
       </div>

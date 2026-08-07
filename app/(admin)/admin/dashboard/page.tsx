@@ -192,8 +192,8 @@ export default function Dashboard() {
       {/* One-time banner when a metrics source failed — better than a grid of
           dashes with no explanation. Retry re-fires the fetches. */}
       {metricsFailed && (
-        <div className="flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-900/20 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-amber-900 dark:text-amber-200">No se pudieron cargar las métricas.</span>
+        <div className="flex flex-col gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-destructive">No se pudieron cargar las métricas.</span>
           <Button variant="outline" size="sm" className="shrink-0" onClick={retry}>Reintentar</Button>
         </div>
       )}

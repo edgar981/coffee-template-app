@@ -11,8 +11,8 @@ import { useRouter } from 'next/navigation';
 type Role = 'OWNER' | 'MANAGER' | 'STAFF';
 
 const ROLE_CONFIG: Record<Role, { label: string; className: string }> = {
-  OWNER:   { label: 'Dueño',   className: 'bg-primary/10 text-primary' },
-  MANAGER: { label: 'Gerente', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+  OWNER:   { label: 'Dueño',   className: 'bg-secondary text-secondary-foreground' },
+  MANAGER: { label: 'Gerente', className: 'bg-secondary text-secondary-foreground' },
   STAFF:   { label: 'Empleado', className: 'bg-muted text-muted-foreground' },
 };
 

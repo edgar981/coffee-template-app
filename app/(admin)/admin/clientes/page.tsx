@@ -230,7 +230,7 @@ function ClientesInner() {
           {/* Active recurrentes filter (arrived from the dashboard card). */}
           {recurrentesOnly && (
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 px-3 py-1 text-xs font-medium text-amber-800 dark:text-amber-300">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
                 <Star className="w-3 h-3" /> Solo recurrentes ({recurrentes})
               </span>
               <Link href="/admin/clientes" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
@@ -261,7 +261,7 @@ function ClientesInner() {
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-sm truncate">{c.nombre}</p>
                         {(c.ordenes ?? 0) > 2 && (
-                          <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
+                          <Star className="w-3.5 h-3.5 text-muted-foreground fill-muted-foreground shrink-0" />
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground truncate">
