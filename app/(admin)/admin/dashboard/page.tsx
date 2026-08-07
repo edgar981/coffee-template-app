@@ -192,8 +192,8 @@ export default function Dashboard() {
       {/* One-time banner when a metrics source failed — better than a grid of
           dashes with no explanation. Retry re-fires the fetches. */}
       {metricsFailed && (
-        <div className="flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-900/20 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-amber-900 dark:text-amber-200">No se pudieron cargar las métricas.</span>
+        <div className="flex flex-col gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-destructive">No se pudieron cargar las métricas.</span>
           <Button variant="outline" size="sm" className="shrink-0" onClick={retry}>Reintentar</Button>
         </div>
       )}
@@ -269,7 +269,7 @@ export default function Dashboard() {
             <h3 className="font-semibold text-foreground">Órdenes Recientes</h3>
             <p className="text-xs text-muted-foreground">Últimas transacciones</p>
           </div>
-          <Link href="/admin/ordenes" className="text-xs text-primary hover:underline font-medium">Ver todas →</Link>
+          <Link href="/admin/ordenes" className="text-xs text-accent-amber hover:underline font-medium">Ver todas →</Link>
         </div>
         {loading ? (
           <div className="p-8 text-center text-muted-foreground text-sm">Cargando...</div>
@@ -338,7 +338,7 @@ function OrdersTable({ orders }: { orders: Order[] }) {
                   // The row already handles the click; this exists for middle-click
                   // and focus order, so stop it from navigating twice.
                   onClick={e => e.stopPropagation()}
-                  className="rounded hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="rounded hover:text-accent-amber hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {o.numero_orden ?? `#${o.id.slice(-6)}`}
                 </Link>

@@ -13,7 +13,7 @@ interface RoleBadgeProps {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const config: Record<Role, { label: string; class: string }> = {
-  OWNER:   { label: 'Dueño',    class: 'bg-primary/10 text-primary border-primary/20' },
+  OWNER:   { label: 'Dueño',    class: 'bg-secondary text-secondary-foreground border-border' },
   MANAGER: { label: 'Gerente',  class: 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-400 dark:border-violet-800' },
   STAFF:   { label: 'Empleado', class: 'bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-400 dark:border-sky-800' },
 };

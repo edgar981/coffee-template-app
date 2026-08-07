@@ -51,6 +51,12 @@
   --color-accent:               hsl(var(--accent));
   --color-accent-foreground:    hsl(var(--accent-foreground));
 
+  /* Ámbar-acento calibrado para TEXTO/íconos (AA sobre el fondo del tema). El
+     --primary del admin pasó a tinta; este token restituye el ámbar donde era
+     acento de DATO/enlace, no relleno. Los rellenos/dots ámbar de marca sobre
+     superficie oscura no usan esto — el #F59E0B falla contraste como texto. */
+  --color-accent-amber:         hsl(var(--accent-amber));
+
   --color-destructive:          hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
 
@@ -208,6 +214,8 @@ html {
        the charts (--chart-3). */
     --accent: 39 48% 90%;
     --accent-foreground: 28 42% 22%;
+    /* Ámbar quemado (~amber-800) para texto/íconos de acento — AA sobre fondo claro. */
+    --accent-amber: 26 90% 33%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 40 32% 87%;
@@ -264,6 +272,8 @@ html {
        --primary y en los charts. */
     --accent: 39 18% 21%;
     --accent-foreground: 39 25% 90%;
+    /* Ámbar brillante (~amber-400) para texto/íconos de acento — AA sobre fondo oscuro. */
+    --accent-amber: 43 96% 62%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 25.1%;

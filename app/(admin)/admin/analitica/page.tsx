@@ -190,7 +190,7 @@ function Rentabilidad({ data, loading }: { data: AnalyticsData | null; loading: 
                       <Link
                         href={`/admin/productos?producto=${encodeURIComponent(f.productoId)}`}
                         title={`Ver ${f.producto}`}
-                        className="rounded text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="rounded text-accent-amber underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         {f.producto}
                       </Link>
@@ -454,7 +454,7 @@ function ClientesYCanales({ data }: { data: AnalyticsData }) {
                       {cl.ordenes} {cl.ordenes === 1 ? 'orden' : 'órdenes'}
                     </p>
                   </div>
-                  <p className="text-xs font-bold text-primary">{formatCOP(cl.total)}</p>
+                  <p className="text-xs font-bold text-foreground">{formatCOP(cl.total)}</p>
                 </Link>
               ))}
             </div>

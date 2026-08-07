@@ -853,7 +853,7 @@ function ProductCard({ product: p, onEdit, onDelete, onActivar }: ProductCardPro
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-all group">
-      <div className="h-36 bg-linear-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 flex items-center justify-center relative">
+      <div className="h-36 bg-muted flex items-center justify-center relative">
         {p.imagen ? (
           <Image
             src={p.imagen}
@@ -863,7 +863,7 @@ function ProductCard({ product: p, onEdit, onDelete, onActivar }: ProductCardPro
             className="object-cover"
           />
         ) : (
-          <Package className="w-12 h-12 text-amber-300" />
+          <Package className="w-12 h-12 text-muted-foreground/40" />
         )}
         {lowStock && (
           <span className="absolute top-2 right-2 bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
@@ -889,7 +889,7 @@ function ProductCard({ product: p, onEdit, onDelete, onActivar }: ProductCardPro
         <p className="font-semibold text-sm leading-tight">{p.nombre}</p>
         <p className="text-xs text-muted-foreground mt-0.5">{p.sku || 'Sin SKU'} • {p.variante ?? '—'}</p>
         <div className="flex items-center justify-between mt-3">
-          <span className="text-lg font-bold text-primary">{formatCOP(p.precio)}</span>
+          <span className="text-lg font-bold text-foreground">{formatCOP(p.precio)}</span>
           {margin !== null && (
             <span className="text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded">
               {margin}% margen
@@ -992,8 +992,8 @@ function ProductTable({ productos, onEdit, onDelete, onActivar }: ProductTablePr
 function EmptyState({ onNew }: { onNew: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-16 h-16 bg-amber-50 dark:bg-amber-900/20 rounded-full flex items-center justify-center mb-4">
-        <Package className="w-8 h-8 text-amber-400" />
+      <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+        <Package className="w-8 h-8 text-muted-foreground/40" />
       </div>
       <h3 className="font-semibold text-lg mb-2">Sin productos aún</h3>
       <p className="text-sm text-muted-foreground mb-6 max-w-sm">

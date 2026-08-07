@@ -175,7 +175,7 @@ export default function Entregas() {
               <tbody>
                 {filtered.map(e => (
                   <tr key={e.id} className="border-b border-border/50 hover:bg-muted/20">
-                    <td className="px-4 py-3 font-mono text-xs font-semibold text-primary">{e.order?.numero_orden ?? '—'}</td>
+                    <td className="px-4 py-3 font-mono text-xs font-semibold text-foreground">{e.order?.numero_orden ?? '—'}</td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{e.order?.cliente_nombre ?? '—'}</div>
                     </td>

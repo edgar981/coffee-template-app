@@ -61,7 +61,7 @@ export function missingToDispatch(
 export const ZONA_COLORS: Record<string, string> = {
   norte:     'bg-blue-100 text-blue-700',
   sur:       'bg-green-100 text-green-700',
-  centro:    'bg-amber-100 text-amber-700',
+  centro:    'bg-muted text-muted-foreground',
   oriente:   'bg-violet-100 text-violet-700',
   occidente: 'bg-pink-100 text-pink-700',
   exterior:  'bg-gray-100 text-gray-700',
