@@ -8,6 +8,8 @@ import InviteUserModal from '@/components/admin/InviteUserModal';
 import { normalize } from '@/lib/utils';
 import { AdminUser, Role } from '@/types/admin';
 import { ROLES } from '@/constants/roles';
+import { accionEstadoUsuario, motivoRechazoCambioEstado } from '@/lib/usuarios';
+import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { authClient } from '@/lib/auth-client';
 import { useAccionesPorFila } from '@/hooks/useAccionGuardada';
 
@@ -50,6 +52,31 @@ export default function ConfiguracionUsuarios() {
   // exactamente el silencio que invita al segundo click, que es lo que esta
   // guarda existe para cubrir. Ver CLAUDE.md § Doble-submit.
   const filasRol = useAccionesPorFila();
+
+  // Usuario cuyo cambio de estado se está confirmando. `null` = diálogo cerrado.
+  const [estadoTarget, setEstadoTarget] = useState<AdminUser | null>(null);
+
+  // Dueños CON ACCESO, contados sobre la lista que ya está en pantalla. Alimenta
+  // la MISMA función que decide en el servidor, así que el motivo que se muestra
+  // deshabilitado es literalmente el que devolvería el endpoint.
+  const ownersActivos = users.filter(x => x.role === 'OWNER' && x.activo).length;
+
+  // Activar / desactivar. El servidor es quien MANDA sobre las tres guardas
+  // (último dueño activo, uno mismo, sólo OWNER); acá sólo se propaga su frase,
+  // que es la que dice qué corregir.
+  const cambiarEstado = async (u: AdminUser, activo: boolean) => {
+    const res = await fetch(`/api/users/${u.id}/activo`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ activo }),
+    });
+    if (!res.ok) {
+      const { error } = await res.json().catch(() => ({ error: null }));
+      throw new Error(error || 'No se pudo cambiar el estado del usuario');
+    }
+    const actualizado = await res.json() as AdminUser;
+    setUsers(prev => prev.map(x => x.id === actualizado.id ? actualizado : x));
+  };
 
   const handleRoleChange = (userId: string, newRole: Role) =>
     filasRol.ejecutar(userId, async () => {
@@ -183,8 +210,15 @@ export default function ConfiguracionUsuarios() {
                   </div>
                 </div>
 
-                {/* Role badge */}
-                <div className="hidden sm:block shrink-0">
+                {/* Rol y, si perdió el acceso, su estado. El badge de inactivo
+                    sólo aparece cuando hay algo que decir: el caso normal no
+                    gasta un elemento en confirmar que todo está bien. */}
+                <div className="hidden sm:flex items-center gap-2 shrink-0">
+                  {!u.activo && (
+                    <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      Sin acceso
+                    </span>
+                  )}
                   <RoleBadge role={u.role} />
                 </div>
 
@@ -217,6 +251,49 @@ export default function ConfiguracionUsuarios() {
                               : u.role === r && <Check className="w-3.5 h-3.5 text-primary" />}
                           </button>
                         ))}
+
+                        {/* La acción de estado y su INVERSA en el MISMO lugar —
+                            la lección de "Activar desde el badge": una puerta sin
+                            su vuelta deja a alguien atrapado y la única salida es
+                            la base. Cuál de las dos se ofrece lo decide
+                            `accionEstadoUsuario`, no un `if` acá.
+                            No se ofrece sobre uno mismo: el server lo rechaza
+                            igual, y un botón que sólo sirve para recibir un error
+                            es una pregunta que no hay que hacer. */}
+                        {isOwner && (() => {
+                          const accion = accionEstadoUsuario(u)!;
+                          // MISMA función que el servidor. Si hay motivo, el botón
+                          // se muestra DESHABILITADO diciéndolo — no se esconde.
+                          // Esconderlo fue el error de la primera versión: con dos
+                          // usuarios, abrir el menú sobre uno mismo no mostraba
+                          // nada y la acción parecía no existir. Es la regla del
+                          // "Marcar En Ruta" bloqueado (§ La FILA ofrece el
+                          // siguiente paso): una acción ausente manda a buscarla a
+                          // otra pantalla.
+                          const motivo = motivoRechazoCambioEstado({
+                            actorRol: session?.user?.role,
+                            actorId:  session?.user?.id ?? '',
+                            objetivo: u,
+                            activo:   accion.activo,
+                            ownersActivos,
+                          });
+                          return (
+                            <>
+                              <div className="my-1 border-t border-border" />
+                              <button
+                                onClick={() => { setActiveMenu(null); setEstadoTarget(u); }}
+                                disabled={!!motivo}
+                                title={motivo || undefined}
+                                className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+                              >
+                                <span>{accion.label}</span>
+                                {motivo && (
+                                  <span className="text-[11px] leading-tight">{motivo}</span>
+                                )}
+                              </button>
+                            </>
+                          );
+                        })()}
                       </div>
                     </>
                   )}
@@ -234,6 +311,29 @@ export default function ConfiguracionUsuarios() {
           </div>
         )}
       </div>
+
+      {/* Se reusa el confirm compartido con `confirmKind='default'`: desactivar
+          NO destruye nada —el historial queda y la persona puede volver—, así que
+          va en ámbar y no en rojo. */}
+      {estadoTarget && (() => {
+        const accion = accionEstadoUsuario(estadoTarget)!;
+        const desactivando = !accion.activo;
+        return (
+          <ConfirmDeleteDialog
+            open
+            onOpenChange={(o) => { if (!o) setEstadoTarget(null); }}
+            confirmKind="default"
+            title={`${accion.label} a ${estadoTarget.name || estadoTarget.email}`}
+            entityLabel={estadoTarget.email}
+            consequence={desactivando
+              ? 'Pierde el acceso al panel de inmediato: su sesión abierta se cierra en el siguiente request. Su historial se conserva — los pagos que registró y los comprobantes que verificó siguen mostrando su nombre. Podrás reactivarlo cuando quieras.'
+              : 'Vuelve a tener acceso al panel con el rol que ya tenía. Deberá iniciar sesión de nuevo.'}
+            confirmLabel={accion.label}
+            successMessage={accion.successMessage}
+            onConfirm={() => cambiarEstado(estadoTarget, accion.activo)}
+          />
+        );
+      })()}
 
       {isOwner && showInvite && (
         <InviteUserModal

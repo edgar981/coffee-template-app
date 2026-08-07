@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { ROLES } from '@/constants/roles';
+import { esUltimoOwnerConAcceso } from '@/lib/usuarios';
 
 export async function PATCH(
   req: NextRequest,
@@ -26,25 +27,24 @@ export async function PATCH(
     return NextResponse.json({ error: "No puedes cambiar tu propio rol",}, { status: 400 });
   }
 
-  const targetUser =
-    await prisma.user.findUnique({
-      where: { id },
-    });
+  const targetUser = await prisma.user.findUnique({
+    where:  { id },
+    select: { id: true, role: true, activo: true },
+  });
 
   if (!targetUser) {
-    return NextResponse.json({ error: "Usuario no encontrado", }, { status: 404 }); 
+    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
   }
 
-  if (targetUser.role === "OWNER" && role !== "OWNER") {
-    const ownerCount = await prisma.user.count({
-        where: {
-          role: "OWNER",
-        },
-      });
+  // MISMA regla que la de desactivar, no una segunda copia: lo que se preserva es
+  // al menos un dueño CON ACCESO. Antes acá se contaba `role: OWNER` a secas, y
+  // desde que existe `activo` esa cuenta podía incluir dueños desactivados —
+  // degradar al único dueño con acceso habría pasado el filtro dejando el panel
+  // sin quien lo administre.
+  const ownersActivos = await prisma.user.count({ where: { role: "OWNER", activo: true } });
 
-    if (ownerCount <= 1) {
-      return NextResponse.json({ error: "Debe existir al menos un dueño", }, { status: 400 });
-    }
+  if (esUltimoOwnerConAcceso({ objetivo: targetUser, nuevoRol: role, ownersActivos })) {
+    return NextResponse.json({ error: "Debe quedar al menos un dueño activo" }, { status: 400 });
   }
 
   const updated = await prisma.user.update({
