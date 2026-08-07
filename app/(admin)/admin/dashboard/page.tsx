@@ -26,7 +26,7 @@ import { computeTrend, NEUTRAL_TREND } from '@/lib/metrics/trend';
 import { currentMonthOrdersQuery, currentMonthRange } from '@/lib/metrics/order-stat-filters';
 import { isLowStock } from '@/lib/metrics/inventory-filters';
 import {
-  WIDGET_MAP, DEFAULT_WIDGET_KEYS,
+  WIDGET_MAP, DEFAULT_WIDGET_KEYS, chipTono,
   type WidgetFormato, type WidgetHrefContext,
 } from '@/constants/dashboard-widgets';
 import DashboardChartCarousel from '@/components/admin/DashboardChartCarousel';
@@ -238,7 +238,10 @@ export default function Dashboard() {
                 insightEnfasis={insight?.enfasis}
                 scopeSuffix={w.scopeSuffix}
                 trend={v?.trend}
-                color={w.color}
+                // Color del chip = ESTADO, no decoración: neutro salvo que el
+                // tile represente un estado (w.tono) y su valor lo justifique
+                // (> 0). La tendencia colorea el TrendPill, no el chip.
+                color={chipTono(w, v?.raw)}
                 href={href}
               />
             );
