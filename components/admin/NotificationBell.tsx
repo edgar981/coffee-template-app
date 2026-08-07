@@ -233,7 +233,7 @@ export default function NotificationBell() {
                   'absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold',
                   hayAlerta
                     ? 'bg-destructive text-destructive-foreground'
-                    : 'bg-accent-amber text-primary-foreground',
+                    : 'bg-[hsl(var(--ring))] text-amber-950',
                 )}
               >
                 {unread > 9 ? '9+' : unread}
