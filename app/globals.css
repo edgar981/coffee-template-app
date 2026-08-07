@@ -194,8 +194,8 @@ html {
     --card-foreground: 33 20% 9%;
     --popover: 0 0% 100%;
     --popover-foreground: 33 20% 9%;
-    --primary: 38 92% 50%;
-    --primary-foreground: 36 91% 9%;
+    --primary: 33 22% 12%;
+    --primary-foreground: 38 44% 96%;
     --secondary: 39 38% 91%;
     --secondary-foreground: 33 20% 9%;
     --muted: 39 38% 91%;
@@ -248,8 +248,8 @@ html {
     --card-foreground: 0 0% 89.8%;
     --popover: 0 0% 14.9%;
     --popover-foreground: 0 0% 89.8%;
-    --primary: 37.7 92.1% 50.2%;
-    --primary-foreground: 0 0% 0%;
+    --primary: 40 22% 90%;
+    --primary-foreground: 0 0% 9%;
     --secondary: 0 0% 14.9%;
     --secondary-foreground: 0 0% 89.8%;
     --muted: 0 0% 12.2%;
