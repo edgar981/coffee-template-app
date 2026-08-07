@@ -349,7 +349,7 @@ export default function NotificationBell() {
                     </div>
 
                     {!n.leida && (
-                      <div className="mt-1.5 w-2 h-2 rounded-full bg-accent-amber shrink-0" />
+                      <div className="mt-1.5 w-2 h-2 rounded-full bg-[hsl(var(--ring))] shrink-0" />
                     )}
                   </div>
                 );
