@@ -1308,16 +1308,36 @@ necesariamente lo que cambió.**
 
 ## Design system del admin — chips de stat cards
 
-Los icon chips de stat cards usan pastel multicolor = decisión deliberada
-del owner (confirmada 2026-07-27 tras evaluar la variante ámbar en
-preview); rojo/destructive reservado a alertas reales; el resto de las
-reglas de restricción cromática (un sólido por vista, hover de tinte,
-badges muted/neutros, trends de texto) SÍ aplican y no dependen de esta
-decisión. El mapa (paleta pastel + `alert`) vive en
-`constants/stat-chip.ts` (`STAT_CHIP.<tono>`) y lo consumen el registry de
-widgets y las stat cards de cada página; retunear/revertir es cambiar SOLO
-ese mapa (y qué key usa cada tarjeta). No colapsar a ámbar por leer una
-versión vieja de este doc.
+Los icon chips de las stat cards del **DASHBOARD** son NEUTROS por defecto; el
+color es ESTADO, no decoración, y aparece SOLO cuando el valor lo justifica. Esto
+REEMPLAZA la variante pastel-multicolor (owner, 2026-07-27) para el dashboard: se
+evaluó en producción y el color decorativo contradecía la regla del panel —color
+= estado accionable, nunca decoración—. Un tile ámbar/verde/violeta sin relación
+con su contenido entrena al operador a ignorar el color justo donde sí importa.
+
+El mapeo lo gobierna `chipTono(widget, value)` (`constants/dashboard-widgets.ts`,
+puro), NO un color hardcodeado por widget:
+
+- **Neutro** (`STAT_CHIP.neutral`, `bg-muted`): todo tile sin estado, y todo tile
+  de estado cuyo valor es 0 o cuya fuente cayó. Una alerta que vale 0 no es una
+  alerta; una cola vacía no pide nada.
+- **Ámbar** (`tono: 'atencion'`): colas de trabajo con valor > 0 — Por cobrar,
+  Órdenes Pendientes.
+- **Rojo** (`tono: 'alerta'`, `STAT_CHIP.alert`): riesgo real con valor > 0 —
+  Alertas de Stock. Sigue siendo la única alerta roja del panel; el rojo escaso.
+
+**La TENDENCIA no colorea el chip**: su color (verde alza / rojo baja) vive en el
+`TrendPill` de `StatCard`. Duplicarlo en el chip volvería el rojo frecuente
+(cualquier mes a la baja) y diluiría la alerta de stock.
+
+El mapa `STAT_CHIP` (paleta pastel + `alert` + `neutral`) sigue en
+`constants/stat-chip.ts`. **El pastel NO se borró**: lo consumen todavía las stat
+cards de Clientes y CustomerProfile y los íconos de la campana
+(`constants/automations.ts`). Migrar esas superficies a la regla de estado es un
+PR aparte (deuda declarada) — hasta entonces conviven dashboard-por-estado y
+esas-páginas-pastel a propósito. El resto de las reglas cromáticas (un sólido por
+vista, hover de tinte, badges muted/neutros, trends de texto) no dependían de la
+decisión de 2026-07-27 y siguen.
 
 ## Dashboard personalizable — registry de widgets
 

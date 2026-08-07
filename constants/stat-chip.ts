@@ -17,6 +17,8 @@ export const STAT_CHIP = {
   orange:  'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
   violet:  'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
   pink:    'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
+  /** Estado NEUTRO — el default de los tiles del dashboard: sin estado, sin color. */
+  neutral: 'bg-muted text-muted-foreground',
   /** Reserved for real alerts (low stock, etc.) — red stays scarce. */
   alert:   'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 } as const;
