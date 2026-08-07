@@ -654,7 +654,7 @@ function Ordenes() {
                     className="border-b border-border/50 hover:bg-muted/20 cursor-pointer"
                     onClick={() => setParams({ order: o.numero_orden }, 'push')}
                   >
-                    <td className="px-4 py-3 font-mono text-xs font-semibold text-primary">{o.numero_orden}</td>
+                    <td className="px-4 py-3 font-mono text-xs font-semibold text-foreground">{o.numero_orden}</td>
                     {/* Solo el nombre (link → perfil, con WhatsApp). El teléfono
                         se quitó de la lista: es dato de caso-normal; el contacto
                         vive en el perfil y en el diálogo de la orden. */}
@@ -1758,7 +1758,7 @@ function CustomerLink({ id, nombre, className = '' }: {
       href={`/admin/clientes/${id}`}
       onClick={e => e.stopPropagation()}
       title={`Ver perfil de ${label}`}
-      className={`block w-fit rounded text-primary underline-offset-2 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${className}`}
+      className={`block w-fit rounded text-foreground underline-offset-2 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${className}`}
     >
       {label}
     </Link>

@@ -889,7 +889,7 @@ function ProductCard({ product: p, onEdit, onDelete, onActivar }: ProductCardPro
         <p className="font-semibold text-sm leading-tight">{p.nombre}</p>
         <p className="text-xs text-muted-foreground mt-0.5">{p.sku || 'Sin SKU'} • {p.variante ?? '—'}</p>
         <div className="flex items-center justify-between mt-3">
-          <span className="text-lg font-bold text-primary">{formatCOP(p.precio)}</span>
+          <span className="text-lg font-bold text-foreground">{formatCOP(p.precio)}</span>
           {margin !== null && (
             <span className="text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded">
               {margin}% margen

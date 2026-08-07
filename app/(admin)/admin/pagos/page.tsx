@@ -233,7 +233,7 @@ function PagosInner() {
                       {p.order?.numero_orden ? (
                         <Link
                           href={`/admin/ordenes?order=${encodeURIComponent(p.order.numero_orden)}`}
-                          className="font-mono text-xs font-semibold text-primary hover:underline"
+                          className="font-mono text-xs font-semibold text-foreground hover:underline"
                         >
                           {p.order.numero_orden}
                         </Link>

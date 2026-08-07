@@ -98,7 +98,7 @@ export default function Automatizaciones() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         <div className="stat-card text-center">
-          <p className="text-3xl font-bold text-primary">{activas}</p>
+          <p className="text-3xl font-bold text-foreground">{activas}</p>
           <p className="text-xs text-muted-foreground mt-1">Flujos activos</p>
         </div>
         <div className="stat-card text-center">

@@ -233,7 +233,7 @@ export default function NotificationBell() {
                   'absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold',
                   hayAlerta
                     ? 'bg-destructive text-destructive-foreground'
-                    : 'bg-primary text-primary-foreground',
+                    : 'bg-accent-amber text-primary-foreground',
                 )}
               >
                 {unread > 9 ? '9+' : unread}
@@ -258,7 +258,7 @@ export default function NotificationBell() {
               {unread > 0 && (
                 <>
                   <span className="text-muted-foreground"> · </span>
-                  <span className={cn('font-semibold', hayAlerta ? 'text-destructive' : 'text-primary')}>
+                  <span className={cn('font-semibold', hayAlerta ? 'text-destructive' : 'text-accent-amber')}>
                     {unread}
                   </span>
                 </>
@@ -323,11 +323,11 @@ export default function NotificationBell() {
                   ? 'bg-muted text-muted-foreground'
                   : def?.severidad === 'alerta'
                     ? 'bg-destructive/10 text-destructive'
-                    : 'bg-primary/10 text-primary';
+                    : 'bg-accent-amber/10 text-accent-amber';
 
                 const content = (
                   <div
-                    className={`flex items-start gap-3 px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer ${!n.leida ? 'bg-primary/5' : ''}`}
+                    className={`flex items-start gap-3 px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer ${!n.leida ? 'bg-accent-amber/5' : ''}`}
                     onClick={() => !n.leida && markRead(n.id)}
                   >
                     <div className={cn('mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', tono)}>
@@ -349,7 +349,7 @@ export default function NotificationBell() {
                     </div>
 
                     {!n.leida && (
-                      <div className="mt-1.5 w-2 h-2 rounded-full bg-primary shrink-0" />
+                      <div className="mt-1.5 w-2 h-2 rounded-full bg-accent-amber shrink-0" />
                     )}
                   </div>
                 );

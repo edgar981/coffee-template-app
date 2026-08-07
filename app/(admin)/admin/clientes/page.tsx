@@ -356,7 +356,7 @@ function ClientesInner() {
                         cuenta las no canceladas — misma definición que la lista. */}
                     <p className="text-xs text-muted-foreground">{c.ordenes ?? 0} {(c.ordenes ?? 0) === 1 ? 'orden' : 'órdenes'}</p>
                   </div>
-                  <p className="text-xs font-bold text-primary">{formatCOP(c.total_compras ?? 0)}</p>
+                  <p className="text-xs font-bold text-foreground">{formatCOP(c.total_compras ?? 0)}</p>
                 </Link>
               ))}
             </div>
