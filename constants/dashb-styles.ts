@@ -1,4 +1,4 @@
-// Chart ramp — Duna amber scale (--chart-1..5, identical in light & dark).
+// Chart series colours — a warm, saturated amber→brown ramp (--chart-1..5), tuned per theme.
 // CSS variables so charts follow the admin theme tokens; the SVG marks inherit
 // them from the admin scope on <html>. The 6th slot stays neutral so charts
 // with ≥6 series still render a distinct final segment.
