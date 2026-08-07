@@ -23,16 +23,16 @@ const STAT_CARD_LINK_BASE =
   "block text-left w-full transition-colors cursor-pointer " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
-/** Card navegable en REPOSO: al pasar el mouse, tinte + borde de primario al 50%. */
-const STAT_CARD_HOVER = "hover:bg-muted/30 hover:border-primary/50";
+/** Card navegable en REPOSO: al pasar el mouse, tinte + borde de --ring (ámbar de marca) al 50%. */
+const STAT_CARD_HOVER = "hover:bg-muted/30 hover:border-ring/50";
 
 /**
- * Card cuyo FILTRO está aplicado. Un paso más que el hover — borde de primario
+ * Card cuyo FILTRO está aplicado. Un paso más que el hover — borde de --ring
  * completo en vez de al 50% — sobre el mismo tinte neutro y el mismo fondo de
  * card. La diferencia entre "puedo hacer clic" y "esto es lo que estás viendo"
  * es de intensidad de borde, no de relleno.
  */
-const STAT_CARD_ACTIVE = "border-primary bg-muted/30";
+const STAT_CARD_ACTIVE = "border-ring bg-muted/30";
 
 /**
  * Clases de una stat card clickeable armada a mano. Se usa junto a `stat-card`:
@@ -40,7 +40,7 @@ const STAT_CARD_ACTIVE = "border-primary bg-muted/30";
  *   className={`stat-card ${statCardLink(filtroAplicado)}`}
  *
  * Los dos estados se EXCLUYEN a propósito: una card activa no lleva las reglas
- * de hover, porque `hover:border-primary/50` le bajaría el borde justo cuando el
+ * de hover, porque `hover:border-ring/50` le bajaría el borde justo cuando el
  * mouse está encima — y además el clic sobre la card ya activa es un no-op, así
  * que no hay nada que previsualizar.
  */
@@ -50,7 +50,7 @@ export function statCardLink(activo = false): string {
 
 /** El mismo hover, expresado desde el hijo cuando el link envuelve la card (`group/link`). */
 export const STAT_CARD_LINK_BODY_HOVER =
-  "group-hover/link:bg-muted/30 group-hover/link:border-primary/50";
+  "group-hover/link:bg-muted/30 group-hover/link:border-ring/50";
 
 interface StatCardProps {
   icon:   LucideIcon;
