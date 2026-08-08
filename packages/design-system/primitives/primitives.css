@@ -1,0 +1,213 @@
+/* =============================================================================
+   DUNA PRIMITIVES — el catálogo, derivado de los tokens. Cero valores mágicos:
+   todo apunta a var(--…) de tokens.css. Clases prefijadas `duna-` para que el
+   paquete sea aislado (no choca con el admin ni con Tailwind).
+
+   Requiere tokens.css cargado antes. Framework-agnóstico (CSS puro); el modelo
+   tipado del "en curso" vive en primitives/status.ts.
+   ========================================================================== */
+
+/* ── Reset mínimo local ─────────────────────────────────────────────────── */
+.duna { font-family: var(--font-ui); color: var(--ink); font-size: var(--text-body);
+        line-height: var(--lh-body); -webkit-font-smoothing: antialiased; }
+.duna *, .duna *::before, .duna *::after { box-sizing: border-box; }
+
+/* ── Utilidades de tipografía (los 9 niveles) ───────────────────────────── */
+.duna-display-xl { font-family: var(--font-display); font-weight: var(--w-semi); font-size: var(--text-display-xl); line-height: var(--lh-tight);  letter-spacing: var(--tr-tight); }
+.duna-display-l  { font-family: var(--font-display); font-weight: var(--w-semi); font-size: var(--text-display-l);  line-height: var(--lh-snug);   letter-spacing: var(--tr-tight); }
+.duna-display-m  { font-family: var(--font-display); font-weight: var(--w-semi); font-size: var(--text-display-m);  line-height: var(--lh-snug);   letter-spacing: var(--tr-snug); }
+.duna-title      { font-family: var(--font-display); font-weight: var(--w-medium); font-size: var(--text-title);    line-height: var(--lh-normal); letter-spacing: var(--tr-snug); }
+.duna-heading    { font-family: var(--font-display); font-weight: var(--w-medium); font-size: var(--text-heading);  line-height: var(--lh-normal); }
+.duna-body       { font-size: var(--text-body); }
+.duna-body-sm, .duna-sub { font-size: var(--text-body-sm); color: var(--muted); }
+.duna-label      { font-size: var(--text-label); font-weight: var(--w-semi); }
+.duna-caption    { font-size: var(--text-caption); color: var(--muted); }
+.duna-eyebrow    { font-size: var(--text-caption); text-transform: uppercase; letter-spacing: var(--tr-caps); color: var(--muted); font-weight: var(--w-semi); }
+/* Cifras: display + tabulares (nunca bailan de ancho al contar) */
+.duna-num  { font-family: var(--font-display); font-feature-settings: 'tnum'; font-variant-numeric: tabular-nums; }
+.duna-mono { font-family: var(--font-mono); font-size: var(--text-label); letter-spacing: var(--tr-wide); color: var(--muted); }
+
+/* ── Superficie: card ───────────────────────────────────────────────────── */
+.duna-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-l);
+             box-shadow: var(--shadow-1); transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease), border-color var(--dur) var(--ease); }
+.duna-card--hoverable:hover { box-shadow: var(--shadow-2); transform: translateY(-1px); border-color: var(--border-2); }
+.duna-card__pad  { padding: var(--space-5); }            /* 20/20 uniforme (era 20×22) */
+.duna-card__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); }
+.duna-divider { height: 1px; background: var(--border); border: none; margin: 0; }
+
+/* ── Botones · un solo primario sólido por vista = TINTA ─────────────────── */
+.duna-btn { display: inline-flex; align-items: center; gap: var(--space-inline); /* ícono↔label */
+            padding: var(--space-3) var(--space-3); border-radius: var(--r-s); font-weight: var(--w-semi);
+            font-size: var(--text-label); border: 1px solid transparent; transition: all var(--dur-fast) var(--ease);
+            cursor: pointer; }
+.duna-btn--primary   { background: var(--ink); color: var(--paper); }
+.duna-btn--primary:hover { opacity: .88; transform: translateY(-1px); box-shadow: var(--shadow-2); }
+.duna-btn--secondary { background: var(--surface); border-color: var(--border-2); color: var(--ink); }
+.duna-btn--secondary:hover { border-color: var(--faint); box-shadow: var(--shadow-1); }
+.duna-btn--ghost { color: var(--muted); background: none; }
+.duna-btn--ghost:hover { color: var(--ink); background: var(--wash-hover); }
+.duna-btn--sm { padding: var(--space-1) var(--space-3); font-size: var(--text-caption); }
+
+/* ── Badge de estado (semáforo de reposo — SIN azul) ─────────────────────── */
+.duna-badge { display: inline-flex; align-items: center; gap: var(--space-inline);
+              padding: var(--space-hairline) var(--space-2); border-radius: var(--r-full);
+              font-size: var(--text-caption); font-weight: var(--w-semi); letter-spacing: var(--tr-wide); }
+.duna-badge__dot { width: 5px; height: 5px; border-radius: 50%; }
+.duna-badge--neutral   { background: var(--surface-2); border: 1px solid var(--border); color: var(--ink-2); }
+.duna-badge--attention { background: var(--sol-soft); color: var(--sol-ink); }
+.duna-badge--attention .duna-badge__dot { background: var(--sol); }
+.duna-badge--ok        { background: var(--ok-soft); color: var(--ok-ink); }
+.duna-badge--ok .duna-badge__dot { background: var(--ok); }
+.duna-badge--problem   { background: var(--bad-soft); color: var(--bad-ink); }
+.duna-badge--problem .duna-badge__dot { background: var(--bad); }
+
+/* Canal = susurro de contexto, NUNCA categoría con color */
+.duna-chip-channel { display: inline-flex; align-items: center; gap: var(--space-inline);
+                     font-size: var(--text-caption); color: var(--muted); }
+.duna-chip-channel svg { width: 11px; height: 11px; stroke: currentColor; stroke-width: 1.8; fill: none; }
+
+/* Tag (categoría neutra) */
+.duna-tag { display: inline-flex; padding: var(--space-1) var(--space-3); border-radius: var(--r-full);
+            font-size: var(--text-caption); font-weight: var(--w-semi); background: var(--paper);
+            border: 1px solid var(--border); color: var(--ink-2); }
+[data-theme="dark"] .duna-tag { background: var(--surface-2); }
+
+/* ── Avatar ─────────────────────────────────────────────────────────────── */
+.duna-avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center;
+               justify-content: center; font-weight: var(--w-semi); font-size: var(--text-label);
+               background: var(--paper); border: 1px solid var(--border); color: var(--ink-2); flex-shrink: 0; }
+[data-theme="dark"] .duna-avatar { background: var(--surface-2); }
+
+/* ── Inputs / controles ─────────────────────────────────────────────────── */
+.duna-input { width: 100%; padding: var(--space-3); border: 1px solid var(--border-2); border-radius: var(--r-m);
+              background: var(--surface); color: var(--ink); font: inherit; font-size: var(--text-body); outline: none;
+              transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
+.duna-input:focus { border-color: var(--ink); box-shadow: var(--ring); }
+[data-theme="dark"] .duna-input:focus { border-color: var(--ink-2); }
+textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--lh-relaxed); }
+
+.duna-switch { width: 38px; height: 22px; border-radius: var(--r-full); background: var(--border-2);
+               position: relative; transition: background var(--dur) var(--ease); flex-shrink: 0; cursor: pointer; border: none; }
+.duna-switch__thumb { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+                      background: var(--surface); box-shadow: var(--shadow-1); transition: transform var(--dur) var(--ease); }
+.duna-switch.is-on { background: var(--ink); }
+.duna-switch.is-on .duna-switch__thumb { transform: translateX(16px); }
+
+.duna-stepper { display: inline-flex; align-items: center; border: 1px solid var(--border-2);
+                border-radius: var(--r-s); overflow: hidden; width: fit-content; }
+.duna-stepper button { padding: var(--space-2) var(--space-3); font-weight: var(--w-semi); color: var(--muted);
+                       background: none; border: none; cursor: pointer; }
+.duna-stepper button:hover { background: var(--surface-2); color: var(--ink); }
+.duna-stepper input { width: 60px; text-align: center; border: none; border-left: 1px solid var(--border);
+                      border-right: 1px solid var(--border); padding: var(--space-2) 0; background: transparent;
+                      outline: none; font-family: var(--font-display); font-weight: var(--w-semi); color: var(--ink); }
+
+/* Filtro (pill) */
+.duna-pill { padding: var(--space-1) var(--space-3); border-radius: var(--r-full); font-size: var(--text-label);
+             font-weight: var(--w-semi); color: var(--muted); border: 1px solid transparent; background: none; cursor: pointer; }
+.duna-pill:hover { color: var(--ink); }
+.duna-pill.is-on { background: var(--surface); border-color: var(--border-2); color: var(--ink); box-shadow: var(--shadow-1); }
+
+/* ── STEPS · el "en curso" es una POSICIÓN, con anillo del sol pulsante ──── */
+.duna-steps { display: flex; align-items: center; gap: var(--space-1); }
+.duna-steps__seg { height: 3px; border-radius: 2px; background: var(--border-2); flex: 1;
+                   transition: background var(--dur-theme) var(--ease); }
+.duna-steps__seg.is-done { background: var(--ink); }
+.duna-steps__seg.is-now  { background: var(--sol); }
+
+/* ── TIMELINE · recorrido; el punto "now" late ──────────────────────────── */
+.duna-tl { position: relative; padding-left: var(--space-6); }
+.duna-tl::before { content: ''; position: absolute; left: 5px; top: var(--space-2); bottom: var(--space-2);
+                   width: 0; border-left: 1.5px dashed var(--border-2); }
+.duna-tl__item { position: relative; padding: var(--space-2) 0; }
+.duna-tl__item::before { content: ''; position: absolute; left: calc(-1 * var(--space-6) + 3px); top: 12px;
+                         width: 9px; height: 9px; border-radius: 50%; background: var(--surface); border: 2px solid var(--faint); }
+.duna-tl__item.is-done::before { background: var(--ink); border-color: var(--ink); }
+.duna-tl__item.is-now::before  { background: var(--sol); border-color: var(--sol); }
+.duna-tl__t { font-weight: var(--w-semi); font-size: var(--text-body-sm); }
+.duna-tl__s { font-size: var(--text-caption); color: var(--muted); }
+
+/* Anillo del sol pulsante — se aplica a cualquier "punto ahora" del sol. */
+.duna-steps__seg.is-now,
+.duna-tl__item.is-now::before,
+.duna-sol-ring { animation: duna-pulse var(--dur-pulse) var(--ease) infinite; }
+@keyframes duna-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, .35); }
+  50%      { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0); }
+}
+
+/* ── Stat (cifra en prosa) ──────────────────────────────────────────────── */
+.duna-stat { padding: 0 var(--space-4); border-left: 1px solid var(--border); }
+.duna-stat:first-child { border-left: none; padding-left: 0; }
+.duna-stat__v { font-family: var(--font-display); font-size: var(--text-display-m); font-weight: var(--w-semi); letter-spacing: var(--tr-snug); }
+.duna-stat__l { font-size: var(--text-caption); color: var(--muted); margin-top: 1px; }
+.duna-stat__d { font-size: var(--text-caption); font-weight: var(--w-semi); margin-top: var(--space-hairline); }
+.duna-up   { color: var(--ok-ink); }
+.duna-down { color: var(--bad-ink); }
+
+/* ── Insight / note (hecho, no consejo) ─────────────────────────────────── */
+.duna-insight { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3);
+                border-radius: var(--r-m); background: var(--surface-2); border: 1px solid var(--border); }
+.duna-insight__ic { width: 24px; height: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+                    border-radius: 7px; background: var(--sol-soft); }
+.duna-insight__ic svg { width: 13px; height: 13px; stroke: var(--sol-ink); stroke-width: 2; fill: none; }
+.duna-insight p { font-size: var(--text-body-sm); color: var(--ink-2); line-height: var(--lh-body); }
+.duna-insight p b { color: var(--ink); }
+.duna-note { background: var(--sol-soft); border: 1px solid transparent; border-radius: var(--r-m);
+             padding: var(--space-3); font-size: var(--text-body-sm); color: var(--ink-2); }
+.duna-note .duna-mono { color: var(--sol-ink); }
+
+/* ── Stock meter (ok / low = sol / out = bad) ───────────────────────────── */
+.duna-stock-meter { height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.duna-stock-meter i { display: block; height: 100%; border-radius: 2px; background: var(--ink); }
+.duna-stock-meter.is-low i { background: var(--sol); }
+.duna-stock-meter.is-out i { background: var(--bad); }
+.duna-stock-txt.is-low { color: var(--sol-ink); font-weight: var(--w-semi); }
+.duna-stock-txt.is-out { color: var(--bad); font-weight: var(--w-semi); }
+
+/* ── Overlays (scrim compartido) ────────────────────────────────────────── */
+.duna-scrim { position: fixed; inset: 0; background: var(--scrim); backdrop-filter: blur(3px); }
+/* Toast · DOS tonos, ambos EFÍMEROS, y nada más. Es solo para RESULTADOS de una
+   acción: éxito o error, auto-descartable. NO hay toast de atención/sol — algo
+   que persiste y pide acción va a la bandeja "Necesita tu atención"
+   (.duna-att-item), no a un toast que se desvanece. El sol nunca marca éxito.
+
+   Superficie = --toast-surface: TINTA DE MARCA CONSTANTE, oscura en AMBOS temas
+   (no se voltea, a diferencia de btn-primary). El ESTADO lo hace el acento
+   (punto + borde izq) con --ok-on-ink / --bad-on-ink, no la superficie. En dark
+   un aro hairline la separa del fondo oscuro sin tocar el borde-izq de tono. */
+.duna-toast { background: var(--toast-surface); color: var(--toast-text); border-radius: var(--r-m);
+              border-left: 3px solid transparent;
+              padding: var(--space-3) var(--space-4); font-size: var(--text-label); font-weight: var(--w-medium);
+              box-shadow: var(--shadow-3); display: inline-flex; align-items: center; gap: var(--space-3); }
+[data-theme="dark"] .duna-toast { box-shadow: var(--shadow-3), 0 0 0 1px rgba(244,243,239,.10); }
+.duna-toast__dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.duna-toast--ok      { border-left-color: var(--ok-on-ink); }
+.duna-toast--ok  .duna-toast__dot      { background: var(--ok-on-ink); }
+.duna-toast--problem { border-left-color: var(--bad-on-ink); }
+.duna-toast--problem .duna-toast__dot  { background: var(--bad-on-ink); }
+
+/* Att-item · fila de la bandeja "Necesita tu atención". El CONTRAPUNTO del toast:
+   persiste, pide acción y por eso SÍ lleva el punto sol (atención). El punto
+   `.is-calm` (faint) es para lo informativo que no pide nada. Aquí el sol es
+   correcto justamente porque no es efímero. */
+.duna-att-item { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) 0;
+                 border-bottom: 1px solid var(--border); cursor: pointer;
+                 transition: padding-left var(--dur-fast) var(--ease); }
+.duna-att-item:last-child { border-bottom: none; }
+.duna-att-item:hover { padding-left: var(--space-1); }
+.duna-att-item__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sol); margin-top: 6px; flex-shrink: 0; }
+.duna-att-item__dot.is-calm { background: var(--faint); }
+.duna-att-item__body { flex: 1; min-width: 0; }
+.duna-att-item__title { font-weight: var(--w-semi); font-size: var(--text-body-sm); }
+.duna-att-item__sub { color: var(--muted); font-size: var(--text-caption); margin-top: 1px; }
+.duna-att-item__cta { color: var(--muted); font-size: var(--text-caption); font-weight: var(--w-semi); white-space: nowrap; margin-top: var(--space-hairline); }
+.duna-att-item:hover .duna-att-item__cta { color: var(--ink); }
+
+/* ── Reduced motion: el movimiento confirma, no obliga ──────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .duna *, .duna *::before, .duna *::after,
+  .duna-steps__seg.is-now, .duna-tl__item.is-now::before, .duna-sol-ring {
+    animation-duration: .01ms !important; transition-duration: .01ms !important;
+  }
+}

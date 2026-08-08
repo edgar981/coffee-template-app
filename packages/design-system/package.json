@@ -1,0 +1,20 @@
+{
+  "name": "@duna/design-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sistema de diseño Duna OS — tokens y primitivas. Agnóstico de tenant y de negocio.",
+  "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "exports": {
+    "./tokens.css": "./tokens/tokens.css",
+    "./theme.css": "./tokens/theme.css",
+    "./primitives.css": "./primitives/primitives.css",
+    "./status": "./primitives/status.ts"
+  },
+  "files": [
+    "tokens",
+    "primitives"
+  ]
+}

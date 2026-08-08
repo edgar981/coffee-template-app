@@ -1,0 +1,74 @@
+/* =============================================================================
+   PUENTE TAILWIND v4 — expone los tokens de Duna como theme de Tailwind.
+   El admin importa este archivo (después de tokens.css) y obtiene utilidades
+   `bg-surface`, `text-ink`, `text-display-m`, `p-5`, `rounded-l`, etc. que
+   apuntan a las MISMAS variables. No duplica valores: los referencia.
+
+   Uso en el consumidor (Tailwind v4, CSS-first):
+     @import "@duna/design-system/tokens/tokens.css";
+     @import "@duna/design-system/tokens/theme.css";
+   ========================================================================== */
+
+@theme inline {
+  /* Color → utilidades bg-*/text-*/border-* */
+  --color-paper:     var(--paper);
+  --color-bg:        var(--bg);
+  --color-surface:   var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink:       var(--ink);
+  --color-ink-2:     var(--ink-2);
+  --color-muted:     var(--muted);
+  --color-faint:     var(--faint);
+  --color-border:    var(--border);
+  --color-border-2:  var(--border-2);
+
+  --color-sol:      var(--sol);
+  --color-sol-ink:  var(--sol-ink);
+  --color-ok:       var(--ok);
+  --color-ok-ink:   var(--ok-ink);
+  --color-bad:      var(--bad);
+  --color-bad-ink:  var(--bad-ink);
+
+  /* Tipografía → text-* (utilidad de tamaño) + font-* (familia) */
+  --font-display: var(--font-display);
+  --font-ui:      var(--font-ui);
+  --font-mono:    var(--font-mono);
+
+  --text-display-xl: var(--text-display-xl);
+  --text-display-l:  var(--text-display-l);
+  --text-display-m:  var(--text-display-m);
+  --text-title:      var(--text-title);
+  --text-heading:    var(--text-heading);
+  --text-body:       var(--text-body);
+  --text-body-sm:    var(--text-body-sm);
+  --text-label:      var(--text-label);
+  --text-caption:    var(--text-caption);
+
+  /* Espaciado → p-*, m-*, gap-* (los nombres coinciden con la escala Duna) */
+  --spacing-hairline: var(--space-hairline);
+  --spacing-inline:   var(--space-inline);
+  --spacing-1:  var(--space-1);
+  --spacing-2:  var(--space-2);
+  --spacing-3:  var(--space-3);
+  --spacing-4:  var(--space-4);
+  --spacing-5:  var(--space-5);
+  --spacing-6:  var(--space-6);
+  --spacing-8:  var(--space-8);
+  --spacing-12: var(--space-12);
+  --spacing-16: var(--space-16);
+
+  /* Radios → rounded-* */
+  --radius-s:    var(--r-s);
+  --radius-m:    var(--r-m);
+  --radius-l:    var(--r-l);
+  --radius-xl:   var(--r-xl);
+  --radius-full: var(--r-full);
+
+  /* Sombras → shadow-* */
+  --shadow-1: var(--shadow-1);
+  --shadow-2: var(--shadow-2);
+  --shadow-3: var(--shadow-3);
+
+  /* Easing → ease-duna */
+  --ease-duna: var(--ease);
+}

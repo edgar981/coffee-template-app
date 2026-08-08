@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Duna · Sistema de diseño (prueba viva)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./tokens/tokens.css">
+<link rel="stylesheet" href="./primitives/primitives.css">
+<style>
+  /* Solo layout de ESTA página de referencia — no es parte del sistema. */
+  body { background: var(--bg); margin: 0; transition: background var(--dur-theme) var(--ease), color var(--dur-theme) var(--ease); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: var(--space-8); }
+  .topline { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-8); }
+  section { margin-bottom: var(--space-12); }
+  h2.sec { font-family: var(--font-display); font-weight: 500; font-size: var(--text-title); margin: 0 0 var(--space-2); }
+  .sec-note { color: var(--muted); font-size: var(--text-body-sm); max-width: 620px; margin: 0 0 var(--space-5); }
+  .grid { display: grid; gap: var(--space-3); }
+  .swatches { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .swatch { border-radius: var(--r-m); border: 1px solid var(--border); overflow: hidden; background: var(--surface); }
+  .swatch .c { height: 60px; }
+  .swatch .i { padding: var(--space-2) var(--space-3); }
+  .row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+  .rule { display: flex; align-items: baseline; gap: var(--space-5); padding: var(--space-3) 0; border-bottom: 1px solid var(--border); }
+  .rule .spec { width: 260px; flex-shrink: 0; color: var(--muted); font-size: var(--text-caption); }
+  .sp-demo { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-2) 0; border-bottom: 1px solid var(--border); font-size: var(--text-caption); color: var(--muted); }
+  .sp-bar { background: var(--sol); height: 14px; border-radius: 3px; }
+  .card-demo { padding: var(--space-5); }
+  .flag { border-left: 3px solid var(--sol); background: var(--sol-soft); padding: var(--space-3) var(--space-4); border-radius: 0 var(--r-m) var(--r-m) 0; font-size: var(--text-body-sm); color: var(--ink-2); }
+  code { font-family: var(--font-mono); font-size: var(--text-caption); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body class="duna">
+<div class="wrap">
+
+  <div class="topline">
+    <div>
+      <div class="duna-eyebrow">Duna</div>
+      <h1 class="duna-display-m">Sistema de diseño · prueba viva</h1>
+      <p class="sec-note" style="margin-top:4px">Todo se deriva del logo: tinta, papel y sol. El sol significa una sola cosa — <b style="color:var(--ink)">esto necesita tu atención ahora</b> — y nunca es decoración. Agnóstico de tenant y de negocio.</p>
+    </div>
+    <button class="duna-btn duna-btn--secondary" id="themeBtn">Modo oscuro</button>
+  </div>
+
+  <!-- COLOR -->
+  <section>
+    <h2 class="sec">Color · roles</h2>
+    <p class="sec-note">Seis roles + neutrales. Estado (sol/ok/bad) lleva su tinte <code>-soft</code> y su texto legible <code>-ink</code> (AA). No hay rol "en curso"/azul: eso no es un color.</p>
+    <div class="grid swatches">
+      <div class="swatch"><div class="c" style="background:var(--ink)"></div><div class="i"><div class="duna-label">Tinta · primario</div><div class="duna-mono">--ink #141311</div></div></div>
+      <div class="swatch"><div class="c" style="background:var(--paper)"></div><div class="i"><div class="duna-label">Papel</div><div class="duna-mono">--paper</div></div></div>
+      <div class="swatch"><div class="c" style="background:var(--sol)"></div><div class="i"><div class="duna-label">Sol · atención</div><div class="duna-mono">--sol #F59E0B</div></div></div>
+      <div class="swatch"><div class="c" style="background:var(--muted)"></div><div class="i"><div class="duna-label">Arena · secundario</div><div class="duna-mono">--muted</div></div></div>
+      <div class="swatch"><div class="c" style="background:var(--ok)"></div><div class="i"><div class="duna-label">Confirmado</div><div class="duna-mono">--ok / --ok-ink</div></div></div>
+      <div class="swatch"><div class="c" style="background:var(--bad)"></div><div class="i"><div class="duna-label">Problema</div><div class="duna-mono">--bad / --bad-ink</div></div></div>
+    </div>
+  </section>
+
+  <!-- TIPOGRAFÍA -->
+  <section>
+    <h2 class="sec">Tipografía · 9 niveles</h2>
+    <p class="sec-note">Space Grotesk (display + cifras) · Hanken Grotesk (UI) · Spline Sans Mono (datos). El 9º nivel <b style="color:var(--ink)">title (19)</b> se agregó tras validar el detalle de orden: separa el sujeto de la pantalla de sus subtítulos.</p>
+    <div class="rule"><div class="spec">display-xl · 32px · Grotesk 600</div><div class="duna-display-xl duna-num">$ 1.284.500</div></div>
+    <div class="rule"><div class="spec">display-l · 26px · nombre de producto</div><div class="duna-display-l">Café Huila 500 g</div></div>
+    <div class="rule"><div class="spec">display-m · 22px · título de página, cifras</div><div class="duna-display-m">Analítica</div></div>
+    <div class="rule"><div class="spec">title · 19px · sujeto de superficie</div><div class="duna-title">Laura Cárdenas</div></div>
+    <div class="rule"><div class="spec">heading · 17px · sección en flujo</div><div class="duna-heading">Recorrido del pedido</div></div>
+    <div class="rule"><div class="spec">body · 14px · cuerpo</div><div class="duna-body">El pedido está listo para confirmar.</div></div>
+    <div class="rule"><div class="spec">body-sm · 13px · secundario</div><div class="duna-body-sm">Pide casi todos los jueves.</div></div>
+    <div class="rule"><div class="spec">label · 12px · controles, badges</div><div class="duna-label">Confirmar pedido</div></div>
+    <div class="rule"><div class="spec">caption · 11px · eyebrow, meta</div><div class="duna-mono">PED-1247 · NEQUI-88213</div></div>
+  </section>
+
+  <!-- ESPACIADO -->
+  <section>
+    <h2 class="sec">Espaciado · base 4px</h2>
+    <p class="sec-note"><code>hairline 2px</code> y <code>inline 6px</code> son excepciones nombradas. El <code>inline</code> es SOLO para adyacencia ícono/label. El 10px de listas plegó a <b style="color:var(--ink)">8</b> (densidad sobre aire).</p>
+    <div class="sp-demo"><div class="sp-bar" style="width:2px"></div><span>hairline · 2px · marcadores, viaje del switch</span></div>
+    <div class="sp-demo"><div class="sp-bar" style="width:6px"></div><span>inline · 6px · gap ícono/label</span></div>
+    <div class="sp-demo"><div class="sp-bar" style="width:4px"></div><span>1 · 4px</span></div>
+    <div class="sp-demo"><div class="sp-bar" style="width:8px"></div><span>2 · 8px ← absorbió el 10 de listas</span></div>
+    <div class="sp-demo"><div class="sp-bar" style="width:12px"></div><span>3 · 12px ← controles (14→12)</span></div>
+    <div class="sp-demo"><div class="sp-bar" style="width:16px"></div><span>4 · 16px ← tarjeta (14→16)</span></div>
+    <div class="sp-demo"><div class="sp-bar" style="width:20px"></div><span>5 · 20px · card-pad</span></div>
+    <div class="sp-demo"><div class="sp-bar" style="width:24px"></div><span>6 · 24px</span></div>
+    <div class="sp-demo"><div class="sp-bar" style="width:32px"></div><span>8 · 32px · padding de contenido</span></div>
+  </section>
+
+  <!-- BOTONES -->
+  <section>
+    <h2 class="sec">Botones · un solo primario (tinta) por vista</h2>
+    <div class="row">
+      <button class="duna-btn duna-btn--primary">Confirmar pedido</button>
+      <button class="duna-btn duna-btn--secondary">Ver detalle</button>
+      <button class="duna-btn duna-btn--ghost">Cancelar</button>
+      <button class="duna-btn duna-btn--primary duna-btn--sm">Guardar</button>
+      <button class="duna-btn duna-btn--secondary duna-btn--sm">Filtrar</button>
+    </div>
+  </section>
+
+  <!-- ESTADOS -->
+  <section>
+    <h2 class="sec">Estados · semáforo de reposo (sin azul)</h2>
+    <div class="row">
+      <span class="duna-badge duna-badge--attention"><span class="duna-badge__dot"></span>Necesita atención</span>
+      <span class="duna-badge duna-badge--neutral">Preparando</span>
+      <span class="duna-badge duna-badge--ok"><span class="duna-badge__dot"></span>Pagado</span>
+      <span class="duna-badge duna-badge--problem"><span class="duna-badge__dot"></span>Pago fallido</span>
+      <span class="duna-chip-channel"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.3 8.6 8.6 0 0 1-3.9-.9L3 21l2.2-5.3a8.2 8.2 0 0 1-1.2-4.2A8.4 8.4 0 0 1 12.5 3a8.4 8.4 0 0 1 8.5 8.5z"/></svg>WhatsApp</span>
+      <span class="duna-tag">Café de origen</span>
+    </div>
+  </section>
+
+  <!-- EN CURSO = IMPOSIBILIDAD ESTRUCTURAL -->
+  <section>
+    <h2 class="sec">"En curso" es una posición, no un color</h2>
+    <p class="sec-note">La regla es imposible de romper por tipos (<code>primitives/status.ts</code>): no existe un tono "en curso" que pasarle a un badge. La única forma de decir "va en camino" es mostrar el camino.</p>
+    <div class="duna-card card-demo" style="max-width:460px">
+      <div class="duna-steps" style="margin-bottom:var(--space-2)">
+        <span class="duna-steps__seg is-done"></span>
+        <span class="duna-steps__seg is-done"></span>
+        <span class="duna-steps__seg is-now"></span>
+        <span class="duna-steps__seg"></span>
+        <span class="duna-steps__seg"></span>
+      </div>
+      <div class="duna-body-sm">Recibido → Confirmado → <b style="color:var(--sol-ink)">Preparando</b> → En camino → Entregado</div>
+    </div>
+    <div class="flag" style="margin-top:var(--space-4)">El segmento actual lleva el anillo del sol <b>pulsando</b>. Con <code>prefers-reduced-motion</code> queda quieto.</div>
+  </section>
+
+  <!-- TIMELINE -->
+  <section>
+    <h2 class="sec">Recorrido (timeline)</h2>
+    <div class="duna-card card-demo" style="max-width:460px">
+      <div class="duna-tl">
+        <div class="duna-tl__item is-now"><div class="duna-tl__t">En camino con el mensajero</div><div class="duna-tl__s">Hoy, 2:20 p.m.</div></div>
+        <div class="duna-tl__item is-done"><div class="duna-tl__t">Preparado y empacado</div><div class="duna-tl__s">Hoy, 1:50 p.m.</div></div>
+        <div class="duna-tl__item is-done"><div class="duna-tl__t">Confirmado</div><div class="duna-tl__s">Hoy, 1:32 p.m.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS + INSIGHT -->
+  <section>
+    <h2 class="sec">Cifras en prosa · insight (hecho, no consejo)</h2>
+    <div class="duna-card card-demo">
+      <div class="row" style="gap:0; border-bottom:1px solid var(--border); padding-bottom:var(--space-4); margin-bottom:var(--space-4)">
+        <div class="duna-stat"><div class="duna-stat__v duna-num">$ 55.850</div><div class="duna-stat__l">Ticket promedio</div><div class="duna-stat__d duna-up">▲ 6 % vs. semana pasada</div></div>
+        <div class="duna-stat"><div class="duna-stat__v duna-num">14 / 23</div><div class="duna-stat__l">Pedidos por WhatsApp</div></div>
+        <div class="duna-stat"><div class="duna-stat__v duna-num">78 %</div><div class="duna-stat__l">Conversación → pedido</div><div class="duna-stat__d duna-up">▲ 11 puntos</div></div>
+      </div>
+      <div class="duna-insight">
+        <span class="duna-insight__ic"><svg viewBox="0 0 24 24"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></span>
+        <p><b>El combo sube el ticket.</b> Los pedidos con Combo Desayuno valen $ 24.000 más en promedio.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTROLES + STOCK -->
+  <section>
+    <h2 class="sec">Controles · inventario</h2>
+    <div class="row" style="align-items:flex-start">
+      <input class="duna-input" style="width:240px" placeholder="Buscar un producto…">
+      <button class="duna-switch is-on" id="sw"><span class="duna-switch__thumb"></span></button>
+      <div class="duna-stepper"><button>−</button><input value="6"><button>+</button></div>
+      <div style="width:180px">
+        <span class="duna-stock-txt is-low duna-caption">6 bolsas · por reponer</span>
+        <div class="duna-stock-meter is-low" style="margin-top:4px"><i style="width:20%"></i></div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:var(--space-4)">
+      <button class="duna-pill is-on">Todos <span class="duna-num">12</span></button>
+      <button class="duna-pill">Por reponer <span class="duna-num">2</span></button>
+      <button class="duna-pill">Agotados <span class="duna-num">1</span></button>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec">La frontera · efímero vs persistente</h2>
+    <p class="sec-note">La misma señal de estado vive en dos sitios según su DURACIÓN. El resultado de una acción se desvanece; la atención que pide acción se queda hasta resolverse. El sol solo aparece en el segundo.</p>
+    <div class="grid" style="grid-template-columns:1fr 1fr; align-items:start; gap:var(--space-5)">
+
+      <div>
+        <div class="duna-eyebrow" style="margin-bottom:var(--space-3)">Resultado de una acción → TOAST</div>
+        <div class="row" style="flex-direction:column; align-items:stretch; gap:var(--space-3)">
+          <span class="duna-toast duna-toast--ok"><span class="duna-toast__dot"></span>Pedido #1247 confirmado.</span>
+          <span class="duna-toast duna-toast--problem"><span class="duna-toast__dot"></span>No se pudo verificar el pago.</span>
+        </div>
+        <div class="flag" style="margin-top:var(--space-3)">Superficie tinta CONSTANTE (oscura en ambos temas). El estado lo hace el acento <code>--ok-on-ink</code>/<code>--bad-on-ink</code>, nunca el sol. Auto-descartable.</div>
+      </div>
+
+      <div>
+        <div class="duna-eyebrow" style="margin-bottom:var(--space-3)">Atención persistente → BANDEJA</div>
+        <div class="duna-card" style="padding:var(--space-3) var(--space-5)">
+          <div class="duna-att-item">
+            <span class="duna-att-item__dot"></span>
+            <div class="duna-att-item__body">
+              <div class="duna-att-item__title">Laura Cárdenas espera confirmación hace 42 min</div>
+              <div class="duna-att-item__sub">Pedido #1247 · $ 86.500 · pagó por Nequi</div>
+            </div>
+            <span class="duna-att-item__cta">Confirmar →</span>
+          </div>
+          <div class="duna-att-item">
+            <span class="duna-att-item__dot is-calm"></span>
+            <div class="duna-att-item__body">
+              <div class="duna-att-item__title">2 conversaciones resueltas por el asistente</div>
+              <div class="duna-att-item__sub">No requieren nada de ti.</div>
+            </div>
+            <span class="duna-att-item__cta">Ver →</span>
+          </div>
+        </div>
+        <div class="flag" style="margin-top:var(--space-3)">Aquí el punto sol <b>SÍ</b> es correcto: persiste y pide acción. El punto apagado (<code>is-calm</code>) es lo informativo que no pide nada.</div>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+<script>
+  const btn = document.getElementById('themeBtn');
+  btn.addEventListener('click', () => {
+    const el = document.documentElement;
+    const dark = el.dataset.theme === 'dark';
+    el.dataset.theme = dark ? 'light' : 'dark';
+    btn.textContent = dark ? 'Modo oscuro' : 'Modo claro';
+  });
+  document.getElementById('sw').addEventListener('click', e => e.currentTarget.classList.toggle('is-on'));
+</script>
+</body>
+</html>
