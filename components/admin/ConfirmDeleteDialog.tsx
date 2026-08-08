@@ -69,6 +69,14 @@ interface ConfirmDeleteDialogProps {
    * destruye. Los demás call sites no pasan el prop y quedan idénticos.
    */
   confirmKind?: 'destructive' | 'default';
+  /**
+   * Texto intermedio mientras la acción viaja. Por defecto se deriva de
+   * `confirmKind` ("Eliminando…" / "`confirmLabel`…"). Se pasa cuando una acción
+   * destructive NO es un borrado: cancelar una orden es rojo por severidad
+   * —anula el envío, reintegra stock, es terminal— pero "Eliminando…" mentiría
+   * (el registro se conserva). Ahí va `busyLabel="Cancelando…"`.
+   */
+  busyLabel?: string;
 }
 
 export function ConfirmDeleteDialog({
@@ -82,12 +90,14 @@ export function ConfirmDeleteDialog({
   successMessage,
   secondaryAction,
   confirmKind = 'destructive',
+  busyLabel: busyLabelProp,
 }: ConfirmDeleteDialogProps) {
   // El texto intermedio y el error de respaldo salen de la naturaleza de la
   // acción: "Eliminando…" sobre una activación sería una mentira en el momento
-  // exacto en que el operador está mirando el botón para saber qué pasa.
+  // exacto en que el operador está mirando el botón para saber qué pasa. Un
+  // `busyLabel` explícito gana: cubre el rojo-que-no-borra (cancelar una orden).
   const destructiva = confirmKind === 'destructive';
-  const busyLabel   = destructiva ? 'Eliminando…' : `${confirmLabel}…`;
+  const busyLabel   = busyLabelProp ?? (destructiva ? 'Eliminando…' : `${confirmLabel}…`);
   const errorLabel  = destructiva
     ? 'No se pudo completar la eliminación'
     : 'No se pudo completar la acción';

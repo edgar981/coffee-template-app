@@ -69,6 +69,34 @@ export class CondicionPagoLockedError extends Error {
   }
 }
 
+// ─── El eje de COBRO no se escribe crudo por HTTP ────────────────────────────
+//
+// `Order.estado` tiene DOS ejes: COBRO (pagado/pendiente) y CANCELACIÓN
+// (cancelado). El de cobro NO es libre — es consecuencia de que exista (o no) un
+// Payment en la otra tabla. Su ÚNICO escritor es el path de dinero
+// (`registerOrderPaymentTx` → `transitionOrder`, en la MISMA transacción que crea
+// el Payment). Ninguna puerta HTTP puede ponerlo crudo: un dropdown que escribía
+// `pagado` sin Payment fabricaba plata fantasma, y revertirlo a `pendiente` dejaba
+// el Payment vivo. Esta guarda cierra las DOS direcciones por IMPOSIBILIDAD, no
+// por disciplina de callers. `registerOrderPaymentTx` llama a `transitionOrder`
+// DIRECTO —no por HTTP— así que no pasa por aquí: por eso el path de dinero sigue
+// pudiendo poner `pagado`. `cancelado` no es cobro y pasa (§ Cancelar más abajo).
+const ESTADOS_COBRO = new Set<string>(['pagado', 'pendiente']);
+
+export class CobroEstadoNoEscribibleError extends Error {
+  constructor() {
+    super('El estado de cobro no se escribe a mano: "pagado" solo lo crea un pago registrado y "pendiente" es su reverso. Usa "Registrar pago" (o la anulación del pago).');
+    this.name = 'CobroEstadoNoEscribibleError';
+  }
+}
+
+// Rechaza un `estado` del eje de cobro llegado por una ruta HTTP. `cancelado` y
+// `undefined`/`null` (no se toca / default del alta) pasan. La corren las DOS
+// puertas HTTP a `Order.estado`: el PATCH de orden y `createOrderWithCustomer`.
+export function assertEstadoNoEsCobro(estado: string | null | undefined): void {
+  if (estado != null && ESTADOS_COBRO.has(estado)) throw new CobroEstadoNoEscribibleError();
+}
+
 // THE single write path for Order.estado. Updates the order and runs the
 // state-driven fulfillment side effects — auto-create the Shipping in
 // `preparando` on `pagado`, void it on `cancelado` — inside the SAME transaction
@@ -334,6 +362,13 @@ export async function rankPhoneMatches(
 // and per-line price/molienda. A `pagado` order (the admin can create one
 // directly) auto-creates its Shipping via the same hook the status path uses.
 export async function createOrderWithCustomer(input: CreateOrderInput) {
+  // El eje de cobro no se acepta crudo ni en el alta: una orden NACE `pendiente`
+  // y el único camino a `pagado` es `immediatePayment` (que va por el path de
+  // Payment). Guarda en el BORDE de la función, no en la ruta, para que cubra a
+  // todo caller — el de hoy no manda `estado`, pero la garantía es por
+  // imposibilidad. `cancelado`/`undefined` pasan.
+  assertEstadoNoEsCobro(input.estado);
+
   const clienteIdOverride = input.cliente_id?.trim() || null;
   const forzarNuevo = input.forzarClienteNuevo === true && !clienteIdOverride;
   const email = input.customer.email?.trim() || null;
