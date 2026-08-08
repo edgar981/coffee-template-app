@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
-import { transitionOrder, CondicionPagoLockedError, type OrderTransitionData } from '@/lib/orders';
+import { transitionOrder, CondicionPagoLockedError, CobroEstadoNoEscribibleError, assertEstadoNoEsCobro, type OrderTransitionData } from '@/lib/orders';
 import { runEventAutomations } from '@/lib/automations/engine';
 
 export async function PATCH(
@@ -15,6 +15,19 @@ export async function PATCH(
 
   const { id } = await params;
   const body   = await req.json();
+
+  // El eje de COBRO no se escribe por esta ruta: `pagado` solo lo pone el path de
+  // Payment y `pendiente` su reverso con asiento. Solo `cancelado` (y no tocar
+  // estado) pasan por acá. Rechazo temprano → 422, ANTES de abrir transacción.
+  // Cierra las dos direcciones del bug de plata fantasma por imposibilidad.
+  try {
+    assertEstadoNoEsCobro(body.estado);
+  } catch (error) {
+    if (error instanceof CobroEstadoNoEscribibleError) {
+      return NextResponse.json({ error: error.message }, { status: 422 });
+    }
+    throw error;
+  }
 
   // Whitelist the mutable fields. `condicion_pago` is NEVER accepted raw — it is
   // derived from `metodoPagoPrevisto` inside transitionOrder (a value sent in the

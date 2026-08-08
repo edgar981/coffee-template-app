@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { z } from 'zod';
-import { Plus, Search, ShoppingCart, Truck, CreditCard, X, CheckCircle, AlertCircle, RotateCcw, Pencil } from 'lucide-react';
+import { Plus, Search, ShoppingCart, Truck, CreditCard, X, CheckCircle, AlertCircle, RotateCcw, Pencil, Ban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -51,8 +51,25 @@ import { METODOS_PAGO, METODO_PAGO_LABEL, metodoPrevistoLabel } from '@/types/pa
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-// Order status is payment-only now. Fulfillment lives on Shipping.
+// Order status is payment-only now. Fulfillment lives on Shipping. `pendiente`/
+// `pagado` (el eje de COBRO) NO se escriben desde ningún control: se derivan del
+// Payment (§ el estado de cobro lo escribe SOLO el path de pago). Estos valores
+// siguen usándose para LEER — filtros, tabs, StatusBadge —, nunca para escribir.
 const ESTADOS: OrderStatus[] = ['pendiente', 'pagado', 'cancelado'];
+
+// Copy ÚNICO de "Cancelar orden", compartido por la acción de fila y la del
+// detalle para que las dos digan exactamente lo mismo (una sola fuente evita que
+// diverjan). `cancelado` es la otra cara de `Order.estado` —la de CANCELACIÓN, no
+// cobro— y sí es una transición legítima que el server acepta.
+// Qué le pasa al Payment al cancelar: NADA — `transitionOrder` anula el envío y
+// reintegra el stock despachado, pero no toca el pago. La decisión de negocio de
+// "pagos sobre canceladas" es una conversación aparte (pendiente con Luis); acá
+// solo se conserva y se declara el comportamiento actual.
+const CANCELAR_ORDEN_COPY = {
+  title:        'Cancelar orden',
+  consequence:  'La orden se marca como CANCELADA (no se elimina: es un registro auditable). Si tiene un envío, se anula y el stock ya despachado se reintegra. Un pago registrado, si lo hubiera, NO se modifica aquí.',
+  confirmLabel: 'Cancelar orden',
+} as const;
 
 const CANALES: OrderChannel[] = ['whatsapp', 'instagram', 'directo', 'referido'];
 
@@ -176,6 +193,10 @@ function Ordenes() {
   const [scheduleOrder, setScheduleOrder] = useState<Order | null>(null);
   // Order whose payment is being registered (opens the pre-filled modal).
   const [paymentOrder, setPaymentOrder]   = useState<Order | null>(null);
+  // Orden que se está por CANCELAR (abre el confirm compartido). Reemplaza al
+  // viejo dropdown de estado de la fila: cancelar es la única transición que ese
+  // control escribía de verdad (cobro dejó de escribirse a mano).
+  const [cancelando, setCancelando]       = useState<Order | null>(null);
   // Guarda de envío de Nueva Orden, en la primitiva compartida. `idemKeyRef`
   // sigue aparte porque resuelve otra cosa: mantiene UNA clave de idempotencia
   // por formulario abierto, así que si dos peticiones se escaparan igual, el
@@ -417,22 +438,20 @@ function Ordenes() {
     }
   });
 
-  // Guardas POR FILA y no globales: el operador cambia estados y prepara envíos
-  // de varias órdenes seguidas, y bloquear la tabla entera convertiría la guarda
-  // en una traba — que es justo el roce que hace que la gente vuelva a clickear.
-  // Dos instancias separadas para que cambiar el estado de una fila no bloquee
-  // "Programar entrega" de esa misma fila: son acciones distintas.
-  const filasEstado  = useAccionesPorFila();
+  // Guarda POR FILA y no global: el operador prepara envíos de varias órdenes
+  // seguidas, y bloquear la tabla entera convertiría la guarda en una traba — que
+  // es justo el roce que hace que la gente vuelva a clickear. (Cancelar tiene su
+  // propia guarda dentro del ConfirmDeleteDialog, así que no necesita una fila.)
   const filasPrepara = useAccionesPorFila();
 
-  const handleUpdateStatus = (id: string, estado: OrderStatus) =>
-    filasEstado.ejecutar(id, async () => {
-      // Same single write path as the modal: the response includes the (possibly
-      // just auto-created) shipping, so "Programar entrega" appears immediately.
-      const updated = await updateOrder(id, { estado });
-      setOrders(prev => prev.map(o => o.id === id ? updated : o));
-      toast.success(`Estado actualizado: ${estado}`);
-    });
+  // Cancelar es lo ÚNICO que la fila escribe sobre `Order.estado` ahora. `estado:
+  // 'cancelado'` es la única transición que el PATCH acepta (el eje de cobro lo
+  // rechaza server-side → 422). Lanza si el server rechaza: el confirm queda
+  // abierto y muestra el motivo inline (su contrato).
+  const handleCancelar = async (id: string) => {
+    const updated = await updateOrder(id, { estado: 'cancelado' });
+    setOrders(prev => prev.map(o => o.id === id ? updated : o));
+  };
 
   const handleOrderUpdate = (updated: Order) => {
     setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
@@ -690,16 +709,11 @@ function Ordenes() {
                     </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
-                        <Select value={o.estado} onValueChange={v => handleUpdateStatus(o.id, v as OrderStatus)} disabled={filasEstado.enVuelo(o.id)}>
-                          <SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {ESTADOS.map(e => (
-                              <SelectItem key={e} value={e} className="text-xs capitalize">{e}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
                         {/* Registrar pago — solo para órdenes pendientes de pago.
-                            Confirma pago + pasa a Pagado + crea la entrega. */}
+                            Confirma pago + pasa a Pagado + crea la entrega. Es EL
+                            único camino a `pagado`: el viejo dropdown de estado ya
+                            no está (escribía cobro a mano y fabricaba plata
+                            fantasma). */}
                         {o.estado === 'pendiente' && (
                           <Button
                             variant="outline" size="sm" className="h-7 gap-1 text-xs whitespace-nowrap"
@@ -714,6 +728,19 @@ function Ordenes() {
                           preparando={filasPrepara.enVuelo(o.id)}
                           onProgramar={() => openSchedule(o)}
                         />
+                        {/* Cancelar — la única transición de estado que la fila
+                            escribe ahora, tras un confirm. Solo si NO está ya
+                            cancelada (nada que cancelar). `destructiveGhost`: tinte
+                            rojo suave, no sólido — es de fila, no la acción
+                            principal de la vista (Amber Minimal). */}
+                        {o.estado !== 'cancelado' && (
+                          <Button
+                            variant="destructiveGhost" size="sm" className="h-7 gap-1 text-xs whitespace-nowrap"
+                            onClick={() => setCancelando(o)}
+                          >
+                            <Ban className="w-3.5 h-3.5" /> Cancelar
+                          </Button>
+                        )}
                         {/* Terciario y al final: la fila entera ya abre el detalle
                             y el número se lee como link, pero ninguna de las dos
                             cosas se ANUNCIA. La redundancia ES la señal — un
@@ -773,6 +800,29 @@ function Ordenes() {
           del detalle, tercera montura. */}
       <ConfirmDespachoSinPago {...transicionFila.confirmacion} />
 
+      {/* Cancelar orden — UN solo confirm para la fila Y el detalle (el detalle
+          dispara `onCancelar` → `setCancelando(order)`). `handleCancelar` escribe
+          `estado: 'cancelado'` y actualiza `orders`; como el detalle deriva su
+          orden de esa lista, se refresca solo a "Cancelada" sin cerrarse. Rojo por
+          severidad (terminal, anula envío, reintegra stock) con `busyLabel` propio
+          porque NO borra. Lanza si el server rechaza: el confirm queda abierto con
+          el motivo inline. */}
+      <ConfirmDeleteDialog
+        open={!!cancelando}
+        onOpenChange={(abierto) => { if (!abierto) setCancelando(null); }}
+        title={CANCELAR_ORDEN_COPY.title}
+        entityLabel={cancelando ? `Orden ${cancelando.numero_orden}${cancelando.cliente_nombre ? ` · ${cancelando.cliente_nombre}` : ''}` : ''}
+        consequence={CANCELAR_ORDEN_COPY.consequence}
+        confirmLabel={CANCELAR_ORDEN_COPY.confirmLabel}
+        busyLabel="Cancelando…"
+        successMessage="Orden cancelada"
+        onConfirm={async () => {
+          if (!cancelando) return;
+          await handleCancelar(cancelando.id);
+          setCancelando(null);
+        }}
+      />
+
       {/* Order Detail Dialog */}
       {/* `onOpenChange` recibe el estado NUEVO. `closeDetail` lo ignoraba y
           cerraba siempre, así que cualquier `onOpenChange(true)` habría borrado
@@ -796,6 +846,7 @@ function Ordenes() {
               order={selected}
               onClose={closeDetail}
               onUpdate={handleOrderUpdate}
+              onCancelar={() => setCancelando(selected)}
               comprobantes={controlComprobantes}
             />
           )}
@@ -1261,16 +1312,18 @@ interface OrderDetailProps {
   order:        Order;
   onClose:      () => void;
   onUpdate:     (updated: Order) => void;
+  // Abre el confirm de cancelación (owned por la página, uno solo para fila y
+  // detalle). El detalle no muta el estado por su cuenta: cobro ya no se escribe y
+  // cancelar pasa por el mismo confirm que la fila.
+  onCancelar:   () => void;
   comprobantes: ControlComprobantes;
 }
 
-function OrderDetail({ order, onClose, onUpdate, comprobantes: control }: OrderDetailProps) {
-  // Estado del Select: la orden MANDA salvo que el operador haya elegido otra
-  // cosa en esta sesión. No es un `useState(order.estado)` porque el detalle ya
-  // no se cierra al registrar un pago: con una copia congelada, "Guardar
-  // Cambios" después de cobrar reenviaría `pendiente` y revertiría el pago.
-  const [estadoElegido, setEstadoElegido] = useState<OrderStatus | null>(null);
-  const estado = estadoElegido ?? order.estado;
+function OrderDetail({ order, onClose, onUpdate, onCancelar, comprobantes: control }: OrderDetailProps) {
+  // Solo notas. El estado de COBRO (pagado/pendiente) ya NO se edita desde aquí:
+  // se deriva del Payment y el server rechaza escribirlo (§ El eje de cobro no se
+  // escribe crudo). Con eso desaparece de raíz el bug de la copia congelada —
+  // "Guardar Cambios" ya no reenvía un `estado` que pudiera revertir un pago.
   const [notas, setNotas] = useState(order.notas_internas ?? '');
 
   const guardaDetalle = useAccionGuardada();
@@ -1279,17 +1332,17 @@ function OrderDetail({ order, onClose, onUpdate, comprobantes: control }: OrderD
   // desmonta y el error se va con él — no hace falta limpiarlo a mano.
   const handleUpdate = () => guardaDetalle.ejecutar(async () => {
     errorDetalle.limpiar();
-    // Cierre SOLO tras confirmación. El server rechaza transiciones inválidas
-    // (409 de condición de pago bloqueada, entre otras) y ese mensaje tiene que
-    // llegarle al operador con el detalle todavía abierto.
+    // Cierre SOLO tras confirmación. El server puede rechazar (p. ej. nada que
+    // guardar es benigno, pero un 409 de otra validación debe llegar con el
+    // detalle todavía abierto).
     let updated: Order;
     try {
-      updated = await updateOrder(order.id, { estado, notas_internas: notas });
+      updated = await updateOrder(order.id, { notas_internas: notas });
     } catch (e) {
       errorDetalle.mostrar(e, 'No se pudo actualizar la orden');
       return;
     }
-    toast.success('Orden actualizada');
+    toast.success('Notas guardadas');
     onUpdate(updated);
     onClose();
   });
@@ -1621,19 +1674,11 @@ function OrderDetail({ order, onClose, onUpdate, comprobantes: control }: OrderD
         </Pliegue>
       )}
 
-      <Pliegue label="Editar orden (estado y notas)">
+      <Pliegue label="Editar orden (notas)">
         <div className="space-y-3">
-          <div>
-            <Label className="text-xs">Cambiar Estado</Label>
-            <Select value={estado} onValueChange={v => setEstadoElegido(v as OrderStatus)}>
-              <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {ESTADOS.map(e => (
-                  <SelectItem key={e} value={e} className="capitalize">{e}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Sin "Cambiar Estado": el eje de cobro se deriva del Payment y su
+              único camino es Registrar Pago (arriba, sección Pago). Lo que queda
+              editable a mano son las notas. */}
           <div>
             <Label className="text-xs">Notas Internas</Label>
             <textarea
@@ -1651,6 +1696,21 @@ function OrderDetail({ order, onClose, onUpdate, comprobantes: control }: OrderD
               arriba, que no cambia. El diálogo tiene `max-h-[85vh]` con scroll, así
               que a esa altura el crecimiento lo absorbe el scroll. */}
           <ErrorDialogo mensaje={errorDetalle.mensaje} />
+
+          {/* Cancelar la orden — misma acción y mismo confirm que la fila
+              (`onCancelar` abre el confirm de la página). Solo si NO está ya
+              cancelada. Separada de "Guardar Cambios" por severidad: una es
+              editar notas, la otra es terminal. */}
+          {order.estado !== 'cancelado' && (
+            <div className="border-t border-border/60 pt-3">
+              <Button
+                variant="destructiveGhost" size="sm" className="w-full gap-1"
+                onClick={onCancelar}
+              >
+                <Ban className="w-4 h-4" /> Cancelar orden
+              </Button>
+            </div>
+          )}
         </div>
       </Pliegue>
 

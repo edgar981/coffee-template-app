@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
-import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, derivarCondicionPago, OrderCustomerIdentityError, OrderCustomerNotFoundError, OrderLinesError } from '@/lib/orders';
+import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, derivarCondicionPago, OrderCustomerIdentityError, OrderCustomerNotFoundError, OrderLinesError, CobroEstadoNoEscribibleError } from '@/lib/orders';
 import { MetodoPago } from '@/src/generated/prisma/client';
 import { departamentoField } from '@/lib/validation/address';
 import { runEventAutomations } from '@/lib/automations/engine';
@@ -184,6 +184,11 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (error instanceof OrderCustomerIdentityError || error instanceof OrderCustomerNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    // Un `estado` de cobro crudo en el alta — imposible por construcción hoy
+    // (la ruta no lo manda), pero la guarda vive en la función. 422.
+    if (error instanceof CobroEstadoNoEscribibleError) {
+      return NextResponse.json({ error: error.message }, { status: 422 });
     }
     console.error('Admin order creation failed:', error);
     return NextResponse.json({ error: 'No se pudo crear la orden' }, { status: 500 });
