@@ -47,19 +47,22 @@ interface ChartSpec {
   axisTick: (value: number) => string;
 }
 
-// On-palette tones: --chart-1 is the brand gold, --chart-3 the deep amber, and
-// the residual bucket stays muted grey so it never reads as a headline series.
-const GOLD  = 'hsl(var(--chart-1))';
-const AMBER = 'hsl(var(--chart-3))';
-const MUTED = 'hsl(var(--muted-foreground))';
+// Warm saturated amber→brown chart ramp, stepped by luminosity (saturation stays
+// high — that's the "life"). SERIE_1/SERIE_2 are the two headline series of each
+// chart; the residual bucket stays muted grey so it never reads as a headline
+// series. SERIE_2 uses --chart-3 (not --chart-2): --chart-1 and --chart-3 sit
+// ~15pp of lightness apart, more separable than the ~7pp of --chart-2.
+const SERIE_1 = 'hsl(var(--chart-1))';
+const SERIE_2 = 'hsl(var(--chart-3))';
+const MUTED   = 'hsl(var(--muted-foreground))';
 
 const CHARTS: ChartSpec[] = [
   {
     id:       'ventas',
     title:    'Ventas',
     series: [
-      { key: 'efectivo',      label: 'Efectivo',      color: GOLD  },
-      { key: 'transferencia', label: 'Transferencia', color: AMBER },
+      { key: 'efectivo',      label: 'Efectivo',      color: SERIE_1  },
+      { key: 'transferencia', label: 'Transferencia', color: SERIE_2 },
       { key: 'otro',          label: 'Otro',          color: MUTED },
     ],
     format:   formatCOP,
@@ -72,8 +75,8 @@ const CHARTS: ChartSpec[] = [
     id:       'pedidos',
     title:    'Pedidos',
     series: [
-      { key: 'g250',  label: '250 g', color: GOLD  },
-      { key: 'g500',  label: '500 g', color: AMBER },
+      { key: 'g250',  label: '250 g', color: SERIE_1  },
+      { key: 'g500',  label: '500 g', color: SERIE_2 },
       { key: 'otros', label: 'Otros', color: MUTED },
     ],
     format:   v => String(v),

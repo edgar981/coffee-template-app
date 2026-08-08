@@ -210,8 +210,8 @@ html {
        26 90% 37% (#B45309, brand brown) with white text, which turned every
        outline/ghost/dropdown/select hover into a solid dark-brown fill — the
        Amber-Minimal offender. A pale warm tint + dark warm text keeps "el hover
-       tiñe, no rellena" and passes AA. The bold brown lives on as --primary and
-       the charts (--chart-3). */
+       tiñe, no rellena" and passes AA. The bold brown (#B45309) is retired from
+       --primary (now tinta); the warm amber→brown family lives on in the charts. */
     --accent: 39 48% 90%;
     --accent-foreground: 28 42% 22%;
     /* Ámbar quemado (~amber-800) para texto/íconos de acento — AA sobre fondo claro. */
@@ -223,11 +223,17 @@ html {
     --ring: 38 92% 50%;
     --radius: 0.75rem;
 
-    --chart-1: 38 92% 50%;
-    --chart-2: 32 95% 44%;
-    --chart-3: 26 90% 37%;
-    --chart-4: 23 82% 31%;
-    --chart-5: 22 78% 26%;
+    /* Paleta MONOCROMA CÁLIDA SATURADA: rampa ámbar→marrón de la marca, con
+       saturación ALTA y pareja (~70-88%) para que tenga vida. Los pasos se
+       distinguen por LUMINOSIDAD amplia, NO bajando la saturación hacia los
+       oscuros (eso los apagaba). Los charts CONSERVAN el ámbar: dentro de un
+       chart el color es categórico, no estado, así que no colisiona con el
+       ámbar-atención del semáforo (el contenedor desambigua). */
+    --chart-1: 40 88% 55%;
+    --chart-2: 34 82% 48%;
+    --chart-3: 28 78% 40%;
+    --chart-4: 24 74% 32%;
+    --chart-5: 20 70% 26%;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 33 20% 9%;
@@ -281,11 +287,15 @@ html {
     --ring: 37.7 92.1% 50.2%;
     --radius: 0.75rem;
 
-    --chart-1: 43.3 96.4% 56.3%;
-    --chart-2: 32.1 94.6% 43.7%;
-    --chart-3: 22.7 82.5% 31.4%;
-    --chart-4: 26 90.4% 37.1%;
-    --chart-5: 22.7 82.5% 31.4%;
+    /* Misma rampa cálida saturada, con la luminosidad levantada para leer sobre el
+       card oscuro (14.9%) — la saturación se mantiene alta, no se baja. Corrige de
+       paso el bug previo: en oscuro --chart-3 y --chart-5 eran idénticos
+       (22.7 82.5% 31.4%) y dos slices del pie se veían iguales; ahora distintos. */
+    --chart-1: 43 90% 62%;
+    --chart-2: 36 84% 54%;
+    --chart-3: 28 80% 46%;
+    --chart-4: 24 76% 40%;
+    --chart-5: 20 72% 34%;
 
     --sidebar-background: 0 0% 5.9%;
     --sidebar-foreground: 0 0% 89.8%;
