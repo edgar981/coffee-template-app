@@ -543,6 +543,81 @@ Esa última frase ya está CUMPLIDA para las imágenes subidas desde el admin
 — ver la sección de abajo. Las estáticas de `public/` siguen exactamente
 con esta regla: no se migran y se renombran a mano.
 
+## El eje de COBRO se escribe una sola vez, por el Payment
+
+`Order.estado` tiene DOS ejes y NO son lo mismo: **COBRO** (`pagado`/`pendiente`)
+y **CANCELACIÓN** (`cancelado`). El de cancelación es libre —una transición que
+un control puede pedir—; el de **cobro NO lo es**: es consecuencia de que exista
+(o no) un `Payment` en la otra tabla. Escribirlo a mano es afirmar un hecho
+contable sin el asiento que lo respalda.
+
+El defecto que lo instaura (2026-08-07, `fix/cobro-derivado-payment`): el selector
+"Cambiar Estado" del detalle Y el de la fila escribían `estado` crudo por el PATCH,
+que trataba el campo como libre. Las DOS direcciones rompían el sistema, y las dos
+nacían de la misma raíz:
+
+- **pendiente→pagado sin crear `Payment`** → **plata fantasma**: la orden contaba
+  como cobrada sin un pago que la respaldara. Es exactamente el caso real que una
+  contraentrega habilita —plata cobrada en la calle, y alguien la marca "pagado"
+  con el selector en vez de Registrar Pago—.
+- **pagado→pendiente dejando el `Payment` vivo** → un pago **huérfano**: la orden
+  decía `pendiente` con el cobro ya registrado.
+
+**La regla: el ÚNICO escritor del eje de cobro es el path de dinero**
+(`registerOrderPaymentTx` → `transitionOrder`, en la MISMA transacción que crea el
+`Payment`). Registrar Pago es el único camino a `pagado`; la reversión/anulación
+será su propio acto con asiento (tanda futura, fuera de alcance). Es la misma
+doctrina del §3.1 de Comprobantes —"sólo el Payment mueve la orden a pagado"—,
+ahora impuesta en la capa de escritura.
+
+- **La garantía es por IMPOSIBILIDAD, no por disciplina de callers.**
+  `assertEstadoNoEsCobro` (`lib/orders.ts`) rechaza `pagado`/`pendiente` crudo en
+  las DOS puertas HTTP —el `PATCH /api/orders/[id]` y `createOrderWithCustomer`—
+  con `CobroEstadoNoEscribibleError` → **422**. `cancelado` y `undefined`/`null`
+  (no se toca / default del alta) pasan. `registerOrderPaymentTx` llama a
+  `transitionOrder` DIRECTO —no por HTTP—, así que no pasa por la guarda: por eso
+  el path de dinero sigue pudiendo poner `pagado`. **No mover la guarda dentro de
+  `transitionOrder`**: rompería el path de dinero, que es el único que debe poder.
+- **`Order.estado` NO se arranca: sigue siendo el espejo del cobro.** Se lee crudo
+  (`=== 'pagado'`/`'pendiente'`) en ~17 archivos —StatusBadge, cartera, analítica,
+  scopes del dashboard, automatizaciones, notificaciones—. Como su único escritor
+  del eje de cobro es el `Payment`, el espejo es fiel por construcción. Derivarlo
+  desde la relación `payments` en cada lectura habría sido reescribir esos 17
+  sitios sin ganar nada.
+- **UI: el selector de estado murió en la fila Y en el detalle** (los DOS
+  controles, coherentes). En su lugar, **"Cancelar orden" con confirmación** —un
+  único `ConfirmDeleteDialog` owned por la página sirve a los dos (el detalle
+  dispara `onCancelar`)—. Un dropdown al que le queda una sola opción es un botón.
+  El "Guardar Cambios" del detalle ya sólo manda `notas`, con lo que **desaparece
+  de raíz el bug de la copia congelada de `estado`** (ya no reenvía un estado que
+  pudiera revertir un pago).
+- **`ConfirmDeleteDialog` ganó `busyLabel?` opcional.** Cancelar es ROJO por
+  severidad —es terminal, anula el envío, reintegra stock— pero "Eliminando…"
+  mentiría (el registro se conserva), así que va `busyLabel="Cancelando…"`. El
+  default deriva de `confirmKind` como siempre; los demás call sites no cambian.
+- **Cancelar NO toca el `Payment`** (comportamiento conservado y DECLARADO):
+  `transitionOrder` en `cancelado` anula el envío y reintegra el stock despachado,
+  pero deja el pago intacto. Qué se hace con un `Payment` sobre una orden cancelada
+  es una decisión de negocio aparte (pendiente con Luis) — acá sólo se documenta.
+- **El test del carril NO se borra** (`tests/integracion/cobro-sincronizado.test.ts`).
+  Afirma el invariante Order↔Payment en sus dos mitades —`pagado ⇒ hay pago` (no
+  plata fantasma) y `hay pago ⇒ no pendiente` (no huérfano)— tras crear, cobrar,
+  cancelar, y tras cada intento ilegal, replicando la secuencia del route handler
+  (`patchComoLaRuta`: guarda → transacción). Fue la capa que faltó en el
+  diagnóstico: un test de UI no ve la desincronización y uno con mocks tampoco —
+  hay que releer las dos tablas. Se lo vio fallar 5/5 en las direcciones del bug
+  con la guarda neutralizada.
+
+**HUECO CONOCIDO (no arreglado): `Order.estado` no tiene historial.** Sólo hay
+`updatedAt` (un timestamp = la última escritura); no existe tabla de transiciones
+de estado —`InventoryLog` es la única auditable, y es de stock—. Por eso el
+residuo del bug en dev (CN-958842, `pagado` con 0 pagos) se pudo probar que salió
+del dropdown viejo (los 0 pagos lo delatan: el path de dinero jamás produce ese
+estado) pero **no** se pudo reconstruir si una reversión previa ocurrió y se
+re-pisó. La ausencia de historial ES el argumento del fix: el control flipeaba el
+cobro sin garantía y sin traza. Anotado; darle historial a `Order.estado` es una
+decisión, no parte de este arreglo.
+
 ## Comprobantes de pago — la EVIDENCIA no es la plata
 
 Decisión de arquitectura (documento Duna §3.1), construida en su versión canónica
