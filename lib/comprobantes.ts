@@ -1,5 +1,5 @@
-import prisma from '@/lib/prisma';
-import { ComprobanteEstado } from '@/src/generated/prisma/client';
+import prisma from '@duna/core';
+import { ComprobanteEstado } from '@duna/core';
 
 // ─── Las escrituras del comprobante ──────────────────────────────────────────
 //

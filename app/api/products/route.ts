@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { sanitizeGaleria, MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
 import { sanitizeOpciones, validarOpciones } from '@/lib/moliendas-opciones';
 import { crearProductoConAsiento } from '@/lib/product-update';
-import type { Prisma } from '@/src/generated/prisma/client';
+import type { Prisma } from '@duna/core';
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });

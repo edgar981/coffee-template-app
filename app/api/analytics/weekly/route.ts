@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { BUSINESS_TZ, startOfZonedDay, startOfZonedWeek, zonedDayKey } from '@/lib/timezone';
 import type { WeeklyActivityData } from '@/types/analytics';

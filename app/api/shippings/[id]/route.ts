@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { dispatchStockDecrement, restockShippingStock, DispatchStockError } from '@/lib/fulfillment';
 import { markContraentregaAtDispatch } from '@/lib/orders';
 import { notifyOrderEnRoute } from '@/lib/notifications';
 import { buildBrand } from '@/lib/config/brand';
 import { runEventAutomations } from '@/lib/automations/engine';
-import { TipoEnvio } from '@/src/generated/prisma/client';
+import { TipoEnvio } from '@duna/core';
 import { ZONAS } from '@/constants/shippings';
 
 const TIPOS_ENVIO = Object.values(TipoEnvio);

@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { formatCOP } from '@/lib/utils';
 import { formatFecha } from '@/lib/format-fecha';
 import { BUSINESS_TZ, startOfZonedDay, startOfZonedWeek, zonedDayKey } from '@/lib/timezone';

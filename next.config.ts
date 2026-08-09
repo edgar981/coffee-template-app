@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // @duna/core envía TS fuente (schema/cliente Prisma + data-access). Next debe
+  // transpilarlo; sin esto el build de producción no compila el paquete de
+  // workspace. OBLIGATORIO (ver CLAUDE.md § Fase A / monorepo). Deuda condicional
+  // Fase B: si con dos apps el build se vuelve lento, darle a core un build step.
+  transpilePackages: ['@duna/core'],
   devIndicators: false,
   images: {
     // Imágenes de producto subidas desde el admin. Viven en el store de Vercel

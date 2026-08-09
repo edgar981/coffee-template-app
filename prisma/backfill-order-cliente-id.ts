@@ -22,7 +22,7 @@
 //   npx tsx prisma/backfill-order-cliente-id.ts --apply    # write
 
 import 'dotenv/config';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { normalizeCustomerPhone } from '@/lib/orders';
 
 type Resolution = 'email' | 'phone' | 'ambiguous' | 'unresolved';

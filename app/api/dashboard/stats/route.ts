@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { BUSINESS_TZ, startOfZonedDay, startOfZonedMonth, startOfZonedYear, zonedDayKey } from '@/lib/timezone';
 import { currentMonthRange, PENDING_ESTADO } from '@/lib/metrics/order-stat-filters';

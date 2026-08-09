@@ -7,7 +7,9 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
-    seed: 'tsx ./prisma/seed.ts',
+    // El seed NO vive en core: es data demo de tenant (Nayoli) + Better Auth, y
+    // core es agnóstico. Vive en la app (`prisma/seed.ts` raíz), invocado con
+    // `npm run db:seed`. Ver CLAUDE.md § Fase A.
   },
   datasource: {
     // Este archivo lo consume SOLO el CLI de Prisma (migrate/seed/studio) — el

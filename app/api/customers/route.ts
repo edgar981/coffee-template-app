@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { normalizeCustomerPhone } from '@/lib/whatsapp-link';
 import { nonCancelledOrderCountByCustomer, paidTotalByCustomer } from '@/lib/metrics/customer-order-stats';

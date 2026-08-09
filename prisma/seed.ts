@@ -1,6 +1,6 @@
 // prisma/seed.ts
-import prisma from "@/lib/prisma";
-import { Prisma } from "@/src/generated/prisma/client";
+import prisma from "@duna/core";
+import { Prisma } from "@duna/core";
 import { auth } from "@/lib/auth";
 import { MOCK_CUSTOMERS } from "@/lib/mock/customers";
 import { DEMO_PRODUCTS } from "@/prisma/seed-products";

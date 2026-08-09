@@ -4,7 +4,7 @@
 // DATABASE_URL must be set explicitly (the script does NOT read .env) so it can never
 // hit a database by accident; always eyeball the dry-run before adding --execute.
 
-import { PrismaClient } from '@/src/generated/prisma/client';
+import { PrismaClient } from '@duna/core';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 // ─── Criteria (EXPLICIT + conservative) ──────────────────────────────────────

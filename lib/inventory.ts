@@ -1,6 +1,6 @@
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { cruzoMinimo } from '@/lib/metrics/inventory-filters';
-import type { InventoryLog, Product } from '@/src/generated/prisma/client';
+import type { InventoryLog, Product } from '@duna/core';
 
 // EL ajuste manual de inventario. Vivía inline en `/api/inventory/adjust`; se
 // extrajo acá SIN CAMBIAR NADA para poder testear su concurrencia, que es donde

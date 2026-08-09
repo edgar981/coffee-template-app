@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, derivarCondicionPago, OrderCustomerIdentityError, OrderCustomerNotFoundError, OrderLinesError, CobroEstadoNoEscribibleError } from '@/lib/orders';
 import { buildBrand } from '@/lib/config/brand';
-import { MetodoPago } from '@/src/generated/prisma/client';
+import { MetodoPago } from '@duna/core';
 import { departamentoField } from '@/lib/validation/address';
 import { runEventAutomations } from '@/lib/automations/engine';
 

@@ -44,7 +44,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-/src/generated/prisma
+/packages/core/src/generated/prisma
 
 # scratch PR body (not part of the project)
 /PR_BODY.md

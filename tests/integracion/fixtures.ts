@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { AUTOMATIONS } from '@/constants/automations';
 
 // Fixtures del CARRIL DE INTEGRACIÓN. Deliberadamente NO se usa `prisma/seed.ts`:

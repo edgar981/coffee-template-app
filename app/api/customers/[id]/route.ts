@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
-import { Prisma } from '@/src/generated/prisma/client';
+import prisma from '@duna/core';
+import { Prisma } from '@duna/core';
 import { headers } from 'next/headers';
 import { normalizeCustomerPhone } from '@/lib/whatsapp-link';
 

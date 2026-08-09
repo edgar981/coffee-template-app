@@ -1,5 +1,5 @@
-import prisma from '@/lib/prisma';
-import { Prisma, MetodoPago, CondicionPago } from '@/src/generated/prisma/client';
+import prisma from '@duna/core';
+import { Prisma, MetodoPago, CondicionPago } from '@duna/core';
 import { ensureShipping, restockShippingStock } from '@/lib/fulfillment';
 import { notifyOrderCreated } from '@/lib/notifications';
 import type { Brand } from '@/lib/notifications/brand';

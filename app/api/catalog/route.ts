@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 
 // Tope de unidades por línea del storefront. Doble función: límite por pedido
 // y cota de privacidad — el cliente recibe min(stock, tope) como `maxCompra`,

@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { formatCOP } from '@/lib/utils';
 import { toWhatsappNumber } from '@/lib/whatsapp-link';
 import { BUSINESS_TZ, zonedIsoWeekday } from '@/lib/timezone';

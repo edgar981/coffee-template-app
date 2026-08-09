@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import prisma from "@/lib/prisma";
+import prisma from "@duna/core";
 
 // Environment-aware base URL. Better Auth rejects sign-ins whose request origin
 // doesn't match baseURL, and BETTER_AUTH_URL is registered to the PRODUCTION

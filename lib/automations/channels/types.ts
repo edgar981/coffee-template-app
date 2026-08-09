@@ -1,4 +1,4 @@
-import type { AutomationRunEstado } from '@/src/generated/prisma/client';
+import type { AutomationRunEstado } from '@duna/core';
 import type { RenderedEmail } from '@/lib/notifications/templates/shared';
 
 // EL contrato entre el motor y los canales. El motor no sabe si un canal manda

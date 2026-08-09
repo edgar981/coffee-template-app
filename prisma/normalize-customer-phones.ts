@@ -9,7 +9,7 @@
 // groups are just LISTED here for the owner.
 //
 // Run:  npx tsx --env-file=.env prisma/normalize-customer-phones.ts
-import prisma from "@/lib/prisma";
+import prisma from "@duna/core";
 import { normalizeCustomerPhone } from "@/lib/whatsapp-link";
 
 async function main() {

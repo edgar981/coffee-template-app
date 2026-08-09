@@ -1,5 +1,5 @@
-import prisma from '@/lib/prisma';
-import type { Prisma, Product } from '@/src/generated/prisma/client';
+import prisma from '@duna/core';
+import type { Prisma, Product } from '@duna/core';
 import { sanitizeGaleria } from '@/lib/product-gallery';
 import { sanitizeOpciones } from '@/lib/moliendas-opciones';
 

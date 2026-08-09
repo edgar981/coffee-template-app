@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { BUSINESS_TZ, startOfZonedDay, zonedDayKeyRange } from '@/lib/timezone';
 import { METODO_CATEGORIA } from '@/types/payment';

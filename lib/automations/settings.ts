@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import {
   AUTOMATIONS, AUTOMATION_MAP, isAutomationKey, parseAutomationConfig,
   type AutomationDef,
