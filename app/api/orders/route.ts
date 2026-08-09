@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { headers } from 'next/headers';
 import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, derivarCondicionPago, OrderCustomerIdentityError, OrderCustomerNotFoundError, OrderLinesError, CobroEstadoNoEscribibleError } from '@/lib/orders';
+import { buildBrand } from '@/lib/config/brand';
 import { MetodoPago } from '@/src/generated/prisma/client';
 import { departamentoField } from '@/lib/validation/address';
 import { runEventAutomations } from '@/lib/automations/engine';
@@ -163,6 +164,7 @@ export async function POST(req: NextRequest) {
         : null,
       items:             lines,
       idempotencyKey:    b.idempotencyKey ?? null,
+      brand:             buildBrand(),
     });
 
     // Se emite `order.creada` con `origen: 'admin'` aunque HOY nada la escuche:

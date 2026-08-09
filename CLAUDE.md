@@ -2099,6 +2099,17 @@ en `payload`. Antes de conectar el adaptador real:
   y tiene otro costo; categorizarla UTILITY para saltarse el opt-in es la
   causa #1 de suspensión de plantillas. Conecta con las páginas legales
   pendientes (Ley 1581) — ver `siteConfig.legalNav`, hoy vacío.
+- **PRECONDICIÓN de brand (Fase A, 2026-08-09) — antes de activar cualquier
+  automatización `email` + `audiencia: 'cliente'`, PARAMETRIZAR su canal con
+  `brand`, igual que se hizo con notifications en Fase A.** Hoy el canal email de
+  automatizaciones (`lib/automations/channels/email.ts`) inyecta `buildBrand()`
+  localmente para satisfacer la firma de `sendCustomerEmail`, PERO ese path de
+  cliente está MUERTO (cero automatizaciones `email`+`cliente` en el catálogo; las
+  dos de email son `audiencia: 'equipo'`, identidad del panel vía `EMAIL_FROM`).
+  Cuando ese path se active y el motor se mueva a `packages/core` (Fase B / go-live
+  WhatsApp), el `brand` debe THREADEARSE por el evento —igual que
+  `notifyOrderCreated(orderId, brand)`— no leerse de `siteConfig` dentro del motor:
+  core no conoce el tenant. Deuda anotada, no oculta.
 
 ### `defaultActivo` se decide por el DESTINATARIO del canal
 

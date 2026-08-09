@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createOrderWithCustomer, resolveOrderLines, OrderLinesError } from '@/lib/orders';
+import { buildBrand } from '@/lib/config/brand';
 import { getShippingSlot, computeShippingCost } from '@/lib/shipping-config';
 import { isBogotaDC } from '@/lib/colombia-departments';
 import { runEventAutomations } from '@/lib/automations/engine';
@@ -135,6 +136,7 @@ export async function POST(req: NextRequest) {
       ciudad_entrega:    shipping.ciudad,
       deliverySlot:      slot?.id ?? null,
       items:             lines,
+      brand:             buildBrand(),
     });
   } catch (error) {
     console.error('Checkout order creation failed:', error);

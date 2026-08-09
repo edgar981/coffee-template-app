@@ -2,6 +2,7 @@ import { loadOrderForNotification } from './data';
 import { sendCustomerEmail } from './channels/email';
 import { renderOrderCreated } from './templates/order-created';
 import { renderOrderEnRoute } from './templates/order-en-route';
+import type { Brand } from '@/lib/notifications/brand';
 
 // Back-compat: the admin in-app bell notifications used to live in the old
 // lib/notifications.ts (this folder replaced it). Re-exported so its importers
@@ -19,14 +20,14 @@ export { createNotification } from './admin';
 // delay-fail the sale or the dispatch. Callers invoke it after the commit; a Resend
 // failure lands in console.error with the orderId and the business op is untouched.
 
-export async function notifyOrderCreated(orderId: string): Promise<void> {
+export async function notifyOrderCreated(orderId: string, brand: Brand): Promise<void> {
   try {
     const order = await loadOrderForNotification(orderId);
     if (!order) { console.warn(`[notify] order.created: orden ${orderId} no encontrada`); return; }
 
     // Email only if there's an address — phone-only orders are common (no-op else).
     if (order.cliente_email) {
-      await sendCustomerEmail(order.cliente_email, renderOrderCreated(order));
+      await sendCustomerEmail(order.cliente_email, renderOrderCreated(order, brand), brand);
     } else {
       console.log(`[notify] order.created: ${order.numero_orden} sin email — no-op`);
     }
@@ -36,13 +37,13 @@ export async function notifyOrderCreated(orderId: string): Promise<void> {
   }
 }
 
-export async function notifyOrderEnRoute(orderId: string): Promise<void> {
+export async function notifyOrderEnRoute(orderId: string, brand: Brand): Promise<void> {
   try {
     const order = await loadOrderForNotification(orderId);
     if (!order) { console.warn(`[notify] order.enRoute: orden ${orderId} no encontrada`); return; }
 
     if (order.cliente_email) {
-      await sendCustomerEmail(order.cliente_email, renderOrderEnRoute(order));
+      await sendCustomerEmail(order.cliente_email, renderOrderEnRoute(order, brand), brand);
     } else {
       console.log(`[notify] order.enRoute: ${order.numero_orden} sin email — no-op`);
     }
