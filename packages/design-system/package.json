@@ -11,10 +11,15 @@
     "./tokens.css": "./tokens/tokens.css",
     "./theme.css": "./tokens/theme.css",
     "./primitives.css": "./primitives/primitives.css",
-    "./status": "./primitives/status.ts"
+    "./status": "./primitives/status.ts",
+    "./components/*": "./components/*.tsx"
   },
   "files": [
     "tokens",
-    "primitives"
-  ]
+    "primitives",
+    "components"
+  ],
+  "peerDependencies": {
+    "react": ">=19"
+  }
 }

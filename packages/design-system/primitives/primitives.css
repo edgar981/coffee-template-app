@@ -204,6 +204,35 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--lh-
 .duna-att-item__cta { color: var(--muted); font-size: var(--text-caption); font-weight: var(--w-semi); white-space: nowrap; margin-top: var(--space-hairline); }
 .duna-att-item:hover .duna-att-item__cta { color: var(--ink); }
 
+/* ── Order-card · fila compuesta de la lista de pedidos ─────────────────────
+   AGNÓSTICA: solo estructura + estilo. No conoce "Order" ni ningún dominio; el
+   consumidor rellena los slots (nombre, id, monto, canal, estado, steps, tiempo).
+   El "en curso" vive SOLO en los `duna-steps` del pie — nunca un badge suelto. */
+.duna-order-card { padding: var(--space-4); cursor: pointer; border-radius: var(--r-m);
+                   border: 1px solid var(--border); background: var(--surface);
+                   transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease), border-color var(--dur) var(--ease); }
+.duna-order-card:hover { box-shadow: var(--shadow-2); transform: translateY(-1px); }
+.duna-order-card.is-selected { border-color: var(--ink); box-shadow: var(--shadow-2); }
+[data-theme="dark"] .duna-order-card.is-selected { border-color: var(--ink-2); }
+.duna-order-card__top { display: flex; align-items: baseline; gap: var(--space-2); }
+.duna-order-card__name { font-weight: var(--w-semi); font-size: var(--text-body); }
+.duna-order-card__id { color: var(--faint); }               /* combinar con .duna-mono */
+.duna-order-card__amount { margin-left: auto; font-weight: var(--w-semi); font-size: var(--text-body); }
+.duna-order-card__mid { display: flex; align-items: center; gap: var(--space-3);
+                        margin-top: var(--space-1); color: var(--muted); font-size: var(--text-caption); }
+.duna-order-card__foot { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-3); }
+.duna-order-card__foot .duna-steps { flex: 1; }
+.duna-order-card__time { font-size: var(--text-caption); color: var(--faint); white-space: nowrap; }
+
+/* ── Items-table · líneas de una orden en el detalle ────────────────────────
+   AGNÓSTICA: filas genéricas {label, meta?, amount} + fila total opcional. */
+.duna-items-table { width: 100%; border-collapse: collapse; font-size: var(--text-body); }
+.duna-items-table td { padding: var(--space-2) 0; border-bottom: 1px solid var(--border); }
+.duna-items-table tr:last-child td { border-bottom: none; }
+.duna-items-table .duna-items-table__r { text-align: right; white-space: nowrap; }
+.duna-items-table__meta { color: var(--muted); font-size: var(--text-caption); }
+.duna-items-table__total td { font-weight: var(--w-semi); }
+
 /* ── Reduced motion: el movimiento confirma, no obliga ──────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .duna *, .duna *::before, .duna *::after,

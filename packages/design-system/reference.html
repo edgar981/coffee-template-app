@@ -216,6 +216,61 @@
     </div>
   </section>
 
+  <section>
+    <h2 class="sec">Pedidos · dos primitivas INDEPENDIENTES (agnósticas)</h2>
+    <p class="sec-note">Son DOS primitivas separadas —no una card y su detalle—, con datos distintos a propósito. Reciben props genéricos ya resueltos; el DS no conoce el tipo <code>Order</code>. "En curso" vive SOLO en los steps del pie; el badge de estado es terminal (pagado/atención), nunca "en camino".</p>
+
+    <div class="duna-eyebrow" style="margin-bottom:var(--space-3)">Primitiva 1 · order-card (fila de lista)</div>
+    <div style="display:flex; flex-direction:column; gap:var(--space-3); max-width:400px">
+        <div class="duna-order-card is-selected">
+          <div class="duna-order-card__top">
+            <span class="duna-order-card__name">Laura Cárdenas</span>
+            <span class="duna-order-card__id duna-mono">#1247</span>
+            <span class="duna-order-card__amount duna-num">$ 86.500</span>
+          </div>
+          <div class="duna-order-card__mid">
+            <span class="duna-chip-channel"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.3 8.6 8.6 0 0 1-3.9-.9L3 21l2.2-5.3a8.2 8.2 0 0 1-1.2-4.2A8.4 8.4 0 0 1 12.5 3a8.4 8.4 0 0 1 8.5 8.5z"/></svg>WhatsApp</span>
+            <span class="duna-badge duna-badge--attention"><span class="duna-badge__dot"></span>Necesita atención</span>
+          </div>
+          <div class="duna-order-card__foot">
+            <span class="duna-steps">
+              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-now"></span><span class="duna-steps__seg"></span><span class="duna-steps__seg"></span>
+            </span>
+            <span class="duna-order-card__time">hace 42 min</span>
+          </div>
+        </div>
+        <div class="duna-order-card">
+          <div class="duna-order-card__top">
+            <span class="duna-order-card__name">Camila Torres</span>
+            <span class="duna-order-card__id duna-mono">#1241</span>
+            <span class="duna-order-card__amount duna-num">$ 47.500</span>
+          </div>
+          <div class="duna-order-card__mid">
+            <span class="duna-chip-channel"><svg viewBox="0 0 24 24"><path d="M3 9l1.5-5h15L21 9M3 9v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9"/></svg>Tienda</span>
+            <span class="duna-badge duna-badge--ok"><span class="duna-badge__dot"></span>Pagado</span>
+          </div>
+          <div class="duna-order-card__foot">
+            <span class="duna-steps">
+              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span>
+            </span>
+            <span class="duna-order-card__time">hace 4 h</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="duna-eyebrow" style="margin:var(--space-8) 0 var(--space-3)">Primitiva 2 · items-table (líneas de OTRA orden — total distinto a propósito)</div>
+      <div class="duna-card" style="padding:var(--space-5); max-width:520px">
+        <table class="duna-items-table">
+          <tbody>
+            <tr><td>Combo Desayuno<span class="duna-items-table__meta"> · × 1</span></td><td class="duna-items-table__r duna-num">$ 38.000</td></tr>
+            <tr><td>Café Sierra 250 g<span class="duna-items-table__meta"> · × 2</span></td><td class="duna-items-table__r duna-num">$ 31.000</td></tr>
+            <tr><td>Granola de la casa<span class="duna-items-table__meta"> · × 1</span></td><td class="duna-items-table__r duna-num">$ 22.000</td></tr>
+            <tr class="duna-items-table__total"><td>Total</td><td class="duna-items-table__r duna-num">$ 91.000</td></tr>
+          </tbody>
+        </table>
+      </div>
+  </section>
+
 </div>
 
 <script>
