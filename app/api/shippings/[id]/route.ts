@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { dispatchStockDecrement, restockShippingStock, DispatchStockError } from '@/lib/fulfillment';
-import { markContraentregaAtDispatch } from '@/lib/orders';
-import { notifyOrderEnRoute } from '@/lib/notifications';
+import { dispatchStockDecrement, restockShippingStock, DispatchStockError } from '@duna/core/fulfillment';
+import { markContraentregaAtDispatch } from '@duna/core/orders';
+import { notifyOrderEnRoute } from '@duna/core/notifications';
+import { buildBrand } from '@/lib/config/brand';
 import { runEventAutomations } from '@/lib/automations/engine';
-import { TipoEnvio } from '@/src/generated/prisma/client';
+import { TipoEnvio } from '@duna/core';
 import { ZONAS } from '@/constants/shippings';
 
 const TIPOS_ENVIO = Object.values(TipoEnvio);
@@ -193,7 +194,7 @@ export async function PATCH(
     // the transition is idempotent, so the email hangs off it, not off re-renders).
     // Fully guarded — the email can never affect the dispatch outcome.
     if (justDispatched) {
-      try { await notifyOrderEnRoute(current.orden_id); }
+      try { await notifyOrderEnRoute(current.orden_id, buildBrand()); }
       catch (e) { console.error(`[notify] order.enRoute orden ${current.orden_id}:`, e); }
 
       // Cruces de stock mínimo provocados por este despacho. Post-commit: el stock

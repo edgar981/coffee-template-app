@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
-import { formatCOP } from '@/lib/utils';
+import { formatCOP } from '@duna/core/utils';
 import { registerOrderPayment } from '@/lib/api/payments';
 import { subirComprobante } from '@/lib/api/comprobantes';
 import { SelectorComprobante, AyudaComprobante, ComprobanteEnVerificacion } from '@/components/admin/Comprobantes';

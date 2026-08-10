@@ -1,4 +1,4 @@
-import { formatCOP } from '@/lib/utils';
+import { formatCOP } from '@duna/core/utils';
 import { PERIODO_SUJETO, PERIODO_EN_CURSO, type PeriodoKey } from '@/lib/metrics/periodo';
 import { CARTERA_DIAS_MEDIO, type ResumenCartera } from '@/lib/metrics/cartera';
 import type { FilaMargen } from '@/lib/metrics/margen';

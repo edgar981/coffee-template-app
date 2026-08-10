@@ -4,7 +4,7 @@ import { CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { BUSINESS_TZ, zonedDayKey } from '@/lib/timezone';
+import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
 
 // Shared admin date-range picker — extracted from the Órdenes filter so Pagos
 // (and future admin pages) reuse the exact trigger button, two-month layout, and

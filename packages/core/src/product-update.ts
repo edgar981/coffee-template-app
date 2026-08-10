@@ -1,7 +1,7 @@
-import prisma from '@/lib/prisma';
-import type { Prisma, Product } from '@/src/generated/prisma/client';
-import { sanitizeGaleria } from '@/lib/product-gallery';
-import { sanitizeOpciones } from '@/lib/moliendas-opciones';
+import prisma from '@duna/core';
+import type { Prisma, Product } from '@duna/core';
+import { sanitizeGaleria } from '@duna/core/product-gallery';
+import { sanitizeOpciones } from '@duna/core/moliendas-opciones';
 
 // ─── Qué escribe un PATCH de producto ────────────────────────────────────────
 // Un PATCH es PARCIAL por definición: escribe los campos que el body TRAE y no

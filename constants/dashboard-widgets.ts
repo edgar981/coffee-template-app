@@ -7,9 +7,9 @@ import {
   widgetInsight, insightUltimoEvento,
   type WidgetInsight, type WidgetInsightData,
 } from '@/lib/metrics/insights';
-import { formatFecha } from '@/lib/format-fecha';
-import { PENDING_ORDERS_QUERY, POR_COBRAR_QUERY } from '@/lib/metrics/order-stat-filters';
-import { LOW_STOCK_QUERY } from '@/lib/metrics/inventory-filters';
+import { formatFecha } from '@duna/core/format-fecha';
+import { PENDING_ORDERS_QUERY, POR_COBRAR_QUERY } from '@duna/core/metrics/order-stat-filters';
+import { LOW_STOCK_QUERY } from '@duna/core/metrics/inventory-filters';
 import { STAT_CHIP } from '@/constants/stat-chip';
 
 // ─── Dashboard widget registry ───────────────────────────────────────────────

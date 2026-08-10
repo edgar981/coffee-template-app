@@ -15,14 +15,14 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
-import { formatCOP } from '@/lib/utils';
+import { formatCOP } from '@duna/core/utils';
 import { getCustomer, updateCustomer } from '@/lib/api/customers';
-import { customerWhatsappHref } from '@/lib/whatsapp-link';
+import { customerWhatsappHref } from '@duna/core/whatsapp-link';
 import { siteConfig } from '@/lib/config/site';
 import { CANALES } from '@/constants/customer';
 import { STAT_CHIP } from '@/constants/stat-chip';
-import { isCountableOrder } from '@/lib/metrics/order-stat-filters';
-import { formatFecha } from '@/lib/format-fecha';
+import { isCountableOrder } from '@duna/core/metrics/order-stat-filters';
+import { formatFecha } from '@duna/core/format-fecha';
 import type { CustomerWithOrders, CustomerForm } from '@/types/customer';
 import type { OrderChannel } from '@/types/order';
 

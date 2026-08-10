@@ -1,7 +1,7 @@
 "use client";
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@duna/core/utils';
 import { PanelLeftClose, Search, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from "next/navigation";

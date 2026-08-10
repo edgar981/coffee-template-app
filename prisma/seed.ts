@@ -1,13 +1,13 @@
 // prisma/seed.ts
-import prisma from "@/lib/prisma";
-import { Prisma } from "@/src/generated/prisma/client";
+import prisma from "@duna/core";
+import { Prisma } from "@duna/core";
 import { auth } from "@/lib/auth";
 import { MOCK_CUSTOMERS } from "@/lib/mock/customers";
 import { DEMO_PRODUCTS } from "@/prisma/seed-products";
 import { mockLogs } from "@/lib/mock/inventoryLogs";
 import { SHIPPING_SEED_TEMPLATES } from "@/lib/mock/shippings";
-import { BUSINESS_TZ, startOfZonedDay } from "@/lib/timezone";
-import { normalizeCustomerPhone } from "@/lib/orders";
+import { BUSINESS_TZ, startOfZonedDay } from "@duna/core/timezone";
+import { normalizeCustomerPhone } from "@duna/core/orders";
 
 // ── Demo customer identities ─────────────────────────────────────────────────
 // Demo orders MUST carry the identity of a real seeded Customer. They used to

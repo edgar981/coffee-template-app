@@ -9,8 +9,8 @@
 // groups are just LISTED here for the owner.
 //
 // Run:  npx tsx --env-file=.env prisma/normalize-customer-phones.ts
-import prisma from "@/lib/prisma";
-import { normalizeCustomerPhone } from "@/lib/whatsapp-link";
+import prisma from "@duna/core";
+import { normalizeCustomerPhone } from "@duna/core/whatsapp-link";
 
 async function main() {
   const customers = await prisma.customer.findMany({

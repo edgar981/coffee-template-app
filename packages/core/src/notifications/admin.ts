@@ -1,8 +1,8 @@
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 
 // ADMIN/internal notifications — the in-app bell (Notification model), NOT the
 // customer-facing emails in this folder. Kept here (re-exported from index) so its
-// existing importers (`@/lib/notifications`) keep working after this folder
+// existing importers (`@duna/core/notifications`) keep working after this folder
 // replaced the old single-file module.
 interface CreateNotificationInput {
   tipo:    string;

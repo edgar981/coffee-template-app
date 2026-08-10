@@ -5,8 +5,8 @@ import {
   Wallet, Truck, Sunrise, ShoppingBag, HandCoins, PackageX,
 } from 'lucide-react';
 import { STAT_CHIP } from '@/constants/stat-chip';
-import { POR_COBRAR_QUERY } from '@/lib/metrics/order-stat-filters';
-import { LOW_STOCK_QUERY } from '@/lib/metrics/inventory-filters';
+import { POR_COBRAR_QUERY } from '@duna/core/metrics/order-stat-filters';
+import { LOW_STOCK_QUERY } from '@duna/core/metrics/inventory-filters';
 import { HORAS_ENTREGA_SIN_COBRO } from '@/lib/automations/reglas';
 
 // ─── Registry de automatizaciones ────────────────────────────────────────────

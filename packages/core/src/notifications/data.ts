@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 
 // The data-access for notifications: load the order the way the templates need it
 // (items + shipping + customer snapshot columns). One place, so email and the

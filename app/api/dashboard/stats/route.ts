@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { BUSINESS_TZ, startOfZonedDay, startOfZonedMonth, startOfZonedYear, zonedDayKey } from '@/lib/timezone';
-import { currentMonthRange, PENDING_ESTADO } from '@/lib/metrics/order-stat-filters';
+import { BUSINESS_TZ, startOfZonedDay, startOfZonedMonth, startOfZonedYear, zonedDayKey } from '@duna/core/timezone';
+import { currentMonthRange, PENDING_ESTADO } from '@duna/core/metrics/order-stat-filters';
 import { plegarDistribuciones, plegarMetodosPago, type DistribucionRow, type MetodoPagoRow } from '@/lib/metrics/distribuciones';
 import type { InsightMonthPoint } from '@/lib/metrics/insights';
 // Los scopes de plata/órdenes viven en el módulo compartido: los reportes de las
 // automatizaciones (semanal, diario) cuentan con ESTAS mismas definiciones, así que
 // el correo del lunes no puede contradecir al dashboard.
-import { NOT_CANCELLED, REVENUE_ORDER_SCOPE, POR_COBRAR_WHERE } from '@/lib/metrics/prisma-scopes';
+import { NOT_CANCELLED, REVENUE_ORDER_SCOPE, POR_COBRAR_WHERE } from '@duna/core/metrics/prisma-scopes';
 
 const RECENT_LIMIT = 6;
 

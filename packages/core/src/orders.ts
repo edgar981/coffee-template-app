@@ -1,11 +1,12 @@
-import prisma from '@/lib/prisma';
-import { Prisma, MetodoPago, CondicionPago } from '@/src/generated/prisma/client';
-import { ensureShipping, restockShippingStock } from '@/lib/fulfillment';
-import { notifyOrderCreated } from '@/lib/notifications';
-import { moliendaAceptada } from '@/lib/moliendas-opciones';
+import prisma from '@duna/core';
+import { Prisma, MetodoPago, CondicionPago } from '@duna/core';
+import { ensureShipping, restockShippingStock } from '@duna/core/fulfillment';
+import { notifyOrderCreated } from '@duna/core/notifications';
+import type { Brand } from '@duna/core/notifications/brand';
+import { moliendaAceptada } from '@duna/core/moliendas-opciones';
 // THE phone normalizer lives in the pure phone module (lib/whatsapp-link); it is
 // re-exported here so existing importers (`@/lib/orders`) keep working.
-import { normalizeCustomerPhone } from '@/lib/whatsapp-link';
+import { normalizeCustomerPhone } from '@duna/core/whatsapp-link';
 export { normalizeCustomerPhone };
 
 // THE rule that turns a payment method into a payment CONDITION. `condicion_pago`
@@ -286,6 +287,12 @@ export interface CreateOrderInput {
   // key already created an order, that order is returned instead of creating a
   // new one — a double submit or network retry can never duplicate.
   idempotencyKey?: string | null;
+  // Identidad de marca para el correo "orden creada" que sale post-commit. REQUERIDO
+  // y sin default: el compilador obliga a cada caller (route handler) a inyectarlo
+  // con `buildBrand()`, para que ningún camino mande un correo sin remitente/marca
+  // ni caiga a un hardcode de tenant. El núcleo de notificaciones no conoce el
+  // tenant — lo recibe por aquí.
+  brand: Brand;
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -528,7 +535,7 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
       // only on genuine creation: the idempotency fast-path and the unique-
       // violation dedup both return earlier, so a retried submit never re-sends.
       if (created) {
-        try { await notifyOrderCreated(created.id); }
+        try { await notifyOrderCreated(created.id, input.brand); }
         catch (e) { console.error(`[notify] order.created ${created.id}:`, e); }
       }
 

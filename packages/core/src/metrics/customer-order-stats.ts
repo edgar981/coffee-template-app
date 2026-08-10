@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { NON_CANCELLED_ESTADOS } from './order-stat-filters';
 
 // Server-side per-customer aggregates, keyed by cliente_id. THE single place that

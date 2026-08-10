@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { opcionesVivas, type MoliendaOpcion, type ProblemaOpciones } from '@/lib/moliendas-opciones';
+import { opcionesVivas, type MoliendaOpcion, type ProblemaOpciones } from '@duna/core/moliendas-opciones';
 
 // ─── Opciones de molienda para el cliente ────────────────────────────────────
 // La UI que faltaba: el tipo prometía "el admin activa nuevas moliendas con

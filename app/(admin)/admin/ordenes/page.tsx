@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { BUSINESS_TZ, zonedDayKey } from '@/lib/timezone';
+import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
 import { useAccionGuardada, useAccionesPorFila } from '@/hooks/useAccionGuardada';
@@ -27,9 +27,9 @@ import type { Order, OrderForm, OrderLineForm, OrderStatus, OrderChannel } from 
 import { CONDICION_PAGO_LABEL } from '@/types/order';
 import type { Product } from '@/types/product';
 import type { Shipping } from '@/types/shipping';
-import { formatCOP } from '@/lib/utils';
-import { formatFecha } from '@/lib/format-fecha';
-import { findSlotLabel } from '@/lib/shipping-config';
+import { formatCOP } from '@duna/core/utils';
+import { formatFecha } from '@duna/core/format-fecha';
+import { findSlotLabel } from '@duna/core/shipping-config';
 import { hasScheduleData, isScheduledShipping, missingToDispatch } from '@/constants/shippings';
 import { estadoEntrega, accionFilaEntrega, fechaEntrega } from '@/lib/entrega-estado';
 import { useTransicionEntrega, type TransicionEntrega } from '@/hooks/useTransicionEntrega';
@@ -45,8 +45,8 @@ import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { MAX_COMPROBANTE_MB } from '@/constants/comprobante';
 import type { Comprobante } from '@/types/comprobante';
 import { filterChip, filterChipTono, FILTER_CHIP_COUNT } from '@/constants/filter-chip';
-import { COLOMBIA_DEPARTMENTS } from '@/lib/colombia-departments';
-import { isPorCobrar } from '@/lib/metrics/order-stat-filters';
+import { COLOMBIA_DEPARTMENTS } from '@duna/core/colombia-departments';
+import { isPorCobrar } from '@duna/core/metrics/order-stat-filters';
 import { METODOS_PAGO, METODO_PAGO_LABEL, metodoPrevistoLabel } from '@/types/payment';
 
 // ─── Constants ────────────────────────────────────────────────────────────────

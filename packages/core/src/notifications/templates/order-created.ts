@@ -1,8 +1,8 @@
-import { formatCOP } from '@/lib/utils';
-import { siteConfig } from '@/lib/config/site';
-import type { NotifiableOrder } from '@/lib/notifications/data';
-import { trackOrderUrl } from '@/lib/notifications/data';
-import { shell, row, p, muted, esc, C, type RenderedEmail } from './shared';
+import { formatCOP } from '@duna/core/utils';
+import type { Brand, EmailColors } from '@duna/core/notifications/brand';
+import type { NotifiableOrder } from '@duna/core/notifications/data';
+import { trackOrderUrl } from '@duna/core/notifications/data';
+import { row, esc, emailKit, type RenderedEmail } from './shared';
 
 const firstName = (nombre: string | null) => (nombre?.trim().split(/\s+/)[0]) || 'Hola';
 
@@ -19,7 +19,7 @@ function siguientePaso(order: NotifiableOrder): string {
   return 'Te escribiremos por WhatsApp para coordinar el pago y la entrega.';
 }
 
-function itemsTable(order: NotifiableOrder): string {
+function itemsTable(order: NotifiableOrder, C: EmailColors): string {
   const rows = order.items.map((it) => {
     const sub = it.moliendaSeleccionada
       ? `<span style="color:${C.muted};font-size:12px;"> · ${esc(it.moliendaSeleccionada)}</span>`
@@ -55,15 +55,16 @@ function direccion(order: NotifiableOrder): string | null {
   return parts.join(', ');
 }
 
-export function renderOrderCreated(order: NotifiableOrder): RenderedEmail {
-  const { nombre } = siteConfig.tienda;
+export function renderOrderCreated(order: NotifiableOrder, brand: Brand): RenderedEmail {
+  const { C, p, muted, shell } = emailKit(brand);
+  const { nombre } = brand;
   const subject = `Tu orden ${order.numero_orden} en ${nombre}`;
   const dir = direccion(order);
   const track = order.cliente_email ? trackOrderUrl(order.numero_orden, order.cliente_email) : null;
 
   const bodyRows =
     row(p(`Hola ${esc(firstName(order.cliente_nombre))}, recibimos tu orden <strong>${esc(order.numero_orden)}</strong>. ¡Gracias por tu compra!`)) +
-    row(`<p style="margin:14px 0 6px;font-size:13px;font-weight:700;color:${C.muted};text-transform:uppercase;letter-spacing:.5px;">Resumen</p>${itemsTable(order)}`) +
+    row(`<p style="margin:14px 0 6px;font-size:13px;font-weight:700;color:${C.muted};text-transform:uppercase;letter-spacing:.5px;">Resumen</p>${itemsTable(order, C)}`) +
     (dir ? row(`<p style="margin:14px 0 2px;font-size:13px;font-weight:700;color:${C.muted};text-transform:uppercase;letter-spacing:.5px;">Entrega</p>${p(esc(dir))}`) : '') +
     row(muted(siguientePaso(order))) +
     (track ? row(`<p style="margin:6px 0 4px;"><a href="${track}" style="display:inline-block;background:${C.cafe};color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:11px 20px;border-radius:10px;">Ver estado de mi pedido</a></p>`) : '');
@@ -82,7 +83,7 @@ export function renderOrderCreated(order: NotifiableOrder): RenderedEmail {
   if (dir) lines.push('', `Entrega: ${dir}`);
   lines.push('', siguientePaso(order));
   if (track) lines.push('', `Ver estado: ${track}`);
-  lines.push('', `${nombre} · ${siteConfig.brand.tagline}`);
+  lines.push('', `${nombre} · ${brand.tagline}`);
 
   return { subject, html, text: lines.join('\n') };
 }

@@ -13,9 +13,9 @@ import { Product } from "@/types/product";
 
 import { useCartStore } from "@/lib/cartStore";
 
-import { decidirMolienda } from "@/lib/moliendas-opciones";
+import { decidirMolienda } from "@duna/core/moliendas-opciones";
 
-import { formatCOP } from "@/lib/utils";
+import { formatCOP } from "@duna/core/utils";
 
 interface ProductCardProps {
   product: Product;

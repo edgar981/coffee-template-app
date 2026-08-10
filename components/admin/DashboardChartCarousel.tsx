@@ -11,7 +11,7 @@ import {
   CHART_RANGES, CHART_RANGE_LABEL,
   type ChartRange, type DashboardChartData,
 } from '@/types/dashboard';
-import { formatCOP } from '@/lib/utils';
+import { formatCOP } from '@duna/core/utils';
 import { axisTickStyle } from '@/constants/dashb-styles';
 // Misma flecha que el pie de distribución (extraída de aquí para compartirla).
 import ArrowButton from '@/components/admin/ChartArrowButton';

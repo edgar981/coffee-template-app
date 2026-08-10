@@ -24,7 +24,7 @@ import {
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 
-import { formatCOP } from "@/lib/utils";
+import { formatCOP } from "@duna/core/utils";
 
 interface NavSearchProps {
   isOpen: boolean;

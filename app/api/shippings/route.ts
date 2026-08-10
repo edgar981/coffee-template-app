@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { ensureShipping, decideShippingSchedulable } from '@/lib/fulfillment';
+import { ensureShipping, decideShippingSchedulable } from '@duna/core/fulfillment';
 
 // Order-owned fields read live via the relation — INCLUDING the delivery
 // address, which lives only on the Order (the Shipping no longer keeps its own

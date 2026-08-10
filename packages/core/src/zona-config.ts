@@ -1,5 +1,5 @@
 import type { ShippingZona } from '@/types/shipping';
-import { normalize } from '@/lib/utils';
+import { normalize } from '@duna/core/utils';
 
 // Zonas operativas de reparto — los cortes NO son geografía oficial, son
 // las rutas del cliente. TODO: umbrales placeholder pendientes de validar

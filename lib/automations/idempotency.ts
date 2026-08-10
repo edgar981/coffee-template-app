@@ -1,7 +1,7 @@
-import prisma from '@/lib/prisma';
-import { BUSINESS_TZ, zonedDayKey, isoWeekKey } from '@/lib/timezone';
+import prisma from '@duna/core';
+import { BUSINESS_TZ, zonedDayKey, isoWeekKey } from '@duna/core/timezone';
 import type { AutomationDef } from '@/constants/automations';
-import type { AutomationRunEstado } from '@/src/generated/prisma/client';
+import type { AutomationRunEstado } from '@duna/core';
 
 // LA garantía de "exactamente una vez" de las automatizaciones. Dos mecanismos,
 // según la estrategia declarada en el registry (`idempotencia`):

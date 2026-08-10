@@ -2,21 +2,20 @@
   "name": "coffee-template-app",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "prisma migrate deploy && next build",
+    "build": "npm run db:deploy -w @duna/core && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --import tsx --test \"lib/**/*.test.ts\"",
-    "postinstall": "prisma generate",
+    "test": "node --import tsx --test \"lib/**/*.test.ts\" \"packages/core/**/*.test.ts\"",
+    "postinstall": "npm run generate -w @duna/core",
+    "db:seed": "tsx prisma/seed.ts",
     "test:integracion": "bash scripts/test-integracion.sh"
   },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
-  },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.9.1",
-    "@prisma/client": "^7.9.1",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-aspect-ratio": "^1.1.8",
@@ -52,7 +51,6 @@
     "lucide-react": "^1.16.0",
     "next": "16.2.6",
     "next-themes": "^0.4.6",
-    "pg": "^8.21.0",
     "react": "19.2.4",
     "react-day-picker": "^10.0.1",
     "react-dom": "19.2.4",
@@ -76,7 +74,6 @@
     "babel-plugin-react-compiler": "^1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
-    "prisma": "^7.9.1",
     "tailwindcss": "^4",
     "tsx": "^4.22.3",
     "typescript": "^5"

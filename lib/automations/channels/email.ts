@@ -1,8 +1,9 @@
 import { Resend } from 'resend';
 import { siteConfig } from '@/lib/config/site';
-import { sendCustomerEmail } from '@/lib/notifications/channels/email';
+import { buildBrand } from '@/lib/config/brand';
+import { sendCustomerEmail } from '@duna/core/notifications/channels/email';
 import type { DispatchRequest, DispatchResult } from './types';
-import type { RenderedEmail } from '@/lib/notifications/templates/shared';
+import type { RenderedEmail } from '@duna/core/notifications/templates/shared';
 
 // Canal EMAIL de las automatizaciones. Dos identidades, elegidas por la AUDIENCIA
 // —no por quién dispara— porque son dos productos distintos hablando:
@@ -81,8 +82,12 @@ export async function dispatchEmail(
   if (req.audiencia === 'equipo') {
     await sendTeamEmail(req.to, req.email);
   } else {
-    // Identidad de tienda — el canal que ya existía, uno por destinatario.
-    for (const to of req.to) await sendCustomerEmail(to, req.email);
+    // Identidad de tienda — el canal que ya existía, uno por destinatario. El
+    // brand se inyecta con buildBrand() (este canal vive en la app y conoce el
+    // tenant). PRECONDICIÓN DE GO-LIVE: cuando las automatizaciones email-a-cliente
+    // se activen y el motor se mueva a core, el brand debe THREADEARSE por el
+    // evento — no leerse acá — igual que se hizo con notifications en Fase A.
+    for (const to of req.to) await sendCustomerEmail(to, req.email, buildBrand());
   }
 
   return { estado: 'ENVIADO', payload };

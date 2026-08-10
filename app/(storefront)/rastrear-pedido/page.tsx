@@ -12,7 +12,7 @@ import { Search, Package, CheckCircle, Truck, MapPin, Coffee, XCircle, AlertTria
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { formatCOP } from '@/lib/utils';
+import { formatCOP } from '@duna/core/utils';
 
 interface TimelineStep {
   estado: string;

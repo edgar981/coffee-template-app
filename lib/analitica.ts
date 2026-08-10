@@ -1,6 +1,6 @@
-import prisma from '@/lib/prisma';
-import { BUSINESS_TZ, startOfZonedMonth, startOfZonedYear, zonedDayKey } from '@/lib/timezone';
-import { nonCancelledOrderCountByCustomer } from '@/lib/metrics/customer-order-stats';
+import prisma from '@duna/core';
+import { BUSINESS_TZ, startOfZonedMonth, startOfZonedYear, zonedDayKey } from '@duna/core/timezone';
+import { nonCancelledOrderCountByCustomer } from '@duna/core/metrics/customer-order-stats';
 import { agregarMargenPorSku, type CostoProducto, type LineaVendida } from '@/lib/metrics/margen';
 import { agruparCartera, type OrdenPendiente } from '@/lib/metrics/cartera';
 import { concentracionIngresos, type ClienteIngreso } from '@/lib/metrics/concentracion';

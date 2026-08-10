@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   puedeGuardarProducto, faltanObligatorios, obligatoriosFaltantes,
   CAMPOS_OBLIGATORIOS_PRODUCTO, accionEstadoProducto, alternativaAlEliminar,
-} from './product-form';
+} from '@duna/core/product-form';
 import { EMPTY_PRODUCT_FORM } from '@/constants/product';
 import type { ProductForm } from '@/types/product';
 

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { motivoRechazoCambioEstado } from '@/lib/usuarios';
+import { motivoRechazoCambioEstado } from '@duna/core/usuarios';
 
 // Activar / desactivar el acceso de un usuario al panel. NO borra: un usuario es
 // actor de registros auditables (quién registró un pago, quién verificó un

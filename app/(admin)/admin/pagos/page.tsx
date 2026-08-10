@@ -17,9 +17,9 @@ import {
   METODO_CATEGORIA, PAYMENT_CATEGORIA_LABEL, PAYMENT_CATEGORIAS, PAYMENT_CATEGORIAS_MULTI,
   METODO_DESGLOSE_LABEL,
 } from '@/types/payment';
-import { formatCOP } from '@/lib/utils';
-import { formatFecha } from '@/lib/format-fecha';
-import { BUSINESS_TZ } from '@/lib/timezone';
+import { formatCOP } from '@duna/core/utils';
+import { formatFecha } from '@duna/core/format-fecha';
+import { BUSINESS_TZ } from '@duna/core/timezone';
 
 // yyyy-mm-dd in Bogotá wall-clock, for range filtering (comparison key, not shown).
 const bogotaISODate = (iso: string) =>

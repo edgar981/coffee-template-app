@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { normalizeCustomerPhone } from '@/lib/whatsapp-link';
-import { nonCancelledOrderCountByCustomer, paidTotalByCustomer } from '@/lib/metrics/customer-order-stats';
+import { normalizeCustomerPhone } from '@duna/core/whatsapp-link';
+import { nonCancelledOrderCountByCustomer, paidTotalByCustomer } from '@duna/core/metrics/customer-order-stats';
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });

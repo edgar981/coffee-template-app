@@ -18,20 +18,20 @@ import type { Product } from '@/types/product';
 import type { Customer } from '@/types/customer';
 import type { DashboardStats } from '@/types/dashboard';
 import type { AnalyticsData } from '@/types/analytics';
-import { formatCOP } from '@/lib/utils';
+import { formatCOP } from '@duna/core/utils';
 import StatCard from '@/components/admin/StatCard';
 import DashboardCustomizer from '@/components/admin/DashboardCustomizer';
 import type { Trend } from '@/lib/metrics/trend';
 import { computeTrend, NEUTRAL_TREND } from '@/lib/metrics/trend';
-import { currentMonthOrdersQuery, currentMonthRange } from '@/lib/metrics/order-stat-filters';
-import { isLowStock } from '@/lib/metrics/inventory-filters';
+import { currentMonthOrdersQuery, currentMonthRange } from '@duna/core/metrics/order-stat-filters';
+import { isLowStock } from '@duna/core/metrics/inventory-filters';
 import {
   WIDGET_MAP, DEFAULT_WIDGET_KEYS, chipTono,
   type WidgetFormato, type WidgetHrefContext,
 } from '@/constants/dashboard-widgets';
 import DashboardChartCarousel from '@/components/admin/DashboardChartCarousel';
 import DashboardDistributionCard from '@/components/admin/DashboardDistributionCard';
-import { formatFecha } from '@/lib/format-fecha';
+import { formatFecha } from '@duna/core/format-fecha';
 import type { WidgetInsightData } from '@/lib/metrics/insights';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────

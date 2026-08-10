@@ -6,7 +6,7 @@ import { Paperclip, FileText, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
-import { formatFecha } from '@/lib/format-fecha';
+import { formatFecha } from '@duna/core/format-fecha';
 import {
   esImagen, formatearTamano, estadoComprobante, nombreArchivo,
   puedeDecidirse, validarArchivoComprobante,

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, derivarCondicionPago, OrderCustomerIdentityError, OrderCustomerNotFoundError, OrderLinesError, CobroEstadoNoEscribibleError } from '@/lib/orders';
-import { MetodoPago } from '@/src/generated/prisma/client';
-import { departamentoField } from '@/lib/validation/address';
+import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, derivarCondicionPago, OrderCustomerIdentityError, OrderCustomerNotFoundError, OrderLinesError, CobroEstadoNoEscribibleError } from '@duna/core/orders';
+import { buildBrand } from '@/lib/config/brand';
+import { MetodoPago } from '@duna/core';
+import { departamentoField } from '@duna/core/validation/address';
 import { runEventAutomations } from '@/lib/automations/engine';
 
 export async function GET() {
@@ -163,6 +164,7 @@ export async function POST(req: NextRequest) {
         : null,
       items:             lines,
       idempotencyKey:    b.idempotencyKey ?? null,
+      brand:             buildBrand(),
     });
 
     // Se emite `order.creada` con `origen: 'admin'` aunque HOY nada la escuche:

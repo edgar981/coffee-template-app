@@ -1,4 +1,4 @@
-import { PENDING_ESTADO, POR_COBRAR_SHIPPING_ESTADOS } from '@/lib/metrics/order-stat-filters';
+import { PENDING_ESTADO, POR_COBRAR_SHIPPING_ESTADOS } from '@duna/core/metrics/order-stat-filters';
 
 // Los filtros Prisma compartidos por TODO lo que cuenta plata y órdenes: el
 // dashboard, y ahora los reportes de las automatizaciones. Vivían dentro del

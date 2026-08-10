@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { storage } from '@/lib/storage';
-import { sanitizeGaleria, blobsRetirados, MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
-import { aplicarPatchProducto, trae } from '@/lib/product-update';
-import { sanitizeOpciones, validarOpciones } from '@/lib/moliendas-opciones';
+import { sanitizeGaleria, blobsRetirados, MAX_GALERIA_IMAGENES } from '@duna/core/product-gallery';
+import { aplicarPatchProducto, trae } from '@duna/core/product-update';
+import { sanitizeOpciones, validarOpciones } from '@duna/core/moliendas-opciones';
 
 export async function PATCH(
   req: NextRequest,

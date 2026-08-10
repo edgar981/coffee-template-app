@@ -6,7 +6,7 @@
 //   <Logo variant="dark" />                                — for espresso backgrounds
 //   <Logo stacked subtitle="Supatá · Cundinamarca" />      — footer / splash
 
-import { cn } from "@/lib/utils";
+import { cn } from "@duna/core/utils";
 
 const PETAL = "M50 42 C 44 33 44 20 50 13 C 56 20 56 33 50 42";
 const ROTS = [0, 72, 144, 216, 288];

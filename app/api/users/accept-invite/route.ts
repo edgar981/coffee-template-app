@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
+import prisma from "@duna/core";
 import { createHash } from "crypto";
 
 const PASSWORD_ERROR_MESSAGES: Record<string, string> = {

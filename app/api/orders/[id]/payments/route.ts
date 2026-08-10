@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { registerOrderPaymentTx } from '@/lib/orders';
+import { registerOrderPaymentTx } from '@duna/core/orders';
 import { runEventAutomations } from '@/lib/automations/engine';
-import { MetodoPago } from '@/src/generated/prisma/client';
+import { MetodoPago } from '@duna/core';
 
 const METODOS = Object.values(MetodoPago);
 

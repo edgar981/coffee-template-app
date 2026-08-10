@@ -11,7 +11,7 @@ import { ADMIN_NAV } from '@/constants/admin-nav';
 import { searchAdmin } from '@/lib/api/search';
 import { SEARCH_MIN_CHARS } from '@/types/search';
 import type { AdminSearchResults, SearchEntity } from '@/types/search';
-import { normalize, formatCOP } from '@/lib/utils';
+import { normalize, formatCOP } from '@duna/core/utils';
 
 // A persisted recent selection. `type` drives its icon; `href` is the deep link
 // and the dedupe key. Purely a client-side convenience (localStorage, no server).

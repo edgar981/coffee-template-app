@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
-import { decidirComprobante, ComprobanteYaDecidido } from '@/lib/comprobantes';
+import { decidirComprobante, ComprobanteYaDecidido } from '@duna/core/comprobantes';
 
 // El VEREDICTO sobre un comprobante: verificar o rechazar. Sella quién y cuándo.
 //

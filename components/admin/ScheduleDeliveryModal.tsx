@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
-import { formatCOP } from '@/lib/utils';
+import { formatCOP } from '@duna/core/utils';
 import { scheduleDelivery } from '@/lib/api/shippings';
 import { getDeliveryContext, updateOrderAddress } from '@/lib/api/orders';
 import type { Shipping, ShippingZona, TipoEnvio } from '@/types/shipping';
@@ -18,9 +18,9 @@ import { TIPO_ENVIO_LABEL } from '@/types/shipping';
 import type { DeliveryContext, OrderAddressResult } from '@/types/order';
 import { ZONAS, SHIPPING_ESTADO_LABEL, hasScheduleData, missingToDispatch } from '@/constants/shippings';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
-import { sugerirZona } from '@/lib/zona-config';
-import { COLOMBIA_DEPARTMENTS } from '@/lib/colombia-departments';
-import { customerWhatsappHref } from '@/lib/whatsapp-link';
+import { sugerirZona } from '@duna/core/zona-config';
+import { COLOMBIA_DEPARTMENTS } from '@duna/core/colombia-departments';
+import { customerWhatsappHref } from '@duna/core/whatsapp-link';
 import { siteConfig } from '@/lib/config/site';
 
 // The modal takes the Shipping — it fetches the order's delivery context

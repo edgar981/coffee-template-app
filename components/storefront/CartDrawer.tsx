@@ -15,8 +15,8 @@ import {
 } from "lucide-react";
 
 import { useCartStore } from "@/lib/cartStore";
-import { formatCOP } from "@/lib/utils";
-import { freeShippingThreshold } from "@/lib/shipping-config";
+import { formatCOP } from "@duna/core/utils";
+import { freeShippingThreshold } from "@duna/core/shipping-config";
 
 export default function CartDrawer() {
   const {

@@ -1,4 +1,4 @@
-import { createNotification } from '@/lib/notifications';
+import { createNotification } from '@duna/core/notifications';
 import type { DispatchRequest, DispatchResult } from './types';
 
 // Canal INTERNO: la campana del admin. Escribe una fila en `Notification`, que es

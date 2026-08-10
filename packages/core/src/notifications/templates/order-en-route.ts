@@ -1,9 +1,9 @@
-import { formatCOP } from '@/lib/utils';
-import { formatFecha } from '@/lib/format-fecha';
-import { siteConfig } from '@/lib/config/site';
-import type { NotifiableOrder } from '@/lib/notifications/data';
-import { trackOrderUrl } from '@/lib/notifications/data';
-import { shell, row, p, esc, C, type RenderedEmail } from './shared';
+import { formatCOP } from '@duna/core/utils';
+import { formatFecha } from '@duna/core/format-fecha';
+import type { Brand } from '@duna/core/notifications/brand';
+import type { NotifiableOrder } from '@duna/core/notifications/data';
+import { trackOrderUrl } from '@duna/core/notifications/data';
+import { row, esc, emailKit, type RenderedEmail } from './shared';
 
 const firstName = (nombre: string | null) => (nombre?.trim().split(/\s+/)[0]) || 'Hola';
 
@@ -16,8 +16,9 @@ function direccion(order: NotifiableOrder): string | null {
   return [order.direccion_entrega, order.direccion_detalle, order.ciudad_entrega].filter(Boolean).join(', ');
 }
 
-export function renderOrderEnRoute(order: NotifiableOrder): RenderedEmail {
-  const { nombre } = siteConfig.tienda;
+export function renderOrderEnRoute(order: NotifiableOrder, brand: Brand): RenderedEmail {
+  const { C, p, shell } = emailKit(brand);
+  const { nombre } = brand;
   const subject = `Tu orden ${order.numero_orden} va en camino`;
   const dir = direccion(order);
   const mensajero = order.shipping?.mensajero?.trim() || null;
@@ -59,7 +60,7 @@ export function renderOrderEnRoute(order: NotifiableOrder): RenderedEmail {
   if (dir) lines.push(`Entrega: ${dir}`);
   if (porCobrar) lines.push('', `Total a pagar al recibir: ${formatCOP(order.total)}`);
   if (track) lines.push('', `Seguir mi pedido: ${track}`);
-  lines.push('', `${nombre} · ${siteConfig.brand.tagline}`);
+  lines.push('', `${nombre} · ${brand.tagline}`);
 
   return { subject, html, text: lines.join('\n') };
 }

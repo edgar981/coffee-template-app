@@ -1,4 +1,4 @@
-import { BUSINESS_TZ, zonedHour } from '@/lib/timezone';
+import { BUSINESS_TZ, zonedHour } from '@duna/core/timezone';
 import { AUTOMATION_MAP } from '@/constants/automations';
 import { loadAutomationStates, type AutomationState } from './settings';
 import { periodoFor, registrarRun, estaEnCooldown, yaCorrio } from './idempotency';

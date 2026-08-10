@@ -5,10 +5,10 @@ import { UserPlus, Search, MoreVertical, Mail, Shield, Check, RefreshCw } from '
 import { toast } from 'sonner';
 import RoleBadge from '@/components/admin/RoleBadge';
 import InviteUserModal from '@/components/admin/InviteUserModal';
-import { normalize } from '@/lib/utils';
+import { normalize } from '@duna/core/utils';
 import { AdminUser, Role } from '@/types/admin';
 import { ROLES } from '@/constants/roles';
-import { accionEstadoUsuario, motivoRechazoCambioEstado } from '@/lib/usuarios';
+import { accionEstadoUsuario, motivoRechazoCambioEstado } from '@duna/core/usuarios';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { authClient } from '@/lib/auth-client';
 import { useAccionesPorFila } from '@/hooks/useAccionGuardada';

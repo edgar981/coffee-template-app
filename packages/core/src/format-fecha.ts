@@ -1,4 +1,4 @@
-import { BUSINESS_TZ } from '@/lib/timezone';
+import { BUSINESS_TZ } from '@duna/core/timezone';
 
 // THE single admin date formatter. One legible short format everywhere a date is
 // shown to a human (tables, cards, tooltips, chart subtitles): `14 may 2026`,

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { X, UserPlus, Mail } from 'lucide-react';
 import { toast } from 'sonner';
-import { ROLES_INVITABLES } from '@/lib/usuarios';
+import { ROLES_INVITABLES } from '@duna/core/usuarios';
 import RoleBadge from '@/components/admin/RoleBadge';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
