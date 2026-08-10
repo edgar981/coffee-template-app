@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma from '@duna/core';
-import { rateLimit } from '@/lib/rate-limit';
+import { rateLimit } from '@duna/core/rate-limit';
 
 // Public, UNAUTHENTICATED order-tracking lookup.
 //

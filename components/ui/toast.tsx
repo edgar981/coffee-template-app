@@ -2,7 +2,7 @@
 import * as React from "react";
 import { cva, VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@duna/core/utils";
 
 type ToastProps = React.HTMLAttributes<HTMLDivElement> &
   VariantProps<typeof toastVariants>

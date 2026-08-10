@@ -1,6 +1,6 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { aplicarAjusteInventario } from '@/lib/inventory';
+import { aplicarAjusteInventario } from '@duna/core/inventory';
 import { prisma, limpiar, crearProducto } from './fixtures';
 
 // CONCURRENCIA del ajuste de inventario — item 1 del backlog.

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { COLOMBIA_DEPARTMENTS } from '@/lib/colombia-departments';
+import { COLOMBIA_DEPARTMENTS } from '@duna/core/colombia-departments';
 
 // SINGLE standard for what a valid delivery address is. Both the guest checkout
 // and the admin "Agregar dirección" flow validate through these field schemas,

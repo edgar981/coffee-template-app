@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { transitionOrder, CondicionPagoLockedError, CobroEstadoNoEscribibleError, assertEstadoNoEsCobro, type OrderTransitionData } from '@/lib/orders';
+import { transitionOrder, CondicionPagoLockedError, CobroEstadoNoEscribibleError, assertEstadoNoEsCobro, type OrderTransitionData } from '@duna/core/orders';
 import { runEventAutomations } from '@/lib/automations/engine';
 
 export async function PATCH(

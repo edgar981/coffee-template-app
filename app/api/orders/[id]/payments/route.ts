@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { registerOrderPaymentTx } from '@/lib/orders';
+import { registerOrderPaymentTx } from '@duna/core/orders';
 import { runEventAutomations } from '@/lib/automations/engine';
 import { MetodoPago } from '@duna/core';
 

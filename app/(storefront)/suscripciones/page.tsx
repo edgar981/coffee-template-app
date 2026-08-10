@@ -3,7 +3,7 @@ import { CheckCircle, ArrowRight, Coffee } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { SUBSCRIPTION_PLANS } from '@/lib/mock/subscriptions';
 import { SUBSCRIPTION_STEPS } from '@/constants/subscription-steps';
-import { whatsappHref } from '@/lib/whatsapp-link';
+import { whatsappHref } from '@duna/core/whatsapp-link';
 import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
 
 // Propuesta de suscripción (no transaccional): planes visibles, pero el CTA

@@ -10,7 +10,7 @@
 //
 // Run:  npx tsx --env-file=.env prisma/normalize-customer-phones.ts
 import prisma from "@duna/core";
-import { normalizeCustomerPhone } from "@/lib/whatsapp-link";
+import { normalizeCustomerPhone } from "@duna/core/whatsapp-link";
 
 async function main() {
   const customers = await prisma.customer.findMany({

@@ -7,7 +7,7 @@
 // deriva del tenant de la request; el resto del seam no cambia.
 
 import { siteConfig } from '@/lib/config/site';
-import type { Brand } from '@/lib/notifications/brand';
+import type { Brand } from '@duna/core/notifications/brand';
 
 export function buildBrand(): Brand {
   return {

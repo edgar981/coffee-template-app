@@ -15,9 +15,9 @@ import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { getProducts, getInventoryLogs, adjustInventory } from '@/lib/api/inventory';
 import type { InventoryLog, InventoryAdjustmentForm, InventoryMovementType } from '@/types/inventory';
 import { Product } from '@/types/product';
-import { formatCOP } from '@/lib/utils';
-import { formatFecha } from '@/lib/format-fecha';
-import { isLowStock, LOW_STOCK_VALUE } from '@/lib/metrics/inventory-filters';
+import { formatCOP } from '@duna/core/utils';
+import { formatFecha } from '@duna/core/format-fecha';
+import { isLowStock, LOW_STOCK_VALUE } from '@duna/core/metrics/inventory-filters';
 import { statCardLink } from '@/components/admin/StatCard';
 
 type Tab = 'stock' | 'movimientos';

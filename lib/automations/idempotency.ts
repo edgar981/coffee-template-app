@@ -1,5 +1,5 @@
 import prisma from '@duna/core';
-import { BUSINESS_TZ, zonedDayKey, isoWeekKey } from '@/lib/timezone';
+import { BUSINESS_TZ, zonedDayKey, isoWeekKey } from '@duna/core/timezone';
 import type { AutomationDef } from '@/constants/automations';
 import type { AutomationRunEstado } from '@duna/core';
 

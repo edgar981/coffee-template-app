@@ -3,7 +3,7 @@ import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { DayPicker, type DayPickerProps } from "react-day-picker"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@duna/core/utils"
 import { buttonVariants } from "@/components/ui/button"
 
 // Props = DayPicker props + your additions

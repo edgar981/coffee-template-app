@@ -1,7 +1,7 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { decidirComprobante, crearComprobante, ComprobanteYaDecidido } from '@/lib/comprobantes';
-import { registerOrderPaymentTx } from '@/lib/orders';
+import { decidirComprobante, crearComprobante, ComprobanteYaDecidido } from '@duna/core/comprobantes';
+import { registerOrderPaymentTx } from '@duna/core/orders';
 import { accionAlVerificar } from '@/lib/comprobante';
 import { prisma, limpiar, crearOrden, crearComprobanteFixture } from './fixtures';
 

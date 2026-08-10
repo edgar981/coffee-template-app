@@ -14,7 +14,7 @@ import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { toast } from 'sonner';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
-import { formatCOP } from '@/lib/utils';
+import { formatCOP } from '@duna/core/utils';
 import { getCustomers, createCustomer, updateCustomer, deleteCustomer } from '@/lib/api/customers';
 import type { Customer, CustomerForm } from '@/types/customer';
 import type { OrderChannel } from '@/types/order';

@@ -7,7 +7,7 @@ import {
   assertEstadoNoEsCobro,
   CobroEstadoNoEscribibleError,
   type OrderTransitionData,
-} from '@/lib/orders';
+} from '@duna/core/orders';
 import { buildBrand } from '@/lib/config/brand';
 import { prisma, limpiar, crearOrden } from './fixtures';
 

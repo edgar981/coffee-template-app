@@ -5,7 +5,7 @@ import { runEventAutomations } from '@/lib/automations/engine';
 import {
   aplicarAjusteInventario,
   InsufficientStockError, ProductoNoEncontradoError, CantidadInvalidaError,
-} from '@/lib/inventory';
+} from '@duna/core/inventory';
 
 // El handler se queda con lo suyo: sesión, parseo y códigos de estado. La regla
 // del movimiento y su transacción viven en lib/inventory (extraídas para poder

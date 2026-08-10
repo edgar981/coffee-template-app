@@ -1,9 +1,9 @@
 import { Resend } from 'resend';
 import { siteConfig } from '@/lib/config/site';
 import { buildBrand } from '@/lib/config/brand';
-import { sendCustomerEmail } from '@/lib/notifications/channels/email';
+import { sendCustomerEmail } from '@duna/core/notifications/channels/email';
 import type { DispatchRequest, DispatchResult } from './types';
-import type { RenderedEmail } from '@/lib/notifications/templates/shared';
+import type { RenderedEmail } from '@duna/core/notifications/templates/shared';
 
 // Canal EMAIL de las automatizaciones. Dos identidades, elegidas por la AUDIENCIA
 // —no por quién dispara— porque son dos productos distintos hablando:

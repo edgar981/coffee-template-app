@@ -6,7 +6,7 @@ import { getOrders } from "./order.service";
 // antes buscaba sobre el mock del frontend, ya eliminado.
 import { getProducts } from "@/lib/api/products";
 import { getCustomers } from "./customers.service";
-import { normalize } from "@/lib/utils";
+import { normalize } from "@duna/core/utils";
 
 
 export const searchService = {

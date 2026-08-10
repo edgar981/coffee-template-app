@@ -4,7 +4,12 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./index.ts"
+    ".": "./index.ts",
+    "./notifications": "./src/notifications/index.ts",
+    "./notifications/*": "./src/notifications/*.ts",
+    "./metrics/*": "./src/metrics/*.ts",
+    "./validation/*": "./src/validation/*.ts",
+    "./*": "./src/*.ts"
   },
   "scripts": {
     "generate": "prisma generate",

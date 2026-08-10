@@ -3,10 +3,10 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, derivarCondicionPago, OrderCustomerIdentityError, OrderCustomerNotFoundError, OrderLinesError, CobroEstadoNoEscribibleError } from '@/lib/orders';
+import { createOrderWithCustomer, resolveOrderLines, normalizeCustomerPhone, derivarCondicionPago, OrderCustomerIdentityError, OrderCustomerNotFoundError, OrderLinesError, CobroEstadoNoEscribibleError } from '@duna/core/orders';
 import { buildBrand } from '@/lib/config/brand';
 import { MetodoPago } from '@duna/core';
-import { departamentoField } from '@/lib/validation/address';
+import { departamentoField } from '@duna/core/validation/address';
 import { runEventAutomations } from '@/lib/automations/engine';
 
 export async function GET() {

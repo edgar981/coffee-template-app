@@ -1,9 +1,9 @@
 import prisma from '@duna/core';
-import { formatCOP } from '@/lib/utils';
-import { toWhatsappNumber } from '@/lib/whatsapp-link';
-import { BUSINESS_TZ, zonedIsoWeekday } from '@/lib/timezone';
-import { POR_COBRAR_WHERE, ORDENES_REALES } from '@/lib/metrics/prisma-scopes';
-import { PENDING_ESTADO } from '@/lib/metrics/order-stat-filters';
+import { formatCOP } from '@duna/core/utils';
+import { toWhatsappNumber } from '@duna/core/whatsapp-link';
+import { BUSINESS_TZ, zonedIsoWeekday } from '@duna/core/timezone';
+import { POR_COBRAR_WHERE, ORDENES_REALES } from '@duna/core/metrics/prisma-scopes';
+import { PENDING_ESTADO } from '@duna/core/metrics/order-stat-filters';
 import { AUTOMATION_HREF, hrefOrden } from '@/constants/automations';
 import {
   HORAS_ENTREGA_SIN_COBRO, corteEntregaISO, entregaVencidaSinCobro, horasDesdeEntrega,

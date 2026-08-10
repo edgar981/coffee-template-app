@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion, type Variants } from 'framer-motion';
 import type { LucideIcon } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@duna/core/utils';
 
 // Subtle, one-shot hover animations for admin icons (≤300–600ms, ease-out, no
 // infinite loops — they only play while actively hovered). Two trigger modes:

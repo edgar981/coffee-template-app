@@ -1,5 +1,5 @@
 import type { AutomationRunEstado } from '@duna/core';
-import type { RenderedEmail } from '@/lib/notifications/templates/shared';
+import type { RenderedEmail } from '@duna/core/notifications/templates/shared';
 
 // EL contrato entre el motor y los canales. El motor no sabe si un canal manda
 // correos, escribe en la campana o loguea a la espera de credenciales: arma un

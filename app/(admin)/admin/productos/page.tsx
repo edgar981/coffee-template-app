@@ -16,14 +16,14 @@ import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '@/lib/api/products';
 import type { Product, ProductCategory, ProductForm, RoastLevel } from '@/types/product';
 import { CATEGORIAS, EMPTY_PRODUCT_FORM, TOSTADOS } from '@/constants/product';
-import { formatCOP } from '@/lib/utils';
+import { formatCOP } from '@duna/core/utils';
 import { uploadImagen } from '@/lib/api/upload';
 import { ACCEPT_IMAGENES, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
-import { MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
-import { puedeGuardarProducto, obligatoriosFaltantes, accionEstadoProducto, alternativaAlEliminar } from '@/lib/product-form';
+import { MAX_GALERIA_IMAGENES } from '@duna/core/product-gallery';
+import { puedeGuardarProducto, obligatoriosFaltantes, accionEstadoProducto, alternativaAlEliminar } from '@duna/core/product-form';
 import { ImageLightbox, THUMB_INSPECCIONABLE } from '@/components/admin/ImageLightbox';
 import { MoliendasOpcionesEditor } from '@/components/admin/MoliendasOpcionesEditor';
-import { sanitizeOpciones, validarOpciones, revisarEdicion, type MoliendaOpcion } from '@/lib/moliendas-opciones';
+import { sanitizeOpciones, validarOpciones, revisarEdicion, type MoliendaOpcion } from '@duna/core/moliendas-opciones';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 

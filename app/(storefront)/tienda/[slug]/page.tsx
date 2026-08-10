@@ -24,14 +24,14 @@ import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 
 import { useCartStore } from "@/lib/cartStore";
-import { moliendasDisponibles, moliendaAceptada } from "@/lib/moliendas-opciones";
+import { moliendasDisponibles, moliendaAceptada } from "@duna/core/moliendas-opciones";
 
 import { toast } from "sonner";
-import { formatCOP } from "@/lib/utils";
+import { formatCOP } from "@duna/core/utils";
 import { TOSTION_LABELS } from "@/constants/roast-levels";
 import { SUBSCRIPTIONS_ENABLED, SUBSCRIPTION_DISCOUNT } from "@/constants/features";
 import Chip from "@/components/storefront/ProductChip";
-import { galeriaCompleta } from "@/lib/product-gallery";
+import { galeriaCompleta } from "@duna/core/product-gallery";
 
 interface ProductPageProps {
   params: Promise<{

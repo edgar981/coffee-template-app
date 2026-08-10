@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
-import type { Brand } from '@/lib/notifications/brand';
-import type { RenderedEmail } from '@/lib/notifications/templates/shared';
+import type { Brand } from '@duna/core/notifications/brand';
+import type { RenderedEmail } from '@duna/core/notifications/templates/shared';
 
 // THE email channel for customer notifications. Sender identity is the TIENDA's
 // (brand.remitente), never Duna's — inyectada por quien llama, nunca leída de

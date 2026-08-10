@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { normalizeCustomerPhone } from '@/lib/whatsapp-link';
-import { rankPhoneMatches } from '@/lib/orders';
+import { normalizeCustomerPhone } from '@duna/core/whatsapp-link';
+import { rankPhoneMatches } from '@duna/core/orders';
 
 const MATCH_CAP = 5;
 

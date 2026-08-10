@@ -1,7 +1,7 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { datosDelPatch } from '@/lib/product-update';
-import { blobsRetirados } from '@/lib/product-gallery';
+import { datosDelPatch } from '@duna/core/product-update';
+import { blobsRetirados } from '@duna/core/product-gallery';
 import { prisma, limpiar } from './fixtures';
 
 // UN PATCH PARCIAL NO PUEDE TOCAR NADA MÁS — el defecto que destruía datos y

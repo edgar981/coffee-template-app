@@ -1,7 +1,7 @@
 import prisma from '@duna/core';
-import { formatCOP } from '@/lib/utils';
-import { toWhatsappNumber } from '@/lib/whatsapp-link';
-import { isLowStock } from '@/lib/metrics/inventory-filters';
+import { formatCOP } from '@duna/core/utils';
+import { toWhatsappNumber } from '@duna/core/whatsapp-link';
+import { isLowStock } from '@duna/core/metrics/inventory-filters';
 import { AUTOMATION_HREF, hrefOrden } from '@/constants/automations';
 import { esOrigenNotificable } from '../reglas';
 import type { EventHandler, Objetivo } from '../types';

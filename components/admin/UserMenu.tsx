@@ -8,7 +8,7 @@ import {
   DropdownMenuItem, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { authClient } from '@/lib/auth-client';
-import { cn, getInitials } from '@/lib/utils';
+import { cn, getInitials } from '@duna/core/utils';
 
 // ─── Menú de usuario ─────────────────────────────────────────────────────────
 // UNA definición de las acciones de cuenta (perfil, configuración, cerrar

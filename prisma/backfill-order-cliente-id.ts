@@ -23,7 +23,7 @@
 
 import 'dotenv/config';
 import prisma from '@duna/core';
-import { normalizeCustomerPhone } from '@/lib/orders';
+import { normalizeCustomerPhone } from '@duna/core/orders';
 
 type Resolution = 'email' | 'phone' | 'ambiguous' | 'unresolved';
 

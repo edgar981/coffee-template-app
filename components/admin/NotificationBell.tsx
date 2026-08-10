@@ -10,8 +10,8 @@ import { AnimatedIcon } from '@/components/admin/AnimatedIcon';
 import { Button } from '@/components/ui/button';
 import { useAccionGuardada, useAccionesPorFila } from '@/hooks/useAccionGuardada';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
-import { tiempoRelativo } from '@/lib/format-fecha';
+import { cn } from '@duna/core/utils';
+import { tiempoRelativo } from '@duna/core/format-fecha';
 import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
 import { AUTOMATION_MAP } from '@/constants/automations';
 

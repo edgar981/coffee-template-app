@@ -18,7 +18,7 @@ import {
 
 import { motion } from "framer-motion";
 
-import { formatCOP } from "@/lib/utils";
+import { formatCOP } from "@duna/core/utils";
 
 import StatusBadge from "@/components/ui/StatusBadge";
 

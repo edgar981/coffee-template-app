@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { sanitizeGaleria, MAX_GALERIA_IMAGENES } from '@/lib/product-gallery';
-import { sanitizeOpciones, validarOpciones } from '@/lib/moliendas-opciones';
-import { crearProductoConAsiento } from '@/lib/product-update';
+import { sanitizeGaleria, MAX_GALERIA_IMAGENES } from '@duna/core/product-gallery';
+import { sanitizeOpciones, validarOpciones } from '@duna/core/moliendas-opciones';
+import { crearProductoConAsiento } from '@duna/core/product-update';
 import type { Prisma } from '@duna/core';
 
 export async function GET() {

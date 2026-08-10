@@ -1,12 +1,12 @@
 import prisma from '@duna/core';
 import { Prisma, MetodoPago, CondicionPago } from '@duna/core';
-import { ensureShipping, restockShippingStock } from '@/lib/fulfillment';
-import { notifyOrderCreated } from '@/lib/notifications';
-import type { Brand } from '@/lib/notifications/brand';
-import { moliendaAceptada } from '@/lib/moliendas-opciones';
+import { ensureShipping, restockShippingStock } from '@duna/core/fulfillment';
+import { notifyOrderCreated } from '@duna/core/notifications';
+import type { Brand } from '@duna/core/notifications/brand';
+import { moliendaAceptada } from '@duna/core/moliendas-opciones';
 // THE phone normalizer lives in the pure phone module (lib/whatsapp-link); it is
 // re-exported here so existing importers (`@/lib/orders`) keep working.
-import { normalizeCustomerPhone } from '@/lib/whatsapp-link';
+import { normalizeCustomerPhone } from '@duna/core/whatsapp-link';
 export { normalizeCustomerPhone };
 
 // THE rule that turns a payment method into a payment CONDITION. `condicion_pago`

@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { ROLES } from '@/constants/roles';
-import { esUltimoOwnerConAcceso } from '@/lib/usuarios';
+import { esUltimoOwnerConAcceso } from '@duna/core/usuarios';
 
 export async function PATCH(
   req: NextRequest,

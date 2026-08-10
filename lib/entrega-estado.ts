@@ -1,6 +1,6 @@
-import { formatFecha } from '@/lib/format-fecha';
+import { formatFecha } from '@duna/core/format-fecha';
 import { hasScheduleData, isScheduledShipping, missingToDispatch } from '@/constants/shippings';
-import { isPorCobrar } from '@/lib/metrics/order-stat-filters';
+import { isPorCobrar } from '@duna/core/metrics/order-stat-filters';
 import type { SemaphoreTone } from '@/components/ui/StatusBadge';
 
 // ─── El estado de entrega COMPUESTO ──────────────────────────────────────────

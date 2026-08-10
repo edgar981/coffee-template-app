@@ -1,8 +1,8 @@
-import { formatCOP } from '@/lib/utils';
-import { formatFecha } from '@/lib/format-fecha';
-import type { Brand } from '@/lib/notifications/brand';
-import type { NotifiableOrder } from '@/lib/notifications/data';
-import { trackOrderUrl } from '@/lib/notifications/data';
+import { formatCOP } from '@duna/core/utils';
+import { formatFecha } from '@duna/core/format-fecha';
+import type { Brand } from '@duna/core/notifications/brand';
+import type { NotifiableOrder } from '@duna/core/notifications/data';
+import { trackOrderUrl } from '@duna/core/notifications/data';
 import { row, esc, emailKit, type RenderedEmail } from './shared';
 
 const firstName = (nombre: string | null) => (nombre?.trim().split(/\s+/)[0]) || 'Hola';

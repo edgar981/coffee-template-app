@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { storage } from '@/lib/storage';
-import { crearComprobante, comprobantesDeOrden } from '@/lib/comprobantes';
+import { crearComprobante, comprobantesDeOrden } from '@duna/core/comprobantes';
 import { validarArchivoComprobante } from '@/lib/comprobante';
 import { PREFIJO_COMPROBANTES } from '@/constants/comprobante';
 

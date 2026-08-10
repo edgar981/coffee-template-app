@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { AUTOMATIONS, type AutomationCanal, type AutomationDef } from '@/constants/automations';
 import { getAutomations, saveAutomation, type AutomationEstado } from '@/lib/api/automations';
-import { tiempoRelativo } from '@/lib/format-fecha';
+import { tiempoRelativo } from '@duna/core/format-fecha';
 import AutomationConfigDialog from '@/components/admin/AutomationConfigDialog';
 
 // La página RENDERIZA DESDE EL REGISTRY (constants/automations.ts) y le superpone

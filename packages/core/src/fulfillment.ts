@@ -1,5 +1,5 @@
 import { Prisma } from '@duna/core';
-import { cruzoMinimo } from '@/lib/metrics/inventory-filters';
+import { cruzoMinimo } from '@duna/core/metrics/inventory-filters';
 
 interface OrderShippingSnapshot {
   id: string;

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createOrderWithCustomer, resolveOrderLines, OrderLinesError } from '@/lib/orders';
+import { createOrderWithCustomer, resolveOrderLines, OrderLinesError } from '@duna/core/orders';
 import { buildBrand } from '@/lib/config/brand';
-import { getShippingSlot, computeShippingCost } from '@/lib/shipping-config';
-import { isBogotaDC } from '@/lib/colombia-departments';
+import { getShippingSlot, computeShippingCost } from '@duna/core/shipping-config';
+import { isBogotaDC } from '@duna/core/colombia-departments';
 import { runEventAutomations } from '@/lib/automations/engine';
 import {
   direccionField, direccionDetalleField, ciudadField, departamentoField, telefonoColombiaField,
-} from '@/lib/validation/address';
+} from '@duna/core/validation/address';
 
 // Guest checkout is intentionally unauthenticated — no Better Auth session.
 // The client is trusted ONLY for product slugs, quantities and customer /

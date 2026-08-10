@@ -1,4 +1,4 @@
-import type { Brand } from '@/lib/notifications/brand';
+import type { Brand } from '@duna/core/notifications/brand';
 
 // Bloques compartidos de los correos al cliente. Solo tablas + estilos inline
 // (seguro en Gmail/Outlook — sin flex/grid, sin <style>, sin CSS externo). El

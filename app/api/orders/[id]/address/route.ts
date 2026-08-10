@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { deliveryAddressSchema } from '@/lib/validation/address';
-import { BUSINESS_TZ } from '@/lib/timezone';
+import { deliveryAddressSchema } from '@duna/core/validation/address';
+import { BUSINESS_TZ } from '@duna/core/timezone';
 
 // Agregar/actualizar la dirección de entrega DE una orden. The address lives on
 // the ORDER (direccion_entrega/ciudad_entrega/direccion_detalle + cliente_telefono)

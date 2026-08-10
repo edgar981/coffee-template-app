@@ -2,11 +2,11 @@ import { loadOrderForNotification } from './data';
 import { sendCustomerEmail } from './channels/email';
 import { renderOrderCreated } from './templates/order-created';
 import { renderOrderEnRoute } from './templates/order-en-route';
-import type { Brand } from '@/lib/notifications/brand';
+import type { Brand } from '@duna/core/notifications/brand';
 
 // Back-compat: the admin in-app bell notifications used to live in the old
 // lib/notifications.ts (this folder replaced it). Re-exported so its importers
-// (inventory routes) keep resolving `@/lib/notifications`.
+// (inventory routes) keep resolving `@duna/core/notifications`.
 export { createNotification } from './admin';
 
 // ─── Customer notification EVENTS (not sends) ────────────────────────────────

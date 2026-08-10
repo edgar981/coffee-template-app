@@ -5,7 +5,7 @@ import { ArrowLeft, Shield, Lock, CreditCard, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore } from '@/lib/cartStore';
 import { createOrder, CheckoutError, type CheckoutResult } from "@/services/checkout.service";
-import { formatCOP } from '@/lib/utils';
+import { formatCOP } from '@duna/core/utils';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
 import {
@@ -13,8 +13,8 @@ import {
   getShippingMethod,
   findSlotLabel,
   type ShippingMethodId,
-} from '@/lib/shipping-config';
-import { COLOMBIA_DEPARTMENTS, isBogotaDC } from '@/lib/colombia-departments';
+} from '@duna/core/shipping-config';
+import { COLOMBIA_DEPARTMENTS, isBogotaDC } from '@duna/core/colombia-departments';
 import { siteConfig } from '@/lib/config/site';
 
 const STEPS = ['Información', 'Pago'];

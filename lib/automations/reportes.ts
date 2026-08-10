@@ -1,9 +1,9 @@
 import prisma from '@duna/core';
-import { formatCOP } from '@/lib/utils';
-import { formatFecha } from '@/lib/format-fecha';
-import { BUSINESS_TZ, startOfZonedDay, startOfZonedWeek, zonedDayKey } from '@/lib/timezone';
-import { NOT_CANCELLED, REVENUE_ORDER_SCOPE, POR_COBRAR_WHERE, ORDENES_REALES } from '@/lib/metrics/prisma-scopes';
-import type { RenderedEmail } from '@/lib/notifications/templates/shared';
+import { formatCOP } from '@duna/core/utils';
+import { formatFecha } from '@duna/core/format-fecha';
+import { BUSINESS_TZ, startOfZonedDay, startOfZonedWeek, zonedDayKey } from '@duna/core/timezone';
+import { NOT_CANCELLED, REVENUE_ORDER_SCOPE, POR_COBRAR_WHERE, ORDENES_REALES } from '@duna/core/metrics/prisma-scopes';
+import type { RenderedEmail } from '@duna/core/notifications/templates/shared';
 
 // Los reportes al EQUIPO. Todas las cifras salen de los scopes compartidos
 // (lib/metrics/prisma-scopes) — los mismos que cuenta /api/dashboard/stats — para

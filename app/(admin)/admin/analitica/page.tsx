@@ -7,7 +7,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, LineChart, Line, Legend,
 } from 'recharts';
-import { formatCOP } from '@/lib/utils';
+import { formatCOP } from '@duna/core/utils';
 import { getAnalytics, getWeeklyActivity } from '@/lib/api/analytics';
 import { ANALITICS_COLORS, tooltipStyle, axisTickStyle } from '@/constants/dashb-styles';
 import { widgetInsight, type InsightMonthPoint } from '@/lib/metrics/insights';
@@ -17,7 +17,7 @@ import {
 } from '@/lib/metrics/titulares';
 import { CARTERA_DIAS_MEDIO } from '@/lib/metrics/cartera';
 import type { AnalyticsData, WeeklyActivityData } from '@/types/analytics';
-import { BUSINESS_TZ, startOfZonedDay, startOfZonedWeek, zonedDayKey } from '@/lib/timezone';
+import { BUSINESS_TZ, startOfZonedDay, startOfZonedWeek, zonedDayKey } from '@duna/core/timezone';
 // El pliegue nació acá y ahora lo comparte el detalle de la orden.
 import { Pliegue } from '@/components/admin/Pliegue';
 

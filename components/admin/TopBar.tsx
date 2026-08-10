@@ -12,7 +12,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
   DropdownMenuRadioGroup, DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
+import { cn } from '@duna/core/utils';
 import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
 import { UserMenu } from '@/components/admin/UserMenu';
 

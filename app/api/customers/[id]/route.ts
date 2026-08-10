@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { Prisma } from '@duna/core';
 import { headers } from 'next/headers';
-import { normalizeCustomerPhone } from '@/lib/whatsapp-link';
+import { normalizeCustomerPhone } from '@duna/core/whatsapp-link';
 
 // Customer + their order history for the dedicated profile page. Orders link to
 // the customer by SNAPSHOT (there's no FK): email OR normalized phone — matching

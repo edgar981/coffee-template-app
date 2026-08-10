@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   aplicarPatchProducto, crearProductoConAsiento,
   MOTIVO_EDICION_PRODUCTO, MOTIVO_STOCK_INICIAL,
-} from '@/lib/product-update';
+} from '@duna/core/product-update';
 import { prisma, limpiar } from './fixtures';
 
 // LA PUERTA DEL MODAL DEJA DE SER SILENCIOSA.
@@ -158,7 +158,7 @@ test('dos ediciones concurrentes: la cadena NO se rompe', async () => {
 test('la puerta del modal y Ajustar Stock comparten la cola del mismo lock', async () => {
   // Las dos puertas se mantienen; lo que las hace UNA sola cadena es que el lock
   // es de la misma fila. Si divergieran, el kardex volvería a mentir.
-  const { aplicarAjusteInventario } = await import('@/lib/inventory');
+  const { aplicarAjusteInventario } = await import('@duna/core/inventory');
   const p = await crearProducto(10);
 
   await Promise.all([

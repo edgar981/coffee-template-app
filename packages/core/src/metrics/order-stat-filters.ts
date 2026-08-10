@@ -1,4 +1,4 @@
-import { BUSINESS_TZ, startOfZonedMonth, zonedDayKey } from '@/lib/timezone';
+import { BUSINESS_TZ, startOfZonedMonth, zonedDayKey } from '@duna/core/timezone';
 import type { OrderStatus } from '@/types/order';
 
 // THE shared definitions behind the dashboard's clickable order stats. Each stat
