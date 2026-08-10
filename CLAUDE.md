@@ -1340,10 +1340,47 @@ reiniciando en frío cinco veces seguidas — no porque hubiera una regresión. 
 mismo modo de falla de siempre en este repo: **lo que se ve cambiar no es
 necesariamente lo que cambió.**
 
+## Monorepo (Fase A) — `@duna/core` y la cadena de build
+
+Workspace npm (`"workspaces": ["packages/*"]`). En Fase A hay **UNA sola app** (la
+raíz) que consume `packages/core` (schema + cliente Prisma + data-access de dominio)
+y `packages/design-system`. La topología de dos apps (`apps/admin` + `apps/storefront`)
+es Fase B.
+
+La cadena de build, verificada contra un preview real (no "debería"):
+
+- **Cliente Prisma:** el generador `prisma-client` (Prisma 7, TS ESM) escribe a
+  `packages/core/src/generated/prisma` (gitignored). Lo dispara el **`postinstall`
+  de la raíz** con `npm run generate -w @duna/core` (corre en el cwd de core, donde
+  su `prisma.config.ts` resuelve el schema) — determinista, no depende de que npm
+  corra solo el postinstall del workspace.
+- **`buildCommand`:** `npm run db:deploy -w @duna/core && next build`. El
+  `migrate deploy` corre en el contexto de core y encuentra las **36 migraciones en
+  `packages/core/prisma/migrations`** (fuente única del schema). `vercel.json` sigue
+  con `buildCommand: "npm run build"`.
+- **`transpilePackages: ['@duna/core']`** en `next.config.ts` es OBLIGATORIO: core
+  envía TS fuente y Next debe transpilarlo; sin esto el build de producción no
+  compila el paquete de workspace.
+- **El seed NO vive en core** (importa Better Auth + data demo de Nayoli): se queda
+  en `prisma/` raíz, `npm run db:seed`. `packages/core/prisma.config.ts` no lo
+  referencia.
+
+**PRECONDICIÓN de Fase B — el split dominio-vs-vista de los type composites.** En
+Fase A los módulos de core resuelven `@/types/*` vía el alias `@/`→raíz (roce
+type-only, funcional: verificado en build y runtime). **Ese alias DESAPARECE al
+partir en `apps/admin` + `apps/storefront`**, así que ANTES de Fase B hay que hacer
+el split: los enums de dominio (`OrderStatus`, `OrderChannel`, `CondicionPago`,
+`ShippingEstado`, `ProductCategory`…) → core; los composites de vista
+(`Order`/`Product`/`Shipping`, que embeben `Comprobante`/`PaymentMethod`) → app; y
+`ComprobanteEstado`/`MetodoPago` desde el enum Prisma (`@duna/core`), no desde los
+type files de vista. Se difirió de Fase A a propósito: es un refactor de modelado,
+no un move, y el gate de Fase A (deploy real) no lo necesita.
+
 ## Migraciones y deploy
 
 - **CADA ENTORNO MIGRA SU PROPIA BASE.** `npm run build` corre `prisma
-  migrate deploy` antes de `next build`, **sin condición** (desde el
+  migrate deploy` (en Fase A, vía `npm run db:deploy -w @duna/core`) antes de
+  `next build`, **sin condición** (desde el
   2026-08-04). Production migra `ep-ancient-frog`; Preview migra
   `ep-still-sound`; un `npm run build` local migra la base de tu `.env`
   (hoy también `ep-still-sound`). Lo que hace correcta a la política es
