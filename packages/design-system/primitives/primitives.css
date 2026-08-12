@@ -8,230 +8,230 @@
    ========================================================================== */
 
 /* ── Reset mínimo local ─────────────────────────────────────────────────── */
-.duna { font-family: var(--font-ui); color: var(--ink); font-size: var(--text-body);
-        line-height: var(--lh-body); -webkit-font-smoothing: antialiased; }
+.duna { font-family: var(--duna-font-ui); color: var(--duna-ink); font-size: var(--duna-text-body);
+        line-height: var(--duna-lh-body); -webkit-font-smoothing: antialiased; }
 .duna *, .duna *::before, .duna *::after { box-sizing: border-box; }
 
 /* ── Utilidades de tipografía (los 9 niveles) ───────────────────────────── */
-.duna-display-xl { font-family: var(--font-display); font-weight: var(--w-semi); font-size: var(--text-display-xl); line-height: var(--lh-tight);  letter-spacing: var(--tr-tight); }
-.duna-display-l  { font-family: var(--font-display); font-weight: var(--w-semi); font-size: var(--text-display-l);  line-height: var(--lh-snug);   letter-spacing: var(--tr-tight); }
-.duna-display-m  { font-family: var(--font-display); font-weight: var(--w-semi); font-size: var(--text-display-m);  line-height: var(--lh-snug);   letter-spacing: var(--tr-snug); }
-.duna-title      { font-family: var(--font-display); font-weight: var(--w-medium); font-size: var(--text-title);    line-height: var(--lh-normal); letter-spacing: var(--tr-snug); }
-.duna-heading    { font-family: var(--font-display); font-weight: var(--w-medium); font-size: var(--text-heading);  line-height: var(--lh-normal); }
-.duna-body       { font-size: var(--text-body); }
-.duna-body-sm, .duna-sub { font-size: var(--text-body-sm); color: var(--muted); }
-.duna-label      { font-size: var(--text-label); font-weight: var(--w-semi); }
-.duna-caption    { font-size: var(--text-caption); color: var(--muted); }
-.duna-eyebrow    { font-size: var(--text-caption); text-transform: uppercase; letter-spacing: var(--tr-caps); color: var(--muted); font-weight: var(--w-semi); }
+.duna-display-xl { font-family: var(--duna-font-display); font-weight: var(--duna-w-semi); font-size: var(--duna-text-display-xl); line-height: var(--duna-lh-tight);  letter-spacing: var(--duna-tr-tight); }
+.duna-display-l  { font-family: var(--duna-font-display); font-weight: var(--duna-w-semi); font-size: var(--duna-text-display-l);  line-height: var(--duna-lh-snug);   letter-spacing: var(--duna-tr-tight); }
+.duna-display-m  { font-family: var(--duna-font-display); font-weight: var(--duna-w-semi); font-size: var(--duna-text-display-m);  line-height: var(--duna-lh-snug);   letter-spacing: var(--duna-tr-snug); }
+.duna-title      { font-family: var(--duna-font-display); font-weight: var(--duna-w-medium); font-size: var(--duna-text-title);    line-height: var(--duna-lh-normal); letter-spacing: var(--duna-tr-snug); }
+.duna-heading    { font-family: var(--duna-font-display); font-weight: var(--duna-w-medium); font-size: var(--duna-text-heading);  line-height: var(--duna-lh-normal); }
+.duna-body       { font-size: var(--duna-text-body); }
+.duna-body-sm, .duna-sub { font-size: var(--duna-text-body-sm); color: var(--duna-muted); }
+.duna-label      { font-size: var(--duna-text-label); font-weight: var(--duna-w-semi); }
+.duna-caption    { font-size: var(--duna-text-caption); color: var(--duna-muted); }
+.duna-eyebrow    { font-size: var(--duna-text-caption); text-transform: uppercase; letter-spacing: var(--duna-tr-caps); color: var(--duna-muted); font-weight: var(--duna-w-semi); }
 /* Cifras: display + tabulares (nunca bailan de ancho al contar) */
-.duna-num  { font-family: var(--font-display); font-feature-settings: 'tnum'; font-variant-numeric: tabular-nums; }
-.duna-mono { font-family: var(--font-mono); font-size: var(--text-label); letter-spacing: var(--tr-wide); color: var(--muted); }
+.duna-num  { font-family: var(--duna-font-display); font-feature-settings: 'tnum'; font-variant-numeric: tabular-nums; }
+.duna-mono { font-family: var(--duna-font-mono); font-size: var(--duna-text-label); letter-spacing: var(--duna-tr-wide); color: var(--duna-muted); }
 
 /* ── Superficie: card ───────────────────────────────────────────────────── */
-.duna-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-l);
-             box-shadow: var(--shadow-1); transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease), border-color var(--dur) var(--ease); }
-.duna-card--hoverable:hover { box-shadow: var(--shadow-2); transform: translateY(-1px); border-color: var(--border-2); }
-.duna-card__pad  { padding: var(--space-5); }            /* 20/20 uniforme (era 20×22) */
-.duna-card__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); }
-.duna-divider { height: 1px; background: var(--border); border: none; margin: 0; }
+.duna-card { background: var(--duna-surface); border: 1px solid var(--duna-border); border-radius: var(--duna-r-l);
+             box-shadow: var(--duna-shadow-1); transition: box-shadow var(--duna-dur) var(--duna-ease), transform var(--duna-dur) var(--duna-ease), border-color var(--duna-dur) var(--duna-ease); }
+.duna-card--hoverable:hover { box-shadow: var(--duna-shadow-2); transform: translateY(-1px); border-color: var(--duna-border-2); }
+.duna-card__pad  { padding: var(--duna-space-5); }            /* 20/20 uniforme (era 20×22) */
+.duna-card__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--duna-space-4); }
+.duna-divider { height: 1px; background: var(--duna-border); border: none; margin: 0; }
 
 /* ── Botones · un solo primario sólido por vista = TINTA ─────────────────── */
-.duna-btn { display: inline-flex; align-items: center; gap: var(--space-inline); /* ícono↔label */
-            padding: var(--space-3) var(--space-3); border-radius: var(--r-s); font-weight: var(--w-semi);
-            font-size: var(--text-label); border: 1px solid transparent; transition: all var(--dur-fast) var(--ease);
+.duna-btn { display: inline-flex; align-items: center; gap: var(--duna-space-inline); /* ícono↔label */
+            padding: var(--duna-space-3) var(--duna-space-3); border-radius: var(--duna-r-s); font-weight: var(--duna-w-semi);
+            font-size: var(--duna-text-label); border: 1px solid transparent; transition: all var(--duna-dur-fast) var(--duna-ease);
             cursor: pointer; }
-.duna-btn--primary   { background: var(--ink); color: var(--paper); }
-.duna-btn--primary:hover { opacity: .88; transform: translateY(-1px); box-shadow: var(--shadow-2); }
-.duna-btn--secondary { background: var(--surface); border-color: var(--border-2); color: var(--ink); }
-.duna-btn--secondary:hover { border-color: var(--faint); box-shadow: var(--shadow-1); }
-.duna-btn--ghost { color: var(--muted); background: none; }
-.duna-btn--ghost:hover { color: var(--ink); background: var(--wash-hover); }
-.duna-btn--sm { padding: var(--space-1) var(--space-3); font-size: var(--text-caption); }
+.duna-btn--primary   { background: var(--duna-ink); color: var(--duna-paper); }
+.duna-btn--primary:hover { opacity: .88; transform: translateY(-1px); box-shadow: var(--duna-shadow-2); }
+.duna-btn--secondary { background: var(--duna-surface); border-color: var(--duna-border-2); color: var(--duna-ink); }
+.duna-btn--secondary:hover { border-color: var(--duna-faint); box-shadow: var(--duna-shadow-1); }
+.duna-btn--ghost { color: var(--duna-muted); background: none; }
+.duna-btn--ghost:hover { color: var(--duna-ink); background: var(--duna-wash-hover); }
+.duna-btn--sm { padding: var(--duna-space-1) var(--duna-space-3); font-size: var(--duna-text-caption); }
 
 /* ── Badge de estado (semáforo de reposo — SIN azul) ─────────────────────── */
-.duna-badge { display: inline-flex; align-items: center; gap: var(--space-inline);
-              padding: var(--space-hairline) var(--space-2); border-radius: var(--r-full);
-              font-size: var(--text-caption); font-weight: var(--w-semi); letter-spacing: var(--tr-wide); }
+.duna-badge { display: inline-flex; align-items: center; gap: var(--duna-space-inline);
+              padding: var(--duna-space-hairline) var(--duna-space-2); border-radius: var(--duna-r-full);
+              font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi); letter-spacing: var(--duna-tr-wide); }
 .duna-badge__dot { width: 5px; height: 5px; border-radius: 50%; }
-.duna-badge--neutral   { background: var(--surface-2); border: 1px solid var(--border); color: var(--ink-2); }
-.duna-badge--attention { background: var(--sol-soft); color: var(--sol-ink); }
-.duna-badge--attention .duna-badge__dot { background: var(--sol); }
-.duna-badge--ok        { background: var(--ok-soft); color: var(--ok-ink); }
-.duna-badge--ok .duna-badge__dot { background: var(--ok); }
-.duna-badge--problem   { background: var(--bad-soft); color: var(--bad-ink); }
-.duna-badge--problem .duna-badge__dot { background: var(--bad); }
+.duna-badge--neutral   { background: var(--duna-surface-2); border: 1px solid var(--duna-border); color: var(--duna-ink-2); }
+.duna-badge--attention { background: var(--duna-sol-soft); color: var(--duna-sol-ink); }
+.duna-badge--attention .duna-badge__dot { background: var(--duna-sol); }
+.duna-badge--ok        { background: var(--duna-ok-soft); color: var(--duna-ok-ink); }
+.duna-badge--ok .duna-badge__dot { background: var(--duna-ok); }
+.duna-badge--problem   { background: var(--duna-bad-soft); color: var(--duna-bad-ink); }
+.duna-badge--problem .duna-badge__dot { background: var(--duna-bad); }
 
 /* Canal = susurro de contexto, NUNCA categoría con color */
-.duna-chip-channel { display: inline-flex; align-items: center; gap: var(--space-inline);
-                     font-size: var(--text-caption); color: var(--muted); }
+.duna-chip-channel { display: inline-flex; align-items: center; gap: var(--duna-space-inline);
+                     font-size: var(--duna-text-caption); color: var(--duna-muted); }
 .duna-chip-channel svg { width: 11px; height: 11px; stroke: currentColor; stroke-width: 1.8; fill: none; }
 
 /* Tag (categoría neutra) */
-.duna-tag { display: inline-flex; padding: var(--space-1) var(--space-3); border-radius: var(--r-full);
-            font-size: var(--text-caption); font-weight: var(--w-semi); background: var(--paper);
-            border: 1px solid var(--border); color: var(--ink-2); }
-[data-theme="dark"] .duna-tag { background: var(--surface-2); }
+.duna-tag { display: inline-flex; padding: var(--duna-space-1) var(--duna-space-3); border-radius: var(--duna-r-full);
+            font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi); background: var(--duna-paper);
+            border: 1px solid var(--duna-border); color: var(--duna-ink-2); }
+[data-theme="dark"] .duna-tag { background: var(--duna-surface-2); }
 
 /* ── Avatar ─────────────────────────────────────────────────────────────── */
 .duna-avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center;
-               justify-content: center; font-weight: var(--w-semi); font-size: var(--text-label);
-               background: var(--paper); border: 1px solid var(--border); color: var(--ink-2); flex-shrink: 0; }
-[data-theme="dark"] .duna-avatar { background: var(--surface-2); }
+               justify-content: center; font-weight: var(--duna-w-semi); font-size: var(--duna-text-label);
+               background: var(--duna-paper); border: 1px solid var(--duna-border); color: var(--duna-ink-2); flex-shrink: 0; }
+[data-theme="dark"] .duna-avatar { background: var(--duna-surface-2); }
 
 /* ── Inputs / controles ─────────────────────────────────────────────────── */
-.duna-input { width: 100%; padding: var(--space-3); border: 1px solid var(--border-2); border-radius: var(--r-m);
-              background: var(--surface); color: var(--ink); font: inherit; font-size: var(--text-body); outline: none;
-              transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
-.duna-input:focus { border-color: var(--ink); box-shadow: var(--ring); }
-[data-theme="dark"] .duna-input:focus { border-color: var(--ink-2); }
-textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--lh-relaxed); }
+.duna-input { width: 100%; padding: var(--duna-space-3); border: 1px solid var(--duna-border-2); border-radius: var(--duna-r-m);
+              background: var(--duna-surface); color: var(--duna-ink); font: inherit; font-size: var(--duna-text-body); outline: none;
+              transition: border-color var(--duna-dur-fast) var(--duna-ease), box-shadow var(--duna-dur-fast) var(--duna-ease); }
+.duna-input:focus { border-color: var(--duna-ink); box-shadow: var(--duna-ring); }
+[data-theme="dark"] .duna-input:focus { border-color: var(--duna-ink-2); }
+textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--duna-lh-relaxed); }
 
-.duna-switch { width: 38px; height: 22px; border-radius: var(--r-full); background: var(--border-2);
-               position: relative; transition: background var(--dur) var(--ease); flex-shrink: 0; cursor: pointer; border: none; }
+.duna-switch { width: 38px; height: 22px; border-radius: var(--duna-r-full); background: var(--duna-border-2);
+               position: relative; transition: background var(--duna-dur) var(--duna-ease); flex-shrink: 0; cursor: pointer; border: none; }
 .duna-switch__thumb { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
-                      background: var(--surface); box-shadow: var(--shadow-1); transition: transform var(--dur) var(--ease); }
-.duna-switch.is-on { background: var(--ink); }
+                      background: var(--duna-surface); box-shadow: var(--duna-shadow-1); transition: transform var(--duna-dur) var(--duna-ease); }
+.duna-switch.is-on { background: var(--duna-ink); }
 .duna-switch.is-on .duna-switch__thumb { transform: translateX(16px); }
 
-.duna-stepper { display: inline-flex; align-items: center; border: 1px solid var(--border-2);
-                border-radius: var(--r-s); overflow: hidden; width: fit-content; }
-.duna-stepper button { padding: var(--space-2) var(--space-3); font-weight: var(--w-semi); color: var(--muted);
+.duna-stepper { display: inline-flex; align-items: center; border: 1px solid var(--duna-border-2);
+                border-radius: var(--duna-r-s); overflow: hidden; width: fit-content; }
+.duna-stepper button { padding: var(--duna-space-2) var(--duna-space-3); font-weight: var(--duna-w-semi); color: var(--duna-muted);
                        background: none; border: none; cursor: pointer; }
-.duna-stepper button:hover { background: var(--surface-2); color: var(--ink); }
-.duna-stepper input { width: 60px; text-align: center; border: none; border-left: 1px solid var(--border);
-                      border-right: 1px solid var(--border); padding: var(--space-2) 0; background: transparent;
-                      outline: none; font-family: var(--font-display); font-weight: var(--w-semi); color: var(--ink); }
+.duna-stepper button:hover { background: var(--duna-surface-2); color: var(--duna-ink); }
+.duna-stepper input { width: 60px; text-align: center; border: none; border-left: 1px solid var(--duna-border);
+                      border-right: 1px solid var(--duna-border); padding: var(--duna-space-2) 0; background: transparent;
+                      outline: none; font-family: var(--duna-font-display); font-weight: var(--duna-w-semi); color: var(--duna-ink); }
 
 /* Filtro (pill) */
-.duna-pill { padding: var(--space-1) var(--space-3); border-radius: var(--r-full); font-size: var(--text-label);
-             font-weight: var(--w-semi); color: var(--muted); border: 1px solid transparent; background: none; cursor: pointer; }
-.duna-pill:hover { color: var(--ink); }
-.duna-pill.is-on { background: var(--surface); border-color: var(--border-2); color: var(--ink); box-shadow: var(--shadow-1); }
+.duna-pill { padding: var(--duna-space-1) var(--duna-space-3); border-radius: var(--duna-r-full); font-size: var(--duna-text-label);
+             font-weight: var(--duna-w-semi); color: var(--duna-muted); border: 1px solid transparent; background: none; cursor: pointer; }
+.duna-pill:hover { color: var(--duna-ink); }
+.duna-pill.is-on { background: var(--duna-surface); border-color: var(--duna-border-2); color: var(--duna-ink); box-shadow: var(--duna-shadow-1); }
 
 /* ── STEPS · el "en curso" es una POSICIÓN, con anillo del sol pulsante ──── */
-.duna-steps { display: flex; align-items: center; gap: var(--space-1); }
-.duna-steps__seg { height: 3px; border-radius: 2px; background: var(--border-2); flex: 1;
-                   transition: background var(--dur-theme) var(--ease); }
-.duna-steps__seg.is-done { background: var(--ink); }
-.duna-steps__seg.is-now  { background: var(--sol); }
+.duna-steps { display: flex; align-items: center; gap: var(--duna-space-1); }
+.duna-steps__seg { height: 3px; border-radius: 2px; background: var(--duna-border-2); flex: 1;
+                   transition: background var(--duna-dur-theme) var(--duna-ease); }
+.duna-steps__seg.is-done { background: var(--duna-ink); }
+.duna-steps__seg.is-now  { background: var(--duna-sol); }
 
 /* ── TIMELINE · recorrido; el punto "now" late ──────────────────────────── */
-.duna-tl { position: relative; padding-left: var(--space-6); }
-.duna-tl::before { content: ''; position: absolute; left: 5px; top: var(--space-2); bottom: var(--space-2);
-                   width: 0; border-left: 1.5px dashed var(--border-2); }
-.duna-tl__item { position: relative; padding: var(--space-2) 0; }
-.duna-tl__item::before { content: ''; position: absolute; left: calc(-1 * var(--space-6) + 3px); top: 12px;
-                         width: 9px; height: 9px; border-radius: 50%; background: var(--surface); border: 2px solid var(--faint); }
-.duna-tl__item.is-done::before { background: var(--ink); border-color: var(--ink); }
-.duna-tl__item.is-now::before  { background: var(--sol); border-color: var(--sol); }
-.duna-tl__t { font-weight: var(--w-semi); font-size: var(--text-body-sm); }
-.duna-tl__s { font-size: var(--text-caption); color: var(--muted); }
+.duna-tl { position: relative; padding-left: var(--duna-space-6); }
+.duna-tl::before { content: ''; position: absolute; left: 5px; top: var(--duna-space-2); bottom: var(--duna-space-2);
+                   width: 0; border-left: 1.5px dashed var(--duna-border-2); }
+.duna-tl__item { position: relative; padding: var(--duna-space-2) 0; }
+.duna-tl__item::before { content: ''; position: absolute; left: calc(-1 * var(--duna-space-6) + 3px); top: 12px;
+                         width: 9px; height: 9px; border-radius: 50%; background: var(--duna-surface); border: 2px solid var(--duna-faint); }
+.duna-tl__item.is-done::before { background: var(--duna-ink); border-color: var(--duna-ink); }
+.duna-tl__item.is-now::before  { background: var(--duna-sol); border-color: var(--duna-sol); }
+.duna-tl__t { font-weight: var(--duna-w-semi); font-size: var(--duna-text-body-sm); }
+.duna-tl__s { font-size: var(--duna-text-caption); color: var(--duna-muted); }
 
 /* Anillo del sol pulsante — se aplica a cualquier "punto ahora" del sol. */
 .duna-steps__seg.is-now,
 .duna-tl__item.is-now::before,
-.duna-sol-ring { animation: duna-pulse var(--dur-pulse) var(--ease) infinite; }
+.duna-sol-ring { animation: duna-pulse var(--duna-dur-pulse) var(--duna-ease) infinite; }
 @keyframes duna-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, .35); }
   50%      { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0); }
 }
 
 /* ── Stat (cifra en prosa) ──────────────────────────────────────────────── */
-.duna-stat { padding: 0 var(--space-4); border-left: 1px solid var(--border); }
+.duna-stat { padding: 0 var(--duna-space-4); border-left: 1px solid var(--duna-border); }
 .duna-stat:first-child { border-left: none; padding-left: 0; }
-.duna-stat__v { font-family: var(--font-display); font-size: var(--text-display-m); font-weight: var(--w-semi); letter-spacing: var(--tr-snug); }
-.duna-stat__l { font-size: var(--text-caption); color: var(--muted); margin-top: 1px; }
-.duna-stat__d { font-size: var(--text-caption); font-weight: var(--w-semi); margin-top: var(--space-hairline); }
-.duna-up   { color: var(--ok-ink); }
-.duna-down { color: var(--bad-ink); }
+.duna-stat__v { font-family: var(--duna-font-display); font-size: var(--duna-text-display-m); font-weight: var(--duna-w-semi); letter-spacing: var(--duna-tr-snug); }
+.duna-stat__l { font-size: var(--duna-text-caption); color: var(--duna-muted); margin-top: 1px; }
+.duna-stat__d { font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi); margin-top: var(--duna-space-hairline); }
+.duna-up   { color: var(--duna-ok-ink); }
+.duna-down { color: var(--duna-bad-ink); }
 
 /* ── Insight / note (hecho, no consejo) ─────────────────────────────────── */
-.duna-insight { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3);
-                border-radius: var(--r-m); background: var(--surface-2); border: 1px solid var(--border); }
+.duna-insight { display: flex; gap: var(--duna-space-3); align-items: flex-start; padding: var(--duna-space-3);
+                border-radius: var(--duna-r-m); background: var(--duna-surface-2); border: 1px solid var(--duna-border); }
 .duna-insight__ic { width: 24px; height: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-                    border-radius: 7px; background: var(--sol-soft); }
-.duna-insight__ic svg { width: 13px; height: 13px; stroke: var(--sol-ink); stroke-width: 2; fill: none; }
-.duna-insight p { font-size: var(--text-body-sm); color: var(--ink-2); line-height: var(--lh-body); }
-.duna-insight p b { color: var(--ink); }
-.duna-note { background: var(--sol-soft); border: 1px solid transparent; border-radius: var(--r-m);
-             padding: var(--space-3); font-size: var(--text-body-sm); color: var(--ink-2); }
-.duna-note .duna-mono { color: var(--sol-ink); }
+                    border-radius: 7px; background: var(--duna-sol-soft); }
+.duna-insight__ic svg { width: 13px; height: 13px; stroke: var(--duna-sol-ink); stroke-width: 2; fill: none; }
+.duna-insight p { font-size: var(--duna-text-body-sm); color: var(--duna-ink-2); line-height: var(--duna-lh-body); }
+.duna-insight p b { color: var(--duna-ink); }
+.duna-note { background: var(--duna-sol-soft); border: 1px solid transparent; border-radius: var(--duna-r-m);
+             padding: var(--duna-space-3); font-size: var(--duna-text-body-sm); color: var(--duna-ink-2); }
+.duna-note .duna-mono { color: var(--duna-sol-ink); }
 
 /* ── Stock meter (ok / low = sol / out = bad) ───────────────────────────── */
-.duna-stock-meter { height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; }
-.duna-stock-meter i { display: block; height: 100%; border-radius: 2px; background: var(--ink); }
-.duna-stock-meter.is-low i { background: var(--sol); }
-.duna-stock-meter.is-out i { background: var(--bad); }
-.duna-stock-txt.is-low { color: var(--sol-ink); font-weight: var(--w-semi); }
-.duna-stock-txt.is-out { color: var(--bad); font-weight: var(--w-semi); }
+.duna-stock-meter { height: 3px; border-radius: 2px; background: var(--duna-border); overflow: hidden; }
+.duna-stock-meter i { display: block; height: 100%; border-radius: 2px; background: var(--duna-ink); }
+.duna-stock-meter.is-low i { background: var(--duna-sol); }
+.duna-stock-meter.is-out i { background: var(--duna-bad); }
+.duna-stock-txt.is-low { color: var(--duna-sol-ink); font-weight: var(--duna-w-semi); }
+.duna-stock-txt.is-out { color: var(--duna-bad); font-weight: var(--duna-w-semi); }
 
 /* ── Overlays (scrim compartido) ────────────────────────────────────────── */
-.duna-scrim { position: fixed; inset: 0; background: var(--scrim); backdrop-filter: blur(3px); }
+.duna-scrim { position: fixed; inset: 0; background: var(--duna-scrim); backdrop-filter: blur(3px); }
 /* Toast · DOS tonos, ambos EFÍMEROS, y nada más. Es solo para RESULTADOS de una
    acción: éxito o error, auto-descartable. NO hay toast de atención/sol — algo
    que persiste y pide acción va a la bandeja "Necesita tu atención"
    (.duna-att-item), no a un toast que se desvanece. El sol nunca marca éxito.
 
-   Superficie = --toast-surface: TINTA DE MARCA CONSTANTE, oscura en AMBOS temas
+   Superficie = --duna-toast-surface: TINTA DE MARCA CONSTANTE, oscura en AMBOS temas
    (no se voltea, a diferencia de btn-primary). El ESTADO lo hace el acento
-   (punto + borde izq) con --ok-on-ink / --bad-on-ink, no la superficie. En dark
+   (punto + borde izq) con --duna-ok-on-ink / --duna-bad-on-ink, no la superficie. En dark
    un aro hairline la separa del fondo oscuro sin tocar el borde-izq de tono. */
-.duna-toast { background: var(--toast-surface); color: var(--toast-text); border-radius: var(--r-m);
+.duna-toast { background: var(--duna-toast-surface); color: var(--duna-toast-text); border-radius: var(--duna-r-m);
               border-left: 3px solid transparent;
-              padding: var(--space-3) var(--space-4); font-size: var(--text-label); font-weight: var(--w-medium);
-              box-shadow: var(--shadow-3); display: inline-flex; align-items: center; gap: var(--space-3); }
-[data-theme="dark"] .duna-toast { box-shadow: var(--shadow-3), 0 0 0 1px rgba(244,243,239,.10); }
+              padding: var(--duna-space-3) var(--duna-space-4); font-size: var(--duna-text-label); font-weight: var(--duna-w-medium);
+              box-shadow: var(--duna-shadow-3); display: inline-flex; align-items: center; gap: var(--duna-space-3); }
+[data-theme="dark"] .duna-toast { box-shadow: var(--duna-shadow-3), 0 0 0 1px rgba(244,243,239,.10); }
 .duna-toast__dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.duna-toast--ok      { border-left-color: var(--ok-on-ink); }
-.duna-toast--ok  .duna-toast__dot      { background: var(--ok-on-ink); }
-.duna-toast--problem { border-left-color: var(--bad-on-ink); }
-.duna-toast--problem .duna-toast__dot  { background: var(--bad-on-ink); }
+.duna-toast--ok      { border-left-color: var(--duna-ok-on-ink); }
+.duna-toast--ok  .duna-toast__dot      { background: var(--duna-ok-on-ink); }
+.duna-toast--problem { border-left-color: var(--duna-bad-on-ink); }
+.duna-toast--problem .duna-toast__dot  { background: var(--duna-bad-on-ink); }
 
 /* Att-item · fila de la bandeja "Necesita tu atención". El CONTRAPUNTO del toast:
    persiste, pide acción y por eso SÍ lleva el punto sol (atención). El punto
    `.is-calm` (faint) es para lo informativo que no pide nada. Aquí el sol es
    correcto justamente porque no es efímero. */
-.duna-att-item { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) 0;
-                 border-bottom: 1px solid var(--border); cursor: pointer;
-                 transition: padding-left var(--dur-fast) var(--ease); }
+.duna-att-item { display: flex; align-items: flex-start; gap: var(--duna-space-3); padding: var(--duna-space-3) 0;
+                 border-bottom: 1px solid var(--duna-border); cursor: pointer;
+                 transition: padding-left var(--duna-dur-fast) var(--duna-ease); }
 .duna-att-item:last-child { border-bottom: none; }
-.duna-att-item:hover { padding-left: var(--space-1); }
-.duna-att-item__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sol); margin-top: 6px; flex-shrink: 0; }
-.duna-att-item__dot.is-calm { background: var(--faint); }
+.duna-att-item:hover { padding-left: var(--duna-space-1); }
+.duna-att-item__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--duna-sol); margin-top: 6px; flex-shrink: 0; }
+.duna-att-item__dot.is-calm { background: var(--duna-faint); }
 .duna-att-item__body { flex: 1; min-width: 0; }
-.duna-att-item__title { font-weight: var(--w-semi); font-size: var(--text-body-sm); }
-.duna-att-item__sub { color: var(--muted); font-size: var(--text-caption); margin-top: 1px; }
-.duna-att-item__cta { color: var(--muted); font-size: var(--text-caption); font-weight: var(--w-semi); white-space: nowrap; margin-top: var(--space-hairline); }
-.duna-att-item:hover .duna-att-item__cta { color: var(--ink); }
+.duna-att-item__title { font-weight: var(--duna-w-semi); font-size: var(--duna-text-body-sm); }
+.duna-att-item__sub { color: var(--duna-muted); font-size: var(--duna-text-caption); margin-top: 1px; }
+.duna-att-item__cta { color: var(--duna-muted); font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi); white-space: nowrap; margin-top: var(--duna-space-hairline); }
+.duna-att-item:hover .duna-att-item__cta { color: var(--duna-ink); }
 
 /* ── Order-card · fila compuesta de la lista de pedidos ─────────────────────
    AGNÓSTICA: solo estructura + estilo. No conoce "Order" ni ningún dominio; el
    consumidor rellena los slots (nombre, id, monto, canal, estado, steps, tiempo).
    El "en curso" vive SOLO en los `duna-steps` del pie — nunca un badge suelto. */
-.duna-order-card { padding: var(--space-4); cursor: pointer; border-radius: var(--r-m);
-                   border: 1px solid var(--border); background: var(--surface);
-                   transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease), border-color var(--dur) var(--ease); }
-.duna-order-card:hover { box-shadow: var(--shadow-2); transform: translateY(-1px); }
-.duna-order-card.is-selected { border-color: var(--ink); box-shadow: var(--shadow-2); }
-[data-theme="dark"] .duna-order-card.is-selected { border-color: var(--ink-2); }
-.duna-order-card__top { display: flex; align-items: baseline; gap: var(--space-2); }
-.duna-order-card__name { font-weight: var(--w-semi); font-size: var(--text-body); }
-.duna-order-card__id { color: var(--faint); }               /* combinar con .duna-mono */
-.duna-order-card__amount { margin-left: auto; font-weight: var(--w-semi); font-size: var(--text-body); }
-.duna-order-card__mid { display: flex; align-items: center; gap: var(--space-3);
-                        margin-top: var(--space-1); color: var(--muted); font-size: var(--text-caption); }
-.duna-order-card__foot { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-3); }
+.duna-order-card { padding: var(--duna-space-4); cursor: pointer; border-radius: var(--duna-r-m);
+                   border: 1px solid var(--duna-border); background: var(--duna-surface);
+                   transition: box-shadow var(--duna-dur) var(--duna-ease), transform var(--duna-dur) var(--duna-ease), border-color var(--duna-dur) var(--duna-ease); }
+.duna-order-card:hover { box-shadow: var(--duna-shadow-2); transform: translateY(-1px); }
+.duna-order-card.is-selected { border-color: var(--duna-ink); box-shadow: var(--duna-shadow-2); }
+[data-theme="dark"] .duna-order-card.is-selected { border-color: var(--duna-ink-2); }
+.duna-order-card__top { display: flex; align-items: baseline; gap: var(--duna-space-2); }
+.duna-order-card__name { font-weight: var(--duna-w-semi); font-size: var(--duna-text-body); }
+.duna-order-card__id { color: var(--duna-faint); }               /* combinar con .duna-mono */
+.duna-order-card__amount { margin-left: auto; font-weight: var(--duna-w-semi); font-size: var(--duna-text-body); }
+.duna-order-card__mid { display: flex; align-items: center; gap: var(--duna-space-3);
+                        margin-top: var(--duna-space-1); color: var(--duna-muted); font-size: var(--duna-text-caption); }
+.duna-order-card__foot { display: flex; align-items: center; gap: var(--duna-space-3); margin-top: var(--duna-space-3); }
 .duna-order-card__foot .duna-steps { flex: 1; }
-.duna-order-card__time { font-size: var(--text-caption); color: var(--faint); white-space: nowrap; }
+.duna-order-card__time { font-size: var(--duna-text-caption); color: var(--duna-faint); white-space: nowrap; }
 
 /* ── Items-table · líneas de una orden en el detalle ────────────────────────
    AGNÓSTICA: filas genéricas {label, meta?, amount} + fila total opcional. */
-.duna-items-table { width: 100%; border-collapse: collapse; font-size: var(--text-body); }
-.duna-items-table td { padding: var(--space-2) 0; border-bottom: 1px solid var(--border); }
+.duna-items-table { width: 100%; border-collapse: collapse; font-size: var(--duna-text-body); }
+.duna-items-table td { padding: var(--duna-space-2) 0; border-bottom: 1px solid var(--duna-border); }
 .duna-items-table tr:last-child td { border-bottom: none; }
 .duna-items-table .duna-items-table__r { text-align: right; white-space: nowrap; }
-.duna-items-table__meta { color: var(--muted); font-size: var(--text-caption); }
-.duna-items-table__total td { font-weight: var(--w-semi); }
+.duna-items-table__meta { color: var(--duna-muted); font-size: var(--duna-text-caption); }
+.duna-items-table__total td { font-weight: var(--duna-w-semi); }
 
 /* ── Reduced motion: el movimiento confirma, no obliga ──────────────────── */
 @media (prefers-reduced-motion: reduce) {

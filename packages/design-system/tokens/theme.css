@@ -4,71 +4,92 @@
    `bg-surface`, `text-ink`, `text-display-m`, `p-5`, `rounded-l`, etc. que
    apuntan a las MISMAS variables. No duplica valores: los referencia.
 
-   Uso en el consumidor (Tailwind v4, CSS-first):
-     @import "@duna/design-system/tokens/tokens.css";
-     @import "@duna/design-system/tokens/theme.css";
+   ── ESTE ARCHIVO NO LO CONSUME LA APP DE ESTE REPO. Y no es un olvido. ──────
+
+   Los tokens de `tokens.css` llevan prefijo `--duna-` justamente para poder
+   convivir con los de la app. Los nombres que este archivo DECLARA no pueden
+   llevarlo: son el contrato de Tailwind (`--color-*`, `--spacing-*`, `--text-*`,
+   `--font-*`), y `bg-muted` sale de `--color-muted` o no sale. O sea que este
+   puente vuelve a colisionar donde el prefijo ya no puede ayudar —hoy en
+   `--color-border`, `--color-muted` y `--font-display`— con el agravante de que
+   `@theme` es GLOBAL por construcción: no hay scope que lo contenga. Importarlo
+   redefiniría `bg-muted`, `border-muted` y `font-display` en toda la app,
+   storefront incluido. Es la MISMA falla que el prefijo arregla, una capa arriba.
+
+   La app de este repo construye con las clases `duna-*` de `primitives.css`, no
+   con utilidades de Tailwind, así que este puente no tiene consumidor y no se
+   importa. Se conserva para la app de Fase B, cuyo `@theme` SÍ será el de Duna
+   y donde la colisión no existe.
+
+   Si algún día hace falta importarlo junto a otro theme, la salida es prefijar
+   también lo que declara (`--color-duna-muted` → `bg-duna-muted`). No se hizo
+   ahora a propósito: sería adelantar una primitiva sin consumidor.
+
+   Uso en la app que SÍ lo consuma (Tailwind v4, CSS-first):
+     @import "@duna/design-system/tokens.css";
+     @import "@duna/design-system/theme.css";
    ========================================================================== */
 
 @theme inline {
   /* Color → utilidades bg-*/text-*/border-* */
-  --color-paper:     var(--paper);
-  --color-bg:        var(--bg);
-  --color-surface:   var(--surface);
-  --color-surface-2: var(--surface-2);
-  --color-ink:       var(--ink);
-  --color-ink-2:     var(--ink-2);
-  --color-muted:     var(--muted);
-  --color-faint:     var(--faint);
-  --color-border:    var(--border);
-  --color-border-2:  var(--border-2);
+  --color-paper:     var(--duna-paper);
+  --color-bg:        var(--duna-bg);
+  --color-surface:   var(--duna-surface);
+  --color-surface-2: var(--duna-surface-2);
+  --color-ink:       var(--duna-ink);
+  --color-ink-2:     var(--duna-ink-2);
+  --color-muted:     var(--duna-muted);
+  --color-faint:     var(--duna-faint);
+  --color-border:    var(--duna-border);
+  --color-border-2:  var(--duna-border-2);
 
-  --color-sol:      var(--sol);
-  --color-sol-ink:  var(--sol-ink);
-  --color-ok:       var(--ok);
-  --color-ok-ink:   var(--ok-ink);
-  --color-bad:      var(--bad);
-  --color-bad-ink:  var(--bad-ink);
+  --color-sol:      var(--duna-sol);
+  --color-sol-ink:  var(--duna-sol-ink);
+  --color-ok:       var(--duna-ok);
+  --color-ok-ink:   var(--duna-ok-ink);
+  --color-bad:      var(--duna-bad);
+  --color-bad-ink:  var(--duna-bad-ink);
 
   /* Tipografía → text-* (utilidad de tamaño) + font-* (familia) */
-  --font-display: var(--font-display);
-  --font-ui:      var(--font-ui);
-  --font-mono:    var(--font-mono);
+  --font-display: var(--duna-font-display);
+  --font-ui:      var(--duna-font-ui);
+  --font-mono:    var(--duna-font-mono);
 
-  --text-display-xl: var(--text-display-xl);
-  --text-display-l:  var(--text-display-l);
-  --text-display-m:  var(--text-display-m);
-  --text-title:      var(--text-title);
-  --text-heading:    var(--text-heading);
-  --text-body:       var(--text-body);
-  --text-body-sm:    var(--text-body-sm);
-  --text-label:      var(--text-label);
-  --text-caption:    var(--text-caption);
+  --text-display-xl: var(--duna-text-display-xl);
+  --text-display-l:  var(--duna-text-display-l);
+  --text-display-m:  var(--duna-text-display-m);
+  --text-title:      var(--duna-text-title);
+  --text-heading:    var(--duna-text-heading);
+  --text-body:       var(--duna-text-body);
+  --text-body-sm:    var(--duna-text-body-sm);
+  --text-label:      var(--duna-text-label);
+  --text-caption:    var(--duna-text-caption);
 
   /* Espaciado → p-*, m-*, gap-* (los nombres coinciden con la escala Duna) */
-  --spacing-hairline: var(--space-hairline);
-  --spacing-inline:   var(--space-inline);
-  --spacing-1:  var(--space-1);
-  --spacing-2:  var(--space-2);
-  --spacing-3:  var(--space-3);
-  --spacing-4:  var(--space-4);
-  --spacing-5:  var(--space-5);
-  --spacing-6:  var(--space-6);
-  --spacing-8:  var(--space-8);
-  --spacing-12: var(--space-12);
-  --spacing-16: var(--space-16);
+  --spacing-hairline: var(--duna-space-hairline);
+  --spacing-inline:   var(--duna-space-inline);
+  --spacing-1:  var(--duna-space-1);
+  --spacing-2:  var(--duna-space-2);
+  --spacing-3:  var(--duna-space-3);
+  --spacing-4:  var(--duna-space-4);
+  --spacing-5:  var(--duna-space-5);
+  --spacing-6:  var(--duna-space-6);
+  --spacing-8:  var(--duna-space-8);
+  --spacing-12: var(--duna-space-12);
+  --spacing-16: var(--duna-space-16);
 
   /* Radios → rounded-* */
-  --radius-s:    var(--r-s);
-  --radius-m:    var(--r-m);
-  --radius-l:    var(--r-l);
-  --radius-xl:   var(--r-xl);
-  --radius-full: var(--r-full);
+  --radius-s:    var(--duna-r-s);
+  --radius-m:    var(--duna-r-m);
+  --radius-l:    var(--duna-r-l);
+  --radius-xl:   var(--duna-r-xl);
+  --radius-full: var(--duna-r-full);
 
   /* Sombras → shadow-* */
-  --shadow-1: var(--shadow-1);
-  --shadow-2: var(--shadow-2);
-  --shadow-3: var(--shadow-3);
+  --shadow-1: var(--duna-shadow-1);
+  --shadow-2: var(--duna-shadow-2);
+  --shadow-3: var(--duna-shadow-3);
 
   /* Easing → ease-duna */
-  --ease-duna: var(--ease);
+  --ease-duna: var(--duna-ease);
 }

@@ -9,183 +9,223 @@
    Escalas (tipografía 9 niveles, espaciado base 4px) aprobadas por el owner.
    Los "washes" (lavados de tinta), el focus-ring y la relación topbar↔sticky
    están TOKENIZADOS: nunca un número mágico recalculado a mano.
+
+   ── TODO token lleva el prefijo `--duna-`. SIN EXCEPCIÓN. ───────────────────
+
+   No es estilo: es lo que permite que este paquete conviva con la app que lo
+   consume. Las custom properties de CSS son UN SOLO espacio de nombres global,
+   así que un `--border` declarado acá le PISA el suyo a quien nos importe. Y el
+   daño no se ve como una colisión: la app de este repo consume sus tokens como
+   `hsl(var(--border))` (tripletes HSL), de modo que nuestro `#E9E6DD` producía
+   `hsl(#E9E6DD)` —inválido— y reventaba fondos, bordes y anillos en TODA la
+   app, storefront de producción incluido. Se descubrió en el discovery de la
+   pantalla Pedidos, ANTES de importar el paquete por primera vez.
+
+   Hoy chocaban cuatro (`--border`, `--muted`, `--ring`, `--font-display`), pero
+   el prefijo va en los 80. Prefijar sólo los que chocan deja una regla que hay
+   que recordar POR TOKEN, y el que agregue `--shadow-4` dentro de seis meses no
+   la va a recordar. Uniforme, el invariante se verifica de un grep:
+
+     grep -nE '^[[:space:]]*--' tokens/tokens.css | grep -v -- '--duna-'   # vacío
+
+   Un scope por elemento (`.duna`, `[data-duna]`) se evaluó y NO alcanza: no
+   arregla `tokens/theme.css` —el `@theme` de Tailwind es global por
+   construcción y no se puede scopear— y lo portaleado a <body> (diálogos,
+   dropdowns, toasts) se escaparía del scope. Con nombres propios podemos
+   declarar en `:root`, que es justamente lo que hace que un portal herede los
+   tokens sin que nadie tenga que acordarse de marcarlo.
+
+   CUIDADO SI SE REPITE EL REEMPLAZO EN MASA: los nombres de CLASE contienen
+   `--` (`.duna-badge--ok`, `.duna-toast--ok`) y `ok` es un token. Un
+   buscar-y-reemplazar ingenuo los renombra a `.duna-badge--duna-ok` y —como
+   renombra las dos puntas del CSS— sigue viéndose bien, pero `BADGE_TONE_CLASS`
+   de `primitives/status.ts` sigue emitiendo `'duna-badge--ok'` y el componente
+   React queda pintando una clase que ya no existe. Lo que separa un token de un
+   modificador BEM es el carácter ANTERIOR: un token viene tras espacio, `(`,
+   `/`, `>` o inicio de línea; un modificador, siempre tras una letra.
+
+   El CONSUMIDOR provee las familias tipográficas, no este paquete: acá viven
+   los ROLES (`--duna-font-ui/display/mono`) y el nombre de familia es sólo el
+   default. Un consumidor que auto-hospede sus fuentes (p. ej. `next/font`, que
+   registra un nombre GENERADO, no el literal) sobreescribe esos tres tokens
+   apuntando a sus propias variables. Misma frontera que `brand` en @duna/core.
    ========================================================================== */
 
 :root {
   /* ── COLOR · roles, no nombres de color ─────────────────────────────────── */
   /* Superficies / papel */
-  --paper:      #F4F3EF;   /* fondo de marca (rail) */
-  --bg:         #F7F6F2;   /* fondo de la app (≠ papel) */
-  --surface:    #FFFFFF;   /* tarjetas */
-  --surface-2:  #FBFAF7;   /* superficie hundida / secundaria */
+  --duna-paper:      #F4F3EF;   /* fondo de marca (rail) */
+  --duna-bg:         #F7F6F2;   /* fondo de la app (≠ papel) */
+  --duna-surface:    #FFFFFF;   /* tarjetas */
+  --duna-surface-2:  #FBFAF7;   /* superficie hundida / secundaria */
 
   /* Texto (tinta / arena) — #141311 es el swatch canónico del logo */
-  --ink:        #141311;   /* texto primario · acción sólida (primario = TINTA) */
-  --ink-2:      #3D3A34;   /* texto secundario fuerte */
-  --muted:      #7C776B;   /* "arena" · texto secundario */
-  --faint:      #A8A399;   /* terciario · placeholder */
+  --duna-ink:        #141311;   /* texto primario · acción sólida (primario = TINTA) */
+  --duna-ink-2:      #3D3A34;   /* texto secundario fuerte */
+  --duna-muted:      #7C776B;   /* "arena" · texto secundario */
+  --duna-faint:      #A8A399;   /* terciario · placeholder */
 
   /* Bordes */
-  --border:     #E9E6DD;
-  --border-2:   #DDD9CD;   /* borde fuerte */
+  --duna-border:     #E9E6DD;
+  --duna-border-2:   #DDD9CD;   /* borde fuerte */
 
   /* Estado · ATENCIÓN (sol). Único significante de urgencia. */
-  --sol:        #F59E0B;               /* fill · punto · borde */
-  --sol-ink:    #8A5A00;               /* TEXTO sobre tinte (AA) */
-  --sol-soft:   rgba(245,158,11,.12);  /* tinte de fondo */
+  --duna-sol:        #F59E0B;               /* fill · punto · borde */
+  --duna-sol-ink:    #8A5A00;               /* TEXTO sobre tinte (AA) */
+  --duna-sol-soft:   rgba(245,158,11,.12);  /* tinte de fondo */
 
   /* Estado · CONFIRMADO (verde salvia, hue cálida). */
-  --ok:         #4C7A5A;               /* fill · punto · borde */
-  --ok-ink:     #3D6B4C;               /* TEXTO sobre tinte — AA 5.5:1 en blanco */
-  --ok-soft:    rgba(76,122,90,.12);
+  --duna-ok:         #4C7A5A;               /* fill · punto · borde */
+  --duna-ok-ink:     #3D6B4C;               /* TEXTO sobre tinte — AA 5.5:1 en blanco */
+  --duna-ok-soft:    rgba(76,122,90,.12);
 
   /* Estado · PROBLEMA (terracota, hue cálida). */
-  --bad:        #B5533C;               /* fill · punto · borde */
-  --bad-ink:    #A0472F;               /* TEXTO sobre tinte — AA 6.1:1 en blanco */
-  --bad-soft:   rgba(181,83,60,.10);
+  --duna-bad:        #B5533C;               /* fill · punto · borde */
+  --duna-bad-ink:    #A0472F;               /* TEXTO sobre tinte — AA 6.1:1 en blanco */
+  --duna-bad-soft:   rgba(181,83,60,.10);
 
   /* Superficie del TOAST — tinta de marca CONSTANTE. Decisión explícita (owner):
      el toast es la voz del sistema y no se voltea con el tema (a diferencia de
-     btn-primary, que sí usa --ink y flipea). Fija en :root, NO se sobreescribe en
+     btn-primary, que sí usa --duna-ink y flipea). Fija en :root, NO se sobreescribe en
      dark. En dark la separa del fondo un aro hairline (ver el componente). */
-  --toast-surface: #141311;
-  --toast-text:    #F4F3EF;
+  --duna-toast-surface: #141311;
+  --duna-toast-text:    #F4F3EF;
 
   /* Acento de estado sobre la superficie del toast. Como la superficie es SIEMPRE
      oscura, el acento es SIEMPRE la variante clara — constante en ambos temas.
      El ESTADO lo hace el acento, no la superficie. Reusa valores de la paleta.
      (#7FAE8D sobre #141311 ≈ 7:1 · #D07C66 ≈ 5.7:1.) */
-  --ok-on-ink:  #7FAE8D;
-  --bad-on-ink: #D07C66;
+  --duna-ok-on-ink:  #7FAE8D;
+  --duna-bad-on-ink: #D07C66;
 
   /* NOTA: NO existe un rol "en curso"/azul. "En curso" no es un color: es una
      POSICIÓN, y una posición exige la secuencia en la que está (ver la primitiva
      `steps` y primitives/status.ts). El azul se retiró por decisión del owner. */
 
   /* ── LAVADOS DE TINTA (washes) · tinta a alfa, tokenizados ───────────────── */
-  --wash-hover:  rgba(20,19,17,.05);   /* hover de nav/ghost/fila */
-  --wash-active: rgba(20,19,17,.08);   /* presionado / seleccionado suave */
-  --wash-ring:   rgba(20,19,17,.08);   /* anillo de foco */
-  --scrim:       rgba(20,19,17,.34);   /* velo de overlays/drawers/sheets */
+  --duna-wash-hover:  rgba(20,19,17,.05);   /* hover de nav/ghost/fila */
+  --duna-wash-active: rgba(20,19,17,.08);   /* presionado / seleccionado suave */
+  --duna-wash-ring:   rgba(20,19,17,.08);   /* anillo de foco */
+  --duna-scrim:       rgba(20,19,17,.34);   /* velo de overlays/drawers/sheets */
 
   /* ── TIPOGRAFÍA ──────────────────────────────────────────────────────────
      Familias */
-  --font-ui:      'Hanken Grotesk', system-ui, sans-serif;   /* cuerpo · controles */
-  --font-display: 'Space Grotesk', var(--font-ui);           /* titulares · cifras */
-  --font-mono:    'Spline Sans Mono', ui-monospace, monospace; /* IDs · metadatos */
+  --duna-font-ui:      'Hanken Grotesk', system-ui, sans-serif;   /* cuerpo · controles */
+  --duna-font-display: 'Space Grotesk', var(--duna-font-ui);           /* titulares · cifras */
+  --duna-font-mono:    'Spline Sans Mono', ui-monospace, monospace; /* IDs · metadatos */
 
   /* Escala de 9 niveles (px entre paréntesis a root 16px) */
-  --text-display-xl: 2rem;      /* 32 · cifra-héroe, LTV, cifras de panel grandes */
-  --text-display-l:  1.625rem;  /* 26 · H1 de detalle (nombre de producto) */
-  --text-display-m:  1.375rem;  /* 22 · títulos de página, price-big, stat-v, kpi-v */
-  --text-title:      1.1875rem; /* 19 · SUJETO de superficie enfocada (cliente, drawer) */
-  --text-heading:    1.0625rem; /* 17 · h2 de sección en flujo */
-  --text-body:       0.875rem;  /* 14 · cuerpo y controles (base) */
-  --text-body-sm:    0.8125rem; /* 13 · secundario, `sub` */
-  --text-label:      0.75rem;   /* 12 · botones, badges, tags, meta */
-  --text-caption:    0.6875rem; /* 11 · eyebrow, nav-label, timestamps, hints */
+  --duna-text-display-xl: 2rem;      /* 32 · cifra-héroe, LTV, cifras de panel grandes */
+  --duna-text-display-l:  1.625rem;  /* 26 · H1 de detalle (nombre de producto) */
+  --duna-text-display-m:  1.375rem;  /* 22 · títulos de página, price-big, stat-v, kpi-v */
+  --duna-text-title:      1.1875rem; /* 19 · SUJETO de superficie enfocada (cliente, drawer) */
+  --duna-text-heading:    1.0625rem; /* 17 · h2 de sección en flujo */
+  --duna-text-body:       0.875rem;  /* 14 · cuerpo y controles (base) */
+  --duna-text-body-sm:    0.8125rem; /* 13 · secundario, `sub` */
+  --duna-text-label:      0.75rem;   /* 12 · botones, badges, tags, meta */
+  --duna-text-caption:    0.6875rem; /* 11 · eyebrow, nav-label, timestamps, hints */
 
   /* Pesos */
-  --w-regular: 400;
-  --w-medium:  500;
-  --w-semi:    600;
-  --w-bold:    700;
+  --duna-w-regular: 400;
+  --duna-w-medium:  500;
+  --duna-w-semi:    600;
+  --duna-w-bold:    700;
 
   /* Line-heights */
-  --lh-tight:  1.1;   /* cifras grandes */
-  --lh-snug:   1.25;  /* titulares */
-  --lh-normal: 1.3;   /* headings pequeños */
-  --lh-body:   1.5;   /* cuerpo */
-  --lh-relaxed:1.55;  /* párrafos largos / textarea */
+  --duna-lh-tight:  1.1;   /* cifras grandes */
+  --duna-lh-snug:   1.25;  /* titulares */
+  --duna-lh-normal: 1.3;   /* headings pequeños */
+  --duna-lh-body:   1.5;   /* cuerpo */
+  --duna-lh-relaxed:1.55;  /* párrafos largos / textarea */
 
   /* Tracking */
-  --tr-tight:  -0.02em;  /* display */
-  --tr-snug:   -0.01em;
-  --tr-normal: 0;
-  --tr-wide:   0.01em;   /* mono · badges */
-  --tr-caps:   0.1em;    /* labels en MAYÚSCULA (eyebrow) */
+  --duna-tr-tight:  -0.02em;  /* display */
+  --duna-tr-snug:   -0.01em;
+  --duna-tr-normal: 0;
+  --duna-tr-wide:   0.01em;   /* mono · badges */
+  --duna-tr-caps:   0.1em;    /* labels en MAYÚSCULA (eyebrow) */
 
   /* ── ESPACIADO · base 4px ────────────────────────────────────────────────
      hairline (2) e inline (6) son EXCEPCIONES nombradas, no spacing general. */
-  --space-hairline: 2px;  /* marcadores, viaje del switch, gap de `steps` */
-  --space-inline:   6px;  /* SOLO adyacencia ícono/label (chip, badge, botón) */
-  --space-1:  4px;
-  --space-2:  8px;
-  --space-3:  12px;
-  --space-4:  16px;
-  --space-5:  20px;
-  --space-6:  24px;
-  --space-8:  32px;
-  --space-12: 48px;
-  --space-16: 64px;
+  --duna-space-hairline: 2px;  /* marcadores, viaje del switch, gap de `steps` */
+  --duna-space-inline:   6px;  /* SOLO adyacencia ícono/label (chip, badge, botón) */
+  --duna-space-1:  4px;
+  --duna-space-2:  8px;
+  --duna-space-3:  12px;
+  --duna-space-4:  16px;
+  --duna-space-5:  20px;
+  --duna-space-6:  24px;
+  --duna-space-8:  32px;
+  --duna-space-12: 48px;
+  --duna-space-16: 64px;
 
   /* ── RADIOS ──────────────────────────────────────────────────────────────*/
-  --r-s:    8px;
-  --r-m:    12px;
-  --r-l:    16px;
-  --r-xl:   20px;    /* esquinas de sheet/superficies grandes */
-  --r-full: 99px;    /* pills · badges */
+  --duna-r-s:    8px;
+  --duna-r-m:    12px;
+  --duna-r-l:    16px;
+  --duna-r-xl:   20px;    /* esquinas de sheet/superficies grandes */
+  --duna-r-full: 99px;    /* pills · badges */
 
   /* ── SOMBRAS + anillo de foco ────────────────────────────────────────────*/
-  --shadow-1: 0 1px 2px rgba(20,19,17,.04);
-  --shadow-2: 0 4px 16px rgba(20,19,17,.07), 0 1px 2px rgba(20,19,17,.05);
-  --shadow-3: 0 16px 48px rgba(20,19,17,.14), 0 2px 8px rgba(20,19,17,.08);
-  --ring: 0 0 0 3px var(--wash-ring);   /* foco — token propio, no de la escala */
+  --duna-shadow-1: 0 1px 2px rgba(20,19,17,.04);
+  --duna-shadow-2: 0 4px 16px rgba(20,19,17,.07), 0 1px 2px rgba(20,19,17,.05);
+  --duna-shadow-3: 0 16px 48px rgba(20,19,17,.14), 0 2px 8px rgba(20,19,17,.08);
+  --duna-ring: 0 0 0 3px var(--duna-wash-ring);   /* foco — token propio, no de la escala */
 
   /* ── MOTION ──────────────────────────────────────────────────────────────
      Una sola curva de easing para todo: el movimiento confirma, no entretiene. */
-  --ease:      cubic-bezier(.22, .8, .36, 1);
-  --dur-fast:  .15s;
-  --dur:       .2s;
-  --dur-theme: .3s;   /* transición claro/oscuro — se conserva a propósito */
-  --dur-draw:  1.4s;  /* trazo de la "línea de la duna" */
-  --dur-pulse: 2.4s;  /* latido del anillo del sol */
+  --duna-ease:      cubic-bezier(.22, .8, .36, 1);
+  --duna-dur-fast:  .15s;
+  --duna-dur:       .2s;
+  --duna-dur-theme: .3s;   /* transición claro/oscuro — se conserva a propósito */
+  --duna-dur-draw:  1.4s;  /* trazo de la "línea de la duna" */
+  --duna-dur-pulse: 2.4s;  /* latido del anillo del sol */
 
   /* ── ACOPLES TOKENIZADOS (relación, no número mágico) ────────────────────
      La altura de la topbar la consume el offset del panel sticky:
-       .detail { top: calc(var(--topbar-h) + var(--space-6)); }
-     Cambiar el padding de la topbar mueve --topbar-h y el sticky sigue solo. */
-  --topbar-h: 52px;
+       .detail { top: calc(var(--duna-topbar-h) + var(--duna-space-6)); }
+     Cambiar el padding de la topbar mueve --duna-topbar-h y el sticky sigue solo. */
+  --duna-topbar-h: 52px;
 }
 
 /* ── DARK ─────────────────────────────────────────────────────────────────
    Solo el admin aplica el tema oscuro (el storefront es light-only). */
 [data-theme="dark"] {
-  --paper:      #121212;
-  --bg:         #131211;
-  --surface:    #1B1A18;
-  --surface-2:  #181715;
+  --duna-paper:      #121212;
+  --duna-bg:         #131211;
+  --duna-surface:    #1B1A18;
+  --duna-surface-2:  #181715;
 
-  --ink:        #F4F3EF;
-  --ink-2:      #CFCBC0;
-  --muted:      #9A958A;
-  --faint:      #6E6A60;
+  --duna-ink:        #F4F3EF;
+  --duna-ink-2:      #CFCBC0;
+  --duna-muted:      #9A958A;
+  --duna-faint:      #6E6A60;
 
-  --border:     #2A2824;
-  --border-2:   #38352F;
+  --duna-border:     #2A2824;
+  --duna-border-2:   #38352F;
 
-  --sol-ink:    #F5B04C;               /* texto ámbar legible en oscuro */
-  --sol-soft:   rgba(245,158,11,.14);
+  --duna-sol-ink:    #F5B04C;               /* texto ámbar legible en oscuro */
+  --duna-sol-soft:   rgba(245,158,11,.14);
 
-  --ok:         #7FAE8D;
-  --ok-ink:     #7FAE8D;               /* AA 7:1 sobre --surface oscuro */
-  --ok-soft:    rgba(127,174,141,.12);
+  --duna-ok:         #7FAE8D;
+  --duna-ok-ink:     #7FAE8D;               /* AA 7:1 sobre --duna-surface oscuro */
+  --duna-ok-soft:    rgba(127,174,141,.12);
 
-  --bad:        #D07C66;
-  --bad-ink:    #D07C66;               /* AA 5.7:1 sobre --surface oscuro */
-  --bad-soft:   rgba(208,124,102,.12);
+  --duna-bad:        #D07C66;
+  --duna-bad-ink:    #D07C66;               /* AA 5.7:1 sobre --duna-surface oscuro */
+  --duna-bad-soft:   rgba(208,124,102,.12);
 
-  /* --toast-surface / --toast-text / --ok-on-ink / --bad-on-ink NO se
+  /* --duna-toast-surface / --duna-toast-text / --duna-ok-on-ink / --duna-bad-on-ink NO se
      sobreescriben acá a propósito: el toast es superficie constante. */
 
-  --wash-hover:  rgba(244,243,239,.06);
-  --wash-active: rgba(244,243,239,.10);
-  --wash-ring:   rgba(244,243,239,.10);
-  --scrim:       rgba(0,0,0,.55);
+  --duna-wash-hover:  rgba(244,243,239,.06);
+  --duna-wash-active: rgba(244,243,239,.10);
+  --duna-wash-ring:   rgba(244,243,239,.10);
+  --duna-scrim:       rgba(0,0,0,.55);
 
-  --shadow-1: 0 1px 2px rgba(0,0,0,.3);
-  --shadow-2: 0 4px 16px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.3);
-  --shadow-3: 0 16px 48px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.35);
+  --duna-shadow-1: 0 1px 2px rgba(0,0,0,.3);
+  --duna-shadow-2: 0 4px 16px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.3);
+  --duna-shadow-3: 0 16px 48px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.35);
 }
 
 /* color-scheme sigue al tema (afecta scrollbars, controles nativos) */
