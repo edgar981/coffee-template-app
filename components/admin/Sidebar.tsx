@@ -12,18 +12,29 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { authClient } from "@/lib/auth-client";
 import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
 import { UserMenu } from '@/components/admin/UserMenu';
+import { useAtencionPedidos } from '@/hooks/useAtencionPedidos';
+
+// ─── EL PUNTO SOL ─────────────────────────────────────────────────────────────
+//
+// Hoy sólo Pedidos tiene una regla de atención, así que la ruta es una constante y
+// no un registro. Cuando una segunda sección tenga la suya, esto se vuelve un mapa
+// y el endpoint devuelve una bandera por sección — no antes: generalizar con un
+// solo caso es inventar la forma equivocada con la mitad de la información.
+const RUTA_CON_ATENCION = '/admin/pedidos';
 
 // ─── One nav row ──────────────────────────────────────────────────────────────
 // Kept a real <Link> (prefetch, middle-click, aria-current). The WHOLE row drives
 // the icon animation via local hover state. On the collapsed icon rail the row is
 // wrapped in a Radix tooltip (side="right"); everywhere labels are visible, no
 // tooltip (a repeated label is noise).
-function NavRow({ item, active, iconOnly, animateIndicator, onNavigate }: {
+function NavRow({ item, active, iconOnly, animateIndicator, onNavigate, atencion }: {
   item: AdminNavItem;
   active: boolean;
   iconOnly: boolean;
   animateIndicator: boolean;
   onNavigate: () => void;
+  /** El dato BAJA por props: el fetch vive en `Sidebar`, que es único. */
+  atencion: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -52,6 +63,25 @@ function NavRow({ item, active, iconOnly, animateIndicator, onNavigate }: {
       {!iconOnly && (
         <span className="text-sm font-medium whitespace-nowrap">{item.label}</span>
       )}
+      {/* Primitiva del design-system (`.duna-nav-dot`), no un punto ad-hoc: el
+          ámbar del sol significa una sola cosa en todo el producto. NO late — el
+          anillo pulsante está reservado a "esto está pasando ahora", que es
+          transitorio; y NO tiene estado apagado: si no hay nada que atender, no se
+          renderiza. Por eso es `{atencion && …}` y no una clase condicional.
+
+          En el rail COLAPSADO va igual —ahí el ícono solo no dice qué pasa, así que
+          el punto es lo único que avisa— pero posicionado distinto: `ml-auto`
+          serviría sólo con label. Un margen auto absorbe el espacio libre ANTES de
+          que `justify-center` reparta, así que en la fila centrada empujaría el
+          ícono a la izquierda y el punto al borde. Colapsado va absoluto en la
+          esquina, como ya hace el indicador de activo de abajo. */}
+      {atencion && (
+        <span
+          className={cn('duna-nav-dot', iconOnly ? 'absolute right-2 top-2' : 'ml-auto')}
+          role="status"
+          aria-label={`${item.label} necesita atención`}
+        />
+      )}
       {active && (
         animateIndicator
           ? <motion.div layoutId="activeIndicator" className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-sidebar-primary" />
@@ -70,10 +100,13 @@ function NavRow({ item, active, iconOnly, animateIndicator, onNavigate }: {
 }
 
 // ─── Nav list ─────────────────────────────────────────────────────────────────
-function SidebarNav({ iconOnly, animateIndicator, onNavigate }: {
+function SidebarNav({ iconOnly, animateIndicator, onNavigate, atencionPedidos }: {
   iconOnly: boolean;
   animateIndicator: boolean;
   onNavigate: () => void;
+  /** Viene de `Sidebar`. NO se consulta acá: con el rail colapsado hay DOS
+   *  `SidebarNav` montados a la vez y serían dos pollers. */
+  atencionPedidos: boolean;
 }) {
   const pathname = usePathname();
   const { data: session } = authClient.useSession();
@@ -92,6 +125,7 @@ function SidebarNav({ iconOnly, animateIndicator, onNavigate }: {
               iconOnly={iconOnly}
               animateIndicator={animateIndicator}
               onNavigate={onNavigate}
+              atencion={item.path === RUTA_CON_ATENCION && atencionPedidos}
             />
           );
         })}
@@ -158,6 +192,9 @@ function BrandLockup() {
 export default function Sidebar({
   collapsed, onToggle, mobileOpen, onClose, onOpenSearch,
 }: SidebarProps) {
+  // UNA sola consulta para todo el nav, acá y no más abajo: con el rail colapsado
+  // hay dos `SidebarNav` montados a la vez, así que el hook viviría duplicado.
+  const atencionPedidos = useAtencionPedidos();
   // Mobile drawer only: lock body scroll + Escape-to-close while open.
   useEffect(() => {
     if (!mobileOpen) return;
@@ -251,11 +288,11 @@ export default function Sidebar({
             otherwise. `lg:hidden` / `lg:flex` swaps between the two on desktop; the
             mobile drawer always uses the labelled variant. */}
         <div className={cn('flex flex-1 flex-col overflow-hidden', collapsed && 'lg:hidden')}>
-          <SidebarNav iconOnly={false} animateIndicator onNavigate={onClose} />
+          <SidebarNav iconOnly={false} animateIndicator onNavigate={onClose} atencionPedidos={atencionPedidos} />
         </div>
         {collapsed && (
           <div className="hidden flex-1 flex-col overflow-hidden lg:flex">
-            <SidebarNav iconOnly animateIndicator onNavigate={onClose} />
+            <SidebarNav iconOnly animateIndicator onNavigate={onClose} atencionPedidos={atencionPedidos} />
           </div>
         )}
 
