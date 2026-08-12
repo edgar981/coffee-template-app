@@ -3,7 +3,13 @@ import type { ReactNode } from "react";
 
 import { AdminThemeProvider } from "@/components/theme/AdminThemeProvider";
 import { AdminScope } from "@/components/theme/AdminScope";
-import { spaceGrotesk, instrumentSans, jetbrainsMono } from "./fonts";
+import {
+  spaceGrotesk, instrumentSans, jetbrainsMono,
+  hankenGrotesk, splineSansMono,
+} from "./fonts";
+// Tokens + primitivas de @duna/design-system, y el puente de familias
+// tipográficas. Acá y no en el layout raíz: el storefront no lo consume.
+import "./duna.css";
 import { SUFIJO_PANEL } from "@/lib/admin-titulo";
 
 // Layout del grupo admin (dashboard, login, aceptar-invitación). Monta el
@@ -71,7 +77,7 @@ export default function AdminGroupLayout({ children }: { children: ReactNode }) 
       />
       <AdminScope />
       <div
-        className={`${spaceGrotesk.variable} ${instrumentSans.variable} ${jetbrainsMono.variable} admin-shell`}
+        className={`${spaceGrotesk.variable} ${instrumentSans.variable} ${jetbrainsMono.variable} ${hankenGrotesk.variable} ${splineSansMono.variable} admin-shell`}
       >
         {children}
       </div>
