@@ -119,14 +119,16 @@
     <div class="duna-card card-demo" style="max-width:460px">
       <div class="duna-steps" style="margin-bottom:var(--duna-space-2)">
         <span class="duna-steps__seg is-done"></span>
-        <span class="duna-steps__seg is-done"></span>
         <span class="duna-steps__seg is-now"></span>
         <span class="duna-steps__seg"></span>
         <span class="duna-steps__seg"></span>
       </div>
-      <div class="duna-body-sm">Recibido → Confirmado → <b style="color:var(--duna-sol-ink)">Preparando</b> → En camino → Entregado</div>
+      <div class="duna-body-sm">Recibido → <b style="color:var(--duna-sol-ink)">Preparando</b> → En camino → Entregado</div>
     </div>
     <div class="flag" style="margin-top:var(--duna-space-4)">El segmento actual lleva el anillo del sol <b>pulsando</b>. Con <code>prefers-reduced-motion</code> queda quieto.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">Estas cuatro etiquetas son EJEMPLO, no contrato: <b>las trae el dominio</b>, y el sistema sólo garantiza que la posición nunca viaje sin ellas. Son las reales de la vertical de este repo —salen del eje de FULFILLMENT (<code>Shipping.estado</code>)— y se muestran así, y no como "Etapa 1 · Etapa 2", porque un ejemplo abstracto no enseña cómo se ve una secuencia de verdad. Otra vertical traerá otras, y otra cantidad.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">Hasta hace poco este ejemplo mostraba <b>cinco</b> etapas, con un "Confirmado" entre Recibido y Preparando. Ese estado lo BORRÓ el dominio —una migración lo fusionó con "pagado", porque pago confirmado y orden confirmada eran el mismo momento—, así que la etapa significaba <b>pago acreditado</b>… y el pago NO es una posición del camino: en contraentrega el pedido se prepara, se despacha y se entrega sin pagar, y la plata entra al final. La barra habría quedado esperando un paso que en todo ese recorrido no ocurre. Queda escrito porque el ejemplo se leía como canon y produjo dos secuencias que no cuadraban.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">Y "Lista para despacho" NO es una quinta etapa, aunque lo parezca: es un predicado de completitud DENTRO de <i>Preparando</i> (tiene mensajero y fecha), no un estado. Meterlo en la barra duplicaría lo que la columna de Entrega ya distingue.</div>
   </section>
 
   <!-- TIMELINE -->
@@ -135,9 +137,9 @@
     <p class="sec-note">Tres ranuras por hecho: qué pasó, cuándo y QUIÉN. El actor es opcional — cuando falta, la línea muestra sólo el cuándo y el sistema NO inventa una etiqueta ("Sistema", "Automático"): eso es lenguaje de producto, y el paquete es agnóstico. Si el producto quiere una palabra para el actor no humano, la pasa como <code>actor</code>. El componente es <code>components/Timeline.tsx</code> y monta <code>&lt;ol&gt;/&lt;li&gt;</code>: un recorrido ES una lista ordenada.</p>
     <div class="duna-card card-demo" style="max-width:460px">
       <ol class="duna-tl">
-        <li class="duna-tl__item is-now"><div class="duna-tl__t">En camino con el mensajero</div><div class="duna-tl__s">Hoy, 2:20 p.m. · Ana Ruiz</div></li>
-        <li class="duna-tl__item is-done"><div class="duna-tl__t">Preparado y empacado</div><div class="duna-tl__s">Hoy, 1:50 p.m. · Ana Ruiz</div></li>
-        <li class="duna-tl__item is-done"><div class="duna-tl__t">Confirmado</div><div class="duna-tl__s">Hoy, 1:32 p.m.</div></li>
+        <li class="duna-tl__item is-now"><div class="duna-tl__t">Despachado</div><div class="duna-tl__s">Hoy, 2:20 p.m. · Ana Ruiz</div></li>
+        <li class="duna-tl__item is-done"><div class="duna-tl__t">Envío creado</div><div class="duna-tl__s">Hoy, 1:50 p.m. · Ana Ruiz</div></li>
+        <li class="duna-tl__item is-done"><div class="duna-tl__t">Pago registrado</div><div class="duna-tl__s">Hoy, 1:32 p.m.</div></li>
       </ol>
     </div>
     <div class="flag" style="margin-top:var(--duna-space-4)">La última fila no tiene actor: es un hecho sin humano detrás. Se ve como las otras, con una línea más corta — sin hueco, sin guion, sin palabra inventada.</div>
@@ -146,8 +148,8 @@
     <div class="duna-card card-demo" style="max-width:460px">
       <ol class="duna-tl">
         <li class="duna-tl__item"><div class="duna-tl__t">Entregado</div><div class="duna-tl__s">14 may 2026</div></li>
-        <li class="duna-tl__item"><div class="duna-tl__t">Pagado</div><div class="duna-tl__s">12 may 2026</div></li>
-        <li class="duna-tl__item"><div class="duna-tl__t">Creado</div><div class="duna-tl__s">11 may 2026</div></li>
+        <li class="duna-tl__item"><div class="duna-tl__t">Pago registrado</div><div class="duna-tl__s">12 may 2026</div></li>
+        <li class="duna-tl__item"><div class="duna-tl__t">Pedido creado</div><div class="duna-tl__s">11 may 2026</div></li>
       </ol>
     </div>
     <div class="flag" style="margin-top:var(--duna-space-4)">Aro hueco, sin <code>done</code> ni <code>now</code>: consta que ocurrió, pero no hay secuencia completa que colorear. Es la forma correcta para un recorrido derivado de un registro viejo — lo que se puede afirmar y nada más.</div>
@@ -246,7 +248,7 @@
           </div>
           <div class="duna-order-card__foot">
             <span class="duna-steps">
-              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-now"></span><span class="duna-steps__seg"></span><span class="duna-steps__seg"></span>
+              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-now"></span><span class="duna-steps__seg"></span>
             </span>
             <span class="duna-order-card__time">hace 42 min</span>
           </div>
@@ -263,7 +265,7 @@
           </div>
           <div class="duna-order-card__foot">
             <span class="duna-steps">
-              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span>
+              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span>
             </span>
             <span class="duna-order-card__time">hace 4 h</span>
           </div>
@@ -314,7 +316,7 @@
           </div>
           <div class="duna-order-card__foot">
             <span class="duna-steps">
-              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-now"></span><span class="duna-steps__seg"></span><span class="duna-steps__seg"></span>
+              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-now"></span><span class="duna-steps__seg"></span>
             </span>
             <span class="duna-order-card__time">hace 42 min</span>
           </div>
@@ -327,7 +329,7 @@
           </div>
           <div class="duna-order-card__foot">
             <span class="duna-steps">
-              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span>
+              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span>
             </span>
             <span class="duna-order-card__time">hace 4 h</span>
           </div>
