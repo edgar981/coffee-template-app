@@ -489,6 +489,37 @@ meses alguien reporta como defecto y vuelve a costar un diagnóstico. La salida
 real es push (SSE/websocket), que está **fuera de alcance de la v1** por decisión
 explícita.
 
+### 4. `reference.html` usa etiquetas de DOMINIO que el DS no puede mantener
+
+La prueba viva del design-system ilustra `steps` y la timeline con las etiquetas
+reales de esta vertical (Recibido · Preparando · En camino · Entregado, y el
+vocabulario del Recorrido). El paquete es **agnóstico de negocio por diseño**, así
+que no tiene forma de saber cuándo el dominio cambia una secuencia — y por tanto
+nada garantiza que no vuelvan a divergir.
+
+**Costo YA pagado:** el fósil **"Confirmado"** sobrevivió **un mes** dentro de la
+referencia y del comentario de `primitives/status.ts` después de que la migración
+`20260710152313_merge_confirmado_into_pagado` borrara ese estado del dominio.
+Salió a la luz sólo porque el owner comparó la referencia contra la pantalla de
+Pedidos y preguntó por qué una mostraba cinco pasos y la otra cuatro. Y no era
+cosmético: esa etapa significaba **pago acreditado**, que contradice la decisión
+—ya fijada con test— de que el pago no es una posición del camino, porque en
+contraentrega el pedido se prepara, se despacha y se entrega sin pagar.
+
+Se arregló en `5a520ea` (los dos sitios a la secuencia real, con el descargo de que
+las etiquetas las trae el dominio). **Eso corrige el dato, no el mecanismo:** hoy
+coinciden porque alguien las miró.
+
+La salida barata que se evaluó y se descartó por ahora es un test en la APP que
+afirme que `ETAPAS_PEDIDO` es lo que la referencia muestra —invirtiendo la
+dependencia, ya que la app sí conoce al DS—, pero leer HTML con regex es frágil de
+otra manera y cambia el modo de falla en vez de quitarlo.
+
+**DISPARADOR:** la próxima vez que el dominio cambie una secuencia canónica, o que
+otra pantalla fije la suya, migrar los ejemplos de la referencia a etiquetas
+**evidentemente de muestra** (Paso 1 · Paso 2 · …) con el descargo. Enseña menos,
+pero no puede caducar.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son

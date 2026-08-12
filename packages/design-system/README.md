@@ -34,13 +34,63 @@ reference.html    Página de referencia viva: renderiza tokens y primitivas.
 ## Consumo (Tailwind v4)
 
 ```css
-@import "@duna/design-system/tokens/tokens.css";
-@import "@duna/design-system/tokens/theme.css";
-@import "@duna/design-system/primitives/primitives.css";
+@import "@duna/design-system/tokens.css";
+@import "@duna/design-system/primitives.css";
 ```
 
+**`theme.css` NO va en esa lista.** Es el puente a `@theme` de Tailwind y sus
+nombres son el contrato de Tailwind (`--color-muted`, `--font-display`…), así que
+no pueden llevar el prefijo `--duna-` y vuelven a colisionar con el theme del
+consumidor — sin scope posible, porque `@theme` es global por construcción. Se
+importa solo en una app cuyo theme de Tailwind SEA el de Duna (Fase B). Detalle
+completo en el encabezado del archivo.
+
+Dos cosas que este bloque tuvo mal desde el principio y que sólo aparecen al
+consumir el paquete de verdad:
+
+- **Las rutas son las del `exports`, no las internas.** Decía
+  `@duna/design-system/tokens/tokens.css`, y ninguna de las tres líneas resolvía:
+  el mapa declara `./tokens.css`. Las claves son planas a propósito — la
+  estructura interna del paquete puede moverse sin romperle nada a nadie, que es
+  para lo que existe un mapa de exports.
+- **Las entradas CSS necesitan la condición `style`.** Es la que consulta el
+  resolvedor de `@import` de Tailwind v4; sin ella el import falla con *"is not
+  exported under the condition style"* aunque la ruta sea correcta. Llevan además
+  `default`, para el consumidor que importe el CSS desde un módulo JS/TSX
+  (`import "@duna/design-system/tokens.css"`), que es el otro camino válido en
+  Next y no pasa por `style`.
+
+Las dos son la misma clase de falla: `reference.html` enlaza los CSS por ruta
+**relativa**, así que la prueba viva del paquete nunca ejerció el mapa de exports.
+**Un paquete verificado en aislamiento no está verificado para ser consumido** —
+lo que la prueba viva demuestra es que el sistema es coherente, no que se pueda
+instalar.
+
 El tema oscuro se activa con `data-theme="dark"` en `<html>` (solo el admin lo
-usa; el storefront es light-only).
+usa; el storefront es light-only). El DS no aprende la convención de nadie: un
+consumidor que ya use otra (p. ej. la clase `.dark` de next-themes) escribe las
+dos — `attribute={["class","data-theme"]}`.
+
+### Los tokens llevan prefijo `--duna-`, los 80, sin excepción
+
+Las custom properties son un espacio de nombres global: un `--border` declarado
+por el sistema le pisa el suyo a la app. El invariante se verifica de un grep:
+
+```bash
+grep -nE '^[[:space:]]*--' packages/design-system/tokens/tokens.css | grep -v -- '--duna-'
+```
+
+Vacío = correcto. El porqué —y por qué no bastaba un scope por elemento, y la
+trampa que tiene reemplazarlos en masa— está en el encabezado de
+`tokens/tokens.css`.
+
+### Las FAMILIAS tipográficas las provee el consumidor
+
+El sistema declara el ROL — `--duna-font-ui` / `--duna-font-display` /
+`--duna-font-mono` — y el nombre de familia es solo el default. Un consumidor que
+auto-hospede sus fuentes sobreescribe esos tres tokens: `next/font` registra un
+nombre GENERADO, así que el literal `'Space Grotesk'` no resuelve aunque la fuente
+esté cargada. Misma frontera que `brand` en `@duna/core`.
 
 ## Decisiones que están cableadas en los tokens
 

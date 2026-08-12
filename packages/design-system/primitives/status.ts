@@ -85,8 +85,29 @@ export function segmentStates(p: Progress): SegmentState[] {
      renderBadge('info', 'En ruta')
 
      // ✓ Única vía para "en curso": la secuencia viaja con la posición.
-     renderSteps(progress(['Recibido','Confirmado','Preparando','En camino','Entregado'], 3))
+     renderSteps(progress(['Recibido','Preparando','En camino','Entregado'], 2))
 
    Un badge de reposo (pagado, cancelado, atención) sigue siendo un badge. Lo que
    ya no se puede es afirmar "va en camino" sin mostrar el camino.
+
+   ── ESAS ETIQUETAS SON EJEMPLO, NO CONTRATO ───────────────────────────────
+
+   Las trae el DOMINIO; este módulo sólo garantiza que la posición nunca viaje sin
+   ellas. Son las reales de la vertical de este repo —salen del eje de FULFILLMENT
+   (`Shipping.estado`)— y se muestran así, y no como "Etapa 1 · Etapa 2", porque un
+   ejemplo abstracto no enseña cómo se ve una secuencia de verdad. Otra vertical
+   traerá otras, y otra cantidad.
+
+   Y conviene decir por qué NO son cinco, que es lo que este comentario decía
+   antes: llevaba un "Confirmado" entre Recibido y Preparando. El dominio BORRÓ ese
+   estado —una migración lo fusionó con "pagado", porque pago confirmado y orden
+   confirmada eran el mismo momento—, así que la etapa significaba PAGO
+   ACREDITADO. Y el pago no es una posición del camino: en contraentrega el pedido
+   se prepara, se despacha y se entrega SIN pagar, y la plata entra al final; la
+   barra habría quedado esperando un paso que en todo ese recorrido no ocurre.
+   Queda escrito porque el ejemplo se leía como canon y llegó a producir dos
+   secuencias que no cuadraban entre el sistema y la pantalla.
+
+   "Lista para despacho" tampoco es una etapa, aunque lo parezca: es un predicado
+   de completitud DENTRO de Preparando (tiene mensajero y fecha), no un estado.
    ───────────────────────────────────────────────────────────────────────── */

@@ -1,9 +1,23 @@
 import { razonDelServidor } from '@/lib/api/errors';
-import type { Order, TrackedOrder, DeliveryContext, DeliveryAddressPayload, OrderAddressResult, AdminOrderPayload } from '@/types/order';
+import type { Order, OrderDetalle, TrackedOrder, DeliveryContext, DeliveryAddressPayload, OrderAddressResult, AdminOrderPayload } from '@/types/order';
 
 export async function getOrders(): Promise<Order[]> {
   const res = await fetch('/api/orders');
   if (!res.ok) throw new Error('Error al cargar órdenes');
+  return res.json();
+}
+
+// La orden COMPLETA — con el libro de transiciones y los pagos. La pide el panel
+// de detalle al abrirse, y de nuevo después de cada mutación que escriba un
+// asiento: la lista no los trae (§ `ultimaTransicion`), y una copia de la lista
+// puede haber quedado atrás justo después de despachar o cobrar.
+//
+// `razonDelServidor` y no un texto fijo: "Orden no encontrada" y "No autorizado"
+// mandan a revisar cosas distintas, y colapsarlos es lo que volvió caro el
+// diagnóstico del modal de programar entrega.
+export async function getOrder(id: string): Promise<OrderDetalle> {
+  const res = await fetch(`/api/orders/${id}`);
+  if (!res.ok) throw await razonDelServidor(res, 'Error al cargar la orden');
   return res.json();
 }
 

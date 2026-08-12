@@ -1,6 +1,10 @@
-import { PaymentMethod, MetodoPago } from "./payment";
+import { PaymentMethod, MetodoPago, Payment } from "./payment";
 import { ShippingEstado, Shipping } from "./shipping";
 import { Comprobante } from "./comprobante";
+// El eje es de DOMINIO y vive en core: se REUSA, no se redeclara. Dos tipos que
+// nunca se comparan pueden divergir sin que el compilador avise (mismo criterio
+// que types/analytics.ts con los predicados).
+import type { TransitionEje } from "@duna/core/order-transitions";
 
 // OrderStatus covers the PAYMENT lifecycle only. Fulfillment (preparando/en
 // ruta/entregado/fallido) lives on Shipping — see ShippingEstado. When an order
@@ -29,6 +33,31 @@ export type OrderChannel =
   | 'instagram'
   | 'directo'
   | 'referido';
+
+/**
+ * Un asiento del libro de transiciones (append-only). Es el material del
+ * "Recorrido del pedido".
+ *
+ * `estado_anterior` / `estado_nuevo` son STRING y NO un union, a propósito y por
+ * la misma razón que lo son en el schema: cada eje tiene su PROPIO vocabulario
+ * (cobro: pendiente/pagado/cancelado · fulfillment:
+ * preparando/en_ruta/entregado/fallido/cancelado). Tiparlos con un union forzaría
+ * uno solo y dejaría al otro eje fuera. Traducirlos a etiquetas es trabajo de las
+ * reglas puras de la pantalla, no del tipo del payload.
+ *
+ * `estado_anterior` null = el hecho NACE (creación de la orden, creación del
+ * envío). `actor_id`/`actor_nombre` null = sin humano detrás.
+ */
+export interface OrderStatusTransition {
+  id:              string;
+  eje:             TransitionEje;
+  estado_anterior: string | null;
+  estado_nuevo:    string;
+  actor_id:        string | null;
+  actor_nombre:    string | null;
+  /** Clave de orden GLOBAL de la timeline — mezcla los dos ejes. ISO. */
+  occurred_at:     string;
+}
 
 export interface OrderItem {
   producto_nombre: string;
@@ -79,6 +108,29 @@ export interface Order {
   comprobantes?:     Comprobante[];
   items: OrderItem[];
   createdAt: string;
+  /**
+   * ÚLTIMO asiento del libro, y sólo ése — la lista necesita UN dato ("hace X"),
+   * no el libro entero. El nombre es distinto de `transiciones` a propósito: dos
+   * endpoints exponiendo el mismo nombre con completitud distinta es cómo alguien
+   * escribe `order.transiciones.map(...)` creyendo tenerlo todo.
+   *
+   * `null` cuando la orden es ANTERIOR al libro (no se backfilleó con datos
+   * fabricados). Quien lo consuma decide qué decir en ese caso; lo que no puede es
+   * inventar una transición.
+   */
+  ultimaTransicion?: OrderStatusTransition | null;
+}
+
+/**
+ * La orden COMPLETA, tal como la sirve `GET /api/orders/[id]`. Es lo que el panel
+ * de detalle pide al abrirse: el libro entero (el Recorrido) y los pagos (el
+ * método real, y la `fecha` que el recorrido derivado necesita para una orden
+ * vieja). La LISTA no los trae — ver `ultimaTransicion`.
+ */
+export interface OrderDetalle extends Order {
+  payments:     Payment[];
+  /** El libro COMPLETO, en orden cronológico ascendente, con los dos ejes mezclados. */
+  transiciones: OrderStatusTransition[];
 }
 
 // Sanitized shape returned by the public order-tracking endpoint. Deliberately

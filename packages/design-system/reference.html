@@ -10,25 +10,25 @@
 <link rel="stylesheet" href="./primitives/primitives.css">
 <style>
   /* Solo layout de ESTA página de referencia — no es parte del sistema. */
-  body { background: var(--bg); margin: 0; transition: background var(--dur-theme) var(--ease), color var(--dur-theme) var(--ease); }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: var(--space-8); }
-  .topline { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-8); }
-  section { margin-bottom: var(--space-12); }
-  h2.sec { font-family: var(--font-display); font-weight: 500; font-size: var(--text-title); margin: 0 0 var(--space-2); }
-  .sec-note { color: var(--muted); font-size: var(--text-body-sm); max-width: 620px; margin: 0 0 var(--space-5); }
-  .grid { display: grid; gap: var(--space-3); }
+  body { background: var(--duna-bg); margin: 0; transition: background var(--duna-dur-theme) var(--duna-ease), color var(--duna-dur-theme) var(--duna-ease); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: var(--duna-space-8); }
+  .topline { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--duna-space-8); }
+  section { margin-bottom: var(--duna-space-12); }
+  h2.sec { font-family: var(--duna-font-display); font-weight: 500; font-size: var(--duna-text-title); margin: 0 0 var(--duna-space-2); }
+  .sec-note { color: var(--duna-muted); font-size: var(--duna-text-body-sm); max-width: 620px; margin: 0 0 var(--duna-space-5); }
+  .grid { display: grid; gap: var(--duna-space-3); }
   .swatches { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-  .swatch { border-radius: var(--r-m); border: 1px solid var(--border); overflow: hidden; background: var(--surface); }
+  .swatch { border-radius: var(--duna-r-m); border: 1px solid var(--duna-border); overflow: hidden; background: var(--duna-surface); }
   .swatch .c { height: 60px; }
-  .swatch .i { padding: var(--space-2) var(--space-3); }
-  .row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
-  .rule { display: flex; align-items: baseline; gap: var(--space-5); padding: var(--space-3) 0; border-bottom: 1px solid var(--border); }
-  .rule .spec { width: 260px; flex-shrink: 0; color: var(--muted); font-size: var(--text-caption); }
-  .sp-demo { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-2) 0; border-bottom: 1px solid var(--border); font-size: var(--text-caption); color: var(--muted); }
-  .sp-bar { background: var(--sol); height: 14px; border-radius: 3px; }
-  .card-demo { padding: var(--space-5); }
-  .flag { border-left: 3px solid var(--sol); background: var(--sol-soft); padding: var(--space-3) var(--space-4); border-radius: 0 var(--r-m) var(--r-m) 0; font-size: var(--text-body-sm); color: var(--ink-2); }
-  code { font-family: var(--font-mono); font-size: var(--text-caption); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+  .swatch .i { padding: var(--duna-space-2) var(--duna-space-3); }
+  .row { display: flex; align-items: center; gap: var(--duna-space-4); flex-wrap: wrap; }
+  .rule { display: flex; align-items: baseline; gap: var(--duna-space-5); padding: var(--duna-space-3) 0; border-bottom: 1px solid var(--duna-border); }
+  .rule .spec { width: 260px; flex-shrink: 0; color: var(--duna-muted); font-size: var(--duna-text-caption); }
+  .sp-demo { display: flex; align-items: center; gap: var(--duna-space-4); padding: var(--duna-space-2) 0; border-bottom: 1px solid var(--duna-border); font-size: var(--duna-text-caption); color: var(--duna-muted); }
+  .sp-bar { background: var(--duna-sol); height: 14px; border-radius: 3px; }
+  .card-demo { padding: var(--duna-space-5); }
+  .flag { border-left: 3px solid var(--duna-sol); background: var(--duna-sol-soft); padding: var(--duna-space-3) var(--duna-space-4); border-radius: 0 var(--duna-r-m) var(--duna-r-m) 0; font-size: var(--duna-text-body-sm); color: var(--duna-ink-2); }
+  code { font-family: var(--duna-font-mono); font-size: var(--duna-text-caption); background: var(--duna-surface-2); padding: 1px 5px; border-radius: 4px; }
 </style>
 </head>
 <body class="duna">
@@ -38,7 +38,7 @@
     <div>
       <div class="duna-eyebrow">Duna</div>
       <h1 class="duna-display-m">Sistema de diseño · prueba viva</h1>
-      <p class="sec-note" style="margin-top:4px">Todo se deriva del logo: tinta, papel y sol. El sol significa una sola cosa — <b style="color:var(--ink)">esto necesita tu atención ahora</b> — y nunca es decoración. Agnóstico de tenant y de negocio.</p>
+      <p class="sec-note" style="margin-top:4px">Todo se deriva del logo: tinta, papel y sol. El sol significa una sola cosa — <b style="color:var(--duna-ink)">esto necesita tu atención ahora</b> — y nunca es decoración. Agnóstico de tenant y de negocio.</p>
     </div>
     <button class="duna-btn duna-btn--secondary" id="themeBtn">Modo oscuro</button>
   </div>
@@ -48,19 +48,19 @@
     <h2 class="sec">Color · roles</h2>
     <p class="sec-note">Seis roles + neutrales. Estado (sol/ok/bad) lleva su tinte <code>-soft</code> y su texto legible <code>-ink</code> (AA). No hay rol "en curso"/azul: eso no es un color.</p>
     <div class="grid swatches">
-      <div class="swatch"><div class="c" style="background:var(--ink)"></div><div class="i"><div class="duna-label">Tinta · primario</div><div class="duna-mono">--ink #141311</div></div></div>
-      <div class="swatch"><div class="c" style="background:var(--paper)"></div><div class="i"><div class="duna-label">Papel</div><div class="duna-mono">--paper</div></div></div>
-      <div class="swatch"><div class="c" style="background:var(--sol)"></div><div class="i"><div class="duna-label">Sol · atención</div><div class="duna-mono">--sol #F59E0B</div></div></div>
-      <div class="swatch"><div class="c" style="background:var(--muted)"></div><div class="i"><div class="duna-label">Arena · secundario</div><div class="duna-mono">--muted</div></div></div>
-      <div class="swatch"><div class="c" style="background:var(--ok)"></div><div class="i"><div class="duna-label">Confirmado</div><div class="duna-mono">--ok / --ok-ink</div></div></div>
-      <div class="swatch"><div class="c" style="background:var(--bad)"></div><div class="i"><div class="duna-label">Problema</div><div class="duna-mono">--bad / --bad-ink</div></div></div>
+      <div class="swatch"><div class="c" style="background:var(--duna-ink)"></div><div class="i"><div class="duna-label">Tinta · primario</div><div class="duna-mono">--duna-ink #141311</div></div></div>
+      <div class="swatch"><div class="c" style="background:var(--duna-paper)"></div><div class="i"><div class="duna-label">Papel</div><div class="duna-mono">--duna-paper</div></div></div>
+      <div class="swatch"><div class="c" style="background:var(--duna-sol)"></div><div class="i"><div class="duna-label">Sol · atención</div><div class="duna-mono">--duna-sol #F59E0B</div></div></div>
+      <div class="swatch"><div class="c" style="background:var(--duna-muted)"></div><div class="i"><div class="duna-label">Arena · secundario</div><div class="duna-mono">--duna-muted</div></div></div>
+      <div class="swatch"><div class="c" style="background:var(--duna-ok)"></div><div class="i"><div class="duna-label">Confirmado</div><div class="duna-mono">--duna-ok / --duna-ok-ink</div></div></div>
+      <div class="swatch"><div class="c" style="background:var(--duna-bad)"></div><div class="i"><div class="duna-label">Problema</div><div class="duna-mono">--duna-bad / --duna-bad-ink</div></div></div>
     </div>
   </section>
 
   <!-- TIPOGRAFÍA -->
   <section>
     <h2 class="sec">Tipografía · 9 niveles</h2>
-    <p class="sec-note">Space Grotesk (display + cifras) · Hanken Grotesk (UI) · Spline Sans Mono (datos). El 9º nivel <b style="color:var(--ink)">title (19)</b> se agregó tras validar el detalle de orden: separa el sujeto de la pantalla de sus subtítulos.</p>
+    <p class="sec-note">Space Grotesk (display + cifras) · Hanken Grotesk (UI) · Spline Sans Mono (datos). El 9º nivel <b style="color:var(--duna-ink)">title (19)</b> se agregó tras validar el detalle de orden: separa el sujeto de la pantalla de sus subtítulos.</p>
     <div class="rule"><div class="spec">display-xl · 32px · Grotesk 600</div><div class="duna-display-xl duna-num">$ 1.284.500</div></div>
     <div class="rule"><div class="spec">display-l · 26px · nombre de producto</div><div class="duna-display-l">Café Huila 500 g</div></div>
     <div class="rule"><div class="spec">display-m · 22px · título de página, cifras</div><div class="duna-display-m">Analítica</div></div>
@@ -75,7 +75,7 @@
   <!-- ESPACIADO -->
   <section>
     <h2 class="sec">Espaciado · base 4px</h2>
-    <p class="sec-note"><code>hairline 2px</code> y <code>inline 6px</code> son excepciones nombradas. El <code>inline</code> es SOLO para adyacencia ícono/label. El 10px de listas plegó a <b style="color:var(--ink)">8</b> (densidad sobre aire).</p>
+    <p class="sec-note"><code>hairline 2px</code> y <code>inline 6px</code> son excepciones nombradas. El <code>inline</code> es SOLO para adyacencia ícono/label. El 10px de listas plegó a <b style="color:var(--duna-ink)">8</b> (densidad sobre aire).</p>
     <div class="sp-demo"><div class="sp-bar" style="width:2px"></div><span>hairline · 2px · marcadores, viaje del switch</span></div>
     <div class="sp-demo"><div class="sp-bar" style="width:6px"></div><span>inline · 6px · gap ícono/label</span></div>
     <div class="sp-demo"><div class="sp-bar" style="width:4px"></div><span>1 · 4px</span></div>
@@ -117,35 +117,49 @@
     <h2 class="sec">"En curso" es una posición, no un color</h2>
     <p class="sec-note">La regla es imposible de romper por tipos (<code>primitives/status.ts</code>): no existe un tono "en curso" que pasarle a un badge. La única forma de decir "va en camino" es mostrar el camino.</p>
     <div class="duna-card card-demo" style="max-width:460px">
-      <div class="duna-steps" style="margin-bottom:var(--space-2)">
-        <span class="duna-steps__seg is-done"></span>
+      <div class="duna-steps" style="margin-bottom:var(--duna-space-2)">
         <span class="duna-steps__seg is-done"></span>
         <span class="duna-steps__seg is-now"></span>
         <span class="duna-steps__seg"></span>
         <span class="duna-steps__seg"></span>
       </div>
-      <div class="duna-body-sm">Recibido → Confirmado → <b style="color:var(--sol-ink)">Preparando</b> → En camino → Entregado</div>
+      <div class="duna-body-sm">Recibido → <b style="color:var(--duna-sol-ink)">Preparando</b> → En camino → Entregado</div>
     </div>
-    <div class="flag" style="margin-top:var(--space-4)">El segmento actual lleva el anillo del sol <b>pulsando</b>. Con <code>prefers-reduced-motion</code> queda quieto.</div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">El segmento actual lleva el anillo del sol <b>pulsando</b>. Con <code>prefers-reduced-motion</code> queda quieto.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">Estas cuatro etiquetas son EJEMPLO, no contrato: <b>las trae el dominio</b>, y el sistema sólo garantiza que la posición nunca viaje sin ellas. Son las reales de la vertical de este repo —salen del eje de FULFILLMENT (<code>Shipping.estado</code>)— y se muestran así, y no como "Etapa 1 · Etapa 2", porque un ejemplo abstracto no enseña cómo se ve una secuencia de verdad. Otra vertical traerá otras, y otra cantidad.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">Hasta hace poco este ejemplo mostraba <b>cinco</b> etapas, con un "Confirmado" entre Recibido y Preparando. Ese estado lo BORRÓ el dominio —una migración lo fusionó con "pagado", porque pago confirmado y orden confirmada eran el mismo momento—, así que la etapa significaba <b>pago acreditado</b>… y el pago NO es una posición del camino: en contraentrega el pedido se prepara, se despacha y se entrega sin pagar, y la plata entra al final. La barra habría quedado esperando un paso que en todo ese recorrido no ocurre. Queda escrito porque el ejemplo se leía como canon y produjo dos secuencias que no cuadraban.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">Y "Lista para despacho" NO es una quinta etapa, aunque lo parezca: es un predicado de completitud DENTRO de <i>Preparando</i> (tiene mensajero y fecha), no un estado. Meterlo en la barra duplicaría lo que la columna de Entrega ya distingue.</div>
   </section>
 
   <!-- TIMELINE -->
   <section>
     <h2 class="sec">Recorrido (timeline)</h2>
+    <p class="sec-note">Tres ranuras por hecho: qué pasó, cuándo y QUIÉN. El actor es opcional — cuando falta, la línea muestra sólo el cuándo y el sistema NO inventa una etiqueta ("Sistema", "Automático"): eso es lenguaje de producto, y el paquete es agnóstico. Si el producto quiere una palabra para el actor no humano, la pasa como <code>actor</code>. El componente es <code>components/Timeline.tsx</code> y monta <code>&lt;ol&gt;/&lt;li&gt;</code>: un recorrido ES una lista ordenada.</p>
     <div class="duna-card card-demo" style="max-width:460px">
-      <div class="duna-tl">
-        <div class="duna-tl__item is-now"><div class="duna-tl__t">En camino con el mensajero</div><div class="duna-tl__s">Hoy, 2:20 p.m.</div></div>
-        <div class="duna-tl__item is-done"><div class="duna-tl__t">Preparado y empacado</div><div class="duna-tl__s">Hoy, 1:50 p.m.</div></div>
-        <div class="duna-tl__item is-done"><div class="duna-tl__t">Confirmado</div><div class="duna-tl__s">Hoy, 1:32 p.m.</div></div>
-      </div>
+      <ol class="duna-tl">
+        <li class="duna-tl__item is-now"><div class="duna-tl__t">Despachado</div><div class="duna-tl__s">Hoy, 2:20 p.m. · Ana Ruiz</div></li>
+        <li class="duna-tl__item is-done"><div class="duna-tl__t">Envío creado</div><div class="duna-tl__s">Hoy, 1:50 p.m. · Ana Ruiz</div></li>
+        <li class="duna-tl__item is-done"><div class="duna-tl__t">Pago registrado</div><div class="duna-tl__s">Hoy, 1:32 p.m.</div></li>
+      </ol>
     </div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">La última fila no tiene actor: es un hecho sin humano detrás. Se ve como las otras, con una línea más corta — sin hueco, sin guion, sin palabra inventada.</div>
+
+    <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">Sin secuencia alrededor · el <code>state</code> es opcional</div>
+    <div class="duna-card card-demo" style="max-width:460px">
+      <ol class="duna-tl">
+        <li class="duna-tl__item"><div class="duna-tl__t">Entregado</div><div class="duna-tl__s">14 may 2026</div></li>
+        <li class="duna-tl__item"><div class="duna-tl__t">Pago registrado</div><div class="duna-tl__s">12 may 2026</div></li>
+        <li class="duna-tl__item"><div class="duna-tl__t">Pedido creado</div><div class="duna-tl__s">11 may 2026</div></li>
+      </ol>
+    </div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">Aro hueco, sin <code>done</code> ni <code>now</code>: consta que ocurrió, pero no hay secuencia completa que colorear. Es la forma correcta para un recorrido derivado de un registro viejo — lo que se puede afirmar y nada más.</div>
   </section>
 
   <!-- STATS + INSIGHT -->
   <section>
     <h2 class="sec">Cifras en prosa · insight (hecho, no consejo)</h2>
     <div class="duna-card card-demo">
-      <div class="row" style="gap:0; border-bottom:1px solid var(--border); padding-bottom:var(--space-4); margin-bottom:var(--space-4)">
+      <div class="row" style="gap:0; border-bottom:1px solid var(--duna-border); padding-bottom:var(--duna-space-4); margin-bottom:var(--duna-space-4)">
         <div class="duna-stat"><div class="duna-stat__v duna-num">$ 55.850</div><div class="duna-stat__l">Ticket promedio</div><div class="duna-stat__d duna-up">▲ 6 % vs. semana pasada</div></div>
         <div class="duna-stat"><div class="duna-stat__v duna-num">14 / 23</div><div class="duna-stat__l">Pedidos por WhatsApp</div></div>
         <div class="duna-stat"><div class="duna-stat__v duna-num">78 %</div><div class="duna-stat__l">Conversación → pedido</div><div class="duna-stat__d duna-up">▲ 11 puntos</div></div>
@@ -169,7 +183,7 @@
         <div class="duna-stock-meter is-low" style="margin-top:4px"><i style="width:20%"></i></div>
       </div>
     </div>
-    <div class="row" style="margin-top:var(--space-4)">
+    <div class="row" style="margin-top:var(--duna-space-4)">
       <button class="duna-pill is-on">Todos <span class="duna-num">12</span></button>
       <button class="duna-pill">Por reponer <span class="duna-num">2</span></button>
       <button class="duna-pill">Agotados <span class="duna-num">1</span></button>
@@ -179,20 +193,20 @@
   <section>
     <h2 class="sec">La frontera · efímero vs persistente</h2>
     <p class="sec-note">La misma señal de estado vive en dos sitios según su DURACIÓN. El resultado de una acción se desvanece; la atención que pide acción se queda hasta resolverse. El sol solo aparece en el segundo.</p>
-    <div class="grid" style="grid-template-columns:1fr 1fr; align-items:start; gap:var(--space-5)">
+    <div class="grid" style="grid-template-columns:1fr 1fr; align-items:start; gap:var(--duna-space-5)">
 
       <div>
-        <div class="duna-eyebrow" style="margin-bottom:var(--space-3)">Resultado de una acción → TOAST</div>
-        <div class="row" style="flex-direction:column; align-items:stretch; gap:var(--space-3)">
+        <div class="duna-eyebrow" style="margin-bottom:var(--duna-space-3)">Resultado de una acción → TOAST</div>
+        <div class="row" style="flex-direction:column; align-items:stretch; gap:var(--duna-space-3)">
           <span class="duna-toast duna-toast--ok"><span class="duna-toast__dot"></span>Pedido #1247 confirmado.</span>
           <span class="duna-toast duna-toast--problem"><span class="duna-toast__dot"></span>No se pudo verificar el pago.</span>
         </div>
-        <div class="flag" style="margin-top:var(--space-3)">Superficie tinta CONSTANTE (oscura en ambos temas). El estado lo hace el acento <code>--ok-on-ink</code>/<code>--bad-on-ink</code>, nunca el sol. Auto-descartable.</div>
+        <div class="flag" style="margin-top:var(--duna-space-3)">Superficie tinta CONSTANTE (oscura en ambos temas). El estado lo hace el acento <code>--duna-ok-on-ink</code>/<code>--duna-bad-on-ink</code>, nunca el sol. Auto-descartable.</div>
       </div>
 
       <div>
-        <div class="duna-eyebrow" style="margin-bottom:var(--space-3)">Atención persistente → BANDEJA</div>
-        <div class="duna-card" style="padding:var(--space-3) var(--space-5)">
+        <div class="duna-eyebrow" style="margin-bottom:var(--duna-space-3)">Atención persistente → BANDEJA</div>
+        <div class="duna-card" style="padding:var(--duna-space-3) var(--duna-space-5)">
           <div class="duna-att-item">
             <span class="duna-att-item__dot"></span>
             <div class="duna-att-item__body">
@@ -210,7 +224,7 @@
             <span class="duna-att-item__cta">Ver →</span>
           </div>
         </div>
-        <div class="flag" style="margin-top:var(--space-3)">Aquí el punto sol <b>SÍ</b> es correcto: persiste y pide acción. El punto apagado (<code>is-calm</code>) es lo informativo que no pide nada.</div>
+        <div class="flag" style="margin-top:var(--duna-space-3)">Aquí el punto sol <b>SÍ</b> es correcto: persiste y pide acción. El punto apagado (<code>is-calm</code>) es lo informativo que no pide nada.</div>
       </div>
 
     </div>
@@ -220,9 +234,9 @@
     <h2 class="sec">Pedidos · dos primitivas INDEPENDIENTES (agnósticas)</h2>
     <p class="sec-note">Son DOS primitivas separadas —no una card y su detalle—, con datos distintos a propósito. Reciben props genéricos ya resueltos; el DS no conoce el tipo <code>Order</code>. "En curso" vive SOLO en los steps del pie; el badge de estado es terminal (pagado/atención), nunca "en camino".</p>
 
-    <div class="duna-eyebrow" style="margin-bottom:var(--space-3)">Primitiva 1 · order-card (fila de lista)</div>
-    <div style="display:flex; flex-direction:column; gap:var(--space-3); max-width:400px">
-        <div class="duna-order-card is-selected">
+    <div class="duna-eyebrow" style="margin-bottom:var(--duna-space-3)">Primitiva 1 · order-card (fila de lista)</div>
+    <div style="display:flex; flex-direction:column; gap:var(--duna-space-3); max-width:400px">
+        <button type="button" class="duna-order-card is-selected">
           <div class="duna-order-card__top">
             <span class="duna-order-card__name">Laura Cárdenas</span>
             <span class="duna-order-card__id duna-mono">#1247</span>
@@ -234,12 +248,12 @@
           </div>
           <div class="duna-order-card__foot">
             <span class="duna-steps">
-              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-now"></span><span class="duna-steps__seg"></span><span class="duna-steps__seg"></span>
+              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-now"></span><span class="duna-steps__seg"></span>
             </span>
             <span class="duna-order-card__time">hace 42 min</span>
           </div>
-        </div>
-        <div class="duna-order-card">
+        </button>
+        <button type="button" class="duna-order-card">
           <div class="duna-order-card__top">
             <span class="duna-order-card__name">Camila Torres</span>
             <span class="duna-order-card__id duna-mono">#1241</span>
@@ -251,15 +265,33 @@
           </div>
           <div class="duna-order-card__foot">
             <span class="duna-steps">
-              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span>
+              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span>
             </span>
             <span class="duna-order-card__time">hace 4 h</span>
           </div>
-        </div>
+        </button>
+        <button type="button" class="duna-order-card">
+          <div class="duna-order-card__top">
+            <span class="duna-order-card__name">Julián Peña</span>
+            <span class="duna-order-card__id duna-mono">#1233</span>
+            <span class="duna-order-card__amount duna-num">$ 62.000</span>
+          </div>
+          <div class="duna-order-card__mid">
+            <span class="duna-chip-channel"><svg viewBox="0 0 24 24"><path d="M3 9l1.5-5h15L21 9M3 9v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9"/></svg>Tienda</span>
+            <span class="duna-badge duna-badge--problem"><span class="duna-badge__dot"></span>Cancelado</span>
+          </div>
+          <div class="duna-order-card__foot">
+            <span class="duna-order-card__time">hace 2 d</span>
+          </div>
+        </button>
       </div>
 
-      <div class="duna-eyebrow" style="margin:var(--space-8) 0 var(--space-3)">Primitiva 2 · items-table (líneas de OTRA orden — total distinto a propósito)</div>
-      <div class="duna-card" style="padding:var(--space-5); max-width:520px">
+      <div class="flag" style="margin-top:var(--duna-space-4)">La tercera fila NO lleva barra, y la ausencia es la respuesta: un pedido cancelado no tiene camino que mostrar — su recorrido se anuló, así que una barra invitaría a leerlo como vivo. <code>steps</code> es opcional por eso. No debilita la regla: <code>BadgeTone</code> sigue sin tono de progreso, así que quedarse sin barra no le da al badge permiso para decir "en camino"; deja a la fila sin decirlo, que es distinto. El "hace X" se queda en su columna.</div>
+
+      <div class="flag" style="margin-top:var(--duna-space-4)">Las filas son <code>&lt;button&gt;</code>, no <code>&lt;div&gt;</code>: se llega a ellas con Tab y se activan con Enter y Espacio sin un solo handler de teclado. Pruébalo acá mismo — al enfocarlas aparece el borde de tinta y el anillo, el mismo tratamiento que un input. Una tarjeta SIN acción se monta como <code>&lt;div&gt;</code>: no recibe foco ni promete mano.</div>
+
+      <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">Primitiva 2 · items-table (líneas de OTRA orden — total distinto a propósito)</div>
+      <div class="duna-card" style="padding:var(--duna-space-5); max-width:520px">
         <table class="duna-items-table">
           <tbody>
             <tr><td>Combo Desayuno<span class="duna-items-table__meta"> · × 1</span></td><td class="duna-items-table__r duna-num">$ 38.000</td></tr>
@@ -269,6 +301,63 @@
           </tbody>
         </table>
       </div>
+  </section>
+
+  <section>
+    <h2 class="sec">Layout partido · lista que scrollea + panel que se queda</h2>
+    <p class="sec-note">El esqueleto de una pantalla de trabajo, AGNÓSTICO (sirve para pedidos, clientes o productos). El <code>top</code> del panel sticky no es un número: sale de <code>calc(var(--duna-topbar-h) + var(--duna-space-6))</code>, así que mover el padding de la topbar lo reacomoda solo. Debajo de 960px apila y el panel deja de ser sticky.</p>
+    <div class="duna-split">
+      <div class="duna-split__list">
+        <button type="button" class="duna-order-card is-selected">
+          <div class="duna-order-card__top">
+            <span class="duna-order-card__name">Laura Cárdenas</span>
+            <span class="duna-order-card__id duna-mono">#1247</span>
+            <span class="duna-order-card__amount duna-num">$ 86.500</span>
+          </div>
+          <div class="duna-order-card__foot">
+            <span class="duna-steps">
+              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-now"></span><span class="duna-steps__seg"></span>
+            </span>
+            <span class="duna-order-card__time">hace 42 min</span>
+          </div>
+        </button>
+        <button type="button" class="duna-order-card">
+          <div class="duna-order-card__top">
+            <span class="duna-order-card__name">Camila Torres</span>
+            <span class="duna-order-card__id duna-mono">#1241</span>
+            <span class="duna-order-card__amount duna-num">$ 47.500</span>
+          </div>
+          <div class="duna-order-card__foot">
+            <span class="duna-steps">
+              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span>
+            </span>
+            <span class="duna-order-card__time">hace 4 h</span>
+          </div>
+        </button>
+      </div>
+      <div class="duna-split__panel duna-card duna-card__pad">
+        <div class="duna-title">Laura Cárdenas</div>
+        <div class="duna-sub" style="margin-bottom:var(--duna-space-4)">El panel se queda quieto mientras la lista corre.</div>
+        <table class="duna-items-table">
+          <tbody>
+            <tr><td>Combo Desayuno<span class="duna-items-table__meta"> · × 1</span></td><td class="duna-items-table__r duna-num">$ 38.000</td></tr>
+            <tr class="duna-items-table__total"><td>Total</td><td class="duna-items-table__r duna-num">$ 38.000</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">Punto de atención del nav</div>
+    <div class="duna-card duna-card__pad" style="max-width:240px">
+      <div class="row" style="gap:var(--duna-space-2); justify-content:space-between">
+        <span class="duna-label">Pedidos</span>
+        <span class="duna-nav-dot"></span>
+      </div>
+      <div class="row" style="gap:var(--duna-space-2); justify-content:space-between; margin-top:var(--duna-space-3)">
+        <span class="duna-label" style="color:var(--duna-muted)">Productos</span>
+      </div>
+    </div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">No late. El anillo pulsante está reservado a "esto pasa AHORA", que es transitorio; un punto latiendo para siempre en el rail sería movimiento decorativo. Y no hay estado "apagado": si no hay nada que atender, el punto no se renderiza — como la fila de Productos.</div>
   </section>
 
 </div>

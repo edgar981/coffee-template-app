@@ -1,0 +1,62 @@
+/* =============================================================================
+   EL PUENTE app ↔ @duna/design-system. Es lo ÚNICO que la app necesita para
+   consumir el sistema, y por eso vive en un archivo propio y no en globals.css:
+   el día que el panel sea una app aparte (Fase B), esto se mueve entero.
+
+   Se importa desde `app/(admin)/layout.tsx`, no desde el layout raíz: el
+   storefront no consume el design-system y no tiene por qué pagar su CSS.
+
+   NO se importa `tokens/theme.css` — y no es un olvido. Es el puente al `@theme`
+   de Tailwind, cuyos nombres (`--color-muted`, `--font-display`) son el contrato
+   de Tailwind y por eso NO pueden llevar el prefijo `--duna-`: volverían a
+   colisionar con el theme de esta app, y esta vez sin scope posible porque
+   `@theme` es global por construcción. Se importará en la app de Fase B, cuyo
+   theme de Tailwind SÍ será el de Duna. El porqué completo, en el encabezado de
+   ese archivo.
+   ========================================================================== */
+
+/* Las rutas son las CLAVES del `exports` del paquete, no sus rutas internas
+   (`./tokens.css`, no `./tokens/tokens.css`). Y esas claves declaran la condición
+   `style`, que es la que consulta el resolvedor de `@import` de Tailwind v4: sin
+   ella esto falla con "is not exported under the condition style" aunque el
+   archivo exista. Las dos cosas se arreglaron en el paquete, no acá. */
+@import "@duna/design-system/tokens.css";
+@import "@duna/design-system/primitives.css";
+
+/* ── Las FAMILIAS las provee el consumidor; el sistema declara el ROL ─────────
+
+   `tokens.css` nombra las familias sólo como DEFAULT. Acá se apuntan los tres
+   roles a las fuentes que el panel auto-hospeda, porque `next/font` no registra
+   el nombre literal: genera uno propio y lo expone en la variable. Sin este
+   puente, `--duna-font-ui: 'Hanken Grotesk'` no resolvería aunque la fuente esté
+   cargada, y el sistema caería a `system-ui` sin que nada avise.
+
+   VA EN `.admin-shell` Y NO EN `:root` POR NECESIDAD, no por estilo: las
+   variables de `next/font` las monta ese wrapper (es donde el layout aplica las
+   clases `.variable`), así que en `:root` estarían indefinidas y el `var()` se
+   comería su propio fallback. Se conserva el literal como segundo fallback para
+   quien tenga la fuente instalada.
+
+   LÍMITE CONOCIDO, heredado y no nuevo: lo portaleado a <body> (diálogos,
+   dropdowns, toasts) queda FUERA de `.admin-shell` y no ve este puente. Hoy no
+   muerde —esa UI es shadcn y trae sus propias fuentes— y las reglas de
+   tipografía que ya existían en globals.css tienen exactamente el mismo alcance.
+   Muerde el día que un diálogo se construya con el design-system (H6), y la
+   salida es montar las variables de fuente en <html>, no duplicar el puente. */
+.admin-shell {
+  --duna-font-ui:      var(--font-hanken-grotesk), 'Hanken Grotesk', system-ui, sans-serif;
+  --duna-font-display: var(--font-space-grotesk), 'Space Grotesk', var(--duna-font-ui);
+  --duna-font-mono:    var(--font-spline-sans-mono), 'Spline Sans Mono', ui-monospace, monospace;
+
+  /* ── La ALTURA REAL de la topbar de ESTE panel ────────────────────────────
+     El sistema trae 52px como default, pero la topbar de acá es `h-16` = 64
+     (components/admin/TopBar.tsx, fija arriba). El token existe justamente para
+     que el consumidor diga su medida: de él sale el `top` del panel sticky de
+     `.duna-split`, que queda en 64 + 24 = 88 — debajo de la barra, con el aire
+     de un `space-6`.
+     Con los 52 del default el panel se metería 12px POR DEBAJO de la topbar al
+     scrollear, y eso no se ve como un token mal puesto: se ve como un panel que
+     "se corta raro". Sale de acá y no de un `calc` en la pantalla porque el día
+     que la topbar cambie de alto, se toca un número y el sticky sigue solo. */
+  --duna-topbar-h: 64px;
+}
