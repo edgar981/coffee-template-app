@@ -183,9 +183,19 @@
 
   /* ── ACOPLES TOKENIZADOS (relación, no número mágico) ────────────────────
      La altura de la topbar la consume el offset del panel sticky:
-       .detail { top: calc(var(--duna-topbar-h) + var(--duna-space-6)); }
+       .duna-split__panel { top: calc(var(--duna-topbar-h) + var(--duna-space-6)); }
      Cambiar el padding de la topbar mueve --duna-topbar-h y el sticky sigue solo. */
   --duna-topbar-h: 52px;
+
+  /* Ancho de la columna de LISTA en el layout partido (`.duna-split`). Es un
+     token y no un número dentro de la regla porque el encabezado de la pantalla
+     suele tener que alinearse con esa columna: dos sitios, un valor. El panel de
+     detalle NO tiene ancho propio — se queda con lo que sobre, que es lo que hace
+     que la pantalla aproveche un monitor ancho sin recalcular nada.
+     El 400 sale de la propia prueba viva: es el ancho al que `reference.html`
+     muestra la lista de `order-card`, o sea el ancho contra el que se validó la
+     densidad de esa tarjeta. */
+  --duna-list-w: 400px;
 }
 
 /* ── DARK ─────────────────────────────────────────────────────────────────

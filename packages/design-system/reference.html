@@ -271,6 +271,63 @@
       </div>
   </section>
 
+  <section>
+    <h2 class="sec">Layout partido · lista que scrollea + panel que se queda</h2>
+    <p class="sec-note">El esqueleto de una pantalla de trabajo, AGNÓSTICO (sirve para pedidos, clientes o productos). El <code>top</code> del panel sticky no es un número: sale de <code>calc(var(--duna-topbar-h) + var(--duna-space-6))</code>, así que mover el padding de la topbar lo reacomoda solo. Debajo de 960px apila y el panel deja de ser sticky.</p>
+    <div class="duna-split">
+      <div class="duna-split__list">
+        <div class="duna-order-card is-selected">
+          <div class="duna-order-card__top">
+            <span class="duna-order-card__name">Laura Cárdenas</span>
+            <span class="duna-order-card__id duna-mono">#1247</span>
+            <span class="duna-order-card__amount duna-num">$ 86.500</span>
+          </div>
+          <div class="duna-order-card__foot">
+            <span class="duna-steps">
+              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-now"></span><span class="duna-steps__seg"></span><span class="duna-steps__seg"></span>
+            </span>
+            <span class="duna-order-card__time">hace 42 min</span>
+          </div>
+        </div>
+        <div class="duna-order-card">
+          <div class="duna-order-card__top">
+            <span class="duna-order-card__name">Camila Torres</span>
+            <span class="duna-order-card__id duna-mono">#1241</span>
+            <span class="duna-order-card__amount duna-num">$ 47.500</span>
+          </div>
+          <div class="duna-order-card__foot">
+            <span class="duna-steps">
+              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span>
+            </span>
+            <span class="duna-order-card__time">hace 4 h</span>
+          </div>
+        </div>
+      </div>
+      <div class="duna-split__panel duna-card duna-card__pad">
+        <div class="duna-title">Laura Cárdenas</div>
+        <div class="duna-sub" style="margin-bottom:var(--duna-space-4)">El panel se queda quieto mientras la lista corre.</div>
+        <table class="duna-items-table">
+          <tbody>
+            <tr><td>Combo Desayuno<span class="duna-items-table__meta"> · × 1</span></td><td class="duna-items-table__r duna-num">$ 38.000</td></tr>
+            <tr class="duna-items-table__total"><td>Total</td><td class="duna-items-table__r duna-num">$ 38.000</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">Punto de atención del nav</div>
+    <div class="duna-card duna-card__pad" style="max-width:240px">
+      <div class="row" style="gap:var(--duna-space-2); justify-content:space-between">
+        <span class="duna-label">Pedidos</span>
+        <span class="duna-nav-dot"></span>
+      </div>
+      <div class="row" style="gap:var(--duna-space-2); justify-content:space-between; margin-top:var(--duna-space-3)">
+        <span class="duna-label" style="color:var(--duna-muted)">Productos</span>
+      </div>
+    </div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">No late. El anillo pulsante está reservado a "esto pasa AHORA", que es transitorio; un punto latiendo para siempre en el rail sería movimiento decorativo. Y no hay estado "apagado": si no hay nada que atender, el punto no se renderiza — como la fila de Productos.</div>
+  </section>
+
 </div>
 
 <script>
