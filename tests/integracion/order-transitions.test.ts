@@ -76,7 +76,11 @@ test('PAGO: cobro pendiente→pagado (actor = quien registró) + fulfillment nul
   );
 });
 
-test('CANCELAR con envío: cobro →cancelado + el ASIENTO DE ANULACIÓN del envío (el que el plan de 3 puntos perdía)', async () => {
+// El `estado_anterior` del asiento de anulación es el estado REAL del envío al
+// momento de cancelar, NO un valor fijo: `preparando` sólo si nunca se movió;
+// `en_ruta` si ya se había despachado. Los dos casos, para que quede afirmado.
+
+test('CANCELAR un envío que NUNCA se movió: fulfillment preparando→cancelado', async () => {
   const orden = await crearOrden({ numero: 'CN-T00002', estado: 'pendiente' });
   await crearEnvio({ ordenId: orden.id, estado: 'preparando' });
   await prisma.$transaction((tx) => transitionOrder(tx, orden.id, { estado: 'cancelado' }, actor));
@@ -87,6 +91,19 @@ test('CANCELAR con envío: cobro →cancelado + el ASIENTO DE ANULACIÓN del env
   assert.ok(anul,  'falta el asiento de FULFILLMENT (anulación del envío) — el que se perdería con 3 puntos');
   assert.deepEqual({ from: anul!.estado_anterior, to: anul!.estado_nuevo }, { from: 'preparando', to: 'cancelado' });
   assert.equal(anul!.actor_nombre, 'Operador QA', 'la anulación lleva el actor que canceló');
+});
+
+test('CANCELAR un envío YA DESPACHADO: fulfillment en_ruta→cancelado (el from es el estado REAL, no fijo)', async () => {
+  const orden = await crearOrden({ numero: 'CN-T00004', estado: 'pagado' });
+  await crearEnvio({ ordenId: orden.id, estado: 'en_ruta' });
+  await prisma.$transaction((tx) => transitionOrder(tx, orden.id, { estado: 'cancelado' }, actor));
+  const anul = (await asientos(orden.id)).find((a) => a.eje === 'fulfillment' && a.estado_nuevo === 'cancelado');
+  assert.ok(anul, 'falta el asiento de anulación del envío despachado');
+  assert.deepEqual(
+    { from: anul!.estado_anterior, to: anul!.estado_nuevo },
+    { from: 'en_ruta', to: 'cancelado' },
+    'estado_anterior refleja que el envío ya iba en ruta al cancelar',
+  );
 });
 
 test('un PATCH que NO cambia el estado (sólo notas) no deja asiento', async () => {
