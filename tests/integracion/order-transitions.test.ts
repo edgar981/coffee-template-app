@@ -106,6 +106,67 @@ test('CANCELAR un envío YA DESPACHADO: fulfillment en_ruta→cancelado (el from
   );
 });
 
+// ─── EL ORDEN DE LECTURA · lo que el Recorrido consume ───────────────────────
+//
+// `GET /api/orders/[id]` sirve el libro con `orderBy: [occurred_at asc, id asc]`
+// y la pantalla lo pinta EN ESE ORDEN, mezclando los dos ejes. O sea que el orden
+// no es una preferencia de presentación: es el contenido. Un Recorrido que diga
+// "entregado" antes que "pagado" es una pantalla que miente sobre el negocio.
+//
+// El riesgo real está en los asientos de una MISMA transacción: `occurred_at`
+// tiene `DEFAULT CURRENT_TIMESTAMP` y en Postgres eso es la hora de INICIO de la
+// transacción, así que empatarían. No empatan —Prisma genera el `now()` por fila
+// en el cliente y el default del DDL nunca se ejerce— pero eso es comportamiento
+// del cliente, no una garantía de la base. Este test es lo que avisa el día que
+// deje de ser cierto (un upgrade de Prisma, un INSERT por SQL crudo, un
+// `occurredAt` explícito repetido).
+test('el libro se LEE cronológico y con los dos ejes MEZCLADOS, incluso dentro de una misma transacción', async () => {
+  // Tres asientos en UNA sola transacción: creación (cobro), pago (cobro) y
+  // envío auto-creado (fulfillment). Es el peor caso para el empate.
+  const orden = await createOrderWithCustomer({
+    customer: { nombre: 'Ana', telefono: '3001112233' },
+    canal:    'directo',
+    total:    20000,
+    items:    [{ producto_nombre: 'Café', cantidad: 1, subtotal: 20000 }],
+    brand:    buildBrand(),
+    actor,
+    immediatePayment: { metodo: 'NEQUI', registrado_por_nombre: 'Cajera' },
+  });
+  // Y un cuarto y quinto en OTRA transacción, más tarde: cancelar escribe en los
+  // dos ejes a la vez.
+  await prisma.$transaction((tx) => transitionOrder(tx, orden!.id, { estado: 'cancelado' }, actor));
+
+  // El MISMO orderBy que sirve el endpoint. Si se cambia allá, este test se cae.
+  const libro = await prisma.orderStatusTransition.findMany({
+    where:   { orden_id: orden!.id },
+    orderBy: [{ occurred_at: 'asc' }, { id: 'asc' }],
+  });
+
+  assert.deepEqual(
+    libro.map((a) => `${a.eje}:${a.estado_anterior ?? '∅'}→${a.estado_nuevo}`),
+    [
+      'cobro:∅→pendiente',          // 1ª tx — la orden nace
+      'cobro:pendiente→pagado',     // 1ª tx — el pago, DESPUÉS de nacer
+      'fulfillment:∅→preparando',   // 1ª tx — el envío que el pago auto-crea
+      'cobro:pagado→cancelado',     // 2ª tx
+      'fulfillment:preparando→cancelado',
+    ],
+    'el Recorrido se lee en el orden en que pasaron las cosas, sin agrupar por eje',
+  );
+
+  // Y el orden no sale de casualidad: los timestamps son estrictamente crecientes.
+  const ts = libro.map((a) => a.occurred_at.getTime());
+  assert.deepEqual(
+    ts, [...ts].sort((a, b) => a - b),
+    'occurred_at no decrece nunca — es la clave de orden global, no un dato de auditoría',
+  );
+  assert.equal(
+    new Set(ts).size, ts.length,
+    'ningún empate: si esto falla, el default CURRENT_TIMESTAMP de la transacción ' +
+    'volvió a ejercerse y el desempate por id pasó de red a ser lo único que ordena',
+  );
+});
+
 test('un PATCH que NO cambia el estado (sólo notas) no deja asiento', async () => {
   const orden = await crearOrden({ numero: 'CN-T00003', estado: 'pendiente' });
   await prisma.$transaction((tx) => transitionOrder(tx, orden.id, { notas_internas: 'nota' }, actor));

@@ -17,11 +17,31 @@ export async function GET() {
   const orders = await prisma.order.findMany({
     // shipping drives the "Programar entrega" edit flow and fulfillment display;
     // `comprobantes` alimenta la sección Pago del detalle (evidencia, no plata).
-    include:  { items: true, shipping: true, comprobantes: { orderBy: { createdAt: 'asc' } } },
+    include:  {
+      items: true,
+      shipping: true,
+      comprobantes: { orderBy: { createdAt: 'asc' } },
+      // SÓLO EL ÚLTIMO ASIENTO, no el libro. La lista necesita UN dato de las
+      // transiciones —el "hace X" de la última— y `OrderStatusTransition` es
+      // append-only y crece para siempre: mandar el libro completo de cada orden
+      // en un endpoint que además NO pagina sería pagar N×M por un número que
+      // necesita una fila. El libro entero lo sirve `GET /api/orders/[id]`, que es
+      // quien lo consume (el panel de detalle).
+      transiciones: { orderBy: [{ occurred_at: 'desc' }, { id: 'desc' }], take: 1 },
+    },
     orderBy: { createdAt: 'desc' },
   });
 
-  return NextResponse.json(orders);
+  // Se RENOMBRA al salir. Si viajara como `transiciones`, este endpoint y el de
+  // detalle expondrían el mismo nombre con completitud distinta — y el que escriba
+  // `order.transiciones.map(...)` sobre la lista tendría un bug silencioso: no
+  // falla, sólo recorre una fila. `null` = orden anterior al libro.
+  return NextResponse.json(
+    orders.map(({ transiciones, ...order }) => ({
+      ...order,
+      ultimaTransicion: transiciones[0] ?? null,
+    })),
+  );
 }
 
 // Admin manual order. A REAL order: same structure and rules as a web order.

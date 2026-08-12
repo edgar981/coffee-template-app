@@ -5,6 +5,61 @@ import { headers } from 'next/headers';
 import { transitionOrder, CondicionPagoLockedError, CobroEstadoNoEscribibleError, assertEstadoNoEsCobro, type OrderTransitionData } from '@duna/core/orders';
 import { runEventAutomations } from '@/lib/automations/engine';
 
+// LA ORDEN COMPLETA — lo que el panel de detalle pide al ABRIRSE.
+//
+// No existía un GET por id: la lista traía todo y el detalle se derivaba de ella.
+// Deja de alcanzar con el Recorrido, porque el libro de transiciones es
+// append-only y mandarlo entero para cada orden de la lista sería pagar N×M por
+// un dato que el detalle consume de a uno (ver el comentario del GET de la
+// lista). Acá sí va completo: es UNA orden.
+//
+// Y hay un segundo motivo, que es el del incidente del 2026-08-06 con los
+// comprobantes: al abrir, la verdad la trae el SERVIDOR. Las mutaciones que el
+// propio detalle dispara —despachar, cobrar, cancelar— escriben asientos, así que
+// el panel tiene que poder repreguntar en vez de confiar en una copia de la lista
+// que puede haber quedado atrás.
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+
+  const { id } = await params;
+
+  const order = await prisma.order.findUnique({
+    where: { id },
+    include: {
+      items:        true,
+      shipping:     true,
+      comprobantes: { orderBy: { createdAt: 'asc' } },
+      // Los pagos son la plata: de acá sale el MÉTODO REAL del detalle (que puede
+      // diferir del previsto) y la `fecha` con la que el Recorrido de una orden
+      // ANTERIOR al libro deriva su punto "Pagado". El eje de cobro de la lista NO
+      // los necesita: `Order.estado` es su espejo fiel por construcción.
+      payments:     { orderBy: { fecha: 'asc' } },
+      // EL LIBRO, cronológico ascendente y con los DOS ejes mezclados — que es
+      // exactamente lo que `occurred_at` significa: la clave de orden global.
+      //
+      // El desempate por `id` no es adorno defensivo sin causa: `occurred_at` tiene
+      // `DEFAULT CURRENT_TIMESTAMP`, y en Postgres eso es la hora de INICIO DE
+      // TRANSACCIÓN, así que tres asientos de una misma tx empatarían y su orden
+      // quedaría indefinido. Se midió contra Postgres real y NO empatan —Prisma
+      // genera el `now()` por fila en el cliente, así que el default del DDL nunca
+      // se ejerce (3 asientos de una misma tx: .464, .473, .480)—. Pero eso es
+      // comportamiento del CLIENTE, no una garantía de la base: un INSERT por SQL
+      // crudo sí caería en el default, y `appendOrderStatusTransition` acepta un
+      // `occurredAt` explícito que un llamador podría repetir. El segundo criterio
+      // cuesta cero y vuelve la lectura determinista en los tres casos.
+      transiciones: { orderBy: [{ occurred_at: 'asc' }, { id: 'asc' }] },
+    },
+  });
+  if (!order) return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 });
+
+  return NextResponse.json(order);
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
