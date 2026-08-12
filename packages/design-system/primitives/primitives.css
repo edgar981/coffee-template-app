@@ -269,9 +269,27 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
    AGNÓSTICA: solo estructura + estilo. No conoce "Order" ni ningún dominio; el
    consumidor rellena los slots (nombre, id, monto, canal, estado, steps, tiempo).
    El "en curso" vive SOLO en los `duna-steps` del pie — nunca un badge suelto. */
-.duna-order-card { padding: var(--duna-space-4); cursor: pointer; border-radius: var(--duna-r-m);
+.duna-order-card { padding: var(--duna-space-4); border-radius: var(--duna-r-m);
                    border: 1px solid var(--duna-border); background: var(--duna-surface);
                    transition: box-shadow var(--duna-dur) var(--duna-ease), transform var(--duna-dur) var(--duna-ease), border-color var(--duna-dur) var(--duna-ease); }
+/* Cuando la fila HACE algo, `OrderCard` la monta como <button> nativo — así Enter
+   y Espacio funcionan sin un handler de teclado escrito a mano. Estas cuatro
+   líneas son sólo el reset de lo que el navegador le impone a un <button>
+   (fuente de sistema, color propio, texto centrado, ancho al contenido); todo lo
+   demás —fondo, borde, radio, padding— ya lo pone la clase de arriba.
+   El `cursor` y el foco viven ACÁ y no en la clase base a propósito: una tarjeta
+   que no es clickeable no debe prometer mano ni recibir foco. */
+button.duna-order-card { display: block; width: 100%; text-align: left;
+                         font: inherit; color: inherit; cursor: pointer; }
+/* Foco = el MISMO tratamiento que `.duna-input:focus` (borde de tinta + anillo),
+   no uno propio: dos formas de decir "estás acá" es cómo el foco deja de leerse.
+   El salto de `--duna-border` a `--duna-ink` es un cambio de contraste enorme, y
+   es lo que hace visible el foco; el anillo sólo lo acompaña.
+   El `outline` transparente no es un `outline: none` disfrazado: en modo de alto
+   contraste forzado el navegador reemplaza ese color y el foco sobrevive, cosa
+   que no pasa si se anula el outline. */
+button.duna-order-card:focus-visible { border-color: var(--duna-ink); box-shadow: var(--duna-ring);
+                                       outline: 2px solid transparent; outline-offset: 2px; }
 .duna-order-card:hover { box-shadow: var(--duna-shadow-2); transform: translateY(-1px); }
 .duna-order-card.is-selected { border-color: var(--duna-ink); box-shadow: var(--duna-shadow-2); }
 [data-theme="dark"] .duna-order-card.is-selected { border-color: var(--duna-ink-2); }

@@ -42,11 +42,43 @@ function segClass(i: number, s: OrderSteps): string {
   return 'duna-steps__seg';
 }
 
+// ── LA FILA ES UN BOTÓN CUANDO HACE ALGO, Y UN DIV CUANDO NO ─────────────────
+//
+// Era un `<div onClick>`: se podía clickear con el mouse y con NADA más. No
+// recibía foco, no respondía a Enter ni a Espacio, y un lector de pantalla la
+// anunciaba como un bloque de texto — o sea que la fila principal de la pantalla
+// más usada del panel no era operable por teclado. Un `<button>` nativo resuelve
+// las tres cosas de una vez, sin un solo handler de teclado escrito a mano: el
+// navegador ya sabe que Enter y Espacio activan un botón.
+//
+// El elemento lo decide `onClick`, y no es una comodidad: una tarjeta que NO
+// hace nada no debe ser focusable —mandaría al teclado a parar en algo que no
+// responde— ni mostrar cursor de mano. Por eso la carcasa cambia con la prop en
+// vez de ser siempre un botón deshabilitado.
+//
+// Dentro de la tarjeta sólo hay <span>: ningún control anidado, que es lo que
+// haría inválido envolver todo en un <button>. Si algún día la fila necesita un
+// botón propio (un "Despachar" inline), esta forma deja de servir y hay que
+// partirla — no anidar.
 export function OrderCard({
   title, id, amount, channel, status, steps, timeAgo, selected, onClick,
 }: OrderCardProps) {
-  return (
-    <div className={`duna-order-card${selected ? ' is-selected' : ''}`} onClick={onClick}>
+  const className = `duna-order-card${selected ? ' is-selected' : ''}`;
+  // `aria-current` y no `aria-selected`: la tarjeta no vive en un `listbox` ni en
+  // un `tablist`, así que `aria-selected` no tendría rol que lo sostenga.
+  // "seleccionada" acá significa "es la que el panel de al lado está mostrando",
+  // que es exactamente lo que `aria-current` describe.
+  const carcasa = (kids: ReactNode) =>
+    onClick ? (
+      <button type="button" className={className} onClick={onClick} aria-current={selected || undefined}>
+        {kids}
+      </button>
+    ) : (
+      <div className={className}>{kids}</div>
+    );
+
+  return carcasa(
+    <>
       <div className="duna-order-card__top">
         <span className="duna-order-card__name">{title}</span>
         <span className="duna-order-card__id duna-mono">{id}</span>
@@ -69,6 +101,6 @@ export function OrderCard({
         </span>
         {timeAgo && <span className="duna-order-card__time">{timeAgo}</span>}
       </div>
-    </div>
+    </>,
   );
 }

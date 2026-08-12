@@ -234,7 +234,7 @@
 
     <div class="duna-eyebrow" style="margin-bottom:var(--duna-space-3)">Primitiva 1 · order-card (fila de lista)</div>
     <div style="display:flex; flex-direction:column; gap:var(--duna-space-3); max-width:400px">
-        <div class="duna-order-card is-selected">
+        <button type="button" class="duna-order-card is-selected">
           <div class="duna-order-card__top">
             <span class="duna-order-card__name">Laura Cárdenas</span>
             <span class="duna-order-card__id duna-mono">#1247</span>
@@ -250,8 +250,8 @@
             </span>
             <span class="duna-order-card__time">hace 42 min</span>
           </div>
-        </div>
-        <div class="duna-order-card">
+        </button>
+        <button type="button" class="duna-order-card">
           <div class="duna-order-card__top">
             <span class="duna-order-card__name">Camila Torres</span>
             <span class="duna-order-card__id duna-mono">#1241</span>
@@ -267,8 +267,10 @@
             </span>
             <span class="duna-order-card__time">hace 4 h</span>
           </div>
-        </div>
+        </button>
       </div>
+
+      <div class="flag" style="margin-top:var(--duna-space-4)">Las filas son <code>&lt;button&gt;</code>, no <code>&lt;div&gt;</code>: se llega a ellas con Tab y se activan con Enter y Espacio sin un solo handler de teclado. Pruébalo acá mismo — al enfocarlas aparece el borde de tinta y el anillo, el mismo tratamiento que un input. Una tarjeta SIN acción se monta como <code>&lt;div&gt;</code>: no recibe foco ni promete mano.</div>
 
       <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">Primitiva 2 · items-table (líneas de OTRA orden — total distinto a propósito)</div>
       <div class="duna-card" style="padding:var(--duna-space-5); max-width:520px">
@@ -288,7 +290,7 @@
     <p class="sec-note">El esqueleto de una pantalla de trabajo, AGNÓSTICO (sirve para pedidos, clientes o productos). El <code>top</code> del panel sticky no es un número: sale de <code>calc(var(--duna-topbar-h) + var(--duna-space-6))</code>, así que mover el padding de la topbar lo reacomoda solo. Debajo de 960px apila y el panel deja de ser sticky.</p>
     <div class="duna-split">
       <div class="duna-split__list">
-        <div class="duna-order-card is-selected">
+        <button type="button" class="duna-order-card is-selected">
           <div class="duna-order-card__top">
             <span class="duna-order-card__name">Laura Cárdenas</span>
             <span class="duna-order-card__id duna-mono">#1247</span>
@@ -300,8 +302,8 @@
             </span>
             <span class="duna-order-card__time">hace 42 min</span>
           </div>
-        </div>
-        <div class="duna-order-card">
+        </button>
+        <button type="button" class="duna-order-card">
           <div class="duna-order-card__top">
             <span class="duna-order-card__name">Camila Torres</span>
             <span class="duna-order-card__id duna-mono">#1241</span>
@@ -313,7 +315,7 @@
             </span>
             <span class="duna-order-card__time">hace 4 h</span>
           </div>
-        </div>
+        </button>
       </div>
       <div class="duna-split__panel duna-card duna-card__pad">
         <div class="duna-title">Laura Cárdenas</div>
