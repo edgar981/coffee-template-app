@@ -132,13 +132,25 @@
   <!-- TIMELINE -->
   <section>
     <h2 class="sec">Recorrido (timeline)</h2>
+    <p class="sec-note">Tres ranuras por hecho: qué pasó, cuándo y QUIÉN. El actor es opcional — cuando falta, la línea muestra sólo el cuándo y el sistema NO inventa una etiqueta ("Sistema", "Automático"): eso es lenguaje de producto, y el paquete es agnóstico. Si el producto quiere una palabra para el actor no humano, la pasa como <code>actor</code>. El componente es <code>components/Timeline.tsx</code> y monta <code>&lt;ol&gt;/&lt;li&gt;</code>: un recorrido ES una lista ordenada.</p>
     <div class="duna-card card-demo" style="max-width:460px">
-      <div class="duna-tl">
-        <div class="duna-tl__item is-now"><div class="duna-tl__t">En camino con el mensajero</div><div class="duna-tl__s">Hoy, 2:20 p.m.</div></div>
-        <div class="duna-tl__item is-done"><div class="duna-tl__t">Preparado y empacado</div><div class="duna-tl__s">Hoy, 1:50 p.m.</div></div>
-        <div class="duna-tl__item is-done"><div class="duna-tl__t">Confirmado</div><div class="duna-tl__s">Hoy, 1:32 p.m.</div></div>
-      </div>
+      <ol class="duna-tl">
+        <li class="duna-tl__item is-now"><div class="duna-tl__t">En camino con el mensajero</div><div class="duna-tl__s">Hoy, 2:20 p.m. · Ana Ruiz</div></li>
+        <li class="duna-tl__item is-done"><div class="duna-tl__t">Preparado y empacado</div><div class="duna-tl__s">Hoy, 1:50 p.m. · Ana Ruiz</div></li>
+        <li class="duna-tl__item is-done"><div class="duna-tl__t">Confirmado</div><div class="duna-tl__s">Hoy, 1:32 p.m.</div></li>
+      </ol>
     </div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">La última fila no tiene actor: es un hecho sin humano detrás. Se ve como las otras, con una línea más corta — sin hueco, sin guion, sin palabra inventada.</div>
+
+    <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">Sin secuencia alrededor · el <code>state</code> es opcional</div>
+    <div class="duna-card card-demo" style="max-width:460px">
+      <ol class="duna-tl">
+        <li class="duna-tl__item"><div class="duna-tl__t">Entregado</div><div class="duna-tl__s">14 may 2026</div></li>
+        <li class="duna-tl__item"><div class="duna-tl__t">Pagado</div><div class="duna-tl__s">12 may 2026</div></li>
+        <li class="duna-tl__item"><div class="duna-tl__t">Creado</div><div class="duna-tl__s">11 may 2026</div></li>
+      </ol>
+    </div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">Aro hueco, sin <code>done</code> ni <code>now</code>: consta que ocurrió, pero no hay secuencia completa que colorear. Es la forma correcta para un recorrido derivado de un registro viejo — lo que se puede afirmar y nada más.</div>
   </section>
 
   <!-- STATS + INSIGHT -->

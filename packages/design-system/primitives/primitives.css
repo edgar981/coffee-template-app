@@ -171,8 +171,13 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 .duna-steps__seg.is-done { background: var(--duna-ink); }
 .duna-steps__seg.is-now  { background: var(--duna-sol); }
 
-/* ── TIMELINE · recorrido; el punto "now" late ──────────────────────────── */
-.duna-tl { position: relative; padding-left: var(--duna-space-6); }
+/* ── TIMELINE · recorrido; el punto "now" late ──────────────────────────────
+   El componente `components/Timeline.tsx` la monta como <ol>/<li> —un recorrido
+   ES una lista ordenada— así que acá se apaga el bullet y el margen nativos. Se
+   deja también servible desde <div>, que es como la usa la prueba viva histórica:
+   las dos formas se ven igual. */
+.duna-tl { position: relative; padding-left: var(--duna-space-6);
+           list-style: none; margin: 0; }
 .duna-tl::before { content: ''; position: absolute; left: 5px; top: var(--duna-space-2); bottom: var(--duna-space-2);
                    width: 0; border-left: 1.5px dashed var(--duna-border-2); }
 .duna-tl__item { position: relative; padding: var(--duna-space-2) 0; }
