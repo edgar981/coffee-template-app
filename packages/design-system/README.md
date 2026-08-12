@@ -34,10 +34,31 @@ reference.html    Página de referencia viva: renderiza tokens y primitivas.
 ## Consumo (Tailwind v4)
 
 ```css
-@import "@duna/design-system/tokens/tokens.css";
-@import "@duna/design-system/tokens/theme.css";
-@import "@duna/design-system/primitives/primitives.css";
+@import "@duna/design-system/tokens.css";
+@import "@duna/design-system/theme.css";
+@import "@duna/design-system/primitives.css";
 ```
+
+Dos cosas que este bloque tuvo mal desde el principio y que sólo aparecen al
+consumir el paquete de verdad:
+
+- **Las rutas son las del `exports`, no las internas.** Decía
+  `@duna/design-system/tokens/tokens.css`, y ninguna de las tres líneas resolvía:
+  el mapa declara `./tokens.css`. Las claves son planas a propósito — la
+  estructura interna del paquete puede moverse sin romperle nada a nadie, que es
+  para lo que existe un mapa de exports.
+- **Las entradas CSS necesitan la condición `style`.** Es la que consulta el
+  resolvedor de `@import` de Tailwind v4; sin ella el import falla con *"is not
+  exported under the condition style"* aunque la ruta sea correcta. Llevan además
+  `default`, para el consumidor que importe el CSS desde un módulo JS/TSX
+  (`import "@duna/design-system/tokens.css"`), que es el otro camino válido en
+  Next y no pasa por `style`.
+
+Las dos son la misma clase de falla: `reference.html` enlaza los CSS por ruta
+**relativa**, así que la prueba viva del paquete nunca ejerció el mapa de exports.
+**Un paquete verificado en aislamiento no está verificado para ser consumido** —
+lo que la prueba viva demuestra es que el sistema es coherente, no que se pueda
+instalar.
 
 El tema oscuro se activa con `data-theme="dark"` en `<html>` (solo el admin lo
 usa; el storefront es light-only).

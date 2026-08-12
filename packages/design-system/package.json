@@ -7,10 +7,20 @@
   "sideEffects": [
     "*.css"
   ],
+  "//exports": "La condición `style` NO es decorativa: es la que consulta el resolvedor de @import de Tailwind v4, y sin ella un @import desde el CSS de la app falla aunque la ruta exista. `default` va además, para quien importe el CSS desde un módulo JS/TSX. Las claves son planas a propósito. Ver README § Consumo.",
   "exports": {
-    "./tokens.css": "./tokens/tokens.css",
-    "./theme.css": "./tokens/theme.css",
-    "./primitives.css": "./primitives/primitives.css",
+    "./tokens.css": {
+      "style": "./tokens/tokens.css",
+      "default": "./tokens/tokens.css"
+    },
+    "./theme.css": {
+      "style": "./tokens/theme.css",
+      "default": "./tokens/theme.css"
+    },
+    "./primitives.css": {
+      "style": "./primitives/primitives.css",
+      "default": "./primitives/primitives.css"
+    },
     "./status": "./primitives/status.ts",
     "./components/*": "./components/*.tsx"
   },
