@@ -301,7 +301,12 @@ button.duna-order-card:focus-visible { border-color: var(--duna-ink); box-shadow
                         margin-top: var(--duna-space-1); color: var(--duna-muted); font-size: var(--duna-text-caption); }
 .duna-order-card__foot { display: flex; align-items: center; gap: var(--duna-space-3); margin-top: var(--duna-space-3); }
 .duna-order-card__foot .duna-steps { flex: 1; }
-.duna-order-card__time { font-size: var(--duna-text-caption); color: var(--duna-faint); white-space: nowrap; }
+/* `margin-left: auto` para la fila SIN barra (una tarjeta que no tiene camino que
+   mostrar): mantiene el "hace X" en la misma columna que en las demás, y la lista
+   no se desalinea. Con barra es un no-op — `.duna-steps` lleva `flex: 1` y ya se
+   comió todo el espacio libre, así que al margen auto no le queda nada que repartir. */
+.duna-order-card__time { font-size: var(--duna-text-caption); color: var(--duna-faint); white-space: nowrap;
+                         margin-left: auto; }
 
 /* ── Items-table · líneas de una orden en el detalle ────────────────────────
    AGNÓSTICA: filas genéricas {label, meta?, amount} + fila total opcional. */

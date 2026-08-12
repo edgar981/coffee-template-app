@@ -28,8 +28,22 @@ export interface OrderCardProps {
   /** Estado terminal/de cobro como badge. NO admite "en curso" (BadgeTone no lo
    *  tiene): el progreso vive en `steps`. */
   status?: { label: string; tone: BadgeTone };
-  /** Progreso de fulfillment — la ÚNICA vía de "en curso". */
-  steps: OrderSteps;
+  /**
+   * Progreso de fulfillment — la ÚNICA vía de "en curso".
+   *
+   * OPCIONAL, y la ausencia es una respuesta: hay filas que NO tienen camino que
+   * mostrar. El caso que lo motivó es un pedido cancelado —su recorrido se anuló,
+   * así que una barra invita a leerlo como vivo, y además la etapa que alcanzó ya
+   * no está en la fila que la lista carga—. Dibujarle una barra exigiría
+   * inventarle una posición.
+   *
+   * La ausencia es la representación honesta, igual que un "hace X" que no se
+   * puede afirmar o un paso que no se puede derivar. No debilita la regla del "en
+   * curso": `BadgeTone` sigue sin tono de progreso, así que quedarse sin steps no
+   * le da al badge permiso para decir "en camino" — deja a la fila sin decirlo, que
+   * es distinto y es correcto.
+   */
+  steps?: OrderSteps;
   /** "hace X" YA formateado por el consumidor. */
   timeAgo?: string;
   selected?: boolean;
@@ -93,14 +107,21 @@ export function OrderCard({
           </span>
         )}
       </div>
-      <div className="duna-order-card__foot">
-        <span className="duna-steps">
-          {Array.from({ length: steps.count }, (_, i) => (
-            <span key={i} className={segClass(i, steps)} />
-          ))}
-        </span>
-        {timeAgo && <span className="duna-order-card__time">{timeAgo}</span>}
-      </div>
+      {/* El pie sólo existe si tiene algo que poner. Sin steps y sin "hace X"
+          quedaría un bloque vacío aportando su `margin-top` — un hueco que se lee
+          como si algo no hubiera cargado. */}
+      {(steps || timeAgo) && (
+        <div className="duna-order-card__foot">
+          {steps && (
+            <span className="duna-steps">
+              {Array.from({ length: steps.count }, (_, i) => (
+                <span key={i} className={segClass(i, steps)} />
+              ))}
+            </span>
+          )}
+          {timeAgo && <span className="duna-order-card__time">{timeAgo}</span>}
+        </div>
+      )}
     </>,
   );
 }

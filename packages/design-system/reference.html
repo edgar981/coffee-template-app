@@ -268,7 +268,23 @@
             <span class="duna-order-card__time">hace 4 h</span>
           </div>
         </button>
+        <button type="button" class="duna-order-card">
+          <div class="duna-order-card__top">
+            <span class="duna-order-card__name">Julián Peña</span>
+            <span class="duna-order-card__id duna-mono">#1233</span>
+            <span class="duna-order-card__amount duna-num">$ 62.000</span>
+          </div>
+          <div class="duna-order-card__mid">
+            <span class="duna-chip-channel"><svg viewBox="0 0 24 24"><path d="M3 9l1.5-5h15L21 9M3 9v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9"/></svg>Tienda</span>
+            <span class="duna-badge duna-badge--problem"><span class="duna-badge__dot"></span>Cancelado</span>
+          </div>
+          <div class="duna-order-card__foot">
+            <span class="duna-order-card__time">hace 2 d</span>
+          </div>
+        </button>
       </div>
+
+      <div class="flag" style="margin-top:var(--duna-space-4)">La tercera fila NO lleva barra, y la ausencia es la respuesta: un pedido cancelado no tiene camino que mostrar — su recorrido se anuló, así que una barra invitaría a leerlo como vivo. <code>steps</code> es opcional por eso. No debilita la regla: <code>BadgeTone</code> sigue sin tono de progreso, así que quedarse sin barra no le da al badge permiso para decir "en camino"; deja a la fila sin decirlo, que es distinto. El "hace X" se queda en su columna.</div>
 
       <div class="flag" style="margin-top:var(--duna-space-4)">Las filas son <code>&lt;button&gt;</code>, no <code>&lt;div&gt;</code>: se llega a ellas con Tab y se activan con Enter y Espacio sin un solo handler de teclado. Pruébalo acá mismo — al enfocarlas aparece el borde de tinta y el anillo, el mismo tratamiento que un input. Una tarjeta SIN acción se monta como <code>&lt;div&gt;</code>: no recibe foco ni promete mano.</div>
 
