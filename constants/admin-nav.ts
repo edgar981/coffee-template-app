@@ -19,6 +19,11 @@ export interface AdminNavItem {
 export const ADMIN_NAV: AdminNavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard',        path: '/admin/dashboard',        anim: 'lift' },
   { icon: ShoppingCart,    label: 'Órdenes',          path: '/admin/ordenes',          anim: 'cart' },
+  // CONVIVENCIA TEMPORAL Y DECLARADA: "Pedidos" es la pantalla del rediseño Duna
+  // OS y "Órdenes" es la operativa actual, en producción con seis flujos modales.
+  // Las dos en el menú a propósito — es lo que permite el gate visual A/B contra
+  // la pantalla vieja. "Órdenes" sale cuando Pedidos absorba esos flujos.
+  { icon: Package,         label: 'Pedidos',          path: '/admin/pedidos',          anim: 'cart' },
   { icon: Package,         label: 'Productos',        path: '/admin/productos',        anim: 'package' },
   { icon: Users,           label: 'Clientes',         path: '/admin/clientes',         anim: 'users' },
   { icon: Warehouse,       label: 'Inventario',       path: '/admin/inventario',       anim: 'lift' },

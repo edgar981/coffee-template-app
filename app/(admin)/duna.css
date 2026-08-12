@@ -47,4 +47,16 @@
   --duna-font-ui:      var(--font-hanken-grotesk), 'Hanken Grotesk', system-ui, sans-serif;
   --duna-font-display: var(--font-space-grotesk), 'Space Grotesk', var(--duna-font-ui);
   --duna-font-mono:    var(--font-spline-sans-mono), 'Spline Sans Mono', ui-monospace, monospace;
+
+  /* ── La ALTURA REAL de la topbar de ESTE panel ────────────────────────────
+     El sistema trae 52px como default, pero la topbar de acá es `h-16` = 64
+     (components/admin/TopBar.tsx, fija arriba). El token existe justamente para
+     que el consumidor diga su medida: de él sale el `top` del panel sticky de
+     `.duna-split`, que queda en 64 + 24 = 88 — debajo de la barra, con el aire
+     de un `space-6`.
+     Con los 52 del default el panel se metería 12px POR DEBAJO de la topbar al
+     scrollear, y eso no se ve como un token mal puesto: se ve como un panel que
+     "se corta raro". Sale de acá y no de un `calc` en la pantalla porque el día
+     que la topbar cambie de alto, se toca un número y el sticky sigue solo. */
+  --duna-topbar-h: 64px;
 }
