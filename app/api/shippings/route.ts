@@ -79,7 +79,9 @@ export async function POST(req: NextRequest) {
   }
 
   const shipping = await prisma.$transaction(async (tx) => {
-    await ensureShipping(tx, order);
+    // "Preparar envío" es una acción MANUAL del operador → el asiento de creación
+    // del envío lleva su sesión como actor.
+    await ensureShipping(tx, order, { id: session.user.id, nombre: session.user.name ?? null });
     return tx.shipping.findUnique({
       where:   { orden_id: ordenId },
       include: { order: ORDER_SELECT },

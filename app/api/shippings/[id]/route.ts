@@ -4,6 +4,7 @@ import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { dispatchStockDecrement, restockShippingStock, DispatchStockError } from '@duna/core/fulfillment';
 import { markContraentregaAtDispatch } from '@duna/core/orders';
+import { appendOrderStatusTransition } from '@duna/core/order-transitions';
 import { notifyOrderEnRoute } from '@duna/core/notifications';
 import { buildBrand } from '@/lib/config/brand';
 import { runEventAutomations } from '@/lib/automations/engine';
@@ -168,7 +169,7 @@ export async function PATCH(
       }
       if (justFailed)     await restockShippingStock(tx, current, 'Entrega fallida');
 
-      return tx.shipping.update({
+      const s = await tx.shipping.update({
         where: { id: id },
         data:  {
           estado:           nextEstado,
@@ -187,6 +188,18 @@ export async function PATCH(
         },
         include: { order: ORDER_SELECT },
       });
+
+      // Asiento del eje FULFILLMENT: la transición manual del envío (despacho,
+      // entrega, fallo, reprogramación fallido→preparando). SÓLO si el estado
+      // cambió, en la MISMA tx que el update.
+      if (nextEstado && nextEstado !== current.estado) {
+        await appendOrderStatusTransition(tx, {
+          ordenId: current.orden_id, eje: 'fulfillment',
+          estadoAnterior: current.estado, estadoNuevo: nextEstado,
+          actor: { id: session.user.id, nombre: session.user.name ?? null },
+        });
+      }
+      return s;
     });
 
     // Dispatch COMMITTED. Fire the "on its way" notification here — AFTER the

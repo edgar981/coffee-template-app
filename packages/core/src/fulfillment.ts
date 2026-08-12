@@ -1,5 +1,6 @@
 import { Prisma } from '@duna/core';
 import { cruzoMinimo } from '@duna/core/metrics/inventory-filters';
+import { appendOrderStatusTransition, type TransitionActor } from '@duna/core/order-transitions';
 
 interface OrderShippingSnapshot {
   id: string;
@@ -61,7 +62,13 @@ export function decideShippingSchedulable(
 export async function ensureShipping(
   tx: Prisma.TransactionClient,
   order: OrderShippingSnapshot,
+  actor?: TransitionActor,
 ): Promise<void> {
+  // ¿Existía ya? El upsert no lo dice, y el asiento sólo va en la CREACIÓN real.
+  const existente = await tx.shipping.findUnique({
+    where:  { orden_id: order.id },
+    select: { id: true },
+  });
   await tx.shipping.upsert({
     where:  { orden_id: order.id },
     update: {},
@@ -71,6 +78,14 @@ export async function ensureShipping(
       estado:      'preparando',
     },
   });
+  // Asiento del eje FULFILLMENT sólo si el envío SE CREÓ (no en el no-op del
+  // upsert): nace sin estado previo → estado_anterior null.
+  if (!existente) {
+    await appendOrderStatusTransition(tx, {
+      ordenId: order.id, eje: 'fulfillment',
+      estadoAnterior: null, estadoNuevo: 'preparando', actor,
+    });
+  }
 }
 
 // ─── Stock at dispatch (single, atomic, idempotent) ──────────────────────────
