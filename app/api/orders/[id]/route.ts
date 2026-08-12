@@ -52,7 +52,9 @@ export async function PATCH(
   const previo = await prisma.order.findUnique({ where: { id }, select: { estado: true } });
 
   try {
-    const result = await prisma.$transaction((tx) => transitionOrder(tx, id, data));
+    const result = await prisma.$transaction((tx) => transitionOrder(tx, id, data, {
+      id: session.user.id, nombre: session.user.name ?? null,
+    }));
 
     // Transición COMITEADA. Fire-and-forget, jamás afecta la respuesta.
     if (result?.estado === 'pagado' && previo?.estado !== 'pagado') {

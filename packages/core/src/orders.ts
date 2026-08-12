@@ -4,6 +4,7 @@ import { ensureShipping, restockShippingStock } from '@duna/core/fulfillment';
 import { notifyOrderCreated } from '@duna/core/notifications';
 import type { Brand } from '@duna/core/notifications/brand';
 import { moliendaAceptada } from '@duna/core/moliendas-opciones';
+import { appendOrderStatusTransition, type TransitionActor } from '@duna/core/order-transitions';
 // THE phone normalizer lives in the pure phone module (lib/whatsapp-link); it is
 // re-exported here so existing importers (`@/lib/orders`) keep working.
 import { normalizeCustomerPhone } from '@duna/core/whatsapp-link';
@@ -109,7 +110,10 @@ export async function transitionOrder(
   tx: Prisma.TransactionClient,
   id: string,
   data: OrderTransitionData,
+  actor?: TransitionActor,
 ) {
+  // Estado ANTES del update — para el asiento del libro (from→to). Un PK lookup.
+  const previo = await tx.order.findUniqueOrThrow({ where: { id }, select: { estado: true } });
   // Editing the declared method RE-DERIVES the condición. It is IMMUTABLE once the
   // lifecycle ran under it: any Shipping or Payment locks a CHANGE of condición
   // (server-side guard — the UI never offers the change post-fulfillment).
@@ -141,6 +145,15 @@ export async function transitionOrder(
     },
   });
 
+  // Asiento del eje COBRO: SÓLO si el estado cambió de verdad (un PATCH que sólo
+  // toca notas/dirección no es una transición). El `from` es el estado previo real.
+  if (data.estado != null && updated.estado !== previo.estado) {
+    await appendOrderStatusTransition(tx, {
+      ordenId: id, eje: 'cobro',
+      estadoAnterior: previo.estado, estadoNuevo: updated.estado, actor,
+    });
+  }
+
   if (updated.estado === 'pagado') {
     await ensureShipping(tx, updated);
   } else if (updated.estado === 'cancelado') {
@@ -157,6 +170,12 @@ export async function transitionOrder(
       await tx.shipping.update({
         where: { id: shipping.id },
         data:  { estado: 'cancelado', updatedAt: new Date() },
+      });
+      // Asiento del eje FULFILLMENT: la anulación del envío al cancelar la orden.
+      // Es el que se habría perdido con el plan de 3 puntos.
+      await appendOrderStatusTransition(tx, {
+        ordenId: id, eje: 'fulfillment',
+        estadoAnterior: shipping.estado, estadoNuevo: 'cancelado', actor,
       });
     }
   }
@@ -207,8 +226,12 @@ export async function registerOrderPaymentTx(
   });
 
   // Moves order → pagado AND auto-creates the Shipping in `preparando` (no-op if
-  // one already exists — e.g. it was scheduled first under ALLOW_UNPAID).
-  const order = await transitionOrder(tx, orderId, { estado: 'pagado' });
+  // one already exists — e.g. it was scheduled first under ALLOW_UNPAID). El actor
+  // del asiento de cobro es quien REGISTRÓ el pago (lo escribe transitionOrder, no
+  // acá: el cambio de estado es suyo y así el asiento no se duplica).
+  const order = await transitionOrder(tx, orderId, { estado: 'pagado' }, {
+    id: input.registrado_por ?? null, nombre: input.registrado_por_nombre ?? null,
+  });
 
   return { payment, order };
 }
@@ -293,6 +316,9 @@ export interface CreateOrderInput {
   // ni caiga a un hardcode de tenant. El núcleo de notificaciones no conoce el
   // tenant — lo recibe por aquí.
   brand: Brand;
+  // Quién crea la orden — para el asiento de CREACIÓN del libro. `undefined`/null =
+  // sin humano detrás (checkout del storefront). El admin pasa su sesión.
+  actor?: TransitionActor;
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -503,6 +529,14 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
               })),
             },
           },
+        });
+
+        // Asiento de CREACIÓN (eje cobro): la orden nace sin estado previo →
+        // estado_anterior null. Va ANTES del immediatePayment, así el libro cuenta
+        // "creada (pendiente)" y luego "pagada" en el orden correcto.
+        await appendOrderStatusTransition(tx, {
+          ordenId: order.id, eje: 'cobro',
+          estadoAnterior: null, estadoNuevo: order.estado, actor: input.actor,
         });
 
         // "El pago ya fue recibido": born `pendiente` above, then paid RIGHT NOW

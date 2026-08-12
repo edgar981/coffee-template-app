@@ -70,7 +70,11 @@ psql "postgresql://postgres@127.0.0.1:${PUERTO}/postgres" -q -c "CREATE DATABASE
 
 echo "▸ Aplicando migraciones…"
 cd "$RAIZ"
-npx prisma migrate deploy >/dev/null
+# El schema vive en packages/core desde Fase A: se migra en el contexto de core
+# (su prisma.config resuelve schema + migraciones). El DIRECT_DATABASE_URL efímero
+# ya está exportado arriba y el dotenv de core (override:false) NO lo pisa, así que
+# esto migra la base efímera, nunca `development`.
+npm run --silent db:deploy -w @duna/core >/dev/null
 
 # ─── Los tests ───────────────────────────────────────────────────────────────
 # Glob PROPIO: el runner de siempre (`npm test`) barre `lib/**/*.test.ts` y no

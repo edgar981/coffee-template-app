@@ -204,10 +204,46 @@ model Order {
   payments           Payment[]
   comprobantes       Comprobante[]
   shipping           Shipping?
+  transiciones       OrderStatusTransition[]
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
   @@index([cliente_id])
+}
+
+// ─── Libro de transiciones de estado (append-only) ───────────────────────────
+// El "Recorrido del pedido": cada cambio de estado de CUALQUIERA de los dos ejes
+// —cobro (Order.estado) y fulfillment (Shipping.estado)— escribe UNA fila. Es un
+// LIBRO: nunca se borra ni se edita. `Order.updatedAt` sólo dice el último write;
+// esto dice la historia. Lo escriben los cinco funnels vía appendOrderStatusTransition.
+model OrderStatusTransition {
+  id              String   @id @default(cuid())
+  orden_id        String
+  order           Order    @relation(fields: [orden_id], references: [id], onDelete: Cascade)
+  // Eje del estado que cambió: 'cobro' | 'fulfillment'. Una fila por transición de
+  // cualquiera de los dos; el discriminador es lo que permite mezclarlos.
+  eje             String
+  // from/to como STRING, no enum: cada eje tiene su PROPIO vocabulario (cobro:
+  // pendiente/pagado/cancelado; fulfillment: preparando/en_ruta/entregado/fallido).
+  // Un enum forzaría uno solo y dejaría fuera al otro eje.
+  // `estado_anterior` NULLABLE a propósito: una orden que NACE no tiene estado
+  // previo (creación → estado_anterior:null, estado_nuevo:'pendiente'). Decisión
+  // explícita, no el default de Prisma. Mismo par que InventoryLog (anterior/nuevo).
+  estado_anterior String?
+  estado_nuevo    String
+  // Actor SNAPSHOT sin FK (patrón Payment/Comprobante): id + nombre congelados,
+  // sobreviven a que el usuario se desactive o se borre. Nullable: transiciones sin
+  // humano (checkout del storefront, efectos del sistema).
+  actor_id        String?
+  actor_nombre    String?
+  // CLAVE DE ORDEN GLOBAL de la timeline: se lee cronológicamente MEZCLANDO los dos
+  // ejes. Distinta de createdAt (auditoría técnica de cuándo se escribió la fila).
+  occurred_at     DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  // La timeline lee por orden ordenada por tiempo; append-only, crece para siempre.
+  // Sin este índice, cada lectura escanearía la tabla entera.
+  @@index([orden_id, occurred_at])
 }
 
 model OrderItem {

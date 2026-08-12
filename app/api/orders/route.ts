@@ -165,6 +165,7 @@ export async function POST(req: NextRequest) {
       items:             lines,
       idempotencyKey:    b.idempotencyKey ?? null,
       brand:             buildBrand(),
+      actor:             { id: session.user.id, nombre: session.user.name ?? null },
     });
 
     // Se emite `order.creada` con `origen: 'admin'` aunque HOY nada la escuche:
