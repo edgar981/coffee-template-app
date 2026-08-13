@@ -181,7 +181,7 @@ export function recorridoDelPedido(orden: OrdenParaRecorrido): PasoRecorrido[] {
   // punto con el anillo del sol— marca "acá está el pedido AHORA", y eso sólo se
   // puede afirmar con dos condiciones:
   //
-  //   · el pedido sigue en curso (cancelado es terminal), y
+  //   · el pedido NO terminó (ver `terminado`), y
   //   · el hecho más reciente salió DEL LIBRO.
   //
   // La segunda es la que no es obvia y es la que sostiene la honestidad del
@@ -190,11 +190,47 @@ export function recorridoDelPedido(orden: OrdenParaRecorrido): PasoRecorrido[] {
   // no hay registro de lo demás. Marcarlo `now` afirmaría que el pedido está ahí
   // parado, que es exactamente el tipo de cosa que no consta.
   const primero = pasos[0];
-  const enCurso = orden.estado !== 'cancelado';
   return pasos.map((p, i) => ({
     ...p,
-    estado: i === 0 && enCurso && primero && !primero.derivado ? 'now' : 'done',
+    estado: i === 0 && !terminado(orden) && primero && !primero.derivado ? 'now' : 'done',
   }));
+}
+
+/**
+ * ¿El pedido TERMINÓ? Hace falta mirar LOS DOS EJES.
+ *
+ * ── EL BUG QUE LO INSTAURA ──────────────────────────────────────────────────
+ *
+ * Esto era `orden.estado !== 'cancelado'`: un solo eje (cobro) y uno solo de sus
+ * tres valores. Nunca preguntaba si el fulfillment había terminado, así que
+ * CUALQUIER orden no cancelada era "en curso" para siempre y su hecho más reciente
+ * se llevaba el anillo del sol.
+ *
+ * El bug era de toda orden terminada, no de un caso raro. En una ANTICIPADO pagada
+ * y entregada el último asiento es "Entregado" y el sol cae ahí: se ve plausible.
+ * Lo hizo visible una CONTRAENTREGA, donde el pago llega DESPUÉS de la entrega y el
+ * sol quedaba sobre "Pago registrado" — un pedido cerrado anunciándose como el
+ * lugar donde hay algo pasando.
+ *
+ * Lo delataba también que `pasosDelPedido` sí trataba `entregado` como terminal
+ * (`done: true`): la card decía terminado y la timeline decía en curso, sobre el
+ * mismo pedido. Dos vistas del mismo hecho discrepando es la señal de que una de
+ * las dos usa una definición incompleta.
+ *
+ * ── LA DEFINICIÓN ───────────────────────────────────────────────────────────
+ *
+ * Un pedido terminó si está CANCELADO (aborto, terminal por sí solo), o si la
+ * mercancía llegó Y la plata entró. Las dos mitades, porque los ejes son
+ * ortogonales: entregado sin cobrar SIGUE pidiendo algo —es literalmente el motivo
+ * de atención "Despachada sin cobrar"— y pagado sin entregar también.
+ *
+ * Se lee `Order.estado === 'pagado'` y no la existencia de un Payment porque ese
+ * campo ES el espejo del cobro y su único escritor es el path de dinero (§ El eje
+ * de COBRO se escribe una sola vez): fiel por construcción.
+ */
+function terminado(orden: OrdenParaRecorrido): boolean {
+  if (orden.estado === 'cancelado') return true;
+  return orden.shipping?.estado === 'entregado' && orden.estado === 'pagado';
 }
 
 /** ¿El recorrido tiene algún hecho deducido? La pantalla lo usa para decirlo: un
