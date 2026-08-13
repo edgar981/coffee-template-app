@@ -207,24 +207,42 @@
       <div>
         <div class="duna-eyebrow" style="margin-bottom:var(--duna-space-3)">Atención persistente → BANDEJA</div>
         <div class="duna-card" style="padding:var(--duna-space-3) var(--duna-space-5)">
-          <div class="duna-att-item">
+          <button type="button" class="duna-att-item">
             <span class="duna-att-item__dot"></span>
             <div class="duna-att-item__body">
               <div class="duna-att-item__title">Laura Cárdenas espera confirmación hace 42 min</div>
               <div class="duna-att-item__sub">Pedido #1247 · $ 86.500 · pagó por Nequi</div>
             </div>
             <span class="duna-att-item__cta">Confirmar →</span>
-          </div>
-          <div class="duna-att-item">
+          </button>
+          <button type="button" class="duna-att-item">
             <span class="duna-att-item__dot is-calm"></span>
             <div class="duna-att-item__body">
               <div class="duna-att-item__title">2 conversaciones resueltas por el asistente</div>
               <div class="duna-att-item__sub">No requieren nada de ti.</div>
             </div>
             <span class="duna-att-item__cta">Ver →</span>
-          </div>
+          </button>
         </div>
         <div class="flag" style="margin-top:var(--duna-space-3)">Aquí el punto sol <b>SÍ</b> es correcto: persiste y pide acción. El punto apagado (<code>is-calm</code>) es lo informativo que no pide nada.</div>
+        <div class="flag" style="margin-top:var(--duna-space-3)">Las filas que LLEVAN a algún lado son <code>&lt;button&gt;</code> (o <code>&lt;a&gt;</code>): ahí viven el cursor, el desplazamiento del hover y el foco. Antes esta demo eran <code>&lt;div&gt;</code> con una flecha de CTA — el mismo "parece clickeable y no lo es" que H9 corrigió en la order-card.</div>
+
+        <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">Sin acción · la clase base es NEUTRA</div>
+        <div class="duna-card" style="padding:var(--duna-space-3) var(--duna-space-5)">
+          <div class="duna-att-item">
+            <span class="duna-att-item__dot"></span>
+            <div class="duna-att-item__body">
+              <div class="duna-att-item__title">1 comprobante sin verificar</div>
+            </div>
+          </div>
+          <div class="duna-att-item">
+            <span class="duna-att-item__dot"></span>
+            <div class="duna-att-item__body">
+              <div class="duna-att-item__title">Falta la fecha para despachar</div>
+            </div>
+          </div>
+        </div>
+        <div class="flag" style="margin-top:var(--duna-space-3)">Un motivo mostrado DENTRO del detalle de aquello que lo causa no lleva a ningún lado: el operador ya está ahí. Sin cursor de mano, sin hover que se mueva, sin foco — no promete una navegación que no ocurre. Sigue llevando el punto sol, que es lo que lo hace un motivo y no una nota.</div>
       </div>
 
     </div>

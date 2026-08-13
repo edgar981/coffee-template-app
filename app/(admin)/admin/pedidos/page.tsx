@@ -14,6 +14,7 @@ import type { Order, OrderDetalle, OrderChannel } from '@/types/order';
 import { CANALES } from '@/constants/customer';
 import { FILTROS_PEDIDOS, aplicarFiltro, conteos, filtroPorKey, type FiltroKey } from '@/lib/pedidos/filtros';
 import { pasosDelPedido, badgeCobro } from '@/lib/pedidos/estado';
+import { motivosDeAtencion, textoDeMotivo } from '@/lib/pedidos/atencion';
 import { recorridoDelPedido, tieneDerivados } from '@/lib/pedidos/recorrido';
 import { hace } from '@/lib/pedidos/tiempo';
 
@@ -244,6 +245,14 @@ function Detalle({ orden, detalle, cargando, error }: {
   const badge = badgeCobro(orden, 'detalle');
   const fuente = detalle ?? orden;
 
+  // Sale de `fuente`, no de `orden`: mientras el detalle viaja se calcula con lo
+  // que la lista ya trae (que incluye envío y comprobantes, así que los cuatro
+  // motivos son evaluables desde el primer render) y se recalcula solo cuando
+  // llega la verdad del servidor. Es LA MISMA función que filtra el pill — si esta
+  // pantalla tuviera su propia idea de qué pide atención, el operador vería un
+  // pedido en el carril "Necesitan atención" y adentro ningún motivo.
+  const motivos = motivosDeAtencion(fuente);
+
   // El método REAL manda sobre el previsto: el pago que existe gana sobre la
   // intención declarada al crear la orden. Sin pago, se dice que es lo previsto —
   // presentarlo a secas haría creer que ya se cobró.
@@ -297,6 +306,36 @@ function Detalle({ orden, detalle, cargando, error }: {
       <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
 
       {error && <div className="duna-note" role="alert">{error}</div>}
+
+      {/* ── POR QUÉ pide atención ────────────────────────────────────────────
+          Va PRIMERO, antes de los productos: si el pedido pide algo, es lo que el
+          operador vino a resolver. Y va SÓLO acá, no en la card de la lista — la
+          lista ya dice QUÉ pedidos piden atención (el pill los filtra) y el
+          detalle es donde se ACTÚA. Mantenerlo fuera de la card además no toca
+          `order-card`, que es primitiva agnóstica del DS.
+
+          Se muestran TODOS los motivos, no el principal: el caso que originó esto
+          fue justamente una orden con dos causas, donde resolver una dejaba la
+          otra invisible.
+
+          `.duna-att-item` en su forma NEUTRA (un `<div>`): estos motivos no llevan
+          a ningún lado — el operador ya está en el pedido —, y la primitiva dejó de
+          prometer click en su clase base. */}
+      {motivos.length > 0 && (
+        <>
+          <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-2)' }}>Necesita tu atención</div>
+          <div style={{ marginBottom: 'var(--duna-space-5)' }}>
+            {motivos.map((m, i) => (
+              <div className="duna-att-item" key={i}>
+                <span className="duna-att-item__dot" />
+                <div className="duna-att-item__body">
+                  <div className="duna-att-item__title">{textoDeMotivo(m)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* ── Líneas y total ───────────────────────────────────────────────── */}
       <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-2)' }}>Productos</div>

@@ -253,10 +253,32 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
    `.is-calm` (faint) es para lo informativo que no pide nada. Aquí el sol es
    correcto justamente porque no es efímero. */
 .duna-att-item { display: flex; align-items: flex-start; gap: var(--duna-space-3); padding: var(--duna-space-3) 0;
-                 border-bottom: 1px solid var(--duna-border); cursor: pointer;
+                 border-bottom: 1px solid var(--duna-border);
                  transition: padding-left var(--duna-dur-fast) var(--duna-ease); }
 .duna-att-item:last-child { border-bottom: none; }
-.duna-att-item:hover { padding-left: var(--duna-space-1); }
+
+/* ── LA INTERACTIVIDAD LA LLEVA EL ELEMENTO QUE DE VERDAD LA TIENE ───────────
+   La clase base es NEUTRA: no promete click. Un motivo de atención mostrado
+   dentro del detalle de aquello que lo causa no lleva a ningún lado —el operador
+   ya está ahí— y una fila con cursor de mano que no hace nada promete una
+   navegación que no ocurre. Misma regla que hace que `CustomerLink` renderice
+   texto plano cuando no hay perfil al que ir.
+   El cursor, el desplazamiento del hover y el foco viven en `a`/`button`, igual
+   que `cursor: pointer` vive en `button.duna-order-card` desde H9. Las cuatro
+   líneas del botón son sólo el reset de lo que el navegador le impone; el resto
+   ya lo pone la clase base. */
+a.duna-att-item, button.duna-att-item { cursor: pointer; }
+button.duna-att-item { width: 100%; text-align: left; font: inherit; color: inherit;
+                       background: none; border: none; border-bottom: 1px solid var(--duna-border); }
+button.duna-att-item:last-child { border-bottom: none; }
+a.duna-att-item:hover, button.duna-att-item:hover { padding-left: var(--duna-space-1); }
+/* El foco: lavado de tinta + anillo. No reusa el borde de `.duna-input` porque
+   esta fila no tiene caja que teñir — sólo una línea inferior. El `outline`
+   transparente sobrevive al modo de alto contraste forzado, donde un
+   `outline: none` dejaría la fila sin foco visible. */
+a.duna-att-item:focus-visible, button.duna-att-item:focus-visible {
+  background: var(--duna-wash-hover); box-shadow: var(--duna-ring);
+  outline: 2px solid transparent; outline-offset: 2px; }
 .duna-att-item__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--duna-sol); margin-top: 6px; flex-shrink: 0; }
 .duna-att-item__dot.is-calm { background: var(--duna-faint); }
 .duna-att-item__body { flex: 1; min-width: 0; }
