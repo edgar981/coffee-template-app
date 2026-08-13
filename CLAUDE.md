@@ -668,6 +668,41 @@ de destruir algo, pero es un interino, no la forma final.
 Al implementarlo, el valor sale del DS (`--duna-bad`), no de la maqueta — ver la
 lista de derivas de arriba.
 
+### 6. `PATCH /api/customers/[id]` NO es parcial, y su cliente dice que sí
+
+El endpoint escribe **todos** los campos sin condición, con fallbacks sobre claves
+ausentes: `email: body.email || null`, `ciudad: … || null`, `canal: body.canal ||
+'directo'`, `activo: body.activo ?? true`. Es **exactamente** el patrón que costó
+el incidente del 2026-08-04 en productos (§ El PATCH de producto es PARCIAL de
+verdad): *un fallback sobre una clave ausente no es un default, es un borrado*.
+
+Y encima `lib/api/customers.ts` lo tipa `updateCustomer(id, data:
+Partial<CustomerForm>)`. **La firma invita a mandar un campo suelto**, y ese body
+—por ejemplo `{ activo: false }`— vaciaría correo, teléfono, ciudad, dirección y
+notas, y pondría el origen en `directo`. Sobreviviría `nombre` sólo porque su
+`undefined` lo ignora Prisma, que es el mismo mecanismo que mantuvo invisible el
+daño en productos.
+
+**Costo YA pagado: ninguno todavía, y por eso está acá y no arriba.** Verificado
+que los tres call sites de hoy —la lista vieja, el perfil viejo y
+`CustomerFormModal`— mandan el formulario COMPLETO. Es una mina puesta, no una
+herida abierta. Lo que sí está pagado es el gemelo: la misma forma en productos
+vació descripciones, precios y SKU, y le borró las imágenes del store a un
+producto por desactivarlo.
+
+**DISPARADOR — y es la razón de que esto esté escrito:** **antes de agregar
+cualquier control que mande un campo suelto** (el caso obvio es un toggle de
+`activo`, que hoy no existe en ninguna de las tres pantallas; también un "cambiar
+origen" desde la fila, o cualquier acción rápida del panel nuevo). Ese control es
+el que arma la mina. No hace falta esperar a que alguien lo escriba para
+arreglarlo, pero sí es el momento en que dejar de arreglarlo pasa a ser un bug.
+
+La forma del arreglo ya está resuelta y probada al lado: `datosDelPatch` + `trae`
+de `lib/product-update.ts` (presencia de la clave, no verdad del valor; `undefined`
+cuenta como ausente), y el test va en el CARRIL —lo que se afirma es lo que la
+fila TIENE DESPUÉS de escribir, y un test con mocks pasaría en verde contra el
+código defectuoso—.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
