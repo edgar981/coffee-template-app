@@ -591,8 +591,6 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
 
       <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
 
-      <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
-
       {/* ── ENTREGA · las acciones que el ESTADO permite, ni una más ─────────
           El if/else es sobre `Shipping.estado`, igual que la pantalla vieja — no
           una lista plana de botones que se habilitan. La ÚNICA excepción es
@@ -618,12 +616,12 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
                       onClick={() => acciones.transicion.despachar({
                         id: envio.id, numeroOrden: orden.numero_orden, ordenPagada: orden.estado === 'pagado',
                       })}>
-                Marcar En Ruta
+                Marcar en ruta
               </button>
             ) : hasScheduleData(envio) && (
               <button type="button" className="duna-btn duna-btn--secondary" disabled
                       title={falta === 'mensajero' ? 'Falta el mensajero' : 'Falta la fecha'}>
-                Marcar En Ruta · {falta === 'mensajero' ? 'falta mensajero' : 'falta fecha'}
+                Marcar en ruta · {falta === 'mensajero' ? 'falta mensajero' : 'falta fecha'}
               </button>
             )}
           </>
@@ -631,11 +629,11 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
           <>
             <button type="button" className="duna-btn duna-btn--secondary" disabled={enVuelo}
                     onClick={() => acciones.transicion.marcarEntregado(envio.id)}>
-              Marcar Entregado
+              Marcar entregado
             </button>
             <button type="button" className="duna-btn duna-btn--ghost" disabled={enVuelo}
                     onClick={() => acciones.transicion.marcarFallido(envio.id)}>
-              Marcar Fallido
+              Marcar fallido
             </button>
           </>
         ) : envio.estado === 'fallido' ? (
