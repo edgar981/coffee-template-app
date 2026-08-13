@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { Plus } from 'lucide-react';
 import { OrderCard } from '@duna/design-system/components/OrderCard';
 import { ItemsTable } from '@duna/design-system/components/ItemsTable';
 import { Timeline } from '@duna/design-system/components/Timeline';
@@ -22,6 +23,9 @@ import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
 import { RegisterPaymentModal } from '@/components/admin/RegisterPaymentModal';
+import { NewOrderModal } from '@/components/admin/NewOrderModal';
+import { findSlotLabel } from '@duna/core/shipping-config';
+import { formatFecha } from '@duna/core/format-fecha';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { ConfirmDespachoSinPago } from '@/components/admin/ConfirmDespachoSinPago';
 import { ComprobanteVista, SelectorComprobante, useLightboxComprobante } from '@/components/admin/Comprobantes';
@@ -215,6 +219,7 @@ function Pedidos() {
   const [cobrando, setCobrando]           = useState<Order | null>(null);
   const [enVerificacion, setEnVerificacion] = useState<Comprobante | null>(null);
   const [cancelando, setCancelando]       = useState<Order | null>(null);
+  const [creando, setCreando]             = useState(false);
   const [rechazando, setRechazando]       = useState<{ orden: Order; c: Comprobante } | null>(null);
 
   // Crea el Shipping si falta (server-guarded e idempotente) y abre el modal. La
@@ -267,11 +272,23 @@ function Pedidos() {
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
     <div className="duna">
-      <header style={{ marginBottom: 'var(--duna-space-6)' }}>
-        <h1 className="duna-display-m">Pedidos</h1>
-        <p className="duna-sub">
-          {cargando ? 'Cargando…' : `${alcance.length} ${alcance.length === 1 ? 'pedido' : 'pedidos'}`}
-        </p>
+      <header style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-3)', marginBottom: 'var(--duna-space-6)' }}>
+        <div style={{ minWidth: 0 }}>
+          <h1 className="duna-display-m">Pedidos</h1>
+          <p className="duna-sub">
+            {cargando ? 'Cargando…' : `${alcance.length} ${alcance.length === 1 ? 'pedido' : 'pedidos'}`}
+          </p>
+        </div>
+        {/* EL único primario sólido de la vista, con su "+". El tamaño del ícono
+            lo pone el sistema (`.duna-btn svg`); acá sólo se elige cuál. */}
+        <button
+          type="button"
+          className="duna-btn duna-btn--primary"
+          style={{ marginLeft: 'auto', flexShrink: 0 }}
+          onClick={() => setCreando(true)}
+        >
+          <Plus /> Nuevo pedido
+        </button>
       </header>
 
       {/* ── EL ALCANCE SE VE Y SE QUITA ────────────────────────────────────────
@@ -457,6 +474,25 @@ function Pedidos() {
           setRechazando(null);
         }}
       />
+      {/* Crear un pedido — el modal COMPARTIDO con /admin/ordenes, montado tal
+          cual. Era el hueco conocido de esta pantalla y el bloqueador del retiro
+          de la vieja.
+
+          Al crear se LIMPIAN el carril y el alcance antes de seleccionar, y no es
+          celo: si hay un carril activo ("Entregados") o un alcance por cliente, el
+          pedido recién creado no estaría en `visibles` y el detalle no podría
+          abrirlo — el operador vería la lista igual que antes y creería que no se
+          creó nada. La lista EMPALMA con lo que devuelve el POST y el detalle
+          REPREGUNTA al abrirse, que es el patrón de esta pantalla. */}
+      <NewOrderModal
+        open={creando}
+        onClose={() => setCreando(false)}
+        onCreated={(creado) => {
+          setPedidos(prev => [creado, ...prev]);
+          navegar({ f: null, cliente: null, pedido: creado.numero_orden });
+        }}
+      />
+
       <ConfirmDespachoSinPago {...transicion.confirmacion} />
     </div>
   );
@@ -531,6 +567,25 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-3)' }}>
         <ChipCanal canal={orden.canal} />
+        {/* EL TELÉFONO, y sólo él, del pliegue de contacto de la pantalla vieja.
+            Mismo criterio que la evidencia de la entrega: entra lo que HABILITA
+            una acción que esta pantalla ofrece. El teléfono la habilita —el
+            mensajero no encuentra, el cliente no abre, se llama— y sin él el
+            operador tiene que salir del detalle justo en el peor momento. La
+            dirección detallada y el método previsto no habilitan nada acá: la de
+            cabecera ya orienta, y el previsto es intención (el método REAL
+            aparece solo cuando hay pago, unas líneas más abajo).
+
+            Es el SNAPSHOT de la orden, no el teléfono actual del cliente: dice a
+            qué número dejó dicho el cliente que se le llamara por ESTE pedido.
+            Editar su perfil no reescribe pedidos pasados.
+
+            En `duna-mono` por lo mismo que el número de orden: es un dato que se
+            lee dígito a dígito y se copia, no prosa. Ausente no se renderiza —
+            un "Teléfono: —" ocupa el mismo espacio para no decir nada. */}
+        {orden.cliente_telefono && (
+          <span className="duna-mono">{orden.cliente_telefono}</span>
+        )}
         {/* DEUDA DECLARADA: DUNA-DS pide "Recoge en tienda" si el pedido es
             pickup. El dominio NO tiene pickup — `TipoEnvio` es LOCAL | NACIONAL y
             las dos son envío. Modelarlo es otra fase con su propia decisión de
@@ -591,8 +646,6 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
 
       <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
 
-      <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
-
       {/* ── ENTREGA · las acciones que el ESTADO permite, ni una más ─────────
           El if/else es sobre `Shipping.estado`, igual que la pantalla vieja — no
           una lista plana de botones que se habilitan. La ÚNICA excepción es
@@ -601,6 +654,35 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
           otra pantalla. Es la misma doctrina de los motivos de atención — decir el
           porqué en vez de dejar que lo averigüe. */}
       <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-2)' }}>Entrega</div>
+
+      {/* ── LO QUE YA SE DECIDIÓ, antes de las acciones ──────────────────────
+          Ofrecer "Marcar en ruta" sin decir QUIÉN lleva ni CUÁNDO es pedirle al
+          operador que despache a ciegas: el botón afirma que la entrega está
+          lista y el panel no muestra con qué. La pantalla vieja tenía esta línea
+          y la nueva nació sin ella.
+
+          Sólo lo que EXISTE — un "Mensajero: —" ocupa el mismo espacio para no
+          decir nada. Y la FRANJA va aparte de los otros tres a propósito: los
+          tres primeros son decisiones del operador (a quién, a dónde, para
+          cuándo) y la franja es lo que PIDIÓ el cliente en el checkout. Meterlas
+          en la misma lista las haría leer como si alguien las hubiera elegido
+          juntas. Es el único dato del checkout que esta pantalla no mostraba. */}
+      {(() => {
+        const decidido = envio ? [
+          envio.mensajero?.trim() && `Mensajero: ${envio.mensajero.trim()}`,
+          envio.zona && `Zona: ${envio.zona}`,
+          envio.fecha_programada?.trim() && `Programada: ${formatFecha(envio.fecha_programada)}`,
+        ].filter(Boolean).join(' · ') : '';
+        const franja = findSlotLabel(fuente.deliverySlot);
+        if (!decidido && !franja) return null;
+        return (
+          <div style={{ marginBottom: 'var(--duna-space-3)' }}>
+            {decidido && <div className="duna-caption">{decidido}</div>}
+            {franja && <div className="duna-caption">Franja pedida: {franja}</div>}
+          </div>
+        );
+      })()}
+
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)' }}>
         {orden.estado === 'cancelado' ? null : !envio ? (
           <button type="button" className="duna-btn duna-btn--secondary" disabled={acciones.preparando}
@@ -618,12 +700,12 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
                       onClick={() => acciones.transicion.despachar({
                         id: envio.id, numeroOrden: orden.numero_orden, ordenPagada: orden.estado === 'pagado',
                       })}>
-                Marcar En Ruta
+                Marcar en ruta
               </button>
             ) : hasScheduleData(envio) && (
               <button type="button" className="duna-btn duna-btn--secondary" disabled
                       title={falta === 'mensajero' ? 'Falta el mensajero' : 'Falta la fecha'}>
-                Marcar En Ruta · {falta === 'mensajero' ? 'falta mensajero' : 'falta fecha'}
+                Marcar en ruta · {falta === 'mensajero' ? 'falta mensajero' : 'falta fecha'}
               </button>
             )}
           </>
@@ -631,11 +713,11 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
           <>
             <button type="button" className="duna-btn duna-btn--secondary" disabled={enVuelo}
                     onClick={() => acciones.transicion.marcarEntregado(envio.id)}>
-              Marcar Entregado
+              Marcar entregado
             </button>
             <button type="button" className="duna-btn duna-btn--ghost" disabled={enVuelo}
                     onClick={() => acciones.transicion.marcarFallido(envio.id)}>
-              Marcar Fallido
+              Marcar fallido
             </button>
           </>
         ) : envio.estado === 'fallido' ? (

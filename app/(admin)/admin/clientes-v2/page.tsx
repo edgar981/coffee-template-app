@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { Plus } from 'lucide-react';
 import { OrderCard } from '@duna/design-system/components/OrderCard';
 import { SearchField } from '@duna/design-system/components/SearchField';
 import { BADGE_TONE_CLASS } from '@duna/design-system/status';
@@ -194,14 +195,19 @@ function ClientesV2() {
           </p>
         </div>
         {/* EL único primario sólido de la vista. Todo lo demás va secundario o
-            ghost — ésa es la regla de un solo sólido por pantalla. */}
+            ghost — ésa es la regla de un solo sólido por pantalla.
+
+            El "+" no es adorno: es lo que hace que el botón se lea como CREAR y
+            no como "ir a clientes nuevos". La pantalla vieja lo tenía y esta
+            nació sin él. El TAMAÑO lo pone el sistema (`.duna-btn svg`); acá sólo
+            se elige el ícono, igual que `ChipCanal` elige el del canal. */}
         <button
           type="button"
           className="duna-btn duna-btn--primary"
           style={{ marginLeft: 'auto', flexShrink: 0 }}
           onClick={() => setCreando(true)}
         >
-          Nuevo cliente
+          <Plus /> Nuevo cliente
         </button>
       </header>
 

@@ -101,7 +101,13 @@
       <a class="duna-btn duna-btn--secondary" href="#buscador">Escribir por WhatsApp</a>
       <a class="duna-btn duna-btn--ghost" href="#buscador">Mandar un correo</a>
     </div>
-    <div class="flag" style="margin-top:var(--duna-space-4)">Un botón que NAVEGA es un <code>&lt;a&gt;</code>, y el sistema lo admite. "Escribir por WhatsApp" sale de la aplicación: montarlo como <code>&lt;button onClick&gt;</code> rompería abrir-en-pestaña-nueva, el clic del medio y el menú contextual, y le mentiría al lector de pantalla sobre qué va a pasar. Las reglas <code>a.duna-btn</code> son sólo el reset del subrayado y el color que el navegador le impone al enlace — mismo movimiento que <code>a.duna-att-item</code>.</div>
+    <div class="row" style="margin-top:var(--duna-space-4)">
+      <button class="duna-btn duna-btn--primary"><svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nuevo pedido</button>
+      <button class="duna-btn duna-btn--secondary"><svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Marcar entregado</button>
+      <button class="duna-btn duna-btn--secondary duna-btn--sm"><svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Agregar</button>
+    </div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">EL SISTEMA DIMENSIONA EL ÍCONO, la app sólo lo pone. El <code>gap</code> del botón ya declaraba la ranura, pero sin tamaño la librería del consumidor manda el suyo — lucide emite 24px y revienta la caja. Y esos 13px no son un token: son medida interna de la primitiva (como los 11 del chip de canal), así que la pantalla no tendría de dónde sacarlos y acabaría escribiendo un <code>w-3.5</code> de Tailwind — el valor inventado que la regla prohíbe. <code>--sm</code> baja a 11 para no pesar más que su propio texto. El color no se fija: el ícono usa <code>currentColor</code> y sigue al tono del botón en los tres variantes.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">Un botón que NAVEGA es un <code>&lt;a&gt;</code>, y el sistema lo admite. "Escribir por WhatsApp" sale de la aplicación: montarlo como <code>&lt;button onClick&gt;</code> rompería abrir-en-pestaña-nueva, el clic del medio y el menú contextual, y le mentiría al lector de pantalla sobre qué va a pasar. Las reglas <code>a.duna-btn</code> son sólo el reset del subrayado y el color que el navegador le impone al enlace — mismo movimiento que <code>a.duna-att-item</code>.</div>
   </section>
 
   <!-- ESTADOS -->

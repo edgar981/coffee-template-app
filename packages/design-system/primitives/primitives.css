@@ -95,7 +95,14 @@
 .duna-btn { display: inline-flex; align-items: center; gap: var(--duna-space-inline); /* ícono↔label */
             padding: var(--duna-space-3) var(--duna-space-3); border-radius: var(--duna-r-s); font-weight: var(--duna-w-semi);
             font-size: var(--duna-text-label); border: 1px solid transparent; transition: all var(--duna-dur-fast) var(--duna-ease);
-            cursor: pointer; }
+            cursor: pointer;
+            /* DECLARADO, y no heredado: un <button> recibe `line-height: normal`
+               del navegador mientras un <a> hereda el 1.5 de `.duna`, así que la
+               MISMA clase medía 40px en uno y 44 en el otro — cuatro píxeles de
+               diferencia entre dos botones de la misma fila. Apareció al admitir
+               la variante <a> y no se vio porque los dos enlaces que la
+               estrenaron van juntos y nada los contrastaba. */
+            line-height: var(--duna-lh-normal); }
 .duna-btn--primary   { background: var(--duna-ink); color: var(--duna-paper); }
 .duna-btn--primary:hover { opacity: .88; transform: translateY(-1px); box-shadow: var(--duna-shadow-2); }
 .duna-btn--secondary { background: var(--duna-surface); border-color: var(--duna-border-2); color: var(--duna-ink); }
@@ -103,6 +110,30 @@
 .duna-btn--ghost { color: var(--duna-muted); background: none; }
 .duna-btn--ghost:hover { color: var(--duna-ink); background: var(--duna-wash-hover); }
 .duna-btn--sm { padding: var(--duna-space-1) var(--duna-space-3); font-size: var(--duna-text-caption); }
+
+/* EL ÍCONO DEL BOTÓN LO DIMENSIONA EL SISTEMA ────────────────────────────────
+   El `gap` de arriba ya declaraba la ranura de ícono ("ícono↔label"), pero nada
+   le daba tamaño — y una ranura prometida y no dimensionada es peor que no
+   tenerla: la librería de íconos del consumidor trae su propio default (24px en
+   lucide) y revienta la caja del botón.
+
+   Va acá y no en la app POR NECESIDAD, no por prolijidad. Estos 13px no son un
+   token —son una medida interna de la primitiva, como los 11px del chip de canal
+   o los 13 del ícono de insight—, así que la pantalla no tiene de dónde sacarlos:
+   tendría que escribir un `w-3.5` de Tailwind, que es exactamente el valor
+   inventado que rompe la regla. El sistema declara la medida una vez y el
+   consumidor sólo pone el ícono.
+
+   Se escala con el botón: `--sm` baja a 11 para no pesar más que su propio texto
+   (caption, 11px). `flex-shrink: 0` porque el ícono no es lo que cede cuando el
+   botón se aprieta — cede el texto, que es el que puede elidir.
+
+   NO se fija `stroke` ni `fill`: lucide (y cualquier set decente) ya emite
+   `stroke="currentColor"` y `fill="none"`, así que el ícono hereda el color del
+   botón y sigue al tono en los tres variantes. Fijarlo acá le quitaría al
+   consumidor la opción de un ícono relleno. */
+.duna-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+.duna-btn--sm svg { width: 11px; height: 11px; }
 /* UN BOTÓN QUE NAVEGA ES UN `<a>`, y el sistema tiene que admitirlo. "Escribir
    por WhatsApp" y "Mandar un correo" SALEN de la aplicación: montarlos como
    `<button onClick>` rompería abrir-en-pestaña-nueva, el clic del medio y el menú
