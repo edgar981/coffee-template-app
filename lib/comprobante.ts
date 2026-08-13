@@ -140,6 +140,22 @@ export function puedeDecidirse(estado: ComprobanteEstado): boolean {
 }
 
 /**
+ * CUÁNTOS soportes están sin mirar. Es la definición base de "sin verificar" —
+ * el booleano de abajo se DERIVA de acá, no al revés.
+ *
+ * La inversión no es estética: el motivo de atención del detalle dice "1
+ * comprobante sin verificar" con su número, y si contara por su cuenta habría dos
+ * lugares donde el predicado `estado === 'RECIBIDO'` puede cambiar. Un conteo y un
+ * booleano que discrepen sobre lo mismo es el modo de falla que este repo ya pagó
+ * con helpers duplicados.
+ */
+export function cuantosSinVerificar(
+  comprobantes: { estado: ComprobanteEstado }[],
+): number {
+  return comprobantes.filter(c => c.estado === 'RECIBIDO').length;
+}
+
+/**
  * ¿Esta orden tiene un soporte pendiente de mirar? Es lo que enciende el
  * indicador de la lista de Pagos y lo que un futuro aviso de la campana
  * consumiría — una sola definición, para que no diverjan.
@@ -147,7 +163,7 @@ export function puedeDecidirse(estado: ComprobanteEstado): boolean {
 export function tienePendienteDeVerificar(
   comprobantes: { estado: ComprobanteEstado }[],
 ): boolean {
-  return comprobantes.some(c => c.estado === 'RECIBIDO');
+  return cuantosSinVerificar(comprobantes) > 0;
 }
 
 /**

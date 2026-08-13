@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  motivosDeAtencion, necesitaAtencion, hayPedidosPorAtender,
+  motivosDeAtencion, necesitaAtencion, hayPedidosPorAtender, textoDeMotivo,
   type OrdenParaAtencion,
 } from './atencion';
 
@@ -15,11 +15,20 @@ const AMedias     = orden({ shipping: { estado: 'preparando', mensajero: 'Luis',
 const Fallida     = orden({ shipping: { estado: 'fallido' } });
 const SinVerificar = orden({ comprobantes: [{ estado: 'RECIBIDO' }] });
 
-test('los CUATRO motivos, uno por uno', () => {
-  assert.deepEqual(motivosDeAtencion(PorCobrar),    ['por_cobrar']);
-  assert.deepEqual(motivosDeAtencion(AMedias),      ['programacion_a_medias']);
-  assert.deepEqual(motivosDeAtencion(Fallida),      ['entrega_fallida']);
-  assert.deepEqual(motivosDeAtencion(SinVerificar), ['comprobante_sin_verificar']);
+test('los CUATRO motivos, uno por uno, CON el dato que los causó', () => {
+  assert.deepEqual(motivosDeAtencion(PorCobrar),    [{ tipo: 'por_cobrar' }]);
+  assert.deepEqual(motivosDeAtencion(AMedias),      [{ tipo: 'programacion_a_medias', falta: 'fecha' }]);
+  assert.deepEqual(motivosDeAtencion(Fallida),      [{ tipo: 'entrega_fallida' }]);
+  assert.deepEqual(motivosDeAtencion(SinVerificar), [{ tipo: 'comprobante_sin_verificar', cantidad: 1 }]);
+});
+
+test('la programación a medias dice CUÁL de los dos falta', () => {
+  // Sin esto el motivo manda a abrir el modal para averiguarlo — el mismo defecto
+  // que esta tanda vino a cerrar, una capa más abajo.
+  const sinFecha     = orden({ shipping: { estado: 'preparando', mensajero: 'Luis', fecha_programada: null } });
+  const sinMensajero = orden({ shipping: { estado: 'preparando', mensajero: null, fecha_programada: '2026-05-14' } });
+  assert.deepEqual(motivosDeAtencion(sinFecha),     [{ tipo: 'programacion_a_medias', falta: 'fecha' }]);
+  assert.deepEqual(motivosDeAtencion(sinMensajero), [{ tipo: 'programacion_a_medias', falta: 'mensajero' }]);
 });
 
 test('un pedido puede pedir acción por VARIOS motivos a la vez', () => {
@@ -28,7 +37,67 @@ test('un pedido puede pedir acción por VARIOS motivos a la vez', () => {
     shipping:       { estado: 'en_ruta' },
     comprobantes:   [{ estado: 'RECIBIDO' }],
   });
-  assert.deepEqual(motivosDeAtencion(both), ['por_cobrar', 'comprobante_sin_verificar']);
+  assert.deepEqual(motivosDeAtencion(both), [
+    { tipo: 'por_cobrar' },
+    { tipo: 'comprobante_sin_verificar', cantidad: 1 },
+  ]);
+  // Y los DOS se redactan: el detalle los muestra juntos, no elige uno.
+  assert.deepEqual(
+    motivosDeAtencion(both).map(textoDeMotivo),
+    ['Despachada sin cobrar', '1 comprobante sin verificar'],
+  );
+});
+
+// ─── LA REDACCIÓN ────────────────────────────────────────────────────────────
+
+test('el texto de los cuatro motivos', () => {
+  assert.equal(textoDeMotivo({ tipo: 'por_cobrar' }), 'Despachada sin cobrar');
+  assert.equal(textoDeMotivo({ tipo: 'entrega_fallida' }), 'La entrega falló');
+  assert.equal(textoDeMotivo({ tipo: 'programacion_a_medias', falta: 'mensajero' }), 'Falta el mensajero para despachar');
+  assert.equal(textoDeMotivo({ tipo: 'programacion_a_medias', falta: 'fecha' }), 'Falta la fecha para despachar');
+  assert.equal(textoDeMotivo({ tipo: 'comprobante_sin_verificar', cantidad: 1 }), '1 comprobante sin verificar');
+});
+
+test('son HECHOS, no instrucciones', () => {
+  // "La entrega falló", no "…y hay que reprogramarla". El motivo dice qué pasa;
+  // qué hacer lo decide el operador, que para eso está en el detalle. Misma regla
+  // que los insights de las stat cards.
+  const todos = [
+    textoDeMotivo({ tipo: 'por_cobrar' }),
+    textoDeMotivo({ tipo: 'entrega_fallida' }),
+    textoDeMotivo({ tipo: 'programacion_a_medias', falta: 'fecha' }),
+    textoDeMotivo({ tipo: 'comprobante_sin_verificar', cantidad: 2 }),
+  ];
+  for (const t of todos) {
+    assert.ok(!/hay que |debes |deberías |recuerda /i.test(t), `"${t}" da una instrucción`);
+  }
+});
+
+test('"contraentrega" NO se repite en el motivo', () => {
+  // Ya está en el badge de cobro del mismo detalle: decirlo acá sería la tercera
+  // vez que la pantalla lo dice.
+  assert.ok(!/contraentrega/i.test(textoDeMotivo({ tipo: 'por_cobrar' })));
+});
+
+test('EL CASO DEL OWNER: 2 comprobantes, 1 verificado → "1", no "2"', () => {
+  // Es el bug que originó la tanda. Una orden seguía marcada tras registrar el
+  // pago porque quedaba UN soporte sin mirar; sin el número, el operador asume que
+  // ya lo resolvió y se va a investigar a otra pantalla.
+  const dosUnoVerificado = orden({
+    estado:       'pagado',
+    comprobantes: [{ estado: 'VERIFICADO' }, { estado: 'RECIBIDO' }],
+  });
+  const motivos = motivosDeAtencion(dosUnoVerificado);
+  assert.deepEqual(motivos, [{ tipo: 'comprobante_sin_verificar', cantidad: 1 }]);
+  assert.equal(textoDeMotivo(motivos[0]), '1 comprobante sin verificar');
+});
+
+test('el conteo cuenta SÓLO los RECIBIDO, y pluraliza', () => {
+  const tres = orden({
+    comprobantes: [{ estado: 'RECIBIDO' }, { estado: 'RECHAZADO' }, { estado: 'RECIBIDO' }],
+  });
+  assert.deepEqual(motivosDeAtencion(tres), [{ tipo: 'comprobante_sin_verificar', cantidad: 2 }]);
+  assert.equal(textoDeMotivo(motivosDeAtencion(tres)[0]), '2 comprobantes sin verificar');
 });
 
 test('lo NORMAL no pide nada — el sol no puede ser el default', () => {
