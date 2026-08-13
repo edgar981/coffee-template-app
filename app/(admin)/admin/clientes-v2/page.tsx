@@ -18,7 +18,7 @@ import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { siteConfig } from '@/lib/config/site';
 import {
   CARRILES_CLIENTES, aplicarCarril, conteosClientes, carrilPorKey, buscarClientes,
-  esRecurrente, type CarrilKey,
+  type CarrilKey,
 } from '@/lib/clientes/filtros';
 import { badgeCobro, pasosDelPedido } from '@/lib/pedidos/estado';
 import { hace } from '@/lib/pedidos/tiempo';
@@ -45,10 +45,17 @@ import type { OrderStatus, CondicionPago } from '@/types/order';
 // con su frecuencia y su descuento— no existe en este dominio: no hay modelo,
 // `SUBSCRIPTIONS_ENABLED` es `false`, los planes viven en `lib/mock/` y el
 // descuento está pendiente de definir con el cliente. Lo único afirmable es el
-// derivado "compró más de una vez", que va como CARRIL y como stat con su fórmula
-// declarada, nunca como distintivo de la fila. La lista vieja pintaba una ★ a
-// quien tuviera más de dos pedidos: un adorno que se lee como categoría de cliente
-// y que nadie decidió.
+// derivado "compró más de una vez", que va como CARRIL —donde además FILTRA—,
+// nunca como distintivo de la fila. La lista vieja pintaba una ★ a quien tuviera
+// más de dos pedidos: un adorno que se lee como categoría de cliente y que nadie
+// decidió.
+//
+// Tampoco hay fila de cifras. Dos de las tres que hubo —cuántos clientes, cuántos
+// recurrentes— ya las dicen los carriles, y ahí son ACCIONABLES: el pill filtra, la
+// stat sólo se mira. La tercera, "compras recibidas", es cifra de NEGOCIO y no de
+// operación: pertenece a Analítica (§ backlog). Con eso esta pantalla queda con la
+// misma anatomía que Pedidos —título · buscador · carriles · split—, que es lo que
+// hace que el panel se lea como un sistema y no como pantallas parecidas.
 //
 // Tampoco hay semáforo de recencia. "Compró hace poco" no es un estado, y el verde
 // significa confirmado/pagado; teñir una métrica es color decorativo. La recencia
@@ -108,15 +115,6 @@ function ClientesV2() {
   const encontrados = useMemo(() => buscarClientes(clientes, busqueda), [clientes, busqueda]);
   const visibles    = useMemo(() => aplicarCarril(encontrados, carril), [encontrados, carril]);
   const cuentas     = useMemo(() => conteosClientes(encontrados), [encontrados]);
-
-  // Las tres cifras de cabecera se calculan sobre TODOS los clientes, no sobre lo
-  // encontrado: son el retrato del negocio, no del filtro puesto. Un "Compras
-  // totales" que se mueve al teclear en el buscador respondería otra pregunta.
-  const totales = useMemo(() => ({
-    clientes:    clientes.length,
-    recurrentes: clientes.filter(esRecurrente).length,
-    comprado:    clientes.reduce((s, c) => s + (c.total_compras ?? 0), 0),
-  }), [clientes]);
 
   const elegido = useMemo(
     () => visibles.find(c => c.id === seleccion) ?? null,
@@ -188,12 +186,10 @@ function ClientesV2() {
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
     <div className="duna">
       <header style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-4)', marginBottom: 'var(--duna-space-5)' }}>
-        <div style={{ minWidth: 0 }}>
-          <h1 className="duna-display-m">Clientes</h1>
-          <p className="duna-sub">
-            {cargando ? 'Cargando…' : `${clientes.length} ${clientes.length === 1 ? 'cliente' : 'clientes'}`}
-          </p>
-        </div>
+        {/* SIN conteo bajo el título: el pill "Todos" ya lo dice, y ahí además
+            FILTRA. Una cifra que repite a un control accionable le quita sitio a
+            la respuesta sin agregar una. */}
+        <h1 className="duna-display-m" style={{ minWidth: 0 }}>Clientes</h1>
         {/* EL único primario sólido de la vista. Todo lo demás va secundario o
             ghost — ésa es la regla de un solo sólido por pantalla.
 
@@ -210,31 +206,6 @@ function ClientesV2() {
           <Plus /> Nuevo cliente
         </button>
       </header>
-
-      {/* ── Las tres cifras ───────────────────────────────────────────────────
-          `duna-stat` en fila, sin chips de color: un tile pastel por métrica es
-          color como decoración, y acá el color sólo significa estado. */}
-      {!cargando && !error && clientes.length > 0 && (
-        <div className="duna-card duna-card__pad" style={{ marginBottom: 'var(--duna-space-5)' }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)' }}>
-            <div className="duna-stat">
-              <div className="duna-stat__v duna-num">{totales.clientes}</div>
-              <div className="duna-stat__l">Clientes</div>
-            </div>
-            <div className="duna-stat">
-              <div className="duna-stat__v duna-num">{totales.recurrentes}</div>
-              {/* La fórmula DECLARADA, no insinuada: esto es un derivado, no una
-                  marca del negocio. La intención de recurrencia no existe en el
-                  dominio (§ cabecera de este archivo). */}
-              <div className="duna-stat__l">Con más de 1 pedido</div>
-            </div>
-            <div className="duna-stat">
-              <div className="duna-stat__v duna-num">{formatCOP(totales.comprado)}</div>
-              <div className="duna-stat__l">Compras recibidas</div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Buscador ─────────────────────────────────────────────────────────
           La primitiva del sistema. Ella pinta el campo; QUÉ significa empatar con
