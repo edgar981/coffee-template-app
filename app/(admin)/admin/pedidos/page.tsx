@@ -567,6 +567,25 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-3)' }}>
         <ChipCanal canal={orden.canal} />
+        {/* EL TELÉFONO, y sólo él, del pliegue de contacto de la pantalla vieja.
+            Mismo criterio que la evidencia de la entrega: entra lo que HABILITA
+            una acción que esta pantalla ofrece. El teléfono la habilita —el
+            mensajero no encuentra, el cliente no abre, se llama— y sin él el
+            operador tiene que salir del detalle justo en el peor momento. La
+            dirección detallada y el método previsto no habilitan nada acá: la de
+            cabecera ya orienta, y el previsto es intención (el método REAL
+            aparece solo cuando hay pago, unas líneas más abajo).
+
+            Es el SNAPSHOT de la orden, no el teléfono actual del cliente: dice a
+            qué número dejó dicho el cliente que se le llamara por ESTE pedido.
+            Editar su perfil no reescribe pedidos pasados.
+
+            En `duna-mono` por lo mismo que el número de orden: es un dato que se
+            lee dígito a dígito y se copia, no prosa. Ausente no se renderiza —
+            un "Teléfono: —" ocupa el mismo espacio para no decir nada. */}
+        {orden.cliente_telefono && (
+          <span className="duna-mono">{orden.cliente_telefono}</span>
+        )}
         {/* DEUDA DECLARADA: DUNA-DS pide "Recoge en tienda" si el pedido es
             pickup. El dominio NO tiene pickup — `TipoEnvio` es LOCAL | NACIONAL y
             las dos son envío. Modelarlo es otra fase con su propia decisión de
