@@ -19,6 +19,12 @@ export interface Customer {
   ordenesRef?:      number;
   // Real money paid by the customer (sum of Payments), NOT the demo seed value.
   total_compras?:   number;
+  // Cuántos de sus PEDIDOS piden acción hoy (`necesitaAtencion`, la misma regla
+  // que el pill de Pedidos y el punto sol del nav). Es lo que enciende el sol de
+  // la fila del cliente — que significa "tiene pedidos que atender", no "este
+  // cliente necesita atención": el dominio no tiene criterio accionable por
+  // cliente. Sólo lo llena `GET /api/customers`.
+  pedidosPorAtender?: number;
   activo:           boolean;
   createdAt:        string;
 }
