@@ -273,12 +273,10 @@ function Pedidos() {
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
     <div className="duna">
       <header style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-3)', marginBottom: 'var(--duna-space-6)' }}>
-        <div style={{ minWidth: 0 }}>
-          <h1 className="duna-display-m">Pedidos</h1>
-          <p className="duna-sub">
-            {cargando ? 'Cargando…' : `${alcance.length} ${alcance.length === 1 ? 'pedido' : 'pedidos'}`}
-          </p>
-        </div>
+        {/* SIN conteo bajo el título: el pill "Todos" ya lo dice, y ahí además
+            FILTRA. Una cifra que repite a un control accionable le quita sitio a
+            la respuesta sin agregar una. */}
+        <h1 className="duna-display-m" style={{ minWidth: 0 }}>Pedidos</h1>
         {/* EL único primario sólido de la vista, con su "+". El tamaño del ícono
             lo pone el sistema (`.duna-btn svg`); acá sólo se elige cuál. */}
         <button
@@ -332,6 +330,18 @@ function Pedidos() {
       </div>
 
       {error && <div className="duna-note" role="alert">{error}</div>}
+
+      {/* LA CARGA BAJA A LA LISTA, que es donde estaba el hueco. El "Cargando…"
+          vivía en el conteo del subtítulo, así que quitarlo dejaba la pantalla
+          MUDA mientras viaja el fetch — y una pantalla en blanco es
+          indistinguible de "no hay pedidos", que es justo la confusión que los
+          tres vacíos de abajo existen para evitar. Ocupa el sitio de la lista y
+          no el del título porque es la lista lo que falta. */}
+      {!error && cargando && (
+        <div className="duna-card duna-card__pad">
+          <p className="duna-sub" style={{ margin: 0 }}>Cargando pedidos…</p>
+        </div>
+      )}
 
       {!error && !cargando && visibles.length === 0 && (
         <div className="duna-card duna-card__pad">

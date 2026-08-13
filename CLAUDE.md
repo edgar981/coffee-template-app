@@ -731,10 +731,18 @@ base y el período que esa página ya sabe declarar (§ Analítica — qué muev
 de período y qué NO). Antes de eso no se reponen en ninguna pantalla de operación
 "porque se ven bien": ése es exactamente el movimiento que esta decisión revierte.
 
-**PENDIENTE MENOR, dicho para que no se lea como olvido:** `/admin/pedidos`
-conserva su conteo bajo el título ("N pedidos"), que por este mismo criterio
-duplica al pill "Todos". Se dejó porque el retiro se pidió para Clientes; es una
-línea, y va con el retiro de `/admin/ordenes` o cuando el owner lo diga.
+**Aplicado en las DOS pantallas del rediseño** (Pedidos y Clientes), y eso importa
+más que el ahorro de una línea: la meta era que las dos tuvieran la misma
+anatomía, así que dejar el conteo en una sola habría cumplido la letra y no el
+motivo.
+
+**EFECTO SECUNDARIO QUE HAY QUE MIRAR AL COPIAR ESTE MOVIMIENTO:** ese subtítulo
+era el ÚNICO aviso de carga de la lista en las dos pantallas (`{cargando ?
+'Cargando…' : …}`), así que quitarlo las dejaba MUDAS mientras viaja el fetch. Una
+pantalla en blanco es indistinguible de "no hay nada" — justo la confusión que los
+tres estados vacíos de cada pantalla existen para evitar. El aviso bajó a la
+LISTA, que es donde está el hueco. Quitar una cifra puede llevarse por delante un
+estado que vivía pegado a ella.
 
 ## Mejoras post-multitenant
 

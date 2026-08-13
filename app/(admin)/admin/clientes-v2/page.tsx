@@ -240,6 +240,17 @@ function ClientesV2() {
 
       {error && <div className="duna-note" role="alert">{error}</div>}
 
+      {/* LA CARGA BAJA A LA LISTA. El "Cargando…" vivía en el conteo del
+          subtítulo, así que quitarlo dejaba la pantalla MUDA mientras viaja el
+          fetch — y una pantalla en blanco es indistinguible de "no hay
+          clientes", que es justo la confusión que los tres vacíos de abajo
+          existen para evitar. */}
+      {!error && cargando && (
+        <div className="duna-card duna-card__pad">
+          <p className="duna-sub" style={{ margin: 0 }}>Cargando clientes…</p>
+        </div>
+      )}
+
       {!error && !cargando && visibles.length === 0 && (
         <div className="duna-card duna-card__pad">
           {/* Tres vacíos distintos, y decir cuál evita que el operador crea que
