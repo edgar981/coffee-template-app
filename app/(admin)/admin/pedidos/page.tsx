@@ -17,6 +17,38 @@ import { pasosDelPedido, badgeCobro } from '@/lib/pedidos/estado';
 import { motivosDeAtencion, textoDeMotivo } from '@/lib/pedidos/atencion';
 import { recorridoDelPedido, tieneDerivados } from '@/lib/pedidos/recorrido';
 import { hace } from '@/lib/pedidos/tiempo';
+import { useControlComprobantes, type ControlComprobantes } from '@/hooks/useControlComprobantes';
+import { useTransicionEntrega, type TransicionEntrega } from '@/hooks/useTransicionEntrega';
+import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
+import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
+import { RegisterPaymentModal } from '@/components/admin/RegisterPaymentModal';
+import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
+import { ConfirmDespachoSinPago } from '@/components/admin/ConfirmDespachoSinPago';
+import { ComprobanteVista, SelectorComprobante, useLightboxComprobante } from '@/components/admin/Comprobantes';
+import { ImageLightbox } from '@/components/admin/ImageLightbox';
+import { ensureOrderShipping } from '@/lib/api/shippings';
+import { updateOrder } from '@/lib/api/orders';
+import { accionAlVerificar, puedeDecidirse, nombreArchivo } from '@/lib/comprobante';
+import { MAX_COMPROBANTE_MB } from '@/constants/comprobante';
+import { RECHAZAR_COMPROBANTE_COPY, CANCELAR_ORDEN_COPY } from '@/constants/confirmaciones';
+import { isScheduledShipping, hasScheduleData, missingToDispatch } from '@/constants/shippings';
+import type { Shipping } from '@/types/shipping';
+import type { Comprobante } from '@/types/comprobante';
+
+// Todo lo que el panel necesita para OPERAR sin ser dueño de ninguna mutación.
+// Mismo patrón que `ControlComprobantes`: el panel renderiza y llama hacia arriba.
+interface AccionesPedido {
+  transicion:     TransicionEntrega;
+  control:        ControlComprobantes;
+  errorAccion:    ReturnType<typeof useErrorDialogo>;
+  preparando:     boolean;
+  abrirProgramar: (orden: Order) => void;
+  abrirCobrar:    (orden: Order) => void;
+  abrirCancelar:  (orden: Order) => void;
+  abrirRechazar:  (orden: Order, c: Comprobante) => void;
+  verificar:      (orden: Order, c: Comprobante) => void;
+}
 
 // ═══ PEDIDOS · la pantalla del rediseño Duna OS ══════════════════════════════
 //
@@ -36,8 +68,10 @@ import { hace } from '@/lib/pedidos/tiempo';
 // operativos, van a usar los modales shadcn de /admin/ordenes hasta que el
 // design-system tenga primitiva de diálogo (H6).
 //
-// ALCANCE DE ESTA TANDA: lista + detalle de LECTURA. Los botones de acción según
-// el estado son la tanda siguiente; el gate visual acordado no los cubre.
+// LOS FLUJOS OPERATIVOS reusan los modales de /admin/ordenes tal cual —ya están
+// probados en producción— y sus mutaciones viven en ESTE componente, no en el
+// panel: el panel se desmonta al cambiar de pedido y una mutación montada ahí
+// puede perder su continuación (§ el gate del 2026-08-06).
 
 // El DS no conoce canales — recibe un nodo, y el dominio vive acá.
 //
@@ -94,6 +128,12 @@ function Pedidos() {
   // `setState` síncrono ahí dispara renders en cascada y el lint lo marca.
   const [fallo, setFallo] = useState<{ id: string; msg: string } | null>(null);
 
+  // Contador del REFETCH del detalle. Se declara acá arriba porque el efecto que
+  // lo usa como dependencia vive más abajo; su porqué está donde se dispara.
+  const [refetch, setRefetch] = useState(0);
+  const repreguntar = useCallback(() => setRefetch(n => n + 1), []);
+
+
   useEffect(() => {
     let vivo = true;
     getOrders()
@@ -125,7 +165,7 @@ function Pedidos() {
       .then(d => { if (vivo) setDetalle(d); })
       .catch(e => { if (vivo) setFallo({ id: idElegido, msg: e instanceof Error ? e.message : 'Error al cargar el pedido' }); });
     return () => { vivo = false; };
-  }, [idElegido]);
+  }, [idElegido, refetch]);
 
   // Los tres DERIVADOS del par (id elegido, lo que hay cargado). Ninguno es
   // estado: así no hay dos fuentes que puedan discrepar, y el detalle de OTRO
@@ -133,6 +173,97 @@ function Pedidos() {
   const detalleVigente = detalle?.id === idElegido ? detalle : null;
   const errorDetalle   = fallo?.id === idElegido ? fallo.msg : null;
   const cargandoDetalle = !!idElegido && !detalleVigente && !errorDetalle;
+
+  // ═══ MUTACIONES · viven en LA PÁGINA, no en el panel ═══════════════════════
+  //
+  // El panel de detalle se desmonta al cambiar de pedido, así que una mutación
+  // montada ahí puede perder su continuación — es el incidente del 2026-08-06 con
+  // los comprobantes. Acá arriba nada se pierde: el peor caso es que el panel
+  // reabra ya con el efecto aplicado.
+
+  // EL REFETCH. La lista EMPALMA (barato e inmediato: la card se actualiza sola) y
+  // el detalle REPREGUNTA (la verdad). No es redundancia: el libro de transiciones
+  // sólo viaja en `GET /api/orders/[id]`, y las respuestas de los modales traen la
+  // orden o el envío actualizados pero NO los asientos nuevos. Sin esto, el
+  // Recorrido mostraría todo menos la transición que el operador acaba de
+  // provocar — el peor sitio posible para quedar desactualizado, porque es la
+  // sección que existe para contar qué pasó.
+  const empalmar = useCallback((actualizada: Order) => {
+    setPedidos(prev => prev.map(o => o.id === actualizada.id ? actualizada : o));
+    repreguntar();
+  }, [repreguntar]);
+
+  const errorAccion = useErrorDialogo();
+
+  // Los comprobantes, del hook COMPARTIDO con /admin/ordenes. Cada cambio empalma
+  // en la lista y dispara el refetch del panel.
+  //
+  // `control.refrescar` queda SIN USAR acá a propósito: en esta pantalla el panel
+  // ya pide `getOrder`, que trae los comprobantes junto con el libro. Llamarlo
+  // sería una segunda consulta por lo mismo.
+  const control = useControlComprobantes(
+    useCallback((ordenId: string, actualizar: (previos: Comprobante[]) => Comprobante[]) => {
+      setPedidos(prev => prev.map(o => o.id === ordenId
+        ? { ...o, comprobantes: actualizar(o.comprobantes ?? []) }
+        : o));
+      repreguntar();
+    }, [repreguntar]),
+  );
+
+  // Las transiciones, del hook COMPARTIDO con el board y la pantalla vieja —
+  // CUARTA montura. `onError` inline y no toast: el operador está mirando el panel.
+  const transicion = useTransicionEntrega({
+    onUpdated: (sh) => {
+      setPedidos(prev => prev.map(o => o.shipping?.id === sh.id ? { ...o, shipping: sh } : o));
+      repreguntar();
+    },
+    onError: (e) => errorAccion.mostrar(e, 'No se pudo actualizar la entrega'),
+  });
+
+  const guardaPreparar = useAccionGuardada();
+  const [programando, setProgramando]     = useState<{ shipping: Shipping; ordenId: string } | null>(null);
+  const [cobrando, setCobrando]           = useState<Order | null>(null);
+  const [enVerificacion, setEnVerificacion] = useState<Comprobante | null>(null);
+  const [cancelando, setCancelando]       = useState<Order | null>(null);
+  const [rechazando, setRechazando]       = useState<{ orden: Order; c: Comprobante } | null>(null);
+
+  // Crea el Shipping si falta (server-guarded e idempotente) y abre el modal. La
+  // guarda no protege el dato —el server lo hace— sino al operador: sin ella el
+  // botón se queda mudo mientras viaja.
+  const abrirProgramar = useCallback((orden: Order) => guardaPreparar.ejecutar(async () => {
+    errorAccion.limpiar();
+    if (orden.shipping) { setProgramando({ shipping: orden.shipping, ordenId: orden.id }); return; }
+    try {
+      const creado = await ensureOrderShipping(orden.id);
+      empalmar({ ...orden, shipping: creado });
+      setProgramando({ shipping: creado, ordenId: orden.id });
+    } catch (e) {
+      errorAccion.mostrar(e, 'No se pudo preparar la entrega');
+    }
+  }), [guardaPreparar, errorAccion, empalmar]);
+
+  // Verificar: con la orden pendiente abre Registrar Pago y deja el sello
+  // pendiente —la verificación CREA la plata—; con la plata ya adentro, sella
+  // directo. El orden NO es reversible (§3.1).
+  const verificar = useCallback((orden: Order, c: Comprobante) => {
+    control.limpiarError();
+    if (accionAlVerificar(orden.estado) === 'cobrar') {
+      setEnVerificacion(c);
+      setCobrando(orden);
+      return;
+    }
+    control.decidir(orden.id, c.id, 'verificar')
+      .catch(e => control.mostrarError(e, 'No se pudo verificar el comprobante'));
+  }, [control]);
+
+  const acciones: AccionesPedido = {
+    transicion, control, errorAccion,
+    preparando: guardaPreparar.enVuelo,
+    abrirProgramar, verificar,
+    abrirCobrar:   (orden) => setCobrando(orden),
+    abrirCancelar: (orden) => setCancelando(orden),
+    abrirRechazar: (orden, c) => { control.limpiarError(); setRechazando({ orden, c }); },
+  };
 
   const navegar = useCallback((cambios: Record<string, string | null>) => {
     const q = new URLSearchParams(params.toString());
@@ -221,11 +352,94 @@ function Pedidos() {
                 detalle={detalleVigente}
                 cargando={cargandoDetalle}
                 error={errorDetalle}
+                acciones={acciones}
               />
             )}
           </div>
         </div>
       )}
+
+      {/* ═══ MODALES · montados en la PÁGINA, no en el panel ══════════════════
+          El panel se desmonta al cambiar de pedido; una mutación montada ahí
+          puede perder su continuación. Acá arriba, el peor caso es que el panel
+          reabra ya con el efecto aplicado.
+
+          Son los MISMOS modales de /admin/ordenes, reusados tal cual: ya están
+          probados en producción y reescribirlos con una primitiva nueva dejaría
+          dos implementaciones de los mismos flujos conviviendo hasta que la
+          pantalla vieja muera. La mezcla visual es temporal y DECLARADA (H6). */}
+      <ScheduleDeliveryModal
+        target={programando}
+        onClose={() => setProgramando(null)}
+        onSaved={(sh) => {
+          setPedidos(prev => prev.map(o => o.id === programando?.ordenId ? { ...o, shipping: sh } : o));
+          repreguntar();
+        }}
+        onAddressAdded={(ordenId, address) => {
+          setPedidos(prev => prev.map(o => o.id === ordenId
+            ? { ...o, direccion_entrega: address.direccion_entrega, ciudad_entrega: address.ciudad_entrega }
+            : o));
+          repreguntar();
+        }}
+      />
+      <RegisterPaymentModal
+        target={cobrando ? {
+          id: cobrando.id, numero: cobrando.numero_orden,
+          cliente: cobrando.cliente_nombre ?? null, monto: cobrando.total,
+        } : null}
+        declaredMetodo={cobrando?.metodoPagoPrevisto ?? cobrando?.metodo_pago ?? null}
+        verificando={enVerificacion}
+        onClose={() => { setCobrando(null); setEnVerificacion(null); }}
+        onSaved={({ order: actualizada, comprobante }) => {
+          // El soporte se sube DESPUÉS del Payment, así que no viene en la
+          // respuesta de la orden: se concatena.
+          const previos = actualizada.comprobantes ?? [];
+          empalmar({ ...actualizada, comprobantes: comprobante ? [...previos, comprobante] : previos });
+          // EL ENLACE: entrar por Verificar deja el soporte marcado, y al volver el
+          // pago se sella. Va DESPUÉS y por separado — si falla, la orden ya quedó
+          // pagada y un segundo click en Verificar lo cierra (ahí ya cae en
+          // `sellar`). Al revés se afirmaría un cobro que no ocurrió.
+          if (enVerificacion) {
+            const id = enVerificacion.id;
+            const ordenId = actualizada.id;
+            setEnVerificacion(null);
+            control.decidir(ordenId, id, 'verificar')
+              .catch(e => control.mostrarError(e, 'El pago quedó registrado, pero no se pudo sellar el comprobante. Vuelve a pulsar Verificar.'));
+          }
+        }}
+      />
+      <ConfirmDeleteDialog
+        open={!!cancelando}
+        onOpenChange={(abierto) => { if (!abierto) setCancelando(null); }}
+        title={CANCELAR_ORDEN_COPY.title}
+        entityLabel={cancelando ? `Orden ${cancelando.numero_orden}${cancelando.cliente_nombre ? ` · ${cancelando.cliente_nombre}` : ''}` : ''}
+        consequence={CANCELAR_ORDEN_COPY.consequence}
+        confirmLabel={CANCELAR_ORDEN_COPY.confirmLabel}
+        busyLabel={CANCELAR_ORDEN_COPY.busyLabel}
+        successMessage="Orden cancelada"
+        onConfirm={async () => {
+          if (!cancelando) return;
+          empalmar(await updateOrder(cancelando.id, { estado: 'cancelado' }));
+          setCancelando(null);
+        }}
+      />
+      <ConfirmDeleteDialog
+        open={!!rechazando}
+        onOpenChange={(abierto) => { if (!abierto) setRechazando(null); }}
+        title={RECHAZAR_COMPROBANTE_COPY.title}
+        entityLabel={rechazando ? nombreArchivo(rechazando.c.url) : ''}
+        consequence={RECHAZAR_COMPROBANTE_COPY.consequence}
+        confirmLabel={RECHAZAR_COMPROBANTE_COPY.confirmLabel}
+        confirmKind="default"
+        onConfirm={async () => {
+          if (!rechazando) return;
+          // LANZA si el servidor rechaza: el diálogo se queda abierto y lo muestra
+          // inline, que es su contrato.
+          await control.decidir(rechazando.orden.id, rechazando.c.id, 'rechazar');
+          setRechazando(null);
+        }}
+      />
+      <ConfirmDespachoSinPago {...transicion.confirmacion} />
     </div>
   );
 }
@@ -236,11 +450,13 @@ function Pedidos() {
 // capricho: la cabecera se pinta de inmediato con lo que la lista ya tiene, y lo
 // que exige el viaje (líneas, método real, Recorrido) aparece cuando llega. Así
 // abrir un pedido no deja el panel en blanco.
-function Detalle({ orden, detalle, cargando, error }: {
+function Detalle({ orden, detalle, cargando, error, acciones }: {
   orden: Order;
   detalle: OrderDetalle | null;
   cargando: boolean;
   error: string | null;
+  /** El panel RENDERIZA y llama hacia arriba: no es dueño de ninguna mutación. */
+  acciones: AccionesPedido;
 }) {
   const badge = badgeCobro(orden, 'detalle');
   const fuente = detalle ?? orden;
@@ -252,6 +468,12 @@ function Detalle({ orden, detalle, cargando, error }: {
   // pantalla tuviera su propia idea de qué pide atención, el operador vería un
   // pedido en el carril "Necesitan atención" y adentro ningún motivo.
   const motivos = motivosDeAtencion(fuente);
+
+  const envio    = fuente.shipping ?? null;
+  const enVuelo  = envio ? acciones.transicion.enVuelo(envio.id) : false;
+  const falta    = missingToDispatch(envio);
+  const soportes = fuente.comprobantes ?? [];
+  const lightbox = useLightboxComprobante();
 
   // El método REAL manda sobre el previsto: el pago que existe gana sobre la
   // intención declarada al crear la orden. Sin pago, se dice que es lo previsto —
@@ -348,6 +570,126 @@ function Detalle({ orden, detalle, cargando, error }: {
           {!pagoReal && metodo && <span className="duna-caption"> · previsto</span>}
         </span>
       </div>
+
+      <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
+
+      <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
+
+      {/* ── ENTREGA · las acciones que el ESTADO permite, ni una más ─────────
+          El if/else es sobre `Shipping.estado`, igual que la pantalla vieja — no
+          una lista plana de botones que se habilitan. La ÚNICA excepción es
+          "Marcar En Ruta" con la programación a medias: se muestra DESHABILITADO
+          diciendo qué falta, porque esconderlo mandaría al operador a buscarlo a
+          otra pantalla. Es la misma doctrina de los motivos de atención — decir el
+          porqué en vez de dejar que lo averigüe. */}
+      <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-2)' }}>Entrega</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)' }}>
+        {orden.estado === 'cancelado' ? null : !envio ? (
+          <button type="button" className="duna-btn duna-btn--secondary" disabled={acciones.preparando}
+                  onClick={() => acciones.abrirProgramar(fuente)}>
+            {acciones.preparando ? 'Preparando…' : 'Preparar envío'}
+          </button>
+        ) : envio.estado === 'preparando' ? (
+          <>
+            <button type="button" className="duna-btn duna-btn--secondary" disabled={acciones.preparando}
+                    onClick={() => acciones.abrirProgramar(fuente)}>
+              {hasScheduleData(envio) ? 'Editar entrega' : 'Programar entrega'}
+            </button>
+            {isScheduledShipping(envio) ? (
+              <button type="button" className="duna-btn duna-btn--secondary" disabled={enVuelo}
+                      onClick={() => acciones.transicion.despachar({
+                        id: envio.id, numeroOrden: orden.numero_orden, ordenPagada: orden.estado === 'pagado',
+                      })}>
+                Marcar En Ruta
+              </button>
+            ) : hasScheduleData(envio) && (
+              <button type="button" className="duna-btn duna-btn--secondary" disabled
+                      title={falta === 'mensajero' ? 'Falta el mensajero' : 'Falta la fecha'}>
+                Marcar En Ruta · {falta === 'mensajero' ? 'falta mensajero' : 'falta fecha'}
+              </button>
+            )}
+          </>
+        ) : envio.estado === 'en_ruta' ? (
+          <>
+            <button type="button" className="duna-btn duna-btn--secondary" disabled={enVuelo}
+                    onClick={() => acciones.transicion.marcarEntregado(envio.id)}>
+              Marcar Entregado
+            </button>
+            <button type="button" className="duna-btn duna-btn--ghost" disabled={enVuelo}
+                    onClick={() => acciones.transicion.marcarFallido(envio.id)}>
+              Marcar Fallido
+            </button>
+          </>
+        ) : envio.estado === 'fallido' ? (
+          <button type="button" className="duna-btn duna-btn--secondary" disabled={acciones.preparando}
+                  onClick={() => acciones.abrirProgramar(fuente)}>
+            Reprogramar
+          </button>
+        ) : null}
+      </div>
+      <ErrorDialogo mensaje={acciones.errorAccion.mensaje} />
+
+      {/* ── PAGO ─────────────────────────────────────────────────────────── */}
+      {orden.estado === 'pendiente' && (
+        <div style={{ marginTop: 'var(--duna-space-4)' }}>
+          <button type="button" className="duna-btn duna-btn--primary" onClick={() => acciones.abrirCobrar(fuente)}>
+            Registrar pago
+          </button>
+        </div>
+      )}
+
+      {/* ── COMPROBANTES · la evidencia, que no es la plata ─────────────────
+          La caja VACÍA es una línea: el caso normal de una orden es no tener
+          soportes, y el bloque grande ocupaba más que la sección que responde algo. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-4)' }}>
+        <span className="duna-caption">Comprobantes ({soportes.length})</span>
+        {orden.estado !== 'cancelado' && (
+          <SelectorComprobante
+            onArchivo={(file) => acciones.control.adjuntar(orden.id, file)}
+            disabled={acciones.control.subiendo}
+            label={acciones.control.subiendo ? 'Subiendo…' : 'Adjuntar'}
+            title={`JPG, PNG, WebP o PDF · máx. ${MAX_COMPROBANTE_MB} MB. Adjuntar no registra el pago.`}
+          />
+        )}
+      </div>
+      {soportes.length > 0 && (
+        <div style={{ marginTop: 'var(--duna-space-3)', display: 'grid', gap: 'var(--duna-space-3)' }}>
+          {soportes.map(c => (
+            <ComprobanteVista
+              key={c.id}
+              comprobante={c}
+              onAmpliar={lightbox.ampliar}
+              acciones={puedeDecidirse(c.estado) ? (
+                <>
+                  <button type="button" className="duna-btn duna-btn--secondary duna-btn--sm"
+                          disabled={acciones.control.enVuelo(c.id)}
+                          onClick={() => acciones.verificar(fuente, c)}>
+                    Verificar
+                  </button>
+                  <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm"
+                          disabled={acciones.control.enVuelo(c.id)}
+                          onClick={() => acciones.abrirRechazar(fuente, c)}>
+                    Rechazar
+                  </button>
+                </>
+              ) : undefined}
+            />
+          ))}
+        </div>
+      )}
+      {/* El error FUERA de la caja, para que se vea igual con la caja colapsada —
+          que es justo cuando falla la primera subida. */}
+      <ErrorDialogo mensaje={acciones.control.error} />
+      <ImageLightbox src={lightbox.abierto?.src ?? null} alt={lightbox.abierto?.alt} onClose={lightbox.cerrar} />
+
+      {/* ── Cancelar ─────────────────────────────────────────────────────── */}
+      {orden.estado !== 'cancelado' && (
+        <div style={{ marginTop: 'var(--duna-space-4)' }}>
+          <button type="button" className="duna-btn duna-btn--ghost" onClick={() => acciones.abrirCancelar(fuente)}>
+            Cancelar orden
+          </button>
+        </div>
+      )}
 
       <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
 
