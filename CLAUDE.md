@@ -523,8 +523,10 @@ pero no puede caducar.
 ### 5. H6 — el design-system no tiene primitiva de diálogo
 
 `/admin/pedidos` opera sus doce flujos con los **modales shadcn de
-`/admin/ordenes`**, reusados tal cual. Es una mezcla visual dentro de una pantalla
-que por fuera es Duna OS.
+`/admin/ordenes`**, reusados tal cual, y `/admin/clientes-v2` hace lo mismo con
+`ConfirmDeleteDialog` y `CustomerFormModal`. Es una mezcla visual dentro de dos
+pantallas que por fuera son Duna OS — y ya no es un caso, es el patrón de toda
+vertical nueva mientras la primitiva no exista.
 
 **Por qué se decidió reusar y no construir** (owner, tras discovery): los siete
 flujos resultaron reutilizables —seis invocables sin tocar nada, y el séptimo
@@ -534,7 +536,7 @@ diálogo ahora habría significado **reescribir ~1.000 líneas ya probadas en
 producción** (Schedule 522 · RegisterPayment 250 · ConfirmDelete 187 ·
 ConfirmDespachoSinPago 40) para obtener el mismo comportamiento con otro chrome.
 
-**El argumento que decidió, y que conviene retener:** mientras `/admin/ordenes`
+**El argumento que decidió, y que conviene retener:** mientras la pantalla vieja
 siga existiendo, reescribir esos flujos deja **dos implementaciones de los mismos
 seis conviviendo** —incluidos el orden pago→sello y la confirmación de despacho sin
 cobro—. Es la divergencia que este repo ya pagó tres veces (`razonDelServidor`,
@@ -544,10 +546,19 @@ existiendo en otro lado no es progreso.
 **Costo YA pagado:** hoy, ninguno más que la mezcla visual. Es deuda de forma, no
 de comportamiento — y por eso está al final de esta lista.
 
-**DISPARADOR — sin cambio:** NO es "cuando haga falta un diálogo" (ya hacen falta
-cuatro y se resolvieron reusando). Es **cuando `/admin/ordenes` muera**: ése es el
-momento en que reescribir deja de duplicar. Ahí la primitiva se construye y los
-flujos se migran una sola vez.
+**DISPARADOR — sin cambio de fondo, con la redacción corregida:** NO es "cuando
+haga falta un diálogo" (ya hacen falta varios y se resolvieron reusando). Es
+**cuando las pantallas viejas mueran**: ése es el momento en que reescribir deja de
+duplicar. Ahí la primitiva se construye y los flujos se migran una sola vez.
+
+Decía "cuando `/admin/ordenes` muera", y ese literal caducó al entrar la segunda
+vertical: **Clientes tiene el mismo patrón** —`/admin/clientes-v2` opera con el
+`ConfirmDeleteDialog` y con `CustomerFormModal`, modales shadcn, mientras
+`/admin/clientes` sigue en producción—. Nombrar UNA pantalla hacía que el
+disparador se leyera como cumplido en cuanto muriera esa, con las demás
+convivencias todavía vivas. La regla es la misma para todas: la primitiva se
+construye cuando ya no queda una implementación vieja de esos flujos con la cual
+duplicar.
 
 ### Lo que la maqueta ya resuelve, y cómo cambia el cálculo
 
