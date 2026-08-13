@@ -370,6 +370,98 @@
       </div>
   </section>
 
+  <!-- ESQUELETO -->
+  <section>
+    <h2 class="sec">Esqueleto · la forma de lo que todavía no llegó</h2>
+    <p class="sec-note">Reemplaza al "Cargando…" de una línea, que ocupaba un renglón y era sustituido por tarjetas de cien píxeles: la pantalla brincaba justo cuando ya la estaban mirando. El esqueleto reserva el espacio EXACTO y además dice cuántos elementos vienen y qué forma tienen.</p>
+
+    <!-- Las dos columnas miden `--duna-list-w`, el ancho REAL de la lista en una
+         pantalla de trabajo. Con columnas más angostas el nombre del cliente
+         envuelve y la tarjeta crece: la comparación mediría el envolvimiento del
+         demo, no el sistema. -->
+    <div class="grid" style="grid-template-columns:var(--duna-list-w) var(--duna-list-w); align-items:start; gap:var(--duna-space-5)">
+      <div>
+        <div class="duna-eyebrow" style="margin-bottom:var(--duna-space-3)">Cargando</div>
+        <div id="skelDemo" style="display:flex; flex-direction:column; gap:var(--duna-space-3)">
+          <div class="duna-order-card is-skeleton">
+            <div class="duna-order-card__top">
+              <span class="duna-order-card__name duna-skel">Nombre del cliente</span>
+              <span class="duna-order-card__id duna-mono duna-skel">CN-000000</span>
+              <span class="duna-order-card__amount duna-num duna-skel">$ 000.000</span>
+            </div>
+            <div class="duna-order-card__mid">
+              <span class="duna-chip-channel duna-skel">Canal</span>
+              <span class="duna-badge duna-badge--neutral duna-skel">Estado</span>
+            </div>
+            <div class="duna-order-card__foot">
+              <span class="duna-steps"><span class="duna-steps__seg"></span><span class="duna-steps__seg"></span><span class="duna-steps__seg"></span><span class="duna-steps__seg"></span></span>
+              <span class="duna-order-card__time duna-skel">hace 0 min</span>
+            </div>
+          </div>
+          <div class="duna-order-card is-skeleton">
+            <div class="duna-order-card__top">
+              <span class="duna-order-card__name duna-skel">Nombre cliente</span>
+              <span class="duna-order-card__id duna-mono duna-skel">CN-000000</span>
+              <span class="duna-order-card__amount duna-num duna-skel">$ 00.000</span>
+            </div>
+            <div class="duna-order-card__mid">
+              <span class="duna-chip-channel duna-skel">Canal</span>
+              <span class="duna-badge duna-badge--neutral duna-skel">Estado</span>
+            </div>
+            <div class="duna-order-card__foot">
+              <span class="duna-steps"><span class="duna-steps__seg"></span><span class="duna-steps__seg"></span><span class="duna-steps__seg"></span><span class="duna-steps__seg"></span></span>
+              <span class="duna-order-card__time duna-skel">hace 0 min</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="duna-eyebrow" style="margin-bottom:var(--duna-space-3)">Cargado — la MISMA altura</div>
+        <div id="realDemo" style="display:flex; flex-direction:column; gap:var(--duna-space-3)">
+          <button type="button" class="duna-order-card">
+            <div class="duna-order-card__top">
+              <span class="duna-order-card__name">Laura Cárdenas</span>
+              <span class="duna-order-card__id duna-mono">CN-132453</span>
+              <span class="duna-order-card__amount duna-num">$ 86.500</span>
+            </div>
+            <div class="duna-order-card__mid">
+              <span class="duna-chip-channel"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.3 8.6 8.6 0 0 1-3.9-.9L3 21l2.2-5.3a8.2 8.2 0 0 1-1.2-4.2A8.4 8.4 0 0 1 12.5 3a8.4 8.4 0 0 1 8.5 8.5z"/></svg>WhatsApp</span>
+              <span class="duna-badge duna-badge--ok"><span class="duna-badge__dot"></span>Pagado</span>
+            </div>
+            <div class="duna-order-card__foot">
+              <span class="duna-steps"><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-now"></span><span class="duna-steps__seg"></span></span>
+              <span class="duna-order-card__time">hace 42 min</span>
+            </div>
+          </button>
+          <button type="button" class="duna-order-card">
+            <div class="duna-order-card__top">
+              <span class="duna-order-card__name">Julián Peña</span>
+              <span class="duna-order-card__id duna-mono">CN-132441</span>
+              <span class="duna-order-card__amount duna-num">$ 47.500</span>
+            </div>
+            <div class="duna-order-card__mid">
+              <span class="duna-chip-channel"><svg viewBox="0 0 24 24"><path d="M3 9l1.5-5h15L21 9M3 9v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9"/></svg>Tienda</span>
+              <span class="duna-badge duna-badge--attention"><span class="duna-badge__dot"></span>Por cobrar</span>
+            </div>
+            <div class="duna-order-card__foot">
+              <span class="duna-steps"><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-now"></span><span class="duna-steps__seg"></span><span class="duna-steps__seg"></span></span>
+              <span class="duna-order-card__time">hace 4 h</span>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <p class="duna-caption" id="skelMedida" style="margin-top:var(--duna-space-3)"></p>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">LA ALTURA NO SE DECLARA, SE HEREDA. El esqueleto no es un rectángulo con un <code>height</code>: monta la MISMA estructura de la tarjeta y en las ranuras de texto pone un relleno con <code>.duna-skel</code>, que sólo lo vuelve transparente y le pinta el fondo. Padding, borde, <code>line-height</code> y tamaños de fuente salen de las mismas reglas. Si mañana el nombre sube de 14 a 15px, el hueco sube con él — un <code>height</code> copiado a mano se desincronizaría en silencio, y un esqueleto desincronizado no quita el salto: lo mueve de sitio. La medición de arriba se calcula en vivo al abrir esta página.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">El relleno NO es contenido: es un ESPACIADOR. No se traduce ni se configura, no se puede seleccionar (<code>user-select: none</code>) y sale del árbol de accesibilidad con <code>aria-hidden</code>. Lo que un lector de pantalla anuncia es el ESTADO — <code>role="status"</code>, <code>aria-busy</code> y una etiqueta <code>.duna-sr-only</code> que provee el consumidor, porque es idioma. Sin eso el esqueleto sería invisible justo para quien no puede ver la animación, y el "Cargando…" que reemplaza sí se leía.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">Con <code>prefers-reduced-motion</code> el pulso se apaga con <code>animation: none</code>, no con la aceleración a <code>.01ms</code> del resto del sistema: ésa congela la animación en un fotograma cualquiera, y si cae en el del 50% deja el bloque a opacidad .55 — que se lee como un fallo de carga. Sin movimiento queda ESTÁTICO y entero, que es distinto de invisible.</div>
+  </section>
+
   <section>
     <h2 class="sec">Layout partido · lista que scrollea + panel que se queda</h2>
     <p class="sec-note">El esqueleto de una pantalla de trabajo, AGNÓSTICO (sirve para pedidos, clientes o productos). El <code>top</code> del panel sticky no es un número: sale de <code>calc(var(--duna-topbar-h) + var(--duna-space-6))</code>, así que mover el padding de la topbar lo reacomoda solo. Debajo de 960px apila y el panel deja de ser sticky.</p>
@@ -438,6 +530,28 @@
     btn.textContent = dark ? 'Modo oscuro' : 'Modo claro';
   });
   document.getElementById('sw').addEventListener('click', e => e.currentTarget.classList.toggle('is-on'));
+
+  // LA MEDICIÓN, EN VIVO. El esqueleto promete la altura exacta de la tarjeta, y
+  // una promesa así no se verifica a ojo: acá se miden las dos y se dice el
+  // resultado. Si alguien toca la tipografía de la tarjeta y el esqueleto deja de
+  // seguirla, esta línea lo delata al abrir la página — que es para lo que existe
+  // una prueba viva.
+  (function medirEsqueleto() {
+    const alto = sel => {
+      const el = document.querySelector(sel);
+      return el ? Math.round(el.getBoundingClientRect().height * 100) / 100 : null;
+    };
+    const s = alto('#skelDemo .duna-order-card');
+    const r = alto('#realDemo .duna-order-card');
+    const out = document.getElementById('skelMedida');
+    if (s === null || r === null) return;
+    const igual = Math.abs(s - r) < 0.5;   // tolerancia sub-píxel del redondeo
+    out.textContent = igual
+      ? `Medido al abrir esta página: esqueleto ${s}px · tarjeta ${r}px — coinciden.`
+      : `⚠ DESINCRONIZADOS: esqueleto ${s}px · tarjeta ${r}px (${Math.abs(s - r).toFixed(2)}px de diferencia). El salto de layout volvió.`;
+    out.style.color = igual ? 'var(--duna-muted)' : 'var(--duna-bad-ink)';
+    out.style.fontWeight = igual ? '' : 'var(--duna-w-semi)';
+  })();
 </script>
 </body>
 </html>

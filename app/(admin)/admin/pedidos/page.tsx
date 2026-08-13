@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react';
 import { OrderCard } from '@duna/design-system/components/OrderCard';
 import { ItemsTable } from '@duna/design-system/components/ItemsTable';
 import { Timeline } from '@duna/design-system/components/Timeline';
+import { SkeletonOrderCards } from '@duna/design-system/components/SkeletonOrderCard';
 import { BADGE_TONE_CLASS } from '@duna/design-system/status';
 import { getOrders, getOrder } from '@/lib/api/orders';
 import { formatCOP } from '@duna/core/utils';
@@ -331,15 +332,20 @@ function Pedidos() {
 
       {error && <div className="duna-note" role="alert">{error}</div>}
 
-      {/* LA CARGA BAJA A LA LISTA, que es donde estaba el hueco. El "Cargando…"
-          vivía en el conteo del subtítulo, así que quitarlo dejaba la pantalla
-          MUDA mientras viaja el fetch — y una pantalla en blanco es
-          indistinguible de "no hay pedidos", que es justo la confusión que los
-          tres vacíos de abajo existen para evitar. Ocupa el sitio de la lista y
-          no el del título porque es la lista lo que falta. */}
+      {/* LA CARGA OCUPA EL SITIO DE LA LISTA, con su forma. Va dentro del MISMO
+          `duna-split` que van a ocupar las tarjetas —no en un bloque suelto—
+          para que caigan en la misma columna y con el mismo ancho en los dos
+          breakpoints; el panel queda vacío, que es lo que va a estar de todos
+          modos mientras no haya nada elegido.
+
+          El texto "Cargando pedidos…" no desaparece: se lo lleva el lector de
+          pantalla por `role="status"`. Lo que desaparece es su renglón, que era
+          el que hacía brincar la página al ser reemplazado por tarjetas. */}
       {!error && cargando && (
-        <div className="duna-card duna-card__pad">
-          <p className="duna-sub" style={{ margin: 0 }}>Cargando pedidos…</p>
+        <div className="duna-split">
+          <div className="duna-split__list">
+            <SkeletonOrderCards label="Cargando pedidos…" />
+          </div>
         </div>
       )}
 

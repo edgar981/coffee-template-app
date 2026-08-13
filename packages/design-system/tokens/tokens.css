@@ -69,6 +69,13 @@
   --duna-border:     #E9E6DD;
   --duna-border-2:   #DDD9CD;   /* borde fuerte */
 
+  /* ESQUELETO · el relleno de lo que todavía no llegó.
+     Token propio y no `--duna-border-2` prestado: un borde y un bloque de carga
+     son roles distintos, y el día que el borde cambie de valor el esqueleto no
+     tiene por qué seguirlo. Se sitúa ENTRE surface-2 y border — visible sobre la
+     tarjeta sin competir con el texto que va a reemplazar. */
+  --duna-skel:       #EDEAE2;
+
   /* Estado · ATENCIÓN (sol). Único significante de urgencia. */
   --duna-sol:        #F59E0B;               /* fill · punto · borde */
   --duna-sol-ink:    #8A5A00;               /* TEXTO sobre tinte (AA) */
@@ -213,6 +220,10 @@
 
   --duna-border:     #2A2824;
   --duna-border-2:   #38352F;
+
+  /* Más claro que la tarjeta (#1B1A18), como en claro es más oscuro que ella:
+     el esqueleto es siempre un escalón de contraste, no un color fijo. */
+  --duna-skel:       #2E2C28;
 
   --duna-sol-ink:    #F5B04C;               /* texto ámbar legible en oscuro */
   --duna-sol-soft:   rgba(245,158,11,.14);

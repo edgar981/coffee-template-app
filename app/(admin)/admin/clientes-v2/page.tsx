@@ -6,6 +6,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import { OrderCard } from '@duna/design-system/components/OrderCard';
 import { SearchField } from '@duna/design-system/components/SearchField';
+import { SkeletonOrderCards } from '@duna/design-system/components/SkeletonOrderCard';
 import { BADGE_TONE_CLASS } from '@duna/design-system/status';
 import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
@@ -240,14 +241,17 @@ function ClientesV2() {
 
       {error && <div className="duna-note" role="alert">{error}</div>}
 
-      {/* LA CARGA BAJA A LA LISTA. El "Cargando…" vivía en el conteo del
-          subtítulo, así que quitarlo dejaba la pantalla MUDA mientras viaja el
-          fetch — y una pantalla en blanco es indistinguible de "no hay
-          clientes", que es justo la confusión que los tres vacíos de abajo
-          existen para evitar. */}
+      {/* LA CARGA OCUPA EL SITIO DE LA LISTA, con su forma — mismo movimiento
+          que en Pedidos, y con el mismo esqueleto: la fila de un cliente ES una
+          `order-card`, así que el hueco que reserva es el correcto sin
+          parametrizar nada. El texto sigue existiendo para el lector de
+          pantalla; lo que desaparece es su renglón, que era el que hacía brincar
+          la página al ser reemplazado por tarjetas. */}
       {!error && cargando && (
-        <div className="duna-card duna-card__pad">
-          <p className="duna-sub" style={{ margin: 0 }}>Cargando clientes…</p>
+        <div className="duna-split">
+          <div className="duna-split__list">
+            <SkeletonOrderCards label="Cargando clientes…" />
+          </div>
         </div>
       )}
 
