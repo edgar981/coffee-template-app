@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { normalizeCustomerPhone } from '@duna/core/whatsapp-link';
-import { nonCancelledOrderCountByCustomer, paidTotalByCustomer } from '@duna/core/metrics/customer-order-stats';
+import { nonCancelledOrderCountByCustomer, paidTotalByCustomer, lastOrderDateByCustomer } from '@duna/core/metrics/customer-order-stats';
 import { pedidosPorAtenderPorCliente } from '@/lib/clientes/atencion';
 import type { OrderStatus } from '@/types/order';
 
@@ -12,7 +12,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
-  const [customers, ordenesById, pagadoById, ordenesParaAtencion] = await Promise.all([
+  const [customers, ordenesById, pagadoById, ultimaById, ordenesParaAtencion] = await Promise.all([
     prisma.customer.findMany({
       orderBy: { createdAt: 'desc' },
       // Referential order count = raw FK references (Order.cliente_id), NO filter —
@@ -23,6 +23,7 @@ export async function GET() {
     }),
     nonCancelledOrderCountByCustomer(),
     paidTotalByCustomer(),
+    lastOrderDateByCustomer(),
     // ── LO QUE LA REGLA DE ATENCIÓN NECESITA MIRAR, Y NADA MÁS ───────────────
     //
     // Es una consulta NUEVA: este endpoint no cargaba ni una orden. Se carga
@@ -73,6 +74,12 @@ export async function GET() {
     // mudo. 0 (no `undefined`) cuando no hay ninguno: el mapa es disperso porque
     // sólo ve órdenes, pero acá sí se conoce al cliente y "ninguno" es un hecho.
     pedidosPorAtender: atencionById.get(c.id) ?? 0,
+    // Recencia, para decirla como TEXTO en la fila ("hace 3 días"). `null` cuando
+    // el cliente no tiene ninguna orden viva — y ese null es la respuesta, no un
+    // hueco: quien nunca compró no tiene última compra, y la pantalla no debe
+    // inventarle una fecha ni caerse a `createdAt` del cliente (que responde otra
+    // pregunta: cuándo lo registramos).
+    ultimaOrden: ultimaById.get(c.id)?.toISOString() ?? null,
   }));
 
   return NextResponse.json(withStats);
