@@ -4,6 +4,7 @@ import {
   recorridoDelPedido, etiquetaTransicion, tieneDerivados,
   type OrdenParaRecorrido,
 } from './recorrido';
+import { pasosDelPedido } from './estado';
 import type { OrderStatusTransition } from '@/types/order';
 
 // El vocabulario y la derivación honesta del Recorrido. Se testea acá y no en el
@@ -90,6 +91,79 @@ test('con libro: los dos ejes MEZCLADOS y el más reciente ARRIBA', () => {
     'el actor viaja tal cual; null = sin humano detrás',
   );
   assert.equal(tieneDerivados(recorridoDelPedido(o)), false, 'con libro completo no se deriva nada');
+});
+
+// ─── UN PEDIDO TERMINADO NO TIENE `now` · los DOS ejes ───────────────────────
+//
+// El bug: `enCurso` era `estado !== 'cancelado'`, o sea un solo eje y uno solo de
+// sus tres valores. Toda orden terminada seguía marcando su hecho más reciente con
+// el anillo del sol.
+
+test('CONTRAENTREGA entregada y LUEGO pagada: todo done, ningún now', () => {
+  // El caso que lo destapó. Acá el último asiento es del eje de COBRO —la plata
+  // llega después de la entrega— así que el sol quedaba sobre "Pago registrado":
+  // un pedido cerrado anunciándose como el lugar donde hay algo pasando.
+  const pasos = recorridoDelPedido(orden({
+    estado:   'pagado',
+    shipping: { estado: 'entregado', fecha_entrega: '2026-05-04T15:00:00.000Z' },
+    transiciones: [
+      asiento('cobro',       null,         'pendiente',  '2026-05-01T10:00:00.000Z'),
+      asiento('fulfillment', null,         'preparando', '2026-05-02T09:00:00.000Z'),
+      asiento('fulfillment', 'preparando', 'en_ruta',    '2026-05-03T08:00:00.000Z'),
+      asiento('fulfillment', 'en_ruta',    'entregado',  '2026-05-04T15:00:00.000Z'),
+      asiento('cobro',       'pendiente',  'pagado',     '2026-05-04T18:00:00.000Z', 'Cajera'),
+    ],
+  }));
+  assert.equal(pasos[0].titulo, 'Pago registrado', 'el más reciente es el del OTRO eje');
+  assert.deepEqual(pasos.map(p => p.estado), ['done', 'done', 'done', 'done', 'done']);
+});
+
+test('ANTICIPADO pagada y entregada tampoco: el bug era de TODA orden terminada', () => {
+  // Acá el sol caía sobre "Entregado" y se veía plausible — por eso nadie lo miró
+  // dos veces. La contraentrega no causó el bug: lo hizo visible.
+  const pasos = recorridoDelPedido(orden({
+    estado:   'pagado',
+    shipping: { estado: 'entregado', fecha_entrega: '2026-05-04T15:00:00.000Z' },
+    transiciones: [
+      asiento('cobro',       'pendiente', 'pagado',    '2026-05-01T10:00:00.000Z'),
+      asiento('fulfillment', 'en_ruta',   'entregado', '2026-05-04T15:00:00.000Z'),
+    ],
+  }));
+  assert.deepEqual(pasos.map(p => p.estado), ['done', 'done', 'done']);
+});
+
+test('hacen falta LAS DOS mitades: una sola no termina el pedido', () => {
+  const entregadaSinCobrar = orden({
+    estado:   'pendiente',
+    shipping: { estado: 'entregado', fecha_entrega: '2026-05-04T15:00:00.000Z' },
+    transiciones: [asiento('fulfillment', 'en_ruta', 'entregado', '2026-05-04T15:00:00.000Z')],
+  });
+  const pagadaSinEntregar = orden({
+    estado:   'pagado',
+    shipping: { estado: 'en_ruta' },
+    transiciones: [asiento('fulfillment', 'preparando', 'en_ruta', '2026-05-03T08:00:00.000Z')],
+  });
+  // Entregada sin cobrar SIGUE pidiendo algo — es literalmente el motivo de
+  // atención "Despachada sin cobrar". Y pagada sin entregar, también.
+  assert.equal(recorridoDelPedido(entregadaSinCobrar)[0].estado, 'now', 'falta la plata');
+  assert.equal(recorridoDelPedido(pagadaSinEntregar)[0].estado, 'now', 'falta la mercancía');
+});
+
+test('la card y la timeline no pueden discrepar sobre el mismo pedido', () => {
+  // Lo que delató el bug: `pasosDelPedido` ya trataba `entregado` como terminal
+  // (`done: true`) mientras el Recorrido lo daba en curso. Dos vistas del mismo
+  // hecho discrepando es la señal de que una usa una definición incompleta.
+  const terminada = {
+    estado: 'pagado' as const,
+    condicion_pago: 'CONTRAENTREGA' as const,
+    shipping: { estado: 'entregado' as const, fecha_entrega: '2026-05-04T15:00:00.000Z' },
+  };
+  assert.equal(pasosDelPedido(terminada)?.done, true, 'la barra: secuencia completa');
+  assert.ok(
+    !recorridoDelPedido({ ...orden(terminada), createdAt: '2026-05-01T10:00:00.000Z' })
+      .some(p => p.estado === 'now'),
+    'la timeline: ningún punto en curso',
+  );
 });
 
 test('el `now` marca el hecho más reciente sólo si el pedido sigue en curso', () => {
