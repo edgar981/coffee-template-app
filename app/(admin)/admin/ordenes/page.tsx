@@ -33,13 +33,13 @@ import { findSlotLabel } from '@duna/core/shipping-config';
 import { hasScheduleData, isScheduledShipping, missingToDispatch } from '@/constants/shippings';
 import { estadoEntrega, accionFilaEntrega, fechaEntrega } from '@/lib/entrega-estado';
 import { useTransicionEntrega, type TransicionEntrega } from '@/hooks/useTransicionEntrega';
+import { useControlComprobantes, type ControlComprobantes } from '@/hooks/useControlComprobantes';
 import { ConfirmDespachoSinPago } from '@/components/admin/ConfirmDespachoSinPago';
 import { Pliegue } from '@/components/admin/Pliegue';
 import { ImageLightbox } from '@/components/admin/ImageLightbox';
 import {
   ComprobanteVista, SelectorComprobante, AyudaComprobante, useLightboxComprobante,
 } from '@/components/admin/Comprobantes';
-import { subirComprobante, decidirComprobante, getComprobantes } from '@/lib/api/comprobantes';
 import { accionAlVerificar, puedeDecidirse, nombreArchivo } from '@/lib/comprobante';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { MAX_COMPROBANTE_MB } from '@/constants/comprobante';
@@ -483,76 +483,19 @@ function Ordenes() {
     });
   };
 
-  // ─── Comprobantes: el dato vive ACÁ, no dentro del diálogo ─────────────────
+  // ─── Comprobantes: el dato vive en LA PÁGINA, no dentro del diálogo ───────
   //
-  // Estaban dentro de `OrderDetail` y ése fue el defecto del gate del
-  // 2026-08-06: el resultado de la subida dependía de que el modal siguiera
-  // montado. Cuando el detalle se remontó con el POST en vuelo —la página
-  // recarga, `orders` vuelve a `[]`, `selected` pasa a `null` y el diálogo se
-  // cierra y reabre solo— la continuación cayó sobre un componente muerto: la
-  // fila SÍ se escribió en la base y el blob SÍ subió, pero ni el comprobante ni
-  // el error llegaron a pantalla. Tres síntomas, una causa.
-  //
-  // `Ordenes` es el componente de la ruta y dueño de `orders`: sobrevive a que el
-  // diálogo se cierre. Con la mutación acá, un remonte del detalle deja de poder
-  // tragarse una subida — el peor caso pasa a ser que el modal reabra ya con el
-  // comprobante puesto.
-  const guardaComprobante = useAccionGuardada();
-  const filasComprobante  = useAccionesPorFila();
-  const errorComprobante  = useErrorDialogo();
-
-  // La VERDAD la trae el servidor al abrir. Es la otra mitad: si algo se perdió
-  // en el camino (una subida cuya continuación murió, otra pestaña), el detalle
-  // se cura solo al abrirse en vez de mostrar un vacío que la base contradice.
-  const refrescarComprobantes = useCallback(async (ordenId: string) => {
-    try {
-      const lista = await getComprobantes(ordenId);
-      setOrders(prev => prev.map(o => o.id === ordenId ? { ...o, comprobantes: lista } : o));
-    } catch (e) {
-      // Silencioso a propósito: es un REFRESCO, no una acción que el operador
-      // pidió. Lo que ya estaba en pantalla se queda; el log deja el rastro.
-      console.error('[comprobantes] no se pudo refrescar', e);
-    }
-  }, []);
-
-  const adjuntarComprobante = (ordenId: string, file: File) =>
-    guardaComprobante.ejecutar(async () => {
-      errorComprobante.limpiar();
-      try {
-        const creado = await subirComprobante(ordenId, file);
-        setOrders(prev => prev.map(o => o.id === ordenId
-          ? { ...o, comprobantes: [...(o.comprobantes ?? []), creado] }
-          : o));
-        // Adjuntar NO registra un pago ni mueve la orden: sólo entra la evidencia.
-        toast.success('Comprobante adjuntado', { description: 'Queda RECIBIDO hasta que lo verifiques.' });
-      } catch (e) {
-        errorComprobante.mostrar(e, 'No se pudo subir el comprobante');
-      }
-    });
-
-  // LANZA en vez de tragarse el error: quién lo muestra depende de por dónde se
-  // pidió. Rechazar va detrás de un confirm y ése tiene su propio error inline
-  // (y se queda abierto al fallar); verificar no, y lo manda al de la sección.
-  const resolverComprobante = async (ordenId: string, id: string, accion: 'verificar' | 'rechazar') => {
-    await filasComprobante.ejecutar(id, async () => {
-      const actualizado = await decidirComprobante(id, accion);
+  // El porqué (y el incidente del gate del 2026-08-06 que lo instauró) vive en
+  // `hooks/useControlComprobantes.ts`. Acá sólo se conecta con la lista: el hook
+  // no sabe cómo esta página guarda sus órdenes, y por eso recibe un ACTUALIZADOR
+  // en vez de una lista nueva.
+  const controlComprobantes = useControlComprobantes(
+    useCallback((ordenId: string, actualizar: (previos: Comprobante[]) => Comprobante[]) => {
       setOrders(prev => prev.map(o => o.id === ordenId
-        ? { ...o, comprobantes: (o.comprobantes ?? []).map(c => c.id === id ? actualizado : c) }
+        ? { ...o, comprobantes: actualizar(o.comprobantes ?? []) }
         : o));
-      toast.success(accion === 'verificar' ? 'Comprobante verificado' : 'Comprobante rechazado');
-    });
-  };
-
-  const controlComprobantes: ControlComprobantes = {
-    adjuntar:     adjuntarComprobante,
-    decidir:      resolverComprobante,
-    refrescar:    refrescarComprobantes,
-    subiendo:     guardaComprobante.enVuelo,
-    enVuelo:      filasComprobante.enVuelo,
-    error:        errorComprobante.mensaje,
-    mostrarError: errorComprobante.mostrar,
-    limpiarError: errorComprobante.limpiar,
-  };
+    }, []),
+  );
 
   // TERCERA montura de las transiciones (board, detalle, y ahora la fila). La
   // fila ofrece UNA sola —la que el estado permite, resuelta por
@@ -1290,23 +1233,6 @@ function BadgePorCobrar() {
 // productos, edición manual— vive en pliegues. El timeline de dos puntos que
 // había antes se retiró: la sección Pago dice el mismo hecho Y ofrece la acción.
 
-/**
- * Todo lo que el detalle necesita para operar comprobantes SIN ser el dueño del
- * dato. Vive en la página (§ Comprobantes: el dato vive acá): así una subida no
- * puede perderse porque el diálogo se cerró en medio.
- */
-export interface ControlComprobantes {
-  adjuntar:     (ordenId: string, file: File) => void;
-  /** LANZA si el servidor rechaza; quien llama decide dónde mostrar el motivo. */
-  decidir:      (ordenId: string, id: string, accion: 'verificar' | 'rechazar') => Promise<void>;
-  /** Trae del SERVIDOR y mergea. Se llama al abrir el detalle. */
-  refrescar:    (ordenId: string) => void;
-  subiendo:     boolean;
-  enVuelo:      (id: string) => boolean;
-  error:        string | null;
-  mostrarError: (e: unknown, fallback: string) => void;
-  limpiarError: () => void;
-}
 
 interface OrderDetailProps {
   order:        Order;
