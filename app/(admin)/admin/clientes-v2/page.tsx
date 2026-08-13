@@ -9,8 +9,11 @@ import { BADGE_TONE_CLASS } from '@duna/design-system/status';
 import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
 import { customerWhatsappHref } from '@duna/core/whatsapp-link';
-import { getCustomers, getCustomer } from '@/lib/api/customers';
+import { toast } from 'sonner';
+import { getCustomers, getCustomer, deleteCustomer } from '@/lib/api/customers';
 import { ChipCanal } from '@/components/admin/ChipCanal';
+import { CustomerFormModal } from '@/components/admin/CustomerFormModal';
+import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { siteConfig } from '@/lib/config/site';
 import {
   CARRILES_CLIENTES, aplicarCarril, conteosClientes, carrilPorKey, buscarClientes,
@@ -141,6 +144,36 @@ function ClientesV2() {
   const errorDetalle    = fallo?.id === idElegido ? fallo.msg : null;
   const cargandoDetalle = !!idElegido && !detalleVigente && !errorDetalle;
 
+  // ═══ MUTACIONES · viven en LA PÁGINA, no en el panel ═══════════════════════
+  //
+  // El panel se desmonta al cambiar de cliente, así que una mutación montada ahí
+  // puede perder su continuación (§ el gate del 2026-08-06). Acá arriba el peor
+  // caso es que el panel reabra ya con el cambio aplicado.
+  //
+  // Los diálogos son los shadcn REUSADOS: el design-system no tiene primitiva de
+  // diálogo (H6) y construir una acá sería inventar. Mezcla visual temporal y
+  // declarada, igual que en Pedidos.
+  const [editando, setEditando]   = useState<Customer | null>(null);
+  const [creando, setCreando]     = useState(false);
+  const [borrando, setBorrando]   = useState<Customer | null>(null);
+  const formAbierto = creando || !!editando;
+
+  const guardado = useCallback((c: Customer, modo: 'creado' | 'actualizado') => {
+    setClientes(prev => modo === 'creado'
+      ? [c, ...prev]
+      // El PATCH devuelve la fila cruda, SIN los agregados que calcula el GET de
+      // la lista (`ordenes`, `total_compras`, `pedidosPorAtender`, `ultimaOrden`).
+      // Se preservan los que ya había: pisarlos con `undefined` dejaría la tarjeta
+      // diciendo "$ 0 · 0 pedidos" hasta la próxima carga, que es un dato falso
+      // provocado por editar el teléfono.
+      : prev.map(p => p.id === c.id
+          ? { ...p, ...c, ordenes: p.ordenes, ordenesRef: p.ordenesRef,
+              total_compras: p.total_compras, pedidosPorAtender: p.pedidosPorAtender,
+              ultimaOrden: p.ultimaOrden }
+          : p));
+    toast.success(modo === 'creado' ? 'Cliente creado' : 'Cliente actualizado');
+  }, []);
+
   const navegar = useCallback((cambios: Record<string, string | null>) => {
     const q = new URLSearchParams(params.toString());
     for (const [k, v] of Object.entries(cambios)) {
@@ -153,11 +186,23 @@ function ClientesV2() {
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
     <div className="duna">
-      <header style={{ marginBottom: 'var(--duna-space-5)' }}>
-        <h1 className="duna-display-m">Clientes</h1>
-        <p className="duna-sub">
-          {cargando ? 'Cargando…' : `${clientes.length} ${clientes.length === 1 ? 'cliente' : 'clientes'}`}
-        </p>
+      <header style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-4)', marginBottom: 'var(--duna-space-5)' }}>
+        <div style={{ minWidth: 0 }}>
+          <h1 className="duna-display-m">Clientes</h1>
+          <p className="duna-sub">
+            {cargando ? 'Cargando…' : `${clientes.length} ${clientes.length === 1 ? 'cliente' : 'clientes'}`}
+          </p>
+        </div>
+        {/* EL único primario sólido de la vista. Todo lo demás va secundario o
+            ghost — ésa es la regla de un solo sólido por pantalla. */}
+        <button
+          type="button"
+          className="duna-btn duna-btn--primary"
+          style={{ marginLeft: 'auto', flexShrink: 0 }}
+          onClick={() => setCreando(true)}
+        >
+          Nuevo cliente
+        </button>
       </header>
 
       {/* ── Las tres cifras ───────────────────────────────────────────────────
@@ -272,11 +317,44 @@ function ClientesV2() {
                 detalle={detalleVigente}
                 cargando={cargandoDetalle}
                 error={errorDetalle}
+                onEditar={() => setEditando(elegido)}
+                onEliminar={() => setBorrando(elegido)}
               />
             )}
           </div>
         </div>
       )}
+
+      {/* ═══ DIÁLOGOS · montados en la PÁGINA, no en el panel ═════════════════ */}
+      <CustomerFormModal
+        open={formAbierto}
+        customer={editando}
+        onOpenChange={(abierto) => { if (!abierto) { setCreando(false); setEditando(null); } }}
+        onSaved={guardado}
+      />
+      <ConfirmDeleteDialog
+        open={!!borrando}
+        onOpenChange={(abierto) => { if (!abierto) setBorrando(null); }}
+        title="Eliminar cliente"
+        entityLabel={borrando
+          ? [borrando.nombre, borrando.telefono ?? borrando.email].filter(Boolean).join(' · ')
+          : ''}
+        consequence="Se eliminará permanentemente. Esta acción no se puede deshacer."
+        confirmLabel="Eliminar cliente"
+        successMessage="Cliente eliminado"
+        onConfirm={async () => {
+          if (!borrando) return;
+          // LANZA si el servidor rechaza (el 409 de "tiene N pedidos"): el diálogo
+          // se queda abierto y muestra el motivo, que es su contrato. La guarda de
+          // la UI es una cortesía; el servidor es el que manda.
+          await deleteCustomer(borrando.id);
+          setClientes(prev => prev.filter(c => c.id !== borrando.id));
+          // Se suelta la selección: el panel no puede quedar mostrando a alguien
+          // que ya no existe, y el `?cliente=` en la URL sobreviviría a un refresh.
+          if (seleccion === borrando.id) navegar({ cliente: null });
+          setBorrando(null);
+        }}
+      />
     </div>
   );
 }
@@ -287,11 +365,14 @@ function ClientesV2() {
 // un capricho: la cabecera se pinta de inmediato con lo que la lista ya tiene, y
 // lo que exige el viaje (los pedidos) aparece cuando llega. Así abrir un cliente
 // no deja el panel en blanco.
-function Detalle({ cliente, detalle, cargando, error }: {
+function Detalle({ cliente, detalle, cargando, error, onEditar, onEliminar }: {
   cliente: Customer;
   detalle: CustomerWithOrders | null;
   cargando: boolean;
   error: string | null;
+  /** El panel RENDERIZA y llama hacia arriba: no es dueño de ninguna mutación. */
+  onEditar: () => void;
+  onEliminar: () => void;
 }) {
   const porAtender = cliente.pedidosPorAtender ?? 0;
   const badge = badgeAtencion(porAtender);
@@ -447,6 +528,32 @@ function Detalle({ cliente, detalle, cargando, error }: {
           {pedidos.map(p => <FilaPedido key={p.id} pedido={p} />)}
         </div>
       )}
+
+      <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
+
+      {/* ── Acciones ─────────────────────────────────────────────────────────
+          ELIMINAR SÓLO APARECE CUANDO APLICA. Un cliente con pedidos NO se puede
+          borrar nunca —sus pedidos son historia financiera y la FK es
+          `SetNull`—, así que no es una acción bloqueada temporalmente: es una que
+          no existe para él. La lista vieja la muestra deshabilitada con un
+          tooltip; acá vale la regla del panel —una acción que no aplica no está,
+          porque un botón muerto es una pregunta— y el porqué ya está a la vista
+          dos líneas más arriba, en "N pedidos".
+
+          Se gatea con `ordenesRef` (referencias crudas, incluidas las canceladas),
+          que es lo MISMO que cuenta la guarda del servidor. Con el conteo visible
+          (`ordenes`, que excluye canceladas) el botón aparecería para un cliente
+          de sólo-canceladas y el servidor lo rechazaría con un 409. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)' }}>
+        <button type="button" className="duna-btn duna-btn--secondary" onClick={onEditar}>
+          Editar cliente
+        </button>
+        {(cliente.ordenesRef ?? 0) === 0 && (
+          <button type="button" className="duna-btn duna-btn--ghost" onClick={onEliminar}>
+            Eliminar
+          </button>
+        )}
+      </div>
     </div>
   );
 }
