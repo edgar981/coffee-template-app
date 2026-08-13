@@ -520,6 +520,49 @@ otra pantalla fije la suya, migrar los ejemplos de la referencia a etiquetas
 **evidentemente de muestra** (Paso 1 · Paso 2 · …) con el descargo. Enseña menos,
 pero no puede caducar.
 
+### 5. H6 — el design-system no tiene primitiva de diálogo
+
+`/admin/pedidos` opera sus doce flujos con los **modales shadcn de
+`/admin/ordenes`**, reusados tal cual. Es una mezcla visual dentro de una pantalla
+que por fuera es Duna OS.
+
+**Por qué se decidió reusar y no construir** (owner, tras discovery): los siete
+flujos resultaron reutilizables —seis invocables sin tocar nada, y el séptimo
+(`ControlComprobantes`) salió a `hooks/useControlComprobantes.ts` con un
+movimiento mecánico—. Ninguno importaba nada de la página vieja. Construir el
+diálogo ahora habría significado **reescribir ~1.000 líneas ya probadas en
+producción** (Schedule 522 · RegisterPayment 250 · ConfirmDelete 187 ·
+ConfirmDespachoSinPago 40) para obtener el mismo comportamiento con otro chrome.
+
+**El argumento que decidió, y que conviene retener:** mientras `/admin/ordenes`
+siga existiendo, reescribir esos flujos deja **dos implementaciones de los mismos
+seis conviviendo** —incluidos el orden pago→sello y la confirmación de despacho sin
+cobro—. Es la divergencia que este repo ya pagó tres veces (`razonDelServidor`,
+`cruzoMinimo`, el "Confirmado" fósil de la referencia). Reescribir algo que sigue
+existiendo en otro lado no es progreso.
+
+**Costo YA pagado:** hoy, ninguno más que la mezcla visual. Es deuda de forma, no
+de comportamiento — y por eso está al final de esta lista.
+
+**DISPARADOR — y es el cambio importante:** NO es "cuando haga falta un diálogo"
+(ya hacen falta cuatro y se resolvieron reusando). Es **cuando `/admin/ordenes`
+muera**: ése es el momento en que reescribir deja de duplicar. Ahí la primitiva se
+construye y los flujos se migran una sola vez.
+
+Al construirla, la decisión que hay que tomar primero: el diálogo necesita foco
+atrapado, Escape, click-fuera, bloqueo de scroll y `aria-modal` — todo eso lo da
+hoy Radix (`components/ui/dialog.tsx` son 128 líneas de wrapper). O el paquete
+**toma dependencia de `@radix-ui/react-dialog`** y deja de ser sin dependencias, o
+**reimplementa el foco atrapado**, que es justo la parte que se hace mal. No es una
+decisión de estilo y no debería tomarse a mitad de la migración.
+
+**Observación aparte, más chica pero de la misma familia:** el DS tampoco tiene
+variante **destructiva** de botón (`--primary`, `--secondary`, `--ghost`, `--sm`).
+"Marcar Fallido" y "Cancelar orden" en `/admin/pedidos` van con `--ghost`. Se puede
+argumentar que está bien —la severidad la lleva el confirm, y marcar fallido
+registra un hecho en vez de destruir algo— pero la ausencia es real y conviene
+decidirla, no heredarla por accidente.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
