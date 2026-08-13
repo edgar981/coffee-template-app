@@ -34,6 +34,7 @@ import { hasScheduleData, isScheduledShipping, missingToDispatch } from '@/const
 import { estadoEntrega, accionFilaEntrega, fechaEntrega } from '@/lib/entrega-estado';
 import { useTransicionEntrega, type TransicionEntrega } from '@/hooks/useTransicionEntrega';
 import { useControlComprobantes, type ControlComprobantes } from '@/hooks/useControlComprobantes';
+import { CANCELAR_ORDEN_COPY, RECHAZAR_COMPROBANTE_COPY } from '@/constants/confirmaciones';
 import { ConfirmDespachoSinPago } from '@/components/admin/ConfirmDespachoSinPago';
 import { Pliegue } from '@/components/admin/Pliegue';
 import { ImageLightbox } from '@/components/admin/ImageLightbox';
@@ -56,20 +57,6 @@ import { METODOS_PAGO, METODO_PAGO_LABEL, metodoPrevistoLabel } from '@/types/pa
 // Payment (§ el estado de cobro lo escribe SOLO el path de pago). Estos valores
 // siguen usándose para LEER — filtros, tabs, StatusBadge —, nunca para escribir.
 const ESTADOS: OrderStatus[] = ['pendiente', 'pagado', 'cancelado'];
-
-// Copy ÚNICO de "Cancelar orden", compartido por la acción de fila y la del
-// detalle para que las dos digan exactamente lo mismo (una sola fuente evita que
-// diverjan). `cancelado` es la otra cara de `Order.estado` —la de CANCELACIÓN, no
-// cobro— y sí es una transición legítima que el server acepta.
-// Qué le pasa al Payment al cancelar: NADA — `transitionOrder` anula el envío y
-// reintegra el stock despachado, pero no toca el pago. La decisión de negocio de
-// "pagos sobre canceladas" es una conversación aparte (pendiente con Luis); acá
-// solo se conserva y se declara el comportamiento actual.
-const CANCELAR_ORDEN_COPY = {
-  title:        'Cancelar orden',
-  consequence:  'La orden se marca como CANCELADA (no se elimina: es un registro auditable). Si tiene un envío, se anula y el stock ya despachado se reintegra. Un pago registrado, si lo hubiera, NO se modifica aquí.',
-  confirmLabel: 'Cancelar orden',
-} as const;
 
 const CANALES: OrderChannel[] = ['whatsapp', 'instagram', 'directo', 'referido'];
 
@@ -757,7 +744,7 @@ function Ordenes() {
         entityLabel={cancelando ? `Orden ${cancelando.numero_orden}${cancelando.cliente_nombre ? ` · ${cancelando.cliente_nombre}` : ''}` : ''}
         consequence={CANCELAR_ORDEN_COPY.consequence}
         confirmLabel={CANCELAR_ORDEN_COPY.confirmLabel}
-        busyLabel="Cancelando…"
+        busyLabel={CANCELAR_ORDEN_COPY.busyLabel}
         successMessage="Orden cancelada"
         onConfirm={async () => {
           if (!cancelando) return;
@@ -1694,10 +1681,10 @@ function OrderDetail({ order, onClose, onUpdate, onCancelar, comprobantes: contr
       <ConfirmDeleteDialog
         open={!!rechazando}
         onOpenChange={(abierto) => { if (!abierto) setRechazando(null); }}
-        title="Rechazar comprobante"
+        title={RECHAZAR_COMPROBANTE_COPY.title}
         entityLabel={rechazando ? nombreArchivo(rechazando.url) : ''}
-        consequence="Quedará marcado como rechazado y NO se elimina: el archivo se conserva como constancia de que se revisó. Podrás adjuntar el comprobante correcto en esta misma orden."
-        confirmLabel="Rechazar comprobante"
+        consequence={RECHAZAR_COMPROBANTE_COPY.consequence}
+        confirmLabel={RECHAZAR_COMPROBANTE_COPY.confirmLabel}
         confirmKind="default"
         onConfirm={async () => {
           if (!rechazando) return;
