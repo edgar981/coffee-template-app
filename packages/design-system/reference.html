@@ -175,7 +175,7 @@
   <section>
     <h2 class="sec">Controles · inventario</h2>
     <div class="row" style="align-items:flex-start">
-      <input class="duna-input" style="width:240px" placeholder="Buscar un producto…">
+      <input class="duna-input" style="width:240px" placeholder="Nombre del producto">
       <button class="duna-switch is-on" id="sw"><span class="duna-switch__thumb"></span></button>
       <div class="duna-stepper"><button>−</button><input value="6"><button>+</button></div>
       <div style="width:180px">
@@ -188,6 +188,24 @@
       <button class="duna-pill">Por reponer <span class="duna-num">2</span></button>
       <button class="duna-pill">Agotados <span class="duna-num">1</span></button>
     </div>
+  </section>
+
+  <!-- BUSCADOR -->
+  <section>
+    <h2 class="sec">Buscador · el campo, no el filtrado</h2>
+    <p class="sec-note">Una variante de <code>duna-input</code> con la lupa adentro, y su frontera es lo que la define: <b style="color:var(--duna-ink)">no sabe qué se busca ni cómo se empata</b>. No guarda la consulta, no hace debounce, no recorre ninguna lista. Buscar clientes empata contra nombre, correo y teléfono; buscar productos empataría contra SKU — elegir uno de esos criterios acá obligaría al sistema a conocer el dominio. El componente <code>SearchField</code> es controlado: recibe el texto y avisa el nuevo.</p>
+    <div class="row" style="align-items:flex-start">
+      <div class="duna-search" style="width:280px">
+        <svg class="duna-search__ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input type="search" class="duna-input" aria-label="Buscar un cliente" placeholder="Buscar por nombre, correo o teléfono…">
+      </div>
+      <div class="duna-search" style="width:280px">
+        <svg class="duna-search__ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input type="search" class="duna-input" aria-label="Buscar un cliente" value="lau">
+      </div>
+    </div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">El nombre accesible (<code>label</code>) es OBLIGATORIO y no tiene default. Sin <code>&lt;label&gt;</code> visible el campo se anunciaría como "cuadro de edición" y nada más — y el <code>placeholder</code> no sirve de nombre: desaparece al escribir. Tampoco puede haber un "Buscar" por defecto: el sistema es agnóstico de idioma, igual que la timeline no inventa la palabra para un actor ausente.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">La X que Chrome y Safari le montan al <code>type="search"</code> está APAGADA: trae su propio color y su propia tipografía, y aparece y desaparece dentro del campo. Si una pantalla necesita limpiar la consulta con un control, ése es un control suyo y visible.</div>
   </section>
 
   <section>
