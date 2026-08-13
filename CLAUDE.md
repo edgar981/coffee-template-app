@@ -544,24 +544,118 @@ existiendo en otro lado no es progreso.
 **Costo YA pagado:** hoy, ninguno más que la mezcla visual. Es deuda de forma, no
 de comportamiento — y por eso está al final de esta lista.
 
-**DISPARADOR — y es el cambio importante:** NO es "cuando haga falta un diálogo"
-(ya hacen falta cuatro y se resolvieron reusando). Es **cuando `/admin/ordenes`
-muera**: ése es el momento en que reescribir deja de duplicar. Ahí la primitiva se
-construye y los flujos se migran una sola vez.
+**DISPARADOR — sin cambio:** NO es "cuando haga falta un diálogo" (ya hacen falta
+cuatro y se resolvieron reusando). Es **cuando `/admin/ordenes` muera**: ése es el
+momento en que reescribir deja de duplicar. Ahí la primitiva se construye y los
+flujos se migran una sola vez.
 
-Al construirla, la decisión que hay que tomar primero: el diálogo necesita foco
-atrapado, Escape, click-fuera, bloqueo de scroll y `aria-modal` — todo eso lo da
-hoy Radix (`components/ui/dialog.tsx` son 128 líneas de wrapper). O el paquete
-**toma dependencia de `@radix-ui/react-dialog`** y deja de ser sin dependencias, o
-**reimplementa el foco atrapado**, que es justo la parte que se hace mal. No es una
-decisión de estilo y no debería tomarse a mitad de la migración.
+### Lo que la maqueta ya resuelve, y cómo cambia el cálculo
 
-**Observación aparte, más chica pero de la misma familia:** el DS tampoco tiene
-variante **destructiva** de botón (`--primary`, `--secondary`, `--ghost`, `--sm`).
-"Marcar Fallido" y "Cancelar orden" en `/admin/pedidos` van con `--ghost`. Se puede
-argumentar que está bien —la severidad la lleva el confirm, y marcar fallido
-registra un hecho en vez de destruir algo— pero la ausencia es real y conviene
-decidirla, no heredarla por accidente.
+Existe **diseño de referencia** de los diálogos (`duna-modales.html`), y define:
+
+- **DOS formas, no una.** Drawer lateral para los cinco flujos con formulario;
+  dialog centrado para las dos confirmaciones.
+- **`btn-danger`** (`var(--bad)`), que es la variante destructiva que faltaba.
+- **`is-saving`**: bloquea el modal ENTERO mientras la mutación viaja.
+- **Checkbox de confirmación** en el destructivo.
+
+**Esto cambia el cálculo en las dos direcciones, y por eso hay que re-dimensionar
+cuando se abra, no antes:**
+
+- **Sube el piso.** Re-estilar el wrapper shadcn NO alcanza: el drawer lateral es
+  otra FORMA, no otro color. La primitiva tiene que existir de verdad.
+- **Baja el techo.** Y esto es lo que corrige la estimación anterior de "reescribir
+  ~1.000 líneas": los seis flujos ya son **componentes invocables** —lo verificó el
+  discovery— así que lo que cambia es su ENVOLTORIO, no su contenido. No es
+  reescribir los flujos; es cambiarles el marco.
+
+Tres cosas que conviene tener decididas ANTES de empezar, porque a mitad de la
+migración salen mal:
+
+1. **Radix o a mano.** El diálogo necesita foco atrapado, Escape, click-fuera,
+   bloqueo de scroll y `aria-modal`. Todo eso lo da hoy Radix
+   (`components/ui/dialog.tsx` son 128 líneas de wrapper). O el paquete **toma
+   dependencia de `@radix-ui/react-dialog`** y deja de ser sin dependencias, o
+   **reimplementa el foco atrapado**, que es justo la parte que se hace mal.
+2. **`is-saving` NO reemplaza a `useAccionGuardada`.** Es la mitad VISIBLE de la
+   guarda de doble-submit; la que de verdad corta la re-entrada del mismo tick es
+   el ref síncrono (§ Doble-submit). Una primitiva que bloquee el modal y haga
+   creer que la guarda ya está puesta reabriría el agujero que ese hook cerró.
+3. **El checkbox de confirmación es un CAMBIO DE COMPORTAMIENTO**, no una
+   consecuencia gratis del rediseño: hoy `ConfirmDeleteDialog` no lo tiene. Suma
+   un paso a "Cancelar orden". Es una decisión de producto que viaja con H6 y hay
+   que tomarla como tal.
+
+**La maqueta NO está en el repo** (verificado: no existe `duna-modales.html`,
+trackeado ni sin trackear). Vive fuera, y eso es exactamente lo que se pierde — es
+la misma familia del ítem 4 de esta lista, pero peor, porque acá el repo ni
+siquiera puede verla. **Al abrir H6, lo primero es que la maqueta entre**, como
+entró `reference.html`: sin eso, la primitiva no tiene contra qué verificarse.
+
+### Lo que la maqueta pide y el DOMINIO NO TIENE
+
+Se leyó y se contrastó campo por campo. **La maqueta no es sólo una forma: trae
+decisiones de PRODUCTO que hoy no existen.** Separarlas importa, porque
+"implementar la maqueta" significaría, sin decirlo, construir varias features:
+
+- **PAGO PARCIAL.** Monto editable, "saldo pendiente", un comprobante de "abono", y
+  el hint *"si registras menos que el saldo, el pedido queda con pago parcial"*.
+  Hoy NO existe: `registrarPago` snapshotea `Order.total` server-side y transiciona
+  a `pagado` (§ La CARTERA — "si algún día existen pagos parciales, ESTA es la línea
+  que deja de ser cierta"). `RegisterPaymentModal` ni siquiera acepta monto. Es la
+  discrepancia más cara de la maqueta y toca cartera, analítica y el eje de cobro.
+- **PSE y Tarjeta** como métodos. `MetodoPago` es NEQUI · DAVIPLATA · EFECTIVO ·
+  TRANSFERENCIA · OTRO.
+- **Monto y método POR COMPROBANTE** ("Transferencia PSE · $124.000"). `Comprobante`
+  no tiene ninguno de los dos: es la EVIDENCIA, no la plata (§3.1).
+- **Motivo de cancelación** guardado en el historial. No hay columna, y
+  `OrderStatusTransition` no tiene campo de motivo (§ el hueco de historial de
+  `Order.estado`).
+- **Aviso al cliente por WhatsApp al cancelar.** El canal es un STUB
+  (`PENDIENTE_CANAL`) y no hay automatización de cancelación.
+- **"El pago queda marcado para devolución manual".** Cancelar NO toca el `Payment`
+  — es comportamiento conservado y declarado, y qué hacer con un pago sobre una
+  orden cancelada sigue siendo una decisión de negocio pendiente.
+- **Motivo del rechazo "que se le envía al cliente".** La columna existe y se
+  escribe (`Comprobante.notas_verificacion`), pero NO se le envía nada a nadie: hoy
+  sólo se muestra en el panel. La mitad de esto ya está.
+- **Tres franjas horarias.** `shipping-config` tiene dos (`am`, `pm`).
+- **Mensajeros como entidad** con avatar y carga ("Camilo tiene 2 entregas hoy").
+  `Shipping.mensajero` es un String libre.
+- **"Guardar borrador"** y **"Pedir otro comprobante"**: no existen.
+- **Vocabulario**: "Aprobar" por verificar, "Sin pagar" por el badge de cobro ya
+  decidido (Pagado · Contraentrega · Sin acreditar).
+
+Y un FÓSIL, el mismo que ya se corrigió una vez: el fondo de la maqueta dibuja
+**cinco** `steps`. La secuencia canónica son **cuatro** (§ backlog 4).
+
+### Y lo que la maqueta contradice del DESIGN SYSTEM
+
+Sus tokens son una copia del DS que ya DERIVÓ, así que copiarlos tal cual
+reintroduce diferencias en silencio:
+
+- **`--bad-ink` distinto**: `#96422F` (maqueta) contra `#A0472F` (DS); en oscuro
+  `#E08A72` contra `#D07C66`.
+- **No existe `--ok-ink`**, y los badges usan `--ok` y `--bad` COMO TEXTO. El DS
+  tiene las variantes `-ink` precisamente porque el fill no pasa AA como texto:
+  copiarlo es una regresión de contraste.
+- **`--shadow-3` distinta** (`24px 64px .18` contra `16px 48px .14`).
+- **Sin escala de espaciado ni de tipografía**: la maqueta usa px y rem sueltos que
+  no caen en la escala del DS (`.m-title` 1.15rem contra `--duna-text-title`
+  1.1875rem; `.eyebrow` .66rem contra `--duna-text-caption` .6875rem…).
+- Y el prefijo: escribe `var(--bad)`, que en el paquete es **`--duna-bad`**.
+
+**La maqueta se lee como INTENCIÓN DE FORMA, no como fuente de valores.** Los
+valores los tiene el DS, y son los que ya están en producción.
+
+**El hueco de la variante destructiva de botón queda RESUELTO POR DISEÑO**
+(`btn-danger` = `var(--bad)`) y se implementa junto con H6. Hasta entonces "Marcar
+Fallido" y "Cancelar orden" en `/admin/pedidos` van con `--ghost` — defendible,
+porque la severidad la lleva el confirm y marcar fallido registra un hecho en vez
+de destruir algo, pero es un interino, no la forma final.
+
+Al implementarlo, el valor sale del DS (`--duna-bad`), no de la maqueta — ver la
+lista de derivas de arriba.
 
 ## Mejoras post-multitenant
 

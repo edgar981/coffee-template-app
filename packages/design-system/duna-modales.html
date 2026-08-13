@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Duna — Modales de Pedidos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F4F3EF; --bg:#F7F6F2; --surface:#FFFFFF; --surface-2:#FBFAF7;
+  --ink:#141311; --ink-2:#3D3A34; --muted:#7C776B; --faint:#A8A399;
+  --border:#E9E6DD; --border-2:#DDD9CD;
+  --sol:#F59E0B; --sol-ink:#8A5A00; --sol-soft:rgba(245,158,11,.12);
+  --ok:#4C7A5A; --ok-soft:rgba(76,122,90,.12);
+  --bad:#B5533C; --bad-ink:#96422F; --bad-soft:rgba(181,83,60,.10);
+  --shadow-1:0 1px 2px rgba(20,19,17,.04);
+  --shadow-2:0 4px 16px rgba(20,19,17,.07), 0 1px 2px rgba(20,19,17,.05);
+  --shadow-3:0 24px 64px rgba(20,19,17,.18), 0 2px 8px rgba(20,19,17,.08);
+  --r-s:8px; --r-m:12px; --r-l:16px;
+  --font-ui:'Hanken Grotesk',system-ui,sans-serif;
+  --font-display:'Space Grotesk',var(--font-ui);
+  --font-mono:'Spline Sans Mono',ui-monospace,monospace;
+  --ease:cubic-bezier(.22,.8,.36,1);
+}
+[data-theme="dark"]{
+  --paper:#121212; --bg:#131211; --surface:#1B1A18; --surface-2:#181715;
+  --ink:#F4F3EF; --ink-2:#CFCBC0; --muted:#9A958A; --faint:#6E6A60;
+  --border:#2A2824; --border-2:#38352F;
+  --sol-ink:#F5B04C; --sol-soft:rgba(245,158,11,.14);
+  --ok:#7FAE8D; --ok-soft:rgba(127,174,141,.12);
+  --bad:#D07C66; --bad-ink:#E08A72; --bad-soft:rgba(208,124,102,.12);
+  --shadow-1:0 1px 2px rgba(0,0,0,.3);
+  --shadow-2:0 4px 16px rgba(0,0,0,.35);
+  --shadow-3:0 24px 64px rgba(0,0,0,.6);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font-ui); background:var(--bg); color:var(--ink); font-size:.875rem; line-height:1.5; -webkit-font-smoothing:antialiased; min-height:100vh; transition:background .3s var(--ease)}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+.num{font-family:var(--font-display); font-variant-numeric:tabular-nums}
+.mono{font-family:var(--font-mono); font-size:.7rem; letter-spacing:.01em}
+.eyebrow{font-size:.66rem; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); font-weight:600}
+.sub{color:var(--muted); font-size:.8rem}
+
+/* ===================== GALLERY CHROME ===================== */
+.chrome{position:sticky; top:0; z-index:200; background:color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); padding:14px 24px 12px}
+.chrome-top{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+.chrome-title{font-family:var(--font-display); font-weight:600; font-size:.95rem; display:flex; align-items:center; gap:9px}
+.pills{display:flex; gap:6px; flex-wrap:wrap}
+.pill{padding:5px 12px; border-radius:99px; font-size:.73rem; font-weight:600; color:var(--muted); border:1px solid transparent; transition:all .14s var(--ease)}
+.pill:hover{color:var(--ink)}
+.pill.on{background:var(--surface); border-color:var(--border-2); color:var(--ink); box-shadow:var(--shadow-1)}
+.chrome-right{margin-left:auto; display:flex; gap:6px; align-items:center}
+.state-row{display:flex; align-items:center; gap:8px; margin-top:10px}
+.state-label{font-size:.66rem; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); font-weight:700}
+.pill.st.on{border-color:var(--ink); background:transparent; box-shadow:none}
+.theme-pill{display:flex; align-items:center; gap:6px; padding:5px 12px; border-radius:99px; font-size:.73rem; font-weight:600; color:var(--muted); border:1px solid var(--border)}
+.theme-pill:hover{color:var(--ink); border-color:var(--border-2)}
+
+/* ===================== FAKE BACKDROP (Pedidos) ===================== */
+.stage{position:relative; min-height:calc(100vh - 90px); overflow:hidden}
+.fake{padding:26px 32px; max-width:1100px; margin:0 auto; filter:saturate(.96); user-select:none; pointer-events:none}
+.fake .hrow{display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:16px}
+.fake .h1{font-family:var(--font-display); font-weight:500; font-size:1.4rem}
+.fk-btn{padding:8px 14px; border-radius:8px; background:var(--ink); color:var(--paper); font-weight:600; font-size:.78rem}
+.fk-card{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:13px 16px; margin-bottom:10px; display:flex; align-items:center; gap:12px; box-shadow:var(--shadow-1)}
+.fk-name{font-weight:600; font-size:.84rem}
+.fk-sub{font-size:.72rem; color:var(--muted)}
+.fk-amt{margin-left:auto; font-family:var(--font-display); font-weight:600}
+.steps{display:flex; gap:4px; width:110px}
+.step{flex:1; height:3px; border-radius:2px; background:var(--border-2)}
+.step.done{background:var(--ink)} .step.now{background:var(--sol)}
+
+/* ===================== SCRIM ===================== */
+.modal[hidden],.scrim[hidden]{display:none !important}
+.scrim{position:absolute; inset:0; background:rgba(20,19,17,.34); backdrop-filter:blur(3px); z-index:50; animation:fdin .25s var(--ease)}
+[data-theme="dark"] .scrim{background:rgba(0,0,0,.55)}
+@keyframes fdin{from{opacity:0}}
+
+/* ===================== DIALOG LANGUAGE ===================== */
+/* Drawer lateral: flujos con formulario. Diálogo centrado: confirmaciones. */
+.drawer{position:absolute; top:0; right:0; bottom:0; width:min(480px,100%); background:var(--surface); border-left:1px solid var(--border); box-shadow:var(--shadow-3); z-index:60; display:flex; flex-direction:column; animation:slidein .32s var(--ease)}
+@keyframes slidein{from{transform:translateX(40px); opacity:0}}
+.dialog-wrap{position:absolute; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; padding:24px}
+.dialog{width:420px; max-width:100%; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-l); box-shadow:var(--shadow-3); animation:popin .28s var(--ease)}
+@keyframes popin{from{opacity:0; transform:scale(.97) translateY(8px)}}
+.m-head{padding:20px 24px 14px; display:flex; align-items:flex-start; gap:12px; border-bottom:1px solid var(--border)}
+.m-head.borderless{border-bottom:none; padding-bottom:0}
+.m-title{font-family:var(--font-display); font-weight:500; font-size:1.15rem; letter-spacing:-.01em; margin-top:2px}
+.m-ctx{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.m-ctx .mono{color:var(--faint)}
+.close-x{margin-left:auto; width:28px; height:28px; border-radius:8px; color:var(--muted); display:flex; align-items:center; justify-content:center; font-size:1.15rem; flex-shrink:0; transition:all .14s var(--ease)}
+.close-x:hover{background:var(--surface-2); color:var(--ink)}
+.m-body{flex:1; overflow:auto; padding:18px 24px 22px}
+.dialog .m-body{padding:16px 24px 20px}
+.m-foot{padding:14px 24px; border-top:1px solid var(--border); background:var(--surface-2); display:flex; align-items:center; gap:10px; border-radius:0 0 var(--r-l) var(--r-l)}
+.drawer .m-foot{border-radius:0}
+.m-foot .left{margin-right:auto}
+.btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:9px 16px; border-radius:var(--r-s); font-weight:600; font-size:.8rem; border:1px solid transparent; transition:all .15s var(--ease); position:relative}
+.btn-primary{background:var(--ink); color:var(--paper)}
+.btn-primary:hover{opacity:.9}
+.btn-danger{background:var(--bad); color:#fff}
+.btn-danger:hover{opacity:.9}
+.btn-danger:disabled,.btn-primary:disabled{opacity:.35; cursor:not-allowed}
+.btn-secondary{background:var(--surface); border-color:var(--border-2)}
+.btn-secondary:hover{border-color:var(--faint)}
+.btn-ghost{color:var(--muted)} .btn-ghost:hover{color:var(--ink)}
+/* guardando: spinner reemplaza contenido, botón bloqueado */
+.btn .spin{width:14px; height:14px; border-radius:50%; border:2px solid rgba(255,255,255,.35); border-top-color:#fff; animation:rot .7s linear infinite; display:none}
+@keyframes rot{to{transform:rotate(360deg)}}
+.is-saving .btn-primary .spin,.is-saving .btn-danger .spin{display:block}
+.is-saving .btn-primary .btxt,.is-saving .btn-danger .btxt{opacity:.5}
+.is-saving .btn,.is-saving input,.is-saving select,.is-saving .chip{pointer-events:none}
+.is-saving .btn-primary,.is-saving .btn-danger{opacity:.85}
+
+/* ===================== FIELDS ===================== */
+.fg{margin-bottom:16px}
+.flabel{font-size:.73rem; font-weight:600; color:var(--ink-2); display:block; margin-bottom:5px}
+.flabel .req{color:var(--faint); font-weight:500}
+.finput{width:100%; padding:10px 12px; border:1px solid var(--border-2); border-radius:var(--r-m); background:var(--surface); outline:none; font-size:.85rem; transition:border-color .15s var(--ease), box-shadow .15s var(--ease)}
+.finput:focus{border-color:var(--ink); box-shadow:0 0 0 3px rgba(20,19,17,.07)}
+[data-theme="dark"] .finput:focus{border-color:var(--ink-2); box-shadow:0 0 0 3px rgba(244,243,239,.09)}
+.fhint{font-size:.7rem; color:var(--faint); margin-top:5px}
+.frow{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.chips{display:flex; gap:8px; flex-wrap:wrap}
+.chip{display:flex; align-items:center; gap:8px; padding:9px 13px; border:1px solid var(--border-2); border-radius:var(--r-m); font-weight:600; font-size:.79rem; background:var(--surface); transition:all .14s var(--ease); color:var(--ink-2)}
+.chip:hover{border-color:var(--faint)}
+.chip.on{border-color:var(--ink); color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink)}
+.chip .av{width:22px;height:22px;border-radius:50%;background:var(--paper);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700}
+[data-theme="dark"] .chip .av{background:var(--surface-2)}
+.chip .hintx{font-size:.64rem; color:var(--sol-ink); font-weight:700}
+/* campo faltante: solo cuando el estado lo pide */
+.is-incomplete .miss .flabel{color:var(--sol-ink)}
+.is-incomplete .miss .finput,.is-incomplete .miss .chips .chip{border-color:var(--sol)}
+.miss-tag{display:none; font-size:.66rem; font-weight:700; color:var(--sol-ink); margin-left:6px}
+.is-incomplete .miss .miss-tag{display:inline}
+
+/* ===================== NOTICES ===================== */
+.notice{display:flex; gap:11px; align-items:flex-start; padding:12px 14px; border-radius:var(--r-m); font-size:.78rem; line-height:1.5; margin-bottom:16px}
+.notice .nic{width:22px;height:22px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.notice .nic svg{width:12px;height:12px;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.notice b{display:block}
+.notice-sol{background:var(--sol-soft); color:var(--ink-2)}
+.notice-sol .nic{background:var(--sol); } .notice-sol .nic svg{stroke:#fff}
+.notice-sol b{color:var(--sol-ink)}
+.notice-bad{background:var(--bad-soft); color:var(--ink-2); display:none}
+.notice-bad .nic{background:var(--bad)} .notice-bad .nic svg{stroke:#fff}
+.notice-bad b{color:var(--bad-ink)}
+.is-error .notice-bad{display:flex}
+.notice-neutral{background:var(--surface-2); border:1px solid var(--border); color:var(--muted)}
+/* incompleto: aviso que aparece con el estado */
+.notice-incomplete{display:none}
+.is-incomplete .notice-incomplete{display:flex}
+
+/* ===================== ADDRESS BLOCK ===================== */
+.addr-known{display:flex; gap:11px; padding:12px 14px; border:1px solid var(--border); border-radius:var(--r-m); background:var(--surface-2); align-items:flex-start}
+.addr-known .aic{width:26px;height:26px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.addr-known .aic svg{width:13px;height:13px;stroke:var(--ink-2);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.addr-add{margin-top:10px; padding:12px 14px; border:1px dashed var(--border-2); border-radius:var(--r-m)}
+.addr-add .frow{margin-top:8px}
+
+/* ===================== BADGES / STATUS ===================== */
+.badge{display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:99px; font-size:.68rem; font-weight:600}
+.badge .bd{width:5px;height:5px;border-radius:50%}
+.badge-sol{background:var(--sol-soft); color:var(--sol-ink)} .badge-sol .bd{background:var(--sol)}
+.badge-ok{background:var(--ok-soft); color:var(--ok)} .badge-ok .bd{background:var(--ok)}
+.badge-bad{background:var(--bad-soft); color:var(--bad)} .badge-bad .bd{background:var(--bad)}
+.badge-neutral{background:var(--surface-2); border:1px solid var(--border); color:var(--muted)}
+
+/* ===================== PAGO ===================== */
+.saldo-line{display:flex; align-items:baseline; gap:10px; padding:14px 16px; border:1px solid var(--border); border-radius:var(--r-m); background:var(--surface-2); margin-bottom:16px}
+.saldo-big{font-family:var(--font-display); font-weight:600; font-size:1.5rem}
+.money-wrap{display:flex; border:1px solid var(--border-2); border-radius:var(--r-m); overflow:hidden; transition:border-color .15s var(--ease), box-shadow .15s var(--ease)}
+.money-wrap:focus-within{border-color:var(--ink); box-shadow:0 0 0 3px rgba(20,19,17,.07)}
+.money-pre{padding:10px 12px; background:var(--surface-2); border-right:1px solid var(--border); color:var(--muted); font-weight:600; font-size:.84rem}
+.money-wrap input{flex:1; border:none; outline:none; background:transparent; padding:10px 12px; font-family:var(--font-display); font-weight:600; font-size:.95rem; min-width:0}
+.dropzone{border:1.5px dashed var(--border-2); border-radius:var(--r-m); padding:16px; text-align:center; background:var(--surface-2); color:var(--faint); font-size:.76rem}
+.dropzone b{color:var(--ink-2); font-weight:600; display:block; font-size:.79rem}
+.dropzone svg{width:20px;height:20px;stroke:currentColor;stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round;margin-bottom:5px}
+
+/* ===================== DESTRUCTIVO ===================== */
+.danger-list{margin:4px 0 14px}
+.danger-item{display:flex; gap:10px; align-items:flex-start; padding:7px 0; font-size:.8rem; color:var(--ink-2)}
+.danger-item svg{width:14px;height:14px;stroke:var(--bad);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;margin-top:3px}
+.confirm-check{display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border:1px solid var(--border-2); border-radius:var(--r-m); cursor:pointer; transition:border-color .15s var(--ease)}
+.confirm-check:hover{border-color:var(--faint)}
+.confirm-check input{width:15px;height:15px;accent-color:var(--bad);margin-top:2px;flex-shrink:0}
+.confirm-check span{font-size:.79rem; color:var(--ink-2)}
+
+/* ===================== COMPROBANTES ===================== */
+.cp-item{border:1px solid var(--border); border-radius:var(--r-m); overflow:hidden; margin-bottom:12px}
+.cp-view{height:150px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; position:relative; border-bottom:1px solid var(--border)}
+.cp-doc{width:110px; height:120px; background:var(--surface); border:1px solid var(--border-2); border-radius:6px; box-shadow:var(--shadow-2); padding:10px; display:flex; flex-direction:column; gap:5px}
+.cp-doc i{display:block; height:5px; border-radius:3px; background:var(--border)}
+.cp-doc i.w60{width:60%} .cp-doc i.w80{width:80%} .cp-doc i.amt{background:var(--ink); opacity:.6; height:8px; width:50%; margin-top:auto}
+.cp-zoom{position:absolute; right:10px; bottom:10px; display:flex; gap:6px}
+.cp-zoom button{width:26px;height:26px;border-radius:7px;background:var(--surface);border:1px solid var(--border-2);color:var(--muted);font-weight:700;display:flex;align-items:center;justify-content:center}
+.cp-meta{padding:11px 14px; display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+.cp-meta .who{font-size:.72rem; color:var(--muted)}
+.cp-actions{padding:0 14px 12px; display:flex; gap:8px; align-items:center}
+.reject-box{padding:0 14px 14px; display:none}
+.cp-item.rejecting .reject-box{display:block}
+.cp-item.rejecting .cp-actions .btn-secondary{border-color:var(--bad); color:var(--bad-ink)}
+
+@media (max-width:640px){.drawer{width:100%}.dialog-wrap{padding:12px}.frow{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<!-- ===================== CHROME ===================== -->
+<div class="chrome">
+  <div class="chrome-top">
+    <span class="chrome-title">
+      <svg width="22" height="22" viewBox="20 18 92 84"><line x1="40" y1="28" x2="40" y2="92" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="M40 28 C86 28 101 38 99 55 C97 79 73 92 40 92" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="81" cy="53" r="8" fill="#F59E0B"/></svg>
+      Modales de Pedidos
+    </span>
+    <div class="pills" id="flowPills">
+      <button class="pill on" data-m="programar">1 · Programar entrega</button>
+      <button class="pill" data-m="editar">1b · Editar</button>
+      <button class="pill" data-m="reprogramar">2 · Reprogramar</button>
+      <button class="pill" data-m="pago">3 · Registrar pago</button>
+      <button class="pill" data-m="sincobro">4 · Despacho sin cobro</button>
+      <button class="pill" data-m="cancelar">5 · Cancelar pedido</button>
+      <button class="pill" data-m="comprobante">6 · Comprobantes</button>
+    </div>
+    <div class="chrome-right">
+      <button class="theme-pill" id="themeBtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg><span id="themeLabel">Oscuro</span></button>
+    </div>
+  </div>
+  <div class="state-row" id="stateRow">
+    <span class="state-label">Estado</span>
+    <button class="pill st on" data-s="normal">Normal</button>
+    <button class="pill st" data-s="incomplete">Incompleto</button>
+    <button class="pill st" data-s="saving">Guardando</button>
+    <button class="pill st" data-s="error">Error</button>
+  </div>
+</div>
+
+<div class="stage" id="stage">
+  <!-- ===================== FONDO: PEDIDOS ===================== -->
+  <div class="fake" aria-hidden="true">
+    <div class="hrow"><div><div class="eyebrow">Operación</div><div class="h1">Pedidos</div></div><span class="fk-btn">+ Nuevo pedido</span></div>
+    <div class="fk-card"><div><div class="fk-name">Laura Cárdenas <span class="mono" style="color:var(--faint)">#1247</span></div><div class="fk-sub">WhatsApp · Esperando confirmación</div></div><div class="steps"><span class="step done"></span><span class="step now"></span><span class="step"></span><span class="step"></span><span class="step"></span></div><span class="fk-amt num">$ 86.500</span></div>
+    <div class="fk-card"><div><div class="fk-name">Julián Restrepo <span class="mono" style="color:var(--faint)">#1246</span></div><div class="fk-sub">Tienda · Preparando</div></div><div class="steps"><span class="step done"></span><span class="step done"></span><span class="step now"></span><span class="step"></span><span class="step"></span></div><span class="fk-amt num">$ 52.000</span></div>
+    <div class="fk-card"><div><div class="fk-name">Marcela Pinzón <span class="mono" style="color:var(--faint)">#1245</span></div><div class="fk-sub">WhatsApp · En camino</div></div><div class="steps"><span class="step done"></span><span class="step done"></span><span class="step done"></span><span class="step now"></span><span class="step"></span></div><span class="fk-amt num">$ 34.000</span></div>
+    <div class="fk-card"><div><div class="fk-name">Andrés Molina <span class="mono" style="color:var(--faint)">#1243</span></div><div class="fk-sub">Tienda · Pago sin acreditar</div></div><div class="steps"><span class="step done"></span><span class="step now"></span><span class="step"></span><span class="step"></span><span class="step"></span></div><span class="fk-amt num">$ 124.000</span></div>
+  </div>
+
+  <div class="scrim" id="scrim"></div>
+
+  <!-- ===================== 1 · PROGRAMAR ENTREGA (drawer) ===================== -->
+  <aside class="drawer modal" id="m-programar">
+    <div class="m-head">
+      <div>
+        <div class="m-ctx"><span class="eyebrow">Programar entrega</span><span class="mono">PED-1246</span><span class="badge badge-neutral">Preparando</span></div>
+        <h2 class="m-title">Julián Restrepo · <span class="num">$ 52.000</span></h2>
+      </div>
+      <button class="close-x">×</button>
+    </div>
+    <div class="m-body">
+      <div class="notice notice-bad"><span class="nic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg></span><div><b>No se pudo guardar.</b> Se perdió la conexión con el servidor. Tus datos siguen aquí — intenta de nuevo.</div></div>
+      <div class="notice notice-sol notice-incomplete"><span class="nic"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span><div><b>Guardado, pero aún no se puede despachar.</b> Tiene fecha pero falta el mensajero. Puedes cerrar y completarlo después.</div></div>
+
+      <div class="fg miss">
+        <label class="flabel">Mensajero <span class="miss-tag">FALTA</span></label>
+        <div class="chips">
+          <button class="chip"><span class="av">CR</span>Camilo Ruiz</button>
+          <button class="chip"><span class="av">DV</span>Diana Vega</button>
+          <button class="chip"><span class="av">＋</span>Otro</button>
+        </div>
+        <div class="fhint">Camilo tiene 2 entregas hoy; Diana está libre.</div>
+      </div>
+
+      <div class="fg">
+        <label class="flabel">Fecha y franja</label>
+        <div class="frow">
+          <input class="finput num" value="Vie 7 ago" readonly>
+          <select class="finput"><option>2 – 5 p.m.</option><option>9 – 12 a.m.</option><option>5 – 8 p.m.</option></select>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label class="flabel">Dirección de entrega</label>
+        <!-- variante: sin dirección — se agrega aquí mismo -->
+        <div class="notice notice-sol" style="margin-bottom:10px"><span class="nic"><svg viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg></span><div><b>Este pedido no tiene dirección.</b> Agrégala aquí — no necesitas salir del formulario.</div></div>
+        <div class="addr-add">
+          <input class="finput" placeholder="Calle y número · ej. Cra 12 # 45-30">
+          <div class="frow">
+            <input class="finput" placeholder="Barrio o referencia">
+            <select class="finput"><option>Bogotá</option><option>Chía</option><option>Soacha</option></select>
+          </div>
+          <div class="fhint">Quedará guardada en el pedido y en el perfil de Julián.</div>
+        </div>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-ghost left">Cancelar</button>
+      <button class="btn btn-secondary">Guardar borrador</button>
+      <button class="btn btn-primary"><span class="spin"></span><span class="btxt">Guardar entrega</span></button>
+    </div>
+  </aside>
+
+  <!-- ===================== 1b · EDITAR ENTREGA ===================== -->
+  <aside class="drawer modal" id="m-editar" hidden>
+    <div class="m-head">
+      <div>
+        <div class="m-ctx"><span class="eyebrow">Editar entrega</span><span class="mono">PED-1245</span><span class="badge badge-neutral">Programada</span></div>
+        <h2 class="m-title">Marcela Pinzón · <span class="num">$ 34.000</span></h2>
+      </div>
+      <button class="close-x">×</button>
+    </div>
+    <div class="m-body">
+      <div class="notice notice-bad"><span class="nic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg></span><div><b>No se pudo guardar.</b> Se perdió la conexión con el servidor. Tus datos siguen aquí — intenta de nuevo.</div></div>
+      <div class="fg">
+        <label class="flabel">Mensajero</label>
+        <div class="chips">
+          <button class="chip on"><span class="av">CR</span>Camilo Ruiz</button>
+          <button class="chip"><span class="av">DV</span>Diana Vega</button>
+          <button class="chip"><span class="av">＋</span>Otro</button>
+        </div>
+      </div>
+      <div class="fg">
+        <label class="flabel">Fecha y franja</label>
+        <div class="frow">
+          <input class="finput num" value="Hoy, 6 ago" readonly>
+          <select class="finput"><option>5 – 8 p.m.</option><option>2 – 5 p.m.</option></select>
+        </div>
+        <div class="fhint">Marcela ya recibió la hora estimada. Si cambias la franja, se le avisa por WhatsApp.</div>
+      </div>
+      <div class="fg">
+        <label class="flabel">Dirección de entrega</label>
+        <div class="addr-known">
+          <span class="aic"><svg viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+          <div style="flex:1"><div style="font-weight:600;font-size:.8rem">Cl 45 # 13-40, Teusaquillo</div><div class="sub" style="font-size:.72rem">Torre 2, apto 502 · "timbrar duro"</div></div>
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.72rem">Cambiar</button>
+        </div>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-ghost left">Cancelar</button>
+      <button class="btn btn-primary"><span class="spin"></span><span class="btxt">Guardar cambios</span></button>
+    </div>
+  </aside>
+
+  <!-- ===================== 2 · REPROGRAMAR (drawer) ===================== -->
+  <aside class="drawer modal" id="m-reprogramar" hidden>
+    <div class="m-head">
+      <div>
+        <div class="m-ctx"><span class="eyebrow">Reprogramar entrega</span><span class="mono">PED-1240</span><span class="badge badge-sol"><span class="bd"></span>Entrega fallida</span></div>
+        <h2 class="m-title">Carlos Mejía · <span class="num">$ 61.000</span></h2>
+      </div>
+      <button class="close-x">×</button>
+    </div>
+    <div class="m-body">
+      <div class="notice notice-bad"><span class="nic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg></span><div><b>No se pudo guardar.</b> Se perdió la conexión con el servidor. Tus datos siguen aquí — intenta de nuevo.</div></div>
+      <!-- contexto del intento fallido: esto es atención legítima, no decoración -->
+      <div class="notice notice-sol"><span class="nic"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span><div><b>Intento fallido · ayer 4:15 p.m.</b> Diana llegó y el cliente no estaba. Carlos ya sabe que se reintenta — estás agendando el segundo intento.</div></div>
+
+      <div class="fg">
+        <label class="flabel">Mensajero</label>
+        <div class="chips">
+          <button class="chip on"><span class="av">DV</span>Diana Vega <span class="hintx">· hizo el 1er intento</span></button>
+          <button class="chip"><span class="av">CR</span>Camilo Ruiz</button>
+        </div>
+        <div class="fhint">Diana ya conoce la dirección y el timbre malo del edificio.</div>
+      </div>
+
+      <div class="fg">
+        <label class="flabel">Nueva fecha y franja</label>
+        <div class="frow">
+          <input class="finput num" value="Mañana, 7 ago" readonly>
+          <select class="finput"><option>9 – 12 a.m. · el cliente pidió mañana</option><option>2 – 5 p.m.</option></select>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label class="flabel">Dirección de entrega</label>
+        <div class="addr-known">
+          <span class="aic"><svg viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+          <div style="flex:1"><div style="font-weight:600;font-size:.8rem">Av 19 # 120-15, Usaquén</div><div class="sub" style="font-size:.72rem">Confirmada en el primer intento</div></div>
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:.72rem">Cambiar</button>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label class="flabel">Nota para el mensajero <span class="req">· opcional</span></label>
+        <input class="finput" placeholder="Ej. llamar al llegar, el timbre no funciona">
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-ghost left">Cancelar</button>
+      <button class="btn btn-primary"><span class="spin"></span><span class="btxt">Agendar segundo intento</span></button>
+    </div>
+  </aside>
+
+  <!-- ===================== 3 · REGISTRAR PAGO (drawer) ===================== -->
+  <aside class="drawer modal" id="m-pago" hidden>
+    <div class="m-head">
+      <div>
+        <div class="m-ctx"><span class="eyebrow">Registrar pago</span><span class="mono">PED-1243</span><span class="badge badge-bad"><span class="bd"></span>Sin pagar</span></div>
+        <h2 class="m-title">Andrés Molina</h2>
+      </div>
+      <button class="close-x">×</button>
+    </div>
+    <div class="m-body">
+      <div class="notice notice-bad"><span class="nic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg></span><div><b>No se pudo registrar.</b> El servidor rechazó la petición (500). El monto y el método siguen aquí — intenta de nuevo.</div></div>
+
+      <div class="saldo-line">
+        <span class="saldo-big num">$ 124.000</span>
+        <span class="sub">saldo pendiente</span>
+        <span class="badge badge-neutral" style="margin-left:auto">total del pedido $ 124.000</span>
+      </div>
+
+      <div class="fg">
+        <label class="flabel">Monto recibido</label>
+        <div class="money-wrap"><span class="money-pre">COP $</span><input class="num" value="124.000" inputmode="numeric"></div>
+        <div class="fhint">Si registras menos que el saldo, el pedido queda con pago parcial y Duna sigue mostrando lo que falta.</div>
+      </div>
+
+      <div class="fg">
+        <label class="flabel">Método</label>
+        <div class="chips">
+          <button class="chip on">PSE <span class="hintx">· el cliente dijo que pagaría así</span></button>
+          <button class="chip">Nequi</button>
+          <button class="chip">Efectivo</button>
+          <button class="chip">Tarjeta</button>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label class="flabel">Comprobante <span class="req">· opcional</span></label>
+        <div class="dropzone"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg><b>Arrastra la captura o el PDF</b>También puedes pegarla con Ctrl+V</div>
+        <div class="fhint">Si lo adjuntas, quedará pendiente de verificación en el pedido.</div>
+      </div>
+
+      <div class="fg">
+        <label class="flabel">Referencia <span class="req">· opcional</span></label>
+        <input class="finput mono" placeholder="PSE-20931" style="font-size:.8rem">
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-ghost left">Cancelar</button>
+      <button class="btn btn-primary"><span class="spin"></span><span class="btxt">Registrar $ 124.000</span></button>
+    </div>
+  </aside>
+
+  <!-- ===================== 4 · DESPACHO SIN COBRO (diálogo centrado) ===================== -->
+  <div class="dialog-wrap modal" id="m-sincobro" hidden>
+    <div class="dialog">
+      <div class="m-head borderless">
+        <div>
+          <div class="m-ctx"><span class="eyebrow">Confirmar despacho</span><span class="mono">PED-1246</span></div>
+          <h2 class="m-title">Despachar sin cobrar</h2>
+        </div>
+        <button class="close-x">×</button>
+      </div>
+      <div class="m-body">
+        <div class="notice notice-bad" style="margin-bottom:12px"><span class="nic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg></span><div><b>No se pudo confirmar.</b> Intenta de nuevo — el pedido no cambió de estado.</div></div>
+        <p style="font-size:.84rem; color:var(--ink-2)">El pedido de <b>Julián Restrepo</b> sale sin pago registrado. El saldo de <b class="num">$ 52.000</b> queda a <b>contraentrega</b>: el mensajero lo cobra al entregar.</p>
+        <div class="notice notice-neutral" style="margin:12px 0 0"><div>Esto es normal para contraentrega. Solo confirma que es intencional — el pedido aparecerá en Pagos como pendiente de cobro.</div></div>
+      </div>
+      <div class="m-foot">
+        <button class="btn btn-ghost left">Volver</button>
+        <button class="btn btn-primary"><span class="spin"></span><span class="btxt">Despachar y cobrar al entregar</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 5 · CANCELAR PEDIDO (diálogo destructivo) ===================== -->
+  <div class="dialog-wrap modal" id="m-cancelar" hidden>
+    <div class="dialog">
+      <div class="m-head borderless">
+        <div>
+          <div class="m-ctx"><span class="eyebrow" style="color:var(--bad-ink)">Acción irreversible</span><span class="mono">PED-1247</span></div>
+          <h2 class="m-title">Cancelar el pedido de Laura</h2>
+        </div>
+        <button class="close-x">×</button>
+      </div>
+      <div class="m-body">
+        <div class="notice notice-bad" style="margin-bottom:12px"><span class="nic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg></span><div><b>No se pudo cancelar.</b> El pedido sigue activo. Intenta de nuevo.</div></div>
+        <p class="sub" style="margin-bottom:6px">Al cancelar:</p>
+        <div class="danger-list">
+          <div class="danger-item"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>Laura recibe la notificación de cancelación por WhatsApp.</div>
+          <div class="danger-item"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>El pago de <b class="num">&nbsp;$ 86.500&nbsp;</b> por Nequi queda marcado para devolución manual.</div>
+          <div class="danger-item"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>Las 2 unidades de Café Huila vuelven al inventario.</div>
+          <div class="danger-item"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>No se puede deshacer. El historial queda, el pedido no.</div>
+        </div>
+        <label class="confirm-check"><input type="checkbox" id="ckCancel"><span>Entiendo que esta acción no se puede deshacer y que debo gestionar la devolución del pago.</span></label>
+        <div class="fg" style="margin:14px 0 0">
+          <label class="flabel">Motivo <span class="req">· se guarda en el historial</span></label>
+          <select class="finput"><option>El cliente lo pidió</option><option>Producto agotado</option><option>No se pudo entregar</option><option>Pedido de prueba / error</option></select>
+        </div>
+      </div>
+      <div class="m-foot">
+        <button class="btn btn-ghost left">Conservar pedido</button>
+        <button class="btn btn-danger" id="btnCancelar" disabled><span class="spin"></span><span class="btxt">Cancelar definitivamente</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 6 · COMPROBANTES (drawer) ===================== -->
+  <aside class="drawer modal" id="m-comprobante" hidden>
+    <div class="m-head">
+      <div>
+        <div class="m-ctx"><span class="eyebrow">Verificar comprobantes</span><span class="mono">PED-1243</span><span class="badge badge-sol"><span class="bd"></span>1 pendiente</span></div>
+        <h2 class="m-title">Andrés Molina · <span class="num">$ 124.000</span></h2>
+      </div>
+      <button class="close-x">×</button>
+    </div>
+    <div class="m-body">
+      <div class="notice notice-bad"><span class="nic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg></span><div><b>No se pudo guardar la decisión.</b> El comprobante sigue pendiente. Intenta de nuevo.</div></div>
+
+      <!-- pendiente: decisión abierta, con rechazo desplegado -->
+      <div class="cp-item rejecting">
+        <div class="cp-view">
+          <div class="cp-doc"><i class="w60"></i><i class="w80"></i><i></i><i class="w60"></i><i class="amt"></i></div>
+          <div class="cp-zoom"><button>−</button><button>+</button><button title="Abrir">↗</button></div>
+        </div>
+        <div class="cp-meta">
+          <span class="badge badge-sol"><span class="bd"></span>Pendiente</span>
+          <div><div style="font-weight:600;font-size:.8rem">Transferencia PSE · <span class="num">$ 124.000</span></div><div class="who">Subido por el cliente por WhatsApp · hoy 2:10 p.m. · <span class="mono">PSE-20931</span></div></div>
+        </div>
+        <div class="cp-actions">
+          <button class="btn btn-primary" style="padding:7px 13px"><span class="spin"></span><span class="btxt">Aprobar</span></button>
+          <button class="btn btn-secondary" style="padding:7px 13px">Rechazar</button>
+          <span class="sub" style="font-size:.7rem;margin-left:auto">El banco aún no reporta esta referencia</span>
+        </div>
+        <div class="reject-box">
+          <label class="flabel">Motivo del rechazo <span class="req">· se le envía al cliente</span></label>
+          <input class="finput" value="La referencia no aparece en el banco todavía. ¿Puedes reenviar el comprobante completo?">
+          <div style="display:flex;gap:8px;margin-top:9px">
+            <button class="btn btn-danger" style="padding:7px 13px"><span class="spin"></span><span class="btxt">Confirmar rechazo</span></button>
+            <button class="btn btn-ghost" style="padding:7px 10px">No rechazar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ya decidido: aprobado -->
+      <div class="cp-item">
+        <div class="cp-view" style="height:110px">
+          <div class="cp-doc" style="width:90px;height:86px"><i class="w60"></i><i class="w80"></i><i class="amt"></i></div>
+          <div class="cp-zoom"><button>↗</button></div>
+        </div>
+        <div class="cp-meta">
+          <span class="badge badge-ok"><span class="bd"></span>Aprobado</span>
+          <div><div style="font-weight:600;font-size:.8rem">Nequi · <span class="num">$ 40.000</span> · abono</div><div class="who">Verificado por ti · ayer 6:32 p.m.</div></div>
+        </div>
+      </div>
+
+      <div class="notice notice-neutral"><div>Cada comprobante se decide por separado. El saldo del pedido se actualiza solo con los aprobados.</div></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-ghost left">Cerrar</button>
+      <button class="btn btn-secondary">Pedir otro comprobante</button>
+    </div>
+  </aside>
+
+</div><!-- /stage -->
+
+<script>
+/* Galería de referencia: alterna flujo, estado y tema. Los modales son estáticos. */
+const $ = id => document.getElementById(id);
+const MODALS = ['programar','editar','reprogramar','pago','sincobro','cancelar','comprobante'];
+/* estados aplicables por flujo (los que no aplican se ocultan del selector) */
+const STATES = {
+  programar:['normal','incomplete','saving','error'],
+  editar:['normal','saving','error'],
+  reprogramar:['normal','saving','error'],
+  pago:['normal','saving','error'],
+  sincobro:['normal','saving','error'],
+  cancelar:['normal','saving','error'],
+  comprobante:['normal','saving','error']
+};
+let curFlow='programar', curState='normal';
+function apply(){
+  MODALS.forEach(m=>{ $('m-'+m).hidden = m!==curFlow; });
+  $('scrim').hidden = !curFlow;
+  document.querySelectorAll('#flowPills .pill').forEach(p=>p.classList.toggle('on', p.dataset.m===curFlow));
+  $('stateRow').style.visibility = curFlow ? '' : 'hidden';
+  if(!curFlow) return;
+  const el = $('m-'+curFlow);
+  el.classList.toggle('is-incomplete', curState==='incomplete');
+  el.classList.toggle('is-saving', curState==='saving');
+  el.classList.toggle('is-error', curState==='error');
+  document.querySelectorAll('#stateRow .st').forEach(p=>{
+    const ok = STATES[curFlow].includes(p.dataset.s);
+    p.style.display = ok ? '' : 'none';
+    p.classList.toggle('on', p.dataset.s===curState);
+  });
+}
+function closeModal(){ curFlow=null; apply(); }
+document.querySelectorAll('.close-x').forEach(x=>x.addEventListener('click', closeModal));
+$('scrim').addEventListener('click', closeModal);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
+/* clic en el fondo del diálogo centrado (fuera de la tarjeta) también cierra */
+document.querySelectorAll('.dialog-wrap').forEach(w=>w.addEventListener('click', e=>{ if(e.target===w) closeModal(); }));
+document.querySelectorAll('#flowPills .pill').forEach(p=>p.addEventListener('click',()=>{
+  curFlow=p.dataset.m;
+  if(!STATES[curFlow].includes(curState)) curState='normal';
+  apply();
+}));
+document.querySelectorAll('#stateRow .st').forEach(p=>p.addEventListener('click',()=>{ if(!curFlow) return; curState=p.dataset.s; apply(); }));
+$('themeBtn').addEventListener('click',()=>{
+  const el=document.documentElement, dark=el.dataset.theme==='dark';
+  el.dataset.theme = dark?'light':'dark';
+  $('themeLabel').textContent = dark?'Oscuro':'Claro';
+});
+const ck = $('ckCancel');
+if(ck) ck.addEventListener('change',()=>{ $('btnCancelar').disabled = !ck.checked; });
+apply();
+</script>
+</body>
+</html>

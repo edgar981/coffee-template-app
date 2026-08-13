@@ -29,7 +29,16 @@ primitives/
   status.ts       Modelo de estado + la IMPOSIBILIDAD ESTRUCTURAL del "en curso".
 reference.html    Página de referencia viva: renderiza tokens y primitivas.
                   Ábrela directo en el navegador — es la prueba.
+
+duna-modales.html        Maqueta de los diálogos de Pedidos (H6). NO es espec ni
+duna-modales.NOTES.md    fuente de valores — trae su propia copia de los tokens,
+                         que ya derivó, y dibuja features que el dominio no tiene.
+                         LEER LA NOTA ANTES QUE EL HTML.
 ```
+
+La diferencia entre las dos páginas importa: `reference.html` enlaza los tokens
+reales del paquete y **se rompe si el sistema se rompe**; `duna-modales.html` es una
+maqueta desconectada, y por eso necesita su lectura crítica al lado.
 
 ## Consumo (Tailwind v4)
 
