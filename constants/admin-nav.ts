@@ -25,7 +25,13 @@ export const ADMIN_NAV: AdminNavItem[] = [
   // la pantalla vieja. "Órdenes" sale cuando Pedidos absorba esos flujos.
   { icon: Package,         label: 'Pedidos',          path: '/admin/pedidos',          anim: 'cart' },
   { icon: Package,         label: 'Productos',        path: '/admin/productos',        anim: 'package' },
-  { icon: Users,           label: 'Clientes',         path: '/admin/clientes',         anim: 'users' },
+  { icon: Users,           label: 'Clientes (actual)', path: '/admin/clientes',        anim: 'users' },
+  // CONVIVENCIA TEMPORAL Y DECLARADA, igual que Pedidos ↔ Órdenes: la de arriba es
+  // la pantalla que sostiene la operación y ésta es la del rediseño Duna OS. Las
+  // dos en el menú a propósito — es lo que permite el gate visual A/B. Los dos
+  // nombres NO pueden ser "Clientes": el operador tiene que poder decir a cuál
+  // entró. "(actual)" queda en la vieja porque es la que se va.
+  { icon: Users,           label: 'Clientes',         path: '/admin/clientes-v2',      anim: 'users' },
   { icon: Warehouse,       label: 'Inventario',       path: '/admin/inventario',       anim: 'lift' },
   { icon: CreditCard,      label: 'Pagos',            path: '/admin/pagos',            anim: 'lift' },
   { icon: Truck,           label: 'Entregas',         path: '/admin/entregas',         anim: 'truck' },
