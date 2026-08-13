@@ -2,7 +2,6 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { MessageCircle, Camera, Store, Users } from 'lucide-react';
 import { OrderCard } from '@duna/design-system/components/OrderCard';
 import { ItemsTable } from '@duna/design-system/components/ItemsTable';
 import { Timeline } from '@duna/design-system/components/Timeline';
@@ -10,8 +9,8 @@ import { BADGE_TONE_CLASS } from '@duna/design-system/status';
 import { getOrders, getOrder } from '@/lib/api/orders';
 import { formatCOP } from '@duna/core/utils';
 import { METODO_PAGO_LABEL, metodoPrevistoLabel } from '@/types/payment';
-import type { Order, OrderDetalle, OrderChannel } from '@/types/order';
-import { CANALES } from '@/constants/customer';
+import type { Order, OrderDetalle } from '@/types/order';
+import { ChipCanal } from '@/components/admin/ChipCanal';
 import { FILTROS_PEDIDOS, aplicarFiltro, conteos, filtroPorKey, filtrarPorCliente, type FiltroKey } from '@/lib/pedidos/filtros';
 import { pasosDelPedido, badgeCobro } from '@/lib/pedidos/estado';
 import { motivosDeAtencion, textoDeMotivo } from '@/lib/pedidos/atencion';
@@ -72,30 +71,6 @@ interface AccionesPedido {
 // probados en producción— y sus mutaciones viven en ESTE componente, no en el
 // panel: el panel se desmonta al cambiar de pedido y una mutación montada ahí
 // puede perder su continuación (§ el gate del 2026-08-06).
-
-// El DS no conoce canales — recibe un nodo, y el dominio vive acá.
-//
-// Las ETIQUETAS se consumen de `CANALES`, no se re-teclean: es la misma lista que
-// usa Clientes, y dos mapas del mismo dominio divergen en cuanto alguien renombra
-// uno. Acá sólo se declara lo que no existía: el ícono de cada canal.
-//
-// Instagram va con `Camera` y no con su logo: lucide 1.x retiró los íconos de
-// marca. Un SVG propio sería exactamente el valor inventado que esta pantalla no
-// puede tener, y además el chip es contexto, no branding.
-const ICONO_CANAL: Record<OrderChannel, typeof Store> = {
-  whatsapp:  MessageCircle,
-  instagram: Camera,
-  directo:   Store,
-  referido:  Users,
-};
-
-function ChipCanal({ canal }: { canal: OrderChannel }) {
-  // `?? directo` por si llega un canal fuera del union (el payload lo trae como
-  // string): un chip sin ícono rompería la fila; el default no afirma nada falso
-  // que el label no diga ya.
-  const Icono = ICONO_CANAL[canal] ?? Store;
-  return <span className="duna-chip-channel"><Icono />{CANALES[canal] ?? canal}</span>;
-}
 
 /** Iniciales para el avatar. Una letra si el nombre es de una palabra. */
 function iniciales(nombre: string): string {
