@@ -205,6 +205,25 @@ export interface AlcancePedidos {
   estados: OrderStatus[];
 }
 
+/**
+ * Cómo se NOMBRA un alcance de cobro en el aviso que lo muestra.
+ *
+ * Vive acá y no en el JSX por lo de siempre: el vocabulario es la decisión. Dice
+ * "Sólo sin pagar" y no "Estado: pendiente" porque el operador no piensa en el
+ * nombre de la columna — y porque "pendiente" a secas se confunde con la entrega,
+ * que es el otro eje y el que ocupa los carriles.
+ */
+const ETIQUETA_ESTADO: Record<OrderStatus, string> = {
+  pendiente: 'sin pagar',
+  pagado:    'pagadas',
+  cancelado: 'canceladas',
+};
+
+export function etiquetaEstados(estados: OrderStatus[]): string | null {
+  if (!estados.length) return null;
+  return `Sólo ${estados.map(e => ETIQUETA_ESTADO[e]).join(' y ')}`;
+}
+
 /** ¿Hay algún alcance puesto? Lo consume el aviso que los muestra y los quita. */
 export const hayAlcance = (a: AlcancePedidos): boolean =>
   Boolean(a.cliente || a.desde || a.hasta || a.estados.length);

@@ -13,7 +13,11 @@ import { formatCOP } from '@duna/core/utils';
 import { METODO_PAGO_LABEL, metodoPrevistoLabel } from '@/types/payment';
 import type { Order, OrderDetalle } from '@/types/order';
 import { ChipCanal } from '@/components/admin/ChipCanal';
-import { FILTROS_PEDIDOS, aplicarFiltro, conteos, filtroPorKey, filtrarPorCliente, type FiltroKey } from '@/lib/pedidos/filtros';
+import {
+  FILTROS_PEDIDOS, aplicarFiltro, conteos, filtroPorKey,
+  aplicarAlcance, soloOrdenesReales, parseEstados, etiquetaEstados, hayAlcance,
+  type FiltroKey,
+} from '@/lib/pedidos/filtros';
 import { pasosDelPedido, badgeCobro } from '@/lib/pedidos/estado';
 import { motivosDeAtencion, textoDeMotivo } from '@/lib/pedidos/atencion';
 import { recorridoDelPedido, tieneDerivados } from '@/lib/pedidos/recorrido';
@@ -25,6 +29,7 @@ import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
 import { RegisterPaymentModal } from '@/components/admin/RegisterPaymentModal';
 import { NewOrderModal } from '@/components/admin/NewOrderModal';
+import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { findSlotLabel } from '@duna/core/shipping-config';
 import { formatFecha } from '@duna/core/format-fecha';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
@@ -99,11 +104,21 @@ function Pedidos() {
   // a un refresh, igual que `?order=` en la lista vieja.
   const filtro = (filtroPorKey(params.get('f') ?? '')?.key ?? 'todos') as FiltroKey;
   const seleccion = params.get('pedido');
-  // ALCANCE por cliente (`?cliente=<id>`), no un carril: se combina con los siete
-  // y por eso vive aparte del pill. Es a donde apunta el sol de la fila de un
-  // cliente en /admin/clientes-v2 — un punto de atención que no se puede seguir
-  // manda al operador a buscar a mano cuál de todos los pedidos era.
-  const cliente = params.get('cliente');
+  // LOS TRES ALCANCES. Acotan la lista sin ser carriles: se combinan entre sí y
+  // con cualquiera de los siete. De quién es (`cliente`), de cuándo (`desde` /
+  // `hasta`) y si está cobrado (`estado`).
+  //
+  // `estado` es el eje de COBRO, y que vuelva no contradice haberlo retirado como
+  // carril: lo que la doctrina rechazaba era el octavo PILL, no el filtro (§
+  // lib/pedidos/filtros). Sólo llega por enlace profundo — los tres buckets de
+  // cartera de Analítica —, nunca desde un control de esta pantalla.
+  const alcanceUrl = useMemo(() => ({
+    cliente: params.get('cliente'),
+    desde:   params.get('desde'),
+    hasta:   params.get('hasta'),
+    estados: parseEstados(params.get('estado')),
+  }), [params]);
+  const cliente = alcanceUrl.cliente;
 
   const [detalle, setDetalle] = useState<OrderDetalle | null>(null);
   // El fallo lleva el ID al que pertenece, y eso es lo que permite NO tener que
@@ -128,9 +143,15 @@ function Pedidos() {
     return () => { vivo = false; };
   }, []);
 
-  // El ALCANCE se aplica primero y es la base de todo lo demás: la lista, los
-  // conteos y el vacío hablan del cliente elegido, no de la tienda entera.
-  const alcance  = useMemo(() => filtrarPorCliente(pedidos, cliente), [pedidos, cliente]);
+  // LAS `SN-` NO SON PEDIDOS: son fixtures del seed, y ésta era la última
+  // superficie del panel que las mostraba. Se recortan ANTES que nada —incluso
+  // antes de los alcances— porque no es un filtro del operador sino el scope de
+  // la pantalla, y por eso tampoco se anuncia con un tag.
+  const reales = useMemo(() => soloOrdenesReales(pedidos), [pedidos]);
+
+  // EL ALCANCE se aplica primero y es la base de todo lo demás: la lista, los
+  // conteos y el vacío hablan de lo acotado, no de la tienda entera.
+  const alcance  = useMemo(() => aplicarAlcance(reales, alcanceUrl), [reales, alcanceUrl]);
   const visibles = useMemo(() => aplicarFiltro(alcance, filtro), [alcance, filtro]);
   // Los conteos se calculan sobre la lista COMPLETA (dentro del alcance), no sobre
   // la filtrada: el pill tiene que decir cuántos hay en su carril, no cuántos
@@ -296,20 +317,50 @@ function Pedidos() {
           carriles porque los alcanza también a ellos —sus conteos ya son de este
           cliente— y en NEUTRO, nunca con `duna-note`: esa primitiva es sol-soft, y
           el sol significa una cosa sola. Un alcance no pide atención, informa. */}
-      {cliente && !cargando && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', marginBottom: 'var(--duna-space-4)' }}>
-          <span className="duna-tag">
-            Pedidos de {nombreAlcance ?? 'un cliente'}
-          </span>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--duna-space-3)', marginBottom: 'var(--duna-space-4)' }}>
+        {/* EL SELECTOR DE RANGO. Es el único alcance con control propio —los otros
+            dos sólo llegan por enlace profundo— y por eso está siempre visible,
+            junto a los carriles con los que se combina.
+
+            Es el `DateRangePicker` COMPARTIDO con Órdenes y Pagos, reusado tal
+            cual: ya trabaja en day keys de Bogotá, que es exactamente lo que la
+            URL lleva y lo que el filtro compara. El design-system no tiene
+            primitiva de calendario —hueco declarado— así que va shadcn, la misma
+            mezcla temporal que los modales (H6). */}
+        <DateRangePicker
+          desde={alcanceUrl.desde}
+          hasta={alcanceUrl.hasta}
+          onChange={(d, h) => navegar({ desde: d, hasta: h })}
+        />
+
+        {/* LOS ALCANCES SE VEN Y SE QUITAN. Una lista recortada que no dice que
+            está recortada se lee como "la tienda tiene 2 pedidos". Van en NEUTRO
+            (`duna-tag`), nunca con `duna-note`: esa primitiva es sol-soft y el sol
+            significa una cosa sola — un alcance no pide atención, informa.
+
+            El rango NO lleva tag: el selector de al lado ya muestra sus fechas, y
+            un tag repetiría el mismo dato. Se quita desde el propio selector
+            (deseleccionar) o con "Ver todos". */}
+        {!cargando && cliente && (
+          <span className="duna-tag">Pedidos de {nombreAlcance ?? 'un cliente'}</span>
+        )}
+        {!cargando && etiquetaEstados(alcanceUrl.estados) && (
+          <span className="duna-tag">{etiquetaEstados(alcanceUrl.estados)}</span>
+        )}
+
+        {/* UNA sola forma de quitar alcances, la que ya existía para el cliente.
+            Limpia los tres de una vez y NO toca el carril: el carril es dónde
+            estás mirando, no cuánto estás mirando. */}
+        {!cargando && hayAlcance(alcanceUrl) && (
           <button
             type="button"
             className="duna-btn duna-btn--ghost duna-btn--sm"
-            onClick={() => navegar({ cliente: null })}
+            onClick={() => navegar({ cliente: null, desde: null, hasta: null, estado: null })}
           >
             Ver todos
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── Carriles ─────────────────────────────────────────────────────── */}
       <div className="row" style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-5)' }}>
@@ -351,14 +402,20 @@ function Pedidos() {
 
       {!error && !cargando && visibles.length === 0 && (
         <div className="duna-card duna-card__pad">
-          {/* Tres vacíos distintos, y decir cuál es lo que evita que el operador
-              crea que perdió algo: la tienda no tiene pedidos · este CLIENTE no
-              tiene · este carril no tiene. */}
+          {/* Tres vacíos distintos, y decir CUÁL es lo que evita que el operador
+              crea que perdió algo: la tienda no tiene pedidos · el ALCANCE no
+              tiene · este carril no tiene.
+
+              El del alcance dejó de nombrar al cliente: ahora los alcances son
+              tres y el vacío puede venir del rango o del cobro. Decir "este
+              cliente no tiene pedidos" cuando lo que está vacío es la semana
+              pasada mandaría a buscar el problema donde no está — y la línea de
+              arriba ya dice qué alcances hay puestos. */}
           <p className="duna-sub" style={{ margin: 0 }}>
-            {pedidos.length === 0
+            {reales.length === 0
               ? 'Todavía no hay pedidos.'
               : alcance.length === 0
-                ? 'Este cliente no tiene pedidos.'
+                ? 'Ningún pedido en lo que estás mirando. Prueba con "Ver todos".'
                 : 'Ningún pedido en este carril.'}
           </p>
         </div>
