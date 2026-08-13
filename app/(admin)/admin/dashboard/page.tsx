@@ -130,11 +130,15 @@ export default function Dashboard() {
     ingresos_mes:         stats ? { raw: stats.revenueMonth, trend: revenueTrend } : undefined,
     ingresos_historicos:  stats ? { raw: stats.revenueTotal, sub: stats.revenueSince ? `Desde ${formatFecha(stats.revenueSince)}` : undefined } : undefined,
     ordenes_mes:          stats ? { raw: stats.monthly.orders.current, trend: ordersTrend } : undefined,
-    // Cuando hay por-cobrar, el sub dice explícitamente que está DESCONTADO de
-    // este número: las dos tarjetas son un conjunto y su recorte, no dos cifras
-    // rivales. ESTE cross-reference es lo que sostiene esa coherencia (ya no hay
-    // etiqueta de scope). Sin por-cobrar cae al sub del registry.
-    ordenes_pendientes:   stats ? { raw: stats.pendingOrders, sub: porCobrarN > 0 ? `Sin pago · ${porCobrarN} por cobrar aparte` : undefined } : undefined,
+    // El cross-reference con "Por cobrar" SE QUEDA, pero cambió de signo y por eso
+    // cambia el texto: antes las dos tarjetas eran un conjunto y su COMPLEMENTO
+    // ("N por cobrar aparte", descontadas de este número); ahora por-cobrar es uno
+    // de los cuatro motivos de atención, así que va INCLUIDA. Dejar el "aparte"
+    // habría sido la misma frase afirmando lo contrario de lo que pasa.
+    // Lo que no cambia es por qué existe la línea: dos tarjetas que hablan de
+    // conjuntos que se tocan tienen que decir cómo se tocan, o se leen como cifras
+    // rivales. Sin por-cobrar cae al sub del registry.
+    pedidos_por_atender:  stats ? { raw: stats.porAtender, sub: porCobrarN > 0 ? `Incluye ${porCobrarN} por cobrar` : undefined } : undefined,
     promedio_por_orden:   stats ? { raw: stats.avgTicket, trend: avgTrend } : undefined,
     // products/customers default to []/[] and load independently of stats.
     alertas_stock:        { raw: lowStock },

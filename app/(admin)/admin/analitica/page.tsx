@@ -290,12 +290,16 @@ function Cartera({ data, loading }: { data: AnalyticsData | null; loading: boole
           return (
             <Link
               key={b.bucket}
-              href={`/admin/ordenes?${b.query}`}
+              // `b.query` no cambió: sigue siendo `estado=pendiente&desde&hasta`, el
+              // query que `cartera.test.ts` afirma que contiene exactamente las
+              // edades de su bucket. Lo único que cambia es la RUTA — la pantalla
+              // nueva entiende los tres como alcances (§ lib/pedidos/filtros).
+              href={`/admin/pedidos?${b.query}`}
               className="group rounded-lg border border-border p-3 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {contenido}
               <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground group-hover:text-foreground">
-                Ver órdenes <ArrowRight className="w-3 h-3" />
+                Ver pedidos <ArrowRight className="w-3 h-3" />
               </span>
             </Link>
           );

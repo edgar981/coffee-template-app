@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
-  Banknote, Wallet, Truck, ShoppingCart, DollarSign, Clock,
+  Banknote, Wallet, Truck, ShoppingCart, DollarSign, AlertCircle,
   AlertTriangle, Users, Package, TrendingUp, Coins,
 } from 'lucide-react';
 import {
@@ -8,7 +8,7 @@ import {
   type WidgetInsight, type WidgetInsightData,
 } from '@/lib/metrics/insights';
 import { formatFecha } from '@duna/core/format-fecha';
-import { PENDING_ORDERS_QUERY, POR_COBRAR_QUERY } from '@duna/core/metrics/order-stat-filters';
+import { POR_COBRAR_QUERY_PEDIDOS } from '@duna/core/metrics/order-stat-filters';
 import { LOW_STOCK_QUERY } from '@duna/core/metrics/inventory-filters';
 import { STAT_CHIP } from '@/constants/stat-chip';
 
@@ -156,7 +156,7 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
   // de ESTADO ACTUAL — el saldo vigente que el mensajero anda cobrando ahora — y un
   // saldo no lleva declaración de período. "(acumulado)" sugería una ventana
   // temporal que no existe. El sufijo queda reservado a widgets con ventana real.
-  { key: 'por_cobrar',      tono: 'atencion', titulo: 'Por cobrar',         subtitulo: 'Contraentrega despachada', icono: Wallet,     formato: 'cop', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.neutral,         href: `/admin/ordenes?${POR_COBRAR_QUERY}` },
+  { key: 'por_cobrar',      tono: 'atencion', titulo: 'Por cobrar',         subtitulo: 'Contraentrega despachada', icono: Wallet,     formato: 'cop', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.neutral,         href: `/admin/pedidos?${POR_COBRAR_QUERY_PEDIDOS}` },
   // Sin sub: "Salieron a ruta hoy" es la definición de despacho, o sea el título.
   { key: 'despachos_hoy',   titulo: 'Despachos de hoy',   subtitulo: '', icono: Truck,        formato: 'int', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.neutral,                  href: '/admin/entregas',
     // Con fecha (no "hace N días"): para el que despacha, "desde el 24 jul" ubica
@@ -166,7 +166,7 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
       dias:  (_n, fecha) => `Sin despachos desde ${formatFecha(fecha)}`,
       nunca: 'Sin registros todavía',
     }) },
-  { key: 'pedidos_hoy',     titulo: 'Pedidos de hoy',     subtitulo: 'Órdenes creadas hoy', icono: ShoppingCart, formato: 'int', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.neutral,              href: (c) => `/admin/ordenes?desde=${c.today}&hasta=${c.today}`,
+  { key: 'pedidos_hoy',     titulo: 'Pedidos de hoy',     subtitulo: 'Órdenes creadas hoy', icono: ShoppingCart, formato: 'int', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.neutral,              href: (c) => `/admin/pedidos?desde=${c.today}&hasta=${c.today}`,
     insight: (d) => insightUltimoEvento(d, {
       hoy:   'Última orden creada hoy',
       dias:  (n) => `Última orden hace ${n} ${n === 1 ? 'día' : 'días'}`,
@@ -178,12 +178,24 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
   { key: 'ingresos_mes',       titulo: 'Ingresos del mes',   subtitulo: 'Pagos del mes en curso', icono: DollarSign,   formato: 'cop', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.neutral, href: (c) => `/admin/pagos?desde=${c.monthStart}&hasta=${c.today}`, insight: widgetInsight },
   // Sin sub: "Mes en curso" repetía el título. La línea que queda bajo el valor es
   // el insight, que sí agrega algo (tendencia o por qué todavía no hay tendencia).
-  { key: 'ordenes_mes',        titulo: 'Órdenes del mes',    subtitulo: '', icono: ShoppingCart, formato: 'int', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.neutral,              href: (c) => `/admin/ordenes?${c.monthQuery}`, insight: widgetInsight },
+  { key: 'ordenes_mes',        titulo: 'Órdenes del mes',    subtitulo: '', icono: ShoppingCart, formato: 'int', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.neutral,              href: (c) => `/admin/pedidos?${c.monthQuery}`, insight: widgetInsight },
   // También SIN scopeSuffix (mismo motivo: es el conteo vigente, no un período). Lo
   // que mantiene coherente el par con "Por cobrar" es el cross-reference del sub en
   // vivo ("· N por cobrar aparte"), no una etiqueta de scope — ver CLAUDE.md
   // § Por cobrar vs Pendientes.
-  { key: 'ordenes_pendientes', tono: 'atencion', titulo: 'Órdenes Pendientes', subtitulo: 'Sin pago registrado', icono: Clock,   formato: 'int', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.neutral,         href: `/admin/ordenes?${PENDING_ORDERS_QUERY}` },
+  // CAMBIÓ DE PREGUNTA, no de destino. Contaba "pendiente MENOS por-cobrar" —una
+  // cifra del eje de COBRO— y en la pantalla nueva el cobro es una propiedad que se
+  // ve en cada fila, no un carril por el que se entra. La pregunta que sí mueve el
+  // día es "¿qué pide acción?", y ésa tiene carril, tiene endpoint y tiene una sola
+  // definición (`necesitaAtencion`) compartida con el pill y con el punto del nav:
+  // los tres no pueden divergir.
+  //
+  // La KEY cambia con ella. Una key `ordenes_pendientes` que cuenta atención es
+  // exactamente la segunda opinión que esta tanda vino a quitar; el costo es que
+  // quien tuviera la tarjeta vieja guardada la pierde del grid y la vuelve a
+  // agregar en Personalizar (`sanitizeWidgetKeys` descarta las keys que ya no
+  // existen — por diseño).
+  { key: 'pedidos_por_atender', tono: 'atencion', titulo: 'Necesitan atención', subtitulo: 'Pedidos que piden acción', icono: AlertCircle, formato: 'int', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.neutral,         href: '/admin/pedidos?f=atencion' },
   // El sub dice la BASE real del promedio: se divide por PAGOS registrados, no por
   // órdenes (el título es heredado). "Promedio por venta" solo repetía el título.
   { key: 'promedio_por_orden', titulo: 'Promedio por orden', subtitulo: 'Por pago registrado · mes en curso', icono: TrendingUp, formato: 'cop', categoria: 'mes', defaultVisible: false, color: STAT_CHIP.neutral },

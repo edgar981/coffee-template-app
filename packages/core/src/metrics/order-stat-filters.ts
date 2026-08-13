@@ -20,11 +20,15 @@ import type { OrderStatus } from '@/types/order';
 export const PENDING_ESTADO = 'pendiente' satisfies OrderStatus;
 
 /**
- * Query string (without `?`) reproducing the "Órdenes Pendientes" stat exactly:
- * pendiente AND NOT por-cobrar. Kept next to the definition so the card and the
- * list can't diverge.
+ * `PENDING_ORDERS_QUERY` VIVIÓ ACÁ y se retiró con su widget.
+ *
+ * Expresaba "pendiente MENOS por-cobrar" para la pantalla vieja (`estado=…&cobrar=0`).
+ * Su tarjeta cambió de PREGUNTA —de "¿cuántas sin pagar?" a "¿cuántas piden
+ * acción?"— porque la primera es del eje de cobro, que en la pantalla nueva es una
+ * propiedad de cada fila y no un carril por el que se entra. La nueva la responde
+ * `necesitaAtencion`, la misma definición que el pill y el punto del nav, así que
+ * ya no hace falta un query que reconstruya un recorte a mano.
  */
-export const PENDING_ORDERS_QUERY = `estado=${PENDING_ESTADO}&cobrar=0`;
 
 // ─── "Por cobrar" (cuentas por cobrar) ───────────────────────────────────────
 // A CONTRAENTREGA order whose goods already left (dispatched or delivered) but
@@ -47,6 +51,17 @@ export const POR_COBRAR_SHIPPING_ESTADOS = ['en_ruta', 'entregado'] as const;
  * the dashboard "Por cobrar" card and this list show the same rows/total.
  */
 export const POR_COBRAR_QUERY = 'cobrar=1';
+
+/**
+ * El MISMO conjunto, dicho en el vocabulario de `/admin/pedidos`, donde "por
+ * cobrar" es un CARRIL y no un recorte por parámetro.
+ *
+ * Son dos constantes y no una porque hoy hay dos pantallas vivas con dos
+ * vocabularios, y una sola tendría que mentirle a alguna. Las dos se derivan del
+ * MISMO `isPorCobrar` de abajo, que es lo que impide que cuenten distinto. La de
+ * arriba muere con `/admin/ordenes`.
+ */
+export const POR_COBRAR_QUERY_PEDIDOS = 'f=por_cobrar';
 
 /**
  * "Por cobrar" = CONTRAENTREGA + pago pendiente + despacho en curso o entregado.
@@ -124,12 +139,10 @@ export const MONTH_STAT_ESTADOS = NON_CANCELLED_ESTADOS;
  */
 export function currentMonthOrdersQuery(now: Date = new Date()): string {
   const { desde, hasta } = currentMonthRange(now);
-  const qs = new URLSearchParams({
-    estado: MONTH_STAT_ESTADOS.join(','),
-    desde,
-    hasta,
-  }).toString();
-  // Commas are legal unencoded in a query value; leaving them raw keeps the
-  // shared URL readable (`?estado=pendiente,pagado` not `pendiente%2Cpagado`).
-  return qs.replace(/%2C/g, ',');
+  // SIN `estado`. Enumerar `pendiente,pagado` era la única forma de decirle a la
+  // pantalla vieja "todas menos las canceladas", porque su carril "Todos" no
+  // filtraba nada y el enlace habría contado de más. En `/admin/pedidos` ese
+  // carril YA excluye canceladas —la misma `isCountableOrder` que cuenta este
+  // stat— así que el rango solo alcanza y el enlace se lee.
+  return new URLSearchParams({ desde, hasta }).toString();
 }

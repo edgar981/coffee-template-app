@@ -106,12 +106,19 @@ export interface DashboardStats {
   /** Sum of `total` over the por-cobrar set — the receivable, in pesos. */
   porCobrarMonto: number;
 
-  // ── Órdenes pendientes ──
+  // ── Pedidos que piden acción ──
   /**
-   * Orders currently `pendiente` EXCLUDING the por-cobrar set — the ones that
-   * genuinely await action. `pendingOrders + porCobrar` = every pendiente.
+   * Cuántos pedidos necesitan atención AHORA, por `necesitaAtencion` — la MISMA
+   * definición que filtra el pill de `/admin/pedidos` y que enciende el punto sol
+   * del nav. Tres consumidores, una definición: no pueden divergir.
+   *
+   * REEMPLAZA a `pendingOrders` ("pendiente menos por-cobrar"), que era una cifra
+   * del eje de COBRO. La relación con `porCobrar` cambió de forma y conviene
+   * tenerlo escrito: antes eran un conjunto y su COMPLEMENTO (sumaban todo
+   * `pendiente`); ahora por-cobrar es uno de los cuatro motivos de atención, así
+   * que es un SUBCONJUNTO de éste. El sub de la tarjeta lo dice.
    */
-  pendingOrders: number;
+  porAtender: number;
 
   // ── Ingresos (Payments ledger, CN- orders, non-cancelled) ──
   /** Sum of Payment.monto this calendar month (America/Bogota). */
