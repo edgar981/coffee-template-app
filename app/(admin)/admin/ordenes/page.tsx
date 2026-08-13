@@ -1,31 +1,27 @@
 'use client';
 
-import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import { Suspense, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { z } from 'zod';
 import { Plus, Search, ShoppingCart, Truck, CreditCard, X, CheckCircle, AlertCircle, RotateCcw, Pencil, Ban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { toast } from 'sonner';
 import { useAccionGuardada, useAccionesPorFila } from '@/hooks/useAccionGuardada';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
-import { getOrders, createOrder, updateOrder } from '@/lib/api/orders';
+import { getOrders, updateOrder } from '@/lib/api/orders';
 import { ensureOrderShipping } from '@/lib/api/shippings';
-import { getCatalog } from '@/lib/api/products';
-import { lookupCustomers, type CustomerMatch } from '@/lib/api/customers';
 import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
 import { RegisterPaymentModal } from '@/components/admin/RegisterPaymentModal';
-import type { Order, OrderForm, OrderLineForm, OrderStatus, OrderChannel } from '@/types/order';
+import { NewOrderModal } from '@/components/admin/NewOrderModal';
+import type { Order, OrderStatus } from '@/types/order';
 import { CONDICION_PAGO_LABEL } from '@/types/order';
-import type { Product } from '@/types/product';
 import type { Shipping } from '@/types/shipping';
 import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
@@ -46,9 +42,8 @@ import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { MAX_COMPROBANTE_MB } from '@/constants/comprobante';
 import type { Comprobante } from '@/types/comprobante';
 import { filterChip, filterChipTono, FILTER_CHIP_COUNT } from '@/constants/filter-chip';
-import { COLOMBIA_DEPARTMENTS } from '@duna/core/colombia-departments';
 import { isPorCobrar } from '@duna/core/metrics/order-stat-filters';
-import { METODOS_PAGO, METODO_PAGO_LABEL, metodoPrevistoLabel } from '@/types/payment';
+import { metodoPrevistoLabel } from '@/types/payment';
 // El mapa de ETIQUETAS de canal, compartido con Clientes y con `ChipCanal`. Se usa
 // en vez de `capitalize` sobre el valor crudo: un CSS que capitaliza deforma datos
 // reales (direcciones, nombres) y sólo simulaba una etiqueta.
@@ -61,31 +56,6 @@ import { CANALES as CANAL_LABEL } from '@/constants/customer';
 // Payment (§ el estado de cobro lo escribe SOLO el path de pago). Estos valores
 // siguen usándose para LEER — filtros, tabs, StatusBadge —, nunca para escribir.
 const ESTADOS: OrderStatus[] = ['pendiente', 'pagado', 'cancelado'];
-
-const CANALES: OrderChannel[] = ['whatsapp', 'instagram', 'directo', 'referido'];
-
-// Sentinel for the empty "Por definir" option — Radix Select forbids value="".
-// Mapped to '' (no metodoPagoPrevisto) in form state.
-const POR_DEFINIR = '__por_definir__';
-
-// Radix Select no admite '' como value; este centinela representa "sin
-// departamento" y se traduce a '' (omitido en el payload) al guardar.
-const NINGUN_DEPARTAMENTO = '__ninguno__';
-
-const EMPTY_FORM: OrderForm = {
-  cliente_nombre:    '',
-  cliente_email:     '',
-  cliente_telefono:  '',
-  canal:             'whatsapp',
-  costo_envio:       '0',
-  direccion_entrega: '',
-  ciudad_entrega:    '',
-  departamento:      '',
-  notas_internas:    '',
-  items:             [{ slug: '', cantidad: 1, molienda: '' }],
-  metodoPagoPrevisto: '',
-  pagoRecibido:       false,
-};
 
 // ─── URL-driven filters ───────────────────────────────────────────────────────
 // The filter view lives in the query string, so a filtered list is shareable and
@@ -178,8 +148,14 @@ function Ordenes() {
   const [orders, setOrders]             = useState<Order[]>([]);
   const [loading, setLoading]           = useState(true);
   const [search, setSearch]             = useState('');
+  // Lo ÚNICO que queda del formulario acá: si está abierto. Todo lo demás —el
+  // form, el catálogo, la detección de duplicado, la clave de idempotencia— vive
+  // dentro de `NewOrderModal`, que se desmonta al cerrar.
   const [showForm, setShowForm]         = useState(false);
-  const [form, setForm]                 = useState<OrderForm>(EMPTY_FORM);
+  // Antes esto reseteaba el formulario y generaba una clave de idempotencia
+  // nueva, y había que acordarse de llamarlo desde CADA botón que abriera el
+  // diálogo. Ahora sólo abre: el cuerpo del modal nace limpio porque se monta.
+  const openNewOrder = () => setShowForm(true);
   // Order whose delivery is being scheduled (opens the pre-filled modal).
   const [scheduleOrder, setScheduleOrder] = useState<Order | null>(null);
   // Order whose payment is being registered (opens the pre-filled modal).
@@ -188,28 +164,6 @@ function Ordenes() {
   // viejo dropdown de estado de la fila: cancelar es la única transición que ese
   // control escribía de verdad (cobro dejó de escribirse a mano).
   const [cancelando, setCancelando]       = useState<Order | null>(null);
-  // Guarda de envío de Nueva Orden, en la primitiva compartida. `idemKeyRef`
-  // sigue aparte porque resuelve otra cosa: mantiene UNA clave de idempotencia
-  // por formulario abierto, así que si dos peticiones se escaparan igual, el
-  // server las dedupea. La guarda evita el segundo click; la clave cubre el caso
-  // en que el click no fue el problema (un reintento de red, por ejemplo).
-  const guardaCrear                       = useAccionGuardada();
-  const saving                            = guardaCrear.enVuelo;
-  const idemKeyRef                        = useRef<string>('');
-  // Proactive duplicate detection in the New Order modal. `customerMatches` are the
-  // existing customers the phone/email would match (a phone can be shared → many);
-  // `decision` is the operator's explicit choice from the banner. Submit is gated
-  // until they decide when matches exist.
-  const [customerMatches, setCustomerMatches] = useState<CustomerMatch[]>([]);
-  const [decision, setDecision] = useState<{ tipo: 'usar'; clienteId: string } | { tipo: 'nuevo' } | null>(null);
-  const [gateBlocked, setGateBlocked] = useState(false); // "elige el cliente" message + ring
-  const [gatePulse, setGatePulse]     = useState(false); // brief attention pulse
-  const bannerRef      = useRef<HTMLDivElement | null>(null);
-  const firstActionRef = useRef<HTMLButtonElement | null>(null);
-  // Real catalog for the New Order line selectors (same source as the storefront).
-  const [catalog, setCatalog]             = useState<Product[]>([]);
-
-  useEffect(() => { getCatalog().then(setCatalog).catch(() => setCatalog([])); }, []);
 
   useEffect(() => {
     getOrders()
@@ -281,156 +235,6 @@ function Ordenes() {
   };
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-
-  // Opens the New Order form with a FRESH idempotency key — one key per intended
-  // order, reused across double-clicks of that same form so the server can dedup.
-  const resetCustomerDetection = () => { setCustomerMatches([]); setDecision(null); setGateBlocked(false); setGatePulse(false); };
-
-  const openNewOrder = () => {
-    idemKeyRef.current = crypto.randomUUID();
-    setForm(EMPTY_FORM);
-    resetCustomerDetection();
-    setShowForm(true);
-  };
-
-  // Look up the customers this phone/email would match, on blur of those fields.
-  // Read-only; never blocks. Skipped once a decision was made (adopt/new).
-  const detectCustomer = async () => {
-    if (decision) return;
-    const matches = await lookupCustomers({
-      telefono: form.cliente_telefono || undefined,
-      email:    form.cliente_email || undefined,
-    });
-    setCustomerMatches(matches);
-  };
-
-  // Adopt one match: the order carries its cliente_id (no upsert); its name fills
-  // the form. Editing phone/email afterwards resets the decision (below).
-  const chooseUsar = (m: CustomerMatch) => {
-    setDecision({ tipo: 'usar', clienteId: m.id });
-    setForm(f => ({ ...f, cliente_nombre: m.nombre }));
-    setGateBlocked(false); setGatePulse(false);
-  };
-
-  // "Crear cliente nuevo" — an explicit, server-honored decision (forzarClienteNuevo)
-  // so the upsert can't silently re-match. Conscious duplicate; shared phones legal.
-  const chooseNuevo = () => {
-    setDecision({ tipo: 'nuevo' });
-    setGateBlocked(false); setGatePulse(false);
-  };
-
-  // Changing an identity field invalidates any prior detection/decision.
-  const onIdentityChange = () => { if (decision || customerMatches.length) resetCustomerDetection(); };
-
-  const prefersReducedMotion = () =>
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  // Submit was blocked because matches exist and no decision was made: pull the
-  // banner into view, focus its first action, and flag the ring + message. The
-  // pulse is brief and skipped under reduced-motion (the static ring stays).
-  const nudgeToDecide = () => {
-    setGateBlocked(true);
-    bannerRef.current?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' });
-    firstActionRef.current?.focus();
-    if (!prefersReducedMotion()) {
-      setGatePulse(true);
-      setTimeout(() => setGatePulse(false), 1200);
-    }
-  };
-
-  // ── New-order line editing ───────────────────────────────────────────────
-  const productBySlug = (slug: string) => catalog.find(p => p.slug === slug);
-  // First available molienda (mirrors the storefront's default selection).
-  const defaultMolienda = (slug: string) =>
-    (productBySlug(slug)?.moliendasOpciones ?? []).find(o => o.disponible)?.nombre ?? '';
-  const setLines = (items: OrderLineForm[]) => setForm(f => ({ ...f, items }));
-  const addLine = () => setLines([...form.items, { slug: '', cantidad: 1, molienda: '' }]);
-  const removeLine = (i: number) =>
-    setLines(form.items.length > 1 ? form.items.filter((_, idx) => idx !== i) : form.items);
-  const updateLine = (i: number, patch: Partial<OrderLineForm>) =>
-    setLines(form.items.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
-
-  // Display-only totals — the SERVER recomputes authoritatively from the catalog
-  // on create (the admin never types the total).
-  const itemsSubtotal = form.items.reduce((sum, l) => {
-    const p = productBySlug(l.slug);
-    return sum + (p ? p.precio * l.cantidad : 0);
-  }, 0);
-  const calcTotal = itemsSubtotal + (Number(form.costo_envio) || 0);
-  const hasProduct = form.items.some(l => l.slug);
-
-  const errorCrear = useErrorDialogo();
-  const handleSave = () => guardaCrear.ejecutar(async () => {
-    errorCrear.limpiar();
-    if (!form.cliente_nombre.trim()) {
-      toast.error('El nombre del cliente es requerido');
-      return;
-    }
-    // Mirror the server rule: at least one contact (email OR phone). Real orders
-    // arrive by WhatsApp, so a phone alone is enough.
-    if (!form.cliente_email.trim() && !form.cliente_telefono.trim()) {
-      toast.error('Ingresa al menos un teléfono o correo del cliente');
-      return;
-    }
-    const lines = form.items.filter(l => l.slug);
-    if (lines.length === 0) {
-      toast.error('Agrega al menos un producto');
-      return;
-    }
-    // Molido products require an available molienda (the server enforces it too).
-    for (const l of lines) {
-      const p = productBySlug(l.slug);
-      if ((p?.moliendasOpciones?.length ?? 0) > 0 && !l.molienda) {
-        toast.error(`Selecciona la molienda para ${p?.nombre ?? 'el producto'}`);
-        return;
-      }
-    }
-    // Mirror the server rule: "ya pagado" needs a concrete method, not "Por definir".
-    if (form.pagoRecibido && !form.metodoPagoPrevisto) {
-      toast.error('Selecciona el método de pago para marcar la orden como pagada');
-      return;
-    }
-    // Decision gate (UX, never blocks the SALE — only asks): matches exist but the
-    // operator hasn't chosen. Don't submit; pull them to the banner to decide.
-    if (customerMatches.length > 0 && decision === null) {
-      nudgeToDecide();
-      return;
-    }
-    // Guarantee a key even if the form was opened without openNewOrder.
-    if (!idemKeyRef.current) idemKeyRef.current = crypto.randomUUID();
-
-    try {
-      const created = await createOrder({
-        cliente_nombre:    form.cliente_nombre,
-        cliente_email:     form.cliente_email || undefined,
-        cliente_telefono:  form.cliente_telefono || undefined,
-        cliente_id:         decision?.tipo === 'usar' ? decision.clienteId : undefined,
-        forzarClienteNuevo: decision?.tipo === 'nuevo' ? true : undefined,
-        canal:             form.canal,
-        costo_envio:       Number(form.costo_envio) || 0,
-        direccion_entrega: form.direccion_entrega || undefined,
-        // Opcionales: se omiten cuando están vacíos para no romper la creación
-        // rápida (el server los valida solo si llegan).
-        ciudad_entrega:    form.ciudad_entrega || undefined,
-        departamento:      form.departamento || undefined,
-        notas_internas:    form.notas_internas || undefined,
-        metodoPagoPrevisto: form.metodoPagoPrevisto || undefined,
-        pagoRecibido:      form.pagoRecibido,
-        items:             lines.map(l => ({ slug: l.slug, cantidad: l.cantidad, molienda: l.molienda || null })),
-        idempotencyKey:    idemKeyRef.current,
-      });
-      setOrders(prev => [created, ...prev]);
-      toast.success(created.estado === 'pagado' ? 'Orden creada y pago registrado' : 'Orden creada');
-      setShowForm(false);
-      setForm(EMPTY_FORM);
-      resetCustomerDetection();
-    } catch (e) {
-      errorCrear.mostrar(e, 'No se pudo crear la orden');
-    }
-  });
-
-  // Guarda POR FILA y no global: el operador prepara envíos de varias órdenes
-  // seguidas, y bloquear la tabla entera convertiría la guarda en una traba — que
   // es justo el roce que hace que la gente vuelva a clickear. (Cancelar tiene su
   // propia guarda dentro del ConfirmDeleteDialog, así que no necesita una fila.)
   const filasPrepara = useAccionesPorFila();
@@ -499,13 +303,6 @@ function Ordenes() {
     onUpdated: (sh) => setOrders(prev => prev.map(o => o.shipping?.id === sh.id ? { ...o, shipping: sh } : o)),
   });
 
-  // Only the plain string text/textarea fields — the canal, product lines,
-  // método previsto (Select) and pagoRecibido (Checkbox) have bespoke controls.
-  const field = (key: Exclude<keyof OrderForm, 'items' | 'canal' | 'metodoPagoPrevisto' | 'pagoRecibido'>) => ({
-    value:    form[key],
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setForm(f => ({ ...f, [key]: e.target.value })),
-  });
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -518,7 +315,7 @@ function Ordenes() {
           <p className="text-sm text-muted-foreground">{orders.length} órdenes en total</p>
         </div>
         <Button onClick={openNewOrder} className="gap-2">
-          <Plus className="w-4 h-4" /> Nueva Orden
+          <Plus className="w-4 h-4" /> Nuevo pedido
         </Button>
       </div>
 
@@ -787,301 +584,14 @@ function Ordenes() {
         </DialogContent>
       </Dialog>
 
-      {/* New Order Dialog */}
-      <Dialog open={showForm} onOpenChange={(o) => { if (!o) errorCrear.limpiar(); setShowForm(o); }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Nueva Orden</DialogTitle>
-            <DialogDescription className="sr-only">
-              Crea una orden manual: cliente, productos, costo de envío y método de pago previsto.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {/* Cliente */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <Label>Nombre del Cliente *</Label>
-                <Input {...field('cliente_nombre')} className="mt-1" />
-              </div>
-              <div>
-                <Label>Correo electrónico</Label>
-                <Input
-                  type="email"
-                  value={form.cliente_email}
-                  onChange={e => { setForm(f => ({ ...f, cliente_email: e.target.value })); onIdentityChange(); }}
-                  onBlur={detectCustomer}
-                  className="mt-1" placeholder="Opcional"
-                />
-              </div>
-              <div>
-                <Label>Teléfono</Label>
-                <Input
-                  value={form.cliente_telefono}
-                  onChange={e => { setForm(f => ({ ...f, cliente_telefono: e.target.value })); onIdentityChange(); }}
-                  onBlur={detectCustomer}
-                  className="mt-1" placeholder="300 000 0000"
-                />
-              </div>
-              <p className="col-span-2 -mt-1 text-xs text-muted-foreground">* Ingresa al menos un teléfono o correo del cliente.</p>
-
-              {/* Detección proactiva de duplicado — banner NO bloqueante (pero el
-                  submit exige elegir; ver el gate en handleSave). Lista TODOS los
-                  clientes que comparten estos datos, uno por fila. */}
-              {customerMatches.length > 0 && !decision && (
-                <div
-                  ref={bannerRef}
-                  className={`col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-900/20 ${gateBlocked ? 'ring-2 ring-amber-500 ring-offset-2 ring-offset-background' : ''} ${gatePulse ? 'animate-pulse' : ''}`}
-                >
-                  <p className="mb-2 text-amber-900 dark:text-amber-200">
-                    {customerMatches.length === 1
-                      ? <>Estos datos ya pertenecen a un cliente:</>
-                      : <>Estos datos pertenecen a <strong>{customerMatches.length} clientes</strong>:</>}
-                  </p>
-                  <ul className="space-y-1.5">
-                    {customerMatches.map((mtch, i) => (
-                      <li key={mtch.id} className="flex items-center justify-between gap-2 rounded-md bg-background/60 px-2.5 py-1.5">
-                        <span className="min-w-0 truncate">
-                          <strong className="font-medium">{mtch.nombre}</strong>
-                          <span className="text-muted-foreground"> · {mtch.ordenes} {mtch.ordenes === 1 ? 'orden' : 'órdenes'}</span>
-                        </span>
-                        <Button ref={i === 0 ? firstActionRef : undefined} type="button" size="sm" className="shrink-0" onClick={() => chooseUsar(mtch)}>Usar</Button>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="mt-2 flex justify-end">
-                    <Button type="button" size="sm" variant="ghost" onClick={chooseNuevo}>Crear cliente nuevo</Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Decisión tomada: adjuntar a un cliente existente. */}
-              {decision?.tipo === 'usar' && (
-                <div className="col-span-2 flex items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm dark:border-emerald-800 dark:bg-emerald-900/20">
-                  <span className="text-emerald-900 dark:text-emerald-200">
-                    Vinculado a <strong>{form.cliente_nombre}</strong> — la orden se adjunta a este cliente.
-                  </span>
-                  <button type="button" onClick={() => setDecision(null)} aria-label="Cambiar decisión" className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-300">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-
-              {/* Decisión tomada: crear cliente nuevo pese al match. */}
-              {decision?.tipo === 'nuevo' && (
-                <div className="col-span-2 flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm">
-                  <span className="text-muted-foreground">Se creará un <strong className="text-foreground">cliente nuevo</strong> (duplicado consciente).</span>
-                  <button type="button" onClick={() => setDecision(null)} aria-label="Cambiar decisión" className="text-muted-foreground hover:text-foreground">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-              <div className="col-span-2">
-                <Label>Canal</Label>
-                <Select value={form.canal} onValueChange={v => setForm(f => ({ ...f, canal: v as OrderChannel }))}>
-                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CANALES.map(c => (
-                      <SelectItem key={c} value={c}>{CANAL_LABEL[c] ?? c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Productos — líneas reales; el total lo calcula el servidor */}
-            <div className="border-t border-border pt-3">
-              <Label>Productos *</Label>
-              <div className="mt-2 space-y-2">
-                {form.items.map((line, i) => {
-                  const product = productBySlug(line.slug);
-                  const opciones = product?.moliendasOpciones ?? [];
-                  const lineSubtotal = product ? product.precio * line.cantidad : 0;
-                  return (
-                    <div key={i} className="flex flex-wrap items-end gap-2 rounded-lg border border-border/60 bg-muted/20 p-2">
-                      <div className="min-w-[180px] flex-1">
-                        <span className="text-xs text-muted-foreground">Producto</span>
-                        <Select value={line.slug} onValueChange={v => updateLine(i, { slug: v, molienda: defaultMolienda(v) })}>
-                          <SelectTrigger className="mt-0.5 h-9"><SelectValue placeholder="Selecciona…" /></SelectTrigger>
-                          <SelectContent>
-                            {catalog.map(p => (
-                              <SelectItem key={p.slug} value={p.slug} disabled={p.disponible === false}>
-                                {p.nombre}{p.disponible === false ? ' (Agotado)' : ''}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="w-16">
-                        <span className="text-xs text-muted-foreground">Cant.</span>
-                        <Input
-                          type="number" min={1}
-                          value={line.cantidad}
-                          onChange={e => updateLine(i, { cantidad: Math.max(1, Number(e.target.value) || 1) })}
-                          className="mt-0.5 h-9"
-                        />
-                      </div>
-                      {opciones.length > 0 && (
-                        <div className="min-w-[130px]">
-                          <span className="text-xs text-muted-foreground">Molienda</span>
-                          <Select value={line.molienda} onValueChange={v => updateLine(i, { molienda: v })}>
-                            <SelectTrigger className="mt-0.5 h-9"><SelectValue placeholder="Molienda" /></SelectTrigger>
-                            <SelectContent>
-                              {opciones.map(o => (
-                                <SelectItem key={o.nombre} value={o.nombre} disabled={!o.disponible}>
-                                  {o.nombre}{!o.disponible ? ' (Próximamente)' : ''}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                      <div className="ml-auto flex items-center gap-2 pb-1">
-                        <span className="text-sm font-medium tabular-nums">{formatCOP(lineSubtotal)}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeLine(i)}
-                          disabled={form.items.length === 1}
-                          className="text-muted-foreground hover:text-destructive disabled:opacity-30"
-                          aria-label="Quitar producto"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <Button variant="outline" size="sm" onClick={addLine} className="mt-2 gap-1">
-                <Plus className="w-3.5 h-3.5" /> Agregar producto
-              </Button>
-            </div>
-
-            {/* Envío (manual) + total calculado (solo lectura) */}
-            <div className="grid grid-cols-2 gap-4 border-t border-border pt-3">
-              <div>
-                <Label>Costo de Envío</Label>
-                <Input type="number" min={0} {...field('costo_envio')} className="mt-1" />
-              </div>
-              <div className="self-end space-y-1 text-sm">
-                <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span className="tabular-nums">{formatCOP(itemsSubtotal)}</span></div>
-                <div className="flex justify-between text-muted-foreground"><span>Envío</span><span className="tabular-nums">{formatCOP(Number(form.costo_envio) || 0)}</span></div>
-                <div className="flex justify-between border-t border-border pt-1 font-bold"><span>Total</span><span className="tabular-nums">{formatCOP(calcTotal)}</span></div>
-              </div>
-            </div>
-
-            {/* Pago previsto — método declarado (opcional). NO cobra ni marca la
-                orden como pagada por sí solo; la orden nace Pendiente. La CONDICIÓN
-                de pago ya no se pregunta: se DERIVA del método (Efectivo ⇒
-                Contraentrega). El checkbox registra el pago en el mismo acto
-                (requiere un método que NO sea Efectivo). */}
-            <div className="space-y-3 border-t border-border pt-3">
-              <div>
-                <Label>Método de pago</Label>
-                <Select
-                  value={form.metodoPagoPrevisto || POR_DEFINIR}
-                  onValueChange={v => {
-                    const metodo = (v === POR_DEFINIR ? '' : v) as OrderForm['metodoPagoPrevisto'];
-                    // Sin método, o Efectivo (⇒ contraentrega), "ya pagado" no aplica.
-                    setForm(f => ({ ...f, metodoPagoPrevisto: metodo, pagoRecibido: metodo && metodo !== 'EFECTIVO' ? f.pagoRecibido : false }));
-                  }}
-                >
-                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={POR_DEFINIR}>Por definir</SelectItem>
-                    {METODOS_PAGO.map(m => (
-                      <SelectItem key={m} value={m}>{METODO_PAGO_LABEL[m]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {form.metodoPagoPrevisto === 'EFECTIVO' && (
-                <p className="text-xs text-muted-foreground">
-                  Efectivo = contraentrega: el envío podrá prepararse y despacharse con la orden pendiente; el pago se registra al entregar.
-                </p>
-              )}
-              <label className={`flex items-start gap-2 ${form.metodoPagoPrevisto && form.metodoPagoPrevisto !== 'EFECTIVO' ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
-                <Checkbox
-                  checked={form.pagoRecibido}
-                  disabled={!form.metodoPagoPrevisto || form.metodoPagoPrevisto === 'EFECTIVO'}
-                  onCheckedChange={c => setForm(f => ({ ...f, pagoRecibido: c === true }))}
-                  className="mt-0.5"
-                />
-                <span className="text-sm">
-                  El pago ya fue recibido
-                  {!form.metodoPagoPrevisto && (
-                    <span className="block text-xs text-muted-foreground">
-                      Selecciona un método de pago para poder marcarlo.
-                    </span>
-                  )}
-                  {form.metodoPagoPrevisto === 'EFECTIVO' && (
-                    <span className="block text-xs text-muted-foreground">
-                      No aplica en efectivo (contraentrega) — el pago se registra al entregar.
-                    </span>
-                  )}
-                </span>
-              </label>
-            </div>
-
-            {/* Dirección + notas */}
-            <div className="space-y-4 border-t border-border pt-3">
-              <div>
-                <Label>Dirección de Entrega</Label>
-                <Input {...field('direccion_entrega')} className="mt-1" />
-              </div>
-              {/* Ciudad y departamento OPCIONALES — la orden manual se sigue
-                  creando sin ellos. La ciudad no es decorativa: sin ella el
-                  modal de "Programar entrega" no puede sugerir zona (la
-                  heurística exige ciudad para saber si es local). */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Ciudad / Municipio</Label>
-                  <Input {...field('ciudad_entrega')} className="mt-1" placeholder="Opcional" />
-                </div>
-                <div>
-                  <Label>Departamento</Label>
-                  <Select
-                    value={form.departamento || NINGUN_DEPARTAMENTO}
-                    onValueChange={v => setForm(f => ({ ...f, departamento: v === NINGUN_DEPARTAMENTO ? '' : v }))}
-                  >
-                    <SelectTrigger className="mt-1"><SelectValue placeholder="Opcional" /></SelectTrigger>
-                    <SelectContent className="max-h-64">
-                      <SelectItem value={NINGUN_DEPARTAMENTO}>Sin especificar</SelectItem>
-                      {COLOMBIA_DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              {form.ciudad_entrega.trim() === '' && form.direccion_entrega.trim() !== '' && (
-                <p className="text-xs text-muted-foreground">
-                  Sin ciudad no se podrá sugerir la zona al programar la entrega.
-                </p>
-              )}
-              <div>
-                <Label>Notas Internas</Label>
-                <textarea
-                  {...field('notas_internas')}
-                  className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background min-h-16 resize-none"
-                />
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-1.5 pt-2">
-            {gateBlocked && (
-              <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Elige el cliente antes de crear la orden.</p>
-            )}
-            <div className="flex w-full items-center justify-end gap-3">
-              <ErrorDialogo mensaje={errorCrear.mensaje} />
-              <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-              <Button
-                onClick={handleSave}
-                disabled={saving || !form.cliente_nombre || (!form.cliente_email.trim() && !form.cliente_telefono.trim()) || !hasProduct}
-              >
-                {saving ? 'Creando…' : 'Crear Orden'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Crear un pedido — el modal COMPARTIDO con /admin/pedidos. Salió de acá
+          (era ~295 líneas de JSX embebidas) para que la pantalla nueva pudiera
+          montarlo sin reimplementarlo. */}
+      <NewOrderModal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        onCreated={(created) => setOrders(prev => [created, ...prev])}
+      />
     </div>
   );
 }
@@ -1773,7 +1283,7 @@ function EmptyState({ onNew }: { onNew: () => void }) {
       <p className="text-sm text-muted-foreground mb-6 max-w-sm">
         Crea tu primera orden manualmente o espera que lleguen desde tus canales de venta.
       </p>
-      <Button onClick={onNew} className="gap-2"><Plus className="w-4 h-4" /> Crear Orden</Button>
+      <Button onClick={onNew} className="gap-2"><Plus className="w-4 h-4" /> Nuevo pedido</Button>
     </div>
   );
 }
