@@ -103,6 +103,17 @@
 .duna-btn--ghost { color: var(--duna-muted); background: none; }
 .duna-btn--ghost:hover { color: var(--duna-ink); background: var(--duna-wash-hover); }
 .duna-btn--sm { padding: var(--duna-space-1) var(--duna-space-3); font-size: var(--duna-text-caption); }
+/* UN BOTÓN QUE NAVEGA ES UN `<a>`, y el sistema tiene que admitirlo. "Escribir
+   por WhatsApp" y "Mandar un correo" SALEN de la aplicación: montarlos como
+   `<button onClick>` rompería abrir-en-pestaña-nueva, el clic del medio y el menú
+   contextual, y le mentiría al lector de pantalla sobre qué va a pasar.
+   El navegador le impone al enlace el subrayado y su color; las dos líneas son
+   sólo ese reset — el resto (fondo, borde, radio, padding) ya lo pone `.duna-btn`.
+   Mismo movimiento que `a.duna-att-item`. */
+a.duna-btn { text-decoration: none; color: var(--duna-ink); }
+a.duna-btn--primary { color: var(--duna-paper); }
+a.duna-btn--ghost   { color: var(--duna-muted); }
+a.duna-btn--ghost:hover { color: var(--duna-ink); }
 
 /* ── Badge de estado (semáforo de reposo — SIN azul) ─────────────────────── */
 .duna-badge { display: inline-flex; align-items: center; gap: var(--duna-space-inline);
@@ -141,6 +152,42 @@
 .duna-input:focus { border-color: var(--duna-ink); box-shadow: var(--duna-ring); }
 [data-theme="dark"] .duna-input:focus { border-color: var(--duna-ink-2); }
 textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--duna-lh-relaxed); }
+
+/* ── BUSCADOR · el CAMPO, no el filtrado ─────────────────────────────────────
+   Un `duna-input` con la lupa adentro. Es una variante de input y por eso vive
+   acá pegada a él, no en una familia propia.
+
+   LA FRONTERA ES EL PUNTO: esta primitiva no sabe QUÉ se busca ni CÓMO se
+   filtra. No guarda la consulta, no debounce, no recorre ninguna lista. Sólo
+   pinta un campo que se ve como un buscador. El filtrado es de la pantalla —
+   ahí es donde se sabe si se busca por nombre, por teléfono o por SKU, y con
+   qué criterio empata—; meterlo acá obligaría al sistema a conocer el dominio,
+   que es exactamente lo que este paquete no hace.
+
+   El `padding-left` está DERIVADO, no tanteado: es el borde izquierdo del ícono
+   (space-3, el mismo padding que ya tiene el input) + su ancho + una separación
+   de space-2. Si la lupa cambia de tamaño, se cambia en un sitio.
+
+   La lupa es INERTE (`pointer-events: none`): un click sobre ella tiene que caer
+   en el input, no morir en un adorno. Y se aviva al enfocar —de `faint` a
+   `muted`— acompañando al borde de tinta que ya pone `.duna-input:focus`; es el
+   mismo hecho dicho por la pieza que está al lado, no una segunda señal. */
+.duna-search { position: relative; display: block; }
+.duna-search .duna-input {
+  padding-left: calc(var(--duna-space-3) + 14px + var(--duna-space-2));
+}
+.duna-search__ic {
+  position: absolute; left: var(--duna-space-3); top: 50%; transform: translateY(-50%);
+  width: 14px; height: 14px; pointer-events: none;
+  stroke: var(--duna-faint); stroke-width: 2; fill: none;
+  transition: stroke var(--duna-dur-fast) var(--duna-ease);
+}
+.duna-search:focus-within .duna-search__ic { stroke: var(--duna-muted); }
+/* Chrome/Safari le montan al `type="search"` una X propia, con su tipografía y
+   su color, que no son los del sistema. Se apaga: si una pantalla necesita
+   limpiar la consulta con un control, ése es un control suyo y visible, no un
+   adorno del navegador que aparece y desaparece dentro del campo. */
+.duna-search .duna-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 
 .duna-switch { width: 38px; height: 22px; border-radius: var(--duna-r-full); background: var(--duna-border-2);
                position: relative; transition: background var(--duna-dur) var(--duna-ease); flex-shrink: 0; cursor: pointer; border: none; }

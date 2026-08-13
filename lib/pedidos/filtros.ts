@@ -22,6 +22,8 @@ export type FiltroKey =
 /** Lo que un filtro necesita mirar. Une lo de atención con los dos ejes. */
 export interface OrdenParaFiltro extends OrdenParaAtencion {
   estado: OrderStatus;
+  /** De quién es el pedido. La FK, no el snapshot — ver `filtrarPorCliente`. */
+  cliente_id?: string | null;
   condicion_pago?: CondicionPago | null;
   shipping?: {
     estado: ShippingEstado | string;
@@ -55,6 +57,31 @@ export const FILTROS_PEDIDOS: FiltroPedidos[] = [
   { key: 'por_cobrar',  label: 'Por cobrar',         aplica: isPorCobrar },
   { key: 'cancelado',   label: 'Cancelado',          aplica: (o) => o.estado === 'cancelado' },
 ];
+
+// ─── EL CLIENTE ES UN ALCANCE, NO UN CARRIL ──────────────────────────────────
+//
+// Los siete carriles son excluyentes entre sí y responden "¿dónde está este
+// pedido?". El cliente responde otra cosa —"¿de quién son estos pedidos?"— y se
+// combina con cualquiera de los siete. Por eso no entra a `FILTROS_PEDIDOS`: un
+// octavo pill apagaría al que estuviera puesto.
+//
+// Se aplica ANTES que el carril, y eso decide también los CONTEOS: con un cliente
+// puesto, "Necesitan atención · 5" tiene que decir cinco DE ESE CLIENTE. Contar
+// sobre la lista entera dejaría un número que al hacer clic muestra otro — que es
+// justo lo que la regla de "el contador cuadra con lo que hay debajo" prohíbe.
+//
+// Existe porque el sol de la fila de un cliente TIENE que llevar a sus pedidos.
+// Un punto de atención que no se puede seguir manda al operador a buscar a mano
+// cuál de todos era.
+export function filtrarPorCliente<T extends { cliente_id?: string | null }>(
+  ordenes: T[],
+  clienteId: string | null,
+): T[] {
+  // Sin cliente no filtra — se distingue de "filtra y no matchea nada". Y una
+  // orden sin `cliente_id` nunca entra a un alcance de cliente: no consta de
+  // quién es (misma regla que `pedidosPorAtenderPorCliente`).
+  return clienteId ? ordenes.filter(o => o.cliente_id === clienteId) : ordenes;
+}
 
 /** `null` para una key que no existe — no se cae a "todos" en silencio: un
  *  parámetro de URL basura debe ser visible, no interpretado. */

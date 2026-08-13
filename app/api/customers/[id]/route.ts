@@ -32,7 +32,12 @@ export async function GET(
   const [orders, paidAgg] = await Promise.all([
     prisma.order.findMany({
       where:   { OR: orClauses },
-      select:  { id: true, numero_orden: true, estado: true, total: true, createdAt: true, shipping: { select: { estado: true } } },
+      // `condicion_pago` viaja porque el historial de la pantalla nueva pinta cada
+      // pedido con `badgeCobro`, y sin él "Por cobrar" —contraentrega despachada
+      // sin cobrar— sería indistinguible de una pendiente cualquiera. Es el MISMO
+      // badge que usa la lista de Pedidos; darle otro aquí sería una segunda
+      // opinión sobre el mismo hecho.
+      select:  { id: true, numero_orden: true, estado: true, condicion_pago: true, total: true, createdAt: true, shipping: { select: { estado: true } } },
       orderBy: { createdAt: 'desc' },
     }),
     // Real money paid by this customer (same order set), for the "Total comprado"

@@ -2,7 +2,6 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { MessageCircle, Camera, Store, Users } from 'lucide-react';
 import { OrderCard } from '@duna/design-system/components/OrderCard';
 import { ItemsTable } from '@duna/design-system/components/ItemsTable';
 import { Timeline } from '@duna/design-system/components/Timeline';
@@ -10,9 +9,9 @@ import { BADGE_TONE_CLASS } from '@duna/design-system/status';
 import { getOrders, getOrder } from '@/lib/api/orders';
 import { formatCOP } from '@duna/core/utils';
 import { METODO_PAGO_LABEL, metodoPrevistoLabel } from '@/types/payment';
-import type { Order, OrderDetalle, OrderChannel } from '@/types/order';
-import { CANALES } from '@/constants/customer';
-import { FILTROS_PEDIDOS, aplicarFiltro, conteos, filtroPorKey, type FiltroKey } from '@/lib/pedidos/filtros';
+import type { Order, OrderDetalle } from '@/types/order';
+import { ChipCanal } from '@/components/admin/ChipCanal';
+import { FILTROS_PEDIDOS, aplicarFiltro, conteos, filtroPorKey, filtrarPorCliente, type FiltroKey } from '@/lib/pedidos/filtros';
 import { pasosDelPedido, badgeCobro } from '@/lib/pedidos/estado';
 import { motivosDeAtencion, textoDeMotivo } from '@/lib/pedidos/atencion';
 import { recorridoDelPedido, tieneDerivados } from '@/lib/pedidos/recorrido';
@@ -73,30 +72,6 @@ interface AccionesPedido {
 // panel: el panel se desmonta al cambiar de pedido y una mutación montada ahí
 // puede perder su continuación (§ el gate del 2026-08-06).
 
-// El DS no conoce canales — recibe un nodo, y el dominio vive acá.
-//
-// Las ETIQUETAS se consumen de `CANALES`, no se re-teclean: es la misma lista que
-// usa Clientes, y dos mapas del mismo dominio divergen en cuanto alguien renombra
-// uno. Acá sólo se declara lo que no existía: el ícono de cada canal.
-//
-// Instagram va con `Camera` y no con su logo: lucide 1.x retiró los íconos de
-// marca. Un SVG propio sería exactamente el valor inventado que esta pantalla no
-// puede tener, y además el chip es contexto, no branding.
-const ICONO_CANAL: Record<OrderChannel, typeof Store> = {
-  whatsapp:  MessageCircle,
-  instagram: Camera,
-  directo:   Store,
-  referido:  Users,
-};
-
-function ChipCanal({ canal }: { canal: OrderChannel }) {
-  // `?? directo` por si llega un canal fuera del union (el payload lo trae como
-  // string): un chip sin ícono rompería la fila; el default no afirma nada falso
-  // que el label no diga ya.
-  const Icono = ICONO_CANAL[canal] ?? Store;
-  return <span className="duna-chip-channel"><Icono />{CANALES[canal] ?? canal}</span>;
-}
-
 /** Iniciales para el avatar. Una letra si el nombre es de una palabra. */
 function iniciales(nombre: string): string {
   return nombre.trim().split(/\s+/).slice(0, 2).map(p => p[0] ?? '').join('').toUpperCase() || '?';
@@ -119,6 +94,11 @@ function Pedidos() {
   // a un refresh, igual que `?order=` en la lista vieja.
   const filtro = (filtroPorKey(params.get('f') ?? '')?.key ?? 'todos') as FiltroKey;
   const seleccion = params.get('pedido');
+  // ALCANCE por cliente (`?cliente=<id>`), no un carril: se combina con los siete
+  // y por eso vive aparte del pill. Es a donde apunta el sol de la fila de un
+  // cliente en /admin/clientes-v2 — un punto de atención que no se puede seguir
+  // manda al operador a buscar a mano cuál de todos los pedidos era.
+  const cliente = params.get('cliente');
 
   const [detalle, setDetalle] = useState<OrderDetalle | null>(null);
   // El fallo lleva el ID al que pertenece, y eso es lo que permite NO tener que
@@ -143,10 +123,20 @@ function Pedidos() {
     return () => { vivo = false; };
   }, []);
 
-  const visibles = useMemo(() => aplicarFiltro(pedidos, filtro), [pedidos, filtro]);
-  // Los conteos se calculan sobre la lista COMPLETA, no sobre la filtrada: el pill
-  // tiene que decir cuántos hay en su carril, no cuántos quedan del carril actual.
-  const cuentas = useMemo(() => conteos(pedidos), [pedidos]);
+  // El ALCANCE se aplica primero y es la base de todo lo demás: la lista, los
+  // conteos y el vacío hablan del cliente elegido, no de la tienda entera.
+  const alcance  = useMemo(() => filtrarPorCliente(pedidos, cliente), [pedidos, cliente]);
+  const visibles = useMemo(() => aplicarFiltro(alcance, filtro), [alcance, filtro]);
+  // Los conteos se calculan sobre la lista COMPLETA (dentro del alcance), no sobre
+  // la filtrada: el pill tiene que decir cuántos hay en su carril, no cuántos
+  // quedan del carril actual. Y sobre el ALCANCE y no sobre `pedidos`, porque un
+  // pill que dice 5 y al hacer clic muestra 1 es peor que ninguno.
+  const cuentas = useMemo(() => conteos(alcance), [alcance]);
+
+  // El nombre sale del SNAPSHOT del primer pedido del alcance — es lo que la lista
+  // ya tiene en mano, sin pedirle nada al servidor. Si el cliente no tiene ningún
+  // pedido, no hay nombre que mostrar y el aviso lo dice sin inventarlo.
+  const nombreAlcance = alcance[0]?.cliente_nombre ?? null;
 
   const elegido = useMemo(
     () => visibles.find(p => p.numero_orden === seleccion) ?? null,
@@ -280,9 +270,30 @@ function Pedidos() {
       <header style={{ marginBottom: 'var(--duna-space-6)' }}>
         <h1 className="duna-display-m">Pedidos</h1>
         <p className="duna-sub">
-          {cargando ? 'Cargando…' : `${pedidos.length} ${pedidos.length === 1 ? 'pedido' : 'pedidos'}`}
+          {cargando ? 'Cargando…' : `${alcance.length} ${alcance.length === 1 ? 'pedido' : 'pedidos'}`}
         </p>
       </header>
+
+      {/* ── EL ALCANCE SE VE Y SE QUITA ────────────────────────────────────────
+          Una lista recortada que no dice que está recortada es una lista que
+          miente: se lee como "la tienda tiene 2 pedidos". Va ARRIBA de los
+          carriles porque los alcanza también a ellos —sus conteos ya son de este
+          cliente— y en NEUTRO, nunca con `duna-note`: esa primitiva es sol-soft, y
+          el sol significa una cosa sola. Un alcance no pide atención, informa. */}
+      {cliente && !cargando && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', marginBottom: 'var(--duna-space-4)' }}>
+          <span className="duna-tag">
+            Pedidos de {nombreAlcance ?? 'un cliente'}
+          </span>
+          <button
+            type="button"
+            className="duna-btn duna-btn--ghost duna-btn--sm"
+            onClick={() => navegar({ cliente: null })}
+          >
+            Ver todos
+          </button>
+        </div>
+      )}
 
       {/* ── Carriles ─────────────────────────────────────────────────────── */}
       <div className="row" style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-5)' }}>
@@ -307,8 +318,15 @@ function Pedidos() {
 
       {!error && !cargando && visibles.length === 0 && (
         <div className="duna-card duna-card__pad">
+          {/* Tres vacíos distintos, y decir cuál es lo que evita que el operador
+              crea que perdió algo: la tienda no tiene pedidos · este CLIENTE no
+              tiene · este carril no tiene. */}
           <p className="duna-sub" style={{ margin: 0 }}>
-            {pedidos.length === 0 ? 'Todavía no hay pedidos.' : 'Ningún pedido en este carril.'}
+            {pedidos.length === 0
+              ? 'Todavía no hay pedidos.'
+              : alcance.length === 0
+                ? 'Este cliente no tiene pedidos.'
+                : 'Ningún pedido en este carril.'}
           </p>
         </div>
       )}

@@ -21,12 +21,14 @@ test('renombrar una sección en el menú arrastra la pestaña — no hay copia q
   // sigue pasando pero el de arriba se rompe al primer renombre. Éste fija la
   // otra mitad: que la fuente sea EXACTAMENTE la del menú y no un subconjunto.
   const rutasDelNav = ADMIN_NAV.map(i => i.path);
-  // DIEZ y no nueve mientras dure la CONVIVENCIA declarada entre "Órdenes" (la
-  // operativa actual, en producción) y "Pedidos" (la pantalla del rediseño Duna
-  // OS). Vuelve a nueve cuando Pedidos absorba los flujos de Órdenes y ésta salga
-  // del menú. El conteo es un tripwire a propósito: obliga a que agregar o quitar
-  // una sección sea una decisión visible y no un efecto lateral.
-  assert.equal(rutasDelNav.length, 10, 'el menú tiene diez secciones (Órdenes y Pedidos conviven)');
+  // ONCE, y cada número de más es una CONVIVENCIA declarada del rediseño Duna OS:
+  //   · "Órdenes" (operativa actual) con "Pedidos" (pantalla nueva)
+  //   · "Clientes (actual)" con "Clientes" (pantalla nueva)
+  // Vuelve a bajar cuando cada pantalla nueva absorba los flujos de la suya y la
+  // vieja salga del menú. El conteo es un tripwire a propósito: obliga a que
+  // agregar o quitar una sección sea una decisión visible y no un efecto lateral —
+  // y cumplió, cayéndose al entrar la vertical de Clientes.
+  assert.equal(rutasDelNav.length, 11, 'el menú tiene once secciones (dos convivencias viejo↔nuevo)');
   assert.ok(rutasDelNav.every(p => tituloAdmin(p) !== null));
 });
 
