@@ -19,8 +19,16 @@ export interface OrderSteps {
 export interface OrderCardProps {
   /** Título (p. ej. el cliente). Texto ya resuelto. */
   title: string;
-  /** Identificador visible (p. ej. número de orden), en mono. */
-  id: string;
+  /**
+   * Identificador visible (p. ej. número de orden), en mono.
+   *
+   * OPCIONAL, y por la misma razón que `steps`: hay filas cuyo TÍTULO ya es el
+   * identificador y no tienen un segundo. El caso que lo motivó es el historial
+   * de un cliente — ahí la fila ES un pedido, así que su número va de título y no
+   * queda nada para esta ranura. Antes había que pasar `''`, que renderiza un
+   * hueco vacío: la ausencia dicha con un valor falso.
+   */
+  id?: string;
   /** Monto YA formateado por el consumidor — el DS no formatea moneda. */
   amount: string;
   /** Contexto de canal: un nodo (chip/ícono) o texto. El DS no conoce canales. */
@@ -95,7 +103,7 @@ export function OrderCard({
     <>
       <div className="duna-order-card__top">
         <span className="duna-order-card__name">{title}</span>
-        <span className="duna-order-card__id duna-mono">{id}</span>
+        {id && <span className="duna-order-card__id duna-mono">{id}</span>}
         <span className="duna-order-card__amount duna-num">{amount}</span>
       </div>
       <div className="duna-order-card__mid">

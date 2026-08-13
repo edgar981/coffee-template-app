@@ -103,6 +103,17 @@
 .duna-btn--ghost { color: var(--duna-muted); background: none; }
 .duna-btn--ghost:hover { color: var(--duna-ink); background: var(--duna-wash-hover); }
 .duna-btn--sm { padding: var(--duna-space-1) var(--duna-space-3); font-size: var(--duna-text-caption); }
+/* UN BOTÓN QUE NAVEGA ES UN `<a>`, y el sistema tiene que admitirlo. "Escribir
+   por WhatsApp" y "Mandar un correo" SALEN de la aplicación: montarlos como
+   `<button onClick>` rompería abrir-en-pestaña-nueva, el clic del medio y el menú
+   contextual, y le mentiría al lector de pantalla sobre qué va a pasar.
+   El navegador le impone al enlace el subrayado y su color; las dos líneas son
+   sólo ese reset — el resto (fondo, borde, radio, padding) ya lo pone `.duna-btn`.
+   Mismo movimiento que `a.duna-att-item`. */
+a.duna-btn { text-decoration: none; color: var(--duna-ink); }
+a.duna-btn--primary { color: var(--duna-paper); }
+a.duna-btn--ghost   { color: var(--duna-muted); }
+a.duna-btn--ghost:hover { color: var(--duna-ink); }
 
 /* ── Badge de estado (semáforo de reposo — SIN azul) ─────────────────────── */
 .duna-badge { display: inline-flex; align-items: center; gap: var(--duna-space-inline);

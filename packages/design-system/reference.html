@@ -97,6 +97,11 @@
       <button class="duna-btn duna-btn--primary duna-btn--sm">Guardar</button>
       <button class="duna-btn duna-btn--secondary duna-btn--sm">Filtrar</button>
     </div>
+    <div class="row" style="margin-top:var(--duna-space-4)">
+      <a class="duna-btn duna-btn--secondary" href="#buscador">Escribir por WhatsApp</a>
+      <a class="duna-btn duna-btn--ghost" href="#buscador">Mandar un correo</a>
+    </div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">Un botón que NAVEGA es un <code>&lt;a&gt;</code>, y el sistema lo admite. "Escribir por WhatsApp" sale de la aplicación: montarlo como <code>&lt;button onClick&gt;</code> rompería abrir-en-pestaña-nueva, el clic del medio y el menú contextual, y le mentiría al lector de pantalla sobre qué va a pasar. Las reglas <code>a.duna-btn</code> son sólo el reset del subrayado y el color que el navegador le impone al enlace — mismo movimiento que <code>a.duna-att-item</code>.</div>
   </section>
 
   <!-- ESTADOS -->
@@ -323,6 +328,26 @@
       </div>
 
       <div class="flag" style="margin-top:var(--duna-space-4)">La tercera fila NO lleva barra, y la ausencia es la respuesta: un pedido cancelado no tiene camino que mostrar — su recorrido se anuló, así que una barra invitaría a leerlo como vivo. <code>steps</code> es opcional por eso. No debilita la regla: <code>BadgeTone</code> sigue sin tono de progreso, así que quedarse sin barra no le da al badge permiso para decir "en camino"; deja a la fila sin decirlo, que es distinto. El "hace X" se queda en su columna.</div>
+
+      <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">La misma primitiva, SIN la ranura de id</div>
+      <div style="display:flex; flex-direction:column; gap:var(--duna-space-3); max-width:400px">
+        <button type="button" class="duna-order-card">
+          <div class="duna-order-card__top">
+            <span class="duna-order-card__name">CN-132453</span>
+            <span class="duna-order-card__amount duna-num">$ 86.500</span>
+          </div>
+          <div class="duna-order-card__mid">
+            <span class="duna-badge duna-badge--ok"><span class="duna-badge__dot"></span>Pagado</span>
+          </div>
+          <div class="duna-order-card__foot">
+            <span class="duna-steps">
+              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span>
+            </span>
+            <span class="duna-order-card__time">14 may 2026</span>
+          </div>
+        </button>
+      </div>
+      <div class="flag" style="margin-top:var(--duna-space-4)"><code>id</code> es OPCIONAL, por lo mismo que <code>steps</code>: hay filas cuyo TÍTULO ya es el identificador y no tienen un segundo. Es el historial de un cliente — ahí la fila ES un pedido, así que su número va de título y no queda nada para la ranura. Pasar <code>''</code> renderizaba un hueco: la ausencia dicha con un valor falso.</div>
 
       <div class="flag" style="margin-top:var(--duna-space-4)">Las filas son <code>&lt;button&gt;</code>, no <code>&lt;div&gt;</code>: se llega a ellas con Tab y se activan con Enter y Espacio sin un solo handler de teclado. Pruébalo acá mismo — al enfocarlas aparece el borde de tinta y el anillo, el mismo tratamiento que un input. Una tarjeta SIN acción se monta como <code>&lt;div&gt;</code>: no recibe foco ni promete mano.</div>
 
