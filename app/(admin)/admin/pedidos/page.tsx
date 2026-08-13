@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react';
 import { OrderCard } from '@duna/design-system/components/OrderCard';
 import { ItemsTable } from '@duna/design-system/components/ItemsTable';
 import { Timeline } from '@duna/design-system/components/Timeline';
+import { SkeletonOrderCards } from '@duna/design-system/components/SkeletonOrderCard';
 import { BADGE_TONE_CLASS } from '@duna/design-system/status';
 import { getOrders, getOrder } from '@/lib/api/orders';
 import { formatCOP } from '@duna/core/utils';
@@ -273,12 +274,10 @@ function Pedidos() {
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
     <div className="duna">
       <header style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-3)', marginBottom: 'var(--duna-space-6)' }}>
-        <div style={{ minWidth: 0 }}>
-          <h1 className="duna-display-m">Pedidos</h1>
-          <p className="duna-sub">
-            {cargando ? 'Cargando…' : `${alcance.length} ${alcance.length === 1 ? 'pedido' : 'pedidos'}`}
-          </p>
-        </div>
+        {/* SIN conteo bajo el título: el pill "Todos" ya lo dice, y ahí además
+            FILTRA. Una cifra que repite a un control accionable le quita sitio a
+            la respuesta sin agregar una. */}
+        <h1 className="duna-display-m" style={{ minWidth: 0 }}>Pedidos</h1>
         {/* EL único primario sólido de la vista, con su "+". El tamaño del ícono
             lo pone el sistema (`.duna-btn svg`); acá sólo se elige cuál. */}
         <button
@@ -332,6 +331,23 @@ function Pedidos() {
       </div>
 
       {error && <div className="duna-note" role="alert">{error}</div>}
+
+      {/* LA CARGA OCUPA EL SITIO DE LA LISTA, con su forma. Va dentro del MISMO
+          `duna-split` que van a ocupar las tarjetas —no en un bloque suelto—
+          para que caigan en la misma columna y con el mismo ancho en los dos
+          breakpoints; el panel queda vacío, que es lo que va a estar de todos
+          modos mientras no haya nada elegido.
+
+          El texto "Cargando pedidos…" no desaparece: se lo lleva el lector de
+          pantalla por `role="status"`. Lo que desaparece es su renglón, que era
+          el que hacía brincar la página al ser reemplazado por tarjetas. */}
+      {!error && cargando && (
+        <div className="duna-split">
+          <div className="duna-split__list">
+            <SkeletonOrderCards label="Cargando pedidos…" />
+          </div>
+        </div>
+      )}
 
       {!error && !cargando && visibles.length === 0 && (
         <div className="duna-card duna-card__pad">

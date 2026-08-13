@@ -703,6 +703,47 @@ cuenta como ausente), y el test va en el CARRIL —lo que se afirma es lo que la
 fila TIENE DESPUÉS de escribir, y un test con mocks pasaría en verde contra el
 código defectuoso—.
 
+### 7. Los totales de NEGOCIO son de Analítica, no de las pantallas de operación
+
+Clientes totales, compras recibidas, histórico de pedidos: **cifras de negocio**.
+No pertenecen a una pantalla de operación, y por eso salieron de
+`/admin/clientes-v2` (owner, 2026-08-13).
+
+**El criterio, que es lo que hay que recordar** — una pantalla de operación
+responde *¿qué hago ahora?*; una de análisis responde *¿cómo va el negocio?*. Una
+cifra que no cambia ninguna decisión del día es de la segunda. Y hay un test más
+duro todavía: **si la cifra ya está en un carril, el carril gana**, porque ahí
+además FILTRA. El pill es accionable; la stat sólo se mira. Dos representaciones
+del mismo número, y una de ellas muerta.
+
+Esto ES lo que hace que el panel se lea como un sistema: Pedidos y Clientes
+comparten anatomía —título · buscador · carriles · split— en vez de ser dos
+pantallas parecidas con adornos distintos.
+
+**Costo YA pagado: ninguno**, y por eso está acá abajo. Es una decisión de dónde
+vive cada cosa, tomada antes de que costara — no una herida. Lo que sí evita es el
+gemelo del ítem 4: dos sitios afirmando el mismo total y divergiendo el día que
+uno cambie de definición (§ "Por cobrar" vs "Órdenes Pendientes", donde la
+divergencia sí llegó a producirse).
+
+**DISPARADOR: cuando se rediseñe la vertical de Analítica.** Ahí entran, con la
+base y el período que esa página ya sabe declarar (§ Analítica — qué mueve el chip
+de período y qué NO). Antes de eso no se reponen en ninguna pantalla de operación
+"porque se ven bien": ése es exactamente el movimiento que esta decisión revierte.
+
+**Aplicado en las DOS pantallas del rediseño** (Pedidos y Clientes), y eso importa
+más que el ahorro de una línea: la meta era que las dos tuvieran la misma
+anatomía, así que dejar el conteo en una sola habría cumplido la letra y no el
+motivo.
+
+**EFECTO SECUNDARIO QUE HAY QUE MIRAR AL COPIAR ESTE MOVIMIENTO:** ese subtítulo
+era el ÚNICO aviso de carga de la lista en las dos pantallas (`{cargando ?
+'Cargando…' : …}`), así que quitarlo las dejaba MUDAS mientras viaja el fetch. Una
+pantalla en blanco es indistinguible de "no hay nada" — justo la confusión que los
+tres estados vacíos de cada pantalla existen para evitar. El aviso bajó a la
+LISTA, que es donde está el hueco. Quitar una cifra puede llevarse por delante un
+estado que vivía pegado a ella.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son

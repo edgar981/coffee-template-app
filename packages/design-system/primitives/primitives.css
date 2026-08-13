@@ -27,6 +27,15 @@
 .duna-num  { font-family: var(--duna-font-display); font-feature-settings: 'tnum'; font-variant-numeric: tabular-nums; }
 .duna-mono { font-family: var(--duna-font-mono); font-size: var(--duna-text-label); letter-spacing: var(--duna-tr-wide); color: var(--duna-muted); }
 
+/* SOLO PARA LECTORES DE PANTALLA. No es `display:none` ni `visibility:hidden` —
+   los dos lo sacan también del árbol de accesibilidad, que es justo lo contrario
+   de lo que hace falta. Existe porque hay estados que se comunican VISUALMENTE y
+   necesitan su equivalente en palabras: el esqueleto de carga es el primero. */
+.duna-sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
 /* ── Superficie: card ───────────────────────────────────────────────────── */
 .duna-card { background: var(--duna-surface); border: 1px solid var(--duna-border); border-radius: var(--duna-r-l);
              box-shadow: var(--duna-shadow-1); transition: box-shadow var(--duna-dur) var(--duna-ease), transform var(--duna-dur) var(--duna-ease), border-color var(--duna-dur) var(--duna-ease); }
@@ -151,7 +160,14 @@ a.duna-btn--ghost:hover { color: var(--duna-ink); }
               padding: var(--duna-space-hairline) var(--duna-space-2); border-radius: var(--duna-r-full);
               font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi); letter-spacing: var(--duna-tr-wide); }
 .duna-badge__dot { width: 5px; height: 5px; border-radius: 50%; }
-.duna-badge--neutral   { background: var(--duna-surface-2); border: 1px solid var(--duna-border); color: var(--duna-ink-2); }
+/* EL ARO DEL NEUTRO VA POR DENTRO (`inset`), no como `border`, y no es
+   preferencia: un `border` de 1px suma 2px de ALTURA, así que el badge neutro
+   medía 22.5px contra los 20.5 de los tonales. Efecto real, no teórico — en la
+   lista de pedidos una fila "Sin acreditar" quedaba 2px más alta que una
+   "Pagado", y las tarjetas de una misma lista no medían igual entre sí.
+   Se descubrió midiendo el esqueleto contra la tarjeta: el esqueleto no podía
+   coincidir con las dos a la vez porque las dos ya no coincidían. */
+.duna-badge--neutral   { background: var(--duna-surface-2); box-shadow: inset 0 0 0 1px var(--duna-border); color: var(--duna-ink-2); }
 .duna-badge--attention { background: var(--duna-sol-soft); color: var(--duna-sol-ink); }
 .duna-badge--attention .duna-badge__dot { background: var(--duna-sol); }
 .duna-badge--ok        { background: var(--duna-ok-soft); color: var(--duna-ok-ink); }
@@ -365,6 +381,55 @@ a.duna-att-item:focus-visible, button.duna-att-item:focus-visible {
 .duna-att-item__cta { color: var(--duna-muted); font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi); white-space: nowrap; margin-top: var(--duna-space-hairline); }
 .duna-att-item:hover .duna-att-item__cta { color: var(--duna-ink); }
 
+/* ── ESQUELETO · la forma de lo que todavía no llegó ─────────────────────────
+   Reserva el espacio EXACTO del contenido y dice cuántos elementos vienen y qué
+   forma tienen. Reemplaza al "Cargando…" de una línea, que era peor de lo que
+   parecía: ocupaba un renglón y lo sustituían tarjetas de cien píxeles, así que
+   la pantalla brincaba justo cuando el operador ya estaba mirando.
+
+   ── CÓMO CONSIGUE LA ALTURA EXACTA, que es TODO el problema ──────────────────
+
+   No la declara: la HEREDA. `.duna-skel` no es una caja con `height`; es un
+   tratamiento que se aplica AL MISMO elemento que llevaría el texto, con un
+   texto de relleno adentro. `color: transparent` lo oculta y el fondo pinta la
+   caja — así que la altura la producen la fuente, el `line-height`, el padding y
+   el borde REALES de esa pieza, no un número copiado a mano.
+
+   Es la diferencia entre un esqueleto que se desincroniza y uno que no puede:
+   si mañana el nombre de la tarjeta sube de 14 a 15px, el hueco sube con él. Un
+   `height: 21px` escrito acá reintroduciría el salto que esto vino a eliminar, y
+   lo haría en silencio.
+
+   `user-select: none` porque ese texto de relleno no es texto: no debe poder
+   seleccionarse ni copiarse. Y del árbol de accesibilidad lo saca el consumidor
+   con `aria-hidden` sobre la parte visual, anunciando la carga con
+   `role="status"` + `.duna-sr-only` (ver `components/SkeletonOrderCard.tsx`).
+
+   EL PULSO ES PROPIO y no el del sol (`duna-pulse`): aquél es un anillo que dice
+   "esto está pasando ahora" y el sol nunca decora. Éste es una respiración de
+   opacidad que sólo dice "esto viene en camino". Comparte la DURACIÓN
+   (`--duna-dur-pulse`) para que el panel lata a un solo ritmo. */
+.duna-skel {
+  user-select: none;
+  background: var(--duna-skel);
+  border-radius: var(--duna-r-s);
+  animation: duna-skel-pulse var(--duna-dur-pulse) var(--duna-ease) infinite;
+}
+/* LA CLASE DOBLADA NO ES UN TRUCO GRATUITO: sube la especificidad a (0,2,0) para
+   que `color: transparent` gane sobre CUALQUIER clase base que fije color, esté
+   donde esté en el archivo. Con una sola clase, el desempate era el ORDEN, y las
+   piezas que declaran su color más abajo —`.duna-order-card__id` y `__time`, las
+   dos `--duna-faint`— dejaban el relleno VISIBLE: el esqueleto mostraba
+   "CN-000000" y "hace 0 min" como si fueran datos.
+   Se vio en la prueba viva, no en la teoría. Y se arregla con especificidad y no
+   moviendo el bloque al final del archivo porque eso volvería a depender del
+   orden: la próxima regla que alguien agregue debajo lo rompería otra vez. */
+.duna-skel.duna-skel { color: transparent; }
+@keyframes duna-skel-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .55; }
+}
+
 /* ── Order-card · fila compuesta de la lista de pedidos ─────────────────────
    AGNÓSTICA: solo estructura + estilo. No conoce "Order" ni ningún dominio; el
    consumidor rellena los slots (nombre, id, monto, canal, estado, steps, tiempo).
@@ -391,6 +456,11 @@ button.duna-order-card { display: block; width: 100%; text-align: left;
 button.duna-order-card:focus-visible { border-color: var(--duna-ink); box-shadow: var(--duna-ring);
                                        outline: 2px solid transparent; outline-offset: 2px; }
 .duna-order-card:hover { box-shadow: var(--duna-shadow-2); transform: translateY(-1px); }
+/* El esqueleto USA la clase de la tarjeta —de ahí saca padding, borde y radio, que
+   es lo que hace que mida lo mismo— y por eso hereda también su hover. Se apaga:
+   una tarjeta que se levanta bajo el cursor promete que se puede abrir, y no hay
+   nada que abrir todavía. */
+.duna-order-card.is-skeleton:hover { box-shadow: var(--duna-shadow-1); transform: none; }
 .duna-order-card.is-selected { border-color: var(--duna-ink); box-shadow: var(--duna-shadow-2); }
 [data-theme="dark"] .duna-order-card.is-selected { border-color: var(--duna-ink-2); }
 .duna-order-card__top { display: flex; align-items: baseline; gap: var(--duna-space-2); }
@@ -423,4 +493,10 @@ button.duna-order-card:focus-visible { border-color: var(--duna-ink); box-shadow
   .duna-steps__seg.is-now, .duna-tl__item.is-now::before, .duna-sol-ring {
     animation-duration: .01ms !important; transition-duration: .01ms !important;
   }
+  /* EL ESQUELETO NECESITA `none`, NO `.01ms`. La regla de arriba acelera la
+     animación hasta congelarla, y el fotograma en que se detiene es cualquiera —
+     puede ser el del 50%, que es opacidad .55. Un esqueleto medio transparente se
+     lee como un fallo de carga, no como "esto viene". Sin movimiento tiene que
+     quedar ESTÁTICO y entero, que es distinto de invisible. */
+  .duna-skel { animation: none !important; opacity: 1 !important; }
 }
