@@ -49,6 +49,10 @@ import { filterChip, filterChipTono, FILTER_CHIP_COUNT } from '@/constants/filte
 import { COLOMBIA_DEPARTMENTS } from '@duna/core/colombia-departments';
 import { isPorCobrar } from '@duna/core/metrics/order-stat-filters';
 import { METODOS_PAGO, METODO_PAGO_LABEL, metodoPrevistoLabel } from '@/types/payment';
+// El mapa de ETIQUETAS de canal, compartido con Clientes y con `ChipCanal`. Se usa
+// en vez de `capitalize` sobre el valor crudo: un CSS que capitaliza deforma datos
+// reales (direcciones, nombres) y sólo simulaba una etiqueta.
+import { CANALES as CANAL_LABEL } from '@/constants/customer';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -613,7 +617,7 @@ function Ordenes() {
                     {/* Canal en texto plano (sin chip): el canal es dato de
                         caso-normal; consistencia sobre condicionalidad. */}
                     <td className="px-4 py-3">
-                      <span className="text-xs capitalize text-muted-foreground">{o.canal}</span>
+                      <span className="text-xs text-muted-foreground">{CANAL_LABEL[o.canal] ?? o.canal}</span>
                     </td>
                     <td className="px-4 py-3 font-semibold">{formatCOP(o.total)}</td>
                     {/* Estado = pago (Pendiente/Pagado/Cancelado). Se etiqueta la
@@ -877,7 +881,7 @@ function Ordenes() {
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {CANALES.map(c => (
-                      <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
+                      <SelectItem key={c} value={c}>{CANAL_LABEL[c] ?? c}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1354,7 +1358,7 @@ function OrderDetail({ order, onClose, onUpdate, onCancelar, comprobantes: contr
     <div className="space-y-5">
       {/* Cliente + fecha — el encabezado mínimo; el resto del contacto se pliega */}
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <CustomerLink id={order.cliente_id} nombre={order.cliente_nombre} className="font-medium capitalize" />
+        <CustomerLink id={order.cliente_id} nombre={order.cliente_nombre} className="font-medium" />
         <span className="text-xs text-muted-foreground">Creada el {formatFecha(order.createdAt)}</span>
       </div>
 
@@ -1367,7 +1371,7 @@ function OrderDetail({ order, onClose, onUpdate, onCancelar, comprobantes: contr
             : <StatusBadge tone={entrega.tono} label={entrega.etiqueta} title={entrega.detalle} />}
         </div>
 
-        {evidencia && <p className="text-xs capitalize text-muted-foreground">{evidencia}</p>}
+        {evidencia && <p className="text-xs text-muted-foreground">{evidencia}</p>}
 
         {/* Las acciones que el ESTADO permite — ni una más. Las que no aplican no
             se deshabilitan: no están, porque un botón muerto es una pregunta. La
@@ -1554,7 +1558,7 @@ function OrderDetail({ order, onClose, onUpdate, onCancelar, comprobantes: contr
       <Pliegue label="Contacto y dirección">
         <div className="grid grid-cols-2 gap-4 text-sm">
           <InfoRow label="Teléfono" value={order.cliente_telefono ?? '—'} />
-          <InfoRow label="Canal"    value={order.canal} />
+          <InfoRow label="Canal"    value={CANAL_LABEL[order.canal] ?? order.canal} />
           {/* DECLARED method (intent). The REAL method of a registered payment
               lives on the Payment (see Pagos); this is what the customer said
               they'd use. */}
@@ -1750,7 +1754,7 @@ function InfoRow({ label, value, strong }: InfoRowProps) {
   return (
     <div>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`mt-0.5 capitalize ${strong ? 'font-bold text-base' : 'font-medium'}`}>{value}</p>
+      <p className={`mt-0.5 ${strong ? 'font-bold text-base' : 'font-medium'}`}>{value}</p>
     </div>
   );
 }
@@ -1760,8 +1764,10 @@ function InfoRow({ label, value, strong }: InfoRowProps) {
 function EmptyState({ onNew }: { onNew: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center mb-4">
-        <ShoppingCart className="w-8 h-8 text-blue-400" />
+      {/* NEUTRO, no azul. El panel no tiene azul —"en curso" no es un color— y un
+          vacío no es un estado que informe nada: es la ausencia de filas. */}
+      <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+        <ShoppingCart className="w-8 h-8 text-muted-foreground" />
       </div>
       <h3 className="font-semibold text-lg mb-2">Sin órdenes aún</h3>
       <p className="text-sm text-muted-foreground mb-6 max-w-sm">
