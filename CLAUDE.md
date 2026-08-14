@@ -523,7 +523,7 @@ pero no puede caducar.
 ### 5. H6 — el design-system no tiene primitiva de diálogo
 
 `/admin/pedidos` opera sus doce flujos con los **modales shadcn de
-`/admin/ordenes`**, reusados tal cual, y `/admin/clientes-v2` hace lo mismo con
+`/admin/ordenes`**, reusados tal cual, y `/admin/clientes` hace lo mismo con
 `ConfirmDeleteDialog` y `CustomerFormModal`. Es una mezcla visual dentro de dos
 pantallas que por fuera son Duna OS — y ya no es un caso, es el patrón de toda
 vertical nueva mientras la primitiva no exista.
@@ -552,18 +552,21 @@ haga falta un diálogo" (ya hacen falta varios y se resolvieron reusando). Es
 duplicar. Ahí la primitiva se construye y los flujos se migran una sola vez.
 
 Decía "cuando `/admin/ordenes` muera", y ese literal caducó al entrar la segunda
-vertical: **Clientes tiene el mismo patrón** —`/admin/clientes-v2` opera con el
-`ConfirmDeleteDialog` y con `CustomerFormModal`, modales shadcn, mientras
-`/admin/clientes` sigue en producción—. Nombrar UNA pantalla hacía que el
+vertical: Clientes tenía el mismo patrón. Nombrar UNA pantalla hacía que el
 disparador se leyera como cumplido en cuanto muriera esa, con las demás
-convivencias todavía vivas. La regla es la misma para todas: la primitiva se
-construye cuando ya no queda una implementación vieja de esos flujos con la cual
-duplicar.
+convivencias todavía vivas. La regla generalizada —la primitiva se construye
+cuando ya no queda una implementación vieja de esos flujos con la cual duplicar—
+es la que aguantó, y es la que acaba de cumplirse.
 
-**ESTADO al 2026-08-14: falta UNA.** `/admin/ordenes` se retiró, así que los seis
-flujos de pedidos ya no tienen implementación vieja con la cual duplicar — pero
-`/admin/clientes` sigue en producción y sus dos flujos (borrar y el formulario)
-todavía sí. El disparador NO está cumplido: se cumple con el retiro de Clientes.
+**ESTADO al 2026-08-14: EL DISPARADOR ESTÁ CUMPLIDO.** Se retiró `/admin/ordenes`
+y después la Clientes vieja, así que **no queda una sola implementación vieja de
+estos flujos con la cual duplicar**. Reescribirlos ya no produce dos versiones
+conviviendo, que era el único argumento que sostenía el diferimiento.
+
+Lo que NO cambia es el precio ni el alcance: sigue siendo construir la primitiva
+(las tres decisiones de abajo —Radix o a mano, `is-saving`, el checkbox— siguen
+abiertas) y migrarle el envoltorio a ocho flujos. H6 pasa de "bloqueado" a
+"listo para abrirse", que no es lo mismo que "hay que hacerlo ya".
 
 ### Lo que la maqueta ya resuelve, y cómo cambia el cálculo
 
@@ -713,7 +716,7 @@ código defectuoso—.
 
 Clientes totales, compras recibidas, histórico de pedidos: **cifras de negocio**.
 No pertenecen a una pantalla de operación, y por eso salieron de
-`/admin/clientes-v2` (owner, 2026-08-13).
+`/admin/clientes` (owner, 2026-08-13 — entonces `-v2`).
 
 **El criterio, que es lo que hay que recordar** — una pantalla de operación
 responde *¿qué hago ahora?*; una de análisis responde *¿cómo va el negocio?*. Una
@@ -773,6 +776,36 @@ pasa.
 **DISPARADOR: cuando se rediseñe Analítica o Pagos.** Ahí la gráfica de Ventas
 gana un destino que mide lo suyo, y la de Pedidos decide si lleva a las órdenes
 pagadas de ese día o deja de ser clickeable.
+
+### 9. `Customer.activo` finge filtrar: el gate de reactivación es INERTE
+
+No es que nadie escriba la columna. Es que **el `where` que la consulta no puede
+excluir a nadie**, y eso no se ve mirando ninguna de las tres piezas por separado:
+
+- `reactivacion_cliente` filtra con `activo: true`
+  (`lib/automations/handlers/programadas.ts`) — es su ÚNICO lector en todo el
+  repo;
+- el POST y el PATCH de `/api/customers` lo escriben con `body.activo ?? true`;
+- **ningún formulario lo expone.** Ni el modal de alta/edición, ni nada. Sólo lo
+  arrastran como campo del form para que un guardado no lo pise.
+
+Resultado: todo cliente vale `true`, para siempre, y ese `where` es decoración.
+Un lector futuro lee la línea y concluye que hay clientes desactivados que el
+barrido respeta. No los hay, y nada en el código lo dice.
+
+**Costo YA pagado: ninguno**, y por eso está acá abajo — la automatización está
+apagada por doble prerequisito (canal Meta + consentimiento de marketing). El día
+que se encienda, empieza a costar: le va a escribir a TODO cliente inactivo, sin
+la exclusión que su propia consulta aparenta ofrecer.
+
+Se descubrió haciendo el retiro de la Clientes vieja, buscando el equivalente de
+`notas_internas` —un campo que el sistema produce y nadie lee—. La sorpresa fue
+al revés: **sí tiene lector, y es el lector el que no puede hacer nada.**
+
+**DISPARADOR: antes de activar `reactivacion_cliente`.** Dos salidas, y son
+excluyentes: exponer un control de `activo` (y entonces el `where` empieza a
+significar algo), o quitar el `where` (y entonces la consulta deja de prometer un
+filtro que no aplica). Lo que no puede quedar es la tercera, que es la de hoy.
 
 ## Mejoras post-multitenant
 
@@ -2079,6 +2112,83 @@ diálogo de UNA orden.
   endpoints: `POST /api/shippings` sigue rechazando la orden cancelada, y el
   `PATCH` sigue exigiendo mensajero + fecha y el `confirmarSinPago` explícito. Lo
   que el cliente decide es qué botón ofrecer, no qué se permite.
+
+## El retiro de Clientes — la última convivencia, y lo que destapó
+
+Retiro del 2026-08-14, mismo método que el de `/admin/ordenes`: migrar lo vivo →
+redirect → renombrar → borrar → limpiar huérfanos, con el redirect en el MISMO
+deploy que el borrado, nunca después. Con esto el panel queda **sin una sola
+convivencia viejo↔nuevo** y el menú vuelve a una entrada por sección.
+
+### La población congelada estaba en el NAVEGADOR, no en la base
+
+Es la diferencia con el retiro anterior y conviene tenerla escrita, porque el
+método se copia y la razón no es la misma.
+
+`/admin/ordenes` necesitaba su redirect por `Notification.href` — enlaces
+congelados en una columna. Acá esa población es **cero y no puede crecer**:
+medido (8 notificaciones, ninguna de cliente) y `AUTOMATION_HREF` no tiene entrada
+de cliente, así que ninguna puede escribirse.
+
+La que sí existe: **el ⌘K persiste sus recientes en `localStorage`
+(`admin:cmdk-recents`) y ahí el `href` es a la vez el dato guardado y la clave de
+dedupe.** Un cliente elegido antes del retiro queda como `/admin/clientes/<id>` en
+la máquina de ese operador — sin backfill posible, porque no es nuestra base.
+
+Es la misma población que el retiro anterior cubrió **sin nombrarla**. Queda
+nombrada para que el próximo no la redescubra: **toda pantalla alcanzable por ⌘K
+tiene enlaces congelados en los navegadores de quienes la usaron.**
+
+### El formulario duplicado se resolvió por SUSTRACCIÓN
+
+Había dos implementaciones inline de alta/edición —una por pantalla vieja— y ya
+habían divergido: el mismo campo etiquetado **"Canal"** en la lista y **"Origen"**
+en el perfil. La extracción llevaba tandas pendiente porque tocaba dos pantallas
+en producción.
+
+No hizo falta: `CustomerFormModal` ya existía y la pantalla nueva ya lo usaba, con
+la etiqueta única declarada. Las dos implementaciones murieron con sus pantallas.
+**Cuando una duplicación vive sólo en código que se va a retirar, el retiro ES el
+arreglo** — y esperar a que lo sea es más barato que migrar dos pantallas vivas.
+
+### El perfil deja de ser una ruta, y lo que eso cuesta está MEDIDO
+
+La vieja tenía `/admin/clientes/<id>`; la nueva usa el panel del split
+(`?cliente=`), que en angosto sube como sheet. Se verificó qué se pierde en vez de
+suponerlo:
+
+- **compartir el enlace**: igual — `?cliente=` sobrevive a un refresh;
+- **abrir en pestaña nueva**: no se pierde porque no existía. La fila vieja era un
+  `<div onClick={router.push}>`, que nunca admitió clic del medio;
+- **título de pestaña**: tampoco se pierde. `/admin/clientes/<id>` no tenía layout
+  propio, así que heredaba "Clientes" — nunca dijo el nombre del cliente.
+
+### Y el hallazgo que no venía en el plan: el historial cruzaba clientes
+
+Al verificar que el número que se borraba (`comprasPagadas`) fuera el MISMO que el
+que queda —y no uno parecido— apareció que no lo era. La causa no era el borde que
+se buscaba (órdenes sin `cliente_id`: hay **cero**), sino el `OR` por snapshot de
+teléfono: `Customer.telefono` **no es único a propósito**, así que dos clientes que
+comparten número se prestaban pedidos y plata. Medido: 2 de 13 en `development`.
+
+Y el panel nuevo ya lo mostraba: su cifra "Pedidos" cuenta por FK y su historial
+listaba de más, así que decía "1 pedido" con dos filas debajo. **Dos números del
+mismo hecho que no cuadran no enseñan a desconfiar del que está mal: enseñan a
+desconfiar de los dos.**
+
+La regla vive ahora en `lib/clientes/detalle.ts` (`pedidosDelCliente`) con su test
+de carril, que **se vio fallar con el `OR` restaurado** — 2 de 5. **No borrar
+`tests/integracion/historial-cliente.test.ts`**: es lo único que impide que el
+conjunto se vuelva a ensanchar.
+
+Dato que salió del propio test y que conviene retener: **`Customer.email` SÍ es
+`@unique`**, así que de las dos ramas de snapshot sólo la del teléfono podía
+cruzar. Se quitaron las dos igual —la FK es la respuesta—, pero el defecto vivía
+entero en una.
+
+**La lección de método, que es la que se repite:** *verificar que el número que se
+borra es el mismo que el que queda* no fue burocracia. Fue lo que destapó un
+defecto de datos que llevaba vivo desde antes del rediseño.
 
 ## El retiro de `/admin/ordenes` — y el vocabulario que NO se unificó
 
