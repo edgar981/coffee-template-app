@@ -57,6 +57,12 @@ interface AccionesPedido {
   abrirCancelar:  (orden: Order) => void;
   abrirRechazar:  (orden: Order, c: Comprobante) => void;
   verificar:      (orden: Order, c: Comprobante) => void;
+  /** Guarda las notas. Vive en la PÁGINA: el panel se desmonta al cambiar de
+   *  pedido y una mutación montada ahí puede perder su continuación. `onGuardado`
+   *  limpia el borrador para que el textarea vuelva a seguir al servidor. */
+  guardarNotas:   (orden: Order, notas: string, onGuardado: () => void) => void;
+  guardandoNotas: boolean;
+  errorNotas:     ReturnType<typeof useErrorDialogo>;
 }
 
 // ═══ PEDIDOS · la pantalla del rediseño Duna OS ══════════════════════════════
@@ -273,6 +279,29 @@ function Pedidos() {
       .catch(e => control.mostrarError(e, 'No se pudo verificar el comprobante'));
   }, [control]);
 
+  // GUARDAR NOTAS. Vive acá y no en el panel por la regla del 2026-08-06: el
+  // panel se desmonta al cambiar de pedido y la continuación del `await` caería
+  // sobre un componente muerto — ni empalme ni error.
+  //
+  // Guarda de doble-submit con la primitiva compartida: el ref síncrono corta el
+  // segundo click del mismo tick y el estado le pone texto intermedio al botón.
+  const guardaNotas = useAccionGuardada();
+  const errorNotas  = useErrorDialogo();
+  const guardarNotas = useCallback((orden: Order, notas: string, onGuardado: () => void) =>
+    guardaNotas.ejecutar(async () => {
+      errorNotas.limpiar();
+      try {
+        // El endpoint es PARCIAL: manda sólo `notas_internas` y no toca nada más.
+        empalmar(await updateOrder(orden.id, { notas_internas: notas }));
+        onGuardado();
+      } catch (e) {
+        // Inline y no toast: el operador está mirando el panel (§ toast = éxito,
+        // inline = error). Y el borrador NO se limpia — lo que escribió sigue ahí
+        // para reintentar.
+        errorNotas.mostrar(e, 'No se pudieron guardar las notas');
+      }
+    }), [guardaNotas, errorNotas, empalmar]);
+
   const acciones: AccionesPedido = {
     transicion, control, errorAccion,
     preparando: guardaPreparar.enVuelo,
@@ -280,6 +309,7 @@ function Pedidos() {
     abrirCobrar:   (orden) => setCobrando(orden),
     abrirCancelar: (orden) => setCancelando(orden),
     abrirRechazar: (orden, c) => { control.limpiarError(); setRechazando({ orden, c }); },
+    guardarNotas, guardandoNotas: guardaNotas.enVuelo, errorNotas,
   };
 
   const navegar = useCallback((cambios: Record<string, string | null>) => {
@@ -596,6 +626,10 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
   // pedido en el carril "Necesitan atención" y adentro ningún motivo.
   const motivos = motivosDeAtencion(fuente);
 
+  // BORRADOR de las notas. `null` = intacto, y por eso el textarea deriva del
+  // servidor mientras nadie escriba (ver el comentario en la sección).
+  const [borrador, setBorrador] = useState<string | null>(null);
+
   const envio    = fuente.shipping ?? null;
   const enVuelo  = envio ? acciones.transicion.enVuelo(envio.id) : false;
   const falta    = missingToDispatch(envio);
@@ -854,6 +888,59 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
           que es justo cuando falla la primera subida. */}
       <ErrorDialogo mensaje={acciones.control.error} />
       <ImageLightbox src={lightbox.abierto?.src ?? null} alt={lightbox.abierto?.alt} onClose={lightbox.cerrar} />
+
+      <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
+
+      {/* ── NOTAS INTERNAS ───────────────────────────────────────────────────
+          Entra CON el retiro de /admin/ordenes, no después: esa pantalla era el
+          único sitio donde estas notas se podían leer y editar, y borrarla sin
+          esto dejaría el campo de SÓLO ESCRITURA — el modal de crear las escribe
+          y `POST /api/orders/[id]/address` les anexa una línea de auditoría cada
+          vez que alguien agrega una dirección a mano. Un dato que el sistema
+          sigue produciendo y que nadie puede ver no es una deuda heredada: la
+          crearía el borrado.
+
+          SE MUESTRA EL CAMPO COMPLETO, líneas de auditoría incluidas. Filtrarlas
+          para dejar "sólo lo que el operador escribió" sería editorializar un
+          registro — y justamente esas líneas son las que explican por qué una
+          dirección aparece sin que nadie recuerde haberla puesto.
+
+          Sin pliegue: el design-system no tiene primitiva de plegado, y
+          `components/admin/Pliegue` es chrome de la app. Meterlo acá ampliaría la
+          mezcla visual más allá de la excepción declarada (los modales), que es
+          justo lo que la regla del sistema prohíbe. Va como una sección más, con
+          el mismo `eyebrow` que las demás. */}
+      <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-2)' }}>Notas internas</div>
+      <textarea
+        className="duna-input"
+        rows={3}
+        placeholder="Sin notas."
+        // DERIVADO, no una copia congelada: el panel NO se remonta al cambiar de
+        // pedido (no lleva `key`), así que un `useState(orden.notas_internas)`
+        // seguiría mostrando las notas del pedido anterior. `null` = el operador
+        // no ha tocado nada y manda el servidor. Es el mismo bug que ya costó una
+        // reversión de pago con el Select de estado del detalle viejo.
+        value={borrador ?? fuente.notas_internas ?? ''}
+        onChange={(e) => setBorrador(e.target.value)}
+      />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-2)' }}>
+        <button
+          type="button"
+          className="duna-btn duna-btn--secondary"
+          // Sin cambios no hay nada que guardar, y un botón vivo que no hace nada
+          // invita a pulsarlo para averiguar si pasó algo.
+          disabled={borrador === null || acciones.guardandoNotas}
+          onClick={() => acciones.guardarNotas(fuente, borrador ?? '', () => setBorrador(null))}
+        >
+          {acciones.guardandoNotas ? 'Guardando…' : 'Guardar notas'}
+        </button>
+        {borrador !== null && !acciones.guardandoNotas && (
+          <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm" onClick={() => setBorrador(null)}>
+            Descartar
+          </button>
+        )}
+      </div>
+      <ErrorDialogo mensaje={acciones.errorNotas.mensaje} />
 
       {/* ── Cancelar ─────────────────────────────────────────────────────── */}
       {orden.estado !== 'cancelado' && (
