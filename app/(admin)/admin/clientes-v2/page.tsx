@@ -232,9 +232,17 @@ function ClientesV2() {
             onClick={() => navegar({ f: c.key === 'todos' ? null : c.key })}
           >
             {c.label}
-            {/* El conteo va SIEMPRE, incluido el cero: un carril vacío es una
-                respuesta, y esconder el número obliga a entrar para averiguarlo. */}
-            <span className="duna-mono" style={{ marginLeft: 'var(--duna-space-inline)' }}>{cuentas[c.key]}</span>
+            {/* EL NÚMERO SÓLO EN LAS COLAS (§ lib/carriles). `conteos` ni siquiera
+                calcula los acumuladores, así que acá no queda un valor a mano que
+                alguien pueda pintar sin querer: la ausencia es del dato, no del
+                render.
+
+                El cero SÍ se muestra —un carril de cola vacío es una respuesta:
+                "no hay nada por cobrar"— y por eso la condición mira `undefined`
+                y no la verdad del número. */}
+            {cuentas[c.key] !== undefined && (
+              <span className="duna-mono" style={{ marginLeft: 'var(--duna-space-inline)' }}>{cuentas[c.key]}</span>
+            )}
           </button>
         ))}
       </div>

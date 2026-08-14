@@ -50,12 +50,42 @@ test('"todos" no filtra', () => {
   assert.equal(aplicarCarril(TODOS, 'todos').length, 4);
 });
 
-test('los conteos cuadran con lo que cada carril muestra', () => {
+test('sólo la COLA trae número; los acumuladores no', () => {
   const n = conteosClientes(TODOS);
-  assert.deepEqual(n, { todos: 4, atencion: 1, recurrentes: 2, sin_compras: 1 });
-  for (const carril of CARRILES_CLIENTES) {
+  // Los tres acumuladores cuentan histórico que sólo crece y no pide ninguna
+  // acción. AUSENCIA, no cero: que el dato no exista impide que el render lo
+  // pinte sin querer.
+  assert.equal(n.todos, undefined);
+  assert.equal(n.recurrentes, undefined);
+  assert.equal(n.sin_compras, undefined);
+  // "Necesitan atención" es lo único transitorio acá: se vacía cuando se atienden
+  // los pedidos que lo encienden.
+  //
+  // El `deepEqual` va AL FINAL a propósito: `assert.deepEqual` es una función de
+  // aserción (`asserts actual is T`), así que estrecha `n` al literal y las
+  // claves ausentes dejan de existir para el compilador a partir de acá. Con él
+  // arriba, los tres `equal(..., undefined)` no compilan — y `npm test` pasaba
+  // igual, porque corre con tsx y NO es gate de tipos.
+  assert.deepEqual(n, { atencion: 1 });
+});
+
+test('el conteo de la cola CUADRA con lo que su carril muestra', () => {
+  const n = conteosClientes(TODOS);
+  for (const carril of CARRILES_CLIENTES.filter(c => c.tipo === 'cola')) {
     assert.equal(n[carril.key], aplicarCarril(TODOS, carril.key).length, carril.label);
   }
+});
+
+test('CADA carril declara qué cuenta — no se puede omitir', () => {
+  assert.deepEqual(
+    CARRILES_CLIENTES.map(c => [c.key, c.tipo]),
+    [
+      ['todos', 'acumulador'],
+      ['atencion', 'cola'],
+      ['recurrentes', 'acumulador'],
+      ['sin_compras', 'acumulador'],
+    ],
+  );
 });
 
 // ─── BÚSQUEDA ────────────────────────────────────────────────────────────────

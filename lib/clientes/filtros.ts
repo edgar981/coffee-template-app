@@ -20,11 +20,11 @@ export interface ClienteParaFiltro {
   pedidosPorAtender?: number;
 }
 
+import { conteosDeCola, type CarrilBase, type ConteosDeCola } from '@/lib/carriles';
+
 export type CarrilKey = 'todos' | 'atencion' | 'recurrentes' | 'sin_compras';
 
-export interface CarrilClientes {
-  key:   CarrilKey;
-  label: string;
+export interface CarrilClientes extends CarrilBase<CarrilKey> {
   /** `undefined` = no filtra (Todos). Distinto de "filtra y no matchea nada". */
   aplica?: (c: ClienteParaFiltro) => boolean;
 }
@@ -61,10 +61,10 @@ export const esRecurrente = (c: ClienteParaFiltro): boolean => (c.ordenes ?? 0) 
 export const sinCompras = (c: ClienteParaFiltro): boolean => (c.ordenes ?? 0) === 0;
 
 export const CARRILES_CLIENTES: CarrilClientes[] = [
-  { key: 'todos',       label: 'Todos' },
-  { key: 'atencion',    label: 'Necesitan atención', aplica: tieneAtencion },
-  { key: 'recurrentes', label: 'Recurrentes',        aplica: esRecurrente },
-  { key: 'sin_compras', label: 'Sin compras',        aplica: sinCompras },
+  { key: 'todos',       label: 'Todos',              tipo: 'acumulador' },
+  { key: 'atencion',    label: 'Necesitan atención', tipo: 'cola',       aplica: tieneAtencion },
+  { key: 'recurrentes', label: 'Recurrentes',        tipo: 'acumulador', aplica: esRecurrente },
+  { key: 'sin_compras', label: 'Sin compras',        tipo: 'acumulador', aplica: sinCompras },
 ];
 
 /** `null` para una key que no existe — no se cae a "todos" en silencio: un
@@ -77,14 +77,15 @@ export function aplicarCarril<T extends ClienteParaFiltro>(clientes: T[], key: C
   return carril?.aplica ? clientes.filter(carril.aplica) : clientes;
 }
 
-/** Conteo por carril, para el número del pill. Sobre la MISMA lista que se
- *  muestra: un contador que no cuadra con lo que hay debajo es peor que ninguno. */
-export function conteosClientes<T extends ClienteParaFiltro>(clientes: T[]): Record<CarrilKey, number> {
-  return CARRILES_CLIENTES.reduce((acc, c) => {
-    acc[c.key] = c.aplica ? clientes.filter(c.aplica).length : clientes.length;
-    return acc;
-  }, {} as Record<CarrilKey, number>);
-}
+/**
+ * Conteo de las COLAS, para el número del pill. Los acumuladores no traen número
+ * y por eso no se cuentan (§ lib/carriles).
+ *
+ * Sobre la MISMA lista que se muestra: un contador que no cuadra con lo que hay
+ * debajo es peor que ninguno.
+ */
+export const conteosClientes = <T extends ClienteParaFiltro>(clientes: T[]): ConteosDeCola<CarrilKey> =>
+  conteosDeCola(CARRILES_CLIENTES, clientes);
 
 // ─── LA BÚSQUEDA · qué significa "empatar" para un cliente ───────────────────
 //

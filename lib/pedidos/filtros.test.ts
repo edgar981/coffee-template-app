@@ -69,21 +69,60 @@ test('una key desconocida no se cae a "todos" en silencio', () => {
   assert.ok(filtroPorKey('todos'));
 });
 
-test('los conteos salen de la MISMA lista que se muestra', () => {
+test('sólo las COLAS traen número; los acumuladores no', () => {
   const c = conteos(TODAS);
-  assert.equal(c.todos, 6);   // las siete menos la cancelada
+  // Colas: transitorias, se vacían al hacer el trabajo.
   assert.equal(c.atencion, 2);
   assert.equal(c.preparacion, 2);
   assert.equal(c.camino, 2);
-  assert.equal(c.entregados, 1);
   assert.equal(c.por_cobrar, 1);
-  assert.equal(c.cancelado, 1);
-  // El invariante que hace útil el número: el conteo de un carril es exactamente
-  // lo que ese carril muestra. Un contador que no cuadra con lo de abajo es peor
-  // que ninguno.
-  for (const f of FILTROS_PEDIDOS) {
+  // Acumuladores: sólo crecen y no piden acción. Es AUSENCIA de conteo, no cero —
+  // que el dato no exista es lo que impide que el render lo pinte sin querer.
+  assert.equal(c.todos, undefined);
+  assert.equal(c.entregados, undefined);
+  assert.equal(c.cancelado, undefined);
+});
+
+test('el conteo de cada cola CUADRA con lo que su carril muestra', () => {
+  // El invariante que hace útil el número. Un contador que no cuadra con lo de
+  // abajo es peor que ninguno.
+  const c = conteos(TODAS);
+  for (const f of FILTROS_PEDIDOS.filter(f => f.tipo === 'cola')) {
     assert.equal(c[f.key], aplicarFiltro(TODAS, f.key).length, `el pill de "${f.label}" cuadra con su lista`);
   }
+});
+
+test('un carril de cola con CERO sigue mostrando su número', () => {
+  // Un carril de cola vacío es una respuesta ("no hay nada por cobrar"), así que
+  // el cero se muestra. Por eso la regla mira la NATURALEZA del carril, no la
+  // verdad del número.
+  const c = conteos([nueva]);
+  assert.equal(c.por_cobrar, 0);
+  assert.equal(c.camino, 0);
+});
+
+test('"Por cobrar" es COLA aunque parezca un estado', () => {
+  // Es plata esperando: se vacía al cobrar, y su número es de los más accionables
+  // del negocio. Que el eje sea el de cobro no lo hace un acumulador.
+  assert.equal(FILTROS_PEDIDOS.find(f => f.key === 'por_cobrar')!.tipo, 'cola');
+});
+
+test('CADA carril declara qué cuenta — no se puede omitir', () => {
+  // El campo es obligatorio en el tipo, así que esto no puede fallar en compilación;
+  // se afirma igual para que el conjunto quede fijado y un carril nuevo tenga que
+  // elegir a conciencia en vez de heredar el de al lado.
+  assert.deepEqual(
+    FILTROS_PEDIDOS.map(f => [f.key, f.tipo]),
+    [
+      ['todos', 'acumulador'],
+      ['atencion', 'cola'],
+      ['preparacion', 'cola'],
+      ['camino', 'cola'],
+      ['entregados', 'acumulador'],
+      ['por_cobrar', 'cola'],
+      ['cancelado', 'acumulador'],
+    ],
+  );
 });
 
 // ─── EL ALCANCE POR CLIENTE ──────────────────────────────────────────────────
@@ -118,10 +157,9 @@ test('los CONTEOS se calculan sobre el alcance, no sobre la lista entera', () =>
   // Un pill que dice 2 y al hacer clic muestra 1 es peor que ninguno.
   const todos   = conteos(DE_VARIOS);
   const soloC1  = conteos(filtrarPorCliente(DE_VARIOS, 'c1'));
-  assert.equal(todos.todos, 4);
-  assert.equal(soloC1.todos, 2);
-  assert.equal(soloC1.atencion, 1);
+  assert.equal(todos.preparacion, 3);
   assert.equal(soloC1.preparacion, 1);
+  assert.equal(soloC1.atencion, 1);
 });
 
 // ─── EL RANGO DE FECHAS ──────────────────────────────────────────────────────
@@ -224,8 +262,7 @@ test('los CONTEOS respetan el rango activo', () => {
   // debajo, no sobre la tienda entera.
   const sinAlcance = conteos(EN_FECHAS);
   const enRango    = conteos(filtrarPorRango(EN_FECHAS, '2026-08-10', '2026-08-12'));
-  assert.equal(sinAlcance.todos, 4);
-  assert.equal(enRango.todos, 2);
+  assert.equal(sinAlcance.preparacion, 4);
   assert.equal(enRango.preparacion, 2);
 });
 

@@ -254,7 +254,17 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 
 /* Filtro (pill) */
 .duna-pill { padding: var(--duna-space-1) var(--duna-space-3); border-radius: var(--duna-r-full); font-size: var(--duna-text-label);
-             font-weight: var(--duna-w-semi); color: var(--duna-muted); border: 1px solid transparent; background: none; cursor: pointer; }
+             font-weight: var(--duna-w-semi); color: var(--duna-muted); border: 1px solid transparent; background: none; cursor: pointer;
+             /* DECLARADO, igual que en `.duna-btn` y por el mismo motivo: con
+                `line-height: normal` la altura del pill la decide lo que lleva
+                DENTRO. El conteo va en `.duna-num` (Space Grotesk), cuya caja de
+                línea es más alta que la del label, así que un pill CON número
+                medía 25.5px y uno SIN número 24 — una fila mezclada quedaba
+                despareja.
+                No se veía mientras todos los pills llevaban número; apareció al
+                dejarlo sólo en las colas. Fijar la línea desacopla la altura del
+                contenido: la cápsula mide lo mismo lleve número o no. */
+             line-height: var(--duna-lh-normal); }
 .duna-pill:hover { color: var(--duna-ink); }
 .duna-pill.is-on { background: var(--duna-surface); border-color: var(--duna-border-2); color: var(--duna-ink); box-shadow: var(--duna-shadow-1); }
 
