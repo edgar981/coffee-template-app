@@ -29,6 +29,12 @@
   .card-demo { padding: var(--duna-space-5); }
   .flag { border-left: 3px solid var(--duna-sol); background: var(--duna-sol-soft); padding: var(--duna-space-3) var(--duna-space-4); border-radius: 0 var(--duna-r-m) var(--duna-r-m) 0; font-size: var(--duna-text-body-sm); color: var(--duna-ink-2); }
   code { font-family: var(--duna-font-mono); font-size: var(--duna-text-caption); background: var(--duna-surface-2); padding: 1px 5px; border-radius: 4px; }
+  /* La barra inferior se muestra INLINE para poder verla a cualquier ancho: en
+     uso va `position: fixed` al borde de abajo y sólo existe bajo 960px. Es un
+     andamio de esta página — de ahí los `!important`, que acá son la forma
+     honesta de decir "estoy anulando la primitiva para exhibirla". */
+  .mobnav-demo { max-width: 380px; border: 1px solid var(--duna-border); border-radius: var(--duna-r-m); overflow: hidden; }
+  .mobnav-demo .duna-mobnav { display: flex !important; position: static !important; border-top: none; }
 </style>
 </head>
 <body class="duna">
@@ -522,6 +528,80 @@
     <div class="flag" style="margin-top:var(--duna-space-4)">No late. El anillo pulsante está reservado a "esto pasa AHORA", que es transitorio; un punto latiendo para siempre en el rail sería movimiento decorativo. Y no hay estado "apagado": si no hay nada que atender, el punto no se renderiza — como la fila de Productos.</div>
   </section>
 
+  <section>
+    <h2 class="sec">Angosto · el sheet y la barra inferior</h2>
+    <p class="sec-note">Lo que pasa debajo de <b>960px</b>, que es el ÚNICO breakpoint del sistema. El panel del layout partido no apila: sube como <code>duna-sheet</code>. Y el rail no se esconde detrás de una hamburguesa: lo reemplaza <code>duna-mobnav</code>.</p>
+
+    <div class="duna-eyebrow" style="margin:0 0 var(--duna-space-3)">Sheet · la superficie que sube</div>
+    <button type="button" class="duna-btn duna-btn--primary" id="sheetDemoAbrir">Abrir el sheet</button>
+    <p id="bpEstado" class="duna-sub" style="margin-top:var(--duna-space-3)"></p>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">EL SISTEMA PONE LA FORMA; LA CONDUCTA LA PONE EL CONSUMIDOR. Acá no hay foco atrapado, ni Escape, ni bloqueo del scroll del fondo — el botón de arriba los simula para que la forma se pueda ver, y esa simulación es de esta página, no de la primitiva. En la app el sheet se monta sobre un diálogo que ya trae todo eso y ya está en producción. Este paquete no tiene una sola pieza con comportamiento: un sheet con foco atrapado sería la primera, o sea un cambio de naturaleza del paquete, y eso no se cuela dentro de una tanda de móvil.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)"><code>max-height: 80vh</code> con el scroll en el CUERPO, no en el sheet: lo que asoma arriba no es aire, es lo que sostiene "estoy encima de la lista, no en otra pantalla". Un sheet a pantalla completa es una página con animación — y una página rompe las tres cosas que este sheet existe para conservar: la lista detrás, el volver sin navegar, y el enlace compartible.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">El <b>grip</b> es una señal, no un control: dice "esto se despliega desde abajo" y va <code>aria-hidden</code>. NO hay gesto de arrastre en esta versión, y lo que evita que el grip mienta es que el sheet SÍ cierra tocando fuera, que es el gesto que la mano prueba primero.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)"><code>duna-scrim</code> LLEVABA AQUÍ DESDE EL PRINCIPIO SIN QUE NADIE LA USARA: escrita en las primitivas, cero consumidores, y ausente de esta página. Una primitiva que nunca se ejerce no está probada — está declarada. Este bloque la ejerce, que es lo que la vuelve verificable de un vistazo.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">Y las dos superficies van <b>nombradas</b> dentro de <code>prefers-reduced-motion</code>, porque el <code>.duna *</code> del resto del sistema no las alcanza: el diálogo que las monta las PORTALEA a <code>&lt;body&gt;</code>, o sea fuera del wrapper de la pantalla. El modo de falla es silencioso en la peor dirección — la regla existe, el archivo la declara, y aun así la superficie anima.</div>
+
+    <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">Barra inferior · la navegación sin rail</div>
+    <div class="mobnav-demo">
+      <nav class="duna-mobnav">
+        <button type="button" class="duna-mobnav__item"><span class="duna-mobnav__label">Hoy</span></button>
+        <button type="button" class="duna-mobnav__item is-on"><span class="duna-mobnav__label">Pedidos</span><span class="duna-nav-dot"></span></button>
+        <button type="button" class="duna-mobnav__item"><span class="duna-mobnav__label">Clientes</span></button>
+        <button type="button" class="duna-mobnav__item"><span class="duna-mobnav__label">Productos</span></button>
+        <button type="button" class="duna-mobnav__item"><span class="duna-mobnav__label">Más</span></button>
+      </nav>
+    </div>
+
+    <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">Rejilla de destinos · lo que el sheet lleva adentro cuando ofrece sitios</div>
+    <div class="duna-card duna-card__pad" style="max-width:420px">
+      <div class="duna-sheet__grid">
+        <a class="duna-sheet__item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="1"/><path d="M8 8V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v3"/></svg>Inventario</a>
+        <a class="duna-sheet__item is-on" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Pagos</a>
+        <a class="duna-sheet__item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>Analítica</a>
+        <a class="duna-sheet__item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>Automatizaciones<span class="duna-nav-dot"></span></a>
+      </div>
+      <div class="duna-sheet__foot">
+        <button type="button" class="duna-btn duna-btn--secondary" style="flex:1;justify-content:center">Claro</button>
+        <button type="button" class="duna-btn duna-btn--secondary" style="flex:1;justify-content:center">Oscuro</button>
+        <button type="button" class="duna-btn duna-btn--secondary" style="flex:1;justify-content:center">Sistema</button>
+      </div>
+    </div>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">DOS columnas FIJAS, no <code>auto-fit</code>: el ancho de un teléfono da para dos filas de texto corto, y un <code>auto-fit</code> colapsaría a una sola columna en los estrechos — duplicando el alto justo donde el sheet tiene tope. Son filas de NAVEGACIÓN y por eso no reusan <code>duna-btn</code>: un botón se dimensiona por su texto y éstas tienen que medir todas igual para que la rejilla se lea como rejilla.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">El destino ACTUAL se marca con BORDE y tinta, nunca con relleno: el sheet ya es una superficie sobre otra y un item relleno adentro compite con ella. Misma regla que el pill activo. Y el PIE va detrás de una línea porque un control que CAMBIA algo no puede leerse como un sitio más al que ir.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">La barra REEMPLAZA al rail, no convive con él. Un menú detrás de un botón y una barra siempre visible son dos respuestas a la misma pregunta, y tener las dos obliga al operador a aprender cuál usa cada pantalla. La hamburguesa y su drawer mueren con esto.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">La marca del activo va ARRIBA del slot: abajo la tapa el pulgar justo mientras se toca, que es el momento en que confirma. Y el punto de atención ES <code>duna-nav-dot</code> —el mismo del rail, sólo reposicionado—, no un punto propio de la barra: el sol significa una sola cosa en todo el producto, y dos definiciones es cómo dejan de coincidir.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">El label se RECORTA en vez de partirse. Cinco slots en 320px es el caso estrecho, y una palabra en dos renglones sube la barra y le come pantalla a la lista. Arriba se ve inline para poder mostrarla; en uso va <code>position: fixed</code> al borde inferior, y su padding suma <code>--duna-safe-b</code> porque el indicador de inicio del teléfono se dibuja ENCIMA de la página — sin eso el slot que la mano alcanza primero queda debajo de una barra del sistema.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">El fondo es OPACO y no un velo translúcido con blur: detrás pasan tarjetas con borde y cifras en mono, y un velo las deja legibles a medias justo debajo de los labels. El blur queda para el scrim, donde su trabajo ES restarle legibilidad a lo de atrás.</div>
+  </section>
+
+</div>
+
+<!-- Fuera de `.wrap`, como en uso: el diálogo que lo monta lo portalea a <body>.
+
+     LO QUE ESTA PÁGINA NO PUEDE PROBAR, dicho para que nadie lo dé por probado:
+     acá el `<body>` ES `.duna`, así que el escape de scope que obligó a nombrar
+     `.duna-sheet` y `.duna-scrim` dentro de `prefers-reduced-motion` NO se
+     reproduce — en la app `.duna` va en un div de la pantalla y el portal cae
+     fuera. Si alguien quitara esos dos nombres de la regla, esta página seguiría
+     respetando reduced-motion y la app no. Se verifica en la app, no acá. -->
+<div class="duna-scrim" id="sheetDemoScrim" data-state="closed" hidden></div>
+<div class="duna-sheet" id="sheetDemoSheet" data-state="closed" hidden role="dialog" aria-modal="true" aria-label="Demostración del sheet">
+  <div class="duna-sheet__grip" aria-hidden="true"></div>
+  <div class="duna-sheet__body">
+    <div class="duna-title">Laura Cárdenas</div>
+    <div class="duna-sub" style="margin-bottom:var(--duna-space-4)">El mismo panel del layout partido, en la pantalla donde no cabe al lado.</div>
+    <table class="duna-items-table">
+      <tbody>
+        <tr><td>Combo Desayuno<span class="duna-items-table__meta"> · × 1</span></td><td class="duna-items-table__r duna-num">$ 38.000</td></tr>
+        <tr><td>Café Nariño 500 g<span class="duna-items-table__meta"> · × 2</span></td><td class="duna-items-table__r duna-num">$ 48.500</td></tr>
+        <tr class="duna-items-table__total"><td>Total</td><td class="duna-items-table__r duna-num">$ 86.500</td></tr>
+      </tbody>
+    </table>
+    <button type="button" class="duna-btn duna-btn--ghost" id="sheetDemoCerrar" style="margin-top:var(--duna-space-5)">Cerrar</button>
+  </div>
 </div>
 
 <script>
@@ -554,6 +634,70 @@
       : `⚠ DESINCRONIZADOS: esqueleto ${s}px · tarjeta ${r}px (${Math.abs(s - r).toFixed(2)}px de diferencia). El salto de layout volvió.`;
     out.style.color = igual ? 'var(--duna-muted)' : 'var(--duna-bad-ink)';
     out.style.fontWeight = igual ? '' : 'var(--duna-w-semi)';
+  })();
+
+  // EL SHEET, ejercido. Esta simulación es de la PÁGINA: estampa los mismos
+  // `data-state` que estampa el diálogo real para que la forma se pueda ver, y
+  // nada más. No hay foco atrapado, ni scroll-lock, ni inertización del fondo —
+  // eso lo pone el consumidor, y decirlo acá evita que alguien lea este bloque
+  // como la implementación de referencia.
+  //
+  // El `hidden` se quita al abrir y se repone cuando TERMINA la animación de
+  // salida, no en el mismo tick: quitarlo de inmediato mataría la animación que
+  // esta demo existe para mostrar. Es la única parte que el diálogo real también
+  // hace (espera el `animationend` antes de desmontar), y por eso está imitada.
+  (function sheetDemo() {
+    const scrim = document.getElementById('sheetDemoScrim');
+    const sheet = document.getElementById('sheetDemoSheet');
+    const abrir = document.getElementById('sheetDemoAbrir');
+    if (!scrim || !sheet || !abrir) return;
+
+    const set = estado => { scrim.dataset.state = estado; sheet.dataset.state = estado; };
+
+    const open = () => {
+      scrim.hidden = false; sheet.hidden = false;
+      // Un reflow SÍNCRONO con `closed` todavía puesto, y no un
+      // `requestAnimationFrame`: si el frame no llega —pestaña de fondo, ventana
+      // sin tamaño, un motor que lo estrangula— el estado se queda en `closed`,
+      // que en este CSS es la animación de SALIDA. O sea que el sheet quedaría
+      // visible-pero-fuera-de-pantalla, sin animar y sin forma de cerrarlo.
+      // Fallar hacia un estado del que no se sale es peor que no animar.
+      void sheet.offsetHeight;
+      set('open');
+      abrir.setAttribute('aria-expanded', 'true');
+    };
+    const close = () => {
+      set('closed');
+      abrir.setAttribute('aria-expanded', 'false');
+      abrir.focus();
+      const fin = () => { scrim.hidden = true; sheet.hidden = true; };
+      sheet.addEventListener('animationend', fin, { once: true });
+      setTimeout(fin, 400);   // red por si `prefers-reduced-motion` no dispara el evento
+    };
+
+    abrir.setAttribute('aria-expanded', 'false');
+    abrir.addEventListener('click', open);
+    scrim.addEventListener('click', close);
+    document.getElementById('sheetDemoCerrar').addEventListener('click', close);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !sheet.hidden) close(); });
+  })();
+
+  // EL BREAKPOINT, EN VIVO. El sistema tiene un solo número y dos sitios que lo
+  // escriben —el `@media` del CSS y `DUNA_MQ_MOVIL` del TS—, así que esta línea
+  // dice de qué lado está la ventana AHORA. Redimensionar el navegador alrededor
+  // de 960 es la forma barata de ver que el chrome cambia donde debe.
+  (function estadoBreakpoint() {
+    const out = document.getElementById('bpEstado');
+    if (!out) return;
+    const mq = matchMedia('(max-width: 959.98px)');   // el mismo corte sub-píxel que el CSS (§ primitives)
+    const pintar = () => {
+      out.textContent = mq.matches
+        ? `${window.innerWidth}px — ANGOSTO: el panel sube como sheet y la navegación es la barra inferior.`
+        : `${window.innerWidth}px — ANCHO: rail y layout partido. Angosta la ventana por debajo de 960 para cruzar.`;
+    };
+    pintar();
+    mq.addEventListener('change', pintar);
+    addEventListener('resize', pintar);
   })();
 </script>
 </body>

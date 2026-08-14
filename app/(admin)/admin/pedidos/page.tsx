@@ -13,6 +13,8 @@ import { formatCOP } from '@duna/core/utils';
 import { METODO_PAGO_LABEL, metodoPrevistoLabel } from '@/types/payment';
 import type { Order, OrderDetalle } from '@/types/order';
 import { ChipCanal } from '@/components/admin/ChipCanal';
+import { DunaSheet } from '@/components/admin/DunaSheet';
+import { useEsMovil } from '@/hooks/useEsMovil';
 import {
   FILTROS_PEDIDOS, aplicarFiltro, conteos, filtroPorKey,
   aplicarAlcance, soloOrdenesReales, parseEstados, etiquetaEstados, hayAlcance,
@@ -106,6 +108,11 @@ function Pedidos() {
   const [cargando, setCargando] = useState(true);
   const [error, setError]       = useState<string | null>(null);
 
+  // Debajo del breakpoint el detalle no vive al lado: sube como sheet. No es una
+  // decisión de estilo —el CSS no puede mover un nodo de sitio— y por eso hace
+  // falta preguntarlo en JS. El número lo trae el sistema.
+  const esMovil = useEsMovil();
+
   // El filtro y la selección viven en la URL: el detalle es enlazable y sobrevive
   // a un refresh, igual que `?order=` en la lista vieja.
   const filtro = (filtroPorKey(params.get('f') ?? '')?.key ?? 'todos') as FiltroKey;
@@ -170,9 +177,30 @@ function Pedidos() {
   // pedido, no hay nombre que mostrar y el aviso lo dice sin inventarlo.
   const nombreAlcance = alcance[0]?.cliente_nombre ?? null;
 
+  // ── LO ELEGIDO SE BUSCA EN `reales`, NO EN LO VISIBLE ──────────────────────
+  //
+  // Se buscaba sobre `visibles`, o sea sobre la lista YA recortada por el carril
+  // y los tres alcances. Un `?pedido=` que cayera fuera de ese recorte no
+  // encontraba nada, y el panel mostraba "Elige un pedido" al lado de una lista
+  // donde ese pedido no está — raro pero legible.
+  //
+  // EN MÓVIL DEJA DE SER LEGIBLE: el detalle es un sheet, así que lo mismo se ve
+  // como un enlace de notificación que no hace NADA. Y las notificaciones son
+  // justo lo que llega a un teléfono.
+  //
+  // Hoy ninguna fuente conocida combina `pedido=` con un alcance que lo excluya
+  // (`hrefOrden` y el redirect de `/admin/ordenes` van sin `f=`; los deep links
+  // de Analítica y el dashboard llevan alcance pero no selección), así que esto
+  // es una mina y no una herida. Se desarma acá porque la arma cualquiera que
+  // escriba un enlace con las dos cosas, y el arreglo es más barato que la nota
+  // que habría que dejar.
+  //
+  // Sigue recortado a `reales`: una `SN-` no es un pedido y un enlace a una no
+  // debe abrir nada (§ soloOrdenesReales). El alcance de la PANTALLA se respeta;
+  // lo que se ignora es el filtro del OPERADOR, que es suyo y no del enlace.
   const elegido = useMemo(
-    () => visibles.find(p => p.numero_orden === seleccion) ?? null,
-    [visibles, seleccion],
+    () => reales.find(p => p.numero_orden === seleccion) ?? null,
+    [reales, seleccion],
   );
 
   // LA VERDAD DEL DETALLE LA TRAE EL SERVIDOR al abrirse. La lista no carga el
@@ -311,6 +339,22 @@ function Pedidos() {
     abrirRechazar: (orden, c) => { control.limpiarError(); setRechazando({ orden, c }); },
     guardarNotas, guardandoNotas: guardaNotas.enVuelo, errorNotas,
   };
+
+  // ── EL DETALLE SE ESCRIBE UNA VEZ ──────────────────────────────────────────
+  // Vive en el panel (ancho) o en el sheet (angosto), nunca en los dos: sólo una
+  // de las dos ramas se monta. Se arma acá, con sus props, para que las dos
+  // superficies no puedan discrepar — dos juegos de props del mismo componente
+  // es cómo una de las dos se queda sin un dato y nadie lo ve hasta abrirlo en un
+  // teléfono.
+  const detalleNodo = elegido ? (
+    <Detalle
+      orden={elegido}
+      detalle={detalleVigente}
+      cargando={cargandoDetalle}
+      error={errorDetalle}
+      acciones={acciones}
+    />
+  ) : null;
 
   const navegar = useCallback((cambios: Record<string, string | null>) => {
     const q = new URLSearchParams(params.toString());
@@ -458,7 +502,12 @@ function Pedidos() {
         </div>
       )}
 
-      {visibles.length > 0 && (
+      {/* `|| elegido` es la otra mitad de buscar en `reales`: sin él, un enlace a
+          un pedido cuyo carril está VACÍO encontraba el pedido y no tenía dónde
+          pintarlo. El vacío de arriba se sigue mostrando en ese caso, y hace
+          falta — es lo que explica por qué hay un detalle abierto sin una lista
+          que lo contenga. */}
+      {(visibles.length > 0 || elegido) && (
         <div className="duna-split">
           <div className="duna-split__list">
             {visibles.map(p => {
@@ -485,24 +534,53 @@ function Pedidos() {
             })}
           </div>
 
-          <div className="duna-split__panel">
-            {!elegido && (
-              <div className="duna-card duna-card__pad">
-                <p className="duna-sub" style={{ margin: 0 }}>Elige un pedido para ver su detalle.</p>
-              </div>
-            )}
-            {elegido && (
-              <Detalle
-                orden={elegido}
-                detalle={detalleVigente}
-                cargando={cargandoDetalle}
-                error={errorDetalle}
-                acciones={acciones}
-              />
-            )}
-          </div>
+          {/* EL PANEL, SÓLO EN ANCHO. Debajo del breakpoint el detalle no está
+              acá: sube como sheet (abajo del todo). No es que se oculte — se
+              monta en otro sitio, y por eso hace falta el `esMovil` en JS y no
+              alcanza con el CSS.
+
+              El "Elige un pedido" se va con el panel, y está bien: en angosto
+              esa instrucción no tiene a qué panel referirse, y quien ya tocó una
+              tarjeta la está leyendo después de haberla seguido. */}
+          {!esMovil && (
+            <div className="duna-split__panel">
+              {!elegido && (
+                <div className="duna-card duna-card__pad">
+                  <p className="duna-sub" style={{ margin: 0 }}>Elige un pedido para ver su detalle.</p>
+                </div>
+              )}
+              {detalleNodo}
+            </div>
+          )}
         </div>
       )}
+
+      {/* ═══ EL MISMO DETALLE, EN ANGOSTO ═════════════════════════════════════
+          Apilado, el panel se actualizaba FUERA DE LA PANTALLA: tocar una
+          tarjeta no producía respuesta visible y había que scrollear a ciegas
+          para descubrir que sí había pasado algo. Es una acción sin respuesta —
+          la misma clase de defecto que el botón mudo que obligó a
+          `useAccionGuardada`—, no una incomodidad de layout.
+
+          Sheet y NO una página: la lista queda detrás, cerrar devuelve al mismo
+          sitio sin navegación ni botón atrás, y `?pedido=` sigue siendo un
+          enlace compartible. Una página rompía las tres a la vez.
+
+          Y VA FUERA del bloque de arriba, no dentro: el sheet tiene que poder
+          abrirse aunque la lista visible esté vacía — que es exactamente el caso
+          del enlace profundo con un carril que no lo contiene.
+
+          El nodo del detalle es UNO (`detalleNodo`): montarlo acá y en el panel
+          con dos juegos de props sería el mismo detalle escrito dos veces, y la
+          primera divergencia no la vería nadie hasta abrirlo en un teléfono. */}
+      <DunaSheet
+        abierto={esMovil && !!elegido}
+        onCerrar={() => navegar({ pedido: null })}
+        titulo={elegido ? `Pedido ${elegido.numero_orden}` : 'Detalle del pedido'}
+        descripcion="Estado de entrega y de pago, con las acciones disponibles."
+      >
+        {detalleNodo}
+      </DunaSheet>
 
       {/* ═══ MODALES · montados en la PÁGINA, no en el panel ══════════════════
           El panel se desmonta al cambiar de pedido; una mutación montada ahí

@@ -17,6 +17,23 @@
    THEME CONFIGURATION (replaces tailwind.config.js)
    ============================================ */
 @theme {
+  /* ── EL BREAKPOINT DEL PANEL ───────────────────────────────────────────────
+     960px, y el número NO se decide acá: lo decide @duna/design-system, donde
+     está DERIVADO (lista 400 + gap 24 + panel legible ~420 + padding 32×2 = 908,
+     redondeado al primer valor cómodo por encima) y donde vive el `@media` de
+     `.duna-split`. Acá sólo se le da nombre para poder escribirlo como variante.
+
+     Existe porque el chrome del admin —rail, offset de la topbar, margen del
+     contenido— cambia en el MISMO punto en que el layout partido deja de caber,
+     y antes cambiaba en el `lg`=1024 que viene por default con Tailwind. Esos
+     64px de diferencia dejaban una franja con barra inferior y panel al lado, o
+     sea dos sistemas de navegación a la vez.
+
+     No es un token de marca ni entra al storefront por la puerta de atrás: una
+     variante que nadie usa no genera CSS. Se llama `duna` porque nombra al
+     sistema que es dueño del número, no a la app. */
+  --breakpoint-duna: 960px;
+
   /* Fonts */
   --font-inter: 'Inter', sans-serif;
   --font-playfair: 'Playfair Display', serif;

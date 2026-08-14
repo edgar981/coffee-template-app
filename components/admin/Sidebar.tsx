@@ -1,9 +1,9 @@
 "use client";
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { cn } from '@duna/core/utils';
-import { PanelLeftClose, Search, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { PanelLeftClose, Search } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { usePathname } from "next/navigation";
 import { SidebarProps } from '@/types/admin';
 import { ADMIN_NAV, type AdminNavItem } from '@/constants/admin-nav';
@@ -149,7 +149,7 @@ function SidebarNav({ iconOnly, animateIndicator, onNavigate, atencionPedidos }:
 // acción mientras las acciones vivían en la topbar, lejos de la identidad que
 // las contextualiza. El contenido no cambia — lo que cambia es que ahora se
 // puede hacer clic. Ver `UserMenu` para las variantes y para por qué la topbar
-// conserva una copia por debajo de `lg`.
+// conserva una copia por debajo del breakpoint del sistema.
 function UserFooter({ compact }: { compact: boolean }) {
   return (
     <div className="border-t border-sidebar-border p-3">
@@ -200,77 +200,71 @@ function BrandLockup() {
 }
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
-export default function Sidebar({
-  collapsed, onToggle, mobileOpen, onClose, onOpenSearch,
-}: SidebarProps) {
+//
+// ── EL RAIL ES DE ESCRITORIO, Y YA NO TIENE VERSIÓN MÓVIL ────────────────────
+//
+// Hasta la tanda de móvil esto era además un drawer off-canvas con hamburguesa,
+// backdrop, bloqueo de scroll y Escape. Todo eso se BORRÓ: debajo del breakpoint
+// la navegación es `MobileNav`, y un menú detrás de un botón conviviendo con una
+// barra siempre visible son dos respuestas a la misma pregunta.
+//
+// Lo que se fue con el drawer, y conviene saber que se fue a propósito:
+//
+//   • el bloqueo de scroll hecho a mano (`body.style.overflow = 'hidden'`), que
+//     además estaba a MEDIAS — le faltaba la prevención a nivel de evento, sin la
+//     cual iOS Safari sigue moviendo el fondo detrás del panel. El sheet que lo
+//     reemplaza la trae con Radix (§ DunaSheet);
+//   • el backdrop `bg-black/50` a mano, que era una TERCERA definición del velo
+//     junto a `.duna-scrim` y `overlayClasses`;
+//   • el Escape y el cierre al navegar, que el sheet resuelve por su cuenta.
+//
+// El breakpoint es `duna` (960), el del sistema — no el `lg` de 1024 que venía
+// por default y que dejaba una franja con barra inferior y rail a la vez.
+export default function Sidebar({ collapsed, onToggle, onOpenSearch }: SidebarProps) {
   // UNA sola consulta para todo el nav, acá y no más abajo: con el rail colapsado
   // hay dos `SidebarNav` montados a la vez, así que el hook viviría duplicado.
+  // `MobileNav` tiene la suya y no comparte ésta: las dos superficies nunca están
+  // montadas al mismo tiempo, así que no hay dos pollers.
   const atencionPedidos = useAtencionPedidos();
-  // Mobile drawer only: lock body scroll + Escape-to-close while open.
-  useEffect(() => {
-    if (!mobileOpen) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [mobileOpen, onClose]);
 
   return (
     <>
-      {/* Mobile backdrop (< lg, drawer open) */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-            onClick={onClose}
-            aria-hidden="true"
-          />
-        )}
-      </AnimatePresence>
-
-      {/* In-flow rail (≥ lg) / off-canvas drawer (< lg). Collapsed = a static icon
-          rail: hovering shows tooltips only (no overlay); the toggle is the only
-          way to expand/collapse. */}
+      {/* Rail en el flujo, sólo en ancho. Colapsado = rail de íconos estático: el
+          hover muestra tooltips (sin overlay) y el toggle es la única forma de
+          expandir o colapsar. */}
       <aside
         className={cn(
-          'fixed left-0 top-0 z-50 flex h-full flex-col overflow-hidden border-r border-sidebar-border bg-sidebar',
-          'w-60 transition-[transform,width] duration-300 ease-in-out',
-          collapsed && 'lg:w-18',
-          mobileOpen ? 'translate-x-0' : '-translate-x-full',
-          'lg:translate-x-0',
+          'fixed left-0 top-0 z-50 hidden h-full flex-col overflow-hidden border-r border-sidebar-border bg-sidebar',
+          'w-60 transition-[width] duration-300 ease-in-out duna:flex',
+          collapsed && 'duna:w-18',
         )}
       >
         {/* Header — brand + (expanded only) search & collapse toggle */}
         <div className={cn(
           'relative flex h-16 shrink-0 items-center gap-2 border-b border-sidebar-border px-3',
-          collapsed && 'lg:justify-center',
+          collapsed && 'duna:justify-center',
         )}>
           {/* Full lockup — hidden only on the collapsed desktop rail */}
-          <div className={cn('min-w-0 flex-1', collapsed && 'lg:hidden')}>
+          <div className={cn('min-w-0 flex-1', collapsed && 'duna:hidden')}>
             <BrandLockup />
           </div>
 
           {/* Mark — collapsed desktop rail only */}
-          <div className={cn('hidden', collapsed && 'lg:flex lg:items-center lg:justify-center')}>
+          <div className={cn('hidden', collapsed && 'duna:flex duna:items-center duna:justify-center')}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/duna-mark-v1.svg" alt="Duna" className="h-6 w-6 object-contain dark:hidden" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/duna-mark-negative-v1.svg" alt="Duna" className="hidden h-6 w-6 object-contain dark:block" />
           </div>
 
-          {/* Search — expanded rail + mobile drawer; hidden on the collapsed rail */}
-          <div className={cn('shrink-0', collapsed && 'lg:hidden')}>
+          {/* Search — expanded rail only; hidden on the collapsed rail (⌘K sigue) */}
+          <div className={cn('shrink-0', collapsed && 'duna:hidden')}>
             <SearchButton onClick={onOpenSearch} />
           </div>
 
           {/* Collapse toggle — expanded desktop rail only (when collapsed it lives
               in the top bar). PanelLeftClose = "collapse". */}
-          <div className={cn('hidden', !collapsed && 'lg:block')}>
+          <div className={cn('hidden', !collapsed && 'duna:block')}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -284,32 +278,25 @@ export default function Sidebar({
               <TooltipContent side="bottom">Colapsar panel</TooltipContent>
             </Tooltip>
           </div>
-
-          {/* Mobile drawer close (< lg only) */}
-          <button
-            onClick={onClose}
-            aria-label="Cerrar menú"
-            className="ml-auto inline-flex shrink-0 text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground lg:hidden"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
-        {/* Nav — icon-only + tooltips on the collapsed desktop rail, labelled
-            otherwise. `lg:hidden` / `lg:flex` swaps between the two on desktop; the
-            mobile drawer always uses the labelled variant. */}
-        <div className={cn('flex flex-1 flex-col overflow-hidden', collapsed && 'lg:hidden')}>
-          <SidebarNav iconOnly={false} animateIndicator onNavigate={onClose} atencionPedidos={atencionPedidos} />
+        {/* Nav — icon-only + tooltips on the collapsed rail, labelled otherwise.
+            `onNavigate` ya no cierra nada (el drawer murió), pero la prop se
+            conserva: `NavRow` la usa y el rail expandido de un monitor angosto
+            puede querer un efecto al navegar. Hoy es un no-op DECLARADO, no un
+            resto olvidado. */}
+        <div className={cn('flex flex-1 flex-col overflow-hidden', collapsed && 'duna:hidden')}>
+          <SidebarNav iconOnly={false} animateIndicator onNavigate={() => {}} atencionPedidos={atencionPedidos} />
         </div>
         {collapsed && (
-          <div className="hidden flex-1 flex-col overflow-hidden lg:flex">
-            <SidebarNav iconOnly animateIndicator onNavigate={onClose} atencionPedidos={atencionPedidos} />
+          <div className="hidden flex-1 flex-col overflow-hidden duna:flex">
+            <SidebarNav iconOnly animateIndicator onNavigate={() => {}} atencionPedidos={atencionPedidos} />
           </div>
         )}
 
         {/* User footer — compact (avatar only) on the collapsed rail */}
-        <div className={cn(collapsed && 'lg:hidden')}><UserFooter compact={false} /></div>
-        {collapsed && <div className="hidden lg:block"><UserFooter compact /></div>}
+        <div className={cn(collapsed && 'duna:hidden')}><UserFooter compact={false} /></div>
+        {collapsed && <div className="hidden duna:block"><UserFooter compact /></div>}
       </aside>
     </>
   );

@@ -29,6 +29,26 @@ const SheetOverlay = React.forwardRef<
 ));
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
+// ─── Las dos superficies CRUDAS, sin el chrome de la variante ────────────────
+//
+// `SheetContent` trae fondo, padding, sombra, borde y una X de cierre: perfecto
+// para el sheet genérico, y un estorbo para un consumidor que ya tiene su propia
+// FORMA. Neutralizar esas clases una por una desde el call site funciona por
+// tailwind-merge, pero deja al llamador peleando con un chrome que no pidió — y
+// la primera clase que se agregue acá vuelve a aparecer donde se la había sacado.
+//
+// Estas dos son el Radix pelado. Existen para que el sheet de Duna use el
+// COMPORTAMIENTO (foco atrapado, Escape, click-fuera, scroll-lock vía
+// react-remove-scroll) sin heredar la apariencia.
+//
+// Y siguen viviendo en ESTE archivo a propósito: `@radix-ui/react-dialog` se
+// importa en un solo sitio, igual que `@vercel/blob` en `lib/storage.ts`. Es lo
+// que hace barata la revisión del día que la librería cambie — hoy además entra
+// como dependencia transitiva, así que un import suelto en otro archivo sería
+// además una apuesta sobre el árbol de node_modules.
+const SheetScrim   = SheetPrimitive.Overlay;
+const SheetSurface = SheetPrimitive.Content;
+
 const sheetVariants = cva(
   // Slide timing/easing centralized in `sheetTiming` (open ~300ms ease-out, close
   // ~200ms ease-in). The per-side classes below add the slide direction.
@@ -132,6 +152,8 @@ export {
   Sheet,
   SheetPortal,
   SheetOverlay,
+  SheetScrim,
+  SheetSurface,
   SheetTrigger,
   SheetClose,
   SheetContent,

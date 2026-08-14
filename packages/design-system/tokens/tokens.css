@@ -203,6 +203,23 @@
      muestra la lista de `order-card`, o sea el ancho contra el que se validó la
      densidad de esa tarjeta. */
   --duna-list-w: 400px;
+
+  /* ── EL BORDE DE ABAJO DEL TELÉFONO ──────────────────────────────────────
+     El indicador de inicio de un iPhone se dibuja ENCIMA de la página, así que
+     una barra fija al borde inferior queda con su última fila de píxeles debajo
+     de una barra del sistema — y el slot que ahí se pierde es el que la mano
+     alcanza primero.
+
+     Es token y no un `env()` escrito en cada regla por lo de siempre: hoy lo
+     consumen la barra inferior y el sheet, y el día que aparezca un tercero no
+     puede decidir por su cuenta si el fallback es 0px o 8px.
+
+     El fallback `0px` NO es decorativo: `env()` sin segundo argumento no resuelve
+     en un navegador que no conoce la variable, y el `calc()` que la contiene se
+     invalida ENTERO — o sea que el padding de la barra desaparece, no que se
+     quede corto. Falla hacia "sin margen de seguridad", que es exactamente el
+     modo de falla que este token existe para cerrar. */
+  --duna-safe-b: env(safe-area-inset-bottom, 0px);
 }
 
 /* ── DARK ─────────────────────────────────────────────────────────────────

@@ -14,6 +14,8 @@ import { customerWhatsappHref } from '@duna/core/whatsapp-link';
 import { toast } from 'sonner';
 import { getCustomers, getCustomer, deleteCustomer } from '@/lib/api/customers';
 import { ChipCanal } from '@/components/admin/ChipCanal';
+import { DunaSheet } from '@/components/admin/DunaSheet';
+import { useEsMovil } from '@/hooks/useEsMovil';
 import { CustomerFormModal } from '@/components/admin/CustomerFormModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { siteConfig } from '@/lib/config/site';
@@ -90,6 +92,10 @@ function ClientesV2() {
   const [cargando, setCargando] = useState(true);
   const [error, setError]       = useState<string | null>(null);
 
+  // Debajo del breakpoint el detalle sube como sheet en vez de apilarse. El CSS
+  // no puede mover un nodo de sitio, así que la pregunta va en JS.
+  const esMovil = useEsMovil();
+
   // El carril y la selección viven en la URL: el detalle es enlazable y sobrevive
   // a un refresh, igual que `?pedido=` en Pedidos.
   const carril = (carrilPorKey(params.get('f') ?? '')?.key ?? 'todos') as CarrilKey;
@@ -117,9 +123,15 @@ function ClientesV2() {
   const visibles    = useMemo(() => aplicarCarril(encontrados, carril), [encontrados, carril]);
   const cuentas     = useMemo(() => conteosClientes(encontrados), [encontrados]);
 
+  // LO ELEGIDO SE BUSCA EN LA LISTA COMPLETA, no en la recortada — mismo cambio
+  // y mismo motivo que en Pedidos: un `?cliente=` que caiga fuera del carril o de
+  // la búsqueda en curso tiene que abrir igual. Acá muerde incluso más fácil,
+  // porque la búsqueda es estado LOCAL: teclear en el buscador con un cliente
+  // abierto le vaciaba el panel al operador, sin que la URL cambiara y sin nada
+  // que explicara por qué.
   const elegido = useMemo(
-    () => visibles.find(c => c.id === seleccion) ?? null,
-    [visibles, seleccion],
+    () => clientes.find(c => c.id === seleccion) ?? null,
+    [clientes, seleccion],
   );
 
   // LA VERDAD DEL DETALLE LA TRAE EL SERVIDOR al abrirse. La lista no carga el
@@ -173,6 +185,21 @@ function ClientesV2() {
           : p));
     toast.success(modo === 'creado' ? 'Cliente creado' : 'Cliente actualizado');
   }, []);
+
+  // El detalle se escribe UNA vez: vive en el panel (ancho) o en el sheet
+  // (angosto), nunca en los dos. Dos juegos de props del mismo componente es cómo
+  // una de las dos superficies se queda sin un dato y nadie lo ve hasta abrirlo
+  // en un teléfono.
+  const detalleNodo = elegido ? (
+    <Detalle
+      cliente={elegido}
+      detalle={detalleVigente}
+      cargando={cargandoDetalle}
+      error={errorDetalle}
+      onEditar={() => setEditando(elegido)}
+      onEliminar={() => setBorrando(elegido)}
+    />
+  ) : null;
 
   const navegar = useCallback((cambios: Record<string, string | null>) => {
     const q = new URLSearchParams(params.toString());
@@ -278,7 +305,11 @@ function ClientesV2() {
         </div>
       )}
 
-      {visibles.length > 0 && (
+      {/* `|| elegido` — la otra mitad de buscar en la lista completa: sin él, un
+          cliente abierto se quedaba sin dónde pintarse en cuanto la búsqueda o el
+          carril vaciaban la lista. El vacío de arriba se sigue mostrando, y es lo
+          que explica por qué hay un detalle sin lista. */}
+      {(visibles.length > 0 || elegido) && (
         <div className="duna-split">
           <div className="duna-split__list">
             {visibles.map(c => (
@@ -305,25 +336,35 @@ function ClientesV2() {
             ))}
           </div>
 
-          <div className="duna-split__panel">
-            {!elegido && (
-              <div className="duna-card duna-card__pad">
-                <p className="duna-sub" style={{ margin: 0 }}>Elige un cliente para ver su detalle.</p>
-              </div>
-            )}
-            {elegido && (
-              <Detalle
-                cliente={elegido}
-                detalle={detalleVigente}
-                cargando={cargandoDetalle}
-                error={errorDetalle}
-                onEditar={() => setEditando(elegido)}
-                onEliminar={() => setBorrando(elegido)}
-              />
-            )}
-          </div>
+          {/* EL PANEL, SÓLO EN ANCHO — mismo reparto que Pedidos. Debajo del
+              breakpoint el detalle no se oculta: se monta en el sheet de abajo. */}
+          {!esMovil && (
+            <div className="duna-split__panel">
+              {!elegido && (
+                <div className="duna-card duna-card__pad">
+                  <p className="duna-sub" style={{ margin: 0 }}>Elige un cliente para ver su detalle.</p>
+                </div>
+              )}
+              {detalleNodo}
+            </div>
+          )}
         </div>
       )}
+
+      {/* EL MISMO DETALLE, EN ANGOSTO. Apilado, el panel se actualizaba fuera de
+          la pantalla: tocar una tarjeta no producía respuesta visible. Va FUERA
+          del bloque de arriba para que el enlace profundo abra aunque la lista
+          visible esté vacía, y el nodo es UNO para que las dos superficies no
+          puedan discrepar. El porqué largo está en Pedidos, que es donde este
+          patrón se decidió. */}
+      <DunaSheet
+        abierto={esMovil && !!elegido}
+        onCerrar={() => navegar({ cliente: null })}
+        titulo={elegido ? elegido.nombre : 'Detalle del cliente'}
+        descripcion="Contacto, historial de pedidos y las acciones disponibles."
+      >
+        {detalleNodo}
+      </DunaSheet>
 
       {/* ═══ DIÁLOGOS · montados en la PÁGINA, no en el panel ═════════════════ */}
       <CustomerFormModal
