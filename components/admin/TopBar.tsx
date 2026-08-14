@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  Menu, Sun, Moon, Monitor, PanelLeftOpen, Search,
+  Sun, Moon, Monitor, PanelLeftOpen, Search,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
@@ -19,7 +19,6 @@ import { UserMenu } from '@/components/admin/UserMenu';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface TopBarProps {
-  onMenuToggle: () => void;
   sidebarWidth: number | string;
   /** Desktop rail collapsed — surfaces the expand toggle + search in the top bar. */
   collapsed: boolean;
@@ -29,10 +28,26 @@ interface TopBarProps {
   onOpenSearch: () => void;
 }
 
+// El mismo botón en las DOS aperturas del ⌘K de esta barra —el slot de angosto y
+// el del rail colapsado—. Escrito una vez: dos copias del mismo control es cómo
+// una se queda sin tooltip o con otra etiqueta.
+function BotonBuscar({ onClick }: { onClick: () => void }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button className={cn(ADMIN_ICON_BUTTON, 'h-9 w-9')} onClick={onClick} aria-label="Buscar (⌘K)">
+          <Search className="h-5 w-5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">Buscar (⌘K)</TooltipContent>
+    </Tooltip>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function TopBar({
-  onMenuToggle, sidebarWidth, collapsed, onToggleCollapsed, onOpenSearch,
+  sidebarWidth, collapsed, onToggleCollapsed, onOpenSearch,
 }: TopBarProps) {
   // `theme` = la ELECCIÓN ('light' | 'dark' | 'system'); `resolvedTheme` = el tema
   // EFECTIVO ya resuelto contra el sistema. El menú marca la elección y el icono
@@ -49,19 +64,25 @@ export default function TopBar({
 
   return (
     <header
-      className="fixed top-0 right-0 left-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur transition-[left] duration-300 lg:left-[var(--sb-w)]"
+      className="fixed top-0 right-0 left-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur transition-[left] duration-300 duna:left-[var(--sb-w)]"
       style={{ "--sb-w": typeof sidebarWidth === "number" ? `${sidebarWidth}px` : sidebarWidth } as React.CSSProperties}
     >
-      {/* Mobile menu toggle — opens the off-canvas drawer (< lg only) */}
-      <button className={cn(ADMIN_ICON_BUTTON, 'h-9 w-9 lg:hidden')} onClick={onMenuToggle} aria-label="Abrir menú">
-        <Menu className="h-5 w-5" />
-      </button>
+      {/* ── EL BUSCADOR OCUPA EL SLOT DE LA HAMBURGUESA ─────────────────────
+          La hamburguesa MURIÓ con el drawer: debajo del breakpoint la navegación
+          es la barra inferior. Pero ese slot no podía quedar vacío — el botón de
+          Buscar vivía dentro del rail, y el rail tampoco existe en angosto, así
+          que borrar la hamburguesa a secas dejaba al teléfono sin ninguna forma
+          de abrir el ⌘K (un teclado no siempre hay, y un atajo no se descubre).
+          Se va lo que se reemplazó; se queda lo que se habría perdido. */}
+      <div className="duna:hidden">
+        <BotonBuscar onClick={onOpenSearch} />
+      </div>
 
       {/* Desktop expand toggle + search — only when the rail is collapsed (when
           expanded they live in the sidebar header). Clicking the toggle expands the
           rail; the search button opens the ⌘K palette. */}
       {collapsed && (
-        <div className="hidden items-center gap-1 lg:flex">
+        <div className="hidden items-center gap-1 duna:flex">
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -74,18 +95,7 @@ export default function TopBar({
             </TooltipTrigger>
             <TooltipContent side="bottom">Expandir panel</TooltipContent>
           </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                className={cn(ADMIN_ICON_BUTTON, 'h-9 w-9')}
-                onClick={onOpenSearch}
-                aria-label="Buscar (⌘K)"
-              >
-                <Search className="h-5 w-5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Buscar (⌘K)</TooltipContent>
-          </Tooltip>
+          <BotonBuscar onClick={onOpenSearch} />
         </div>
       )}
 
@@ -133,12 +143,13 @@ export default function TopBar({
         {/* Notifications (tooltip + animation live inside the component) */}
         <NotificationBell />
 
-        {/* Menú de usuario — SOLO por debajo de `lg`. En escritorio vive en el
-            footer del sidebar, que está siempre a la vista; en móvil el sidebar
-            es un drawer oculto tras la hamburguesa, así que dejar ahí la única
-            salida de sesión la escondería detrás de dos toques y de un panel de
-            navegación. Es el mismo componente, no una copia. */}
-        <div className="lg:hidden">
+        {/* Menú de usuario — SOLO en angosto. En ancho vive en el footer del
+            rail, que está siempre a la vista; en angosto el rail NO EXISTE (no
+            está escondido: no se renderiza), así que ésta es la única salida de
+            sesión. Es el mismo componente, no una copia — y es la razón por la
+            que el sheet de "Más" NO lleva bloque de usuario, aunque la maqueta lo
+            dibuje: sería el segundo sitio para la misma identidad. */}
+        <div className="duna:hidden">
           <UserMenu variant="topbar" />
         </div>
 

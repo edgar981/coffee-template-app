@@ -93,8 +93,23 @@
    Todas las media queries del sistema usan este número, y su gemelo de JS es
    `DUNA_MQ_MOVIL` (primitives/layout.ts) — que existe porque la decisión de
    dónde RENDERIZAR el detalle no la puede tomar el CSS. Los dos se mueven
-   juntos; el porqué de que sean dos está en ese archivo. */
-@media (max-width: 960px) {
+   juntos; el porqué de que sean dos está en ese archivo.
+
+   ── Y POR QUÉ 959.98 Y NO 960 ───────────────────────────────────────────────
+
+   Porque el consumidor expresa el OTRO lado con `min-width: 960px` (es lo que
+   genera un breakpoint con nombre en Tailwind), y `max-width: 960px` con
+   `min-width: 960px` **se solapan a exactamente 960**: ahí aplicarían las dos
+   mitades a la vez — barra inferior Y rail, panel apilado Y margen de rail. Es
+   la misma franja de dos navegaciones que esta decisión eliminó, reducida a un
+   píxel, y por eso mismo peor: nadie la reproduce a mano.
+
+   No es teórico: se destapó grepeando el CSS COMPILADO (`min-width:960px` junto
+   a `max-width:960px` en el mismo bundle), no leyendo la fuente. El `.98` es el
+   corte estándar sub-píxel — los anchos pueden ser fraccionarios por zoom o por
+   densidad, así que `959` dejaría un hueco de verdad. El umbral sigue siendo
+   960: DEBAJO es angosto, 960 exacto ya es ancho, en los tres sitios. */
+@media (max-width: 959.98px) {
   .duna-split { grid-template-columns: minmax(0, 1fr); }
   /* Apilado, "pegajoso" no significa nada: el panel ya no tiene al lado una
      columna que scrollee contra él, y dejarlo sticky lo clavaría tapando la
@@ -431,6 +446,47 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
            calc(var(--duna-space-5) + var(--duna-safe-b));
 }
 
+/* ── La REJILLA de destinos de un sheet ───────────────────────────────────
+   Su caso es un sheet que ofrece un puñado de sitios a los que ir. DOS columnas
+   fijas y no `auto-fit`: el ancho de un teléfono da para dos filas de texto
+   corto, y un `auto-fit` colapsaría a una sola columna en los estrechos —
+   duplicando el alto de la lista justo donde el sheet tiene tope de altura.
+
+   Es fila de NAVEGACIÓN, no botón, y por eso no reusa `.duna-btn`: un botón se
+   dimensiona por su texto y éstas tienen que medir todas igual para que la
+   rejilla se lea como una rejilla. El ícono va a 17px —medida interna de la
+   primitiva, como los 13 del botón— porque acá el ícono es lo que se escanea
+   antes que la palabra. */
+.duna-sheet__grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--duna-space-2); }
+.duna-sheet__item {
+  display: flex; align-items: center; gap: var(--duna-space-3);
+  padding: var(--duna-space-3) var(--duna-space-4);
+  border-radius: var(--duna-r-m);
+  border: 1px solid var(--duna-border);
+  background: var(--duna-surface-2);
+  color: var(--duna-ink-2);
+  font-weight: var(--duna-w-semi); font-size: var(--duna-text-label);
+  line-height: var(--duna-lh-normal); text-align: left;
+  transition: border-color var(--duna-dur-fast) var(--duna-ease);
+}
+.duna-sheet__item svg { width: 17px; height: 17px; flex-shrink: 0; opacity: .8; }
+/* El destino ACTUAL se marca con BORDE y tinta, no con relleno: el sheet ya es
+   una superficie sobre otra, y un item relleno adentro compite con ella. Es la
+   misma regla que hace que el pill activo se marque con superficie y sombra en
+   vez de color. */
+.duna-sheet__item.is-on {
+  border-color: var(--duna-ink); color: var(--duna-ink);
+  box-shadow: var(--duna-shadow-1);
+}
+.duna-sheet__item.is-on svg { opacity: 1; }
+/* El pie del sheet: lo que no es un destino. Separado por una línea porque un
+   control que CAMBIA algo no debe leerse como un sitio más al que ir. */
+.duna-sheet__foot {
+  display: flex; gap: var(--duna-space-2);
+  margin-top: var(--duna-space-4); padding-top: var(--duna-space-4);
+  border-top: 1px solid var(--duna-border);
+}
+
 /* La entrada y la salida las declara el SISTEMA, no el consumidor, porque son
    parte de la forma: un sheet que aparece sin subir no se lee como un sheet.
    Los `data-state` son los que estampa el diálogo de abajo — es el único punto
@@ -508,7 +564,7 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
    `lg` de su framework de utilidades —1024, elegido por nadie— y volveríamos a
    tener dos breakpoints para la misma pregunta. */
 .duna-nav-movil   { display: none; }
-@media (max-width: 960px) {
+@media (max-width: 959.98px) {
   .duna-nav-escritorio { display: none !important; }
   .duna-nav-movil      { display: revert; }
   .duna-mobnav         { display: flex; }

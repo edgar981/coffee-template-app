@@ -1,15 +1,14 @@
 import { LucideIcon } from "lucide-react";
 
+/** El rail es de ESCRITORIO y nada más. Debajo del breakpoint del sistema no se
+ *  esconde detrás de una hamburguesa: no existe, y la navegación es `MobileNav`.
+ *  De ahí que ya no haya `mobileOpen` ni `onClose`. */
 export interface SidebarProps {
-  /** Desktop rail collapsed (72px) vs expanded (240px). Irrelevant < lg. */
+  /** Rail colapsado (72px) contra expandido (240px). */
   collapsed: boolean;
-  /** Toggle the desktop rail (PanelLeft control, expanded state only). */
+  /** Alterna el rail (control PanelLeft, sólo en estado expandido). */
   onToggle: () => void;
-  /** Mobile drawer open. Irrelevant ≥ lg. */
-  mobileOpen: boolean;
-  /** Close the mobile drawer (backdrop / Escape / nav / close button). */
-  onClose: () => void;
-  /** Open the ⌘K command palette (sidebar Search button). */
+  /** Abre la paleta ⌘K (botón Buscar del rail). */
   onOpenSearch: () => void;
 }
 

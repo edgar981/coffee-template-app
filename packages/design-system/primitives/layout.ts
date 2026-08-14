@@ -36,9 +36,13 @@ export const DUNA_BP_MOVIL = 960;
  * La consulta lista para `matchMedia`, DERIVADA de la constante — dentro de este
  * archivo hay un solo número.
  *
- * `max-width` inclusivo, igual que el `@media` del CSS: a exactamente 960px se
- * está en móvil en los dos lados. Un `< 960` de un lado y un `<= 960` del otro
- * deja una franja de un píxel de ancho con las dos mitades en desacuerdo, que es
- * el tipo de defecto que nadie reproduce a mano.
+ * El `- 0.02` es el mismo corte sub-píxel que usan las media queries del CSS, y
+ * está por la misma razón: el otro lado del breakpoint se expresa con
+ * `min-width: 960px`, así que un `max-width: 960px` se SOLAPARÍA con él a
+ * exactamente 960 — las dos mitades activas a la vez. Los anchos pueden ser
+ * fraccionarios (zoom, densidad), de ahí `.98` y no `959`.
+ *
+ * El umbral es 960 y el criterio es el mismo en los tres sitios: DEBAJO de 960 es
+ * angosto; 960 exacto ya es ancho.
  */
-export const DUNA_MQ_MOVIL = `(max-width: ${DUNA_BP_MOVIL}px)`;
+export const DUNA_MQ_MOVIL = `(max-width: ${DUNA_BP_MOVIL - 0.02}px)`;

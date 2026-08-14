@@ -553,7 +553,25 @@
       </nav>
     </div>
 
-    <div class="flag" style="margin-top:var(--duna-space-4)">La barra REEMPLAZA al rail, no convive con él. Un menú detrás de un botón y una barra siempre visible son dos respuestas a la misma pregunta, y tener las dos obliga al operador a aprender cuál usa cada pantalla. La hamburguesa y su drawer mueren con esto.</div>
+    <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">Rejilla de destinos · lo que el sheet lleva adentro cuando ofrece sitios</div>
+    <div class="duna-card duna-card__pad" style="max-width:420px">
+      <div class="duna-sheet__grid">
+        <a class="duna-sheet__item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="1"/><path d="M8 8V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v3"/></svg>Inventario</a>
+        <a class="duna-sheet__item is-on" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Pagos</a>
+        <a class="duna-sheet__item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>Analítica</a>
+        <a class="duna-sheet__item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>Automatizaciones<span class="duna-nav-dot"></span></a>
+      </div>
+      <div class="duna-sheet__foot">
+        <button type="button" class="duna-btn duna-btn--secondary" style="flex:1;justify-content:center">Claro</button>
+        <button type="button" class="duna-btn duna-btn--secondary" style="flex:1;justify-content:center">Oscuro</button>
+        <button type="button" class="duna-btn duna-btn--secondary" style="flex:1;justify-content:center">Sistema</button>
+      </div>
+    </div>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">DOS columnas FIJAS, no <code>auto-fit</code>: el ancho de un teléfono da para dos filas de texto corto, y un <code>auto-fit</code> colapsaría a una sola columna en los estrechos — duplicando el alto justo donde el sheet tiene tope. Son filas de NAVEGACIÓN y por eso no reusan <code>duna-btn</code>: un botón se dimensiona por su texto y éstas tienen que medir todas igual para que la rejilla se lea como rejilla.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">El destino ACTUAL se marca con BORDE y tinta, nunca con relleno: el sheet ya es una superficie sobre otra y un item relleno adentro compite con ella. Misma regla que el pill activo. Y el PIE va detrás de una línea porque un control que CAMBIA algo no puede leerse como un sitio más al que ir.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">La barra REEMPLAZA al rail, no convive con él. Un menú detrás de un botón y una barra siempre visible son dos respuestas a la misma pregunta, y tener las dos obliga al operador a aprender cuál usa cada pantalla. La hamburguesa y su drawer mueren con esto.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">La marca del activo va ARRIBA del slot: abajo la tapa el pulgar justo mientras se toca, que es el momento en que confirma. Y el punto de atención ES <code>duna-nav-dot</code> —el mismo del rail, sólo reposicionado—, no un punto propio de la barra: el sol significa una sola cosa en todo el producto, y dos definiciones es cómo dejan de coincidir.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">El label se RECORTA en vez de partirse. Cinco slots en 320px es el caso estrecho, y una palabra en dos renglones sube la barra y le come pantalla a la lista. Arriba se ve inline para poder mostrarla; en uso va <code>position: fixed</code> al borde inferior, y su padding suma <code>--duna-safe-b</code> porque el indicador de inicio del teléfono se dibuja ENCIMA de la página — sin eso el slot que la mano alcanza primero queda debajo de una barra del sistema.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">El fondo es OPACO y no un velo translúcido con blur: detrás pasan tarjetas con borde y cifras en mono, y un velo las deja legibles a medias justo debajo de los labels. El blur queda para el scrim, donde su trabajo ES restarle legibilidad a lo de atrás.</div>
@@ -671,7 +689,7 @@
   (function estadoBreakpoint() {
     const out = document.getElementById('bpEstado');
     if (!out) return;
-    const mq = matchMedia('(max-width: 960px)');
+    const mq = matchMedia('(max-width: 959.98px)');   // el mismo corte sub-píxel que el CSS (§ primitives)
     const pintar = () => {
       out.textContent = mq.matches
         ? `${window.innerWidth}px — ANGOSTO: el panel sube como sheet y la navegación es la barra inferior.`
