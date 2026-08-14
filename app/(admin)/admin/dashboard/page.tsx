@@ -276,7 +276,7 @@ export default function Dashboard() {
             <h3 className="font-semibold text-foreground">Órdenes Recientes</h3>
             <p className="text-xs text-muted-foreground">Últimas transacciones</p>
           </div>
-          <Link href="/admin/ordenes" className="text-xs text-accent-amber hover:underline font-medium">Ver todas →</Link>
+          <Link href="/admin/pedidos" className="text-xs text-accent-amber hover:underline font-medium">Ver todos →</Link>
         </div>
         {loading ? (
           <div className="p-8 text-center text-muted-foreground text-sm">Cargando...</div>
@@ -320,7 +320,7 @@ function StatGridSkeleton({ count }: { count: number }) {
 // "open in new tab" and keyboard/screen-reader navigation all work.
 function OrdersTable({ orders }: { orders: Order[] }) {
   const router = useRouter();
-  const orderHref = (o: Order) => `/admin/ordenes?order=${encodeURIComponent(o.numero_orden)}`;
+  const orderHref = (o: Order) => `/admin/pedidos?pedido=${encodeURIComponent(o.numero_orden)}`;
 
   return (
     <div className="overflow-x-auto">

@@ -42,7 +42,7 @@ test('entregado hace 25 h sin pago → run ENVIADO + notificación', async () =>
 
   const notis = await notificacionesDe('entrega_sin_cobro');
   assert.equal(notis.length, 1);
-  assert.equal(notis[0].href, '/admin/ordenes?order=CN-200001');
+  assert.equal(notis[0].href, '/admin/pedidos?pedido=CN-200001');
   assert.match(notis[0].mensaje, /CN-200001/);
 });
 

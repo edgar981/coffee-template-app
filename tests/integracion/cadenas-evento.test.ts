@@ -41,7 +41,7 @@ test('storefront: evento → run ENVIADO → fila en Notification con su shape',
   assert.equal(notis[0].leida, false);
   // El deep link es la mitad útil del aviso: sin él el operador tiene que buscar
   // la orden a mano, que es el trabajo que la campana debía ahorrar.
-  assert.equal(notis[0].href, '/admin/ordenes?order=CN-100001');
+  assert.equal(notis[0].href, '/admin/pedidos?pedido=CN-100001');
   assert.match(notis[0].mensaje, /Ana/);
   // `tipo` es la key del registry — es lo que el bell usa para el ícono y el
   // tono del badge. Si dejara de calzar, la campana pintaría gris sin fallar.

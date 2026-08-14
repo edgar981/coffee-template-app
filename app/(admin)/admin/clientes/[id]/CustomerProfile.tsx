@@ -181,7 +181,7 @@ export function CustomerProfile({ id }: { id: string }) {
                   <tr key={o.id} className="border-b border-border/50 hover:bg-muted/20">
                     <td className="px-5 py-3">
                       <Link
-                        href={`/admin/ordenes?order=${encodeURIComponent(o.numero_orden)}`}
+                        href={`/admin/pedidos?pedido=${encodeURIComponent(o.numero_orden)}`}
                         className="font-mono text-xs font-semibold text-foreground hover:underline"
                       >
                         {o.numero_orden}
