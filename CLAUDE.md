@@ -768,6 +768,67 @@ pasa.
 gana un destino que mide lo suyo, y la de Pedidos decide si lleva a las órdenes
 pagadas de ese día o deja de ser clickeable.
 
+### 9. Duna OS en MÓVIL — el panel partido no sabe qué hacer con su panel
+
+**Son dos huecos del SISTEMA, no de una pantalla.** Por eso van juntos y por eso
+van a `packages/design-system`: `duna-split` lo consumen hoy Pedidos y Clientes, y
+lo va a consumir toda vertical futura con el mismo layout.
+
+#### 9.1 · El panel, en móvil, no responde
+
+Debajo de 960px `duna-split` apila a una columna y el panel pierde el `sticky`
+(está en el `@media` de `primitives.css`, con su porqué: pegado taparía la lista).
+Lo que el sistema **nunca decidió** es qué pasa al TOCAR una tarjeta: el panel se
+actualiza fuera de la pantalla, así que el operador toca y **no ocurre nada
+visible**. Tiene que scrollear a ciegas para descubrir que sí pasó algo.
+
+Eso no es una incomodidad de layout: es **una acción sin respuesta**, que es la
+misma clase de defecto que el botón mudo que obligó a `useAccionGuardada`.
+
+**DIRECCIÓN: bottom sheet, no página.** Mantiene el contexto —la lista queda
+detrás, cerrar devuelve al mismo sitio, sin navegación ni botón atrás— y `?pedido=`
+sigue siendo compartible, que es lo que hoy hace enlazable al detalle. Una página
+aparte rompería las tres cosas a la vez.
+
+#### 9.2 · La navegación móvil
+
+Hoy es el drawer con hamburguesa de `Sidebar` (`mobileOpen` + backdrop, `lg:hidden`).
+Pasa a **barra inferior** (Hoy · Pedidos · Clientes · Productos · Más) más un sheet
+de "Todas las secciones" con el resto y el toggle de tema.
+
+Comparte primitiva con 9.1: el sheet es el mismo mecanismo, y ésa es la razón de
+que las dos sean UNA tanda y no dos.
+
+#### Lo que ya existe, y lo que falta
+
+El sistema **ya reservó el vocabulario** sin construir la pieza: `--duna-scrim`
+está documentado como "velo de overlays/drawers/**sheets**" y `--duna-r-xl` como
+"esquinas de **sheet**/superficies grandes". Los tokens están; la primitiva no.
+
+**LA MAQUETA NO ESTÁ EN EL REPO** (verificado: los únicos dos HTML son
+`reference.html` y `duna-modales.html`, y ninguno contiene el sheet de "Todas las
+secciones" ni una barra inferior). Es la misma familia del ítem 4 y de H6, y ya
+sabemos cómo termina: **al abrir esta tanda, lo primero es que la maqueta entre**.
+Sin eso la primitiva no tiene contra qué verificarse.
+
+#### Costo ya pagado
+
+**Ninguno todavía, y por una razón que caduca:** el panel no tiene usuarios. Pero a
+diferencia de las minas de esta lista, esto **ya está desplegado y roto en dos
+pantallas** — no espera a que alguien escriba el control que lo arme. El día que
+alguien abra el panel en un teléfono, está.
+
+#### DISPARADOR: después del retiro de `/admin/ordenes`
+
+Tanda propia, y las dos razones importan:
+
+- el retiro tiene el gate más delicado del proyecto y mezclarle navegación móvil
+  juntaría dos riesgos en una sola verificación;
+- **haciéndola después, la primitiva móvil se diseña con DOS consumidores reales**
+  —Pedidos y Clientes ya terminadas— en vez de con uno. Es exactamente el
+  argumento que hizo barata la segunda vertical: una primitiva diseñada contra un
+  solo caso inventa la forma equivocada con la mitad de la información.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
