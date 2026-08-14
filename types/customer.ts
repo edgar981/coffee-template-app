@@ -61,10 +61,12 @@ export interface CustomerOrderRow {
   shipping:     { estado: string } | null;
 }
 
-// Customer + their order history, returned by GET /api/customers/[id] for the
-// dedicated profile page.
+// Cliente + su historial, lo que devuelve `GET /api/customers/[id]` para el panel
+// de detalle.
+//
+// Ya no trae `comprasPagadas`: se fue con el perfil viejo, que era su único
+// lector. La plata la trae el endpoint de LISTA en `total_compras`, agregada por
+// la misma FK.
 export interface CustomerWithOrders extends Customer {
   orders: CustomerOrderRow[];
-  /** Real money paid (sum of Payments) — the profile's "Total comprado". */
-  comprasPagadas?: number;
 }

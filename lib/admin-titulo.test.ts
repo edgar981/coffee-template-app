@@ -21,15 +21,14 @@ test('renombrar una sección en el menú arrastra la pestaña — no hay copia q
   // sigue pasando pero el de arriba se rompe al primer renombre. Éste fija la
   // otra mitad: que la fuente sea EXACTAMENTE la del menú y no un subconjunto.
   const rutasDelNav = ADMIN_NAV.map(i => i.path);
-  // DIEZ. Era once: "Órdenes" salió del menú al retirarse su pantalla, y queda UNA
-  // convivencia declarada — "Clientes (actual)" con "Clientes" (la nueva). Vuelve
-  // a bajar a nueve cuando esa también se retire.
+  // NUEVE, y esta vez sin asterisco: se retiró la Clientes vieja y con ella la
+  // ÚLTIMA convivencia viejo↔nuevo del panel. Una entrada por sección.
   //
   // El conteo es un tripwire a propósito: obliga a que agregar o quitar una
-  // sección sea una decisión visible y no un efecto lateral. Ya cumplió dos veces
-  // —al entrar la vertical de Clientes y al salir Órdenes—, que es exactamente lo
-  // que se le pide.
-  assert.equal(rutasDelNav.length, 10, 'el menú tiene diez secciones (una convivencia viejo↔nuevo)');
+  // sección sea una decisión visible y no un efecto lateral. Ya cumplió tres
+  // veces —al entrar la vertical de Clientes, al salir Órdenes y al salir esta—,
+  // que es exactamente lo que se le pide.
+  assert.equal(rutasDelNav.length, 9, 'el menú tiene nueve secciones, una por sección — sin convivencias');
   assert.ok(rutasDelNav.every(p => tituloAdmin(p) !== null));
 });
 

@@ -445,7 +445,7 @@ function ClientesYCanales({ data }: { data: AnalyticsData }) {
               {c.top.map((cl, i) => (
                 <Link
                   key={cl.id}
-                  href={`/admin/clientes/${cl.id}`}
+                  href={`/admin/clientes?cliente=${encodeURIComponent(cl.id)}`}
                   className="flex items-center gap-3 -mx-2 rounded-lg px-2 py-1 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span className="text-xs font-bold text-muted-foreground w-4">#{i + 1}</span>

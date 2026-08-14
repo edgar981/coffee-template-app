@@ -200,7 +200,7 @@ export function CommandPalette({ open, onOpenChange }: {
         {displayResults.clientes.length > 0 && (
           <CommandGroup heading="Clientes">
             {displayResults.clientes.map(c => {
-              const href = `/admin/clientes/${c.id}`;
+              const href = `/admin/clientes?cliente=${encodeURIComponent(c.id)}`;
               const subtitle = c.telefono || c.email || '';
               return (
                 <CommandItem
