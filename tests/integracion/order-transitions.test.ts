@@ -1,6 +1,7 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createOrderWithCustomer, registerOrderPaymentTx, transitionOrder } from '@duna/core/orders';
+import { appendOrderStatusTransition } from '@duna/core/order-transitions';
 import { buildBrand } from '@/lib/config/brand';
 import { prisma, limpiar, crearOrden, crearEnvio } from './fixtures';
 
@@ -113,13 +114,16 @@ test('CANCELAR un envío YA DESPACHADO: fulfillment en_ruta→cancelado (el from
 // no es una preferencia de presentación: es el contenido. Un Recorrido que diga
 // "entregado" antes que "pagado" es una pantalla que miente sobre el negocio.
 //
-// El riesgo real está en los asientos de una MISMA transacción: `occurred_at`
-// tiene `DEFAULT CURRENT_TIMESTAMP` y en Postgres eso es la hora de INICIO de la
-// transacción, así que empatarían. No empatan —Prisma genera el `now()` por fila
-// en el cliente y el default del DDL nunca se ejerce— pero eso es comportamiento
-// del cliente, no una garantía de la base. Este test es lo que avisa el día que
-// deje de ser cierto (un upgrade de Prisma, un INSERT por SQL crudo, un
-// `occurredAt` explícito repetido).
+// El riesgo real está en los asientos que EMPATAN en `occurred_at`. Pasa de tres
+// formas —el `DEFAULT CURRENT_TIMESTAMP` del DDL (hora de INICIO de transacción en
+// Postgres, o sea constante dentro de ella), un `occurredAt` explícito repetido, o
+// dos `create` que caen en el mismo milisegundo— y ninguna de las tres es un
+// defecto: el desempate por `id` existe justamente para que la lectura sea
+// determinista igual.
+//
+// Por eso este test afirma las TRES partes del mismo sujeto, y hay que leerlas
+// juntas: la SECUENCIA correcta, que `occurred_at` no DECRECE, y que el orden
+// SOBREVIVE a un empate.
 test('el libro se LEE cronológico y con los dos ejes MEZCLADOS, incluso dentro de una misma transacción', async () => {
   // Tres asientos en UNA sola transacción: creación (cobro), pago (cobro) y
   // envío auto-creado (fulfillment). Es el peor caso para el empate.
@@ -160,10 +164,82 @@ test('el libro se LEE cronológico y con los dos ejes MEZCLADOS, incluso dentro 
     ts, [...ts].sort((a, b) => a - b),
     'occurred_at no decrece nunca — es la clave de orden global, no un dato de auditoría',
   );
-  assert.equal(
-    new Set(ts).size, ts.length,
-    'ningún empate: si esto falla, el default CURRENT_TIMESTAMP de la transacción ' +
-    'volvió a ejercerse y el desempate por id pasó de red a ser lo único que ordena',
+  // ── Y EL ORDEN SOBREVIVE A UN EMPATE ──────────────────────────────────────
+  //
+  // Acá vivía una aserción de que los cinco `occurred_at` eran ESTRICTAMENTE
+  // ÚNICOS, como tripwire de que el `DEFAULT CURRENT_TIMESTAMP` del DDL no se
+  // hubiera vuelto a ejercer. Se retiró porque su premisa era falsa por dos
+  // motivos independientes, y mientras estuvo fallaba al azar (medido: tres
+  // corridas seguidas con código idéntico dieron verde · rojo · verde).
+  //
+  // 1. LOS EMPATES SON LEGALES. `appendOrderStatusTransition` acepta un
+  //    `occurredAt` explícito — es API pública, y el `orderBy` del endpoint ya
+  //    nombra "un occurredAt explícito que un llamador podría repetir" como uno
+  //    de los casos para los que existe el desempate. "Estrictamente crecientes"
+  //    nunca fue un invariante del sistema.
+  //
+  // 2. EL MILISEGUNDO COMPARTIDO ES RUIDO DE MÁQUINA, no una propiedad. Los
+  //    asientos de una misma tx difieren sólo porque cada `create` cuesta un
+  //    viaje de ida y vuelta (medido: 7–9 ms). Nada obliga a cruzar un borde de
+  //    milisegundo: en una máquina rápida dos caen en el mismo, y el tripwire
+  //    disparaba sin que nada estuviera mal.
+  //
+  // Lo que la tanda del libro prometió no fue "timestamps únicos" sino "la
+  // timeline se lee cronológicamente", y ESO es lo que se afirma acá: se fuerza
+  // el empate y se comprueba que la lectura sale en orden de inserción.
+  //
+  // ── LA DEPENDENCIA QUE ESTO PROTEGE, y que no estaba escrita ───────────────
+  //
+  // Con `occurred_at` empatado, lo ÚNICO que ordena es `id asc`, y eso funciona
+  // porque `cuid()` es MONÓTONO dentro de un proceso (timestamp + contador), así
+  // que el orden de id ES el de inserción. Nadie lo había dicho en ningún lado.
+  // El día que alguien cambie el generador a `uuid()` —aleatorio— el Recorrido se
+  // desordenaría en cada empate, y el tripwire viejo no lo habría notado: sólo
+  // miraba los timestamps, nunca el orden bajo empate.
+  const empate = new Date(ts[ts.length - 1] + 1000);
+  await prisma.$transaction(async (tx) => {
+    for (const estado of ['uno', 'dos', 'tres']) {
+      await appendOrderStatusTransition(tx, {
+        ordenId: orden!.id, eje: 'cobro', estadoAnterior: null, estadoNuevo: estado,
+        occurredAt: empate,
+      });
+    }
+  });
+
+  // Y UNO MÁS, insertado AL FINAL pero con un id que ORDENA PRIMERO.
+  //
+  // Sin esto el test no discrimina, y está medido: quitándole el `id asc` al
+  // `orderBy` pasaba igual, 3 de 3 corridas. La razón es que Postgres devuelve las
+  // filas empatadas en orden de heap, que para filas recién insertadas ES el de
+  // inserción — o sea que los tres de arriba salen bien ordenados por accidente,
+  // y la aserción no puede distinguir quién los ordenó.
+  //
+  // Con un id fijado a mano el orden por id DIFIERE del de inserción, y ahí la
+  // pregunta se vuelve contestable: si sale primero, lo ordenó el `id asc`; si sale
+  // último, lo ordenó el heap y el desempate no está haciendo nada.
+  //
+  // El id es artificial a propósito —`cuid()` jamás genera uno así— porque lo que
+  // este asiento prueba es el MECANISMO. Los tres de arriba prueban la otra mitad:
+  // que con ids reales el desempate coincide con el orden cronológico, que es lo
+  // que depende de la monotonía de `cuid()`.
+  await prisma.orderStatusTransition.create({
+    data: {
+      id: '0000-ordena-primero', orden_id: orden!.id, eje: 'cobro',
+      estado_anterior: null, estado_nuevo: 'cero', occurred_at: empate,
+    },
+  });
+
+  const conEmpate = await prisma.orderStatusTransition.findMany({
+    where:   { orden_id: orden!.id, occurred_at: empate },
+    orderBy: [{ occurred_at: 'asc' }, { id: 'asc' }],
+  });
+  assert.equal(conEmpate.length, 4, 'los cuatro asientos comparten el instante exacto');
+  assert.deepEqual(
+    conEmpate.map((a) => a.estado_nuevo),
+    ['cero', 'uno', 'dos', 'tres'],
+    'con el instante empatado, el orden lo decide el id: "cero" se insertó ÚLTIMO y ' +
+    'se lee PRIMERO. Si esto falla, el desempate por id dejó de aplicarse y el ' +
+    'Recorrido pasó a depender del orden físico de las filas',
   );
 });
 
