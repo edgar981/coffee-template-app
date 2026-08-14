@@ -170,9 +170,30 @@ function Pedidos() {
   // pedido, no hay nombre que mostrar y el aviso lo dice sin inventarlo.
   const nombreAlcance = alcance[0]?.cliente_nombre ?? null;
 
+  // ── LO ELEGIDO SE BUSCA EN `reales`, NO EN LO VISIBLE ──────────────────────
+  //
+  // Se buscaba sobre `visibles`, o sea sobre la lista YA recortada por el carril
+  // y los tres alcances. Un `?pedido=` que cayera fuera de ese recorte no
+  // encontraba nada, y el panel mostraba "Elige un pedido" al lado de una lista
+  // donde ese pedido no está — raro pero legible.
+  //
+  // EN MÓVIL DEJA DE SER LEGIBLE: el detalle es un sheet, así que lo mismo se ve
+  // como un enlace de notificación que no hace NADA. Y las notificaciones son
+  // justo lo que llega a un teléfono.
+  //
+  // Hoy ninguna fuente conocida combina `pedido=` con un alcance que lo excluya
+  // (`hrefOrden` y el redirect de `/admin/ordenes` van sin `f=`; los deep links
+  // de Analítica y el dashboard llevan alcance pero no selección), así que esto
+  // es una mina y no una herida. Se desarma acá porque la arma cualquiera que
+  // escriba un enlace con las dos cosas, y el arreglo es más barato que la nota
+  // que habría que dejar.
+  //
+  // Sigue recortado a `reales`: una `SN-` no es un pedido y un enlace a una no
+  // debe abrir nada (§ soloOrdenesReales). El alcance de la PANTALLA se respeta;
+  // lo que se ignora es el filtro del OPERADOR, que es suyo y no del enlace.
   const elegido = useMemo(
-    () => visibles.find(p => p.numero_orden === seleccion) ?? null,
-    [visibles, seleccion],
+    () => reales.find(p => p.numero_orden === seleccion) ?? null,
+    [reales, seleccion],
   );
 
   // LA VERDAD DEL DETALLE LA TRAE EL SERVIDOR al abrirse. La lista no carga el
@@ -458,7 +479,12 @@ function Pedidos() {
         </div>
       )}
 
-      {visibles.length > 0 && (
+      {/* `|| elegido` es la otra mitad de buscar en `reales`: sin él, un enlace a
+          un pedido cuyo carril está VACÍO encontraba el pedido y no tenía dónde
+          pintarlo. El vacío de arriba se sigue mostrando en ese caso, y hace
+          falta — es lo que explica por qué hay un detalle abierto sin una lista
+          que lo contenga. */}
+      {(visibles.length > 0 || elegido) && (
         <div className="duna-split">
           <div className="duna-split__list">
             {visibles.map(p => {

@@ -117,9 +117,15 @@ function ClientesV2() {
   const visibles    = useMemo(() => aplicarCarril(encontrados, carril), [encontrados, carril]);
   const cuentas     = useMemo(() => conteosClientes(encontrados), [encontrados]);
 
+  // LO ELEGIDO SE BUSCA EN LA LISTA COMPLETA, no en la recortada — mismo cambio
+  // y mismo motivo que en Pedidos: un `?cliente=` que caiga fuera del carril o de
+  // la búsqueda en curso tiene que abrir igual. Acá muerde incluso más fácil,
+  // porque la búsqueda es estado LOCAL: teclear en el buscador con un cliente
+  // abierto le vaciaba el panel al operador, sin que la URL cambiara y sin nada
+  // que explicara por qué.
   const elegido = useMemo(
-    () => visibles.find(c => c.id === seleccion) ?? null,
-    [visibles, seleccion],
+    () => clientes.find(c => c.id === seleccion) ?? null,
+    [clientes, seleccion],
   );
 
   // LA VERDAD DEL DETALLE LA TRAE EL SERVIDOR al abrirse. La lista no carga el
@@ -278,7 +284,11 @@ function ClientesV2() {
         </div>
       )}
 
-      {visibles.length > 0 && (
+      {/* `|| elegido` — la otra mitad de buscar en la lista completa: sin él, un
+          cliente abierto se quedaba sin dónde pintarse en cuanto la búsqueda o el
+          carril vaciaban la lista. El vacío de arriba se sigue mostrando, y es lo
+          que explica por qué hay un detalle sin lista. */}
+      {(visibles.length > 0 || elegido) && (
         <div className="duna-split">
           <div className="duna-split__list">
             {visibles.map(c => (
