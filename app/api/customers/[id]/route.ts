@@ -24,19 +24,14 @@ export async function GET(
   const customer = await prisma.customer.findUnique({ where: { id } });
   if (!customer) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
 
-  const [orders, paidAgg] = await Promise.all([
-    pedidosDelCliente(id),
-    // "Total comprado" del perfil viejo: plata REAL (suma de Payments), no el
-    // campo semilla `total_compras`. Va por la MISMA FK que el historial — con el
-    // `OR` de antes le sumaba a este cliente los pagos de otro.
-    //
-    // MUERE CON EL PERFIL VIEJO, que es su único lector: la pantalla nueva toma
-    // el número del endpoint de LISTA, que siempre agregó por FK. Se conserva en
-    // este commit para no dejarle un `$ 0` a una pantalla que todavía existe.
-    prisma.payment.aggregate({ where: { order: { cliente_id: id } }, _sum: { monto: true } }),
-  ]);
+  // `comprasPagadas` SE FUE con el perfil viejo, que era su único lector. Era un
+  // agregado de `Payment` por cada apertura de cliente, y la pantalla que quedó
+  // toma ese número del endpoint de LISTA (`paidTotalByCustomer`), que siempre
+  // agregó por la misma FK. Un cómputo sin consumidor no es código de más: es una
+  // consulta que se paga en cada request para nada.
+  const orders = await pedidosDelCliente(id);
 
-  return NextResponse.json({ ...customer, orders, comprasPagadas: paidAgg._sum.monto ?? 0 });
+  return NextResponse.json({ ...customer, orders });
 }
 
 export async function PATCH(
