@@ -75,12 +75,44 @@
    Queda DERIVADO en vez de inventado — es la suma de lo que la fila necesita:
      lista 400 + gap 24 + panel legible ~420 + padding de contenido 32×2 = 908
    redondeado a 960, el primer valor cómodo por encima. Debajo de eso el panel
-   apilaría a ~200px de ancho, que no es un detalle sino un texto en columna. */
+   apilaría a ~200px de ancho, que no es un detalle sino un texto en columna.
+
+   ── 960 ES EL ÚNICO BREAKPOINT DEL SISTEMA (owner, 2026-08-14) ──────────────
+
+   Llegó a haber TRES para la misma pregunta: éste, el `lg`=1024 de la navegación
+   (heredado del default de Tailwind, elegido por nadie) y el 820 de la maqueta.
+   Se unificó en éste porque es el único con un motivo DERIVADO y escrito; los
+   otros dos eran defaults.
+
+   Debajo: el panel es un sheet Y la navegación es la barra inferior. Encima:
+   rail y split. La franja 960–1024 que quedaba con barra inferior y panel al
+   lado se ELIMINA, no se documenta — un rango de 64px con dos sistemas de
+   navegación a la vez es una excepción que alguien tendría que recordar, y la
+   regla de este repo es que lo que hay que recordar se olvida.
+
+   Todas las media queries del sistema usan este número, y su gemelo de JS es
+   `DUNA_MQ_MOVIL` (primitives/layout.ts) — que existe porque la decisión de
+   dónde RENDERIZAR el detalle no la puede tomar el CSS. Los dos se mueven
+   juntos; el porqué de que sean dos está en ese archivo. */
 @media (max-width: 960px) {
   .duna-split { grid-template-columns: minmax(0, 1fr); }
   /* Apilado, "pegajoso" no significa nada: el panel ya no tiene al lado una
      columna que scrollee contra él, y dejarlo sticky lo clavaría tapando la
-     lista. */
+     lista.
+
+     LO QUE NO SE DECLARABA ACÁ, Y ERA EL HUECO: qué pasa cuando el operador TOCA
+     una tarjeta. Apilado, el panel se actualiza fuera de la pantalla, así que la
+     acción no produce respuesta visible y hay que scrollear a ciegas para
+     descubrir que sí pasó algo — la misma clase de defecto que el botón mudo que
+     obligó a `useAccionGuardada`, no una incomodidad de layout.
+
+     La respuesta es `.duna-sheet` (más abajo), y el CONSUMIDOR es quien deja de
+     montar el panel debajo del breakpoint — no esta regla con un `display:none`.
+     Se evaluó ponerlo acá y el modo de falla es peor: un consumidor que monte el
+     panel y se olvide del sheet quedaría con el detalle INALCANZABLE, mientras
+     que sin la regla queda con el apilado de siempre. Degradado no es lo mismo
+     que roto, y una primitiva no debe poder esconder contenido que nadie más
+     está mostrando. */
   .duna-split__panel { position: static; }
 }
 
@@ -332,6 +364,160 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 
 /* ── Overlays (scrim compartido) ────────────────────────────────────────── */
 .duna-scrim { position: fixed; inset: 0; background: var(--duna-scrim); backdrop-filter: blur(3px); }
+
+/* ── SHEET · el panel que sube desde abajo ────────────────────────────────
+   La superficie de "esto está encima de lo que estabas mirando" en pantallas
+   angostas. Su primer consumidor es el panel de `.duna-split`, que debajo del
+   breakpoint no tiene dónde vivir (ver el `@media` de arriba).
+
+   ── EL REPARTO: EL SISTEMA PONE LA FORMA, EL CONSUMIDOR PONE LA CONDUCTA ───
+
+   Acá NO hay foco atrapado, ni Escape, ni click-fuera, ni bloqueo del scroll del
+   fondo. No es un olvido: es la frontera del paquete. Este paquete no tiene UNA
+   sola pieza con comportamiento —los cinco componentes que envía son presentación
+   pura— y un sheet con foco atrapado sería la primera, o sea un cambio de
+   NATURALEZA del paquete metido de contrabando en una tanda de móvil.
+
+   El consumidor monta esta forma sobre un diálogo que ya trae esa conducta y ya
+   está en producción. Reescribir el foco atrapado —que es justo la parte que todo
+   el mundo hace mal— para obtener el mismo comportamiento con otro chrome es el
+   mismo movimiento que H6 ya rechazó.
+
+   DISPARADOR, y va escrito porque es lo que evita que esto se quede así por
+   inercia: `.duna-sheet` queda con la misma naturaleza que `.duna-scrim` —CSS que
+   alguien tiene que cablear bien—. El día que el paquete adopte comportamiento
+   (H6, o la Fase B con su propia app), las DOS se absorben en la primitiva con
+   conducta y dejan de ser reglas sueltas.
+
+   ── LAS MEDIDAS, Y POR QUÉ ────────────────────────────────────────────────
+
+   `max-height: 80vh` con scroll interno: el sheet NUNCA tapa la pantalla entera.
+   Lo que asoma arriba no es aire — es lo que sostiene "estoy encima de la lista,
+   no en otra pantalla", que es la razón por la que esto es un sheet y no una
+   página. Un sheet a pantalla completa es una página con animación.
+
+   El `padding-bottom` suma `--duna-safe-b` porque el contenido llega hasta el
+   borde inferior del teléfono, donde el sistema dibuja su indicador de inicio. */
+.duna-sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+  display: flex; flex-direction: column;
+  max-height: 80vh;
+  background: var(--duna-surface);
+  border-top: 1px solid var(--duna-border);
+  border-top-left-radius: var(--duna-r-xl);
+  border-top-right-radius: var(--duna-r-xl);
+  box-shadow: var(--duna-shadow-3);
+}
+/* El GRIP no es un control: es la señal de "esto se despliega desde abajo", y por
+   eso va `aria-hidden` del lado del consumidor. NO hay gesto de arrastre en esta
+   versión —tampoco lo tiene la maqueta, cuyo grip también es decorativo— y eso
+   está declarado en `duna-os.NOTES.md` como alcance a decidir, no heredado.
+   Un grip que invita a arrastrar y no responde es peor que no tenerlo; lo que
+   evita que mienta es que el sheet SÍ se cierra tocando fuera, que es el gesto
+   que la mano prueba primero. */
+.duna-sheet__grip {
+  width: 36px; height: 4px; flex-shrink: 0;
+  border-radius: var(--duna-r-full);
+  background: var(--duna-border-2);
+  margin: var(--duna-space-2) auto var(--duna-space-1);
+}
+/* El cuerpo es el que scrollea, NO el sheet entero: así el grip y lo que el
+   consumidor ponga fijo arriba no se van con el contenido.
+   `-webkit-overflow-scrolling` no va — hace años que no hace falta y hoy sólo
+   agrega una capa de composición. */
+.duna-sheet__body {
+  min-height: 0; overflow-y: auto;
+  padding: var(--duna-space-2) var(--duna-space-4)
+           calc(var(--duna-space-5) + var(--duna-safe-b));
+}
+
+/* La entrada y la salida las declara el SISTEMA, no el consumidor, porque son
+   parte de la forma: un sheet que aparece sin subir no se lee como un sheet.
+   Los `data-state` son los que estampa el diálogo de abajo — es el único punto
+   donde esta forma sabe algo de su conducta, y por eso está dicho.
+
+   La MISMA curva de todo el sistema. La salida va más rápida que la entrada
+   (`--duna-dur` contra `--duna-dur-theme`): entrar es una respuesta y se
+   acompaña; salir ya es una decisión tomada, y hacerla esperar se siente lento. */
+@keyframes duna-sheet-in   { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes duna-sheet-out  { from { transform: none; } to { transform: translateY(100%); } }
+@keyframes duna-scrim-in   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes duna-scrim-out  { from { opacity: 1; } to { opacity: 0; } }
+
+.duna-sheet[data-state="open"]   { animation: duna-sheet-in  var(--duna-dur-theme) var(--duna-ease); }
+.duna-sheet[data-state="closed"] { animation: duna-sheet-out var(--duna-dur)       var(--duna-ease); }
+.duna-scrim[data-state="open"]   { animation: duna-scrim-in  var(--duna-dur-theme) var(--duna-ease); }
+.duna-scrim[data-state="closed"] { animation: duna-scrim-out var(--duna-dur)       var(--duna-ease); }
+
+/* ── BARRA INFERIOR · la navegación cuando no hay rail ─────────────────────
+   Reemplaza al rail debajo del breakpoint; no convive con él. La hamburguesa y
+   su drawer MUEREN — un menú detrás de un botón y una barra siempre visible son
+   dos respuestas a la misma pregunta, y tener las dos obliga al operador a
+   aprender cuál usa cada pantalla.
+
+   `position: fixed` y no sticky: tiene que estar cuando la lista es larga, que es
+   justo cuando navegar a otra sección cuesta más.
+
+   El fondo es `--duna-surface` OPACO y no un `color-mix` translúcido como el de
+   la maqueta: detrás pasan tarjetas con borde y cifras en mono, y un velo con
+   blur las deja legibles a medias justo debajo de los labels. El blur queda para
+   el scrim, donde su trabajo ES restarle legibilidad a lo de atrás. */
+.duna-mobnav {
+  display: none;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  background: var(--duna-surface);
+  border-top: 1px solid var(--duna-border);
+  padding: var(--duna-space-1) var(--duna-space-2)
+           calc(var(--duna-space-1) + var(--duna-safe-b));
+}
+.duna-mobnav__item {
+  position: relative; flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: var(--duna-space-2) var(--duna-space-1) var(--duna-space-1);
+  border-radius: var(--duna-r-s);
+  color: var(--duna-muted);
+  font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi);
+  line-height: 1;
+  transition: color var(--duna-dur-fast) var(--duna-ease);
+}
+/* El label se recorta en vez de partirse: cinco slots en 320px es el caso
+   estrecho, y una palabra en dos renglones sube la barra y le come pantalla a la
+   lista. `min-width:0` arriba es lo que permite que el recorte ocurra dentro de
+   un item flex — sin él la pista no puede encogerse y el texto desborda. */
+.duna-mobnav__label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.duna-mobnav__item.is-on { color: var(--duna-ink); }
+/* La marca del activo va ARRIBA del slot y no debajo: abajo la tapa el pulgar
+   justo mientras se toca, que es el momento en que confirma. */
+.duna-mobnav__item.is-on::before {
+  content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 22px; height: 3px; border-radius: var(--duna-r-full);
+  background: var(--duna-ink);
+}
+/* El punto de atención de la barra ES `.duna-nav-dot` —el mismo del rail—, sólo
+   reposicionado. No hay un punto propio de la barra: el sol significa una sola
+   cosa en todo el producto, y dos definiciones es cómo dejan de coincidir.
+   El aro del color de la superficie lo despega del ícono cuando cae encima. */
+.duna-mobnav__item .duna-nav-dot {
+  position: absolute; top: 5px; left: calc(50% + 6px);
+  box-shadow: 0 0 0 1.5px var(--duna-surface);
+}
+
+/* ── EL CAMBIO DE CHROME, en un solo sitio ────────────────────────────────
+   El breakpoint es una decisión del SISTEMA, así que las dos mitades del cambio
+   viven acá y la app no vuelve a escribir el número. Sin esto la app usaría el
+   `lg` de su framework de utilidades —1024, elegido por nadie— y volveríamos a
+   tener dos breakpoints para la misma pregunta. */
+.duna-nav-movil   { display: none; }
+@media (max-width: 960px) {
+  .duna-nav-escritorio { display: none !important; }
+  .duna-nav-movil      { display: revert; }
+  .duna-mobnav         { display: flex; }
+  /* El contenido termina DETRÁS de la barra si nadie lo empuja, y lo que queda
+     tapado es el final de la lista — la parte a la que se llega scrolleando, o
+     sea la que ya costó trabajo alcanzar. Va en el sistema y no en cada pantalla
+     porque el que agrega una pantalla nueva no se acuerda de esto. */
+  .duna-nav-hueco { padding-bottom: calc(var(--duna-space-16) + var(--duna-safe-b)); }
+}
 /* Toast · DOS tonos, ambos EFÍMEROS, y nada más. Es solo para RESULTADOS de una
    acción: éxito o error, auto-descartable. NO hay toast de atención/sol — algo
    que persiste y pide acción va a la bandeja "Necesita tu atención"
@@ -499,7 +685,18 @@ button.duna-order-card:focus-visible { border-color: var(--duna-ink); box-shadow
 
 /* ── Reduced motion: el movimiento confirma, no obliga ──────────────────── */
 @media (prefers-reduced-motion: reduce) {
+  /* `.duna-sheet` y `.duna-scrim` van NOMBRADOS y no los alcanza el `.duna *`:
+     el diálogo que los monta los PORTALEA a <body>, o sea fuera del wrapper de la
+     pantalla. Es el mismo límite que ya está escrito en el puente de la app para
+     las familias tipográficas ("lo portaleado queda fuera de `.admin-shell`"),
+     y muerde acá por primera vez.
+
+     El modo de falla es silencioso en la peor dirección: la regla EXISTE, el
+     archivo la declara, y aun así la superficie anima. No se ve como un scope mal
+     puesto — se ve como que `prefers-reduced-motion` no se respeta. Cualquier
+     primitiva futura que se portalee entra a esta lista. */
   .duna *, .duna *::before, .duna *::after,
+  .duna-sheet, .duna-scrim,
   .duna-steps__seg.is-now, .duna-tl__item.is-now::before, .duna-sol-ring {
     animation-duration: .01ms !important; transition-duration: .01ms !important;
   }

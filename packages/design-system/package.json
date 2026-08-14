@@ -22,6 +22,7 @@
       "default": "./primitives/primitives.css"
     },
     "./status": "./primitives/status.ts",
+    "./layout": "./primitives/layout.ts",
     "./components/*": "./components/*.tsx"
   },
   "files": [
