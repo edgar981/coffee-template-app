@@ -7,14 +7,20 @@
 // exactamente "sin un solo peso cobrado" y el saldo de la orden ES su `total`.
 // Por eso no hay aritmética de saldos acá.
 //
-// LA CARTERA NO EXCLUYE `SN-` — y es una decisión, no un olvido. El resto de
-// Analítica es MEDICIÓN y excluye la data de demo; la cartera es una LISTA DE
-// TRABAJO, y su contrato es card=lista: cada bucket linkea a la página de
-// Órdenes, que tampoco filtra `SN-`. Un conteo que no cuadre con la lista a la
-// que lleva es peor que uno que incluye una orden de demo. La exclusión de `SN-`
-// en Órdenes queda como la deuda que ya era (se arregla de los dos lados a la vez
-// o de ninguno). En PRODUCCIÓN no hay `SN-` desde la purga del 2026-08-03, así
-// que la incoherencia es solo de `development`.
+// LA CARTERA YA EXCLUYE `SN-`, y el camino hasta acá es la lección. Era la única
+// excepción del archivo, y su razón era el contrato card=lista: los buckets
+// linkean a la lista de pedidos, que mostraba las `SN-`, así que excluirlas habría
+// dado un conteo que no cuadra con lo que se ve al hacer clic — peor que incluir
+// una orden de demo.
+//
+// La deuda decía "se arregla de los dos lados a la vez o de ninguno", y así fue:
+// la lista dejó de mostrarlas (`soloOrdenesReales` — son fixtures del seed, no
+// pedidos, y ningún camino de runtime las produce) y con eso la excepción se quedó
+// sin motivo. Los dos lados quedaron alineados en el mismo commit.
+//
+// Lo que conviene retener no es el filtro: es que una excepción documentada con su
+// CAUSA se puede retirar el día que la causa se va. Sin ese porqué escrito, esto
+// habría sobrevivido como "así estaba".
 //
 // PURO: sin Prisma y sin `Date` propio — trabaja sobre day keys `YYYY-MM-DD` en
 // America/Bogota, que es lo que el SQL entrega y lo que los filtros de la página

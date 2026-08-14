@@ -131,10 +131,13 @@ export async function calcularAnalitica(periodoKey: PeriodoKey, now: Date = new 
     prisma.product.findMany({ select: { id: true, nombre: true, costo: true } }),
 
     // ── 2. CARTERA: órdenes pendientes ──────────────────────────────────────
-    // SIN filtro de `SN-` — decisión deliberada, la única de este archivo. La
-    // cartera es una LISTA DE TRABAJO y su contrato es card=lista: cada bucket
-    // linkea a /admin/ordenes, que tampoco filtra `SN-`. El resto de la página es
-    // medición y sí excluye. Ver el encabezado de lib/metrics/cartera.ts.
+    // AHORA SÍ EXCLUYE `SN-`, como el resto del archivo. La excepción existía por
+    // el contrato card=lista: los buckets linkean a la lista de pedidos, y esa
+    // lista mostraba las `SN-`, así que excluirlas acá habría dado un conteo que
+    // no cuadra con lo que se ve al hacer clic. La lista dejó de mostrarlas
+    // —`soloOrdenesReales`, son fixtures del seed y no pedidos— así que el motivo
+    // de la excepción desapareció y la excepción con él. Es el "de los dos lados a
+    // la vez, o de ninguno" que la regla pedía.
     //
     // Sin ventana temporal: es un saldo VIGENTE, igual que "Por cobrar" del
     // dashboard. El bucketing del día va en SQL y en Bogotá; el reparto en
@@ -144,6 +147,7 @@ export async function calcularAnalitica(periodoKey: PeriodoKey, now: Date = new 
              o."total"::float8 AS total
       FROM "Order" o
       WHERE o."estado" = 'pendiente'
+        AND o."numero_orden" LIKE ${ORDER_PREFIX}
     `,
 
     // ── 3. TRAYECTORIA: ingresos por mes (libro de pagos) ───────────────────

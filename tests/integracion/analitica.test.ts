@@ -233,9 +233,15 @@ test('el día de la cartera es el de BOGOTÁ, no el de UTC', async () => {
   assert.equal(r.cartera.conteo, 1);
 });
 
-test('la cartera SÍ cuenta las SN- (contrato card=lista) pero no las canceladas', async () => {
-  // La única excepción de exclusión de la página, y es deliberada: el bucket
-  // linkea a /admin/ordenes, que tampoco filtra SN-.
+test('la cartera NO cuenta las SN- ni las canceladas', async () => {
+  // Era la única excepción de exclusión de la página, y tenía su motivo: el bucket
+  // linkea a la lista de pedidos, que MOSTRABA las SN-, así que excluirlas acá
+  // habría dado un conteo que no cuadra con lo que se ve al hacer clic.
+  //
+  // La lista dejó de mostrarlas (`soloOrdenesReales` — son fixtures del seed, no
+  // pedidos), así que la excepción se quedó sin causa y se retiró con ella. Este
+  // test es el que obliga a que los dos lados se muevan juntos: si alguien excluye
+  // en un lado y no en el otro, acá se cae.
   const p = await producto({ slug: 'origen', nombre: 'Origen 500g', precio: 20_000, costo: 12_000 });
   const ayer = new Date('2026-08-14T15:00:00Z');
   await vender({ numero: 'SN-900002', productoId: p.id, nombre: p.nombre, cantidad: 1, precio: 11_000, creadaEl: ayer });
@@ -243,8 +249,8 @@ test('la cartera SÍ cuenta las SN- (contrato card=lista) pero no las canceladas
   await vender({ numero: 'CN-200006', productoId: p.id, nombre: p.nombre, cantidad: 1, precio: 99_000, creadaEl: ayer, estado: 'cancelado' });
 
   const r = await calcularAnalitica('mes', AHORA);
-  assert.equal(r.cartera.conteo, 2);            // la SN- entra
-  assert.equal(r.cartera.total, 33_000);        // la cancelada NO
+  assert.equal(r.cartera.conteo, 1);            // sólo la CN- pendiente
+  assert.equal(r.cartera.total, 22_000);        // ni la SN- ni la cancelada
 });
 
 // ─── Trayectoria ──────────────────────────────────────────────────────────────

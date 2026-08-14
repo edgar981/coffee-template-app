@@ -3,13 +3,15 @@ import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { BUSINESS_TZ, startOfZonedDay, startOfZonedMonth, startOfZonedYear, zonedDayKey } from '@duna/core/timezone';
-import { currentMonthRange, PENDING_ESTADO } from '@duna/core/metrics/order-stat-filters';
+import { currentMonthRange } from '@duna/core/metrics/order-stat-filters';
+import { necesitaAtencion } from '@/lib/pedidos/atencion';
+import type { OrderStatus } from '@/types/order';
 import { plegarDistribuciones, plegarMetodosPago, type DistribucionRow, type MetodoPagoRow } from '@/lib/metrics/distribuciones';
 import type { InsightMonthPoint } from '@/lib/metrics/insights';
 // Los scopes de plata/órdenes viven en el módulo compartido: los reportes de las
 // automatizaciones (semanal, diario) cuentan con ESTAS mismas definiciones, así que
 // el correo del lunes no puede contradecir al dashboard.
-import { NOT_CANCELLED, REVENUE_ORDER_SCOPE, POR_COBRAR_WHERE } from '@duna/core/metrics/prisma-scopes';
+import { NOT_CANCELLED, REVENUE_ORDER_SCOPE, POR_COBRAR_WHERE, ORDENES_REALES } from '@duna/core/metrics/prisma-scopes';
 
 const RECENT_LIMIT = 6;
 
@@ -55,7 +57,7 @@ export async function GET() {
     revenueMonthAgg,
     revenuePrevMonthAgg,
     porCobrarAgg,
-    pendingTotal,
+    ordenesParaAtencion,
     despachosHoy,
     pedidosHoy,
     recentOrders,
@@ -92,8 +94,21 @@ export async function GET() {
     }),
     // ── Cuentas por cobrar ── count + pesos owed, one aggregate, one definition.
     prisma.order.aggregate({ where: POR_COBRAR_WHERE, _sum: { total: true }, _count: true }),
-    // Every `pendiente` order (por-cobrar is carved out of this below).
-    prisma.order.count({ where: { estado: PENDING_ESTADO } }),
+    // ── Pedidos que piden acción ──
+    // NO se traduce la regla a SQL: se trae un `select` ANGOSTO —sólo los campos
+    // que `necesitaAtencion` mira— y decide la MISMA función que filtra el pill y
+    // que enciende el punto del nav. Es la decisión que ya tomó
+    // `/api/orders/atencion`, y por el mismo motivo: un `where` con los cuatro
+    // predicados escritos a mano es donde la tarjeta y la lista empiezan a
+    // divergir, y la divergencia sería invisible (dos números plausibles).
+    prisma.order.findMany({
+      where:  { estado: { not: 'cancelado' }, ...ORDENES_REALES },
+      select: {
+        estado: true, condicion_pago: true,
+        shipping:     { select: { estado: true, mensajero: true, fecha_programada: true } },
+        comprobantes: { select: { estado: true } },
+      },
+    }),
     // ── Despachos de hoy ── shipments that LEFT today. `stock_descontado_at` is
     // stamped in the dispatch transaction (preparando → en_ruta) and cleared on
     // restock (fallido/cancelled), so this is exactly "currently-out, dispatched
@@ -221,6 +236,15 @@ export async function GET() {
 
   const porCobrar = porCobrarAgg._count;
 
+  // `Order.estado` es columna String en el schema (cada eje tiene su vocabulario);
+  // `OrderStatus` es la lectura que hace la app. El cast vive acá, en la frontera,
+  // y no dentro de la regla — la regla es pura y no debe saber de dónde vienen sus
+  // datos. Mismo movimiento que en `/api/orders/atencion`.
+  const porAtender = ordenesParaAtencion
+    .map(o => ({ ...o, estado: o.estado as OrderStatus }))
+    .filter(necesitaAtencion)
+    .length;
+
   // ── Serie mensual (insights) ──
   // Zero-fill sobre los meses de la ventana: un mes sin ventas es un 0 real, y
   // omitirlo convertiría un hueco en una "racha" falsa al juntar los extremos.
@@ -256,9 +280,9 @@ export async function GET() {
     // Cuentas por cobrar (count + pesos)
     porCobrar,
     porCobrarMonto: porCobrarAgg._sum.total ?? 0,
-    // Órdenes pendientes = pendiente MINUS por-cobrar (la plata en la calle no
-    // "requiere atención"). pendingOrders + porCobrar = todo `pendiente`.
-    pendingOrders:  pendingTotal - porCobrar,
+    // Pedidos que piden acción. `porCobrar` es UNO de los cuatro motivos, así que
+    // es un subconjunto de éste — ya no su complemento (§ types/dashboard).
+    porAtender,
     // Ingresos (Payments)
     revenueMonth,
     revenueTotal:   revenueTotalAgg._sum.monto ?? 0,

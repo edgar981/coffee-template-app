@@ -102,15 +102,29 @@ export default function DashboardChartCarousel() {
 
   const spec = CHARTS[index];
 
-  // Clicking a day drills into that day's orders. Recharts hands the clicked
-  // point back as `activeLabel` (the x value = our bare YYYY-MM-DD day key), so
-  // we navigate to the Órdenes list filtered to that single Bogotá day — the
-  // `desde`/`hasta` params already exist there. Applies to BOTH charts (same
-  // x-axis). No manual overlay: this is the chart's own click payload.
+  // Clic en un día → los pedidos creados ESE día. Recharts devuelve el punto en
+  // `activeLabel` (el valor de x = nuestro day key `YYYY-MM-DD`), y se navega a la
+  // lista acotada a ese día de Bogotá. Aplica a las DOS gráficas (comparten eje x).
+  //
+  // ── EL DESTINO NO MIDE LO MISMO QUE LA GRÁFICA, y hay que saberlo ───────────
+  //
+  // Se migra la ruta TAL CUAL —de `/admin/ordenes` a `/admin/pedidos`— sin tocar la
+  // discrepancia, que es anterior a esta tanda y no se arregla acá (owner):
+  //
+  //   · "Ventas" mide PLATA RECIBIDA ese día, por `Payment.fecha`. El enlace lleva
+  //     a órdenes CREADAS ese día: un pago de hoy sobre una orden de la semana
+  //     pasada está en la barra y no en la lista.
+  //   · "Pedidos" mide LÍNEAS de producto por peso, sobre órdenes ya PAGADAS. El
+  //     enlace lleva a órdenes de cualquier estado, y cuenta órdenes, no líneas.
+  //
+  // Arreglarlo pide un destino en PAGOS para la primera —otra pantalla, otra
+  // decisión— así que queda anotado con su disparador en el backlog: cuando se
+  // rediseñe Analítica o Pagos. Migrarlo callado habría sido llevarse el defecto a
+  // la pantalla nueva como si fuera una propiedad suya.
   const handleDayClick = (state: { activeLabel?: string | number } | null) => {
     const day = state?.activeLabel;
     if (typeof day === 'string' && day) {
-      router.push(`/admin/ordenes?desde=${day}&hasta=${day}`);
+      router.push(`/admin/pedidos?desde=${day}&hasta=${day}`);
     }
   };
 
