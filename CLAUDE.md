@@ -768,30 +768,6 @@ pasa.
 gana un destino que mide lo suyo, y la de Pedidos decide si lleva a las órdenes
 pagadas de ese día o deja de ser clickeable.
 
-### 9. `order-transitions.test.ts` es FLAKY por empate de milisegundos
-
-Su última aserción exige que los `occurred_at` del libro sean **estrictamente
-únicos**, como tripwire de que el default `CURRENT_TIMESTAMP` de la transacción
-—constante dentro de ella— no volvió a ejercerse. Pero dos asientos que caen en el
-MISMO milisegundo también la rompen, y eso pasa según lo rápida que esté la
-máquina.
-
-**Medido el 2026-08-13, con código idéntico y sin tocar nada de transiciones: tres
-corridas seguidas dieron verde · rojo · verde.** El orden que el test afirma
-(`[occurred_at asc, id asc]`) siguió correcto en las tres — lo que falla es sólo el
-tripwire.
-
-**Costo YA pagado:** un diagnóstico. Apareció en medio de la tanda del rango y
-obligó a descartar que fuera un efecto de esos cambios (se corrió la suite con y
-sin ellos para probar que no).
-
-Un test que pasa según la velocidad de la máquina no es un test — la misma regla
-que obligó a `soloActiva(key)` en el carril de automatizaciones. **No se tocó acá
-porque arreglarlo es decidir qué debe afirmar ese tripwire**, y eso es del dueño
-del libro de transiciones, no de quien pasaba por ahí. Las dos salidas evidentes:
-afirmar el orden con desempate por id (que es lo que el código garantiza de verdad)
-o afirmar la unicidad sólo entre asientos de transacciones distintas.
-
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
