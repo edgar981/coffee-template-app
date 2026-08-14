@@ -119,14 +119,15 @@ function SidebarNav({ iconOnly, animateIndicator, onNavigate, atencionPedidos }:
           // ── ACTIVO ES LA RUTA O UNA SUBRUTA SUYA, NO UN PREFIJO DE TEXTO ────
           //
           // Era `startsWith(item.path)` a secas, que compara CARACTERES y no
-          // segmentos: `/admin/clientes-v2` empieza por `/admin/clientes`, así que
-          // estando en la pantalla nueva se encendían las DOS entradas. La barra
-          // es lo que convierte la comparación en una de jerarquía de rutas —
-          // `/admin/clientes/abc` sigue marcando Clientes, que es lo correcto.
+          // segmentos. La barra es lo que convierte la comparación en una de
+          // jerarquía de rutas: `/admin/clientes/abc` sigue marcando Clientes,
+          // que es lo correcto.
           //
-          // El defecto estaba latente desde siempre; no lo destapó nadie porque
-          // ninguna ruta era prefijo de otra. Cualquier `/admin/<algo>-v2` futuro
-          // lo habría vuelto a encontrar.
+          // El caso que lo destapó —`/admin/clientes-v2` encendiendo también
+          // `/admin/clientes`— ya no existe: esa convivencia se retiró. El fix se
+          // QUEDA porque la regla es general y el defecto estaba latente desde
+          // siempre; cualquier `/admin/<algo>-v2` futuro lo vuelve a encontrar, y
+          // el redirect de Clientes depende hoy de la misma distinción.
           const active = pathname === item.path || pathname.startsWith(`${item.path}/`);
           return (
             <NavRow

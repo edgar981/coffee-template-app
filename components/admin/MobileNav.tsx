@@ -39,8 +39,9 @@ const EN_LA_BARRA = 4;
 const RUTA_CON_ATENCION = '/admin/pedidos';
 
 /** Activo = la ruta o una subruta suya. La barra final es lo que convierte la
- *  comparación en una de jerarquía y no de caracteres — sin ella
- *  `/admin/clientes-v2` encendería también `/admin/clientes` (§ Sidebar). */
+ *  comparación en una de jerarquía y no de caracteres: sin ella, cualquier
+ *  `/admin/<algo>-v2` encendería también `/admin/<algo>` (§ Sidebar, donde el
+ *  caso que lo destapó está contado). */
 const esActiva = (pathname: string, path: string) =>
   pathname === path || pathname.startsWith(`${path}/`);
 

@@ -287,7 +287,7 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
             <p className="text-xs text-muted-foreground">Cliente</p>
             {ctx.customer ? (
               <Link
-                href={`/admin/clientes/${ctx.customer.id}`}
+                href={`/admin/clientes?cliente=${encodeURIComponent(ctx.customer.id)}`}
                 className="mt-0.5 inline-flex items-center gap-1 font-medium text-accent-amber hover:underline"
               >
                 {nombre ?? '—'} <ExternalLink className="w-3 h-3" />

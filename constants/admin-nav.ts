@@ -28,13 +28,10 @@ export const ADMIN_NAV: AdminNavItem[] = [
   // desproporcionada, y metida en el retiro lo habría convertido en un lío.
   { icon: ShoppingCart,    label: 'Pedidos',          path: '/admin/pedidos',          anim: 'cart' },
   { icon: Package,         label: 'Productos',        path: '/admin/productos',        anim: 'package' },
-  { icon: Users,           label: 'Clientes (actual)', path: '/admin/clientes',        anim: 'users' },
-  // CONVIVENCIA TEMPORAL Y DECLARADA, igual que Pedidos ↔ Órdenes: la de arriba es
-  // la pantalla que sostiene la operación y ésta es la del rediseño Duna OS. Las
-  // dos en el menú a propósito — es lo que permite el gate visual A/B. Los dos
-  // nombres NO pueden ser "Clientes": el operador tiene que poder decir a cuál
-  // entró. "(actual)" queda en la vieja porque es la que se va.
-  { icon: Users,           label: 'Clientes',         path: '/admin/clientes-v2',      anim: 'users' },
+  // La convivencia viejo↔nuevo TERMINÓ: la pantalla vieja se retiró y la del
+  // rediseño heredó la ruta. Era la última que quedaba (§ CLAUDE.md — el retiro
+  // de Clientes), así que el menú vuelve a tener una entrada por sección.
+  { icon: Users,           label: 'Clientes',         path: '/admin/clientes',         anim: 'users' },
   { icon: Warehouse,       label: 'Inventario',       path: '/admin/inventario',       anim: 'lift' },
   { icon: CreditCard,      label: 'Pagos',            path: '/admin/pagos',            anim: 'lift' },
   { icon: Truck,           label: 'Entregas',         path: '/admin/entregas',         anim: 'truck' },

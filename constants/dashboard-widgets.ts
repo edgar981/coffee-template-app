@@ -212,7 +212,7 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
   // ── Clientes ──
   // Sin sub: "Registrados" repetía "Clientes Totales".
   { key: 'clientes_totales',    titulo: 'Clientes Totales',    subtitulo: '', icono: Users,        formato: 'int', categoria: 'clientes', defaultVisible: false, color: STAT_CHIP.neutral, href: '/admin/clientes' },
-  { key: 'clientes_recurrentes', titulo: 'Clientes Recurrentes', subtitulo: 'con más de 1 compra', icono: TrendingUp, formato: 'pct', categoria: 'clientes', defaultVisible: false, color: STAT_CHIP.neutral, href: '/admin/clientes?recurrentes=1' },
+  { key: 'clientes_recurrentes', titulo: 'Clientes Recurrentes', subtitulo: 'con más de 1 compra', icono: TrendingUp, formato: 'pct', categoria: 'clientes', defaultVisible: false, color: STAT_CHIP.neutral, href: '/admin/clientes?f=recurrentes' },
 ];
 
 export const WIDGET_MAP: Record<string, WidgetDef> = Object.fromEntries(
