@@ -602,11 +602,12 @@ migración salen mal:
    un paso a "Cancelar orden". Es una decisión de producto que viaja con H6 y hay
    que tomarla como tal.
 
-**La maqueta NO está en el repo** (verificado: no existe `duna-modales.html`,
-trackeado ni sin trackear). Vive fuera, y eso es exactamente lo que se pierde — es
-la misma familia del ítem 4 de esta lista, pero peor, porque acá el repo ni
-siquiera puede verla. **Al abrir H6, lo primero es que la maqueta entre**, como
-entró `reference.html`: sin eso, la primitiva no tiene contra qué verificarse.
+**La maqueta YA ENTRÓ** (`packages/design-system/duna-modales.html` +
+`duna-modales.NOTES.md`). Esta línea decía lo contrario y quedó vieja: al abrir
+H6 no hay que ir a buscarla, hay que **leer la NOTA antes que el HTML**, que es
+donde está separado qué se adopta, qué no es fuente de valores y qué no es fuente
+de alcance. La regla general de cómo entra una maqueta vive en el README del
+paquete (§ "Una maqueta entra CON su lectura, y ANTES de la tanda").
 
 ### Lo que la maqueta pide y el DOMINIO NO TIENE
 
@@ -772,67 +773,6 @@ pasa.
 **DISPARADOR: cuando se rediseñe Analítica o Pagos.** Ahí la gráfica de Ventas
 gana un destino que mide lo suyo, y la de Pedidos decide si lleva a las órdenes
 pagadas de ese día o deja de ser clickeable.
-
-### 9. Duna OS en MÓVIL — el panel partido no sabe qué hacer con su panel
-
-**Son dos huecos del SISTEMA, no de una pantalla.** Por eso van juntos y por eso
-van a `packages/design-system`: `duna-split` lo consumen hoy Pedidos y Clientes, y
-lo va a consumir toda vertical futura con el mismo layout.
-
-#### 9.1 · El panel, en móvil, no responde
-
-Debajo de 960px `duna-split` apila a una columna y el panel pierde el `sticky`
-(está en el `@media` de `primitives.css`, con su porqué: pegado taparía la lista).
-Lo que el sistema **nunca decidió** es qué pasa al TOCAR una tarjeta: el panel se
-actualiza fuera de la pantalla, así que el operador toca y **no ocurre nada
-visible**. Tiene que scrollear a ciegas para descubrir que sí pasó algo.
-
-Eso no es una incomodidad de layout: es **una acción sin respuesta**, que es la
-misma clase de defecto que el botón mudo que obligó a `useAccionGuardada`.
-
-**DIRECCIÓN: bottom sheet, no página.** Mantiene el contexto —la lista queda
-detrás, cerrar devuelve al mismo sitio, sin navegación ni botón atrás— y `?pedido=`
-sigue siendo compartible, que es lo que hoy hace enlazable al detalle. Una página
-aparte rompería las tres cosas a la vez.
-
-#### 9.2 · La navegación móvil
-
-Hoy es el drawer con hamburguesa de `Sidebar` (`mobileOpen` + backdrop, `lg:hidden`).
-Pasa a **barra inferior** (Hoy · Pedidos · Clientes · Productos · Más) más un sheet
-de "Todas las secciones" con el resto y el toggle de tema.
-
-Comparte primitiva con 9.1: el sheet es el mismo mecanismo, y ésa es la razón de
-que las dos sean UNA tanda y no dos.
-
-#### Lo que ya existe, y lo que falta
-
-El sistema **ya reservó el vocabulario** sin construir la pieza: `--duna-scrim`
-está documentado como "velo de overlays/drawers/**sheets**" y `--duna-r-xl` como
-"esquinas de **sheet**/superficies grandes". Los tokens están; la primitiva no.
-
-**LA MAQUETA NO ESTÁ EN EL REPO** (verificado: los únicos dos HTML son
-`reference.html` y `duna-modales.html`, y ninguno contiene el sheet de "Todas las
-secciones" ni una barra inferior). Es la misma familia del ítem 4 y de H6, y ya
-sabemos cómo termina: **al abrir esta tanda, lo primero es que la maqueta entre**.
-Sin eso la primitiva no tiene contra qué verificarse.
-
-#### Costo ya pagado
-
-**Ninguno todavía, y por una razón que caduca:** el panel no tiene usuarios. Pero a
-diferencia de las minas de esta lista, esto **ya está desplegado y roto en dos
-pantallas** — no espera a que alguien escriba el control que lo arme. El día que
-alguien abra el panel en un teléfono, está.
-
-#### DISPARADOR: después del retiro de `/admin/ordenes`
-
-Tanda propia, y las dos razones importan:
-
-- el retiro tiene el gate más delicado del proyecto y mezclarle navegación móvil
-  juntaría dos riesgos en una sola verificación;
-- **haciéndola después, la primitiva móvil se diseña con DOS consumidores reales**
-  —Pedidos y Clientes ya terminadas— en vez de con uno. Es exactamente el
-  argumento que hizo barata la segunda vertical: una primitiva diseñada contra un
-  solo caso inventa la forma equivocada con la mitad de la información.
 
 ## Mejoras post-multitenant
 
@@ -2212,6 +2152,141 @@ Queda escrito para que el próximo no lo lea como inconsistencia y lo "arregle"
 parcialmente, que es como se llega a tener las dos palabras mezcladas SIN criterio.
 Si algún día se unifica, es su propia tanda y empieza por decidir qué pasa con los
 `CN-` ya emitidos.
+
+## Duna OS en ANGOSTO — un solo breakpoint, y el detalle sube
+
+Tanda del 2026-08-14. Cerró los dos huecos del § Backlog #9, que por eso ya no
+está en la lista. Lo que sigue es la decisión, no el historial.
+
+**El defecto era una acción sin respuesta, no un layout apretado.** `duna-split`
+apilaba y el panel quedaba DEBAJO de la lista: tocar una tarjeta actualizaba el
+detalle fuera de la pantalla y había que scrollear a ciegas para descubrir que
+algo había pasado. Misma clase que el botón mudo que obligó a `useAccionGuardada`
+(§ Doble-submit).
+
+### UN solo breakpoint: 960
+
+Había TRES para la misma pregunta —el 960 de `duna-split`, el `lg`=1024 de la
+navegación (default de Tailwind, elegido por nadie) y el 820 de la maqueta— y se
+unificó en el único con un motivo **derivado y escrito** (`400 + 24 + ~420 +
+32×2 = 908`, redondeado al primer valor cómodo por encima).
+
+**Debajo: el panel es sheet Y la navegación es la barra inferior. Encima: rail y
+split.** La franja 960–1024 que quedaba con barra inferior y panel al lado se
+ELIMINÓ, no se documentó: un rango con dos sistemas de navegación a la vez es una
+excepción que alguien tendría que recordar.
+
+El número vive en **tres sitios y ninguno puede leer a los otros**, así que la
+regla es que se mueven juntos:
+
+| sitio | qué expresa |
+| --- | --- |
+| `primitives.css` (`@media max-width: 959.98px`) | la forma: split, barra, hueco |
+| `primitives/layout.ts` (`DUNA_MQ_MOVIL`) | **dónde se renderiza** el detalle — el CSS no puede mover un nodo |
+| `app/globals.css` (`--breakpoint-duna: 960px`) | el chrome del admin, como variante `duna:` |
+
+**El `.98` NO es cosmético.** El breakpoint con nombre de Tailwind genera
+`min-width: 960px`; con `max-width: 960px` del otro lado, a EXACTAMENTE 960
+aplicaban las dos mitades —barra inferior y rail a la vez—. Es la franja de dos
+navegaciones otra vez, de un píxel de ancho y por eso peor: nadie la reproduce a
+mano. **Salió de grepear el CSS compilado, no de leer la fuente** — el mismo
+principio de siempre: lo que está escrito no prueba lo que está corriendo.
+
+### El sistema pone la FORMA; el consumidor pone la CONDUCTA
+
+Decisión del owner, y es la frontera del paquete. `.duna-sheet`, `.duna-scrim`,
+`.duna-mobnav`, `--duna-safe-b` y las animaciones son CSS. **El foco atrapado,
+Escape, click-fuera y el bloqueo de scroll los pone Radix**, montado en
+`components/admin/DunaSheet.tsx`, que es la única costura.
+
+El argumento que decidió: **este paquete no tiene una sola pieza con
+comportamiento** —los cinco componentes que envía son presentación pura— así que
+un sheet con foco atrapado sería la primera, o sea un cambio de NATURALEZA del
+paquete metido dentro de una tanda de móvil. Y reimplementar el foco atrapado
+—justo la parte que todo el mundo hace mal— para obtener lo que
+`components/ui/sheet.tsx` ya da en producción es el mismo movimiento que H6 ya
+rechazó.
+
+**Esta tanda NO construyó media H6.** H6 queda con su precio y su disparador sin
+cambio.
+
+**DISPARADOR: `.duna-sheet` queda con la misma naturaleza que `.duna-scrim`** —CSS
+que alguien tiene que cablear bien—. El día que el paquete adopte comportamiento
+(H6, o la Fase B con su propia app), las DOS se absorben en la primitiva que lo
+tenga y dejan de ser reglas sueltas.
+
+### El scroll-lock es lo que decide el gate, y no es el del drawer viejo
+
+`react-remove-scroll` (entra con `@radix-ui/react-dialog`) previene a nivel de
+**evento** —`touchmove`/`wheel` con `preventDefault`— y **nunca toca `position`
+ni `scrollTop`**, así que la posición de la lista se preserva por construcción.
+
+Dos cosas que conviene tener escritas porque las dos son creencias comunes y las
+dos son falsas:
+
+- **`body { overflow: hidden }` no salta al tope en iOS Safari: FALLA AL
+  BLOQUEAR.** El fondo se sigue moviendo detrás del modal. Era lo que hacía el
+  drawer del Sidebar, o sea que ese bloqueo estaba a medias desde siempre.
+- **El salto al tope es del workaround `position: fixed`**, que sí pierde la
+  posición si no se restaura a mano. No se usa, y no hace falta.
+
+### Lo que MURIÓ, y por qué se nombra
+
+La hamburguesa y su drawer se borraron enteros. Con ellos se fueron: el bloqueo
+de scroll a mano, el backdrop `bg-black/50` —que era una **tercera** definición
+del velo junto a `.duna-scrim` y `overlayClasses`— y el efecto de `AdminChrome`
+que forzaba el cierre al cruzar a escritorio, que existía sólo para que ese
+bloqueo no quedara colgado.
+
+**Lo que se rescató: el botón de Buscar ocupa el slot de la hamburguesa.** Vivía
+dentro del rail, y el rail tampoco existe en angosto — borrarla a secas dejaba al
+teléfono sin forma de abrir el ⌘K. Se va lo que se reemplazó; se queda lo que se
+habría perdido.
+
+### La barra y el sheet se derivan de `ADMIN_NAV`
+
+Nunca de la maqueta, que dibuja ocho secciones de las cuales **cuatro no existen**
+(Tienda, WhatsApp, Sistema, Ajustes) y **omite Entregas**, que sí. El corte es
+POSICIONAL —los primeros cuatro a la barra, el resto al sheet— y no una bandera en
+el registry: el orden ya lo dice el array, que es el mismo que el operador ve en
+el rail, así que las dos navegaciones no pueden contradecirse sobre qué es
+principal.
+
+**El sheet NO lleva bloque de usuario** aunque la maqueta lo dibuje: la identidad
+ya vive en la topbar por debajo del breakpoint, y sería el segundo sitio para lo
+mismo.
+
+### Dos huecos del sistema que aparecieron construyendo
+
+- **`--duna-safe-b` no existía.** El indicador de inicio del teléfono se dibuja
+  ENCIMA de la página, así que sin él el slot que la mano alcanza primero queda
+  debajo de una barra del sistema. Con fallback `0px` EXPLÍCITO: `env()` sin
+  fallback invalida el `calc()` entero, o sea que falla hacia "sin margen", que es
+  justo lo que el token existe para cerrar.
+- **`prefers-reduced-motion` estaba scopeado a `.duna *`**, y el sheet y el scrim
+  se PORTALEAN fuera de ese wrapper. Van nombrados en la regla. El modo de falla
+  era silencioso en la peor dirección: la regla existe, el archivo la declara, y
+  aun así la superficie animaba. **Cualquier primitiva futura que se portalee
+  entra a esa lista.**
+
+Y un tercero que ya estaba escrito y esta tanda hizo morder: **lo portaleado a
+`<body>` queda fuera de `.admin-shell` y no ve el puente de familias
+tipográficas** (§ `duna.css`). `DunaSheet` lo esquiva portaleando al propio
+puente. **El arreglo sistémico que esa nota propone —las variables de fuente en
+`<html>`— sigue pendiente y sigue siendo el correcto para H6**, que va a portalear
+varias superficies.
+
+### `.duna-scrim` era un H10, y esta tanda lo cierra
+
+Estaba escrita en las primitivas, con **cero consumidores y ausente de
+`reference.html`**. Una primitiva que nunca se ejerce no está probada: está
+declarada. El bloque nuevo de la prueba viva la ejerce.
+
+**Lo que esa página NO puede probar**, dicho para que nadie lo dé por probado: ahí
+el `<body>` ES `.duna`, así que el escape de scope que obligó a nombrar las dos
+superficies en `prefers-reduced-motion` no se reproduce. Si alguien quitara esos
+nombres, la referencia seguiría respetándolo y la app no. **Eso se verifica en la
+app.**
 
 ## Analítica — cuatro preguntas de dueño, no un grid de métricas
 
