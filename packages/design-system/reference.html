@@ -195,10 +195,13 @@
       </div>
     </div>
     <div class="row" style="margin-top:var(--duna-space-4)">
-      <button class="duna-pill is-on">Todos <span class="duna-num">12</span></button>
+      <button class="duna-pill is-on">Todos</button>
       <button class="duna-pill">Por reponer <span class="duna-num">2</span></button>
       <button class="duna-pill">Agotados <span class="duna-num">1</span></button>
+      <button class="duna-pill">Descontinuados</button>
     </div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">UN PILL LLEVA NÚMERO SI CUENTA UNA COLA QUE SE VACÍA; no lo lleva si cuenta un acumulador que sólo crece. "Por reponer" y "Agotados" son colas: transitorias, accionables, y su valor CRECE con la escala del negocio. "Todos" y "Descontinuados" sólo crecen y no piden ninguna acción — a los tres meses son ruido con dígitos, y su valor DECRECE con la escala.<br><br>El efecto es lo contrario de quitar: cuando SÓLO ALGUNOS pills tienen número, el número se vuelve <b style="color:var(--duna-ink)">señal</b> — el "2" resalta contra los que no dicen nada. Con un número en cada pill, ninguno resalta. El CERO de una cola sí se muestra: "no hay nada por reponer" es una respuesta.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">La primitiva NUNCA asumió el número —el <code>duna-pill</code> es sólo la cápsula y el conteo lo pone el consumidor— pero esta página lo mostraba en los tres, y una prueba viva que enseña una sola variante se lee como si fuera la única. La regla y su campo obligatorio viven en la app (<code>lib/carriles.ts</code>), porque "cola" y "acumulador" son categorías de NEGOCIO y el sistema es agnóstico de negocio.</div>
   </section>
 
   <!-- BUSCADOR -->
