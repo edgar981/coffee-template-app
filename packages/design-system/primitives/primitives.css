@@ -456,6 +456,19 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
    ve como un bloque suelto. No hay default a propósito — un default silencioso
    haría que olvidar el modificador se viera como un bug de layout en vez de como
    lo que es, una clase incompleta. */
+/* `[hidden]` GANA, y hay que decirlo porque por default PIERDE. El atributo
+   estándar es `display: none` en la hoja del navegador, que es la de menor
+   prioridad: cualquier clase con `display` la pisa. O sea que un consumidor que
+   oculte una de estas superficies con `hidden` —lo obvio— obtiene una superficie
+   INVISIBLE PERO MAQUETADA: sigue ocupando su ancho, sigue empujando el scroll
+   horizontal de la página, y en un teléfono eso se ve como "el sitio se
+   desbordó", no como "un modal mal oculto".
+
+   No es hipotético: lo destapó el gate en teléfono de esta misma tanda, sobre la
+   prueba viva. Va acá y no en la demo porque el que se equivoca no es la demo: es
+   cualquiera que use el atributo que el HTML define para esto. */
+.duna-sheet[hidden], .duna-dialog-wrap[hidden], .duna-scrim[hidden] { display: none; }
+
 .duna-sheet {
   position: fixed; z-index: 50;
   display: flex; flex-direction: column;
@@ -555,8 +568,14 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
   padding: var(--duna-space-5) var(--duna-space-5) var(--duna-space-4);
   border-bottom: 1px solid var(--duna-border);
 }
+/* `flex: 1` para que el CUERPO absorba el espacio sobrante y el pie quede al
+   FONDO de la superficie, no pegado al último campo. En el drawer se nota: ocupa
+   el alto completo, así que un formulario corto dejaba los botones flotando a
+   media pantalla con un vacío debajo — se lee como contenido que no cargó.
+   En el dialog no cambia nada: su alto lo da el contenido, así que no hay
+   sobrante que absorber. Una sola regla sirve a las dos formas. */
 .duna-modal__body {
-  min-height: 0; overflow-y: auto;
+  flex: 1; min-height: 0; overflow-y: auto;
   padding: var(--duna-space-5);
 }
 /* EL PIE ES UNA FILA, Y SU REPARTO NO ES DECORATIVO (§ Toast = éxito, inline =
@@ -565,11 +584,25 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
    banner que aparece al fallar empuja el layout y mueve los botones justo cuando
    el cursor está sobre el que se acaba de clickear: el error que explica el fallo
    no puede ser, además, la causa del siguiente.
-   El sistema NO declara la ranura: el consumidor mete ahí un elemento que crezca
-   (el suyo ya es `flex-1`) y `flex-end` hace el resto. Sin error no hay elemento,
-   y los botones se quedan donde estaban — que es lo que hace estable la posición.
-   `flex-wrap` para que en un teléfono angosto el error caiga a su propio renglón
-   en vez de aplastar los botones. */
+   LA RANURA SE DECLARA (`__aviso`), y su `flex-basis` es la medida que decide
+   todo. Con `flex: 1` a secas —basis 0— el aviso no envuelve nunca: se ENCOGE, y
+   en 375px terminaba en una columna de 75px con el texto partido letra por letra.
+
+   El valor se eligió MIDIENDO, no a ojo, y el criterio es que **el aviso no puede
+   empujar a los botones**: ésa es la razón por la que la regla existe. Con 10rem
+   entra junto a las acciones en las dos superficies a su ancho normal (el dialog
+   deja 176px libres y el drawer bastante más), así que aparecer un error no mueve
+   nada. Con 12rem —el primer intento— no entraba ni en el dialog de 420px y los
+   botones bajaban un renglón al fallar: el defecto que la regla previene,
+   reintroducido por el arreglo.
+
+   EXCEPCIÓN DECLARADA, en pantallas muy angostas: ahí no hay 10rem libres y el
+   aviso sí baja a su renglón. Es inevitable y es el mal menor —la alternativa es
+   el texto aplastado— y es la misma forma que el repo ya había tomado a mano para
+   el único diálogo sin sitio al lado (§ Toast = éxito, inline = error).
+
+   Sin error no hay elemento, y los botones se quedan donde estaban — que es lo
+   que hace estable la posición en el caso normal. */
 .duna-modal__foot {
   flex-shrink: 0;
   display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap;
@@ -577,6 +610,16 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
   padding: var(--duna-space-4) var(--duna-space-5)
            calc(var(--duna-space-4) + var(--duna-safe-b));
   border-top: 1px solid var(--duna-border);
+}
+.duna-modal__aviso { flex: 1 1 10rem; min-width: 0; }
+/* LOS BOTONES ENVUELVEN COMO GRUPO, NUNCA SUELTOS. Sin esta caja, al bajar el
+   aviso a su renglón el primer botón se quedaba arriba con él y el segundo caía
+   solo abajo: tres renglones y un par de acciones partido, que es peor que el
+   aplastamiento que el envolver venía a arreglar. `flex-shrink: 0` porque lo que
+   cede en una fila apretada es el texto del aviso, no la fila de acciones. */
+.duna-modal__acciones {
+  display: flex; align-items: center; flex-shrink: 0;
+  gap: var(--duna-space-2);
 }
 
 /* ── La REJILLA de destinos de un sheet ───────────────────────────────────

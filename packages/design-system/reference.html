@@ -22,8 +22,14 @@
   .swatch .c { height: 60px; }
   .swatch .i { padding: var(--duna-space-2) var(--duna-space-3); }
   .row { display: flex; align-items: center; gap: var(--duna-space-4); flex-wrap: wrap; }
-  .rule { display: flex; align-items: baseline; gap: var(--duna-space-5); padding: var(--duna-space-3) 0; border-bottom: 1px solid var(--duna-border); }
-  .rule .spec { width: 260px; flex-shrink: 0; color: var(--duna-muted); font-size: var(--duna-text-caption); }
+  /* `flex-wrap` y `min-width:0`: sin ellos la columna de 260px no cede y la
+     muestra tipográfica desborda la página en un teléfono. Andamio de esta
+     página, pero importa — la prueba viva tiene que poder abrirse al ancho donde
+     viven las primitivas móviles, o el gate de esas primitivas no se puede
+     correr. */
+  .rule { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--duna-space-5); padding: var(--duna-space-3) 0; border-bottom: 1px solid var(--duna-border); }
+  .rule .spec { width: 260px; max-width: 100%; flex-shrink: 0; color: var(--duna-muted); font-size: var(--duna-text-caption); }
+  .rule > :not(.spec) { min-width: 0; overflow-wrap: anywhere; }
   .sp-demo { display: flex; align-items: center; gap: var(--duna-space-4); padding: var(--duna-space-2) 0; border-bottom: 1px solid var(--duna-border); font-size: var(--duna-text-caption); color: var(--duna-muted); }
   .sp-bar { background: var(--duna-sol); height: 14px; border-radius: 3px; }
   .card-demo { padding: var(--duna-space-5); }
@@ -238,7 +244,7 @@
   <section>
     <h2 class="sec">La frontera · efímero vs persistente</h2>
     <p class="sec-note">La misma señal de estado vive en dos sitios según su DURACIÓN. El resultado de una acción se desvanece; la atención que pide acción se queda hasta resolverse. El sol solo aparece en el segundo.</p>
-    <div class="grid" style="grid-template-columns:1fr 1fr; align-items:start; gap:var(--duna-space-5)">
+    <div class="grid" style="grid-template-columns:repeat(auto-fit, minmax(min(100%, 260px), 1fr)); align-items:start; gap:var(--duna-space-5)">
 
       <div>
         <div class="duna-eyebrow" style="margin-bottom:var(--duna-space-3)">Resultado de una acción → TOAST</div>
@@ -395,7 +401,7 @@
          pantalla de trabajo. Con columnas más angostas el nombre del cliente
          envuelve y la tarjeta crece: la comparación mediría el envolvimiento del
          demo, no el sistema. -->
-    <div class="grid" style="grid-template-columns:var(--duna-list-w) var(--duna-list-w); align-items:start; gap:var(--duna-space-5)">
+    <div class="grid" style="grid-template-columns:repeat(auto-fit, minmax(min(100%, var(--duna-list-w)), 1fr)); align-items:start; gap:var(--duna-space-5)">
       <div>
         <div class="duna-eyebrow" style="margin-bottom:var(--duna-space-3)">Cargando</div>
         <div id="skelDemo" style="display:flex; flex-direction:column; gap:var(--duna-space-3)">
@@ -542,6 +548,7 @@
     <div class="duna-eyebrow" style="margin:0 0 var(--duna-space-3)">Sheet · la superficie que sube</div>
     <button type="button" class="duna-btn duna-btn--primary" id="sheetDemoAbrir">Abrir el sheet</button>
     <p id="bpEstado" class="duna-sub" style="margin-top:var(--duna-space-3)"></p>
+    <p id="desbordeEstado" class="duna-sub" style="margin-top:var(--duna-space-2)"></p>
 
     <div class="flag" style="margin-top:var(--duna-space-4)">EL SISTEMA PONE LA FORMA; LA CONDUCTA LA PONE EL CONSUMIDOR. Acá no hay foco atrapado, ni Escape, ni bloqueo del scroll del fondo — el botón de arriba los simula para que la forma se pueda ver, y esa simulación es de esta página, no de la primitiva. En la app el sheet se monta sobre un diálogo que ya trae todo eso y ya está en producción. Este paquete no tiene una sola pieza con comportamiento: un sheet con foco atrapado sería la primera, o sea un cambio de naturaleza del paquete, y eso no se cuela dentro de una tanda de móvil.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)"><code>max-height: 80vh</code> con el scroll en el CUERPO, no en el sheet: lo que asoma arriba no es aire, es lo que sostiene "estoy encima de la lista, no en otra pantalla". Un sheet a pantalla completa es una página con animación — y una página rompe las tres cosas que este sheet existe para conservar: la lista detrás, el volver sin navegar, y el enlace compartible.</div>
@@ -597,7 +604,9 @@
     <div class="flag" style="margin-top:var(--duna-space-3)">EL ANCLAJE ES OBLIGATORIO. <code>duna-sheet</code> a secas no se ancla a nada, y no hay default a propósito: un default silencioso haría que olvidar el modificador se viera como un bug de layout en vez de como lo que es, una clase incompleta.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">EL DIALOG NO ES EL SHEET CENTRADO. Un sheet ancla, y por eso puede ser grande sin desorientar: el borde del que sale es la referencia. Un diálogo FLOTA, y algo que flota tiene que ser chico o se lee como una página. De ahí los 420px, el radio <code>--duna-r-l</code> en vez del <code>--duna-r-xl</code> de las superficies ancladas (acá se ven las cuatro esquinas), y que APAREZCA con escala en vez de deslizarse: no sale de ningún borde, así que un <code>translate</code> afirmaría un origen que no tiene.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">LA CABECERA Y EL PIE SON LOS MISMOS en las dos formas, y compartir clase es lo que impide que el drawer y la confirmación se separen visualmente con el tiempo. La cabecera NO scrollea: en un formulario largo, perder el título al bajar deja al operador sin saber qué está llenando.</div>
-    <div class="flag" style="margin-top:var(--duna-space-3)">EL PIE PONE LOS BOTONES A LA DERECHA Y DEJA LIBRE LO DE LA IZQUIERDA, que es donde el consumidor mete su error inline — nunca un banner encima. Un banner que aparece al fallar empuja el layout y mueve los botones justo cuando el cursor está sobre el que se acaba de clickear: el error que explica el fallo no puede ser, además, la causa del siguiente. El sistema no declara esa ranura; sólo garantiza que exista el hueco y que sin error los botones no se muevan.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">EL PIE PONE LOS BOTONES A LA DERECHA Y DEJA LIBRE LO DE LA IZQUIERDA, que es donde el consumidor mete su error inline — nunca un banner encima. Un banner que aparece al fallar empuja el layout y mueve los botones justo cuando el cursor está sobre el que se acaba de clickear: el error que explica el fallo no puede ser, además, la causa del siguiente. La ranura SÍ está declarada (<code>duna-modal__aviso</code>) y su medida se eligió MIDIENDO: con 10rem el aviso entra junto a las acciones en las dos superficies, así que aparecer un error <b style="color:var(--duna-ink)">no mueve los botones</b> — que es la razón por la que la regla existe. El primer intento con 12rem no entraba ni en el dialog de 420px y los bajaba un renglón: el defecto que la regla previene, reintroducido por el arreglo.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">Y LAS ACCIONES ENVUELVEN COMO GRUPO (<code>duna-modal__acciones</code>), nunca sueltas. Sin esa caja, al bajar el aviso a su renglón en un teléfono el primer botón se quedaba arriba con él y el segundo caía solo abajo: tres renglones y un par de acciones partido, peor que el aplastamiento que el envolver venía a arreglar. En pantallas muy angostas el aviso SÍ baja a su renglón — excepción declarada, el mal menor frente al texto aplastado, y la misma forma que el repo ya había tomado a mano para el único diálogo sin sitio al lado.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">EL CLICK-FUERA NO ES IGUAL EN LAS DOS. El <b style="color:var(--duna-ink)">drawer y el sheet SÍ cierran</b> al tocar el velo: son superficies de trabajo, y tocar fuera es "me equivoqué de fila". <b style="color:var(--duna-ink)">La confirmación NO</b>: es un <code>alertdialog</code>, la pregunta exige respuesta explícita, y descartarla con un toque al margen es justo el gesto accidental del que la confirmación protege. Radix lo da así de fábrica en <code>AlertDialog</code>; acá se replica a mano porque esto simula la FORMA, no la conducta. Escape sigue el mismo reparto.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">Y LO QUE ESTA FORMA NO TRAE, dicho para que nadie lo suponga: <b style="color:var(--duna-ink)">no hay bloqueo propio mientras la mutación viaja</b>. La maqueta dibuja un <code>is-saving</code> que apaga el modal entero, y eso es sólo la mitad VISIBLE de la guarda de doble-submit; la que corta la re-entrada del mismo tick es un ref síncrono del consumidor. Una primitiva que bloquee y haga creer que la guarda ya está puesta reabriría el agujero que ese hook cerró.</div>
   </section>
 
@@ -645,8 +654,10 @@
     <p class="duna-sub" style="margin-top:var(--duna-space-5)">El cuerpo scrollea; la cabecera y el pie se quedan.</p>
   </div>
   <div class="duna-modal__foot">
-    <button type="button" class="duna-btn duna-btn--ghost" data-cerrar-modal>Cancelar</button>
-    <button type="button" class="duna-btn duna-btn--primary" data-cerrar-modal>Guardar</button>
+    <div class="duna-modal__acciones">
+      <button type="button" class="duna-btn duna-btn--ghost" data-cerrar-modal>Cancelar</button>
+      <button type="button" class="duna-btn duna-btn--primary" data-cerrar-modal>Guardar</button>
+    </div>
   </div>
 </aside>
 
@@ -657,9 +668,11 @@
       <p class="duna-sub" style="margin:var(--duna-space-2) 0 0">Se anula el envío y el stock vuelve al inventario. El pedido queda en el historial como cancelado.</p>
     </div>
     <div class="duna-modal__foot">
-      <p role="alert" class="duna-note" style="flex:1;min-width:0;margin:0">Acá va el error inline del consumidor.</p>
-      <button type="button" class="duna-btn duna-btn--ghost" data-cerrar-modal>Volver</button>
-      <button type="button" class="duna-btn duna-btn--danger" data-cerrar-modal>Cancelar el pedido</button>
+      <p role="alert" class="duna-note duna-modal__aviso" style="margin:0">Acá va el error inline del consumidor.</p>
+      <div class="duna-modal__acciones">
+        <button type="button" class="duna-btn duna-btn--ghost" data-cerrar-modal>Volver</button>
+        <button type="button" class="duna-btn duna-btn--danger" data-cerrar-modal>Cancelar el pedido</button>
+      </div>
     </div>
   </div>
 </div>
@@ -772,8 +785,10 @@
     if (!scrim || !drawer || !wrap || !dialog) return;
 
     let abierto = null;   // 'drawer' | 'dialog' | null
+    let pendiente = null; // el temporizador de cierre en vuelo
 
     const abrir = (cual) => {
+      clearTimeout(pendiente);
       const caja = cual === 'drawer' ? drawer : wrap;
       scrim.hidden = false; caja.hidden = false;
       // Reflow SÍNCRONO con `closed` puesto, no `requestAnimationFrame`: si el
@@ -793,17 +808,34 @@
       scrim.dataset.state = 'closed';
       caja.dataset.state = 'closed';
       if (abierto === 'dialog') dialog.dataset.state = 'closed';
+      // El temporizador se GUARDA para poder cancelarlo: sin eso, abrir otra
+      // superficie antes de que venza deja el `fin` viejo corriendo y esconde el
+      // velo de la superficie NUEVA. Se ve como "el scrim no aparece", que manda
+      // a buscar el defecto en el CSS.
       const fin = () => { scrim.hidden = true; caja.hidden = true; };
       (abierto === 'drawer' ? drawer : dialog).addEventListener('animationend', fin, { once: true });
-      setTimeout(fin, 400);   // red por si `prefers-reduced-motion` no dispara el evento
+      pendiente = setTimeout(fin, 400);   // red por si `prefers-reduced-motion` no dispara el evento
       abierto = null;
     };
 
     document.getElementById('drawerDemoAbrir').addEventListener('click', () => abrir('drawer'));
     document.getElementById('dialogDemoAbrir').addEventListener('click', () => abrir('dialog'));
-    scrim.addEventListener('click', cerrar);
+
+    // EL CLICK-FUERA NO ES IGUAL EN LAS DOS SUPERFICIES, y la demo tiene que
+    // enseñar el contrato REAL o enseña el equivocado.
+    //
+    //   · drawer y sheet  → SÍ cierran. Son superficies de trabajo; tocar fuera
+    //     es "me equivoqué de fila", y lo que se pierde es un formulario a medio
+    //     llenar que el operador puede volver a abrir.
+    //   · la confirmación → NO cierra. Es un `alertdialog`: la pregunta exige una
+    //     respuesta explícita, y descartarla con un toque al margen es justo el
+    //     gesto accidental del que la confirmación protege. Radix lo hace así de
+    //     fábrica en `AlertDialog` — acá se replica a mano porque esto es una
+    //     simulación de la FORMA, no la implementación.
+    scrim.addEventListener('click', () => { if (abierto === 'drawer') cerrar(); });
     document.querySelectorAll('[data-cerrar-modal]').forEach(b => b.addEventListener('click', cerrar));
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrar(); });
+    // Escape sigue el mismo reparto, por el mismo motivo.
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && abierto === 'drawer') cerrar(); });
   })();
   // EL CONTRASTE DEL DESTRUCTIVO, MEDIDO EN VIVO Y EN LOS DOS TEMAS.
   //
@@ -843,6 +875,34 @@
       : `⚠ AA ROTO: ${claro}:1 en claro · ${oscuro}:1 en oscuro. El tinte destructivo dejó de ser legible.`;
     out.style.color = ok ? '' : 'var(--duna-bad-ink)';
     out.style.fontWeight = ok ? '' : 'var(--duna-w-semi)';
+  })();
+  // EL DESBORDE HORIZONTAL, VIGILADO. Es la tercera medición viva de esta página
+  // y la que más barato paga, porque su defecto es INVISIBLE en un monitor.
+  //
+  // Lo destapó el gate en teléfono de H6: la página desbordaba a 852px y el
+  // síntoma NO se veía como "la página se desborda" sino como "el drawer sale a
+  // media pantalla". La cadena es la que hay que retener: un elemento
+  // `position: fixed` con `width: min(480px, 100%)` resuelve ese `100%` contra el
+  // BLOQUE CONTENEDOR INICIAL, y con desborde horizontal ése ya no mide lo que la
+  // pantalla — así que el drawer salía a 480 en un teléfono de 375.
+  //
+  // O sea: un desborde en cualquier rincón de la página deforma las primitivas
+  // ANCLADAS de toda la página. Por eso se vigila acá y no se deja al ojo.
+  (function vigilarDesborde() {
+    const out = document.getElementById('desbordeEstado');
+    if (!out) return;
+    const revisar = () => {
+      const vw = document.documentElement.clientWidth;
+      const sw = document.documentElement.scrollWidth;
+      const ok = sw <= vw + 1;
+      out.textContent = ok
+        ? `Sin desborde horizontal (${sw}px de contenido en ${vw}px de ventana).`
+        : `⚠ DESBORDE HORIZONTAL: ${sw}px de contenido en ${vw}px de ventana. Las superficies ancladas van a resolver su 100% contra ${sw}, no contra la pantalla.`;
+      out.style.color = ok ? '' : 'var(--duna-bad-ink)';
+      out.style.fontWeight = ok ? '' : 'var(--duna-w-semi)';
+    };
+    revisar();
+    addEventListener('resize', revisar);
   })();
 </script>
 </body>
