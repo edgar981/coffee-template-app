@@ -3,16 +3,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogFooter,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogCancel,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+import { DunaDialog } from '@/components/admin/DunaDialog';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 
 // Shared confirmation for ANY sensitive delete in the admin — the template that
@@ -139,49 +130,58 @@ export function ConfirmDeleteDialog({
   });
 
   return (
-    <AlertDialog
-      open={open}
+    <DunaDialog
+      abierto={open}
       onOpenChange={(o) => {
         if (loading) return;
         if (!o) error.limpiar();   // cerrar y reabrir no revive un error viejo
         onOpenChange(o);
       }}
+      // Escape no puede abandonar una mutación en vuelo: cerrar a mitad no
+      // cancela nada en el server y deja al operador sin saber si se aplicó.
+      alCerrarConEscape={(e) => { if (loading) e.preventDefault(); }}
+      titulo={title}
+      descripcion={consequence}
     >
-      <AlertDialogContent onEscapeKeyDown={(e) => { if (loading) e.preventDefault(); }}>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{consequence}</AlertDialogDescription>
-        </AlertDialogHeader>
+      {/* El registro, nombrado explícitamente — nunca un pronombre genérico. */}
+      <div className="duna-modal__body">
+        <p className="duna-note" style={{ margin: 0, overflowWrap: 'anywhere' }}>{entityLabel}</p>
+      </div>
 
-        {/* The record being deleted, named explicitly — never a generic pronoun. */}
-        <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm font-medium text-foreground break-words">
-          {entityLabel}
-        </p>
-
-        {/* El error va DENTRO de la fila de acciones y como hermano flexible, no
-            como banner encima: así ocupa espacio horizontal que la fila ya tenía
-            libre y los botones no se mueven bajo el cursor al fallar. */}
-        <AlertDialogFooter>
-          <ErrorDialogo mensaje={error.mensaje} />
-          <AlertDialogCancel disabled={loading}>Cancelar</AlertDialogCancel>
+      {/* El error va DENTRO de la fila de acciones y en la ranura del sistema, no
+          como banner encima: ocupa el espacio horizontal que la fila ya tenía
+          libre y los botones no se mueven bajo el cursor al fallar. */}
+      <div className="duna-modal__foot">
+        <ErrorDialogo mensaje={error.mensaje} className="duna-modal__aviso" />
+        <div className="duna-modal__acciones">
+          <button type="button" className="duna-btn duna-btn--ghost" disabled={loading}
+                  onClick={() => onOpenChange(false)}>
+            Cancelar
+          </button>
           {secondaryAction && (
-            <Button
-              variant="outline"
+            <button
+              type="button"
+              className="duna-btn duna-btn--secondary"
               disabled={loading}
               onClick={() => run('secondary', secondaryAction.onAction, secondaryAction.successMessage, 'No se pudo completar la acción')}
             >
               {busy === 'secondary' ? `${secondaryAction.label}…` : secondaryAction.label}
-            </Button>
+            </button>
           )}
-          <Button
-            variant={destructiva ? 'destructive' : 'default'}
+          {/* `--danger` SÓLO cuando de verdad destruye. `confirmKind='default'`
+              —desactivar un producto, rechazar un comprobante— va con el primario:
+              son acciones que registran un hecho y no quitan nada que no se pueda
+              recuperar desde el panel. */}
+          <button
+            type="button"
+            className={`duna-btn ${destructiva ? 'duna-btn--danger' : 'duna-btn--primary'}`}
             disabled={loading}
             onClick={() => run('confirm', onConfirm, successMessage, errorLabel)}
           >
             {busy === 'confirm' ? busyLabel : confirmLabel}
-          </Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+          </button>
+        </div>
+      </div>
+    </DunaDialog>
   );
 }

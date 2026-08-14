@@ -1,9 +1,6 @@
 'use client';
 
-import {
-  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
-  AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
-} from '@/components/ui/alert-dialog';
+import { DunaDialog } from '@/components/admin/DunaDialog';
 
 // La confirmación explícita de despachar SIN pago registrado. Sale de `<div>`s
 // sueltos al final del board de Entregas porque el detalle de la orden es ahora
@@ -20,21 +17,29 @@ export function ConfirmDespachoSinPago({ numeroOrden, abierto, onOpenChange, onC
   onConfirmar: () => void;
 }) {
   return (
-    <AlertDialog open={abierto} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Despachar sin pago registrado</AlertDialogTitle>
-          <AlertDialogDescription>
-            La orden {numeroOrden ?? ''} no tiene un pago registrado.
-            Al despacharla quedará <strong>contraentrega</strong> y aparecerá como
-            «Por cobrar» hasta que registres el pago. ¿Continuar?
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirmar}>Despachar sin pago</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <DunaDialog
+      abierto={abierto}
+      onOpenChange={onOpenChange}
+      titulo="Despachar sin pago registrado"
+      descripcion={<>
+        La orden {numeroOrden ?? ''} no tiene un pago registrado.
+        Al despacharla quedará <strong>contraentrega</strong> y aparecerá como
+        «Por cobrar» hasta que registres el pago. ¿Continuar?
+      </>}
+    >
+      {/* NO lleva `--danger`: despachar sin cobrar no destruye nada, registra un
+          hecho. El destructivo está reservado a lo que no se recupera desde el
+          panel (§ el tinte destructivo del sistema). */}
+      <div className="duna-modal__foot">
+        <div className="duna-modal__acciones">
+          <button type="button" className="duna-btn duna-btn--ghost" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </button>
+          <button type="button" className="duna-btn duna-btn--primary" onClick={() => { onConfirmar(); onOpenChange(false); }}>
+            Despachar sin pago
+          </button>
+        </div>
+      </div>
+    </DunaDialog>
   );
 }
