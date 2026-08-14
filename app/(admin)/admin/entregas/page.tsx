@@ -89,8 +89,8 @@ export default function Entregas() {
           <p className="text-sm text-muted-foreground">Gestión de despachos y domicilios</p>
         </div>
         <Button asChild variant="outline" className="gap-2">
-          <Link href="/admin/ordenes">
-            <Truck className="w-4 h-4" /> Programar desde órdenes
+          <Link href="/admin/pedidos">
+            <Truck className="w-4 h-4" /> Programar desde pedidos
           </Link>
         </Button>
       </div>

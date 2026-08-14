@@ -176,7 +176,7 @@ export function CommandPalette({ open, onOpenChange }: {
         {displayResults.ordenes.length > 0 && (
           <CommandGroup heading="Órdenes">
             {displayResults.ordenes.map(o => {
-              const href = `/admin/ordenes?order=${encodeURIComponent(o.numero_orden)}`;
+              const href = `/admin/pedidos?pedido=${encodeURIComponent(o.numero_orden)}`;
               const title = `${o.numero_orden}${o.cliente_nombre ? ` · ${o.cliente_nombre}` : ''}`;
               return (
                 <CommandItem

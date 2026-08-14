@@ -232,7 +232,7 @@ function PagosInner() {
                     <td className="px-4 py-3">
                       {p.order?.numero_orden ? (
                         <Link
-                          href={`/admin/ordenes?order=${encodeURIComponent(p.order.numero_orden)}`}
+                          href={`/admin/pedidos?pedido=${encodeURIComponent(p.order.numero_orden)}`}
                           className="font-mono text-xs font-semibold text-foreground hover:underline"
                         >
                           {p.order.numero_orden}

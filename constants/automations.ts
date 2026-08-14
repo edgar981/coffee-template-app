@@ -5,7 +5,7 @@ import {
   Wallet, Truck, Sunrise, ShoppingBag, HandCoins, PackageX,
 } from 'lucide-react';
 import { STAT_CHIP } from '@/constants/stat-chip';
-import { POR_COBRAR_QUERY } from '@duna/core/metrics/order-stat-filters';
+import { POR_COBRAR_QUERY_PEDIDOS } from '@duna/core/metrics/order-stat-filters';
 import { LOW_STOCK_QUERY } from '@duna/core/metrics/inventory-filters';
 import { HORAS_ENTREGA_SIN_COBRO } from '@/lib/automations/reglas';
 
@@ -503,16 +503,22 @@ export function parseAutomationConfig(def: AutomationDef, stored: unknown): Reco
 /** Enlaces profundos de las notificaciones internas — reusan los helpers compartidos. */
 export const AUTOMATION_HREF = {
   stockBajo:  `/admin/inventario?${LOW_STOCK_QUERY}`,
-  porCobrar:  `/admin/ordenes?${POR_COBRAR_QUERY}`,
+  porCobrar:  `/admin/pedidos?${POR_COBRAR_QUERY_PEDIDOS}`,
   entregas:   '/admin/entregas',
 } as const;
 
 /**
- * Enlace al detalle de UNA orden. La página de Órdenes abre su diálogo con
- * `?order=<numero_orden>` — por NÚMERO, no por id, que es lo que ya parsea
- * `parseFilters`. Una notificación que no lleva a la fila de la que habla obliga
- * a buscarla a mano, que es justo el trabajo que la campana debería ahorrar.
+ * Enlace al detalle de UN pedido. `/admin/pedidos` abre su panel con
+ * `?pedido=<numero_orden>` — por NÚMERO, no por id. Una notificación que no lleva
+ * a la fila de la que habla obliga a buscarla a mano, que es justo el trabajo que
+ * la campana debería ahorrar.
+ *
+ * ESTA FUNCIÓN ES UNA FÁBRICA DE DATOS, no un enlace más: lo que devuelve se
+ * CONGELA en `Notification.href` al escribir la fila. Cambiarla sólo arregla las
+ * notificaciones NUEVAS; las ya escritas siguen apuntando a `/admin/ordenes?order=`
+ * para siempre, y de ésas se encarga el redirect de `proxy.ts` (§ lib/redirect-ordenes).
+ * Son dos mecanismos para dos poblaciones, y hacen falta los dos.
  */
 export function hrefOrden(numeroOrden: string): string {
-  return `/admin/ordenes?order=${encodeURIComponent(numeroOrden)}`;
+  return `/admin/pedidos?pedido=${encodeURIComponent(numeroOrden)}`;
 }

@@ -21,14 +21,15 @@ test('renombrar una sección en el menú arrastra la pestaña — no hay copia q
   // sigue pasando pero el de arriba se rompe al primer renombre. Éste fija la
   // otra mitad: que la fuente sea EXACTAMENTE la del menú y no un subconjunto.
   const rutasDelNav = ADMIN_NAV.map(i => i.path);
-  // ONCE, y cada número de más es una CONVIVENCIA declarada del rediseño Duna OS:
-  //   · "Órdenes" (operativa actual) con "Pedidos" (pantalla nueva)
-  //   · "Clientes (actual)" con "Clientes" (pantalla nueva)
-  // Vuelve a bajar cuando cada pantalla nueva absorba los flujos de la suya y la
-  // vieja salga del menú. El conteo es un tripwire a propósito: obliga a que
-  // agregar o quitar una sección sea una decisión visible y no un efecto lateral —
-  // y cumplió, cayéndose al entrar la vertical de Clientes.
-  assert.equal(rutasDelNav.length, 11, 'el menú tiene once secciones (dos convivencias viejo↔nuevo)');
+  // DIEZ. Era once: "Órdenes" salió del menú al retirarse su pantalla, y queda UNA
+  // convivencia declarada — "Clientes (actual)" con "Clientes" (la nueva). Vuelve
+  // a bajar a nueve cuando esa también se retire.
+  //
+  // El conteo es un tripwire a propósito: obliga a que agregar o quitar una
+  // sección sea una decisión visible y no un efecto lateral. Ya cumplió dos veces
+  // —al entrar la vertical de Clientes y al salir Órdenes—, que es exactamente lo
+  // que se le pide.
+  assert.equal(rutasDelNav.length, 10, 'el menú tiene diez secciones (una convivencia viejo↔nuevo)');
   assert.ok(rutasDelNav.every(p => tituloAdmin(p) !== null));
 });
 
@@ -48,11 +49,11 @@ test('una ruta sin título declarado devuelve null, no un título fabricado', ()
   assert.equal(tituloAdmin('/admin'), null);
 });
 
-test('el detalle de orden NO tiene título propio: es un modal sobre la lista', () => {
-  // `?order=CN-…` abre un diálogo dentro de /admin/ordenes; no es una ruta. Por
-  // eso no se inventa un "CN-132453 · Panel Duna" — la pestaña sigue diciendo
-  // Órdenes, que es donde el operador está.
-  assert.equal(tituloAdmin('/admin/ordenes/CN-132453'), null);
+test('el detalle de un pedido NO tiene título propio: es un panel sobre la lista', () => {
+  // `?pedido=CN-…` abre el panel dentro de /admin/pedidos; no es una ruta. Por eso
+  // no se inventa un "CN-132453 · Panel Duna" — la pestaña sigue diciendo Pedidos,
+  // que es donde el operador está.
+  assert.equal(tituloAdmin('/admin/pedidos/CN-132453'), null);
 });
 
 test('el sufijo es uno solo', () => {

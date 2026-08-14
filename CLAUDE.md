@@ -560,6 +560,11 @@ convivencias todavía vivas. La regla es la misma para todas: la primitiva se
 construye cuando ya no queda una implementación vieja de esos flujos con la cual
 duplicar.
 
+**ESTADO al 2026-08-14: falta UNA.** `/admin/ordenes` se retiró, así que los seis
+flujos de pedidos ya no tienen implementación vieja con la cual duplicar — pero
+`/admin/clientes` sigue en producción y sus dos flujos (borrar y el formulario)
+todavía sí. El disparador NO está cumplido: se cumple con el retiro de Clientes.
+
 ### Lo que la maqueta ya resuelve, y cómo cambia el cálculo
 
 Existe **diseño de referencia** de los diálogos (`duna-modales.html`), y define:
@@ -1836,10 +1841,18 @@ ventana temporal de verdad, ahí sí corresponde declararla — el mecanismo exi
 está testeado (`WidgetDef.scopeSuffix` + `resolveStatLine`, hoy sin consumidores
 a propósito). No re-agregar "(acumulado)" leyendo una versión vieja de este doc.
 
-**Deuda conocida (NO arreglada a medias):** ninguno de los dos conteos excluye
-las órdenes `SN-` de demo, así que hoy "Pendientes" cuenta 1 de más. Arreglarlo
-solo en la tarjeta rompería el invariante card=lista (la lista de Órdenes tampoco
-filtra `SN-`): el fix es de los dos lados a la vez, o de ninguno.
+**La deuda de `SN-` se CERRÓ** (2026-08-13, tanda del rango). Decía "el fix es de
+los dos lados a la vez, o de ninguno", y así fue: la lista de pedidos dejó de
+mostrarlas (`soloOrdenesReales` — son fixtures del seed, no pedidos) y con eso la
+cartera pudo excluirlas también, porque su inclusión existía SÓLO para no
+contradecir a la lista. Se anota el cierre y no se borra la entrada porque el
+criterio sigue vigente para el próximo conteo que se desalinee: **card=lista se
+arregla de los dos lados**.
+
+**Y "Órdenes Pendientes" ya no existe como tarjeta**: cambió de pregunta a
+"Necesitan atención" al retirarse el eje de cobro como carril. El par que esta
+sección describe —un conjunto y su recorte— pasó a ser superconjunto/subconjunto,
+y el sub de la tarjeta lo dice ("Incluye N por cobrar").
 
 ## Capa de insights de las stat cards (hechos, no consejos)
 
@@ -2065,6 +2078,79 @@ diálogo de UNA orden.
   endpoints: `POST /api/shippings` sigue rechazando la orden cancelada, y el
   `PATCH` sigue exigiendo mensajero + fecha y el `confirmarSinPago` explícito. Lo
   que el cliente decide es qué botón ofrecer, no qué se permite.
+
+## El retiro de `/admin/ordenes` — y el vocabulario que NO se unificó
+
+La pantalla vieja de pedidos se retiró el 2026-08-14, primera vez que el rediseño
+BORRA algo en producción en vez de agregar al lado. Lo que hay que retener no es
+el borrado sino el orden, porque el modo de falla de un retiro no es "algo se ve
+mal": es **un enlace que funcionaba llevando a un 404**.
+
+**Tres pasos, y el orden es la decisión.** Primero migrar todo lo que apunta a la
+ruta; después el redirect; recién entonces borrar. El redirect entra ANTES o EN EL
+MISMO deploy que el borrado, jamás después — el instante en que la ruta muere es
+exactamente el instante en que lo necesita.
+
+### Los enlaces congelados son otra población, y necesitan otro mecanismo
+
+`Notification.href` es una columna `String` que se escribe al crear la fila y no
+se vuelve a tocar. Medido en `development` el día del retiro: **8 notificaciones,
+4 apuntando a `/admin/ordenes?order=`**. No hay backfill.
+
+De ahí que hagan falta LAS DOS cosas, y que confundirlas sea el error:
+
+- cambiar `hrefOrden()` arregla las notificaciones **NUEVAS** — lo prueban los dos
+  tests de `tests/integracion/cadenas-*`;
+- el **redirect** (`lib/redirect-ordenes` + `proxy.ts`) atiende a las **VIEJAS** —
+  lo prueban sus tests de capa 1.
+
+Una función que devuelve un href **no es un enlace: es una fábrica de datos**. Está
+dicho en el docstring de `hrefOrden` para que nadie crea que con cambiarla alcanza.
+
+### El redirect: pura en `lib/`, plomería en `proxy.ts`
+
+`?order=`→`?pedido=`, `?cobrar=1`→`?f=por_cobrar`, y `estado`/`desde`/`hasta`
+viajan **tal cual** (la pantalla nueva ya los entiende como alcances). Todo lo
+demás se descarta y cae a la lista: **nunca un 404**. Quien llega venía de un
+enlace que funcionaba; una lista de más se vuelve a filtrar, un 404 lo deja sin
+nada.
+
+- **`?cobrar=0` NO se traduce**, y la ausencia es deliberada: significaba
+  "pendiente MENOS por-cobrar", el recorte del widget que cambió de PREGUNTA a
+  "Necesitan atención". Mandarlo a `f=atencion` afirmaría que son el mismo
+  conjunto.
+- **En `proxy.ts` y no en `next.config.ts`**: los `redirects()` de la config
+  arrastran el query pero **no renombran sus claves**, y renombrar es justo lo que
+  hay que hacer.
+- **307, no 308.** Un permanente se cachea en el navegador sin forma cómoda de
+  deshacerlo; en un panel el costo es un operador que no llega a una ruta hasta
+  limpiar caché. No hay SEO que ganar — el sitio va `noindex`.
+
+### Un retiro que deja un dato de sólo escritura está incompleto
+
+`notas_internas` sólo se podía leer y editar en la pantalla vieja, y el sistema
+las SIGUE escribiendo: el modal de crear, y `POST /api/orders/[id]/address`, que
+les anexa una línea de auditoría por cada dirección agregada a mano. Borrar sin
+más habría dejado el campo de sólo escritura — deuda **creada por el borrado**, no
+heredada. Por eso el pliegue de notas entró en la misma tanda, mostrando el campo
+COMPLETO: filtrar las líneas de auditoría para dejar "sólo lo que el operador
+escribió" sería editorializar un registro.
+
+### LA SECCIÓN ES "PEDIDOS" Y LA ENTIDAD ES "ORDEN" — a propósito
+
+El menú, los vacíos, los conteos y los botones dicen **pedido**. El dato sigue
+diciendo **orden**: `numero_orden`, el prefijo `CN-`, `OrderStatus`, "Cancelar
+orden", "Orden cancelada".
+
+**No es un descuido a medio arreglar.** Unificar la entidad tocaría el schema, el
+prefijo de todos los números ya emitidos, copy en una docena de sitios y
+probablemente datos — superficie desproporcionada, y metida dentro del retiro lo
+habría convertido en un lío con dos cosas que verificar a la vez.
+
+Queda escrito para que el próximo no lo lea como inconsistencia y lo "arregle"
+parcialmente, que es como se llega a tener las dos palabras mezcladas SIN criterio.
+Si algún día se unifica, es su propia tanda y empieza por decidir qué pasa con los
+`CN-` ya emitidos.
 
 ## Analítica — cuatro preguntas de dueño, no un grid de métricas
 
