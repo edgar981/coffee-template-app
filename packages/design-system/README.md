@@ -34,11 +34,39 @@ duna-modales.html        Maqueta de los diálogos de Pedidos (H6). NO es espec n
 duna-modales.NOTES.md    fuente de valores — trae su propia copia de los tokens,
                          que ya derivó, y dibuja features que el dominio no tiene.
                          LEER LA NOTA ANTES QUE EL HTML.
+
+duna-os.html             Maqueta completa de Duna OS (siete vistas). De ella salió
+duna-os.NOTES.md         la forma de móvil. Cubre la navegación y NO cubre el panel
+                         del split — de hecho REPRODUCE ese defecto.
+                         LEER LA NOTA ANTES QUE EL HTML.
 ```
 
-La diferencia entre las dos páginas importa: `reference.html` enlaza los tokens
-reales del paquete y **se rompe si el sistema se rompe**; `duna-modales.html` es una
-maqueta desconectada, y por eso necesita su lectura crítica al lado.
+La diferencia entre `reference.html` y las maquetas importa: aquélla enlaza los
+tokens reales del paquete y **se rompe si el sistema se rompe**; las maquetas están
+desconectadas, y por eso cada una necesita su lectura crítica al lado.
+
+### La regla: una maqueta entra CON su lectura, y ANTES de la tanda
+
+**Toda maqueta que informe una tanda entra al repo con su nota crítica antes de que
+la tanda arranque.** No al final, como registro: al principio, como insumo.
+
+Son tres las tandas que empezaron pidiendo una maqueta que vivía fuera del repo
+(§ Backlog técnico #4, H6, y la de móvil). El costo no es el archivo perdido — es
+que la primitiva no tiene contra qué verificarse, y que la maqueta se lee como
+espec por el simple hecho de existir.
+
+La nota separa **tres capas**, y separarlas es todo el trabajo:
+
+- **INTENCIÓN DE FORMA** — se adopta.
+- **NO fuente de VALORES** — los valores salen del paquete. Una maqueta trae su
+  copia de los tokens, y esa copia ya derivó o va a derivar. Un valor escrito como
+  literal donde el paquete tiene token es el estado exacto desde el cual deriva,
+  aunque hoy coincida.
+- **NO fuente de ALCANCE** — features dibujadas ≠ features decididas. Cada una es
+  una decisión de producto que se toma cuando toque, no porque esté dibujada.
+
+Y la maqueta entra **sin editar**: es evidencia de lo que se diseñó. Las
+correcciones van en la nota.
 
 ## Consumo (Tailwind v4)
 
