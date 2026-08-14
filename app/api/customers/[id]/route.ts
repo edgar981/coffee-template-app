@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
-import { Prisma } from '@duna/core';
 import { headers } from 'next/headers';
 import { normalizeCustomerPhone } from '@duna/core/whatsapp-link';
+import { pedidosDelCliente } from '@/lib/clientes/detalle';
 
-// Customer + their order history for the dedicated profile page. Orders link to
-// the customer by SNAPSHOT (there's no FK): email OR normalized phone — matching
-// the identity rules in createOrderWithCustomer, so WhatsApp orders that carry
-// only a phone show up in the customer's history too. A customer with neither —
-// or no matching orders — simply has an empty history.
+// Cliente + su historial de pedidos, para el panel de detalle.
+//
+// QUÉ PEDIDOS SON SUYOS lo decide `pedidosDelCliente` (lib/clientes/detalle), no
+// este handler: la regla es la decisión y tiene que poder afirmarse contra una
+// base real. Su docstring cuenta por qué el `OR` por snapshot que había acá
+// cruzaba clientes que comparten teléfono — y por qué eso no es un borde sino la
+// consecuencia de que `Customer.telefono` no sea único a propósito.
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -22,27 +24,16 @@ export async function GET(
   const customer = await prisma.customer.findUnique({ where: { id } });
   if (!customer) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
 
-  // Primary link is the FK (`cliente_id`) — exact and format-proof, so it keeps
-  // working after phones are canonicalized. Email/phone snapshots stay as a
-  // fallback for any legacy order that was never linked (null cliente_id).
-  const orClauses: Prisma.OrderWhereInput[] = [{ cliente_id: id }];
-  if (customer.email)    orClauses.push({ cliente_email: customer.email });
-  if (customer.telefono) orClauses.push({ cliente_telefono: customer.telefono });
-
   const [orders, paidAgg] = await Promise.all([
-    prisma.order.findMany({
-      where:   { OR: orClauses },
-      // `condicion_pago` viaja porque el historial de la pantalla nueva pinta cada
-      // pedido con `badgeCobro`, y sin él "Por cobrar" —contraentrega despachada
-      // sin cobrar— sería indistinguible de una pendiente cualquiera. Es el MISMO
-      // badge que usa la lista de Pedidos; darle otro aquí sería una segunda
-      // opinión sobre el mismo hecho.
-      select:  { id: true, numero_orden: true, estado: true, condicion_pago: true, total: true, createdAt: true, shipping: { select: { estado: true } } },
-      orderBy: { createdAt: 'desc' },
-    }),
-    // Real money paid by this customer (same order set), for the "Total comprado"
-    // stat — sum of Payments, not the demo `total_compras`.
-    prisma.payment.aggregate({ where: { order: { OR: orClauses } }, _sum: { monto: true } }),
+    pedidosDelCliente(id),
+    // "Total comprado" del perfil viejo: plata REAL (suma de Payments), no el
+    // campo semilla `total_compras`. Va por la MISMA FK que el historial — con el
+    // `OR` de antes le sumaba a este cliente los pagos de otro.
+    //
+    // MUERE CON EL PERFIL VIEJO, que es su único lector: la pantalla nueva toma
+    // el número del endpoint de LISTA, que siempre agregó por FK. Se conserva en
+    // este commit para no dejarle un `$ 0` a una pantalla que todavía existe.
+    prisma.payment.aggregate({ where: { order: { cliente_id: id } }, _sum: { monto: true } }),
   ]);
 
   return NextResponse.json({ ...customer, orders, comprasPagadas: paidAgg._sum.monto ?? 0 });
