@@ -2,11 +2,10 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { createCustomer, updateCustomer } from '@/lib/api/customers';
@@ -16,9 +15,13 @@ import type { OrderChannel } from '@/types/order';
 
 // ─── ALTA Y EDICIÓN DE CLIENTE ───────────────────────────────────────────────
 //
-// Es un modal shadcn REUSADO, no una primitiva del design-system: el DS todavía no
-// tiene diálogo (H6) y construir uno acá sería inventar. La mezcla visual es
-// temporal y está declarada, igual que en Pedidos.
+// DRAWER de Duna (H6). La superficie, la cabecera y el pie salen del
+// design-system; el foco atrapado, Escape, click-fuera y el bloqueo de scroll los
+// pone Radix a través de `DunaSheet`.
+//
+// LOS CAMPOS SIGUEN SIENDO SHADCN, y es una mezcla DECLARADA: el sistema todavía
+// no tiene select ni textarea (§ el hueco de controles de formulario). Migrar el
+// envoltorio sin ellos es lo que se puede hacer sin inventar valores.
 //
 // ── SE MONTA EN LA PÁGINA, NUNCA EN EL PANEL ─────────────────────────────────
 //
@@ -51,27 +54,30 @@ export function CustomerFormModal({ open, customer, onOpenChange, onSaved }: {
   onOpenChange: (o: boolean) => void;
   onSaved: (c: Customer, modo: 'creado' | 'actualizado') => void;
 }) {
+  const titulo = customer ? 'Editar cliente' : 'Nuevo cliente';
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{customer ? 'Editar cliente' : 'Nuevo cliente'}</DialogTitle>
-          {/* Radix la exige, y dice qué se puede HACER, no qué es. `sr-only`: el
-              contenido ya lo explica a quien ve. */}
-          <DialogDescription className="sr-only">
-            Datos de contacto del cliente: nombre, correo, teléfono, ciudad, origen,
-            dirección y notas. No modifica sus pedidos.
-          </DialogDescription>
-        </DialogHeader>
-        {open && (
-          <Cuerpo
-            customer={customer}
-            onClose={() => onOpenChange(false)}
-            onSaved={onSaved}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
+    <DunaSheet
+      abierto={open}
+      onCerrar={() => onOpenChange(false)}
+      anclaje="lado"
+      titulo={titulo}
+      // Dice qué se puede HACER, no qué es. Va al nombre accesible; lo que se ve
+      // es la cabecera de abajo.
+      descripcion="Datos de contacto del cliente: nombre, correo, teléfono, ciudad, origen, dirección y notas. No modifica sus pedidos."
+    >
+      <div className="duna-modal__head">
+        <div className="duna-title">{titulo}</div>
+      </div>
+      {/* El cuerpo sólo existe mientras está abierto, así que se re-siembra del
+          cliente actual en cada apertura sin un solo efecto. */}
+      {open && (
+        <Cuerpo
+          customer={customer}
+          onClose={() => onOpenChange(false)}
+          onSaved={onSaved}
+        />
+      )}
+    </DunaSheet>
   );
 }
 
@@ -115,7 +121,7 @@ function Cuerpo({ customer, onClose, onSaved }: {
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-4 py-2">
+      <div className="duna-modal__body grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <Label>Nombre *</Label>
           <Input {...campo('nombre')} className="mt-1" />
@@ -164,15 +170,21 @@ function Cuerpo({ customer, onClose, onSaved }: {
           />
         </div>
       </div>
-      <div className="flex items-center justify-end gap-3 pt-2">
+      <div className="duna-modal__foot">
         {/* El error INLINE, a la izquierda de los botones y no como banner encima:
             un banner que aparece al fallar empuja el layout y mueve el botón que
-            se acaba de clickear. */}
-        <ErrorDialogo mensaje={error.mensaje} />
-        <Button variant="outline" onClick={onClose} disabled={guarda.enVuelo}>Cancelar</Button>
-        <Button onClick={guardar} disabled={guarda.enVuelo || !form.nombre.trim()}>
-          {guarda.enVuelo ? 'Guardando…' : 'Guardar'}
-        </Button>
+            se acaba de clickear. La ranura del sistema es la que decide cuándo
+            baja a su propio renglón en vez de aplastarse. */}
+        <ErrorDialogo mensaje={error.mensaje} className="duna-modal__aviso" />
+        <div className="duna-modal__acciones">
+          <button type="button" className="duna-btn duna-btn--ghost" onClick={onClose} disabled={guarda.enVuelo}>
+            Cancelar
+          </button>
+          <button type="button" className="duna-btn duna-btn--primary" onClick={guardar}
+                  disabled={guarda.enVuelo || !form.nombre.trim()}>
+            {guarda.enVuelo ? 'Guardando…' : 'Guardar'}
+          </button>
+        </div>
       </div>
     </>
   );

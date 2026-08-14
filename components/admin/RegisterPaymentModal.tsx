@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { DunaSheet } from '@/components/admin/DunaSheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -57,26 +56,27 @@ export function RegisterPaymentModal({ target, declaredMetodo, verificando, onCl
   onSaved: (result: { payment: Payment; order: Order; comprobante?: Comprobante }) => void;
 }) {
   return (
-    <Dialog open={!!target} onOpenChange={o => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Registrar pago</DialogTitle>
-          <DialogDescription className="sr-only">
-            Cliente y monto vienen de la orden y no se digitan. Elige el método y, si aplica, la referencia.
-          </DialogDescription>
-        </DialogHeader>
-        {target && (
-          <RegisterForm
-            key={target.id}
-            target={target}
-            declaredMetodo={declaredMetodo}
-            verificando={verificando ?? null}
-            onClose={onClose}
-            onSaved={onSaved}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
+    <DunaSheet
+      abierto={!!target}
+      onCerrar={onClose}
+      anclaje="lado"
+      titulo="Registrar pago"
+      descripcion="Cliente y monto vienen de la orden y no se digitan. Elige el método y, si aplica, la referencia."
+    >
+      <div className="duna-modal__head">
+        <div className="duna-title">Registrar pago</div>
+      </div>
+      {target && (
+        <RegisterForm
+          key={target.id}
+          target={target}
+          declaredMetodo={declaredMetodo}
+          verificando={verificando ?? null}
+          onClose={onClose}
+          onSaved={onSaved}
+        />
+      )}
+    </DunaSheet>
   );
 }
 
@@ -143,7 +143,8 @@ function RegisterForm({ target, declaredMetodo, verificando, onClose, onSaved }:
   });
 
   return (
-    <div className="space-y-4">
+    <>
+      <div className="duna-modal__body space-y-4">
       {/* Read-only — pulled from the order, never re-typed by the operator */}
       <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/40 p-3">
         <InfoRow label="Orden"   value={target.numero} />
@@ -227,16 +228,21 @@ function RegisterForm({ target, declaredMetodo, verificando, onClose, onSaved }:
         )}
       </div>
 
-      {/* El error comparte la fila de los botones: ocupa el espacio libre de la
-          izquierda, así que aparecer no los mueve. */}
-      <div className="flex items-center justify-end gap-3">
-        <ErrorDialogo mensaje={error.mensaje} />
-        <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? 'Registrando...' : 'Registrar pago'}
-        </Button>
       </div>
-    </div>
+
+      {/* El error comparte la fila de los botones: ocupa el espacio libre de la
+          izquierda, así que aparecer no los mueve. La ranura del sistema decide
+          cuándo baja a su renglón en vez de aplastarse. */}
+      <div className="duna-modal__foot">
+        <ErrorDialogo mensaje={error.mensaje} className="duna-modal__aviso" />
+        <div className="duna-modal__acciones">
+          <button type="button" className="duna-btn duna-btn--ghost" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button type="button" className="duna-btn duna-btn--primary" onClick={handleSave} disabled={saving}>
+            {saving ? 'Registrando...' : 'Registrar pago'}
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 
