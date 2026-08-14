@@ -372,7 +372,7 @@ function ClientesV2() {
         titulo={elegido ? elegido.nombre : 'Detalle del cliente'}
         descripcion="Contacto, historial de pedidos y las acciones disponibles."
       >
-        {detalleNodo}
+        <div className="duna-sheet__body">{detalleNodo}</div>
       </DunaSheet>
 
       {/* ═══ DIÁLOGOS · montados en la PÁGINA, no en el panel ═════════════════ */}

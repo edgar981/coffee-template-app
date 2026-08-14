@@ -579,7 +579,7 @@ function Pedidos() {
         titulo={elegido ? `Pedido ${elegido.numero_orden}` : 'Detalle del pedido'}
         descripcion="Estado de entrega y de pago, con las acciones disponibles."
       >
-        {detalleNodo}
+        <div className="duna-sheet__body">{detalleNodo}</div>
       </DunaSheet>
 
       {/* ═══ MODALES · montados en la PÁGINA, no en el panel ══════════════════

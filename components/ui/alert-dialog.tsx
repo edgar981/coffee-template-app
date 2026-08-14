@@ -27,6 +27,22 @@ const AlertDialogOverlay = React.forwardRef<
 ))
 AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName
 
+// ─── Las dos superficies CRUDAS, sin el chrome de shadcn ─────────────────────
+//
+// Mismo movimiento y mismo motivo que `SheetScrim`/`SheetSurface` en `sheet.tsx`:
+// un consumidor que trae su propia FORMA usa el COMPORTAMIENTO de Radix sin
+// heredar una apariencia que después tenga que neutralizar clase por clase.
+//
+// Acá el comportamiento que importa es el que distingue a `AlertDialog` de
+// `Dialog` y que NO se debe perder al re-estilar: `role="alertdialog"`, y que
+// tocar fuera NO descarta. Una confirmación que se va con un toque al margen es
+// justo el gesto accidental del que la confirmación protege.
+//
+// `@radix-ui/react-alert-dialog` se importa en un solo archivo, igual que
+// `@vercel/blob` en `lib/storage.ts`.
+const AlertDialogScrim   = AlertDialogPrimitive.Overlay;
+const AlertDialogSurface = AlertDialogPrimitive.Content;
+
 // Content
 const AlertDialogContent = React.forwardRef<
   React.ComponentRef<typeof AlertDialogPrimitive.Content>,
@@ -134,6 +150,8 @@ export {
   AlertDialog,
   AlertDialogPortal,
   AlertDialogOverlay,
+  AlertDialogScrim,
+  AlertDialogSurface,
   AlertDialogTrigger,
   AlertDialogContent,
   AlertDialogHeader,
