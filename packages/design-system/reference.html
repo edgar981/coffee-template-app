@@ -785,10 +785,15 @@
     if (!scrim || !drawer || !wrap || !dialog) return;
 
     let abierto = null;   // 'drawer' | 'dialog' | null
-    let pendiente = null; // el temporizador de cierre en vuelo
+    let pendiente = null;  // el temporizador del cierre en vuelo
+    let finPendiente = null;  // y su limpieza, para poder ADELANTARLA
 
     const abrir = (cual) => {
+      // Se ADELANTA el cierre anterior en vez de sólo cancelar su temporizador:
+      // cancelarlo a secas dejaba la superficie previa visible para siempre —
+      // su `animationend` ya no iba a llegar y su red acababa de morir.
       clearTimeout(pendiente);
+      if (finPendiente) { finPendiente(); finPendiente = null; }
       const caja = cual === 'drawer' ? drawer : wrap;
       scrim.hidden = false; caja.hidden = false;
       // Reflow SÍNCRONO con `closed` puesto, no `requestAnimationFrame`: si el
@@ -812,7 +817,8 @@
       // superficie antes de que venza deja el `fin` viejo corriendo y esconde el
       // velo de la superficie NUEVA. Se ve como "el scrim no aparece", que manda
       // a buscar el defecto en el CSS.
-      const fin = () => { scrim.hidden = true; caja.hidden = true; };
+      const fin = () => { scrim.hidden = true; caja.hidden = true; finPendiente = null; };
+      finPendiente = fin;
       (abierto === 'drawer' ? drawer : dialog).addEventListener('animationend', fin, { once: true });
       pendiente = setTimeout(fin, 400);   // red por si `prefers-reduced-motion` no dispara el evento
       abierto = null;

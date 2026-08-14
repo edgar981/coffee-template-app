@@ -404,7 +404,17 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 .duna-stock-txt.is-out { color: var(--duna-bad); font-weight: var(--duna-w-semi); }
 
 /* ── Overlays (scrim compartido) ────────────────────────────────────────── */
-.duna-scrim { position: fixed; inset: 0; background: var(--duna-scrim); backdrop-filter: blur(3px); }
+/* EL `z-index` ES PARTE DE LA PRIMITIVA, y faltaba. Era la única de las tres
+   piezas de overlay sin declararlo (`--sheet` y `--dialog-wrap` traen 50), así
+   que el velo quedaba en `auto` y cualquier contenido posicionado de la página
+   podía pintarse ENCIMA. En la app no mordía porque el wrapper de shadcn le
+   agrega su propio `z-50`; o sea que la primitiva dependía de que el consumidor
+   se acordara, que es justo lo que una primitiva existe para evitar.
+
+   49 y no 50: el velo va DEBAJO de las superficies, siempre. Si el consumidor
+   además le pone 50 —como hace shadcn— tampoco se rompe: quedan empatados y el
+   orden del DOM decide, y el velo siempre se monta antes que su superficie. */
+.duna-scrim { position: fixed; inset: 0; z-index: 49; background: var(--duna-scrim); backdrop-filter: blur(3px); }
 
 /* ── SHEET · el panel que sube desde abajo ────────────────────────────────
    La superficie de "esto está encima de lo que estabas mirando" en pantallas
