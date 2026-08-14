@@ -14,6 +14,8 @@ import { customerWhatsappHref } from '@duna/core/whatsapp-link';
 import { toast } from 'sonner';
 import { getCustomers, getCustomer, deleteCustomer } from '@/lib/api/customers';
 import { ChipCanal } from '@/components/admin/ChipCanal';
+import { DunaSheet } from '@/components/admin/DunaSheet';
+import { useEsMovil } from '@/hooks/useEsMovil';
 import { CustomerFormModal } from '@/components/admin/CustomerFormModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { siteConfig } from '@/lib/config/site';
@@ -89,6 +91,10 @@ function ClientesV2() {
   const [clientes, setClientes] = useState<Customer[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError]       = useState<string | null>(null);
+
+  // Debajo del breakpoint el detalle sube como sheet en vez de apilarse. El CSS
+  // no puede mover un nodo de sitio, así que la pregunta va en JS.
+  const esMovil = useEsMovil();
 
   // El carril y la selección viven en la URL: el detalle es enlazable y sobrevive
   // a un refresh, igual que `?pedido=` en Pedidos.
@@ -179,6 +185,21 @@ function ClientesV2() {
           : p));
     toast.success(modo === 'creado' ? 'Cliente creado' : 'Cliente actualizado');
   }, []);
+
+  // El detalle se escribe UNA vez: vive en el panel (ancho) o en el sheet
+  // (angosto), nunca en los dos. Dos juegos de props del mismo componente es cómo
+  // una de las dos superficies se queda sin un dato y nadie lo ve hasta abrirlo
+  // en un teléfono.
+  const detalleNodo = elegido ? (
+    <Detalle
+      cliente={elegido}
+      detalle={detalleVigente}
+      cargando={cargandoDetalle}
+      error={errorDetalle}
+      onEditar={() => setEditando(elegido)}
+      onEliminar={() => setBorrando(elegido)}
+    />
+  ) : null;
 
   const navegar = useCallback((cambios: Record<string, string | null>) => {
     const q = new URLSearchParams(params.toString());
@@ -315,25 +336,35 @@ function ClientesV2() {
             ))}
           </div>
 
-          <div className="duna-split__panel">
-            {!elegido && (
-              <div className="duna-card duna-card__pad">
-                <p className="duna-sub" style={{ margin: 0 }}>Elige un cliente para ver su detalle.</p>
-              </div>
-            )}
-            {elegido && (
-              <Detalle
-                cliente={elegido}
-                detalle={detalleVigente}
-                cargando={cargandoDetalle}
-                error={errorDetalle}
-                onEditar={() => setEditando(elegido)}
-                onEliminar={() => setBorrando(elegido)}
-              />
-            )}
-          </div>
+          {/* EL PANEL, SÓLO EN ANCHO — mismo reparto que Pedidos. Debajo del
+              breakpoint el detalle no se oculta: se monta en el sheet de abajo. */}
+          {!esMovil && (
+            <div className="duna-split__panel">
+              {!elegido && (
+                <div className="duna-card duna-card__pad">
+                  <p className="duna-sub" style={{ margin: 0 }}>Elige un cliente para ver su detalle.</p>
+                </div>
+              )}
+              {detalleNodo}
+            </div>
+          )}
         </div>
       )}
+
+      {/* EL MISMO DETALLE, EN ANGOSTO. Apilado, el panel se actualizaba fuera de
+          la pantalla: tocar una tarjeta no producía respuesta visible. Va FUERA
+          del bloque de arriba para que el enlace profundo abra aunque la lista
+          visible esté vacía, y el nodo es UNO para que las dos superficies no
+          puedan discrepar. El porqué largo está en Pedidos, que es donde este
+          patrón se decidió. */}
+      <DunaSheet
+        abierto={esMovil && !!elegido}
+        onCerrar={() => navegar({ cliente: null })}
+        titulo={elegido ? elegido.nombre : 'Detalle del cliente'}
+        descripcion="Contacto, historial de pedidos y las acciones disponibles."
+      >
+        {detalleNodo}
+      </DunaSheet>
 
       {/* ═══ DIÁLOGOS · montados en la PÁGINA, no en el panel ═════════════════ */}
       <CustomerFormModal
