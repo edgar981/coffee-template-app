@@ -520,162 +520,28 @@ otra pantalla fije la suya, migrar los ejemplos de la referencia a etiquetas
 **evidentemente de muestra** (Paso 1 · Paso 2 · …) con el descargo. Enseña menos,
 pero no puede caducar.
 
-### 5. H6 — el design-system no tiene primitiva de diálogo
+### 5. El sistema no tiene controles de FORMULARIO
 
-`/admin/pedidos` opera sus doce flujos con los **modales shadcn de
-`/admin/ordenes`**, reusados tal cual, y `/admin/clientes` hace lo mismo con
-`ConfirmDeleteDialog` y `CustomerFormModal`. Es una mezcla visual dentro de dos
-pantallas que por fuera son Duna OS — y ya no es un caso, es el patrón de toda
-vertical nueva mientras la primitiva no exista.
+Tiene `duna-input`, `duna-label`, `duna-switch` y `duna-stepper`. **No tiene
+select, textarea, checkbox, radio ni grupo de campo** (label + control + pista +
+error), y los cinco flujos con formulario del panel usan selects y textareas.
 
-**Por qué se decidió reusar y no construir** (owner, tras discovery): los siete
-flujos resultaron reutilizables —seis invocables sin tocar nada, y el séptimo
-(`ControlComprobantes`) salió a `hooks/useControlComprobantes.ts` con un
-movimiento mecánico—. Ninguno importaba nada de la página vieja. Construir el
-diálogo ahora habría significado **reescribir ~1.000 líneas ya probadas en
-producción** (Schedule 522 · RegisterPayment 250 · ConfirmDelete 187 ·
-ConfirmDespachoSinPago 40) para obtener el mismo comportamiento con otro chrome.
+**Costo YA pagado, y es visible:** los drawers de H6 son superficie Duna con
+campos shadcn adentro. La mezcla entre PANTALLAS fue una decisión del owner con su
+disparador; ésta es DENTRO de la superficie nueva, y no se decidió — se topó.
+Migrar el envoltorio se pudo; migrar los campos habría exigido inventar un select,
+que es exactamente lo que la regla de la casa prohíbe.
 
-**El argumento que decidió, y que conviene retener:** mientras la pantalla vieja
-siga existiendo, reescribir esos flujos deja **dos implementaciones de los mismos
-seis conviviendo** —incluidos el orden pago→sello y la confirmación de despacho sin
-cobro—. Es la divergencia que este repo ya pagó tres veces (`razonDelServidor`,
-`cruzoMinimo`, el "Confirmado" fósil de la referencia). Reescribir algo que sigue
-existiendo en otro lado no es progreso.
+**Lo que hay que decidir al abrirlo, y conviene tenerlo antes de empezar:** un
+select nativo estilizado o uno compuesto. El nativo es accesible de fábrica y en
+un teléfono abre la rueda del sistema —que es mejor que cualquier lista propia—
+pero no admite contenido rico en las opciones. El compuesto lo admite y trae de
+vuelta el problema del foco atrapado, que es la parte que todo el mundo hace mal.
+Hoy ninguna opción del panel necesita contenido rico.
 
-**Costo YA pagado:** hoy, ninguno más que la mezcla visual. Es deuda de forma, no
-de comportamiento — y por eso está al final de esta lista.
-
-**DISPARADOR — sin cambio de fondo, con la redacción corregida:** NO es "cuando
-haga falta un diálogo" (ya hacen falta varios y se resolvieron reusando). Es
-**cuando las pantallas viejas mueran**: ése es el momento en que reescribir deja de
-duplicar. Ahí la primitiva se construye y los flujos se migran una sola vez.
-
-Decía "cuando `/admin/ordenes` muera", y ese literal caducó al entrar la segunda
-vertical: Clientes tenía el mismo patrón. Nombrar UNA pantalla hacía que el
-disparador se leyera como cumplido en cuanto muriera esa, con las demás
-convivencias todavía vivas. La regla generalizada —la primitiva se construye
-cuando ya no queda una implementación vieja de esos flujos con la cual duplicar—
-es la que aguantó, y es la que acaba de cumplirse.
-
-**ESTADO al 2026-08-14: EL DISPARADOR ESTÁ CUMPLIDO.** Se retiró `/admin/ordenes`
-y después la Clientes vieja, así que **no queda una sola implementación vieja de
-estos flujos con la cual duplicar**. Reescribirlos ya no produce dos versiones
-conviviendo, que era el único argumento que sostenía el diferimiento.
-
-Lo que NO cambia es el precio ni el alcance: sigue siendo construir la primitiva
-(las tres decisiones de abajo —Radix o a mano, `is-saving`, el checkbox— siguen
-abiertas) y migrarle el envoltorio a ocho flujos. H6 pasa de "bloqueado" a
-"listo para abrirse", que no es lo mismo que "hay que hacerlo ya".
-
-### Lo que la maqueta ya resuelve, y cómo cambia el cálculo
-
-Existe **diseño de referencia** de los diálogos (`duna-modales.html`), y define:
-
-- **DOS formas, no una.** Drawer lateral para los cinco flujos con formulario;
-  dialog centrado para las dos confirmaciones.
-- **`btn-danger`** (`var(--bad)`), que es la variante destructiva que faltaba.
-- **`is-saving`**: bloquea el modal ENTERO mientras la mutación viaja.
-- **Checkbox de confirmación** en el destructivo.
-
-**Esto cambia el cálculo en las dos direcciones, y por eso hay que re-dimensionar
-cuando se abra, no antes:**
-
-- **Sube el piso.** Re-estilar el wrapper shadcn NO alcanza: el drawer lateral es
-  otra FORMA, no otro color. La primitiva tiene que existir de verdad.
-- **Baja el techo.** Y esto es lo que corrige la estimación anterior de "reescribir
-  ~1.000 líneas": los seis flujos ya son **componentes invocables** —lo verificó el
-  discovery— así que lo que cambia es su ENVOLTORIO, no su contenido. No es
-  reescribir los flujos; es cambiarles el marco.
-
-Tres cosas que conviene tener decididas ANTES de empezar, porque a mitad de la
-migración salen mal:
-
-1. **Radix o a mano.** El diálogo necesita foco atrapado, Escape, click-fuera,
-   bloqueo de scroll y `aria-modal`. Todo eso lo da hoy Radix
-   (`components/ui/dialog.tsx` son 128 líneas de wrapper). O el paquete **toma
-   dependencia de `@radix-ui/react-dialog`** y deja de ser sin dependencias, o
-   **reimplementa el foco atrapado**, que es justo la parte que se hace mal.
-2. **`is-saving` NO reemplaza a `useAccionGuardada`.** Es la mitad VISIBLE de la
-   guarda de doble-submit; la que de verdad corta la re-entrada del mismo tick es
-   el ref síncrono (§ Doble-submit). Una primitiva que bloquee el modal y haga
-   creer que la guarda ya está puesta reabriría el agujero que ese hook cerró.
-3. **El checkbox de confirmación es un CAMBIO DE COMPORTAMIENTO**, no una
-   consecuencia gratis del rediseño: hoy `ConfirmDeleteDialog` no lo tiene. Suma
-   un paso a "Cancelar orden". Es una decisión de producto que viaja con H6 y hay
-   que tomarla como tal.
-
-**La maqueta YA ENTRÓ** (`packages/design-system/duna-modales.html` +
-`duna-modales.NOTES.md`). Esta línea decía lo contrario y quedó vieja: al abrir
-H6 no hay que ir a buscarla, hay que **leer la NOTA antes que el HTML**, que es
-donde está separado qué se adopta, qué no es fuente de valores y qué no es fuente
-de alcance. La regla general de cómo entra una maqueta vive en el README del
-paquete (§ "Una maqueta entra CON su lectura, y ANTES de la tanda").
-
-### Lo que la maqueta pide y el DOMINIO NO TIENE
-
-Se leyó y se contrastó campo por campo. **La maqueta no es sólo una forma: trae
-decisiones de PRODUCTO que hoy no existen.** Separarlas importa, porque
-"implementar la maqueta" significaría, sin decirlo, construir varias features:
-
-- **PAGO PARCIAL.** Monto editable, "saldo pendiente", un comprobante de "abono", y
-  el hint *"si registras menos que el saldo, el pedido queda con pago parcial"*.
-  Hoy NO existe: `registrarPago` snapshotea `Order.total` server-side y transiciona
-  a `pagado` (§ La CARTERA — "si algún día existen pagos parciales, ESTA es la línea
-  que deja de ser cierta"). `RegisterPaymentModal` ni siquiera acepta monto. Es la
-  discrepancia más cara de la maqueta y toca cartera, analítica y el eje de cobro.
-- **PSE y Tarjeta** como métodos. `MetodoPago` es NEQUI · DAVIPLATA · EFECTIVO ·
-  TRANSFERENCIA · OTRO.
-- **Monto y método POR COMPROBANTE** ("Transferencia PSE · $124.000"). `Comprobante`
-  no tiene ninguno de los dos: es la EVIDENCIA, no la plata (§3.1).
-- **Motivo de cancelación** guardado en el historial. No hay columna, y
-  `OrderStatusTransition` no tiene campo de motivo (§ el hueco de historial de
-  `Order.estado`).
-- **Aviso al cliente por WhatsApp al cancelar.** El canal es un STUB
-  (`PENDIENTE_CANAL`) y no hay automatización de cancelación.
-- **"El pago queda marcado para devolución manual".** Cancelar NO toca el `Payment`
-  — es comportamiento conservado y declarado, y qué hacer con un pago sobre una
-  orden cancelada sigue siendo una decisión de negocio pendiente.
-- **Motivo del rechazo "que se le envía al cliente".** La columna existe y se
-  escribe (`Comprobante.notas_verificacion`), pero NO se le envía nada a nadie: hoy
-  sólo se muestra en el panel. La mitad de esto ya está.
-- **Tres franjas horarias.** `shipping-config` tiene dos (`am`, `pm`).
-- **Mensajeros como entidad** con avatar y carga ("Camilo tiene 2 entregas hoy").
-  `Shipping.mensajero` es un String libre.
-- **"Guardar borrador"** y **"Pedir otro comprobante"**: no existen.
-- **Vocabulario**: "Aprobar" por verificar, "Sin pagar" por el badge de cobro ya
-  decidido (Pagado · Contraentrega · Sin acreditar).
-
-Y un FÓSIL, el mismo que ya se corrigió una vez: el fondo de la maqueta dibuja
-**cinco** `steps`. La secuencia canónica son **cuatro** (§ backlog 4).
-
-### Y lo que la maqueta contradice del DESIGN SYSTEM
-
-Sus tokens son una copia del DS que ya DERIVÓ, así que copiarlos tal cual
-reintroduce diferencias en silencio:
-
-- **`--bad-ink` distinto**: `#96422F` (maqueta) contra `#A0472F` (DS); en oscuro
-  `#E08A72` contra `#D07C66`.
-- **No existe `--ok-ink`**, y los badges usan `--ok` y `--bad` COMO TEXTO. El DS
-  tiene las variantes `-ink` precisamente porque el fill no pasa AA como texto:
-  copiarlo es una regresión de contraste.
-- **`--shadow-3` distinta** (`24px 64px .18` contra `16px 48px .14`).
-- **Sin escala de espaciado ni de tipografía**: la maqueta usa px y rem sueltos que
-  no caen en la escala del DS (`.m-title` 1.15rem contra `--duna-text-title`
-  1.1875rem; `.eyebrow` .66rem contra `--duna-text-caption` .6875rem…).
-- Y el prefijo: escribe `var(--bad)`, que en el paquete es **`--duna-bad`**.
-
-**La maqueta se lee como INTENCIÓN DE FORMA, no como fuente de valores.** Los
-valores los tiene el DS, y son los que ya están en producción.
-
-**El hueco de la variante destructiva de botón queda RESUELTO POR DISEÑO**
-(`btn-danger` = `var(--bad)`) y se implementa junto con H6. Hasta entonces "Marcar
-Fallido" y "Cancelar orden" en `/admin/pedidos` van con `--ghost` — defendible,
-porque la severidad la lleva el confirm y marcar fallido registra un hecho en vez
-de destruir algo, pero es un interino, no la forma final.
-
-Al implementarlo, el valor sale del DS (`--duna-bad`), no de la maqueta — ver la
-lista de derivas de arriba.
+**DISPARADOR: cuando se migre el primer campo, o cuando el chrome del panel entre
+al design-system.** Lo que no puede pasar es que una pantalla invente su propio
+select "sólo esta vez".
 
 ### 6. `PATCH /api/customers/[id]` NO es parcial, y su cliente dice que sí
 
@@ -2262,6 +2128,79 @@ Queda escrito para que el próximo no lo lea como inconsistencia y lo "arregle"
 parcialmente, que es como se llega a tener las dos palabras mezcladas SIN criterio.
 Si algún día se unifica, es su propia tanda y empieza por decidir qué pasa con los
 `CN-` ya emitidos.
+
+## H6 — los diálogos son Duna, y la frontera que eso cruzó
+
+Tanda del 2026-08-14. H6 sale del backlog; lo que sigue es la decisión.
+
+### La mezcla cambió de dirección, y fue una DECISIÓN
+
+Cuatro de los seis diálogos migrados se montan también desde pantallas que NO son
+Duna OS: `ConfirmDeleteDialog` desde Productos y Usuarios, `ScheduleDeliveryModal`
+y `ConfirmDespachoSinPago` desde Entregas. Migrarlos mete superficies Duna dentro
+de pantallas Amber Minimal.
+
+**Se aceptó, y las tres razones importan** (owner):
+
+- la mezcla YA existía en la dirección contraria y estaba aceptada;
+- **un diálogo nuevo en una pantalla vieja se lee como promesa** ("esto ya se
+  rediseñó"); un modal viejo en una pantalla nueva se lee como deuda ("esto quedó
+  sin terminar"). No son simétricos;
+- diferir haría que Productos naciera con modales shadcn y hubiera que volver a
+  tocarla: **difieres para no mezclar y terminas mezclando en más sitios**.
+
+**DISPARADOR: desaparece cuando Entregas, Productos y Usuarios migren.** No hay
+nada que hacer hasta entonces.
+
+### Dos superficies, no una — y la centrada va sobre `AlertDialog`
+
+El drawer es `.duna-sheet` con otro anclaje: misma superficie, mismo velo, mismo
+cuerpo, sólo cambia el borde del que sale. El dialog centrado es superficie NUEVA
+—no ancla, no lleva grip, radio menor, aparece con escala en vez de deslizarse—
+porque algo que flota tiene que ser chico o se lee como una página.
+
+**`DunaDialog` se monta sobre `AlertDialog` y no sobre `Dialog`**, y eso no es un
+detalle de implementación: la centrada tiene un solo caso —la confirmación— y con
+`AlertDialog` vienen `role="alertdialog"`, que tocar fuera NO descarte, y que el
+foco arranque en cancelar. Si algún día hace falta una centrada que no sea
+confirmación, es otra costura; mezclarlas haría que la diferencia de conducta
+dependiera de recordar una bandera.
+
+### Lo que las costuras NO traen, y es deliberado
+
+**Ninguna bloquea mientras la mutación viaja.** El `is-saving` de la maqueta es
+sólo la mitad VISIBLE de la guarda de doble-submit; la que corta la re-entrada del
+mismo tick es el ref síncrono de `useAccionGuardada` (§ Doble-submit). Una
+superficie que bloquee y haga creer que la guarda ya está puesta reabre el agujero
+que ese hook cerró.
+
+**Y el checkbox de confirmación del destructivo NO se adoptó** (owner): con un
+solo destructivo real —"Cancelar orden"— agregar fricción a la única acción
+irreversible, sin datos de cancelaciones accidentales, no se justifica. La
+fricción proporcional ya existe: confirmación + candado + copy. **DISPARADOR: si
+aparecen cancelaciones accidentales, se agrega.**
+
+### El destructivo es TINTE, y qué cuenta como destructivo
+
+`--duna-bad` se INVIERTE entre temas y no tiene par de texto, así que el
+`color:#fff` de la maqueta es blanco sobre salmón claro en oscuro — la misma
+regresión que esa nota documentó con `--ok-ink`. Se usa el par que ya pasa AA
+(`--duna-bad-soft` + `--duna-bad-ink`), medido en vivo en la prueba viva: 5.36:1
+claro · 4.73:1 oscuro, **contra el fondo compuesto**, porque el tinte es
+semitransparente y medir contra la superficie pura daría un número optimista.
+
+**Destructivo = quita algo que no se puede recuperar desde el panel.** No lo son
+"Marcar fallido" (registra un hecho; la entrega se reprograma) ni "Rechazar
+comprobante" (conserva fila y archivo, y el copy lo promete). La maqueta pinta el
+rechazo de rojo; es la cuarta instancia del patrón "alcance de la maqueta que no se
+adopta".
+
+### Lo que se topó y no se decidió: los campos
+
+Los drawers son superficie Duna con **campos shadcn adentro**, porque el sistema
+no tiene select ni textarea (§ Backlog #5). Es una mezcla DENTRO de la superficie
+nueva, distinta de la que se aceptó entre pantallas, y no se eligió: se encontró.
+Migrar el envoltorio se pudo sin inventar un solo valor; migrar los campos no.
 
 ## Duna OS en ANGOSTO — un solo breakpoint, y el detalle sube
 
