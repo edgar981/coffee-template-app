@@ -18,12 +18,15 @@ export interface AdminNavItem {
 
 export const ADMIN_NAV: AdminNavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard',        path: '/admin/dashboard',        anim: 'lift' },
-  { icon: ShoppingCart,    label: 'Órdenes',          path: '/admin/ordenes',          anim: 'cart' },
-  // CONVIVENCIA TEMPORAL Y DECLARADA: "Pedidos" es la pantalla del rediseño Duna
-  // OS y "Órdenes" es la operativa actual, en producción con seis flujos modales.
-  // Las dos en el menú a propósito — es lo que permite el gate visual A/B contra
-  // la pantalla vieja. "Órdenes" sale cuando Pedidos absorba esos flujos.
-  { icon: Package,         label: 'Pedidos',          path: '/admin/pedidos',          anim: 'cart' },
+  // "Órdenes" SALIÓ: Pedidos absorbió sus flujos y la ruta se retiró. Lo que
+  // quedaba apuntando a ella son las notificaciones ya escritas en la base, y de
+  // ésas se encarga el redirect de `proxy.ts` — no un ítem de menú.
+  //
+  // LA SECCIÓN SE LLAMA "PEDIDOS" Y LA ENTIDAD SIGUE SIENDO "ORDEN", a propósito
+  // (§ CLAUDE.md — el vocabulario del retiro). Unificar la entidad tocaría
+  // `numero_orden`, el prefijo `CN-`, copy y probablemente datos: superficie
+  // desproporcionada, y metida en el retiro lo habría convertido en un lío.
+  { icon: ShoppingCart,    label: 'Pedidos',          path: '/admin/pedidos',          anim: 'cart' },
   { icon: Package,         label: 'Productos',        path: '/admin/productos',        anim: 'package' },
   { icon: Users,           label: 'Clientes (actual)', path: '/admin/clientes',        anim: 'users' },
   // CONVIVENCIA TEMPORAL Y DECLARADA, igual que Pedidos ↔ Órdenes: la de arriba es

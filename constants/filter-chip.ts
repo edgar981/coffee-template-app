@@ -26,22 +26,3 @@ export function filterChip(activo: boolean): string {
       : 'border-transparent bg-muted text-muted-foreground hover:bg-muted/70'
   }`;
 }
-
-/**
- * Chip que YA tiene identidad semántica propia (hoy solo "Por cobrar": ámbar =
- * espera, el mismo tono del mapa de StatusBadge). Conserva su tinte muted en los
- * dos estados y lo único que cambia al aplicarlo es el borde — "seleccionado"
- * debe significar lo mismo en todos los chips, sea cual sea su color de fondo.
- *
- * @param tono clases de fondo/texto/hover propias del chip.
- */
-export function filterChipTono(activo: boolean, tono: string): string {
-  return `${BASE} ${tono} ${activo ? 'border-primary' : 'border-transparent'}`;
-}
-
-/**
- * Contador embebido en un chip. Neutro SIEMPRE: sin relleno sólido detrás, un
- * badge que cambiaba de color con el estado ya no aporta nada — el borde del
- * chip es el que dice si está aplicado.
- */
-export const FILTER_CHIP_COUNT = 'rounded-full bg-background px-1.5 py-0.5 text-xs';

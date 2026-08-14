@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { estadoEntrega, accionFilaEntrega, fechaEntrega, type OrdenParaEntrega } from './entrega-estado';
+import { estadoEntrega, type OrdenParaEntrega } from './entrega-estado';
 
 // Todos los casos del mapeo aprobado. La aserción es sobre la ETIQUETA VISIBLE y
 // no sobre la key: el vocabulario ES la decisión de producto de esta tanda, así
@@ -162,88 +162,4 @@ test('un estado desconocido calla en vez de inventar una etiqueta', () => {
   const r = estadoEntrega(orden({ shipping: envio({ estado: 'teletransportado' }) }));
   assert.equal(r.key, 'ninguno');
   assert.equal(r.etiqueta, '');
-});
-
-// ─── La acción única de la fila ──────────────────────────────────────────────
-// La fila ofrece EL siguiente paso, no un menú. "Editar entrega" murió: editar,
-// reprogramar y los casos raros viven en el detalle.
-
-test('orden cancelada: la fila no ofrece nada', () => {
-  assert.equal(accionFilaEntrega(orden({ estado: 'cancelado' })).tipo, 'ninguna');
-});
-
-test('sin registro de envío: Programar entrega', () => {
-  assert.equal(accionFilaEntrega(orden()).tipo, 'programar');
-});
-
-test('envío creado y vacío: Programar entrega', () => {
-  assert.equal(accionFilaEntrega(orden({ shipping: envio() })).tipo, 'programar');
-});
-
-test('programación completa: Marcar En Ruta', () => {
-  const a = accionFilaEntrega(orden({ shipping: envio({ mensajero: 'Juan', fecha_programada: '2026-05-14' }) }));
-  assert.equal(a.tipo, 'despachar');
-});
-
-test('con fecha y sin mensajero: En Ruta BLOQUEADO nombrando lo que falta', () => {
-  const a = accionFilaEntrega(orden({ shipping: envio({ fecha_programada: '2026-05-14' }) }));
-  assert.deepEqual(a, { tipo: 'despachar_bloqueado', falta: 'mensajero' });
-});
-
-test('con mensajero y sin fecha: En Ruta BLOQUEADO por la fecha', () => {
-  const a = accionFilaEntrega(orden({ shipping: envio({ mensajero: 'Juan' }) }));
-  assert.deepEqual(a, { tipo: 'despachar_bloqueado', falta: 'fecha' });
-});
-
-test('el bloqueo de la fila usa el MISMO gate que despacha', () => {
-  // Mensajero de puros espacios: `isScheduledShipping` lo rechaza y la fila
-  // tampoco puede ofrecer el despacho. Si divergieran, la fila prometería una
-  // transición que el servidor devuelve en 400.
-  const a = accionFilaEntrega(orden({ shipping: envio({ mensajero: '  ', fecha_programada: '2026-05-14' }) }));
-  assert.notEqual(a.tipo, 'despachar');
-});
-
-test('en ruta: Marcar Entregado', () => {
-  const a = accionFilaEntrega(orden({ shipping: envio({ estado: 'en_ruta', mensajero: 'Juan', fecha_programada: '2026-05-14' }) }));
-  assert.equal(a.tipo, 'entregar');
-});
-
-test('fallida: la fila calla — reprogramar exige ver por qué falló', () => {
-  assert.equal(accionFilaEntrega(orden({ shipping: envio({ estado: 'fallido' }) })).tipo, 'ninguna');
-});
-
-test('entregada y anulada: la fila calla', () => {
-  assert.equal(accionFilaEntrega(orden({ shipping: envio({ estado: 'entregado' }) })).tipo, 'ninguna');
-  assert.equal(accionFilaEntrega(orden({ shipping: envio({ estado: 'cancelado' }) })).tipo, 'ninguna');
-});
-
-// ─── La columna "Programada" ─────────────────────────────────────────────────
-
-test('sin envío: la columna no muestra fecha', () => {
-  assert.equal(fechaEntrega(orden()), '—');
-});
-
-test('programada pero sin despachar: muestra la fecha PROMETIDA', () => {
-  assert.equal(fechaEntrega(orden({ shipping: envio({ fecha_programada: '2026-05-14' }) })), '14 may 2026');
-});
-
-test('en ruta: sigue mostrando la programada', () => {
-  const f = fechaEntrega(orden({ shipping: envio({ estado: 'en_ruta', mensajero: 'Juan', fecha_programada: '2026-05-14' }) }));
-  assert.equal(f, '14 may 2026');
-});
-
-test('entregada: muestra cuándo LLEGÓ, no cuándo se prometió', () => {
-  const f = fechaEntrega(orden({
-    estado: 'pagado',
-    shipping: envio({ estado: 'entregado', fecha_programada: '2026-05-14', fecha_entrega: '2026-05-16T15:00:00.000Z' }),
-  }));
-  assert.equal(f, '16 may 2026');
-});
-
-test('preparando sin fecha todavía: guion, no una fecha inventada', () => {
-  assert.equal(fechaEntrega(orden({ shipping: envio({ mensajero: 'Juan' }) })), '—');
-});
-
-test('orden cancelada o entrega anulada: sin fecha', () => {
-  assert.equal(fechaEntrega(orden({ estado: 'cancelado', shipping: envio({ estado: 'cancelado', fecha_programada: '2026-05-14' }) })), '—');
 });
