@@ -81,10 +81,15 @@ export function DunaSheet({
     <Sheet open={abierto} onOpenChange={(nuevo) => { if (!nuevo) onCerrar(); }}>
       <SheetPortal container={contenedor ?? undefined}>
         <SheetScrim className="duna-scrim" />
-        {/* `duna` además de `duna-sheet`: la tipografía base del sistema no la
-            hereda del árbol porque esto vive en un portal, fuera del `.duna` de
-            la pantalla. Es la misma clase que la pantalla se pone a sí misma. */}
-        <SheetSurface className="duna duna-sheet">
+        {/* `duna` además de las de la superficie: la tipografía base del sistema
+            no la hereda del árbol porque esto vive en un portal, fuera del `.duna`
+            de la pantalla. Es la misma clase que la pantalla se pone a sí misma.
+
+            Y el ANCLAJE es explícito. `.duna-sheet` es la superficie y no se ancla
+            a ningún borde por su cuenta: desde H6 hay dos anclajes —`--abajo` para
+            esto y `--lado` para los drawers de formulario— y el sistema no elige
+            uno por default a propósito, para que olvidarlo se vea como lo que es. */}
+        <SheetSurface className="duna duna-sheet duna-sheet--abajo">
           {/* Señal, no control: dice "esto sube desde abajo". Sin gesto de
               arrastre en esta versión (§ duna-os.NOTES.md), y sale del árbol de
               accesibilidad porque no hay nada que anunciar. */}

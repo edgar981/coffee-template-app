@@ -104,6 +104,13 @@
       <button class="duna-btn duna-btn--secondary duna-btn--sm">Filtrar</button>
     </div>
     <div class="row" style="margin-top:var(--duna-space-4)">
+      <button class="duna-btn duna-btn--danger" id="dangerDemo">Cancelar el pedido</button>
+      <button class="duna-btn duna-btn--danger duna-btn--sm">Eliminar</button>
+    </div>
+    <p class="sec-note" id="dangerMedida" style="margin:var(--duna-space-3) 0 0"></p>
+    <div class="flag" style="margin-top:var(--duna-space-4)">EL DESTRUCTIVO ES TINTE, NO RELLENO, y no por gusto: <code>--duna-bad</code> SE INVIERTE entre temas (#B5533C claro / #D07C66 oscuro) y no tiene par de texto, a diferencia de <code>--duna-ink</code>/<code>--duna-paper</code>, que se invierten JUNTOS y por eso el primario funciona en los dos. Un <code>color:#fff</code> sobre el fill —que es lo que dibuja la maqueta de modales— es blanco sobre salmón claro en oscuro: la misma regresión de contraste que esa nota ya documentó con <code>--ok-ink</code>. El tinte usa el par que YA pasa AA (<code>--duna-bad-soft</code> + <code>--duna-bad-ink</code>) y no inventa token para un único consumidor.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">Y ENCAJA CON LA REGLA DEL PANEL en vez de pelearse: un solo sólido por vista, y dentro de una confirmación ese sólido no está libre. El tinte dice destructivo sin gastar el único relleno de la superficie. <b style="color:var(--duna-ink)">Destructivo = quita algo que no se puede recuperar desde el panel</b>: no lo son "Marcar fallido" (registra un hecho, la entrega se reprograma) ni "Rechazar comprobante" (conserva la fila y el archivo, y su copy lo promete). Pintarlos de rojo entrena a ignorar el rojo justo donde sí importa.</div>
+    <div class="row" style="margin-top:var(--duna-space-4)">
       <a class="duna-btn duna-btn--secondary" href="#buscador">Escribir por WhatsApp</a>
       <a class="duna-btn duna-btn--ghost" href="#buscador">Mandar un correo</a>
     </div>
@@ -577,6 +584,23 @@
     <div class="flag" style="margin-top:var(--duna-space-3)">El fondo es OPACO y no un velo translúcido con blur: detrás pasan tarjetas con borde y cifras en mono, y un velo las deja legibles a medias justo debajo de los labels. El blur queda para el scrim, donde su trabajo ES restarle legibilidad a lo de atrás.</div>
   </section>
 
+  <section>
+    <h2 class="sec">Diálogos · dos formas, y por qué no son una</h2>
+    <p class="sec-note">Las superficies de los flujos que interrumpen: un <b>drawer</b> lateral para lo que tiene formulario y un <b>dialog</b> centrado para las confirmaciones. El sistema pone la FORMA; el foco atrapado, Escape, click-fuera y el bloqueo de scroll los pone el consumidor.</p>
+
+    <div class="row">
+      <button type="button" class="duna-btn duna-btn--primary" id="drawerDemoAbrir">Abrir el drawer</button>
+      <button type="button" class="duna-btn duna-btn--secondary" id="dialogDemoAbrir">Abrir la confirmación</button>
+    </div>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">EL DRAWER ES <code>duna-sheet</code> CON OTRO ANCLAJE, no una pieza nueva: misma superficie, mismo scrim, mismo cuerpo que scrollea, misma curva. Sólo cambian el borde del que sale y el eje de la animación — y ésa sí importa, porque un drawer lateral que sube desde abajo dice que salió del sitio equivocado. Por eso las keyframes van por eje y la regla cuelga del modificador. Es la misma conclusión a la que llega shadcn con <code>side: top|right|bottom|left</code>.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">EL ANCLAJE ES OBLIGATORIO. <code>duna-sheet</code> a secas no se ancla a nada, y no hay default a propósito: un default silencioso haría que olvidar el modificador se viera como un bug de layout en vez de como lo que es, una clase incompleta.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">EL DIALOG NO ES EL SHEET CENTRADO. Un sheet ancla, y por eso puede ser grande sin desorientar: el borde del que sale es la referencia. Un diálogo FLOTA, y algo que flota tiene que ser chico o se lee como una página. De ahí los 420px, el radio <code>--duna-r-l</code> en vez del <code>--duna-r-xl</code> de las superficies ancladas (acá se ven las cuatro esquinas), y que APAREZCA con escala en vez de deslizarse: no sale de ningún borde, así que un <code>translate</code> afirmaría un origen que no tiene.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">LA CABECERA Y EL PIE SON LOS MISMOS en las dos formas, y compartir clase es lo que impide que el drawer y la confirmación se separen visualmente con el tiempo. La cabecera NO scrollea: en un formulario largo, perder el título al bajar deja al operador sin saber qué está llenando.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">EL PIE PONE LOS BOTONES A LA DERECHA Y DEJA LIBRE LO DE LA IZQUIERDA, que es donde el consumidor mete su error inline — nunca un banner encima. Un banner que aparece al fallar empuja el layout y mueve los botones justo cuando el cursor está sobre el que se acaba de clickear: el error que explica el fallo no puede ser, además, la causa del siguiente. El sistema no declara esa ranura; sólo garantiza que exista el hueco y que sin error los botones no se muevan.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">Y LO QUE ESTA FORMA NO TRAE, dicho para que nadie lo suponga: <b style="color:var(--duna-ink)">no hay bloqueo propio mientras la mutación viaja</b>. La maqueta dibuja un <code>is-saving</code> que apaga el modal entero, y eso es sólo la mitad VISIBLE de la guarda de doble-submit; la que corta la re-entrada del mismo tick es un ref síncrono del consumidor. Una primitiva que bloquee y haga creer que la guarda ya está puesta reabriría el agujero que ese hook cerró.</div>
+  </section>
+
 </div>
 
 <!-- Fuera de `.wrap`, como en uso: el diálogo que lo monta lo portalea a <body>.
@@ -588,7 +612,7 @@
      fuera. Si alguien quitara esos dos nombres de la regla, esta página seguiría
      respetando reduced-motion y la app no. Se verifica en la app, no acá. -->
 <div class="duna-scrim" id="sheetDemoScrim" data-state="closed" hidden></div>
-<div class="duna-sheet" id="sheetDemoSheet" data-state="closed" hidden role="dialog" aria-modal="true" aria-label="Demostración del sheet">
+<div class="duna-sheet duna-sheet--abajo" id="sheetDemoSheet" data-state="closed" hidden role="dialog" aria-modal="true" aria-label="Demostración del sheet">
   <div class="duna-sheet__grip" aria-hidden="true"></div>
   <div class="duna-sheet__body">
     <div class="duna-title">Laura Cárdenas</div>
@@ -601,6 +625,42 @@
       </tbody>
     </table>
     <button type="button" class="duna-btn duna-btn--ghost" id="sheetDemoCerrar" style="margin-top:var(--duna-space-5)">Cerrar</button>
+  </div>
+</div>
+
+<div class="duna-scrim" id="modalDemoScrim" data-state="closed" hidden></div>
+
+<aside class="duna duna-sheet duna-sheet--lado" id="drawerDemo" data-state="closed" hidden role="dialog" aria-modal="true" aria-label="Demostración del drawer">
+  <div class="duna-modal__head">
+    <div class="duna-eyebrow">Programar entrega</div>
+    <div class="duna-title">Julián Restrepo · <span class="duna-num">$ 52.000</span></div>
+  </div>
+  <div class="duna-modal__body">
+    <div class="duna-label">Mensajero</div>
+    <input class="duna-input" value="Camilo" style="margin-bottom:var(--duna-space-4)">
+    <div class="duna-label">Zona</div>
+    <input class="duna-input" value="Norte" style="margin-bottom:var(--duna-space-4)">
+    <div class="duna-label">Fecha</div>
+    <input class="duna-input" value="14 may 2026">
+    <p class="duna-sub" style="margin-top:var(--duna-space-5)">El cuerpo scrollea; la cabecera y el pie se quedan.</p>
+  </div>
+  <div class="duna-modal__foot">
+    <button type="button" class="duna-btn duna-btn--ghost" data-cerrar-modal>Cancelar</button>
+    <button type="button" class="duna-btn duna-btn--primary" data-cerrar-modal>Guardar</button>
+  </div>
+</aside>
+
+<div class="duna duna-dialog-wrap" id="dialogDemoWrap" data-state="closed" hidden>
+  <div class="duna-dialog" id="dialogDemo" data-state="closed" role="alertdialog" aria-modal="true" aria-label="Demostración de la confirmación">
+    <div class="duna-modal__head">
+      <div class="duna-title">Cancelar el pedido de Laura</div>
+      <p class="duna-sub" style="margin:var(--duna-space-2) 0 0">Se anula el envío y el stock vuelve al inventario. El pedido queda en el historial como cancelado.</p>
+    </div>
+    <div class="duna-modal__foot">
+      <p role="alert" class="duna-note" style="flex:1;min-width:0;margin:0">Acá va el error inline del consumidor.</p>
+      <button type="button" class="duna-btn duna-btn--ghost" data-cerrar-modal>Volver</button>
+      <button type="button" class="duna-btn duna-btn--danger" data-cerrar-modal>Cancelar el pedido</button>
+    </div>
   </div>
 </div>
 
@@ -698,6 +758,91 @@
     pintar();
     mq.addEventListener('change', pintar);
     addEventListener('resize', pintar);
+  })();
+  // LAS DOS SUPERFICIES DE DIÁLOGO, ejercidas. Igual que el sheet: esta demo
+  // estampa los `data-state` que estampa el diálogo real para que la forma se
+  // pueda ver, y NADA MÁS. Sin foco atrapado, sin scroll-lock, sin inertizar el
+  // fondo — eso lo pone el consumidor, y decirlo evita que este bloque se lea
+  // como la implementación de referencia.
+  (function modalesDemo() {
+    const scrim = document.getElementById('modalDemoScrim');
+    const drawer = document.getElementById('drawerDemo');
+    const wrap = document.getElementById('dialogDemoWrap');
+    const dialog = document.getElementById('dialogDemo');
+    if (!scrim || !drawer || !wrap || !dialog) return;
+
+    let abierto = null;   // 'drawer' | 'dialog' | null
+
+    const abrir = (cual) => {
+      const caja = cual === 'drawer' ? drawer : wrap;
+      scrim.hidden = false; caja.hidden = false;
+      // Reflow SÍNCRONO con `closed` puesto, no `requestAnimationFrame`: si el
+      // frame no llega —pestaña de fondo, ventana sin tamaño— el estado se queda
+      // en `closed`, que en este CSS es la animación de SALIDA, y la superficie
+      // quedaría visible-pero-fuera-de-pantalla sin forma de cerrarla.
+      void caja.offsetHeight;
+      scrim.dataset.state = 'open';
+      caja.dataset.state = 'open';
+      if (cual === 'dialog') dialog.dataset.state = 'open';
+      abierto = cual;
+    };
+
+    const cerrar = () => {
+      if (!abierto) return;
+      const caja = abierto === 'drawer' ? drawer : wrap;
+      scrim.dataset.state = 'closed';
+      caja.dataset.state = 'closed';
+      if (abierto === 'dialog') dialog.dataset.state = 'closed';
+      const fin = () => { scrim.hidden = true; caja.hidden = true; };
+      (abierto === 'drawer' ? drawer : dialog).addEventListener('animationend', fin, { once: true });
+      setTimeout(fin, 400);   // red por si `prefers-reduced-motion` no dispara el evento
+      abierto = null;
+    };
+
+    document.getElementById('drawerDemoAbrir').addEventListener('click', () => abrir('drawer'));
+    document.getElementById('dialogDemoAbrir').addEventListener('click', () => abrir('dialog'));
+    scrim.addEventListener('click', cerrar);
+    document.querySelectorAll('[data-cerrar-modal]').forEach(b => b.addEventListener('click', cerrar));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrar(); });
+  })();
+  // EL CONTRASTE DEL DESTRUCTIVO, MEDIDO EN VIVO Y EN LOS DOS TEMAS.
+  //
+  // "pasa AA" es una promesa, y una promesa así no se verifica a ojo — es
+  // exactamente el mismo argumento por el que el esqueleto se mide acá arriba. Se
+  // mide contra el fondo COMPUESTO y no contra la superficie: el tinte es
+  // semitransparente, así que el color real bajo el texto no es ninguno de los
+  // dos tokens sino su mezcla. Medir contra la superficie pura daría un número
+  // optimista, que es la forma de "verificar" que no verifica nada.
+  (function medirDanger() {
+    const out = document.getElementById('dangerMedida');
+    if (!out) return;
+    const hex = h => h.trim().replace('#','').match(/../g).map(x => parseInt(x, 16));
+    const lum = rgb => {
+      const [r, g, b] = rgb.map(v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); });
+      return .2126 * r + .7152 * g + .0722 * b;
+    };
+    const ratio = (a, b) => {
+      const l1 = lum(a), l2 = lum(b);
+      return +((Math.max(l1, l2) + .05) / (Math.min(l1, l2) + .05)).toFixed(2);
+    };
+    const raiz = document.documentElement;
+    const previo = raiz.getAttribute('data-theme');
+    const medir = tema => {
+      raiz.setAttribute('data-theme', tema);
+      const cs = getComputedStyle(raiz);
+      const soft = cs.getPropertyValue('--duna-bad-soft').match(/[\d.]+/g).map(Number);
+      const sup = hex(cs.getPropertyValue('--duna-surface'));
+      const fondo = [0, 1, 2].map(i => Math.round(soft[i] * soft[3] + sup[i] * (1 - soft[3])));
+      return ratio(hex(cs.getPropertyValue('--duna-bad-ink')), fondo);
+    };
+    const claro = medir('light'), oscuro = medir('dark');
+    raiz.setAttribute('data-theme', previo || 'light');
+    const ok = claro >= 4.5 && oscuro >= 4.5;
+    out.textContent = ok
+      ? `Medido al abrir esta página: ${claro}:1 en claro · ${oscuro}:1 en oscuro — AA en los dos.`
+      : `⚠ AA ROTO: ${claro}:1 en claro · ${oscuro}:1 en oscuro. El tinte destructivo dejó de ser legible.`;
+    out.style.color = ok ? '' : 'var(--duna-bad-ink)';
+    out.style.fontWeight = ok ? '' : 'var(--duna-w-semi)';
   })();
 </script>
 </body>
