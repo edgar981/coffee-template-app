@@ -1,6 +1,7 @@
 import { isPorCobrar, isCountableOrder } from '@duna/core/metrics/order-stat-filters';
 import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
 import { necesitaAtencion, type OrdenParaAtencion } from './atencion';
+import { conteosDeCola, type CarrilBase, type ConteosDeCola } from '@/lib/carriles';
 import type { OrderStatus, CondicionPago } from '@/types/order';
 import type { ShippingEstado } from '@/types/shipping';
 
@@ -37,9 +38,7 @@ export interface OrdenParaFiltro extends OrdenParaAtencion {
   } | null;
 }
 
-export interface FiltroPedidos {
-  key: FiltroKey;
-  label: string;
+export interface FiltroPedidos extends CarrilBase<FiltroKey> {
   /** `undefined` = no filtra (Todos). Se distingue de "filtra y no matchea nada". */
   aplica?: (orden: OrdenParaFiltro) => boolean;
 }
@@ -60,16 +59,18 @@ export const FILTROS_PEDIDOS: FiltroPedidos[] = [
   //
   // Una cancelada no desaparece: tiene su propio carril, que es su destino. Lo
   // que deja de pasar es que engorde el conteo de "Todos" sin decirlo.
-  { key: 'todos',       label: 'Todos',              aplica: (o) => isCountableOrder(o.estado) },
-  { key: 'atencion',    label: 'Necesitan atención', aplica: necesitaAtencion },
-  { key: 'preparacion', label: 'En preparación',     aplica: enEtapa('preparando') },
-  { key: 'camino',      label: 'En camino',          aplica: enEtapa('en_ruta') },
-  { key: 'entregados',  label: 'Entregados',         aplica: enEtapa('entregado') },
+  { key: 'todos',       label: 'Todos',              tipo: 'acumulador', aplica: (o) => isCountableOrder(o.estado) },
+  { key: 'atencion',    label: 'Necesitan atención', tipo: 'cola',       aplica: necesitaAtencion },
+  { key: 'preparacion', label: 'En preparación',     tipo: 'cola',       aplica: enEtapa('preparando') },
+  { key: 'camino',      label: 'En camino',          tipo: 'cola',       aplica: enEtapa('en_ruta') },
+  { key: 'entregados',  label: 'Entregados',         tipo: 'acumulador', aplica: enEtapa('entregado') },
   // Se consume `isPorCobrar` de core: la misma definición que la tarjeta del
   // dashboard y la lista de Órdenes. Un recorte propio acá haría que dos pantallas
   // contaran distinto la misma plata.
-  { key: 'por_cobrar',  label: 'Por cobrar',         aplica: isPorCobrar },
-  { key: 'cancelado',   label: 'Cancelado',          aplica: (o) => o.estado === 'cancelado' },
+  // "Por cobrar" es COLA aunque no lo parezca: es plata esperando, se vacía al
+  // cobrar, y su número es de los más accionables del negocio.
+  { key: 'por_cobrar',  label: 'Por cobrar',         tipo: 'cola',       aplica: isPorCobrar },
+  { key: 'cancelado',   label: 'Cancelado',          tipo: 'acumulador', aplica: (o) => o.estado === 'cancelado' },
 ];
 
 // ─── EL CLIENTE ES UN ALCANCE, NO UN CARRIL ──────────────────────────────────
@@ -249,12 +250,12 @@ export function aplicarFiltro<T extends OrdenParaFiltro>(ordenes: T[], key: Filt
   return filtro?.aplica ? ordenes.filter(filtro.aplica) : ordenes;
 }
 
-/** Conteo por carril, para el número del pill. Se calcula sobre la MISMA lista
- *  que se muestra: un contador que no cuadra con lo que hay debajo es peor que
- *  ninguno. */
-export function conteos<T extends OrdenParaFiltro>(ordenes: T[]): Record<FiltroKey, number> {
-  return FILTROS_PEDIDOS.reduce((acc, f) => {
-    acc[f.key] = f.aplica ? ordenes.filter(f.aplica).length : ordenes.length;
-    return acc;
-  }, {} as Record<FiltroKey, number>);
-}
+/**
+ * Conteo de las COLAS, para el número del pill. Los acumuladores no traen número
+ * y por eso no se cuentan (§ lib/carriles).
+ *
+ * Sobre la MISMA lista que se muestra: un contador que no cuadra con lo que hay
+ * debajo es peor que ninguno.
+ */
+export const conteos = <T extends OrdenParaFiltro>(ordenes: T[]): ConteosDeCola<FiltroKey> =>
+  conteosDeCola(FILTROS_PEDIDOS, ordenes);
