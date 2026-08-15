@@ -619,6 +619,26 @@
 
       <div class="flag" style="margin-top:var(--duna-space-4)">Las filas son <code>&lt;button&gt;</code>, no <code>&lt;div&gt;</code>: se llega a ellas con Tab y se activan con Enter y Espacio sin un solo handler de teclado. Pruébalo acá mismo — al enfocarlas aparece el borde de tinta y el anillo, el mismo tratamiento que un input. Una tarjeta SIN acción se monta como <code>&lt;div&gt;</code>: no recibe foco ni promete mano.</div>
 
+      <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">La misma primitiva, CON acciones · deja de ser un &lt;button&gt;</div>
+      <div style="display:flex; flex-direction:column; gap:var(--duna-space-3); max-width:400px">
+        <div class="duna-order-card duna-order-card--con-acciones">
+          <div class="duna-order-card__body">
+            <div class="duna-order-card__top">
+              <button type="button" class="duna-hit duna-order-card__name">Café Huila 500 g</button>
+              <span class="duna-order-card__id duna-mono">SN-014</span>
+              <span class="duna-order-card__amount duna-num">$ 34.000</span>
+            </div>
+            <div class="duna-order-card__mid">
+              <span class="duna-stock-txt is-low duna-caption">6 · por reponer</span>
+            </div>
+          </div>
+          <div class="duna-hit__sobre duna-order-card__actions">
+            <button type="button" class="duna-btn duna-btn--ghost duna-btn--sm" aria-label="Acciones del producto">⋯</button>
+          </div>
+        </div>
+      </div>
+      <div class="flag" style="margin-top:var(--duna-space-4)">CON <code>actions</code> LA FILA DEJA DE SER UN <code>&lt;button&gt;</code>, y el porqué es lo que hay que leer antes de tocar las dos ramas de render: anidar el trigger del menú dentro de un botón es HTML inválido. La superficie pasa al patrón <code>duna-hit</code> — el NOMBRE es el botón y su <code>::after</code> cubre toda la fila, así que el clic y el teclado que daba el <code>&lt;button&gt;</code> se conservan; las acciones van en una capa <code>__sobre</code>, que es su PROPIA parada en el tab order.<br><br>Recorré esta fila con Tab: son DOS paradas —el nombre (abre la fila, con su borde de tinta y anillo) y el menú (⋯)—, y Enter/Espacio activan cada una. El default no cambia: sin <code>actions</code>, la fila sigue siendo el <code>&lt;button&gt;</code> de arriba, así que Pedidos y Clientes no se tocan.</div>
+
       <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">Primitiva 2 · items-table (líneas de OTRA orden — total distinto a propósito)</div>
       <div class="duna-card" style="padding:var(--duna-space-5); max-width:520px">
         <table class="duna-items-table">

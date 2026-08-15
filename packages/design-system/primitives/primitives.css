@@ -1498,6 +1498,29 @@ button.duna-order-card:focus-visible { border-color: var(--duna-ink); box-shadow
    texto y desborda la tarjeta en vez de recortarse: el mínimo automático de un
    ítem flex es el de su contenido. Misma razón que los `minmax(0, …)` del split. */
 .duna-order-card__body  { min-width: 0; flex: 1; }
+
+/* ── LA FILA CON ACCIONES · superficie duna-hit, no <button> ─────────────────
+   Cuando la fila lleva un control propio (el menú de tres puntos), no puede ser
+   un `<button>`: anidar el trigger dentro de un botón es HTML inválido. La fila
+   pasa a ser un `<div>` posicionado, y el NOMBRE es el hit-target (`.duna-hit`,
+   cuyo `::after` cubre la fila) — así el clic y el teclado que daba el `<button>`
+   se conservan, y las acciones quedan en una capa `__sobre`, su propia parada de
+   tab. `position: relative` es lo que hace que el `::after` del nombre cubra la
+   FILA entera y no sólo el nombre. Es el mismo patrón que la tarjeta de la
+   cuadrícula. */
+.duna-order-card--con-acciones {
+  position: relative; display: flex; align-items: flex-start; gap: var(--duna-space-3);
+}
+/* El nombre-botón: reset de lo que el navegador le impone a un <button>. El peso
+   y el tamaño ya los da `.duna-order-card__name`; el foco lo da `.duna-hit`. */
+button.duna-order-card__name {
+  font: inherit; background: none; border: none; padding: 0; text-align: left;
+  cursor: pointer; color: inherit; width: fit-content;
+}
+/* Las acciones: tercer ítem flex a la derecha, sin encogerse. La capa (z-index)
+   la da `.duna-hit__sobre`, para que el menú reciba el clic por encima del
+   `::after` del nombre. */
+.duna-order-card__actions { flex-shrink: 0; }
 .duna-order-card__top { display: flex; align-items: baseline; gap: var(--duna-space-2); }
 .duna-order-card__name { font-weight: var(--duna-w-semi); font-size: var(--duna-text-body); }
 .duna-order-card__id { color: var(--duna-faint); }               /* combinar con .duna-mono */
