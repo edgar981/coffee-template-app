@@ -41,8 +41,30 @@
    dropdowns, toasts) queda FUERA de `.admin-shell` y no ve este puente. Hoy no
    muerde —esa UI es shadcn y trae sus propias fuentes— y las reglas de
    tipografía que ya existían en globals.css tienen exactamente el mismo alcance.
-   Muerde el día que un diálogo se construya con el design-system (H6), y la
-   salida es montar las variables de fuente en <html>, no duplicar el puente. */
+   Muerde el día que un diálogo se construya con el design-system (H6).
+
+   ── LA SALIDA SE CORRIGE: EL SCRIPT, NO EL LAYOUT RAÍZ ──────────────────────
+
+   Esta nota decía "montar las variables de fuente en <html>", y esa frase se
+   escribió sin ver su costo. Las variables las definen las clases de `next/font`,
+   que hoy viven en el div de `.admin-shell`; para tenerlas en <html> habría que
+   aplicarlas en el layout RAÍZ — el único que renderiza esa etiqueta— y entonces
+   el storefront cargaría las cinco familias del panel, que no usa. Es la promesa
+   que `fonts.ts` hace explícita ("estas fuentes no se cargan nunca en rutas de
+   storefront") y el mismo argumento con el que la app pública no paga por el
+   panel en ningún otro sitio.
+
+   La salida es el SCRIPT INLINE que este layout ya inyecta para marcar
+   `html.admin`: pone también las clases de fuente, y con eso las variables viven
+   en <html> SIN que el storefront las vea, porque el script sólo corre en rutas
+   del grupo. Verificado sobre el artefacto de producción: el script va después
+   del <link> del CSS y antes del contenido del panel, así que corre durante el
+   parseo y nada pinta con la fuente equivocada.
+
+   Se evaluó y se descartó la tercera opción —enrutar cada primitiva portaleada
+   por `dunaPortal`, como ya hace `DunaSheet`—: es correcta pero es una solución
+   POR CONSUMIDOR, y cada primitiva futura tiene que acordarse. El script es
+   ESTRUCTURAL: vale para todo lo portaleado, presente y futuro. */
 .admin-shell {
   --duna-font-ui:      var(--font-hanken-grotesk), 'Hanken Grotesk', system-ui, sans-serif;
   --duna-font-display: var(--font-space-grotesk), 'Space Grotesk', var(--duna-font-ui);

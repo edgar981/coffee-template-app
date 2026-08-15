@@ -495,6 +495,37 @@ comparando la pantalla nueva contra `reference.html`. Lo que sí está pagado es
 gemelo tipográfico: un diálogo shadcn portalea a `<body>`, fuera de
 `.admin-shell`, y ahí se pierden las tres familias de fuente.
 
+**LAS DECISIONES DE LA TANDA, tomadas antes del primer commit** (owner,
+2026-08-15), porque su superficie de error es el MAPEO y un rol mal apuntado se
+manifiesta como "algo se ve raro en una pantalla que nadie rediseñó":
+
+- **Los roles se re-apuntan en UN sitio, no se reemplazan 718 clases.** El panel
+  consume su tema como tripletes HSL (`hsl(var(--background))`) y los tokens del
+  DS son hex, así que la forma es un FALLBACK:
+  `--color-x: var(--duna-x, hsl(var(--x)))`. En el admin gana el token; en el
+  storefront `--duna-*` no existe y cae al triplete de siempre.
+- **CONDICIÓN DE ARRANQUE, medida sobre el artefacto de producción:** Next emite
+  DOS chunks de CSS y los reparte por grupo de rutas — el del DS (con `--duna-bg`
+  y `duna-tile`) NO lo enlaza ninguna página del storefront, y sí lo enlazan las
+  del grupo `(admin)`. Sin eso el fallback nunca dispararía y el storefront
+  cambiaría de fondo sin que nadie lo pidiera.
+- **`accent` → `--duna-wash-hover`, no `surface-2`.** Es su rol literal en el DS
+  ("hover de nav/ghost/fila"); `surface-2` lo dejaba casi sin tinte en oscuro
+  (#3F382C → #181715), y un hover que no se ve no existe. Era un mapeo por
+  parecido de VALOR en vez de por ROL.
+- **`destructive` → `--duna-bad`.** `#EF4444` es residuo del Amber Minimal;
+  `--duna-bad` es el rojo del sistema y trae su par `-ink` que pasa AA. Es el
+  mayor salto de la tabla (Δ58 claro / Δ56 oscuro) y **va DECLARADO EN EL GATE**:
+  al revisar las cinco pantallas no rediseñadas los destructivos se verán
+  terracota y eso es CORRECTO. Sin la nota, alguien lo reporta como bug.
+- **Tres roles SIN contraparte, y se dejan como están:** `--chart-1..5` (familia
+  de datos, el DS no tiene escala de gráficas), `--accent-amber` (el DS tiene
+  `--duna-sol`, pero significa ATENCIÓN, no acento) y `--ring`/`--sidebar-primary`
+  (el `--duna-ring` del DS es un wash, no un color sólido). Se listan para que la
+  ausencia sea una decisión y no un olvido.
+- **La mitad tipográfica va por el SCRIPT INLINE**, no por el layout raíz — el
+  porqué, con el costo que la prescripción vieja no vio, está en `duna.css`.
+
 **SE CIERRAN JUNTOS: fondos + fuentes.** Migrar sólo los fondos deja las fuentes
 rotas en los portales, y al revés deja el lienzo divergiendo.
 
@@ -2395,6 +2426,32 @@ superficie.
 **Una medición que miente es peor que ninguna, porque se la cree.** Es la misma
 familia que el `el.click()` que saltaba el hit-testing: la herramienta de
 verificación también se verifica.
+
+### REGLA · toda medición POR TEMA lleva una aserción de cordura
+
+Una aserción que **falla si el tema no es el que se cree estar midiendo**. Va
+dentro de la medición, no al lado:
+
+```js
+const claro = lum(hex(T('--duna-bg'))) > 0.5;
+if ((tema === 'light') !== claro) throw new Error('CORDURA: …');
+```
+
+La instaura el peor engaño de la tanda de Productos (owner, 2026-08-15). La tabla
+del mapeo rol-por-rol del chrome salió ENTERA con los valores oscuros en la
+columna clara: se leyeron los tokens **antes** de fijar el tema, y la página venía
+en oscuro de una prueba anterior. Los deltas daban ~230 en vez de ~2.
+
+**Lo que lo hace el peor de los seis de esa tanda es que se veía plausible** —una
+tabla llena de números coherentes entre sí— y habría fundado el commit que
+re-apunta los 718 usos de color del panel. Los otros cinco (hoja cacheada,
+`grep -c` contando líneas, un discriminador que el cambio REUBICABA, un tab en
+`viewport 0x0`, un flag afirmando un delta que la página no mostraba) se
+delataban solos al mirar el resultado; éste no.
+
+Aplica también a los contrastes: medir en un tema y suponer el otro es el mismo
+error con menos pasos, y § la cinta del tile mostró que **cuál caso rompe se
+INVIERTE con el tema**.
 
 ## H6 — los diálogos son Duna, y la frontera que eso cruzó
 
