@@ -96,6 +96,18 @@
    ancho y el alto ya vienen del `inset: 0` y estas dos líneas son un no-op. */
 .duna-tile img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
+/* ── ATENUADA · la entidad está inactiva, y el ESTADO se ve, no sólo se etiqueta ─
+   Atenúa la MEDIA del tile (la foto o el ícono de reemplazo) para que un producto
+   inactivo se lea de un vistazo, sin que un chip chico se pierda cuando la imagen
+   domina la tarjeta. Dos cosas quedan INTACTAS a propósito:
+   - los `.duna-tile__ribbon` (el badge "Inactivo" tiene que seguir legible — es
+     justo el que anuncia el estado);
+   - el texto de la tarjeta (nombre, precio, SKU), que vive FUERA del tile.
+   Así "inactivo" se ve pero el producto se sigue leyendo: no se ofrece, no se
+   esconde. Se apunta a `img`/`svg` y no al tile entero para no tocar los ribbons. */
+.duna-tile--atenuado img,
+.duna-tile--atenuado > svg { opacity: .4; transition: opacity var(--duna-dur) var(--duna-ease); }
+
 /* Cuadrada y de ancho fijo — la miniatura que acompaña a una fila de datos.
    El ancho es TOKEN y no un número acá: lo comparte con las pistas de `.duna-tiles`
    (la derivación del 44 está en `tokens.css`). */
@@ -294,6 +306,28 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
    scrollear dentro. */
 .duna-split { display: grid; align-items: start; gap: var(--duna-space-6);
               grid-template-columns: minmax(0, var(--duna-list-w)) minmax(0, 1fr); }
+
+/* ── EL LADO DEL COLUMNA FIJA · una perilla, nombrada por ROL ────────────────
+   El default deja la columna FIJA (--duna-list-w) a la IZQUIERDA y la FLEXIBLE a
+   la derecha: es lo que sirve a una LISTA + su detalle (Pedidos, Clientes, y el
+   modo lista de Productos). Pero una CUADRÍCULA no cabe en la columna fija —
+   medido: `.duna-cards` en 400px da UNA columna, deja de ser cuadrícula—; ahí lo
+   que va fijo es el PANEL de detalle, a la derecha, y la rejilla toma el resto
+   (2–4 columnas según la pantalla).
+
+   Se nombra por ROL y no por caso de uso (`--panel-derecha`, no `--cuadricula`):
+   la próxima pantalla que necesite el panel fijo a un lado no se va a llamar
+   cuadrícula. El default sigue SIN modificador para no tocar a los consumidores
+   que ya existen; `--panel-izquierda` es su nombre explícito, por si una pantalla
+   quiere declararlo en vez de heredarlo.
+
+   `__list` y `__panel` NO fijan ancho —el ancho lo pone la columna— así que el
+   contenido va en el orden del DOM: con `--panel-derecha`, el primer hijo
+   (flexible) es la rejilla y el segundo (fijo) es el panel. El sticky de
+   `__panel` funciona igual a la derecha. */
+.duna-split--panel-izquierda { grid-template-columns: minmax(0, var(--duna-list-w)) minmax(0, 1fr); }
+.duna-split--panel-derecha   { grid-template-columns: minmax(0, 1fr) minmax(0, var(--duna-list-w)); }
+
 .duna-split__list  { min-width: 0; display: flex; flex-direction: column; gap: var(--duna-space-3); }
 .duna-split__panel { min-width: 0; position: sticky;
                      top: calc(var(--duna-topbar-h) + var(--duna-space-6)); }
@@ -339,7 +373,13 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
    densidad, así que `959` dejaría un hueco de verdad. El umbral sigue siendo
    960: DEBAJO es angosto, 960 exacto ya es ancho, en los tres sitios. */
 @media (max-width: 959.98px) {
-  .duna-split { grid-template-columns: minmax(0, 1fr); }
+  /* Las tres formas apilan a una columna: el default y las dos variantes de lado.
+     Debajo del breakpoint no hay dos columnas que repartir, así que el lado del
+     panel deja de significar nada — y en Productos, además, el detalle debajo del
+     breakpoint vive en el sheet, no acá (§ el consumidor). */
+  .duna-split,
+  .duna-split--panel-izquierda,
+  .duna-split--panel-derecha { grid-template-columns: minmax(0, 1fr); }
   /* Apilado, "pegajoso" no significa nada: el panel ya no tiene al lado una
      columna que scrollee contra él, y dejarlo sticky lo clavaría tapando la
      lista.
@@ -377,7 +417,15 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
                 background: var(--duna-sol); }
 
 /* ── Botones · un solo primario sólido por vista = TINTA ─────────────────── */
-.duna-btn { display: inline-flex; align-items: center; gap: var(--duna-space-inline); /* ícono↔label */
+.duna-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--duna-space-inline); /* ícono↔label */
+            /* `justify-content: center` NO es decorativo: sin él, un botón ESTIRADO
+               más ancho que su contenido —una columna con `align-items: stretch`, o
+               un `w-full`— deja el label pegado a la izquierda (flex-start). Se vio
+               en la columna Editar/Eliminar del detalle de Productos: ambos se
+               estiran al ancho de "Eliminar" y "Editar", más corto, quedaba
+               descentrado (holgura 13px izq / 25px der; con esto, 19/19). Sólo tiene
+               efecto cuando el botón es más ancho que su contenido; para los de
+               ancho automático —la inmensa mayoría— no cambia nada. */
             padding: var(--duna-space-3) var(--duna-space-3); border-radius: var(--duna-r-s); font-weight: var(--duna-w-semi);
             font-size: var(--duna-text-label); border: 1px solid transparent; transition: all var(--duna-dur-fast) var(--duna-ease);
             cursor: pointer;
@@ -421,6 +469,16 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
 .duna-btn--danger { background: var(--duna-bad-soft); color: var(--duna-bad-ink); border-color: transparent; }
 .duna-btn--danger:not(:disabled):hover { border-color: var(--duna-bad); }
 .duna-btn--sm { padding: var(--duna-space-1) var(--duna-space-3); font-size: var(--duna-text-caption); }
+
+/* ── SÓLO ÍCONO · el disparador del menú de tres puntos ───────────────────
+   Un <button> con un glifo y sin label. El padding base (y el de `--sm`) es
+   asimétrico —más ancho que alto— porque está pensado para ícono+texto; solo,
+   deja una pastilla estirada alrededor del punto. Esta variante lo CUADRA con
+   padding igual en los cuatro lados, sin tocar el color, que lo sigue poniendo
+   `--ghost`/`--secondary`. Va DESPUÉS de `--sm` a propósito: si se combinan,
+   este padding gana (misma especificidad, orden de fuente). Nace para el kebab
+   de acciones de Productos, que vive en la tarjeta Y en la fila de la lista. */
+.duna-btn--icon { padding: var(--duna-space-2); }
 
 /* ── EL DESHABILITADO NO PROMETE NADA ─────────────────────────────────────
    Faltaba entero: `.duna-btn` no declaraba un solo estilo para `:disabled`, así
@@ -695,6 +753,35 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 /* Los `gap` de arriba ya separan; esto sólo evita que un `<p>` del consumidor
    traiga el margen del navegador y descuadre la columna. */
 .duna-field__hint, .duna-field__error { margin: 0; }
+
+/* ── FORM · la rejilla de grupos, con su ritmo por TOKEN ───────────────────
+   Dos columnas de `.duna-field`, y `__full` para el campo que ocupa el ancho.
+   Existe para que el gap ENTRE grupos deje de ser un `grid grid-cols-2 gap-4`
+   ad-hoc de Tailwind repetido en cada drawer — la divergencia que hacía que un
+   mismo formulario respirara distinto según quién lo escribió.
+
+   ── EL GAP ES UN TOKEN, Y `--sm` ES SU ESCALÓN MENOR ──────────────────────
+   `--duna-form-gap` default = space-4 (16px): el ritmo de un formulario LARGO,
+   sin cambio respecto a lo que ya había. `.duna-form--sm` lo baja a space-3
+   (12px) para un formulario CORTO.
+
+   Y el motivo NO es "llenar el drawer" —bajar el gap mueve ~16px de alto en un
+   form de 7 campos, nada—: es RITMO. El gap interno de `.duna-field` es 8px, así
+   que 16px entre grupos es un salto 2:1 que, con pocos grupos, los lee dispersos;
+   12px (1.5:1) los lee como una unidad. `--sm` COHESIONA, no llena. Medido.
+
+   ── DISPARADOR · limpieza diferida (alcance mínimo, decisión del owner) ─────
+   Hoy sólo "Nuevo cliente" usa esta primitiva (con `--sm`). Nueva orden,
+   Registrar pago y Programar entrega siguen con `grid grid-cols-2 gap-4` ad-hoc;
+   migran a `.duna-form` con gap DEFAULT (sin cambio visual — 16px = lo que ya
+   tienen). Al tocar cualquiera de esos formularios, ese migra entero. Misma
+   forma que la deuda de `.duna-field` en esos mismos tres: no se hace una tanda
+   propia para el refactor, se cobra cuando el archivo ya está abierto. */
+.duna-form { --duna-form-gap: var(--duna-space-4);
+             display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+             gap: var(--duna-form-gap); }
+.duna-form--sm { --duna-form-gap: var(--duna-space-3); }
+.duna-form__full { grid-column: 1 / -1; }
 
 /* ── BUSCADOR · el CAMPO, no el filtrado ─────────────────────────────────────
    Un `duna-input` con la lupa adentro. Es una variante de input y por eso vive
@@ -1218,6 +1305,23 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 .duna-scrim[data-state="open"]          { animation: duna-scrim-in        var(--duna-dur-theme) var(--duna-ease); }
 .duna-scrim[data-state="closed"]        { animation: duna-scrim-out       var(--duna-dur)       var(--duna-ease); }
 
+/* ── ENTRADA DEL PANEL QUE SE REVELA ────────────────────────────────────────
+   Para el panel que APARECE al seleccionar en un `--panel-derecha` (la
+   cuadrícula de Productos): la rejilla encaja a menos columnas en UN paso y el
+   panel entra con opacidad + un deslizamiento corto desde la derecha.
+
+   Por qué NO se anima el ancho del grid (decisión del owner): `.duna-cards` usa
+   `auto-fill`, que recalcula el número de columnas al cruzar cada umbral, así que
+   animar el ancho haría saltar el conteo A MITAD de la animación — más brusco que
+   no animar. Se anima lo que entra (el panel), no lo que reflowa (la rejilla).
+
+   Es opt-in: sólo el panel que lleva la clase anima. El panel del modo lista
+   —que está siempre montado— no la lleva y no parpadea en cada render. Vive
+   dentro de `.duna`, así que el bloque `prefers-reduced-motion` (`.duna *`) ya lo
+   congela sin nombrarlo. */
+@keyframes duna-reveal-panel { from { opacity: 0; transform: translateX(var(--duna-space-3)); } to { opacity: 1; transform: none; } }
+.duna-reveal-panel { animation: duna-reveal-panel var(--duna-dur) var(--duna-ease); }
+
 /* ── BARRA INFERIOR · la navegación cuando no hay rail ─────────────────────
    Reemplaza al rail debajo del breakpoint; no convive con él. La hamburguesa y
    su drawer MUEREN — un menú detrás de un botón y una barra siempre visible son
@@ -1453,6 +1557,29 @@ button.duna-order-card:focus-visible { border-color: var(--duna-ink); box-shadow
    texto y desborda la tarjeta en vez de recortarse: el mínimo automático de un
    ítem flex es el de su contenido. Misma razón que los `minmax(0, …)` del split. */
 .duna-order-card__body  { min-width: 0; flex: 1; }
+
+/* ── LA FILA CON ACCIONES · superficie duna-hit, no <button> ─────────────────
+   Cuando la fila lleva un control propio (el menú de tres puntos), no puede ser
+   un `<button>`: anidar el trigger dentro de un botón es HTML inválido. La fila
+   pasa a ser un `<div>` posicionado, y el NOMBRE es el hit-target (`.duna-hit`,
+   cuyo `::after` cubre la fila) — así el clic y el teclado que daba el `<button>`
+   se conservan, y las acciones quedan en una capa `__sobre`, su propia parada de
+   tab. `position: relative` es lo que hace que el `::after` del nombre cubra la
+   FILA entera y no sólo el nombre. Es el mismo patrón que la tarjeta de la
+   cuadrícula. */
+.duna-order-card--con-acciones {
+  position: relative; display: flex; align-items: flex-start; gap: var(--duna-space-3);
+}
+/* El nombre-botón: reset de lo que el navegador le impone a un <button>. El peso
+   y el tamaño ya los da `.duna-order-card__name`; el foco lo da `.duna-hit`. */
+button.duna-order-card__name {
+  font: inherit; background: none; border: none; padding: 0; text-align: left;
+  cursor: pointer; color: inherit; width: fit-content;
+}
+/* Las acciones: tercer ítem flex a la derecha, sin encogerse. La capa (z-index)
+   la da `.duna-hit__sobre`, para que el menú reciba el clic por encima del
+   `::after` del nombre. */
+.duna-order-card__actions { flex-shrink: 0; }
 .duna-order-card__top { display: flex; align-items: baseline; gap: var(--duna-space-2); }
 .duna-order-card__name { font-weight: var(--duna-w-semi); font-size: var(--duna-text-body); }
 .duna-order-card__id { color: var(--duna-faint); }               /* combinar con .duna-mono */

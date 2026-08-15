@@ -1,9 +1,9 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { LayoutGrid, List, Package, Plus } from 'lucide-react';
+import { LayoutGrid, List, Package, Plus, X } from 'lucide-react';
 import { OrderCard } from '@duna/design-system/components/OrderCard';
 import { SearchField } from '@duna/design-system/components/SearchField';
 import { SkeletonOrderCards } from '@duna/design-system/components/SkeletonOrderCard';
@@ -20,6 +20,7 @@ import { ProductFormModal } from '@/components/admin/ProductFormModal';
 import { AdjustStockModal } from '@/components/admin/AdjustStockModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { ImageLightbox } from '@/components/admin/ImageLightbox';
+import { ProductoAccionesMenu } from '@/components/admin/ProductoAccionesMenu';
 import { CATEGORIAS } from '@/constants/product';
 import {
   CARRILES_PRODUCTOS, aplicarCarril, aplicarCategoria, conteosProductos,
@@ -205,6 +206,17 @@ function Productos() {
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
   }, [params, pathname, router]);
 
+  // Los cuatro handlers del menú de acciones, para un producto. Se arman en UN
+  // solo sitio y las dos superficies —la tarjeta de la cuadrícula y la fila de la
+  // lista— reciben el MISMO nodo de menú, así que no pueden divergir en qué hace
+  // cada ítem (card=lista). Cada uno abre el diálogo que ya vive en la página.
+  const accionesDe = useCallback((p: Product) => ({
+    onEditar:   () => setEditando(p),
+    onAjustar:  () => setAjustando(p),
+    onEliminar: () => setBorrando(p),
+    onActivar:  () => setActivarTarget(p),
+  }), []);
+
   const cambiarEstado = async (p: Product, activo: boolean) => {
     // PATCH de UN campo, que es exactamente el caso que el endpoint tiene que
     // respetar (§ El PATCH de producto es PARCIAL de verdad): escribe `activo` y
@@ -213,6 +225,22 @@ function Productos() {
     const actualizado = await updateProduct(p.id, { activo });
     setProductos(prev => prev.map(x => x.id === p.id ? actualizado : x));
   };
+
+  // ESCAPE CIERRA EL PANEL — por consistencia con las demás superficies (el sheet
+  // ya lo hace vía Radix). Sólo en cuadrícula-escritorio, el mismo alcance que la
+  // × del encabezado: en lista el split es normal y en móvil el sheet trae lo suyo.
+  //
+  // NO le roba el Escape a un diálogo abierto: cuando hay uno, el efecto ni siquiera
+  // engancha el listener (los flags están en las deps, así que se re-suscribe al
+  // cerrarse), y Radix cierra el modal solo. El Escape que cierra el diálogo, por
+  // tanto, no cierra además el panel.
+  const hayDialogoAbierto = formAbierto || !!borrando || !!activarTarget || !!ajustando || !!lightbox;
+  useEffect(() => {
+    if (esMovil || vista !== 'cuadricula' || !elegido || hayDialogoAbierto) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') navegar({ producto: null }); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [esMovil, vista, elegido, hayDialogoAbierto, navegar]);
 
   // El detalle se escribe UNA vez: vive en el panel (ancho + lista) o en el sheet,
   // nunca en los dos. Dos juegos de props del mismo componente es cómo una de las
@@ -224,6 +252,12 @@ function Productos() {
       kardex={kardexVigente}
       cargandoKardex={cargandoKardex}
       errorKardex={errorKardex}
+      // EL CIERRE SÓLO EN CUADRÍCULA-ESCRITORIO: ahí el split APARECE al
+      // seleccionar, así que tiene que poder desaparecer. En lista el split es el
+      // estado normal (como Pedidos: el panel vacío dice "elige un producto") y no
+      // lleva ×; en móvil el sheet ya trae su propio cierre. El mismo nodo sirve a
+      // las tres superficies porque sólo una se renderiza a la vez.
+      onCerrar={!esMovil && vista === 'cuadricula' ? () => navegar({ producto: null }) : undefined}
       onEditar={() => setEditando(elegido)}
       onEliminar={() => setBorrando(elegido)}
       onActivar={() => setActivarTarget(elegido)}
@@ -232,10 +266,25 @@ function Productos() {
     />
   ) : null;
 
-  // EL DETALLE SUBE COMO SHEET en angosto SIEMPRE, y en cuadrícula TAMBIÉN en
-  // ancho: la rejilla ocupa el ancho completo, así que no hay columna al lado
-  // donde ponerlo.
-  const detalleEnSheet = esMovil || vista === 'cuadricula';
+  // Las tarjetas de la cuadrícula, en UNA variable: se pintan igual con la rejilla
+  // a ancho completo y con la rejilla encogida del split, así que no se duplican.
+  const tarjetas = visibles.map(p => (
+    <TarjetaProducto
+      key={p.id}
+      producto={p}
+      seleccionado={p.id === seleccion}
+      onAbrir={() => navegar({ producto: p.id })}
+      onActivar={() => setActivarTarget(p)}
+      acciones={<ProductoAccionesMenu producto={p} {...accionesDe(p)} />}
+    />
+  ));
+
+  // EL DETALLE SUBE COMO SHEET sólo en ANGOSTO. En escritorio, tanto lista como
+  // cuadrícula lo muestran en un panel al lado (§ el patrón Finder: al seleccionar,
+  // la cuadrícula encoge y aparece el split `--panel-derecha`). Antes la cuadrícula
+  // mandaba al sheet también en ancho —un sheet a pantalla completa que era una
+  // pantalla disfrazada, y donde las acciones se hundían con el kardex—.
+  const detalleEnSheet = esMovil;
 
   const alternativa = alternativaAlEliminar(borrando);
   const accionActivar = accionEstadoProducto(activarTarget);
@@ -349,19 +398,24 @@ function Productos() {
         </div>
       )}
 
-      {/* ── CUADRÍCULA · ancho completo ───────────────────────────────────── */}
-      {!error && !cargando && visibles.length > 0 && vista === 'cuadricula' && (
-        <div className="duna-cards">
-          {visibles.map(p => (
-            <TarjetaProducto
-              key={p.id}
-              producto={p}
-              seleccionado={p.id === seleccion}
-              onAbrir={() => navegar({ producto: p.id })}
-              onActivar={() => setActivarTarget(p)}
-            />
-          ))}
-        </div>
+      {/* ── CUADRÍCULA ─────────────────────────────────────────────────────
+          Sin selección (o en móvil): a ancho completo. Con selección en
+          escritorio: la rejilla ENCOGE a la izquierda y el panel entra fijo a la
+          derecha (`--panel-derecha`). Es el patrón Finder — el split aparece
+          cuando hace falta. El `|| elegido` es la otra mitad de buscar en la
+          lista completa: un deep link que caiga fuera del carril abre igual. */}
+      {!error && !cargando && (visibles.length > 0 || elegido) && vista === 'cuadricula' && (
+        !detalleEnSheet && elegido ? (
+          <div className="duna-split duna-split--panel-derecha">
+            <div className="duna-cards">{tarjetas}</div>
+            {/* La clave fuerza el remonte al cambiar de producto, así que la
+                entrada (`.duna-reveal-panel`) corre en cada selección, no sólo la
+                primera. */}
+            <div className="duna-split__panel duna-reveal-panel" key={seleccion}>{detalleNodo}</div>
+          </div>
+        ) : (
+          <div className="duna-cards">{tarjetas}</div>
+        )
       )}
 
       {/* ── LISTA · el split de siempre ───────────────────────────────────── */}
@@ -385,6 +439,10 @@ function Productos() {
                 // SIN `steps`, y la ausencia es la respuesta: un producto no tiene
                 // un camino que recorrer.
                 steps={undefined}
+                // El MISMO menú que la tarjeta. Con `actions`, la fila deja de ser
+                // un <button> y pasa al patrón `duna-hit` (el menú es su propia
+                // parada en el tab order) — ver el JSDoc de `OrderCard.actions`.
+                actions={<ProductoAccionesMenu producto={p} {...accionesDe(p)} />}
                 selected={p.id === seleccion}
                 onClick={() => navegar({ producto: p.id })}
               />
@@ -494,7 +552,7 @@ function textoStock(p: Product): string {
 /** La miniatura de una fila: el marco del sistema, con el reemplazo del consumidor. */
 function Miniatura({ producto }: { producto: Product }) {
   return (
-    <div className="duna-tile duna-tile--sm">
+    <div className={`duna-tile duna-tile--sm${!producto.activo ? ' duna-tile--atenuado' : ''}`}>
       {producto.imagen
         ? <Image src={producto.imagen} alt="" fill sizes="44px" style={{ objectFit: 'cover' }} />
         : <Package aria-hidden="true" width={17} height={17} />}
@@ -510,11 +568,15 @@ function Miniatura({ producto }: { producto: Product }) {
 // Muestra lo que DUNA-DS.md pide: imagen, nombre, precio, cuántas quedan con el
 // número en color diferencial, y el chip de estado. NO muestra el margen (cifra
 // de negocio, § el encabezado) ni una barra (§ lib/productos/stock).
-function TarjetaProducto({ producto: p, seleccionado, onAbrir, onActivar }: {
+function TarjetaProducto({ producto: p, seleccionado, onAbrir, onActivar, acciones }: {
   producto: Product;
   seleccionado: boolean;
   onAbrir: () => void;
   onActivar: () => void;
+  /** El menú de tres puntos, ya armado por la página — el MISMO nodo que la fila
+   *  de la lista recibe en su slot `actions`. Vive en una capa `duna-hit__sobre`,
+   *  por encima del `::after` del nombre, para ser su propia parada en el tab. */
+  acciones: ReactNode;
 }) {
   const badge = badgeStock(p);
   return (
@@ -525,7 +587,9 @@ function TarjetaProducto({ producto: p, seleccionado, onAbrir, onActivar }: {
     <div className={`duna-card duna-card--hoverable${seleccionado ? ' is-selected' : ''}`}
          style={{ padding: 'var(--duna-space-3)', position: 'relative',
                   borderColor: seleccionado ? 'var(--duna-ink)' : undefined }}>
-      <div className="duna-tile">
+      {/* La foto se ATENÚA si el producto está inactivo (el texto no): el estado se
+          ve aunque el chip sea chico y la imagen domine la tarjeta. */}
+      <div className={`duna-tile${!p.activo ? ' duna-tile--atenuado' : ''}`}>
         {p.imagen
           ? <Image src={p.imagen} alt="" fill sizes="(max-width: 640px) 100vw, 25vw" style={{ objectFit: 'cover' }} />
           : <Package aria-hidden="true" width={28} height={28} />}
@@ -552,23 +616,31 @@ function TarjetaProducto({ producto: p, seleccionado, onAbrir, onActivar }: {
         )}
       </div>
 
-      <div style={{ marginTop: 'var(--duna-space-3)', minWidth: 0 }}>
-        {/* El nombre ES el control: un `<button>` que estira su área de clic sobre
-            toda la tarjeta con un pseudo-elemento, así el nombre es lo que anuncia
-            el lector de pantalla y el clic sigue siendo de la tarjeta entera. */}
-        <button type="button" onClick={onAbrir}
-                className="duna-hit"
-                style={{ font: 'inherit', color: 'inherit', background: 'none', border: 'none',
-                         padding: 0, textAlign: 'left', fontWeight: 'var(--duna-w-semi)', cursor: 'pointer' }}>
-          {p.nombre}
-        </button>
-        <div className="duna-num" style={{ fontWeight: 'var(--duna-w-semi)', marginTop: 'var(--duna-space-hairline)' }}>
-          {formatCOP(p.precio)}
+      {/* Fila: el contenido flexible a la izquierda, el menú de tres puntos a la
+          derecha. El menú va en una capa `duna-hit__sobre` —por encima del
+          `::after` del nombre— para ser cliqueable y su propia parada de tab sin
+          disparar la apertura de la tarjeta. Mismo reparto que la fila de la
+          lista con `actions`. */}
+      <div style={{ marginTop: 'var(--duna-space-3)', display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-2)' }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          {/* El nombre ES el control: un `<button>` que estira su área de clic sobre
+              toda la tarjeta con un pseudo-elemento, así el nombre es lo que anuncia
+              el lector de pantalla y el clic sigue siendo de la tarjeta entera. */}
+          <button type="button" onClick={onAbrir}
+                  className="duna-hit"
+                  style={{ font: 'inherit', color: 'inherit', background: 'none', border: 'none',
+                           padding: 0, textAlign: 'left', fontWeight: 'var(--duna-w-semi)', cursor: 'pointer' }}>
+            {p.nombre}
+          </button>
+          <div className="duna-num" style={{ fontWeight: 'var(--duna-w-semi)', marginTop: 'var(--duna-space-hairline)' }}>
+            {formatCOP(p.precio)}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
+            <span className={`${claseStock(p)} duna-caption`}>{textoStock(p)}</span>
+            {p.sku && <span className="duna-mono">{p.sku}</span>}
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
-          <span className={`${claseStock(p)} duna-caption`}>{textoStock(p)}</span>
-          {p.sku && <span className="duna-mono">{p.sku}</span>}
-        </div>
+        <div className="duna-hit__sobre" style={{ flexShrink: 0 }}>{acciones}</div>
       </div>
     </div>
   );
@@ -582,11 +654,15 @@ function TarjetaProducto({ producto: p, seleccionado, onAbrir, onActivar }: {
 // en blanco.
 //
 // El panel RENDERIZA y llama hacia arriba: no es dueño de ninguna mutación.
-function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onEditar, onEliminar, onActivar, onAjustar, onVerImagen }: {
+function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onCerrar, onEditar, onEliminar, onActivar, onAjustar, onVerImagen }: {
   producto: Product;
   kardex: InventoryLog[] | null;
   cargandoKardex: boolean;
   errorKardex: string | null;
+  /** Cierra el panel. Sólo llega en cuadrícula-escritorio, donde el split apareció
+   *  al seleccionar y tiene que poder desaparecer; en lista y en sheet es undefined
+   *  y la × no se renderiza. */
+  onCerrar?: () => void;
   onEditar: () => void;
   onEliminar: () => void;
   onActivar: () => void;
@@ -612,13 +688,13 @@ function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onEditar, o
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-3)' }}>
         <div style={{ width: 'calc(var(--duna-thumb-w) * 2)', flexShrink: 0 }}>
           {p.imagen ? (
-            <button type="button" className="duna-tile"
+            <button type="button" className={`duna-tile${!p.activo ? ' duna-tile--atenuado' : ''}`}
                     onClick={() => onVerImagen(p.imagen!, p.nombre)}
                     aria-label={`Ver la portada de ${p.nombre} en grande`}>
               <Image src={p.imagen} alt="" fill sizes="88px" style={{ objectFit: 'cover' }} />
             </button>
           ) : (
-            <div className="duna-tile"><Package aria-hidden="true" width={24} height={24} /></div>
+            <div className={`duna-tile${!p.activo ? ' duna-tile--atenuado' : ''}`}><Package aria-hidden="true" width={24} height={24} /></div>
           )}
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
@@ -640,6 +716,31 @@ function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onEditar, o
               </button>
             )}
           </div>
+        </div>
+
+        {/* LAS ACCIONES DE LA FICHA, ARRIBA JUNTO AL NOMBRE — no al pie. Editar y
+            eliminar son de la FICHA, no del historial; al final se hundían a
+            medida que el kardex crecía, y un contenedor que scrollea sin techo no
+            tiene dónde anclar acciones. "Ajustar stock" NO está acá: es una
+            operación de inventario y vive junto a existencias; activar/desactivar
+            conservan su patrón (badge / secundario del diálogo de eliminar). */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
+          {/* La × de cierre va arriba, en la esquina del panel; sólo existe en
+              cuadrícula-escritorio (§ onCerrar). Alineada a la derecha para no
+              empujar a Editar/Eliminar, que quedan debajo. */}
+          {onCerrar && (
+            <button type="button" className="duna-btn duna-btn--ghost duna-btn--icon"
+                    style={{ alignSelf: 'flex-end' }} onClick={onCerrar}
+                    title="Cerrar" aria-label="Cerrar el panel">
+              <X />
+            </button>
+          )}
+          <button type="button" className="duna-btn duna-btn--secondary duna-btn--sm" onClick={onEditar}>
+            Editar
+          </button>
+          <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm" onClick={onEliminar}>
+            Eliminar
+          </button>
         </div>
       </div>
 
@@ -737,18 +838,8 @@ function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onEditar, o
           }))}
         />
       )}
-
-      <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
-
-      {/* ── Acciones ─────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)' }}>
-        <button type="button" className="duna-btn duna-btn--secondary" onClick={onEditar}>
-          Editar producto
-        </button>
-        <button type="button" className="duna-btn duna-btn--ghost" onClick={onEliminar}>
-          Eliminar
-        </button>
-      </div>
+      {/* Movimientos es LO ÚLTIMO a propósito: crece sin techo y no arrastra nada
+          debajo. Las acciones que antes vivían acá subieron al encabezado. */}
     </div>
   );
 }

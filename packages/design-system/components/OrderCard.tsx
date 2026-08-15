@@ -69,6 +69,22 @@ export interface OrderCardProps {
    * segunda opinión sobre cómo se ve un registro en una lista de este panel.
    */
   media?: ReactNode;
+  /**
+   * Acciones de la fila (p. ej. un menú de tres puntos), a la derecha.
+   *
+   * OPCIONAL, y con default seguro: SIN `actions` la fila es EXACTAMENTE la de
+   * siempre —un `<button>` cuando es clickeable (foco, Enter y Espacio gratis, el
+   * arreglo H9)—, así que Pedidos y Clientes, que no la pasan, no cambian una
+   * línea.
+   *
+   * CON `actions` la fila NO PUEDE seguir siendo un `<button>`: anidar el trigger
+   * del menú dentro de un botón es HTML inválido y un lío de foco. Ésta es la
+   * partición que el comentario de abajo anticipaba. La superficie pasa al patrón
+   * `duna-hit`: el NOMBRE es el hit-target (su `::after` cubre toda la fila y le
+   * devuelve el clic + el teclado que daba el `<button>`), y las acciones viven en
+   * una capa `__sobre`, que es su PROPIA parada en el tab order.
+   */
+  actions?: ReactNode;
   selected?: boolean;
   onClick?: () => void;
 }
@@ -94,11 +110,12 @@ function segClass(i: number, s: OrderSteps): string {
 // vez de ser siempre un botón deshabilitado.
 //
 // Dentro de la tarjeta sólo hay <span>: ningún control anidado, que es lo que
-// haría inválido envolver todo en un <button>. Si algún día la fila necesita un
-// botón propio (un "Despachar" inline), esta forma deja de servir y hay que
-// partirla — no anidar.
+// haría inválido envolver todo en un <button>. Si la fila necesita un control
+// propio (el menú de tres puntos, vía la prop `actions`), esta forma deja de
+// servir y hay que partirla — no anidar. Esa partición es la RAMA de `actions`
+// más abajo: el `<button>` que envuelve todo se cambia por el patrón `duna-hit`.
 export function OrderCard({
-  title, id, amount, channel, status, steps, timeAgo, media, selected, onClick,
+  title, id, amount, channel, status, steps, timeAgo, media, actions, selected, onClick,
 }: OrderCardProps) {
   const className = `duna-order-card${media ? ' duna-order-card--media' : ''}${selected ? ' is-selected' : ''}`;
   // `aria-current` y no `aria-selected`: la tarjeta no vive en un `listbox` ni en
@@ -114,13 +131,30 @@ export function OrderCard({
       <div className={className}>{kids}</div>
     );
 
+  // CON `actions`, el nombre es el hit-target (un `<button>` cuyo `::after` cubre
+  // la fila) en vez de que la fila entera sea un botón. Sin `actions`, es el
+  // `<span>` de siempre y el botón es la carcasa. Las dos dan foco + Enter/Espacio
+  // sobre el área principal; lo que cambia es DÓNDE vive el botón.
+  const nombre = actions ? (
+    <button
+      type="button"
+      className="duna-hit duna-order-card__name"
+      onClick={onClick}
+      aria-current={selected || undefined}
+    >
+      {title}
+    </button>
+  ) : (
+    <span className="duna-order-card__name">{title}</span>
+  );
+
   // El apilado de siempre. Con medio se envuelve en `__body` y queda a la derecha
   // de la miniatura; SIN medio se emite tal cual —ni un nodo de más— para que las
   // filas que ya están en producción no cambien de estructura.
   const apilado = (
     <>
       <div className="duna-order-card__top">
-        <span className="duna-order-card__name">{title}</span>
+        {nombre}
         {id && <span className="duna-order-card__id duna-mono">{id}</span>}
         <span className="duna-order-card__amount duna-num">{amount}</span>
       </div>
@@ -150,6 +184,23 @@ export function OrderCard({
       )}
     </>
   );
+
+  // ── LA RAMA CON ACCIONES · superficie duna-hit, no <button> ────────────────
+  // La fila es un `<div>` posicionado (no un botón), el clic + el teclado los da
+  // el nombre (`.duna-hit`, su `::after` cubre la fila), y las acciones van en una
+  // capa `__sobre` — su propia parada en el tab order, por encima del `::after`.
+  // El contenido SIEMPRE se envuelve en `__body` acá (haya medio o no) porque las
+  // acciones son un tercer ítem flex a la derecha y el cuerpo tiene que ser el
+  // flexible del medio.
+  if (actions) {
+    return (
+      <div className={`${className} duna-order-card--con-acciones`}>
+        {media && <div className="duna-order-card__media">{media}</div>}
+        <div className="duna-order-card__body">{apilado}</div>
+        <div className="duna-hit__sobre duna-order-card__actions">{actions}</div>
+      </div>
+    );
+  }
 
   return carcasa(
     media ? (
