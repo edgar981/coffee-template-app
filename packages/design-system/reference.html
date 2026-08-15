@@ -235,6 +235,41 @@
     <div class="flag" style="margin-top:var(--duna-space-3)">La primitiva NUNCA asumió el número —el <code>duna-pill</code> es sólo la cápsula y el conteo lo pone el consumidor— pero esta página lo mostraba en los tres, y una prueba viva que enseña una sola variante se lee como si fuera la única. La regla y su campo obligatorio viven en la app (<code>lib/carriles.ts</code>), porque "cola" y "acumulador" son categorías de NEGOCIO y el sistema es agnóstico de negocio.</div>
   </section>
 
+  <!-- SEGMENTADO -->
+  <section>
+    <h2 class="sec">Segmentado · elegir UNO de un puñado de modos</h2>
+    <p class="sec-note">NO es un control de una pantalla: la maqueta dibuja el mismo control dos veces con otro nombre —el toggle de vista (íconos) y el período de Analítica (texto)—. Por eso admite las dos formas desde el primer día, aunque hoy lo estrene una sola.</p>
+
+    <div class="row" style="gap:var(--duna-space-6)">
+      <div>
+        <div class="duna-caption" style="margin-bottom:var(--duna-space-2)">Íconos · el modo de ver una lista</div>
+        <div class="duna-seg" role="group" aria-label="Modo de vista">
+          <button type="button" class="duna-seg__item is-on" aria-pressed="true" aria-label="Cuadrícula">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </button>
+          <button type="button" class="duna-seg__item" aria-pressed="false" aria-label="Lista">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <div class="duna-caption" style="margin-bottom:var(--duna-space-2)">Texto · el período de un análisis</div>
+        <div class="duna-seg" role="group" aria-label="Período">
+          <button type="button" class="duna-seg__item" aria-pressed="false">7 días</button>
+          <button type="button" class="duna-seg__item is-on" aria-pressed="true">30 días</button>
+          <button type="button" class="duna-seg__item" aria-pressed="false">90 días</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">CUÁNDO ESTO Y NO UN <code>duna-pill</code>. El pill FILTRA un conjunto —varios pueden tener sentido y llevan conteo cuando cuentan una cola—; el segmentado cambia el MODO de ver lo mismo: exactamente uno, y sin conteo posible, porque "cuadrícula&nbsp;12" no significa nada. Son preguntas distintas, y por eso son dos primitivas y no una con bandera.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">LA PISTA VA HUNDIDA Y EL ELEGIDO LEVANTADO — <b style="color:var(--duna-ink)">la maqueta lo tiene al revés</b>. Ella pone la pista en <code>surface</code> y el activo en <code>surface-2</code>: en claro se ve plausible, pero en OSCURO <code>surface-2</code> es más oscuro que <code>surface</code>, así que el activo quedaría hundido en un tema y levantado en el otro — y la <code>shadow-1</code> sobre fondo oscuro casi no existe, con lo que el único signo que sobreviviría sería el color del texto. Invertido, la dirección es la misma en los dos temas. Mirá este bloque con el toggle de arriba.<br><br>Los radios son aritmética: interno = externo − padding (<code>r-m</code> 12 − <code>space-1</code> 4 = 8 = <code>r-s</code>). Con cualquier otra combinación el chip elegido deja una luna despareja contra la esquina de la pista.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">EL <code>aria-pressed</code> Y EL <code>aria-label</code> DEL SEGMENTO DE ÍCONO LOS PONE EL CONSUMIDOR, como el <code>aria-pressed</code> del pill: la primitiva es la cápsula, no la semántica. Un segmento de sólo ícono sin etiqueta es un botón mudo para quien no ve — y es el modo de falla propio de ESTA primitiva, porque es la única del sistema que se usa sin texto.</div>
+  </section>
+
   <!-- BUSCADOR -->
   <section>
     <h2 class="sec">Campos · el grupo, y por qué los controles son NATIVOS</h2>

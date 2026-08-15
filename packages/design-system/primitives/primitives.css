@@ -616,6 +616,73 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 .duna-pill:hover { color: var(--duna-ink); }
 .duna-pill.is-on { background: var(--duna-surface); border-color: var(--duna-border-2); color: var(--duna-ink); box-shadow: var(--duna-shadow-1); }
 
+/* ── SEGMENTADO · elegir UNO de un puñado de modos ──────────────────────────
+   NO ES UN CONTROL DE PRODUCTOS. Nace para el toggle cuadrícula/lista, pero la
+   maqueta dibuja EL MISMO control dos veces con otro nombre —`.viewtoggle`
+   (íconos) y `.range-seg` (texto, el período de Analítica)— y esa duplicación es
+   justamente el aviso: si naciera como "el toggle de Productos", la vertical
+   siguiente haría el suyo y tendríamos dos formas de elegir un modo. Por eso
+   admite ícono y texto desde el primer día, aunque hoy lo estrene uno solo.
+
+   ── CUÁNDO ESTO Y NO UN PILL ────────────────────────────────────────────────
+   El pill FILTRA un conjunto (varios pueden tener sentido, y llevan conteo); el
+   segmentado cambia el MODO de ver lo mismo (exactamente uno, sin conteo posible
+   — "cuadrícula 12" no significa nada). Son preguntas distintas y por eso son dos
+   primitivas y no una con bandera.
+
+   ── LA PISTA VA HUNDIDA Y EL ELEGIDO LEVANTADO — LA MAQUETA LO TIENE AL REVÉS ─
+   Ella pone la pista en `surface` y el activo en `surface-2`. En CLARO se ve
+   plausible; en OSCURO `surface-2` es más OSCURO que `surface`, así que el activo
+   quedaría hundido en un tema y levantado en el otro, y la `shadow-1` sobre fondo
+   oscuro casi no existe — el único signo que sobreviviría sería el color del
+   texto. Invertido (pista `surface-2`, elegido `surface` + sombra) la dirección
+   es la misma en los dos temas, porque `surface` está POR ENCIMA de `surface-2`
+   en ambos. Y es además el idioma que ya habla `.duna-pill.is-on`: elegido =
+   levantado.
+
+   ── LOS RADIOS SON ARITMÉTICA, NO GUSTO ─────────────────────────────────────
+   interno = externo − padding: `--duna-r-m` (12) − `--duna-space-1` (4) = 8 =
+   `--duna-r-s`. Con cualquier otra combinación el chip elegido deja una luna
+   despareja contra la esquina de la pista. */
+.duna-seg { display: inline-flex; gap: var(--duna-space-hairline); padding: var(--duna-space-1);
+            background: var(--duna-surface-2); border: 1px solid var(--duna-border);
+            border-radius: var(--duna-r-m); }
+.duna-seg__item { display: inline-flex; align-items: center; justify-content: center;
+                  gap: var(--duna-space-inline);
+                  padding: var(--duna-space-1) var(--duna-space-3); border-radius: var(--duna-r-s);
+                  border: none; background: none; cursor: pointer; font: inherit;
+                  font-size: var(--duna-text-label); font-weight: var(--duna-w-semi);
+                  color: var(--duna-muted);
+                  transition: background var(--duna-dur-fast) var(--duna-ease), color var(--duna-dur-fast) var(--duna-ease);
+                  /* DECLARADA — tercera vez que hace falta, después de `.duna-btn`
+                     y `.duna-pill`. */
+                  line-height: var(--duna-lh-normal);
+                  /* ── Y LA LÍNEA FIJA NO ALCANZA ACÁ, QUE ES LO PROPIO DE ESTE
+                     CONTROL ────────────────────────────────────────────────────
+                     `line-height` gobierna la caja de TEXTO, y un segmento de sólo
+                     ícono no tiene texto: su altura la decide el SVG (13px) contra
+                     los 15.6 de una línea de label. Medido en la prueba viva: el
+                     segmentado de íconos daba 31px y el de texto 34 — tres píxeles
+                     entre dos controles que se ven juntos en la misma barra.
+                     Este `min-height` es esa línea de texto reconstruida en
+                     aritmética de tokens (una línea + el padding de arriba y abajo,
+                     que `border-box` incluye), así que el segmento de ícono mide lo
+                     mismo que el de texto sin agrandar el ícono — que sigue siendo
+                     el de 13px de todo el sistema. Se mueve solo si cambia la escala
+                     tipográfica o el padding. */
+                  min-height: calc(var(--duna-text-label) * var(--duna-lh-normal) + var(--duna-space-1) * 2); }
+.duna-seg__item:hover { color: var(--duna-ink); }
+.duna-seg__item.is-on { background: var(--duna-surface); color: var(--duna-ink); box-shadow: var(--duna-shadow-1); }
+/* El tamaño del ícono lo pone el sistema, igual que en `.duna-btn`: el consumidor
+   elige CUÁL ícono, nunca cuánto mide. */
+.duna-seg__item svg { width: 13px; height: 13px; flex-shrink: 0; }
+.duna-seg__item:focus-visible { box-shadow: var(--duna-ring); outline: 2px solid transparent; outline-offset: 2px; }
+/* ELEGIDO **Y** ENFOCADO · las dos señales, compuestas — la misma colisión de
+   `box-shadow` que el tile, y acá se escribe de entrada en vez de descubrirse:
+   sin esta regla el foco borra la elevación y el segmento activo se aplana justo
+   mientras se recorre el control con el teclado. */
+.duna-seg__item.is-on:focus-visible { box-shadow: var(--duna-shadow-1), var(--duna-ring); }
+
 /* ── STEPS · el "en curso" es una POSICIÓN, con anillo del sol pulsante ──── */
 .duna-steps { display: flex; align-items: center; gap: var(--duna-space-1); }
 .duna-steps__seg { height: 3px; border-radius: 2px; background: var(--duna-border-2); flex: 1;
