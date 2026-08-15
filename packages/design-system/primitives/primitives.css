@@ -1604,6 +1604,34 @@ button.duna-order-card__name {
 .duna-items-table__meta { color: var(--duna-muted); font-size: var(--duna-text-caption); }
 .duna-items-table__total td { font-weight: var(--duna-w-semi); }
 
+/* ── Table · una tabla de DATOS agnóstica (auditoría, listados densos) ───────
+   Distinta de `items-table`: aquélla es de DOS columnas (label / monto) para las
+   líneas de una orden; ésta es COLUMNAR, N columnas con encabezado, para una
+   vista de auditoría o un listado denso. Agnóstica de contenido: las columnas y
+   las celdas son props —no sabe qué es un movimiento ni un pago—, así que Pagos y
+   Analítica la van a poder usar tal cual.
+
+   EL SCROLL HORIZONTAL SE RESUELVE ACÁ, que es donde una tabla se rompe en móvil:
+   el ENVOLTORIO scrollea y la tabla no se aplasta (`min-width`), en vez de dejar
+   que cada consumidor invente su overflow —o que se olvide, y la tabla parta el
+   texto letra por letra en un teléfono. Es del sistema, no de la pantalla. */
+.duna-table-wrap { overflow-x: auto; }
+.duna-table { width: 100%; border-collapse: collapse; font-size: var(--duna-text-body);
+              /* Debajo de esto el envoltorio scrollea en vez de aplastar columnas.
+                 El consumidor puede subirlo con la prop `minWidth` si tiene más. */
+              min-width: 32rem; }
+.duna-table th { text-align: left; padding: var(--duna-space-2) var(--duna-space-3);
+                 font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi);
+                 color: var(--duna-muted); white-space: nowrap;
+                 border-bottom: 1px solid var(--duna-border-2); }
+.duna-table td { padding: var(--duna-space-3); border-bottom: 1px solid var(--duna-border);
+                 vertical-align: top; }
+.duna-table tbody tr:last-child td { border-bottom: none; }
+.duna-table tbody tr:hover { background: var(--duna-wash-hover); }
+/* Alineación a la derecha (números), en encabezado Y celda para que la columna
+   quede a plomo. Mismo patrón que `.duna-items-table__r`. */
+.duna-table th.duna-table__r, .duna-table td.duna-table__r { text-align: right; white-space: nowrap; }
+
 /* ── Reduced motion: el movimiento confirma, no obliga ──────────────────── */
 @media (prefers-reduced-motion: reduce) {
   /* `.duna-sheet` y `.duna-scrim` van NOMBRADOS y no los alcanza el `.duna *`:
