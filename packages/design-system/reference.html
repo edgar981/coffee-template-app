@@ -688,7 +688,7 @@
         <tbody>
           <tr>
             <td>Café Sierra 250 g</td>
-            <td><span class="duna-badge duna-badge--ok"><span class="duna-badge__dot"></span>Entrada</span></td>
+            <td><span class="duna-badge duna-badge--neutral">Entrada</span></td>
             <td class="duna-table__r duna-num">+12</td>
             <td class="duna-table__r duna-num">28 → 40</td>
             <td>Compra a proveedor</td>
@@ -697,7 +697,7 @@
           </tr>
           <tr>
             <td>Café Nariño 500 g</td>
-            <td><span class="duna-badge duna-badge--problem"><span class="duna-badge__dot"></span>Salida</span></td>
+            <td><span class="duna-badge duna-badge--neutral">Salida</span></td>
             <td class="duna-table__r duna-num">−3</td>
             <td class="duna-table__r duna-num">8 → 5</td>
             <td>Merma</td>
@@ -720,6 +720,7 @@
     <div class="flag">EL SCROLL HORIZONTAL LO RESUELVE EL SISTEMA, no la pantalla: el envoltorio <code>.duna-table-wrap</code> scrollea y la tabla no se aplasta (<code>min-width</code>). Es donde una tabla se rompe en móvil —columnas amontonadas o texto partido letra por letra—, así que no puede quedar librado a que cada consumidor se acuerde de envolverla. Achicá la ventana: la tabla mantiene sus columnas y aparece el scroll, en vez de reventar el layout.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">AGNÓSTICA DE CONTENIDO: <code>columns</code> (encabezado + alineación) y <code>rows</code> (celdas posicionales, ya resueltas por el consumidor) son props. El DS pone la rejilla, el encabezado y el scroll; el consumidor pone el badge de tipo, el <code>duna-num</code> de las cantidades y el "—" del actor ausente. La alineación de una celda la HEREDA de su columna, para que no pueda desalinearse del encabezado.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">LA COLUMNA "QUIÉN" ES EL ACTOR DEL ASIENTO, y el "—" es honesto: las filas viejas y los asientos del sistema no tienen humano. Es la razón por la que la tabla existe — una auditoría sin quién está coja en su razón de ser.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">EL TIPO VA NEUTRO, no verde/rojo — Amber Minimal: el rojo es alerta, y una salida o una venta son operación normal. La DIRECCIÓN la carga el signo de la cantidad (<code>+12</code> entra, <code>−3</code> sale, <code>7</code> el ajuste que FIJA un absoluto), no un color que gastaría el rojo donde no hay nada que atender.</div>
   </section>
 
   <!-- ESQUELETO -->
