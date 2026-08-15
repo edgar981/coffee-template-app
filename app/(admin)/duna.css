@@ -64,8 +64,16 @@
    Se evaluó y se descartó la tercera opción —enrutar cada primitiva portaleada
    por `dunaPortal`, como ya hace `DunaSheet`—: es correcta pero es una solución
    POR CONSUMIDOR, y cada primitiva futura tiene que acordarse. El script es
-   ESTRUCTURAL: vale para todo lo portaleado, presente y futuro. */
-.admin-shell {
+   ESTRUCTURAL: vale para todo lo portaleado, presente y futuro.
+
+   ── EL PUENTE VIVE EN `html.admin`, no en `.admin-shell` ────────────────────
+   Movido acá para que lo herede lo portaleado a <body>: `<body>` es hijo de
+   <html> pero NO de `.admin-shell` (un div más adentro), así que un dropdown
+   portaleado veía `--font-*` (el script las pone en <html>) pero NO el puente
+   `--duna-font-*` si éste seguía en el div. Ahora los dos viven en <html> y el
+   portal hereda ambos. El storefront no se afecta: `html.admin` sólo lo marca el
+   script del grupo, y en el storefront <html> no lleva esa clase. */
+html.admin {
   --duna-font-ui:      var(--font-hanken-grotesk), 'Hanken Grotesk', system-ui, sans-serif;
   --duna-font-display: var(--font-space-grotesk), 'Space Grotesk', var(--duna-font-ui);
   --duna-font-mono:    var(--font-spline-sans-mono), 'Spline Sans Mono', ui-monospace, monospace;
@@ -75,7 +83,8 @@
      (components/admin/TopBar.tsx, fija arriba). El token existe justamente para
      que el consumidor diga su medida: de él sale el `top` del panel sticky de
      `.duna-split`, que queda en 64 + 24 = 88 — debajo de la barra, con el aire
-     de un `space-6`.
+     de un `space-6`. El panel sticky vive dentro de `.admin-shell`, que es
+     descendiente de `html.admin`, así que lo hereda igual.
      Con los 52 del default el panel se metería 12px POR DEBAJO de la topbar al
      scrollear, y eso no se ve como un token mal puesto: se ve como un panel que
      "se corta raro". Sale de acá y no de un `calc` en la pantalla porque el día
