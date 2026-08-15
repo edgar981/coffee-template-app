@@ -650,6 +650,54 @@ excluyentes: exponer un control de `activo` (y entonces el `where` empieza a
 significar algo), o quitar el `where` (y entonces la consulta deja de prometer un
 filtro que no aplica). Lo que no puede quedar es la tercera, que es la de hoy.
 
+### 9. El CHROME del panel nunca migró al DS: hay DOS definiciones del lienzo
+
+Las pantallas del rediseño se ven Duna y **el lienzo sobre el que flotan no**.
+`AdminChrome` pinta `bg-background`, `TopBar` `bg-background/95`, `Sidebar`
+`bg-sidebar` — todos tokens de la APP (`globals.css`), no del sistema. Así que el
+mismo fondo está definido dos veces, y el que gana en pantalla no es el del
+paquete.
+
+**Medido** (owner, 2026-08-15), y lo que importa es que la divergencia no es
+pareja entre temas:
+
+| | app (`html.admin`) | sistema | delta RGB |
+| --- | --- | --- | --- |
+| lienzo · claro | `#F9F6F0` | `--duna-bg` `#F7F6F2` | 2, 0, −2 |
+| tarjeta · claro | `#FFFFFF` | `--duna-surface` `#FFFFFF` | 0 |
+| **lienzo · oscuro** | `#171717` | `--duna-bg` `#131211` | 4, 5, 6 |
+| **tarjeta · oscuro** | `#262626` | `--duna-surface` `#1B1A18` | **11, 12, 14** |
+
+En claro es invisible (2/255) y aun así son dos definiciones. **En oscuro se ve**,
+y no sólo por claridad: los oscuros de la app son grises NEUTROS (`0 0% 9%`,
+`0 0% 14.9%`) y los del sistema son CÁLIDOS. Un popover del chrome —la campana,
+el ⌘K, el menú de usuario— junto a una `.duna-card` difieren en tono, no sólo en
+valor.
+
+**Alcance, contado por archivo** (ocurrencias de clases de color de la app):
+`NotificationBell` 25 · `UserMenu` 21 · `Sidebar` 15 · `CommandPalette` 6 ·
+`TopBar` 5 · `AdminChrome` 1. Total ~73. **`MobileNav` ya está migrado** (14
+clases Duna, cero de la app): salió así de la tanda de móvil, y es la prueba de
+que el camino funciona.
+
+El mapeo es 1:1 y no un rediseño — el sistema tiene los tres roles
+(`--duna-paper` = rail, `--duna-bg` = lienzo, `--duna-surface` = tarjeta) contra
+`--sidebar` / `--background` / `--card` de la app. Lo que hay que decidir es si en
+oscuro se adopta el cálido del sistema, que es un cambio VISIBLE en todo el panel.
+
+**Costo YA pagado: ninguno todavía** — nadie reportó el desfase, se encontró
+comparando la pantalla nueva contra `reference.html`. Lo que sí está pagado es el
+gemelo tipográfico: § ProductFormModal dejó anotado que un diálogo shadcn
+portalea a `<body>`, fuera de `.admin-shell`, y ahí se pierden las tres familias
+de fuente. Los dos defectos tienen la MISMA raíz —el chrome no es del sistema— y
+la salida que `duna.css` ya prescribe (montar las variables de fuente en `<html>`)
+es exactamente la que esta migración habilita.
+
+**DISPARADOR: se cierran juntos, en una tanda de "el chrome es del sistema".** No
+antes: migrar sólo los fondos deja las fuentes rotas en los portales, y arreglar
+sólo las fuentes deja el lienzo divergiendo. Y no después de que alguien reporte
+"el panel se ve raro en oscuro", que es como se va a manifestar.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son

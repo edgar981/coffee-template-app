@@ -104,6 +104,15 @@
     <h2 class="sec">Botones · un solo primario (tinta) por vista</h2>
     <div class="row">
       <button class="duna-btn duna-btn--primary">Confirmar pedido</button>
+      <!-- CON ÍCONO. No es una variante decorativa: TODO primario de acción del
+           panel lleva uno ("+ Nuevo pedido", "+ Nuevo cliente", "+ Nuevo
+           producto"), y esta página no mostraba ninguno — así que enseñaba como
+           única la variante que en la app casi no existe. Mismo defecto que tuvo
+           el pill con número, y misma corrección. -->
+      <button class="duna-btn duna-btn--primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Confirmar pedido
+      </button>
       <button class="duna-btn duna-btn--secondary">Ver detalle</button>
       <button class="duna-btn duna-btn--ghost">Cancelar</button>
       <button class="duna-btn duna-btn--primary duna-btn--sm">Guardar</button>
@@ -122,7 +131,9 @@
     </div>
     <p class="sec-note" id="disMedida" style="margin:var(--duna-space-3) 0 0"></p>
 
-    <div class="flag" style="margin-top:var(--duna-space-4)">EL DESHABILITADO NO PROMETE NADA, y eran TRES promesas. El <b style="color:var(--duna-ink)">cursor</b> seguía en mano: <code>duna-btn</code> declaraba <code>cursor:pointer</code> sin condición, y el CSS del paquete entra SIN capa — lo sin capa le gana a todo lo que está en capas, así que pisaba la exclusión que el consumidor ya tenía escrita. El <b style="color:var(--duna-ink)">hover</b> seguía vivo: el primario se ELEVABA un píxel estando deshabilitado, y un control que se mueve bajo el cursor promete más fuerte que un cursor. Y el <b style="color:var(--duna-ink)">peso</b> era el mismo: "Guardando…" se veía tan disponible como "Guardar".</div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">EL ÍCONO NO CAMBIA EL PADDING, Y ESTA PÁGINA NO LO MOSTRABA. Los dos primeros botones dicen lo MISMO a propósito, para que la comparación se pueda hacer mirando: idéntico padding —<code>12px</code> en los cuatro lados, exactamente <code>--duna-space-3</code>— e idéntica altura; el segundo mide 19px más de ancho y esos 19 son el ícono (13) más el <code>gap</code> (6), nada más. Se midió porque el panel parecía tener botones "más acolchados" que esta página: no lo son, son más ANCHOS, y la diferencia es el ícono.<br><br>El defecto no estaba en la primitiva sino acá: TODO primario de acción del panel lleva ícono ("+ Nuevo pedido", "+ Nuevo cliente", "+ Nuevo producto") y esta página no mostraba ninguno, así que enseñaba como única la variante que en la app casi no existe. Es exactamente lo que ya había pasado con el pill y su número — <b style="color:var(--duna-ink)">una prueba viva que enseña una sola variante se lee como si fuera la única</b>.<br><br>El TAMAÑO del ícono lo pone el sistema (<code>.duna-btn svg</code>): el consumidor elige CUÁL, nunca cuánto mide.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">EL DESHABILITADO NO PROMETE NADA, y eran TRES promesas. El <b style="color:var(--duna-ink)">cursor</b> seguía en mano: <code>duna-btn</code> declaraba <code>cursor:pointer</code> sin condición, y el CSS del paquete entra SIN capa — lo sin capa le gana a todo lo que está en capas, así que pisaba la exclusión que el consumidor ya tenía escrita. El <b style="color:var(--duna-ink)">hover</b> seguía vivo: el primario se ELEVABA un píxel estando deshabilitado, y un control que se mueve bajo el cursor promete más fuerte que un cursor. Y el <b style="color:var(--duna-ink)">peso</b> era el mismo: "Guardando…" se veía tan disponible como "Guardar".</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">Los <code>:hover</code> pasan a <code>:not(:disabled):hover</code> en vez de neutralizarse con overrides: así el estilo NO EXISTE, en vez de existir y ser deshecho — que es la diferencia entre no tener el defecto y taparlo.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)"><code>default</code> Y NO <code>wait</code> NI <code>not-allowed</code>, porque desde el CSS <code>:disabled</code> no distingue OCUPADO (una mutación en vuelo) de BLOQUEADO (una precondición sin cumplir), y en el panel existen los dos. <code>wait</code> mentiría sobre el bloqueado —afirma que algo está cargando— y <code>not-allowed</code> mentiría sobre el ocupado, que sí va a poder en un segundo. No afirmar es lo único correcto para los dos.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">LA OPACIDAD NO PUEDE ESCONDER EL MOTIVO. <code>.55</code> y no el <code>.35</code> de la maqueta: estos botones LLEVAN información mientras están deshabilitados —"Guardando…", "falta mensajero"— y la doctrina del panel es que un botón bloqueado diga qué falta. Una opacidad que apaga ese texto convierte la explicación en decoración.</div>
