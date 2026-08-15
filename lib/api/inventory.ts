@@ -7,8 +7,17 @@ export async function getProducts(): Promise<Product[]> {
   return res.json();
 }
 
-export async function getInventoryLogs(): Promise<InventoryLog[]> {
-  const res = await fetch('/api/inventory/logs');
+/**
+ * Los movimientos de inventario. Sin `productoId` trae el kardex COMPLETO (la
+ * vista de auditoría de Inventario); con él, sólo los de ese producto — que es
+ * lo que muestra el detalle de un producto.
+ *
+ * El parámetro es opcional para que el llamador de siempre no cambie: la
+ * pestaña Movimientos sigue llamando `getInventoryLogs()` y recibe lo mismo.
+ */
+export async function getInventoryLogs(productoId?: string): Promise<InventoryLog[]> {
+  const qs = productoId ? `?producto=${encodeURIComponent(productoId)}` : '';
+  const res = await fetch(`/api/inventory/logs${qs}`);
   if (!res.ok) throw new Error('Error al cargar movimientos');
   return res.json();
 }
