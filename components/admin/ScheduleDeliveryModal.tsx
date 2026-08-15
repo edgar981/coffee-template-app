@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { MessageCircle, Mail, Plus, ExternalLink } from 'lucide-react';
 import { DunaSheet } from '@/components/admin/DunaSheet';
+import { DateField } from '@/components/admin/DateField';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
@@ -392,9 +393,12 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
             <p className="mt-1 text-xs text-muted-foreground">Sugerida según la dirección</p>
           )}
         </div>
-        <div>
-          <span className="duna-field__label">Fecha programada</span>
-          <input className="duna-input" type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
+        <div className="duna-field">
+          <label className="duna-field__label" htmlFor="sd-fecha">Fecha programada</label>
+          {/* EL MISMO calendario que el "Rango de fechas" de Pedidos. Era un
+              `<input type="date">`, y ésa era la incoherencia: dos date pickers
+              distintos para la misma tarea, visibles en la misma sesión. */}
+          <DateField id="sd-fecha" value={fecha} onChange={setFecha} />
         </div>
         {/* La brecha, dicha: se puede guardar con datos parciales (el mensajero
             NO es obligatorio para agendar), pero despachar exige ambos. */}
