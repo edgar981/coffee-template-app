@@ -96,6 +96,18 @@
    ancho y el alto ya vienen del `inset: 0` y estas dos líneas son un no-op. */
 .duna-tile img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
+/* ── ATENUADA · la entidad está inactiva, y el ESTADO se ve, no sólo se etiqueta ─
+   Atenúa la MEDIA del tile (la foto o el ícono de reemplazo) para que un producto
+   inactivo se lea de un vistazo, sin que un chip chico se pierda cuando la imagen
+   domina la tarjeta. Dos cosas quedan INTACTAS a propósito:
+   - los `.duna-tile__ribbon` (el badge "Inactivo" tiene que seguir legible — es
+     justo el que anuncia el estado);
+   - el texto de la tarjeta (nombre, precio, SKU), que vive FUERA del tile.
+   Así "inactivo" se ve pero el producto se sigue leyendo: no se ofrece, no se
+   esconde. Se apunta a `img`/`svg` y no al tile entero para no tocar los ribbons. */
+.duna-tile--atenuado img,
+.duna-tile--atenuado > svg { opacity: .4; transition: opacity var(--duna-dur) var(--duna-ease); }
+
 /* Cuadrada y de ancho fijo — la miniatura que acompaña a una fila de datos.
    El ancho es TOKEN y no un número acá: lo comparte con las pistas de `.duna-tiles`
    (la derivación del 44 está en `tokens.css`). */
@@ -405,7 +417,15 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
                 background: var(--duna-sol); }
 
 /* ── Botones · un solo primario sólido por vista = TINTA ─────────────────── */
-.duna-btn { display: inline-flex; align-items: center; gap: var(--duna-space-inline); /* ícono↔label */
+.duna-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--duna-space-inline); /* ícono↔label */
+            /* `justify-content: center` NO es decorativo: sin él, un botón ESTIRADO
+               más ancho que su contenido —una columna con `align-items: stretch`, o
+               un `w-full`— deja el label pegado a la izquierda (flex-start). Se vio
+               en la columna Editar/Eliminar del detalle de Productos: ambos se
+               estiran al ancho de "Eliminar" y "Editar", más corto, quedaba
+               descentrado (holgura 13px izq / 25px der; con esto, 19/19). Sólo tiene
+               efecto cuando el botón es más ancho que su contenido; para los de
+               ancho automático —la inmensa mayoría— no cambia nada. */
             padding: var(--duna-space-3) var(--duna-space-3); border-radius: var(--duna-r-s); font-weight: var(--duna-w-semi);
             font-size: var(--duna-text-label); border: 1px solid transparent; transition: all var(--duna-dur-fast) var(--duna-ease);
             cursor: pointer;

@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { LayoutGrid, List, Package, Plus } from 'lucide-react';
+import { LayoutGrid, List, Package, Plus, X } from 'lucide-react';
 import { OrderCard } from '@duna/design-system/components/OrderCard';
 import { SearchField } from '@duna/design-system/components/SearchField';
 import { SkeletonOrderCards } from '@duna/design-system/components/SkeletonOrderCard';
@@ -226,6 +226,22 @@ function Productos() {
     setProductos(prev => prev.map(x => x.id === p.id ? actualizado : x));
   };
 
+  // ESCAPE CIERRA EL PANEL — por consistencia con las demás superficies (el sheet
+  // ya lo hace vía Radix). Sólo en cuadrícula-escritorio, el mismo alcance que la
+  // × del encabezado: en lista el split es normal y en móvil el sheet trae lo suyo.
+  //
+  // NO le roba el Escape a un diálogo abierto: cuando hay uno, el efecto ni siquiera
+  // engancha el listener (los flags están en las deps, así que se re-suscribe al
+  // cerrarse), y Radix cierra el modal solo. El Escape que cierra el diálogo, por
+  // tanto, no cierra además el panel.
+  const hayDialogoAbierto = formAbierto || !!borrando || !!activarTarget || !!ajustando || !!lightbox;
+  useEffect(() => {
+    if (esMovil || vista !== 'cuadricula' || !elegido || hayDialogoAbierto) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') navegar({ producto: null }); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [esMovil, vista, elegido, hayDialogoAbierto, navegar]);
+
   // El detalle se escribe UNA vez: vive en el panel (ancho + lista) o en el sheet,
   // nunca en los dos. Dos juegos de props del mismo componente es cómo una de las
   // dos superficies se queda sin un dato y nadie lo ve hasta abrirlo en un
@@ -236,6 +252,12 @@ function Productos() {
       kardex={kardexVigente}
       cargandoKardex={cargandoKardex}
       errorKardex={errorKardex}
+      // EL CIERRE SÓLO EN CUADRÍCULA-ESCRITORIO: ahí el split APARECE al
+      // seleccionar, así que tiene que poder desaparecer. En lista el split es el
+      // estado normal (como Pedidos: el panel vacío dice "elige un producto") y no
+      // lleva ×; en móvil el sheet ya trae su propio cierre. El mismo nodo sirve a
+      // las tres superficies porque sólo una se renderiza a la vez.
+      onCerrar={!esMovil && vista === 'cuadricula' ? () => navegar({ producto: null }) : undefined}
       onEditar={() => setEditando(elegido)}
       onEliminar={() => setBorrando(elegido)}
       onActivar={() => setActivarTarget(elegido)}
@@ -530,7 +552,7 @@ function textoStock(p: Product): string {
 /** La miniatura de una fila: el marco del sistema, con el reemplazo del consumidor. */
 function Miniatura({ producto }: { producto: Product }) {
   return (
-    <div className="duna-tile duna-tile--sm">
+    <div className={`duna-tile duna-tile--sm${!producto.activo ? ' duna-tile--atenuado' : ''}`}>
       {producto.imagen
         ? <Image src={producto.imagen} alt="" fill sizes="44px" style={{ objectFit: 'cover' }} />
         : <Package aria-hidden="true" width={17} height={17} />}
@@ -565,7 +587,9 @@ function TarjetaProducto({ producto: p, seleccionado, onAbrir, onActivar, accion
     <div className={`duna-card duna-card--hoverable${seleccionado ? ' is-selected' : ''}`}
          style={{ padding: 'var(--duna-space-3)', position: 'relative',
                   borderColor: seleccionado ? 'var(--duna-ink)' : undefined }}>
-      <div className="duna-tile">
+      {/* La foto se ATENÚA si el producto está inactivo (el texto no): el estado se
+          ve aunque el chip sea chico y la imagen domine la tarjeta. */}
+      <div className={`duna-tile${!p.activo ? ' duna-tile--atenuado' : ''}`}>
         {p.imagen
           ? <Image src={p.imagen} alt="" fill sizes="(max-width: 640px) 100vw, 25vw" style={{ objectFit: 'cover' }} />
           : <Package aria-hidden="true" width={28} height={28} />}
@@ -630,11 +654,15 @@ function TarjetaProducto({ producto: p, seleccionado, onAbrir, onActivar, accion
 // en blanco.
 //
 // El panel RENDERIZA y llama hacia arriba: no es dueño de ninguna mutación.
-function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onEditar, onEliminar, onActivar, onAjustar, onVerImagen }: {
+function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onCerrar, onEditar, onEliminar, onActivar, onAjustar, onVerImagen }: {
   producto: Product;
   kardex: InventoryLog[] | null;
   cargandoKardex: boolean;
   errorKardex: string | null;
+  /** Cierra el panel. Sólo llega en cuadrícula-escritorio, donde el split apareció
+   *  al seleccionar y tiene que poder desaparecer; en lista y en sheet es undefined
+   *  y la × no se renderiza. */
+  onCerrar?: () => void;
   onEditar: () => void;
   onEliminar: () => void;
   onActivar: () => void;
@@ -660,13 +688,13 @@ function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onEditar, o
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-3)' }}>
         <div style={{ width: 'calc(var(--duna-thumb-w) * 2)', flexShrink: 0 }}>
           {p.imagen ? (
-            <button type="button" className="duna-tile"
+            <button type="button" className={`duna-tile${!p.activo ? ' duna-tile--atenuado' : ''}`}
                     onClick={() => onVerImagen(p.imagen!, p.nombre)}
                     aria-label={`Ver la portada de ${p.nombre} en grande`}>
               <Image src={p.imagen} alt="" fill sizes="88px" style={{ objectFit: 'cover' }} />
             </button>
           ) : (
-            <div className="duna-tile"><Package aria-hidden="true" width={24} height={24} /></div>
+            <div className={`duna-tile${!p.activo ? ' duna-tile--atenuado' : ''}`}><Package aria-hidden="true" width={24} height={24} /></div>
           )}
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
@@ -697,6 +725,15 @@ function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onEditar, o
             operación de inventario y vive junto a existencias; activar/desactivar
             conservan su patrón (badge / secundario del diálogo de eliminar). */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
+          {/* La × de cierre va arriba, en la esquina del panel; sólo existe en
+              cuadrícula-escritorio (§ onCerrar). Alineada a la derecha para no
+              empujar a Editar/Eliminar, que quedan debajo. */}
+          {onCerrar && (
+            <button type="button" className="duna-btn duna-btn--ghost duna-btn--icon"
+                    style={{ alignSelf: 'flex-end' }} onClick={onCerrar} aria-label="Cerrar el panel">
+              <X />
+            </button>
+          )}
           <button type="button" className="duna-btn duna-btn--secondary duna-btn--sm" onClick={onEditar}>
             Editar
           </button>
