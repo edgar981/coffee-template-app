@@ -140,19 +140,19 @@ function Cuerpo({ customer, onClose, onSaved }: {
               empuja el resto del formulario justo cuando el error aparece. */}
           {faltaNombre && <p className="duna-field__error" id="cf-nombre-err">El nombre es requerido.</p>}
         </div>
-        <div>
+        <div className="duna-field">
           <span className="duna-field__label">Correo</span>
           <input className="duna-input" {...campo('email')} />
         </div>
-        <div>
+        <div className="duna-field">
           <span className="duna-field__label">Teléfono</span>
           <input className="duna-input" {...campo('telefono')} />
         </div>
-        <div>
+        <div className="duna-field">
           <span className="duna-field__label">Ciudad</span>
           <input className="duna-input" {...campo('ciudad')} />
         </div>
-        <div>
+        <div className="duna-field">
           {/* "Origen" y no "Canal" — UNA sola etiqueta, declarada. Las dos
               pantallas viejas la llaman distinto (la lista "Canal", el perfil
               "Origen") para el MISMO campo. Se elige "Origen" porque para una
@@ -167,11 +167,11 @@ function Cuerpo({ customer, onClose, onSaved }: {
             ))}
           </select>
         </div>
-        <div className="col-span-2">
+        <div className="duna-field col-span-2">
           <span className="duna-field__label">Dirección</span>
           <input className="duna-input" {...campo('direccion')} />
         </div>
-        <div className="col-span-2">
+        <div className="duna-field col-span-2">
           <span className="duna-field__label">Notas</span>
           <textarea {...campo('notas')} className="duna-input" rows={3} />
         </div>
