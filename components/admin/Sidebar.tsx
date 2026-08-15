@@ -12,15 +12,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { authClient } from "@/lib/auth-client";
 import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
 import { UserMenu } from '@/components/admin/UserMenu';
-import { useAtencionPedidos } from '@/hooks/useAtencionPedidos';
+import { useAtencion } from '@/hooks/useAtencion';
+import { atencionDeRuta, type MapaAtencion } from '@/lib/atencion/registro';
 
 // ─── EL PUNTO SOL ─────────────────────────────────────────────────────────────
 //
-// Hoy sólo Pedidos tiene una regla de atención, así que la ruta es una constante y
-// no un registro. Cuando una segunda sección tenga la suya, esto se vuelve un mapa
-// y el endpoint devuelve una bandera por sección — no antes: generalizar con un
-// solo caso es inventar la forma equivocada con la mitad de la información.
-const RUTA_CON_ATENCION = '/admin/pedidos';
+// Era una constante (`RUTA_CON_ATENCION = '/admin/pedidos'`) porque había UNA sola
+// sección con regla de atención, y su comentario dejaba escrito el disparador:
+// "cuando una segunda sección tenga la suya, esto se vuelve un mapa y el endpoint
+// devuelve una bandera por sección". Productos es esa segunda sección, así que la
+// constante murió y el registro vive en `lib/atencion/registro.ts` — un solo sitio
+// para las dos superficies de navegación, no una copia acá y otra en MobileNav.
 
 // ─── One nav row ──────────────────────────────────────────────────────────────
 // Kept a real <Link> (prefetch, middle-click, aria-current). The WHOLE row drives
@@ -100,13 +102,13 @@ function NavRow({ item, active, iconOnly, animateIndicator, onNavigate, atencion
 }
 
 // ─── Nav list ─────────────────────────────────────────────────────────────────
-function SidebarNav({ iconOnly, animateIndicator, onNavigate, atencionPedidos }: {
+function SidebarNav({ iconOnly, animateIndicator, onNavigate, atencion }: {
   iconOnly: boolean;
   animateIndicator: boolean;
   onNavigate: () => void;
   /** Viene de `Sidebar`. NO se consulta acá: con el rail colapsado hay DOS
    *  `SidebarNav` montados a la vez y serían dos pollers. */
-  atencionPedidos: boolean;
+  atencion: MapaAtencion;
 }) {
   const pathname = usePathname();
   const { data: session } = authClient.useSession();
@@ -137,7 +139,7 @@ function SidebarNav({ iconOnly, animateIndicator, onNavigate, atencionPedidos }:
               iconOnly={iconOnly}
               animateIndicator={animateIndicator}
               onNavigate={onNavigate}
-              atencion={item.path === RUTA_CON_ATENCION && atencionPedidos}
+              atencion={atencionDeRuta(atencion, item.path)}
             />
           );
         })}
@@ -226,7 +228,7 @@ export default function Sidebar({ collapsed, onToggle, onOpenSearch }: SidebarPr
   // hay dos `SidebarNav` montados a la vez, así que el hook viviría duplicado.
   // `MobileNav` tiene la suya y no comparte ésta: las dos superficies nunca están
   // montadas al mismo tiempo, así que no hay dos pollers.
-  const atencionPedidos = useAtencionPedidos();
+  const atencion = useAtencion();
 
   return (
     <>
@@ -287,11 +289,11 @@ export default function Sidebar({ collapsed, onToggle, onOpenSearch }: SidebarPr
             puede querer un efecto al navegar. Hoy es un no-op DECLARADO, no un
             resto olvidado. */}
         <div className={cn('flex flex-1 flex-col overflow-hidden', collapsed && 'duna:hidden')}>
-          <SidebarNav iconOnly={false} animateIndicator onNavigate={() => {}} atencionPedidos={atencionPedidos} />
+          <SidebarNav iconOnly={false} animateIndicator onNavigate={() => {}} atencion={atencion} />
         </div>
         {collapsed && (
           <div className="hidden flex-1 flex-col overflow-hidden duna:flex">
-            <SidebarNav iconOnly animateIndicator onNavigate={() => {}} atencionPedidos={atencionPedidos} />
+            <SidebarNav iconOnly animateIndicator onNavigate={() => {}} atencion={atencion} />
           </div>
         )}
 

@@ -98,7 +98,7 @@ export async function GET() {
     // NO se traduce la regla a SQL: se trae un `select` ANGOSTO —sólo los campos
     // que `necesitaAtencion` mira— y decide la MISMA función que filtra el pill y
     // que enciende el punto del nav. Es la decisión que ya tomó
-    // `/api/orders/atencion`, y por el mismo motivo: un `where` con los cuatro
+    // `/api/atencion`, y por el mismo motivo: un `where` con los cuatro
     // predicados escritos a mano es donde la tarjeta y la lista empiezan a
     // divergir, y la divergencia sería invisible (dos números plausibles).
     prisma.order.findMany({
@@ -239,7 +239,7 @@ export async function GET() {
   // `Order.estado` es columna String en el schema (cada eje tiene su vocabulario);
   // `OrderStatus` es la lectura que hace la app. El cast vive acá, en la frontera,
   // y no dentro de la regla — la regla es pura y no debe saber de dónde vienen sus
-  // datos. Mismo movimiento que en `/api/orders/atencion`.
+  // datos. Mismo movimiento que en `/api/atencion`.
   const porAtender = ordenesParaAtencion
     .map(o => ({ ...o, estado: o.estado as OrderStatus }))
     .filter(necesitaAtencion)

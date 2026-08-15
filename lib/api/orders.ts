@@ -7,32 +7,6 @@ export async function getOrders(): Promise<Order[]> {
   return res.json();
 }
 
-/** Respuesta de `GET /api/orders/atencion`. */
-export interface AtencionPedidos {
-  hay:   boolean;
-  total: number;
-}
-
-// ¿Hay pedidos por atender? Lo consume el PUNTO SOL del nav, que se ve desde
-// cualquier pantalla del panel.
-//
-// NO lanza: devuelve `{ hay: false, total: 0 }` ante cualquier fallo. Es la
-// excepción deliberada a la regla de propagar el motivo del servidor, y va con su
-// razón: esto vive en el CHROME y se poletea solo, así que no hay ninguna acción
-// del operador a la que reportarle un error ni un diálogo donde ponerlo. Ante un
-// fallo, el punto se apaga — que es lo mismo que decir "no me consta que haya algo
-// que atender". La alternativa, dejarlo encendido por las dudas, sería un aviso
-// que no se puede resolver.
-export async function getAtencionPedidos(): Promise<AtencionPedidos> {
-  try {
-    const res = await fetch('/api/orders/atencion');
-    if (!res.ok) return { hay: false, total: 0 };
-    return await res.json();
-  } catch {
-    return { hay: false, total: 0 };
-  }
-}
-
 // La orden COMPLETA — con el libro de transiciones y los pagos. La pide el panel
 // de detalle al abrirse, y de nuevo después de cada mutación que escriba un
 // asiento: la lista no los trae (§ `ultimaTransicion`), y una copia de la lista

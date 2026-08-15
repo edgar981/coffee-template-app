@@ -33,7 +33,7 @@ export async function GET() {
     //
     // El costo: un `findMany` con `select` angosto sobre las órdenes vivas — sin
     // items, sin cliente, sin totales. Es la MISMA forma de consulta que ya corre
-    // `/api/orders/atencion`, que además se poletea cada 60 s desde cualquier
+    // `/api/atencion`, que además se poletea cada 60 s desde cualquier
     // pantalla del panel; ésta corre una vez por carga de Clientes.
     //
     // Los dos filtros del `where` son ATAJOS QUE NO PUEDEN MENTIR, no una
@@ -54,7 +54,7 @@ export async function GET() {
 
   // El cast vive en la FRONTERA, no dentro de la regla: `Order.estado` es una
   // columna String (cada eje tiene su vocabulario) y `OrderStatus` es la lectura
-  // que hace la app. Igual que en `/api/orders/atencion`.
+  // que hace la app. Igual que en `/api/atencion`.
   const atencionById = pedidosPorAtenderPorCliente(
     ordenesParaAtencion.map(o => ({ ...o, estado: o.estado as OrderStatus })),
   );

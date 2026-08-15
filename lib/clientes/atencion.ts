@@ -20,7 +20,7 @@ import { necesitaAtencion, type OrdenParaAtencion } from '@/lib/pedidos/atencion
 // Por lo mismo NO se traduce a SQL. Sería más barato un `COUNT` con los cuatro
 // predicados en el `where`, y ahí es exactamente donde las dos cuentas empiezan a
 // divergir en silencio: dos números plausibles calculados con criterios distintos.
-// Mismo argumento —y misma decisión— que `/api/orders/atencion`.
+// Mismo argumento —y misma decisión— que `/api/atencion`.
 
 export interface OrdenParaAtencionCliente extends OrdenParaAtencion {
   /** La FK, no el snapshot. Ver abajo por qué. */
