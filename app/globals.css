@@ -46,54 +46,84 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
 
-  /* Colors */
-  --color-background:           hsl(var(--background));
-  --color-foreground:           hsl(var(--foreground));
+  /* ── Colors ────────────────────────────────────────────────────────────────
+     EL CHROME DEL PANEL ES DEL DESIGN-SYSTEM, y esto es lo que lo conecta sin
+     tocar los ~718 usos de estas clases en el panel. La forma es un FALLBACK:
 
-  --color-card:                 hsl(var(--card));
-  --color-card-foreground:      hsl(var(--card-foreground));
+        --color-x: var(--duna-x, hsl(var(--x)))
 
-  --color-popover:              hsl(var(--popover));
-  --color-popover-foreground:   hsl(var(--popover-foreground));
+     Donde `--duna-*` está definido (el grupo `(admin)` carga tokens.css vía
+     duna.css), gana el token. Donde no —TODO el storefront: Next emite el CSS del
+     DS en un chunk que ninguna página pública enlaza, verificado sobre el
+     artefacto de producción— cae al triplete HSL de siempre y el storefront queda
+     byte-idéntico.
 
-  --color-primary:              hsl(var(--primary));
-  --color-primary-foreground:   hsl(var(--primary-foreground));
+     @theme es GLOBAL en Tailwind v4 (no se puede scopear), así que la seguridad
+     del storefront NO depende de un scope: depende de que `--duna-*` no exista
+     ahí. Ésa es la condición, y por eso se midió antes de escribir esto.
 
-  --color-secondary:            hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
+     El mapeo es por ROL, no por parecido de valor: `accent` y `sidebar-accent`
+     van a `--duna-wash-hover` porque son el fondo de hover del nav (verificado:
+     todos sus usos llevan `hover:`), no a `surface-2` que en oscuro los dejaba
+     casi sin tinte. Los deltas medidos, tema por tema, están en el backlog (§1). */
+  --color-background:           var(--duna-bg,       hsl(var(--background)));
+  --color-foreground:           var(--duna-ink,      hsl(var(--foreground)));
 
-  --color-muted:                hsl(var(--muted));
-  --color-muted-foreground:     hsl(var(--muted-foreground));
+  --color-card:                 var(--duna-surface,  hsl(var(--card)));
+  --color-card-foreground:      var(--duna-ink,      hsl(var(--card-foreground)));
 
-  --color-accent:               hsl(var(--accent));
-  --color-accent-foreground:    hsl(var(--accent-foreground));
+  --color-popover:              var(--duna-surface,  hsl(var(--popover)));
+  --color-popover-foreground:   var(--duna-ink,      hsl(var(--popover-foreground)));
 
-  /* Ámbar-acento calibrado para TEXTO/íconos (AA sobre el fondo del tema). El
-     --primary del admin pasó a tinta; este token restituye el ámbar donde era
-     acento de DATO/enlace, no relleno. Los rellenos/dots ámbar de marca sobre
-     superficie oscura no usan esto — el #F59E0B falla contraste como texto. */
+  --color-primary:              var(--duna-ink,      hsl(var(--primary)));
+  --color-primary-foreground:   var(--duna-paper,    hsl(var(--primary-foreground)));
+
+  --color-secondary:            var(--duna-surface-2, hsl(var(--secondary)));
+  --color-secondary-foreground: var(--duna-ink,      hsl(var(--secondary-foreground)));
+
+  --color-muted:                var(--duna-surface-2, hsl(var(--muted)));
+  --color-muted-foreground:     var(--duna-muted,    hsl(var(--muted-foreground)));
+
+  --color-accent:               var(--duna-wash-hover, hsl(var(--accent)));
+  --color-accent-foreground:    var(--duna-ink-2,    hsl(var(--accent-foreground)));
+
+  /* Ámbar-acento calibrado para TEXTO/íconos (AA sobre el fondo del tema). SIN
+     mapear a propósito: el DS tiene `--duna-sol`, pero significa ATENCIÓN, no
+     acento de dato/enlace. Darle el sol acá pondría el significante de urgencia
+     en un rol que no lo es. Queda como color propio del panel. */
   --color-accent-amber:         hsl(var(--accent-amber));
 
-  --color-destructive:          hsl(var(--destructive));
+  /* destructive → el rojo del sistema (terracota). SIN mapear su -foreground: es
+     el texto BLANCO sobre el relleno sólido, y el DS no tiene un par
+     "bad-sobre-relleno" (su btn--danger es TINTE, no relleno). El casi-blanco
+     actual sobre la terracota pasa AA — verificado. */
+  --color-destructive:          var(--duna-bad,      hsl(var(--destructive)));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
 
-  --color-border:               hsl(var(--border));
-  --color-input:                hsl(var(--input));
+  --color-border:               var(--duna-border,   hsl(var(--border)));
+  --color-input:                var(--duna-border-2, hsl(var(--input)));
+  /* ring SIN mapear: el `--duna-ring` del DS es un box-shadow (wash), no un color
+     HSL, así que no encaja en este slot. El foco del panel se migrará cuando sus
+     controles lo hagan; hoy conserva su ámbar. */
   --color-ring:                 hsl(var(--ring));
 
+  /* chart-* SIN mapear: son una escala de 5 tonos para datos, y el DS no tiene
+     familia de gráficas. Son color propio del panel. */
   --color-chart-1:              hsl(var(--chart-1));
   --color-chart-2:              hsl(var(--chart-2));
   --color-chart-3:              hsl(var(--chart-3));
   --color-chart-4:              hsl(var(--chart-4));
   --color-chart-5:              hsl(var(--chart-5));
 
-  --color-sidebar:                      hsl(var(--sidebar-background));
-  --color-sidebar-foreground:           hsl(var(--sidebar-foreground));
+  /* El RAIL: fondo = papel de marca, hover = wash. `sidebar-primary` (el marcador
+     activo) y `sidebar-ring` quedan SIN mapear por lo mismo que `ring`. */
+  --color-sidebar:                      var(--duna-paper,      hsl(var(--sidebar-background)));
+  --color-sidebar-foreground:           var(--duna-ink,        hsl(var(--sidebar-foreground)));
   --color-sidebar-primary:              hsl(var(--sidebar-primary));
   --color-sidebar-primary-foreground:   hsl(var(--sidebar-primary-foreground));
-  --color-sidebar-accent:               hsl(var(--sidebar-accent));
-  --color-sidebar-accent-foreground:    hsl(var(--sidebar-accent-foreground));
-  --color-sidebar-border:               hsl(var(--sidebar-border));
+  --color-sidebar-accent:               var(--duna-wash-hover, hsl(var(--sidebar-accent)));
+  --color-sidebar-accent-foreground:    var(--duna-ink,        hsl(var(--sidebar-accent-foreground)));
+  --color-sidebar-border:               var(--duna-border,     hsl(var(--sidebar-border)));
   --color-sidebar-ring:                 hsl(var(--sidebar-ring));
 
   --color-coffee-50:  hsl(var(--coffee-50));
