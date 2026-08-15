@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
+import { dayKeyToDate, dateToDayKey } from '@/lib/day-key';
 
 // Shared admin date-range picker — extracted from the Órdenes filter so Pagos
 // (and future admin pages) reuse the exact trigger button, two-month layout, and
@@ -14,17 +15,6 @@ import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
 // Dates and we only read/write the calendar-date parts. URL sync (if any) stays
 // in the page. Both current consumers filter on past-dated records (orders'
 // createdAt, payments' fecha), so future dates are disabled.
-
-function dayKeyToDate(key: string): Date {
-  const [y, m, d] = key.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-
-function dateToDayKey(date: Date): string {
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${date.getFullYear()}-${m}-${d}`;
-}
 
 const RANGE_LABEL = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short' });
 

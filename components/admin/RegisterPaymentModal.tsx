@@ -3,9 +3,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { DunaSheet } from '@/components/admin/DunaSheet';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
@@ -157,31 +154,25 @@ function RegisterForm({ target, declaredMetodo, verificando, onClose, onSaved }:
       {/* Operator fills only these */}
       <div className="space-y-4">
         <div>
-          <Label>Método de pago *</Label>
-          <Select value={metodo} onValueChange={v => setMetodo(v as MetodoPago)}>
-            <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {METODOS_PAGO.map(m => (
-                <SelectItem key={m} value={m}>{METODO_PAGO_LABEL[m]}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <span className="duna-field__label">Método de pago *</span>
+<select className="duna-input duna-select" id="rp-metodo" value={metodo}
+                  onChange={e => setMetodo(e.target.value as MetodoPago)}>
+            {METODOS_PAGO.map(m => <option key={m} value={m}>{METODO_PAGO_LABEL[m]}</option>)}
+          </select>
         </div>
         <div>
-          <Label>Referencia / Comprobante</Label>
-          <Input
+          <span className="duna-field__label">Referencia / Comprobante</span>
+          <input className="duna-input"
             value={referencia}
             onChange={e => setReferencia(e.target.value)}
-            className="mt-1"
             placeholder="Número de transacción (opcional)"
           />
         </div>
         <div>
-          <Label>Notas</Label>
-          <Input
+          <span className="duna-field__label">Notas</span>
+          <input className="duna-input"
             value={notas}
             onChange={e => setNotas(e.target.value)}
-            className="mt-1"
             placeholder="Opcional"
           />
         </div>
@@ -190,7 +181,7 @@ function RegisterForm({ target, declaredMetodo, verificando, onClose, onSaved }:
             muestra cuál y no se ofrece adjuntar. Directo, el adjunto opcional. */}
         {verificando ? (
           <div>
-            <Label>Comprobante</Label>
+            <span className="duna-field__label">Comprobante</span>
             <div className="mt-1">
               <ComprobanteEnVerificacion comprobante={verificando} />
             </div>
@@ -200,7 +191,7 @@ function RegisterForm({ target, declaredMetodo, verificando, onClose, onSaved }:
           </div>
         ) : (
         <div>
-          <Label>Comprobante</Label>
+          <span className="duna-field__label">Comprobante</span>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {archivo ? (
               <span className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs">

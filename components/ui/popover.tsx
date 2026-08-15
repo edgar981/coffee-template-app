@@ -14,14 +14,20 @@ type PopoverContentProps =
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content> & {
     align?: "start" | "center" | "end"
     sideOffset?: number
+    /** Dónde portalear. Sin esto va a `<body>`, que queda FUERA de
+     *  `.admin-shell` y por tanto fuera del puente de familias tipográficas —
+     *  el mismo límite que ya obligó a `dunaPortal` en los sheets y diálogos.
+     *  Un popover con la fuente del sistema abierto sobre una superficie Duna se
+     *  ve como un pedazo de otra aplicación. */
+    container?: HTMLElement
   }
 
 // Content
 const PopoverContent = React.forwardRef<
   React.ComponentRef<typeof PopoverPrimitive.Content>,
   PopoverContentProps
->(({ className, align = "center", sideOffset = 4, ...props }, ref) => (
-  <PopoverPrimitive.Portal>
+>(({ className, align = "center", sideOffset = 4, container, ...props }, ref) => (
+  <PopoverPrimitive.Portal container={container}>
     <PopoverPrimitive.Content
       ref={ref}
       align={align}

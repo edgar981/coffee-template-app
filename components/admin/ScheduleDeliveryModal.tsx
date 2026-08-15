@@ -4,10 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { MessageCircle, Mail, Plus, ExternalLink } from 'lucide-react';
 import { DunaSheet } from '@/components/admin/DunaSheet';
+import { DateField } from '@/components/admin/DateField';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { formatCOP } from '@duna/core/utils';
@@ -251,7 +249,7 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
 
   if (!ordenId) {
     return (
-      <div className="py-10 text-center text-sm text-red-600">
+      <div className="py-10 text-center duna-field__error">
         Esta entrega no trae la orden asociada. Recarga la página e intenta de nuevo.
       </div>
     );
@@ -261,7 +259,7 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
   }
   if (loadError || !ctx) {
     return (
-      <div className="py-10 text-center text-sm text-red-600">
+      <div className="py-10 text-center duna-field__error">
         {loadError ?? 'No se pudieron cargar los datos de la orden.'}
       </div>
     );
@@ -354,40 +352,39 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
       {/* Operator fills only these */}
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
-          <Label>Tipo de envío</Label>
-          <Select value={tipoEnvio} onValueChange={v => setTipoEnvio(v as TipoEnvio)}>
-            <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {(['LOCAL', 'NACIONAL'] as TipoEnvio[]).map(t => (
-                <SelectItem key={t} value={t}>{TIPO_ENVIO_LABEL[t]}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <span className="duna-field__label">Tipo de envío</span>
+          <select className="duna-input duna-select" value={tipoEnvio} aria-label="Tipo de envío"
+                  onChange={e => setTipoEnvio(e.target.value as TipoEnvio)}>
+            {(['LOCAL', 'NACIONAL'] as TipoEnvio[]).map(t => (
+              <option key={t} value={t}>{TIPO_ENVIO_LABEL[t]}</option>
+            ))}
+          </select>
         </div>
         {tipoEnvio === 'NACIONAL' && (
           <>
             <div>
-              <Label>Transportadora</Label>
-              <Input value={transportadora} onChange={e => setTransportadora(e.target.value)} className="mt-1" placeholder="Servientrega, Coordinadora…" />
+              <span className="duna-field__label">Transportadora</span>
+              <input className="duna-input" value={transportadora} onChange={e => setTransportadora(e.target.value)} placeholder="Servientrega, Coordinadora…" />
             </div>
             <div>
-              <Label>Número de guía</Label>
-              <Input value={numeroGuia} onChange={e => setNumeroGuia(e.target.value)} className="mt-1" placeholder="Guía de rastreo" />
+              <span className="duna-field__label">Número de guía</span>
+              <input className="duna-input" value={numeroGuia} onChange={e => setNumeroGuia(e.target.value)} placeholder="Guía de rastreo" />
             </div>
           </>
         )}
         <div>
-          <Label>Mensajero</Label>
-          <Input value={mensajero} onChange={e => setMensajero(e.target.value)} className="mt-1" placeholder="Nombre del mensajero" />
+          <span className="duna-field__label">Mensajero</span>
+          <input className="duna-input" value={mensajero} onChange={e => setMensajero(e.target.value)} placeholder="Nombre del mensajero" />
         </div>
         <div>
-          <Label>Zona *</Label>
-          <Select value={zona} onValueChange={v => { setZona(v as ShippingZona); setZonaTouched(true); }}>
-            <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {ZONAS.map(z => <SelectItem key={z} value={z} className="capitalize">{z}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <span className="duna-field__label">Zona *</span>
+          {/* `capitalize` va en el CONTROL y no en la opción: la lista la pinta
+              el sistema operativo y no admite estilos, así que capitalizar item
+              por item no tendría efecto. En el cerrado sí se ve. */}
+          <select className="duna-input duna-select capitalize" value={zona} aria-label="Zona"
+                  onChange={e => { setZona(e.target.value as ShippingZona); setZonaTouched(true); }}>
+            {ZONAS.map(z => <option key={z} value={z}>{z}</option>)}
+          </select>
           {/* Debajo del Select, no junto al Label: en esta columna (media
               rejilla) el texto al lado partía "Zona *" en dos líneas. Muted y
               sin pill — la sugerencia no es un estado ni una alerta. Se cae en
@@ -396,9 +393,12 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
             <p className="mt-1 text-xs text-muted-foreground">Sugerida según la dirección</p>
           )}
         </div>
-        <div>
-          <Label>Fecha programada</Label>
-          <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="mt-1" />
+        <div className="duna-field">
+          <label className="duna-field__label" htmlFor="sd-fecha">Fecha programada</label>
+          {/* EL MISMO calendario que el "Rango de fechas" de Pedidos. Era un
+              `<input type="date">`, y ésa era la incoherencia: dos date pickers
+              distintos para la misma tarea, visibles en la misma sesión. */}
+          <DateField id="sd-fecha" value={fecha} onChange={setFecha} />
         </div>
         {/* La brecha, dicha: se puede guardar con datos parciales (el mensajero
             NO es obligatorio para agendar), pero despachar exige ambos. */}
@@ -410,8 +410,8 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
           </p>
         )}
         <div className="col-span-2">
-          <Label>Notas de entrega</Label>
-          <Input value={notas} onChange={e => setNotas(e.target.value)} className="mt-1" placeholder="Instrucciones especiales..." />
+          <span className="duna-field__label">Notas de entrega</span>
+          <input className="duna-input" value={notas} onChange={e => setNotas(e.target.value)} placeholder="Instrucciones especiales..." />
         </div>
       </div>
 
@@ -475,36 +475,37 @@ function AddressForm({ orderId, initialPhone, onCancel, onSaved }: {
     <div className="space-y-3 rounded-lg border border-border p-3">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Agregar dirección de entrega</p>
       <div>
-        <Label className="text-xs">Dirección *</Label>
-        <Input value={direccion} onChange={e => setDireccion(e.target.value)} className="mt-1" placeholder="Calle, Carrera, número" />
+        <span className="duna-field__label">Dirección *</span>
+        <input className="duna-input" value={direccion} onChange={e => setDireccion(e.target.value)} placeholder="Calle, Carrera, número" />
       </div>
       <div>
-        <Label className="text-xs">Detalles adicionales</Label>
-        <Input value={detalle} onChange={e => setDetalle(e.target.value)} className="mt-1" placeholder="Apto, torre, interior, indicaciones…" />
+        <span className="duna-field__label">Detalles adicionales</span>
+        <input className="duna-input" value={detalle} onChange={e => setDetalle(e.target.value)} placeholder="Apto, torre, interior, indicaciones…" />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label className="text-xs">Ciudad / Municipio *</Label>
-          <Input value={ciudad} onChange={e => setCiudad(e.target.value)} className="mt-1" />
+          <span className="duna-field__label">Ciudad / Municipio *</span>
+          <input className="duna-input" value={ciudad} onChange={e => setCiudad(e.target.value)} />
         </div>
         <div>
-          <Label className="text-xs">Departamento *</Label>
-          <Select value={departamento} onValueChange={setDepartamento}>
-            <SelectTrigger className="mt-1"><SelectValue placeholder="Selecciona" /></SelectTrigger>
-            <SelectContent className="max-h-64">
-              {COLOMBIA_DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <span className="duna-field__label">Departamento *</span>
+          <select className="duna-input duna-select" value={departamento} required aria-label="Departamento"
+                  onChange={e => setDepartamento(e.target.value)}>
+            <option value="" disabled hidden>Selecciona</option>
+            {COLOMBIA_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
         </div>
       </div>
       <div>
-        <Label className="text-xs">Teléfono *</Label>
-        <Input
+        <span className="duna-field__label">Teléfono *</span>
+        <input className="duna-input"
           type="tel" inputMode="numeric" value={tel}
-          onChange={e => setTel(e.target.value)} className="mt-1" placeholder="300 000 0000"
+          onChange={e => setTel(e.target.value)} placeholder="300 000 0000"
+          aria-invalid={(tel.trim() && !phoneValid) || undefined}
+          aria-describedby={tel.trim() && !phoneValid ? 'sd-tel-err' : undefined}
         />
         {tel.trim() && !phoneValid && (
-          <p className="mt-1 text-xs text-red-600">Celular colombiano inválido (10 dígitos, empieza por 3).</p>
+          <p className="duna-field__error" id="sd-tel-err">Celular colombiano inválido (10 dígitos, empieza por 3).</p>
         )}
       </div>
       <div className="flex items-center justify-end gap-2">

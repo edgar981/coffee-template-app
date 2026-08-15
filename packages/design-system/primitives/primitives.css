@@ -315,6 +315,127 @@ a.duna-btn--ghost:not(:disabled):hover { color: var(--duna-ink); }
 [data-theme="dark"] .duna-input:focus { border-color: var(--duna-ink-2); }
 textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--duna-lh-relaxed); }
 
+/* ── EL ESTADO INVÁLIDO SE ENGANCHA A `aria-invalid`, no a una clase ───────
+   Y ésa es la propiedad que vale: **no se puede pintar un campo de inválido sin
+   anunciarlo**. Con una clase (`.is-invalid`) el borde rojo y el atributo son dos
+   afirmaciones separadas, y la que se olvida siempre es la del lector de pantalla
+   — el error queda existiendo para el ojo y no para quien no ve. Acá el hook de
+   estilo ES el atributo de accesibilidad, así que no pueden discrepar.
+   Medido antes de escribir esto: CERO `aria-invalid` en los cuatro flujos del
+   panel. El error de campo existía visualmente y no existía para un lector.
+
+   El anillo del foco también cambia de tono: un campo inválido enfocado con el
+   anillo neutro dice "estás acá" y deja de decir "esto está mal" justo cuando el
+   operador fue a corregirlo. */
+.duna-input[aria-invalid="true"],
+.duna-select[aria-invalid="true"] { border-color: var(--duna-bad); }
+.duna-input[aria-invalid="true"]:focus,
+.duna-select[aria-invalid="true"]:focus { border-color: var(--duna-bad); box-shadow: 0 0 0 3px var(--duna-bad-soft); }
+
+/* ── SELECT · NATIVO, estilizado por fuera ────────────────────────────────
+   Un `<select>` de verdad, no una lista compuesta. La decisión (owner) y sus
+   tres razones:
+
+   · **Accesible de fábrica**: teclado, lector de pantalla, `<option disabled>` y
+     el foco los pone el navegador. Nada que reimplementar.
+   · **En un teléfono abre la rueda del sistema**, que es mejor que cualquier
+     lista propia — y este panel se opera desde el móvil.
+   · **No trae conducta al paquete.** Una lista compuesta necesita foco atrapado,
+     y eso convertiría a este paquete en uno con comportamiento: el cambio de
+     naturaleza que la opción C evitó dos veces (móvil y H6). Un control con
+     conducta merece decidirse solo, no colarse dentro de una tanda de campos.
+
+   Se verificó antes de decidir, no después: NINGUNA de las diez opciones del
+   panel lleva más que texto. Las dos que lo parecían —producto y molienda— son
+   una sola cadena con sufijo (`Café Nariño (Agotado)`), que un `<option>` pinta
+   idéntico.
+
+   ── EL LÍMITE, DICHO: la lista desplegada la pinta el SISTEMA OPERATIVO ────
+   No se puede tipografiar ni colorear. La objeción obvia —que en tema oscuro
+   salga una lista clara— **ya estaba resuelta antes de esta tanda**: `color-scheme`
+   se declara junto a los temas, precisamente para alinear los controles nativos.
+   Lo que queda es que la lista abierta no lleve la tipografía de Duna durante el
+   segundo que está abierta. Se acepta.
+
+   La FLECHA sí es nuestra (`appearance: none` + una imagen), porque el estado
+   CERRADO es el que se ve el 99% del tiempo y tiene que verse como el resto de
+   los campos.
+
+   ── EL GRIS DE LA FLECHA ES UN GEMELO DE `--duna-muted`, y se mueven juntos ─
+   Un `data:` URI no puede leer una custom property: dentro del SVG el color va
+   escrito, no referenciado. Así que hay dos hex copiados a mano (#7C776B claro,
+   #9A958A oscuro) que SON los valores de `--duna-muted` en cada tema, y por eso
+   hacen falta las dos reglas.
+
+   Es la misma clase de acoplamiento declarado que el breakpoint y su gemelo de
+   JS: no se puede eliminar, así que se nombra. Si `--duna-muted` cambia y esto
+   no, la flecha queda de otro gris que el resto del texto secundario — visible al
+   lado de la pista del campo, que usa el token. Se evaluó resolverlo con `mask` +
+   `background-color: var(--duna-muted)`, que sí seguiría el token con una sola
+   regla, y se descartó: exige un elemento envolvente por cada select, porque un
+   `<select>` es reemplazado y no admite pseudo-elementos. */
+.duna-select {
+  appearance: none; -webkit-appearance: none;
+  padding-right: calc(var(--duna-space-3) + 18px);
+  background-repeat: no-repeat;
+  background-position: right var(--duna-space-3) center;
+  background-size: 12px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237C776B' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+[data-theme="dark"] .duna-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239A958A' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+/* La opción vacía es el PLACEHOLDER, y se pinta como tal: el `<select>` sin
+   elegir tiene que decir "no elegiste" y no parecer un valor. `:invalid` la
+   alcanza cuando el select es `required` con valor vacío; el consumidor además
+   la marca `disabled hidden` para que no se pueda re-elegir. */
+.duna-select:invalid { color: var(--duna-muted); }
+
+/* ── CHECKBOX · nativo, con `accent-color` ────────────────────────────────
+   Otra vez el nativo, y por lo mismo: teclado, lector de pantalla y el estado
+   indeterminado vienen del navegador. `accent-color` es lo que permite teñirlo
+   con la tinta de la marca sin reemplazar el control — o sea, apariencia sin
+   conducta, que es exactamente la frontera de este paquete.
+
+   La FILA es la primitiva, no la caja: un checkbox suelto sin su texto no existe
+   en ninguna pantalla, y lo que se hace mal es la asociación. Montado como
+   `<label>`, el texto ENTERO amplía el área de click — que en un teléfono es la
+   diferencia entre dar y no dar. */
+.duna-check {
+  display: flex; align-items: flex-start; gap: var(--duna-space-2);
+  cursor: pointer; font-size: var(--duna-text-body-sm); color: var(--duna-ink);
+}
+.duna-check__box {
+  accent-color: var(--duna-ink);
+  width: 16px; height: 16px; flex-shrink: 0;
+  margin: 2px 0 0;   /* alinea con la primera línea del texto, no con su caja */
+  cursor: pointer;
+}
+.duna-check:has(.duna-check__box:disabled) { cursor: default; opacity: .65; }
+.duna-check__box:disabled { cursor: default; }
+
+/* ── GRUPO DE CAMPO · label + control + pista + error ─────────────────────
+   La pieza que unifica. Existe porque lo que se hace mal de un formulario no es
+   el control: es la RELACIÓN entre las cuatro partes — que el label esté asociado,
+   que la pista no se confunda con el error, y que el error no empuje el layout.
+
+   ── LA RANURA DEL ERROR NO EXISTE SIN MENSAJE ──────────────────────────────
+   El sistema NO reserva su hueco. Es la misma lección que `ErrorDialogo` dejó en
+   el pie de los diálogos: un contenedor vacío que guarda su espacio mueve todo lo
+   de abajo en el momento en que el error aparece — y ese momento es justo cuando
+   el operador va a corregir. Sin mensaje, el consumidor no renderiza el elemento
+   y la columna no se entera. */
+.duna-field { display: flex; flex-direction: column; gap: var(--duna-space-2); }
+.duna-field__label { font-size: var(--duna-text-label); font-weight: var(--duna-w-semi); color: var(--duna-ink); }
+/* La PISTA es lo que se sabe de antemano; el ERROR es lo que pasó. Se distinguen
+   por color y no sólo por posición, porque van en el mismo sitio y sólo uno de
+   los dos está a la vez. */
+.duna-field__hint  { font-size: var(--duna-text-caption); color: var(--duna-muted); }
+.duna-field__error { font-size: var(--duna-text-caption); color: var(--duna-bad-ink); font-weight: var(--duna-w-semi); }
+/* Los `gap` de arriba ya separan; esto sólo evita que un `<p>` del consumidor
+   traiga el margen del navegador y descuadre la columna. */
+.duna-field__hint, .duna-field__error { margin: 0; }
+
 /* ── BUSCADOR · el CAMPO, no el filtrado ─────────────────────────────────────
    Un `duna-input` con la lupa adentro. Es una variante de input y por eso vive
    acá pegada a él, no en una familia propia.

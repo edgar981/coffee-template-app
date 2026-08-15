@@ -1,10 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { toast } from 'sonner';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
@@ -87,6 +83,11 @@ function Cuerpo({ customer, onClose, onSaved }: {
   onSaved: (c: Customer, modo: 'creado' | 'actualizado') => void;
 }) {
   const [form, setForm] = useState<CustomerForm>(() => customer ? buildForm(customer) : EMPTY_CUSTOMER_FORM);
+  // Se INTENTÓ guardar. El error del campo no aparece antes: marcar en rojo un
+  // formulario recién abierto le echa en cara al operador algo que todavía no
+  // hizo mal. Aparece con el primer intento y desaparece al corregir.
+  const [intentado, setIntentado] = useState(false);
+  const faltaNombre = intentado && !form.nombre.trim();
 
   // Las DOS mitades de la guarda, del hook — no escritas a mano. El ref corta la
   // re-entrada del mismo tick (que es lo único que la cierra) y el estado le pone
@@ -104,7 +105,13 @@ function Cuerpo({ customer, onClose, onSaved }: {
     // Se limpia al REINTENTAR, no sólo al cerrar: un error que sobrevive a un
     // reintento exitoso afirma un fallo que ya no existe.
     error.limpiar();
-    if (!form.nombre.trim()) { toast.error('El nombre es requerido'); return; }
+    // EL ERROR DE CAMPO ES INLINE, NO UN TOAST. Un toast aparece lejos del campo,
+    // tapa otra cosa y se va solo; el inline vive al lado del problema y persiste
+    // hasta que se corrige. Es la misma división que ya regía los errores de
+    // servidor (§ toast = éxito, inline = error) — la validación previa era la
+    // última que seguía usando el vehículo equivocado.
+    setIntentado(true);
+    if (!form.nombre.trim()) return;
     try {
       if (customer) {
         onSaved(await updateCustomer(customer.id, form), 'actualizado');
@@ -122,21 +129,28 @@ function Cuerpo({ customer, onClose, onSaved }: {
   return (
     <>
       <div className="duna-modal__body grid grid-cols-2 gap-4">
-        <div className="col-span-2">
-          <Label>Nombre *</Label>
-          <Input {...campo('nombre')} className="mt-1" />
+        <div className="duna-field col-span-2">
+          <label className="duna-field__label" htmlFor="cf-nombre">Nombre *</label>
+          {/* `aria-invalid` es a la vez el hook de estilo y el anuncio: no se
+              puede pintar el campo de inválido sin que un lector lo sepa. */}
+          <input className="duna-input" id="cf-nombre" {...campo('nombre')}
+                 aria-invalid={faltaNombre || undefined}
+                 aria-describedby={faltaNombre ? 'cf-nombre-err' : undefined} />
+          {/* Sin mensaje NO se renderiza: un contenedor vacío que reserva su hueco
+              empuja el resto del formulario justo cuando el error aparece. */}
+          {faltaNombre && <p className="duna-field__error" id="cf-nombre-err">El nombre es requerido.</p>}
         </div>
         <div>
-          <Label>Correo</Label>
-          <Input {...campo('email')} className="mt-1" />
+          <span className="duna-field__label">Correo</span>
+          <input className="duna-input" {...campo('email')} />
         </div>
         <div>
-          <Label>Teléfono</Label>
-          <Input {...campo('telefono')} className="mt-1" />
+          <span className="duna-field__label">Teléfono</span>
+          <input className="duna-input" {...campo('telefono')} />
         </div>
         <div>
-          <Label>Ciudad</Label>
-          <Input {...campo('ciudad')} className="mt-1" />
+          <span className="duna-field__label">Ciudad</span>
+          <input className="duna-input" {...campo('ciudad')} />
         </div>
         <div>
           {/* "Origen" y no "Canal" — UNA sola etiqueta, declarada. Las dos
@@ -145,29 +159,21 @@ function Cuerpo({ customer, onClose, onSaved }: {
               PERSONA el campo dice de dónde llegó; "canal" en el resto del panel
               es cómo entró un PEDIDO. Son dos objetos distintos, y darles la misma
               palabra es lo que los hace parecer el mismo dato. */}
-          <Label>Origen</Label>
-          <Select
-            value={form.canal}
-            onValueChange={v => setForm(f => ({ ...f, canal: v as OrderChannel }))}
-          >
-            <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {(Object.entries(CANALES) as [OrderChannel, string][]).map(([k, v]) => (
-                <SelectItem key={k} value={k}>{v}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <label className="duna-field__label" htmlFor="cf-origen">Origen</label>
+          <select className="duna-input duna-select" id="cf-origen" value={form.canal}
+                  onChange={e => setForm(f => ({ ...f, canal: e.target.value as OrderChannel }))}>
+            {(Object.entries(CANALES) as [OrderChannel, string][]).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
         </div>
         <div className="col-span-2">
-          <Label>Dirección</Label>
-          <Input {...campo('direccion')} className="mt-1" />
+          <span className="duna-field__label">Dirección</span>
+          <input className="duna-input" {...campo('direccion')} />
         </div>
         <div className="col-span-2">
-          <Label>Notas</Label>
-          <textarea
-            {...campo('notas')}
-            className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background min-h-16 resize-none"
-          />
+          <span className="duna-field__label">Notas</span>
+          <textarea {...campo('notas')} className="duna-input" rows={3} />
         </div>
       </div>
       <div className="duna-modal__foot">
