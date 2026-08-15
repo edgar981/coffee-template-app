@@ -230,7 +230,15 @@
     <div class="row" style="align-items:flex-start">
       <input class="duna-input" style="width:240px" placeholder="Nombre del producto">
       <button class="duna-switch is-on" id="sw"><span class="duna-switch__thumb"></span></button>
-      <div class="duna-stepper"><button>−</button><input value="6"><button>+</button></div>
+      <!-- `type="number"` porque es como lo usa el consumidor real: teclado
+           numérico en el teléfono, y `min`/`max` para que una salida no deje el
+           stock negativo. Con `input` pelado —como estaba— esta página nunca
+           dibujaba las flechas nativas y el hueco quedaba invisible. -->
+      <div class="duna-stepper">
+        <button type="button" aria-label="Restar uno">−</button>
+        <input type="number" inputmode="numeric" min="0" value="6" aria-label="Cantidad">
+        <button type="button" aria-label="Sumar uno">+</button>
+      </div>
       <div style="width:180px">
         <span class="duna-stock-txt is-low duna-caption">6 bolsas · por reponer</span>
         <div class="duna-stock-meter is-low" style="margin-top:4px"><i style="width:20%"></i></div>
@@ -242,7 +250,9 @@
       <button class="duna-pill">Agotados <span class="duna-num">1</span></button>
       <button class="duna-pill">Descontinuados</button>
     </div>
-    <div class="flag" style="margin-top:var(--duna-space-4)">UN PILL LLEVA NÚMERO SI CUENTA UNA COLA QUE SE VACÍA; no lo lleva si cuenta un acumulador que sólo crece. "Por reponer" y "Agotados" son colas: transitorias, accionables, y su valor CRECE con la escala del negocio. "Todos" y "Descontinuados" sólo crecen y no piden ninguna acción — a los tres meses son ruido con dígitos, y su valor DECRECE con la escala.<br><br>El efecto es lo contrario de quitar: cuando SÓLO ALGUNOS pills tienen número, el número se vuelve <b style="color:var(--duna-ink)">señal</b> — el "2" resalta contra los que no dicen nada. Con un número en cada pill, ninguno resalta. El CERO de una cola sí se muestra: "no hay nada por reponer" es una respuesta.</div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">EL STEPPER ACEPTA ESCRITURA DIRECTA — es un <code>input</code> con botones alrededor, no dos botones. Por eso sirve igual para un ABSOLUTO ("dejar el stock en 27": se teclea) que para un DELTA ("recibí 2 más": se toca +). Escribí un número acá y usá las flechas: es el mismo campo.<br><br>SIN LAS FLECHAS NATIVAS del navegador: este control trae las suyas, así que las otras serían un segundo par para lo mismo — y aparecen sólo al pasar el cursor, o sea que el control cambiaría de contenido bajo la mano. Faltaba porque la primitiva no tenía consumidores y esta página la ejercía con un <code>input</code> sin <code>type</code>, que nunca las dibuja. <b style="color:var(--duna-ink)">Una primitiva sin consumidor no está probada, está declarada</b> — el primer uso real fue el que pidió <code>type="number"</code>.<br><br>Y EL FOCO VA EN LA PISTA, no en el campo: el input no tiene borde propio —se lo aportan sus vecinos— así que un anillo alrededor de sus 60px centrados se leería como un rectángulo suelto dentro del control. Recorrelo con Tab.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">UN PILL LLEVA NÚMERO SI CUENTA UNA COLA QUE SE VACÍA; no lo lleva si cuenta un acumulador que sólo crece. "Por reponer" y "Agotados" son colas: transitorias, accionables, y su valor CRECE con la escala del negocio. "Todos" y "Descontinuados" sólo crecen y no piden ninguna acción — a los tres meses son ruido con dígitos, y su valor DECRECE con la escala.<br><br>El efecto es lo contrario de quitar: cuando SÓLO ALGUNOS pills tienen número, el número se vuelve <b style="color:var(--duna-ink)">señal</b> — el "2" resalta contra los que no dicen nada. Con un número en cada pill, ninguno resalta. El CERO de una cola sí se muestra: "no hay nada por reponer" es una respuesta.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">La primitiva NUNCA asumió el número —el <code>duna-pill</code> es sólo la cápsula y el conteo lo pone el consumidor— pero esta página lo mostraba en los tres, y una prueba viva que enseña una sola variante se lee como si fuera la única. La regla y su campo obligatorio viven en la app (<code>lib/carriles.ts</code>), porque "cola" y "acumulador" son categorías de NEGOCIO y el sistema es agnóstico de negocio.</div>
   </section>
 

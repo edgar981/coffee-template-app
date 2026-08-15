@@ -5,6 +5,7 @@ import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { adjustInventory } from '@/lib/api/inventory';
+import { cantidadInicial, limitesDeCantidad, errorDeCantidad, esAbsoluto } from '@/lib/inventario/ajuste';
 import type { Product } from '@/types/product';
 import type { InventoryLog, InventoryAdjustmentForm, InventoryMovementType } from '@/types/inventory';
 
@@ -100,18 +101,46 @@ function Cuerpo({ producto, productos, guarda, onClose, onAplicado }: {
   onAplicado: (r: { product: Product; log: InventoryLog }) => void;
 }) {
   const [form, setForm] = useState<InventoryAdjustmentForm>(
-    () => producto ? { ...VACIO, producto_id: producto.id } : VACIO,
+    () => producto
+      ? { ...VACIO, producto_id: producto.id, cantidad: cantidadInicial(VACIO.tipo, producto.stock) }
+      : VACIO,
   );
   const error = useErrorDialogo();
 
   // El producto sobre el que se va a escribir: el fijo, o el elegido en la lista.
   const objetivo = producto ?? productos.find(p => p.id === form.producto_id) ?? null;
 
+  // ── LA CANTIDAD SE RE-SIEMBRA AL CAMBIAR DE TIPO O DE PRODUCTO ─────────────
+  //
+  // Y NO SOBREVIVE al cambio, a propósito: el mismo "27" significa "dejar 27" en
+  // `ajuste` y "sumar 27" en `entrada`. Conservarlo al cambiar de tipo convertiría
+  // una corrección de conteo en un movimiento de inventario falso, sin que nada en
+  // pantalla lo delate — el número sigue ahí, idéntico. Se paga tener que
+  // reteclear; se evita el asiento equivocado.
+  //
+  // Va en los handlers y no en un efecto: el estado lo escribe la interacción que
+  // lo causa, que es donde se puede leer por qué cambió.
+  const elegirTipo = (tipo: InventoryMovementType) =>
+    setForm(f => ({ ...f, tipo, cantidad: cantidadInicial(tipo, objetivo?.stock) }));
+
+  const elegirProducto = (id: string) =>
+    setForm(f => ({ ...f, producto_id: id, cantidad: cantidadInicial(f.tipo, productos.find(p => p.id === id)?.stock) }));
+
+  const limites = limitesDeCantidad(form.tipo, objetivo?.stock);
+  const errorCantidad = errorDeCantidad(form.tipo, form.cantidad, objetivo?.stock);
+
+  const paso = (delta: number) => setForm(f => {
+    const actual = Number(f.cantidad);
+    const base = Number.isFinite(actual) && f.cantidad.trim() ? actual : limites.min;
+    const siguiente = Math.max(limites.min, base + delta);
+    return { ...f, cantidad: String(typeof limites.max === 'number' ? Math.min(limites.max, siguiente) : siguiente) };
+  });
+
   const aplicar = () => guarda.ejecutar(async () => {
     // Se limpia al REINTENTAR, no sólo al cerrar: un error que sobrevive a un
     // reintento exitoso afirma un fallo que ya no existe.
     error.limpiar();
-    if (!form.producto_id || !form.cantidad) return;
+    if (!form.producto_id || !form.cantidad || errorCantidad) return;
     try {
       onAplicado(await adjustInventory(form));
       // Cierre SÓLO tras confirmación del servidor. Si falla, el drawer se queda
@@ -143,7 +172,7 @@ function Cuerpo({ producto, productos, guarda, onClose, onAplicado }: {
           <div className="duna-field">
             <label className="duna-field__label" htmlFor="aj-producto">Producto</label>
             <select className="duna-input duna-select" id="aj-producto" value={form.producto_id} disabled={bloqueado}
-                    onChange={e => setForm(f => ({ ...f, producto_id: e.target.value }))}>
+                    onChange={e => elegirProducto(e.target.value)}>
               {/* `disabled hidden`: no elegir producto no es una respuesta válida. */}
               <option value="" disabled hidden>Seleccionar producto</option>
               {productos.map(p => (
@@ -166,7 +195,7 @@ function Cuerpo({ producto, productos, guarda, onClose, onAplicado }: {
         <div className="duna-field">
           <label className="duna-field__label" htmlFor="aj-tipo">Tipo de movimiento</label>
           <select className="duna-input duna-select" id="aj-tipo" value={form.tipo} disabled={bloqueado}
-                  onChange={e => setForm(f => ({ ...f, tipo: e.target.value as InventoryMovementType }))}
+                  onChange={e => elegirTipo(e.target.value as InventoryMovementType)}
                   aria-describedby="aj-tipo-hint">
             {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
@@ -180,10 +209,31 @@ function Cuerpo({ producto, productos, guarda, onClose, onAplicado }: {
           </p>
         </div>
 
+        {/* CANTIDAD · el `.duna-stepper` del sistema, que llevaba CERO consumidores.
+            Acepta escritura directa —es un `input` con botones alrededor— así que
+            no cuesta nada en `ajuste`, donde se teclea el absoluto, y gana los
+            atajos donde el movimiento es chico ("recibí 2 más"). Dejarlo como
+            input pelado habría mantenido la primitiva sin estrenar, que es el
+            patrón que ya costó con `.duna-scrim`. */}
         <div className="duna-field">
-          <label className="duna-field__label" htmlFor="aj-cantidad">Cantidad</label>
-          <input className="duna-input" id="aj-cantidad" type="number" min={0} value={form.cantidad} disabled={bloqueado}
-                 onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))} />
+          <label className="duna-field__label" htmlFor="aj-cantidad">
+            {esAbsoluto(form.tipo) ? 'Dejar el stock en' : 'Cantidad'}
+          </label>
+          <div className="duna-stepper">
+            <button type="button" onClick={() => paso(-1)} disabled={bloqueado} aria-label="Restar uno">−</button>
+            <input
+              id="aj-cantidad" type="number" inputMode="numeric"
+              min={limites.min} max={limites.max}
+              value={form.cantidad} disabled={bloqueado}
+              aria-invalid={!!errorCantidad || undefined}
+              aria-describedby={errorCantidad ? 'aj-cantidad-err' : undefined}
+              onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))}
+            />
+            <button type="button" onClick={() => paso(1)} disabled={bloqueado} aria-label="Sumar uno">+</button>
+          </div>
+          {/* Sin mensaje NO se renderiza: una ranura vacía que reserva su hueco
+              empuja el formulario justo cuando el error aparece. */}
+          {errorCantidad && <p className="duna-field__error" id="aj-cantidad-err">{errorCantidad}</p>}
         </div>
 
         <div className="duna-field">
@@ -203,7 +253,7 @@ function Cuerpo({ producto, productos, guarda, onClose, onAplicado }: {
             Cancelar
           </button>
           <button type="button" className="duna-btn duna-btn--primary" onClick={aplicar}
-                  disabled={bloqueado || !form.producto_id || !form.cantidad}>
+                  disabled={bloqueado || !form.producto_id || !form.cantidad || !!errorCantidad}>
             {bloqueado ? 'Aplicando…' : 'Aplicar'}
           </button>
         </div>

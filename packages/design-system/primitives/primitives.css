@@ -733,6 +733,26 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 .duna-stepper input { width: 60px; text-align: center; border: none; border-left: 1px solid var(--duna-border);
                       border-right: 1px solid var(--duna-border); padding: var(--duna-space-2) 0; background: transparent;
                       outline: none; font-family: var(--duna-font-display); font-weight: var(--duna-w-semi); color: var(--duna-ink); }
+/* SIN LAS FLECHAS NATIVAS. Este control TRAE las suyas, así que las del navegador
+   serían un segundo par para lo mismo — y aparecen sólo al pasar el cursor, o sea
+   que el control cambiaría de contenido bajo la mano.
+   Faltaba porque la primitiva no tenía consumidores: la prueba viva la ejercía con
+   un `input` sin `type`, que nunca las dibuja. El primer uso real la pide
+   `type="number"` —para el teclado numérico del teléfono y para `min`/`max`— y ahí
+   aparecen. Es el patrón de siempre: una primitiva sin consumidor no está probada,
+   está declarada. */
+.duna-stepper input::-webkit-outer-spin-button,
+.duna-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
+.duna-stepper input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+/* El deshabilitado no promete nada, igual que en `.duna-btn`. */
+.duna-stepper input:disabled, .duna-stepper button:disabled { opacity: .55; }
+.duna-stepper button:disabled:hover { background: none; color: var(--duna-muted); }
+/* EL FOCO VA EN LA PISTA, no sólo en el campo: el input no tiene borde propio
+   —lo aportan sus vecinos— así que un anillo alrededor de 60px centrados se lee
+   como un rectángulo suelto dentro del control. Mismo tratamiento que `.duna-input`
+   en foco: borde de tinta y anillo. */
+.duna-stepper:focus-within { border-color: var(--duna-ink); box-shadow: var(--duna-ring); }
+[data-theme="dark"] .duna-stepper:focus-within { border-color: var(--duna-ink-2); }
 
 /* Filtro (pill) */
 .duna-pill { padding: var(--duna-space-1) var(--duna-space-3); border-radius: var(--duna-r-full); font-size: var(--duna-text-label);
