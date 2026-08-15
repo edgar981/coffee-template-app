@@ -232,10 +232,24 @@ function Productos() {
     />
   ) : null;
 
-  // EL DETALLE SUBE COMO SHEET en angosto SIEMPRE, y en cuadrícula TAMBIÉN en
-  // ancho: la rejilla ocupa el ancho completo, así que no hay columna al lado
-  // donde ponerlo.
-  const detalleEnSheet = esMovil || vista === 'cuadricula';
+  // Las tarjetas de la cuadrícula, en UNA variable: se pintan igual con la rejilla
+  // a ancho completo y con la rejilla encogida del split, así que no se duplican.
+  const tarjetas = visibles.map(p => (
+    <TarjetaProducto
+      key={p.id}
+      producto={p}
+      seleccionado={p.id === seleccion}
+      onAbrir={() => navegar({ producto: p.id })}
+      onActivar={() => setActivarTarget(p)}
+    />
+  ));
+
+  // EL DETALLE SUBE COMO SHEET sólo en ANGOSTO. En escritorio, tanto lista como
+  // cuadrícula lo muestran en un panel al lado (§ el patrón Finder: al seleccionar,
+  // la cuadrícula encoge y aparece el split `--panel-derecha`). Antes la cuadrícula
+  // mandaba al sheet también en ancho —un sheet a pantalla completa que era una
+  // pantalla disfrazada, y donde las acciones se hundían con el kardex—.
+  const detalleEnSheet = esMovil;
 
   const alternativa = alternativaAlEliminar(borrando);
   const accionActivar = accionEstadoProducto(activarTarget);
@@ -349,19 +363,24 @@ function Productos() {
         </div>
       )}
 
-      {/* ── CUADRÍCULA · ancho completo ───────────────────────────────────── */}
-      {!error && !cargando && visibles.length > 0 && vista === 'cuadricula' && (
-        <div className="duna-cards">
-          {visibles.map(p => (
-            <TarjetaProducto
-              key={p.id}
-              producto={p}
-              seleccionado={p.id === seleccion}
-              onAbrir={() => navegar({ producto: p.id })}
-              onActivar={() => setActivarTarget(p)}
-            />
-          ))}
-        </div>
+      {/* ── CUADRÍCULA ─────────────────────────────────────────────────────
+          Sin selección (o en móvil): a ancho completo. Con selección en
+          escritorio: la rejilla ENCOGE a la izquierda y el panel entra fijo a la
+          derecha (`--panel-derecha`). Es el patrón Finder — el split aparece
+          cuando hace falta. El `|| elegido` es la otra mitad de buscar en la
+          lista completa: un deep link que caiga fuera del carril abre igual. */}
+      {!error && !cargando && (visibles.length > 0 || elegido) && vista === 'cuadricula' && (
+        !detalleEnSheet && elegido ? (
+          <div className="duna-split duna-split--panel-derecha">
+            <div className="duna-cards">{tarjetas}</div>
+            {/* La clave fuerza el remonte al cambiar de producto, así que la
+                entrada (`.duna-reveal-panel`) corre en cada selección, no sólo la
+                primera. */}
+            <div className="duna-split__panel duna-reveal-panel" key={seleccion}>{detalleNodo}</div>
+          </div>
+        ) : (
+          <div className="duna-cards">{tarjetas}</div>
+        )
       )}
 
       {/* ── LISTA · el split de siempre ───────────────────────────────────── */}
