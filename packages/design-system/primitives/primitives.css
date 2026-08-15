@@ -160,11 +160,11 @@
                estrenaron van juntos y nada los contrastaba. */
             line-height: var(--duna-lh-normal); }
 .duna-btn--primary   { background: var(--duna-ink); color: var(--duna-paper); }
-.duna-btn--primary:hover { opacity: .88; transform: translateY(-1px); box-shadow: var(--duna-shadow-2); }
+.duna-btn--primary:not(:disabled):hover { opacity: .88; transform: translateY(-1px); box-shadow: var(--duna-shadow-2); }
 .duna-btn--secondary { background: var(--duna-surface); border-color: var(--duna-border-2); color: var(--duna-ink); }
-.duna-btn--secondary:hover { border-color: var(--duna-faint); box-shadow: var(--duna-shadow-1); }
+.duna-btn--secondary:not(:disabled):hover { border-color: var(--duna-faint); box-shadow: var(--duna-shadow-1); }
 .duna-btn--ghost { color: var(--duna-muted); background: none; }
-.duna-btn--ghost:hover { color: var(--duna-ink); background: var(--duna-wash-hover); }
+.duna-btn--ghost:not(:disabled):hover { color: var(--duna-ink); background: var(--duna-wash-hover); }
 /* DESTRUCTIVO · TINTE, no relleno. Es la variante que faltaba para la acción
    irreversible dentro de una confirmación.
 
@@ -190,8 +190,50 @@
    comprobante" (conserva fila y blob, y el copy promete que no se borra nada).
    Pintarlos de rojo entrenaría a ignorar el rojo justo donde sí importa. */
 .duna-btn--danger { background: var(--duna-bad-soft); color: var(--duna-bad-ink); border-color: transparent; }
-.duna-btn--danger:hover { border-color: var(--duna-bad); }
+.duna-btn--danger:not(:disabled):hover { border-color: var(--duna-bad); }
 .duna-btn--sm { padding: var(--duna-space-1) var(--duna-space-3); font-size: var(--duna-text-caption); }
+
+/* ── EL DESHABILITADO NO PROMETE NADA ─────────────────────────────────────
+   Faltaba entero: `.duna-btn` no declaraba un solo estilo para `:disabled`, así
+   que un botón bloqueado quedaba **indistinguible de uno vivo** y encima seguía
+   comportándose como tal. Son tres promesas, y las tres se retiran acá:
+
+   1. EL CURSOR. `.duna-btn` declara `cursor: pointer` sin condición, y ese
+      `pointer` gana siempre: el CSS del paquete entra SIN capa, y lo sin capa le
+      gana a todo lo que está en capas —incluida la regla del consumidor
+      (`html.admin button:not(:disabled)`), que además ni siquiera apunta a un
+      deshabilitado—. O sea que la exclusión que el consumidor ya tenía escrita no
+      podía funcionar: la pisaba el sistema.
+   2. EL HOVER. El primario se ELEVABA un píxel y ganaba sombra estando
+      deshabilitado. Un control que se mueve bajo el cursor afirma que responde,
+      y es una promesa más fuerte que la del cursor. Por eso los cuatro `:hover`
+      pasan a `:not(:disabled):hover` en vez de neutralizarse con overrides:
+      así el estilo no existe, en vez de existir y ser deshecho.
+   3. EL PESO. Sin opacidad, "Guardando…" y "Guardar" se ven igual de disponibles.
+
+   ── `default` Y NO `wait` NI `not-allowed`, y el motivo es que no se puede saber
+
+   Desde el CSS, `:disabled` no distingue OCUPADO (una mutación en vuelo) de
+   BLOQUEADO (una precondición sin cumplir). En este panel existen los dos: ocho
+   botones de guardado en vuelo, y el "Marcar en ruta · falta mensajero", que está
+   deshabilitado sin que nada esté cargando. Un `wait` mentiría sobre el segundo
+   —afirma que el sistema está trabajando— y un `not-allowed` mentiría sobre el
+   primero, que sí va a poder en un segundo. `default` no afirma nada, y no
+   afirmar es lo único correcto para los dos. Es además lo que el panel ya produce
+   con sus botones shadcn, que se apagan con `pointer-events: none`.
+
+   ── LA OPACIDAD NO PUEDE ESCONDER EL MOTIVO
+
+   `.65`, y el número salió de MEDIR, no de elegir. Estos botones LLEVAN
+   INFORMACIÓN mientras están deshabilitados —"Guardando…", "falta mensajero"— y
+   la doctrina del panel es que un botón bloqueado dice qué falta: una opacidad
+   que apaga ese texto convierte la explicación en decoración.
+
+   El `.35` de la maqueta lo rompe. El primer intento acá fue `.55` y también:
+   3.96:1, por debajo de AA — lo atrapó la medición viva de `reference.html` en el
+   mismo momento de escribirlo. `.6` pasa por 0,13 y `.65` da 5.54:1, que es
+   margen de verdad: un ajuste de token no lo tumba. */
+.duna-btn:disabled { cursor: default; opacity: .65; }
 
 /* EL ÍCONO DEL BOTÓN LO DIMENSIONA EL SISTEMA ────────────────────────────────
    El `gap` de arriba ya declaraba la ranura de ícono ("ícono↔label"), pero nada
@@ -226,7 +268,7 @@
 a.duna-btn { text-decoration: none; color: var(--duna-ink); }
 a.duna-btn--primary { color: var(--duna-paper); }
 a.duna-btn--ghost   { color: var(--duna-muted); }
-a.duna-btn--ghost:hover { color: var(--duna-ink); }
+a.duna-btn--ghost:not(:disabled):hover { color: var(--duna-ink); }
 
 /* ── Badge de estado (semáforo de reposo — SIN azul) ─────────────────────── */
 .duna-badge { display: inline-flex; align-items: center; gap: var(--duna-space-inline);

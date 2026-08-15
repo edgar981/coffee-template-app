@@ -114,6 +114,18 @@
       <button class="duna-btn duna-btn--danger duna-btn--sm">Eliminar</button>
     </div>
     <p class="sec-note" id="dangerMedida" style="margin:var(--duna-space-3) 0 0"></p>
+    <div class="row" style="margin-top:var(--duna-space-4)">
+      <button class="duna-btn duna-btn--primary" id="dis1" disabled>Guardando…</button>
+      <button class="duna-btn duna-btn--secondary" disabled>Marcar en ruta · falta mensajero</button>
+      <button class="duna-btn duna-btn--ghost" disabled>Cancelar</button>
+      <button class="duna-btn duna-btn--danger" disabled>Cancelando…</button>
+    </div>
+    <p class="sec-note" id="disMedida" style="margin:var(--duna-space-3) 0 0"></p>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">EL DESHABILITADO NO PROMETE NADA, y eran TRES promesas. El <b style="color:var(--duna-ink)">cursor</b> seguía en mano: <code>duna-btn</code> declaraba <code>cursor:pointer</code> sin condición, y el CSS del paquete entra SIN capa — lo sin capa le gana a todo lo que está en capas, así que pisaba la exclusión que el consumidor ya tenía escrita. El <b style="color:var(--duna-ink)">hover</b> seguía vivo: el primario se ELEVABA un píxel estando deshabilitado, y un control que se mueve bajo el cursor promete más fuerte que un cursor. Y el <b style="color:var(--duna-ink)">peso</b> era el mismo: "Guardando…" se veía tan disponible como "Guardar".</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">Los <code>:hover</code> pasan a <code>:not(:disabled):hover</code> en vez de neutralizarse con overrides: así el estilo NO EXISTE, en vez de existir y ser deshecho — que es la diferencia entre no tener el defecto y taparlo.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)"><code>default</code> Y NO <code>wait</code> NI <code>not-allowed</code>, porque desde el CSS <code>:disabled</code> no distingue OCUPADO (una mutación en vuelo) de BLOQUEADO (una precondición sin cumplir), y en el panel existen los dos. <code>wait</code> mentiría sobre el bloqueado —afirma que algo está cargando— y <code>not-allowed</code> mentiría sobre el ocupado, que sí va a poder en un segundo. No afirmar es lo único correcto para los dos.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">LA OPACIDAD NO PUEDE ESCONDER EL MOTIVO. <code>.55</code> y no el <code>.35</code> de la maqueta: estos botones LLEVAN información mientras están deshabilitados —"Guardando…", "falta mensajero"— y la doctrina del panel es que un botón bloqueado diga qué falta. Una opacidad que apaga ese texto convierte la explicación en decoración.</div>
     <div class="flag" style="margin-top:var(--duna-space-4)">EL DESTRUCTIVO ES TINTE, NO RELLENO, y no por gusto: <code>--duna-bad</code> SE INVIERTE entre temas (#B5533C claro / #D07C66 oscuro) y no tiene par de texto, a diferencia de <code>--duna-ink</code>/<code>--duna-paper</code>, que se invierten JUNTOS y por eso el primario funciona en los dos. Un <code>color:#fff</code> sobre el fill —que es lo que dibuja la maqueta de modales— es blanco sobre salmón claro en oscuro: la misma regresión de contraste que esa nota ya documentó con <code>--ok-ink</code>. El tinte usa el par que YA pasa AA (<code>--duna-bad-soft</code> + <code>--duna-bad-ink</code>) y no inventa token para un único consumidor.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">Y ENCAJA CON LA REGLA DEL PANEL en vez de pelearse: un solo sólido por vista, y dentro de una confirmación ese sólido no está libre. El tinte dice destructivo sin gastar el único relleno de la superficie. <b style="color:var(--duna-ink)">Destructivo = quita algo que no se puede recuperar desde el panel</b>: no lo son "Marcar fallido" (registra un hecho, la entrega se reprograma) ni "Rechazar comprobante" (conserva la fila y el archivo, y su copy lo promete). Pintarlos de rojo entrena a ignorar el rojo justo donde sí importa.</div>
     <div class="row" style="margin-top:var(--duna-space-4)">
@@ -909,6 +921,37 @@
     };
     revisar();
     addEventListener('resize', revisar);
+  })();
+  // EL TEXTO DEL DESHABILITADO SIGUE SIENDO LEGIBLE, medido en los dos temas.
+  // Es la promesa que la opacidad puede romper sin que se note: estos botones
+  // LLEVAN información mientras están apagados, así que si el contraste cae, la
+  // explicación de por qué no se puede clickear deja de leerse.
+  (function medirDeshabilitado() {
+    const out = document.getElementById('disMedida');
+    const btn = document.getElementById('dis1');
+    if (!out || !btn) return;
+    const rgb = c => c.match(/[\d.]+/g).map(Number);
+    const lum = v => { const [r, g, b] = v.map(x => { x /= 255; return x <= .03928 ? x / 12.92 : Math.pow((x + .055) / 1.055, 2.4); }); return .2126 * r + .7152 * g + .0722 * b; };
+    const ratio = (a, b) => { const l1 = lum(a), l2 = lum(b); return +((Math.max(l1, l2) + .05) / (Math.min(l1, l2) + .05)).toFixed(2); };
+    const raiz = document.documentElement;
+    const previo = raiz.getAttribute('data-theme');
+    const medir = tema => {
+      raiz.setAttribute('data-theme', tema);
+      const cs = getComputedStyle(btn);
+      const o = parseFloat(cs.opacity);
+      const fondoPagina = rgb(getComputedStyle(document.body).backgroundColor);
+      // el botón entero es semitransparente: texto y relleno se componen sobre la página
+      const mezcla = (c) => [0, 1, 2].map(i => Math.round(c[i] * o + fondoPagina[i] * (1 - o)));
+      return ratio(mezcla(rgb(cs.color)), mezcla(rgb(cs.backgroundColor)));
+    };
+    const claro = medir('light'), oscuro = medir('dark');
+    raiz.setAttribute('data-theme', previo || 'light');
+    const ok = claro >= 4.5 && oscuro >= 4.5;
+    out.textContent = ok
+      ? `Medido al abrir esta página: el texto del botón deshabilitado da ${claro}:1 en claro · ${oscuro}:1 en oscuro — sigue legible.`
+      : `⚠ EL MOTIVO SE PERDIÓ: ${claro}:1 en claro · ${oscuro}:1 en oscuro. La opacidad del deshabilitado apagó el texto que explica por qué no se puede.`;
+    out.style.color = ok ? '' : 'var(--duna-bad-ink)';
+    out.style.fontWeight = ok ? '' : 'var(--duna-w-semi)';
   })();
 </script>
 </body>
