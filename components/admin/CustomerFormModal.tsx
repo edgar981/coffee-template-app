@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
@@ -84,6 +83,11 @@ function Cuerpo({ customer, onClose, onSaved }: {
   onSaved: (c: Customer, modo: 'creado' | 'actualizado') => void;
 }) {
   const [form, setForm] = useState<CustomerForm>(() => customer ? buildForm(customer) : EMPTY_CUSTOMER_FORM);
+  // Se INTENTÓ guardar. El error del campo no aparece antes: marcar en rojo un
+  // formulario recién abierto le echa en cara al operador algo que todavía no
+  // hizo mal. Aparece con el primer intento y desaparece al corregir.
+  const [intentado, setIntentado] = useState(false);
+  const faltaNombre = intentado && !form.nombre.trim();
 
   // Las DOS mitades de la guarda, del hook — no escritas a mano. El ref corta la
   // re-entrada del mismo tick (que es lo único que la cierra) y el estado le pone
@@ -101,7 +105,13 @@ function Cuerpo({ customer, onClose, onSaved }: {
     // Se limpia al REINTENTAR, no sólo al cerrar: un error que sobrevive a un
     // reintento exitoso afirma un fallo que ya no existe.
     error.limpiar();
-    if (!form.nombre.trim()) { toast.error('El nombre es requerido'); return; }
+    // EL ERROR DE CAMPO ES INLINE, NO UN TOAST. Un toast aparece lejos del campo,
+    // tapa otra cosa y se va solo; el inline vive al lado del problema y persiste
+    // hasta que se corrige. Es la misma división que ya regía los errores de
+    // servidor (§ toast = éxito, inline = error) — la validación previa era la
+    // última que seguía usando el vehículo equivocado.
+    setIntentado(true);
+    if (!form.nombre.trim()) return;
     try {
       if (customer) {
         onSaved(await updateCustomer(customer.id, form), 'actualizado');
@@ -119,9 +129,16 @@ function Cuerpo({ customer, onClose, onSaved }: {
   return (
     <>
       <div className="duna-modal__body grid grid-cols-2 gap-4">
-        <div className="col-span-2">
-          <span className="duna-field__label">Nombre *</span>
-          <input className="duna-input" {...campo('nombre')} />
+        <div className="duna-field col-span-2">
+          <label className="duna-field__label" htmlFor="cf-nombre">Nombre *</label>
+          {/* `aria-invalid` es a la vez el hook de estilo y el anuncio: no se
+              puede pintar el campo de inválido sin que un lector lo sepa. */}
+          <input className="duna-input" id="cf-nombre" {...campo('nombre')}
+                 aria-invalid={faltaNombre || undefined}
+                 aria-describedby={faltaNombre ? 'cf-nombre-err' : undefined} />
+          {/* Sin mensaje NO se renderiza: un contenedor vacío que reserva su hueco
+              empuja el resto del formulario justo cuando el error aparece. */}
+          {faltaNombre && <p className="duna-field__error" id="cf-nombre-err">El nombre es requerido.</p>}
         </div>
         <div>
           <span className="duna-field__label">Correo</span>

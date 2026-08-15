@@ -248,7 +248,7 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
 
   if (!ordenId) {
     return (
-      <div className="py-10 text-center text-sm text-red-600">
+      <div className="py-10 text-center duna-field__error">
         Esta entrega no trae la orden asociada. Recarga la página e intenta de nuevo.
       </div>
     );
@@ -258,7 +258,7 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
   }
   if (loadError || !ctx) {
     return (
-      <div className="py-10 text-center text-sm text-red-600">
+      <div className="py-10 text-center duna-field__error">
         {loadError ?? 'No se pudieron cargar los datos de la orden.'}
       </div>
     );
@@ -497,9 +497,11 @@ function AddressForm({ orderId, initialPhone, onCancel, onSaved }: {
         <input className="duna-input"
           type="tel" inputMode="numeric" value={tel}
           onChange={e => setTel(e.target.value)} placeholder="300 000 0000"
+          aria-invalid={(tel.trim() && !phoneValid) || undefined}
+          aria-describedby={tel.trim() && !phoneValid ? 'sd-tel-err' : undefined}
         />
         {tel.trim() && !phoneValid && (
-          <p className="mt-1 text-xs text-red-600">Celular colombiano inválido (10 dígitos, empieza por 3).</p>
+          <p className="duna-field__error" id="sd-tel-err">Celular colombiano inválido (10 dígitos, empieza por 3).</p>
         )}
       </div>
       <div className="flex items-center justify-end gap-2">
