@@ -141,7 +141,26 @@
    que en `.duna-order-card`, y por el mismo motivo: un marco que sólo muestra una
    foto no debe prometer mano ni recibir foco, o el teclado para en algo que no
    responde. El reset es sólo lo que el navegador le impone a un <button>. */
-button.duna-tile, a.duna-tile { padding: 0; font: inherit; color: var(--duna-muted); cursor: pointer; }
+/* ── Y UN `<button>` NO SE DIMENSIONA COMO UN `<div>` — EL ANCHO VA DECLARADO ─
+   `.duna-tile` promete dimensionarse por su contenedor, y esa promesa era FALSA
+   cuando el marco es un botón: un control de formulario conserva el dimensionado
+   shrink-to-fit aunque se le ponga `display: flex`, y como su único contenido es
+   una imagen en posición ABSOLUTA —que no aporta ancho— el botón colapsa.
+
+   Medido con el mismo marcado en un envoltorio de 88px: como `div` mide 88×88;
+   como `button`, 2×2 (sus dos bordes). La imagen adentro, 0×0.
+
+   El modo de falla es de los peores: no rompe nada, no avisa, y deja un hueco
+   donde debería estar la foto — se lee como "al detalle le falta la imagen", que
+   es exactamente como se reportó. Lo disparó el detalle de producto, donde el
+   marco es clickeable para abrir el lightbox; la tarjeta de la cuadrícula, que es
+   un `div`, nunca lo mostró. */
+button.duna-tile, a.duna-tile { padding: 0; font: inherit; color: var(--duna-muted); cursor: pointer; width: 100%; }
+/* `--sm` tiene ancho PROPIO y hay que devolvérselo: `button.duna-tile` le gana en
+   especificidad al modificador, así que sin esta línea una miniatura montada como
+   botón se estiraría al 100% de su contenedor — que es el defecto de arriba con el
+   signo cambiado. */
+button.duna-tile--sm, a.duna-tile--sm { width: var(--duna-thumb-w); }
 button.duna-tile:hover, a.duna-tile:hover { border-color: var(--duna-border-2); }
 button.duna-tile:focus-visible, a.duna-tile:focus-visible {
   border-color: var(--duna-ink); box-shadow: var(--duna-ring);
@@ -586,6 +605,37 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
    alcanza cuando el select es `required` con valor vacío; el consumidor además
    la marca `disabled hidden` para que no se pueda re-elegir. */
 .duna-select:invalid { color: var(--duna-muted); }
+
+/* ── TAMAÑO COMPACTO · el campo que vive en una BARRA DE FILTROS ─────────────
+   `.duna-input` está dimensionado para un FORMULARIO —padding `space-3` y cuerpo
+   de 14— y eso es correcto donde vive, dentro de un `.duna-field` con su label.
+   En una fila de filtros son dos anatomías distintas en la misma línea: medido,
+   el select daba 47px al lado de un segmentado de 33.6 y unos pills de 25.6.
+
+   ── LA ALTURA OBJETIVO ES LA DEL SEGMENTADO, Y ESTÁ DERIVADA ────────────────
+   15.6 (una línea de `text-label` a `lh-normal`) + 16 (padding `space-2` arriba y
+   abajo) + 2 (bordes) = 33.6, exactamente la pista del segmentado. Se eligió ésa
+   y no la del pill porque un select es un control CON borde y fondo —
+   estructuralmente una pista, no una cápsula pelada.
+
+   PENDIENTE DECLARADO: los pills siguen 8px más bajos (25.6), y no es un
+   descuido de esta variante — es que un pill es un chip suelto y el segmentado es
+   una pista que CONTIENE chips (su ítem mide 23.6, o sea lo mismo que un pill sin
+   sus bordes). Igualarlos es una decisión de diseño de la barra, no un arreglo de
+   tamaño, y no se toma acá.
+
+   ── Y LA LÍNEA VA DECLARADA · CUARTA VEZ ────────────────────────────────────
+   Sin fijarla, `.duna-input` hereda el 1.5 de `.duna` y 12px de fuente dan 18 de
+   caja: la altura sería 36 y no 33.6. Es el mismo motivo que en `.duna-btn`,
+   `.duna-pill` y `.duna-seg__item` — cuando la altura de un control la decide lo
+   que lleva dentro, deja de poder alinearse con sus vecinos. */
+.duna-input--sm { padding: var(--duna-space-2) var(--duna-space-3);
+                  font-size: var(--duna-text-label); line-height: var(--duna-lh-normal); }
+/* El hueco de la flecha lo reserva `.duna-select` con `padding-right`, y el
+   `padding` de arriba es un atajo que lo pisa. Se re-declara con la especificidad
+   necesaria en vez de partir el atajo en longhands: así el día que cambie el
+   tamaño de la flecha, se toca UN sitio. */
+.duna-select.duna-input--sm { padding-right: calc(var(--duna-space-3) + 18px); }
 
 /* ── CHECKBOX · nativo, con `accent-color` ────────────────────────────────
    Otra vez el nativo, y por lo mismo: teclado, lector de pantalla y el estado

@@ -274,7 +274,22 @@
       </div>
     </div>
 
-    <div class="flag" style="margin-top:var(--duna-space-4)">CUÁNDO ESTO Y NO UN <code>duna-pill</code>. El pill FILTRA un conjunto —varios pueden tener sentido y llevan conteo cuando cuentan una cola—; el segmentado cambia el MODO de ver lo mismo: exactamente uno, y sin conteo posible, porque "cuadrícula&nbsp;12" no significa nada. Son preguntas distintas, y por eso son dos primitivas y no una con bandera.</div>
+    <div class="duna-eyebrow" style="margin:var(--duna-space-6) 0 var(--duna-space-3)">La BARRA DE FILTROS · las tres piezas juntas</div>
+    <div class="row" style="gap:var(--duna-space-2)">
+      <button class="duna-pill is-on">Todos</button>
+      <button class="duna-pill">Por reponer <span class="duna-num">2</span></button>
+      <select class="duna-input duna-select duna-input--sm" style="width:auto">
+        <option>Todas las categorías</option>
+      </select>
+      <div class="duna-seg" role="group" aria-label="Modo de vista">
+        <button class="duna-seg__item is-on" aria-pressed="true" aria-label="Cuadrícula"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+        <button class="duna-seg__item" aria-pressed="false" aria-label="Lista"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></button>
+      </div>
+    </div>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">UN CAMPO DE FORMULARIO NO ENTRA EN UNA BARRA DE FILTROS SIN SU VARIANTE. <code>.duna-input</code> está dimensionado para vivir dentro de un <code>.duna-field</code>, con su label: padding <code>space-3</code> y cuerpo de 14. Medido en esta fila, un select así daba <b style="color:var(--duna-ink)">47px</b> al lado de un segmentado de 33.6 y unos pills de 25.6 — dos anatomías en la misma línea.<br><br><code>.duna-input--sm</code> lo lleva a la altura del SEGMENTADO, y está derivada: 15.6 (una línea de <code>text-label</code> a <code>lh-normal</code>) + 16 (padding <code>space-2</code>) + 2 (bordes) = 33.6. Se eligió la del segmentado y no la del pill porque un select es un control CON borde y fondo — estructuralmente una pista, no una cápsula pelada.<br><br>PENDIENTE DECLARADO: los pills siguen 8px más bajos, y no es un descuido de esta variante — un pill es un chip suelto y el segmentado es una pista que CONTIENE chips (su ítem mide 23.6, o sea un pill sin sus bordes). Igualarlos es una decisión de diseño de la barra, no un arreglo de tamaño.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">CUÁNDO ESTO Y NO UN <code>duna-pill</code>. El pill FILTRA un conjunto —varios pueden tener sentido y llevan conteo cuando cuentan una cola—; el segmentado cambia el MODO de ver lo mismo: exactamente uno, y sin conteo posible, porque "cuadrícula&nbsp;12" no significa nada. Son preguntas distintas, y por eso son dos primitivas y no una con bandera.</div>
 
     <div class="flag" style="margin-top:var(--duna-space-3)">LA PISTA VA HUNDIDA Y EL ELEGIDO LEVANTADO — <b style="color:var(--duna-ink)">la maqueta lo tiene al revés</b>. Ella pone la pista en <code>surface</code> y el activo en <code>surface-2</code>: en claro se ve plausible, pero en OSCURO <code>surface-2</code> es más oscuro que <code>surface</code>, así que el activo quedaría hundido en un tema y levantado en el otro — y la <code>shadow-1</code> sobre fondo oscuro casi no existe, con lo que el único signo que sobreviviría sería el color del texto. Invertido, la dirección es la misma en los dos temas. Mirá este bloque con el toggle de arriba.<br><br>Los radios son aritmética: interno = externo − padding (<code>r-m</code> 12 − <code>space-1</code> 4 = 8 = <code>r-s</code>). Con cualquier otra combinación el chip elegido deja una luna despareja contra la esquina de la pista.</div>
 

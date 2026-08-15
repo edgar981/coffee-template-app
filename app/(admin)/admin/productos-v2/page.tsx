@@ -279,7 +279,9 @@ function ProductosV2() {
             los cuatro pills en vez de apagarlos. Un select y no cuatro pills más
             porque son seis categorías y la fila pasaría a diez. */}
         <select
-          className="duna-input duna-select"
+          className="duna-input duna-select duna-input--sm"
+          // `width: auto` porque `.duna-input` es `width: 100%` (anatomía de
+          // formulario); acá el control mide lo que dice su opción más larga.
           style={{ width: 'auto', marginLeft: 'var(--duna-space-2)' }}
           aria-label="Filtrar por categoría"
           value={categoria ?? ''}
