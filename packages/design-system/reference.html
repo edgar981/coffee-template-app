@@ -359,6 +359,53 @@
     </div>
   </section>
 
+  <!-- MEDIO · EL MARCO DE UNA IMAGEN -->
+  <section>
+    <h2 class="sec">Medio · el marco de una imagen</h2>
+    <p class="sec-note">La primera pieza del sistema que sostiene un medio: las dos verticales anteriores son texto puro. El marco es la FORMA y la pone el paquete; lo que se ve cuando NO hay imagen es CONTENIDO y lo pone el consumidor adentro — el tile no sabe qué es un producto.</p>
+
+    <div class="row" style="align-items:flex-start; gap:var(--duna-space-5)">
+      <div style="width:180px">
+        <div class="duna-caption" style="margin-bottom:var(--duna-space-2)">Con imagen · y con cinta</div>
+        <div class="duna-tile">
+          <img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='100'%3E%3Crect width='300' height='100' fill='%23DDD9CD'/%3E%3Ccircle cx='150' cy='50' r='34' fill='%23F59E0B'/%3E%3C/svg%3E">
+          <span class="duna-tile__ribbon">
+            <span class="duna-badge duna-badge--attention"><span class="duna-badge__dot"></span>Por reponer</span>
+          </span>
+        </div>
+      </div>
+
+      <div style="width:180px">
+        <div class="duna-caption" style="margin-bottom:var(--duna-space-2)">Vacío · el reemplazo lo pone el consumidor</div>
+        <div class="duna-tile">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg>
+        </div>
+      </div>
+
+      <!-- La tira lleva ancho PROPIO y no `flex:1`: con la columna elástica el
+           `.row` la estrechaba y las cuatro miniaturas se envolvían en 2×2, o sea
+           que esta página enseñaba una rejilla donde la primitiva es una TIRA.
+           4×44 + 3×8 de gap = 200. -->
+      <div style="width:200px; flex-shrink:0">
+        <div class="duna-caption" style="margin-bottom:var(--duna-space-2)">La tira · seleccionada y "agregar"</div>
+        <div class="duna-tiles">
+          <button type="button" class="duna-tile duna-tile--sm is-selected">
+            <img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='100'%3E%3Crect width='300' height='100' fill='%23DDD9CD'/%3E%3Ccircle cx='150' cy='50' r='34' fill='%23F59E0B'/%3E%3C/svg%3E">
+          </button>
+          <button type="button" class="duna-tile duna-tile--sm"></button>
+          <button type="button" class="duna-tile duna-tile--sm"></button>
+          <button type="button" class="duna-tile duna-tile--sm duna-tile--add" aria-label="Agregar una imagen">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">LA RELACIÓN DE ASPECTO ES <b style="color:var(--duna-ink)">1:1</b>, Y SALE DE LAS IMÁGENES REALES, NO DE LA MAQUETA. <code>duna-os.html</code> dibuja <code>4/3</code>; se midieron las cuatro fotos del catálogo antes de copiarlo y las cuatro son 1254×1254. Un marco 4/3 les recortaría ~25 % arriba y abajo — a todas. El placeholder de arriba es deliberadamente 3:1: si el recorte no funcionara, esta página lo mostraría deformado en vez de centrado.<br><br>Y el cuadrado es lo que hace que <code>--sm</code> sea sólo un ancho: la miniatura de una fila y el marco de una tarjeta encuadran IGUAL, así que la misma foto no se recorta distinto según dónde se mire.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">LA MANO Y EL FOCO VIVEN EN <code>button.duna-tile</code>, no en la clase base — igual que en <code>order-card</code>. Un marco que sólo muestra una foto no debe prometer mano ni recibir foco, o el teclado para en algo que no responde. Las tres miniaturas de arriba SÍ son botones (recorrelas con Tab); los dos marcos grandes no lo son.<br><br>El borde de tinta de <code>is-selected</code> es el mismo signo que en <code>order-card</code>: el idioma del sistema para "ésta es la que estás viendo". Lo que cambia es la segunda mitad —allá una sombra que levanta, acá un aro de 1px— porque el mismo borde sobre 44px es una fracción del contraste que tiene sobre 400px.</div>
+  </section>
+
   <section>
     <h2 class="sec">Pedidos · dos primitivas INDEPENDIENTES (agnósticas)</h2>
     <p class="sec-note">Son DOS primitivas separadas —no una card y su detalle—, con datos distintos a propósito. Reciben props genéricos ya resueltos; el DS no conoce el tipo <code>Order</code>. "En curso" vive SOLO en los steps del pie; el badge de estado es terminal (pagado/atención), nunca "en camino".</p>

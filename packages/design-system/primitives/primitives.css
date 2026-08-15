@@ -44,6 +44,118 @@
 .duna-card__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--duna-space-4); }
 .duna-divider { height: 1px; background: var(--duna-border); border: none; margin: 0; }
 
+/* ── TILE · el marco de una imagen ──────────────────────────────────────────
+   LA PRIMERA PIEZA DEL SISTEMA QUE SOSTIENE UN MEDIO, y por eso existe: las dos
+   verticales anteriores (pedidos, clientes) son TEXTO PURO, así que el paquete
+   nunca tuvo que decidir cómo se ve una imagen dentro de una superficie suya. No
+   era una omisión: era una pregunta que todavía no se había hecho.
+
+   AGNÓSTICA, y acá la palabra tiene una consecuencia concreta: el tile no sabe
+   qué imagen lleva NI QUÉ PONER CUANDO NO HAY NINGUNA. El marco es la FORMA y la
+   pone el paquete; el reemplazo —un ícono, una inicial, un glifo— es CONTENIDO y
+   lo pone el consumidor dentro. Es la misma frontera de siempre (opción C): un
+   ícono de "producto" convertiría a este paquete en uno que conoce productos.
+
+   ── LA RELACIÓN DE ASPECTO ES 1:1, Y SALE DE LAS IMÁGENES, NO DE LA MAQUETA ──
+
+   `duna-os.html` dibuja `aspect-ratio: 4/3`. Se midieron las cuatro imágenes del
+   catálogo real antes de copiarla: las CUATRO son 1254×1254, o sea 1:1 exacto.
+   Un marco 4/3 les recortaría ~25 % arriba y abajo — a todas, no a un caso raro.
+   Es el § 2 de `duna-os.NOTES.md` en su forma más literal: la maqueta es
+   intención de FORMA y no fuente de VALORES, y acá el dato la contradice.
+
+   Además el cuadrado es lo que hace que `--sm` sea sólo un ancho: una miniatura
+   de fila y un marco de tarjeta encuadran IGUAL, así que la misma foto no se
+   recorta distinto según dónde se mire. Con dos relaciones, el operador ve dos
+   fotos del mismo producto.
+
+   ── LO QUE NO SE ADOPTA DE LA MAQUETA, DECLARADO ─────────────────────────────
+
+   El fondo de duna en SVG y el glifo de emoji. Los dos son MARCADO, no forma, así
+   que meterlos acá obligaría a que el paquete enviara un componente (o a que cada
+   consumidor pegara el mismo SVG) — y el emoji además es una función que el
+   dominio no tiene: no hay columna donde guardarlo. Un marco vacío se lee
+   perfectamente como un marco vacío. */
+.duna-tile { position: relative; aspect-ratio: 1; border-radius: var(--duna-r-m);
+             overflow: hidden; background: var(--duna-paper); border: 1px solid var(--duna-border);
+             display: flex; align-items: center; justify-content: center;
+             flex-shrink: 0; color: var(--duna-muted);
+             transition: border-color var(--duna-dur) var(--duna-ease), box-shadow var(--duna-dur) var(--duna-ease); }
+/* EL COLOR DEL REEMPLAZO ES `muted`, Y NO `faint`, POR MEDICIÓN.
+   Nació en `faint` —parece el token del "placeholder"— y sobre el fondo del marco
+   da 2.26:1 en CLARO, por debajo del 3:1 que AA pide para lo no-textual (WCAG
+   1.4.11). En oscuro pasaba (3.32), así que mirar un solo tema lo habría dado por
+   bueno. `muted` da 4.02 claro / 6.01 oscuro. `ink-2` también pasa (10:1) y se
+   descartó: un marco VACÍO no debe gritar más fuerte que uno con foto. */
+/* En oscuro el "papel" ES el fondo de la app, así que un marco vacío desaparecería
+   contra la página. `surface-2` lo mantiene un escalón por encima — mismo criterio
+   que `--duna-skel`, que también es un escalón y no un color fijo. */
+[data-theme="dark"] .duna-tile { background: var(--duna-surface-2); }
+/* Llena y recorta. Sirve igual a un `<img>` suelto y a uno que el consumidor
+   posicione en absoluto (`next/image` con `fill` se monta así): en ese caso el
+   ancho y el alto ya vienen del `inset: 0` y estas dos líneas son un no-op. */
+.duna-tile img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* Cuadrada y de ancho fijo — la miniatura que acompaña a una fila de datos.
+   El ancho es TOKEN y no un número acá: lo comparte con las pistas de `.duna-tiles`
+   (la derivación del 44 está en `tokens.css`). */
+.duna-tile--sm { width: var(--duna-thumb-w); border-radius: var(--duna-r-s); }
+
+/* LA CINTA · la ranura para colgar un badge SOBRE la imagen.
+   Es una ranura y no un badge: lo que va adentro es un `.duna-badge` cualquiera,
+   así que el tile no gana una segunda opinión sobre cómo se ve un estado. */
+.duna-tile__ribbon     { position: absolute; top: var(--duna-space-2); left: var(--duna-space-2); }
+.duna-tile__ribbon--end { left: auto; right: var(--duna-space-2); }
+
+/* ── CUANDO EL MARCO HACE ALGO ──────────────────────────────────────────────
+   Mano y foco viven en los selectores de elemento, NO en la clase base — igual
+   que en `.duna-order-card`, y por el mismo motivo: un marco que sólo muestra una
+   foto no debe prometer mano ni recibir foco, o el teclado para en algo que no
+   responde. El reset es sólo lo que el navegador le impone a un <button>. */
+button.duna-tile, a.duna-tile { padding: 0; font: inherit; color: var(--duna-muted); cursor: pointer; }
+button.duna-tile:hover, a.duna-tile:hover { border-color: var(--duna-border-2); }
+button.duna-tile:focus-visible, a.duna-tile:focus-visible {
+  border-color: var(--duna-ink); box-shadow: var(--duna-ring);
+  outline: 2px solid transparent; outline-offset: 2px;
+}
+
+/* SELECCIONADA · la miniatura que el visor está mostrando.
+   El borde de TINTA es el mismo signo que en `.duna-order-card.is-selected`, y eso
+   no es coincidencia: es el idioma del sistema para "ésta es la que estás viendo".
+   Lo que cambia es la segunda mitad —allá un `shadow-2` que levanta, acá un aro de
+   1px— porque el mismo borde sobre 44px es una fracción del contraste que tiene
+   sobre una tarjeta de 400px: el aro DOBLA el borde en vez de inventar un segundo
+   idioma. Una sombra de elevación entre cuatro cuadrados pegados no se lee. */
+.duna-tile.is-selected { border-color: var(--duna-ink); box-shadow: 0 0 0 1px var(--duna-ink); }
+[data-theme="dark"] .duna-tile.is-selected { border-color: var(--duna-ink-2); box-shadow: 0 0 0 1px var(--duna-ink-2); }
+/* SELECCIONADA **Y** ENFOCADA · las dos señales, compuestas.
+   El aro de selección y el de foco son el MISMO `box-shadow`, así que sin esta
+   regla el foco lo reemplaza y, mientras el operador recorre la tira con Tab, la
+   miniatura seleccionada deja de distinguirse de las demás — justo cuando está
+   navegando a ciegas, que es cuando la selección más importa. No se vio razonando
+   sobre el CSS: apareció al recorrer la tira con Tab de verdad en la prueba viva.
+   El de selección va PRIMERO para que quede encima (1px de tinta) y el de foco
+   asome detrás. */
+button.duna-tile.is-selected:focus-visible, a.duna-tile.is-selected:focus-visible {
+  box-shadow: 0 0 0 1px var(--duna-ink), var(--duna-ring);
+}
+[data-theme="dark"] button.duna-tile.is-selected:focus-visible,
+[data-theme="dark"] a.duna-tile.is-selected:focus-visible {
+  box-shadow: 0 0 0 1px var(--duna-ink-2), var(--duna-ring);
+}
+
+/* AGREGAR · el hueco que invita, al final de una tira de miniaturas. Punteado
+   porque todavía no hay nada — es la misma gramática del esqueleto: la forma de
+   algo que aún no llegó, sólo que acá quien lo trae es el operador. */
+.duna-tile--add { border-style: dashed; }
+button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-ink); color: var(--duna-ink); }
+
+/* LA TIRA · las miniaturas de una galería.
+   `auto-fill` y no un número de columnas: la tira sirve igual a tres miniaturas
+   que a siete, y el consumidor no tiene que decidir cuántas caben. */
+.duna-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--duna-thumb-w), 1fr));
+              gap: var(--duna-space-2); }
+
 /* ── LAYOUT PARTIDO · lista que scrollea + panel que se queda ────────────────
    El esqueleto de una pantalla de trabajo: a la izquierda una lista larga, a la
    derecha el detalle de lo seleccionado. AGNÓSTICO — no sabe que la lista son

@@ -204,6 +204,16 @@
      densidad de esa tarjeta. */
   --duna-list-w: 400px;
 
+  /* Ancho de la MINIATURA de un medio (`.duna-tile--sm`). Es token por lo mismo
+     que `--duna-list-w`: lo consumen DOS reglas —la miniatura y las pistas de la
+     tira que las alinea (`.duna-tiles`)— y con el número escrito en las dos, la
+     que se olvide deja la tira desalineada sin que nada avise.
+     El 44 sale de lo que una fila de datos tiene que albergar: dos renglones,
+     título (14px × 1.3 ≈ 18) y su meta (11px × 1.3 ≈ 14) ≈ 32px, más aire,
+     redondeado a la base de 4 del espaciado. Derivado, no heredado de la maqueta
+     (que dice 46 y no está conectada a nada). */
+  --duna-thumb-w: 44px;
+
   /* ── EL BORDE DE ABAJO DEL TELÉFONO ──────────────────────────────────────
      El indicador de inicio de un iPhone se dibuja ENCIMA de la página, así que
      una barra fija al borde inferior queda con su última fila de píxeles debajo
