@@ -353,6 +353,26 @@
     <div class="flag" style="margin-top:var(--duna-space-3)">SU LÍMITE, DICHO: la lista desplegada la pinta el sistema operativo y no se puede tipografiar. La objeción obvia —que en oscuro salga clara— ya estaba resuelta antes: <code>color-scheme</code> se declara junto a los temas justamente para alinear los controles nativos. La FLECHA sí es nuestra, porque el estado cerrado es el que se ve el 99% del tiempo; su gris es un gemelo declarado de <code>--duna-muted</code>, porque un <code>data:</code> URI no puede leer una custom property.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">EL PLACEHOLDER ES UNA OPCIÓN VACÍA (<code>disabled hidden</code>), no el label. El label dice QUÉ ES el campo; el placeholder dice QUE AÚN NO ELEGISTE. Fusionarlos pierde el segundo estado: un label "Selecciona la zona" sigue diciendo "selecciona" con la zona ya elegida, que es falso.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">EL CHECKBOX ES LA FILA, no la caja: uno suelto sin su texto no existe en ninguna pantalla, y lo que se hace mal es la asociación. Montado como <code>&lt;label&gt;</code>, el texto entero amplía el área de toque — en un teléfono, la diferencia entre dar y no dar.</div>
+
+    <h3 style="font-size:var(--duna-text-body);font-weight:var(--duna-w-semi);margin:var(--duna-space-6) 0 var(--duna-space-2)">La rejilla de grupos · <code>.duna-form</code></h3>
+    <p class="sec-note">Dos columnas de <code>.duna-field</code>, con <code>__full</code> para el campo que ocupa el ancho. Éste va <code>--sm</code>: la forma de "Nuevo cliente", 7 campos.</p>
+    <div class="duna-form duna-form--sm" style="max-width:520px;margin-top:var(--duna-space-4)">
+      <div class="duna-field duna-form__full">
+        <label class="duna-field__label" for="rf-nom">Nombre *</label>
+        <input class="duna-input" id="rf-nom" value="Laura Cárdenas">
+      </div>
+      <div class="duna-field"><label class="duna-field__label" for="rf-cor">Correo</label><input class="duna-input" id="rf-cor"></div>
+      <div class="duna-field"><label class="duna-field__label" for="rf-tel2">Teléfono</label><input class="duna-input" id="rf-tel2"></div>
+      <div class="duna-field"><label class="duna-field__label" for="rf-ciu">Ciudad</label><input class="duna-input" id="rf-ciu"></div>
+      <div class="duna-field">
+        <label class="duna-field__label" for="rf-ori">Origen</label>
+        <select class="duna-select duna-input" id="rf-ori"><option>Directo</option><option>Instagram</option><option>WhatsApp</option></select>
+      </div>
+      <div class="duna-field duna-form__full"><label class="duna-field__label" for="rf-dir">Dirección</label><input class="duna-input" id="rf-dir"></div>
+      <div class="duna-field duna-form__full"><label class="duna-field__label" for="rf-not">Notas</label><textarea class="duna-input" id="rf-not" rows="2"></textarea></div>
+    </div>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">EL GAP ENTRE GRUPOS ES UN TOKEN, Y <code>--sm</code> ES SU ESCALÓN MENOR. Default <code>--duna-form-gap</code> = <code>space-4</code> (16px), el ritmo de un formulario largo; <code>--sm</code> lo baja a <code>space-3</code> (12px). El motivo NO es "llenar el drawer" —bajar el gap mueve ~16px de alto en 7 campos, nada—: es RITMO. El gap interno de <code>.duna-field</code> es 8px, así que 16px entre grupos es un salto 2:1 que con pocos grupos los lee dispersos; 12px (1.5:1) los lee como una unidad. <code>--sm</code> COHESIONA, no llena. Reemplaza el <code>grid grid-cols-2 gap-4</code> ad-hoc que cada drawer repetía — la divergencia que hacía respirar distinto al mismo formulario según quién lo escribió.</div>
   </section>
 
   <section>

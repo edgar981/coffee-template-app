@@ -128,8 +128,11 @@ function Cuerpo({ customer, onClose, onSaved }: {
 
   return (
     <>
-      <div className="duna-modal__body grid grid-cols-2 gap-4">
-        <div className="duna-field col-span-2">
+      {/* `.duna-form--sm`: la rejilla de grupos con el ritmo CORTO (gap 12px). Es
+          un formulario de 7 campos; el gap de 16px de un form largo lo leía
+          disperso (§ .duna-form, ritmo por token). */}
+      <div className="duna-modal__body duna-form duna-form--sm">
+        <div className="duna-field duna-form__full">
           <label className="duna-field__label" htmlFor="cf-nombre">Nombre *</label>
           {/* `aria-invalid` es a la vez el hook de estilo y el anuncio: no se
               puede pintar el campo de inválido sin que un lector lo sepa. */}
@@ -167,11 +170,11 @@ function Cuerpo({ customer, onClose, onSaved }: {
             ))}
           </select>
         </div>
-        <div className="duna-field col-span-2">
+        <div className="duna-field duna-form__full">
           <span className="duna-field__label">Dirección</span>
           <input className="duna-input" {...campo('direccion')} />
         </div>
-        <div className="duna-field col-span-2">
+        <div className="duna-field duna-form__full">
           <span className="duna-field__label">Notas</span>
           <textarea {...campo('notas')} className="duna-input" rows={3} />
         </div>

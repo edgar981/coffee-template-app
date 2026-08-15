@@ -754,6 +754,35 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
    traiga el margen del navegador y descuadre la columna. */
 .duna-field__hint, .duna-field__error { margin: 0; }
 
+/* ── FORM · la rejilla de grupos, con su ritmo por TOKEN ───────────────────
+   Dos columnas de `.duna-field`, y `__full` para el campo que ocupa el ancho.
+   Existe para que el gap ENTRE grupos deje de ser un `grid grid-cols-2 gap-4`
+   ad-hoc de Tailwind repetido en cada drawer — la divergencia que hacía que un
+   mismo formulario respirara distinto según quién lo escribió.
+
+   ── EL GAP ES UN TOKEN, Y `--sm` ES SU ESCALÓN MENOR ──────────────────────
+   `--duna-form-gap` default = space-4 (16px): el ritmo de un formulario LARGO,
+   sin cambio respecto a lo que ya había. `.duna-form--sm` lo baja a space-3
+   (12px) para un formulario CORTO.
+
+   Y el motivo NO es "llenar el drawer" —bajar el gap mueve ~16px de alto en un
+   form de 7 campos, nada—: es RITMO. El gap interno de `.duna-field` es 8px, así
+   que 16px entre grupos es un salto 2:1 que, con pocos grupos, los lee dispersos;
+   12px (1.5:1) los lee como una unidad. `--sm` COHESIONA, no llena. Medido.
+
+   ── DISPARADOR · limpieza diferida (alcance mínimo, decisión del owner) ─────
+   Hoy sólo "Nuevo cliente" usa esta primitiva (con `--sm`). Nueva orden,
+   Registrar pago y Programar entrega siguen con `grid grid-cols-2 gap-4` ad-hoc;
+   migran a `.duna-form` con gap DEFAULT (sin cambio visual — 16px = lo que ya
+   tienen). Al tocar cualquiera de esos formularios, ese migra entero. Misma
+   forma que la deuda de `.duna-field` en esos mismos tres: no se hace una tanda
+   propia para el refactor, se cobra cuando el archivo ya está abierto. */
+.duna-form { --duna-form-gap: var(--duna-space-4);
+             display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+             gap: var(--duna-form-gap); }
+.duna-form--sm { --duna-form-gap: var(--duna-space-3); }
+.duna-form__full { grid-column: 1 / -1; }
+
 /* ── BUSCADOR · el CAMPO, no el filtrado ─────────────────────────────────────
    Un `duna-input` con la lupa adentro. Es una variante de input y por eso vive
    acá pegada a él, no en una familia propia.

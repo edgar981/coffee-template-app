@@ -730,7 +730,8 @@ function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onCerrar, o
               empujar a Editar/Eliminar, que quedan debajo. */}
           {onCerrar && (
             <button type="button" className="duna-btn duna-btn--ghost duna-btn--icon"
-                    style={{ alignSelf: 'flex-end' }} onClick={onCerrar} aria-label="Cerrar el panel">
+                    style={{ alignSelf: 'flex-end' }} onClick={onCerrar}
+                    title="Cerrar" aria-label="Cerrar el panel">
               <X />
             </button>
           )}
