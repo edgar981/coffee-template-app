@@ -2178,6 +2178,38 @@ deliberado: ahí no elegir SÍ es una decisión válida —el pedido nace pendie
 que es una opción de verdad. Tratarlas igual habría convertido una decisión en un
 estado sin salida.
 
+### La FECHA sí cambia de criterio, y el select no — la diferencia es COMPETENCIA
+
+El mismo argumento no da el mismo resultado en los dos controles, y por qué es lo
+que hay que retener.
+
+**El `<select>` se queda nativo.** Su lista aparece un segundo, la pinta el
+sistema operativo, y **no compite con ninguna otra lista del panel**. Nadie ve dos
+formas de elegir de una lista en la misma sesión.
+
+**La FECHA no.** El panel ya tenía un date picker Duna —el "Rango de fechas" de
+Pedidos— mientras Programar entrega seguía con un `<input type="date">`: dos
+formas distintas para la misma tarea, las dos VISIBLES. Eso pesa más que la rueda
+nativa en móvil, que es el costo que se acepta.
+
+O sea: la regla no es "nativo siempre" ni "custom siempre". Es **¿hay otra forma
+del mismo control ya visible en el panel?** Si la hay, gana la coherencia; si no,
+gana el nativo.
+
+**ES EL MISMO `Calendar`, PERO NO ERA UNA COPIA** (verificado antes de tocar):
+`mode="single"` contra `mode="range"`, y cuatro cosas cambian. La que más importa
+es que **el tiempo va al revés** — el rango filtra registros pasados y prohíbe el
+futuro; una fecha de entrega es un compromiso futuro, así que copiar sus límites
+habría hecho imposible programar para mañana. Y **no se agregaron límites que no
+había**: el input nativo no tenía `min` ni `max`, y una migración de FORMA no es
+el sitio para estrenar una regla de negocio.
+
+Dos trampas que dejó al pasar: `PopoverContent` no aceptaba `container` y
+portaleaba a `<body>` —tercera vez que el límite del puente de fuentes muerde— y
+`formatFecha` con un `Date` de medianoche local imprime el día ANTERIOR fuera de
+UTC-5, porque esa función ancla las fechas de reloj de pared en UTC a propósito.
+Se le pasa la cadena.
+
 ### `textarea.duna-input` YA EXISTÍA
 
 No era un hueco: era una primitiva con un solo consumidor que los otros dos
