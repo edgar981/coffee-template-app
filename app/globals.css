@@ -369,15 +369,18 @@ html {
     @apply bg-background text-foreground font-inter;
   }
 
-  /* Admin (Duna) typography — scoped to the admin route group's wrapper.
-     Fonts are loaded via next/font in app/(admin)/layout.tsx; the storefront
-     keeps Inter/Playfair (this never touches it). Instrument Sans for body/UI,
-     Space Grotesk for headings, JetBrains Mono for the "Duna" wordmark. */
+  /* Tipografía del panel — AHORA POR LOS ROLES DEL DESIGN-SYSTEM.
+     Era Instrument Sans (body) + Space Grotesk (headings) escritas directo; ahora
+     apuntan a `--duna-font-ui` (Hanken Grotesk) y `--duna-font-display` (Space,
+     que el DS también usa). Es lo que hace que el chrome se lea como el sistema y
+     no como un panel con su propia tipografía, y lo que dejó a Instrument Sans sin
+     consumidores para poder retirarla. Los roles viven en `html.admin` (§ duna.css),
+     así que `.admin-shell` los hereda. */
   .admin-shell {
-    font-family: var(--font-instrument-sans), 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--duna-font-ui), 'Inter', ui-sans-serif, system-ui, sans-serif;
   }
   .admin-shell :is(h1, h2, h3, h4, h5, h6) {
-    font-family: var(--font-space-grotesk), 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--duna-font-display), 'Inter', ui-sans-serif, system-ui, sans-serif;
   }
 
   /* Tailwind v4 preflight sets <button> to `cursor: default`, so admin buttons

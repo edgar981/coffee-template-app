@@ -3,10 +3,7 @@ import type { ReactNode } from "react";
 
 import { AdminThemeProvider } from "@/components/theme/AdminThemeProvider";
 import { AdminScope } from "@/components/theme/AdminScope";
-import {
-  spaceGrotesk, instrumentSans, jetbrainsMono,
-  hankenGrotesk, splineSansMono,
-} from "./fonts";
+import { spaceGrotesk, hankenGrotesk, splineSansMono } from "./fonts";
 // Tokens + primitivas de @duna/design-system, y el puente de familias
 // tipográficas. Acá y no en el layout raíz: el storefront no lo consume.
 import "./duna.css";
@@ -20,8 +17,8 @@ import { SUFIJO_PANEL } from "@/lib/admin-titulo";
 // Tematización Duna (Duna Solutions): el paladar Duna está scopeado a `html.admin`
 // en globals.css. `AdminScope` marca <html> al montar (y lo limpia al salir);
 // el <script> inline lo aplica antes del primer paint en cargas completas para
-// evitar un flash del paladar coffee del storefront. Las fuentes Duna viven en
-// el wrapper `.admin-shell`.
+// evitar un flash del paladar coffee del storefront, Y monta ahí las clases de
+// fuente para que lo portaleado a <body> herede la tipografía (§ duna.css).
 // ─── La identidad del PANEL, declarada acá ───────────────────────────────────
 //
 // El grupo admin es un producto distinto del storefront y por eso declara sus
@@ -71,7 +68,7 @@ export const viewport: Viewport = {
 // sitios: al <div> por SSR (el contenido del panel nunca parpadea) y a <html> por
 // el script de abajo (los PORTALES, que viven en <body> y no heredan del div).
 // `.variable` puede traer más de una clase — se parte por si acaso.
-const FONT_CLASES = [spaceGrotesk, instrumentSans, jetbrainsMono, hankenGrotesk, splineSansMono]
+const FONT_CLASES = [spaceGrotesk, hankenGrotesk, splineSansMono]
   .flatMap(f => f.variable.split(/\s+/))
   .filter(Boolean);
 
@@ -94,7 +91,7 @@ export default function AdminGroupLayout({ children }: { children: ReactNode }) 
       />
       <AdminScope />
       <div
-        className={`${spaceGrotesk.variable} ${instrumentSans.variable} ${jetbrainsMono.variable} ${hankenGrotesk.variable} ${splineSansMono.variable} admin-shell`}
+        className={`${spaceGrotesk.variable} ${hankenGrotesk.variable} ${splineSansMono.variable} admin-shell`}
       >
         {children}
       </div>

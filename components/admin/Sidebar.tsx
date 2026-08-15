@@ -189,13 +189,17 @@ function SearchButton({ onClick }: { onClick: () => void }) {
 function BrandLockup() {
   return (
     <div className="mt-3 min-w-0 overflow-hidden">
+      {/* El wordmark pasó de JetBrains Mono a `--duna-font-mono` (Spline Sans
+          Mono): mono por mono, pero ahora la mono DEL SISTEMA. Es el único cambio
+          de identidad visible de la migración del chrome, y va porque retirar
+          JetBrains lo exige — era su único consumidor. */}
       <span
         className="block whitespace-nowrap text-[15px] font-semibold uppercase leading-none tracking-[0.2em] text-sidebar-foreground"
-        style={{ fontFamily: 'var(--font-jetbrains-mono)' }}
+        style={{ fontFamily: 'var(--duna-font-mono)' }}
       >
         DUNA
       </span>
-      <p className="mt-2 mb-2 whitespace-nowrap text-[13px] leading-none text-sidebar-foreground/55" style={{ fontFamily: 'var(--font-instrument-sans)' }}>
+      <p className="mt-2 mb-2 whitespace-nowrap text-[13px] leading-none text-sidebar-foreground/55" style={{ fontFamily: 'var(--duna-font-ui)' }}>
         Café Nayoli
       </p>
     </div>
