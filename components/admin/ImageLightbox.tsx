@@ -74,11 +74,3 @@ export function ImageLightbox({ src, alt, onClose }: ImageLightboxProps) {
     </Dialog>
   );
 }
-
-/**
- * Clases de una miniatura INSPECCIONABLE. Se usa junto al `button` que envuelve
- * el thumbnail: cursor de lupa y anillo de foco, para que "esto se puede abrir"
- * se note con el mouse y con el teclado.
- */
-export const THUMB_INSPECCIONABLE =
-  'cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
