@@ -269,6 +269,13 @@ model InventoryLog {
   stock_anterior  Int
   stock_nuevo     Int
   motivo          String?
+  // Actor SNAPSHOT sin FK (patrón Payment/OrderStatusTransition): id + nombre
+  // congelados, sobreviven a que el usuario se desactive o se borre. Nullable: las
+  // filas viejas —y cualquier asiento del sistema sin humano— quedan en null, que
+  // es honesto: nadie sabe quién las hizo. Se llena de aquí en adelante por las DOS
+  // puertas de escritura (ajuste de inventario y edición de ficha).
+  ajustado_por        String?
+  ajustado_por_nombre String?
   createdAt       DateTime @default(now())
 }
 

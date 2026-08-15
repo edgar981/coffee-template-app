@@ -42,6 +42,17 @@ export interface AjusteInventarioInput {
   motivo?:     string | null;
 }
 
+/**
+ * Quién ejecuta el movimiento — SNAPSHOT, no una relación. El llamador lo saca de
+ * la sesión (`{ id: session.user.id, nombre: session.user.name ?? null }`), misma
+ * convención que Payment y las transiciones de orden. Opcional: un asiento sin
+ * humano (un efecto del sistema) lo deja en null, que es honesto.
+ */
+export interface ActorRef {
+  id:     string;
+  nombre: string | null;
+}
+
 export interface AjusteInventarioResult {
   product: Product;
   log:     InventoryLog;
@@ -69,6 +80,7 @@ export interface AjusteInventarioResult {
  */
 export async function aplicarAjusteInventario(
   input: AjusteInventarioInput,
+  actor?: ActorRef,
 ): Promise<AjusteInventarioResult> {
   const qty = Number(input.cantidad);
   if (!Number.isFinite(qty) || qty < 0) throw new CantidadInvalidaError();
@@ -114,6 +126,11 @@ export async function aplicarAjusteInventario(
         stock_anterior:  product.stock,   // de la fila LOCKEADA, no de un snapshot
         stock_nuevo:     post.stock,
         motivo:          input.motivo || null,
+        // El actor de ESTA puerta (Ajustar Stock). La otra —la edición de ficha—
+        // lo captura en `product-update.ts`; las dos tienen que hacerlo o la
+        // auditoría miente a medias (lo peor, porque parece completa).
+        ajustado_por:        actor?.id ?? null,
+        ajustado_por_nombre: actor?.nombre ?? null,
       },
     });
     return { anterior: product, updated: post, log: asiento };
@@ -169,18 +186,22 @@ export interface KardexQuery {
 /**
  * Los movimientos de inventario, del más reciente al más viejo.
  *
- * LÍMITE CONOCIDO, y se anota acá porque es donde muerde: `createdAt` es
- * `timestamp(3)` (milisegundos), así que dos asientos escritos dentro del mismo
- * milisegundo no tienen desempate y pueden salir en cualquier orden entre sí. El
- * lock `FOR UPDATE` de `aplicarAjusteInventario` serializa las ESCRITURAS —el
- * kardex nunca queda mal encadenado— pero no le pone resolución al reloj. No se
- * arregla acá: exigiría una columna de secuencia, que es una migración y una
- * decisión aparte. Es preexistente y no lo introduce este filtro.
+ * DESEMPATE `[createdAt desc, id desc]`: `createdAt` es `timestamp(3)`
+ * (milisegundos), así que dos asientos escritos dentro del mismo ms empataban y
+ * podían salir en cualquier orden entre sí. El `id` los desempata de forma
+ * ESTABLE, y además ~cronológica: `cuid()` lleva un prefijo de tiempo, igual que
+ * el `[occurred_at, id]` del libro de transiciones.
+ *
+ * DEPENDE de que el generador de id sea MONÓTONO. Hoy lo es (`@default(cuid())`);
+ * el día que el schema pase a `uuid()` —aleatorio— este desempate deja de ordenar
+ * y sólo estabiliza, EN SILENCIO. Es la misma nota que el libro de transiciones.
+ * El lock `FOR UPDATE` sigue serializando las ESCRITURAS —el kardex nunca queda
+ * mal encadenado—; esto sólo le da un orden determinista a la LECTURA.
  */
 export function logsDeInventario({ productoId, take = KARDEX_TOPE }: KardexQuery = {}) {
   return prisma.inventoryLog.findMany({
     where:   productoId ? { producto_id: productoId } : undefined,
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take,
   });
 }
