@@ -3,10 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { toast } from 'sonner';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
@@ -251,26 +247,26 @@ function Cuerpo({ catalog, onClose, onCreated }: {
         {/* Cliente */}
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
-            <Label>Nombre del cliente *</Label>
-            <Input {...field('cliente_nombre')} className="mt-1" />
+            <span className="duna-field__label">Nombre del cliente *</span>
+            <input className="duna-input" {...field('cliente_nombre')} />
           </div>
           <div>
-            <Label>Correo electrónico</Label>
-            <Input
+            <span className="duna-field__label">Correo electrónico</span>
+            <input className="duna-input"
               type="email"
               value={form.cliente_email}
               onChange={e => { setForm(f => ({ ...f, cliente_email: e.target.value })); onIdentityChange(); }}
               onBlur={detectCustomer}
-              className="mt-1" placeholder="Opcional"
+              placeholder="Opcional"
             />
           </div>
           <div>
-            <Label>Teléfono</Label>
-            <Input
+            <span className="duna-field__label">Teléfono</span>
+            <input className="duna-input"
               value={form.cliente_telefono}
               onChange={e => { setForm(f => ({ ...f, cliente_telefono: e.target.value })); onIdentityChange(); }}
               onBlur={detectCustomer}
-              className="mt-1" placeholder="300 000 0000"
+              placeholder="300 000 0000"
             />
           </div>
           <p className="col-span-2 -mt-1 text-xs text-muted-foreground">* Ingresa al menos un teléfono o correo del cliente.</p>
@@ -324,22 +320,18 @@ function Cuerpo({ catalog, onClose, onCreated }: {
             </div>
           )}
 
-          <div className="col-span-2">
-            <Label>Canal</Label>
-            <Select value={form.canal} onValueChange={v => setForm(f => ({ ...f, canal: v as OrderChannel }))}>
-              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {CANALES.map(c => (
-                  <SelectItem key={c} value={c}>{CANAL_LABEL[c] ?? c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="duna-field col-span-2">
+            <label className="duna-field__label" htmlFor="no-canal">Canal</label>
+            <select className="duna-input duna-select" id="no-canal" value={form.canal}
+                    onChange={e => setForm(f => ({ ...f, canal: e.target.value as OrderChannel }))}>
+              {CANALES.map(c => <option key={c} value={c}>{CANAL_LABEL[c] ?? c}</option>)}
+            </select>
           </div>
         </div>
 
         {/* Productos — líneas reales; el total lo calcula el servidor */}
         <div className="border-t border-border pt-3">
-          <Label>Productos *</Label>
+          <span className="duna-field__label">Productos *</span>
           <div className="mt-2 space-y-2">
             {form.items.map((line, i) => {
               const product = productBySlug(line.slug);
@@ -348,40 +340,43 @@ function Cuerpo({ catalog, onClose, onCreated }: {
               return (
                 <div key={i} className="flex flex-wrap items-end gap-2 rounded-lg border border-border/60 bg-muted/20 p-2">
                   <div className="min-w-[180px] flex-1">
-                    <span className="text-xs text-muted-foreground">Producto</span>
-                    <Select value={line.slug} onValueChange={v => updateLine(i, { slug: v, molienda: defaultMolienda(v) })}>
-                      <SelectTrigger className="mt-0.5 h-9"><SelectValue placeholder="Selecciona…" /></SelectTrigger>
-                      <SelectContent>
-                        {catalog.map(p => (
-                          <SelectItem key={p.slug} value={p.slug} disabled={p.disponible === false}>
-                            {p.nombre}{p.disponible === false ? ' (Agotado)' : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <span className="duna-caption">Producto</span>
+                    {/* La opción vacía ES el placeholder: `disabled hidden` para
+                        que no se pueda volver a elegir "nada". El label dice qué
+                        es el campo; esto dice que aún no elegiste. */}
+                    <select className="duna-input duna-select" style={{ marginTop: '2px' }} required
+                            value={line.slug} aria-label="Producto"
+                            onChange={e => updateLine(i, { slug: e.target.value, molienda: defaultMolienda(e.target.value) })}>
+                      <option value="" disabled hidden>Selecciona…</option>
+                      {catalog.map(p => (
+                        <option key={p.slug} value={p.slug} disabled={p.disponible === false}>
+                          {p.nombre}{p.disponible === false ? ' (Agotado)' : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="w-16">
                     <span className="text-xs text-muted-foreground">Cant.</span>
-                    <Input
+                    <input className="duna-input"
                       type="number" min={1}
                       value={line.cantidad}
                       onChange={e => updateLine(i, { cantidad: Math.max(1, Number(e.target.value) || 1) })}
-                      className="mt-0.5 h-9"
+                      style={{ marginTop: '2px' }}
                     />
                   </div>
                   {opciones.length > 0 && (
                     <div className="min-w-[130px]">
-                      <span className="text-xs text-muted-foreground">Molienda</span>
-                      <Select value={line.molienda} onValueChange={v => updateLine(i, { molienda: v })}>
-                        <SelectTrigger className="mt-0.5 h-9"><SelectValue placeholder="Molienda" /></SelectTrigger>
-                        <SelectContent>
-                          {opciones.map(o => (
-                            <SelectItem key={o.nombre} value={o.nombre} disabled={!o.disponible}>
-                              {o.nombre}{!o.disponible ? ' (Próximamente)' : ''}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <span className="duna-caption">Molienda</span>
+                      <select className="duna-input duna-select" style={{ marginTop: '2px' }} required
+                              value={line.molienda} aria-label="Molienda"
+                              onChange={e => updateLine(i, { molienda: e.target.value })}>
+                        <option value="" disabled hidden>Molienda</option>
+                        {opciones.map(o => (
+                          <option key={o.nombre} value={o.nombre} disabled={!o.disponible}>
+                            {o.nombre}{!o.disponible ? ' (Próximamente)' : ''}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   )}
                   <div className="ml-auto flex items-center gap-2 pb-1">
@@ -408,8 +403,8 @@ function Cuerpo({ catalog, onClose, onCreated }: {
         {/* Envío (manual) + total calculado (solo lectura) */}
         <div className="grid grid-cols-2 gap-4 border-t border-border pt-3">
           <div>
-            <Label>Costo de envío</Label>
-            <Input type="number" min={0} {...field('costo_envio')} className="mt-1" />
+            <span className="duna-field__label">Costo de envío</span>
+            <input className="duna-input" type="number" min={0} {...field('costo_envio')} />
           </div>
           <div className="self-end space-y-1 text-sm">
             <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span className="tabular-nums">{formatCOP(itemsSubtotal)}</span></div>
@@ -423,37 +418,38 @@ function Cuerpo({ catalog, onClose, onCreated }: {
             del método (Efectivo ⇒ contraentrega). El checkbox registra el pago en
             el mismo acto y exige un método que NO sea Efectivo. */}
         <div className="space-y-3 border-t border-border pt-3">
-          <div>
-            <Label>Método de pago</Label>
-            <Select
-              value={form.metodoPagoPrevisto || POR_DEFINIR}
-              onValueChange={v => {
-                const metodo = (v === POR_DEFINIR ? '' : v) as OrderForm['metodoPagoPrevisto'];
-                setForm(f => ({ ...f, metodoPagoPrevisto: metodo, pagoRecibido: metodo && metodo !== 'EFECTIVO' ? f.pagoRecibido : false }));
-              }}
-            >
-              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={POR_DEFINIR}>Por definir</SelectItem>
-                {METODOS_PAGO.map(m => (
-                  <SelectItem key={m} value={m}>{METODO_PAGO_LABEL[m]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="duna-field">
+            <label className="duna-field__label" htmlFor="no-metodo">Método de pago</label>
+            {/* "Por definir" es una opción REAL y no el placeholder: no elegir
+                método es una decisión válida acá —el pedido nace pendiente— así
+                que tiene que poder re-elegirse. Por eso no va `disabled hidden`. */}
+            <select className="duna-input duna-select" id="no-metodo"
+                    value={form.metodoPagoPrevisto || POR_DEFINIR}
+                    onChange={e => {
+                      const metodo = (e.target.value === POR_DEFINIR ? '' : e.target.value) as OrderForm['metodoPagoPrevisto'];
+                      setForm(f => ({ ...f, metodoPagoPrevisto: metodo, pagoRecibido: metodo && metodo !== 'EFECTIVO' ? f.pagoRecibido : false }));
+                    }}>
+              <option value={POR_DEFINIR}>Por definir</option>
+              {METODOS_PAGO.map(m => <option key={m} value={m}>{METODO_PAGO_LABEL[m]}</option>)}
+            </select>
           </div>
           {form.metodoPagoPrevisto === 'EFECTIVO' && (
             <p className="text-xs text-muted-foreground">
               Efectivo = contraentrega: el envío podrá prepararse y despacharse con el pedido pendiente; el pago se registra al entregar.
             </p>
           )}
-          <label className={`flex items-start gap-2 ${form.metodoPagoPrevisto && form.metodoPagoPrevisto !== 'EFECTIVO' ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
-            <Checkbox
+          {/* La FILA es el control: montado como `<label>`, el texto entero
+              amplía el área de toque. El estado deshabilitado lo pinta el sistema
+              (`:has(:disabled)`), no una clase condicional acá. */}
+          <label className="duna-check">
+            <input
+              type="checkbox"
+              className="duna-check__box"
               checked={form.pagoRecibido}
               disabled={!form.metodoPagoPrevisto || form.metodoPagoPrevisto === 'EFECTIVO'}
-              onCheckedChange={c => setForm(f => ({ ...f, pagoRecibido: c === true }))}
-              className="mt-0.5"
+              onChange={e => setForm(f => ({ ...f, pagoRecibido: e.target.checked }))}
             />
-            <span className="text-sm">
+            <span>
               El pago ya fue recibido
               {!form.metodoPagoPrevisto && (
                 <span className="block text-xs text-muted-foreground">
@@ -472,29 +468,25 @@ function Cuerpo({ catalog, onClose, onCreated }: {
         {/* Dirección + notas */}
         <div className="space-y-4 border-t border-border pt-3">
           <div>
-            <Label>Dirección de entrega</Label>
-            <Input {...field('direccion_entrega')} className="mt-1" />
+            <span className="duna-field__label">Dirección de entrega</span>
+            <input className="duna-input" {...field('direccion_entrega')} />
           </div>
           {/* Ciudad y departamento OPCIONALES — el pedido manual se sigue creando
               sin ellos. La ciudad no es decorativa: sin ella el modal de
               "Programar entrega" no puede sugerir zona. */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Ciudad / municipio</Label>
-              <Input {...field('ciudad_entrega')} className="mt-1" placeholder="Opcional" />
+              <span className="duna-field__label">Ciudad / municipio</span>
+              <input className="duna-input" {...field('ciudad_entrega')} placeholder="Opcional" />
             </div>
             <div>
-              <Label>Departamento</Label>
-              <Select
-                value={form.departamento || NINGUN_DEPARTAMENTO}
-                onValueChange={v => setForm(f => ({ ...f, departamento: v === NINGUN_DEPARTAMENTO ? '' : v }))}
-              >
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Opcional" /></SelectTrigger>
-                <SelectContent className="max-h-64">
-                  <SelectItem value={NINGUN_DEPARTAMENTO}>Sin especificar</SelectItem>
-                  {COLOMBIA_DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <label className="duna-field__label" htmlFor="no-depto">Departamento</label>
+              <select className="duna-input duna-select" id="no-depto"
+                      value={form.departamento || NINGUN_DEPARTAMENTO}
+                      onChange={e => setForm(f => ({ ...f, departamento: e.target.value === NINGUN_DEPARTAMENTO ? '' : e.target.value }))}>
+                <option value={NINGUN_DEPARTAMENTO}>Sin especificar</option>
+                {COLOMBIA_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
             </div>
           </div>
           {form.ciudad_entrega.trim() === '' && form.direccion_entrega.trim() !== '' && (
@@ -503,11 +495,8 @@ function Cuerpo({ catalog, onClose, onCreated }: {
             </p>
           )}
           <div>
-            <Label>Notas internas</Label>
-            <textarea
-              {...field('notas_internas')}
-              className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background min-h-16 resize-none"
-            />
+            <span className="duna-field__label">Notas internas</span>
+            <textarea {...field('notas_internas')} className="duna-input" rows={3} />
           </div>
         </div>
       </div>
