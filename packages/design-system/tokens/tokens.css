@@ -62,7 +62,15 @@
   /* Texto (tinta / arena) — #141311 es el swatch canónico del logo */
   --duna-ink:        #141311;   /* texto primario · acción sólida (primario = TINTA) */
   --duna-ink-2:      #3D3A34;   /* texto secundario fuerte */
-  --duna-muted:      #7C776B;   /* "arena" · texto secundario */
+  /* "arena" · texto secundario. SE OSCURECIÓ (era #7C776B) porque no pasaba AA:
+     4.12 sobre el lienzo y 4.46 sobre la tarjeta, contra el 4.5 que pide el texto
+     pequeño — y este token es el color de `.duna-sub`, `.duna-caption` y
+     `.duna-field__hint`, o sea TODO el texto secundario del sistema.
+     El nuevo conserva tono (42.4°) y saturación (7.4%) y baja 3 puntos de
+     luminosidad: 4.62 lienzo · 5.00 tarjeta · 4.79 surface-2. Sigue a 10.5 de
+     distancia de `--duna-ink-2`, así que no deja de leerse secundario.
+     En OSCURO no se toca: ahí ya daba 6.27 y 5.83. */
+  --duna-muted:      #746F64;
   --duna-faint:      #A8A399;   /* terciario · placeholder */
 
   /* Bordes */
