@@ -200,9 +200,23 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
 
 /* LA TIRA · las miniaturas de una galería.
    `auto-fill` y no un número de columnas: la tira sirve igual a tres miniaturas
-   que a siete, y el consumidor no tiene que decidir cuántas caben. */
-.duna-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--duna-thumb-w), 1fr));
-              gap: var(--duna-space-2); }
+   que a siete, y el consumidor no tiene que decidir cuántas caben.
+
+   ── EL MÍNIMO ES UNA PERILLA, Y EXISTE POR UN DEFECTO MEDIDO ────────────────
+
+   Una tira de MIRAR y una de EDITAR no piden el mismo tamaño. Con el mínimo fijo
+   en `--duna-thumb-w`, la galería del formulario de producto daba 8 columnas de
+   48px dentro de un drawer de 480 — y ahí no cabe lo que un editor necesita
+   encima: la cinta de la × mide 34px contra 32px útiles (48 menos los dos insets
+   de 8), así que desbordaba el tile. Con dos cintas (la × y un badge de estado)
+   pedían 75px en esos 32 y además se tapaban entre sí.
+
+   El default NO cambia: quien no la toque sigue exactamente como estaba. El
+   consumidor la sube en múltiplos del propio token —`calc(var(--duna-thumb-w) *
+   2)`— para no inventar un valor. */
+.duna-tiles { display: grid; gap: var(--duna-space-2);
+              --duna-tiles-min: var(--duna-thumb-w);
+              grid-template-columns: repeat(auto-fill, minmax(var(--duna-tiles-min), 1fr)); }
 
 /* ── REJILLA DE TARJETAS · el otro layout de una lista ───────────────────────
    AGNÓSTICA, como `.duna-split`: no sabe que las tarjetas son productos.

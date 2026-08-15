@@ -458,7 +458,7 @@
            que esta página enseñaba una rejilla donde la primitiva es una TIRA.
            4×44 + 3×8 de gap = 200. -->
       <div style="width:200px; flex-shrink:0">
-        <div class="duna-caption" style="margin-bottom:var(--duna-space-2)">La tira · seleccionada y "agregar"</div>
+        <div class="duna-caption" style="margin-bottom:var(--duna-space-2)">La tira · de MIRAR (mínimo por defecto)</div>
         <div class="duna-tiles">
           <button type="button" class="duna-tile duna-tile--sm is-selected">
             <img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='100'%3E%3Crect width='300' height='100' fill='%23DDD9CD'/%3E%3Ccircle cx='150' cy='50' r='34' fill='%23F59E0B'/%3E%3C/svg%3E">
@@ -477,6 +477,25 @@
     <div class="flag" style="margin-top:var(--duna-space-3)">LA RELACIÓN DE ASPECTO ES <b style="color:var(--duna-ink)">1:1</b>, Y SALE DE LAS IMÁGENES REALES, NO DE LA MAQUETA. <code>duna-os.html</code> dibuja <code>4/3</code>; se midieron las cuatro fotos del catálogo antes de copiarlo y las cuatro son 1254×1254. Un marco 4/3 les recortaría ~25 % arriba y abajo — a todas. El placeholder de arriba es deliberadamente 3:1: si el recorte no funcionara, esta página lo mostraría deformado en vez de centrado.<br><br>Y el cuadrado es lo que hace que <code>--sm</code> sea sólo un ancho: la miniatura de una fila y el marco de una tarjeta encuadran IGUAL, así que la misma foto no se recorta distinto según dónde se mire.</div>
 
     <div class="flag" style="margin-top:var(--duna-space-3)">LA MANO Y EL FOCO VIVEN EN <code>button.duna-tile</code>, no en la clase base — igual que en <code>order-card</code>. Un marco que sólo muestra una foto no debe prometer mano ni recibir foco, o el teclado para en algo que no responde. Las tres miniaturas de arriba SÍ son botones (recorrelas con Tab); los dos marcos grandes no lo son.<br><br>El borde de tinta de <code>is-selected</code> es el mismo signo que en <code>order-card</code>: el idioma del sistema para "ésta es la que estás viendo". Lo que cambia es la segunda mitad —allá una sombra que levanta, acá un aro de 1px— porque el mismo borde sobre 44px es una fracción del contraste que tiene sobre 400px.</div>
+
+    <div class="duna-eyebrow" style="margin:var(--duna-space-6) 0 var(--duna-space-3)">La MISMA tira, de EDITAR</div>
+    <div class="duna-tiles" style="max-width:420px; --duna-tiles-min: calc(var(--duna-thumb-w) * 2)">
+      <div style="position:relative">
+        <button class="duna-tile"><img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23141311'/%3E%3C/svg%3E"></button>
+        <span class="duna-tile__ribbon duna-tile__ribbon--end">
+          <button class="duna-btn duna-btn--ghost duna-btn--sm" aria-label="Quitar de la galería">✕</button>
+        </span>
+      </div>
+      <div style="position:relative">
+        <button class="duna-tile"><img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='100'%3E%3Crect width='300' height='100' fill='%23DDD9CD'/%3E%3Ccircle cx='150' cy='50' r='34' fill='%23F59E0B'/%3E%3C/svg%3E"></button>
+        <span class="duna-tile__ribbon duna-tile__ribbon--end">
+          <button class="duna-btn duna-btn--ghost duna-btn--sm" aria-label="Quitar de la galería">✕</button>
+        </span>
+      </div>
+      <button class="duna-tile duna-tile--add" aria-label="Agregar una imagen">＋</button>
+    </div>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">UNA TIRA DE MIRAR Y UNA DE EDITAR NO PIDEN EL MISMO TAMAÑO, y con el mínimo fijo eso no se podía decir. La galería del formulario de producto daba <b style="color:var(--duna-ink)">8 columnas de 48px</b> dentro de un drawer de 480, y ahí no cabe lo que un editor necesita ENCIMA: la cinta de la × mide 34px contra 32 útiles (48 menos los dos insets de 8). Con una segunda cinta —un badge de estado— pedían 75px en esos 32, la del badge desbordaba el tile y la × le caía encima tapándole el texto. <b style="color:var(--duna-ink)">No era falta de superficie</b>: la cinta ya pinta <code>--duna-surface</code>. Era que no caben.<br><br><code>--duna-tiles-min</code> es la perilla, y el default NO cambia: la tira de arriba sigue idéntica. El consumidor la sube en múltiplos del propio token —<code>calc(var(--duna-thumb-w) * 2)</code>, o sea "dos miniaturas"— para no inventar un valor. Es un MÍNIMO, no un ancho: la columna real la reparte <code>auto-fill</code> según el sitio que haya (en el drawer de 480 da 104px; en esta demo, más angosta, 99).<br><br>Y el estado "sin subir" se dice FUERA de la miniatura, junto al contador: es del CONJUNTO —todas suben al guardar— así que ponerlo en cada tile repite N veces un hecho que se dice una. El borde punteado se descartó porque <code>duna-tile--add</code> ya es dueño de ese signo: un pendiente punteado sería indistinguible de la ranura de agregar.</div>
 
     <div class="duna-eyebrow" style="margin:var(--duna-space-6) 0 var(--duna-space-3)">La MISMA fila de lista, con una foto</div>
     <div style="display:flex; flex-direction:column; gap:var(--duna-space-3); max-width:var(--duna-list-w)">

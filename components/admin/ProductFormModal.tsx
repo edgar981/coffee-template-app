@@ -515,12 +515,26 @@ function Cuerpo({ product, guarda, onClose, onSaved }: {
             subida. */}
         <div className="duna-field" style={{ gridColumn: '1 / -1' }}>
           <span className="duna-field__label">Galería</span>
+          {/* EL "SIN SUBIR" SE DICE ACÁ Y NO ENCIMA DE CADA MINIATURA.
+              Es un estado del CONJUNTO, no de un tile: todas suben juntas al
+              guardar, así que señalarlas una por una repite N veces un hecho que
+              se dice una. Y encima de una miniatura era el peor sitio — competía
+              con los píxeles de la foto y, con la × al lado, no cabían las dos.
+              Se descartó el borde punteado para el pendiente: `.duna-tile--add`
+              ya es dueño de ese signo (significa "agregá acá"), así que un
+              pendiente punteado sería indistinguible de la ranura de agregar. */}
           <p className="duna-field__hint">
             Tomas adicionales del detalle en la tienda · {totalGaleria}/{MAX_GALERIA_IMAGENES}
+            {galeriaPendiente.length > 0 && ` · ${galeriaPendiente.length} sin subir`}
           </p>
 
           {totalGaleria > 0 && (
-            <div className="duna-tiles">
+            // LA TIRA DEL EDITOR PIDE MINIATURAS MÁS GRANDES que la de mirar: acá
+            // cada tile lleva encima la cinta de la × (34px), y con el mínimo por
+            // defecto el drawer daba columnas de 48px — 32 útiles. Dos miniaturas
+            // de ancho, en múltiplos del propio token para no inventar un valor.
+            <div className="duna-tiles"
+                 style={{ '--duna-tiles-min': 'calc(var(--duna-thumb-w) * 2)' } as React.CSSProperties}>
               {galeriaActual.map(url => (
                 <div key={url} style={{ position: 'relative' }}>
                   <button type="button" className="duna-tile" aria-label="Ver esta imagen de la galería en grande"
@@ -541,11 +555,6 @@ function Cuerpo({ product, guarda, onClose, onSaved }: {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={preview} alt={file.name} />
                   </button>
-                  {/* "Sin subir" es un HECHO del estado, y por eso va como badge
-                      neutro y no como alerta: todavía no pasó nada malo. */}
-                  <span className="duna-tile__ribbon">
-                    <span className="duna-badge duna-badge--neutral">Sin subir</span>
-                  </span>
                   <span className="duna-tile__ribbon duna-tile__ribbon--end">
                     <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm"
                             onClick={() => quitarPendiente(preview)} disabled={bloqueado}
