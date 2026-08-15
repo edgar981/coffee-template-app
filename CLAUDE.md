@@ -520,30 +520,7 @@ otra pantalla fije la suya, migrar los ejemplos de la referencia a etiquetas
 **evidentemente de muestra** (Paso 1 · Paso 2 · …) con el descargo. Enseña menos,
 pero no puede caducar.
 
-### 5. El sistema no tiene controles de FORMULARIO
-
-Tiene `duna-input`, `duna-label`, `duna-switch` y `duna-stepper`. **No tiene
-select, textarea, checkbox, radio ni grupo de campo** (label + control + pista +
-error), y los cinco flujos con formulario del panel usan selects y textareas.
-
-**Costo YA pagado, y es visible:** los drawers de H6 son superficie Duna con
-campos shadcn adentro. La mezcla entre PANTALLAS fue una decisión del owner con su
-disparador; ésta es DENTRO de la superficie nueva, y no se decidió — se topó.
-Migrar el envoltorio se pudo; migrar los campos habría exigido inventar un select,
-que es exactamente lo que la regla de la casa prohíbe.
-
-**Lo que hay que decidir al abrirlo, y conviene tenerlo antes de empezar:** un
-select nativo estilizado o uno compuesto. El nativo es accesible de fábrica y en
-un teléfono abre la rueda del sistema —que es mejor que cualquier lista propia—
-pero no admite contenido rico en las opciones. El compuesto lo admite y trae de
-vuelta el problema del foco atrapado, que es la parte que todo el mundo hace mal.
-Hoy ninguna opción del panel necesita contenido rico.
-
-**DISPARADOR: cuando se migre el primer campo, o cuando el chrome del panel entre
-al design-system.** Lo que no puede pasar es que una pantalla invente su propio
-select "sólo esta vez".
-
-### 6. `PATCH /api/customers/[id]` NO es parcial, y su cliente dice que sí
+### 5. `PATCH /api/customers/[id]` NO es parcial, y su cliente dice que sí
 
 El endpoint escribe **todos** los campos sin condición, con fallbacks sobre claves
 ausentes: `email: body.email || null`, `ciudad: … || null`, `canal: body.canal ||
@@ -578,7 +555,7 @@ cuenta como ausente), y el test va en el CARRIL —lo que se afirma es lo que la
 fila TIENE DESPUÉS de escribir, y un test con mocks pasaría en verde contra el
 código defectuoso—.
 
-### 7. Los totales de NEGOCIO son de Analítica, no de las pantallas de operación
+### 6. Los totales de NEGOCIO son de Analítica, no de las pantallas de operación
 
 Clientes totales, compras recibidas, histórico de pedidos: **cifras de negocio**.
 No pertenecen a una pantalla de operación, y por eso salieron de
@@ -619,7 +596,7 @@ tres estados vacíos de cada pantalla existen para evitar. El aviso bajó a la
 LISTA, que es donde está el hueco. Quitar una cifra puede llevarse por delante un
 estado que vivía pegado a ella.
 
-### 8. El carrusel del dashboard no lleva a lo que muestra
+### 7. El carrusel del dashboard no lleva a lo que muestra
 
 Al hacer clic en un día, sus DOS gráficas navegan a los pedidos **creados** ese
 día. Ninguna de las dos mide eso:
@@ -643,7 +620,7 @@ pasa.
 gana un destino que mide lo suyo, y la de Pedidos decide si lleva a las órdenes
 pagadas de ese día o deja de ser clickeable.
 
-### 9. `Customer.activo` finge filtrar: el gate de reactivación es INERTE
+### 8. `Customer.activo` finge filtrar: el gate de reactivación es INERTE
 
 No es que nadie escriba la columna. Es que **el `where` que la consulta no puede
 excluir a nadie**, y eso no se ve mirando ninguna de las tres piezas por separado:
@@ -2129,6 +2106,96 @@ parcialmente, que es como se llega a tener las dos palabras mezcladas SIN criter
 Si algún día se unifica, es su propia tanda y empieza por decidir qué pasa con los
 `CN-` ya emitidos.
 
+## Controles de formulario — el select es NATIVO, y el error va inline
+
+Tanda del 2026-08-14, cerrando el hueco que H6 topó. El backlog pierde su ítem;
+lo que sigue es la decisión.
+
+### Nativo, y las tres razones en orden de peso
+
+`<select>` y `<input type="checkbox">` de verdad, estilizados por fuera. No una
+lista compuesta.
+
+- **No trae conducta al paquete**, que es la razón decisiva. Una lista compuesta
+  necesita foco atrapado, y eso convertiría a `@duna/design-system` en un paquete
+  con comportamiento — el cambio de naturaleza que la opción C evitó en la tanda
+  de móvil y otra vez en H6. Un control con conducta merece decidirse solo.
+- **Accesible de fábrica**: teclado, lector de pantalla, `<option disabled>`.
+- **En un teléfono abre la rueda del sistema**, y este panel se opera desde el
+  móvil.
+
+**Se verificó ANTES de decidir, no después:** ninguna de las diez opciones del
+panel lleva más que texto. Las dos que lo parecían —producto y molienda en Nuevo
+pedido— son una sola cadena con sufijo (`Café Nariño (Agotado)`), que un
+`<option>` pinta idéntico.
+
+**EL LÍMITE, DICHO:** la lista desplegada la pinta el sistema operativo y no se
+puede tipografiar. La objeción obvia —que en tema oscuro salga clara— **ya estaba
+resuelta antes de esta tanda** por `color-scheme`, que se declara junto a los
+temas justamente para alinear los controles nativos. Lo que se acepta es que la
+lista abierta no lleve Hanken Grotesk el segundo que está abierta.
+
+La FLECHA sí es nuestra, y su gris es un **gemelo declarado** de `--duna-muted`:
+un `data:` URI no puede leer una custom property. Se evaluó `mask` +
+`background-color`, que sí seguiría el token, y se descartó porque exige un
+envoltorio por cada select (un `<select>` es reemplazado y no admite
+pseudo-elementos).
+
+### El inválido se engancha a `aria-invalid`, no a una clase
+
+Y ésa es la propiedad que vale: **no se puede pintar un campo de inválido sin
+anunciarlo**. Con una clase, el borde rojo y el atributo son dos afirmaciones
+separadas, y la que se olvida siempre es la del lector de pantalla.
+
+No es teórico: había **cero** `aria-invalid` en los cuatro flujos, y el error del
+teléfono en Programar entrega ya existía VISUALMENTE. El mensaje existía para el
+ojo y no para quien no ve.
+
+### Una sola convención de error de campo
+
+Había tres. La que queda es **inline bajo el campo, con token del sistema**.
+
+- **El `toast.error` de validación previa MUERE.** Un toast aparece lejos del
+  campo, tapa otra cosa y se va solo; el inline vive al lado del problema y
+  persiste. Es la misma división que ya regía los errores de servidor (§ Toast =
+  éxito, inline = error) — la validación previa era la última que usaba el
+  vehículo equivocado.
+- **El botón apagado con el motivo en el pie NO muere**: es complementario. Uno
+  dice por qué no puedo guardar, el otro cuál campo.
+- **La ranura no existe sin mensaje.** Misma lección que `ErrorDialogo`: un
+  contenedor vacío que reserva su hueco empuja el formulario justo cuando el error
+  aparece.
+- **El error aparece con el primer INTENTO**, no antes: marcar en rojo un
+  formulario recién abierto le echa en cara algo que todavía no se hizo mal.
+
+### Dos placeholders que NO son el mismo caso
+
+`disabled hidden` en la opción vacía de producto, molienda y departamento: no
+elegir no es una respuesta válida, así que no debe poder re-elegirse.
+
+**"Por definir" del método de pago no lleva ninguno de los dos**, y es
+deliberado: ahí no elegir SÍ es una decisión válida —el pedido nace pendiente— así
+que es una opción de verdad. Tratarlas igual habría convertido una decisión en un
+estado sin salida.
+
+### `textarea.duna-input` YA EXISTÍA
+
+No era un hueco: era una primitiva con un solo consumidor que los otros dos
+textareas nunca usaron y resolvieron a mano con Tailwind crudo. Vale como
+recordatorio de que "el sistema no lo tiene" hay que verificarlo, no suponerlo.
+
+### La medición viva se atrapó a sí misma
+
+La del contraste del error de campo leía `backgroundColor` del `body`, que
+TRANSICIONA al cambiar de tema, así que devolvía el color interpolado: reportó
+2.87:1 sobre un token que da 6.02. Ahora lee TOKENS —las custom properties no se
+animan— y exige el peor de los dos fondos donde un campo puede vivir, página y
+superficie.
+
+**Una medición que miente es peor que ninguna, porque se la cree.** Es la misma
+familia que el `el.click()` que saltaba el hit-testing: la herramienta de
+verificación también se verifica.
+
 ## H6 — los diálogos son Duna, y la frontera que eso cruzó
 
 Tanda del 2026-08-14. H6 sale del backlog; lo que sigue es la decisión.
@@ -2195,12 +2262,13 @@ comprobante" (conserva fila y archivo, y el copy lo promete). La maqueta pinta e
 rechazo de rojo; es la cuarta instancia del patrón "alcance de la maqueta que no se
 adopta".
 
-### Lo que se topó y no se decidió: los campos
+### Lo que se topó y no se decidió: los campos — CERRADO
 
-Los drawers son superficie Duna con **campos shadcn adentro**, porque el sistema
-no tiene select ni textarea (§ Backlog #5). Es una mezcla DENTRO de la superficie
-nueva, distinta de la que se aceptó entre pantallas, y no se eligió: se encontró.
-Migrar el envoltorio se pudo sin inventar un solo valor; migrar los campos no.
+Los drawers nacieron con superficie Duna y **campos shadcn adentro**, porque el
+sistema no tenía select. Era una mezcla DENTRO de la superficie nueva, distinta de
+la que se aceptó entre pantallas, y no se eligió: se encontró. Se cerró en la
+tanda siguiente (§ Controles de formulario), y el orden fue el correcto: migrar el
+envoltorio no exigía inventar un valor y migrar los campos sí.
 
 ## Duna OS en ANGOSTO — un solo breakpoint, y el detalle sube
 
