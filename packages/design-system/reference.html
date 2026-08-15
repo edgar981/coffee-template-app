@@ -670,6 +670,51 @@
   </section>
 
   <section>
+    <h2 class="sec">Rejilla de tarjetas · el OTRO layout de una lista</h2>
+    <p class="sec-note">Agnóstica, como el layout partido: no sabe qué hay en las tarjetas. Existe por lo mismo — sin ella cada pantalla inventaría su rejilla y su mínimo de columna, y ese mínimo decide si la vista sirve para comparar de un vistazo o se vuelve una lista con fotos.</p>
+
+    <div class="duna-cards" style="margin-bottom:var(--duna-space-4)">
+      <div class="duna-card duna-card--hoverable" style="padding:var(--duna-space-3);position:relative">
+        <div class="duna-tile">
+          <img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='100'%3E%3Crect width='300' height='100' fill='%23DDD9CD'/%3E%3Ccircle cx='150' cy='50' r='34' fill='%23F59E0B'/%3E%3C/svg%3E">
+          <span class="duna-tile__ribbon"><span class="duna-badge duna-badge--attention"><span class="duna-badge__dot"></span>Por reponer</span></span>
+          <span class="duna-tile__ribbon duna-tile__ribbon--end duna-hit__sobre">
+            <button type="button" class="duna-badge duna-badge--neutral" style="cursor:pointer;border:none" aria-label="Activar Café Huila 500 g">Inactivo</button>
+          </span>
+        </div>
+        <div style="margin-top:var(--duna-space-3)">
+          <button type="button" class="duna-hit" style="font:inherit;color:inherit;background:none;border:none;padding:0;text-align:left;font-weight:var(--duna-w-semi);cursor:pointer">Café Huila 500 g</button>
+          <div class="duna-num" style="font-weight:var(--duna-w-semi);margin-top:var(--duna-space-hairline)">$ 34.000</div>
+          <div style="margin-top:var(--duna-space-2)"><span class="duna-stock-txt is-low duna-caption">6 · por reponer</span></div>
+        </div>
+      </div>
+      <div class="duna-card duna-card--hoverable" style="padding:var(--duna-space-3)">
+        <div class="duna-tile"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></div>
+        <div style="margin-top:var(--duna-space-3)">
+          <div style="font-weight:var(--duna-w-semi);font-size:var(--duna-text-body)">Prensa francesa</div>
+          <div class="duna-num" style="font-weight:var(--duna-w-semi);margin-top:var(--duna-space-hairline)">$ 89.000</div>
+          <div style="margin-top:var(--duna-space-2)"><span class="duna-stock-txt duna-caption">7 en existencia</span></div>
+        </div>
+      </div>
+      <div class="duna-card duna-card--hoverable" style="padding:var(--duna-space-3)">
+        <div class="duna-tile">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg>
+          <span class="duna-tile__ribbon"><span class="duna-badge duna-badge--problem"><span class="duna-badge__dot"></span>Agotado</span></span>
+        </div>
+        <div style="margin-top:var(--duna-space-3)">
+          <div style="font-weight:var(--duna-w-semi);font-size:var(--duna-text-body)">Café Nariño 500 g</div>
+          <div class="duna-num" style="font-weight:var(--duna-w-semi);margin-top:var(--duna-space-hairline)">$ 42.000</div>
+          <div style="margin-top:var(--duna-space-2)"><span class="duna-stock-txt is-out duna-caption">Agotado</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flag" style="margin-bottom:var(--duna-space-3)">LA PRIMERA TARJETA LLEVA <code>duna-hit</code>: se abre tocándola en cualquier parte Y tiene un control propio adentro (el badge "Inactivo", que es una manija con su acción). No puede ser un <code>&lt;button&gt;</code> — anidar un control dentro de otro es HTML inválido y un lío de foco. Es el límite que <code>order-card</code> ya dejaba escrito y que esta rejilla es la primera en topar.<br><br>La superficie queda como contenedor no interactivo y el NOMBRE estira su área de clic sobre toda la tarjeta con un pseudo-elemento: un solo elemento focusable, con el nombre del producto como su nombre accesible —no "botón sin etiqueta"— y el clic donde el dedo lo espera. Los controles que van encima llevan <code>duna-hit__sobre</code>, o quedan debajo del área estirada y dejan de recibir clics: se ven pero no se pueden tocar, que es el peor de los dos mundos.<br><br>Recorré la rejilla con Tab: el anillo se pinta sobre LA TARJETA, no sobre las dos palabras del nombre — el área activa es la superficie, y un anillo alrededor del texto mentiría sobre qué se va a activar.</div>
+
+    <div class="flag">EL MÍNIMO DE COLUMNA ES DERIVADO, NO ELEGIDO: <code>--duna-list-w / 2</code> = 200px, y la derivación ES la regla — una tarjeta de rejilla tiene que ser MÁS ANGOSTA que una fila de lista, o la rejilla no ofrece nada que la lista no dé. La mitad es el primer corte que lo garantiza, y hace que a partir del ancho del split entren dos columnas. La maqueta dice 224px, un número sin origen.<br><br>Achicá la ventana: <code>auto-fill</code> pasa a una sola columna sin que el consumidor decida cuántas caben en cada tamaño. La tarjeta de arriba es COMPOSICIÓN, no primitiva — <code>duna-card</code> + <code>duna-tile</code> + tokens de espaciado. El sistema no tiene "tarjeta de producto" y no debe tenerla: no sabe qué es un producto.</div>
+  </section>
+
+  <section>
     <h2 class="sec">Layout partido · lista que scrollea + panel que se queda</h2>
     <p class="sec-note">El esqueleto de una pantalla de trabajo, AGNÓSTICO (sirve para pedidos, clientes o productos). El <code>top</code> del panel sticky no es un número: sale de <code>calc(var(--duna-topbar-h) + var(--duna-space-6))</code>, así que mover el padding de la topbar lo reacomoda solo. Debajo de 960px apila y el panel deja de ser sticky.</p>
     <div class="duna-split">

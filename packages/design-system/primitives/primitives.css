@@ -185,6 +185,61 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
 .duna-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--duna-thumb-w), 1fr));
               gap: var(--duna-space-2); }
 
+/* ── REJILLA DE TARJETAS · el otro layout de una lista ───────────────────────
+   AGNÓSTICA, como `.duna-split`: no sabe que las tarjetas son productos.
+
+   Existe por lo mismo que el split: sin ella cada pantalla inventaría su propia
+   rejilla y su propio mínimo de columna, y ese mínimo es justo el número que no
+   se puede inventar — decide cuántas tarjetas entran y, con ellas, si la vista
+   sirve para comparar de un vistazo o se vuelve una lista con fotos.
+
+   ── EL MÍNIMO ES DERIVADO, NO ELEGIDO ───────────────────────────────────────
+
+   `--duna-list-w / 2` = 200px, y la derivación es la regla misma: una tarjeta de
+   rejilla tiene que ser MÁS ANGOSTA que una fila de lista, o la rejilla no está
+   ofreciendo nada que la lista no dé. La mitad es el primer corte que garantiza
+   eso y además hace que a partir del ancho del split entren dos columnas. La
+   maqueta dice 224px, un número sin origen (§ duna-os.NOTES: no es fuente de
+   valores).
+
+   `auto-fill` y no un número de columnas: la rejilla sirve igual en un teléfono
+   —donde da una— que en un monitor ancho, sin que el consumidor decida cuántas
+   caben en cada tamaño. El gap es el mismo `space-4` que separa las tarjetas de
+   una lista, para que las dos vistas del mismo conjunto respiren igual. */
+.duna-cards { display: grid; gap: var(--duna-space-4);
+              grid-template-columns: repeat(auto-fill, minmax(calc(var(--duna-list-w) / 2), 1fr)); }
+
+/* ── EL CONTROL PRINCIPAL DE UNA SUPERFICIE, CON SU ÁREA ESTIRADA ────────────
+   Una tarjeta que se abre al tocarla PERO que además lleva controles propios
+   adentro no puede ser un `<button>`: anidar un control dentro de otro es HTML
+   inválido y un lío de foco. Es el límite que `order-card` ya dejaba escrito
+   ("si algún día la fila necesita un botón propio, esta forma deja de servir y
+   hay que partirla — no anidar"); la rejilla de tarjetas es el primer caso que
+   lo topa, porque su badge de estado es una manija con su propia acción.
+
+   La salida: la superficie queda como contenedor NO interactivo, y UNO de sus
+   controles —el que representa a la tarjeta entera, normalmente su nombre—
+   estira su área de clic sobre toda la superficie con un pseudo-elemento. El
+   resultado es lo que hace falta y nada más: un solo elemento focusable por
+   tarjeta, con el NOMBRE como su nombre accesible (no "botón sin etiqueta"), y
+   el clic donde el dedo lo espera.
+
+   El contenedor tiene que ser `position: relative` — lo pone el consumidor,
+   porque el sistema no sabe cuál es la superficie— y los controles que van
+   ENCIMA necesitan su propia capa (`.duna-hit__sobre`), o quedan debajo del
+   área estirada y dejan de recibir clics.
+
+   EL FOCO SE PINTA SOBRE LA TARJETA, no sobre el texto: el área activa es la
+   superficie, y un anillo que rodea sólo dos palabras mentiría sobre qué se va a
+   activar. Mismo anillo del resto del sistema, en el pseudo-elemento. */
+.duna-hit::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.duna-hit:focus-visible { outline: 2px solid transparent; outline-offset: 2px; }
+.duna-hit:focus-visible::after { box-shadow: var(--duna-ring); }
+/* Los controles que conviven con el área estirada. `relative` es lo que los
+   levanta del pseudo-elemento; sin esto el badge de una tarjeta se ve pero no se
+   puede clickear, que es el peor de los dos mundos. */
+.duna-hit__sobre { position: relative; z-index: 1; }
+
 /* ── LAYOUT PARTIDO · lista que scrollea + panel que se queda ────────────────
    El esqueleto de una pantalla de trabajo: a la izquierda una lista larga, a la
    derecha el detalle de lo seleccionado. AGNÓSTICO — no sabe que la lista son
