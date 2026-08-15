@@ -1260,6 +1260,31 @@ button.duna-order-card:focus-visible { border-color: var(--duna-ink); box-shadow
 .duna-order-card.is-skeleton:hover { box-shadow: var(--duna-shadow-1); transform: none; }
 .duna-order-card.is-selected { border-color: var(--duna-ink); box-shadow: var(--duna-shadow-2); }
 [data-theme="dark"] .duna-order-card.is-selected { border-color: var(--duna-ink-2); }
+
+/* ── LA FILA CON UN MEDIO ────────────────────────────────────────────────────
+   Una miniatura a la izquierda y el mismo apilado de siempre a la derecha. Es
+   una EXTENSIÓN y no una fila nueva, y eso se verificó antes de escribirla: se
+   estimó que hacía falta una "lista de filas de datos" (la tabla de 6 columnas
+   que dibuja la maqueta), y no hace falta — cuando el modo Lista vive dentro de
+   `.duna-split`, su columna mide `--duna-list-w` (400px) y una tabla de seis
+   columnas ahí no es una tabla, es una fila apretada. Lo que falta en 400px es
+   exactamente esto: la fila que ya existe, con sitio para una foto.
+
+   Darle a la misma fila otro aspecto según lleve o no imagen sería una segunda
+   opinión sobre cómo se ve un registro en una lista de este panel.
+
+   El `display` va TAMBIÉN en el selector de elemento: `button.duna-order-card`
+   declara `display: block` y le gana en especificidad a la clase modificadora,
+   así que sin esta segunda línea la fila con medio se apila en vez de ponerse en
+   dos columnas — justo en el caso normal, que es el de la fila clickeable. */
+.duna-order-card--media, button.duna-order-card--media {
+  display: flex; gap: var(--duna-space-3); align-items: flex-start;
+}
+.duna-order-card__media { flex-shrink: 0; }
+/* `min-width: 0` — sin él, un nombre largo sin espacios empuja la columna del
+   texto y desborda la tarjeta en vez de recortarse: el mínimo automático de un
+   ítem flex es el de su contenido. Misma razón que los `minmax(0, …)` del split. */
+.duna-order-card__body  { min-width: 0; flex: 1; }
 .duna-order-card__top { display: flex; align-items: baseline; gap: var(--duna-space-2); }
 .duna-order-card__name { font-weight: var(--duna-w-semi); font-size: var(--duna-text-body); }
 .duna-order-card__id { color: var(--duna-faint); }               /* combinar con .duna-mono */

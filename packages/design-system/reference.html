@@ -439,6 +439,47 @@
     <div class="flag" style="margin-top:var(--duna-space-4)">LA RELACIÓN DE ASPECTO ES <b style="color:var(--duna-ink)">1:1</b>, Y SALE DE LAS IMÁGENES REALES, NO DE LA MAQUETA. <code>duna-os.html</code> dibuja <code>4/3</code>; se midieron las cuatro fotos del catálogo antes de copiarlo y las cuatro son 1254×1254. Un marco 4/3 les recortaría ~25 % arriba y abajo — a todas. El placeholder de arriba es deliberadamente 3:1: si el recorte no funcionara, esta página lo mostraría deformado en vez de centrado.<br><br>Y el cuadrado es lo que hace que <code>--sm</code> sea sólo un ancho: la miniatura de una fila y el marco de una tarjeta encuadran IGUAL, así que la misma foto no se recorta distinto según dónde se mire.</div>
 
     <div class="flag" style="margin-top:var(--duna-space-3)">LA MANO Y EL FOCO VIVEN EN <code>button.duna-tile</code>, no en la clase base — igual que en <code>order-card</code>. Un marco que sólo muestra una foto no debe prometer mano ni recibir foco, o el teclado para en algo que no responde. Las tres miniaturas de arriba SÍ son botones (recorrelas con Tab); los dos marcos grandes no lo son.<br><br>El borde de tinta de <code>is-selected</code> es el mismo signo que en <code>order-card</code>: el idioma del sistema para "ésta es la que estás viendo". Lo que cambia es la segunda mitad —allá una sombra que levanta, acá un aro de 1px— porque el mismo borde sobre 44px es una fracción del contraste que tiene sobre 400px.</div>
+
+    <div class="duna-eyebrow" style="margin:var(--duna-space-6) 0 var(--duna-space-3)">La MISMA fila de lista, con una foto</div>
+    <div style="display:flex; flex-direction:column; gap:var(--duna-space-3); max-width:var(--duna-list-w)">
+      <button type="button" class="duna-order-card duna-order-card--media">
+        <div class="duna-order-card__media">
+          <div class="duna-tile duna-tile--sm">
+            <img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='100'%3E%3Crect width='300' height='100' fill='%23DDD9CD'/%3E%3Ccircle cx='150' cy='50' r='34' fill='%23F59E0B'/%3E%3C/svg%3E">
+          </div>
+        </div>
+        <div class="duna-order-card__body">
+          <div class="duna-order-card__top">
+            <span class="duna-order-card__name">Café Huila 500 g</span>
+            <span class="duna-order-card__id duna-mono">SN-014</span>
+            <span class="duna-order-card__amount duna-num">$ 34.000</span>
+          </div>
+          <div class="duna-order-card__mid">
+            <span class="duna-tag">Café de origen</span>
+            <span class="duna-stock-txt is-low duna-caption">6 · por reponer</span>
+          </div>
+        </div>
+      </button>
+      <button type="button" class="duna-order-card duna-order-card--media">
+        <div class="duna-order-card__media">
+          <div class="duna-tile duna-tile--sm">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg>
+          </div>
+        </div>
+        <div class="duna-order-card__body">
+          <div class="duna-order-card__top">
+            <span class="duna-order-card__name">Prensa francesa 600 ml</span>
+            <span class="duna-order-card__amount duna-num">$ 89.000</span>
+          </div>
+          <div class="duna-order-card__mid">
+            <span class="duna-tag">Otros</span>
+            <span class="duna-caption">7 en existencia</span>
+          </div>
+        </div>
+      </button>
+    </div>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">ES UNA EXTENSIÓN DE <code>order-card</code>, NO UNA FILA NUEVA — y se verificó antes de escribirla. La estimación decía que hacía falta una "lista de filas de datos" (la tabla de seis columnas que dibuja la maqueta) y NO hace falta: cuando el modo lista vive dentro de <code>duna-split</code>, su columna mide <code>--duna-list-w</code> (400px, el ancho de esta demo) y seis columnas ahí no son una tabla, son una fila apretada. Lo que falta en 400px es exactamente esto: la fila que ya existe, con sitio para una foto.<br><br>Sin <code>media</code> la fila queda EXACTAMENTE como estaba —no se emite ni el envoltorio de dos columnas—, así que las listas que ya están en producción no cambian una línea. Darle otro aspecto a la fila según lleve o no imagen sería una segunda opinión sobre cómo se ve un registro en una lista de este panel.</div>
   </section>
 
   <section>

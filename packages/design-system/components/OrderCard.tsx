@@ -54,6 +54,21 @@ export interface OrderCardProps {
   steps?: OrderSteps;
   /** "hace X" YA formateado por el consumidor. */
   timeAgo?: string;
+  /**
+   * Miniatura de la fila — un nodo, no una URL: el DS no carga imágenes ni sabe
+   * de optimizadores. El consumidor pasa lo que quiera (un `.duna-tile--sm` con
+   * su `<img>`, o el reemplazo cuando no hay foto).
+   *
+   * OPCIONAL, y la ausencia deja la fila EXACTAMENTE como estaba: sin medio no
+   * se emite ni el envoltorio de dos columnas, así que las filas de pedidos y de
+   * clientes no cambian una línea de layout.
+   *
+   * Existe porque la lista de una vertical con imágenes vive en la misma columna
+   * de 400px que las otras dos (`--duna-list-w`), y ahí la tabla de columnas que
+   * uno imagina no cabe. Darle otro aspecto a la fila según lleve foto sería una
+   * segunda opinión sobre cómo se ve un registro en una lista de este panel.
+   */
+  media?: ReactNode;
   selected?: boolean;
   onClick?: () => void;
 }
@@ -83,9 +98,9 @@ function segClass(i: number, s: OrderSteps): string {
 // botón propio (un "Despachar" inline), esta forma deja de servir y hay que
 // partirla — no anidar.
 export function OrderCard({
-  title, id, amount, channel, status, steps, timeAgo, selected, onClick,
+  title, id, amount, channel, status, steps, timeAgo, media, selected, onClick,
 }: OrderCardProps) {
-  const className = `duna-order-card${selected ? ' is-selected' : ''}`;
+  const className = `duna-order-card${media ? ' duna-order-card--media' : ''}${selected ? ' is-selected' : ''}`;
   // `aria-current` y no `aria-selected`: la tarjeta no vive en un `listbox` ni en
   // un `tablist`, así que `aria-selected` no tendría rol que lo sostenga.
   // "seleccionada" acá significa "es la que el panel de al lado está mostrando",
@@ -99,7 +114,10 @@ export function OrderCard({
       <div className={className}>{kids}</div>
     );
 
-  return carcasa(
+  // El apilado de siempre. Con medio se envuelve en `__body` y queda a la derecha
+  // de la miniatura; SIN medio se emite tal cual —ni un nodo de más— para que las
+  // filas que ya están en producción no cambien de estructura.
+  const apilado = (
     <>
       <div className="duna-order-card__top">
         <span className="duna-order-card__name">{title}</span>
@@ -130,6 +148,15 @@ export function OrderCard({
           {timeAgo && <span className="duna-order-card__time">{timeAgo}</span>}
         </div>
       )}
-    </>,
+    </>
+  );
+
+  return carcasa(
+    media ? (
+      <>
+        <div className="duna-order-card__media">{media}</div>
+        <div className="duna-order-card__body">{apilado}</div>
+      </>
+    ) : apilado,
   );
 }
