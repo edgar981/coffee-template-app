@@ -442,7 +442,83 @@ Reglas de la lista, para que siga sirviendo:
 - **Un item que se completa se BORRA de acá** y su decisión, si tiene, se
   documenta en la sección que le corresponda. Esto no es un historial.
 
-### 1. Invitaciones pendientes: invisibles y sin cancelar
+### 1. El CHROME del panel nunca migró al DS: hay DOS definiciones del lienzo
+
+Las pantallas del rediseño se ven Duna y **el lienzo sobre el que flotan no**.
+`AdminChrome` pinta `bg-background`, `TopBar` `bg-background/95`, `Sidebar`
+`bg-sidebar` — todos tokens de la APP (`globals.css`), no del sistema. Así que el
+mismo fondo está definido dos veces, y el que gana en pantalla no es el del
+paquete.
+
+**Medido** (owner, 2026-08-15), y lo que importa es que la divergencia no es
+pareja entre temas:
+
+| | app (`html.admin`) | sistema | delta RGB |
+| --- | --- | --- | --- |
+| lienzo · claro | `#F9F6F0` | `--duna-bg` `#F7F6F2` | 2, 0, −2 |
+| tarjeta · claro | `#FFFFFF` | `--duna-surface` `#FFFFFF` | 0 |
+| **lienzo · oscuro** | `#171717` | `--duna-bg` `#131211` | 4, 5, 6 |
+| **tarjeta · oscuro** | `#262626` | `--duna-surface` `#1B1A18` | **11, 12, 14** |
+
+En claro es invisible (2/255) y aun así son dos definiciones. **En oscuro se ve**,
+y no sólo por claridad: los oscuros de la app son grises NEUTROS (`0 0% 9%`,
+`0 0% 14.9%`) y los del sistema son CÁLIDOS. Un popover del chrome —la campana,
+el ⌘K, el menú de usuario— junto a una `.duna-card` difieren en tono, no sólo en
+valor.
+
+**Alcance, contado por archivo** (ocurrencias de clases de color de la app):
+`NotificationBell` 25 · `UserMenu` 21 · `Sidebar` 15 · `CommandPalette` 6 ·
+`TopBar` 5 · `AdminChrome` 1. Total ~73. **`MobileNav` ya está migrado** (14
+clases Duna, cero de la app): salió así de la tanda de móvil, y es la prueba de
+que el camino funciona.
+
+El mapeo es 1:1 y no un rediseño — el sistema tiene los tres roles
+(`--duna-paper` = rail, `--duna-bg` = lienzo, `--duna-surface` = tarjeta) contra
+`--sidebar` / `--background` / `--card` de la app. Lo que hay que decidir es si en
+oscuro se adopta el cálido del sistema.
+
+**EL CÁLIDO EN OSCURO SE ADOPTA, y no es realmente una decisión** (owner,
+2026-08-15): los cálidos SALEN DEL LOGO —tinta, papel, sol— y son la identidad;
+los grises neutros son residuo del Amber Minimal que este rediseño reemplaza. Que
+el cambio sea visible en todo el panel **es el punto, no el costo**.
+
+**POR QUÉ ESTÁ PRIMERO** (owner, 2026-08-15), y desplaza a "Invitaciones
+pendientes", que hasta acá era "la tanda siguiente inmediata":
+
+- **desbloquea** la deuda de fuentes en `<html>`, que ya mordió (§ ProductFormModal);
+- **compone**: cada vertical nueva agranda el problema mientras no se haga;
+- y es lo que hace que el panel se lea como UN PRODUCTO en vez de pantallas Duna
+  flotando sobre un shell viejo.
+
+**Costo YA pagado: ninguno todavía** — nadie reportó el desfase, se encontró
+comparando la pantalla nueva contra `reference.html`. Lo que sí está pagado es el
+gemelo tipográfico: un diálogo shadcn portalea a `<body>`, fuera de
+`.admin-shell`, y ahí se pierden las tres familias de fuente.
+
+**SE CIERRAN JUNTOS: fondos + fuentes.** Migrar sólo los fondos deja las fuentes
+rotas en los portales, y al revés deja el lienzo divergiendo.
+
+Y hay un TERCER entregable que ya estaba escrito y vence con esta tanda:
+`app/(admin)/fonts.ts` carga CINCO familias porque el chrome viejo usa Instrument
+Sans + JetBrains Mono y el sistema pide Hanken + Spline. Su propio comentario
+declara el disparador — *"cuando el chrome migre al design-system, Instrument Sans
+y JetBrains Mono salen de acá"*.
+
+**EL GATE ES DISTINTO A TODOS LOS ANTERIORES, y por eso va escrito acá:** es el
+primer cambio que toca TODAS las pantallas a la vez, **incluidas las NO
+rediseñadas** (Inventario, Pagos, Analítica, Automatizaciones, Dashboard) — ésas
+cambian de fondo sin haber cambiado de nada más, así que su regresión no la cubre
+ningún checklist de vertical. El gate exige:
+
+- **cada pantalla del panel, en los DOS temas** — las rediseñadas y las que no;
+- **los popovers del chrome** (campana, ⌘K, menú de usuario) **al lado de una
+  `.duna-card`**, que es donde hoy el tono difiere y donde se confirma que dejó de
+  hacerlo;
+- **el storefront INTACTO**: el chrome es del panel, no suyo. Su tema vive en
+  `:root` y el del panel en `html.admin`, así que la separación existe — pero es
+  justo lo que hay que verificar, no suponer.
+
+### 2. Invitaciones pendientes: invisibles y sin cancelar
 
 `POST /api/users/invite` crea la fila y **no hay forma de verla ni de anularla**.
 No existe listado ni `DELETE`, así que una invitación pendiente sólo se conoce
@@ -459,7 +535,7 @@ Forma acordada (owner, 2026-08-06): sección **"Invitaciones pendientes"** en la
 MISMA página de Usuarios —no una pantalla nueva— con listar + cancelar. Es la
 tanda siguiente inmediata.
 
-### 2. `InventoryLog` no registra QUIÉN ajustó el stock
+### 3. `InventoryLog` no registra QUIÉN ajustó el stock
 
 Es la única mutación auditable del panel sin columna de actor: `Payment` guarda
 `registrado_por` + `registrado_por_nombre` y `Comprobante` guarda `subido_por` y
@@ -476,7 +552,7 @@ que borrar un usuario dejaría referencias colgando, y resultó que **el histori
 ya está blindado** porque todo es snapshot… salvo acá, donde directamente no hay
 nada que blindar.
 
-### 3. La ventana de 45 s del polling de la campana
+### 4. La ventana de 45 s del polling de la campana
 
 `POLL_MS = 45_000`. El badge se computa sobre el snapshot del cliente, así que una
 notificación de severidad `alerta` puede tardar **hasta un poll** en teñir el
@@ -489,7 +565,7 @@ meses alguien reporta como defecto y vuelve a costar un diagnóstico. La salida
 real es push (SSE/websocket), que está **fuera de alcance de la v1** por decisión
 explícita.
 
-### 4. `reference.html` usa etiquetas de DOMINIO que el DS no puede mantener
+### 5. `reference.html` usa etiquetas de DOMINIO que el DS no puede mantener
 
 La prueba viva del design-system ilustra `steps` y la timeline con las etiquetas
 reales de esta vertical (Recibido · Preparando · En camino · Entregado, y el
@@ -520,7 +596,7 @@ otra pantalla fije la suya, migrar los ejemplos de la referencia a etiquetas
 **evidentemente de muestra** (Paso 1 · Paso 2 · …) con el descargo. Enseña menos,
 pero no puede caducar.
 
-### 5. `PATCH /api/customers/[id]` NO es parcial, y su cliente dice que sí
+### 6. `PATCH /api/customers/[id]` NO es parcial, y su cliente dice que sí
 
 El endpoint escribe **todos** los campos sin condición, con fallbacks sobre claves
 ausentes: `email: body.email || null`, `ciudad: … || null`, `canal: body.canal ||
@@ -555,7 +631,7 @@ cuenta como ausente), y el test va en el CARRIL —lo que se afirma es lo que la
 fila TIENE DESPUÉS de escribir, y un test con mocks pasaría en verde contra el
 código defectuoso—.
 
-### 6. Los totales de NEGOCIO son de Analítica, no de las pantallas de operación
+### 7. Los totales de NEGOCIO son de Analítica, no de las pantallas de operación
 
 Clientes totales, compras recibidas, histórico de pedidos: **cifras de negocio**.
 No pertenecen a una pantalla de operación, y por eso salieron de
@@ -596,7 +672,7 @@ tres estados vacíos de cada pantalla existen para evitar. El aviso bajó a la
 LISTA, que es donde está el hueco. Quitar una cifra puede llevarse por delante un
 estado que vivía pegado a ella.
 
-### 7. El carrusel del dashboard no lleva a lo que muestra
+### 8. El carrusel del dashboard no lleva a lo que muestra
 
 Al hacer clic en un día, sus DOS gráficas navegan a los pedidos **creados** ese
 día. Ninguna de las dos mide eso:
@@ -620,7 +696,7 @@ pasa.
 gana un destino que mide lo suyo, y la de Pedidos decide si lleva a las órdenes
 pagadas de ese día o deja de ser clickeable.
 
-### 8. `Customer.activo` finge filtrar: el gate de reactivación es INERTE
+### 9. `Customer.activo` finge filtrar: el gate de reactivación es INERTE
 
 No es que nadie escriba la columna. Es que **el `where` que la consulta no puede
 excluir a nadie**, y eso no se ve mirando ninguna de las tres piezas por separado:
@@ -649,6 +725,98 @@ al revés: **sí tiene lector, y es el lector el que no puede hacer nada.**
 excluyentes: exponer un control de `activo` (y entonces el `where` empieza a
 significar algo), o quitar el `where` (y entonces la consulta deja de prometer un
 filtro que no aplica). Lo que no puede quedar es la tercera, que es la de hoy.
+
+### 10. Los drawers Duna perdieron la TERCERA salida de la guarda
+
+§ Doble-submit lo dice desde siempre: *"Se bloquean también las otras dos salidas
+mientras la mutación viaja: Cancelar `disabled`, y el Dialog sin cerrar por
+click-fuera ni Esc"*. Los diálogos shadcn lo cumplían con un
+`onOpenChange={(o) => { if (aplicando) return; … }}`.
+
+**Al migrar a `DunaSheet` (H6) esa mitad se cayó.** La costura delega el cierre al
+consumidor (`onCerrar`), así que el gate tiene que ponerlo cada modal — y cuatro
+no lo pusieron:
+
+| drawer | `onCerrar` |
+| --- | --- |
+| `CustomerFormModal` | `() => onOpenChange(false)` |
+| `NewOrderModal` | `onClose` |
+| `RegisterPaymentModal` | `onClose` |
+| `ScheduleDeliveryModal` | `onClose` |
+
+O sea que hoy, en producción, Escape y el clic-fuera cierran esos cuatro **a mitad
+de la mutación**. Cerrar no cancela nada en el server: el operador queda sin saber
+si se aplicó, y en los modales cuyo submit vive en el CUERPO el `catch` escribe su
+estado sobre un componente ya desmontado — **el error desaparece en silencio**,
+que es el modo de falla del gate del 2026-08-06 en miniatura.
+
+**No lo contradice la nota de H6** que dice que las costuras no bloquean: aquélla
+habla de que la SUPERFICIE no debe traer un `is-saving` propio —porque haría creer
+que la guarda ya está puesta—, no de que el consumidor pueda saltarse el gate. Son
+las dos mitades de siempre, y ésta es la del consumidor.
+
+**Costo YA pagado: ninguno reportado**, y se encontró escribiendo
+`AdjustStockModal` —que nació con el mismo hueco— al preguntarse por qué el
+diálogo viejo de Inventario tenía un `if (aplicando) return` y el nuevo no.
+`AdjustStockModal` y `ProductFormModal` ya lo tienen (la guarda sube al
+envoltorio, que es lo que le permite gatear el cierre).
+
+**DISPARADOR: los cuatro, juntos y con su regresión.** Es una línea por archivo
+—subir `useAccionGuardada` al envoltorio y gatear `onCerrar`— pero toca cuatro
+flujos vivos de dos verticales, así que merece su tanda y su checklist. Y va antes
+que la migración del chrome (#9): esto es conducta, aquello es color.
+
+### 11. `Product.agotado`: el lector puede EXCLUIR y nada puede volver a INCLUIR
+
+No es "nadie lo escribe". Es que **el lector saca al producto de la tienda y el
+panel no tiene forma de devolverlo.**
+
+- **Lector con efecto**: `app/api/catalog/route.ts` computa
+  `disponible: stock > 0 && !agotado`, y `disponible` es lo que apaga el botón de
+  comprar (`ProductCard`), bloquea el detalle del storefront y deshabilita la
+  opción en Nuevo pedido. `ProductCard` además lo usa para el color del badge.
+- **Escritores: CERO.** Ningún formulario lo expone; `product-update.ts` lo lista
+  explícitamente entre los campos que el endpoint NUNCA escribe. El único que lo
+  toca es `prisma/seed.ts`, siempre a `false`.
+
+Es el gemelo invertido del ítem 8 (`Customer.activo`): allá el `where` no puede
+excluir a nadie; acá el lector **sí excluye** y no hay puerta de vuelta. Y es la
+misma trampa que `accionEstadoProducto` cerró para `activo` —"un botón que
+desactiva sin su inverso no es una acción, es una trampa"— salvo que acá ni
+siquiera existe el botón que la abre.
+
+**Costo YA pagado: ninguno.** Medido en `development` (2026-08-15): 4 productos,
+**0 con `agotado = true`**. Es una mina puesta, no una herida.
+
+**Y el rediseño de Productos le agregó una segunda cara**, que conviene tener
+escrita antes de que confunda: la pantalla nueva dice **"Agotado"** cuando
+`stock === 0` (`nivelStock`, § lib/productos/stock), que es un hecho DISTINTO de
+la columna y sí se arregla desde el panel con Ajustar stock. O sea que hoy
+conviven dos "agotado":
+
+| | qué significa | ¿se arregla desde el panel? |
+| --- | --- | --- |
+| `nivelStock(p) === 'agotado'` | `stock === 0` | **sí** — Ajustar stock |
+| `Product.agotado === true` | bandera manual | **no** |
+
+Un producto con `agotado: true` y stock 5 diría **"5 en existencia"** en el panel
+y **"Agotado"** en la tienda. No es una bandera invisible: es dos superficies
+contradiciéndose sobre el mismo producto, y el operador que mire el panel no tiene
+de dónde sospecharlo.
+
+**DISPARADOR — el que se cumpla primero:**
+
+1. **antes de que cualquier path escriba `agotado`** (un import, un backfill, un
+   endpoint nuevo). Ése es el instante en que la mina pasa a herida;
+2. **o si se decide exponer la bandera en la pantalla.** Hoy el "Agotado" que se
+   ve es el de stock 0 y por eso no miente — pero el día que alguien quiera un
+   "marcar como agotado" manual, la columna necesita su inverso ANTES, no después.
+
+Dos salidas y son excluyentes: exponer el par activar/agotar con la forma ya
+probada de `accionEstadoProducto` (un verbo que es siempre el inverso del estado),
+o **quitar la columna** y dejar que `disponible` dependa sólo del stock — que es lo
+que hoy pasa de facto, porque nadie la escribe. Lo que no puede quedar es la
+tercera, que es la de hoy.
 
 ## Mejoras post-multitenant
 

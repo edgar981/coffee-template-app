@@ -7,7 +7,8 @@ import { useTheme } from 'next-themes';
 
 import { ADMIN_NAV, type AdminNavItem } from '@/constants/admin-nav';
 import { DunaSheet } from '@/components/admin/DunaSheet';
-import { useAtencionPedidos } from '@/hooks/useAtencionPedidos';
+import { useAtencion } from '@/hooks/useAtencion';
+import { atencionDeRuta, type MapaAtencion } from '@/lib/atencion/registro';
 import { authClient } from '@/lib/auth-client';
 
 // ═══ LA NAVEGACIÓN CUANDO NO HAY RAIL ═══════════════════════════════════════
@@ -33,10 +34,9 @@ import { authClient } from '@/lib/auth-client';
 // sobre qué es principal.
 const EN_LA_BARRA = 4;
 
-// Hoy sólo Pedidos tiene regla de atención; misma constante y mismo criterio que
-// el rail (§ Sidebar). Cuando una segunda sección tenga la suya, esto se vuelve
-// un mapa en un solo sitio, no dos.
-const RUTA_CON_ATENCION = '/admin/pedidos';
+// El registro de secciones con atención vive en `lib/atencion/registro.ts`, que es
+// el "un solo sitio" que el comentario de la constante vieja pedía: esta barra y
+// el rail leen de ahí, así que no pueden discrepar sobre qué sección pide algo.
 
 /** Activo = la ruta o una subruta suya. La barra final es lo que convierte la
  *  comparación en una de jerarquía y no de caracteres: sin ella, cualquier
@@ -82,7 +82,7 @@ export function MobileNav() {
   // mismo por el mismo motivo (§ Sidebar: con el rail colapsado hay dos
   // `SidebarNav` montados y serían dos pollers). Acá la barra y el sheet comparten
   // este valor en vez de preguntar cada uno.
-  const atencionPedidos = useAtencionPedidos();
+  const atencion = useAtencion();
 
   const visibles = ADMIN_NAV.filter(i => !i.ownerOnly || session?.user?.role === 'OWNER');
   const enBarra  = visibles.slice(0, EN_LA_BARRA);
@@ -101,7 +101,7 @@ export function MobileNav() {
             key={item.path}
             item={item}
             activa={esActiva(pathname, item.path)}
-            atencion={item.path === RUTA_CON_ATENCION && atencionPedidos}
+            atencion={atencionDeRuta(atencion, item.path)}
           />
         ))}
         <button
@@ -116,7 +116,7 @@ export function MobileNav() {
               que sólo se ve abriendo el sheet no avisa. Hoy Pedidos está en la
               barra, así que esta rama no se enciende — existe para que agregar una
               regla de atención a una sección del sheet no la deje muda. */}
-          {enSheet.some(i => i.path === RUTA_CON_ATENCION) && atencionPedidos && (
+          {enSheet.some(i => atencionDeRuta(atencion, i.path)) && (
             <span className="duna-nav-dot" role="status" aria-label="Hay secciones que necesitan atención" />
           )}
         </button>
@@ -144,7 +144,7 @@ export function MobileNav() {
               >
                 <Icono aria-hidden="true" />
                 {item.label}
-                {item.path === RUTA_CON_ATENCION && atencionPedidos && (
+                {atencionDeRuta(atencion, item.path) && (
                   <span className="duna-nav-dot" role="status" aria-label={`${item.label} necesita atención`} />
                 )}
               </Link>

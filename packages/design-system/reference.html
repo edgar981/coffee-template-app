@@ -104,6 +104,15 @@
     <h2 class="sec">Botones · un solo primario (tinta) por vista</h2>
     <div class="row">
       <button class="duna-btn duna-btn--primary">Confirmar pedido</button>
+      <!-- CON ÍCONO. No es una variante decorativa: TODO primario de acción del
+           panel lleva uno ("+ Nuevo pedido", "+ Nuevo cliente", "+ Nuevo
+           producto"), y esta página no mostraba ninguno — así que enseñaba como
+           única la variante que en la app casi no existe. Mismo defecto que tuvo
+           el pill con número, y misma corrección. -->
+      <button class="duna-btn duna-btn--primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Confirmar pedido
+      </button>
       <button class="duna-btn duna-btn--secondary">Ver detalle</button>
       <button class="duna-btn duna-btn--ghost">Cancelar</button>
       <button class="duna-btn duna-btn--primary duna-btn--sm">Guardar</button>
@@ -122,7 +131,9 @@
     </div>
     <p class="sec-note" id="disMedida" style="margin:var(--duna-space-3) 0 0"></p>
 
-    <div class="flag" style="margin-top:var(--duna-space-4)">EL DESHABILITADO NO PROMETE NADA, y eran TRES promesas. El <b style="color:var(--duna-ink)">cursor</b> seguía en mano: <code>duna-btn</code> declaraba <code>cursor:pointer</code> sin condición, y el CSS del paquete entra SIN capa — lo sin capa le gana a todo lo que está en capas, así que pisaba la exclusión que el consumidor ya tenía escrita. El <b style="color:var(--duna-ink)">hover</b> seguía vivo: el primario se ELEVABA un píxel estando deshabilitado, y un control que se mueve bajo el cursor promete más fuerte que un cursor. Y el <b style="color:var(--duna-ink)">peso</b> era el mismo: "Guardando…" se veía tan disponible como "Guardar".</div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">EL ÍCONO NO CAMBIA EL PADDING, Y ESTA PÁGINA NO LO MOSTRABA. Los dos primeros botones dicen lo MISMO a propósito, para que la comparación se pueda hacer mirando: idéntico padding —<code>12px</code> en los cuatro lados, exactamente <code>--duna-space-3</code>— e idéntica altura; el segundo mide 19px más de ancho y esos 19 son el ícono (13) más el <code>gap</code> (6), nada más. Se midió porque el panel parecía tener botones "más acolchados" que esta página: no lo son, son más ANCHOS, y la diferencia es el ícono.<br><br>El defecto no estaba en la primitiva sino acá: TODO primario de acción del panel lleva ícono ("+ Nuevo pedido", "+ Nuevo cliente", "+ Nuevo producto") y esta página no mostraba ninguno, así que enseñaba como única la variante que en la app casi no existe. Es exactamente lo que ya había pasado con el pill y su número — <b style="color:var(--duna-ink)">una prueba viva que enseña una sola variante se lee como si fuera la única</b>.<br><br>El TAMAÑO del ícono lo pone el sistema (<code>.duna-btn svg</code>): el consumidor elige CUÁL, nunca cuánto mide.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">EL DESHABILITADO NO PROMETE NADA, y eran TRES promesas. El <b style="color:var(--duna-ink)">cursor</b> seguía en mano: <code>duna-btn</code> declaraba <code>cursor:pointer</code> sin condición, y el CSS del paquete entra SIN capa — lo sin capa le gana a todo lo que está en capas, así que pisaba la exclusión que el consumidor ya tenía escrita. El <b style="color:var(--duna-ink)">hover</b> seguía vivo: el primario se ELEVABA un píxel estando deshabilitado, y un control que se mueve bajo el cursor promete más fuerte que un cursor. Y el <b style="color:var(--duna-ink)">peso</b> era el mismo: "Guardando…" se veía tan disponible como "Guardar".</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">Los <code>:hover</code> pasan a <code>:not(:disabled):hover</code> en vez de neutralizarse con overrides: así el estilo NO EXISTE, en vez de existir y ser deshecho — que es la diferencia entre no tener el defecto y taparlo.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)"><code>default</code> Y NO <code>wait</code> NI <code>not-allowed</code>, porque desde el CSS <code>:disabled</code> no distingue OCUPADO (una mutación en vuelo) de BLOQUEADO (una precondición sin cumplir), y en el panel existen los dos. <code>wait</code> mentiría sobre el bloqueado —afirma que algo está cargando— y <code>not-allowed</code> mentiría sobre el ocupado, que sí va a poder en un segundo. No afirmar es lo único correcto para los dos.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">LA OPACIDAD NO PUEDE ESCONDER EL MOTIVO. <code>.55</code> y no el <code>.35</code> de la maqueta: estos botones LLEVAN información mientras están deshabilitados —"Guardando…", "falta mensajero"— y la doctrina del panel es que un botón bloqueado diga qué falta. Una opacidad que apaga ese texto convierte la explicación en decoración.</div>
@@ -219,7 +230,15 @@
     <div class="row" style="align-items:flex-start">
       <input class="duna-input" style="width:240px" placeholder="Nombre del producto">
       <button class="duna-switch is-on" id="sw"><span class="duna-switch__thumb"></span></button>
-      <div class="duna-stepper"><button>−</button><input value="6"><button>+</button></div>
+      <!-- `type="number"` porque es como lo usa el consumidor real: teclado
+           numérico en el teléfono, y `min`/`max` para que una salida no deje el
+           stock negativo. Con `input` pelado —como estaba— esta página nunca
+           dibujaba las flechas nativas y el hueco quedaba invisible. -->
+      <div class="duna-stepper">
+        <button type="button" aria-label="Restar uno">−</button>
+        <input type="number" inputmode="numeric" min="0" value="6" aria-label="Cantidad">
+        <button type="button" aria-label="Sumar uno">+</button>
+      </div>
       <div style="width:180px">
         <span class="duna-stock-txt is-low duna-caption">6 bolsas · por reponer</span>
         <div class="duna-stock-meter is-low" style="margin-top:4px"><i style="width:20%"></i></div>
@@ -231,8 +250,60 @@
       <button class="duna-pill">Agotados <span class="duna-num">1</span></button>
       <button class="duna-pill">Descontinuados</button>
     </div>
-    <div class="flag" style="margin-top:var(--duna-space-4)">UN PILL LLEVA NÚMERO SI CUENTA UNA COLA QUE SE VACÍA; no lo lleva si cuenta un acumulador que sólo crece. "Por reponer" y "Agotados" son colas: transitorias, accionables, y su valor CRECE con la escala del negocio. "Todos" y "Descontinuados" sólo crecen y no piden ninguna acción — a los tres meses son ruido con dígitos, y su valor DECRECE con la escala.<br><br>El efecto es lo contrario de quitar: cuando SÓLO ALGUNOS pills tienen número, el número se vuelve <b style="color:var(--duna-ink)">señal</b> — el "2" resalta contra los que no dicen nada. Con un número en cada pill, ninguno resalta. El CERO de una cola sí se muestra: "no hay nada por reponer" es una respuesta.</div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">EL STEPPER ACEPTA ESCRITURA DIRECTA — es un <code>input</code> con botones alrededor, no dos botones. Por eso sirve igual para un ABSOLUTO ("dejar el stock en 27": se teclea) que para un DELTA ("recibí 2 más": se toca +). Escribí un número acá y usá las flechas: es el mismo campo.<br><br>SIN LAS FLECHAS NATIVAS del navegador: este control trae las suyas, así que las otras serían un segundo par para lo mismo — y aparecen sólo al pasar el cursor, o sea que el control cambiaría de contenido bajo la mano. Faltaba porque la primitiva no tenía consumidores y esta página la ejercía con un <code>input</code> sin <code>type</code>, que nunca las dibuja. <b style="color:var(--duna-ink)">Una primitiva sin consumidor no está probada, está declarada</b> — el primer uso real fue el que pidió <code>type="number"</code>.<br><br>Y EL FOCO VA EN LA PISTA, no en el campo: el input no tiene borde propio —se lo aportan sus vecinos— así que un anillo alrededor de sus 60px centrados se leería como un rectángulo suelto dentro del control. Recorrelo con Tab.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">UN PILL LLEVA NÚMERO SI CUENTA UNA COLA QUE SE VACÍA; no lo lleva si cuenta un acumulador que sólo crece. "Por reponer" y "Agotados" son colas: transitorias, accionables, y su valor CRECE con la escala del negocio. "Todos" y "Descontinuados" sólo crecen y no piden ninguna acción — a los tres meses son ruido con dígitos, y su valor DECRECE con la escala.<br><br>El efecto es lo contrario de quitar: cuando SÓLO ALGUNOS pills tienen número, el número se vuelve <b style="color:var(--duna-ink)">señal</b> — el "2" resalta contra los que no dicen nada. Con un número en cada pill, ninguno resalta. El CERO de una cola sí se muestra: "no hay nada por reponer" es una respuesta.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">La primitiva NUNCA asumió el número —el <code>duna-pill</code> es sólo la cápsula y el conteo lo pone el consumidor— pero esta página lo mostraba en los tres, y una prueba viva que enseña una sola variante se lee como si fuera la única. La regla y su campo obligatorio viven en la app (<code>lib/carriles.ts</code>), porque "cola" y "acumulador" son categorías de NEGOCIO y el sistema es agnóstico de negocio.</div>
+  </section>
+
+  <!-- SEGMENTADO -->
+  <section>
+    <h2 class="sec">Segmentado · elegir UNO de un puñado de modos</h2>
+    <p class="sec-note">NO es un control de una pantalla: la maqueta dibuja el mismo control dos veces con otro nombre —el toggle de vista (íconos) y el período de Analítica (texto)—. Por eso admite las dos formas desde el primer día, aunque hoy lo estrene una sola.</p>
+
+    <div class="row" style="gap:var(--duna-space-6)">
+      <div>
+        <div class="duna-caption" style="margin-bottom:var(--duna-space-2)">Íconos · el modo de ver una lista</div>
+        <div class="duna-seg" role="group" aria-label="Modo de vista">
+          <button type="button" class="duna-seg__item is-on" aria-pressed="true" aria-label="Cuadrícula">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </button>
+          <button type="button" class="duna-seg__item" aria-pressed="false" aria-label="Lista">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <div class="duna-caption" style="margin-bottom:var(--duna-space-2)">Texto · el período de un análisis</div>
+        <div class="duna-seg" role="group" aria-label="Período">
+          <button type="button" class="duna-seg__item" aria-pressed="false">7 días</button>
+          <button type="button" class="duna-seg__item is-on" aria-pressed="true">30 días</button>
+          <button type="button" class="duna-seg__item" aria-pressed="false">90 días</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="duna-eyebrow" style="margin:var(--duna-space-6) 0 var(--duna-space-3)">La BARRA DE FILTROS · las tres piezas juntas</div>
+    <div class="row" style="gap:var(--duna-space-2)">
+      <button class="duna-pill is-on">Todos</button>
+      <button class="duna-pill">Por reponer <span class="duna-num">2</span></button>
+      <select class="duna-input duna-select duna-input--sm" style="width:auto">
+        <option>Todas las categorías</option>
+      </select>
+      <div class="duna-seg" role="group" aria-label="Modo de vista">
+        <button class="duna-seg__item is-on" aria-pressed="true" aria-label="Cuadrícula"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+        <button class="duna-seg__item" aria-pressed="false" aria-label="Lista"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></button>
+      </div>
+    </div>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">UN CAMPO DE FORMULARIO NO ENTRA EN UNA BARRA DE FILTROS SIN SU VARIANTE. <code>.duna-input</code> está dimensionado para vivir dentro de un <code>.duna-field</code>, con su label: padding <code>space-3</code> y cuerpo de 14. Medido en esta fila, un select así daba <b style="color:var(--duna-ink)">47px</b> al lado de un segmentado de 33.6 y unos pills de 25.6 — dos anatomías en la misma línea.<br><br><code>.duna-input--sm</code> lo lleva a la altura del SEGMENTADO, y está derivada: 15.6 (una línea de <code>text-label</code> a <code>lh-normal</code>) + 16 (padding <code>space-2</code>) + 2 (bordes) = 33.6. Se eligió la del segmentado y no la del pill porque un select es un control CON borde y fondo — estructuralmente una pista, no una cápsula pelada.<br><br>PENDIENTE DECLARADO: los pills siguen 8px más bajos, y no es un descuido de esta variante — un pill es un chip suelto y el segmentado es una pista que CONTIENE chips (su ítem mide 23.6, o sea un pill sin sus bordes). Igualarlos es una decisión de diseño de la barra, no un arreglo de tamaño.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">CUÁNDO ESTO Y NO UN <code>duna-pill</code>. El pill FILTRA un conjunto —varios pueden tener sentido y llevan conteo cuando cuentan una cola—; el segmentado cambia el MODO de ver lo mismo: exactamente uno, y sin conteo posible, porque "cuadrícula&nbsp;12" no significa nada. Son preguntas distintas, y por eso son dos primitivas y no una con bandera.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">LA PISTA VA HUNDIDA Y EL ELEGIDO LEVANTADO — <b style="color:var(--duna-ink)">la maqueta lo tiene al revés</b>. Ella pone la pista en <code>surface</code> y el activo en <code>surface-2</code>: en claro se ve plausible, pero en OSCURO <code>surface-2</code> es más oscuro que <code>surface</code>, así que el activo quedaría hundido en un tema y levantado en el otro — y la <code>shadow-1</code> sobre fondo oscuro casi no existe, con lo que el único signo que sobreviviría sería el color del texto. Invertido, la dirección es la misma en los dos temas. Mirá este bloque con el toggle de arriba.<br><br>Los radios son aritmética: interno = externo − padding (<code>r-m</code> 12 − <code>space-1</code> 4 = 8 = <code>r-s</code>). Con cualquier otra combinación el chip elegido deja una luna despareja contra la esquina de la pista.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">EL <code>aria-pressed</code> Y EL <code>aria-label</code> DEL SEGMENTO DE ÍCONO LOS PONE EL CONSUMIDOR, como el <code>aria-pressed</code> del pill: la primitiva es la cápsula, no la semántica. Un segmento de sólo ícono sin etiqueta es un botón mudo para quien no ve — y es el modo de falla propio de ESTA primitiva, porque es la única del sistema que se usa sin texto.</div>
   </section>
 
   <!-- BUSCADOR -->
@@ -357,6 +428,115 @@
       </div>
 
     </div>
+  </section>
+
+  <!-- MEDIO · EL MARCO DE UNA IMAGEN -->
+  <section>
+    <h2 class="sec">Medio · el marco de una imagen</h2>
+    <p class="sec-note">La primera pieza del sistema que sostiene un medio: las dos verticales anteriores son texto puro. El marco es la FORMA y la pone el paquete; lo que se ve cuando NO hay imagen es CONTENIDO y lo pone el consumidor adentro — el tile no sabe qué es un producto.</p>
+
+    <div class="row" style="align-items:flex-start; gap:var(--duna-space-5)">
+      <div style="width:180px">
+        <div class="duna-caption" style="margin-bottom:var(--duna-space-2)">Con imagen · y con cinta</div>
+        <div class="duna-tile">
+          <img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='100'%3E%3Crect width='300' height='100' fill='%23DDD9CD'/%3E%3Ccircle cx='150' cy='50' r='34' fill='%23F59E0B'/%3E%3C/svg%3E">
+          <span class="duna-tile__ribbon">
+            <span class="duna-badge duna-badge--attention"><span class="duna-badge__dot"></span>Por reponer</span>
+          </span>
+        </div>
+      </div>
+
+      <div style="width:180px">
+        <div class="duna-caption" style="margin-bottom:var(--duna-space-2)">Vacío · el reemplazo lo pone el consumidor</div>
+        <div class="duna-tile">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg>
+        </div>
+      </div>
+
+      <!-- La tira lleva ancho PROPIO y no `flex:1`: con la columna elástica el
+           `.row` la estrechaba y las cuatro miniaturas se envolvían en 2×2, o sea
+           que esta página enseñaba una rejilla donde la primitiva es una TIRA.
+           4×44 + 3×8 de gap = 200. -->
+      <div style="width:200px; flex-shrink:0">
+        <div class="duna-caption" style="margin-bottom:var(--duna-space-2)">La tira · de MIRAR (mínimo por defecto)</div>
+        <div class="duna-tiles">
+          <button type="button" class="duna-tile duna-tile--sm is-selected">
+            <img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='100'%3E%3Crect width='300' height='100' fill='%23DDD9CD'/%3E%3Ccircle cx='150' cy='50' r='34' fill='%23F59E0B'/%3E%3C/svg%3E">
+          </button>
+          <button type="button" class="duna-tile duna-tile--sm"></button>
+          <button type="button" class="duna-tile duna-tile--sm"></button>
+          <button type="button" class="duna-tile duna-tile--sm duna-tile--add" aria-label="Agregar una imagen">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">LA CINTA PONE LA SUPERFICIE, Y NO ES DECORACIÓN. Los tintes de estado del sistema (<code>--duna-*-soft</code>) son <b style="color:var(--duna-ink)">traslúcidos: 12 % de alfa</b>. Sobre una superficie conocida componen a un color conocido y el par <code>-soft</code>&nbsp;+&nbsp;<code>-ink</code> tiene su contraste garantizado — ése es el contrato del badge. Sobre una IMAGEN no hay superficie: componen contra los píxeles que haya debajo, así que el contrato deja de valer sin que nada en el badge cambie.<br><br>Medido con "Por reponer", contra el umbral AA de 4.5 para texto pequeño. En <b style="color:var(--duna-ink)">claro</b>: sobre superficie 5.40 ✓ · foto blanca 5.40 ✓ · foto gris 1.61 ✗ · foto oscura 2.38 ✗ · <b style="color:var(--duna-ink)">foto ámbar (café tostado) 1.69 ✗</b>. En <b style="color:var(--duna-ink)">oscuro</b> se invierte cuál rompe —falla sobre las fotos CLARAS: 1.71 sobre blanco— así que mirar un solo tema habría aprobado la mitad equivocada. El peor caso no es el raro: es el producto de esta tienda.<br><br>Por eso la ranura pinta <code>--duna-surface</code> y adopta el radio del badge: le devuelve al tinte la superficie que su contrato asume, y con eso un badge sobre una foto contrasta <b style="color:var(--duna-ink)">exactamente lo mismo</b> que sobre una tarjeta — 5.40 claro · 7.49 oscuro. La alternativa (opacar el tinte sólo acá) habría sido un cuarto rol de color inventado para un caso, que es cómo el triplete se deshace.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">LA RELACIÓN DE ASPECTO ES <b style="color:var(--duna-ink)">1:1</b>, Y SALE DE LAS IMÁGENES REALES, NO DE LA MAQUETA. <code>duna-os.html</code> dibuja <code>4/3</code>; se midieron las cuatro fotos del catálogo antes de copiarlo y las cuatro son 1254×1254. Un marco 4/3 les recortaría ~25 % arriba y abajo — a todas. El placeholder de arriba es deliberadamente 3:1: si el recorte no funcionara, esta página lo mostraría deformado en vez de centrado.<br><br>Y el cuadrado es lo que hace que <code>--sm</code> sea sólo un ancho: la miniatura de una fila y el marco de una tarjeta encuadran IGUAL, así que la misma foto no se recorta distinto según dónde se mire.</div>
+
+    <div class="flag" style="margin-top:var(--duna-space-3)">LA MANO Y EL FOCO VIVEN EN <code>button.duna-tile</code>, no en la clase base — igual que en <code>order-card</code>. Un marco que sólo muestra una foto no debe prometer mano ni recibir foco, o el teclado para en algo que no responde. Las tres miniaturas de arriba SÍ son botones (recorrelas con Tab); los dos marcos grandes no lo son.<br><br>El borde de tinta de <code>is-selected</code> es el mismo signo que en <code>order-card</code>: el idioma del sistema para "ésta es la que estás viendo". Lo que cambia es la segunda mitad —allá una sombra que levanta, acá un aro de 1px— porque el mismo borde sobre 44px es una fracción del contraste que tiene sobre 400px.</div>
+
+    <div class="duna-eyebrow" style="margin:var(--duna-space-6) 0 var(--duna-space-3)">La MISMA tira, de EDITAR</div>
+    <div class="duna-tiles" style="max-width:420px; --duna-tiles-min: calc(var(--duna-thumb-w) * 2)">
+      <div style="position:relative">
+        <button class="duna-tile"><img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23141311'/%3E%3C/svg%3E"></button>
+        <span class="duna-tile__ribbon duna-tile__ribbon--end">
+          <button class="duna-btn duna-btn--ghost duna-btn--sm" aria-label="Quitar de la galería">✕</button>
+        </span>
+      </div>
+      <div style="position:relative">
+        <button class="duna-tile"><img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='100'%3E%3Crect width='300' height='100' fill='%23DDD9CD'/%3E%3Ccircle cx='150' cy='50' r='34' fill='%23F59E0B'/%3E%3C/svg%3E"></button>
+        <span class="duna-tile__ribbon duna-tile__ribbon--end">
+          <button class="duna-btn duna-btn--ghost duna-btn--sm" aria-label="Quitar de la galería">✕</button>
+        </span>
+      </div>
+      <button class="duna-tile duna-tile--add" aria-label="Agregar una imagen">＋</button>
+    </div>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">UNA TIRA DE MIRAR Y UNA DE EDITAR NO PIDEN EL MISMO TAMAÑO, y con el mínimo fijo eso no se podía decir. La galería del formulario de producto daba <b style="color:var(--duna-ink)">8 columnas de 48px</b> dentro de un drawer de 480, y ahí no cabe lo que un editor necesita ENCIMA: la cinta de la × mide 34px contra 32 útiles (48 menos los dos insets de 8). Con una segunda cinta —un badge de estado— pedían 75px en esos 32, la del badge desbordaba el tile y la × le caía encima tapándole el texto. <b style="color:var(--duna-ink)">No era falta de superficie</b>: la cinta ya pinta <code>--duna-surface</code>. Era que no caben.<br><br><code>--duna-tiles-min</code> es la perilla, y el default NO cambia: la tira de arriba sigue idéntica. El consumidor la sube en múltiplos del propio token —<code>calc(var(--duna-thumb-w) * 2)</code>, o sea "dos miniaturas"— para no inventar un valor. Es un MÍNIMO, no un ancho: la columna real la reparte <code>auto-fill</code> según el sitio que haya (en el drawer de 480 da 104px; en esta demo, más angosta, 99).<br><br>Y el estado "sin subir" se dice FUERA de la miniatura, junto al contador: es del CONJUNTO —todas suben al guardar— así que ponerlo en cada tile repite N veces un hecho que se dice una. El borde punteado se descartó porque <code>duna-tile--add</code> ya es dueño de ese signo: un pendiente punteado sería indistinguible de la ranura de agregar.</div>
+
+    <div class="duna-eyebrow" style="margin:var(--duna-space-6) 0 var(--duna-space-3)">La MISMA fila de lista, con una foto</div>
+    <div style="display:flex; flex-direction:column; gap:var(--duna-space-3); max-width:var(--duna-list-w)">
+      <button type="button" class="duna-order-card duna-order-card--media">
+        <div class="duna-order-card__media">
+          <div class="duna-tile duna-tile--sm">
+            <img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='100'%3E%3Crect width='300' height='100' fill='%23DDD9CD'/%3E%3Ccircle cx='150' cy='50' r='34' fill='%23F59E0B'/%3E%3C/svg%3E">
+          </div>
+        </div>
+        <div class="duna-order-card__body">
+          <div class="duna-order-card__top">
+            <span class="duna-order-card__name">Café Huila 500 g</span>
+            <span class="duna-order-card__id duna-mono">SN-014</span>
+            <span class="duna-order-card__amount duna-num">$ 34.000</span>
+          </div>
+          <div class="duna-order-card__mid">
+            <span class="duna-tag">Café de origen</span>
+            <span class="duna-stock-txt is-low duna-caption">6 · por reponer</span>
+          </div>
+        </div>
+      </button>
+      <button type="button" class="duna-order-card duna-order-card--media">
+        <div class="duna-order-card__media">
+          <div class="duna-tile duna-tile--sm">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg>
+          </div>
+        </div>
+        <div class="duna-order-card__body">
+          <div class="duna-order-card__top">
+            <span class="duna-order-card__name">Prensa francesa 600 ml</span>
+            <span class="duna-order-card__amount duna-num">$ 89.000</span>
+          </div>
+          <div class="duna-order-card__mid">
+            <span class="duna-tag">Otros</span>
+            <span class="duna-caption">7 en existencia</span>
+          </div>
+        </div>
+      </button>
+    </div>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">ES UNA EXTENSIÓN DE <code>order-card</code>, NO UNA FILA NUEVA — y se verificó antes de escribirla. La estimación decía que hacía falta una "lista de filas de datos" (la tabla de seis columnas que dibuja la maqueta) y NO hace falta: cuando el modo lista vive dentro de <code>duna-split</code>, su columna mide <code>--duna-list-w</code> (400px, el ancho de esta demo) y seis columnas ahí no son una tabla, son una fila apretada. Lo que falta en 400px es exactamente esto: la fila que ya existe, con sitio para una foto.<br><br>Sin <code>media</code> la fila queda EXACTAMENTE como estaba —no se emite ni el envoltorio de dos columnas—, así que las listas que ya están en producción no cambian una línea. Darle otro aspecto a la fila según lleve o no imagen sería una segunda opinión sobre cómo se ve un registro en una lista de este panel.</div>
   </section>
 
   <section>
@@ -542,6 +722,51 @@
     <div class="flag" style="margin-top:var(--duna-space-3)">El relleno NO es contenido: es un ESPACIADOR. No se traduce ni se configura, no se puede seleccionar (<code>user-select: none</code>) y sale del árbol de accesibilidad con <code>aria-hidden</code>. Lo que un lector de pantalla anuncia es el ESTADO — <code>role="status"</code>, <code>aria-busy</code> y una etiqueta <code>.duna-sr-only</code> que provee el consumidor, porque es idioma. Sin eso el esqueleto sería invisible justo para quien no puede ver la animación, y el "Cargando…" que reemplaza sí se leía.</div>
 
     <div class="flag" style="margin-top:var(--duna-space-3)">Con <code>prefers-reduced-motion</code> el pulso se apaga con <code>animation: none</code>, no con la aceleración a <code>.01ms</code> del resto del sistema: ésa congela la animación en un fotograma cualquiera, y si cae en el del 50% deja el bloque a opacidad .55 — que se lee como un fallo de carga. Sin movimiento queda ESTÁTICO y entero, que es distinto de invisible.</div>
+  </section>
+
+  <section>
+    <h2 class="sec">Rejilla de tarjetas · el OTRO layout de una lista</h2>
+    <p class="sec-note">Agnóstica, como el layout partido: no sabe qué hay en las tarjetas. Existe por lo mismo — sin ella cada pantalla inventaría su rejilla y su mínimo de columna, y ese mínimo decide si la vista sirve para comparar de un vistazo o se vuelve una lista con fotos.</p>
+
+    <div class="duna-cards" style="margin-bottom:var(--duna-space-4)">
+      <div class="duna-card duna-card--hoverable" style="padding:var(--duna-space-3);position:relative">
+        <div class="duna-tile">
+          <img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='100'%3E%3Crect width='300' height='100' fill='%23DDD9CD'/%3E%3Ccircle cx='150' cy='50' r='34' fill='%23F59E0B'/%3E%3C/svg%3E">
+          <span class="duna-tile__ribbon"><span class="duna-badge duna-badge--attention"><span class="duna-badge__dot"></span>Por reponer</span></span>
+          <span class="duna-tile__ribbon duna-tile__ribbon--end duna-hit__sobre">
+            <button type="button" class="duna-badge duna-badge--neutral" style="cursor:pointer;border:none" aria-label="Activar Café Huila 500 g">Inactivo</button>
+          </span>
+        </div>
+        <div style="margin-top:var(--duna-space-3)">
+          <button type="button" class="duna-hit" style="font:inherit;color:inherit;background:none;border:none;padding:0;text-align:left;font-weight:var(--duna-w-semi);cursor:pointer">Café Huila 500 g</button>
+          <div class="duna-num" style="font-weight:var(--duna-w-semi);margin-top:var(--duna-space-hairline)">$ 34.000</div>
+          <div style="margin-top:var(--duna-space-2)"><span class="duna-stock-txt is-low duna-caption">6 · por reponer</span></div>
+        </div>
+      </div>
+      <div class="duna-card duna-card--hoverable" style="padding:var(--duna-space-3)">
+        <div class="duna-tile"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></div>
+        <div style="margin-top:var(--duna-space-3)">
+          <div style="font-weight:var(--duna-w-semi);font-size:var(--duna-text-body)">Prensa francesa</div>
+          <div class="duna-num" style="font-weight:var(--duna-w-semi);margin-top:var(--duna-space-hairline)">$ 89.000</div>
+          <div style="margin-top:var(--duna-space-2)"><span class="duna-stock-txt duna-caption">7 en existencia</span></div>
+        </div>
+      </div>
+      <div class="duna-card duna-card--hoverable" style="padding:var(--duna-space-3)">
+        <div class="duna-tile">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg>
+          <span class="duna-tile__ribbon"><span class="duna-badge duna-badge--problem"><span class="duna-badge__dot"></span>Agotado</span></span>
+        </div>
+        <div style="margin-top:var(--duna-space-3)">
+          <div style="font-weight:var(--duna-w-semi);font-size:var(--duna-text-body)">Café Nariño 500 g</div>
+          <div class="duna-num" style="font-weight:var(--duna-w-semi);margin-top:var(--duna-space-hairline)">$ 42.000</div>
+          <div style="margin-top:var(--duna-space-2)"><span class="duna-stock-txt is-out duna-caption">Agotado</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flag" style="margin-bottom:var(--duna-space-3)">LA PRIMERA TARJETA LLEVA <code>duna-hit</code>: se abre tocándola en cualquier parte Y tiene un control propio adentro (el badge "Inactivo", que es una manija con su acción). No puede ser un <code>&lt;button&gt;</code> — anidar un control dentro de otro es HTML inválido y un lío de foco. Es el límite que <code>order-card</code> ya dejaba escrito y que esta rejilla es la primera en topar.<br><br>La superficie queda como contenedor no interactivo y el NOMBRE estira su área de clic sobre toda la tarjeta con un pseudo-elemento: un solo elemento focusable, con el nombre del producto como su nombre accesible —no "botón sin etiqueta"— y el clic donde el dedo lo espera. Los controles que van encima llevan <code>duna-hit__sobre</code>, o quedan debajo del área estirada y dejan de recibir clics: se ven pero no se pueden tocar, que es el peor de los dos mundos.<br><br>Recorré la rejilla con Tab: el anillo se pinta sobre LA TARJETA, no sobre las dos palabras del nombre — el área activa es la superficie, y un anillo alrededor del texto mentiría sobre qué se va a activar.</div>
+
+    <div class="flag">EL MÍNIMO DE COLUMNA ES DERIVADO, NO ELEGIDO: <code>--duna-list-w / 2</code> = 200px, y la derivación ES la regla — una tarjeta de rejilla tiene que ser MÁS ANGOSTA que una fila de lista, o la rejilla no ofrece nada que la lista no dé. La mitad es el primer corte que lo garantiza, y hace que a partir del ancho del split entren dos columnas. La maqueta dice 224px, un número sin origen.<br><br>Achicá la ventana: <code>auto-fill</code> pasa a una sola columna sin que el consumidor decida cuántas caben en cada tamaño. La tarjeta de arriba es COMPOSICIÓN, no primitiva — <code>duna-card</code> + <code>duna-tile</code> + tokens de espaciado. El sistema no tiene "tarjeta de producto" y no debe tenerla: no sabe qué es un producto.</div>
   </section>
 
   <section>

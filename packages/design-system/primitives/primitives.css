@@ -44,6 +44,235 @@
 .duna-card__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--duna-space-4); }
 .duna-divider { height: 1px; background: var(--duna-border); border: none; margin: 0; }
 
+/* ── TILE · el marco de una imagen ──────────────────────────────────────────
+   LA PRIMERA PIEZA DEL SISTEMA QUE SOSTIENE UN MEDIO, y por eso existe: las dos
+   verticales anteriores (pedidos, clientes) son TEXTO PURO, así que el paquete
+   nunca tuvo que decidir cómo se ve una imagen dentro de una superficie suya. No
+   era una omisión: era una pregunta que todavía no se había hecho.
+
+   AGNÓSTICA, y acá la palabra tiene una consecuencia concreta: el tile no sabe
+   qué imagen lleva NI QUÉ PONER CUANDO NO HAY NINGUNA. El marco es la FORMA y la
+   pone el paquete; el reemplazo —un ícono, una inicial, un glifo— es CONTENIDO y
+   lo pone el consumidor dentro. Es la misma frontera de siempre (opción C): un
+   ícono de "producto" convertiría a este paquete en uno que conoce productos.
+
+   ── LA RELACIÓN DE ASPECTO ES 1:1, Y SALE DE LAS IMÁGENES, NO DE LA MAQUETA ──
+
+   `duna-os.html` dibuja `aspect-ratio: 4/3`. Se midieron las cuatro imágenes del
+   catálogo real antes de copiarla: las CUATRO son 1254×1254, o sea 1:1 exacto.
+   Un marco 4/3 les recortaría ~25 % arriba y abajo — a todas, no a un caso raro.
+   Es el § 2 de `duna-os.NOTES.md` en su forma más literal: la maqueta es
+   intención de FORMA y no fuente de VALORES, y acá el dato la contradice.
+
+   Además el cuadrado es lo que hace que `--sm` sea sólo un ancho: una miniatura
+   de fila y un marco de tarjeta encuadran IGUAL, así que la misma foto no se
+   recorta distinto según dónde se mire. Con dos relaciones, el operador ve dos
+   fotos del mismo producto.
+
+   ── LO QUE NO SE ADOPTA DE LA MAQUETA, DECLARADO ─────────────────────────────
+
+   El fondo de duna en SVG y el glifo de emoji. Los dos son MARCADO, no forma, así
+   que meterlos acá obligaría a que el paquete enviara un componente (o a que cada
+   consumidor pegara el mismo SVG) — y el emoji además es una función que el
+   dominio no tiene: no hay columna donde guardarlo. Un marco vacío se lee
+   perfectamente como un marco vacío. */
+.duna-tile { position: relative; aspect-ratio: 1; border-radius: var(--duna-r-m);
+             overflow: hidden; background: var(--duna-paper); border: 1px solid var(--duna-border);
+             display: flex; align-items: center; justify-content: center;
+             flex-shrink: 0; color: var(--duna-muted);
+             transition: border-color var(--duna-dur) var(--duna-ease), box-shadow var(--duna-dur) var(--duna-ease); }
+/* EL COLOR DEL REEMPLAZO ES `muted`, Y NO `faint`, POR MEDICIÓN.
+   Nació en `faint` —parece el token del "placeholder"— y sobre el fondo del marco
+   da 2.26:1 en CLARO, por debajo del 3:1 que AA pide para lo no-textual (WCAG
+   1.4.11). En oscuro pasaba (3.32), así que mirar un solo tema lo habría dado por
+   bueno. `muted` da 4.02 claro / 6.01 oscuro. `ink-2` también pasa (10:1) y se
+   descartó: un marco VACÍO no debe gritar más fuerte que uno con foto. */
+/* En oscuro el "papel" ES el fondo de la app, así que un marco vacío desaparecería
+   contra la página. `surface-2` lo mantiene un escalón por encima — mismo criterio
+   que `--duna-skel`, que también es un escalón y no un color fijo. */
+[data-theme="dark"] .duna-tile { background: var(--duna-surface-2); }
+/* Llena y recorta. Sirve igual a un `<img>` suelto y a uno que el consumidor
+   posicione en absoluto (`next/image` con `fill` se monta así): en ese caso el
+   ancho y el alto ya vienen del `inset: 0` y estas dos líneas son un no-op. */
+.duna-tile img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* Cuadrada y de ancho fijo — la miniatura que acompaña a una fila de datos.
+   El ancho es TOKEN y no un número acá: lo comparte con las pistas de `.duna-tiles`
+   (la derivación del 44 está en `tokens.css`). */
+.duna-tile--sm { width: var(--duna-thumb-w); border-radius: var(--duna-r-s); }
+
+/* LA CINTA · la ranura para colgar un badge SOBRE la imagen.
+   Es una ranura y no un badge: lo que va adentro es un `.duna-badge` cualquiera,
+   así que el tile no gana una segunda opinión sobre cómo se ve un estado.
+
+   ── Y LA RANURA TIENE QUE PONER LA SUPERFICIE, O EL BADGE NO CUMPLE ─────────
+
+   Los tintes de estado del sistema (`--duna-*-soft`) son TRASLÚCIDOS: 12 % de
+   alfa. Sobre una superficie conocida componen a un color conocido y el par
+   `-soft` + `-ink` tiene su contraste GARANTIZADO — es el contrato del badge.
+   Sobre una IMAGEN no hay superficie: componen contra los píxeles que haya
+   debajo, así que el contrato deja de valer sin que nada en el badge cambie.
+
+   Medido con "Por reponer" (`--duna-sol-ink` sobre el tinte compuesto), tema
+   claro, contra el umbral AA de 4.5 para texto pequeño:
+
+     sobre `--duna-surface` (para lo que el badge se diseñó) ·  5.40  ✓
+     sobre una foto blanca (packshot típico) ················ ·  5.40  ✓
+     sobre una foto gris medio ······························ ·  1.61  ✗
+     sobre una foto oscura (empaque negro) ·················· ·  2.38  ✗
+     sobre una foto ÁMBAR (café tostado) ···················· ·  1.69  ✗
+
+   El peor caso no es el raro: es el producto de esta tienda. Por eso la ranura
+   pinta `--duna-surface` y adopta la geometría del badge (mismo radio) — le
+   devuelve al tinte la superficie que su contrato asume, y con eso el badge sobre
+   una foto contrasta EXACTAMENTE lo mismo que sobre una tarjeta, en los dos
+   temas. La alternativa —opacar el tinte sólo acá— habría sido un cuarto rol de
+   color inventado para un caso, que es cómo el triplete se deshace.
+
+   `inline-flex` y `width: fit-content` para que la superficie mida lo que mide el
+   badge y no el ancho de la imagen. */
+.duna-tile__ribbon     { position: absolute; top: var(--duna-space-2); left: var(--duna-space-2);
+                         display: inline-flex; width: fit-content;
+                         background: var(--duna-surface); border-radius: var(--duna-r-full); }
+.duna-tile__ribbon--end { left: auto; right: var(--duna-space-2); }
+
+/* ── CUANDO EL MARCO HACE ALGO ──────────────────────────────────────────────
+   Mano y foco viven en los selectores de elemento, NO en la clase base — igual
+   que en `.duna-order-card`, y por el mismo motivo: un marco que sólo muestra una
+   foto no debe prometer mano ni recibir foco, o el teclado para en algo que no
+   responde. El reset es sólo lo que el navegador le impone a un <button>. */
+/* ── Y UN `<button>` NO SE DIMENSIONA COMO UN `<div>` — EL ANCHO VA DECLARADO ─
+   `.duna-tile` promete dimensionarse por su contenedor, y esa promesa era FALSA
+   cuando el marco es un botón: un control de formulario conserva el dimensionado
+   shrink-to-fit aunque se le ponga `display: flex`, y como su único contenido es
+   una imagen en posición ABSOLUTA —que no aporta ancho— el botón colapsa.
+
+   Medido con el mismo marcado en un envoltorio de 88px: como `div` mide 88×88;
+   como `button`, 2×2 (sus dos bordes). La imagen adentro, 0×0.
+
+   El modo de falla es de los peores: no rompe nada, no avisa, y deja un hueco
+   donde debería estar la foto — se lee como "al detalle le falta la imagen", que
+   es exactamente como se reportó. Lo disparó el detalle de producto, donde el
+   marco es clickeable para abrir el lightbox; la tarjeta de la cuadrícula, que es
+   un `div`, nunca lo mostró. */
+button.duna-tile, a.duna-tile { padding: 0; font: inherit; color: var(--duna-muted); cursor: pointer; width: 100%; }
+/* `--sm` tiene ancho PROPIO y hay que devolvérselo: `button.duna-tile` le gana en
+   especificidad al modificador, así que sin esta línea una miniatura montada como
+   botón se estiraría al 100% de su contenedor — que es el defecto de arriba con el
+   signo cambiado. */
+button.duna-tile--sm, a.duna-tile--sm { width: var(--duna-thumb-w); }
+button.duna-tile:hover, a.duna-tile:hover { border-color: var(--duna-border-2); }
+button.duna-tile:focus-visible, a.duna-tile:focus-visible {
+  border-color: var(--duna-ink); box-shadow: var(--duna-ring);
+  outline: 2px solid transparent; outline-offset: 2px;
+}
+
+/* SELECCIONADA · la miniatura que el visor está mostrando.
+   El borde de TINTA es el mismo signo que en `.duna-order-card.is-selected`, y eso
+   no es coincidencia: es el idioma del sistema para "ésta es la que estás viendo".
+   Lo que cambia es la segunda mitad —allá un `shadow-2` que levanta, acá un aro de
+   1px— porque el mismo borde sobre 44px es una fracción del contraste que tiene
+   sobre una tarjeta de 400px: el aro DOBLA el borde en vez de inventar un segundo
+   idioma. Una sombra de elevación entre cuatro cuadrados pegados no se lee. */
+.duna-tile.is-selected { border-color: var(--duna-ink); box-shadow: 0 0 0 1px var(--duna-ink); }
+[data-theme="dark"] .duna-tile.is-selected { border-color: var(--duna-ink-2); box-shadow: 0 0 0 1px var(--duna-ink-2); }
+/* SELECCIONADA **Y** ENFOCADA · las dos señales, compuestas.
+   El aro de selección y el de foco son el MISMO `box-shadow`, así que sin esta
+   regla el foco lo reemplaza y, mientras el operador recorre la tira con Tab, la
+   miniatura seleccionada deja de distinguirse de las demás — justo cuando está
+   navegando a ciegas, que es cuando la selección más importa. No se vio razonando
+   sobre el CSS: apareció al recorrer la tira con Tab de verdad en la prueba viva.
+   El de selección va PRIMERO para que quede encima (1px de tinta) y el de foco
+   asome detrás. */
+button.duna-tile.is-selected:focus-visible, a.duna-tile.is-selected:focus-visible {
+  box-shadow: 0 0 0 1px var(--duna-ink), var(--duna-ring);
+}
+[data-theme="dark"] button.duna-tile.is-selected:focus-visible,
+[data-theme="dark"] a.duna-tile.is-selected:focus-visible {
+  box-shadow: 0 0 0 1px var(--duna-ink-2), var(--duna-ring);
+}
+
+/* AGREGAR · el hueco que invita, al final de una tira de miniaturas. Punteado
+   porque todavía no hay nada — es la misma gramática del esqueleto: la forma de
+   algo que aún no llegó, sólo que acá quien lo trae es el operador. */
+.duna-tile--add { border-style: dashed; }
+button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-ink); color: var(--duna-ink); }
+
+/* LA TIRA · las miniaturas de una galería.
+   `auto-fill` y no un número de columnas: la tira sirve igual a tres miniaturas
+   que a siete, y el consumidor no tiene que decidir cuántas caben.
+
+   ── EL MÍNIMO ES UNA PERILLA, Y EXISTE POR UN DEFECTO MEDIDO ────────────────
+
+   Una tira de MIRAR y una de EDITAR no piden el mismo tamaño. Con el mínimo fijo
+   en `--duna-thumb-w`, la galería del formulario de producto daba 8 columnas de
+   48px dentro de un drawer de 480 — y ahí no cabe lo que un editor necesita
+   encima: la cinta de la × mide 34px contra 32px útiles (48 menos los dos insets
+   de 8), así que desbordaba el tile. Con dos cintas (la × y un badge de estado)
+   pedían 75px en esos 32 y además se tapaban entre sí.
+
+   El default NO cambia: quien no la toque sigue exactamente como estaba. El
+   consumidor la sube en múltiplos del propio token —`calc(var(--duna-thumb-w) *
+   2)`— para no inventar un valor. */
+.duna-tiles { display: grid; gap: var(--duna-space-2);
+              --duna-tiles-min: var(--duna-thumb-w);
+              grid-template-columns: repeat(auto-fill, minmax(var(--duna-tiles-min), 1fr)); }
+
+/* ── REJILLA DE TARJETAS · el otro layout de una lista ───────────────────────
+   AGNÓSTICA, como `.duna-split`: no sabe que las tarjetas son productos.
+
+   Existe por lo mismo que el split: sin ella cada pantalla inventaría su propia
+   rejilla y su propio mínimo de columna, y ese mínimo es justo el número que no
+   se puede inventar — decide cuántas tarjetas entran y, con ellas, si la vista
+   sirve para comparar de un vistazo o se vuelve una lista con fotos.
+
+   ── EL MÍNIMO ES DERIVADO, NO ELEGIDO ───────────────────────────────────────
+
+   `--duna-list-w / 2` = 200px, y la derivación es la regla misma: una tarjeta de
+   rejilla tiene que ser MÁS ANGOSTA que una fila de lista, o la rejilla no está
+   ofreciendo nada que la lista no dé. La mitad es el primer corte que garantiza
+   eso y además hace que a partir del ancho del split entren dos columnas. La
+   maqueta dice 224px, un número sin origen (§ duna-os.NOTES: no es fuente de
+   valores).
+
+   `auto-fill` y no un número de columnas: la rejilla sirve igual en un teléfono
+   —donde da una— que en un monitor ancho, sin que el consumidor decida cuántas
+   caben en cada tamaño. El gap es el mismo `space-4` que separa las tarjetas de
+   una lista, para que las dos vistas del mismo conjunto respiren igual. */
+.duna-cards { display: grid; gap: var(--duna-space-4);
+              grid-template-columns: repeat(auto-fill, minmax(calc(var(--duna-list-w) / 2), 1fr)); }
+
+/* ── EL CONTROL PRINCIPAL DE UNA SUPERFICIE, CON SU ÁREA ESTIRADA ────────────
+   Una tarjeta que se abre al tocarla PERO que además lleva controles propios
+   adentro no puede ser un `<button>`: anidar un control dentro de otro es HTML
+   inválido y un lío de foco. Es el límite que `order-card` ya dejaba escrito
+   ("si algún día la fila necesita un botón propio, esta forma deja de servir y
+   hay que partirla — no anidar"); la rejilla de tarjetas es el primer caso que
+   lo topa, porque su badge de estado es una manija con su propia acción.
+
+   La salida: la superficie queda como contenedor NO interactivo, y UNO de sus
+   controles —el que representa a la tarjeta entera, normalmente su nombre—
+   estira su área de clic sobre toda la superficie con un pseudo-elemento. El
+   resultado es lo que hace falta y nada más: un solo elemento focusable por
+   tarjeta, con el NOMBRE como su nombre accesible (no "botón sin etiqueta"), y
+   el clic donde el dedo lo espera.
+
+   El contenedor tiene que ser `position: relative` — lo pone el consumidor,
+   porque el sistema no sabe cuál es la superficie— y los controles que van
+   ENCIMA necesitan su propia capa (`.duna-hit__sobre`), o quedan debajo del
+   área estirada y dejan de recibir clics.
+
+   EL FOCO SE PINTA SOBRE LA TARJETA, no sobre el texto: el área activa es la
+   superficie, y un anillo que rodea sólo dos palabras mentiría sobre qué se va a
+   activar. Mismo anillo del resto del sistema, en el pseudo-elemento. */
+.duna-hit::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.duna-hit:focus-visible { outline: 2px solid transparent; outline-offset: 2px; }
+.duna-hit:focus-visible::after { box-shadow: var(--duna-ring); }
+/* Los controles que conviven con el área estirada. `relative` es lo que los
+   levanta del pseudo-elemento; sin esto el badge de una tarjeta se ve pero no se
+   puede clickear, que es el peor de los dos mundos. */
+.duna-hit__sobre { position: relative; z-index: 1; }
+
 /* ── LAYOUT PARTIDO · lista que scrollea + panel que se queda ────────────────
    El esqueleto de una pantalla de trabajo: a la izquierda una lista larga, a la
    derecha el detalle de lo seleccionado. AGNÓSTICO — no sabe que la lista son
@@ -391,6 +620,37 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
    la marca `disabled hidden` para que no se pueda re-elegir. */
 .duna-select:invalid { color: var(--duna-muted); }
 
+/* ── TAMAÑO COMPACTO · el campo que vive en una BARRA DE FILTROS ─────────────
+   `.duna-input` está dimensionado para un FORMULARIO —padding `space-3` y cuerpo
+   de 14— y eso es correcto donde vive, dentro de un `.duna-field` con su label.
+   En una fila de filtros son dos anatomías distintas en la misma línea: medido,
+   el select daba 47px al lado de un segmentado de 33.6 y unos pills de 25.6.
+
+   ── LA ALTURA OBJETIVO ES LA DEL SEGMENTADO, Y ESTÁ DERIVADA ────────────────
+   15.6 (una línea de `text-label` a `lh-normal`) + 16 (padding `space-2` arriba y
+   abajo) + 2 (bordes) = 33.6, exactamente la pista del segmentado. Se eligió ésa
+   y no la del pill porque un select es un control CON borde y fondo —
+   estructuralmente una pista, no una cápsula pelada.
+
+   PENDIENTE DECLARADO: los pills siguen 8px más bajos (25.6), y no es un
+   descuido de esta variante — es que un pill es un chip suelto y el segmentado es
+   una pista que CONTIENE chips (su ítem mide 23.6, o sea lo mismo que un pill sin
+   sus bordes). Igualarlos es una decisión de diseño de la barra, no un arreglo de
+   tamaño, y no se toma acá.
+
+   ── Y LA LÍNEA VA DECLARADA · CUARTA VEZ ────────────────────────────────────
+   Sin fijarla, `.duna-input` hereda el 1.5 de `.duna` y 12px de fuente dan 18 de
+   caja: la altura sería 36 y no 33.6. Es el mismo motivo que en `.duna-btn`,
+   `.duna-pill` y `.duna-seg__item` — cuando la altura de un control la decide lo
+   que lleva dentro, deja de poder alinearse con sus vecinos. */
+.duna-input--sm { padding: var(--duna-space-2) var(--duna-space-3);
+                  font-size: var(--duna-text-label); line-height: var(--duna-lh-normal); }
+/* El hueco de la flecha lo reserva `.duna-select` con `padding-right`, y el
+   `padding` de arriba es un atajo que lo pisa. Se re-declara con la especificidad
+   necesaria en vez de partir el atajo en longhands: así el día que cambie el
+   tamaño de la flecha, se toca UN sitio. */
+.duna-select.duna-input--sm { padding-right: calc(var(--duna-space-3) + 18px); }
+
 /* ── CHECKBOX · nativo, con `accent-color` ────────────────────────────────
    Otra vez el nativo, y por lo mismo: teclado, lector de pantalla y el estado
    indeterminado vienen del navegador. `accent-color` es lo que permite teñirlo
@@ -487,6 +747,26 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 .duna-stepper input { width: 60px; text-align: center; border: none; border-left: 1px solid var(--duna-border);
                       border-right: 1px solid var(--duna-border); padding: var(--duna-space-2) 0; background: transparent;
                       outline: none; font-family: var(--duna-font-display); font-weight: var(--duna-w-semi); color: var(--duna-ink); }
+/* SIN LAS FLECHAS NATIVAS. Este control TRAE las suyas, así que las del navegador
+   serían un segundo par para lo mismo — y aparecen sólo al pasar el cursor, o sea
+   que el control cambiaría de contenido bajo la mano.
+   Faltaba porque la primitiva no tenía consumidores: la prueba viva la ejercía con
+   un `input` sin `type`, que nunca las dibuja. El primer uso real la pide
+   `type="number"` —para el teclado numérico del teléfono y para `min`/`max`— y ahí
+   aparecen. Es el patrón de siempre: una primitiva sin consumidor no está probada,
+   está declarada. */
+.duna-stepper input::-webkit-outer-spin-button,
+.duna-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
+.duna-stepper input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+/* El deshabilitado no promete nada, igual que en `.duna-btn`. */
+.duna-stepper input:disabled, .duna-stepper button:disabled { opacity: .55; }
+.duna-stepper button:disabled:hover { background: none; color: var(--duna-muted); }
+/* EL FOCO VA EN LA PISTA, no sólo en el campo: el input no tiene borde propio
+   —lo aportan sus vecinos— así que un anillo alrededor de 60px centrados se lee
+   como un rectángulo suelto dentro del control. Mismo tratamiento que `.duna-input`
+   en foco: borde de tinta y anillo. */
+.duna-stepper:focus-within { border-color: var(--duna-ink); box-shadow: var(--duna-ring); }
+[data-theme="dark"] .duna-stepper:focus-within { border-color: var(--duna-ink-2); }
 
 /* Filtro (pill) */
 .duna-pill { padding: var(--duna-space-1) var(--duna-space-3); border-radius: var(--duna-r-full); font-size: var(--duna-text-label);
@@ -503,6 +783,73 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
              line-height: var(--duna-lh-normal); }
 .duna-pill:hover { color: var(--duna-ink); }
 .duna-pill.is-on { background: var(--duna-surface); border-color: var(--duna-border-2); color: var(--duna-ink); box-shadow: var(--duna-shadow-1); }
+
+/* ── SEGMENTADO · elegir UNO de un puñado de modos ──────────────────────────
+   NO ES UN CONTROL DE PRODUCTOS. Nace para el toggle cuadrícula/lista, pero la
+   maqueta dibuja EL MISMO control dos veces con otro nombre —`.viewtoggle`
+   (íconos) y `.range-seg` (texto, el período de Analítica)— y esa duplicación es
+   justamente el aviso: si naciera como "el toggle de Productos", la vertical
+   siguiente haría el suyo y tendríamos dos formas de elegir un modo. Por eso
+   admite ícono y texto desde el primer día, aunque hoy lo estrene uno solo.
+
+   ── CUÁNDO ESTO Y NO UN PILL ────────────────────────────────────────────────
+   El pill FILTRA un conjunto (varios pueden tener sentido, y llevan conteo); el
+   segmentado cambia el MODO de ver lo mismo (exactamente uno, sin conteo posible
+   — "cuadrícula 12" no significa nada). Son preguntas distintas y por eso son dos
+   primitivas y no una con bandera.
+
+   ── LA PISTA VA HUNDIDA Y EL ELEGIDO LEVANTADO — LA MAQUETA LO TIENE AL REVÉS ─
+   Ella pone la pista en `surface` y el activo en `surface-2`. En CLARO se ve
+   plausible; en OSCURO `surface-2` es más OSCURO que `surface`, así que el activo
+   quedaría hundido en un tema y levantado en el otro, y la `shadow-1` sobre fondo
+   oscuro casi no existe — el único signo que sobreviviría sería el color del
+   texto. Invertido (pista `surface-2`, elegido `surface` + sombra) la dirección
+   es la misma en los dos temas, porque `surface` está POR ENCIMA de `surface-2`
+   en ambos. Y es además el idioma que ya habla `.duna-pill.is-on`: elegido =
+   levantado.
+
+   ── LOS RADIOS SON ARITMÉTICA, NO GUSTO ─────────────────────────────────────
+   interno = externo − padding: `--duna-r-m` (12) − `--duna-space-1` (4) = 8 =
+   `--duna-r-s`. Con cualquier otra combinación el chip elegido deja una luna
+   despareja contra la esquina de la pista. */
+.duna-seg { display: inline-flex; gap: var(--duna-space-hairline); padding: var(--duna-space-1);
+            background: var(--duna-surface-2); border: 1px solid var(--duna-border);
+            border-radius: var(--duna-r-m); }
+.duna-seg__item { display: inline-flex; align-items: center; justify-content: center;
+                  gap: var(--duna-space-inline);
+                  padding: var(--duna-space-1) var(--duna-space-3); border-radius: var(--duna-r-s);
+                  border: none; background: none; cursor: pointer; font: inherit;
+                  font-size: var(--duna-text-label); font-weight: var(--duna-w-semi);
+                  color: var(--duna-muted);
+                  transition: background var(--duna-dur-fast) var(--duna-ease), color var(--duna-dur-fast) var(--duna-ease);
+                  /* DECLARADA — tercera vez que hace falta, después de `.duna-btn`
+                     y `.duna-pill`. */
+                  line-height: var(--duna-lh-normal);
+                  /* ── Y LA LÍNEA FIJA NO ALCANZA ACÁ, QUE ES LO PROPIO DE ESTE
+                     CONTROL ────────────────────────────────────────────────────
+                     `line-height` gobierna la caja de TEXTO, y un segmento de sólo
+                     ícono no tiene texto: su altura la decide el SVG (13px) contra
+                     los 15.6 de una línea de label. Medido en la prueba viva: el
+                     segmentado de íconos daba 31px y el de texto 34 — tres píxeles
+                     entre dos controles que se ven juntos en la misma barra.
+                     Este `min-height` es esa línea de texto reconstruida en
+                     aritmética de tokens (una línea + el padding de arriba y abajo,
+                     que `border-box` incluye), así que el segmento de ícono mide lo
+                     mismo que el de texto sin agrandar el ícono — que sigue siendo
+                     el de 13px de todo el sistema. Se mueve solo si cambia la escala
+                     tipográfica o el padding. */
+                  min-height: calc(var(--duna-text-label) * var(--duna-lh-normal) + var(--duna-space-1) * 2); }
+.duna-seg__item:hover { color: var(--duna-ink); }
+.duna-seg__item.is-on { background: var(--duna-surface); color: var(--duna-ink); box-shadow: var(--duna-shadow-1); }
+/* El tamaño del ícono lo pone el sistema, igual que en `.duna-btn`: el consumidor
+   elige CUÁL ícono, nunca cuánto mide. */
+.duna-seg__item svg { width: 13px; height: 13px; flex-shrink: 0; }
+.duna-seg__item:focus-visible { box-shadow: var(--duna-ring); outline: 2px solid transparent; outline-offset: 2px; }
+/* ELEGIDO **Y** ENFOCADO · las dos señales, compuestas — la misma colisión de
+   `box-shadow` que el tile, y acá se escribe de entrada en vez de descubrirse:
+   sin esta regla el foco borra la elevación y el segmento activo se aplana justo
+   mientras se recorre el control con el teclado. */
+.duna-seg__item.is-on:focus-visible { box-shadow: var(--duna-shadow-1), var(--duna-ring); }
 
 /* ── STEPS · el "en curso" es una POSICIÓN, con anillo del sol pulsante ──── */
 .duna-steps { display: flex; align-items: center; gap: var(--duna-space-1); }
@@ -1081,6 +1428,31 @@ button.duna-order-card:focus-visible { border-color: var(--duna-ink); box-shadow
 .duna-order-card.is-skeleton:hover { box-shadow: var(--duna-shadow-1); transform: none; }
 .duna-order-card.is-selected { border-color: var(--duna-ink); box-shadow: var(--duna-shadow-2); }
 [data-theme="dark"] .duna-order-card.is-selected { border-color: var(--duna-ink-2); }
+
+/* ── LA FILA CON UN MEDIO ────────────────────────────────────────────────────
+   Una miniatura a la izquierda y el mismo apilado de siempre a la derecha. Es
+   una EXTENSIÓN y no una fila nueva, y eso se verificó antes de escribirla: se
+   estimó que hacía falta una "lista de filas de datos" (la tabla de 6 columnas
+   que dibuja la maqueta), y no hace falta — cuando el modo Lista vive dentro de
+   `.duna-split`, su columna mide `--duna-list-w` (400px) y una tabla de seis
+   columnas ahí no es una tabla, es una fila apretada. Lo que falta en 400px es
+   exactamente esto: la fila que ya existe, con sitio para una foto.
+
+   Darle a la misma fila otro aspecto según lleve o no imagen sería una segunda
+   opinión sobre cómo se ve un registro en una lista de este panel.
+
+   El `display` va TAMBIÉN en el selector de elemento: `button.duna-order-card`
+   declara `display: block` y le gana en especificidad a la clase modificadora,
+   así que sin esta segunda línea la fila con medio se apila en vez de ponerse en
+   dos columnas — justo en el caso normal, que es el de la fila clickeable. */
+.duna-order-card--media, button.duna-order-card--media {
+  display: flex; gap: var(--duna-space-3); align-items: flex-start;
+}
+.duna-order-card__media { flex-shrink: 0; }
+/* `min-width: 0` — sin él, un nombre largo sin espacios empuja la columna del
+   texto y desborda la tarjeta en vez de recortarse: el mínimo automático de un
+   ítem flex es el de su contenido. Misma razón que los `minmax(0, …)` del split. */
+.duna-order-card__body  { min-width: 0; flex: 1; }
 .duna-order-card__top { display: flex; align-items: baseline; gap: var(--duna-space-2); }
 .duna-order-card__name { font-weight: var(--duna-w-semi); font-size: var(--duna-text-body); }
 .duna-order-card__id { color: var(--duna-faint); }               /* combinar con .duna-mono */

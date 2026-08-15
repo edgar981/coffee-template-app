@@ -131,3 +131,56 @@ export async function aplicarAjusteInventario(
     }),
   };
 }
+
+// ─── LA LECTURA DEL KARDEX ───────────────────────────────────────────────────
+//
+// Vive acá, junto a quien lo ESCRIBE, y no dentro del route handler, por el
+// criterio de siempre en este repo: el carril de integración no monta HTTP, así
+// que la única forma de afirmar contra una base real qué filas devuelve una
+// consulta es que sea una función.
+//
+// ── POR QUÉ EXISTE EL FILTRO POR PRODUCTO ───────────────────────────────────
+//
+// Es la mitad de servidor de la frontera Productos↔Inventario (decisión del
+// owner): Productos responde "¿cómo está ESTE producto?" —y para eso su detalle
+// muestra el kardex del producto que se está mirando—, mientras Inventario
+// responde "¿qué tengo que reponer?" y se queda con el kardex COMPLETO, que es
+// la vista de auditoría. Sin este filtro la primera mitad no se puede construir:
+// el endpoint sólo sabía devolver los 200 movimientos más recientes de toda la
+// tienda.
+//
+// Es ADITIVO: sin `productoId` la consulta es exactamente la que había, con el
+// mismo orden y el mismo tope, así que la pestaña Movimientos de Inventario no
+// cambia una fila.
+
+/** Tope por defecto — el mismo que el endpoint traía escrito. */
+export const KARDEX_TOPE = 200;
+
+export interface KardexQuery {
+  /**
+   * Sin `productoId` se devuelve el kardex COMPLETO. La ausencia es una
+   * respuesta —"todos"— y no un filtro vacío: un `where: { producto_id:
+   * undefined }` sería lo mismo, pero deja al lector adivinando si es a propósito.
+   */
+  productoId?: string;
+  take?: number;
+}
+
+/**
+ * Los movimientos de inventario, del más reciente al más viejo.
+ *
+ * LÍMITE CONOCIDO, y se anota acá porque es donde muerde: `createdAt` es
+ * `timestamp(3)` (milisegundos), así que dos asientos escritos dentro del mismo
+ * milisegundo no tienen desempate y pueden salir en cualquier orden entre sí. El
+ * lock `FOR UPDATE` de `aplicarAjusteInventario` serializa las ESCRITURAS —el
+ * kardex nunca queda mal encadenado— pero no le pone resolución al reloj. No se
+ * arregla acá: exigiría una columna de secuencia, que es una migración y una
+ * decisión aparte. Es preexistente y no lo introduce este filtro.
+ */
+export function logsDeInventario({ productoId, take = KARDEX_TOPE }: KardexQuery = {}) {
+  return prisma.inventoryLog.findMany({
+    where:   productoId ? { producto_id: productoId } : undefined,
+    orderBy: { createdAt: 'desc' },
+    take,
+  });
+}
