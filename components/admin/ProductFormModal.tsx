@@ -69,10 +69,17 @@ export function ProductFormModal({ open, product, onOpenChange, onSaved }: {
   onSaved: (p: Product, modo: 'creado' | 'actualizado') => void;
 }) {
   const titulo = product ? 'Editar producto' : 'Nuevo producto';
+  // LA GUARDA VIVE ACÁ para poder cerrar la TERCERA salida. `DunaSheet` delega el
+  // cierre al consumidor, así que sin este gate el Esc y el clic-fuera cierran el
+  // drawer a mitad del guardado — y acá el costo es mayor que perder la certeza:
+  // el submit vive en el CUERPO, así que cerrar lo desmonta y el `catch` escribe
+  // su estado sobre un componente muerto. El error desaparece EN SILENCIO, que es
+  // el modo de falla del gate del 2026-08-06 en miniatura.
+  const guarda = useAccionGuardada();
   return (
     <DunaSheet
       abierto={open}
-      onCerrar={() => onOpenChange(false)}
+      onCerrar={() => { if (!guarda.enVuelo) onOpenChange(false); }}
       anclaje="lado"
       titulo={titulo}
       descripcion="Ficha del producto: precio, costo, stock, imágenes y las opciones de molienda que verá el cliente."
@@ -83,7 +90,7 @@ export function ProductFormModal({ open, product, onOpenChange, onSaved }: {
       {/* El cuerpo sólo existe mientras está abierto, así que se re-siembra del
           producto actual en cada apertura sin un solo efecto — y el error inline
           se limpia solo al cerrar. Mismo patrón que `CustomerFormModal`. */}
-      {open && <Cuerpo product={product} onClose={() => onOpenChange(false)} onSaved={onSaved} />}
+      {open && <Cuerpo product={product} guarda={guarda} onClose={() => onOpenChange(false)} onSaved={onSaved} />}
     </DunaSheet>
   );
 }
@@ -112,8 +119,9 @@ function buildForm(p: Product): ProductForm {
   };
 }
 
-function Cuerpo({ product, onClose, onSaved }: {
+function Cuerpo({ product, guarda, onClose, onSaved }: {
   product: Product | null;
+  guarda: ReturnType<typeof useAccionGuardada>;
   onClose: () => void;
   onSaved: (p: Product, modo: 'creado' | 'actualizado') => void;
 }) {
@@ -125,8 +133,7 @@ function Cuerpo({ product, onClose, onSaved }: {
   // doble-submit no es un toast repetido — es una SEGUNDA subida a Blob, que deja
   // un blob huérfano que nadie va a borrar.
   const [fase, setFase] = useState<null | 'subiendo' | 'guardando'>(null);
-  const guarda = useAccionGuardada();
-  const error  = useErrorDialogo();
+  const error = useErrorDialogo();
 
   // Se INTENTÓ guardar. Los errores de campo no aparecen antes: marcar en rojo un
   // formulario recién abierto le echa en cara algo que todavía no se hizo mal.

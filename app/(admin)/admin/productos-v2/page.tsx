@@ -17,6 +17,7 @@ import { accionEstadoProducto, alternativaAlEliminar } from '@duna/core/product-
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useEsMovil } from '@/hooks/useEsMovil';
 import { ProductFormModal } from '@/components/admin/ProductFormModal';
+import { AdjustStockModal } from '@/components/admin/AdjustStockModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { ImageLightbox } from '@/components/admin/ImageLightbox';
 import { CATEGORIAS } from '@/constants/product';
@@ -170,6 +171,7 @@ function ProductosV2() {
   const [creando, setCreando]           = useState(false);
   const [borrando, setBorrando]         = useState<Product | null>(null);
   const [activarTarget, setActivarTarget] = useState<Product | null>(null);
+  const [ajustando, setAjustando]         = useState<Product | null>(null);
   const [lightbox, setLightbox]         = useState<{ src: string; alt: string } | null>(null);
   const formAbierto = creando || !!editando;
 
@@ -180,6 +182,16 @@ function ProductosV2() {
     // del formulario es la SEGUNDA puerta y deja firma (§ Las DOS puertas). Se
     // invalida para que el panel lo vuelva a pedir en vez de mostrar el de antes.
     setKardex(k => k?.id === p.id ? null : k);
+  }, []);
+
+  // EL AJUSTE CIERRA LA FICHA: cambia el stock del producto Y agrega un asiento a
+  // su kardex. Las dos cosas se aplican acá en vez de re-pedir la lista — el log
+  // que devuelve el endpoint es el mismo que el GET traería, y el orden del kardex
+  // es descendente, así que encabeza.
+  const ajustado = useCallback(({ product, log }: { product: Product; log: InventoryLog }) => {
+    setProductos(prev => prev.map(p => p.id === product.id ? product : p));
+    setKardex(k => k?.id === product.id ? { id: k.id, logs: [log, ...k.logs] } : k);
+    toast.success('Inventario actualizado');
   }, []);
 
   const navegar = useCallback((cambios: Record<string, string | null>) => {
@@ -213,6 +225,7 @@ function ProductosV2() {
       onEditar={() => setEditando(elegido)}
       onEliminar={() => setBorrando(elegido)}
       onActivar={() => setActivarTarget(elegido)}
+      onAjustar={() => setAjustando(elegido)}
       onVerImagen={(src, alt) => setLightbox({ src, alt })}
     />
   ) : null;
@@ -453,6 +466,17 @@ function ProductosV2() {
         onConfirm={async () => { if (activarTarget) await cambiarEstado(activarTarget, true); }}
       />
 
+      {/* EL MISMO modal que monta Inventario. Acá entra CON producto, así que
+          muestra el contexto en vez del selector: ofrecer una lista invitaría a
+          ajustar otro producto desde la ficha de éste, y el error sería
+          silencioso — el toast diría "inventario actualizado" igual. */}
+      <AdjustStockModal
+        open={!!ajustando}
+        producto={ajustando}
+        onOpenChange={(o) => { if (!o) setAjustando(null); }}
+        onAplicado={ajustado}
+      />
+
       <ImageLightbox src={lightbox?.src ?? null} alt={lightbox?.alt} onClose={() => setLightbox(null)} />
     </div>
   );
@@ -556,7 +580,7 @@ function TarjetaProducto({ producto: p, seleccionado, onAbrir, onActivar }: {
 // en blanco.
 //
 // El panel RENDERIZA y llama hacia arriba: no es dueño de ninguna mutación.
-function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onEditar, onEliminar, onActivar, onVerImagen }: {
+function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onEditar, onEliminar, onActivar, onAjustar, onVerImagen }: {
   producto: Product;
   kardex: InventoryLog[] | null;
   cargandoKardex: boolean;
@@ -564,6 +588,7 @@ function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onEditar, o
   onEditar: () => void;
   onEliminar: () => void;
   onActivar: () => void;
+  onAjustar: () => void;
   onVerImagen: (src: string, alt: string) => void;
 }) {
   const badge = badgeStock(p);
@@ -629,6 +654,14 @@ function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onEditar, o
           <div className="duna-stat__v duna-num">{p.stock_minimo ?? 5}</div>
           <div className="duna-stat__l">Mínimo</div>
         </div>
+        {/* LA ACCIÓN VA JUNTO AL DATO QUE CAMBIA, no al pie con "Editar producto":
+            ajustar stock es una operación de INVENTARIO —deja asiento en el
+            kardex— y no una edición de la ficha. Ponerla abajo con las otras dos
+            la haría parecer una variante de editar. */}
+        <button type="button" className="duna-btn duna-btn--secondary duna-btn--sm"
+                style={{ alignSelf: 'center' }} onClick={onAjustar}>
+          Ajustar stock
+        </button>
       </div>
 
       {/* ── Ficha ────────────────────────────────────────────────────────── */}

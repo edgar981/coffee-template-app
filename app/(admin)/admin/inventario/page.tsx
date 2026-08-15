@@ -5,15 +5,10 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, TrendingDown, TrendingUp, Warehouse, ArrowUpDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { useAccionGuardada } from '@/hooks/useAccionGuardada';
-import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
-import { getProducts, getInventoryLogs, adjustInventory } from '@/lib/api/inventory';
-import type { InventoryLog, InventoryAdjustmentForm, InventoryMovementType } from '@/types/inventory';
+import { AdjustStockModal } from '@/components/admin/AdjustStockModal';
+import { getProducts, getInventoryLogs } from '@/lib/api/inventory';
+import type { InventoryLog, InventoryMovementType } from '@/types/inventory';
 import { Product } from '@/types/product';
 import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
@@ -31,13 +26,6 @@ const tipoConfig: Record<InventoryMovementType, { label: string; color: string; 
   ajuste:     { label: 'Ajuste',     color: 'text-muted-foreground',              bg: 'bg-muted' },
   venta:      { label: 'Venta',      color: 'text-red-600 dark:text-red-400',     bg: 'bg-red-50 dark:bg-red-900/20' },
   devolucion: { label: 'Devolución', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
-};
-
-const EMPTY_FORM: InventoryAdjustmentForm = {
-  producto_id: '',
-  tipo: 'ajuste',
-  cantidad: '',
-  motivo: '',
 };
 
 // useSearchParams() needs a Suspense boundary (same pattern as Órdenes).
@@ -60,10 +48,6 @@ function InventarioInner() {
   const [logs, setLogs]           = useState<InventoryLog[]>([]);
   const [loading, setLoading]     = useState(true);
   const [showAdj, setShowAdj]     = useState(false);
-  const [adjForm, setAdjForm]     = useState<InventoryAdjustmentForm>(EMPTY_FORM);
-  // Las dos mitades de la guarda, en una primitiva (ver CLAUDE.md § Doble-submit).
-  const ajuste = useAccionGuardada();
-  const aplicando = ajuste.enVuelo;
   const [tab, setTab]             = useState<Tab>('stock');
 
   const load = async () => {
@@ -87,26 +71,15 @@ function InventarioInner() {
   // signifique "esto es lo que estás viendo".
   const filtroActivo   = lowStockOnly && tab === 'stock';
 
-  const errorAjuste = useErrorDialogo();
-  const handleAdjust = () => ajuste.ejecutar(async () => {
-    errorAjuste.limpiar();
-    const prod = productos.find(p => p.id === adjForm.producto_id);
-    if (!prod || !adjForm.cantidad) return;
-
-    try {
-      const { product: updatedProduct, log } = await adjustInventory(adjForm);
-
-      // Update both products and logs with real data from DB
-      setProductos(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
-      setLogs(prev => [log, ...prev]);
-
-      toast.success('Inventario actualizado');
-      setShowAdj(false);
-      setAdjForm(EMPTY_FORM);
-    } catch (e) {
-      errorAjuste.mostrar(e, 'Error al ajustar el inventario');
-    }
-  });
+  // Lo que ESTA pantalla hace con el resultado. La mutación, la guarda de
+  // doble-submit y el error inline viven en el modal, que ahora comparte con el
+  // detalle de producto (§ AdjustStockModal). Acá queda idéntico lo que se ve:
+  // la fila del producto se actualiza y el movimiento encabeza la bitácora.
+  const aplicado = ({ product, log }: { product: Product; log: InventoryLog }) => {
+    setProductos(prev => prev.map(p => p.id === product.id ? product : p));
+    setLogs(prev => [log, ...prev]);
+    toast.success('Inventario actualizado');
+  };
 
   return (
     <div className="space-y-6">
@@ -303,91 +276,14 @@ function InventarioInner() {
         </div>
       )}
 
-      {/* Adjust Dialog */}
-      {/* En vuelo el modal no se cierra por click-fuera ni por Esc: son las otras
-          dos formas de "salir" mientras la mutación viaja, y dejan al operador
-          sin saber si se aplicó. Mismo criterio que ConfirmDeleteDialog. */}
-      <Dialog open={showAdj} onOpenChange={(o) => { if (aplicando) return; if (!o) errorAjuste.limpiar(); setShowAdj(o); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Ajustar Inventario</DialogTitle>
-            {/* Nombra lo que el operador tiene que DECIDIR —el tipo, que es lo
-                único que cambia el efecto— y la consecuencia. `sr-only`: el
-                formulario ya lo muestra a la vista. */}
-            <DialogDescription className="sr-only">
-              Registra un movimiento de stock: entrada, salida, devolución o ajuste a un valor absoluto. Queda asentado en el kardex del producto.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <Label>Producto</Label>
-              <Select
-                value={adjForm.producto_id}
-                onValueChange={v => setAdjForm(f => ({ ...f, producto_id: v }))}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Seleccionar producto" />
-                </SelectTrigger>
-                <SelectContent>
-                  {productos.map(p => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.nombre} (stock: {p.stock})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Tipo de Movimiento</Label>
-              <Select
-                value={adjForm.tipo}
-                onValueChange={v => setAdjForm(f => ({ ...f, tipo: v as InventoryMovementType }))}
-              >
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="entrada">Entrada (sumar)</SelectItem>
-                  <SelectItem value="salida">Salida (restar)</SelectItem>
-                  <SelectItem value="ajuste">Ajuste (fijar cantidad)</SelectItem>
-                  <SelectItem value="devolucion">Devolución</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Cantidad</Label>
-              <Input
-                type="number"
-                value={adjForm.cantidad}
-                onChange={e => setAdjForm(f => ({ ...f, cantidad: e.target.value }))}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label>Motivo</Label>
-              <Input
-                value={adjForm.motivo}
-                onChange={e => setAdjForm(f => ({ ...f, motivo: e.target.value }))}
-                className="mt-1"
-                placeholder="Ej: Compra a proveedor"
-              />
-            </div>
-          </div>
-          <div className="flex items-center justify-end gap-3">
-            <ErrorDialogo mensaje={errorAjuste.mensaje} />
-            {/* Cancelar también se bloquea en vuelo: cerrar el modal a mitad del
-                ajuste no cancela nada en el server y deja al operador sin saber
-                si se aplicó. */}
-            <Button variant="outline" onClick={() => setShowAdj(false)} disabled={aplicando}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleAdjust}
-              disabled={aplicando || !adjForm.producto_id || !adjForm.cantidad}
-            >
-              {aplicando ? 'Aplicando…' : 'Aplicar'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* EL MISMO modal que monta el detalle de producto. Acá entra por la lista
+          —sin producto fijo—, así que muestra el selector. */}
+      <AdjustStockModal
+        open={showAdj}
+        productos={productos}
+        onOpenChange={setShowAdj}
+        onAplicado={aplicado}
+      />
     </div>
   );
 }
