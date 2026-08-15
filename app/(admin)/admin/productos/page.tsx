@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { LayoutGrid, List, Package, Plus } from 'lucide-react';
@@ -20,6 +20,7 @@ import { ProductFormModal } from '@/components/admin/ProductFormModal';
 import { AdjustStockModal } from '@/components/admin/AdjustStockModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { ImageLightbox } from '@/components/admin/ImageLightbox';
+import { ProductoAccionesMenu } from '@/components/admin/ProductoAccionesMenu';
 import { CATEGORIAS } from '@/constants/product';
 import {
   CARRILES_PRODUCTOS, aplicarCarril, aplicarCategoria, conteosProductos,
@@ -205,6 +206,17 @@ function Productos() {
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
   }, [params, pathname, router]);
 
+  // Los cuatro handlers del menú de acciones, para un producto. Se arman en UN
+  // solo sitio y las dos superficies —la tarjeta de la cuadrícula y la fila de la
+  // lista— reciben el MISMO nodo de menú, así que no pueden divergir en qué hace
+  // cada ítem (card=lista). Cada uno abre el diálogo que ya vive en la página.
+  const accionesDe = useCallback((p: Product) => ({
+    onEditar:   () => setEditando(p),
+    onAjustar:  () => setAjustando(p),
+    onEliminar: () => setBorrando(p),
+    onActivar:  () => setActivarTarget(p),
+  }), []);
+
   const cambiarEstado = async (p: Product, activo: boolean) => {
     // PATCH de UN campo, que es exactamente el caso que el endpoint tiene que
     // respetar (§ El PATCH de producto es PARCIAL de verdad): escribe `activo` y
@@ -241,6 +253,7 @@ function Productos() {
       seleccionado={p.id === seleccion}
       onAbrir={() => navegar({ producto: p.id })}
       onActivar={() => setActivarTarget(p)}
+      acciones={<ProductoAccionesMenu producto={p} {...accionesDe(p)} />}
     />
   ));
 
@@ -404,6 +417,10 @@ function Productos() {
                 // SIN `steps`, y la ausencia es la respuesta: un producto no tiene
                 // un camino que recorrer.
                 steps={undefined}
+                // El MISMO menú que la tarjeta. Con `actions`, la fila deja de ser
+                // un <button> y pasa al patrón `duna-hit` (el menú es su propia
+                // parada en el tab order) — ver el JSDoc de `OrderCard.actions`.
+                actions={<ProductoAccionesMenu producto={p} {...accionesDe(p)} />}
                 selected={p.id === seleccion}
                 onClick={() => navegar({ producto: p.id })}
               />
@@ -529,11 +546,15 @@ function Miniatura({ producto }: { producto: Product }) {
 // Muestra lo que DUNA-DS.md pide: imagen, nombre, precio, cuántas quedan con el
 // número en color diferencial, y el chip de estado. NO muestra el margen (cifra
 // de negocio, § el encabezado) ni una barra (§ lib/productos/stock).
-function TarjetaProducto({ producto: p, seleccionado, onAbrir, onActivar }: {
+function TarjetaProducto({ producto: p, seleccionado, onAbrir, onActivar, acciones }: {
   producto: Product;
   seleccionado: boolean;
   onAbrir: () => void;
   onActivar: () => void;
+  /** El menú de tres puntos, ya armado por la página — el MISMO nodo que la fila
+   *  de la lista recibe en su slot `actions`. Vive en una capa `duna-hit__sobre`,
+   *  por encima del `::after` del nombre, para ser su propia parada en el tab. */
+  acciones: ReactNode;
 }) {
   const badge = badgeStock(p);
   return (
@@ -571,23 +592,31 @@ function TarjetaProducto({ producto: p, seleccionado, onAbrir, onActivar }: {
         )}
       </div>
 
-      <div style={{ marginTop: 'var(--duna-space-3)', minWidth: 0 }}>
-        {/* El nombre ES el control: un `<button>` que estira su área de clic sobre
-            toda la tarjeta con un pseudo-elemento, así el nombre es lo que anuncia
-            el lector de pantalla y el clic sigue siendo de la tarjeta entera. */}
-        <button type="button" onClick={onAbrir}
-                className="duna-hit"
-                style={{ font: 'inherit', color: 'inherit', background: 'none', border: 'none',
-                         padding: 0, textAlign: 'left', fontWeight: 'var(--duna-w-semi)', cursor: 'pointer' }}>
-          {p.nombre}
-        </button>
-        <div className="duna-num" style={{ fontWeight: 'var(--duna-w-semi)', marginTop: 'var(--duna-space-hairline)' }}>
-          {formatCOP(p.precio)}
+      {/* Fila: el contenido flexible a la izquierda, el menú de tres puntos a la
+          derecha. El menú va en una capa `duna-hit__sobre` —por encima del
+          `::after` del nombre— para ser cliqueable y su propia parada de tab sin
+          disparar la apertura de la tarjeta. Mismo reparto que la fila de la
+          lista con `actions`. */}
+      <div style={{ marginTop: 'var(--duna-space-3)', display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-2)' }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          {/* El nombre ES el control: un `<button>` que estira su área de clic sobre
+              toda la tarjeta con un pseudo-elemento, así el nombre es lo que anuncia
+              el lector de pantalla y el clic sigue siendo de la tarjeta entera. */}
+          <button type="button" onClick={onAbrir}
+                  className="duna-hit"
+                  style={{ font: 'inherit', color: 'inherit', background: 'none', border: 'none',
+                           padding: 0, textAlign: 'left', fontWeight: 'var(--duna-w-semi)', cursor: 'pointer' }}>
+            {p.nombre}
+          </button>
+          <div className="duna-num" style={{ fontWeight: 'var(--duna-w-semi)', marginTop: 'var(--duna-space-hairline)' }}>
+            {formatCOP(p.precio)}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
+            <span className={`${claseStock(p)} duna-caption`}>{textoStock(p)}</span>
+            {p.sku && <span className="duna-mono">{p.sku}</span>}
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
-          <span className={`${claseStock(p)} duna-caption`}>{textoStock(p)}</span>
-          {p.sku && <span className="duna-mono">{p.sku}</span>}
-        </div>
+        <div className="duna-hit__sobre" style={{ flexShrink: 0 }}>{acciones}</div>
       </div>
     </div>
   );

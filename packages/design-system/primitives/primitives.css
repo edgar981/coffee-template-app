@@ -450,6 +450,16 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
 .duna-btn--danger:not(:disabled):hover { border-color: var(--duna-bad); }
 .duna-btn--sm { padding: var(--duna-space-1) var(--duna-space-3); font-size: var(--duna-text-caption); }
 
+/* ── SÓLO ÍCONO · el disparador del menú de tres puntos ───────────────────
+   Un <button> con un glifo y sin label. El padding base (y el de `--sm`) es
+   asimétrico —más ancho que alto— porque está pensado para ícono+texto; solo,
+   deja una pastilla estirada alrededor del punto. Esta variante lo CUADRA con
+   padding igual en los cuatro lados, sin tocar el color, que lo sigue poniendo
+   `--ghost`/`--secondary`. Va DESPUÉS de `--sm` a propósito: si se combinan,
+   este padding gana (misma especificidad, orden de fuente). Nace para el kebab
+   de acciones de Productos, que vive en la tarjeta Y en la fila de la lista. */
+.duna-btn--icon { padding: var(--duna-space-2); }
+
 /* ── EL DESHABILITADO NO PROMETE NADA ─────────────────────────────────────
    Faltaba entero: `.duna-btn` no declaraba un solo estilo para `:disabled`, así
    que un botón bloqueado quedaba **indistinguible de uno vivo** y encima seguía
