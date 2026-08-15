@@ -1,21 +1,17 @@
 import {
-  Space_Grotesk, Instrument_Sans, JetBrains_Mono,
-  Hanken_Grotesk, Spline_Sans_Mono,
+  Space_Grotesk, Hanken_Grotesk, Spline_Sans_Mono,
 } from "next/font/google";
 
-// Admin (Duna) typography — self-hosted via next/font y scopeada al layout del
-// grupo admin (el wrapper `.admin-shell`). El storefront conserva su
-// Inter/Playfair; estas fuentes no se cargan nunca en rutas de storefront.
+// Admin (Duna) typography — self-hosted via next/font y scopeada al grupo admin.
+// El storefront conserva su Inter/Playfair; estas fuentes no se cargan nunca en
+// rutas de storefront (promesa que sostiene el commit del script inline, no el
+// layout raíz — § duna.css).
 //
-// ── DOS JUEGOS A LA VEZ, y es una convivencia DECLARADA ──────────────────────
-//
-// El chrome actual del panel (sidebar, topbar, las pantallas shadcn) usa
-// Instrument Sans + JetBrains Mono. El design-system pide Hanken Grotesk +
-// Spline Sans Mono (y Space Grotesk, que ya estaba y la comparten los dos). Las
-// cinco cargan mientras el panel viejo y la pantalla nueva conviven — el mismo
-// costo temporal que los modales shadcn de /admin/pedidos, con el mismo
-// disparador: cuando el chrome migre al design-system, Instrument Sans y
-// JetBrains Mono salen de acá.
+// SON TRES, LAS DEL DESIGN-SYSTEM. Instrument Sans y JetBrains Mono SALIERON
+// cuando el chrome migró su tipografía a los roles del DS —era el disparador
+// escrito acá desde el principio—: el body del panel pasó a Hanken, y el wordmark
+// "DUNA", único consumidor de JetBrains, pasó a Spline Sans Mono (mono por mono,
+// la del sistema). Ya no hay dos juegos conviviendo.
 //
 // POR QUÉ HAY QUE DECLARARLAS AUNQUE `tokens.css` YA NOMBRE LAS FAMILIAS:
 // `next/font` NO registra el nombre literal de la familia — genera uno propio
@@ -23,27 +19,13 @@ import {
 // `font-family: 'Hanken Grotesk'` NO resuelve aunque la fuente esté cargada. El
 // sistema declara el ROL y el consumidor apunta el rol a su variable; el puente
 // vive en `app/(admin)/duna.css`.
-//   · Space Grotesk    → display / cifras  (chrome viejo: headings)
-//   · Hanken Grotesk   → UI del design-system
-//   · Spline Sans Mono → datos/IDs del design-system
-//   · Instrument Sans  → body/UI del chrome viejo
-//   · JetBrains Mono   → el wordmark "Duna"
+//   · Space Grotesk    → display / cifras (`--duna-font-display`)
+//   · Hanken Grotesk   → UI / body        (`--duna-font-ui`)
+//   · Spline Sans Mono → datos, IDs, wordmark (`--duna-font-mono`)
 export const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-space-grotesk",
-});
-
-export const instrumentSans = Instrument_Sans({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-instrument-sans",
-});
-
-export const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-jetbrains-mono",
 });
 
 // ── Las dos del design-system ────────────────────────────────────────────────

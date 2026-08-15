@@ -3,10 +3,7 @@ import type { ReactNode } from "react";
 
 import { AdminThemeProvider } from "@/components/theme/AdminThemeProvider";
 import { AdminScope } from "@/components/theme/AdminScope";
-import {
-  spaceGrotesk, instrumentSans, jetbrainsMono,
-  hankenGrotesk, splineSansMono,
-} from "./fonts";
+import { spaceGrotesk, hankenGrotesk, splineSansMono } from "./fonts";
 // Tokens + primitivas de @duna/design-system, y el puente de familias
 // tipográficas. Acá y no en el layout raíz: el storefront no lo consume.
 import "./duna.css";
@@ -20,8 +17,8 @@ import { SUFIJO_PANEL } from "@/lib/admin-titulo";
 // Tematización Duna (Duna Solutions): el paladar Duna está scopeado a `html.admin`
 // en globals.css. `AdminScope` marca <html> al montar (y lo limpia al salir);
 // el <script> inline lo aplica antes del primer paint en cargas completas para
-// evitar un flash del paladar coffee del storefront. Las fuentes Duna viven en
-// el wrapper `.admin-shell`.
+// evitar un flash del paladar coffee del storefront, Y monta ahí las clases de
+// fuente para que lo portaleado a <body> herede la tipografía (§ duna.css).
 // ─── La identidad del PANEL, declarada acá ───────────────────────────────────
 //
 // El grupo admin es un producto distinto del storefront y por eso declara sus
@@ -67,17 +64,34 @@ export const viewport: Viewport = {
   ],
 };
 
+// Las clases que `next/font` genera para exponer cada `--font-*`. Van a DOS
+// sitios: al <div> por SSR (el contenido del panel nunca parpadea) y a <html> por
+// el script de abajo (los PORTALES, que viven en <body> y no heredan del div).
+// `.variable` puede traer más de una clase — se parte por si acaso.
+const FONT_CLASES = [spaceGrotesk, hankenGrotesk, splineSansMono]
+  .flatMap(f => f.variable.split(/\s+/))
+  .filter(Boolean);
+
 export default function AdminGroupLayout({ children }: { children: ReactNode }) {
   return (
     <AdminThemeProvider>
+      {/* EL SCRIPT PONE `admin` **Y LAS FUENTES** EN <html>, antes del primer
+          paint. Lo de `admin` evita el flash del paladar coffee; lo de las fuentes
+          es la mitad tipográfica de "el chrome es del sistema": los diálogos y
+          dropdowns del panel se portalean a <body>, FUERA de `.admin-shell`, así
+          que no veían el puente de familias (§ duna.css, el límite que H6 topó).
+          Con las clases en <html>, <body> —y todo lo portaleado— hereda `--font-*`,
+          y el puente `--duna-font-*` vive ahora en `html.admin` para que lo herede
+          también. Va por el script y NO por el layout raíz porque ahí cargaría las
+          cinco familias en el storefront, que no las usa (promesa de fonts.ts). */}
       <script
         dangerouslySetInnerHTML={{
-          __html: `document.documentElement.classList.add('admin')`,
+          __html: `document.documentElement.classList.add('admin', ${FONT_CLASES.map(c => JSON.stringify(c)).join(', ')})`,
         }}
       />
       <AdminScope />
       <div
-        className={`${spaceGrotesk.variable} ${instrumentSans.variable} ${jetbrainsMono.variable} ${hankenGrotesk.variable} ${splineSansMono.variable} admin-shell`}
+        className={`${spaceGrotesk.variable} ${hankenGrotesk.variable} ${splineSansMono.variable} admin-shell`}
       >
         {children}
       </div>

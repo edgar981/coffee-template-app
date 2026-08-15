@@ -592,7 +592,7 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 
    ── EL GRIS DE LA FLECHA ES UN GEMELO DE `--duna-muted`, y se mueven juntos ─
    Un `data:` URI no puede leer una custom property: dentro del SVG el color va
-   escrito, no referenciado. Así que hay dos hex copiados a mano (#7C776B claro,
+   escrito, no referenciado. Así que hay dos hex copiados a mano (#746F64 claro,
    #9A958A oscuro) que SON los valores de `--duna-muted` en cada tema, y por eso
    hacen falta las dos reglas.
 
@@ -609,7 +609,7 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
   background-repeat: no-repeat;
   background-position: right var(--duna-space-3) center;
   background-size: 12px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237C776B' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23746F64' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 [data-theme="dark"] .duna-select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239A958A' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");

@@ -41,9 +41,39 @@
    dropdowns, toasts) queda FUERA de `.admin-shell` y no ve este puente. Hoy no
    muerde —esa UI es shadcn y trae sus propias fuentes— y las reglas de
    tipografía que ya existían en globals.css tienen exactamente el mismo alcance.
-   Muerde el día que un diálogo se construya con el design-system (H6), y la
-   salida es montar las variables de fuente en <html>, no duplicar el puente. */
-.admin-shell {
+   Muerde el día que un diálogo se construya con el design-system (H6).
+
+   ── LA SALIDA SE CORRIGE: EL SCRIPT, NO EL LAYOUT RAÍZ ──────────────────────
+
+   Esta nota decía "montar las variables de fuente en <html>", y esa frase se
+   escribió sin ver su costo. Las variables las definen las clases de `next/font`,
+   que hoy viven en el div de `.admin-shell`; para tenerlas en <html> habría que
+   aplicarlas en el layout RAÍZ — el único que renderiza esa etiqueta— y entonces
+   el storefront cargaría las cinco familias del panel, que no usa. Es la promesa
+   que `fonts.ts` hace explícita ("estas fuentes no se cargan nunca en rutas de
+   storefront") y el mismo argumento con el que la app pública no paga por el
+   panel en ningún otro sitio.
+
+   La salida es el SCRIPT INLINE que este layout ya inyecta para marcar
+   `html.admin`: pone también las clases de fuente, y con eso las variables viven
+   en <html> SIN que el storefront las vea, porque el script sólo corre en rutas
+   del grupo. Verificado sobre el artefacto de producción: el script va después
+   del <link> del CSS y antes del contenido del panel, así que corre durante el
+   parseo y nada pinta con la fuente equivocada.
+
+   Se evaluó y se descartó la tercera opción —enrutar cada primitiva portaleada
+   por `dunaPortal`, como ya hace `DunaSheet`—: es correcta pero es una solución
+   POR CONSUMIDOR, y cada primitiva futura tiene que acordarse. El script es
+   ESTRUCTURAL: vale para todo lo portaleado, presente y futuro.
+
+   ── EL PUENTE VIVE EN `html.admin`, no en `.admin-shell` ────────────────────
+   Movido acá para que lo herede lo portaleado a <body>: `<body>` es hijo de
+   <html> pero NO de `.admin-shell` (un div más adentro), así que un dropdown
+   portaleado veía `--font-*` (el script las pone en <html>) pero NO el puente
+   `--duna-font-*` si éste seguía en el div. Ahora los dos viven en <html> y el
+   portal hereda ambos. El storefront no se afecta: `html.admin` sólo lo marca el
+   script del grupo, y en el storefront <html> no lleva esa clase. */
+html.admin {
   --duna-font-ui:      var(--font-hanken-grotesk), 'Hanken Grotesk', system-ui, sans-serif;
   --duna-font-display: var(--font-space-grotesk), 'Space Grotesk', var(--duna-font-ui);
   --duna-font-mono:    var(--font-spline-sans-mono), 'Spline Sans Mono', ui-monospace, monospace;
@@ -53,7 +83,8 @@
      (components/admin/TopBar.tsx, fija arriba). El token existe justamente para
      que el consumidor diga su medida: de él sale el `top` del panel sticky de
      `.duna-split`, que queda en 64 + 24 = 88 — debajo de la barra, con el aire
-     de un `space-6`.
+     de un `space-6`. El panel sticky vive dentro de `.admin-shell`, que es
+     descendiente de `html.admin`, así que lo hereda igual.
      Con los 52 del default el panel se metería 12px POR DEBAJO de la topbar al
      scrollear, y eso no se ve como un token mal puesto: se ve como un panel que
      "se corta raro". Sale de acá y no de un `calc` en la pantalla porque el día
