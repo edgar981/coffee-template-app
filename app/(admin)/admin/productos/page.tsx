@@ -660,6 +660,21 @@ function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onEditar, o
             )}
           </div>
         </div>
+
+        {/* LAS ACCIONES DE LA FICHA, ARRIBA JUNTO AL NOMBRE — no al pie. Editar y
+            eliminar son de la FICHA, no del historial; al final se hundían a
+            medida que el kardex crecía, y un contenedor que scrollea sin techo no
+            tiene dónde anclar acciones. "Ajustar stock" NO está acá: es una
+            operación de inventario y vive junto a existencias; activar/desactivar
+            conservan su patrón (badge / secundario del diálogo de eliminar). */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
+          <button type="button" className="duna-btn duna-btn--secondary duna-btn--sm" onClick={onEditar}>
+            Editar
+          </button>
+          <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm" onClick={onEliminar}>
+            Eliminar
+          </button>
+        </div>
       </div>
 
       <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
@@ -756,18 +771,8 @@ function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onEditar, o
           }))}
         />
       )}
-
-      <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
-
-      {/* ── Acciones ─────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)' }}>
-        <button type="button" className="duna-btn duna-btn--secondary" onClick={onEditar}>
-          Editar producto
-        </button>
-        <button type="button" className="duna-btn duna-btn--ghost" onClick={onEliminar}>
-          Eliminar
-        </button>
-      </div>
+      {/* Movimientos es LO ÚLTIMO a propósito: crece sin techo y no arrastra nada
+          debajo. Las acciones que antes vivían acá subieron al encabezado. */}
     </div>
   );
 }
