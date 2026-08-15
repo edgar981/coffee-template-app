@@ -813,6 +813,21 @@
       </div>
     </div>
 
+    <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">El lado del panel fijo · una perilla por ROL</div>
+    <p class="sec-note">El default fija la columna a la IZQUIERDA (arriba: lista fija + detalle flexible). Una CUADRÍCULA no cabe en esa columna fija de 400px —queda en una sola columna—, así que ahí se invierte: la rejilla toma el lado flexible y el panel de detalle va FIJO a la derecha. Se nombra por rol (<code>--panel-derecha</code>), no por caso de uso: la próxima pantalla que lo use no se llamará "cuadrícula".</p>
+    <div class="duna-split duna-split--panel-derecha">
+      <div class="duna-cards" style="--duna-tiles-min: var(--duna-list-w)">
+        <div class="duna-card" style="padding:var(--duna-space-3)"><div class="duna-tile"></div><div style="margin-top:var(--duna-space-2);font-weight:var(--duna-w-semi);font-size:var(--duna-text-body)">Café Huila</div></div>
+        <div class="duna-card" style="padding:var(--duna-space-3)"><div class="duna-tile"></div><div style="margin-top:var(--duna-space-2);font-weight:var(--duna-w-semi);font-size:var(--duna-text-body)">Café Sierra</div></div>
+        <div class="duna-card" style="padding:var(--duna-space-3)"><div class="duna-tile"></div><div style="margin-top:var(--duna-space-2);font-weight:var(--duna-w-semi);font-size:var(--duna-text-body)">Cold Brew</div></div>
+      </div>
+      <div class="duna-split__panel duna-card duna-card__pad">
+        <div class="duna-title">Café Huila 500 g</div>
+        <div class="duna-sub" style="margin:0">La rejilla encoge a la izquierda; este panel queda fijo a la derecha, a <code>--duna-list-w</code>.</div>
+      </div>
+    </div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">EL DEFAULT NO CAMBIA: <code>.duna-split</code> pelado sigue con el panel a la izquierda, así que Pedidos, Clientes y el modo lista de Productos no se tocan. <code>--panel-izquierda</code> es el nombre explícito del default; <code>--panel-derecha</code> el inverso. Las TRES apilan a una columna debajo de 960px — el lado deja de significar nada sin dos columnas que repartir.</div>
+
     <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">Punto de atención del nav</div>
     <div class="duna-card duna-card__pad" style="max-width:240px">
       <div class="row" style="gap:var(--duna-space-2); justify-content:space-between">

@@ -294,6 +294,28 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
    scrollear dentro. */
 .duna-split { display: grid; align-items: start; gap: var(--duna-space-6);
               grid-template-columns: minmax(0, var(--duna-list-w)) minmax(0, 1fr); }
+
+/* ── EL LADO DEL COLUMNA FIJA · una perilla, nombrada por ROL ────────────────
+   El default deja la columna FIJA (--duna-list-w) a la IZQUIERDA y la FLEXIBLE a
+   la derecha: es lo que sirve a una LISTA + su detalle (Pedidos, Clientes, y el
+   modo lista de Productos). Pero una CUADRÍCULA no cabe en la columna fija —
+   medido: `.duna-cards` en 400px da UNA columna, deja de ser cuadrícula—; ahí lo
+   que va fijo es el PANEL de detalle, a la derecha, y la rejilla toma el resto
+   (2–4 columnas según la pantalla).
+
+   Se nombra por ROL y no por caso de uso (`--panel-derecha`, no `--cuadricula`):
+   la próxima pantalla que necesite el panel fijo a un lado no se va a llamar
+   cuadrícula. El default sigue SIN modificador para no tocar a los consumidores
+   que ya existen; `--panel-izquierda` es su nombre explícito, por si una pantalla
+   quiere declararlo en vez de heredarlo.
+
+   `__list` y `__panel` NO fijan ancho —el ancho lo pone la columna— así que el
+   contenido va en el orden del DOM: con `--panel-derecha`, el primer hijo
+   (flexible) es la rejilla y el segundo (fijo) es el panel. El sticky de
+   `__panel` funciona igual a la derecha. */
+.duna-split--panel-izquierda { grid-template-columns: minmax(0, var(--duna-list-w)) minmax(0, 1fr); }
+.duna-split--panel-derecha   { grid-template-columns: minmax(0, 1fr) minmax(0, var(--duna-list-w)); }
+
 .duna-split__list  { min-width: 0; display: flex; flex-direction: column; gap: var(--duna-space-3); }
 .duna-split__panel { min-width: 0; position: sticky;
                      top: calc(var(--duna-topbar-h) + var(--duna-space-6)); }
@@ -339,7 +361,13 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
    densidad, así que `959` dejaría un hueco de verdad. El umbral sigue siendo
    960: DEBAJO es angosto, 960 exacto ya es ancho, en los tres sitios. */
 @media (max-width: 959.98px) {
-  .duna-split { grid-template-columns: minmax(0, 1fr); }
+  /* Las tres formas apilan a una columna: el default y las dos variantes de lado.
+     Debajo del breakpoint no hay dos columnas que repartir, así que el lado del
+     panel deja de significar nada — y en Productos, además, el detalle debajo del
+     breakpoint vive en el sheet, no acá (§ el consumidor). */
+  .duna-split,
+  .duna-split--panel-izquierda,
+  .duna-split--panel-derecha { grid-template-columns: minmax(0, 1fr); }
   /* Apilado, "pegajoso" no significa nada: el panel ya no tiene al lado una
      columna que scrollee contra él, y dejarlo sticky lo clavaría tapando la
      lista.
@@ -1217,6 +1245,23 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 .duna-dialog[data-state="closed"]       { animation: duna-dialog-out      var(--duna-dur)       var(--duna-ease); }
 .duna-scrim[data-state="open"]          { animation: duna-scrim-in        var(--duna-dur-theme) var(--duna-ease); }
 .duna-scrim[data-state="closed"]        { animation: duna-scrim-out       var(--duna-dur)       var(--duna-ease); }
+
+/* ── ENTRADA DEL PANEL QUE SE REVELA ────────────────────────────────────────
+   Para el panel que APARECE al seleccionar en un `--panel-derecha` (la
+   cuadrícula de Productos): la rejilla encaja a menos columnas en UN paso y el
+   panel entra con opacidad + un deslizamiento corto desde la derecha.
+
+   Por qué NO se anima el ancho del grid (decisión del owner): `.duna-cards` usa
+   `auto-fill`, que recalcula el número de columnas al cruzar cada umbral, así que
+   animar el ancho haría saltar el conteo A MITAD de la animación — más brusco que
+   no animar. Se anima lo que entra (el panel), no lo que reflowa (la rejilla).
+
+   Es opt-in: sólo el panel que lleva la clase anima. El panel del modo lista
+   —que está siempre montado— no la lleva y no parpadea en cada render. Vive
+   dentro de `.duna`, así que el bloque `prefers-reduced-motion` (`.duna *`) ya lo
+   congela sin nombrarlo. */
+@keyframes duna-reveal-panel { from { opacity: 0; transform: translateX(var(--duna-space-3)); } to { opacity: 1; transform: none; } }
+.duna-reveal-panel { animation: duna-reveal-panel var(--duna-dur) var(--duna-ease); }
 
 /* ── BARRA INFERIOR · la navegación cuando no hay rail ─────────────────────
    Reemplaza al rail debajo del breakpoint; no convive con él. La hamburguesa y
