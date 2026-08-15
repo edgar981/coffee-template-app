@@ -1,9 +1,10 @@
 "use client";
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 import {
   Sheet, SheetPortal, SheetScrim, SheetSurface, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
+import { useContenedorDunaPortal } from '@/components/admin/dunaPortal';
 
 // ═══ EL SHEET DE DUNA · la costura forma ↔ conducta ═════════════════════════
 //
@@ -47,15 +48,8 @@ import {
 // `.admin-shell` no crea contexto de apilamiento (no tiene transform ni filter),
 // así que el `position: fixed` del sheet sigue siendo relativo a la ventana.
 
-/** Fallback declarado: `null` deja que Radix use <body>. No puede pasar en la
- *  práctica —este componente sólo se monta bajo el layout del admin— pero si
- *  pasara, el sheet funciona y se ve con otra fuente, que es degradado y no
- *  roto. */
-const buscarContenedor = () =>
-  typeof document === 'undefined' ? null : document.querySelector<HTMLElement>('.admin-shell');
-
 export function DunaSheet({
-  abierto, onCerrar, titulo, descripcion, children,
+  abierto, onCerrar, titulo, descripcion, anclaje = 'abajo', children,
 }: {
   abierto: boolean;
   /** Recibe el cierre y nada más. Quien llama decide qué significa —acá,
@@ -70,28 +64,48 @@ export function DunaSheet({
    *  con la respuesta que el detalle existe para dar primero. */
   titulo: string;
   descripcion: string;
+  /**
+   * De qué borde sale. `abajo` es el detalle en angosto —el caso con el que nació
+   * esta costura— y `lado` es el drawer de los flujos con formulario.
+   *
+   * El default es `abajo` PARA EL COMPONENTE, no para el CSS: la clase base del
+   * sistema no ancla a nada a propósito. Acá sí hay default porque un componente
+   * de React puede tenerlo sin que se vuelva invisible — el que llama ve el prop
+   * en la firma.
+   */
+  anclaje?: 'abajo' | 'lado';
   children: ReactNode;
 }) {
-  // Inicializador perezoso: se evalúa una vez, en el primer render del cliente,
-  // cuando `.admin-shell` ya es un ancestro montado. No es un efecto — un
-  // `setState` en efecto agregaría un render y dejaría el primero sin contenedor.
-  const [contenedor] = useState(buscarContenedor);
+  const contenedor = useContenedorDunaPortal();
 
   return (
     <Sheet open={abierto} onOpenChange={(nuevo) => { if (!nuevo) onCerrar(); }}>
-      <SheetPortal container={contenedor ?? undefined}>
+      <SheetPortal container={contenedor}>
         <SheetScrim className="duna-scrim" />
-        {/* `duna` además de `duna-sheet`: la tipografía base del sistema no la
-            hereda del árbol porque esto vive en un portal, fuera del `.duna` de
-            la pantalla. Es la misma clase que la pantalla se pone a sí misma. */}
-        <SheetSurface className="duna duna-sheet">
-          {/* Señal, no control: dice "esto sube desde abajo". Sin gesto de
-              arrastre en esta versión (§ duna-os.NOTES.md), y sale del árbol de
-              accesibilidad porque no hay nada que anunciar. */}
-          <div className="duna-sheet__grip" aria-hidden="true" />
+        {/* `duna` además de las de la superficie: la tipografía base del sistema
+            no la hereda del árbol porque esto vive en un portal, fuera del `.duna`
+            de la pantalla. Es la misma clase que la pantalla se pone a sí misma.
+
+            Y el ANCLAJE viaja como clase: `.duna-sheet` es la superficie y no se
+            ancla a ningún borde por su cuenta. */}
+        <SheetSurface className={`duna duna-sheet duna-sheet--${anclaje}`}>
+          {/* EL GRIP ES SÓLO DEL ANCLAJE DE ABAJO. Dice "esto se despliega desde
+              abajo", así que en un drawer lateral sería una señal que apunta al
+              borde equivocado. Sin gesto de arrastre en ninguno de los dos
+              (§ duna-os.NOTES.md), y fuera del árbol de accesibilidad porque no
+              hay nada que anunciar. */}
+          {anclaje === 'abajo' && <div className="duna-sheet__grip" aria-hidden="true" />}
           <SheetTitle className="duna-sr-only">{titulo}</SheetTitle>
           <SheetDescription className="duna-sr-only">{descripcion}</SheetDescription>
-          <div className="duna-sheet__body">{children}</div>
+          {/* EL CUERPO LO COMPONE QUIEN LLAMA, y no se envuelve acá. Las dos
+              formas quieren estructuras distintas: el sheet de abajo es un solo
+              `__body` que scrollea, y el drawer es `__head` + `__body` + `__foot`
+              con la cabecera y el pie quietos. Envolver siempre en `__body`
+              obligaría al drawer a anidar su pie DENTRO del área que scrollea,
+              que es justo lo que el pie no debe hacer.
+              Esta costura garantiza la superficie y el NOMBRE accesible; la
+              anatomía es del flujo. */}
+          {children}
         </SheetSurface>
       </SheetPortal>
     </Sheet>

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { DunaSheet } from '@/components/admin/DunaSheet';
 import { toast } from 'sonner';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
@@ -77,23 +77,24 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
   useEffect(() => { getCatalog().then(setCatalog).catch(() => setCatalog([])); }, []);
 
   return (
-    <Dialog open={open} onOpenChange={(abierto) => { if (!abierto) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Nuevo pedido</DialogTitle>
-          <DialogDescription className="sr-only">
-            Crea un pedido manual: cliente, productos, costo de envío y método de pago previsto.
-          </DialogDescription>
-        </DialogHeader>
+    <DunaSheet
+      abierto={open}
+      onCerrar={onClose}
+      anclaje="lado"
+      titulo="Nuevo pedido"
+      descripcion="Crea un pedido manual: cliente, productos, costo de envío y método de pago previsto."
+    >
+      <div className="duna-modal__head">
+        <div className="duna-title">Nuevo pedido</div>
+      </div>
         {/* EL CUERPO SÓLO EXISTE MIENTRAS EL DIÁLOGO ESTÁ ABIERTO, y eso es lo que
             hace que el formulario nazca limpio —form vacío, sin decisión de
             cliente, con clave de idempotencia nueva— sin un efecto que lo
             resetee. Es el patrón que ya usan `CustomerFormModal` y el editar de
             Clientes. Antes de la extracción lo hacía `openNewOrder()`, que había
             que acordarse de llamar desde cada botón que abría el diálogo. */}
-        {open && <Cuerpo catalog={catalog} onClose={onClose} onCreated={onCreated} />}
-      </DialogContent>
-    </Dialog>
+      {open && <Cuerpo catalog={catalog} onClose={onClose} onCreated={onCreated} />}
+    </DunaSheet>
   );
 }
 
@@ -246,7 +247,7 @@ function Cuerpo({ catalog, onClose, onCreated }: {
 
   return (
     <>
-      <div className="space-y-4 py-2">
+      <div className="duna-modal__body space-y-4">
         {/* Cliente */}
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
@@ -511,9 +512,17 @@ function Cuerpo({ catalog, onClose, onCreated }: {
         </div>
       </div>
 
-      <div className="flex flex-col items-end gap-1.5 pt-2">
+      {/* LOS AVISOS DE GATE VAN EN EL PIE, no flotando entre el formulario y los
+          botones: el pie es lo único que queda quieto mientras el cuerpo
+          scrollea, y un motivo que explica por qué el botón está apagado tiene
+          que verse DONDE está el botón. `flex-wrap` del sistema los deja en su
+          propio renglón cuando no caben. */
+      }
+      <div className="duna-modal__foot">
         {gateBlocked && (
-          <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Elige el cliente antes de crear el pedido.</p>
+          <p className="duna-caption" style={{ flexBasis: '100%', margin: 0, color: 'var(--duna-sol-ink)' }}>
+            Elige el cliente antes de crear el pedido.
+          </p>
         )}
         {/* EL BOTÓN DESHABILITADO DICE QUÉ FALTA. Es la única forma en que este
             repo admite un control deshabilitado (§ "Marcar en ruta" sin
@@ -521,14 +530,14 @@ function Cuerpo({ catalog, onClose, onCreated }: {
             es. Sale de la MISMA regla que apaga el botón, así que no pueden
             discrepar — antes eran dos afirmaciones y ya divergían. */}
         {problema && !gateBlocked && (
-          <p className="text-xs text-muted-foreground">{problema.mensaje}</p>
+          <p className="duna-caption" style={{ flexBasis: '100%', margin: 0 }}>{problema.mensaje}</p>
         )}
-        <div className="flex w-full items-center justify-end gap-3">
-          <ErrorDialogo mensaje={error.mensaje} />
-          <Button variant="outline" onClick={onClose} disabled={guarda.enVuelo}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={guarda.enVuelo || !!problema}>
+        <ErrorDialogo mensaje={error.mensaje} className="duna-modal__aviso" />
+        <div className="duna-modal__acciones">
+          <button type="button" className="duna-btn duna-btn--ghost" onClick={onClose} disabled={guarda.enVuelo}>Cancelar</button>
+          <button type="button" className="duna-btn duna-btn--primary" onClick={handleSave} disabled={guarda.enVuelo || !!problema}>
             {guarda.enVuelo ? 'Creando…' : 'Crear pedido'}
-          </Button>
+          </button>
         </div>
       </div>
     </>

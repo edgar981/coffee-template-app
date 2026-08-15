@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { MessageCircle, Mail, Plus, ExternalLink } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { DunaSheet } from '@/components/admin/DunaSheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,26 +55,27 @@ export function ScheduleDeliveryModal({ target, onClose, onSaved, onAddressAdded
   onAddressAdded?: (orderId: string, address: { direccion_entrega: string; ciudad_entrega: string }) => void;
 }) {
   return (
-    <Dialog open={!!target} onOpenChange={o => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{target ? titleFor(target.shipping) : 'Programar entrega'}</DialogTitle>
-          <DialogDescription className="sr-only">
-            Asigna mensajero, zona y fecha de entrega. Despachar exige mensajero Y fecha.
-          </DialogDescription>
-        </DialogHeader>
-        {target && (
-          <ScheduleBody
-            key={target.shipping.id}
-            shipping={target.shipping}
-            ordenId={target.ordenId ?? target.shipping.orden_id}
-            onClose={onClose}
-            onSaved={onSaved}
-            onAddressAdded={onAddressAdded}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
+    <DunaSheet
+      abierto={!!target}
+      onCerrar={onClose}
+      anclaje="lado"
+      titulo={target ? titleFor(target.shipping) : 'Programar entrega'}
+      descripcion="Asigna mensajero, zona y fecha de entrega. Despachar exige mensajero Y fecha."
+    >
+      <div className="duna-modal__head">
+        <div className="duna-title">{target ? titleFor(target.shipping) : 'Programar entrega'}</div>
+      </div>
+      {target && (
+        <ScheduleBody
+          key={target.shipping.id}
+          shipping={target.shipping}
+          ordenId={target.ordenId ?? target.shipping.orden_id}
+          onClose={onClose}
+          onSaved={onSaved}
+          onAddressAdded={onAddressAdded}
+        />
+      )}
+    </DunaSheet>
   );
 }
 
@@ -278,7 +279,8 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
   const addressLine = [ctx.direccion_entrega, ctx.ciudad_entrega].filter(Boolean).join(', ') || '—';
 
   return (
-    <div className="space-y-4">
+    <>
+      <div className="duna-modal__body space-y-4">
       {/* Contact + read-only context — all pulled from the order */}
       <div className="rounded-lg bg-muted/40 p-3 space-y-3">
         <div className="grid grid-cols-2 gap-3">
@@ -413,14 +415,18 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-3">
-        <ErrorDialogo mensaje={errorProgramar.mensaje} />
-        <Button variant="outline" onClick={onClose}>Cancelar</Button>
-        <Button onClick={handleSchedule} disabled={saving || !hasAddress}>
-          {saving ? 'Guardando...' : isReschedule ? 'Reprogramar' : 'Guardar entrega'}
-        </Button>
       </div>
-    </div>
+
+      <div className="duna-modal__foot">
+        <ErrorDialogo mensaje={errorProgramar.mensaje} className="duna-modal__aviso" />
+        <div className="duna-modal__acciones">
+          <button type="button" className="duna-btn duna-btn--ghost" onClick={onClose}>Cancelar</button>
+          <button type="button" className="duna-btn duna-btn--primary" onClick={handleSchedule} disabled={saving || !hasAddress}>
+            {saving ? 'Guardando...' : isReschedule ? 'Reprogramar' : 'Guardar entrega'}
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { cn } from '@duna/core/utils';
 
 // ─── El error vive DONDE el operador está mirando ────────────────────────────
 // División de vehículos, y es la regla que este módulo instala:
@@ -39,13 +40,21 @@ import { useCallback, useState } from 'react';
  *
  * Devuelve `null` sin mensaje, así que en el caso normal no ocupa nada.
  */
-export function ErrorDialogo({ mensaje }: { mensaje: string | null }) {
+export function ErrorDialogo({ mensaje, className }: { mensaje: string | null; className?: string }) {
   if (!mensaje) return null;
   return (
     <p
       role="alert"
       title={mensaje}
-      className="min-w-0 flex-1 line-clamp-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-left text-xs text-destructive"
+      className={cn(
+        'min-w-0 flex-1 line-clamp-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-left text-xs text-destructive',
+        // La RANURA la nombra quien llama (`duna-modal__aviso` en los diálogos
+        // Duna). Va en el propio elemento y no en un envoltorio a propósito: sin
+        // mensaje esto devuelve `null`, así que la ranura desaparece con él. Un
+        // div envolviéndolo seguiría ocupando su `flex-basis` sin error y movería
+        // los botones — el defecto que la colocación existe para evitar.
+        className,
+      )}
     >
       {mensaje}
     </p>

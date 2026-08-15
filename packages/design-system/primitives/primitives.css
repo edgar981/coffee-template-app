@@ -160,12 +160,80 @@
                estrenaron van juntos y nada los contrastaba. */
             line-height: var(--duna-lh-normal); }
 .duna-btn--primary   { background: var(--duna-ink); color: var(--duna-paper); }
-.duna-btn--primary:hover { opacity: .88; transform: translateY(-1px); box-shadow: var(--duna-shadow-2); }
+.duna-btn--primary:not(:disabled):hover { opacity: .88; transform: translateY(-1px); box-shadow: var(--duna-shadow-2); }
 .duna-btn--secondary { background: var(--duna-surface); border-color: var(--duna-border-2); color: var(--duna-ink); }
-.duna-btn--secondary:hover { border-color: var(--duna-faint); box-shadow: var(--duna-shadow-1); }
+.duna-btn--secondary:not(:disabled):hover { border-color: var(--duna-faint); box-shadow: var(--duna-shadow-1); }
 .duna-btn--ghost { color: var(--duna-muted); background: none; }
-.duna-btn--ghost:hover { color: var(--duna-ink); background: var(--duna-wash-hover); }
+.duna-btn--ghost:not(:disabled):hover { color: var(--duna-ink); background: var(--duna-wash-hover); }
+/* DESTRUCTIVO · TINTE, no relleno. Es la variante que faltaba para la acción
+   irreversible dentro de una confirmación.
+
+   ── POR QUÉ TINTE Y NO SÓLIDO, que es lo que dibuja la maqueta ─────────────
+   La maqueta escribe `background: var(--bad); color: #fff`, y ese `#fff` es un
+   literal que NO sobrevive al tema oscuro: `--duna-bad` SE INVIERTE —#B5533C en
+   claro, #D07C66 en oscuro— y no tiene par de texto, a diferencia de
+   `--duna-ink`/`--duna-paper`, que se invierten JUNTOS y por eso `--primary`
+   funciona en los dos. Blanco sobre salmón claro es la misma regresión de
+   contraste que la nota de la maqueta ya documentó con `--ok-ink`.
+
+   La salida no es inventar un token: es usar el par que YA existe y ya pasa AA
+   (`--duna-bad-soft` de fondo, `--duna-bad-ink` de texto). Un token nuevo para un
+   único consumidor —hoy sólo "Cancelar orden"— es sobre-ingeniería.
+
+   Y encaja con Amber Minimal en vez de pelearse: la regla del panel es UN solo
+   sólido por vista, y dentro de una confirmación ese sólido no está libre. El
+   tinte dice destructivo sin gastar el único relleno de la superficie.
+
+   ── QUÉ ES DESTRUCTIVO, que es la parte que se hace mal ────────────────────
+   Destructivo = quita algo que no se puede recuperar desde el panel. NO lo son
+   "Marcar fallido" (registra un hecho; la entrega se reprograma) ni "Rechazar
+   comprobante" (conserva fila y blob, y el copy promete que no se borra nada).
+   Pintarlos de rojo entrenaría a ignorar el rojo justo donde sí importa. */
+.duna-btn--danger { background: var(--duna-bad-soft); color: var(--duna-bad-ink); border-color: transparent; }
+.duna-btn--danger:not(:disabled):hover { border-color: var(--duna-bad); }
 .duna-btn--sm { padding: var(--duna-space-1) var(--duna-space-3); font-size: var(--duna-text-caption); }
+
+/* ── EL DESHABILITADO NO PROMETE NADA ─────────────────────────────────────
+   Faltaba entero: `.duna-btn` no declaraba un solo estilo para `:disabled`, así
+   que un botón bloqueado quedaba **indistinguible de uno vivo** y encima seguía
+   comportándose como tal. Son tres promesas, y las tres se retiran acá:
+
+   1. EL CURSOR. `.duna-btn` declara `cursor: pointer` sin condición, y ese
+      `pointer` gana siempre: el CSS del paquete entra SIN capa, y lo sin capa le
+      gana a todo lo que está en capas —incluida la regla del consumidor
+      (`html.admin button:not(:disabled)`), que además ni siquiera apunta a un
+      deshabilitado—. O sea que la exclusión que el consumidor ya tenía escrita no
+      podía funcionar: la pisaba el sistema.
+   2. EL HOVER. El primario se ELEVABA un píxel y ganaba sombra estando
+      deshabilitado. Un control que se mueve bajo el cursor afirma que responde,
+      y es una promesa más fuerte que la del cursor. Por eso los cuatro `:hover`
+      pasan a `:not(:disabled):hover` en vez de neutralizarse con overrides:
+      así el estilo no existe, en vez de existir y ser deshecho.
+   3. EL PESO. Sin opacidad, "Guardando…" y "Guardar" se ven igual de disponibles.
+
+   ── `default` Y NO `wait` NI `not-allowed`, y el motivo es que no se puede saber
+
+   Desde el CSS, `:disabled` no distingue OCUPADO (una mutación en vuelo) de
+   BLOQUEADO (una precondición sin cumplir). En este panel existen los dos: ocho
+   botones de guardado en vuelo, y el "Marcar en ruta · falta mensajero", que está
+   deshabilitado sin que nada esté cargando. Un `wait` mentiría sobre el segundo
+   —afirma que el sistema está trabajando— y un `not-allowed` mentiría sobre el
+   primero, que sí va a poder en un segundo. `default` no afirma nada, y no
+   afirmar es lo único correcto para los dos. Es además lo que el panel ya produce
+   con sus botones shadcn, que se apagan con `pointer-events: none`.
+
+   ── LA OPACIDAD NO PUEDE ESCONDER EL MOTIVO
+
+   `.65`, y el número salió de MEDIR, no de elegir. Estos botones LLEVAN
+   INFORMACIÓN mientras están deshabilitados —"Guardando…", "falta mensajero"— y
+   la doctrina del panel es que un botón bloqueado dice qué falta: una opacidad
+   que apaga ese texto convierte la explicación en decoración.
+
+   El `.35` de la maqueta lo rompe. El primer intento acá fue `.55` y también:
+   3.96:1, por debajo de AA — lo atrapó la medición viva de `reference.html` en el
+   mismo momento de escribirlo. `.6` pasa por 0,13 y `.65` da 5.54:1, que es
+   margen de verdad: un ajuste de token no lo tumba. */
+.duna-btn:disabled { cursor: default; opacity: .65; }
 
 /* EL ÍCONO DEL BOTÓN LO DIMENSIONA EL SISTEMA ────────────────────────────────
    El `gap` de arriba ya declaraba la ranura de ícono ("ícono↔label"), pero nada
@@ -200,7 +268,7 @@
 a.duna-btn { text-decoration: none; color: var(--duna-ink); }
 a.duna-btn--primary { color: var(--duna-paper); }
 a.duna-btn--ghost   { color: var(--duna-muted); }
-a.duna-btn--ghost:hover { color: var(--duna-ink); }
+a.duna-btn--ghost:not(:disabled):hover { color: var(--duna-ink); }
 
 /* ── Badge de estado (semáforo de reposo — SIN azul) ─────────────────────── */
 .duna-badge { display: inline-flex; align-items: center; gap: var(--duna-space-inline);
@@ -378,7 +446,17 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 .duna-stock-txt.is-out { color: var(--duna-bad); font-weight: var(--duna-w-semi); }
 
 /* ── Overlays (scrim compartido) ────────────────────────────────────────── */
-.duna-scrim { position: fixed; inset: 0; background: var(--duna-scrim); backdrop-filter: blur(3px); }
+/* EL `z-index` ES PARTE DE LA PRIMITIVA, y faltaba. Era la única de las tres
+   piezas de overlay sin declararlo (`--sheet` y `--dialog-wrap` traen 50), así
+   que el velo quedaba en `auto` y cualquier contenido posicionado de la página
+   podía pintarse ENCIMA. En la app no mordía porque el wrapper de shadcn le
+   agrega su propio `z-50`; o sea que la primitiva dependía de que el consumidor
+   se acordara, que es justo lo que una primitiva existe para evitar.
+
+   49 y no 50: el velo va DEBAJO de las superficies, siempre. Si el consumidor
+   además le pone 50 —como hace shadcn— tampoco se rompe: quedan empatados y el
+   orden del DOM decide, y el velo siempre se monta antes que su superficie. */
+.duna-scrim { position: fixed; inset: 0; z-index: 49; background: var(--duna-scrim); backdrop-filter: blur(3px); }
 
 /* ── SHEET · el panel que sube desde abajo ────────────────────────────────
    La superficie de "esto está encima de lo que estabas mirando" en pantallas
@@ -412,16 +490,66 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
    página. Un sheet a pantalla completa es una página con animación.
 
    El `padding-bottom` suma `--duna-safe-b` porque el contenido llega hasta el
-   borde inferior del teléfono, donde el sistema dibuja su indicador de inicio. */
+   borde inferior del teléfono, donde el sistema dibuja su indicador de inicio.
+
+   ── DOS ANCLAJES, UNA SUPERFICIE (H6) ─────────────────────────────────────
+
+   `.duna-sheet` sola no dice de qué borde sale: es la SUPERFICIE (fondo, sombra,
+   columna que scrollea) y el anclaje lo pone un modificador. Nació con uno solo
+   —el de abajo, para el detalle en angosto— y H6 agregó el lateral, que es la
+   forma de los cinco flujos con formulario.
+
+   Son un modificador y no dos clases porque comparten todo salvo el borde del
+   que salen: mismo scrim, mismo cuerpo, misma curva, mismo bloqueo de scroll.
+   Es la misma conclusión a la que llega shadcn con `side: top|right|bottom|left`
+   — el eje se parametriza, no se duplica.
+
+   **EL ANCLAJE ES OBLIGATORIO**: `.duna-sheet` a secas no se ancla a nada y se
+   ve como un bloque suelto. No hay default a propósito — un default silencioso
+   haría que olvidar el modificador se viera como un bug de layout en vez de como
+   lo que es, una clase incompleta. */
+/* `[hidden]` GANA, y hay que decirlo porque por default PIERDE. El atributo
+   estándar es `display: none` en la hoja del navegador, que es la de menor
+   prioridad: cualquier clase con `display` la pisa. O sea que un consumidor que
+   oculte una de estas superficies con `hidden` —lo obvio— obtiene una superficie
+   INVISIBLE PERO MAQUETADA: sigue ocupando su ancho, sigue empujando el scroll
+   horizontal de la página, y en un teléfono eso se ve como "el sitio se
+   desbordó", no como "un modal mal oculto".
+
+   No es hipotético: lo destapó el gate en teléfono de esta misma tanda, sobre la
+   prueba viva. Va acá y no en la demo porque el que se equivoca no es la demo: es
+   cualquiera que use el atributo que el HTML define para esto. */
+.duna-sheet[hidden], .duna-dialog-wrap[hidden], .duna-scrim[hidden] { display: none; }
+
 .duna-sheet {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+  position: fixed; z-index: 50;
   display: flex; flex-direction: column;
-  max-height: 80vh;
   background: var(--duna-surface);
+  box-shadow: var(--duna-shadow-3);
+}
+
+/* ABAJO · el detalle en pantallas angostas. Ocupa el ancho y tiene tope de alto:
+   lo que asoma arriba es lo que sostiene "estoy encima de la lista". */
+.duna-sheet--abajo {
+  left: 0; right: 0; bottom: 0;
+  max-height: 80vh;
   border-top: 1px solid var(--duna-border);
   border-top-left-radius: var(--duna-r-xl);
   border-top-right-radius: var(--duna-r-xl);
-  box-shadow: var(--duna-shadow-3);
+}
+
+/* LADO · los flujos con formulario. Ocupa el ALTO y tiene tope de ancho, que es
+   la simetría exacta del de abajo.
+   `min(480px, 100%)`: en un teléfono ocupa todo, así que el mismo drawer sirve
+   en las dos anchuras sin una media query — un formulario no gana nada
+   convirtiéndose en sheet inferior, y tener dos formas del mismo flujo según el
+   ancho es una decisión más que tomar por pantalla. */
+.duna-sheet--lado {
+  top: 0; bottom: 0; right: 0;
+  width: min(480px, 100%);
+  border-left: 1px solid var(--duna-border);
+  border-top-left-radius: var(--duna-r-xl);
+  border-bottom-left-radius: var(--duna-r-xl);
 }
 /* El GRIP no es un control: es la señal de "esto se despliega desde abajo", y por
    eso va `aria-hidden` del lado del consumidor. NO hay gesto de arrastre en esta
@@ -444,6 +572,106 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
   min-height: 0; overflow-y: auto;
   padding: var(--duna-space-2) var(--duna-space-4)
            calc(var(--duna-space-5) + var(--duna-safe-b));
+}
+
+/* ── DIALOG · la superficie CENTRADA ──────────────────────────────────────
+   La otra forma, y NO es el sheet con otro anclaje: no sale de ningún borde, no
+   ocupa ninguna dimensión completa y no lleva grip. Su caso son las
+   CONFIRMACIONES — una pregunta corta con dos salidas.
+
+   Por qué son dos formas y no una parametrizada más: un sheet ancla y por eso
+   puede ser grande sin desorientar (el borde del que sale es la referencia). Un
+   diálogo centrado flota, y algo que flota tiene que ser chico o se lee como una
+   página. Los 420px y el tope de alto salen de eso, no de una preferencia.
+
+   `--duna-r-l` y no `--duna-r-xl`: el radio grande es de superficies ANCLADAS a
+   un borde, donde sólo se ven dos esquinas. Acá se ven las cuatro, y a ese tamaño
+   el radio de 20 se come el contenido de las esquinas.
+
+   El envoltorio existe para CENTRAR y para dar el respiro de los bordes: sin su
+   padding, en un teléfono el diálogo toca los dos lados de la pantalla. */
+.duna-dialog-wrap {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--duna-space-6);
+  /* No intercepta nada: el scrim de abajo es el que recibe el click-fuera. Sin
+     esto, el envoltorio se lo tragaría y cerrar tocando fuera dejaría de andar. */
+  pointer-events: none;
+}
+.duna-dialog {
+  pointer-events: auto;
+  display: flex; flex-direction: column;
+  width: 420px; max-width: 100%; max-height: calc(100vh - var(--duna-space-12));
+  background: var(--duna-surface);
+  border: 1px solid var(--duna-border);
+  border-radius: var(--duna-r-l);
+  box-shadow: var(--duna-shadow-3);
+}
+
+/* ── La CABECERA y el PIE, compartidos por las dos superficies ────────────
+   Son las mismas en el sheet y en el dialog porque responden lo mismo: de qué
+   trata esto, y qué se puede hacer. Que compartan clase es lo que impide que el
+   drawer y la confirmación se separen visualmente con el tiempo.
+
+   La cabecera NO scrollea: en un formulario largo, perder el título al bajar deja
+   al operador sin saber qué está llenando. */
+.duna-modal__head {
+  flex-shrink: 0;
+  padding: var(--duna-space-5) var(--duna-space-5) var(--duna-space-4);
+  border-bottom: 1px solid var(--duna-border);
+}
+/* `flex: 1` para que el CUERPO absorba el espacio sobrante y el pie quede al
+   FONDO de la superficie, no pegado al último campo. En el drawer se nota: ocupa
+   el alto completo, así que un formulario corto dejaba los botones flotando a
+   media pantalla con un vacío debajo — se lee como contenido que no cargó.
+   En el dialog no cambia nada: su alto lo da el contenido, así que no hay
+   sobrante que absorber. Una sola regla sirve a las dos formas. */
+.duna-modal__body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: var(--duna-space-5);
+}
+/* EL PIE ES UNA FILA, Y SU REPARTO NO ES DECORATIVO (§ Toast = éxito, inline =
+   error). Los botones van a la DERECHA y la ranura del error ocupa, creciendo, el
+   espacio que la fila ya tenía libre a su izquierda — nunca un banner encima. Un
+   banner que aparece al fallar empuja el layout y mueve los botones justo cuando
+   el cursor está sobre el que se acaba de clickear: el error que explica el fallo
+   no puede ser, además, la causa del siguiente.
+   LA RANURA SE DECLARA (`__aviso`), y su `flex-basis` es la medida que decide
+   todo. Con `flex: 1` a secas —basis 0— el aviso no envuelve nunca: se ENCOGE, y
+   en 375px terminaba en una columna de 75px con el texto partido letra por letra.
+
+   El valor se eligió MIDIENDO, no a ojo, y el criterio es que **el aviso no puede
+   empujar a los botones**: ésa es la razón por la que la regla existe. Con 10rem
+   entra junto a las acciones en las dos superficies a su ancho normal (el dialog
+   deja 176px libres y el drawer bastante más), así que aparecer un error no mueve
+   nada. Con 12rem —el primer intento— no entraba ni en el dialog de 420px y los
+   botones bajaban un renglón al fallar: el defecto que la regla previene,
+   reintroducido por el arreglo.
+
+   EXCEPCIÓN DECLARADA, en pantallas muy angostas: ahí no hay 10rem libres y el
+   aviso sí baja a su renglón. Es inevitable y es el mal menor —la alternativa es
+   el texto aplastado— y es la misma forma que el repo ya había tomado a mano para
+   el único diálogo sin sitio al lado (§ Toast = éxito, inline = error).
+
+   Sin error no hay elemento, y los botones se quedan donde estaban — que es lo
+   que hace estable la posición en el caso normal. */
+.duna-modal__foot {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap;
+  gap: var(--duna-space-2);
+  padding: var(--duna-space-4) var(--duna-space-5)
+           calc(var(--duna-space-4) + var(--duna-safe-b));
+  border-top: 1px solid var(--duna-border);
+}
+.duna-modal__aviso { flex: 1 1 10rem; min-width: 0; }
+/* LOS BOTONES ENVUELVEN COMO GRUPO, NUNCA SUELTOS. Sin esta caja, al bajar el
+   aviso a su renglón el primer botón se quedaba arriba con él y el segundo caía
+   solo abajo: tres renglones y un par de acciones partido, que es peor que el
+   aplastamiento que el envolver venía a arreglar. `flex-shrink: 0` porque lo que
+   cede en una fila apretada es el texto del aviso, no la fila de acciones. */
+.duna-modal__acciones {
+  display: flex; align-items: center; flex-shrink: 0;
+  gap: var(--duna-space-2);
 }
 
 /* ── La REJILLA de destinos de un sheet ───────────────────────────────────
@@ -494,16 +722,33 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 
    La MISMA curva de todo el sistema. La salida va más rápida que la entrada
    (`--duna-dur` contra `--duna-dur-theme`): entrar es una respuesta y se
-   acompaña; salir ya es una decisión tomada, y hacerla esperar se siente lento. */
-@keyframes duna-sheet-in   { from { transform: translateY(100%); } to { transform: none; } }
-@keyframes duna-sheet-out  { from { transform: none; } to { transform: translateY(100%); } }
-@keyframes duna-scrim-in   { from { opacity: 0; } to { opacity: 1; } }
-@keyframes duna-scrim-out  { from { opacity: 1; } to { opacity: 0; } }
+   acompaña; salir ya es una decisión tomada, y hacerla esperar se siente lento.
 
-.duna-sheet[data-state="open"]   { animation: duna-sheet-in  var(--duna-dur-theme) var(--duna-ease); }
-.duna-sheet[data-state="closed"] { animation: duna-sheet-out var(--duna-dur)       var(--duna-ease); }
-.duna-scrim[data-state="open"]   { animation: duna-scrim-in  var(--duna-dur-theme) var(--duna-ease); }
-.duna-scrim[data-state="closed"] { animation: duna-scrim-out var(--duna-dur)       var(--duna-ease); }
+   CADA ANCLAJE ENTRA POR SU PROPIO BORDE, y no es un detalle: un drawer lateral
+   que sube desde abajo dice que salió del sitio equivocado, y el movimiento es
+   justamente lo que le dice al ojo de dónde vino. Por eso las keyframes están
+   por eje y la regla cuelga del modificador, no de `.duna-sheet`. */
+@keyframes duna-sheet-abajo-in   { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes duna-sheet-abajo-out  { from { transform: none; } to { transform: translateY(100%); } }
+@keyframes duna-sheet-lado-in    { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes duna-sheet-lado-out   { from { transform: none; } to { transform: translateX(100%); } }
+/* El dialog no se desliza: APARECE. No sale de ningún borde —está centrado— así
+   que un `translate` afirmaría un origen que no tiene. La escala arranca en .97 y
+   no en algo menor: lo justo para que se note que llegó, sin que parezca que
+   rebota. Es la misma distinción que hace la maqueta entre `slidein` y `popin`. */
+@keyframes duna-dialog-in        { from { opacity: 0; transform: scale(.97) translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes duna-dialog-out       { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(.97) translateY(8px); } }
+@keyframes duna-scrim-in         { from { opacity: 0; } to { opacity: 1; } }
+@keyframes duna-scrim-out        { from { opacity: 1; } to { opacity: 0; } }
+
+.duna-sheet--abajo[data-state="open"]   { animation: duna-sheet-abajo-in  var(--duna-dur-theme) var(--duna-ease); }
+.duna-sheet--abajo[data-state="closed"] { animation: duna-sheet-abajo-out var(--duna-dur)       var(--duna-ease); }
+.duna-sheet--lado[data-state="open"]    { animation: duna-sheet-lado-in   var(--duna-dur-theme) var(--duna-ease); }
+.duna-sheet--lado[data-state="closed"]  { animation: duna-sheet-lado-out  var(--duna-dur)       var(--duna-ease); }
+.duna-dialog[data-state="open"]         { animation: duna-dialog-in       var(--duna-dur-theme) var(--duna-ease); }
+.duna-dialog[data-state="closed"]       { animation: duna-dialog-out      var(--duna-dur)       var(--duna-ease); }
+.duna-scrim[data-state="open"]          { animation: duna-scrim-in        var(--duna-dur-theme) var(--duna-ease); }
+.duna-scrim[data-state="closed"]        { animation: duna-scrim-out       var(--duna-dur)       var(--duna-ease); }
 
 /* ── BARRA INFERIOR · la navegación cuando no hay rail ─────────────────────
    Reemplaza al rail debajo del breakpoint; no convive con él. La hamburguesa y
