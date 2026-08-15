@@ -237,6 +237,54 @@
 
   <!-- BUSCADOR -->
   <section>
+    <h2 class="sec">Campos · el grupo, y por qué los controles son NATIVOS</h2>
+    <p class="sec-note">Label + control + pista + error con una sola forma. El <code>select</code> y el <code>checkbox</code> son elementos nativos: teclado, lector de pantalla y —en un teléfono— la rueda del sistema vienen del navegador, no de acá.</p>
+
+    <div class="grid" style="grid-template-columns:repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap:var(--duna-space-5); align-items:start">
+      <div class="duna-field">
+        <label class="duna-field__label" for="ref-nombre">Nombre</label>
+        <input class="duna-input" id="ref-nombre" value="Laura Cárdenas">
+        <p class="duna-field__hint">Como aparece en la factura.</p>
+      </div>
+
+      <div class="duna-field">
+        <label class="duna-field__label" for="ref-zona">Zona</label>
+        <select class="duna-select duna-input" id="ref-zona" required>
+          <option value="" disabled hidden selected>Selecciona…</option>
+          <option>Norte</option><option>Sur</option><option>Centro</option>
+          <option disabled>Exterior (no disponible)</option>
+        </select>
+        <p class="duna-field__hint">La sugiere la dirección; se puede cambiar.</p>
+      </div>
+
+      <div class="duna-field">
+        <label class="duna-field__label" for="ref-tel">Teléfono</label>
+        <input class="duna-input" id="ref-tel" value="300 12" aria-invalid="true" aria-describedby="ref-tel-err">
+        <p class="duna-field__error" id="ref-tel-err">Celular colombiano inválido (10 dígitos, empieza por 3).</p>
+      </div>
+
+      <div class="duna-field">
+        <label class="duna-field__label" for="ref-notas">Notas</label>
+        <textarea class="duna-input" id="ref-notas" rows="2" placeholder="Instrucciones especiales…"></textarea>
+      </div>
+    </div>
+
+    <div style="margin-top:var(--duna-space-5); display:flex; flex-direction:column; gap:var(--duna-space-3)">
+      <label class="duna-check"><input type="checkbox" class="duna-check__box" checked> El cliente ya pagó</label>
+      <label class="duna-check"><input type="checkbox" class="duna-check__box" disabled> Cobro contraentrega <span class="duna-caption">(no aplica en efectivo)</span></label>
+    </div>
+
+    <p class="sec-note" id="invalidoMedida" style="margin:var(--duna-space-4) 0 0"></p>
+
+    <div class="flag" style="margin-top:var(--duna-space-4)">EL INVÁLIDO SE ENGANCHA A <code>aria-invalid</code>, NO A UNA CLASE, y ésa es la propiedad que vale: <b style="color:var(--duna-ink)">no se puede pintar un campo de inválido sin anunciarlo</b>. Con una clase, el borde rojo y el atributo son dos afirmaciones separadas y la que se olvida siempre es la del lector de pantalla — el error queda existiendo para el ojo y no para quien no ve. Medido antes de escribirlo: CERO <code>aria-invalid</code> en los cuatro flujos del panel.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">LA RANURA DEL ERROR NO EXISTE SIN MENSAJE. El sistema no reserva su hueco: un contenedor vacío que guarda su espacio empuja todo lo de abajo justo en el momento en que el error aparece, que es cuando el operador va a corregir. Es la misma lección que <code>ErrorDialogo</code> dejó en el pie de los diálogos. Y la PISTA se distingue del ERROR por color, no sólo por posición: van en el mismo sitio y sólo uno de los dos está a la vez.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">EL SELECT ES NATIVO. Accesible de fábrica, en un teléfono abre la rueda del sistema, y —lo decisivo— <b style="color:var(--duna-ink)">no trae conducta al paquete</b>: una lista compuesta necesita foco atrapado, y eso convertiría a este paquete en uno con comportamiento. Se verificó antes de decidirlo: ninguna de las diez opciones del panel lleva más que texto.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">SU LÍMITE, DICHO: la lista desplegada la pinta el sistema operativo y no se puede tipografiar. La objeción obvia —que en oscuro salga clara— ya estaba resuelta antes: <code>color-scheme</code> se declara junto a los temas justamente para alinear los controles nativos. La FLECHA sí es nuestra, porque el estado cerrado es el que se ve el 99% del tiempo; su gris es un gemelo declarado de <code>--duna-muted</code>, porque un <code>data:</code> URI no puede leer una custom property.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">EL PLACEHOLDER ES UNA OPCIÓN VACÍA (<code>disabled hidden</code>), no el label. El label dice QUÉ ES el campo; el placeholder dice QUE AÚN NO ELEGISTE. Fusionarlos pierde el segundo estado: un label "Selecciona la zona" sigue diciendo "selecciona" con la zona ya elegida, que es falso.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">EL CHECKBOX ES LA FILA, no la caja: uno suelto sin su texto no existe en ninguna pantalla, y lo que se hace mal es la asociación. Montado como <code>&lt;label&gt;</code>, el texto entero amplía el área de toque — en un teléfono, la diferencia entre dar y no dar.</div>
+  </section>
+
+  <section>
     <h2 class="sec">Buscador · el campo, no el filtrado</h2>
     <p class="sec-note">Una variante de <code>duna-input</code> con la lupa adentro, y su frontera es lo que la define: <b style="color:var(--duna-ink)">no sabe qué se busca ni cómo se empata</b>. No guarda la consulta, no hace debounce, no recorre ninguna lista. Buscar clientes empata contra nombre, correo y teléfono; buscar productos empataría contra SKU — elegir uno de esos criterios acá obligaría al sistema a conocer el dominio. El componente <code>SearchField</code> es controlado: recibe el texto y avisa el nuevo.</p>
     <div class="row" style="align-items:flex-start">
@@ -950,6 +998,47 @@
     out.textContent = ok
       ? `Medido al abrir esta página: el texto del botón deshabilitado da ${claro}:1 en claro · ${oscuro}:1 en oscuro — sigue legible.`
       : `⚠ EL MOTIVO SE PERDIÓ: ${claro}:1 en claro · ${oscuro}:1 en oscuro. La opacidad del deshabilitado apagó el texto que explica por qué no se puede.`;
+    out.style.color = ok ? '' : 'var(--duna-bad-ink)';
+    out.style.fontWeight = ok ? '' : 'var(--duna-w-semi)';
+  })();
+  // EL ERROR DE CAMPO SIGUE SIENDO LEGIBLE, medido en los dos temas. Es texto
+  // pequeño y en el color de "problema", que es justo la combinación en la que el
+  // contraste se cae sin que nadie lo note — y si se cae, el mensaje que dice qué
+  // corregir deja de leerse.
+  (function medirInvalido() {
+    const out = document.getElementById('invalidoMedida');
+    const err = document.getElementById('ref-tel-err');
+    if (!out || !err) return;
+    // SE LEEN TOKENS, NO COLORES COMPUTADOS DEL ELEMENTO, y no es un atajo: el
+    // `body` de esta página TRANSICIONA su fondo al cambiar de tema, así que un
+    // `getComputedStyle(...).backgroundColor` leído justo después del cambio
+    // devuelve el color INTERPOLADO — a mitad de camino. La primera versión de
+    // esta medición lo hacía y reportó 2.87:1 en oscuro sobre un token que en
+    // realidad da 6.02. Una medición que miente es peor que ninguna, porque se
+    // la cree. Las custom properties no se animan acá, así que su valor es final
+    // en el mismo tick.
+    const hex = h => h.trim().replace('#', '').match(/../g).map(x => parseInt(x, 16));
+    const lum = v => { const [r, g, b] = v.map(x => { x /= 255; return x <= .03928 ? x / 12.92 : Math.pow((x + .055) / 1.055, 2.4); }); return .2126 * r + .7152 * g + .0722 * b; };
+    const ratio = (a, b) => { const l1 = lum(a), l2 = lum(b); return +((Math.max(l1, l2) + .05) / (Math.min(l1, l2) + .05)).toFixed(2); };
+    const raiz = document.documentElement;
+    const previo = raiz.getAttribute('data-theme');
+    // Los DOS fondos donde un campo puede vivir: el de la página y el de una
+    // superficie (card, drawer, diálogo). Se exige el peor de los dos.
+    const medir = tema => {
+      raiz.setAttribute('data-theme', tema);
+      const cs = getComputedStyle(raiz);
+      const ink = hex(cs.getPropertyValue('--duna-bad-ink'));
+      return Math.min(
+        ratio(ink, hex(cs.getPropertyValue('--duna-bg'))),
+        ratio(ink, hex(cs.getPropertyValue('--duna-surface'))),
+      );
+    };
+    const claro = medir('light'), oscuro = medir('dark');
+    raiz.setAttribute('data-theme', previo || 'light');
+    const ok = claro >= 4.5 && oscuro >= 4.5;
+    out.textContent = ok
+      ? `Medido al abrir esta página: el error de campo da ${claro}:1 en claro · ${oscuro}:1 en oscuro (el peor de página y superficie) — legible en los dos.`
+      : `⚠ EL ERROR NO SE LEE: ${claro}:1 en claro · ${oscuro}:1 en oscuro. El mensaje que dice qué corregir dejó de tener contraste.`;
     out.style.color = ok ? '' : 'var(--duna-bad-ink)';
     out.style.fontWeight = ok ? '' : 'var(--duna-w-semi)';
   })();
