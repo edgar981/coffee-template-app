@@ -738,6 +738,58 @@ envoltorio, que es lo que le permite gatear el cierre).
 flujos vivos de dos verticales, así que merece su tanda y su checklist. Y va antes
 que la migración del chrome (#9): esto es conducta, aquello es color.
 
+### 11. `Product.agotado`: el lector puede EXCLUIR y nada puede volver a INCLUIR
+
+No es "nadie lo escribe". Es que **el lector saca al producto de la tienda y el
+panel no tiene forma de devolverlo.**
+
+- **Lector con efecto**: `app/api/catalog/route.ts` computa
+  `disponible: stock > 0 && !agotado`, y `disponible` es lo que apaga el botón de
+  comprar (`ProductCard`), bloquea el detalle del storefront y deshabilita la
+  opción en Nuevo pedido. `ProductCard` además lo usa para el color del badge.
+- **Escritores: CERO.** Ningún formulario lo expone; `product-update.ts` lo lista
+  explícitamente entre los campos que el endpoint NUNCA escribe. El único que lo
+  toca es `prisma/seed.ts`, siempre a `false`.
+
+Es el gemelo invertido del ítem 8 (`Customer.activo`): allá el `where` no puede
+excluir a nadie; acá el lector **sí excluye** y no hay puerta de vuelta. Y es la
+misma trampa que `accionEstadoProducto` cerró para `activo` —"un botón que
+desactiva sin su inverso no es una acción, es una trampa"— salvo que acá ni
+siquiera existe el botón que la abre.
+
+**Costo YA pagado: ninguno.** Medido en `development` (2026-08-15): 4 productos,
+**0 con `agotado = true`**. Es una mina puesta, no una herida.
+
+**Y el rediseño de Productos le agregó una segunda cara**, que conviene tener
+escrita antes de que confunda: la pantalla nueva dice **"Agotado"** cuando
+`stock === 0` (`nivelStock`, § lib/productos/stock), que es un hecho DISTINTO de
+la columna y sí se arregla desde el panel con Ajustar stock. O sea que hoy
+conviven dos "agotado":
+
+| | qué significa | ¿se arregla desde el panel? |
+| --- | --- | --- |
+| `nivelStock(p) === 'agotado'` | `stock === 0` | **sí** — Ajustar stock |
+| `Product.agotado === true` | bandera manual | **no** |
+
+Un producto con `agotado: true` y stock 5 diría **"5 en existencia"** en el panel
+y **"Agotado"** en la tienda. No es una bandera invisible: es dos superficies
+contradiciéndose sobre el mismo producto, y el operador que mire el panel no tiene
+de dónde sospecharlo.
+
+**DISPARADOR — el que se cumpla primero:**
+
+1. **antes de que cualquier path escriba `agotado`** (un import, un backfill, un
+   endpoint nuevo). Ése es el instante en que la mina pasa a herida;
+2. **o si se decide exponer la bandera en la pantalla.** Hoy el "Agotado" que se
+   ve es el de stock 0 y por eso no miente — pero el día que alguien quiera un
+   "marcar como agotado" manual, la columna necesita su inverso ANTES, no después.
+
+Dos salidas y son excluyentes: exponer el par activar/agotar con la forma ya
+probada de `accionEstadoProducto` (un verbo que es siempre el inverso del estado),
+o **quitar la columna** y dejar que `disponible` dependa sólo del stock — que es lo
+que hoy pasa de facto, porque nadie la escribe. Lo que no puede quedar es la
+tercera, que es la de hoy.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
