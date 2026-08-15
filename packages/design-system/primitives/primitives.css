@@ -103,8 +103,37 @@
 
 /* LA CINTA · la ranura para colgar un badge SOBRE la imagen.
    Es una ranura y no un badge: lo que va adentro es un `.duna-badge` cualquiera,
-   así que el tile no gana una segunda opinión sobre cómo se ve un estado. */
-.duna-tile__ribbon     { position: absolute; top: var(--duna-space-2); left: var(--duna-space-2); }
+   así que el tile no gana una segunda opinión sobre cómo se ve un estado.
+
+   ── Y LA RANURA TIENE QUE PONER LA SUPERFICIE, O EL BADGE NO CUMPLE ─────────
+
+   Los tintes de estado del sistema (`--duna-*-soft`) son TRASLÚCIDOS: 12 % de
+   alfa. Sobre una superficie conocida componen a un color conocido y el par
+   `-soft` + `-ink` tiene su contraste GARANTIZADO — es el contrato del badge.
+   Sobre una IMAGEN no hay superficie: componen contra los píxeles que haya
+   debajo, así que el contrato deja de valer sin que nada en el badge cambie.
+
+   Medido con "Por reponer" (`--duna-sol-ink` sobre el tinte compuesto), tema
+   claro, contra el umbral AA de 4.5 para texto pequeño:
+
+     sobre `--duna-surface` (para lo que el badge se diseñó) ·  5.40  ✓
+     sobre una foto blanca (packshot típico) ················ ·  5.40  ✓
+     sobre una foto gris medio ······························ ·  1.61  ✗
+     sobre una foto oscura (empaque negro) ·················· ·  2.38  ✗
+     sobre una foto ÁMBAR (café tostado) ···················· ·  1.69  ✗
+
+   El peor caso no es el raro: es el producto de esta tienda. Por eso la ranura
+   pinta `--duna-surface` y adopta la geometría del badge (mismo radio) — le
+   devuelve al tinte la superficie que su contrato asume, y con eso el badge sobre
+   una foto contrasta EXACTAMENTE lo mismo que sobre una tarjeta, en los dos
+   temas. La alternativa —opacar el tinte sólo acá— habría sido un cuarto rol de
+   color inventado para un caso, que es cómo el triplete se deshace.
+
+   `inline-flex` y `width: fit-content` para que la superficie mida lo que mide el
+   badge y no el ancho de la imagen. */
+.duna-tile__ribbon     { position: absolute; top: var(--duna-space-2); left: var(--duna-space-2);
+                         display: inline-flex; width: fit-content;
+                         background: var(--duna-surface); border-radius: var(--duna-r-full); }
 .duna-tile__ribbon--end { left: auto; right: var(--duna-space-2); }
 
 /* ── CUANDO EL MARCO HACE ALGO ──────────────────────────────────────────────
