@@ -976,69 +976,11 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
 
       <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
 
-      {/* ── NOTAS INTERNAS ───────────────────────────────────────────────────
-          Entra CON el retiro de /admin/ordenes, no después: esa pantalla era el
-          único sitio donde estas notas se podían leer y editar, y borrarla sin
-          esto dejaría el campo de SÓLO ESCRITURA — el modal de crear las escribe
-          y `POST /api/orders/[id]/address` les anexa una línea de auditoría cada
-          vez que alguien agrega una dirección a mano. Un dato que el sistema
-          sigue produciendo y que nadie puede ver no es una deuda heredada: la
-          crearía el borrado.
-
-          SE MUESTRA EL CAMPO COMPLETO, líneas de auditoría incluidas. Filtrarlas
-          para dejar "sólo lo que el operador escribió" sería editorializar un
-          registro — y justamente esas líneas son las que explican por qué una
-          dirección aparece sin que nadie recuerde haberla puesto.
-
-          Sin pliegue: el design-system no tiene primitiva de plegado, y
-          `components/admin/Pliegue` es chrome de la app. Meterlo acá ampliaría la
-          mezcla visual más allá de la excepción declarada (los modales), que es
-          justo lo que la regla del sistema prohíbe. Va como una sección más, con
-          el mismo `eyebrow` que las demás. */}
-      <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-2)' }}>Notas internas</div>
-      <textarea
-        className="duna-input"
-        rows={3}
-        placeholder="Sin notas."
-        // DERIVADO, no una copia congelada: el panel NO se remonta al cambiar de
-        // pedido (no lleva `key`), así que un `useState(orden.notas_internas)`
-        // seguiría mostrando las notas del pedido anterior. `null` = el operador
-        // no ha tocado nada y manda el servidor. Es el mismo bug que ya costó una
-        // reversión de pago con el Select de estado del detalle viejo.
-        value={borrador ?? fuente.notas_internas ?? ''}
-        onChange={(e) => setBorrador(e.target.value)}
-      />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-2)' }}>
-        <button
-          type="button"
-          className="duna-btn duna-btn--secondary"
-          // Sin cambios no hay nada que guardar, y un botón vivo que no hace nada
-          // invita a pulsarlo para averiguar si pasó algo.
-          disabled={borrador === null || acciones.guardandoNotas}
-          onClick={() => acciones.guardarNotas(fuente, borrador ?? '', () => setBorrador(null))}
-        >
-          {acciones.guardandoNotas ? 'Guardando…' : 'Guardar notas'}
-        </button>
-        {borrador !== null && !acciones.guardandoNotas && (
-          <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm" onClick={() => setBorrador(null)}>
-            Descartar
-          </button>
-        )}
-      </div>
-      <ErrorDialogo mensaje={acciones.errorNotas.mensaje} />
-
-      {/* ── Cancelar ─────────────────────────────────────────────────────── */}
-      {orden.estado !== 'cancelado' && (
-        <div style={{ marginTop: 'var(--duna-space-4)' }}>
-          <button type="button" className="duna-btn duna-btn--ghost" onClick={() => acciones.abrirCancelar(fuente)}>
-            Cancelar orden
-          </button>
-        </div>
-      )}
-
-      <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
-
-      {/* ── Recorrido ────────────────────────────────────────────────────── */}
+      {/* ── Recorrido ────────────────────────────────────────────────────────
+          Sube por encima de Notas: es el CORAZÓN del detalle —el libro de
+          transiciones— y con el textarea de notas encima quedaba empujado al
+          fondo, fuera de la vista. Lo que crece o se consulta poco (notas) baja;
+          lo que responde "¿qué pasó con este pedido?" queda arriba del pliegue. */}
       <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-3)' }}>Recorrido del pedido</div>
       {cargando && <p className="duna-sub" style={{ margin: 0 }}>Cargando el recorrido…</p>}
       {!cargando && pasos.length > 0 && (
@@ -1059,6 +1001,83 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
           )}
         </>
       )}
+
+      <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
+
+      {/* ── NOTAS INTERNAS ───────────────────────────────────────────────────
+          Entra CON el retiro de /admin/ordenes, no después: esa pantalla era el
+          único sitio donde estas notas se podían leer y editar, y borrarla sin
+          esto dejaría el campo de SÓLO ESCRITURA — el modal de crear las escribe
+          y `POST /api/orders/[id]/address` les anexa una línea de auditoría cada
+          vez que alguien agrega una dirección a mano. Un dato que el sistema
+          sigue produciendo y que nadie puede ver no es una deuda heredada: la
+          crearía el borrado.
+
+          SE MUESTRA EL CAMPO COMPLETO, líneas de auditoría incluidas. Filtrarlas
+          para dejar "sólo lo que el operador escribió" sería editorializar un
+          registro — y justamente esas líneas son las que explican por qué una
+          dirección aparece sin que nadie recuerde haberla puesto.
+
+          Sin pliegue: el design-system no tiene primitiva de plegado, y
+          `components/admin/Pliegue` es chrome de la app. Meterlo acá ampliaría la
+          mezcla visual más allá de la excepción declarada (los modales), que es
+          justo lo que la regla del sistema prohíbe. Va como una sección más, con
+          el mismo `eyebrow` que las demás. */}
+      <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-2)' }}>Notas internas</div>
+      {/* VACÍA es una línea (misma regla que Comprobantes): el caso normal de un
+          pedido es no tener notas, y un textarea vacío de 3 filas pesaba más que
+          el Recorrido. Con notas o mientras se edita, el editor completo; sin
+          nada, un disparador que al pulsarlo abre el editor (`borrador = ''`). */}
+      {(fuente.notas_internas ?? '').trim() !== '' || borrador !== null ? (
+        <>
+          <textarea
+            className="duna-input"
+            rows={3}
+            placeholder="Sin notas."
+            // DERIVADO, no una copia congelada: el panel NO se remonta al cambiar de
+            // pedido (no lleva `key`), así que un `useState(orden.notas_internas)`
+            // seguiría mostrando las notas del pedido anterior. `null` = el operador
+            // no ha tocado nada y manda el servidor. Es el mismo bug que ya costó una
+            // reversión de pago con el Select de estado del detalle viejo.
+            value={borrador ?? fuente.notas_internas ?? ''}
+            onChange={(e) => setBorrador(e.target.value)}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-2)' }}>
+            <button
+              type="button"
+              className="duna-btn duna-btn--secondary"
+              // Sin cambios no hay nada que guardar, y un botón vivo que no hace nada
+              // invita a pulsarlo para averiguar si pasó algo. Además del borrador
+              // intacto, un borrador igual al valor del servidor tampoco guarda —
+              // así "Agregar nota" y no escribir nada no deja un guardado en vacío.
+              disabled={acciones.guardandoNotas || borrador === null || borrador === (fuente.notas_internas ?? '')}
+              onClick={() => acciones.guardarNotas(fuente, borrador ?? '', () => setBorrador(null))}
+            >
+              {acciones.guardandoNotas ? 'Guardando…' : 'Guardar notas'}
+            </button>
+            {borrador !== null && !acciones.guardandoNotas && (
+              <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm" onClick={() => setBorrador(null)}>
+                Descartar
+              </button>
+            )}
+          </div>
+          <ErrorDialogo mensaje={acciones.errorNotas.mensaje} />
+        </>
+      ) : (
+        <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm" onClick={() => setBorrador('')}>
+          Agregar nota interna
+        </button>
+      )}
+
+      {/* ── Cancelar ─────────────────────────────────────────────────────── */}
+      {orden.estado !== 'cancelado' && (
+        <div style={{ marginTop: 'var(--duna-space-4)' }}>
+          <button type="button" className="duna-btn duna-btn--ghost" onClick={() => acciones.abrirCancelar(fuente)}>
+            Cancelar orden
+          </button>
+        </div>
+      )}
+
     </div>
   );
 }
