@@ -742,6 +742,42 @@ o **quitar la columna** y dejar que `disponible` dependa sólo del stock — que
 que hoy pasa de facto, porque nadie la escribe. Lo que no puede quedar es la
 tercera, que es la de hoy.
 
+### 16. `NotificationBell` usa `accent-amber` en vez de `--duna-sol`
+
+La campana pinta su conteo, el tinte de las no-leídas y su color con la utilidad
+shadcn `text-accent-amber` / `bg-accent-amber`
+(`components/admin/NotificationBell.tsx:261,326,330`), no con el token del sistema.
+El ámbar ahí es semánticamente correcto —atención— pero `--accent-amber` en
+oscuro (`43 96% 62%`) NO es `--duna-sol` (`#F59E0B`): migrarlo **cambia el aspecto
+en tema oscuro**, así que no es un reemplazo mecánico.
+
+**Costo YA pagado: ninguno.** El color se lee bien en los dos temas; el defecto es
+sólo que el token diverge. Salió del censo de `accent-amber` de la tanda de
+correctores —donde el MISMO patrón en el drawer de Programar entrega sí se migró a
+`.duna-link` y a los tres roles del sol—. Los otros `accent-amber` de dashboard y
+analítica NO entran acá: migran cuando migren esas verticales.
+
+**DISPARADOR:** el rediseño del Dashboard, o una tanda de acabado con **gate
+propio** — porque el cambio altera el tema oscuro y hay que verlo en ambos.
+
+### 17. El enlace de cliente del DETALLE pierde el borrador de notas al navegar
+
+El nombre del cliente en el detalle del pedido
+(`app/(admin)/admin/pedidos/page.tsx:786`) es un `<Link>` que navega a
+`/admin/clientes?cliente=`. El panel tiene un `borrador` de notas sin guardar y
+—a diferencia de los drawers— **nunca tuvo guarda de descarte**: navegar desmonta
+el panel y pierde el borrador en silencio. Es el gemelo del embudo que el
+corrector C4 puso en el drawer de Programar entrega (`intentarSalir`), pero acá el
+panel no es un modal con guarda donde enchufarlo.
+
+**Costo YA pagado: ninguno reportado.** El borrador de notas es un dato menor y el
+caso —clickear el cliente con una nota a medias— es raro. Se anota porque es el
+MISMO seam que la tanda 3 va a tocar.
+
+**DISPARADOR: la tanda 3**, que mueve la sección de Notas del detalle y toca ese
+seam. Ahí se decide si el panel gana una guarda de salida como el drawer, o si el
+borrador se confirma/persiste de otra forma.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
