@@ -22,20 +22,29 @@ export async function GET(
     where: { id },
     select: {
       numero_orden: true, cliente_nombre: true, cliente_email: true, cliente_telefono: true,
+      cliente_id: true,
       direccion_entrega: true, ciudad_entrega: true, direccion_detalle: true,
     },
   });
   if (!order) return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 });
 
-  // Customer is linked by email (upsert-by-email at checkout) — there's no FK, so
-  // resolve it explicitly. A guest order (or one whose email has no Customer)
-  // returns customer: null → the name renders without a link.
-  const customer = order.cliente_email
+  // El cliente se resuelve por la FK `cliente_id`, IGUAL que el detalle de la
+  // orden — así el enlace del drawer aparece en los MISMOS casos que allá. El
+  // comentario viejo decía "no hay FK": es falso desde que existe `Order.cliente`,
+  // y resolver por correo dejaba SIN enlace a las órdenes por teléfono (sin
+  // correo) que sí tienen cliente vinculado — el defecto que esto cierra. Sólo si
+  // no hay FK (órdenes previas a la relación) se cae al lookup por correo.
+  const customer = order.cliente_id
     ? await prisma.customer.findUnique({
-        where:  { email: order.cliente_email },
+        where:  { id: order.cliente_id },
         select: { id: true, nombre: true, telefono: true },
       })
-    : null;
+    : order.cliente_email
+      ? await prisma.customer.findUnique({
+          where:  { email: order.cliente_email },
+          select: { id: true, nombre: true, telefono: true },
+        })
+      : null;
 
   // Phone priority: order snapshot first, then the Customer record.
   const telefono = order.cliente_telefono ?? customer?.telefono ?? null;

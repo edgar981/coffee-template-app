@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { toast } from 'sonner';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
+import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import { formatCOP } from '@duna/core/utils';
 import { registerOrderPayment } from '@/lib/api/payments';
 import { subirComprobante } from '@/lib/api/comprobantes';
@@ -52,39 +54,56 @@ export function RegisterPaymentModal({ target, declaredMetodo, verificando, onCl
   onClose: () => void;
   onSaved: (result: { payment: Payment; order: Order; comprobante?: Comprobante }) => void;
 }) {
+  // LA GUARDA VIVE EN EL ENVOLTORIO para cerrar la TERCERA salida: sin su enVuelo,
+  // Esc/clic-fuera/Cancelar cerrarían el drawer a mitad de registrar el pago, y
+  // como el submit vive en el cuerpo, cerrar lo desmonta y el error se pierde.
+  const guarda = useAccionGuardada();
+  const descarte = useDescarteDeDrawer({ enVuelo: guarda.enVuelo, onCerrar: onClose });
   return (
-    <DunaSheet
-      abierto={!!target}
-      onCerrar={onClose}
-      anclaje="lado"
-      titulo="Registrar pago"
-      descripcion="Cliente y monto vienen de la orden y no se digitan. Elige el método y, si aplica, la referencia."
-    >
-      <div className="duna-modal__head">
-        <div className="duna-title">Registrar pago</div>
-      </div>
-      {target && (
-        <RegisterForm
-          key={target.id}
-          target={target}
-          declaredMetodo={declaredMetodo}
-          verificando={verificando ?? null}
-          onClose={onClose}
-          onSaved={onSaved}
-        />
-      )}
-    </DunaSheet>
+    <>
+      <DunaSheet
+        abierto={!!target}
+        onCerrar={descarte.intentarCerrar}
+        anclaje="lado"
+        titulo="Registrar pago"
+        descripcion="Cliente y monto vienen de la orden y no se digitan. Elige el método y, si aplica, la referencia."
+      >
+        <div className="duna-modal__head">
+          <div className="duna-title">Registrar pago</div>
+        </div>
+        {target && (
+          <RegisterForm
+            key={target.id}
+            target={target}
+            declaredMetodo={declaredMetodo}
+            verificando={verificando ?? null}
+            guarda={guarda}
+            marcarCambios={descarte.marcarCambios}
+            intentarCerrar={descarte.intentarCerrar}
+            onClose={onClose}
+            onSaved={onSaved}
+          />
+        )}
+      </DunaSheet>
+      <ConfirmDescartarDialog abierto={descarte.confirmando} onDescartar={descarte.descartar} onSeguir={descarte.seguirEditando} />
+    </>
   );
 }
 
-function RegisterForm({ target, declaredMetodo, verificando, onClose, onSaved }: {
+function RegisterForm({ target, declaredMetodo, verificando, guarda, marcarCambios, intentarCerrar, onClose, onSaved }: {
   target: RegisterPaymentTarget;
   declaredMetodo?: string | null;
   verificando: Comprobante | null;
+  guarda: ReturnType<typeof useAccionGuardada>;
+  marcarCambios: (hay: boolean) => void;
+  /** Cerrar pasando por la guarda de descarte (Cancelar/Esc/scrim). */
+  intentarCerrar: () => void;
+  /** Cierre REAL, tras registrar con éxito. */
   onClose: () => void;
   onSaved: (result: { payment: Payment; order: Order; comprobante?: Comprobante }) => void;
 }) {
-  const [metodo, setMetodo]         = useState<MetodoPago>(defaultMetodo(declaredMetodo));
+  const metodoInicial = defaultMetodo(declaredMetodo);
+  const [metodo, setMetodo]         = useState<MetodoPago>(metodoInicial);
   const [referencia, setReferencia] = useState('');
   const [notas, setNotas]           = useState('');
   const [saving, setSaving]         = useState(false);
@@ -93,11 +112,21 @@ function RegisterForm({ target, declaredMetodo, verificando, onClose, onSaved }:
   // que existir.
   const [archivo, setArchivo]       = useState<File | null>(null);
 
-  // `saving` ya deshabilitaba el botón; falta la mitad SÍNCRONA, que es la única
-  // que corta dos clicks del mismo tick. El server acá es idempotente (SELECT …
-  // FOR UPDATE + chequeo de estado devuelve 409 al segundo), así que esto es
-  // consistencia — pero la guarda es del botón, no del endpoint.
-  const guarda = useAccionGuardada();
+  // ¿Hay algo que descartar al cerrar? Método distinto del sugerido, referencia o
+  // notas escritas, o un soporte adjunto. (Registrar pago no lleva guarda de
+  // "sin cambios" en el botón —siempre hace algo—, pero cerrarlo a medias sí
+  // debe preguntar.)
+  useEffect(() => {
+    marcarCambios(
+      metodo !== metodoInicial || referencia.trim() !== '' || notas.trim() !== '' || archivo !== null,
+    );
+  }, [metodo, metodoInicial, referencia, notas, archivo, marcarCambios]);
+
+  // La guarda de doble-submit la aporta el ENVOLTORIO (para poder gatear el
+  // cierre). Su mitad síncrona sigue siendo la única que corta dos clicks del
+  // mismo tick; acá el server además es idempotente (SELECT … FOR UPDATE + chequeo
+  // de estado devuelve 409 al segundo), pero la guarda es del botón, no del
+  // endpoint.
   const error  = useErrorDialogo();
   const handleSave = () => guarda.ejecutar(async () => {
     error.limpiar();
@@ -227,7 +256,7 @@ function RegisterForm({ target, declaredMetodo, verificando, onClose, onSaved }:
       <div className="duna-modal__foot">
         <ErrorDialogo mensaje={error.mensaje} className="duna-modal__aviso" />
         <div className="duna-modal__acciones">
-          <button type="button" className="duna-btn duna-btn--ghost" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button type="button" className="duna-btn duna-btn--ghost" onClick={intentarCerrar} disabled={saving}>Cancelar</button>
           <button type="button" className="duna-btn duna-btn--primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Registrando...' : 'Registrar pago'}
           </button>

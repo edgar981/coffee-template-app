@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
+import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { createCustomer, updateCustomer } from '@/lib/api/customers';
+import { problemaGuardarCliente, hayCambiosCliente } from '@/lib/clientes/guardar';
 import { CANALES, EMPTY_CUSTOMER_FORM } from '@/constants/customer';
 import type { Customer, CustomerForm } from '@/types/customer';
 import type { OrderChannel } from '@/types/order';
@@ -51,34 +54,52 @@ export function CustomerFormModal({ open, customer, onOpenChange, onSaved }: {
   onSaved: (c: Customer, modo: 'creado' | 'actualizado') => void;
 }) {
   const titulo = customer ? 'Editar cliente' : 'Nuevo cliente';
+  // LA GUARDA VIVE EN EL ENVOLTORIO para cerrar la TERCERA salida: sin su enVuelo,
+  // Esc/clic-fuera/Cancelar cierran el drawer a mitad del guardado, y como el
+  // submit vive en el CUERPO, cerrar lo desmonta y el `catch` escribe sobre un
+  // componente muerto — el error desaparece en silencio. Mismo reparto que
+  // ProductFormModal.
+  const guarda = useAccionGuardada();
+  const descarte = useDescarteDeDrawer({ enVuelo: guarda.enVuelo, onCerrar: () => onOpenChange(false) });
   return (
-    <DunaSheet
-      abierto={open}
-      onCerrar={() => onOpenChange(false)}
-      anclaje="lado"
-      titulo={titulo}
-      // Dice qué se puede HACER, no qué es. Va al nombre accesible; lo que se ve
-      // es la cabecera de abajo.
-      descripcion="Datos de contacto del cliente: nombre, correo, teléfono, ciudad, origen, dirección y notas. No modifica sus pedidos."
-    >
-      <div className="duna-modal__head">
-        <div className="duna-title">{titulo}</div>
-      </div>
-      {/* El cuerpo sólo existe mientras está abierto, así que se re-siembra del
-          cliente actual en cada apertura sin un solo efecto. */}
-      {open && (
-        <Cuerpo
-          customer={customer}
-          onClose={() => onOpenChange(false)}
-          onSaved={onSaved}
-        />
-      )}
-    </DunaSheet>
+    <>
+      <DunaSheet
+        abierto={open}
+        onCerrar={descarte.intentarCerrar}
+        anclaje="lado"
+        titulo={titulo}
+        // Dice qué se puede HACER, no qué es. Va al nombre accesible; lo que se ve
+        // es la cabecera de abajo.
+        descripcion="Datos de contacto del cliente: nombre, correo, teléfono, ciudad, origen, dirección y notas. No modifica sus pedidos."
+      >
+        <div className="duna-modal__head">
+          <div className="duna-title">{titulo}</div>
+        </div>
+        {/* El cuerpo sólo existe mientras está abierto, así que se re-siembra del
+            cliente actual en cada apertura sin un solo efecto. */}
+        {open && (
+          <Cuerpo
+            customer={customer}
+            guarda={guarda}
+            marcarCambios={descarte.marcarCambios}
+            intentarCerrar={descarte.intentarCerrar}
+            onClose={() => onOpenChange(false)}
+            onSaved={onSaved}
+          />
+        )}
+      </DunaSheet>
+      <ConfirmDescartarDialog abierto={descarte.confirmando} onDescartar={descarte.descartar} onSeguir={descarte.seguirEditando} />
+    </>
   );
 }
 
-function Cuerpo({ customer, onClose, onSaved }: {
+function Cuerpo({ customer, guarda, marcarCambios, intentarCerrar, onClose, onSaved }: {
   customer: Customer | null;
+  guarda: ReturnType<typeof useAccionGuardada>;
+  marcarCambios: (hay: boolean) => void;
+  /** Cerrar pasando por la guarda de descarte (Cancelar/Esc/scrim). */
+  intentarCerrar: () => void;
+  /** Cierre REAL, tras guardar con éxito. */
   onClose: () => void;
   onSaved: (c: Customer, modo: 'creado' | 'actualizado') => void;
 }) {
@@ -89,10 +110,22 @@ function Cuerpo({ customer, onClose, onSaved }: {
   const [intentado, setIntentado] = useState(false);
   const faltaNombre = intentado && !form.nombre.trim();
 
-  // Las DOS mitades de la guarda, del hook — no escritas a mano. El ref corta la
-  // re-entrada del mismo tick (que es lo único que la cierra) y el estado le pone
-  // texto intermedio al botón; sin esa señal el operador vuelve a clickear.
-  const guarda = useAccionGuardada();
+  // El cliente con el que abrió, para el "no hay cambios". `null` en alta: ahí el
+  // estado inicial vacío es legítimo y el obligatorio ya bloquea. Se recomputa
+  // por render, y no importa: `problemaGuardarCliente` compara por valor.
+  const inicial = useMemo(() => (customer ? buildForm(customer) : null), [customer]);
+  const problema = problemaGuardarCliente(form, inicial);
+
+  // ¿Hay algo que descartar al cerrar? En alta se compara contra el form vacío
+  // (escribir algo ya es "sucio"); en edición, contra el cliente que abrió.
+  useEffect(() => {
+    marcarCambios(hayCambiosCliente(form, inicial ?? EMPTY_CUSTOMER_FORM));
+  }, [form, inicial, marcarCambios]);
+
+  // La guarda de doble-submit ahora la aporta el ENVOLTORIO (para poder gatear el
+  // cierre): sus dos mitades siguen intactas —el ref síncrono corta la re-entrada
+  // del mismo tick y el estado le pone texto intermedio al botón—, sólo que vive
+  // un nivel arriba.
   const error  = useErrorDialogo();
 
   const campo = (key: keyof CustomerForm) => ({
@@ -186,14 +219,17 @@ function Cuerpo({ customer, onClose, onSaved }: {
             baja a su propio renglón en vez de aplastarse. */}
         <ErrorDialogo mensaje={error.mensaje} className="duna-modal__aviso" />
         <div className="duna-modal__acciones">
-          <button type="button" className="duna-btn duna-btn--ghost" onClick={onClose} disabled={guarda.enVuelo}>
+          <button type="button" className="duna-btn duna-btn--ghost" onClick={intentarCerrar} disabled={guarda.enVuelo}>
             Cancelar
           </button>
           <button type="button" className="duna-btn duna-btn--primary" onClick={guardar}
-                  disabled={guarda.enVuelo || !form.nombre.trim()}>
+                  disabled={guarda.enVuelo || !!problema}>
             {guarda.enVuelo ? 'Guardando…' : 'Guardar'}
           </button>
         </div>
+        {/* Sin cambios NO lleva mensaje: el botón deshabilitado ya lo dice y el
+            operador no escribió nada. La validez (nombre) se anuncia en su propio
+            campo tras el primer intento; ésta ranura no reserva alto vacía. */}
       </div>
     </>
   );

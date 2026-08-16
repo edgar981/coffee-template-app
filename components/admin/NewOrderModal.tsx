@@ -6,7 +6,10 @@ import { Button } from '@/components/ui/button';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { toast } from 'sonner';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
+import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
+import { hayCambios } from '@duna/core/forms';
 import { createOrder } from '@/lib/api/orders';
 import { getCatalog } from '@/lib/api/products';
 import { lookupCustomers, type CustomerMatch } from '@/lib/api/customers';
@@ -72,34 +75,52 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
   const [catalog, setCatalog] = useState<Product[]>([]);
   useEffect(() => { getCatalog().then(setCatalog).catch(() => setCatalog([])); }, []);
 
+  // LA GUARDA VIVE EN EL ENVOLTORIO para cerrar la TERCERA salida: sin su enVuelo,
+  // Esc/clic-fuera/Cancelar cerrarían el drawer a mitad de crear el pedido, y como
+  // el submit vive en el cuerpo, cerrar lo desmonta y el error se pierde.
+  const guarda = useAccionGuardada();
+  const descarte = useDescarteDeDrawer({ enVuelo: guarda.enVuelo, onCerrar: onClose });
+
   return (
-    <DunaSheet
-      abierto={open}
-      onCerrar={onClose}
-      anclaje="lado"
-      titulo="Nuevo pedido"
-      descripcion="Crea un pedido manual: cliente, productos, costo de envío y método de pago previsto."
-    >
-      <div className="duna-modal__head">
-        <div className="duna-title">Nuevo pedido</div>
-      </div>
-        {/* EL CUERPO SÓLO EXISTE MIENTRAS EL DIÁLOGO ESTÁ ABIERTO, y eso es lo que
-            hace que el formulario nazca limpio —form vacío, sin decisión de
-            cliente, con clave de idempotencia nueva— sin un efecto que lo
-            resetee. Es el patrón que ya usan `CustomerFormModal` y el editar de
-            Clientes. Antes de la extracción lo hacía `openNewOrder()`, que había
-            que acordarse de llamar desde cada botón que abría el diálogo. */}
-      {open && <Cuerpo catalog={catalog} onClose={onClose} onCreated={onCreated} />}
-    </DunaSheet>
+    <>
+      <DunaSheet
+        abierto={open}
+        onCerrar={descarte.intentarCerrar}
+        anclaje="lado"
+        titulo="Nuevo pedido"
+        descripcion="Crea un pedido manual: cliente, productos, costo de envío y método de pago previsto."
+      >
+        <div className="duna-modal__head">
+          <div className="duna-title">Nuevo pedido</div>
+        </div>
+          {/* EL CUERPO SÓLO EXISTE MIENTRAS EL DIÁLOGO ESTÁ ABIERTO, y eso es lo que
+              hace que el formulario nazca limpio —form vacío, sin decisión de
+              cliente, con clave de idempotencia nueva— sin un efecto que lo
+              resetee. Es el patrón que ya usan `CustomerFormModal` y el editar de
+              Clientes. Antes de la extracción lo hacía `openNewOrder()`, que había
+              que acordarse de llamar desde cada botón que abría el diálogo. */}
+        {open && <Cuerpo catalog={catalog} guarda={guarda} marcarCambios={descarte.marcarCambios} intentarCerrar={descarte.intentarCerrar} onClose={onClose} onCreated={onCreated} />}
+      </DunaSheet>
+      <ConfirmDescartarDialog abierto={descarte.confirmando} onDescartar={descarte.descartar} onSeguir={descarte.seguirEditando} />
+    </>
   );
 }
 
-function Cuerpo({ catalog, onClose, onCreated }: {
+function Cuerpo({ catalog, guarda, marcarCambios, intentarCerrar, onClose, onCreated }: {
   catalog: Product[];
+  guarda: ReturnType<typeof useAccionGuardada>;
+  marcarCambios: (hay: boolean) => void;
+  /** Cerrar pasando por la guarda de descarte (Cancelar/Esc/scrim). */
+  intentarCerrar: () => void;
+  /** Cierre REAL, tras crear con éxito. */
   onClose: () => void;
   onCreated: (order: Order) => void;
 }) {
   const [form, setForm] = useState<OrderForm>(EMPTY_FORM);
+
+  // ¿Hay algo que descartar al cerrar? Cualquier campo distinto del formulario
+  // vacío — incluido agregar/editar una línea (cambia la referencia del array).
+  useEffect(() => { marcarCambios(hayCambios(form, EMPTY_FORM)); }, [form, marcarCambios]);
 
   // UNA clave de idempotencia por formulario abierto. Resuelve algo distinto de
   // la guarda de doble-submit: la guarda evita el segundo click, y la clave cubre
@@ -117,7 +138,8 @@ function Cuerpo({ catalog, onClose, onCreated }: {
   const bannerRef      = useRef<HTMLDivElement | null>(null);
   const firstActionRef = useRef<HTMLButtonElement | null>(null);
 
-  const guarda = useAccionGuardada();
+  // La guarda de doble-submit la aporta el ENVOLTORIO (para poder gatear el
+  // cierre); acá se usa tal cual.
   const error  = useErrorDialogo();
 
   const resetDeteccion = () => { setMatches([]); setDecision(null); setGateBlocked(false); setGatePulse(false); };
@@ -523,7 +545,7 @@ function Cuerpo({ catalog, onClose, onCreated }: {
         )}
         <ErrorDialogo mensaje={error.mensaje} className="duna-modal__aviso" />
         <div className="duna-modal__acciones">
-          <button type="button" className="duna-btn duna-btn--ghost" onClick={onClose} disabled={guarda.enVuelo}>Cancelar</button>
+          <button type="button" className="duna-btn duna-btn--ghost" onClick={intentarCerrar} disabled={guarda.enVuelo}>Cancelar</button>
           <button type="button" className="duna-btn duna-btn--primary" onClick={handleSave} disabled={guarda.enVuelo || !!problema}>
             {guarda.enVuelo ? 'Creando…' : 'Crear pedido'}
           </button>

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { MessageCircle, Mail, Plus, ExternalLink } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { MessageCircle, Mail, Plus } from 'lucide-react';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { DateField } from '@/components/admin/DateField';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,10 @@ import type { Shipping, ShippingZona, TipoEnvio } from '@/types/shipping';
 import { TIPO_ENVIO_LABEL } from '@/types/shipping';
 import type { DeliveryContext, OrderAddressResult } from '@/types/order';
 import { ZONAS, SHIPPING_ESTADO_LABEL, hasScheduleData, missingToDispatch } from '@/constants/shippings';
+import { problemaGuardarEntrega, hayCambiosProgramacion, type ProgramacionSnapshot } from '@/lib/pedidos/programar';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
+import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import { sugerirZona } from '@duna/core/zona-config';
 import { COLOMBIA_DEPARTMENTS } from '@duna/core/colombia-departments';
 import { customerWhatsappHref } from '@duna/core/whatsapp-link';
@@ -52,28 +56,40 @@ export function ScheduleDeliveryModal({ target, onClose, onSaved, onAddressAdded
   // it without a full reload.
   onAddressAdded?: (orderId: string, address: { direccion_entrega: string; ciudad_entrega: string }) => void;
 }) {
+  // LA GUARDA VIVE EN EL ENVOLTORIO para cerrar la TERCERA salida: sin su enVuelo,
+  // Esc/clic-fuera/Cancelar cerrarían el drawer a mitad de programar, y como el
+  // submit vive en el cuerpo, cerrar lo desmonta y el error se pierde.
+  const guarda = useAccionGuardada();
+  const descarte = useDescarteDeDrawer({ enVuelo: guarda.enVuelo, onCerrar: onClose });
   return (
-    <DunaSheet
-      abierto={!!target}
-      onCerrar={onClose}
-      anclaje="lado"
-      titulo={target ? titleFor(target.shipping) : 'Programar entrega'}
-      descripcion="Asigna mensajero, zona y fecha de entrega. Despachar exige mensajero Y fecha."
-    >
-      <div className="duna-modal__head">
-        <div className="duna-title">{target ? titleFor(target.shipping) : 'Programar entrega'}</div>
-      </div>
-      {target && (
-        <ScheduleBody
-          key={target.shipping.id}
-          shipping={target.shipping}
-          ordenId={target.ordenId ?? target.shipping.orden_id}
-          onClose={onClose}
-          onSaved={onSaved}
-          onAddressAdded={onAddressAdded}
-        />
-      )}
-    </DunaSheet>
+    <>
+      <DunaSheet
+        abierto={!!target}
+        onCerrar={descarte.intentarCerrar}
+        anclaje="lado"
+        titulo={target ? titleFor(target.shipping) : 'Programar entrega'}
+        descripcion="Asigna mensajero, zona y fecha de entrega. Despachar exige mensajero Y fecha."
+      >
+        <div className="duna-modal__head">
+          <div className="duna-title">{target ? titleFor(target.shipping) : 'Programar entrega'}</div>
+        </div>
+        {target && (
+          <ScheduleBody
+            key={target.shipping.id}
+            shipping={target.shipping}
+            ordenId={target.ordenId ?? target.shipping.orden_id}
+            guarda={guarda}
+            marcarCambios={descarte.marcarCambios}
+            intentarCerrar={descarte.intentarCerrar}
+            intentarSalir={descarte.intentarSalir}
+            onClose={onClose}
+            onSaved={onSaved}
+            onAddressAdded={onAddressAdded}
+          />
+        )}
+      </DunaSheet>
+      <ConfirmDescartarDialog abierto={descarte.confirmando} onDescartar={descarte.descartar} onSeguir={descarte.seguirEditando} />
+    </>
   );
 }
 
@@ -84,13 +100,21 @@ function titleFor(shipping: Shipping): string {
   return hasScheduleData(shipping) ? 'Editar entrega' : 'Programar entrega';
 }
 
-function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
+function ScheduleBody({ shipping, ordenId, guarda, marcarCambios, intentarCerrar, intentarSalir, onClose, onSaved, onAddressAdded }: {
   shipping: Shipping;
   ordenId: string | undefined;
+  guarda: ReturnType<typeof useAccionGuardada>;
+  marcarCambios: (hay: boolean) => void;
+  /** Cerrar pasando por la guarda de descarte (Cancelar/Esc/scrim). */
+  intentarCerrar: () => void;
+  /** Salir por navegación (el enlace al cliente) pasando por la MISMA guarda. */
+  intentarSalir: (proceder: () => void) => void;
+  /** Cierre REAL, tras guardar con éxito. */
   onClose: () => void;
   onSaved: (shipping: Shipping) => void;
   onAddressAdded?: (orderId: string, address: { direccion_entrega: string; ciudad_entrega: string }) => void;
 }) {
+  const router = useRouter();
   const [ctx, setCtx]             = useState<DeliveryContext | null>(null);
   // Sin id de orden no hay nada que cargar, así que ni siquiera arranca en
   // "cargando": el caso se DERIVA del prop y se resuelve en el render, no con un
@@ -114,6 +138,27 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
   const [transportadora, setTransportadora] = useState(shipping.transportadora ?? '');
   const [numeroGuia, setNumeroGuia]         = useState(shipping.numero_guia ?? '');
   const [saving, setSaving]       = useState(false);
+
+  // Snapshot PRESENTADO al abrir, para el "no hay cambios" del botón y para la
+  // guarda de descarte. Se fija en el efecto de carga, DESPUÉS de aplicar los
+  // defaults inteligentes (zona sugerida, último mensajero): así "abrir sin tocar
+  // nada" queda sin cambios aunque el sistema haya pre-llenado un par de campos —
+  // aceptar una sugerencia sin tocarla no es una edición. Se computa con los
+  // mismos valores que el efecto va a poner, no leyendo el estado (que es async).
+  const [inicial, setInicial] = useState<ProgramacionSnapshot | null>(null);
+
+  // Los valores crudos del Shipping, estables por la key del remonte. Se sacan
+  // del efecto para que su dep array siga siendo booleanos estables (mismo
+  // criterio que `nuncaProgramada`/`sinMensajero`) y no la lista de campos.
+  const seedShipping = useMemo<ProgramacionSnapshot>(() => ({
+    zona:           (shipping.zona as ShippingZona) ?? 'centro',
+    mensajero:      shipping.mensajero ?? '',
+    fecha:          shipping.fecha_programada ?? '',
+    notas:          shipping.notas_entrega ?? '',
+    tipoEnvio:      shipping.tipo_envio ?? 'LOCAL',
+    transportadora: shipping.transportadora ?? '',
+    numeroGuia:     shipping.numero_guia ?? '',
+  }), [shipping]);
 
   // Zona sugerida por la dirección (heurística de texto, lib/zona-config.ts).
   // Se guarda aparte de `zona` porque viaja al servidor como auditoría: la
@@ -159,13 +204,21 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
         // un hueco). Se decide con el prop y no con el estado, porque el estado
         // ya pudo haberlo tecleado el operador mientras cargaba la fetch.
         if (sinMensajero && c.ultimoMensajero) setMensajero(c.ultimoMensajero);
+
+        // La línea de base contra la que se mide "¿hay cambios?": el crudo del
+        // Shipping con los defaults recién aplicados encima (zona/mensajero).
+        setInicial({
+          ...seedShipping,
+          zona:      (sug && nuncaProgramada)        ? sug             : seedShipping.zona,
+          mensajero: (sinMensajero && c.ultimoMensajero) ? c.ultimoMensajero : seedShipping.mensajero,
+        });
       })
       .catch((e) => {
         if (active) setLoadError(e instanceof Error && e.message ? e.message : 'No se pudieron cargar los datos de la orden.');
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [ordenId, nuncaProgramada, sinMensajero]);
+  }, [ordenId, nuncaProgramada, sinMensajero, seedShipping]);
 
   const hasAddress   = !!ctx?.direccion_entrega?.trim();
   const isReschedule = shipping.estado === 'fallido';
@@ -188,9 +241,23 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
   // diligenciado) no hay nada que reclamar todavía.
   const faltaParaDespachar = hasScheduleData(draft) ? missingToDispatch(draft) : null;
 
-  const guardaProgramar = useAccionGuardada();
+  // ¿Qué impide guardar? Sin dirección o sin cambios. `inicial ?? actual` cae en
+  // "sin cambios" mientras la línea de base no está fijada (no llega a verse: el
+  // botón no se renderiza durante la carga), así que nunca queda habilitado por
+  // defecto. Cubre el caso reportado: abrir sin tocar nada → deshabilitado.
+  const actual: ProgramacionSnapshot = { zona, mensajero, fecha, notas, tipoEnvio, transportadora, numeroGuia };
+  const problema = problemaGuardarEntrega(actual, inicial ?? actual, hasAddress);
+
+  // ¿Hay algo que descartar al cerrar? Sólo cuando la línea de base ya está
+  // fijada. El formulario inline de dirección tiene su propio Cancelar y queda
+  // fuera de esta guarda.
+  const cambios = inicial ? hayCambiosProgramacion(actual, inicial) : false;
+  useEffect(() => { marcarCambios(cambios); }, [cambios, marcarCambios]);
+
+  // La guarda de doble-submit la aporta el ENVOLTORIO (para poder gatear el
+  // cierre). La de AddressForm es aparte: es un sub-formulario con su propio envío.
   const errorProgramar  = useErrorDialogo();
-  const handleSchedule = () => guardaProgramar.ejecutar(async () => {
+  const handleSchedule = () => guarda.ejecutar(async () => {
     errorProgramar.limpiar();
     setSaving(true);
     try {
@@ -275,22 +342,44 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
     ? `mailto:${ctx.cliente_email}?subject=${encodeURIComponent(`Tu pedido ${ctx.numero_orden} — ${siteConfig.brand.nombre}`)}`
     : null;
   const addressLine = [ctx.direccion_entrega, ctx.ciudad_entrega].filter(Boolean).join(', ') || '—';
+  const clienteHref = ctx.customer ? `/admin/clientes?cliente=${encodeURIComponent(ctx.customer.id)}` : null;
 
   return (
     <>
       <div className="duna-modal__body space-y-4">
-      {/* Contact + read-only context — all pulled from the order */}
-      <div className="rounded-lg bg-muted/40 p-3 space-y-3">
+      {/* Contexto de solo lectura de la orden. SIN relleno: el fondo era
+          `bg-muted/40` (utilidad shadcn, no una superficie Duna). Se separa de los
+          campos editables con una regla inferior de `--duna-border` y su
+          espaciado — no con un color de fondo. Padding y orden se conservan. */}
+      <div className="p-3 space-y-3" style={{ borderBottom: '1px solid var(--duna-border)' }}>
         <div className="grid grid-cols-2 gap-3">
           <InfoRow label="Orden" value={ctx.numero_orden} />
           <div>
             <p className="text-xs text-muted-foreground">Cliente</p>
-            {ctx.customer ? (
+            {clienteHref ? (
+              // TINTA, no ámbar, y SIN ícono de enlace externo: idéntico al del
+              // detalle de la orden. El destino es `?cliente=` —navegación DENTRO
+              // del panel—, así que un glifo de "otra pestaña" prometía algo que no
+              // pasa. `.duna-link` da la tinta y el subrayado en hover.
               <Link
-                href={`/admin/clientes?cliente=${encodeURIComponent(ctx.customer.id)}`}
-                className="mt-0.5 inline-flex items-center gap-1 font-medium text-accent-amber hover:underline"
+                href={clienteHref}
+                className="duna-link mt-0.5 inline-block font-medium"
+                title={`Ver ficha de ${nombre ?? 'cliente'}`}
+                onClick={(e) => {
+                  // Clic con modificador (nueva pestaña) NO desmonta el drawer:
+                  // se deja pasar el default.
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                  // EMBUDO: una navegación de Next NO pasa por `DunaSheet.onCerrar`,
+                  // así que saltaría la guarda de descarte y perdería lo escrito en
+                  // silencio (la vía la abrió el enlace navegable de la tanda 2).
+                  // Se fuerza por `intentarSalir`: bloquea en vuelo, confirma con
+                  // cambios, y sólo entonces navega. Conducta en el consumidor; el
+                  // paquete no se entera.
+                  e.preventDefault();
+                  intentarSalir(() => router.push(clienteHref));
+                }}
               >
-                {nombre ?? '—'} <ExternalLink className="w-3 h-3" />
+                {nombre ?? '—'}
               </Link>
             ) : (
               <p className="mt-0.5 font-medium">{nombre ?? '—'}</p>
@@ -331,9 +420,15 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
         </div>
       </div>
 
-      {/* Missing address → warning + inline add form */}
+      {/* Missing address → warning + inline add form.
+          Los tres roles del ámbar salen de tokens, no de literales Tailwind:
+          borde = --duna-sol (fill/punto), fondo = --duna-sol-soft (tinte), texto =
+          --duna-sol-ink (AA sobre el tinte, con su variante en oscuro). Nunca el
+          sol saturado como superficie de texto. Los dos temas los cubren los
+          tokens. */}
       {!hasAddress && !showAddrForm && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 p-3 text-xs text-amber-800 dark:text-amber-300">
+        <div className="flex items-center justify-between gap-3 rounded-lg p-3 text-xs"
+             style={{ border: '1px solid var(--duna-sol)', background: 'var(--duna-sol-soft)', color: 'var(--duna-sol-ink)' }}>
           <span>Esta orden no tiene dirección de entrega.</span>
           <Button size="sm" variant="outline" className="h-7 shrink-0 gap-1 text-xs" onClick={() => setShowAddrForm(true)}>
             <Plus className="w-3.5 h-3.5" /> Agregar dirección
@@ -400,13 +495,17 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
               distintos para la misma tarea, visibles en la misma sesión. */}
           <DateField id="sd-fecha" value={fecha} onChange={setFecha} />
         </div>
-        {/* La brecha, dicha: se puede guardar con datos parciales (el mensajero
-            NO es obligatorio para agendar), pero despachar exige ambos. */}
+        {/* GUARDAR PARCIAL ES LEGÍTIMO: programar ahora y completar después es un
+            flujo válido (mensajero y fecha son opcionales para agendar; sólo
+            DESPACHAR exige ambos, § entrega-estado). Por eso el copy dice "puedes
+            guardarla así" ANTES de nombrar lo que faltará: sonaba a error de
+            validación al lado de un botón Guardar habilitado, y no lo es — el
+            defecto era el copy, no el botón. */}
         {faltaParaDespachar && (
           <p className="col-span-2 -mt-2 text-xs text-muted-foreground">
             {faltaParaDespachar === 'mensajero'
-              ? 'Falta asignar mensajero para poder despachar.'
-              : 'Falta asignar la fecha programada para poder despachar.'}
+              ? 'Puedes guardarla así; para despacharla luego también hará falta un mensajero.'
+              : 'Puedes guardarla así; para despacharla luego también hará falta la fecha.'}
           </p>
         )}
         <div className="col-span-2">
@@ -420,11 +519,14 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
       <div className="duna-modal__foot">
         <ErrorDialogo mensaje={errorProgramar.mensaje} className="duna-modal__aviso" />
         <div className="duna-modal__acciones">
-          <button type="button" className="duna-btn duna-btn--ghost" onClick={onClose}>Cancelar</button>
-          <button type="button" className="duna-btn duna-btn--primary" onClick={handleSchedule} disabled={saving || !hasAddress}>
+          <button type="button" className="duna-btn duna-btn--ghost" onClick={intentarCerrar} disabled={saving}>Cancelar</button>
+          <button type="button" className="duna-btn duna-btn--primary" onClick={handleSchedule} disabled={saving || !!problema}>
             {saving ? 'Guardando...' : isReschedule ? 'Reprogramar' : 'Guardar entrega'}
           </button>
         </div>
+        {/* Sin cambios NO lleva mensaje: el botón deshabilitado ya lo dice y no se
+            tocó nada. La validez (falta de dirección) se conserva en su propio
+            aviso ámbar de arriba; esta ranura no reserva alto vacía. */}
       </div>
     </>
   );
