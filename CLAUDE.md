@@ -650,46 +650,6 @@ excluyentes: exponer un control de `activo` (y entonces el `where` empieza a
 significar algo), o quitar el `where` (y entonces la consulta deja de prometer un
 filtro que no aplica). Lo que no puede quedar es la tercera, que es la de hoy.
 
-### 9. Los drawers Duna perdieron la TERCERA salida de la guarda
-
-§ Doble-submit lo dice desde siempre: *"Se bloquean también las otras dos salidas
-mientras la mutación viaja: Cancelar `disabled`, y el Dialog sin cerrar por
-click-fuera ni Esc"*. Los diálogos shadcn lo cumplían con un
-`onOpenChange={(o) => { if (aplicando) return; … }}`.
-
-**Al migrar a `DunaSheet` (H6) esa mitad se cayó.** La costura delega el cierre al
-consumidor (`onCerrar`), así que el gate tiene que ponerlo cada modal — y cuatro
-no lo pusieron:
-
-| drawer | `onCerrar` |
-| --- | --- |
-| `CustomerFormModal` | `() => onOpenChange(false)` |
-| `NewOrderModal` | `onClose` |
-| `RegisterPaymentModal` | `onClose` |
-| `ScheduleDeliveryModal` | `onClose` |
-
-O sea que hoy, en producción, Escape y el clic-fuera cierran esos cuatro **a mitad
-de la mutación**. Cerrar no cancela nada en el server: el operador queda sin saber
-si se aplicó, y en los modales cuyo submit vive en el CUERPO el `catch` escribe su
-estado sobre un componente ya desmontado — **el error desaparece en silencio**,
-que es el modo de falla del gate del 2026-08-06 en miniatura.
-
-**No lo contradice la nota de H6** que dice que las costuras no bloquean: aquélla
-habla de que la SUPERFICIE no debe traer un `is-saving` propio —porque haría creer
-que la guarda ya está puesta—, no de que el consumidor pueda saltarse el gate. Son
-las dos mitades de siempre, y ésta es la del consumidor.
-
-**Costo YA pagado: ninguno reportado**, y se encontró escribiendo
-`AdjustStockModal` —que nació con el mismo hueco— al preguntarse por qué el
-diálogo viejo de Inventario tenía un `if (aplicando) return` y el nuevo no.
-`AdjustStockModal` y `ProductFormModal` ya lo tienen (la guarda sube al
-envoltorio, que es lo que le permite gatear el cierre).
-
-**DISPARADOR: los cuatro, juntos y con su regresión.** Es una línea por archivo
-—subir `useAccionGuardada` al envoltorio y gatear `onCerrar`— pero toca cuatro
-flujos vivos de dos verticales, así que merece su tanda y su checklist. Y va antes
-que la migración del chrome (#9): esto es conducta, aquello es color.
-
 ### 10. `Product.agotado`: el lector puede EXCLUIR y nada puede volver a INCLUIR
 
 No es "nadie lo escribe". Es que **el lector saca al producto de la tienda y el
