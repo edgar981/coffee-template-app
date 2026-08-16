@@ -155,7 +155,7 @@ function Productos() {
   useEffect(() => {
     if (!idElegido) return;
     let vivo = true;
-    getInventoryLogs(idElegido)
+    getInventoryLogs({ producto: idElegido })
       .then(logs => { if (vivo) setKardex({ id: idElegido, logs }); })
       .catch(e => { if (vivo) setFalloKardex({ id: idElegido, msg: e instanceof Error ? e.message : 'Error al cargar los movimientos' }); });
     return () => { vivo = false; };

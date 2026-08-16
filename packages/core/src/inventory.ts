@@ -1,6 +1,7 @@
 import prisma from '@duna/core';
 import { cruzoMinimo } from '@duna/core/metrics/inventory-filters';
-import type { InventoryLog, Product } from '@duna/core';
+import { BUSINESS_TZ, startOfZonedDay } from '@duna/core/timezone';
+import type { InventoryLog, Prisma, Product } from '@duna/core';
 
 // EL ajuste manual de inventario. Vivía inline en `/api/inventory/adjust`; se
 // extrajo acá SIN CAMBIAR NADA para poder testear su concurrencia, que es donde
@@ -156,31 +157,54 @@ export async function aplicarAjusteInventario(
 // que la única forma de afirmar contra una base real qué filas devuelve una
 // consulta es que sea una función.
 //
-// ── POR QUÉ EXISTE EL FILTRO POR PRODUCTO ───────────────────────────────────
+// ── LOS FILTROS DE LA AUDITORÍA · POR QUÉ VIVEN EN EL SERVIDOR ───────────────
 //
-// Es la mitad de servidor de la frontera Productos↔Inventario (decisión del
-// owner): Productos responde "¿cómo está ESTE producto?" —y para eso su detalle
-// muestra el kardex del producto que se está mirando—, mientras Inventario
-// responde "¿qué tengo que reponer?" y se queda con el kardex COMPLETO, que es
-// la vista de auditoría. Sin este filtro la primera mitad no se puede construir:
-// el endpoint sólo sabía devolver los 200 movimientos más recientes de toda la
-// tienda.
+// `productoId` es la mitad de servidor de la frontera Productos↔Inventario:
+// Productos muestra el kardex de UN producto (su detalle lo pide con este filtro);
+// Inventario se queda con el COMPLETO, que es la vista de auditoría.
 //
-// Es ADITIVO: sin `productoId` la consulta es exactamente la que había, con el
-// mismo orden y el mismo tope, así que la pestaña Movimientos de Inventario no
-// cambia una fila.
+// `tipo` y el rango de fechas (`desde`/`hasta`) son lo que hace USABLE esa
+// auditoría: sin ellos, a los tres meses es una lista infinita donde no se
+// encuentra nada. Y van EN EL SERVIDOR, no filtrando en el cliente como hace
+// Pedidos, por una razón que no es de gusto: el kardex tiene TOPE (`KARDEX_TOPE`),
+// mientras Pedidos carga todo. Un filtro sobre la ventana de 200 filas cargadas
+// respondería "no hubo salidas en marzo" cuando marzo está más allá de la fila
+// 200 — una auditoría que miente por omisión, el peor modo de falla de una
+// auditoría. Server-side, el `where` filtra sobre TODA la historia y el tope se
+// aplica al resultado ya filtrado, que es verdad.
+//
+// Es ADITIVO: sin ningún filtro la consulta es exactamente la que había —mismo
+// orden, mismo tope—, así que ningún llamador de siempre cambia una fila.
 
-/** Tope por defecto — el mismo que el endpoint traía escrito. */
+/** Tope por defecto — el mismo que el endpoint traía escrito. Con filtros, se
+ *  aplica al conjunto YA filtrado (los 200 más recientes que matchean). */
 export const KARDEX_TOPE = 200;
 
 export interface KardexQuery {
   /**
-   * Sin `productoId` se devuelve el kardex COMPLETO. La ausencia es una
-   * respuesta —"todos"— y no un filtro vacío: un `where: { producto_id:
-   * undefined }` sería lo mismo, pero deja al lector adivinando si es a propósito.
+   * Sin `productoId` se devuelve el kardex de TODOS los productos. La ausencia es
+   * una respuesta —"todos"— y no un filtro vacío.
    */
   productoId?: string;
+  /** Tipo de movimiento (`entrada`/`salida`/`ajuste`/`venta`/`devolucion`). Un
+   *  valor desconocido no rompe: matchea cero filas, que es correcto. */
+  tipo?: string;
+  /** Rango por FECHA del asiento, en day keys de Bogotá (`YYYY-MM-DD`), inclusivo
+   *  por los dos extremos — mismo contrato que el rango de Pedidos. */
+  desde?: string;
+  hasta?: string;
   take?: number;
+}
+
+/**
+ * Un day key de Bogotá (`YYYY-MM-DD`) → el instante UTC de su inicio (`delta 0`) o
+ * del inicio del día SIGUIENTE (`delta 1`, el fin exclusivo). El mediodía UTC cae
+ * dentro del día de Bogotá para cualquier fecha, así que `startOfZonedDay` resuelve
+ * el día correcto sin arrastrar la zona del proceso. `createdAt` guarda instantes
+ * UTC, así que el rango se compara contra instantes, no contra texto.
+ */
+function limiteUtc(dayKey: string, deltaDias: 0 | 1): Date {
+  return startOfZonedDay(new Date(`${dayKey}T12:00:00Z`), BUSINESS_TZ, deltaDias);
 }
 
 /**
@@ -198,9 +222,22 @@ export interface KardexQuery {
  * El lock `FOR UPDATE` sigue serializando las ESCRITURAS —el kardex nunca queda
  * mal encadenado—; esto sólo le da un orden determinista a la LECTURA.
  */
-export function logsDeInventario({ productoId, take = KARDEX_TOPE }: KardexQuery = {}) {
+export function logsDeInventario({ productoId, tipo, desde, hasta, take = KARDEX_TOPE }: KardexQuery = {}) {
+  const where: Prisma.InventoryLogWhereInput = {};
+  if (productoId) where.producto_id = productoId;
+  if (tipo)       where.tipo        = tipo;
+  // El rango va como `[gte inicio, lt inicio-del-día-siguiente)`: el `lt` sobre el
+  // arranque del día que sigue a `hasta` incluye TODO ese día sin depender de la
+  // resolución del reloj (un `lte 23:59:59.999` se escapa de un asiento a las
+  // 23:59:59.9995). Cada extremo es independiente, como en el rango de Pedidos.
+  if (desde || hasta) {
+    where.createdAt = {
+      ...(desde ? { gte: limiteUtc(desde, 0) } : {}),
+      ...(hasta ? { lt:  limiteUtc(hasta, 1) } : {}),
+    };
+  }
   return prisma.inventoryLog.findMany({
-    where:   productoId ? { producto_id: productoId } : undefined,
+    where:   Object.keys(where).length ? where : undefined,
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take,
   });
