@@ -5,6 +5,8 @@ import Image from 'next/image';
 import { Package, X } from 'lucide-react';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
+import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { MoliendasOpcionesEditor } from '@/components/admin/MoliendasOpcionesEditor';
 import { ImageLightbox } from '@/components/admin/ImageLightbox';
@@ -76,22 +78,28 @@ export function ProductFormModal({ open, product, onOpenChange, onSaved }: {
   // su estado sobre un componente muerto. El error desaparece EN SILENCIO, que es
   // el modo de falla del gate del 2026-08-06 en miniatura.
   const guarda = useAccionGuardada();
+  // La guarda de descarte reemplaza al `if (!guarda.enVuelo)` inline: la mitad
+  // en-vuelo ahora vive en el hook (junto a la de descarte), no repetida acá.
+  const descarte = useDescarteDeDrawer({ enVuelo: guarda.enVuelo, onCerrar: () => onOpenChange(false) });
   return (
-    <DunaSheet
-      abierto={open}
-      onCerrar={() => { if (!guarda.enVuelo) onOpenChange(false); }}
-      anclaje="lado"
-      titulo={titulo}
-      descripcion="Ficha del producto: precio, costo, stock, imágenes y las opciones de molienda que verá el cliente."
-    >
-      <div className="duna-modal__head">
-        <div className="duna-title">{titulo}</div>
-      </div>
-      {/* El cuerpo sólo existe mientras está abierto, así que se re-siembra del
-          producto actual en cada apertura sin un solo efecto — y el error inline
-          se limpia solo al cerrar. Mismo patrón que `CustomerFormModal`. */}
-      {open && <Cuerpo product={product} guarda={guarda} onClose={() => onOpenChange(false)} onSaved={onSaved} />}
-    </DunaSheet>
+    <>
+      <DunaSheet
+        abierto={open}
+        onCerrar={descarte.intentarCerrar}
+        anclaje="lado"
+        titulo={titulo}
+        descripcion="Ficha del producto: precio, costo, stock, imágenes y las opciones de molienda que verá el cliente."
+      >
+        <div className="duna-modal__head">
+          <div className="duna-title">{titulo}</div>
+        </div>
+        {/* El cuerpo sólo existe mientras está abierto, así que se re-siembra del
+            producto actual en cada apertura sin un solo efecto — y el error inline
+            se limpia solo al cerrar. Mismo patrón que `CustomerFormModal`. */}
+        {open && <Cuerpo product={product} guarda={guarda} marcarCambios={descarte.marcarCambios} intentarCerrar={descarte.intentarCerrar} onClose={() => onOpenChange(false)} onSaved={onSaved} />}
+      </DunaSheet>
+      <ConfirmDescartarDialog abierto={descarte.confirmando} onDescartar={descarte.descartar} onSeguir={descarte.seguirEditando} />
+    </>
   );
 }
 
@@ -119,9 +127,13 @@ function buildForm(p: Product): ProductForm {
   };
 }
 
-function Cuerpo({ product, guarda, onClose, onSaved }: {
+function Cuerpo({ product, guarda, marcarCambios, intentarCerrar, onClose, onSaved }: {
   product: Product | null;
   guarda: ReturnType<typeof useAccionGuardada>;
+  marcarCambios: (hay: boolean) => void;
+  /** Cerrar pasando por la guarda de descarte (Cancelar/Esc/scrim). */
+  intentarCerrar: () => void;
+  /** Cierre REAL, tras guardar con éxito. */
   onClose: () => void;
   onSaved: (p: Product, modo: 'creado' | 'actualizado') => void;
 }) {
@@ -208,7 +220,10 @@ function Cuerpo({ product, guarda, onClose, onSaved }: {
   // comparan las tres piezas no-planas contra su estado inicial y se unen con el
   // form en `hayCambiosProducto`. En el alta no aplica (dirty = true): ahí el
   // vacío inicial es legítimo y el obligatorio ya bloquea.
-  const inicialForm          = useMemo(() => (product ? buildForm(product) : null), [product]);
+  // En alta la línea de base es EMPTY: así "sucio" = el operador escribió algo,
+  // que es lo que la guarda de descarte necesita. El gate de "no hay cambios" del
+  // botón (`sinCambios`) sigue siendo sólo de edición.
+  const inicialForm          = useMemo(() => (product ? buildForm(product) : EMPTY_PRODUCT_FORM), [product]);
   const galeriaInicialLen    = useMemo(
     () => (product?.imagenes ?? []).filter(u => u && u !== product?.imagen).length, [product]);
   const moliendasInicialJSON = useMemo(
@@ -216,15 +231,19 @@ function Cuerpo({ product, guarda, onClose, onSaved }: {
 
   const galeriaCambiada    = galeriaPendiente.length > 0 || galeriaActual.length !== galeriaInicialLen;
   const moliendasCambiadas = JSON.stringify(sanitizeOpciones(moliendasVivas)) !== moliendasInicialJSON;
-  const dirty = !product ? true : hayCambiosProducto({
+  const dirty = hayCambiosProducto({
     form,
-    inicialForm:    inicialForm!,
+    inicialForm,
     // Quitar la portada ya lo capta `form.imagen`; acá "hay un File nuevo".
     imagenCambiada: imagenFile !== null,
     galeriaCambiada,
     moliendasCambiadas,
   });
   const sinCambios = !!product && !dirty;
+
+  // Le reporta al envoltorio si hay algo que descartar al cerrar. En un efecto
+  // (no en render) para no re-renderizar por escribir en un ref cada tecla.
+  useEffect(() => { marcarCambios(dirty); }, [dirty, marcarCambios]);
 
   const campo = <K extends keyof ProductForm>(key: K) => ({
     value: form[key] as string,
@@ -608,7 +627,7 @@ function Cuerpo({ product, guarda, onClose, onSaved }: {
             mueve el botón que se acaba de clickear. */}
         <ErrorDialogo mensaje={error.mensaje} className="duna-modal__aviso" />
         <div className="duna-modal__acciones">
-          <button type="button" className="duna-btn duna-btn--ghost" onClick={onClose} disabled={bloqueado}>
+          <button type="button" className="duna-btn duna-btn--ghost" onClick={intentarCerrar} disabled={bloqueado}>
             Cancelar
           </button>
           <button type="button" className="duna-btn duna-btn--primary" onClick={guardar}

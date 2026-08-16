@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
+import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { adjustInventory } from '@/lib/api/inventory';
+import { hayCambios } from '@duna/core/forms';
 import { cantidadInicial, limitesDeCantidad, errorDeCantidad, esAbsoluto } from '@/lib/inventario/ajuste';
 import type { Product } from '@/types/product';
 import type { InventoryLog, InventoryAdjustmentForm, InventoryMovementType } from '@/types/inventory';
@@ -67,45 +70,66 @@ export function AdjustStockModal({ open, producto, productos, onOpenChange, onAp
   // sin saber si se aplicó, y desmonta el sitio donde el error iba a aparecer.
   // Es lo mismo que hace `ConfirmDeleteDialog` con su `if (loading) return`.
   const guarda = useAccionGuardada();
+  // La guarda de descarte reemplaza al `if (!guarda.enVuelo)` inline: la mitad
+  // en-vuelo ahora vive en el hook, junto a la de descarte.
+  const descarte = useDescarteDeDrawer({ enVuelo: guarda.enVuelo, onCerrar: () => onOpenChange(false) });
   return (
-    <DunaSheet
-      abierto={open}
-      onCerrar={() => { if (!guarda.enVuelo) onOpenChange(false); }}
-      anclaje="lado"
-      titulo="Ajustar inventario"
-      descripcion="Registra un movimiento de stock: entrada, salida, devolución o ajuste a un valor absoluto. Queda asentado en el kardex del producto."
-    >
-      <div className="duna-modal__head">
-        <div className="duna-title">Ajustar inventario</div>
-      </div>
-      {/* El cuerpo sólo existe mientras está abierto: se re-siembra en cada
-          apertura sin un solo efecto, y el error inline se limpia solo al cerrar. */}
-      {open && (
-        <Cuerpo
-          producto={producto ?? null}
-          productos={productos ?? []}
-          guarda={guarda}
-          onClose={() => onOpenChange(false)}
-          onAplicado={onAplicado}
-        />
-      )}
-    </DunaSheet>
+    <>
+      <DunaSheet
+        abierto={open}
+        onCerrar={descarte.intentarCerrar}
+        anclaje="lado"
+        titulo="Ajustar inventario"
+        descripcion="Registra un movimiento de stock: entrada, salida, devolución o ajuste a un valor absoluto. Queda asentado en el kardex del producto."
+      >
+        <div className="duna-modal__head">
+          <div className="duna-title">Ajustar inventario</div>
+        </div>
+        {/* El cuerpo sólo existe mientras está abierto: se re-siembra en cada
+            apertura sin un solo efecto, y el error inline se limpia solo al cerrar. */}
+        {open && (
+          <Cuerpo
+            producto={producto ?? null}
+            productos={productos ?? []}
+            guarda={guarda}
+            marcarCambios={descarte.marcarCambios}
+            intentarCerrar={descarte.intentarCerrar}
+            onClose={() => onOpenChange(false)}
+            onAplicado={onAplicado}
+          />
+        )}
+      </DunaSheet>
+      <ConfirmDescartarDialog abierto={descarte.confirmando} onDescartar={descarte.descartar} onSeguir={descarte.seguirEditando} />
+    </>
   );
 }
 
-function Cuerpo({ producto, productos, guarda, onClose, onAplicado }: {
+function Cuerpo({ producto, productos, guarda, marcarCambios, intentarCerrar, onClose, onAplicado }: {
   producto: Product | null;
   productos: Product[];
   guarda: ReturnType<typeof useAccionGuardada>;
+  marcarCambios: (hay: boolean) => void;
+  /** Cerrar pasando por la guarda de descarte (Cancelar/Esc/scrim). */
+  intentarCerrar: () => void;
+  /** Cierre REAL, tras aplicar con éxito. */
   onClose: () => void;
   onAplicado: (r: { product: Product; log: InventoryLog }) => void;
 }) {
-  const [form, setForm] = useState<InventoryAdjustmentForm>(
+  // La línea de base = el mismo sembrado del useState. Volver a ella (p. ej.
+  // devolver el tipo a 'ajuste', que re-siembra la cantidad al stock) deja de ser
+  // "sucio": no hay nada que descartar.
+  const inicial = useMemo<InventoryAdjustmentForm>(
     () => producto
       ? { ...VACIO, producto_id: producto.id, cantidad: cantidadInicial(VACIO.tipo, producto.stock) }
       : VACIO,
+    [producto],
   );
+  const [form, setForm] = useState<InventoryAdjustmentForm>(() => inicial);
   const error = useErrorDialogo();
+
+  // ¿Hay algo que descartar al cerrar? Motivo escrito, cantidad cambiada, otro
+  // tipo, u otro producto elegido.
+  useEffect(() => { marcarCambios(hayCambios(form, inicial)); }, [form, inicial, marcarCambios]);
 
   // El producto sobre el que se va a escribir: el fijo, o el elegido en la lista.
   const objetivo = producto ?? productos.find(p => p.id === form.producto_id) ?? null;
@@ -247,9 +271,9 @@ function Cuerpo({ producto, productos, guarda, onClose, onAplicado }: {
       <div className="duna-modal__foot">
         <ErrorDialogo mensaje={error.mensaje} className="duna-modal__aviso" />
         <div className="duna-modal__acciones">
-          {/* Cancelar también se bloquea en vuelo: cerrar a mitad no cancela nada
-              en el server y deja al operador sin saber si se aplicó. */}
-          <button type="button" className="duna-btn duna-btn--ghost" onClick={onClose} disabled={bloqueado}>
+          {/* Cancelar también se bloquea en vuelo, y pasa por la guarda de
+              descarte: si hay cambios sin guardar, pregunta antes de cerrar. */}
+          <button type="button" className="duna-btn duna-btn--ghost" onClick={intentarCerrar} disabled={bloqueado}>
             Cancelar
           </button>
           <button type="button" className="duna-btn duna-btn--primary" onClick={aplicar}
