@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { MessageCircle, Mail, Plus, ExternalLink } from 'lucide-react';
+import { MessageCircle, Mail, Plus } from 'lucide-react';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { DateField } from '@/components/admin/DateField';
 import { Button } from '@/components/ui/button';
@@ -341,18 +341,26 @@ function ScheduleBody({ shipping, ordenId, guarda, marcarCambios, intentarCerrar
   return (
     <>
       <div className="duna-modal__body space-y-4">
-      {/* Contact + read-only context — all pulled from the order */}
-      <div className="rounded-lg bg-muted/40 p-3 space-y-3">
+      {/* Contexto de solo lectura de la orden. SIN relleno: el fondo era
+          `bg-muted/40` (utilidad shadcn, no una superficie Duna). Se separa de los
+          campos editables con una regla inferior de `--duna-border` y su
+          espaciado — no con un color de fondo. Padding y orden se conservan. */}
+      <div className="p-3 space-y-3" style={{ borderBottom: '1px solid var(--duna-border)' }}>
         <div className="grid grid-cols-2 gap-3">
           <InfoRow label="Orden" value={ctx.numero_orden} />
           <div>
             <p className="text-xs text-muted-foreground">Cliente</p>
             {ctx.customer ? (
+              // TINTA, no ámbar, y SIN ícono de enlace externo: idéntico al del
+              // detalle de la orden. El destino es `?cliente=` —navegación DENTRO
+              // del panel—, así que un glifo de "otra pestaña" prometía algo que no
+              // pasa. `.duna-link` da la tinta y el subrayado en hover.
               <Link
                 href={`/admin/clientes?cliente=${encodeURIComponent(ctx.customer.id)}`}
-                className="mt-0.5 inline-flex items-center gap-1 font-medium text-accent-amber hover:underline"
+                className="duna-link mt-0.5 inline-block font-medium"
+                title={`Ver ficha de ${nombre ?? 'cliente'}`}
               >
-                {nombre ?? '—'} <ExternalLink className="w-3 h-3" />
+                {nombre ?? '—'}
               </Link>
             ) : (
               <p className="mt-0.5 font-medium">{nombre ?? '—'}</p>
