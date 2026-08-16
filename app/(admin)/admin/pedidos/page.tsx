@@ -376,11 +376,14 @@ function Pedidos() {
             FILTRA. Una cifra que repite a un control accionable le quita sitio a
             la respuesta sin agregar una. */}
         <h1 className="duna-display-m" style={{ minWidth: 0 }}>Pedidos</h1>
-        {/* EL único primario sólido de la vista, con su "+". El tamaño del ícono
-            lo pone el sistema (`.duna-btn svg`); acá sólo se elige cuál. */}
+        {/* SECUNDARIO, no el primario sólido de la vista. Crear a mano es la
+            ESCOTILLA, no la acción primaria: los pedidos entran por WhatsApp, la
+            tienda y los canales. Con la creación en secundario, esta vista no
+            tiene primario sólido, y Amber Minimal lo permite ("máx. una"). El
+            tamaño del ícono lo pone el sistema (`.duna-btn svg`). */}
         <button
           type="button"
-          className="duna-btn duna-btn--primary"
+          className="duna-btn duna-btn--secondary"
           style={{ marginLeft: 'auto', flexShrink: 0 }}
           onClick={() => setCreando(true)}
         >

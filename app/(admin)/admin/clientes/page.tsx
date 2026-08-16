@@ -227,16 +227,17 @@ function ClientesV2() {
             FILTRA. Una cifra que repite a un control accionable le quita sitio a
             la respuesta sin agregar una. */}
         <h1 className="duna-display-m" style={{ minWidth: 0 }}>Clientes</h1>
-        {/* EL único primario sólido de la vista. Todo lo demás va secundario o
-            ghost — ésa es la regla de un solo sólido por pantalla.
+        {/* SECUNDARIO: crear a mano es la ESCOTILLA, no la acción primaria de la
+            vista (los clientes se crean al llegar un pedido). Con la creación en
+            secundario, la vista queda sin primario sólido, y Amber Minimal lo
+            permite ("máx. una"). Decisión de sistema, igual en Pedidos y Productos.
 
             El "+" no es adorno: es lo que hace que el botón se lea como CREAR y
-            no como "ir a clientes nuevos". La pantalla vieja lo tenía y esta
-            nació sin él. El TAMAÑO lo pone el sistema (`.duna-btn svg`); acá sólo
-            se elige el ícono, igual que `ChipCanal` elige el del canal. */}
+            no como "ir a clientes nuevos". El TAMAÑO lo pone el sistema
+            (`.duna-btn svg`); acá sólo se elige el ícono. */}
         <button
           type="button"
-          className="duna-btn duna-btn--primary"
+          className="duna-btn duna-btn--secondary"
           style={{ marginLeft: 'auto', flexShrink: 0 }}
           onClick={() => setCreando(true)}
         >
