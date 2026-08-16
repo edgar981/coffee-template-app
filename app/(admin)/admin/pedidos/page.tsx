@@ -2,7 +2,8 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { Plus } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, MessageCircle } from 'lucide-react';
 import { OrderCard } from '@duna/design-system/components/OrderCard';
 import { ItemsTable } from '@duna/design-system/components/ItemsTable';
 import { Timeline } from '@duna/design-system/components/Timeline';
@@ -33,6 +34,8 @@ import { RegisterPaymentModal } from '@/components/admin/RegisterPaymentModal';
 import { NewOrderModal } from '@/components/admin/NewOrderModal';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { findSlotLabel } from '@duna/core/shipping-config';
+import { customerWhatsappHref } from '@duna/core/whatsapp-link';
+import { siteConfig } from '@/lib/config/site';
 import { formatFecha } from '@duna/core/format-fecha';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { ConfirmDespachoSinPago } from '@/components/admin/ConfirmDespachoSinPago';
@@ -721,6 +724,17 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
   const soportes = fuente.comprobantes ?? [];
   const lightbox = useLightboxComprobante();
 
+  // WhatsApp al cliente, la acción más frecuente del operador de este negocio y
+  // la que se perdió al migrar de /admin/ordenes. Usa el MISMO snapshot que se
+  // muestra (`orden.cliente_telefono`), no una segunda fuente — así el enlace
+  // abre el número al que el cliente pidió que se le escribiera por ESTE pedido.
+  // `null` si el teléfono no es un celular válido: sin acción que ofrecer, no se
+  // pinta un botón muerto.
+  const waHref = customerWhatsappHref(
+    orden.cliente_telefono,
+    `Hola ${orden.cliente_nombre}, te escribimos de ${siteConfig.brand.nombre} por tu pedido ${orden.numero_orden}`,
+  );
+
   // El método REAL manda sobre el previsto: el pago que existe gana sobre la
   // intención declarada al crear la orden. Sin pago, se dice que es lo previsto —
   // presentarlo a secas haría creer que ya se cobró.
@@ -748,7 +762,18 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
         <span className="duna-avatar">{iniciales(orden.cliente_nombre)}</span>
         <div style={{ minWidth: 0 }}>
-          <div className="duna-title">{orden.cliente_nombre}</div>
+          {/* El nombre lleva a su ficha, como en la pantalla vieja. Sólo cuando hay
+              cliente al que ir: `cliente_id` es nullable (órdenes previas a la
+              relación), y un enlace muerto promete una navegación que no ocurre —
+              misma regla que CustomerLink ("no dead link"). Sin id, texto plano. */}
+          <div className="duna-title">
+            {orden.cliente_id ? (
+              <Link href={`/admin/clientes?cliente=${encodeURIComponent(orden.cliente_id)}`}
+                    className="duna-link" title={`Ver ficha de ${orden.cliente_nombre}`}>
+                {orden.cliente_nombre}
+              </Link>
+            ) : orden.cliente_nombre}
+          </div>
           <div className="duna-mono">{orden.numero_orden}</div>
         </div>
         <span className={`duna-badge ${BADGE_TONE_CLASS[badge.tone]}`} style={{ marginLeft: 'auto' }}>
@@ -777,6 +802,15 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
             un "Teléfono: —" ocupa el mismo espacio para no decir nada. */}
         {orden.cliente_telefono && (
           <span className="duna-mono">{orden.cliente_telefono}</span>
+        )}
+        {/* El acceso a WhatsApp de la pantalla vieja. Ghost-sm para no competir con
+            las acciones de la vista; abre en pestaña nueva. Sólo con un número
+            válido (`waHref`). */}
+        {waHref && (
+          <a href={waHref} target="_blank" rel="noopener noreferrer"
+             className="duna-btn duna-btn--ghost duna-btn--sm">
+            <MessageCircle /> WhatsApp
+          </a>
         )}
         {/* DEUDA DECLARADA: DUNA-DS pide "Recoge en tienda" si el pedido es
             pickup. El dominio NO tiene pickup — `TipoEnvio` es LOCAL | NACIONAL y
