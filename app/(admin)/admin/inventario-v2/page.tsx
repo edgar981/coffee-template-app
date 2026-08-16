@@ -169,7 +169,13 @@ function Inventario() {
       <span key="t" className="duna-badge duna-badge--neutral">{TIPO_LABEL[l.tipo] ?? l.tipo}</span>,
       <span key="c" className="duna-num">{signoDelMovimiento(l)}</span>,
       <span key="s" className="duna-num">{l.stock_anterior} → {l.stock_nuevo}</span>,
-      l.motivo || '—',
+      // El MOTIVO sigue siendo el texto legible; el enlace sale del DATO
+      // (`orden_numero` resuelto por el servidor), no de parsear "CN-…" del texto.
+      // Sólo enlaza si la orden todavía existe; si no, texto plano (misma regla que
+      // la celda Producto).
+      l.orden_numero
+        ? <Link key="m" href={`/admin/pedidos?pedido=${l.orden_numero}`} className="duna-link">{l.motivo || '—'}</Link>
+        : (l.motivo || '—'),
       // El actor. `—` es honesto: filas viejas y asientos del sistema no tienen
       // humano — es la razón por la que la columna existe.
       l.ajustado_por_nombre || '—',
