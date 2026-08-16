@@ -55,9 +55,11 @@ export function ScheduleDeliveryModal({ target, onClose, onSaved, onAddressAdded
   // it without a full reload.
   onAddressAdded?: (orderId: string, address: { direccion_entrega: string; ciudad_entrega: string }) => void;
 }) {
-  // `enVuelo: false` por ahora: la guarda vive en el cuerpo. El backlog #9 la sube
-  // al envoltorio y ahí se enchufa el enVuelo real.
-  const descarte = useDescarteDeDrawer({ enVuelo: false, onCerrar: onClose });
+  // LA GUARDA VIVE EN EL ENVOLTORIO para cerrar la TERCERA salida: sin su enVuelo,
+  // Esc/clic-fuera/Cancelar cerrarían el drawer a mitad de programar, y como el
+  // submit vive en el cuerpo, cerrar lo desmonta y el error se pierde.
+  const guarda = useAccionGuardada();
+  const descarte = useDescarteDeDrawer({ enVuelo: guarda.enVuelo, onCerrar: onClose });
   return (
     <>
       <DunaSheet
@@ -75,6 +77,7 @@ export function ScheduleDeliveryModal({ target, onClose, onSaved, onAddressAdded
             key={target.shipping.id}
             shipping={target.shipping}
             ordenId={target.ordenId ?? target.shipping.orden_id}
+            guarda={guarda}
             marcarCambios={descarte.marcarCambios}
             intentarCerrar={descarte.intentarCerrar}
             onClose={onClose}
@@ -95,9 +98,10 @@ function titleFor(shipping: Shipping): string {
   return hasScheduleData(shipping) ? 'Editar entrega' : 'Programar entrega';
 }
 
-function ScheduleBody({ shipping, ordenId, marcarCambios, intentarCerrar, onClose, onSaved, onAddressAdded }: {
+function ScheduleBody({ shipping, ordenId, guarda, marcarCambios, intentarCerrar, onClose, onSaved, onAddressAdded }: {
   shipping: Shipping;
   ordenId: string | undefined;
+  guarda: ReturnType<typeof useAccionGuardada>;
   marcarCambios: (hay: boolean) => void;
   /** Cerrar pasando por la guarda de descarte (Cancelar/Esc/scrim). */
   intentarCerrar: () => void;
@@ -245,9 +249,10 @@ function ScheduleBody({ shipping, ordenId, marcarCambios, intentarCerrar, onClos
   const cambios = inicial ? hayCambiosProgramacion(actual, inicial) : false;
   useEffect(() => { marcarCambios(cambios); }, [cambios, marcarCambios]);
 
-  const guardaProgramar = useAccionGuardada();
+  // La guarda de doble-submit la aporta el ENVOLTORIO (para poder gatear el
+  // cierre). La de AddressForm es aparte: es un sub-formulario con su propio envío.
   const errorProgramar  = useErrorDialogo();
-  const handleSchedule = () => guardaProgramar.ejecutar(async () => {
+  const handleSchedule = () => guarda.ejecutar(async () => {
     errorProgramar.limpiar();
     setSaving(true);
     try {

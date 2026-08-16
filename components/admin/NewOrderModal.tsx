@@ -75,9 +75,11 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
   const [catalog, setCatalog] = useState<Product[]>([]);
   useEffect(() => { getCatalog().then(setCatalog).catch(() => setCatalog([])); }, []);
 
-  // `enVuelo: false` por ahora: la guarda vive en el cuerpo. El backlog #9 la sube
-  // al envoltorio y ahí se enchufa el enVuelo real.
-  const descarte = useDescarteDeDrawer({ enVuelo: false, onCerrar: onClose });
+  // LA GUARDA VIVE EN EL ENVOLTORIO para cerrar la TERCERA salida: sin su enVuelo,
+  // Esc/clic-fuera/Cancelar cerrarían el drawer a mitad de crear el pedido, y como
+  // el submit vive en el cuerpo, cerrar lo desmonta y el error se pierde.
+  const guarda = useAccionGuardada();
+  const descarte = useDescarteDeDrawer({ enVuelo: guarda.enVuelo, onCerrar: onClose });
 
   return (
     <>
@@ -97,15 +99,16 @@ export function NewOrderModal({ open, onClose, onCreated }: NewOrderModalProps) 
               resetee. Es el patrón que ya usan `CustomerFormModal` y el editar de
               Clientes. Antes de la extracción lo hacía `openNewOrder()`, que había
               que acordarse de llamar desde cada botón que abría el diálogo. */}
-        {open && <Cuerpo catalog={catalog} marcarCambios={descarte.marcarCambios} intentarCerrar={descarte.intentarCerrar} onClose={onClose} onCreated={onCreated} />}
+        {open && <Cuerpo catalog={catalog} guarda={guarda} marcarCambios={descarte.marcarCambios} intentarCerrar={descarte.intentarCerrar} onClose={onClose} onCreated={onCreated} />}
       </DunaSheet>
       <ConfirmDescartarDialog abierto={descarte.confirmando} onDescartar={descarte.descartar} onSeguir={descarte.seguirEditando} />
     </>
   );
 }
 
-function Cuerpo({ catalog, marcarCambios, intentarCerrar, onClose, onCreated }: {
+function Cuerpo({ catalog, guarda, marcarCambios, intentarCerrar, onClose, onCreated }: {
   catalog: Product[];
+  guarda: ReturnType<typeof useAccionGuardada>;
   marcarCambios: (hay: boolean) => void;
   /** Cerrar pasando por la guarda de descarte (Cancelar/Esc/scrim). */
   intentarCerrar: () => void;
@@ -135,7 +138,8 @@ function Cuerpo({ catalog, marcarCambios, intentarCerrar, onClose, onCreated }: 
   const bannerRef      = useRef<HTMLDivElement | null>(null);
   const firstActionRef = useRef<HTMLButtonElement | null>(null);
 
-  const guarda = useAccionGuardada();
+  // La guarda de doble-submit la aporta el ENVOLTORIO (para poder gatear el
+  // cierre); acá se usa tal cual.
   const error  = useErrorDialogo();
 
   const resetDeteccion = () => { setMatches([]); setDecision(null); setGateBlocked(false); setGatePulse(false); };

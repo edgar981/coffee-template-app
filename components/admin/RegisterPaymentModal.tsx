@@ -54,9 +54,11 @@ export function RegisterPaymentModal({ target, declaredMetodo, verificando, onCl
   onClose: () => void;
   onSaved: (result: { payment: Payment; order: Order; comprobante?: Comprobante }) => void;
 }) {
-  // `enVuelo: false` por ahora: la guarda vive en el cuerpo. El backlog #9 la sube
-  // al envoltorio y ahí se enchufa el enVuelo real.
-  const descarte = useDescarteDeDrawer({ enVuelo: false, onCerrar: onClose });
+  // LA GUARDA VIVE EN EL ENVOLTORIO para cerrar la TERCERA salida: sin su enVuelo,
+  // Esc/clic-fuera/Cancelar cerrarían el drawer a mitad de registrar el pago, y
+  // como el submit vive en el cuerpo, cerrar lo desmonta y el error se pierde.
+  const guarda = useAccionGuardada();
+  const descarte = useDescarteDeDrawer({ enVuelo: guarda.enVuelo, onCerrar: onClose });
   return (
     <>
       <DunaSheet
@@ -75,6 +77,7 @@ export function RegisterPaymentModal({ target, declaredMetodo, verificando, onCl
             target={target}
             declaredMetodo={declaredMetodo}
             verificando={verificando ?? null}
+            guarda={guarda}
             marcarCambios={descarte.marcarCambios}
             intentarCerrar={descarte.intentarCerrar}
             onClose={onClose}
@@ -87,10 +90,11 @@ export function RegisterPaymentModal({ target, declaredMetodo, verificando, onCl
   );
 }
 
-function RegisterForm({ target, declaredMetodo, verificando, marcarCambios, intentarCerrar, onClose, onSaved }: {
+function RegisterForm({ target, declaredMetodo, verificando, guarda, marcarCambios, intentarCerrar, onClose, onSaved }: {
   target: RegisterPaymentTarget;
   declaredMetodo?: string | null;
   verificando: Comprobante | null;
+  guarda: ReturnType<typeof useAccionGuardada>;
   marcarCambios: (hay: boolean) => void;
   /** Cerrar pasando por la guarda de descarte (Cancelar/Esc/scrim). */
   intentarCerrar: () => void;
@@ -118,11 +122,11 @@ function RegisterForm({ target, declaredMetodo, verificando, marcarCambios, inte
     );
   }, [metodo, metodoInicial, referencia, notas, archivo, marcarCambios]);
 
-  // `saving` ya deshabilitaba el botón; falta la mitad SÍNCRONA, que es la única
-  // que corta dos clicks del mismo tick. El server acá es idempotente (SELECT …
-  // FOR UPDATE + chequeo de estado devuelve 409 al segundo), así que esto es
-  // consistencia — pero la guarda es del botón, no del endpoint.
-  const guarda = useAccionGuardada();
+  // La guarda de doble-submit la aporta el ENVOLTORIO (para poder gatear el
+  // cierre). Su mitad síncrona sigue siendo la única que corta dos clicks del
+  // mismo tick; acá el server además es idempotente (SELECT … FOR UPDATE + chequeo
+  // de estado devuelve 409 al segundo), pero la guarda es del botón, no del
+  // endpoint.
   const error  = useErrorDialogo();
   const handleSave = () => guarda.ejecutar(async () => {
     error.limpiar();

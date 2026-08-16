@@ -54,9 +54,13 @@ export function CustomerFormModal({ open, customer, onOpenChange, onSaved }: {
   onSaved: (c: Customer, modo: 'creado' | 'actualizado') => void;
 }) {
   const titulo = customer ? 'Editar cliente' : 'Nuevo cliente';
-  // `enVuelo: false` por ahora: la guarda vive en el cuerpo. El backlog #9 la sube
-  // al envoltorio y ahí se enchufa el enVuelo real.
-  const descarte = useDescarteDeDrawer({ enVuelo: false, onCerrar: () => onOpenChange(false) });
+  // LA GUARDA VIVE EN EL ENVOLTORIO para cerrar la TERCERA salida: sin su enVuelo,
+  // Esc/clic-fuera/Cancelar cierran el drawer a mitad del guardado, y como el
+  // submit vive en el CUERPO, cerrar lo desmonta y el `catch` escribe sobre un
+  // componente muerto — el error desaparece en silencio. Mismo reparto que
+  // ProductFormModal.
+  const guarda = useAccionGuardada();
+  const descarte = useDescarteDeDrawer({ enVuelo: guarda.enVuelo, onCerrar: () => onOpenChange(false) });
   return (
     <>
       <DunaSheet
@@ -76,6 +80,7 @@ export function CustomerFormModal({ open, customer, onOpenChange, onSaved }: {
         {open && (
           <Cuerpo
             customer={customer}
+            guarda={guarda}
             marcarCambios={descarte.marcarCambios}
             intentarCerrar={descarte.intentarCerrar}
             onClose={() => onOpenChange(false)}
@@ -88,8 +93,9 @@ export function CustomerFormModal({ open, customer, onOpenChange, onSaved }: {
   );
 }
 
-function Cuerpo({ customer, marcarCambios, intentarCerrar, onClose, onSaved }: {
+function Cuerpo({ customer, guarda, marcarCambios, intentarCerrar, onClose, onSaved }: {
   customer: Customer | null;
+  guarda: ReturnType<typeof useAccionGuardada>;
   marcarCambios: (hay: boolean) => void;
   /** Cerrar pasando por la guarda de descarte (Cancelar/Esc/scrim). */
   intentarCerrar: () => void;
@@ -116,10 +122,10 @@ function Cuerpo({ customer, marcarCambios, intentarCerrar, onClose, onSaved }: {
     marcarCambios(hayCambiosCliente(form, inicial ?? EMPTY_CUSTOMER_FORM));
   }, [form, inicial, marcarCambios]);
 
-  // Las DOS mitades de la guarda, del hook — no escritas a mano. El ref corta la
-  // re-entrada del mismo tick (que es lo único que la cierra) y el estado le pone
-  // texto intermedio al botón; sin esa señal el operador vuelve a clickear.
-  const guarda = useAccionGuardada();
+  // La guarda de doble-submit ahora la aporta el ENVOLTORIO (para poder gatear el
+  // cierre): sus dos mitades siguen intactas —el ref síncrono corta la re-entrada
+  // del mismo tick y el estado le pone texto intermedio al botón—, sólo que vive
+  // un nivel arriba.
   const error  = useErrorDialogo();
 
   const campo = (key: keyof CustomerForm) => ({
