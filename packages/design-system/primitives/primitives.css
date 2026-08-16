@@ -779,7 +779,21 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
    propia para el refactor, se cobra cuando el archivo ya está abierto. */
 .duna-form { --duna-form-gap: var(--duna-space-4);
              display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-             gap: var(--duna-form-gap); }
+             gap: var(--duna-form-gap);
+             /* `align-content: start` NO es cosmético: sin él, `align-content`
+                computa a `stretch` (el default de un grid), y como este form vive
+                en un `.duna-modal__body` con `flex: 1` —alto completo del drawer—,
+                un formulario CORTO estira sus FILAS para llenar ese alto. Cada
+                `.duna-field` se infla de 73px natural a ~102px (medido en el drawer
+                real): 29px de aire POR CAMPO, repartidos por todo el formulario. Es
+                lo que se lee "flotando/disperso", y ningún ajuste del gap entre
+                grupos lo toca (ése movía ~16px en TOTAL). Con `start`, las filas
+                quedan a su alto natural y el sobrante se consolida en un solo bloque
+                arriba del pie —el layout estándar de un drawer, forma arriba /
+                acciones abajo—. Nuevo producto (14 campos que LLENAN el body) no
+                cambia: sin espacio libre no hay nada que estirar; y además usa su
+                grid inline, no esta primitiva. */
+             align-content: start; }
 .duna-form--sm { --duna-form-gap: var(--duna-space-3); }
 .duna-form__full { grid-column: 1 / -1; }
 
