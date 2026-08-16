@@ -11,6 +11,7 @@ import { formatFecha } from '@duna/core/format-fecha';
 import { toast } from 'sonner';
 import { getProducts, getInventoryLogs } from '@/lib/api/inventory';
 import { KARDEX_TOPE } from '@duna/core/metrics/inventory-filters';
+import { rangoDeDiasDelPeriodo, PERIODOS, type PeriodoKey } from '@/lib/metrics/periodo';
 import { AdjustStockModal } from '@/components/admin/AdjustStockModal';
 import type { Product } from '@/types/product';
 import type { InventoryLog, InventoryMovementType } from '@/types/inventory';
@@ -56,6 +57,15 @@ const TIPO_LABEL: Record<InventoryMovementType, string> = {
   entrada: 'Entrada', salida: 'Salida', ajuste: 'Ajuste', venta: 'Venta', devolucion: 'Devolución',
 };
 const TIPOS: InventoryMovementType[] = ['entrada', 'salida', 'ajuste', 'venta', 'devolucion'];
+
+// Presets de período — navegar la auditoría por TIEMPO (así se pregunta: "¿qué
+// pasó en marzo?", no "página 5"). Son un atajo que fija `desde`/`hasta`, los
+// mismos params que el date picker. La lógica del rango es la de Analítica
+// (`rangoDeDiasDelPeriodo`), no una copia — dos definiciones del mismo período
+// divergen en el borde del mes. "Este año" queda fuera a propósito (owner);
+// "Cargar más" también, con su disparador escrito: si un preset llega al tope de
+// 200 con uso real, entra con el cursor (createdAt, id) que ya existe de desempate.
+const PRESETS_INV: PeriodoKey[] = ['mes', 'mes_anterior', 'ultimos_3_meses'];
 
 /** El signo del movimiento. `ajuste` FIJA un valor absoluto: no es delta, así que
  *  se muestra el resultado, no un `+N` que no ocurrió. */
@@ -134,6 +144,10 @@ function Inventario() {
   // Qué producto_id todavía existe — decide si la celda "Producto" es un enlace o
   // texto plano. Un producto borrado dejaría un enlace muerto; no se pinta.
   const idsProducto = useMemo(() => new Set(productos.map(p => p.id)), [productos]);
+
+  // El reloj para los presets, fijado al montar: un preset abierto no tiene por qué
+  // recalcularse en cada render, y el corrimiento en el cambio de día es irrelevante.
+  const ahora = useMemo(() => new Date(), []);
 
   const aplicado = useCallback(({ product }: { product: Product; log: InventoryLog }) => {
     setProductos(prev => prev.map(p => p.id === product.id ? product : p));
@@ -236,6 +250,19 @@ function Inventario() {
           <option value="">Todos los tipos</option>
           {TIPOS.map(t => <option key={t} value={t}>{TIPO_LABEL[t]}</option>)}
         </select>
+        {/* Presets de período: navegar por tiempo de un clic. Un preset se marca
+            cuando el rango puesto coincide con el suyo; el date picker de al lado
+            cubre los rangos a medida. */}
+        {PRESETS_INV.map(k => {
+          const r = rangoDeDiasDelPeriodo(k, ahora);
+          const activo = desde === r.desde && hasta === r.hasta;
+          return (
+            <button key={k} type="button" className={`duna-pill${activo ? ' is-on' : ''}`} aria-pressed={activo}
+                    onClick={() => navegar({ desde: r.desde, hasta: r.hasta })}>
+              {PERIODOS[k]}
+            </button>
+          );
+        })}
         <DateRangePicker desde={desde} hasta={hasta} onChange={(d, h) => navegar({ desde: d, hasta: h })} />
         {hayFiltro && (
           <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm"
