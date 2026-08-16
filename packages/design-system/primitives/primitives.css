@@ -1632,6 +1632,20 @@ button.duna-order-card__name {
    quede a plomo. Mismo patrón que `.duna-items-table__r`. */
 .duna-table th.duna-table__r, .duna-table td.duna-table__r { text-align: right; white-space: nowrap; }
 
+/* ── Enlace de texto · navegación inline dentro de contenido denso ──────────
+   Un enlace que vive DENTRO de una celda o un párrafo, no un botón. Tinta plena
+   (es CONTENIDO que lleva a otro lado, no una acción secundaria) y subrayado
+   SÓLO al hover — en reposo se lee como el resto del texto, para no rayar una
+   tabla entera de enlaces. El `:focus-visible` trae el anillo del sistema: un
+   enlace navegable tiene que alcanzarse por teclado. Nace para la celda
+   "Producto" del kardex, que lleva al detalle de ese producto; Pagos y Analítica
+   tendrán las mismas celdas. (Cuando NO hay destino, el consumidor renderiza
+   texto plano — no un enlace muerto que promete una navegación que no ocurre.) */
+.duna-link { color: var(--duna-ink); text-decoration: none; text-underline-offset: 2px;
+             border-radius: var(--duna-r-s); cursor: pointer; }
+.duna-link:hover { text-decoration: underline; }
+.duna-link:focus-visible { outline: none; box-shadow: var(--duna-ring); }
+
 /* ── Reduced motion: el movimiento confirma, no obliga ──────────────────── */
 @media (prefers-reduced-motion: reduce) {
   /* `.duna-sheet` y `.duna-scrim` van NOMBRADOS y no los alcanza el `.duna *`:
