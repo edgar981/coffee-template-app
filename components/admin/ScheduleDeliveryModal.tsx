@@ -401,9 +401,15 @@ function ScheduleBody({ shipping, ordenId, guarda, marcarCambios, intentarCerrar
         </div>
       </div>
 
-      {/* Missing address → warning + inline add form */}
+      {/* Missing address → warning + inline add form.
+          Los tres roles del ámbar salen de tokens, no de literales Tailwind:
+          borde = --duna-sol (fill/punto), fondo = --duna-sol-soft (tinte), texto =
+          --duna-sol-ink (AA sobre el tinte, con su variante en oscuro). Nunca el
+          sol saturado como superficie de texto. Los dos temas los cubren los
+          tokens. */}
       {!hasAddress && !showAddrForm && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 p-3 text-xs text-amber-800 dark:text-amber-300">
+        <div className="flex items-center justify-between gap-3 rounded-lg p-3 text-xs"
+             style={{ border: '1px solid var(--duna-sol)', background: 'var(--duna-sol-soft)', color: 'var(--duna-sol-ink)' }}>
           <span>Esta orden no tiene dirección de entrega.</span>
           <Button size="sm" variant="outline" className="h-7 shrink-0 gap-1 text-xs" onClick={() => setShowAddrForm(true)}>
             <Plus className="w-3.5 h-3.5" /> Agregar dirección
