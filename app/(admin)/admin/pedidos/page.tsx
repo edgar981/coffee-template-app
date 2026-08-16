@@ -799,7 +799,10 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-3)' }}>
-        <ChipCanal canal={orden.canal} />
+        {/* SÓLO ÍCONO acá: el botón de WhatsApp de al lado ya lleva la palabra, y
+            un canal "WhatsApp" con texto la repetiría. En la card de la lista
+            (sin ese botón) el chip sigue con su etiqueta. */}
+        <ChipCanal canal={orden.canal} soloIcono />
         {/* EL TELÉFONO, y sólo él, del pliegue de contacto de la pantalla vieja.
             Mismo criterio que la evidencia de la entrega: entra lo que HABILITA
             una acción que esta pantalla ofrece. El teléfono la habilita —el
