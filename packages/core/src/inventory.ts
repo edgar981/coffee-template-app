@@ -207,8 +207,14 @@ function limiteUtc(dayKey: string, deltaDias: 0 | 1): Date {
   return startOfZonedDay(new Date(`${dayKey}T12:00:00Z`), BUSINESS_TZ, deltaDias);
 }
 
+/** Un asiento del kardex con el número de orden ya RESUELTO: `null` si el
+ *  movimiento no viene de una orden (ajuste/edición manual) o si la orden ya no
+ *  existe. La celda "Motivo" de la auditoría enlaza cuando esto no es null. */
+export type KardexRow = InventoryLog & { orden_numero: string | null };
+
 /**
- * Los movimientos de inventario, del más reciente al más viejo.
+ * Los movimientos de inventario, del más reciente al más viejo, con el número de
+ * su orden RESUELTO para el enlace.
  *
  * DESEMPATE `[createdAt desc, id desc]`: `createdAt` es `timestamp(3)`
  * (milisegundos), así que dos asientos escritos dentro del mismo ms empataban y
@@ -221,8 +227,16 @@ function limiteUtc(dayKey: string, deltaDias: 0 | 1): Date {
  * y sólo estabiliza, EN SILENCIO. Es la misma nota que el libro de transiciones.
  * El lock `FOR UPDATE` sigue serializando las ESCRITURAS —el kardex nunca queda
  * mal encadenado—; esto sólo le da un orden determinista a la LECTURA.
+ *
+ * LA RESOLUCIÓN DEL NÚMERO va en UN batch (`IN` sobre los `orden_id` presentes),
+ * no con una FK: mismo criterio de snapshot que el actor. `?pedido=` de Pedidos
+ * matchea por `numero_orden`, no por id, así que el enlace necesita el número. Una
+ * orden borrada simplemente no aparece en el `IN` → `orden_numero` null → la celda
+ * va en texto plano, sin un enlace muerto — gratis, por resolver en la lectura.
  */
-export function logsDeInventario({ productoId, tipo, desde, hasta, take = KARDEX_TOPE }: KardexQuery = {}) {
+export async function logsDeInventario(
+  { productoId, tipo, desde, hasta, take = KARDEX_TOPE }: KardexQuery = {},
+): Promise<KardexRow[]> {
   const where: Prisma.InventoryLogWhereInput = {};
   if (productoId) where.producto_id = productoId;
   if (tipo)       where.tipo        = tipo;
@@ -236,9 +250,23 @@ export function logsDeInventario({ productoId, tipo, desde, hasta, take = KARDEX
       ...(hasta ? { lt:  limiteUtc(hasta, 1) } : {}),
     };
   }
-  return prisma.inventoryLog.findMany({
+  const rows = await prisma.inventoryLog.findMany({
     where:   Object.keys(where).length ? where : undefined,
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take,
   });
+
+  const ordenIds = [...new Set(rows.map(r => r.orden_id).filter((x): x is string => !!x))];
+  const numeroPorId = new Map<string, string>();
+  if (ordenIds.length) {
+    const ordenes = await prisma.order.findMany({
+      where:  { id: { in: ordenIds } },
+      select: { id: true, numero_orden: true },
+    });
+    for (const o of ordenes) numeroPorId.set(o.id, o.numero_orden);
+  }
+  return rows.map(r => ({
+    ...r,
+    orden_numero: r.orden_id ? (numeroPorId.get(r.orden_id) ?? null) : null,
+  }));
 }

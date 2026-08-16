@@ -276,6 +276,14 @@ model InventoryLog {
   // puertas de escritura (ajuste de inventario y edición de ficha).
   ajustado_por        String?
   ajustado_por_nombre String?
+  // Orden de la que NACE el movimiento, cuando lo genera el sistema desde una
+  // orden (despacho → 'venta', reintegro por fallido/cancelación → 'devolucion').
+  // SNAPSHOT del id, sin FK — misma doctrina que el actor y que `producto_id`: el
+  // historial de auditoría sobrevive a que la orden se borre. Nullable: los
+  // movimientos MANUALES (ajuste, edición de ficha) no vienen de una orden, y las
+  // filas viejas no lo tienen. El enlace a la orden se resuelve en la LECTURA
+  // (id → numero_orden), que además da gratis el "orden borrada → texto plano".
+  orden_id            String?
   createdAt       DateTime @default(now())
 }
 

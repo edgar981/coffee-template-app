@@ -188,6 +188,10 @@ export async function dispatchStockDecrement(
         stock_anterior:  anterior,
         stock_nuevo:     updated.stock,
         motivo:          `Despacho orden ${order.numero_orden}`,
+        // El movimiento NACE de esta orden — el enlace de la auditoría sale de acá,
+        // no de parsear el motivo. `shipping.orden_id` es el id que ya se usó para
+        // cargar la orden arriba.
+        orden_id:        shipping.orden_id,
       },
     });
     // El CRUCE, no el estado: un producto que ya estaba bajo antes del despacho no
@@ -253,6 +257,10 @@ export async function restockShippingStock(
         stock_anterior:  updated.stock - cantidad,
         stock_nuevo:     updated.stock,
         motivo:          `${motivo} — orden ${order.numero_orden}`,
+        // Este reintegro cubre fallido Y cancelación tras despacho: las dos vías
+        // nacen de esta orden, así que las dos llevan su enlace. `shipping.orden_id`
+        // es el id con el que se cargó la orden arriba.
+        orden_id:        shipping.orden_id,
       },
     });
   }

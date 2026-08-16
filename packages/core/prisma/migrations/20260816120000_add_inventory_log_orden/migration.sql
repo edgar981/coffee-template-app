@@ -1,0 +1,16 @@
+-- Orden de la que nace un movimiento de kardex, para que la celda "Motivo" de la
+-- auditoría enlace a la orden SIN parsear el texto del motivo. Estructura el dato
+-- en vez de reconstruirlo: los movimientos de orden los genera el sistema DESDE
+-- una orden, con el id en la mano — parsearlo después es rehacer info que se tuvo.
+--
+-- Va en su PROPIA migración y no junto a `add_inventory_log_actor` (que hubiera
+-- sido un solo archivo) porque aquélla YA está aplicada a `development` (un preview
+-- de esta rama corrió `migrate deploy`), y una migración aplicada tiene checksum
+-- inmutable: editarla rompería el siguiente deploy. Sigue siendo UN solo deploy —
+-- las dos migraciones aplican juntas en el build del merge a producción.
+--
+-- ADITIVA y NULLABLE, misma forma que el actor: los movimientos manuales (ajuste,
+-- edición de ficha) no vienen de una orden, y las filas viejas quedan en NULL
+-- (honesto: sin enlace). Snapshot del id, SIN FK — el historial sobrevive a que la
+-- orden se borre; el enlace se resuelve en la lectura (id → numero_orden).
+ALTER TABLE "InventoryLog" ADD COLUMN "orden_id" TEXT;

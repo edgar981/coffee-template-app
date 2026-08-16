@@ -18,6 +18,11 @@ export interface InventoryLog {
   // vista de auditoría lo muestra como "—", que es honesto: no se sabe quién fue.
   ajustado_por?: string | null;
   ajustado_por_nombre?: string | null;
+  // Orden de la que nace el movimiento (snapshot del id) y su número YA RESUELTO
+  // por el servidor para el enlace. `orden_numero` es null si el movimiento es
+  // manual o si la orden ya no existe → la celda "Motivo" va en texto plano.
+  orden_id?: string | null;
+  orden_numero?: string | null;
   createdAt: string;
 }
 
