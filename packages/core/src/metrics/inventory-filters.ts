@@ -59,10 +59,13 @@ export function cruzoMinimo(
 }
 
 /**
- * URL param that switches the Inventario page to the low-stock view:
- * `/admin/inventario?stock=bajo-minimo`. The dashboard card links with it and the
- * page parses it back to `isLowStock`, so card and list show the same rows.
+ * El param LEGACY de la Inventario vieja: `/admin/inventario?stock=bajo-minimo`
+ * abría su vista de stock bajo. Esa vista se retiró —la cola de reposición vive
+ * ahora en el carril "Por reponer" de Productos—, así que estos constantes ya no
+ * arman ningún enlace vivo: sólo los usa `redirect-inventario` para RECONOCER el
+ * param en los enlaces congelados (viejas `Notification.href`, `cmdk-recents`) y
+ * mandarlos a `/admin/productos?f=reponer`. Se mantienen mientras esa población
+ * congelada exista.
  */
 export const LOW_STOCK_PARAM = 'stock';
 export const LOW_STOCK_VALUE = 'bajo-minimo';
-export const LOW_STOCK_QUERY = `${LOW_STOCK_PARAM}=${LOW_STOCK_VALUE}`;

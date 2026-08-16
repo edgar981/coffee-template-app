@@ -10,9 +10,13 @@
 // base) y Clientes por el perfil `/admin/clientes/<id>` (una ruta de path). Acá
 // no hay ninguna de las dos:
 //
-//   · `Notification.href`: CERO hrefs de producto. `AUTOMATION_HREF.stockBajo`
-//     apunta a `/admin/inventario`, no a productos, así que ninguna automatización
-//     escribe una URL de esta sección. Verificado en el discovery.
+//   · `Notification.href`: no hay nada que TRADUCIR. (Ojo: esto cambió con el
+//     retiro de Inventario — `AUTOMATION_HREF.stockBajo` ahora apunta a
+//     `/admin/productos?f=reponer`, así que sí hay hrefs de producto en la base.
+//     Pero ese destino es la ruta PELADA con un query que la pantalla ya entiende,
+//     así que `destinoDesdeProductos` lo deja pasar en `null` —es su destino, no un
+//     origen a redirigir—. La afirmación vieja "cero hrefs de producto" ya no vale;
+//     la que importa —"ninguno hay que traducir"— sigue en pie.)
 //   · No hay ruta de detalle: la vieja abría el detalle con `?producto=<id>`, un
 //     QUERY, no un segmento de path. Nunca existió `/admin/productos/<id>`.
 //

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { STAT_CHIP } from '@/constants/stat-chip';
 import { POR_COBRAR_QUERY_PEDIDOS } from '@duna/core/metrics/order-stat-filters';
-import { LOW_STOCK_QUERY } from '@duna/core/metrics/inventory-filters';
+import { RUTA_REPONER } from '@/lib/productos/filtros';
 import { HORAS_ENTREGA_SIN_COBRO } from '@/lib/automations/reglas';
 
 // ─── Registry de automatizaciones ────────────────────────────────────────────
@@ -502,7 +502,12 @@ export function parseAutomationConfig(def: AutomationDef, stored: unknown): Reco
 
 /** Enlaces profundos de las notificaciones internas — reusan los helpers compartidos. */
 export const AUTOMATION_HREF = {
-  stockBajo:  `/admin/inventario?${LOW_STOCK_QUERY}`,
+  // "Stock bajo" pregunta "¿qué repongo?", y esa cola vive en el carril "Por
+  // reponer" de Productos desde que Inventario se encogió a auditoría (que no puede
+  // filtrar por bajo-mínimo). Las notificaciones NUEVAS llevan este href directo;
+  // las viejas —congeladas en `Notification.href` como `/admin/inventario?stock=…`—
+  // las traduce `redirect-inventario` al MISMO destino.
+  stockBajo:  RUTA_REPONER,
   porCobrar:  `/admin/pedidos?${POR_COBRAR_QUERY_PEDIDOS}`,
   entregas:   '/admin/entregas',
 } as const;

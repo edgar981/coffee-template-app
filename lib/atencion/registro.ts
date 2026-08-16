@@ -14,8 +14,8 @@ import { ADMIN_NAV } from '@/constants/admin-nav';
 // ── LA SEGUNDA SECCIÓN ES PRODUCTOS, Y SU REGLA YA EXISTÍA ──────────────────
 //
 // No se inventa un criterio: es `isLowStock`, la MISMA definición que ya cuenta
-// la card "Alertas de Stock" del dashboard, la que filtra `?stock=bajo-minimo` en
-// Inventario y —vía `cruzoMinimo`— la que dispara la automatización `stock_bajo`.
+// la card "Alertas de Stock" del dashboard, la que recorta el carril "Por reponer"
+// de Productos y —vía `cruzoMinimo`— la que dispara la automatización `stock_bajo`.
 // Un criterio propio acá haría que el punto y la card contaran distinto lo mismo.
 //
 // ── DOS NOTAS QUE HAY QUE TENER ESCRITAS (owner) ────────────────────────────

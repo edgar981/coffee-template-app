@@ -59,8 +59,8 @@ async function contarPedidos(): Promise<number> {
  * Productos bajo su punto de reposición.
  *
  * `isLowStock` y no una comparación propia: es la MISMA función que cuenta la
- * card "Alertas de Stock" del dashboard y que filtra `?stock=bajo-minimo` en
- * Inventario, así que el punto no puede decir que hay algo que esas dos vistas no
+ * card "Alertas de Stock" del dashboard y que recorta el carril "Por reponer" de
+ * Productos, así que el punto no puede decir que hay algo que esas dos vistas no
  * muestren. Ya excluye los inactivos por dentro (un producto despublicado no es
  * una alerta accionable), por eso acá no hay `where` de `activo`: duplicarlo sería
  * una segunda opinión sobre lo mismo.
