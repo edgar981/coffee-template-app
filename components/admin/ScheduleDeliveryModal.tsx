@@ -462,13 +462,17 @@ function ScheduleBody({ shipping, ordenId, guarda, marcarCambios, intentarCerrar
               distintos para la misma tarea, visibles en la misma sesión. */}
           <DateField id="sd-fecha" value={fecha} onChange={setFecha} />
         </div>
-        {/* La brecha, dicha: se puede guardar con datos parciales (el mensajero
-            NO es obligatorio para agendar), pero despachar exige ambos. */}
+        {/* GUARDAR PARCIAL ES LEGÍTIMO: programar ahora y completar después es un
+            flujo válido (mensajero y fecha son opcionales para agendar; sólo
+            DESPACHAR exige ambos, § entrega-estado). Por eso el copy dice "puedes
+            guardarla así" ANTES de nombrar lo que faltará: sonaba a error de
+            validación al lado de un botón Guardar habilitado, y no lo es — el
+            defecto era el copy, no el botón. */}
         {faltaParaDespachar && (
           <p className="col-span-2 -mt-2 text-xs text-muted-foreground">
             {faltaParaDespachar === 'mensajero'
-              ? 'Falta asignar mensajero para poder despachar.'
-              : 'Falta asignar la fecha programada para poder despachar.'}
+              ? 'Puedes guardarla así; para despacharla luego también hará falta un mensajero.'
+              : 'Puedes guardarla así; para despacharla luego también hará falta la fecha.'}
           </p>
         )}
         <div className="col-span-2">
