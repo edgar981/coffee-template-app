@@ -491,14 +491,9 @@ function ScheduleBody({ shipping, ordenId, guarda, marcarCambios, intentarCerrar
             {saving ? 'Guardando...' : isReschedule ? 'Reprogramar' : 'Guardar entrega'}
           </button>
         </div>
-        {/* El botón deshabilitado DICE por qué cuando no hay nada que guardar. La
-            falta de dirección ya tiene su propio aviso ámbar arriba, así que acá
-            sólo el "no hay cambios". */}
-        {problema?.campo === 'sin_cambios' && (
-          <p className="duna-field__hint" style={{ flexBasis: '100%', textAlign: 'right', margin: 0 }}>
-            {problema.mensaje}
-          </p>
-        )}
+        {/* Sin cambios NO lleva mensaje: el botón deshabilitado ya lo dice y no se
+            tocó nada. La validez (falta de dirección) se conserva en su propio
+            aviso ámbar de arriba; esta ranura no reserva alto vacía. */}
       </div>
     </>
   );

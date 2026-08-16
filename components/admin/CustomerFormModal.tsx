@@ -227,14 +227,9 @@ function Cuerpo({ customer, guarda, marcarCambios, intentarCerrar, onClose, onSa
             {guarda.enVuelo ? 'Guardando…' : 'Guardar'}
           </button>
         </div>
-        {/* El botón deshabilitado DICE por qué cuando el motivo no es un campo en
-            rojo: sin cambios no hay nada que guardar. La falta de nombre ya se
-            anuncia en su propio campo, así que acá sólo el "no hay cambios". */}
-        {problema?.campo === 'sin_cambios' && (
-          <p className="duna-field__hint" style={{ flexBasis: '100%', textAlign: 'right', margin: 0 }}>
-            {problema.mensaje}
-          </p>
-        )}
+        {/* Sin cambios NO lleva mensaje: el botón deshabilitado ya lo dice y el
+            operador no escribió nada. La validez (nombre) se anuncia en su propio
+            campo tras el primer intento; ésta ranura no reserva alto vacía. */}
       </div>
     </>
   );

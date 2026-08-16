@@ -643,13 +643,9 @@ function Cuerpo({ product, guarda, marcarCambios, intentarCerrar, onClose, onSav
             {faltantes.length === 1 ? 'Falta' : 'Faltan'}: {faltantes.join(', ')}
           </p>
         )}
-        {/* En edición, sin obligatorios faltantes pero sin cambios: se dice por qué
-            el botón está apagado. */}
-        {!bloqueado && faltantes.length === 0 && sinCambios && (
-          <p className="duna-field__hint" style={{ flexBasis: '100%', textAlign: 'right', margin: 0 }}>
-            No hay cambios que guardar
-          </p>
-        )}
+        {/* Sin cambios NO lleva mensaje: el botón deshabilitado ya lo dice y no se
+            escribió nada. La validez (obligatorios faltantes) sí se conserva —es
+            el hint de arriba— porque ahí el operador sí escribió algo inválido. */}
       </div>
 
       {/* Inspección de una miniatura. Se monta FUERA del formulario para que su
