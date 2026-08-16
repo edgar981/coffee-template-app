@@ -297,9 +297,13 @@ function Productos() {
             FILTRA. Una cifra que repite a un control accionable le quita sitio a
             la respuesta sin agregar una. */}
         <h1 className="duna-display-m" style={{ minWidth: 0 }}>Productos</h1>
+        {/* SECUNDARIO: crear es la ESCOTILLA, no la acción primaria de la vista.
+            Con la creación en secundario, la vista queda sin primario sólido, y
+            Amber Minimal lo permite ("máx. una"). Decisión de sistema, igual en
+            Pedidos y Clientes. */}
         <button
           type="button"
-          className="duna-btn duna-btn--primary"
+          className="duna-btn duna-btn--secondary"
           style={{ marginLeft: 'auto', flexShrink: 0 }}
           onClick={() => setCreando(true)}
         >

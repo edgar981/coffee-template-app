@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Plus } from 'lucide-react';
@@ -23,6 +23,7 @@ import {
   CARRILES_CLIENTES, aplicarCarril, conteosClientes, carrilPorKey, buscarClientes,
   type CarrilKey,
 } from '@/lib/clientes/filtros';
+import { autoSeleccion } from '@/lib/admin/auto-seleccion';
 import { badgeCobro, pasosDelPedido } from '@/lib/pedidos/estado';
 import { hace } from '@/lib/pedidos/tiempo';
 import type { Customer, CustomerWithOrders, CustomerOrderRow } from '@/types/customer';
@@ -219,6 +220,26 @@ function ClientesV2() {
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
   }, [params, pathname, router]);
 
+  // AUTO-SELECCIÓN / RE-SELECCIÓN en escritorio: mismo mecanismo que Pedidos. El
+  // conjunto VISIBLE cambia con el carril y con el buscador; `autoSeleccion`
+  // (pura, testeada) decide conservar el seleccionado si sigue presente,
+  // re-seleccionar el primero si cayó fuera, o limpiar si el carril quedó vacío.
+  // El deep link `?cliente=` gana en la primera evaluación; en móvil no hay
+  // auto-select. Productos queda FUERA (su cuadrícula muestra el split al
+  // seleccionar).
+  const primeraAutoSel = useRef(true);
+  useEffect(() => {
+    if (esMovil || cargando) return;
+    const decision = autoSeleccion({
+      seleccion,
+      idsVisibles: visibles.map(c => c.id),
+      primeraVez: primeraAutoSel.current,
+    });
+    primeraAutoSel.current = false;
+    if (decision.tipo === 'seleccionar') navegar({ cliente: decision.id });
+    else if (decision.tipo === 'limpiar')  navegar({ cliente: null });
+  }, [esMovil, cargando, seleccion, visibles, navegar]);
+
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
     <div className="duna">
@@ -227,16 +248,17 @@ function ClientesV2() {
             FILTRA. Una cifra que repite a un control accionable le quita sitio a
             la respuesta sin agregar una. */}
         <h1 className="duna-display-m" style={{ minWidth: 0 }}>Clientes</h1>
-        {/* EL único primario sólido de la vista. Todo lo demás va secundario o
-            ghost — ésa es la regla de un solo sólido por pantalla.
+        {/* SECUNDARIO: crear a mano es la ESCOTILLA, no la acción primaria de la
+            vista (los clientes se crean al llegar un pedido). Con la creación en
+            secundario, la vista queda sin primario sólido, y Amber Minimal lo
+            permite ("máx. una"). Decisión de sistema, igual en Pedidos y Productos.
 
             El "+" no es adorno: es lo que hace que el botón se lea como CREAR y
-            no como "ir a clientes nuevos". La pantalla vieja lo tenía y esta
-            nació sin él. El TAMAÑO lo pone el sistema (`.duna-btn svg`); acá sólo
-            se elige el ícono, igual que `ChipCanal` elige el del canal. */}
+            no como "ir a clientes nuevos". El TAMAÑO lo pone el sistema
+            (`.duna-btn svg`); acá sólo se elige el ícono. */}
         <button
           type="button"
-          className="duna-btn duna-btn--primary"
+          className="duna-btn duna-btn--secondary"
           style={{ marginLeft: 'auto', flexShrink: 0 }}
           onClick={() => setCreando(true)}
         >

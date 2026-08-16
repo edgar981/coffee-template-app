@@ -23,7 +23,16 @@ const ICONO_CANAL: Record<OrderChannel, typeof Store> = {
   referido:  Users,
 };
 
-export function ChipCanal({ canal }: { canal?: OrderChannel | null }) {
+export function ChipCanal({ canal, soloIcono = false }: {
+  canal?: OrderChannel | null;
+  /**
+   * Sólo el ícono, sin la palabra. Se usa donde el canal convive con una acción
+   * del MISMO canal —el detalle del pedido, con su botón de WhatsApp al lado— y
+   * repetir "WhatsApp" sería redundante. El ícono ya identifica el canal; el
+   * nombre viaja en `title`/`aria-label` para el hover y el lector de pantalla.
+   */
+  soloIcono?: boolean;
+}) {
   // Sin canal no hay chip. Un cliente creado antes del campo no tiene por qué
   // heredar un "Directo" que nadie declaró — preferir callar a afirmar.
   if (!canal) return null;
@@ -31,5 +40,12 @@ export function ChipCanal({ canal }: { canal?: OrderChannel | null }) {
   // string): un chip sin ícono rompería la fila; el default no afirma nada falso
   // que el label no diga ya.
   const Icono = ICONO_CANAL[canal] ?? Store;
-  return <span className="duna-chip-channel"><Icono />{CANALES[canal] ?? canal}</span>;
+  const label = CANALES[canal] ?? canal;
+  if (soloIcono) {
+    // El nombre NO se pierde: va al `aria-label` (lector de pantalla) y al
+    // `title` (hover). `.duna-chip-channel` no tiene padding ni fondo, así que
+    // sin texto queda un ícono muted limpio, sin caja lopsided.
+    return <span className="duna-chip-channel" title={label} aria-label={label}><Icono /></span>;
+  }
+  return <span className="duna-chip-channel"><Icono />{label}</span>;
 }

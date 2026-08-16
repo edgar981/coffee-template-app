@@ -1,8 +1,9 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { Plus } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, MessageCircle } from 'lucide-react';
 import { OrderCard } from '@duna/design-system/components/OrderCard';
 import { ItemsTable } from '@duna/design-system/components/ItemsTable';
 import { Timeline } from '@duna/design-system/components/Timeline';
@@ -33,6 +34,8 @@ import { RegisterPaymentModal } from '@/components/admin/RegisterPaymentModal';
 import { NewOrderModal } from '@/components/admin/NewOrderModal';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { findSlotLabel } from '@duna/core/shipping-config';
+import { customerWhatsappHref } from '@duna/core/whatsapp-link';
+import { siteConfig } from '@/lib/config/site';
 import { formatFecha } from '@duna/core/format-fecha';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { ConfirmDespachoSinPago } from '@/components/admin/ConfirmDespachoSinPago';
@@ -44,6 +47,7 @@ import { accionAlVerificar, puedeDecidirse, nombreArchivo } from '@/lib/comproba
 import { MAX_COMPROBANTE_MB } from '@/constants/comprobante';
 import { RECHAZAR_COMPROBANTE_COPY, CANCELAR_ORDEN_COPY } from '@/constants/confirmaciones';
 import { isScheduledShipping, hasScheduleData, missingToDispatch } from '@/constants/shippings';
+import { autoSeleccion } from '@/lib/admin/auto-seleccion';
 import type { Shipping } from '@/types/shipping';
 import type { Comprobante } from '@/types/comprobante';
 
@@ -365,6 +369,30 @@ function Pedidos() {
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
   }, [params, pathname, router]);
 
+  // AUTO-SELECCIÓN / RE-SELECCIÓN en escritorio: mantiene el panel coherente con
+  // el conjunto VISIBLE, que cambia con el carril y con el rango de fechas. La
+  // decisión —conservar el seleccionado si sigue presente, re-seleccionar el
+  // primero si cayó fuera, o limpiar si el carril quedó vacío— vive en
+  // `autoSeleccion` (pura, testeada). El deep link `?pedido=` gana en la primera
+  // evaluación. En móvil no hay auto-select (el detalle es un sheet).
+  //
+  // El defecto que cierra: el efecto viejo bailaba con `|| seleccion ||`, así que
+  // sólo corría al montar y nunca re-evaluaba al cambiar de carril — dejando el
+  // panel con un pedido de otro carril (`elegido` se resuelve contra la lista
+  // COMPLETA, no la filtrada).
+  const primeraAutoSel = useRef(true);
+  useEffect(() => {
+    if (esMovil || cargando) return;
+    const decision = autoSeleccion({
+      seleccion,
+      idsVisibles: visibles.map(p => p.numero_orden),
+      primeraVez: primeraAutoSel.current,
+    });
+    primeraAutoSel.current = false;
+    if (decision.tipo === 'seleccionar') navegar({ pedido: decision.id });
+    else if (decision.tipo === 'limpiar')  navegar({ pedido: null });
+  }, [esMovil, cargando, seleccion, visibles, navegar]);
+
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
     <div className="duna">
@@ -373,11 +401,14 @@ function Pedidos() {
             FILTRA. Una cifra que repite a un control accionable le quita sitio a
             la respuesta sin agregar una. */}
         <h1 className="duna-display-m" style={{ minWidth: 0 }}>Pedidos</h1>
-        {/* EL único primario sólido de la vista, con su "+". El tamaño del ícono
-            lo pone el sistema (`.duna-btn svg`); acá sólo se elige cuál. */}
+        {/* SECUNDARIO, no el primario sólido de la vista. Crear a mano es la
+            ESCOTILLA, no la acción primaria: los pedidos entran por WhatsApp, la
+            tienda y los canales. Con la creación en secundario, esta vista no
+            tiene primario sólido, y Amber Minimal lo permite ("máx. una"). El
+            tamaño del ícono lo pone el sistema (`.duna-btn svg`). */}
         <button
           type="button"
-          className="duna-btn duna-btn--primary"
+          className="duna-btn duna-btn--secondary"
           style={{ marginLeft: 'auto', flexShrink: 0 }}
           onClick={() => setCreando(true)}
         >
@@ -721,6 +752,17 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
   const soportes = fuente.comprobantes ?? [];
   const lightbox = useLightboxComprobante();
 
+  // WhatsApp al cliente, la acción más frecuente del operador de este negocio y
+  // la que se perdió al migrar de /admin/ordenes. Usa el MISMO snapshot que se
+  // muestra (`orden.cliente_telefono`), no una segunda fuente — así el enlace
+  // abre el número al que el cliente pidió que se le escribiera por ESTE pedido.
+  // `null` si el teléfono no es un celular válido: sin acción que ofrecer, no se
+  // pinta un botón muerto.
+  const waHref = customerWhatsappHref(
+    orden.cliente_telefono,
+    `Hola ${orden.cliente_nombre}, te escribimos de ${siteConfig.brand.nombre} por tu pedido ${orden.numero_orden}`,
+  );
+
   // El método REAL manda sobre el previsto: el pago que existe gana sobre la
   // intención declarada al crear la orden. Sin pago, se dice que es lo previsto —
   // presentarlo a secas haría creer que ya se cobró.
@@ -748,7 +790,18 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
         <span className="duna-avatar">{iniciales(orden.cliente_nombre)}</span>
         <div style={{ minWidth: 0 }}>
-          <div className="duna-title">{orden.cliente_nombre}</div>
+          {/* El nombre lleva a su ficha, como en la pantalla vieja. Sólo cuando hay
+              cliente al que ir: `cliente_id` es nullable (órdenes previas a la
+              relación), y un enlace muerto promete una navegación que no ocurre —
+              misma regla que CustomerLink ("no dead link"). Sin id, texto plano. */}
+          <div className="duna-title">
+            {orden.cliente_id ? (
+              <Link href={`/admin/clientes?cliente=${encodeURIComponent(orden.cliente_id)}`}
+                    className="duna-link" title={`Ver ficha de ${orden.cliente_nombre}`}>
+                {orden.cliente_nombre}
+              </Link>
+            ) : orden.cliente_nombre}
+          </div>
           <div className="duna-mono">{orden.numero_orden}</div>
         </div>
         <span className={`duna-badge ${BADGE_TONE_CLASS[badge.tone]}`} style={{ marginLeft: 'auto' }}>
@@ -757,8 +810,19 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
         </span>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-3)' }}>
-        <ChipCanal canal={orden.canal} />
+      {/* `flexWrap: wrap` es INTRÍNSECO, no un breakpoint: la fila rompe por
+          proporción del split, no por viewport, así que un media query no la
+          arregla. Sin envolver, los ítems encogen hasta su min-content y la
+          dirección se parte en columnas de una palabra ("Ak 58 / 169a, /
+          Bogota"). Con wrap, la dirección —el ítem más ancho y el último— cae a
+          su propio renglón (ancho completo, wrap normal) sólo cuando no cabe:
+          "a su propio renglón antes de comprimirse". En ancho, todo sigue en una
+          línea (sin cambio). */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-3)' }}>
+        {/* SÓLO ÍCONO acá: el botón de WhatsApp de al lado ya lleva la palabra, y
+            un canal "WhatsApp" con texto la repetiría. En la card de la lista
+            (sin ese botón) el chip sigue con su etiqueta. */}
+        <ChipCanal canal={orden.canal} soloIcono />
         {/* EL TELÉFONO, y sólo él, del pliegue de contacto de la pantalla vieja.
             Mismo criterio que la evidencia de la entrega: entra lo que HABILITA
             una acción que esta pantalla ofrece. El teléfono la habilita —el
@@ -777,6 +841,15 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
             un "Teléfono: —" ocupa el mismo espacio para no decir nada. */}
         {orden.cliente_telefono && (
           <span className="duna-mono">{orden.cliente_telefono}</span>
+        )}
+        {/* El acceso a WhatsApp de la pantalla vieja. Ghost-sm para no competir con
+            las acciones de la vista; abre en pestaña nueva. Sólo con un número
+            válido (`waHref`). */}
+        {waHref && (
+          <a href={waHref} target="_blank" rel="noopener noreferrer"
+             className="duna-btn duna-btn--ghost duna-btn--sm">
+            <MessageCircle /> WhatsApp
+          </a>
         )}
         {/* DEUDA DECLARADA: DUNA-DS pide "Recoge en tienda" si el pedido es
             pickup. El dominio NO tiene pickup — `TipoEnvio` es LOCAL | NACIONAL y
@@ -976,69 +1049,11 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
 
       <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
 
-      {/* ── NOTAS INTERNAS ───────────────────────────────────────────────────
-          Entra CON el retiro de /admin/ordenes, no después: esa pantalla era el
-          único sitio donde estas notas se podían leer y editar, y borrarla sin
-          esto dejaría el campo de SÓLO ESCRITURA — el modal de crear las escribe
-          y `POST /api/orders/[id]/address` les anexa una línea de auditoría cada
-          vez que alguien agrega una dirección a mano. Un dato que el sistema
-          sigue produciendo y que nadie puede ver no es una deuda heredada: la
-          crearía el borrado.
-
-          SE MUESTRA EL CAMPO COMPLETO, líneas de auditoría incluidas. Filtrarlas
-          para dejar "sólo lo que el operador escribió" sería editorializar un
-          registro — y justamente esas líneas son las que explican por qué una
-          dirección aparece sin que nadie recuerde haberla puesto.
-
-          Sin pliegue: el design-system no tiene primitiva de plegado, y
-          `components/admin/Pliegue` es chrome de la app. Meterlo acá ampliaría la
-          mezcla visual más allá de la excepción declarada (los modales), que es
-          justo lo que la regla del sistema prohíbe. Va como una sección más, con
-          el mismo `eyebrow` que las demás. */}
-      <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-2)' }}>Notas internas</div>
-      <textarea
-        className="duna-input"
-        rows={3}
-        placeholder="Sin notas."
-        // DERIVADO, no una copia congelada: el panel NO se remonta al cambiar de
-        // pedido (no lleva `key`), así que un `useState(orden.notas_internas)`
-        // seguiría mostrando las notas del pedido anterior. `null` = el operador
-        // no ha tocado nada y manda el servidor. Es el mismo bug que ya costó una
-        // reversión de pago con el Select de estado del detalle viejo.
-        value={borrador ?? fuente.notas_internas ?? ''}
-        onChange={(e) => setBorrador(e.target.value)}
-      />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-2)' }}>
-        <button
-          type="button"
-          className="duna-btn duna-btn--secondary"
-          // Sin cambios no hay nada que guardar, y un botón vivo que no hace nada
-          // invita a pulsarlo para averiguar si pasó algo.
-          disabled={borrador === null || acciones.guardandoNotas}
-          onClick={() => acciones.guardarNotas(fuente, borrador ?? '', () => setBorrador(null))}
-        >
-          {acciones.guardandoNotas ? 'Guardando…' : 'Guardar notas'}
-        </button>
-        {borrador !== null && !acciones.guardandoNotas && (
-          <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm" onClick={() => setBorrador(null)}>
-            Descartar
-          </button>
-        )}
-      </div>
-      <ErrorDialogo mensaje={acciones.errorNotas.mensaje} />
-
-      {/* ── Cancelar ─────────────────────────────────────────────────────── */}
-      {orden.estado !== 'cancelado' && (
-        <div style={{ marginTop: 'var(--duna-space-4)' }}>
-          <button type="button" className="duna-btn duna-btn--ghost" onClick={() => acciones.abrirCancelar(fuente)}>
-            Cancelar orden
-          </button>
-        </div>
-      )}
-
-      <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
-
-      {/* ── Recorrido ────────────────────────────────────────────────────── */}
+      {/* ── Recorrido ────────────────────────────────────────────────────────
+          Sube por encima de Notas: es el CORAZÓN del detalle —el libro de
+          transiciones— y con el textarea de notas encima quedaba empujado al
+          fondo, fuera de la vista. Lo que crece o se consulta poco (notas) baja;
+          lo que responde "¿qué pasó con este pedido?" queda arriba del pliegue. */}
       <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-3)' }}>Recorrido del pedido</div>
       {cargando && <p className="duna-sub" style={{ margin: 0 }}>Cargando el recorrido…</p>}
       {!cargando && pasos.length > 0 && (
@@ -1059,6 +1074,83 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
           )}
         </>
       )}
+
+      <hr className="duna-divider" style={{ margin: 'var(--duna-space-5) 0' }} />
+
+      {/* ── NOTAS INTERNAS ───────────────────────────────────────────────────
+          Entra CON el retiro de /admin/ordenes, no después: esa pantalla era el
+          único sitio donde estas notas se podían leer y editar, y borrarla sin
+          esto dejaría el campo de SÓLO ESCRITURA — el modal de crear las escribe
+          y `POST /api/orders/[id]/address` les anexa una línea de auditoría cada
+          vez que alguien agrega una dirección a mano. Un dato que el sistema
+          sigue produciendo y que nadie puede ver no es una deuda heredada: la
+          crearía el borrado.
+
+          SE MUESTRA EL CAMPO COMPLETO, líneas de auditoría incluidas. Filtrarlas
+          para dejar "sólo lo que el operador escribió" sería editorializar un
+          registro — y justamente esas líneas son las que explican por qué una
+          dirección aparece sin que nadie recuerde haberla puesto.
+
+          Sin pliegue: el design-system no tiene primitiva de plegado, y
+          `components/admin/Pliegue` es chrome de la app. Meterlo acá ampliaría la
+          mezcla visual más allá de la excepción declarada (los modales), que es
+          justo lo que la regla del sistema prohíbe. Va como una sección más, con
+          el mismo `eyebrow` que las demás. */}
+      <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-2)' }}>Notas internas</div>
+      {/* VACÍA es una línea (misma regla que Comprobantes): el caso normal de un
+          pedido es no tener notas, y un textarea vacío de 3 filas pesaba más que
+          el Recorrido. Con notas o mientras se edita, el editor completo; sin
+          nada, un disparador que al pulsarlo abre el editor (`borrador = ''`). */}
+      {(fuente.notas_internas ?? '').trim() !== '' || borrador !== null ? (
+        <>
+          <textarea
+            className="duna-input"
+            rows={3}
+            placeholder="Sin notas."
+            // DERIVADO, no una copia congelada: el panel NO se remonta al cambiar de
+            // pedido (no lleva `key`), así que un `useState(orden.notas_internas)`
+            // seguiría mostrando las notas del pedido anterior. `null` = el operador
+            // no ha tocado nada y manda el servidor. Es el mismo bug que ya costó una
+            // reversión de pago con el Select de estado del detalle viejo.
+            value={borrador ?? fuente.notas_internas ?? ''}
+            onChange={(e) => setBorrador(e.target.value)}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-2)' }}>
+            <button
+              type="button"
+              className="duna-btn duna-btn--secondary"
+              // Sin cambios no hay nada que guardar, y un botón vivo que no hace nada
+              // invita a pulsarlo para averiguar si pasó algo. Además del borrador
+              // intacto, un borrador igual al valor del servidor tampoco guarda —
+              // así "Agregar nota" y no escribir nada no deja un guardado en vacío.
+              disabled={acciones.guardandoNotas || borrador === null || borrador === (fuente.notas_internas ?? '')}
+              onClick={() => acciones.guardarNotas(fuente, borrador ?? '', () => setBorrador(null))}
+            >
+              {acciones.guardandoNotas ? 'Guardando…' : 'Guardar notas'}
+            </button>
+            {borrador !== null && !acciones.guardandoNotas && (
+              <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm" onClick={() => setBorrador(null)}>
+                Descartar
+              </button>
+            )}
+          </div>
+          <ErrorDialogo mensaje={acciones.errorNotas.mensaje} />
+        </>
+      ) : (
+        <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm" onClick={() => setBorrador('')}>
+          Agregar nota interna
+        </button>
+      )}
+
+      {/* ── Cancelar ─────────────────────────────────────────────────────── */}
+      {orden.estado !== 'cancelado' && (
+        <div style={{ marginTop: 'var(--duna-space-4)' }}>
+          <button type="button" className="duna-btn duna-btn--ghost" onClick={() => acciones.abrirCancelar(fuente)}>
+            Cancelar orden
+          </button>
+        </div>
+      )}
+
     </div>
   );
 }
