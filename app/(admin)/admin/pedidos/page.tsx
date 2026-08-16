@@ -798,7 +798,15 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
         </span>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-3)' }}>
+      {/* `flexWrap: wrap` es INTRÍNSECO, no un breakpoint: la fila rompe por
+          proporción del split, no por viewport, así que un media query no la
+          arregla. Sin envolver, los ítems encogen hasta su min-content y la
+          dirección se parte en columnas de una palabra ("Ak 58 / 169a, /
+          Bogota"). Con wrap, la dirección —el ítem más ancho y el último— cae a
+          su propio renglón (ancho completo, wrap normal) sólo cuando no cabe:
+          "a su propio renglón antes de comprimirse". En ancho, todo sigue en una
+          línea (sin cambio). */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-3)' }}>
         {/* SÓLO ÍCONO acá: el botón de WhatsApp de al lado ya lleva la palabra, y
             un canal "WhatsApp" con texto la repetiría. En la card de la lista
             (sin ese botón) el chip sigue con su etiqueta. */}
