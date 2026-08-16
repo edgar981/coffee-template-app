@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, MessageCircle } from 'lucide-react';
@@ -47,6 +47,7 @@ import { accionAlVerificar, puedeDecidirse, nombreArchivo } from '@/lib/comproba
 import { MAX_COMPROBANTE_MB } from '@/constants/comprobante';
 import { RECHAZAR_COMPROBANTE_COPY, CANCELAR_ORDEN_COPY } from '@/constants/confirmaciones';
 import { isScheduledShipping, hasScheduleData, missingToDispatch } from '@/constants/shippings';
+import { autoSeleccion } from '@/lib/admin/auto-seleccion';
 import type { Shipping } from '@/types/shipping';
 import type { Comprobante } from '@/types/comprobante';
 
@@ -368,18 +369,29 @@ function Pedidos() {
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
   }, [params, pathname, router]);
 
-  // AUTO-SELECCIÓN en escritorio: al entrar sin nada elegido, se abre el más
-  // reciente (el primero de la lista) para que el panel no arranque con la
-  // instrucción "Elige un pedido" ocupando media pantalla. Tres guardas:
-  //  · el deep link GANA — sólo dispara con `seleccion` en null, así un `?pedido=`
-  //    entrante nunca se pisa;
-  //  · en MÓVIL no — ahí el detalle es un sheet y auto-abrirlo taparía la lista,
-  //    que es la pantalla en angosto;
-  //  · sólo con la lista ya cargada y con algo visible.
+  // AUTO-SELECCIÓN / RE-SELECCIÓN en escritorio: mantiene el panel coherente con
+  // el conjunto VISIBLE, que cambia con el carril y con el rango de fechas. La
+  // decisión —conservar el seleccionado si sigue presente, re-seleccionar el
+  // primero si cayó fuera, o limpiar si el carril quedó vacío— vive en
+  // `autoSeleccion` (pura, testeada). El deep link `?pedido=` gana en la primera
+  // evaluación. En móvil no hay auto-select (el detalle es un sheet).
+  //
+  // El defecto que cierra: el efecto viejo bailaba con `|| seleccion ||`, así que
+  // sólo corría al montar y nunca re-evaluaba al cambiar de carril — dejando el
+  // panel con un pedido de otro carril (`elegido` se resuelve contra la lista
+  // COMPLETA, no la filtrada).
+  const primeraAutoSel = useRef(true);
   useEffect(() => {
-    if (esMovil || seleccion || cargando || visibles.length === 0) return;
-    navegar({ pedido: visibles[0].numero_orden });
-  }, [esMovil, seleccion, cargando, visibles, navegar]);
+    if (esMovil || cargando) return;
+    const decision = autoSeleccion({
+      seleccion,
+      idsVisibles: visibles.map(p => p.numero_orden),
+      primeraVez: primeraAutoSel.current,
+    });
+    primeraAutoSel.current = false;
+    if (decision.tipo === 'seleccionar') navegar({ pedido: decision.id });
+    else if (decision.tipo === 'limpiar')  navegar({ pedido: null });
+  }, [esMovil, cargando, seleccion, visibles, navegar]);
 
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).

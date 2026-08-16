@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Plus } from 'lucide-react';
@@ -23,6 +23,7 @@ import {
   CARRILES_CLIENTES, aplicarCarril, conteosClientes, carrilPorKey, buscarClientes,
   type CarrilKey,
 } from '@/lib/clientes/filtros';
+import { autoSeleccion } from '@/lib/admin/auto-seleccion';
 import { badgeCobro, pasosDelPedido } from '@/lib/pedidos/estado';
 import { hace } from '@/lib/pedidos/tiempo';
 import type { Customer, CustomerWithOrders, CustomerOrderRow } from '@/types/customer';
@@ -219,15 +220,25 @@ function ClientesV2() {
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
   }, [params, pathname, router]);
 
-  // AUTO-SELECCIÓN en escritorio: se abre el primero de la lista para que el panel
-  // no arranque con "Elige un cliente". Mismo criterio que Pedidos —split siempre
-  // visible—: el deep link (`?cliente=`) gana, en móvil no (el detalle es sheet),
-  // y sólo con la lista cargada. Productos queda FUERA: su cuadrícula muestra el
-  // split al seleccionar, y auto-elegir forzaría el panel abierto en la carga.
+  // AUTO-SELECCIÓN / RE-SELECCIÓN en escritorio: mismo mecanismo que Pedidos. El
+  // conjunto VISIBLE cambia con el carril y con el buscador; `autoSeleccion`
+  // (pura, testeada) decide conservar el seleccionado si sigue presente,
+  // re-seleccionar el primero si cayó fuera, o limpiar si el carril quedó vacío.
+  // El deep link `?cliente=` gana en la primera evaluación; en móvil no hay
+  // auto-select. Productos queda FUERA (su cuadrícula muestra el split al
+  // seleccionar).
+  const primeraAutoSel = useRef(true);
   useEffect(() => {
-    if (esMovil || seleccion || cargando || visibles.length === 0) return;
-    navegar({ cliente: visibles[0].id });
-  }, [esMovil, seleccion, cargando, visibles, navegar]);
+    if (esMovil || cargando) return;
+    const decision = autoSeleccion({
+      seleccion,
+      idsVisibles: visibles.map(c => c.id),
+      primeraVez: primeraAutoSel.current,
+    });
+    primeraAutoSel.current = false;
+    if (decision.tipo === 'seleccionar') navegar({ cliente: decision.id });
+    else if (decision.tipo === 'limpiar')  navegar({ cliente: null });
+  }, [esMovil, cargando, seleccion, visibles, navegar]);
 
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
