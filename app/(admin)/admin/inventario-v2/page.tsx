@@ -10,6 +10,7 @@ import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
 import { toast } from 'sonner';
 import { getProducts, getInventoryLogs } from '@/lib/api/inventory';
+import { KARDEX_TOPE } from '@duna/core/metrics/inventory-filters';
 import { AdjustStockModal } from '@/components/admin/AdjustStockModal';
 import type { Product } from '@/types/product';
 import type { InventoryLog, InventoryMovementType } from '@/types/inventory';
@@ -256,6 +257,16 @@ function Inventario() {
       )}
       {!cargandoLogs && logs.length > 0 && (
         <DunaTable columns={columnasKardex} rows={filasKardex} minWidth="48rem" />
+      )}
+      {/* EL CORTE SE DECLARA, no se calla: cuando la ventana viene LLENA (=tope)
+          puede haber más atrás, y una auditoría que muestra 200 sin decirlo miente
+          por omisión. Apunta al rango de fechas, que es como se navega una
+          auditoría —por tiempo, no por número de página—. (La paginación de fondo
+          es decisión aparte; esto es el corte honesto mientras tanto.) */}
+      {!cargandoLogs && logs.length === KARDEX_TOPE && (
+        <p className="duna-caption" style={{ margin: 'var(--duna-space-3) 0 0' }}>
+          Mostrando los {KARDEX_TOPE} movimientos más recientes. Acotá con el rango de fechas para ver otros.
+        </p>
       )}
 
       {/* La puerta de operación de inventario: el modal agnóstico con selector de

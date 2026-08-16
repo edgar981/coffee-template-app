@@ -1,5 +1,5 @@
 import prisma from '@duna/core';
-import { cruzoMinimo } from '@duna/core/metrics/inventory-filters';
+import { cruzoMinimo, KARDEX_TOPE } from '@duna/core/metrics/inventory-filters';
 import { BUSINESS_TZ, startOfZonedDay } from '@duna/core/timezone';
 import type { InventoryLog, Prisma, Product } from '@duna/core';
 
@@ -176,9 +176,10 @@ export async function aplicarAjusteInventario(
 // Es ADITIVO: sin ningún filtro la consulta es exactamente la que había —mismo
 // orden, mismo tope—, así que ningún llamador de siempre cambia una fila.
 
-/** Tope por defecto — el mismo que el endpoint traía escrito. Con filtros, se
- *  aplica al conjunto YA filtrado (los 200 más recientes que matchean). */
-export const KARDEX_TOPE = 200;
+// `KARDEX_TOPE` vive en `metrics/inventory-filters` (módulo puro) para que la
+// pantalla lo lea sin arrastrar Prisma al cliente. Se re-exporta acá porque es
+// donde el lector lo espera, junto a `logsDeInventario` que lo usa de `take`.
+export { KARDEX_TOPE };
 
 export interface KardexQuery {
   /**
