@@ -1,3 +1,5 @@
+import { BUSINESS_TZ, startOfZonedMonth, startOfZonedYear, startOfZonedDay, zonedDayKey } from '@duna/core/timezone';
+
 // Períodos de Analítica — los chips del selector.
 //
 // Vive aparte y es PURO porque lo consumen las dos mitades: el endpoint lo valida
@@ -74,4 +76,47 @@ export const ULTIMOS_MESES_VENTANA = 3;
  */
 export function esPeriodo(value: string | null | undefined): value is PeriodoKey {
   return value != null && value in PERIODOS;
+}
+
+/**
+ * El rango de un período como INSTANTES UTC, con la frontera de Bogotá. Todos
+ * terminan al inicio del mes SIGUIENTE (exclusivo), así que el mes en curso entra
+ * completo. `now` es parámetro para que un test pueda fijar el reloj.
+ *
+ * Vive acá —módulo PURO— y no en `lib/analitica` (que trae SQL) porque lo consumen
+ * DOS verticales: Analítica lo usa como bounds de sus queries, e Inventario lo
+ * convierte a day keys para el filtro del kardex (vía `rangoDeDiasDelPeriodo`).
+ * Dos definiciones del mismo período divergen en el borde del mes — por eso es UNA.
+ */
+export function rangoDelPeriodo(periodo: PeriodoKey, now: Date): { desde: Date; hasta: Date } {
+  const finDeMesActual = startOfZonedMonth(now, BUSINESS_TZ, 1);
+  switch (periodo) {
+    case 'mes_anterior':
+      return { desde: startOfZonedMonth(now, BUSINESS_TZ, -1), hasta: startOfZonedMonth(now, BUSINESS_TZ, 0) };
+    case 'ultimos_3_meses':
+      return { desde: startOfZonedMonth(now, BUSINESS_TZ, -(ULTIMOS_MESES_VENTANA - 1)), hasta: finDeMesActual };
+    case 'anio':
+      return { desde: startOfZonedYear(now, BUSINESS_TZ, 0), hasta: finDeMesActual };
+    default:
+      return { desde: startOfZonedMonth(now, BUSINESS_TZ, 0), hasta: finDeMesActual };
+  }
+}
+
+/**
+ * El MISMO período como day keys de Bogotá (`YYYY-MM-DD`), INCLUSIVOS por los dos
+ * extremos — el contrato del filtro de fechas de Inventario. REUSA
+ * `rangoDelPeriodo` (la fuente de las fronteras de mes) y sólo traduce:
+ *   · `desde` es el primer día del período;
+ *   · `hasta` es el día ANTERIOR al límite superior exclusivo de `rangoDelPeriodo`
+ *     —o sea el último día real del período: ese límite cae en el arranque del
+ *     período siguiente, así que restarle un día da el último día del actual.
+ * No se redefine el período: si Analítica cambia qué es "este mes", Inventario lo
+ * hereda sin tocar nada.
+ */
+export function rangoDeDiasDelPeriodo(periodo: PeriodoKey, now: Date): { desde: string; hasta: string } {
+  const { desde, hasta } = rangoDelPeriodo(periodo, now);
+  return {
+    desde: zonedDayKey(desde, BUSINESS_TZ),
+    hasta: zonedDayKey(startOfZonedDay(hasta, BUSINESS_TZ, -1), BUSINESS_TZ),
+  };
 }

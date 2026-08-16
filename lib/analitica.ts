@@ -1,10 +1,10 @@
 import prisma from '@duna/core';
-import { BUSINESS_TZ, startOfZonedMonth, startOfZonedYear, zonedDayKey } from '@duna/core/timezone';
+import { BUSINESS_TZ, startOfZonedMonth, zonedDayKey } from '@duna/core/timezone';
 import { nonCancelledOrderCountByCustomer } from '@duna/core/metrics/customer-order-stats';
 import { agregarMargenPorSku, type CostoProducto, type LineaVendida } from '@/lib/metrics/margen';
 import { agruparCartera, type OrdenPendiente } from '@/lib/metrics/cartera';
 import { concentracionIngresos, type ClienteIngreso } from '@/lib/metrics/concentracion';
-import { PERIODOS, ULTIMOS_MESES_VENTANA, type PeriodoKey } from '@/lib/metrics/periodo';
+import { PERIODOS, rangoDelPeriodo, type PeriodoKey } from '@/lib/metrics/periodo';
 import type { AnalyticsData, PuntoTrayectoria } from '@/types/analytics';
 
 // EL CÓMPUTO de la página de Analítica. Vive acá y no en el route handler por el
@@ -48,35 +48,10 @@ function etiquetaMes(month: string): string {
   return `${MESES_CORTOS[Number(mes) - 1]} ${anio.slice(2)}`;
 }
 
-/**
- * Rango del período seleccionado. Se mide por la fecha del PAGO, no por la de
- * creación de la orden.
- *
- * `ultimos_3_meses` es una ventana MÓVIL que incluye el mes en curso, no el
- * trimestre calendario: la pregunta del dueño es "cómo me ha ido últimamente", y
- * un trimestre calendario responde otra cosa —el 1 de abril mostraría
- * enero-marzo y ocultaría todo lo reciente—. Decisión del owner, 2026-08-05.
- *
- * `now` es parámetro para que el carril pueda fijar el reloj: un test que
- * dependiera de la hora del día no es un test (mismo criterio que `soloActiva` en
- * los tests de automatizaciones).
- */
-export function rangoDelPeriodo(periodo: PeriodoKey, now: Date): { desde: Date; hasta: Date } {
-  // Todos los períodos terminan al inicio del mes SIGUIENTE (exclusivo), así que
-  // el mes en curso entra completo hasta hoy. El único que no arranca en un mes
-  // es `anio`.
-  const finDeMesActual = startOfZonedMonth(now, BUSINESS_TZ, 1);
-  switch (periodo) {
-    case 'mes_anterior':
-      return { desde: startOfZonedMonth(now, BUSINESS_TZ, -1), hasta: startOfZonedMonth(now, BUSINESS_TZ, 0) };
-    case 'ultimos_3_meses':
-      return { desde: startOfZonedMonth(now, BUSINESS_TZ, -(ULTIMOS_MESES_VENTANA - 1)), hasta: finDeMesActual };
-    case 'anio':
-      return { desde: startOfZonedYear(now, BUSINESS_TZ, 0), hasta: finDeMesActual };
-    default:
-      return { desde: startOfZonedMonth(now, BUSINESS_TZ, 0), hasta: finDeMesActual };
-  }
-}
+// `rangoDelPeriodo` se movió a `lib/metrics/periodo` (módulo puro) para que
+// Inventario lo REUSE sin arrastrar este módulo —que trae SQL— al cliente. Acá se
+// aplica sobre la fecha del PAGO; en Inventario, sobre la del asiento. Una sola
+// definición del período: dos divergen en el borde del mes.
 
 export async function calcularAnalitica(periodoKey: PeriodoKey, now: Date = new Date()): Promise<AnalyticsData> {
   const { desde: periodoDesde, hasta: periodoHasta } = rangoDelPeriodo(periodoKey, now);
