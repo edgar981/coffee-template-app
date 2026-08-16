@@ -18,6 +18,17 @@ export interface StockRef {
 export const DEFAULT_STOCK_MINIMO = 5;
 
 /**
+ * Tamaño de la VENTANA del kardex: la lectura devuelve a lo sumo estos movimientos
+ * (los más recientes que matchean el filtro). Vive acá —módulo puro, sin Prisma—
+ * y no en `inventory.ts` para que el CLIENTE pueda leerlo sin arrastrar el cliente
+ * de Prisma al bundle: la pantalla lo necesita para DECLARAR el corte cuando la
+ * ventana viene llena ("mostrando los últimos N"), en vez de cortar en silencio —
+ * mentir por omisión es el peor modo de falla de una auditoría. `logsDeInventario`
+ * lo importa de acá como su `take` por defecto: una sola fuente.
+ */
+export const KARDEX_TOPE = 200;
+
+/**
  * A product is a stock alert when it's ACTIVE and at/below its reorder point.
  * `stock <= stock_minimo` — the same comparison the Inventario table draws its
  * amber rows with, kept here so the dashboard card can't drift from the list.

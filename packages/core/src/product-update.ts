@@ -2,6 +2,7 @@ import prisma from '@duna/core';
 import type { Prisma, Product } from '@duna/core';
 import { sanitizeGaleria } from '@duna/core/product-gallery';
 import { sanitizeOpciones } from '@duna/core/moliendas-opciones';
+import type { ActorRef } from '@duna/core/inventory';
 
 // ─── Qué escribe un PATCH de producto ────────────────────────────────────────
 // Un PATCH es PARCIAL por definición: escribe los campos que el body TRAE y no
@@ -141,6 +142,7 @@ export interface PatchProductoResult {
 export async function aplicarPatchProducto(
   id: string,
   body: Record<string, unknown>,
+  actor?: ActorRef,
 ): Promise<PatchProductoResult | null> {
   return prisma.$transaction(async (tx) => {
     // Fila lockeada: todo lo que el asiento afirma sale de acá, no de un
@@ -172,6 +174,11 @@ export async function aplicarPatchProducto(
           stock_anterior:  bloqueado.stock,   // de la fila lockeada
           stock_nuevo:     updated.stock,
           motivo:          MOTIVO_EDICION_PRODUCTO,
+          // El actor de ESTA puerta (edición de ficha). La otra —Ajustar Stock—
+          // lo captura en `lib/inventory.ts`; las dos o la auditoría miente a
+          // medias. Afirmado por las dos ramas del test de carril.
+          ajustado_por:        actor?.id ?? null,
+          ajustado_por_nombre: actor?.nombre ?? null,
         },
       });
     }
@@ -191,6 +198,7 @@ export async function aplicarPatchProducto(
  */
 export async function crearProductoConAsiento(
   data: Prisma.ProductUncheckedCreateInput,
+  actor?: ActorRef,
 ): Promise<Product> {
   return prisma.$transaction(async (tx) => {
     const product = await tx.product.create({ data });
@@ -203,6 +211,9 @@ export async function crearProductoConAsiento(
         stock_anterior:  0,
         stock_nuevo:     product.stock,
         motivo:          MOTIVO_STOCK_INICIAL,
+        // Quien crea el producto es el actor de su asiento inaugural.
+        ajustado_por:        actor?.id ?? null,
+        ajustado_por_nombre: actor?.nombre ?? null,
       },
     });
     return product;

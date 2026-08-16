@@ -24,12 +24,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
-  // `?producto=` vacío o ausente = el kardex completo. Se normaliza acá, en la
-  // frontera HTTP: un `''` que llegue de un query mal armado no debe convertirse
-  // en un filtro por producto vacío, que devolvería CERO filas y se leería como
-  // "este producto no tiene movimientos" en vez de "no filtres nada".
-  const producto = req.nextUrl.searchParams.get('producto')?.trim() || undefined;
+  // Cada filtro se normaliza acá, en la frontera HTTP: un `''` de un query mal
+  // armado no debe volverse un filtro por valor vacío (devolvería CERO filas y se
+  // leería como "no hay movimientos" en vez de "no filtres por esto").
+  const sp       = req.nextUrl.searchParams;
+  const producto = sp.get('producto')?.trim() || undefined;
+  const tipo     = sp.get('tipo')?.trim()     || undefined;
+  const desde    = sp.get('desde')?.trim()    || undefined;
+  const hasta    = sp.get('hasta')?.trim()    || undefined;
 
-  const logs = await logsDeInventario({ productoId: producto });
+  const logs = await logsDeInventario({ productoId: producto, tipo, desde, hasta });
   return NextResponse.json(logs);
 }

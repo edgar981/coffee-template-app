@@ -65,7 +65,7 @@ export async function PATCH(
   // la misma transacción: si el borrado de blobs se disparara con URLs enviadas
   // por el navegador, cualquier admin podría borrar cualquier blob del store
   // mandando otras.
-  const resultado = await aplicarPatchProducto(id, body);
+  const resultado = await aplicarPatchProducto(id, body, { id: session.user.id, nombre: session.user.name ?? null });
   if (!resultado) return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
   const { previo, updated } = resultado;
 

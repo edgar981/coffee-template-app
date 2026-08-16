@@ -779,7 +779,21 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
    propia para el refactor, se cobra cuando el archivo ya está abierto. */
 .duna-form { --duna-form-gap: var(--duna-space-4);
              display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-             gap: var(--duna-form-gap); }
+             gap: var(--duna-form-gap);
+             /* `align-content: start` NO es cosmético: sin él, `align-content`
+                computa a `stretch` (el default de un grid), y como este form vive
+                en un `.duna-modal__body` con `flex: 1` —alto completo del drawer—,
+                un formulario CORTO estira sus FILAS para llenar ese alto. Cada
+                `.duna-field` se infla de 73px natural a ~102px (medido en el drawer
+                real): 29px de aire POR CAMPO, repartidos por todo el formulario. Es
+                lo que se lee "flotando/disperso", y ningún ajuste del gap entre
+                grupos lo toca (ése movía ~16px en TOTAL). Con `start`, las filas
+                quedan a su alto natural y el sobrante se consolida en un solo bloque
+                arriba del pie —el layout estándar de un drawer, forma arriba /
+                acciones abajo—. Nuevo producto (14 campos que LLENAN el body) no
+                cambia: sin espacio libre no hay nada que estirar; y además usa su
+                grid inline, no esta primitiva. */
+             align-content: start; }
 .duna-form--sm { --duna-form-gap: var(--duna-space-3); }
 .duna-form__full { grid-column: 1 / -1; }
 
@@ -1603,6 +1617,48 @@ button.duna-order-card__name {
 .duna-items-table .duna-items-table__r { text-align: right; white-space: nowrap; }
 .duna-items-table__meta { color: var(--duna-muted); font-size: var(--duna-text-caption); }
 .duna-items-table__total td { font-weight: var(--duna-w-semi); }
+
+/* ── Table · una tabla de DATOS agnóstica (auditoría, listados densos) ───────
+   Distinta de `items-table`: aquélla es de DOS columnas (label / monto) para las
+   líneas de una orden; ésta es COLUMNAR, N columnas con encabezado, para una
+   vista de auditoría o un listado denso. Agnóstica de contenido: las columnas y
+   las celdas son props —no sabe qué es un movimiento ni un pago—, así que Pagos y
+   Analítica la van a poder usar tal cual.
+
+   EL SCROLL HORIZONTAL SE RESUELVE ACÁ, que es donde una tabla se rompe en móvil:
+   el ENVOLTORIO scrollea y la tabla no se aplasta (`min-width`), en vez de dejar
+   que cada consumidor invente su overflow —o que se olvide, y la tabla parta el
+   texto letra por letra en un teléfono. Es del sistema, no de la pantalla. */
+.duna-table-wrap { overflow-x: auto; }
+.duna-table { width: 100%; border-collapse: collapse; font-size: var(--duna-text-body);
+              /* Debajo de esto el envoltorio scrollea en vez de aplastar columnas.
+                 El consumidor puede subirlo con la prop `minWidth` si tiene más. */
+              min-width: 32rem; }
+.duna-table th { text-align: left; padding: var(--duna-space-2) var(--duna-space-3);
+                 font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi);
+                 color: var(--duna-muted); white-space: nowrap;
+                 border-bottom: 1px solid var(--duna-border-2); }
+.duna-table td { padding: var(--duna-space-3); border-bottom: 1px solid var(--duna-border);
+                 vertical-align: top; }
+.duna-table tbody tr:last-child td { border-bottom: none; }
+.duna-table tbody tr:hover { background: var(--duna-wash-hover); }
+/* Alineación a la derecha (números), en encabezado Y celda para que la columna
+   quede a plomo. Mismo patrón que `.duna-items-table__r`. */
+.duna-table th.duna-table__r, .duna-table td.duna-table__r { text-align: right; white-space: nowrap; }
+
+/* ── Enlace de texto · navegación inline dentro de contenido denso ──────────
+   Un enlace que vive DENTRO de una celda o un párrafo, no un botón. Tinta plena
+   (es CONTENIDO que lleva a otro lado, no una acción secundaria) y subrayado
+   SÓLO al hover — en reposo se lee como el resto del texto, para no rayar una
+   tabla entera de enlaces. El `:focus-visible` trae el anillo del sistema: un
+   enlace navegable tiene que alcanzarse por teclado. Nace para la celda
+   "Producto" del kardex, que lleva al detalle de ese producto; Pagos y Analítica
+   tendrán las mismas celdas. (Cuando NO hay destino, el consumidor renderiza
+   texto plano — no un enlace muerto que promete una navegación que no ocurre.) */
+.duna-link { color: var(--duna-ink); text-decoration: none; text-underline-offset: 2px;
+             border-radius: var(--duna-r-s); cursor: pointer; }
+.duna-link:hover { text-decoration: underline; }
+.duna-link:focus-visible { outline: none; box-shadow: var(--duna-ring); }
 
 /* ── Reduced motion: el movimiento confirma, no obliga ──────────────────── */
 @media (prefers-reduced-motion: reduce) {

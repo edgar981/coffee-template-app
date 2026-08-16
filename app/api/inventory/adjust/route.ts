@@ -20,7 +20,10 @@ export async function POST(req: NextRequest) {
 
   let resultado;
   try {
-    resultado = await aplicarAjusteInventario({ producto_id, tipo, cantidad, motivo });
+    resultado = await aplicarAjusteInventario(
+      { producto_id, tipo, cantidad, motivo },
+      { id: session.user.id, nombre: session.user.name ?? null },
+    );
   } catch (e) {
     if (e instanceof ProductoNoEncontradoError) return NextResponse.json({ error: e.message }, { status: 404 });
     if (e instanceof CantidadInvalidaError)     return NextResponse.json({ error: e.message }, { status: 400 });

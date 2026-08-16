@@ -7,17 +7,30 @@ export async function getProducts(): Promise<Product[]> {
   return res.json();
 }
 
+/** Filtros de la auditoría del kardex. Todos opcionales — sin ninguno, el kardex
+ *  completo. `desde`/`hasta` son day keys de Bogotá (`YYYY-MM-DD`). */
+export interface KardexFiltros {
+  producto?: string;
+  tipo?:     string;
+  desde?:    string;
+  hasta?:    string;
+}
+
 /**
- * Los movimientos de inventario. Sin `productoId` trae el kardex COMPLETO (la
- * vista de auditoría de Inventario); con él, sólo los de ese producto — que es
- * lo que muestra el detalle de un producto.
- *
- * El parámetro es opcional para que el llamador de siempre no cambie: la
- * pestaña Movimientos sigue llamando `getInventoryLogs()` y recibe lo mismo.
+ * Los movimientos de inventario. Sin filtros trae el kardex COMPLETO (la vista de
+ * auditoría de Inventario); con `producto`, sólo los de ese producto (lo que
+ * muestra el detalle de un producto). `tipo` y el rango de fechas acotan la
+ * auditoría — server-side, porque el kardex tiene tope y filtrar en el cliente
+ * mentiría más allá de la ventana cargada (ver `logsDeInventario`).
  */
-export async function getInventoryLogs(productoId?: string): Promise<InventoryLog[]> {
-  const qs = productoId ? `?producto=${encodeURIComponent(productoId)}` : '';
-  const res = await fetch(`/api/inventory/logs${qs}`);
+export async function getInventoryLogs(filtros: KardexFiltros = {}): Promise<InventoryLog[]> {
+  const q = new URLSearchParams();
+  if (filtros.producto) q.set('producto', filtros.producto);
+  if (filtros.tipo)     q.set('tipo', filtros.tipo);
+  if (filtros.desde)    q.set('desde', filtros.desde);
+  if (filtros.hasta)    q.set('hasta', filtros.hasta);
+  const qs = q.toString();
+  const res = await fetch(`/api/inventory/logs${qs ? `?${qs}` : ''}`);
   if (!res.ok) throw new Error('Error al cargar movimientos');
   return res.json();
 }

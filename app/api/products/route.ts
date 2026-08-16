@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       // El cast es el mismo de `prisma/seed.ts`: la columna es Json y el cliente
       // generado no acepta una interfaz sin index signature.
     ...(opciones ? { moliendasOpciones: opciones as unknown as Prisma.InputJsonValue } : {}),
-  });
+  }, { id: session.user.id, nombre: session.user.name ?? null });
 
   return NextResponse.json(product, { status: 201 });
 }
