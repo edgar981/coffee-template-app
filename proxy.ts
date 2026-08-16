@@ -3,6 +3,7 @@ import { getSessionCookie } from "better-auth/cookies";
 import { destinoDesdeOrdenes } from "@/lib/redirect-ordenes";
 import { destinoDesdeClientes } from "@/lib/redirect-clientes";
 import { destinoDesdeProductos } from "@/lib/redirect-productos";
+import { destinoDesdeInventario } from "@/lib/redirect-inventario";
 
 export function proxy(request: NextRequest) {
   const session = getSessionCookie(request);
@@ -34,14 +35,22 @@ export function proxy(request: NextRequest) {
   // no llega a una ruta hasta limpiar la caché. No hay SEO que ganar — el sitio
   // entero va `noindex`.
   //
-  // SON TRES y se llaman uno tras otro. El orden da igual y eso está AFIRMADO, no
-  // supuesto: `redirect-productos.test.ts` recorre las rutas de los tres retiros
+  // SON CUATRO y se llaman uno tras otro. El orden da igual y eso está AFIRMADO, no
+  // supuesto: `redirect-inventario.test.ts` recorre las rutas de los cuatro retiros
   // comprobando que ninguna caiga en más de uno. Sin ese test, el día que un mapeo
   // se ensanche el síntoma sería un redirect que gana por estar escrito antes.
+  //
+  // INVENTARIO tiene un matiz único: su `?stock=bajo-minimo` sale de la sección
+  // hacia `/admin/productos?f=reponer` (la cola de reposición se mudó allá). Ese
+  // destino es de OTRO retiro, así que la cadena podría, en principio, re-capturarlo
+  // — no lo hace (es la ruta pelada de Productos, pasa en `null`). El mismo test
+  // afirma el destino FINAL, no sólo la disjunción: la cadena converge en dos
+  // pasadas, sin loop.
   const destino =
     destinoDesdeOrdenes(request.nextUrl.pathname, request.nextUrl.searchParams) ??
     destinoDesdeClientes(request.nextUrl.pathname, request.nextUrl.searchParams) ??
-    destinoDesdeProductos(request.nextUrl.pathname, request.nextUrl.searchParams);
+    destinoDesdeProductos(request.nextUrl.pathname, request.nextUrl.searchParams) ??
+    destinoDesdeInventario(request.nextUrl.pathname, request.nextUrl.searchParams);
   if (destino) return NextResponse.redirect(new URL(destino, request.url), 307);
 
   return NextResponse.next();
