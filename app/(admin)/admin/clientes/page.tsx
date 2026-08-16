@@ -219,6 +219,16 @@ function ClientesV2() {
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
   }, [params, pathname, router]);
 
+  // AUTO-SELECCIÓN en escritorio: se abre el primero de la lista para que el panel
+  // no arranque con "Elige un cliente". Mismo criterio que Pedidos —split siempre
+  // visible—: el deep link (`?cliente=`) gana, en móvil no (el detalle es sheet),
+  // y sólo con la lista cargada. Productos queda FUERA: su cuadrícula muestra el
+  // split al seleccionar, y auto-elegir forzaría el panel abierto en la carga.
+  useEffect(() => {
+    if (esMovil || seleccion || cargando || visibles.length === 0) return;
+    navegar({ cliente: visibles[0].id });
+  }, [esMovil, seleccion, cargando, visibles, navegar]);
+
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
     <div className="duna">

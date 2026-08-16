@@ -368,6 +368,19 @@ function Pedidos() {
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
   }, [params, pathname, router]);
 
+  // AUTO-SELECCIÓN en escritorio: al entrar sin nada elegido, se abre el más
+  // reciente (el primero de la lista) para que el panel no arranque con la
+  // instrucción "Elige un pedido" ocupando media pantalla. Tres guardas:
+  //  · el deep link GANA — sólo dispara con `seleccion` en null, así un `?pedido=`
+  //    entrante nunca se pisa;
+  //  · en MÓVIL no — ahí el detalle es un sheet y auto-abrirlo taparía la lista,
+  //    que es la pantalla en angosto;
+  //  · sólo con la lista ya cargada y con algo visible.
+  useEffect(() => {
+    if (esMovil || seleccion || cargando || visibles.length === 0) return;
+    navegar({ pedido: visibles[0].numero_orden });
+  }, [esMovil, seleccion, cargando, visibles, navegar]);
+
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
     <div className="duna">
