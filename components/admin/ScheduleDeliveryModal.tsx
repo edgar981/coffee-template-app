@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { MessageCircle, Mail, Plus } from 'lucide-react';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { DateField } from '@/components/admin/DateField';
@@ -80,6 +81,7 @@ export function ScheduleDeliveryModal({ target, onClose, onSaved, onAddressAdded
             guarda={guarda}
             marcarCambios={descarte.marcarCambios}
             intentarCerrar={descarte.intentarCerrar}
+            intentarSalir={descarte.intentarSalir}
             onClose={onClose}
             onSaved={onSaved}
             onAddressAdded={onAddressAdded}
@@ -98,18 +100,21 @@ function titleFor(shipping: Shipping): string {
   return hasScheduleData(shipping) ? 'Editar entrega' : 'Programar entrega';
 }
 
-function ScheduleBody({ shipping, ordenId, guarda, marcarCambios, intentarCerrar, onClose, onSaved, onAddressAdded }: {
+function ScheduleBody({ shipping, ordenId, guarda, marcarCambios, intentarCerrar, intentarSalir, onClose, onSaved, onAddressAdded }: {
   shipping: Shipping;
   ordenId: string | undefined;
   guarda: ReturnType<typeof useAccionGuardada>;
   marcarCambios: (hay: boolean) => void;
   /** Cerrar pasando por la guarda de descarte (Cancelar/Esc/scrim). */
   intentarCerrar: () => void;
+  /** Salir por navegación (el enlace al cliente) pasando por la MISMA guarda. */
+  intentarSalir: (proceder: () => void) => void;
   /** Cierre REAL, tras guardar con éxito. */
   onClose: () => void;
   onSaved: (shipping: Shipping) => void;
   onAddressAdded?: (orderId: string, address: { direccion_entrega: string; ciudad_entrega: string }) => void;
 }) {
+  const router = useRouter();
   const [ctx, setCtx]             = useState<DeliveryContext | null>(null);
   // Sin id de orden no hay nada que cargar, así que ni siquiera arranca en
   // "cargando": el caso se DERIVA del prop y se resuelve en el render, no con un
@@ -337,6 +342,7 @@ function ScheduleBody({ shipping, ordenId, guarda, marcarCambios, intentarCerrar
     ? `mailto:${ctx.cliente_email}?subject=${encodeURIComponent(`Tu pedido ${ctx.numero_orden} — ${siteConfig.brand.nombre}`)}`
     : null;
   const addressLine = [ctx.direccion_entrega, ctx.ciudad_entrega].filter(Boolean).join(', ') || '—';
+  const clienteHref = ctx.customer ? `/admin/clientes?cliente=${encodeURIComponent(ctx.customer.id)}` : null;
 
   return (
     <>
@@ -350,15 +356,28 @@ function ScheduleBody({ shipping, ordenId, guarda, marcarCambios, intentarCerrar
           <InfoRow label="Orden" value={ctx.numero_orden} />
           <div>
             <p className="text-xs text-muted-foreground">Cliente</p>
-            {ctx.customer ? (
+            {clienteHref ? (
               // TINTA, no ámbar, y SIN ícono de enlace externo: idéntico al del
               // detalle de la orden. El destino es `?cliente=` —navegación DENTRO
               // del panel—, así que un glifo de "otra pestaña" prometía algo que no
               // pasa. `.duna-link` da la tinta y el subrayado en hover.
               <Link
-                href={`/admin/clientes?cliente=${encodeURIComponent(ctx.customer.id)}`}
+                href={clienteHref}
                 className="duna-link mt-0.5 inline-block font-medium"
                 title={`Ver ficha de ${nombre ?? 'cliente'}`}
+                onClick={(e) => {
+                  // Clic con modificador (nueva pestaña) NO desmonta el drawer:
+                  // se deja pasar el default.
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                  // EMBUDO: una navegación de Next NO pasa por `DunaSheet.onCerrar`,
+                  // así que saltaría la guarda de descarte y perdería lo escrito en
+                  // silencio (la vía la abrió el enlace navegable de la tanda 2).
+                  // Se fuerza por `intentarSalir`: bloquea en vuelo, confirma con
+                  // cambios, y sólo entonces navega. Conducta en el consumidor; el
+                  // paquete no se entera.
+                  e.preventDefault();
+                  intentarSalir(() => router.push(clienteHref));
+                }}
               >
                 {nombre ?? '—'}
               </Link>

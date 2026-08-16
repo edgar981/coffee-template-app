@@ -34,3 +34,27 @@ export function hayCambios<T extends object>(actual: T, inicial: T): boolean {
   }
   return false;
 }
+
+// ─── ¿Qué hacer cuando se INTENTA salir de un drawer? ────────────────────────
+//
+// Un embudo único para toda salida de un drawer con formulario: cerrarlo, o
+// navegar a otra ruta desde adentro (el enlace al cliente). La decisión es la
+// misma en los dos casos, y por eso vive acá, pura y testeable, en vez de
+// repetida en cada consumidor:
+//
+//   · `bloquear`  — hay una mutación en vuelo: no se sale por ningún camino, ni
+//     para preguntar. Cerrar/navegar a mitad no cancela nada en el server y deja
+//     al operador sin saber si se aplicó (§ Doble-submit).
+//   · `confirmar` — hay cambios sin guardar: se pregunta antes de descartarlos.
+//   · `proceder`  — sin cambios y sin mutación: se sale directo.
+//
+// El orden importa: `enVuelo` gana sobre `hayCambios`. Con la mutación viajando,
+// da igual si además hay cambios — no se sale.
+
+export type DecisionSalida = 'proceder' | 'confirmar' | 'bloquear';
+
+export function decidirSalida(enVuelo: boolean, hayCambios: boolean): DecisionSalida {
+  if (enVuelo)    return 'bloquear';
+  if (hayCambios) return 'confirmar';
+  return 'proceder';
+}

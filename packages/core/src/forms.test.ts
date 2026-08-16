@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hayCambios } from './forms';
+import { hayCambios, decidirSalida } from './forms';
 
 const base = { nombre: 'Laura', ciudad: '', activo: true, edad: 30 };
 
@@ -36,4 +36,24 @@ test('el orden de las claves no afecta el resultado', () => {
 // (ausente) no es `Object.is`-igual a un valor presente.
 test('una clave presente sólo en uno cuenta como cambio', () => {
   assert.equal(hayCambios({ ...base, extra: 'x' } as Record<string, unknown>, base), true);
+});
+
+// ── decidirSalida ────────────────────────────────────────────────────────────
+//
+// El caso que PRUEBA el mecanismo del embudo del enlace de cliente: con el
+// formulario sucio, salir NO procede directo, CONFIRMA. Sin el chequeo de
+// cambios (el "mecanismo"), esto devolvería 'proceder' y el test falla — que es
+// justo lo que debe pasar: un enlace que navega saltando la guarda.
+test('con cambios y sin mutación: NO procede, CONFIRMA', () => {
+  assert.equal(decidirSalida(false, true), 'confirmar');
+});
+
+test('sin cambios y sin mutación: procede directo', () => {
+  assert.equal(decidirSalida(false, false), 'proceder');
+});
+
+// La mutación en vuelo gana sobre todo: no se sale ni para preguntar.
+test('en vuelo: bloquea, aunque haya cambios', () => {
+  assert.equal(decidirSalida(true, true), 'bloquear');
+  assert.equal(decidirSalida(true, false), 'bloquear');
 });
