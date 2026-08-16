@@ -28,10 +28,11 @@ export interface CarrilProductos extends CarrilBase<CarrilKey> {
  * POR REPONER · la alerta, y NO una definición nueva.
  *
  * Es `isLowStock` tal cual: la MISMA función que cuenta la card "Alertas de
- * Stock" del dashboard, que filtra `?stock=bajo-minimo` en Inventario, que
- * enciende el punto sol del nav y que —vía `cruzoMinimo`— dispara la
- * automatización `stock_bajo`. Un recorte propio acá haría que cinco superficies
- * contaran distinto el mismo hecho.
+ * Stock" del dashboard, que enciende el punto sol del nav y que —vía
+ * `cruzoMinimo`— dispara la automatización `stock_bajo`. Y este carril ES, desde
+ * el retiro de la Inventario vieja, LA vista de stock bajo del panel (antes vivía
+ * en `/admin/inventario?stock=bajo-minimo`). Un recorte propio acá haría que esas
+ * superficies contaran distinto el mismo hecho.
  *
  * Excluye los INACTIVOS por dentro, y eso es del predicado, no de este carril: un
  * producto despublicado no es una reposición pendiente.
@@ -81,6 +82,18 @@ export const CARRILES_PRODUCTOS: CarrilProductos[] = [
   { key: 'agotados',     label: 'Agotados',     tipo: 'cola',       aplica: agotados },
   { key: 'sin_publicar', label: 'Sin publicar', tipo: 'acumulador', aplica: sinPublicar },
 ];
+
+/**
+ * La URL del carril "Por reponer" — EL hogar de la cola de reposición desde que
+ * Inventario se encogió a auditoría (la cola no se portó; § retiro de Inventario).
+ * La comparten TRES sitios: la card "Alertas de Stock" del dashboard, la
+ * automatización `stock_bajo` (`AUTOMATION_HREF.stockBajo`) y el redirect de la
+ * Inventario vieja (`/admin/inventario?stock=bajo-minimo` cae acá). Una sola
+ * fuente: es lo que hace que card=lista (el conteo de la card = las filas de este
+ * carril, los dos por `isLowStock`), y el día que la key `reponer` cambie, cambia
+ * en un solo lugar en vez de en tres literales que divergen.
+ */
+export const RUTA_REPONER = '/admin/productos?f=reponer';
 
 /** `null` para una key que no existe — no se cae a "todos" en silencio: un
  *  parámetro de URL basura debe ser visible, no interpretado. */

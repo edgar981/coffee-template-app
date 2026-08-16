@@ -9,7 +9,7 @@ import {
 } from '@/lib/metrics/insights';
 import { formatFecha } from '@duna/core/format-fecha';
 import { POR_COBRAR_QUERY_PEDIDOS } from '@duna/core/metrics/order-stat-filters';
-import { LOW_STOCK_QUERY } from '@duna/core/metrics/inventory-filters';
+import { RUTA_REPONER } from '@/lib/productos/filtros';
 import { STAT_CHIP } from '@/constants/stat-chip';
 
 // ─── Dashboard widget registry ───────────────────────────────────────────────
@@ -206,7 +206,7 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
   // quien lo quiera lo activa en Personalizar.
   { key: 'ingresos_historicos', titulo: 'Ingresos históricos', subtitulo: 'Todos los pagos registrados', icono: Coins, formato: 'cop', categoria: 'historico', defaultVisible: false, color: STAT_CHIP.neutral, href: '/admin/pagos' },
   // ── Inventario ──
-  { key: 'alertas_stock',    tono: 'alerta', titulo: 'Alertas de Stock',   subtitulo: 'Productos bajo mínimo', icono: AlertTriangle, formato: 'int', categoria: 'inventario', defaultVisible: true,  color: STAT_CHIP.neutral,        href: `/admin/inventario?${LOW_STOCK_QUERY}` },
+  { key: 'alertas_stock',    tono: 'alerta', titulo: 'Alertas de Stock',   subtitulo: 'Productos bajo mínimo', icono: AlertTriangle, formato: 'int', categoria: 'inventario', defaultVisible: true,  color: STAT_CHIP.neutral,        href: RUTA_REPONER },
   // Sin sub: "En catálogo" repetía "Productos Activos".
   { key: 'productos_activos', titulo: 'Productos Activos',  subtitulo: '', icono: Package,          formato: 'int', categoria: 'inventario', defaultVisible: false, color: STAT_CHIP.neutral },
   // ── Clientes ──

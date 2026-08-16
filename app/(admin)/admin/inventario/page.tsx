@@ -1,283 +1,304 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, TrendingDown, TrendingUp, Warehouse, ArrowUpDown, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
-import { AdjustStockModal } from '@/components/admin/AdjustStockModal';
-import { getProducts, getInventoryLogs } from '@/lib/api/inventory';
-import type { InventoryLog, InventoryMovementType } from '@/types/inventory';
-import { Product } from '@/types/product';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { ArrowUpDown } from 'lucide-react';
+import { DunaTable, type DunaColumn } from '@duna/design-system/components/DunaTable';
+import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
-import { isLowStock, LOW_STOCK_VALUE } from '@duna/core/metrics/inventory-filters';
-import { statCardLink } from '@/components/admin/StatCard';
+import { toast } from 'sonner';
+import { getProducts, getInventoryLogs } from '@/lib/api/inventory';
+import { KARDEX_TOPE } from '@duna/core/metrics/inventory-filters';
+import { rangoDeDiasDelPeriodo, PERIODOS, type PeriodoKey } from '@/lib/metrics/periodo';
+import { AdjustStockModal } from '@/components/admin/AdjustStockModal';
+import type { Product } from '@/types/product';
+import type { InventoryLog, InventoryMovementType } from '@/types/inventory';
 
-type Tab = 'stock' | 'movimientos';
+// ═══ INVENTARIO · la vista de AUDITORÍA del stock ═════════════════════════════
+//
+// Responde la pregunta que NINGUNA pantalla de producto puede: "¿qué pasó con el
+// stock, y quién ajustó qué?". El detalle de un producto muestra el kardex de UN
+// producto; recorrer el catálogo producto por producto no reconstruye la historia
+// del inventario. Eso —el kardex COMPLETO con su actor— es lo único que sólo esta
+// pantalla puede dar.
+//
+// ── POR QUÉ SE ENCOGIÓ (decisión del owner) ─────────────────────────────────
+//
+// Tuvo una cola de reposición con carriles (Por reponer / Agotados) y un
+// segmentado. Se quitó: la cola es la MISMA pregunta que el carril "Por reponer"
+// de Productos, con la MISMA fuente (`isLowStock`). Verla en dos sitios es lo que
+// hacía que la pantalla se sintiera de más. La reposición vive en el carril de
+// Productos; Inventario es la vista de auditoría.
+//
+// DISPARADOR: si con uso real el operador busca reponer EN Inventario y no en el
+// carril de Productos, la cola se mueve acá —con su dato—, igual que el punto sol
+// pertenece a donde se RESUELVE el hecho, no a donde se lista.
+//
+// ── UNA AUDITORÍA ES DE LECTURA · sus dos ayudas ────────────────────────────
+//
+// No se "actúa" sobre un movimiento (el asiento ES un hecho pasado). Las dos cosas
+// que la hacen usable son de lectura:
+//   · NAVEGAR: clic en el producto de un movimiento → su detalle en Productos, que
+//     responde "¿cómo está AHORA?". El detalle ya muestra el kardex de esa ficha.
+//   · FILTRAR: por producto, tipo y rango de fechas, SERVER-SIDE — sin ellos, a los
+//     tres meses es una lista infinita. Server-side y no en el cliente porque el
+//     kardex tiene tope: filtrar la ventana cargada mentiría más allá de la fila
+//     200 (ver `logsDeInventario`). Los filtros viven en la URL: una auditoría
+//     filtrada se comparte y sobrevive a un refresh.
+//
+// Heredó `/admin/inventario` al retirarse la pantalla vieja; los enlaces a la ruta
+// de convivencia (`-v2`) y el `?stock=bajo-minimo` legacy los atiende
+// `lib/redirect-inventario`. Mismo procedimiento que Pedidos, Clientes y Productos.
 
-// Movement type collapses to the ONE piece of information it carries: direction
-// of stock. Green = stock in (entrada/devolución), red = stock out (salida/venta),
-// neutral = ajuste. No per-type decorative hues.
-const tipoConfig: Record<InventoryMovementType, { label: string; color: string; bg: string }> = {
-  entrada:    { label: 'Entrada',    color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
-  salida:     { label: 'Salida',     color: 'text-red-600 dark:text-red-400',     bg: 'bg-red-50 dark:bg-red-900/20' },
-  ajuste:     { label: 'Ajuste',     color: 'text-muted-foreground',              bg: 'bg-muted' },
-  venta:      { label: 'Venta',      color: 'text-red-600 dark:text-red-400',     bg: 'bg-red-50 dark:bg-red-900/20' },
-  devolucion: { label: 'Devolución', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
+// El TIPO de movimiento va NEUTRO — Amber Minimal: el rojo es alerta, y una salida
+// o una venta son operación normal. La DIRECCIÓN la carga el signo de la cantidad.
+const TIPO_LABEL: Record<InventoryMovementType, string> = {
+  entrada: 'Entrada', salida: 'Salida', ajuste: 'Ajuste', venta: 'Venta', devolucion: 'Devolución',
 };
+const TIPOS: InventoryMovementType[] = ['entrada', 'salida', 'ajuste', 'venta', 'devolucion'];
 
-// useSearchParams() needs a Suspense boundary (same pattern as Órdenes).
-export default function Inventario() {
-  return (
-    <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Cargando...</div>}>
-      <InventarioInner />
-    </Suspense>
-  );
+// Presets de período — navegar la auditoría por TIEMPO (así se pregunta: "¿qué
+// pasó en marzo?", no "página 5"). Son un atajo que fija `desde`/`hasta`, los
+// mismos params que el date picker. La lógica del rango es la de Analítica
+// (`rangoDeDiasDelPeriodo`), no una copia — dos definiciones del mismo período
+// divergen en el borde del mes. "Este año" queda fuera a propósito (owner);
+// "Cargar más" también, con su disparador escrito: si un preset llega al tope de
+// 200 con uso real, entra con el cursor (createdAt, id) que ya existe de desempate.
+const PRESETS_INV: PeriodoKey[] = ['mes', 'mes_anterior', 'ultimos_3_meses'];
+
+/** El signo del movimiento. `ajuste` FIJA un valor absoluto: no es delta, así que
+ *  se muestra el resultado, no un `+N` que no ocurrió. */
+function signoDelMovimiento(l: InventoryLog): string {
+  if (l.tipo === 'ajuste') return String(l.stock_nuevo);
+  const suma = l.tipo === 'entrada' || l.tipo === 'devolucion';
+  return `${suma ? '+' : '−'}${l.cantidad}`;
 }
 
-function InventarioInner() {
-  const searchParams = useSearchParams();
-  // `?stock=bajo-minimo` (from the dashboard "Alertas de Stock" card) filters the
-  // stock table to exactly the low-stock rows, via the SAME `isLowStock` the card
-  // counts with — so card number = filtered row count.
-  const lowStockOnly = searchParams.get('stock') === LOW_STOCK_VALUE;
+export default function InventarioPage() {
+  return <Suspense fallback={null}><Inventario /></Suspense>;
+}
 
-  const [productos, setProductos] = useState<Product[]>([]);
-  const [logs, setLogs]           = useState<InventoryLog[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [showAdj, setShowAdj]     = useState(false);
-  const [tab, setTab]             = useState<Tab>('stock');
+function Inventario() {
+  const router   = useRouter();
+  const pathname = usePathname();
+  const params   = useSearchParams();
 
-  const load = async () => {
-    setLoading(true);
-    const [p, l] = await Promise.all([getProducts(), getInventoryLogs()]);
-    setProductos(p);
-    setLogs(l);
-    setLoading(false);
-  };
+  const [productos, setProductos]     = useState<Product[]>([]);
+  const [logs, setLogs]               = useState<InventoryLog[]>([]);
+  const [cargandoProd, setCargandoProd] = useState(true);
+  const [error, setError]             = useState<string | null>(null);
+  const [showAdj, setShowAdj]         = useState(false);
+  // Se bumpea al aplicar un ajuste, para RE-PEDIR el kardex respetando los filtros
+  // en vez de anteponer una fila que quizá no matchea el filtro puesto.
+  const [nonce, setNonce]             = useState(0);
 
-  useEffect(() => { load(); }, []);
+  // Los filtros viven en la URL (linkables, sobreviven a un refresh).
+  const fProducto = params.get('producto') ?? '';
+  const fTipo     = params.get('tipo') ?? '';
+  const desde     = params.get('desde');
+  const hasta     = params.get('hasta');
+  const hayFiltro = !!(fProducto || fTipo || desde || hasta);
 
-  const activeProducts = productos.filter(p => p.activo !== false);
-  const lowStock       = activeProducts.filter(isLowStock);
-  const outOfStock     = activeProducts.filter(p => p.stock === 0);
-  const totalValue     = productos.reduce((sum, p) => sum + ((p.costo ?? 0) * p.stock), 0);
-  // Rows shown in the stock table — narrowed to low-stock when the URL asks.
-  const stockRows      = lowStockOnly ? lowStock : activeProducts;
-  // El filtro solo recorta lo que se ve en la pestaña de stock: la tarjeta se
-  // marca y el chip aparece bajo la MISMA condición, para que "marcada" siempre
-  // signifique "esto es lo que estás viendo".
-  const filtroActivo   = lowStockOnly && tab === 'stock';
+  // `cargando` DERIVADO, no seteado en el effect (§ Analítica, y el lint lo marca):
+  // un `setLoading(true)` síncrono dentro del effect dispara renders en cascada.
+  // La clave describe el filtro pedido; los logs cargados guardan la suya, y
+  // "cargando" es simplemente que todavía no coinciden.
+  const filtroKey = `${fProducto}|${fTipo}|${desde ?? ''}|${hasta ?? ''}|${nonce}`;
+  const [logsKey, setLogsKey] = useState<string | null>(null);
+  const cargandoLogs = logsKey !== filtroKey;
 
-  // Lo que ESTA pantalla hace con el resultado. La mutación, la guarda de
-  // doble-submit y el error inline viven en el modal, que ahora comparte con el
-  // detalle de producto (§ AdjustStockModal). Acá queda idéntico lo que se ve:
-  // la fila del producto se actualiza y el movimiento encabeza la bitácora.
-  const aplicado = ({ product, log }: { product: Product; log: InventoryLog }) => {
+  // Los productos se cargan UNA vez: alimentan el valor total, el selector del
+  // modal, el selector de filtro y la existencia del enlace de cada fila.
+  useEffect(() => {
+    let vivo = true;
+    getProducts()
+      .then(p => { if (vivo) setProductos(p); })
+      .catch(e => { if (vivo) setError(e instanceof Error ? e.message : 'Error al cargar productos'); })
+      .finally(() => { if (vivo) setCargandoProd(false); });
+    return () => { vivo = false; };
+  }, []);
+
+  // El kardex se re-pide cada vez que cambia un filtro — SERVER-SIDE, para que el
+  // resultado sea verdad sobre toda la historia y no sólo sobre la ventana cargada.
+  // Al resolver (o fallar) sella `logsKey` con el filtro pedido, que es lo que
+  // apaga el "cargando" derivado — sin un setState de loading en el cuerpo.
+  useEffect(() => {
+    let vivo = true;
+    getInventoryLogs({
+      producto: fProducto || undefined,
+      tipo:     fTipo || undefined,
+      desde:    desde || undefined,
+      hasta:    hasta || undefined,
+    })
+      .then(l => { if (vivo) { setLogs(l); setError(null); } })
+      .catch(e => { if (vivo) setError(e instanceof Error ? e.message : 'Error al cargar los movimientos'); })
+      .finally(() => { if (vivo) setLogsKey(filtroKey); });
+    return () => { vivo = false; };
+  }, [filtroKey, fProducto, fTipo, desde, hasta]);
+
+  const valorTotal = useMemo(
+    () => productos.reduce((s, p) => s + ((p.costo ?? 0) * p.stock), 0),
+    [productos],
+  );
+  // Qué producto_id todavía existe — decide si la celda "Producto" es un enlace o
+  // texto plano. Un producto borrado dejaría un enlace muerto; no se pinta.
+  const idsProducto = useMemo(() => new Set(productos.map(p => p.id)), [productos]);
+
+  // El reloj para los presets, fijado al montar: un preset abierto no tiene por qué
+  // recalcularse en cada render, y el corrimiento en el cambio de día es irrelevante.
+  const ahora = useMemo(() => new Date(), []);
+
+  const aplicado = useCallback(({ product }: { product: Product; log: InventoryLog }) => {
     setProductos(prev => prev.map(p => p.id === product.id ? product : p));
-    setLogs(prev => [log, ...prev]);
+    setNonce(n => n + 1);   // re-pide el kardex respetando el filtro puesto
     toast.success('Inventario actualizado');
-  };
+  }, []);
+
+  const navegar = useCallback((cambios: Record<string, string | null>) => {
+    const q = new URLSearchParams(params.toString());
+    for (const [k, v] of Object.entries(cambios)) {
+      if (v === null) q.delete(k); else q.set(k, v);
+    }
+    const s = q.toString();
+    router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
+  }, [params, pathname, router]);
+
+  const columnasKardex: DunaColumn[] = [
+    { key: 'producto', header: 'Producto' },
+    { key: 'tipo',     header: 'Tipo' },
+    { key: 'cantidad', header: 'Cantidad', align: 'right' },
+    { key: 'saldo',    header: 'Antes → Después', align: 'right' },
+    { key: 'motivo',   header: 'Motivo' },
+    { key: 'quien',    header: 'Quién' },
+    { key: 'fecha',    header: 'Fecha' },
+  ];
+  const filasKardex = logs.map(l => ({
+    key: l.id,
+    cells: [
+      // Enlace al detalle del producto SÓLO si el producto todavía existe. La
+      // pregunta natural al leer un movimiento raro: "¿cómo está AHORA?".
+      idsProducto.has(l.producto_id)
+        ? <Link key="p" href={`/admin/productos?producto=${l.producto_id}`} className="duna-link">{l.producto_nombre}</Link>
+        : l.producto_nombre,
+      <span key="t" className="duna-badge duna-badge--neutral">{TIPO_LABEL[l.tipo] ?? l.tipo}</span>,
+      <span key="c" className="duna-num">{signoDelMovimiento(l)}</span>,
+      <span key="s" className="duna-num">{l.stock_anterior} → {l.stock_nuevo}</span>,
+      // El MOTIVO sigue siendo el texto legible; el enlace sale del DATO
+      // (`orden_numero` resuelto por el servidor), no de parsear "CN-…" del texto.
+      // Sólo enlaza si la orden todavía existe; si no, texto plano (misma regla que
+      // la celda Producto).
+      l.orden_numero
+        ? <Link key="m" href={`/admin/pedidos?pedido=${l.orden_numero}`} className="duna-link">{l.motivo || '—'}</Link>
+        : (l.motivo || '—'),
+      // El actor. `—` es honesto: filas viejas y asientos del sistema no tienen
+      // humano — es la razón por la que la columna existe.
+      l.ajustado_por_nombre || '—',
+      <span key="f" className="duna-caption">{formatFecha(l.createdAt)}</span>,
+    ],
+  }));
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Inventario</h1>
-          <p className="text-sm text-muted-foreground">Control de stock en tiempo real</p>
+    <div className="duna">
+      {/* ── Encabezado ─────────────────────────────────────────────────────── */}
+      <header style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-4)', marginBottom: 'var(--duna-space-5)' }}>
+        <div style={{ minWidth: 0 }}>
+          <h1 className="duna-display-m">Inventario</h1>
+          <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>
+            Historial de movimientos de stock — quién ajustó qué, y cuándo.
+          </p>
         </div>
-        <Button onClick={() => setShowAdj(true)} className="gap-2">
-          <ArrowUpDown className="w-4 h-4" /> Ajustar Stock
-        </Button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="stat-card">
-          <Warehouse className="w-5 h-5 text-primary mb-3" />
-          <p className="text-xl font-bold">{productos.length}</p>
-          <p className="text-xs text-muted-foreground">Productos en sistema</p>
-        </div>
-        {/* Navega a la MISMA lista filtrada que la card del dashboard, con el
-            mismo `?stock=bajo-minimo` y contando con el mismo `isLowStock`
-            compartido — card y lista no pueden divergir. Cuando el filtro ya
-            está aplicado la tarjeta se marca (borde de primario + tinte), misma
-            condición que el chip "Filtrado" de abajo. */}
-        <Link
-          href={`/admin/inventario?stock=${LOW_STOCK_VALUE}`}
-          aria-current={filtroActivo ? 'true' : undefined}
-          className={`stat-card ${statCardLink(filtroActivo)}`}
+        <button
+          type="button"
+          className="duna-btn duna-btn--primary"
+          style={{ marginLeft: 'auto', flexShrink: 0 }}
+          onClick={() => setShowAdj(true)}
         >
-          {/* El color es alerta, y una alerta de cero no existe: con 0 productos
-              bajo mínimo la tarjeta va neutra y solo se tiñe cuando hay algo que
-              atender. Mismo criterio que "Sin stock" al lado. */}
-          <AlertTriangle className={`w-5 h-5 mb-3 ${lowStock.length > 0 ? 'text-amber-500' : 'text-muted-foreground'}`} />
-          <p className={`text-xl font-bold ${lowStock.length > 0 ? 'text-amber-600' : ''}`}>{lowStock.length}</p>
-          <p className="text-xs text-muted-foreground">Stock bajo mínimo</p>
-        </Link>
-        <div className="stat-card">
-          {/* Rojo = alerta REAL. "Sin stock: 0" es el estado bueno de la tienda;
-              pintarlo de rojo entrena al operador a ignorar el rojo. */}
-          <TrendingDown className={`w-5 h-5 mb-3 ${outOfStock.length > 0 ? 'text-red-500' : 'text-muted-foreground'}`} />
-          <p className={`text-xl font-bold ${outOfStock.length > 0 ? 'text-red-600' : ''}`}>{outOfStock.length}</p>
-          <p className="text-xs text-muted-foreground">Sin stock</p>
+          <ArrowUpDown /> Ajustar stock
+        </button>
+      </header>
+
+      {error && <div className="duna-note" role="alert">{error}</div>}
+
+      {/* ── Valor del inventario — estado vigente, con su descargo ──────────── */}
+      <div style={{ marginBottom: 'var(--duna-space-6)' }}>
+        <div className="duna-stat" style={{ display: 'inline-block' }}>
+          <div className="duna-stat__v duna-num">{cargandoProd ? '—' : formatCOP(valorTotal)}</div>
+          <div className="duna-stat__l">Valor del inventario</div>
         </div>
-        <div className="stat-card">
-          <TrendingUp className="w-5 h-5 text-emerald-500 mb-3" />
-          <p className="text-xl font-bold">{formatCOP(totalValue)}</p>
-          <p className="text-xs text-muted-foreground">Valor del inventario</p>
-        </div>
+        <p className="duna-caption" style={{ margin: 'var(--duna-space-2) 0 0' }}>
+          Valuación estimada con el costo actual del catálogo, no contable.
+        </p>
       </div>
 
-      {/* Low stock alert */}
-      {lowStock.length > 0 && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">
-              {lowStock.length} productos con stock bajo
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {lowStock.map(p => (
-              <div key={p.id} className="bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-xs px-2.5 py-1 rounded-full">
-                {p.nombre} — <strong>{p.stock}</strong> / mín. {p.stock_minimo ?? 5}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* ── El kardex completo · la vista de auditoría ─────────────────────── */}
+      <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-3)' }}>Movimientos</div>
 
-      {/* Active low-stock filter (arrived from the dashboard card) — a clear chip
-          so it's obvious the table is narrowed, with one click back to all rows. */}
-      {filtroActivo && (
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 px-3 py-1 text-xs font-medium text-amber-800 dark:text-amber-300">
-            <AlertTriangle className="w-3 h-3" /> Filtrado: stock bajo mínimo ({lowStock.length})
-          </span>
-          <Link href="/admin/inventario" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-            <X className="w-3 h-3" /> Quitar filtro
-          </Link>
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="flex border-b border-border gap-4">
-        {(['stock', 'movimientos'] as Tab[]).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`pb-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
-              tab === t
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {t === 'stock' ? 'Stock Actual' : 'Movimientos'}
+      {/* Filtros de la auditoría · nativos (selects) + el DateRangePicker del panel. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', alignItems: 'center', marginBottom: 'var(--duna-space-4)' }}>
+        {/* No elegir SÍ es válido —"todos"— así que el vacío es opción de verdad,
+            sin `disabled hidden`. */}
+        <select className="duna-input duna-select duna-input--sm" style={{ width: 'auto' }}
+                aria-label="Filtrar por producto" value={fProducto}
+                onChange={e => navegar({ producto: e.target.value || null })}>
+          <option value="">Todos los productos</option>
+          {productos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+        </select>
+        <select className="duna-input duna-select duna-input--sm" style={{ width: 'auto' }}
+                aria-label="Filtrar por tipo de movimiento" value={fTipo}
+                onChange={e => navegar({ tipo: e.target.value || null })}>
+          <option value="">Todos los tipos</option>
+          {TIPOS.map(t => <option key={t} value={t}>{TIPO_LABEL[t]}</option>)}
+        </select>
+        {/* Presets de período: navegar por tiempo de un clic. Un preset se marca
+            cuando el rango puesto coincide con el suyo; el date picker de al lado
+            cubre los rangos a medida. */}
+        {PRESETS_INV.map(k => {
+          const r = rangoDeDiasDelPeriodo(k, ahora);
+          const activo = desde === r.desde && hasta === r.hasta;
+          return (
+            <button key={k} type="button" className={`duna-pill${activo ? ' is-on' : ''}`} aria-pressed={activo}
+                    onClick={() => navegar({ desde: r.desde, hasta: r.hasta })}>
+              {PERIODOS[k]}
+            </button>
+          );
+        })}
+        <DateRangePicker desde={desde} hasta={hasta} onChange={(d, h) => navegar({ desde: d, hasta: h })} />
+        {hayFiltro && (
+          <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm"
+                  onClick={() => navegar({ producto: null, tipo: null, desde: null, hasta: null })}>
+            Quitar filtros
           </button>
-        ))}
+        )}
       </div>
 
-      {/* Stock table */}
-      {tab === 'stock' && (
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          {loading ? (
-            <div className="p-8 text-center text-muted-foreground">Cargando...</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    {['Producto', 'SKU', 'Categoría', 'Stock Actual', 'Stock Mínimo', 'Valor Stock', 'Estado'].map(h => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {stockRows.map(p => {
-                    const out = p.stock === 0;
-                    const low = isLowStock(p);
-                    return (
-                      <tr key={p.id} className={`border-b border-border/50 hover:bg-muted/20 ${out ? 'opacity-60' : ''}`}>
-                        <td className="px-4 py-3 font-medium">{p.nombre}</td>
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{p.sku ?? '—'}</td>
-                        <td className="px-4 py-3 text-xs capitalize">{p.categoria?.replace('_', ' ')}</td>
-                        <td className="px-4 py-3">
-                          <span className={`font-bold ${out ? 'text-red-500' : low ? 'text-amber-600' : 'text-foreground'}`}>
-                            {p.stock}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">{p.stock_minimo ?? 5}</td>
-                        <td className="px-4 py-3">{formatCOP((p.costo ?? 0) * p.stock)}</td>
-                        <td className="px-4 py-3">
-                          {out ? (
-                            <span className="text-xs bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 px-2 py-0.5 rounded-full">Sin stock</span>
-                          ) : low ? (
-                            <span className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 px-2 py-0.5 rounded-full flex items-center gap-1 w-fit">
-                              <AlertTriangle className="w-2.5 h-2.5" /> Stock bajo
-                            </span>
-                          ) : (
-                            <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 px-2 py-0.5 rounded-full">OK</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+      {cargandoLogs && <p className="duna-sub" style={{ margin: 0 }}>Cargando los movimientos…</p>}
+      {!cargandoLogs && logs.length === 0 && (
+        <div className="duna-card duna-card__pad">
+          {/* Distinguir "no hay nada" de "el filtro no encontró nada" evita que el
+              operador crea que perdió el historial. */}
+          <p className="duna-sub" style={{ margin: 0 }}>
+            {hayFiltro ? 'Ningún movimiento con estos filtros.' : 'Sin movimientos registrados.'}
+          </p>
         </div>
       )}
-
-      {/* Logs table */}
-      {tab === 'movimientos' && (
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          {logs.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground text-sm">Sin movimientos registrados.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    {['Producto', 'Tipo', 'Cantidad', 'Stock Anterior', 'Stock Nuevo', 'Motivo', 'Fecha'].map(h => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs.map(l => {
-                    const tc = tipoConfig[l.tipo];
-                    return (
-                      <tr key={l.id} className="border-b border-border/50 hover:bg-muted/20">
-                        <td className="px-4 py-3 font-medium">{l.producto_nombre}</td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${tc.bg} ${tc.color}`}>
-                            {tc.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-semibold">{l.cantidad}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{l.stock_anterior}</td>
-                        <td className="px-4 py-3">{l.stock_nuevo}</td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">{l.motivo ?? '—'}</td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">
-                          {formatFecha(l.createdAt)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+      {!cargandoLogs && logs.length > 0 && (
+        <DunaTable columns={columnasKardex} rows={filasKardex} minWidth="48rem" />
+      )}
+      {/* EL CORTE SE DECLARA, no se calla: cuando la ventana viene LLENA (=tope)
+          puede haber más atrás, y una auditoría que muestra 200 sin decirlo miente
+          por omisión. Apunta al rango de fechas, que es como se navega una
+          auditoría —por tiempo, no por número de página—. (La paginación de fondo
+          es decisión aparte; esto es el corte honesto mientras tanto.) */}
+      {!cargandoLogs && logs.length === KARDEX_TOPE && (
+        <p className="duna-caption" style={{ margin: 'var(--duna-space-3) 0 0' }}>
+          Mostrando los {KARDEX_TOPE} movimientos más recientes. Acotá con el rango de fechas para ver otros.
+        </p>
       )}
 
-      {/* EL MISMO modal que monta el detalle de producto. Acá entra por la lista
-          —sin producto fijo—, así que muestra el selector. */}
+      {/* La puerta de operación de inventario: el modal agnóstico con selector de
+          producto (sin pre-llenado — la reposición por producto vive en Productos). */}
       <AdjustStockModal
         open={showAdj}
         productos={productos}
