@@ -5,6 +5,7 @@ import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { createCustomer, updateCustomer } from '@/lib/api/customers';
+import { problemaGuardarCliente } from '@/lib/clientes/guardar';
 import { CANALES, EMPTY_CUSTOMER_FORM } from '@/constants/customer';
 import type { Customer, CustomerForm } from '@/types/customer';
 import type { OrderChannel } from '@/types/order';
@@ -88,6 +89,12 @@ function Cuerpo({ customer, onClose, onSaved }: {
   // hizo mal. Aparece con el primer intento y desaparece al corregir.
   const [intentado, setIntentado] = useState(false);
   const faltaNombre = intentado && !form.nombre.trim();
+
+  // El cliente con el que abrió, para el "no hay cambios". `null` en alta: ahí el
+  // estado inicial vacío es legítimo y el obligatorio ya bloquea. Se recomputa
+  // por render, y no importa: `problemaGuardarCliente` compara por valor.
+  const inicial = customer ? buildForm(customer) : null;
+  const problema = problemaGuardarCliente(form, inicial);
 
   // Las DOS mitades de la guarda, del hook — no escritas a mano. El ref corta la
   // re-entrada del mismo tick (que es lo único que la cierra) y el estado le pone
@@ -190,10 +197,18 @@ function Cuerpo({ customer, onClose, onSaved }: {
             Cancelar
           </button>
           <button type="button" className="duna-btn duna-btn--primary" onClick={guardar}
-                  disabled={guarda.enVuelo || !form.nombre.trim()}>
+                  disabled={guarda.enVuelo || !!problema}>
             {guarda.enVuelo ? 'Guardando…' : 'Guardar'}
           </button>
         </div>
+        {/* El botón deshabilitado DICE por qué cuando el motivo no es un campo en
+            rojo: sin cambios no hay nada que guardar. La falta de nombre ya se
+            anuncia en su propio campo, así que acá sólo el "no hay cambios". */}
+        {problema?.campo === 'sin_cambios' && (
+          <p className="duna-field__hint" style={{ flexBasis: '100%', textAlign: 'right', margin: 0 }}>
+            {problema.mensaje}
+          </p>
+        )}
       </div>
     </>
   );

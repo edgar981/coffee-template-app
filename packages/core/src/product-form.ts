@@ -1,4 +1,5 @@
 import type { ProductForm } from '@/types/product';
+import { hayCambios } from './forms';
 
 // ─── Habilitación del guardado del formulario de producto ────────────────────
 // Vive acá, pura y testeada, y NO como una expresión suelta dentro del JSX del
@@ -51,6 +52,41 @@ export function obligatoriosFaltantes(form: CamposObligatorios): string[] {
  */
 export function puedeGuardarProducto(form: CamposObligatorios, guardando: boolean): boolean {
   return !guardando && !faltanObligatorios(form);
+}
+
+// ─── ¿Cambió algo respecto al producto que se abrió a editar? ─────────────────
+// El drawer de producto no es sólo su formulario: tiene portada, galería y la
+// lista de moliendas, y un cambio en cualquiera de esos tres cuenta. Por eso el
+// "sucio" del producto NO es `hayCambios(form, inicial)` a secas —eso se le
+// escapan las imágenes y las moliendas—: es la unión de las cuatro fuentes. El
+// llamador (el modal) computa los tres booleanos porque el estado de esas piezas
+// vive en él; acá se combinan, que es la parte que conviene tener testeada.
+//
+// Sólo aplica en EDICIÓN. En el alta no hay "no hay cambios": el estado inicial
+// vacío es legítimo y el obligatorio (nombre/categoría/precio) ya bloquea.
+
+export interface EstadoCambiosProducto {
+  form:                ProductForm;
+  /** El producto con el que abrió el drawer, ya llevado a `ProductForm`. */
+  inicialForm:         ProductForm;
+  /** Se eligió una portada nueva (aún sin subir). Quitar la portada existente ya
+   *  lo captura `form.imagen`, así que acá basta con "hay un File nuevo". */
+  imagenCambiada:      boolean;
+  /** Se agregó o se quitó una toma de la galería. */
+  galeriaCambiada:     boolean;
+  /** Se agregó, quitó, renombró o cambió la disponibilidad de una molienda. */
+  moliendasCambiadas:  boolean;
+}
+
+/** ¿Difiere el drawer de producto de como abrió? Une los cuatro frentes: el
+ *  formulario plano y las tres piezas que viven fuera de él. */
+export function hayCambiosProducto(e: EstadoCambiosProducto): boolean {
+  return (
+    hayCambios(e.form, e.inicialForm) ||
+    e.imagenCambiada ||
+    e.galeriaCambiada ||
+    e.moliendasCambiadas
+  );
 }
 
 // ─── La acción de estado del diálogo de borrado ──────────────────────────────

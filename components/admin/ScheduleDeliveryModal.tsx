@@ -15,6 +15,7 @@ import type { Shipping, ShippingZona, TipoEnvio } from '@/types/shipping';
 import { TIPO_ENVIO_LABEL } from '@/types/shipping';
 import type { DeliveryContext, OrderAddressResult } from '@/types/order';
 import { ZONAS, SHIPPING_ESTADO_LABEL, hasScheduleData, missingToDispatch } from '@/constants/shippings';
+import { problemaGuardarEntrega, type ProgramacionSnapshot } from '@/lib/pedidos/programar';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { sugerirZona } from '@duna/core/zona-config';
 import { COLOMBIA_DEPARTMENTS } from '@duna/core/colombia-departments';
@@ -115,6 +116,14 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
   const [numeroGuia, setNumeroGuia]         = useState(shipping.numero_guia ?? '');
   const [saving, setSaving]       = useState(false);
 
+  // Snapshot PRESENTADO al abrir, para el "no hay cambios" del botón y para la
+  // guarda de descarte. Se fija en el efecto de carga, DESPUÉS de aplicar los
+  // defaults inteligentes (zona sugerida, último mensajero): así "abrir sin tocar
+  // nada" queda sin cambios aunque el sistema haya pre-llenado un par de campos —
+  // aceptar una sugerencia sin tocarla no es una edición. Se computa con los
+  // mismos valores que el efecto va a poner, no leyendo el estado (que es async).
+  const [inicial, setInicial] = useState<ProgramacionSnapshot | null>(null);
+
   // Zona sugerida por la dirección (heurística de texto, lib/zona-config.ts).
   // Se guarda aparte de `zona` porque viaja al servidor como auditoría: la
   // corrección del operador se deriva de `zona_sugerida !== zona`.
@@ -159,6 +168,20 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
         // un hueco). Se decide con el prop y no con el estado, porque el estado
         // ya pudo haberlo tecleado el operador mientras cargaba la fetch.
         if (sinMensajero && c.ultimoMensajero) setMensajero(c.ultimoMensajero);
+
+        // La línea de base contra la que se mide "¿hay cambios?": los mismos
+        // valores que los setState de arriba dejan en los campos.
+        const zonaIni      = (sug && nuncaProgramada)        ? sug             : ((shipping.zona as ShippingZona) ?? 'centro');
+        const mensajeroIni = (sinMensajero && c.ultimoMensajero) ? c.ultimoMensajero : (shipping.mensajero ?? '');
+        setInicial({
+          zona:           zonaIni,
+          mensajero:      mensajeroIni,
+          fecha:          shipping.fecha_programada ?? '',
+          notas:          shipping.notas_entrega ?? '',
+          tipoEnvio:      shipping.tipo_envio ?? 'LOCAL',
+          transportadora: shipping.transportadora ?? '',
+          numeroGuia:     shipping.numero_guia ?? '',
+        });
       })
       .catch((e) => {
         if (active) setLoadError(e instanceof Error && e.message ? e.message : 'No se pudieron cargar los datos de la orden.');
@@ -187,6 +210,13 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
   // Solo con al menos un dato puesto: en una entrega recién creada (nada
   // diligenciado) no hay nada que reclamar todavía.
   const faltaParaDespachar = hasScheduleData(draft) ? missingToDispatch(draft) : null;
+
+  // ¿Qué impide guardar? Sin dirección o sin cambios. `inicial ?? actual` cae en
+  // "sin cambios" mientras la línea de base no está fijada (no llega a verse: el
+  // botón no se renderiza durante la carga), así que nunca queda habilitado por
+  // defecto. Cubre el caso reportado: abrir sin tocar nada → deshabilitado.
+  const actual: ProgramacionSnapshot = { zona, mensajero, fecha, notas, tipoEnvio, transportadora, numeroGuia };
+  const problema = problemaGuardarEntrega(actual, inicial ?? actual, hasAddress);
 
   const guardaProgramar = useAccionGuardada();
   const errorProgramar  = useErrorDialogo();
@@ -421,10 +451,18 @@ function ScheduleBody({ shipping, ordenId, onClose, onSaved, onAddressAdded }: {
         <ErrorDialogo mensaje={errorProgramar.mensaje} className="duna-modal__aviso" />
         <div className="duna-modal__acciones">
           <button type="button" className="duna-btn duna-btn--ghost" onClick={onClose}>Cancelar</button>
-          <button type="button" className="duna-btn duna-btn--primary" onClick={handleSchedule} disabled={saving || !hasAddress}>
+          <button type="button" className="duna-btn duna-btn--primary" onClick={handleSchedule} disabled={saving || !!problema}>
             {saving ? 'Guardando...' : isReschedule ? 'Reprogramar' : 'Guardar entrega'}
           </button>
         </div>
+        {/* El botón deshabilitado DICE por qué cuando no hay nada que guardar. La
+            falta de dirección ya tiene su propio aviso ámbar arriba, así que acá
+            sólo el "no hay cambios". */}
+        {problema?.campo === 'sin_cambios' && (
+          <p className="duna-field__hint" style={{ flexBasis: '100%', textAlign: 'right', margin: 0 }}>
+            {problema.mensaje}
+          </p>
+        )}
       </div>
     </>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Package, X } from 'lucide-react';
 import { DunaSheet } from '@/components/admin/DunaSheet';
@@ -13,7 +13,7 @@ import { uploadImagen } from '@/lib/api/upload';
 import { CATEGORIAS, EMPTY_PRODUCT_FORM, TOSTADOS } from '@/constants/product';
 import { ACCEPT_IMAGENES, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
 import { MAX_GALERIA_IMAGENES } from '@duna/core/product-gallery';
-import { puedeGuardarProducto, obligatoriosFaltantes } from '@duna/core/product-form';
+import { puedeGuardarProducto, obligatoriosFaltantes, hayCambiosProducto } from '@duna/core/product-form';
 import { sanitizeOpciones, validarOpciones, revisarEdicion, type MoliendaOpcion } from '@duna/core/moliendas-opciones';
 import type { Product, ProductCategory, ProductForm, RoastLevel } from '@/types/product';
 
@@ -202,6 +202,29 @@ function Cuerpo({ product, guarda, onClose, onSaved }: {
   const totalGaleria = galeriaActual.length + galeriaPendiente.length;
   const faltantes    = obligatoriosFaltantes(form);
   const cupoLleno    = totalGaleria >= MAX_GALERIA_IMAGENES;
+
+  // ── ¿Hay cambios? · sólo en EDICIÓN ─────────────────────────────────────────
+  // El drawer es más que su formulario: portada, galería y moliendas cuentan. Se
+  // comparan las tres piezas no-planas contra su estado inicial y se unen con el
+  // form en `hayCambiosProducto`. En el alta no aplica (dirty = true): ahí el
+  // vacío inicial es legítimo y el obligatorio ya bloquea.
+  const inicialForm          = useMemo(() => (product ? buildForm(product) : null), [product]);
+  const galeriaInicialLen    = useMemo(
+    () => (product?.imagenes ?? []).filter(u => u && u !== product?.imagen).length, [product]);
+  const moliendasInicialJSON = useMemo(
+    () => JSON.stringify(sanitizeOpciones(product?.moliendasOpciones)), [product]);
+
+  const galeriaCambiada    = galeriaPendiente.length > 0 || galeriaActual.length !== galeriaInicialLen;
+  const moliendasCambiadas = JSON.stringify(sanitizeOpciones(moliendasVivas)) !== moliendasInicialJSON;
+  const dirty = !product ? true : hayCambiosProducto({
+    form,
+    inicialForm:    inicialForm!,
+    // Quitar la portada ya lo capta `form.imagen`; acá "hay un File nuevo".
+    imagenCambiada: imagenFile !== null,
+    galeriaCambiada,
+    moliendasCambiadas,
+  });
+  const sinCambios = !!product && !dirty;
 
   const campo = <K extends keyof ProductForm>(key: K) => ({
     value: form[key] as string,
@@ -589,7 +612,7 @@ function Cuerpo({ product, guarda, onClose, onSaved }: {
             Cancelar
           </button>
           <button type="button" className="duna-btn duna-btn--primary" onClick={guardar}
-                  disabled={!puedeGuardarProducto(form, bloqueado)}>
+                  disabled={!puedeGuardarProducto(form, bloqueado) || sinCambios}>
             {fase === 'subiendo' ? 'Subiendo imagen…' : fase === 'guardando' ? 'Guardando…' : 'Guardar'}
           </button>
         </div>
@@ -599,6 +622,13 @@ function Cuerpo({ product, guarda, onClose, onSaved }: {
         {!bloqueado && faltantes.length > 0 && (
           <p className="duna-field__hint" style={{ flexBasis: '100%', textAlign: 'right', margin: 0 }}>
             {faltantes.length === 1 ? 'Falta' : 'Faltan'}: {faltantes.join(', ')}
+          </p>
+        )}
+        {/* En edición, sin obligatorios faltantes pero sin cambios: se dice por qué
+            el botón está apagado. */}
+        {!bloqueado && faltantes.length === 0 && sinCambios && (
+          <p className="duna-field__hint" style={{ flexBasis: '100%', textAlign: 'right', margin: 0 }}>
+            No hay cambios que guardar
           </p>
         )}
       </div>
