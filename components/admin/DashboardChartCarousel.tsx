@@ -102,30 +102,24 @@ export default function DashboardChartCarousel() {
 
   const spec = CHARTS[index];
 
-  // Clic en un día → los pedidos creados ESE día. Recharts devuelve el punto en
-  // `activeLabel` (el valor de x = nuestro day key `YYYY-MM-DD`), y se navega a la
-  // lista acotada a ese día de Bogotá. Aplica a las DOS gráficas (comparten eje x).
+  // SÓLO "Ventas" es clickeable. Recharts devuelve el día en `activeLabel`
+  // (x = day key `YYYY-MM-DD`).
   //
-  // ── EL DESTINO NO MIDE LO MISMO QUE LA GRÁFICA, y hay que saberlo ───────────
-  //
-  // Se migra la ruta TAL CUAL —de `/admin/ordenes` a `/admin/pedidos`— sin tocar la
-  // discrepancia, que es anterior a esta tanda y no se arregla acá (owner):
-  //
-  //   · "Ventas" mide PLATA RECIBIDA ese día, por `Payment.fecha`. El enlace lleva
-  //     a órdenes CREADAS ese día: un pago de hoy sobre una orden de la semana
-  //     pasada está en la barra y no en la lista.
-  //   · "Pedidos" mide LÍNEAS de producto por peso, sobre órdenes ya PAGADAS. El
-  //     enlace lleva a órdenes de cualquier estado, y cuenta órdenes, no líneas.
-  //
-  // Arreglarlo pide un destino en PAGOS para la primera —otra pantalla, otra
-  // decisión— así que queda anotado con su disparador en el backlog: cuando se
-  // rediseñe Analítica o Pagos. Migrarlo callado habría sido llevarse el defecto a
-  // la pantalla nueva como si fuera una propiedad suya.
+  //   · "Ventas" mide PLATA RECIBIDA ese día, por `Payment.fecha`. Su día es un día
+  //     de PAGOS → `/admin/pagos?desde&hasta`, que bin-ea por `Payment.fecha` — el
+  //     MISMO destino que la stat card "Ventas hoy" ya usa.
+  //   · "Pedidos" NO es clickeable. Mide LÍNEAS de producto de órdenes pagadas, no
+  //     órdenes: ningún destino de Pedidos ni de Pagos coincide con ese conjunto, así
+  //     que un enlace parecido-pero-distinto invitaría a concluir que la gráfica está
+  //     mal cuando lo que estaría mal es el destino. Si merece destino propio se
+  //     decide al rediseñar Analítica (§ Analítica), no acá.
+  const clickeable = spec.id === 'ventas';
+
   const handleDayClick = (state: { activeLabel?: string | number } | null) => {
+    if (!clickeable) return;
     const day = state?.activeLabel;
-    if (typeof day === 'string' && day) {
-      router.push(`/admin/pedidos?desde=${day}&hasta=${day}`);
-    }
+    if (typeof day !== 'string' || !day) return;
+    router.push(`/admin/pagos?desde=${day}&hasta=${day}`);
   };
 
   useEffect(() => {
@@ -225,7 +219,7 @@ export default function DashboardChartCarousel() {
           <AreaChart
             data={rows} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
             onClick={handleDayClick}
-            className="cursor-pointer [&_.recharts-area]:cursor-pointer"
+            className={clickeable ? 'cursor-pointer [&_.recharts-area]:cursor-pointer' : undefined}
           >
             <defs>
               {spec.series.map(s => (
@@ -305,8 +299,11 @@ function BreakdownTooltip({ spec, active, payload, label }: {
         <span className="text-muted-foreground">Total</span>
         <span className="font-semibold text-foreground tabular-nums">{spec.format(total)}</span>
       </div>
-      {/* Affordance for the chart-day drill-down (AreaChart onClick). */}
-      <p className="mt-1.5 text-[10px] italic text-muted-foreground/70">Click para ver órdenes del día</p>
+      {/* Afordancia del drill-down por día — SÓLO cuando la gráfica es clickeable
+          (hoy sólo Ventas, que lleva a los PAGOS de ese día). */}
+      {spec.id === 'ventas' && (
+        <p className="mt-1.5 text-[10px] italic text-muted-foreground/70">Click para ver los pagos del día</p>
+      )}
     </div>
   );
 }
