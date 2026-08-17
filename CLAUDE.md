@@ -436,6 +436,10 @@ Reglas de la lista, para que siga sirviendo:
 
 - **Va ordenada, y el orden es la decisión.** Reordenar es una decisión del
   owner, no del que agrega el item.
+- **El orden es la POSICIÓN; el número es el NOMBRE.** Un item se ubica por
+  prioridad, no por su número —que es un id estable—. Por eso la lista puede tener
+  el 22 después del 25: el 22 es su nombre, y su lugar al final dice que es lo
+  último.
 - **Cada entrada dice el COSTO YA PAGADO**, no solo el problema. "Costó el
   diagnóstico de una tarde" es lo que hace que la decisión de priorizar no se
   tome en abstracto.
@@ -735,10 +739,11 @@ aplicarlo al que llega), otro mecanismo.
 cruzando 1080 con el detalle abierto Y scrolleado — un caso raro. El borrador, que
 SÍ era pérdida de contenido, ya se arregló en la misma tanda.
 
-**DISPARADOR: el shell de scroll-por-columna** (la parte de la tanda 3 que sigue en
-pausa), que va a rehacer esos scrollers —columnas de alto fijo con overflow propio—
-y es el momento natural para decidir la restauración. Antes de eso, elevar el
-scroll a mano sería un mecanismo que ese shell reescribiría enseguida.
+**DISPARADOR: si aparece en uso real.** El shell de scroll-por-columna ya rehízo esos
+scrollers (en producción desde `1b10988`) sin implementar la restauración, así que el
+"momento natural" pasó sin decidirla — y el caso sigue sin reportarse. Es el mismo
+disparador que su hermano #19: cuando alguien lo tope de verdad, se guarda el
+`scrollTop` del scroller que se va y se aplica al que llega.
 
 ### 19. `confirmando` de `useDescarteDeDrawer` muere en el remontaje del detalle
 
@@ -853,9 +858,8 @@ por ahora; es deuda con fecha, no una herida.
 (decisión D1(b) del owner, tanda del shell). No se hace antes a propósito: varias de
 esas pantallas se van a reconstruir, así que meterlas hoy en el shell nuevo es
 trabajo que se rehace, con gate sobre pantallas que van a desaparecer. El shell
-global entra AL FINAL, como consolidación —por eso este item va último aunque su
-número sea 22—. Absorbe a #25: el gateo por valor vs rol deja de existir cuando el
-chrome provee la altura global.
+global entra AL FINAL, como consolidación. Absorbe a #25: el gateo por valor vs rol
+deja de existir cuando el chrome provee la altura global.
 
 ## Mejoras post-multitenant
 
