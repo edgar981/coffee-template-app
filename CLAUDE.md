@@ -796,6 +796,37 @@ imágenes.** Ahí se verifica qué hace `lib/storage` en `delete`/reemplazo cont
 URL de prefijo `productos/` heredada, y que la guarda cubra ese path — antes de
 darle al operador un botón que pueda alcanzar un archivo de producción.
 
+### 23. Las barras de scroll de las columnas usan el estilo del navegador
+
+Las columnas con `overflow-y: auto` del shell de alto fijo (§ duna.css, el shell)
+scrollean con la barra por defecto del navegador, ajena al sistema. Falta el estilo
+tokenizado (`scrollbar-width`/`scrollbar-color` + `::-webkit-scrollbar`).
+
+**Costo YA pagado: ninguno** — es cosmético y la barra por defecto funciona. Va a
+la PRIMITIVA (no ad-hoc por página), con tokens, en commit propio.
+
+**CUIDADO, y por eso se anota con la advertencia:** una barra demasiado sutil deja
+de anunciar que hay contenido abajo — y eso es INFORMACIÓN, no decoración. El
+riesgo del estilo es esconder la señal de "hay más", que es justo lo que una barra
+de scroll comunica. El acabado tiene que conservar esa señal.
+
+**DISPARADOR: una tanda de acabado del shell**, con gate visual propio (el cambio
+se ve, y hay que verlo en los dos temas).
+
+### 24. `/admin/inventario` sin scroll de columna — necesita región de alto fijo SIN split
+
+Inventario NO usa `.duna-split`: es de columna única (el historial de movimientos),
+así que el shell de alto fijo actual no le aplica —está atado a que exista un split
+que llene la región (§ duna.css, `.duna-region > .duna-split`)—. Para que sólo
+scrollee el historial (header y filtros quietos) hace falta una ESTRUCTURA NUEVA:
+la región de alto fijo con un scroller único, no dos columnas.
+
+**Costo YA pagado: ninguno** — hoy Inventario hace document-scroll y funciona.
+
+**DISPARADOR: al cerrar la tanda 3**, como tanda corta propia. Es el caso que
+generaliza el shell de "split de dos columnas" a "región de alto fijo con N
+scrollers", y conviene hacerlo con Inventario como primer consumidor real.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son

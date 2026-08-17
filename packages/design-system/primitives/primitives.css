@@ -285,20 +285,30 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
    puede clickear, que es el peor de los dos mundos. */
 .duna-hit__sobre { position: relative; z-index: 1; }
 
-/* ── LAYOUT PARTIDO · lista que scrollea + panel que se queda ────────────────
+/* ── LAYOUT PARTIDO · dos columnas que scrollean por su cuenta ───────────────
    El esqueleto de una pantalla de trabajo: a la izquierda una lista larga, a la
    derecha el detalle de lo seleccionado. AGNÓSTICO — no sabe que la lista son
    pedidos; sirve igual para clientes o productos.
 
-   Existe como primitiva por la misma razón que `order-card`: sin ella, cada
-   pantalla inventaría su propia rejilla y su propio `top` del sticky, y ese `top`
-   es JUSTO el número que no se puede inventar, porque depende de la altura de la
-   topbar. Acá el acople está declarado una vez y se mueve solo.
+   Existe como primitiva por la misma razón que `order-card`: sin ella cada
+   pantalla inventaría su propia rejilla.
 
-   `align-items: start` es lo que permite que el panel sea sticky: con el
-   `stretch` por defecto de grid, el ítem ocupa toda la altura de la fila y
-   `position: sticky` no tiene contra qué desplazarse — se ve como "el sticky no
-   funciona" sin que nada esté mal en la declaración del sticky.
+   ── EL MODELO DE SCROLL: alto fijo + una columna cada scroller (≥1080) ───────
+
+   ≥1080, dentro de una región de ALTO FIJO que pone el CONSUMIDOR (el root de la
+   página como grid de 100dvh, header `auto` + split `1fr`), cada columna scrollea
+   SOLA — ver el bloque `@media (min-width: 1080px)` más abajo. Reemplaza al
+   `position: sticky` de antes: un scroller propio hace lo que el sticky imitaba
+   —el detalle se queda mientras la lista corre— pero SIN el `top: calc(topbar +
+   …)`, que era JUSTO el número que no se puede inventar. Ahora nadie mide nada: el
+   `1fr` toma lo que sobra y `min-height: 0` deja que el overflow propague en vez
+   de empujar la fila.
+
+   Por eso el `align-items: start` de antes se fue de acá: era lo que HABILITABA el
+   sticky (con el `stretch` por defecto el ítem ocupaba toda la fila y el sticky no
+   tenía contra qué desplazarse). Ahora se QUIERE ese stretch —cada columna toma la
+   altura de la fila para scrollear dentro— y va declarado en el bloque ≥1080. El
+   default queda con `start` para el apilado de <1080, donde no hay alto fijo.
 
    `minmax(0, …)` en las DOS columnas, no `1fr` a secas: el mínimo automático de
    una pista de grid es `auto`, así que un contenido que no puede encogerse (una
@@ -329,8 +339,9 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
 .duna-split--panel-derecha   { grid-template-columns: minmax(0, 1fr) minmax(0, var(--duna-list-w)); }
 
 .duna-split__list  { min-width: 0; display: flex; flex-direction: column; gap: var(--duna-space-3); }
-.duna-split__panel { min-width: 0; position: sticky;
-                     top: calc(var(--duna-topbar-h) + var(--duna-space-6)); }
+/* Sin `position: sticky` ni `top`: el panel es su propio scroller ≥1080 (bloque
+   `@media (min-width: 1080px)`), y <1080 es flujo normal dentro del apilado. */
+.duna-split__panel { min-width: 0; }
 
 /* EL BREAKPOINT DEL SPLIT ES UN LITERAL DERIVADO, y es DISTINTO del breakpoint
    del chrome. Una media query no puede leer una custom property (`@media
@@ -376,24 +387,38 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
   .duna-split,
   .duna-split--panel-izquierda,
   .duna-split--panel-derecha { grid-template-columns: minmax(0, 1fr); }
-  /* Apilado, "pegajoso" no significa nada: el panel ya no tiene al lado una
-     columna que scrollee contra él, y dejarlo sticky lo clavaría tapando la
-     lista.
+  /* <1080 el panel es flujo normal: ni sticky ni scroller propio (eso es del
+     bloque ≥1080). No hace falta resetear nada — el default ya lo dejó `static`.
 
-     LO QUE NO SE DECLARABA ACÁ, Y ERA EL HUECO: qué pasa cuando el operador TOCA
-     una tarjeta. Apilado, el panel se actualiza fuera de la pantalla, así que la
-     acción no produce respuesta visible y hay que scrollear a ciegas para
-     descubrir que sí pasó algo — la misma clase de defecto que el botón mudo que
-     obligó a `useAccionGuardada`, no una incomodidad de layout.
+     Y el detalle apilado NO se muestra acá: el CONSUMIDOR deja de montar el panel
+     debajo del breakpoint y lo sube a `.duna-sheet` (más abajo), porque apilado el
+     panel se actualiza fuera de la pantalla —la acción sin respuesta visible que
+     obligó a `useAccionGuardada`—. No se resuelve con un `display:none` en esta
+     primitiva: un consumidor que monte el panel y olvide el sheet dejaría el
+     detalle INALCANZABLE; sin la regla, sólo el apilado de siempre. Degradado no es
+     roto, y una primitiva no debe esconder contenido que nadie más muestra. */
+}
 
-     La respuesta es `.duna-sheet` (más abajo), y el CONSUMIDOR es quien deja de
-     montar el panel debajo del breakpoint — no esta regla con un `display:none`.
-     Se evaluó ponerlo acá y el modo de falla es peor: un consumidor que monte el
-     panel y se olvide del sheet quedaría con el detalle INALCANZABLE, mientras
-     que sin la regla queda con el apilado de siempre. Degradado no es lo mismo
-     que roto, y una primitiva no debe poder esconder contenido que nadie más
-     está mostrando. */
-  .duna-split__panel { position: static; }
+/* ── SCROLL POR COLUMNA ≥1080 ────────────────────────────────────────────────
+   El otro lado del breakpoint del split. Cuando las dos columnas existen, y SÓLO
+   entonces, cada una scrollea sola dentro de la región de alto fijo que pone el
+   consumidor (el root de la página como grid de 100dvh: header `auto`, split
+   `1fr`). <1080 esto no aplica: una columna, document-scroll, y el detalle en el
+   sheet.
+
+   La cadena que hace que el overflow propague en vez de empujar, de arriba abajo:
+   el `1fr` del root da altura definida al split; `.duna-split { min-height: 0 }` lo
+   deja caber en esa fila en vez de crecer con su contenido; `align-items: stretch`
+   estira cada columna a esa altura; y `min-height: 0 + overflow-y: auto` en cada
+   columna las vuelve su propio scroller. Un solo `min-height: 0` que falte en la
+   cadena y el overflow vuelve a empujar el layout en vez de scrollear.
+
+   `overflow-y: auto` (no `scroll`): sin desbordar no aparece barra —una lista
+   corta no estrena un riel vacío—. Nadie mide una altura: no hay `calc`. */
+@media (min-width: 1080px) {
+  .duna-split { align-items: stretch; min-height: 0; }
+  .duna-split__list,
+  .duna-split__panel { min-height: 0; overflow-y: auto; }
 }
 
 /* ── Punto de atención del NAV ───────────────────────────────────────────────

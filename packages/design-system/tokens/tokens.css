@@ -197,9 +197,11 @@
   --duna-dur-pulse: 2.4s;  /* latido del anillo del sol */
 
   /* ── ACOPLES TOKENIZADOS (relación, no número mágico) ────────────────────
-     La altura de la topbar la consume el offset del panel sticky:
-       .duna-split__panel { top: calc(var(--duna-topbar-h) + var(--duna-space-6)); }
-     Cambiar el padding de la topbar mueve --duna-topbar-h y el sticky sigue solo. */
+     La altura de la topbar. El consumidor la sobreescribe con su medida real
+     (el admin: 64px, § app/(admin)/duna.css) y de ahí sale el `pt` de `<main>`
+     que reserva la barra fija. El panel del split ya NO es sticky —cada columna
+     scrollea sola en la región de alto fijo (§ duna.css, el shell)—, así que este
+     token dejó de alimentar un `top: calc(...)`. */
   --duna-topbar-h: 52px;
 
   /* Ancho de la columna de LISTA en el layout partido (`.duna-split`). Es un

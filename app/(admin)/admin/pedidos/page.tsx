@@ -17,6 +17,7 @@ import { ChipCanal } from '@/components/admin/ChipCanal';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useDetalleAlLado } from '@/hooks/useDetalleAlLado';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
+import { useHidratado } from '@/hooks/useHidratado';
 import {
   FILTROS_PEDIDOS, aplicarFiltro, conteos, filtroPorKey,
   aplicarAlcance, soloOrdenesReales, parseEstados, etiquetaEstados, hayAlcance,
@@ -130,6 +131,10 @@ function Pedidos() {
   // —el CSS no puede mover un nodo de sitio— y por eso hace falta preguntarlo en
   // JS. El umbral lo trae el sistema, por ROL (no "¿es móvil?": eso es el chrome).
   const detalleAlLado = useDetalleAlLado();
+  // El auto-select no debe correr contra el `detalleAlLado` del prerender (§ el hook):
+  // en servidor reporta `true` y en cliente angosto hidrata a `false`, y el efecto
+  // que lo viera `true` escribiría `?pedido` como escritorio.
+  const hidratado = useHidratado();
   // Cuando el detalle YA es sheet (no al lado), de qué borde sale: abajo en el
   // chrome móvil (<960), del lado junto al rail (960–1080).
   const sheetDesdeAbajo = useSheetDesdeAbajo();
@@ -138,6 +143,23 @@ function Pedidos() {
   // a un refresh, igual que `?order=` en la lista vieja.
   const filtro = (filtroPorKey(params.get('f') ?? '')?.key ?? 'todos') as FiltroKey;
   const seleccion = params.get('pedido');
+  // El SHEET del detalle se abre por ACCIÓN, no por ancho de ventana. `sheetAbierto`
+  // separa "hay una orden seleccionada" (que persiste y se marca en la lista) de "el
+  // sheet modal está abierto". Cruzar de panel a sheet CONSERVA la selección pero NO
+  // abre el sheet —taparía la lista sin que el operador lo pida—; se abre al tocar la
+  // fila. Un deep link SÍ abre (lleva la intención dentro), por eso el init.
+  const [sheetAbierto, setSheetAbierto] = useState(!!seleccion);
+  // Reset EN RENDER al cruzar de panel a sheet (no en efecto: cascada que el lint
+  // marca). El centinela `null` es la clave: la PRIMERA sincronización post-hidratación
+  // fija la base SIN contar como cruce. Sin él, cuando `detalleAlLado`→false y
+  // `hidratado`→true se batchean en un render (React 18 lo hace), el reset vería
+  // `alLadoAntes` con el valor SSR viejo (`true`) y cerraría un deep-link recién
+  // abierto. Con el centinela, esa primera vez sólo asienta la base.
+  const [alLadoAntes, setAlLadoAntes] = useState<boolean | null>(null);
+  if (hidratado && alLadoAntes !== detalleAlLado) {
+    if (alLadoAntes !== null && alLadoAntes && !detalleAlLado) setSheetAbierto(false);
+    setAlLadoAntes(detalleAlLado);
+  }
   // LOS TRES ALCANCES. Acotan la lista sin ser carriles: se combinan entre sí y
   // con cualquiera de los siete. De quién es (`cliente`), de cuándo (`desde` /
   // `hasta`) y si está cobrado (`estado`).
@@ -397,7 +419,7 @@ function Pedidos() {
   // una nota se está guardando, pregunta si hay borrador, procede si no).
   const salida = useDescarteDeDrawer({
     enVuelo: guardaNotas.enVuelo,
-    onCerrar: () => navegar({ pedido: null }),
+    onCerrar: () => { setSheetAbierto(false); navegar({ pedido: null }); },
   });
   // El "¿hay borrador?" se reporta desde un efecto, como cuando vivía en el cuerpo:
   // `marcarCambios` fija un ref (no re-renderiza), así que esto no es un setState en
@@ -446,7 +468,7 @@ function Pedidos() {
   // COMPLETA, no la filtrada).
   const primeraAutoSel = useRef(true);
   useEffect(() => {
-    if (!detalleAlLado || cargando) return;
+    if (!hidratado || !detalleAlLado || cargando) return;
     // PUERTA #4 del embudo de descarte, y la ÚNICA que NO pregunta y NO descarta:
     // PRESERVA. Con un borrador SUCIO, el auto-select no reemplaza ni limpia la
     // selección — el pedido abierto se queda, aunque caiga fuera del carril visible
@@ -464,11 +486,15 @@ function Pedidos() {
     primeraAutoSel.current = false;
     if (decision.tipo === 'seleccionar') navegar({ pedido: decision.id });
     else if (decision.tipo === 'limpiar')  navegar({ pedido: null });
-  }, [detalleAlLado, cargando, seleccion, visibles, navegar, borrador]);
+  }, [hidratado, detalleAlLado, cargando, seleccion, visibles, navegar, borrador]);
 
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
-    <div className="duna">
+    <div className="duna duna-pantalla-fija">
+      {/* CABECERA — la fila `auto` del grid de alto fijo: título, alcance y
+          carriles NO scrollean (§ duna.css, el shell). <1080 es un div normal y
+          todo cae en document-scroll, como siempre. */}
+      <div className="duna-cabecera">
       <header style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-3)', marginBottom: 'var(--duna-space-6)' }}>
         {/* SIN conteo bajo el título: el pill "Todos" ya lo dice, y ahí además
             FILTRA. Una cifra que repite a un control accionable le quita sitio a
@@ -567,7 +593,11 @@ function Pedidos() {
       </div>
 
       {error && <div className="duna-note" role="alert">{error}</div>}
+      </div>{/* /duna-cabecera */}
 
+      {/* REGIÓN SCROLLEABLE — la fila `1fr`: acá scrollea cada columna del split
+          ≥1080; <1080 es un div normal y todo cae en document-scroll. */}
+      <div className="duna-region">
       {/* LA CARGA OCUPA EL SITIO DE LA LISTA, con su forma. Va dentro del MISMO
           `duna-split` que van a ocupar las tarjetas —no en un bloque suelto—
           para que caigan en la misma columna y con el mismo ancho en los dos
@@ -636,6 +666,9 @@ function Pedidos() {
                   // clic en el pedido YA abierto no re-navega ni pregunta (sería
                   // preguntar por una salida que no ocurre).
                   onClick={() => {
+                    // Tocar en rango sheet ABRE el sheet, incluso la fila ya marcada
+                    // (un cruce la conservó sin abrir). En panel no aplica.
+                    if (!detalleAlLado) setSheetAbierto(true);
                     if (p.numero_orden === seleccion) return;
                     salida.intentarSalir(() => navegar({ pedido: p.numero_orden }));
                   }}
@@ -664,6 +697,7 @@ function Pedidos() {
           )}
         </div>
       )}
+      </div>{/* /duna-region */}
 
       {/* ═══ EL MISMO DETALLE, EN ANGOSTO ═════════════════════════════════════
           Apilado, el panel se actualizaba FUERA DE LA PANTALLA: tocar una
@@ -684,7 +718,7 @@ function Pedidos() {
           con dos juegos de props sería el mismo detalle escrito dos veces, y la
           primera divergencia no la vería nadie hasta abrirlo en un teléfono. */}
       <DunaSheet
-        abierto={!detalleAlLado && !!elegido}
+        abierto={!detalleAlLado && !!elegido && sheetAbierto}
         anclaje={sheetDesdeAbajo ? 'abajo' : 'lado'}
         onCerrar={salida.intentarCerrar}
         titulo={elegido ? `Pedido ${elegido.numero_orden}` : 'Detalle del pedido'}

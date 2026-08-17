@@ -17,6 +17,7 @@ import { ChipCanal } from '@/components/admin/ChipCanal';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useDetalleAlLado } from '@/hooks/useDetalleAlLado';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
+import { useHidratado } from '@/hooks/useHidratado';
 import { CustomerFormModal } from '@/components/admin/CustomerFormModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { siteConfig } from '@/lib/config/site';
@@ -107,12 +108,28 @@ function ClientesV2() {
   // nodo de sitio, así que la pregunta va en JS. El umbral es por ROL, no el del
   // chrome ("¿es móvil?").
   const detalleAlLado = useDetalleAlLado();
+  // El auto-select no corre contra el `detalleAlLado` del prerender (§ useHidratado):
+  // servidor `true`, cliente angosto `false`, y el efecto lo escribiría como escritorio.
+  const hidratado = useHidratado();
   const sheetDesdeAbajo = useSheetDesdeAbajo();
 
   // El carril y la selección viven en la URL: el detalle es enlazable y sobrevive
   // a un refresh, igual que `?pedido=` en Pedidos.
   const carril = (carrilPorKey(params.get('f') ?? '')?.key ?? 'todos') as CarrilKey;
   const seleccion = params.get('cliente');
+  // El SHEET se abre por ACCIÓN, no por ancho (§ el mismo modelo que Pedidos):
+  // `sheetAbierto` separa "hay cliente seleccionado" (persiste, marcado en la lista)
+  // de "el sheet está abierto". Cruzar de panel a sheet conserva la selección sin
+  // abrir; se abre al tocar la fila. Deep link SÍ abre (init).
+  const [sheetAbierto, setSheetAbierto] = useState(!!seleccion);
+  // Centinela `null`: la primera sincronización post-hidratación fija la base sin
+  // contar como cruce, para que el batch SSR→cliente no cierre un deep-link (§ el
+  // porqué largo está en Pedidos).
+  const [alLadoAntes, setAlLadoAntes] = useState<boolean | null>(null);
+  if (hidratado && alLadoAntes !== detalleAlLado) {
+    if (alLadoAntes !== null && alLadoAntes && !detalleAlLado) setSheetAbierto(false);
+    setAlLadoAntes(detalleAlLado);
+  }
 
   // LA BÚSQUEDA NO VA A LA URL. Es una consulta en curso, no un estado que valga
   // la pena compartir: un enlace a "clientes filtrados por 'lau'" no le sirve a
@@ -232,7 +249,7 @@ function ClientesV2() {
   // seleccionar).
   const primeraAutoSel = useRef(true);
   useEffect(() => {
-    if (!detalleAlLado || cargando) return;
+    if (!hidratado || !detalleAlLado || cargando) return;
     const decision = autoSeleccion({
       seleccion,
       idsVisibles: visibles.map(c => c.id),
@@ -241,11 +258,14 @@ function ClientesV2() {
     primeraAutoSel.current = false;
     if (decision.tipo === 'seleccionar') navegar({ cliente: decision.id });
     else if (decision.tipo === 'limpiar')  navegar({ cliente: null });
-  }, [detalleAlLado, cargando, seleccion, visibles, navegar]);
+  }, [hidratado, detalleAlLado, cargando, seleccion, visibles, navegar]);
 
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
-    <div className="duna">
+    <div className="duna duna-pantalla-fija">
+      {/* CABECERA — la fila `auto` del grid de alto fijo: no scrollea (§ duna.css,
+          el shell). <1080 es un div normal, document-scroll como siempre. */}
+      <div className="duna-cabecera">
       <header style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-4)', marginBottom: 'var(--duna-space-5)' }}>
         {/* SIN conteo bajo el título: el pill "Todos" ya lo dice, y ahí además
             FILTRA. Una cifra que repite a un control accionable le quita sitio a
@@ -309,7 +329,11 @@ function ClientesV2() {
       </div>
 
       {error && <div className="duna-note" role="alert">{error}</div>}
+      </div>{/* /duna-cabecera */}
 
+      {/* REGIÓN SCROLLEABLE — la fila `1fr`: acá scrollea cada columna del split
+          ≥1080; <1080 es un div normal y todo cae en document-scroll. */}
+      <div className="duna-region">
       {/* LA CARGA OCUPA EL SITIO DE LA LISTA, con su forma — mismo movimiento
           que en Pedidos, y con el mismo esqueleto: la fila de un cliente ES una
           `order-card`, así que el hueco que reserva es el correcto sin
@@ -365,7 +389,7 @@ function ClientesV2() {
                 // mostrar la fecha de registro, que responde otra pregunta.
                 timeAgo={hace(c.ultimaOrden) ?? undefined}
                 selected={c.id === seleccion}
-                onClick={() => navegar({ cliente: c.id })}
+                onClick={() => { if (!detalleAlLado) setSheetAbierto(true); navegar({ cliente: c.id }); }}
               />
             ))}
           </div>
@@ -384,6 +408,7 @@ function ClientesV2() {
           )}
         </div>
       )}
+      </div>{/* /duna-region */}
 
       {/* EL MISMO DETALLE, EN ANGOSTO. Apilado, el panel se actualizaba fuera de
           la pantalla: tocar una tarjeta no producía respuesta visible. Va FUERA
@@ -392,9 +417,9 @@ function ClientesV2() {
           puedan discrepar. El porqué largo está en Pedidos, que es donde este
           patrón se decidió. */}
       <DunaSheet
-        abierto={!detalleAlLado && !!elegido}
+        abierto={!detalleAlLado && !!elegido && sheetAbierto}
         anclaje={sheetDesdeAbajo ? 'abajo' : 'lado'}
-        onCerrar={() => navegar({ cliente: null })}
+        onCerrar={() => { setSheetAbierto(false); navegar({ cliente: null }); }}
         titulo={elegido ? elegido.nombre : 'Detalle del cliente'}
         descripcion="Contacto, historial de pedidos y las acciones disponibles."
       >

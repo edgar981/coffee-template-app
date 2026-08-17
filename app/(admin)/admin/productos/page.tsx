@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { LayoutGrid, List, Package, Plus, X } from 'lucide-react';
@@ -17,6 +17,7 @@ import { accionEstadoProducto, alternativaAlEliminar } from '@duna/core/product-
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useDetalleAlLado } from '@/hooks/useDetalleAlLado';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
+import { useHidratado } from '@/hooks/useHidratado';
 import { ProductFormModal } from '@/components/admin/ProductFormModal';
 import { AdjustStockModal } from '@/components/admin/AdjustStockModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
@@ -102,6 +103,7 @@ function Productos() {
   // ¿El detalle va al lado (panel) o sube como sheet? Umbral por ROL, no el del
   // chrome. (En cuadrícula el "al lado" es el panel que aparece al seleccionar.)
   const detalleAlLado = useDetalleAlLado();
+  const hidratado = useHidratado();
 
   // EL MODO DE VISTA ES ESTADO LOCAL, no de la URL. Es una preferencia de quien
   // mira, no parte de QUÉ se está mirando: un enlace no debería imponerle a otro
@@ -114,6 +116,19 @@ function Productos() {
   const carril    = (carrilPorKey(params.get('f') ?? '')?.key ?? 'todos') as CarrilKey;
   const categoria = params.get('cat');
   const seleccion = params.get('producto');
+  // El SHEET se abre por ACCIÓN, no por ancho (§ el mismo modelo que Pedidos). En
+  // cuadrícula ≥1080 el detalle es un PANEL que aparece al seleccionar (Finder), no
+  // un sheet, así que esto sólo rige el sheet de angosto: cruzar de panel a sheet
+  // conserva la selección sin abrir; se abre al tocar. Deep link SÍ abre (init).
+  const [sheetAbierto, setSheetAbierto] = useState(!!seleccion);
+  // Centinela `null`: la primera sincronización post-hidratación fija la base sin
+  // contar como cruce, para que el batch SSR→cliente no cierre un deep-link (§ el
+  // porqué largo está en Pedidos).
+  const [alLadoAntes, setAlLadoAntes] = useState<boolean | null>(null);
+  if (hidratado && alLadoAntes !== detalleAlLado) {
+    if (alLadoAntes !== null && alLadoAntes && !detalleAlLado) setSheetAbierto(false);
+    setAlLadoAntes(detalleAlLado);
+  }
 
   // LA BÚSQUEDA NO VA A LA URL: es una consulta en curso, no un estado que valga
   // la pena compartir, y cada tecla dejaría una entrada en el historial.
@@ -276,7 +291,7 @@ function Productos() {
       key={p.id}
       producto={p}
       seleccionado={p.id === seleccion}
-      onAbrir={() => navegar({ producto: p.id })}
+      onAbrir={() => { if (!detalleAlLado) setSheetAbierto(true); navegar({ producto: p.id }); }}
       onActivar={() => setActivarTarget(p)}
       acciones={<ProductoAccionesMenu producto={p} {...accionesDe(p)} />}
     />
@@ -290,12 +305,39 @@ function Productos() {
   const detalleEnSheet = !detalleAlLado;
   const sheetDesdeAbajo = useSheetDesdeAbajo();
 
+  // ¿La pantalla es de alto fijo (opt-in del shell, § duna.css)? SÓLO cuando hay un
+  // split que llenar: cuadrícula CON selección (el `--panel-derecha`) o lista con
+  // contenido. La cuadrícula SIN selección va a ancho completo y se queda en
+  // document-scroll (decisión del owner). El CSS lo gatea además a ≥1080.
+  const splitGrid  = vista === 'cuadricula' && !detalleEnSheet && !!elegido;
+  const splitLista = vista === 'lista' && (visibles.length > 0 || elegido);
+  const pantallaFija = !error && !cargando && (splitGrid || splitLista);
+
+  // Al APARECER la región (cuadrícula sin selección → con selección), el page root
+  // pasa de flujo normal a grid de alto fijo: el scroll del documento deja de
+  // existir y el navegador salta al tope (medido). Restaurar el scroll del documento
+  // NO sirve —la rejilla se angosta al entrar el panel, el offset viejo ya no
+  // significa lo mismo—; lo que corresponde es dejar la tarjeta seleccionada visible
+  // en la columna que ahora scrollea. Una sola vez, en la transición (no en cada
+  // selección): por eso el efecto depende de `pantallaFija`, no de `elegido`.
+  const regionAntes = useRef(pantallaFija);
+  useEffect(() => {
+    if (pantallaFija && !regionAntes.current) {
+      document.querySelector('.duna-cards .is-selected')?.scrollIntoView({ block: 'nearest' });
+    }
+    regionAntes.current = pantallaFija;
+  }, [pantallaFija]);
+
   const alternativa = alternativaAlEliminar(borrando);
   const accionActivar = accionEstadoProducto(activarTarget);
 
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
-    <div className="duna">
+    <div className={`duna${pantallaFija ? ' duna-pantalla-fija' : ''}`}>
+      {/* CABECERA — la fila `auto` del grid de alto fijo (cuando lo es): header,
+          toggle de vista y buscador NO scrollean. Sin split (—<1080, cuadrícula sin
+          selección, o mientras carga—) es un div normal y todo es document-scroll. */}
+      <div className="duna-cabecera">
       <header style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-4)', marginBottom: 'var(--duna-space-5)' }}>
         {/* SIN conteo bajo el título: el pill "Todos" ya lo dice, y ahí además
             FILTRA. Una cifra que repite a un control accionable le quita sitio a
@@ -382,7 +424,12 @@ function Productos() {
       </div>
 
       {error && <div className="duna-note" role="alert">{error}</div>}
+      </div>{/* /duna-cabecera */}
 
+      {/* REGIÓN SCROLLEABLE — la fila `1fr` cuando la pantalla es de alto fijo. En
+          cuadrícula la columna que scrollea es `.duna-cards`; en lista, las dos del
+          split. Sin split (cuadrícula sin selección) es flujo normal. */}
+      <div className="duna-region">
       {/* LA CARGA OCUPA EL SITIO DE LA LISTA, con su forma. La fila de un producto
           ES una `order-card`, así que el hueco que reserva es el correcto. */}
       {!error && cargando && (
@@ -452,7 +499,7 @@ function Productos() {
                 // parada en el tab order) — ver el JSDoc de `OrderCard.actions`.
                 actions={<ProductoAccionesMenu producto={p} {...accionesDe(p)} />}
                 selected={p.id === seleccion}
-                onClick={() => navegar({ producto: p.id })}
+                onClick={() => { if (!detalleAlLado) setSheetAbierto(true); navegar({ producto: p.id }); }}
               />
             ))}
           </div>
@@ -469,14 +516,15 @@ function Productos() {
           )}
         </div>
       )}
+      </div>{/* /duna-region */}
 
       {/* EL MISMO DETALLE, en sheet. Va FUERA de los bloques de arriba para que un
           enlace profundo abra aunque la lista visible esté vacía, y el nodo es UNO
           para que las dos superficies no puedan discrepar. */}
       <DunaSheet
-        abierto={detalleEnSheet && !!elegido}
+        abierto={detalleEnSheet && !!elegido && sheetAbierto}
         anclaje={sheetDesdeAbajo ? 'abajo' : 'lado'}
-        onCerrar={() => navegar({ producto: null })}
+        onCerrar={() => { setSheetAbierto(false); navegar({ producto: null }); }}
         titulo={elegido ? elegido.nombre : 'Ficha del producto'}
         descripcion="Precio, existencias, movimientos de inventario y las acciones disponibles."
       >
