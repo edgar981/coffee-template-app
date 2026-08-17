@@ -813,20 +813,6 @@ de scroll comunica. El acabado tiene que conservar esa señal.
 **DISPARADOR: una tanda de acabado del shell**, con gate visual propio (el cambio
 se ve, y hay que verlo en los dos temas).
 
-### 24. `/admin/inventario` sin scroll de columna — necesita región de alto fijo SIN split
-
-Inventario NO usa `.duna-split`: es de columna única (el historial de movimientos),
-así que el shell de alto fijo actual no le aplica —está atado a que exista un split
-que llene la región (§ duna.css, `.duna-region > .duna-split`)—. Para que sólo
-scrollee el historial (header y filtros quietos) hace falta una ESTRUCTURA NUEVA:
-la región de alto fijo con un scroller único, no dos columnas.
-
-**Costo YA pagado: ninguno** — hoy Inventario hace document-scroll y funciona.
-
-**DISPARADOR: al cerrar la tanda 3**, como tanda corta propia. Es el caso que
-generaliza el shell de "split de dos columnas" a "región de alto fijo con N
-scrollers", y conviene hacerlo con Inventario como primer consumidor real.
-
 ### 25. Las reglas del alto fijo están gateadas a un VALOR (1080), no a un ROL
 
 El alto fijo de las pantallas de split se activa en `@media (min-width: 1080px)`
@@ -848,6 +834,28 @@ duplicación deja de ser una excepción y pasa a ser un patrón, y toca invertir
 gateo: que el umbral sea un parámetro del ROL (split → 1080, sin split → 960), no un
 literal repetido por bloque. Con dos consumidores (split + Inventario) todavía es más
 barato duplicar que generalizar; con tres, no.
+
+### 22. El alto fijo es OPT-IN por página, no del chrome — la consolidación global
+
+Hoy el alto fijo se activa página por página (`.duna-pantalla-fija` a 1080,
+`.duna-sin-split` a 960), con el chrome ofreciendo la altura por `main:has(...)`. El
+resto del admin —Dashboard, Analítica, Automatizaciones, Pagos, Entregas y las demás
+sin rediseñar— sigue en document-scroll. Conviven DOS modelos de scroll en el panel.
+
+La consolidación es subir el alto fijo al CHROME (`AdminChrome`): que provea la
+altura para TODAS las páginas y se retiren el document-scroll y los marcadores
+opt-in. Es la opción D1(a) que la tanda del shell difirió a propósito.
+
+**Costo YA pagado: ninguno.** El opt-in por página funciona y la mezcla es coherente
+por ahora; es deuda con fecha, no una herida.
+
+**DISPARADOR: cuando las verticales restantes usen el modelo del split/región**
+(decisión D1(b) del owner, tanda del shell). No se hace antes a propósito: varias de
+esas pantallas se van a reconstruir, así que meterlas hoy en el shell nuevo es
+trabajo que se rehace, con gate sobre pantallas que van a desaparecer. El shell
+global entra AL FINAL, como consolidación —por eso este item va último aunque su
+número sea 22—. Absorbe a #25: el gateo por valor vs rol deja de existir cuando el
+chrome provee la altura global.
 
 ## Mejoras post-multitenant
 
