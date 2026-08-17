@@ -152,3 +152,24 @@ html.admin {
      rejilla), no `.duna-split__list`, así que su scroll se declara aparte. */
   .duna-pantalla-fija .duna-split > .duna-cards  { min-height: 0; overflow-y: auto; }
 }
+
+/* ═══ ALTO FIJO SIN SPLIT · desde el breakpoint del CHROME (960) ══════════════
+   Una pantalla sin split —Inventario— no tiene panel, así que su alto fijo NO se
+   rige por 1080 (que es lo que el split necesita para dar 320px de panel, § el
+   piso `--duna-panel-min`). Se rige por el rol "hay chrome de escritorio con rail"
+   = 960. Su marcador es `.duna-sin-split`; las páginas de split no lo llevan, así
+   que se quedan en 1080, intactas.
+
+   DUPLICA la cadena del bloque de arriba a propósito: las reglas están gateadas a
+   un VALOR y no a un ROL, y unificarlas es el disparador de la deuda #25 (una
+   TERCERA página sin split). Con dos consumidores todavía es más barato duplicar
+   que invertir el gateo. La regla general de la región y el thead sticky NO se
+   duplican —son del DS (§ primitives.css / la regla `.duna-region > *` de arriba)—;
+   lo que se repite es sólo la ACTIVACIÓN del contenedor de alto fijo. */
+@media (min-width: 960px) {
+  .admin-shell main:has(.duna-sin-split)       { height: 100dvh; min-height: 0; }
+  .admin-shell main:has(.duna-sin-split) > div { height: 100%;   min-height: 0; }
+  .duna-sin-split { height: 100%; min-height: 0; display: grid; grid-template-rows: auto 1fr; }
+  .duna-sin-split .duna-region     { min-height: 0; display: flex; flex-direction: column; }
+  .duna-sin-split .duna-region > * { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+}
