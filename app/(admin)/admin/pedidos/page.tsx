@@ -468,7 +468,11 @@ function Pedidos() {
 
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
-    <div className="duna">
+    <div className="duna duna-pantalla-fija">
+      {/* CABECERA — la fila `auto` del grid de alto fijo: título, alcance y
+          carriles NO scrollean (§ duna.css, el shell). <1080 es un div normal y
+          todo cae en document-scroll, como siempre. */}
+      <div className="duna-cabecera">
       <header style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-3)', marginBottom: 'var(--duna-space-6)' }}>
         {/* SIN conteo bajo el título: el pill "Todos" ya lo dice, y ahí además
             FILTRA. Una cifra que repite a un control accionable le quita sitio a
@@ -567,7 +571,11 @@ function Pedidos() {
       </div>
 
       {error && <div className="duna-note" role="alert">{error}</div>}
+      </div>{/* /duna-cabecera */}
 
+      {/* REGIÓN SCROLLEABLE — la fila `1fr`: acá scrollea cada columna del split
+          ≥1080; <1080 es un div normal y todo cae en document-scroll. */}
+      <div className="duna-region">
       {/* LA CARGA OCUPA EL SITIO DE LA LISTA, con su forma. Va dentro del MISMO
           `duna-split` que van a ocupar las tarjetas —no en un bloque suelto—
           para que caigan en la misma columna y con el mismo ancho en los dos
@@ -664,6 +672,7 @@ function Pedidos() {
           )}
         </div>
       )}
+      </div>{/* /duna-region */}
 
       {/* ═══ EL MISMO DETALLE, EN ANGOSTO ═════════════════════════════════════
           Apilado, el panel se actualizaba FUERA DE LA PANTALLA: tocar una

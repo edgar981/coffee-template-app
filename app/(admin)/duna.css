@@ -80,22 +80,60 @@ html.admin {
 
   /* ── La ALTURA REAL de la topbar de ESTE panel ────────────────────────────
      El sistema trae 52px como default, pero la topbar de acá es `h-16` = 64
-     (components/admin/TopBar.tsx, fija arriba). El token existe justamente para
-     que el consumidor diga su medida: de él sale el `top` del panel sticky de
-     `.duna-split`, que queda en 64 + 24 = 88 — debajo de la barra, con el aire
-     de un `space-6`. El panel sticky vive dentro de `.admin-shell`, que es
-     descendiente de `html.admin`, así que lo hereda igual.
-     Con los 52 del default el panel se metería 12px POR DEBAJO de la topbar al
-     scrollear, y eso no se ve como un token mal puesto: se ve como un panel que
-     "se corta raro". Sale de acá y no de un `calc` en la pantalla porque el día
-     que la topbar cambie de alto, se toca un número y el sticky sigue solo. */
+     (components/admin/TopBar.tsx, fija arriba). El token existe para que el
+     consumidor diga su medida, y de él salen DOS cosas: el `pt` de `<main>` (que
+     reserva el alto de la topbar fija) y el `scroll-padding-top` de abajo. Una
+     sola fuente del 64.
+     En las pantallas de alto fijo (§ el shell, más abajo) ese mismo `pt` hace
+     ADEMÁS la resta que les da su altura: `main` pasa a `height: 100dvh` y, con
+     `box-sizing: border-box`, su caja de contenido queda en `100dvh − 64` sin un
+     solo `calc`. Con los 52 del default esa resta quedaría 12px corta y la región
+     se "cortaría raro". Se toca un número el día que la topbar cambie de alto y
+     todo lo demás sigue solo. */
   --duna-topbar-h: 64px;
 
   /* La topbar es `position: fixed` (64px). Sin esto, un salto de scroll —hash,
      `focus`, `scrollIntoView`— con `scroll-behavior: smooth` (globals.css) deja el
      destino en y=0, DEBAJO de la barra. `scroll-padding-top` reserva su alto en el
-     scroll del DOCUMENTO. Sale del MISMO token que la reserva de `main` (`pt`) y el
-     `top` del panel sticky — una sola fuente del 64. Sólo en el admin: el
-     storefront no tiene esta barra. */
+     scroll del DOCUMENTO. Sale del MISMO token que la reserva de `main` (`pt`) —
+     una sola fuente del 64. Sólo en el admin: el storefront no tiene esta barra. */
   scroll-padding-top: var(--duna-topbar-h);
+}
+
+/* ═══ SHELL DE ALTO FIJO · scroll por columna, opt-in por página ═════════════
+   El otro extremo del modelo de scroll del split (§ primitives.css, .duna-split).
+   ≥1080, las páginas que ponen `.duna-pantalla-fija` en su root dejan de hacer
+   document-scroll: el header queda quieto y cada columna scrollea sola. El resto
+   del admin (dashboard, analítica, pagos, entregas, usuarios) NO lleva la clase y
+   sigue exactamente igual — acá no se cambia ningún default, sólo se AGREGAN reglas
+   que dependen de la clase (medido: `main` sin la clase queda en min-h-screen,
+   height auto, document-scroll).
+
+   La altura la PROVEE el chrome, no la inventa la página. Medido: un `100dvh` en el
+   page root desborda por el alto del chrome —112px = topbar 64 + p-6 24+24—, porque
+   el root no tiene un ancestro de altura definida y `100dvh` se mide desde el
+   viewport, no desde donde el root empieza. En su lugar `main` pasa a `100dvh` y su
+   `pt` de la topbar hace la resta por `border-box`; el wrapper y el page root
+   heredan con `height: 100%`. Nadie mide el chrome, y no hay un solo `calc`. La
+   cadena de `min-height: 0` es la que deja que el overflow propague en vez de
+   empujar: uno que falte y la región colapsa en silencio.
+
+   Sólo ≥1080: entre 960–1080 el detalle es un sheet (una columna, sin split) y
+   <960 es chrome de una mano; en los dos el alto fijo no resuelve nada y sería un
+   tercer estado que gatear. */
+@media (min-width: 1080px) {
+  /* El chrome ofrece la altura SÓLO si la página opta (`.duna-pantalla-fija`). */
+  .admin-shell main:has(.duna-pantalla-fija)       { height: 100dvh; min-height: 0; }
+  .admin-shell main:has(.duna-pantalla-fija) > div { height: 100%;   min-height: 0; }
+
+  /* El page root: dos filas —cabecera (auto, no scrollea) y región (1fr)—. */
+  .duna-pantalla-fija { height: 100%; min-height: 0; display: grid; grid-template-rows: auto 1fr; }
+
+  /* La región es la fila 1fr; el split la LLENA (flex:1) para que sus columnas
+     tengan altura definida y scrolleen. Los estados cortos (vacío) no crecen; la
+     carga es un `.duna-split` y llena igual. Flex y no grid de una fila: si dos
+     estados se solapan un instante (carga con datos viejos + split), ninguno
+     desborda —medido—. */
+  .duna-region               { min-height: 0; display: flex; flex-direction: column; }
+  .duna-region > .duna-split { flex: 1 1 auto; min-height: 0; }
 }
