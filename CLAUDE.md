@@ -757,6 +757,45 @@ navegación no ocurre — un no-op, no una pérdida.
 conservar. Entonces se eleva al padre como el borrador, o el detalle recibe una
 identidad estable entre contenedores.
 
+### 20. Las portadas de producto pesan ~1.4 MB (sin comprimir en la subida)
+
+Las portadas de catálogo llegan a ~1.4 MB. El optimizador de Next las SIRVE
+reducidas (el storefront y las cards ven una versión chica), pero en cada frío de
+caché descarga el **original** entero desde Vercel Blob para re-codificar. En una
+red lenta eso es lo que hace expirar a `/_next/image`.
+
+**Costo YA pagado:** el 500 `TimeoutError` de `/admin/productos` en local
+(2026-08-17). Medido con curl directo al blob: el cuerpo baja a ~50 KB/s → >15 s
+para 1.4 MB, mientras los headers vuelven en <1 s (por eso un HEAD engaña). Es
+**ambiental** (throughput a Blob desde esa red), no código —el diff de la rama no
+toca el optimizador ni `next.config`— pero el peso del original es lo que lo
+vuelve visible. En producción, servido desde el edge, hoy no muerde.
+
+**DISPARADOR: al tocar el flujo de carga de imágenes.** Ahí se comprime en la
+SUBIDA (redimensionar/recomprimir antes de `storage.put`), y el original deja de
+pesar 1.4 MB. Antes de eso no se comprime nada suelto: el flujo de subida es el
+único sitio donde el tope se aplica una vez y para siempre.
+
+### 21. El dev heredado del reset apunta a blobs de PRODUCCIÓN
+
+Medido en `development` (2026-08-17): **3 de 4 portadas** apuntan a
+`…blob.vercel-storage.com/productos/…` (blobs REALES de producción); la cuarta a
+`dev/productos/` (reemplazada en dev tras el reset). Es exactamente lo que
+documenta § Storage: el reset desde production copia **filas, no archivos**, así
+que las URLs heredadas siguen sirviendo los blobs de producción.
+
+**Costo YA pagado: ninguno.** Hoy es inofensivo porque esas URLs sólo se LEEN
+(mostrar la imagen). El riesgo es de escritura: una operación de **borrado o
+reemplazo desde dev** tocaría un archivo real de producción. La guarda
+`isDeletable` (prefijo `dev/`) existe justamente para esto —convierte en no-op el
+borrado de un blob que no sea `dev/`—, pero es una red, no una prueba de que todo
+path la respete.
+
+**DISPARADOR: al construir o tocar cualquier flujo que borre o reemplace
+imágenes.** Ahí se verifica qué hace `lib/storage` en `delete`/reemplazo contra una
+URL de prefijo `productos/` heredada, y que la guarda cubra ese path — antes de
+darle al operador un botón que pueda alcanzar un archivo de producción.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
