@@ -600,28 +600,6 @@ tres estados vacíos de cada pantalla existen para evitar. El aviso bajó a la
 LISTA, que es donde está el hueco. Quitar una cifra puede llevarse por delante un
 estado que vivía pegado a ella.
 
-### 7. El drill-down de PEDIDOS del carrusel cuenta órdenes de cualquier estado
-
-La mitad de **Ventas se CERRÓ**: su gráfica mide plata recibida por `Payment.fecha`
-y ya lleva a `/admin/pagos?desde&hasta` —el MISMO destino que la stat card "Ventas
-hoy"—. El drill-down se hizo chart-aware (`DashboardChartCarousel`), porque las dos
-gráficas bin-ean por fechas DISTINTAS.
-
-Queda la de **Pedidos**: mide líneas de producto por peso sobre órdenes ya
-**pagadas**, y bin-ea por `Order.createdAt`. Su enlace lleva a
-`/admin/pedidos?desde&hasta` (órdenes CREADAS ese día) — la **FECHA es correcta**,
-comparte el `createdAt` de la gráfica—, pero muestra órdenes de **cualquier estado**
-y cuenta órdenes, no líneas.
-
-**Costo YA pagado: ninguno.** Lleva a un conjunto plausible (creadas ese día) pero
-más amplio que el medido (sólo pagadas). Pagos sería un destino ERRADO acá: bin-ea
-por `Payment.fecha`, otra fecha que la gráfica.
-
-**DISPARADOR: cuando exista un filtro `pagado` en Pedidos, o se rediseñe Analítica.**
-Hoy no hay carril de estado de cobro (se retiró), así que "las órdenes pagadas de
-ese día" no se puede expresar como filtro. Las dos salidas: esperar ese filtro, o
-hacer la gráfica de Pedidos no-clickeable — decisión del owner.
-
 ### 8. `Customer.activo` finge filtrar: el gate de reactivación es INERTE
 
 No es que nadie escriba la columna. Es que **el `where` que la consulta no puede
@@ -2912,6 +2890,22 @@ distintas es correcto sólo si cada uno declara qué cuenta.
 - **Fuera de alcance por decisión**: estacionalidad, cohortes y forecasting (sin
   historia ni volumen), snapshot de costo, filtro por edad en Órdenes, y
   export/PDF/comparativas configurables.
+
+### La gráfica de PEDIDOS del carrusel no tiene destino, a propósito
+
+La gráfica de **Ventas** del carrusel del dashboard es clickeable y lleva a
+`/admin/pagos?desde&hasta` —bin-ea por `Payment.fecha`, el MISMO destino que la stat
+card "Ventas hoy"—. La de **Pedidos NO es clickeable** (2026-08-17, cierre del ex
+backlog #7): mide LÍNEAS de producto de órdenes pagadas, no órdenes, así que ningún
+destino de Pedidos ni de Pagos coincide con ese conjunto —un enlace
+parecido-pero-distinto invita a concluir que la gráfica está mal cuando lo que
+estaría mal es el destino—. Se hizo no-clickeable en vez de forzar un filtro
+`pagado` que hoy no existe (el carril de estado de cobro se retiró).
+
+**DISPARADOR — se decide al rediseñar Analítica, no antes:** si la gráfica de
+Pedidos merece un destino propio que mida lo suyo (líneas de producto pagadas de ese
+día), esa es la pantalla que lo define. Hasta entonces no-clickeable es la respuesta
+correcta, no una deuda. Esto NO vuelve al backlog.
 
 ## Sugerencia de zona de entrega (heurística de dirección)
 
