@@ -200,7 +200,11 @@ function Inventario() {
   }));
 
   return (
-    <div className="duna">
+    <div className="duna duna-sin-split">
+      {/* CABECERA — todo lo FIJO (no scrollea con la tabla). Alto fijo desde 960 (§
+          duna.css, `.duna-sin-split`): sin split, el umbral es el del chrome, no el
+          del panel. Debajo de 960 es un div normal y todo es document-scroll. */}
+      <div className="duna-cabecera">
       {/* ── Encabezado ─────────────────────────────────────────────────────── */}
       <header style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-4)', marginBottom: 'var(--duna-space-5)' }}>
         <div style={{ minWidth: 0 }}>
@@ -273,6 +277,21 @@ function Inventario() {
         )}
       </div>
 
+      {/* EL CORTE, MOVIDO ARRIBA: es metadato del conjunto filtrado —cuando la
+          ventana viene LLENA (=tope) puede haber más atrás—, y dentro del scroller
+          quedaría al fondo del scroll, invisible hasta la fila 200. Apunta al rango
+          de fechas, que es como se navega una auditoría. (Paginación de fondo:
+          decisión aparte; esto es el corte honesto mientras tanto.) */}
+      {!cargandoLogs && logs.length === KARDEX_TOPE && (
+        <p className="duna-caption" style={{ margin: 'var(--duna-space-3) 0 0' }}>
+          Mostrando los {KARDEX_TOPE} movimientos más recientes. Acotá con el rango de fechas para ver otros.
+        </p>
+      )}
+      </div>{/* /duna-cabecera */}
+
+      {/* REGIÓN — sólo la tabla scrollea (§ duna.css, `.duna-sin-split .duna-region`);
+          el thead va sticky (§ .duna-table). loading/empty ocupan la región. */}
+      <div className="duna-region">
       {cargandoLogs && <p className="duna-sub" style={{ margin: 0 }}>Cargando los movimientos…</p>}
       {!cargandoLogs && logs.length === 0 && (
         <div className="duna-card duna-card__pad">
@@ -286,16 +305,7 @@ function Inventario() {
       {!cargandoLogs && logs.length > 0 && (
         <DunaTable columns={columnasKardex} rows={filasKardex} minWidth="48rem" />
       )}
-      {/* EL CORTE SE DECLARA, no se calla: cuando la ventana viene LLENA (=tope)
-          puede haber más atrás, y una auditoría que muestra 200 sin decirlo miente
-          por omisión. Apunta al rango de fechas, que es como se navega una
-          auditoría —por tiempo, no por número de página—. (La paginación de fondo
-          es decisión aparte; esto es el corte honesto mientras tanto.) */}
-      {!cargandoLogs && logs.length === KARDEX_TOPE && (
-        <p className="duna-caption" style={{ margin: 'var(--duna-space-3) 0 0' }}>
-          Mostrando los {KARDEX_TOPE} movimientos más recientes. Acotá con el rango de fechas para ver otros.
-        </p>
-      )}
+      </div>{/* /duna-region */}
 
       {/* La puerta de operación de inventario: el modal agnóstico con selector de
           producto (sin pre-llenado — la reposición por producto vive en Productos). */}

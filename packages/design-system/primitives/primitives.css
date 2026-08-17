@@ -1655,10 +1655,21 @@ button.duna-order-card__name {
               /* Debajo de esto el envoltorio scrollea en vez de aplastar columnas.
                  El consumidor puede subirlo con la prop `minWidth` si tiene más. */
               min-width: 32rem; }
+/* El thead es STICKY, siempre-on: fuera de un scroller vertical es no-op (sin
+   scroller no hay contra qué pegarse), y dentro de la región de alto fijo
+   (§ duna.css, el shell) es lo que hace que el encabezado no se pierda al
+   scrollear —es lo primero que se va en una tabla larga—.
+   · El separador va por BOX-SHADOW, no `border-bottom`: con `border-collapse:
+     collapse` el borde pertenece a la celda y NO viaja con el th sticky —se
+     quedaría scrolleando bajo el encabezado—.
+   · El fondo es la SUPERFICIE de la app (`--duna-bg`), no el papel del rail, para
+     tapar las filas que pasan por debajo. */
 .duna-table th { text-align: left; padding: var(--duna-space-2) var(--duna-space-3);
                  font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi);
                  color: var(--duna-muted); white-space: nowrap;
-                 border-bottom: 1px solid var(--duna-border-2); }
+                 position: sticky; top: 0; z-index: 1;
+                 background: var(--duna-bg);
+                 box-shadow: inset 0 -1px 0 var(--duna-border-2); }
 .duna-table td { padding: var(--duna-space-3); border-bottom: 1px solid var(--duna-border);
                  vertical-align: top; }
 .duna-table tbody tr:last-child td { border-bottom: none; }

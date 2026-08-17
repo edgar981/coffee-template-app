@@ -140,9 +140,42 @@ html.admin {
      —no flex—, que es la decisión para ese estado. En Pedidos y Clientes el page
      root siempre lleva la clase, así que el scope no los cambia. */
   .duna-pantalla-fija .duna-region               { min-height: 0; display: flex; flex-direction: column; }
-  .duna-pantalla-fija .duna-region > .duna-split { flex: 1 1 auto; min-height: 0; }
+  /* GENERAL: el hijo único ENCOGE a la región y scrollea cuando desborda. El scroll
+     lo dan `flex-shrink: 1` + `min-height: 0` + `overflow-y: auto` —NO el grow—, así
+     que grow queda en 0: contenido CORTO (un estado vacío) se sienta arriba a su
+     alto natural en vez de estirarse. Es el caso base; el split es el especial. */
+  .duna-pantalla-fija .duna-region > *           { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+  /* EXCEPCIÓN declarada del split, DOS cosas: (1) LLENA la región (`flex-grow: 1`)
+     para que el panel de detalle vaya a lo alto aunque la lista sea corta; (2) NO
+     scrollea él mismo —reparte en dos columnas y scrollean ELLAS
+     (`__list`/`__panel`/`.duna-cards`)—, sin lo cual el grid estrenaría un riel
+     redundante encima del de sus columnas. */
+  .duna-pantalla-fija .duna-region > .duna-split { flex-grow: 1; overflow-y: visible; }
 
   /* Productos en cuadrícula: la columna izquierda del split es `.duna-cards` (la
      rejilla), no `.duna-split__list`, así que su scroll se declara aparte. */
   .duna-pantalla-fija .duna-split > .duna-cards  { min-height: 0; overflow-y: auto; }
+}
+
+/* ═══ ALTO FIJO SIN SPLIT · desde el breakpoint del CHROME (960) ══════════════
+   Una pantalla sin split —Inventario— no tiene panel, así que su alto fijo NO se
+   rige por 1080 (que es lo que el split necesita para dar 320px de panel, § el
+   piso `--duna-panel-min`). Se rige por el rol "hay chrome de escritorio con rail"
+   = 960. Su marcador es `.duna-sin-split`; las páginas de split no lo llevan, así
+   que se quedan en 1080, intactas.
+
+   DUPLICA la cadena del bloque de arriba a propósito: las reglas están gateadas a
+   un VALOR y no a un ROL, y unificarlas es el disparador de la deuda #25 (una
+   TERCERA página sin split). Con dos consumidores todavía es más barato duplicar
+   que invertir el gateo. La regla general de la región y el thead sticky NO se
+   duplican —son del DS (§ primitives.css / la regla `.duna-region > *` de arriba)—;
+   lo que se repite es sólo la ACTIVACIÓN del contenedor de alto fijo. */
+@media (min-width: 960px) {
+  .admin-shell main:has(.duna-sin-split)       { height: 100dvh; min-height: 0; }
+  .admin-shell main:has(.duna-sin-split) > div { height: 100%;   min-height: 0; }
+  .duna-sin-split { height: 100%; min-height: 0; display: grid; grid-template-rows: auto 1fr; }
+  .duna-sin-split .duna-region     { min-height: 0; display: flex; flex-direction: column; }
+  /* Encoge y scrollea (grow 0: corto se queda a su alto natural, no estira) — la
+     misma regla general que el bloque de 1080. */
+  .duna-sin-split .duna-region > * { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
 }
