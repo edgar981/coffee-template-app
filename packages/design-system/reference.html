@@ -862,46 +862,96 @@
   </section>
 
   <section>
-    <h2 class="sec">Layout partido · lista que scrollea + panel que se queda</h2>
-    <p class="sec-note">El esqueleto de una pantalla de trabajo, AGNÓSTICO (sirve para pedidos, clientes o productos). El <code>top</code> del panel sticky no es un número: sale de <code>calc(var(--duna-topbar-h) + var(--duna-space-6))</code>, así que mover el padding de la topbar lo reacomoda solo. Debajo de 1080px (el umbral del split, derivado del piso del panel) apila a una columna y el panel deja de ser sticky — el detalle sube como sheet.</p>
-    <div class="duna-split">
-      <div class="duna-split__list">
-        <button type="button" class="duna-order-card is-selected">
-          <div class="duna-order-card__top">
-            <span class="duna-order-card__name">Laura Cárdenas</span>
-            <span class="duna-order-card__id duna-mono">#1247</span>
-            <span class="duna-order-card__amount duna-num">$ 86.500</span>
-          </div>
-          <div class="duna-order-card__foot">
-            <span class="duna-steps">
-              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-now"></span><span class="duna-steps__seg"></span>
-            </span>
-            <span class="duna-order-card__time">hace 42 min</span>
-          </div>
-        </button>
-        <button type="button" class="duna-order-card">
-          <div class="duna-order-card__top">
-            <span class="duna-order-card__name">Camila Torres</span>
-            <span class="duna-order-card__id duna-mono">#1241</span>
-            <span class="duna-order-card__amount duna-num">$ 47.500</span>
-          </div>
-          <div class="duna-order-card__foot">
-            <span class="duna-steps">
-              <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span>
-            </span>
-            <span class="duna-order-card__time">hace 4 h</span>
-          </div>
-        </button>
+    <h2 class="sec">Layout partido · dos columnas que scrollean por su cuenta</h2>
+    <p class="sec-note">El esqueleto de una pantalla de trabajo, AGNÓSTICO (pedidos, clientes, productos). ≥1080, dentro de una región de ALTO FIJO que pone el consumidor (el root de la página como grid de <code>100dvh</code>: header <code>auto</code>, split <code>1fr</code>), cada columna scrollea SOLA — el header y el detalle se quedan quietos mientras la lista corre, SIN un <code>top</code> de sticky que medir. <b style="color:var(--duna-ink)">Nadie mide nada</b>: el <code>1fr</code> toma lo que sobra y <code>min-height: 0</code> deja que el overflow propague. Debajo de 1080 apila a una columna, document-scroll, y el detalle sube como sheet. La caja de abajo simula ese root con <code>320px</code> en lugar de <code>100dvh</code>; scrollea cada columna a partir de 1080.</p>
+    <div style="height:320px; display:grid; grid-template-rows:auto 1fr; gap:var(--duna-space-3); min-height:0; border:1px solid var(--duna-border); border-radius:var(--duna-r-l); overflow:hidden;">
+      <div style="padding:var(--duna-space-3) var(--duna-space-4) 0;">
+        <span class="duna-eyebrow">HEADER FIJO — título · buscador · carriles (no scrollea)</span>
       </div>
-      <div class="duna-split__panel duna-card duna-card__pad">
-        <div class="duna-title">Laura Cárdenas</div>
-        <div class="duna-sub" style="margin-bottom:var(--duna-space-4)">El panel se queda quieto mientras la lista corre.</div>
-        <table class="duna-items-table">
-          <tbody>
-            <tr><td>Combo Desayuno<span class="duna-items-table__meta"> · × 1</span></td><td class="duna-items-table__r duna-num">$ 38.000</td></tr>
-            <tr class="duna-items-table__total"><td>Total</td><td class="duna-items-table__r duna-num">$ 38.000</td></tr>
-          </tbody>
-        </table>
+      <div class="duna-split" style="padding:0 var(--duna-space-4) var(--duna-space-4);">
+        <div class="duna-split__list">
+          <button type="button" class="duna-order-card is-selected">
+            <div class="duna-order-card__top">
+              <span class="duna-order-card__name">Laura Cárdenas</span>
+              <span class="duna-order-card__id duna-mono">#1247</span>
+              <span class="duna-order-card__amount duna-num">$ 86.500</span>
+            </div>
+            <div class="duna-order-card__foot">
+              <span class="duna-steps">
+                <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-now"></span><span class="duna-steps__seg"></span>
+              </span>
+              <span class="duna-order-card__time">hace 42 min</span>
+            </div>
+          </button>
+          <button type="button" class="duna-order-card">
+            <div class="duna-order-card__top">
+              <span class="duna-order-card__name">Camila Torres</span>
+              <span class="duna-order-card__id duna-mono">#1241</span>
+              <span class="duna-order-card__amount duna-num">$ 47.500</span>
+            </div>
+            <div class="duna-order-card__foot">
+              <span class="duna-steps">
+                <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span>
+              </span>
+              <span class="duna-order-card__time">hace 4 h</span>
+            </div>
+          </button>
+          <button type="button" class="duna-order-card">
+            <div class="duna-order-card__top">
+              <span class="duna-order-card__name">Andrés Gómez</span>
+              <span class="duna-order-card__id duna-mono">#1236</span>
+              <span class="duna-order-card__amount duna-num">$ 121.000</span>
+            </div>
+            <div class="duna-order-card__foot">
+              <span class="duna-steps">
+                <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-now"></span><span class="duna-steps__seg"></span><span class="duna-steps__seg"></span>
+              </span>
+              <span class="duna-order-card__time">hace 6 h</span>
+            </div>
+          </button>
+          <button type="button" class="duna-order-card">
+            <div class="duna-order-card__top">
+              <span class="duna-order-card__name">Valentina Ruiz</span>
+              <span class="duna-order-card__id duna-mono">#1228</span>
+              <span class="duna-order-card__amount duna-num">$ 54.000</span>
+            </div>
+            <div class="duna-order-card__foot">
+              <span class="duna-steps">
+                <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span>
+              </span>
+              <span class="duna-order-card__time">ayer</span>
+            </div>
+          </button>
+          <button type="button" class="duna-order-card">
+            <div class="duna-order-card__top">
+              <span class="duna-order-card__name">Mateo Herrera</span>
+              <span class="duna-order-card__id duna-mono">#1219</span>
+              <span class="duna-order-card__amount duna-num">$ 33.500</span>
+            </div>
+            <div class="duna-order-card__foot">
+              <span class="duna-steps">
+                <span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span><span class="duna-steps__seg is-done"></span>
+              </span>
+              <span class="duna-order-card__time">ayer</span>
+            </div>
+          </button>
+        </div>
+        <div class="duna-split__panel duna-card duna-card__pad">
+          <div class="duna-title">Laura Cárdenas</div>
+          <div class="duna-sub" style="margin-bottom:var(--duna-space-4)">El detalle scrollea dentro de su columna; el header y la lista no se mueven con él.</div>
+          <table class="duna-items-table">
+            <tbody>
+              <tr><td>Combo Desayuno<span class="duna-items-table__meta"> · × 1</span></td><td class="duna-items-table__r duna-num">$ 38.000</td></tr>
+              <tr><td>Café de origen 500 g<span class="duna-items-table__meta"> · × 2</span></td><td class="duna-items-table__r duna-num">$ 34.000</td></tr>
+              <tr><td>Panadería surtida<span class="duna-items-table__meta"> · × 1</span></td><td class="duna-items-table__r duna-num">$ 14.500</td></tr>
+              <tr class="duna-items-table__total"><td>Total</td><td class="duna-items-table__r duna-num">$ 86.500</td></tr>
+            </tbody>
+          </table>
+          <div class="duna-eyebrow" style="margin:var(--duna-space-5) 0 var(--duna-space-2)">Entrega</div>
+          <p class="duna-sub" style="margin:0 0 var(--duna-space-4)">Programada · 14 may 2026 · zona norte. Mensajero por asignar. El detalle es largo a propósito para que su columna desborde y estrene su propio riel.</p>
+          <div class="duna-eyebrow" style="margin:0 0 var(--duna-space-2)">Notas</div>
+          <p class="duna-sub" style="margin:0">Dejar en portería si no contesta. Llamar 10 min antes.</p>
+        </div>
       </div>
     </div>
 
