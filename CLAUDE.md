@@ -891,6 +891,192 @@ Esa última frase ya está CUMPLIDA para las imágenes subidas desde el admin
 — ver la sección de abajo. Las estáticas de `public/` siguen exactamente
 con esta regla: no se migran y se renombran a mano.
 
+## Decisión — Cuándo un pedido está pagado
+
+**Fecha:** 2026-08-17. **Estado:** decidido, no implementado.
+**Naturaleza:** regla de producto de Duna, no configuración por tenant.
+Un pedido está pagado cuando la plata entró. Eso no varía por negocio, así que
+**no lleva flag**. Lo que varía es el método de pago, que ya es un dato del modelo.
+
+### 1. El problema
+
+Hoy `Registrar Pago` crea el `Payment` y mueve la orden a `pagado` en la misma
+transacción (`packages/core/src/orders.ts:216`). El comprobante es un eje
+independiente que **nunca** mueve la orden, por diseño declarado
+(`packages/core/src/comprobantes.ts:11`).
+
+De ahí salen dos síntomas que el owner reportó:
+
+| # | Síntoma | Causa |
+|---|---|---|
+| a | Un comprobante RECIBIDO (sin veredicto) convive con una orden que ya dice "Pagado" | El `Payment` se escribió al registrar, antes de mirar la evidencia |
+| b | Rechazar un comprobante deja la orden "Pagada" | El rechazo no toca el `Payment`, y el `Payment` es lo que paga |
+
+**No son bugs.** El código ejecuta fielmente el modelo. El defecto es que la UI le
+pide al operador que afirme un hecho contable —"la plata entró"— en el momento en
+que solo ha visto una imagen. La decisión de cobro se toma antes que el juicio
+sobre la evidencia, y el juicio posterior ya no puede cambiarla.
+
+Medido en development: cero plata fantasma. Todas las órdenes pagadas tienen
+`Payment` real.
+
+### 2. La regla
+
+**El `Payment` nace del veredicto cuando hay comprobante de por medio. Nace
+directo cuando no lo hay.**
+
+| Camino | Qué pasa |
+|---|---|
+| Llega un comprobante (WhatsApp, tienda, adjunto suelto) | Se guarda como RECIBIDO. La orden **no** se paga. Entra al carril "Por verificar" |
+| El operador **verifica** | **Crea el `Payment`** → la orden pasa a `pagado` |
+| El operador **rechaza** | La orden sigue pendiente. No hay `Payment` que revertir |
+| Efectivo / contraentrega | `Payment` directo, sin comprobante. **Sin cambio** |
+| `Registrar Pago` sin adjunto | `Payment` directo. **Sin cambio** |
+
+#### El matiz: el comprobante adjuntado desde Registrar Pago nace VERIFICADO
+
+Cuando el operador adjunta la foto **dentro** de `Registrar Pago`, está afirmando
+que ya vio la plata; la foto documenta lo que acaba de afirmar. Ese comprobante
+nace **VERIFICADO**, con el mismo actor y timestamp del pago.
+
+Si naciera RECIBIDO entraría al carril "Por verificar" y le pediría al operador
+que juzgue una decisión que él mismo acaba de tomar. Ese es el doble trabajo que
+esta decisión existe para evitar.
+
+#### Invariante que se conserva
+
+`registerOrderPaymentTx` sigue siendo el **único** escritor de dinero. Verificar
+entra como su **tercer llamador**, no como un camino paralelo. "El eje de cobro se
+escribe una sola vez, por el `Payment`" sigue en pie.
+
+Bajo esta regla, `Payment` + comprobante RECHAZADO es una **combinación
+imposible**.
+
+### 3. La fecha
+
+Al verificar se registra **cuándo entró la plata**, no cuándo se miró la foto.
+
+`Payment.fecha` ya está reservada para esto: el schema distingue `fecha` (fecha de
+pago del negocio, `schema.prisma:308`) de `createdAt` (timestamp de auditoría).
+Hoy **ningún formulario la expone** — siempre cae al default `now()`.
+
+Sin exponerla, `fecha` pasaría a significar "instante de verificación", y eso
+correría "Ventas hoy", la serie mensual de Analítica, el envejecimiento de la
+cartera y el libro de Pagos. Un pago que entró el lunes y se verificó el jueves
+aparecería como ingreso del jueves.
+
+**Con el campo expuesto, ninguna consulta cambia de definición.** El operador
+tiene el dato delante: la transferencia trae su fecha.
+
+- Campo en el flujo de verificación y en `Registrar Pago`.
+- Default: hoy. Editable.
+- Aditivo: **sin migración**, la columna ya existe. Falta el input y threadearlo
+  por `RegisterPaymentTxInput` hasta el `payment.create`, que hoy la omite.
+
+### 4. Qué NO se adopta del modelo de Carlos
+
+El modelo de `duna-orders` no puede producir estos dos síntomas: allá "pagado ⟺
+existe un comprobante verificado" es fuente única. Aun así **no se copia**, por una
+razón concreta:
+
+Carlos excluye el efectivo del gate (`payment_methods.py:25-29`): una orden en
+efectivo se cierra pagada **por ausencia de bloqueo**, sin ningún artefacto
+positivo de pago. Nosotros tenemos efectivo y contraentrega como casos reales que
+necesitan dejar asiento. Nuestra tabla `Payment` es lo que lo permite, y por eso
+el split proof/payment se queda.
+
+#### Vocabulario: reservado, no adoptado
+
+`insufficient` y `superseded` **no entran ahora**. La razón se descubrió leyendo su
+implementación:
+
+- `superseded` **no es un veredicto del operador**: lo escribe el sistema cuando un
+  recibo hermano se verifica (`comprobante_store.py:689-722`).
+- `insufficient` existe porque hay **recibos complementarios** (modelo MR-1 de pago
+  parcial), que nosotros no tenemos.
+
+Adoptar los nombres sin el mecanismo crearía dos estados con **cero escritores** —
+la misma trampa de los backlog `#8` (`Customer.activo`) y `#10`
+(`Product.agotado`).
+
+**Se reservan por escrito:** el día que exista pago parcial, esos son los nombres.
+Nadie inventa otros.
+
+#### Divergencias registradas (para el día del puente)
+
+Hoy **no hay puente**: son dos stacks separados, sin API compartida, sin webhook,
+sin tabla común. El veredicto del operador de Carlos no llega a nuestra base, y un
+pedido de tienda es invisible para su lado (`duna-orders` es WhatsApp-only y no
+tiene noción de canal de origen).
+
+Cuando el puente exista, el punto de traducción **no es solo el vocabulario**:
+
+| | Carlos | Nosotros |
+|---|---|---|
+| Entidad del dinero | ninguna — el pago **es** el comprobante | `Payment` + `Comprobante`, tablas separadas |
+| "Pagado" se deriva de | existe un comprobante `verified` | existe un `Payment` |
+| Efectivo | sin artefacto, pasa por ausencia de bloqueo | `Payment` con asiento |
+| Veredicto | único, mutable in-place, monótono | (a definir al construir el puente) |
+| Canal | solo WhatsApp | whatsapp · directo · tienda |
+
+#### Autoridad, cuando haya puente
+
+**El panel no puede depender de que exista un operador de WhatsApp.** La tienda ya
+es un canal vivo sin ese lado, y vienen más. Verificar tiene que poder hacerse
+desde el admin siempre; el operador es un atajo, no la única puerta.
+
+**Un solo veredicto.** Si el operador verifica, el admin lo ve verificado y **no
+tiene nada que hacer** — nunca re-verifica lo ajeno. El admin puede sobreescribir
+si discrepa; ahí es donde `superseded` cobra sentido. Esto es un ruling pendiente
+para el contrato con Carlos, no trabajo de hoy.
+
+### 5. Alcance de la implementación
+
+**Debe cambiar:**
+
+- `packages/core/src/comprobantes.ts:80` `decidirComprobante` — hoy un `updateMany`
+  puro; pasa a abrir transacción y llamar a `registerOrderPaymentTx` en el caso
+  `verificar sobre orden pendiente`. Es el cambio de fondo, y contradice el
+  comentario declarado del archivo (`:11-15`), que hay que reescribir.
+- `tests/integracion/comprobante-verificacion.test.ts:160` — afirma que ningún
+  veredicto toca `Order.estado`. Es exactamente lo que se invierte.
+- `cobro-sincronizado.test.ts:66` — el wording "el path de dinero es el ÚNICO
+  camino a pagado" pasa a "el único **helper**", con verify como tercer llamador.
+  Sus invariantes (`pagado ⇒ Payment`, `Payment ⇒ no-pendiente`) se siguen
+  cumpliendo; se agrega el caso `verify-on-pendiente ⇒ {pagado, 1 Payment}`.
+- `app/(admin)/admin/pedidos/page.tsx:344` + `lib/comprobante.ts:126` — la rama
+  `'cobrar'` pasa de "abrir modal, sellar después" a una sola llamada de servidor.
+- `RegisterPaymentModal` — el adjunto nace VERIFICADO; campo de fecha.
+
+**Cambia de timing, no de estructura:** `isPorCobrar` / cartera / analítica se
+vacían al verificar en vez de al registrar. Correcto, y con `fecha` expuesta no
+mueve ninguna cifra.
+
+**Ya estaba anticipado:** el carril `por_verificar` (`filtros.ts:73-85`) y la rama
+`'cobrar'` de `accionAlVerificar` se escribieron esperando esto.
+
+**No se afecta:** `assertEstadoNoEsCobro` y sus puertas HTTP.
+
+### 6. Lo que no se hace
+
+- **Ningún backfill.** Las tres órdenes con `Payment` + comprobante RECHAZADO son
+  datos de prueba en development (pantallazos con X, adjuntados a mano). No hay
+  historia real que preservar ni revisar.
+- **Ningún flag por tenant.** Configurar la definición de "pagado" sería
+  configurar la contabilidad, no la presentación.
+- **Ningún estado de vocabulario nuevo.** `insufficient` y `superseded` quedan
+  reservados, sin escritores.
+- **Ningún puente con Carlos.** Sigue gateado a que exista un piloto vivo.
+
+### 7. Abierto
+
+- **Pago parcial**: no existe en nuestro modelo. Cuando exista, entra con el
+  vocabulario reservado. No se especula ahora.
+- **El ruling de autoridad** (quién gana si los dos lados verifican) se escribe
+  cuando el puente esté en el horizonte, con Carlos.
+- **La tanda A** (carril "Por verificar") es compatible con las dos versiones del
+  modelo y no depende de esta decisión. Sigue pendiente de gate y push.
+
 ## El eje de COBRO se escribe una sola vez, por el Payment
 
 `Order.estado` tiene DOS ejes y NO son lo mismo: **COBRO** (`pagado`/`pendiente`)
