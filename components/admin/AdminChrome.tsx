@@ -72,7 +72,11 @@ export default function AdminChrome({ children }: { children: React.ReactNode })
         />
 
         <main
-          className="min-h-screen pt-16 transition-[margin] duration-300 duna:ml-(--sb-w)"
+          // `pt` = el alto de la topbar fija, del TOKEN `--duna-topbar-h` (64) y no
+          // de un `pt-16` hardcoded: eran dos fuentes del mismo 64 (acá y el `top`
+          // del panel sticky / el `scroll-padding-top`), y ese desacople es el modo
+          // de falla que hay que cerrar antes de que el shell referencie el número.
+          className="min-h-screen pt-(--duna-topbar-h) transition-[margin] duration-300 duna:ml-(--sb-w)"
           style={{ "--sb-w": `${sidebarWidth}px` } as React.CSSProperties}
         >
           {/* `duna-nav-hueco` reserva el alto de la barra inferior al final del
