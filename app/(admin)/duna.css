@@ -140,13 +140,17 @@ html.admin {
      —no flex—, que es la decisión para ese estado. En Pedidos y Clientes el page
      root siempre lleva la clase, así que el scope no los cambia. */
   .duna-pantalla-fija .duna-region               { min-height: 0; display: flex; flex-direction: column; }
-  /* GENERAL: el hijo único de la región LLENA y SCROLLEA. Es el caso base —una
-     región con un scroller—; el split es el especial. */
-  .duna-pantalla-fija .duna-region > *           { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-  /* EXCEPCIÓN declarada: el split NO scrollea él mismo —reparte en dos columnas y
-     scrollean ELLAS (`__list`/`__panel`/`.duna-cards`)—. Sin esto el grid del split
-     estrenaría un riel propio redundante encima del de sus columnas. */
-  .duna-pantalla-fija .duna-region > .duna-split { overflow-y: visible; }
+  /* GENERAL: el hijo único ENCOGE a la región y scrollea cuando desborda. El scroll
+     lo dan `flex-shrink: 1` + `min-height: 0` + `overflow-y: auto` —NO el grow—, así
+     que grow queda en 0: contenido CORTO (un estado vacío) se sienta arriba a su
+     alto natural en vez de estirarse. Es el caso base; el split es el especial. */
+  .duna-pantalla-fija .duna-region > *           { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+  /* EXCEPCIÓN declarada del split, DOS cosas: (1) LLENA la región (`flex-grow: 1`)
+     para que el panel de detalle vaya a lo alto aunque la lista sea corta; (2) NO
+     scrollea él mismo —reparte en dos columnas y scrollean ELLAS
+     (`__list`/`__panel`/`.duna-cards`)—, sin lo cual el grid estrenaría un riel
+     redundante encima del de sus columnas. */
+  .duna-pantalla-fija .duna-region > .duna-split { flex-grow: 1; overflow-y: visible; }
 
   /* Productos en cuadrícula: la columna izquierda del split es `.duna-cards` (la
      rejilla), no `.duna-split__list`, así que su scroll se declara aparte. */
@@ -171,5 +175,7 @@ html.admin {
   .admin-shell main:has(.duna-sin-split) > div { height: 100%;   min-height: 0; }
   .duna-sin-split { height: 100%; min-height: 0; display: grid; grid-template-rows: auto 1fr; }
   .duna-sin-split .duna-region     { min-height: 0; display: flex; flex-direction: column; }
-  .duna-sin-split .duna-region > * { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  /* Encoge y scrollea (grow 0: corto se queda a su alto natural, no estira) — la
+     misma regla general que el bloque de 1080. */
+  .duna-sin-split .duna-region > * { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
 }

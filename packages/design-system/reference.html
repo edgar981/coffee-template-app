@@ -993,14 +993,16 @@
 
   <section>
     <h2 class="sec">Región de alto fijo · un scroller único (tabla con thead pegado)</h2>
-    <p class="sec-note">El OTRO reparto de la región de alto fijo. El split la divide en dos columnas; el caso GENERAL es <b style="color:var(--duna-ink)">un hijo único que llena la región y scrollea</b> —una tabla de auditoría larga, un listado denso—. El header queda quieto, y el <code>thead</code> TAMBIÉN: con scroll de columna el encabezado es lo primero que se pierde, así que va <code>sticky</code> (siempre-on: fuera de un scroller es no-op). Su fondo es la superficie de la app (<code>--duna-bg</code>), no el papel del rail; su separador va por <code>box-shadow</code> —con <code>border-collapse</code> un <code>border-bottom</code> no viaja con el sticky—. La caja simula el root fijo con <code>320px</code>.</p>
-    <div style="height:320px; display:grid; grid-template-rows:auto 1fr; gap:var(--duna-space-3); min-height:0; border:1px solid var(--duna-border); border-radius:var(--duna-r-l); overflow:hidden;">
+    <p class="sec-note">El OTRO reparto de la región de alto fijo. El split la divide en dos columnas; el caso GENERAL es <b style="color:var(--duna-ink)">un hijo único que llena la región y scrollea</b> —una tabla de auditoría larga, un listado denso—. El header queda quieto, y el <code>thead</code> TAMBIÉN: con scroll de columna el encabezado es lo primero que se pierde, así que va <code>sticky</code> (siempre-on: fuera de un scroller es no-op). Su fondo es la superficie de la app (<code>--duna-bg</code>), no el papel del rail; su separador va por <code>box-shadow</code> —con <code>border-collapse</code> un <code>border-bottom</code> no viaja con el sticky—. Las cajas simulan el root fijo con <code>320px</code>. <b style="color:var(--duna-ink)">Izquierda: contenido largo → scrollea. Derecha: pocas filas → se sienta arriba a su alto natural, NO estira.</b> El scroll lo da <code>flex-shrink</code> + <code>overflow-y</code>, no <code>flex-grow</code>; por eso grow queda en 0 y el contenido corto no se infla.</p>
+    <div style="display:flex; gap:var(--duna-space-4); flex-wrap:wrap;">
+    <!-- LARGO: contenido que DESBORDA → la región lo encoge y scrollea. -->
+    <div style="flex:1 1 320px; min-width:280px; height:320px; display:grid; grid-template-rows:auto 1fr; gap:var(--duna-space-3); min-height:0; border:1px solid var(--duna-border); border-radius:var(--duna-r-l); overflow:hidden;">
       <div style="padding:var(--duna-space-3) var(--duna-space-4) 0;">
-        <span class="duna-eyebrow">HEADER FIJO — título · filtros · total (no scrollea)</span>
+        <span class="duna-eyebrow">HEADER FIJO — la tabla scrollea</span>
       </div>
-      <!-- La región: un hijo único que LLENA y SCROLLEA. Inline acá; en la app es `.duna-region` (§ duna.css). -->
+      <!-- La región: un hijo único que ENCOGE y SCROLLEA. Inline acá; en la app es `.duna-region` (§ duna.css). -->
       <div style="min-height:0; display:flex; flex-direction:column; padding:0 var(--duna-space-4) var(--duna-space-4);">
-        <div class="duna-table-wrap" style="flex:1 1 auto; min-height:0; overflow-y:auto;">
+        <div class="duna-table-wrap" style="flex:0 1 auto; min-height:0; overflow-y:auto;">
           <table class="duna-table" style="min-width:34rem">
             <thead><tr><th>Producto</th><th>Tipo</th><th class="duna-table__r">Cantidad</th><th>Quién</th><th>Fecha</th></tr></thead>
             <tbody>
@@ -1022,6 +1024,25 @@
           </table>
         </div>
       </div>
+    </div>
+    <!-- CORTO: pocas filas → NO desborda, se sienta arriba a su alto natural (no estira). -->
+    <div style="flex:1 1 320px; min-width:280px; height:320px; display:grid; grid-template-rows:auto 1fr; gap:var(--duna-space-3); min-height:0; border:1px solid var(--duna-border); border-radius:var(--duna-r-l); overflow:hidden;">
+      <div style="padding:var(--duna-space-3) var(--duna-space-4) 0;">
+        <span class="duna-eyebrow">HEADER FIJO — pocas filas, no estira</span>
+      </div>
+      <div style="min-height:0; display:flex; flex-direction:column; padding:0 var(--duna-space-4) var(--duna-space-4);">
+        <div class="duna-table-wrap" style="flex:0 1 auto; min-height:0; overflow-y:auto;">
+          <table class="duna-table" style="min-width:34rem">
+            <thead><tr><th>Producto</th><th>Tipo</th><th class="duna-table__r">Cantidad</th><th>Quién</th><th>Fecha</th></tr></thead>
+            <tbody>
+              <tr><td>Café Huila 500 g</td><td><span class="duna-badge duna-badge--neutral">Entrada</span></td><td class="duna-table__r duna-num">+120</td><td>Ana R.</td><td class="duna-caption">14 may 2026</td></tr>
+              <tr><td>Café Sierra 250 g</td><td><span class="duna-badge duna-badge--neutral">Venta</span></td><td class="duna-table__r duna-num">−3</td><td>—</td><td class="duna-caption">14 may 2026</td></tr>
+              <tr><td>Café Nariño 500 g</td><td><span class="duna-badge duna-badge--neutral">Ajuste</span></td><td class="duna-table__r duna-num">28</td><td>Luis C.</td><td class="duna-caption">13 may 2026</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
     </div>
   </section>
 
