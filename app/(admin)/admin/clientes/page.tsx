@@ -17,6 +17,7 @@ import { ChipCanal } from '@/components/admin/ChipCanal';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useDetalleAlLado } from '@/hooks/useDetalleAlLado';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
+import { useHidratado } from '@/hooks/useHidratado';
 import { CustomerFormModal } from '@/components/admin/CustomerFormModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { siteConfig } from '@/lib/config/site';
@@ -107,6 +108,9 @@ function ClientesV2() {
   // nodo de sitio, así que la pregunta va en JS. El umbral es por ROL, no el del
   // chrome ("¿es móvil?").
   const detalleAlLado = useDetalleAlLado();
+  // El auto-select no corre contra el `detalleAlLado` del prerender (§ useHidratado):
+  // servidor `true`, cliente angosto `false`, y el efecto lo escribiría como escritorio.
+  const hidratado = useHidratado();
   const sheetDesdeAbajo = useSheetDesdeAbajo();
 
   // El carril y la selección viven en la URL: el detalle es enlazable y sobrevive
@@ -232,7 +236,7 @@ function ClientesV2() {
   // seleccionar).
   const primeraAutoSel = useRef(true);
   useEffect(() => {
-    if (!detalleAlLado || cargando) return;
+    if (!hidratado || !detalleAlLado || cargando) return;
     const decision = autoSeleccion({
       seleccion,
       idsVisibles: visibles.map(c => c.id),
@@ -241,7 +245,7 @@ function ClientesV2() {
     primeraAutoSel.current = false;
     if (decision.tipo === 'seleccionar') navegar({ cliente: decision.id });
     else if (decision.tipo === 'limpiar')  navegar({ cliente: null });
-  }, [detalleAlLado, cargando, seleccion, visibles, navegar]);
+  }, [hidratado, detalleAlLado, cargando, seleccion, visibles, navegar]);
 
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).

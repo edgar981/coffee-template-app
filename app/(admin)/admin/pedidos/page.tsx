@@ -17,6 +17,7 @@ import { ChipCanal } from '@/components/admin/ChipCanal';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useDetalleAlLado } from '@/hooks/useDetalleAlLado';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
+import { useHidratado } from '@/hooks/useHidratado';
 import {
   FILTROS_PEDIDOS, aplicarFiltro, conteos, filtroPorKey,
   aplicarAlcance, soloOrdenesReales, parseEstados, etiquetaEstados, hayAlcance,
@@ -130,6 +131,10 @@ function Pedidos() {
   // —el CSS no puede mover un nodo de sitio— y por eso hace falta preguntarlo en
   // JS. El umbral lo trae el sistema, por ROL (no "¿es móvil?": eso es el chrome).
   const detalleAlLado = useDetalleAlLado();
+  // El auto-select no debe correr contra el `detalleAlLado` del prerender (§ el hook):
+  // en servidor reporta `true` y en cliente angosto hidrata a `false`, y el efecto
+  // que lo viera `true` escribiría `?pedido` como escritorio.
+  const hidratado = useHidratado();
   // Cuando el detalle YA es sheet (no al lado), de qué borde sale: abajo en el
   // chrome móvil (<960), del lado junto al rail (960–1080).
   const sheetDesdeAbajo = useSheetDesdeAbajo();
@@ -446,7 +451,7 @@ function Pedidos() {
   // COMPLETA, no la filtrada).
   const primeraAutoSel = useRef(true);
   useEffect(() => {
-    if (!detalleAlLado || cargando) return;
+    if (!hidratado || !detalleAlLado || cargando) return;
     // PUERTA #4 del embudo de descarte, y la ÚNICA que NO pregunta y NO descarta:
     // PRESERVA. Con un borrador SUCIO, el auto-select no reemplaza ni limpia la
     // selección — el pedido abierto se queda, aunque caiga fuera del carril visible
@@ -464,7 +469,7 @@ function Pedidos() {
     primeraAutoSel.current = false;
     if (decision.tipo === 'seleccionar') navegar({ pedido: decision.id });
     else if (decision.tipo === 'limpiar')  navegar({ pedido: null });
-  }, [detalleAlLado, cargando, seleccion, visibles, navegar, borrador]);
+  }, [hidratado, detalleAlLado, cargando, seleccion, visibles, navegar, borrador]);
 
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
