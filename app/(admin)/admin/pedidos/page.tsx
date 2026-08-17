@@ -79,6 +79,10 @@ interface AccionesPedido {
    *  que sobrevive al swap. `null` = intacto → el textarea sigue al servidor. */
   borrador:       string | null;
   setBorrador:    (v: string | null) => void;
+  /** Embudo de descarte del borrador, EN LA PÁGINA. El detalle lo llama para su
+   *  única salida propia —el enlace de cliente, que es una navegación de Next que no
+   *  pasa por `onCerrar`—. Cerrar y cambiar de pedido los intercepta la página. */
+  intentarSalir:  (proceder: () => void) => void;
 }
 
 // ═══ PEDIDOS · la pantalla del rediseño Duna OS ══════════════════════════════
@@ -373,6 +377,34 @@ function Pedidos() {
       }
     }), [guardaNotas, errorNotas, empalmar]);
 
+  // El único chokepoint de la URL: cerrar, cambiar de pedido, filtros, rango y
+  // limpiar cliente pasan todos por acá. Sube antes de `acciones` porque el embudo
+  // de descarte lo necesita para su cierre real.
+  const navegar = useCallback((cambios: Record<string, string | null>) => {
+    const q = new URLSearchParams(params.toString());
+    for (const [k, v] of Object.entries(cambios)) {
+      if (v === null) q.delete(k); else q.set(k, v);
+    }
+    const s = q.toString();
+    router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
+  }, [params, pathname, router]);
+
+  // EL EMBUDO DE DESCARTE del borrador de notas, en la PÁGINA (antes vivía en
+  // Detalle sirviendo sólo al enlace de cliente). Cubre las TRES puertas que
+  // abandonan un borrador sin guardar —cerrar el detalle, cambiar de pedido y el
+  // enlace de cliente—: el mismo embudo, no tres guardas. `onCerrar` es el cierre
+  // REAL; `intentarCerrar`/`intentarSalir` lo envuelven con la guarda (bloquea si
+  // una nota se está guardando, pregunta si hay borrador, procede si no).
+  const salida = useDescarteDeDrawer({
+    enVuelo: guardaNotas.enVuelo,
+    onCerrar: () => navegar({ pedido: null }),
+  });
+  // El "¿hay borrador?" se reporta desde un efecto, como cuando vivía en el cuerpo:
+  // `marcarCambios` fija un ref (no re-renderiza), así que esto no es un setState en
+  // efecto. `borrador` ya vive acá, así que no cruza props.
+  const marcarCambios = salida.marcarCambios;
+  useEffect(() => { marcarCambios(borrador !== null); }, [borrador, marcarCambios]);
+
   const acciones: AccionesPedido = {
     transicion, control, errorAccion,
     preparando: guardaPreparar.enVuelo,
@@ -382,6 +414,7 @@ function Pedidos() {
     abrirRechazar: (orden, c) => { control.limpiarError(); setRechazando({ orden, c }); },
     guardarNotas, guardandoNotas: guardaNotas.enVuelo, errorNotas,
     borrador, setBorrador,
+    intentarSalir: salida.intentarSalir,
   };
 
   // ── EL DETALLE SE ESCRIBE UNA VEZ ──────────────────────────────────────────
@@ -400,15 +433,6 @@ function Pedidos() {
     />
   ) : null;
 
-  const navegar = useCallback((cambios: Record<string, string | null>) => {
-    const q = new URLSearchParams(params.toString());
-    for (const [k, v] of Object.entries(cambios)) {
-      if (v === null) q.delete(k); else q.set(k, v);
-    }
-    const s = q.toString();
-    router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
-  }, [params, pathname, router]);
-
   // AUTO-SELECCIÓN / RE-SELECCIÓN en escritorio: mantiene el panel coherente con
   // el conjunto VISIBLE, que cambia con el carril y con el rango de fechas. La
   // decisión —conservar el seleccionado si sigue presente, re-seleccionar el
@@ -423,6 +447,15 @@ function Pedidos() {
   const primeraAutoSel = useRef(true);
   useEffect(() => {
     if (!detalleAlLado || cargando) return;
+    // PUERTA #4 del embudo de descarte, y la ÚNICA que NO pregunta y NO descarta:
+    // PRESERVA. Con un borrador SUCIO, el auto-select no reemplaza ni limpia la
+    // selección — el pedido abierto se queda, aunque caiga fuera del carril visible
+    // (`elegido` lo resuelve contra la lista COMPLETA, así que el panel lo conserva).
+    // Preguntar acá sería por una consecuencia que el operador no eligió (cambió un
+    // filtro, no salió del pedido); descartar en silencio es justo lo que este seam
+    // lleva rondas cerrando. La guarda protege sólo MIENTRAS está sucio: al guardar
+    // o descartar la nota, el auto-select retoma su conducta normal.
+    if (borrador !== null) return;
     const decision = autoSeleccion({
       seleccion,
       idsVisibles: visibles.map(p => p.numero_orden),
@@ -431,7 +464,7 @@ function Pedidos() {
     primeraAutoSel.current = false;
     if (decision.tipo === 'seleccionar') navegar({ pedido: decision.id });
     else if (decision.tipo === 'limpiar')  navegar({ pedido: null });
-  }, [detalleAlLado, cargando, seleccion, visibles, navegar]);
+  }, [detalleAlLado, cargando, seleccion, visibles, navegar, borrador]);
 
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
@@ -599,7 +632,13 @@ function Pedidos() {
                   // de creación, que responde otra pregunta.
                   timeAgo={hace(p.ultimaTransicion?.occurred_at) ?? undefined}
                   selected={p.numero_orden === seleccion}
-                  onClick={() => navegar({ pedido: p.numero_orden })}
+                  // Puerta 3 del embudo: cambiar de pedido pasa por la guarda. El
+                  // clic en el pedido YA abierto no re-navega ni pregunta (sería
+                  // preguntar por una salida que no ocurre).
+                  onClick={() => {
+                    if (p.numero_orden === seleccion) return;
+                    salida.intentarSalir(() => navegar({ pedido: p.numero_orden }));
+                  }}
                 />
               );
             })}
@@ -647,7 +686,7 @@ function Pedidos() {
       <DunaSheet
         abierto={!detalleAlLado && !!elegido}
         anclaje={sheetDesdeAbajo ? 'abajo' : 'lado'}
-        onCerrar={() => navegar({ pedido: null })}
+        onCerrar={salida.intentarCerrar}
         titulo={elegido ? `Pedido ${elegido.numero_orden}` : 'Detalle del pedido'}
         descripcion="Estado de entrega y de pago, con las acciones disponibles."
       >
@@ -754,6 +793,16 @@ function Pedidos() {
       />
 
       <ConfirmDespachoSinPago {...transicion.confirmacion} />
+
+      {/* Confirmación de descarte del borrador de notas. Una sola, a nivel de
+          página, para las TRES puertas del embudo (cerrar, cambiar de pedido,
+          enlace de cliente). Portalea al shell, así que su posición en el DOM no
+          importa. */}
+      <ConfirmDescartarDialog
+        abierto={salida.confirmando}
+        onDescartar={salida.descartar}
+        onSeguir={salida.seguirEditando}
+      />
     </div>
   );
 }
@@ -795,16 +844,12 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
   const soportes = fuente.comprobantes ?? [];
   const lightbox = useLightboxComprobante();
 
-  // GUARDA DE SALIDA del enlace de cliente (mismo embudo que el drawer, C4). El
-  // detalle NO es un drawer, pero tiene un `borrador` de notas sin guardar, y su
-  // enlace es un <Link> de Next: navegar desmonta el panel SIN pasar por ninguna
-  // guarda, descartando el borrador en silencio. Se reusa `intentarSalir`: bloquea
-  // si una nota se está guardando, confirma si hay borrador, y sólo entonces
-  // navega. `onCerrar` es no-op — acá la única salida guardada es la navegación.
+  // GUARDA DE SALIDA del enlace de cliente. El embudo VIVE EN LA PÁGINA (cubre las
+  // tres puertas: cerrar, cambiar de pedido y este enlace); el detalle sólo lo
+  // LLAMA para su salida propia —el enlace es un <Link> de Next que navega SIN pasar
+  // por `onCerrar`, así que sin el embudo saltaría la guarda—. El "¿hay borrador?"
+  // lo reporta la página, que es donde vive el borrador.
   const router = useRouter();
-  const salida = useDescarteDeDrawer({ enVuelo: acciones.guardandoNotas, onCerrar: () => {} });
-  const marcarSalida = salida.marcarCambios;
-  useEffect(() => { marcarSalida(borrador !== null); }, [borrador, marcarSalida]);
   const clienteHref = orden.cliente_id ? `/admin/clientes?cliente=${encodeURIComponent(orden.cliente_id)}` : null;
 
   // WhatsApp al cliente, la acción más frecuente del operador de este negocio y
@@ -857,7 +902,7 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
                       // Clic con modificador (nueva pestaña) no desmonta el panel.
                       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                       e.preventDefault();
-                      salida.intentarSalir(() => router.push(clienteHref));
+                      acciones.intentarSalir(() => router.push(clienteHref));
                     }}>
                 {orden.cliente_nombre}
               </Link>
@@ -1212,13 +1257,6 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
         </div>
       )}
 
-      {/* Confirmación de descarte del borrador de notas al salir por el enlace de
-          cliente. Portalea al shell, así que su posición en el DOM no importa. */}
-      <ConfirmDescartarDialog
-        abierto={salida.confirmando}
-        onDescartar={salida.descartar}
-        onSeguir={salida.seguirEditando}
-      />
     </div>
   );
 }
