@@ -15,7 +15,8 @@ import { getProducts, deleteProduct, updateProduct } from '@/lib/api/products';
 import { getInventoryLogs } from '@/lib/api/inventory';
 import { accionEstadoProducto, alternativaAlEliminar } from '@duna/core/product-form';
 import { DunaSheet } from '@/components/admin/DunaSheet';
-import { useEsMovil } from '@/hooks/useEsMovil';
+import { useDetalleAlLado } from '@/hooks/useDetalleAlLado';
+import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
 import { ProductFormModal } from '@/components/admin/ProductFormModal';
 import { AdjustStockModal } from '@/components/admin/AdjustStockModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
@@ -98,7 +99,9 @@ function Productos() {
   const [cargando, setCargando]   = useState(true);
   const [error, setError]         = useState<string | null>(null);
 
-  const esMovil = useEsMovil();
+  // ¿El detalle va al lado (panel) o sube como sheet? Umbral por ROL, no el del
+  // chrome. (En cuadrícula el "al lado" es el panel que aparece al seleccionar.)
+  const detalleAlLado = useDetalleAlLado();
 
   // EL MODO DE VISTA ES ESTADO LOCAL, no de la URL. Es una preferencia de quien
   // mira, no parte de QUÉ se está mirando: un enlace no debería imponerle a otro
@@ -236,11 +239,11 @@ function Productos() {
   // tanto, no cierra además el panel.
   const hayDialogoAbierto = formAbierto || !!borrando || !!activarTarget || !!ajustando || !!lightbox;
   useEffect(() => {
-    if (esMovil || vista !== 'cuadricula' || !elegido || hayDialogoAbierto) return;
+    if (!detalleAlLado || vista !== 'cuadricula' || !elegido || hayDialogoAbierto) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') navegar({ producto: null }); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [esMovil, vista, elegido, hayDialogoAbierto, navegar]);
+  }, [detalleAlLado, vista, elegido, hayDialogoAbierto, navegar]);
 
   // El detalle se escribe UNA vez: vive en el panel (ancho + lista) o en el sheet,
   // nunca en los dos. Dos juegos de props del mismo componente es cómo una de las
@@ -257,7 +260,7 @@ function Productos() {
       // estado normal (como Pedidos: el panel vacío dice "elige un producto") y no
       // lleva ×; en móvil el sheet ya trae su propio cierre. El mismo nodo sirve a
       // las tres superficies porque sólo una se renderiza a la vez.
-      onCerrar={!esMovil && vista === 'cuadricula' ? () => navegar({ producto: null }) : undefined}
+      onCerrar={detalleAlLado && vista === 'cuadricula' ? () => navegar({ producto: null }) : undefined}
       onEditar={() => setEditando(elegido)}
       onEliminar={() => setBorrando(elegido)}
       onActivar={() => setActivarTarget(elegido)}
@@ -284,7 +287,8 @@ function Productos() {
   // la cuadrícula encoge y aparece el split `--panel-derecha`). Antes la cuadrícula
   // mandaba al sheet también en ancho —un sheet a pantalla completa que era una
   // pantalla disfrazada, y donde las acciones se hundían con el kardex—.
-  const detalleEnSheet = esMovil;
+  const detalleEnSheet = !detalleAlLado;
+  const sheetDesdeAbajo = useSheetDesdeAbajo();
 
   const alternativa = alternativaAlEliminar(borrando);
   const accionActivar = accionEstadoProducto(activarTarget);
@@ -471,6 +475,7 @@ function Productos() {
           para que las dos superficies no puedan discrepar. */}
       <DunaSheet
         abierto={detalleEnSheet && !!elegido}
+        anclaje={sheetDesdeAbajo ? 'abajo' : 'lado'}
         onCerrar={() => navegar({ producto: null })}
         titulo={elegido ? elegido.nombre : 'Ficha del producto'}
         descripcion="Precio, existencias, movimientos de inventario y las acciones disponibles."

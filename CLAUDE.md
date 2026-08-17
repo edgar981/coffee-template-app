@@ -720,23 +720,81 @@ analítica NO entran acá: migran cuando migren esas verticales.
 **DISPARADOR:** el rediseño del Dashboard, o una tanda de acabado con **gate
 propio** — porque el cambio altera el tema oscuro y hay que verlo en ambos.
 
-### 17. El enlace de cliente del DETALLE pierde el borrador de notas al navegar
+### 18. El detalle pierde la POSICIÓN DE SCROLL al cruzar el umbral del split
 
-El nombre del cliente en el detalle del pedido
-(`app/(admin)/admin/pedidos/page.tsx:786`) es un `<Link>` que navega a
-`/admin/clientes?cliente=`. El panel tiene un `borrador` de notas sin guardar y
-—a diferencia de los drawers— **nunca tuvo guarda de descarte**: navegar desmonta
-el panel y pierde el borrador en silencio. Es el gemelo del embudo que el
-corrector C4 puso en el drawer de Programar entrega (`intentarSalir`), pero acá el
-panel no es un modal con guarda donde enchufarlo.
+Cruzar 1080 remonta el detalle de una superficie a la otra (panel `.duna-split__panel`
+↔ sheet `.duna-sheet__body`, `app/(admin)/admin/pedidos/page.tsx`), y esos son
+**scrollers de DOM distintos**: quien venía scrolleado a la sección Pago vuelve
+arriba de todo. Salió del mismo diagnóstico que la pérdida del borrador de notas
+—el remontaje panel↔sheet—, pero NO es lo mismo: el borrador era estado de React y
+se elevó al padre; el scroll **no es estado de React**, así que elevarlo no lo
+arregla. Es restauración de scroll (guardar `scrollTop` del scroller que se va y
+aplicarlo al que llega), otro mecanismo.
 
-**Costo YA pagado: ninguno reportado.** El borrador de notas es un dato menor y el
-caso —clickear el cliente con una nota a medias— es raro. Se anota porque es el
-MISMO seam que la tanda 3 va a tocar.
+**Costo YA pagado: ninguno reportado.** Sólo pasa al redimensionar la ventana
+cruzando 1080 con el detalle abierto Y scrolleado — un caso raro. El borrador, que
+SÍ era pérdida de contenido, ya se arregló en la misma tanda.
 
-**DISPARADOR: la tanda 3**, que mueve la sección de Notas del detalle y toca ese
-seam. Ahí se decide si el panel gana una guarda de salida como el drawer, o si el
-borrador se confirma/persiste de otra forma.
+**DISPARADOR: el shell de scroll-por-columna** (la parte de la tanda 3 que sigue en
+pausa), que va a rehacer esos scrollers —columnas de alto fijo con overflow propio—
+y es el momento natural para decidir la restauración. Antes de eso, elevar el
+scroll a mano sería un mecanismo que ese shell reescribiría enseguida.
+
+### 19. `confirmando` de `useDescarteDeDrawer` muere en el remontaje del detalle
+
+El detalle usa `useDescarteDeDrawer` para la guarda de salida del enlace de cliente
+(`app/(admin)/admin/pedidos/page.tsx`), y su estado interno `confirmando` vive
+DENTRO del detalle, así que cruzar el umbral del split lo remonta y lo pierde —igual
+que el borrador, pero este NO se elevó.
+
+**Costo YA pagado: ninguno.** La ventana es mínima: `confirmando` sólo es no-nulo
+mientras el diálogo de descarte está ABIERTO a mitad de una navegación, y
+redimensionar la ventana cruzando 1080 exactamente en ese instante no es un caso
+real. No es contenido del operador: si se pierde, el diálogo se cierra y la
+navegación no ocurre — un no-op, no una pérdida.
+
+**DISPARADOR: si aparece en uso real**, o si el hook gana estado que sí importe
+conservar. Entonces se eleva al padre como el borrador, o el detalle recibe una
+identidad estable entre contenedores.
+
+### 20. Las portadas de producto pesan ~1.4 MB (sin comprimir en la subida)
+
+Las portadas de catálogo llegan a ~1.4 MB. El optimizador de Next las SIRVE
+reducidas (el storefront y las cards ven una versión chica), pero en cada frío de
+caché descarga el **original** entero desde Vercel Blob para re-codificar. En una
+red lenta eso es lo que hace expirar a `/_next/image`.
+
+**Costo YA pagado:** el 500 `TimeoutError` de `/admin/productos` en local
+(2026-08-17). Medido con curl directo al blob: el cuerpo baja a ~50 KB/s → >15 s
+para 1.4 MB, mientras los headers vuelven en <1 s (por eso un HEAD engaña). Es
+**ambiental** (throughput a Blob desde esa red), no código —el diff de la rama no
+toca el optimizador ni `next.config`— pero el peso del original es lo que lo
+vuelve visible. En producción, servido desde el edge, hoy no muerde.
+
+**DISPARADOR: al tocar el flujo de carga de imágenes.** Ahí se comprime en la
+SUBIDA (redimensionar/recomprimir antes de `storage.put`), y el original deja de
+pesar 1.4 MB. Antes de eso no se comprime nada suelto: el flujo de subida es el
+único sitio donde el tope se aplica una vez y para siempre.
+
+### 21. El dev heredado del reset apunta a blobs de PRODUCCIÓN
+
+Medido en `development` (2026-08-17): **3 de 4 portadas** apuntan a
+`…blob.vercel-storage.com/productos/…` (blobs REALES de producción); la cuarta a
+`dev/productos/` (reemplazada en dev tras el reset). Es exactamente lo que
+documenta § Storage: el reset desde production copia **filas, no archivos**, así
+que las URLs heredadas siguen sirviendo los blobs de producción.
+
+**Costo YA pagado: ninguno.** Hoy es inofensivo porque esas URLs sólo se LEEN
+(mostrar la imagen). El riesgo es de escritura: una operación de **borrado o
+reemplazo desde dev** tocaría un archivo real de producción. La guarda
+`isDeletable` (prefijo `dev/`) existe justamente para esto —convierte en no-op el
+borrado de un blob que no sea `dev/`—, pero es una red, no una prueba de que todo
+path la respete.
+
+**DISPARADOR: al construir o tocar cualquier flujo que borre o reemplace
+imágenes.** Ahí se verifica qué hace `lib/storage` en `delete`/reemplazo contra una
+URL de prefijo `productos/` heredada, y que la guarda cubra ese path — antes de
+darle al operador un botón que pueda alcanzar un archivo de producción.
 
 ## Mejoras post-multitenant
 

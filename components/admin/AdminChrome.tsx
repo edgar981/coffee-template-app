@@ -87,10 +87,13 @@ export default function AdminChrome({ children }: { children: React.ReactNode })
           <div className="animate-fade-in duna-nav-hueco p-6">{children}</div>
         </main>
 
-        {/* La navegación de angosto. Se monta siempre y se muestra sola: su
-            `display` lo decide el sistema en el mismo breakpoint que retira el
-            rail, así que no hay un `esMovil` en JS que pueda desincronizarse del
-            CSS que esconde el rail. */}
+        {/* La navegación de angosto. Se monta siempre y su `display` lo decide el
+            sistema (variante `duna:`) en el mismo breakpoint que retira el rail
+            (960): la APARICIÓN del chrome sigue siendo puro CSS, sin gemelo de JS
+            que se desincronice. Lo que SÍ lee ese 960 en JS es `useSheetDesdeAbajo`
+            —de qué borde sale el sheet del detalle, que es una decisión de árbol
+            que el CSS no toma—; ese par (CSS 960 ↔ hook) se mueve junto, como el
+            del split (1080, `useDetalleAlLado`). */}
         <MobileNav />
 
         <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />

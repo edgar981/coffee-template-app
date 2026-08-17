@@ -863,7 +863,7 @@
 
   <section>
     <h2 class="sec">Layout partido · lista que scrollea + panel que se queda</h2>
-    <p class="sec-note">El esqueleto de una pantalla de trabajo, AGNÓSTICO (sirve para pedidos, clientes o productos). El <code>top</code> del panel sticky no es un número: sale de <code>calc(var(--duna-topbar-h) + var(--duna-space-6))</code>, así que mover el padding de la topbar lo reacomoda solo. Debajo de 960px apila y el panel deja de ser sticky.</p>
+    <p class="sec-note">El esqueleto de una pantalla de trabajo, AGNÓSTICO (sirve para pedidos, clientes o productos). El <code>top</code> del panel sticky no es un número: sale de <code>calc(var(--duna-topbar-h) + var(--duna-space-6))</code>, así que mover el padding de la topbar lo reacomoda solo. Debajo de 1080px (el umbral del split, derivado del piso del panel) apila a una columna y el panel deja de ser sticky — el detalle sube como sheet.</p>
     <div class="duna-split">
       <div class="duna-split__list">
         <button type="button" class="duna-order-card is-selected">
@@ -904,6 +904,14 @@
         </table>
       </div>
     </div>
+
+    <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">El PISO del panel · <code>--duna-panel-min</code></div>
+    <p class="sec-note">El detalle necesita un ancho mínimo para ser legible —dos ejes de datos y sus acciones—, y ese piso es un token: <code>--duna-panel-min</code> = 320px. De ACÁ se deriva el umbral en el que el split se activa, no al revés: sólo abre cuando la columna flexible cabe con este piso encima de la lista; por debajo, UNA columna y el detalle sube como sheet. La caja de abajo mide exactamente el piso.</p>
+    <div class="duna-card duna-card__pad" style="width:var(--duna-panel-min)">
+      <div class="duna-title">Laura Cárdenas</div>
+      <div class="duna-sub" style="margin:0">Panel al piso · 320px. Más angosto, el detalle deja de caber y el split no se activa.</div>
+    </div>
+    <div class="flag" style="margin-top:var(--duna-space-4)">EL UMBRAL DEL SPLIT SE DERIVA DEL PISO, NO SE ELIGE. Con la lista en <code>--duna-list-w</code> (400), el gap, el rail y el padding del shell, el split sólo cabe con el panel ≥ <code>--duna-panel-min</code> a partir de cierto viewport — <b style="color:var(--duna-ink)">ese viewport es el umbral, y sale de la aritmética, no de un número redondo</b>. Es la misma regla que el mínimo de columna de la rejilla (<code>--duna-list-w / 2</code>): un piso derivado, no una opinión. El umbral vive en el consumidor (media query + hook por rol), porque el paquete no conoce el ancho del rail; el PISO —lo que hace legible al detalle— sí es del sistema.</div>
 
     <div class="duna-eyebrow" style="margin:var(--duna-space-8) 0 var(--duna-space-3)">El lado del panel fijo · una perilla por ROL</div>
     <p class="sec-note">El default fija la columna a la IZQUIERDA (arriba: lista fija + detalle flexible). Una CUADRÍCULA no cabe en esa columna fija de 400px —queda en una sola columna—, así que ahí se invierte: la rejilla toma el lado flexible y el panel de detalle va FIJO a la derecha. Se nombra por rol (<code>--panel-derecha</code>), no por caso de uso: la próxima pantalla que lo use no se llamará "cuadrícula".</p>
