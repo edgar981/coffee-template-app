@@ -16,6 +16,7 @@ import type { Order, OrderDetalle } from '@/types/order';
 import { ChipCanal } from '@/components/admin/ChipCanal';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useDetalleAlLado } from '@/hooks/useDetalleAlLado';
+import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
 import {
   FILTROS_PEDIDOS, aplicarFiltro, conteos, filtroPorKey,
   aplicarAlcance, soloOrdenesReales, parseEstados, etiquetaEstados, hayAlcance,
@@ -118,6 +119,9 @@ function Pedidos() {
   // —el CSS no puede mover un nodo de sitio— y por eso hace falta preguntarlo en
   // JS. El umbral lo trae el sistema, por ROL (no "¿es móvil?": eso es el chrome).
   const detalleAlLado = useDetalleAlLado();
+  // Cuando el detalle YA es sheet (no al lado), de qué borde sale: abajo en el
+  // chrome móvil (<960), del lado junto al rail (960–1080).
+  const sheetDesdeAbajo = useSheetDesdeAbajo();
 
   // El filtro y la selección viven en la URL: el detalle es enlazable y sobrevive
   // a un refresh, igual que `?order=` en la lista vieja.
@@ -608,6 +612,7 @@ function Pedidos() {
           primera divergencia no la vería nadie hasta abrirlo en un teléfono. */}
       <DunaSheet
         abierto={!detalleAlLado && !!elegido}
+        anclaje={sheetDesdeAbajo ? 'abajo' : 'lado'}
         onCerrar={() => navegar({ pedido: null })}
         titulo={elegido ? `Pedido ${elegido.numero_orden}` : 'Detalle del pedido'}
         descripcion="Estado de entrega y de pago, con las acciones disponibles."

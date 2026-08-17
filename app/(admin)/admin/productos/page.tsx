@@ -16,6 +16,7 @@ import { getInventoryLogs } from '@/lib/api/inventory';
 import { accionEstadoProducto, alternativaAlEliminar } from '@duna/core/product-form';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useDetalleAlLado } from '@/hooks/useDetalleAlLado';
+import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
 import { ProductFormModal } from '@/components/admin/ProductFormModal';
 import { AdjustStockModal } from '@/components/admin/AdjustStockModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
@@ -287,6 +288,7 @@ function Productos() {
   // mandaba al sheet también en ancho —un sheet a pantalla completa que era una
   // pantalla disfrazada, y donde las acciones se hundían con el kardex—.
   const detalleEnSheet = !detalleAlLado;
+  const sheetDesdeAbajo = useSheetDesdeAbajo();
 
   const alternativa = alternativaAlEliminar(borrando);
   const accionActivar = accionEstadoProducto(activarTarget);
@@ -473,6 +475,7 @@ function Productos() {
           para que las dos superficies no puedan discrepar. */}
       <DunaSheet
         abierto={detalleEnSheet && !!elegido}
+        anclaje={sheetDesdeAbajo ? 'abajo' : 'lado'}
         onCerrar={() => navegar({ producto: null })}
         titulo={elegido ? elegido.nombre : 'Ficha del producto'}
         descripcion="Precio, existencias, movimientos de inventario y las acciones disponibles."

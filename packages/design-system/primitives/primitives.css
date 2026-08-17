@@ -332,47 +332,43 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
 .duna-split__panel { min-width: 0; position: sticky;
                      top: calc(var(--duna-topbar-h) + var(--duna-space-6)); }
 
-/* EL BREAKPOINT ES UN LITERAL, y no por descuido: una media query NO puede leer
-   una custom property (`@media (min-width: var(--x))` es CSS inválido), así que
-   este valor no puede ser un token por más que el resto del sistema lo sea.
-   Queda DERIVADO en vez de inventado — es la suma de lo que la fila necesita:
-     lista 400 + gap 24 + panel legible ~420 + padding de contenido 32×2 = 908
-   redondeado a 960, el primer valor cómodo por encima. Debajo de eso el panel
-   apilaría a ~200px de ancho, que no es un detalle sino un texto en columna.
+/* EL BREAKPOINT DEL SPLIT ES UN LITERAL DERIVADO, y es DISTINTO del breakpoint
+   del chrome. Una media query no puede leer una custom property (`@media
+   (min-width: var(--x))` es CSS inválido), así que el valor no puede ser un token
+   por más que el resto del sistema lo sea; queda DERIVADO en vez de inventado.
 
-   ── 960 ES EL ÚNICO BREAKPOINT DEL SISTEMA (owner, 2026-08-14) ──────────────
+   ── DE DÓNDE SALE 1080 ──────────────────────────────────────────────────────
 
-   Llegó a haber TRES para la misma pregunta: éste, el `lg`=1024 de la navegación
-   (heredado del default de Tailwind, elegido por nadie) y el 820 de la maqueta.
-   Se unificó en éste porque es el único con un motivo DERIVADO y escrito; los
-   otros dos eran defaults.
+   Es la suma de lo que la fila de dos columnas necesita, con el PISO del panel
+   como token (`--duna-panel-min`, 320):
+     rail 240 + padding 48 + lista 400 + gap 24 + panel 320 = 1032
+   redondeado a 1080, el primer valor cómodo por encima. Debajo de eso el panel
+   caería por debajo de su piso —un detalle en columna, ilegible—, así que el
+   split no se activa: una columna, y el detalle sube como sheet.
 
-   Debajo: el panel es un sheet Y la navegación es la barra inferior. Encima:
-   rail y split. La franja 960–1024 que quedaba con barra inferior y panel al
-   lado se ELIMINA, no se documenta — un rango de 64px con dos sistemas de
-   navegación a la vez es una excepción que alguien tendría que recordar, y la
-   regla de este repo es que lo que hay que recordar se olvida.
+   El 960 anterior era el MISMO breakpoint mal derivado: sumaba SIN el rail
+   (400+24+420+64=908→960), y por eso a 960 con el rail expandido el panel quedaba
+   en 248px. Ahora el piso es un token y la cuenta incluye el rail.
 
-   Todas las media queries del sistema usan este número, y su gemelo de JS es
-   `DUNA_MQ_MOVIL` (primitives/layout.ts) — que existe porque la decisión de
-   dónde RENDERIZAR el detalle no la puede tomar el CSS. Los dos se mueven
-   juntos; el porqué de que sean dos está en ese archivo.
+   ── DOS BREAKPOINTS POR ROL, NO UNO ─────────────────────────────────────────
 
-   ── Y POR QUÉ 959.98 Y NO 960 ───────────────────────────────────────────────
+   Esto REVISA "960 es el único breakpoint" (owner, 2026-08-14). Aquella decisión
+   unificó TRES defaults en 960 y estaba bien para lo que era; lo que separa ahora
+   son las DOS preguntas que de verdad son distintas: "¿caben dos columnas?"
+   (split, 1080) y "¿es una pantalla táctil de una mano?" (chrome: rail y barra
+   inferior, 960 — más abajo, `.duna-nav-*`). Entre 960 y 1080: chrome de
+   escritorio, una columna, y el detalle en un sheet que sale del LADO, no de abajo
+   (§ el consumidor, `useSheetDesdeAbajo`).
 
-   Porque el consumidor expresa el OTRO lado con `min-width: 960px` (es lo que
-   genera un breakpoint con nombre en Tailwind), y `max-width: 960px` con
-   `min-width: 960px` **se solapan a exactamente 960**: ahí aplicarían las dos
-   mitades a la vez — barra inferior Y rail, panel apilado Y margen de rail. Es
-   la misma franja de dos navegaciones que esta decisión eliminó, reducida a un
-   píxel, y por eso mismo peor: nadie la reproduce a mano.
+   Su gemelo de JS es `DUNA_MQ_DETALLE_AL_LADO` (primitives/layout.ts) — existe
+   porque la decisión de dónde RENDERIZAR el detalle no la puede tomar el CSS. Los
+   dos se mueven juntos; el porqué de que sean dos está en ese archivo.
 
-   No es teórico: se destapó grepeando el CSS COMPILADO (`min-width:960px` junto
-   a `max-width:960px` en el mismo bundle), no leyendo la fuente. El `.98` es el
-   corte estándar sub-píxel — los anchos pueden ser fraccionarios por zoom o por
-   densidad, así que `959` dejaría un hueco de verdad. El umbral sigue siendo
-   960: DEBAJO es angosto, 960 exacto ya es ancho, en los tres sitios. */
-@media (max-width: 959.98px) {
+   El `.98` es el corte sub-píxel de siempre (los anchos son fraccionarios por zoom
+   o densidad). A 1080 no hay un `min-width: 1080px` con el que solaparse —esa
+   trampa es del breakpoint del CHROME (min-width 960 de la variante `duna:`) y
+   vive con él, más abajo—, pero el `.98` se mantiene por consistencia. */
+@media (max-width: 1079.98px) {
   /* Las tres formas apilan a una columna: el default y las dos variantes de lado.
      Debajo del breakpoint no hay dos columnas que repartir, así que el lado del
      panel deja de significar nada — y en Productos, además, el detalle debajo del

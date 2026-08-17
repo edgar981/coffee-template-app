@@ -16,6 +16,7 @@ import { getCustomers, getCustomer, deleteCustomer } from '@/lib/api/customers';
 import { ChipCanal } from '@/components/admin/ChipCanal';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useDetalleAlLado } from '@/hooks/useDetalleAlLado';
+import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
 import { CustomerFormModal } from '@/components/admin/CustomerFormModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { siteConfig } from '@/lib/config/site';
@@ -106,6 +107,7 @@ function ClientesV2() {
   // nodo de sitio, así que la pregunta va en JS. El umbral es por ROL, no el del
   // chrome ("¿es móvil?").
   const detalleAlLado = useDetalleAlLado();
+  const sheetDesdeAbajo = useSheetDesdeAbajo();
 
   // El carril y la selección viven en la URL: el detalle es enlazable y sobrevive
   // a un refresh, igual que `?pedido=` en Pedidos.
@@ -391,6 +393,7 @@ function ClientesV2() {
           patrón se decidió. */}
       <DunaSheet
         abierto={!detalleAlLado && !!elegido}
+        anclaje={sheetDesdeAbajo ? 'abajo' : 'lado'}
         onCerrar={() => navegar({ cliente: null })}
         titulo={elegido ? elegido.nombre : 'Detalle del cliente'}
         descripcion="Contacto, historial de pedidos y las acciones disponibles."

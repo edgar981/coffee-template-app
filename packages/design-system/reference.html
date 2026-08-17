@@ -863,7 +863,7 @@
 
   <section>
     <h2 class="sec">Layout partido · lista que scrollea + panel que se queda</h2>
-    <p class="sec-note">El esqueleto de una pantalla de trabajo, AGNÓSTICO (sirve para pedidos, clientes o productos). El <code>top</code> del panel sticky no es un número: sale de <code>calc(var(--duna-topbar-h) + var(--duna-space-6))</code>, así que mover el padding de la topbar lo reacomoda solo. Debajo de 960px apila y el panel deja de ser sticky.</p>
+    <p class="sec-note">El esqueleto de una pantalla de trabajo, AGNÓSTICO (sirve para pedidos, clientes o productos). El <code>top</code> del panel sticky no es un número: sale de <code>calc(var(--duna-topbar-h) + var(--duna-space-6))</code>, así que mover el padding de la topbar lo reacomoda solo. Debajo de 1080px (el umbral del split, derivado del piso del panel) apila a una columna y el panel deja de ser sticky — el detalle sube como sheet.</p>
     <div class="duna-split">
       <div class="duna-split__list">
         <button type="button" class="duna-order-card is-selected">
