@@ -143,6 +143,23 @@ function Pedidos() {
   // a un refresh, igual que `?order=` en la lista vieja.
   const filtro = (filtroPorKey(params.get('f') ?? '')?.key ?? 'todos') as FiltroKey;
   const seleccion = params.get('pedido');
+  // El SHEET del detalle se abre por ACCIÓN, no por ancho de ventana. `sheetAbierto`
+  // separa "hay una orden seleccionada" (que persiste y se marca en la lista) de "el
+  // sheet modal está abierto". Cruzar de panel a sheet CONSERVA la selección pero NO
+  // abre el sheet —taparía la lista sin que el operador lo pida—; se abre al tocar la
+  // fila. Un deep link SÍ abre (lleva la intención dentro), por eso el init.
+  const [sheetAbierto, setSheetAbierto] = useState(!!seleccion);
+  // Reset EN RENDER al cruzar de panel a sheet (no en efecto: cascada que el lint
+  // marca). El centinela `null` es la clave: la PRIMERA sincronización post-hidratación
+  // fija la base SIN contar como cruce. Sin él, cuando `detalleAlLado`→false y
+  // `hidratado`→true se batchean en un render (React 18 lo hace), el reset vería
+  // `alLadoAntes` con el valor SSR viejo (`true`) y cerraría un deep-link recién
+  // abierto. Con el centinela, esa primera vez sólo asienta la base.
+  const [alLadoAntes, setAlLadoAntes] = useState<boolean | null>(null);
+  if (hidratado && alLadoAntes !== detalleAlLado) {
+    if (alLadoAntes !== null && alLadoAntes && !detalleAlLado) setSheetAbierto(false);
+    setAlLadoAntes(detalleAlLado);
+  }
   // LOS TRES ALCANCES. Acotan la lista sin ser carriles: se combinan entre sí y
   // con cualquiera de los siete. De quién es (`cliente`), de cuándo (`desde` /
   // `hasta`) y si está cobrado (`estado`).
@@ -402,7 +419,7 @@ function Pedidos() {
   // una nota se está guardando, pregunta si hay borrador, procede si no).
   const salida = useDescarteDeDrawer({
     enVuelo: guardaNotas.enVuelo,
-    onCerrar: () => navegar({ pedido: null }),
+    onCerrar: () => { setSheetAbierto(false); navegar({ pedido: null }); },
   });
   // El "¿hay borrador?" se reporta desde un efecto, como cuando vivía en el cuerpo:
   // `marcarCambios` fija un ref (no re-renderiza), así que esto no es un setState en
@@ -649,6 +666,9 @@ function Pedidos() {
                   // clic en el pedido YA abierto no re-navega ni pregunta (sería
                   // preguntar por una salida que no ocurre).
                   onClick={() => {
+                    // Tocar en rango sheet ABRE el sheet, incluso la fila ya marcada
+                    // (un cruce la conservó sin abrir). En panel no aplica.
+                    if (!detalleAlLado) setSheetAbierto(true);
                     if (p.numero_orden === seleccion) return;
                     salida.intentarSalir(() => navegar({ pedido: p.numero_orden }));
                   }}
@@ -698,7 +718,7 @@ function Pedidos() {
           con dos juegos de props sería el mismo detalle escrito dos veces, y la
           primera divergencia no la vería nadie hasta abrirlo en un teléfono. */}
       <DunaSheet
-        abierto={!detalleAlLado && !!elegido}
+        abierto={!detalleAlLado && !!elegido && sheetAbierto}
         anclaje={sheetDesdeAbajo ? 'abajo' : 'lado'}
         onCerrar={salida.intentarCerrar}
         titulo={elegido ? `Pedido ${elegido.numero_orden}` : 'Detalle del pedido'}

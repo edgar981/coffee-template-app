@@ -17,6 +17,7 @@ import { accionEstadoProducto, alternativaAlEliminar } from '@duna/core/product-
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { useDetalleAlLado } from '@/hooks/useDetalleAlLado';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
+import { useHidratado } from '@/hooks/useHidratado';
 import { ProductFormModal } from '@/components/admin/ProductFormModal';
 import { AdjustStockModal } from '@/components/admin/AdjustStockModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
@@ -102,6 +103,7 @@ function Productos() {
   // ¿El detalle va al lado (panel) o sube como sheet? Umbral por ROL, no el del
   // chrome. (En cuadrícula el "al lado" es el panel que aparece al seleccionar.)
   const detalleAlLado = useDetalleAlLado();
+  const hidratado = useHidratado();
 
   // EL MODO DE VISTA ES ESTADO LOCAL, no de la URL. Es una preferencia de quien
   // mira, no parte de QUÉ se está mirando: un enlace no debería imponerle a otro
@@ -114,6 +116,19 @@ function Productos() {
   const carril    = (carrilPorKey(params.get('f') ?? '')?.key ?? 'todos') as CarrilKey;
   const categoria = params.get('cat');
   const seleccion = params.get('producto');
+  // El SHEET se abre por ACCIÓN, no por ancho (§ el mismo modelo que Pedidos). En
+  // cuadrícula ≥1080 el detalle es un PANEL que aparece al seleccionar (Finder), no
+  // un sheet, así que esto sólo rige el sheet de angosto: cruzar de panel a sheet
+  // conserva la selección sin abrir; se abre al tocar. Deep link SÍ abre (init).
+  const [sheetAbierto, setSheetAbierto] = useState(!!seleccion);
+  // Centinela `null`: la primera sincronización post-hidratación fija la base sin
+  // contar como cruce, para que el batch SSR→cliente no cierre un deep-link (§ el
+  // porqué largo está en Pedidos).
+  const [alLadoAntes, setAlLadoAntes] = useState<boolean | null>(null);
+  if (hidratado && alLadoAntes !== detalleAlLado) {
+    if (alLadoAntes !== null && alLadoAntes && !detalleAlLado) setSheetAbierto(false);
+    setAlLadoAntes(detalleAlLado);
+  }
 
   // LA BÚSQUEDA NO VA A LA URL: es una consulta en curso, no un estado que valga
   // la pena compartir, y cada tecla dejaría una entrada en el historial.
@@ -276,7 +291,7 @@ function Productos() {
       key={p.id}
       producto={p}
       seleccionado={p.id === seleccion}
-      onAbrir={() => navegar({ producto: p.id })}
+      onAbrir={() => { if (!detalleAlLado) setSheetAbierto(true); navegar({ producto: p.id }); }}
       onActivar={() => setActivarTarget(p)}
       acciones={<ProductoAccionesMenu producto={p} {...accionesDe(p)} />}
     />
@@ -484,7 +499,7 @@ function Productos() {
                 // parada en el tab order) — ver el JSDoc de `OrderCard.actions`.
                 actions={<ProductoAccionesMenu producto={p} {...accionesDe(p)} />}
                 selected={p.id === seleccion}
-                onClick={() => navegar({ producto: p.id })}
+                onClick={() => { if (!detalleAlLado) setSheetAbierto(true); navegar({ producto: p.id }); }}
               />
             ))}
           </div>
@@ -507,9 +522,9 @@ function Productos() {
           enlace profundo abra aunque la lista visible esté vacía, y el nodo es UNO
           para que las dos superficies no puedan discrepar. */}
       <DunaSheet
-        abierto={detalleEnSheet && !!elegido}
+        abierto={detalleEnSheet && !!elegido && sheetAbierto}
         anclaje={sheetDesdeAbajo ? 'abajo' : 'lado'}
-        onCerrar={() => navegar({ producto: null })}
+        onCerrar={() => { setSheetAbierto(false); navegar({ producto: null }); }}
         titulo={elegido ? elegido.nombre : 'Ficha del producto'}
         descripcion="Precio, existencias, movimientos de inventario y las acciones disponibles."
       >

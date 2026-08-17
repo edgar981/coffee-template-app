@@ -117,6 +117,19 @@ function ClientesV2() {
   // a un refresh, igual que `?pedido=` en Pedidos.
   const carril = (carrilPorKey(params.get('f') ?? '')?.key ?? 'todos') as CarrilKey;
   const seleccion = params.get('cliente');
+  // El SHEET se abre por ACCIÓN, no por ancho (§ el mismo modelo que Pedidos):
+  // `sheetAbierto` separa "hay cliente seleccionado" (persiste, marcado en la lista)
+  // de "el sheet está abierto". Cruzar de panel a sheet conserva la selección sin
+  // abrir; se abre al tocar la fila. Deep link SÍ abre (init).
+  const [sheetAbierto, setSheetAbierto] = useState(!!seleccion);
+  // Centinela `null`: la primera sincronización post-hidratación fija la base sin
+  // contar como cruce, para que el batch SSR→cliente no cierre un deep-link (§ el
+  // porqué largo está en Pedidos).
+  const [alLadoAntes, setAlLadoAntes] = useState<boolean | null>(null);
+  if (hidratado && alLadoAntes !== detalleAlLado) {
+    if (alLadoAntes !== null && alLadoAntes && !detalleAlLado) setSheetAbierto(false);
+    setAlLadoAntes(detalleAlLado);
+  }
 
   // LA BÚSQUEDA NO VA A LA URL. Es una consulta en curso, no un estado que valga
   // la pena compartir: un enlace a "clientes filtrados por 'lau'" no le sirve a
@@ -376,7 +389,7 @@ function ClientesV2() {
                 // mostrar la fecha de registro, que responde otra pregunta.
                 timeAgo={hace(c.ultimaOrden) ?? undefined}
                 selected={c.id === seleccion}
-                onClick={() => navegar({ cliente: c.id })}
+                onClick={() => { if (!detalleAlLado) setSheetAbierto(true); navegar({ cliente: c.id }); }}
               />
             ))}
           </div>
@@ -404,9 +417,9 @@ function ClientesV2() {
           puedan discrepar. El porqué largo está en Pedidos, que es donde este
           patrón se decidió. */}
       <DunaSheet
-        abierto={!detalleAlLado && !!elegido}
+        abierto={!detalleAlLado && !!elegido && sheetAbierto}
         anclaje={sheetDesdeAbajo ? 'abajo' : 'lado'}
-        onCerrar={() => navegar({ cliente: null })}
+        onCerrar={() => { setSheetAbierto(false); navegar({ cliente: null }); }}
         titulo={elegido ? elegido.nombre : 'Detalle del cliente'}
         descripcion="Contacto, historial de pedidos y las acciones disponibles."
       >
