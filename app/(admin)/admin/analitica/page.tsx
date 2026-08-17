@@ -177,7 +177,12 @@ function Rentabilidad({ data, loading }: { data: AnalyticsData | null; loading: 
                 <tr className="text-xs text-muted-foreground border-b border-border">
                   <th className="text-left font-medium py-2">Producto</th>
                   <th className="text-right font-medium py-2 whitespace-nowrap">Uds</th>
-                  <th className="text-right font-medium py-2 whitespace-nowrap">Ingresos</th>
+                  {/* "Venta de mercancía", no "Ingresos": esta columna es
+                      `OrderItem.subtotal` (mercancía, SIN envío) — otra base que la
+                      línea "Ingresos" de la trayectoria, que es `Payment.monto` con
+                      envío. Mismo nombre para dos bases distintas confundía. No es
+                      "neto" (no hay descuentos ni impuestos, sólo ausencia de envío). */}
+                  <th className="text-right font-medium py-2 whitespace-nowrap">Venta de mercancía</th>
                   <th className="text-right font-medium py-2 whitespace-nowrap">Margen / ud</th>
                   {/* La columna que ORDENA la tabla: plata dejada, no volumen. */}
                   <th className="text-right font-medium py-2 whitespace-nowrap">Margen total</th>
