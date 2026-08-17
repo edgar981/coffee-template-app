@@ -90,4 +90,12 @@ html.admin {
      "se corta raro". Sale de acá y no de un `calc` en la pantalla porque el día
      que la topbar cambie de alto, se toca un número y el sticky sigue solo. */
   --duna-topbar-h: 64px;
+
+  /* La topbar es `position: fixed` (64px). Sin esto, un salto de scroll —hash,
+     `focus`, `scrollIntoView`— con `scroll-behavior: smooth` (globals.css) deja el
+     destino en y=0, DEBAJO de la barra. `scroll-padding-top` reserva su alto en el
+     scroll del DOCUMENTO. Sale del MISMO token que la reserva de `main` (`pt`) y el
+     `top` del panel sticky — una sola fuente del 64. Sólo en el admin: el
+     storefront no tiene esta barra. */
+  scroll-padding-top: var(--duna-topbar-h);
 }
