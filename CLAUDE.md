@@ -973,6 +973,36 @@ tiene el dato delante: la transferencia trae su fecha.
 - Aditivo: **sin migración**, la columna ya existe. Falta el input y threadearlo
   por `RegisterPaymentTxInput` hasta el `payment.create`, que hoy la omite.
 
+#### 3.b El método: al verificar, EFECTIVO no es un default malo — es imposible
+
+Mismo principio que la fecha: al verificar hay que capturar el **hecho real** en
+ese momento, no heredar un valor rancio. Pero el método tiene una vuelta de tuerca
+que lo hace más fuerte que un nudge.
+
+Hoy el modal es editable ([`RegisterPaymentModal.tsx:187`](components/admin/RegisterPaymentModal.tsx:187)) y preselecciona el método
+declarado (`metodoPagoPrevisto ?? metodo_pago`, [`page.tsx:758`](app/(admin)/admin/pedidos/page.tsx:758)). Para una orden creada
+efectivo eso deja el select en **EFECTIVO**, y si el operador guarda sin tocarlo,
+el libro de Pagos reporta una transferencia como efectivo. La capacidad de
+corregir existe; el default rancio y la ausencia de aviso son el hueco.
+
+**La regla NO es "cambiar el default". Es una RESTRICCIÓN:** cuando el `Payment`
+nace de **verificar un comprobante**, EFECTIVO es un valor **imposible** — un
+comprobante existe porque hubo transferencia, y el efectivo no deja foto. En ese
+flujo:
+
+- **EFECTIVO se excluye de las opciones del select.** No es elegible.
+- **El default sale del método declarado sólo si es de transferencia.** Si el
+  declarado era efectivo, **no hay preselección** — el operador elige, porque el
+  dato viejo era, por construcción, el equivocado.
+
+Una restricción es más barata que un nudge y **no depende de que el operador lea**.
+El default malo puede pasar inadvertido; una opción que no está no se puede elegir.
+
+**Alcance:** esto aplica SÓLO al Payment nacido de verificar. En el `Registrar
+Pago` DIRECTO (sin comprobante) EFECTIVO sigue siendo válido y de primera clase —
+es la contraentrega en efectivo, que no tiene nada que fotografiar. La exclusión
+es del flujo con comprobante, no del método.
+
 ### 4. Qué NO se adopta del modelo de Carlos
 
 El modelo de `duna-orders` no puede producir estos dos síntomas: allá "pagado ⟺
@@ -1046,7 +1076,9 @@ para el contrato con Carlos, no trabajo de hoy.
   cumpliendo; se agrega el caso `verify-on-pendiente ⇒ {pagado, 1 Payment}`.
 - `app/(admin)/admin/pedidos/page.tsx:344` + `lib/comprobante.ts:126` — la rama
   `'cobrar'` pasa de "abrir modal, sellar después" a una sola llamada de servidor.
-- `RegisterPaymentModal` — el adjunto nace VERIFICADO; campo de fecha.
+- `RegisterPaymentModal` — el adjunto nace VERIFICADO; campo de fecha (§3);
+  en el flujo con comprobante, EFECTIVO fuera del select y sin preselección si el
+  declarado era efectivo (§3.b).
 
 **Cambia de timing, no de estructura:** `isPorCobrar` / cartera / analítica se
 vacían al verificar en vez de al registrar. Correcto, y con `fecha` expuesta no
