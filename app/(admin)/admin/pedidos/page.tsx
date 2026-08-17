@@ -335,14 +335,25 @@ function Pedidos() {
   // El borrador de notas vive en la PÁGINA, no en el detalle: cruzar el umbral del
   // split remonta el detalle (panel ↔ sheet son ramas distintas del árbol) y un
   // estado local ahí perdería la nota a medias. Vive en el padre que sobrevive al
-  // swap.
+  // swap. Va ANCLADO a su pedido (`{ id, texto }`) y el borrador efectivo se DERIVA.
   //
-  // Va ANCLADO a su pedido (`{ id, texto }`) y el borrador efectivo se DERIVA —no
-  // se setea en un efecto, que dispararía la cascada que el lint marca (§ el
-  // `loading` derivado de Analítica). Así el mismo `idElegido` a los dos lados del
-  // umbral conserva la nota (el fix), y cerrar o cambiar de pedido la deja en
-  // `null` = seguir al servidor, sin que un borrador se filtre a otro pedido.
+  // El ancla se LIMPIA al cambiar de `idElegido` —no sólo se ignora por el derive—.
+  // Sin esto sobrevive a ir a otro pedido y VOLVER (y a cerrar y reabrir): la nota
+  // reaparece sin que el operador sepa si la escribió él, que es persistencia de
+  // borradores, lo que la tanda 1 descartó. El alcance del fix es sobrevivir al
+  // REMONTAJE POR CAMBIO DE CONTENEDOR (cruzar 1080 con el MISMO pedido, que NO
+  // cambia `idElegido` → NO limpia → la nota sobrevive), no al cambio de pedido.
+  //
+  // El reset va EN RENDER (patrón de React para ajustar estado cuando cambia un
+  // valor), NO en un efecto —eso dispara la cascada que el lint marca (§ el
+  // `loading` derivado de Analítica)—. El derive por `id` mantiene correcto el
+  // render de transición sin depender de que React lo descarte. `null` = servidor.
   const [borradorAnclado, setBorradorAnclado] = useState<{ id: string; texto: string } | null>(null);
+  const [pedidoAncla, setPedidoAncla] = useState<string | null>(idElegido);
+  if (pedidoAncla !== idElegido) {
+    setPedidoAncla(idElegido);
+    setBorradorAnclado(null);
+  }
   const borrador = borradorAnclado?.id === idElegido ? borradorAnclado.texto : null;
   const setBorrador = useCallback((v: string | null) => {
     setBorradorAnclado(v === null || !idElegido ? null : { id: idElegido, texto: v });
