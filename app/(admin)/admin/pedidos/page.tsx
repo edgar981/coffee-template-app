@@ -72,6 +72,13 @@ interface AccionesPedido {
   guardarNotas:   (orden: Order, notas: string, onGuardado: () => void) => void;
   guardandoNotas: boolean;
   errorNotas:     ReturnType<typeof useErrorDialogo>;
+  /** BORRADOR de las notas, ELEVADO a la página. El detalle se monta en el panel
+   *  (≥1080) o en el sheet (<1080), que son posiciones distintas del árbol: cruzar
+   *  el umbral desmonta una y monta la otra, y un `useState` dentro del detalle
+   *  moriría en ese remontaje llevándose una nota a medias. Vive acá, en el padre
+   *  que sobrevive al swap. `null` = intacto → el textarea sigue al servidor. */
+  borrador:       string | null;
+  setBorrador:    (v: string | null) => void;
 }
 
 // ═══ PEDIDOS · la pantalla del rediseño Duna OS ══════════════════════════════
@@ -325,6 +332,21 @@ function Pedidos() {
   // segundo click del mismo tick y el estado le pone texto intermedio al botón.
   const guardaNotas = useAccionGuardada();
   const errorNotas  = useErrorDialogo();
+  // El borrador de notas vive en la PÁGINA, no en el detalle: cruzar el umbral del
+  // split remonta el detalle (panel ↔ sheet son ramas distintas del árbol) y un
+  // estado local ahí perdería la nota a medias. Vive en el padre que sobrevive al
+  // swap.
+  //
+  // Va ANCLADO a su pedido (`{ id, texto }`) y el borrador efectivo se DERIVA —no
+  // se setea en un efecto, que dispararía la cascada que el lint marca (§ el
+  // `loading` derivado de Analítica). Así el mismo `idElegido` a los dos lados del
+  // umbral conserva la nota (el fix), y cerrar o cambiar de pedido la deja en
+  // `null` = seguir al servidor, sin que un borrador se filtre a otro pedido.
+  const [borradorAnclado, setBorradorAnclado] = useState<{ id: string; texto: string } | null>(null);
+  const borrador = borradorAnclado?.id === idElegido ? borradorAnclado.texto : null;
+  const setBorrador = useCallback((v: string | null) => {
+    setBorradorAnclado(v === null || !idElegido ? null : { id: idElegido, texto: v });
+  }, [idElegido]);
   const guardarNotas = useCallback((orden: Order, notas: string, onGuardado: () => void) =>
     guardaNotas.ejecutar(async () => {
       errorNotas.limpiar();
@@ -348,6 +370,7 @@ function Pedidos() {
     abrirCancelar: (orden) => setCancelando(orden),
     abrirRechazar: (orden, c) => { control.limpiarError(); setRechazando({ orden, c }); },
     guardarNotas, guardandoNotas: guardaNotas.enVuelo, errorNotas,
+    borrador, setBorrador,
   };
 
   // ── EL DETALLE SE ESCRIBE UNA VEZ ──────────────────────────────────────────
@@ -750,8 +773,10 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
   const motivos = motivosDeAtencion(fuente);
 
   // BORRADOR de las notas. `null` = intacto, y por eso el textarea deriva del
-  // servidor mientras nadie escriba (ver el comentario en la sección).
-  const [borrador, setBorrador] = useState<string | null>(null);
+  // servidor mientras nadie escriba (ver el comentario en la sección). NO es estado
+  // local: vive en la página y baja por `acciones`, porque cruzar el umbral del
+  // split remonta el detalle (panel ↔ sheet) y un `useState` acá perdería la nota.
+  const { borrador, setBorrador } = acciones;
 
   const envio    = fuente.shipping ?? null;
   const enVuelo  = envio ? acciones.transicion.enVuelo(envio.id) : false;
