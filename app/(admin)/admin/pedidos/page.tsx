@@ -28,6 +28,7 @@ import { hace } from '@/lib/pedidos/tiempo';
 import { useControlComprobantes, type ControlComprobantes } from '@/hooks/useControlComprobantes';
 import { useTransicionEntrega, type TransicionEntrega } from '@/hooks/useTransicionEntrega';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
 import { RegisterPaymentModal } from '@/components/admin/RegisterPaymentModal';
@@ -38,6 +39,7 @@ import { customerWhatsappHref } from '@duna/core/whatsapp-link';
 import { siteConfig } from '@/lib/config/site';
 import { formatFecha } from '@duna/core/format-fecha';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
+import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import { ConfirmDespachoSinPago } from '@/components/admin/ConfirmDespachoSinPago';
 import { ComprobanteVista, SelectorComprobante, useLightboxComprobante } from '@/components/admin/Comprobantes';
 import { ImageLightbox } from '@/components/admin/ImageLightbox';
@@ -752,6 +754,18 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
   const soportes = fuente.comprobantes ?? [];
   const lightbox = useLightboxComprobante();
 
+  // GUARDA DE SALIDA del enlace de cliente (mismo embudo que el drawer, C4). El
+  // detalle NO es un drawer, pero tiene un `borrador` de notas sin guardar, y su
+  // enlace es un <Link> de Next: navegar desmonta el panel SIN pasar por ninguna
+  // guarda, descartando el borrador en silencio. Se reusa `intentarSalir`: bloquea
+  // si una nota se está guardando, confirma si hay borrador, y sólo entonces
+  // navega. `onCerrar` es no-op — acá la única salida guardada es la navegación.
+  const router = useRouter();
+  const salida = useDescarteDeDrawer({ enVuelo: acciones.guardandoNotas, onCerrar: () => {} });
+  const marcarSalida = salida.marcarCambios;
+  useEffect(() => { marcarSalida(borrador !== null); }, [borrador, marcarSalida]);
+  const clienteHref = orden.cliente_id ? `/admin/clientes?cliente=${encodeURIComponent(orden.cliente_id)}` : null;
+
   // WhatsApp al cliente, la acción más frecuente del operador de este negocio y
   // la que se perdió al migrar de /admin/ordenes. Usa el MISMO snapshot que se
   // muestra (`orden.cliente_telefono`), no una segunda fuente — así el enlace
@@ -795,9 +809,15 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
               relación), y un enlace muerto promete una navegación que no ocurre —
               misma regla que CustomerLink ("no dead link"). Sin id, texto plano. */}
           <div className="duna-title">
-            {orden.cliente_id ? (
-              <Link href={`/admin/clientes?cliente=${encodeURIComponent(orden.cliente_id)}`}
-                    className="duna-link" title={`Ver ficha de ${orden.cliente_nombre}`}>
+            {clienteHref ? (
+              <Link href={clienteHref}
+                    className="duna-link" title={`Ver ficha de ${orden.cliente_nombre}`}
+                    onClick={(e) => {
+                      // Clic con modificador (nueva pestaña) no desmonta el panel.
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                      e.preventDefault();
+                      salida.intentarSalir(() => router.push(clienteHref));
+                    }}>
                 {orden.cliente_nombre}
               </Link>
             ) : orden.cliente_nombre}
@@ -1151,6 +1171,13 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
         </div>
       )}
 
+      {/* Confirmación de descarte del borrador de notas al salir por el enlace de
+          cliente. Portalea al shell, así que su posición en el DOM no importa. */}
+      <ConfirmDescartarDialog
+        abierto={salida.confirmando}
+        onDescartar={salida.descartar}
+        onSeguir={salida.seguirEditando}
+      />
     </div>
   );
 }
