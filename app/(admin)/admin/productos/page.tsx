@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { LayoutGrid, List, Package, Plus, X } from 'lucide-react';
@@ -290,12 +290,39 @@ function Productos() {
   const detalleEnSheet = !detalleAlLado;
   const sheetDesdeAbajo = useSheetDesdeAbajo();
 
+  // ¿La pantalla es de alto fijo (opt-in del shell, § duna.css)? SÓLO cuando hay un
+  // split que llenar: cuadrícula CON selección (el `--panel-derecha`) o lista con
+  // contenido. La cuadrícula SIN selección va a ancho completo y se queda en
+  // document-scroll (decisión del owner). El CSS lo gatea además a ≥1080.
+  const splitGrid  = vista === 'cuadricula' && !detalleEnSheet && !!elegido;
+  const splitLista = vista === 'lista' && (visibles.length > 0 || elegido);
+  const pantallaFija = !error && !cargando && (splitGrid || splitLista);
+
+  // Al APARECER la región (cuadrícula sin selección → con selección), el page root
+  // pasa de flujo normal a grid de alto fijo: el scroll del documento deja de
+  // existir y el navegador salta al tope (medido). Restaurar el scroll del documento
+  // NO sirve —la rejilla se angosta al entrar el panel, el offset viejo ya no
+  // significa lo mismo—; lo que corresponde es dejar la tarjeta seleccionada visible
+  // en la columna que ahora scrollea. Una sola vez, en la transición (no en cada
+  // selección): por eso el efecto depende de `pantallaFija`, no de `elegido`.
+  const regionAntes = useRef(pantallaFija);
+  useEffect(() => {
+    if (pantallaFija && !regionAntes.current) {
+      document.querySelector('.duna-cards .is-selected')?.scrollIntoView({ block: 'nearest' });
+    }
+    regionAntes.current = pantallaFija;
+  }, [pantallaFija]);
+
   const alternativa = alternativaAlEliminar(borrando);
   const accionActivar = accionEstadoProducto(activarTarget);
 
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
-    <div className="duna">
+    <div className={`duna${pantallaFija ? ' duna-pantalla-fija' : ''}`}>
+      {/* CABECERA — la fila `auto` del grid de alto fijo (cuando lo es): header,
+          toggle de vista y buscador NO scrollean. Sin split (—<1080, cuadrícula sin
+          selección, o mientras carga—) es un div normal y todo es document-scroll. */}
+      <div className="duna-cabecera">
       <header style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-4)', marginBottom: 'var(--duna-space-5)' }}>
         {/* SIN conteo bajo el título: el pill "Todos" ya lo dice, y ahí además
             FILTRA. Una cifra que repite a un control accionable le quita sitio a
@@ -382,7 +409,12 @@ function Productos() {
       </div>
 
       {error && <div className="duna-note" role="alert">{error}</div>}
+      </div>{/* /duna-cabecera */}
 
+      {/* REGIÓN SCROLLEABLE — la fila `1fr` cuando la pantalla es de alto fijo. En
+          cuadrícula la columna que scrollea es `.duna-cards`; en lista, las dos del
+          split. Sin split (cuadrícula sin selección) es flujo normal. */}
+      <div className="duna-region">
       {/* LA CARGA OCUPA EL SITIO DE LA LISTA, con su forma. La fila de un producto
           ES una `order-card`, así que el hueco que reserva es el correcto. */}
       {!error && cargando && (
@@ -469,6 +501,7 @@ function Productos() {
           )}
         </div>
       )}
+      </div>{/* /duna-region */}
 
       {/* EL MISMO DETALLE, en sheet. Va FUERA de los bloques de arriba para que un
           enlace profundo abra aunque la lista visible esté vacía, y el nodo es UNO

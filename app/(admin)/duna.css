@@ -134,6 +134,15 @@ html.admin {
      carga es un `.duna-split` y llena igual. Flex y no grid de una fila: si dos
      estados se solapan un instante (carga con datos viejos + split), ninguno
      desborda —medido—. */
-  .duna-region               { min-height: 0; display: flex; flex-direction: column; }
-  .duna-region > .duna-split { flex: 1 1 auto; min-height: 0; }
+  /* Scopeadas bajo `.duna-pantalla-fija`: la región sólo es flex cuando la página
+     ES de alto fijo. En Productos la MISMA `.duna-region` existe en cuadrícula sin
+     selección (sin la clase), y ahí debe quedar en flujo normal / document-scroll
+     —no flex—, que es la decisión para ese estado. En Pedidos y Clientes el page
+     root siempre lleva la clase, así que el scope no los cambia. */
+  .duna-pantalla-fija .duna-region               { min-height: 0; display: flex; flex-direction: column; }
+  .duna-pantalla-fija .duna-region > .duna-split { flex: 1 1 auto; min-height: 0; }
+
+  /* Productos en cuadrícula: la columna izquierda del split es `.duna-cards` (la
+     rejilla), no `.duna-split__list`, así que su scroll se declara aparte. */
+  .duna-pantalla-fija .duna-split > .duna-cards  { min-height: 0; overflow-y: auto; }
 }
