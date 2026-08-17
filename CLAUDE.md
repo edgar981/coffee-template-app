@@ -720,24 +720,6 @@ analítica NO entran acá: migran cuando migren esas verticales.
 **DISPARADOR:** el rediseño del Dashboard, o una tanda de acabado con **gate
 propio** — porque el cambio altera el tema oscuro y hay que verlo en ambos.
 
-### 17. El enlace de cliente del DETALLE pierde el borrador de notas al navegar
-
-El nombre del cliente en el detalle del pedido
-(`app/(admin)/admin/pedidos/page.tsx:786`) es un `<Link>` que navega a
-`/admin/clientes?cliente=`. El panel tiene un `borrador` de notas sin guardar y
-—a diferencia de los drawers— **nunca tuvo guarda de descarte**: navegar desmonta
-el panel y pierde el borrador en silencio. Es el gemelo del embudo que el
-corrector C4 puso en el drawer de Programar entrega (`intentarSalir`), pero acá el
-panel no es un modal con guarda donde enchufarlo.
-
-**Costo YA pagado: ninguno reportado.** El borrador de notas es un dato menor y el
-caso —clickear el cliente con una nota a medias— es raro. Se anota porque es el
-MISMO seam que la tanda 3 va a tocar.
-
-**DISPARADOR: la tanda 3**, que mueve la sección de Notas del detalle y toca ese
-seam. Ahí se decide si el panel gana una guarda de salida como el drawer, o si el
-borrador se confirma/persiste de otra forma.
-
 ### 18. El detalle pierde la POSICIÓN DE SCROLL al cruzar el umbral del split
 
 Cruzar 1080 remonta el detalle de una superficie a la otra (panel `.duna-split__panel`
