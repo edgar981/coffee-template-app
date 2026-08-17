@@ -15,7 +15,7 @@ import { METODO_PAGO_LABEL, metodoPrevistoLabel } from '@/types/payment';
 import type { Order, OrderDetalle } from '@/types/order';
 import { ChipCanal } from '@/components/admin/ChipCanal';
 import { DunaSheet } from '@/components/admin/DunaSheet';
-import { useEsMovil } from '@/hooks/useEsMovil';
+import { useDetalleAlLado } from '@/hooks/useDetalleAlLado';
 import {
   FILTROS_PEDIDOS, aplicarFiltro, conteos, filtroPorKey,
   aplicarAlcance, soloOrdenesReales, parseEstados, etiquetaEstados, hayAlcance,
@@ -114,10 +114,10 @@ function Pedidos() {
   const [cargando, setCargando] = useState(true);
   const [error, setError]       = useState<string | null>(null);
 
-  // Debajo del breakpoint el detalle no vive al lado: sube como sheet. No es una
-  // decisión de estilo —el CSS no puede mover un nodo de sitio— y por eso hace
-  // falta preguntarlo en JS. El número lo trae el sistema.
-  const esMovil = useEsMovil();
+  // ¿El detalle va al lado (panel) o sube como sheet? No es una decisión de estilo
+  // —el CSS no puede mover un nodo de sitio— y por eso hace falta preguntarlo en
+  // JS. El umbral lo trae el sistema, por ROL (no "¿es móvil?": eso es el chrome).
+  const detalleAlLado = useDetalleAlLado();
 
   // El filtro y la selección viven en la URL: el detalle es enlazable y sobrevive
   // a un refresh, igual que `?order=` en la lista vieja.
@@ -384,7 +384,7 @@ function Pedidos() {
   // COMPLETA, no la filtrada).
   const primeraAutoSel = useRef(true);
   useEffect(() => {
-    if (esMovil || cargando) return;
+    if (!detalleAlLado || cargando) return;
     const decision = autoSeleccion({
       seleccion,
       idsVisibles: visibles.map(p => p.numero_orden),
@@ -393,7 +393,7 @@ function Pedidos() {
     primeraAutoSel.current = false;
     if (decision.tipo === 'seleccionar') navegar({ pedido: decision.id });
     else if (decision.tipo === 'limpiar')  navegar({ pedido: null });
-  }, [esMovil, cargando, seleccion, visibles, navegar]);
+  }, [detalleAlLado, cargando, seleccion, visibles, navegar]);
 
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
@@ -567,15 +567,15 @@ function Pedidos() {
             })}
           </div>
 
-          {/* EL PANEL, SÓLO EN ANCHO. Debajo del breakpoint el detalle no está
-              acá: sube como sheet (abajo del todo). No es que se oculte — se
-              monta en otro sitio, y por eso hace falta el `esMovil` en JS y no
+          {/* EL PANEL, SÓLO CUANDO EL DETALLE VA AL LADO. Por debajo del umbral el
+              detalle no está acá: sube como sheet. No es que se oculte — se monta
+              en otro sitio, y por eso hace falta el `detalleAlLado` en JS y no
               alcanza con el CSS.
 
               El "Elige un pedido" se va con el panel, y está bien: en angosto
               esa instrucción no tiene a qué panel referirse, y quien ya tocó una
               tarjeta la está leyendo después de haberla seguido. */}
-          {!esMovil && (
+          {detalleAlLado && (
             <div className="duna-split__panel">
               {!elegido && (
                 <div className="duna-card duna-card__pad">
@@ -607,7 +607,7 @@ function Pedidos() {
           con dos juegos de props sería el mismo detalle escrito dos veces, y la
           primera divergencia no la vería nadie hasta abrirlo en un teléfono. */}
       <DunaSheet
-        abierto={esMovil && !!elegido}
+        abierto={!detalleAlLado && !!elegido}
         onCerrar={() => navegar({ pedido: null })}
         titulo={elegido ? `Pedido ${elegido.numero_orden}` : 'Detalle del pedido'}
         descripcion="Estado de entrega y de pago, con las acciones disponibles."

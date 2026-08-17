@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 import { getCustomers, getCustomer, deleteCustomer } from '@/lib/api/customers';
 import { ChipCanal } from '@/components/admin/ChipCanal';
 import { DunaSheet } from '@/components/admin/DunaSheet';
-import { useEsMovil } from '@/hooks/useEsMovil';
+import { useDetalleAlLado } from '@/hooks/useDetalleAlLado';
 import { CustomerFormModal } from '@/components/admin/CustomerFormModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { siteConfig } from '@/lib/config/site';
@@ -102,9 +102,10 @@ function ClientesV2() {
   const [cargando, setCargando] = useState(true);
   const [error, setError]       = useState<string | null>(null);
 
-  // Debajo del breakpoint el detalle sube como sheet en vez de apilarse. El CSS
-  // no puede mover un nodo de sitio, así que la pregunta va en JS.
-  const esMovil = useEsMovil();
+  // ¿El detalle va al lado (panel) o sube como sheet? El CSS no puede mover un
+  // nodo de sitio, así que la pregunta va en JS. El umbral es por ROL, no el del
+  // chrome ("¿es móvil?").
+  const detalleAlLado = useDetalleAlLado();
 
   // El carril y la selección viven en la URL: el detalle es enlazable y sobrevive
   // a un refresh, igual que `?pedido=` en Pedidos.
@@ -229,7 +230,7 @@ function ClientesV2() {
   // seleccionar).
   const primeraAutoSel = useRef(true);
   useEffect(() => {
-    if (esMovil || cargando) return;
+    if (!detalleAlLado || cargando) return;
     const decision = autoSeleccion({
       seleccion,
       idsVisibles: visibles.map(c => c.id),
@@ -238,7 +239,7 @@ function ClientesV2() {
     primeraAutoSel.current = false;
     if (decision.tipo === 'seleccionar') navegar({ cliente: decision.id });
     else if (decision.tipo === 'limpiar')  navegar({ cliente: null });
-  }, [esMovil, cargando, seleccion, visibles, navegar]);
+  }, [detalleAlLado, cargando, seleccion, visibles, navegar]);
 
   return (
     // `.duna` es el reset de superficie del sistema (familia, tinta, tamaño base).
@@ -369,7 +370,7 @@ function ClientesV2() {
 
           {/* EL PANEL, SÓLO EN ANCHO — mismo reparto que Pedidos. Debajo del
               breakpoint el detalle no se oculta: se monta en el sheet de abajo. */}
-          {!esMovil && (
+          {detalleAlLado && (
             <div className="duna-split__panel">
               {!elegido && (
                 <div className="duna-card duna-card__pad">
@@ -389,7 +390,7 @@ function ClientesV2() {
           puedan discrepar. El porqué largo está en Pedidos, que es donde este
           patrón se decidió. */}
       <DunaSheet
-        abierto={esMovil && !!elegido}
+        abierto={!detalleAlLado && !!elegido}
         onCerrar={() => navegar({ cliente: null })}
         titulo={elegido ? elegido.nombre : 'Detalle del cliente'}
         descripcion="Contacto, historial de pedidos y las acciones disponibles."

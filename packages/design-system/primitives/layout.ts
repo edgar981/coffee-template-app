@@ -30,7 +30,12 @@
  * se repite el porqué a propósito: dos explicaciones del mismo número es cómo
  * empiezan a decir cosas distintas.
  */
-export const DUNA_BP_MOVIL = 960;
+// Nombrado por ROL —"¿el detalle cabe al lado?"—, no por dispositivo. El chrome
+// (rail, barra inferior) tiene su PROPIO breakpoint y su propia pregunta ("¿es una
+// pantalla táctil de una mano?"); no son el mismo número por casualidad, y no
+// deben quedar soldados. Hoy los dos valen 960; el umbral del split se derivará
+// del piso del panel (`--duna-panel-min`) en su commit.
+export const DUNA_BP_DETALLE_AL_LADO = 960;
 
 /**
  * La consulta lista para `matchMedia`, DERIVADA de la constante — dentro de este
@@ -45,4 +50,4 @@ export const DUNA_BP_MOVIL = 960;
  * El umbral es 960 y el criterio es el mismo en los tres sitios: DEBAJO de 960 es
  * angosto; 960 exacto ya es ancho.
  */
-export const DUNA_MQ_MOVIL = `(max-width: ${DUNA_BP_MOVIL - 0.02}px)`;
+export const DUNA_MQ_DETALLE_AL_LADO = `(max-width: ${DUNA_BP_DETALLE_AL_LADO - 0.02}px)`;
