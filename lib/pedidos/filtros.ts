@@ -1,6 +1,7 @@
 import { isPorCobrar, isCountableOrder } from '@duna/core/metrics/order-stat-filters';
 import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
 import { necesitaAtencion, type OrdenParaAtencion } from './atencion';
+import { tienePendienteDeVerificar, type ComprobanteEstado } from '@/lib/comprobante';
 import { conteosDeCola, type CarrilBase, type ConteosDeCola } from '@/lib/carriles';
 import type { OrderStatus, CondicionPago } from '@/types/order';
 import type { ShippingEstado } from '@/types/shipping';
@@ -19,7 +20,8 @@ import type { ShippingEstado } from '@/types/shipping';
 // carril tiene que ser una entrada más y no tocar el render.
 
 export type FiltroKey =
-  | 'todos' | 'atencion' | 'preparacion' | 'camino' | 'entregados' | 'por_cobrar' | 'cancelado';
+  | 'todos' | 'atencion' | 'preparacion' | 'camino' | 'entregados'
+  | 'por_verificar' | 'por_cobrar' | 'cancelado';
 
 /** Lo que un filtro necesita mirar. Une lo de atención con los dos ejes. */
 export interface OrdenParaFiltro extends OrdenParaAtencion {
@@ -31,6 +33,9 @@ export interface OrdenParaFiltro extends OrdenParaAtencion {
   /** `CN-` real o `SN-` de demo — ver `soloOrdenesReales`. */
   numero_orden?: string;
   condicion_pago?: CondicionPago | null;
+  /** Los soportes de la orden, para el carril "Por verificar". Forma mínima: el
+      predicado sólo mira `estado`. El `Comprobante[]` real de la lista encaja. */
+  comprobantes?: { estado: ComprobanteEstado }[];
   shipping?: {
     estado: ShippingEstado | string;
     mensajero?: string | null;
@@ -64,6 +69,21 @@ export const FILTROS_PEDIDOS: FiltroPedidos[] = [
   { key: 'preparacion', label: 'En preparación',     tipo: 'cola',       aplica: enEtapa('preparando') },
   { key: 'camino',      label: 'En camino',          tipo: 'cola',       aplica: enEtapa('en_ruta') },
   { key: 'entregados',  label: 'Entregados',         tipo: 'acumulador', aplica: enEtapa('entregado') },
+  // "Por verificar" y "Por cobrar" son las DOS colas del eje de plata/evidencia, y
+  // van adyacentes. Ésta primero: verificar un comprobante RECIBIDO es lo que CREA
+  // el pago (`accionAlVerificar` → 'cobrar' cuando la orden está pendiente), así que
+  // la evidencia es upstream de la plata en la calle.
+  //
+  // Se reusa `tienePendienteDeVerificar` TAL CUAL —la misma definición que enciende
+  // el indicador de Pagos y el motivo del detalle— para que las tres superficies no
+  // puedan discrepar sobre qué es "sin verificar" (`estado === 'RECIBIDO'`).
+  //
+  // COLISIÓN CON "Por cobrar", a propósito (decisión del owner): una contraentrega
+  // despachada con un comprobante RECIBIDO cae en LOS DOS carriles, sin precedencia.
+  // No es doble conteo: son dos preguntas distintas sobre la misma orden, y
+  // verificar la saca de ambos con una sola acción (verificar subsume cobrar). Los
+  // carriles FILTRAN, no clasifican.
+  { key: 'por_verificar', label: 'Por verificar',    tipo: 'cola',       aplica: (o) => tienePendienteDeVerificar(o.comprobantes ?? []) },
   // Se consume `isPorCobrar` de core: la misma definición que la tarjeta del
   // dashboard y la lista de Órdenes. Un recorte propio acá haría que dos pantallas
   // contaran distinto la misma plata.
