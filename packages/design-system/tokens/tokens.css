@@ -212,6 +212,15 @@
      densidad de esa tarjeta. */
   --duna-list-w: 400px;
 
+  /* PISO del panel del split: el ancho mínimo con el que el detalle sigue siendo
+     legible —dos ejes de datos y sus acciones—. De ACÁ se deriva el umbral en el
+     que el split se activa, no al revés: el split sólo abre cuando la columna
+     flexible cabe con este piso encima de la lista; por debajo, UNA columna y el
+     detalle sube como sheet. Es token por lo mismo que `--duna-list-w`: lo
+     consume la rejilla del split (su track de panel) y lo demuestra la prueba
+     viva. Verificado en `reference.html`. */
+  --duna-panel-min: 320px;
+
   /* Ancho de la MINIATURA de un medio (`.duna-tile--sm`). Es token por lo mismo
      que `--duna-list-w`: lo consumen DOS reglas —la miniatura y las pistas de la
      tira que las alinea (`.duna-tiles`)— y con el número escrito en las dos, la
