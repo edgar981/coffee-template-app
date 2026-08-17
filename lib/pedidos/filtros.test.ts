@@ -19,10 +19,10 @@ const entregada  = o({ estado: 'pagado', shipping: { estado: 'entregado' } });
 const cancelada  = o({ estado: 'cancelado', shipping: { estado: 'cancelado' } });
 const TODAS = [nueva, preparando, aMedias, enRuta, porCobrar, entregada, cancelada];
 
-test('los SIETE carriles, y el conjunto es la decisión', () => {
+test('los OCHO carriles, y el conjunto es la decisión', () => {
   assert.deepEqual(
     FILTROS_PEDIDOS.map(f => f.label),
-    ['Todos', 'Necesitan atención', 'En preparación', 'En camino', 'Entregados', 'Por cobrar', 'Cancelado'],
+    ['Todos', 'Necesitan atención', 'En preparación', 'En camino', 'Entregados', 'Por verificar', 'Por cobrar', 'Cancelado'],
   );
   // El cobro dejó de ser un carril por el que se entra y pasó a ser una propiedad
   // que se VE en cada fila. Los dos que quedan del eje de plata son carriles de
@@ -75,6 +75,9 @@ test('sólo las COLAS traen número; los acumuladores no', () => {
   assert.equal(c.atencion, 2);
   assert.equal(c.preparacion, 2);
   assert.equal(c.camino, 2);
+  // Ninguna de TODAS trae comprobantes, así que la cola de verificación va en 0 —
+  // que es una respuesta ("nada por verificar"), no ausencia.
+  assert.equal(c.por_verificar, 0);
   assert.equal(c.por_cobrar, 1);
   // Acumuladores: sólo crecen y no piden acción. Es AUSENCIA de conteo, no cero —
   // que el dato no exista es lo que impide que el render lo pinte sin querer.
@@ -107,6 +110,46 @@ test('"Por cobrar" es COLA aunque parezca un estado', () => {
   assert.equal(FILTROS_PEDIDOS.find(f => f.key === 'por_cobrar')!.tipo, 'cola');
 });
 
+// ─── "POR VERIFICAR" · la cola de comprobantes, y su colisión con "Por cobrar" ──
+
+// Se reusa `tienePendienteDeVerificar` (estado === 'RECIBIDO'), así que estos
+// casos fallan si el predicado se cambia por otra definición de "sin verificar".
+const conRecibido  = o({ comprobantes: [{ estado: 'RECIBIDO' }] });
+const conVerificado = o({ comprobantes: [{ estado: 'VERIFICADO' }] });
+const conRechazado = o({ comprobantes: [{ estado: 'RECHAZADO' }] });
+const sinSoportes  = o({ comprobantes: [] });
+// Contraentrega despachada (→ "Por cobrar") CON un comprobante RECIBIDO (→ "Por
+// verificar"): la colisión que el owner declaró que aparece en LOS DOS carriles.
+const cobrarYVerificar = o({ condicion_pago: 'CONTRAENTREGA', shipping: { estado: 'en_ruta' }, comprobantes: [{ estado: 'RECIBIDO' }] });
+const CON_SOPORTES = [conRecibido, conVerificado, conRechazado, sinSoportes, cobrarYVerificar];
+
+test('"Por verificar" recoge SÓLO las que tienen un comprobante RECIBIDO', () => {
+  // Un VERIFICADO ya se selló y un RECHAZADO ya se decidió: ninguno pide mirar
+  // nada. Sin soportes tampoco. La cola es exactamente los RECIBIDO.
+  assert.deepEqual(aplicarFiltro(CON_SOPORTES, 'por_verificar'), [conRecibido, cobrarYVerificar]);
+  assert.ok(!aplicarFiltro(CON_SOPORTES, 'por_verificar').includes(conVerificado));
+  assert.ok(!aplicarFiltro(CON_SOPORTES, 'por_verificar').includes(conRechazado));
+});
+
+test('una orden SIN el campo `comprobantes` no entra a "Por verificar" (ni revienta)', () => {
+  // La lista real siempre trae `comprobantes`, pero el predicado cae a `[]` si
+  // falta: la ausencia es "nada por verificar", no un error.
+  const sinCampo = o();
+  assert.deepEqual(aplicarFiltro([sinCampo], 'por_verificar'), []);
+});
+
+test('COLISIÓN: la contraentrega con comprobante RECIBIDO va en LOS DOS carriles', () => {
+  // Decisión del owner: los carriles FILTRAN, no clasifican, así que la misma orden
+  // puede caer en dos. No es doble conteo — son dos preguntas distintas, y verificar
+  // la saca de ambos con una sola acción (verificar subsume cobrar).
+  assert.ok(aplicarFiltro(CON_SOPORTES, 'por_verificar').includes(cobrarYVerificar), 'está en Por verificar');
+  assert.ok(aplicarFiltro(CON_SOPORTES, 'por_cobrar').includes(cobrarYVerificar), 'y también en Por cobrar');
+  // Y cada cola la cuenta: el conteo cuadra con su propia lista, colisión incluida.
+  const c = conteos(CON_SOPORTES);
+  assert.equal(c.por_verificar, 2);
+  assert.equal(c.por_cobrar, 1);
+});
+
 test('CADA carril declara qué cuenta — no se puede omitir', () => {
   // El campo es obligatorio en el tipo, así que esto no puede fallar en compilación;
   // se afirma igual para que el conjunto quede fijado y un carril nuevo tenga que
@@ -119,6 +162,7 @@ test('CADA carril declara qué cuenta — no se puede omitir', () => {
       ['preparacion', 'cola'],
       ['camino', 'cola'],
       ['entregados', 'acumulador'],
+      ['por_verificar', 'cola'],
       ['por_cobrar', 'cola'],
       ['cancelado', 'acumulador'],
     ],
