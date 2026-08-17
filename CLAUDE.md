@@ -600,29 +600,27 @@ tres estados vacíos de cada pantalla existen para evitar. El aviso bajó a la
 LISTA, que es donde está el hueco. Quitar una cifra puede llevarse por delante un
 estado que vivía pegado a ella.
 
-### 7. El carrusel del dashboard no lleva a lo que muestra
+### 7. El drill-down de PEDIDOS del carrusel cuenta órdenes de cualquier estado
 
-Al hacer clic en un día, sus DOS gráficas navegan a los pedidos **creados** ese
-día. Ninguna de las dos mide eso:
+La mitad de **Ventas se CERRÓ**: su gráfica mide plata recibida por `Payment.fecha`
+y ya lleva a `/admin/pagos?desde&hasta` —el MISMO destino que la stat card "Ventas
+hoy"—. El drill-down se hizo chart-aware (`DashboardChartCarousel`), porque las dos
+gráficas bin-ean por fechas DISTINTAS.
 
-- **Ventas** mide **plata recibida** ese día, por `Payment.fecha`. Un pago de hoy
-  sobre una orden de la semana pasada está en la barra y no en la lista.
-- **Pedidos** mide **líneas de producto** por peso, sobre órdenes ya **pagadas**.
-  El enlace lleva a órdenes de cualquier estado, y cuenta órdenes, no líneas.
+Queda la de **Pedidos**: mide líneas de producto por peso sobre órdenes ya
+**pagadas**, y bin-ea por `Order.createdAt`. Su enlace lleva a
+`/admin/pedidos?desde&hasta` (órdenes CREADAS ese día) — la **FECHA es correcta**,
+comparte el `createdAt` de la gráfica—, pero muestra órdenes de **cualquier estado**
+y cuenta órdenes, no líneas.
 
-**Costo YA pagado: ninguno todavía**, y por eso está acá abajo. Es un enlace que
-lleva a un conjunto plausible pero distinto — el modo de falla es que alguien
-concluya que la gráfica está mal cuando lo que está mal es el destino.
+**Costo YA pagado: ninguno.** Lleva a un conjunto plausible (creadas ese día) pero
+más amplio que el medido (sólo pagadas). Pagos sería un destino ERRADO acá: bin-ea
+por `Payment.fecha`, otra fecha que la gráfica.
 
-Se descubrió haciendo el diff funcional para el retiro de `/admin/ordenes`
-(2026-08-13), y **se migró TAL CUAL a `/admin/pedidos` por decisión del owner**:
-arreglarlo pide un destino en **Pagos** para la gráfica de Ventas, que es otra
-pantalla y otra decisión. El defecto quedó escrito en el propio componente, donde
-pasa.
-
-**DISPARADOR: cuando se rediseñe Analítica o Pagos.** Ahí la gráfica de Ventas
-gana un destino que mide lo suyo, y la de Pedidos decide si lleva a las órdenes
-pagadas de ese día o deja de ser clickeable.
+**DISPARADOR: cuando exista un filtro `pagado` en Pedidos, o se rediseñe Analítica.**
+Hoy no hay carril de estado de cobro (se retiró), así que "las órdenes pagadas de
+ese día" no se puede expresar como filtro. Las dos salidas: esperar ese filtro, o
+hacer la gráfica de Pedidos no-clickeable — decisión del owner.
 
 ### 8. `Customer.activo` finge filtrar: el gate de reactivación es INERTE
 

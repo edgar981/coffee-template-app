@@ -102,30 +102,30 @@ export default function DashboardChartCarousel() {
 
   const spec = CHARTS[index];
 
-  // Clic en un día → los pedidos creados ESE día. Recharts devuelve el punto en
-  // `activeLabel` (el valor de x = nuestro day key `YYYY-MM-DD`), y se navega a la
-  // lista acotada a ese día de Bogotá. Aplica a las DOS gráficas (comparten eje x).
+  // Clic en un día → la pantalla que bin-ea por LA MISMA FECHA que la gráfica.
+  // Recharts devuelve el día en `activeLabel` (x = day key `YYYY-MM-DD`). Es
+  // CHART-AWARE porque las dos NO miden por la misma fecha (chart/route.ts):
   //
-  // ── EL DESTINO NO MIDE LO MISMO QUE LA GRÁFICA, y hay que saberlo ───────────
+  //   · "Ventas" mide PLATA RECIBIDA ese día, por `Payment.fecha`. Su día es un día
+  //     de PAGOS → `/admin/pagos?desde&hasta`, que bin-ea por `Payment.fecha` — el
+  //     MISMO destino que la stat card "Ventas hoy" ya usa. (Antes iba a Pedidos por
+  //     creación: un pago de hoy sobre una orden vieja quedaba fuera de la lista.)
+  //   · "Pedidos" mide líneas de órdenes CREADAS ese día, por `Order.createdAt`. Su
+  //     día es un día de PEDIDOS → `/admin/pedidos?desde&hasta`, que acota por
+  //     creación. Pagos sería un destino ERRADO acá (bin-ea por otra fecha).
   //
-  // Se migra la ruta TAL CUAL —de `/admin/ordenes` a `/admin/pedidos`— sin tocar la
-  // discrepancia, que es anterior a esta tanda y no se arregla acá (owner):
-  //
-  //   · "Ventas" mide PLATA RECIBIDA ese día, por `Payment.fecha`. El enlace lleva
-  //     a órdenes CREADAS ese día: un pago de hoy sobre una orden de la semana
-  //     pasada está en la barra y no en la lista.
-  //   · "Pedidos" mide LÍNEAS de producto por peso, sobre órdenes ya PAGADAS. El
-  //     enlace lleva a órdenes de cualquier estado, y cuenta órdenes, no líneas.
-  //
-  // Arreglarlo pide un destino en PAGOS para la primera —otra pantalla, otra
-  // decisión— así que queda anotado con su disparador en el backlog: cuando se
-  // rediseñe Analítica o Pagos. Migrarlo callado habría sido llevarse el defecto a
-  // la pantalla nueva como si fuera una propiedad suya.
+  // RESIDUO CONOCIDO (backlog #7): el enlace de Pedidos lleva a órdenes de CUALQUIER
+  // estado y cuenta órdenes, mientras la gráfica es sobre PAGADAS y cuenta líneas. La
+  // FECHA ya es la correcta; lo que falta es el estado, y hoy no hay filtro `pagado`
+  // en Pedidos. Queda anotado; no se fuerza un filtro que no existe.
   const handleDayClick = (state: { activeLabel?: string | number } | null) => {
     const day = state?.activeLabel;
-    if (typeof day === 'string' && day) {
-      router.push(`/admin/pedidos?desde=${day}&hasta=${day}`);
-    }
+    if (typeof day !== 'string' || !day) return;
+    router.push(
+      spec.id === 'ventas'
+        ? `/admin/pagos?desde=${day}&hasta=${day}`
+        : `/admin/pedidos?desde=${day}&hasta=${day}`,
+    );
   };
 
   useEffect(() => {
