@@ -42,14 +42,16 @@ export async function crearOrden(opts: {
   condicion_pago?: 'ANTICIPADO' | 'CONTRAENTREGA';
   total?: number;
   cliente_nombre?: string;
+  cliente_telefono?: string;
 }) {
   return prisma.order.create({
     data: {
-      numero_orden:   opts.numero,
-      cliente_nombre: opts.cliente_nombre ?? 'Cliente Test',
-      estado:         opts.estado ?? 'pendiente',
-      condicion_pago: opts.condicion_pago ?? 'CONTRAENTREGA',
-      total:          opts.total ?? 28000,
+      numero_orden:     opts.numero,
+      cliente_nombre:   opts.cliente_nombre ?? 'Cliente Test',
+      cliente_telefono: opts.cliente_telefono ?? null,
+      estado:           opts.estado ?? 'pendiente',
+      condicion_pago:   opts.condicion_pago ?? 'CONTRAENTREGA',
+      total:            opts.total ?? 28000,
     },
   });
 }

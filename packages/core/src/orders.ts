@@ -198,6 +198,12 @@ export interface RegisterPaymentTxInput {
   notas?: string | null;
   registrado_por?: string | null;
   registrado_por_nombre?: string | null;
+  // FECHA DE NEGOCIO en que entró la plata (Payment.fecha). Opcional: si se omite,
+  // cae al @default(now()) del schema. La provee el flujo que verifica un
+  // comprobante (§ Decisión — Cuándo un pedido está pagado): al verificar se
+  // registra CUÁNDO entró la plata, no cuándo se miró la foto. `createdAt` sigue
+  // siendo el timestamp de auditoría, intacto.
+  fecha?: Date;
 }
 
 // THE single "registrar pago" write, inside a caller-supplied transaction:
@@ -222,6 +228,8 @@ export async function registerOrderPaymentTx(
       notas:                 input.notas?.trim() ? input.notas.trim() : null,
       registrado_por:        input.registrado_por ?? null,
       registrado_por_nombre: input.registrado_por_nombre ?? null,
+      // `undefined` deja actuar el @default(now()); una Date la fija (flujo de verificar).
+      fecha:                 input.fecha ?? undefined,
     },
   });
 

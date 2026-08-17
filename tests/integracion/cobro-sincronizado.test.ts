@@ -63,7 +63,11 @@ async function patchComoLaRuta(id: string, data: OrderTransitionData) {
   return prisma.$transaction((tx) => transitionOrder(tx, id, data));
 }
 
-test('el path de dinero es el ÚNICO camino a pagado, y sincroniza atómicamente', async () => {
+test('el path de dinero es el ÚNICO helper a pagado, y sincroniza atómicamente', async () => {
+  // `registerOrderPaymentTx` sigue siendo el único que escribe plata; lo que cambió
+  // (§ Decisión — Cuándo un pedido está pagado) es que ganó un TERCER llamador:
+  // verificar un comprobante. Sigue siendo un solo helper, no un camino paralelo —
+  // el invariante `assertSincronizada` se conserva y se refuerza.
   const orden = await crearOrden({ numero: 'CN-100001', estado: 'pendiente' });
   await assertSincronizada(orden.id, 'recién creada');
 

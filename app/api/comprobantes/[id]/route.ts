@@ -1,22 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
-import { decidirComprobante, ComprobanteYaDecidido } from '@duna/core/comprobantes';
+import {
+  decidirComprobante, ComprobanteYaDecidido,
+  PagoRequeridoParaVerificar, EfectivoConComprobanteError,
+  type PagoAlVerificar,
+} from '@duna/core/comprobantes';
+import { MetodoPago } from '@duna/core';
+import { runEventAutomations } from '@/lib/automations/engine';
 
 // El VEREDICTO sobre un comprobante: verificar o rechazar. Sella quién y cuándo.
 //
-// Lo que este endpoint NO hace, y es la mitad importante: **no toca la orden**.
-// Verificar no la pasa a `pagado` — eso lo hace el Payment, y sólo él
-// (§3.1). Cuando la orden todavía no tiene plata, el cliente registra el pago
-// PRIMERO por su endpoint de siempre y sella acá después; el orden es
-// deliberado, porque una evidencia sellada sobre un cobro que falló afirmaría
-// algo falso, mientras que un pago con la evidencia sin sellar sólo deja un
-// segundo click pendiente.
-//
-// Tampoco borra nada: un RECHAZADO conserva su fila y su blob. Un comprobante
-// rechazado ES la prueba de que se rechazó.
+// VERIFICAR CREA LA PLATA (§ Decisión — Cuándo un pedido está pagado). Sobre una
+// orden PENDIENTE, verificar registra el Payment y la pasa a `pagado` en la misma
+// transacción (dentro de `decidirComprobante`); sobre una ya pagada, sólo sella.
+// Rechazar nunca toca la orden, y tampoco borra: un RECHAZADO conserva su fila y
+// su blob — es la prueba de que se rechazó.
 
 const ACCIONES = { verificar: 'VERIFICADO', rechazar: 'RECHAZADO' } as const;
+const METODOS  = Object.values(MetodoPago);
 
 export async function PATCH(
   req: NextRequest,
@@ -39,8 +41,31 @@ export async function PATCH(
     );
   }
 
+  // Datos del pago para el caso verificar-sobre-orden-pendiente. `monto` NO se lee
+  // del body A PROPÓSITO: sale de `order.total` server-side dentro de
+  // `decidirComprobante` (§ Decisión, precisión 3). El método, si viene, se valida
+  // contra el enum; el veto a EFECTIVO con comprobante lo impone el core, no acá.
+  let pago: PagoAlVerificar | undefined;
+  if (accion === 'verificar') {
+    const metodo = body?.metodo != null ? String(body.metodo).toUpperCase() : null;
+    if (metodo !== null && !METODOS.includes(metodo as MetodoPago)) {
+      return NextResponse.json({ error: 'Método de pago inválido' }, { status: 400 });
+    }
+    const fechaCruda = typeof body?.fecha === 'string' ? new Date(body.fecha) : null;
+    if (fechaCruda && Number.isNaN(fechaCruda.getTime())) {
+      return NextResponse.json({ error: 'Fecha de pago inválida' }, { status: 400 });
+    }
+    if (metodo !== null) {
+      pago = {
+        metodo:     metodo as MetodoPago,
+        fecha:      fechaCruda ?? undefined,
+        referencia: typeof body?.referencia === 'string' ? body.referencia : null,
+      };
+    }
+  }
+
   try {
-    const comprobante = await decidirComprobante(
+    const { comprobante, pagoCreado } = await decidirComprobante(
       id,
       ACCIONES[accion as keyof typeof ACCIONES],
       {
@@ -48,10 +73,20 @@ export async function PATCH(
         nombre: session.user.name ?? null,
         notas:  typeof body?.notas === 'string' && body.notas.trim() ? body.notas.trim() : null,
       },
+      pago,
     );
     if (!comprobante) {
       return NextResponse.json({ error: 'Comprobante no encontrado' }, { status: 404 });
     }
+
+    // El pago acaba de nacer de la verificación → dispara `order.pagado`. Es el
+    // TERCER emisor de ese evento (los otros: el route de pagos y el PATCH de
+    // estado), y omitirlo dejaría la orden pagada sin avisarle al cliente.
+    // Post-commit y fire-and-forget: jamás afecta el veredicto ya escrito.
+    if (pagoCreado) {
+      await runEventAutomations({ tipo: 'order.pagado', orderId: comprobante.orden_id });
+    }
+
     return NextResponse.json(comprobante);
   } catch (e) {
     // El mensaje de `ComprobanteYaDecidido` dice cuál fue el veredicto que ya
@@ -59,6 +94,11 @@ export async function PATCH(
     // no hizo nada.
     if (e instanceof ComprobanteYaDecidido) {
       return NextResponse.json({ error: e.message }, { status: 409 });
+    }
+    // Verificar una orden pendiente exige el método (y que no sea efectivo). Los
+    // dos son 400: el cliente mandó (o le faltó) un dato, no es un fallo del server.
+    if (e instanceof PagoRequeridoParaVerificar || e instanceof EfectivoConComprobanteError) {
+      return NextResponse.json({ error: e.message }, { status: 400 });
     }
     console.error('[comprobantes] falló el veredicto', e);
     return NextResponse.json({ error: 'No se pudo actualizar el comprobante' }, { status: 500 });
