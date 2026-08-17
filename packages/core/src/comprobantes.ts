@@ -8,20 +8,25 @@ import { ComprobanteEstado } from '@duna/core';
 // monta HTTP, así que la única forma de afirmar contra una base real que
 // verificar sella y que rechazar NO crea plata es que sean funciones.
 //
-// HOY ninguna de estas funciones toca `Order.estado`: `decidirComprobante` es un
-// `updateMany` puro, y la orden la mueve el Payment y sólo el Payment (§3.1). Es
-// lo que el carril afirma contra una base real, y es cierto mientras esta línea
-// exista — no describir un comportamiento que el código todavía no tiene.
+// La declaración "ninguna de estas funciones toca `Order.estado`" está VIGENTE HOY
+// pero DEROGADA por decisión (CLAUDE.md § Decisión — Cuándo un pedido está pagado,
+// 2026-08-17). Describe el código real de ESTE momento, no el diseño permanente.
 //
-// PERO la regla de producto CAMBIÓ — decidido, NO implementado (ver CLAUDE.md
-// § Decisión — Cuándo un pedido está pagado, 2026-08-17). Verificar un comprobante
-// sobre una orden PENDIENTE pasará a CREAR el Payment —como tercer llamador de
-// `registerOrderPaymentTx`, no un camino paralelo— y con eso la orden pasará a
-// `pagado`. El motivo: pedirle al operador que afirme "la plata entró" al Registrar
-// Pago, antes de juzgar la evidencia, produce los dos síntomas que la decisión
-// cierra (pagado con comprobante sin verificar; rechazar que no revierte). Cuando
-// se implemente, este comentario y el invariante de `comprobante-verificacion.test`
-// se reescriben JUNTOS.
+// SI ESE DOCUMENTO PARECE CONTRADECIR ESTE COMENTARIO, EL DOCUMENTO NO ESTÁ MAL: él
+// describe el destino, este comentario describe el hoy. Cuando se implemente la
+// decisión, gana el documento — y este comentario, junto con el invariante de
+// `comprobante-verificacion.test`, se reescribe con él.
+//
+// Lo VIGENTE hoy: `decidirComprobante` es un `updateMany` puro y la orden la mueve
+// el Payment y sólo el Payment (§3.1). Es lo que el carril afirma contra una base
+// real, y es cierto mientras esta línea exista — no se describe un comportamiento
+// que el código todavía no tiene.
+//
+// Lo DEROGADO: verificar un comprobante sobre una orden PENDIENTE pasará a CREAR el
+// Payment —como tercer llamador de `registerOrderPaymentTx`, no un camino paralelo—
+// y con eso la orden pasará a `pagado`. El motivo: afirmar "la plata entró" al
+// Registrar Pago, antes de juzgar la evidencia, produce los dos síntomas que la
+// decisión cierra (pagado con comprobante sin verificar; rechazar que no revierte).
 //
 // Lo que NO cambia en ninguno de los dos modelos: RECHAZAR nunca crea plata, y el
 // comprobante adjuntado DESDE Registrar Pago nace VERIFICADO (documenta un pago que
