@@ -827,6 +827,28 @@ la región de alto fijo con un scroller único, no dos columnas.
 generaliza el shell de "split de dos columnas" a "región de alto fijo con N
 scrollers", y conviene hacerlo con Inventario como primer consumidor real.
 
+### 25. Las reglas del alto fijo están gateadas a un VALOR (1080), no a un ROL
+
+El alto fijo de las pantallas de split se activa en `@media (min-width: 1080px)`
+(§ duna.css, `.duna-pantalla-fija`). Pero 1080 no es el umbral del alto fijo: es lo
+que el SPLIT necesita para dar 320px de panel (§ el piso `--duna-panel-min`). Una
+pantalla sin split —Inventario— no tiene panel, así que su alto fijo corresponde al
+ROL "hay chrome de escritorio con rail", que es 960. El valor 1080 quedó incrustado
+donde debería haber un rol.
+
+**Costo YA pagado:** al construir el alto fijo de Inventario (#24) hubo que
+DUPLICAR la cadena de reglas (main → page root → región) en un bloque `@media
+(min-width: 960px)` con un marcador propio (`.duna-sin-split`), en vez de reusar la
+de 1080 —moverla a 960 habría cambiado las páginas de split, que sí necesitan 1080—.
+Dos copias de la misma cadena, gateadas distinto, es exactamente cómo una diverge de
+la otra en un ajuste futuro.
+
+**DISPARADOR: cuando una TERCERA página sin split necesite la región.** Ahí la
+duplicación deja de ser una excepción y pasa a ser un patrón, y toca invertir el
+gateo: que el umbral sea un parámetro del ROL (split → 1080, sin split → 960), no un
+literal repetido por bloque. Con dos consumidores (split + Inventario) todavía es más
+barato duplicar que generalizar; con tres, no.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
