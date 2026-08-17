@@ -738,6 +738,43 @@ MISMO seam que la tanda 3 va a tocar.
 seam. Ahí se decide si el panel gana una guarda de salida como el drawer, o si el
 borrador se confirma/persiste de otra forma.
 
+### 18. El detalle pierde la POSICIÓN DE SCROLL al cruzar el umbral del split
+
+Cruzar 1080 remonta el detalle de una superficie a la otra (panel `.duna-split__panel`
+↔ sheet `.duna-sheet__body`, `app/(admin)/admin/pedidos/page.tsx`), y esos son
+**scrollers de DOM distintos**: quien venía scrolleado a la sección Pago vuelve
+arriba de todo. Salió del mismo diagnóstico que la pérdida del borrador de notas
+—el remontaje panel↔sheet—, pero NO es lo mismo: el borrador era estado de React y
+se elevó al padre; el scroll **no es estado de React**, así que elevarlo no lo
+arregla. Es restauración de scroll (guardar `scrollTop` del scroller que se va y
+aplicarlo al que llega), otro mecanismo.
+
+**Costo YA pagado: ninguno reportado.** Sólo pasa al redimensionar la ventana
+cruzando 1080 con el detalle abierto Y scrolleado — un caso raro. El borrador, que
+SÍ era pérdida de contenido, ya se arregló en la misma tanda.
+
+**DISPARADOR: el shell de scroll-por-columna** (la parte de la tanda 3 que sigue en
+pausa), que va a rehacer esos scrollers —columnas de alto fijo con overflow propio—
+y es el momento natural para decidir la restauración. Antes de eso, elevar el
+scroll a mano sería un mecanismo que ese shell reescribiría enseguida.
+
+### 19. `confirmando` de `useDescarteDeDrawer` muere en el remontaje del detalle
+
+El detalle usa `useDescarteDeDrawer` para la guarda de salida del enlace de cliente
+(`app/(admin)/admin/pedidos/page.tsx`), y su estado interno `confirmando` vive
+DENTRO del detalle, así que cruzar el umbral del split lo remonta y lo pierde —igual
+que el borrador, pero este NO se elevó.
+
+**Costo YA pagado: ninguno.** La ventana es mínima: `confirmando` sólo es no-nulo
+mientras el diálogo de descarte está ABIERTO a mitad de una navegación, y
+redimensionar la ventana cruzando 1080 exactamente en ese instante no es un caso
+real. No es contenido del operador: si se pierde, el diálogo se cierra y la
+navegación no ocurre — un no-op, no una pérdida.
+
+**DISPARADOR: si aparece en uso real**, o si el hook gana estado que sí importe
+conservar. Entonces se eleva al padre como el borrador, o el detalle recibe una
+identidad estable entre contenedores.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
