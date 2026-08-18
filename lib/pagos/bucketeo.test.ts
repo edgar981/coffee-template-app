@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BUSINESS_TZ, dayKeyStart, zonedDayKey, startOfZonedDay } from '@duna/core/timezone';
-import { elegirEscala, bucketsDelRango, bucketKey, bucketear, MAX_BARRAS } from './bucketeo';
+import { elegirEscala, bucketsDelRango, bucketKey, bucketear, MAX_BARRAS, MIN_BARRAS } from './bucketeo';
 
 // Capa 1 — puro. Dos reglas duras del eje temporal del strip: la escalera con tope
 // de 31 barras, y el anclaje de la semana al calendario (lunes Bogotá). Las dos
@@ -23,9 +23,17 @@ test('la escalera elige el peldaño más fino que quepa en 31', () => {
   assert.equal(elegirEscala('2026-01-01', '2045-12-31'),               'anio');      // 20 años
 });
 
-test('si ni el año cabe en 31 barras (>31 años), NO dibuja: null', () => {
+test('si ni el año cabe en 31 barras (>31 años), NO dibuja: tipo "muchas"', () => {
   assert.equal(elegirEscala('2026-01-01', '2060-12-31'), null); // 35 años
-  assert.equal(bucketear('2026-01-01', '2060-12-31'), null);
+  assert.equal(bucketear('2026-01-01', '2060-12-31').tipo, 'muchas');
+});
+
+test('bajo 4 barras el strip NO dibuja: tipo "pocas" (un día no tiene forma)', () => {
+  // El OTRO extremo del tope: "Hoy" = 1 barra, y hasta 3 barras, no informan.
+  assert.deepEqual(bucketear('2026-08-18', '2026-08-18'), { tipo: 'pocas', n: 1 });
+  assert.equal(bucketear('2026-08-18', '2026-08-19').tipo, 'pocas'); // 2 días
+  assert.equal(bucketear('2026-08-18', '2026-08-20').tipo, 'pocas'); // 3 días
+  assert.equal(bucketear('2026-08-18', '2026-08-21').tipo, 'dibuja'); // 4 días → ya dibuja
 });
 
 test('FUERZA BRUTA — ningún rango produce más de 31 barras; null sólo si >31 años', () => {
@@ -38,12 +46,14 @@ test('FUERZA BRUTA — ningún rango produce más de 31 barras; null sólo si >3
     for (const span of spans) {
       const hasta = masDias(ini, span);
       const r = bucketear(ini, hasta);
-      if (r === null) {
+      if (r.tipo === 'muchas') {
         const anios = anioDe(hasta) - anioDe(ini) + 1;
-        assert.ok(anios > MAX_BARRAS, `${ini}..${hasta} devolvió null con sólo ${anios} años`);
+        assert.ok(anios > MAX_BARRAS, `${ini}..${hasta} dio "muchas" con sólo ${anios} años`);
+      } else if (r.tipo === 'pocas') {
+        assert.ok(r.n < MIN_BARRAS, `${ini}..${hasta} dio "pocas" con ${r.n} barras`);
       } else {
-        assert.ok(r.buckets.length <= MAX_BARRAS,
-          `${ini}..${hasta} → ${r.escala} produjo ${r.buckets.length} barras (>31)`);
+        assert.ok(r.buckets.length >= MIN_BARRAS && r.buckets.length <= MAX_BARRAS,
+          `${ini}..${hasta} → ${r.escala} produjo ${r.buckets.length} barras (fuera de [4,31])`);
         // Contiguos y ordenados: cada bucket empieza donde terminó el anterior.
         for (let i = 1; i < r.buckets.length; i++) {
           assert.equal(+r.buckets[i].inicio, +r.buckets[i - 1].fin, `hueco en ${ini}..${hasta}`);
@@ -93,9 +103,12 @@ test('SIN el tope de 31, un rango supera el límite; la escalera lo evita', () =
   assert.ok(sinTope.length > MAX_BARRAS, 'sin escalón, 45 barras > 31');
 
   // Con la escalera, ese mismo rango sube a semana y queda en ≤31.
-  const r = bucketear('2026-01-01', masDias('2026-01-01', 44))!;
-  assert.equal(r.escala, 'semana');
-  assert.ok(r.buckets.length <= MAX_BARRAS);
+  const r = bucketear('2026-01-01', masDias('2026-01-01', 44));
+  assert.equal(r.tipo, 'dibuja');
+  if (r.tipo === 'dibuja') {
+    assert.equal(r.escala, 'semana');
+    assert.ok(r.buckets.length <= MAX_BARRAS);
+  }
 });
 
 test('bucketKey coincide con la escala en cada peldaño', () => {

@@ -48,7 +48,7 @@ export function PagosStrip({
   // distribución completa; el bucket seleccionado se resalta, no se recorta). Las
   // exclusiones sí se aplican a las barras —son una fuente con la tabla—.
   const datos = useMemo(() => {
-    if (!b) return null;
+    if (b.tipo !== 'dibuja') return null;
     const { escala, buckets } = b;
     // La MISMA regla que la tabla: método (select) + exclusiones (leyenda). El bucket
     // NO se aplica acá —el strip muestra el rango entero y resalta el seleccionado—.
@@ -75,12 +75,22 @@ export function PagosStrip({
     return { escala, buckets, porBucket, max, totalMetodo, totalRango, hayParcial };
   }, [b, pagos, excl, metodoFiltrado]);
 
-  // >31 años: no dibuja, y lo DECLARA. La tabla sigue completa (la página la muestra).
-  if (!b || !datos) {
+  // Los DOS extremos DECLARAN en vez de dibujar algo que no informa (§ bucketeo). La
+  // tabla sigue completa (la página la muestra debajo).
+  if (b.tipo === 'muchas') {
     return (
       <div className="admin-strip admin-strip--vacio">
         <p className="duna-sub" style={{ margin: 0 }}>
           El rango es demasiado amplio para graficarlo (más de 31 años). El libro de abajo sigue completo.
+        </p>
+      </div>
+    );
+  }
+  if (b.tipo === 'pocas' || !datos) {
+    return (
+      <div className="admin-strip admin-strip--vacio">
+        <p className="duna-sub" style={{ margin: 0 }}>
+          El rango es muy corto para una tira de barras (menos de 4 períodos). El total está en las stats de arriba.
         </p>
       </div>
     );

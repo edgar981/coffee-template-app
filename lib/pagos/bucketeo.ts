@@ -10,10 +10,11 @@ import {
 // al rango— aplicada a la escala y al corte:
 //
 // 1. ESCALERA de cinco peldaños con tope de 31 barras. Se elige el peldaño MÁS
-//    FINO cuyo conteo de buckets ≤ 31: día → semana → mes → trimestre → año. Si
-//    ni el año alcanza (>31 años), el strip NO dibuja (devuelve null); la tabla
-//    sigue completa. NUNCA se trunca a 31 barras de un peldaño más fino —eso
-//    escondería datos sin decirlo—.
+//    FINO cuyo conteo de buckets ≤ 31: día → semana → mes → trimestre → año. NUNCA
+//    se trunca a 31 barras de un peldaño más fino —eso escondería datos sin decirlo—.
+//    Los DOS extremos DECLARAN en vez de dibujar algo que no informa: si ni el año
+//    cabe en 31 (>31 años) O si quedan menos de 4 barras (un día no tiene forma, y el
+//    total ya está en las stats), el strip no dibuja y lo dice; la tabla sigue completa.
 //
 // 2. Los buckets se anclan al CALENDARIO (semana = lunes de Bogotá vía
 //    `startOfZonedWeek`), no al inicio del rango. Es lo que hace que la MISMA
@@ -27,6 +28,10 @@ import {
 // fuerza bruta, y que sin el anclaje dos rangos del mismo período cortan distinto).
 
 export const MAX_BARRAS = 31;
+// Bajo esto el strip TAMPOCO dibuja (§ bucketear): una o dos barras no tienen forma
+// —un solo día no informa, y el total ya está en las stats—. Es el mismo criterio que
+// el tope, en el otro extremo: declarar en vez de dibujar algo que no informa.
+export const MIN_BARRAS = 4;
 
 export type Escala = 'dia' | 'semana' | 'mes' | 'trimestre' | 'anio';
 
@@ -143,12 +148,21 @@ export function bucketsDelRango(desdeKey: string, hastaKey: string, escala: Esca
   return out;
 }
 
+/** El resultado del bucketeo para el strip: dibuja, o declara por qué no. */
+export type ResultadoBucketeo =
+  | { tipo: 'dibuja'; escala: Escala; buckets: Bucket[] }
+  | { tipo: 'pocas'; n: number }   // < MIN_BARRAS: no dibuja, lo declara
+  | { tipo: 'muchas' };            // ni el año cabe en 31 barras: no dibuja, lo declara
+
 /**
- * Conveniencia para el consumidor: elige la escala y devuelve los buckets, o `null`
- * si el rango no dibuja (>31 años). El strip llama a esto una vez.
+ * Conveniencia para el strip: elige la escala y devuelve los buckets, O declara por
+ * qué no dibuja. Los DOS extremos declaran en vez de dibujar algo que no informa:
+ * `muchas` (>31 años, ni el año cabe) y `pocas` (<4 barras, sin forma).
  */
-export function bucketear(desdeKey: string, hastaKey: string, tz = BUSINESS_TZ): { escala: Escala; buckets: Bucket[] } | null {
+export function bucketear(desdeKey: string, hastaKey: string, tz = BUSINESS_TZ): ResultadoBucketeo {
   const escala = elegirEscala(desdeKey, hastaKey, tz);
-  if (escala === null) return null;
-  return { escala, buckets: bucketsDelRango(desdeKey, hastaKey, escala, tz) };
+  if (escala === null) return { tipo: 'muchas' };
+  const buckets = bucketsDelRango(desdeKey, hastaKey, escala, tz);
+  if (buckets.length < MIN_BARRAS) return { tipo: 'pocas', n: buckets.length };
+  return { tipo: 'dibuja', escala, buckets };
 }

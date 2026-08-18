@@ -3371,8 +3371,11 @@ fija se queda con título, stats y filtros. Reglas que son decisión, no estilo:
   **exclusiones** (la leyenda) y **bucket** (clic en una barra). El strip no re-consulta
   —por eso esta tanda NO tocó el fetch (§ Backlog #27)—.
 - **La escalera y el anclaje viven en `lib/pagos/bucketeo.ts`** (puro, capa 1): cinco
-  peldaños con tope de 31 barras (día → semana → mes → trimestre → año), y >31 años NO
-  dibuja y lo declara —la tabla sigue completa, nunca se trunca—. **Las semanas se
+  peldaños con tope de 31 barras (día → semana → mes → trimestre → año). **Los DOS
+  extremos DECLARAN en vez de dibujar algo que no informa**, por la misma razón: >31
+  años (ni el año cabe) y <4 barras (un solo día no tiene forma, y el total ya está en
+  las stats) → el strip no dibuja y lo dice; la tabla sigue completa, nunca se trunca.
+  **Las semanas se
   anclan al CALENDARIO (lunes Bogotá), no al inicio del rango**, o la misma semana suma
   distinto según por dónde se entró. La primera y última barra pueden ser PARCIALES: se
   DECLARAN en el eje (un `·` + nota), porque una barra corta por corte de rango se lee
