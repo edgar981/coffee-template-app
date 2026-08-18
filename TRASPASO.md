@@ -76,6 +76,11 @@ también el disparador del backlog #27 (el `setLoading` del fetch de Pagos).
   nativo `.duna-select`, stats `.duna-stat` con "Promedio por pago", total **sin
   verde**, y la rama ámbar "Por verificar" **borrada** (imposible bajo el modelo de
   cobro). El Soporte pasó a clip neutro (sólo VERIFICADO). Backlog #27 abierto.
+- **`--duna-serie-1…5`**: rol de color NUEVO —categórico: identifica, no califica—,
+  su propio commit antes del strip. serie-4 movida a cyan (`#2496AB`/`#52C0D6`, el
+  teal competía con `ok`); piso de la paleta contra estados ~22 ΔE2000 en ambos temas.
+  Doctrina en CLAUDE.md (§ La serie categórica) + bloque en `reference.html`. Sin
+  consumidores aún: existe para el strip.
 
 ### Infraestructura
 - **Monorepo** npm workspaces: `packages/core` (schema Prisma, data-access) y
