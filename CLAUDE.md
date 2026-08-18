@@ -863,6 +863,24 @@ query MIN, una ruta. La forma está resuelta; falta la evidencia —el segundo a
 justifique. Se descartó construirla ahora (owner, 2026-08-18): con un solo año sería
 infraestructura por adelantado para un dropdown de una sola opción.
 
+### 27. `setLoading(true)` dentro del efecto de refetch de Pagos
+
+`app/(admin)/admin/pagos/page.tsx` corre `setLoading(true)` síncrono en el cuerpo del
+`useEffect` que re-consulta al cambiar el rango. El lint lo marca
+(`react-hooks/set-state-in-effect`, "cascading renders") — es **warning, no error**, y
+el build no se cae.
+
+**Costo YA pagado: ninguno.** El patrón funciona (muestra "Cargando…" al cambiar el
+rango) y es pre-existente: venía del código shadcn y la tanda de lenguaje Duna
+(2026-08-18) NO lo tocó a propósito —el alcance era el re-skin, no el fetch—. Se anota
+para no re-descubrirlo.
+
+**DISPARADOR: al tocar el fetch de Pagos, que será cuando entre el strip.** Ahí el
+`loading` pasa a DERIVARSE (como en Analítica y la card semanal: `data?.algo !==
+esperado`), apoyado en que el endpoint hace eco de lo que resolvió — el mismo mecanismo
+que ya evita este warning en esas dos pantallas. Antes de eso no se toca: cambiar el
+fetch sólo por el lint es tocar dos cosas cuando el strip va a tocar una.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
