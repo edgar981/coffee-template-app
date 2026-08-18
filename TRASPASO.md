@@ -48,6 +48,12 @@ No son convivencias — son pantallas que aún no se tocaron.
 **Pagos está A MEDIAS**: rango en SQL, presets y región de alto fijo ya entraron;
 falta el rediseño visual (el strip, en diseño). Ya NO es document-scroll ≥960.
 
+**Cuando llegue el strip: va DENTRO de la región que scrollea, ENCIMA de la tabla —
+NO en la cabecera fija.** Medido sobre la maqueta: cabecera con título + stats +
+filtros + strip ≈ 470px, que en 1280×800 (menos el topbar) deja ~260px de libro —
+cinco o seis filas. La cabecera fija se queda con título, stats y filtros; el strip
+scrollea con la tabla.
+
 ### Trabajo cerrado
 - **Tandas 1 y 2** (drawers, detalle de Pedidos) + correctores C1–C5.
 - **Tanda 3** (layout del split con scroll por columna) y sus tres prerequisitos.
@@ -64,6 +70,9 @@ falta el rediseño visual (el strip, en diseño). Ya NO es document-scroll ≥96
 - **Pagos: región de alto fijo** (`.duna-sin-split`, gate 960) — cabecera fija, la
   tabla scrollea. Es LAYOUT, no el rediseño visual (el strip Duna va aparte). Con esto
   la nota Wompi salió de la pantalla → § Mejoras post-multitenant.
+- **Botón de limpiar filtros unificado**: "Limpiar filtros" + `FilterX` sobre
+  `duna-btn ghost sm`, en Inventario (era "Quitar filtros", sin ícono) y Pagos (era
+  `Button` shadcn + `X`).
 
 ### Infraestructura
 - **Monorepo** npm workspaces: `packages/core` (schema Prisma, data-access) y

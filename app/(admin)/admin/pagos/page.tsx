@@ -3,10 +3,9 @@
 import { Suspense, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { CreditCard, DollarSign, Receipt, X } from 'lucide-react';
+import { CreditCard, DollarSign, Receipt, FilterX } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getPayments } from '@/lib/api/payments';
 import type { Payment } from '@/types/payment';
@@ -218,9 +217,9 @@ function PagosInner() {
           onChange={(d, h) => { setFrom(d ?? ''); setTo(h ?? ''); }}
         />
         {hasFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 gap-1 text-xs">
-            <X className="w-3.5 h-3.5" /> Limpiar
-          </Button>
+          <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm" onClick={clearFilters}>
+            <FilterX /> Limpiar filtros
+          </button>
         )}
       </div>
 

@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { ArrowUpDown } from 'lucide-react';
+import { ArrowUpDown, FilterX } from 'lucide-react';
 import { DunaTable, type DunaColumn } from '@duna/design-system/components/DunaTable';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { formatCOP } from '@duna/core/utils';
@@ -268,7 +268,7 @@ function Inventario() {
         {hayFiltro && (
           <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm"
                   onClick={() => navegar({ producto: null, tipo: null, desde: null, hasta: null })}>
-            Quitar filtros
+            <FilterX /> Limpiar filtros
           </button>
         )}
       </div>
