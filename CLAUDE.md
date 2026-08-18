@@ -908,6 +908,25 @@ EXTRAE al DS con nombre `duna-`** (hoy es admin-level a propósito, para no apar
 primitiva que no está en el paquete). La migración del kardex es la ocasión; la
 extracción es la meta. `DunaTable` se retira cuando el kardex deje de usarlo.
 
+### 29. Los tooltips del panel divergen — `title` nativo vs Radix shadcn
+
+Dos enfoques para lo mismo: **`title` NATIVO** en Productos (× "Eliminar/Activar/Cerrar",
+`productos/page.tsx`) y en el strip de Pagos (las barras, `PagosStrip.tsx`), y el **Radix
+shadcn** (`components/ui/tooltip.tsx`) en el sidebar (`Sidebar.tsx`, side="right", delay
+300). El nativo es lento (~1.5s), sin estilo y ajeno al tema; el shadcn está estilizado
+pero es admin-level, no una primitiva Duna.
+
+**Costo YA pagado: ninguno grave** —los tres funcionan—, pero tres consumidores con dos
+formas es cómo la próxima pantalla elige sin criterio. (Se citó mal como "#8" en su
+momento; el #8 es `Customer.activo`. Este ítem NO existía — se abre acá.)
+
+**DISPARADOR: YA (owner, 2026-08-18) — su propia tanda con gate, no dentro del corrector
+de Pagos.** Un tooltip Duna EN EL PAQUETE, tokenizado, montado sobre Radix —el paquete
+ENVUELVE la conducta, no la implementa (precedente `DunaSheet` sobre Radix Dialog, así la
+opción C se conserva)—, con su bloque en `reference.html`. Los tres consumidores migran
+en la MISMA tanda —los `title` de Productos, los del strip, y el shadcn del sidebar—: un
+patrón, no dos. Al cerrarse la tanda, este ítem se borra.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
