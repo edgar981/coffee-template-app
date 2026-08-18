@@ -139,6 +139,27 @@ el síntoma es indistinguible de "el cambio no se aplicó".
 eso es un defecto (tarjeta vacía inflada a 600px). Contenido corto se sienta
 arriba a su alto natural.
 
+### El padding asimétrico de los scrollers de tarjetas — NO es arbitrario
+
+Los scrollers que sostienen tarjetas —`.duna-split__list` (primitives.css) y
+`.duna-cards` (duna.css)— llevan `padding: 4px 4px 16px` (arriba/lados/abajo), y la
+asimetría **no se limpia**. El hover de la tarjeta la **levanta** (`translateY -1px`)
+y proyecta `--duna-shadow-2`; con padding 0, el borde del PRIMER hijo y la sombra del
+ÚLTIMO se recortan contra el borde del `overflow` —se lee como error de render, y solo
+aparece desde que la columna es su propio scroller—.
+
+- **Arriba 4px** (`--duna-space-1`): el mínimo token que cubre el borde de 1px del
+  lift. Más arriba se lee como HUECO entre la cabecera y el primer card (se probaron
+  20px y 16px simétricos; los dos sobraban).
+- **Abajo 16px** (`--duna-space-4`): contiene la sombra del último card. Ahí el aire
+  NO se percibe —no hay nada bajo la lista que lo delimite—.
+- **Lados 4px** (`--duna-space-1`): mínimo; el recorte lateral es contra el borde de la
+  columna (tolerable) y el ancho de lista (400px) es caro.
+
+Depende de `box-sizing:border-box` (§ el reset de `.duna *`): el padding entra DENTRO
+de la altura, así que no desborda la cadena de arriba. Mismos tokens en los dos
+scrollers, con comentario cruzado para que no diverjan.
+
 ### Tokens vigentes
 
 | Token / umbral | Valor | Dónde |
