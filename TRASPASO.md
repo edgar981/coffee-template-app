@@ -39,20 +39,19 @@ Vercel, `main` = producción).
 | `/admin/clientes` | Completa | Igual |
 | `/admin/productos` | Completa | Igual, con clase condicional (cuadrícula sin selección queda en document-scroll) |
 | `/admin/inventario` | Completa, encogida a auditoría | Alto fijo ≥960 (`.duna-sin-split`), scroller único |
+| `/admin/pagos` | En lenguaje Duna; falta SOLO el strip (aditivo, en diseño) | Alto fijo ≥960 (`.duna-sin-split`), scroller único |
 
 ### Pendientes de rediseño
 Analítica, Automatizaciones, Dashboard, Entregas, Configuración, Perfil.
 **Todas en document-scroll** (el `min-h-screen` por defecto de `AdminChrome`).
 No son convivencias — son pantallas que aún no se tocaron.
 
-**Pagos está A MEDIAS**: rango en SQL, presets y región de alto fijo ya entraron;
-falta el rediseño visual (el strip, en diseño). Ya NO es document-scroll ≥960.
-
-**Cuando llegue el strip: va DENTRO de la región que scrollea, ENCIMA de la tabla —
-NO en la cabecera fija.** Medido sobre la maqueta: cabecera con título + stats +
-filtros + strip ≈ 470px, que en 1280×800 (menos el topbar) deja ~260px de libro —
-cinco o seis filas. La cabecera fija se queda con título, stats y filtros; el strip
-scrollea con la tabla.
+**Pendiente en Pagos: SOLO el strip** (el desglose "Por método", en diseño). Cuando
+llegue, **va DENTRO de la región que scrollea, ENCIMA de la tabla — NO en la cabecera
+fija.** Medido sobre la maqueta: cabecera con título + stats + filtros + strip ≈ 470px,
+que en 1280×800 (menos el topbar) deja ~260px de libro —cinco o seis filas—. La
+cabecera fija se queda con título, stats y filtros; el strip scrollea con la tabla. Es
+también el disparador del backlog #27 (el `setLoading` del fetch de Pagos).
 
 ### Trabajo cerrado
 - **Tandas 1 y 2** (drawers, detalle de Pedidos) + correctores C1–C5.
@@ -73,6 +72,10 @@ scrollea con la tabla.
 - **Botón de limpiar filtros unificado**: "Limpiar filtros" + `FilterX` sobre
   `duna-btn ghost sm`, en Inventario (era "Quitar filtros", sin ícono) y Pagos (era
   `Button` shadcn + `X`).
+- **Pagos al lenguaje Duna** (re-skin, sin el strip): `DunaTable` (sticky), select
+  nativo `.duna-select`, stats `.duna-stat` con "Promedio por pago", total **sin
+  verde**, y la rama ámbar "Por verificar" **borrada** (imposible bajo el modelo de
+  cobro). El Soporte pasó a clip neutro (sólo VERIFICADO). Backlog #27 abierto.
 
 ### Infraestructura
 - **Monorepo** npm workspaces: `packages/core` (schema Prisma, data-access) y
@@ -345,7 +348,7 @@ Reglas: va ordenada y **el orden es la decisión**; el número es identidad, no
 posición. Cada entrada dice el **costo ya pagado**. Un ítem completado **se borra**.
 
 Vivos: `#1` · `#2` · `#3` · `#4` · `#5` · `#6` · `#8` · `#10` · `#16` · `#18` ·
-`#19` · `#20` · `#21` · `#22` · `#23` · `#25` · `#26`.
+`#19` · `#20` · `#21` · `#22` · `#23` · `#25` · `#26` · `#27`.
 
 ---
 
