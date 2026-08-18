@@ -1,0 +1,367 @@
+# TRASPASO.md — contexto vivo del rediseño Duna OS
+
+**Actualizado:** 2026-08-17. **Producción:** `308f32b`.
+
+> **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
+> No es un historial: describe el estado de HOY y las decisiones que no se
+> re-litigan. Lo que se completa se reescribe, no se acumula.
+
+**Rol de la sesión de asesoría:** asesor del owner (Edgar), no ejecutor. Claude
+Code ejecuta en otra sesión; la de asesoría decide, revisa reportes y aprueba.
+El owner corre los gates visuales porque Code no puede autenticarse (`/admin/*`
+responde 307).
+
+**Preferencias del owner (vigentes):** desacuerdo primero si lo hay, sin halagos
+de apertura, confianza etiquetada `[Certain]` / `[Likely]` / `[Guessing]`, la
+verdad incómoda en la primera línea, sin párrafos de calentamiento. Si el owner
+insiste sin datos nuevos, sostener la posición.
+
+---
+
+## 1. Qué es el proyecto
+
+Rediseño completo del panel de administración de **Duna** (SaaS admin panel para
+pymes; tenant único hoy: **Café Nayoli**, aún sin lanzar) desde shadcn/"Amber
+Minimal" hacia un lenguaje propio: **Duna OS**.
+
+**Repo:** `coffee-template-app` (Next.js + Prisma + Postgres/Neon, deploy en
+Vercel, `main` = producción).
+
+---
+
+## 2. Estado actual
+
+### Verticales terminadas
+
+| Ruta | Estado | Modelo de scroll |
+|---|---|---|
+| `/admin/pedidos` | Completa. 8 carriles | Alto fijo ≥1080 (`.duna-pantalla-fija`), split 2 columnas |
+| `/admin/clientes` | Completa | Igual |
+| `/admin/productos` | Completa | Igual, con clase condicional (cuadrícula sin selección queda en document-scroll) |
+| `/admin/inventario` | Completa, encogida a auditoría | Alto fijo ≥960 (`.duna-sin-split`), scroller único |
+
+### Pendientes de rediseño
+Pagos, Analítica, Automatizaciones, Dashboard, Entregas, Configuración, Perfil.
+**Todas en document-scroll** (el `min-h-screen` por defecto de `AdminChrome`).
+No son convivencias — son pantallas que aún no se tocaron.
+
+### Trabajo cerrado
+- **Tandas 1 y 2** (drawers, detalle de Pedidos) + correctores C1–C5.
+- **Tanda 3** (layout del split con scroll por columna) y sus tres prerequisitos.
+- **Backlog #24** (alto fijo en Inventario), **#17**, **#9**, **#7**.
+- **Tanda A**: carril "Por verificar" en Pedidos.
+- **Decisión de cobro implementada** (§4).
+
+### Infraestructura
+- **Monorepo** npm workspaces: `packages/core` (schema Prisma, data-access) y
+  `packages/design-system` (tokens `--duna-*`, primitivas `duna-*`,
+  `reference.html` como prueba viva).
+- Chrome del panel migrado al design-system. Panel funcional en móvil (bottom
+  sheet, barra inferior). Diálogos Duna (H6) y controles de formulario completos.
+
+---
+
+## 3. El modelo de layout
+
+### El umbral del split NO es un número elegido — se deriva
+
+`--duna-panel-min: 320px` es el piso del panel de detalle:
+
+```
+rail 240 + padding 48 + lista 400 + gap 24 + panel 320 = 1032 → se redondea a 1080
+```
+
+A 960 el panel medía **248px**, ancho de teléfono para un detalle de 12
+secciones. **Si cambia el rail, la lista o el padding, el umbral se recalcula.**
+
+### Dos breakpoints, cada uno nombrado por su ROL
+
+| Constante | Valor | Pregunta que responde | Gemelo CSS |
+|---|---|---|---|
+| `DUNA_BP_DETALLE_AL_LADO` | 1080 (`layout.ts:39-40`) | ¿caben dos columnas? | colapso de `.duna-split` |
+| `DUNA_BP_SHEET_ABAJO` | 960 (`layout.ts:42-43`) | ¿es chrome de una mano? | rail, barra inferior |
+
+Hooks: `useDetalleAlLado()` y `useSheetDesdeAbajo()`. **No nombrar por
+breakpoint** — el nombre viejo `useEsMovil` decía "dispositivo" y decidía
+"layout", y esa mentira costó una ronda entera. Cada gemelo CSS y su hook **se
+mueven juntos**.
+
+### Tres rangos, tres conductas
+
+| Ancho | Chrome | Detalle |
+|---|---|---|
+| ≥1080 | rail | panel al lado, columna con scroll propio |
+| 960–1080 | rail | `DunaSheet --lado`, modal (scrim/Escape/clic-fuera) |
+| <960 | barra inferior | `DunaSheet --abajo`, document-scroll |
+
+El componente de detalle se monta en los tres contenedores **sin una sola rama de
+contenido**. Si alguna vez hace falta un `if` por rango dentro del detalle, el
+diseño está mal.
+
+### Selección ≠ visibilidad
+
+`abierto = !detalleAlLado && !!elegido && sheetAbierto`. Al cruzar de panel a
+sheet **la selección se conserva** pero el sheet **no se abre**: se abre por
+acción. Un resize no es una intención. La X del sheet **sí** limpia la selección.
+Un deep link `?pedido=` **sí** abre el sheet.
+
+`useDetalleAlLado` reporta `true` en el snapshot de servidor, así que **todo lo
+que dependa de él espera a la hidratación**.
+
+### La cadena de altura (donde falla silencioso)
+
+La altura la provee el **chrome**, opt-in por página. El page root **no puede
+calcularla**: vive debajo del chrome y no sabe qué ocupa.
+
+```
+1  .admin-shell                         layout.tsx:98
+2  .min-h-screen div                    AdminChrome.tsx:60
+3  <main> :has(.duna-pantalla-fija)     → height:100dvh   AdminChrome.tsx:74
+4  wrapper .p-6 > div                   → height:100%     AdminChrome.tsx:87
+5  page root .duna-pantalla-fija        → height:100%; grid auto 1fr
+6a .duna-cabecera (auto)                header, no scrollea
+6b .duna-region (1fr)                   flex col; min-height:0
+7  .duna-split                          flex:1 → columnas overflow-y:auto
+```
+
+**`calc()` está prohibido en esta cadena.** Se probó `calc(100dvh − topbar)` y
+desborda por exactamente el alto del chrome; el header además es de alto variable.
+**Un solo nivel sin `height:100%` o sin `min-height:0` colapsa toda la cadena**, y
+el síntoma es indistinguible de "el cambio no se aplicó".
+
+### La región: el general y su excepción
+
+`.duna-region > *` es la regla **general** — el hijo único encoge y scrollea. El
+**split es la excepción declarada** que además llena (`grow: 1`).
+
+**Nunca nombrar el general como variante del especial.** El scroll lo da `shrink`
++ `min-height:0` + `overflow-y:auto`; **`grow` solo estira el contenido corto**, y
+eso es un defecto (tarjeta vacía inflada a 600px). Contenido corto se sienta
+arriba a su alto natural.
+
+### Tokens vigentes
+
+| Token / umbral | Valor | Dónde |
+|---|---|---|
+| `--duna-list-w` | 400px | `tokens.css:215` |
+| `--duna-panel-min` | 320px | `tokens.css:224` |
+| `--duna-topbar-h` | 52px (default DS) / 64px (admin) | `tokens.css:205` / `duna.css:93` |
+| `DUNA_MQ_DETALLE_AL_LADO` | max-width 1079.98 | `layout.ts:40` |
+| `DUNA_MQ_SHEET_ABAJO` | max-width 959.98 | `layout.ts:43` |
+| Alto fijo de Inventario | min-width 960 | `duna.css:173` |
+
+`thead` de `.duna-table` es sticky siempre-on (fondo `--duna-bg`, separador por
+`box-shadow`). El `pt` del `<main>` deriva de `--duna-topbar-h`. `html.admin`
+lleva `scroll-padding-top`.
+
+---
+
+## 4. El eje de cobro (implementado, `308f32b`)
+
+Documento completo: **"Cuándo un pedido está pagado"** en `CLAUDE.md`.
+
+**La regla:** el `Payment` nace del veredicto cuando hay comprobante de por medio;
+nace directo cuando no lo hay.
+
+| Camino | Qué pasa |
+|---|---|
+| Llega un comprobante | RECIBIDO. La orden **no** se paga. Entra al carril "Por verificar" |
+| El operador **verifica** | **Crea el `Payment`** → la orden pasa a `pagado` |
+| El operador **rechaza** | La orden sigue pendiente. No hay `Payment` que revertir |
+| Efectivo / contraentrega | `Payment` directo, sin comprobante |
+| `Registrar Pago` sin adjunto | `Payment` directo |
+
+- **`registerOrderPaymentTx` es el único escritor de dinero.** Verificar es su
+  tercer llamador, no un camino paralelo.
+- **El comprobante adjuntado desde `Registrar Pago` nace VERIFICADO** (mismo actor
+  y timestamp del pago). Si naciera RECIBIDO, le pediría al operador que juzgue
+  una decisión que él mismo acaba de tomar.
+- **`FOR UPDATE` sobre `Order` + re-lectura del estado dentro del lock** es lo
+  único que impide dos `Payment` con dos comprobantes concurrentes. No hay unique
+  en la base. Probado viéndolo fallar sin el lock.
+- **`order.pagado` se dispara desde este camino también** (es el tercer llamador).
+  Probado viéndolo fallar sin el disparo.
+- **Monto = `order.total`, server-side.** El comprobante no lleva importe.
+- **Fecha de negocio editable**: "Fecha en que entró el pago" · hint "La fecha del
+  movimiento en tu cuenta". Default hoy, **sin futuro** (guarda en
+  `registerOrderPaymentTx` + tope en el input), anclada al inicio del día en
+  Bogotá (`dayKeyStart`).
+- **EFECTIVO queda fuera del select en el flujo con comprobante** — no es un
+  default malo, es un valor imposible. Guarda de servidor además del select.
+- `Payment` + comprobante RECHAZADO es una **combinación imposible**.
+
+### Divergencias con el modelo de Carlos (para el día del puente)
+
+Hoy **no hay puente**: dos stacks separados, sin API compartida. Un pedido de
+tienda es invisible para su lado (`duna-orders` es WhatsApp-only).
+
+| | Carlos | Nosotros |
+|---|---|---|
+| Entidad del dinero | ninguna — el pago **es** el comprobante | `Payment` + `Comprobante` |
+| "Pagado" se deriva de | existe un comprobante `verified` | existe un `Payment` |
+| Efectivo | sin artefacto, pasa por ausencia de bloqueo | `Payment` con asiento |
+| Canal | solo WhatsApp | whatsapp · directo · tienda |
+
+**Vocabulario reservado, no adoptado:** `insufficient` y `superseded` son el
+modelo de pago parcial de Carlos (`superseded` es automático, no un veredicto).
+Adoptarlos sin el mecanismo crearía estados con cero escritores. El día que exista
+pago parcial, esos son los nombres.
+
+**Autoridad, cuando haya puente:** el panel no puede depender de que exista un
+operador de WhatsApp. Un solo veredicto — si el operador verifica, el admin lo ve
+verificado y no re-verifica. Ruling pendiente con Carlos.
+
+---
+
+## 5. Doctrina de diseño (no re-litigar)
+
+1. **El color es información, no decoración.** Ámbar/sol = *esto necesita tu
+   atención ahora*. Verde = confirmado/pagado. Rojo = problema. Sin rol azul.
+2. **"En curso" no es un color, es una posición.** Impuesto por tipos.
+3. **Colas sí, acumuladores no.** Pill con número solo si la cola se vacía.
+4. **Mostrar menos antes que mentir.** Sin dato → se omite. Los cortes se declaran.
+5. **Una acción sin su evidencia obliga a decidir a ciegas.**
+6. **Fuente única**: un criterio, N consumidores.
+7. **El sol pertenece a donde se RESUELVE el hecho, no a donde se lista.**
+8. **Cifras de negocio → Analítica**, salvo en pantallas que SON de análisis.
+9. **Un tinte `-soft` sobre imagen pierde su contrato de contraste.**
+10. **Los tres roles del ámbar**: `--duna-sol`, `--duna-sol-soft`, `--duna-sol-ink`.
+11. **Ningún color literal, nunca.** Ni hex, ni `rgb()`, ni utilidades shadcn. Si
+    el token no existe, Code **para y pregunta**.
+12. **Navegable no es lo mismo que coloreado.** Enlace en tinta; el ícono de
+    enlace externo se reserva para destinos externos.
+13. **Máximo un primario, no exactamente uno.** Una pantalla puede no tenerlo.
+    Pero Inventario **sí**: "Ajustar stock" es su única escritura.
+14. **Un botón deshabilitado dice qué falta**, pero no dice "no hay cambios que
+    guardar" — eso es redundante con el botón apagado. La ranura vacía no reserva
+    alto.
+15. **Los pills de conteo van planos.** El sol marca dónde actuar (el badge de la
+    fila); teñir también el conteo sería un segundo canal para el mismo hecho.
+
+---
+
+## 6. Doctrina de arquitectura
+
+- **Opción C, sostenida seis veces**: la **forma** en el paquete, la **conducta**
+  en el consumidor. `packages/design-system` no tiene una sola pieza con
+  comportamiento.
+- **El paquete es agnóstico** de dominio, idioma y tenant. **`packages/core` es
+  agnóstico** de tenant, color y presentación.
+- **Un solo embudo de salida.** Toda salida de un formulario sucio pasa por
+  `intentarSalir` — cerrar, cambiar de registro, enlaces internos. Una puerta
+  nueva **abre el agujero de nuevo** y se conecta en el mismo commit.
+- **No persistir borradores.** Ni en localStorage, ni sobreviviendo al cambio de
+  registro. **Sí** deben sobrevivir al remontaje por cambio de contenedor.
+- **El estado que debe sobrevivir a un remontaje vive en el padre que no se
+  remonta.** React reconcilia por posición.
+- **Todo hueco se llena en el sistema, con su bloque en `reference.html`** — y el
+  bloque ejercita el caso corto además del largo.
+- **Nombrar por rol**, no por caso de uso ni por valor.
+- **Fase B** (partir en `apps/admin` + `apps/storefront`) no está hecha.
+
+---
+
+## 7. Proceso de trabajo
+
+- **Discovery antes de escribir, siempre.** Ha evitado errores caros 12+ veces.
+- **Un commit por naturaleza de cambio.** Un refactor que solo renombra debe poder
+  verificarse sin que nada cambie de aspecto.
+- **Tres capas**: `tsc` · `npm test` (puras, con `tsx`, **NO es gate de tipos**) ·
+  `test:integracion` (carril contra Postgres). La capa 3 (UI) es del owner.
+- **Un test que afirma un mecanismo se corre SIN el mecanismo.** PERO: si el
+  mecanismo no es observable desde las capas actuales, **no se inventa un test**
+  — uno con modelo inventado pasa en verde contra el código defectuoso.
+- **La herramienta de verificación también se verifica.** `grep -c` cuenta líneas
+  no apariciones; un viewport 0×0 miente. Toda medición por tema lleva **aserción
+  de cordura**.
+- **Cuando un arreglo se aplica y el síntoma persiste, el diagnóstico estaba
+  incompleto.**
+- **Nada a `main` sin preview verde + gate del owner** (server frío, sesión, ambos
+  temas, teléfono real).
+- **Estado de `main` con fetch fresco, verificado por CONTENIDO.**
+- **"El gate es verde" es vocabulario prohibido para Code**: verdes están las capas
+  1 y 2; la capa 3 es del owner.
+
+### El tripwire
+Cuando el owner prescribe una forma técnica, la instrucción lleva: *"si esto no
+funciona por algo que no vemos, PARA y repórtalo — no lo resuelvas volviendo a
+X"*. Ha funcionado dos veces (el `calc` del shell, el test sin harness).
+
+### Sobre las maquetas y los repos de Carlos
+Se leen **solo lectura**, nunca se copia código. Intención de forma → se adopta.
+**NO** fuente de valores. **NO** fuente de alcance — han dibujado features sin
+modelo seis veces. Un dato que nuestro schema no tiene **no existe**.
+
+---
+
+## 8. Backlog
+
+**Fuente de verdad: `CLAUDE.md`.** No se duplica acá — dos copias divergen.
+
+Reglas: va ordenada y **el orden es la decisión**; el número es identidad, no
+posición. Cada entrada dice el **costo ya pagado**. Un ítem completado **se borra**.
+
+Vivos: `#1` · `#2` · `#3` · `#4` · `#5` · `#6` · `#8` · `#10` · `#16` · `#18` ·
+`#19` · `#20` · `#21` · `#22` · `#23` · `#25`.
+
+---
+
+## 9. Decisiones estructurales que no se reabren
+
+- **Dos modelos de scroll conviven a propósito.** Deuda **con fecha**: cada
+  vertical adopta la región cuando se rediseñe; el shell global entra al final
+  como consolidación (`#22`).
+- **El auto-select** re-evalúa al cambiar carril, rango o buscador. Si el
+  seleccionado sigue presente **se conserva**; si no, se toma el primero; carril
+  vacío → placeholder. El deep link gana en la carga inicial. Alcance: Pedidos y
+  Clientes. **Productos se salta.**
+- **Los carriles filtran, no clasifican.** Una orden puede estar en varios a la
+  vez (p. ej. "Por verificar" y "Por cobrar"), sin precedencia.
+- **Las dos puertas de escritura de stock se conservan.** Todo dato nuevo del
+  asiento debe enhebrarse por las DOS.
+- **La frontera Productos / Inventario**: Productos responde *"¿cómo está este
+  producto?"*; Inventario, *"¿qué pasó con el stock?"*. La cola de reposición vive
+  **solo** en Productos.
+- **`OrderStatusTransition`** es append-only, actor como snapshot sin FK, orden
+  `[occurred_at asc, id asc]`. Sin backfill.
+- **El contrato con Carlos**: coexistencia, no unificación. El merge físico está
+  gateado a que exista un piloto vivo; hoy hay cero.
+- **`is-saving` NO reemplaza a `useAccionGuardada`** — la guarda real contra
+  doble-submit es el ref síncrono. Vale doble ahora que verificar mueve dinero.
+- **Una mutación jamás depende de que el diálogo que la disparó siga montado.**
+- **No hay `AbortController`** en `lib/api/`: navegar a mitad de un guardado no
+  aborta la escritura.
+- **"Ingresos" = `Payment.monto`** (plata que entró, con envío). La base del
+  margen en Analítica es **"Venta de mercancía"** (`OrderItem.subtotal`, sin
+  envío). Dos bases, dos nombres.
+- **Decidido NO hacer:** retirar el buscador de sección; persistir borradores;
+  primitiva de disclosure en el DS; `picked_up_count` (somos delivery-only).
+
+---
+
+## 10. Cómo continuar
+
+1. **Pagos.** Su modelo ya está cerrado: es un **libro de solo lectura**
+   (`pagos/page.tsx:117-118`) y una pantalla de **análisis** — la cobranza vive en
+   el detalle de la orden. Lo que le falta es **forma**, no modelo. Al
+   rediseñarla adopta la región (§3) y con eso avanza `#22`.
+   - Decisión abierta: si adopta el *strip* de Carlos como lente del rango, y qué
+     se hace con la divergencia lente-vs-tabla (excluir un canal cambia la vista
+     pero no el registro — dos representaciones del mismo número en pantalla al
+     mismo tiempo).
+2. **Analítica** (ahí caen `#6` y `#7-bis`: el destino de la gráfica de Pedidos,
+   que hoy no es clickeable porque ningún conjunto del panel coincide con lo que
+   mide).
+3. **Automatizaciones** y **Dashboard** (ahí cae `#16`).
+4. **`#23`** (barras de scroll) como tanda de acabado con gate visual propio.
+5. Backlog cuando sus disparadores se cumplan.
+
+### Gates que solo puede correr el owner
+Code no tiene sesión: **toda la capa 3 es del owner** — aspecto, flujos, ambos
+temas, teléfono real. Para probar en teléfono, el camino que funciona es **el
+preview de Vercel**.
+
+Para el layout, el gate mínimo son **cuatro anchos**: 1440 y 1280 (split), 1000
+(sheet lateral modal, rail visible), 800 (sheet desde abajo, barra inferior) —
+más los **cruces con contenido a medio escribir**, que es donde un cambio de
+contenedor rompe.
