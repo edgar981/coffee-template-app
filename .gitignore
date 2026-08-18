@@ -48,3 +48,6 @@ next-env.d.ts
 
 # scratch PR body (not part of the project)
 /PR_BODY.md
+
+# Mapa de los repos de Carlos — material de la sesión de asesoría, no del producto.
+/CARTOGRAFIA-DUNA.md
