@@ -9,10 +9,7 @@ import { PresetsPeriodo } from '@/components/admin/PresetsPeriodo';
 import { PagosStrip } from '@/components/admin/PagosStrip';
 import { getPayments } from '@/lib/api/payments';
 import type { Payment, MetodoPago } from '@/types/payment';
-import {
-  METODOS_PAGO, METODO_PAGO_LABEL, METODO_CATEGORIA,
-  PAYMENT_CATEGORIA_LABEL, PAYMENT_CATEGORIAS_MULTI,
-} from '@/types/payment';
+import { METODO_PAGO_LABEL, METODO_CATEGORIA } from '@/types/payment';
 import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
 import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
@@ -161,18 +158,24 @@ function PagosInner() {
             value={metodo}
             onChange={e => setMetodoSel(e.target.value)}
           >
+            {/* Agrupado por CÓMO LLEGA LA PLATA (lo que el operador distingue), no por la
+                mecánica del filtro. "Cualquier digital" (value cat:*) conserva la
+                capacidad de grupo —filtrar los tres digitales de un golpe— como primera
+                opción del grupo, separada de los métodos por un divisor inerte (lo más
+                cerca de "visualmente separada" que da un <select> nativo). */}
             <option value="all">Método · todos</option>
-            {PAYMENT_CATEGORIAS_MULTI.length > 0 && (
-              <optgroup label="Categoría">
-                {PAYMENT_CATEGORIAS_MULTI.map(cat => (
-                  <option key={`cat:${cat}`} value={`cat:${cat}`}>{PAYMENT_CATEGORIA_LABEL[cat]} (todas)</option>
-                ))}
-              </optgroup>
-            )}
-            <optgroup label="Método">
-              {METODOS_PAGO.map(m => (
-                <option key={m} value={m}>{METODO_PAGO_LABEL[m]}</option>
-              ))}
+            <optgroup label="Digitales">
+              <option value="cat:TRANSFERENCIA">Cualquier digital</option>
+              <option value="" disabled>──────────</option>
+              <option value="NEQUI">{METODO_PAGO_LABEL.NEQUI}</option>
+              <option value="DAVIPLATA">{METODO_PAGO_LABEL.DAVIPLATA}</option>
+              <option value="TRANSFERENCIA">{METODO_PAGO_LABEL.TRANSFERENCIA}</option>
+            </optgroup>
+            <optgroup label="Físicos">
+              <option value="EFECTIVO">{METODO_PAGO_LABEL.EFECTIVO}</option>
+            </optgroup>
+            <optgroup label="Otros">
+              <option value="OTRO">{METODO_PAGO_LABEL.OTRO}</option>
             </optgroup>
           </select>
           <PresetsPeriodo opciones={presetsPagos} desde={from} hasta={to} onSelect={setRango} />
