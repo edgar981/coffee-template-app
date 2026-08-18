@@ -3,18 +3,14 @@
 import { Suspense, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { CreditCard, DollarSign, Receipt, FilterX } from 'lucide-react';
-import { Label } from '@/components/ui/label';
+import { FilterX, Paperclip } from 'lucide-react';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DunaTable, type DunaColumn } from '@duna/design-system/components/DunaTable';
 import { getPayments } from '@/lib/api/payments';
 import type { Payment } from '@/types/payment';
-import { tienePendienteDeVerificar } from '@/lib/comprobante';
-import { Paperclip } from 'lucide-react';
 import {
-  METODOS_PAGO, METODO_PAGO_LABEL,
-  METODO_CATEGORIA, PAYMENT_CATEGORIA_LABEL, PAYMENT_CATEGORIAS, PAYMENT_CATEGORIAS_MULTI,
-  METODO_DESGLOSE_LABEL,
+  METODOS_PAGO, METODO_PAGO_LABEL, METODO_CATEGORIA,
+  PAYMENT_CATEGORIA_LABEL, PAYMENT_CATEGORIAS_MULTI,
 } from '@/types/payment';
 import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
@@ -84,28 +80,9 @@ function PagosInner() {
   }), [pagos, metodo]);
 
   const totalPeriodo = filtered.reduce((sum, p) => sum + p.monto, 0);
-
-  // "Por método" summary, bucketed by category. Each category shows its count +
-  // total; multi-method categories (Transferencia) also list the method breakdown.
-  // A category only appears when it has payments (so OTRO shows only if used).
-  const categoriaStats = useMemo(() =>
-    PAYMENT_CATEGORIAS
-      .map(cat => {
-        const methods = METODOS_PAGO.filter(m => METODO_CATEGORIA[m] === cat);
-        const pays    = filtered.filter(p => METODO_CATEGORIA[p.metodo] === cat);
-        const desglose = methods
-          .map(m => ({ metodo: m, count: filtered.filter(p => p.metodo === m).length }))
-          .filter(b => b.count > 0);
-        return {
-          categoria: cat,
-          multi:     methods.length > 1,
-          count:     pays.length,
-          total:     pays.reduce((s, p) => s + p.monto, 0),
-          desglose,
-        };
-      })
-      .filter(c => c.count > 0),
-    [filtered]);
+  // La 3ª cifra: promedio del recorte. Reemplaza al desglose "Por método", que se va
+  // al strip (§ decisión de contenido). `null` con 0 pagos → "—", no un $0 engañoso.
+  const promedio = filtered.length ? totalPeriodo / filtered.length : null;
 
   // "Filtrado" ya no es "hay rango" (siempre lo hay) sino "algo distinto del default":
   // método ≠ all, o rango ≠ mes en curso.
@@ -120,207 +97,167 @@ function PagosInner() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
+  // La tabla es `DunaTable` (thead sticky de fábrica, como el kardex de Inventario).
+  // El re-skin de esta tanda es COLUMNAR; la agrupación por día de la maqueta es
+  // contenido sin cerrar y vuelve con el strip.
+  const columnasPagos: DunaColumn[] = [
+    { key: 'fecha',   header: 'Fecha' },
+    { key: 'orden',   header: 'Orden' },
+    { key: 'cliente', header: 'Cliente' },
+    { key: 'monto',   header: 'Monto', align: 'right' },
+    { key: 'metodo',  header: 'Método' },
+    { key: 'ref',     header: 'Referencia' },
+    { key: 'por',     header: 'Registrado por' },
+    // Soporte: SIN encabezado, un clip neutro al final de la fila y sin protagonismo.
+    // El punto de atención vive en el carril "Por verificar" de Pedidos, no en este
+    // libro read-only.
+    { key: 'soporte', header: '' },
+  ];
+  const filasPagos = filtered.map(p => ({
+    key: p.id,
+    cells: [
+      formatFecha(p.fecha),
+      p.order?.numero_orden
+        ? <Link key="orden" href={`/admin/pedidos?pedido=${encodeURIComponent(p.order.numero_orden)}`} className="duna-link">{p.order.numero_orden}</Link>
+        : '—',
+      p.order?.cliente_nombre ?? '—',
+      <span key="monto" className="duna-num">{formatCOP(p.monto)}</span>,
+      <span key="metodo" className="duna-badge duna-badge--neutral">{METODO_PAGO_LABEL[p.metodo]}</span>,
+      <span key="ref" className="duna-mono">{p.referencia || '—'}</span>,
+      p.registrado_por_nombre ?? '—',
+      <SoporteClip key="soporte" comprobantes={p.order?.comprobantes ?? []} />,
+    ],
+  }));
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="duna-sin-split">
+    <div className="duna duna-sin-split">
       {/* CABECERA — todo lo FIJO (header + stats + filtros). Alto fijo desde 960
           (§ duna.css, `.duna-sin-split`); debajo de 960 es flujo normal, document-scroll.
           Sólo la tabla scrollea (la región de abajo). */}
       <div className="duna-cabecera space-y-6 pb-6">
-      {/* Header — no independent "Registrar pago": a payment is registered from
-          its order (Órdenes › Registrar pago). This page is a read-only ledger. */}
-      <div>
-        <h1 className="text-2xl font-bold">Pagos</h1>
-        <p className="text-sm text-muted-foreground">
-          Ledger de pagos registrados. Se registran desde cada orden.
-        </p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="stat-card">
-          <DollarSign className="w-5 h-5 text-emerald-500 mb-3" />
-          <p className="text-xl font-bold text-emerald-600">{formatCOP(totalPeriodo)}</p>
-          <p className="text-xs text-muted-foreground">Total del período</p>
-        </div>
-        <div className="stat-card">
-          <Receipt className="w-5 h-5 text-muted-foreground mb-3" />
-          <p className="text-xl font-bold">{filtered.length}</p>
-          <p className="text-xs text-muted-foreground">Pagos {hasFilters ? 'filtrados' : 'registrados'}</p>
-        </div>
-        <div className="stat-card hidden lg:block">
-          <CreditCard className="w-5 h-5 text-muted-foreground mb-3" />
-          {categoriaStats.length === 0 ? (
-            <span className="text-xs text-muted-foreground">Sin pagos</span>
-          ) : (
-            <div className="space-y-1.5">
-              {categoriaStats.map(c => (
-                <div key={c.categoria}>
-                  <div className="flex items-baseline justify-between gap-2 text-xs">
-                    <span className="font-medium text-foreground">{PAYMENT_CATEGORIA_LABEL[c.categoria]}</span>
-                    <span className="whitespace-nowrap text-muted-foreground">
-                      <span className="font-semibold text-foreground">{c.count}</span>
-                      {' · '}{formatCOP(c.total)}
-                    </span>
-                  </div>
-                  {c.multi && c.desglose.length > 0 && (
-                    <p className="text-[11px] leading-tight text-muted-foreground/80">
-                      {c.desglose.map(b => `${METODO_DESGLOSE_LABEL[b.metodo]} ${b.count}`).join(' · ')}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground mt-2">Por método</p>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-end gap-3">
+        {/* Header — no hay "Registrar pago": un pago se registra desde su orden
+            (Pedidos › Registrar pago). Esta pantalla es un libro de solo lectura. */}
         <div>
-          <Label className="text-xs">Método</Label>
-          <Select value={metodo} onValueChange={setMetodo}>
-            <SelectTrigger className="mt-1 h-9 w-52"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              {PAYMENT_CATEGORIAS_MULTI.length > 0 && (
-                <SelectGroup>
-                  <SelectLabel>Categoría</SelectLabel>
-                  {PAYMENT_CATEGORIAS_MULTI.map(cat => (
-                    <SelectItem key={`cat:${cat}`} value={`cat:${cat}`}>
-                      {PAYMENT_CATEGORIA_LABEL[cat]} (todas)
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              )}
-              <SelectGroup>
-                <SelectLabel>Método</SelectLabel>
-                {METODOS_PAGO.map(m => (
-                  <SelectItem key={m} value={m}>{METODO_PAGO_LABEL[m]}</SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          <h1 className="duna-display-m">Pagos</h1>
+          <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>
+            Ledger de pagos registrados. Se registran desde cada orden.
+          </p>
         </div>
-        {/* Presets de período: un clic cambia el rango (y re-consulta). El date picker
-            de al lado cubre lo más viejo que 3 meses. Fila COMPARTIDA con Inventario. */}
-        <PresetsPeriodo
-          opciones={presetsPagos}
-          desde={from} hasta={to}
-          onSelect={(d, h) => { setFrom(d); setTo(h); }}
-        />
-        <DateRangePicker
-          desde={from || null}
-          hasta={to || null}
-          onChange={(d, h) => { setFrom(d ?? ''); setTo(h ?? ''); }}
-        />
-        {hasFilters && (
-          <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm" onClick={clearFilters}>
-            <FilterX /> Limpiar filtros
-          </button>
-        )}
-      </div>
 
+        {/* Stats — 3 cifras del recorte. El desglose "Por método" se fue al strip; en
+            su lugar, "Promedio por pago". Sin verde en el total: un total no es un
+            estado (§ doctrina). `.duna-stat` con divisores, como el resto del panel. */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: 'var(--duna-space-4)' }}>
+          <div className="duna-stat">
+            <div className="duna-stat__v duna-num">{formatCOP(totalPeriodo)}</div>
+            <div className="duna-stat__l">Total del período</div>
+            <div className="duna-stat__d">del recorte activo</div>
+          </div>
+          <div className="duna-stat">
+            <div className="duna-stat__v duna-num">{filtered.length}</div>
+            <div className="duna-stat__l">Pagos {hasFilters ? 'filtrados' : 'registrados'}</div>
+            <div className="duna-stat__d">del recorte activo</div>
+          </div>
+          <div className="duna-stat">
+            <div className="duna-stat__v duna-num">{promedio !== null ? formatCOP(promedio) : '—'}</div>
+            <div className="duna-stat__l">Promedio por pago</div>
+            <div className="duna-stat__d">total ÷ pagos del recorte</div>
+          </div>
+        </div>
+
+        {/* Filtros — select NATIVO (`.duna-select`, como Inventario; la lista abierta la
+            pinta el SO y `color-scheme` la alinea al tema), presets compartidos, date
+            picker, y limpiar. Sin `<Label>`: la primera opción se auto-rotula. */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', alignItems: 'center' }}>
+          <select
+            className="duna-input duna-select duna-input--sm"
+            style={{ width: 'auto' }}
+            aria-label="Filtrar por método de pago"
+            value={metodo}
+            onChange={e => setMetodo(e.target.value)}
+          >
+            <option value="all">Método · todos</option>
+            {PAYMENT_CATEGORIAS_MULTI.length > 0 && (
+              <optgroup label="Categoría">
+                {PAYMENT_CATEGORIAS_MULTI.map(cat => (
+                  <option key={`cat:${cat}`} value={`cat:${cat}`}>{PAYMENT_CATEGORIA_LABEL[cat]} (todas)</option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Método">
+              {METODOS_PAGO.map(m => (
+                <option key={m} value={m}>{METODO_PAGO_LABEL[m]}</option>
+              ))}
+            </optgroup>
+          </select>
+          {/* Presets de período: un clic cambia el rango (y re-consulta). El date picker
+              de al lado cubre lo más viejo que 3 meses. Fila COMPARTIDA con Inventario. */}
+          <PresetsPeriodo
+            opciones={presetsPagos}
+            desde={from} hasta={to}
+            onSelect={(d, h) => { setFrom(d); setTo(h); }}
+          />
+          <DateRangePicker
+            desde={from || null}
+            hasta={to || null}
+            onChange={(d, h) => { setFrom(d ?? ''); setTo(h ?? ''); }}
+          />
+          {hasFilters && (
+            <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm" onClick={clearFilters}>
+              <FilterX /> Limpiar filtros
+            </button>
+          )}
+        </div>
       </div>{/* /duna-cabecera */}
 
       {/* REGIÓN — sólo la tabla scrollea (§ duna.css, `.duna-sin-split .duna-region`).
-          El card ES el scroller: la región le da `overflow-y` y su `overflow-x-auto`
-          cubre el ancho, así el thead sticky se pega contra UN solo scroller.
+          `DunaTable` trae su envoltorio-scroller y el thead sticky de fábrica.
           loading/empty ocupan la región. */}
       <div className="duna-region">
-      <div className="bg-card border border-border rounded-xl overflow-x-auto">
-        {loading ? (
-          <div className="p-8 text-center text-muted-foreground">Cargando...</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-12 text-center">
-            <CreditCard className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">
+        {loading && <p className="duna-sub" style={{ margin: 0 }}>Cargando los pagos…</p>}
+        {!loading && filtered.length === 0 && (
+          <div className="duna-card duna-card__pad">
+            {/* Distinguir "no hay nada" de "el filtro no encontró nada". */}
+            <p className="duna-sub" style={{ margin: 0 }}>
               {pagos.length === 0
                 ? 'No hay pagos en el rango seleccionado.'
                 : 'No hay pagos que coincidan con el filtro de método.'}
             </p>
           </div>
-        ) : (
-            <table className="w-full text-sm">
-              <thead>
-                {/* Sticky: el card scrollea y el encabezado no puede irse con las
-                    filas. bg OPACO (no `/40`) para tapar lo que pasa por debajo; el
-                    borde va en el th, que viaja con el sticky —el de la fila se
-                    quedaría atrás—. */}
-                <tr>
-                  {['Fecha', 'Orden', 'Cliente', 'Monto', 'Método', 'Soporte', 'Referencia', 'Registrado por'].map(h => (
-                    <th key={h} className="sticky top-0 z-10 bg-muted border-b border-border text-left px-4 py-3 text-xs font-medium text-muted-foreground">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(p => (
-                  <tr key={p.id} className="border-b border-border/50 hover:bg-muted/20">
-                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatFecha(p.fecha)}</td>
-                    <td className="px-4 py-3">
-                      {p.order?.numero_orden ? (
-                        <Link
-                          href={`/admin/pedidos?pedido=${encodeURIComponent(p.order.numero_orden)}`}
-                          className="font-mono text-xs font-semibold text-foreground hover:underline"
-                        >
-                          {p.order.numero_orden}
-                        </Link>
-                      ) : <span className="text-muted-foreground">—</span>}
-                    </td>
-                    <td className="px-4 py-3 font-medium">{p.order?.cliente_nombre ?? '—'}</td>
-                    <td className="px-4 py-3 font-bold">{formatCOP(p.monto)}</td>
-                    <td className="px-4 py-3 text-xs">
-                      <span className="bg-muted px-2 py-0.5 rounded">{METODO_PAGO_LABEL[p.metodo]}</span>
-                    </td>
-                    {/* SOPORTE — indicador, no acción: verificar y ampliar viven
-                        en el detalle de la orden, que es donde está el contexto.
-                        Se etiqueta la EXCEPCIÓN (hay algo por verificar) con
-                        ámbar; "con soporte" ya verificado va neutro, y un pago
-                        sin soporte no lleva nada — el efectivo no tiene qué
-                        fotografiar, así que su vacío no es una falta. */}
-                    <td className="px-4 py-3">
-                      <SoportePago comprobantes={p.order?.comprobantes ?? []} />
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{p.referencia || '—'}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{p.registrado_por_nombre ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
         )}
-      </div>
+        {!loading && filtered.length > 0 && (
+          <DunaTable columns={columnasPagos} rows={filasPagos} minWidth="56rem" />
+        )}
       </div>{/* /duna-region */}
     </div>
   );
 }
 
-// ─── SoportePago ──────────────────────────────────────────────────────────────
-// Los comprobantes cuelgan de la ORDEN, no del Payment (§3.1). Acá sólo se dice
-// si los hay y si alguno sigue sin mirar; el veredicto se da en el detalle de la
-// orden, a un click del número de la fila.
+// ─── SoporteClip ──────────────────────────────────────────────────────────────
+// Los comprobantes cuelgan de la ORDEN, no del Payment (§3.1). Bajo el modelo de
+// cobro un Payment SÓLO coexiste con comprobantes VERIFICADOS —verificar CREA el
+// Payment y sella en la MISMA transacción; RECIBIDO/RECHAZADO + Payment son
+// imposibles hacia adelante—, así que la rama ÁMBAR "Por verificar" se BORRÓ: era
+// código inalcanzable que aparentaba estar vivo (la trampa que el backlog documenta).
+//
+// El clip es NEUTRO y sin protagonismo: dice sólo "hay soporte verificado en
+// archivo". El punto de atención —lo que hay que resolver— vive en el carril "Por
+// verificar" de Pedidos, no en este libro de solo lectura.
+//
+// (Los 4 registros de dev con Payment + RECIBIDO/RECHAZADO son data de prueba ya
+// declarada; sin VERIFICADO no muestran clip, que es lo correcto.)
 
-function SoportePago({ comprobantes }: { comprobantes: { id: string; estado: string }[] }) {
-  if (comprobantes.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
-
-  const pendiente = tienePendienteDeVerificar(
-    comprobantes as { estado: 'RECIBIDO' | 'VERIFICADO' | 'RECHAZADO' }[],
-  );
-
+function SoporteClip({ comprobantes }: { comprobantes: { estado: string }[] }) {
+  const verificado = comprobantes.some(c => c.estado === 'VERIFICADO');
+  if (!verificado) return null;
   return (
     <span
-      title={pendiente
-        ? 'Tiene un comprobante sin verificar. Ábrelo desde la orden.'
-        : 'Comprobante adjunto y ya revisado.'}
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-        pendiente
-          ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-          : 'bg-muted text-muted-foreground'
-      }`}
+      title="Comprobante verificado en archivo"
+      style={{ display: 'inline-flex', color: 'var(--duna-muted)' }}
     >
-      <Paperclip className="h-3 w-3" />
-      {pendiente ? 'Por verificar' : comprobantes.length > 1 ? `${comprobantes.length} soportes` : 'Con soporte'}
+      <Paperclip style={{ width: 14, height: 14 }} />
     </span>
   );
 }
