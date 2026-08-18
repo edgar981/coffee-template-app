@@ -245,7 +245,7 @@ function RegisterForm({ target, declaredMetodo, verificando, guarda, marcarCambi
           <label className="duna-field__label" htmlFor="rp-fecha">Fecha en que entró el pago</label>
           <DateField id="rp-fecha" value={fecha} onChange={setFecha} maxDia={hoy} />
           <p className="mt-1 text-[11px] text-muted-foreground">
-            La fecha de la transferencia, no la de hoy.
+            La fecha del movimiento en tu cuenta.
           </p>
         </div>
         <div>
