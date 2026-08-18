@@ -153,8 +153,11 @@ html.admin {
   .duna-pantalla-fija .duna-region > .duna-split { flex-grow: 1; overflow-y: visible; }
 
   /* Productos en cuadrícula: la columna izquierda del split es `.duna-cards` (la
-     rejilla), no `.duna-split__list`, así que su scroll se declara aparte. */
-  .duna-pantalla-fija .duna-split > .duna-cards  { min-height: 0; overflow-y: auto; }
+     rejilla), no `.duna-split__list`, así que su scroll se declara aparte. El
+     `padding` es el MISMO aire para el hover que `.duna-split__list` (§ primitives.css,
+     "AIRE PARA EL HOVER"): es el otro scroller que sostiene tarjetas con lift. Mismos
+     tokens, para que no diverjan. */
+  .duna-pantalla-fija .duna-split > .duna-cards  { min-height: 0; overflow-y: auto; padding: var(--duna-space-1) var(--duna-space-1) var(--duna-space-4); }
 }
 
 /* ═══ ALTO FIJO SIN SPLIT · desde el breakpoint del CHROME (960) ══════════════

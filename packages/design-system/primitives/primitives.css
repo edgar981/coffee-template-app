@@ -419,6 +419,21 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
   .duna-split { align-items: stretch; min-height: 0; }
   .duna-split__list,
   .duna-split__panel { min-height: 0; overflow-y: auto; }
+  /* AIRE PARA EL HOVER DE LAS TARJETAS. El hover levanta (translateY -1px) y proyecta
+     `--duna-shadow-2` (~20px hacia abajo, ~12px hacia arriba). Sin este padding, el
+     borde del PRIMER hijo y la sombra del ÚLTIMO se recortan contra el borde del
+     scroller —se lee como error de render, no como lista—. Sólo aparece desde que la
+     columna es su propio scroller (antes, document-scroll le daba el aire).
+     ASIMÉTRICO, y el motivo es de PERCEPCIÓN, no de simetría. Arriba space-1 (4px): sólo
+     lo justo para el lift de 1px — cualquier padding mayor arriba se lee como HUECO entre
+     la cabecera y el primer card (se probaron space-5/20px y space-4/16px, sobraban).
+     Abajo space-4 (16px): contiene la sombra perceptible del último card, y ahí el aire
+     NO se percibe porque no hay nada bajo la lista que lo delimite. Lateral space-1 (4px),
+     mínimo: el recorte contra el borde de la columna es tolerable y el ancho de lista
+     (400px) es caro. `box-sizing:border-box` (§ el reset de `.duna *`) mete el padding
+     DENTRO de la altura → no desborda §3. La cuadrícula `.duna-cards` lleva el MISMO aire
+     en duna.css (el otro scroller de tarjetas). Si cambia acá, cambia allá. */
+  .duna-split__list { padding: var(--duna-space-1) var(--duna-space-1) var(--duna-space-4); }
 }
 
 /* ── Punto de atención del NAV ───────────────────────────────────────────────
