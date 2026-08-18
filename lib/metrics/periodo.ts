@@ -132,3 +132,23 @@ export function rangoDeDiasDelPeriodo(periodo: PeriodoKey, now: Date): { desde: 
     hasta: zonedDayKey(startOfZonedDay(hasta, BUSINESS_TZ, -1), BUSINESS_TZ),
   };
 }
+
+/** Un preset ya resuelto a day keys, listo para pintar: etiqueta + rango juntos, para
+ *  que el componente `<PresetsPeriodo>` no reconstruya nada. */
+export interface OpcionPreset {
+  label: string;
+  desde: string;
+  hasta: string;
+}
+
+/**
+ * Los presets de una lista de períodos, resueltos a day keys con la etiqueta de dueño.
+ * Es el mapeo `PeriodoKey → { label, desde, hasta }` que Inventario y Pagos tenían
+ * inline —dos copias divergen en el criterio de `activo` o el orden—. `now` lo fija el
+ * consumidor (un preset abierto no se recalcula por render). Un preset FUERA de este
+ * set (p. ej. "Hoy" en Pagos, que no es un período mensual) lo arma el consumidor y lo
+ * antepone: no entra a `PERIODOS`, que es el vocabulario mensual de Analítica.
+ */
+export function opcionesPreset(keys: PeriodoKey[], now: Date): OpcionPreset[] {
+  return keys.map(k => ({ label: PERIODOS[k], ...rangoDeDiasDelPeriodo(k, now) }));
+}

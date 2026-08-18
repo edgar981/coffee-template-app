@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rangoDeDiasDelPeriodo } from './periodo';
+import { rangoDeDiasDelPeriodo, opcionesPreset } from './periodo';
 
 // Capa 1 — puro. Los presets REUSAN la definición de período de Analítica
 // (`rangoDelPeriodo`) y la traducen a day keys de Bogotá INCLUSIVOS. Lo que se
@@ -33,6 +33,13 @@ test('un período CERRADO usa el último día del CALENDARIO (feb no bisiesto = 
   // ahora sobre un período cerrado: en marzo, "Mes pasado" es febrero completo.
   const marzo = new Date('2026-03-10T18:00:00Z'); // 10 mar 13:00 Bogotá
   assert.deepEqual(rangoDeDiasDelPeriodo('mes_anterior', marzo), { desde: '2026-02-01', hasta: '2026-02-28' });
+});
+
+test('opcionesPreset mapea cada período a { label, desde, hasta } — el mapeo que Inventario y Pagos comparten', () => {
+  assert.deepEqual(opcionesPreset(['mes', 'mes_anterior'], MED_MAYO), [
+    { label: 'Este mes',   desde: '2026-05-01', hasta: '2026-05-15' },
+    { label: 'Mes pasado', desde: '2026-04-01', hasta: '2026-04-30' },
+  ]);
 });
 
 test('la frontera es de BOGOTÁ, no UTC: 1 jun 04:00Z todavía es 31 MAY', () => {
