@@ -889,6 +889,25 @@ ocurre—: el disparador correcto es el HECHO (mover la consulta), no la tanda q
 suponía que lo traería. Cambiar el fetch sólo por el lint sigue siendo tocar dos cosas
 cuando el hecho real va a tocar una.
 
+### 28. La lista tabular del panel tiene DOS patrones — `DunaTable` y `.admin-lista`
+
+Conviven a propósito, pero es una divergencia con fecha de cierre. `.admin-lista`
+(grid-list, `app/(admin)/duna.css`) es el patrón por defecto (§ Listas tabulares del
+panel); `DunaTable` (`<table>` con envoltorio de scroll horizontal) sigue vivo en UN
+consumidor: el kardex de Inventario.
+
+**Costo YA pagado: ninguno todavía** —los dos funcionan—, pero **dos patrones para lo
+mismo es cómo la próxima vertical elige sin criterio**. Salió de medir (no deducir) que
+el `overflow-x` del envoltorio de `DunaTable` despega el thead sticky cuando algo
+scrollea encima en el mismo scroller (el strip de Pagos): por eso Pagos usó el grid-list
+y el kardex se quedó en `DunaTable`.
+
+**DISPARADOR: cuando se toque el kardex de Inventario.** Ahí migra a `.admin-lista`
+—y con eso queda el SEGUNDO consumidor, que es el punto: **con dos, `.admin-lista` se
+EXTRAE al DS con nombre `duna-`** (hoy es admin-level a propósito, para no aparentar una
+primitiva que no está en el paquete). La migración del kardex es la ocasión; la
+extracción es la meta. `DunaTable` se retira cuando el kardex deje de usarlo.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
@@ -3318,6 +3337,58 @@ ningún rol existente, así que es su propio rol.
 - **Se ejercitan las CINCO juntas, en el mismo cuadro de 9px**, en `reference.html`:
   lo que hay que poder ver de un vistazo es que se distinguen ENTRE SÍ y de los
   estados al tamaño real de un chart, no una por una.
+
+## Listas tabulares del panel — grid-list por defecto, no `<table>`
+
+**El patrón por defecto de una lista de datos del panel es el grid-list**
+(`.admin-lista`, `app/(admin)/duna.css`): filas que son `display: grid`, con encabezado
+`position: sticky` y **sin envoltorio de overflow propio**. NO es cosmético:
+
+- **En móvil REFLUYE** (a dos columnas) en vez de scrollear horizontal. El scroll
+  horizontal de una tabla de datos es pésimo al tacto —se pierde la columna de
+  referencia—; un grid-list re-fluye a un bloque legible.
+- **El sticky del encabezado funciona en un scroller COMPARTIDO.** Cuando algo scrollea
+  ENCIMA de la lista en el mismo scroller —el strip de Pagos—, el `overflow-x` del
+  envoltorio de un `<table>` (el `.duna-table-wrap` de `DunaTable`) captura el sticky y
+  se lo lleva al scrollear. **Medido, no deducido** (repro con strip + tabla + wrap: el
+  thead se despega). El grid-list, sin overflow propio, deja el sticky pegado al
+  scroller de la región.
+
+**`.admin-lista` es admin-level a PROPÓSITO — no lleva prefijo `duna-`.** Una clase
+`duna-*` fuera del paquete aparenta ser una primitiva del DS, y otra vertical la usaría
+creyendo que existe ahí. Entra al paquete con nombre `duna-` cuando haya un SEGUNDO
+consumidor (el kardex de Inventario), no antes (§ Backlog #28). Hasta entonces
+**`DunaTable` sigue vivo** en su único consumidor —el kardex—; los dos patrones conviven
+con fecha de cierre, no indefinidamente.
+
+## El strip de Pagos — barras sobre el tiempo, de una fuente
+
+La tira de barras vive DENTRO de la región que scrollea, ENCIMA del libro; la cabecera
+fija se queda con título, stats y filtros. Reglas que son decisión, no estilo:
+
+- **Una FUENTE alimenta strip, stats y tabla**: `pagos` (el recorte del rango, ya en
+  SQL). El filtro es la composición de tres, todo client-side: **método** (el select),
+  **exclusiones** (la leyenda) y **bucket** (clic en una barra). El strip no re-consulta
+  —por eso esta tanda NO tocó el fetch (§ Backlog #27)—.
+- **La escalera y el anclaje viven en `lib/pagos/bucketeo.ts`** (puro, capa 1): cinco
+  peldaños con tope de 31 barras (día → semana → mes → trimestre → año), y >31 años NO
+  dibuja y lo declara —la tabla sigue completa, nunca se trunca—. **Las semanas se
+  anclan al CALENDARIO (lunes Bogotá), no al inicio del rango**, o la misma semana suma
+  distinto según por dónde se entró. La primera y última barra pueden ser PARCIALES: se
+  DECLARAN en el eje (un `·` + nota), porque una barra corta por corte de rango se lee
+  como caída de ventas si no se dice.
+- **La leyenda NO re-basea**: cada % es sobre el total del rango sin descontar
+  exclusiones; lo excluido va tachado con su % visible. Re-basear escondería que se está
+  mirando un recorte.
+- **El toggle "Por método" se deshabilita si el select acotó a un método** — partir por
+  método algo que ya es un método es ruido.
+- **El chip del bucket vive en la cabecera FIJA y su etiqueta se entiende SOLA**
+  ("jue 27 ago", "semana del 10 ago", "sep 2026"), nunca "1 seleccionado": al scrollear,
+  el operador ve el chip sin ver la barra que lo produjo (`etiquetaBucket`,
+  `lib/pagos/etiquetas.ts`).
+- **Colores: `--duna-serie-1…5`** por método (serie-5 = OTRO, el neutro). Nunca estado.
+- **El strip es bespoke admin, no una primitiva del DS** (§ discovery: no hay primitiva
+  de chart, y con un consumidor no se justifica una).
 
 ## Automatizaciones — arquitectura y prerequisitos de go-live
 

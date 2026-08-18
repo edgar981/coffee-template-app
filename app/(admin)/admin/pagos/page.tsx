@@ -3,11 +3,12 @@
 import { Suspense, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { FilterX, Paperclip } from 'lucide-react';
+import { FilterX, Paperclip, X } from 'lucide-react';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
-import { DunaTable, type DunaColumn } from '@duna/design-system/components/DunaTable';
+import { PresetsPeriodo } from '@/components/admin/PresetsPeriodo';
+import { PagosStrip } from '@/components/admin/PagosStrip';
 import { getPayments } from '@/lib/api/payments';
-import type { Payment } from '@/types/payment';
+import type { Payment, MetodoPago } from '@/types/payment';
 import {
   METODOS_PAGO, METODO_PAGO_LABEL, METODO_CATEGORIA,
   PAYMENT_CATEGORIA_LABEL, PAYMENT_CATEGORIAS_MULTI,
@@ -16,11 +17,15 @@ import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
 import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
 import { rangoDeDiasDelPeriodo, opcionesPreset } from '@/lib/metrics/periodo';
-import { PresetsPeriodo } from '@/components/admin/PresetsPeriodo';
+import { elegirEscala, bucketsDelRango, bucketKey } from '@/lib/pagos/bucketeo';
+import { etiquetaBucket } from '@/lib/pagos/etiquetas';
+
+// Columnas del libro (grid-list). Flexibles: caben en la región sin scroll horizontal
+// en escritorio, y refluyen a 2 columnas en móvil (§ duna.css, `.admin-lista`).
+const COLS = '84px 104px minmax(70px,1.1fr) 96px 108px minmax(70px,1.3fr) 104px 22px';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-// useSearchParams() needs a Suspense boundary (same pattern as Órdenes).
 export default function Pagos() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Cargando...</div>}>
@@ -33,32 +38,27 @@ function PagosInner() {
   const router       = useRouter();
   const pathname     = usePathname();
   const searchParams = useSearchParams();
-  // La pantalla SIEMPRE abre con un rango: MES EN CURSO por defecto —lo que el
-  // operador necesita ver al abrir un libro de pagos, "¿cuánto llevó este mes?"— o el
-  // `?desde/?hasta` del deep-link del dashboard (Ventas hoy → hoy, Ingresos del mes →
-  // el mes). Con rango siempre presente el server nunca consulta sin acotar (§ el
-  // route): no hay caso "sin rango" ni corte silencioso que declarar.
-  // El reloj se fija al montar: los presets y el default no se recalculan por render.
+  // La pantalla SIEMPRE abre con un rango: MES EN CURSO por defecto, o el `?desde/?hasta`
+  // del deep-link del dashboard. El reloj se fija al montar.
   const ahora    = useMemo(() => new Date(), []);
   const hoy      = zonedDayKey(ahora, BUSINESS_TZ);
-  // El DEFAULT es el MISMO rango que el preset "Este mes" (una fuente), así que al
-  // abrir queda ese preset marcado.
   const rangoMes = useMemo(() => rangoDeDiasDelPeriodo('mes', ahora), [ahora]);
-  // "Hoy" no es un período mensual (no está en `PERIODOS`): se antepone acá. El resto
-  // sale del set compartido. Para lo más viejo que 3 meses, el date picker.
   const presetsPagos = useMemo(
     () => [{ label: 'Hoy', desde: hoy, hasta: hoy }, ...opcionesPreset(['mes', 'mes_anterior', 'ultimos_3_meses'], ahora)],
     [hoy, ahora],
   );
   const [pagos, setPagos]     = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
-  // 'all' | a MetodoPago | `cat:${PaymentCategoria}` (grouped-category filter).
-  const [metodo, setMetodo]   = useState<string>('all');
+  const [metodo, setMetodo]   = useState<string>('all');      // 'all' | MetodoPago | `cat:${cat}`
   const [from, setFrom]       = useState(() => searchParams.get('desde') ?? rangoMes.desde);
   const [to, setTo]           = useState(() => searchParams.get('hasta') ?? rangoMes.hasta);
+  // Estado del STRIP, todo client-side y de una fuente con la tabla:
+  const [bucketSel, setBucketSel] = useState<string | null>(null); // bucket clickeado
+  const [split, setSplit]         = useState(false);                // toggle "Por método"
+  const [excl, setExcl]           = useState<MetodoPago[]>([]);      // exclusiones de la leyenda
 
-  // El rango se filtra en SQL, así que un cambio de rango RE-CONSULTA. El `active`
-  // evita que una respuesta lenta pise a una más nueva (mismo patrón que el carrusel).
+  // El rango se filtra en SQL → un cambio de rango RE-CONSULTA. `active` evita que una
+  // respuesta lenta pise a una más nueva.
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -71,74 +71,63 @@ function PagosInner() {
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  // SÓLO el método filtra acá — el rango ya lo aplicó el server. `pagos` ES el recorte
-  // del rango, así que la tabla y (luego) el strip leen las MISMAS filas client-side.
-  const filtered = useMemo(() => pagos.filter(p => {
-    if (metodo === 'all') return true;
-    if (metodo.startsWith('cat:')) return METODO_CATEGORIA[p.metodo] === metodo.slice(4);
-    return p.metodo === metodo;
-  }), [pagos, metodo]);
+  // La escala del bucketeo del rango, y el bucket seleccionado como objeto (para su
+  // etiqueta auto-explicativa en el chip). `null` si el rango no dibuja (>31 años).
+  const escala        = useMemo(() => elegirEscala(from, to), [from, to]);
+  const bucketsRango  = useMemo(() => (escala ? bucketsDelRango(from, to, escala) : []), [from, to, escala]);
+  const bucketSelObj  = bucketSel ? bucketsRango.find(bk => bk.key === bucketSel) ?? null : null;
+
+  // UNA fuente para stats, strip y tabla: método (select) + exclusiones (leyenda) +
+  // bucket (clic en barra). Todo sobre `pagos`, el recorte del rango.
+  const filtered = useMemo(() => {
+    const metOk = (m: MetodoPago) => {
+      if (metodo === 'all') return !excl.includes(m);
+      if (metodo.startsWith('cat:')) return METODO_CATEGORIA[m] === metodo.slice(4);
+      return m === metodo;
+    };
+    return pagos.filter(p =>
+      metOk(p.metodo) &&
+      (!bucketSel || (escala != null && bucketKey(new Date(p.fecha), escala) === bucketSel)),
+    );
+  }, [pagos, metodo, excl, bucketSel, escala]);
 
   const totalPeriodo = filtered.reduce((sum, p) => sum + p.monto, 0);
-  // La 3ª cifra: promedio del recorte. Reemplaza al desglose "Por método", que se va
-  // al strip (§ decisión de contenido). `null` con 0 pagos → "—", no un $0 engañoso.
-  const promedio = filtered.length ? totalPeriodo / filtered.length : null;
+  const promedio     = filtered.length ? totalPeriodo / filtered.length : null;
 
-  // "Filtrado" ya no es "hay rango" (siempre lo hay) sino "algo distinto del default":
-  // método ≠ all, o rango ≠ mes en curso.
-  const hasFilters = metodo !== 'all' || from !== rangoMes.desde || to !== rangoMes.hasta;
-  // Limpiar vuelve al DEFAULT (método all + mes en curso) y borra el deep-link de la
-  // URL, para que un reload use el default y no re-aplique un `?desde/?hasta` viejo.
+  const hasFilters = metodo !== 'all' || bucketSel !== null || excl.length > 0
+    || from !== rangoMes.desde || to !== rangoMes.hasta;
+
+  // ── Handlers ─────────────────────────────────────────────────────────────────
+
+  // Un cambio de RANGO limpia el bucket seleccionado (es específico del rango: la escala
+  // y las claves cambian). El método/exclusiones sí sobreviven (son por método).
+  const setRango = (d: string | null, h: string | null) => {
+    setFrom(d ?? ''); setTo(h ?? ''); setBucketSel(null);
+  };
+  const setMetodoSel = (v: string) => {
+    setMetodo(v);
+    if (v !== 'all') setExcl([]); // sin split no hay leyenda que las gobierne
+  };
+  const toggleExcl = (m: MetodoPago) =>
+    setExcl(prev => (prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]));
+
   const clearFilters = () => {
     setMetodo('all'); setFrom(rangoMes.desde); setTo(rangoMes.hasta);
+    setBucketSel(null); setSplit(false); setExcl([]);
     const next = new URLSearchParams(searchParams.toString());
     next.delete('desde'); next.delete('hasta');
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
-  // La tabla es `DunaTable` (thead sticky de fábrica, como el kardex de Inventario).
-  // El re-skin de esta tanda es COLUMNAR; la agrupación por día de la maqueta es
-  // contenido sin cerrar y vuelve con el strip.
-  const columnasPagos: DunaColumn[] = [
-    { key: 'fecha',   header: 'Fecha' },
-    { key: 'orden',   header: 'Orden' },
-    { key: 'cliente', header: 'Cliente' },
-    { key: 'monto',   header: 'Monto', align: 'right' },
-    { key: 'metodo',  header: 'Método' },
-    { key: 'ref',     header: 'Referencia' },
-    { key: 'por',     header: 'Registrado por' },
-    // Soporte: SIN encabezado, un clip neutro al final de la fila y sin protagonismo.
-    // El punto de atención vive en el carril "Por verificar" de Pedidos, no en este
-    // libro read-only.
-    { key: 'soporte', header: '' },
-  ];
-  const filasPagos = filtered.map(p => ({
-    key: p.id,
-    cells: [
-      formatFecha(p.fecha),
-      p.order?.numero_orden
-        ? <Link key="orden" href={`/admin/pedidos?pedido=${encodeURIComponent(p.order.numero_orden)}`} className="duna-link">{p.order.numero_orden}</Link>
-        : '—',
-      p.order?.cliente_nombre ?? '—',
-      <span key="monto" className="duna-num">{formatCOP(p.monto)}</span>,
-      <span key="metodo" className="duna-badge duna-badge--neutral">{METODO_PAGO_LABEL[p.metodo]}</span>,
-      <span key="ref" className="duna-mono">{p.referencia || '—'}</span>,
-      p.registrado_por_nombre ?? '—',
-      <SoporteClip key="soporte" comprobantes={p.order?.comprobantes ?? []} />,
-    ],
-  }));
-
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="duna duna-sin-split">
-      {/* CABECERA — todo lo FIJO (header + stats + filtros). Alto fijo desde 960
-          (§ duna.css, `.duna-sin-split`); debajo de 960 es flujo normal, document-scroll.
-          Sólo la tabla scrollea (la región de abajo). */}
+      {/* CABECERA fija: header + stats + filtros. El strip NO va acá — scrollea con el
+          libro (§ duna.css). El chip de bucket sí vive acá, con etiqueta que se entiende
+          sola porque el operador lo ve sin ver la barra que lo produjo. */}
       <div className="duna-cabecera space-y-6 pb-6">
-        {/* Header — no hay "Registrar pago": un pago se registra desde su orden
-            (Pedidos › Registrar pago). Esta pantalla es un libro de solo lectura. */}
         <div>
           <h1 className="duna-display-m">Pagos</h1>
           <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>
@@ -146,19 +135,16 @@ function PagosInner() {
           </p>
         </div>
 
-        {/* Stats — 3 cifras del recorte. El desglose "Por método" se fue al strip; en
-            su lugar, "Promedio por pago". Sin verde en el total: un total no es un
-            estado (§ doctrina). `.duna-stat` con divisores, como el resto del panel. */}
         <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: 'var(--duna-space-4)' }}>
           <div className="duna-stat">
             <div className="duna-stat__v duna-num">{formatCOP(totalPeriodo)}</div>
             <div className="duna-stat__l">Total del período</div>
-            <div className="duna-stat__d">del recorte activo</div>
+            <div className="duna-stat__d">{bucketSelObj ? etiquetaBucket(bucketSelObj.inicio, escala!) : 'del recorte activo'}</div>
           </div>
           <div className="duna-stat">
             <div className="duna-stat__v duna-num">{filtered.length}</div>
             <div className="duna-stat__l">Pagos {hasFilters ? 'filtrados' : 'registrados'}</div>
-            <div className="duna-stat__d">del recorte activo</div>
+            <div className="duna-stat__d">{bucketSel ? 'del bucket seleccionado' : 'del recorte activo'}</div>
           </div>
           <div className="duna-stat">
             <div className="duna-stat__v duna-num">{promedio !== null ? formatCOP(promedio) : '—'}</div>
@@ -167,16 +153,13 @@ function PagosInner() {
           </div>
         </div>
 
-        {/* Filtros — select NATIVO (`.duna-select`, como Inventario; la lista abierta la
-            pinta el SO y `color-scheme` la alinea al tema), presets compartidos, date
-            picker, y limpiar. Sin `<Label>`: la primera opción se auto-rotula. */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', alignItems: 'center' }}>
           <select
             className="duna-input duna-select duna-input--sm"
             style={{ width: 'auto' }}
             aria-label="Filtrar por método de pago"
             value={metodo}
-            onChange={e => setMetodo(e.target.value)}
+            onChange={e => setMetodoSel(e.target.value)}
           >
             <option value="all">Método · todos</option>
             {PAYMENT_CATEGORIAS_MULTI.length > 0 && (
@@ -192,18 +175,18 @@ function PagosInner() {
               ))}
             </optgroup>
           </select>
-          {/* Presets de período: un clic cambia el rango (y re-consulta). El date picker
-              de al lado cubre lo más viejo que 3 meses. Fila COMPARTIDA con Inventario. */}
-          <PresetsPeriodo
-            opciones={presetsPagos}
-            desde={from} hasta={to}
-            onSelect={(d, h) => { setFrom(d); setTo(h); }}
-          />
-          <DateRangePicker
-            desde={from || null}
-            hasta={to || null}
-            onChange={(d, h) => { setFrom(d ?? ''); setTo(h ?? ''); }}
-          />
+          <PresetsPeriodo opciones={presetsPagos} desde={from} hasta={to} onSelect={setRango} />
+          <DateRangePicker desde={from || null} hasta={to || null} onChange={setRango} />
+          {/* Chip del bucket seleccionado — etiqueta auto-explicativa, nunca "1 seleccionado". */}
+          {bucketSelObj && (
+            <span className="duna-badge duna-badge--neutral" style={{ gap: 'var(--duna-space-inline)' }}>
+              {etiquetaBucket(bucketSelObj.inicio, escala!)}
+              <button type="button" onClick={() => setBucketSel(null)} aria-label="Quitar el período seleccionado"
+                      style={{ display: 'inline-flex', border: 0, background: 'transparent', cursor: 'pointer', color: 'inherit', padding: 0 }}>
+                <X style={{ width: 12, height: 12 }} />
+              </button>
+            </span>
+          )}
           {hasFilters && (
             <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm" onClick={clearFilters}>
               <FilterX /> Limpiar filtros
@@ -212,51 +195,64 @@ function PagosInner() {
         </div>
       </div>{/* /duna-cabecera */}
 
-      {/* REGIÓN — sólo la tabla scrollea (§ duna.css, `.duna-sin-split .duna-region`).
-          `DunaTable` trae su envoltorio-scroller y el thead sticky de fábrica.
-          loading/empty ocupan la región. */}
+      {/* REGIÓN — un scroller ÚNICO con el strip + el libro (por eso van en un solo hijo
+          de `.duna-region`): el strip scrollea y el header del libro queda sticky contra
+          este scroller. El libro es `.admin-lista` (grid-list, sin overflow propio). */}
       <div className="duna-region">
-        {loading && <p className="duna-sub" style={{ margin: 0 }}>Cargando los pagos…</p>}
-        {!loading && filtered.length === 0 && (
-          <div className="duna-card duna-card__pad">
-            {/* Distinguir "no hay nada" de "el filtro no encontró nada". */}
-            <p className="duna-sub" style={{ margin: 0 }}>
-              {pagos.length === 0
-                ? 'No hay pagos en el rango seleccionado.'
-                : 'No hay pagos que coincidan con el filtro de método.'}
-            </p>
-          </div>
-        )}
-        {!loading && filtered.length > 0 && (
-          <DunaTable columns={columnasPagos} rows={filasPagos} minWidth="56rem" />
-        )}
+        <div>
+          {!loading && pagos.length > 0 && (
+            <PagosStrip
+              pagos={pagos} desde={from} hasta={to}
+              metodoFiltrado={metodo} bucketSel={bucketSel} split={split} excl={excl}
+              onBucket={setBucketSel} onToggleSplit={() => setSplit(s => !s)} onToggleExcl={toggleExcl}
+            />
+          )}
+
+          {loading ? (
+            <p className="duna-sub" style={{ margin: 'var(--duna-space-4) 0 0' }}>Cargando los pagos…</p>
+          ) : pagos.length === 0 ? (
+            <div className="duna-card duna-card__pad"><p className="duna-sub" style={{ margin: 0 }}>No hay pagos en el rango seleccionado.</p></div>
+          ) : filtered.length === 0 ? (
+            <div className="duna-card duna-card__pad"><p className="duna-sub" style={{ margin: 0 }}>No hay pagos que coincidan con el filtro.</p></div>
+          ) : (
+            <div className="admin-lista">
+              <div className="admin-lista__fila admin-lista__head" style={{ gridTemplateColumns: COLS }}>
+                <span>Fecha</span><span>Orden</span><span>Cliente</span>
+                <span className="admin-lista__r">Monto</span><span>Método</span>
+                <span>Referencia</span><span>Registrado por</span><span aria-hidden="true" />
+              </div>
+              {filtered.map(p => (
+                <div key={p.id} className="admin-lista__fila" style={{ gridTemplateColumns: COLS }}>
+                  <span className="duna-sub" style={{ margin: 0 }}>{formatFecha(p.fecha)}</span>
+                  <span>
+                    {p.order?.numero_orden
+                      ? <Link href={`/admin/pedidos?pedido=${encodeURIComponent(p.order.numero_orden)}`} className="duna-link">{p.order.numero_orden}</Link>
+                      : <span className="duna-sub">—</span>}
+                  </span>
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.order?.cliente_nombre ?? '—'}</span>
+                  <span className="admin-lista__r duna-num">{formatCOP(p.monto)}</span>
+                  <span><span className="duna-badge duna-badge--neutral">{METODO_PAGO_LABEL[p.metodo]}</span></span>
+                  <span className="duna-mono" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.referencia || '—'}</span>
+                  <span className="duna-sub" style={{ margin: 0 }}>{p.registrado_por_nombre ?? '—'}</span>
+                  <span><SoporteClip comprobantes={p.order?.comprobantes ?? []} /></span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>{/* /duna-region */}
     </div>
   );
 }
 
 // ─── SoporteClip ──────────────────────────────────────────────────────────────
-// Los comprobantes cuelgan de la ORDEN, no del Payment (§3.1). Bajo el modelo de
-// cobro un Payment SÓLO coexiste con comprobantes VERIFICADOS —verificar CREA el
-// Payment y sella en la MISMA transacción; RECIBIDO/RECHAZADO + Payment son
-// imposibles hacia adelante—, así que la rama ÁMBAR "Por verificar" se BORRÓ: era
-// código inalcanzable que aparentaba estar vivo (la trampa que el backlog documenta).
-//
-// El clip es NEUTRO y sin protagonismo: dice sólo "hay soporte verificado en
-// archivo". El punto de atención —lo que hay que resolver— vive en el carril "Por
-// verificar" de Pedidos, no en este libro de solo lectura.
-//
-// (Los 4 registros de dev con Payment + RECIBIDO/RECHAZADO son data de prueba ya
-// declarada; sin VERIFICADO no muestran clip, que es lo correcto.)
-
+// Bajo el modelo de cobro, un Payment sólo coexiste con comprobantes VERIFICADOS
+// (§ Pagos al lenguaje Duna). Clip neutro cuando lo hay; el punto de atención vive
+// en el carril "Por verificar" de Pedidos, no en este libro.
 function SoporteClip({ comprobantes }: { comprobantes: { estado: string }[] }) {
-  const verificado = comprobantes.some(c => c.estado === 'VERIFICADO');
-  if (!verificado) return null;
+  if (!comprobantes.some(c => c.estado === 'VERIFICADO')) return null;
   return (
-    <span
-      title="Comprobante verificado en archivo"
-      style={{ display: 'inline-flex', color: 'var(--duna-muted)' }}
-    >
+    <span title="Comprobante verificado en archivo" style={{ display: 'inline-flex', color: 'var(--duna-muted)' }}>
       <Paperclip style={{ width: 14, height: 14 }} />
     </span>
   );
