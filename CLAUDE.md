@@ -875,11 +875,19 @@ rango) y es pre-existente: venía del código shadcn y la tanda de lenguaje Duna
 (2026-08-18) NO lo tocó a propósito —el alcance era el re-skin, no el fetch—. Se anota
 para no re-descubrirlo.
 
-**DISPARADOR: al tocar el fetch de Pagos, que será cuando entre el strip.** Ahí el
-`loading` pasa a DERIVARSE (como en Analítica y la card semanal: `data?.algo !==
-esperado`), apoyado en que el endpoint hace eco de lo que resolvió — el mismo mecanismo
-que ya evita este warning en esas dos pantallas. Antes de eso no se toca: cambiar el
-fetch sólo por el lint es tocar dos cosas cuando el strip va a tocar una.
+**DISPARADOR CORREGIDO: cuando algo MUEVA la consulta de Pagos** —paginación,
+agregación server-side, cambiar de `getPayments` a otra cosa, o el cambio que sea que
+toque el `useEffect`/el endpoint—. Ahí el `loading` pasa a DERIVARSE (como en Analítica
+y la card semanal: `data?.algo !== esperado`), apoyado en que el endpoint hace eco de lo
+que resolvió — el mismo mecanismo que ya evita este warning en esas dos pantallas.
+
+El disparador original decía "cuando entre el strip", asumiendo que el strip tocaría el
+fetch. **No lo tocó**: el strip agrupa `pagos` client-side (una fuente, § el bucketeo),
+y sus filtros —método y bucket— también son client-side, así que el `useEffect` quedó
+intacto. Fue el mismo error que #18 —atar un disparador a un evento que después no
+ocurre—: el disparador correcto es el HECHO (mover la consulta), no la tanda que se
+suponía que lo traería. Cambiar el fetch sólo por el lint sigue siendo tocar dos cosas
+cuando el hecho real va a tocar una.
 
 ## Mejoras post-multitenant
 
