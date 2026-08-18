@@ -908,6 +908,12 @@ EXTRAE al DS con nombre `duna-`** (hoy es admin-level a propósito, para no apar
 primitiva que no está en el paquete). La migración del kardex es la ocasión; la
 extracción es la meta. `DunaTable` se retira cuando el kardex deje de usarlo.
 
+**Y con esa migración va el LOADER de Inventario**: hoy es texto ("Cargando los
+movimientos…"); cuando el kardex sea `.admin-lista`, adopta el skeleton de filas grises
+que Pagos ya tiene (§ el corrector C-2) —ahí los dos comparten forma y el skeleton se
+EXTRAE (dos consumidores)—. Hacerlo antes sería un skeleton de `DunaTable` que esta
+migración tira; por eso el loader de Inventario espera acá, no en el corrector.
+
 ### 29. Los tooltips del panel divergen — `title` nativo vs Radix shadcn
 
 Dos enfoques para lo mismo: **`title` NATIVO** en Productos (× "Eliminar/Activar/Cerrar",

@@ -212,7 +212,23 @@ function PagosInner() {
           )}
 
           {loading ? (
-            <p className="duna-sub" style={{ margin: 'var(--duna-space-4) 0 0' }}>Cargando los pagos…</p>
+            /* El hueco de la carga tiene la FORMA de lo que llega: filas del grid-list,
+               no un spinner ni un esqueleto de tarjeta (eso sugeriría que va a llegar
+               otra cosa). Sin pieza nueva —el marcado es `.admin-lista` con celdas grises—.
+               El día que Inventario migre a `.admin-lista` (§ backlog #28) los dos
+               comparten esta forma y se extrae. */
+            <div className="admin-lista" aria-hidden="true">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="admin-lista__fila" style={{ gridTemplateColumns: COLS }}>
+                  {Array.from({ length: 8 }).map((_, j) => (
+                    <span key={j} style={{
+                      height: 11, borderRadius: 3, background: 'var(--duna-skel)',
+                      width: j === 7 ? 14 : j % 3 === 0 ? '55%' : '82%',
+                    }} />
+                  ))}
+                </div>
+              ))}
+            </div>
           ) : pagos.length === 0 ? (
             <div className="duna-card duna-card__pad"><p className="duna-sub" style={{ margin: 0 }}>No hay pagos en el rango seleccionado.</p></div>
           ) : filtered.length === 0 ? (
