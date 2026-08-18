@@ -39,19 +39,17 @@ Vercel, `main` = producción).
 | `/admin/clientes` | Completa | Igual |
 | `/admin/productos` | Completa | Igual, con clase condicional (cuadrícula sin selección queda en document-scroll) |
 | `/admin/inventario` | Completa, encogida a auditoría | Alto fijo ≥960 (`.duna-sin-split`), scroller único |
-| `/admin/pagos` | En lenguaje Duna; falta SOLO el strip (aditivo, en diseño) | Alto fijo ≥960 (`.duna-sin-split`), scroller único |
+| `/admin/pagos` | Completa (strip incluido) | Alto fijo ≥960 (`.duna-sin-split`), scroller único |
 
 ### Pendientes de rediseño
 Analítica, Automatizaciones, Dashboard, Entregas, Configuración, Perfil.
 **Todas en document-scroll** (el `min-h-screen` por defecto de `AdminChrome`).
 No son convivencias — son pantallas que aún no se tocaron.
 
-**Pendiente en Pagos: SOLO el strip** (el desglose "Por método", en diseño). Cuando
-llegue, **va DENTRO de la región que scrollea, ENCIMA de la tabla — NO en la cabecera
-fija.** Medido sobre la maqueta: cabecera con título + stats + filtros + strip ≈ 470px,
-que en 1280×800 (menos el topbar) deja ~260px de libro —cinco o seis filas—. La
-cabecera fija se queda con título, stats y filtros; el strip scrollea con la tabla. Es
-también el disparador del backlog #27 (el `setLoading` del fetch de Pagos).
+**Pagos cierra** — el strip entró (barras sobre el tiempo, eje intercambiable a método,
+grid-list, celdas navegables; § CLAUDE.md "El strip de Pagos"). Quedan correctores
+menores en curso: C-1 (podar stats), C-2 (loader al patrón de Pedidos), C-3 (la
+primitiva de tooltip del sistema, decisión pendiente — backlog #8).
 
 ### Trabajo cerrado
 - **Tandas 1 y 2** (drawers, detalle de Pedidos) + correctores C1–C5.
@@ -81,6 +79,12 @@ también el disparador del backlog #27 (el `setLoading` del fetch de Pagos).
   teal competía con `ok`); piso de la paleta contra estados ~22 ΔE2000 en ambos temas.
   Doctrina en CLAUDE.md (§ La serie categórica) + bloque en `reference.html`. Sin
   consumidores aún: existe para el strip.
+- **El strip de Pagos**: barras sobre el tiempo (bucketeo puro con escalera de 31 +
+  colapso <4 + semanas de lunes, capa 1), **ejes intercambiables** (tiempo ↔ método con
+  la regla "el eje nunca se filtra a sí mismo"), **grid-list `.admin-lista`** (reemplaza
+  a DunaTable en Pagos; el sticky en scroller compartido se MIDIÓ), **celdas navegables**
+  (fecha/método), y el dropdown por cómo llega la plata. Doctrina en CLAUDE.md; backlog
+  #28 (extraer `.admin-lista` al DS cuando el kardex migre).
 
 ### Infraestructura
 - **Monorepo** npm workspaces: `packages/core` (schema Prisma, data-access) y
