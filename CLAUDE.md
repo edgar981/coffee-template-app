@@ -873,6 +873,25 @@ uno del backlog: están en escalas distintas.
 Cada entrada dice **de qué decisión salió**, porque una mejora sin su origen se
 vuelve una idea suelta que nadie sabe si sigue vigente.
 
+### Pagos en línea (Wompi) — cobros automáticos
+
+Hoy todos los pagos se confirman a mano (Nequi, Daviplata, efectivo, transferencia)
+y la evidencia entra por el flujo de comprobantes. Wompi integraría el cobro en línea
+automático: un pago acreditado por el PSP escribiría el `Payment` sin que un operador
+lo teclee, y el estado de la orden lo movería el webhook, no el modal de Registrar
+Pago.
+
+Origen: retirar la nota "Pagos en línea próximamente" de la pantalla de Pagos
+(owner, 2026-08-18). Era una promesa de producto suelta en una pantalla de operación,
+no una deuda; su lugar es la hoja de ruta, no un cartel en el ledger.
+
+Va después del multitenant, y no es solo prioridad: el cobro automático toca la MISMA
+frontera que § "Decisión — Cuándo un pedido está pagado" —el `Payment` como único
+escritor del eje de cobro— y el puente con Carlos. Un webhook de PSP es un tercer
+escritor de dinero; entra cuando esa autoridad esté resuelta, no antes. El disparador
+real es **la decisión de pasarela**, que hoy no está tomada (Wompi es el candidato,
+no un hecho).
+
 ### Reporte PDF descargable de Analítica
 
 **La evidencia densa pertenece a un documento, no a la pantalla.** La tabla de

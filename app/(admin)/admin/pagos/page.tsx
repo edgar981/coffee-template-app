@@ -124,7 +124,11 @@ function PagosInner() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="duna-sin-split">
+      {/* CABECERA — todo lo FIJO (header + stats + filtros). Alto fijo desde 960
+          (§ duna.css, `.duna-sin-split`); debajo de 960 es flujo normal, document-scroll.
+          Sólo la tabla scrollea (la región de abajo). */}
+      <div className="duna-cabecera space-y-6 pb-6">
       {/* Header — no independent "Registrar pago": a payment is registered from
           its order (Órdenes › Registrar pago). This page is a read-only ledger. */}
       <div>
@@ -220,8 +224,14 @@ function PagosInner() {
         )}
       </div>
 
-      {/* Table */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
+      </div>{/* /duna-cabecera */}
+
+      {/* REGIÓN — sólo la tabla scrollea (§ duna.css, `.duna-sin-split .duna-region`).
+          El card ES el scroller: la región le da `overflow-y` y su `overflow-x-auto`
+          cubre el ancho, así el thead sticky se pega contra UN solo scroller.
+          loading/empty ocupan la región. */}
+      <div className="duna-region">
+      <div className="bg-card border border-border rounded-xl overflow-x-auto">
         {loading ? (
           <div className="p-8 text-center text-muted-foreground">Cargando...</div>
         ) : filtered.length === 0 ? (
@@ -234,12 +244,15 @@ function PagosInner() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border bg-muted/40">
+                {/* Sticky: el card scrollea y el encabezado no puede irse con las
+                    filas. bg OPACO (no `/40`) para tapar lo que pasa por debajo; el
+                    borde va en el th, que viaja con el sticky —el de la fila se
+                    quedaría atrás—. */}
+                <tr>
                   {['Fecha', 'Orden', 'Cliente', 'Monto', 'Método', 'Soporte', 'Referencia', 'Registrado por'].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{h}</th>
+                    <th key={h} className="sticky top-0 z-10 bg-muted border-b border-border text-left px-4 py-3 text-xs font-medium text-muted-foreground">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -277,17 +290,9 @@ function PagosInner() {
                 ))}
               </tbody>
             </table>
-          </div>
         )}
       </div>
-
-      {/* Wompi note — online rails come later; today all payments are manual. */}
-      <div className="bg-muted border border-border rounded-xl p-4 max-w-xl">
-        <p className="text-sm font-semibold text-foreground">Pagos en línea próximamente</p>
-        <p className="text-xs text-muted-foreground mt-1">
-          Hoy los pagos se confirman manualmente (Nequi, Daviplata, efectivo, transferencia). Wompi se integrará para cobros en línea automáticos.
-        </p>
-      </div>
+      </div>{/* /duna-region */}
     </div>
   );
 }
