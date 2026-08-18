@@ -5,33 +5,19 @@ import { registerOrderPaymentTx } from './orders';
 // ─── Las escrituras del comprobante ──────────────────────────────────────────
 //
 // Viven acá y no dentro de los route handlers por el criterio de siempre
-// (`lib/inventory.ts`, `lib/product-update.ts`): el carril de integración no
-// monta HTTP, así que la única forma de afirmar contra una base real que
-// verificar sella y que rechazar NO crea plata es que sean funciones.
+// (`lib/inventory.ts`, `lib/product-update.ts`): el carril de integración no monta
+// HTTP, así que la única forma de afirmar contra una base real lo que estas
+// funciones hacen —verificar una orden pendiente COBRA, rechazar NO crea plata— es
+// que sean funciones.
 //
-// La declaración "ninguna de estas funciones toca `Order.estado`" está VIGENTE HOY
-// pero DEROGADA por decisión (CLAUDE.md § Decisión — Cuándo un pedido está pagado,
-// 2026-08-17). Describe el código real de ESTE momento, no el diseño permanente.
-//
-// SI ESE DOCUMENTO PARECE CONTRADECIR ESTE COMENTARIO, EL DOCUMENTO NO ESTÁ MAL: él
-// describe el destino, este comentario describe el hoy. Cuando se implemente la
-// decisión, gana el documento — y este comentario, junto con el invariante de
-// `comprobante-verificacion.test`, se reescribe con él.
-//
-// Lo VIGENTE hoy: `decidirComprobante` es un `updateMany` puro y la orden la mueve
-// el Payment y sólo el Payment (§3.1). Es lo que el carril afirma contra una base
-// real, y es cierto mientras esta línea exista — no se describe un comportamiento
-// que el código todavía no tiene.
-//
-// Lo DEROGADO: verificar un comprobante sobre una orden PENDIENTE pasará a CREAR el
-// Payment —como tercer llamador de `registerOrderPaymentTx`, no un camino paralelo—
-// y con eso la orden pasará a `pagado`. El motivo: afirmar "la plata entró" al
-// Registrar Pago, antes de juzgar la evidencia, produce los dos síntomas que la
-// decisión cierra (pagado con comprobante sin verificar; rechazar que no revierte).
-//
-// Lo que NO cambia en ninguno de los dos modelos: RECHAZAR nunca crea plata, y el
-// comprobante adjuntado DESDE Registrar Pago nace VERIFICADO (documenta un pago que
-// el operador ya afirmó, no algo por juzgar).
+// VERIFICAR CREA LA PLATA (§ Decisión — Cuándo un pedido está pagado, implementada).
+// Ya NO es cierto que "ninguna función de comprobantes mueve `Order.estado`": sobre
+// una orden PENDIENTE, `decidirComprobante('VERIFICADO')` crea el Payment —tercer
+// llamador de `registerOrderPaymentTx`, en la MISMA transacción que sella— y con eso
+// la orden pasa a `pagado`. Sobre una ya pagada sólo SELLA (la rama que antes era la
+// única). RECHAZAR nunca toca la orden, y el comprobante adjuntado DESDE Registrar
+// Pago nace VERIFICADO. El detalle de la transacción y del lock contra un segundo
+// Payment vive en el docstring de `decidirComprobante`.
 
 export class ComprobanteYaDecidido extends Error {
   constructor(public estadoActual: ComprobanteEstado) {

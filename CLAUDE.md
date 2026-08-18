@@ -893,7 +893,7 @@ con esta regla: no se migran y se renombran a mano.
 
 ## Decisión — Cuándo un pedido está pagado
 
-**Fecha:** 2026-08-17. **Estado:** decidido, no implementado.
+**Fecha:** 2026-08-17. **Estado:** IMPLEMENTADA (`6359bb3` core + `420d5a9` UI).
 **Naturaleza:** regla de producto de Duna, no configuración por tenant.
 Un pedido está pagado cuando la plata entró. Eso no varía por negocio, así que
 **no lleva flag**. Lo que varía es el método de pago, que ya es un dato del modelo.
@@ -1060,34 +1060,34 @@ tiene nada que hacer** — nunca re-verifica lo ajeno. El admin puede sobreescri
 si discrepa; ahí es donde `superseded` cobra sentido. Esto es un ruling pendiente
 para el contrato con Carlos, no trabajo de hoy.
 
-### 5. Alcance de la implementación
+### 5. Alcance — lo que quedó
 
-**Debe cambiar:**
+Dos commits: `6359bb3` (core + endpoints + carril) y `420d5a9` (UI + fecha). El
+detalle vive en el código; acá el mapa:
 
-- `packages/core/src/comprobantes.ts:80` `decidirComprobante` — hoy un `updateMany`
-  puro; pasa a abrir transacción y llamar a `registerOrderPaymentTx` en el caso
-  `verificar sobre orden pendiente`. Es el cambio de fondo, y contradice el
-  comentario declarado del archivo (`:11-15`), que hay que reescribir.
-- `tests/integracion/comprobante-verificacion.test.ts:160` — afirma que ningún
-  veredicto toca `Order.estado`. Es exactamente lo que se invierte.
-- `cobro-sincronizado.test.ts:66` — el wording "el path de dinero es el ÚNICO
-  camino a pagado" pasa a "el único **helper**", con verify como tercer llamador.
-  Sus invariantes (`pagado ⇒ Payment`, `Payment ⇒ no-pendiente`) se siguen
-  cumpliendo; se agrega el caso `verify-on-pendiente ⇒ {pagado, 1 Payment}`.
-- `app/(admin)/admin/pedidos/page.tsx:344` + `lib/comprobante.ts:126` — la rama
-  `'cobrar'` pasa de "abrir modal, sellar después" a una sola llamada de servidor.
-- `RegisterPaymentModal` — el adjunto nace VERIFICADO; campo de fecha (§3);
-  en el flujo con comprobante, EFECTIVO fuera del select y sin preselección si el
-  declarado era efectivo (§3.b).
-
-**Cambia de timing, no de estructura:** `isPorCobrar` / cartera / analítica se
-vacían al verificar en vez de al registrar. Correcto, y con `fecha` expuesta no
-mueve ninguna cifra.
-
-**Ya estaba anticipado:** el carril `por_verificar` (`filtros.ts:73-85`) y la rama
-`'cobrar'` de `accionAlVerificar` se escribieron esperando esto.
-
-**No se afecta:** `assertEstadoNoEsCobro` y sus puertas HTTP.
+- **`decidirComprobante`** (`packages/core/src/comprobantes.ts`) — sobre orden
+  PENDIENTE abre transacción, hace `SELECT … FOR UPDATE` sobre la orden y llama a
+  `registerOrderPaymentTx` (tercer llamador) en la MISMA transacción que sella;
+  sobre orden ya pagada sólo sella. Devuelve `{ comprobante, pagoCreado }`.
+- **El route de comprobantes** dispara `order.pagado` cuando `pagoCreado` (tercer
+  emisor); veta EFECTIVO (`EfectivoConComprobanteError`) y fecha futura
+  (`FechaFuturaError`, impuesta en `registerOrderPaymentTx` — cubre los tres
+  llamadores). El `monto` sale de `order.total` de la fila bloqueada, nunca del body.
+- **`RegisterPaymentTxInput.fecha`** threadeada al `payment.create`; la fecha viaja
+  como clave de día y el server la ancla al inicio del día en Bogotá (`dayKeyStart`)
+  — sin migración, la columna ya existía.
+- **UI:** el `'cobrar'` de la página abre el modal, que ahora hace UNA llamada de
+  verify (se retiró el two-step; en verify mode la orden se refresca del servidor).
+  Campo "Fecha en que entró el pago" (default hoy, tope hoy, `DateField` con
+  `maxDia`), EFECTIVO fuera del select con comprobante en el flujo, y el adjunto de
+  Registrar Pago nace VERIFICADO. El doble-submit pasa por el ref síncrono de
+  `useAccionGuardada`.
+- **Timing, no estructura:** `isPorCobrar` / cartera / analítica se vacían al
+  verificar en vez de al registrar; con la `fecha` expuesta no mueve ninguna cifra.
+- **Tests:** `comprobante-verificacion.test.ts` invirtió el invariante viejo y
+  agregó la prueba del FOR UPDATE (vista fallar con dos Payments), la del emisor
+  (vista fallar sin el disparo) y la de fecha futura; `cobro-sincronizado.test.ts`
+  pasó a "único helper". No se afectó `assertEstadoNoEsCobro` ni sus puertas HTTP.
 
 ### 6. Lo que no se hace
 
@@ -1106,8 +1106,8 @@ mueve ninguna cifra.
   vocabulario reservado. No se especula ahora.
 - **El ruling de autoridad** (quién gana si los dos lados verifican) se escribe
   cuando el puente esté en el horizonte, con Carlos.
-- **La tanda A** (carril "Por verificar") es compatible con las dos versiones del
-  modelo y no depende de esta decisión. Sigue pendiente de gate y push.
+- **La tanda A** (carril "Por verificar") ya está en `main` (`2ba7589`); era
+  compatible con las dos versiones del modelo y no dependía de esta decisión.
 
 ## El eje de COBRO se escribe una sola vez, por el Payment
 
