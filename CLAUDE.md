@@ -875,11 +875,38 @@ rango) y es pre-existente: venía del código shadcn y la tanda de lenguaje Duna
 (2026-08-18) NO lo tocó a propósito —el alcance era el re-skin, no el fetch—. Se anota
 para no re-descubrirlo.
 
-**DISPARADOR: al tocar el fetch de Pagos, que será cuando entre el strip.** Ahí el
-`loading` pasa a DERIVARSE (como en Analítica y la card semanal: `data?.algo !==
-esperado`), apoyado en que el endpoint hace eco de lo que resolvió — el mismo mecanismo
-que ya evita este warning en esas dos pantallas. Antes de eso no se toca: cambiar el
-fetch sólo por el lint es tocar dos cosas cuando el strip va a tocar una.
+**DISPARADOR CORREGIDO: cuando algo MUEVA la consulta de Pagos** —paginación,
+agregación server-side, cambiar de `getPayments` a otra cosa, o el cambio que sea que
+toque el `useEffect`/el endpoint—. Ahí el `loading` pasa a DERIVARSE (como en Analítica
+y la card semanal: `data?.algo !== esperado`), apoyado en que el endpoint hace eco de lo
+que resolvió — el mismo mecanismo que ya evita este warning en esas dos pantallas.
+
+El disparador original decía "cuando entre el strip", asumiendo que el strip tocaría el
+fetch. **No lo tocó**: el strip agrupa `pagos` client-side (una fuente, § el bucketeo),
+y sus filtros —método y bucket— también son client-side, así que el `useEffect` quedó
+intacto. Fue el mismo error que #18 —atar un disparador a un evento que después no
+ocurre—: el disparador correcto es el HECHO (mover la consulta), no la tanda que se
+suponía que lo traería. Cambiar el fetch sólo por el lint sigue siendo tocar dos cosas
+cuando el hecho real va a tocar una.
+
+### 28. La lista tabular del panel tiene DOS patrones — `DunaTable` y `.admin-lista`
+
+Conviven a propósito, pero es una divergencia con fecha de cierre. `.admin-lista`
+(grid-list, `app/(admin)/duna.css`) es el patrón por defecto (§ Listas tabulares del
+panel); `DunaTable` (`<table>` con envoltorio de scroll horizontal) sigue vivo en UN
+consumidor: el kardex de Inventario.
+
+**Costo YA pagado: ninguno todavía** —los dos funcionan—, pero **dos patrones para lo
+mismo es cómo la próxima vertical elige sin criterio**. Salió de medir (no deducir) que
+el `overflow-x` del envoltorio de `DunaTable` despega el thead sticky cuando algo
+scrollea encima en el mismo scroller (el strip de Pagos): por eso Pagos usó el grid-list
+y el kardex se quedó en `DunaTable`.
+
+**DISPARADOR: cuando se toque el kardex de Inventario.** Ahí migra a `.admin-lista`
+—y con eso queda el SEGUNDO consumidor, que es el punto: **con dos, `.admin-lista` se
+EXTRAE al DS con nombre `duna-`** (hoy es admin-level a propósito, para no aparentar una
+primitiva que no está en el paquete). La migración del kardex es la ocasión; la
+extracción es la meta. `DunaTable` se retira cuando el kardex deje de usarlo.
 
 ## Mejoras post-multitenant
 
@@ -3310,6 +3337,90 @@ ningún rol existente, así que es su propio rol.
 - **Se ejercitan las CINCO juntas, en el mismo cuadro de 9px**, en `reference.html`:
   lo que hay que poder ver de un vistazo es que se distinguen ENTRE SÍ y de los
   estados al tamaño real de un chart, no una por una.
+
+## Listas tabulares del panel — grid-list por defecto, no `<table>`
+
+**El patrón por defecto de una lista de datos del panel es el grid-list**
+(`.admin-lista`, `app/(admin)/duna.css`): filas que son `display: grid`, con encabezado
+`position: sticky` y **sin envoltorio de overflow propio**. NO es cosmético:
+
+- **En móvil REFLUYE** (a dos columnas) en vez de scrollear horizontal. El scroll
+  horizontal de una tabla de datos es pésimo al tacto —se pierde la columna de
+  referencia—; un grid-list re-fluye a un bloque legible.
+- **El sticky del encabezado funciona en un scroller COMPARTIDO.** Cuando algo scrollea
+  ENCIMA de la lista en el mismo scroller —el strip de Pagos—, el `overflow-x` del
+  envoltorio de un `<table>` (el `.duna-table-wrap` de `DunaTable`) captura el sticky y
+  se lo lleva al scrollear. **Medido, no deducido** (repro con strip + tabla + wrap: el
+  thead se despega). El grid-list, sin overflow propio, deja el sticky pegado al
+  scroller de la región.
+
+**`.admin-lista` es admin-level a PROPÓSITO — no lleva prefijo `duna-`.** Una clase
+`duna-*` fuera del paquete aparenta ser una primitiva del DS, y otra vertical la usaría
+creyendo que existe ahí. Entra al paquete con nombre `duna-` cuando haya un SEGUNDO
+consumidor (el kardex de Inventario), no antes (§ Backlog #28). Hasta entonces
+**`DunaTable` sigue vivo** en su único consumidor —el kardex—; los dos patrones conviven
+con fecha de cierre, no indefinidamente.
+
+## El strip de Pagos — barras sobre el tiempo, de una fuente
+
+La tira de barras vive DENTRO de la región que scrollea, ENCIMA del libro; la cabecera
+fija se queda con título, stats y filtros. Reglas que son decisión, no estilo:
+
+- **Una FUENTE alimenta strip, stats y tabla**: `pagos` (el recorte del rango, ya en
+  SQL). El filtro es la composición de tres, todo client-side: **método** (el select),
+  **exclusiones** (la leyenda) y **bucket** (clic en una barra). El strip no re-consulta
+  —por eso esta tanda NO tocó el fetch (§ Backlog #27)—.
+- **La escalera y el anclaje viven en `lib/pagos/bucketeo.ts`** (puro, capa 1): cinco
+  peldaños con tope de 31 barras (día → semana → mes → trimestre → año). **Los DOS
+  extremos DECLARAN en vez de dibujar algo que no informa**, por la misma razón: >31
+  años (ni el año cabe) y <4 barras (un solo día no tiene forma, y el total ya está en
+  las stats) → el strip no dibuja y lo dice; la tabla sigue completa, nunca se trunca.
+  **Las semanas se
+  anclan al CALENDARIO (lunes Bogotá), no al inicio del rango**, o la misma semana suma
+  distinto según por dónde se entró. La primera y última barra pueden ser PARCIALES: se
+  DECLARAN en el eje (un `·` + nota), porque una barra corta por corte de rango se lee
+  como caída de ventas si no se dice.
+- **La leyenda NO re-basea**: cada % es sobre el total del rango sin descontar
+  exclusiones; lo excluido va tachado con su % visible. Re-basear escondería que se está
+  mirando un recorte.
+- **El toggle "Por método" se deshabilita si el select acotó a un método** — partir por
+  método algo que ya es un método es ruido.
+- **El chip del bucket vive en la cabecera FIJA y su etiqueta se entiende SOLA**
+  ("jue 27 ago", "semana del 10 ago", "sep 2026"), nunca "1 seleccionado": al scrollear,
+  el operador ve el chip sin ver la barra que lo produjo (`etiquetaBucket`,
+  `lib/pagos/etiquetas.ts`).
+- **Colores: `--duna-serie-1…5`** por método (serie-5 = OTRO, el neutro). Nunca estado.
+- **El strip es bespoke admin, no una primitiva del DS** (§ discovery: no hay primitiva
+  de chart, y con un consumidor no se justifica una).
+
+### El eje cambia cuando el recorte es 1 bucket, y EL EJE NUNCA SE FILTRA A SÍ MISMO
+
+El strip tiene DOS ejes intercambiables: **tiempo** (4–31 buckets, una barra por
+bucket) y **método** (cuando el recorte activo es UN bucket —"Hoy", un rango de 1 día,
+o un clic en barra/fecha—, una barra por método). Entre 2–3 buckets no hay forma en
+ningún eje → se declara; >31 años tampoco.
+
+**LA REGLA, y es general para cualquier gráfico con ejes intercambiables:** el eje que
+se está mostrando NO se filtra a sí mismo. El modo tiempo filtra por MÉTODO (el select);
+el modo método filtra por TIEMPO (el bucket). En modo método el select NO recorta las
+barras —serían una sola, que no informa—: se muestran las cinco y se resalta la activa,
+y **una nota lo DECLARA** ("el desglose es del período; la tabla está filtrada a X"),
+sólo cuando el caso ocurre —cinco barras sobre una fila filtrada se leería como fallo—.
+
+**Cada filtro vive en su propio control, y ahí está el "nunca un segundo indicador":**
+el TIEMPO en el chip (clic en barra o en una celda de fecha lo escribe), el MÉTODO en el
+select (clic en barra de método o en una celda de método lo escribe). No se inventa un
+tercer sitio; cada uno reemplaza al anterior de su tipo (toggle: clic en el activo lo
+quita). En modo método el toggle "Por método" se **oculta** (el eje YA es método) —no se
+deshabilita, que sugeriría algo que activar—.
+
+- **Celdas navegables** (`admin-lista`): la fecha y el método de cada fila son caminos a
+  esos mismos filtros (chip de tiempo / select), con afordancia `.duna-link` —sin color
+  nuevo—. Filtrar por una fecha colapsa el recorte a 1 día → el strip entra al eje de
+  método solo, por el mismo estado.
+- **El recorte de tiempo (`RecorteTiempo`) lleva su `escala` y su `etiqueta`**, para que
+  un clic en barra (bucket a la escala del strip) y uno en fecha (siempre 'dia') tengan
+  la misma forma y el chip se pinte solo.
 
 ## Automatizaciones — arquitectura y prerequisitos de go-live
 
