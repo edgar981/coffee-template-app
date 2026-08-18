@@ -46,7 +46,7 @@ import { formatFecha } from '@duna/core/format-fecha';
 // superficie Duna. Es la tercera vez que este límite muerde; por eso el
 // contenedor vive en un solo sitio (`dunaPortal`).
 
-export function DateField({ value, onChange, id, ariaLabel, placeholder = 'Elegir fecha' }: {
+export function DateField({ value, onChange, id, ariaLabel, placeholder = 'Elegir fecha', maxDia }: {
   /** Clave de día `YYYY-MM-DD`, o `''`. El MISMO formato que emitía el input
    *  nativo, así que el consumidor no cambia su estado ni su envío. */
   value: string;
@@ -55,10 +55,15 @@ export function DateField({ value, onChange, id, ariaLabel, placeholder = 'Elegi
   /** Para cuando el campo no tiene un `<label>` asociado por `id`. */
   ariaLabel?: string;
   placeholder?: string;
+  /** Tope OPCIONAL (día `YYYY-MM-DD`): deshabilita los días POSTERIORES. Ausente =
+   *  sin tope (el default: registrar una entrega pasada o futura es legítimo). Lo
+   *  usa el pago, donde una fecha futura afirma una plata que aún no entró. */
+  maxDia?: string;
 }) {
   const contenedor = useContenedorDunaPortal();
   const [abierto, setAbierto] = useState(false);
   const elegido = value ? dayKeyToDate(value) : undefined;
+  const tope = maxDia ? dayKeyToDate(maxDia) : undefined;
 
   return (
     <Popover open={abierto} onOpenChange={setAbierto}>
@@ -92,6 +97,7 @@ export function DateField({ value, onChange, id, ariaLabel, placeholder = 'Elegi
           mode="single"
           selected={elegido}
           defaultMonth={elegido}
+          disabled={tope ? { after: tope } : undefined}
           onSelect={(d) => {
             // `undefined` llega al re-tocar el día ya elegido (react-day-picker
             // lo trata como deseleccionar). Se propaga como `''` para que el

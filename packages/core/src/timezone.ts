@@ -48,6 +48,22 @@ export function startOfZonedDay(ref: Date, tz: string, dayDelta = 0): Date {
 }
 
 /**
+ * Inverso de `zonedDayKey`: un día de calendario `YYYY-MM-DD` → el instante en que
+ * ESE día EMPIEZA en `tz`. `new Date('2026-08-17')` daría medianoche UTC —el 16 a
+ * las 19:00 en Bogotá—, el mismo desfase que documenta `lib/day-key`. Se usa para
+ * interpretar una fecha que el operador ELIGIÓ como día (no como instante) antes de
+ * guardarla: por construcción `zonedDayKey(dayKeyStart(k, tz), tz) === k`, así que un
+ * pago fechado "hoy" bucketea a hoy y no al día anterior. Y como es el INICIO del
+ * día, para hoy siempre es ≤ ahora — no dispara la guarda de fecha futura.
+ */
+export function dayKeyStart(dayKey: string, tz: string): Date {
+  const [y, m, d] = dayKey.split('-').map(Number);
+  const utcGuess = Date.UTC(y, m - 1, d, 0, 0, 0);
+  const offset = zoneOffsetMs(new Date(utcGuess), tz);
+  return new Date(utcGuess - offset);
+}
+
+/**
  * Calendar day `ref` falls on in `tz`, as a `YYYY-MM-DD` key. This is the day
  * bucket the daily charts group by — it must agree with the SQL side, which
  * buckets with `AT TIME ZONE 'UTC' AT TIME ZONE <tz>` (the DB columns are

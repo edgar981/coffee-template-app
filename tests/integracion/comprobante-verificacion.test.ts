@@ -5,7 +5,7 @@ import {
   PagoRequeridoParaVerificar, EfectivoConComprobanteError,
   type PagoAlVerificar,
 } from '@duna/core/comprobantes';
-import { registerOrderPaymentTx } from '@duna/core/orders';
+import { registerOrderPaymentTx, FechaFuturaError } from '@duna/core/orders';
 import { accionAlVerificar } from '@/lib/comprobante';
 import { runEventAutomations } from '@/lib/automations/engine';
 import {
@@ -148,6 +148,22 @@ test('EFECTIVO con comprobante se rechaza en el SERVER, no solo en el select', a
   assert.equal((await pagosDe(orden.id)).length, 0);
   const recargado = await prisma.comprobante.findUniqueOrThrow({ where: { id: c.id } });
   assert.equal(recargado.estado, 'RECIBIDO', 'rechazo total: ni pago ni sello');
+});
+
+test('una fecha de pago FUTURA se rechaza: un pago que aún no entró no se registra', async () => {
+  const orden = await crearOrden({ numero: 'CN-100003d', total: 15000 });
+  const c = await crearComprobanteFixture({ ordenId: orden.id });
+  const manana = new Date(Date.now() + 24 * 3_600_000);
+
+  await assert.rejects(
+    () => decidirComprobante(c.id, 'VERIFICADO', VEREDICTO, { metodo: 'TRANSFERENCIA', fecha: manana }),
+    FechaFuturaError,
+  );
+
+  // Revirtió entera: ni pago, ni sello.
+  assert.equal((await pagosDe(orden.id)).length, 0);
+  const recargado = await prisma.comprobante.findUniqueOrThrow({ where: { id: c.id } });
+  assert.equal(recargado.estado, 'RECIBIDO');
 });
 
 // ─── Rechazar NO crea plata, NO borra, NO mueve la orden ──────────────────────

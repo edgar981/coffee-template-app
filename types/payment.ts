@@ -113,9 +113,11 @@ export interface Payment {
 }
 
 // Payload the admin submits from the "Registrar pago" modal. No monto/cliente —
-// the server snapshots both from the order.
+// the server snapshots both from the order. `fecha` es CLAVE DE DÍA (`YYYY-MM-DD`);
+// el server la ancla a Bogotá. Omitida → default now().
 export interface RegisterPaymentInput {
   metodo:      MetodoPago;
   referencia?: string;
   notas?:      string;
+  fecha?:      string;
 }

@@ -7,7 +7,11 @@ import {
   type PagoAlVerificar,
 } from '@duna/core/comprobantes';
 import { MetodoPago } from '@duna/core';
+import { FechaFuturaError } from '@duna/core/orders';
+import { dayKeyStart, BUSINESS_TZ } from '@duna/core/timezone';
 import { runEventAutomations } from '@/lib/automations/engine';
+
+const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
 
 // El VEREDICTO sobre un comprobante: verificar o rechazar. Sella quién y cuándo.
 //
@@ -51,14 +55,18 @@ export async function PATCH(
     if (metodo !== null && !METODOS.includes(metodo as MetodoPago)) {
       return NextResponse.json({ error: 'Método de pago inválido' }, { status: 400 });
     }
-    const fechaCruda = typeof body?.fecha === 'string' ? new Date(body.fecha) : null;
-    if (fechaCruda && Number.isNaN(fechaCruda.getTime())) {
+    // La fecha viaja como CLAVE DE DÍA (`YYYY-MM-DD`, la que emite el date picker),
+    // no como instante: se ancla al inicio de ese día en Bogotá para que bucketee
+    // al día correcto (§ la trampa TZ de `lib/day-key`) y para que "hoy" no caiga
+    // en futuro. El veto a fecha futura lo impone `registerOrderPaymentTx`.
+    const dayKey = typeof body?.fecha === 'string' ? body.fecha : null;
+    if (dayKey !== null && !DAY_KEY.test(dayKey)) {
       return NextResponse.json({ error: 'Fecha de pago inválida' }, { status: 400 });
     }
     if (metodo !== null) {
       pago = {
         metodo:     metodo as MetodoPago,
-        fecha:      fechaCruda ?? undefined,
+        fecha:      dayKey ? dayKeyStart(dayKey, BUSINESS_TZ) : undefined,
         referencia: typeof body?.referencia === 'string' ? body.referencia : null,
       };
     }
@@ -97,7 +105,11 @@ export async function PATCH(
     }
     // Verificar una orden pendiente exige el método (y que no sea efectivo). Los
     // dos son 400: el cliente mandó (o le faltó) un dato, no es un fallo del server.
-    if (e instanceof PagoRequeridoParaVerificar || e instanceof EfectivoConComprobanteError) {
+    if (
+      e instanceof PagoRequeridoParaVerificar ||
+      e instanceof EfectivoConComprobanteError ||
+      e instanceof FechaFuturaError
+    ) {
       return NextResponse.json({ error: e.message }, { status: 400 });
     }
     console.error('[comprobantes] falló el veredicto', e);

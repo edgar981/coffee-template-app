@@ -9,9 +9,11 @@ import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import { formatCOP } from '@duna/core/utils';
+import { zonedDayKey, BUSINESS_TZ } from '@duna/core/timezone';
 import { registerOrderPayment } from '@/lib/api/payments';
-import { subirComprobante } from '@/lib/api/comprobantes';
+import { subirComprobante, decidirComprobante } from '@/lib/api/comprobantes';
 import { SelectorComprobante, AyudaComprobante, ComprobanteEnVerificacion } from '@/components/admin/Comprobantes';
+import { DateField } from '@/components/admin/DateField';
 import { formatearTamano } from '@/lib/comprobante';
 import type { Comprobante } from '@/types/comprobante';
 import type { Order } from '@/types/order';
@@ -52,7 +54,12 @@ export function RegisterPaymentModal({ target, declaredMetodo, verificando, onCl
    */
   verificando?: Comprobante | null;
   onClose: () => void;
-  onSaved: (result: { payment: Payment; order: Order; comprobante?: Comprobante }) => void;
+  /**
+   * DIRECTO trae `{ payment, order, comprobante? }` (la orden ya viene actualizada).
+   * VERIFICAR trae sólo `{ comprobante }`: la orden se movió a `pagado` server-side
+   * en esa misma llamada, así que quien recibe REFRESCA la orden en vez de empalmar.
+   */
+  onSaved: (result: { payment?: Payment; order?: Order; comprobante?: Comprobante }) => void;
 }) {
   // LA GUARDA VIVE EN EL ENVOLTORIO para cerrar la TERCERA salida: sin su enVuelo,
   // Esc/clic-fuera/Cancelar cerrarían el drawer a mitad de registrar el pago, y
@@ -100,17 +107,34 @@ function RegisterForm({ target, declaredMetodo, verificando, guarda, marcarCambi
   intentarCerrar: () => void;
   /** Cierre REAL, tras registrar con éxito. */
   onClose: () => void;
-  onSaved: (result: { payment: Payment; order: Order; comprobante?: Comprobante }) => void;
+  onSaved: (result: { payment?: Payment; order?: Order; comprobante?: Comprobante }) => void;
 }) {
-  const metodoInicial = defaultMetodo(declaredMetodo);
-  const [metodo, setMetodo]         = useState<MetodoPago>(metodoInicial);
+  // EFECTIVO es imposible con un comprobante de por medio (§3.b): un comprobante
+  // existe porque hubo transferencia. Con comprobante en el flujo, el declarado sólo
+  // preselecciona si es de transferencia; si era efectivo, no hay preselección ('')
+  // y el operador elige. Sin comprobante, EFECTIVO es válido y de primera clase.
+  const metodoInicial: MetodoPago | '' = (() => {
+    const d = defaultMetodo(declaredMetodo);
+    return verificando && d === 'EFECTIVO' ? '' : d;
+  })();
+  const [metodo, setMetodo]         = useState<MetodoPago | ''>(metodoInicial);
   const [referencia, setReferencia] = useState('');
   const [notas, setNotas]           = useState('');
   const [saving, setSaving]         = useState(false);
-  // Soporte OPCIONAL. Se elige acá y se sube DESPUÉS del pago (ver el orden en
-  // handleSave): el comprobante es evidencia sobre una plata que primero tiene
-  // que existir.
+  // La fecha en que ENTRÓ la plata (no la de hoy por defecto sin pensar). Clave de
+  // día; el server la ancla a Bogotá. Default hoy, tope hoy (una fecha futura afirma
+  // una plata que aún no entró — guarda también en el server).
+  const hoy = zonedDayKey(new Date(), BUSINESS_TZ);
+  const [fecha, setFecha]           = useState(hoy);
+  // Soporte OPCIONAL (sólo en el flujo directo). Se elige acá y se sube DESPUÉS del
+  // pago: el comprobante es evidencia sobre una plata que primero tiene que existir.
   const [archivo, setArchivo]       = useState<File | null>(null);
+
+  // Con un comprobante en el flujo —el de "Verificar", o uno adjuntado acá— EFECTIVO
+  // sale de las opciones. Reactivo: si se adjunta un archivo y el método era efectivo,
+  // se limpia para forzar una elección válida.
+  const hayComprobante = !!verificando || !!archivo;
+  const opcionesMetodo = hayComprobante ? METODOS_PAGO.filter(m => m !== 'EFECTIVO') : METODOS_PAGO;
 
   // ¿Hay algo que descartar al cerrar? Método distinto del sugerido, referencia o
   // notas escritas, o un soporte adjunto. (Registrar pago no lleva guarda de
@@ -118,36 +142,55 @@ function RegisterForm({ target, declaredMetodo, verificando, guarda, marcarCambi
   // debe preguntar.)
   useEffect(() => {
     marcarCambios(
-      metodo !== metodoInicial || referencia.trim() !== '' || notas.trim() !== '' || archivo !== null,
+      metodo !== metodoInicial || fecha !== hoy || referencia.trim() !== '' || notas.trim() !== '' || archivo !== null,
     );
-  }, [metodo, metodoInicial, referencia, notas, archivo, marcarCambios]);
+  }, [metodo, metodoInicial, fecha, hoy, referencia, notas, archivo, marcarCambios]);
 
   // La guarda de doble-submit la aporta el ENVOLTORIO (para poder gatear el
   // cierre). Su mitad síncrona sigue siendo la única que corta dos clicks del
-  // mismo tick; acá el server además es idempotente (SELECT … FOR UPDATE + chequeo
-  // de estado devuelve 409 al segundo), pero la guarda es del botón, no del
-  // endpoint.
+  // mismo tick — y ahora importa el doble, porque el camino de Verificar MUEVE
+  // DINERO en una sola llamada. El server además es idempotente (SELECT … FOR
+  // UPDATE + chequeo de estado → 409/sellar al segundo), pero la guarda es del botón.
   const error  = useErrorDialogo();
   const handleSave = () => guarda.ejecutar(async () => {
     error.limpiar();
+    if (metodo === '') { error.mostrar(new Error('Elige el método de pago.'), 'Falta el método'); return; }
     setSaving(true);
     try {
+      if (verificando) {
+        // COLAPSADO A UNA SOLA LLAMADA: verificar el comprobante CREA el Payment y
+        // pasa la orden a `pagado` server-side (§ Decisión). No hay pago-y-luego-
+        // sello en dos requests. Devuelve el comprobante; la orden la refresca quien
+        // recibe (`onSaved` sin `order` → refetch).
+        const sellado = await decidirComprobante(verificando.id, 'verificar', {
+          metodo, fecha, referencia: referencia.trim() || null,
+        });
+        onSaved({ comprobante: sellado });
+        toast.success('Pago registrado — comprobante verificado');
+        onClose();
+        setSaving(false);
+        return;
+      }
+
+      // DIRECTO: registrar el pago. El monto lo snapshotea el server.
       const result = await registerOrderPayment(target.id, {
         metodo,
+        fecha,
         referencia: referencia.trim() || undefined,
         notas:      notas.trim() || undefined,
       });
 
-      // PRIMERO la plata, DESPUÉS la evidencia. Si la subida falla, el pago YA
-      // quedó registrado y se avisa que el soporte no subió — el operador lo
-      // adjunta desde el detalle. Al revés (subir y que falle el pago) dejaría un
-      // comprobante colgado de una orden que nadie cobró.
-      // Sólo por la puerta DIRECTA: por la de Verificar no existe el campo, así
-      // que `archivo` es siempre null y esta rama no corre.
+      // PRIMERO la plata, DESPUÉS la evidencia. Si la subida falla, el pago YA quedó
+      // registrado y se avisa; el operador lo adjunta desde el detalle. Y el adjunto
+      // NACE VERIFICADO: adjuntar acá documenta un pago que el operador YA afirmó, así
+      // que se sella tras subirlo (la orden ya está pagada → verificar cae en 'sellar',
+      // sin segundo Payment). Si el sello falla, queda RECIBIDO — no peor que antes.
       let comprobante: Comprobante | undefined;
       if (archivo) {
         try {
-          comprobante = await subirComprobante(target.id, archivo);
+          const subido = await subirComprobante(target.id, archivo);
+          try { comprobante = await decidirComprobante(subido.id, 'verificar'); }
+          catch { comprobante = subido; }
         } catch (e) {
           toast.error(
             e instanceof Error ? e.message : 'No se pudo subir el comprobante',
@@ -156,14 +199,14 @@ function RegisterForm({ target, declaredMetodo, verificando, guarda, marcarCambi
         }
       }
 
-      onSaved({ ...result, comprobante });
+      onSaved({ payment: result.payment, order: result.order, comprobante });
       toast.success(
         'Pago registrado — orden marcada como pagada',
-        comprobante ? { description: 'Comprobante adjuntado.' } : undefined,
+        comprobante ? { description: 'Comprobante verificado.' } : undefined,
       );
       onClose();
     } catch (e) {
-      error.mostrar(e, 'Error al registrar el pago');
+      error.mostrar(e, verificando ? 'No se pudo verificar el comprobante' : 'Error al registrar el pago');
     }
     setSaving(false);
   });
@@ -184,10 +227,26 @@ function RegisterForm({ target, declaredMetodo, verificando, guarda, marcarCambi
       <div className="space-y-4">
         <div>
           <span className="duna-field__label">Método de pago *</span>
-<select className="duna-input duna-select" id="rp-metodo" value={metodo}
+          <select className="duna-input duna-select" id="rp-metodo" value={metodo}
+                  aria-invalid={metodo === '' || undefined}
                   onChange={e => setMetodo(e.target.value as MetodoPago)}>
-            {METODOS_PAGO.map(m => <option key={m} value={m}>{METODO_PAGO_LABEL[m]}</option>)}
+            {/* Placeholder sólo cuando no hay preselección (declarado efectivo con
+                comprobante): no elegir NO es válido, así que va disabled+hidden. */}
+            {metodo === '' && <option value="" disabled hidden>Elige el método</option>}
+            {opcionesMetodo.map(m => <option key={m} value={m}>{METODO_PAGO_LABEL[m]}</option>)}
           </select>
+          {hayComprobante && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Un comprobante implica transferencia — el efectivo no aparece.
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="duna-field__label" htmlFor="rp-fecha">Fecha en que entró el pago</label>
+          <DateField id="rp-fecha" value={fecha} onChange={setFecha} maxDia={hoy} />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            La fecha de la transferencia, no la de hoy.
+          </p>
         </div>
         <div>
           <span className="duna-field__label">Referencia / Comprobante</span>
@@ -237,7 +296,9 @@ function RegisterForm({ target, declaredMetodo, verificando, guarda, marcarCambi
                 </button>
               </span>
             ) : (
-              <SelectorComprobante onArchivo={setArchivo} disabled={saving} label="Adjuntar" />
+              <SelectorComprobante
+                onArchivo={(f) => { setArchivo(f); if (metodo === 'EFECTIVO') setMetodo(''); }}
+                disabled={saving} label="Adjuntar" />
             )}
             <AyudaComprobante />
           </div>
@@ -257,8 +318,8 @@ function RegisterForm({ target, declaredMetodo, verificando, guarda, marcarCambi
         <ErrorDialogo mensaje={error.mensaje} className="duna-modal__aviso" />
         <div className="duna-modal__acciones">
           <button type="button" className="duna-btn duna-btn--ghost" onClick={intentarCerrar} disabled={saving}>Cancelar</button>
-          <button type="button" className="duna-btn duna-btn--primary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Registrando...' : 'Registrar pago'}
+          <button type="button" className="duna-btn duna-btn--primary" onClick={handleSave} disabled={saving || metodo === ''}>
+            {saving ? (verificando ? 'Verificando...' : 'Registrando...') : (verificando ? 'Verificar y registrar pago' : 'Registrar pago')}
           </button>
         </div>
       </div>
