@@ -20,22 +20,42 @@ function Calendar({
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
-      className={cn("p-3", className)}
+      // `relative` NO es decorativo: es el ancestro POSICIONADO contra el que anclan
+      // los botones de nav (react-day-picker v10, sin `navLayout`, monta el `<Nav>`
+      // como hermano de los meses; sus botones son `absolute`). Sin esto anclaban al
+      // `PopoverContent`. Es el eje HORIZONTAL del arreglo; el vertical lo pone el
+      // `top-1` de `button_previous/next` (ver ahí). Los dos juntos ponen las flechas
+      // en la banda del caption (fondo `--duna-surface`), donde su `opacity-50` es el
+      // contraste normal del chevron. NO quitar.
+      className={cn("relative p-3", className)}
       classNames={{
   months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
   month: "space-y-4",
 
+  // La clave `month_caption` se PERDIÓ en el rename `caption` → `month_caption`
+  // de react-day-picker v8 → v10: sin ella el `<div>` del caption queda sin estilo
+  // y el label se pega a la IZQUIERDA, donde la flecha de nav de esa esquina se le
+  // encima. Centrarlo es restaurar la intención de shadcn (`caption: flex
+  // justify-center` en v8), no una posición nueva. NO quitar.
+  month_caption: "flex justify-center items-center",
   caption_label: "text-sm font-medium",
 
   nav: "space-x-1 flex items-center",
 
+  // `top-1` NO es arbitrario: `left-1`/`right-1` ya declaraban intención de
+  // ESQUINA, pero sin `top` un `absolute` hereda su POSICIÓN ESTÁTICA en el eje
+  // vertical — y aquí esa posición sale CENTRADA, porque el `<Nav>` es hijo de
+  // `Months` (flex-row en sm+) y se estira al alto TOTAL del calendario, con
+  // `items-center` centrando sus botones absolutos. Sin `top-1` las flechas caen
+  // a media altura, sobre la grilla, invisibles contra el rango resaltado.
+  // El `top` es el eje que faltaba, no una posición nueva. NO quitar.
   button_previous: cn(
     buttonVariants({ variant: "outline" }),
-    "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 absolute left-1"
+    "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 absolute top-1 left-1"
   ),
   button_next: cn(
     buttonVariants({ variant: "outline" }),
-    "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 absolute right-1"
+    "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 absolute top-1 right-1"
   ),
 
   weekdays: "flex",
