@@ -12,10 +12,10 @@ import type { Payment, MetodoPago } from '@/types/payment';
 import { METODO_PAGO_LABEL, METODO_CATEGORIA } from '@/types/payment';
 import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
-import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
+import { BUSINESS_TZ, zonedDayKey, startOfZonedDay } from '@duna/core/timezone';
 import { rangoDeDiasDelPeriodo, opcionesPreset } from '@/lib/metrics/periodo';
 import { bucketKey } from '@/lib/pagos/bucketeo';
-import { type RecorteTiempo } from '@/lib/pagos/etiquetas';
+import { etiquetaBucket, type RecorteTiempo } from '@/lib/pagos/etiquetas';
 
 // Columnas del libro (grid-list). Flexibles: caben en la región sin scroll horizontal
 // en escritorio, y refluyen a 2 columnas en móvil (§ duna.css, `.admin-lista`).
@@ -106,6 +106,15 @@ function PagosInner() {
   // el clic en tiempo (barra o fecha) escribe el CHIP. Cada uno en su control, y cada uno
   // reemplaza al anterior de su tipo (toggle: clic en el activo lo quita).
   const onMetodo = (m: MetodoPago) => setMetodo(prev => (prev === m ? 'all' : m));
+  const onFecha = (fechaISO: string) => {
+    const d = new Date(fechaISO);
+    const key = zonedDayKey(d, BUSINESS_TZ);
+    setBucketSel(prev =>
+      prev && prev.escala === 'dia' && prev.key === key
+        ? null
+        : { escala: 'dia', key, etiqueta: etiquetaBucket(startOfZonedDay(d, BUSINESS_TZ, 0), 'dia') },
+    );
+  };
 
   const clearFilters = () => {
     setMetodo('all'); setFrom(rangoMes.desde); setTo(rangoMes.hasta);
@@ -226,7 +235,15 @@ function PagosInner() {
               </div>
               {filtered.map(p => (
                 <div key={p.id} className="admin-lista__fila" style={{ gridTemplateColumns: COLS }}>
-                  <span className="duna-sub" style={{ margin: 0 }}>{formatFecha(p.fecha)}</span>
+                  {/* Fecha y Método son CELDAS NAVEGABLES: caminos a filtros que ya existen
+                      (el chip de tiempo y el select), sin estado nuevo. Afordancia `.duna-link`,
+                      sin color nuevo; reemplazan, no acumulan (toggle en el activo). */}
+                  <span>
+                    <button type="button" className="duna-link" onClick={() => onFecha(p.fecha)}
+                            style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', font: 'inherit', textAlign: 'left' }}>
+                      {formatFecha(p.fecha)}
+                    </button>
+                  </span>
                   <span>
                     {p.order?.numero_orden
                       ? <Link href={`/admin/pedidos?pedido=${encodeURIComponent(p.order.numero_orden)}`} className="duna-link">{p.order.numero_orden}</Link>
@@ -234,7 +251,12 @@ function PagosInner() {
                   </span>
                   <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.order?.cliente_nombre ?? '—'}</span>
                   <span className="admin-lista__r duna-num">{formatCOP(p.monto)}</span>
-                  <span><span className="duna-badge duna-badge--neutral">{METODO_PAGO_LABEL[p.metodo]}</span></span>
+                  <span>
+                    <button type="button" className="duna-link" onClick={() => onMetodo(p.metodo)}
+                            style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', font: 'inherit', textAlign: 'left' }}>
+                      {METODO_PAGO_LABEL[p.metodo]}
+                    </button>
+                  </span>
                   <span className="duna-mono" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.referencia || '—'}</span>
                   <span className="duna-sub" style={{ margin: 0 }}>{p.registrado_por_nombre ?? '—'}</span>
                   <span><SoporteClip comprobantes={p.order?.comprobantes ?? []} /></span>
