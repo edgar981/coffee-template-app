@@ -19,13 +19,9 @@ import {
 } from '@/types/payment';
 import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
-import { BUSINESS_TZ } from '@duna/core/timezone';
-
-// yyyy-mm-dd in Bogotá wall-clock, for range filtering (comparison key, not shown).
-const bogotaISODate = (iso: string) =>
-  new Intl.DateTimeFormat('en-CA', {
-    timeZone: BUSINESS_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date(iso));
+import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
+import { rangoDeDiasDelPeriodo, opcionesPreset } from '@/lib/metrics/periodo';
+import { PresetsPeriodo } from '@/components/admin/PresetsPeriodo';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -42,38 +38,51 @@ function PagosInner() {
   const router       = useRouter();
   const pathname     = usePathname();
   const searchParams = useSearchParams();
-  // `?desde`/`?hasta` (yyyy-mm-dd) seed the date range so the dashboard can link
-  // straight to "hoy" (Ventas de hoy) or the month (Ingresos del mes). Same param
-  // names as Órdenes; the picker takes over from here (this is the initial view).
+  // La pantalla SIEMPRE abre con un rango: MES EN CURSO por defecto —lo que el
+  // operador necesita ver al abrir un libro de pagos, "¿cuánto llevó este mes?"— o el
+  // `?desde/?hasta` del deep-link del dashboard (Ventas hoy → hoy, Ingresos del mes →
+  // el mes). Con rango siempre presente el server nunca consulta sin acotar (§ el
+  // route): no hay caso "sin rango" ni corte silencioso que declarar.
+  // El reloj se fija al montar: los presets y el default no se recalculan por render.
+  const ahora    = useMemo(() => new Date(), []);
+  const hoy      = zonedDayKey(ahora, BUSINESS_TZ);
+  // El DEFAULT es el MISMO rango que el preset "Este mes" (una fuente), así que al
+  // abrir queda ese preset marcado.
+  const rangoMes = useMemo(() => rangoDeDiasDelPeriodo('mes', ahora), [ahora]);
+  // "Hoy" no es un período mensual (no está en `PERIODOS`): se antepone acá. El resto
+  // sale del set compartido. Para lo más viejo que 3 meses, el date picker.
+  const presetsPagos = useMemo(
+    () => [{ label: 'Hoy', desde: hoy, hasta: hoy }, ...opcionesPreset(['mes', 'mes_anterior', 'ultimos_3_meses'], ahora)],
+    [hoy, ahora],
+  );
   const [pagos, setPagos]     = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   // 'all' | a MetodoPago | `cat:${PaymentCategoria}` (grouped-category filter).
   const [metodo, setMetodo]   = useState<string>('all');
-  const [from, setFrom]       = useState(() => searchParams.get('desde') ?? '');
-  const [to, setTo]           = useState(() => searchParams.get('hasta') ?? '');
+  const [from, setFrom]       = useState(() => searchParams.get('desde') ?? rangoMes.desde);
+  const [to, setTo]           = useState(() => searchParams.get('hasta') ?? rangoMes.hasta);
 
+  // El rango se filtra en SQL, así que un cambio de rango RE-CONSULTA. El `active`
+  // evita que una respuesta lenta pise a una más nueva (mismo patrón que el carrusel).
   useEffect(() => {
-    getPayments()
-      .then(data => setPagos(data))
+    let active = true;
+    setLoading(true);
+    getPayments(from, to)
+      .then(data => { if (active) setPagos(data); })
       .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [from, to]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
+  // SÓLO el método filtra acá — el rango ya lo aplicó el server. `pagos` ES el recorte
+  // del rango, así que la tabla y (luego) el strip leen las MISMAS filas client-side.
   const filtered = useMemo(() => pagos.filter(p => {
-    if (metodo !== 'all') {
-      if (metodo.startsWith('cat:')) {
-        if (METODO_CATEGORIA[p.metodo] !== metodo.slice(4)) return false;
-      } else if (p.metodo !== metodo) {
-        return false;
-      }
-    }
-    const d = bogotaISODate(p.fecha);
-    if (from && d < from) return false;
-    if (to && d > to) return false;
-    return true;
-  }), [pagos, metodo, from, to]);
+    if (metodo === 'all') return true;
+    if (metodo.startsWith('cat:')) return METODO_CATEGORIA[p.metodo] === metodo.slice(4);
+    return p.metodo === metodo;
+  }), [pagos, metodo]);
 
   const totalPeriodo = filtered.reduce((sum, p) => sum + p.monto, 0);
 
@@ -99,11 +108,13 @@ function PagosInner() {
       .filter(c => c.count > 0),
     [filtered]);
 
-  const hasFilters = metodo !== 'all' || !!from || !!to;
-  // Single reset for the whole bar: método + range, AND the seeding query params
-  // (`?desde`/`?hasta` from a dashboard deep link) so a reload can't re-apply them.
+  // "Filtrado" ya no es "hay rango" (siempre lo hay) sino "algo distinto del default":
+  // método ≠ all, o rango ≠ mes en curso.
+  const hasFilters = metodo !== 'all' || from !== rangoMes.desde || to !== rangoMes.hasta;
+  // Limpiar vuelve al DEFAULT (método all + mes en curso) y borra el deep-link de la
+  // URL, para que un reload use el default y no re-aplique un `?desde/?hasta` viejo.
   const clearFilters = () => {
-    setMetodo('all'); setFrom(''); setTo('');
+    setMetodo('all'); setFrom(rangoMes.desde); setTo(rangoMes.hasta);
     const next = new URLSearchParams(searchParams.toString());
     next.delete('desde'); next.delete('hasta');
     const qs = next.toString();
@@ -190,6 +201,13 @@ function PagosInner() {
             </SelectContent>
           </Select>
         </div>
+        {/* Presets de período: un clic cambia el rango (y re-consulta). El date picker
+            de al lado cubre lo más viejo que 3 meses. Fila COMPARTIDA con Inventario. */}
+        <PresetsPeriodo
+          opciones={presetsPagos}
+          desde={from} hasta={to}
+          onSelect={(d, h) => { setFrom(d); setTo(h); }}
+        />
         <DateRangePicker
           desde={from || null}
           hasta={to || null}
@@ -211,8 +229,8 @@ function PagosInner() {
             <CreditCard className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">
               {pagos.length === 0
-                ? 'Aún no hay pagos registrados. Registra un pago desde una orden pendiente.'
-                : 'No hay pagos que coincidan con los filtros.'}
+                ? 'No hay pagos en el rango seleccionado.'
+                : 'No hay pagos que coincidan con el filtro de método.'}
             </p>
           </div>
         ) : (

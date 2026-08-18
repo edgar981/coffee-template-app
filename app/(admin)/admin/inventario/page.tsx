@@ -11,7 +11,8 @@ import { formatFecha } from '@duna/core/format-fecha';
 import { toast } from 'sonner';
 import { getProducts, getInventoryLogs } from '@/lib/api/inventory';
 import { KARDEX_TOPE } from '@duna/core/metrics/inventory-filters';
-import { rangoDeDiasDelPeriodo, PERIODOS, type PeriodoKey } from '@/lib/metrics/periodo';
+import { opcionesPreset, type PeriodoKey } from '@/lib/metrics/periodo';
+import { PresetsPeriodo } from '@/components/admin/PresetsPeriodo';
 import { AdjustStockModal } from '@/components/admin/AdjustStockModal';
 import type { Product } from '@/types/product';
 import type { InventoryLog, InventoryMovementType } from '@/types/inventory';
@@ -255,19 +256,14 @@ function Inventario() {
           <option value="">Todos los tipos</option>
           {TIPOS.map(t => <option key={t} value={t}>{TIPO_LABEL[t]}</option>)}
         </select>
-        {/* Presets de período: navegar por tiempo de un clic. Un preset se marca
-            cuando el rango puesto coincide con el suyo; el date picker de al lado
+        {/* Presets de período: navegar por tiempo de un clic. La fila es COMPARTIDA
+            (`<PresetsPeriodo>`), la misma que usa Pagos; el date picker de al lado
             cubre los rangos a medida. */}
-        {PRESETS_INV.map(k => {
-          const r = rangoDeDiasDelPeriodo(k, ahora);
-          const activo = desde === r.desde && hasta === r.hasta;
-          return (
-            <button key={k} type="button" className={`duna-pill${activo ? ' is-on' : ''}`} aria-pressed={activo}
-                    onClick={() => navegar({ desde: r.desde, hasta: r.hasta })}>
-              {PERIODOS[k]}
-            </button>
-          );
-        })}
+        <PresetsPeriodo
+          opciones={opcionesPreset(PRESETS_INV, ahora)}
+          desde={desde} hasta={hasta}
+          onSelect={(d, h) => navegar({ desde: d, hasta: h })}
+        />
         <DateRangePicker desde={desde} hasta={hasta} onChange={(d, h) => navegar({ desde: d, hasta: h })} />
         {hayFiltro && (
           <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm"
