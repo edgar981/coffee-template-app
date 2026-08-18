@@ -41,9 +41,12 @@ Vercel, `main` = producción).
 | `/admin/inventario` | Completa, encogida a auditoría | Alto fijo ≥960 (`.duna-sin-split`), scroller único |
 
 ### Pendientes de rediseño
-Pagos, Analítica, Automatizaciones, Dashboard, Entregas, Configuración, Perfil.
+Analítica, Automatizaciones, Dashboard, Entregas, Configuración, Perfil.
 **Todas en document-scroll** (el `min-h-screen` por defecto de `AdminChrome`).
 No son convivencias — son pantallas que aún no se tocaron.
+
+**Pagos está A MEDIAS**: rango en SQL, presets y región de alto fijo ya entraron;
+falta el rediseño visual (el strip, en diseño). Ya NO es document-scroll ≥960.
 
 ### Trabajo cerrado
 - **Tandas 1 y 2** (drawers, detalle de Pedidos) + correctores C1–C5.
@@ -51,6 +54,16 @@ No son convivencias — son pantallas que aún no se tocaron.
 - **Backlog #24** (alto fijo en Inventario), **#17**, **#9**, **#7**.
 - **Tanda A**: carril "Por verificar" en Pedidos.
 - **Decisión de cobro implementada** (§4).
+- **Filtros de período compartidos**: `PresetsPeriodo` + `opcionesPreset` (Pagos e
+  Inventario) y el fix de "un período en curso termina HOY" (no arrastra días futuros).
+- **Pagos: el rango se filtra en SQL** — abre en el mes en curso, con presets.
+- **Dos defectos del date-range picker**: flechas de nav a la esquina superior
+  (`relative` + `top-1` + la clave `month_caption` que el rename v8→v10 perdió) y
+  dropdowns de mes/año (`captionLayout`, con piso navegable en el año anterior). Abre
+  backlog #26.
+- **Pagos: región de alto fijo** (`.duna-sin-split`, gate 960) — cabecera fija, la
+  tabla scrollea. Es LAYOUT, no el rediseño visual (el strip Duna va aparte). Con esto
+  la nota Wompi salió de la pantalla → § Mejoras post-multitenant.
 
 ### Infraestructura
 - **Monorepo** npm workspaces: `packages/core` (schema Prisma, data-access) y
@@ -323,7 +336,7 @@ Reglas: va ordenada y **el orden es la decisión**; el número es identidad, no
 posición. Cada entrada dice el **costo ya pagado**. Un ítem completado **se borra**.
 
 Vivos: `#1` · `#2` · `#3` · `#4` · `#5` · `#6` · `#8` · `#10` · `#16` · `#18` ·
-`#19` · `#20` · `#21` · `#22` · `#23` · `#25`.
+`#19` · `#20` · `#21` · `#22` · `#23` · `#25` · `#26`.
 
 ---
 
