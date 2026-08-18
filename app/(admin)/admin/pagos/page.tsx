@@ -14,8 +14,8 @@ import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
 import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
 import { rangoDeDiasDelPeriodo, opcionesPreset } from '@/lib/metrics/periodo';
-import { elegirEscala, bucketsDelRango, bucketKey } from '@/lib/pagos/bucketeo';
-import { etiquetaBucket } from '@/lib/pagos/etiquetas';
+import { bucketKey } from '@/lib/pagos/bucketeo';
+import { type RecorteTiempo } from '@/lib/pagos/etiquetas';
 
 // Columnas del libro (grid-list). Flexibles: caben en la región sin scroll horizontal
 // en escritorio, y refluyen a 2 columnas en móvil (§ duna.css, `.admin-lista`).
@@ -50,9 +50,9 @@ function PagosInner() {
   const [from, setFrom]       = useState(() => searchParams.get('desde') ?? rangoMes.desde);
   const [to, setTo]           = useState(() => searchParams.get('hasta') ?? rangoMes.hasta);
   // Estado del STRIP, todo client-side y de una fuente con la tabla:
-  const [bucketSel, setBucketSel] = useState<string | null>(null); // bucket clickeado
-  const [split, setSplit]         = useState(false);                // toggle "Por método"
-  const [excl, setExcl]           = useState<MetodoPago[]>([]);      // exclusiones de la leyenda
+  const [bucketSel, setBucketSel] = useState<RecorteTiempo | null>(null); // recorte de tiempo (chip)
+  const [split, setSplit]         = useState(false);                      // toggle "Por método"
+  const [excl, setExcl]           = useState<MetodoPago[]>([]);            // exclusiones de la leyenda
 
   // El rango se filtra en SQL → un cambio de rango RE-CONSULTA. `active` evita que una
   // respuesta lenta pise a una más nueva.
@@ -68,14 +68,8 @@ function PagosInner() {
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  // La escala del bucketeo del rango, y el bucket seleccionado como objeto (para su
-  // etiqueta auto-explicativa en el chip). `null` si el rango no dibuja (>31 años).
-  const escala        = useMemo(() => elegirEscala(from, to), [from, to]);
-  const bucketsRango  = useMemo(() => (escala ? bucketsDelRango(from, to, escala) : []), [from, to, escala]);
-  const bucketSelObj  = bucketSel ? bucketsRango.find(bk => bk.key === bucketSel) ?? null : null;
-
   // UNA fuente para stats, strip y tabla: método (select) + exclusiones (leyenda) +
-  // bucket (clic en barra). Todo sobre `pagos`, el recorte del rango.
+  // recorte de tiempo (chip: clic en barra o en una fecha). Todo sobre `pagos`.
   const filtered = useMemo(() => {
     const metOk = (m: MetodoPago) => {
       if (metodo === 'all') return !excl.includes(m);
@@ -84,9 +78,9 @@ function PagosInner() {
     };
     return pagos.filter(p =>
       metOk(p.metodo) &&
-      (!bucketSel || (escala != null && bucketKey(new Date(p.fecha), escala) === bucketSel)),
+      (!bucketSel || bucketKey(new Date(p.fecha), bucketSel.escala) === bucketSel.key),
     );
-  }, [pagos, metodo, excl, bucketSel, escala]);
+  }, [pagos, metodo, excl, bucketSel]);
 
   const totalPeriodo = filtered.reduce((sum, p) => sum + p.monto, 0);
   const promedio     = filtered.length ? totalPeriodo / filtered.length : null;
@@ -96,8 +90,8 @@ function PagosInner() {
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
-  // Un cambio de RANGO limpia el bucket seleccionado (es específico del rango: la escala
-  // y las claves cambian). El método/exclusiones sí sobreviven (son por método).
+  // Un cambio de RANGO limpia el recorte de tiempo (es específico del rango). El
+  // método/exclusiones sobreviven (son por método).
   const setRango = (d: string | null, h: string | null) => {
     setFrom(d ?? ''); setTo(h ?? ''); setBucketSel(null);
   };
@@ -107,6 +101,11 @@ function PagosInner() {
   };
   const toggleExcl = (m: MetodoPago) =>
     setExcl(prev => (prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]));
+
+  // EL EJE NUNCA SE FILTRA A SÍ MISMO (§ doctrina): el clic en método escribe el SELECT;
+  // el clic en tiempo (barra o fecha) escribe el CHIP. Cada uno en su control, y cada uno
+  // reemplaza al anterior de su tipo (toggle: clic en el activo lo quita).
+  const onMetodo = (m: MetodoPago) => setMetodo(prev => (prev === m ? 'all' : m));
 
   const clearFilters = () => {
     setMetodo('all'); setFrom(rangoMes.desde); setTo(rangoMes.hasta);
@@ -136,7 +135,7 @@ function PagosInner() {
           <div className="duna-stat">
             <div className="duna-stat__v duna-num">{formatCOP(totalPeriodo)}</div>
             <div className="duna-stat__l">Total del período</div>
-            <div className="duna-stat__d">{bucketSelObj ? etiquetaBucket(bucketSelObj.inicio, escala!) : 'del recorte activo'}</div>
+            <div className="duna-stat__d">{bucketSel ? bucketSel.etiqueta : 'del recorte activo'}</div>
           </div>
           <div className="duna-stat">
             <div className="duna-stat__v duna-num">{filtered.length}</div>
@@ -180,10 +179,10 @@ function PagosInner() {
           </select>
           <PresetsPeriodo opciones={presetsPagos} desde={from} hasta={to} onSelect={setRango} />
           <DateRangePicker desde={from || null} hasta={to || null} onChange={setRango} />
-          {/* Chip del bucket seleccionado — etiqueta auto-explicativa, nunca "1 seleccionado". */}
-          {bucketSelObj && (
+          {/* Chip del recorte de tiempo — etiqueta auto-explicativa, nunca "1 seleccionado". */}
+          {bucketSel && (
             <span className="duna-badge duna-badge--neutral" style={{ gap: 'var(--duna-space-inline)' }}>
-              {etiquetaBucket(bucketSelObj.inicio, escala!)}
+              {bucketSel.etiqueta}
               <button type="button" onClick={() => setBucketSel(null)} aria-label="Quitar el período seleccionado"
                       style={{ display: 'inline-flex', border: 0, background: 'transparent', cursor: 'pointer', color: 'inherit', padding: 0 }}>
                 <X style={{ width: 12, height: 12 }} />
@@ -207,7 +206,8 @@ function PagosInner() {
             <PagosStrip
               pagos={pagos} desde={from} hasta={to}
               metodoFiltrado={metodo} bucketSel={bucketSel} split={split} excl={excl}
-              onBucket={setBucketSel} onToggleSplit={() => setSplit(s => !s)} onToggleExcl={toggleExcl}
+              onBucket={setBucketSel} onMetodo={onMetodo}
+              onToggleSplit={() => setSplit(s => !s)} onToggleExcl={toggleExcl}
             />
           )}
 

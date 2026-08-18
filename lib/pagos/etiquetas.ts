@@ -1,6 +1,12 @@
 import { BUSINESS_TZ } from '@duna/core/timezone';
 import type { Escala } from './bucketeo';
 
+// El RECORTE DE TIEMPO activo (el chip). Lleva su `escala` y su `key` para filtrar
+// (`bucketKey(fecha, escala) === key`), y su `etiqueta` ya resuelta para pintarse solo.
+// Nace de un clic en barra (bucket a la escala del strip) o en una celda de fecha
+// (siempre 'dia'): los dos son un recorte de tiempo, con la misma forma.
+export interface RecorteTiempo { escala: Escala; key: string; etiqueta: string; }
+
 // Etiquetas del strip — el eje y el CHIP de bucket. Puras y es-CO/Bogotá.
 //
 // El chip vive en la cabecera FIJA mientras el strip scrollea, así que su etiqueta

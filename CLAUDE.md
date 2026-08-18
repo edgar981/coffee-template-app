@@ -3393,6 +3393,35 @@ fija se queda con título, stats y filtros. Reglas que son decisión, no estilo:
 - **El strip es bespoke admin, no una primitiva del DS** (§ discovery: no hay primitiva
   de chart, y con un consumidor no se justifica una).
 
+### El eje cambia cuando el recorte es 1 bucket, y EL EJE NUNCA SE FILTRA A SÍ MISMO
+
+El strip tiene DOS ejes intercambiables: **tiempo** (4–31 buckets, una barra por
+bucket) y **método** (cuando el recorte activo es UN bucket —"Hoy", un rango de 1 día,
+o un clic en barra/fecha—, una barra por método). Entre 2–3 buckets no hay forma en
+ningún eje → se declara; >31 años tampoco.
+
+**LA REGLA, y es general para cualquier gráfico con ejes intercambiables:** el eje que
+se está mostrando NO se filtra a sí mismo. El modo tiempo filtra por MÉTODO (el select);
+el modo método filtra por TIEMPO (el bucket). En modo método el select NO recorta las
+barras —serían una sola, que no informa—: se muestran las cinco y se resalta la activa,
+y **una nota lo DECLARA** ("el desglose es del período; la tabla está filtrada a X"),
+sólo cuando el caso ocurre —cinco barras sobre una fila filtrada se leería como fallo—.
+
+**Cada filtro vive en su propio control, y ahí está el "nunca un segundo indicador":**
+el TIEMPO en el chip (clic en barra o en una celda de fecha lo escribe), el MÉTODO en el
+select (clic en barra de método o en una celda de método lo escribe). No se inventa un
+tercer sitio; cada uno reemplaza al anterior de su tipo (toggle: clic en el activo lo
+quita). En modo método el toggle "Por método" se **oculta** (el eje YA es método) —no se
+deshabilita, que sugeriría algo que activar—.
+
+- **Celdas navegables** (`admin-lista`): la fecha y el método de cada fila son caminos a
+  esos mismos filtros (chip de tiempo / select), con afordancia `.duna-link` —sin color
+  nuevo—. Filtrar por una fecha colapsa el recorte a 1 día → el strip entra al eje de
+  método solo, por el mismo estado.
+- **El recorte de tiempo (`RecorteTiempo`) lleva su `escala` y su `etiqueta`**, para que
+  un clic en barra (bucket a la escala del strip) y uno en fecha (siempre 'dia') tengan
+  la misma forma y el chip se pinte solo.
+
 ## Automatizaciones — arquitectura y prerequisitos de go-live
 
 El CATÁLOGO vive en el código (`constants/automations.ts`): key estable

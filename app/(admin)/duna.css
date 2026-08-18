@@ -250,3 +250,16 @@ html.admin {
   .admin-lista__fila { grid-template-columns: minmax(0, 1fr) auto !important; gap: 2px var(--duna-space-3); padding: var(--duna-space-3); }
   .admin-lista__r { text-align: left; }
 }
+
+/* Modo MÉTODO del strip: una barra por método, cifra arriba, etiqueta abajo. */
+.admin-strip__metodos { display: flex; align-items: flex-end; gap: var(--duna-space-2); }
+.admin-strip__mcol { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: var(--duna-space-1);
+                     border: 0; background: transparent; padding: var(--duna-space-1); cursor: pointer; border-radius: var(--duna-r-s); }
+.admin-strip__mcol:hover { background: var(--duna-wash-hover); }
+.admin-strip__mcol.is-sel { background: var(--duna-wash-hover); box-shadow: inset 0 0 0 1px var(--duna-border-2); }
+.admin-strip__mval { font-size: var(--duna-text-caption); color: var(--duna-muted); white-space: nowrap; }
+.admin-strip__mcol.is-sel .admin-strip__mval { color: var(--duna-ink); }
+.admin-strip__mbararea { width: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
+.admin-strip__mbar { width: 100%; min-height: 2px; border-radius: var(--duna-r-s) var(--duna-r-s) 0 0; }
+.admin-strip__mlbl { font-size: var(--duna-text-caption); color: var(--duna-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.admin-strip__mcol.is-sel .admin-strip__mlbl { color: var(--duna-ink); font-weight: var(--duna-w-semi); }
