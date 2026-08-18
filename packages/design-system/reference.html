@@ -69,6 +69,55 @@
     </div>
   </section>
 
+  <!-- SERIE CATEGÓRICA -->
+  <section>
+    <h2 class="sec">Color · serie categórica</h2>
+    <p class="sec-note">Rol NUEVO, distinto de estado: <code>--duna-serie-1…5</code> sólo IDENTIFICA una categoría en un gráfico —nunca califica—. <b>NUNCA en badges, pills ni puntos de atención; sólo charts.</b> Regla para una serie-6: se mide contra sol/ok/bad en los dos temas (ΔE2000), y si compite, se mueve la SERIE, no el estado. Piso medido <b>~22 ΔE2000</b> en ambos temas; el par más ajustado hoy es <b>serie-1↔ok = 22.1 (oscuro)</b>. serie-4 se movió de teal <code>#356E78</code> a cyan porque el teal competía con <code>ok</code> (18.4→24.7 en claro).</p>
+
+    <!-- LA PRUEBA: las cinco JUNTAS y contra los estados, al tamaño de un chart (9px).
+         Hay que poder ver que se distinguen entre sí Y de sol/ok/bad sin agrandarlas. -->
+    <div style="display:flex; align-items:flex-end; gap:26px; flex-wrap:wrap; margin-bottom:var(--duna-space-5)">
+      <div>
+        <div class="duna-mono" style="margin-bottom:7px">las cinco series · 9px</div>
+        <div style="display:flex; gap:4px">
+          <span style="width:9px;height:9px;border-radius:2px;background:var(--duna-serie-1)"></span>
+          <span style="width:9px;height:9px;border-radius:2px;background:var(--duna-serie-2)"></span>
+          <span style="width:9px;height:9px;border-radius:2px;background:var(--duna-serie-3)"></span>
+          <span style="width:9px;height:9px;border-radius:2px;background:var(--duna-serie-4)"></span>
+          <span style="width:9px;height:9px;border-radius:2px;background:var(--duna-serie-5)"></span>
+        </div>
+      </div>
+      <div>
+        <div class="duna-mono" style="margin-bottom:7px">contra los estados · 9px</div>
+        <div style="display:flex; gap:4px">
+          <span style="width:9px;height:9px;border-radius:2px;background:var(--duna-sol)"></span>
+          <span style="width:9px;height:9px;border-radius:2px;background:var(--duna-ok)"></span>
+          <span style="width:9px;height:9px;border-radius:2px;background:var(--duna-bad)"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contexto real: una barra apilada + su leyenda. Es donde la serie VIVE.
+         Etiquetas GENÉRICAS a propósito (§ backlog #4): el DS es agnóstico, y un
+         "Efectivo/Nequi/…" ataría la prueba viva a esta vertical y caducaría. -->
+    <div style="max-width:520px">
+      <div style="display:flex; height:16px; border-radius:4px; overflow:hidden; margin-bottom:11px">
+        <div style="flex:32; background:var(--duna-serie-1)"></div>
+        <div style="flex:24; background:var(--duna-serie-2)"></div>
+        <div style="flex:18; background:var(--duna-serie-3)"></div>
+        <div style="flex:15; background:var(--duna-serie-4)"></div>
+        <div style="flex:11; background:var(--duna-serie-5)"></div>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:16px">
+        <span style="display:inline-flex; align-items:center; gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:var(--duna-serie-1)"></span><span class="duna-label">Serie 1</span></span>
+        <span style="display:inline-flex; align-items:center; gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:var(--duna-serie-2)"></span><span class="duna-label">Serie 2</span></span>
+        <span style="display:inline-flex; align-items:center; gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:var(--duna-serie-3)"></span><span class="duna-label">Serie 3</span></span>
+        <span style="display:inline-flex; align-items:center; gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:var(--duna-serie-4)"></span><span class="duna-label">Serie 4</span></span>
+        <span style="display:inline-flex; align-items:center; gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:var(--duna-serie-5)"></span><span class="duna-label">Serie 5 · neutro (residual)</span></span>
+      </div>
+    </div>
+  </section>
+
   <!-- TIPOGRAFÍA -->
   <section>
     <h2 class="sec">Tipografía · 9 niveles</h2>

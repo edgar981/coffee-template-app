@@ -99,6 +99,23 @@
   --duna-bad-ink:    #A0472F;               /* TEXTO sobre tinte — AA 6.1:1 en blanco */
   --duna-bad-soft:   rgba(181,83,60,.10);
 
+  /* SERIE CATEGÓRICA · color que IDENTIFICA, no que califica. Es un rol NUEVO,
+     distinto de sol/ok/bad: la serie no significa estado, sólo identidad de una
+     categoría en un gráfico (los métodos de pago, p. ej.). NUNCA se usa donde haya
+     estado —ni badges, ni pills, ni puntos de atención—: sólo gráficos con
+     categorías (ver la doctrina en CLAUDE.md).
+     Medida contra los estados (ΔE2000, ambos temas): el par más ajustado es
+     serie-4↔ok, que por eso se movió del teal #356E78 de la maqueta a este cyan
+     (sube a 24.7 claro / 22.8 oscuro). Con eso el PISO de toda la paleta contra
+     estados queda en ~22 ΔE2000; el más ajustado hoy es serie-1↔ok = 22.1 (oscuro).
+     Regla para una serie-6: se mide contra sol/ok/bad en los dos temas, y si
+     compite, se mueve la SERIE, no el estado — el estado manda. */
+  --duna-serie-1:    #2F2D28;               /* casi tinta */
+  --duna-serie-2:    #42648F;               /* azul */
+  --duna-serie-3:    #7A5480;               /* morado */
+  --duna-serie-4:    #2496AB;               /* cyan (movido de #356E78, competía con ok) */
+  --duna-serie-5:    #A8A399;               /* neutro · el residual "Otro" por diseño */
+
   /* Superficie del TOAST — tinta de marca CONSTANTE. Decisión explícita (owner):
      el toast es la voz del sistema y no se voltea con el tema (a diferencia de
      btn-primary, que sí usa --duna-ink y flipea). Fija en :root, NO se sobreescribe en
@@ -281,6 +298,15 @@
   --duna-bad:        #D07C66;
   --duna-bad-ink:    #D07C66;               /* AA 5.7:1 sobre --duna-surface oscuro */
   --duna-bad-soft:   rgba(208,124,102,.12);
+
+  /* SERIE CATEGÓRICA en oscuro (ver el rol en :root). Aclaradas para el fondo
+     oscuro, misma identidad por serie. serie-4 es el cyan movido (competía con ok);
+     su ΔE2000 a ok sube a 22.8 y el piso de la paleta contra estados queda en ~22. */
+  --duna-serie-1:    #D8D4C8;               /* crema */
+  --duna-serie-2:    #7C9FC9;               /* azul */
+  --duna-serie-3:    #B08CB6;               /* morado */
+  --duna-serie-4:    #52C0D6;               /* cyan (movido de #6FA8B0, competía con ok) */
+  --duna-serie-5:    #6E6A60;               /* neutro · el residual "Otro" */
 
   /* --duna-toast-surface / --duna-toast-text / --duna-ok-on-ink / --duna-bad-on-ink NO se
      sobreescriben acá a propósito: el toast es superficie constante. */

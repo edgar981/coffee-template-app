@@ -3280,6 +3280,37 @@ El `--accent` de admin-light era `#B45309` (marrón de marca) y volvía marrón 
 hover de outline/ghost/dropdown/select: ahora es un tinte cálido suave. El marrón
 vive como `--primary` y en los charts, no como fondo de hover.
 
+## La serie categórica — color que IDENTIFICA, no que califica
+
+`--duna-serie-1…5` (`tokens/tokens.css`, claro y oscuro) es un ROL NUEVO en la
+paleta, y su novedad es el punto: hasta ahora todo color del sistema significaba
+ESTADO —sol=atención, ok=confirmado, bad=problema, más la tinta neutra—. Una serie
+de gráfico no es ninguno de esos: no califica un hecho, sólo **distingue una
+categoría de otra** (los métodos de pago en el strip de Pagos, p. ej.). No cabía en
+ningún rol existente, así que es su propio rol.
+
+- **La serie NUNCA se usa donde haya estado.** Ni en badges, ni en pills, ni en
+  puntos de atención, ni en un semáforo. **Sólo en gráficos con categorías.** Un
+  color de serie en un badge reintroduce exactamente la ambigüedad que Amber Minimal
+  cierra —"¿esto es una categoría o me está diciendo algo?"—. El sitio de la serie
+  es el área/línea/barra de un chart y su leyenda, nada más.
+- **serie-5 es el NEUTRO por diseño** (el residual "Otro"): una categoría cajón-de-
+  sastre no debe gritar más que las nombradas.
+- **El criterio para una serie-6, escrito para que no se pierda:** se mide contra
+  **sol, ok y bad en los DOS temas** (ΔE2000). Si compite con un estado, **se mueve
+  la SERIE, no el estado — el estado manda.** Ya pasó: la serie-4 nació teal
+  (`#356E78`) en la maqueta y competía con `ok` verde (ΔE2000 18.4 claro / 16.3
+  oscuro, el par más ajustado de la paleta y contra un estado); se movió a cyan
+  (`#2496AB` / `#52C0D6`), que sube ese par a 24.7 / 22.8.
+- **El piso medido de la paleta contra estados es ~22 ΔE2000 en ambos temas.** Hoy
+  el par más ajustado es **serie-1↔ok = 22.1 (oscuro)** —una crema casi blanca
+  contra un verde menta, sin riesgo real—. Ése es el número contra el que una serie
+  nueva se compara: si baja de ~22, hay que moverla. Los números viven también en el
+  bloque de `reference.html` que ejercita las cinco.
+- **Se ejercitan las CINCO juntas, en el mismo cuadro de 9px**, en `reference.html`:
+  lo que hay que poder ver de un vistazo es que se distinguen ENTRE SÍ y de los
+  estados al tamaño real de un chart, no una por una.
+
 ## Automatizaciones — arquitectura y prerequisitos de go-live
 
 El CATÁLOGO vive en el código (`constants/automations.ts`): key estable
