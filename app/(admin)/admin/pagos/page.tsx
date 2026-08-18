@@ -83,7 +83,6 @@ function PagosInner() {
   }, [pagos, metodo, excl, bucketSel]);
 
   const totalPeriodo = filtered.reduce((sum, p) => sum + p.monto, 0);
-  const promedio     = filtered.length ? totalPeriodo / filtered.length : null;
 
   const hasFilters = metodo !== 'all' || bucketSel !== null || excl.length > 0
     || from !== rangoMes.desde || to !== rangoMes.hasta;
@@ -140,22 +139,14 @@ function PagosInner() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: 'var(--duna-space-4)' }}>
-          <div className="duna-stat">
-            <div className="duna-stat__v duna-num">{formatCOP(totalPeriodo)}</div>
-            <div className="duna-stat__l">Total del período</div>
-            <div className="duna-stat__d">{bucketSel ? bucketSel.etiqueta : 'del recorte activo'}</div>
-          </div>
-          <div className="duna-stat">
-            <div className="duna-stat__v duna-num">{filtered.length}</div>
-            <div className="duna-stat__l">Pagos {hasFilters ? 'filtrados' : 'registrados'}</div>
-            <div className="duna-stat__d">{bucketSel ? 'del bucket seleccionado' : 'del recorte activo'}</div>
-          </div>
-          <div className="duna-stat">
-            <div className="duna-stat__v duna-num">{promedio !== null ? formatCOP(promedio) : '—'}</div>
-            <div className="duna-stat__l">Promedio por pago</div>
-            <div className="duna-stat__d">total ÷ pagos del recorte</div>
-          </div>
+        {/* Sólo el TOTAL. "Pagos registrados" y "Promedio por pago" se podaron: la
+            cabecera es fija y el strip scrollea, así que cada cifra de más empuja al
+            libro fuera de vista (~370px de cabecera aun sin ellas). El conteo vive en el
+            libro; el promedio no cambia ninguna decisión del día. */}
+        <div className="duna-stat" style={{ display: 'inline-block' }}>
+          <div className="duna-stat__v duna-num">{formatCOP(totalPeriodo)}</div>
+          <div className="duna-stat__l">Total del período</div>
+          <div className="duna-stat__d">{bucketSel ? bucketSel.etiqueta : 'del recorte activo'}</div>
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', alignItems: 'center' }}>
