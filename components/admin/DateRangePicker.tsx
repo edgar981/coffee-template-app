@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
 import { dayKeyToDate, dateToDayKey } from '@/lib/day-key';
+import { anioPisoPicker } from '@/lib/metrics/periodo';
 
 // Shared admin date-range picker — extracted from the Órdenes filter so Pagos
 // (and future admin pages) reuse the exact trigger button, two-month layout, and
@@ -18,10 +19,15 @@ import { dayKeyToDate, dateToDayKey } from '@/lib/day-key';
 
 const RANGE_LABEL = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short' });
 
-export function DateRangePicker({ desde, hasta, onChange }: {
+export function DateRangePicker({ desde, hasta, onChange, pisoAnio }: {
   desde: string | null;
   hasta: string | null;
   onChange: (desde: string | null, hasta: string | null) => void;
+  // Año-piso de la navegación (dropdown de año + tope hacia atrás). Opcional: por
+  // defecto el año ANTERIOR (ver `anioPisoPicker` y su test). Es el ASIENTO de la
+  // opción A del backlog: el día que exista "primer año con datos", una página lo
+  // pasa acá y el picker no cambia. El `DateField` del drawer no la usa.
+  pisoAnio?: number;
 }) {
   const active = Boolean(desde || hasta);
   const range = {
@@ -30,9 +36,14 @@ export function DateRangePicker({ desde, hasta, onChange }: {
   };
 
   // "Today" is the America/Bogota day (not the viewer's), converted to a local
-  // Date because react-day-picker reasons in local calendar terms.
-  const today             = dayKeyToDate(zonedDayKey(new Date(), BUSINESS_TZ));
+  // Date because react-day-picker reasons in local calendar terms. `now` se lee UNA
+  // vez y de él salen tanto `today` como el año-piso, para no leer el reloj dos veces.
+  const now               = new Date();
+  const today             = dayKeyToDate(zonedDayKey(now, BUSINESS_TZ));
   const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  // El primer mes navegable: 1-ene del año-piso. Cubre TODO preset —incluido "Mes
+  // pasado" en enero, que apunta a diciembre del año anterior—. Ver `anioPisoPicker`.
+  const startNav          = new Date(pisoAnio ?? anioPisoPicker(now), 0, 1);
   // Records live in the PAST, so the two panes show [month-1, month] rather than
   // [month, month+1]. The right pane follows the selection when there is one,
   // clamped to the current month; `Date` normalises the January → December
@@ -61,10 +72,18 @@ export function DateRangePicker({ desde, hasta, onChange }: {
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           mode="range"
+          // `captionLayout="dropdown"` da los selects de mes/año para SALTAR sin
+          // clickear la flecha mes a mes (lo que reportó el owner). El de mes es la
+          // ganancia real; el de año hoy es casi inerte (uno o dos años) y crece con
+          // el histórico. Los `<select>` son nativos (aceptado); su overlay lo repone
+          // `calendar.tsx` porque no importamos el CSS de la librería.
+          captionLayout="dropdown"
           selected={active ? range : undefined}
           defaultMonth={leftMonth}
-          // react-day-picker v10: `endMonth` caps forward navigation (v8's
-          // `toMonth`). No `startMonth` — going back stays unrestricted.
+          // v10: `startMonth`/`endMonth` acotan la navegación (v8: `fromMonth`/`toMonth`).
+          // `startMonth` es OBLIGATORIO para que el dropdown de año no salga vacío
+          // (getYearOptions devuelve undefined sin él).
+          startMonth={startNav}
           endMonth={currentMonthStart}
           disabled={{ after: today }}
           onSelect={(r) => onChange(

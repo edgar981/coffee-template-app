@@ -152,3 +152,27 @@ export interface OpcionPreset {
 export function opcionesPreset(keys: PeriodoKey[], now: Date): OpcionPreset[] {
   return keys.map(k => ({ label: PERIODOS[k], ...rangoDeDiasDelPeriodo(k, now) }));
 }
+
+/**
+ * EL AÑO-PISO DEL DATE-RANGE PICKER — el primer año que el picker debe poder mostrar
+ * y navegar. NO es un tope de datos: es el contrato de que TODO rango alcanzable por un
+ * preset sea navegable en el picker (no solo filtrable).
+ *
+ * Es el año ANTERIOR al actual, no el actual. El preset que más atrás llega —"Últimos 3
+ * meses", 2 meses hacia atrás— CRUZA a noviembre/diciembre del año anterior en enero y
+ * febrero; y "Mes pasado" en enero ES diciembre del año anterior. Un piso en el año en
+ * curso los dejaría filtrando bien pero FUERA DE VISTA en el picker —defecto real, no
+ * tradeoff—. Se verifica con un enero simulado en `periodo.test.ts`.
+ *
+ * Alineado a AÑO CALENDARIO (no a "12 meses atrás" rodante) a propósito: así el dropdown
+ * de año y la navegabilidad por mes coinciden. Un piso a mitad de año dejaría meses de
+ * ese año EN el dropdown pero NO navegables —el select ofrecería un año cuyos primeros
+ * meses caen bajo el piso—. Es runtime, se mueve solo cada 1-ene; nunca un literal.
+ *
+ * `now` debe ser el instante REAL (`new Date()`), no una fecha de reloj de pared ya
+ * convertida: la zona se aplica acá. Pasar un `Date` de medianoche local reabre la
+ * trampa de TZ (§ dayKeyToDate).
+ */
+export function anioPisoPicker(now: Date): number {
+  return Number(zonedDayKey(now, BUSINESS_TZ).slice(0, 4)) - 1;
+}

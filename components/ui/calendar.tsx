@@ -38,7 +38,18 @@ function Calendar({
   // encima. Centrarlo es restaurar la intención de shadcn (`caption: flex
   // justify-center` en v8), no una posición nueva. NO quitar.
   month_caption: "flex justify-center items-center",
-  caption_label: "text-sm font-medium",
+
+  // `captionLayout="dropdown"` monta un `<select>` nativo SUPERPUESTO a un label
+  // visible; el `style.css` de la librería —que no importamos— pone el select
+  // `opacity-0` absoluto ENCIMA del label. Sin esas reglas el select se ve crudo
+  // ADEMÁS del label → duplicado. Estas claves reponen ese overlay: el select
+  // invisible arriba (`z-20`) captura el click, el label visible debajo (`z-10`).
+  // Mismo caso que `month_caption`: la config asume un CSS que no traemos. NO quitar.
+  dropdowns: "flex items-center gap-1.5",
+  dropdown_root: "relative inline-flex items-center",
+  dropdown: "absolute inset-0 z-20 w-full cursor-pointer opacity-0",
+  chevron: "fill-current",
+  caption_label: "relative z-10 inline-flex items-center gap-1 text-sm font-medium",
 
   nav: "space-x-1 flex items-center",
 
