@@ -79,9 +79,15 @@ export function esPeriodo(value: string | null | undefined): value is PeriodoKey
 }
 
 /**
- * El rango de un período como INSTANTES UTC, con la frontera de Bogotá. Todos
- * terminan al inicio del mes SIGUIENTE (exclusivo), así que el mes en curso entra
- * completo. `now` es parámetro para que un test pueda fijar el reloj.
+ * El rango de un período como INSTANTES UTC, con la frontera de Bogotá. `now` es
+ * parámetro para que un test pueda fijar el reloj.
+ *
+ * UN PERÍODO EN CURSO TERMINA HOY, NO AL FINAL DEL PERÍODO. "Este mes" el 17 es
+ * 1–17, no 1–31: el `hasta` se capa al INICIO DE MAÑANA en Bogotá (hoy incluido, sin
+ * futuro), el mismo criterio que la fecha del pago (§ dayKeyStart / no se muestra
+ * futuro). Los períodos CERRADOS (`mes_anterior`) ya terminan en el pasado, así que el
+ * cap no los toca. Antes todos terminaban al inicio del mes siguiente y `mes`,
+ * `ultimos_3_meses` y `anio` arrastraban los días futuros del mes en curso.
  *
  * Vive acá —módulo PURO— y no en `lib/analitica` (que trae SQL) porque lo consumen
  * DOS verticales: Analítica lo usa como bounds de sus queries, e Inventario lo
@@ -90,16 +96,22 @@ export function esPeriodo(value: string | null | undefined): value is PeriodoKey
  */
 export function rangoDelPeriodo(periodo: PeriodoKey, now: Date): { desde: Date; hasta: Date } {
   const finDeMesActual = startOfZonedMonth(now, BUSINESS_TZ, 1);
-  switch (periodo) {
-    case 'mes_anterior':
-      return { desde: startOfZonedMonth(now, BUSINESS_TZ, -1), hasta: startOfZonedMonth(now, BUSINESS_TZ, 0) };
-    case 'ultimos_3_meses':
-      return { desde: startOfZonedMonth(now, BUSINESS_TZ, -(ULTIMOS_MESES_VENTANA - 1)), hasta: finDeMesActual };
-    case 'anio':
-      return { desde: startOfZonedYear(now, BUSINESS_TZ, 0), hasta: finDeMesActual };
-    default:
-      return { desde: startOfZonedMonth(now, BUSINESS_TZ, 0), hasta: finDeMesActual };
-  }
+  const { desde, hasta: hastaBruto } = (() => {
+    switch (periodo) {
+      case 'mes_anterior':
+        return { desde: startOfZonedMonth(now, BUSINESS_TZ, -1), hasta: startOfZonedMonth(now, BUSINESS_TZ, 0) };
+      case 'ultimos_3_meses':
+        return { desde: startOfZonedMonth(now, BUSINESS_TZ, -(ULTIMOS_MESES_VENTANA - 1)), hasta: finDeMesActual };
+      case 'anio':
+        return { desde: startOfZonedYear(now, BUSINESS_TZ, 0), hasta: finDeMesActual };
+      default:
+        return { desde: startOfZonedMonth(now, BUSINESS_TZ, 0), hasta: finDeMesActual };
+    }
+  })();
+  // El cap a HOY: `min(hastaBruto, inicio de mañana en Bogotá)`. Un solo `min` sirve
+  // para los cuatro — los cerrados ya son pasado, así que no cambian.
+  const finHoy = startOfZonedDay(now, BUSINESS_TZ, 1);
+  return { desde, hasta: hastaBruto < finHoy ? hastaBruto : finHoy };
 }
 
 /**
