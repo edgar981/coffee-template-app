@@ -188,7 +188,16 @@ html.admin {
    categórica (`--duna-serie-*`); nada de estado acá. */
 .admin-strip { border: 1px solid var(--duna-border); border-radius: var(--duna-r-l);
                background: var(--duna-surface); padding: var(--duna-space-4) var(--duna-space-5) var(--duna-space-3);
-               margin-bottom: var(--duna-space-4); }
+               margin-bottom: var(--duna-space-4);
+               /* El ÚNICO punto donde el contenido se REEMPLAZA (barras por día → barras
+                  por método), no se recorta: sin transición el ojo no distingue "el filtro
+                  cambió" de "algo se rompió". Fade corto al cambiar de modo —el strip se
+                  remonta con `key={modo}`, así que sólo corre en el cambio de eje, no al
+                  filtrar dentro del mismo—. Usa `--duna-dur` (200ms), el mismo ritmo que el
+                  resto del panel. Lo neutraliza el bloque `prefers-reduced-motion` de
+                  `.duna *` (medido: `animation-duration: .01ms !important`). */
+               animation: adminStripCambioEje var(--duna-dur) var(--duna-ease); }
+@keyframes adminStripCambioEje { from { opacity: 0; } to { opacity: 1; } }
 .admin-strip--vacio { display: flex; align-items: center; min-height: 72px; }
 .admin-strip__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--duna-space-3); }
 .admin-strip__toggle { display: inline-flex; align-items: center; gap: var(--duna-space-2);

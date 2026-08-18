@@ -97,12 +97,12 @@ export function PagosStrip({
     ? (metodoFiltrado as MetodoPago) : null;
 
   if (modo === 'muchas') {
-    return <div className="admin-strip admin-strip--vacio"><p className="duna-sub" style={{ margin: 0 }}>
+    return <div key={modo} className="admin-strip admin-strip--vacio"><p className="duna-sub" style={{ margin: 0 }}>
       El rango es demasiado amplio para graficarlo (más de 31 años). El libro de abajo sigue completo.
     </p></div>;
   }
   if (modo === 'pocas') {
-    return <div className="admin-strip admin-strip--vacio"><p className="duna-sub" style={{ margin: 0 }}>
+    return <div key={modo} className="admin-strip admin-strip--vacio"><p className="duna-sub" style={{ margin: 0 }}>
       El rango es muy corto para una tira de barras (dos o tres períodos). El total está en las stats de arriba.
     </p></div>;
   }
@@ -110,7 +110,7 @@ export function PagosStrip({
   // ── MODO MÉTODO ──────────────────────────────────────────────────────────────
   if (modo === 'metodo' && datosM) {
     return (
-      <div className="admin-strip">
+      <div key={modo} className="admin-strip">
         <div className="admin-strip__head">
           <span className="duna-eyebrow">Ingresos por método</span>
           {/* Sin toggle: el eje YA es método. Ocultarlo, no deshabilitarlo. */}
@@ -153,7 +153,7 @@ export function PagosStrip({
   const splitReal = split && metodoFiltrado === 'all';
 
   return (
-    <div className="admin-strip">
+    <div key={modo} className="admin-strip">
       <div className="admin-strip__head">
         <span className="duna-eyebrow">{tituloEscala(escala as Escala)}</span>
         <button
