@@ -759,20 +759,16 @@ function Pedidos() {
         verificando={enVerificacion}
         onClose={() => { setCobrando(null); setEnVerificacion(null); }}
         onSaved={({ order: actualizada, comprobante }) => {
-          // El soporte se sube DESPUÉS del Payment, así que no viene en la
-          // respuesta de la orden: se concatena.
-          const previos = actualizada.comprobantes ?? [];
-          empalmar({ ...actualizada, comprobantes: comprobante ? [...previos, comprobante] : previos });
-          // EL ENLACE: entrar por Verificar deja el soporte marcado, y al volver el
-          // pago se sella. Va DESPUÉS y por separado — si falla, la orden ya quedó
-          // pagada y un segundo click en Verificar lo cierra (ahí ya cae en
-          // `sellar`). Al revés se afirmaría un cobro que no ocurrió.
-          if (enVerificacion) {
-            const id = enVerificacion.id;
-            const ordenId = actualizada.id;
-            setEnVerificacion(null);
-            control.decidir(ordenId, id, 'verificar')
-              .catch(e => control.mostrarError(e, 'El pago quedó registrado, pero no se pudo sellar el comprobante. Vuelve a pulsar Verificar.'));
+          if (actualizada) {
+            // DIRECTO: la orden viene actualizada. El soporte, si lo hubo, se sube
+            // DESPUÉS del Payment y no viaja en la orden: se concatena.
+            const previos = actualizada.comprobantes ?? [];
+            empalmar({ ...actualizada, comprobantes: comprobante ? [...previos, comprobante] : previos });
+          } else {
+            // VERIFICAR: la verificación creó el Payment y movió la orden a `pagado`
+            // en UNA sola llamada (ya no hay pago-y-luego-sello). La verdad —orden
+            // pagada, envío auto-creado, comprobante VERIFICADO— la trae el servidor.
+            repreguntar();
           }
         }}
       />

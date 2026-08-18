@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { registerOrderPaymentTx } from '@duna/core/orders';
+import { registerOrderPaymentTx, FechaFuturaError } from '@duna/core/orders';
+import { dayKeyStart, BUSINESS_TZ } from '@duna/core/timezone';
 import { runEventAutomations } from '@/lib/automations/engine';
 import { MetodoPago } from '@duna/core';
+
+const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
 
 const METODOS = Object.values(MetodoPago);
 
@@ -29,6 +32,15 @@ export async function POST(
     return NextResponse.json({ error: 'Método de pago inválido' }, { status: 400 });
   }
 
+  // Fecha de negocio como CLAVE DE DÍA (`YYYY-MM-DD`), anclada al inicio de ese día
+  // en Bogotá (§ la trampa TZ de `lib/day-key`). Omitida → default now(). El veto a
+  // futuro lo impone `registerOrderPaymentTx`.
+  const dayKey = typeof body?.fecha === 'string' ? body.fecha : null;
+  if (dayKey !== null && !DAY_KEY.test(dayKey)) {
+    return NextResponse.json({ error: 'Fecha de pago inválida' }, { status: 400 });
+  }
+  const fecha = dayKey ? dayKeyStart(dayKey, BUSINESS_TZ) : undefined;
+
   try {
     const result = await prisma.$transaction(async (tx) => {
       // Lock the order row for the tx: two concurrent "registrar pago" submits
@@ -52,6 +64,7 @@ export async function POST(
         notas:                 typeof body?.notas === 'string' ? body.notas : null,
         registrado_por:        session.user.id,
         registrado_por_nombre: session.user.name ?? null,
+        fecha,
       });
 
       return { payment, order: updatedOrder };
@@ -75,6 +88,10 @@ export async function POST(
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
+    // Fecha futura: dato del cliente, no fallo del server.
+    if (error instanceof FechaFuturaError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error('Register payment failed:', error);
     return NextResponse.json({ error: 'No se pudo registrar el pago' }, { status: 500 });
   }

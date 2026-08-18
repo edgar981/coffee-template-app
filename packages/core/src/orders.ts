@@ -198,6 +198,12 @@ export interface RegisterPaymentTxInput {
   notas?: string | null;
   registrado_por?: string | null;
   registrado_por_nombre?: string | null;
+  // FECHA DE NEGOCIO en que entró la plata (Payment.fecha). Opcional: si se omite,
+  // cae al @default(now()) del schema. La provee el flujo que verifica un
+  // comprobante (§ Decisión — Cuándo un pedido está pagado): al verificar se
+  // registra CUÁNDO entró la plata, no cuándo se miró la foto. `createdAt` sigue
+  // siendo el timestamp de auditoría, intacto.
+  fecha?: Date;
 }
 
 // THE single "registrar pago" write, inside a caller-supplied transaction:
@@ -207,12 +213,24 @@ export interface RegisterPaymentTxInput {
 //   • POST /api/orders/[id]/payments — pay an EXISTING pendiente order, and
 //   • createOrderWithCustomer({ immediatePayment }) — "el pago ya fue recibido"
 //     al crear la orden manual.
+// Una fecha de pago en el FUTURO afirma que entró plata que todavía no entró. Se
+// veta en el ÚNICO escritor de dinero, así cubre a los tres llamadores (verificar,
+// Registrar Pago, pago inmediato) sin repetir la guarda en cada route.
+export class FechaFuturaError extends Error {
+  constructor() {
+    super('La fecha del pago no puede ser futura: un pago que aún no entró no se registra.');
+    this.name = 'FechaFuturaError';
+  }
+}
+
 // Returns the Payment and the refreshed order (with items + shipping).
 export async function registerOrderPaymentTx(
   tx: Prisma.TransactionClient,
   orderId: string,
   input: RegisterPaymentTxInput,
 ) {
+  if (input.fecha && input.fecha.getTime() > Date.now()) throw new FechaFuturaError();
+
   const payment = await tx.payment.create({
     data: {
       orden_id:              orderId,
@@ -222,6 +240,8 @@ export async function registerOrderPaymentTx(
       notas:                 input.notas?.trim() ? input.notas.trim() : null,
       registrado_por:        input.registrado_por ?? null,
       registrado_por_nombre: input.registrado_por_nombre ?? null,
+      // `undefined` deja actuar el @default(now()); una Date la fija (flujo de verificar).
+      fecha:                 input.fecha ?? undefined,
     },
   });
 
