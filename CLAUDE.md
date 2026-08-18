@@ -837,6 +837,32 @@ trabajo que se rehace, con gate sobre pantallas que van a desaparecer. El shell
 global entra AL FINAL, como consolidación. Absorbe a #25: el gateo por valor vs rol
 deja de existir cuando el chrome provee la altura global.
 
+### 26. El date-range picker no navega a años ANTERIORES al año-piso
+
+`startMonth` del `DateRangePicker` es el 1-ene del año ANTERIOR al actual
+(`anioPisoPicker`, `lib/metrics/periodo.ts`), lo justo para que TODO preset sea
+navegable —incluido "Mes pasado" en enero, que apunta a diciembre del año anterior—.
+Pero es un piso de dos años como máximo: en cuanto el negocio acumule datos de **más
+de un año calendario**, habrá meses con datos por debajo del piso que el picker no
+podrá mostrar ni navegar, aunque un rango tecleado sí los filtre.
+
+El dropdown de AÑO que trae `captionLayout="dropdown"` es hoy casi inerte por lo mismo
+—con datos de un solo año muestra ese año y el anterior (vacío)—. Su valor aparece
+cuando haya varios años.
+
+**Costo YA pagado: ninguno** — todo el dato es de un año. Es un piso deliberado, no una
+herida. La forma alineada a año calendario (no "12 meses atrás" rodante) es a propósito:
+mantiene el dropdown de año y la navegabilidad por mes coherentes.
+
+**DISPARADOR: cuando el negocio tenga datos de más de un año calendario.** Ahí el piso
+pasa a salir del PRIMER AÑO CON DATOS (opción A, ya diseñada, no re-diseñar): endpoint
+`GET /api/meta/primer-anio` → `year(MIN(Order.createdAt))` con fallback al año actual, +
+un hook compartido `usePisoAnio()` que las tres páginas (Pedidos, Pagos, Inventario)
+consumen y pasan por la prop **`pisoAnio` que el picker YA acepta**. Piso común, una
+query MIN, una ruta. La forma está resuelta; falta la evidencia —el segundo año— que la
+justifique. Se descartó construirla ahora (owner, 2026-08-18): con un solo año sería
+infraestructura por adelantado para un dropdown de una sola opción.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son

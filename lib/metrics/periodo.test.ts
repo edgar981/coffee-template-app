@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rangoDeDiasDelPeriodo, opcionesPreset } from './periodo';
+import { rangoDeDiasDelPeriodo, opcionesPreset, anioPisoPicker } from './periodo';
 
 // Capa 1 — puro. Los presets REUSAN la definición de período de Analítica
 // (`rangoDelPeriodo`) y la traducen a day keys de Bogotá INCLUSIVOS. Lo que se
@@ -40,6 +40,29 @@ test('opcionesPreset mapea cada período a { label, desde, hasta } — el mapeo 
     { label: 'Este mes',   desde: '2026-05-01', hasta: '2026-05-15' },
     { label: 'Mes pasado', desde: '2026-04-01', hasta: '2026-04-30' },
   ]);
+});
+
+test('el año-piso del picker cubre TODO preset alcanzable — incluido ENERO, que cruza al año anterior', () => {
+  // El caso que rompía el picker: en enero "Mes pasado" apunta a DICIEMBRE del año
+  // ANTERIOR y "Últimos 3 meses" a noviembre. Un piso en el año en curso los deja
+  // filtrando bien pero fuera de vista —no navegables en el picker—. Se simula enero,
+  // no se usa la fecha de hoy: el defecto solo aparece cuando el mes en curso es enero.
+  const ENE = new Date('2027-01-15T18:00:00Z'); // 15 ene 2027 13:00 Bogotá
+  const pisoDia = `${anioPisoPicker(ENE)}-01-01`; // 2026-01-01 (año ANTERIOR)
+
+  // El criterio: todo preset mensual arranca en o después del piso → navegable.
+  for (const k of ['mes', 'mes_anterior', 'ultimos_3_meses'] as const) {
+    const { desde } = rangoDeDiasDelPeriodo(k, ENE);
+    assert.ok(desde >= pisoDia, `${k} (${desde}) debe ser navegable desde el piso ${pisoDia}`);
+  }
+
+  // El preset que lo justifica: en enero "Mes pasado" ES diciembre del año anterior.
+  assert.equal(rangoDeDiasDelPeriodo('mes_anterior', ENE).desde, '2026-12-01');
+
+  // Y el DEFECTO que el año-anterior fija: con el piso NAIVE (año en curso) ese
+  // diciembre cae FUERA —el picker no lo mostraría aunque el rango lo filtrara—.
+  assert.ok(rangoDeDiasDelPeriodo('mes_anterior', ENE).desde < '2027-01-01',
+    'diciembre del año anterior queda bajo el piso naive: por eso el piso es el año-1');
 });
 
 test('la frontera es de BOGOTÁ, no UTC: 1 jun 04:00Z todavía es 31 MAY', () => {
