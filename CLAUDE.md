@@ -425,6 +425,51 @@ mismo hecho.
 
 La deuda que queda de esta familia vive en § Backlog técnico, no acá.
 
+## El tooltip del panel — `DunaTooltip`, chip invertido, sólo DATO
+
+Cerrado el 2026-08-18 (era el § Backlog #29). El panel tenía DOS formas para lo
+mismo —`title` nativo (lento ~1.5s, sin estilo, sin tema) y el Radix shadcn del
+sidebar—, y dos formas para lo mismo es cómo la próxima pantalla elige sin criterio.
+
+- **La primitiva es ADMIN-LEVEL, no del paquete.** `components/admin/DunaTooltip.tsx`
+  envuelve el Radix de `components/ui/tooltip.tsx` con la ergonomía de un
+  `content: string`. NO va en `@duna/design-system` porque el paquete **no tiene
+  Radix ni un solo `'use client'`** —es presentacional puro—, y meter ahí una
+  primitiva con conducta rompería la opción C. El precedente es `DunaSheet`, que
+  **también es admin-level** por lo mismo. El día de Fase B (el paquete adopta
+  conducta) se muda.
+- **La superficie es un CHIP INVERTIDO** (`.admin-tooltip`, `app/(admin)/duna.css`):
+  `--duna-ink` de fondo, `--duna-bg` de texto, que flipean JUNTOS entre temas (chip
+  oscuro en claro, claro en oscuro; ~17:1 en los dos). Los tokens viven en `:root`,
+  así que el Portal a `<body>` los hereda; la familia (Hanken) se resuelve contra
+  `html.admin`. **El re-estilo del `TooltipContent` cubre de una vez a los ~10 Radix
+  del panel Y a lo que envuelve `DunaTooltip`** — cambiar el `Content`, no migrar.
+- **El alcance es por NATURALEZA DEL CONTENIDO, no por pantalla.** **DATO** (el
+  tooltip es el único sitio donde vive esa info) migra a `DunaTooltip`; **ETIQUETA**
+  (repite lo que el ícono/link ya dice) migra por goteo al tocar su pantalla;
+  **REDUNDANTE** (la info ya está en pantalla, o el ícono es inequívoco) **se borra**.
+  El censo real dio **8 DATO** migrados y **2 redundantes** limpiados —el `title` de
+  `usuarios` duplicaba el motivo que YA se muestra inline; el "Recargar" sobre ⟳ pasó
+  a `aria-label` (se va el tooltip, queda el nombre accesible del botón icónico)—.
+- **CUIDADO con el censo: un prop que se llama `title` casi nunca es un tooltip.**
+  `OrderCard title=` es el ENCABEZADO visible de la tarjeta; `ConfirmDeleteDialog`/
+  `CommandDialog title=` son títulos de diálogo (a11y). Ninguno forwardea a un
+  `title=` nativo. Confundirlos infló el primer censo a ~29 "tooltips" cuando los
+  nativos reales eran una fracción. Se verifica mirando el ELEMENTO, no el prop.
+- **Un componente COMPARTIDO no debe forwardear `title` al atributo nativo.** A
+  `StatusBadge` (lo usa el storefront) se le **quitó el prop `title`** —único
+  consumidor era Comprobantes, migrado al call-site con `DunaTooltip`—: dejar el prop
+  deja la puerta abierta para que el próximo consumidor se lleve un tooltip nativo.
+- **Botón deshabilitado → span-wrap.** Radix no dispara el hover sobre un `disabled`
+  (a diferencia del `title` nativo), así que el trigger es un `<span>` que envuelve al
+  botón (precedente de Entregas). Tres casos: el toggle "Por método" del strip, el
+  "Marcar en ruta" a medias, y —lo que NO fue— `usuarios`, cuyo motivo se lee inline.
+- **La prueba viva** vive en `reference.html`, pero **espeja `.admin-tooltip` con
+  estilos inline** (no ejercita la clase real). Ese hueco, y la promoción de la
+  superficie al paquete como `.duna-tooltip`, están anotados con `.duna-sheet`/
+  `.duna-scrim` (§ Duna OS en ANGOSTO — el mismo "CSS que alguien cablea"). El hueco
+  de VISIBILIDAD en táctil del total del strip sigue en § Backlog #30.
+
 ## Backlog técnico
 
 **EL registro único de deuda conocida.** Existe porque antes vivía repartida
@@ -913,43 +958,6 @@ movimientos…"); cuando el kardex sea `.admin-lista`, adopta el skeleton de fil
 que Pagos ya tiene (§ el corrector C-2) —ahí los dos comparten forma y el skeleton se
 EXTRAE (dos consumidores)—. Hacerlo antes sería un skeleton de `DunaTable` que esta
 migración tira; por eso el loader de Inventario espera acá, no en el corrector.
-
-### 29. Los tooltips del panel divergen — `title` nativo vs Radix shadcn
-
-Dos enfoques para lo mismo: **`title` NATIVO** en Productos (× "Eliminar/Activar/Cerrar",
-`productos/page.tsx`) y en el strip de Pagos (las barras, `PagosStrip.tsx`), y el **Radix
-shadcn** (`components/ui/tooltip.tsx`) en el sidebar (`Sidebar.tsx`, side="right", delay
-300). El nativo es lento (~1.5s), sin estilo y ajeno al tema; el shadcn está estilizado
-pero es admin-level, no una primitiva Duna.
-
-**Costo YA pagado: ninguno grave** —los tres funcionan—, pero tres consumidores con dos
-formas es cómo la próxima pantalla elige sin criterio. (Se citó mal como "#8" en su
-momento; el #8 es `Customer.activo`. Este ítem NO existía — se abre acá.)
-
-**DISPARADOR: YA (owner, 2026-08-18) — su propia tanda con gate, no dentro del corrector
-de Pagos.** Un tooltip Duna **ADMIN-LEVEL** (`components/admin`, NO en el paquete),
-tokenizado, montado sobre Radix. La corrección de rumbo importa: el precedente `DunaSheet`
-que se citó **también es admin-level**, y el paquete **no tiene Radix ni un solo
-`'use client'`** —es presentacional puro—; meter ahí un tooltip que envuelve Radix
-introduciría conducta de cliente y rompería la opción C. Por eso va admin-level, como
-DunaSheet de verdad está; el día de Fase B (el paquete adopta conducta) se muda. Con su
-bloque en `reference.html`.
-
-**El alcance es por NATURALEZA DEL CONTENIDO, no por pantalla** (owner, 2026-08-18):
-
-- **DATO** — el tooltip es el ÚNICO sitio donde vive ese número o esa información (el
-  strip es el caso claro; también los reveals de nombre/número truncado, las razones de
-  un control deshabilitado, los formatos del adjunto). **Migran AHORA**: hoy tardan 1.5s
-  y no tienen estilo, sobre información que importa.
-- **ETIQUETA** — repite lo que el ícono ya dice ("Activar producto" sobre un badge, "Ver
-  ficha de X" sobre un link). **Migran por goteo**, al tocar su pantalla.
-- **REDUNDANTE** — una etiqueta que no agrega nada sobre un ícono inequívoco ("Eliminar"
-  sobre una basura, "Recargar" sobre un ⟳). No necesita tooltip: **se borra**.
-- Los **~10 de Radix** (TopBar, NotificationBell, Sidebar, Dashboard, Entregas) se
-  **re-estilizan todos** —es cambiar el `Content`, no migrar—.
-
-El contenido de todos es `string` plano (ninguno es un nodo), así que la primitiva acepta
-un `string`. Al cerrarse la tanda, este ítem se borra.
 
 ### 30. El total del bucket del strip vive SOLO en el hover — invisible en táctil
 

@@ -1,6 +1,6 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-17.
+**Actualizado:** 2026-08-18.
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -49,9 +49,16 @@ No son convivencias — son pantallas que aún no se tocaron.
 **Pagos CERRADO** — el strip entró (barras sobre el tiempo, eje intercambiable a método,
 grid-list, celdas navegables; § CLAUDE.md "El strip de Pagos") y sus correctores también:
 stats podadas a solo "Total", loader = skeleton de filas del grid-list, y el crossfade de
-200ms al cambiar de eje. Lo que salió del corrector y quedó como su PROPIA tanda de
-sistema: la primitiva Duna de tooltip (tres consumidores divergen entre `title` nativo y
-Radix shadcn) — **backlog #29**, no #8 (ése es `Customer.activo`).
+200ms al cambiar de eje.
+
+**Tooltip Duna CERRADO** (§ CLAUDE.md "El tooltip del panel") — la primitiva
+`DunaTooltip` es ADMIN-LEVEL (envuelve Radix; el paquete queda sin conducta) y la
+superficie `.admin-tooltip` es un chip invertido (~17:1 en los dos temas). El censo real
+—tras descartar props `title` que NO eran tooltips (encabezados de `OrderCard`, títulos de
+diálogo)— dio **8 DATO** migrados, **9 ETIQUETA** por goteo y **2 redundantes** limpiados;
+a `StatusBadge` (compartido con storefront) se le quitó el prop `title`. Backlog #29 se
+borró al cerrar. Quedan anotados: mover la superficie al paquete como `.duna-tooltip` (con
+sheet/scrim, § Duna OS en ANGOSTO) y el hueco táctil del total del strip (**backlog #30**).
 
 ### Trabajo cerrado
 - **Tandas 1 y 2** (drawers, detalle de Pedidos) + correctores C1–C5.
