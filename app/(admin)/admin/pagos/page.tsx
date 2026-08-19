@@ -156,9 +156,12 @@ function PagosInner() {
             Peso 500 con la cifra y el conteo en semibold: los tramos vienen partidos de
             `fraseDePagos` para que la tipografía no se desincronice de la gramática. */}
         <div>
-          <div className="duna-eyebrow">{frase.eyebrow}</div>
+          {/* SIN eyebrow de rango: el rango ya se lee en el date picker de abajo, y
+              repetirlo acá costaba una línea de la zona fija —que no scrollea— por un
+              dato que ya está en pantalla. `frase.eyebrow` sigue existiendo para cuando
+              el rango suba al topbar. */}
           <h1 className="duna-display-m"
-              style={{ fontWeight: 'var(--duna-w-medium)', margin: 'var(--duna-space-hairline) 0 0' }}>
+              style={{ fontWeight: 'var(--duna-w-medium)', margin: 0 }}>
             {frase.tramos.map((tr, i) => tr.fuerte
               ? <strong key={i} style={{ fontWeight: 'var(--duna-w-semi)' }}>{tr.t}</strong>
               : <span key={i}>{tr.t}</span>)}

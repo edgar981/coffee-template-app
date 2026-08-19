@@ -192,8 +192,11 @@ html.admin {
    Lo neutraliza el bloque `prefers-reduced-motion` de `.duna *` (medido:
    `animation-duration: .01ms !important`). Colores de la serie categórica sólo en el
    modo método; la curva es TINTA —nada acá pide atención—. */
+/* El padding es AJUSTADO a propósito (12/16/8, un escalón bajo el de una tarjeta): el
+   bloque vive en la zona fija, que no scrollea, así que su chrome se paga en filas de
+   libro. Es el lever 2 del presupuesto de alto (§ spec). */
 .admin-grafico { border: 1px solid var(--duna-border); border-radius: var(--duna-r-l);
-               background: var(--duna-surface); padding: var(--duna-space-4) var(--duna-space-5) var(--duna-space-3);
+               background: var(--duna-surface); padding: var(--duna-space-3) var(--duna-space-4) var(--duna-space-2);
                animation: adminStripCambioEje var(--duna-dur) var(--duna-ease); }
 .admin-grafico--vacio { display: flex; align-items: center; min-height: 64px; }
 .admin-grafico__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--duna-space-2); }

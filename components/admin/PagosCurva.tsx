@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { Payment, MetodoPago } from '@/types/payment';
 import { METODO_PAGO_LABEL, METODO_CATEGORIA } from '@/types/payment';
 import { formatCOP } from '@duna/core/utils';
@@ -28,8 +28,12 @@ const METODOS_SERIE: { metodo: MetodoPago; color: string }[] = [
   { metodo: 'OTRO',          color: 'var(--duna-serie-5)' },
 ];
 
-/** Alto del área de dibujo. Es el primer lever del presupuesto de alto (§ spec). */
-const ALTO = 170;
+/**
+ * Alto del área de dibujo. Es el primer lever del presupuesto de alto (§ spec): la
+ * zona fija no scrollea, así que cada píxel de acá le cuesta una fila al libro. 140 es
+ * el piso de ese lever —por debajo la silueta deja de leerse—.
+ */
+const ALTO = 140;
 /** Aire arriba para la cifra del pico, que se pinta sobre el punto. */
 const PAD_TOP = 20;
 /** Margen lateral para que el primer y el último punto no queden cortados. */
@@ -98,18 +102,31 @@ export function PagosCurva({
     : 'tiempo';
 
   // El ancho se MIDE (no se asume): un viewBox estirado deformaría el trazo y la
-  // tipografía. El ResizeObserver ya emite la primera medición al observar, así que
-  // no hace falta un setState en el cuerpo del efecto.
-  const cajaRef = useRef<HTMLDivElement | null>(null);
+  // tipografía.
+  //
+  // Va por CALLBACK REF y no por `useRef` + efecto: el bloque se remonta al cambiar de
+  // eje (`key={modo}`), así que la caja que existía deja de existir y aparece OTRA. Un
+  // efecto con deps `[]` lee la caja UNA vez y nunca se entera del remonte —el observer
+  // se queda mirando un nodo que ya no está en el DOM y el ancho no se vuelve a medir—.
+  // El callback ref se dispara con cada nodo, así que engancha y desengancha solo.
+  //
+  // Y una notificación de ANCHO 0 se IGNORA: no es una medida, es el nodo saliendo del
+  // DOM (medido: al desmontar, el RO avisa `width: 0`). Tomarla dejaría el ancho en 0 —
+  // sin curva, y con todas las etiquetas del eje apiladas en `left: 0`.
+  const observador = useRef<ResizeObserver | null>(null);
   const [ancho, setAncho] = useState(0);
-  useEffect(() => {
-    const el = cajaRef.current;
-    if (!el) return;
+  const cajaRef = useCallback((nodo: HTMLDivElement | null) => {
+    observador.current?.disconnect();
+    observador.current = null;
+    if (!nodo) return;
     const ro = new ResizeObserver(entradas => {
-      for (const e of entradas) setAncho(Math.round(e.contentRect.width));
+      for (const e of entradas) {
+        const w = Math.round(e.contentRect.width);
+        if (w > 0) setAncho(w);
+      }
     });
-    ro.observe(el);
-    return () => ro.disconnect();
+    ro.observe(nodo);
+    observador.current = ro;
   }, []);
 
   const [hover, setHover] = useState<number | null>(null);

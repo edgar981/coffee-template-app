@@ -26,7 +26,14 @@ import { etiquetaDiaCorto, type RecorteTiempo } from './etiquetas';
 export interface Tramo { t: string; fuerte?: boolean }
 
 export interface Frase {
-  /** Eyebrow: el rango activo, con el método si filtra ("1 ago – 19 ago · Nequi"). */
+  /**
+   * Eyebrow: el rango activo, con el método si filtra ("1 ago – 19 ago · Nequi").
+   *
+   * HOY SIN CONSUMIDOR, y declarado para que no se lea como un descuido: la cabecera
+   * lo retiró —el rango ya se lee en el date picker, y la zona fija no scrollea— y su
+   * destino es el topbar. Se conserva porque la línea ya está resuelta y testeada; si
+   * el topbar no llega, se borra.
+   */
   eyebrow: string;
   /** La frase en tramos, para pintarla con la cifra y el conteo en semibold. */
   tramos: Tramo[];
