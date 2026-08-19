@@ -46,10 +46,12 @@ Analítica, Automatizaciones, Dashboard, Entregas, Configuración, Perfil.
 **Todas en document-scroll** (el `min-h-screen` por defecto de `AdminChrome`).
 No son convivencias — son pantallas que aún no se tocaron.
 
-**Pagos cierra** — el strip entró (barras sobre el tiempo, eje intercambiable a método,
-grid-list, celdas navegables; § CLAUDE.md "El strip de Pagos"). Quedan correctores
-menores en curso: C-1 (podar stats), C-2 (loader al patrón de Pedidos), C-3 (la
-primitiva de tooltip del sistema, decisión pendiente — backlog #8).
+**Pagos CERRADO** — el strip entró (barras sobre el tiempo, eje intercambiable a método,
+grid-list, celdas navegables; § CLAUDE.md "El strip de Pagos") y sus correctores también:
+stats podadas a solo "Total", loader = skeleton de filas del grid-list, y el crossfade de
+200ms al cambiar de eje. Lo que salió del corrector y quedó como su PROPIA tanda de
+sistema: la primitiva Duna de tooltip (tres consumidores divergen entre `title` nativo y
+Radix shadcn) — **backlog #29**, no #8 (ése es `Customer.activo`).
 
 ### Trabajo cerrado
 - **Tandas 1 y 2** (drawers, detalle de Pedidos) + correctores C1–C5.
