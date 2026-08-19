@@ -28,7 +28,11 @@ const METODOS_SERIE: { metodo: MetodoPago; color: string }[] = [
   { metodo: 'OTRO',          color: 'var(--duna-serie-5)' },
 ];
 
-const ALTO = 96;
+// R-2 · el strip va FIJO en la cabecera, así que se achata: su trabajo es la FORMA
+// (picos y valles), no la lectura fina —la cifra vive en el hover y en el modo método—.
+// La cabecera del strip (eyebrow + toggle) y el eje se conservan; sólo baja el área de
+// barras. 68px basta para leer la silueta sin robarle filas al libro.
+const ALTO = 68;
 
 export function PagosStrip({
   pagos, desde, hasta, metodoFiltrado, bucketSel, split, excl,

@@ -751,7 +751,7 @@
 
     <div class="flag">LA CELDA "PRODUCTO" ES UN <code>.duna-link</code> que lleva al detalle de ese producto — la pregunta natural al leer un movimiento raro es "¿cómo está AHORA?". La TERCERA fila va en texto plano a propósito: cuando el producto ya no existe, NO se pinta un enlace muerto (misma regla que <code>CustomerLink</code>). El consumidor decide fila por fila si hay destino.</div>
     <div class="flag" style="margin-top:var(--duna-space-3)">EL TIPO VA NEUTRO, no verde/rojo — Amber Minimal: el rojo es alerta, y una salida o una venta son operación normal. La DIRECCIÓN la carga el signo de la cantidad (<code>+12</code> entra, <code>−3</code> sale, <code>7</code> el ajuste que FIJA un absoluto).</div>
-    <div class="flag" style="margin-top:var(--duna-space-3)">EN &lt;960 REFLUYE: el encabezado se oculta y las celdas caen a un grid de 2 columnas, para no scrollear horizontal al tacto. El costo, anotado (§ backlog): sin encabezado quedan valores crudos sin etiqueta —"¿ese 28 es cantidad o saldo?"—. La forma probable del arreglo es etiqueta inline por celda en móvil, o mostrar menos celdas; no está resuelto acá.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">EN &lt;960 REFLUYE: el encabezado se oculta y las celdas caen a un grid de 2 columnas, para no scrollear horizontal al tacto. Y como el encabezado se va, cada celda con <code>data-label</code> lo trae de vuelta INLINE —un caption muted encima del valor—, así "28" no queda sin decir si es cantidad o saldo. Sólo las celdas con <code>data-label</code> lo muestran (una identidad o un spacer no lo lleva).</div>
   </section>
 
   <!-- ESQUELETO -->

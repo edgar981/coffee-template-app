@@ -1026,7 +1026,11 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 .duna-stat:first-child { border-left: none; padding-left: 0; }
 .duna-stat__v { font-family: var(--duna-font-display); font-size: var(--duna-text-display-m); font-weight: var(--duna-w-semi); letter-spacing: var(--duna-tr-snug); }
 .duna-stat__l { font-size: var(--duna-text-caption); color: var(--duna-muted); margin-top: 1px; }
-.duna-stat__d { font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi); margin-top: var(--duna-space-hairline); }
+/* El descriptor del stat: SUBORDINADO a la cifra, nunca compite. Sirve a dos usos —un
+   QUALIFIER ("del recorte activo": a qué se refiere la cifra) y un DESCARGO ("no
+   contable": advierte sobre su validez)— y los dos van muted por defecto. Muted, no
+   ink: el color es el token que los vuelve subordinados a los dos. */
+.duna-stat__d { font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi); color: var(--duna-muted); margin-top: var(--duna-space-hairline); }
 .duna-up   { color: var(--duna-ok-ink); }
 .duna-down { color: var(--duna-bad-ink); }
 
@@ -1683,8 +1687,24 @@ button.duna-order-card__name {
 @media (max-width: 959.98px) {
   /* Refluye: sin encabezado, cada fila es un bloque de dos columnas. */
   .duna-lista__head { display: none; }
-  .duna-lista__fila { grid-template-columns: minmax(0, 1fr) auto !important; gap: 2px var(--duna-space-3); padding: var(--duna-space-3); }
+  .duna-lista__fila { grid-template-columns: minmax(0, 1fr) auto !important; gap: var(--duna-space-2) var(--duna-space-3); padding: var(--duna-space-3); }
   .duna-lista__r { text-align: left; }
+  /* Sin encabezado, cada celda con dato DECLARA su columna: el label que el reflujo
+     perdió vuelve como caption muted ENCIMA del valor —así "38" deja de ser "¿cantidad
+     o saldo?"—. Sólo las celdas con `data-label` lo muestran, así que el consumidor
+     elige (una celda de identidad, o un spacer, no lo lleva). En escritorio la regla
+     no existe: el encabezado sticky ya nombra las columnas. */
+  .duna-lista__fila:not(.duna-lista__head) > [data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: var(--duna-text-caption);
+    font-weight: var(--duna-w-semi);
+    letter-spacing: var(--duna-tr-caps);
+    text-transform: uppercase;
+    color: var(--duna-muted);
+    line-height: 1.3;
+    margin-bottom: 1px;
+  }
 }
 
 /* ── Enlace de texto · navegación inline dentro de contenido denso ──────────
