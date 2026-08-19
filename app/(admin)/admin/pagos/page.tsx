@@ -244,28 +244,30 @@ function PagosInner() {
                 <div key={p.id} className="duna-lista__fila" style={{ gridTemplateColumns: COLS }}>
                   {/* Fecha y Método son CELDAS NAVEGABLES: caminos a filtros que ya existen
                       (el chip de tiempo y el select), sin estado nuevo. Afordancia `.duna-link`,
-                      sin color nuevo; reemplazan, no acumulan (toggle en el activo). */}
-                  <span>
+                      sin color nuevo; reemplazan, no acumulan (toggle en el activo).
+                      `data-label` es el encabezado que el reflujo móvil (<960) pierde; el
+                      clip no lo lleva (es un indicador, no un dato con columna). */}
+                  <span data-label="Fecha">
                     <button type="button" className="duna-link" onClick={() => onFecha(p.fecha)}
                             style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', font: 'inherit', textAlign: 'left' }}>
                       {formatFecha(p.fecha)}
                     </button>
                   </span>
-                  <span>
+                  <span data-label="Orden">
                     {p.order?.numero_orden
                       ? <Link href={`/admin/pedidos?pedido=${encodeURIComponent(p.order.numero_orden)}`} className="duna-link">{p.order.numero_orden}</Link>
                       : <span className="duna-sub">—</span>}
                   </span>
-                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.order?.cliente_nombre ?? '—'}</span>
-                  <span className="duna-lista__r duna-num">{formatCOP(p.monto)}</span>
-                  <span>
+                  <span data-label="Cliente" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.order?.cliente_nombre ?? '—'}</span>
+                  <span data-label="Monto" className="duna-lista__r duna-num">{formatCOP(p.monto)}</span>
+                  <span data-label="Método">
                     <button type="button" className="duna-link" onClick={() => onMetodo(p.metodo)}
                             style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', font: 'inherit', textAlign: 'left' }}>
                       {METODO_PAGO_LABEL[p.metodo]}
                     </button>
                   </span>
-                  <span className="duna-mono" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.referencia || '—'}</span>
-                  <span className="duna-sub" style={{ margin: 0 }}>{p.registrado_por_nombre ?? '—'}</span>
+                  <span data-label="Referencia" className="duna-mono" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.referencia || '—'}</span>
+                  <span data-label="Registrado" className="duna-sub" style={{ margin: 0 }}>{p.registrado_por_nombre ?? '—'}</span>
                   <span><SoporteClip comprobantes={p.order?.comprobantes ?? []} /></span>
                 </div>
               ))}

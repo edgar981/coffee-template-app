@@ -958,34 +958,6 @@ forma probable, escrita para no re-diagnosticarlo:
 - **Tap-to-show** (alternativa): un tap abre el tooltip, un segundo lo cierra. Menos
   trabajo, pero deja el dato detrás de un gesto no anunciado.
 
-### 31. El reflujo del grid-list en <960 deja valores crudos SIN etiqueta
-
-`.duna-lista` (§ Listas tabulares del panel) en móvil OCULTA el encabezado
-(`.duna-lista__head { display:none }`) y refluye las N celdas a un grid de 2 columnas.
-El resultado: **filas de valores crudos sin etiqueta de columna**. En una fila de 7 —el
-kardex— quedan pares como `28 → 40` y `+12` sin nada que diga cuál es cantidad y cuál es
-saldo: **"¿ese 38 es cantidad o saldo?"**. No se pierde ninguna salida navegable (los
-enlaces reflúyen, medido), pero la LEGIBILIDAD del dato sí.
-
-**Costo YA pagado: ninguno medido** —el panel se opera sobre todo en escritorio hoy—,
-pero **ya no es hipotético: con #28 son DOS pantallas** las que lo tienen (Pagos y el
-kardex de Inventario), así que el disparador de "dos consumidores" ya se cumplió. Antes de
-#28 lo tenía sólo Pagos; hoy es del patrón, no de una pantalla.
-
-Es conducta COMPARTIDA de `.duna-lista`, así que se arregla UNA vez y las dos pantallas lo
-heredan. La forma probable, escrita para no re-diagnosticarlo:
-
-- **Etiqueta inline por celda en móvil** (preferida): cada celda muestra su encabezado
-  como prefijo muted sólo en <960 (`::before` con el texto de la columna, o un `<span>`
-  de label oculto en escritorio). El dato deja de ser anónimo sin volver a la tabla.
-- **Mostrar menos celdas** (alternativa): en móvil se ocultan las columnas secundarias
-  (Quién, Antes→Después) y quedan las 3–4 que se leen sin etiqueta. Menos trabajo, pero
-  esconde dato en vez de nombrarlo.
-
-No se arregla ahora (owner, 2026-08-18): esta tanda migra el kardex, no rediseña el
-reflujo. **DISPARADOR: al tocar el móvil del panel de verdad, o al primer reporte de
-"no se entiende la tabla en el teléfono".**
-
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
@@ -3443,8 +3415,10 @@ propio**. NO es cosmético:
 
 - **En móvil REFLUYE** (a dos columnas) en vez de scrollear horizontal. El scroll
   horizontal de una tabla de datos es pésimo al tacto —se pierde la columna de
-  referencia—; un grid-list re-fluye a un bloque. El costo de ese reflujo —valores sin
-  etiqueta en <960— es § Backlog #31.
+  referencia—; un grid-list re-fluye a un bloque. Como el encabezado se oculta en el
+  reflujo, cada celda con `data-label` trae su columna INLINE (un caption muted encima
+  del valor, sólo <960): así "38" no queda sin decir si es cantidad o saldo. Sólo las
+  celdas con `data-label` lo muestran; una identidad o un spacer no lo lleva.
 - **El sticky del encabezado funciona en un scroller COMPARTIDO.** Cuando algo scrollea
   ENCIMA de la lista en el mismo scroller —el strip de Pagos—, el `overflow-x` del
   envoltorio de un `<table>` capturaba el sticky y se lo llevaba al scrollear. **Medido,

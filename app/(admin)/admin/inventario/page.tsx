@@ -295,27 +295,28 @@ function Inventario() {
           {logs.map(l => (
             <div key={l.id} className="duna-lista__fila" style={{ gridTemplateColumns: COLS }}>
               {/* Producto → detalle SÓLO si el producto todavía existe. La pregunta
-                  natural al leer un movimiento raro: "¿cómo está AHORA?". */}
-              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  natural al leer un movimiento raro: "¿cómo está AHORA?".
+                  `data-label` es el encabezado que el reflujo móvil (<960) pierde. */}
+              <span data-label="Producto" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {idsProducto.has(l.producto_id)
                   ? <Link href={`/admin/productos?producto=${l.producto_id}`} className="duna-link">{l.producto_nombre}</Link>
                   : l.producto_nombre}
               </span>
-              <span><span className="duna-badge duna-badge--neutral">{TIPO_LABEL[l.tipo] ?? l.tipo}</span></span>
-              <span className="duna-lista__r duna-num">{signoDelMovimiento(l)}</span>
-              <span className="duna-lista__r duna-num">{l.stock_anterior} → {l.stock_nuevo}</span>
+              <span data-label="Tipo"><span className="duna-badge duna-badge--neutral">{TIPO_LABEL[l.tipo] ?? l.tipo}</span></span>
+              <span data-label="Cantidad" className="duna-lista__r duna-num">{signoDelMovimiento(l)}</span>
+              <span data-label="Antes → Después" className="duna-lista__r duna-num">{l.stock_anterior} → {l.stock_nuevo}</span>
               {/* El MOTIVO es el texto legible; el enlace sale del DATO (`orden_numero`
                   resuelto por el servidor), no de parsear "CN-…". Sólo enlaza si la
                   orden todavía existe; si no, texto plano (misma regla que Producto). */}
-              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span data-label="Motivo" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {l.orden_numero
                   ? <Link href={`/admin/pedidos?pedido=${l.orden_numero}`} className="duna-link">{l.motivo || '—'}</Link>
                   : (l.motivo || '—')}
               </span>
               {/* El actor. `—` es honesto: filas viejas y asientos del sistema no tienen
                   humano — es la razón por la que la columna existe. */}
-              <span className="duna-sub" style={{ margin: 0 }}>{l.ajustado_por_nombre || '—'}</span>
-              <span className="duna-caption">{formatFecha(l.createdAt)}</span>
+              <span data-label="Quién" className="duna-sub" style={{ margin: 0 }}>{l.ajustado_por_nombre || '—'}</span>
+              <span data-label="Fecha" className="duna-caption">{formatFecha(l.createdAt)}</span>
             </div>
           ))}
         </div>
