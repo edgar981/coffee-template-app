@@ -1,6 +1,6 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-18.
+**Actualizado:** 2026-08-19.
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -39,17 +39,34 @@ Vercel, `main` = producción).
 | `/admin/clientes` | Completa | Igual |
 | `/admin/productos` | Completa | Igual, con clase condicional (cuadrícula sin selección queda en document-scroll) |
 | `/admin/inventario` | Completa, encogida a auditoría | Alto fijo ≥960 (`.duna-sin-split`), scroller único |
-| `/admin/pagos` | Completa (strip incluido) | Alto fijo ≥960 (`.duna-sin-split`), scroller único |
+| `/admin/pagos` | Completa (frase + curva) | Alto fijo ≥960 (`.duna-sin-split`), scroller único; **el gráfico va en la zona fija** |
 
 ### Pendientes de rediseño
 Analítica, Automatizaciones, Dashboard, Entregas, Configuración, Perfil.
 **Todas en document-scroll** (el `min-h-screen` por defecto de `AdminChrome`).
 No son convivencias — son pantallas que aún no se tocaron.
 
-**Pagos CERRADO** — el strip entró (barras sobre el tiempo, eje intercambiable a método,
-grid-list, celdas navegables; § CLAUDE.md "El strip de Pagos") y sus correctores también:
-stats podadas a solo "Total", loader = skeleton de filas del grid-list, y el crossfade de
-200ms al cambiar de eje.
+**Pagos CERRADO — tercer y último rediseño: LA FRASE + LA CURVA** (§ CLAUDE.md "Pagos —
+la FRASE y la CURVA"). La pantalla abre diciendo la respuesta ("Este mes entraron
+$ 315.000 en 11 pagos") y **el gráfico no scrollea**: vive en la zona fija con los
+filtros, y la región queda con el libro y nada más (hijo único → sticky canónico,
+medido). El strip de barras, el toggle "Por método" y la leyenda de exclusiones se
+retiraron con censo por contenido.
+
+- La frase es pura y testeada (`lib/pagos/frase.ts`, 12 tests de capa 1): concordancia
+  del ALCANCE, el vacío como la misma frase, el método sufijado.
+- La curva es Catmull-Rom→Bézier con área de tinta al 5% (`color-mix`, no el token de
+  hover), tres marcadores en tinta y tooltip con la superficie del sistema.
+- La escalera bajó de cinco peldaños a **tres** (día → semana → mes, tope 92 puntos):
+  una curva admite muchos más puntos que una barra.
+- **Capacidad perdida y aceptada:** ya no se puede excluir un canal de la vista de
+  tiempo (era la leyenda del strip).
+- El presupuesto de alto es el gate: **6 filas de libro** en el laptop del owner, sobre
+  un umbral de 5. Los levers usados: alto de la curva 170→140, padding del bloque, y el
+  eyebrow del rango retirado.
+
+Quedan de antes: stats podadas a solo "Total", loader = skeleton de filas del grid-list,
+y el crossfade de 200ms al cambiar de eje.
 
 **Tooltip Duna CERRADO** (§ CLAUDE.md "El tooltip del panel") — la primitiva
 `DunaTooltip` es ADMIN-LEVEL (envuelve Radix; el paquete queda sin conducta) y la
@@ -70,18 +87,17 @@ SEGUNDO consumidor (Pagos + kardex) y se extrajo al DS como `.duna-lista`
 `reference.html`, que enseñaba una `<table>` cuando la app usa grid-list (backlog #4 otra
 vez).
 
-**Consistencia Pagos/Inventario (EN CURSO, R-3 pendiente)** — tanda corta sobre el
-grid-list y la cabecera:
+**Consistencia Pagos/Inventario (CERRADA)** — tanda corta sobre el grid-list y la
+cabecera:
 - **Backlog #31 CERRADO**: el reflujo <960 del grid-list ocultaba el encabezado y dejaba
   valores sin etiqueta; ahora cada celda con `data-label` trae su columna inline (caption
   muted, sólo móvil). Conducta compartida: una regla en `primitives.css`, dos pantallas.
 - **`.duna-stat__d` muted** en la primitiva; Inventario adopta el `__d` en vez de un `<p>`
   suelto — un solo patrón para la línea bajo la cifra.
-- **Pagos, R-1+R-2**: la cabecera se comprime para que el strip pueda ir FIJO (título +
-  cifra fusionados en una línea, descargo a tooltip, strip achatado a 68px de barras).
-- **R-3 PENDIENTE** (luz verde, gate del laptop de R-1+R-2 pasado): mover el strip a la
-  zona fija, el chip del bucket al `__head` del strip, y re-medir el sticky (el scroller
-  cambia de contenedor). Hasta que entre, el strip **sigue scrolleando**.
+- **R-1 y R-2 quedaron SUPERSEDED** por el rediseño de la frase + curva, que reemplazó la
+  cabecera fusionada y el strip achatado. Churn decidido y aceptado por el owner: los dos
+  mergearon primero y se reemplazaron después. R-3 nunca se escribió — la zona fija que
+  definió el spec absorbió lo que iba a hacer.
 
 ### Trabajo cerrado
 - **Tandas 1 y 2** (drawers, detalle de Pedidos) + correctores C1–C5.
