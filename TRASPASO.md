@@ -60,13 +60,15 @@ a `StatusBadge` (compartido con storefront) se le quitó el prop `title`. Backlo
 borró al cerrar. Quedan anotados: mover la superficie al paquete como `.duna-tooltip` (con
 sheet/scrim, § Duna OS en ANGOSTO) y el hueco táctil del total del strip (**backlog #30**).
 
-**Backlog #28 CERRADO** (§ CLAUDE.md "Listas tabulares del panel") — el kardex de
-Inventario migró de `DunaTable` a grid-list; con eso el grid-list llegó a su SEGUNDO
-consumidor (Pagos + kardex) y se extrajo al DS como `.duna-lista` (`primitives.css`); el
-loader de Inventario adoptó el skeleton de filas grises; y `DunaTable` se retiró (cero
-consumidores). De paso se corrigió la sección "Región de alto fijo" de `reference.html`,
-que enseñaba una `<table>` cuando la app usa grid-list (backlog #4 otra vez). Queda
-anotado el reflujo denso en <960 —valores sin etiqueta— como **backlog #31**.
+**Backlog #28 CERRADO** (§ CLAUDE.md "Listas tabulares del panel") — **queda UN SOLO
+patrón de lista tabular en el panel: el grid-list `.duna-lista`, y `DunaTable` retirado.**
+El kardex de Inventario migró de `DunaTable` a grid-list; con eso el grid-list llegó a su
+SEGUNDO consumidor (Pagos + kardex) y se extrajo al DS como `.duna-lista`
+(`primitives.css`); el loader de Inventario adoptó el skeleton de filas grises; y
+`DunaTable` se retiró entero —componente, CSS, demo de referencia— por censo de contenido
+(cero consumidores). De paso se corrigió la sección "Región de alto fijo" de
+`reference.html`, que enseñaba una `<table>` cuando la app usa grid-list (backlog #4 otra
+vez). Queda anotado el reflujo denso en <960 —valores sin etiqueta— como **backlog #31**.
 
 ### Trabajo cerrado
 - **Tandas 1 y 2** (drawers, detalle de Pedidos) + correctores C1–C5.
