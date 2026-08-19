@@ -1026,6 +1026,13 @@ Va después del multitenant porque el reporte lleva identidad de tienda
 (encabezado, logo, período, moneda) y hoy no existe el modelo que la sostenga —
 sería un template hardcodeado a Nayoli que habría que rehacer entero.
 
+**LO QUE CAMBIÓ (2026-08-19): el pipeline YA EXISTE.** El informe de Pagos dejó
+montado el patrón entero —modelo puro ≠ layout ≠ bytes, jsPDF en `import()`
+dinámico, tope declarado, cabecera con negocio y fecha— así que este reporte ya
+no arranca de cero: es escribir SU modelo (§ El INFORME (PDF)). Lo que sigue
+gateado al multitenant es sólo la IDENTIDAD —hoy el negocio sale de
+`siteConfig.brand.nombre`, que es de un tenant único—, no la capacidad.
+
 ### Snapshot del costo en `OrderItem`
 
 Columna `costo_unitario` nullable, llenada de aquí en adelante (migración
@@ -3603,6 +3610,96 @@ deshabilita, que sugeriría algo que activar—.
 - **El recorte de tiempo (`RecorteTiempo`) lleva su `escala` y su `etiqueta`**, para que
   un clic en un punto (bucket a la escala de la curva) y uno en fecha (siempre 'dia') tengan
   la misma forma y el chip se pinte solo.
+
+### El INFORME (PDF) — la primera acción de un libro de sólo lectura
+
+Cerrado el 2026-08-19. Pagos se definió como libro de sólo lectura y el informe **no
+rompe esa definición**: descargar no escribe. Pero es su PRIMERA acción, y por eso el
+botón va **secundario, nunca primario** —esta pantalla no tiene una acción principal que
+ofrecer— y vive al final de la fila de filtros, empujado a la derecha: es una ACCIÓN, y
+mezclarlo entre los controles del recorte lo haría parecer un filtro más.
+
+**Se genera en el CLIENTE, y el argumento es de FUENTE ÚNICA.** El modelo se arma con
+`filtered` y la misma frase que la pantalla ya tiene; un endpoint sería una **segunda
+lectura del mismo recorte** —justo lo que esta pantalla se construyó para no tener— y
+podría devolver un conjunto distinto del que el operador está mirando. El costo aceptado
+es que sólo puede imprimir lo que ya está en memoria, que hoy es el rango completo
+(`/api/payments` no tiene `take`).
+
+**TRES CAPAS: modelo ≠ layout ≠ bytes.** `lib/pagos/informe.ts` dice QUÉ lleva el
+documento y no renderiza nada —por eso se afirma en capa 1 sin generar un PDF—;
+`informe-pdf.ts` lo pone en páginas; los bytes los pone **jsPDF**, cargado con `import()`
+DINÁMICO para que sus ~129 KB gzip no viajen en el bundle de Pagos (verificado sobre el
+artefacto: el manifest de la ruta lista 7 chunks y ninguno lo contiene).
+
+**jsPDF y no pdf-lib**, pese a pesar ~40 KB más (owner, apartándose de la recomendación
+de esta sesión): pdf-lib lleva cuatro años sin publicar. El FORMATO PDF está congelado,
+pero el ENTORNO no —navegadores, bundlers y APIs de descarga sí se mueven—, y una
+librería quieta no recibe el parche cuando algo de eso cambia. El costo entonces no son
+40 KB: es un botón roto sin nadie a quien reportarle, y acá no hay equipo que forkee una
+dependencia abandonada. **Se descartó el writer a mano** de `duna-owner-ui` (1.873 líneas
+propias, con sus dos trampas de bytes documentadas): su repo tiene 4 dependencias y el
+nuestro 47 — la austeridad no es nuestra restricción, y un writer de PDF para un botón de
+descarga es superficie que no queremos mantener.
+
+**EL TOPE ES DEL DOCUMENTO, NO DE LA CONSULTA: 1.000 filas** (≈25 páginas, el límite de
+lo que alguien abre). Corta conservando las PRIMERAS y **lo declara EN EL PDF**, no en la
+pantalla: quien lo abra tres días después no vio ningún aviso. La nota dice las DOS cosas
+—que el detalle está topado y que el resumen y el desglose NO lo están— porque que el
+desglose sume más que el detalle es la clase de discrepancia que hace dudar del documento
+entero, y quien la note no tiene a quién preguntarle.
+
+#### UN DOCUMENTO NECESITA MÁS CONTEXTO QUE LA PANTALLA, NO MENOS
+
+El spec de esta tanda decía *"nada que no esté en la pantalla"* y **estaba mal**: ese
+criterio vale para los NÚMEROS, no para el CONTEXTO. Un PDF sin nombre de negocio, sin
+fecha de generación y sin paginación es una tabla volcada — quien lo encuentra impreso no
+sabe de qué negocio es, de cuándo, ni si le falta una hoja. Nada de eso es un dato del
+recorte: son **metadatos del documento**, y su ausencia no se nota hasta que el documento
+sale de la pantalla, que es exactamente lo que un informe existe para hacer.
+
+La regla, generalizada: **la pantalla puede callar lo que el operador ya sabe porque está
+mirándola; un documento no puede callar nada, porque se lee lejos y sin poder preguntar.**
+
+De ahí sale también el caso más fino de la tanda: **el desglose por método se muestra
+SIEMPRE, aunque el select filtre**, y rotulado. Con el detalle acotado a Nequi, el
+"Total" del resumen es sólo de Nequi, y **sin ese bloque nadie sabe que hay más plata
+fuera de ese número**. En pantalla el operador puede quitar el filtro y ver el contexto;
+en un PDF no puede. Se resuelve ETIQUETANDO, no ocultando: una bajada que nombra el
+método (*"Del período completo, sin el filtro de método. El detalle de abajo desarrolla
+sólo Nequi."*) y la fila en NEGRITA —el peso es el puntero, el significado lo da la
+bajada—. Un filtro de GRUPO ("Cualquier digital") marca sus TRES filas: marcar una sola
+mentiría sobre qué desarrolla el detalle.
+
+El array del desglose **se DERIVA, no se consulta**: `filtered` se partió en dos pasos y
+la relación quedó explícita —`enBucket` (rango + bucket, sin método) ⊇ `filtered`—, así
+que las dos cifras del documento salen del mismo array en memoria.
+
+Detalles que son decisión: la participación **no se re-basea** por el filtro (re-basear
+escondería que se mira un recorte, misma regla que tenía la leyenda del strip); los
+métodos **sin un solo pago se omiten** —una línea en "$ 0 · 0 %" es ruido— salvo que el
+select filtre a uno que quedó en cero, que SÍ se muestra porque si no el desglose no
+nombraría en ninguna parte al método del que habla el documento; y la marca de tiempo usa
+`formatFecha`, la utilidad única de fecha del panel, no un segundo formato.
+
+#### DOS LECCIONES DE VERIFICACIÓN, las dos pagadas en esta tanda
+
+**1. Un test de MODELO no ve una capa que no lo lee.** Al insertar las secciones nuevas,
+la edición del renderer se llevó por delante el bucle de filas y el PDF salió con el
+encabezado del detalle y NINGUNA fila. El test del modelo afirmaba `m.filas` y **pasó** —
+correctamente, porque el modelo sí las producía—. El discriminador tiene que vivir donde
+vive el bug: `informe-pdf.test.ts` afirma el CONTEO DE PÁGINAS (300 filas pasan de una
+página), corre en capa 1 porque jsPDF funciona en node, y **se lo vio fallar con el bucle
+neutralizado**.
+
+**2. Un discriminador que mide contra lo NOMINAL da verde sobre lo roto.** Las columnas se
+superponían porque el cálculo de posiciones devolvía una más que las columnas, y cada
+celda se recortaba contra su ancho nominal en vez de contra el espacio real hasta la
+columna siguiente. Mi primer test lo medía **también contra el nominal** y pasaba con la
+geometría rota. Ahora afirma contra dónde empieza la columna siguiente —lo que se ve en el
+papel— y falla con la fórmula vieja. Es la misma familia que el `grep` del símbolo
+reubicado (§ GATE DE CAPA 3): **verificar contra lo que el código DICE en vez de contra lo
+que el usuario VE deja pasar justo el defecto que se buscaba.**
 
 ## Automatizaciones — arquitectura y prerequisitos de go-live
 

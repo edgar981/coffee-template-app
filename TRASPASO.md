@@ -73,6 +73,15 @@ retiraron con censo por contenido.
   110 a 100 —el piso de legibilidad—. El hint NO se tocó a propósito: es la única
   declaración de que la curva es clickeable.
 
+- **El INFORME (PDF)** — la primera ACCIÓN de la pantalla, y no rompe el "libro de sólo
+  lectura" (descargar no escribe). Botón secundario al final de los filtros. Se genera en
+  el CLIENTE por fuente única (un endpoint sería una segunda lectura del mismo recorte),
+  en tres capas (modelo puro y testeado ≠ layout ≠ bytes de jsPDF), con la librería en
+  `import()` dinámico —verificado sobre el artefacto: no viaja en el bundle de Pagos—.
+  Tope de **1.000 filas declarado EN el PDF**. Estructura: negocio + fecha de generación ·
+  PAGOS + rango · RESUMEN · POR MÉTODO (del período completo aunque el select filtre,
+  rotulado) · DETALLE · pie con paginación y "Generado con Duna".
+
 Quedan de antes: stats podadas a solo "Total", loader = skeleton de filas del grid-list,
 y el crossfade de 200ms al cambiar de eje.
 
