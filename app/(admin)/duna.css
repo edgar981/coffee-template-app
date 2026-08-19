@@ -239,10 +239,11 @@ html.admin {
 .admin-strip__leg.is-fuera .admin-strip__legsw { opacity: .4; }
 
 /* ═══ LISTA TABULAR DEL PANEL · grid-list (admin-level, NO es primitiva del DS) ══
-   Reemplaza a DunaTable donde hay un strip encima: el header es sticky en el
-   scroller COMPARTIDO (por eso la lista NO lleva overflow propio — un wrap rompería
-   el sticky, medido). En móvil REFLUYE en vez de scrollear horizontal. Cuando
-   Inventario sea el segundo consumidor, esto se extrae al DS con nombre `duna-`. */
+   El patrón por defecto de una lista de datos del panel. El header es sticky en el
+   scroller COMPARTIDO —cuando algo scrollea encima (el strip de Pagos)—; por eso la
+   lista NO lleva overflow propio: un wrap de overflow rompería el sticky (medido).
+   En móvil REFLUYE en vez de scrollear horizontal. Con el segundo consumidor
+   (Inventario) esto se extrae al DS con nombre `duna-`. */
 .admin-lista { display: flex; flex-direction: column; }
 .admin-lista__fila { display: grid; gap: var(--duna-space-3); align-items: center;
                padding: var(--duna-space-3) var(--duna-space-4); border-bottom: 1px solid var(--duna-border); }
