@@ -3449,21 +3449,29 @@ libro y NADA MÁS, así que es su hijo ÚNICO —el caso sticky canónico, medid
 encabezado del grid-list queda a delta 0 del tope al scrollear—.
 
 **El gráfico fijo cuesta alto de cabecera, y ése es el presupuesto de la pantalla.**
-El gate es en el laptop del owner (la pantalla restrictiva): la zona fija debe dejar
-**≥5 filas de libro**. Los levers, en orden y ya ejercidos: el alto de la curva (170 →
-**140**, piso real ~100 — por debajo los picos se comprimen y la curva se lee como
-textura, no como magnitud), el padding del bloque (12/16/8, un escalón bajo el de una
-tarjeta) y el eyebrow del rango (retirado: ya se lee en el date picker). **Nunca la
-lista.** La cuenta se hace con la fórmula, no a ojo:
+La zona fija debe dejar **≥5 filas de libro** en la pantalla restrictiva. La cuenta se
+hace con la fórmula, no a ojo:
 `filas = floor((viewport − topbar 64 − padding 24 − zona fija − head 40) / fila 46)`.
+**Medido hoy: zona fija 281px → umbral de 639px de viewport para 5 filas.** **Nunca se
+recorta la lista.**
 
-**HALLAZGO, para el próximo gráfico que alguien monte:** una tarjeta con borde, padding
-y cabecera propios alrededor de un gráfico que YA vive en la zona fija es **chrome sobre
-chrome** —y su cabecera ("Ingresos por día") duplicaba el hint de abajo ("Un punto por
-día · clic para acotar…")—. Un gráfico puede ir directo sobre el fondo. Acá la tarjeta
-SOBREVIVIÓ porque el gate pasó con margen (6 filas) y no hubo que cobrarla; el día que
-un presupuesto no cierre, **ése es el primer recorte**: vale más que bajar el alto y no
-toca el gráfico.
+Los levers, en orden, con lo que YA se ejerció y lo que queda:
+- **la tarjeta del gráfico — ejercida (−44)**. Ver el hallazgo de abajo.
+- **el alto de la curva — ejercido (170 → 140 → 110, −60)**. **100 es el piso de
+  legibilidad**: por debajo los picos se comprimen y la curva se lee como textura, no
+  como magnitud.
+- **el eyebrow del rango — ejercido**: ya se lee en el date picker.
+- *quedan*: el hint (22px), los gaps (8px) y H de 110 a 100.
+
+**HALLAZGO, y es lo que hay que retener para el próximo gráfico que alguien monte:** una
+tarjeta con borde, padding y cabecera propios alrededor de un gráfico que YA vive en la
+zona fija es **chrome sobre chrome** —y su cabecera ("Ingresos por día") duplicaba el
+hint de abajo ("Un punto por día · clic para acotar…")—. **Un gráfico puede ir directo
+sobre el fondo**, y ése es el PRIMER recorte cuando un presupuesto no cierra: vale más
+que bajar el alto (44 contra 30) y **no toca el gráfico**, sólo su envoltorio. Acá se
+ejerció por eso: con la tarjeta el umbral eran 713px de viewport, que deja fuera a un
+portátil con resolución escalada. El `__head` sobrevive SÓLO en el modo método, donde el
+eyebrow es la única etiqueta del eje (no hay hint que lo duplique).
 
 ### La frase reemplaza al título, al descargo y al stat
 

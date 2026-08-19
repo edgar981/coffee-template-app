@@ -5,7 +5,7 @@ import type { Payment, MetodoPago } from '@/types/payment';
 import { METODO_PAGO_LABEL, METODO_CATEGORIA } from '@/types/payment';
 import { formatCOP } from '@duna/core/utils';
 import { bucketear, bucketKey, type Escala } from '@/lib/pagos/bucketeo';
-import { tituloEscala, etiquetaEje, etiquetaBucket, type RecorteTiempo } from '@/lib/pagos/etiquetas';
+import { etiquetaEje, etiquetaBucket, type RecorteTiempo } from '@/lib/pagos/etiquetas';
 
 // EL GRÁFICO DE PAGOS — una CURVA sobre el tiempo, en la zona FIJA de la pantalla
 // (no scrollea: § la anatomía). Todo sale de `pagos`, la misma fuente que el libro.
@@ -29,11 +29,12 @@ const METODOS_SERIE: { metodo: MetodoPago; color: string }[] = [
 ];
 
 /**
- * Alto del área de dibujo. Es el primer lever del presupuesto de alto (§ spec): la
- * zona fija no scrollea, así que cada píxel de acá le cuesta una fila al libro. 140 es
- * el piso de ese lever —por debajo la silueta deja de leerse—.
+ * Alto del área de dibujo. Es un lever del presupuesto de alto (§ spec): la zona fija no
+ * scrollea, así que cada píxel de acá le cuesta una fila al libro. **100 es el piso de
+ * legibilidad** —por debajo los picos se comprimen y la curva se lee como textura, no
+ * como magnitud—, así que 110 deja margen sin llegar al borde.
  */
-const ALTO = 140;
+const ALTO = 110;
 /** Aire arriba para la cifra del pico, que se pinta sobre el punto. */
 const PAD_TOP = 20;
 /** Margen lateral para que el primer y el último punto no queden cortados. */
@@ -249,10 +250,10 @@ export function PagosCurva({
 
   return (
     <div key={modo} className="admin-grafico">
-      <div className="admin-grafico__head">
-        <span className="duna-eyebrow">{tituloEscala(escala as Escala)}</span>
-      </div>
-
+      {/* SIN cabecera propia: decía la escala ("Ingresos por día") y el hint de abajo ya
+          la dice ("Un punto por día · clic para acotar…"). Era el mismo dato dos veces,
+          y en la zona fija cada línea se paga en filas de libro. El modo método SÍ la
+          lleva: ahí no hay hint, y el eyebrow es su única etiqueta. */}
       <div ref={cajaRef} className="admin-grafico__caja" style={{ height: alto }}>
         {ancho > 0 && (
           <svg width={ancho} height={alto} role="img"

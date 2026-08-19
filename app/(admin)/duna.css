@@ -192,14 +192,19 @@ html.admin {
    Lo neutraliza el bloque `prefers-reduced-motion` de `.duna *` (medido:
    `animation-duration: .01ms !important`). Colores de la serie categórica sólo en el
    modo método; la curva es TINTA —nada acá pide atención—. */
-/* El padding es AJUSTADO a propósito (12/16/8, un escalón bajo el de una tarjeta): el
-   bloque vive en la zona fija, que no scrollea, así que su chrome se paga en filas de
-   libro. Es el lever 2 del presupuesto de alto (§ spec). */
-.admin-grafico { border: 1px solid var(--duna-border); border-radius: var(--duna-r-l);
-               background: var(--duna-surface); padding: var(--duna-space-3) var(--duna-space-4) var(--duna-space-2);
-               animation: adminGraficoCambioEje var(--duna-dur) var(--duna-ease); }
+/* SIN TARJETA — la curva va DIRECTA sobre el fondo, y no es una decisión de estilo:
+   una tarjeta con borde, padding y cabecera propios alrededor de un gráfico que YA vive
+   en la zona fija es CHROME SOBRE CHROME, y su cabecera ("Ingresos por día") duplicaba
+   el hint de abajo ("Un punto por día · clic para acotar…"). El bloque se paga en filas
+   de libro —la zona fija no scrollea—, así que ese chrome costaba 44px por nada. La
+   separación de arriba la da el `space-y` de la cabecera; la de abajo, su `pb`.
+   Es el primer recorte del presupuesto de alto: vale más que bajar el alto del gráfico
+   y no toca el gráfico (§ Pagos — la FRASE y la CURVA). */
+.admin-grafico { animation: adminGraficoCambioEje var(--duna-dur) var(--duna-ease); }
 @keyframes adminGraficoCambioEje { from { opacity: 0; } to { opacity: 1; } }
 .admin-grafico--vacio { display: flex; align-items: center; min-height: 64px; }
+/* Sólo lo usa el modo MÉTODO: ahí el eyebrow es la única etiqueta del eje (no hay
+   hint). El modo tiempo no lleva cabecera — el hint ya declara escala e interacción. */
 .admin-grafico__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--duna-space-2); }
 /* La caja de la curva es el ancla del tooltip (que va absoluto) y del eje. */
 .admin-grafico__caja { position: relative; }

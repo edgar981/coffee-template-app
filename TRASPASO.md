@@ -61,9 +61,17 @@ retiraron con censo por contenido.
   una curva admite muchos más puntos que una barra.
 - **Capacidad perdida y aceptada:** ya no se puede excluir un canal de la vista de
   tiempo (era la leyenda del strip).
-- El presupuesto de alto es el gate: **6 filas de libro** en el laptop del owner, sobre
-  un umbral de 5. Los levers usados: alto de la curva 170→140, padding del bloque, y el
-  eyebrow del rango retirado.
+- **El presupuesto de alto, con su número:** la zona fija quedó en **281px**, o sea un
+  **umbral de ~639px de viewport para 5 filas** de libro. Levers ejercidos: la tarjeta
+  del gráfico retirada (−44), el alto de la curva 170→140→110 (−60) y el eyebrow del
+  rango (ya se lee en el date picker).
+  **El caso que esto resuelve, y que el owner NO ve:** trabaja en monitor externo, pero
+  con la tarjeta puesta el umbral eran 713px y un portátil con resolución escalada
+  (~620–660px útiles) mostraba **3 filas, no 5**. Con A+B ese mismo portátil pasa a 4–5
+  (5 desde 639). No es un caso raro: es cualquiera con menos alto útil.
+  **Si algún día hay que recuperar más**, quedan: el hint (22px), los gaps (8px) y H de
+  110 a 100 —el piso de legibilidad—. El hint NO se tocó a propósito: es la única
+  declaración de que la curva es clickeable.
 
 Quedan de antes: stats podadas a solo "Total", loader = skeleton de filas del grid-list,
 y el crossfade de 200ms al cambiar de eje.

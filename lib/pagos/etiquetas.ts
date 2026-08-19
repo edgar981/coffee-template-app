@@ -20,11 +20,6 @@ const fmtDia       = new Intl.DateTimeFormat('es-CO', { timeZone: BUSINESS_TZ, d
 const fmtMes       = new Intl.DateTimeFormat('es-CO', { timeZone: BUSINESS_TZ, month: 'short', year: 'numeric' });
 const compacta = (s: string) => s.replace(/\./g, '').replace(/\sde\s/g, ' ');
 
-/** El título de la curva según la escala: "Ingresos por semana". */
-export function tituloEscala(escala: Escala): string {
-  return { dia: 'Ingresos por día', semana: 'Ingresos por semana', mes: 'Ingresos por mes' }[escala];
-}
-
 /** La etiqueta COMPLETA de un bucket, para el chip. Se entiende sola. */
 export function etiquetaBucket(inicio: Date, escala: Escala): string {
   switch (escala) {
