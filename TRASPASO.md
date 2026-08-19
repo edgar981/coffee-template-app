@@ -68,7 +68,20 @@ SEGUNDO consumidor (Pagos + kardex) y se extrajo al DS como `.duna-lista`
 `DunaTable` se retiró entero —componente, CSS, demo de referencia— por censo de contenido
 (cero consumidores). De paso se corrigió la sección "Región de alto fijo" de
 `reference.html`, que enseñaba una `<table>` cuando la app usa grid-list (backlog #4 otra
-vez). Queda anotado el reflujo denso en <960 —valores sin etiqueta— como **backlog #31**.
+vez).
+
+**Consistencia Pagos/Inventario (EN CURSO, R-3 pendiente)** — tanda corta sobre el
+grid-list y la cabecera:
+- **Backlog #31 CERRADO**: el reflujo <960 del grid-list ocultaba el encabezado y dejaba
+  valores sin etiqueta; ahora cada celda con `data-label` trae su columna inline (caption
+  muted, sólo móvil). Conducta compartida: una regla en `primitives.css`, dos pantallas.
+- **`.duna-stat__d` muted** en la primitiva; Inventario adopta el `__d` en vez de un `<p>`
+  suelto — un solo patrón para la línea bajo la cifra.
+- **Pagos, R-1+R-2**: la cabecera se comprime para que el strip pueda ir FIJO (título +
+  cifra fusionados en una línea, descargo a tooltip, strip achatado a 68px de barras).
+- **R-3 PENDIENTE** (luz verde, gate del laptop de R-1+R-2 pasado): mover el strip a la
+  zona fija, el chip del bucket al `__head` del strip, y re-medir el sticky (el scroller
+  cambia de contenedor). Hasta que entre, el strip **sigue scrolleando**.
 
 ### Trabajo cerrado
 - **Tandas 1 y 2** (drawers, detalle de Pedidos) + correctores C1–C5.
