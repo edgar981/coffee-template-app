@@ -19,6 +19,7 @@ import { rangoDeDiasDelPeriodo, opcionesPreset } from '@/lib/metrics/periodo';
 import { bucketKey, bucketear } from '@/lib/pagos/bucketeo';
 import { fraseDePagos, mejorDiaDe } from '@/lib/pagos/frase';
 import { modeloInforme } from '@/lib/pagos/informe';
+import { siteConfig } from '@/lib/config/site';
 import { etiquetaBucket, type RecorteTiempo } from '@/lib/pagos/etiquetas';
 
 // Columnas del libro (grid-list). Flexibles: caben en la región sin scroll horizontal
@@ -72,19 +73,29 @@ function PagosInner() {
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  // UNA fuente para la frase, el gráfico y el libro: método (select) + recorte de
-  // tiempo (chip: clic en un punto o en una fecha). Todo sobre `pagos`.
-  const filtered = useMemo(() => {
-    const metOk = (m: MetodoPago) => {
-      if (metodo === 'all') return true;
-      if (metodo.startsWith('cat:')) return METODO_CATEGORIA[m] === metodo.slice(4);
-      return m === metodo;
-    };
-    return pagos.filter(p =>
-      metOk(p.metodo) &&
-      (!bucketSel || bucketKey(new Date(p.fecha), bucketSel.escala) === bucketSel.key),
-    );
-  }, [pagos, metodo, bucketSel]);
+  // Los métodos que el filtro incluye — VARIOS si es un grupo ("Cualquier digital").
+  // El informe los necesita para marcar las filas que su detalle desarrolla.
+  const metodosDelFiltro = useMemo<MetodoPago[] | null>(() => {
+    if (metodo === 'all') return null;
+    const todos = Object.keys(METODO_PAGO_LABEL) as MetodoPago[];
+    if (metodo.startsWith('cat:')) return todos.filter(m => METODO_CATEGORIA[m] === metodo.slice(4));
+    return todos.filter(m => m === metodo);
+  }, [metodo]);
+
+  // UNA fuente para la frase, el gráfico y el libro. El filtro son DOS pasos, y se
+  // dejan explícitos porque el informe consume el intermedio: `enBucket` es el recorte
+  // de TIEMPO (rango + bucket) sin el filtro de método, y de él sale el desglose por
+  // método del PDF —que muestra el período completo aunque el select filtre—. La
+  // relación `filtered ⊆ enBucket` es la garantía de que las dos cifras del documento
+  // salen del mismo array y no de dos consultas.
+  const enBucket = useMemo(
+    () => pagos.filter(p => !bucketSel || bucketKey(new Date(p.fecha), bucketSel.escala) === bucketSel.key),
+    [pagos, bucketSel],
+  );
+  const filtered = useMemo(
+    () => (metodosDelFiltro === null ? enBucket : enBucket.filter(p => metodosDelFiltro.includes(p.metodo))),
+    [enBucket, metodosDelFiltro],
+  );
 
   const totalPeriodo = filtered.reduce((sum, p) => sum + p.monto, 0);
 
@@ -152,7 +163,11 @@ function PagosInner() {
       // no de una segunda consulta: el informe no puede contener un conjunto que el
       // libro no muestre.
       const modelo = modeloInforme({
-        frase, pagos: filtered, desde: from, hasta: to, metodoLabel, total: totalPeriodo,
+        negocio: siteConfig.brand.nombre,
+        ahora: new Date(),
+        pagos: filtered, enBucket,
+        desde: from, hasta: to,
+        metodoLabel, metodosDelFiltro, mejorDia,
       });
       // La librería viaja en su propio chunk: se descarga al pedir el informe, no al
       // abrir Pagos.
