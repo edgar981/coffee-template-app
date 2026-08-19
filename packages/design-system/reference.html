@@ -118,6 +118,20 @@
     </div>
   </section>
 
+  <!-- TOOLTIP -->
+  <section>
+    <h2 class="sec">Tooltip · chip invertido</h2>
+    <p class="sec-note"><b>Chip INVERTIDO</b>: <code>--duna-ink</code> de fondo, <code>--duna-bg</code> de texto, que flipean juntos entre temas (chip oscuro en claro, claro en oscuro; ~17:1 en los dos). La superficie vive en <code>.admin-tooltip</code> (duna.css) y la monta <code>DunaTooltip</code> sobre Radix — <b>ADMIN-LEVEL, no en el paquete</b>: el paquete no lleva Radix ni conducta. Sólo para <b>DATO</b> (el tooltip es el único sitio donde vive esa info); una ETIQUETA que repite el ícono no lleva tooltip, y una redundante se borra. <b>Hover/foco, NO táctil</b> (§ backlog #30): en teléfono no aparece, así que un dato que sólo vive en el hover queda invisible ahí.</p>
+
+    <!-- El chip con los MISMOS tokens que .admin-tooltip (mirror; el estilo real vive
+         en duna.css, admin). Inline como el resto de la referencia token-compuesta —la
+         serie de arriba hace igual—. Se ve idéntico en los dos temas: los roles flipean. -->
+    <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap">
+      <span style="display:inline-block; max-width:18rem; padding:6px var(--duna-space-3); border-radius:var(--duna-r-s); font-family:var(--duna-font-ui); font-size:var(--duna-text-body-sm); line-height:1.25; font-weight:var(--duna-w-medium); background:var(--duna-ink); color:var(--duna-bg); box-shadow:var(--duna-shadow-2)">semana del 10 ago — $1.240.000</span>
+      <span class="duna-label">el mismo chip en los dos temas · los roles flipean</span>
+    </div>
+  </section>
+
   <!-- TIPOGRAFÍA -->
   <section>
     <h2 class="sec">Tipografía · 9 niveles</h2>

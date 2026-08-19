@@ -272,3 +272,23 @@ html.admin {
 .admin-strip__mbar { width: 100%; min-height: 2px; border-radius: var(--duna-r-s) var(--duna-r-s) 0 0; }
 .admin-strip__mlbl { font-size: var(--duna-text-caption); color: var(--duna-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .admin-strip__mcol.is-sel .admin-strip__mlbl { color: var(--duna-ink); font-weight: var(--duna-w-semi); }
+
+/* ── TOOLTIP DUNA ─────────────────────────────────────────────────────────────
+   Superficie del tooltip (components/ui/tooltip.tsx `TooltipContent`), estilizada
+   una vez para TODOS los consumidores —los ~10 Radix y los que envuelve
+   `DunaTooltip`—. Chip INVERTIDO: `--duna-ink` de fondo, `--duna-bg` de texto, que
+   flipean juntos entre temas (chip oscuro en claro, chip claro en oscuro; ~17:1 en
+   los dos). Los tokens viven en `:root`, así que el Portal a `<body>` los hereda; la
+   familia se resuelve contra `html.admin` (§ el puente de fuentes). */
+.admin-tooltip {
+  max-width: 18rem;
+  padding: 6px var(--duna-space-3);
+  border-radius: var(--duna-r-s);
+  font-family: var(--duna-font-ui);
+  font-size: var(--duna-text-body-sm);
+  line-height: 1.25;
+  font-weight: var(--duna-w-medium);
+  background: var(--duna-ink);
+  color: var(--duna-bg);
+  box-shadow: var(--duna-shadow-2);
+}

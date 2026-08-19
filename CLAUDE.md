@@ -927,11 +927,53 @@ formas es cómo la próxima pantalla elige sin criterio. (Se citó mal como "#8"
 momento; el #8 es `Customer.activo`. Este ítem NO existía — se abre acá.)
 
 **DISPARADOR: YA (owner, 2026-08-18) — su propia tanda con gate, no dentro del corrector
-de Pagos.** Un tooltip Duna EN EL PAQUETE, tokenizado, montado sobre Radix —el paquete
-ENVUELVE la conducta, no la implementa (precedente `DunaSheet` sobre Radix Dialog, así la
-opción C se conserva)—, con su bloque en `reference.html`. Los tres consumidores migran
-en la MISMA tanda —los `title` de Productos, los del strip, y el shadcn del sidebar—: un
-patrón, no dos. Al cerrarse la tanda, este ítem se borra.
+de Pagos.** Un tooltip Duna **ADMIN-LEVEL** (`components/admin`, NO en el paquete),
+tokenizado, montado sobre Radix. La corrección de rumbo importa: el precedente `DunaSheet`
+que se citó **también es admin-level**, y el paquete **no tiene Radix ni un solo
+`'use client'`** —es presentacional puro—; meter ahí un tooltip que envuelve Radix
+introduciría conducta de cliente y rompería la opción C. Por eso va admin-level, como
+DunaSheet de verdad está; el día de Fase B (el paquete adopta conducta) se muda. Con su
+bloque en `reference.html`.
+
+**El alcance es por NATURALEZA DEL CONTENIDO, no por pantalla** (owner, 2026-08-18):
+
+- **DATO** — el tooltip es el ÚNICO sitio donde vive ese número o esa información (el
+  strip es el caso claro; también los reveals de nombre/número truncado, las razones de
+  un control deshabilitado, los formatos del adjunto). **Migran AHORA**: hoy tardan 1.5s
+  y no tienen estilo, sobre información que importa.
+- **ETIQUETA** — repite lo que el ícono ya dice ("Activar producto" sobre un badge, "Ver
+  ficha de X" sobre un link). **Migran por goteo**, al tocar su pantalla.
+- **REDUNDANTE** — una etiqueta que no agrega nada sobre un ícono inequívoco ("Eliminar"
+  sobre una basura, "Recargar" sobre un ⟳). No necesita tooltip: **se borra**.
+- Los **~10 de Radix** (TopBar, NotificationBell, Sidebar, Dashboard, Entregas) se
+  **re-estilizan todos** —es cambiar el `Content`, no migrar—.
+
+El contenido de todos es `string` plano (ninguno es un nodo), así que la primitiva acepta
+un `string`. Al cerrarse la tanda, este ítem se borra.
+
+### 30. El total del bucket del strip vive SOLO en el hover — invisible en táctil
+
+El tooltip de cada barra del strip lleva el **total del bucket** (día/semana/mes + monto,
+`PagosStrip.tsx`). En táctil ese total **no existe**: ni el `title` nativo ni Radix
+responden al tap —los dos son hover/foco—, así que en teléfono el strip son **barras sin
+cifra**. La primitiva de tooltip (§ #29) NO lo cierra: Radix también es hover-only, y por
+eso esto es un ítem PROPIO y no una nota de #29.
+
+**La tabla NO lo mitiga**: tiene el detalle por PAGO, no el total por BUCKET —son cosas
+distintas—. El dato "cuánto entró ese día/semana" no está en ninguna otra superficie de
+la pantalla en móvil.
+
+**Costo YA pagado: ninguno medido** —el panel se opera sobre todo en escritorio hoy—,
+pero es un hueco de **visibilidad de datos**, no de estilo.
+
+**DISPARADOR: cuando el panel se use en teléfono de verdad, o al primer reporte.** La
+forma probable, escrita para no re-diagnosticarlo:
+
+- **Dato inline bajo la barra activa** (preferida): al tocar una barra se resalta y su
+  cifra aparece DEBAJO del strip, reusando el `bucketSel`/highlight que el strip YA tiene.
+  Es más honesto en táctil —no esconde el dato tras un gesto que en móvil no se descubre—.
+- **Tap-to-show** (alternativa): un tap abre el tooltip, un segundo lo cierra. Menos
+  trabajo, pero deja el dato detrás de un gesto no anunciado.
 
 ## Mejoras post-multitenant
 
@@ -2946,6 +2988,24 @@ cambio.
 que alguien tiene que cablear bien—. El día que el paquete adopte comportamiento
 (H6, o la Fase B con su propia app), las DOS se absorben en la primitiva que lo
 tenga y dejan de ser reglas sueltas.
+
+**`.admin-tooltip` es el MISMO caso, con un paso menos hecho** (owner, 2026-08-18):
+la superficie del tooltip (`app/(admin)/duna.css`) es CSS que alguien cablea, con
+la conducta (Radix) en `components/admin/DunaTooltip.tsx` — igual que `.duna-sheet`
+sobre `DunaSheet.tsx`. Se absorbe en el paquete con las otras cuando adopte
+comportamiento. La diferencia: su CSS **todavía no está en el paquete** —vive
+admin-level como `.admin-tooltip`, no como `.duna-*`—, mientras que la de sheet/scrim
+ya está en `primitives.css`. Así que el primer paso (mover la superficie al paquete
+como `.duna-tooltip`, CSS presentacional, sin depender de que adopte conducta) queda
+pendiente acá, no como decisión nueva.
+
+**Consecuencia ACTUAL, que es un H10 en versión sutil:** el bloque de tooltip de
+`reference.html` **espeja `.admin-tooltip` con estilos inline** (como el bloque de la
+serie), así que la prueba viva **NO ejercita la clase real**. Si `.admin-tooltip`
+cambia, la referencia sigue mostrando lo viejo y **miente** sin que nada lo delate —
+una superficie sin consumidor real en la prueba viva, que es exactamente lo que un
+H10 es. Mover la superficie al paquete y hacer que la referencia use la clase real
+cierra el H10 y la absorción a la vez.
 
 ### El scroll-lock es lo que decide el gate, y no es el del drawer viejo
 

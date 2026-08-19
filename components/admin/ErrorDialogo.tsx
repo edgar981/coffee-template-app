@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { cn } from '@duna/core/utils';
+import { DunaTooltip } from '@/components/admin/DunaTooltip';
 
 // ─── El error vive DONDE el operador está mirando ────────────────────────────
 // División de vehículos, y es la regla que este módulo instala:
@@ -36,28 +37,30 @@ import { cn } from '@duna/core/utils';
  * Como la altura de la fila la fija el botón (h-9 ≈ 36 px) y esto es texto `xs`
  * (≈16 px de línea), un mensaje de una o dos líneas entra sin mover nada. Uno
  * más largo hace crecer la fila unos pocos píxeles: se acota a 3 líneas y el
- * texto completo queda en el `title`.
+ * texto completo queda en un `DunaTooltip` (el `asChild` no agrega envoltorio, así
+ * que la ranura sigue desapareciendo con el mensaje).
  *
  * Devuelve `null` sin mensaje, así que en el caso normal no ocupa nada.
  */
 export function ErrorDialogo({ mensaje, className }: { mensaje: string | null; className?: string }) {
   if (!mensaje) return null;
   return (
-    <p
-      role="alert"
-      title={mensaje}
-      className={cn(
-        'min-w-0 flex-1 line-clamp-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-left text-xs text-destructive',
-        // La RANURA la nombra quien llama (`duna-modal__aviso` en los diálogos
-        // Duna). Va en el propio elemento y no en un envoltorio a propósito: sin
-        // mensaje esto devuelve `null`, así que la ranura desaparece con él. Un
-        // div envolviéndolo seguiría ocupando su `flex-basis` sin error y movería
-        // los botones — el defecto que la colocación existe para evitar.
-        className,
-      )}
-    >
-      {mensaje}
-    </p>
+    <DunaTooltip content={mensaje}>
+      <p
+        role="alert"
+        className={cn(
+          'min-w-0 flex-1 line-clamp-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-left text-xs text-destructive',
+          // La RANURA la nombra quien llama (`duna-modal__aviso` en los diálogos
+          // Duna). Va en el propio elemento y no en un envoltorio a propósito: sin
+          // mensaje esto devuelve `null`, así que la ranura desaparece con él. Un
+          // div envolviéndolo seguiría ocupando su `flex-basis` sin error y movería
+          // los botones — el defecto que la colocación existe para evitar.
+          className,
+        )}
+      >
+        {mensaje}
+      </p>
+    </DunaTooltip>
   );
 }
 

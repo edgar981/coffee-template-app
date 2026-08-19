@@ -6,6 +6,7 @@ import { METODO_PAGO_LABEL, METODO_CATEGORIA } from '@/types/payment';
 import { formatCOP } from '@duna/core/utils';
 import { bucketear, bucketKey, type Escala } from '@/lib/pagos/bucketeo';
 import { tituloEscala, etiquetaEje, etiquetaBucket, type RecorteTiempo } from '@/lib/pagos/etiquetas';
+import { DunaTooltip } from '@/components/admin/DunaTooltip';
 
 // EL STRIP DE PAGOS — barras sobre el tiempo, encima del libro, DENTRO de la región
 // que scrollea. Todo sale de `pagos` (la misma fuente que la tabla), bucketeado
@@ -120,12 +121,11 @@ export function PagosStrip({
             const v = datosM.porMetodo[m.metodo] ?? 0;
             const activo = metodoSel === m.metodo;
             return (
+              <DunaTooltip key={m.metodo} content={`${METODO_PAGO_LABEL[m.metodo]} — ${formatCOP(v)}`}>
               <button
-                key={m.metodo}
                 type="button"
                 className={`admin-strip__mcol${activo ? ' is-sel' : ''}`}
                 onClick={() => onMetodo(m.metodo)}
-                title={`${METODO_PAGO_LABEL[m.metodo]} — ${formatCOP(v)}`}
               >
                 <span className="admin-strip__mval duna-num">{formatCOP(v)}</span>
                 <span className="admin-strip__mbararea" style={{ height: ALTO }}>
@@ -133,6 +133,7 @@ export function PagosStrip({
                 </span>
                 <span className="admin-strip__mlbl">{METODO_PAGO_LABEL[m.metodo]}</span>
               </button>
+              </DunaTooltip>
             );
           })}
         </div>
@@ -151,33 +152,44 @@ export function PagosStrip({
   if (!datosT) return null;
   const { escala, buckets, porBucket, max, totalMetodo, totalRango, hayParcial } = datosT;
   const splitReal = split && metodoFiltrado === 'all';
+  const toggleBloqueado = metodoFiltrado !== 'all';
+
+  const toggle = (
+    <button
+      type="button"
+      className={`admin-strip__toggle${splitReal ? ' is-on' : ''}`}
+      onClick={onToggleSplit}
+      disabled={toggleBloqueado}
+      aria-pressed={splitReal}
+    >
+      <span className="admin-strip__sw" /> Por método
+    </button>
+  );
 
   return (
     <div key={modo} className="admin-strip">
       <div className="admin-strip__head">
         <span className="duna-eyebrow">{tituloEscala(escala as Escala)}</span>
-        <button
-          type="button"
-          className={`admin-strip__toggle${splitReal ? ' is-on' : ''}`}
-          onClick={onToggleSplit}
-          disabled={metodoFiltrado !== 'all'}
-          aria-pressed={splitReal}
-          title={metodoFiltrado !== 'all' ? 'Ya filtraste por un método' : undefined}
-        >
-          <span className="admin-strip__sw" /> Por método
-        </button>
+        {/* Deshabilitado: el span cataliza el hover que el botón disabled se traga. */}
+        {toggleBloqueado ? (
+          <DunaTooltip content="Ya filtraste por un método">
+            <span className="inline-flex cursor-not-allowed">{toggle}</span>
+          </DunaTooltip>
+        ) : toggle}
       </div>
 
       <div className="admin-strip__barras" style={{ height: ALTO }}>
         {buckets.map(bk => {
           const cell = porBucket.get(bk.key)!;
           return (
-            <button
+            <DunaTooltip
               key={bk.key}
+              content={`${etiquetaBucket(bk.inicio, escala as Escala)}${bk.parcial ? ' · período parcial' : ''} — ${formatCOP(cell.total)}`}
+            >
+            <button
               type="button"
               className={`admin-strip__col${bk.parcial ? ' is-parcial' : ''}`}
               onClick={() => onBucket({ escala: escala as Escala, key: bk.key, etiqueta: etiquetaBucket(bk.inicio, escala as Escala) })}
-              title={`${etiquetaBucket(bk.inicio, escala as Escala)}${bk.parcial ? ' · período parcial' : ''} — ${formatCOP(cell.total)}`}
             >
               <span className="admin-strip__bar" style={{ height: (cell.total / max) * ALTO }}>
                 {splitReal
@@ -190,6 +202,7 @@ export function PagosStrip({
                   : <span style={{ display: 'block', height: '100%', background: 'var(--duna-ink-2)' }} />}
               </span>
             </button>
+            </DunaTooltip>
           );
         })}
       </div>

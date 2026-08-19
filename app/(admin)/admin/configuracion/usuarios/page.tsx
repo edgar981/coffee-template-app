@@ -167,7 +167,7 @@ export default function ConfiguracionUsuarios() {
           <button
             onClick={loadUsers}
             className="p-2 rounded-xl border border-border hover:bg-muted transition-colors text-muted-foreground"
-            title="Recargar"
+            aria-label="Recargar"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -283,7 +283,6 @@ export default function ConfiguracionUsuarios() {
                               <button
                                 onClick={() => { setActiveMenu(null); setEstadoTarget(u); }}
                                 disabled={!!motivo}
-                                title={motivo || undefined}
                                 className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
                               >
                                 <span>{accion.label}</span>
