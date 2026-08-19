@@ -15,6 +15,7 @@ import { METODO_PAGO_LABEL, metodoPrevistoLabel } from '@/types/payment';
 import type { Order, OrderDetalle } from '@/types/order';
 import { ChipCanal } from '@/components/admin/ChipCanal';
 import { DunaSheet } from '@/components/admin/DunaSheet';
+import { DunaTooltip } from '@/components/admin/DunaTooltip';
 import { useDetalleAlLado } from '@/hooks/useDetalleAlLado';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
 import { useHidratado } from '@/hooks/useHidratado';
@@ -1104,10 +1105,15 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
                 Marcar en ruta
               </button>
             ) : hasScheduleData(envio) && (
-              <button type="button" className="duna-btn duna-btn--secondary" disabled
-                      title={falta === 'mensajero' ? 'Falta el mensajero' : 'Falta la fecha'}>
-                Marcar en ruta · {falta === 'mensajero' ? 'falta mensajero' : 'falta fecha'}
-              </button>
+              // Botón deshabilitado: el span es el trigger porque un disabled se
+              // traga el hover de Radix (mismo patrón que Entregas).
+              <DunaTooltip content={falta === 'mensajero' ? 'Falta el mensajero' : 'Falta la fecha'}>
+                <span className="inline-flex cursor-not-allowed">
+                  <button type="button" className="duna-btn duna-btn--secondary" disabled>
+                    Marcar en ruta · {falta === 'mensajero' ? 'falta mensajero' : 'falta fecha'}
+                  </button>
+                </span>
+              </DunaTooltip>
             )}
           </>
         ) : envio.estado === 'en_ruta' ? (
@@ -1149,7 +1155,7 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
             onArchivo={(file) => acciones.control.adjuntar(orden.id, file)}
             disabled={acciones.control.subiendo}
             label={acciones.control.subiendo ? 'Subiendo…' : 'Adjuntar'}
-            title={`JPG, PNG, WebP o PDF · máx. ${MAX_COMPROBANTE_MB} MB. Adjuntar no registra el pago.`}
+            tooltip={`JPG, PNG, WebP o PDF · máx. ${MAX_COMPROBANTE_MB} MB. Adjuntar no registra el pago.`}
           />
         )}
       </div>

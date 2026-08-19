@@ -14,8 +14,6 @@ interface StatusBadgeProps {
   tone?: SemaphoreTone;
   /** Texto del badge cuando se usa `tone`. */
   label?: string;
-  /** Tooltip nativo — el matiz que no cabe en la etiqueta. */
-  title?: string;
   className?: string;
   /**
    * 'auto' (default): pale-fill/dark-text in light mode, deeper-fill/light-text
@@ -88,14 +86,13 @@ const statusConfig = {
 
 const FALLBACK = { label: '', light: 'bg-muted text-muted-foreground', dark: '' };
 
-export default function StatusBadge({ status, tone, label, title, className, theme = 'auto' }: StatusBadgeProps) {
+export default function StatusBadge({ status, tone, label, className, theme = 'auto' }: StatusBadgeProps) {
   const config = tone
     ? semaphore(label ?? String(status ?? ''), TONOS[tone])
     : statusConfig[status as Status] ?? { ...FALLBACK, label: status };
 
   return (
     <span
-      title={title}
       className={cn(
         'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
         config.light,

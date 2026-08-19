@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Paperclip, FileText, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { DunaTooltip } from '@/components/admin/DunaTooltip';
 import { toast } from 'sonner';
 import { formatFecha } from '@duna/core/format-fecha';
 import {
@@ -71,7 +72,12 @@ export function ComprobanteVista({ comprobante, onAmpliar, acciones }: {
       )}
 
       <div className="min-w-0 flex-1">
-        <StatusBadge tone={badge.tono} label={badge.etiqueta} title={badge.detalle} />
+        {/* El matiz diagnóstico va en el tooltip Duna (StatusBadge ya no forwardea
+            `title`: es compartido con el storefront y no debe cargar conducta). El
+            span es el trigger porque StatusBadge no reenvía ref. */}
+        <DunaTooltip content={badge.detalle ?? ''}>
+          <span className="inline-flex"><StatusBadge tone={badge.tono} label={badge.etiqueta} /></span>
+        </DunaTooltip>
         <p className="mt-1 text-[11px] text-muted-foreground">
           {imagen ? `${peso} · ` : ''}
           {comprobante.subido_por_nombre
@@ -108,12 +114,13 @@ export function ComprobanteVista({ comprobante, onAmpliar, acciones }: {
  * el llamador: el detalle lo manda de una, y el modal de pago espera a que el
  * Payment exista (primero la plata, después la evidencia).
  */
-export function SelectorComprobante({ onArchivo, disabled, label = 'Adjuntar comprobante', title }: {
+export function SelectorComprobante({ onArchivo, disabled, label = 'Adjuntar comprobante', tooltip }: {
   onArchivo: (file: File) => void;
   disabled?: boolean;
   label?: string;
-  /** Formatos y tope, cuando la caja está colapsada y no hay sitio para la línea. */
-  title?: string;
+  /** Formatos y tope, cuando la caja está colapsada y no hay sitio para la línea.
+      Va por DunaTooltip, NO por el `title` nativo del Button (lento y sin estilo). */
+  tooltip?: string;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -140,14 +147,15 @@ export function SelectorComprobante({ onArchivo, disabled, label = 'Adjuntar com
         onChange={elegir}
         className="hidden"
       />
-      <Button
-        type="button" variant="outline" size="sm" className="gap-1.5"
-        disabled={disabled}
-        title={title}
-        onClick={() => inputRef.current?.click()}
-      >
-        <Paperclip className="h-3.5 w-3.5" /> {label}
-      </Button>
+      <DunaTooltip content={tooltip ?? ''}>
+        <Button
+          type="button" variant="outline" size="sm" className="gap-1.5"
+          disabled={disabled}
+          onClick={() => inputRef.current?.click()}
+        >
+          <Paperclip className="h-3.5 w-3.5" /> {label}
+        </Button>
+      </DunaTooltip>
     </>
   );
 }

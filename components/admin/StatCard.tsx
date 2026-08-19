@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, ArrowDownRight, Minus, LucideIcon } from "lucide-react";
 import type { Trend } from "@/lib/metrics/trend";
 import { resolveStatLine } from "@/lib/stat-line";
+import { DunaTooltip } from "@/components/admin/DunaTooltip";
 
 // ─── Affordance de stat card interactiva (fuente única) ───────────────────────
 // Este bloque es EL patrón de card navegable del admin: la card del dashboard
@@ -175,12 +176,11 @@ function StatCardBody({ icon: Icon, label, value, sub, insight, insightEnfasis, 
 function TrendPill({ trend }: { trend: Trend }) {
   if (!trend.comparable) {
     return (
-      <span
-        title="Sin base comparable (el mes anterior tuvo muy pocas órdenes)"
-        className="flex items-center gap-1 text-xs font-medium text-muted-foreground"
-      >
-        <Minus className="w-3 h-3" /> sin comparativa
-      </span>
+      <DunaTooltip content="Sin base comparable (el mes anterior tuvo muy pocas órdenes)">
+        <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+          <Minus className="w-3 h-3" /> sin comparativa
+        </span>
+      </DunaTooltip>
     );
   }
 
