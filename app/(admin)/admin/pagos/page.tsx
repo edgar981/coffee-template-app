@@ -18,7 +18,7 @@ import { bucketKey } from '@/lib/pagos/bucketeo';
 import { etiquetaBucket, type RecorteTiempo } from '@/lib/pagos/etiquetas';
 
 // Columnas del libro (grid-list). Flexibles: caben en la región sin scroll horizontal
-// en escritorio, y refluyen a 2 columnas en móvil (§ duna.css, `.admin-lista`).
+// en escritorio, y refluyen a 2 columnas en móvil (§ duna.css, `.duna-lista`).
 const COLS = '84px 104px minmax(70px,1.1fr) 96px 108px minmax(70px,1.3fr) 104px 22px';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -199,7 +199,7 @@ function PagosInner() {
 
       {/* REGIÓN — un scroller ÚNICO con el strip + el libro (por eso van en un solo hijo
           de `.duna-region`): el strip scrollea y el header del libro queda sticky contra
-          este scroller. El libro es `.admin-lista` (grid-list, sin overflow propio). */}
+          este scroller. El libro es `.duna-lista` (grid-list, sin overflow propio). */}
       <div className="duna-region">
         <div>
           {!loading && pagos.length > 0 && (
@@ -214,12 +214,12 @@ function PagosInner() {
           {loading ? (
             /* El hueco de la carga tiene la FORMA de lo que llega: filas del grid-list,
                no un spinner ni un esqueleto de tarjeta (eso sugeriría que va a llegar
-               otra cosa). Sin pieza nueva —el marcado es `.admin-lista` con celdas grises—.
-               El día que Inventario migre a `.admin-lista` (§ backlog #28) los dos
+               otra cosa). Sin pieza nueva —el marcado es `.duna-lista` con celdas grises—.
+               El día que Inventario migre a `.duna-lista` (§ backlog #28) los dos
                comparten esta forma y se extrae. */
-            <div className="admin-lista" aria-hidden="true">
+            <div className="duna-lista" aria-hidden="true">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="admin-lista__fila" style={{ gridTemplateColumns: COLS }}>
+                <div key={i} className="duna-lista__fila" style={{ gridTemplateColumns: COLS }}>
                   {Array.from({ length: 8 }).map((_, j) => (
                     <span key={j} style={{
                       height: 11, borderRadius: 3, background: 'var(--duna-skel)',
@@ -234,14 +234,14 @@ function PagosInner() {
           ) : filtered.length === 0 ? (
             <div className="duna-card duna-card__pad"><p className="duna-sub" style={{ margin: 0 }}>No hay pagos que coincidan con el filtro.</p></div>
           ) : (
-            <div className="admin-lista">
-              <div className="admin-lista__fila admin-lista__head" style={{ gridTemplateColumns: COLS }}>
+            <div className="duna-lista">
+              <div className="duna-lista__fila duna-lista__head" style={{ gridTemplateColumns: COLS }}>
                 <span>Fecha</span><span>Orden</span><span>Cliente</span>
-                <span className="admin-lista__r">Monto</span><span>Método</span>
+                <span className="duna-lista__r">Monto</span><span>Método</span>
                 <span>Referencia</span><span>Registrado por</span><span aria-hidden="true" />
               </div>
               {filtered.map(p => (
-                <div key={p.id} className="admin-lista__fila" style={{ gridTemplateColumns: COLS }}>
+                <div key={p.id} className="duna-lista__fila" style={{ gridTemplateColumns: COLS }}>
                   {/* Fecha y Método son CELDAS NAVEGABLES: caminos a filtros que ya existen
                       (el chip de tiempo y el select), sin estado nuevo. Afordancia `.duna-link`,
                       sin color nuevo; reemplazan, no acumulan (toggle en el activo). */}
@@ -257,7 +257,7 @@ function PagosInner() {
                       : <span className="duna-sub">—</span>}
                   </span>
                   <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.order?.cliente_nombre ?? '—'}</span>
-                  <span className="admin-lista__r duna-num">{formatCOP(p.monto)}</span>
+                  <span className="duna-lista__r duna-num">{formatCOP(p.monto)}</span>
                   <span>
                     <button type="button" className="duna-link" onClick={() => onMetodo(p.metodo)}
                             style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', font: 'inherit', textAlign: 'left' }}>

@@ -59,10 +59,10 @@ const TIPO_LABEL: Record<InventoryMovementType, string> = {
 };
 const TIPOS: InventoryMovementType[] = ['entrada', 'salida', 'ajuste', 'venta', 'devolucion'];
 
-// La rejilla del kardex (grid-list `.admin-lista`, § duna.css). Siete columnas:
+// La rejilla del kardex (grid-list `.duna-lista`, § primitives.css). Siete columnas:
 // Producto (nombre/link) · Tipo · Cantidad → · Antes→Después → · Motivo (texto/link) ·
-// Quién · Fecha. Sin `minWidth` propio como tenía DunaTable —`.admin-lista` no lleva
-// overflow, cabe en la región ≥960 y refluye a 2 columnas en <960—.
+// Quién · Fecha. Sin `minWidth` propio: `.duna-lista` no lleva overflow, cabe en la
+// región ≥960 y refluye a 2 columnas en <960.
 const COLS = 'minmax(120px,1.6fr) 92px 76px 104px minmax(110px,1.4fr) 108px 104px';
 
 // Presets de período — navegar la auditoría por TIEMPO (así se pregunta: "¿qué
@@ -259,15 +259,15 @@ function Inventario() {
 
       {/* REGIÓN — el grid-list scrollea (§ duna.css, `.duna-sin-split .duna-region`,
           que hace scroller a su hijo único); el encabezado va sticky contra él
-          (§ `.admin-lista__head`). loading/empty ocupan la región. */}
+          (§ `.duna-lista__head`). loading/empty ocupan la región. */}
       <div className="duna-region">
       {cargandoLogs && (
         /* El hueco de la carga tiene la FORMA de lo que llega: filas del grid-list
            con celdas grises, igual que Pagos (§ el corrector C-2) —no un texto ni un
            esqueleto de tarjeta, que sugeriría que va a llegar otra cosa—. */
-        <div className="admin-lista" aria-hidden="true">
+        <div className="duna-lista" aria-hidden="true">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="admin-lista__fila" style={{ gridTemplateColumns: COLS }}>
+            <div key={i} className="duna-lista__fila" style={{ gridTemplateColumns: COLS }}>
               {[82, 55, 40, 55, 82, 60, 70].map((w, j) => (
                 <span key={j} style={{ height: 11, borderRadius: 3, background: 'var(--duna-skel)', width: `${w}%` }} />
               ))}
@@ -285,15 +285,15 @@ function Inventario() {
         </div>
       )}
       {!cargandoLogs && logs.length > 0 && (
-        <div className="admin-lista">
-          <div className="admin-lista__fila admin-lista__head" style={{ gridTemplateColumns: COLS }}>
+        <div className="duna-lista">
+          <div className="duna-lista__fila duna-lista__head" style={{ gridTemplateColumns: COLS }}>
             <span>Producto</span><span>Tipo</span>
-            <span className="admin-lista__r">Cantidad</span>
-            <span className="admin-lista__r">Antes → Después</span>
+            <span className="duna-lista__r">Cantidad</span>
+            <span className="duna-lista__r">Antes → Después</span>
             <span>Motivo</span><span>Quién</span><span>Fecha</span>
           </div>
           {logs.map(l => (
-            <div key={l.id} className="admin-lista__fila" style={{ gridTemplateColumns: COLS }}>
+            <div key={l.id} className="duna-lista__fila" style={{ gridTemplateColumns: COLS }}>
               {/* Producto → detalle SÓLO si el producto todavía existe. La pregunta
                   natural al leer un movimiento raro: "¿cómo está AHORA?". */}
               <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -302,8 +302,8 @@ function Inventario() {
                   : l.producto_nombre}
               </span>
               <span><span className="duna-badge duna-badge--neutral">{TIPO_LABEL[l.tipo] ?? l.tipo}</span></span>
-              <span className="admin-lista__r duna-num">{signoDelMovimiento(l)}</span>
-              <span className="admin-lista__r duna-num">{l.stock_anterior} → {l.stock_nuevo}</span>
+              <span className="duna-lista__r duna-num">{signoDelMovimiento(l)}</span>
+              <span className="duna-lista__r duna-num">{l.stock_anterior} → {l.stock_nuevo}</span>
               {/* El MOTIVO es el texto legible; el enlace sale del DATO (`orden_numero`
                   resuelto por el servidor), no de parsear "CN-…". Sólo enlaza si la
                   orden todavía existe; si no, texto plano (misma regla que Producto). */}

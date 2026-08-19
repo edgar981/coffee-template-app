@@ -735,6 +735,25 @@
       </div>
   </section>
 
+  <!-- LISTA TABULAR (grid-list) -->
+  <section>
+    <h2 class="sec">Lista tabular · grid-list de datos (auditoría)</h2>
+    <p class="sec-note">Distinta de <code>items-table</code> (dos columnas, líneas de una orden): ésta es COLUMNAR, N columnas con encabezado, para una vista de auditoría o un listado denso. <b style="color:var(--duna-ink)">Es un grid-list, no un <code>&lt;table&gt;</code></b>, y las dos razones son MEDIDAS: en móvil REFLUYE (a 2 columnas) en vez de scrollear horizontal, y su encabezado sticky sobrevive en un scroller COMPARTIDO —cuando algo scrollea encima (el strip de Pagos), el <code>overflow-x</code> del envoltorio de un <code>&lt;table&gt;</code> capturaba el sticky y se lo llevaba—. Agnóstica: el consumidor pone el <code>grid-template-columns</code> por fila y las celdas ya resueltas. Dos consumidores (Pagos, kardex de Inventario), así que se extrajo al DS como <code>.duna-lista</code>.</p>
+
+    <div class="duna-lista" style="border:1px solid var(--duna-border); border-radius:var(--duna-r-l); overflow:hidden; margin-bottom:var(--duna-space-4)">
+      <div class="duna-lista__fila duna-lista__head" style="grid-template-columns:minmax(120px,1.6fr) 92px 76px 104px minmax(110px,1.4fr) 108px 104px">
+        <span>Producto</span><span>Tipo</span><span class="duna-lista__r">Cantidad</span><span class="duna-lista__r">Antes → Después</span><span>Motivo</span><span>Quién</span><span>Fecha</span>
+      </div>
+      <div class="duna-lista__fila" style="grid-template-columns:minmax(120px,1.6fr) 92px 76px 104px minmax(110px,1.4fr) 108px 104px"><span><a class="duna-link" href="#">Café Sierra 250 g</a></span><span><span class="duna-badge duna-badge--neutral">Entrada</span></span><span class="duna-lista__r duna-num">+12</span><span class="duna-lista__r duna-num">28 → 40</span><span>Compra a proveedor</span><span>Ana Ruiz</span><span class="duna-caption">14 may 2026</span></div>
+      <div class="duna-lista__fila" style="grid-template-columns:minmax(120px,1.6fr) 92px 76px 104px minmax(110px,1.4fr) 108px 104px"><span><a class="duna-link" href="#">Café Nariño 500 g</a></span><span><span class="duna-badge duna-badge--neutral">Salida</span></span><span class="duna-lista__r duna-num">−3</span><span class="duna-lista__r duna-num">8 → 5</span><span>Merma</span><span>Beto Díaz</span><span class="duna-caption">13 may 2026</span></div>
+      <div class="duna-lista__fila" style="grid-template-columns:minmax(120px,1.6fr) 92px 76px 104px minmax(110px,1.4fr) 108px 104px"><span>Prensa francesa</span><span><span class="duna-badge duna-badge--neutral">Ajuste</span></span><span class="duna-lista__r duna-num">7</span><span class="duna-lista__r duna-num">5 → 7</span><span>Edición de producto</span><span class="duna-caption">—</span><span class="duna-caption">12 may 2026</span></div>
+    </div>
+
+    <div class="flag">LA CELDA "PRODUCTO" ES UN <code>.duna-link</code> que lleva al detalle de ese producto — la pregunta natural al leer un movimiento raro es "¿cómo está AHORA?". La TERCERA fila va en texto plano a propósito: cuando el producto ya no existe, NO se pinta un enlace muerto (misma regla que <code>CustomerLink</code>). El consumidor decide fila por fila si hay destino.</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">EL TIPO VA NEUTRO, no verde/rojo — Amber Minimal: el rojo es alerta, y una salida o una venta son operación normal. La DIRECCIÓN la carga el signo de la cantidad (<code>+12</code> entra, <code>−3</code> sale, <code>7</code> el ajuste que FIJA un absoluto).</div>
+    <div class="flag" style="margin-top:var(--duna-space-3)">EN &lt;960 REFLUYE: el encabezado se oculta y las celdas caen a un grid de 2 columnas, para no scrollear horizontal al tacto. El costo, anotado (§ backlog): sin encabezado quedan valores crudos sin etiqueta —"¿ese 28 es cantidad o saldo?"—. La forma probable del arreglo es etiqueta inline por celda en móvil, o mostrar menos celdas; no está resuelto acá.</div>
+  </section>
+
   <!-- ESQUELETO -->
   <section>
     <h2 class="sec">Esqueleto · la forma de lo que todavía no llegó</h2>
@@ -1003,8 +1022,8 @@
   </section>
 
   <section>
-    <h2 class="sec">Región de alto fijo · un scroller único (tabla con thead pegado)</h2>
-    <p class="sec-note">El OTRO reparto de la región de alto fijo. El split la divide en dos columnas; el caso GENERAL es <b style="color:var(--duna-ink)">un hijo único que llena la región y scrollea</b> —una tabla de auditoría larga, un listado denso—. El header queda quieto, y el <code>thead</code> TAMBIÉN: con scroll de columna el encabezado es lo primero que se pierde, así que va <code>sticky</code> (siempre-on: fuera de un scroller es no-op). Su fondo es la superficie de la app (<code>--duna-bg</code>), no el papel del rail; su separador va por <code>box-shadow</code> —con <code>border-collapse</code> un <code>border-bottom</code> no viaja con el sticky—. Las cajas simulan el root fijo con <code>320px</code>. <b style="color:var(--duna-ink)">Izquierda: contenido largo → scrollea. Derecha: pocas filas → se sienta arriba a su alto natural, NO estira.</b> El scroll lo da <code>flex-shrink</code> + <code>overflow-y</code>, no <code>flex-grow</code>; por eso grow queda en 0 y el contenido corto no se infla.</p>
+    <h2 class="sec">Región de alto fijo · un scroller único (grid-list con encabezado pegado)</h2>
+    <p class="sec-note">El OTRO reparto de la región de alto fijo. El split la divide en dos columnas; el caso GENERAL es <b style="color:var(--duna-ink)">un hijo único que llena la región y scrollea</b> —un kardex largo, un listado denso—. El header queda quieto, y el encabezado del grid-list TAMBIÉN: con scroll de columna es lo primero que se pierde, así que <code>.duna-lista__head</code> va <code>sticky</code> (siempre-on: fuera de un scroller es no-op). Su fondo es la superficie de la app (<code>--duna-bg</code>) para tapar las filas que pasan debajo; su separador va por <code>box-shadow</code>. Acá <code>.duna-lista</code> ES el scroller (hijo único de la región); en la app la región misma lo hace scroller (§ duna.css, <code>.duna-region &gt; *</code>). Las cajas simulan el root fijo con <code>320px</code>. <b style="color:var(--duna-ink)">Izquierda: contenido largo → scrollea. Derecha: pocas filas → se sienta arriba a su alto natural, NO estira.</b> El scroll lo da <code>flex-shrink</code> + <code>overflow-y</code>, no <code>flex-grow</code>; por eso grow queda en 0 y el contenido corto no se infla.</p>
     <div style="display:flex; gap:var(--duna-space-4); flex-wrap:wrap;">
     <!-- LARGO: contenido que DESBORDA → la región lo encoge y scrollea. -->
     <div style="flex:1 1 320px; min-width:280px; height:320px; display:grid; grid-template-rows:auto 1fr; gap:var(--duna-space-3); min-height:0; border:1px solid var(--duna-border); border-radius:var(--duna-r-l); overflow:hidden;">
@@ -1013,26 +1032,22 @@
       </div>
       <!-- La región: un hijo único que ENCOGE y SCROLLEA. Inline acá; en la app es `.duna-region` (§ duna.css). -->
       <div style="min-height:0; display:flex; flex-direction:column; padding:0 var(--duna-space-4) var(--duna-space-4);">
-        <div class="duna-table-wrap" style="flex:0 1 auto; min-height:0; overflow-y:auto;">
-          <table class="duna-table" style="min-width:34rem">
-            <thead><tr><th>Producto</th><th>Tipo</th><th class="duna-table__r">Cantidad</th><th>Quién</th><th>Fecha</th></tr></thead>
-            <tbody>
-              <tr><td>Café Huila 500 g</td><td><span class="duna-badge duna-badge--neutral">Entrada</span></td><td class="duna-table__r duna-num">+120</td><td>Ana R.</td><td class="duna-caption">14 may 2026</td></tr>
-              <tr><td>Café Sierra 250 g</td><td><span class="duna-badge duna-badge--neutral">Venta</span></td><td class="duna-table__r duna-num">−3</td><td>—</td><td class="duna-caption">14 may 2026</td></tr>
-              <tr><td>Café Nariño 500 g</td><td><span class="duna-badge duna-badge--neutral">Ajuste</span></td><td class="duna-table__r duna-num">28</td><td>Luis C.</td><td class="duna-caption">13 may 2026</td></tr>
-              <tr><td>Café Huila 250 g</td><td><span class="duna-badge duna-badge--neutral">Salida</span></td><td class="duna-table__r duna-num">−12</td><td>Ana R.</td><td class="duna-caption">13 may 2026</td></tr>
-              <tr><td>Café Sierra 500 g</td><td><span class="duna-badge duna-badge--neutral">Devolución</span></td><td class="duna-table__r duna-num">+2</td><td>—</td><td class="duna-caption">12 may 2026</td></tr>
-              <tr><td>Café Nariño 250 g</td><td><span class="duna-badge duna-badge--neutral">Venta</span></td><td class="duna-table__r duna-num">−5</td><td>—</td><td class="duna-caption">12 may 2026</td></tr>
-              <tr><td>Café Huila 500 g</td><td><span class="duna-badge duna-badge--neutral">Entrada</span></td><td class="duna-table__r duna-num">+80</td><td>Luis C.</td><td class="duna-caption">11 may 2026</td></tr>
-              <tr><td>Café Sierra 250 g</td><td><span class="duna-badge duna-badge--neutral">Ajuste</span></td><td class="duna-table__r duna-num">42</td><td>Ana R.</td><td class="duna-caption">11 may 2026</td></tr>
-              <tr><td>Café Nariño 500 g</td><td><span class="duna-badge duna-badge--neutral">Salida</span></td><td class="duna-table__r duna-num">−8</td><td>Ana R.</td><td class="duna-caption">10 may 2026</td></tr>
-              <tr><td>Café Huila 250 g</td><td><span class="duna-badge duna-badge--neutral">Venta</span></td><td class="duna-table__r duna-num">−1</td><td>—</td><td class="duna-caption">10 may 2026</td></tr>
-              <tr><td>Café Sierra 500 g</td><td><span class="duna-badge duna-badge--neutral">Entrada</span></td><td class="duna-table__r duna-num">+60</td><td>Luis C.</td><td class="duna-caption">9 may 2026</td></tr>
-              <tr><td>Café Nariño 250 g</td><td><span class="duna-badge duna-badge--neutral">Devolución</span></td><td class="duna-table__r duna-num">+4</td><td>—</td><td class="duna-caption">9 may 2026</td></tr>
-              <tr><td>Café Huila 500 g</td><td><span class="duna-badge duna-badge--neutral">Ajuste</span></td><td class="duna-table__r duna-num">200</td><td>Luis C.</td><td class="duna-caption">8 may 2026</td></tr>
-              <tr><td>Café Sierra 250 g</td><td><span class="duna-badge duna-badge--neutral">Salida</span></td><td class="duna-table__r duna-num">−15</td><td>Ana R.</td><td class="duna-caption">8 may 2026</td></tr>
-            </tbody>
-          </table>
+        <div class="duna-lista" style="flex:0 1 auto; min-height:0; overflow-y:auto;">
+          <div class="duna-lista__fila duna-lista__head" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto">
+            <span>Producto</span><span>Tipo</span><span class="duna-lista__r">Cant</span><span>Fecha</span>
+          </div>
+          <div class="duna-lista__fila" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto"><span>Huila 500g</span><span><span class="duna-badge duna-badge--neutral">Entrada</span></span><span class="duna-lista__r duna-num">+120</span><span class="duna-caption">14 may</span></div>
+          <div class="duna-lista__fila" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto"><span>Sierra 250g</span><span><span class="duna-badge duna-badge--neutral">Venta</span></span><span class="duna-lista__r duna-num">−3</span><span class="duna-caption">14 may</span></div>
+          <div class="duna-lista__fila" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto"><span>Nariño 500g</span><span><span class="duna-badge duna-badge--neutral">Ajuste</span></span><span class="duna-lista__r duna-num">28</span><span class="duna-caption">13 may</span></div>
+          <div class="duna-lista__fila" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto"><span>Huila 250g</span><span><span class="duna-badge duna-badge--neutral">Salida</span></span><span class="duna-lista__r duna-num">−12</span><span class="duna-caption">13 may</span></div>
+          <div class="duna-lista__fila" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto"><span>Sierra 500g</span><span><span class="duna-badge duna-badge--neutral">Entrada</span></span><span class="duna-lista__r duna-num">+2</span><span class="duna-caption">12 may</span></div>
+          <div class="duna-lista__fila" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto"><span>Nariño 250g</span><span><span class="duna-badge duna-badge--neutral">Venta</span></span><span class="duna-lista__r duna-num">−5</span><span class="duna-caption">12 may</span></div>
+          <div class="duna-lista__fila" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto"><span>Huila 500g</span><span><span class="duna-badge duna-badge--neutral">Entrada</span></span><span class="duna-lista__r duna-num">+80</span><span class="duna-caption">11 may</span></div>
+          <div class="duna-lista__fila" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto"><span>Sierra 250g</span><span><span class="duna-badge duna-badge--neutral">Ajuste</span></span><span class="duna-lista__r duna-num">42</span><span class="duna-caption">11 may</span></div>
+          <div class="duna-lista__fila" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto"><span>Nariño 500g</span><span><span class="duna-badge duna-badge--neutral">Salida</span></span><span class="duna-lista__r duna-num">−8</span><span class="duna-caption">10 may</span></div>
+          <div class="duna-lista__fila" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto"><span>Huila 250g</span><span><span class="duna-badge duna-badge--neutral">Venta</span></span><span class="duna-lista__r duna-num">−1</span><span class="duna-caption">10 may</span></div>
+          <div class="duna-lista__fila" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto"><span>Sierra 500g</span><span><span class="duna-badge duna-badge--neutral">Entrada</span></span><span class="duna-lista__r duna-num">+60</span><span class="duna-caption">9 may</span></div>
+          <div class="duna-lista__fila" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto"><span>Nariño 250g</span><span><span class="duna-badge duna-badge--neutral">Ajuste</span></span><span class="duna-lista__r duna-num">200</span><span class="duna-caption">8 may</span></div>
         </div>
       </div>
     </div>
@@ -1042,15 +1057,13 @@
         <span class="duna-eyebrow">HEADER FIJO — pocas filas, no estira</span>
       </div>
       <div style="min-height:0; display:flex; flex-direction:column; padding:0 var(--duna-space-4) var(--duna-space-4);">
-        <div class="duna-table-wrap" style="flex:0 1 auto; min-height:0; overflow-y:auto;">
-          <table class="duna-table" style="min-width:34rem">
-            <thead><tr><th>Producto</th><th>Tipo</th><th class="duna-table__r">Cantidad</th><th>Quién</th><th>Fecha</th></tr></thead>
-            <tbody>
-              <tr><td>Café Huila 500 g</td><td><span class="duna-badge duna-badge--neutral">Entrada</span></td><td class="duna-table__r duna-num">+120</td><td>Ana R.</td><td class="duna-caption">14 may 2026</td></tr>
-              <tr><td>Café Sierra 250 g</td><td><span class="duna-badge duna-badge--neutral">Venta</span></td><td class="duna-table__r duna-num">−3</td><td>—</td><td class="duna-caption">14 may 2026</td></tr>
-              <tr><td>Café Nariño 500 g</td><td><span class="duna-badge duna-badge--neutral">Ajuste</span></td><td class="duna-table__r duna-num">28</td><td>Luis C.</td><td class="duna-caption">13 may 2026</td></tr>
-            </tbody>
-          </table>
+        <div class="duna-lista" style="flex:0 1 auto; min-height:0; overflow-y:auto;">
+          <div class="duna-lista__fila duna-lista__head" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto">
+            <span>Producto</span><span>Tipo</span><span class="duna-lista__r">Cant</span><span>Fecha</span>
+          </div>
+          <div class="duna-lista__fila" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto"><span>Huila 500g</span><span><span class="duna-badge duna-badge--neutral">Entrada</span></span><span class="duna-lista__r duna-num">+120</span><span class="duna-caption">14 may</span></div>
+          <div class="duna-lista__fila" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto"><span>Sierra 250g</span><span><span class="duna-badge duna-badge--neutral">Venta</span></span><span class="duna-lista__r duna-num">−3</span><span class="duna-caption">14 may</span></div>
+          <div class="duna-lista__fila" style="grid-template-columns:minmax(0,1.5fr) auto 52px auto"><span>Nariño 500g</span><span><span class="duna-badge duna-badge--neutral">Ajuste</span></span><span class="duna-lista__r duna-num">28</span><span class="duna-caption">13 may</span></div>
         </div>
       </div>
     </div>
