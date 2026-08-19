@@ -155,6 +155,32 @@ export async function generarInformePdf(m: ModeloInforme): Promise<Blob> {
   y = seccion('Detalle', y);
   y = encabezadoTabla(y);
 
+  // Las filas, con salto de página. Cada página nueva REPITE el encabezado de la
+  // tabla: una hoja suelta con seis columnas sin títulos no se puede leer.
+  for (const f of m.filas) {
+    if (y > PAGINA.alto - MARGEN.abajo) {
+      doc.addPage();
+      y = encabezadoTabla(MARGEN.arriba);
+    }
+    celda(f.fecha, 0, y);
+    celda(f.orden, 1, y);
+    celda(f.cliente, 2, y);
+    celda(f.monto, 3, y);
+    celda(f.metodo, 4, y);
+    celda(f.referencia, 5, y);
+    y += FILA_H;
+  }
+
+  // El TOTAL cierra la tabla, no la abre: es la suma de lo que se acaba de leer.
+  if (y > PAGINA.alto - MARGEN.abajo - 24) { doc.addPage(); y = MARGEN.arriba; }
+  doc.setDrawColor(200);
+  doc.line(MARGEN.x, y - 6, MARGEN.x + ANCHO_UTIL, y - 6);
+  doc.setFont('helvetica', 'bold');
+  y += 8;
+  doc.text('Total', x[2] + 3, y);
+  doc.text(m.total, x[3] + anchos[3] - 3, y, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+
   // El pie se estampa al final, cuando ya se sabe cuántas páginas hay.
   const paginas = doc.getNumberOfPages();
   doc.setFont('helvetica', 'normal');
@@ -164,6 +190,11 @@ export async function generarInformePdf(m: ModeloInforme): Promise<Blob> {
     doc.setPage(p);
     doc.text(`Página ${p} de ${paginas}`, PAGINA.ancho - MARGEN.x, PAGINA.alto - 24, { align: 'right' });
     doc.text(m.pie, MARGEN.x, PAGINA.alto - 24);
+    // La única marca del producto en un documento que sale de la casa —el operador lo
+    // manda a su contador—. Va como TEXTO: el logo existe (public/brand/*.svg) pero
+    // jsPDF no dibuja SVG, así que meterlo exige rasterizarlo o transcribir sus paths,
+    // que es una decisión propia y no un renglón de pie. No se inventa un logo.
+    doc.text('Generado con Duna', PAGINA.ancho / 2, PAGINA.alto - 24, { align: 'center' });
   }
 
   return doc.output('blob');

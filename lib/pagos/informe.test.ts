@@ -144,18 +144,38 @@ test('SIN filtro no hay bajada: desglose y detalle cubren lo mismo', () => {
   assert.deepEqual(m.porMetodo.filter(f => f.marcado), []);
 });
 
-test('el desglose lista los CINCO métodos, de mayor a menor', () => {
+test('el desglose omite los métodos SIN movimiento y ordena de mayor a menor', () => {
   const m = conPagos([pagoDe('OTRO', 5), pagoDe('EFECTIVO', 50)]);
-  assert.equal(m.porMetodo.length, 5, 'los cinco, aunque tres estén en cero');
-  assert.equal(m.porMetodo[0].metodo, 'Efectivo');
-  assert.equal(m.porMetodo[1].metodo, 'Otro');
-  // Un método sin movimiento vale 0, no desaparece: "no entró nada por ahí" es un dato.
-  assert.equal(m.porMetodo[4].total, formatCOP(0));
+  // Los tres métodos en cero no aparecen: una línea en "$ 0 · 0 %" es ruido.
+  assert.deepEqual(m.porMetodo.map(f => f.metodo), ['Efectivo', 'Otro']);
 });
 
-test('sin plata en el período la participación CALLA en vez de dividir por cero', () => {
-  const m = conPagos([]);
-  assert.deepEqual([...new Set(m.porMetodo.map(f => f.participacion))], ['—']);
+test('EXCEPCIÓN: el método FILTRADO se muestra aunque haya quedado en cero', () => {
+  // Sin esta fila, el desglose no nombraría en ninguna parte al método del que habla
+  // el documento — y el lector no sabría que no tuvo movimiento.
+  const enBucket = [pagoDe('EFECTIVO', 50)];
+  const m = modeloInforme({
+    ...base, pagos: [], enBucket,
+    metodoLabel: 'Nequi', metodosDelFiltro: ['NEQUI'],
+  });
+  const nequi = m.porMetodo.find(f => f.metodo === 'Nequi');
+  assert.ok(nequi, 'el método filtrado no puede faltar del desglose');
+  assert.equal(nequi.total, formatCOP(0));
+  assert.equal(nequi.marcado, true);
+});
+
+test('sin plata en el período no hay desglose: no queda ninguna fila que mostrar', () => {
+  assert.deepEqual(conPagos([]).porMetodo, []);
+});
+
+test('la participación CALLA en vez de dividir por cero', () => {
+  // El único camino a una fila con el período en cero es la EXCEPCIÓN del filtro.
+  const m = modeloInforme({
+    ...base, pagos: [], enBucket: [],
+    metodoLabel: 'Nequi', metodosDelFiltro: ['NEQUI'],
+  });
+  assert.equal(m.porMetodo.length, 1);
+  assert.equal(m.porMetodo[0].participacion, '—');
 });
 
 // ── LOS METADATOS DEL DOCUMENTO ─────────────────────────────────────────────

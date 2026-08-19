@@ -167,6 +167,14 @@ export function modeloInforme(input: {
   for (const p of enBucket) porMetodoMap.set(p.metodo, (porMetodoMap.get(p.metodo) ?? 0) + p.monto);
   const porMetodo: FilaMetodo[] = (Object.keys(METODO_PAGO_LABEL) as MetodoPago[])
     .map(m => ({ m, monto: porMetodoMap.get(m) ?? 0 }))
+    // Un método SIN un solo pago en el período no es información: es ruido que ocupa
+    // una línea. Se omite.
+    //
+    // EXCEPCIÓN: si el select filtra a un método que quedó en cero, esa fila SÍ va —
+    // el lector necesita ver que lo que el detalle desarrolla no tuvo movimiento. Sin
+    // ella el desglose no nombraría en ninguna parte al método del que habla el
+    // documento, que es peor que una línea de más.
+    .filter(({ m, monto }) => monto > 0 || (metodosDelFiltro?.includes(m) ?? false))
     // De mayor a menor: un desglose se lee de arriba hacia abajo por tamaño.
     .sort((a, b) => b.monto - a.monto)
     .map(({ m, monto }) => ({
