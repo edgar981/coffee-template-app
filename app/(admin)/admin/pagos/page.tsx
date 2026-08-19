@@ -83,7 +83,6 @@ function PagosInner() {
   }, [pagos, metodo, excl, bucketSel]);
 
   const totalPeriodo = filtered.reduce((sum, p) => sum + p.monto, 0);
-  const promedio     = filtered.length ? totalPeriodo / filtered.length : null;
 
   const hasFilters = metodo !== 'all' || bucketSel !== null || excl.length > 0
     || from !== rangoMes.desde || to !== rangoMes.hasta;
@@ -140,22 +139,14 @@ function PagosInner() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: 'var(--duna-space-4)' }}>
-          <div className="duna-stat">
-            <div className="duna-stat__v duna-num">{formatCOP(totalPeriodo)}</div>
-            <div className="duna-stat__l">Total del período</div>
-            <div className="duna-stat__d">{bucketSel ? bucketSel.etiqueta : 'del recorte activo'}</div>
-          </div>
-          <div className="duna-stat">
-            <div className="duna-stat__v duna-num">{filtered.length}</div>
-            <div className="duna-stat__l">Pagos {hasFilters ? 'filtrados' : 'registrados'}</div>
-            <div className="duna-stat__d">{bucketSel ? 'del bucket seleccionado' : 'del recorte activo'}</div>
-          </div>
-          <div className="duna-stat">
-            <div className="duna-stat__v duna-num">{promedio !== null ? formatCOP(promedio) : '—'}</div>
-            <div className="duna-stat__l">Promedio por pago</div>
-            <div className="duna-stat__d">total ÷ pagos del recorte</div>
-          </div>
+        {/* Sólo el TOTAL. "Pagos registrados" y "Promedio por pago" se podaron: la
+            cabecera es fija y el strip scrollea, así que cada cifra de más empuja al
+            libro fuera de vista (~370px de cabecera aun sin ellas). El conteo vive en el
+            libro; el promedio no cambia ninguna decisión del día. */}
+        <div className="duna-stat" style={{ display: 'inline-block' }}>
+          <div className="duna-stat__v duna-num">{formatCOP(totalPeriodo)}</div>
+          <div className="duna-stat__l">Total del período</div>
+          <div className="duna-stat__d">{bucketSel ? bucketSel.etiqueta : 'del recorte activo'}</div>
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', alignItems: 'center' }}>
@@ -221,7 +212,23 @@ function PagosInner() {
           )}
 
           {loading ? (
-            <p className="duna-sub" style={{ margin: 'var(--duna-space-4) 0 0' }}>Cargando los pagos…</p>
+            /* El hueco de la carga tiene la FORMA de lo que llega: filas del grid-list,
+               no un spinner ni un esqueleto de tarjeta (eso sugeriría que va a llegar
+               otra cosa). Sin pieza nueva —el marcado es `.admin-lista` con celdas grises—.
+               El día que Inventario migre a `.admin-lista` (§ backlog #28) los dos
+               comparten esta forma y se extrae. */
+            <div className="admin-lista" aria-hidden="true">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="admin-lista__fila" style={{ gridTemplateColumns: COLS }}>
+                  {Array.from({ length: 8 }).map((_, j) => (
+                    <span key={j} style={{
+                      height: 11, borderRadius: 3, background: 'var(--duna-skel)',
+                      width: j === 7 ? 14 : j % 3 === 0 ? '55%' : '82%',
+                    }} />
+                  ))}
+                </div>
+              ))}
+            </div>
           ) : pagos.length === 0 ? (
             <div className="duna-card duna-card__pad"><p className="duna-sub" style={{ margin: 0 }}>No hay pagos en el rango seleccionado.</p></div>
           ) : filtered.length === 0 ? (
