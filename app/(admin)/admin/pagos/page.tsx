@@ -7,15 +7,15 @@ import { FilterX, Paperclip, X } from 'lucide-react';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { PresetsPeriodo } from '@/components/admin/PresetsPeriodo';
 import { PagosStrip } from '@/components/admin/PagosStrip';
-import { DunaTooltip } from '@/components/admin/DunaTooltip';
 import { getPayments } from '@/lib/api/payments';
 import type { Payment, MetodoPago } from '@/types/payment';
-import { METODO_PAGO_LABEL, METODO_CATEGORIA } from '@/types/payment';
+import { METODO_PAGO_LABEL, METODO_CATEGORIA, PAYMENT_CATEGORIA_LABEL, type PaymentCategoria } from '@/types/payment';
 import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
 import { BUSINESS_TZ, zonedDayKey, startOfZonedDay } from '@duna/core/timezone';
 import { rangoDeDiasDelPeriodo, opcionesPreset } from '@/lib/metrics/periodo';
-import { bucketKey } from '@/lib/pagos/bucketeo';
+import { bucketKey, bucketear } from '@/lib/pagos/bucketeo';
+import { fraseDePagos, mejorDiaDe } from '@/lib/pagos/frase';
 import { etiquetaBucket, type RecorteTiempo } from '@/lib/pagos/etiquetas';
 
 // Columnas del libro (grid-list). Flexibles: caben en la región sin scroll horizontal
@@ -85,6 +85,30 @@ function PagosInner() {
 
   const totalPeriodo = filtered.reduce((sum, p) => sum + p.monto, 0);
 
+  // La etiqueta del método para la frase y el eyebrow. La opción de GRUPO ("Cualquier
+  // digital") se dice como se lee en una oración —"por medios digitales"—, no con el
+  // nombre técnico de la categoría.
+  const metodoLabel = useMemo(() => {
+    if (metodo === 'all') return null;
+    if (metodo.startsWith('cat:')) {
+      const cat = metodo.slice(4) as PaymentCategoria;
+      return cat === 'TRANSFERENCIA' ? 'medios digitales' : PAYMENT_CATEGORIA_LABEL[cat];
+    }
+    return METODO_PAGO_LABEL[metodo as MetodoPago];
+  }, [metodo]);
+
+  // El "mejor día" sólo cuando la curva DIBUJA y no hay un bucket recortado: dentro de
+  // un solo día no hay días que comparar, y sin curva no hay de dónde leer ese pico.
+  const mejorDia = useMemo(
+    () => (!bucketSel && bucketear(from, to).tipo === 'dibuja' ? mejorDiaDe(filtered) : null),
+    [bucketSel, from, to, filtered],
+  );
+
+  const frase = useMemo(() => fraseDePagos({
+    desde: from, hasta: to, bucket: bucketSel, metodoLabel,
+    total: totalPeriodo, conteo: filtered.length, mejorDia, ahora,
+  }), [from, to, bucketSel, metodoLabel, totalPeriodo, filtered.length, mejorDia, ahora]);
+
   const hasFilters = metodo !== 'all' || bucketSel !== null || excl.length > 0
     || from !== rangoMes.desde || to !== rangoMes.hasta;
 
@@ -129,25 +153,23 @@ function PagosInner() {
 
   return (
     <div className="duna duna-sin-split">
-      {/* CABECERA fija: header + stats + filtros. El strip NO va acá — scrollea con el
-          libro (§ duna.css). El chip de bucket sí vive acá, con etiqueta que se entiende
-          sola porque el operador lo ve sin ver la barra que lo produjo. */}
+      {/* CABECERA fija: eyebrow + LA FRASE + filtros (y, con la curva, el gráfico).
+          El chip de bucket vive acá, con etiqueta que se entiende sola. */}
       <div className="duna-cabecera space-y-4 pb-4">
-        {/* R-1 · el título y la CIFRA en una sola línea de cabecera. El strip va fijo
-            (no scrollea), así que cada píxel de cabecera le cuesta una fila al libro:
-            se fusiona el stat con el título (el bloque baja de ~200px a ~60), el
-            descargo se retira a un tooltip sobre el título, y el qualifier del bucket
-            sólo aparece cuando HAY recorte. El total sigue siendo `.duna-display`. */}
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--duna-space-4)', flexWrap: 'wrap' }}>
-          <DunaTooltip content="Ledger de pagos registrados. Se registran desde cada orden.">
-            <h1 className="duna-display-m" style={{ cursor: 'help' }}>Pagos</h1>
-          </DunaTooltip>
-          <div style={{ textAlign: 'right' }}>
-            <div className="duna-display-m duna-num">{formatCOP(totalPeriodo)}</div>
-            <div className="duna-caption" style={{ color: 'var(--duna-muted)', marginTop: 'var(--duna-space-hairline)' }}>
-              Total del período{bucketSel ? ` · ${bucketSel.etiqueta}` : ''}
-            </div>
-          </div>
+        {/* LA FRASE reemplaza al título, al descargo del ledger y al stat: la pantalla
+            abre diciendo la RESPUESTA, no un rótulo y una cifra que el lector junta.
+            El h1 ES la frase —el nombre de la sección ya lo dan el rail y la pestaña—.
+            Peso 500 con la cifra y el conteo en semibold: los tramos vienen partidos de
+            `fraseDePagos` para que la tipografía no se desincronice de la gramática. */}
+        <div>
+          <div className="duna-eyebrow">{frase.eyebrow}</div>
+          <h1 className="duna-display-m"
+              style={{ fontWeight: 'var(--duna-w-medium)', margin: 'var(--duna-space-hairline) 0 0' }}>
+            {frase.tramos.map((tr, i) => tr.fuerte
+              ? <strong key={i} style={{ fontWeight: 'var(--duna-w-semi)' }}>{tr.t}</strong>
+              : <span key={i}>{tr.t}</span>)}
+          </h1>
+          <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>{frase.subtitulo}</p>
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', alignItems: 'center' }}>
