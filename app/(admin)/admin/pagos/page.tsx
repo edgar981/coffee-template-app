@@ -6,7 +6,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { FilterX, Paperclip, X } from 'lucide-react';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { PresetsPeriodo } from '@/components/admin/PresetsPeriodo';
-import { PagosStrip } from '@/components/admin/PagosStrip';
+import { PagosCurva } from '@/components/admin/PagosCurva';
 import { getPayments } from '@/lib/api/payments';
 import type { Payment, MetodoPago } from '@/types/payment';
 import { METODO_PAGO_LABEL, METODO_CATEGORIA, PAYMENT_CATEGORIA_LABEL, type PaymentCategoria } from '@/types/payment';
@@ -50,10 +50,10 @@ function PagosInner() {
   const [metodo, setMetodo]   = useState<string>('all');      // 'all' | MetodoPago | `cat:${cat}`
   const [from, setFrom]       = useState(() => searchParams.get('desde') ?? rangoMes.desde);
   const [to, setTo]           = useState(() => searchParams.get('hasta') ?? rangoMes.hasta);
-  // Estado del STRIP, todo client-side y de una fuente con la tabla:
-  const [bucketSel, setBucketSel] = useState<RecorteTiempo | null>(null); // recorte de tiempo (chip)
-  const [split, setSplit]         = useState(false);                      // toggle "Por método"
-  const [excl, setExcl]           = useState<MetodoPago[]>([]);            // exclusiones de la leyenda
+  // El recorte de tiempo (el chip), client-side y de una fuente con el libro. El
+  // toggle "Por método" y las exclusiones murieron con el strip: una CURVA no se
+  // apila, y el desglose por método vive en el modo método y en el select.
+  const [bucketSel, setBucketSel] = useState<RecorteTiempo | null>(null);
 
   // El rango se filtra en SQL → un cambio de rango RE-CONSULTA. `active` evita que una
   // respuesta lenta pise a una más nueva.
@@ -69,11 +69,11 @@ function PagosInner() {
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  // UNA fuente para stats, strip y tabla: método (select) + exclusiones (leyenda) +
-  // recorte de tiempo (chip: clic en barra o en una fecha). Todo sobre `pagos`.
+  // UNA fuente para la frase, el gráfico y el libro: método (select) + recorte de
+  // tiempo (chip: clic en un punto o en una fecha). Todo sobre `pagos`.
   const filtered = useMemo(() => {
     const metOk = (m: MetodoPago) => {
-      if (metodo === 'all') return !excl.includes(m);
+      if (metodo === 'all') return true;
       if (metodo.startsWith('cat:')) return METODO_CATEGORIA[m] === metodo.slice(4);
       return m === metodo;
     };
@@ -81,7 +81,7 @@ function PagosInner() {
       metOk(p.metodo) &&
       (!bucketSel || bucketKey(new Date(p.fecha), bucketSel.escala) === bucketSel.key),
     );
-  }, [pagos, metodo, excl, bucketSel]);
+  }, [pagos, metodo, bucketSel]);
 
   const totalPeriodo = filtered.reduce((sum, p) => sum + p.monto, 0);
 
@@ -109,22 +109,16 @@ function PagosInner() {
     total: totalPeriodo, conteo: filtered.length, mejorDia, ahora,
   }), [from, to, bucketSel, metodoLabel, totalPeriodo, filtered.length, mejorDia, ahora]);
 
-  const hasFilters = metodo !== 'all' || bucketSel !== null || excl.length > 0
+  const hasFilters = metodo !== 'all' || bucketSel !== null
     || from !== rangoMes.desde || to !== rangoMes.hasta;
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
   // Un cambio de RANGO limpia el recorte de tiempo (es específico del rango). El
-  // método/exclusiones sobreviven (son por método).
+  // método sobrevive: es de otro eje.
   const setRango = (d: string | null, h: string | null) => {
     setFrom(d ?? ''); setTo(h ?? ''); setBucketSel(null);
   };
-  const setMetodoSel = (v: string) => {
-    setMetodo(v);
-    if (v !== 'all') setExcl([]); // sin split no hay leyenda que las gobierne
-  };
-  const toggleExcl = (m: MetodoPago) =>
-    setExcl(prev => (prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]));
 
   // EL EJE NUNCA SE FILTRA A SÍ MISMO (§ doctrina): el clic en método escribe el SELECT;
   // el clic en tiempo (barra o fecha) escribe el CHIP. Cada uno en su control, y cada uno
@@ -142,7 +136,7 @@ function PagosInner() {
 
   const clearFilters = () => {
     setMetodo('all'); setFrom(rangoMes.desde); setTo(rangoMes.hasta);
-    setBucketSel(null); setSplit(false); setExcl([]);
+    setBucketSel(null);
     const next = new URLSearchParams(searchParams.toString());
     next.delete('desde'); next.delete('hasta');
     const qs = next.toString();
@@ -178,7 +172,7 @@ function PagosInner() {
             style={{ width: 'auto' }}
             aria-label="Filtrar por método de pago"
             value={metodo}
-            onChange={e => setMetodoSel(e.target.value)}
+            onChange={e => setMetodo(e.target.value)}
           >
             {/* Agrupado por CÓMO LLEGA LA PLATA (lo que el operador distingue), no por la
                 mecánica del filtro. "Cualquier digital" (value cat:*) conserva la
@@ -218,22 +212,23 @@ function PagosInner() {
             </button>
           )}
         </div>
+
+        {/* EL GRÁFICO va en la ZONA FIJA: no scrollea. Decisión del owner — un gráfico
+            que se va al scrollear obliga a volver arriba para leer el contexto de la
+            fila que se está mirando. Lo que cuesta es alto de cabecera, y por eso la
+            frase reemplazó al bloque título+stat. */}
+        {!loading && pagos.length > 0 && (
+          <PagosCurva
+            pagos={pagos} desde={from} hasta={to}
+            metodoFiltrado={metodo} bucketSel={bucketSel}
+            onBucket={setBucketSel} onMetodo={onMetodo}
+          />
+        )}
       </div>{/* /duna-cabecera */}
 
-      {/* REGIÓN — un scroller ÚNICO con el strip + el libro (por eso van en un solo hijo
-          de `.duna-region`): el strip scrollea y el header del libro queda sticky contra
-          este scroller. El libro es `.duna-lista` (grid-list, sin overflow propio). */}
+      {/* REGIÓN — el libro y NADA MÁS, así que es el hijo ÚNICO: `.duna-region > *` lo
+          hace scroller y su `__head` pega contra él (el caso sticky canónico). */}
       <div className="duna-region">
-        <div>
-          {!loading && pagos.length > 0 && (
-            <PagosStrip
-              pagos={pagos} desde={from} hasta={to}
-              metodoFiltrado={metodo} bucketSel={bucketSel} split={split} excl={excl}
-              onBucket={setBucketSel} onMetodo={onMetodo}
-              onToggleSplit={() => setSplit(s => !s)} onToggleExcl={toggleExcl}
-            />
-          )}
-
           {loading ? (
             /* El hueco de la carga tiene la FORMA de lo que llega: filas del grid-list,
                no un spinner ni un esqueleto de tarjeta (eso sugeriría que va a llegar
@@ -296,7 +291,6 @@ function PagosInner() {
               ))}
             </div>
           )}
-        </div>
       </div>{/* /duna-region */}
     </div>
   );

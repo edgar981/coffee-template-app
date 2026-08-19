@@ -183,6 +183,43 @@ html.admin {
   .duna-sin-split .duna-region > * { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
 }
 
+/* ═══ EL GRÁFICO DE PAGOS · la curva sobre el tiempo (bespoke admin, no DS) ════
+   Vive en la ZONA FIJA, encima del libro: el gráfico no scrollea. Dos ejes
+   intercambiables —curva por tiempo, barras por método— y el cambio entre ellos es
+   el ÚNICO punto donde el contenido se REEMPLAZA, no se recorta: sin transición el
+   ojo no distingue "el filtro cambió" de "algo se rompió". El fade usa `--duna-dur`
+   (200ms) y sólo corre al cambiar de eje (el bloque se remonta con `key={modo}`).
+   Lo neutraliza el bloque `prefers-reduced-motion` de `.duna *` (medido:
+   `animation-duration: .01ms !important`). Colores de la serie categórica sólo en el
+   modo método; la curva es TINTA —nada acá pide atención—. */
+.admin-grafico { border: 1px solid var(--duna-border); border-radius: var(--duna-r-l);
+               background: var(--duna-surface); padding: var(--duna-space-4) var(--duna-space-5) var(--duna-space-3);
+               animation: adminStripCambioEje var(--duna-dur) var(--duna-ease); }
+.admin-grafico--vacio { display: flex; align-items: center; min-height: 64px; }
+.admin-grafico__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--duna-space-2); }
+/* La caja de la curva es el ancla del tooltip (que va absoluto) y del eje. */
+.admin-grafico__caja { position: relative; }
+/* El eje se posiciona POR PUNTO (cada etiqueta bajo su x), no en una fila flex: con
+   ~8 de 92 etiquetas visibles, un flex las repartiría parejo y mentirían de posición. */
+.admin-grafico__eje { position: relative; height: 16px; margin-top: var(--duna-space-1); }
+.admin-grafico__eje > span { position: absolute; transform: translateX(-50%); white-space: nowrap;
+               font-size: var(--duna-text-caption); color: var(--duna-muted); }
+.admin-grafico__eje > span.is-parcial { color: var(--duna-faint); }
+.admin-grafico__hint { margin: var(--duna-space-2) 0 0; font-size: var(--duna-text-caption); color: var(--duna-faint); }
+.admin-grafico__nota { margin: var(--duna-space-2) 0 0; font-size: var(--duna-text-caption); color: var(--duna-faint); }
+/* Modo MÉTODO: una barra por método, cifra arriba, etiqueta abajo (conservado). */
+.admin-grafico__metodos { display: flex; align-items: flex-end; gap: var(--duna-space-2); }
+.admin-grafico__mcol { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: var(--duna-space-1);
+               border: 0; background: transparent; padding: var(--duna-space-1); cursor: pointer; border-radius: var(--duna-r-s); }
+.admin-grafico__mcol:hover { background: var(--duna-wash-hover); }
+.admin-grafico__mcol.is-sel { background: var(--duna-wash-hover); box-shadow: inset 0 0 0 1px var(--duna-border-2); }
+.admin-grafico__mval { font-size: var(--duna-text-caption); color: var(--duna-muted); white-space: nowrap; }
+.admin-grafico__mcol.is-sel .admin-grafico__mval { color: var(--duna-ink); }
+.admin-grafico__mbararea { width: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
+.admin-grafico__mbar { width: 100%; min-height: 2px; border-radius: var(--duna-r-s) var(--duna-r-s) 0 0; }
+.admin-grafico__mlbl { font-size: var(--duna-text-caption); color: var(--duna-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.admin-grafico__mcol.is-sel .admin-grafico__mlbl { color: var(--duna-ink); font-weight: var(--duna-w-semi); }
+
 /* ═══ EL STRIP DE PAGOS · barras sobre el tiempo (bespoke admin, no DS) ════════
    Vive DENTRO de la región que scrollea, encima del libro. Colores de la serie
    categórica (`--duna-serie-*`); nada de estado acá. */
