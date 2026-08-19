@@ -935,6 +935,25 @@ ocurre—: el disparador correcto es el HECHO (mover la consulta), no la tanda q
 suponía que lo traería. Cambiar el fetch sólo por el lint sigue siendo tocar dos cosas
 cuando el hecho real va a tocar una.
 
+### 32. El logo de Duna no entra en el PDF: va como TEXTO
+
+El informe de Pagos cierra su pie con **"Generado con Duna"** en texto plano. El logo
+EXISTE —`public/brand/duna-logo-horizontal-v1.svg` y `duna-mark-v1.svg`— pero **jsPDF no
+dibuja SVG**: meterlo exige rasterizarlo (y elegir resolución, y versionar un PNG que
+`public/` vuelve inmutable) o transcribir sus paths a operadores de PDF. Es una decisión
+propia, no un renglón de pie, y por eso no se coló en la tanda del informe.
+
+**Costo YA pagado: ninguno.** El texto cumple: es la única marca del producto en un
+documento que el operador manda a su contador, y se ve de dónde salió.
+
+**Es la MISMA decisión que el wordmark del sidebar**, que también es texto por un motivo
+emparentado (el SVG horizontal hornea marca + lettering en un solo archivo, y `public/`
+es inmutable, así que recortarlo no es opción). Resolver una sin la otra dejaría el
+producto con dos criterios de marca.
+
+**DISPARADOR: cuando el wordmark provisional del sidebar se reemplace por el logo real.**
+Ahí se decide también el del PDF, en la misma tanda y con el mismo asset.
+
 ### 30. El total del bucket vive SOLO en el hover de la curva — invisible en táctil
 
 El tooltip de cada punto de la curva lleva el **total del bucket** (día/semana/mes +
