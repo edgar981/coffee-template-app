@@ -3,9 +3,11 @@
 import { Suspense, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { FilterX, Paperclip, X } from 'lucide-react';
+import { Download, FilterX, Paperclip, X } from 'lucide-react';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { PresetsPeriodo } from '@/components/admin/PresetsPeriodo';
+import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { toast } from 'sonner';
 import { PagosCurva, PagosCurvaEsqueleto } from '@/components/admin/PagosCurva';
 import { getPayments } from '@/lib/api/payments';
 import type { Payment, MetodoPago } from '@/types/payment';
@@ -16,6 +18,7 @@ import { BUSINESS_TZ, zonedDayKey, startOfZonedDay } from '@duna/core/timezone';
 import { rangoDeDiasDelPeriodo, opcionesPreset } from '@/lib/metrics/periodo';
 import { bucketKey, bucketear } from '@/lib/pagos/bucketeo';
 import { fraseDePagos, mejorDiaDe } from '@/lib/pagos/frase';
+import { modeloInforme } from '@/lib/pagos/informe';
 import { etiquetaBucket, type RecorteTiempo } from '@/lib/pagos/etiquetas';
 
 // Columnas del libro (grid-list). Flexibles: caben en la región sin scroll horizontal
@@ -134,6 +137,32 @@ function PagosInner() {
     );
   };
 
+  // ── El INFORME (PDF) ───────────────────────────────────────────────────────
+  // La PRIMERA acción de esta pantalla, que es un libro de sólo lectura. Descargar no
+  // escribe, así que no rompe esa definición — y por eso el botón va SECUNDARIO, nunca
+  // primario: Pagos no tiene una acción principal que ofrecer.
+  //
+  // Lleva la guarda de doble-submit porque generar mil filas TARDA: un botón mudo
+  // mientras trabaja es exactamente lo que invita al segundo click (§ la frontera del
+  // patrón). El error va por TOAST y no por `ErrorDialogo`: no hay diálogo donde vivir.
+  const informe = useAccionGuardada();
+  const descargarInforme = () => informe.ejecutar(async () => {
+    try {
+      // El modelo sale de lo que la pantalla YA tiene —`filtered` y la misma frase—,
+      // no de una segunda consulta: el informe no puede contener un conjunto que el
+      // libro no muestre.
+      const modelo = modeloInforme({
+        frase, pagos: filtered, desde: from, hasta: to, metodoLabel, total: totalPeriodo,
+      });
+      // La librería viaja en su propio chunk: se descarga al pedir el informe, no al
+      // abrir Pagos.
+      const { generarInformePdf, descargar } = await import('@/lib/pagos/informe-pdf');
+      descargar(await generarInformePdf(modelo), modelo.nombreArchivo);
+    } catch {
+      toast.error('No se pudo generar el informe. Volvé a intentarlo.');
+    }
+  });
+
   const clearFilters = () => {
     setMetodo('all'); setFrom(rangoMes.desde); setTo(rangoMes.hasta);
     setBucketSel(null);
@@ -244,6 +273,18 @@ function PagosInner() {
               <FilterX /> Limpiar filtros
             </button>
           )}
+          {/* El informe cierra la fila, empujado a la derecha: es una ACCIÓN, no un
+              filtro, y mezclarlo con los controles del recorte lo haría parecer uno.
+              Secundario a propósito — esta pantalla no tiene acción primaria. */}
+          <button
+            type="button"
+            className="duna-btn duna-btn--secondary duna-btn--sm"
+            style={{ marginLeft: 'auto' }}
+            onClick={descargarInforme}
+            disabled={informe.enVuelo || loading || filtered.length === 0}
+          >
+            <Download /> {informe.enVuelo ? 'Generando…' : 'Descargar informe'}
+          </button>
         </div>
 
         {/* EL GRÁFICO va en la ZONA FIJA: no scrollea. Decisión del owner — un gráfico
