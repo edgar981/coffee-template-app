@@ -183,77 +183,55 @@ html.admin {
   .duna-sin-split .duna-region > * { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
 }
 
-/* ═══ EL STRIP DE PAGOS · barras sobre el tiempo (bespoke admin, no DS) ════════
-   Vive DENTRO de la región que scrollea, encima del libro. Colores de la serie
-   categórica (`--duna-serie-*`); nada de estado acá. */
-.admin-strip { border: 1px solid var(--duna-border); border-radius: var(--duna-r-l);
-               background: var(--duna-surface); padding: var(--duna-space-4) var(--duna-space-5) var(--duna-space-3);
-               margin-bottom: var(--duna-space-4);
-               /* El ÚNICO punto donde el contenido se REEMPLAZA (barras por día → barras
-                  por método), no se recorta: sin transición el ojo no distingue "el filtro
-                  cambió" de "algo se rompió". Fade corto al cambiar de modo —el strip se
-                  remonta con `key={modo}`, así que sólo corre en el cambio de eje, no al
-                  filtrar dentro del mismo—. Usa `--duna-dur` (200ms), el mismo ritmo que el
-                  resto del panel. Lo neutraliza el bloque `prefers-reduced-motion` de
-                  `.duna *` (medido: `animation-duration: .01ms !important`). */
-               animation: adminStripCambioEje var(--duna-dur) var(--duna-ease); }
-@keyframes adminStripCambioEje { from { opacity: 0; } to { opacity: 1; } }
-.admin-strip--vacio { display: flex; align-items: center; min-height: 72px; }
-.admin-strip__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--duna-space-3); }
-.admin-strip__toggle { display: inline-flex; align-items: center; gap: var(--duna-space-2);
-               border: 1px solid var(--duna-border-2); border-radius: var(--duna-r-full);
-               padding: var(--duna-space-1) var(--duna-space-3); background: transparent;
-               font-size: var(--duna-text-label); color: var(--duna-muted); cursor: pointer; }
-.admin-strip__toggle:disabled { opacity: .5; cursor: not-allowed; }
-.admin-strip__toggle.is-on { color: var(--duna-ink); border-color: var(--duna-faint); }
-.admin-strip__sw { width: 22px; height: 12px; border-radius: 6px; background: var(--duna-border); position: relative; transition: background var(--duna-dur) var(--duna-ease); }
-.admin-strip__sw::after { content: ''; position: absolute; top: 1px; left: 1px; width: 10px; height: 10px; border-radius: 50%; background: var(--duna-paper); transition: transform var(--duna-dur) var(--duna-ease); }
-.admin-strip__toggle.is-on .admin-strip__sw { background: var(--duna-ink); }
-.admin-strip__toggle.is-on .admin-strip__sw::after { transform: translateX(10px); }
-/* Las barras. Cada columna es un botón de alto completo (target de clic), con la
-   barra creciendo desde la línea base. */
-.admin-strip__barras { display: flex; align-items: flex-end; gap: 3px; border-bottom: 1px solid var(--duna-border); }
-.admin-strip__col { flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end;
-               border: 0; background: transparent; padding: 0 1px; cursor: pointer; border-radius: var(--duna-r-s) var(--duna-r-s) 0 0; }
-.admin-strip__col:hover { background: var(--duna-wash-hover); }
-.admin-strip__col.is-sel { background: var(--duna-wash-hover); box-shadow: inset 0 -2px 0 var(--duna-ink); }
-.admin-strip__bar { width: 100%; min-height: 2px; display: flex; flex-direction: column-reverse;
-               overflow: hidden; border-radius: var(--duna-r-s) var(--duna-r-s) 0 0; }
-.admin-strip__bar > span { flex: none; }
-.admin-strip__col.is-parcial .admin-strip__bar { opacity: .85; }
-.admin-strip__eje { display: flex; gap: 3px; margin-top: var(--duna-space-2); }
-.admin-strip__eje > span { flex: 1 1 0; min-width: 0; text-align: center; font-size: var(--duna-text-caption);
-               color: var(--duna-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.admin-strip__eje > span.is-parcial { color: var(--duna-faint); }
-.admin-strip__nota { margin: var(--duna-space-2) 0 0; font-size: var(--duna-text-caption); color: var(--duna-faint); }
-.admin-strip__leyenda { display: flex; flex-wrap: wrap; gap: var(--duna-space-3); margin-top: var(--duna-space-3);
-               padding-top: var(--duna-space-3); border-top: 1px solid var(--duna-border); }
-.admin-strip__leg { display: inline-flex; align-items: center; gap: var(--duna-space-inline);
-               border: 0; background: transparent; padding: 0; cursor: pointer; font-size: var(--duna-text-label); color: var(--duna-ink-2); }
-.admin-strip__legsw { width: 10px; height: 10px; border-radius: 2px; flex: none; }
-.admin-strip__legpct { color: var(--duna-muted); font-variant-numeric: tabular-nums; }
-/* Excluido: tachado, atenuado, PERO con su % visible (no re-basea). */
-.admin-strip__leg.is-fuera .admin-strip__leglbl,
-.admin-strip__leg.is-fuera .admin-strip__legpct { text-decoration: line-through; }
-.admin-strip__leg.is-fuera { opacity: .5; }
-.admin-strip__leg.is-fuera .admin-strip__legsw { opacity: .4; }
+/* ═══ EL GRÁFICO DE PAGOS · la curva sobre el tiempo (bespoke admin, no DS) ════
+   Vive en la ZONA FIJA, encima del libro: el gráfico no scrollea. Dos ejes
+   intercambiables —curva por tiempo, barras por método— y el cambio entre ellos es
+   el ÚNICO punto donde el contenido se REEMPLAZA, no se recorta: sin transición el
+   ojo no distingue "el filtro cambió" de "algo se rompió". El fade usa `--duna-dur`
+   (200ms) y sólo corre al cambiar de eje (el bloque se remonta con `key={modo}`).
+   Lo neutraliza el bloque `prefers-reduced-motion` de `.duna *` (medido:
+   `animation-duration: .01ms !important`). Colores de la serie categórica sólo en el
+   modo método; la curva es TINTA —nada acá pide atención—. */
+/* SIN TARJETA — la curva va DIRECTA sobre el fondo, y no es una decisión de estilo:
+   una tarjeta con borde, padding y cabecera propios alrededor de un gráfico que YA vive
+   en la zona fija es CHROME SOBRE CHROME, y su cabecera ("Ingresos por día") duplicaba
+   el hint de abajo ("Un punto por día · clic para acotar…"). El bloque se paga en filas
+   de libro —la zona fija no scrollea—, así que ese chrome costaba 44px por nada. La
+   separación de arriba la da el `space-y` de la cabecera; la de abajo, su `pb`.
+   Es el primer recorte del presupuesto de alto: vale más que bajar el alto del gráfico
+   y no toca el gráfico (§ Pagos — la FRASE y la CURVA). */
+.admin-grafico { animation: adminGraficoCambioEje var(--duna-dur) var(--duna-ease); }
+@keyframes adminGraficoCambioEje { from { opacity: 0; } to { opacity: 1; } }
+.admin-grafico--vacio { display: flex; align-items: center; min-height: 64px; }
+/* Sólo lo usa el modo MÉTODO: ahí el eyebrow es la única etiqueta del eje (no hay
+   hint). El modo tiempo no lleva cabecera — el hint ya declara escala e interacción. */
+.admin-grafico__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--duna-space-2); }
+/* La caja de la curva es el ancla del tooltip (que va absoluto) y del eje. */
+.admin-grafico__caja { position: relative; }
+/* El eje se posiciona POR PUNTO (cada etiqueta bajo su x), no en una fila flex: con
+   ~8 de 92 etiquetas visibles, un flex las repartiría parejo y mentirían de posición. */
+.admin-grafico__eje { position: relative; height: 16px; margin-top: var(--duna-space-1); }
+.admin-grafico__eje > span { position: absolute; transform: translateX(-50%); white-space: nowrap;
+               font-size: var(--duna-text-caption); color: var(--duna-muted); }
+.admin-grafico__eje > span.is-parcial { color: var(--duna-faint); }
+.admin-grafico__hint { margin: var(--duna-space-2) 0 0; font-size: var(--duna-text-caption); color: var(--duna-faint); }
+.admin-grafico__nota { margin: var(--duna-space-2) 0 0; font-size: var(--duna-text-caption); color: var(--duna-faint); }
+/* Modo MÉTODO: una barra por método, cifra arriba, etiqueta abajo (conservado). */
+.admin-grafico__metodos { display: flex; align-items: flex-end; gap: var(--duna-space-2); }
+.admin-grafico__mcol { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: var(--duna-space-1);
+               border: 0; background: transparent; padding: var(--duna-space-1); cursor: pointer; border-radius: var(--duna-r-s); }
+.admin-grafico__mcol:hover { background: var(--duna-wash-hover); }
+.admin-grafico__mcol.is-sel { background: var(--duna-wash-hover); box-shadow: inset 0 0 0 1px var(--duna-border-2); }
+.admin-grafico__mval { font-size: var(--duna-text-caption); color: var(--duna-muted); white-space: nowrap; }
+.admin-grafico__mcol.is-sel .admin-grafico__mval { color: var(--duna-ink); }
+.admin-grafico__mbararea { width: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
+.admin-grafico__mbar { width: 100%; min-height: 2px; border-radius: var(--duna-r-s) var(--duna-r-s) 0 0; }
+.admin-grafico__mlbl { font-size: var(--duna-text-caption); color: var(--duna-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.admin-grafico__mcol.is-sel .admin-grafico__mlbl { color: var(--duna-ink); font-weight: var(--duna-w-semi); }
 
 /* La lista tabular del panel (grid-list) se EXTRAJO al DS como `.duna-lista`
    (§ primitives.css) al llegar su segundo consumidor —Pagos e Inventario—. Ya no
    vive acá; Pagos y el kardex la consumen con las clases `duna-lista*`. */
-
-/* Modo MÉTODO del strip: una barra por método, cifra arriba, etiqueta abajo. */
-.admin-strip__metodos { display: flex; align-items: flex-end; gap: var(--duna-space-2); }
-.admin-strip__mcol { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: var(--duna-space-1);
-                     border: 0; background: transparent; padding: var(--duna-space-1); cursor: pointer; border-radius: var(--duna-r-s); }
-.admin-strip__mcol:hover { background: var(--duna-wash-hover); }
-.admin-strip__mcol.is-sel { background: var(--duna-wash-hover); box-shadow: inset 0 0 0 1px var(--duna-border-2); }
-.admin-strip__mval { font-size: var(--duna-text-caption); color: var(--duna-muted); white-space: nowrap; }
-.admin-strip__mcol.is-sel .admin-strip__mval { color: var(--duna-ink); }
-.admin-strip__mbararea { width: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
-.admin-strip__mbar { width: 100%; min-height: 2px; border-radius: var(--duna-r-s) var(--duna-r-s) 0 0; }
-.admin-strip__mlbl { font-size: var(--duna-text-caption); color: var(--duna-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.admin-strip__mcol.is-sel .admin-strip__mlbl { color: var(--duna-ink); font-weight: var(--duna-w-semi); }
 
 /* ── TOOLTIP DUNA ─────────────────────────────────────────────────────────────
    Superficie del tooltip (components/ui/tooltip.tsx `TooltipContent`), estilizada

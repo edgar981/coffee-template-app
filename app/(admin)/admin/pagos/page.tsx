@@ -6,16 +6,16 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { FilterX, Paperclip, X } from 'lucide-react';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { PresetsPeriodo } from '@/components/admin/PresetsPeriodo';
-import { PagosStrip } from '@/components/admin/PagosStrip';
-import { DunaTooltip } from '@/components/admin/DunaTooltip';
+import { PagosCurva, PagosCurvaEsqueleto } from '@/components/admin/PagosCurva';
 import { getPayments } from '@/lib/api/payments';
 import type { Payment, MetodoPago } from '@/types/payment';
-import { METODO_PAGO_LABEL, METODO_CATEGORIA } from '@/types/payment';
+import { METODO_PAGO_LABEL, METODO_CATEGORIA, PAYMENT_CATEGORIA_LABEL, type PaymentCategoria } from '@/types/payment';
 import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
 import { BUSINESS_TZ, zonedDayKey, startOfZonedDay } from '@duna/core/timezone';
 import { rangoDeDiasDelPeriodo, opcionesPreset } from '@/lib/metrics/periodo';
-import { bucketKey } from '@/lib/pagos/bucketeo';
+import { bucketKey, bucketear } from '@/lib/pagos/bucketeo';
+import { fraseDePagos, mejorDiaDe } from '@/lib/pagos/frase';
 import { etiquetaBucket, type RecorteTiempo } from '@/lib/pagos/etiquetas';
 
 // Columnas del libro (grid-list). Flexibles: caben en la región sin scroll horizontal
@@ -50,10 +50,10 @@ function PagosInner() {
   const [metodo, setMetodo]   = useState<string>('all');      // 'all' | MetodoPago | `cat:${cat}`
   const [from, setFrom]       = useState(() => searchParams.get('desde') ?? rangoMes.desde);
   const [to, setTo]           = useState(() => searchParams.get('hasta') ?? rangoMes.hasta);
-  // Estado del STRIP, todo client-side y de una fuente con la tabla:
-  const [bucketSel, setBucketSel] = useState<RecorteTiempo | null>(null); // recorte de tiempo (chip)
-  const [split, setSplit]         = useState(false);                      // toggle "Por método"
-  const [excl, setExcl]           = useState<MetodoPago[]>([]);            // exclusiones de la leyenda
+  // El recorte de tiempo (el chip), client-side y de una fuente con el libro. El
+  // toggle "Por método" y las exclusiones murieron con el strip: una CURVA no se
+  // apila, y el desglose por método vive en el modo método y en el select.
+  const [bucketSel, setBucketSel] = useState<RecorteTiempo | null>(null);
 
   // El rango se filtra en SQL → un cambio de rango RE-CONSULTA. `active` evita que una
   // respuesta lenta pise a una más nueva.
@@ -69,11 +69,11 @@ function PagosInner() {
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  // UNA fuente para stats, strip y tabla: método (select) + exclusiones (leyenda) +
-  // recorte de tiempo (chip: clic en barra o en una fecha). Todo sobre `pagos`.
+  // UNA fuente para la frase, el gráfico y el libro: método (select) + recorte de
+  // tiempo (chip: clic en un punto o en una fecha). Todo sobre `pagos`.
   const filtered = useMemo(() => {
     const metOk = (m: MetodoPago) => {
-      if (metodo === 'all') return !excl.includes(m);
+      if (metodo === 'all') return true;
       if (metodo.startsWith('cat:')) return METODO_CATEGORIA[m] === metodo.slice(4);
       return m === metodo;
     };
@@ -81,26 +81,44 @@ function PagosInner() {
       metOk(p.metodo) &&
       (!bucketSel || bucketKey(new Date(p.fecha), bucketSel.escala) === bucketSel.key),
     );
-  }, [pagos, metodo, excl, bucketSel]);
+  }, [pagos, metodo, bucketSel]);
 
   const totalPeriodo = filtered.reduce((sum, p) => sum + p.monto, 0);
 
-  const hasFilters = metodo !== 'all' || bucketSel !== null || excl.length > 0
+  // La etiqueta del método para la frase y el eyebrow. La opción de GRUPO ("Cualquier
+  // digital") se dice como se lee en una oración —"por medios digitales"—, no con el
+  // nombre técnico de la categoría.
+  const metodoLabel = useMemo(() => {
+    if (metodo === 'all') return null;
+    if (metodo.startsWith('cat:')) {
+      const cat = metodo.slice(4) as PaymentCategoria;
+      return cat === 'TRANSFERENCIA' ? 'medios digitales' : PAYMENT_CATEGORIA_LABEL[cat];
+    }
+    return METODO_PAGO_LABEL[metodo as MetodoPago];
+  }, [metodo]);
+
+  // El "mejor día" sólo cuando la curva DIBUJA y no hay un bucket recortado: dentro de
+  // un solo día no hay días que comparar, y sin curva no hay de dónde leer ese pico.
+  const mejorDia = useMemo(
+    () => (!bucketSel && bucketear(from, to).tipo === 'dibuja' ? mejorDiaDe(filtered) : null),
+    [bucketSel, from, to, filtered],
+  );
+
+  const frase = useMemo(() => fraseDePagos({
+    desde: from, hasta: to, bucket: bucketSel, metodoLabel,
+    total: totalPeriodo, conteo: filtered.length, mejorDia, ahora,
+  }), [from, to, bucketSel, metodoLabel, totalPeriodo, filtered.length, mejorDia, ahora]);
+
+  const hasFilters = metodo !== 'all' || bucketSel !== null
     || from !== rangoMes.desde || to !== rangoMes.hasta;
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
   // Un cambio de RANGO limpia el recorte de tiempo (es específico del rango). El
-  // método/exclusiones sobreviven (son por método).
+  // método sobrevive: es de otro eje.
   const setRango = (d: string | null, h: string | null) => {
     setFrom(d ?? ''); setTo(h ?? ''); setBucketSel(null);
   };
-  const setMetodoSel = (v: string) => {
-    setMetodo(v);
-    if (v !== 'all') setExcl([]); // sin split no hay leyenda que las gobierne
-  };
-  const toggleExcl = (m: MetodoPago) =>
-    setExcl(prev => (prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]));
 
   // EL EJE NUNCA SE FILTRA A SÍ MISMO (§ doctrina): el clic en método escribe el SELECT;
   // el clic en tiempo (barra o fecha) escribe el CHIP. Cada uno en su control, y cada uno
@@ -118,7 +136,7 @@ function PagosInner() {
 
   const clearFilters = () => {
     setMetodo('all'); setFrom(rangoMes.desde); setTo(rangoMes.hasta);
-    setBucketSel(null); setSplit(false); setExcl([]);
+    setBucketSel(null);
     const next = new URLSearchParams(searchParams.toString());
     next.delete('desde'); next.delete('hasta');
     const qs = next.toString();
@@ -129,25 +147,56 @@ function PagosInner() {
 
   return (
     <div className="duna duna-sin-split">
-      {/* CABECERA fija: header + stats + filtros. El strip NO va acá — scrollea con el
-          libro (§ duna.css). El chip de bucket sí vive acá, con etiqueta que se entiende
-          sola porque el operador lo ve sin ver la barra que lo produjo. */}
+      {/* CABECERA fija: eyebrow + LA FRASE + filtros (y, con la curva, el gráfico).
+          El chip de bucket vive acá, con etiqueta que se entiende sola. */}
       <div className="duna-cabecera space-y-4 pb-4">
-        {/* R-1 · el título y la CIFRA en una sola línea de cabecera. El strip va fijo
-            (no scrollea), así que cada píxel de cabecera le cuesta una fila al libro:
-            se fusiona el stat con el título (el bloque baja de ~200px a ~60), el
-            descargo se retira a un tooltip sobre el título, y el qualifier del bucket
-            sólo aparece cuando HAY recorte. El total sigue siendo `.duna-display`. */}
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--duna-space-4)', flexWrap: 'wrap' }}>
-          <DunaTooltip content="Ledger de pagos registrados. Se registran desde cada orden.">
-            <h1 className="duna-display-m" style={{ cursor: 'help' }}>Pagos</h1>
-          </DunaTooltip>
-          <div style={{ textAlign: 'right' }}>
-            <div className="duna-display-m duna-num">{formatCOP(totalPeriodo)}</div>
-            <div className="duna-caption" style={{ color: 'var(--duna-muted)', marginTop: 'var(--duna-space-hairline)' }}>
-              Total del período{bucketSel ? ` · ${bucketSel.etiqueta}` : ''}
-            </div>
-          </div>
+        {/* LA FRASE reemplaza al título, al descargo del ledger y al stat: la pantalla
+            abre diciendo la RESPUESTA, no un rótulo y una cifra que el lector junta.
+            El h1 ES la frase —el nombre de la sección ya lo dan el rail y la pestaña—.
+            Peso 500 con la cifra y el conteo en semibold: los tramos vienen partidos de
+            `fraseDePagos` para que la tipografía no se desincronice de la gramática. */}
+        <div aria-busy={loading || undefined}>
+          {/* SIN eyebrow de rango: el rango ya se lee en el date picker de abajo, y
+              repetirlo acá costaba una línea de la zona fija —que no scrollea— por un
+              dato que ya está en pantalla. `frase.eyebrow` sigue existiendo para cuando
+              el rango suba al topbar.
+
+              LA FRASE TIENE TRES ESTADOS, NO DOS: cargando · vacío · con datos. Sin el
+              primero, `pagos` en `[]` mientras viaja el fetch cae en la rama del VACÍO y
+              la pantalla AFIRMA "no entró ningún pago… simplemente no hubo" sobre un dato
+              que todavía no llegó. Es peor que un loader feo: ese subtítulo está escrito
+              para convencer de que el dato es cierto.
+
+              El esqueleto va SIEMPRE que carga, no sólo en el arranque: al cambiar de
+              rango la frase vieja se quedaría afirmando el rango anterior ("Este mes
+              entraron $ 315.000" mientras llega julio), que es la misma mentira, más
+              sutil y más creíble.
+
+              Usa los MISMOS elementos que la frase cargada (`duna-display-m`, `duna-sub`)
+              con barras grises adentro, así el alto sale de la misma tipografía. */}
+          {loading ? (
+            <>
+              <h1 className="duna-display-m" aria-hidden="true"
+                  style={{ fontWeight: 'var(--duna-w-medium)', margin: 0 }}>
+                <span style={{ display: 'inline-block', width: '62%', maxWidth: '32rem', height: '0.85em',
+                               borderRadius: 4, background: 'var(--duna-skel)', verticalAlign: 'middle' }} />
+              </h1>
+              <p className="duna-sub" aria-hidden="true" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>
+                <span style={{ display: 'inline-block', width: '40%', maxWidth: '22rem', height: '0.85em',
+                               borderRadius: 3, background: 'var(--duna-skel)', verticalAlign: 'middle' }} />
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="duna-display-m"
+                  style={{ fontWeight: 'var(--duna-w-medium)', margin: 0 }}>
+                {frase.tramos.map((tr, i) => tr.fuerte
+                  ? <strong key={i} style={{ fontWeight: 'var(--duna-w-semi)' }}>{tr.t}</strong>
+                  : <span key={i}>{tr.t}</span>)}
+              </h1>
+              <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>{frase.subtitulo}</p>
+            </>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', alignItems: 'center' }}>
@@ -156,7 +205,7 @@ function PagosInner() {
             style={{ width: 'auto' }}
             aria-label="Filtrar por método de pago"
             value={metodo}
-            onChange={e => setMetodoSel(e.target.value)}
+            onChange={e => setMetodo(e.target.value)}
           >
             {/* Agrupado por CÓMO LLEGA LA PLATA (lo que el operador distingue), no por la
                 mecánica del filtro. "Cualquier digital" (value cat:*) conserva la
@@ -196,22 +245,30 @@ function PagosInner() {
             </button>
           )}
         </div>
+
+        {/* EL GRÁFICO va en la ZONA FIJA: no scrollea. Decisión del owner — un gráfico
+            que se va al scrollear obliga a volver arriba para leer el contexto de la
+            fila que se está mirando. Lo que cuesta es alto de cabecera, y por eso la
+            frase reemplazó al bloque título+stat. */}
+        {loading ? (
+          /* El MISMO `loading` gobierna los tres bloques (frase, gráfico, libro), así que
+             los tres esqueletos entran y salen en el mismo render: si uno volviera antes,
+             la zona fija parpadearía en dos tiempos. Y el hueco mide lo MISMO que el
+             bloque cargado —comparte `ALTO` y las clases—, así que no hay salto de layout
+             en la zona que justamente no se mueve. */
+          <PagosCurvaEsqueleto />
+        ) : pagos.length > 0 ? (
+          <PagosCurva
+            pagos={pagos} desde={from} hasta={to}
+            metodoFiltrado={metodo} bucketSel={bucketSel}
+            onBucket={setBucketSel} onMetodo={onMetodo}
+          />
+        ) : null}
       </div>{/* /duna-cabecera */}
 
-      {/* REGIÓN — un scroller ÚNICO con el strip + el libro (por eso van en un solo hijo
-          de `.duna-region`): el strip scrollea y el header del libro queda sticky contra
-          este scroller. El libro es `.duna-lista` (grid-list, sin overflow propio). */}
+      {/* REGIÓN — el libro y NADA MÁS, así que es el hijo ÚNICO: `.duna-region > *` lo
+          hace scroller y su `__head` pega contra él (el caso sticky canónico). */}
       <div className="duna-region">
-        <div>
-          {!loading && pagos.length > 0 && (
-            <PagosStrip
-              pagos={pagos} desde={from} hasta={to}
-              metodoFiltrado={metodo} bucketSel={bucketSel} split={split} excl={excl}
-              onBucket={setBucketSel} onMetodo={onMetodo}
-              onToggleSplit={() => setSplit(s => !s)} onToggleExcl={toggleExcl}
-            />
-          )}
-
           {loading ? (
             /* El hueco de la carga tiene la FORMA de lo que llega: filas del grid-list,
                no un spinner ni un esqueleto de tarjeta (eso sugeriría que va a llegar
@@ -274,7 +331,6 @@ function PagosInner() {
               ))}
             </div>
           )}
-        </div>
       </div>{/* /duna-region */}
     </div>
   );

@@ -462,13 +462,14 @@ sidebar—, y dos formas para lo mismo es cómo la próxima pantalla elige sin c
   deja la puerta abierta para que el próximo consumidor se lleve un tooltip nativo.
 - **Botón deshabilitado → span-wrap.** Radix no dispara el hover sobre un `disabled`
   (a diferencia del `title` nativo), así que el trigger es un `<span>` que envuelve al
-  botón (precedente de Entregas). Tres casos: el toggle "Por método" del strip, el
-  "Marcar en ruta" a medias, y —lo que NO fue— `usuarios`, cuyo motivo se lee inline.
+  botón (precedente de Entregas). Los casos: el "Marcar en ruta" a medias, y —lo que NO
+  fue— `usuarios`, cuyo motivo se lee inline. (El tercero era el toggle "Por método" del
+  strip de Pagos, que murió con el strip — § Pagos, la frase y la curva.)
 - **La prueba viva** vive en `reference.html`, pero **espeja `.admin-tooltip` con
   estilos inline** (no ejercita la clase real). Ese hueco, y la promoción de la
   superficie al paquete como `.duna-tooltip`, están anotados con `.duna-sheet`/
   `.duna-scrim` (§ Duna OS en ANGOSTO — el mismo "CSS que alguien cablea"). El hueco
-  de VISIBILIDAD en táctil del total del strip sigue en § Backlog #30.
+  de VISIBILIDAD en táctil del total del bucket sigue en § Backlog #30.
 
 ## Backlog técnico
 
@@ -934,13 +935,15 @@ ocurre—: el disparador correcto es el HECHO (mover la consulta), no la tanda q
 suponía que lo traería. Cambiar el fetch sólo por el lint sigue siendo tocar dos cosas
 cuando el hecho real va a tocar una.
 
-### 30. El total del bucket del strip vive SOLO en el hover — invisible en táctil
+### 30. El total del bucket vive SOLO en el hover de la curva — invisible en táctil
 
-El tooltip de cada barra del strip lleva el **total del bucket** (día/semana/mes + monto,
-`PagosStrip.tsx`). En táctil ese total **no existe**: ni el `title` nativo ni Radix
-responden al tap —los dos son hover/foco—, así que en teléfono el strip son **barras sin
-cifra**. La primitiva de tooltip (§ #29) NO lo cierra: Radix también es hover-only, y por
-eso esto es un ítem PROPIO y no una nota de #29.
+El tooltip de cada punto de la curva lleva el **total del bucket** (día/semana/mes +
+monto + conteo, `PagosCurva.tsx`). En táctil ese total **no existe**: el hover no existe,
+así que en teléfono la curva es una **silueta sin cifras**. La primitiva de tooltip
+(§ el tooltip del panel) NO lo cierra: es hover/foco, y por eso esto es un ítem PROPIO.
+
+*(Nació describiendo las barras del strip; el strip se retiró en el rediseño de la
+curva y el hueco sobrevivió intacto — cambió el gráfico, no el modo de falla.)*
 
 **La tabla NO lo mitiga**: tiene el detalle por PAGO, no el total por BUCKET —son cosas
 distintas—. El dato "cuánto entró ese día/semana" no está en ninguna otra superficie de
@@ -953,7 +956,7 @@ pero es un hueco de **visibilidad de datos**, no de estilo.
 forma probable, escrita para no re-diagnosticarlo:
 
 - **Dato inline bajo la barra activa** (preferida): al tocar una barra se resalta y su
-  cifra aparece DEBAJO del strip, reusando el `bucketSel`/highlight que el strip YA tiene.
+  cifra aparece DEBAJO de la curva, reusando el `bucketSel`/highlight que ya existe.
   Es más honesto en táctil —no esconde el dato tras un gesto que en móvil no se descubre—.
 - **Tap-to-show** (alternativa): un tap abre el tooltip, un segundo lo cierra. Menos
   trabajo, pero deja el dato detrás de un gesto no anunciado.
@@ -3381,7 +3384,7 @@ vive como `--primary` y en los charts, no como fondo de hover.
 paleta, y su novedad es el punto: hasta ahora todo color del sistema significaba
 ESTADO —sol=atención, ok=confirmado, bad=problema, más la tinta neutra—. Una serie
 de gráfico no es ninguno de esos: no califica un hecho, sólo **distingue una
-categoría de otra** (los métodos de pago en el strip de Pagos, p. ej.). No cabía en
+categoría de otra** (los métodos de pago del modo método de Pagos, p. ej.). No cabía en
 ningún rol existente, así que es su propio rol.
 
 - **La serie NUNCA se usa donde haya estado.** Ni en badges, ni en pills, ni en
@@ -3434,44 +3437,131 @@ antes; con uno solo, admin-level, para no aparentar una primitiva que no está e
 paquete. **`DunaTable` se retiró** en la misma tanda (su único consumidor era el kardex);
 ya no hay dos patrones para lo mismo.
 
-## El strip de Pagos — barras sobre el tiempo, de una fuente
+## Pagos — la FRASE y la CURVA (tercer y último rediseño)
 
-La tira de barras vive DENTRO de la región que scrollea, ENCIMA del libro; la cabecera
-fija se queda con título, stats y filtros. Reglas que son decisión, no estilo:
+Cerrado el 2026-08-19. La pantalla abre diciendo la RESPUESTA y el gráfico **no
+scrollea**. Reemplazó al strip de barras y a la cabecera de título + stat.
 
-- **Una FUENTE alimenta strip, stats y tabla**: `pagos` (el recorte del rango, ya en
-  SQL). El filtro es la composición de tres, todo client-side: **método** (el select),
-  **exclusiones** (la leyenda) y **bucket** (clic en una barra). El strip no re-consulta
-  —por eso esta tanda NO tocó el fetch (§ Backlog #27)—.
-- **La escalera y el anclaje viven en `lib/pagos/bucketeo.ts`** (puro, capa 1): cinco
-  peldaños con tope de 31 barras (día → semana → mes → trimestre → año). **Los DOS
-  extremos DECLARAN en vez de dibujar algo que no informa**, por la misma razón: >31
-  años (ni el año cabe) y <4 barras (un solo día no tiene forma, y el total ya está en
-  las stats) → el strip no dibuja y lo dice; la tabla sigue completa, nunca se trunca.
-  **Las semanas se
-  anclan al CALENDARIO (lunes Bogotá), no al inicio del rango**, o la misma semana suma
-  distinto según por dónde se entró. La primera y última barra pueden ser PARCIALES: se
-  DECLARAN en el eje (un `·` + nota), porque una barra corta por corte de rango se lee
-  como caída de ventas si no se dice.
-- **La leyenda NO re-basea**: cada % es sobre el total del rango sin descontar
-  exclusiones; lo excluido va tachado con su % visible. Re-basear escondería que se está
-  mirando un recorte.
-- **El toggle "Por método" se deshabilita si el select acotó a un método** — partir por
-  método algo que ya es un método es ruido.
-- **El chip del bucket vive en la cabecera FIJA y su etiqueta se entiende SOLA**
-  ("jue 27 ago", "semana del 10 ago", "sep 2026"), nunca "1 seleccionado": al scrollear,
-  el operador ve el chip sin ver la barra que lo produjo (`etiquetaBucket`,
-  `lib/pagos/etiquetas.ts`).
-- **Colores: `--duna-serie-1…5`** por método (serie-5 = OTRO, el neutro). Nunca estado.
-- **El strip es bespoke admin, no una primitiva del DS** (§ discovery: no hay primitiva
-  de chart, y con un consumidor no se justifica una).
+### La anatomía: qué es fijo y qué scrollea
+
+**Zona fija:** la frase (+ subtítulo) · los filtros · el gráfico. **Región (1fr):** el
+libro y NADA MÁS, así que es su hijo ÚNICO —el caso sticky canónico, medido: el
+encabezado del grid-list queda a delta 0 del tope al scrollear—.
+
+**El gráfico fijo cuesta alto de cabecera, y ése es el presupuesto de la pantalla.**
+La zona fija debe dejar **≥5 filas de libro** en la pantalla restrictiva. La cuenta se
+hace con la fórmula, no a ojo:
+`filas = floor((viewport − topbar 64 − padding 24 − zona fija − head 40) / fila 46)`.
+**Medido hoy: zona fija 281px → umbral de 639px de viewport para 5 filas.** **Nunca se
+recorta la lista.**
+
+Los levers, en orden, con lo que YA se ejerció y lo que queda:
+- **la tarjeta del gráfico — ejercida (−44)**. Ver el hallazgo de abajo.
+- **el alto de la curva — ejercido (170 → 140 → 110, −60)**. **100 es el piso de
+  legibilidad**: por debajo los picos se comprimen y la curva se lee como textura, no
+  como magnitud.
+- **el eyebrow del rango — ejercido**: ya se lee en el date picker.
+- *quedan*: el hint (22px), los gaps (8px) y H de 110 a 100.
+
+**HALLAZGO, y es lo que hay que retener para el próximo gráfico que alguien monte:** una
+tarjeta con borde, padding y cabecera propios alrededor de un gráfico que YA vive en la
+zona fija es **chrome sobre chrome** —y su cabecera ("Ingresos por día") duplicaba el
+hint de abajo ("Un punto por día · clic para acotar…")—. **Un gráfico puede ir directo
+sobre el fondo**, y ése es el PRIMER recorte cuando un presupuesto no cierra: vale más
+que bajar el alto (44 contra 30) y **no toca el gráfico**, sólo su envoltorio. Acá se
+ejerció por eso: con la tarjeta el umbral eran 713px de viewport, que deja fuera a un
+portátil con resolución escalada. El `__head` sobrevive SÓLO en el modo método, donde el
+eyebrow es la única etiqueta del eje (no hay hint que lo duplique).
+
+### La frase reemplaza al título, al descargo y al stat
+
+`lib/pagos/frase.ts` (puro, capa 1). "Este mes entraron **$ 315.000** en **11 pagos**."
+
+- **Sale en TRAMOS, no en un string**: la cifra y el conteo van en semibold, y un string
+  obligaría al componente a re-partirlo con un regex — donde la tipografía se
+  desincroniza de la gramática.
+- **La CONCORDANCIA es del ALCANCE, no del monto**: singular con un bucket o con un
+  solo día ("El jue 14 ago entró…"), plural con un período. Por eso vive en `lib/` y no
+  en el JSX: un `if` cambiado ahí rompe la frase sin que nada lo note.
+- **El VACÍO es la MISMA frase** ("Este mes no entró ningún pago por Daviplata"), nunca
+  un "sin resultados" que hace dudar del filtro. Su subtítulo lo dice: "No es un error
+  del filtro: simplemente no hubo".
+- El sujeto reusa `PERIODO_SUJETO` (§ Analítica) — un chip y una oración piden gramática
+  distinta.
+- **El "mejor día" sólo si la curva DIBUJA y no hay bucket recortado**: dentro de un solo
+  día no hay días que comparar, y sin curva no hay de dónde leer ese pico (§ preferir
+  callar).
+
+### La curva
+
+- **Catmull-Rom → Bézier**: pasa POR los puntos, que es lo que hace que el marcador del
+  pico caiga exactamente sobre la curva. **Los controles se ACOTAN a la caja**: con picos
+  y ceros la spline se pasa de largo y el área se dibujaría bajo el eje — se lee como un
+  negativo que no existe.
+- **El área es tinte de tinta al 5% con `color-mix`, NO `--duna-wash-hover`.** El token
+  existe y da el mismo color, pero prestarlo le daría un segundo significado a un token
+  de hover (el mismo error que se rechazó con `--duna-paper` como panel hundido).
+- **Tres marcadores, todos en TINTA — cero ámbar**: pico (relleno + cifra abreviada), hoy
+  (hueco), selección (anillo). Nada en Pagos pide atención.
+- **El ancho se MIDE** (ResizeObserver) y no se asume: un viewBox estirado deformaría
+  trazo y tipografía. Va por **callback ref**, no por `useRef` + efecto `[]` — ver el
+  defecto de abajo.
+- El eje posiciona cada etiqueta bajo SU punto (máx ~8 visibles); un flex las repartiría
+  parejo y mentirían de posición. El hint declara escala e interacción, que no es obvia.
+- **La curva NO se apila por método** (una curva apilada no existe), y por eso murieron
+  el toggle "Por método" y la leyenda de exclusiones. **CAPACIDAD PERDIDA, escrita:** ya
+  no se puede EXCLUIR un canal de la vista de tiempo. Decidido y aceptado — el desglose
+  por método vive en el modo método y en el select.
+- **Bespoke admin, no primitiva del DS**: no hay primitiva de chart, y con un consumidor
+  no se justifica.
+
+### El DEFECTO del observer, que va a volver si alguien copia este gráfico
+
+En modo método → "Limpiar filtros", la curva dejaba de dibujar y el eje aparecía apilado.
+**Medido, no deducido:** al observar, el RO avisa el ancho; **al desmontarse el nodo avisa
+`width: 0`**; con el nodo nuevo **no vuelve a avisar** —sigue mirando el viejo—. Como el
+bloque se remonta al cambiar de eje (`key={modo}`), un efecto con deps `[]` lee la caja
+UNA vez y nunca se entera. Con `ancho` en 0 no hay curva, y cada etiqueta del eje cae en
+`left: 0` (por eso se veían encimadas: no era un eje de un solo bucket).
+
+**La forma correcta: callback ref** —se engancha y desengancha con cada nodo— **y se
+IGNORA la notificación de ancho 0**, que no es una medida sino el nodo saliendo del DOM.
+Es más robusto que agregar `modo` a las deps: no depende de que alguien mantenga la lista.
+
+**Y por qué "Hoy" NO lo reproducía**, que es lo que lo volvió difícil de creer: con ese
+preset cambia el RANGO → refetch → `setLoading(true)` desmonta el componente entero → el
+remonte ACCIDENTAL re-enganchaba el observer. Clickeando un punto el rango no cambia, no
+hay remonte, y ahí sí rompe. **La diferencia nunca fue × vs "Limpiar filtros": es si el
+rango cambió.** No es observable en capa 1 —el repo no tiene harness de render— así que
+su verificación es capa 3; no se inventó un harness para simularlo.
+
+### Reglas que se conservan del strip
+
+- **Una FUENTE alimenta frase, gráfico y libro**: `pagos` (el recorte del rango, ya en
+  SQL). El filtro es composición client-side de **método** (el select) y **bucket** (clic
+  en un punto). El gráfico no re-consulta —por eso esta tanda NO tocó el fetch (§ #27)—.
+- **La escalera y el anclaje viven en `lib/pagos/bucketeo.ts`** (puro, capa 1): ahora
+  **TRES peldaños con tope de 92 PUNTOS** (día → semana → mes). Tres y no cinco porque una
+  CURVA admite muchos más puntos que una barra (uno cada ~10px se lee; una barra de 10px
+  no): el día llega a un trimestre y el mes cubre 7½ años, así que trimestre y año
+  quedaron sin trabajo. **Los DOS extremos DECLARAN** en vez de dibujar algo que no
+  informa: >92 meses y <4 puntos. **Las semanas se anclan al CALENDARIO (lunes Bogotá)**,
+  no al inicio del rango, o la misma semana suma distinto según por dónde se entró. El
+  primer y último punto pueden ser PARCIALES y se DECLARAN en el eje.
+- **El chip del bucket se conserva** en la fila de filtros como etiqueta legible + ×, y su
+  etiqueta se entiende SOLA ("jue 27 ago", "semana del 10 ago"), nunca "1 seleccionado".
+  Con la curva siempre visible el anillo ya muestra la selección, así que **no se duplica
+  en el gráfico**.
+- **Colores `--duna-serie-1…5` SÓLO en el modo método** (serie-5 = OTRO, el neutro). La
+  curva es tinta; nunca estado.
 
 ### El eje cambia cuando el recorte es 1 bucket, y EL EJE NUNCA SE FILTRA A SÍ MISMO
 
-El strip tiene DOS ejes intercambiables: **tiempo** (4–31 buckets, una barra por
-bucket) y **método** (cuando el recorte activo es UN bucket —"Hoy", un rango de 1 día,
-o un clic en barra/fecha—, una barra por método). Entre 2–3 buckets no hay forma en
-ningún eje → se declara; >31 años tampoco.
+El gráfico tiene DOS ejes intercambiables: **tiempo** (4–92 puntos, la curva) y **método**
+(cuando el recorte activo es UN bucket —"Hoy", un rango de 1 día, o un clic en un punto/
+fecha—, una barra por método). **Un bucket → modo método, NUNCA el mensaje de colapso**;
+entre 2–3 buckets no hay forma en ningún eje → se declara ("dos o tres períodos no dibujan
+una tendencia — la frase de arriba ya lo dice mejor"); >92 meses tampoco.
 
 **LA REGLA, y es general para cualquier gráfico con ejes intercambiables:** el eje que
 se está mostrando NO se filtra a sí mismo. El modo tiempo filtra por MÉTODO (el select);
@@ -3481,18 +3571,18 @@ y **una nota lo DECLARA** ("el desglose es del período; la tabla está filtrada
 sólo cuando el caso ocurre —cinco barras sobre una fila filtrada se leería como fallo—.
 
 **Cada filtro vive en su propio control, y ahí está el "nunca un segundo indicador":**
-el TIEMPO en el chip (clic en barra o en una celda de fecha lo escribe), el MÉTODO en el
-select (clic en barra de método o en una celda de método lo escribe). No se inventa un
+el TIEMPO en el chip (clic en un punto o en una celda de fecha lo escribe), el MÉTODO en
+el select (clic en barra de método o en una celda de método lo escribe). No se inventa un
 tercer sitio; cada uno reemplaza al anterior de su tipo (toggle: clic en el activo lo
 quita). En modo método el toggle "Por método" se **oculta** (el eje YA es método) —no se
 deshabilita, que sugeriría algo que activar—.
 
 - **Celdas navegables** (`duna-lista`): la fecha y el método de cada fila son caminos a
   esos mismos filtros (chip de tiempo / select), con afordancia `.duna-link` —sin color
-  nuevo—. Filtrar por una fecha colapsa el recorte a 1 día → el strip entra al eje de
+  nuevo—. Filtrar por una fecha colapsa el recorte a 1 día → el gráfico entra al eje de
   método solo, por el mismo estado.
 - **El recorte de tiempo (`RecorteTiempo`) lleva su `escala` y su `etiqueta`**, para que
-  un clic en barra (bucket a la escala del strip) y uno en fecha (siempre 'dia') tengan
+  un clic en un punto (bucket a la escala de la curva) y uno en fecha (siempre 'dia') tengan
   la misma forma y el chip se pinte solo.
 
 ## Automatizaciones — arquitectura y prerequisitos de go-live
