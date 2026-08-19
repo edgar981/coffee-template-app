@@ -261,7 +261,20 @@ function Inventario() {
           que hace scroller a su hijo único); el encabezado va sticky contra él
           (§ `.admin-lista__head`). loading/empty ocupan la región. */}
       <div className="duna-region">
-      {cargandoLogs && <p className="duna-sub" style={{ margin: 0 }}>Cargando los movimientos…</p>}
+      {cargandoLogs && (
+        /* El hueco de la carga tiene la FORMA de lo que llega: filas del grid-list
+           con celdas grises, igual que Pagos (§ el corrector C-2) —no un texto ni un
+           esqueleto de tarjeta, que sugeriría que va a llegar otra cosa—. */
+        <div className="admin-lista" aria-hidden="true">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="admin-lista__fila" style={{ gridTemplateColumns: COLS }}>
+              {[82, 55, 40, 55, 82, 60, 70].map((w, j) => (
+                <span key={j} style={{ height: 11, borderRadius: 3, background: 'var(--duna-skel)', width: `${w}%` }} />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
       {!cargandoLogs && logs.length === 0 && (
         <div className="duna-card duna-card__pad">
           {/* Distinguir "no hay nada" de "el filtro no encontró nada" evita que el
