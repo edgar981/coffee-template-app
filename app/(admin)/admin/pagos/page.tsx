@@ -7,6 +7,7 @@ import { FilterX, Paperclip, X } from 'lucide-react';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { PresetsPeriodo } from '@/components/admin/PresetsPeriodo';
 import { PagosStrip } from '@/components/admin/PagosStrip';
+import { DunaTooltip } from '@/components/admin/DunaTooltip';
 import { getPayments } from '@/lib/api/payments';
 import type { Payment, MetodoPago } from '@/types/payment';
 import { METODO_PAGO_LABEL, METODO_CATEGORIA } from '@/types/payment';
@@ -131,22 +132,22 @@ function PagosInner() {
       {/* CABECERA fija: header + stats + filtros. El strip NO va acá — scrollea con el
           libro (§ duna.css). El chip de bucket sí vive acá, con etiqueta que se entiende
           sola porque el operador lo ve sin ver la barra que lo produjo. */}
-      <div className="duna-cabecera space-y-6 pb-6">
-        <div>
-          <h1 className="duna-display-m">Pagos</h1>
-          <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>
-            Ledger de pagos registrados. Se registran desde cada orden.
-          </p>
-        </div>
-
-        {/* Sólo el TOTAL. "Pagos registrados" y "Promedio por pago" se podaron: la
-            cabecera es fija y el strip scrollea, así que cada cifra de más empuja al
-            libro fuera de vista (~370px de cabecera aun sin ellas). El conteo vive en el
-            libro; el promedio no cambia ninguna decisión del día. */}
-        <div className="duna-stat" style={{ display: 'inline-block' }}>
-          <div className="duna-stat__v duna-num">{formatCOP(totalPeriodo)}</div>
-          <div className="duna-stat__l">Total del período</div>
-          <div className="duna-stat__d">{bucketSel ? bucketSel.etiqueta : 'del recorte activo'}</div>
+      <div className="duna-cabecera space-y-4 pb-4">
+        {/* R-1 · el título y la CIFRA en una sola línea de cabecera. El strip va fijo
+            (no scrollea), así que cada píxel de cabecera le cuesta una fila al libro:
+            se fusiona el stat con el título (el bloque baja de ~200px a ~60), el
+            descargo se retira a un tooltip sobre el título, y el qualifier del bucket
+            sólo aparece cuando HAY recorte. El total sigue siendo `.duna-display`. */}
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--duna-space-4)', flexWrap: 'wrap' }}>
+          <DunaTooltip content="Ledger de pagos registrados. Se registran desde cada orden.">
+            <h1 className="duna-display-m" style={{ cursor: 'help' }}>Pagos</h1>
+          </DunaTooltip>
+          <div style={{ textAlign: 'right' }}>
+            <div className="duna-display-m duna-num">{formatCOP(totalPeriodo)}</div>
+            <div className="duna-caption" style={{ color: 'var(--duna-muted)', marginTop: 'var(--duna-space-hairline)' }}>
+              Total del período{bucketSel ? ` · ${bucketSel.etiqueta}` : ''}
+            </div>
+          </div>
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', alignItems: 'center' }}>
