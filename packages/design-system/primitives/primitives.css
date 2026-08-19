@@ -1654,44 +1654,38 @@ button.duna-order-card__name {
 .duna-items-table__meta { color: var(--duna-muted); font-size: var(--duna-text-caption); }
 .duna-items-table__total td { font-weight: var(--duna-w-semi); }
 
-/* ── Table · una tabla de DATOS agnóstica (auditoría, listados densos) ───────
+/* ── Lista tabular · grid-list de DATOS (auditoría, listados densos) ─────────
    Distinta de `items-table`: aquélla es de DOS columnas (label / monto) para las
    líneas de una orden; ésta es COLUMNAR, N columnas con encabezado, para una
-   vista de auditoría o un listado denso. Agnóstica de contenido: las columnas y
-   las celdas son props —no sabe qué es un movimiento ni un pago—, así que Pagos y
-   Analítica la van a poder usar tal cual.
+   vista de auditoría o un listado denso. Agnóstica de contenido: el consumidor pone
+   el `grid-template-columns` por fila (los anchos son suyos) y las celdas ya
+   resueltas (badge, `duna-num`, `.duna-link`, el "—" del dato ausente).
 
-   EL SCROLL HORIZONTAL SE RESUELVE ACÁ, que es donde una tabla se rompe en móvil:
-   el ENVOLTORIO scrollea y la tabla no se aplasta (`min-width`), en vez de dejar
-   que cada consumidor invente su overflow —o que se olvide, y la tabla parta el
-   texto letra por letra en un teléfono. Es del sistema, no de la pantalla. */
-.duna-table-wrap { overflow-x: auto; }
-.duna-table { width: 100%; border-collapse: collapse; font-size: var(--duna-text-body);
-              /* Debajo de esto el envoltorio scrollea en vez de aplastar columnas.
-                 El consumidor puede subirlo con la prop `minWidth` si tiene más. */
-              min-width: 32rem; }
-/* El thead es STICKY, siempre-on: fuera de un scroller vertical es no-op (sin
-   scroller no hay contra qué pegarse), y dentro de la región de alto fijo
-   (§ duna.css, el shell) es lo que hace que el encabezado no se pierda al
-   scrollear —es lo primero que se va en una tabla larga—.
-   · El separador va por BOX-SHADOW, no `border-bottom`: con `border-collapse:
-     collapse` el borde pertenece a la celda y NO viaja con el th sticky —se
-     quedaría scrolleando bajo el encabezado—.
-   · El fondo es la SUPERFICIE de la app (`--duna-bg`), no el papel del rail, para
-     tapar las filas que pasan por debajo. */
-.duna-table th { text-align: left; padding: var(--duna-space-2) var(--duna-space-3);
-                 font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi);
-                 color: var(--duna-muted); white-space: nowrap;
-                 position: sticky; top: 0; z-index: 1;
-                 background: var(--duna-bg);
-                 box-shadow: inset 0 -1px 0 var(--duna-border-2); }
-.duna-table td { padding: var(--duna-space-3); border-bottom: 1px solid var(--duna-border);
-                 vertical-align: top; }
-.duna-table tbody tr:last-child td { border-bottom: none; }
-.duna-table tbody tr:hover { background: var(--duna-wash-hover); }
-/* Alineación a la derecha (números), en encabezado Y celda para que la columna
-   quede a plomo. Mismo patrón que `.duna-items-table__r`. */
-.duna-table th.duna-table__r, .duna-table td.duna-table__r { text-align: right; white-space: nowrap; }
+   Es un GRID-LIST, no un `<table>`, y las dos razones son MEDIDAS, no de estilo:
+   · En móvil REFLUYE (a 2 columnas) en vez de scrollear horizontal —el scroll
+     horizontal de una tabla de datos pierde la columna de referencia al tacto—.
+   · El sticky del encabezado sobrevive en un scroller COMPARTIDO: cuando algo
+     scrollea ENCIMA en el mismo scroller (el strip de Pagos), el `overflow-x` del
+     envoltorio de un `<table>` capturaba el sticky y se lo llevaba (medido). Sin
+     envoltorio de overflow propio, el sticky queda pegado al scroller de la región.
+   Su fondo es la SUPERFICIE de la app (`--duna-bg`) para tapar lo que pasa debajo;
+   el separador del head va por BOX-SHADOW (un `border-bottom` no viaja con sticky). */
+.duna-lista { display: flex; flex-direction: column; }
+.duna-lista__fila { display: grid; gap: var(--duna-space-3); align-items: center;
+               padding: var(--duna-space-3) var(--duna-space-4); border-bottom: 1px solid var(--duna-border); }
+.duna-lista__fila:last-child { border-bottom: none; }
+.duna-lista__fila:not(.duna-lista__head):hover { background: var(--duna-wash-hover); }
+.duna-lista__head { position: sticky; top: 0; z-index: 1; background: var(--duna-bg);
+               font-size: var(--duna-text-caption); text-transform: uppercase; letter-spacing: var(--duna-tr-caps);
+               color: var(--duna-muted); font-weight: var(--duna-w-semi);
+               box-shadow: inset 0 -1px 0 var(--duna-border-2); }
+.duna-lista__r { text-align: right; }
+@media (max-width: 959.98px) {
+  /* Refluye: sin encabezado, cada fila es un bloque de dos columnas. */
+  .duna-lista__head { display: none; }
+  .duna-lista__fila { grid-template-columns: minmax(0, 1fr) auto !important; gap: 2px var(--duna-space-3); padding: var(--duna-space-3); }
+  .duna-lista__r { text-align: left; }
+}
 
 /* ── Enlace de texto · navegación inline dentro de contenido denso ──────────
    Un enlace que vive DENTRO de una celda o un párrafo, no un botón. Tinta plena

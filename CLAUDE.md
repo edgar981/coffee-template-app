@@ -934,31 +934,6 @@ ocurre—: el disparador correcto es el HECHO (mover la consulta), no la tanda q
 suponía que lo traería. Cambiar el fetch sólo por el lint sigue siendo tocar dos cosas
 cuando el hecho real va a tocar una.
 
-### 28. La lista tabular del panel tiene DOS patrones — `DunaTable` y `.admin-lista`
-
-Conviven a propósito, pero es una divergencia con fecha de cierre. `.admin-lista`
-(grid-list, `app/(admin)/duna.css`) es el patrón por defecto (§ Listas tabulares del
-panel); `DunaTable` (`<table>` con envoltorio de scroll horizontal) sigue vivo en UN
-consumidor: el kardex de Inventario.
-
-**Costo YA pagado: ninguno todavía** —los dos funcionan—, pero **dos patrones para lo
-mismo es cómo la próxima vertical elige sin criterio**. Salió de medir (no deducir) que
-el `overflow-x` del envoltorio de `DunaTable` despega el thead sticky cuando algo
-scrollea encima en el mismo scroller (el strip de Pagos): por eso Pagos usó el grid-list
-y el kardex se quedó en `DunaTable`.
-
-**DISPARADOR: cuando se toque el kardex de Inventario.** Ahí migra a `.admin-lista`
-—y con eso queda el SEGUNDO consumidor, que es el punto: **con dos, `.admin-lista` se
-EXTRAE al DS con nombre `duna-`** (hoy es admin-level a propósito, para no aparentar una
-primitiva que no está en el paquete). La migración del kardex es la ocasión; la
-extracción es la meta. `DunaTable` se retira cuando el kardex deje de usarlo.
-
-**Y con esa migración va el LOADER de Inventario**: hoy es texto ("Cargando los
-movimientos…"); cuando el kardex sea `.admin-lista`, adopta el skeleton de filas grises
-que Pagos ya tiene (§ el corrector C-2) —ahí los dos comparten forma y el skeleton se
-EXTRAE (dos consumidores)—. Hacerlo antes sería un skeleton de `DunaTable` que esta
-migración tira; por eso el loader de Inventario espera acá, no en el corrector.
-
 ### 30. El total del bucket del strip vive SOLO en el hover — invisible en táctil
 
 El tooltip de cada barra del strip lleva el **total del bucket** (día/semana/mes + monto,
@@ -982,6 +957,34 @@ forma probable, escrita para no re-diagnosticarlo:
   Es más honesto en táctil —no esconde el dato tras un gesto que en móvil no se descubre—.
 - **Tap-to-show** (alternativa): un tap abre el tooltip, un segundo lo cierra. Menos
   trabajo, pero deja el dato detrás de un gesto no anunciado.
+
+### 31. El reflujo del grid-list en <960 deja valores crudos SIN etiqueta
+
+`.duna-lista` (§ Listas tabulares del panel) en móvil OCULTA el encabezado
+(`.duna-lista__head { display:none }`) y refluye las N celdas a un grid de 2 columnas.
+El resultado: **filas de valores crudos sin etiqueta de columna**. En una fila de 7 —el
+kardex— quedan pares como `28 → 40` y `+12` sin nada que diga cuál es cantidad y cuál es
+saldo: **"¿ese 38 es cantidad o saldo?"**. No se pierde ninguna salida navegable (los
+enlaces reflúyen, medido), pero la LEGIBILIDAD del dato sí.
+
+**Costo YA pagado: ninguno medido** —el panel se opera sobre todo en escritorio hoy—,
+pero **ya no es hipotético: con #28 son DOS pantallas** las que lo tienen (Pagos y el
+kardex de Inventario), así que el disparador de "dos consumidores" ya se cumplió. Antes de
+#28 lo tenía sólo Pagos; hoy es del patrón, no de una pantalla.
+
+Es conducta COMPARTIDA de `.duna-lista`, así que se arregla UNA vez y las dos pantallas lo
+heredan. La forma probable, escrita para no re-diagnosticarlo:
+
+- **Etiqueta inline por celda en móvil** (preferida): cada celda muestra su encabezado
+  como prefijo muted sólo en <960 (`::before` con el texto de la columna, o un `<span>`
+  de label oculto en escritorio). El dato deja de ser anónimo sin volver a la tabla.
+- **Mostrar menos celdas** (alternativa): en móvil se ocultan las columnas secundarias
+  (Quién, Antes→Después) y quedan las 3–4 que se leen sin etiqueta. Menos trabajo, pero
+  esconde dato en vez de nombrarlo.
+
+No se arregla ahora (owner, 2026-08-18): esta tanda migra el kardex, no rediseña el
+reflujo. **DISPARADOR: al tocar el móvil del panel de verdad, o al primer reporte de
+"no se entiende la tabla en el teléfono".**
 
 ## Mejoras post-multitenant
 
@@ -3434,25 +3437,28 @@ ningún rol existente, así que es su propio rol.
 ## Listas tabulares del panel — grid-list por defecto, no `<table>`
 
 **El patrón por defecto de una lista de datos del panel es el grid-list**
-(`.admin-lista`, `app/(admin)/duna.css`): filas que son `display: grid`, con encabezado
-`position: sticky` y **sin envoltorio de overflow propio**. NO es cosmético:
+(`.duna-lista`, `packages/design-system/primitives/primitives.css`): filas que son
+`display: grid`, con encabezado `position: sticky` y **sin envoltorio de overflow
+propio**. NO es cosmético:
 
 - **En móvil REFLUYE** (a dos columnas) en vez de scrollear horizontal. El scroll
   horizontal de una tabla de datos es pésimo al tacto —se pierde la columna de
-  referencia—; un grid-list re-fluye a un bloque legible.
+  referencia—; un grid-list re-fluye a un bloque. El costo de ese reflujo —valores sin
+  etiqueta en <960— es § Backlog #31.
 - **El sticky del encabezado funciona en un scroller COMPARTIDO.** Cuando algo scrollea
   ENCIMA de la lista en el mismo scroller —el strip de Pagos—, el `overflow-x` del
-  envoltorio de un `<table>` (el `.duna-table-wrap` de `DunaTable`) captura el sticky y
-  se lo lleva al scrollear. **Medido, no deducido** (repro con strip + tabla + wrap: el
-  thead se despega). El grid-list, sin overflow propio, deja el sticky pegado al
-  scroller de la región.
+  envoltorio de un `<table>` capturaba el sticky y se lo llevaba al scrollear. **Medido,
+  no deducido** (repro con strip + tabla + wrap: el thead se despega). El grid-list, sin
+  overflow propio, deja el sticky pegado al scroller de la región. Cuando la lista es el
+  hijo ÚNICO de la región (Inventario), ella misma ES el scroller y su `__head` pega
+  contra ella —el patrón sticky canónico—; medido en los dos casos.
 
-**`.admin-lista` es admin-level a PROPÓSITO — no lleva prefijo `duna-`.** Una clase
-`duna-*` fuera del paquete aparenta ser una primitiva del DS, y otra vertical la usaría
-creyendo que existe ahí. Entra al paquete con nombre `duna-` cuando haya un SEGUNDO
-consumidor (el kardex de Inventario), no antes (§ Backlog #28). Hasta entonces
-**`DunaTable` sigue vivo** en su único consumidor —el kardex—; los dos patrones conviven
-con fecha de cierre, no indefinidamente.
+**Extraída al DS como `.duna-lista` el 2026-08-18** (era admin-level como `.admin-lista`
+mientras tuvo un solo consumidor). La regla que se cumplió: una clase entra al paquete con
+nombre `duna-` cuando hay un SEGUNDO consumidor —Pagos + el kardex de Inventario—, no
+antes; con uno solo, admin-level, para no aparentar una primitiva que no está en el
+paquete. **`DunaTable` se retiró** en la misma tanda (su único consumidor era el kardex);
+ya no hay dos patrones para lo mismo.
 
 ## El strip de Pagos — barras sobre el tiempo, de una fuente
 
@@ -3507,7 +3513,7 @@ tercer sitio; cada uno reemplaza al anterior de su tipo (toggle: clic en el acti
 quita). En modo método el toggle "Por método" se **oculta** (el eje YA es método) —no se
 deshabilita, que sugeriría algo que activar—.
 
-- **Celdas navegables** (`admin-lista`): la fecha y el método de cada fila son caminos a
+- **Celdas navegables** (`duna-lista`): la fecha y el método de cada fila son caminos a
   esos mismos filtros (chip de tiempo / select), con afordancia `.duna-link` —sin color
   nuevo—. Filtrar por una fecha colapsa el recorte a 1 día → el strip entra al eje de
   método solo, por el mismo estado.
