@@ -2989,6 +2989,24 @@ que alguien tiene que cablear bien—. El día que el paquete adopte comportamie
 (H6, o la Fase B con su propia app), las DOS se absorben en la primitiva que lo
 tenga y dejan de ser reglas sueltas.
 
+**`.admin-tooltip` es el MISMO caso, con un paso menos hecho** (owner, 2026-08-18):
+la superficie del tooltip (`app/(admin)/duna.css`) es CSS que alguien cablea, con
+la conducta (Radix) en `components/admin/DunaTooltip.tsx` — igual que `.duna-sheet`
+sobre `DunaSheet.tsx`. Se absorbe en el paquete con las otras cuando adopte
+comportamiento. La diferencia: su CSS **todavía no está en el paquete** —vive
+admin-level como `.admin-tooltip`, no como `.duna-*`—, mientras que la de sheet/scrim
+ya está en `primitives.css`. Así que el primer paso (mover la superficie al paquete
+como `.duna-tooltip`, CSS presentacional, sin depender de que adopte conducta) queda
+pendiente acá, no como decisión nueva.
+
+**Consecuencia ACTUAL, que es un H10 en versión sutil:** el bloque de tooltip de
+`reference.html` **espeja `.admin-tooltip` con estilos inline** (como el bloque de la
+serie), así que la prueba viva **NO ejercita la clase real**. Si `.admin-tooltip`
+cambia, la referencia sigue mostrando lo viejo y **miente** sin que nada lo delate —
+una superficie sin consumidor real en la prueba viva, que es exactamente lo que un
+H10 es. Mover la superficie al paquete y hacer que la referencia use la clase real
+cierra el H10 y la absorción a la vez.
+
 ### El scroll-lock es lo que decide el gate, y no es el del drawer viejo
 
 `react-remove-scroll` (entra con `@radix-ui/react-dialog`) previene a nivel de
