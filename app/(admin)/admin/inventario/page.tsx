@@ -4,7 +4,6 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { ArrowUpDown, FilterX } from 'lucide-react';
-import { DunaTable, type DunaColumn } from '@duna/design-system/components/DunaTable';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
@@ -59,6 +58,12 @@ const TIPO_LABEL: Record<InventoryMovementType, string> = {
   entrada: 'Entrada', salida: 'Salida', ajuste: 'Ajuste', venta: 'Venta', devolucion: 'Devolución',
 };
 const TIPOS: InventoryMovementType[] = ['entrada', 'salida', 'ajuste', 'venta', 'devolucion'];
+
+// La rejilla del kardex (grid-list `.admin-lista`, § duna.css). Siete columnas:
+// Producto (nombre/link) · Tipo · Cantidad → · Antes→Después → · Motivo (texto/link) ·
+// Quién · Fecha. Sin `minWidth` propio como tenía DunaTable —`.admin-lista` no lleva
+// overflow, cabe en la región ≥960 y refluye a 2 columnas en <960—.
+const COLS = 'minmax(120px,1.6fr) 92px 76px 104px minmax(110px,1.4fr) 108px 104px';
 
 // Presets de período — navegar la auditoría por TIEMPO (así se pregunta: "¿qué
 // pasó en marzo?", no "página 5"). Son un atajo que fija `desde`/`hasta`, los
@@ -166,39 +171,6 @@ function Inventario() {
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
   }, [params, pathname, router]);
 
-  const columnasKardex: DunaColumn[] = [
-    { key: 'producto', header: 'Producto' },
-    { key: 'tipo',     header: 'Tipo' },
-    { key: 'cantidad', header: 'Cantidad', align: 'right' },
-    { key: 'saldo',    header: 'Antes → Después', align: 'right' },
-    { key: 'motivo',   header: 'Motivo' },
-    { key: 'quien',    header: 'Quién' },
-    { key: 'fecha',    header: 'Fecha' },
-  ];
-  const filasKardex = logs.map(l => ({
-    key: l.id,
-    cells: [
-      // Enlace al detalle del producto SÓLO si el producto todavía existe. La
-      // pregunta natural al leer un movimiento raro: "¿cómo está AHORA?".
-      idsProducto.has(l.producto_id)
-        ? <Link key="p" href={`/admin/productos?producto=${l.producto_id}`} className="duna-link">{l.producto_nombre}</Link>
-        : l.producto_nombre,
-      <span key="t" className="duna-badge duna-badge--neutral">{TIPO_LABEL[l.tipo] ?? l.tipo}</span>,
-      <span key="c" className="duna-num">{signoDelMovimiento(l)}</span>,
-      <span key="s" className="duna-num">{l.stock_anterior} → {l.stock_nuevo}</span>,
-      // El MOTIVO sigue siendo el texto legible; el enlace sale del DATO
-      // (`orden_numero` resuelto por el servidor), no de parsear "CN-…" del texto.
-      // Sólo enlaza si la orden todavía existe; si no, texto plano (misma regla que
-      // la celda Producto).
-      l.orden_numero
-        ? <Link key="m" href={`/admin/pedidos?pedido=${l.orden_numero}`} className="duna-link">{l.motivo || '—'}</Link>
-        : (l.motivo || '—'),
-      // El actor. `—` es honesto: filas viejas y asientos del sistema no tienen
-      // humano — es la razón por la que la columna existe.
-      l.ajustado_por_nombre || '—',
-      <span key="f" className="duna-caption">{formatFecha(l.createdAt)}</span>,
-    ],
-  }));
 
   return (
     <div className="duna duna-sin-split">
@@ -285,8 +257,9 @@ function Inventario() {
       )}
       </div>{/* /duna-cabecera */}
 
-      {/* REGIÓN — sólo la tabla scrollea (§ duna.css, `.duna-sin-split .duna-region`);
-          el thead va sticky (§ .duna-table). loading/empty ocupan la región. */}
+      {/* REGIÓN — el grid-list scrollea (§ duna.css, `.duna-sin-split .duna-region`,
+          que hace scroller a su hijo único); el encabezado va sticky contra él
+          (§ `.admin-lista__head`). loading/empty ocupan la región. */}
       <div className="duna-region">
       {cargandoLogs && <p className="duna-sub" style={{ margin: 0 }}>Cargando los movimientos…</p>}
       {!cargandoLogs && logs.length === 0 && (
@@ -299,7 +272,40 @@ function Inventario() {
         </div>
       )}
       {!cargandoLogs && logs.length > 0 && (
-        <DunaTable columns={columnasKardex} rows={filasKardex} minWidth="48rem" />
+        <div className="admin-lista">
+          <div className="admin-lista__fila admin-lista__head" style={{ gridTemplateColumns: COLS }}>
+            <span>Producto</span><span>Tipo</span>
+            <span className="admin-lista__r">Cantidad</span>
+            <span className="admin-lista__r">Antes → Después</span>
+            <span>Motivo</span><span>Quién</span><span>Fecha</span>
+          </div>
+          {logs.map(l => (
+            <div key={l.id} className="admin-lista__fila" style={{ gridTemplateColumns: COLS }}>
+              {/* Producto → detalle SÓLO si el producto todavía existe. La pregunta
+                  natural al leer un movimiento raro: "¿cómo está AHORA?". */}
+              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {idsProducto.has(l.producto_id)
+                  ? <Link href={`/admin/productos?producto=${l.producto_id}`} className="duna-link">{l.producto_nombre}</Link>
+                  : l.producto_nombre}
+              </span>
+              <span><span className="duna-badge duna-badge--neutral">{TIPO_LABEL[l.tipo] ?? l.tipo}</span></span>
+              <span className="admin-lista__r duna-num">{signoDelMovimiento(l)}</span>
+              <span className="admin-lista__r duna-num">{l.stock_anterior} → {l.stock_nuevo}</span>
+              {/* El MOTIVO es el texto legible; el enlace sale del DATO (`orden_numero`
+                  resuelto por el servidor), no de parsear "CN-…". Sólo enlaza si la
+                  orden todavía existe; si no, texto plano (misma regla que Producto). */}
+              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {l.orden_numero
+                  ? <Link href={`/admin/pedidos?pedido=${l.orden_numero}`} className="duna-link">{l.motivo || '—'}</Link>
+                  : (l.motivo || '—')}
+              </span>
+              {/* El actor. `—` es honesto: filas viejas y asientos del sistema no tienen
+                  humano — es la razón por la que la columna existe. */}
+              <span className="duna-sub" style={{ margin: 0 }}>{l.ajustado_por_nombre || '—'}</span>
+              <span className="duna-caption">{formatFecha(l.createdAt)}</span>
+            </div>
+          ))}
+        </div>
       )}
       </div>{/* /duna-region */}
 
