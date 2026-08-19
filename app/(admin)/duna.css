@@ -197,7 +197,8 @@ html.admin {
    libro. Es el lever 2 del presupuesto de alto (§ spec). */
 .admin-grafico { border: 1px solid var(--duna-border); border-radius: var(--duna-r-l);
                background: var(--duna-surface); padding: var(--duna-space-3) var(--duna-space-4) var(--duna-space-2);
-               animation: adminStripCambioEje var(--duna-dur) var(--duna-ease); }
+               animation: adminGraficoCambioEje var(--duna-dur) var(--duna-ease); }
+@keyframes adminGraficoCambioEje { from { opacity: 0; } to { opacity: 1; } }
 .admin-grafico--vacio { display: flex; align-items: center; min-height: 64px; }
 .admin-grafico__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--duna-space-2); }
 /* La caja de la curva es el ancla del tooltip (que va absoluto) y del eje. */
@@ -223,77 +224,9 @@ html.admin {
 .admin-grafico__mlbl { font-size: var(--duna-text-caption); color: var(--duna-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .admin-grafico__mcol.is-sel .admin-grafico__mlbl { color: var(--duna-ink); font-weight: var(--duna-w-semi); }
 
-/* ═══ EL STRIP DE PAGOS · barras sobre el tiempo (bespoke admin, no DS) ════════
-   Vive DENTRO de la región que scrollea, encima del libro. Colores de la serie
-   categórica (`--duna-serie-*`); nada de estado acá. */
-.admin-strip { border: 1px solid var(--duna-border); border-radius: var(--duna-r-l);
-               background: var(--duna-surface); padding: var(--duna-space-4) var(--duna-space-5) var(--duna-space-3);
-               margin-bottom: var(--duna-space-4);
-               /* El ÚNICO punto donde el contenido se REEMPLAZA (barras por día → barras
-                  por método), no se recorta: sin transición el ojo no distingue "el filtro
-                  cambió" de "algo se rompió". Fade corto al cambiar de modo —el strip se
-                  remonta con `key={modo}`, así que sólo corre en el cambio de eje, no al
-                  filtrar dentro del mismo—. Usa `--duna-dur` (200ms), el mismo ritmo que el
-                  resto del panel. Lo neutraliza el bloque `prefers-reduced-motion` de
-                  `.duna *` (medido: `animation-duration: .01ms !important`). */
-               animation: adminStripCambioEje var(--duna-dur) var(--duna-ease); }
-@keyframes adminStripCambioEje { from { opacity: 0; } to { opacity: 1; } }
-.admin-strip--vacio { display: flex; align-items: center; min-height: 72px; }
-.admin-strip__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--duna-space-3); }
-.admin-strip__toggle { display: inline-flex; align-items: center; gap: var(--duna-space-2);
-               border: 1px solid var(--duna-border-2); border-radius: var(--duna-r-full);
-               padding: var(--duna-space-1) var(--duna-space-3); background: transparent;
-               font-size: var(--duna-text-label); color: var(--duna-muted); cursor: pointer; }
-.admin-strip__toggle:disabled { opacity: .5; cursor: not-allowed; }
-.admin-strip__toggle.is-on { color: var(--duna-ink); border-color: var(--duna-faint); }
-.admin-strip__sw { width: 22px; height: 12px; border-radius: 6px; background: var(--duna-border); position: relative; transition: background var(--duna-dur) var(--duna-ease); }
-.admin-strip__sw::after { content: ''; position: absolute; top: 1px; left: 1px; width: 10px; height: 10px; border-radius: 50%; background: var(--duna-paper); transition: transform var(--duna-dur) var(--duna-ease); }
-.admin-strip__toggle.is-on .admin-strip__sw { background: var(--duna-ink); }
-.admin-strip__toggle.is-on .admin-strip__sw::after { transform: translateX(10px); }
-/* Las barras. Cada columna es un botón de alto completo (target de clic), con la
-   barra creciendo desde la línea base. */
-.admin-strip__barras { display: flex; align-items: flex-end; gap: 3px; border-bottom: 1px solid var(--duna-border); }
-.admin-strip__col { flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end;
-               border: 0; background: transparent; padding: 0 1px; cursor: pointer; border-radius: var(--duna-r-s) var(--duna-r-s) 0 0; }
-.admin-strip__col:hover { background: var(--duna-wash-hover); }
-.admin-strip__col.is-sel { background: var(--duna-wash-hover); box-shadow: inset 0 -2px 0 var(--duna-ink); }
-.admin-strip__bar { width: 100%; min-height: 2px; display: flex; flex-direction: column-reverse;
-               overflow: hidden; border-radius: var(--duna-r-s) var(--duna-r-s) 0 0; }
-.admin-strip__bar > span { flex: none; }
-.admin-strip__col.is-parcial .admin-strip__bar { opacity: .85; }
-.admin-strip__eje { display: flex; gap: 3px; margin-top: var(--duna-space-2); }
-.admin-strip__eje > span { flex: 1 1 0; min-width: 0; text-align: center; font-size: var(--duna-text-caption);
-               color: var(--duna-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.admin-strip__eje > span.is-parcial { color: var(--duna-faint); }
-.admin-strip__nota { margin: var(--duna-space-2) 0 0; font-size: var(--duna-text-caption); color: var(--duna-faint); }
-.admin-strip__leyenda { display: flex; flex-wrap: wrap; gap: var(--duna-space-3); margin-top: var(--duna-space-3);
-               padding-top: var(--duna-space-3); border-top: 1px solid var(--duna-border); }
-.admin-strip__leg { display: inline-flex; align-items: center; gap: var(--duna-space-inline);
-               border: 0; background: transparent; padding: 0; cursor: pointer; font-size: var(--duna-text-label); color: var(--duna-ink-2); }
-.admin-strip__legsw { width: 10px; height: 10px; border-radius: 2px; flex: none; }
-.admin-strip__legpct { color: var(--duna-muted); font-variant-numeric: tabular-nums; }
-/* Excluido: tachado, atenuado, PERO con su % visible (no re-basea). */
-.admin-strip__leg.is-fuera .admin-strip__leglbl,
-.admin-strip__leg.is-fuera .admin-strip__legpct { text-decoration: line-through; }
-.admin-strip__leg.is-fuera { opacity: .5; }
-.admin-strip__leg.is-fuera .admin-strip__legsw { opacity: .4; }
-
 /* La lista tabular del panel (grid-list) se EXTRAJO al DS como `.duna-lista`
    (§ primitives.css) al llegar su segundo consumidor —Pagos e Inventario—. Ya no
    vive acá; Pagos y el kardex la consumen con las clases `duna-lista*`. */
-
-/* Modo MÉTODO del strip: una barra por método, cifra arriba, etiqueta abajo. */
-.admin-strip__metodos { display: flex; align-items: flex-end; gap: var(--duna-space-2); }
-.admin-strip__mcol { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: var(--duna-space-1);
-                     border: 0; background: transparent; padding: var(--duna-space-1); cursor: pointer; border-radius: var(--duna-r-s); }
-.admin-strip__mcol:hover { background: var(--duna-wash-hover); }
-.admin-strip__mcol.is-sel { background: var(--duna-wash-hover); box-shadow: inset 0 0 0 1px var(--duna-border-2); }
-.admin-strip__mval { font-size: var(--duna-text-caption); color: var(--duna-muted); white-space: nowrap; }
-.admin-strip__mcol.is-sel .admin-strip__mval { color: var(--duna-ink); }
-.admin-strip__mbararea { width: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
-.admin-strip__mbar { width: 100%; min-height: 2px; border-radius: var(--duna-r-s) var(--duna-r-s) 0 0; }
-.admin-strip__mlbl { font-size: var(--duna-text-caption); color: var(--duna-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.admin-strip__mcol.is-sel .admin-strip__mlbl { color: var(--duna-ink); font-weight: var(--duna-w-semi); }
 
 /* ── TOOLTIP DUNA ─────────────────────────────────────────────────────────────
    Superficie del tooltip (components/ui/tooltip.tsx `TooltipContent`), estilizada
