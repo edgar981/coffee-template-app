@@ -219,7 +219,7 @@ export function PagosStrip({
         ))}
       </div>
       {hayParcial && (
-        <p className="admin-strip__nota">· período parcial (el rango arranca o termina a mitad de {escala === 'semana' ? 'semana' : escala === 'mes' ? 'mes' : escala === 'trimestre' ? 'trimestre' : 'período'})</p>
+        <p className="admin-strip__nota">· período parcial (el rango arranca o termina a mitad de {escala === 'semana' ? 'semana' : escala === 'mes' ? 'mes' : 'período'})</p>
       )}
 
       {splitReal && (
