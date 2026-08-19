@@ -82,6 +82,32 @@ function abreviaCOP(n: number): string {
 
 const UNIDAD: Record<Escala, string> = { dia: 'día', semana: 'semana', mes: 'mes' };
 
+/**
+ * El hueco de la curva mientras el dato viaja.
+ *
+ * Vive ACÁ y no en la página para que comparta `ALTO` y las clases del bloque cargado:
+ * así el alto coincide POR CONSTRUCCIÓN y no por una suma que alguien tenga que
+ * mantener. La zona fija no scrollea —si el hueco midiera distinto, el bloque saltaría
+ * al llegar el dato, y debajo está el libro cuyas filas se cuentan una por una—.
+ *
+ * No dice NADA: un texto acá tendría que afirmar algo sobre un dato que todavía no
+ * existe, que es justo el defecto que este esqueleto viene a cerrar.
+ */
+export function PagosCurvaEsqueleto() {
+  return (
+    <div className="admin-grafico" aria-hidden="true">
+      <div className="admin-grafico__caja" style={{ height: ALTO, display: 'flex', alignItems: 'flex-end' }}>
+        <span style={{ width: '100%', height: '58%', borderRadius: 'var(--duna-r-s)', background: 'var(--duna-skel)' }} />
+      </div>
+      <div className="admin-grafico__eje" />
+      <p className="admin-grafico__hint">
+        <span style={{ display: 'inline-block', width: '19rem', maxWidth: '80%', height: '0.85em',
+                       borderRadius: 3, background: 'var(--duna-skel)', verticalAlign: 'middle' }} />
+      </p>
+    </div>
+  );
+}
+
 export function PagosCurva({
   pagos, desde, hasta, metodoFiltrado, bucketSel, onBucket, onMetodo,
 }: {

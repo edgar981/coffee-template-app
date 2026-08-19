@@ -6,7 +6,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { FilterX, Paperclip, X } from 'lucide-react';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { PresetsPeriodo } from '@/components/admin/PresetsPeriodo';
-import { PagosCurva } from '@/components/admin/PagosCurva';
+import { PagosCurva, PagosCurvaEsqueleto } from '@/components/admin/PagosCurva';
 import { getPayments } from '@/lib/api/payments';
 import type { Payment, MetodoPago } from '@/types/payment';
 import { METODO_PAGO_LABEL, METODO_CATEGORIA, PAYMENT_CATEGORIA_LABEL, type PaymentCategoria } from '@/types/payment';
@@ -155,18 +155,48 @@ function PagosInner() {
             El h1 ES la frase —el nombre de la sección ya lo dan el rail y la pestaña—.
             Peso 500 con la cifra y el conteo en semibold: los tramos vienen partidos de
             `fraseDePagos` para que la tipografía no se desincronice de la gramática. */}
-        <div>
+        <div aria-busy={loading || undefined}>
           {/* SIN eyebrow de rango: el rango ya se lee en el date picker de abajo, y
               repetirlo acá costaba una línea de la zona fija —que no scrollea— por un
               dato que ya está en pantalla. `frase.eyebrow` sigue existiendo para cuando
-              el rango suba al topbar. */}
-          <h1 className="duna-display-m"
-              style={{ fontWeight: 'var(--duna-w-medium)', margin: 0 }}>
-            {frase.tramos.map((tr, i) => tr.fuerte
-              ? <strong key={i} style={{ fontWeight: 'var(--duna-w-semi)' }}>{tr.t}</strong>
-              : <span key={i}>{tr.t}</span>)}
-          </h1>
-          <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>{frase.subtitulo}</p>
+              el rango suba al topbar.
+
+              LA FRASE TIENE TRES ESTADOS, NO DOS: cargando · vacío · con datos. Sin el
+              primero, `pagos` en `[]` mientras viaja el fetch cae en la rama del VACÍO y
+              la pantalla AFIRMA "no entró ningún pago… simplemente no hubo" sobre un dato
+              que todavía no llegó. Es peor que un loader feo: ese subtítulo está escrito
+              para convencer de que el dato es cierto.
+
+              El esqueleto va SIEMPRE que carga, no sólo en el arranque: al cambiar de
+              rango la frase vieja se quedaría afirmando el rango anterior ("Este mes
+              entraron $ 315.000" mientras llega julio), que es la misma mentira, más
+              sutil y más creíble.
+
+              Usa los MISMOS elementos que la frase cargada (`duna-display-m`, `duna-sub`)
+              con barras grises adentro, así el alto sale de la misma tipografía. */}
+          {loading ? (
+            <>
+              <h1 className="duna-display-m" aria-hidden="true"
+                  style={{ fontWeight: 'var(--duna-w-medium)', margin: 0 }}>
+                <span style={{ display: 'inline-block', width: '62%', maxWidth: '32rem', height: '0.85em',
+                               borderRadius: 4, background: 'var(--duna-skel)', verticalAlign: 'middle' }} />
+              </h1>
+              <p className="duna-sub" aria-hidden="true" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>
+                <span style={{ display: 'inline-block', width: '40%', maxWidth: '22rem', height: '0.85em',
+                               borderRadius: 3, background: 'var(--duna-skel)', verticalAlign: 'middle' }} />
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="duna-display-m"
+                  style={{ fontWeight: 'var(--duna-w-medium)', margin: 0 }}>
+                {frase.tramos.map((tr, i) => tr.fuerte
+                  ? <strong key={i} style={{ fontWeight: 'var(--duna-w-semi)' }}>{tr.t}</strong>
+                  : <span key={i}>{tr.t}</span>)}
+              </h1>
+              <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>{frase.subtitulo}</p>
+            </>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', alignItems: 'center' }}>
@@ -220,13 +250,20 @@ function PagosInner() {
             que se va al scrollear obliga a volver arriba para leer el contexto de la
             fila que se está mirando. Lo que cuesta es alto de cabecera, y por eso la
             frase reemplazó al bloque título+stat. */}
-        {!loading && pagos.length > 0 && (
+        {loading ? (
+          /* El MISMO `loading` gobierna los tres bloques (frase, gráfico, libro), así que
+             los tres esqueletos entran y salen en el mismo render: si uno volviera antes,
+             la zona fija parpadearía en dos tiempos. Y el hueco mide lo MISMO que el
+             bloque cargado —comparte `ALTO` y las clases—, así que no hay salto de layout
+             en la zona que justamente no se mueve. */
+          <PagosCurvaEsqueleto />
+        ) : pagos.length > 0 ? (
           <PagosCurva
             pagos={pagos} desde={from} hasta={to}
             metodoFiltrado={metodo} bucketSel={bucketSel}
             onBucket={setBucketSel} onMetodo={onMetodo}
           />
-        )}
+        ) : null}
       </div>{/* /duna-cabecera */}
 
       {/* REGIÓN — el libro y NADA MÁS, así que es el hijo ÚNICO: `.duna-region > *` lo
