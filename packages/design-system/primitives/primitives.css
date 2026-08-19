@@ -1026,7 +1026,11 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 .duna-stat:first-child { border-left: none; padding-left: 0; }
 .duna-stat__v { font-family: var(--duna-font-display); font-size: var(--duna-text-display-m); font-weight: var(--duna-w-semi); letter-spacing: var(--duna-tr-snug); }
 .duna-stat__l { font-size: var(--duna-text-caption); color: var(--duna-muted); margin-top: 1px; }
-.duna-stat__d { font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi); margin-top: var(--duna-space-hairline); }
+/* El descriptor del stat: SUBORDINADO a la cifra, nunca compite. Sirve a dos usos —un
+   QUALIFIER ("del recorte activo": a qué se refiere la cifra) y un DESCARGO ("no
+   contable": advierte sobre su validez)— y los dos van muted por defecto. Muted, no
+   ink: el color es el token que los vuelve subordinados a los dos. */
+.duna-stat__d { font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi); color: var(--duna-muted); margin-top: var(--duna-space-hairline); }
 .duna-up   { color: var(--duna-ok-ink); }
 .duna-down { color: var(--duna-bad-ink); }
 

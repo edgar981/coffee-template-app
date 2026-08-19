@@ -198,15 +198,16 @@ function Inventario() {
 
       {error && <div className="duna-note" role="alert">{error}</div>}
 
-      {/* ── Valor del inventario — estado vigente, con su descargo ──────────── */}
+      {/* ── Valor del inventario — estado vigente, con su descargo ──────────────
+          El descargo va en `.duna-stat__d`, la MISMA forma que el qualifier de Pagos
+          —un descriptor subordinado DENTRO del stat, muted—, no un `<p>` suelto al
+          lado. Un solo patrón para "la línea bajo la cifra". */}
       <div style={{ marginBottom: 'var(--duna-space-6)' }}>
         <div className="duna-stat" style={{ display: 'inline-block' }}>
           <div className="duna-stat__v duna-num">{cargandoProd ? '—' : formatCOP(valorTotal)}</div>
           <div className="duna-stat__l">Valor del inventario</div>
+          <div className="duna-stat__d">Valuación estimada con el costo actual del catálogo, no contable.</div>
         </div>
-        <p className="duna-caption" style={{ margin: 'var(--duna-space-2) 0 0' }}>
-          Valuación estimada con el costo actual del catálogo, no contable.
-        </p>
       </div>
 
       {/* ── El kardex completo · la vista de auditoría ─────────────────────── */}
