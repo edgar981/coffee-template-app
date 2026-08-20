@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -7,6 +8,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
 import { dayKeyToDate, dateToDayKey } from '@/lib/day-key';
 import { anioPisoPicker } from '@/lib/metrics/periodo';
+import { avanzarSeleccion } from '@/lib/rango-picker';
 
 // Shared admin date-range picker — extracted from the Órdenes filter so Pagos
 // (and future admin pages) reuse the exact trigger button, two-month layout, and
@@ -29,11 +31,27 @@ export function DateRangePicker({ desde, hasta, onChange, pisoAnio }: {
   // pasa acá y el picker no cambia. El `DateField` del drawer no la usa.
   pisoAnio?: number;
 }) {
+  // El primer clic de un rango en curso vive ACÁ y no sale: `onChange` se llama SÓLO
+  // con rangos completos, así que las pantallas nunca ven un medio-rango (§ el contrato
+  // estrecho de lib/rango-picker). Se resetea al abrir/cerrar el popover: un rango a
+  // medias no sobrevive a un Escape ni a un clic fuera.
+  const [pendiente, setPendiente] = useState<string | null>(null);
+
   const active = Boolean(desde || hasta);
-  const range = {
+  const rangoComprometido = {
     from: desde ? dayKeyToDate(desde) : undefined,
     to:   hasta ? dayKeyToDate(hasta) : undefined,
   };
+  // Lo que el calendario PINTA. Con un ancla pendiente va `{from, to: undefined}`: RDP
+  // marca ese día como `selected` (vía `rangeIncludesDate` → `isSameDay(from, date)`,
+  // medido en la fuente), así el operador VE que su primer clic registró; `range_start/
+  // end/middle` exigen `from && to`, así que no aparece banda-media fantasma. Sin ancla,
+  // el rango comprometido.
+  const range = pendiente ? { from: dayKeyToDate(pendiente), to: undefined } : rangoComprometido;
+  // Hay algo que pintar si hay un ancla pendiente O un rango comprometido. Con pendiente
+  // pero sin rango previo (Pedidos/Inventario, primera selección) `active` es false, así
+  // que no alcanza mirar sólo las props.
+  const haySeleccion = pendiente !== null || active;
 
   // "Today" is the America/Bogota day (not the viewer's), converted to a local
   // Date because react-day-picker reasons in local calendar terms. `now` se lee UNA
@@ -62,7 +80,7 @@ export function DateRangePicker({ desde, hasta, onChange, pisoAnio }: {
   // No standalone clear (✕) here: the range is cleared by each page's single
   // "Limpiar" reset, which also resets the page's other filters and the URL.
   return (
-    <Popover>
+    <Popover onOpenChange={() => setPendiente(null)}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className={`h-9 gap-2 ${active ? 'border-primary/50 text-foreground' : 'text-muted-foreground'}`}>
           <CalendarDays className="w-4 h-4" />
@@ -78,7 +96,7 @@ export function DateRangePicker({ desde, hasta, onChange, pisoAnio }: {
           // el histórico. Los `<select>` son nativos (aceptado); su overlay lo repone
           // `calendar.tsx` porque no importamos el CSS de la librería.
           captionLayout="dropdown"
-          selected={active ? range : undefined}
+          selected={haySeleccion ? range : undefined}
           defaultMonth={leftMonth}
           // v10: `startMonth`/`endMonth` acotan la navegación (v8: `fromMonth`/`toMonth`).
           // `startMonth` es OBLIGATORIO para que el dropdown de año no salga vacío
@@ -86,10 +104,22 @@ export function DateRangePicker({ desde, hasta, onChange, pisoAnio }: {
           startMonth={startNav}
           endMonth={currentMonthStart}
           disabled={{ after: today }}
-          onSelect={(r) => onChange(
-            r?.from ? dateToDayKey(r.from) : null,
-            r?.to   ? dateToDayKey(r.to)   : null,
-          )}
+          // La sugerencia de la librería se IGNORA: react-day-picker, sobre un rango
+          // completo, deja `from` clavado y mueve sólo `to` —así no se puede empezar un
+          // rango que arranque después del `from` vigente—. Se maneja por el DÍA
+          // CLICKEADO y nada más (`avanzarSeleccion`, § lib/rango-picker, con su test).
+          // El primer clic ARRANCA (guarda el ancla, no emite); el segundo COMPLETA y
+          // ahí sí sale `onChange` con el rango entero. El medio-rango no sale de acá.
+          onSelect={(_r, diaClic) => {
+            if (!diaClic) return;
+            const paso = avanzarSeleccion(pendiente, dateToDayKey(diaClic));
+            if (paso.fase === 'arranca') {
+              setPendiente(paso.pendiente);
+            } else {
+              setPendiente(null);
+              onChange(paso.desde, paso.hasta);
+            }
+          }}
           numberOfMonths={2}
         />
       </PopoverContent>

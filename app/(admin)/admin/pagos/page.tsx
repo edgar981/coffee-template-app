@@ -3,9 +3,11 @@
 import { Suspense, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { FilterX, Paperclip, X } from 'lucide-react';
+import { Download, FilterX, Paperclip, X } from 'lucide-react';
 import { DateRangePicker } from '@/components/admin/DateRangePicker';
 import { PresetsPeriodo } from '@/components/admin/PresetsPeriodo';
+import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { toast } from 'sonner';
 import { PagosCurva, PagosCurvaEsqueleto } from '@/components/admin/PagosCurva';
 import { getPayments } from '@/lib/api/payments';
 import type { Payment, MetodoPago } from '@/types/payment';
@@ -16,6 +18,8 @@ import { BUSINESS_TZ, zonedDayKey, startOfZonedDay } from '@duna/core/timezone';
 import { rangoDeDiasDelPeriodo, opcionesPreset } from '@/lib/metrics/periodo';
 import { bucketKey, bucketear } from '@/lib/pagos/bucketeo';
 import { fraseDePagos, mejorDiaDe } from '@/lib/pagos/frase';
+import { modeloInforme } from '@/lib/pagos/informe';
+import { siteConfig } from '@/lib/config/site';
 import { etiquetaBucket, type RecorteTiempo } from '@/lib/pagos/etiquetas';
 
 // Columnas del libro (grid-list). Flexibles: caben en la región sin scroll horizontal
@@ -47,6 +51,10 @@ function PagosInner() {
   );
   const [pagos, setPagos]     = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  // El fallo de carga es un ESTADO de la pantalla, no un silencio. Ver el efecto.
+  const [errorCarga, setErrorCarga] = useState(false);
+  // Se bumpea al reintentar: re-dispara el efecto sin tocar el rango.
+  const [intento, setIntento] = useState(0);
   const [metodo, setMetodo]   = useState<string>('all');      // 'all' | MetodoPago | `cat:${cat}`
   const [from, setFrom]       = useState(() => searchParams.get('desde') ?? rangoMes.desde);
   const [to, setTo]           = useState(() => searchParams.get('hasta') ?? rangoMes.hasta);
@@ -61,27 +69,42 @@ function PagosInner() {
     let active = true;
     setLoading(true);
     getPayments(from, to)
-      .then(data => { if (active) setPagos(data); })
-      .catch(() => {})
+      .then(data => { if (active) { setPagos(data); setErrorCarga(false); } })
+      // EL FALLO SE VE, Y EL DATO VIEJO NO SOBREVIVE. Antes era un `.catch(() => {})`:
+      // una consulta que fallaba dejaba en pantalla los pagos del rango ANTERIOR bajo
+      // la etiqueta del rango NUEVO —mostrar de más y mentir, que es lo contrario de
+      // la regla de esta ruta ("mostrar menos antes que mentir")—. Y el informe lo
+      // heredaba: un PDF no puede verificar nada, sólo propagar con más autoridad.
+      .catch(() => { if (active) { setPagos([]); setErrorCarga(true); } })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [from, to]);
+  }, [from, to, intento]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  // UNA fuente para la frase, el gráfico y el libro: método (select) + recorte de
-  // tiempo (chip: clic en un punto o en una fecha). Todo sobre `pagos`.
-  const filtered = useMemo(() => {
-    const metOk = (m: MetodoPago) => {
-      if (metodo === 'all') return true;
-      if (metodo.startsWith('cat:')) return METODO_CATEGORIA[m] === metodo.slice(4);
-      return m === metodo;
-    };
-    return pagos.filter(p =>
-      metOk(p.metodo) &&
-      (!bucketSel || bucketKey(new Date(p.fecha), bucketSel.escala) === bucketSel.key),
-    );
-  }, [pagos, metodo, bucketSel]);
+  // Los métodos que el filtro incluye — VARIOS si es un grupo ("Cualquier digital").
+  // El informe los necesita para marcar las filas que su detalle desarrolla.
+  const metodosDelFiltro = useMemo<MetodoPago[] | null>(() => {
+    if (metodo === 'all') return null;
+    const todos = Object.keys(METODO_PAGO_LABEL) as MetodoPago[];
+    if (metodo.startsWith('cat:')) return todos.filter(m => METODO_CATEGORIA[m] === metodo.slice(4));
+    return todos.filter(m => m === metodo);
+  }, [metodo]);
+
+  // UNA fuente para la frase, el gráfico y el libro. El filtro son DOS pasos, y se
+  // dejan explícitos porque el informe consume el intermedio: `enBucket` es el recorte
+  // de TIEMPO (rango + bucket) sin el filtro de método, y de él sale el desglose por
+  // método del PDF —que muestra el período completo aunque el select filtre—. La
+  // relación `filtered ⊆ enBucket` es la garantía de que las dos cifras del documento
+  // salen del mismo array y no de dos consultas.
+  const enBucket = useMemo(
+    () => pagos.filter(p => !bucketSel || bucketKey(new Date(p.fecha), bucketSel.escala) === bucketSel.key),
+    [pagos, bucketSel],
+  );
+  const filtered = useMemo(
+    () => (metodosDelFiltro === null ? enBucket : enBucket.filter(p => metodosDelFiltro.includes(p.metodo))),
+    [enBucket, metodosDelFiltro],
+  );
 
   const totalPeriodo = filtered.reduce((sum, p) => sum + p.monto, 0);
 
@@ -134,6 +157,36 @@ function PagosInner() {
     );
   };
 
+  // ── El INFORME (PDF) ───────────────────────────────────────────────────────
+  // La PRIMERA acción de esta pantalla, que es un libro de sólo lectura. Descargar no
+  // escribe, así que no rompe esa definición — y por eso el botón va SECUNDARIO, nunca
+  // primario: Pagos no tiene una acción principal que ofrecer.
+  //
+  // Lleva la guarda de doble-submit porque generar mil filas TARDA: un botón mudo
+  // mientras trabaja es exactamente lo que invita al segundo click (§ la frontera del
+  // patrón). El error va por TOAST y no por `ErrorDialogo`: no hay diálogo donde vivir.
+  const informe = useAccionGuardada();
+  const descargarInforme = () => informe.ejecutar(async () => {
+    try {
+      // El modelo sale de lo que la pantalla YA tiene —`filtered` y la misma frase—,
+      // no de una segunda consulta: el informe no puede contener un conjunto que el
+      // libro no muestre.
+      const modelo = modeloInforme({
+        negocio: siteConfig.brand.nombre,
+        ahora: new Date(),
+        pagos: filtered, enBucket,
+        desde: from, hasta: to,
+        metodoLabel, metodosDelFiltro, mejorDia,
+      });
+      // La librería viaja en su propio chunk: se descarga al pedir el informe, no al
+      // abrir Pagos.
+      const { generarInformePdf, descargar } = await import('@/lib/pagos/informe-pdf');
+      descargar(await generarInformePdf(modelo), modelo.nombreArchivo);
+    } catch {
+      toast.error('No se pudo generar el informe. Volvé a intentarlo.');
+    }
+  });
+
   const clearFilters = () => {
     setMetodo('all'); setFrom(rangoMes.desde); setTo(rangoMes.hasta);
     setBucketSel(null);
@@ -174,7 +227,21 @@ function PagosInner() {
 
               Usa los MISMOS elementos que la frase cargada (`duna-display-m`, `duna-sub`)
               con barras grises adentro, así el alto sale de la misma tipografía. */}
-          {loading ? (
+          {errorCarga ? (
+            /* LA FRASE DICE EL FALLO. Es el bloque que miente cuando algo sale mal —lo
+               fue con el esqueleto de carga— así que es exactamente donde tiene que
+               decirse la verdad: callar acá dejaría la cifra vieja o un vacío que se
+               lee como "no hubo pagos". */
+            <>
+              <h1 className="duna-display-m" role="alert"
+                  style={{ fontWeight: 'var(--duna-w-medium)', margin: 0 }}>
+                No se pudieron cargar los pagos de este rango.
+              </h1>
+              <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>
+                No es que no haya: la consulta falló. Reintentá abajo.
+              </p>
+            </>
+          ) : loading ? (
             <>
               <h1 className="duna-display-m" aria-hidden="true"
                   style={{ fontWeight: 'var(--duna-w-medium)', margin: 0 }}>
@@ -244,13 +311,25 @@ function PagosInner() {
               <FilterX /> Limpiar filtros
             </button>
           )}
+          {/* El informe cierra la fila, empujado a la derecha: es una ACCIÓN, no un
+              filtro, y mezclarlo con los controles del recorte lo haría parecer uno.
+              Secundario a propósito — esta pantalla no tiene acción primaria. */}
+          <button
+            type="button"
+            className="duna-btn duna-btn--secondary duna-btn--sm"
+            style={{ marginLeft: 'auto' }}
+            onClick={descargarInforme}
+            disabled={informe.enVuelo || loading || errorCarga || filtered.length === 0}
+          >
+            <Download /> {informe.enVuelo ? 'Generando…' : 'Descargar informe'}
+          </button>
         </div>
 
         {/* EL GRÁFICO va en la ZONA FIJA: no scrollea. Decisión del owner — un gráfico
             que se va al scrollear obliga a volver arriba para leer el contexto de la
             fila que se está mirando. Lo que cuesta es alto de cabecera, y por eso la
             frase reemplazó al bloque título+stat. */}
-        {loading ? (
+        {errorCarga ? null : loading ? (
           /* El MISMO `loading` gobierna los tres bloques (frase, gráfico, libro), así que
              los tres esqueletos entran y salen en el mismo render: si uno volviera antes,
              la zona fija parpadearía en dos tiempos. Y el hueco mide lo MISMO que el
@@ -269,7 +348,18 @@ function PagosInner() {
       {/* REGIÓN — el libro y NADA MÁS, así que es el hijo ÚNICO: `.duna-region > *` lo
           hace scroller y su `__head` pega contra él (el caso sticky canónico). */}
       <div className="duna-region">
-          {loading ? (
+          {errorCarga ? (
+            <div className="duna-card duna-card__pad">
+              <p className="duna-sub" style={{ margin: 0 }}>
+                No se pudieron cargar los pagos. Puede ser la conexión o el rango pedido.
+              </p>
+              <button type="button" className="duna-btn duna-btn--secondary duna-btn--sm"
+                      style={{ marginTop: 'var(--duna-space-3)' }}
+                      onClick={() => setIntento(n => n + 1)}>
+                Reintentar
+              </button>
+            </div>
+          ) : loading ? (
             /* El hueco de la carga tiene la FORMA de lo que llega: filas del grid-list,
                no un spinner ni un esqueleto de tarjeta (eso sugeriría que va a llegar
                otra cosa). Sin pieza nueva —el marcado es `.duna-lista` con celdas grises—.

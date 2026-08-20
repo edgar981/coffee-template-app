@@ -1,6 +1,6 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-19.
+**Actualizado:** 2026-08-20.
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -73,8 +73,48 @@ retiraron con censo por contenido.
   110 a 100 —el piso de legibilidad—. El hint NO se tocó a propósito: es la única
   declaración de que la curva es clickeable.
 
+- **El INFORME (PDF)** — la primera ACCIÓN de la pantalla, y no rompe el "libro de sólo
+  lectura" (descargar no escribe). Botón secundario al final de los filtros. Se genera en
+  el CLIENTE por fuente única (un endpoint sería una segunda lectura del mismo recorte),
+  en tres capas (modelo puro y testeado ≠ layout ≠ bytes de jsPDF), con la librería en
+  `import()` dinámico —verificado sobre el artefacto: no viaja en el bundle de Pagos—.
+  Tope de **1.000 filas declarado EN el PDF**. Estructura: negocio + fecha de generación ·
+  PAGOS + rango · RESUMEN · POR MÉTODO (del período completo aunque el select filtre,
+  rotulado) · DETALLE · pie con paginación y "Generado con Duna".
+
+  El informe pasó por tres correcciones antes de cerrar: (1) de tabla volcada a DOCUMENTO
+  —un documento necesita MÁS contexto que la pantalla, no menos: negocio, fecha, paginación,
+  y el desglose por método del período completo aunque el select filtre—; (2) el detalle
+  salía vacío (el bucle de filas se perdió al editar el renderer) + marca Duna en el pie +
+  filas en cero fuera; (3) columnas superpuestas, jerarquía tipográfica y banda cebra.
+
+- **El fallo de carga de Pagos SE VE** (era un `.catch(() => {})`): al fallar, la frase
+  DICE el error, el gráfico no dibuja, el libro lleva "Reintentar", y el dato viejo NO
+  sobrevive bajo la etiqueta nueva. Sin toast (el error es persistente). El
+  `aceptar-invitacion:53` —mismo patrón— quedó en backlog #33.
+
+- **El date-range picker: cambiar de rango sin limpiar filtros.** ESTABA ROTO EN
+  PRODUCCIÓN, en las TRES pantallas (Pedidos, Inventario, Pagos): react-day-picker, sobre
+  un rango completo, deja `from` clavado y mueve sólo `to`, así que un clic no podía
+  empezar un rango nuevo. Ahora el medio-rango vive DENTRO del picker (`avanzarSeleccion`,
+  puro y testeado) y `onChange` emite SÓLO rangos completos —los padres quedan ajenos—.
+
 Quedan de antes: stats podadas a solo "Total", loader = skeleton de filas del grid-list,
 y el crossfade de 200ms al cambiar de eje.
+
+**DOS COSAS QUE COSTARON CARO HOY (2026-08-19), para que no se pierdan:**
+
+1. **El picker estaba roto EN PRODUCCIÓN desde antes de esta tanda** —no se podía cambiar
+   de rango sin limpiar filtros, en las tres pantallas—. Lo TAPABAN los presets: quien
+   navega por presets nunca clickea el calendario dos veces, así que nadie lo topó. Salió
+   a la luz sólo cuando un PDF declaró un rango en su encabezado y trajo las filas de otro.
+   Un defecto de interacción puede vivir meses detrás de un atajo que lo esquiva.
+
+2. **Un documento hereda la verdad de la pantalla que lo genera.** El informe no tenía
+   defecto propio: copió fielmente una pantalla que ya mentía (el rango equivocado del
+   picker). Y la propagó CON MÁS AUTORIDAD —un PDF se lee lejos, sin el filtro a la vista y
+   sin poder verificar nada—. Cuando algo se exporta, arreglar la fuente es arreglar el
+   documento; blindar el documento sin mirar la fuente es tratar el síntoma.
 
 **Tooltip Duna CERRADO** (§ CLAUDE.md "El tooltip del panel") — la primitiva
 `DunaTooltip` es ADMIN-LEVEL (envuelve Radix; el paquete queda sin conducta) y la
