@@ -406,7 +406,18 @@ function PagosInner() {
                       ? <Link href={`/admin/pedidos?pedido=${encodeURIComponent(p.order.numero_orden)}`} className="duna-link">{p.order.numero_orden}</Link>
                       : <span className="duna-sub">—</span>}
                   </span>
-                  <span data-label="Cliente" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.order?.cliente_nombre ?? '—'}</span>
+                  {/* El nombre navega al perfil, PERO sólo si hay id: `cliente_id` es
+                      nullable (SetNull al borrar el cliente deja el nombre snapshot sin
+                      id), y un link muerto promete una navegación que no ocurre. Sin id
+                      → texto plano; sin nombre → '—'. Mismo patrón que el detalle de
+                      Pedidos (clienteHref). */}
+                  <span data-label="Cliente" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p.order?.cliente_nombre
+                      ? (p.order.cliente_id
+                          ? <Link href={`/admin/clientes?cliente=${encodeURIComponent(p.order.cliente_id)}`} className="duna-link">{p.order.cliente_nombre}</Link>
+                          : p.order.cliente_nombre)
+                      : <span className="duna-sub">—</span>}
+                  </span>
                   <span data-label="Monto" className="duna-lista__r duna-num">{formatCOP(p.monto)}</span>
                   <span data-label="Método">
                     <button type="button" className="duna-link" onClick={() => onMetodo(p.metodo)}
