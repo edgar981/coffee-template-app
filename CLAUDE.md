@@ -973,6 +973,31 @@ producto con dos criterios de marca.
 **DISPARADOR: cuando el wordmark provisional del sidebar se reemplace por el logo real.**
 Ahí se decide también el del PDF, en la misma tanda y con el mismo asset.
 
+### 34. El padding del sheet es responsabilidad REPARTIDA — cuatro consumidores lo cablean
+
+`DunaSheet` no monta el padding de su cuerpo: lo pone el CONSUMIDOR envolviendo su
+contenido en `.duna-sheet__body` (el scroller con padding). Cuatro sitios lo hacen a mano
+—el detalle de Pedidos, Productos y Clientes, y ahora MobileNav—, y **MobileNav ya se
+olvidó una vez** (su título y sus botones salían pegados a los bordes; se arregló envolviendo
+como los otros tres). El quinto consumidor lo va a olvidar igual.
+
+**Costo YA pagado:** el hueco de padding del sheet de MobileNav, un turno de diagnóstico
+—descartar que fuera de la primitiva antes de ver que era del consumidor—. Bajo, pero real,
+y es exactamente el modo de falla que se repite: una responsabilidad que el consumidor tiene
+que recordar es una que alguien no recuerda.
+
+**La decisión, que es de SISTEMA y por eso va aparte:** que `DunaSheet` monte
+`.duna-sheet__body` ÉL MISMO alrededor de sus children, y se quite el wrap manual de los
+otros tres consumidores (si no, doble padding). Con eso el padding deja de ser algo que
+recordar. Ojo con el detalle al hacerlo: los tres de detalle envuelven un `detalleNodo`
+que YA es el scroller —`overflow-y: auto`—, así que hay que verificar que mover el `__body`
+a la primitiva no cambie qué elemento scrollea (el sheet tiene `max-height` y el cuerpo es
+el que debe scrollear).
+
+**DISPARADOR: el QUINTO consumidor de `DunaSheet`, o la próxima vez que se toque la
+primitiva.** Antes no —con cuatro consumidores todavía es más barato el wrap repetido que
+el refactor de la primitiva + sus tres call sites—.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
