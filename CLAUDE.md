@@ -998,6 +998,28 @@ el que debe scrollear).
 primitiva.** Antes no —con cuatro consumidores todavía es más barato el wrap repetido que
 el refactor de la primitiva + sus tres call sites—.
 
+### 35. Los carriles de Pedidos son NUEVE — la barra empezó a leerse como lista
+
+Con "Listas para despachar", Pedidos tiene NUEVE carriles (Todos · Necesitan atención · En
+preparación · Listas para despachar · En camino · Entregados · Por verificar · Por cobrar ·
+Cancelado), y a 1280 con rail expandido ocupan **dos filas** (los 9 pills suman 1059px sobre
+~992px de contenido; medido).
+
+**El problema no es el ancho: es la LECTURA.** Nueve etiquetas dejan de leerse como una
+barra de filtros y empiezan a leerse como una lista —el operador ESCANEA para encontrar la
+suya, que es lo contrario de lo que un carril hace (estar a la vista de un vistazo)—. Cada
+carril entró por buena razón; **nadie revisó la suma.**
+
+**Costo YA pagado: ninguno medido** —es legibilidad, no un defecto—, y por eso va acá abajo.
+
+**DISPARADOR: cuando haya uso real de Nayoli.** Ahí se mira cuáles carriles se tocan y
+cuáles no —un carril que nadie usa se retira CON EL DATO, como se hizo con la cola de
+reposición de Inventario—. No antes: hoy no hay evidencia de cuáles sobran, y podar por
+intuición es cómo se quita el que sí importaba. La forma probable, si hiciera falta antes
+del dato: agrupar los de fulfillment (preparación · listas · camino · entregados) bajo un
+control distinto de los de cobro, o mover los acumuladores (Todos · Entregados · Cancelado)
+fuera de la barra.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
