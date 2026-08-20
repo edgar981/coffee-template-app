@@ -7,6 +7,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
 import { dayKeyToDate, dateToDayKey } from '@/lib/day-key';
 import { anioPisoPicker } from '@/lib/metrics/periodo';
+import { rangoTrasClic } from '@/lib/rango-picker';
 
 // Shared admin date-range picker — extracted from the Órdenes filter so Pagos
 // (and future admin pages) reuse the exact trigger button, two-month layout, and
@@ -86,10 +87,19 @@ export function DateRangePicker({ desde, hasta, onChange, pisoAnio }: {
           startMonth={startNav}
           endMonth={currentMonthStart}
           disabled={{ after: today }}
-          onSelect={(r) => onChange(
-            r?.from ? dateToDayKey(r.from) : null,
-            r?.to   ? dateToDayKey(r.to)   : null,
-          )}
+          // La sugerencia de la librería NO se acepta a ciegas: con un rango COMPLETO,
+          // react-day-picker deja `from` clavado y mueve sólo `to`, así que cada clic se
+          // lee como "nueva fecha final" y el operador no puede cambiar de rango sin
+          // limpiar filtros. `rangoTrasClic` decide (§ lib/rango-picker, con su test).
+          onSelect={(r, diaClic) => {
+            const { desde: d, hasta: h } = rangoTrasClic(
+              { desde, hasta },
+              { desde: r?.from ? dateToDayKey(r.from) : null,
+                hasta: r?.to   ? dateToDayKey(r.to)   : null },
+              diaClic ? dateToDayKey(diaClic) : null,
+            );
+            onChange(d, h);
+          }}
           numberOfMonths={2}
         />
       </PopoverContent>
