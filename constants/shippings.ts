@@ -5,13 +5,6 @@ export const ZONAS = ['norte', 'sur', 'centro', 'oriente', 'occidente', 'exterio
 // Active dispatch states (the Entregas board). `cancelado` is intentionally
 // excluded — it's terminal history, surfaced via a separate filter, not the
 // active board or stat cards.
-export const ESTADOS: ShippingEstado[] = [
-  'preparando', 'en_ruta', 'entregado', 'fallido',
-];
-
-// Filter tabs include cancelled so voided deliveries stay viewable for history.
-export const FILTER_ESTADOS: ShippingEstado[] = [...ESTADOS, 'cancelado'];
-
 // Human labels for the fulfillment enum — use anywhere a raw value would leak
 // (e.g. "en_ruta" → "En ruta"). StatusBadge has its own copy for the pill.
 export const SHIPPING_ESTADO_LABEL: Record<ShippingEstado, string> = {
@@ -57,15 +50,6 @@ export function missingToDispatch(
   if (!s || s.estado !== 'preparando' || isScheduledShipping(s)) return null;
   return !s.mensajero?.trim() ? 'mensajero' : 'fecha';
 }
-
-export const ZONA_COLORS: Record<string, string> = {
-  norte:     'bg-blue-100 text-blue-700',
-  sur:       'bg-green-100 text-green-700',
-  centro:    'bg-muted text-muted-foreground',
-  oriente:   'bg-violet-100 text-violet-700',
-  occidente: 'bg-pink-100 text-pink-700',
-  exterior:  'bg-gray-100 text-gray-700',
-};
 
 // Default operator-supplied fields when scheduling a delivery from a paid order.
 // Order-owned data (number, customer, address, city, cost) is not here — it

@@ -509,7 +509,6 @@ export const AUTOMATION_HREF = {
   // las traduce `redirect-inventario` al MISMO destino.
   stockBajo:  RUTA_REPONER,
   porCobrar:  `/admin/pedidos?${POR_COBRAR_QUERY_PEDIDOS}`,
-  entregas:   '/admin/entregas',
 } as const;
 
 /**

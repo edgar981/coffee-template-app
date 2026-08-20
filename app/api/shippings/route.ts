@@ -22,20 +22,6 @@ const ORDER_SELECT = {
   },
 } as const;
 
-export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-
-  const shippings = await prisma.shipping.findMany({
-    orderBy: { createdAt: 'desc' },
-    take:    200,
-    include: { order: ORDER_SELECT },
-  });
-
-  return NextResponse.json(shippings);
-}
-
 // POST ensures a SCHEDULABLE Shipping exists for an order. It is the ONLY create
 // entry point exposed to the UI (the auto-create on payment lives in
 // lib/fulfillment via transitionOrder).
