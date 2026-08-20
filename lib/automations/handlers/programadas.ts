@@ -4,7 +4,7 @@ import { toWhatsappNumber } from '@duna/core/whatsapp-link';
 import { BUSINESS_TZ, zonedIsoWeekday } from '@duna/core/timezone';
 import { POR_COBRAR_WHERE, ORDENES_REALES } from '@duna/core/metrics/prisma-scopes';
 import { PENDING_ESTADO } from '@duna/core/metrics/order-stat-filters';
-import { AUTOMATION_HREF, hrefOrden } from '@/constants/automations';
+import { AUTOMATION_HREF, hrefOrden, hrefOrdenOLista } from '@/constants/automations';
 import {
   HORAS_ENTREGA_SIN_COBRO, corteEntregaISO, entregaVencidaSinCobro, horasDesdeEntrega,
 } from '../reglas';
@@ -209,7 +209,9 @@ export const envioEstancado: ScheduledHandler = async ({ config, now }) => {
         tipo:    'envio_estancado',
         titulo:  'Envío estancado',
         mensaje: `La orden ${s.order?.numero_orden ?? '—'} lleva ${antiguedad} día${antiguedad === 1 ? '' : 's'} en ruta${quien}.`,
-        href:    AUTOMATION_HREF.entregas,
+        // Al PEDIDO que la notificación nombra, no al board (§ hrefOrden): una
+        // notificación que nombra la orden y lleva a una lista obliga a buscarla a mano.
+        href:    hrefOrdenOLista(s.order?.numero_orden),
       },
     };
   });
