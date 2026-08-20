@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Payment, MetodoPago } from '@/types/payment';
 import { METODO_PAGO_LABEL, METODO_CATEGORIA } from '@/types/payment';
 import { formatCOP } from '@duna/core/utils';
@@ -158,6 +158,49 @@ export function PagosCurva({
 
   const [hover, setHover] = useState<number | null>(null);
 
+  // `hover` NO debe sobrevivir al cambio de eje. Se setea por el `mousemove` del puntero,
+  // pero en TÁCTIL un tap sintetiza un `mousemove` (que lo setea) y NUNCA un `mouseleave`
+  // (que lo limpiaría), así que sin esto el tooltip quedaba pegado al volver a modo tiempo,
+  // sin forma de descartarse. En escritorio era el MISMO bug, invisible: el próximo
+  // movimiento del mouse lo corregía.
+  //
+  // Se resetea con el patrón de reset-EN-RENDER (guardar el modo previo, comparar,
+  // resetear), NO con un `useEffect` —el repo lint-prohíbe `set-state-in-effect`— y NO
+  // subiendo el `key` al componente. El `key={modo}` vive en el `<div>` a PROPÓSITO: si
+  // subiera al componente, resetearía también `ancho` (que hoy sobrevive y se re-mide sin
+  // parpadeo), y el guard `ancho > 0` dejaría un FLASH de curva vacía en cada cambio de
+  // eje. Sería cambiar un defecto por otro. El reset apunta sólo a lo que sobra.
+  const [modoPrevio, setModoPrevio] = useState(modo);
+  if (modo !== modoPrevio) {
+    setModoPrevio(modo);
+    setHover(null);
+  }
+
+  // DESCARTE EN TÁCTIL: un tap fuera de la curva cierra el tooltip. En táctil no hay
+  // `mouseleave`, así que sin esto el tooltip sólo se movía de punto pero no se iba nunca.
+  // Es el patrón de `usePinnedHover` de duna-owner-ui: `pointerdown` en el documento,
+  // scopeado al contenedor.
+  //
+  // - Se registra SÓLO mientras hay tooltip (`activo`), y la dependencia es el BOOLEANO,
+  //   no el índice: en escritorio los cambios punto→punto del hover no lo re-registran.
+  // - Como el efecto corre DESPUÉS del render que puso `hover`, el listener no existe
+  //   durante el tap que lo originó —no se descarta a sí mismo—. Lo garantiza el efecto,
+  //   no el orden accidental de los eventos.
+  // - Un tap ADENTRO (otro punto de la curva incluido) no descarta: deja que el `mousemove`
+  //   re-apunte y el `onClick` acote. Sólo un tap AFUERA limpia, y sin `preventDefault`,
+  //   así que el control que se tocó sigue funcionando.
+  const contenedorRef = useRef<HTMLDivElement | null>(null);
+  const hayTooltip = hover !== null;
+  useEffect(() => {
+    if (!hayTooltip) return;
+    const alTocarFuera = (e: PointerEvent) => {
+      const cont = contenedorRef.current;
+      if (cont && !cont.contains(e.target as Node)) setHover(null);
+    };
+    document.addEventListener('pointerdown', alTocarFuera);
+    return () => document.removeEventListener('pointerdown', alTocarFuera);
+  }, [hayTooltip]);
+
   const metOk = useMemo(() => (m: MetodoPago) => {
     if (metodoFiltrado === 'all') return true;
     if (metodoFiltrado.startsWith('cat:')) return METODO_CATEGORIA[m] === metodoFiltrado.slice(4);
@@ -275,7 +318,7 @@ export function PagosCurva({
   const hov = hover !== null && hover >= 0 && hover < n ? hover : null;
 
   return (
-    <div key={modo} className="admin-grafico">
+    <div key={modo} ref={contenedorRef} className="admin-grafico">
       {/* SIN cabecera propia: decía la escala ("Ingresos por día") y el hint de abajo ya
           la dice ("Un punto por día · clic para acotar…"). Era el mismo dato dos veces,
           y en la zona fija cada línea se paga en filas de libro. El modo método SÍ la
