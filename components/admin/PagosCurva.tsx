@@ -327,19 +327,35 @@ export function PagosCurva({
         {ancho > 0 && (
           <svg width={ancho} height={alto} role="img"
                aria-label={`Ingresos por ${UNIDAD[escala as Escala]}, ${n} períodos`}
-               onMouseLeave={() => setHover(null)}
-               onMouseMove={e => {
+               // UN SOLO CAMINO: pointer events, no mouse events. Un mouse moderno emite
+               // AMBOS (`mousemove` Y `pointermove`), así que tener los dos haría que cada
+               // movimiento del escritorio setee el hover dos veces —redundante, y el
+               // germen de que un día se peleen—. `onPointerMove` cubre el hover del mouse
+               // (idéntico a lo de antes: `clientX` y el mismo cálculo) Y el scrub del dedo
+               // en táctil. El scrub táctil funciona porque `touch-action: pan-y` manda el
+               // arrastre HORIZONTAL a JS (el vertical se lo queda el navegador para
+               // scrollear, gateado en teléfono).
+               onPointerMove={e => {
                  const rect = e.currentTarget.getBoundingClientRect();
                  const x = e.clientX - rect.left;
                  const i = Math.round(((x - INSET) / Math.max(1, ancho - INSET * 2)) * (n - 1));
                  setHover(Math.min(n - 1, Math.max(0, i)));
                }}
+               // El tooltip se limpia al salir SÓLO con mouse. En táctil `pointerleave`
+               // dispara al levantar el dedo, y ahí el tooltip debe QUEDARSE (se descarta
+               // con un tap fuera, del commit del pan-y). El `pointerType` es el discriminador.
+               onPointerLeave={e => { if (e.pointerType === 'mouse') setHover(null); }}
+               // ACOTAR lo decide el `click`, y el slop del navegador decide si hay click:
+               // un tap (movimiento < slop del SO: ~8px Chromium / ~10px iOS) dispara click
+               // → acota; un arrastre (> slop) NO dispara click → sólo leyó el valor. Por
+               // eso el umbral no lo elige el código —lo pone la plataforma, que ya sabe qué
+               // es un tap en cada SO—.
                onClick={() => {
                  if (hov === null) return;
                  const s = series[hov];
                  onBucket({ escala: escala as Escala, key: s.bucket.key, etiqueta: etiquetaBucket(s.bucket.inicio, escala as Escala) });
                }}
-               style={{ display: 'block', cursor: 'pointer' }}>
+               style={{ display: 'block', cursor: 'pointer', touchAction: 'pan-y' }}>
             {/* El área en TINTE de tinta (5% con color-mix): un token de wash sería
                 prestarle a un chart el significado de un hover. */}
             <path d={area} fill="color-mix(in srgb, var(--duna-ink) 5%, transparent)" />

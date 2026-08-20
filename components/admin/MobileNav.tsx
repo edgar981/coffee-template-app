@@ -120,6 +120,12 @@ export function MobileNav() {
         titulo="Todas las secciones"
         descripcion="El resto de las secciones del panel."
       >
+        {/* El contenido va en `.duna-sheet__body` —el scroller con padding—, igual que
+            los otros tres consumidores del sheet (detalle de Pedidos/Productos/Clientes).
+            Sin este wrap, el título y la grilla quedaban pegados a los bordes: `DunaSheet`
+            no monta el padding, lo pone el consumidor (§ backlog — el padding del sheet
+            es responsabilidad repartida). */}
+      <div className="duna-sheet__body">
         <div className="duna-title" style={{ marginBottom: 'var(--duna-space-3)' }}>Todas las secciones</div>
 
         <div className="duna-sheet__grid">
@@ -151,6 +157,7 @@ export function MobileNav() {
             queda: es el único camino de vuelta a `system` para quien pineó un
             override en ese navegador. Tampoco va bloque de usuario: la identidad
             ya vive en la topbar por debajo del breakpoint (`UserMenu`). */}
+      </div>
       </DunaSheet>
     </>
   );
