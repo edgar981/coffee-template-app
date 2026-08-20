@@ -5,6 +5,7 @@ import { tienePendienteDeVerificar, type ComprobanteEstado } from '@/lib/comprob
 import { conteosDeCola, type CarrilBase, type ConteosDeCola } from '@/lib/carriles';
 import type { OrderStatus, CondicionPago } from '@/types/order';
 import type { ShippingEstado } from '@/types/shipping';
+import { isScheduledShipping } from '@/constants/shippings';
 
 // ─── LOS FILTROS DE PEDIDOS · un registro, no ifs en el JSX ──────────────────
 //
@@ -20,7 +21,7 @@ import type { ShippingEstado } from '@/types/shipping';
 // carril tiene que ser una entrada más y no tocar el render.
 
 export type FiltroKey =
-  | 'todos' | 'atencion' | 'preparacion' | 'camino' | 'entregados'
+  | 'todos' | 'atencion' | 'preparacion' | 'listas_despacho' | 'camino' | 'entregados'
   | 'por_verificar' | 'por_cobrar' | 'cancelado';
 
 /** Lo que un filtro necesita mirar. Une lo de atención con los dos ejes. */
@@ -67,6 +68,15 @@ export const FILTROS_PEDIDOS: FiltroPedidos[] = [
   { key: 'todos',       label: 'Todos',              tipo: 'acumulador', aplica: (o) => isCountableOrder(o.estado) },
   { key: 'atencion',    label: 'Necesitan atención', tipo: 'cola',       aplica: necesitaAtencion },
   { key: 'preparacion', label: 'En preparación',     tipo: 'cola',       aplica: enEtapa('preparando') },
+  // COLA "lista para despachar": preparando CON mensajero Y fecha, listo para
+  // "Marcar en ruta". Reusa `isScheduledShipping` TAL CUAL —el mismo predicado que
+  // gatea el despacho en el detalle y el board— así que no hay una segunda regla que
+  // pueda divergir (mismo criterio que `tienePendienteDeVerificar`). Es SUBCONJUNTO
+  // COMPLETO de "En preparación" (isScheduledShipping ⊂ preparando): una orden lista
+  // cuenta en los DOS carriles, y es correcto —los carriles filtran, no clasifican,
+  // igual que la colisión Por cobrar ↔ Por verificar—. Va entre preparación y camino
+  // porque ése es el orden del flujo de despacho, no del ancho.
+  { key: 'listas_despacho', label: 'Listas para despachar', tipo: 'cola', aplica: (o) => isScheduledShipping(o.shipping) },
   { key: 'camino',      label: 'En camino',          tipo: 'cola',       aplica: enEtapa('en_ruta') },
   { key: 'entregados',  label: 'Entregados',         tipo: 'acumulador', aplica: enEtapa('entregado') },
   // "Por verificar" y "Por cobrar" son las DOS colas del eje de plata/evidencia, y

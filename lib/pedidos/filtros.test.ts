@@ -13,16 +13,18 @@ const o = (x: Partial<OrdenParaFiltro> = {}): OrdenParaFiltro => ({
 const nueva      = o();
 const preparando = o({ shipping: { estado: 'preparando' } });
 const aMedias    = o({ shipping: { estado: 'preparando', mensajero: 'Luis' } });
+// Lista para despachar = preparando CON mensajero Y fecha (isScheduledShipping).
+const lista      = o({ shipping: { estado: 'preparando', mensajero: 'Luis', fecha_programada: '2026-08-25' } });
 const enRuta     = o({ estado: 'pagado', shipping: { estado: 'en_ruta' } });
 const porCobrar  = o({ condicion_pago: 'CONTRAENTREGA', shipping: { estado: 'en_ruta' } });
 const entregada  = o({ estado: 'pagado', shipping: { estado: 'entregado' } });
 const cancelada  = o({ estado: 'cancelado', shipping: { estado: 'cancelado' } });
-const TODAS = [nueva, preparando, aMedias, enRuta, porCobrar, entregada, cancelada];
+const TODAS = [nueva, preparando, aMedias, lista, enRuta, porCobrar, entregada, cancelada];
 
-test('los OCHO carriles, y el conjunto es la decisión', () => {
+test('los NUEVE carriles, y el conjunto es la decisión', () => {
   assert.deepEqual(
     FILTROS_PEDIDOS.map(f => f.label),
-    ['Todos', 'Necesitan atención', 'En preparación', 'En camino', 'Entregados', 'Por verificar', 'Por cobrar', 'Cancelado'],
+    ['Todos', 'Necesitan atención', 'En preparación', 'Listas para despachar', 'En camino', 'Entregados', 'Por verificar', 'Por cobrar', 'Cancelado'],
   );
   // El cobro dejó de ser un carril por el que se entra y pasó a ser una propiedad
   // que se VE en cada fila. Los dos que quedan del eje de plata son carriles de
@@ -42,7 +44,9 @@ test('"Todos" EXCLUYE las canceladas — la misma definición de orden contable 
 });
 
 test('cada carril recoge lo suyo', () => {
-  assert.deepEqual(aplicarFiltro(TODAS, 'preparacion'), [preparando, aMedias]);
+  // `lista` (preparando + mensajero + fecha) también cae acá: es la colisión declarada.
+  assert.deepEqual(aplicarFiltro(TODAS, 'preparacion'), [preparando, aMedias, lista]);
+  assert.deepEqual(aplicarFiltro(TODAS, 'listas_despacho'), [lista]);
   assert.deepEqual(aplicarFiltro(TODAS, 'camino'), [enRuta, porCobrar]);
   assert.deepEqual(aplicarFiltro(TODAS, 'entregados'), [entregada]);
   assert.deepEqual(aplicarFiltro(TODAS, 'por_cobrar'), [porCobrar]);
@@ -73,7 +77,8 @@ test('sólo las COLAS traen número; los acumuladores no', () => {
   const c = conteos(TODAS);
   // Colas: transitorias, se vacían al hacer el trabajo.
   assert.equal(c.atencion, 2);
-  assert.equal(c.preparacion, 2);
+  assert.equal(c.preparacion, 3);   // preparando + aMedias + lista (la colisión)
+  assert.equal(c.listas_despacho, 1);
   assert.equal(c.camino, 2);
   // Ninguna de TODAS trae comprobantes, así que la cola de verificación va en 0 —
   // que es una respuesta ("nada por verificar"), no ausencia.
@@ -160,6 +165,7 @@ test('CADA carril declara qué cuenta — no se puede omitir', () => {
       ['todos', 'acumulador'],
       ['atencion', 'cola'],
       ['preparacion', 'cola'],
+      ['listas_despacho', 'cola'],
       ['camino', 'cola'],
       ['entregados', 'acumulador'],
       ['por_verificar', 'cola'],
@@ -317,4 +323,29 @@ test('`hayAlcance` ve cualquiera de los tres', () => {
   assert.equal(hayAlcance({ ...vacio, desde: '2026-08-10' }), true);
   assert.equal(hayAlcance({ ...vacio, hasta: '2026-08-10' }), true);
   assert.equal(hayAlcance({ ...vacio, estados: ['pendiente'] }), true);
+});
+
+test('carril "Listas para despachar": SOLO preparando con mensajero Y fecha', () => {
+  // La que tiene los dos entra; la a-medias (sin fecha), la preparando pelada, y la
+  // que ya salió (en_ruta) NO — es el gate exacto de despacho, no "casi listo".
+  assert.deepEqual(aplicarFiltro(TODAS, 'listas_despacho'), [lista]);
+  assert.ok(!aplicarFiltro(TODAS, 'listas_despacho').includes(aMedias));
+  assert.ok(!aplicarFiltro(TODAS, 'listas_despacho').includes(preparando));
+  assert.ok(!aplicarFiltro(TODAS, 'listas_despacho').includes(enRuta));
+});
+
+test('COLISIÓN declarada: una lista-para-despachar cuenta también en "En preparación"', () => {
+  // isScheduledShipping ⊂ preparando: la misma orden aparece en los DOS carriles,
+  // y es correcto —filtran, no clasifican, igual que Por cobrar ↔ Por verificar—.
+  assert.ok(aplicarFiltro(TODAS, 'preparacion').includes(lista));
+  assert.ok(aplicarFiltro(TODAS, 'listas_despacho').includes(lista));
+  // Y por eso "En preparación" es superconjunto: contiene a la pelada Y a la lista.
+  assert.deepEqual(aplicarFiltro(TODAS, 'preparacion'), [preparando, aMedias, lista]);
+});
+
+test('"Listas para despachar" es una COLA: lleva número (conteo)', () => {
+  // Una cola se vacía → su pill lleva conteo. Con una sola orden lista, cuenta 1.
+  assert.equal(conteos(TODAS).listas_despacho, 1);
+  // Y el cero es una respuesta ("nada por despachar"), no ausencia: sin la lista, 0.
+  assert.equal(conteos([preparando, aMedias, enRuta]).listas_despacho, 0);
 });
