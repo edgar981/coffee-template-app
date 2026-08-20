@@ -339,7 +339,14 @@ export function PagosCurva({
                  const s = series[hov];
                  onBucket({ escala: escala as Escala, key: s.bucket.key, etiqueta: etiquetaBucket(s.bucket.inicio, escala as Escala) });
                }}
-               style={{ display: 'block', cursor: 'pointer' }}>
+               // `pan-y`: el paneo VERTICAL (scroll de la página) queda para el
+               // navegador; el horizontal y demás gestos van a JS. Es la base del scrub
+               // táctil que viene DESPUÉS (arrastrar el dedo horizontal para leer el
+               // valor sin scrollear); este commit sólo pone la línea para gatear en
+               // teléfono que el scroll vertical sobre la curva NO se captura. El scrub
+               // (pointermove) no está todavía —heredará el slop del navegador para el
+               // tap-vs-arrastre, no un umbral propio que se desincronice de iOS/Android—.
+               style={{ display: 'block', cursor: 'pointer', touchAction: 'pan-y' }}>
             {/* El área en TINTE de tinta (5% con color-mix): un token de wash sería
                 prestarle a un chart el significado de un hover. */}
             <path d={area} fill="color-mix(in srgb, var(--duna-ink) 5%, transparent)" />
