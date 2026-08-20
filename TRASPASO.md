@@ -428,7 +428,8 @@ verificado y no re-verifica. Ruling pendiente con Carlos.
 - **Cuando un arreglo se aplica y el síntoma persiste, el diagnóstico estaba
   incompleto.**
 - **Nada a `main` sin preview verde + gate del owner** (server frío, sesión, ambos
-  temas, teléfono real).
+  temas, teléfono real). El preview EXISTE porque la rama se pushea antes del merge
+  (§ El flujo permanente: rama → preview → gate → merge).
 - **Estado de `main` con fetch fresco, verificado por CONTENIDO.**
 - **"El gate es verde" es vocabulario prohibido para Code**: verdes están las capas
   1 y 2; la capa 3 es del owner.
@@ -507,10 +508,34 @@ Vivos: `#1` · `#2` · `#3` · `#4` · `#5` · `#6` · `#8` · `#10` · `#16` ·
 4. **`#23`** (barras de scroll) como tanda de acabado con gate visual propio.
 5. Backlog cuando sus disparadores se cumplan.
 
+### El flujo permanente: rama → PREVIEW → gate → merge → borrar la rama remota
+
+**La rama de trabajo se PUSHEA a origin ANTES del merge**, para que Vercel construya
+su preview. El owner corre el gate sobre ESE preview —que apunta a **development** y por
+tanto tiene datos— y recién después se mergea. La rama remota se borra tras el merge.
+
+Es un cambio de flujo permanente, y la razón es que sin él la regla de abajo ("nada a
+`main` sin preview verde") era **imposible de cumplir literalmente**: las ramas vivían
+sólo en la máquina local y se borraban tras el merge, así que Vercel **nunca** les
+generaba preview (el último era del 16 de ago). Se gateaba sobre nada, o sobre el deploy
+de `main` —que tras la purga pre-lanzamiento **no tiene datos transaccionales**
+(Payment/Order/Customer ≈ 0), así que no sirve para un gate visual con datos—.
+
+- **El preview apunta a `development`, no a producción** (§ CLAUDE.md "Bases de datos":
+  desde el 2026-08-02 Preview tiene env vars propias a `ep-still-sound`). Por eso tiene
+  datos —dev: ~11 pagos, 15 órdenes, 4 productos, 15 clientes— y por eso pushear la rama
+  es **cero riesgo para producción**: el preview no la toca.
+- **CONFIRMAR UNA VEZ**, antes de apoyar todos los gates en esto: que las env vars de
+  Preview en Vercel dicen `ep-still-sound`. La doctrina lo afirma, pero la doctrina no es
+  evidencia del rol de una base —esta misma sección se contradijo entre el 02 y el 04 de
+  agosto—; el hostname del `process.env` de un preview lo cierra.
+- **La rama remota se borra tras el merge** —el flujo local no cambia salvo el push extra
+  antes de mergear—.
+
 ### Gates que solo puede correr el owner
 Code no tiene sesión: **toda la capa 3 es del owner** — aspecto, flujos, ambos
 temas, teléfono real. Para probar en teléfono, el camino que funciona es **el
-preview de Vercel**.
+preview de Vercel** (§ El flujo permanente: rama → preview → gate → merge).
 
 Para el layout, el gate mínimo son **cuatro anchos**: 1440 y 1280 (split), 1000
 (sheet lateral modal, rail visible), 800 (sheet desde abajo, barra inferior) —
