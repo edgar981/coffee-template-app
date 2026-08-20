@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
       order: {
         select: {
           numero_orden:   true,
+          cliente_id:     true,   // para el enlace al perfil; nullable (SetNull al borrar cliente)
           cliente_nombre: true,
           comprobantes:   { select: { id: true, estado: true } },
         },

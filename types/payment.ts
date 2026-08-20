@@ -107,6 +107,9 @@ export interface Payment {
    */
   order?: {
     numero_orden:   string;
+    /** FK al Customer, para el enlace al perfil. Nullable: `onDelete: SetNull`
+     *  deja el `cliente_nombre` snapshot vivo pero sin id al borrar el cliente. */
+    cliente_id:     string | null;
     cliente_nombre: string | null;
     comprobantes?:  { id: string; estado: ComprobanteEstado }[];
   } | null;
