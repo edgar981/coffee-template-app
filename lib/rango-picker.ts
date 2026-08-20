@@ -1,39 +1,46 @@
-// ── LA REGLA DEL RANGO DEL CALENDARIO ───────────────────────────────────────
+// ── LA SELECCIÓN DE RANGO DEL CALENDARIO, EN DOS CLICS ──────────────────────
 //
-// react-day-picker, con un rango COMPLETO en `selected`, NO empieza uno nuevo al
-// clickear: deja `from` clavado y mueve sólo `to`. Medido con `addToRange` de la v10:
+// El picker construye un rango con DOS clics, y el estado A MEDIAS —un solo día
+// elegido, esperando el segundo— vive DENTRO del picker y no sale nunca: `onChange`
+// se llama SÓLO con rangos completos. Por qué el contrato es estrecho: el medio-rango
+// no le pertenece a las pantallas que consumen el picker. Cuando escapaba, Pagos
+// crasheaba (`dayKeyStart('')`) y Pedidos/Inventario disparaban una consulta de rango
+// abierto — siete oportunidades de olvidarse repartidas en tres archivos. Un contrato
+// que sólo emite rangos completos no hay que recordarlo.
 //
-//   selected {1 ago, 19 ago} + clic 16 ago  →  {1 ago, 16 ago}   ← el clic es el FINAL
-//   selected undefined       + clic 16 ago  →  {16 ago, 16 ago}  ← empieza bien
+// LA PREMISA QUE HAY QUE TENER CLARA, y que costó la primera versión de este archivo:
+// **react-day-picker NUNCA produce un `to: null`.** Un clic suelto es `{from:X, to:X}`
+// (medido con `addToRange`), y sobre un rango completo mueve `to` al día clickeado
+// dejando `from` clavado —de ahí el bug original: no se podía empezar un rango que
+// arrancara después del `from` vigente—. La primera versión inventó un `to: null` que
+// la librería no usa y lo derramó a los consumidores; toda esa versión partía de una
+// premisa falsa.
 //
-// Para el operador eso significa que **no puede cambiar de rango sin limpiar filtros**:
-// cada clic reinterpreta el final del rango viejo. Estaba EN PRODUCCIÓN en las tres
-// pantallas que usan el picker; los presets lo tapaban, y en Pagos muerde SIEMPRE
-// porque esa pantalla nunca tiene el rango vacío (abre en el mes en curso).
-//
-// La regla vive acá y no en el componente porque es una DECISIÓN —qué significa un clic
-// sobre un rango ya elegido— y no plumbing: dentro del JSX, un `if` cambiado la rompe
-// sin que nada lo note.
-
-export interface RangoDeDias { desde: string | null; hasta: string | null }
+// Por eso este modelo NO consulta la sugerencia de RDP: se maneja por el DÍA CLICKEADO
+// y nada más. Puro y determinista, testeable en capa 1 sin depender de las mañas de la
+// librería.
 
 /**
- * Qué rango queda tras un clic en el calendario.
+ * El resultado de un clic en el calendario, dado el día pendiente (el primer clic de
+ * un rango en curso, o `null` si no hay ninguno) y el día que se acaba de clickear.
  *
- * **Un rango COMPLETO + un clic = un rango NUEVO que empieza en ese día**, no un final
- * movido. Sobre un rango incompleto (o vacío) se acepta lo que propone la librería, que
- * ahí sí hace lo correcto.
- *
- * @param actual    el rango que la pantalla tiene hoy
- * @param sugerido  lo que propuso react-day-picker
- * @param diaClic   el día que el operador acaba de tocar (`YYYY-MM-DD`), si lo hubo
+ * - `arranca`: no había pendiente → este clic ABRE un rango nuevo. No se emite nada;
+ *   el picker guarda el ancla y espera el segundo clic.
+ * - `completa`: ya había un ancla → este clic CIERRA el rango. Se emite completo, con
+ *   los extremos ordenados (el segundo clic puede caer antes del primero).
  */
-export function rangoTrasClic(
-  actual: RangoDeDias,
-  sugerido: RangoDeDias,
-  diaClic: string | null,
-): RangoDeDias {
-  const estabaCompleto = Boolean(actual.desde && actual.hasta);
-  if (estabaCompleto && diaClic) return { desde: diaClic, hasta: null };
-  return sugerido;
+export type PasoSeleccion =
+  | { fase: 'arranca'; pendiente: string }
+  | { fase: 'completa'; desde: string; hasta: string };
+
+/**
+ * Avanza la selección de rango con un clic. `pendiente` y `diaClic` son day keys
+ * (`YYYY-MM-DD`), así que la comparación lexicográfica ES la cronológica.
+ */
+export function avanzarSeleccion(pendiente: string | null, diaClic: string): PasoSeleccion {
+  if (pendiente === null) return { fase: 'arranca', pendiente: diaClic };
+  // El segundo clic puede caer ANTES del ancla: se ordenan, no se asume que el
+  // primero es el menor. (Elegir "del 20 al 16" es tan válido como "del 16 al 20".)
+  const [desde, hasta] = pendiente <= diaClic ? [pendiente, diaClic] : [diaClic, pendiente];
+  return { fase: 'completa', desde, hasta };
 }

@@ -1,48 +1,47 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rangoTrasClic } from './rango-picker';
+import { avanzarSeleccion } from './rango-picker';
 
-// Capa 1 — puro. El caso que estaba EN PRODUCCIÓN: con un rango ya elegido, cada clic
-// se interpretaba como la fecha FINAL y el operador no podía elegir otro rango sin
-// limpiar filtros. El test corre contra la SUGERENCIA DE LA LIBRERÍA tal cual, que es
-// la que produce el defecto: sin el mecanismo, estos casos fallan.
+// Capa 1 — puro. La regla del rango en dos clics: el primero ARRANCA (no emite), el
+// segundo COMPLETA (emite ordenado). El estado a medias no sale de acá.
+//
+// El defecto que este modelo cierra: la versión anterior (`rangoTrasClic`) devolvía un
+// `to: null` que RDP nunca produce, y ese medio-rango se derramaba a los consumidores.
+// El discriminador de estos tests es que el primer clic NO emite y el segundo ordena.
 
-const completo = { desde: '2026-08-01', hasta: '2026-08-19' };
+test('primer clic ARRANCA: guarda el ancla, no completa', () => {
+  const paso = avanzarSeleccion(null, '2026-08-16');
+  assert.deepEqual(paso, { fase: 'arranca', pendiente: '2026-08-16' });
+});
 
-test('rango COMPLETO + clic = rango NUEVO desde ese día, no un final movido', () => {
-  // Lo que propone react-day-picker con un rango completo (medido con `addToRange`):
-  // conserva el `from` viejo y mueve el `to` al día clickeado.
-  const sugeridoPorRDP = { desde: '2026-08-01', hasta: '2026-08-16' };
+test('segundo clic COMPLETA el rango', () => {
+  const paso = avanzarSeleccion('2026-08-16', '2026-08-20');
+  assert.deepEqual(paso, { fase: 'completa', desde: '2026-08-16', hasta: '2026-08-20' });
+});
+
+test('el segundo clic ANTES del ancla se ordena — "del 20 al 16" es válido', () => {
+  const paso = avanzarSeleccion('2026-08-20', '2026-08-16');
+  assert.deepEqual(paso, { fase: 'completa', desde: '2026-08-16', hasta: '2026-08-20' });
+});
+
+test('dos clics en el MISMO día = rango de un día, completo', () => {
+  const paso = avanzarSeleccion('2026-08-16', '2026-08-16');
+  assert.deepEqual(paso, { fase: 'completa', desde: '2026-08-16', hasta: '2026-08-16' });
+});
+
+test('un clic sobre un rango recién completado ARRANCA otro — el bug original', () => {
+  // Tras completar, el picker pone `pendiente` en null. El siguiente clic empieza de
+  // cero en vez de mover el final del rango viejo, que era justo lo imposible antes.
+  const completa = avanzarSeleccion('2026-08-16', '2026-08-20');
+  assert.equal(completa.fase, 'completa');
+  const siguiente = avanzarSeleccion(null, '2026-09-01');
+  assert.deepEqual(siguiente, { fase: 'arranca', pendiente: '2026-09-01' });
+});
+
+test('el orden cronológico sale de la comparación de day keys (lexicográfica)', () => {
+  // Cruzando meses y años, para que no se cuele un compare numérico frágil.
   assert.deepEqual(
-    rangoTrasClic(completo, sugeridoPorRDP, '2026-08-16'),
-    { desde: '2026-08-16', hasta: null },
-    'el clic tiene que ABRIR un rango nuevo, no re-interpretar el final del viejo',
+    avanzarSeleccion('2026-01-05', '2025-12-30'),
+    { fase: 'completa', desde: '2025-12-30', hasta: '2026-01-05' },
   );
-});
-
-test('el segundo clic SÍ cierra el rango: sobre uno incompleto manda la librería', () => {
-  const aMedias = { desde: '2026-08-16', hasta: null };
-  const sugeridoPorRDP = { desde: '2026-08-16', hasta: '2026-08-17' };
-  assert.deepEqual(rangoTrasClic(aMedias, sugeridoPorRDP, '2026-08-17'), sugeridoPorRDP);
-});
-
-test('sin rango previo manda la librería — ahí ya hacía lo correcto', () => {
-  const vacio = { desde: null, hasta: null };
-  const sugeridoPorRDP = { desde: '2026-08-16', hasta: '2026-08-16' };
-  assert.deepEqual(rangoTrasClic(vacio, sugeridoPorRDP, '2026-08-16'), sugeridoPorRDP);
-});
-
-test('limpiar la selección (sin día clickeado) pasa tal cual', () => {
-  assert.deepEqual(
-    rangoTrasClic(completo, { desde: null, hasta: null }, null),
-    { desde: null, hasta: null },
-  );
-});
-
-test('un rango a medias NO se re-abre: sólo el completo dispara la regla', () => {
-  // Con `desde` puesto y `hasta` vacío el operador está EN MEDIO de elegir; tratar ese
-  // clic como "empezar de nuevo" haría imposible cerrar el rango.
-  const aMedias = { desde: '2026-08-16', hasta: null };
-  const r = rangoTrasClic(aMedias, { desde: '2026-08-16', hasta: '2026-08-20' }, '2026-08-20');
-  assert.equal(r.hasta, '2026-08-20', 'el segundo clic cierra, no reinicia');
 });
