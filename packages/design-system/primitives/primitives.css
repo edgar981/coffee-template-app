@@ -1318,12 +1318,6 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
 .duna-sheet__item.is-on svg { opacity: 1; }
 /* El pie del sheet: lo que no es un destino. Separado por una línea porque un
    control que CAMBIA algo no debe leerse como un sitio más al que ir. */
-.duna-sheet__foot {
-  display: flex; gap: var(--duna-space-2);
-  margin-top: var(--duna-space-4); padding-top: var(--duna-space-4);
-  border-top: 1px solid var(--duna-border);
-}
-
 /* La entrada y la salida las declara el SISTEMA, no el consumidor, porque son
    parte de la forma: un sheet que aparece sin subir no se lee como un sheet.
    Los `data-state` son los que estampa el diálogo de abajo — es el único punto
