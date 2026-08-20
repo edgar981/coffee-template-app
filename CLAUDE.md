@@ -3352,6 +3352,14 @@ Pedidos merece un destino propio que mida lo suyo (líneas de producto pagadas d
 día), esa es la pantalla que lo define. Hasta entonces no-clickeable es la respuesta
 correcta, no una deuda. Esto NO vuelve al backlog.
 
+**SEGUNDO CASO de la misma regla (2026-08-20, retiro de Entregas):** el widget
+`despachos_hoy` quedó NO-CLICKABLE cuando se retiró su viejo destino `/admin/entregas`.
+Cuenta envíos que SALIERON hoy (`stock_descontado_at` de hoy); Pedidos no tiene ese
+conjunto —`camino` (en_ruta) es un superconjunto de todo tiempo, y `?desde/?hasta` filtra
+por creación, no por despacho—. Mismo criterio: sin destino que COINCIDA, no-clickeable,
+no un `?f=camino` parecido-pero-distinto. La regla ya tiene dos instancias; es doctrina,
+no un caso suelto.
+
 ## Sugerencia de zona de entrega (heurística de dirección)
 
 `sugerirZona` (`lib/zona-config.ts`) propone la zona leyendo la nomenclatura de
