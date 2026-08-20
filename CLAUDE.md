@@ -469,7 +469,8 @@ sidebar—, y dos formas para lo mismo es cómo la próxima pantalla elige sin c
   estilos inline** (no ejercita la clase real). Ese hueco, y la promoción de la
   superficie al paquete como `.duna-tooltip`, están anotados con `.duna-sheet`/
   `.duna-scrim` (§ Duna OS en ANGOSTO — el mismo "CSS que alguien cablea"). El hueco
-  de VISIBILIDAD en táctil del total del bucket sigue en § Backlog #30.
+  de VISIBILIDAD en táctil del total del bucket se CERRÓ el 2026-08-20 —el total se
+  alcanza por la frase al acotar, no por el hover— (§ Pagos — la FRASE y la CURVA).
 
 ## Backlog técnico
 
@@ -971,32 +972,6 @@ producto con dos criterios de marca.
 
 **DISPARADOR: cuando el wordmark provisional del sidebar se reemplace por el logo real.**
 Ahí se decide también el del PDF, en la misma tanda y con el mismo asset.
-
-### 30. El total del bucket vive SOLO en el hover de la curva — invisible en táctil
-
-El tooltip de cada punto de la curva lleva el **total del bucket** (día/semana/mes +
-monto + conteo, `PagosCurva.tsx`). En táctil ese total **no existe**: el hover no existe,
-así que en teléfono la curva es una **silueta sin cifras**. La primitiva de tooltip
-(§ el tooltip del panel) NO lo cierra: es hover/foco, y por eso esto es un ítem PROPIO.
-
-*(Nació describiendo las barras del strip; el strip se retiró en el rediseño de la
-curva y el hueco sobrevivió intacto — cambió el gráfico, no el modo de falla.)*
-
-**La tabla NO lo mitiga**: tiene el detalle por PAGO, no el total por BUCKET —son cosas
-distintas—. El dato "cuánto entró ese día/semana" no está en ninguna otra superficie de
-la pantalla en móvil.
-
-**Costo YA pagado: ninguno medido** —el panel se opera sobre todo en escritorio hoy—,
-pero es un hueco de **visibilidad de datos**, no de estilo.
-
-**DISPARADOR: cuando el panel se use en teléfono de verdad, o al primer reporte.** La
-forma probable, escrita para no re-diagnosticarlo:
-
-- **Dato inline bajo la barra activa** (preferida): al tocar una barra se resalta y su
-  cifra aparece DEBAJO de la curva, reusando el `bucketSel`/highlight que ya existe.
-  Es más honesto en táctil —no esconde el dato tras un gesto que en móvil no se descubre—.
-- **Tap-to-show** (alternativa): un tap abre el tooltip, un segundo lo cierra. Menos
-  trabajo, pero deja el dato detrás de un gesto no anunciado.
 
 ## Mejoras post-multitenant
 
@@ -3552,6 +3527,15 @@ eyebrow es la única etiqueta del eje (no hay hint que lo duplique).
   defecto de abajo.
 - El eje posiciona cada etiqueta bajo SU punto (máx ~8 visibles); un flex las repartiría
   parejo y mentirían de posición. El hint declara escala e interacción, que no es obvia.
+- **EL TOTAL DEL BUCKET ES ALCANZABLE EN TÁCTIL — cerrado el 2026-08-20 (era backlog
+  #30), sin código.** El ítem asumía que el hover era la ÚNICA vía al total, y estaba mal
+  diagnosticado. Gate en teléfono real del owner: **tocar un punto ACOTA** —el `mousemove`
+  sintetizado del tap setea el punto y el `click` dispara `onBucket`—, así que **la frase
+  de arriba pasa a "El jue 14 ago entró $X en N pagos" y el libro se filtra a ese día**. El
+  total no vive sólo en el tooltip: vive en la frase, que es persistente y no depende de un
+  hover. La silueta sin cifras que el ítem temía no ocurre. (El gate destapó dos defectos
+  PROPIOS —el tooltip que se queda pegado en táctil, y los botones de tema del sheet móvil—;
+  son otros ítems, no éste.)
 - **La curva NO se apila por método** (una curva apilada no existe), y por eso murieron
   el toggle "Por método" y la leyenda de exclusiones. **CAPACIDAD PERDIDA, escrita:** ya
   no se puede EXCLUIR un canal de la vista de tiempo. Decidido y aceptado — el desglose

@@ -123,7 +123,9 @@ superficie `.admin-tooltip` es un chip invertido (~17:1 en los dos temas). El ce
 diálogo)— dio **8 DATO** migrados, **9 ETIQUETA** por goteo y **2 redundantes** limpiados;
 a `StatusBadge` (compartido con storefront) se le quitó el prop `title`. Backlog #29 se
 borró al cerrar. Quedan anotados: mover la superficie al paquete como `.duna-tooltip` (con
-sheet/scrim, § Duna OS en ANGOSTO) y el hueco táctil del total del strip (**backlog #30**).
+sheet/scrim, § Duna OS en ANGOSTO). El hueco táctil del total del bucket (ex backlog #30)
+se CERRÓ el 2026-08-20 sin código: el gate en teléfono real mostró que tocar un punto
+acota y la frase muestra el total del bucket —el dato se alcanza, no dependía del hover—.
 
 **Backlog #28 CERRADO** (§ CLAUDE.md "Listas tabulares del panel") — **queda UN SOLO
 patrón de lista tabular en el panel: el grid-list `.duna-lista`, y `DunaTable` retirado.**
