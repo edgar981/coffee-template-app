@@ -2,8 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { MoreHorizontal, Sun, Moon, Monitor } from 'lucide-react';
-import { useTheme } from 'next-themes';
+import { MoreHorizontal } from 'lucide-react';
 
 import { ADMIN_NAV, type AdminNavItem } from '@/constants/admin-nav';
 import { DunaSheet } from '@/components/admin/DunaSheet';
@@ -66,16 +65,9 @@ function Slot({ item, activa, atencion }: { item: AdminNavItem; activa: boolean;
   );
 }
 
-const TEMAS = [
-  { key: 'light',  label: 'Claro',   icon: Sun },
-  { key: 'dark',   label: 'Oscuro',  icon: Moon },
-  { key: 'system', label: 'Sistema', icon: Monitor },
-] as const;
-
 export function MobileNav() {
   const pathname = usePathname();
   const { data: session } = authClient.useSession();
-  const { theme, setTheme } = useTheme();
   const [masAbierto, setMasAbierto] = useState(false);
 
   // UNA sola consulta para toda la navegación de esta superficie. El rail hace lo
@@ -126,7 +118,7 @@ export function MobileNav() {
         abierto={masAbierto}
         onCerrar={() => setMasAbierto(false)}
         titulo="Todas las secciones"
-        descripcion="El resto de las secciones del panel y la apariencia."
+        descripcion="El resto de las secciones del panel."
       >
         <div className="duna-title" style={{ marginBottom: 'var(--duna-space-3)' }}>Todas las secciones</div>
 
@@ -152,30 +144,13 @@ export function MobileNav() {
           })}
         </div>
 
-        {/* ── LA APARIENCIA ────────────────────────────────────────────────────
-            TRES estados y no un toggle, igual que en la topbar: un binario
-            persiste una elección explícita la primera vez que se usa y deja al
-            panel sin camino de vuelta a seguir al sistema operativo.
-
-            La maqueta pone acá un bloque de usuario. NO se adopta: la identidad
-            ya vive en la topbar por debajo del breakpoint (`UserMenu`
-            variant="topbar"), y ponerla también acá sería el segundo sitio para
-            lo mismo. */}
-        <div className="duna-sheet__foot">
-          {TEMAS.map(({ key, label, icon: Icono }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTheme(key)}
-              aria-pressed={theme === key}
-              className={`duna-sheet__item${theme === key ? ' is-on' : ''}`}
-              style={{ flex: 1, justifyContent: 'center' }}
-            >
-              <Icono aria-hidden="true" />
-              {label}
-            </button>
-          ))}
-        </div>
+        {/* NO va selector de tema acá: el dropdown de la topbar (`TopBar`) ya lo
+            ofrece en móvil con los tres estados (Claro/Oscuro/Sistema), así que
+            estos tres botones eran una SEGUNDA forma del mismo control —redundancia
+            que además colapsaba en el ancho de un teléfono—. El de la topbar se
+            queda: es el único camino de vuelta a `system` para quien pineó un
+            override en ese navegador. Tampoco va bloque de usuario: la identidad
+            ya vive en la topbar por debajo del breakpoint (`UserMenu`). */}
       </DunaSheet>
     </>
   );
