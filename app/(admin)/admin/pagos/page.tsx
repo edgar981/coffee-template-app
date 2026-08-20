@@ -51,6 +51,10 @@ function PagosInner() {
   );
   const [pagos, setPagos]     = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  // El fallo de carga es un ESTADO de la pantalla, no un silencio. Ver el efecto.
+  const [errorCarga, setErrorCarga] = useState(false);
+  // Se bumpea al reintentar: re-dispara el efecto sin tocar el rango.
+  const [intento, setIntento] = useState(0);
   const [metodo, setMetodo]   = useState<string>('all');      // 'all' | MetodoPago | `cat:${cat}`
   const [from, setFrom]       = useState(() => searchParams.get('desde') ?? rangoMes.desde);
   const [to, setTo]           = useState(() => searchParams.get('hasta') ?? rangoMes.hasta);
@@ -65,11 +69,16 @@ function PagosInner() {
     let active = true;
     setLoading(true);
     getPayments(from, to)
-      .then(data => { if (active) setPagos(data); })
-      .catch(() => {})
+      .then(data => { if (active) { setPagos(data); setErrorCarga(false); } })
+      // EL FALLO SE VE, Y EL DATO VIEJO NO SOBREVIVE. Antes era un `.catch(() => {})`:
+      // una consulta que fallaba dejaba en pantalla los pagos del rango ANTERIOR bajo
+      // la etiqueta del rango NUEVO —mostrar de más y mentir, que es lo contrario de
+      // la regla de esta ruta ("mostrar menos antes que mentir")—. Y el informe lo
+      // heredaba: un PDF no puede verificar nada, sólo propagar con más autoridad.
+      .catch(() => { if (active) { setPagos([]); setErrorCarga(true); } })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [from, to]);
+  }, [from, to, intento]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
@@ -218,7 +227,21 @@ function PagosInner() {
 
               Usa los MISMOS elementos que la frase cargada (`duna-display-m`, `duna-sub`)
               con barras grises adentro, así el alto sale de la misma tipografía. */}
-          {loading ? (
+          {errorCarga ? (
+            /* LA FRASE DICE EL FALLO. Es el bloque que miente cuando algo sale mal —lo
+               fue con el esqueleto de carga— así que es exactamente donde tiene que
+               decirse la verdad: callar acá dejaría la cifra vieja o un vacío que se
+               lee como "no hubo pagos". */
+            <>
+              <h1 className="duna-display-m" role="alert"
+                  style={{ fontWeight: 'var(--duna-w-medium)', margin: 0 }}>
+                No se pudieron cargar los pagos de este rango.
+              </h1>
+              <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>
+                No es que no haya: la consulta falló. Reintentá abajo.
+              </p>
+            </>
+          ) : loading ? (
             <>
               <h1 className="duna-display-m" aria-hidden="true"
                   style={{ fontWeight: 'var(--duna-w-medium)', margin: 0 }}>
@@ -296,7 +319,7 @@ function PagosInner() {
             className="duna-btn duna-btn--secondary duna-btn--sm"
             style={{ marginLeft: 'auto' }}
             onClick={descargarInforme}
-            disabled={informe.enVuelo || loading || filtered.length === 0}
+            disabled={informe.enVuelo || loading || errorCarga || filtered.length === 0}
           >
             <Download /> {informe.enVuelo ? 'Generando…' : 'Descargar informe'}
           </button>
@@ -306,7 +329,7 @@ function PagosInner() {
             que se va al scrollear obliga a volver arriba para leer el contexto de la
             fila que se está mirando. Lo que cuesta es alto de cabecera, y por eso la
             frase reemplazó al bloque título+stat. */}
-        {loading ? (
+        {errorCarga ? null : loading ? (
           /* El MISMO `loading` gobierna los tres bloques (frase, gráfico, libro), así que
              los tres esqueletos entran y salen en el mismo render: si uno volviera antes,
              la zona fija parpadearía en dos tiempos. Y el hueco mide lo MISMO que el
@@ -325,7 +348,18 @@ function PagosInner() {
       {/* REGIÓN — el libro y NADA MÁS, así que es el hijo ÚNICO: `.duna-region > *` lo
           hace scroller y su `__head` pega contra él (el caso sticky canónico). */}
       <div className="duna-region">
-          {loading ? (
+          {errorCarga ? (
+            <div className="duna-card duna-card__pad">
+              <p className="duna-sub" style={{ margin: 0 }}>
+                No se pudieron cargar los pagos. Puede ser la conexión o el rango pedido.
+              </p>
+              <button type="button" className="duna-btn duna-btn--secondary duna-btn--sm"
+                      style={{ marginTop: 'var(--duna-space-3)' }}
+                      onClick={() => setIntento(n => n + 1)}>
+                Reintentar
+              </button>
+            </div>
+          ) : loading ? (
             /* El hueco de la carga tiene la FORMA de lo que llega: filas del grid-list,
                no un spinner ni un esqueleto de tarjeta (eso sugeriría que va a llegar
                otra cosa). Sin pieza nueva —el marcado es `.duna-lista` con celdas grises—.

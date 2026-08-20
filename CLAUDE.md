@@ -935,6 +935,24 @@ ocurre—: el disparador correcto es el HECHO (mover la consulta), no la tanda q
 suponía que lo traería. Cambiar el fetch sólo por el lint sigue siendo tocar dos cosas
 cuando el hecho real va a tocar una.
 
+### 33. `aceptar-invitacion` se traga el fallo de carga en silencio
+
+`app/(admin)/aceptar-invitacion/page.tsx:53` cierra su fetch con `.catch(() => {})`. Es
+el MISMO patrón que costó el defecto de Pagos del 2026-08-19: una carga que falla sin
+decirlo deja la pantalla mostrando un estado que el dato no respalda.
+
+**Costo YA pagado: ninguno medido** —no se ha reportado—, pero la pantalla es la puerta
+de entrada de un usuario invitado: si la carga falla en silencio, el invitado ve una
+pantalla que no explica nada y no tiene a quién preguntarle.
+
+**El tercer `catch` vacío del censo, `NotificationBell.tsx:116`, se QUEDA**: es
+`el.play().catch(() => {})`, la política de autoplay del navegador. No hay nada que
+reportarle al operador, y ahí el silencio es correcto.
+
+**DISPARADOR: al tocar esa pantalla.** La forma ya está resuelta al lado (§ Pagos): el
+fallo se hace visible, el dato viejo NO sobrevive bajo una etiqueta nueva, y el aviso
+lleva "Reintentar" — sin toast, porque el error es persistente y hay algo que hacer.
+
 ### 32. El logo de Duna no entra en el PDF: va como TEXTO
 
 El informe de Pagos cierra su pie con **"Generado con Duna"** en texto plano. El logo
