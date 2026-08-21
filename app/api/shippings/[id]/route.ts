@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { dispatchStockDecrement, restockShippingStock, DispatchStockError } from '@duna/core/fulfillment';
-import { markContraentregaAtDispatch } from '@duna/core/orders';
-import { appendOrderStatusTransition } from '@duna/core/order-transitions';
+import { DispatchStockError } from '@duna/core/fulfillment';
+import { aplicarTransicionEnvio } from '@duna/core/shipping-transition';
 import { notifyOrderEnRoute } from '@duna/core/notifications';
 import { buildBrand } from '@/lib/config/brand';
 import { runEventAutomations } from '@/lib/automations/engine';
@@ -141,79 +140,51 @@ export async function PATCH(
     }
   }
 
-  // Restock trigger: a dispatched delivery coming back as fallido. (The other
-  // return path — order cancelled after dispatch — restocks via transitionOrder.)
-  const justFailed = nextEstado === 'fallido' && current.estado !== 'fallido';
-
-  // Capture the real delivery timestamp server-side the moment it transitions to
-  // entregado (distinct from fecha_programada). Authoritative — not client-set.
-  const justDelivered = nextEstado === 'entregado' && current.estado !== 'entregado';
 
   try {
-    // ONE transaction: the stock movement (decrement at dispatch / restock on
-    // fallido, both marker-guarded and atomic per product) and the state write
-    // commit together or not at all — a blocked dispatch changes nothing.
-    // Productos que cruzaron su mínimo con ESTE despacho. Se recogen dentro de la
-    // transacción (es el único punto donde se conoce el stock anterior) y el evento
-    // se emite abajo, ya comiteado.
-    let cruzaronMinimo: string[] = [];
+    // La transición vive en `aplicarTransicionEnvio` (@duna/core): lockea la ORDEN
+    // (Orden → Shipping, el orden de adquisición de TODO el eje de fulfillment), re-lee
+    // el shipping FRESCO bajo el lock, y recién ahí decide los gates + los movimientos
+    // de stock. Se extrajo para afirmar su concurrencia en el carril: el defecto era una
+    // carrera —dos PATCH concurrentes leían el estado sin lock y descontaban dos veces—.
+    const resultado = await aplicarTransicionEnvio({
+      shippingId:    id,
+      ordenId:       current.orden_id,
+      estadoDeseado: body.estado,
+      isScheduling,
+      campos: {
+        zona:             body.zona,
+        // `!== undefined` para zona_sugerida/transportadora/guía: un null explícito SÍ
+        // se escribe (lo maneja la función). Acá sólo se normaliza el string.
+        zona_sugerida:    body.zona_sugerida,
+        mensajero:        body.mensajero,
+        fecha_programada: body.fecha_programada,
+        fecha_entrega:    body.fecha_entrega,
+        notas_entrega:    body.notas_entrega,
+        tipo_envio:       body.tipo_envio,
+        transportadora:   typeof body.transportadora === 'string' ? (body.transportadora.trim() || null) : undefined,
+        numero_guia:      typeof body.numero_guia === 'string' ? (body.numero_guia.trim() || null) : undefined,
+      },
+      actor: { id: session.user.id, nombre: session.user.name ?? null },
+    });
 
-    const updated = await prisma.$transaction(async (tx) => {
-      if (justDispatched) cruzaronMinimo = await dispatchStockDecrement(tx, current);
-      // Confirmed unpaid dispatch → the order is now cash-on-delivery. Flip its
-      // condición in the SAME transaction (last permitted mutation of condición),
-      // so a rolled-back dispatch never leaves a stray CONTRAENTREGA. No-op if it
-      // was already CONTRAENTREGA (e.g. an Efectivo order).
-      if (dispatchingUnpaid && current.order?.condicion_pago !== 'CONTRAENTREGA') {
-        await markContraentregaAtDispatch(tx, current.orden_id);
-      }
-      if (justFailed)     await restockShippingStock(tx, current, 'Entrega fallida');
-
-      const s = await tx.shipping.update({
-        where: { id: id },
-        data:  {
-          estado:           nextEstado,
-          zona:             body.zona             ?? undefined,
-          // `!== undefined` (no `??`): un null explícito SÍ debe escribirse —
-          // significa "la heurística no supo", que es un dato de auditoría.
-          zona_sugerida:    body.zona_sugerida !== undefined ? body.zona_sugerida : undefined,
-          mensajero:        body.mensajero        ?? undefined,
-          fecha_programada: body.fecha_programada ?? undefined,
-          fecha_entrega:    justDelivered ? new Date().toISOString() : (body.fecha_entrega ?? undefined),
-          notas_entrega:    body.notas_entrega    ?? undefined,
-          tipo_envio:       body.tipo_envio       ?? undefined,
-          transportadora:   typeof body.transportadora === 'string' ? (body.transportadora.trim() || null) : undefined,
-          numero_guia:      typeof body.numero_guia === 'string' ? (body.numero_guia.trim() || null) : undefined,
-          updatedAt:        new Date(),
-        },
-        include: { order: ORDER_SELECT },
-      });
-
-      // Asiento del eje FULFILLMENT: la transición manual del envío (despacho,
-      // entrega, fallo, reprogramación fallido→preparando). SÓLO si el estado
-      // cambió, en la MISMA tx que el update.
-      if (nextEstado && nextEstado !== current.estado) {
-        await appendOrderStatusTransition(tx, {
-          ordenId: current.orden_id, eje: 'fulfillment',
-          estadoAnterior: current.estado, estadoNuevo: nextEstado,
-          actor: { id: session.user.id, nombre: session.user.name ?? null },
-        });
-      }
-      return s;
+    // La respuesta: el shipping ya transicionado, con la forma que el cliente espera.
+    const updated = await prisma.shipping.findUniqueOrThrow({
+      where: { id }, include: { order: ORDER_SELECT },
     });
 
     // Dispatch COMMITTED. Fire the "on its way" notification here — AFTER the
     // transaction, once (justDispatched is the single preparando→en_ruta edge, and
     // the transition is idempotent, so the email hangs off it, not off re-renders).
     // Fully guarded — the email can never affect the dispatch outcome.
-    if (justDispatched) {
+    if (resultado.justDispatched) {
       try { await notifyOrderEnRoute(current.orden_id, buildBrand()); }
       catch (e) { console.error(`[notify] order.enRoute orden ${current.orden_id}:`, e); }
 
       // Cruces de stock mínimo provocados por este despacho. Post-commit: el stock
       // ya bajó de verdad, así que el aviso no puede referirse a algo que se
       // revirtió. `runEventAutomations` nunca lanza.
-      for (const productoId of cruzaronMinimo) {
+      for (const productoId of resultado.cruzaronMinimo) {
         await runEventAutomations({ tipo: 'stock.cruzo_minimo', productoId });
       }
     }
@@ -221,7 +192,7 @@ export async function PATCH(
     // Entrega COMPLETADA. Mismo criterio que el despacho: colgado del ÚNICO borde
     // (…→ entregado), post-commit, y con la idempotencia de AutomationRun detrás
     // por si un cliente reenvía el PATCH.
-    if (justDelivered) {
+    if (resultado.justDelivered) {
       await runEventAutomations({
         tipo: 'shipping.entregado', shippingId: id, orderId: current.orden_id,
       });
@@ -232,7 +203,7 @@ export async function PATCH(
     // devolución que se revirtió. Una entrega reprogramada que vuelve a fallar
     // pasa por acá otra vez y SÍ avisa de nuevo (la automatización usa cooldown,
     // no `una_vez`): cada intento perdido es un hecho nuevo.
-    if (justFailed) {
+    if (resultado.justFailed) {
       await runEventAutomations({
         tipo: 'shipping.fallido', shippingId: id, orderId: current.orden_id,
       });
