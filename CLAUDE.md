@@ -425,6 +425,42 @@ mismo hecho.
 
 La deuda que queda de esta familia vive en § Backlog técnico, no acá.
 
+### La TERCERA puerta de stock: el despacho, y el ORDEN DE ADQUISICIÓN de locks
+
+El descuento al **despachar** (preparando → en_ruta) tenía el MISMO hueco que las dos
+puertas de arriba, y se pasó por alto porque su lectura del estado vivía FUERA de la
+transacción: el PATCH de shippings leía el `current` sin lock ([route.ts:47] histórico) y
+decidía `justDispatched` sobre esa lectura. Dos "Marcar en ruta" concurrentes del mismo
+envío —un reintento de red, dos pestañas, o una automatización futura sobre ese endpoint—
+leían ambos `preparando` + `stock_descontado_at` null → los dos descontaban → **doble
+descuento y dos asientos 'venta'**. Corrupción silenciosa en el libro que la auditoría
+existe para creer. El marcador de idempotencia no protegía: se chequeaba sobre la lectura
+pre-transacción, no re-leído bajo lock.
+
+Se cerró extrayendo la transacción a **`packages/core/src/shipping-transition.ts`**
+(`aplicarTransicionEnvio`) —por el mismo motivo que `aplicarAjusteInventario`: para
+afirmar su concurrencia en el carril—, que lockea, RE-LEE fresco bajo el lock, y recién
+ahí decide los gates. `tests/integracion/despacho-concurrente.test.ts` se escribió contra
+el código sin el lock y se lo vio producir DOS (stock 4 en vez de 7). **No borrar.**
+
+**EL ORDEN DE ADQUISICIÓN DE LOCKS ES `ORDEN → SHIPPING`, SIEMPRE**, y esto es regla de
+sistema, no de este fix: el despacho **lockea la fila de la ORDEN** (`SELECT 1 FROM
+"Order" … FOR UPDATE`), NO la del shipping. Todo el eje de fulfillment adquiere en ese
+orden —`transitionOrder` al cancelar (`order.update → shipping.update`), la verificación
+de comprobante (`comprobantes.ts:149`)—, así que serializa sin invertir. **Lockear el
+SHIPPING primero deadlockearía con cancelar:** un despacho-impago toca la orden
+(`markContraentregaAtDispatch`) DESPUÉS del shipping, y cancelar la toca ANTES — órdenes
+opuestas, deadlock en producción. El próximo que agregue un escritor de shipping DEBE
+lockear la orden, no el shipping. Está escrito en la cabecera de `shipping-transition.ts`.
+
+**Censo de puertas de stock (2026-08-20), para que ninguna quede sin nombrar:** las que
+DESCUENTAN/RESTITUYEN pasan las tres por un lock — el ajuste (`aplicarAjusteInventario`,
+FOR UPDATE del producto), la edición de ficha (`aplicarPatchProducto`, ídem) y ahora el
+despacho/fallo (`aplicarTransicionEnvio`/`restockShippingStock`, bajo el lock de la
+orden, en sus dos llamadores: este PATCH y `transitionOrder`). `ensureShipping` (POST)
+CREA un shipping sin el lock de la orden, pero no mueve stock ni transiciona estado
+—es idempotente— así que no es de esta clase; queda nombrado.
+
 ## El tooltip del panel — `DunaTooltip`, chip invertido, sólo DATO
 
 Cerrado el 2026-08-18 (era el § Backlog #29). El panel tenía DOS formas para lo
