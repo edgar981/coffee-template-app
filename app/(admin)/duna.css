@@ -280,3 +280,21 @@ html.admin {
    `@import` de primitives—, y eso lo rompe cualquier cambio futuro de bundling o
    de orden de imports. Con la especificidad subida, gana esté donde esté. */
 .duna-lista__fila.duna-lista--en-pliegue { position: static; }
+
+/* ── FOCO DUNA PARA SUPERFICIES CLICKEABLES SUELTAS ───────────────────────────
+   El anillo de foco del sistema es `--duna-ring`, y ese token ES UN BOX-SHADOW
+   (`0 0 0 3px …`), no un color. Por eso la utilidad `ring-*` de Tailwind NO puede
+   consumirlo: `ring-ring` espera un COLOR y resuelve contra `--color-ring`, que es
+   de la escala shadcn y quedó sin contraparte en el mapeo del chrome (§ CLAUDE.md
+   — El CHROME del panel ES del design-system).
+
+   Las primitivas que ya tienen foco propio no necesitan esto —`.duna-link`,
+   `.duna-input`, `.duna-hit`, `.duna-order-card` lo declaran cada una—; esta clase
+   es para las superficies clickeables que NO son una primitiva: una tarjeta-enlace
+   de bucket, una fila de cliente, un botón de texto suelto.
+
+   ADMIN-LEVEL a propósito, con el prefijo `admin-` y no `duna-`: hoy tiene un solo
+   archivo consumidor, y una clase `duna-` aparentaría una primitiva que no está en
+   el paquete (§ la regla del segundo consumidor, que ya rigió para `.duna-lista`).
+   Con un segundo consumidor se renombra y se muda. */
+.admin-foco:focus-visible { outline: none; box-shadow: var(--duna-ring); }

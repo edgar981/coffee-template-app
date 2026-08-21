@@ -9,7 +9,7 @@ import {
 } from 'recharts';
 import { formatCOP } from '@duna/core/utils';
 import { getAnalytics, getWeeklyActivity } from '@/lib/api/analytics';
-import { ANALITICS_COLORS, tooltipStyle, axisTickStyle } from '@/constants/dashb-styles';
+import { tooltipStyle, axisTickStyle } from '@/constants/dashb-styles';
 import { widgetInsight, type InsightMonthPoint } from '@/lib/metrics/insights';
 import { PERIODOS, PERIODO_ORDEN, PERIODO_DEFAULT, type PeriodoKey } from '@/lib/metrics/periodo';
 import {
@@ -162,6 +162,28 @@ function SelectorPeriodo({ valor, onChange, disabled }: {
   );
 }
 
+// ─── La escala de gráficas ────────────────────────────────────────────────────
+//
+// `--duna-serie-1…5` es el ROL "color que IDENTIFICA una categoría" (§ CLAUDE.md —
+// La serie categórica). Reemplaza a `--chart-1..5`, la rampa ámbar→marrón que esta
+// pantalla heredó del dashboard: cuando se escribió, el DS no tenía escala de
+// gráficas —la doctrina lo declaraba como rol SIN contraparte— y desde la tanda de
+// Pagos sí la tiene.
+//
+// LA REGLA, aplicada, porque no es obvia: la serie IDENTIFICA, así que sólo se usa
+// donde hay CATEGORÍAS que distinguir. Una medida ÚNICA no tiene qué identificar y
+// va en TINTA — que es lo que hace la curva de Pagos, y por eso la gráfica semanal
+// (órdenes por día, una sola magnitud) deja de pintarse con un color de serie.
+const SERIE_INGRESOS = 'var(--duna-serie-1)';
+const SERIE_MARGEN   = 'var(--duna-serie-2)';
+/** Medida única → tinta, no serie. */
+const TINTA_MEDIDA   = 'var(--duna-ink)';
+/** Canales: 2–4 categorías reales. serie-5 es el neutro del cajón de sastre. */
+const SERIE_CANALES = [
+  'var(--duna-serie-1)', 'var(--duna-serie-2)', 'var(--duna-serie-3)',
+  'var(--duna-serie-4)', 'var(--duna-serie-5)',
+];
+
 // ─── 1. RENTABILIDAD ──────────────────────────────────────────────────────────
 
 // Las columnas del grid-list del detalle. Constante y no inline: el encabezado y
@@ -241,7 +263,7 @@ function Rentabilidad({ data, loading }: { data: AnalyticsData | null; loading: 
                   <Link
                     href={`/admin/productos?producto=${encodeURIComponent(f.productoId)}`}
                     title={`Ver ${f.producto}`}
-                    className="rounded text-accent-amber underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="duna-link"
                   >
                     {f.producto}
                   </Link>
@@ -344,7 +366,7 @@ function Cartera({ data, loading }: { data: AnalyticsData | null; loading: boole
               // edades de su bucket. Lo único que cambia es la RUTA — la pantalla
               // nueva entiende los tres como alcances (§ lib/pedidos/filtros).
               href={`/admin/pedidos?${b.query}`}
-              className="group rounded-lg border border-border p-3 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="admin-foco group rounded-lg border border-border p-3 transition-colors hover:bg-muted/20"
             >
               {contenido}
               <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground group-hover:text-foreground">
@@ -431,7 +453,7 @@ function Trayectoria({ data, loading }: { data: AnalyticsData | null; loading: b
           type="button"
           onClick={() => setVerMargen(v => !v)}
           aria-pressed={verMargen}
-          className={`rounded-lg border border-border px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+          className={`admin-foco rounded-lg border border-border px-3 py-1 text-xs transition-colors ${
             verMargen ? 'bg-muted font-semibold text-foreground' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
           }`}
         >
@@ -459,11 +481,11 @@ function Trayectoria({ data, loading }: { data: AnalyticsData | null; loading: b
             {/* La leyenda sólo aparece con DOS series: con una sola no distingue
                 nada y es una fila de ruido bajo el chart. */}
             {verMargen && <Legend formatter={v => (v === 'ingresos' ? 'Ingresos' : 'Margen est.')} wrapperStyle={{ fontSize: 11 }} />}
-            <Line type="monotone" dataKey="ingresos" stroke="hsl(var(--chart-1))" strokeWidth={2.5} dot={false} />
+            <Line type="monotone" dataKey="ingresos" stroke={SERIE_INGRESOS} strokeWidth={2.5} dot={false} />
             {/* Punteada: es una ESTIMACIÓN (costo actual, no snapshoteado), y la
                 línea lo dice sin obligar a leer la nota. */}
             {verMargen && (
-              <Line type="monotone" dataKey="margen" stroke="hsl(var(--chart-2))" strokeWidth={2} strokeDasharray="5 3" dot={false} />
+              <Line type="monotone" dataKey="margen" stroke={SERIE_MARGEN} strokeWidth={2} strokeDasharray="5 3" dot={false} />
             )}
           </LineChart>
         </ResponsiveContainer>
@@ -509,7 +531,7 @@ function ClientesYCanales({ data }: { data: AnalyticsData }) {
                 <Link
                   key={cl.id}
                   href={`/admin/clientes?cliente=${encodeURIComponent(cl.id)}`}
-                  className="flex items-center gap-3 -mx-2 rounded-lg px-2 py-1 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="admin-foco flex items-center gap-3 -mx-2 rounded-lg px-2 py-1 transition-colors hover:bg-muted/20"
                 >
                   <span className="text-xs font-bold text-muted-foreground w-4">#{i + 1}</span>
                   <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
@@ -554,7 +576,7 @@ function ClientesYCanales({ data }: { data: AnalyticsData }) {
                   <div className="w-full bg-muted rounded-full h-1.5">
                     <div
                       className="h-1.5 rounded-full"
-                      style={{ width: `${(c2.value / maxCanal) * 100}%`, background: ANALITICS_COLORS[i % ANALITICS_COLORS.length] }}
+                      style={{ width: `${(c2.value / maxCanal) * 100}%`, background: SERIE_CANALES[i % SERIE_CANALES.length] }}
                     />
                   </div>
                 </div>
@@ -659,7 +681,7 @@ function WeeklyActivityCard() {
               <XAxis dataKey="dia"  tick={axisTickStyle} axisLine={false} tickLine={false} />
               <YAxis               tick={axisTickStyle} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip contentStyle={tooltipStyle} />
-              <Bar dataKey="ordenes" name="Órdenes" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="ordenes" name="Órdenes" fill={TINTA_MEDIDA} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
