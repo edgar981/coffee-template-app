@@ -1,5 +1,5 @@
 import prisma from '@duna/core';
-import { NON_CANCELLED_ESTADOS } from './order-stat-filters';
+import { NON_CANCELLED_ESTADOS, TENANT_ORDER_PREFIX } from './order-stat-filters';
 
 // Server-side per-customer aggregates, keyed by cliente_id. THE single place that
 // turns the shared definitions into numbers, so the customers list, Top 5, profile
@@ -53,9 +53,37 @@ export async function lastOrderDateByCustomer(): Promise<Map<string, Date>> {
  * Total PAID per customer = sum of the customer's Payments (real money in). A
  * pending order contributes 0 until it is actually paid. Payments link to the
  * customer through their order (Payment → Order.cliente_id).
+ *
+ * ── UNA SOLA DEFINICIÓN, DOS ALCANCES (unificación 2026-08-21) ──────────────
+ *
+ * Antes había DOS caminos al mismo hecho y no diferían sólo en el período: éste
+ * (lista y perfil de Clientes) no filtraba nada, y la concentración de Analítica
+ * excluía `SN-` Y canceladas. Medido en dev el día de la unificación: **$315.000
+ * contra $259.000** — dos pantallas afirmando el dinero del mismo cliente con
+ * números distintos, que es exactamente el modo de falla de "Por cobrar vs
+ * Órdenes Pendientes". Ahora hay UNA definición y el período es un PARÁMETRO, no
+ * una segunda implementación.
+ *
+ * **LAS ÓRDENES CANCELADAS SÍ CUENTAN** (decisión de producto del owner): el
+ * cliente pagó y la plata entró. Cancelar NO toca el `Payment` —doctrina
+ * declarada—, así que esconderlo haría que la suma por cliente no cuadre con el
+ * libro de Pagos. Un reembolso sería OTRO hecho, y hoy no se modela. Por eso acá
+ * no hay filtro de estado: su ausencia es la decisión, no un olvido.
+ *
+ * **LAS `SN-` NO CUENTAN, EN NINGÚN LADO** — ver {@link TENANT_ORDER_PREFIX}. No es
+ * definición de negocio: es limpieza de datos de demo.
+ *
+ * @param rango Ventana opcional sobre `Payment.fecha` (la fecha en que ENTRÓ la
+ *   plata, no la de auditoría). Sin él, el total histórico.
  */
-export async function paidTotalByCustomer(): Promise<Map<string, number>> {
+export async function paidTotalByCustomer(
+  rango?: { desde: Date; hasta: Date },
+): Promise<Map<string, number>> {
   const rows = await prisma.payment.findMany({
+    where: {
+      order: { is: { numero_orden: { startsWith: TENANT_ORDER_PREFIX } } },
+      ...(rango ? { fecha: { gte: rango.desde, lt: rango.hasta } } : {}),
+    },
     select: { monto: true, order: { select: { cliente_id: true } } },
   });
   const byId = new Map<string, number>();
