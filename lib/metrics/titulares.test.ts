@@ -128,17 +128,52 @@ test('el umbral de la frase sale de la CONSTANTE, no de un 15 tecleado', () => {
 
 // ─── Concentración ────────────────────────────────────────────────────────────
 
-const conc = (pct: number | null, top: number): Concentracion => ({
+const conc = (
+  pct: number | null,
+  top: number,
+  clientes = top,
+  banda: Concentracion['banda'] = null,
+): Concentracion => ({
   top:      Array.from({ length: top }, (_, i) => ({ id: `c${i}`, nombre: `C${i}`, total: 1, ordenes: 1 })),
-  totalTop: 1, total: 1, pct, clientes: top,
+  totalTop: 1, total: 1, pct, clientes, banda,
 });
 
-test('la frase de concentración lidera el bloque con su %', () => {
-  assert.equal(titularConcentracion(conc(72.4, 5)), 'El 72% de tus ingresos viene de 5 clientes');
+test('la frase declara EL PADRÓN: sin él el % no se puede leer', () => {
+  // El defecto que motivó esta redacción: decía "viene de 5 clientes" y el único
+  // conteo a la vista era el de recurrencia —otro padrón, otra métrica— que parecía
+  // su denominador. Ahora el denominador viaja DENTRO de la frase.
+  assert.equal(
+    titularConcentracion(conc(72.4, 5, 20)),
+    'El 72% viene de 5 de los 20 clientes que pagaron',
+  );
 });
 
-test('un solo cliente va en singular', () => {
-  assert.match(titularConcentracion(conc(100, 1))!, /viene de 1 cliente$/);
+test('LA ESTRUCTURA NO CAMBIA ENTRE BANDAS — sólo el adjetivo', () => {
+  // Es la propiedad que permite comparar de un vistazo entre períodos: lo que
+  // cambia tiene que ser UNA palabra, no el orden de la frase. Si alguien reescribe
+  // una banda con otro sujeto, este test se cae — que es lo que se le pide.
+  const cuerpo = '% viene de 5 de los 25 clientes que pagaron';
+  assert.equal(titularConcentracion(conc(78, 5, 25, 'concentrado')), `Tus ingresos están concentrados: el 78${cuerpo}`);
+  assert.equal(titularConcentracion(conc(35, 5, 25, 'repartido')),   `Tus ingresos están repartidos: el 35${cuerpo}`);
+  assert.equal(titularConcentracion(conc(63, 5, 25, null)),          `El 63${cuerpo}`);
+});
+
+test('la banda del medio NO adjetiva: dice el hecho y se calla', () => {
+  const frase = titularConcentracion(conc(63, 5, 10))!;
+  assert.ok(!frase.includes('concentrados'));
+  assert.ok(!frase.includes('repartidos'));
+  assert.match(frase, /^El 63% viene de/);
+});
+
+test('ninguna banda ACONSEJA: son estados del hecho, no instrucciones', () => {
+  // La doctrina prohíbe la instrucción, no la caracterización. Este test fija esa
+  // frontera para que nadie la cruce "para que se entienda mejor".
+  for (const b of ['concentrado', 'repartido', null] as const) {
+    const frase = titularConcentracion(conc(70, 5, 25, b))!;
+    for (const verbo of ['deberías', 'conviene', 'recomend', 'riesgo', 'cuidado', 'diversific']) {
+      assert.ok(!frase.toLowerCase().includes(verbo), `"${verbo}" es consejo, no hecho: ${frase}`);
+    }
+  }
 });
 
 test('sin base de muestra el bloque abre SIN titular, no con un 100% falso', () => {

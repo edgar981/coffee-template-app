@@ -551,9 +551,24 @@ function ClientesYCanales({ data }: { data: AnalyticsData }) {
         {titular
           ? <Titular>{titular}</Titular>
           : <Titular>Todavía no hay base para hablar de concentración</Titular>}
+        {/* DOS MÉTRICAS, DOS LÍNEAS. Vivían en el MISMO párrafo, y esa vecindad era
+            el defecto: el "de N clientes" de la recurrencia —el padrón entero,
+            acumulado— quedaba pegado al porcentaje de concentración y se leía como
+            su denominador, que no lo es (en dev: 63% calculado sobre 10 pagadores,
+            junto a un "18 clientes" de otra métrica). Es el mismo caso del contrato
+            del período, en versión numérica: un número correcto al lado de otro que
+            parece explicarlo.
+
+            El denominador de la concentración ahora va DENTRO de su titular
+            ("5 de los 10 clientes que pagaron"), así que esta línea sólo declara su
+            base. */}
         <p className="text-xs text-muted-foreground mt-2">
-          Por dinero pagado en el período · {recurrencia.recurrentes} de {recurrencia.clientes} clientes
-          han comprado más de una vez (acumulado, no depende del período)
+          Por dinero pagado en el período
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">
+          <span className="duna-eyebrow">Recurrencia</span>{' '}
+          {recurrencia.recurrentes} de {recurrencia.clientes} clientes han comprado más de
+          una vez (acumulado, no depende del período)
         </p>
 
         {c.top.length > 0 && (

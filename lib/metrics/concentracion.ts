@@ -9,6 +9,8 @@
 //
 // PURO: sin Prisma. El endpoint agrega en SQL y esto reparte.
 
+import { MIN_ORDENES_INSIGHT } from './insights';
+
 /**
  * Cuántos clientes entran en el "top". 5 porque es el mismo corte del Top 5 de la
  * página de Clientes: dos rankings del mismo dato con cortes distintos obligan al
@@ -17,18 +19,61 @@
 export const TOP_CONCENTRACION = 5;
 
 /**
- * Piso de muestra: por debajo de estos clientes con ingresos, el % de
- * concentración no se emite.
+ * Piso de muestra: por debajo de estos clientes con PAGOS, el % de concentración
+ * no se emite.
  *
- * Con 5 clientes o menos el top-5 ES el total y el número da 100% — un dato
- * cierto que se lee como una alarma ("¡todo depende de 5 clientes!") cuando lo
- * único que dice es que el negocio tiene cinco clientes. Misma familia de guarda
- * que `MIN_ORDENES_INSIGHT`, y por el mismo motivo: una cifra ruidosa entrena a
- * ignorar la línea entera.
+ * ── POR QUÉ 15 Y NO 6, QUE ERA EL PISO ANTERIOR ─────────────────────────────
  *
- * TODO(cliente): calibrar con el volumen real cuando haya operación.
+ * El piso viejo era `TOP_CONCENTRACION + 1`, o sea el mínimo que evita el 100%
+ * trivial. Cerraba el caso DEGENERADO y no el casi-degenerado: **con 6 clientes el
+ * top-5 es cinco sextos del padrón**, así que "tus 5 mejores son el 90%" seguía
+ * siendo aritmética con forma de hallazgo. La aritmética del corte:
+ *
+ *     piso  6 → el top-5 es el 83% del padrón
+ *     piso 10 → el 50%   ("la mitad tiene más de la mitad" es casi tautología)
+ *     piso 15 → el 33%   ← un TERCIO: un grupo que puede concentrar sin serlo
+ *                          por definición, así que un >50% ya es asimetría real
+ *
+ * **Y el argumento que lo decide sobre 20 o 25 es otro** (owner, 2026-08-21): 15 es
+ * exactamente `MIN_ORDENES_INSIGHT`, así que la página tiene UN solo número de
+ * "muestra suficiente" y no dos parecidos que alguien tenga que recordar cuál es
+ * cuál. Se importa de allá en vez de re-teclearse, para que no puedan divergir.
+ *
+ * Cierra el `TODO(cliente)` que tenía el piso viejo. Los CORTES DE BANDA de abajo
+ * sí siguen siendo placeholder.
  */
-export const MIN_CLIENTES_CONCENTRACION = TOP_CONCENTRACION + 1;
+export const MIN_CLIENTES_CONCENTRACION = MIN_ORDENES_INSIGHT;
+
+/**
+ * ── LOS CORTES DE BANDA · relativos, nunca absolutos ────────────────────────
+ *
+ * Un umbral ABSOLUTO ("≥70% es concentrado") miente según el tamaño del padrón: el
+ * mismo 63% es casi neutro con 10 clientes y una alarma con 500. Lo que se compara
+ * es cuánto supera el top-5 SU PARTE PROPORCIONAL:
+ *
+ *     proporcional = top.length / clientes      (5 de 15 → 33%)
+ *     ratio        = pct / proporcional
+ *
+ * Medido en dev el día que se escribió: el 63,2% que la página mostraba era contra
+ * un proporcional del 50% —ratio 1,26—, o sea **apenas por encima de lo que daría
+ * un reparto perfectamente parejo**. La frase sin caracterizar estaba diciendo
+ * "alarma" sobre un hecho neutro; ése es el defecto que las bandas cierran.
+ *
+ * TODO(cliente): calibrar con operación real, igual que los cortes de la cartera.
+ * Lo que NO es placeholder es la forma relativa.
+ */
+export const RATIO_CONCENTRADO = 1.5;
+export const RATIO_REPARTIDO   = 1.1;
+
+/**
+ * Cómo se LEE el porcentaje. Es el HECHO caracterizado, no un consejo: la página
+ * dice "están concentrados", nunca "deberías diversificar" (§ texto = hecho).
+ *
+ * `null` es la banda del medio, y no es indecisión: es la regla de la casa
+ * —preferir callar a afirmar sin base— con precedente en este mismo vecindario
+ * (`insightEnBanda`, para "hay muestra pero no hay tendencia que nombrar").
+ */
+export type BandaConcentracion = 'concentrado' | 'repartido' | null;
 
 export interface ClienteIngreso {
   id:     string;
@@ -54,6 +99,12 @@ export interface Concentracion {
   pct:            number | null;
   /** Clientes con ingresos > 0. Es la muestra sobre la que decide la guarda. */
   clientes:       number;
+  /**
+   * Cómo se LEE ese `pct` — ver {@link BandaConcentracion}. `null` con muestra
+   * insuficiente Y en la banda del medio: en los dos casos la página dice el hecho
+   * sin adjetivarlo, que es lo correcto y no una omisión.
+   */
+  banda:          BandaConcentracion;
 }
 
 /**
@@ -79,11 +130,26 @@ export function concentracionIngresos(
 
   const hayBase = ordenados.length >= MIN_CLIENTES_CONCENTRACION && total > 0;
 
+  const pct = hayBase ? (totalTop / total) * 100 : null;
+
+  // LA PARTE PROPORCIONAL del top: lo que le tocaría si todos pagaran igual. Es el
+  // referente contra el que un porcentaje significa algo — sin él, "63%" no se
+  // puede leer sin saber contra cuántos.
+  const proporcional = ordenados.length > 0 ? (top.length / ordenados.length) * 100 : 0;
+  const ratio        = pct !== null && proporcional > 0 ? pct / proporcional : null;
+
+  let banda: BandaConcentracion = null;
+  if (ratio !== null) {
+    if (ratio >= RATIO_CONCENTRADO)     banda = 'concentrado';
+    else if (ratio <= RATIO_REPARTIDO)  banda = 'repartido';
+  }
+
   return {
     top,
     totalTop,
     total,
-    pct:      hayBase ? (totalTop / total) * 100 : null,
+    pct,
     clientes: ordenados.length,
+    banda,
   };
 }

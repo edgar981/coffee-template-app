@@ -3745,6 +3745,77 @@ real lo delata, y por eso va en el carril.
   histórico de un cliente se lee mirando a esa persona, no respondiendo "¿cómo va el
   negocio?". Traerlo acá habría sido simetría por simetría.
 
+### LA CONCENTRACIÓN · declarar el padrón, y caracterizar sin aconsejar
+
+Tanda 3b (2026-08-21). Tres arreglos que van juntos porque **el porcentaje no se
+puede leer sin los tres**. Ninguna base de cálculo se tocó: `pct` es el mismo número.
+
+**1 · EL PADRÓN VA EN LA FRASE.** Decía *"el 63% de tus ingresos viene de 5
+clientes"* y el único conteo a la vista era el de **recurrencia** —el padrón entero,
+acumulado— en el MISMO párrafo. Medido en dev: **63% calculado sobre 10 pagadores,
+junto a un "18 clientes" de otra métrica**. Cada cifra era correcta en su frase; lo
+que engañaba era la vecindad. **Es el defecto del § contrato del período en versión
+numérica: un número correcto al lado de otro que parece su denominador.** Ahora el
+titular carga el suyo —*"5 de los 10 clientes que pagaron"*— y la recurrencia vive en
+su propia línea, con etiqueta.
+
+**2 · EL PISO SUBE DE 6 A 15.** El viejo era `TOP_CONCENTRACION + 1`, o sea el mínimo
+que evita el 100% trivial: cerraba el caso **degenerado** y no el **casi-degenerado**,
+porque con 6 clientes el top-5 es **cinco sextos** del padrón y *"tus 5 mejores son el
+90%"* seguía siendo aritmética con forma de hallazgo.
+
+| piso | el top-5 es… del padrón |
+| --- | --- |
+| 6 (viejo) | 83% |
+| 10 | 50% — "la mitad tiene más de la mitad" es casi tautología |
+| **15** | **33% — un tercio: puede concentrar sin serlo por definición** |
+
+**Y el argumento que lo decide sobre 20 o 25 es otro** (owner): **15 ES
+`MIN_ORDENES_INSIGHT`**, así que la página tiene **UN** número de muestra suficiente y
+no dos parecidos que alguien tenga que recordar cuál es cuál. Se **importa** en vez de
+re-teclearse, y hay un test que afirma la IDENTIDAD y no el valor, para que mover uno
+mueva el otro. Cierra su `TODO(cliente)`.
+
+**3 · LA BANDA CARACTERIZA EL HECHO, y eso NO es interpretar.** La frase neutra **ya
+interpretaba por omisión**: el mismo tono para 63% y para 5% le dice al operador que
+significan lo mismo, y no es cierto. La doctrina prohíbe la **INSTRUCCIÓN**
+("deberías diversificar"), no la **caracterización** — igual que Pagos dice "no entró
+ningún pago" en vez de mostrar un cero mudo.
+
+**EL UMBRAL ES RELATIVO, NUNCA ABSOLUTO**, y es lo que hay que retener: uno absoluto
+("≥70% es concentrado") miente según el tamaño del padrón — el mismo 63% es casi
+neutro con 10 clientes y una alarma con 500. Se compara contra la **parte
+proporcional** del top (`top.length / clientes`). Medido en dev el día de la tanda:
+el **63,2%** que la página mostraba era contra un proporcional del **50%** —ratio
+**1,26**—, o sea **apenas por encima de un reparto perfectamente parejo**, presentado
+con tono de alarma. Ése es el defecto que las bandas cierran.
+
+**LA ESTRUCTURA NO CAMBIA ENTRE BANDAS; SÓLO EL ADJETIVO** (owner). Es la propiedad
+que permite compararlas de un vistazo entre períodos: lo que cambia tiene que ser UNA
+palabra, no el orden de la frase.
+
+- `ratio ≥ 1,5` → *"Tus ingresos están **concentrados**: el 78% viene de 5 de los 25 clientes que pagaron"*
+- `ratio ≤ 1,1` → *"Tus ingresos están **repartidos**: el 35% viene de 5 de los 25 clientes que pagaron"*
+- en medio → *"El 63% viene de 5 de los 25 clientes que pagaron"* — el hecho, sin adjetivo
+
+La banda del medio **no es indecisión**: es preferir callar a afirmar sin base, con
+precedente en el vecindario (`insightEnBanda`). Dos tests la fijan: uno se cae si
+alguien reescribe una banda con otro sujeto, y otro barre verbos de consejo en las
+tres — la frontera queda afirmada, no confiada a que alguien la recuerde.
+
+Los cortes **1,5 / 1,1 son `TODO(cliente)`**, como los de la cartera. Lo que **no** es
+placeholder es la **forma relativa**.
+
+**DOS FIXTURES SE ACTUALIZARON, y conviene el matiz: no se rompieron.** Usaban 10 y 7
+clientes, y bajo el piso nuevo dejaron de sostener la afirmación que hacían — que es
+exactamente el cambio. Está dicho en cada uno, para que el próximo no los "arregle"
+bajando el piso.
+
+**CONSECUENCIA MEDIDA, aceptada antes del gate:** con los **10 pagadores** de hoy el
+bloque **CALLA** en los cuatro períodos. Es correcto —10 pagadores no sostienen una
+afirmación sobre el top-5— y el owner lo aprobó sabiéndolo: *prefiere verlo callar que
+verlo hablar sobre nada.*
+
 ### La gráfica de PEDIDOS del carrusel no tiene destino, a propósito
 
 La gráfica de **Ventas** del carrusel del dashboard es clickeable y lleva a
