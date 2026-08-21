@@ -179,6 +179,50 @@ específico de versión, esta decisión se revisa.**
 HTTP completos, y el resto de la suite. Ampliarlo es una decisión, no un
 descuido.
 
+## REGLA · un número de layout sólo vale si viene de la pantalla donde se TRABAJA
+
+Antes de optimizar espacio —altura de cabecera, densidad de una lista, tamaño de
+tarjeta— hay que **confirmar EN QUÉ pantalla se está midiendo y si es la de uso
+real**. No es una precaución: es la misma familia que § el artefacto rancio y que
+la regla de las bases —**lo que está escrito no prueba lo que está corriendo**—,
+sólo que acá lo que engaña es *dónde se miró*.
+
+**El 2026-08-20 mordió TRES veces en una sola sesión**, y las tres con el mismo
+código sin cambiar:
+
+1. La dieta de cabecera de Pedidos se midió y se justificó contra un laptop
+   escalado. Los levers estaban bien calculados —52px + 20px, medidos con la CSS
+   real— y aun así **el resultado se sintió apretado y se revirtió entero**. El
+   número era correcto; la pantalla, no.
+2. El mismo día, el owner reportó ver 5 tarjetas en el laptop solo y 3½ con el
+   monitor conectado, **misma build**. La diferencia era la resolución escalada.
+3. Y el peor: el `window.innerHeight` de 380px que casi funda un rediseño de la
+   tarjeta resultó ser **la pantalla del laptop MIENTRAS el monitor está
+   conectado — una pantalla que el owner no mira**, porque con el monitor puesto
+   trabaja en el monitor. El cálculo derivado ("bajar la tarjeta de 108 a ~64px")
+   estaba hecho contra un viewport que nadie usa, y se descartó entero.
+
+**Lo que hace cara a esta trampa es que el número se ve impecable.** Un
+`innerHeight` es un dato primario, medido en vivo, sin margen de error — y aun así
+puede responder por una pantalla equivocada. El modelo entonces AJUSTA
+perfectamente (viewport ÷ slot reprodujo las dos observaciones del owner al
+decimal) y esa precisión se lee como validación, cuando lo único que valida es la
+aritmética.
+
+**El procedimiento, en dos preguntas que van ANTES de cualquier cálculo:**
+
+- **¿de qué pantalla física salió este número?** (no "de la consola" — de cuál
+  monitor, con qué escalado, con qué conectado);
+- **¿es ésa la pantalla donde el trabajo ocurre?** Con dos pantallas conectadas,
+  la respuesta por defecto es la SECUNDARIA sólo si alguien lo confirma; nadie
+  trabaja en la que no mira.
+
+**Y la consecuencia de producto, que es la que sobrevive a este incidente:** la
+tarjeta de pedido **NO se toca** (decisión del owner, 2026-08-20). El hilo del
+espacio de Pedidos se cierra con el rango→ícono ya mergeado; el "objetivo en
+píxeles" que justificaría un rediseño de la tarjeta **no existe todavía**, porque
+nunca se midió en la pantalla de uso real. El día que se retome, empieza por ahí.
+
 ## Toast = éxito, inline = error — la división de vehículos
 
 Regla del admin, y aplica a **todo diálogo con mutación**:
