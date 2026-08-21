@@ -5,6 +5,7 @@ import { CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { DunaTooltip } from '@/components/admin/DunaTooltip';
 import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
 import { dayKeyToDate, dateToDayKey } from '@/lib/day-key';
 import { anioPisoPicker } from '@/lib/metrics/periodo';
@@ -21,7 +22,21 @@ import { avanzarSeleccion } from '@/lib/rango-picker';
 
 const RANGE_LABEL = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short' });
 
-export function DateRangePicker({ desde, hasta, onChange, pisoAnio }: {
+// El texto de un rango ACTIVO — "1 ago – 19 ago", o "Desde 1 ago" en rango abierto.
+// EXPORTADO a propósito: cuando el picker va en modo sólo-ícono (Pedidos) ya no
+// muestra las fechas en el botón, así que el tag de alcance que las muestra tiene que
+// leer EXACTAMENTE este helper, no una copia del formato — dos definiciones del mismo
+// texto es cómo el tag y el control divergen. Devuelve '' sin rango (el llamador ya
+// sabe que entonces no hay tag que pintar).
+export function rangoLabel(desde: string | null, hasta: string | null): string {
+  if (desde && hasta) {
+    return `${RANGE_LABEL.format(dayKeyToDate(desde))} – ${RANGE_LABEL.format(dayKeyToDate(hasta))}`;
+  }
+  const uno = desde ?? hasta;
+  return uno ? `Desde ${RANGE_LABEL.format(dayKeyToDate(uno))}` : '';
+}
+
+export function DateRangePicker({ desde, hasta, onChange, pisoAnio, soloIcono = false }: {
   desde: string | null;
   hasta: string | null;
   onChange: (desde: string | null, hasta: string | null) => void;
@@ -30,6 +45,13 @@ export function DateRangePicker({ desde, hasta, onChange, pisoAnio }: {
   // opción A del backlog: el día que exista "primer año con datos", una página lo
   // pasa acá y el picker no cambia. El `DateField` del drawer no la usa.
   pisoAnio?: number;
+  // SÓLO ÍCONO (calendario), sin el texto del rango — para la fila del título de
+  // Pedidos, donde el rango sube junto a "Nuevo pedido" y no puede cobrarse una fila
+  // propia. Default `false`: Pagos e Inventario siguen con el botón de texto SIN
+  // cambio. El rango activo NO se pierde: en ese modo lo muestra el tag de alcance de
+  // la página (que lee `rangoLabel`), y el borde `active` del ícono ya señala que hay
+  // uno puesto. Lleva `DunaTooltip` + `aria-label` porque un ícono solo no dice qué es.
+  soloIcono?: boolean;
 }) {
   // El primer clic de un rango en curso vive ACÁ y no sale: `onChange` se llama SÓLO
   // con rangos completos, así que las pantallas nunca ven un medio-rango (§ el contrato
@@ -71,22 +93,32 @@ export function DateRangePicker({ desde, hasta, onChange, pisoAnio }: {
   const rightMonth  = anchorMonth > currentMonthStart ? currentMonthStart : anchorMonth;
   const leftMonth   = new Date(rightMonth.getFullYear(), rightMonth.getMonth() - 1, 1);
 
-  const label = !active
-    ? 'Rango de fechas'
-    : desde && hasta
-      ? `${RANGE_LABEL.format(dayKeyToDate(desde))} – ${RANGE_LABEL.format(dayKeyToDate(hasta))}`
-      : `Desde ${RANGE_LABEL.format(dayKeyToDate((desde ?? hasta)!))}`;
+  // El MISMO helper que usa el tag de alcance de Pedidos (§ `rangoLabel`): una sola
+  // definición del texto. Inactivo, el botón de texto muestra su etiqueta ociosa.
+  const label = active ? rangoLabel(desde, hasta) : 'Rango de fechas';
 
   // No standalone clear (✕) here: the range is cleared by each page's single
   // "Limpiar" reset, which also resets the page's other filters and the URL.
+  const trigger = (
+    <PopoverTrigger asChild>
+      <Button
+        variant="outline"
+        size="sm"
+        aria-label={soloIcono ? 'Filtrar por fechas' : undefined}
+        className={`h-9 ${soloIcono ? 'w-9 p-0' : 'gap-2'} ${active ? 'border-primary/50 text-foreground' : 'text-muted-foreground'}`}
+      >
+        <CalendarDays className="w-4 h-4" />
+        {!soloIcono && label}
+      </Button>
+    </PopoverTrigger>
+  );
+
   return (
     <Popover onOpenChange={() => setPendiente(null)}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className={`h-9 gap-2 ${active ? 'border-primary/50 text-foreground' : 'text-muted-foreground'}`}>
-          <CalendarDays className="w-4 h-4" />
-          {label}
-        </Button>
-      </PopoverTrigger>
+      {/* El ícono solo no dice qué hace: DunaTooltip da la etiqueta al hover y
+          `aria-label` (arriba) el nombre accesible. En modo texto el botón ya se
+          explica, así que ahí no se envuelve. */}
+      {soloIcono ? <DunaTooltip content="Filtrar por fechas">{trigger}</DunaTooltip> : trigger}
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           mode="range"

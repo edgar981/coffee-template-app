@@ -36,7 +36,7 @@ import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { ScheduleDeliveryModal } from '@/components/admin/ScheduleDeliveryModal';
 import { RegisterPaymentModal } from '@/components/admin/RegisterPaymentModal';
 import { NewOrderModal } from '@/components/admin/NewOrderModal';
-import { DateRangePicker } from '@/components/admin/DateRangePicker';
+import { DateRangePicker, rangoLabel } from '@/components/admin/DateRangePicker';
 import { findSlotLabel } from '@duna/core/shipping-config';
 import { customerWhatsappHref } from '@duna/core/whatsapp-link';
 import { siteConfig } from '@/lib/config/site';
@@ -504,11 +504,27 @@ function Pedidos() {
           carriles NO scrollean (§ duna.css, el shell). <1080 es un div normal y
           todo cae en document-scroll, como siempre. */}
       <div className="duna-cabecera">
-      <header style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-3)', marginBottom: 'var(--duna-space-6)' }}>
+      <header style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', marginBottom: 'var(--duna-space-6)' }}>
         {/* SIN conteo bajo el título: el pill "Todos" ya lo dice, y ahí además
             FILTRA. Una cifra que repite a un control accionable le quita sitio a
-            la respuesta sin agregar una. */}
-        <h1 className="duna-display-m" style={{ minWidth: 0 }}>Pedidos</h1>
+            la respuesta sin agregar una. `marginRight: auto` empuja el rango y
+            "Nuevo pedido" al extremo derecho, juntos. */}
+        <h1 className="duna-display-m" style={{ minWidth: 0, marginRight: 'auto' }}>Pedidos</h1>
+
+        {/* EL SELECTOR DE RANGO, en modo SÓLO ÍCONO (§ CLAUDE.md — la cabecera de
+            Pedidos). Sube a la fila del título junto a "Nuevo pedido" en vez de
+            cobrarse una fila propia; el rango activo lo muestra el tag de alcance de
+            abajo, no el botón. Es el `DateRangePicker` COMPARTIDO con Pagos e
+            Inventario, que siguen con su botón de texto (default) — acá va la prop.
+            Sin primitiva de calendario en el DS (hueco declarado), shadcn como los
+            modales (H6). */}
+        <DateRangePicker
+          soloIcono
+          desde={alcanceUrl.desde}
+          hasta={alcanceUrl.hasta}
+          onChange={(d, h) => navegar({ desde: d, hasta: h })}
+        />
+
         {/* SECUNDARIO, no el primario sólido de la vista. Crear a mano es la
             ESCOTILLA, no la acción primaria: los pedidos entran por WhatsApp, la
             tienda y los canales. Con la creación en secundario, esta vista no
@@ -517,7 +533,7 @@ function Pedidos() {
         <button
           type="button"
           className="duna-btn duna-btn--secondary"
-          style={{ marginLeft: 'auto', flexShrink: 0 }}
+          style={{ flexShrink: 0 }}
           onClick={() => setCreando(true)}
         >
           <Plus /> Nuevo pedido
@@ -526,45 +542,34 @@ function Pedidos() {
 
       {/* ── EL ALCANCE SE VE Y SE QUITA ────────────────────────────────────────
           Una lista recortada que no dice que está recortada es una lista que
-          miente: se lee como "la tienda tiene 2 pedidos". Va ARRIBA de los
-          carriles porque los alcanza también a ellos —sus conteos ya son de este
-          cliente— y en NEUTRO, nunca con `duna-note`: esa primitiva es sol-soft, y
-          el sol significa una cosa sola. Un alcance no pide atención, informa. */}
-      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--duna-space-3)', marginBottom: 'var(--duna-space-4)' }}>
-        {/* EL SELECTOR DE RANGO. Es el único alcance con control propio —los otros
-            dos sólo llegan por enlace profundo— y por eso está siempre visible,
-            junto a los carriles con los que se combina.
+          miente: se lee como "la tienda tiene 2 pedidos". La fila entera es
+          CONDICIONAL a `hayAlcance` —que ya incluye el rango (`desde`/`hasta`)—:
+          sin alcance no se renderiza (la vista por defecto no gasta una fila en un
+          control ocioso), y aparece sólo cuando hay algo recortado. Va ARRIBA de
+          los carriles porque los alcanza también a ellos, y en NEUTRO (`duna-tag`),
+          nunca `duna-note`: el sol significa atención, y un alcance informa. */}
+      {hayAlcance(alcanceUrl) && (
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--duna-space-3)', marginBottom: 'var(--duna-space-4)' }}>
+          {/* EL RANGO SÍ LLEVA TAG AHORA. Antes no —el selector de texto ya mostraba
+              las fechas y un tag las repetía—; con el selector en SÓLO ÍCONO ese
+              motivo se INVIERTE: el tag pasa a ser el ÚNICO sitio donde el rango se
+              ve, y un filtro invisible es el defecto que Pagos cerró. Display-only,
+              como los otros dos: se quita reabriendo el ícono o con "Ver todos" —un
+              × propio sería una tercera forma de quitar el mismo alcance—. El texto
+              sale de `rangoLabel`, el MISMO helper que el control, no una copia. */}
+          {(alcanceUrl.desde || alcanceUrl.hasta) && (
+            <span className="duna-tag">{rangoLabel(alcanceUrl.desde, alcanceUrl.hasta)}</span>
+          )}
+          {!cargando && cliente && (
+            <span className="duna-tag">Pedidos de {nombreAlcance ?? 'un cliente'}</span>
+          )}
+          {!cargando && etiquetaEstados(alcanceUrl.estados) && (
+            <span className="duna-tag">{etiquetaEstados(alcanceUrl.estados)}</span>
+          )}
 
-            Es el `DateRangePicker` COMPARTIDO con Órdenes y Pagos, reusado tal
-            cual: ya trabaja en day keys de Bogotá, que es exactamente lo que la
-            URL lleva y lo que el filtro compara. El design-system no tiene
-            primitiva de calendario —hueco declarado— así que va shadcn, la misma
-            mezcla temporal que los modales (H6). */}
-        <DateRangePicker
-          desde={alcanceUrl.desde}
-          hasta={alcanceUrl.hasta}
-          onChange={(d, h) => navegar({ desde: d, hasta: h })}
-        />
-
-        {/* LOS ALCANCES SE VEN Y SE QUITAN. Una lista recortada que no dice que
-            está recortada se lee como "la tienda tiene 2 pedidos". Van en NEUTRO
-            (`duna-tag`), nunca con `duna-note`: esa primitiva es sol-soft y el sol
-            significa una cosa sola — un alcance no pide atención, informa.
-
-            El rango NO lleva tag: el selector de al lado ya muestra sus fechas, y
-            un tag repetiría el mismo dato. Se quita desde el propio selector
-            (deseleccionar) o con "Ver todos". */}
-        {!cargando && cliente && (
-          <span className="duna-tag">Pedidos de {nombreAlcance ?? 'un cliente'}</span>
-        )}
-        {!cargando && etiquetaEstados(alcanceUrl.estados) && (
-          <span className="duna-tag">{etiquetaEstados(alcanceUrl.estados)}</span>
-        )}
-
-        {/* UNA sola forma de quitar alcances, la que ya existía para el cliente.
-            Limpia los tres de una vez y NO toca el carril: el carril es dónde
-            estás mirando, no cuánto estás mirando. */}
-        {!cargando && hayAlcance(alcanceUrl) && (
+          {/* UNA sola forma de quitar alcances, la que ya existía para el cliente.
+              Limpia los tres de una vez y NO toca el carril: el carril es dónde
+              estás mirando, no cuánto estás mirando. */}
           <button
             type="button"
             className="duna-btn duna-btn--ghost duna-btn--sm"
@@ -572,8 +577,8 @@ function Pedidos() {
           >
             Ver todos
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── Carriles ─────────────────────────────────────────────────────── */}
       <div className="row" style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-5)' }}>
