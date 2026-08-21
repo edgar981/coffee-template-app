@@ -164,6 +164,11 @@ function SelectorPeriodo({ valor, onChange, disabled }: {
 
 // ─── 1. RENTABILIDAD ──────────────────────────────────────────────────────────
 
+// Las columnas del grid-list del detalle. Constante y no inline: el encabezado y
+// las filas TIENEN que declarar la misma rejilla, y dos literales separados es
+// cómo se desalinean. Mismo patrón que el kardex de Inventario (`COLS`).
+const COLS_MARGEN = 'minmax(0, 1fr) 4rem 9rem 7rem 9rem';
+
 function Rentabilidad({ data, loading }: { data: AnalyticsData | null; loading: boolean }) {
   if (loading) {
     return <Panel><Skeleton className="h-7 w-2/3" /><Skeleton className="h-4 w-1/3 mt-3" /></Panel>;
@@ -202,53 +207,61 @@ function Rentabilidad({ data, loading }: { data: AnalyticsData | null; loading: 
 
       {r.filas.length > 0 && (
         <Pliegue label="Ver detalle por producto">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs text-muted-foreground border-b border-border">
-                  <th className="text-left font-medium py-2">Producto</th>
-                  <th className="text-right font-medium py-2 whitespace-nowrap">Uds</th>
-                  {/* "Venta de mercancía", no "Ingresos": esta columna es
-                      `OrderItem.subtotal` (mercancía, SIN envío) — otra base que la
-                      línea "Ingresos" de la trayectoria, que es `Payment.monto` con
-                      envío. Mismo nombre para dos bases distintas confundía. No es
-                      "neto" (no hay descuentos ni impuestos, sólo ausencia de envío). */}
-                  <th className="text-right font-medium py-2 whitespace-nowrap">Venta de mercancía</th>
-                  <th className="text-right font-medium py-2 whitespace-nowrap">Margen / ud</th>
-                  {/* La columna que ORDENA la tabla: plata dejada, no volumen. */}
-                  <th className="text-right font-medium py-2 whitespace-nowrap">Margen total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {r.filas.map(f => (
-                  <tr key={f.productoId} className="border-b border-border/50 last:border-0">
-                    <td className="py-2 pr-3">
-                      <Link
-                        href={`/admin/productos?producto=${encodeURIComponent(f.productoId)}`}
-                        title={`Ver ${f.producto}`}
-                        className="rounded text-accent-amber underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        {f.producto}
-                      </Link>
-                    </td>
-                    <td className="py-2 text-right tabular-nums text-muted-foreground">{f.unidades}</td>
-                    <td className="py-2 text-right tabular-nums text-muted-foreground">{formatCOP(f.ingresos)}</td>
-                    <td className="py-2 text-right tabular-nums text-muted-foreground">
-                      {f.margenUnitario === null ? '—' : formatCOP(f.margenUnitario)}
-                    </td>
-                    {/* Un margen negativo se pinta rojo: es una alerta REAL (se
-                        está vendiendo por debajo del costo), el único caso en que
-                        Amber Minimal admite color semántico en esta tabla. */}
-                    <td className={`py-2 text-right tabular-nums font-semibold ${f.margenTotal < 0 ? 'text-destructive' : ''}`}>
-                      {formatCOP(f.margenTotal)}
-                      {f.margenPct !== null && (
-                        <span className="ml-2 font-normal text-xs text-muted-foreground">{f.margenPct.toFixed(0)}%</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* GRID-LIST, no `<table>` (§ CLAUDE.md — Listas tabulares del panel). El
+              markup anterior era `overflow-x-auto` + `w-full`, y esas dos clases NO
+              PUEDEN CONVIVIR: `w-full` fuerza la tabla al ancho del contenedor, así
+              que nunca desborda y el scroll que el wrapper promete no se activa
+              jamás — las columnas se comprimen en su sitio. Las que llevaban
+              `whitespace-nowrap` no podían ceder, así que su contenido se desbordaba
+              de la celda y se tocaba con el vecino (los encabezados salían pegados,
+              "UdsVenta de mercancíaMargen / ud", y las cifras se superponían); y la
+              única sin `nowrap` —Producto— era la que envolvía a dos líneas. Un solo
+              mecanismo, tres síntomas. Reportado por el owner en teléfono.
+
+              `.duna-lista` lo cierra por diseño: REFLUYE a dos columnas <960 en vez
+              de scrollear horizontal, y cada celda declara su columna con
+              `data-label`, que es el encabezado que el reflujo pierde. */}
+          <div className="duna-lista">
+            <div className="duna-lista__fila duna-lista__head duna-lista--en-pliegue" style={{ gridTemplateColumns: COLS_MARGEN }}>
+              <span>Producto</span>
+              <span className="duna-lista__r">Uds</span>
+              {/* "Venta de mercancía", no "Ingresos": esta columna es
+                  `OrderItem.subtotal` (mercancía, SIN envío) — otra base que la
+                  línea "Ingresos" de la trayectoria, que es `Payment.monto` con
+                  envío. Mismo nombre para dos bases distintas confundía. No es
+                  "neto" (no hay descuentos ni impuestos, sólo ausencia de envío). */}
+              <span className="duna-lista__r">Venta de mercancía</span>
+              <span className="duna-lista__r">Margen / ud</span>
+              {/* La columna que ORDENA la tabla: plata dejada, no volumen. */}
+              <span className="duna-lista__r">Margen total</span>
+            </div>
+            {r.filas.map(f => (
+              <div key={f.productoId} className="duna-lista__fila" style={{ gridTemplateColumns: COLS_MARGEN }}>
+                <span data-label="Producto" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <Link
+                    href={`/admin/productos?producto=${encodeURIComponent(f.productoId)}`}
+                    title={`Ver ${f.producto}`}
+                    className="rounded text-accent-amber underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {f.producto}
+                  </Link>
+                </span>
+                <span data-label="Uds" className="duna-lista__r duna-num duna-sub">{f.unidades}</span>
+                <span data-label="Venta de mercancía" className="duna-lista__r duna-num duna-sub">{formatCOP(f.ingresos)}</span>
+                <span data-label="Margen / ud" className="duna-lista__r duna-num duna-sub">
+                  {f.margenUnitario === null ? '—' : formatCOP(f.margenUnitario)}
+                </span>
+                {/* Un margen negativo se pinta rojo: es una alerta REAL (se
+                    está vendiendo por debajo del costo), el único caso en que
+                    Amber Minimal admite color semántico en esta tabla. */}
+                <span data-label="Margen total" className={`duna-lista__r duna-num font-semibold ${f.margenTotal < 0 ? 'text-destructive' : ''}`}>
+                  {formatCOP(f.margenTotal)}
+                  {f.margenPct !== null && (
+                    <span className="duna-caption font-normal" style={{ marginLeft: 'var(--duna-space-2)' }}>{f.margenPct.toFixed(0)}%</span>
+                  )}
+                </span>
+              </div>
+            ))}
           </div>
 
           {/* El residual es un HECHO declarado, no un silencio. Costear en 0 lo

@@ -252,3 +252,31 @@ html.admin {
   color: var(--duna-bg);
   box-shadow: var(--duna-shadow-2);
 }
+
+/* ── GRID-LIST DENTRO DE UN PLIEGUE · el encabezado NO va sticky ──────────────
+   `.duna-lista__head` nace `position: sticky; top: 0` porque sus dos consumidores
+   —el libro de Pagos y el kardex de Inventario— viven en la REGIÓN de una pantalla
+   de alto fijo, y ahí el sticky pega contra el scroller de esa región, que es su
+   trabajo.
+
+   Analítica no tiene ese scroller: es document-scroll por decisión (§ CLAUDE.md —
+   la forma de Analítica), y su lista vive DENTRO de un pliegue. SIN SCROLLER
+   PROPIO, EL STICKY RESUELVE CONTRA EL DOCUMENTO Y SE DESPEGA DE SU TABLA: el
+   encabezado se pinnearía al borde del viewport —por debajo de la topbar, que mide
+   64px y no le deja offset— mientras la lista pasa, separado de las filas que
+   rotula. Un encabezado flotando lejos de su tabla es peor que ninguno.
+
+   Y no hace falta: la lista son los productos CON VENTAS del período, o sea como
+   mucho el catálogo entero (4 productos hoy, medido). Un encabezado sticky existe
+   para cuando el scroll se lleva la referencia; con cuatro filas nunca se la lleva.
+
+   NO se cambia la primitiva para hacer el sticky opt-in: eso tocaría a Pagos e
+   Inventario, donde hoy es correcto. Si aparece un TERCER consumidor sin scroller,
+   ésa es la señal de que la primitiva debe parametrizarlo.
+
+   EL SELECTOR VA COMPUESTO (0,2,0) Y NO SUELTO, por el mismo motivo que
+   `.duna-skel.duna-skel` (§ primitives.css): contra la clase base el desempate
+   sería el ORDEN DE ARCHIVO —esta regla gana hoy sólo porque va después del
+   `@import` de primitives—, y eso lo rompe cualquier cambio futuro de bundling o
+   de orden de imports. Con la especificidad subida, gana esté donde esté. */
+.duna-lista__fila.duna-lista--en-pliegue { position: static; }
