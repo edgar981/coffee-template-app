@@ -3416,6 +3416,70 @@ distintas es correcto sólo si cada uno declara qué cuenta.
   historia ni volumen), snapshot de costo, filtro por edad en Órdenes, y
   export/PDF/comparativas configurables.
 
+### EL CONTRATO DEL PERÍODO · cada bloque DECLARA su alcance, junto a su titular
+
+Cerrado el 2026-08-20 (tanda 1 del rediseño de Analítica). **Es un defecto, no un
+rediseño:** el chip vive arriba de la página y la mitad de los bloques no lo
+respeta —por diseño, y las divergencias están bien—, así que **un control que
+parece aplicar y no aplica miente**. Ya había costado un defecto silencioso
+(clientes y canales clavados en el año en curso sin que nada lo delatara), que es
+por qué la tabla de arriba se afirma en el carril: *un humano no puede ver que un
+número no se movió.*
+
+**NINGUNA base de cálculo se tocó.** Las divergencias son deliberadas y ya estaban
+declaradas EN EL CÓDIGO; lo que faltaba era subirlas a la PANTALLA. La tanda es
+texto.
+
+- **La declaración vive JUNTO AL TITULAR de cada bloque, nunca como descargo
+  global.** Un descargo global obliga a mapear siete bloques contra una lista
+  lejana, y sería un segundo sitio que puede divergir de lo que cada bloque hace.
+- **Y NO es una prop de `Bloque`.** El bloque 4 tiene TRES alcances distintos
+  —concentración (período, por pago), recurrencia (acumulado) y canales (período,
+  por creación)—, así que una ranura por bloque obligaría a mentir por
+  simplificación justo en el más mezclado. Vive en cada panel, que es donde ya
+  estaba en cinco de siete.
+- **El patrón ya existía y sólo se completó.** El censo del descubrimiento
+  encontró que Cartera ("saldo vigente, no depende del período"), Recurrencia
+  ("acumulado, no depende del período"), Concentración, Canales y la card semanal
+  YA lo declaraban, y visible. Faltaban dos. **Conviene tenerlo escrito porque el
+  reporte inicial de esa sesión dijo lo contrario** —afirmó que sólo Canales lo
+  decía— y sobre esa premisa falsa se habría reescrito lo que ya estaba bien.
+
+**EL CASO GRAVE ERA TRAYECTORIA**, y su forma es la que hay que reconocer: la
+serie IGNORA el chip (son siempre 12 meses) y su alcance vivía **dentro del
+pliegue**, o sea cerrado por defecto. Con "Mes pasado" elegido, un chart de 12
+meses **contradice al chip a la vista** y la única explicación estaba donde el
+propio diseño garantiza que nadie mira — la prueba de aceptación de esta página es
+"responder las cuatro preguntas SIN abrir un solo pliegue". La asimetría lo
+delataba: sus dos hermanos que también ignoran el chip lo declaran en línea.
+
+**Y "no depende del período" NO alcanzaba para una serie.** La fórmula funciona en
+Cartera y Recurrencia porque ahí es obvio: **un saldo vigente y un acumulado no
+TIENEN período.** Una serie temporal sí lo tiene, así que decir sólo que no
+depende del chip deja al operador preguntándose por qué. Tiene que decir las tres
+cosas —**cuál es el alcance, que es fijo, y para qué**—: *"Pagos recibidos por mes
+(incluye envío) · siempre los últimos 12 meses, para ver la tendencia."* El
+`incluye envío` se CONSERVA a propósito: es la base declarada que hace que esa
+línea no sea comparable peso a peso con la del margen.
+
+**El caso menor era Rentabilidad, y es el que más silenciosamente confunde**
+(owner): SÍ respeta el chip, pero mide por **fecha de PAGO**, así que un mes puede
+mostrar margen de ventas viejas cobradas ahora. La doctrina ya anticipaba esa
+confusión y decía que "la respuesta es la nota, no cambiar la base" — **la nota no
+existía en pantalla.** Ahora abre la línea: *"Del período, por fecha de pago · …"*.
+El titular nombra el período ("Este mes…"); esto dice **qué fecha lo decide**.
+
+**Límite conocido, declarado:** la línea de Rentabilidad va dentro de `hayVentas`,
+así que un período sin ventas no la muestra. Es aceptable —sin cifra de margen no
+hay nada que malinterpretar, y el titular ya dice "no hubo ventas **cobradas**"—
+pero queda escrito para que no se lea como olvido.
+
+**Las frases NO se extraen a `lib/`** (decisión del owner): son literales de UI sin
+decisión, y `lib/` es para lo que TIENE una decisión que afirmar (§ titulares.ts,
+que sí vive ahí porque su redacción cambia con la gramática del período). La
+consecuencia es que esta tanda **no tiene superficie de capa 1** y su verificación
+es el gate visual — dicho, no omitido.
+
 ### La gráfica de PEDIDOS del carrusel no tiene destino, a propósito
 
 La gráfica de **Ventas** del carrusel del dashboard es clickeable y lleva a
@@ -3431,6 +3495,27 @@ estaría mal es el destino—. Se hizo no-clickeable en vez de forzar un filtro
 Pedidos merece un destino propio que mida lo suyo (líneas de producto pagadas de ese
 día), esa es la pantalla que lo define. Hasta entonces no-clickeable es la respuesta
 correcta, no una deuda. Esto NO vuelve al backlog.
+
+**EL DISPARADOR SE AFINÓ, y ahora es un HECHO y no una tanda** (owner, 2026-08-20,
+tanda 1 de Analítica). El rediseño de Analítica EMPEZÓ y la gráfica **sigue sin
+destino**, así que el disparador de arriba se cumplió sin resolver nada — el mismo
+error que ya se corrigió en el § Backlog #27 (atar un disparador a una tanda que
+después no hace lo que se suponía).
+
+El destino natural existe y está identificado: **Rentabilidad mide EXACTAMENTE el
+mismo conjunto** —`OrderItem` de órdenes `pagado`, período por `Payment.fecha`—.
+Lo que falta no es el bloque: es que **el chip pueda representar UN DÍA.** Hoy
+tiene cuatro presets fijos (`PeriodoKey`), y un clic en el 14-ago no tiene preset
+que lo exprese.
+
+**Y "el mes que contiene el día" NO es la salida:** es el parecido-pero-distinto
+que esta misma sección rechaza dos veces. La tercera se rechazó explícitamente.
+
+**DISPARADOR REAL: cuando el chip de período pueda representar un día** (rango
+explícito o equivalente). Esa decisión se aplazó a propósito en la tanda 1 —
+enriquecer un control que la mitad de la pantalla ignoraba habría agrandado la
+mentira, y por eso el contrato del período iba primero—. Con el contrato ya
+cerrado, el rango explícito es discutible; el enlace sale de ahí, no antes.
 
 **SEGUNDO CASO de la misma regla (2026-08-20, retiro de Entregas):** el widget
 `despachos_hoy` quedó NO-CLICKABLE cuando se retiró su viejo destino `/admin/entregas`.
