@@ -10,7 +10,7 @@ import {
 import { formatCOP } from '@duna/core/utils';
 import { getAnalytics, getWeeklyActivity } from '@/lib/api/analytics';
 import { tooltipStyle, axisTickStyle } from '@/constants/dashb-styles';
-import { widgetInsight, type InsightMonthPoint } from '@/lib/metrics/insights';
+import { widgetInsight, dibujaTendencia, type InsightMonthPoint } from '@/lib/metrics/insights';
 import { PERIODOS, PERIODO_ORDEN, PERIODO_DEFAULT, type PeriodoKey } from '@/lib/metrics/periodo';
 import {
   titularRentabilidad, titularProductoEstrella, titularCartera, titularConcentracion,
@@ -415,6 +415,12 @@ function Trayectoria({ data, loading }: { data: AnalyticsData | null; loading: b
   const insightIngresos = widgetInsight({ serie: serieIngresos });
   const insightMargen   = widgetInsight({ serie: serieMargen });
 
+  // DIBUJA O DECLARA, con el MISMO juez que produce el titular (§ dibujaTendencia).
+  // Antes el titular decía "Muestra aún pequeña para tendencias" y el chart pintaba
+  // ejes, grilla y un punto suelto: la pantalla se contradecía a sí misma. Derivando
+  // el dibujo del guard, esa contradicción es imposible por construcción.
+  const dibuja = dibujaTendencia({ serie: serieIngresos });
+
   if (loading) return <Panel><Skeleton className="h-7 w-1/2" /><Skeleton className="h-56 w-full mt-4" /></Panel>;
   if (desdeLaPrimera.length === 0) {
     return <Panel><Titular>Sin ventas cobradas todavía</Titular></Panel>;
@@ -448,7 +454,10 @@ function Trayectoria({ data, loading }: { data: AnalyticsData | null; loading: b
           </p>
         </div>
 
-        {/* Label HUMANO, no jerga: "Ver margen", no "margen bruto estimado". */}
+        {/* Label HUMANO, no jerga: "Ver margen", no "margen bruto estimado".
+            SÓLO con curva: un toggle que superpone una línea sobre un gráfico que no
+            se dibuja es un control muerto — promete algo que no puede ocurrir. */}
+        {dibuja && (
         <button
           type="button"
           onClick={() => setVerMargen(v => !v)}
@@ -459,12 +468,25 @@ function Trayectoria({ data, loading }: { data: AnalyticsData | null; loading: b
         >
           Ver margen
         </button>
+        )}
       </div>
 
-      {verMargen && insightMargen && (
+      {dibuja && verMargen && insightMargen && (
         <p className="text-xs text-muted-foreground mt-2">Margen: {insightMargen.text.toLowerCase()}</p>
       )}
 
+      {!dibuja ? (
+        /* SIN EJES NI GRILLA. Un gráfico de un punto es decoración fingiendo ser
+           dato: pintar la rejilla completa para un dato suelto le da apariencia de
+           serie a lo que no la es. El TITULAR de arriba ya dice el hecho ("Muestra
+           aún pequeña para tendencias"), así que esta línea sólo explica por qué no
+           hay curva — misma división que en la curva de Pagos, donde el gráfico se
+           calla y la frase de arriba responde. */
+        <p className="duna-sub mt-4">
+          Todavía no hay meses suficientes para dibujar una tendencia. La cifra de
+          arriba sigue siendo exacta; lo que falta es historia con qué compararla.
+        </p>
+      ) : (
       <div className="mt-4">
         <ResponsiveContainer width="100%" height={240}>
           <LineChart data={desdeLaPrimera}>
@@ -499,6 +521,7 @@ function Trayectoria({ data, loading }: { data: AnalyticsData | null; loading: b
           </LineChart>
         </ResponsiveContainer>
       </div>
+      )}
 
       <Pliegue label="Cómo se lee esta serie">
         <p className="text-xs text-muted-foreground">

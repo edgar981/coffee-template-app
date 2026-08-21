@@ -174,6 +174,41 @@ export function insightMuestraCorta(data: WidgetInsightData | null | undefined):
 }
 
 /**
+ * ¿La serie se DIBUJA, o el gráfico declara por qué no?
+ *
+ * UN SOLO JUEZ, y ésa es toda la decisión de esta función. El titular del bloque ya
+ * declaraba "Muestra aún pequeña para tendencias" mientras el chart pintaba ejes,
+ * grilla y un punto suelto: la pantalla se contradecía a sí misma —decía que no hay
+ * tendencia y dibujaba una—. Se resuelve derivando el dibujo del MISMO guard que
+ * produce ese titular, con lo que la contradicción pasa a ser IMPOSIBLE por
+ * construcción.
+ *
+ * Deliberadamente NO tiene umbral propio. Un `MIN_PUNTOS` como el de la curva de
+ * Pagos (§ lib/pagos/bucketeo) serían DOS jueces del mismo hecho, y dos definiciones
+ * del mismo criterio es cómo divergen — el modo de falla que este repo ya pagó con
+ * `razonDelServidor` y `cruzoMinimo`. Pagos necesita el suyo porque su eje es
+ * genérico (día/semana/mes) y no tiene un guard de muestra; Analítica sí lo tiene.
+ *
+ * Un gráfico de un punto es decoración fingiendo ser dato.
+ *
+ * NO APLICA a las otras dos gráficas de la página, y la razón es de naturaleza, no
+ * de umbral:
+ *  - la ACTIVIDAD SEMANAL siempre tiene siete días —una semana no puede traer menos
+ *    buckets—, así que su caso degenerado no es "pocos puntos" sino "los siete en
+ *    cero", que es un vacío y ya tiene su propio fallback honesto;
+ *  - los CANALES son CATEGORÍAS, no una serie temporal: un solo canal es un hecho
+ *    legítimo ("todo llega por WhatsApp"), no una tendencia afirmada sobre nada.
+ * Forzarles esta regla sería copiar la letra sin el motivo.
+ */
+export function dibujaTendencia(data: WidgetInsightData | null | undefined): boolean {
+  // Sin serie no hay nada que dibujar. Va explícito y no delegado: `insightMuestraCorta`
+  // devuelve `null` en ese caso —"no tengo insight que dar"—, que es lo correcto para un
+  // insight y lo CONTRARIO de lo que significaría acá si se leyera como "sí dibuja".
+  if (!data?.serie?.length) return false;
+  return insightMuestraCorta(data) === null;
+}
+
+/**
  * Escalón final de las tarjetas con serie: hay muestra y hay meses, pero ni racha
  * (los 3 últimos no son monótonos) ni semestre que promediar. En vez de callar —
  * dejando la tarjeta sin su segunda línea — o de inventar un juicio ("estable",

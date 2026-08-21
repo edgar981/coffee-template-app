@@ -4,6 +4,7 @@ import {
   insightRacha, insightContraPromedio, insightEnBanda, insightMuestraCorta,
   insightUltimoEvento, insightHistoriaDisponible, diasEntre, widgetInsight,
   MIN_ORDENES_INSIGHT, type InsightMonthPoint, type WidgetInsightData,
+  dibujaTendencia,
 } from './insights';
 
 // Reglas de insight — puras, así que los tests son tablas de entrada/salida.
@@ -354,4 +355,56 @@ test('historia disponible no aplica sin meses cerrados', () => {
 test('los fallbacks NO llevan énfasis; los de tendencia SÍ', () => {
   assert.equal(widgetInsight(serie([300, 200, 100]))?.enfasis, true);
   assert.equal(widgetInsight(serie([100, 100]))?.enfasis, undefined);
+});
+
+// ─── Dibuja o declara ─────────────────────────────────────────────────────────
+//
+// El invariante que estos tests fijan NO es un umbral: es que el gráfico y el
+// titular NO PUEDAN CONTRADECIRSE. Por eso cada caso afirma las DOS mitades a la
+// vez —lo que dice el guard y lo que hace el dibujo—. Si alguien le diera a
+// `dibujaTendencia` un umbral propio, estos tests se caen, que es justo lo que se
+// les pide.
+
+test('un solo mes NO dibuja: es el caso que motivó la regla', () => {
+  const d = serie([100]);
+  assert.equal(dibujaTendencia(d), false);
+  assert.deepEqual(insightMuestraCorta(d), { text: 'Muestra aún pequeña para tendencias' });
+});
+
+test('dos meses tampoco dibujan', () => {
+  assert.equal(dibujaTendencia(serie([100, 200])), false);
+});
+
+test('tres meses con muestra suficiente SÍ dibujan', () => {
+  const d = serie([300, 200, 100]);
+  assert.equal(dibujaTendencia(d), true);
+  assert.equal(insightMuestraCorta(d), null);
+});
+
+test('tres meses bajo la guarda de ÓRDENES no dibujan, aunque sobren meses', () => {
+  // La muestra corta no es sólo cuestión de cuántos meses hay: con pocas órdenes el
+  // porcentaje es ruido. El dibujo hereda esa guarda entera, no sólo el conteo.
+  assert.equal(dibujaTendencia(serie([300, 200, 100], { ordenes: 10 })), false);
+});
+
+test('sin serie NO dibuja — y es el borde que obliga a la guarda explícita', () => {
+  // AQUÍ ESTÁ LA RAZÓN DE `!data?.serie?.length`, y es un borde real, no ceremonia:
+  // con `null`/`undefined` el guard devuelve `null` —correcto para un insight: "no
+  // tengo nada que decir"— y delegar a secas leería ese `null` como "no hay
+  // objeción, dibuja". O sea, sin serie dibujaría.
+  assert.equal(insightMuestraCorta(null), null);
+  assert.equal(dibujaTendencia(null), false);
+  assert.equal(dibujaTendencia(undefined), false);
+
+  // Un array VACÍO no pasa por esa rama —`[]` es truthy—, así que el guard sí
+  // opina y devuelve muestra corta. Las dos entradas llegan al mismo `false` por
+  // caminos distintos, y por eso se afirman las dos.
+  assert.deepEqual(insightMuestraCorta({ serie: [] }), { text: 'Muestra aún pequeña para tendencias' });
+  assert.equal(dibujaTendencia({ serie: [] }), false);
+});
+
+test('el mes EN CURSO no habilita el dibujo: sólo cuentan los cerrados', () => {
+  // Dos cerrados + uno en curso siguen siendo dos para la regla, igual que para el
+  // guard. Sin esto, el día 1 de cada mes un negocio nuevo "estrenaría" tendencia.
+  assert.equal(dibujaTendencia(serie([100, 200], { enCurso: 300 })), false);
 });
