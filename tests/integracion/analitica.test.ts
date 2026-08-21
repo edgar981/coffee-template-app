@@ -310,23 +310,27 @@ test('una orden con DOS pagos no duplica sus líneas en la serie', async () => {
 test('la concentración rankea por dinero PAGADO y calla sin muestra', async () => {
   const p = await producto({ slug: 'origen', nombre: 'Origen 500g', precio: 20_000, costo: 12_000 });
   const el3 = new Date('2026-08-03T15:00:00Z');
+  // DIECISÉIS y no siete: el piso de muestra subió a `MIN_CLIENTES_CONCENTRACION`
+  // (= MIN_ORDENES_INSIGHT, 15) porque con menos el top-5 es una fracción enorme del
+  // padrón y el % es aritmética. Este fixture no "se rompió": dejó de sostener la
+  // afirmación que hace, que es exactamente el cambio.
   const clientes = [];
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 16; i++) {
     const c = await prisma.customer.create({ data: { nombre: `Cliente ${i}`, email: `c${i}@test.co` } });
     clientes.push(c);
     await vender({
-      numero: `CN-40000${i}`, productoId: p.id, nombre: p.nombre,
+      numero: `CN-4${String(i).padStart(5, '0')}`, productoId: p.id, nombre: p.nombre,
       cantidad: i + 1, precio: 20_000, creadaEl: el3, pagadaEl: el3, clienteId: c.id,
     });
   }
 
   const r = await calcularAnalitica('mes', AHORA);
-  assert.equal(r.concentracion.clientes, 7);
+  assert.equal(r.concentracion.clientes, 16);
   assert.equal(r.concentracion.top.length, 5);
-  // El que más pagó primero: el cliente 6 (7 uds × 20.000).
-  assert.equal(r.concentracion.top[0].nombre, 'Cliente 6');
-  assert.equal(r.concentracion.top[0].total, 140_000);
-  assert.notEqual(r.concentracion.pct, null);   // 7 clientes ≥ el piso de 6
+  // El que más pagó primero: el cliente 15 (16 uds × 20.000).
+  assert.equal(r.concentracion.top[0].nombre, 'Cliente 15');
+  assert.equal(r.concentracion.top[0].total, 320_000);
+  assert.notEqual(r.concentracion.pct, null);   // 16 clientes ≥ el piso de 15
 });
 
 test('la concentración INCLUYE el pago de una orden cancelada — el cableado, no sólo el helper', async () => {

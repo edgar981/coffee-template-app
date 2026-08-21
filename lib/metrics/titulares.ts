@@ -99,5 +99,31 @@ export function titularCartera(cartera: ResumenCartera): string {
 export function titularConcentracion(c: Concentracion): string | null {
   if (c.pct === null) return null;
   const n = c.top.length;
-  return `El ${Math.round(c.pct)}% de tus ingresos viene de ${n} ${n === 1 ? 'cliente' : 'clientes'}`;
+
+  // EL PADRÓN VA EN LA FRASE, y es el arreglo que motivó esta redacción: el
+  // porcentaje no se puede leer sin saber contra cuántos. Antes decía "viene de 5
+  // clientes" y el único conteo a la vista era el de RECURRENCIA —el padrón entero,
+  // acumulado—, que parecía su denominador y no lo era: en dev, 63% calculado sobre
+  // 10 pagadores junto a un "18 clientes" de otra métrica.
+  //
+  // `que pagaron` no es adorno: declara la POBLACIÓN. Un cliente con pedido
+  // pendiente no está en esos N.
+  const cuerpo = `${Math.round(c.pct)}% viene de ${n} de los ${c.clientes} clientes que pagaron`;
+
+  // ── LA ESTRUCTURA NO CAMBIA ENTRE BANDAS, SÓLO EL ADJETIVO ─────────────────
+  //
+  // Las tres dicen lo mismo en el mismo orden. Es lo que permite compararlas de un
+  // vistazo entre recargas o entre períodos: si la de "repartido" cambiara de sujeto
+  // ("los 5 que más pagaron dejaron el 35%"), el operador tendría que releer la
+  // frase entera para ver qué cambió, en vez de leer una palabra.
+  //
+  // Y CARACTERIZAR ES DECIR EL HECHO, no aconsejar. La frase neutra ya interpretaba
+  // por omisión: el MISMO tono para 63% y para 5% le dice al operador que significan
+  // lo mismo, y no es cierto. "Están concentrados" es estado, como el "no entró
+  // ningún pago" de Pagos; "deberías diversificar" sería consejo, y eso no entra.
+  if (c.banda === 'concentrado') return `Tus ingresos están concentrados: el ${cuerpo}`;
+  if (c.banda === 'repartido')   return `Tus ingresos están repartidos: el ${cuerpo}`;
+  // Banda del medio: el hecho sin adjetivo. No es indecisión — es preferir callar a
+  // afirmar sin base, con el precedente de `insightEnBanda`.
+  return `El ${cuerpo}`;
 }
