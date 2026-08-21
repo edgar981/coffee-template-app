@@ -329,6 +329,33 @@ test('la concentración rankea por dinero PAGADO y calla sin muestra', async () 
   assert.notEqual(r.concentracion.pct, null);   // 7 clientes ≥ el piso de 6
 });
 
+test('la concentración INCLUYE el pago de una orden cancelada — el cableado, no sólo el helper', async () => {
+  // INVARIANTE INVERTIDO (unificación 2026-08-21). Antes esta consulta excluía las
+  // canceladas por su cuenta, y eso la hacía discrepar de la lista de Clientes:
+  // $315.000 contra $259.000 en dev para los mismos clientes.
+  //
+  // La decisión de producto es que SÍ cuentan —el cliente pagó, cancelar no toca el
+  // `Payment`, y el libro de Pagos ya la muestra—, así que esconderla acá haría que
+  // la suma por cliente no cuadre con ese libro.
+  //
+  // Y esto afirma el CABLEADO, no la definición: que `paidTotalByCustomer` cuente
+  // bien ya lo prueba `dinero-pagado-cliente.test.ts`. Lo que se afirma acá es que
+  // Analítica la USA, que es lo que una sola de las dos pruebas no alcanza a decir.
+  const p = await producto({ slug: 'origen-c', nombre: 'Origen 500g', precio: 20_000, costo: 12_000 });
+  const el3 = new Date('2026-08-03T15:00:00Z');
+  const c = await prisma.customer.create({ data: { nombre: 'Cancelón', email: 'canc@test.co' } });
+
+  await vender({ numero: 'CN-450001', productoId: p.id, nombre: p.nombre, cantidad: 1, precio: 20_000,
+                 creadaEl: el3, pagadaEl: el3, clienteId: c.id });
+  // Pagada y DESPUÉS cancelada: la plata entró igual.
+  await vender({ numero: 'CN-450002', productoId: p.id, nombre: p.nombre, cantidad: 1, precio: 20_000,
+                 creadaEl: el3, pagadaEl: el3, clienteId: c.id, estado: 'cancelado' });
+
+  const r = await calcularAnalitica('mes', AHORA);
+  const suyo = r.concentracion.top.find(t => t.nombre === 'Cancelón');
+  assert.equal(suyo?.total, 40_000, 'el pago de la cancelada tiene que estar sumado');
+});
+
 test('con 5 clientes o menos el % de concentración se CALLA', async () => {
   const p = await producto({ slug: 'origen', nombre: 'Origen 500g', precio: 20_000, costo: 12_000 });
   const el3 = new Date('2026-08-03T15:00:00Z');

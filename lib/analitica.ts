@@ -1,6 +1,6 @@
 import prisma from '@duna/core';
 import { BUSINESS_TZ, startOfZonedMonth, zonedDayKey } from '@duna/core/timezone';
-import { nonCancelledOrderCountByCustomer } from '@duna/core/metrics/customer-order-stats';
+import { nonCancelledOrderCountByCustomer, paidTotalByCustomer } from '@duna/core/metrics/customer-order-stats';
 import { agregarMargenPorSku, type CostoProducto, type LineaVendida } from '@/lib/metrics/margen';
 import { agruparCartera, type OrdenPendiente } from '@/lib/metrics/cartera';
 import { concentracionIngresos, type ClienteIngreso } from '@/lib/metrics/concentracion';
@@ -37,7 +37,6 @@ type SkuMesRow   = SkuRow & { month: string };
 type MesRow      = { month: string; total: number };
 type MesCountRow = { month: string; n: number };
 type CarteraRow  = { dia: string; total: number };
-type ClienteRow  = { id: string; nombre: string | null; total: number };
 type CanalRow    = { canal: string | null; n: number };
 
 const MESES_CORTOS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -68,7 +67,7 @@ export async function calcularAnalitica(periodoKey: PeriodoKey, now: Date = new 
     serieIngresosRows,
     serieSkuRows,
     serieOrdenesRows,
-    clienteRows,
+    pagadoPorCliente,
     ordenesPorCliente,
     totalClientes,
     canalRows,
@@ -187,19 +186,25 @@ export async function calcularAnalitica(periodoKey: PeriodoKey, now: Date = new 
     // Dinero PAGADO por cliente (no `Customer.total_compras`, que es data de
     // demo), por fecha de PAGO — la misma base que la rentabilidad, así que "de
     // quién dependo" y "cuánto gané" hablan del mismo dinero.
-    prisma.$queryRaw<ClienteRow[]>`
-      SELECT c."id"                    AS id,
-             c."nombre"                AS nombre,
-             SUM(pay."monto")::float8  AS total
-      FROM "Payment" pay
-      JOIN "Order" o    ON o."id" = pay."orden_id"
-      JOIN "Customer" c ON c."id" = o."cliente_id"
-      WHERE pay."fecha" >= ${periodoDesde}
-        AND pay."fecha" <  ${periodoHasta}
-        AND o."numero_orden" LIKE ${ORDER_PREFIX}
-        AND o."estado" <> 'cancelado'
-      GROUP BY 1, 2
-    `,
+    //
+    // ── EL HELPER COMPARTIDO, NO UNA SQL PROPIA (unificación 2026-08-21) ─────
+    //
+    // Acá vivía un `$queryRaw` que excluía las órdenes CANCELADAS, y ésa era una
+    // SEGUNDA definición de "dinero pagado por cliente": la lista y el perfil de
+    // Clientes leen `paidTotalByCustomer`, que no las excluye. Medido en dev el
+    // día de la unificación: **$315.000 contra $259.000** — dos pantallas
+    // afirmando el dinero del mismo cliente con números distintos.
+    //
+    // EL FILTRO DE CANCELADAS NO SE PERDIÓ: SE RETIRÓ, y es una decisión de
+    // producto (owner). Cancelar NO toca el `Payment` —doctrina declarada—, así
+    // que la plata entró y el libro de Pagos ya la cuenta; esconderla acá haría
+    // que la suma por cliente no cuadre con ese libro. Un reembolso sería otro
+    // hecho y hoy no se modela. Se dice explícito porque quitar un filtro de
+    // exclusión se lee como descuido si no dice por qué.
+    //
+    // El `LIKE 'CN-%'` SÍ sobrevive, dentro del helper: las `SN-` no cuentan en
+    // ningún lado, y eso no es negocio sino limpieza de datos de demo.
+    paidTotalByCustomer({ desde: periodoDesde, hasta: periodoHasta }),
     // Recurrencia con la definición COMPARTIDA de "N órdenes" (no canceladas), la
     // misma que la lista de Clientes y su Top 5 — no un conteo propio.
     nonCancelledOrderCountByCustomer(),
@@ -279,11 +284,28 @@ export async function calcularAnalitica(periodoKey: PeriodoKey, now: Date = new 
 
   // ── 4. Clientes y canales ───────────────────────────────────────────────────
 
-  const clientes: ClienteIngreso[] = clienteRows.map(r => ({
-    id:      r.id,
-    nombre:  r.nombre ?? 'Sin nombre',
-    total:   r.total,
-    ordenes: ordenesPorCliente.get(r.id) ?? 0,
+  // LOS NOMBRES, EN UNA CONSULTA APARTE Y ACOTADA a los clientes que pagaron algo
+  // en el período. El helper compartido devuelve `Map<id, total>` —el contrato que
+  // su consumidor principal necesita, porque `/api/customers` YA tiene los nombres—
+  // y ensuciarlo con un `nombre` que ese consumidor descartaría sería pagar el
+  // precio en el sitio equivocado.
+  //
+  // No se resuelven sólo para el TOP 5, y la razón es el desempate:
+  // `concentracionIngresos` ordena por total y rompe empates POR NOMBRE, justamente
+  // para que el orden no cambie entre recargas sin que cambie un dato. Con nombres
+  // de relleno ese desempate caería en el orden de inserción del Map, que no es
+  // estable. Son los clientes con pago del período: un `IN` corto.
+  const idsConPago = [...pagadoPorCliente.keys()];
+  const nombresRows = idsConPago.length
+    ? await prisma.customer.findMany({ where: { id: { in: idsConPago } }, select: { id: true, nombre: true } })
+    : [];
+  const nombrePorId = new Map(nombresRows.map(c => [c.id, c.nombre]));
+
+  const clientes: ClienteIngreso[] = idsConPago.map(id => ({
+    id,
+    nombre:  nombrePorId.get(id) ?? 'Sin nombre',
+    total:   pagadoPorCliente.get(id) ?? 0,
+    ordenes: ordenesPorCliente.get(id) ?? 0,
   }));
 
   const recurrentes = [...ordenesPorCliente.values()].filter(n => n > 1).length;

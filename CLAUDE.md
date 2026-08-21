@@ -686,47 +686,6 @@ cuenta como ausente), y el test va en el CARRIL —lo que se afirma es lo que la
 fila TIENE DESPUÉS de escribir, y un test con mocks pasaría en verde contra el
 código defectuoso—.
 
-### 6. Los totales de NEGOCIO son de Analítica, no de las pantallas de operación
-
-Clientes totales, compras recibidas, histórico de pedidos: **cifras de negocio**.
-No pertenecen a una pantalla de operación, y por eso salieron de
-`/admin/clientes` (owner, 2026-08-13 — entonces `-v2`).
-
-**El criterio, que es lo que hay que recordar** — una pantalla de operación
-responde *¿qué hago ahora?*; una de análisis responde *¿cómo va el negocio?*. Una
-cifra que no cambia ninguna decisión del día es de la segunda. Y hay un test más
-duro todavía: **si la cifra ya está en un carril, el carril gana**, porque ahí
-además FILTRA. El pill es accionable; la stat sólo se mira. Dos representaciones
-del mismo número, y una de ellas muerta.
-
-Esto ES lo que hace que el panel se lea como un sistema: Pedidos y Clientes
-comparten anatomía —título · buscador · carriles · split— en vez de ser dos
-pantallas parecidas con adornos distintos.
-
-**Costo YA pagado: ninguno**, y por eso está acá abajo. Es una decisión de dónde
-vive cada cosa, tomada antes de que costara — no una herida. Lo que sí evita es el
-gemelo del ítem 4: dos sitios afirmando el mismo total y divergiendo el día que
-uno cambie de definición (§ "Por cobrar" vs "Órdenes Pendientes", donde la
-divergencia sí llegó a producirse).
-
-**DISPARADOR: cuando se rediseñe la vertical de Analítica.** Ahí entran, con la
-base y el período que esa página ya sabe declarar (§ Analítica — qué mueve el chip
-de período y qué NO). Antes de eso no se reponen en ninguna pantalla de operación
-"porque se ven bien": ése es exactamente el movimiento que esta decisión revierte.
-
-**Aplicado en las DOS pantallas del rediseño** (Pedidos y Clientes), y eso importa
-más que el ahorro de una línea: la meta era que las dos tuvieran la misma
-anatomía, así que dejar el conteo en una sola habría cumplido la letra y no el
-motivo.
-
-**EFECTO SECUNDARIO QUE HAY QUE MIRAR AL COPIAR ESTE MOVIMIENTO:** ese subtítulo
-era el ÚNICO aviso de carga de la lista en las dos pantallas (`{cargando ?
-'Cargando…' : …}`), así que quitarlo las dejaba MUDAS mientras viaja el fetch. Una
-pantalla en blanco es indistinguible de "no hay nada" — justo la confusión que los
-tres estados vacíos de cada pantalla existen para evitar. El aviso bajó a la
-LISTA, que es donde está el hueco. Quitar una cifra puede llevarse por delante un
-estado que vivía pegado a ella.
-
 ### 8. `Customer.activo` finge filtrar: el gate de reactivación es INERTE
 
 No es que nadie escriba la columna. Es que **el `where` que la consulta no puede
@@ -1182,6 +1141,30 @@ los dos controles pasan a hacer lo mismo y la duplicación se vuelve real. Y no 
 hipótesis suelta: es la MISMA decisión pendiente que bloquea el destino de la gráfica
 de Pedidos del carrusel (§ la gráfica no tiene destino). Las dos se resuelven juntas o
 ninguna.
+
+### 38. `Customer.total_compras`: columna demo MUERTA y campo de API con el mismo nombre
+
+La columna `Customer.total_compras` es data de demo que **nadie lee para mostrar**.
+Pero el nombre SÍ tiene lector, y ahí está la trampa: `GET /api/customers` devuelve
+un campo **llamado `total_compras` cuyo valor NO viene de esa columna** —
+`app/api/customers/route.ts` lo sobrescribe con `paidTotalByCustomer()`, o sea
+dinero real. La lista y el perfil de Clientes pintan ese valor.
+
+O sea que **`cliente.total_compras` significa una cosa en la base y otra en el
+cliente**, y quien lea la propiedad en un componente no tiene de dónde sospecharlo.
+Es la misma familia que el `agotado` de #10 —dos hechos distintos bajo un nombre—
+pero peor en un aspecto: allá son dos columnas distinguibles, acá es **el mismo
+identificador** en las dos capas.
+
+**Costo YA pagado: ninguno.** El valor que se muestra es el correcto; lo que falta
+es que el nombre lo diga. Se descubrió haciendo el descubrimiento de la tanda 3
+(§ Backlog #6, cerrado), buscando quién leía la columna.
+
+**DISPARADOR: al tocar el endpoint de Clientes, o el retiro de la columna.** Dos
+salidas y son excluyentes: renombrar el campo del API a lo que es (`pagado`,
+`totalPagado`) y actualizar sus dos consumidores, o retirar la columna del schema y
+dejar que el nombre quede libre. Lo que no puede quedar es la tercera, que es la de
+hoy.
 
 ## Mejoras post-multitenant
 
@@ -3690,6 +3673,77 @@ la letra donde no está el motivo.
   dibuja", o sea que **sin serie dibujaría**. Con `{ serie: [] }` en cambio el guard
   SÍ opina (un array vacío es truthy y no entra en esa rama). Dos entradas, el mismo
   `false`, caminos distintos: por eso el test afirma las dos.
+
+### EL DINERO PAGADO POR CLIENTE · una definición, dos alcances
+
+Tanda 3 (2026-08-21). Cierra el § Backlog #6, que por eso ya no está en la lista.
+
+**El descubrimiento fue el hallazgo:** había **DOS caminos al mismo hecho**, y no
+diferían sólo en el período —que era la premisa con que entró la tanda—.
+`paidTotalByCustomer` (lista y perfil de Clientes) **no filtraba nada**, y la
+concentración de Analítica excluía **`SN-` Y canceladas**. Medido en dev antes de
+tocar nada: **$315.000 contra $259.000** para los mismos clientes, por **2 pagos
+sobre órdenes canceladas**. Dos pantallas afirmando el dinero de la misma persona
+con números distintos — el modo de falla de § "Por cobrar vs Órdenes Pendientes",
+que se arregla **de los dos lados o de ninguno**.
+
+**LAS DOS DECISIONES DE PRODUCTO** (owner), que son las que desbloquearon todo:
+
+- **LAS ÓRDENES CANCELADAS SÍ CUENTAN.** El cliente pagó y la plata entró. Cancelar
+  **no toca el `Payment`** —doctrina ya declarada—, así que esconderlo haría que la
+  suma por cliente **no cuadre con el libro de Pagos**, que sí la muestra. Un
+  reembolso sería OTRO hecho, y hoy no se modela.
+- **LAS `SN-` NO CUENTAN, EN NINGÚN LADO.** Eso no es definición de negocio: es
+  limpieza de datos de prueba. Clientes las incluía.
+
+**El período pasó a ser un PARÁMETRO, no una segunda implementación**
+(`paidTotalByCustomer(rango?)`). Es la forma que hace imposible la divergencia: una
+definición, dos alcances.
+
+- **Quitar un filtro de exclusión se lee como descuido si no dice por qué**, así que
+  la ausencia del filtro de canceladas está DECLARADA en los dos sitios (el helper y
+  el call site de Analítica). Un lector futuro que lo vea vacío no tiene de dónde
+  saber que es una decisión.
+- **`TENANT_ORDER_PREFIX` convive con `soloOrdenesReales`, y NO son lo mismo.** Aquél
+  excluye por NEGACIÓN ("todo lo que no sea `SN-`") y conserva una orden SIN número;
+  éste incluye por AFIRMACIÓN. **Las dos están bien donde están:** para una LISTA la
+  permisiva —esconder una orden que no dice cómo se llama es peor que mostrarla—;
+  para una SUMA de dinero la estricta —un total no puede incluir algo que no se sabe
+  qué es—. Se usó la estricta porque es la que ya aplican las tres consultas hermanas
+  de Analítica, y la otra le habría dado a la concentración un alcance distinto del de
+  sus vecinas: una divergencia nueva DENTRO de una pantalla, peor que la que se cerró.
+- **El helper conserva su contrato `Map<id, total>`.** Los nombres los resuelve
+  Analítica aparte, porque su consumidor principal (`/api/customers`) YA los tiene y
+  ensuciar el contrato sería pagar el precio en el sitio equivocado. **No se resuelven
+  sólo para el top 5**, y la razón no es obvia: `concentracionIngresos` **desempata por
+  NOMBRE** para que el orden no cambie entre recargas sin que cambie un dato, y con
+  nombres de relleno ese desempate caería en el orden de inserción del Map, que no es
+  estable.
+
+**LAS DOS PRUEBAS SON DOS A PROPÓSITO**, y es la lección de método de esta tanda:
+`dinero-pagado-cliente.test.ts` afirma la DEFINICIÓN (el helper cuenta bien) y la
+aserción nueva de `analitica.test.ts` afirma el CABLEADO (que Analítica lo USA).
+**Una sola no alcanza:** un helper correcto que nadie consume deja la pantalla igual
+de mal que antes. Las dos se vieron fallar contra el comportamiento viejo — la del
+helper en sus tres casos de hecho, la del cableado restaurando la exclusión.
+
+**Y el discriminador afirma el HECHO, no la forma.** Un test con mocks pasaba en
+verde contra el código defectuoso: el defecto no estaba en el mapeo —los dos sumaban
+bien lo que cargaban— sino en QUÉ FILAS cargaba cada uno. Sólo releer contra una base
+real lo delata, y por eso va en el carril.
+
+#### Lo que NO entró, con su razón
+
+- **Clientes totales: ya está en pantalla.** Es el denominador de la línea de
+  recurrencia ("N de **M** clientes"). Exponerlo aparte serían **dos representaciones
+  del mismo número en la misma pantalla** — exactamente la duplicación que el #6
+  existía para evitar, y peor que el caso original porque las dos estarían a la vista
+  a la vez. Si algún día "cuántos clientes tengo" debe ser respuesta de primer orden,
+  eso es **re-jerarquizar esa línea**, no agregar una cifra.
+- **Histórico de pedidos: no entra a Analítica.** Ya está resuelto y con test
+  (`pedidosDelCliente`, FK pura, § el retiro de Clientes), y su sitio es el PERFIL: el
+  histórico de un cliente se lee mirando a esa persona, no respondiendo "¿cómo va el
+  negocio?". Traerlo acá habría sido simetría por simetría.
 
 ### La gráfica de PEDIDOS del carrusel no tiene destino, a propósito
 

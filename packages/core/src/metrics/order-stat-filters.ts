@@ -124,6 +124,27 @@ export function currentMonthRange(now: Date = new Date()): CurrentMonthRange {
  */
 export const NON_CANCELLED_ESTADOS = ['pendiente', 'pagado'] satisfies OrderStatus[];
 
+/**
+ * EL PREFIJO DE UNA ORDEN REAL DEL TENANT. Las `SN-` son FIXTURES DE DEMO del seed
+ * (`prisma/seed.ts`) y no cuentan en ningún lado: no es una definición de negocio,
+ * es limpieza de datos de prueba (owner, 2026-08-21). Ningún camino de runtime las
+ * produce — el único generador emite siempre `CN-` (`packages/core/src/orders.ts`).
+ *
+ * ── OJO: CONVIVE CON UNA FORMA MÁS PERMISIVA, Y NO SON LO MISMO ──────────────
+ * `soloOrdenesReales` (`lib/pedidos/filtros.ts`) excluye por NEGACIÓN —"todo lo que
+ * no empiece por SN-"— y por eso conserva una orden SIN número; esta constante
+ * incluye por AFIRMACIÓN, así que una orden sin número o con un tercer prefijo
+ * queda fuera. Para una LISTA la permisiva es la correcta (esconder una orden que
+ * no dice cómo se llama es peor que mostrarla); para una SUMA de dinero la estricta
+ * lo es (un total no puede incluir algo que no se sabe qué es).
+ *
+ * Se usa la estricta acá porque es la que ya aplican TODAS las consultas de
+ * Analítica, y usar la otra le habría dado a la concentración un alcance distinto
+ * del de sus tres consultas hermanas — una divergencia nueva dentro de una misma
+ * pantalla, que es peor que la que este módulo viene a cerrar.
+ */
+export const TENANT_ORDER_PREFIX = 'CN-';
+
 /** Predicate form of {@link NON_CANCELLED_ESTADOS} for filtering loaded orders. */
 export const isCountableOrder = (estado: string): boolean => estado !== 'cancelado';
 
