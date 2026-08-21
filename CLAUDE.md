@@ -1100,6 +1100,47 @@ del dato: agrupar los de fulfillment (preparación · listas · camino · entreg
 control distinto de los de cobro, o mover los acumuladores (Todos · Entregados · Cancelado)
 fuera de la barra.
 
+### 36. La tabla de "Órdenes Recientes" del Dashboard se SUPERPONE en teléfono
+
+`app/(admin)/admin/dashboard/page.tsx:327` — `<div className="overflow-x-auto">` con
+`<table className="w-full text-sm">`. Es la GEMELA exacta de la tabla de detalle de
+Analítica, que se arregla en su tanda de forma migrando a `.duna-lista`.
+
+**El mecanismo, escrito para no re-diagnosticarlo** (se diagnosticó el 2026-08-20
+sobre la gemela de Analítica, con el síntoma reportado por el owner en teléfono):
+
+- **`w-full` ANULA al `overflow-x-auto`.** La clase fuerza la tabla al ancho del
+  contenedor, así que NUNCA desborda y el scroll horizontal que el `div` promete no
+  se activa jamás. Las columnas se comprimen en su lugar.
+- **Las columnas con `whitespace-nowrap` no pueden ceder**, así que al comprimirse su
+  contenido **se desborda de la celda y se toca con el vecino** — de ahí que los
+  encabezados salgan pegados (`UdsVenta de mercancíaMargen / ud` en la de Analítica)
+  y las cifras se superpongan.
+- **La única columna SIN `nowrap` es la que envuelve a dos líneas** mientras las
+  demás no. Los tres síntomas son el MISMO mecanismo, no tres defectos.
+
+O sea: no es sólo "le falta el reflujo móvil de `.duna-lista`" (§ Listas tabulares —
+el defecto que esa primitiva cerró para Pagos e Inventario). Es que **esas dos clases
+no pueden convivir**, y el resultado es peor que el scroll horizontal que se quería
+evitar: `.duna-lista` reflúa, esto se SUPERPONE.
+
+**Costo YA pagado: ninguno medido en el Dashboard** —el síntoma se vio en Analítica—,
+y por eso está acá abajo. Es el mismo defecto latente esperando a que alguien abra el
+Dashboard en un teléfono.
+
+**DISPARADOR: cuando se rediseñe el Dashboard.** Ahí migra a `.duna-lista` como su
+gemela, no con un parche de Tailwind — arreglar el `w-full` a mano dejaría una tabla
+que el rediseño rehace igual, y sin el reflujo seguiría siendo scroll horizontal en
+una tabla de datos.
+
+**SEGUNDA MITAD, mismo disparador o el primero que pase por ahí:
+`components/ui/table.tsx` NO TIENE CONSUMIDORES.** Verificado por grep (2026-08-20):
+cero imports en todo el repo. Es candidata a RETIRO, exactamente como `DunaTable`
+—que se retiró cuando su único consumidor migró—. Mientras siga ahí es una segunda
+forma de hacer una tabla, disponible para que la próxima pantalla la elija sin
+criterio; y las dos tablas crudas del panel ni siquiera la usan, que es la señal de
+que ya no es la respuesta a nada.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
