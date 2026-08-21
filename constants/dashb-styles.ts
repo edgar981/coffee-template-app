@@ -10,14 +10,13 @@ export const DASHBOARD_COLORS = [
   'hsl(var(--chart-5))',
 ];
 
-export const ANALITICS_COLORS = [
-  'hsl(var(--chart-1))',
-  'hsl(var(--chart-2))',
-  'hsl(var(--chart-3))',
-  'hsl(var(--chart-4))',
-  'hsl(var(--chart-5))',
-  'hsl(var(--muted-foreground))',
-];
+// ANALITICS_COLORS SE RETIRÓ (2026-08-20). Era la rampa `--chart-*` de la página de
+// Analítica, que migró a `--duna-serie-*` — el rol del DS para color categórico
+// (§ CLAUDE.md — La serie categórica). Censo al retirarlo: su único consumidor era
+// `app/(admin)/admin/analitica/page.tsx`, en las barras de Canales.
+//
+// `DASHBOARD_COLORS` de arriba SE QUEDA: lo usa `DashboardDistributionCard`, que es
+// otra vertical y migra cuando migre el Dashboard.
 
 export const tooltipStyle = {
   background:   'hsl(var(--card))',

@@ -964,6 +964,25 @@ trabajo que se rehace, con gate sobre pantallas que van a desaparecer. El shell
 global entra AL FINAL, como consolidación. Absorbe a #25: el gateo por valor vs rol
 deja de existir cuando el chrome provee la altura global.
 
+**EXCEPCIÓN PERMANENTE, DECLARADA: ANALÍTICA NO ADOPTA EL ALTO FIJO** (owner,
+2026-08-20, tanda 2 del rediseño). Y hay que nombrarla acá o este disparador **no se
+cumple nunca**: decía "cuando las verticales restantes usen el modelo", y con una
+que se queda fuera a propósito esa condición no puede completarse — el mismo error de
+disparador que ya se corrigió en #27 y en la gráfica del carrusel.
+
+El motivo NO es que no encaje mecánicamente (encajaría: sería `.duna-sin-split` como
+Inventario). Es que **el patrón fijaría lo que no vale.** En Pagos la zona fija
+sostiene la FRASE —la respuesta— y scrollea el libro; en Analítica **las respuestas
+son los Titulares y viven DENTRO de los bloques**, así que fijar el header pinaría el
+`h1` y el chip mientras las cuatro respuestas se van scrolleando: se congelaría el
+chrome y se movería el contenido, justo al revés. Y su contenido no es una lista
+homogénea sino cuatro bloques heterogéneos con pliegues que crecen.
+
+**El disparador, entonces, se lee así: cuando las verticales restantes MENOS
+ANALÍTICA usen el modelo.** Si algún día Analítica cambia de anatomía —si su
+respuesta sube a una zona fija, como la frase de Pagos— esta excepción se revisa; no
+antes.
+
 ### 26. El date-range picker no navega a años ANTERIORES al año-piso
 
 `startMonth` del `DateRangePicker` es el 1-ene del año ANTERIOR al actual
@@ -1140,6 +1159,29 @@ cero imports en todo el repo. Es candidata a RETIRO, exactamente como `DunaTable
 forma de hacer una tabla, disponible para que la próxima pantalla la elija sin
 criterio; y las dos tablas crudas del panel ni siquiera la usan, que es la señal de
 que ya no es la respuesta a nada.
+
+### 37. DOS controles de período en el panel, con la misma forma y distinta naturaleza
+
+Tras la tanda 2, Analítica y Pagos/Inventario usan los MISMOS `.duna-pill` para elegir
+período — la forma ya está unificada— pero siguen siendo **dos controles distintos**:
+`SelectorPeriodo` (Analítica) elige entre CUATRO PERÍODOS NOMBRADOS (`PeriodoKey`, que
+el endpoint entiende y hace eco), y `PresetsPeriodo` (Pagos, Inventario) elige un
+RANGO (`desde`/`hasta`).
+
+**NO se unificaron a propósito** (owner, 2026-08-20): unificarlos hoy exigiría que uno
+pierda lo suyo — o Analítica cambia su contrato con el endpoint, o los presets pierden
+el rango. Que compartan apariencia sin compartir naturaleza es aceptable **mientras la
+diferencia sea real**; lo que no era aceptable era que se vieran distintos haciendo lo
+mismo, y eso ya se cerró.
+
+**Costo YA pagado: ninguno.** Es una duplicación de CONCEPTO, no de código: no hay dos
+implementaciones del mismo control, hay dos controles.
+
+**DISPARADOR: si el chip de Analítica gana RANGO EXPLÍCITO.** Ese es el momento en que
+los dos controles pasan a hacer lo mismo y la duplicación se vuelve real. Y no es una
+hipótesis suelta: es la MISMA decisión pendiente que bloquea el destino de la gráfica
+de Pedidos del carrusel (§ la gráfica no tiene destino). Las dos se resuelven juntas o
+ninguna.
 
 ## Mejoras post-multitenant
 
@@ -3520,6 +3562,86 @@ decisión, y `lib/` es para lo que TIENE una decisión que afirmar (§ titulares
 que sí vive ahí porque su redacción cambia con la gramática del período). La
 consecuencia es que esta tanda **no tiene superficie de capa 1** y su verificación
 es el gate visual — dicho, no omitido.
+
+### LA FORMA · el lenguaje Duna, y el document-scroll como DECISIÓN
+
+Tanda 2 del rediseño (2026-08-20). Re-skin: la anatomía —Titular + pliegue— no se
+re-litigó y **ninguna base de cálculo se tocó**.
+
+**El censo que definió el alcance:** la pantalla **no importaba ni un componente
+shadcn**. Sus únicas dependencias no-Duna eran `recharts` y `constants/dashb-styles`,
+y de los ~73 usos de color raw, **~62 YA caían a tokens Duna por el fallback de
+`@theme`** (§ el chrome ES del DS) — no eran deuda. Sólo tres cosas quedaban sin
+contraparte, y ésas son las que migraron.
+
+- **Las superficies adoptan su ROL**, no una imitación: `.duna-eyebrow` (la línea del
+  bloque, que tres utilidades sueltas imitaban con un `/60` y un `/70`), `.duna-card`,
+  `.duna-title` para el Titular, `.duna-skel` para el esqueleto.
+- **`recharts` SE QUEDA.** Reescribir dos gráficas con ejes, tooltip y leyenda a SVG a
+  mano sería reimplementar una librería — lo que H6 ya rechazó. `PagosCurva` es
+  bespoke por ser *una curva interactiva específica*, no un chart genérico: no son el
+  mismo problema, y tratarlos igual habría duplicado trabajo por parecido de nombre.
+
+**LA SERIE IDENTIFICA; UNA MEDIDA SOLA NO TIENE QUÉ IDENTIFICAR.** Es la aplicación de
+§ La serie categórica, y no es obvia, así que queda escrita con sus tres casos:
+Trayectoria son DOS categorías (ingresos vs margen) → `--duna-serie-1/2`; Canales son
+2–4 categorías → la escala completa; **la Semanal es una medida ÚNICA (órdenes por
+día) → TINTA**, igual que la curva de Pagos. Cuando esta pantalla se escribió el DS no
+tenía escala de gráficas —la doctrina la declaraba como rol SIN contraparte— y desde
+Pagos sí la tiene. `ANALITICS_COLORS` quedó sin consumidores y **se retiró con su
+censo escrito**; `--chart-1..5` SOBREVIVE en el Dashboard (`DashboardChartCarousel`,
+`DASHBOARD_COLORS`), que es otra vertical y migra con ella.
+
+**El `accent-amber` de esta pantalla NO fue a `--duna-sol`**, y es el matiz que
+importa del gemelo de #16: ese ámbar significa ATENCIÓN, y lo que había era **el
+nombre de un producto que navega a su ficha**. El rol es ENLACE → `.duna-link`, que
+además trae su foco con `--duna-ring` y resolvió uno de los cuatro `ring-ring`. Los
+otros tres fueron a `.admin-foco` (admin-level, prefijo `admin-` y no `duna-` por la
+regla del segundo consumidor), porque **la utilidad `ring-*` de Tailwind espera un
+COLOR y `--duna-ring` es un BOX-SHADOW**: no puede consumirlo.
+
+#### El re-skin no CREA defectos de contraste: les quita el disfraz
+
+El gate destapó que el cursor de hover de la Semanal se confundía con las barras en
+oscuro. **No lo causó la migración.** El cursor es un prop aparte de recharts con
+default hardcodeado y ciego al tema —medido en la fuente instalada:
+`getCursorRectangle.js` da `fill: '#ccc'` **sin opacidad** para barras, `Cursor.js` da
+`stroke: '#ccc'` para línea—, así que ese bloque claro estuvo mal en oscuro **desde
+siempre**: lo camuflaban las barras ámbar. Al pasar las barras a tinta dejó de
+distinguirse.
+
+**Es el mismo patrón que el picker roto que los presets tapaban**, y conviene tenerlo
+como expectativa y no como sorpresa: **un re-skin destapa los defectos que el color
+viejo enmascaraba.** Aparecen DURANTE la migración y se leen como regresiones suyas;
+casi nunca lo son. La forma de saberlo es medir el default, no suponerlo.
+
+El arreglo: `--duna-wash-hover` para el cursor de barras y la guía punteada de Pagos
+para el de línea. **El token no es un préstamo: es el de HOVER para un cursor de
+HOVER**, o sea su significado exacto — lo contrario del caso que se rechazó para el
+relleno del área de la curva, donde el mismo token habría significado otra cosa.
+
+#### El grid-list dentro de un pliegue NO lleva encabezado sticky
+
+La tabla de "Ver detalle por producto" era un `<table>` crudo y su defecto **no era
+sólo que le faltara el reflujo**: `overflow-x-auto` y `w-full` **no pueden convivir**
+(el mecanismo completo está en § Backlog #36, que documenta a su gemela del
+Dashboard). Migró a `.duna-lista`.
+
+Lo que esa migración destapó, y es de SISTEMA: **`.duna-lista__head` nace `position:
+sticky` de fábrica**, porque sus dos consumidores viven en la REGIÓN de una pantalla
+de alto fijo. Analítica es document-scroll y su lista vive dentro de un pliegue, así
+que **sin scroller propio el sticky resuelve contra el DOCUMENTO y se despega de su
+tabla** — se pinnearía bajo la topbar, lejos de las filas que rotula. Se neutraliza
+con `.duna-lista--en-pliegue`, y el selector va **COMPUESTO (0,2,0)**: contra la clase
+base el desempate sería el orden de archivo, que es la lección ya pagada de
+`.duna-skel.duna-skel`.
+
+**La primitiva NO se parametriza todavía.** Hacer el sticky opt-in tocaría a Pagos e
+Inventario, donde hoy es correcto; **un TERCER consumidor sin scroller sería la señal**
+de que debe parametrizarlo. Y acá no hace falta por otra razón medida: la lista son
+los productos CON VENTAS del período, o sea como mucho el catálogo entero —**4
+productos hoy**—, y un encabezado sticky existe para cuando el scroll se lleva la
+referencia.
 
 ### La gráfica de PEDIDOS del carrusel no tiene destino, a propósito
 

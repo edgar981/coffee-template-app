@@ -9,7 +9,7 @@ import {
 } from 'recharts';
 import { formatCOP } from '@duna/core/utils';
 import { getAnalytics, getWeeklyActivity } from '@/lib/api/analytics';
-import { ANALITICS_COLORS, tooltipStyle, axisTickStyle } from '@/constants/dashb-styles';
+import { tooltipStyle, axisTickStyle } from '@/constants/dashb-styles';
 import { widgetInsight, type InsightMonthPoint } from '@/lib/metrics/insights';
 import { PERIODOS, PERIODO_ORDEN, PERIODO_DEFAULT, type PeriodoKey } from '@/lib/metrics/periodo';
 import {
@@ -55,10 +55,14 @@ function Bloque({ n, titulo, pregunta, children }: {
 }) {
   return (
     <section className="space-y-3">
+      {/* `.duna-eyebrow` ES este rol —caption en versalitas, muted, semi— así que
+          las tres utilidades sueltas que lo imitaban se retiran. El número va en
+          `.duna-num` (cifras tabulares del sistema) y la pregunta en
+          `.duna-caption`: la jerarquía la da el rol, no un `/60` y un `/70`. */}
       <div className="flex items-baseline gap-2">
-        <span className="text-xs font-bold text-muted-foreground/60 tabular-nums">{n}</span>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{titulo}</h2>
-        <span className="text-xs text-muted-foreground/70">· {pregunta}</span>
+        <span className="duna-num duna-eyebrow">{n}</span>
+        <h2 className="duna-eyebrow">{titulo}</h2>
+        <span className="duna-caption">· {pregunta}</span>
       </div>
       {children}
     </section>
@@ -66,7 +70,10 @@ function Bloque({ n, titulo, pregunta, children }: {
 }
 
 function Panel({ className = '', children }: { className?: string; children: React.ReactNode }) {
-  return <div className={`bg-card border border-border rounded-xl p-5 ${className}`}>{children}</div>;
+  // `.duna-card__pad` da los 20px que este panel cableaba con `p-5`; el borde, el
+  // radio y la superficie salen de `.duna-card`. Se conserva `className` para los
+  // ajustes por call site.
+  return <div className={`duna-card duna-card__pad ${className}`}>{children}</div>;
 }
 
 /**
@@ -82,7 +89,10 @@ function Titular({ children, tono = 'normal' }: {
   tono?: 'normal' | 'alerta';
 }) {
   return (
-    <p className={`text-xl font-semibold leading-snug ${tono === 'alerta' ? 'text-destructive' : ''}`}>
+    // `.duna-title` es el rol "SUJETO de superficie enfocada" (19px, display), que
+    // es exactamente lo que el titular ES: la respuesta de este bloque. Conserva la
+    // propiedad que la nota de arriba defiende —se lee como ORACIÓN, no como cifra—.
+    <p className={`duna-title ${tono === 'alerta' ? 'text-destructive' : ''}`}>
       {children}
     </p>
   );
@@ -94,11 +104,13 @@ function Titular({ children, tono = 'normal' }: {
  * está en cero" cuando lo que pasa es que no hay nada que medir todavía.
  */
 function Vacio({ children }: { children: React.ReactNode }) {
-  return <p className="py-10 text-center text-sm text-muted-foreground">{children}</p>;
+  return <p className="duna-sub py-10 text-center">{children}</p>;
 }
 
 function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded ${className}`} />;
+  // `.duna-skel` trae su propio color, radio y pulso del sistema — el `bg-muted` +
+  // `animate-pulse` que había era otra definición del mismo esqueleto.
+  return <div className={`duna-skel ${className}`} />;
 }
 
 // ─── Selector de período ──────────────────────────────────────────────────────
@@ -109,15 +121,31 @@ function SelectorPeriodo({ valor, onChange, disabled }: {
   disabled: boolean;
 }) {
   // Chips NEUTROS: el ámbar sólido de la vista está reservado a la acción
-  // principal de la página, y elegir un período no lo es. El activo se marca con
-  // `bg-muted` + peso, dentro de la familia neutra.
+  // principal de la página, y elegir un período no lo es. El activo lo marca
+  // `.duna-pill.is-on`, que ya vive dentro de la familia neutra.
   //
   // Sin date-picker, y los cuatro cortes son los que el dueño pregunta de verdad
   // (owner, 2026-08-05). "Últimos 3 meses" es una ventana MÓVIL, no el trimestre
   // calendario: el 1 de abril un trimestre calendario mostraría enero-marzo y
   // ocultaría todo lo reciente.
+  //
+  // ── LA FORMA SE UNIFICA, EL CONTROL NO (owner, 2026-08-20) ──────────────────
+  // Los pills son los del sistema (`.duna-pill`), los mismos que los carriles de
+  // Pedidos y los presets de Pagos e Inventario: había DOS apariencias para
+  // "elegir período" en el mismo panel, y eso es lo que el DS existe para cerrar.
+  //
+  // Lo que NO se hace es fusionar este control con `PresetsPeriodo`: no son el
+  // mismo control. Éste elige entre CUATRO PERÍODOS NOMBRADOS (`PeriodoKey`, que
+  // el endpoint entiende y hace eco); aquél elige un RANGO (desde/hasta).
+  // Unificarlos exigiría que uno pierda lo suyo. La unificación real está en el
+  // backlog, gateada a que este chip gane rango explícito.
+  //
+  // El envoltorio de caja (`border` + `p-0.5`) se retira: los pills del sistema no
+  // viven dentro de un marco —los carriles de Pedidos no lo tienen— y mantenerlo
+  // habría dejado este control pareciéndose a un segmentado, que es OTRA primitiva
+  // con otro significado (§ CUÁNDO ESTO Y NO UN PILL).
   return (
-    <div className="inline-flex flex-wrap rounded-lg border border-border p-0.5" role="group" aria-label="Período">
+    <div className="flex flex-wrap gap-2" role="group" aria-label="Período">
       {PERIODO_ORDEN.map(key => (
         <button
           key={key}
@@ -125,11 +153,7 @@ function SelectorPeriodo({ valor, onChange, disabled }: {
           onClick={() => onChange(key)}
           disabled={disabled}
           aria-pressed={valor === key}
-          className={`rounded-md px-3 py-1 text-xs transition-colors disabled:opacity-50 disabled:pointer-events-none ${
-            valor === key
-              ? 'bg-muted font-semibold text-foreground'
-              : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-          }`}
+          className={`duna-pill${valor === key ? ' is-on' : ''} disabled:opacity-50 disabled:pointer-events-none`}
         >
           {PERIODOS[key]}
         </button>
@@ -138,7 +162,34 @@ function SelectorPeriodo({ valor, onChange, disabled }: {
   );
 }
 
+// ─── La escala de gráficas ────────────────────────────────────────────────────
+//
+// `--duna-serie-1…5` es el ROL "color que IDENTIFICA una categoría" (§ CLAUDE.md —
+// La serie categórica). Reemplaza a `--chart-1..5`, la rampa ámbar→marrón que esta
+// pantalla heredó del dashboard: cuando se escribió, el DS no tenía escala de
+// gráficas —la doctrina lo declaraba como rol SIN contraparte— y desde la tanda de
+// Pagos sí la tiene.
+//
+// LA REGLA, aplicada, porque no es obvia: la serie IDENTIFICA, así que sólo se usa
+// donde hay CATEGORÍAS que distinguir. Una medida ÚNICA no tiene qué identificar y
+// va en TINTA — que es lo que hace la curva de Pagos, y por eso la gráfica semanal
+// (órdenes por día, una sola magnitud) deja de pintarse con un color de serie.
+const SERIE_INGRESOS = 'var(--duna-serie-1)';
+const SERIE_MARGEN   = 'var(--duna-serie-2)';
+/** Medida única → tinta, no serie. */
+const TINTA_MEDIDA   = 'var(--duna-ink)';
+/** Canales: 2–4 categorías reales. serie-5 es el neutro del cajón de sastre. */
+const SERIE_CANALES = [
+  'var(--duna-serie-1)', 'var(--duna-serie-2)', 'var(--duna-serie-3)',
+  'var(--duna-serie-4)', 'var(--duna-serie-5)',
+];
+
 // ─── 1. RENTABILIDAD ──────────────────────────────────────────────────────────
+
+// Las columnas del grid-list del detalle. Constante y no inline: el encabezado y
+// las filas TIENEN que declarar la misma rejilla, y dos literales separados es
+// cómo se desalinean. Mismo patrón que el kardex de Inventario (`COLS`).
+const COLS_MARGEN = 'minmax(0, 1fr) 4rem 9rem 7rem 9rem';
 
 function Rentabilidad({ data, loading }: { data: AnalyticsData | null; loading: boolean }) {
   if (loading) {
@@ -178,53 +229,61 @@ function Rentabilidad({ data, loading }: { data: AnalyticsData | null; loading: 
 
       {r.filas.length > 0 && (
         <Pliegue label="Ver detalle por producto">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs text-muted-foreground border-b border-border">
-                  <th className="text-left font-medium py-2">Producto</th>
-                  <th className="text-right font-medium py-2 whitespace-nowrap">Uds</th>
-                  {/* "Venta de mercancía", no "Ingresos": esta columna es
-                      `OrderItem.subtotal` (mercancía, SIN envío) — otra base que la
-                      línea "Ingresos" de la trayectoria, que es `Payment.monto` con
-                      envío. Mismo nombre para dos bases distintas confundía. No es
-                      "neto" (no hay descuentos ni impuestos, sólo ausencia de envío). */}
-                  <th className="text-right font-medium py-2 whitespace-nowrap">Venta de mercancía</th>
-                  <th className="text-right font-medium py-2 whitespace-nowrap">Margen / ud</th>
-                  {/* La columna que ORDENA la tabla: plata dejada, no volumen. */}
-                  <th className="text-right font-medium py-2 whitespace-nowrap">Margen total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {r.filas.map(f => (
-                  <tr key={f.productoId} className="border-b border-border/50 last:border-0">
-                    <td className="py-2 pr-3">
-                      <Link
-                        href={`/admin/productos?producto=${encodeURIComponent(f.productoId)}`}
-                        title={`Ver ${f.producto}`}
-                        className="rounded text-accent-amber underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        {f.producto}
-                      </Link>
-                    </td>
-                    <td className="py-2 text-right tabular-nums text-muted-foreground">{f.unidades}</td>
-                    <td className="py-2 text-right tabular-nums text-muted-foreground">{formatCOP(f.ingresos)}</td>
-                    <td className="py-2 text-right tabular-nums text-muted-foreground">
-                      {f.margenUnitario === null ? '—' : formatCOP(f.margenUnitario)}
-                    </td>
-                    {/* Un margen negativo se pinta rojo: es una alerta REAL (se
-                        está vendiendo por debajo del costo), el único caso en que
-                        Amber Minimal admite color semántico en esta tabla. */}
-                    <td className={`py-2 text-right tabular-nums font-semibold ${f.margenTotal < 0 ? 'text-destructive' : ''}`}>
-                      {formatCOP(f.margenTotal)}
-                      {f.margenPct !== null && (
-                        <span className="ml-2 font-normal text-xs text-muted-foreground">{f.margenPct.toFixed(0)}%</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* GRID-LIST, no `<table>` (§ CLAUDE.md — Listas tabulares del panel). El
+              markup anterior era `overflow-x-auto` + `w-full`, y esas dos clases NO
+              PUEDEN CONVIVIR: `w-full` fuerza la tabla al ancho del contenedor, así
+              que nunca desborda y el scroll que el wrapper promete no se activa
+              jamás — las columnas se comprimen en su sitio. Las que llevaban
+              `whitespace-nowrap` no podían ceder, así que su contenido se desbordaba
+              de la celda y se tocaba con el vecino (los encabezados salían pegados,
+              "UdsVenta de mercancíaMargen / ud", y las cifras se superponían); y la
+              única sin `nowrap` —Producto— era la que envolvía a dos líneas. Un solo
+              mecanismo, tres síntomas. Reportado por el owner en teléfono.
+
+              `.duna-lista` lo cierra por diseño: REFLUYE a dos columnas <960 en vez
+              de scrollear horizontal, y cada celda declara su columna con
+              `data-label`, que es el encabezado que el reflujo pierde. */}
+          <div className="duna-lista">
+            <div className="duna-lista__fila duna-lista__head duna-lista--en-pliegue" style={{ gridTemplateColumns: COLS_MARGEN }}>
+              <span>Producto</span>
+              <span className="duna-lista__r">Uds</span>
+              {/* "Venta de mercancía", no "Ingresos": esta columna es
+                  `OrderItem.subtotal` (mercancía, SIN envío) — otra base que la
+                  línea "Ingresos" de la trayectoria, que es `Payment.monto` con
+                  envío. Mismo nombre para dos bases distintas confundía. No es
+                  "neto" (no hay descuentos ni impuestos, sólo ausencia de envío). */}
+              <span className="duna-lista__r">Venta de mercancía</span>
+              <span className="duna-lista__r">Margen / ud</span>
+              {/* La columna que ORDENA la tabla: plata dejada, no volumen. */}
+              <span className="duna-lista__r">Margen total</span>
+            </div>
+            {r.filas.map(f => (
+              <div key={f.productoId} className="duna-lista__fila" style={{ gridTemplateColumns: COLS_MARGEN }}>
+                <span data-label="Producto" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <Link
+                    href={`/admin/productos?producto=${encodeURIComponent(f.productoId)}`}
+                    title={`Ver ${f.producto}`}
+                    className="duna-link"
+                  >
+                    {f.producto}
+                  </Link>
+                </span>
+                <span data-label="Uds" className="duna-lista__r duna-num duna-sub">{f.unidades}</span>
+                <span data-label="Venta de mercancía" className="duna-lista__r duna-num duna-sub">{formatCOP(f.ingresos)}</span>
+                <span data-label="Margen / ud" className="duna-lista__r duna-num duna-sub">
+                  {f.margenUnitario === null ? '—' : formatCOP(f.margenUnitario)}
+                </span>
+                {/* Un margen negativo se pinta rojo: es una alerta REAL (se
+                    está vendiendo por debajo del costo), el único caso en que
+                    Amber Minimal admite color semántico en esta tabla. */}
+                <span data-label="Margen total" className={`duna-lista__r duna-num font-semibold ${f.margenTotal < 0 ? 'text-destructive' : ''}`}>
+                  {formatCOP(f.margenTotal)}
+                  {f.margenPct !== null && (
+                    <span className="duna-caption font-normal" style={{ marginLeft: 'var(--duna-space-2)' }}>{f.margenPct.toFixed(0)}%</span>
+                  )}
+                </span>
+              </div>
+            ))}
           </div>
 
           {/* El residual es un HECHO declarado, no un silencio. Costear en 0 lo
@@ -307,7 +366,7 @@ function Cartera({ data, loading }: { data: AnalyticsData | null; loading: boole
               // edades de su bucket. Lo único que cambia es la RUTA — la pantalla
               // nueva entiende los tres como alcances (§ lib/pedidos/filtros).
               href={`/admin/pedidos?${b.query}`}
-              className="group rounded-lg border border-border p-3 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="admin-foco group rounded-lg border border-border p-3 transition-colors hover:bg-muted/20"
             >
               {contenido}
               <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground group-hover:text-foreground">
@@ -394,7 +453,7 @@ function Trayectoria({ data, loading }: { data: AnalyticsData | null; loading: b
           type="button"
           onClick={() => setVerMargen(v => !v)}
           aria-pressed={verMargen}
-          className={`rounded-lg border border-border px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+          className={`admin-foco rounded-lg border border-border px-3 py-1 text-xs transition-colors ${
             verMargen ? 'bg-muted font-semibold text-foreground' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
           }`}
         >
@@ -415,18 +474,27 @@ function Trayectoria({ data, loading }: { data: AnalyticsData | null; loading: b
               tick={axisTickStyle} axisLine={false} tickLine={false}
               tickFormatter={v => `$${((v as number) / 1_000_000).toFixed(1)}M`}
             />
+            {/* EL CURSOR ES NUESTRO, no el de recharts. Su default está HARDCODEADO
+                a `#ccc` (medido en `Cursor.js`: `stroke: '#ccc'`), o sea ciego al
+                tema — y el `contentStyle` de al lado sí seguía el tema, con lo que
+                el tooltip y su cursor hablaban idiomas distintos.
+
+                GUÍA PUNTEADA y no un bloque, igual que la curva de Pagos
+                (`--duna-border-2`, `3 3`): en una serie temporal lo que hay que
+                señalar es el PUNTO del eje, no teñir una franja. */}
             <Tooltip
               contentStyle={tooltipStyle}
+              cursor={{ stroke: 'var(--duna-border-2)', strokeWidth: 1, strokeDasharray: '3 3' }}
               formatter={(v, name) => [formatCOP(v as number), name === 'ingresos' ? 'Ingresos' : 'Margen est.']}
             />
             {/* La leyenda sólo aparece con DOS series: con una sola no distingue
                 nada y es una fila de ruido bajo el chart. */}
             {verMargen && <Legend formatter={v => (v === 'ingresos' ? 'Ingresos' : 'Margen est.')} wrapperStyle={{ fontSize: 11 }} />}
-            <Line type="monotone" dataKey="ingresos" stroke="hsl(var(--chart-1))" strokeWidth={2.5} dot={false} />
+            <Line type="monotone" dataKey="ingresos" stroke={SERIE_INGRESOS} strokeWidth={2.5} dot={false} />
             {/* Punteada: es una ESTIMACIÓN (costo actual, no snapshoteado), y la
                 línea lo dice sin obligar a leer la nota. */}
             {verMargen && (
-              <Line type="monotone" dataKey="margen" stroke="hsl(var(--chart-2))" strokeWidth={2} strokeDasharray="5 3" dot={false} />
+              <Line type="monotone" dataKey="margen" stroke={SERIE_MARGEN} strokeWidth={2} strokeDasharray="5 3" dot={false} />
             )}
           </LineChart>
         </ResponsiveContainer>
@@ -472,7 +540,7 @@ function ClientesYCanales({ data }: { data: AnalyticsData }) {
                 <Link
                   key={cl.id}
                   href={`/admin/clientes?cliente=${encodeURIComponent(cl.id)}`}
-                  className="flex items-center gap-3 -mx-2 rounded-lg px-2 py-1 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="admin-foco flex items-center gap-3 -mx-2 rounded-lg px-2 py-1 transition-colors hover:bg-muted/20"
                 >
                   <span className="text-xs font-bold text-muted-foreground w-4">#{i + 1}</span>
                   <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
@@ -517,7 +585,7 @@ function ClientesYCanales({ data }: { data: AnalyticsData }) {
                   <div className="w-full bg-muted rounded-full h-1.5">
                     <div
                       className="h-1.5 rounded-full"
-                      style={{ width: `${(c2.value / maxCanal) * 100}%`, background: ANALITICS_COLORS[i % ANALITICS_COLORS.length] }}
+                      style={{ width: `${(c2.value / maxCanal) * 100}%`, background: SERIE_CANALES[i % SERIE_CANALES.length] }}
                     />
                   </div>
                 </div>
@@ -621,8 +689,20 @@ function WeeklyActivityCard() {
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="dia"  tick={axisTickStyle} axisLine={false} tickLine={false} />
               <YAxis               tick={axisTickStyle} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Bar dataKey="ordenes" name="Órdenes" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+              {/* REGRESIÓN DEL RE-SKIN, y el hallazgo que la explica: el cursor de
+                  barras de recharts es un RECTÁNGULO OPACO `fill: '#ccc'` sin
+                  opacidad (medido en `getCursorRectangle.js`), hardcodeado y ciego
+                  al tema. En oscuro siempre fue un bloque claro; lo camuflaban las
+                  barras ámbar. Al pasar las barras a tinta —crema en oscuro— el
+                  bloque dejó de distinguirse de ellas. El re-skin no creó el
+                  defecto: LE QUITÓ EL DISFRAZ.
+
+                  `--duna-wash-hover` no es un préstamo: es el token de HOVER para
+                  un cursor de HOVER, o sea su significado exacto. (Lo contrario del
+                  caso que se rechazó para el relleno del área de la curva de Pagos,
+                  donde el mismo token habría sido un préstamo con otro sentido.) */}
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'var(--duna-wash-hover)' }} />
+              <Bar dataKey="ordenes" name="Órdenes" fill={TINTA_MEDIDA} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -668,8 +748,8 @@ export default function Analitica() {
   const header = (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold">Analítica</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="duna-display-m">Analítica</h1>
+        <p className="duna-sub">
           Cuatro preguntas del negocio, y qué decisión cambia cada una
         </p>
       </div>
