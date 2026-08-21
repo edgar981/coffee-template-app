@@ -2,7 +2,7 @@ import prisma from '@duna/core';
 import { formatCOP } from '@duna/core/utils';
 import { toWhatsappNumber } from '@duna/core/whatsapp-link';
 import { isLowStock } from '@duna/core/metrics/inventory-filters';
-import { AUTOMATION_HREF, hrefOrden } from '@/constants/automations';
+import { AUTOMATION_HREF, hrefOrden, hrefOrdenOLista } from '@/constants/automations';
 import { esOrigenNotificable } from '../reglas';
 import type { EventHandler, Objetivo } from '../types';
 
@@ -112,7 +112,8 @@ export const entregaFallida: EventHandler = async (event): Promise<Objetivo | nu
       tipo:    'entrega_fallida',
       titulo:  'Entrega fallida',
       mensaje: `La orden ${numero} volvió sin entregar${quien}${motivo}`,
-      href:    AUTOMATION_HREF.entregas,
+      // Al PEDIDO que la notificación nombra (§ hrefOrden).
+      href:    hrefOrdenOLista(envio.order?.numero_orden),
     },
   };
 };

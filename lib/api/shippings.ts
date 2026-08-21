@@ -1,13 +1,5 @@
 import type { Shipping, ScheduleDeliveryInput } from '@/types/shipping';
 
-export async function getShippings(): Promise<Shipping[]> {
-  const res = await fetch('/api/shippings');
-  // Surface the HTTP status so the next regression is diagnosable from the client
-  // (e.g. a 500 from a Prisma error vs a 401/403 auth failure).
-  if (!res.ok) throw new Error(`Error al cargar entregas (${res.status})`);
-  return res.json();
-}
-
 // Ensure a schedulable Shipping exists for an order (server enforces the ORDER's
 // condicion_pago: rejects cancelled always, and unpaid ANTICIPADO orders).
 // Idempotent — returns the existing Shipping when there is one. Used by

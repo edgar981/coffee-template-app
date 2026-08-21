@@ -158,7 +158,14 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
   // temporal que no existe. El sufijo queda reservado a widgets con ventana real.
   { key: 'por_cobrar',      tono: 'atencion', titulo: 'Por cobrar',         subtitulo: 'Contraentrega despachada', icono: Wallet,     formato: 'cop', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.neutral,         href: `/admin/pedidos?${POR_COBRAR_QUERY_PEDIDOS}` },
   // Sin sub: "Salieron a ruta hoy" es la definición de despacho, o sea el título.
-  { key: 'despachos_hoy',   titulo: 'Despachos de hoy',   subtitulo: '', icono: Truck,        formato: 'int', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.neutral,                  href: '/admin/entregas',
+  // NO-CLICKABLE (sin `href`): "Despachos de hoy" cuenta envíos que SALIERON hoy
+  // (`stock_descontado_at` de hoy = en_ruta despachado hoy). Pedidos NO tiene ese
+  // conjunto: `camino` (en_ruta) es un SUPERCONJUNTO —todos los en ruta, no los de hoy—,
+  // y `?desde/?hasta` filtra por creación, no por despacho. Un destino parecido-pero-
+  // distinto invita a concluir que la card está mal cuando lo que estaría mal es el
+  // destino — misma decisión que la gráfica de Pedidos del carrusel (§ CLAUDE.md). El
+  // board de Entregas, su viejo destino, se retiró.
+  { key: 'despachos_hoy',   titulo: 'Despachos de hoy',   subtitulo: '', icono: Truck,        formato: 'int', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.neutral,
     // Con fecha (no "hace N días"): para el que despacha, "desde el 24 jul" ubica
     // mejor que un conteo de días. `formatFecha` es LA utilidad de fecha visible.
     insight: (d) => insightUltimoEvento(d, {

@@ -509,7 +509,6 @@ export const AUTOMATION_HREF = {
   // las traduce `redirect-inventario` al MISMO destino.
   stockBajo:  RUTA_REPONER,
   porCobrar:  `/admin/pedidos?${POR_COBRAR_QUERY_PEDIDOS}`,
-  entregas:   '/admin/entregas',
 } as const;
 
 /**
@@ -526,4 +525,14 @@ export const AUTOMATION_HREF = {
  */
 export function hrefOrden(numeroOrden: string): string {
   return `/admin/pedidos?pedido=${encodeURIComponent(numeroOrden)}`;
+}
+
+/**
+ * Igual que `hrefOrden`, pero cae al LISTADO pelado si no hay número —nunca un href
+ * roto (`?pedido=undefined`)—. Lo usan las automatizaciones cuyo `numero_orden` puede
+ * faltar: su mensaje lleva un `?? '—'`, señal de que la fila podría no tenerlo. Las que
+ * lo tienen garantizado (recordatorio de pago, etc.) siguen llamando `hrefOrden` directo.
+ */
+export function hrefOrdenOLista(numeroOrden: string | null | undefined): string {
+  return numeroOrden ? hrefOrden(numeroOrden) : '/admin/pedidos';
 }

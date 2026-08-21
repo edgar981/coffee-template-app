@@ -4,6 +4,7 @@ import { destinoDesdeOrdenes } from "@/lib/redirect-ordenes";
 import { destinoDesdeClientes } from "@/lib/redirect-clientes";
 import { destinoDesdeProductos } from "@/lib/redirect-productos";
 import { destinoDesdeInventario } from "@/lib/redirect-inventario";
+import { destinoDesdeEntregas } from "@/lib/redirect-entregas";
 
 export function proxy(request: NextRequest) {
   const session = getSessionCookie(request);
@@ -19,7 +20,7 @@ export function proxy(request: NextRequest) {
   //
   // `/admin/ordenes` murió y `/admin/pedidos` habla otro vocabulario de URL; lo
   // mismo pasó con la Clientes vieja y con la Productos vieja, cuyas rutas heredó
-  // el rediseño. La TRADUCCIÓN vive en `lib/redirect-{ordenes,clientes,productos}`
+  // el rediseño. La TRADUCCIÓN vive en `lib/redirect-{ordenes,clientes,productos,inventario,entregas}`
   // —puras y con sus tests de capa 1— y acá sólo se las llama: el mapeo es la
   // decisión, esto es plomería. Son módulos SEPARADOS porque no comparten nada
   // salvo esta mecánica; fusionarlos daría un helper que tiene que conocer los
@@ -35,7 +36,7 @@ export function proxy(request: NextRequest) {
   // no llega a una ruta hasta limpiar la caché. No hay SEO que ganar — el sitio
   // entero va `noindex`.
   //
-  // SON CUATRO y se llaman uno tras otro. El orden da igual y eso está AFIRMADO, no
+  // SON CINCO y se llaman uno tras otro. El orden da igual y eso está AFIRMADO, no
   // supuesto: `redirect-inventario.test.ts` recorre las rutas de los cuatro retiros
   // comprobando que ninguna caiga en más de uno. Sin ese test, el día que un mapeo
   // se ensanche el síntoma sería un redirect que gana por estar escrito antes.
@@ -50,7 +51,8 @@ export function proxy(request: NextRequest) {
     destinoDesdeOrdenes(request.nextUrl.pathname, request.nextUrl.searchParams) ??
     destinoDesdeClientes(request.nextUrl.pathname, request.nextUrl.searchParams) ??
     destinoDesdeProductos(request.nextUrl.pathname, request.nextUrl.searchParams) ??
-    destinoDesdeInventario(request.nextUrl.pathname, request.nextUrl.searchParams);
+    destinoDesdeInventario(request.nextUrl.pathname, request.nextUrl.searchParams) ??
+    destinoDesdeEntregas(request.nextUrl.pathname, request.nextUrl.searchParams);
   if (destino) return NextResponse.redirect(new URL(destino, request.url), 307);
 
   return NextResponse.next();

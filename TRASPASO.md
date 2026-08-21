@@ -35,16 +35,36 @@ Vercel, `main` = producción).
 
 | Ruta | Estado | Modelo de scroll |
 |---|---|---|
-| `/admin/pedidos` | Completa. 8 carriles | Alto fijo ≥1080 (`.duna-pantalla-fija`), split 2 columnas |
+| `/admin/pedidos` | Completa. 9 carriles (con "Listas para despachar") | Alto fijo ≥1080 (`.duna-pantalla-fija`), split 2 columnas |
 | `/admin/clientes` | Completa | Igual |
 | `/admin/productos` | Completa | Igual, con clase condicional (cuadrícula sin selección queda en document-scroll) |
 | `/admin/inventario` | Completa, encogida a auditoría | Alto fijo ≥960 (`.duna-sin-split`), scroller único |
 | `/admin/pagos` | Completa (frase + curva) | Alto fijo ≥960 (`.duna-sin-split`), scroller único; **el gráfico va en la zona fija** |
 
 ### Pendientes de rediseño
-Analítica, Automatizaciones, Dashboard, Entregas, Configuración, Perfil.
+Analítica, Automatizaciones, Dashboard, Configuración, Perfil.
 **Todas en document-scroll** (el `min-h-screen` por defecto de `AdminChrome`).
 No son convivencias — son pantallas que aún no se tocaron.
+
+**`/admin/entregas` RETIRADA** (2026-08-20). No se rediseñó: se retiró, porque su eje
+—el fulfillment— ya vive en Pedidos (el estado por fila en la columna Entrega, y la cola
+por-despachar como carril "Listas para despachar", que entró ANTES en su propio push para
+no dejar hueco). Cinco commits del retiro, mismo procedimiento que `/admin/ordenes`:
+- **Reapuntar los hrefs que escriben a futuro ANTES de borrar:** las dos automatizaciones
+  (`envio_estancado`, `entrega_fallida`) → al PEDIDO que nombran (`hrefOrdenOLista`, con
+  guarda al listado si falta el número); el widget `despachos_hoy` → NO-CLICKABLE (cuenta
+  "salieron hoy", que Pedidos no tiene como conjunto — misma decisión que la gráfica de
+  Pedidos del carrusel: sin destino exacto, no-clickable).
+- **Redirect 307 por segmento** (`lib/redirect-entregas`, puro + tests) → `/admin/pedidos`
+  pelado. Cubre las dos poblaciones congeladas (2 `Notification.href` en dev + los
+  `admin:cmdk-recents`), que NO se backfillean. Sin bucle, afirmado contra la cadena.
+- **Huérfanos retirados con censo:** `getShippings`, `GET /api/shippings`, `ZONA_COLORS`,
+  `FILTER_ESTADOS`/`ESTADOS`. Las otras funciones de `lib/api/shippings` y los predicados
+  compartidos (`isScheduledShipping`, `hasScheduleData`, `missingToDispatch`) SE QUEDAN —
+  Pedidos los usa.
+- **El hueco blando NO entró:** mensajero y zona por fila (la vista de flota) no se llevó a
+  Pedidos. Es decisión de contenido; si se extraña tras usar el carril, entra CON esa
+  evidencia, no por si acaso.
 
 **Pagos CERRADO — tercer y último rediseño: LA FRASE + LA CURVA** (§ CLAUDE.md "Pagos —
 la FRASE y la CURVA"). La pantalla abre diciendo la respuesta ("Este mes entraron
