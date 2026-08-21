@@ -284,6 +284,13 @@ function Pedidos() {
   // sección que existe para contar qué pasó.
   const empalmar = useCallback((actualizada: Order) => {
     setPedidos(prev => prev.map(o => o.id === actualizada.id ? actualizada : o));
+    // El detalle también, si es el pedido abierto: `fuente = detalle ?? orden` prefiere
+    // `detalle`, así que sin esto el estado nuevo no se veía hasta el refetch async. Se
+    // preservan los dos campos que `Order` no trae (`payments`, `transiciones`): los
+    // refresca el `getOrder` que dispara `repreguntar`.
+    setDetalle(prev => prev && prev.id === actualizada.id
+      ? { ...prev, ...actualizada, payments: prev.payments, transiciones: prev.transiciones }
+      : prev);
     repreguntar();
   }, [repreguntar]);
 
@@ -309,6 +316,7 @@ function Pedidos() {
   const transicion = useTransicionEntrega({
     onUpdated: (sh) => {
       setPedidos(prev => prev.map(o => o.shipping?.id === sh.id ? { ...o, shipping: sh } : o));
+      setDetalle(prev => prev && prev.shipping?.id === sh.id ? { ...prev, shipping: sh } : prev);
       repreguntar();
     },
     onError: (e) => errorAccion.mostrar(e, 'No se pudo actualizar la entrega'),
@@ -742,12 +750,16 @@ function Pedidos() {
         onClose={() => setProgramando(null)}
         onSaved={(sh) => {
           setPedidos(prev => prev.map(o => o.id === programando?.ordenId ? { ...o, shipping: sh } : o));
+          setDetalle(prev => prev && prev.id === programando?.ordenId ? { ...prev, shipping: sh } : prev);
           repreguntar();
         }}
         onAddressAdded={(ordenId, address) => {
           setPedidos(prev => prev.map(o => o.id === ordenId
             ? { ...o, direccion_entrega: address.direccion_entrega, ciudad_entrega: address.ciudad_entrega }
             : o));
+          setDetalle(prev => prev && prev.id === ordenId
+            ? { ...prev, direccion_entrega: address.direccion_entrega, ciudad_entrega: address.ciudad_entrega }
+            : prev);
           repreguntar();
         }}
       />
