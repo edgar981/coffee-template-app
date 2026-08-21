@@ -942,6 +942,25 @@ ANALÍTICA usen el modelo.** Si algún día Analítica cambia de anatomía —si
 respuesta sube a una zona fija, como la frase de Pagos— esta excepción se revisa; no
 antes.
 
+**SEGUNDA EXCEPCIÓN DECLARADA: AUTOMATIZACIONES TAMPOCO ADOPTA EL ALTO FIJO** (owner,
+2026-08-21, decidido en el discovery de su rediseño). Y va acá por lo mismo que la
+primera: sin nombrarla, el disparador —"las verticales restantes"— nunca se cumple.
+Son DOS excepciones ahora, no una.
+
+El motivo NO es que no encaje: es que **con la rejilla no hace falta.** La pantalla es
+una rejilla de 3 columnas y ocho tarjetas —tres filas—, así que el catálogo entero
+prácticamente cabe en un viewport de escritorio (medido: ~704px de contenido contra
+~734 disponibles a 1440×900). El único scroll real lo produce abrir un acordeón de
+historial, y el alto fijo sólo pinnearía el header para pinnear el roll-up de fallo,
+que es condicional y raro. Fijar la altura sería complejidad sin pago. Se decidió
+**document-scroll con el número de la rejilla delante**, no antes — igual que la regla
+de la pantalla de uso real exige medir en el sitio real.
+
+**El disparador, corregido de nuevo: cuando las verticales restantes MENOS ANALÍTICA
+Y AUTOMATIZACIONES usen el modelo.** Si Automatizaciones dejara de ser una rejilla que
+cabe —si creciera a docenas de automatizaciones y el catálogo dejara de entrar—, esta
+excepción se revisa; no antes.
+
 ### 26. El date-range picker no navega a años ANTERIORES al año-piso
 
 `startMonth` del `DateRangePicker` es el 1-ene del año ANTERIOR al actual
