@@ -161,9 +161,16 @@ function Rentabilidad({ data, loading }: { data: AnalyticsData | null; loading: 
           titular tiene que saber que ese número es una estimación. Esconderla
           detrás de "Ver detalle" la haría invisible justo para quien más la
           necesita — el que no abre el detalle. */}
+      {/* EL ALCANCE VA PRIMERO (§ CLAUDE.md — el contrato del período). Este bloque
+          SÍ respeta el chip, pero mide por fecha de PAGO: una orden entra al período
+          en que se COBRÓ, no en el que se creó, así que un mes puede mostrar margen
+          de ventas viejas cobradas ahora. La doctrina ya anticipaba que eso iba a
+          confundir y que la respuesta era la nota — la nota no existía en pantalla.
+          El titular nombra el período ("Este mes…"); esto dice qué fecha lo decide. */}
       {hayVentas && (
         <p className="text-xs text-muted-foreground/80 mt-2">
-          Margen estimado con el costo actual del catálogo · mercancía sin envío ·
+          Del período, por fecha de pago · margen estimado con el costo actual del
+          catálogo · mercancía sin envío ·
           {' '}{formatCOP(r.ingresos)} − {formatCOP(r.costo)}
           {r.margenPct !== null && ` · ${r.margenPct.toFixed(1)}%`}
         </p>
@@ -363,8 +370,22 @@ function Trayectoria({ data, loading }: { data: AnalyticsData | null; loading: b
           {insightIngresos
             ? <Titular>{insightIngresos.text}</Titular>
             : <Titular>Ingresos de los últimos meses</Titular>}
+          {/* EL CASO GRAVE del contrato del período (§ CLAUDE.md). Esta serie IGNORA
+              el chip —son siempre 12 meses— y su alcance vivía sólo dentro del
+              pliegue "Cómo se lee esta serie", o sea cerrado por defecto: con "Mes
+              pasado" elegido, un chart de 12 meses contradice al chip a la vista y
+              la única explicación estaba donde el propio diseño garantiza que nadie
+              mira ("responder sin abrir un solo pliegue").
+
+              NO alcanza con "no depende del período", la fórmula de Cartera y
+              Recurrencia: ahí es obvio —un saldo vigente y un acumulado no TIENEN
+              período—, pero una serie temporal sí lo tiene, así que hay que decir
+              CUÁL es y PARA QUÉ. Y `incluye envío` se conserva: es la base declarada
+              que hace que esta línea no sea comparable peso a peso con la de margen
+              (§ el pliegue). */}
           <p className="text-xs text-muted-foreground mt-1">
-            Pagos recibidos por mes · incluye envío
+            Pagos recibidos por mes (incluye envío) · siempre los últimos 12 meses,
+            para ver la tendencia
           </p>
         </div>
 
