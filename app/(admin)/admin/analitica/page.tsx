@@ -121,15 +121,31 @@ function SelectorPeriodo({ valor, onChange, disabled }: {
   disabled: boolean;
 }) {
   // Chips NEUTROS: el ámbar sólido de la vista está reservado a la acción
-  // principal de la página, y elegir un período no lo es. El activo se marca con
-  // `bg-muted` + peso, dentro de la familia neutra.
+  // principal de la página, y elegir un período no lo es. El activo lo marca
+  // `.duna-pill.is-on`, que ya vive dentro de la familia neutra.
   //
   // Sin date-picker, y los cuatro cortes son los que el dueño pregunta de verdad
   // (owner, 2026-08-05). "Últimos 3 meses" es una ventana MÓVIL, no el trimestre
   // calendario: el 1 de abril un trimestre calendario mostraría enero-marzo y
   // ocultaría todo lo reciente.
+  //
+  // ── LA FORMA SE UNIFICA, EL CONTROL NO (owner, 2026-08-20) ──────────────────
+  // Los pills son los del sistema (`.duna-pill`), los mismos que los carriles de
+  // Pedidos y los presets de Pagos e Inventario: había DOS apariencias para
+  // "elegir período" en el mismo panel, y eso es lo que el DS existe para cerrar.
+  //
+  // Lo que NO se hace es fusionar este control con `PresetsPeriodo`: no son el
+  // mismo control. Éste elige entre CUATRO PERÍODOS NOMBRADOS (`PeriodoKey`, que
+  // el endpoint entiende y hace eco); aquél elige un RANGO (desde/hasta).
+  // Unificarlos exigiría que uno pierda lo suyo. La unificación real está en el
+  // backlog, gateada a que este chip gane rango explícito.
+  //
+  // El envoltorio de caja (`border` + `p-0.5`) se retira: los pills del sistema no
+  // viven dentro de un marco —los carriles de Pedidos no lo tienen— y mantenerlo
+  // habría dejado este control pareciéndose a un segmentado, que es OTRA primitiva
+  // con otro significado (§ CUÁNDO ESTO Y NO UN PILL).
   return (
-    <div className="inline-flex flex-wrap rounded-lg border border-border p-0.5" role="group" aria-label="Período">
+    <div className="flex flex-wrap gap-2" role="group" aria-label="Período">
       {PERIODO_ORDEN.map(key => (
         <button
           key={key}
@@ -137,11 +153,7 @@ function SelectorPeriodo({ valor, onChange, disabled }: {
           onClick={() => onChange(key)}
           disabled={disabled}
           aria-pressed={valor === key}
-          className={`rounded-md px-3 py-1 text-xs transition-colors disabled:opacity-50 disabled:pointer-events-none ${
-            valor === key
-              ? 'bg-muted font-semibold text-foreground'
-              : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-          }`}
+          className={`duna-pill${valor === key ? ' is-on' : ''} disabled:opacity-50 disabled:pointer-events-none`}
         >
           {PERIODOS[key]}
         </button>
