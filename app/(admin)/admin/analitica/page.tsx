@@ -55,10 +55,14 @@ function Bloque({ n, titulo, pregunta, children }: {
 }) {
   return (
     <section className="space-y-3">
+      {/* `.duna-eyebrow` ES este rol —caption en versalitas, muted, semi— así que
+          las tres utilidades sueltas que lo imitaban se retiran. El número va en
+          `.duna-num` (cifras tabulares del sistema) y la pregunta en
+          `.duna-caption`: la jerarquía la da el rol, no un `/60` y un `/70`. */}
       <div className="flex items-baseline gap-2">
-        <span className="text-xs font-bold text-muted-foreground/60 tabular-nums">{n}</span>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{titulo}</h2>
-        <span className="text-xs text-muted-foreground/70">· {pregunta}</span>
+        <span className="duna-num duna-eyebrow">{n}</span>
+        <h2 className="duna-eyebrow">{titulo}</h2>
+        <span className="duna-caption">· {pregunta}</span>
       </div>
       {children}
     </section>
@@ -66,7 +70,10 @@ function Bloque({ n, titulo, pregunta, children }: {
 }
 
 function Panel({ className = '', children }: { className?: string; children: React.ReactNode }) {
-  return <div className={`bg-card border border-border rounded-xl p-5 ${className}`}>{children}</div>;
+  // `.duna-card__pad` da los 20px que este panel cableaba con `p-5`; el borde, el
+  // radio y la superficie salen de `.duna-card`. Se conserva `className` para los
+  // ajustes por call site.
+  return <div className={`duna-card duna-card__pad ${className}`}>{children}</div>;
 }
 
 /**
@@ -82,7 +89,10 @@ function Titular({ children, tono = 'normal' }: {
   tono?: 'normal' | 'alerta';
 }) {
   return (
-    <p className={`text-xl font-semibold leading-snug ${tono === 'alerta' ? 'text-destructive' : ''}`}>
+    // `.duna-title` es el rol "SUJETO de superficie enfocada" (19px, display), que
+    // es exactamente lo que el titular ES: la respuesta de este bloque. Conserva la
+    // propiedad que la nota de arriba defiende —se lee como ORACIÓN, no como cifra—.
+    <p className={`duna-title ${tono === 'alerta' ? 'text-destructive' : ''}`}>
       {children}
     </p>
   );
@@ -94,11 +104,13 @@ function Titular({ children, tono = 'normal' }: {
  * está en cero" cuando lo que pasa es que no hay nada que medir todavía.
  */
 function Vacio({ children }: { children: React.ReactNode }) {
-  return <p className="py-10 text-center text-sm text-muted-foreground">{children}</p>;
+  return <p className="duna-sub py-10 text-center">{children}</p>;
 }
 
 function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded ${className}`} />;
+  // `.duna-skel` trae su propio color, radio y pulso del sistema — el `bg-muted` +
+  // `animate-pulse` que había era otra definición del mismo esqueleto.
+  return <div className={`duna-skel ${className}`} />;
 }
 
 // ─── Selector de período ──────────────────────────────────────────────────────
@@ -668,8 +680,8 @@ export default function Analitica() {
   const header = (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold">Analítica</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="duna-display-m">Analítica</h1>
+        <p className="duna-sub">
           Cuatro preguntas del negocio, y qué decisión cambia cada una
         </p>
       </div>
