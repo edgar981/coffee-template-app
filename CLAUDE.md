@@ -3643,6 +3643,54 @@ los productos CON VENTAS del período, o sea como mucho el catálogo entero —*
 productos hoy**—, y un encabezado sticky existe para cuando el scroll se lleva la
 referencia.
 
+### DIBUJA O DECLARA · un gráfico de un punto es decoración fingiendo ser dato
+
+Tanda 2b (2026-08-20). Trayectoria pintaba **ejes, grilla y un punto suelto** mientras
+su propio titular decía "Muestra aún pequeña para tendencias": **la pantalla se
+contradecía a sí misma** —declaraba que no hay tendencia y dibujaba una—. Es la misma
+regla que la curva de Pagos ya fijaba (bajo 4 buckets no dibuja y lo declara), en la
+pantalla que no la tenía.
+
+**UN SOLO JUEZ, y ésa es toda la decisión.** `dibujaTendencia` (`lib/metrics/insights.ts`)
+deriva el dibujo del MISMO `insightMuestraCorta` que produce el titular, así que la
+contradicción pasa a ser **imposible por construcción**.
+
+**Deliberadamente SIN umbral propio.** Un `MIN_PUNTOS` como el de Pagos serían **dos
+jueces del mismo hecho**, y dos definiciones del mismo criterio es cómo divergen — el
+modo de falla que este repo ya pagó con `razonDelServidor` y `cruzoMinimo`. Pagos
+necesita el suyo porque su eje es genérico (día/semana/mes) y **no tiene** guard de
+muestra; Analítica sí lo tiene. Copiar el número habría sido copiar la letra sin el
+motivo.
+
+**NO APLICA a las otras dos gráficas, y la razón es de NATURALEZA, no de umbral:**
+
+- la **Actividad semanal** siempre tiene **siete días** —una semana no puede traer
+  menos buckets—, así que su caso degenerado no es "pocos puntos" sino "los siete en
+  cero", que es un vacío y ya tiene su propio fallback honesto;
+- los **Canales** son **CATEGORÍAS, no una serie temporal**: un solo canal es un hecho
+  legítimo ("todo llega por WhatsApp"), no una tendencia afirmada sobre nada.
+
+Forzarles la regla sería exactamente el error que la sección anterior nombra: aplicar
+la letra donde no está el motivo.
+
+- **El toggle "Ver margen" desaparece con la curva.** Un control que superpone una
+  línea sobre un gráfico que no se dibuja es un control muerto: promete algo que no
+  puede ocurrir. Misma regla que "las acciones que no aplican NO están".
+- **La línea que reemplaza al gráfico explica la AUSENCIA, no repite el hecho** — el
+  titular ya lo dice. Y aclara que la cifra sigue siendo exacta: lo que falta es
+  historia con qué compararla, no confianza en el dato.
+- **El test se vio FALLAR 5 de 6** con la regla neutralizada al comportamiento viejo
+  (`return true`). El sexto es el caso que sí dibuja, y que pase es correcto.
+  **No borrar** `lib/metrics/insights.test.ts`: sus casos afirman las DOS mitades a la
+  vez —lo que dice el guard y lo que hace el dibujo—, así que si alguien le diera a
+  `dibujaTendencia` un umbral propio, se caen. Es justo lo que se les pide.
+- **El borde que obliga a la guarda explícita `!data?.serie?.length`:** con
+  `null`/`undefined` el guard devuelve `null` —correcto para un insight, "no tengo
+  nada que decir"— y delegar a secas leería ese `null` como "no hay objeción,
+  dibuja", o sea que **sin serie dibujaría**. Con `{ serie: [] }` en cambio el guard
+  SÍ opina (un array vacío es truthy y no entra en esa rama). Dos entradas, el mismo
+  `false`, caminos distintos: por eso el test afirma las dos.
+
 ### La gráfica de PEDIDOS del carrusel no tiene destino, a propósito
 
 La gráfica de **Ventas** del carrusel del dashboard es clickeable y lleva a
