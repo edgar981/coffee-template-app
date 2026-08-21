@@ -474,8 +474,17 @@ function Trayectoria({ data, loading }: { data: AnalyticsData | null; loading: b
               tick={axisTickStyle} axisLine={false} tickLine={false}
               tickFormatter={v => `$${((v as number) / 1_000_000).toFixed(1)}M`}
             />
+            {/* EL CURSOR ES NUESTRO, no el de recharts. Su default está HARDCODEADO
+                a `#ccc` (medido en `Cursor.js`: `stroke: '#ccc'`), o sea ciego al
+                tema — y el `contentStyle` de al lado sí seguía el tema, con lo que
+                el tooltip y su cursor hablaban idiomas distintos.
+
+                GUÍA PUNTEADA y no un bloque, igual que la curva de Pagos
+                (`--duna-border-2`, `3 3`): en una serie temporal lo que hay que
+                señalar es el PUNTO del eje, no teñir una franja. */}
             <Tooltip
               contentStyle={tooltipStyle}
+              cursor={{ stroke: 'var(--duna-border-2)', strokeWidth: 1, strokeDasharray: '3 3' }}
               formatter={(v, name) => [formatCOP(v as number), name === 'ingresos' ? 'Ingresos' : 'Margen est.']}
             />
             {/* La leyenda sólo aparece con DOS series: con una sola no distingue
@@ -680,7 +689,19 @@ function WeeklyActivityCard() {
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="dia"  tick={axisTickStyle} axisLine={false} tickLine={false} />
               <YAxis               tick={axisTickStyle} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={tooltipStyle} />
+              {/* REGRESIÓN DEL RE-SKIN, y el hallazgo que la explica: el cursor de
+                  barras de recharts es un RECTÁNGULO OPACO `fill: '#ccc'` sin
+                  opacidad (medido en `getCursorRectangle.js`), hardcodeado y ciego
+                  al tema. En oscuro siempre fue un bloque claro; lo camuflaban las
+                  barras ámbar. Al pasar las barras a tinta —crema en oscuro— el
+                  bloque dejó de distinguirse de ellas. El re-skin no creó el
+                  defecto: LE QUITÓ EL DISFRAZ.
+
+                  `--duna-wash-hover` no es un préstamo: es el token de HOVER para
+                  un cursor de HOVER, o sea su significado exacto. (Lo contrario del
+                  caso que se rechazó para el relleno del área de la curva de Pagos,
+                  donde el mismo token habría sido un préstamo con otro sentido.) */}
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'var(--duna-wash-hover)' }} />
               <Bar dataKey="ordenes" name="Órdenes" fill={TINTA_MEDIDA} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
