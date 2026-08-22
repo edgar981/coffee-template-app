@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Zap, Settings2, MessageCircleWarning } from 'lucide-react';
+import { Zap, Settings2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -45,10 +45,6 @@ export default function Automatizaciones() {
 
   const activas       = AUTOMATIONS.filter(d => estados[d.key]?.activo).length;
   const ejecuciones   = Object.values(estados).reduce((s, e) => s + e.ejecuciones, 0);
-  // El canal WhatsApp no está conectado todavía: si hay alguna activa, hay que
-  // decirlo — de lo contrario la página aparenta estar enviando mensajes.
-  const whatsappActivas = AUTOMATIONS.filter(d => d.canal === 'whatsapp' && estados[d.key]?.activo).length;
-
   // ── Escritura optimista ────────────────────────────────────────────────────
   // Se pinta el cambio de inmediato y luego se persiste. Si falla, un toast cuyo
   // "Reintentar" reusa el MISMO patch (capturado aquí, no leído de un estado que
@@ -111,23 +107,6 @@ export default function Automatizaciones() {
         </div>
       </div>
 
-      {/* Canal WhatsApp sin conectar — honestidad, no UI falsa de "enviado" */}
-      {whatsappActivas > 0 && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-900/15">
-          <MessageCircleWarning className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-          <div>
-            <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
-              Canal WhatsApp pendiente de conexión (Meta)
-            </p>
-            <p className="text-xs leading-relaxed text-amber-800/80 dark:text-amber-300/80">
-              {whatsappActivas === 1 ? 'Hay 1 automatización activa' : `Hay ${whatsappActivas} automatizaciones activas`} por WhatsApp.
-              Todo el flujo se ejecuta y queda registrado con el mensaje ya redactado, pero no se envía
-              hasta conectar la cuenta de Meta.
-            </p>
-          </div>
-        </div>
-      )}
-
       {fallo && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/40 p-4">
           <p className="text-sm text-muted-foreground">No se pudieron cargar las automatizaciones.</p>
@@ -137,7 +116,11 @@ export default function Automatizaciones() {
 
       {/* Cards */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {AUTOMATIONS.map(def => {
+        {/* Sólo lo que el server DEVOLVIÓ: el endpoint omite las de WhatsApp
+            mientras el canal no esté operativo (§ waOperativo), así que la
+            decisión de qué se ve vive en un solo sitio, no en un filtro de canal
+            duplicado acá. */}
+        {AUTOMATIONS.filter(def => estados[def.key]).map(def => {
           const estado  = estados[def.key];
           const activo  = estado?.activo ?? false;
           const Icon    = def.icono;
