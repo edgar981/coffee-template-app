@@ -30,7 +30,11 @@ function vidaTexto(e: AutomationEstado): string {
   switch (e.vida) {
     case 'apagada':   return 'Apagada';
     case 'fallo':     return 'Falló · pide tu atención';
-    case 'sin_casos': return 'Sin casos · vigilando';
+    // "Sin casos" a secas: NO hay dato honesto de "desde cuándo vigila"
+    // (`AutomationSetting` no guarda cuándo se encendió, y las default-on nunca
+    // tocadas ni tienen fila). "vigilando" sin la fecha no agrega nada que el
+    // punto gris no diga ya, así que se recorta en vez de inventar la fecha.
+    case 'sin_casos': return 'Sin casos';
     case 'viva':      return e.ultima ? `Viva · ${tiempoRelativo(e.ultima.createdAt)}` : 'Viva';
   }
 }
