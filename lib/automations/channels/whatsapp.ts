@@ -1,4 +1,5 @@
 import { AUTOMATION_MAP, renderWhatsappTemplate } from '@/constants/automations';
+import { waOperativo } from '../whatsapp-operativo';
 import type { DispatchRequest, DispatchResult } from './types';
 
 // ─── Canal WHATSAPP — STUB DELIBERADO ────────────────────────────────────────
@@ -49,22 +50,33 @@ export async function dispatchWhatsapp(
     };
   }
 
+  // El mensaje se renderiza SIEMPRE: es la evidencia de un run PENDIENTE_CANAL —
+  // lo que se habría enviado, listo para comparar el día que Meta se conecte.
   const mensaje = renderWhatsappTemplate(plantilla, req.variables);
+  const payload = {
+    canal:      'whatsapp' as const,
+    to:         req.to,
+    plantilla:  plantilla.nombre,
+    categoria:  plantilla.categoria,
+    idioma:     plantilla.idioma,
+    variables:  req.variables,
+    mensaje,
+  };
+
+  // EL GATE DEL ENVÍO REAL, misma condición que decide el render (§ waOperativo).
+  // Cuando esté operativo, el POST a la Cloud API de Meta va AQUÍ —éxito → ENVIADO,
+  // error → throw para que el motor registre FALLIDO—. El adaptador no existe
+  // todavía, así que hasta entonces también se registra PENDIENTE_CANAL: no hay a
+  // quién llamar. Wired ya para que el go-live sea rellenar esta rama, no re-cablear.
+  if (waOperativo()) {
+    console.warn(
+      `[automations:whatsapp] waOperativo pero sin adaptador de Meta — se REGISTRA, no se envía · "${plantilla.nombre}" → ${req.to}`,
+    );
+    return { estado: 'PENDIENTE_CANAL', payload };
+  }
 
   console.log(
     `[automations:whatsapp] PENDIENTE_CANAL · plantilla "${plantilla.nombre}" → ${req.to}\n${mensaje}`,
   );
-
-  return {
-    estado: 'PENDIENTE_CANAL',
-    payload: {
-      canal:      'whatsapp',
-      to:         req.to,
-      plantilla:  plantilla.nombre,
-      categoria:  plantilla.categoria,
-      idioma:     plantilla.idioma,
-      variables:  req.variables,
-      mensaje,
-    },
-  };
+  return { estado: 'PENDIENTE_CANAL', payload };
 }

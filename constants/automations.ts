@@ -4,7 +4,6 @@ import {
   Bell, Package, CreditCard, BarChart2, UserX, CheckCircle,
   Wallet, Truck, Sunrise, ShoppingBag, HandCoins, PackageX,
 } from 'lucide-react';
-import { STAT_CHIP } from '@/constants/stat-chip';
 import { POR_COBRAR_QUERY_PEDIDOS } from '@duna/core/metrics/order-stat-filters';
 import { RUTA_REPONER } from '@/lib/productos/filtros';
 import { HORAS_ENTREGA_SIN_COBRO } from '@/lib/automations/reglas';
@@ -145,8 +144,19 @@ export interface AutomationDef {
   canal: AutomationCanal;
   tipo: AutomationTipo;
   audiencia: AutomationAudiencia;
-  /** Disparador en español, tal cual se muestra en la card. */
+  /** Disparador técnico, tal cual lo muestra el DIÁLOGO de Ajustes (DialogDescription).
+   *  NO se toca: es un string estático que el diálogo shadcn lee directo. */
   disparador: string;
+  /** La frase de disparo de la TARJETA, con EL VALOR configurado inyectado
+   *  ("Avisa cuando lleva 3 días despachado sin cobrar"): función del config para
+   *  que cambie si el operador cambia el umbral. Es la única forma de leer cómo
+   *  está configurada sin abrir el diálogo. Se añade aparte de `disparador` porque
+   *  ése lo comparte el diálogo, que queda intacto (censo, 2026-08-21). */
+  frase?: (config: Record<string, unknown>) => string;
+  /** La regla de silencio como HECHO declarado (no editable): la FORMA del silencio
+   *  —una vez / espera / diaria / semanal—. El intervalo exacto del cooldown vive en
+   *  Ajustes; la tarjeta declara la forma. */
+  silencio?: string;
   idempotencia: AutomationIdempotencia;
   targetType: AutomationTarget;
   /** Defaults incluidos: `schema.parse({})` devuelve la configuración por defecto. */
@@ -158,7 +168,6 @@ export interface AutomationDef {
   /** Solo para `canal: 'interno'`: tono del badge de la campana. Default `info`. */
   severidad?: AutomationSeveridad;
   icono: LucideIcon;
-  color: string;
   plantilla?: WhatsappTemplate;
 }
 
@@ -174,6 +183,15 @@ const destinatariosCampo: ConfigCampo = {
   ayuda: 'Separados por coma. Vacío = el correo del admin principal (ADMIN_EMAIL).',
 };
 
+// Formato de las frases de tarjeta (value-aware). `n` viene del config, que llega
+// con los defaults del zod aplicados (§ parseAutomationConfig), así que nunca es
+// undefined; el `Number` es defensivo.
+const plural = (n: unknown, sing: string, plur: string) => {
+  const x = Number(n);
+  return `${x} ${x === 1 ? sing : plur}`;
+};
+const hhmm = (h: unknown) => `${Number(h)}:00`;
+
 export const AUTOMATIONS: AutomationDef[] = [
   // ── 1. Nueva orden ─────────────────────────────────────────────────────────
   {
@@ -186,7 +204,7 @@ export const AUTOMATIONS: AutomationDef[] = [
     configSchema: z.object({}),
     campos: [],
     defaultActivo: false,
-    icono: Bell, color: STAT_CHIP.blue,
+    icono: Bell,
     plantilla: {
       nombre: 'orden_confirmada', categoria: 'UTILITY', idioma: 'es',
       cuerpo:
@@ -204,6 +222,8 @@ export const AUTOMATIONS: AutomationDef[] = [
     descripcion: 'Avisa al equipo en la campana cuando un producto cruza su stock mínimo.',
     canal: 'interno', tipo: 'evento', audiencia: 'equipo',
     disparador: 'Cuando un producto CRUZA su mínimo (al despachar o al ajustar)',
+    frase: () => 'Avisa cuando un producto cruza su mínimo.',
+    silencio: 'Si sigue bajo, espera antes de repetir el aviso.',
     idempotencia: 'cooldown', targetType: 'product',
     configSchema: z.object({
       cooldownHoras: z.coerce.number().int().min(1).max(720).default(24),
@@ -217,7 +237,7 @@ export const AUTOMATIONS: AutomationDef[] = [
     // false y por eso la campana no mostraba nada pese a estar implementada.
     defaultActivo: true,
     severidad: 'alerta',
-    icono: Package, color: STAT_CHIP.alert,
+    icono: Package,
   },
 
   // ── 3. Recordatorio de pago ────────────────────────────────────────────────
@@ -243,7 +263,7 @@ export const AUTOMATIONS: AutomationDef[] = [
       horaCampo('Hora del barrido'),
     ],
     defaultActivo: false,
-    icono: CreditCard, color: STAT_CHIP.orange,
+    icono: CreditCard,
     plantilla: {
       nombre: 'recordatorio_pago', categoria: 'UTILITY', idioma: 'es',
       cuerpo:
@@ -261,6 +281,8 @@ export const AUTOMATIONS: AutomationDef[] = [
     descripcion: 'Resumen de la semana al equipo por correo: ventas, órdenes, por cobrar y top producto.',
     canal: 'email', tipo: 'programada', audiencia: 'equipo',
     disparador: 'Cada lunes a la hora configurada',
+    frase: (c) => `Sale cada lunes a las ${hhmm(c.hora)} con las ventas de la semana.`,
+    silencio: 'Un correo por semana.',
     idempotencia: 'semanal', targetType: 'global',
     configSchema: z.object({
       hora:          z.coerce.number().int().min(0).max(23).default(8),
@@ -268,7 +290,7 @@ export const AUTOMATIONS: AutomationDef[] = [
     }),
     campos: [horaCampo('Hora del envío (lunes)'), destinatariosCampo],
     defaultActivo: false,
-    icono: BarChart2, color: STAT_CHIP.violet,
+    icono: BarChart2,
   },
 
   // ── 5. Reactivación de clientes ────────────────────────────────────────────
@@ -296,7 +318,7 @@ export const AUTOMATIONS: AutomationDef[] = [
       horaCampo('Hora del barrido'),
     ],
     defaultActivo: false,
-    icono: UserX, color: STAT_CHIP.pink,
+    icono: UserX,
     plantilla: {
       nombre: 'reactivacion_cliente', categoria: 'MARKETING', idioma: 'es',
       cuerpo:
@@ -318,7 +340,7 @@ export const AUTOMATIONS: AutomationDef[] = [
     configSchema: z.object({}),
     campos: [],
     defaultActivo: false,
-    icono: CheckCircle, color: STAT_CHIP.emerald,
+    icono: CheckCircle,
     plantilla: {
       nombre: 'orden_entregada', categoria: 'UTILITY', idioma: 'es',
       cuerpo:
@@ -340,6 +362,8 @@ export const AUTOMATIONS: AutomationDef[] = [
     descripcion: 'Avisa cuánta plata llevas en la calle: contraentregas despachadas que siguen sin cobrarse.',
     canal: 'interno', tipo: 'programada', audiencia: 'equipo',
     disparador: 'Órdenes por cobrar despachadas hace más de los días configurados',
+    frase: (c) => `Avisa cuando lleva ${plural(c.diasDespachada, 'día', 'días')} despachado sin cobrar.`,
+    silencio: 'Mientras siga sin cobrar, insiste máximo una vez por semana.',
     idempotencia: 'semanal', targetType: 'order',
     configSchema: z.object({
       diasDespachada: z.coerce.number().int().min(1).max(90).default(3),
@@ -352,7 +376,7 @@ export const AUTOMATIONS: AutomationDef[] = [
     ],
     defaultActivo: true, // canal interno — ver la regla en AutomationCanal
     severidad: 'alerta',
-    icono: Wallet, color: STAT_CHIP.amber,
+    icono: Wallet,
   },
 
   {
@@ -361,6 +385,8 @@ export const AUTOMATIONS: AutomationDef[] = [
     descripcion: 'Detecta entregas que llevan demasiado en ruta — problema real u olvido de marcarlas.',
     canal: 'interno', tipo: 'programada', audiencia: 'equipo',
     disparador: 'Entregas en ruta hace más de los días configurados',
+    frase: (c) => `Avisa cuando lleva ${plural(c.diasEnRuta, 'día', 'días')} en ruta.`,
+    silencio: 'Mientras siga en ruta, insiste máximo una vez al día.',
     idempotencia: 'diaria', targetType: 'shipping',
     configSchema: z.object({
       diasEnRuta: z.coerce.number().int().min(1).max(60).default(2),
@@ -373,7 +399,7 @@ export const AUTOMATIONS: AutomationDef[] = [
     ],
     defaultActivo: true, // canal interno — ver la regla en AutomationCanal
     severidad: 'alerta',
-    icono: Truck, color: STAT_CHIP.sky,
+    icono: Truck,
   },
 
   {
@@ -382,6 +408,8 @@ export const AUTOMATIONS: AutomationDef[] = [
     descripcion: 'Correo al equipo cada mañana con lo de ayer y los despachos programados para hoy.',
     canal: 'email', tipo: 'programada', audiencia: 'equipo',
     disparador: 'Todos los días a la hora configurada',
+    frase: (c) => `Sale cada mañana a las ${hhmm(c.hora)} con lo de ayer y los despachos de hoy.`,
+    silencio: 'Un correo al día.',
     idempotencia: 'diaria', targetType: 'global',
     configSchema: z.object({
       hora:          z.coerce.number().int().min(0).max(23).default(7),
@@ -389,7 +417,7 @@ export const AUTOMATIONS: AutomationDef[] = [
     }),
     campos: [horaCampo('Hora del envío'), destinatariosCampo],
     defaultActivo: false,
-    icono: Sunrise, color: STAT_CHIP.orange,
+    icono: Sunrise,
   },
 
   // ── 10–12. Campana del operador (v1 de notificaciones internas) ────────────
@@ -403,13 +431,15 @@ export const AUTOMATIONS: AutomationDef[] = [
     descripcion: 'Avisa en la campana cuando entra una orden que nadie tecleó: del storefront o de cualquier canal de entrada futuro.',
     canal: 'interno', tipo: 'evento', audiencia: 'equipo',
     disparador: 'Cuando se crea una orden desde fuera del admin',
+    frase: () => 'Avisa cuando entra un pedido que nadie tecleó.',
+    silencio: 'Una sola vez por pedido.',
     idempotencia: 'una_vez', targetType: 'order',
     configSchema: z.object({}),
     campos: [],
     defaultActivo: true,
     // Una venta no es una alarma: badge en primario, no en rojo.
     severidad: 'info',
-    icono: ShoppingBag, color: STAT_CHIP.emerald,
+    icono: ShoppingBag,
   },
 
   {
@@ -418,6 +448,8 @@ export const AUTOMATIONS: AutomationDef[] = [
     descripcion: 'La orden llegó a su destino pero el dinero no entró. Avisa una sola vez por orden, pasadas las horas configuradas.',
     canal: 'interno', tipo: 'programada', audiencia: 'equipo',
     disparador: 'Órdenes entregadas sin pago registrado tras las horas configuradas',
+    frase: (c) => `Avisa cuando lleva ${plural(c.horasEntrega, 'hora', 'horas')} entregado sin cobrar.`,
+    silencio: 'Una sola vez por pedido.',
     idempotencia: 'una_vez', targetType: 'order',
     configSchema: z.object({
       horasEntrega: z.coerce.number().int().min(1).max(720).default(HORAS_ENTREGA_SIN_COBRO),
@@ -432,7 +464,7 @@ export const AUTOMATIONS: AutomationDef[] = [
     // umbral de 24h se convertiría en "entre 24 y 48h", según cuándo cayera.
     defaultActivo: true,
     severidad: 'alerta',
-    icono: HandCoins, color: STAT_CHIP.alert,
+    icono: HandCoins,
   },
 
   {
@@ -441,6 +473,8 @@ export const AUTOMATIONS: AutomationDef[] = [
     descripcion: 'El pedido volvió: nadie recibió, dirección mala o el cliente rechazó. Requiere decidir qué se hace con esa orden.',
     canal: 'interno', tipo: 'evento', audiencia: 'equipo',
     disparador: 'Cuando una entrega cambia a estado "fallido"',
+    frase: () => 'Avisa cuando un pedido vuelve sin entregar.',
+    silencio: 'Si se reintenta y vuelve a fallar, espera antes de insistir.',
     idempotencia: 'cooldown', targetType: 'shipping',
     configSchema: z.object({
       // Una entrega fallida se reprograma (fallido → preparando) y puede volver a
@@ -455,7 +489,7 @@ export const AUTOMATIONS: AutomationDef[] = [
     ],
     defaultActivo: true,
     severidad: 'alerta',
-    icono: PackageX, color: STAT_CHIP.alert,
+    icono: PackageX,
   },
 ];
 

@@ -3,6 +3,9 @@ import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { loadAutomationStates } from '@/lib/automations/settings';
+import { waOperativo } from '@/lib/automations/whatsapp-operativo';
+import { ultimosRelevantes } from '@/lib/automations/historial-server';
+import { estadoDeVida } from '@/lib/automations/historial';
 
 // Estado de TODAS las automatizaciones del registry + la evidencia de que están
 // vivas (cuántas veces corrieron y las 3 más recientes). Lectura PURA: a diferencia
@@ -19,21 +22,30 @@ export async function GET() {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
-  const { states, degradado } = await loadAutomationStates();
+  const { states: todos, degradado } = await loadAutomationStates();
   // Si no se pudo leer la configuración, esto son defaults: NO mostrar toggles
   // apagados como si fueran la decisión del owner.
   if (degradado) {
     return NextResponse.json({ error: 'No se pudo leer la configuración' }, { status: 503 });
   }
 
+  // Las automatizaciones de WhatsApp NO se renderizan hasta que el canal esté
+  // operativo (§ waOperativo): su sender no puede enviar sin las credenciales de
+  // Meta, así que mostrarlas vivas aparentaría un envío que no ocurre. Es la MISMA
+  // condición que gatea el sender —una sola definición—, consumida acá para el
+  // render. Sus handlers y su código NO se tocan; sólo se omiten de la respuesta.
+  const states = waOperativo() ? todos : todos.filter(s => s.def.canal !== 'whatsapp');
+
   // Un groupBy para los totales y UNA consulta para las recientes — no N+1 por card.
-  const [conteos, ultimos] = await Promise.all([
+  const [conteos, ultimos, relevantes] = await Promise.all([
     prisma.automationRun.groupBy({ by: ['automationKey'], _count: { _all: true } }),
     prisma.automationRun.findMany({
       orderBy: { createdAt: 'desc' },
       take:    RECIENTES * states.length,
       select:  { automationKey: true, estado: true, targetId: true, createdAt: true },
     }),
+    // El último run que CUENTA por automatización (el corte), para la señal de vida.
+    ultimosRelevantes(),
   ]);
 
   const totalPorKey = new Map(conteos.map(c => [c.automationKey, c._count._all]));
@@ -44,12 +56,19 @@ export async function GET() {
   }
 
   return NextResponse.json(
-    states.map(({ def, activo, config }) => ({
-      key:         def.key,
-      activo,
-      config,
-      ejecuciones: totalPorKey.get(def.key) ?? 0,
-      recientes:   porKey.get(def.key) ?? [],
-    })),
+    states.map(({ def, activo, config }) => {
+      const ultima = relevantes.get(def.key) ?? null;
+      return {
+        key:         def.key,
+        activo,
+        config,
+        ejecuciones: totalPorKey.get(def.key) ?? 0,
+        recientes:   porKey.get(def.key) ?? [],
+        // Señal de vida derivada (§ estadoDeVida) y el último run relevante para el
+        // "hace X" de la tarjeta. Additivo: el commit 3 los consume.
+        vida:        estadoDeVida({ activo, ultima }),
+        ultima,
+      };
+    }),
   );
 }
