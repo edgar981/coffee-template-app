@@ -48,3 +48,26 @@ export async function saveAutomation(
   if (!res.ok) throw new Error('No se pudo guardar la automatización');
   return res.json();
 }
+
+/** Una entrada del historial (§ lib/automations/historial). `cuando` llega como
+ *  string ISO por JSON. */
+export interface HistorialEntrada {
+  cuando:         string;
+  sobreQue:       string;
+  href:           string | null;
+  resultado:      'ok' | 'fallo';
+  resultadoLabel: string;
+}
+export interface HistorialResp {
+  entradas: HistorialEntrada[];
+  /** Hay más de las que se muestran: la pantalla lo declara. */
+  hayMas:   boolean;
+}
+
+/** Lo que UNA automatización hizo. Se pide sólo al abrir su acordeón, no en la
+ *  carga de la página (por eso es endpoint aparte). */
+export async function getAutomationHistory(key: string): Promise<HistorialResp> {
+  const res = await fetch(`/api/automations/${encodeURIComponent(key)}/history`);
+  if (!res.ok) throw new Error('No se pudo cargar el historial');
+  return res.json();
+}
