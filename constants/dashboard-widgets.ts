@@ -144,7 +144,11 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
   // Sin sub: "Pagos recibidos hoy" repetía el título. Su línea es el insight de
   // último pago; si algún día no hubiera insight, esta tarjeta no necesita segunda
   // línea.
-  { key: 'ventas_hoy',      titulo: 'Ventas de hoy',      subtitulo: '', icono: Banknote,     formato: 'cop', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.neutral, href: (c) => `/admin/pagos?desde=${c.today}&hasta=${c.today}`,
+  // OFF por defecto (2026-08-22): su cifra vive en el HERO de la pantalla "Hoy"
+  // ("Hoy entraron $X"). Sigue en el catálogo — quien la quiera como tarjeta la
+  // agrega en Personalizar; no se retira, así que nadie que la tenga guardada la
+  // pierde (§ sanitizeWidgetKeys conserva toda key del catálogo).
+  { key: 'ventas_hoy',      titulo: 'Ventas de hoy',      subtitulo: '', icono: Banknote,     formato: 'cop', categoria: 'hoy', defaultVisible: false, color: STAT_CHIP.neutral, href: (c) => `/admin/pagos?desde=${c.today}&hasta=${c.today}`,
     // Sin serie mensual: el hecho es cuándo entró el último pago. Un "$0 hoy"
     // con "último pago hace 3 días" informa; un "$0" solo, no.
     insight: (d) => insightUltimoEvento(d, {
@@ -173,7 +177,9 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
       dias:  (_n, fecha) => `Sin despachos desde ${formatFecha(fecha)}`,
       nunca: 'Sin registros todavía',
     }) },
-  { key: 'pedidos_hoy',     titulo: 'Pedidos de hoy',     subtitulo: 'Órdenes creadas hoy', icono: ShoppingCart, formato: 'int', categoria: 'hoy', defaultVisible: true,  color: STAT_CHIP.neutral,              href: (c) => `/admin/pedidos?desde=${c.today}&hasta=${c.today}`,
+  // OFF por defecto (2026-08-22): el conteo vive en el encabezado de la CURVA de la
+  // pantalla "Hoy" ("N pedidos hoy"). Sigue en el catálogo, opt-in.
+  { key: 'pedidos_hoy',     titulo: 'Pedidos de hoy',     subtitulo: 'Órdenes creadas hoy', icono: ShoppingCart, formato: 'int', categoria: 'hoy', defaultVisible: false, color: STAT_CHIP.neutral,              href: (c) => `/admin/pedidos?desde=${c.today}&hasta=${c.today}`,
     insight: (d) => insightUltimoEvento(d, {
       hoy:   'Última orden creada hoy',
       dias:  (n) => `Última orden hace ${n} ${n === 1 ? 'día' : 'días'}`,
@@ -182,10 +188,13 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
   // ── Mes / operación ──
   // El sub nombra el PERÍODO y la fuente ("Pagos…", como ventas_hoy): el valor es
   // del mes en curso y el histórico vive en su propio widget (ingresos_historicos).
-  { key: 'ingresos_mes',       titulo: 'Ingresos del mes',   subtitulo: 'Pagos del mes en curso', icono: DollarSign,   formato: 'cop', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.neutral, href: (c) => `/admin/pagos?desde=${c.monthStart}&hasta=${c.today}`, insight: widgetInsight },
+  // OFF por defecto (2026-08-22): la pantalla "Hoy" es del día; el mes vive en Pagos
+  // y Analítica. Opt-in en Personalizar; su base ya incluye canceladas (§ commit 1).
+  { key: 'ingresos_mes',       titulo: 'Ingresos del mes',   subtitulo: 'Pagos del mes en curso', icono: DollarSign,   formato: 'cop', categoria: 'mes', defaultVisible: false, color: STAT_CHIP.neutral, href: (c) => `/admin/pagos?desde=${c.monthStart}&hasta=${c.today}`, insight: widgetInsight },
   // Sin sub: "Mes en curso" repetía el título. La línea que queda bajo el valor es
   // el insight, que sí agrega algo (tendencia o por qué todavía no hay tendencia).
-  { key: 'ordenes_mes',        titulo: 'Órdenes del mes',    subtitulo: '', icono: ShoppingCart, formato: 'int', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.neutral,              href: (c) => `/admin/pedidos?${c.monthQuery}`, insight: widgetInsight },
+  // OFF por defecto (2026-08-22): el mes no es "Hoy". Opt-in en Personalizar.
+  { key: 'ordenes_mes',        titulo: 'Órdenes del mes',    subtitulo: '', icono: ShoppingCart, formato: 'int', categoria: 'mes', defaultVisible: false, color: STAT_CHIP.neutral,              href: (c) => `/admin/pedidos?${c.monthQuery}`, insight: widgetInsight },
   // También SIN scopeSuffix (mismo motivo: es el conteo vigente, no un período). Lo
   // que mantiene coherente el par con "Por cobrar" es el cross-reference del sub en
   // vivo ("· N por cobrar aparte"), no una etiqueta de scope — ver CLAUDE.md

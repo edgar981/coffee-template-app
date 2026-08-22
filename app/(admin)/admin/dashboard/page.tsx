@@ -7,7 +7,7 @@ import { SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/button';
-import { Tooltip as UITooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { DunaTooltip } from '@/components/admin/DunaTooltip';
 import { getDashboardStats } from '@/lib/api/dashboard';
 import { getAnalytics } from '@/lib/api/analytics';
 import { getProducts } from '@/lib/api/products';
@@ -21,6 +21,8 @@ import type { AnalyticsData } from '@/types/analytics';
 import { formatCOP } from '@duna/core/utils';
 import StatCard from '@/components/admin/StatCard';
 import DashboardCustomizer from '@/components/admin/DashboardCustomizer';
+import CurvaPedidosHoy from '@/components/admin/CurvaPedidosHoy';
+import { curvaDibuja } from '@/lib/dashboard/hoy';
 import type { Trend } from '@/lib/metrics/trend';
 import { computeTrend, NEUTRAL_TREND } from '@/lib/metrics/trend';
 import { currentMonthOrdersQuery, currentMonthRange } from '@duna/core/metrics/order-stat-filters';
@@ -167,23 +169,53 @@ export default function Dashboard() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  // La pantalla es del DÍA. Dos cifras, DOS BASES, y cada una la DECLARA (§ contrato
+  // del período): el operador no puede deducir que el dinero incluye canceladas y el
+  // conteo no. HERO = el dinero (Payments de hoy, canceladas incluidas). CURVA = el
+  // conteo (órdenes creadas hoy, sin canceladas). Son ejes distintos, como en Pagos.
+  const ventasHoy = stats?.ventasHoy ?? 0;
+  const pedidosHoy = stats?.pedidosHoy ?? 0;
+  const pedidosPorHora = stats?.pedidosPorHora ?? [];
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="duna space-y-6">
+      {/* CABECERA: eyebrow (la fecha de hoy) + el HERO del dinero, con Personalizar a
+          la derecha. El hero es el titular —"Hoy entraron $X"—, no un rótulo y una
+          cifra que el lector junta (mismo criterio que la frase de Pagos). */}
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Panel de Operaciones</h1>
-          <p className="text-sm text-muted-foreground mt-1">Café Nayoli — Resumen del negocio</p>
+        <div aria-busy={loading || undefined}>
+          <p className="duna-eyebrow" style={{ margin: 0 }}>{formatFecha(stats?.hoyKey ?? new Date())}</p>
+          {loading ? (
+            <h1 className="duna-display-m" aria-hidden="true" style={{ fontWeight: 'var(--duna-w-medium)', margin: 'var(--duna-space-hairline) 0 0' }}>
+              <span style={{ display: 'inline-block', width: '58%', maxWidth: '26rem', height: '0.85em',
+                             borderRadius: 4, background: 'var(--duna-skel)', verticalAlign: 'middle' }} />
+            </h1>
+          ) : !stats ? (
+            <h1 className="duna-display-m" role="alert" style={{ fontWeight: 'var(--duna-w-medium)', margin: 'var(--duna-space-hairline) 0 0' }}>
+              No se pudo leer el resumen de hoy.
+            </h1>
+          ) : ventasHoy > 0 ? (
+            <>
+              <h1 className="duna-display-m" style={{ fontWeight: 'var(--duna-w-medium)', margin: 'var(--duna-space-hairline) 0 0' }}>
+                Hoy entraron <strong style={{ fontWeight: 'var(--duna-w-semi)' }}>{formatCOP(ventasHoy)}</strong>
+              </h1>
+              <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>Pagos recibidos hoy, cancelados incluidos.</p>
+            </>
+          ) : (
+            <>
+              <h1 className="duna-display-m" style={{ fontWeight: 'var(--duna-w-medium)', margin: 'var(--duna-space-hairline) 0 0' }}>
+                Hoy no ha entrado dinero todavía
+              </h1>
+              <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>No es un error: aún no se ha registrado ningún pago.</p>
+            </>
+          )}
         </div>
-        <UITooltip>
-          <TooltipTrigger asChild>
-            <Button variant="outline" size="sm" className="shrink-0 gap-2" onClick={() => setCustomizing(true)}>
-              <SlidersHorizontal className="w-4 h-4" />
-              <span className="hidden sm:inline">Personalizar</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Elige y ordena las tarjetas de tu panel</TooltipContent>
-        </UITooltip>
+        <DunaTooltip content="Elige y ordena las tarjetas de tu panel">
+          <Button variant="outline" size="sm" className="shrink-0 gap-2" onClick={() => setCustomizing(true)}>
+            <SlidersHorizontal className="w-4 h-4" />
+            <span className="hidden sm:inline">Personalizar</span>
+          </Button>
+        </DunaTooltip>
       </div>
 
       {/* One-time banner when a metrics source failed — better than a grid of
@@ -195,15 +227,42 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* CURVA de pedidos por hora. El conteo vive con la curva —es lo que mide— y en
+          TINTA (medida única). Día sin pedidos: DECLARA, no dibuja. */}
+      <div className="duna-card duna-card__pad">
+        {loading ? (
+          <>
+            <div style={{ height: '1.1em', width: '9rem', borderRadius: 4, background: 'var(--duna-skel)' }} />
+            <div style={{ height: 132, marginTop: 'var(--duna-space-3)', borderRadius: 8, background: 'var(--duna-skel)', opacity: 0.5 }} aria-hidden />
+          </>
+        ) : (
+          <>
+            <h2 className="duna-heading" style={{ margin: 0 }}>
+              {stats ? `${pedidosHoy} ${pedidosHoy === 1 ? 'pedido' : 'pedidos'} hoy` : 'Pedidos de hoy'}
+            </h2>
+            <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 var(--duna-space-3)' }}>
+              Pedidos creados hoy, sin los cancelados.
+            </p>
+            {!stats ? (
+              <p className="duna-sub" style={{ margin: 0 }}>No se pudo cargar la actividad de hoy.</p>
+            ) : curvaDibuja(pedidosPorHora) ? (
+              <CurvaPedidosHoy buckets={pedidosPorHora} />
+            ) : (
+              <p className="duna-sub" style={{ margin: 0 }}>Sin pedidos hoy todavía — la curva aparece con el primero.</p>
+            )}
+          </>
+        )}
+      </div>
+
       {/* Customizable stat-card grid — the ONLY personalizable surface. The widgets
-          render in the admin's chosen order; the charts + recent orders below are
-          fixed. A retired key (WIDGET_MAP miss) is skipped, never crashes. A widget
-          whose source failed shows `—` (see widgetValues). */}
+          render in the admin's chosen order; the hero, curve, top-hoy and recent
+          orders are fixed. A retired key (WIDGET_MAP miss) is skipped, never
+          crashes. A widget whose source failed shows `—` (see widgetValues). */}
       {loading ? (
         <StatGridSkeleton count={widgetKeys.length} />
       ) : widgetKeys.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-8 text-center">
-          <p className="text-sm text-muted-foreground">Sin widgets — personaliza tu panel para elegir qué ver.</p>
+          <p className="text-sm text-muted-foreground">Sin tarjetas — personaliza tu panel para elegir qué ver.</p>
           <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={() => setCustomizing(true)}>
             <SlidersHorizontal className="w-4 h-4" /> Personalizar
           </Button>
@@ -253,21 +312,42 @@ export default function Dashboard() {
         onApply={applyWidgets}
       />
 
-      {/* Recent orders */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="p-5 border-b border-border flex items-center justify-between">
-          <div>
-            <h3 className="font-semibold text-foreground">Órdenes Recientes</h3>
-            <p className="text-xs text-muted-foreground">Últimas transacciones</p>
+      {/* Lo que más vendió hoy — eje del DINERO (incluye canceladas), lista corta. */}
+      <div className="duna-card duna-card__pad">
+        <h2 className="duna-heading" style={{ margin: '0 0 var(--duna-space-3)' }}>Lo que más vendió hoy</h2>
+        {loading ? (
+          <div className="space-y-2" aria-hidden>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} style={{ height: '1.4em', borderRadius: 4, background: 'var(--duna-skel)', opacity: 1 - i * 0.2 }} />
+            ))}
           </div>
-          <Link href="/admin/pedidos" className="text-xs text-accent-amber hover:underline font-medium">Ver todos →</Link>
+        ) : !stats || stats.topHoy.length === 0 ? (
+          <p className="duna-sub" style={{ margin: 0 }}>Aún no se ha vendido nada hoy.</p>
+        ) : (
+          <TopHoy filas={stats.topHoy} />
+        )}
+      </div>
+
+      {/* Órdenes recientes — grid-list (§ .duna-lista): refluye en móvil en vez de
+          scrollear horizontal. La lista va A SANGRE (sin card__pad): sus filas ya
+          traen su propio padding, y un doble padding dejaría los separadores
+          flotando dentro de la tarjeta. El encabezado lleva su padding aparte. */}
+      <div className="duna-card" style={{ overflow: 'hidden' }}>
+        <div className="flex items-center justify-between"
+             style={{ padding: 'var(--duna-space-4) var(--duna-space-4)', borderBottom: '1px solid var(--duna-border)' }}>
+          <h2 className="duna-heading" style={{ margin: 0 }}>Órdenes recientes</h2>
+          <Link href="/admin/pedidos" className="duna-link">Ver todas →</Link>
         </div>
         {loading ? (
-          <div className="p-8 text-center text-muted-foreground text-sm">Cargando...</div>
+          <div className="space-y-2" style={{ padding: 'var(--duna-space-4)' }} aria-hidden>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} style={{ height: '1.6em', borderRadius: 4, background: 'var(--duna-skel)', opacity: 1 - i * 0.15 }} />
+            ))}
+          </div>
         ) : !stats || stats.recentOrders.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground text-sm">Aún no hay órdenes.</div>
+          <p className="duna-sub" style={{ margin: 0, padding: 'var(--duna-space-5)' }}>Aún no hay órdenes.</p>
         ) : (
-          <OrdersTable orders={stats.recentOrders} />
+          <OrdersLista orders={stats.recentOrders} />
         )}
       </div>
     </div>
@@ -296,54 +376,71 @@ function StatGridSkeleton({ count }: { count: number }) {
   );
 }
 
-// ─── OrdersTable ──────────────────────────────────────────────────────────────
+// ─── Lo que más vendió hoy ────────────────────────────────────────────────────
+// Lista corta con una barra de proporción en TINTA (medida única, sin color de
+// estado): muestra de un vistazo cuánto pesa cada producto contra el líder del día.
+function TopHoy({ filas }: { filas: { nombre: string; total: number }[] }) {
+  const max = Math.max(...filas.map(f => f.total), 1);
+  return (
+    <div className="space-y-3">
+      {filas.map((f, i) => (
+        <div key={i}>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="duna-body-sm" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.nombre}</span>
+            <span className="duna-num" style={{ fontWeight: 'var(--duna-w-semi)', whiteSpace: 'nowrap' }}>{formatCOP(f.total)}</span>
+          </div>
+          <div style={{ height: 4, marginTop: 6, borderRadius: 2, background: 'color-mix(in srgb, var(--duna-ink) 8%, transparent)' }}>
+            <div style={{ height: '100%', width: `${(f.total / max) * 100}%`, background: 'var(--duna-ink)', opacity: 0.5, borderRadius: 2 }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-// Rows deep-link into the Órdenes page, which opens the matching order's detail
-// dialog from the `?order=` param (there is no per-order route). The whole row
-// navigates on click; the numero_orden cell is a real <Link> so middle-click,
-// "open in new tab" and keyboard/screen-reader navigation all work.
-function OrdersTable({ orders }: { orders: Order[] }) {
+// ─── Órdenes recientes (grid-list) ────────────────────────────────────────────
+// `.duna-lista`: refluye en móvil (§ Listas tabulares) en vez de scrollear
+// horizontal. La fila navega al detalle del pedido (`?pedido=`); el número es un
+// <Link> real para middle-click y foco de teclado, con `stopPropagation` para no
+// navegar dos veces.
+const ORDENES_COLS = 'minmax(6rem,auto) minmax(7rem,1.4fr) auto minmax(5.5rem,auto) auto';
+
+function OrdersLista({ orders }: { orders: Order[] }) {
   const router = useRouter();
   const orderHref = (o: Order) => `/admin/pedidos?pedido=${encodeURIComponent(o.numero_orden)}`;
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border bg-muted/40">
-            {['Orden', 'Cliente', 'Canal', 'Total', 'Estado'].map(h => (
-              <th key={h} className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {orders.map(o => (
-            <tr
-              key={o.id}
-              className="border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer"
-              onClick={() => router.push(orderHref(o))}
-            >
-              <td className="px-5 py-3 font-mono text-xs text-muted-foreground">
-                <Link
-                  href={orderHref(o)}
-                  // The row already handles the click; this exists for middle-click
-                  // and focus order, so stop it from navigating twice.
-                  onClick={e => e.stopPropagation()}
-                  className="rounded hover:text-accent-amber hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {o.numero_orden ?? `#${o.id.slice(-6)}`}
-                </Link>
-              </td>
-              <td className="px-5 py-3 font-medium">{o.cliente_nombre}</td>
-              <td className="px-5 py-3">
-                <span className="text-xs capitalize bg-muted px-2 py-0.5 rounded">{o.canal ?? 'directo'}</span>
-              </td>
-              <td className="px-5 py-3 font-semibold">{formatCOP(o.total)}</td>
-              <td className="px-5 py-3"><StatusBadge status={o.estado} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="duna-lista">
+      {/* `--en-pliegue`: el `__head` nace `position: sticky`, pensado para la región de
+          una pantalla de alto fijo. El Dashboard es document-scroll y esta lista no
+          tiene scroller propio, así que sin esto el encabezado se pegaría bajo la
+          topbar, despegado de sus filas (§ Analítica, mismo neutralizador). */}
+      <div className="duna-lista__fila duna-lista__head duna-lista--en-pliegue" style={{ gridTemplateColumns: ORDENES_COLS }}>
+        <span>Orden</span><span>Cliente</span><span>Canal</span>
+        <span className="duna-lista__r">Total</span><span>Estado</span>
+      </div>
+      {orders.map(o => (
+        <div
+          key={o.id}
+          className="duna-lista__fila"
+          style={{ gridTemplateColumns: ORDENES_COLS, cursor: 'pointer' }}
+          onClick={() => router.push(orderHref(o))}
+        >
+          <span data-label="Orden" className="duna-mono">
+            <Link href={orderHref(o)} onClick={e => e.stopPropagation()} className="duna-link">
+              {o.numero_orden ?? `#${o.id.slice(-6)}`}
+            </Link>
+          </span>
+          <span data-label="Cliente" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {o.cliente_nombre}
+          </span>
+          <span data-label="Canal">
+            <span className="duna-chip" style={{ textTransform: 'capitalize' }}>{o.canal ?? 'directo'}</span>
+          </span>
+          <span data-label="Total" className="duna-lista__r duna-num">{formatCOP(o.total)}</span>
+          <span data-label="Estado"><StatusBadge status={o.estado} /></span>
+        </div>
+      ))}
     </div>
   );
 }
