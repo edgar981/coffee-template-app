@@ -17,8 +17,9 @@ import type { WeeklyActivityData } from '@/types/analytics';
 //
 // DAY-OF-WEEK BUCKETING — in SQL, in Bogota wall clock. The timestamp columns
 // hold UTC instants in `timestamp without time zone`, so the conversion needs
-// both `AT TIME ZONE` steps (same pattern as /api/dashboard/chart). ISODOW:
-// 1 = Monday … 7 = Sunday, matching the Lun→Dom card order.
+// both `AT TIME ZONE` steps (same pattern as the month bucketing in
+// /api/dashboard/stats). ISODOW: 1 = Monday … 7 = Sunday, matching the Lun→Dom
+// card order.
 
 const ORDER_PREFIX = 'CN-%';
 

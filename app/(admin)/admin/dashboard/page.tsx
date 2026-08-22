@@ -29,8 +29,6 @@ import {
   WIDGET_MAP, DEFAULT_WIDGET_KEYS, chipTono,
   type WidgetFormato, type WidgetHrefContext,
 } from '@/constants/dashboard-widgets';
-import DashboardChartCarousel from '@/components/admin/DashboardChartCarousel';
-import DashboardDistributionCard from '@/components/admin/DashboardDistributionCard';
 import { formatFecha } from '@duna/core/format-fecha';
 import type { WidgetInsightData } from '@/lib/metrics/insights';
 
@@ -78,11 +76,6 @@ export default function Dashboard() {
 
   const lowStock       = products.filter(isLowStock).length;
   const activeProducts = products.filter(p => p.activo !== false).length;
-
-  // Las tres vistas del pie vienen del endpoint de STATS (un query base, tres
-  // agrupaciones). `analytics.categoryData` sigue existiendo para la página de
-  // Analítica; el dashboard ya no lo usa.
-  const distribuciones = stats?.distribuciones ?? null;
 
   // Deep-link context (America/Bogota day keys + the shared month query), fed to
   // each widget's href builder so a card links to exactly the rows it counts.
@@ -259,15 +252,6 @@ export default function Dashboard() {
         value={widgetKeys}
         onApply={applyWidgets}
       />
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2">
-          <DashboardChartCarousel />
-        </div>
-
-        <DashboardDistributionCard data={distribuciones} loading={loading} />
-      </div>
 
       {/* Recent orders */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">

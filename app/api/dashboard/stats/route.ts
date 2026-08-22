@@ -2,11 +2,10 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { BUSINESS_TZ, startOfZonedDay, startOfZonedMonth, startOfZonedYear, zonedDayKey } from '@duna/core/timezone';
+import { BUSINESS_TZ, startOfZonedDay, startOfZonedMonth, zonedDayKey } from '@duna/core/timezone';
 import { currentMonthRange } from '@duna/core/metrics/order-stat-filters';
 import { necesitaAtencion } from '@/lib/pedidos/atencion';
 import type { OrderStatus } from '@/types/order';
-import { plegarDistribuciones, plegarMetodosPago, type DistribucionRow, type MetodoPagoRow } from '@/lib/metrics/distribuciones';
 import type { InsightMonthPoint } from '@/lib/metrics/insights';
 // Los scopes de plata/órdenes viven en el módulo compartido: los reportes de las
 // automatizaciones (semanal, diario) cuentan con ESTAS mismas definiciones, así que
@@ -45,9 +44,6 @@ export async function GET() {
   const prevMonthStart = startOfZonedMonth(now, BUSINESS_TZ, -1);
   // Ventana de la serie de insights: inicio del mes más antiguo que se muestra.
   const serieStart = startOfZonedMonth(now, BUSINESS_TZ, -(SERIE_MESES - 1));
-  // El pie mantiene el período que YA cubría (año en curso), ahora anclado a
-  // America/Bogota en vez de a la medianoche local del servidor.
-  const yearStart = startOfZonedYear(now, BUSINESS_TZ);
   // `YYYY-MM` del mes en curso: el único punto de la serie que NO está cerrado.
   const currentMonthKey = zonedDayKey(now, BUSINESS_TZ).slice(0, 7);
 
@@ -69,8 +65,6 @@ export async function GET() {
     lastOrder,
     serieRevenueRows,
     serieOrdersRows,
-    distRows,
-    metodoPagoRows,
   ] = await Promise.all([
     // ── Ingresos (Payments) ──
     // Ventas de hoy: money received today.
@@ -190,39 +184,6 @@ export async function GET() {
         AND o."estado" <> 'cancelado'
       GROUP BY 1
     `,
-    // ── Distribuciones del pie ── UN query base, dos agrupaciones (abajo, en
-    // JS). Métrica = suma de `OrderItem.subtotal` (% de ingresos atribuibles),
-    // la misma que ya usaba el pie de categoría; período = año en curso.
-    // LEFT JOIN a Product: un item sin producto vivo no se descarta — cae en el
-    // bucket residual de cada vista.
-    // `moliendaSeleccionada` YA NO se selecciona ni agrupa: su vista se retiró y
-    // el repo no calcula métricas que nadie consume.
-    prisma.$queryRaw<DistribucionRow[]>`
-      SELECT p."categoria"             AS categoria,
-             p."peso_gramos"           AS peso,
-             SUM(oi."subtotal")::float8 AS total
-      FROM "OrderItem" oi
-      JOIN "Order" o ON o."id" = oi."orden_id"
-      LEFT JOIN "Product" p ON p."id" = oi."producto_id"
-      WHERE o."createdAt" >= ${yearStart}
-        AND o."numero_orden" LIKE ${ORDER_PREFIX}
-        AND o."estado" <> 'cancelado'
-      GROUP BY 1, 2
-    `,
-    // ── Tercera vista del pie: reparto del DINERO RECIBIDO por método ──
-    // Base distinta a la de arriba (pagos, no subtotales de items: incluye
-    // envío), mismo período y misma exclusión de SN-. Se filtra por la fecha del
-    // PAGO, no la de la orden: es cuándo entró la plata.
-    prisma.$queryRaw<MetodoPagoRow[]>`
-      SELECT pay."metodo"::text AS metodo,
-             SUM(pay."monto")::float8 AS total
-      FROM "Payment" pay
-      JOIN "Order" o ON o."id" = pay."orden_id"
-      WHERE pay."fecha" >= ${yearStart}
-        AND o."numero_orden" LIKE ${ORDER_PREFIX}
-        AND o."estado" <> 'cancelado'
-      GROUP BY 1
-    `,
   ]);
 
   const revenueMonth    = revenueMonthAgg._sum.monto     ?? 0;
@@ -265,13 +226,6 @@ export async function GET() {
       cerrado: month !== currentMonthKey,
     }));
 
-  // ── Distribuciones del pie ── plegado puro y testeado (los buckets residuales
-  // "Grano entero"/"Otros" son reglas de producto, no detalle de este handler).
-  const distribuciones = {
-    ...plegarDistribuciones(distRows),
-    metodoPago: plegarMetodosPago(metodoPagoRows),
-  };
-
   return NextResponse.json({
     // Fila "Hoy"
     ventasHoy:      ventasHoyAgg._sum.monto ?? 0,
@@ -305,6 +259,5 @@ export async function GET() {
       revenue: puntos(m => revenueByMonth.get(m) ?? 0),
       orders:  puntos(m => ordersByMonth.get(m)  ?? 0),
     },
-    distribuciones,
   });
 }

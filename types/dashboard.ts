@@ -1,90 +1,6 @@
 import type { Order } from './order';
 import type { InsightMonthPoint } from '@/lib/metrics/insights';
 
-// ─── Daily chart module (Ventas / Pedidos) ───────────────────────────────────
-
-/** Windows offered by the chart's range selector. Validated server-side. */
-export type ChartRange = '3m' | '30d' | '7d';
-
-export const CHART_RANGES: ChartRange[] = ['3m', '30d', '7d'];
-
-export const CHART_RANGE_LABEL: Record<ChartRange, string> = {
-  '3m':  'Últimos 3 meses',
-  '30d': 'Últimos 30 días',
-  '7d':  'Últimos 7 días',
-};
-
-/** Days each range spans, ending today (America/Bogota). */
-export const CHART_RANGE_DAYS: Record<ChartRange, number> = {
-  '3m': 90, '30d': 30, '7d': 7,
-};
-
-/**
- * One day of revenue, split by the method the payment was ACTUALLY registered
- * with (Payment.metodo), grouped through METODO_CATEGORIA — not the customer's
- * declared Order.metodo_pago. Amounts in COP.
- */
-// `type` (not `interface`) on purpose: the chart card renders either series
-// through one generic row type, and only type aliases get the implicit index
-// signature that makes them assignable to it.
-export type VentasDailyPoint = {
-  /** `YYYY-MM-DD` in America/Bogota. */
-  date:          string;
-  efectivo:      number;
-  /** Nequi + Daviplata + bank transfer (the METODO_CATEGORIA bucket). */
-  transferencia: number;
-  /** `OTRO` — kept so the series still sum to the ledger total. */
-  otro:          number;
-};
-
-/**
- * One day of order-line counts, split by the product's `peso_gramos`. Lines on
- * any other weight — or with no linked product — land in `otros` rather than
- * being dropped.
- */
-export type PedidosDailyPoint = {
-  /** `YYYY-MM-DD` in America/Bogota. */
-  date:  string;
-  g250:  number;
-  g500:  number;
-  otros: number;
-};
-
-/** Payload of GET /api/dashboard/chart. Both series are zero-filled. */
-export interface DashboardChartData {
-  range:   ChartRange;
-  ventas:  VentasDailyPoint[];
-  pedidos: PedidosDailyPoint[];
-}
-
-// ─── Distribución (pie conmutable del dashboard) ─────────────────────────────
-
-/** Una porción del pie: nombre de bucket + porcentaje (0–100, entero). */
-export interface DistribucionSlice {
-  name:  string;
-  value: number;
-}
-
-/**
- * Las vistas del pie del dashboard. Mismo PERÍODO en las tres (año en curso,
- * America/Bogota) y misma exclusión de `SN-`, pero OJO con la base:
- *
- * - `categoria` y `peso` reparten `SUM(OrderItem.subtotal)` — ventas de producto,
- *   sin envío.
- * - `metodoPago` reparte `SUM(Payment.monto)` — dinero recibido, envío incluido.
- *
- * Son dos preguntas distintas sobre los mismos días, así que sus porcentajes no
- * tienen por qué coincidir; el sub de cada vista declara su base.
- *
- * `null` sería indistinguible de "sin ventas", así que las tres siempre vienen
- * (arrays vacíos cuando no hay datos).
- */
-export interface DashboardDistribuciones {
-  categoria:  DistribucionSlice[];
-  peso:       DistribucionSlice[];
-  metodoPago: DistribucionSlice[];
-}
-
 export interface DashboardStats {
   // ── Fila "Hoy" (America/Bogota) ──
   /** Sum of Payment.monto received today (CN- orders, non-cancelled). */
@@ -174,7 +90,4 @@ export interface DashboardStats {
     revenue: InsightMonthPoint[];
     orders:  InsightMonthPoint[];
   };
-
-  /** Las tres vistas del pie (mismo período, misma métrica). */
-  distribuciones: DashboardDistribuciones;
 }
