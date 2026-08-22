@@ -87,11 +87,11 @@
   --color-accent:               var(--duna-wash-hover, hsl(var(--accent)));
   --color-accent-foreground:    var(--duna-ink-2,    hsl(var(--accent-foreground)));
 
-  /* Ámbar-acento calibrado para TEXTO/íconos (AA sobre el fondo del tema). SIN
-     mapear a propósito: el DS tiene `--duna-sol`, pero significa ATENCIÓN, no
-     acento de dato/enlace. Darle el sol acá pondría el significante de urgencia
-     en un rol que no lo es. Queda como color propio del panel. */
-  --color-accent-amber:         hsl(var(--accent-amber));
+  /* `--accent-amber` se RETIRÓ (2026-08-22): su único consumidor era la campana
+     (NotificationBell), y su uso ERA atención —conteo y chip de no-leídas—, así que
+     migró a `--duna-sol-*`, el rol de atención del DS (§ Backlog #16). El descargo
+     de "acento ≠ atención" ya no aplica: no quedó ningún acento ámbar que no fuera
+     el sol. */
 
   /* destructive → el rojo del sistema (terracota). SIN mapear su -foreground: es
      el texto BLANCO sobre el relleno sólido, y el DS no tiene un par
@@ -257,8 +257,6 @@ html {
        --primary (now tinta); the warm amber→brown family lives on in the charts. */
     --accent: 39 48% 90%;
     --accent-foreground: 28 42% 22%;
-    /* Ámbar quemado (~amber-800) para texto/íconos de acento — AA sobre fondo claro. */
-    --accent-amber: 26 90% 33%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 40 32% 87%;
@@ -309,8 +307,6 @@ html {
        --primary y en los charts. */
     --accent: 39 18% 21%;
     --accent-foreground: 39 25% 90%;
-    /* Ámbar brillante (~amber-400) para texto/íconos de acento — AA sobre fondo oscuro. */
-    --accent-amber: 43 96% 62%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 25.1%;
