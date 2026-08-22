@@ -3,10 +3,23 @@ import type { InsightMonthPoint } from '@/lib/metrics/insights';
 
 export interface DashboardStats {
   // ── Fila "Hoy" (America/Bogota) ──
-  /** Sum of Payment.monto received today (CN- orders, non-cancelled). */
+  /** Sum of Payment.monto received today. CN- orders, CANCELADAS INCLUIDAS
+   *  (§ REVENUE_ORDER_SCOPE: cancelar no toca el pago, la plata entró). */
   ventasHoy: number;
   /** Orders created today, excluding cancelled and SN- demo data. */
   pedidosHoy: number;
+  /**
+   * Curva del día: pedidos por HORA, 24 buckets (índice = hora, reloj de Bogotá),
+   * rellenos server-side. Eje del CONTEO — misma definición que `pedidosHoy`
+   * (excluye canceladas), así que la suma de la curva = `pedidosHoy`.
+   */
+  pedidosPorHora: number[];
+  /**
+   * Lo que más vendió hoy: hasta 5 productos por `SUM(OrderItem.subtotal)` de las
+   * órdenes creadas hoy. Eje del DINERO — INCLUYE canceladas, por el snapshot
+   * `producto_nombre`. Ya ordenado desc por el SQL.
+   */
+  topHoy: { nombre: string; total: number }[];
   /**
    * Shipments dispatched today — Shipping rows whose `stock_descontado_at`
    * (stamped at the preparando→en_ruta transition) falls on today.

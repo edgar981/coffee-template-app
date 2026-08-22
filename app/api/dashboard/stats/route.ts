@@ -7,6 +7,8 @@ import { currentMonthRange } from '@duna/core/metrics/order-stat-filters';
 import { necesitaAtencion } from '@/lib/pedidos/atencion';
 import type { OrderStatus } from '@/types/order';
 import type { InsightMonthPoint } from '@/lib/metrics/insights';
+import { bucketsPorHora } from '@/lib/dashboard/hoy';
+import { pedidosPorHoraDeHoy, topHoyVendido } from '@/lib/dashboard/hoy-server';
 // Los scopes de plata/órdenes viven en el módulo compartido: los reportes de las
 // automatizaciones (semanal, diario) cuentan con ESTAS mismas definiciones, así que
 // el correo del lunes no puede contradecir al dashboard.
@@ -23,6 +25,10 @@ const SERIE_MESES = 8;
 // Prefijo de las órdenes reales. Las `SN-` son data de demo heredada y no cuentan
 // como ingreso.
 const ORDER_PREFIX = 'CN-%';
+
+// "Lo que más vendió hoy": cuántos productos se listan. Cinco es lo que responde de
+// un vistazo sin volverse una tabla; el resto vive en Analítica (rentabilidad).
+const TOP_HOY = 5;
 
 type MesRow  = { month: string; total: number };
 type MesCountRow = { month: string; n: number };
@@ -65,6 +71,8 @@ export async function GET() {
     lastOrder,
     serieRevenueRows,
     serieOrdersRows,
+    pedidosPorHoraRows,
+    topHoyRows,
   ] = await Promise.all([
     // ── Ingresos (Payments) ──
     // Ventas de hoy: money received today.
@@ -184,6 +192,13 @@ export async function GET() {
         AND o."estado" <> 'cancelado'
       GROUP BY 1
     `,
+    // ── Curva de pedidos por HORA (eje del CONTEO) y lo más vendido hoy (eje del
+    // DINERO) ── Extraídas a `lib/dashboard/hoy-server` para afirmar sus decisiones
+    // en el carril: el conteo EXCLUYE canceladas (= tarjeta "Pedidos de hoy", la
+    // suma de la curva cuadra con ella); el dinero las INCLUYE. Ambas por
+    // `createdAt` de hoy, para casar entre sí.
+    pedidosPorHoraDeHoy({ desde: todayStart, hasta: tomorrowStart, tz: BUSINESS_TZ }),
+    topHoyVendido({ desde: todayStart, hasta: tomorrowStart, tz: BUSINESS_TZ, limite: TOP_HOY }),
   ]);
 
   const revenueMonth    = revenueMonthAgg._sum.monto     ?? 0;
@@ -259,5 +274,10 @@ export async function GET() {
       revenue: puntos(m => revenueByMonth.get(m) ?? 0),
       orders:  puntos(m => ordersByMonth.get(m)  ?? 0),
     },
+    // Curva del día: 24 buckets rellenos server-side por la regla pura (una hora sin
+    // pedidos es un 0 real). La suma = `pedidosHoy` por construcción.
+    pedidosPorHora: bucketsPorHora(pedidosPorHoraRows),
+    // Lo que más vendió hoy, ya ordenado y topado por SQL.
+    topHoy: topHoyRows,
   });
 }
