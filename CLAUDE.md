@@ -1185,6 +1185,30 @@ salidas y son excluyentes: renombrar el campo del API a lo que es (`pagado`,
 dejar que el nombre quede libre. Lo que no puede quedar es la tercera, que es la de
 hoy.
 
+### 39. Dos voces para el mismo umbral: `def.disparador` (diálogo) y `def.frase` (tarjeta)
+
+El rediseño de Automatizaciones (2026-08-21) dejó DOS textos que describen el mismo
+disparo con voces distintas: `def.disparador` es el string técnico que lee el
+DIÁLOGO de Ajustes (`AutomationConfigDialog`, `DialogDescription`) —"Órdenes por
+cobrar despachadas hace más de los días configurados"— y `def.frase(config)` es la
+frase de la TARJETA con el valor inyectado —"Avisa cuando lleva 3 días despachado
+sin cobrar"—.
+
+**Fue la decisión correcta NO unificarlas ahora** (censo, 2026-08-21): convertir
+`disparador` en función habría tocado el diálogo shadcn, que se dejó intacto (su
+migración a `DunaDialog` es otra tanda). Así que la tarjeta ganó `frase` aparte.
+
+**Costo YA pagado: ninguno.** Las dos son correctas hoy. Pero es una divergencia
+esperando: si alguien edita una y no la otra, la tarjeta y el diálogo dirán cosas
+distintas del mismo umbral, y nada lo delata —son dos campos del mismo registry, sin
+test que los ate—.
+
+**DISPARADOR: al migrar `AutomationConfigDialog` a `DunaDialog`** (que es también el
+disparador del ítem que dejó la sub-decisión de H6: "cuando se toque el diálogo por
+otra razón"). En esa tanda las dos voces se unifican —el diálogo pasa a leer
+`frase(config)` como la tarjeta, y `disparador` se retira— así que quedan una sola.
+No antes: hoy `disparador` es lo que el diálogo intacto consume.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
