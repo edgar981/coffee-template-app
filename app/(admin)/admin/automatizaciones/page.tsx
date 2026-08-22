@@ -194,8 +194,16 @@ function Grupo({ titulo, hecho, defs, estados, onToggle, onAjustes }: {
         <h2 className="duna-heading">{titulo}</h2>
         <p className="duna-sub" style={{ marginTop: '1px' }}>{hecho}</p>
       </div>
-      {/* items-start: al abrir un acordeón, sólo crece ESA tarjeta — no estira a
-          sus vecinas de fila (lo que haría el `stretch` por defecto del grid). */}
+      {/* items-start, Y NO SE "ARREGLA" A stretch. El efecto lateral —las tarjetas
+          cerradas de una fila difieren ~una línea de alto (la regla de silencio
+          envuelve o no)— es MENOS costoso que las alternativas:
+          · stretch iguala las cerradas, pero abrir un acordeón (5 entradas ≈ 440px)
+            estira las hasta-2 vecinas a ese alto → ~250px de VACÍO en cada una,
+            justo en la interacción principal;
+          · un min-height al alto de la más alta cerrada miente en 2 de las 3
+            anchuras (a 2 y 1 columnas las tarjetas envuelven menos) y se desajusta
+            con cualquier cambio de copy.
+          Una línea de diferencia es el precio correcto. No volver a stretch. */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
         {defs.map(def => (
           <Tarjeta

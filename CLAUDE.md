@@ -4302,6 +4302,115 @@ papel— y falla con la fórmula vieja. Es la misma familia que el `grep` del s�
 reubicado (§ GATE DE CAPA 3): **verificar contra lo que el código DICE en vez de contra lo
 que el usuario VE deja pasar justo el defecto que se buscaba.**
 
+## La PANTALLA de Automatizaciones — el rediseño Duna
+
+Rediseño del 2026-08-21. La pantalla existe para que el operador **confíe en que
+las automatizaciones funcionan cuando no pasa nada** —una que hace bien su trabajo
+es invisible, y esa invisibilidad es la única duda que importa: "¿está prendida y
+no hay casos, o está rota?"—. Esto es la PANTALLA; el motor tiene su propia sección
+abajo.
+
+### La anatomía
+
+- **Rejilla de tarjetas** (3/2/1), **document-scroll declarado** — las 8 caben casi
+  de una, así que el alto fijo sería complejidad sin pago. Es la SEGUNDA excepción
+  del § Backlog #22, junto a Analítica (sin nombrarla, el disparador del #22 no se
+  cumple nunca).
+- **Cabecera eyebrow + título + nota.** Los tres stats viejos (activos / disponibles
+  / ejecuciones totales) se retiraron: dos duplicaban lo que las tarjetas dicen y el
+  tercero era un acumulado incomparable.
+- **Dos grupos con su hecho de nacimiento** ("nacen encendidas" / "nacen apagadas"),
+  que es la regla de `defaultActivo` por canal hecha visible.
+- **Roll-up de fallo condicional** (rojo, `--duna-bad`): el ÚNICO vital que sobrevive,
+  y sólo aparece con ≥1 fallo. Una tarjeta con fallo puede quedar fuera de vista; el
+  roll-up en la cabecera no. Cero ámbar en la pantalla.
+
+### La tarjeta: nombre + switch + disparo-con-valor + silencio + señal de vida
+
+- **`.duna-switch`**, sin chip pastel ni etiqueta "Activa/Inactiva" (la dice el
+  switch). El **chip pastel se retiró CON su uso, no con su constante**: el campo
+  `color` del registry y el import de `STAT_CHIP` se fueron, pero `STAT_CHIP` VIVE
+  —la comparten StatCard y dashboard-widgets—. Quien lea "el pastel se retira" no
+  debe buscar la constante.
+- **`def.icono` EL CAMPO SE QUEDA** (sólo se fue su render en la tarjeta): lo lee la
+  campana por tipo (`NotificationBell`, `AUTOMATION_MAP[tipo].icono`). El censo lo
+  atrapó; **NO proponer su retiro** —sería `Customer.activo` al revés: un campo que
+  SÍ se renderiza, en otra superficie—.
+- **LA FRASE CON EL VALOR CONFIGURADO.** La tarjeta dice "Avisa cuando lleva **3**
+  días despachado sin cobrar", no "hace días": **un ajuste que no se ve en la tarjeta
+  deja al operador sin saber cómo está configurada su automatización.** Es `def.frase
+  (config)`, función del config, y se afirma en capa 1 que LEE el config (un valor
+  distinto del default debe aparecer; se vio fallar quemando la frase a literal).
+  `def.disparador` NO se convirtió en función —lo lee el diálogo de Ajustes, que
+  queda intacto—; son dos voces del mismo hecho, y su unificación está en el §
+  Backlog #39 con disparador = la migración del diálogo a DunaDialog.
+- **La regla de silencio es un HECHO declarado** (`def.silencio`, la FORMA: una vez /
+  espera / diaria / semanal); el intervalo del cooldown vive en Ajustes.
+- **Señal de vida, 4 estados excluyentes** (`estadoDeVida`, derivada de `activo` + el
+  último run que cuenta): viva / sin_casos / fallo / apagada. **"Sin casos" va a
+  secas**: NO hay dato honesto de "desde cuándo vigila" —`AutomationSetting` sólo
+  tiene `createdAt` (primer toggle) y `updatedAt` (se mueve con cualquier config), y
+  las default-on nunca tocadas ni tienen fila—. No se inventa la fecha ni se agrega
+  columna.
+
+### Los DOS accesos, distintos porque son dos cosas distintas
+
+La maqueta los unía en un drawer; **se siguió la decisión escrita, no su forma.**
+
+- **"Ver lo que hizo" → ACORDEÓN INLINE** (`Pliegue`): es LECTURA, el catálogo sigue
+  visible. El historial se pide al ABRIR (el `Pliegue` sólo monta sus children
+  abierto → fetch lazy, no se piden los 8 si no se abre ninguno). El fallo de carga
+  se hace visible con "Reintentar" (§ Backlog #33), no se traga.
+- **"Ajustes" → DIÁLOGO** (`AutomationConfigDialog`, shadcn, intacto): es EDICIÓN.
+  Sólo en las que tienen campos —un diálogo vacío es una pregunta sin respuesta—.
+
+### El historial: el corte, y los dos números que no son el mismo a propósito
+
+- **EL CORTE es ENVIADO + FALLIDO** (`ESTADOS_HISTORIAL`, `lib/automations/historial`).
+  Fuera DUPLICADO (**un silencio deliberado no es un hecho** — un historial que lista
+  cien "se calló" ahoga la pregunta "¿qué hizo por mí?"), OMITIDO ("por qué no se
+  disparó", diferido al backlog) y PENDIENTE_CANAL (WhatsApp, no se renderiza). El
+  corte se afirma en el CARRIL —visto fallar con un DUPLICADO y un OMITIDO sembrados,
+  que devuelven 5 en vez de 2—, porque un test con mocks pasaría contra el `where`
+  defectuoso.
+- **50 Y 5 NO SON EL MISMO NÚMERO, A PROPÓSITO.** `CAP_HISTORIAL = 50` acota la
+  CONSULTA (barato, y deja servida una futura vista de historial completo); el
+  **vistazo son 5**, cortadas en el cliente, porque 50 entradas apiladas vuelven la
+  tarjeta de miles de píxeles y al empujar el catálogo rompen lo que motivó elegir
+  acordeón sobre drawer. Cuando hay más de 5 se declara con separador —"Las 5 más
+  recientes · ha actuado más veces"—, sin prometer una vista que no existe. **No
+  unificar 50 y 5.**
+- **El "sobre qué" sale del `payload`** que el run ya guarda (el mensaje humano, con
+  `href` al pedido), no de un join del `targetId`.
+
+### `waOperativo` — el gate único de WhatsApp
+
+- **Una definición** (`lib/automations/whatsapp-operativo.ts`), **dos consumidores**:
+  el SENDER (el envío real a Meta irá en su rama `true`) y el RENDER (el endpoint
+  omite las 4 de WhatsApp mientras sea `false`). Dos lecturas separadas de las env
+  vars divergirían —una se renderizaría como operativa mientras la otra no envía—;
+  es el modo de falla de `razonDelServidor` y `cruzoMinimo`.
+- **El código de WhatsApp sigue VIVO** —handlers, plantillas, el pipeline entero—;
+  lo único gateado es el RENDER. Con `false` (todo entorno real hoy: sin credenciales
+  de Meta) la pantalla muestra 8, no 12; es ocultar capacidades no-operativas, no
+  roadmap (precedente Wompi).
+
+### `items-start` en la rejilla, y lo descartado
+
+La rejilla usa `align-items: start` para que abrir un acordeón crezca **sólo esa
+tarjeta**. El efecto lateral —las cerradas de una fila difieren ~una línea (la regla
+de silencio envuelve o no, ~18–36px)— es el precio correcto frente a lo descartado:
+
+- **`stretch`** iguala las cerradas pero estira las vecinas al alto de la abierta
+  (~440px con 5 entradas) → ~250px de VACÍO en cada una, en la interacción principal;
+- **`min-height` = la más alta cerrada** miente en 2 de las 3 anchuras (a 2 y 1
+  columnas se envuelve menos) y se desajusta con cualquier cambio de copy;
+- **`stretch` condicional** (igualar salvo con un acordeón abierto en la fila) NO es
+  viable en CSS puro —las filas del grid no son direccionables— y con JS es
+  complejidad de layout por ~una línea.
+
+Está escrito en el CSS de la rejilla para que nadie lo "arregle" a `stretch`.
+
 ## Automatizaciones — arquitectura y prerequisitos de go-live
 
 El CATÁLOGO vive en el código (`constants/automations.ts`): key estable
