@@ -49,6 +49,13 @@ function vidaTexto(e: AutomationEstado): string {
 // el fetch es lazy por construcción: no se pide el historial de las 8 si no se abre
 // ninguno. El fallo se hace VISIBLE con "Reintentar" (§ CLAUDE.md #33: una carga que
 // falla en silencio deja la pantalla mostrando lo que el dato no respalda).
+// EL VISTAZO son 5, no las 50 del endpoint — y NO son el mismo número a propósito:
+// el CAP_HISTORIAL=50 acota la CONSULTA (barato, y deja servida una futura vista de
+// historial completo); estas 5 son lo que cabe en un vistazo dentro de una tarjeta
+// de rejilla sin volverla de miles de píxeles y empujar el catálogo —lo que motivó
+// elegir acordeón sobre drawer—. No unificar 50 y 5.
+const VISTAZO = 5;
+
 function HistorialInline({ automationKey, activo }: { automationKey: string; activo: boolean }) {
   const [fase, setFase]   = useState<'load' | 'ok' | 'err'>('load');
   const [data, setData]   = useState<HistorialResp | null>(null);
@@ -83,9 +90,14 @@ function HistorialInline({ automationKey, activo }: { automationKey: string; act
     </p>
   );
 
+  // El corte a 5 es del VISTAZO, no de la consulta. "Hay más" si el endpoint trajo
+  // más de 5 (incluye el caso de que topara en 50: `hayMas`).
+  const visibles = data.entradas.slice(0, VISTAZO);
+  const hayMas   = data.entradas.length > VISTAZO || data.hayMas;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-3)' }}>
-      {data.entradas.map((e, i) => (
+      {visibles.map((e, i) => (
         <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
           <span className="duna-body-sm" style={{ color: 'var(--duna-ink-2)' }}>
             {e.href ? <Link href={e.href} className="duna-link">{e.sobreQue}</Link> : e.sobreQue}
@@ -99,9 +111,12 @@ function HistorialInline({ automationKey, activo }: { automationKey: string; act
           </span>
         </div>
       ))}
-      {data.hayMas && (
+      {/* Separador (·), no punto seguido: dos oraciones con punto se leen como prosa;
+          el separador la deja como metadato, igual que "Viva · hace 17 d". Sólo con
+          más de 5, y sin prometer una vista que no existe. */}
+      {hayMas && (
         <p className="duna-caption" style={{ color: 'var(--duna-faint)' }}>
-          Mostrando las últimas {data.entradas.length}.
+          Las {VISTAZO} más recientes · ha actuado más veces
         </p>
       )}
     </div>
