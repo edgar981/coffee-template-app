@@ -4,6 +4,8 @@
 // Espejo del enum de la base. `DUPLICADO` entra acá porque las supresiones por
 // cooldown ahora dejan fila, así que pueden aparecer entre las "3 más recientes"
 // de una card — antes el tipo del cliente no las contemplaba porque no existían.
+import type { EstadoVida } from '@/lib/automations/historial';
+
 export type AutomationRunEstado =
   'ENVIADO' | 'PENDIENTE_CANAL' | 'FALLIDO' | 'OMITIDO' | 'DUPLICADO';
 
@@ -22,6 +24,10 @@ export interface AutomationEstado {
   ejecuciones: number;
   /** Las 3 más recientes, para el detalle de la card. */
   recientes:   AutomationRunResumen[];
+  /** Señal de vida derivada server-side (§ estadoDeVida): viva/sin_casos/fallo/apagada. */
+  vida:        EstadoVida;
+  /** Último run que CUENTA (ENVIADO/FALLIDO), para el "hace X"; null si nunca corrió relevante. */
+  ultima:      { estado: string; createdAt: string } | null;
 }
 
 export async function getAutomations(): Promise<AutomationEstado[]> {

@@ -1,33 +1,117 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Zap, Settings2 } from 'lucide-react';
-import { Switch } from '@/components/ui/switch';
-import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { AUTOMATIONS, type AutomationCanal, type AutomationDef } from '@/constants/automations';
+import { AUTOMATIONS, type AutomationDef } from '@/constants/automations';
 import { getAutomations, saveAutomation, type AutomationEstado } from '@/lib/api/automations';
+import type { EstadoVida } from '@/lib/automations/historial';
 import { tiempoRelativo } from '@duna/core/format-fecha';
-import AutomationConfigDialog from '@/components/admin/AutomationConfigDialog';
 
-// La página RENDERIZA DESDE EL REGISTRY (constants/automations.ts) y le superpone
-// el estado guardado que devuelve la API. Añadir una automatización al catálogo la
-// hace aparecer aquí sin tocar este archivo — mismo patrón que los widgets del
-// dashboard.
+// AUTOMATIZACIONES — rejilla de tarjetas, document-scroll (las 8 caben casi de una,
+// § CLAUDE.md #22). El operador enciende/apaga y afina; la pantalla existe para que
+// confíe en que funcionan cuando no pasa nada.
+//
+// Las de WhatsApp NO están en `estados`: el endpoint las omite mientras el canal no
+// esté operativo (§ waOperativo). Se rinde SÓLO lo que el server devolvió.
+//
+// El acceso a "Ver lo que hizo" (acordeón) y a "Ajustes" (diálogo) entra en el
+// commit 4; esta pantalla es la rejilla informativa + el switch.
 
-const CANAL_LABEL: Record<AutomationCanal, string> = {
-  whatsapp: 'WhatsApp',
-  email:    'Email',
-  interno:  'Campana',
+// El punto de la señal de vida, por estado. Cero ámbar: `sin_casos` es gris (faint),
+// no atención — sólo el fallo pide acción, y va rojo (bad).
+const DOT_VIDA: Record<EstadoVida, string> = {
+  viva:      'var(--duna-ok)',
+  sin_casos: 'var(--duna-faint)',
+  fallo:     'var(--duna-bad)',
+  apagada:   'var(--duna-border-2)',
 };
 
-const TIPO_LABEL = { evento: 'Por evento', programada: 'Programada' } as const;
+function vidaTexto(e: AutomationEstado): string {
+  switch (e.vida) {
+    case 'apagada':   return 'Apagada';
+    case 'fallo':     return 'Falló · pide tu atención';
+    case 'sin_casos': return 'Sin casos · vigilando';
+    case 'viva':      return e.ultima ? `Viva · ${tiempoRelativo(e.ultima.createdAt)}` : 'Viva';
+  }
+}
+
+function Tarjeta({ def, estado, onToggle }: {
+  def: AutomationDef;
+  estado: AutomationEstado;
+  onToggle: () => void;
+}) {
+  const activo = estado.activo;
+  // La frase de disparo CON EL VALOR configurado (§ constants/automations `frase`).
+  // Si el operador cambia el umbral, la tarjeta lo dice sin abrir el diálogo.
+  const frase = def.frase ? def.frase(estado.config) : def.disparador;
+
+  return (
+    <div className="duna-card duna-card__pad" style={{ display: 'flex', flexDirection: 'column' }}>
+      {/* Nombre + switch. Sin chip pastel, sin ícono en la tarjeta (el ícono del
+          registry se QUEDA: lo lee la campana por tipo), sin etiqueta Activa/Inactiva
+          —el switch ya lo dice—. */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--duna-space-3)' }}>
+        <h3 className="duna-title" style={{ flex: 1, minWidth: 0, fontSize: 'var(--duna-text-body)', color: activo ? undefined : 'var(--duna-muted)' }}>
+          {def.nombre}
+        </h3>
+        <button
+          type="button"
+          className={`duna-switch${activo ? ' is-on' : ''}`}
+          aria-label={`${activo ? 'Apagar' : 'Encender'} ${def.nombre}`}
+          aria-pressed={activo}
+          onClick={onToggle}
+        >
+          <span className="duna-switch__thumb" />
+        </button>
+      </div>
+
+      {/* Disparo (con valor) y regla de silencio (hecho declarado). */}
+      <p className="duna-sub" style={{ marginTop: 'var(--duna-space-2)' }}>{frase}</p>
+      {def.silencio && (
+        <p className="duna-caption" style={{ marginTop: 'var(--duna-space-1)' }}>{def.silencio}</p>
+      )}
+
+      {/* Señal de vida, al pie. */}
+      <div
+        className="duna-caption"
+        style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: 'auto', paddingTop: 'var(--duna-space-4)' }}
+      >
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: DOT_VIDA[estado.vida], flexShrink: 0 }} />
+        <span style={{ color: estado.vida === 'fallo' ? 'var(--duna-bad-ink)' : 'var(--duna-muted)', fontWeight: estado.vida === 'fallo' ? 600 : undefined }}>
+          {vidaTexto(estado)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Grupo({ titulo, hecho, defs, estados, onToggle }: {
+  titulo: string;
+  hecho: string;
+  defs: AutomationDef[];
+  estados: Record<string, AutomationEstado>;
+  onToggle: (def: AutomationDef) => void;
+}) {
+  if (defs.length === 0) return null;
+  return (
+    <section style={{ marginTop: 'var(--duna-space-6)' }}>
+      <div style={{ marginBottom: 'var(--duna-space-3)' }}>
+        <h2 className="duna-heading">{titulo}</h2>
+        <p className="duna-sub" style={{ marginTop: '1px' }}>{hecho}</p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {defs.map(def => (
+          <Tarjeta key={def.key} def={def} estado={estados[def.key]} onToggle={() => onToggle(def)} />
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export default function Automatizaciones() {
-  const [estados, setEstados]   = useState<Record<string, AutomationEstado>>({});
-  const [loading, setLoading]   = useState(true);
-  const [fallo, setFallo]       = useState(false);
-  const [configurando, setConfigurando] = useState<AutomationDef | null>(null);
+  const [estados, setEstados] = useState<Record<string, AutomationEstado>>({});
+  const [loading, setLoading] = useState(true);
+  const [fallo, setFallo]     = useState(false);
 
   const cargar = () => {
     setLoading(true);
@@ -41,22 +125,15 @@ export default function Automatizaciones() {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial: el estado lo escriben los callbacks del fetch
   useEffect(cargar, []);
 
-  // ── Derivados ──────────────────────────────────────────────────────────────
-
-  const activas       = AUTOMATIONS.filter(d => estados[d.key]?.activo).length;
-  const ejecuciones   = Object.values(estados).reduce((s, e) => s + e.ejecuciones, 0);
-  // ── Escritura optimista ────────────────────────────────────────────────────
-  // Se pinta el cambio de inmediato y luego se persiste. Si falla, un toast cuyo
-  // "Reintentar" reusa el MISMO patch (capturado aquí, no leído de un estado que
-  // ya pudo cambiar) y se revierte lo pintado.
-
-  const persistir = (key: string, patch: { activo?: boolean; config?: Record<string, unknown> }, previo: AutomationEstado) => {
+  // ── Escritura optimista ──────────────────────────────────────────────────
+  // Se pinta el cambio y luego se persiste; si falla, un toast con "Reintentar"
+  // (que reusa el MISMO patch capturado) y se revierte. El switch es escritura
+  // absoluta y el control responde antes que el server: sin guarda de doble-submit
+  // a propósito (§ CLAUDE.md — la frontera del patrón).
+  const persistir = (key: string, activo: boolean, previo: AutomationEstado) => {
     const intentar = () => {
-      saveAutomation(key, patch)
-        .then(res => setEstados(prev => ({
-          ...prev,
-          [key]: { ...prev[key], activo: res.activo, config: res.config },
-        })))
+      saveAutomation(key, { activo })
+        .then(res => setEstados(prev => ({ ...prev, [key]: { ...prev[key], activo: res.activo, config: res.config } })))
         .catch(() => {
           setEstados(prev => ({ ...prev, [key]: previo }));
           toast.error('No se pudo guardar la automatización', {
@@ -71,162 +148,70 @@ export default function Automatizaciones() {
     const previo = estados[def.key];
     if (!previo) return;
     const activo = !previo.activo;
-    setEstados(prev => ({ ...prev, [def.key]: { ...previo, activo } }));
-    persistir(def.key, { activo }, previo);
+    // Al apagar/encender, la señal de vida deriva sola en el próximo fetch; acá se
+    // refleja el `activo` de inmediato (la vida se recalcula server-side).
+    setEstados(prev => ({ ...prev, [def.key]: { ...previo, activo, vida: activo ? previo.vida : 'apagada' } }));
+    persistir(def.key, activo, previo);
   };
 
-  const guardarConfig = (def: AutomationDef, config: Record<string, unknown>) => {
-    const previo = estados[def.key];
-    if (!previo) return;
-    setEstados(prev => ({ ...prev, [def.key]: { ...previo, config } }));
-    persistir(def.key, { config }, previo);
-  };
-
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // Sólo lo que el server devolvió (WhatsApp ya viene omitido, § waOperativo).
+  const internas = AUTOMATIONS.filter(d => d.canal === 'interno' && estados[d.key]);
+  const correos  = AUTOMATIONS.filter(d => d.canal === 'email'   && estados[d.key]);
+  const conFallo = [...internas, ...correos].filter(d => estados[d.key]?.vida === 'fallo');
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Automatizaciones</h1>
-        <p className="text-sm text-muted-foreground">Centro de flujos de trabajo automáticos</p>
-      </div>
+    <div>
+      <div className="duna-eyebrow">Crecimiento</div>
+      <h1 className="duna-display-m" style={{ marginTop: '2px' }}>Automatizaciones</h1>
+      <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '46rem' }}>
+        Las tareas que el sistema hace solo: vigilar y avisar. Sólo observan — ninguna
+        cobra, despacha ni cancela. Un aviso roto nunca puede romper una venta.
+      </p>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="stat-card text-center">
-          <p className="text-3xl font-bold text-foreground">{activas}</p>
-          <p className="text-xs text-muted-foreground mt-1">Flujos activos</p>
+      {/* Roll-up de fallo: el único vital, y sólo cuando hay algo roto. Una tarjeta
+          con fallo puede quedar fuera de vista; esto lo dice arriba. Rojo (bad), no
+          ámbar. */}
+      {conFallo.length > 0 && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)',
+            marginTop: 'var(--duna-space-4)', padding: '9px 14px',
+            border: '1px solid var(--duna-bad)', borderRadius: 'var(--duna-r-m)',
+            background: 'var(--duna-bad-soft)', width: 'fit-content',
+          }}
+        >
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--duna-bad)', flexShrink: 0 }} />
+          <span className="duna-body-sm" style={{ color: 'var(--duna-ink-2)' }}>
+            <b style={{ color: 'var(--duna-bad-ink)' }}>
+              {conFallo.length === 1 ? 'Una automatización falló' : `${conFallo.length} automatizaciones fallaron`}:
+            </b>{' '}
+            {conFallo.map(d => d.nombre).join(', ')}. Es lo único aquí que pide una acción.
+          </span>
         </div>
-        <div className="stat-card text-center">
-          <p className="text-3xl font-bold">{AUTOMATIONS.length}</p>
-          <p className="text-xs text-muted-foreground mt-1">Flujos disponibles</p>
-        </div>
-        <div className="stat-card text-center">
-          <p className="text-3xl font-bold">{ejecuciones}</p>
-          <p className="text-xs text-muted-foreground mt-1">Ejecuciones totales</p>
-        </div>
-      </div>
+      )}
 
       {fallo && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/40 p-4">
-          <p className="text-sm text-muted-foreground">No se pudieron cargar las automatizaciones.</p>
-          <Button variant="outline" size="sm" onClick={cargar}>Reintentar</Button>
+        <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
+          <p className="duna-sub" style={{ margin: 0 }}>No se pudieron cargar las automatizaciones.</p>
+          <button type="button" className="duna-btn duna-btn--secondary duna-btn--sm" onClick={cargar}>Reintentar</button>
         </div>
       )}
 
-      {/* Cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {/* Sólo lo que el server DEVOLVIÓ: el endpoint omite las de WhatsApp
-            mientras el canal no esté operativo (§ waOperativo), así que la
-            decisión de qué se ve vive en un solo sitio, no en un filtro de canal
-            duplicado acá. */}
-        {AUTOMATIONS.filter(def => estados[def.key]).map(def => {
-          const estado  = estados[def.key];
-          const activo  = estado?.activo ?? false;
-          const Icon    = def.icono;
-          // La API devuelve las 3 más recientes en orden desc; sólo se usa la
-          // primera. Se deja que siga mandando tres: cambiar el endpoint por
-          // esto acoplaría la forma del dato a una decisión de layout.
-          const ultima  = estado?.recientes?.[0];
-
-          return (
-            <div
-              key={def.key}
-              className={`rounded-xl border bg-card p-5 transition-all ${
-                activo ? 'border-primary/30 shadow-sm ring-1 ring-primary/10' : 'border-border'
-              }`}
-            >
-              <div className="mb-3 flex items-start justify-between">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${def.color}`}>
-                  <Icon className="h-5 w-5" />
-                </div>
-                <Switch
-                  checked={activo}
-                  disabled={loading || !estado}
-                  onCheckedChange={() => toggle(def)}
-                  aria-label={`${activo ? 'Desactivar' : 'Activar'} ${def.nombre}`}
-                />
-              </div>
-
-              <h3 className="mb-1 text-sm font-semibold">{def.nombre}</h3>
-              <p className="mb-3 text-xs leading-relaxed text-muted-foreground">{def.descripcion}</p>
-
-              <div className="space-y-1.5 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground/60">Canal:</span>
-                  <span className="font-medium text-foreground">{CANAL_LABEL[def.canal]}</span>
-                  <span className="text-muted-foreground/60">·</span>
-                  <span className="text-muted-foreground">{TIPO_LABEL[def.tipo]}</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="shrink-0 text-muted-foreground/60">Disparador:</span>
-                  <span className="text-foreground">{def.disparador}</span>
-                </div>
-              </div>
-
-              {/* Evidencia de vida en UNA línea. La lista de las 3 últimas se
-                  retiró: una fecha y un badge por corrida no informan nada
-                  accionable —quién quiere el detalle quiere el target, no el
-                  timestamp— y hacían crecer la card de forma distinta según
-                  cuántas veces hubiera corrido cada automatización, así que la
-                  grilla no cerraba. El detalle por corrida, si algún día hace
-                  falta, va dentro de "Configurar". */}
-              <div className="mt-3 border-t border-border pt-3">
-                <p className="text-xs text-muted-foreground">
-                  {estado?.ejecuciones ?? 0} {(estado?.ejecuciones ?? 0) === 1 ? 'ejecución' : 'ejecuciones'}
-                  {ultima && (
-                    <>
-                      {' · '}
-                      {/* El caso normal no grita y el fallo sí: la última corrida
-                          sólo se tiñe cuando FALLÓ, que es lo único que pide una
-                          acción. Amber Minimal — el color es información. */}
-                      {ultima.estado === 'FALLIDO'
-                        ? <span className="font-medium text-destructive">última falló</span>
-                        : <>última {tiempoRelativo(ultima.createdAt)}</>}
-                    </>
-                  )}
-                </p>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
-                <span className={`text-xs font-medium ${activo ? 'text-foreground' : 'text-muted-foreground'}`}>
-                  {activo ? 'Activa' : 'Inactiva'}
-                </span>
-                {def.campos.length > 0 && (
-                  <Button
-                    variant="outline" size="sm" className="h-7 gap-1.5 text-xs"
-                    disabled={!estado}
-                    onClick={() => setConfigurando(def)}
-                  >
-                    <Settings2 className="h-3.5 w-3.5" />
-                    Configurar
-                  </Button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Diálogo de configuración — `key` lo remonta con la config vigente */}
-      {configurando && estados[configurando.key] && (
-        <AutomationConfigDialog
-          key={`${configurando.key}-${JSON.stringify(estados[configurando.key].config)}`}
-          def={configurando}
-          config={estados[configurando.key].config}
-          open
-          onOpenChange={(o) => { if (!o) setConfigurando(null); }}
-          onSave={(config) => guardarConfig(configurando, config)}
-        />
+      {!fallo && !loading && (
+        <>
+          <Grupo
+            titulo="Vigilan el negocio y avisan al equipo en el panel"
+            hecho="Nacen encendidas: no cuestan nada y no dependen de nadie externo."
+            defs={internas} estados={estados} onToggle={toggle}
+          />
+          <Grupo
+            titulo="Le mandan un correo al equipo"
+            hecho="Nacen apagadas: salen de la casa."
+            defs={correos} estados={estados} onToggle={toggle}
+          />
+        </>
       )}
-
-      <div className="rounded-xl border border-dashed border-border bg-muted/40 p-8 text-center">
-        <Zap className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
-        <h3 className="mb-1 text-sm font-semibold">Flujos personalizados</h3>
-        <p className="mx-auto max-w-sm text-xs text-muted-foreground">
-          Próximamente podrás crear flujos con condiciones y acciones propias.
-        </p>
-      </div>
     </div>
   );
 }
