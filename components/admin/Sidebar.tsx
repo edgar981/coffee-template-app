@@ -189,23 +189,24 @@ function SearchButton({ onClick }: { onClick: () => void }) {
 }
 
 // ─── Brand lockup ─────────────────────────────────────────────────────────────
-// Wordmark only. The horizontal logo SVG bakes the mark + "DUNA" lettering into a
-// single file, so rather than crop it (public/ images are immutable) we render the
-// "DUNA" wordmark as text in JetBrains Mono — the wordmark typeface — and keep the
-// "Café Nayoli" store label. The unused SVGs stay in public/ untouched.
+// El LOGO HORIZONTAL real (mark + "DUNA"), no el wordmark en texto. Antes era texto
+// porque se quería sólo el wordmark y el SVG horneaba mark+lettering junto; el owner
+// decidió usar el lockup completo, que es justo lo que ese archivo trae. Variante
+// negativa para oscuro, igual que el mark del rail colapsado.
+//
+// EL ÁMBAR DEL ASSET (#F59E0B = `--duna-sol`) ES MARCA, NO ESTADO — excepción
+// declarada (§ CLAUDE.md, "El ámbar del logo es marca, no atención"). Un logo es la
+// firma del producto, no un semáforo; ya vivía en el mark colapsado.
+//
+// `max-h-7 max-w-full w-auto`: escala para caber sin distorsión (nunca `h-` fijo con
+// `max-w`, que aplastaría el logo si el área del lockup es más angosta que su ancho).
 function BrandLockup() {
   return (
-    <div className="mt-3 min-w-0 overflow-hidden">
-      {/* El wordmark pasó de JetBrains Mono a `--duna-font-mono` (Spline Sans
-          Mono): mono por mono, pero ahora la mono DEL SISTEMA. Es el único cambio
-          de identidad visible de la migración del chrome, y va porque retirar
-          JetBrains lo exige — era su único consumidor. */}
-      <span
-        className="block whitespace-nowrap text-[15px] font-semibold uppercase leading-none tracking-[0.2em] text-sidebar-foreground"
-        style={{ fontFamily: 'var(--duna-font-mono)' }}
-      >
-        DUNA
-      </span>
+    <div className="mt-2 min-w-0 overflow-hidden">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/duna-logo-horizontal-v1.svg" alt="Duna" className="block max-h-7 w-auto max-w-full object-contain dark:hidden" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/duna-logo-horizontal-negative-v1.svg" alt="Duna" className="hidden max-h-7 w-auto max-w-full object-contain dark:block" />
       <p className="mt-2 mb-2 whitespace-nowrap text-[13px] leading-none text-sidebar-foreground/55" style={{ fontFamily: 'var(--duna-font-ui)' }}>
         Café Nayoli
       </p>

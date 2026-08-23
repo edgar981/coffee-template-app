@@ -1059,13 +1059,20 @@ propia, no un renglón de pie, y por eso no se coló en la tanda del informe.
 **Costo YA pagado: ninguno.** El texto cumple: es la única marca del producto en un
 documento que el operador manda a su contador, y se ve de dónde salió.
 
-**Es la MISMA decisión que el wordmark del sidebar**, que también es texto por un motivo
-emparentado (el SVG horizontal hornea marca + lettering en un solo archivo, y `public/`
-es inmutable, así que recortarlo no es opción). Resolver una sin la otra dejaría el
-producto con dos criterios de marca.
+**EL RAIL YA USA EL LOGO REAL** (2026-08-23): el wordmark de texto del sidebar se
+reemplazó por `duna-logo-horizontal-v1.svg` (`Sidebar.tsx`, `BrandLockup`). Se pensó
+que era "la misma decisión" que el PDF y que se resolverían juntas, pero **son dos
+trabajos distintos**: el rail muestra el SVG directo (`<img>`), y el PDF NO puede —jsPDF
+no dibuja SVG—. Así que el asset se comparte, pero el PDF sigue necesitando su propia
+implementación.
 
-**DISPARADOR: cuando el wordmark provisional del sidebar se reemplace por el logo real.**
-Ahí se decide también el del PDF, en la misma tanda y con el mismo asset.
+**LO QUE QUEDA, y es todo lo que queda de este ítem:** rasterizar el logo a **PNG** para
+el informe de Pagos (elegir resolución, versionar el PNG —`public/` es inmutable— y
+dibujarlo con jsPDF en vez del "Generado con Duna" de texto). El pie de texto cumple
+mientras tanto; no bloquea nada.
+
+**DISPARADOR: al tocar el informe de Pagos, o una tanda de acabado de marca.** El asset
+ya está decidido (es el del rail); falta sólo el PNG y su render en el PDF.
 
 ### 34. El padding del sheet es responsabilidad REPARTIDA — cuatro consumidores lo cablean
 
@@ -4360,6 +4367,22 @@ neutro):
 El `--accent` de admin-light era `#B45309` (marrón de marca) y volvía marrón todo
 hover de outline/ghost/dropdown/select: ahora es un tinte cálido suave. El marrón
 vive como `--primary` y en los charts, no como fondo de hover.
+
+### EXCEPCIÓN DECLARADA: el ámbar del LOGO es marca, no atención
+
+El logo de Duna (`public/brand/duna-logo-horizontal-v1.svg` y `duna-mark-v1.svg`)
+trae un elemento **`#F59E0B`, que es `--duna-sol` al valor** — el mismo hex que
+significa ATENCIÓN en el panel. **Se acepta, por decisión del owner (2026-08-23):**
+un logo NO es un estado, es la firma del producto, y pedir una variante sin el sol
+sería quitarle al logo lo que lo hace el logo. Ya vivía en el mark del rail colapsado;
+adoptar el horizontal en el rail expandido sólo lo vuelve siempre-visible.
+
+**Queda escrito acá para que el próximo censo de ámbar NO lo marque como violación.**
+El discriminador es el SITIO: `#F59E0B` dentro de un asset de marca (el rail) es marca;
+`#F59E0B` en un badge, un chip, un punto de atención o un fondo es estado, y ahí la
+regla de arriba manda sin excepción. El logo es el único sitio donde el sol es
+decoración permitida, precisamente porque no está diciendo nada sobre el estado del
+panel — está diciendo de quién es el panel.
 
 ## La serie categórica — color que IDENTIFICA, no que califica
 
