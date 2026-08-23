@@ -1329,6 +1329,51 @@ el costo ACTUAL del catálogo (§ El COSTO no está snapshoteado). No depende
 técnicamente del multitenant, pero **sí de la sesión de costos reales con el
 cliente**: snapshotear el costo del seed sólo congelaría un dato inventado.
 
+### Datos de negocio editables — `siteConfig` → `SiteSetting`
+
+Hoy los datos del negocio (nombre, tagline, WhatsApp, remitente de correo, paleta
+de correos, navegación del footer) viven en `lib/config/site.ts`, un archivo de
+**código**. Hacerlos editables es moverlos a la BASE, y eso es exactamente la
+**fase 1 del multi-tenant**: el modelo `SiteSetting` que esa arquitectura necesita
+de todos modos.
+
+**Por qué NO se adelanta**, y es la razón que decide (owner, 2026-08-23): el modelo
+multi-tenant se está negociando con Carlos **por escrito (R1–R15)**. Crear
+`SiteSetting` ahora fijaría la PRIMERA pieza de esa arquitectura desde un lado, sin
+el acuerdo. La decisión de esquema espera al acuerdo, no al revés.
+
+**Origen y frontera de producto:** son datos del NEGOCIO, no de la cuenta. Perfil es
+"mi cuenta"; el negocio iría en Configuración —que es justo el hub que se retiró por
+vacío (§ Equipo y usuarios)—. Esa división es la que sostiene que Perfil y
+Configuración existan separadas: volver editable el negocio es lo que le devuelve
+contenido real al hub.
+
+**EL CENSO YA ESTÁ HECHO — es la mitad del trabajo de esa tanda, no repetirlo**
+(medido 2026-08-23). Ocho lectores en CUATRO superficies:
+
+| Superficie | Lee | Estado del acoplamiento |
+| --- | --- | --- |
+| **Correos / notificaciones** | nombre, tagline, colors, remitente, replyTo | **YA AISLADO en `buildBrand()`** (`lib/config/brand.ts`) — una función; core es tenant-agnóstico por diseño, así que el brand ya se INYECTA, no se lee adentro |
+| **PDF** (`lib/pagos/informe.ts`) | `brand.nombre` | **YA THREADED como dato** — la página lo pasa al modelo; el generador no lee `siteConfig` |
+| **Storefront** (`StoreFooter`, `checkout`) | brand, contacto, footerNav, legalNav | import estático directo en server components → `await` del loader |
+| **WhatsApp** (`whatsapp-link.ts`) | `contacto.whatsapp` | **constante a nivel de módulo** (build-time) → pasa a función/loader |
+| **Admin** (perfil, PreAuthShell, pedidos/pagos/clientes) | `brand.nombre` (×9), tagline | import estático → runtime |
+
+O sea: **dos de las cuatro superficies (correos y PDF) ya están del lado correcto**
+—`buildBrand` y el threading del PDF—; las que faltan convertir son el storefront, el
+WhatsApp y los usos directos del admin.
+
+**MATIZ que decide el alcance: sólo los campos PLANOS son baratos de volver editables.**
+`emailColors` (paleta hex) y `footerNav`/`legalNav` (arrays de navegación) NO son inputs
+de texto —editarlos es un editor rico, o se quedan en código—. Los planos (nombre,
+tagline, WhatsApp, remitente) sí son un formulario simple. Una primera versión editable
+razonable cubre sólo los planos y deja los estructurados en código.
+
+**Lo que falta, entonces:** el modelo `SiteSetting` (+ migración + seed de los valores de
+hoy) y su loader tenant-scoped en core; convertir los ~4 lectores que aún son import
+estático (storefront, WhatsApp, admin — los otros dos ya están); y el editor en
+Configuración (+ PATCH + validación). **DISPARADOR: el acuerdo de esquema con Carlos.**
+
 ## Imágenes en `public/`
 
 Los archivos de imagen en `public/` son inmutables: nunca sobrescribir
