@@ -34,6 +34,47 @@ import {
 import { formatFecha } from '@duna/core/format-fecha';
 import type { WidgetInsightData } from '@/lib/metrics/insights';
 
+// ─── Eyebrow con reloj vivo ───────────────────────────────────────────────────
+// Fecha y hora en Bogotá (la hora de operación, no la del navegador), actualizadas
+// cada minuto ALINEADAS al borde del minuto: un `setTimeout` hasta el próximo `:00`
+// de segundos y luego un `setInterval` de 60s, para que el número cambie cuando el
+// reloj lo hace y no con lag. AISLADO en su propio componente a propósito —sólo esto
+// re-renderiza cada minuto, no el Dashboard (stats, grid, listas)—. Una hora
+// congelada al cargar envejecería en pantalla, que es peor que no tenerla.
+const FMT_EYEBROW_FECHA = new Intl.DateTimeFormat('es-CO', {
+  timeZone: 'America/Bogota', weekday: 'long', day: 'numeric', month: 'long',
+});
+const FMT_EYEBROW_HORA = new Intl.DateTimeFormat('es-CO', {
+  timeZone: 'America/Bogota', hour: 'numeric', minute: '2-digit', hour12: true,
+});
+function EyebrowReloj() {
+  // El inicializador captura el minuto correcto al montar; el intervalo alineado lo
+  // refresca en cada borde de minuto. No hay setState síncrono en el efecto (sólo en
+  // los callbacks de los timers), así que no dispara renders en cascada (§ #27).
+  const [ahora, setAhora] = useState(() => new Date());
+  useEffect(() => {
+    let intervalo: ReturnType<typeof setInterval> | undefined;
+    const alProximoMinuto = 60_000 - (Date.now() % 60_000);
+    const arranque = setTimeout(() => {
+      setAhora(new Date());
+      intervalo = setInterval(() => setAhora(new Date()), 60_000);
+    }, alProximoMinuto);
+    return () => { clearTimeout(arranque); if (intervalo) clearInterval(intervalo); };
+  }, []);
+  // es-CO da "jueves, 6 de agosto" y "4:20 p. m." (meridiano con espacio/NBSP): se
+  // capitaliza el día y se compacta "p. m." → "p.m.".
+  const fecha = FMT_EYEBROW_FECHA.format(ahora);
+  const hora  = FMT_EYEBROW_HORA.format(ahora)
+    .replace(/\s+/g, ' ').replace(/([ap])\. m\./i, '$1.m.');
+  // `suppressHydrationWarning`: el reloj es dinámico por diseño, así que la hora del
+  // SSR y la del cliente pueden diferir sin que sea un bug.
+  return (
+    <p className="duna-eyebrow" style={{ margin: 0 }} suppressHydrationWarning>
+      {fecha.charAt(0).toUpperCase() + fecha.slice(1)} · {hora}
+    </p>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -169,10 +210,11 @@ export default function Dashboard() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  // La pantalla es del DÍA. Dos cifras, DOS BASES, y cada una la DECLARA (§ contrato
-  // del período): el operador no puede deducir que el dinero incluye canceladas y el
-  // conteo no. HERO = el dinero (Payments de hoy, canceladas incluidas). CURVA = el
-  // conteo (órdenes creadas hoy, sin canceladas). Son ejes distintos, como en Pagos.
+  // La pantalla es del DÍA. Dos cifras, DOS CONJUNTOS DISTINTOS, y cada una lo DECLARA
+  // (§ contrato del período): el HERO mide PAGOS RECIBIDOS hoy —de pedidos de
+  // cualquier día—; la CURVA mide PEDIDOS CREADOS hoy —pagados o no—. Ésa es la
+  // distinción que el operador necesita (dinero-que-entró vs pedidos-que-llegaron),
+  // no la de canceladas (un detalle de definición que no va en la copy).
   const ventasHoy = stats?.ventasHoy ?? 0;
   const pedidosHoy = stats?.pedidosHoy ?? 0;
   const pedidosPorHora = stats?.pedidosPorHora ?? [];
@@ -184,7 +226,7 @@ export default function Dashboard() {
           cifra que el lector junta (mismo criterio que la frase de Pagos). */}
       <div className="flex items-start justify-between gap-3">
         <div aria-busy={loading || undefined}>
-          <p className="duna-eyebrow" style={{ margin: 0 }}>{formatFecha(stats?.hoyKey ?? new Date())}</p>
+          <EyebrowReloj />
           {loading ? (
             <h1 className="duna-display-m" aria-hidden="true" style={{ fontWeight: 'var(--duna-w-medium)', margin: 'var(--duna-space-hairline) 0 0' }}>
               <span style={{ display: 'inline-block', width: '58%', maxWidth: '26rem', height: '0.85em',
@@ -199,15 +241,14 @@ export default function Dashboard() {
               <h1 className="duna-display-m" style={{ fontWeight: 'var(--duna-w-medium)', margin: 'var(--duna-space-hairline) 0 0' }}>
                 Hoy entraron <strong style={{ fontWeight: 'var(--duna-w-semi)' }}>{formatCOP(ventasHoy)}</strong>
               </h1>
-              <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>Pagos recibidos hoy, cancelados incluidos.</p>
+              <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>Pagos recibidos hoy, de pedidos de cualquier día.</p>
             </>
           ) : (
-            <>
-              <h1 className="duna-display-m" style={{ fontWeight: 'var(--duna-w-medium)', margin: 'var(--duna-space-hairline) 0 0' }}>
-                Hoy no ha entrado dinero todavía
-              </h1>
-              <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>No es un error: aún no se ha registrado ningún pago.</p>
-            </>
+            // $0: sin subtítulo. En Pagos el descargo desmentía la sospecha del filtro;
+            // aquí no hay filtro que sospechar, así que no desmiente nada.
+            <h1 className="duna-display-m" style={{ fontWeight: 'var(--duna-w-medium)', margin: 'var(--duna-space-hairline) 0 0' }}>
+              Hoy no ha entrado dinero todavía
+            </h1>
           )}
         </div>
         <DunaTooltip content="Elige y ordena las tarjetas de tu panel">
@@ -241,7 +282,7 @@ export default function Dashboard() {
               {stats ? `${pedidosHoy} ${pedidosHoy === 1 ? 'pedido' : 'pedidos'} hoy` : 'Pedidos de hoy'}
             </h2>
             <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 var(--duna-space-3)' }}>
-              Pedidos creados hoy, sin los cancelados.
+              Pedidos creados hoy.
             </p>
             {!stats ? (
               <p className="duna-sub" style={{ margin: 0 }}>No se pudo cargar la actividad de hoy.</p>

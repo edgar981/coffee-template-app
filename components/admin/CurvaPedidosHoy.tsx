@@ -23,7 +23,18 @@ const PAD_TOP = 22;    // aire para el rótulo del pico
 const PAD_BOT = 22;    // aire para las etiquetas de hora
 const INNER_H = ALTO - PAD_TOP - PAD_BOT;
 const BASELINE = PAD_TOP + INNER_H;
-const TICKS = [0, 6, 12, 18, 23];
+
+// El eje SIGUE siendo 0–23 (no se recorta el dato: hay pedidos a cualquier hora en
+// un storefront 24h). Sólo se ROTULAN estas horas, en formato de reloj —no
+// duraciones—: "6h" se leía como tiempo transcurrido.
+const TICKS = [6, 9, 12, 15, 18, 21];
+
+/** Hora del día (0–23) → etiqueta de reloj (es-CO): 12 a.m. · 12 m. · 3 p.m. … */
+function relojLabel(h: number): string {
+  if (h === 0)  return '12 a.m.';
+  if (h === 12) return '12 m.';
+  return h < 12 ? `${h} a.m.` : `${h - 12} p.m.`;
+}
 
 const clampY = (y: number) => Math.max(PAD_TOP, Math.min(BASELINE, y));
 
@@ -90,13 +101,13 @@ export default function CurvaPedidosHoy({ buckets }: { buckets: number[] }) {
             {buckets[iPico]}
           </text>
 
-          {/* Eje de horas. */}
+          {/* Eje de horas, en reloj. Todas las marcas van interiores (6–21), así que
+              el ancla 'middle' no las recorta contra los bordes. */}
           {TICKS.map(h => (
-            <text key={h} x={x(h)} y={ALTO - 6}
-                  textAnchor={h === 0 ? 'start' : h === 23 ? 'end' : 'middle'}
+            <text key={h} x={x(h)} y={ALTO - 6} textAnchor="middle"
                   fill="var(--duna-muted)"
                   style={{ fontSize: 11, fontFamily: 'var(--duna-font-ui)' }}>
-              {h}h
+              {relojLabel(h)}
             </text>
           ))}
         </svg>
