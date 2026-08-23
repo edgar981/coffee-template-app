@@ -34,12 +34,16 @@ test('renombrar una sección en el menú arrastra la pestaña — no hay copia q
 });
 
 test('las secciones fuera del menú traen el texto de su propia pantalla', () => {
-  assert.equal(tituloAdmin('/admin/configuracion'), 'Configuración');
+  // "Equipo y usuarios", no "Configuración": la pestaña dice lo que la pantalla
+  // HACE. El hub de tarjetas desapareció; la ruta hospeda hoy el equipo.
+  assert.equal(tituloAdmin('/admin/configuracion'), 'Equipo y usuarios');
   assert.equal(tituloAdmin('/admin/perfil'), 'Mi perfil');
 });
 
-test('usuarios hereda Configuración: es subsección, y "Equipo" sería un tercer nombre', () => {
-  assert.equal(tituloAdmin('/admin/configuracion/usuarios'), 'Configuración');
+test('la subruta retirada de usuarios ya no declara título: redirige a la ruta padre', () => {
+  // `/configuracion/usuarios` se retiró (§ lib/redirect-config). Sin página, no
+  // hay pestaña que titular — `null`, no un título fósil de una ruta muerta.
+  assert.equal(tituloAdmin('/admin/configuracion/usuarios'), null);
 });
 
 test('una ruta sin título declarado devuelve null, no un título fabricado', () => {

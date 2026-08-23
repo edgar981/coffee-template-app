@@ -1,68 +1,116 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, Mail, Shield, Building2, Key, LogOut, Camera, CheckCircle, Clock } from 'lucide-react';
+import { User, Mail, Shield, Building2, LogOut, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { authClient } from '@/lib/auth-client';
 import { useRouter } from 'next/navigation';
+import RoleBadge from '@/components/admin/RoleBadge';
+import { siteConfig } from '@/lib/config/site';
+import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 
-// ─── RoleBadge ────────────────────────────────────────────────────────────────
+// ─── ESTA PANTALLA ES LA CUENTA DE QUIEN ESTÁ ADENTRO ────────────────────────
+//
+// Lo que se limpió respecto de la versión heredada del template, y por qué:
+// · el "hace 30 días" de la contraseña era un dato INVENTADO (hardcoded), y su
+//   botón "Cambiar" abría un toast "próximamente" — un control que promete algo
+//   que no hace. La contraseña REAL entra en la tanda de seguridad;
+// · el botón de cámara no tenía `onClick` — un adorno que finge una acción;
+// · la "Organización" decía "Bogotá, Colombia", que además de hardcoded era
+//   FALSO (Nayoli está en Supatá). Ahora sale de `siteConfig.brand` — la misma
+//   fuente que el resto del producto, y el día del multi-tenant migra con ella.
+//
+// Lo que quedó es lo que la pantalla puede sostener de verdad: editar el nombre,
+// ver el correo y el rol, saber de qué negocio es la cuenta, y cerrar sesión.
 
-type Role = 'OWNER' | 'MANAGER' | 'STAFF';
-
-const ROLE_CONFIG: Record<Role, { label: string; className: string }> = {
-  OWNER:   { label: 'Dueño',   className: 'bg-secondary text-secondary-foreground' },
-  MANAGER: { label: 'Gerente', className: 'bg-secondary text-secondary-foreground' },
-  STAFF:   { label: 'Empleado', className: 'bg-muted text-muted-foreground' },
+const PERMISOS: Record<string, string> = {
+  OWNER:   'Acceso completo al panel, la configuración y los datos críticos.',
+  MANAGER: 'Gestión operativa: pedidos, inventario, clientes y reportes. Sin la administración de la cuenta.',
+  STAFF:   'Acceso a las operaciones del día a día.',
 };
 
-function RoleBadge({ role, size = 'sm' }: { role: string; size?: 'sm' | 'lg' }) {
-  const config = ROLE_CONFIG[role as Role] ?? ROLE_CONFIG.STAFF;
-  return (
-    <span className={`inline-flex items-center rounded-full font-medium ${size === 'lg' ? 'px-3 py-1 text-sm' : 'px-2 py-0.5 text-xs'} ${config.className}`}>
-      {config.label}
-    </span>
-  );
-}
+const initialesDe = (nombre: string) =>
+  (nombre.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()) || 'N';
 
-// ─── ProfileForm ──────────────────────────────────────────────────────────────
-
-interface ProfileForm {
-  name:  string;
-  email: string;
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// Mínimo de Better Auth (default `minPasswordLength: 8`, sin override en lib/auth).
+// Se valida acá para no gastar un viaje al server con una nueva demasiado corta;
+// el server sigue siendo el que MANDA sobre la actual (que sólo él puede verificar).
+const MIN_PASS = 8;
 
 export default function Perfil() {
-  const router  = useRouter();
+  const router                = useRouter();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving]   = useState(false);
-  const [form, setForm]       = useState<ProfileForm>({ name: '', email: '' });
+  const [form, setForm]       = useState({ name: '', email: '' });
   const [role, setRole]       = useState<string>('STAFF');
+  const guarda                = useAccionGuardada();
+
+  // Cambio de contraseña — formulario inline que LLENA el usuario. `revokeOtherSessions`
+  // por defecto: cambiar la clave cierra las demás sesiones (la actual sobrevive).
+  const [cambiandoPass, setCambiandoPass] = useState(false);
+  const [pass, setPass]         = useState({ actual: '', nueva: '', confirmar: '' });
+  const [passError, setPassError] = useState<string | null>(null);
+  const guardaPass              = useAccionGuardada();
+
+  const cerrarPass = () => {
+    setCambiandoPass(false);
+    setPass({ actual: '', nueva: '', confirmar: '' });
+    setPassError(null);
+  };
+
+  const handleCambiarPass = (e: React.FormEvent) => {
+    e.preventDefault();
+    // El error se limpia al reintentar — un error que sobrevive a un intento
+    // exitoso afirma un fallo que ya no existe (§ ErrorDialogo, la misma lección).
+    setPassError(null);
+
+    if (pass.nueva.length < MIN_PASS) {
+      setPassError(`La nueva contraseña debe tener al menos ${MIN_PASS} caracteres.`);
+      return;
+    }
+    if (pass.nueva !== pass.confirmar) {
+      setPassError('La nueva contraseña y su confirmación no coinciden.');
+      return;
+    }
+    if (pass.nueva === pass.actual) {
+      setPassError('La nueva contraseña debe ser distinta de la actual.');
+      return;
+    }
+
+    return guardaPass.ejecutar(async () => {
+      const { error } = await authClient.changePassword({
+        currentPassword:     pass.actual,
+        newPassword:         pass.nueva,
+        revokeOtherSessions: true,
+      });
+      if (error) {
+        // El fallo del server que el usuario puede corregir es la contraseña
+        // ACTUAL equivocada —lo único que sólo el server sabe—. El mensaje de
+        // Better Auth viene en inglés, así que se traduce a una frase que dice qué
+        // arreglar, en vez de mostrar "Invalid password" en una pantalla en español.
+        setPassError('No se pudo cambiar la contraseña. Revisa que la actual sea correcta.');
+        return;
+      }
+      toast.success('Contraseña actualizada. Las otras sesiones se cerraron.');
+      cerrarPass();
+    });
+  };
 
   useEffect(() => {
     authClient.getSession().then(({ data: session }) => {
       if (!session?.user) { router.push('/login'); return; }
-      setForm({
-        name:  session.user.name  ?? '',
-        email: session.user.email ?? '',
-      });
-      setRole((session.user as any).role ?? 'STAFF');
+      setForm({ name: session.user.name ?? '', email: session.user.email ?? '' });
+      setRole((session.user as { role?: string }).role ?? 'STAFF');
       setLoading(false);
     });
   }, [router]);
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    const { error } = await authClient.updateUser({ name: form.name });
-    if (error) {
-      toast.error('Error al actualizar el perfil');
-    } else {
-      toast.success('Perfil actualizado correctamente');
-    }
-    setSaving(false);
+    return guarda.ejecutar(async () => {
+      const { error } = await authClient.updateUser({ name: form.name });
+      if (error) toast.error('No se pudo actualizar el perfil');
+      else       toast.success('Perfil actualizado');
+    });
   };
 
   const handleLogout = async () => {
@@ -71,171 +119,188 @@ export default function Perfil() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-7 h-7 border-2 border-border border-t-primary rounded-full animate-spin" />
-      </div>
-    );
+    return <p className="duna-caption" style={{ padding: 'var(--duna-space-6)' }}>Cargando…</p>;
   }
 
-  const initials = form.name
-    .split(' ')
-    .map(w => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() || 'N';
-
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div>
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Mi Perfil</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Gestiona tu información personal y configuración de cuenta
-        </p>
-      </div>
+      <div className="duna-eyebrow">Cuenta</div>
+      <h1 className="duna-display-m" style={{ marginTop: '2px' }}>Mi perfil</h1>
+      <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
+        Tu información en el panel. El correo y el rol los administra un dueño; el
+        nombre lo cambias acá.
+      </p>
 
-      {/* Profile Card */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-        <div className="h-24 bg-linear-to-r from-primary/20 via-primary/10 to-transparent" />
-        <div className="px-6 pb-6 -mt-10">
-          <div className="flex items-end gap-4 mb-6">
-            <div className="relative">
-              <div className="w-20 h-20 rounded-2xl bg-primary/15 border-4 border-card flex items-center justify-center shadow-sm">
-                <span className="text-2xl font-bold text-primary">{initials}</span>
-              </div>
-              <button className="absolute -bottom-1 -right-1 w-7 h-7 bg-primary rounded-full flex items-center justify-center shadow hover:bg-primary/90 transition-colors">
-                <Camera className="w-3.5 h-3.5 text-primary-foreground" />
-              </button>
-            </div>
-            <div className="pb-1">
-              <h2 className="text-xl font-semibold text-foreground">{form.name || 'Admin'}</h2>
-              <div className="flex items-center gap-2 mt-1">
-                <RoleBadge role={role} />
-                <span className="text-xs text-muted-foreground">{form.email}</span>
-              </div>
+      {/* Identidad + edición del nombre */}
+      <form onSubmit={handleSave} className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-6)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-4)', marginBottom: 'var(--duna-space-5)' }}>
+          <div className="duna-avatar" style={{ width: 56, height: 56, fontSize: 'var(--duna-text-heading)' }}>
+            {initialesDe(form.name)}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <p className="duna-title" style={{ fontSize: 'var(--duna-text-heading)', margin: 0 }}>
+              {form.name || 'Sin nombre'}
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: '3px' }}>
+              <RoleBadge role={role} />
+              <span className="duna-caption">{form.email}</span>
             </div>
           </div>
-
-          {/* Form */}
-          <form onSubmit={handleSave} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
-                  Nombre completo
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input
-                    value={form.name}
-                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-colors"
-                    placeholder="Tu nombre"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
-                  Correo electrónico
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input
-                    value={form.email}
-                    disabled
-                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-input bg-muted/40 text-sm text-muted-foreground cursor-not-allowed"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">El correo no se puede modificar directamente</p>
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors disabled:opacity-60"
-              >
-                {saving
-                  ? <div className="w-4 h-4 border-2 border-primary-foreground/40 border-t-primary-foreground rounded-full animate-spin" />
-                  : <CheckCircle className="w-4 h-4" />}
-                Guardar cambios
-              </button>
-            </div>
-          </form>
         </div>
-      </div>
 
-      {/* Info Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Shield className="w-4 h-4 text-primary" />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-4)' }}>
+          <div className="duna-field">
+            <label className="duna-field__label" htmlFor="perfil-nombre">Nombre completo</label>
+            <div className="duna-search">
+              <User className="duna-search__ic" />
+              <input
+                id="perfil-nombre"
+                className="duna-input"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Tu nombre"
+              />
             </div>
-            <h3 className="font-semibold text-sm text-foreground">Rol y permisos</h3>
+          </div>
+          <div className="duna-field">
+            <label className="duna-field__label" htmlFor="perfil-correo">Correo electrónico</label>
+            <div className="duna-search">
+              <Mail className="duna-search__ic" />
+              <input
+                id="perfil-correo"
+                className="duna-input"
+                value={form.email}
+                disabled
+                style={{ color: 'var(--duna-muted)' }}
+              />
+            </div>
+            <p className="duna-field__hint">El correo no se puede cambiar desde acá.</p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--duna-space-4)' }}>
+          <button type="submit" className="duna-btn duna-btn--primary" disabled={guarda.enVuelo}>
+            {guarda.enVuelo ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+        </div>
+      </form>
+
+      {/* Rol y organización */}
+      <div className="duna-cards" style={{ marginTop: 'var(--duna-space-4)' }}>
+        <div className="duna-card duna-card__pad">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-3)' }}>
+            <Shield style={{ width: 16, height: 16, color: 'var(--duna-muted)' }} />
+            <h3 className="duna-title" style={{ fontSize: 'var(--duna-text-body)', margin: 0 }}>Rol y permisos</h3>
           </div>
           <RoleBadge role={role} size="lg" />
-          <p className="text-xs text-muted-foreground mt-2">
-            {role === 'OWNER'
-              ? 'Acceso completo a todas las funcionalidades del panel.'
-              : role === 'MANAGER'
-              ? 'Acceso a operaciones sin configuración de cuenta.'
-              : 'Acceso a operaciones del día a día.'}
+          <p className="duna-sub" style={{ marginTop: 'var(--duna-space-2)' }}>
+            {PERMISOS[role] ?? PERMISOS.STAFF}
           </p>
         </div>
 
-        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-              <Building2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-            </div>
-            <h3 className="font-semibold text-sm text-foreground">Organización</h3>
+        <div className="duna-card duna-card__pad">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-3)' }}>
+            <Building2 style={{ width: 16, height: 16, color: 'var(--duna-muted)' }} />
+            <h3 className="duna-title" style={{ fontSize: 'var(--duna-text-body)', margin: 0 }}>Organización</h3>
           </div>
-          <p className="font-semibold text-foreground">Café Nayoli</p>
-          <p className="text-xs text-muted-foreground mt-1">Bogotá, Colombia</p>
+          <p className="duna-body" style={{ fontWeight: 'var(--duna-w-semi)', margin: 0 }}>{siteConfig.brand.nombre}</p>
+          <p className="duna-sub" style={{ marginTop: '2px' }}>{siteConfig.brand.tagline}</p>
         </div>
       </div>
 
-      {/* Security */}
-      <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Key className="w-4 h-4 text-primary" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-sm text-foreground">Seguridad</h3>
-            <p className="text-xs text-muted-foreground">Gestiona el acceso a tu cuenta</p>
-          </div>
-        </div>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between py-3 border-b border-border">
-            <div>
-              <p className="text-sm font-medium text-foreground">Contraseña</p>
-              <p className="text-xs text-muted-foreground">Última actualización hace 30 días</p>
-            </div>
-            <button
-              onClick={() => toast.info('Cambio de contraseña próximamente')}
-              className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors px-3 py-1.5 rounded-lg hover:bg-primary/10"
-            >
-              Cambiar
-            </button>
-          </div>
-          <div className="flex items-center justify-between py-3">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium text-foreground">Sesión activa</p>
-                <p className="text-xs text-muted-foreground">Sesión iniciada en este dispositivo</p>
+      {/* Seguridad */}
+      <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
+        <h3 className="duna-title" style={{ fontSize: 'var(--duna-text-body)', margin: 0 }}>Seguridad</h3>
+
+        {/* Contraseña — colapsada muestra una fila; expandida, el formulario que
+            el usuario llena. */}
+        <div style={{ marginTop: 'var(--duna-space-3)', paddingBottom: 'var(--duna-space-3)', borderBottom: '1px solid var(--duna-border)' }}>
+          {!cambiandoPass ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--duna-space-3)' }}>
+              <div style={{ minWidth: 0 }}>
+                <p className="duna-body" style={{ fontWeight: 'var(--duna-w-semi)', margin: 0 }}>Contraseña</p>
+                <p className="duna-sub" style={{ marginTop: '1px' }}>
+                  Cambiarla cierra tus otras sesiones abiertas.
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setCambiandoPass(true)}
+                className="duna-btn duna-btn--ghost duna-btn--sm"
+                style={{ flexShrink: 0 }}
+              >
+                <KeyRound /> Cambiar contraseña
+              </button>
             </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-1.5 text-xs font-semibold text-destructive hover:text-destructive/80 transition-colors px-3 py-1.5 rounded-lg hover:bg-destructive/10"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              Cerrar sesión
-            </button>
+          ) : (
+            <form onSubmit={handleCambiarPass} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-3)' }}>
+              <div className="duna-field">
+                <label className="duna-field__label" htmlFor="pass-actual">Contraseña actual</label>
+                <input
+                  id="pass-actual"
+                  type="password"
+                  autoComplete="current-password"
+                  className="duna-input"
+                  value={pass.actual}
+                  onChange={e => setPass(p => ({ ...p, actual: e.target.value }))}
+                />
+              </div>
+              <div className="duna-field">
+                <label className="duna-field__label" htmlFor="pass-nueva">Nueva contraseña</label>
+                <input
+                  id="pass-nueva"
+                  type="password"
+                  autoComplete="new-password"
+                  className="duna-input"
+                  aria-invalid={!!passError}
+                  value={pass.nueva}
+                  onChange={e => setPass(p => ({ ...p, nueva: e.target.value }))}
+                />
+                <p className="duna-field__hint">Al menos {MIN_PASS} caracteres.</p>
+              </div>
+              <div className="duna-field">
+                <label className="duna-field__label" htmlFor="pass-confirmar">Confirmar nueva contraseña</label>
+                <input
+                  id="pass-confirmar"
+                  type="password"
+                  autoComplete="new-password"
+                  className="duna-input"
+                  aria-invalid={!!passError}
+                  value={pass.confirmar}
+                  onChange={e => setPass(p => ({ ...p, confirmar: e.target.value }))}
+                />
+              </div>
+
+              {/* El error vive donde el usuario mira, y la ranura no existe sin
+                  mensaje —un contenedor vacío que reserva su hueco empujaría el
+                  formulario justo al aparecer— (§ Controles de formulario). */}
+              {passError && <p className="duna-field__error">{passError}</p>}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--duna-space-2)' }}>
+                <button type="button" onClick={cerrarPass} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={guardaPass.enVuelo}>
+                  Cancelar
+                </button>
+                <button type="submit" className="duna-btn duna-btn--primary duna-btn--sm" disabled={guardaPass.enVuelo}>
+                  {guardaPass.enVuelo ? 'Guardando…' : 'Guardar contraseña'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+
+        {/* Sesión */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--duna-space-3)',
+          marginTop: 'var(--duna-space-3)',
+        }}>
+          <div style={{ minWidth: 0 }}>
+            <p className="duna-body" style={{ fontWeight: 'var(--duna-w-semi)', margin: 0 }}>Sesión activa</p>
+            <p className="duna-sub" style={{ marginTop: '1px' }}>Iniciada en este dispositivo.</p>
           </div>
+          <button type="button" onClick={handleLogout} className="duna-btn duna-btn--ghost duna-btn--sm" style={{ flexShrink: 0 }}>
+            <LogOut /> Cerrar sesión
+          </button>
         </div>
       </div>
     </div>

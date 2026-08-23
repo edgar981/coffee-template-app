@@ -597,23 +597,6 @@ Reglas de la lista, para que siga sirviendo:
 - **Un item que se completa se BORRA de acá** y su decisión, si tiene, se
   documenta en la sección que le corresponda. Esto no es un historial.
 
-### 1. Invitaciones pendientes: invisibles y sin cancelar
-
-`POST /api/users/invite` crea la fila y **no hay forma de verla ni de anularla**.
-No existe listado ni `DELETE`, así que una invitación pendiente sólo se conoce
-por el correo que salió.
-
-**Costo YA pagado, y es lo que le da la prioridad:** el propio POST rechaza
-invitar si hay una viva (`usedAt: null`, sin expirar), así que **un correo mal
-tecleado bloquea esa dirección durante 48 horas sin ninguna salida desde el
-panel** — ni reenviar, ni corregir, ni cancelar. La única salida hoy es SQL, que
-es exactamente el hueco que la tanda de desactivar usuarios vino a cerrar un
-nivel más arriba.
-
-Forma acordada (owner, 2026-08-06): sección **"Invitaciones pendientes"** en la
-MISMA página de Usuarios —no una pantalla nueva— con listar + cancelar. Es la
-tanda siguiente inmediata.
-
 ### 2. `InventoryLog` no registra QUIÉN ajustó el stock
 
 Es la única mutación auditable del panel sin columna de actor: `Payment` guarda
@@ -1345,6 +1328,51 @@ Origen: el rediseño de Analítica del 2026-08-05, donde se descubrió que
 el costo ACTUAL del catálogo (§ El COSTO no está snapshoteado). No depende
 técnicamente del multitenant, pero **sí de la sesión de costos reales con el
 cliente**: snapshotear el costo del seed sólo congelaría un dato inventado.
+
+### Datos de negocio editables — `siteConfig` → `SiteSetting`
+
+Hoy los datos del negocio (nombre, tagline, WhatsApp, remitente de correo, paleta
+de correos, navegación del footer) viven en `lib/config/site.ts`, un archivo de
+**código**. Hacerlos editables es moverlos a la BASE, y eso es exactamente la
+**fase 1 del multi-tenant**: el modelo `SiteSetting` que esa arquitectura necesita
+de todos modos.
+
+**Por qué NO se adelanta**, y es la razón que decide (owner, 2026-08-23): el modelo
+multi-tenant se está negociando con Carlos **por escrito (R1–R15)**. Crear
+`SiteSetting` ahora fijaría la PRIMERA pieza de esa arquitectura desde un lado, sin
+el acuerdo. La decisión de esquema espera al acuerdo, no al revés.
+
+**Origen y frontera de producto:** son datos del NEGOCIO, no de la cuenta. Perfil es
+"mi cuenta"; el negocio iría en Configuración —que es justo el hub que se retiró por
+vacío (§ Equipo y usuarios)—. Esa división es la que sostiene que Perfil y
+Configuración existan separadas: volver editable el negocio es lo que le devuelve
+contenido real al hub.
+
+**EL CENSO YA ESTÁ HECHO — es la mitad del trabajo de esa tanda, no repetirlo**
+(medido 2026-08-23). Ocho lectores en CUATRO superficies:
+
+| Superficie | Lee | Estado del acoplamiento |
+| --- | --- | --- |
+| **Correos / notificaciones** | nombre, tagline, colors, remitente, replyTo | **YA AISLADO en `buildBrand()`** (`lib/config/brand.ts`) — una función; core es tenant-agnóstico por diseño, así que el brand ya se INYECTA, no se lee adentro |
+| **PDF** (`lib/pagos/informe.ts`) | `brand.nombre` | **YA THREADED como dato** — la página lo pasa al modelo; el generador no lee `siteConfig` |
+| **Storefront** (`StoreFooter`, `checkout`) | brand, contacto, footerNav, legalNav | import estático directo en server components → `await` del loader |
+| **WhatsApp** (`whatsapp-link.ts`) | `contacto.whatsapp` | **constante a nivel de módulo** (build-time) → pasa a función/loader |
+| **Admin** (perfil, PreAuthShell, pedidos/pagos/clientes) | `brand.nombre` (×9), tagline | import estático → runtime |
+
+O sea: **dos de las cuatro superficies (correos y PDF) ya están del lado correcto**
+—`buildBrand` y el threading del PDF—; las que faltan convertir son el storefront, el
+WhatsApp y los usos directos del admin.
+
+**MATIZ que decide el alcance: sólo los campos PLANOS son baratos de volver editables.**
+`emailColors` (paleta hex) y `footerNav`/`legalNav` (arrays de navegación) NO son inputs
+de texto —editarlos es un editor rico, o se quedan en código—. Los planos (nombre,
+tagline, WhatsApp, remitente) sí son un formulario simple. Una primera versión editable
+razonable cubre sólo los planos y deja los estructurados en código.
+
+**Lo que falta, entonces:** el modelo `SiteSetting` (+ migración + seed de los valores de
+hoy) y su loader tenant-scoped en core; convertir los ~4 lectores que aún son import
+estático (storefront, WhatsApp, admin — los otros dos ya están); y el editor en
+Configuración (+ PATCH + validación). **DISPARADOR: el acuerdo de esquema con Carlos.**
 
 ## Imágenes en `public/`
 
@@ -2693,6 +2721,108 @@ no lo lleva, la curva es lectura + navegación por hora, sin acotar en sitio). P
   parecen bugs de la pantalla nueva.
 - **El número a la derecha va en MEDIO, nunca al borde** (§ Listas tabulares): el `Total` de
   Órdenes recientes a 96px, sin reordenar el dinero al final.
+
+## Equipo y usuarios, y Perfil — las dos últimas pantallas del panel
+
+Tanda del 2026-08-23. Con esto **todas las verticales del admin están en lenguaje
+Duna**; no queda una pantalla heredada del template.
+
+### Configuración DEJA de ser un hub: la ruta hospeda el equipo
+
+El hub de tarjetas de `/admin/configuracion` se retiró: cinco de sus seis secciones
+eran "Próximamente" —la promesa vacía que el resto del rediseño quita—. La única
+real, la gestión de equipo, **subió de `/configuracion/usuarios` a
+`/admin/configuracion`** y la subruta vieja redirige (§ `lib/redirect-config`).
+
+- **TÍTULO ≠ RUTA, y es la decisión.** El título de pestaña y el ítem del UserMenu
+  dicen **"Equipo y usuarios"** (lo que la pantalla HACE); la RUTA se queda en
+  `/admin/configuracion` (el UserMenu ya apuntaba ahí, y mover rutas cuesta
+  redirects). Llamar "Configuración" a una pantalla que sólo muestra equipo sería la
+  misma promesa vacía que las placeholders retiradas. El eyebrow SÍ dice
+  "Configuración" —nombra el ÁREA, no la pantalla—.
+- **El UserMenu cambió de label Y de ícono** (`Settings`→`Users`), por el mismo
+  principio: un ítem "Configuración" abriendo un roster es la promesa vacía otra vez.
+- **El redirect es el más simple de los seis** (path plano, sin traducción de query):
+  `/configuracion/usuarios` nunca usó query params. Sigue teniendo módulo + test por
+  la misma razón que los otros —el redirect es la deuda del retiro y se afirma como
+  unidad—. La cadena de `proxy.ts` pasó a SEIS; `redirect-config.test.ts` corre la
+  cadena completa. Censo por contenido al retirar: **cero enlaces vivos** a la ruta.
+- **DISPARADOR — el hub VUELVE con el multi-tenant.** Cuando haya secciones reales
+  que agrupar (negocio, facturación, integraciones), `/admin/configuracion` vuelve a
+  ser hub y **el equipo baja a un sub-route con su nombre intacto** ("Equipo y
+  usuarios" ya es el nombre, así que no hay nada que renombrar). El movimiento inverso
+  del de esta tanda.
+
+### El rol es CATEGORÍA — `RoleBadge` va NEUTRO
+
+`RoleBadge` salió de la rampa pastel (violeta el Gerente, celeste el Empleado) a
+`.duna-badge--neutral`. Un rol es una categoría, no un estado, así que lo distingue
+la ETIQUETA (Dueño / Gerente / Empleado), no el tinte —el "color que identifica" en
+un badge es justo lo que Amber Minimal prohíbe—. El componente es compartido (equipo,
+perfil, modal de invitar); migrarlo los cubre a los tres.
+
+### #1 cerrado — invitaciones pendientes visibles y cancelables
+
+`GET /api/users/invite` (listar) y `DELETE /api/users/invite/[id]` (cancelar),
+OWNER-only, con la sección "Invitaciones pendientes" en la pantalla de equipo.
+
+- **Una pendiente es sin aceptar Y sin vencer** (`usedAt: null` + `expiresAt > ahora`)
+  — la MISMA pareja que el POST usa para bloquear una dirección, así que lo que se
+  lista es exactamente lo que se puede cancelar para desbloquearla.
+- **Las VENCIDAS no se listan a propósito:** ya no bloquean (el POST las ignora), así
+  que re-invitar simplemente funciona. Mostrarlas sería un estado sin acción detrás.
+- **Cancelar sólo toca la SIN aceptar** (`deleteMany` con `usedAt: null` en el
+  `where`, en una sentencia): si la persona aceptó entre el listado y el clic, el
+  usuario existe y borrar esa fila perdería el registro de que se usó.
+- **La consulta se extrajo a `lib/invitations.ts` para el carril** (no monta HTTP): el
+  defecto de un filtro así vive en el `where`, no en el mapeo, y un test con mocks
+  pasa en verde contra un filtro roto. `invitaciones-pendientes.test.ts` se vio fallar
+  quitando `usedAt: null`. **No borrar.**
+- **La sección vacía no gasta un bloque:** el caso normal es que no haya ninguna
+  pendiente, así que sólo se renderiza para OWNER y con ≥1.
+
+### Perfil — la cuenta, limpia, y la contraseña que SÍ existe
+
+Se quitó lo que fingía: la contraseña "hace 30 días" (dato inventado) con su botón
+"Cambiar" que abría un toast "próximamente", el botón de cámara sin `onClick`, el
+banner de gradiente. La "Organización" pasó a salir de `siteConfig.brand` —una sola
+fuente del tenant— y de paso corrigió un dato FALSO: decía "Bogotá, Colombia" cuando
+Nayoli está en Supatá.
+
+- **`authClient.changePassword` con `revokeOtherSessions: true`.** Better Auth lo trae
+  de fábrica (`emailAndPassword` activo); es un formulario inline que llena el usuario.
+  Cambiar la clave cierra las demás sesiones, la actual sobrevive.
+- **El caso "invitado que nunca fijó contraseña" NO EXISTE**, y por eso `changePassword`
+  aplica a toda cuenta: la aceptación de invitación EXIGE contraseña (`signUpEmail`) y
+  no hay proveedores sociales (sólo `emailAndPassword`). Toda cuenta es de credencial.
+- **Validación client antes de viajar** (mínimo 8 = el default de Better Auth, nueva ==
+  confirmación, nueva != actual); el server MANDA sobre la contraseña ACTUAL, lo único
+  que sólo él verifica. Su fallo se traduce a una frase en español —no el "Invalid
+  password" de Better Auth— y el error inline se limpia al reintentar.
+
+### `InviteUserModal` es un DunaSheet — y `ConfirmDeleteDialog` NO se tocó
+
+El modal de invitar era un modal shadcn hand-rolled (overlay propio, `rounded-2xl`)
+con un DEFECTO real: **no cerraba al clicar fuera**. Migró a **`DunaSheet`
+`anclaje="lado"`** —la primitiva que ya montan los otros cinco formularios del panel
+(Ajustar stock, Programar entrega, Nuevo pedido, Producto, Cliente)—, que trae de
+Radix el click-fuera, Escape, foco atrapado y scroll-lock.
+
+- **NO a `DunaDialog`, a `DunaSheet`.** La nota vieja decía "migra a `DunaDialog`", y
+  estaba mal: `DunaDialog` es la superficie CENTRADA, y su único caso es la
+  CONFIRMACIÓN (se monta sobre `AlertDialog`, § H6). Un formulario no es una
+  confirmación; su primitiva es el drawer lateral, como los otros cuatro form-sheets.
+- **La guarda de descarte VIENE con la migración, no es un extra.** Al ganar el
+  click-fuera, un formulario a medias podía perderse en silencio; `useDescarteDeDrawer`
+  lo convierte en "¿descartar?" — la misma conducta que los otros form-sheets. Sin
+  ella, la migración habría ABIERTO un camino de pérdida de datos que antes no existía.
+- **`ConfirmDeleteDialog` de esa pantalla NO se migró, y es una decisión.** Es
+  COMPARTIDO —Pedidos, Productos, Clientes, Inventario (`AdjustStockModal`) y el
+  descarte lo montan—, así que migrarlo arrastraría media app a un gate visual que no
+  es el de esta tanda. Sólo el de invitar era hand-rolled y con defecto propio; el
+  confirm shadcn es coherente y vive en su propio disparador (§ H6). **Migrar una
+  primitiva compartida por su consumidor menos importante es cómo se arrastra una
+  vertical a una tanda ajena.**
 
 ## Dashboard personalizable — registry de widgets
 

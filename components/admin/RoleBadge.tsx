@@ -1,5 +1,3 @@
-import { cn } from '@duna/core/utils';
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Role = 'OWNER' | 'MANAGER' | 'STAFF';
@@ -11,27 +9,32 @@ interface RoleBadgeProps {
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
+//
+// EL ROL ES UNA CATEGORÍA, NO UN ESTADO — así que va NEUTRO, no con color propio.
+// La versión vieja los pintaba con la rampa pastel (violeta el Gerente, celeste el
+// Empleado), que es exactamente el "color que identifica" que Amber Minimal prohíbe
+// en un badge: entrena al operador a leer el color como si dijera algo. Lo que
+// distingue a los tres es su ETIQUETA (Dueño / Gerente / Empleado), no su tinte.
 
-const config: Record<Role, { label: string; class: string }> = {
-  OWNER:   { label: 'Dueño',    class: 'bg-secondary text-secondary-foreground border-border' },
-  MANAGER: { label: 'Gerente',  class: 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-400 dark:border-violet-800' },
-  STAFF:   { label: 'Empleado', class: 'bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-400 dark:border-sky-800' },
+const LABEL: Record<Role, string> = {
+  OWNER:   'Dueño',
+  MANAGER: 'Gerente',
+  STAFF:   'Empleado',
 };
-
-const FALLBACK = config.STAFF;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function RoleBadge({ role, size = 'sm' }: RoleBadgeProps) {
-  const c = config[role as Role] ?? FALLBACK;
+  const label = LABEL[role as Role] ?? LABEL.STAFF;
 
   return (
-    <span className={cn(
-      'inline-flex items-center font-semibold border rounded-lg',
-      size === 'lg' ? 'text-sm px-3 py-1' : 'text-xs px-2 py-0.5',
-      c.class,
-    )}>
-      {c.label}
+    <span
+      className="duna-badge duna-badge--neutral"
+      style={size === 'lg'
+        ? { fontSize: 'var(--duna-text-label)', padding: 'var(--duna-space-1) var(--duna-space-3)' }
+        : undefined}
+    >
+      {label}
     </span>
   );
 }

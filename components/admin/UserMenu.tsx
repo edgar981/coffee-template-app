@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { User, Settings, LogOut, ChevronDown } from 'lucide-react';
+import { User, Users, LogOut, ChevronDown } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
   DropdownMenuItem, DropdownMenuSeparator,
@@ -107,8 +107,12 @@ export function UserMenu({ variant }: { variant: UserMenuVariant }) {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
+          {/* "Equipo y usuarios", no "Configuración": la ruta hospeda la pantalla
+              de equipo (el hub desapareció), y un ítem que dice "Configuración"
+              abriendo un listado de equipo es la misma promesa vacía que el rediseño
+              retira. La ruta se queda en `/admin/configuracion` a propósito. */}
           <Link href="/admin/configuracion" className="cursor-pointer">
-            <Settings className="mr-2 h-4 w-4 text-muted-foreground" /> Configuración
+            <Users className="mr-2 h-4 w-4 text-muted-foreground" /> Equipo y usuarios
           </Link>
         </DropdownMenuItem>
 

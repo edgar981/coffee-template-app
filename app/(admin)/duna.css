@@ -303,3 +303,26 @@ html.admin {
    el paquete (§ la regla del segundo consumidor, que ya rigió para `.duna-lista`).
    Con un segundo consumidor se renombra y se muda. */
 .admin-foco:focus-visible { outline: none; box-shadow: var(--duna-ring); }
+
+/* ── ÍTEM DE MENÚ DESPLEGABLE · el dropdown de acciones por fila ──────────────
+   El panel no tiene una primitiva de menú desplegable: el UserMenu y el ⌘K usan
+   sus propios (shadcn/cmdk), y el único menú hand-rolled es el de acciones por
+   fila de la pantalla de Equipo (cambiar rol, activar/desactivar). Esto es su
+   ítem: fila a lo ancho, con hover de tinte y estado deshabilitado.
+
+   ADMIN-LEVEL, prefijo `admin-` y no `duna-`, por la MISMA regla que `.admin-foco`
+   y `.admin-tooltip`: un solo archivo consumidor. Con un segundo menú que lo
+   comparta, se renombra y se muda al paquete (§ la regla del segundo consumidor). */
+.admin-menu-item {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--duna-space-2);
+  width: 100%; padding: var(--duna-space-2) var(--duna-space-3);
+  font: inherit; font-size: var(--duna-text-body); text-align: left;
+  background: none; border: none; color: var(--duna-ink); cursor: pointer;
+  transition: background var(--duna-dur-fast) var(--duna-ease);
+}
+.admin-menu-item:hover { background: var(--duna-wash-hover); }
+.admin-menu-item:disabled { opacity: 0.6; cursor: not-allowed; }
+.admin-menu-item:disabled:hover { background: transparent; }
+/* La acción de estado (activar/desactivar) lleva su motivo debajo cuando está
+   bloqueada, así que apila en columna en vez de repartir en fila. */
+.admin-menu-item--col { flex-direction: column; align-items: flex-start; gap: 2px; }
