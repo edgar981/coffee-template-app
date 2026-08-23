@@ -1257,6 +1257,30 @@ pago sobre orden cancelada necesita un estado (reembolsado / retenido) y si el i
 resta. Las cuatro superficies leen la misma definición, así que el cambio es en UN sitio
 (`REVENUE_ORDER_SCOPE` + el nuevo estado del `Payment`), no en cuatro.
 
+### 42. Un hilo del fondo asoma bajo el shell de alto fijo
+
+En las pantallas de **alto fijo** —Pedidos, Inventario, y cualquiera con `.duna-pantalla-fija`
+o `.duna-sin-split`— asoma un **hilo del color del fondo** pegado al borde inferior del
+viewport. NO aparece en las de document-scroll (Dashboard, Analítica, Automatizaciones).
+
+**Diagnóstico, escrito para no re-diagnosticarlo** (2026-08-23): sale del `height: 100dvh`
+que esas pantallas ponen en `main:has(.duna-pantalla-fija)` / `main:has(.duna-sin-split)`
+(`duna.css:126,177`). El `100dvh` no calza exacto con el área visible —redondeo sub-pixel,
+o `dvh` contra el alto real del viewport— y por debajo del `main` queda un pelo del fondo
+del body. **Descartado el otro candidato** (que un scroller de la región no llenara y
+asomara el fondo debajo): en Pedidos el `.duna-split` LLENA la región con `flex-grow: 1`
+(`duna.css:148-153`), así que ahí no hay hueco de contenido — y el hilo igual está. El
+discriminador en pantalla: el hilo está FIJO al borde inferior sin importar el contenido ni
+el scroll (100dvh), no crece con listas cortas (eso sería el scroller, descartado).
+
+**Costo YA pagado: ninguno** — es cosmético, un hilo de 1px. **Pre-existente**, no de una
+tanda reciente (el shell de alto fijo).
+
+**DISPARADOR: una tanda de acabado del shell con gate visual propio** (junto a `#23`, las
+barras de scroll tokenizadas — misma clase de pulido). NO tocar la cadena de altura del
+shell por un píxel fuera de eso: **costó dos rondas afinarla** (§ La cadena de altura),
+y el riesgo de re-romper el alto fijo por un hilo cosmético no lo vale.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
