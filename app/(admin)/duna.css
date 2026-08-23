@@ -124,7 +124,15 @@ html.admin {
 @media (min-width: 1080px) {
   /* El chrome ofrece la altura SÓLO si la página opta (`.duna-pantalla-fija`). */
   .admin-shell main:has(.duna-pantalla-fija)       { height: 100dvh; min-height: 0; }
-  .admin-shell main:has(.duna-pantalla-fija) > div { height: 100%;   min-height: 0; }
+  /* `padding-bottom: 0` — el wrapper de `<main>` (`AdminChrome`) trae `p-6` = 24px por
+     lado. En document-scroll ese padding inferior es el aire bajo el último contenido
+     y hace falta; pero con `height: 100%` el padding queda ATRAPADO dentro del viewport
+     fijo —el contenido termina 24px arriba del borde y esos 24px muestran el fondo: la
+     "banda"—. Se zera SÓLO el inferior; el superior y el lateral se quedan (dan el aire
+     bajo la topbar y el margen del rail, que la cadena no provee). Las columnas del split
+     ya traen sus 16px de aire propio, así que el contenido no queda a ras. Ver el § de
+     la banda de fondo en CLAUDE.md (#42) — qué era y quién lo encontró. */
+  .admin-shell main:has(.duna-pantalla-fija) > div { height: 100%;   min-height: 0; padding-bottom: 0; }
 
   /* El page root: dos filas —cabecera (auto, no scrollea) y región (1fr)—. */
   .duna-pantalla-fija { height: 100%; min-height: 0; display: grid; grid-template-rows: auto 1fr; }
@@ -176,7 +184,11 @@ html.admin {
    lo que se repite es sólo la ACTIVACIÓN del contenedor de alto fijo. */
 @media (min-width: 960px) {
   .admin-shell main:has(.duna-sin-split)       { height: 100dvh; min-height: 0; }
-  .admin-shell main:has(.duna-sin-split) > div { height: 100%;   min-height: 0; }
+  /* `padding-bottom: 0`: mismo motivo que el bloque de 1080 —el `p-6` inferior del
+     wrapper queda atrapado por el `height: 100%` y muestra la banda del fondo—. Acá
+     el aire del último renglón lo debe dar el SCROLLER de la región (Inventario/Pagos
+     no tienen columnas con padding propio como el split); se verifica en el gate. */
+  .admin-shell main:has(.duna-sin-split) > div { height: 100%;   min-height: 0; padding-bottom: 0; }
   .duna-sin-split { height: 100%; min-height: 0; display: grid; grid-template-rows: auto 1fr; }
   .duna-sin-split .duna-region     { min-height: 0; display: flex; flex-direction: column; }
   /* Encoge y scrollea (grow 0: corto se queda a su alto natural, no estira) — la
@@ -186,6 +198,44 @@ html.admin {
      columnas se corrían ~15px al aparecer/desaparecer la barra. Mismo trade-off que
      allá: consistencia del ancho sobre no reservar espacio en listas cortas. */
   .duna-sin-split .duna-region > * { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
+}
+
+/* ═══ BARRAS DE SCROLL DEL PANEL · pulgar fino, SIN banda ══════════════════════
+   El panel no tenía ningún estilo de barra: todas mostraban la del navegador, con
+   su CANAL (track) como una banda de fondo visible contrastando contra la página.
+   Lo que molesta es la banda, no el pulgar (referencia: el pulgar flota sin canal
+   detrás).
+
+   UNA regla, no una por scroller: `scrollbar-width` y `scrollbar-color` HEREDAN, así
+   que puestas en `html.admin` cascadean al scroll del DOCUMENTO y a los ~7 scrollers
+   anidados (columnas del split, `.duna-cards`, la región de `.duna-sin-split`, el
+   cuerpo de sheets y modales) de una vez, sin declaraciones repetidas que diverjan.
+   El storefront no la lleva (su `<html>` no tiene `.admin`).
+
+   `transparent` en el TRACK es el objetivo: el canal muestra el fondo del elemento a
+   través → sin banda. Firefox y Chromium lo respetan; ambos soportan las dos props
+   (Chrome 121+, Firefox siempre). En Chrome <121 se ignoran → barra default
+   (degradación, no roto).
+
+   NADA de `::-webkit-scrollbar`: fuerza barras PERSISTENTES a quien las tiene en
+   overlay, y esa preferencia es del usuario (su OS), no nuestra. Las props estándar
+   respetan overlay/persistente.
+
+   EL PULGAR ES `--duna-muted`, NO `--duna-border-2`, y es una decisión MEDIDA: el
+   borde-2 contra `--duna-bg` da 1.30:1 en claro / 1.53:1 en oscuro (ΔE2000 7.3 / 11.4)
+   —por debajo del 3:1 de WCAG 1.4.11 para un componente de UI—, o sea un pulgar casi
+   invisible que pierde la señal "hay más abajo", que es el trabajo de la barra. `muted`
+   da 4.62:1 / 6.27:1 (ΔE2000 37.9 / 45.8): visible pero discreto (es texto secundario),
+   y flipea con el tema como `--duna-bg`.
+
+   CONSECUENCIA MEDIDA: `scrollbar-width: thin` baja el canal reservado por
+   `scrollbar-gutter: stable` de 15px a 11px (Chrome). Barra y canal SIEMPRE cuadran
+   —los gobierna la misma `scrollbar-width`—, así que no hay desajuste; el efecto es que
+   los 4 scrollers con gutter reservan 4px menos y su contenido se ensancha ~4px. Es
+   reflow, no defecto. */
+html.admin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--duna-muted) transparent;
 }
 
 /* ═══ EL GRÁFICO DE PAGOS · la curva sobre el tiempo (bespoke admin, no DS) ════

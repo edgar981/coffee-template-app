@@ -576,6 +576,40 @@ sidebar—, y dos formas para lo mismo es cómo la próxima pantalla elige sin c
   de VISIBILIDAD en táctil del total del bucket se CERRÓ el 2026-08-20 —el total se
   alcanza por la frase al acotar, no por el hover— (§ Pagos — la FRASE y la CURVA).
 
+## Los DOS modelos de scroll del panel conviven A PROPÓSITO — es el estado FINAL
+
+Cerrado el 2026-08-23 (era el § Backlog #22, "la consolidación del alto fijo global").
+El panel tiene dos modelos de scroll, y **eso no es deuda transitoria esperando una
+consolidación: es el diseño permanente.**
+
+| Modelo | Pantallas | Por qué |
+| --- | --- | --- |
+| **Alto fijo** (`.duna-pantalla-fija` ≥1080 con split; `.duna-sin-split` ≥960 sin split) | Pedidos, Clientes, Productos, Inventario, Pagos | tienen forma de LISTA: una respuesta o cabecera fija sobre un cuerpo que scrollea |
+| **Document-scroll** | Dashboard, Analítica, Automatizaciones, Configuración, Perfil | son CONTENIDO/FORMULARIO heterogéneo: no hay una lista homogénea que fijar |
+
+**Por qué se cerró el ítem sin hacerlo:** #22 proponía UNA cosa —subir el alto fijo al
+chrome para TODAS las páginas y retirar el opt-in—. Pero **cinco** pantallas quieren
+document-scroll legítimamente (dos excepciones formales —Analítica, Automatizaciones— más
+Dashboard, Configuración y Perfil, que son contenido y formularios). Forzarles alto fijo
+fijaría el chrome y scrollearía el contenido, justo al revés de lo que sirve. La
+consolidación no se puede ejecutar, y no porque falte trabajo: **porque su premisa es
+falsa.** Lo que parecía un intermedio resultó ser el estado final.
+
+- **El opt-in por página ES el diseño permanente**, no un andamio. Una vertical de LISTA
+  futura opta con el marcador que ya existe (`.duna-pantalla-fija` / `.duna-sin-split`); una
+  de contenido no pone nada y queda en document-scroll. No hay un "shell global" pendiente.
+- **Las excepciones ya no son excepciones a un disparador** —eran "Analítica/Automatizaciones
+  NO adoptan el alto fijo, o el disparador nunca se cumple"—. Con el ítem cerrado, son
+  simplemente pantallas de contenido: Analítica porque sus respuestas (los Titulares) viven
+  DENTRO de bloques que crecen; Automatizaciones porque su rejilla cabe en un viewport; y
+  Dashboard/Configuración/Perfil por lo mismo. Si alguna cambiara de anatomía a "respuesta
+  fija sobre lista" (como la frase de Pagos), optaría al alto fijo —pero eso es un rediseño
+  de esa pantalla, no una consolidación del shell—.
+- **#25 SIGUE VIVO y aparte.** #22 decía que "absorbía a #25" (el gateo por VALOR 1080 vs 960
+  duplicado), pero sólo lo habría absorbido si el chrome proveía la altura global. Cerrado
+  #22 sin hacerse, la cadena de altura duplicada sigue ahí y **#25 queda con su disparador
+  intacto: una TERCERA página sin split.** No se cierra con éste.
+
 ## Backlog técnico
 
 **EL registro único de deuda conocida.** Existe porque antes vivía repartida
@@ -887,6 +921,19 @@ de scroll comunica. El acabado tiene que conservar esa señal.
 **DISPARADOR: una tanda de acabado del shell**, con gate visual propio (el cambio
 se ve, y hay que verlo en los dos temas).
 
+**ESTADO (2026-08-23): APLICADO, pendiente de gate.** Una regla HEREDADA en
+`html.admin` (`scrollbar-width: thin; scrollbar-color: var(--duna-muted) transparent;`,
+`duna.css`) —no ad-hoc por scroller ni una utilidad: las dos props heredan, así que
+cubren el documento y los ~7 scrollers anidados de una—. **SIN `::-webkit-scrollbar`**
+(fuerza barras persistentes a quien usa overlay; su preferencia, no la nuestra — la
+línea de arriba que lo mencionaba está desactualizada respecto a esta decisión). El
+`transparent` del track quita la BANDA, que es lo que molestaba. **El pulgar es `muted`,
+no `border-2`, MEDIDO**: border-2 daba 1.30:1 claro / 1.53:1 oscuro (por debajo del 3:1
+de un componente UI); muted da 4.62 / 6.27 — visible pero discreto, conserva la señal
+"hay más". Efecto medido: el canal de `scrollbar-gutter: stable` baja 15→11px (barra y
+canal siguen cuadrando); reflow de ~4px en los 4 scrollers con gutter, no defecto. Cierra
+sólo cuando el gate confirme el pulgar visible sin banda en los dos temas.
+
 ### 25. Las reglas del alto fijo están gateadas a un VALOR (1080), no a un ROL
 
 El alto fijo de las pantallas de split se activa en `@media (min-width: 1080px)`
@@ -908,65 +955,6 @@ duplicación deja de ser una excepción y pasa a ser un patrón, y toca invertir
 gateo: que el umbral sea un parámetro del ROL (split → 1080, sin split → 960), no un
 literal repetido por bloque. Con dos consumidores (split + Inventario) todavía es más
 barato duplicar que generalizar; con tres, no.
-
-### 22. El alto fijo es OPT-IN por página, no del chrome — la consolidación global
-
-Hoy el alto fijo se activa página por página (`.duna-pantalla-fija` a 1080,
-`.duna-sin-split` a 960), con el chrome ofreciendo la altura por `main:has(...)`. El
-resto del admin —Dashboard, Analítica, Automatizaciones, Pagos, Entregas y las demás
-sin rediseñar— sigue en document-scroll. Conviven DOS modelos de scroll en el panel.
-
-La consolidación es subir el alto fijo al CHROME (`AdminChrome`): que provea la
-altura para TODAS las páginas y se retiren el document-scroll y los marcadores
-opt-in. Es la opción D1(a) que la tanda del shell difirió a propósito.
-
-**Costo YA pagado: ninguno.** El opt-in por página funciona y la mezcla es coherente
-por ahora; es deuda con fecha, no una herida.
-
-**DISPARADOR: cuando las verticales restantes usen el modelo del split/región**
-(decisión D1(b) del owner, tanda del shell). No se hace antes a propósito: varias de
-esas pantallas se van a reconstruir, así que meterlas hoy en el shell nuevo es
-trabajo que se rehace, con gate sobre pantallas que van a desaparecer. El shell
-global entra AL FINAL, como consolidación. Absorbe a #25: el gateo por valor vs rol
-deja de existir cuando el chrome provee la altura global.
-
-**EXCEPCIÓN PERMANENTE, DECLARADA: ANALÍTICA NO ADOPTA EL ALTO FIJO** (owner,
-2026-08-20, tanda 2 del rediseño). Y hay que nombrarla acá o este disparador **no se
-cumple nunca**: decía "cuando las verticales restantes usen el modelo", y con una
-que se queda fuera a propósito esa condición no puede completarse — el mismo error de
-disparador que ya se corrigió en #27 y en la gráfica del carrusel.
-
-El motivo NO es que no encaje mecánicamente (encajaría: sería `.duna-sin-split` como
-Inventario). Es que **el patrón fijaría lo que no vale.** En Pagos la zona fija
-sostiene la FRASE —la respuesta— y scrollea el libro; en Analítica **las respuestas
-son los Titulares y viven DENTRO de los bloques**, así que fijar el header pinaría el
-`h1` y el chip mientras las cuatro respuestas se van scrolleando: se congelaría el
-chrome y se movería el contenido, justo al revés. Y su contenido no es una lista
-homogénea sino cuatro bloques heterogéneos con pliegues que crecen.
-
-**El disparador, entonces, se lee así: cuando las verticales restantes MENOS
-ANALÍTICA usen el modelo.** Si algún día Analítica cambia de anatomía —si su
-respuesta sube a una zona fija, como la frase de Pagos— esta excepción se revisa; no
-antes.
-
-**SEGUNDA EXCEPCIÓN DECLARADA: AUTOMATIZACIONES TAMPOCO ADOPTA EL ALTO FIJO** (owner,
-2026-08-21, decidido en el discovery de su rediseño). Y va acá por lo mismo que la
-primera: sin nombrarla, el disparador —"las verticales restantes"— nunca se cumple.
-Son DOS excepciones ahora, no una.
-
-El motivo NO es que no encaje: es que **con la rejilla no hace falta.** La pantalla es
-una rejilla de 3 columnas y ocho tarjetas —tres filas—, así que el catálogo entero
-prácticamente cabe en un viewport de escritorio (medido: ~704px de contenido contra
-~734 disponibles a 1440×900). El único scroll real lo produce abrir un acordeón de
-historial, y el alto fijo sólo pinnearía el header para pinnear el roll-up de fallo,
-que es condicional y raro. Fijar la altura sería complejidad sin pago. Se decidió
-**document-scroll con el número de la rejilla delante**, no antes — igual que la regla
-de la pantalla de uso real exige medir en el sitio real.
-
-**El disparador, corregido de nuevo: cuando las verticales restantes MENOS ANALÍTICA
-Y AUTOMATIZACIONES usen el modelo.** Si Automatizaciones dejara de ser una rejilla que
-cabe —si creciera a docenas de automatizaciones y el catálogo dejara de entrar—, esta
-excepción se revisa; no antes.
 
 ### 26. El date-range picker no navega a años ANTERIORES al año-piso
 
@@ -1240,29 +1228,46 @@ pago sobre orden cancelada necesita un estado (reembolsado / retenido) y si el i
 resta. Las cuatro superficies leen la misma definición, así que el cambio es en UN sitio
 (`REVENUE_ORDER_SCOPE` + el nuevo estado del `Payment`), no en cuatro.
 
-### 42. Un hilo del fondo asoma bajo el shell de alto fijo
+### 42. La banda de fondo bajo el alto fijo ERA el padding-bottom de `p-6`
 
-En las pantallas de **alto fijo** —Pedidos, Inventario, y cualquiera con `.duna-pantalla-fija`
-o `.duna-sin-split`— asoma un **hilo del color del fondo** pegado al borde inferior del
-viewport. NO aparece en las de document-scroll (Dashboard, Analítica, Automatizaciones).
+En las pantallas de **alto fijo** (Pedidos, Clientes, Productos, Inventario, Pagos) aparecía
+una **banda del color del fondo** pegada al borde inferior del viewport; NO en las de
+document-scroll.
 
-**Diagnóstico, escrito para no re-diagnosticarlo** (2026-08-23): sale del `height: 100dvh`
-que esas pantallas ponen en `main:has(.duna-pantalla-fija)` / `main:has(.duna-sin-split)`
-(`duna.css:126,177`). El `100dvh` no calza exacto con el área visible —redondeo sub-pixel,
-o `dvh` contra el alto real del viewport— y por debajo del `main` queda un pelo del fondo
-del body. **Descartado el otro candidato** (que un scroller de la región no llenara y
-asomara el fondo debajo): en Pedidos el `.duna-split` LLENA la región con `flex-grow: 1`
-(`duna.css:148-153`), así que ahí no hay hueco de contenido — y el hilo igual está. El
-discriminador en pantalla: el hilo está FIJO al borde inferior sin importar el contenido ni
-el scroll (100dvh), no crece con listas cortas (eso sería el scroller, descartado).
+**LA CAUSA REAL** (2026-08-23): el wrapper de `<main>` (`AdminChrome.tsx:87`,
+`animate-fade-in duna-nav-hueco p-6`) trae `p-6` = **24px por lado**. En document-scroll ese
+`padding-bottom` es el aire bajo el último contenido —hace falta—. Pero la cadena de alto fijo
+le pone `height: 100%` a ese wrapper (`duna.css`, `main:has(.duna-pantalla-fija) > div` /
+`main:has(.duna-sin-split) > div`) **sin quitarle el padding**, así que los 24px inferiores
+quedan ATRAPADOS dentro del viewport: el contenido termina 24px arriba del borde y esos 24px
+muestran el fondo. Eso es la banda — padding, no un píxel.
 
-**Costo YA pagado: ninguno** — es cosmético, un hilo de 1px. **Pre-existente**, no de una
-tanda reciente (el shell de alto fijo).
+**El fix:** `padding-bottom: 0` en esos dos wrappers, scopeado por el `main:has(...)` que la
+cadena YA usa —así las cinco de document-scroll conservan su aire inferior intacto—. El
+superior y el lateral de `p-6` se QUEDAN (dan el aire bajo la topbar y el margen del rail, que
+la cadena no provee). En el split, las columnas ya traen 16px de aire propio; en sin-split
+(Inventario/Pagos) el aire del último renglón lo debe dar el scroller —**a verificar en el
+gate; si pasa, el aire va en el scroller, no en el wrapper**—.
 
-**DISPARADOR: una tanda de acabado del shell con gate visual propio** (junto a `#23`, las
-barras de scroll tokenizadas — misma clase de pulido). NO tocar la cadena de altura del
-shell por un píxel fuera de eso: **costó dos rondas afinarla** (§ La cadena de altura),
-y el riesgo de re-romper el alto fijo por un hilo cosmético no lo vale.
+**QUIÉN LO ENCONTRÓ, Y ES LA LECCIÓN: el owner, mirando la pantalla — después de DOS
+diagnósticos (uno de Claude Code, otro de la sesión de asesoría) que se sostuvieron sobre el
+CSS y eran FALSOS.** El primero: "`100dvh` no calza con el área visible, asoma un píxel del
+body". El segundo: "es el CANVAS del root, `<html>` sin `background`" — y hasta se aplicó
+`html.admin { background }`, que **se revirtió** porque tapaba un píxel que no era el problema
+(la banda es padding, está DELANTE del canvas). Los dos eran coherentes leyendo el CSS y
+ninguno era la causa.
+
+Es la **TERCERA vez en la sesión** que un diagnóstico derivado del CSS resulta falso y la
+respuesta estaba en la pantalla, no en el archivo. Es la misma familia que
+**§ REGLA · un número de layout sólo vale si viene de la pantalla donde se TRABAJA**, y es su
+ejemplo MÁS LIMPIO: *el CSS explicaba una banda que era otra cosa.* Una explicación derivada
+del CSS de un defecto VISUAL es una hipótesis, no un diagnóstico — se confirma contra el píxel
+renderizado, no contra la coherencia del código. Cuando el que ve la pantalla dice otra cosa,
+gana la pantalla.
+
+**ESTADO: fix aplicado, pendiente del gate visual** (las cinco de alto fijo, ambos temas, +
+el chequeo de la última fila en Inventario/Pagos). Cierra cuando el gate confirme que la banda
+se fue y nada quedó a ras.
 
 ## Mejoras post-multitenant
 
@@ -4671,10 +4676,10 @@ abajo.
 
 ### La anatomía
 
-- **Rejilla de tarjetas** (3/2/1), **document-scroll declarado** — las 8 caben casi
-  de una, así que el alto fijo sería complejidad sin pago. Es la SEGUNDA excepción
-  del § Backlog #22, junto a Analítica (sin nombrarla, el disparador del #22 no se
-  cumple nunca).
+- **Rejilla de tarjetas** (3/2/1), **document-scroll** — las 8 caben casi de una, así
+  que el alto fijo sería complejidad sin pago. Es una de las cinco pantallas de
+  contenido que van document-scroll a propósito (§ Los DOS modelos de scroll conviven
+  a propósito — el estado final, ya no un disparador que cumplir).
 - **Cabecera eyebrow + título + nota.** Los tres stats viejos (activos / disponibles
   / ejecuciones totales) se retiraron: dos duplicaban lo que las tarjetas dicen y el
   tercero era un acumulado incomparable.
