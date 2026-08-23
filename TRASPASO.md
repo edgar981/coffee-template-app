@@ -46,6 +46,17 @@ Vercel, `main` = producción).
 
 ### Pendientes de rediseño
 Configuración, Perfil.
+
+### Datos sembrados en DEV (se conservan por decisión del owner)
+
+`development` (ep-still-sound) tiene una siembra de DEMO del Dashboard "Hoy"
+(2026-08-23): **9 órdenes** (CN-HOY001..008 con producto + CN-HOY009 sin producto,
+la fila de texto plano del top-hoy), **6 pagos** y **2 notificaciones no leídas**
+`orden_recibida`. El owner las conserva para ver el sistema con datos, no con la
+base casi vacía. **NO borrar sin pedirlo.** El día que haya que limpiarla, el
+manifiesto de ids exactos vive en **`scripts/seed-hoy-manifiesto.json`** — borrar
+por id exacto (nunca por prefijo ni rango) es la única forma segura, y ese archivo
+lleva la nota de cómo y contra qué verificar (§ la regla de las bases de datos).
 **Todas en document-scroll** (el `min-h-screen` por defecto de `AdminChrome`).
 No son convivencias — son pantallas que aún no se tocaron.
 
