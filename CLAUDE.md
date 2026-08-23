@@ -113,6 +113,30 @@ cuando el test nunca se había ejercido.
 que haya quedado.** Y el modo de falla es peor que no probar: devuelve un
 veredicto con toda la apariencia de ser válido.
 
+### Una siembra para gate CADUCA al cruzar la medianoche de Bogotá
+
+Cuando un gate visual necesita datos —y se siembran con el método reversible
+(manifiesto de ids, borrado por id exacto, § la tanda de concentración)—, esa
+siembra tiene **fecha de vencimiento** si la pantalla mide "hoy". Una tarjeta,
+frase o curva de scope HOY filtra por la ventana `[startOfZonedDay, +1d)` de
+Bogotá; los datos sembrados con `createdAt`/`fecha` de AYER caen fuera de esa
+ventana en cuanto el reloj cruza las 00:00 de Bogotá. El gate entonces ve los
+estados-vacíos ("$0", "sin pedidos hoy") y **eso se lee como un bug de la
+pantalla nueva cuando es sólo la siembra rancia** — la misma familia que el
+artefacto rancio (§ PRECONDICIÓN): *lo que se sembró ayer no prueba la pantalla
+de hoy.*
+
+Instaurada el 2026-08-23 (rediseño del Dashboard "Hoy"): se sembró a las ~09:00
+Bogotá, se verificó verde (hero $200k, curva con datos), y el gate corrió al día
+siguiente contra una siembra que ya era de ayer — hero en $0. La verificación de
+la siembra había sido correcta; caducó.
+
+**Regla: si el gate no corre el MISMO día de Bogotá en que se sembró, hay que
+resembrar antes** (borrar la anterior por su manifiesto para no acumular dos, y
+volver a sembrar — el script ancla a `startOfZonedDay(now)`, así que re-correrlo
+produce el día correcto). Y al entregar una siembra para gate, decir en qué día
+de Bogotá se hizo.
+
 ## Las tres capas de verificación
 
 Cada una mide algo que las otras no pueden, y **ninguna sustituye a las otras**.
