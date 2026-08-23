@@ -2,7 +2,6 @@
 import Link from 'next/link';
 import { useState, Fragment } from 'react';
 import { cn } from '@duna/core/utils';
-import { PanelLeftClose, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { usePathname } from "next/navigation";
 import { SidebarProps } from '@/types/admin';
@@ -10,7 +9,6 @@ import { ADMIN_NAV, type AdminNavItem } from '@/constants/admin-nav';
 import { AnimatedIcon } from '@/components/admin/AnimatedIcon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { authClient } from "@/lib/auth-client";
-import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
 import { UserMenu } from '@/components/admin/UserMenu';
 import { useAtencion } from '@/hooks/useAtencion';
 import { atencionDeRuta, type MapaAtencion } from '@/lib/atencion/registro';
@@ -176,25 +174,9 @@ function UserFooter({ compact }: { compact: boolean }) {
   );
 }
 
-// ─── Search affordance ────────────────────────────────────────────────────────
-// Icon-only control → always tooltipped ("Buscar (⌘K)"), even when the sidebar is
-// expanded (unlike nav items). Hidden on the collapsed rail (⌘K still works).
-function SearchButton({ onClick }: { onClick: () => void }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          onClick={onClick}
-          aria-label="Buscar (⌘K)"
-          className={cn(ADMIN_ICON_BUTTON, 'h-8 w-8 shrink-0')}
-        >
-          <Search className="h-4.5 w-4.5" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">Buscar (⌘K)</TooltipContent>
-    </Tooltip>
-  );
-}
+// El botón de Buscar y el toggle de colapsar salieron del rail a la topbar (§ TopBar):
+// el rail no lleva controles, sólo marca y navegación. El ⌘K sigue disponible desde
+// ahí y por atajo.
 
 // ─── Brand lockup ─────────────────────────────────────────────────────────────
 // EL MARK COMO SVG + "Duna" COMO TEXTO, no el lockup horizontal horneado. El
@@ -208,7 +190,7 @@ function SearchButton({ onClick }: { onClick: () => void }) {
 // firma del producto, no un semáforo; ya vivía en el mark colapsado.
 function BrandLockup() {
   return (
-    <div className="mt-2 flex min-w-0 items-center gap-2.5 overflow-hidden">
+    <div className="flex min-w-0 items-center gap-2.5 overflow-hidden">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/brand/duna-mark-v1.svg" alt="" aria-hidden="true" className="h-7 w-7 shrink-0 object-contain dark:hidden" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -252,7 +234,7 @@ function BrandLockup() {
 //
 // El breakpoint es `duna` (960), el del sistema — no el `lg` de 1024 que venía
 // por default y que dejaba una franja con barra inferior y rail a la vez.
-export default function Sidebar({ collapsed, onToggle, onOpenSearch }: SidebarProps) {
+export default function Sidebar({ collapsed }: SidebarProps) {
   // UNA sola consulta para todo el nav, acá y no más abajo: con el rail colapsado
   // hay dos `SidebarNav` montados a la vez, así que el hook viviría duplicado.
   // `MobileNav` tiene la suya y no comparte ésta: las dos superficies nunca están
@@ -271,46 +253,29 @@ export default function Sidebar({ collapsed, onToggle, onOpenSearch }: SidebarPr
           collapsed && 'duna:w-18',
         )}
       >
-        {/* Header — brand + (expanded only) search & collapse toggle. SIN línea
-            divisoria: la separación con el nav la da el espacio, no un borde (el rail
-            de la maqueta no lo tiene). */}
+        {/* Header — SÓLO la marca. Buscar y el toggle de colapsar se unificaron en la
+            topbar (§ TopBar): el rail de la maqueta no lleva controles, sólo marca y
+            navegación. SIN divisoria (la separación la da el espacio).
+
+            El alto se queda en 64px (`h-16`) en los DOS estados, para que el borde
+            superior alinee con la topbar y no se vea escalonado. Dentro: expandido va
+            ARRIBA con `pt-4` (16px), y los ~18px de abajo salen del alto fijo (§ la
+            maqueta: 16 arriba / 18 abajo); colapsado centra el mark. */}
         <div className={cn(
-          'relative flex h-16 shrink-0 items-center gap-2 px-3',
-          collapsed && 'duna:justify-center',
+          'relative flex h-16 shrink-0 items-start px-3 pt-4',
+          collapsed && 'duna:items-center duna:justify-center duna:pt-0',
         )}>
-          {/* Full lockup — hidden only on the collapsed desktop rail */}
+          {/* Lockup expandido */}
           <div className={cn('min-w-0 flex-1', collapsed && 'duna:hidden')}>
             <BrandLockup />
           </div>
 
-          {/* Mark — collapsed desktop rail only */}
+          {/* Mark — rail colapsado */}
           <div className={cn('hidden', collapsed && 'duna:flex duna:items-center duna:justify-center')}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/duna-mark-v1.svg" alt="Duna" className="h-6 w-6 object-contain dark:hidden" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/duna-mark-negative-v1.svg" alt="Duna" className="hidden h-6 w-6 object-contain dark:block" />
-          </div>
-
-          {/* Search — expanded rail only; hidden on the collapsed rail (⌘K sigue) */}
-          <div className={cn('shrink-0', collapsed && 'duna:hidden')}>
-            <SearchButton onClick={onOpenSearch} />
-          </div>
-
-          {/* Collapse toggle — expanded desktop rail only (when collapsed it lives
-              in the top bar). PanelLeftClose = "collapse". */}
-          <div className={cn('hidden', !collapsed && 'duna:block')}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={onToggle}
-                  aria-label="Colapsar panel"
-                  className={cn(ADMIN_ICON_BUTTON, 'h-8 w-8 shrink-0')}
-                >
-                  <PanelLeftClose className="h-4.5 w-4.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Colapsar panel</TooltipContent>
-            </Tooltip>
           </div>
         </div>
 
