@@ -41,8 +41,8 @@ Vercel, `main` = producción).
 | `/admin/productos` | Completa | Igual, con clase condicional (cuadrícula sin selección queda en document-scroll) |
 | `/admin/inventario` | Completa, encogida a auditoría | Alto fijo ≥960 (`.duna-sin-split`), scroller único |
 | `/admin/pagos` | Completa (frase + curva) | Alto fijo ≥960 (`.duna-sin-split`), scroller único; **el gráfico va en la zona fija** |
-| `/admin/analitica` | Completa (cuatro preguntas de dueño, titulares) | Document-scroll (excepción declarada — § Backlog #22) |
-| `/admin/automatizaciones` | Completa (rejilla, señal de vida, historial) | Document-scroll (excepción declarada — § Backlog #22) |
+| `/admin/analitica` | Completa (cuatro preguntas de dueño, titulares) | Document-scroll (estado final — § Los DOS modelos de scroll) |
+| `/admin/automatizaciones` | Completa (rejilla, señal de vida, historial) | Document-scroll (estado final — § Los DOS modelos de scroll) |
 | `/admin/dashboard` | Completa ("Hoy": hero + curva por hora + top-hoy + tarjetas) | Document-scroll |
 | `/admin/configuracion` | Completa (Equipo y usuarios — el hub desapareció; #1 cerrado) | Document-scroll |
 | `/admin/perfil` | Completa (cuenta limpia + cambiar contraseña real) | Document-scroll |
@@ -521,16 +521,20 @@ Reglas: va ordenada y **el orden es la decisión**; el número es identidad, no
 posición. Cada entrada dice el **costo ya pagado**. Un ítem completado **se borra**.
 
 Vivos: `#2` · `#3` · `#4` · `#5` · `#8` · `#10` · `#16` · `#18` · `#19` · `#20` ·
-`#21` · `#22` · `#23` · `#25` · `#26` · `#27` · `#32` · `#33` · `#34` · `#35` ·
-`#36` · `#37` · `#38` · `#39` · `#41` · `#42`. (`#1` cerrado esta tanda.)
+`#21` · `#23` · `#25` · `#26` · `#27` · `#32` · `#33` · `#34` · `#35` ·
+`#36` · `#37` · `#38` · `#39` · `#41` · `#42`. (`#1` y `#22` cerrados; `#22` no por
+hacerse sino por resolverse solo — la consolidación ya no aplica.)
 
 ---
 
 ## 9. Decisiones estructurales que no se reabren
 
-- **Dos modelos de scroll conviven a propósito.** Deuda **con fecha**: cada
-  vertical adopta la región cuando se rediseñe; el shell global entra al final
-  como consolidación (`#22`).
+- **Dos modelos de scroll conviven a propósito — y es el estado FINAL, no deuda.**
+  Listas (Pedidos, Clientes, Productos, Inventario, Pagos) → alto fijo; contenido y
+  formularios (Dashboard, Analítica, Automatizaciones, Configuración, Perfil) →
+  document-scroll. El opt-in por página (`.duna-pantalla-fija` / `.duna-sin-split`) es
+  el diseño permanente; NO hay un "shell global" pendiente. Cerró `#22` (§ CLAUDE.md
+  "Los DOS modelos de scroll conviven a propósito"). `#25` sigue vivo aparte.
 - **El auto-select** re-evalúa al cambiar carril, rango o buscador. Si el
   seleccionado sigue presente **se conserva**; si no, se toma el primero; carril
   vacío → placeholder. El deep link gana en la carga inicial. Alcance: Pedidos y
@@ -563,17 +567,17 @@ Vivos: `#2` · `#3` · `#4` · `#5` · `#8` · `#10` · `#16` · `#18` · `#19` 
 
 **TODAS las pantallas del panel están rediseñadas** (Pedidos, Clientes, Productos,
 Inventario, Pagos, Analítica, Automatizaciones, Dashboard, Configuración/Equipo,
-Perfil). No queda una vertical heredada del template. Lo que queda es acabado y
-consolidación, no pantallas nuevas:
+Perfil). No queda una vertical heredada del template. Lo que queda es acabado, no
+pantallas nuevas ni consolidación (`#22` cerró — los dos modelos de scroll son el
+estado final, § 9):
 
-1. **La consolidación del alto fijo global** (§ Backlog #22): subir la altura al
-   chrome cuando las verticales restantes usen el modelo del split/región — con las
-   DOS excepciones permanentes ya declaradas (Analítica y Automatizaciones quedan en
-   document-scroll a propósito). Configuración y Perfil nacieron document-scroll y
-   también quedan fuera del alto fijo (su contenido es formularios/listas, no una
-   respuesta fija sobre una lista que scrollea).
-2. **`#23`** (barras de scroll tokenizadas) como tanda de acabado con gate visual
-   propio.
+1. **`#23`** (barras de scroll tokenizadas) como tanda de acabado con gate visual
+   propio. Técnica estándar (`scrollbar-width` + `scrollbar-color`, canal transparente,
+   sin `::-webkit-scrollbar`); el pulgar en `--duna-border-2`.
+2. **`#42`** (el hilo de fondo bajo el alto fijo): opción 1 = pintar el canvas del
+   root (`html.admin`) con `--duna-bg`, sin tocar la cadena de altura. Si el gate
+   muestra que no cubre el hilo, se PARA — tocar la cadena por un píxel se decide con
+   el gate fallido delante, no antes.
 3. Backlog cuando sus disparadores se cumplan. Entre ellos el de la última tanda de
    pantallas: **#41** (qué pasa con un pago cuando la orden se cancela), y ahora
    `InviteUserModal` → `DunaDialog` con los diálogos que le faltan a H6.

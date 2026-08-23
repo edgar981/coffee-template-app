@@ -576,6 +576,40 @@ sidebar—, y dos formas para lo mismo es cómo la próxima pantalla elige sin c
   de VISIBILIDAD en táctil del total del bucket se CERRÓ el 2026-08-20 —el total se
   alcanza por la frase al acotar, no por el hover— (§ Pagos — la FRASE y la CURVA).
 
+## Los DOS modelos de scroll del panel conviven A PROPÓSITO — es el estado FINAL
+
+Cerrado el 2026-08-23 (era el § Backlog #22, "la consolidación del alto fijo global").
+El panel tiene dos modelos de scroll, y **eso no es deuda transitoria esperando una
+consolidación: es el diseño permanente.**
+
+| Modelo | Pantallas | Por qué |
+| --- | --- | --- |
+| **Alto fijo** (`.duna-pantalla-fija` ≥1080 con split; `.duna-sin-split` ≥960 sin split) | Pedidos, Clientes, Productos, Inventario, Pagos | tienen forma de LISTA: una respuesta o cabecera fija sobre un cuerpo que scrollea |
+| **Document-scroll** | Dashboard, Analítica, Automatizaciones, Configuración, Perfil | son CONTENIDO/FORMULARIO heterogéneo: no hay una lista homogénea que fijar |
+
+**Por qué se cerró el ítem sin hacerlo:** #22 proponía UNA cosa —subir el alto fijo al
+chrome para TODAS las páginas y retirar el opt-in—. Pero **cinco** pantallas quieren
+document-scroll legítimamente (dos excepciones formales —Analítica, Automatizaciones— más
+Dashboard, Configuración y Perfil, que son contenido y formularios). Forzarles alto fijo
+fijaría el chrome y scrollearía el contenido, justo al revés de lo que sirve. La
+consolidación no se puede ejecutar, y no porque falte trabajo: **porque su premisa es
+falsa.** Lo que parecía un intermedio resultó ser el estado final.
+
+- **El opt-in por página ES el diseño permanente**, no un andamio. Una vertical de LISTA
+  futura opta con el marcador que ya existe (`.duna-pantalla-fija` / `.duna-sin-split`); una
+  de contenido no pone nada y queda en document-scroll. No hay un "shell global" pendiente.
+- **Las excepciones ya no son excepciones a un disparador** —eran "Analítica/Automatizaciones
+  NO adoptan el alto fijo, o el disparador nunca se cumple"—. Con el ítem cerrado, son
+  simplemente pantallas de contenido: Analítica porque sus respuestas (los Titulares) viven
+  DENTRO de bloques que crecen; Automatizaciones porque su rejilla cabe en un viewport; y
+  Dashboard/Configuración/Perfil por lo mismo. Si alguna cambiara de anatomía a "respuesta
+  fija sobre lista" (como la frase de Pagos), optaría al alto fijo —pero eso es un rediseño
+  de esa pantalla, no una consolidación del shell—.
+- **#25 SIGUE VIVO y aparte.** #22 decía que "absorbía a #25" (el gateo por VALOR 1080 vs 960
+  duplicado), pero sólo lo habría absorbido si el chrome proveía la altura global. Cerrado
+  #22 sin hacerse, la cadena de altura duplicada sigue ahí y **#25 queda con su disparador
+  intacto: una TERCERA página sin split.** No se cierra con éste.
+
 ## Backlog técnico
 
 **EL registro único de deuda conocida.** Existe porque antes vivía repartida
@@ -908,65 +942,6 @@ duplicación deja de ser una excepción y pasa a ser un patrón, y toca invertir
 gateo: que el umbral sea un parámetro del ROL (split → 1080, sin split → 960), no un
 literal repetido por bloque. Con dos consumidores (split + Inventario) todavía es más
 barato duplicar que generalizar; con tres, no.
-
-### 22. El alto fijo es OPT-IN por página, no del chrome — la consolidación global
-
-Hoy el alto fijo se activa página por página (`.duna-pantalla-fija` a 1080,
-`.duna-sin-split` a 960), con el chrome ofreciendo la altura por `main:has(...)`. El
-resto del admin —Dashboard, Analítica, Automatizaciones, Pagos, Entregas y las demás
-sin rediseñar— sigue en document-scroll. Conviven DOS modelos de scroll en el panel.
-
-La consolidación es subir el alto fijo al CHROME (`AdminChrome`): que provea la
-altura para TODAS las páginas y se retiren el document-scroll y los marcadores
-opt-in. Es la opción D1(a) que la tanda del shell difirió a propósito.
-
-**Costo YA pagado: ninguno.** El opt-in por página funciona y la mezcla es coherente
-por ahora; es deuda con fecha, no una herida.
-
-**DISPARADOR: cuando las verticales restantes usen el modelo del split/región**
-(decisión D1(b) del owner, tanda del shell). No se hace antes a propósito: varias de
-esas pantallas se van a reconstruir, así que meterlas hoy en el shell nuevo es
-trabajo que se rehace, con gate sobre pantallas que van a desaparecer. El shell
-global entra AL FINAL, como consolidación. Absorbe a #25: el gateo por valor vs rol
-deja de existir cuando el chrome provee la altura global.
-
-**EXCEPCIÓN PERMANENTE, DECLARADA: ANALÍTICA NO ADOPTA EL ALTO FIJO** (owner,
-2026-08-20, tanda 2 del rediseño). Y hay que nombrarla acá o este disparador **no se
-cumple nunca**: decía "cuando las verticales restantes usen el modelo", y con una
-que se queda fuera a propósito esa condición no puede completarse — el mismo error de
-disparador que ya se corrigió en #27 y en la gráfica del carrusel.
-
-El motivo NO es que no encaje mecánicamente (encajaría: sería `.duna-sin-split` como
-Inventario). Es que **el patrón fijaría lo que no vale.** En Pagos la zona fija
-sostiene la FRASE —la respuesta— y scrollea el libro; en Analítica **las respuestas
-son los Titulares y viven DENTRO de los bloques**, así que fijar el header pinaría el
-`h1` y el chip mientras las cuatro respuestas se van scrolleando: se congelaría el
-chrome y se movería el contenido, justo al revés. Y su contenido no es una lista
-homogénea sino cuatro bloques heterogéneos con pliegues que crecen.
-
-**El disparador, entonces, se lee así: cuando las verticales restantes MENOS
-ANALÍTICA usen el modelo.** Si algún día Analítica cambia de anatomía —si su
-respuesta sube a una zona fija, como la frase de Pagos— esta excepción se revisa; no
-antes.
-
-**SEGUNDA EXCEPCIÓN DECLARADA: AUTOMATIZACIONES TAMPOCO ADOPTA EL ALTO FIJO** (owner,
-2026-08-21, decidido en el discovery de su rediseño). Y va acá por lo mismo que la
-primera: sin nombrarla, el disparador —"las verticales restantes"— nunca se cumple.
-Son DOS excepciones ahora, no una.
-
-El motivo NO es que no encaje: es que **con la rejilla no hace falta.** La pantalla es
-una rejilla de 3 columnas y ocho tarjetas —tres filas—, así que el catálogo entero
-prácticamente cabe en un viewport de escritorio (medido: ~704px de contenido contra
-~734 disponibles a 1440×900). El único scroll real lo produce abrir un acordeón de
-historial, y el alto fijo sólo pinnearía el header para pinnear el roll-up de fallo,
-que es condicional y raro. Fijar la altura sería complejidad sin pago. Se decidió
-**document-scroll con el número de la rejilla delante**, no antes — igual que la regla
-de la pantalla de uso real exige medir en el sitio real.
-
-**El disparador, corregido de nuevo: cuando las verticales restantes MENOS ANALÍTICA
-Y AUTOMATIZACIONES usen el modelo.** Si Automatizaciones dejara de ser una rejilla que
-cabe —si creciera a docenas de automatizaciones y el catálogo dejara de entrar—, esta
-excepción se revisa; no antes.
 
 ### 26. El date-range picker no navega a años ANTERIORES al año-piso
 
@@ -4671,10 +4646,10 @@ abajo.
 
 ### La anatomía
 
-- **Rejilla de tarjetas** (3/2/1), **document-scroll declarado** — las 8 caben casi
-  de una, así que el alto fijo sería complejidad sin pago. Es la SEGUNDA excepción
-  del § Backlog #22, junto a Analítica (sin nombrarla, el disparador del #22 no se
-  cumple nunca).
+- **Rejilla de tarjetas** (3/2/1), **document-scroll** — las 8 caben casi de una, así
+  que el alto fijo sería complejidad sin pago. Es una de las cinco pantallas de
+  contenido que van document-scroll a propósito (§ Los DOS modelos de scroll conviven
+  a propósito — el estado final, ya no un disparador que cumplir).
 - **Cabecera eyebrow + título + nota.** Los tres stats viejos (activos / disponibles
   / ejecuciones totales) se retiraron: dos duplicaban lo que las tarjetas dicen y el
   tercero era un acumulado incomparable.
