@@ -87,11 +87,11 @@
   --color-accent:               var(--duna-wash-hover, hsl(var(--accent)));
   --color-accent-foreground:    var(--duna-ink-2,    hsl(var(--accent-foreground)));
 
-  /* Ámbar-acento calibrado para TEXTO/íconos (AA sobre el fondo del tema). SIN
-     mapear a propósito: el DS tiene `--duna-sol`, pero significa ATENCIÓN, no
-     acento de dato/enlace. Darle el sol acá pondría el significante de urgencia
-     en un rol que no lo es. Queda como color propio del panel. */
-  --color-accent-amber:         hsl(var(--accent-amber));
+  /* `--accent-amber` se RETIRÓ (2026-08-22): su único consumidor era la campana
+     (NotificationBell), y su uso ERA atención —conteo y chip de no-leídas—, así que
+     migró a `--duna-sol-*`, el rol de atención del DS (§ Backlog #16). El descargo
+     de "acento ≠ atención" ya no aplica: no quedó ningún acento ámbar que no fuera
+     el sol. */
 
   /* destructive → el rojo del sistema (terracota). SIN mapear su -foreground: es
      el texto BLANCO sobre el relleno sólido, y el DS no tiene un par
@@ -107,13 +107,9 @@
      controles lo hagan; hoy conserva su ámbar. */
   --color-ring:                 hsl(var(--ring));
 
-  /* chart-* SIN mapear: son una escala de 5 tonos para datos, y el DS no tiene
-     familia de gráficas. Son color propio del panel. */
-  --color-chart-1:              hsl(var(--chart-1));
-  --color-chart-2:              hsl(var(--chart-2));
-  --color-chart-3:              hsl(var(--chart-3));
-  --color-chart-4:              hsl(var(--chart-4));
-  --color-chart-5:              hsl(var(--chart-5));
+  /* La escala `--chart-1..5` se RETIRÓ (2026-08-22) con el carrusel y la
+     distribución del Dashboard, sus únicos consumidores (§ Backlog #8, cerrado por
+     retiro). El color categórico del panel vive ahora en `--duna-serie-*`. */
 
   /* El RAIL: fondo = papel de marca, hover = wash. `sidebar-primary` (el marcador
      activo) y `sidebar-ring` quedan SIN mapear por lo mismo que `ring`. */
@@ -261,26 +257,12 @@ html {
        --primary (now tinta); the warm amber→brown family lives on in the charts. */
     --accent: 39 48% 90%;
     --accent-foreground: 28 42% 22%;
-    /* Ámbar quemado (~amber-800) para texto/íconos de acento — AA sobre fondo claro. */
-    --accent-amber: 26 90% 33%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 40 32% 87%;
     --input: 40 32% 87%;
     --ring: 38 92% 50%;
     --radius: 0.75rem;
-
-    /* Paleta MONOCROMA CÁLIDA SATURADA: rampa ámbar→marrón de la marca, con
-       saturación ALTA y pareja (~70-88%) para que tenga vida. Los pasos se
-       distinguen por LUMINOSIDAD amplia, NO bajando la saturación hacia los
-       oscuros (eso los apagaba). Los charts CONSERVAN el ámbar: dentro de un
-       chart el color es categórico, no estado, así que no colisiona con el
-       ámbar-atención del semáforo (el contenedor desambigua). */
-    --chart-1: 40 88% 55%;
-    --chart-2: 34 82% 48%;
-    --chart-3: 28 78% 40%;
-    --chart-4: 24 74% 32%;
-    --chart-5: 20 70% 26%;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 33 20% 9%;
@@ -325,24 +307,12 @@ html {
        --primary y en los charts. */
     --accent: 39 18% 21%;
     --accent-foreground: 39 25% 90%;
-    /* Ámbar brillante (~amber-400) para texto/íconos de acento — AA sobre fondo oscuro. */
-    --accent-amber: 43 96% 62%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 25.1%;
     --input: 0 0% 25.1%;
     --ring: 37.7 92.1% 50.2%;
     --radius: 0.75rem;
-
-    /* Misma rampa cálida saturada, con la luminosidad levantada para leer sobre el
-       card oscuro (14.9%) — la saturación se mantiene alta, no se baja. Corrige de
-       paso el bug previo: en oscuro --chart-3 y --chart-5 eran idénticos
-       (22.7 82.5% 31.4%) y dos slices del pie se veían iguales; ahora distintos. */
-    --chart-1: 43 90% 62%;
-    --chart-2: 36 84% 54%;
-    --chart-3: 28 80% 46%;
-    --chart-4: 24 76% 40%;
-    --chart-5: 20 72% 34%;
 
     --sidebar-background: 0 0% 5.9%;
     --sidebar-foreground: 0 0% 89.8%;

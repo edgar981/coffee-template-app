@@ -157,7 +157,8 @@ html.admin {
      `padding` es el MISMO aire para el hover que `.duna-split__list` (§ primitives.css,
      "AIRE PARA EL HOVER"): es el otro scroller que sostiene tarjetas con lift. Mismos
      tokens, para que no diverjan. */
-  .duna-pantalla-fija .duna-split > .duna-cards  { min-height: 0; overflow-y: auto; padding: var(--duna-space-1) var(--duna-space-1) var(--duna-space-4); }
+  .duna-pantalla-fija .duna-split > .duna-cards  { min-height: 0; overflow-y: auto; padding: var(--duna-space-1) var(--duna-space-1) var(--duna-space-4);
+                                                   scrollbar-gutter: stable; }
 }
 
 /* ═══ ALTO FIJO SIN SPLIT · desde el breakpoint del CHROME (960) ══════════════
@@ -179,8 +180,12 @@ html.admin {
   .duna-sin-split { height: 100%; min-height: 0; display: grid; grid-template-rows: auto 1fr; }
   .duna-sin-split .duna-region     { min-height: 0; display: flex; flex-direction: column; }
   /* Encoge y scrollea (grow 0: corto se queda a su alto natural, no estira) — la
-     misma regla general que el bloque de 1080. */
-  .duna-sin-split .duna-region > * { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+     misma regla general que el bloque de 1080. `scrollbar-gutter: stable` reserva el
+     canal de la barra (§ primitives.css, la lista del split): la grid-list de
+     Inventario/Pagos cambia de contenido —rango, filtro—, y sin reservar el canal sus
+     columnas se corrían ~15px al aparecer/desaparecer la barra. Mismo trade-off que
+     allá: consistencia del ancho sobre no reservar espacio en listas cortas. */
+  .duna-sin-split .duna-region > * { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
 }
 
 /* ═══ EL GRÁFICO DE PAGOS · la curva sobre el tiempo (bespoke admin, no DS) ════

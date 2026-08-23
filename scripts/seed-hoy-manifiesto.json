@@ -1,0 +1,41 @@
+{
+  "_nota": "Manifiesto de la siembra de DEMO del Dashboard 'Hoy' en DEVELOPMENT (ep-still-sound), 2026-08-23. El owner la CONSERVA para ver el sistema con datos. Cuando haya que limpiarla, borrar por ID EXACTO (nunca por prefijo ni por rango): payments -> orderItems (o cascade del order) -> orders -> notifications, con los ids de abajo. Verificar contra el snapshot post-limpieza: orders 18, payments 11, orderItems 18, y ninguna fila PREEXISTENTE con createdAt/updatedAt de hoy. Las notificaciones NO tienen manifiesto de conteo previo (había 10, 0 no leidas). Son 9 ordenes (CN-HOY001..008 con producto + CN-HOY009 sin producto, la fila de texto plano del top-hoy), 6 pagos, 2 notificaciones no leidas 'orden_recibida'.",
+  "_ojo_transiciones": "Estas 9 ordenes se crearon con prisma.order.create y su 'estado' puesto DIRECTO, SIN pasar por transitionOrder, asi que NO tienen filas en OrderStatusTransition (el 'libro'). Consecuencia VISIBLE, no un bug: en Pedidos sus tarjetas NO muestran el 'hace X' (ese slot sale de la ULTIMA TRANSICION, no de createdAt), asi que se ven mas BAJAS que las ordenes reales/QA, que si tienen transiciones. En 'Todos' salen primero estas (creadas hoy) y se ven bajas; en 'Necesitan atencion' salen las QA y se ven altas. Es artefacto de la siembra: en produccion toda orden pasa por transitionOrder. NO leerlo como defecto de la tarjeta (§ CLAUDE.md, y el diagnostico del 2026-08-23).",
+  "creado": "2026-08-23T12:42:42.278Z",
+  "orderIds": [
+    "cmt5srzj20000wlr1610g1gaj",
+    "cmt5ss0b60003wlr1udbgivet",
+    "cmt5ss12f0007wlr1b5i9ejuz",
+    "cmt5ss1t9000awlr1ud7ax3nb",
+    "cmt5ss2gy000cwlr13kopztjd",
+    "cmt5ss39j000gwlr1x43kbj49",
+    "cmt5ss3wk000iwlr1h6geuw8q",
+    "cmt5ss4nb000lwlr1a3pd597k",
+    "cmt5ytwpt0000qsr1m5kr04k4"
+  ],
+  "paymentIds": [
+    "cmt5ss0310002wlr147ssao94",
+    "cmt5ss0uo0006wlr1zzqgw506",
+    "cmt5ss1lg0009wlr16tdal6qk",
+    "cmt5ss30w000fwlr1c64us5sh",
+    "cmt5ss4fq000kwlr1lm8zt23n",
+    "cmt5ytxef0002qsr1fw4l416l"
+  ],
+  "itemIds": [
+    "cmt5srzn80001wlr1v9lr1q5q",
+    "cmt5ss0f00004wlr10yki7fu0",
+    "cmt5ss0f00005wlr1vdi04ru0",
+    "cmt5ss1690008wlr1h5ljw8mt",
+    "cmt5ss1x2000bwlr1ng05z3zw",
+    "cmt5ss2kr000dwlr1aqqj1gtp",
+    "cmt5ss2kr000ewlr15t31gihx",
+    "cmt5ss3de000hwlr131a1kgty",
+    "cmt5ss40d000jwlr17dwdahob",
+    "cmt5ss4r3000mwlr1qzr6ymd9",
+    "cmt5ytwwl0001qsr1qan7eh7l"
+  ],
+  "notiIds": [
+    "cmt5t0ups000063r19qft3wnh",
+    "cmt5t0vpt000163r1fcrbyjvq"
+  ]
+}

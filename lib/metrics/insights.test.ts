@@ -237,6 +237,26 @@ test('un solo día usa singular', () => {
   assert.deepEqual(r, { text: 'Última orden hace 1 día' });
 });
 
+test('FRANJA 19:00–23:59 Bogotá: el día se deriva en Bogotá, no en UTC → "ayer", no "hoy"', () => {
+  // 2026-08-23T00:10:00Z = 2026-08-22 19:10 en Bogotá (UTC-5): AYER. Con el slice
+  // del ISO en UTC daba "2026-08-23" = hoy y la tarjeta decía "creada hoy" mientras
+  // su conteo decía 0 (el conteo usa la ventana de Bogotá). Debe decir "hace 1 día".
+  const r = insightUltimoEvento(
+    { ultimoEvento: '2026-08-23T00:10:00.000Z', hoy: '2026-08-23' },
+    { hoy: 'Última orden creada hoy', dias: n => `Última orden hace ${n} ${n === 1 ? 'día' : 'días'}`, nunca: 'Sin registros' },
+  );
+  assert.deepEqual(r, { text: 'Última orden hace 1 día' });
+});
+
+test('borde simétrico: 05:00Z es 00:00 Bogotá del MISMO día → "hoy"', () => {
+  // 2026-08-23T05:00:00Z = 2026-08-23 00:00 Bogotá: el primer instante de hoy.
+  const r = insightUltimoEvento(
+    { ultimoEvento: '2026-08-23T05:00:00.000Z', hoy: '2026-08-23' },
+    { hoy: 'hoy', dias: n => `hace ${n}`, nunca: 'Sin registros' },
+  );
+  assert.deepEqual(r, { text: 'hoy' });
+});
+
 test('el copy de días recibe el ISO para formatear la fecha (caso despachos)', () => {
   const r = insightUltimoEvento(
     { ultimoEvento: '2026-07-24T10:00:00.000Z', hoy: '2026-07-29' },

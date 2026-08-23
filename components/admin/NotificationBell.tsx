@@ -258,7 +258,8 @@ export default function NotificationBell() {
               {unread > 0 && (
                 <>
                   <span className="text-muted-foreground"> · </span>
-                  <span className={cn('font-semibold', hayAlerta ? 'text-destructive' : 'text-accent-amber')}>
+                  <span className={cn('font-semibold', hayAlerta && 'text-destructive')}
+                        style={hayAlerta ? undefined : { color: 'var(--duna-sol-ink)' }}>
                     {unread}
                   </span>
                 </>
@@ -318,19 +319,30 @@ export default function NotificationBell() {
                 // El chip seguía el MISMO ámbar para toda no-leída, así que dentro
                 // del dropdown una alerta de plata y una orden nueva se veían
                 // idénticas — justo lo que el badge ya distinguía afuera. Ahora
-                // sigue `severidad`, con tokens del tema y no con ámbar a mano.
-                const tono = n.leida
+                // sigue `severidad`: alerta = destructive; atención = el SOL del DS
+                // (§ #16, migrado de `accent-amber` a `--duna-sol-*`, sus tres roles
+                // — tinte `--duna-sol-soft` + texto `--duna-sol-ink`).
+                const esAtencion = !n.leida && def?.severidad !== 'alerta';
+                const tonoClass = n.leida
                   ? 'bg-muted text-muted-foreground'
                   : def?.severidad === 'alerta'
                     ? 'bg-destructive/10 text-destructive'
-                    : 'bg-accent-amber/10 text-accent-amber';
+                    : '';
+                const tonoStyle = esAtencion
+                  ? { background: 'var(--duna-sol-soft)', color: 'var(--duna-sol-ink)' }
+                  : undefined;
 
                 const content = (
                   <div
-                    className={`flex items-start gap-3 px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer ${!n.leida ? 'bg-accent-amber/5' : ''}`}
+                    className="flex items-start gap-3 px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer"
+                    // La fila no-leída lleva un tinte del sol MÁS SUAVE que el chip
+                    // (6% vs el ~12% de `--duna-sol-soft`): es fondo de fila entera, no
+                    // un chip. Inline por encima del hover: una fila no-leída se queda
+                    // resaltada al pasar por encima, que es lo correcto (sigue sin leer).
+                    style={!n.leida ? { background: 'color-mix(in srgb, var(--duna-sol) 6%, transparent)' } : undefined}
                     onClick={() => !n.leida && markRead(n.id)}
                   >
-                    <div className={cn('mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', tono)}>
+                    <div className={cn('mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', tonoClass)} style={tonoStyle}>
                       <Icon className="h-4 w-4" />
                     </div>
 

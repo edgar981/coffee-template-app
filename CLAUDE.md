@@ -113,6 +113,30 @@ cuando el test nunca se había ejercido.
 que haya quedado.** Y el modo de falla es peor que no probar: devuelve un
 veredicto con toda la apariencia de ser válido.
 
+### Una siembra para gate CADUCA al cruzar la medianoche de Bogotá
+
+Cuando un gate visual necesita datos —y se siembran con el método reversible
+(manifiesto de ids, borrado por id exacto, § la tanda de concentración)—, esa
+siembra tiene **fecha de vencimiento** si la pantalla mide "hoy". Una tarjeta,
+frase o curva de scope HOY filtra por la ventana `[startOfZonedDay, +1d)` de
+Bogotá; los datos sembrados con `createdAt`/`fecha` de AYER caen fuera de esa
+ventana en cuanto el reloj cruza las 00:00 de Bogotá. El gate entonces ve los
+estados-vacíos ("$0", "sin pedidos hoy") y **eso se lee como un bug de la
+pantalla nueva cuando es sólo la siembra rancia** — la misma familia que el
+artefacto rancio (§ PRECONDICIÓN): *lo que se sembró ayer no prueba la pantalla
+de hoy.*
+
+Instaurada el 2026-08-23 (rediseño del Dashboard "Hoy"): se sembró a las ~09:00
+Bogotá, se verificó verde (hero $200k, curva con datos), y el gate corrió al día
+siguiente contra una siembra que ya era de ayer — hero en $0. La verificación de
+la siembra había sido correcta; caducó.
+
+**Regla: si el gate no corre el MISMO día de Bogotá en que se sembró, hay que
+resembrar antes** (borrar la anterior por su manifiesto para no acumular dos, y
+volver a sembrar — el script ancla a `startOfZonedDay(now)`, así que re-correrlo
+produce el día correcto). Y al entregar una siembra para gate, decir en qué día
+de Bogotá se hizo.
+
 ## Las tres capas de verificación
 
 Cada una mide algo que las otras no pueden, y **ninguna sustituye a las otras**.
@@ -1208,6 +1232,54 @@ disparador del ítem que dejó la sub-decisión de H6: "cuando se toque el diál
 otra razón"). En esa tanda las dos voces se unifican —el diálogo pasa a leer
 `frase(config)` como la tarjeta, y `disparador` se retira— así que quedan una sola.
 No antes: hoy `disparador` es lo que el diálogo intacto consume.
+
+### 41. Un pago sobre una orden CANCELADA: ¿se devolvió o se quedó?
+
+El modelo no lo registra. Cancelar NO toca el `Payment` (§ El eje de COBRO), así que un
+pago sobre una orden cancelada **sigue contando como ingreso** — y así lo cuentan las
+cuatro superficies (Dashboard, Analítica, Clientes, Pagos) desde que `REVENUE_ORDER_SCOPE`
+dejó de excluir cancelados (§ El Dashboard "Hoy"). Eso es correcto **mientras no haya
+reembolsos modelados**: si la plata entró y no se devolvió, es ingreso del dueño.
+
+Pero **de eso depende si la cifra es cierta.** Si un pago sobre una orden cancelada fue
+DEVUELTO al cliente, hoy sigue sumando como ingreso y nadie lo resta — no hay estado de
+`Payment` que diga "reembolsado", ni un asiento que revierta. El día que exista una
+cancelación-con-reembolso real, el ingreso reportado (y los dos correos de automatización)
+estarán inflados por esa plata que ya no está.
+
+**Costo YA pagado: ninguno.** Medido en dev: los únicos pagos sobre cancelados son **2 de
+prueba** ($56k), sin evidencia de cuál error es peor —contar una devolución como ingreso, o
+esconder plata que sí entró—. Por eso la decisión de INCLUIR cancelados es la correcta hoy:
+sin reembolsos modelados, esconderlos desincronizaría del libro de Pagos.
+
+**DISPARADOR: el primer caso real de cancelación-con-pago en Nayoli.** Ahí se decide si un
+pago sobre orden cancelada necesita un estado (reembolsado / retenido) y si el ingreso lo
+resta. Las cuatro superficies leen la misma definición, así que el cambio es en UN sitio
+(`REVENUE_ORDER_SCOPE` + el nuevo estado del `Payment`), no en cuatro.
+
+### 42. Un hilo del fondo asoma bajo el shell de alto fijo
+
+En las pantallas de **alto fijo** —Pedidos, Inventario, y cualquiera con `.duna-pantalla-fija`
+o `.duna-sin-split`— asoma un **hilo del color del fondo** pegado al borde inferior del
+viewport. NO aparece en las de document-scroll (Dashboard, Analítica, Automatizaciones).
+
+**Diagnóstico, escrito para no re-diagnosticarlo** (2026-08-23): sale del `height: 100dvh`
+que esas pantallas ponen en `main:has(.duna-pantalla-fija)` / `main:has(.duna-sin-split)`
+(`duna.css:126,177`). El `100dvh` no calza exacto con el área visible —redondeo sub-pixel,
+o `dvh` contra el alto real del viewport— y por debajo del `main` queda un pelo del fondo
+del body. **Descartado el otro candidato** (que un scroller de la región no llenara y
+asomara el fondo debajo): en Pedidos el `.duna-split` LLENA la región con `flex-grow: 1`
+(`duna.css:148-153`), así que ahí no hay hueco de contenido — y el hilo igual está. El
+discriminador en pantalla: el hilo está FIJO al borde inferior sin importar el contenido ni
+el scroll (100dvh), no crece con listas cortas (eso sería el scroller, descartado).
+
+**Costo YA pagado: ninguno** — es cosmético, un hilo de 1px. **Pre-existente**, no de una
+tanda reciente (el shell de alto fijo).
+
+**DISPARADOR: una tanda de acabado del shell con gate visual propio** (junto a `#23`, las
+barras de scroll tokenizadas — misma clase de pulido). NO tocar la cadena de altura del
+shell por un píxel fuera de eso: **costó dos rondas afinarla** (§ La cadena de altura),
+y el riesgo de re-romper el alto fijo por un hilo cosmético no lo vale.
 
 ## Mejoras post-multitenant
 
@@ -2485,6 +2557,142 @@ PR aparte (deuda declarada) — hasta entonces conviven dashboard-por-estado y
 esas-páginas-pastel a propósito. El resto de las reglas cromáticas (un sólido por
 vista, hover de tinte, badges muted/neutros, trends de texto) no dependían de la
 decisión de 2026-07-27 y siguen.
+
+## El Dashboard "Hoy" — el rediseño, y sus decisiones de MODELO
+
+Rediseño del 2026-08-23. La pantalla dejó de ser un grid de métricas surtidas y pasó a
+responder **una pregunta —¿cómo va HOY?—** con dos cifras arriba (el dinero y los
+pedidos), la curva del día, lo más vendido, y las tarjetas accionables. Lo que sigue son
+las decisiones de MODELO, que es donde esta vertical tiene más que las otras.
+
+### La BASE DE INGRESOS: una definición, cuatro superficies
+
+`REVENUE_ORDER_SCOPE` (`@duna/core/metrics/prisma-scopes`) es `{ order: { numero_orden
+startsWith 'CN-' } }` — **CN- a secas, CANCELADOS INCLUIDOS**. Antes excluía cancelados y
+el Dashboard era la ÚNICA superficie que reportaba menos que el libro de Pagos: **$259k
+contra los $315k** de Analítica y Clientes (`paidTotalByCustomer`, que ya los incluía).
+
+La razón es doctrinal (§ El eje de COBRO): **cancelar NO toca el `Payment`**, así que la
+plata entró. Un reembolso sería otro hecho, y hoy no se modela (backlog abajo). Con el
+cambio, las **CUATRO** superficies dicen el mismo número: Dashboard, Analítica, Clientes y
+—de facto, porque no hay pagos `SN-`— Pagos.
+
+**CONSECUENCIA DECLARADA, porque llega por correo sin que nadie toque la pantalla:** el
+scope lo comparten los **dos reportes de automatización** (`lib/automations/reportes.ts` —
+resumen diario y reporte semanal), así que también empezaron a sumar los pagos sobre
+cancelados: **+$56.000 en dev, sin que nadie tocara esa pantalla**. Es el MISMO principio,
+no daño colateral; un scope local del Dashboard habría sido una cuarta definición de
+"ingreso" el mismo día que se cerró la tercera. Afirmado en el carril
+(`revenue-scope-canceladas.test.ts`, visto fallar con el scope viejo).
+
+### Los DOS EJES: el dinero incluye cancelados, el conteo NO
+
+La pantalla mide **dos conjuntos distintos**, y no comparten filtro a propósito:
+
+- **DINERO** (el hero, y "lo más vendido hoy") → **INCLUYE** cancelados. La plata entró.
+- **CONTEO de órdenes** (la curva y su encabezado "N pedidos hoy") → **EXCLUYE** cancelados
+  (`NOT_CANCELLED`, = la tarjeta `pedidos_hoy`, así que la suma de la curva cuadra con el
+  conteo y no hay card≠lista dentro de la propia pantalla).
+
+La razón: **una orden cancelada es plata que entró pero NO un pedido que contar.** Son
+ejes distintos, afirmados por separado en el carril (`dashboard-hoy.test.ts`, visto fallar
+con los ejes invertidos: el conteo daría 3 en vez de 2, el top-hoy $50k en vez de $65k).
+
+### La ASIMETRÍA recibir ≠ crear — por qué las dos frases no son simétricas
+
+Hero: **"Pagos recibidos hoy."** · Curva: **"Pedidos creados hoy."** NO son simétricas, y
+es correcto: son **dos hechos distintos**. El dinero se RECIBE (un pago llega, de un
+pedido de cualquier día); un pedido se CREA (hoy, esté pagado o no). "Pedidos recibidos"
+sería falso para el pedido que el admin teclea en "Nuevo pedido" —a ése nadie lo recibe—,
+y el volumen manual **no se puede medir** (el origen es code-path, no columna; `canal`
+mezcla admin con checkout directo), así que no se apuesta a "es bajo": se usa copy cierta
+para todos. La asimetría de los verbos es la que dice la verdad. El hero en $0 va **sin
+subtítulo** (no hay filtro que sospechar, a diferencia de Pagos).
+
+### El BUG DE ZONA: `slice(0,10)` sobre un ISO UTC muerde en la tarde
+
+`insightUltimoEvento` derivaba el día del último evento con `data.ultimoEvento.slice(0,10)`
+—el día del ISO en **UTC**—. Para un evento entre **19:00 y 23:59 Bogotá** (= 00:00–04:59
+UTC del día siguiente) eso da el día EQUIVOCADO, y como es horario de venta muerde seguido:
+producía una contradicción VISIBLE —el conteo decía 0 y el insight "Última orden creada
+hoy" sobre una orden que en Bogotá fue ayer—. Se deriva con `zonedDayKey(new Date(...),
+BUSINESS_TZ)`, y el filtro horario de Pedidos usa `zonedHour` (el reloj que YA usaban las
+automatizaciones) — la misma ancla que el `EXTRACT(HOUR … AT TIME ZONE)` de la curva.
+Test de capa 1 con el borde 23:47 Bogotá, visto fallar.
+
+**LOS SLICES BENIGNOS, para que nadie "arregle" los que estaban bien:** el censo del
+patrón encontró tres que NO son el bug, y confundirlos rompe algo que anda —
+
+- `cartera.ts:85` (`dayKeyMas`): `slice(0,10)` sobre un ISO, pero desplaza un **day-key**
+  por aritmética de calendario anclada a UTC en AMBOS extremos (round-trip) — no deriva el
+  día de un instante real. Correcto.
+- los `slice(0,7)` (mes) del repo: todos sobre `zonedDayKey(...)` YA en Bogotá → correctos.
+- `insights.test.ts`: formateo de test, no lógica.
+
+El discriminador del bug real es **slice de un INSTANTE (Payment.fecha/Order.createdAt)**,
+no de un day-key ya zonificado. Sólo `insights.ts` lo tenía.
+
+### La CURVA: pedidos por HORA, en tinta
+
+Mide **pedidos por hora**, no ingresos, y la razón es de dato: **`Order.createdAt` tiene
+hora real; `Payment.fecha` NO** —los pagos que pasan por el campo "fecha en que entró el
+pago" se anclan a 00:00 Bogotá, así que **no hay hora del dinero**—. Eje **0–23 fijo**
+(no se recorta: hay pedidos a cualquier hora en un storefront 24h), etiquetas de RELOJ
+(`0·6·12·18·23` con `relojLabel`, los dos bordes anclados — un set interior se veía
+corrido), y **TINTA** (`--duna-ink`): es una MEDIDA ÚNICA, no una serie categórica, así
+que nunca `--duna-serie-*` (§ La serie categórica). Día sin pedidos: **DECLARA, no dibuja**
+(`curvaDibuja`). Las reglas puras (`bucketsPorHora`, `curvaDibuja`, `relojLabel`) en
+`lib/dashboard/hoy.ts`; las consultas en `lib/dashboard/hoy-server.ts`, afirmadas en el
+carril; ambas plegadas en el ÚNICO `Promise.all` de `/api/dashboard/stats` (— `/chart` se
+retiró).
+
+### El CLIC POR HORA — y el × del tag, excepción declarada
+
+La curva navega al hacer clic: **Pedidos ganó filtro horario** (`?hora=H`, client-side —
+`getOrders()` ya trae todo, cero cambios de consulta; `filtrarPorHora` con `zonedHour`), así
+que un clic en las 3 p.m. lleva al conjunto EXACTO (órdenes creadas en esa hora), no a un
+superconjunto. **Cerró el ex-Backlog #40** —su disparador era justo "si Pedidos gana filtro
+horario"—. El conteo del encabezado también navega (`?desde=hoy&hasta=hoy`, card=lista
+medido).
+
+**El tag de alcance horario ("a las 3 p.m.") lleva × PROPIO, la EXCEPCIÓN a la convención
+"tags sin ×".** Esa convención existe porque cada alcance tiene su CONTROL local para
+quitarlo (el rango con el date picker, etc.); el horario NO tiene control en Pedidos —llega
+desde la curva—, así que sin su × la única salida sería "Ver todos", que también borra el
+rango. Está escrito con su razón en el código para que nadie lo "unifique" quitándoselo.
+
+### Lo RETIRADO — y qué se cerró
+
+El marco del día no necesita lo multi-día ni lo duplicado, así que se retiró:
+
+- **el carrusel** (Ventas/Pedidos, multi-día) y **la distribución** (pie anual) — sus
+  preguntas ya las responde Analítica; con ellos, `getDashboardChart`, `/api/dashboard/chart`,
+  `lib/metrics/distribuciones`, `DASHBOARD_COLORS`;
+- **`--chart-*` ENTERO** (@theme + los dos temas): la curva nueva es tinta, así que la escala
+  perdió su último consumidor — **cerró el Backlog #8** (por retiro, no por migración);
+- **`components/ui/table.tsx`** (cero consumidores) y los **pastels muertos de STAT_CHIP**
+  (`chipTono` sólo alcanza amber/neutral/alert);
+- la tabla cruda de **Órdenes recientes → `.duna-lista`** — **cerró el Backlog #36** (el
+  `w-full` que anulaba el `overflow-x` y superponía columnas en móvil).
+
+Y **#16** (la campana): de `accent-amber` a los tres roles del sol; `--accent-amber` quedó
+muerto y se retiró.
+
+### `useCurvaHover` — un mecanismo, dos curvas
+
+El hover/scrub/tap-fuera de las curvas de tinta vive en `components/admin/useCurvaHover.ts`,
+compartido por PagosCurva y CurvaPedidosHoy. Duplicarlo habría sido un segundo mecanismo;
+por eso PagosCurva se refactorizó para adoptarlo (su `onClick`-ACOTA se queda — el Dashboard
+no lo lleva, la curva es lectura + navegación por hora, sin acotar en sitio). Pointer events
+(mouse + dedo), `touch-action: pan-y`, descarte por `pointerdown`-fuera.
+
+### Lo que ya está escrito, enlazado
+
+- **La siembra para gate CADUCA al cruzar la medianoche de Bogotá** (§ GATE DE CAPA 3): una
+  siembra de scope HOY sembrada ayer cae fuera de la ventana y el gate ve estados-vacíos que
+  parecen bugs de la pantalla nueva.
+- **El número a la derecha va en MEDIO, nunca al borde** (§ Listas tabulares): el `Total` de
+  Órdenes recientes a 96px, sin reordenar el dinero al final.
 
 ## Dashboard personalizable — registry de widgets
 
@@ -4054,6 +4262,27 @@ nombre `duna-` cuando hay un SEGUNDO consumidor —Pagos + el kardex de Inventar
 antes; con uno solo, admin-level, para no aparentar una primitiva que no está en el
 paquete. **`DunaTable` se retiró** en la misma tanda (su único consumidor era el kardex);
 ya no hay dos patrones para lo mismo.
+
+### El número alineado a la derecha va en MEDIO, nunca al borde
+
+Regla de ORDEN de columnas, común a las tres listas del panel (2026-08-23). El dinero y
+los conteos se alinean a la derecha (`.duna-lista__r`, unidades bajo unidades), pero su
+columna va **en el medio de la fila, seguida de más columnas** — **nunca la última**. Las
+tres lo cumplen: Pagos (`Monto` 4ª de 8, con Método/Referencia/Registrado después),
+Inventario (`Cantidad`/`Antes→Después` 3ª–4ª de 7, con Motivo/Quién/Fecha después) y
+Órdenes recientes del Dashboard (`Total` 4ª de 5, con Estado después).
+
+**Mover el dinero al final crearía una SEGUNDA convención** —una lista con el número al
+borde derecho contra dos con el número en medio— y casi pasa: el `Total` de Órdenes se veía
+"flotado a la derecha" y la salida tentadora era ponerlo último. No era el orden: era el
+ANCHO. `Total` estaba a 112px (contra los 96px de `Monto` en Pagos), así que la cifra
+right-aligned tenía más aire vacío a su izquierda. **Se igualó a 96px** —el mismo ancho del
+dinero en las tres— y el flote se fue sin tocar el orden ni la alineación.
+
+**Residuo aceptado:** la columna que sigue al número en Órdenes es un BADGE (Estado),
+donde Pagos e Inventario tienen TEXTO. El mismo gap de 12px se lee un poco más apretado
+junto a un chip con borde; es inherente a que esa lista tiene estado donde las otras tienen
+metadatos, y separarlo (reorden o Estado a la derecha) divergiría de las otras dos. Se deja.
 
 ## Pagos — la FRASE y la CURVA (tercer y último rediseño)
 

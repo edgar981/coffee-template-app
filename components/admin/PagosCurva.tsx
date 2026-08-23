@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCurvaHover } from './useCurvaHover';
 import type { Payment, MetodoPago } from '@/types/payment';
 import { METODO_PAGO_LABEL, METODO_CATEGORIA } from '@/types/payment';
 import { formatCOP } from '@duna/core/utils';
@@ -156,50 +157,9 @@ export function PagosCurva({
     observador.current = ro;
   }, []);
 
-  const [hover, setHover] = useState<number | null>(null);
-
-  // `hover` NO debe sobrevivir al cambio de eje. Se setea por el `mousemove` del puntero,
-  // pero en TÁCTIL un tap sintetiza un `mousemove` (que lo setea) y NUNCA un `mouseleave`
-  // (que lo limpiaría), así que sin esto el tooltip quedaba pegado al volver a modo tiempo,
-  // sin forma de descartarse. En escritorio era el MISMO bug, invisible: el próximo
-  // movimiento del mouse lo corregía.
-  //
-  // Se resetea con el patrón de reset-EN-RENDER (guardar el modo previo, comparar,
-  // resetear), NO con un `useEffect` —el repo lint-prohíbe `set-state-in-effect`— y NO
-  // subiendo el `key` al componente. El `key={modo}` vive en el `<div>` a PROPÓSITO: si
-  // subiera al componente, resetearía también `ancho` (que hoy sobrevive y se re-mide sin
-  // parpadeo), y el guard `ancho > 0` dejaría un FLASH de curva vacía en cada cambio de
-  // eje. Sería cambiar un defecto por otro. El reset apunta sólo a lo que sobra.
-  const [modoPrevio, setModoPrevio] = useState(modo);
-  if (modo !== modoPrevio) {
-    setModoPrevio(modo);
-    setHover(null);
-  }
-
-  // DESCARTE EN TÁCTIL: un tap fuera de la curva cierra el tooltip. En táctil no hay
-  // `mouseleave`, así que sin esto el tooltip sólo se movía de punto pero no se iba nunca.
-  // Es el patrón de `usePinnedHover` de duna-owner-ui: `pointerdown` en el documento,
-  // scopeado al contenedor.
-  //
-  // - Se registra SÓLO mientras hay tooltip (`activo`), y la dependencia es el BOOLEANO,
-  //   no el índice: en escritorio los cambios punto→punto del hover no lo re-registran.
-  // - Como el efecto corre DESPUÉS del render que puso `hover`, el listener no existe
-  //   durante el tap que lo originó —no se descarta a sí mismo—. Lo garantiza el efecto,
-  //   no el orden accidental de los eventos.
-  // - Un tap ADENTRO (otro punto de la curva incluido) no descarta: deja que el `mousemove`
-  //   re-apunte y el `onClick` acote. Sólo un tap AFUERA limpia, y sin `preventDefault`,
-  //   así que el control que se tocó sigue funcionando.
-  const contenedorRef = useRef<HTMLDivElement | null>(null);
-  const hayTooltip = hover !== null;
-  useEffect(() => {
-    if (!hayTooltip) return;
-    const alTocarFuera = (e: PointerEvent) => {
-      const cont = contenedorRef.current;
-      if (cont && !cont.contains(e.target as Node)) setHover(null);
-    };
-    document.addEventListener('pointerdown', alTocarFuera);
-    return () => document.removeEventListener('pointerdown', alTocarFuera);
-  }, [hayTooltip]);
+  // El hover/scrub/tap-fuera vive en `useCurvaHover` (mecanismo ÚNICO compartido con
+  // CurvaPedidosHoy). Se instancia más abajo, cuando `n` ya está disponible; ver el
+  // bloque "hover + reset de eje".
 
   const metOk = useMemo(() => (m: MetodoPago) => {
     if (metodoFiltrado === 'all') return true;
@@ -247,6 +207,23 @@ export function PagosCurva({
   // El método resaltado (sólo uno concreto; una categoría no resalta a uno).
   const metodoSel = metodoFiltrado !== 'all' && !metodoFiltrado.startsWith('cat:')
     ? (metodoFiltrado as MetodoPago) : null;
+
+  // ── hover + reset de eje ────────────────────────────────────────────────────
+  // El hook va ANTES de todos los early-returns (hooks incondicionales). `n` sale de
+  // `datosT` (0 cuando no hay curva; da igual, ahí el componente retorna sin dibujar).
+  const nHover = datosT ? datosT.series.length : 0;
+  const { hov, setHover, contenedorRef, alMover, alSalir } = useCurvaHover(nHover, INSET, ancho);
+
+  // `hover` NO debe sobrevivir al cambio de eje: en TÁCTIL un tap sintetiza un
+  // `mousemove` que lo setea pero NUNCA un `mouseleave` que lo limpie, así que quedaría
+  // pegado al volver a modo tiempo. Reset-EN-RENDER (guardar modo previo, comparar,
+  // resetear), NO un `useEffect` (el repo lint-prohíbe `set-state-in-effect`), y NO
+  // subiendo el `key` al componente (resetearía `ancho` y daría un flash de curva vacía).
+  const [modoPrevio, setModoPrevio] = useState(modo);
+  if (modo !== modoPrevio) {
+    setModoPrevio(modo);
+    setHover(null);
+  }
 
   // ── Los dos casos que DECLARAN en vez de dibujar ────────────────────────────
   if (modo === 'muchas') {
@@ -315,7 +292,7 @@ export function PagosCurva({
 
   // Etiquetas del eje: como máximo ~8, repartidas parejo (siempre la primera).
   const paso = Math.max(1, Math.ceil(n / MAX_ETIQUETAS));
-  const hov = hover !== null && hover >= 0 && hover < n ? hover : null;
+  // `hov` (clamp de `hover` al rango válido) lo da el hook — mismo cálculo.
 
   return (
     <div key={modo} ref={contenedorRef} className="admin-grafico">
@@ -327,24 +304,11 @@ export function PagosCurva({
         {ancho > 0 && (
           <svg width={ancho} height={alto} role="img"
                aria-label={`Ingresos por ${UNIDAD[escala as Escala]}, ${n} períodos`}
-               // UN SOLO CAMINO: pointer events, no mouse events. Un mouse moderno emite
-               // AMBOS (`mousemove` Y `pointermove`), así que tener los dos haría que cada
-               // movimiento del escritorio setee el hover dos veces —redundante, y el
-               // germen de que un día se peleen—. `onPointerMove` cubre el hover del mouse
-               // (idéntico a lo de antes: `clientX` y el mismo cálculo) Y el scrub del dedo
-               // en táctil. El scrub táctil funciona porque `touch-action: pan-y` manda el
-               // arrastre HORIZONTAL a JS (el vertical se lo queda el navegador para
-               // scrollear, gateado en teléfono).
-               onPointerMove={e => {
-                 const rect = e.currentTarget.getBoundingClientRect();
-                 const x = e.clientX - rect.left;
-                 const i = Math.round(((x - INSET) / Math.max(1, ancho - INSET * 2)) * (n - 1));
-                 setHover(Math.min(n - 1, Math.max(0, i)));
-               }}
-               // El tooltip se limpia al salir SÓLO con mouse. En táctil `pointerleave`
-               // dispara al levantar el dedo, y ahí el tooltip debe QUEDARSE (se descarta
-               // con un tap fuera, del commit del pan-y). El `pointerType` es el discriminador.
-               onPointerLeave={e => { if (e.pointerType === 'mouse') setHover(null); }}
+               // Hover del mouse + scrub del dedo, y descarte por tap-fuera: TODO en
+               // `useCurvaHover` (mecanismo único). `touch-action: pan-y` (abajo) manda el
+               // arrastre horizontal a JS y deja el vertical al scroll.
+               onPointerMove={alMover}
+               onPointerLeave={alSalir}
                // ACOTAR lo decide el `click`, y el slop del navegador decide si hay click:
                // un tap (movimiento < slop del SO: ~8px Chromium / ~10px iOS) dispara click
                // → acota; un arrastre (> slop) NO dispara click → sólo leyó el valor. Por
