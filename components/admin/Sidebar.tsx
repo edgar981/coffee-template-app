@@ -1,6 +1,6 @@
 "use client";
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { cn } from '@duna/core/utils';
 import { PanelLeftClose, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -113,27 +113,33 @@ function SidebarNav({ iconOnly, animateIndicator, onNavigate, atencion }: {
   const pathname = usePathname();
   const { data: session } = authClient.useSession();
 
+  const visibles = ADMIN_NAV.filter(item => !item.ownerOnly || session?.user?.role === 'OWNER');
+
   return (
     <nav className="flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-2 py-4">
-      {ADMIN_NAV
-        .filter(item => !item.ownerOnly || session?.user?.role === 'OWNER')
-        .map(item => {
-          // ── ACTIVO ES LA RUTA O UNA SUBRUTA SUYA, NO UN PREFIJO DE TEXTO ────
-          //
-          // Era `startsWith(item.path)` a secas, que compara CARACTERES y no
-          // segmentos. La barra es lo que convierte la comparación en una de
-          // jerarquía de rutas: `/admin/clientes/abc` sigue marcando Clientes,
-          // que es lo correcto.
-          //
-          // El caso que lo destapó —`/admin/clientes-v2` encendiendo también
-          // `/admin/clientes`— ya no existe: esa convivencia se retiró. El fix se
-          // QUEDA porque la regla es general y el defecto estaba latente desde
-          // siempre; cualquier `/admin/<algo>-v2` futuro lo vuelve a encontrar, y
-          // el redirect de Clientes depende hoy de la misma distinción.
-          const active = pathname === item.path || pathname.startsWith(`${item.path}/`);
-          return (
+      {visibles.map((item, i) => {
+        // ── ACTIVO ES LA RUTA O UNA SUBRUTA SUYA, NO UN PREFIJO DE TEXTO ────
+        //
+        // Era `startsWith(item.path)` a secas, que compara CARACTERES y no
+        // segmentos. La barra es lo que convierte la comparación en una de
+        // jerarquía de rutas: `/admin/clientes/abc` sigue marcando Clientes,
+        // que es lo correcto. El caso que lo destapó —`/admin/clientes-v2`— ya no
+        // existe, pero el fix se QUEDA: la regla es general y cualquier
+        // `/admin/<algo>-v2` futuro lo vuelve a encontrar.
+        const active = pathname === item.path || pathname.startsWith(`${item.path}/`);
+
+        // El encabezado de sección va al PRIMER ítem de cada sección (el tag cambia
+        // respecto del anterior), y SÓLO en el rail expandido: colapsado es
+        // icon-only y un texto ahí no tiene sitio. Hoy no lleva sección → sin
+        // encabezado. El agrupado es contiguo, así que basta comparar con el previo.
+        const abreSeccion = item.seccion && item.seccion !== visibles[i - 1]?.seccion;
+
+        return (
+          <Fragment key={item.path}>
+            {!iconOnly && abreSeccion && (
+              <div className="admin-nav-seccion">{item.seccion}</div>
+            )}
             <NavRow
-              key={item.path}
               item={item}
               active={active}
               iconOnly={iconOnly}
@@ -141,8 +147,9 @@ function SidebarNav({ iconOnly, animateIndicator, onNavigate, atencion }: {
               onNavigate={onNavigate}
               atencion={atencionDeRuta(atencion, item.path)}
             />
-          );
-        })}
+          </Fragment>
+        );
+      })}
     </nav>
   );
 }

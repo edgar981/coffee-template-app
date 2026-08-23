@@ -610,6 +610,28 @@ falsa.** Lo que parecía un intermedio resultó ser el estado final.
   #22 sin hacerse, la cadena de altura duplicada sigue ahí y **#25 queda con su disparador
   intacto: una TERCERA página sin split.** No se cierra con éste.
 
+## El rail agrupa en SECCIONES — lista PLANA con tag, no anidada
+
+`ADMIN_NAV` (`constants/admin-nav.ts`) es una lista PLANA de ítems, y la agrupación del
+rail (Hoy · **Operación**: Pedidos·Productos·Clientes·Inventario·Pagos · **Crecimiento**:
+Analítica·Automatizaciones) se expresa con un campo **`seccion?`** por ítem, NO con una
+lista anidada. Es la decisión, y la razón es la forma de los consumidores:
+
+- **Los encabezados NO PUEDEN ser un destino** porque no son elementos del array. El ⌘K
+  mapea ítems (cada uno con `path`); una sección jamás llega a ser un `CommandItem`. Una
+  lista anidada pondría ese riesgo.
+- **Los cuatro consumidores planos quedan intactos:** MobileNav (`slice(0,4)`), el ⌘K, `admin-titulo`
+  (`.find(path)`) y `atencion/registro` (`.map(path)`) IGNORAN el tag. **Sólo el Sidebar lo
+  lee** para pintar el encabezado al primer ítem de cada sección (agrupado CONTIGUO: comparar
+  con el previo). Una lista anidada los habría roto a los cuatro (todos tendrían que aplanar).
+- **El agrupado NO reordena.** Las secciones agrupan el orden que ya existe; mover un ítem es
+  otra decisión (y movería la partición posicional de la barra móvil).
+- **El ⌘K NO se agrupa por sección** (owner): funciona plano bajo "Ir a", y agruparlo sería
+  cambio sin motivo. Los `CommandGroup heading` de cmdk no son seleccionables, así que el día
+  que se agrupe tampoco serían destino — pero hoy no se toca.
+- **El encabezado es `.admin-nav-seccion`** (`duna.css`), admin-level por la regla del segundo
+  consumidor (un solo archivo lo usa). Va sólo en el rail EXPANDIDO —el colapsado es icon-only—.
+
 ## Backlog técnico
 
 **EL registro único de deuda conocida.** Existe porque antes vivía repartida

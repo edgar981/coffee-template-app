@@ -376,3 +376,24 @@ html.admin {
 /* La acción de estado (activar/desactivar) lleva su motivo debajo cuando está
    bloqueada, así que apila en columna en vez de repartir en fila. */
 .admin-menu-item--col { flex-direction: column; align-items: flex-start; gap: 2px; }
+
+/* ── ENCABEZADO DE SECCIÓN DEL RAIL · agrupa los ítems del nav ────────────────
+   El eyebrow de un grupo del rail (Operación, Crecimiento). Va SÓLO en el rail
+   expandido —el colapsado es icon-only, sin sitio para un texto— y sólo al primer
+   ítem de cada sección; el Sidebar decide cuándo pintarlo (§ Sidebar, `abreSeccion`).
+
+   El `padding-left` = `--duna-space-3`, el mismo `px-3` de las filas del nav, así
+   que el texto se alinea con la columna de íconos. El `padding-top` separa el grupo
+   del anterior.
+
+   ADMIN-LEVEL, prefijo `admin-` y no `duna-`, por la regla del segundo consumidor
+   (§ `.admin-foco`, `.admin-menu-item`): un solo archivo lo usa (el rail). Con un
+   segundo consumidor se renombra y se muda al paquete. */
+.admin-nav-seccion {
+  padding: var(--duna-space-4) var(--duna-space-3) var(--duna-space-1);
+  font-size: var(--duna-text-caption);
+  text-transform: uppercase;
+  letter-spacing: var(--duna-tr-caps);
+  font-weight: var(--duna-w-semi);
+  color: var(--duna-muted);
+}
