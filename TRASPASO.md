@@ -1,6 +1,6 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-20.
+**Actualizado:** 2026-08-23 (cierre del rediseño del Dashboard "Hoy").
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -40,9 +40,12 @@ Vercel, `main` = producción).
 | `/admin/productos` | Completa | Igual, con clase condicional (cuadrícula sin selección queda en document-scroll) |
 | `/admin/inventario` | Completa, encogida a auditoría | Alto fijo ≥960 (`.duna-sin-split`), scroller único |
 | `/admin/pagos` | Completa (frase + curva) | Alto fijo ≥960 (`.duna-sin-split`), scroller único; **el gráfico va en la zona fija** |
+| `/admin/analitica` | Completa (cuatro preguntas de dueño, titulares) | Document-scroll (excepción declarada — § Backlog #22) |
+| `/admin/automatizaciones` | Completa (rejilla, señal de vida, historial) | Document-scroll (excepción declarada — § Backlog #22) |
+| `/admin/dashboard` | Completa ("Hoy": hero + curva por hora + top-hoy + tarjetas) | Document-scroll |
 
 ### Pendientes de rediseño
-Analítica, Automatizaciones, Dashboard, Configuración, Perfil.
+Configuración, Perfil.
 **Todas en document-scroll** (el `min-h-screen` por defecto de `AdminChrome`).
 No son convivencias — son pantallas que aún no se tocaron.
 
@@ -515,20 +518,20 @@ Vivos: `#1` · `#2` · `#3` · `#4` · `#5` · `#6` · `#8` · `#10` · `#16` ·
 
 ## 10. Cómo continuar
 
-1. **Pagos.** Su modelo ya está cerrado: es un **libro de solo lectura**
-   (`pagos/page.tsx:117-118`) y una pantalla de **análisis** — la cobranza vive en
-   el detalle de la orden. Lo que le falta es **forma**, no modelo. Al
-   rediseñarla adopta la región (§3) y con eso avanza `#22`.
-   - Decisión abierta: si adopta el *strip* de Carlos como lente del rango, y qué
-     se hace con la divergencia lente-vs-tabla (excluir un canal cambia la vista
-     pero no el registro — dos representaciones del mismo número en pantalla al
-     mismo tiempo).
-2. **Analítica** (ahí caen `#6` y `#7-bis`: el destino de la gráfica de Pedidos,
-   que hoy no es clickeable porque ningún conjunto del panel coincide con lo que
-   mide).
-3. **Automatizaciones** y **Dashboard** (ahí cae `#16`).
-4. **`#23`** (barras de scroll) como tanda de acabado con gate visual propio.
-5. Backlog cuando sus disparadores se cumplan.
+Las verticales de operación y análisis están TODAS rediseñadas (Pedidos, Clientes,
+Productos, Inventario, Pagos, Analítica, Automatizaciones, Dashboard). Lo que queda:
+
+1. **Configuración y Perfil** — las dos verticales que faltan. Son las últimas del
+   panel.
+2. **La consolidación del alto fijo global** (§ Backlog #22): subir la altura al
+   chrome cuando las verticales restantes usen el modelo del split/región — con las
+   DOS excepciones permanentes ya declaradas (Analítica y Automatizaciones quedan en
+   document-scroll a propósito).
+3. **`#23`** (barras de scroll tokenizadas) como tanda de acabado con gate visual
+   propio.
+4. Backlog cuando sus disparadores se cumplan. El de la última tanda: **#41** (qué
+   pasa con un pago cuando la orden se cancela — dispara el primer caso real de
+   cancelación-con-pago en Nayoli).
 
 ### El flujo permanente: rama → PREVIEW → gate → merge → borrar la rama remota
 
