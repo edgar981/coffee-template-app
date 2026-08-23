@@ -390,7 +390,10 @@ html.admin {
    (§ `.admin-foco`, `.admin-menu-item`): un solo archivo lo usa (el rail). Con un
    segundo consumidor se renombra y se muda al paquete. */
 .admin-nav-seccion {
-  padding: var(--duna-space-4) var(--duna-space-3) var(--duna-space-1);
+  /* Ritmo de la maqueta: 14px sobre el grupo, 6px bajo el encabezado. Literales y
+     no tokens porque 14 y 6 no tienen token exacto (space-3=12, space-4=16, space-1=4,
+     space-2=8) y son medidas PRESCRITAS del rail de referencia, no elegidas acá. */
+  padding: 14px var(--duna-space-3) 6px;
   font-size: var(--duna-text-caption);
   text-transform: uppercase;
   letter-spacing: var(--duna-tr-caps);

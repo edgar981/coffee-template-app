@@ -1059,12 +1059,12 @@ propia, no un renglón de pie, y por eso no se coló en la tanda del informe.
 **Costo YA pagado: ninguno.** El texto cumple: es la única marca del producto en un
 documento que el operador manda a su contador, y se ve de dónde salió.
 
-**EL RAIL YA USA EL LOGO REAL** (2026-08-23): el wordmark de texto del sidebar se
-reemplazó por `duna-logo-horizontal-v1.svg` (`Sidebar.tsx`, `BrandLockup`). Se pensó
-que era "la misma decisión" que el PDF y que se resolverían juntas, pero **son dos
-trabajos distintos**: el rail muestra el SVG directo (`<img>`), y el PDF NO puede —jsPDF
-no dibuja SVG—. Así que el asset se comparte, pero el PDF sigue necesitando su propia
-implementación.
+**EL RAIL YA USA EL MARK REAL** (2026-08-23): el wordmark de texto del sidebar pasó a
+`duna-mark-v1.svg` (el mark suelto) + "Duna" como texto (`Sidebar.tsx`, `BrandLockup`).
+Se pensó que era "la misma decisión" que el PDF y que se resolverían juntas, pero **son
+dos trabajos distintos**: el rail muestra el SVG directo (`<img>`), y el PDF NO puede
+—jsPDF no dibuja SVG—. Así que el asset se comparte, pero el PDF sigue necesitando su
+propia implementación.
 
 **LO QUE QUEDA, y es todo lo que queda de este ítem:** rasterizar el logo a **PNG** para
 el informe de Pagos (elegir resolución, versionar el PNG —`public/` es inmutable— y
@@ -4357,6 +4357,13 @@ neutro):
   ámbar=espera, verde=ok, rojo=alerta, azul=en curso (el único tono informativo),
   gris=neutro. Categorías (zona, canal) van neutras (outline/gris), nunca color
   semántico.
+- **EL SOL NO MARCA POSICIÓN.** El indicador de página actual del rail es TINTA
+  —superficie elevada (`--duna-surface` + `--duna-shadow-1`) con texto/ícono de
+  `--duna-ink` y una barra de 2px de tinta a la izquierda—, NO ámbar. El ámbar/sol
+  significa ATENCIÓN; usarlo también para "estás aquí" ponía el mismo color a decir
+  dos cosas en la misma lista —el activo era ámbar y el punto de atención de Pedidos
+  también—. Ahora **activo = tinta, atención = sol** (el `.duna-nav-dot`, que se
+  queda), y se distinguen. Vive en `components/admin/Sidebar.tsx` (NavRow).
 - **Trends en texto** (flecha + % coloreado verde/rojo, sin pill/fondo); el "vs
   mes anterior" en muted. Un solo lugar: `TrendPill` en `StatCard`.
 - **Una sola utilidad de fecha visible**: `formatFecha` (`lib/format-fecha.ts`,
@@ -4370,12 +4377,13 @@ vive como `--primary` y en los charts, no como fondo de hover.
 
 ### EXCEPCIÓN DECLARADA: el ámbar del LOGO es marca, no atención
 
-El logo de Duna (`public/brand/duna-logo-horizontal-v1.svg` y `duna-mark-v1.svg`)
-trae un elemento **`#F59E0B`, que es `--duna-sol` al valor** — el mismo hex que
-significa ATENCIÓN en el panel. **Se acepta, por decisión del owner (2026-08-23):**
+El **mark** de Duna (`public/brand/duna-mark-v1.svg`, el que el rail usa expandido y
+colapsado) trae un elemento **`#F59E0B`, que es `--duna-sol` al valor** — el mismo hex
+que significa ATENCIÓN en el panel. **Se acepta, por decisión del owner (2026-08-23):**
 un logo NO es un estado, es la firma del producto, y pedir una variante sin el sol
 sería quitarle al logo lo que lo hace el logo. Ya vivía en el mark del rail colapsado;
-adoptar el horizontal en el rail expandido sólo lo vuelve siempre-visible.
+llevarlo al expandido sólo lo vuelve siempre-visible. (El wordmark del rail es TEXTO,
+así que el ámbar entra sólo por el mark.)
 
 **Queda escrito acá para que el próximo censo de ámbar NO lo marque como violación.**
 El discriminador es el SITIO: `#F59E0B` dentro de un asset de marca (el rail) es marca;

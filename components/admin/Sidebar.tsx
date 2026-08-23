@@ -52,15 +52,21 @@ function NavRow({ item, active, iconOnly, animateIndicator, onNavigate, atencion
         'focus-visible:ring-2 focus-visible:ring-sidebar-ring',
         iconOnly && 'justify-center',
         active
-          ? 'bg-sidebar-primary/10 text-sidebar-foreground font-semibold'
+          ? 'font-semibold'
           : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
       )}
+      // ACTIVO = TINTA, no ámbar. El activo era `bg-sidebar-primary/10` (fondo ámbar)
+      // + ícono y barra ámbar, y el punto de atención TAMBIÉN es sol: el mismo color
+      // decía "estás aquí" y "esto pide atención" en la misma lista. Ahora "estás
+      // aquí" es una superficie elevada con tinta (§ CLAUDE.md — el sol no marca
+      // posición); el sol queda SÓLO para atención. Se distinguen.
+      style={active ? { background: 'var(--duna-surface)', color: 'var(--duna-ink)', boxShadow: 'var(--duna-shadow-1)' } : undefined}
     >
       <AnimatedIcon
         icon={item.icon}
         anim={item.anim}
         hovered={hovered}
-        className={active ? 'text-sidebar-primary' : ''}
+        className=""
       />
       {!iconOnly && (
         <span className="text-sm font-medium whitespace-nowrap">{item.label}</span>
@@ -84,10 +90,12 @@ function NavRow({ item, active, iconOnly, animateIndicator, onNavigate, atencion
           aria-label={`${item.label} necesita atención`}
         />
       )}
+      {/* La barra de posición es de TINTA (2px, izquierda), no ámbar — el sol no
+          marca posición. */}
       {active && (
         animateIndicator
-          ? <motion.div layoutId="activeIndicator" className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-sidebar-primary" />
-          : <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-sidebar-primary" />
+          ? <motion.div layoutId="activeIndicator" className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full" style={{ background: 'var(--duna-ink)' }} />
+          : <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full" style={{ background: 'var(--duna-ink)' }} />
       )}
     </Link>
   );
@@ -189,27 +197,36 @@ function SearchButton({ onClick }: { onClick: () => void }) {
 }
 
 // ─── Brand lockup ─────────────────────────────────────────────────────────────
-// El LOGO HORIZONTAL real (mark + "DUNA"), no el wordmark en texto. Antes era texto
-// porque se quería sólo el wordmark y el SVG horneaba mark+lettering junto; el owner
-// decidió usar el lockup completo, que es justo lo que ese archivo trae. Variante
-// negativa para oscuro, igual que el mark del rail colapsado.
+// EL MARK COMO SVG + "Duna" COMO TEXTO, no el lockup horizontal horneado. El
+// `-horizontal-v1.svg` hornea mark+lettering en un archivo, así que achicar las
+// letras achica el mark; por eso el wordmark va como texto y el mark va suelto
+// —`duna-mark-v1.svg`, el mismo que el rail colapsado, con su negativo en oscuro—.
+// El negocio ("Café Nayoli") debajo, muted, para que el wordmark no domine.
 //
-// EL ÁMBAR DEL ASSET (#F59E0B = `--duna-sol`) ES MARCA, NO ESTADO — excepción
+// EL ÁMBAR DEL MARK (#F59E0B = `--duna-sol`) ES MARCA, NO ESTADO — excepción
 // declarada (§ CLAUDE.md, "El ámbar del logo es marca, no atención"). Un logo es la
 // firma del producto, no un semáforo; ya vivía en el mark colapsado.
-//
-// `max-h-7 max-w-full w-auto`: escala para caber sin distorsión (nunca `h-` fijo con
-// `max-w`, que aplastaría el logo si el área del lockup es más angosta que su ancho).
 function BrandLockup() {
   return (
-    <div className="mt-2 min-w-0 overflow-hidden">
+    <div className="mt-2 flex min-w-0 items-center gap-2.5 overflow-hidden">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/duna-logo-horizontal-v1.svg" alt="Duna" className="block max-h-7 w-auto max-w-full object-contain dark:hidden" />
+      <img src="/brand/duna-mark-v1.svg" alt="" aria-hidden="true" className="h-7 w-7 shrink-0 object-contain dark:hidden" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/duna-logo-horizontal-negative-v1.svg" alt="Duna" className="hidden max-h-7 w-auto max-w-full object-contain dark:block" />
-      <p className="mt-2 mb-2 whitespace-nowrap text-[13px] leading-none text-sidebar-foreground/55" style={{ fontFamily: 'var(--duna-font-ui)' }}>
-        Café Nayoli
-      </p>
+      <img src="/brand/duna-mark-negative-v1.svg" alt="" aria-hidden="true" className="hidden h-7 w-7 shrink-0 object-contain dark:block" />
+      <div className="min-w-0">
+        <span
+          className="block whitespace-nowrap font-semibold leading-none text-sidebar-foreground"
+          style={{ fontSize: '1.02rem', letterSpacing: '.01em', fontFamily: 'var(--duna-font-ui)' }}
+        >
+          Duna
+        </span>
+        <p
+          className="mt-1 whitespace-nowrap leading-none text-sidebar-foreground/55"
+          style={{ fontSize: '.7rem', fontFamily: 'var(--duna-font-ui)' }}
+        >
+          Café Nayoli
+        </p>
+      </div>
     </div>
   );
 }
@@ -254,9 +271,11 @@ export default function Sidebar({ collapsed, onToggle, onOpenSearch }: SidebarPr
           collapsed && 'duna:w-18',
         )}
       >
-        {/* Header — brand + (expanded only) search & collapse toggle */}
+        {/* Header — brand + (expanded only) search & collapse toggle. SIN línea
+            divisoria: la separación con el nav la da el espacio, no un borde (el rail
+            de la maqueta no lo tiene). */}
         <div className={cn(
-          'relative flex h-16 shrink-0 items-center gap-2 border-b border-sidebar-border px-3',
+          'relative flex h-16 shrink-0 items-center gap-2 px-3',
           collapsed && 'duna:justify-center',
         )}>
           {/* Full lockup — hidden only on the collapsed desktop rail */}
