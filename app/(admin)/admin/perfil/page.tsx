@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, Mail, Shield, Building2, LogOut } from 'lucide-react';
+import { User, Mail, Shield, Building2, LogOut, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { authClient } from '@/lib/auth-client';
 import { useRouter } from 'next/navigation';
@@ -32,12 +32,68 @@ const PERMISOS: Record<string, string> = {
 const initialesDe = (nombre: string) =>
   (nombre.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()) || 'N';
 
+// Mínimo de Better Auth (default `minPasswordLength: 8`, sin override en lib/auth).
+// Se valida acá para no gastar un viaje al server con una nueva demasiado corta;
+// el server sigue siendo el que MANDA sobre la actual (que sólo él puede verificar).
+const MIN_PASS = 8;
+
 export default function Perfil() {
   const router                = useRouter();
   const [loading, setLoading] = useState(true);
   const [form, setForm]       = useState({ name: '', email: '' });
   const [role, setRole]       = useState<string>('STAFF');
   const guarda                = useAccionGuardada();
+
+  // Cambio de contraseña — formulario inline que LLENA el usuario. `revokeOtherSessions`
+  // por defecto: cambiar la clave cierra las demás sesiones (la actual sobrevive).
+  const [cambiandoPass, setCambiandoPass] = useState(false);
+  const [pass, setPass]         = useState({ actual: '', nueva: '', confirmar: '' });
+  const [passError, setPassError] = useState<string | null>(null);
+  const guardaPass              = useAccionGuardada();
+
+  const cerrarPass = () => {
+    setCambiandoPass(false);
+    setPass({ actual: '', nueva: '', confirmar: '' });
+    setPassError(null);
+  };
+
+  const handleCambiarPass = (e: React.FormEvent) => {
+    e.preventDefault();
+    // El error se limpia al reintentar — un error que sobrevive a un intento
+    // exitoso afirma un fallo que ya no existe (§ ErrorDialogo, la misma lección).
+    setPassError(null);
+
+    if (pass.nueva.length < MIN_PASS) {
+      setPassError(`La nueva contraseña debe tener al menos ${MIN_PASS} caracteres.`);
+      return;
+    }
+    if (pass.nueva !== pass.confirmar) {
+      setPassError('La nueva contraseña y su confirmación no coinciden.');
+      return;
+    }
+    if (pass.nueva === pass.actual) {
+      setPassError('La nueva contraseña debe ser distinta de la actual.');
+      return;
+    }
+
+    return guardaPass.ejecutar(async () => {
+      const { error } = await authClient.changePassword({
+        currentPassword:     pass.actual,
+        newPassword:         pass.nueva,
+        revokeOtherSessions: true,
+      });
+      if (error) {
+        // El fallo del server que el usuario puede corregir es la contraseña
+        // ACTUAL equivocada —lo único que sólo el server sabe—. El mensaje de
+        // Better Auth viene en inglés, así que se traduce a una frase que dice qué
+        // arreglar, en vez de mostrar "Invalid password" en una pantalla en español.
+        setPassError('No se pudo cambiar la contraseña. Revisa que la actual sea correcta.');
+        return;
+      }
+      toast.success('Contraseña actualizada. Las otras sesiones se cerraron.');
+      cerrarPass();
+    });
+  };
 
   useEffect(() => {
     authClient.getSession().then(({ data: session }) => {
@@ -153,9 +209,87 @@ export default function Perfil() {
         </div>
       </div>
 
-      {/* Sesión */}
+      {/* Seguridad */}
       <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
         <h3 className="duna-title" style={{ fontSize: 'var(--duna-text-body)', margin: 0 }}>Seguridad</h3>
+
+        {/* Contraseña — colapsada muestra una fila; expandida, el formulario que
+            el usuario llena. */}
+        <div style={{ marginTop: 'var(--duna-space-3)', paddingBottom: 'var(--duna-space-3)', borderBottom: '1px solid var(--duna-border)' }}>
+          {!cambiandoPass ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--duna-space-3)' }}>
+              <div style={{ minWidth: 0 }}>
+                <p className="duna-body" style={{ fontWeight: 'var(--duna-w-semi)', margin: 0 }}>Contraseña</p>
+                <p className="duna-sub" style={{ marginTop: '1px' }}>
+                  Cambiarla cierra tus otras sesiones abiertas.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCambiandoPass(true)}
+                className="duna-btn duna-btn--ghost duna-btn--sm"
+                style={{ flexShrink: 0 }}
+              >
+                <KeyRound /> Cambiar contraseña
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleCambiarPass} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-3)' }}>
+              <div className="duna-field">
+                <label className="duna-field__label" htmlFor="pass-actual">Contraseña actual</label>
+                <input
+                  id="pass-actual"
+                  type="password"
+                  autoComplete="current-password"
+                  className="duna-input"
+                  value={pass.actual}
+                  onChange={e => setPass(p => ({ ...p, actual: e.target.value }))}
+                />
+              </div>
+              <div className="duna-field">
+                <label className="duna-field__label" htmlFor="pass-nueva">Nueva contraseña</label>
+                <input
+                  id="pass-nueva"
+                  type="password"
+                  autoComplete="new-password"
+                  className="duna-input"
+                  aria-invalid={!!passError}
+                  value={pass.nueva}
+                  onChange={e => setPass(p => ({ ...p, nueva: e.target.value }))}
+                />
+                <p className="duna-field__hint">Al menos {MIN_PASS} caracteres.</p>
+              </div>
+              <div className="duna-field">
+                <label className="duna-field__label" htmlFor="pass-confirmar">Confirmar nueva contraseña</label>
+                <input
+                  id="pass-confirmar"
+                  type="password"
+                  autoComplete="new-password"
+                  className="duna-input"
+                  aria-invalid={!!passError}
+                  value={pass.confirmar}
+                  onChange={e => setPass(p => ({ ...p, confirmar: e.target.value }))}
+                />
+              </div>
+
+              {/* El error vive donde el usuario mira, y la ranura no existe sin
+                  mensaje —un contenedor vacío que reserva su hueco empujaría el
+                  formulario justo al aparecer— (§ Controles de formulario). */}
+              {passError && <p className="duna-field__error">{passError}</p>}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--duna-space-2)' }}>
+                <button type="button" onClick={cerrarPass} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={guardaPass.enVuelo}>
+                  Cancelar
+                </button>
+                <button type="submit" className="duna-btn duna-btn--primary duna-btn--sm" disabled={guardaPass.enVuelo}>
+                  {guardaPass.enVuelo ? 'Guardando…' : 'Guardar contraseña'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+
+        {/* Sesión */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--duna-space-3)',
           marginTop: 'var(--duna-space-3)',
