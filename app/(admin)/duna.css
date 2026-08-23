@@ -188,6 +188,28 @@ html.admin {
   .duna-sin-split .duna-region > * { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
 }
 
+/* ═══ EL HILO DE FONDO bajo el alto fijo · el CANVAS del root, no la altura ════
+   En las pantallas de alto fijo, `main` mide `height: 100dvh` (arriba). Ese `dvh`
+   no calza exacto con el área visible —redondeo sub-pixel—, así que por debajo de
+   `main` asoma ~1px al borde inferior del viewport. Lo que asoma NO es `--duna-bg`:
+   body y el div del chrome están pintados de `--duna-bg`, pero el `<html>` NO tiene
+   background propio (globals.css: `html { color-scheme: light }` y nada más), así
+   que el elemento de más atrás es el CANVAS del `color-scheme` —blanco en claro,
+   casi negro en oscuro—, que difiere del crema/gris de `--duna-bg`. Ese contraste
+   es el hilo.
+
+   ARREGLO MÍNIMO, y NO toca la cadena de altura: pintar el canvas del root con el
+   mismo `--duna-bg`. Cualquier pelo sub-pixel que asome pasa a ser del color del
+   panel = invisible. Es sólo un `background`; no cambia height, flex, overflow ni
+   sticky, así que no re-abre la cadena que costó dos rondas afinar. Va en `html.admin`
+   —donde viven los tokens y donde `--duna-bg` flipea con el tema— y no toca el
+   storefront (su `<html>` no lleva `.admin`).
+
+   Si el gate del owner muestra que el hilo SIGUE, el diagnóstico del canvas estaba
+   incompleto y se DECIDE ahí —con el gate fallido delante— si se toca el `100dvh`;
+   no antes, y no por inercia. */
+html.admin { background: var(--duna-bg); }
+
 /* ═══ EL GRÁFICO DE PAGOS · la curva sobre el tiempo (bespoke admin, no DS) ════
    Vive en la ZONA FIJA, encima del libro: el gráfico no scrollea. Dos ejes
    intercambiables —curva por tiempo, barras por método— y el cambio entre ellos es

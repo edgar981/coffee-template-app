@@ -1239,6 +1239,14 @@ barras de scroll tokenizadas — misma clase de pulido). NO tocar la cadena de a
 shell por un píxel fuera de eso: **costó dos rondas afinarla** (§ La cadena de altura),
 y el riesgo de re-romper el alto fijo por un hilo cosmético no lo vale.
 
+**ESTADO (2026-08-23): OPCIÓN 1 APLICADA, pendiente de gate.** El diagnóstico se afinó: lo
+que asoma NO es `--duna-bg` sino el CANVAS del root —`<html>` no tiene `background` propio
+(sólo `color-scheme`), así que el pelo sub-pixel muestra el blanco/negro del `color-scheme`,
+no el crema/gris del panel—. El fix: `html.admin { background: var(--duna-bg) }` (`duna.css`),
+que NO toca la cadena de altura. **Si el gate del owner muestra que el hilo sigue, se PARA y
+se decide ahí —con el gate fallido delante— si se toca el `100dvh`; no antes.** Este ítem se
+cierra sólo cuando el gate confirme que el hilo se fue.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
