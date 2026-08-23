@@ -48,6 +48,13 @@ export function pedidosPorHoraDeHoy({ desde, hasta, tz }: Ventana): Promise<Hora
 export interface TopHoyRow {
   nombre: string;
   total:  number;
+  /** El id del producto SÓLO si es inequívoco (todas las líneas de ese nombre
+   *  comparten un único `producto_id` no nulo). `null` cuando el nombre es ambiguo
+   *  —`Product.nombre` NO es único— o hay líneas sin producto: ahí la fila va como
+   *  texto plano, sin link (§ CustomerLink: no prometer una navegación que no
+   *  existe). El bloque agrupa por NOMBRE (el snapshot), no por id, así que dos
+   *  homónimos siguen colapsando en una fila; lo que se resuelve es sólo su destino. */
+  producto_id: string | null;
 }
 
 /**
@@ -62,7 +69,10 @@ export function topHoyVendido({ desde, hasta, tz, limite }: Ventana & { limite: 
   void tz;
   return prisma.$queryRaw<TopHoyRow[]>`
     SELECT oi."producto_nombre" AS nombre,
-           SUM(oi."subtotal")::float8 AS total
+           SUM(oi."subtotal")::float8 AS total,
+           -- id inequívoco: UN solo id distinto Y ninguna línea sin producto.
+           CASE WHEN COUNT(DISTINCT oi."producto_id") = 1 AND bool_and(oi."producto_id" IS NOT NULL)
+                THEN MAX(oi."producto_id") ELSE NULL END AS producto_id
     FROM "OrderItem" oi
     JOIN "Order" o ON o."id" = oi."orden_id"
     WHERE o."createdAt" >= ${desde}

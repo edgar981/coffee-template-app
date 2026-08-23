@@ -17,9 +17,10 @@ export interface DashboardStats {
   /**
    * Lo que más vendió hoy: hasta 5 productos por `SUM(OrderItem.subtotal)` de las
    * órdenes creadas hoy. Eje del DINERO — INCLUYE canceladas, por el snapshot
-   * `producto_nombre`. Ya ordenado desc por el SQL.
+   * `producto_nombre`. Ya ordenado desc por el SQL. `producto_id` sólo si es
+   * inequívoco (si no, la fila va sin link — ver `TopHoyRow`).
    */
-  topHoy: { nombre: string; total: number }[];
+  topHoy: { nombre: string; total: number; producto_id: string | null }[];
   /**
    * Shipments dispatched today — Shipping rows whose `stock_descontado_at`
    * (stamped at the preparando→en_ruta transition) falls on today.

@@ -430,14 +430,19 @@ function StatGridSkeleton({ count }: { count: number }) {
 // ─── Lo que más vendió hoy ────────────────────────────────────────────────────
 // Lista corta con una barra de proporción en TINTA (medida única, sin color de
 // estado): muestra de un vistazo cuánto pesa cada producto contra el líder del día.
-function TopHoy({ filas }: { filas: { nombre: string; total: number }[] }) {
+function TopHoy({ filas }: { filas: { nombre: string; total: number; producto_id: string | null }[] }) {
   const max = Math.max(...filas.map(f => f.total), 1);
+  const nombreEstilo = { minWidth: 0, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const };
   return (
     <div className="space-y-3">
       {filas.map((f, i) => (
         <div key={i}>
           <div className="flex items-baseline justify-between gap-3">
-            <span className="duna-body-sm" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.nombre}</span>
+            {/* Navega al producto SÓLO con id inequívoco; ambiguo o sin producto →
+                texto plano (§ CustomerLink: no prometer una navegación que no existe). */}
+            {f.producto_id
+              ? <Link href={`/admin/productos?producto=${encodeURIComponent(f.producto_id)}`} className="duna-link duna-body-sm" style={nombreEstilo}>{f.nombre}</Link>
+              : <span className="duna-body-sm" style={nombreEstilo}>{f.nombre}</span>}
             <span className="duna-num" style={{ fontWeight: 'var(--duna-w-semi)', whiteSpace: 'nowrap' }}>{formatCOP(f.total)}</span>
           </div>
           <div style={{ height: 4, marginTop: 6, borderRadius: 2, background: 'color-mix(in srgb, var(--duna-ink) 8%, transparent)' }}>

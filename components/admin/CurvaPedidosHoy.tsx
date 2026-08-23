@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { HORAS_DIA } from '@/lib/dashboard/hoy';
+import { useCurvaHover } from './useCurvaHover';
 
 // La curva de pedidos por HORA del día. Bespoke (como PagosCurva) y en TINTA: es una
 // medida ÚNICA —pedidos por hora—, no una serie categórica, así que va en
@@ -64,16 +65,22 @@ function pathDe(pts: { x: number; y: number }[]): { linea: string; area: string 
 export default function CurvaPedidosHoy({ buckets }: { buckets: number[] }) {
   const [ancho, setAncho] = useState(0);
 
-  // Callback ref + ResizeObserver: se engancha y desengancha con cada nodo, y se
-  // ignora el ancho 0 (§ PagosCurva). Más robusto que un efecto con deps `[]`.
-  const ref = useCallback((node: HTMLDivElement | null) => {
+  // Hover/scrub/tap-fuera compartido con PagosCurva (mecanismo único). El clic NO
+  // entra: la curva es LECTURA, no navegación (§ Backlog #40 — Pedidos no filtra por
+  // hora). `hov` es el índice = hora del punto activo.
+  const { hov, contenedorRef, alMover, alSalir } = useCurvaHover(HORAS_DIA, PAD_X, ancho);
+
+  // Callback ref que MIDE (ResizeObserver, ignora ancho 0 — § PagosCurva) Y hace de
+  // contenedor para el descarte táctil por tap-fuera. Un solo nodo, dos responsabilidades.
+  const medirYContener = useCallback((node: HTMLDivElement | null) => {
+    contenedorRef.current = node;
     if (!node) return;
     const medir = () => { const w = node.clientWidth; if (w > 0) setAncho(w); };
     medir();
     const ro = new ResizeObserver(medir);
     ro.observe(node);
     return () => ro.disconnect();
-  }, []);
+  }, [contenedorRef]);
 
   const max = Math.max(...buckets, 1);
   const innerW = Math.max(0, ancho - PAD_X * 2);
@@ -85,17 +92,27 @@ export default function CurvaPedidosHoy({ buckets }: { buckets: number[] }) {
   // pedidos, que es lo que una curva sin eje-Y comunica.
   const iPico = buckets.reduce((mejor, n, i) => (n > buckets[mejor] ? i : mejor), 0);
   const pico = pts[iPico];
+  const activo = hov !== null ? pts[hov] : null;
 
   return (
-    // `minHeight` reserva el alto ANTES de medir: sin él, el primer render sin ancho
-    // deja el div en 0 y salta a 140 cuando el observer responde.
-    <div ref={ref} style={{ width: '100%', minHeight: ALTO }}>
+    // `minHeight` reserva el alto ANTES de medir; `position: relative` ancla el tooltip.
+    <div ref={medirYContener} style={{ position: 'relative', width: '100%', minHeight: ALTO }}>
       {ancho > 0 && (
         <svg width={ancho} height={ALTO} role="img" aria-label="Pedidos por hora del día de hoy"
-             style={{ display: 'block', overflow: 'visible' }}>
+             onPointerMove={alMover} onPointerLeave={alSalir}
+             style={{ display: 'block', overflow: 'visible', touchAction: 'pan-y' }}>
           <path d={area} fill="color-mix(in srgb, var(--duna-ink) 5%, transparent)" />
           <path d={linea} fill="none" stroke="var(--duna-ink)" strokeWidth="1.5"
                 strokeLinejoin="round" strokeLinecap="round" />
+
+          {/* Guía del hover: línea punteada + punto sobre la curva (como PagosCurva). */}
+          {activo && (
+            <g>
+              <line x1={activo.x} y1={PAD_TOP} x2={activo.x} y2={BASELINE}
+                    stroke="var(--duna-border-2)" strokeWidth="1" strokeDasharray="3 3" />
+              <circle cx={activo.x} cy={activo.y} r="3.5" fill="var(--duna-ink)" />
+            </g>
+          )}
 
           {/* Marca del pico: punto + su conteo encima. */}
           <circle cx={pico.x} cy={pico.y} r="3" fill="var(--duna-ink)" />
@@ -115,6 +132,19 @@ export default function CurvaPedidosHoy({ buckets }: { buckets: number[] }) {
             </text>
           ))}
         </svg>
+      )}
+
+      {/* Tooltip en la superficie del sistema (`.admin-tooltip`), sólo DATO: el conteo
+          de esa hora. Es lectura — no navega. */}
+      {activo && hov !== null && (
+        <div className="admin-tooltip"
+             style={{
+               position: 'absolute', left: activo.x, top: Math.max(0, activo.y - 12),
+               transform: `translate(${activo.x > ancho - 90 ? '-100%' : activo.x < 90 ? '0' : '-50%'}, -100%)`,
+               pointerEvents: 'none', whiteSpace: 'nowrap', zIndex: 2,
+             }}>
+          {buckets[hov]} {buckets[hov] === 1 ? 'pedido' : 'pedidos'} · {relojLabel(hov)}
+        </div>
       )}
     </div>
   );
