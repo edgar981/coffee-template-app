@@ -4079,6 +4079,27 @@ antes; con uno solo, admin-level, para no aparentar una primitiva que no está e
 paquete. **`DunaTable` se retiró** en la misma tanda (su único consumidor era el kardex);
 ya no hay dos patrones para lo mismo.
 
+### El número alineado a la derecha va en MEDIO, nunca al borde
+
+Regla de ORDEN de columnas, común a las tres listas del panel (2026-08-23). El dinero y
+los conteos se alinean a la derecha (`.duna-lista__r`, unidades bajo unidades), pero su
+columna va **en el medio de la fila, seguida de más columnas** — **nunca la última**. Las
+tres lo cumplen: Pagos (`Monto` 4ª de 8, con Método/Referencia/Registrado después),
+Inventario (`Cantidad`/`Antes→Después` 3ª–4ª de 7, con Motivo/Quién/Fecha después) y
+Órdenes recientes del Dashboard (`Total` 4ª de 5, con Estado después).
+
+**Mover el dinero al final crearía una SEGUNDA convención** —una lista con el número al
+borde derecho contra dos con el número en medio— y casi pasa: el `Total` de Órdenes se veía
+"flotado a la derecha" y la salida tentadora era ponerlo último. No era el orden: era el
+ANCHO. `Total` estaba a 112px (contra los 96px de `Monto` en Pagos), así que la cifra
+right-aligned tenía más aire vacío a su izquierda. **Se igualó a 96px** —el mismo ancho del
+dinero en las tres— y el flote se fue sin tocar el orden ni la alineación.
+
+**Residuo aceptado:** la columna que sigue al número en Órdenes es un BADGE (Estado),
+donde Pagos e Inventario tienen TEXTO. El mismo gap de 12px se lee un poco más apretado
+junto a un chip con borde; es inherente a que esa lista tiene estado donde las otras tienen
+metadatos, y separarlo (reorden o Estado a la derecha) divergiría de las otras dos. Se deja.
+
 ## Pagos — la FRASE y la CURVA (tercer y último rediseño)
 
 Cerrado el 2026-08-19. La pantalla abre diciendo la RESPUESTA y el gráfico **no

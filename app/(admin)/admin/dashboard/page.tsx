@@ -467,8 +467,12 @@ function TopHoy({ filas }: { filas: { nombre: string; total: number; producto_id
 // navegar dos veces.
 // Anchos DEFINIDOS por columna (patrón de Pagos): sin esto, Cliente —única `fr`— se
 // come el sobrante y Canal/Total/Estado, en `auto`, se encogen y se apiñan a la
-// derecha. Cada columna con su ancho; Cliente crece (es la de nombre).
-const ORDENES_COLS = '108px minmax(7rem,1fr) minmax(84px,auto) 112px minmax(96px,auto)';
+// derecha. Cada columna con su ancho; Cliente crece (es la de nombre). `Total` va a
+// 96px, EL MISMO ancho que `Monto` en Pagos, para que el dinero se lea al mismo ancho
+// en las tres listas del panel y la cifra no flote (§ Listas tabulares — el número a
+// la derecha va en MEDIO, nunca al borde). NO mover Total al final: crearía una
+// segunda convención (Pagos e Inventario lo tienen en medio, con columnas después).
+const ORDENES_COLS = '108px minmax(7rem,1fr) minmax(84px,auto) 96px minmax(96px,auto)';
 
 function OrdersLista({ orders }: { orders: Order[] }) {
   const router = useRouter();
