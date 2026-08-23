@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   FILTROS_PEDIDOS, filtroPorKey, aplicarFiltro, conteos, filtrarPorCliente,
-  filtrarPorRango, filtrarPorEstado, parseEstados, soloOrdenesReales, aplicarAlcance, hayAlcance,
+  filtrarPorRango, filtrarPorEstado, filtrarPorHora, parseEstados, soloOrdenesReales, aplicarAlcance, hayAlcance,
   type OrdenParaFiltro,
 } from './filtros';
 
@@ -299,7 +299,7 @@ test('rango + cliente + cobro se intersecan, y el carril va encima', () => {
   const LISTA = [a, b, c, d];
 
   const alcance = aplicarAlcance(LISTA, {
-    cliente: 'c1', desde: '2026-08-10', hasta: '2026-08-12', estados: ['pendiente'],
+    cliente: 'c1', desde: '2026-08-10', hasta: '2026-08-12', estados: ['pendiente'], hora: null,
   });
   assert.deepEqual(alcance, [a]);
   // Y el carril sigue componiéndose encima, que es lo que hace posible
@@ -316,13 +316,37 @@ test('los CONTEOS respetan el rango activo', () => {
   assert.equal(enRango.preparacion, 2);
 });
 
-test('`hayAlcance` ve cualquiera de los tres', () => {
-  const vacio = { cliente: null, desde: null, hasta: null, estados: [] };
+test('`hayAlcance` ve cualquiera de los cuatro', () => {
+  const vacio = { cliente: null, desde: null, hasta: null, estados: [], hora: null };
   assert.equal(hayAlcance(vacio), false);
   assert.equal(hayAlcance({ ...vacio, cliente: 'c1' }), true);
   assert.equal(hayAlcance({ ...vacio, desde: '2026-08-10' }), true);
   assert.equal(hayAlcance({ ...vacio, hasta: '2026-08-10' }), true);
   assert.equal(hayAlcance({ ...vacio, estados: ['pendiente'] }), true);
+  assert.equal(hayAlcance({ ...vacio, hora: 0 }), true, 'la hora 0 (medianoche) también cuenta — es !== null, no truthy');
+});
+
+test('filtrarPorHora usa el reloj de BOGOTÁ, con el borde 23:47 que la zona ya mordió', () => {
+  // 2026-08-24T04:47:00Z = 23:47 del 2026-08-23 en Bogotá (UTC-5). Debe caer en la
+  // HORA 23, igual que la curva (`EXTRACT(HOUR … AT TIME ZONE tz)`), NO en la 4 (UTC).
+  const tarde = o({ createdAt: '2026-08-24T04:47:00.000Z' });   // 23:47 Bogotá
+  const manana = o({ createdAt: '2026-08-23T14:30:00.000Z' });  // 09:30 Bogotá
+  const lista = [tarde, manana];
+
+  assert.deepEqual(filtrarPorHora(lista, 23), [tarde], 'el 23:47 Bogotá cae en la hora 23');
+  assert.deepEqual(filtrarPorHora(lista, 4), [], 'NO cae en la hora 4 (esa sería la lectura UTC, el bug)');
+  assert.deepEqual(filtrarPorHora(lista, 9), [manana]);
+  assert.equal(filtrarPorHora(lista, null), lista, 'sin hora, no recorta');
+});
+
+test('el alcance horario se COMPONE con el rango (mismo día, una hora)', () => {
+  // El caso real de la curva: ?desde=hoy&hasta=hoy&hora=H.
+  const h9  = o({ estado: 'pagado', createdAt: '2026-08-23T14:30:00.000Z', shipping: { estado: 'preparando' } }); // 09:30 Bogotá
+  const h15 = o({ estado: 'pagado', createdAt: '2026-08-23T20:30:00.000Z', shipping: { estado: 'preparando' } }); // 15:30 Bogotá
+  const alcance = aplicarAlcance([h9, h15], {
+    cliente: null, desde: '2026-08-23', hasta: '2026-08-23', estados: [], hora: 15,
+  });
+  assert.deepEqual(alcance, [h15], 'el día completo, recortado a las 15:00');
 });
 
 test('carril "Listas para despachar": SOLO preparando con mensajero Y fecha', () => {

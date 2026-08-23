@@ -1233,29 +1233,6 @@ otra razón"). En esa tanda las dos voces se unifican —el diálogo pasa a leer
 `frase(config)` como la tarjeta, y `disparador` se retira— así que quedan una sola.
 No antes: hoy `disparador` es lo que el diálogo intacto consume.
 
-### 40. La curva de pedidos por hora no es clickeable — falta el destino por HORA
-
-La curva del Dashboard "Hoy" (`CurvaPedidosHoy`) NO navega, por la misma regla que
-`despachos_hoy` y las dos gráficas del carrusel (§ la gráfica de Pedidos del carrusel
-no tiene destino): **Pedidos no filtra por hora**, así que un clic en las 2 p.m.
-llevaría a "todos los pedidos de hoy" —un superconjunto—, el parecido-pero-distinto
-que invita a concluir que la curva está mal cuando lo que estaría mal es el destino.
-Es la **cuarta instancia** de la regla.
-
-El CONTEO del encabezado sí navega (`?desde=hoy&hasta=hoy`), y ése es exacto: medido,
-`isCountableOrder` (= no cancelado) es el mismo `NOT_CANCELLED` del stat y ambos
-excluyen `SN-`, así que el enlace da los MISMOS N (card=lista, § el conteo del
-encabezado). Lo que falta no es el enlace de la curva: es un destino que mida su
-conjunto (órdenes creadas en ESA hora).
-
-**Costo YA pagado: ninguno** — la curva comunica la forma del día sin clic, y el
-conteo ya da la vía a la lista.
-
-**DISPARADOR: si Pedidos gana filtro horario.** Ahí un clic en un bucket puede navegar
-a `?desde=hoy&hasta=hoy&hora=H` (o el parámetro que Pedidos defina) sin prometer un
-conjunto que no existe. Hasta entonces, no-clickeable es la respuesta correcta, no una
-deuda.
-
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son

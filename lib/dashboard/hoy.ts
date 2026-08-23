@@ -41,3 +41,14 @@ export function bucketsPorHora(rows: HoraRow[]): number[] {
 export function curvaDibuja(buckets: number[]): boolean {
   return buckets.some(n => n > 0);
 }
+
+/**
+ * Hora del día (0–23) → etiqueta de reloj (es-CO): 12 a.m. · 6 a.m. · 12 m. ·
+ * 3 p.m. … Fuente ÚNICA para el eje de la curva Y el tag de alcance horario de
+ * Pedidos, para que el mismo bucket se lea igual en las dos superficies.
+ */
+export function relojLabel(h: number): string {
+  if (h === 0)  return '12 a.m.';
+  if (h === 12) return '12 m.';
+  return h < 12 ? `${h} a.m.` : `${h - 12} p.m.`;
+}

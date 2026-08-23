@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { HORAS_DIA } from '@/lib/dashboard/hoy';
+import { HORAS_DIA, relojLabel } from '@/lib/dashboard/hoy';
 import { useCurvaHover } from './useCurvaHover';
 
 // La curva de pedidos por HORA del día. Bespoke (como PagosCurva) y en TINTA: es una
@@ -33,13 +33,6 @@ const BASELINE = PAD_TOP + INNER_H;
 // el bucket de las 23:00); "12 a.m." ahí duplicaría el borde izquierdo y mal-rotularía.
 const TICKS = [0, 6, 12, 18, 23];
 
-/** Hora del día (0–23) → etiqueta de reloj (es-CO): 12 a.m. · 12 m. · 3 p.m. … */
-function relojLabel(h: number): string {
-  if (h === 0)  return '12 a.m.';
-  if (h === 12) return '12 m.';
-  return h < 12 ? `${h} a.m.` : `${h - 12} p.m.`;
-}
-
 const clampY = (y: number) => Math.max(PAD_TOP, Math.min(BASELINE, y));
 
 /** Catmull-Rom → Bézier, con los controles ACOTADOS a la caja (§ PagosCurva: sin
@@ -62,12 +55,17 @@ function pathDe(pts: { x: number; y: number }[]): { linea: string; area: string 
   return { linea: d, area };
 }
 
-export default function CurvaPedidosHoy({ buckets }: { buckets: number[] }) {
+export default function CurvaPedidosHoy({ buckets, onPunto }: {
+  buckets: number[];
+  /** Clic en la hora activa → navega al día filtrado por esa hora. Ausente = no
+   *  clickeable (la curva sigue siendo lectura pura). El destino lo arma el llamador. */
+  onPunto?: (hora: number) => void;
+}) {
   const [ancho, setAncho] = useState(0);
 
-  // Hover/scrub/tap-fuera compartido con PagosCurva (mecanismo único). El clic NO
-  // entra: la curva es LECTURA, no navegación (§ Backlog #40 — Pedidos no filtra por
-  // hora). `hov` es el índice = hora del punto activo.
+  // Hover/scrub/tap-fuera compartido con PagosCurva (mecanismo único). `hov` es el
+  // índice = hora del punto activo. El clic navega a Pedidos con esa hora, que ya
+  // filtra por hora (por eso la curva pasó a clickeable — § el ex-Backlog #40).
   const { hov, contenedorRef, alMover, alSalir } = useCurvaHover(HORAS_DIA, PAD_X, ancho);
 
   // Callback ref que MIDE (ResizeObserver, ignora ancho 0 — § PagosCurva) Y hace de
@@ -100,7 +98,10 @@ export default function CurvaPedidosHoy({ buckets }: { buckets: number[] }) {
       {ancho > 0 && (
         <svg width={ancho} height={ALTO} role="img" aria-label="Pedidos por hora del día de hoy"
              onPointerMove={alMover} onPointerLeave={alSalir}
-             style={{ display: 'block', overflow: 'visible', touchAction: 'pan-y' }}>
+             // Clic = navegar a la hora activa (mismo `hov` del hover). En táctil el tap
+             // ya fijó `hov` con el mousemove sintetizado, así que el clic acota igual.
+             onClick={onPunto && hov !== null ? () => onPunto(hov) : undefined}
+             style={{ display: 'block', overflow: 'visible', touchAction: 'pan-y', cursor: onPunto ? 'pointer' : 'default' }}>
           <path d={area} fill="color-mix(in srgb, var(--duna-ink) 5%, transparent)" />
           <path d={linea} fill="none" stroke="var(--duna-ink)" strokeWidth="1.5"
                 strokeLinejoin="round" strokeLinecap="round" />

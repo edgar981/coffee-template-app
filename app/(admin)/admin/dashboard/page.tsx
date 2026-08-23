@@ -78,6 +78,7 @@ function EyebrowReloj() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
+  const router = useRouter();
   const [stats, setStats]           = useState<DashboardStats | null>(null);
   const [analytics, setAnalytics]   = useState<AnalyticsData | null>(null);
   const [products, setProducts]     = useState<Product[]>([]);
@@ -297,7 +298,12 @@ export default function Dashboard() {
             {!stats ? (
               <p className="duna-sub" style={{ margin: 0 }}>No se pudo cargar la actividad de hoy.</p>
             ) : curvaDibuja(pedidosPorHora) ? (
-              <CurvaPedidosHoy buckets={pedidosPorHora} />
+              // Clic en una hora → Pedidos filtrado a ESA hora del día (conjunto exacto,
+              // ya que Pedidos ganó filtro horario). `hoyKey` es el día de Bogotá del server.
+              <CurvaPedidosHoy
+                buckets={pedidosPorHora}
+                onPunto={h => router.push(`/admin/pedidos?desde=${stats.hoyKey}&hasta=${stats.hoyKey}&hora=${h}`)}
+              />
             ) : (
               <p className="duna-sub" style={{ margin: 0 }}>Sin pedidos hoy todavía — la curva aparece con el primero.</p>
             )}
@@ -459,7 +465,10 @@ function TopHoy({ filas }: { filas: { nombre: string; total: number; producto_id
 // horizontal. La fila navega al detalle del pedido (`?pedido=`); el número es un
 // <Link> real para middle-click y foco de teclado, con `stopPropagation` para no
 // navegar dos veces.
-const ORDENES_COLS = 'minmax(6rem,auto) minmax(7rem,1.4fr) auto minmax(5.5rem,auto) auto';
+// Anchos DEFINIDOS por columna (patrón de Pagos): sin esto, Cliente —única `fr`— se
+// come el sobrante y Canal/Total/Estado, en `auto`, se encogen y se apiñan a la
+// derecha. Cada columna con su ancho; Cliente crece (es la de nombre).
+const ORDENES_COLS = '108px minmax(7rem,1fr) minmax(84px,auto) 112px minmax(96px,auto)';
 
 function OrdersLista({ orders }: { orders: Order[] }) {
   const router = useRouter();

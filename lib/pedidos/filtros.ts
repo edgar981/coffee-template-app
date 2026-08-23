@@ -1,5 +1,5 @@
 import { isPorCobrar, isCountableOrder } from '@duna/core/metrics/order-stat-filters';
-import { BUSINESS_TZ, zonedDayKey } from '@duna/core/timezone';
+import { BUSINESS_TZ, zonedDayKey, zonedHour } from '@duna/core/timezone';
 import { necesitaAtencion, type OrdenParaAtencion } from './atencion';
 import { tienePendienteDeVerificar, type ComprobanteEstado } from '@/lib/comprobante';
 import { conteosDeCola, type CarrilBase, type ConteosDeCola } from '@/lib/carriles';
@@ -234,6 +234,9 @@ export interface AlcancePedidos {
   desde:   string | null;
   hasta:   string | null;
   estados: OrderStatus[];
+  /** Hora del día (0–23, reloj de Bogotá) — el alcance que llega desde la curva del
+   *  Dashboard (`?hora=`). `null` = sin recorte horario. */
+  hora:    number | null;
 }
 
 /**
@@ -255,18 +258,39 @@ export function etiquetaEstados(estados: OrderStatus[]): string | null {
   return `Sólo ${estados.map(e => ETIQUETA_ESTADO[e]).join(' y ')}`;
 }
 
+/** `?hora=` → 0–23, o `null` si falta o es basura (no se interpreta en silencio). */
+export function parseHora(raw: string | null): number | null {
+  if (raw === null) return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 && n <= 23 ? n : null;
+}
+
 /** ¿Hay algún alcance puesto? Lo consume el aviso que los muestra y los quita. */
 export const hayAlcance = (a: AlcancePedidos): boolean =>
-  Boolean(a.cliente || a.desde || a.hasta || a.estados.length);
+  Boolean(a.cliente || a.desde || a.hasta || a.estados.length || a.hora !== null);
 
 /**
- * Aplica los tres. El ORDEN entre ellos no cambia el resultado —son
+ * Filtra por HORA del día (reloj de Bogotá), con el MISMO anclaje que la curva del
+ * Dashboard: `zonedHour` reproduce el `EXTRACT(HOUR FROM … AT TIME ZONE tz)` del SQL,
+ * así que un pedido a las 23:47 Bogotá (04:47 UTC del día siguiente) cae en la hora
+ * 23 en las dos superficies. Sin `createdAt` no se puede ubicar → queda fuera.
+ */
+export function filtrarPorHora<T extends { createdAt?: string }>(ordenes: T[], hora: number | null): T[] {
+  if (hora === null) return ordenes;
+  return ordenes.filter(o => o.createdAt != null && zonedHour(new Date(o.createdAt), BUSINESS_TZ) === hora);
+}
+
+/**
+ * Aplica los cuatro. El ORDEN entre ellos no cambia el resultado —son
  * intersecciones— pero se dejan en el mismo orden en que se leen en pantalla.
  */
 export function aplicarAlcance<T extends OrdenParaFiltro>(ordenes: T[], a: AlcancePedidos): T[] {
-  return filtrarPorEstado(
-    filtrarPorRango(filtrarPorCliente(ordenes, a.cliente), a.desde, a.hasta),
-    a.estados,
+  return filtrarPorHora(
+    filtrarPorEstado(
+      filtrarPorRango(filtrarPorCliente(ordenes, a.cliente), a.desde, a.hasta),
+      a.estados,
+    ),
+    a.hora,
   );
 }
 

@@ -19,9 +19,10 @@ import { DunaTooltip } from '@/components/admin/DunaTooltip';
 import { useDetalleAlLado } from '@/hooks/useDetalleAlLado';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
 import { useHidratado } from '@/hooks/useHidratado';
+import { relojLabel } from '@/lib/dashboard/hoy';
 import {
   FILTROS_PEDIDOS, aplicarFiltro, conteos, filtroPorKey,
-  aplicarAlcance, soloOrdenesReales, parseEstados, etiquetaEstados, hayAlcance,
+  aplicarAlcance, soloOrdenesReales, parseEstados, parseHora, etiquetaEstados, hayAlcance,
   type FiltroKey,
 } from '@/lib/pedidos/filtros';
 import { pasosDelPedido, badgeCobro } from '@/lib/pedidos/estado';
@@ -174,6 +175,7 @@ function Pedidos() {
     desde:   params.get('desde'),
     hasta:   params.get('hasta'),
     estados: parseEstados(params.get('estado')),
+    hora:    parseHora(params.get('hora')),
   }), [params]);
   const cliente = alcanceUrl.cliente;
 
@@ -566,14 +568,30 @@ function Pedidos() {
           {!cargando && etiquetaEstados(alcanceUrl.estados) && (
             <span className="duna-tag">{etiquetaEstados(alcanceUrl.estados)}</span>
           )}
+          {/* EL TAG HORARIO SÍ LLEVA × PROPIO, y es la EXCEPCIÓN a la convención de que
+              los tags no lo llevan. Esa convención existe porque cada alcance tiene su
+              CONTROL local para quitarlo (el rango con el date picker, el cliente y el
+              estado por donde se pusieron). El horario NO tiene control en Pedidos:
+              llega desde la curva del Dashboard (`?hora=`), y sin este × la única forma
+              de volver al día completo sería "Ver todos", que también borra el rango.
+              El × quita SÓLO la hora y conserva `?desde/hasta`. No unificar quitándolo. */}
+          {alcanceUrl.hora !== null && (
+            <span className="duna-tag" style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--duna-space-1)' }}>
+              a las {relojLabel(alcanceUrl.hora)}
+              <button type="button" onClick={() => navegar({ hora: null })} aria-label="Quitar la hora"
+                      style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', font: 'inherit', lineHeight: 1, color: 'inherit' }}>
+                ×
+              </button>
+            </span>
+          )}
 
-          {/* UNA sola forma de quitar alcances, la que ya existía para el cliente.
-              Limpia los tres de una vez y NO toca el carril: el carril es dónde
-              estás mirando, no cuánto estás mirando. */}
+          {/* UNA sola forma de quitar TODOS los alcances (incluida la hora), la que ya
+              existía para el cliente. NO toca el carril: el carril es dónde estás
+              mirando, no cuánto estás mirando. */}
           <button
             type="button"
             className="duna-btn duna-btn--ghost duna-btn--sm"
-            onClick={() => navegar({ cliente: null, desde: null, hasta: null, estado: null })}
+            onClick={() => navegar({ cliente: null, desde: null, hasta: null, estado: null, hora: null })}
           >
             Ver todos
           </button>
