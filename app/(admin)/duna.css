@@ -210,6 +210,44 @@ html.admin {
    no antes, y no por inercia. */
 html.admin { background: var(--duna-bg); }
 
+/* ═══ BARRAS DE SCROLL DEL PANEL · pulgar fino, SIN banda ══════════════════════
+   El panel no tenía ningún estilo de barra: todas mostraban la del navegador, con
+   su CANAL (track) como una banda de fondo visible contrastando contra la página.
+   Lo que molesta es la banda, no el pulgar (referencia: el pulgar flota sin canal
+   detrás).
+
+   UNA regla, no una por scroller: `scrollbar-width` y `scrollbar-color` HEREDAN, así
+   que puestas en `html.admin` cascadean al scroll del DOCUMENTO y a los ~7 scrollers
+   anidados (columnas del split, `.duna-cards`, la región de `.duna-sin-split`, el
+   cuerpo de sheets y modales) de una vez, sin declaraciones repetidas que diverjan.
+   El storefront no la lleva (su `<html>` no tiene `.admin`).
+
+   `transparent` en el TRACK es el objetivo: el canal muestra el fondo del elemento a
+   través → sin banda. Firefox y Chromium lo respetan; ambos soportan las dos props
+   (Chrome 121+, Firefox siempre). En Chrome <121 se ignoran → barra default
+   (degradación, no roto).
+
+   NADA de `::-webkit-scrollbar`: fuerza barras PERSISTENTES a quien las tiene en
+   overlay, y esa preferencia es del usuario (su OS), no nuestra. Las props estándar
+   respetan overlay/persistente.
+
+   EL PULGAR ES `--duna-muted`, NO `--duna-border-2`, y es una decisión MEDIDA: el
+   borde-2 contra `--duna-bg` da 1.30:1 en claro / 1.53:1 en oscuro (ΔE2000 7.3 / 11.4)
+   —por debajo del 3:1 de WCAG 1.4.11 para un componente de UI—, o sea un pulgar casi
+   invisible que pierde la señal "hay más abajo", que es el trabajo de la barra. `muted`
+   da 4.62:1 / 6.27:1 (ΔE2000 37.9 / 45.8): visible pero discreto (es texto secundario),
+   y flipea con el tema como `--duna-bg`.
+
+   CONSECUENCIA MEDIDA: `scrollbar-width: thin` baja el canal reservado por
+   `scrollbar-gutter: stable` de 15px a 11px (Chrome). Barra y canal SIEMPRE cuadran
+   —los gobierna la misma `scrollbar-width`—, así que no hay desajuste; el efecto es que
+   los 4 scrollers con gutter reservan 4px menos y su contenido se ensancha ~4px. Es
+   reflow, no defecto. */
+html.admin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--duna-muted) transparent;
+}
+
 /* ═══ EL GRÁFICO DE PAGOS · la curva sobre el tiempo (bespoke admin, no DS) ════
    Vive en la ZONA FIJA, encima del libro: el gráfico no scrollea. Dos ejes
    intercambiables —curva por tiempo, barras por método— y el cambio entre ellos es

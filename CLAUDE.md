@@ -921,6 +921,19 @@ de scroll comunica. El acabado tiene que conservar esa señal.
 **DISPARADOR: una tanda de acabado del shell**, con gate visual propio (el cambio
 se ve, y hay que verlo en los dos temas).
 
+**ESTADO (2026-08-23): APLICADO, pendiente de gate.** Una regla HEREDADA en
+`html.admin` (`scrollbar-width: thin; scrollbar-color: var(--duna-muted) transparent;`,
+`duna.css`) —no ad-hoc por scroller ni una utilidad: las dos props heredan, así que
+cubren el documento y los ~7 scrollers anidados de una—. **SIN `::-webkit-scrollbar`**
+(fuerza barras persistentes a quien usa overlay; su preferencia, no la nuestra — la
+línea de arriba que lo mencionaba está desactualizada respecto a esta decisión). El
+`transparent` del track quita la BANDA, que es lo que molestaba. **El pulgar es `muted`,
+no `border-2`, MEDIDO**: border-2 daba 1.30:1 claro / 1.53:1 oscuro (por debajo del 3:1
+de un componente UI); muted da 4.62 / 6.27 — visible pero discreto, conserva la señal
+"hay más". Efecto medido: el canal de `scrollbar-gutter: stable` baja 15→11px (barra y
+canal siguen cuadrando); reflow de ~4px en los 4 scrollers con gutter, no defecto. Cierra
+sólo cuando el gate confirme el pulgar visible sin banda en los dos temas.
+
 ### 25. Las reglas del alto fijo están gateadas a un VALOR (1080), no a un ROL
 
 El alto fijo de las pantallas de split se activa en `@media (min-width: 1080px)`
