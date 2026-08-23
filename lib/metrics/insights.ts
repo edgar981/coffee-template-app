@@ -11,6 +11,8 @@
 // días contra meses de 30 produce "a la baja" todos los días 1. Las reglas
 // trabajan solo sobre meses CERRADOS (`cerrado: false` se descarta).
 
+import { zonedDayKey, BUSINESS_TZ } from '@duna/core/timezone';
+
 /**
  * Piso de muestra: por debajo de estas órdenes en el mes comparado NO se emite
  * insight de tendencia. A volumen bajo un -40% son dos órdenes de diferencia, y
@@ -251,7 +253,14 @@ export function insightUltimoEvento(
   if (!data || !data.hoy) return null;
   if (!data.ultimoEvento) return { text: copy.nunca };
 
-  const dia  = data.ultimoEvento.slice(0, 10);
+  // EL DÍA SE DERIVA EN BOGOTÁ, no con un slice del ISO en UTC. `ultimoEvento` es un
+  // instante UTC (`.toISOString()`); recortarlo daba el día UTC, que para un evento
+  // entre 19:00–23:59 Bogotá (= 00:00–04:59 UTC del día siguiente) es el día
+  // EQUIVOCADO. Eso hacía que la tarjeta dijera "última orden creada hoy" sobre una
+  // orden que en Bogotá fue ayer, contradiciendo su propio conteo (que sí usa la
+  // ventana de Bogotá). `data.hoy` ya es un day-key de Bogotá, así que ambos lados
+  // de `diasEntre` quedan en el mismo reloj.
+  const dia  = zonedDayKey(new Date(data.ultimoEvento), BUSINESS_TZ);
   const dias = diasEntre(dia, data.hoy);
   // Un evento "futuro" (reloj desfasado) se trata como hoy antes que mostrar
   // "hace -1 días".
