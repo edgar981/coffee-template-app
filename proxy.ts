@@ -5,6 +5,7 @@ import { destinoDesdeClientes } from "@/lib/redirect-clientes";
 import { destinoDesdeProductos } from "@/lib/redirect-productos";
 import { destinoDesdeInventario } from "@/lib/redirect-inventario";
 import { destinoDesdeEntregas } from "@/lib/redirect-entregas";
+import { destinoDesdeConfig } from "@/lib/redirect-config";
 
 export function proxy(request: NextRequest) {
   const session = getSessionCookie(request);
@@ -20,11 +21,13 @@ export function proxy(request: NextRequest) {
   //
   // `/admin/ordenes` murió y `/admin/pedidos` habla otro vocabulario de URL; lo
   // mismo pasó con la Clientes vieja y con la Productos vieja, cuyas rutas heredó
-  // el rediseño. La TRADUCCIÓN vive en `lib/redirect-{ordenes,clientes,productos,inventario,entregas}`
+  // el rediseño, con Entregas (que se fundió en Pedidos), y con la subruta
+  // `/configuracion/usuarios` (la pantalla de equipo subió a `/admin/configuracion`).
+  // La TRADUCCIÓN vive en `lib/redirect-{ordenes,clientes,productos,inventario,entregas,config}`
   // —puras y con sus tests de capa 1— y acá sólo se las llama: el mapeo es la
   // decisión, esto es plomería. Son módulos SEPARADOS porque no comparten nada
   // salvo esta mecánica; fusionarlos daría un helper que tiene que conocer los
-  // tres vocabularios para decidir cuál aplica.
+  // vocabularios de todos para decidir cuál aplica.
   //
   // Va en el middleware y no en `next.config.ts` porque los `redirects()` de la
   // config pueden arrastrar el query pero NO renombrar sus claves, y renombrar es
@@ -36,10 +39,11 @@ export function proxy(request: NextRequest) {
   // no llega a una ruta hasta limpiar la caché. No hay SEO que ganar — el sitio
   // entero va `noindex`.
   //
-  // SON CINCO y se llaman uno tras otro. El orden da igual y eso está AFIRMADO, no
-  // supuesto: `redirect-inventario.test.ts` recorre las rutas de los cuatro retiros
-  // comprobando que ninguna caiga en más de uno. Sin ese test, el día que un mapeo
-  // se ensanche el síntoma sería un redirect que gana por estar escrito antes.
+  // SON SEIS y se llaman uno tras otro. El orden da igual y eso está AFIRMADO, no
+  // supuesto: los tests de los redirects recorren las rutas de los retiros
+  // comprobando que ninguna caiga en más de uno (`redirect-config.test.ts` incluye
+  // a los seis). Sin ese test, el día que un mapeo se ensanche el síntoma sería un
+  // redirect que gana por estar escrito antes.
   //
   // INVENTARIO tiene un matiz único: su `?stock=bajo-minimo` sale de la sección
   // hacia `/admin/productos?f=reponer` (la cola de reposición se mudó allá). Ese
@@ -52,7 +56,8 @@ export function proxy(request: NextRequest) {
     destinoDesdeClientes(request.nextUrl.pathname, request.nextUrl.searchParams) ??
     destinoDesdeProductos(request.nextUrl.pathname, request.nextUrl.searchParams) ??
     destinoDesdeInventario(request.nextUrl.pathname, request.nextUrl.searchParams) ??
-    destinoDesdeEntregas(request.nextUrl.pathname, request.nextUrl.searchParams);
+    destinoDesdeEntregas(request.nextUrl.pathname, request.nextUrl.searchParams) ??
+    destinoDesdeConfig(request.nextUrl.pathname, request.nextUrl.searchParams);
   if (destino) return NextResponse.redirect(new URL(destino, request.url), 307);
 
   return NextResponse.next();

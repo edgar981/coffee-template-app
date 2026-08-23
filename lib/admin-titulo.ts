@@ -12,20 +12,21 @@ import { ADMIN_NAV } from '@/constants/admin-nav';
 // lo notaría: el título de pestaña es justo el texto que uno no mira hasta que
 // está mal.
 //
-// Las tres secciones que NO están en `ADMIN_NAV` (viven en el menú de cuenta o
-// son subsecciones) se declaran abajo, con el texto que ya usa su propia
-// pantalla. `usuarios` hereda "Configuración" a propósito: es una subsección, y
-// su encabezado ("Equipo") es un tercer nombre que no vale la pena meter en la
-// pestaña.
+// Las dos secciones que NO están en `ADMIN_NAV` (viven en el menú de cuenta) se
+// declaran abajo, con el texto que ya usa su propia pantalla. `/admin/configuracion`
+// dice "Equipo y usuarios" —el hub de tarjetas desapareció y la ruta hospeda hoy
+// la pantalla de equipo—, no "Configuración": la pestaña dice lo que la pantalla
+// HACE, no el nombre del área que la va a reagrupar el día del multi-tenant. La
+// subruta vieja `/configuracion/usuarios` ya no existe (redirige acá), así que no
+// declara título.
 
 /** Lo que sigue al título en cada pestaña del panel. */
 export const SUFIJO_PANEL = 'Panel Duna';
 
-/** Secciones fuera de `ADMIN_NAV`: menú de cuenta y subsecciones. */
+/** Secciones fuera de `ADMIN_NAV`: el menú de cuenta. */
 const FUERA_DEL_NAV: Record<string, string> = {
-  '/admin/configuracion':          'Configuración',
-  '/admin/configuracion/usuarios': 'Configuración',
-  '/admin/perfil':                 'Mi perfil',
+  '/admin/configuracion': 'Equipo y usuarios',
+  '/admin/perfil':        'Mi perfil',
 };
 
 /**

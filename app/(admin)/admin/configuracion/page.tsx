@@ -1,129 +1,390 @@
-import Link from 'next/link';
-import { Users, Store, Shield, CreditCard, Bell, Puzzle, ChevronRight, LucideIcon } from 'lucide-react';
+'use client';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { useState, useEffect } from 'react';
+import { UserPlus, Search, MoreVertical, Mail, Users, Check, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
+import RoleBadge from '@/components/admin/RoleBadge';
+import InviteUserModal from '@/components/admin/InviteUserModal';
+import { normalize } from '@duna/core/utils';
+import { AdminUser, Role } from '@/types/admin';
+import { ROLES } from '@/constants/roles';
+import { accionEstadoUsuario, motivoRechazoCambioEstado } from '@duna/core/usuarios';
+import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
+import { authClient } from '@/lib/auth-client';
+import { useAccionesPorFila } from '@/hooks/useAccionGuardada';
 
-interface ConfigSection {
-  icon:        LucideIcon;
-  label:       string;
-  description: string;
-  path:        string;
-  color:       string;
-  badge:       string | null;
-  available:   boolean;
-}
+// ─── ESTA ES LA PANTALLA DE EQUIPO ───────────────────────────────────────────
+//
+// `/admin/configuracion` DEJÓ de ser un hub de tarjetas (cinco de ellas eran
+// "Próximamente" — la promesa vacía que el resto del rediseño retira). Es, hoy,
+// la gestión de equipo: quién entra al panel, con qué rol, y con qué acceso.
+//
+// El HUB vuelve el día del multi-tenant, cuando haya secciones reales que agrupar
+// (negocio, facturación, integraciones). Entonces el equipo baja a un sub-route
+// con su nombre intacto, y "Configuración" nace con contenido. Por eso el TÍTULO
+// dice "Equipo y usuarios" (lo que la pantalla hace) y no "Configuración" (lo que
+// el área va a hacer algún día); el eyebrow nombra el área.
+//
+// La ruta se queda en `/admin/configuracion` a propósito: el UserMenu ya apunta
+// ahí, y mover rutas cuesta redirects. La subruta vieja `/configuracion/usuarios`
+// redirige acá (§ lib/redirect-config).
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const sections: ConfigSection[] = [
-  {
-    icon:        Users,
-    label:       'Equipo y usuarios',
-    description: 'Invita colaboradores, gestiona roles y accesos al panel.',
-    path:        '/admin/configuracion/usuarios',
-    color:       'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400',
-    badge:       null,
-    available:   true,
-  },
-  {
-    icon:        Store,
-    label:       'Restaurante',
-    description: 'Nombre, ubicación, horarios y datos del negocio.',
-    path:        '/admin/configuracion/restaurante',
-    color:       'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400',
-    badge:       'Próximamente',
-    available:   false,
-  },
-  {
-    icon:        Shield,
-    label:       'Roles y permisos',
-    description: 'Define qué puede hacer cada rol dentro del sistema.',
-    path:        '/admin/configuracion/roles',
-    color:       'bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400',
-    badge:       'Próximamente',
-    available:   false,
-  },
-  {
-    icon:        CreditCard,
-    label:       'Plan y facturación',
-    description: 'Administra tu suscripción, facturas y métodos de pago.',
-    path:        '/admin/configuracion/facturacion',
-    color:       'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400',
-    badge:       'Próximamente',
-    available:   false,
-  },
-  {
-    icon:        Bell,
-    label:       'Notificaciones',
-    description: 'Configura alertas de órdenes, inventario bajo y más.',
-    path:        '/admin/configuracion/notificaciones',
-    color:       'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400',
-    badge:       'Próximamente',
-    available:   false,
-  },
-  {
-    icon:        Puzzle,
-    label:       'Integraciones',
-    description: 'Conecta herramientas externas: pagos, delivery, CRM.',
-    path:        '/admin/configuracion/integraciones',
-    color:       'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400',
-    badge:       'Próximamente',
-    available:   false,
-  },
+const initials = (name: string) =>
+  (name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+const LEYENDA: { role: Role; desc: string }[] = [
+  { role: 'OWNER',   desc: 'Acceso total al sistema, configuración y datos críticos.' },
+  { role: 'MANAGER', desc: 'Gestión operativa: órdenes, inventario, clientes y reportes.' },
+  { role: 'STAFF',   desc: 'Solo puede ver y gestionar órdenes del día a día.' },
 ];
-
-// ─── Card ─────────────────────────────────────────────────────────────────────
-
-function SectionCard({ icon: Icon, label, description, color, badge, available }: Omit<ConfigSection, 'path'>) {
-  return (
-    <div className={`group bg-card border border-border rounded-2xl p-5 shadow-sm transition-all duration-200 ${
-      available
-        ? 'hover:shadow-md hover:-translate-y-0.5 cursor-pointer'
-        : 'opacity-70 cursor-default'
-    }`}>
-      <div className="flex items-start justify-between mb-4">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color}`}>
-          <Icon className="w-5 h-5" />
-        </div>
-        {badge ? (
-          <span className="text-[10px] font-semibold bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
-            {badge}
-          </span>
-        ) : (
-          <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
-        )}
-      </div>
-      <h3 className="font-semibold text-sm text-foreground mb-1">{label}</h3>
-      <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
-    </div>
-  );
-}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function Configuracion() {
+export default function EquipoYUsuarios() {
+  const { data: session }           = authClient.useSession();
+  const isOwner                     = session?.user?.role === 'OWNER';
+  const [users, setUsers]           = useState<AdminUser[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [search, setSearch]         = useState('');
+  const [showInvite, setShowInvite] = useState(false);
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+
+  const loadUsers = async () => {
+    setLoading(true);
+    try {
+      const res  = await fetch('/api/users');
+      const data = await res.json() as AdminUser[];
+      setUsers(data);
+    } catch {
+      toast.error('Error al cargar los usuarios');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadUsers(); }, []);
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
+
+  // Guarda POR USUARIO. El valor es absoluto (poner el rol en X), así que un
+  // duplicado no corrompe nada — pero el menú se cierra recién en el `finally`,
+  // o sea que durante todo el vuelo queda abierto y sin decir nada. Es
+  // exactamente el silencio que invita al segundo click, que es lo que esta
+  // guarda existe para cubrir. Ver CLAUDE.md § Doble-submit.
+  const filasRol = useAccionesPorFila();
+
+  // Usuario cuyo cambio de estado se está confirmando. `null` = diálogo cerrado.
+  const [estadoTarget, setEstadoTarget] = useState<AdminUser | null>(null);
+
+  // Dueños CON ACCESO, contados sobre la lista que ya está en pantalla. Alimenta
+  // la MISMA función que decide en el servidor, así que el motivo que se muestra
+  // deshabilitado es literalmente el que devolvería el endpoint.
+  const ownersActivos = users.filter(x => x.role === 'OWNER' && x.activo).length;
+
+  // Activar / desactivar. El servidor es quien MANDA sobre las tres guardas
+  // (último dueño activo, uno mismo, sólo OWNER); acá sólo se propaga su frase,
+  // que es la que dice qué corregir.
+  const cambiarEstado = async (u: AdminUser, activo: boolean) => {
+    const res = await fetch(`/api/users/${u.id}/activo`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ activo }),
+    });
+    if (!res.ok) {
+      const { error } = await res.json().catch(() => ({ error: null }));
+      throw new Error(error || 'No se pudo cambiar el estado del usuario');
+    }
+    const actualizado = await res.json() as AdminUser;
+    setUsers(prev => prev.map(x => x.id === actualizado.id ? actualizado : x));
+  };
+
+  const handleRoleChange = (userId: string, newRole: Role) =>
+    filasRol.ejecutar(userId, async () => {
+    try {
+      const res = await fetch(`/api/users/${userId}/role`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ role: newRole }),
+      });
+      if (!res.ok) throw new Error();
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
+      toast.success('Rol actualizado');
+    } catch {
+      toast.error('Error al actualizar el rol');
+    } finally {
+      setActiveMenu(null);
+    }
+    });
+
+  const handleInvited = () => {
+    // SIN toast acá: el modal ya disparó "Invitación enviada a <correo>" antes
+    // de cerrarse. El que había ("Usuario creado correctamente") era además
+    // falso — invitar no crea ningún usuario; el usuario nace cuando la persona
+    // acepta la invitación y define su contraseña. Dos toasts para una acción, y
+    // el segundo afirmando algo que no pasó.
+    setShowInvite(false);
+    loadUsers();
+  };
+
+  // ── Derived ────────────────────────────────────────────────────────────────
+
+  const filtered = users.filter(u =>
+    normalize(u.name).includes(normalize(search)) ||
+    normalize(u.email).includes(normalize(search))
+  );
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Configuración</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Personaliza y administra tu plataforma Café Nayoli
-        </p>
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)' }}>
+        <div style={{ minWidth: 0 }}>
+          <div className="duna-eyebrow">Configuración</div>
+          <h1 className="duna-display-m" style={{ marginTop: '2px' }}>Equipo y usuarios</h1>
+          <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
+            Quién tiene acceso al panel, con qué rol, y quién lo conserva. Invitar a
+            alguien le manda un correo; el usuario nace cuando acepta y define su
+            contraseña.
+          </p>
+        </div>
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() => setShowInvite(true)}
+            className="duna-btn duna-btn--primary"
+            style={{ flexShrink: 0 }}
+          >
+            <UserPlus /> Agregar usuario
+          </button>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {sections.map(section => (
-          section.available ? (
-            <Link key={section.path} href={section.path}>
-              <SectionCard {...section} />
-            </Link>
-          ) : (
-            <div key={section.path}>
-              <SectionCard {...section} />
-            </div>
-          )
+      {/* Leyenda de roles */}
+      <div className="duna-cards" style={{ marginTop: 'var(--duna-space-6)' }}>
+        {LEYENDA.map(({ role, desc }) => (
+          <div key={role} className="duna-card duna-card__pad">
+            <RoleBadge role={role} />
+            <p className="duna-sub" style={{ marginTop: 'var(--duna-space-2)' }}>{desc}</p>
+          </div>
         ))}
       </div>
+
+      {/* Buscador + lista */}
+      <div className="duna-card" style={{ marginTop: 'var(--duna-space-6)', padding: 0 }}>
+        {/* Buscar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)',
+          padding: 'var(--duna-space-4)', borderBottom: '1px solid var(--duna-border)',
+        }}>
+          <label className="duna-search" style={{ flex: 1 }}>
+            <Search className="duna-search__ic" />
+            <input
+              className="duna-input"
+              type="search"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar por nombre o correo…"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={loadUsers}
+            className="duna-btn duna-btn--ghost duna-btn--icon"
+            aria-label="Recargar"
+          >
+            <RefreshCw />
+          </button>
+        </div>
+
+        {/* Estados */}
+        {loading ? (
+          <div style={{ padding: 'var(--duna-space-8)', textAlign: 'center' }}>
+            <p className="duna-caption">Cargando…</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: 'var(--duna-space-8) var(--duna-space-4)', textAlign: 'center' }}>
+            <div style={{
+              width: 48, height: 48, margin: '0 auto var(--duna-space-3)',
+              borderRadius: 'var(--duna-r-l)', background: 'var(--duna-surface-2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Users style={{ width: 22, height: 22, color: 'var(--duna-muted)' }} />
+            </div>
+            <p className="duna-body" style={{ fontWeight: 'var(--duna-w-semi)' }}>Sin usuarios</p>
+            <p className="duna-sub" style={{ marginTop: '2px' }}>
+              {search ? `No hay resultados para "${search}"` : 'Agrega a tu equipo para que puedan acceder al panel.'}
+            </p>
+          </div>
+        ) : (
+          <div>
+            {filtered.map((u, i) => (
+              <div
+                key={u.id}
+                style={{
+                  position: 'relative',
+                  display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)',
+                  padding: 'var(--duna-space-3) var(--duna-space-4)',
+                  borderTop: i === 0 ? 'none' : '1px solid var(--duna-border)',
+                }}
+              >
+                {/* Avatar */}
+                <div className="duna-avatar">{initials(u.name)}</div>
+
+                {/* Identidad */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p className="duna-body" style={{
+                    fontWeight: 'var(--duna-w-semi)', margin: 0,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>{u.name || '—'}</p>
+                  <span className="duna-caption" style={{
+                    display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    <Mail style={{ width: 12, height: 12, flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</span>
+                  </span>
+                </div>
+
+                {/* Rol y, si perdió el acceso, su estado. El badge de "Sin acceso"
+                    sólo aparece cuando hay algo que decir: el caso normal no gasta
+                    un elemento en confirmar que todo está bien. */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
+                  {!u.activo && (
+                    <span className="duna-badge duna-badge--neutral">Sin acceso</span>
+                  )}
+                  <RoleBadge role={u.role} />
+                </div>
+
+                {/* Menú de acciones */}
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveMenu(activeMenu === u.id ? null : u.id)}
+                    className="duna-btn duna-btn--ghost duna-btn--icon"
+                    aria-label="Acciones"
+                  >
+                    <MoreVertical />
+                  </button>
+
+                  {activeMenu === u.id && (
+                    <>
+                      <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setActiveMenu(null)} />
+                      <div
+                        className="duna-card"
+                        style={{
+                          position: 'absolute', right: 0, top: 'calc(100% + 4px)', zIndex: 20,
+                          width: 208, padding: 'var(--duna-space-1) 0',
+                          boxShadow: 'var(--duna-shadow-2)', overflow: 'hidden',
+                        }}
+                      >
+                        <p className="duna-eyebrow" style={{ padding: 'var(--duna-space-2) var(--duna-space-3)' }}>
+                          Cambiar rol
+                        </p>
+                        {ROLES.map(r => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => handleRoleChange(u.id, r)}
+                            disabled={filasRol.enVuelo(u.id)}
+                            className="admin-menu-item"
+                          >
+                            <RoleBadge role={r} />
+                            {filasRol.enVuelo(u.id)
+                              ? <span className="duna-caption">Aplicando…</span>
+                              : u.role === r && <Check style={{ width: 14, height: 14, color: 'var(--duna-ink)' }} />}
+                          </button>
+                        ))}
+
+                        {/* La acción de estado y su INVERSA en el MISMO lugar — la
+                            lección de "Activar desde el badge": una puerta sin su
+                            vuelta deja a alguien atrapado y la única salida es la
+                            base. Cuál de las dos se ofrece lo decide
+                            `accionEstadoUsuario`, no un `if` acá. No se ofrece sobre
+                            uno mismo: el server lo rechaza igual, y un botón que sólo
+                            sirve para recibir un error es una pregunta que no hay que
+                            hacer. */}
+                        {isOwner && (() => {
+                          const accion = accionEstadoUsuario(u)!;
+                          // MISMA función que el servidor. Si hay motivo, el botón se
+                          // muestra DESHABILITADO diciéndolo — no se esconde.
+                          // Esconderlo fue el error de la primera versión: con dos
+                          // usuarios, abrir el menú sobre uno mismo no mostraba nada y
+                          // la acción parecía no existir. Es la regla del "Marcar En
+                          // Ruta" bloqueado: una acción ausente manda a buscarla a
+                          // otra pantalla.
+                          const motivo = motivoRechazoCambioEstado({
+                            actorRol: session?.user?.role,
+                            actorId:  session?.user?.id ?? '',
+                            objetivo: u,
+                            activo:   accion.activo,
+                            ownersActivos,
+                          });
+                          return (
+                            <>
+                              <hr className="duna-divider" style={{ margin: 'var(--duna-space-1) 0' }} />
+                              <button
+                                type="button"
+                                onClick={() => { setActiveMenu(null); setEstadoTarget(u); }}
+                                disabled={!!motivo}
+                                className="admin-menu-item admin-menu-item--col"
+                              >
+                                <span>{accion.label}</span>
+                                {motivo && <span className="duna-caption" style={{ lineHeight: 1.3 }}>{motivo}</span>}
+                              </button>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Conteo */}
+        {!loading && filtered.length > 0 && (
+          <div style={{ padding: 'var(--duna-space-3) var(--duna-space-4)', borderTop: '1px solid var(--duna-border)' }}>
+            <p className="duna-caption">
+              {filtered.length} usuario{filtered.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Se reusa el confirm compartido con `confirmKind='default'`: desactivar NO
+          destruye nada —el historial queda y la persona puede volver—, así que va
+          en ámbar y no en rojo. */}
+      {estadoTarget && (() => {
+        const accion = accionEstadoUsuario(estadoTarget)!;
+        const desactivando = !accion.activo;
+        return (
+          <ConfirmDeleteDialog
+            open
+            onOpenChange={(o) => { if (!o) setEstadoTarget(null); }}
+            confirmKind="default"
+            title={`${accion.label} a ${estadoTarget.name || estadoTarget.email}`}
+            entityLabel={estadoTarget.email}
+            consequence={desactivando
+              ? 'Pierde el acceso al panel de inmediato: su sesión abierta se cierra en el siguiente request. Su historial se conserva — los pagos que registró y los comprobantes que verificó siguen mostrando su nombre. Podrás reactivarlo cuando quieras.'
+              : 'Vuelve a tener acceso al panel con el rol que ya tenía. Deberá iniciar sesión de nuevo.'}
+            confirmLabel={accion.label}
+            successMessage={accion.successMessage}
+            onConfirm={() => cambiarEstado(estadoTarget, accion.activo)}
+          />
+        );
+      })()}
+
+      {isOwner && showInvite && (
+        <InviteUserModal
+          onClose={() => setShowInvite(false)}
+          onSuccess={handleInvited}
+        />
+      )}
     </div>
   );
 }
