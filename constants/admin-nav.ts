@@ -26,7 +26,11 @@ export interface AdminNavItem {
 }
 
 export const ADMIN_NAV: AdminNavItem[] = [
-  { icon: LayoutDashboard, label: 'Dashboard',        path: '/admin/dashboard',        anim: 'lift' },
+  // "Hoy", no "Dashboard": la etiqueta dice de qué trata la pantalla (el día), no el
+  // nombre genérico del template. La RUTA se queda en `/admin/dashboard` —no hace falta
+  // redirect, nada la referencia como etiqueta salvo esta línea—; la pestaña la deriva
+  // `admin-titulo` de acá, así que también pasa a decir "Hoy".
+  { icon: LayoutDashboard, label: 'Hoy',              path: '/admin/dashboard',        anim: 'lift' },
   // "Órdenes" SALIÓ: Pedidos absorbió sus flujos y la ruta se retiró. Lo que
   // quedaba apuntando a ella son las notificaciones ya escritas en la base, y de
   // ésas se encarga el redirect de `proxy.ts` — no un ítem de menú.
