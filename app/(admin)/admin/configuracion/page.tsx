@@ -480,8 +480,9 @@ export default function EquipoYUsuarios() {
         );
       })()}
 
-      {isOwner && showInvite && (
+      {isOwner && (
         <InviteUserModal
+          open={showInvite}
           onClose={() => setShowInvite(false)}
           onSuccess={handleInvited}
         />

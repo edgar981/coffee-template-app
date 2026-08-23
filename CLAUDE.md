@@ -2755,17 +2755,29 @@ Nayoli está en Supatá.
   que sólo él verifica. Su fallo se traduce a una frase en español —no el "Invalid
   password" de Better Auth— y el error inline se limpia al reintentar.
 
-### `InviteUserModal` NO es Duna-primitivo — deferido, no olvidado
+### `InviteUserModal` es un DunaSheet — y `ConfirmDeleteDialog` NO se tocó
 
-El modal de invitar es un modal shadcn hand-rolled (overlay propio, `rounded-2xl`), no
-una superficie Duna (`DunaDialog`/`.duna-sheet`). **Sus colores caen a tokens Duna por
-el fallback de `@theme`**, así que es coherente en COLOR pero no en FORMA (radio,
-scrim). Se dejó así en esta tanda —"se revisan los modales, no se reescriben"—.
+El modal de invitar era un modal shadcn hand-rolled (overlay propio, `rounded-2xl`)
+con un DEFECTO real: **no cerraba al clicar fuera**. Migró a **`DunaSheet`
+`anclaje="lado"`** —la primitiva que ya montan los otros cinco formularios del panel
+(Ajustar stock, Programar entrega, Nuevo pedido, Producto, Cliente)—, que trae de
+Radix el click-fuera, Escape, foco atrapado y scroll-lock.
 
-**DISPARADOR: migra a `DunaDialog` con los diálogos que le faltan a H6.** Es el mismo
-diferido que el § H6 declara para el resto de los modales shadcn del panel; meterlo
-solo sería inventar una centrada-que-no-es-confirmación (§ H6, "otra costura") por un
-modal, cuando la costura debe decidirse para todos a la vez.
+- **NO a `DunaDialog`, a `DunaSheet`.** La nota vieja decía "migra a `DunaDialog`", y
+  estaba mal: `DunaDialog` es la superficie CENTRADA, y su único caso es la
+  CONFIRMACIÓN (se monta sobre `AlertDialog`, § H6). Un formulario no es una
+  confirmación; su primitiva es el drawer lateral, como los otros cuatro form-sheets.
+- **La guarda de descarte VIENE con la migración, no es un extra.** Al ganar el
+  click-fuera, un formulario a medias podía perderse en silencio; `useDescarteDeDrawer`
+  lo convierte en "¿descartar?" — la misma conducta que los otros form-sheets. Sin
+  ella, la migración habría ABIERTO un camino de pérdida de datos que antes no existía.
+- **`ConfirmDeleteDialog` de esa pantalla NO se migró, y es una decisión.** Es
+  COMPARTIDO —Pedidos, Productos, Clientes, Inventario (`AdjustStockModal`) y el
+  descarte lo montan—, así que migrarlo arrastraría media app a un gate visual que no
+  es el de esta tanda. Sólo el de invitar era hand-rolled y con defecto propio; el
+  confirm shadcn es coherente y vive en su propio disparador (§ H6). **Migrar una
+  primitiva compartida por su consumidor menos importante es cómo se arrastra una
+  vertical a una tanda ajena.**
 
 ## Dashboard personalizable — registry de widgets
 

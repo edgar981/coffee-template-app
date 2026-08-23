@@ -71,11 +71,12 @@ usuarios, y Perfil") — las dos últimas pantallas. Cuatro commits:
    `revokeOtherSessions: true`. El caso "invitado sin contraseña" NO existe (la
    aceptación la exige; no hay proveedores sociales), así que aplica a toda cuenta.
 
-**DEFERIDO, no olvidado:** `InviteUserModal` es un modal shadcn hand-rolled —coherente
-en COLOR (cae a tokens Duna) pero no en FORMA—; migra a `DunaDialog` con los diálogos
-que le faltan a H6, no solo. **DISPARADOR del hub:** cuando el multi-tenant traiga
-secciones reales, Configuración vuelve como hub y el equipo baja a un sub-route con su
-nombre intacto.
+**`InviteUserModal` → DunaSheet** (commit posterior, mismo hilo): tenía un defecto real
+—no cerraba al clicar fuera—; migró a `DunaSheet anclaje="lado"` (la primitiva de los
+otros cinco form-sheets) con guarda de descarte. `ConfirmDeleteDialog` de esa pantalla
+NO se tocó: es compartido y migrarlo arrastraría Pedidos/Productos/Clientes/Inventario.
+**DISPARADOR del hub:** cuando el multi-tenant traiga secciones reales, Configuración
+vuelve como hub y el equipo baja a un sub-route con su nombre intacto.
 
 ### Datos sembrados en DEV (se conservan por decisión del owner)
 
