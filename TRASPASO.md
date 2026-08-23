@@ -1,6 +1,7 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-23 (cierre del rediseño del Dashboard "Hoy").
+**Actualizado:** 2026-08-23 (cierre de Configuración/Equipo + Perfil — las dos
+últimas pantallas del panel).
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -43,9 +44,38 @@ Vercel, `main` = producción).
 | `/admin/analitica` | Completa (cuatro preguntas de dueño, titulares) | Document-scroll (excepción declarada — § Backlog #22) |
 | `/admin/automatizaciones` | Completa (rejilla, señal de vida, historial) | Document-scroll (excepción declarada — § Backlog #22) |
 | `/admin/dashboard` | Completa ("Hoy": hero + curva por hora + top-hoy + tarjetas) | Document-scroll |
+| `/admin/configuracion` | Completa (Equipo y usuarios — el hub desapareció; #1 cerrado) | Document-scroll |
+| `/admin/perfil` | Completa (cuenta limpia + cambiar contraseña real) | Document-scroll |
 
 ### Pendientes de rediseño
-Configuración, Perfil.
+**Ninguna.** Todas las verticales del panel están en lenguaje Duna; no queda una
+pantalla heredada del template.
+
+**Configuración/Equipo + Perfil CERRADO** (2026-08-23, § CLAUDE.md "Equipo y
+usuarios, y Perfil") — las dos últimas pantallas. Cuatro commits:
+
+1. **El hub de Configuración desapareció.** `/admin/configuracion` ES ahora la
+   pantalla de equipo (cinco de sus seis tarjetas eran "Próximamente"). La subruta
+   `/configuracion/usuarios` redirige (`lib/redirect-config`, el sexto redirect —
+   path plano, sin traducción de query). **Título ≠ ruta:** la pestaña y el UserMenu
+   dicen "Equipo y usuarios" (lo que HACE); la ruta se queda en `/admin/configuracion`.
+   `RoleBadge` salió del pastel a `.duna-badge--neutral` (el rol es categoría).
+2. **#1 cerrado** — invitaciones pendientes visibles y cancelables. `GET` + `DELETE`
+   OWNER-only; la consulta se extrajo a `lib/invitations.ts` para el carril
+   (`invitaciones-pendientes.test.ts`, visto fallar quitando `usedAt: null`). Una
+   pendiente es sin aceptar Y sin vencer; las vencidas no se listan (ya no bloquean).
+3. **Perfil limpio + Duna** — fuera la contraseña "hace 30 días" (inventada) y su
+   botón muerto, el botón de cámara, el banner. Organización de `siteConfig.brand`
+   (corrigió un dato FALSO: decía "Bogotá" y Nayoli está en Supatá).
+4. **Cambiar contraseña real** — `authClient.changePassword` con
+   `revokeOtherSessions: true`. El caso "invitado sin contraseña" NO existe (la
+   aceptación la exige; no hay proveedores sociales), así que aplica a toda cuenta.
+
+**DEFERIDO, no olvidado:** `InviteUserModal` es un modal shadcn hand-rolled —coherente
+en COLOR (cae a tokens Duna) pero no en FORMA—; migra a `DunaDialog` con los diálogos
+que le faltan a H6, no solo. **DISPARADOR del hub:** cuando el multi-tenant traiga
+secciones reales, Configuración vuelve como hub y el equipo baja a un sub-route con su
+nombre intacto.
 
 ### Datos sembrados en DEV (se conservan por decisión del owner)
 
@@ -489,8 +519,9 @@ modelo seis veces. Un dato que nuestro schema no tiene **no existe**.
 Reglas: va ordenada y **el orden es la decisión**; el número es identidad, no
 posición. Cada entrada dice el **costo ya pagado**. Un ítem completado **se borra**.
 
-Vivos: `#1` · `#2` · `#3` · `#4` · `#5` · `#6` · `#8` · `#10` · `#16` · `#18` ·
-`#19` · `#20` · `#21` · `#22` · `#23` · `#25` · `#26` · `#27`.
+Vivos: `#2` · `#3` · `#4` · `#5` · `#8` · `#10` · `#16` · `#18` · `#19` · `#20` ·
+`#21` · `#22` · `#23` · `#25` · `#26` · `#27` · `#32` · `#33` · `#34` · `#35` ·
+`#36` · `#37` · `#38` · `#39` · `#41` · `#42`. (`#1` cerrado esta tanda.)
 
 ---
 
@@ -529,20 +560,22 @@ Vivos: `#1` · `#2` · `#3` · `#4` · `#5` · `#6` · `#8` · `#10` · `#16` ·
 
 ## 10. Cómo continuar
 
-Las verticales de operación y análisis están TODAS rediseñadas (Pedidos, Clientes,
-Productos, Inventario, Pagos, Analítica, Automatizaciones, Dashboard). Lo que queda:
+**TODAS las pantallas del panel están rediseñadas** (Pedidos, Clientes, Productos,
+Inventario, Pagos, Analítica, Automatizaciones, Dashboard, Configuración/Equipo,
+Perfil). No queda una vertical heredada del template. Lo que queda es acabado y
+consolidación, no pantallas nuevas:
 
-1. **Configuración y Perfil** — las dos verticales que faltan. Son las últimas del
-   panel.
-2. **La consolidación del alto fijo global** (§ Backlog #22): subir la altura al
+1. **La consolidación del alto fijo global** (§ Backlog #22): subir la altura al
    chrome cuando las verticales restantes usen el modelo del split/región — con las
    DOS excepciones permanentes ya declaradas (Analítica y Automatizaciones quedan en
-   document-scroll a propósito).
-3. **`#23`** (barras de scroll tokenizadas) como tanda de acabado con gate visual
+   document-scroll a propósito). Configuración y Perfil nacieron document-scroll y
+   también quedan fuera del alto fijo (su contenido es formularios/listas, no una
+   respuesta fija sobre una lista que scrollea).
+2. **`#23`** (barras de scroll tokenizadas) como tanda de acabado con gate visual
    propio.
-4. Backlog cuando sus disparadores se cumplan. El de la última tanda: **#41** (qué
-   pasa con un pago cuando la orden se cancela — dispara el primer caso real de
-   cancelación-con-pago en Nayoli).
+3. Backlog cuando sus disparadores se cumplan. Entre ellos el de la última tanda de
+   pantallas: **#41** (qué pasa con un pago cuando la orden se cancela), y ahora
+   `InviteUserModal` → `DunaDialog` con los diálogos que le faltan a H6.
 
 ### El flujo permanente: rama → PREVIEW → gate → merge → borrar la rama remota
 
