@@ -241,7 +241,7 @@ export default function Dashboard() {
               <h1 className="duna-display-m" style={{ fontWeight: 'var(--duna-w-medium)', margin: 'var(--duna-space-hairline) 0 0' }}>
                 Hoy entraron <strong style={{ fontWeight: 'var(--duna-w-semi)' }}>{formatCOP(ventasHoy)}</strong>
               </h1>
-              <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>Pagos recibidos hoy, de pedidos de cualquier día.</p>
+              <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 0' }}>Pagos recibidos hoy.</p>
             </>
           ) : (
             // $0: sin subtítulo. En Pagos el descargo desmentía la sospecha del filtro;
@@ -278,8 +278,18 @@ export default function Dashboard() {
           </>
         ) : (
           <>
+            {/* El CONTEO navega a la lista del día; la CURVA no. `?desde=hoy&hasta=hoy`
+                da el conjunto IDÉNTICO al conteo (medido: `isCountableOrder` = no
+                cancelado = el `NOT_CANCELLED` del stat, y ambos excluyen `SN-` → los
+                mismos N). Un clic por HORA, en cambio, sería un superconjunto (Pedidos
+                no filtra por hora): mismo parecido-pero-distinto de despachos_hoy y las
+                gráficas del carrusel — al backlog. */}
             <h2 className="duna-heading" style={{ margin: 0 }}>
-              {stats ? `${pedidosHoy} ${pedidosHoy === 1 ? 'pedido' : 'pedidos'} hoy` : 'Pedidos de hoy'}
+              {stats ? (
+                <Link href={`/admin/pedidos?desde=${stats.hoyKey}&hasta=${stats.hoyKey}`} className="duna-link">
+                  {pedidosHoy} {pedidosHoy === 1 ? 'pedido' : 'pedidos'} hoy
+                </Link>
+              ) : 'Pedidos de hoy'}
             </h2>
             <p className="duna-sub" style={{ margin: 'var(--duna-space-hairline) 0 var(--duna-space-3)' }}>
               Pedidos creados hoy.

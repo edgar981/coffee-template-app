@@ -25,9 +25,12 @@ const INNER_H = ALTO - PAD_TOP - PAD_BOT;
 const BASELINE = PAD_TOP + INNER_H;
 
 // El eje SIGUE siendo 0–23 (no se recorta el dato: hay pedidos a cualquier hora en
-// un storefront 24h). Sólo se ROTULAN estas horas, en formato de reloj —no
-// duraciones—: "6h" se leía como tiempo transcurrido.
-const TICKS = [6, 9, 12, 15, 18, 21];
+// un storefront 24h). Se rotulan los CUARTOS del día MÁS LOS DOS BORDES, en formato
+// de reloj —no duraciones ("6h" se leía como tiempo transcurrido)—. Anclar 0 y 23 es
+// lo que quita el efecto "corrido": un set interior (6–21) dejaba 0–6 y 21–23 sin
+// etiqueta y la escala se veía desplazada. Cada tick rotula SU hora (23 → "11 p.m.",
+// el bucket de las 23:00); "12 a.m." ahí duplicaría el borde izquierdo y mal-rotularía.
+const TICKS = [0, 6, 12, 18, 23];
 
 /** Hora del día (0–23) → etiqueta de reloj (es-CO): 12 a.m. · 12 m. · 3 p.m. … */
 function relojLabel(h: number): string {
@@ -101,10 +104,11 @@ export default function CurvaPedidosHoy({ buckets }: { buckets: number[] }) {
             {buckets[iPico]}
           </text>
 
-          {/* Eje de horas, en reloj. Todas las marcas van interiores (6–21), así que
-              el ancla 'middle' no las recorta contra los bordes. */}
+          {/* Eje de horas, en reloj. Los bordes (0, 23) se anclan a su lado —'start' /
+              'end'— para no recortarse contra el marco; el resto van centrados. */}
           {TICKS.map(h => (
-            <text key={h} x={x(h)} y={ALTO - 6} textAnchor="middle"
+            <text key={h} x={x(h)} y={ALTO - 6}
+                  textAnchor={h === 0 ? 'start' : h === HORAS_DIA - 1 ? 'end' : 'middle'}
                   fill="var(--duna-muted)"
                   style={{ fontSize: 11, fontFamily: 'var(--duna-font-ui)' }}>
               {relojLabel(h)}
