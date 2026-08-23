@@ -124,7 +124,15 @@ html.admin {
 @media (min-width: 1080px) {
   /* El chrome ofrece la altura SÓLO si la página opta (`.duna-pantalla-fija`). */
   .admin-shell main:has(.duna-pantalla-fija)       { height: 100dvh; min-height: 0; }
-  .admin-shell main:has(.duna-pantalla-fija) > div { height: 100%;   min-height: 0; }
+  /* `padding-bottom: 0` — el wrapper de `<main>` (`AdminChrome`) trae `p-6` = 24px por
+     lado. En document-scroll ese padding inferior es el aire bajo el último contenido
+     y hace falta; pero con `height: 100%` el padding queda ATRAPADO dentro del viewport
+     fijo —el contenido termina 24px arriba del borde y esos 24px muestran el fondo: la
+     "banda"—. Se zera SÓLO el inferior; el superior y el lateral se quedan (dan el aire
+     bajo la topbar y el margen del rail, que la cadena no provee). Las columnas del split
+     ya traen sus 16px de aire propio, así que el contenido no queda a ras. Ver el § de
+     la banda de fondo en CLAUDE.md (#42) — qué era y quién lo encontró. */
+  .admin-shell main:has(.duna-pantalla-fija) > div { height: 100%;   min-height: 0; padding-bottom: 0; }
 
   /* El page root: dos filas —cabecera (auto, no scrollea) y región (1fr)—. */
   .duna-pantalla-fija { height: 100%; min-height: 0; display: grid; grid-template-rows: auto 1fr; }
@@ -176,7 +184,11 @@ html.admin {
    lo que se repite es sólo la ACTIVACIÓN del contenedor de alto fijo. */
 @media (min-width: 960px) {
   .admin-shell main:has(.duna-sin-split)       { height: 100dvh; min-height: 0; }
-  .admin-shell main:has(.duna-sin-split) > div { height: 100%;   min-height: 0; }
+  /* `padding-bottom: 0`: mismo motivo que el bloque de 1080 —el `p-6` inferior del
+     wrapper queda atrapado por el `height: 100%` y muestra la banda del fondo—. Acá
+     el aire del último renglón lo debe dar el SCROLLER de la región (Inventario/Pagos
+     no tienen columnas con padding propio como el split); se verifica en el gate. */
+  .admin-shell main:has(.duna-sin-split) > div { height: 100%;   min-height: 0; padding-bottom: 0; }
   .duna-sin-split { height: 100%; min-height: 0; display: grid; grid-template-rows: auto 1fr; }
   .duna-sin-split .duna-region     { min-height: 0; display: flex; flex-direction: column; }
   /* Encoge y scrollea (grow 0: corto se queda a su alto natural, no estira) — la
@@ -187,28 +199,6 @@ html.admin {
      allá: consistencia del ancho sobre no reservar espacio en listas cortas. */
   .duna-sin-split .duna-region > * { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
 }
-
-/* ═══ EL HILO DE FONDO bajo el alto fijo · el CANVAS del root, no la altura ════
-   En las pantallas de alto fijo, `main` mide `height: 100dvh` (arriba). Ese `dvh`
-   no calza exacto con el área visible —redondeo sub-pixel—, así que por debajo de
-   `main` asoma ~1px al borde inferior del viewport. Lo que asoma NO es `--duna-bg`:
-   body y el div del chrome están pintados de `--duna-bg`, pero el `<html>` NO tiene
-   background propio (globals.css: `html { color-scheme: light }` y nada más), así
-   que el elemento de más atrás es el CANVAS del `color-scheme` —blanco en claro,
-   casi negro en oscuro—, que difiere del crema/gris de `--duna-bg`. Ese contraste
-   es el hilo.
-
-   ARREGLO MÍNIMO, y NO toca la cadena de altura: pintar el canvas del root con el
-   mismo `--duna-bg`. Cualquier pelo sub-pixel que asome pasa a ser del color del
-   panel = invisible. Es sólo un `background`; no cambia height, flex, overflow ni
-   sticky, así que no re-abre la cadena que costó dos rondas afinar. Va en `html.admin`
-   —donde viven los tokens y donde `--duna-bg` flipea con el tema— y no toca el
-   storefront (su `<html>` no lleva `.admin`).
-
-   Si el gate del owner muestra que el hilo SIGUE, el diagnóstico del canvas estaba
-   incompleto y se DECIDE ahí —con el gate fallido delante— si se toca el `100dvh`;
-   no antes, y no por inercia. */
-html.admin { background: var(--duna-bg); }
 
 /* ═══ BARRAS DE SCROLL DEL PANEL · pulgar fino, SIN banda ══════════════════════
    El panel no tenía ningún estilo de barra: todas mostraban la del navegador, con

@@ -1228,37 +1228,46 @@ pago sobre orden cancelada necesita un estado (reembolsado / retenido) y si el i
 resta. Las cuatro superficies leen la misma definición, así que el cambio es en UN sitio
 (`REVENUE_ORDER_SCOPE` + el nuevo estado del `Payment`), no en cuatro.
 
-### 42. Un hilo del fondo asoma bajo el shell de alto fijo
+### 42. La banda de fondo bajo el alto fijo ERA el padding-bottom de `p-6`
 
-En las pantallas de **alto fijo** —Pedidos, Inventario, y cualquiera con `.duna-pantalla-fija`
-o `.duna-sin-split`— asoma un **hilo del color del fondo** pegado al borde inferior del
-viewport. NO aparece en las de document-scroll (Dashboard, Analítica, Automatizaciones).
+En las pantallas de **alto fijo** (Pedidos, Clientes, Productos, Inventario, Pagos) aparecía
+una **banda del color del fondo** pegada al borde inferior del viewport; NO en las de
+document-scroll.
 
-**Diagnóstico, escrito para no re-diagnosticarlo** (2026-08-23): sale del `height: 100dvh`
-que esas pantallas ponen en `main:has(.duna-pantalla-fija)` / `main:has(.duna-sin-split)`
-(`duna.css:126,177`). El `100dvh` no calza exacto con el área visible —redondeo sub-pixel,
-o `dvh` contra el alto real del viewport— y por debajo del `main` queda un pelo del fondo
-del body. **Descartado el otro candidato** (que un scroller de la región no llenara y
-asomara el fondo debajo): en Pedidos el `.duna-split` LLENA la región con `flex-grow: 1`
-(`duna.css:148-153`), así que ahí no hay hueco de contenido — y el hilo igual está. El
-discriminador en pantalla: el hilo está FIJO al borde inferior sin importar el contenido ni
-el scroll (100dvh), no crece con listas cortas (eso sería el scroller, descartado).
+**LA CAUSA REAL** (2026-08-23): el wrapper de `<main>` (`AdminChrome.tsx:87`,
+`animate-fade-in duna-nav-hueco p-6`) trae `p-6` = **24px por lado**. En document-scroll ese
+`padding-bottom` es el aire bajo el último contenido —hace falta—. Pero la cadena de alto fijo
+le pone `height: 100%` a ese wrapper (`duna.css`, `main:has(.duna-pantalla-fija) > div` /
+`main:has(.duna-sin-split) > div`) **sin quitarle el padding**, así que los 24px inferiores
+quedan ATRAPADOS dentro del viewport: el contenido termina 24px arriba del borde y esos 24px
+muestran el fondo. Eso es la banda — padding, no un píxel.
 
-**Costo YA pagado: ninguno** — es cosmético, un hilo de 1px. **Pre-existente**, no de una
-tanda reciente (el shell de alto fijo).
+**El fix:** `padding-bottom: 0` en esos dos wrappers, scopeado por el `main:has(...)` que la
+cadena YA usa —así las cinco de document-scroll conservan su aire inferior intacto—. El
+superior y el lateral de `p-6` se QUEDAN (dan el aire bajo la topbar y el margen del rail, que
+la cadena no provee). En el split, las columnas ya traen 16px de aire propio; en sin-split
+(Inventario/Pagos) el aire del último renglón lo debe dar el scroller —**a verificar en el
+gate; si pasa, el aire va en el scroller, no en el wrapper**—.
 
-**DISPARADOR: una tanda de acabado del shell con gate visual propio** (junto a `#23`, las
-barras de scroll tokenizadas — misma clase de pulido). NO tocar la cadena de altura del
-shell por un píxel fuera de eso: **costó dos rondas afinarla** (§ La cadena de altura),
-y el riesgo de re-romper el alto fijo por un hilo cosmético no lo vale.
+**QUIÉN LO ENCONTRÓ, Y ES LA LECCIÓN: el owner, mirando la pantalla — después de DOS
+diagnósticos (uno de Claude Code, otro de la sesión de asesoría) que se sostuvieron sobre el
+CSS y eran FALSOS.** El primero: "`100dvh` no calza con el área visible, asoma un píxel del
+body". El segundo: "es el CANVAS del root, `<html>` sin `background`" — y hasta se aplicó
+`html.admin { background }`, que **se revirtió** porque tapaba un píxel que no era el problema
+(la banda es padding, está DELANTE del canvas). Los dos eran coherentes leyendo el CSS y
+ninguno era la causa.
 
-**ESTADO (2026-08-23): OPCIÓN 1 APLICADA, pendiente de gate.** El diagnóstico se afinó: lo
-que asoma NO es `--duna-bg` sino el CANVAS del root —`<html>` no tiene `background` propio
-(sólo `color-scheme`), así que el pelo sub-pixel muestra el blanco/negro del `color-scheme`,
-no el crema/gris del panel—. El fix: `html.admin { background: var(--duna-bg) }` (`duna.css`),
-que NO toca la cadena de altura. **Si el gate del owner muestra que el hilo sigue, se PARA y
-se decide ahí —con el gate fallido delante— si se toca el `100dvh`; no antes.** Este ítem se
-cierra sólo cuando el gate confirme que el hilo se fue.
+Es la **TERCERA vez en la sesión** que un diagnóstico derivado del CSS resulta falso y la
+respuesta estaba en la pantalla, no en el archivo. Es la misma familia que
+**§ REGLA · un número de layout sólo vale si viene de la pantalla donde se TRABAJA**, y es su
+ejemplo MÁS LIMPIO: *el CSS explicaba una banda que era otra cosa.* Una explicación derivada
+del CSS de un defecto VISUAL es una hipótesis, no un diagnóstico — se confirma contra el píxel
+renderizado, no contra la coherencia del código. Cuando el que ve la pantalla dice otra cosa,
+gana la pantalla.
+
+**ESTADO: fix aplicado, pendiente del gate visual** (las cinco de alto fijo, ambos temas, +
+el chequeo de la última fila en Inventario/Pagos). Cierra cuando el gate confirme que la banda
+se fue y nada quedó a ras.
 
 ## Mejoras post-multitenant
 
