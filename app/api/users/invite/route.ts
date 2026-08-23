@@ -2,10 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@duna/core";
 import { sendInvitationEmail } from "@/lib/email";
+import { listarInvitacionesPendientes } from "@/lib/invitations";
 import { headers } from "next/headers";
 import { randomBytes, createHash } from "crypto";
 
 const INVITE_EXPIRY_MS = 48 * 60 * 60 * 1000;
+
+// Listar las invitaciones VIVAS (sin aceptar, sin vencer). Sólo OWNER, el mismo
+// gate que invitar y cancelar: quién puede tocar el equipo es una sola decisión.
+export async function GET() {
+  const session = await auth.api.getSession({ headers: await headers() });
+
+  if (!session || (session.user as { role?: string }).role !== "OWNER") {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
+  const pendientes = await listarInvitacionesPendientes();
+  return NextResponse.json(pendientes);
+}
 // STAFF sale de la lista ofrecida y el valor del enum SE QUEDA (append-only).
 // Motivo: hoy es un rol MUERTO — el gate del panel exige OWNER o MANAGER, así
 // que un invitado STAFF crea su contraseña y se estrella contra el redirect a

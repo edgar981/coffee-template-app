@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { UserPlus, Search, MoreVertical, Mail, Users, Check, RefreshCw } from 'lucide-react';
+import { UserPlus, Search, MoreVertical, Mail, Users, Check, RefreshCw, MailWarning } from 'lucide-react';
 import { toast } from 'sonner';
 import RoleBadge from '@/components/admin/RoleBadge';
 import InviteUserModal from '@/components/admin/InviteUserModal';
@@ -12,6 +12,23 @@ import { accionEstadoUsuario, motivoRechazoCambioEstado } from '@duna/core/usuar
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { authClient } from '@/lib/auth-client';
 import { useAccionesPorFila } from '@/hooks/useAccionGuardada';
+
+// La forma que llega por fetch: las fechas viajan como ISO string, no Date.
+interface InvitePendiente {
+  id: string; email: string; name: string | null; role: Role;
+  expiresAt: string; createdAt: string;
+}
+
+// "Vence en N h" / "en N días" — se calcula una vez al render (aproximado, y la
+// página recarga). Sin reloj vivo: la invitación dura 48 h, no es un cronómetro.
+function venceEn(expiresAt: string): string {
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return 'Vencida';
+  const horas = Math.round(ms / 3_600_000);
+  if (horas >= 24) { const d = Math.round(horas / 24); return `Vence en ${d} día${d !== 1 ? 's' : ''}`; }
+  if (horas >= 1)  return `Vence en ${horas} h`;
+  return 'Vence pronto';
+}
 
 // ─── ESTA ES LA PANTALLA DE EQUIPO ───────────────────────────────────────────
 //
@@ -50,6 +67,7 @@ export default function EquipoYUsuarios() {
   const [search, setSearch]         = useState('');
   const [showInvite, setShowInvite] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [invites, setInvites]       = useState<InvitePendiente[]>([]);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -64,7 +82,21 @@ export default function EquipoYUsuarios() {
     }
   };
 
+  // Las invitaciones pendientes son SÓLO del OWNER (el endpoint 403ea a los demás),
+  // así que un 403 se trata como "nada que mostrar", no como error. La sección no
+  // existe para quien no puede invitar.
+  const loadInvites = async () => {
+    try {
+      const res = await fetch('/api/users/invite');
+      if (!res.ok) { setInvites([]); return; }
+      setInvites(await res.json() as InvitePendiente[]);
+    } catch {
+      setInvites([]);
+    }
+  };
+
   useEffect(() => { loadUsers(); }, []);
+  useEffect(() => { if (isOwner) loadInvites(); }, [isOwner]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -74,6 +106,10 @@ export default function EquipoYUsuarios() {
   // exactamente el silencio que invita al segundo click, que es lo que esta
   // guarda existe para cubrir. Ver CLAUDE.md § Doble-submit.
   const filasRol = useAccionesPorFila();
+
+  // Guarda por invitación para el botón Cancelar — su propia instancia, otro
+  // espacio de ids (ids de invitación, no de usuario).
+  const filasInvite = useAccionesPorFila();
 
   // Usuario cuyo cambio de estado se está confirmando. `null` = diálogo cerrado.
   const [estadoTarget, setEstadoTarget] = useState<AdminUser | null>(null);
@@ -126,7 +162,24 @@ export default function EquipoYUsuarios() {
     // el segundo afirmando algo que no pasó.
     setShowInvite(false);
     loadUsers();
+    // La nueva pendiente aparece en su sección: recargar las dos.
+    loadInvites();
   };
+
+  const cancelarInvite = (id: string) =>
+    filasInvite.ejecutar(id, async () => {
+      try {
+        const res = await fetch(`/api/users/invite/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const { error } = await res.json().catch(() => ({ error: null }));
+          throw new Error(error || 'No se pudo cancelar la invitación');
+        }
+        toast.success('Invitación cancelada');
+        loadInvites();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'No se pudo cancelar la invitación');
+      }
+    });
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
@@ -355,6 +408,54 @@ export default function EquipoYUsuarios() {
           </div>
         )}
       </div>
+
+      {/* INVITACIONES PENDIENTES — sólo OWNER, y sólo cuando hay alguna. Una
+          invitación pendiente es alguien invitado que aún no aceptó; mientras viva,
+          su correo queda BLOQUEADO para re-invitar (el POST lo rechaza 48 h). Verla
+          y poder cancelarla es la salida a un correo mal tecleado. Vacía no gasta un
+          bloque: el caso normal es que no haya ninguna. */}
+      {isOwner && invites.length > 0 && (
+        <div style={{ marginTop: 'var(--duna-space-8)' }}>
+          <div className="duna-eyebrow">Invitaciones pendientes</div>
+          <p className="duna-sub" style={{ marginTop: '2px', maxWidth: '42rem' }}>
+            Invitaciones enviadas que todavía no se aceptaron. Cancelar una libera ese
+            correo para volver a invitar.
+          </p>
+          <div className="duna-card" style={{ marginTop: 'var(--duna-space-3)', padding: 0 }}>
+            {invites.map((inv, i) => (
+              <div
+                key={inv.id}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)',
+                  padding: 'var(--duna-space-3) var(--duna-space-4)',
+                  borderTop: i === 0 ? 'none' : '1px solid var(--duna-border)',
+                }}
+              >
+                <div className="duna-avatar" aria-hidden="true">
+                  <MailWarning style={{ width: 16, height: 16 }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p className="duna-body" style={{
+                    fontWeight: 'var(--duna-w-semi)', margin: 0,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>{inv.email}</p>
+                  <span className="duna-caption">{venceEn(inv.expiresAt)}</span>
+                </div>
+                <RoleBadge role={inv.role} />
+                <button
+                  type="button"
+                  onClick={() => cancelarInvite(inv.id)}
+                  disabled={filasInvite.enVuelo(inv.id)}
+                  className="duna-btn duna-btn--ghost duna-btn--sm"
+                  style={{ flexShrink: 0 }}
+                >
+                  {filasInvite.enVuelo(inv.id) ? 'Cancelando…' : 'Cancelar'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Se reusa el confirm compartido con `confirmKind='default'`: desactivar NO
           destruye nada —el historial queda y la persona puede volver—, así que va
