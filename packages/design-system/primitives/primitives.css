@@ -413,8 +413,17 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
    columna las vuelve su propio scroller. Un solo `min-height: 0` que falte en la
    cadena y el overflow vuelve a empujar el layout en vez de scrollear.
 
-   `overflow-y: auto` (no `scroll`): sin desbordar no aparece barra —una lista
-   corta no estrena un riel vacío—. Nadie mide una altura: no hay `calc`. */
+   `overflow-y: auto` (no `scroll`): sin desbordar no aparece BARRA (track) —una
+   lista corta no estrena un riel dibujado—. Nadie mide una altura: no hay `calc`.
+
+   PERO la LISTA de tarjetas reserva el CANAL de la barra siempre (`scrollbar-gutter:
+   stable`, abajo), y el detalle NO. El motivo: la lista cambia de contenido con el
+   carril, así que su barra aparece y desaparece, y sin reservar el canal las tarjetas
+   cambiaban de ANCHO ~15px al cambiar de carril (medido). Reservar el canal las deja
+   del mismo ancho siempre. Es un trade-off con la nota de arriba —una lista corta
+   ahora reserva el canal (espacio del color del fondo, SIN track dibujado)— y se
+   aceptó porque la consistencia del ancho vale más que ese espacio. El detalle no lo
+   necesita: no cambia con el carril. */
 @media (min-width: 1080px) {
   .duna-split { align-items: stretch; min-height: 0; }
   .duna-split__list,
@@ -433,7 +442,8 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
      (400px) es caro. `box-sizing:border-box` (§ el reset de `.duna *`) mete el padding
      DENTRO de la altura → no desborda §3. La cuadrícula `.duna-cards` lleva el MISMO aire
      en duna.css (el otro scroller de tarjetas). Si cambia acá, cambia allá. */
-  .duna-split__list { padding: var(--duna-space-1) var(--duna-space-1) var(--duna-space-4); }
+  .duna-split__list { padding: var(--duna-space-1) var(--duna-space-1) var(--duna-space-4);
+                      scrollbar-gutter: stable; }
 }
 
 /* ── Punto de atención del NAV ───────────────────────────────────────────────
