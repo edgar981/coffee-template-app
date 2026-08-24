@@ -1,8 +1,7 @@
 "use client";
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { cn } from '@duna/core/utils';
-import { PanelLeftClose, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { usePathname } from "next/navigation";
 import { SidebarProps } from '@/types/admin';
@@ -10,7 +9,6 @@ import { ADMIN_NAV, type AdminNavItem } from '@/constants/admin-nav';
 import { AnimatedIcon } from '@/components/admin/AnimatedIcon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { authClient } from "@/lib/auth-client";
-import { ADMIN_ICON_BUTTON } from '@/components/admin/iconButton';
 import { UserMenu } from '@/components/admin/UserMenu';
 import { useAtencion } from '@/hooks/useAtencion';
 import { atencionDeRuta, type MapaAtencion } from '@/lib/atencion/registro';
@@ -52,15 +50,21 @@ function NavRow({ item, active, iconOnly, animateIndicator, onNavigate, atencion
         'focus-visible:ring-2 focus-visible:ring-sidebar-ring',
         iconOnly && 'justify-center',
         active
-          ? 'bg-sidebar-primary/10 text-sidebar-foreground font-semibold'
+          ? 'font-semibold'
           : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
       )}
+      // ACTIVO = TINTA, no ámbar. El activo era `bg-sidebar-primary/10` (fondo ámbar)
+      // + ícono y barra ámbar, y el punto de atención TAMBIÉN es sol: el mismo color
+      // decía "estás aquí" y "esto pide atención" en la misma lista. Ahora "estás
+      // aquí" es una superficie elevada con tinta (§ CLAUDE.md — el sol no marca
+      // posición); el sol queda SÓLO para atención. Se distinguen.
+      style={active ? { background: 'var(--duna-surface)', color: 'var(--duna-ink)', boxShadow: 'var(--duna-shadow-1)' } : undefined}
     >
       <AnimatedIcon
         icon={item.icon}
         anim={item.anim}
         hovered={hovered}
-        className={active ? 'text-sidebar-primary' : ''}
+        className=""
       />
       {!iconOnly && (
         <span className="text-sm font-medium whitespace-nowrap">{item.label}</span>
@@ -84,10 +88,12 @@ function NavRow({ item, active, iconOnly, animateIndicator, onNavigate, atencion
           aria-label={`${item.label} necesita atención`}
         />
       )}
+      {/* La barra de posición es de TINTA (2px, izquierda), no ámbar — el sol no
+          marca posición. */}
       {active && (
         animateIndicator
-          ? <motion.div layoutId="activeIndicator" className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-sidebar-primary" />
-          : <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-sidebar-primary" />
+          ? <motion.div layoutId="activeIndicator" className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full" style={{ background: 'var(--duna-ink)' }} />
+          : <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full" style={{ background: 'var(--duna-ink)' }} />
       )}
     </Link>
   );
@@ -113,27 +119,33 @@ function SidebarNav({ iconOnly, animateIndicator, onNavigate, atencion }: {
   const pathname = usePathname();
   const { data: session } = authClient.useSession();
 
+  const visibles = ADMIN_NAV.filter(item => !item.ownerOnly || session?.user?.role === 'OWNER');
+
   return (
     <nav className="flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-2 py-4">
-      {ADMIN_NAV
-        .filter(item => !item.ownerOnly || session?.user?.role === 'OWNER')
-        .map(item => {
-          // ── ACTIVO ES LA RUTA O UNA SUBRUTA SUYA, NO UN PREFIJO DE TEXTO ────
-          //
-          // Era `startsWith(item.path)` a secas, que compara CARACTERES y no
-          // segmentos. La barra es lo que convierte la comparación en una de
-          // jerarquía de rutas: `/admin/clientes/abc` sigue marcando Clientes,
-          // que es lo correcto.
-          //
-          // El caso que lo destapó —`/admin/clientes-v2` encendiendo también
-          // `/admin/clientes`— ya no existe: esa convivencia se retiró. El fix se
-          // QUEDA porque la regla es general y el defecto estaba latente desde
-          // siempre; cualquier `/admin/<algo>-v2` futuro lo vuelve a encontrar, y
-          // el redirect de Clientes depende hoy de la misma distinción.
-          const active = pathname === item.path || pathname.startsWith(`${item.path}/`);
-          return (
+      {visibles.map((item, i) => {
+        // ── ACTIVO ES LA RUTA O UNA SUBRUTA SUYA, NO UN PREFIJO DE TEXTO ────
+        //
+        // Era `startsWith(item.path)` a secas, que compara CARACTERES y no
+        // segmentos. La barra es lo que convierte la comparación en una de
+        // jerarquía de rutas: `/admin/clientes/abc` sigue marcando Clientes,
+        // que es lo correcto. El caso que lo destapó —`/admin/clientes-v2`— ya no
+        // existe, pero el fix se QUEDA: la regla es general y cualquier
+        // `/admin/<algo>-v2` futuro lo vuelve a encontrar.
+        const active = pathname === item.path || pathname.startsWith(`${item.path}/`);
+
+        // El encabezado de sección va al PRIMER ítem de cada sección (el tag cambia
+        // respecto del anterior), y SÓLO en el rail expandido: colapsado es
+        // icon-only y un texto ahí no tiene sitio. Hoy no lleva sección → sin
+        // encabezado. El agrupado es contiguo, así que basta comparar con el previo.
+        const abreSeccion = item.seccion && item.seccion !== visibles[i - 1]?.seccion;
+
+        return (
+          <Fragment key={item.path}>
+            {!iconOnly && abreSeccion && (
+              <div className="admin-nav-seccion">{item.seccion}</div>
+            )}
             <NavRow
-              key={item.path}
               item={item}
               active={active}
               iconOnly={iconOnly}
@@ -141,8 +153,9 @@ function SidebarNav({ iconOnly, animateIndicator, onNavigate, atencion }: {
               onNavigate={onNavigate}
               atencion={atencionDeRuta(atencion, item.path)}
             />
-          );
-        })}
+          </Fragment>
+        );
+      })}
     </nav>
   );
 }
@@ -161,45 +174,39 @@ function UserFooter({ compact }: { compact: boolean }) {
   );
 }
 
-// ─── Search affordance ────────────────────────────────────────────────────────
-// Icon-only control → always tooltipped ("Buscar (⌘K)"), even when the sidebar is
-// expanded (unlike nav items). Hidden on the collapsed rail (⌘K still works).
-function SearchButton({ onClick }: { onClick: () => void }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          onClick={onClick}
-          aria-label="Buscar (⌘K)"
-          className={cn(ADMIN_ICON_BUTTON, 'h-8 w-8 shrink-0')}
-        >
-          <Search className="h-4.5 w-4.5" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">Buscar (⌘K)</TooltipContent>
-    </Tooltip>
-  );
-}
+// El botón de Buscar y el toggle de colapsar salieron del rail a la topbar (§ TopBar):
+// el rail no lleva controles, sólo marca y navegación. El ⌘K sigue disponible desde
+// ahí y por atajo.
 
 // ─── Brand lockup ─────────────────────────────────────────────────────────────
-// Wordmark only. The horizontal logo SVG bakes the mark + "DUNA" lettering into a
-// single file, so rather than crop it (public/ images are immutable) we render the
-// "DUNA" wordmark as text in JetBrains Mono — the wordmark typeface — and keep the
-// "Café Nayoli" store label. The unused SVGs stay in public/ untouched.
+// EL MARK COMO SVG + "Duna" COMO TEXTO, no el lockup horizontal horneado. El
+// `-horizontal-v1.svg` hornea mark+lettering en un archivo, así que achicar las
+// letras achica el mark; por eso el wordmark va como texto y el mark va suelto
+// —`duna-mark-v1.svg`, el mismo que el rail colapsado, con su negativo en oscuro—.
+// El negocio ("Café Nayoli") debajo, muted, para que el wordmark no domine.
+//
+// EL ÁMBAR DEL MARK (#F59E0B = `--duna-sol`) ES MARCA, NO ESTADO — excepción
+// declarada (§ CLAUDE.md, "El ámbar del logo es marca, no atención"). Un logo es la
+// firma del producto, no un semáforo; ya vivía en el mark colapsado.
 function BrandLockup() {
   return (
-    <div className="mt-3 min-w-0 overflow-hidden">
-      {/* El wordmark pasó de JetBrains Mono a `--duna-font-mono` (Spline Sans
-          Mono): mono por mono, pero ahora la mono DEL SISTEMA. Es el único cambio
-          de identidad visible de la migración del chrome, y va porque retirar
-          JetBrains lo exige — era su único consumidor. */}
-      <span
-        className="block whitespace-nowrap text-[15px] font-semibold uppercase leading-none tracking-[0.2em] text-sidebar-foreground"
-        style={{ fontFamily: 'var(--duna-font-mono)' }}
+    <div className="min-w-0 overflow-hidden">
+      {/* EL LOCKUP HORIZONTAL real (mark + "DUNA" con su lettering propio), no texto:
+          el wordmark tiene su tipografía y una fuente del sistema no lo reproduce
+          —"Duna" en texto era una aproximación de maqueta—. El problema era el TAMAÑO,
+          no el asset, así que se ESCALA. `h-5` (20px) es el PISO de legibilidad: el
+          lettering escala 0.608× la altura (medido sobre el viewBox), o sea cap ~12px
+          (≈ texto de cuerpo); a 16px (cap ~9.7px) se veía chico. `w-auto` sigue la
+          altura sin distorsión; `max-w-full` no deja desbordar; `object-left` lo alinea
+          a la izquierda (con el nav, NO centrado). Negativo para oscuro. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/duna-logo-horizontal-v1.svg" alt="Duna" className="block h-5 w-auto max-w-full object-contain object-left dark:hidden" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/duna-logo-horizontal-negative-v1.svg" alt="Duna" className="hidden h-5 w-auto max-w-full object-contain object-left dark:block" />
+      <p
+        className="mt-1 whitespace-nowrap leading-none text-sidebar-foreground/55"
+        style={{ fontSize: '.8rem', fontFamily: 'var(--duna-font-ui)' }}
       >
-        DUNA
-      </span>
-      <p className="mt-2 mb-2 whitespace-nowrap text-[13px] leading-none text-sidebar-foreground/55" style={{ fontFamily: 'var(--duna-font-ui)' }}>
         Café Nayoli
       </p>
     </div>
@@ -227,7 +234,7 @@ function BrandLockup() {
 //
 // El breakpoint es `duna` (960), el del sistema — no el `lg` de 1024 que venía
 // por default y que dejaba una franja con barra inferior y rail a la vez.
-export default function Sidebar({ collapsed, onToggle, onOpenSearch }: SidebarProps) {
+export default function Sidebar({ collapsed }: SidebarProps) {
   // UNA sola consulta para todo el nav, acá y no más abajo: con el rail colapsado
   // hay dos `SidebarNav` montados a la vez, así que el hook viviría duplicado.
   // `MobileNav` tiene la suya y no comparte ésta: las dos superficies nunca están
@@ -246,44 +253,29 @@ export default function Sidebar({ collapsed, onToggle, onOpenSearch }: SidebarPr
           collapsed && 'duna:w-18',
         )}
       >
-        {/* Header — brand + (expanded only) search & collapse toggle */}
+        {/* Header — SÓLO la marca. Buscar y el toggle de colapsar se unificaron en la
+            topbar (§ TopBar): el rail de la maqueta no lleva controles, sólo marca y
+            navegación. SIN divisoria (la separación la da el espacio).
+
+            El alto se queda en 64px (`h-16`) en los DOS estados, para que el borde
+            superior alinee con la topbar. El bloque de marca (lockup 20px + negocio,
+            ~37px) se CENTRA VERTICALMENTE en esos 64px con `items-center` —queda ~13px
+            de aire arriba y abajo, no pegado arriba—; colapsado centra el mark. */}
         <div className={cn(
-          'relative flex h-16 shrink-0 items-center gap-2 border-b border-sidebar-border px-3',
+          'relative flex h-16 shrink-0 items-center px-3',
           collapsed && 'duna:justify-center',
         )}>
-          {/* Full lockup — hidden only on the collapsed desktop rail */}
+          {/* Lockup expandido */}
           <div className={cn('min-w-0 flex-1', collapsed && 'duna:hidden')}>
             <BrandLockup />
           </div>
 
-          {/* Mark — collapsed desktop rail only */}
+          {/* Mark — rail colapsado */}
           <div className={cn('hidden', collapsed && 'duna:flex duna:items-center duna:justify-center')}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/duna-mark-v1.svg" alt="Duna" className="h-6 w-6 object-contain dark:hidden" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/duna-mark-negative-v1.svg" alt="Duna" className="hidden h-6 w-6 object-contain dark:block" />
-          </div>
-
-          {/* Search — expanded rail only; hidden on the collapsed rail (⌘K sigue) */}
-          <div className={cn('shrink-0', collapsed && 'duna:hidden')}>
-            <SearchButton onClick={onOpenSearch} />
-          </div>
-
-          {/* Collapse toggle — expanded desktop rail only (when collapsed it lives
-              in the top bar). PanelLeftClose = "collapse". */}
-          <div className={cn('hidden', !collapsed && 'duna:block')}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={onToggle}
-                  aria-label="Colapsar panel"
-                  className={cn(ADMIN_ICON_BUTTON, 'h-8 w-8 shrink-0')}
-                >
-                  <PanelLeftClose className="h-4.5 w-4.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Colapsar panel</TooltipContent>
-            </Tooltip>
           </div>
         </div>
 

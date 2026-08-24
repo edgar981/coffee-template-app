@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  Sun, Moon, Monitor, PanelLeftOpen, Search,
+  Sun, Moon, Monitor, PanelLeftOpen, PanelLeftClose, Search,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
@@ -78,26 +78,28 @@ export default function TopBar({
         <BotonBuscar onClick={onOpenSearch} />
       </div>
 
-      {/* Desktop expand toggle + search — only when the rail is collapsed (when
-          expanded they live in the sidebar header). Clicking the toggle expands the
-          rail; the search button opens the ⌘K palette. */}
-      {collapsed && (
-        <div className="hidden items-center gap-1 duna:flex">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                className={cn(ADMIN_ICON_BUTTON, 'h-9 w-9')}
-                onClick={onToggleCollapsed}
-                aria-label="Expandir panel"
-              >
-                <PanelLeftOpen className="h-5 w-5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Expandir panel</TooltipContent>
-          </Tooltip>
-          <BotonBuscar onClick={onOpenSearch} />
-        </div>
-      )}
+      {/* EL TOGGLE DE COLAPSAR + BUSCAR viven en la topbar (desktop), no en el rail:
+          el rail no lleva controles, sólo marca y navegación (§ Sidebar). Y el toggle
+          es UNO SOLO que colapsa Y expande — antes estaba PARTIDO (se colapsaba desde
+          el rail y se expandía desde acá), y un control que cambia de superficie según
+          su estado es más difícil de encontrar que uno fijo. Siempre visible en
+          desktop; el ícono y el label siguen a `collapsed`. En móvil no aparece
+          (`duna:flex`): el rail no existe y la topbar ya está apretada. */}
+      <div className="hidden items-center gap-1 duna:flex">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              className={cn(ADMIN_ICON_BUTTON, 'h-9 w-9')}
+              onClick={onToggleCollapsed}
+              aria-label={collapsed ? 'Expandir panel' : 'Colapsar panel'}
+            >
+              {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{collapsed ? 'Expandir panel' : 'Colapsar panel'}</TooltipContent>
+        </Tooltip>
+        <BotonBuscar onClick={onOpenSearch} />
+      </div>
 
       <div className="ml-auto flex items-center gap-2">
         {/* Selector de tema — TRES estados, no un toggle. Un toggle binario

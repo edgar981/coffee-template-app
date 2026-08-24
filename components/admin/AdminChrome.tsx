@@ -58,11 +58,7 @@ export default function AdminChrome({ children }: { children: React.ReactNode })
     // ONE TooltipProvider for the whole admin shell (no per-item nesting).
     <TooltipProvider delayDuration={300}>
       <div className="min-h-screen bg-background">
-        <Sidebar
-          collapsed={collapsed}
-          onToggle={toggleCollapsed}
-          onOpenSearch={openSearch}
-        />
+        <Sidebar collapsed={collapsed} />
 
         <TopBar
           sidebarWidth={sidebarWidth}

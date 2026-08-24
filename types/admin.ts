@@ -6,10 +6,9 @@ import { LucideIcon } from "lucide-react";
 export interface SidebarProps {
   /** Rail colapsado (72px) contra expandido (240px). */
   collapsed: boolean;
-  /** Alterna el rail (control PanelLeft, sólo en estado expandido). */
-  onToggle: () => void;
-  /** Abre la paleta ⌘K (botón Buscar del rail). */
-  onOpenSearch: () => void;
+  // Buscar y el toggle de colapsar salieron del rail a la topbar (§ TopBar): el rail
+  // no lleva controles, sólo marca y navegación. Por eso ya no van `onToggle` ni
+  // `onOpenSearch` — sus handlers viven en la topbar.
 }
 
 export interface NavItem {

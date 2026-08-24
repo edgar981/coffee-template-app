@@ -610,6 +610,28 @@ falsa.** Lo que parecía un intermedio resultó ser el estado final.
   #22 sin hacerse, la cadena de altura duplicada sigue ahí y **#25 queda con su disparador
   intacto: una TERCERA página sin split.** No se cierra con éste.
 
+## El rail agrupa en SECCIONES — lista PLANA con tag, no anidada
+
+`ADMIN_NAV` (`constants/admin-nav.ts`) es una lista PLANA de ítems, y la agrupación del
+rail (Hoy · **Operación**: Pedidos·Productos·Clientes·Inventario·Pagos · **Crecimiento**:
+Analítica·Automatizaciones) se expresa con un campo **`seccion?`** por ítem, NO con una
+lista anidada. Es la decisión, y la razón es la forma de los consumidores:
+
+- **Los encabezados NO PUEDEN ser un destino** porque no son elementos del array. El ⌘K
+  mapea ítems (cada uno con `path`); una sección jamás llega a ser un `CommandItem`. Una
+  lista anidada pondría ese riesgo.
+- **Los cuatro consumidores planos quedan intactos:** MobileNav (`slice(0,4)`), el ⌘K, `admin-titulo`
+  (`.find(path)`) y `atencion/registro` (`.map(path)`) IGNORAN el tag. **Sólo el Sidebar lo
+  lee** para pintar el encabezado al primer ítem de cada sección (agrupado CONTIGUO: comparar
+  con el previo). Una lista anidada los habría roto a los cuatro (todos tendrían que aplanar).
+- **El agrupado NO reordena.** Las secciones agrupan el orden que ya existe; mover un ítem es
+  otra decisión (y movería la partición posicional de la barra móvil).
+- **El ⌘K NO se agrupa por sección** (owner): funciona plano bajo "Ir a", y agruparlo sería
+  cambio sin motivo. Los `CommandGroup heading` de cmdk no son seleccionables, así que el día
+  que se agrupe tampoco serían destino — pero hoy no se toca.
+- **El encabezado es `.admin-nav-seccion`** (`duna.css`), admin-level por la regla del segundo
+  consumidor (un solo archivo lo usa). Va sólo en el rail EXPANDIDO —el colapsado es icon-only—.
+
 ## Backlog técnico
 
 **EL registro único de deuda conocida.** Existe porque antes vivía repartida
@@ -1037,13 +1059,20 @@ propia, no un renglón de pie, y por eso no se coló en la tanda del informe.
 **Costo YA pagado: ninguno.** El texto cumple: es la única marca del producto en un
 documento que el operador manda a su contador, y se ve de dónde salió.
 
-**Es la MISMA decisión que el wordmark del sidebar**, que también es texto por un motivo
-emparentado (el SVG horizontal hornea marca + lettering en un solo archivo, y `public/`
-es inmutable, así que recortarlo no es opción). Resolver una sin la otra dejaría el
-producto con dos criterios de marca.
+**EL RAIL YA USA EL LOCKUP REAL** (2026-08-23): el rail expandido muestra
+`duna-logo-horizontal-v1.svg` (mark + "DUNA" con su lettering propio, escalado) + el
+negocio debajo (`Sidebar.tsx`, `BrandLockup`). Se pensó que era "la misma decisión" que
+el PDF y que se resolverían juntas, pero **son dos trabajos distintos**: el rail muestra
+el SVG directo (`<img>`), y el PDF NO puede —jsPDF no dibuja SVG—. Así que el asset se
+comparte, pero el PDF sigue necesitando su propia implementación.
 
-**DISPARADOR: cuando el wordmark provisional del sidebar se reemplace por el logo real.**
-Ahí se decide también el del PDF, en la misma tanda y con el mismo asset.
+**LO QUE QUEDA, y es todo lo que queda de este ítem:** rasterizar el logo a **PNG** para
+el informe de Pagos (elegir resolución, versionar el PNG —`public/` es inmutable— y
+dibujarlo con jsPDF en vez del "Generado con Duna" de texto). El pie de texto cumple
+mientras tanto; no bloquea nada.
+
+**DISPARADOR: al tocar el informe de Pagos, o una tanda de acabado de marca.** El asset
+ya está decidido (es el del rail); falta sólo el PNG y su render en el PDF.
 
 ### 34. El padding del sheet es responsabilidad REPARTIDA — cuatro consumidores lo cablean
 
@@ -4328,6 +4357,13 @@ neutro):
   ámbar=espera, verde=ok, rojo=alerta, azul=en curso (el único tono informativo),
   gris=neutro. Categorías (zona, canal) van neutras (outline/gris), nunca color
   semántico.
+- **EL SOL NO MARCA POSICIÓN.** El indicador de página actual del rail es TINTA
+  —superficie elevada (`--duna-surface` + `--duna-shadow-1`) con texto/ícono de
+  `--duna-ink` y una barra de 2px de tinta a la izquierda—, NO ámbar. El ámbar/sol
+  significa ATENCIÓN; usarlo también para "estás aquí" ponía el mismo color a decir
+  dos cosas en la misma lista —el activo era ámbar y el punto de atención de Pedidos
+  también—. Ahora **activo = tinta, atención = sol** (el `.duna-nav-dot`, que se
+  queda), y se distinguen. Vive en `components/admin/Sidebar.tsx` (NavRow).
 - **Trends en texto** (flecha + % coloreado verde/rojo, sin pill/fondo); el "vs
   mes anterior" en muted. Un solo lugar: `TrendPill` en `StatCard`.
 - **Una sola utilidad de fecha visible**: `formatFecha` (`lib/format-fecha.ts`,
@@ -4338,6 +4374,22 @@ neutro):
 El `--accent` de admin-light era `#B45309` (marrón de marca) y volvía marrón todo
 hover de outline/ghost/dropdown/select: ahora es un tinte cálido suave. El marrón
 vive como `--primary` y en los charts, no como fondo de hover.
+
+### EXCEPCIÓN DECLARADA: el ámbar del LOGO es marca, no atención
+
+El logo de Duna —el lockup horizontal (`duna-logo-horizontal-v1.svg`) en el rail
+expandido y el mark (`duna-mark-v1.svg`) en el colapsado— trae un elemento **`#F59E0B`,
+que es `--duna-sol` al valor** — el mismo hex que significa ATENCIÓN en el panel. **Se
+acepta, por decisión del owner (2026-08-23):** un logo NO es un estado, es la firma del
+producto, y pedir una variante sin el sol sería quitarle al logo lo que lo hace el logo.
+Ya vivía en el mark del rail colapsado; el lockup expandido lo lleva a la vista siempre.
+
+**Queda escrito acá para que el próximo censo de ámbar NO lo marque como violación.**
+El discriminador es el SITIO: `#F59E0B` dentro de un asset de marca (el rail) es marca;
+`#F59E0B` en un badge, un chip, un punto de atención o un fondo es estado, y ahí la
+regla de arriba manda sin excepción. El logo es el único sitio donde el sol es
+decoración permitida, precisamente porque no está diciendo nada sobre el estado del
+panel — está diciendo de quién es el panel.
 
 ## La serie categórica — color que IDENTIFICA, no que califica
 
