@@ -5,12 +5,12 @@ import type { StatTono } from '@/constants/dashboard-widgets';
 // ─── Indicador editorial (Dashboard) ──────────────────────────────────────────
 // Una COLUMNA de la tira de indicadores de "Hoy": cifra grande, pleca de estado,
 // etiqueta y una línea de contexto. Sin caja, sin ícono, sin chip (§ duna.css,
-// `.admin-indicadores`). NAVEGA a su pantalla y nada más — cero acciones. Reemplaza
-// a `StatCard`; el contexto sale de la MISMA función de slot (`resolveStatLine`),
-// así que insight y sub siguen compitiendo por un solo renglón igual que antes.
+// `.admin-indicadores`). NAVEGA a su pantalla y nada más — cero acciones. El contexto
+// sale de la MISMA función de slot que usaba la stat-card (`resolveStatLine`), así que
+// insight y sub siguen compitiendo por un solo renglón igual que antes.
 //
-// El TREND se retiró con `StatCard`: el ±% mes-contra-mes es una COMPARATIVA que el
-// sistema no calcula en general, y la forma editorial no le da slot (§ CLAUDE.md).
+// El TREND se retiró con la forma editorial: el ±% mes-contra-mes es una COMPARATIVA
+// que el sistema no calcula en general, y esta forma no le da slot (§ CLAUDE.md).
 
 interface IndicadorProps {
   value:  string;
@@ -28,7 +28,7 @@ interface IndicadorProps {
 }
 
 export default function Indicador({ value, label, estado, sub, insight, insightEnfasis, scopeSuffix, href }: IndicadorProps) {
-  // Mismo slot único que StatCard: insight gana, y el scope se apende. La regla vive
+  // Mismo slot único de siempre: insight gana, y el scope se apende. La regla vive
   // en lib/stat-line.ts (pura y testeada) — no se reimplementa acá.
   const contexto = resolveStatLine({ insight, sub, insightEnfasis, scopeSuffix });
 

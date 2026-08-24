@@ -372,10 +372,8 @@ html {
     @apply transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
   }
 
-  .stat-card {
-    /* Inline card-hover styles instead of @apply-ing it */
-    @apply bg-card border border-border rounded-xl p-5 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
-  }
+  /* `.stat-card` se retiró: los indicadores del Dashboard adoptaron la forma
+     editorial (§ duna.css `.admin-indicadores`) y era su ÚNICO consumidor. */
 
   .badge-pendiente  { @apply bg-amber-100   text-amber-800   dark:bg-amber-900/30   dark:text-amber-400; }
   .badge-confirmado { @apply bg-blue-100    text-blue-800    dark:bg-blue-900/30    dark:text-blue-400; }

@@ -1,9 +1,8 @@
 // ─── Chips de filtro del admin ───────────────────────────────────────────────
 // LA fuente de los chips que aplican un filtro a la lista de abajo (Órdenes,
 // Entregas). Vive acá y no por página porque "este filtro está aplicado" tiene
-// que verse igual en todo el panel — y porque la stat card de la misma vista ya
-// marca ese mismo estado (`statCardLink` en components/admin/StatCard.tsx): dos
-// controles del MISMO filtro no pueden anunciarlo de dos maneras distintas.
+// que verse igual en todo el panel: dos controles del MISMO filtro no pueden
+// anunciarlo de dos maneras distintas.
 //
 // Amber Minimal: aplicado = BORDE de `--primary` sobre el fondo neutro que el
 // chip ya tenía, nunca relleno. Antes el activo era `bg-primary
