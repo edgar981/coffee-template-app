@@ -2702,24 +2702,38 @@ pago" se anclan a 00:00 Bogotá, así que **no hay hora del dinero**—. Día si
 **DECLARA, no dibuja** (`curvaDibuja`), y el estado vacío **reserva el mismo alto**
 (`ALTO_CURVA`) que la curva para que declarar→dibujar no salte el layout.
 
-**EL EJE ES LA JORNADA, no 0–23 fijo** (2026-08-24): va desde la **primera hora con
-actividad** del día hasta las **11 p.m.** (`FIN=23`, borde derecho FIJO). Se descartó
-comprimir para clavar "ahora" al borde —cambiaría el ancho de una hora a lo largo del día
-y perdería "cuánto día queda"—: con el eje-jornada el borde izquierdo = primera hora con
-orden, que **nunca retrocede** (los pedidos siguientes caen en horas ≥ ésa), así que **la
-escala queda FIJA desde que la curva aparece** y "ahora" avanza hacia el borde derecho.
-La hora de apertura FIJA se descartó —escondería la madrugada, y un storefront es 24h—.
-Las etiquetas se readaptan a la ventana (`ticksDeVentana`: los dos bordes + interiores a
-paso 6/3/1 según el span, cayendo el que quede a <1.5h del borde). Al hook se le pasa
-`n` = horas de la ventana; su índice `0..n-1` se mapea a hora con `inicio + i` — por eso
-NO se toca (§ compartido con Pagos).
+**EL EJE ES LA JORNADA TRANSCURRIDA: `[primera hora con actividad .. HORA ACTUAL]`**
+(2026-08-24). El borde derecho es **AHORA**, no las 11 p.m.: "Hoy" es lo que ha PASADO, así
+que la curva no dibuja el futuro y **tampoco le reserva ancho** —dejar de dibujar la línea
+del futuro pero seguir reservándole la mitad del eje era el arreglo a medias—. El marcador
+de ahora queda SIEMPRE en el borde derecho, como en la maqueta. El costo teórico (el ancho
+de una hora cambia a lo largo del día) se aceptó: nadie compara la gráfica de las 9 a.m.
+con la de las 8 p.m. de memoria; el vacío se veía todos los días.
 
-**LA CURVA NO DIBUJA EL FUTURO**: la línea y el área llegan sólo hasta la HORA ACTUAL
-(`zonedHour(new Date(), BUSINESS_TZ)`, reloj alineado al borde de hora); el tramo futuro
-queda en BLANCO. Dibujar plano hasta las 11 p.m. a las 9:40 se leía "no hubo ventas en la
-tarde", no "todavía no ocurrió". A las 00:30 (un solo bucket) `pathDe` no dibuja curva (<2
-puntos), así que queda **sólo el marcador de ahora**, NO una declaración: "sin pedidos"
-sería falso habiendo datos.
+- **SPAN MÍNIMO de 6 h, rellenando hacia el PASADO** (`MIN_SPAN`): si la actividad es
+  reciente (8:30 con el primer pedido a las 8, span de 30 min), el eje se estira a la
+  IZQUIERDA —`inicioEje = max(0, min(inicio, horaFin − 6))`— en vez de dejar una joroba de
+  una hora llenando la pantalla. Esas horas previas tuvieron 0 pedidos (dato real, no
+  futuro reservado). **El marcador NO se mueve del borde derecho** —ésa fue la razón de
+  rellenar el pasado y no el futuro: las dos alternativas (vacío a la derecha / marcador
+  antes del borde) lo sacaban del borde—. El mínimo deja de aplicar cuando la ventana
+  natural ya mide ≥ 6 h (`ahora ≥ inicio + 6`: si la actividad empezó a las 8 a.m., de
+  8 a 2 p.m. se rellena; después no). Antes de las 6 a.m. el eje es `[0 .. ahora]` (no se
+  rellena antes de medianoche); es genuinamente temprano.
+- **La ETIQUETA del borde derecho = la HORA ACTUAL** ("10 a.m."): rotula dónde está el día.
+  `ticksDeVentana(inicioEje, horaFin)` pone los dos bordes + interiores a paso 6/3/1 según
+  el span, y **cae un interior a < 1.5 h del borde "ahora"** para que su etiqueta no se
+  encime. Al hook se le pasa `n` = horas de la ventana; su índice `0..n-1` se mapea a hora
+  con `inicioEje + i` — por eso NO se toca (§ compartido con Pagos).
+- **A las 00:30** el eje es `[0 .. 0]`: un solo punto, `n=1`. `pathDe` (<2 puntos) no dibuja
+  curva → queda **sólo el marcador de ahora**, y el `denom = max(1, n−1)` evita que el span
+  cero rompa la escala. No es una declaración: "sin pedidos" sería falso habiendo datos.
+
+**EL EJE AVANZA CON EL RELOJ sin re-renderizar la pantalla:** el estado `horaActual` vive
+DENTRO de `CurvaPedidosHoy` con un `setInterval` alineado al borde de hora, así que al
+cambiar la hora sólo se re-renderiza ESTA curva —no el Dashboard—, igual que el eyebrow con
+su reloj de minuto. Sin esto, a las 11:05 el marcador seguiría diciendo "10 a.m." hasta
+recargar. El pulso del marcador es CSS, sin estado.
 
 **SIN TARJETA** (2026-08-24): la curva vive sobre el fondo de la página, como el hero (el
 vistazo del día es cardless; las tiles, "lo más vendido" y "órdenes recientes" siguen en

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { HORAS_DIA, relojLabel } from '@/lib/dashboard/hoy';
+import { relojLabel } from '@/lib/dashboard/hoy';
 import { zonedHour, BUSINESS_TZ } from '@duna/core/timezone';
 import { useCurvaHover } from './useCurvaHover';
 
@@ -9,8 +9,7 @@ import { useCurvaHover } from './useCurvaHover';
 //
 // COLOR — el discriminador del sol es EL SITIO (§ El ámbar es marca/dato en las
 // superficies de DATO, estado en las de estado):
-//   · el ÁREA va en ÁMBAR (gradiente `--duna-sol` 10%→0%), un lavado tenue: es una
-//     superficie de DATO, no un badge. La misma decisión rige el área de PagosCurva.
+//   · el ÁREA va en ÁMBAR (gradiente `--duna-sol` 10%→0%), un lavado tenue de DATO.
 //   · la LÍNEA es la medida, en TINTA a .5 (no plena).
 //   · el marcador de AHORA va en SOL y PULSA (§ duna.css `.curva-ahora-pulso`): marca
 //     el momento VIVO. EL SOL NO MARCA POSICIÓN (el activo del rail es tinta), MARCA
@@ -18,17 +17,21 @@ import { useCurvaHover } from './useCurvaHover';
 //   · el PICO va en TINTA. Dos marcadores distintos cierran el riesgo de leer el sol
 //     como "aquí está el máximo".
 //
-// EL EJE ES LA JORNADA, no 0–23 fijo: va desde la PRIMERA HORA CON ACTIVIDAD del día
-// hasta las 11 p.m. (borde derecho FIJO). Así el vacío de la madrugada no se come un
-// tercio del ancho, la escala es ESTABLE dentro del día (el borde izquierdo = primera
-// hora con orden, que nunca retrocede) y "ahora" avanza hacia la derecha. La curva NO
-// dibuja el futuro: la línea y el área llegan sólo hasta la hora actual; el resto queda
-// en blanco (mostrar menos antes que mentir).
+// EL EJE ES LA JORNADA TRANSCURRIDA: `[primera hora con actividad .. HORA ACTUAL]`. El
+// borde derecho es AHORA (no las 11 p.m.): "Hoy" es lo que ha pasado, así que la curva
+// no dibuja el futuro y tampoco le reserva ancho. El marcador de ahora queda SIEMPRE en
+// el borde derecho, como en la maqueta.
+//   · SPAN MÍNIMO de 6 h, rellenando hacia el PASADO: si la actividad es reciente
+//     (8:30 con el primer pedido a las 8), el eje se estira a la IZQUIERDA —esas horas
+//     tuvieron 0 pedidos, es dato real— en vez de dejar una joroba de una hora llenando
+//     la pantalla. El marcador NO se mueve del borde. Antes de las 6 a.m. el eje es
+//     `[0 .. ahora]` (no se puede rellenar antes de medianoche); es genuinamente
+//     temprano. A las 00:30 el eje es `[0 .. 0]` — un solo punto, y `pathDe` (<2) no
+//     dibuja curva: queda sólo el marcador, sin que el span cero rompa la escala.
 //
-// EL COMPONENTE ASUME que hay datos (el vacío-declara lo decide el llamador con
-// `curvaDibuja`). EL ANCHO SE MIDE (ResizeObserver). El hover/scrub/tap-fuera viven en
-// `useCurvaHover`, compartido con Pagos y NO tocado: se le pasa `n` = horas de la
-// VENTANA, y su índice se mapea a hora con `inicio + i`.
+// EL ANCHO SE MIDE (ResizeObserver). El hover/scrub/tap-fuera viven en `useCurvaHover`,
+// compartido con Pagos y NO tocado: se le pasa `n` = horas de la VENTANA, y su índice
+// se mapea a hora con `inicioEje + i`.
 
 export const ALTO_CURVA = 140;   // el llamador reserva este alto en el estado vacío (sin salto)
 const PAD_X = 12;
@@ -36,22 +39,23 @@ const PAD_TOP = 22;    // aire para el rótulo del pico
 const PAD_BOT = 22;    // aire para las etiquetas de hora
 const INNER_H = ALTO_CURVA - PAD_TOP - PAD_BOT;
 const BASELINE = PAD_TOP + INNER_H;
-const FIN = HORAS_DIA - 1;   // 23 — el borde derecho fijo (11 p.m.)
+const MIN_SPAN = 6;    // horas mínimas del eje (rellenando el pasado)
 
 const clampY = (y: number) => Math.max(PAD_TOP, Math.min(BASELINE, y));
 
-/** Ticks dentro de la ventana [inicio..23]: los DOS bordes siempre, más interiores a
- *  un paso que da ~4–5 marcas. Se cae un interior a < 1.5 h del borde derecho para no
- *  encimar con "11 p.m.". Con ventana corta hay pocas marcas, pero las horas son
- *  ANCHAS (más px/hora), así que no se aprietan. */
-function ticksDeVentana(inicio: number): number[] {
-  const span = FIN - inicio;
-  if (span <= 0) return [inicio];
+/** Ticks dentro de la ventana [inicio..fin], donde FIN = la hora ACTUAL. Los dos bordes
+ *  siempre —el derecho rotula dónde está el día ("10 a.m.")—, más interiores a un paso
+ *  de 6/3/1 según el span. Se cae un interior a < 1.5 h del borde "ahora" para que su
+ *  etiqueta no se encime con la de ahora. Con ventana corta hay pocas marcas pero las
+ *  horas son ANCHAS, así que no se aprietan. */
+function ticksDeVentana(inicio: number, fin: number): number[] {
+  const span = fin - inicio;
+  if (span <= 0) return [fin];   // ventana degenerada (00:30): sólo la hora actual
   const paso = span <= 5 ? 1 : span <= 11 ? 3 : 6;
   const ts: number[] = [];
-  for (let h = inicio; h < FIN; h += paso) ts.push(h);
-  const out = ts.filter((h, i) => i === 0 || FIN - h >= 1.5);
-  out.push(FIN);
+  for (let h = inicio; h < fin; h += paso) ts.push(h);
+  const out = ts.filter((h, i) => i === 0 || fin - h >= 1.5);
+  out.push(fin);
   return out;
 }
 
@@ -82,7 +86,10 @@ export default function CurvaPedidosHoy({ buckets, onPunto }: {
 }) {
   const [ancho, setAncho] = useState(0);
 
-  // LA HORA ACTUAL de Bogotá, alineada al borde de la hora — para no dibujar el futuro.
+  // LA HORA ACTUAL de Bogotá, alineada al borde de la hora. El estado vive ACÁ, así que
+  // al cambiar la hora SÓLO se re-renderiza esta curva —no el Dashboard—, igual que el
+  // eyebrow con su reloj de minuto. El pulso es CSS, sin estado. Sin esto, a las 11:05
+  // el marcador seguiría diciendo "10 a.m." hasta recargar.
   const [horaActual, setHoraActual] = useState(() => zonedHour(new Date(), BUSINESS_TZ));
   useEffect(() => {
     let intervalo: ReturnType<typeof setInterval> | undefined;
@@ -94,15 +101,19 @@ export default function CurvaPedidosHoy({ buckets, onPunto }: {
     return () => { clearTimeout(arranque); if (intervalo) clearInterval(intervalo); };
   }, []);
 
-  // LA VENTANA: [inicio..23]. `inicio` = primera hora con actividad (garantizada por
-  // `curvaDibuja` en el llamador). `n` = horas de la ventana — lo que se le pasa al
-  // hook, cuyo índice 0..n-1 se mapea a hora con `inicio + i`.
-  const inicioBruto = buckets.findIndex(n => n > 0);
-  const inicio = inicioBruto < 0 ? 0 : inicioBruto;
-  const n = HORAS_DIA - inicio;
+  // LA VENTANA. `inicio` = primera hora con actividad (garantizada por `curvaDibuja` en el
+  // llamador). El borde derecho es AHORA; si por desfase de reloj hubiera actividad
+  // "futura", se extiende para no esconderla (normalmente `horaFin` = horaActual).
+  const inicioAct = buckets.findIndex(cnt => cnt > 0);
+  const inicio    = inicioAct < 0 ? horaActual : inicioAct;
+  const ultimaAct = buckets.reduce((last, cnt, i) => (cnt > 0 ? i : last), 0);
+  const horaFin   = Math.max(horaActual, ultimaAct);
+  // Span mínimo, rellenando hacia el PASADO: el borde izquierdo es el MENOR entre la
+  // primera actividad y `horaFin − 6`. El marcador queda en el borde derecho.
+  const inicioEje = Math.max(0, Math.min(inicio, horaFin - MIN_SPAN));
+  const n = horaFin - inicioEje + 1;   // horas de la ventana (≥ 1)
 
-  // Hover/scrub/tap-fuera compartido con PagosCurva (mecanismo único). Se GUARDA a las
-  // horas transcurridas: hover sobre el futuro (blanco) no tiene dato que mostrar.
+  // Hover/scrub/tap-fuera compartido con PagosCurva. Índice 0..n-1 → hora `inicioEje + i`.
   const { hov, contenedorRef, alMover, alSalir } = useCurvaHover(n, PAD_X, ancho);
 
   // Callback ref que MIDE (ResizeObserver, ignora ancho 0 — § PagosCurva) Y hace de
@@ -117,28 +128,24 @@ export default function CurvaPedidosHoy({ buckets, onPunto }: {
     return () => ro.disconnect();
   }, [contenedorRef]);
 
-  const ventana = buckets.slice(inicio);                 // horas inicio..23, índice 0..n-1
-  const idxAhora = Math.min(Math.max(0, horaActual - inicio), n - 1);
-  const elapsed = ventana.slice(0, idxAhora + 1);        // lo transcurrido dentro de la ventana
-  const max = Math.max(...elapsed, 1);
+  const ventana = buckets.slice(inicioEje, horaFin + 1);   // longitud n; TODA transcurrida
+  const max = Math.max(...ventana, 1);
   const innerW = Math.max(0, ancho - PAD_X * 2);
-  const denom = Math.max(1, n - 1);
+  const denom = Math.max(1, n - 1);                        // n=1 (00:30) no rompe la escala
   const xIdx = (idx: number) => PAD_X + (idx / denom) * innerW;
   const pts = ventana.map((cnt, idx) => ({ x: xIdx(idx), y: PAD_TOP + INNER_H - (cnt / max) * INNER_H }));
-  const ptsVis = pts.slice(0, idxAhora + 1);
-  const { linea, area } = pathDe(ptsVis);
+  const { linea, area } = pathDe(pts);
 
-  // El pico de lo transcurrido (la primera hora si hay empate) — en tinta. Índice de
-  // ventana; la hora real es `inicio + iPico`.
-  const iPico = elapsed.reduce((mejor, cnt, i) => (cnt > elapsed[mejor] ? i : mejor), 0);
+  // El pico (la primera hora si hay empate) — en tinta. Índice de ventana; hora real
+  // `inicioEje + iPico`.
+  const iPico = ventana.reduce((mejor, cnt, i) => (cnt > ventana[mejor] ? i : mejor), 0);
   const pico = pts[iPico];
-  // El punto de AHORA — el fin de la línea, en sol. Con un solo punto (00:30, o el
-  // primer pedido recién entrado) `ptsVis` no dibuja curva; queda sólo este marcador.
-  const ahoraPt = pts[idxAhora];
-  // Hover válido = sobre lo transcurrido. Índice de ventana → hora real.
-  const hovVal = hov !== null && hov <= idxAhora ? hov : null;
-  const activo = hovVal !== null ? pts[hovVal] : null;
-  const hovHora = hovVal !== null ? inicio + hovVal : null;
+  // El punto de AHORA — el ÚLTIMO, el borde derecho. Con un solo punto (00:30) `pathDe`
+  // no dibuja curva; queda sólo este marcador.
+  const ahoraPt = pts[n - 1];
+  // Hover: toda la ventana es transcurrida, así que cualquier índice es válido.
+  const activo = hov !== null ? pts[hov] : null;
+  const hovHora = hov !== null ? inicioEje + hov : null;
 
   return (
     // `minHeight` reserva el alto ANTES de medir; `position: relative` ancla el tooltip.
@@ -173,20 +180,22 @@ export default function CurvaPedidosHoy({ buckets, onPunto }: {
           <circle cx={pico.x} cy={pico.y} r="3" fill="var(--duna-ink)" />
           <text x={pico.x} y={pico.y - 8} textAnchor="middle" fill="var(--duna-ink)"
                 style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--duna-font-ui)' }}>
-            {buckets[inicio + iPico]}
+            {buckets[inicioEje + iPico]}
           </text>
 
-          {/* Marca de AHORA: círculo r=6 + anillo r=11 que PULSA (§ duna.css), en SOL. */}
+          {/* Marca de AHORA: círculo r=6 + anillo r=11 que PULSA (§ duna.css), en SOL, en
+              el borde derecho. */}
           <g>
             <circle className="curva-ahora-pulso" cx={ahoraPt.x} cy={ahoraPt.y} r="11"
                     fill="none" stroke="var(--duna-sol)" strokeWidth="1.5" opacity="0.3" />
             <circle cx={ahoraPt.x} cy={ahoraPt.y} r="6" fill="var(--duna-sol)" />
           </g>
 
-          {/* Eje de horas (la JORNADA), en reloj. Los bordes se anclan a su lado. */}
-          {ticksDeVentana(inicio).map(h => (
-            <text key={h} x={xIdx(h - inicio)} y={ALTO_CURVA - 6}
-                  textAnchor={h === inicio ? 'start' : h === FIN ? 'end' : 'middle'}
+          {/* Eje de horas (la JORNADA transcurrida), en reloj. La última etiqueta = la
+              hora ACTUAL (dónde está el día); los bordes se anclan a su lado. */}
+          {ticksDeVentana(inicioEje, horaFin).map(h => (
+            <text key={h} x={xIdx(h - inicioEje)} y={ALTO_CURVA - 6}
+                  textAnchor={h === inicioEje ? 'start' : h === horaFin ? 'end' : 'middle'}
                   fill="var(--duna-muted)"
                   style={{ fontSize: 11, fontFamily: 'var(--duna-font-ui)' }}>
               {relojLabel(h)}
