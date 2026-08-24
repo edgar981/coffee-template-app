@@ -2702,33 +2702,30 @@ pago" se anclan a 00:00 Bogotá, así que **no hay hora del dinero**—. Día si
 **DECLARA, no dibuja** (`curvaDibuja`), y el estado vacío **reserva el mismo alto**
 (`ALTO_CURVA`) que la curva para que declarar→dibujar no salte el layout.
 
-**EL EJE ES LA JORNADA TRANSCURRIDA: `[primera hora con actividad .. HORA ACTUAL]`**
-(2026-08-24). El borde derecho es **AHORA**, no las 11 p.m.: "Hoy" es lo que ha PASADO, así
-que la curva no dibuja el futuro y **tampoco le reserva ancho** —dejar de dibujar la línea
-del futuro pero seguir reservándole la mitad del eje era el arreglo a medias—. El marcador
-de ahora queda SIEMPRE en el borde derecho, como en la maqueta. El costo teórico (el ancho
-de una hora cambia a lo largo del día) se aceptó: nadie compara la gráfica de las 9 a.m.
-con la de las 8 p.m. de memoria; el vacío se veía todos los días.
+**EL EJE EMPIEZA EN MEDIANOCHE Y TERMINA EN AHORA: `[0 .. HORA ACTUAL]`** (2026-08-24,
+reemplaza al eje-jornada del mismo día). Origen FIJO en la hora 0; el borde derecho es
+**AHORA** (nunca el futuro), y el marcador de ahora queda SIEMPRE ahí.
 
-- **SPAN MÍNIMO de 6 h, rellenando hacia el PASADO** (`MIN_SPAN`): si la actividad es
-  reciente (8:30 con el primer pedido a las 8, span de 30 min), el eje se estira a la
-  IZQUIERDA —`inicioEje = max(0, min(inicio, horaFin − 6))`— en vez de dejar una joroba de
-  una hora llenando la pantalla. Esas horas previas tuvieron 0 pedidos (dato real, no
-  futuro reservado). **El marcador NO se mueve del borde derecho** —ésa fue la razón de
-  rellenar el pasado y no el futuro: las dos alternativas (vacío a la derecha / marcador
-  antes del borde) lo sacaban del borde—. El mínimo deja de aplicar cuando la ventana
-  natural ya mide ≥ 6 h (`ahora ≥ inicio + 6`: si la actividad empezó a las 8 a.m., de
-  8 a 2 p.m. se rellena; después no). Antes de las 6 a.m. el eje es `[0 .. ahora]` (no se
-  rellena antes de medianoche); es genuinamente temprano.
-  **EL MÍNIMO SE QUEDA (decisión del owner) y esto está escrito porque SE VE COMO ESPACIO
-  VACÍO y alguien va a querer quitarlo:** (a) mantiene la escala ESTABLE entre la mañana y
-  la tarde —sin él, una hora mide distinto a las 8 a.m. que a las 8 p.m.—, y (b) las horas
-  planas de la izquierda son **DATO REAL** (cero pedidos esas horas), no relleno. Quitarlo
-  devuelve la joroba-sola-llenando-el-ancho que se fue a resolver.
-- **LO DESCARTADO, con su razón** (para no volver a proponerlo): **eje fijo 0–23** —dejaba
-  media pantalla vacía a la DERECHA (el futuro que no ha pasado)—; **comprimir sin mínimo**
-  —una joroba sola llenando el ancho temprano en el día—; **hora de apertura fija** —
-  escondería la madrugada de un retail 24h bajo el borde izquierdo—.
+**El vacío de la DERECHA y el de la IZQUIERDA NO son la misma decisión invertida — son dos
+cosas distintas.** El de la derecha (horas que aún no ocurrieron) SÍ sería mentira —dibujar
+ceros de horas que no pasaron—, y por eso el borde derecho es AHORA y no dibuja ni reserva
+el futuro. El de la izquierda (medianoche → primera actividad) es **DATO**: esas horas
+pasaron y tuvieron cero pedidos, así que se muestran. "Hoy es lo que ha PASADO", y una hora
+pasada sin pedidos tiene el dato "cero"; una hora futura no tiene dato.
+
+- **Dos beneficios del origen fijo**, y son la razón de preferirlo al eje-jornada: la curva
+  **SUBE desde la base** en vez de nacer en su pico contra el borde izquierdo, y el eje **no
+  cambia de origen cada día**, así que se lee por HÁBITO (medianoche siempre a la izquierda).
+- **EL SPAN MÍNIMO SE RETIRÓ** (`MIN_SPAN`, y con él `primeraActividad` del cálculo). Su
+  razón —que un punto solo no quedara degenerado contra el borde— desaparece con el origen
+  fijo: a las 8:30 con un pedido a las 8, el eje es `[0..8]`, la curva sube desde medianoche.
+  `inicioEje` ya no depende de los datos: es 0 por definición (`ventanaCurvaHoy`, capa 1).
+- **LO DESCARTADO, con su razón** (para no volver a proponerlo): **eje fijo 0–23** —el
+  origen 0 es el mismo, pero el 0–23 dejaba media pantalla vacía a la DERECHA (el futuro);
+  el eje actual `[0..ahora]` corta ahí—; **comprimir por la primera actividad** (el
+  eje-jornada, su predecesor de un día) —hacía nacer la curva en su pico contra el borde y
+  cambiaba el origen cada día—; **hora de apertura fija** —escondería la madrugada de un
+  retail 24h bajo el borde izquierdo—.
 - **La ETIQUETA del borde derecho = la HORA ACTUAL** ("10 a.m."): rotula dónde está el día.
   `ticksDeVentana(inicioEje, horaFin)` pone los dos bordes + interiores a paso 6/3/1 según
   el span, y **cae un interior a < 1.5 h del borde "ahora"** para que su etiqueta no se

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bucketsPorHora, curvaDibuja, HORAS_DIA } from './hoy';
+import { bucketsPorHora, curvaDibuja, HORAS_DIA, ventanaCurvaHoy } from './hoy';
 
 test('bucketsPorHora rellena las 24 horas: un hueco es un 0 real, no un undefined', () => {
   const b = bucketsPorHora([{ hora: 9, n: 3 }, { hora: 14, n: 1 }]);
@@ -33,4 +33,57 @@ test('curvaDibuja: con al menos un pedido, dibuja', () => {
 test('curvaDibuja: DÍA SIN PEDIDOS declara, no dibuja — buckets todos en 0', () => {
   assert.equal(curvaDibuja(bucketsPorHora([])), false);
   assert.equal(curvaDibuja(new Array(HORAS_DIA).fill(0)), false);
+});
+
+// LA VENTANA DEL EJE. Origen FIJO en MEDIANOCHE (hora 0), borde derecho = AHORA. El
+// eje no desliza ni cambia de origen día a día: "Hoy es lo que ha pasado", y una hora
+// pasada sin pedidos es DATO (cero), no vacío que ocultar. Ya no hay pad de 6h ni
+// `primeraActividad` — su razón desaparece con el origen fijo. `conActividad` arma los 24.
+const conActividad = (...horas: number[]) => {
+  const b = new Array<number>(HORAS_DIA).fill(0);
+  for (const h of horas) b[h] = 3;
+  return b;
+};
+
+test('ventana: primera actividad 8, ahora 10 → [0..10] (empieza en medianoche, no en 4)', () => {
+  const { inicioEje, horaFin } = ventanaCurvaHoy(conActividad(8), 10);
+  assert.deepEqual([inicioEje, horaFin], [0, 10]);
+});
+
+test('ventana: primera actividad 8, ahora 14 → [0..14]', () => {
+  const { inicioEje, horaFin } = ventanaCurvaHoy(conActividad(8), 14);
+  assert.deepEqual([inicioEje, horaFin], [0, 14]);
+});
+
+test('ventana: primera actividad 8, ahora 20 → [0..20] (la mañana vacía es dato, se muestra)', () => {
+  const { inicioEje, horaFin } = ventanaCurvaHoy(conActividad(8), 20);
+  assert.deepEqual([inicioEje, horaFin], [0, 20]);
+});
+
+test('ventana: primera actividad 1 a.m., ahora 15 → [0..15]', () => {
+  const { inicioEje, horaFin } = ventanaCurvaHoy(conActividad(1), 15);
+  assert.deepEqual([inicioEje, horaFin], [0, 15]);
+});
+
+test('ventana: el eje SIEMPRE es [0..ahora], sea cual sea la primera actividad', () => {
+  for (const pa of [1, 8, 18]) {
+    for (let ahora = pa; ahora < HORAS_DIA; ahora++) {
+      const { inicioEje, horaFin, n } = ventanaCurvaHoy(conActividad(pa), ahora);
+      assert.equal(inicioEje, 0, `pa=${pa} ahora=${ahora}: inicioEje debe ser 0`);
+      assert.equal(horaFin, ahora, `pa=${pa} ahora=${ahora}: horaFin debe ser ahora`);
+      assert.equal(n, ahora + 1);
+    }
+  }
+});
+
+test('ventana: 00:30 con un pedido en la hora 0 → [0..0], n=1 (marcador solo)', () => {
+  const { inicioEje, horaFin, n } = ventanaCurvaHoy(conActividad(0), 0);
+  assert.deepEqual([inicioEje, horaFin, n], [0, 0, 1]);
+});
+
+test('ventana: actividad "futura" por desfase de reloj EXTIENDE el borde derecho', () => {
+  // Único uso de `buckets`: un pedido a las 12 con el reloj en 10 (atrasado) empuja
+  // horaFin a 12 para no esconderlo. `inicioEje` sigue en 0.
+  const { inicioEje, horaFin } = ventanaCurvaHoy(conActividad(12), 10);
+  assert.deepEqual([inicioEje, horaFin], [0, 12]);
 });

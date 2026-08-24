@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { relojLabel } from '@/lib/dashboard/hoy';
+import { relojLabel, ventanaCurvaHoy } from '@/lib/dashboard/hoy';
 import { zonedHour, BUSINESS_TZ } from '@duna/core/timezone';
 import { useCurvaHover } from './useCurvaHover';
 
@@ -39,7 +39,6 @@ const PAD_TOP = 22;    // aire para el rótulo del pico
 const PAD_BOT = 22;    // aire para las etiquetas de hora
 const INNER_H = ALTO_CURVA - PAD_TOP - PAD_BOT;
 const BASELINE = PAD_TOP + INNER_H;
-const MIN_SPAN = 6;    // horas mínimas del eje (rellenando el pasado)
 
 const clampY = (y: number) => Math.max(PAD_TOP, Math.min(BASELINE, y));
 
@@ -101,17 +100,11 @@ export default function CurvaPedidosHoy({ buckets, onPunto }: {
     return () => { clearTimeout(arranque); if (intervalo) clearInterval(intervalo); };
   }, []);
 
-  // LA VENTANA. `inicio` = primera hora con actividad (garantizada por `curvaDibuja` en el
-  // llamador). El borde derecho es AHORA; si por desfase de reloj hubiera actividad
-  // "futura", se extiende para no esconderla (normalmente `horaFin` = horaActual).
-  const inicioAct = buckets.findIndex(cnt => cnt > 0);
-  const inicio    = inicioAct < 0 ? horaActual : inicioAct;
-  const ultimaAct = buckets.reduce((last, cnt, i) => (cnt > 0 ? i : last), 0);
-  const horaFin   = Math.max(horaActual, ultimaAct);
-  // Span mínimo, rellenando hacia el PASADO: el borde izquierdo es el MENOR entre la
-  // primera actividad y `horaFin − 6`. El marcador queda en el borde derecho.
-  const inicioEje = Math.max(0, Math.min(inicio, horaFin - MIN_SPAN));
-  const n = horaFin - inicioEje + 1;   // horas de la ventana (≥ 1)
+  // LA VENTANA del eje: pura y testeada en capa 1 (`ventanaCurvaHoy`). Origen FIJO en
+  // medianoche (0), borde derecho = AHORA — "Hoy es lo que ha pasado". El marcador de
+  // ahora queda en el borde derecho; las horas pasadas sin pedidos son cero (dato), no
+  // vacío que ocultar.
+  const { inicioEje, horaFin, n } = ventanaCurvaHoy(buckets, horaActual);
 
   // Hover/scrub/tap-fuera compartido con PagosCurva. Índice 0..n-1 → hora `inicioEje + i`.
   const { hov, contenedorRef, alMover, alSalir } = useCurvaHover(n, PAD_X, ancho);

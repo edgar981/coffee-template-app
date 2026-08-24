@@ -43,6 +43,34 @@ export function curvaDibuja(buckets: number[]): boolean {
 }
 
 /**
+ * LA VENTANA del eje de la curva de "Hoy": el rango `[0..horaFin]` y su largo `n`. El
+ * eje SIEMPRE empieza en MEDIANOCHE (hora 0) y termina en AHORA (`horaFin`).
+ *
+ * ORIGEN FIJO, no ventana deslizante — "Hoy es lo que ha PASADO". El vacío de la
+ * DERECHA sí sería mentira (horas que aún no ocurrieron, dibujadas como cero), y por
+ * eso el borde derecho es AHORA. El vacío de la IZQUIERDA es DATO: esas horas pasaron
+ * y tuvieron cero pedidos, así que se muestran. NO es la misma decisión invertida —son
+ * dos cosas distintas: una hora futura no tiene dato; una hora pasada sin pedidos tiene
+ * el dato "cero". Dos beneficios: la curva SUBE desde la base en vez de nacer en su pico
+ * contra el borde, y el origen no cambia cada día → el eje se lee por HÁBITO.
+ *
+ * Ya no hay `primeraActividad` ni span mínimo: con el origen fijo en 0 su razón (que un
+ * punto solo no quedara degenerado contra el borde) desaparece. `inicioEje` no depende
+ * de los datos.
+ *
+ * `buckets` sólo se usa para EXTENDER el borde derecho si por desfase de reloj hubiera
+ * actividad "futura" (`ultimaAct > horaActual`), para no esconderla.
+ */
+export function ventanaCurvaHoy(
+  buckets: number[],
+  horaActual: number,
+): { inicioEje: number; horaFin: number; n: number } {
+  const ultimaAct = buckets.reduce((last, c, i) => (c > 0 ? i : last), 0);
+  const horaFin = Math.max(horaActual, ultimaAct);
+  return { inicioEje: 0, horaFin, n: horaFin + 1 };
+}
+
+/**
  * Hora del día (0–23) → etiqueta de reloj (es-CO): 12 a.m. · 6 a.m. · 12 m. ·
  * 3 p.m. … Fuente ÚNICA para el eje de la curva Y el tag de alcance horario de
  * Pedidos, para que el mismo bucket se lea igual en las dos superficies.
