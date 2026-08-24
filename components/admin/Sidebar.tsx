@@ -190,25 +190,24 @@ function UserFooter({ compact }: { compact: boolean }) {
 // firma del producto, no un semáforo; ya vivía en el mark colapsado.
 function BrandLockup() {
   return (
-    <div className="flex min-w-0 items-center gap-2.5 overflow-hidden">
+    <div className="min-w-0 overflow-hidden">
+      {/* EL LOCKUP HORIZONTAL real (mark + "DUNA" con su lettering propio), no texto:
+          el wordmark tiene su tipografía y una fuente del sistema no lo reproduce
+          —"Duna" en texto era una aproximación de maqueta—. El problema era el TAMAÑO
+          (dominaba), no el asset, así que se ESCALA, no se cambia. `h-8` (32px) es el
+          default; el owner elige la altura en el gate (ver candidatos en el reporte).
+          `w-auto` sigue a la altura sin distorsión; `max-w-full` no deja desbordar el
+          rail. Negativo para oscuro, como el mark. El negocio va DEBAJO, muted. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/duna-mark-v1.svg" alt="" aria-hidden="true" className="h-7 w-7 shrink-0 object-contain dark:hidden" />
+      <img src="/brand/duna-logo-horizontal-v1.svg" alt="Duna" className="block h-8 w-auto max-w-full object-contain object-left dark:hidden" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/duna-mark-negative-v1.svg" alt="" aria-hidden="true" className="hidden h-7 w-7 shrink-0 object-contain dark:block" />
-      <div className="min-w-0">
-        <span
-          className="block whitespace-nowrap font-semibold leading-none text-sidebar-foreground"
-          style={{ fontSize: '1.02rem', letterSpacing: '.01em', fontFamily: 'var(--duna-font-ui)' }}
-        >
-          Duna
-        </span>
-        <p
-          className="mt-1 whitespace-nowrap leading-none text-sidebar-foreground/55"
-          style={{ fontSize: '.7rem', fontFamily: 'var(--duna-font-ui)' }}
-        >
-          Café Nayoli
-        </p>
-      </div>
+      <img src="/brand/duna-logo-horizontal-negative-v1.svg" alt="Duna" className="hidden h-8 w-auto max-w-full object-contain object-left dark:block" />
+      <p
+        className="mt-1 whitespace-nowrap leading-none text-sidebar-foreground/55"
+        style={{ fontSize: '.7rem', fontFamily: 'var(--duna-font-ui)' }}
+      >
+        Café Nayoli
+      </p>
     </div>
   );
 }
@@ -258,12 +257,13 @@ export default function Sidebar({ collapsed }: SidebarProps) {
             navegación. SIN divisoria (la separación la da el espacio).
 
             El alto se queda en 64px (`h-16`) en los DOS estados, para que el borde
-            superior alinee con la topbar y no se vea escalonado. Dentro: expandido va
-            ARRIBA con `pt-4` (16px), y los ~18px de abajo salen del alto fijo (§ la
-            maqueta: 16 arriba / 18 abajo); colapsado centra el mark. */}
+            superior alinee con la topbar. El bloque de marca (lockup horizontal +
+            negocio, ~47px a 32px de lockup) se CENTRA en esos 64px —el 16/18 del §5 era
+            para el mark+texto chico; el lockup completo llena más y centra—; colapsado
+            centra el mark. */}
         <div className={cn(
-          'relative flex h-16 shrink-0 items-start px-3 pt-4',
-          collapsed && 'duna:items-center duna:justify-center duna:pt-0',
+          'relative flex h-16 shrink-0 items-center px-3',
+          collapsed && 'duna:justify-center',
         )}>
           {/* Lockup expandido */}
           <div className={cn('min-w-0 flex-1', collapsed && 'duna:hidden')}>

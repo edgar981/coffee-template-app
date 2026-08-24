@@ -1059,12 +1059,12 @@ propia, no un renglón de pie, y por eso no se coló en la tanda del informe.
 **Costo YA pagado: ninguno.** El texto cumple: es la única marca del producto en un
 documento que el operador manda a su contador, y se ve de dónde salió.
 
-**EL RAIL YA USA EL MARK REAL** (2026-08-23): el wordmark de texto del sidebar pasó a
-`duna-mark-v1.svg` (el mark suelto) + "Duna" como texto (`Sidebar.tsx`, `BrandLockup`).
-Se pensó que era "la misma decisión" que el PDF y que se resolverían juntas, pero **son
-dos trabajos distintos**: el rail muestra el SVG directo (`<img>`), y el PDF NO puede
-—jsPDF no dibuja SVG—. Así que el asset se comparte, pero el PDF sigue necesitando su
-propia implementación.
+**EL RAIL YA USA EL LOCKUP REAL** (2026-08-23): el rail expandido muestra
+`duna-logo-horizontal-v1.svg` (mark + "DUNA" con su lettering propio, escalado) + el
+negocio debajo (`Sidebar.tsx`, `BrandLockup`). Se pensó que era "la misma decisión" que
+el PDF y que se resolverían juntas, pero **son dos trabajos distintos**: el rail muestra
+el SVG directo (`<img>`), y el PDF NO puede —jsPDF no dibuja SVG—. Así que el asset se
+comparte, pero el PDF sigue necesitando su propia implementación.
 
 **LO QUE QUEDA, y es todo lo que queda de este ítem:** rasterizar el logo a **PNG** para
 el informe de Pagos (elegir resolución, versionar el PNG —`public/` es inmutable— y
@@ -4377,13 +4377,12 @@ vive como `--primary` y en los charts, no como fondo de hover.
 
 ### EXCEPCIÓN DECLARADA: el ámbar del LOGO es marca, no atención
 
-El **mark** de Duna (`public/brand/duna-mark-v1.svg`, el que el rail usa expandido y
-colapsado) trae un elemento **`#F59E0B`, que es `--duna-sol` al valor** — el mismo hex
-que significa ATENCIÓN en el panel. **Se acepta, por decisión del owner (2026-08-23):**
-un logo NO es un estado, es la firma del producto, y pedir una variante sin el sol
-sería quitarle al logo lo que lo hace el logo. Ya vivía en el mark del rail colapsado;
-llevarlo al expandido sólo lo vuelve siempre-visible. (El wordmark del rail es TEXTO,
-así que el ámbar entra sólo por el mark.)
+El logo de Duna —el lockup horizontal (`duna-logo-horizontal-v1.svg`) en el rail
+expandido y el mark (`duna-mark-v1.svg`) en el colapsado— trae un elemento **`#F59E0B`,
+que es `--duna-sol` al valor** — el mismo hex que significa ATENCIÓN en el panel. **Se
+acepta, por decisión del owner (2026-08-23):** un logo NO es un estado, es la firma del
+producto, y pedir una variante sin el sol sería quitarle al logo lo que lo hace el logo.
+Ya vivía en el mark del rail colapsado; el lockup expandido lo lleva a la vista siempre.
 
 **Queda escrito acá para que el próximo censo de ámbar NO lo marque como violación.**
 El discriminador es el SITIO: `#F59E0B` dentro de un asset de marca (el rail) es marca;
