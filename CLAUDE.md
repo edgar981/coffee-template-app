@@ -2720,6 +2720,15 @@ con la de las 8 p.m. de memoria; el vacío se veía todos los días.
   natural ya mide ≥ 6 h (`ahora ≥ inicio + 6`: si la actividad empezó a las 8 a.m., de
   8 a 2 p.m. se rellena; después no). Antes de las 6 a.m. el eje es `[0 .. ahora]` (no se
   rellena antes de medianoche); es genuinamente temprano.
+  **EL MÍNIMO SE QUEDA (decisión del owner) y esto está escrito porque SE VE COMO ESPACIO
+  VACÍO y alguien va a querer quitarlo:** (a) mantiene la escala ESTABLE entre la mañana y
+  la tarde —sin él, una hora mide distinto a las 8 a.m. que a las 8 p.m.—, y (b) las horas
+  planas de la izquierda son **DATO REAL** (cero pedidos esas horas), no relleno. Quitarlo
+  devuelve la joroba-sola-llenando-el-ancho que se fue a resolver.
+- **LO DESCARTADO, con su razón** (para no volver a proponerlo): **eje fijo 0–23** —dejaba
+  media pantalla vacía a la DERECHA (el futuro que no ha pasado)—; **comprimir sin mínimo**
+  —una joroba sola llenando el ancho temprano en el día—; **hora de apertura fija** —
+  escondería la madrugada de un retail 24h bajo el borde izquierdo—.
 - **La ETIQUETA del borde derecho = la HORA ACTUAL** ("10 a.m."): rotula dónde está el día.
   `ticksDeVentana(inicioEje, horaFin)` pone los dos bordes + interiores a paso 6/3/1 según
   el span, y **cae un interior a < 1.5 h del borde "ahora"** para que su etiqueta no se
