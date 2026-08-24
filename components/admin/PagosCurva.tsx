@@ -320,9 +320,17 @@ export function PagosCurva({
                  onBucket({ escala: escala as Escala, key: s.bucket.key, etiqueta: etiquetaBucket(s.bucket.inicio, escala as Escala) });
                }}
                style={{ display: 'block', cursor: 'pointer', touchAction: 'pan-y' }}>
-            {/* El área en TINTE de tinta (5% con color-mix): un token de wash sería
-                prestarle a un chart el significado de un hover. */}
-            <path d={area} fill="color-mix(in srgb, var(--duna-ink) 5%, transparent)" />
+            {/* Área en ÁMBAR, gradiente tenue 10%→0% (§ el sitio decide: una superficie
+                de DATO lleva firma de marca, no estado). Misma decisión que la curva de
+                Hoy; el % del tope se afina por tema en el gate. La LÍNEA y los marcadores
+                siguen en TINTA —Pagos es un libro de período, no tiene "ahora"—. */}
+            <defs>
+              <linearGradient id="curvaPagosArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor="var(--duna-sol)" stopOpacity="0.10" />
+                <stop offset="100%" stopColor="var(--duna-sol)" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d={area} fill="url(#curvaPagosArea)" />
             <path d={linea} fill="none" stroke="var(--duna-ink)" strokeWidth="1.5"
                   strokeLinecap="round" strokeLinejoin="round" />
 

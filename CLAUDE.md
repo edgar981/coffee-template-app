@@ -2694,19 +2694,37 @@ patrón encontró tres que NO son el bug, y confundirlos rompe algo que anda —
 El discriminador del bug real es **slice de un INSTANTE (Payment.fecha/Order.createdAt)**,
 no de un day-key ya zonificado. Sólo `insights.ts` lo tenía.
 
-### La CURVA: pedidos por HORA, en tinta
+### La CURVA: pedidos por HORA — línea en tinta, área en ámbar, NO dibuja el futuro
 
 Mide **pedidos por hora**, no ingresos, y la razón es de dato: **`Order.createdAt` tiene
 hora real; `Payment.fecha` NO** —los pagos que pasan por el campo "fecha en que entró el
-pago" se anclan a 00:00 Bogotá, así que **no hay hora del dinero**—. Eje **0–23 fijo**
-(no se recorta: hay pedidos a cualquier hora en un storefront 24h), etiquetas de RELOJ
-(`0·6·12·18·23` con `relojLabel`, los dos bordes anclados — un set interior se veía
-corrido), y **TINTA** (`--duna-ink`): es una MEDIDA ÚNICA, no una serie categórica, así
-que nunca `--duna-serie-*` (§ La serie categórica). Día sin pedidos: **DECLARA, no dibuja**
-(`curvaDibuja`). Las reglas puras (`bucketsPorHora`, `curvaDibuja`, `relojLabel`) en
-`lib/dashboard/hoy.ts`; las consultas en `lib/dashboard/hoy-server.ts`, afirmadas en el
-carril; ambas plegadas en el ÚNICO `Promise.all` de `/api/dashboard/stats` (— `/chart` se
-retiró).
+pago" se anclan a 00:00 Bogotá, así que **no hay hora del dinero**—. Eje **0–23 fijo** (el
+día completo es el MARCO; etiquetas de RELOJ `0·6·12·18·23` con `relojLabel`, los dos
+bordes anclados). Día sin pedidos: **DECLARA, no dibuja** (`curvaDibuja`).
+
+**LA CURVA NO DIBUJA EL FUTURO** (2026-08-24): la línea y el área llegan sólo hasta la HORA
+ACTUAL (`zonedHour(new Date(), BUSINESS_TZ)`, con reloj alineado al borde de hora); el
+tramo futuro queda en BLANCO, no insinuado. Dibujar 24 horas planas a las 9:40 se leía
+"no hubo ventas en la tarde", no "todavía no ocurrió" —mostrar menos antes que mentir—. A
+las 00:30 (un solo bucket transcurrido) `pathDe` no dibuja curva (<2 puntos), así que
+queda **sólo el marcador de ahora**, NO una declaración: "sin pedidos" sería falso
+habiendo datos, y explicar que la curva crecerá es el copy que se retiró del vacío.
+
+**COLOR — el discriminador es el SITIO** (§ EXCEPCIÓN DECLARADA: el ámbar es marca/dato o
+estado según el sitio):
+- **LÍNEA en TINTA a .5** (`--duna-ink`, `strokeOpacity 0.5`): es la MEDIDA ÚNICA, no una
+  serie, así que nunca `--duna-serie-*`; atenuada para que los marcadores canten.
+- **ÁREA en ÁMBAR**, gradiente `--duna-sol` 10%→0% (superficie de DATO = firma, no estado;
+  el % se afina por tema en el gate). Antes era tinta al 5%.
+- **Marcador de AHORA en SOL** (círculo r=6 + anillo r=11 al 30%) en la hora actual — el
+  sol marca AHORA, no posición; **PICO en TINTA** (r=3). Dos marcadores distintos cierran
+  el riesgo de leer el sol como "el máximo".
+
+`useCurvaHover` (hover/scrub/tap-fuera) es compartido con Pagos y NO se tocó; el hover se
+GUARDA a las horas transcurridas (el futuro no tiene dato). Las reglas puras
+(`bucketsPorHora`, `curvaDibuja`, `relojLabel`) en `lib/dashboard/hoy.ts`; las consultas
+en `lib/dashboard/hoy-server.ts`, afirmadas en el carril; plegadas en el ÚNICO
+`Promise.all` de `/api/dashboard/stats`.
 
 ### El CLIC POR HORA — y el × del tag, excepción declarada
 
@@ -4375,21 +4393,43 @@ El `--accent` de admin-light era `#B45309` (marrón de marca) y volvía marrón 
 hover de outline/ghost/dropdown/select: ahora es un tinte cálido suave. El marrón
 vive como `--primary` y en los charts, no como fondo de hover.
 
-### EXCEPCIÓN DECLARADA: el ámbar del LOGO es marca, no atención
+### EXCEPCIÓN DECLARADA: el ámbar es MARCA/DATO o ESTADO según el SITIO
 
-El logo de Duna —el lockup horizontal (`duna-logo-horizontal-v1.svg`) en el rail
-expandido y el mark (`duna-mark-v1.svg`) en el colapsado— trae un elemento **`#F59E0B`,
-que es `--duna-sol` al valor** — el mismo hex que significa ATENCIÓN en el panel. **Se
-acepta, por decisión del owner (2026-08-23):** un logo NO es un estado, es la firma del
-producto, y pedir una variante sin el sol sería quitarle al logo lo que lo hace el logo.
-Ya vivía en el mark del rail colapsado; el lockup expandido lo lleva a la vista siempre.
+`#F59E0B` (= `--duna-sol`) significa ATENCIÓN en el panel, y por eso retiramos el pastel
+decorativo, el accent-amber de la campana y el activo del rail. PERO hay sitios donde el
+mismo hex NO es estado, y para que un censo de ámbar no los marque como violación, la
+regla es una y es de SITIO, no de color:
 
-**Queda escrito acá para que el próximo censo de ámbar NO lo marque como violación.**
-El discriminador es el SITIO: `#F59E0B` dentro de un asset de marca (el rail) es marca;
-`#F59E0B` en un badge, un chip, un punto de atención o un fondo es estado, y ahí la
-regla de arriba manda sin excepción. El logo es el único sitio donde el sol es
-decoración permitida, precisamente porque no está diciendo nada sobre el estado del
-panel — está diciendo de quién es el panel.
+> **EL SITIO DECIDE.** El ámbar es MARCA / DATO en las superficies de **marca y de dato**
+> —el logo, el ÁREA de una gráfica, el marcador de AHORA de la curva del día—; es ESTADO
+> en las superficies de **estado** —badges, pills, puntos de atención, fondos de fila, la
+> campana, el stat-chip—. Y los dos se ven distinto, lo que hace la regla VERIFICABLE por
+> dos ejes que coinciden: **el ámbar-dato es un lavado TENUE (5–10%) o un asset; el
+> ámbar-estado es SATURADO (`--duna-sol-soft`/`-ink`, con borde).** Un censo pregunta
+> "¿lavado bajo una gráfica / elemento de un logo, o chip/punto/badge saturado?" y
+> responde sin criterio.
+
+- **EL LOGO** (decisión del owner, 2026-08-23): el mark trae el sol; un logo es la firma
+  del producto, no un semáforo, y pedir una variante sin el sol sería quitarle lo que lo
+  hace el logo. Ya vivía en el mark colapsado; el lockup expandido lo lleva a la vista
+  siempre.
+- **EL ÁREA DE LAS GRÁFICAS** (decisión del owner, 2026-08-24): el relleno bajo la curva
+  de Hoy y la de Pagos pasó de tinta al 5% a un gradiente ámbar 10%→0% (`--duna-sol`). Es
+  una superficie de DATO, no un badge — el ámbar acá es firma, no atención. Analítica NO
+  se toca (sus líneas son de SERIE y un lavado ámbar debajo chocaría). La opacidad se
+  afina por tema en el gate: en oscuro un ámbar al 10% puede glowear o desaparecer.
+- **EL MARCADOR DE AHORA** de la curva del día va en SOL, y acá el sol SÍ dice algo: **no
+  marca POSICIÓN (el activo del rail es tinta), marca AHORA** — el momento vivo que avanza
+  con el reloj y sólo existe en la pantalla del día. Por eso Pagos, que es un libro de
+  período, no lo usa. Y va con **anillo** (r=11 al 30%) sobre el punto (r=6): dos
+  marcadores distintos —ahora en sol con anillo, pico en tinta— cierran el riesgo de que
+  el sol se lea como "aquí está el máximo".
+
+**El residuo es la habituación** —el ojo que ve ámbar en cada gráfica podría dejar de
+reaccionar al ámbar que sí pide algo—; se mitiga manteniendo el lavado TENUE (si el área
+sube de ~10%, se revisa) y el estado SATURADO. Si algún día el ámbar-dato y el
+ámbar-estado dejaran de distinguirse a la vista, el discriminador se rompe y hay que
+saberlo: hoy se distinguen.
 
 ## La serie categórica — color que IDENTIFICA, no que califica
 
@@ -4532,11 +4572,14 @@ eyebrow es la única etiqueta del eje (no hay hint que lo duplique).
   pico caiga exactamente sobre la curva. **Los controles se ACOTAN a la caja**: con picos
   y ceros la spline se pasa de largo y el área se dibujaría bajo el eje — se lee como un
   negativo que no existe.
-- **El área es tinte de tinta al 5% con `color-mix`, NO `--duna-wash-hover`.** El token
-  existe y da el mismo color, pero prestarlo le daría un segundo significado a un token
-  de hover (el mismo error que se rechazó con `--duna-paper` como panel hundido).
-- **Tres marcadores, todos en TINTA — cero ámbar**: pico (relleno + cifra abreviada), hoy
-  (hueco), selección (anillo). Nada en Pagos pide atención.
+- **El área va en ÁMBAR** (gradiente `--duna-sol` 10%→0%), desde 2026-08-24. Antes era
+  tinta al 5%; el owner llevó el área de las gráficas a ámbar como firma de dato (§
+  EXCEPCIÓN DECLARADA: el ámbar es marca/dato o estado según el SITIO — un lavado tenue
+  bajo una gráfica es dato, no atención). El % del tope se afina por tema en el gate.
+- **Los TRES marcadores siguen en TINTA**: pico (relleno + cifra abreviada), hoy (hueco),
+  selección (anillo). Pagos es un libro de PERÍODO, no tiene "ahora", así que —a
+  diferencia de la curva de Hoy— no lleva marcador de sol. El ámbar entra sólo por el
+  área.
 - **El ancho se MIDE** (ResizeObserver) y no se asume: un viewBox estirado deformaría
   trazo y tipografía. Va por **callback ref**, no por `useRef` + efecto `[]` — ver el
   defecto de abajo.
