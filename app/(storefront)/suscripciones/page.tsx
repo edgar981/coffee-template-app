@@ -3,15 +3,16 @@ import { CheckCircle, ArrowRight, Coffee } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { SUBSCRIPTION_PLANS } from '@/lib/mock/subscriptions';
 import { SUBSCRIPTION_STEPS } from '@/constants/subscription-steps';
-import { whatsappHref } from '@duna/core/whatsapp-link';
+import { whatsappUrl } from '@/lib/config/site';
+import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
 
-// Propuesta de suscripción (no transaccional): planes visibles, pero el CTA
-// "Me interesa" abre WhatsApp con mensaje precargado — no crea pedidos.
-const interesHref = (plan: string) =>
-  whatsappHref(`Hola, me interesa el plan de suscripción de ${plan}`);
-
 export default function Subscription() {
+  const settings = useSiteSettings();
+  // Propuesta de suscripción (no transaccional): el CTA "Me interesa" abre WhatsApp con
+  // mensaje precargado —no crea pedidos—. El número sale de SiteSetting (una sola fuente).
+  const interesHref = (plan: string) =>
+    whatsappUrl(settings.whatsapp, `Hola, me interesa el plan de suscripción de ${plan}`);
   return (
       <div className="pt-16">
         {/* Hero */}

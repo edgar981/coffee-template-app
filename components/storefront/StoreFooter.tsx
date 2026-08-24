@@ -12,11 +12,16 @@ import {
   siteConfig,
   whatsappUrl,
   instagramUrl,
+  formatWhatsappDisplay,
 } from "@/lib/config/site";
+import { useSiteSettings } from "@/components/storefront/SiteSettingsProvider";
 
-const { brand, contacto, footerNav, legalNav } = siteConfig;
+// `footerNav`/`legalNav` son ESTRUCTURADOS y se quedan en código (v1). La marca, el
+// whatsapp y el instagram vienen de SiteSetting vía el provider (una sola fuente).
+const { footerNav, legalNav } = siteConfig;
 
 export default function StoreFooter() {
+  const settings = useSiteSettings();
   return (
     <footer className="bg-[#1a0f08] text-white">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
@@ -28,18 +33,18 @@ export default function StoreFooter() {
               <Logo
                 variant="dark"
                 stacked
-                subtitle={brand.tagline}
+                subtitle={settings.tagline}
                 className="items-start [&>div]:items-start"
               />
             </div>
 
             <p className="mb-6 text-sm leading-relaxed text-white/50">
-              {brand.descripcionFooter}
+              {settings.descripcionFooter}
             </p>
 
             <div className="flex gap-3">
               <a
-                href={instagramUrl(contacto.instagram)}
+                href={instagramUrl(settings.instagram)}
                 target="_blank"
                 rel="noopener"
                 aria-label="Instagram de Café Nayoli"
@@ -55,7 +60,7 @@ export default function StoreFooter() {
               </a>
 
               <a
-                href={whatsappUrl()}
+                href={whatsappUrl(settings.whatsapp)}
                 target="_blank"
                 rel="noopener"
                 aria-label="WhatsApp de Café Nayoli"
@@ -143,12 +148,12 @@ export default function StoreFooter() {
               <p>📱 WhatsApp</p>
 
               <a
-                href={whatsappUrl()}
+                href={whatsappUrl(settings.whatsapp)}
                 target="_blank"
                 rel="noopener"
                 className="text-[#d4a97a] hover:text-[#e8c095]"
               >
-                {contacto.whatsappDisplay}
+                {formatWhatsappDisplay(settings.whatsapp)}
               </a>
             </div>
           </div>
@@ -159,7 +164,7 @@ export default function StoreFooter() {
       <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-4 text-xs text-white/30 sm:flex-row sm:px-6 lg:px-8">
           <p>
-            © 2026 {brand.nombre}.
+            © 2026 {settings.nombre}.
             Todos los derechos reservados.
           </p>
 

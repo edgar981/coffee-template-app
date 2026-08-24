@@ -15,7 +15,8 @@ import {
   type ShippingMethodId,
 } from '@duna/core/shipping-config';
 import { COLOMBIA_DEPARTMENTS, isBogotaDC } from '@duna/core/colombia-departments';
-import { siteConfig } from '@/lib/config/site';
+import { formatWhatsappDisplay } from '@/lib/config/site';
+import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 
 const STEPS = ['Información', 'Pago'];
 
@@ -50,8 +51,10 @@ export default function Checkout() {
   const phoneDigits = info.telefono.replace(/\D/g, '');
   const phoneValid = /^3\d{9}$/.test(phoneDigits);
 
-  // Nequi/Daviplata reciben en el celular del negocio (10 dígitos locales).
-  const pagoMovilNumero = siteConfig.contacto.whatsappDisplay.replace(/^\+57\s*/, '');
+  // Nequi/Daviplata reciben en el celular del negocio (10 dígitos locales). El número
+  // sale de SiteSetting (una sola fuente), con el display derivado del número crudo.
+  const settings = useSiteSettings();
+  const pagoMovilNumero = formatWhatsappDisplay(settings.whatsapp).replace(/^\+57\s*/, '');
 
   const paymentOptions = [
     { id: 'nequi', label: 'Nequi', desc: `Enviar a ${pagoMovilNumero}` },

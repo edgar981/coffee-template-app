@@ -6,6 +6,8 @@ import StoreFooter from "@/components/storefront/StoreFooter";
 import CartDrawer from "@/components/storefront/CartDrawer";
 import { CartProvider } from "@/lib/cartStore";
 import { StorefrontThemeProvider } from "@/components/theme/StorefrontThemeProvider";
+import { SiteSettingsProvider } from "@/components/storefront/SiteSettingsProvider";
+import { getSiteSettings } from "@/lib/config/site-settings";
 
 // ─── La identidad del STOREFRONT, declarada acá ──────────────────────────────
 //
@@ -34,19 +36,25 @@ interface StorefrontLayoutProps {
   children: ReactNode;
 }
 
-export default function StorefrontLayout({
+export default async function StorefrontLayout({
   children,
 }: StorefrontLayoutProps) {
+  // Config del negocio, leída UNA vez en el layout server (React.cache dedupe por
+  // request) e inyectada al provider cliente; StoreFooter/checkout/suscripciones la leen
+  // sin fetch propio. Provider PROPIO del storefront (el admin tiene el suyo).
+  const settings = await getSiteSettings();
   return (
     <StorefrontThemeProvider>
-      <CartProvider>
-        <div className="min-h-screen bg-[#faf7f4] font-inter">
-          <StoreNav />
-          <main>{children}</main>
-          <StoreFooter />
-          <CartDrawer />
-        </div>
-      </CartProvider>
+      <SiteSettingsProvider value={settings}>
+        <CartProvider>
+          <div className="min-h-screen bg-[#faf7f4] font-inter">
+            <StoreNav />
+            <main>{children}</main>
+            <StoreFooter />
+            <CartDrawer />
+          </div>
+        </CartProvider>
+      </SiteSettingsProvider>
     </StorefrontThemeProvider>
   );
 }
