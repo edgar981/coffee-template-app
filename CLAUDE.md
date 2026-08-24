@@ -2698,17 +2698,32 @@ no de un day-key ya zonificado. Sólo `insights.ts` lo tenía.
 
 Mide **pedidos por hora**, no ingresos, y la razón es de dato: **`Order.createdAt` tiene
 hora real; `Payment.fecha` NO** —los pagos que pasan por el campo "fecha en que entró el
-pago" se anclan a 00:00 Bogotá, así que **no hay hora del dinero**—. Eje **0–23 fijo** (el
-día completo es el MARCO; etiquetas de RELOJ `0·6·12·18·23` con `relojLabel`, los dos
-bordes anclados). Día sin pedidos: **DECLARA, no dibuja** (`curvaDibuja`).
+pago" se anclan a 00:00 Bogotá, así que **no hay hora del dinero**—. Día sin pedidos:
+**DECLARA, no dibuja** (`curvaDibuja`), y el estado vacío **reserva el mismo alto**
+(`ALTO_CURVA`) que la curva para que declarar→dibujar no salte el layout.
 
-**LA CURVA NO DIBUJA EL FUTURO** (2026-08-24): la línea y el área llegan sólo hasta la HORA
-ACTUAL (`zonedHour(new Date(), BUSINESS_TZ)`, con reloj alineado al borde de hora); el
-tramo futuro queda en BLANCO, no insinuado. Dibujar 24 horas planas a las 9:40 se leía
-"no hubo ventas en la tarde", no "todavía no ocurrió" —mostrar menos antes que mentir—. A
-las 00:30 (un solo bucket transcurrido) `pathDe` no dibuja curva (<2 puntos), así que
-queda **sólo el marcador de ahora**, NO una declaración: "sin pedidos" sería falso
-habiendo datos, y explicar que la curva crecerá es el copy que se retiró del vacío.
+**EL EJE ES LA JORNADA, no 0–23 fijo** (2026-08-24): va desde la **primera hora con
+actividad** del día hasta las **11 p.m.** (`FIN=23`, borde derecho FIJO). Se descartó
+comprimir para clavar "ahora" al borde —cambiaría el ancho de una hora a lo largo del día
+y perdería "cuánto día queda"—: con el eje-jornada el borde izquierdo = primera hora con
+orden, que **nunca retrocede** (los pedidos siguientes caen en horas ≥ ésa), así que **la
+escala queda FIJA desde que la curva aparece** y "ahora" avanza hacia el borde derecho.
+La hora de apertura FIJA se descartó —escondería la madrugada, y un storefront es 24h—.
+Las etiquetas se readaptan a la ventana (`ticksDeVentana`: los dos bordes + interiores a
+paso 6/3/1 según el span, cayendo el que quede a <1.5h del borde). Al hook se le pasa
+`n` = horas de la ventana; su índice `0..n-1` se mapea a hora con `inicio + i` — por eso
+NO se toca (§ compartido con Pagos).
+
+**LA CURVA NO DIBUJA EL FUTURO**: la línea y el área llegan sólo hasta la HORA ACTUAL
+(`zonedHour(new Date(), BUSINESS_TZ)`, reloj alineado al borde de hora); el tramo futuro
+queda en BLANCO. Dibujar plano hasta las 11 p.m. a las 9:40 se leía "no hubo ventas en la
+tarde", no "todavía no ocurrió". A las 00:30 (un solo bucket) `pathDe` no dibuja curva (<2
+puntos), así que queda **sólo el marcador de ahora**, NO una declaración: "sin pedidos"
+sería falso habiendo datos.
+
+**SIN TARJETA** (2026-08-24): la curva vive sobre el fondo de la página, como el hero (el
+vistazo del día es cardless; las tiles, "lo más vendido" y "órdenes recientes" siguen en
+cards). La separación con el hero es el espacio (`space-y-6`) + la cabecera "N pedidos hoy".
 
 **COLOR — el discriminador es el SITIO** (§ EXCEPCIÓN DECLARADA: el ámbar es marca/dato o
 estado según el sitio):
@@ -2716,9 +2731,10 @@ estado según el sitio):
   serie, así que nunca `--duna-serie-*`; atenuada para que los marcadores canten.
 - **ÁREA en ÁMBAR**, gradiente `--duna-sol` 10%→0% (superficie de DATO = firma, no estado;
   el % se afina por tema en el gate). Antes era tinta al 5%.
-- **Marcador de AHORA en SOL** (círculo r=6 + anillo r=11 al 30%) en la hora actual — el
-  sol marca AHORA, no posición; **PICO en TINTA** (r=3). Dos marcadores distintos cierran
-  el riesgo de leer el sol como "el máximo".
+- **Marcador de AHORA en SOL** (círculo r=6 + anillo r=11 que PULSA saliendo del punto —
+  `.curva-ahora-pulso`, animación CSS sin estado React; estático con reduced-motion) en la
+  hora actual — el sol marca AHORA, no posición; **PICO en TINTA** (r=3). Dos marcadores
+  distintos cierran el riesgo de leer el sol como "el máximo".
 
 `useCurvaHover` (hover/scrub/tap-fuera) es compartido con Pagos y NO se tocó; el hover se
 GUARDA a las horas transcurridas (el futuro no tiene dato). Las reglas puras

@@ -21,7 +21,7 @@ import type { AnalyticsData } from '@/types/analytics';
 import { formatCOP } from '@duna/core/utils';
 import StatCard from '@/components/admin/StatCard';
 import DashboardCustomizer from '@/components/admin/DashboardCustomizer';
-import CurvaPedidosHoy from '@/components/admin/CurvaPedidosHoy';
+import CurvaPedidosHoy, { ALTO_CURVA } from '@/components/admin/CurvaPedidosHoy';
 import { curvaDibuja } from '@/lib/dashboard/hoy';
 import type { Trend } from '@/lib/metrics/trend';
 import { computeTrend, NEUTRAL_TREND } from '@/lib/metrics/trend';
@@ -269,9 +269,12 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* CURVA de pedidos por hora. El conteo vive con la curva —es lo que mide— y en
-          TINTA (medida única). Día sin pedidos: DECLARA, no dibuja. */}
-      <div className="duna-card duna-card__pad">
+      {/* CURVA de pedidos por hora. SIN tarjeta: vive sobre el fondo de la página, como
+          el hero — el vistazo del día es cardless, las secciones de detalle (tiles, top,
+          órdenes) son cards. La separación con el hero es el espacio (`space-y-6`) + la
+          cabecera. El conteo vive con la curva (es lo que mide). Día sin pedidos: DECLARA,
+          no dibuja. */}
+      <div>
         {loading ? (
           <>
             <div style={{ height: '1.1em', width: '9rem', borderRadius: 4, background: 'var(--duna-skel)' }} />
@@ -305,7 +308,11 @@ export default function Dashboard() {
                 onPunto={h => router.push(`/admin/pedidos?desde=${stats.hoyKey}&hasta=${stats.hoyKey}&hora=${h}`)}
               />
             ) : (
-              <p className="duna-sub" style={{ margin: 0 }}>Sin pedidos hoy todavía.</p>
+              // Reserva el MISMO alto que la curva para que declarar→dibujar (cuando entra
+              // el primer pedido) no salte el layout — como el skeleton de Pagos.
+              <div style={{ minHeight: ALTO_CURVA, display: 'flex', alignItems: 'center' }}>
+                <p className="duna-sub" style={{ margin: 0 }}>Sin pedidos hoy todavía.</p>
+              </div>
             )}
           </>
         )}
