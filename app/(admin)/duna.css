@@ -428,3 +428,82 @@ html.admin {
 @media (prefers-reduced-motion: reduce) {
   .curva-ahora-pulso { animation: none; }
 }
+
+/* ── Indicadores editoriales (Dashboard) ──────────────────────────────────────
+   Los indicadores de "Hoy" como cifras de portada: columnas separadas por filetes
+   verticales, con filete arriba y abajo del bloque. Sin caja, sin ícono, sin chip
+   —la PLECA bajo la cifra es el estado (§ Amber Minimal: color = estado)—. Reemplaza
+   a `.stat-card`. Admin-level (un solo consumidor, el Dashboard) → prefijo `admin-`,
+   no `duna-` (misma regla que `.admin-foco`, `.admin-nav-seccion`).
+
+   COLUMNAS FIJAS por breakpoint, NO `auto-fit`: con columnas variables los filetes
+   no se pueden targetear por fila —no existe un selector "primera de la fila visual"—
+   y la primera de cada fila envuelta queda con un filete izquierdo suelto, sin corte
+   entre filas. Con conteo fijo, `nth-child` alcanza las dos cosas: "sin filete izq en
+   la primera de cada fila" y "filete-top de la fila 2+". El costo —una columna suelta
+   en una fila parcial (5, 9…)— es la pérdida de calma editorial que el owner aceptó
+   para >6 (el default son 4: una fila limpia).
+
+   TODAS las reglas de borde usan `:nth-child(...)` (incluida la de reset, `nth-child(n)`
+   = todos) para que tengan la MISMA especificidad (0,2,0). Así el desempate lo hace el
+   ORDEN de fuente: cada breakpoint más chico va después y re-resetea (`nth-child(n)`) +
+   re-fija. Un reset con `.admin-indicador` a secas (0,1,0) NO podría pisar el `nth-child`
+   de otro tier. */
+.admin-indicadores {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--duna-border-2);
+  border-bottom: 1px solid var(--duna-border-2);
+}
+.admin-indicador {
+  display: block;
+  text-align: left;
+  width: 100%;
+  padding: 18px 18px 16px;
+  color: inherit;
+  transition: background-color var(--duna-dur) var(--duna-ease);
+}
+.admin-indicador:hover { background: var(--duna-surface); }
+
+/* ≥960: 4 columnas (base) */
+.admin-indicador:nth-child(n)    { border-left: 1px solid var(--duna-border-2); border-top: none; }
+.admin-indicador:nth-child(4n+1) { border-left: none; }
+.admin-indicador:nth-child(n+5)  { border-top: 1px solid var(--duna-border-2); }
+
+@media (max-width: 959.98px) {   /* 2 columnas */
+  .admin-indicadores { grid-template-columns: repeat(2, 1fr); }
+  .admin-indicador:nth-child(n)    { border-left: 1px solid var(--duna-border-2); border-top: none; }
+  .admin-indicador:nth-child(2n+1) { border-left: none; }
+  .admin-indicador:nth-child(n+3)  { border-top: 1px solid var(--duna-border-2); }
+}
+@media (max-width: 599.98px) {   /* 1 columna (teléfono): la cifra a 1.7rem entra sin recortar */
+  .admin-indicadores { grid-template-columns: 1fr; }
+  .admin-indicador:nth-child(n)   { border-left: none; border-top: none; }
+  .admin-indicador:nth-child(n+2) { border-top: 1px solid var(--duna-border-2); }
+}
+
+.admin-indicador__val {
+  display: block;
+  font-family: var(--duna-font-display);
+  font-weight: var(--duna-w-semi);
+  font-size: 1.7rem;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* La pleca SIEMPRE se renderiza y reserva su alto; transparente = sin estado (NO un
+   filete gris de relleno). Así una columna con estado y una sin estado alinean su
+   etiqueta a la misma línea — el bloque editorial se lee como una fila pareja. */
+.admin-indicador__pleca {
+  display: block;
+  width: 26px;
+  height: 3px;
+  border-radius: 2px;
+  margin: 7px 0 8px;
+  background: transparent;
+}
+.admin-indicador__pleca--pend { background: var(--duna-sol); }
+.admin-indicador__pleca--prob { background: var(--duna-bad); }
+.admin-indicador__lab { display: block; font-weight: var(--duna-w-semi); font-size: 0.76rem; }
+.admin-indicador__ctx { display: block; font-size: 0.7rem; color: var(--duna-muted); margin-top: 1px; }

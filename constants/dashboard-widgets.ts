@@ -137,6 +137,18 @@ export function chipTono(w: Pick<WidgetDef, 'tono' | 'color'>, value: number | n
   return w.color;
 }
 
+/**
+ * ESTADO del indicador para la PLECA de la tira editorial: el `tono` del widget,
+ * pero SOLO cuando el valor lo justifica (`> 0`) — una alerta que vale 0 no es una
+ * alerta, y una cola vacía no pide nada; `null` = sin estado → sin pleca (sin color).
+ * Es la lógica de `chipTono` SIN el mapeo a una clase de chip: la pleca consume el
+ * estado, no una clase CSS de fondo/texto. Puro. `value` null/0/undefined (incl.
+ * fuente caída) → null.
+ */
+export function estadoTile(w: Pick<WidgetDef, 'tono'>, value: number | null | undefined): StatTono | null {
+  return w.tono && value != null && value > 0 ? w.tono : null;
+}
+
 // Catalog order doubles as the DEFAULT order: the visible-by-default widgets, read
 // top to bottom, give "fila Hoy primero, luego mes/operación" for free.
 export const DASHBOARD_WIDGETS: WidgetDef[] = [
