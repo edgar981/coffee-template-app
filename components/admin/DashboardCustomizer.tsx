@@ -2,26 +2,31 @@
 
 import { useEffect, useState } from 'react';
 import { ArrowUp, ArrowDown, X, RotateCcw } from 'lucide-react';
-import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter,
-} from '@/components/ui/sheet';
+import { DunaSheet } from '@/components/admin/DunaSheet';
 import { Switch } from '@/components/ui/switch';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DASHBOARD_WIDGETS, DEFAULT_WIDGET_KEYS, WIDGET_MAP,
   WIDGET_CATEGORIA_ORDER, WIDGET_CATEGORIA_LABEL,
 } from '@/constants/dashboard-widgets';
 
-// Dashboard layout editor. Two zones:
-//   • "Tu panel" — the ordered VISIBLE widgets (this is the grid order), each with
-//     ↑/↓ to reorder and ✕ to hide. Arrows (not drag) so it's keyboard-accessible
-//     and deterministic.
-//   • "Catálogo" — every widget grouped by categoría, each with a visibility
-//     Switch. Turning one on appends it to your panel; off removes it.
-// Edits live in a local draft; applying (Save, or closing the sheet) persists via
-// the parent's onApply and the grid re-renders. Reset restores the registry
-// default.
+// Editor del layout del dashboard, en el DunaSheet lateral —la misma superficie que
+// los otros form-sheets del panel y el detalle de pedido, así que se lee como el
+// panel (§ CLAUDE.md: el shadcn Sheet portaleaba a <body>, fuera de `.admin-shell`, y
+// caía en la fuente por defecto del navegador; el DunaSheet portalea al shell y hereda
+// Hanken). Dos zonas:
+//   • "Tu panel" — los indicadores VISIBLES ordenados (el orden del grid), cada uno
+//     con ↑/↓ para reordenar y ✕ para ocultar. Flechas, no drag: accesible por teclado
+//     y determinista.
+//   • "Catálogo" — cada widget agrupado por categoría, con un Switch de visibilidad.
+//
+// CERRAR = GUARDAR, y NO es un descuido: este NO es un formulario con mutación en
+// vuelo, es un editor de PREFERENCIAS que persiste el layout al cerrar. Por eso NO
+// usa `useDescarteDeDrawer` —eso pregunta "¿descartar?" y descarta al cerrar, la
+// conducta OPUESTA— ni `useAccionGuardada` —no hay submit que bloquear—. Si alguien
+// "unifica" agregando la guarda de descarte, ROMPE la conducta correcta: cerrar
+// dejaría de guardar. La persistencia es optimista (`onApply`), con "Reintentar" en el
+// toast del padre si falla. Los edits viven en un `draft` local; aplicar (Guardar, o
+// cerrar tocando fuera / con Escape) persiste y el grid se re-renderiza.
 
 interface Props {
   open: boolean;
@@ -35,9 +40,9 @@ interface Props {
 export default function DashboardCustomizer({ open, onOpenChange, value, onApply }: Props) {
   const [draft, setDraft] = useState<string[]>(value);
 
-  // Re-seed the draft from the live value each time the sheet opens, so a
-  // discarded edit (closing is a save in this design, but re-opening still starts
-  // from the persisted truth) never shows stale state.
+  // Re-siembra el draft desde el value en vivo en cada apertura, para que un draft
+  // anterior nunca muestre estado rancio (cerrar guarda, pero re-abrir parte de la
+  // verdad persistida).
   useEffect(() => { if (open) setDraft(value); }, [open, value]);
 
   const visibleSet = new Set(draft);
@@ -54,103 +59,103 @@ export default function DashboardCustomizer({ open, onOpenChange, value, onApply
       return next;
     });
 
-  // Apply on close (per spec: closing OR Save persists) — only when it actually
-  // changed, to avoid a needless write on a look-but-don't-touch open/close.
-  const handleOpenChange = (next: boolean) => {
-    if (!next && !sameOrder(draft, value)) onApply(draft);
-    onOpenChange(next);
-  };
-
-  const save  = () => { onApply(draft); onOpenChange(false); };
-  const reset = () => setDraft(DEFAULT_WIDGET_KEYS);
+  // Persistir sólo si cambió, para no escribir en un abrir/cerrar sin tocar nada.
+  const persistirSiCambio = () => { if (!sameOrder(draft, value)) onApply(draft); };
+  // Cerrar = guardar. Lo usan las DOS salidas: el DunaSheet (clic-fuera / Escape, vía
+  // `onCerrar`) y el botón Guardar. La segunda es prop-driven, así que no re-dispara
+  // `onCerrar` de Radix — se persiste una sola vez por cada cierre.
+  const cerrar = () => { persistirSiCambio(); onOpenChange(false); };
+  const reset  = () => setDraft(DEFAULT_WIDGET_KEYS);
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
-        <SheetHeader className="border-b border-border p-5">
-          <SheetTitle>Personalizar panel</SheetTitle>
-          <SheetDescription>
-            Elige qué tarjetas ves y en qué orden. Tu selección se guarda solo para ti.
-          </SheetDescription>
-        </SheetHeader>
+    <DunaSheet
+      abierto={open}
+      onCerrar={cerrar}
+      anclaje="lado"
+      titulo="Personalizar panel"
+      descripcion="Elige qué indicadores ves y en qué orden. Tu selección se guarda solo para ti."
+    >
+      <div className="duna-modal__head">
+        <div className="duna-title">Personalizar panel</div>
+        <p className="duna-sub">Elige qué indicadores ves y en qué orden. Tu selección se guarda solo para ti.</p>
+      </div>
 
-        <ScrollArea className="flex-1">
-          <div className="space-y-6 p-5">
-            {/* ── Tu panel (visibles, ordenados) ── */}
-            <section>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Tu panel · {draft.length} {draft.length === 1 ? 'tarjeta' : 'tarjetas'}
-              </h3>
-              {draft.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-                  Sin tarjetas. Actívalas desde el catálogo de abajo.
-                </p>
-              ) : (
-                <ul className="space-y-1.5">
-                  {draft.map((key, i) => {
-                    const w = WIDGET_MAP[key];
-                    if (!w) return null;
+      <div className="duna-modal__body space-y-6">
+        {/* ── Tu panel (visibles, ordenados) ── */}
+        <section>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Tu panel · {draft.length} {draft.length === 1 ? 'tarjeta' : 'tarjetas'}
+          </h3>
+          {draft.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+              Sin tarjetas. Actívalas desde el catálogo de abajo.
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {draft.map((key, i) => {
+                const w = WIDGET_MAP[key];
+                if (!w) return null;
+                const Icon = w.icono;
+                return (
+                  <li key={key} className="flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-2">
+                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${w.color}`}>
+                      <Icon className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="flex-1 truncate text-sm font-medium">{w.titulo}</span>
+                    <div className="flex items-center gap-0.5">
+                      <IconBtn label="Subir"  disabled={i === 0}                 onClick={() => move(i, -1)}><ArrowUp className="h-3.5 w-3.5" /></IconBtn>
+                      <IconBtn label="Bajar"  disabled={i === draft.length - 1}  onClick={() => move(i, 1)}><ArrowDown className="h-3.5 w-3.5" /></IconBtn>
+                      <IconBtn label="Quitar" onClick={() => toggle(key)}><X className="h-3.5 w-3.5" /></IconBtn>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        {/* ── Catálogo (agrupado por categoría) ── */}
+        <section className="space-y-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Catálogo</h3>
+          {WIDGET_CATEGORIA_ORDER.map((cat) => {
+            const widgets = DASHBOARD_WIDGETS.filter((w) => w.categoria === cat);
+            if (widgets.length === 0) return null;
+            return (
+              <div key={cat}>
+                <p className="mb-1.5 text-[11px] font-medium text-muted-foreground/80">{WIDGET_CATEGORIA_LABEL[cat]}</p>
+                <ul className="space-y-1">
+                  {widgets.map((w) => {
                     const Icon = w.icono;
+                    const on = visibleSet.has(w.key);
                     return (
-                      <li key={key} className="flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-2">
+                      <li key={w.key} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted/40">
                         <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${w.color}`}>
                           <Icon className="h-3.5 w-3.5" />
                         </span>
-                        <span className="flex-1 truncate text-sm font-medium">{w.titulo}</span>
-                        <div className="flex items-center gap-0.5">
-                          <IconBtn label="Subir"  disabled={i === 0}                 onClick={() => move(i, -1)}><ArrowUp className="h-3.5 w-3.5" /></IconBtn>
-                          <IconBtn label="Bajar"  disabled={i === draft.length - 1}  onClick={() => move(i, 1)}><ArrowDown className="h-3.5 w-3.5" /></IconBtn>
-                          <IconBtn label="Quitar" onClick={() => toggle(key)}><X className="h-3.5 w-3.5" /></IconBtn>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{w.titulo}</p>
+                          <p className="truncate text-xs text-muted-foreground">{w.subtitulo}</p>
                         </div>
+                        <Switch checked={on} onCheckedChange={() => toggle(w.key)} aria-label={`Mostrar ${w.titulo}`} />
                       </li>
                     );
                   })}
                 </ul>
-              )}
-            </section>
+              </div>
+            );
+          })}
+        </section>
+      </div>
 
-            {/* ── Catálogo (agrupado por categoría) ── */}
-            <section className="space-y-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Catálogo</h3>
-              {WIDGET_CATEGORIA_ORDER.map((cat) => {
-                const widgets = DASHBOARD_WIDGETS.filter((w) => w.categoria === cat);
-                if (widgets.length === 0) return null;
-                return (
-                  <div key={cat}>
-                    <p className="mb-1.5 text-[11px] font-medium text-muted-foreground/80">{WIDGET_CATEGORIA_LABEL[cat]}</p>
-                    <ul className="space-y-1">
-                      {widgets.map((w) => {
-                        const Icon = w.icono;
-                        const on = visibleSet.has(w.key);
-                        return (
-                          <li key={w.key} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted/40">
-                            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${w.color}`}>
-                              <Icon className="h-3.5 w-3.5" />
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">{w.titulo}</p>
-                              <p className="truncate text-xs text-muted-foreground">{w.subtitulo}</p>
-                            </div>
-                            <Switch checked={on} onCheckedChange={() => toggle(w.key)} aria-label={`Mostrar ${w.titulo}`} />
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                );
-              })}
-            </section>
-          </div>
-        </ScrollArea>
-
-        <SheetFooter className="flex-row items-center justify-between gap-2 border-t border-border p-4">
-          <Button variant="ghost" size="sm" onClick={reset} className="gap-1.5 text-xs">
-            <RotateCcw className="h-3.5 w-3.5" /> Restablecer
-          </Button>
-          <Button size="sm" onClick={save}>Guardar</Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+      <div className="duna-modal__foot">
+        {/* Restablecer a la IZQUIERDA (mr-auto), Guardar a la derecha — el pie es
+            justify-end, así que el auto-margin separa el reset de la acción primaria. */}
+        <button type="button" className="duna-btn duna-btn--ghost" style={{ marginRight: 'auto' }} onClick={reset}>
+          <RotateCcw className="h-3.5 w-3.5" /> Restablecer
+        </button>
+        <button type="button" className="duna-btn duna-btn--primary" onClick={cerrar}>Guardar</button>
+      </div>
+    </DunaSheet>
   );
 }
 
