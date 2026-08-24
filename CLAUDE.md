@@ -2914,15 +2914,15 @@ Radix el click-fuera, Escape, foco atrapado y scroll-lock.
 
 ## Dashboard personalizable — registry de widgets
 
-Las stat cards del dashboard son un CATÁLOGO (`constants/dashboard-widgets.ts`,
-`key` estable snake_case) con selección ordenada persistida por usuario
-(`DashboardPreference.widgets` = array de keys; API `/api/dashboard/prefs`).
-Toda entrada/salida pasa por `sanitizeWidgetKeys` (solo keys reales del registry,
-sin duplicados, orden preservado) → una key retirada o un payload malicioso nunca
-llega al grid. El binding key→dato vive en el dashboard (junto a los datos); el
-registry es presentación pura + deep-links que reusan los helpers compartidos
-(card=lista). SOLO las stat cards son personalizables: los gráficos y Órdenes
-Recientes son fijos, fuera del sistema (v1).
+Los indicadores del dashboard (su FORMA es editorial, ver abajo) son un CATÁLOGO
+(`constants/dashboard-widgets.ts`, `key` estable snake_case) con selección ordenada
+persistida por usuario (`DashboardPreference.widgets` = array de keys; API
+`/api/dashboard/prefs`). Toda entrada/salida pasa por `sanitizeWidgetKeys` (solo keys
+reales del registry, sin duplicados, orden preservado) → una key retirada o un payload
+malicioso nunca llega al grid. El binding key→dato vive en el dashboard (junto a los
+datos); el registry es presentación pura + deep-links que reusan los helpers compartidos
+(card=lista). SOLO los indicadores son personalizables: los gráficos y Órdenes Recientes
+son fijos, fuera del sistema (v1).
 
 - **Costura MULTITENANT (documentada, NO construida):** hoy no hay modelo de
   tienda/tenant. Cuando exista: (a) cada `WidgetDef` gana un filtro por vertical
@@ -2938,6 +2938,61 @@ Recientes son fijos, fuera del sistema (v1).
 - TODO (no implementado): el endpoint de stats calcula TODAS las métricas aunque
   el usuario muestre pocas tarjetas. Optimizar a cálculo selectivo por las keys
   visibles queda anotado, no hecho.
+
+### La FORMA de los indicadores es EDITORIAL — columnas con filete, pleca = estado
+
+Rediseño del 2026-08-24. Los indicadores de "Hoy" dejaron de ser CAJAS (`.stat-card`) y
+pasaron a la forma editorial: columnas separadas por filetes verticales, con filete
+arriba y abajo del bloque; cada una cifra grande (display 1.7rem, tracking -.02em) ·
+pleca · etiqueta · contexto muted. Sin ícono, sin chip. Cada indicador NAVEGA a su
+pantalla; cero acciones. `components/admin/Indicador.tsx` reusa `resolveStatLine` para el
+contexto (insight y sub siguen compitiendo por un solo renglón, como en la stat card).
+
+- **La PLECA bajo la cifra ES el estado** (§ Amber Minimal: color = estado): ámbar si algo
+  pendiente (`tono: 'atencion'` con valor > 0), rojo si un problema (`'alerta'`), y NADA
+  —sin pleca, sin color— si el indicador sólo informa. La pleca SIEMPRE se renderiza
+  (transparente cuando no hay estado) para reservar su alto: así una columna con estado y
+  una sin estado alinean su etiqueta a la misma línea. `estadoTile(w, value)` (puro, capa
+  1) devuelve el estado; es la lógica de `chipTono` sin el mapeo a clase de chip.
+- **El ícono y su chip pastel SE RETIRARON**: la pleca hace ese trabajo, y el chip era el
+  color decorativo que Amber Minimal viene quitando. `icono` y `color` (`STAT_CHIP.neutral`)
+  del registry SE QUEDAN —los pinta el CUSTOMIZER, que no tiene datos en vivo—; sólo el chip
+  del GRID desapareció. El customizer quedó intacto.
+- **Admin-level, no primitiva del paquete**: `.admin-indicadores`/`.admin-indicador`
+  (`duna.css`, prefijo `admin-`, un solo consumidor). Reemplaza a `.stat-card`.
+
+**EL REFLUJO: columnas FIJAS por breakpoint, NO auto-fit — decisión, no re-litigar.** V3
+respira con 4-6 y el catálogo tiene 13. Hoy el default son 4 y nadie ha personalizado, así
+que limitar por adelantado sería decidir contra un uso que no existe: se ACEPTA que con más
+envuelva a varias filas y pierda la calma editorial. Conteo FIJO (4 ≥960 / 2 600-959 / 1
+<600) + `nth-child` para los filetes: con `auto-fit` (columnas variables) los filetes no se
+pueden targetear por fila —no hay selector "primera de la fila visual"— y la primera de cada
+fila envuelta queda con un filete izquierdo suelto, sin corte entre filas. Todas las reglas
+de borde usan `nth-child` (misma especificidad) para que el reset por tier lo resuelva el
+orden de fuente. **DISPARADOR:** si alguien elige 9+ y la pantalla se vuelve ilegible, ahí se
+decide (limitar el customizer, o una segunda forma para listas largas). No antes.
+
+**MÓVIL a 1 columna bajo 600, cifra a 1.7rem SIN reducir.** A 2 columnas un monto de 8 dígitos
+("$ 1.284.500" ≈ 166px contra ~135px de columna) se corta incluso reducido, y un dato
+recortado es peor que una lista más larga. El breakpoint es el nuestro (960 para 4→2, 600
+para 2→1), no el 700 de la maqueta. El skeleton reusa las MISMAS clases → reserva el alto real
+por construcción y la pantalla no salta al cargar (como el de Pagos).
+
+**EL TRENDPILL SE RETIRÓ** (con `StatCard`, `computeTrend`, `lib/metrics/trend.ts`). El ±%
+mes-contra-mes es una COMPARATIVA que el sistema no calcula en general, y la forma editorial no
+le da slot; arrastraba un chip que ocupa espacio para decir que no hay dato ("sin comparativa").
+Vivía en 4 widgets opt-in, ninguno por defecto. Consecuencia: `ingresos_mes` y `ordenes_mes`
+conservan la tendencia en su INSIGHT (que ya narra el hecho); `promedio_por_orden` y
+`clientes_recurrentes` pierden el MoM%. Vuelve por su propia razón si se pide.
+
+**EL CENSO DEL RETIRO, y su lección.** Sin consumidor tras la migración, verificado por GREP:
+`.stat-card`, `StatCard.tsx` entero (componente + `statCardLink` + `STAT_CARD_*` + `TrendPill`),
+`STAT_CHIP.amber`/`.alert`, `chipTono` y `lib/metrics/trend.ts`. La lección: el comentario de
+`StatCard.tsx` afirmaba TRES consumidores (`statCardLink` en Clientes, Inventario, Entregas) y
+el grep dio CERO. **El censo se hace por CONTENIDO, no por comentario** — un comentario no es
+evidencia de lo que se consume. Sobrevive `resolveStatLine` (su consumidor se mudó a
+`Indicador`), `STAT_CHIP.neutral`, e `icono`/`color` (customizer). `.card-hover` (globals.css)
+también quedó sin consumidores y se DEJÓ, anotado — fuera del alcance de este retiro.
 
 ## Matching de clientes (teléfono no es único)
 

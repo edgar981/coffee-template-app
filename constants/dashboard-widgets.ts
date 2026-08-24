@@ -68,8 +68,8 @@ export interface WidgetDef {
   /**
    * Línea de contexto de FALLBACK (el page puede reemplazarla por una en vivo).
    *
-   * La tarjeta tiene UN SOLO slot bajo el título y el `insight` lo gana cuando
-   * existe (ver StatCard): este sub es lo que se muestra cuando no hay insight.
+   * El indicador tiene UN SOLO slot bajo el título y el `insight` lo gana cuando
+   * existe (ver `resolveStatLine`): este sub se muestra cuando no hay insight.
    * `''` = esa tarjeta no necesita segunda línea sin insight (título solo es
    * válido) — típicamente porque el texto repetía el título.
    */
@@ -125,16 +125,14 @@ export interface WidgetDef {
 }
 
 /**
- * Color del chip de ícono de un tile = ESTADO, no decoración. Neutro por defecto
- * (el `color` en reposo del widget); sube a su tono SOLO cuando el valor lo
- * justifica (`> 0`) — una alerta que vale 0 no es una alerta, y una cola vacía no
- * pide nada. `value` null/0/undefined (incl. fuente caída) → neutro. Puro.
+ * ESTADO del indicador para la PLECA de la tira editorial: el `tono` del widget,
+ * pero SOLO cuando el valor lo justifica (`> 0`) — una alerta que vale 0 no es una
+ * alerta, y una cola vacía no pide nada; `null` = sin estado → sin pleca (sin color).
+ * El estado vive en `WidgetDef.tono`, no en una clase CSS: la pleca lo consume directo.
+ * Puro. `value` null/0/undefined (incl. fuente caída) → null.
  */
-export function chipTono(w: Pick<WidgetDef, 'tono' | 'color'>, value: number | null | undefined): string {
-  if (w.tono && value != null && value > 0) {
-    return w.tono === 'alerta' ? STAT_CHIP.alert : STAT_CHIP.amber;
-  }
-  return w.color;
+export function estadoTile(w: Pick<WidgetDef, 'tono'>, value: number | null | undefined): StatTono | null {
+  return w.tono && value != null && value > 0 ? w.tono : null;
 }
 
 // Catalog order doubles as the DEFAULT order: the visible-by-default widgets, read
