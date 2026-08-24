@@ -400,3 +400,31 @@ html.admin {
   font-weight: var(--duna-w-semi);
   color: var(--duna-muted);
 }
+
+/* ── EL PULSO DEL MARCADOR DE AHORA · curva de Hoy ───────────────────────────
+   Un anillo que sale del punto (escala + fade, ~2s, en bucle): "esto es el momento
+   VIVO". Va sobre el `<circle>` del SVG por CSS —sin estado React—, así que no
+   arrastra un re-render por frame; lo único que re-renderiza es el cambio de hora
+   (una vez por hora) o de ancho, que ya existía.
+
+   `transform-box: fill-box` + `transform-origin: center` anclan la escala al CENTRO
+   del propio círculo (su cx/cy), así que el pulso emana del punto, no del origen del
+   SVG.
+
+   REDUCED-MOTION: queda un anillo ESTÁTICO, no invisible. El guard global
+   (globals.css: `animation-duration: .01ms`) dejaría el keyframe en su FIN —opacity 0,
+   invisible—, que es justo lo que no se quiere; por eso acá se apaga la animación por
+   nombre y el anillo revierte a su atributo `opacity="0.3"`. */
+@keyframes curvaAhoraPulso {
+  0%   { transform: scale(0.55); opacity: 0.5; }
+  70%  { opacity: 0; }
+  100% { transform: scale(1.9);  opacity: 0; }
+}
+.curva-ahora-pulso {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: curvaAhoraPulso 2s var(--duna-ease, ease-out) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .curva-ahora-pulso { animation: none; }
+}

@@ -157,12 +157,15 @@ export default function CurvaPedidosHoy({ buckets, onPunto }: {
             {buckets[iPico]}
           </text>
 
-          {/* Marca de AHORA: círculo r=6 relleno + anillo r=11 al 30%, en SOL. Marca
-              dónde está el día, no el pico; el anillo lo distingue de un punto de
-              atención pelado. */}
+          {/* Marca de AHORA: círculo r=6 relleno + anillo r=11 que PULSA saliendo del
+              punto (§ duna.css, `.curva-ahora-pulso`) — "esto es el momento vivo". La
+              animación es CSS sobre el SVG, sin estado React, así que no arrastra
+              re-render. Con `prefers-reduced-motion` queda ESTÁTICO (opacity 0.3), no
+              invisible. En SOL: el sol marca AHORA, no posición; el anillo lo distingue
+              de un punto de atención pelado. */}
           <g>
-            <circle cx={ahoraPt.x} cy={ahoraPt.y} r="11" fill="none"
-                    stroke="var(--duna-sol)" strokeWidth="1.5" opacity="0.3" />
+            <circle className="curva-ahora-pulso" cx={ahoraPt.x} cy={ahoraPt.y} r="11"
+                    fill="none" stroke="var(--duna-sol)" strokeWidth="1.5" opacity="0.3" />
             <circle cx={ahoraPt.x} cy={ahoraPt.y} r="6" fill="var(--duna-sol)" />
           </g>
 
