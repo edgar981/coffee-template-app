@@ -40,6 +40,17 @@ const ALTO = 110;
 const PAD_TOP = 20;
 /** Margen lateral para que el primer y el último punto no queden cortados. */
 const INSET = 10;
+/**
+ * Aire ABAJO. El borde inferior era el único lado sin inset —arriba PAD_TOP, a los
+ * lados INSET, abajo nada—, así que el mínimo (0) caía en `alto` exacto y la línea de
+ * 1.5px quedaba con su mitad por fuera de la caja (el SVG recorta): los valles a cero y
+ * el tramo final bajo se veían cortados. 5px cubren el medio-grosor de la línea y el
+ * punto de hover (r=3.5) si cae en un valle. NO igualar a 0 por simetría con los otros
+ * lados: es justo lo que reintroduce el corte. Sale del alto que YA existe (el cero se
+ * mapea a `alto − PAD_BOT`, el SVG sigue midiendo `alto`), no lo agranda — subir el
+ * alto empujaría el libro y perdería una fila. Hoy ya lo hace así con su PAD_BOT.
+ */
+const PAD_BOT = 5;
 /** Tope de etiquetas del eje: más que esto se amontonan y no se leen. */
 const MAX_ETIQUETAS = 8;
 const ALTO_BARRAS = 96; // el modo método sigue siendo barras
@@ -281,13 +292,16 @@ export function PagosCurva({
   const { escala, series, max, iPico, iHoy, iSel } = datosT;
   const n = series.length;
   const alto = ALTO;
-  const yDe = (v: number) => PAD_TOP + (alto - PAD_TOP) * (1 - v / max);
+  // `base` es la línea del CERO: `alto − PAD_BOT`, no `alto`, para que el mínimo no
+  // caiga al ras del borde. yDe, el cierre del área y el clamp del spline la comparten.
+  const base = alto - PAD_BOT;
+  const yDe = (v: number) => PAD_TOP + (base - PAD_TOP) * (1 - v / max);
   const xDe = (i: number) => INSET + (ancho - INSET * 2) * (n === 1 ? 0.5 : i / (n - 1));
 
   const puntos = ancho > 0 ? series.map((s, i) => ({ x: xDe(i), y: yDe(s.total) })) : [];
-  const linea = smoothPath(puntos, PAD_TOP, alto);
+  const linea = smoothPath(puntos, PAD_TOP, base);
   const area = puntos.length
-    ? `${linea} L ${puntos[puntos.length - 1].x} ${alto} L ${puntos[0].x} ${alto} Z`
+    ? `${linea} L ${puntos[puntos.length - 1].x} ${base} L ${puntos[0].x} ${base} Z`
     : '';
 
   // Etiquetas del eje: como máximo ~8, repartidas parejo (siempre la primera).
@@ -320,9 +334,17 @@ export function PagosCurva({
                  onBucket({ escala: escala as Escala, key: s.bucket.key, etiqueta: etiquetaBucket(s.bucket.inicio, escala as Escala) });
                }}
                style={{ display: 'block', cursor: 'pointer', touchAction: 'pan-y' }}>
-            {/* El área en TINTE de tinta (5% con color-mix): un token de wash sería
-                prestarle a un chart el significado de un hover. */}
-            <path d={area} fill="color-mix(in srgb, var(--duna-ink) 5%, transparent)" />
+            {/* Área en ÁMBAR, gradiente tenue 10%→0% (§ el sitio decide: una superficie
+                de DATO lleva firma de marca, no estado). Misma decisión que la curva de
+                Hoy; el % del tope se afina por tema en el gate. La LÍNEA y los marcadores
+                siguen en TINTA —Pagos es un libro de período, no tiene "ahora"—. */}
+            <defs>
+              <linearGradient id="curvaPagosArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor="var(--duna-sol)" stopOpacity="0.10" />
+                <stop offset="100%" stopColor="var(--duna-sol)" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d={area} fill="url(#curvaPagosArea)" />
             <path d={linea} fill="none" stroke="var(--duna-ink)" strokeWidth="1.5"
                   strokeLinecap="round" strokeLinejoin="round" />
 

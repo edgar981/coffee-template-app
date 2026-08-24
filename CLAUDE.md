@@ -2694,19 +2694,76 @@ patrón encontró tres que NO son el bug, y confundirlos rompe algo que anda —
 El discriminador del bug real es **slice de un INSTANTE (Payment.fecha/Order.createdAt)**,
 no de un day-key ya zonificado. Sólo `insights.ts` lo tenía.
 
-### La CURVA: pedidos por HORA, en tinta
+### La CURVA: pedidos por HORA — línea en tinta, área en ámbar, NO dibuja el futuro
 
 Mide **pedidos por hora**, no ingresos, y la razón es de dato: **`Order.createdAt` tiene
 hora real; `Payment.fecha` NO** —los pagos que pasan por el campo "fecha en que entró el
-pago" se anclan a 00:00 Bogotá, así que **no hay hora del dinero**—. Eje **0–23 fijo**
-(no se recorta: hay pedidos a cualquier hora en un storefront 24h), etiquetas de RELOJ
-(`0·6·12·18·23` con `relojLabel`, los dos bordes anclados — un set interior se veía
-corrido), y **TINTA** (`--duna-ink`): es una MEDIDA ÚNICA, no una serie categórica, así
-que nunca `--duna-serie-*` (§ La serie categórica). Día sin pedidos: **DECLARA, no dibuja**
-(`curvaDibuja`). Las reglas puras (`bucketsPorHora`, `curvaDibuja`, `relojLabel`) en
-`lib/dashboard/hoy.ts`; las consultas en `lib/dashboard/hoy-server.ts`, afirmadas en el
-carril; ambas plegadas en el ÚNICO `Promise.all` de `/api/dashboard/stats` (— `/chart` se
-retiró).
+pago" se anclan a 00:00 Bogotá, así que **no hay hora del dinero**—. Día sin pedidos:
+**DECLARA, no dibuja** (`curvaDibuja`), y el estado vacío **reserva el mismo alto**
+(`ALTO_CURVA`) que la curva para que declarar→dibujar no salte el layout.
+
+**EL EJE ES LA JORNADA TRANSCURRIDA: `[primera hora con actividad .. HORA ACTUAL]`**
+(2026-08-24). El borde derecho es **AHORA**, no las 11 p.m.: "Hoy" es lo que ha PASADO, así
+que la curva no dibuja el futuro y **tampoco le reserva ancho** —dejar de dibujar la línea
+del futuro pero seguir reservándole la mitad del eje era el arreglo a medias—. El marcador
+de ahora queda SIEMPRE en el borde derecho, como en la maqueta. El costo teórico (el ancho
+de una hora cambia a lo largo del día) se aceptó: nadie compara la gráfica de las 9 a.m.
+con la de las 8 p.m. de memoria; el vacío se veía todos los días.
+
+- **SPAN MÍNIMO de 6 h, rellenando hacia el PASADO** (`MIN_SPAN`): si la actividad es
+  reciente (8:30 con el primer pedido a las 8, span de 30 min), el eje se estira a la
+  IZQUIERDA —`inicioEje = max(0, min(inicio, horaFin − 6))`— en vez de dejar una joroba de
+  una hora llenando la pantalla. Esas horas previas tuvieron 0 pedidos (dato real, no
+  futuro reservado). **El marcador NO se mueve del borde derecho** —ésa fue la razón de
+  rellenar el pasado y no el futuro: las dos alternativas (vacío a la derecha / marcador
+  antes del borde) lo sacaban del borde—. El mínimo deja de aplicar cuando la ventana
+  natural ya mide ≥ 6 h (`ahora ≥ inicio + 6`: si la actividad empezó a las 8 a.m., de
+  8 a 2 p.m. se rellena; después no). Antes de las 6 a.m. el eje es `[0 .. ahora]` (no se
+  rellena antes de medianoche); es genuinamente temprano.
+  **EL MÍNIMO SE QUEDA (decisión del owner) y esto está escrito porque SE VE COMO ESPACIO
+  VACÍO y alguien va a querer quitarlo:** (a) mantiene la escala ESTABLE entre la mañana y
+  la tarde —sin él, una hora mide distinto a las 8 a.m. que a las 8 p.m.—, y (b) las horas
+  planas de la izquierda son **DATO REAL** (cero pedidos esas horas), no relleno. Quitarlo
+  devuelve la joroba-sola-llenando-el-ancho que se fue a resolver.
+- **LO DESCARTADO, con su razón** (para no volver a proponerlo): **eje fijo 0–23** —dejaba
+  media pantalla vacía a la DERECHA (el futuro que no ha pasado)—; **comprimir sin mínimo**
+  —una joroba sola llenando el ancho temprano en el día—; **hora de apertura fija** —
+  escondería la madrugada de un retail 24h bajo el borde izquierdo—.
+- **La ETIQUETA del borde derecho = la HORA ACTUAL** ("10 a.m."): rotula dónde está el día.
+  `ticksDeVentana(inicioEje, horaFin)` pone los dos bordes + interiores a paso 6/3/1 según
+  el span, y **cae un interior a < 1.5 h del borde "ahora"** para que su etiqueta no se
+  encime. Al hook se le pasa `n` = horas de la ventana; su índice `0..n-1` se mapea a hora
+  con `inicioEje + i` — por eso NO se toca (§ compartido con Pagos).
+- **A las 00:30** el eje es `[0 .. 0]`: un solo punto, `n=1`. `pathDe` (<2 puntos) no dibuja
+  curva → queda **sólo el marcador de ahora**, y el `denom = max(1, n−1)` evita que el span
+  cero rompa la escala. No es una declaración: "sin pedidos" sería falso habiendo datos.
+
+**EL EJE AVANZA CON EL RELOJ sin re-renderizar la pantalla:** el estado `horaActual` vive
+DENTRO de `CurvaPedidosHoy` con un `setInterval` alineado al borde de hora, así que al
+cambiar la hora sólo se re-renderiza ESTA curva —no el Dashboard—, igual que el eyebrow con
+su reloj de minuto. Sin esto, a las 11:05 el marcador seguiría diciendo "10 a.m." hasta
+recargar. El pulso del marcador es CSS, sin estado.
+
+**SIN TARJETA** (2026-08-24): la curva vive sobre el fondo de la página, como el hero (el
+vistazo del día es cardless; las tiles, "lo más vendido" y "órdenes recientes" siguen en
+cards). La separación con el hero es el espacio (`space-y-6`) + la cabecera "N pedidos hoy".
+
+**COLOR — el discriminador es el SITIO** (§ EXCEPCIÓN DECLARADA: el ámbar es marca/dato o
+estado según el sitio):
+- **LÍNEA en TINTA a .5** (`--duna-ink`, `strokeOpacity 0.5`): es la MEDIDA ÚNICA, no una
+  serie, así que nunca `--duna-serie-*`; atenuada para que los marcadores canten.
+- **ÁREA en ÁMBAR**, gradiente `--duna-sol` 10%→0% (superficie de DATO = firma, no estado;
+  el % se afina por tema en el gate). Antes era tinta al 5%.
+- **Marcador de AHORA en SOL** (círculo r=6 + anillo r=11 que PULSA saliendo del punto —
+  `.curva-ahora-pulso`, animación CSS sin estado React; estático con reduced-motion) en la
+  hora actual — el sol marca AHORA, no posición; **PICO en TINTA** (r=3). Dos marcadores
+  distintos cierran el riesgo de leer el sol como "el máximo".
+
+`useCurvaHover` (hover/scrub/tap-fuera) es compartido con Pagos y NO se tocó; el hover se
+GUARDA a las horas transcurridas (el futuro no tiene dato). Las reglas puras
+(`bucketsPorHora`, `curvaDibuja`, `relojLabel`) en `lib/dashboard/hoy.ts`; las consultas
+en `lib/dashboard/hoy-server.ts`, afirmadas en el carril; plegadas en el ÚNICO
+`Promise.all` de `/api/dashboard/stats`.
 
 ### El CLIC POR HORA — y el × del tag, excepción declarada
 
@@ -4375,21 +4432,43 @@ El `--accent` de admin-light era `#B45309` (marrón de marca) y volvía marrón 
 hover de outline/ghost/dropdown/select: ahora es un tinte cálido suave. El marrón
 vive como `--primary` y en los charts, no como fondo de hover.
 
-### EXCEPCIÓN DECLARADA: el ámbar del LOGO es marca, no atención
+### EXCEPCIÓN DECLARADA: el ámbar es MARCA/DATO o ESTADO según el SITIO
 
-El logo de Duna —el lockup horizontal (`duna-logo-horizontal-v1.svg`) en el rail
-expandido y el mark (`duna-mark-v1.svg`) en el colapsado— trae un elemento **`#F59E0B`,
-que es `--duna-sol` al valor** — el mismo hex que significa ATENCIÓN en el panel. **Se
-acepta, por decisión del owner (2026-08-23):** un logo NO es un estado, es la firma del
-producto, y pedir una variante sin el sol sería quitarle al logo lo que lo hace el logo.
-Ya vivía en el mark del rail colapsado; el lockup expandido lo lleva a la vista siempre.
+`#F59E0B` (= `--duna-sol`) significa ATENCIÓN en el panel, y por eso retiramos el pastel
+decorativo, el accent-amber de la campana y el activo del rail. PERO hay sitios donde el
+mismo hex NO es estado, y para que un censo de ámbar no los marque como violación, la
+regla es una y es de SITIO, no de color:
 
-**Queda escrito acá para que el próximo censo de ámbar NO lo marque como violación.**
-El discriminador es el SITIO: `#F59E0B` dentro de un asset de marca (el rail) es marca;
-`#F59E0B` en un badge, un chip, un punto de atención o un fondo es estado, y ahí la
-regla de arriba manda sin excepción. El logo es el único sitio donde el sol es
-decoración permitida, precisamente porque no está diciendo nada sobre el estado del
-panel — está diciendo de quién es el panel.
+> **EL SITIO DECIDE.** El ámbar es MARCA / DATO en las superficies de **marca y de dato**
+> —el logo, el ÁREA de una gráfica, el marcador de AHORA de la curva del día—; es ESTADO
+> en las superficies de **estado** —badges, pills, puntos de atención, fondos de fila, la
+> campana, el stat-chip—. Y los dos se ven distinto, lo que hace la regla VERIFICABLE por
+> dos ejes que coinciden: **el ámbar-dato es un lavado TENUE (5–10%) o un asset; el
+> ámbar-estado es SATURADO (`--duna-sol-soft`/`-ink`, con borde).** Un censo pregunta
+> "¿lavado bajo una gráfica / elemento de un logo, o chip/punto/badge saturado?" y
+> responde sin criterio.
+
+- **EL LOGO** (decisión del owner, 2026-08-23): el mark trae el sol; un logo es la firma
+  del producto, no un semáforo, y pedir una variante sin el sol sería quitarle lo que lo
+  hace el logo. Ya vivía en el mark colapsado; el lockup expandido lo lleva a la vista
+  siempre.
+- **EL ÁREA DE LAS GRÁFICAS** (decisión del owner, 2026-08-24): el relleno bajo la curva
+  de Hoy y la de Pagos pasó de tinta al 5% a un gradiente ámbar 10%→0% (`--duna-sol`). Es
+  una superficie de DATO, no un badge — el ámbar acá es firma, no atención. Analítica NO
+  se toca (sus líneas son de SERIE y un lavado ámbar debajo chocaría). La opacidad se
+  afina por tema en el gate: en oscuro un ámbar al 10% puede glowear o desaparecer.
+- **EL MARCADOR DE AHORA** de la curva del día va en SOL, y acá el sol SÍ dice algo: **no
+  marca POSICIÓN (el activo del rail es tinta), marca AHORA** — el momento vivo que avanza
+  con el reloj y sólo existe en la pantalla del día. Por eso Pagos, que es un libro de
+  período, no lo usa. Y va con **anillo** (r=11 al 30%) sobre el punto (r=6): dos
+  marcadores distintos —ahora en sol con anillo, pico en tinta— cierran el riesgo de que
+  el sol se lea como "aquí está el máximo".
+
+**El residuo es la habituación** —el ojo que ve ámbar en cada gráfica podría dejar de
+reaccionar al ámbar que sí pide algo—; se mitiga manteniendo el lavado TENUE (si el área
+sube de ~10%, se revisa) y el estado SATURADO. Si algún día el ámbar-dato y el
+ámbar-estado dejaran de distinguirse a la vista, el discriminador se rompe y hay que
+saberlo: hoy se distinguen.
 
 ## La serie categórica — color que IDENTIFICA, no que califica
 
@@ -4532,11 +4611,14 @@ eyebrow es la única etiqueta del eje (no hay hint que lo duplique).
   pico caiga exactamente sobre la curva. **Los controles se ACOTAN a la caja**: con picos
   y ceros la spline se pasa de largo y el área se dibujaría bajo el eje — se lee como un
   negativo que no existe.
-- **El área es tinte de tinta al 5% con `color-mix`, NO `--duna-wash-hover`.** El token
-  existe y da el mismo color, pero prestarlo le daría un segundo significado a un token
-  de hover (el mismo error que se rechazó con `--duna-paper` como panel hundido).
-- **Tres marcadores, todos en TINTA — cero ámbar**: pico (relleno + cifra abreviada), hoy
-  (hueco), selección (anillo). Nada en Pagos pide atención.
+- **El área va en ÁMBAR** (gradiente `--duna-sol` 10%→0%), desde 2026-08-24. Antes era
+  tinta al 5%; el owner llevó el área de las gráficas a ámbar como firma de dato (§
+  EXCEPCIÓN DECLARADA: el ámbar es marca/dato o estado según el SITIO — un lavado tenue
+  bajo una gráfica es dato, no atención). El % del tope se afina por tema en el gate.
+- **Los TRES marcadores siguen en TINTA**: pico (relleno + cifra abreviada), hoy (hueco),
+  selección (anillo). Pagos es un libro de PERÍODO, no tiene "ahora", así que —a
+  diferencia de la curva de Hoy— no lleva marcador de sol. El ámbar entra sólo por el
+  área.
 - **El ancho se MIDE** (ResizeObserver) y no se asume: un viewBox estirado deformaría
   trazo y tipografía. Va por **callback ref**, no por `useRef` + efecto `[]` — ver el
   defecto de abajo.
