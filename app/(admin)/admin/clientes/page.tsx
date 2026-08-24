@@ -20,7 +20,7 @@ import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
 import { useHidratado } from '@/hooks/useHidratado';
 import { CustomerFormModal } from '@/components/admin/CustomerFormModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
-import { siteConfig } from '@/lib/config/site';
+import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import {
   CARRILES_CLIENTES, aplicarCarril, conteosClientes, carrilPorKey, buscarClientes,
   type CarrilKey,
@@ -475,13 +475,14 @@ function Detalle({ cliente, detalle, cargando, error, onEditar, onEliminar }: {
   onEditar: () => void;
   onEliminar: () => void;
 }) {
+  const settings = useSiteSettings();
   const porAtender = cliente.pedidosPorAtender ?? 0;
   const badge = badgeAtencion(porAtender);
 
   const nombre   = cliente.nombre?.trim();
   const saludo   = nombre ? `Hola ${nombre}` : 'Hola';
-  const waHref   = customerWhatsappHref(cliente.telefono, `${saludo}, te escribimos de ${siteConfig.brand.nombre}.`);
-  const mailHref = cliente.email ? `mailto:${cliente.email}?subject=${encodeURIComponent(siteConfig.brand.nombre)}` : null;
+  const waHref   = customerWhatsappHref(cliente.telefono, `${saludo}, te escribimos de ${settings.nombre}.`);
+  const mailHref = cliente.email ? `mailto:${cliente.email}?subject=${encodeURIComponent(settings.nombre)}` : null;
 
   const contacto: { label: string; valor?: string | null }[] = [
     { label: 'Correo',    valor: cliente.email },

@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import prisma from "@duna/core";
 import AdminChrome from "@/components/admin/AdminChrome";
+import { getSiteSettings } from "@/lib/config/site-settings";
+import { SiteSettingsProvider } from "@/components/admin/SiteSettingsProvider";
 
 // AUTHORITATIVE access gate for the admin panel (/admin/*). proxy.ts already
 // bounces requests with no session cookie to /login; here we do the full
@@ -16,7 +18,16 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  // La config del negocio (SiteSetting) es INDEPENDIENTE de la sesión, así que va
+  // en paralelo con `getSession` en un Promise.all — NO después de la query de
+  // usuario (que sí depende de la sesión), donde duplicaría la latencia del gate en
+  // cada request. No había un Promise.all que reusar: el gate era una cadena
+  // dependiente (sesión → usuario), así que el paralelismo posible es sesión ∥ config.
+  const h = await headers();
+  const [session, settings] = await Promise.all([
+    auth.api.getSession({ headers: h }),
+    getSiteSettings(),
+  ]);
   if (!session) redirect("/login");
 
   // La decisión de acceso se toma sobre la FILA, no sobre el payload de la
@@ -38,5 +49,9 @@ export default async function AdminLayout({
   if (!usuario || !usuario.activo) redirect("/login");
   if (usuario.role !== "OWNER" && usuario.role !== "MANAGER") redirect("/login");
 
-  return <AdminChrome>{children}</AdminChrome>;
+  return (
+    <SiteSettingsProvider value={settings}>
+      <AdminChrome>{children}</AdminChrome>
+    </SiteSettingsProvider>
+  );
 }

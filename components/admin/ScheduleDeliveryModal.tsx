@@ -23,7 +23,7 @@ import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialo
 import { sugerirZona } from '@duna/core/zona-config';
 import { COLOMBIA_DEPARTMENTS } from '@duna/core/colombia-departments';
 import { customerWhatsappHref } from '@duna/core/whatsapp-link';
-import { siteConfig } from '@/lib/config/site';
+import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 
 // The modal takes the Shipping — it fetches the order's delivery context
 // (contact + address + linked customer) itself, so it behaves the same from
@@ -115,6 +115,9 @@ function ScheduleBody({ shipping, ordenId, guarda, marcarCambios, intentarCerrar
   onAddressAdded?: (orderId: string, address: { direccion_entrega: string; ciudad_entrega: string }) => void;
 }) {
   const router = useRouter();
+  // Arriba del todo: ScheduleBody tiene early-returns (cargando / loadError) más
+  // abajo, y un hook después de un return condicional viola las Reglas de Hooks.
+  const settings = useSiteSettings();
   const [ctx, setCtx]             = useState<DeliveryContext | null>(null);
   // Sin id de orden no hay nada que cargar, así que ni siquiera arranca en
   // "cargando": el caso se DERIVA del prop y se resuelve en el render, no con un
@@ -336,10 +339,10 @@ function ScheduleBody({ shipping, ordenId, guarda, marcarCambios, intentarCerrar
   const saludo  = nombre ? `Hola ${nombre}` : 'Hola';
   const waHref  = customerWhatsappHref(
     ctx.telefono,
-    `${saludo}, te escribimos de ${siteConfig.brand.nombre} por tu pedido ${ctx.numero_orden}`,
+    `${saludo}, te escribimos de ${settings.nombre} por tu pedido ${ctx.numero_orden}`,
   );
   const mailHref = ctx.cliente_email
-    ? `mailto:${ctx.cliente_email}?subject=${encodeURIComponent(`Tu pedido ${ctx.numero_orden} — ${siteConfig.brand.nombre}`)}`
+    ? `mailto:${ctx.cliente_email}?subject=${encodeURIComponent(`Tu pedido ${ctx.numero_orden} — ${settings.nombre}`)}`
     : null;
   const addressLine = [ctx.direccion_entrega, ctx.ciudad_entrega].filter(Boolean).join(', ') || '—';
   const clienteHref = ctx.customer ? `/admin/clientes?cliente=${encodeURIComponent(ctx.customer.id)}` : null;
