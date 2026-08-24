@@ -227,6 +227,26 @@ async function main() {
     "✅ OWNER role assigned"
   );
 
+  // SiteSetting — la fila singleton de config del negocio (fase 1 multi-tenant). En
+  // PRODUCCIÓN la crea la MIGRACIÓN (el seed no corre allá); esto es para resets de dev.
+  // Valores HARDCODEADOS (no de `siteConfig`) a propósito: coinciden con el INSERT de la
+  // migración y sobreviven al retiro de los campos planos de `siteConfig` (commit 7).
+  // `update: {}` = idempotente, no pisa ediciones de dev en un re-seed.
+  await prisma.siteSetting.upsert({
+    where:  { id: 'default' },
+    update: {},
+    create: {
+      id:                'default',
+      nombre:            'Café Nayoli',
+      tagline:           'Supatá · Cundinamarca',
+      descripcionFooter: 'Café de especialidad colombiano. De nuestra finca en Supatá a tu taza.',
+      whatsapp:          '+573155766064',
+      instagram:         'cafenayoliorigen',
+      emailRemitente:    'Café Nayoli <pedidos@mail.duna.solutions>',
+    },
+  });
+  console.log("✅ SiteSetting singleton listo");
+
 
   for (const c of MOCK_CUSTOMERS) {
     await prisma.customer.upsert({
