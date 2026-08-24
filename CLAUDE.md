@@ -154,6 +154,19 @@ ganar nada, y una cadena que se testea con mocks no prueba que escriba.** El
 2026-08-04 la suite pura reportaba 143/143 mientras la cadena de la campana no
 escribía una sola fila; eso no fue un test mentiroso, fue una capa faltante.
 
+### `tsc` NO es la capa que envía — para JSX/TSX la autoridad es `next build`
+
+`tsc --noEmit` y `next build` usan **parsers distintos**: tsc el de TypeScript, el build
+el de **SWC**. Un JSX que tsc ACEPTA puede romper el build, así que para cualquier cambio
+que toque JSX/TSX la verificación autoritativa es `next build`, no `tsc` — un `tsc` verde
+no prueba que el artefacto compile.
+
+Caso concreto (2026-08-24): un comentario `{/* … */}` suelto en el TOP-LEVEL de un
+`return` —sin un elemento JSX que lo contenga— no es JSX válido; SWC lo lee como expresión
+`{…}` y se traga el elemento siguiente ("Expected '</', got 'ident'"). `tsc` dio **0
+errores** y `next build` falló. Misma familia que la campana: un artefacto que pasa una
+capa puede fallar en otra, y la que importa es la que envía.
+
 ### El carril de integración
 
 ```bash
@@ -4473,8 +4486,14 @@ neutro):
   dos cosas en la misma lista —el activo era ámbar y el punto de atención de Pedidos
   también—. Ahora **activo = tinta, atención = sol** (el `.duna-nav-dot`, que se
   queda), y se distinguen. Vive en `components/admin/Sidebar.tsx` (NavRow).
-- **Trends en texto** (flecha + % coloreado verde/rojo, sin pill/fondo); el "vs
-  mes anterior" en muted. Un solo lugar: `TrendPill` en `StatCard`.
+- **EL PAR SUPERFICIE + BARRA-DE-TINTA significa "ESTO ESTÁ PUESTO", en TODO el panel.**
+  `--duna-surface` (elevada con `--duna-shadow-1`) + una barra de 2px de `--duna-ink` a
+  la izquierda es una AFIRMACIÓN del sistema —"esto está puesto / activo / elegido"— y va
+  igual dondequiera que ése sea el significado: el activo del rail ("estás aquí") y las
+  tarjetas elegidas de "Tu panel" en el drawer de Personalizar son la MISMA afirmación con
+  la misma forma. Es TINTA a propósito: no compite con el sol (ATENCIÓN) ni con
+  `--duna-bad` (PROBLEMA) —"puesto" no es un estado accionable—. El día que otra superficie
+  tenga que decir "esto está puesto", usa este par; no inventa uno.
 - **Una sola utilidad de fecha visible**: `formatFecha` (`lib/format-fecha.ts`,
   `14 may 2026`, es-CO/America-Bogota). No `toLocaleDateString` ad-hoc en vistas.
 - **Icon chips en familia cálida** — ver la sección de chips arriba
