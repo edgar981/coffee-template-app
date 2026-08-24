@@ -103,14 +103,13 @@ export default function DashboardCustomizer({ open, onOpenChange, value, onApply
                 const w = WIDGET_MAP[key];
                 if (!w) return null;
                 const Icon = w.icono;
+                // ELEGIDO = el par superficie+barra-de-tinta del activo del rail
+                // (§ CLAUDE.md): --duna-surface + --duna-shadow-1 + una barra de 2px de
+                // --duna-ink a la izquierda. Mismo significado ("esto está puesto") y
+                // misma forma. NO es color de estado: la tinta no compite con sol
+                // (atención) ni bad (problema). `pl-3.5` da aire entre la barra y el
+                // ícono; las flechas y la × viven a la DERECHA, lejos de la barra.
                 return (
-                  {/* ELEGIDO = el par superficie+barra-de-tinta del activo del rail
-                      (§ CLAUDE.md): --duna-surface + --duna-shadow-1 + una barra de 2px
-                      de --duna-ink a la izquierda. Mismo significado ("esto está
-                      puesto") y misma forma. NO es color de estado: la tinta no compite
-                      con sol (atención) ni bad (problema). `pl-3.5` da aire entre la
-                      barra y el ícono; las flechas y la × viven a la DERECHA, lejos de
-                      la barra. */}
                   <li key={key} className="relative flex items-center gap-2 rounded-lg border border-border bg-card pl-3.5 pr-2.5 py-2" style={{ boxShadow: 'var(--duna-shadow-1)' }}>
                     <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full" style={{ background: 'var(--duna-ink)' }} aria-hidden />
                     <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${w.color}`}>
@@ -179,6 +178,8 @@ export default function DashboardCustomizer({ open, onOpenChange, value, onApply
 function IconBtn({ label, disabled, onClick, children }: {
   label: string; disabled?: boolean; onClick: () => void; children: React.ReactNode;
 }) {
+  // `admin-foco`: anillo de foco de teclado (box-shadow var(--duna-ring)) VISIBLE sobre
+  // la superficie elevada de la tarjeta — la sombra del `li` es de otro elemento, no lo tapa.
   return (
     <button
       type="button"
@@ -186,9 +187,6 @@ function IconBtn({ label, disabled, onClick, children }: {
       title={label}
       disabled={disabled}
       onClick={onClick}
-      // `admin-foco`: anillo de foco de teclado (box-shadow var(--duna-ring)) VISIBLE
-      // sobre la superficie elevada de la tarjeta — la sombra del `li` es de otro
-      // elemento, no lo tapa.
       className="admin-foco flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
     >
       {children}
