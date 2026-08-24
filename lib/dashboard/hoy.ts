@@ -42,39 +42,32 @@ export function curvaDibuja(buckets: number[]): boolean {
   return buckets.some(n => n > 0);
 }
 
-/** Horas mínimas del eje de la curva, rellenando hacia el PASADO para que un punto
- *  solo no quede degenerado (§ CLAUDE.md — La CURVA). */
-export const MIN_SPAN_CURVA = 6;
-
 /**
- * LA VENTANA del eje de la curva de "Hoy": el rango [inicioEje..horaFin] y su largo
- * `n`, derivados de los buckets del DÍA y de la hora actual (reloj de Bogotá).
+ * LA VENTANA del eje de la curva de "Hoy": el rango `[0..horaFin]` y su largo `n`. El
+ * eje SIEMPRE empieza en MEDIANOCHE (hora 0) y termina en AHORA (`horaFin`).
  *
- * `buckets` DEBE ser el array COMPLETO de 24 (el de `bucketsPorHora`), NUNCA uno ya
- * recortado a la ventana. `primeraActividad` (`findIndex`) se lee sobre ese array
- * completo, y ahí está la parte que no se ve en la fórmula: si se leyera sobre la
- * ventana recortada, el cálculo se REALIMENTARÍA —el borde izquierdo dependería de sí
- * mismo— y la ventana DESLIZARÍA, sacando del gráfico un pedido temprano al avanzar el
- * día. El caso `pa 8 / ahora 20 → [8..20]` del test lo fija: leyendo la ventana daría
- * [14..20] y escondería el pedido de las 8.
+ * ORIGEN FIJO, no ventana deslizante — "Hoy es lo que ha PASADO". El vacío de la
+ * DERECHA sí sería mentira (horas que aún no ocurrieron, dibujadas como cero), y por
+ * eso el borde derecho es AHORA. El vacío de la IZQUIERDA es DATO: esas horas pasaron
+ * y tuvieron cero pedidos, así que se muestran. NO es la misma decisión invertida —son
+ * dos cosas distintas: una hora futura no tiene dato; una hora pasada sin pedidos tiene
+ * el dato "cero". Dos beneficios: la curva SUBE desde la base en vez de nacer en su pico
+ * contra el borde, y el origen no cambia cada día → el eje se lee por HÁBITO.
  *
- * - Borde DERECHO = AHORA (se extiende a `ultimaAct` sólo por desfase de reloj).
- * - Borde IZQUIERDO = `clamp(horaFin − MIN_SPAN_CURVA, 0, primeraActividad)`, que es
- *   `≤ primeraActividad` SIEMPRE → nunca pasa la primera actividad, así que ningún
- *   pedido queda fuera. El span mínimo rellena hacia el pasado mientras la ventana
- *   natural aún no llega a 6h (día recién empezado).
+ * Ya no hay `primeraActividad` ni span mínimo: con el origen fijo en 0 su razón (que un
+ * punto solo no quedara degenerado contra el borde) desaparece. `inicioEje` no depende
+ * de los datos.
+ *
+ * `buckets` sólo se usa para EXTENDER el borde derecho si por desfase de reloj hubiera
+ * actividad "futura" (`ultimaAct > horaActual`), para no esconderla.
  */
 export function ventanaCurvaHoy(
   buckets: number[],
   horaActual: number,
 ): { inicioEje: number; horaFin: number; n: number } {
-  const inicioAct = buckets.findIndex(c => c > 0);
-  const primeraActividad = inicioAct < 0 ? horaActual : inicioAct;
   const ultimaAct = buckets.reduce((last, c, i) => (c > 0 ? i : last), 0);
   const horaFin = Math.max(horaActual, ultimaAct);
-  const inicioEje = Math.max(0, Math.min(primeraActividad, horaFin - MIN_SPAN_CURVA));
-  const n = horaFin - inicioEje + 1;
-  return { inicioEje, horaFin, n };
+  return { inicioEje: 0, horaFin, n: horaFin + 1 };
 }
 
 /**

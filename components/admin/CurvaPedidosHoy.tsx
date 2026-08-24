@@ -100,11 +100,10 @@ export default function CurvaPedidosHoy({ buckets, onPunto }: {
     return () => { clearTimeout(arranque); if (intervalo) clearInterval(intervalo); };
   }, []);
 
-  // LA VENTANA del eje: pura y testeada en capa 1 (`ventanaCurvaHoy`). La primera
-  // actividad se lee sobre los 24 buckets del DÍA —NO la ventana recortada—, así que el
-  // borde izquierdo (`clamp(horaFin−6, 0, primeraActividad) ≤ primeraActividad`) nunca
-  // pasa esa hora y ningún pedido queda fuera. Borde derecho = AHORA. El marcador queda
-  // en el borde derecho; el span mínimo rellena hacia el pasado si el día recién empezó.
+  // LA VENTANA del eje: pura y testeada en capa 1 (`ventanaCurvaHoy`). Origen FIJO en
+  // medianoche (0), borde derecho = AHORA — "Hoy es lo que ha pasado". El marcador de
+  // ahora queda en el borde derecho; las horas pasadas sin pedidos son cero (dato), no
+  // vacío que ocultar.
   const { inicioEje, horaFin, n } = ventanaCurvaHoy(buckets, horaActual);
 
   // Hover/scrub/tap-fuera compartido con PagosCurva. Índice 0..n-1 → hora `inicioEje + i`.
