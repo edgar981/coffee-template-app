@@ -305,7 +305,7 @@ export default function Dashboard() {
                 onPunto={h => router.push(`/admin/pedidos?desde=${stats.hoyKey}&hasta=${stats.hoyKey}&hora=${h}`)}
               />
             ) : (
-              <p className="duna-sub" style={{ margin: 0 }}>Sin pedidos hoy todavía — la curva aparece con el primero.</p>
+              <p className="duna-sub" style={{ margin: 0 }}>Sin pedidos hoy todavía.</p>
             )}
           </>
         )}
