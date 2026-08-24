@@ -194,15 +194,15 @@ function BrandLockup() {
       {/* EL LOCKUP HORIZONTAL real (mark + "DUNA" con su lettering propio), no texto:
           el wordmark tiene su tipografía y una fuente del sistema no lo reproduce
           —"Duna" en texto era una aproximación de maqueta—. El problema era el TAMAÑO,
-          no el asset, así que se ESCALA. `h-4` (16px): el lettering escala 0.608× la
-          altura (medido sobre el viewBox), o sea cap ~9.7px — legible para "DUNA" pero
-          por debajo del cuerpo; el piso cómodo es h-5 (20px → cap ~12px). `w-auto` sigue
-          la altura sin distorsión; `max-w-full` no deja desbordar; `object-left` lo
-          alinea a la izquierda (con el nav, NO centrado). Negativo para oscuro. */}
+          no el asset, así que se ESCALA. `h-5` (20px) es el PISO de legibilidad: el
+          lettering escala 0.608× la altura (medido sobre el viewBox), o sea cap ~12px
+          (≈ texto de cuerpo); a 16px (cap ~9.7px) se veía chico. `w-auto` sigue la
+          altura sin distorsión; `max-w-full` no deja desbordar; `object-left` lo alinea
+          a la izquierda (con el nav, NO centrado). Negativo para oscuro. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/duna-logo-horizontal-v1.svg" alt="Duna" className="block h-4 w-auto max-w-full object-contain object-left dark:hidden" />
+      <img src="/brand/duna-logo-horizontal-v1.svg" alt="Duna" className="block h-5 w-auto max-w-full object-contain object-left dark:hidden" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/duna-logo-horizontal-negative-v1.svg" alt="Duna" className="hidden h-4 w-auto max-w-full object-contain object-left dark:block" />
+      <img src="/brand/duna-logo-horizontal-negative-v1.svg" alt="Duna" className="hidden h-5 w-auto max-w-full object-contain object-left dark:block" />
       <p
         className="mt-1 whitespace-nowrap leading-none text-sidebar-foreground/55"
         style={{ fontSize: '.8rem', fontFamily: 'var(--duna-font-ui)' }}
@@ -258,8 +258,8 @@ export default function Sidebar({ collapsed }: SidebarProps) {
             navegación. SIN divisoria (la separación la da el espacio).
 
             El alto se queda en 64px (`h-16`) en los DOS estados, para que el borde
-            superior alinee con la topbar. El bloque de marca (lockup 16px + negocio,
-            ~33px) se CENTRA VERTICALMENTE en esos 64px con `items-center` —queda ~15px
+            superior alinee con la topbar. El bloque de marca (lockup 20px + negocio,
+            ~37px) se CENTRA VERTICALMENTE en esos 64px con `items-center` —queda ~13px
             de aire arriba y abajo, no pegado arriba—; colapsado centra el mark. */}
         <div className={cn(
           'relative flex h-16 shrink-0 items-center px-3',
