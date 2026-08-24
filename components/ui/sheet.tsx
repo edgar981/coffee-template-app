@@ -3,29 +3,10 @@ import * as React from "react";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 
 import { cn } from "@duna/core/utils";
-import { overlayClasses, sheetTiming } from "@/components/ui/overlay";
 
 const Sheet = SheetPrimitive.Root;
 
-const SheetTrigger = SheetPrimitive.Trigger;
-
-const SheetClose = SheetPrimitive.Close;
-
 const SheetPortal = SheetPrimitive.Portal;
-
-const SheetOverlay = React.forwardRef<
-  React.ComponentRef<typeof SheetPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof SheetPrimitive.Overlay>
->(({ className, ...props }, ref) => (
-  <SheetPrimitive.Overlay
-    // Shared scrim (components/ui/overlay) + the Sheet's own timing, so the fade
-    // is synced with the panel slide.
-    className={cn(overlayClasses, sheetTiming, className)}
-    {...props}
-    ref={ref}
-  />
-));
-SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 // ─── Las dos superficies CRUDAS (SheetScrim / SheetSurface) ──────────────────
 //
@@ -34,9 +15,9 @@ SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 // scroll-lock vía react-remove-scroll) y pongan su propia FORMA.
 //
 // El `SheetContent` shadcn —con fondo, padding, sombra y X— SE RETIRÓ (§ retiro de
-// sidebar): quedó sin un solo consumidor cuando el último, el DashboardCustomizer, migró a
-// DunaSheet. `SheetOverlay`/`SheetTrigger`/`SheetClose` siguen exportados pero también sin
-// consumidor (candidatos a retiro aparte).
+// sidebar), junto con `SheetOverlay`, `SheetTrigger` y `SheetClose`: todos quedaron sin un
+// solo consumidor cuando el último, el DashboardCustomizer, migró a DunaSheet. Este archivo
+// ya sólo expone lo que DunaSheet y alert-dialog usan.
 //
 // `@radix-ui/react-dialog` se importa en un solo sitio, igual que `@vercel/blob` en
 // `lib/storage.ts`: hace barata la revisión del día que la librería cambie — y entra como
@@ -72,11 +53,8 @@ SheetDescription.displayName = SheetPrimitive.Description.displayName;
 export {
   Sheet,
   SheetPortal,
-  SheetOverlay,
   SheetScrim,
   SheetSurface,
-  SheetTrigger,
-  SheetClose,
   SheetTitle,
   SheetDescription,
 };
