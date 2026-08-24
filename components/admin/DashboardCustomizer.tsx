@@ -28,9 +28,9 @@ import {
 //   • NO tiene botón "Guardar", y NO se repone "por consistencia con los otros
 //     drawers": aquí la consistencia sería el error. Un "Guardar" MIENTE sobre el
 //     modelo —implica que nada se aplica hasta clicarlo, cuando se aplica al cerrar de
-//     cualquier forma— y sería un segundo camino al mismo hecho que `onCerrar`. El
-//     indicio de cuándo se guarda es el hint muted del pie ("se guardan al cerrar")
-//     más el panel de atrás cambiando al layout nuevo al cerrar.
+//     cualquier forma— y sería un segundo camino al mismo hecho que `onCerrar`. La
+//     confirmación de que se guardó es el panel de atrás cambiando al layout nuevo al
+//     cerrar.
 // La persistencia es optimista (`onApply`), con "Reintentar" en el toast del padre si
 // falla. Los edits viven en un `draft` local; aplicar (cerrar tocando fuera o con
 // Escape) persiste y el grid se re-renderiza.
@@ -162,11 +162,9 @@ export default function DashboardCustomizer({ open, onOpenChange, value, onApply
       </div>
 
       <div className="duna-modal__foot">
-        {/* El hint es el ÚNICO indicio de cuándo se guarda (no hay botón Guardar, a
-            propósito — ver el comentario de cerrar=guardar arriba). Va muted a la
-            izquierda (mr-auto), con Restablecer como única acción a la derecha; el pie
-            es justify-end. */}
-        <span className="duna-sub" style={{ marginRight: 'auto' }}>Los cambios se guardan al cerrar</span>
+        {/* Sólo Restablecer: no hay botón Guardar (a propósito — ver el comentario de
+            cerrar=guardar arriba), y la confirmación de que se guardó es el panel de
+            atrás cambiando al layout nuevo al cerrar. */}
         <button type="button" className="duna-btn duna-btn--ghost" onClick={reset}>
           <RotateCcw className="h-3.5 w-3.5" /> Restablecer
         </button>
