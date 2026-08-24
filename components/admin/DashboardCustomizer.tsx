@@ -20,13 +20,20 @@ import {
 //   • "Catálogo" — cada widget agrupado por categoría, con un Switch de visibilidad.
 //
 // CERRAR = GUARDAR, y NO es un descuido: este NO es un formulario con mutación en
-// vuelo, es un editor de PREFERENCIAS que persiste el layout al cerrar. Por eso NO
-// usa `useDescarteDeDrawer` —eso pregunta "¿descartar?" y descarta al cerrar, la
-// conducta OPUESTA— ni `useAccionGuardada` —no hay submit que bloquear—. Si alguien
-// "unifica" agregando la guarda de descarte, ROMPE la conducta correcta: cerrar
-// dejaría de guardar. La persistencia es optimista (`onApply`), con "Reintentar" en el
-// toast del padre si falla. Los edits viven en un `draft` local; aplicar (Guardar, o
-// cerrar tocando fuera / con Escape) persiste y el grid se re-renderiza.
+// vuelo, es un editor de PREFERENCIAS que persiste el layout al cerrar. Por eso:
+//   • NO usa `useDescarteDeDrawer` —eso pregunta "¿descartar?" y descarta al cerrar,
+//     la conducta OPUESTA— ni `useAccionGuardada` —no hay submit que bloquear—. Si
+//     alguien "unifica" agregando la guarda de descarte, ROMPE la conducta correcta:
+//     cerrar dejaría de guardar.
+//   • NO tiene botón "Guardar", y NO se repone "por consistencia con los otros
+//     drawers": aquí la consistencia sería el error. Un "Guardar" MIENTE sobre el
+//     modelo —implica que nada se aplica hasta clicarlo, cuando se aplica al cerrar de
+//     cualquier forma— y sería un segundo camino al mismo hecho que `onCerrar`. El
+//     indicio de cuándo se guarda es el hint muted del pie ("se guardan al cerrar")
+//     más el panel de atrás cambiando al layout nuevo al cerrar.
+// La persistencia es optimista (`onApply`), con "Reintentar" en el toast del padre si
+// falla. Los edits viven en un `draft` local; aplicar (cerrar tocando fuera o con
+// Escape) persiste y el grid se re-renderiza.
 
 interface Props {
   open: boolean;
@@ -97,7 +104,15 @@ export default function DashboardCustomizer({ open, onOpenChange, value, onApply
                 if (!w) return null;
                 const Icon = w.icono;
                 return (
-                  <li key={key} className="flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-2">
+                  {/* ELEGIDO = el par superficie+barra-de-tinta del activo del rail
+                      (§ CLAUDE.md): --duna-surface + --duna-shadow-1 + una barra de 2px
+                      de --duna-ink a la izquierda. Mismo significado ("esto está
+                      puesto") y misma forma. NO es color de estado: la tinta no compite
+                      con sol (atención) ni bad (problema). `pl-3.5` da aire entre la
+                      barra y el ícono; las flechas y la × viven a la DERECHA, lejos de
+                      la barra. */}
+                  <li key={key} className="relative flex items-center gap-2 rounded-lg border border-border bg-card pl-3.5 pr-2.5 py-2" style={{ boxShadow: 'var(--duna-shadow-1)' }}>
+                    <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full" style={{ background: 'var(--duna-ink)' }} aria-hidden />
                     <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${w.color}`}>
                       <Icon className="h-3.5 w-3.5" />
                     </span>
@@ -148,12 +163,14 @@ export default function DashboardCustomizer({ open, onOpenChange, value, onApply
       </div>
 
       <div className="duna-modal__foot">
-        {/* Restablecer a la IZQUIERDA (mr-auto), Guardar a la derecha — el pie es
-            justify-end, así que el auto-margin separa el reset de la acción primaria. */}
-        <button type="button" className="duna-btn duna-btn--ghost" style={{ marginRight: 'auto' }} onClick={reset}>
+        {/* El hint es el ÚNICO indicio de cuándo se guarda (no hay botón Guardar, a
+            propósito — ver el comentario de cerrar=guardar arriba). Va muted a la
+            izquierda (mr-auto), con Restablecer como única acción a la derecha; el pie
+            es justify-end. */}
+        <span className="duna-sub" style={{ marginRight: 'auto' }}>Los cambios se guardan al cerrar</span>
+        <button type="button" className="duna-btn duna-btn--ghost" onClick={reset}>
           <RotateCcw className="h-3.5 w-3.5" /> Restablecer
         </button>
-        <button type="button" className="duna-btn duna-btn--primary" onClick={cerrar}>Guardar</button>
       </div>
     </DunaSheet>
   );
@@ -169,7 +186,10 @@ function IconBtn({ label, disabled, onClick, children }: {
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+      // `admin-foco`: anillo de foco de teclado (box-shadow var(--duna-ring)) VISIBLE
+      // sobre la superficie elevada de la tarjeta — la sombra del `li` es de otro
+      // elemento, no lo tapa.
+      className="admin-foco flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
     >
       {children}
     </button>

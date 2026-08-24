@@ -4473,6 +4473,14 @@ neutro):
   dos cosas en la misma lista —el activo era ámbar y el punto de atención de Pedidos
   también—. Ahora **activo = tinta, atención = sol** (el `.duna-nav-dot`, que se
   queda), y se distinguen. Vive en `components/admin/Sidebar.tsx` (NavRow).
+- **EL PAR SUPERFICIE + BARRA-DE-TINTA significa "ESTO ESTÁ PUESTO", en TODO el panel.**
+  `--duna-surface` (elevada con `--duna-shadow-1`) + una barra de 2px de `--duna-ink` a
+  la izquierda es una AFIRMACIÓN del sistema —"esto está puesto / activo / elegido"— y va
+  igual dondequiera que ése sea el significado: el activo del rail ("estás aquí") y las
+  tarjetas elegidas de "Tu panel" en el drawer de Personalizar son la MISMA afirmación con
+  la misma forma. Es TINTA a propósito: no compite con el sol (ATENCIÓN) ni con
+  `--duna-bad` (PROBLEMA) —"puesto" no es un estado accionable—. El día que otra superficie
+  tenga que decir "esto está puesto", usa este par; no inventa uno.
 - **Trends en texto** (flecha + % coloreado verde/rojo, sin pill/fondo); el "vs
   mes anterior" en muted. Un solo lugar: `TrendPill` en `StatCard`.
 - **Una sola utilidad de fecha visible**: `formatFecha` (`lib/format-fecha.ts`,
