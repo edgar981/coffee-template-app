@@ -514,9 +514,10 @@ html.admin {
 
    ALTURA HEREDADA, no `calc(100vh)`: la página opta a `.duna-sin-split` (alto fijo, gate
    960), así que el chrome le da la altura (`main:has(.duna-sin-split) { height:100dvh }`) y
-   ésta baja con `height:100%` hasta el pane —sin un `calc` contra el viewport, que es lo que
-   la § cadena de altura prohíbe (#42)—. El `.duna-sin-split` es la grid `auto 1fr`: el header
-   es `auto`, este split es `1fr`. */
+   ésta baja con `height:100%` hasta el `.tienda-split` —sin un `calc` contra el viewport, que
+   es lo que la § cadena de altura prohíbe (#42)—. El `.duna-sin-split` es la grid `auto 1fr`:
+   el header es `auto`, este split es `1fr`. El pane NO hereda ese alto: se dimensiona a la
+   ventana escalada (ver abajo); el editor sí lo llena (`align-items:stretch`). */
 .tienda-split {
   height: 100%;
   min-height: 0;
@@ -525,12 +526,14 @@ html.admin {
   gap: var(--duna-space-6);
   align-items: stretch;            /* ambas columnas al alto de la fila `1fr` */
 }
-/* El pane HEREDA la altura (stretch de la fila `1fr` acotada) y scrollea DENTRO; el iframe
-   escalado va superpuesto en el lienzo (position:relative). Nada de sticky ni `calc`. */
+/* MODELO (a): el iframe es un viewport desktop de alto FIJO (1280×800) escalado; el documento
+   scrollea DENTRO del iframe, no en el pane. El pane es el MARCO: su alto lo fija el JS al de la
+   ventana escalada (800·scale) y se ancla ARRIBA (align-self:start) para que su tope alinee con
+   el editor; el resto de la celda `1fr` queda como lienzo del panel. `overflow:hidden` recorta
+   al marco; NADA de scroll en el pane —era el segundo scroller que peleaba con el interno—. */
 .tienda-preview-pane {
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  align-self: start;
+  overflow: hidden;
   border: 1px solid var(--duna-border);
   border-radius: var(--duna-r-l);
   background: var(--duna-bg);

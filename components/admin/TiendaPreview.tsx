@@ -4,10 +4,20 @@ import { useCallback, useRef, useState } from 'react';
 import TiendaHeroSeccion from '@/components/admin/TiendaHeroSeccion';
 import { REGISTRY, type SiteContentData } from '@/lib/config/site-content-defaults';
 
-// Ancho del viewport DESKTOP que el iframe renderiza. 1280 está por encima de `lg`, así que
-// la tienda sale en su layout de escritorio; el `transform: scale` lo reduce al ancho real
-// del pane. El home se ve chico pero fiel.
-const DESKTOP = 1280;
+// El iframe renderiza el viewport DESKTOP a tamaño REAL (1280×800) y el `transform: scale` lo
+// reduce al ancho del pane. El documento interno scrollea DENTRO del marco (modelo a): ver el
+// resto de la home es el MISMO gesto del visitante, sin un segundo scroller sincronizado.
+//
+// ⚠️ EL ALTO ES FIJO (800), NO scrollHeight — y esto NO se debe "arreglar" volviendo a
+// scrollHeight. El hero es `min-h-[92vh]`, así que su alto CRECE con el alto del marco. Si el
+// iframe tomara el alto del documento, el hero se hincharía contra ese alto y desincronizaría
+// los dos scrollers. Medido en el storefront real: a un marco de 5792px el hero mide 5329px
+// (ratio 4.16:1, grotesco); a 800px mide 736px (0.575:1, la proporción real del desktop). Un
+// viewport de alto FIJO es lo único que da la proporción correcta. Volver a scrollHeight
+// reintroduce los dos defectos: hero desproporcionado + dos scrolls que topan en puntos
+// distintos (el spacer basado en un scrollHeight rancio ≠ el contenido ya hinchado).
+const DESKTOP_W = 1280;
+const DESKTOP_H = 800;
 
 // Las secciones editables SALEN del registry —el selector no tiene una lista propia—. Hoy es
 // UNA (Portada/hero); BrandStory/Testimonios/Suscripción entran agregándolas al registry + su
@@ -16,20 +26,15 @@ const SECCIONES = Object.keys(REGISTRY) as (keyof SiteContentData)[];
 
 export default function TiendaPreview() {
   // Ancho REAL del pane, con ResizeObserver (patrón de PagosCurva): callback ref que
-  // engancha/desengancha con cada nodo e IGNORA el aviso de ancho 0 (nodo saliendo). El RO
-  // observa el PANE, que es ESTABLE —no se remonta al intercambiar iframes—, así que no hay
-  // que re-engancharlo por buffer; y si el pane se remontara, el callback ref lo cubre (es el
-  // caso que rompió el hover de PagosCurva por observar un nodo que ya no estaba). El factor
-  // `paneW/1280` se recalcula al colapsar el rail o redimensionar.
+  // engancha/desengancha con cada nodo e IGNORA el aviso de ancho 0 (nodo saliendo). Observa el
+  // PANE —ESTABLE, no se remonta al intercambiar iframes—, así que el factor `paneW/1280` se
+  // recalcula SOLO al colapsar el rail o redimensionar (el pane cambia de ancho → RO dispara).
   const observador = useRef<ResizeObserver | null>(null);
-  const scroller   = useRef<HTMLDivElement | null>(null);
   const [paneW, setPaneW] = useState(0);
-  const [homeH, setHomeH] = useState(2400); // alto del home en coords desktop; se mide al cargar
 
   const paneRef = useCallback((nodo: HTMLDivElement | null) => {
     observador.current?.disconnect();
     observador.current = null;
-    scroller.current = nodo;
     if (!nodo) return;
     const ro = new ResizeObserver(entradas => {
       for (const e of entradas) {
@@ -41,50 +46,54 @@ export default function TiendaPreview() {
     observador.current = ro;
   }, []);
 
-  const scale = paneW > 0 ? paneW / DESKTOP : 0;
+  const scale = paneW > 0 ? paneW / DESKTOP_W : 0;
 
   // DOBLE-BUFFER: normalmente UN iframe. Al guardar se agrega un SEGUNDO (oculto, cargando);
-  // cuando termina, se vuelve el activo y el viejo se DESTRUYE —dos renders de la home vivos a
-  // la vez es el doble del peso, así que el segundo existe SÓLO durante el intercambio—. El
-  // viejo se ve hasta que el nuevo está listo → cero parpadeo.
+  // cuando termina, hereda el scroll INTERNO del anterior y se vuelve el activo; el viejo se
+  // DESTRUYE —dos renders de la home vivos a la vez es el doble del peso, así que el segundo
+  // existe SÓLO durante el intercambio—. El viejo se ve hasta que el nuevo está listo → cero
+  // parpadeo.
   const [frames, setFrames]     = useState<number[]>([0]); // ids; el ÚLTIMO es el objetivo
   const [activoId, setActivoId] = useState(0);             // el que se muestra
   const nextId    = useRef(1);
   const pendiente = useRef<{ id: number; scroll: number } | null>(null);
   const iframes   = useRef<Map<number, HTMLIFrameElement>>(new Map());
 
-  const alturaDe = (el: HTMLIFrameElement | undefined): number => {
+  // El scroll vive DENTRO del iframe (mismo origen). `scrollActual` lo lee para guardarlo antes
+  // de recargar; `maxScroll` es el rango del documento NUEVO (scrollHeight − alto del marco fijo)
+  // para clampear el restaurado —el contenido pudo ACORTARSE entre recargas y el scroll viejo
+  // caer fuera—. El alto del marco NO sale de acá: es fijo (ver arriba).
+  const scrollActual = (el: HTMLIFrameElement | undefined): number => {
+    try { return el?.contentWindow?.scrollY ?? 0; } catch { return 0; }
+  };
+  const maxScroll = (el: HTMLIFrameElement | undefined): number => {
     try {
-      const h = el?.contentWindow?.document?.documentElement?.scrollHeight;
-      if (h && h > 0) return h;
-    } catch { /* mismo origen: no debería lanzar */ }
-    return homeH;
+      const h = el?.contentWindow?.document?.documentElement?.scrollHeight ?? 0;
+      return Math.max(0, h - DESKTOP_H);
+    } catch { return 0; }
   };
 
   const alCargar = (id: number) => {
-    const h = alturaDe(iframes.current.get(id));
-    setHomeH(h);
     const p = pendiente.current;
     if (p && p.id === id) {
-      // Promoción: el nuevo se muestra y el viejo se desmonta (segundo iframe transitorio).
+      // El nuevo hereda el scroll interno ANTES de mostrarse (está hidden), clampeado al rango
+      // NUEVO. `behavior:'instant'` es OBLIGATORIO: el storefront tiene `scroll-behavior:smooth`,
+      // así que sin esto el scrollTo ANIMA de 0 a la posición guardada y se ve el salto al
+      // promover. Instant lo aplica de golpe, aún oculto. Recién entonces se promueve y el viejo
+      // se desmonta (segundo iframe transitorio).
+      const el = iframes.current.get(id);
+      try {
+        el?.contentWindow?.scrollTo({ top: Math.min(p.scroll, maxScroll(el)), behavior: 'instant' });
+      } catch { /* mismo origen */ }
       pendiente.current = null;
       setActivoId(id);
       setFrames([id]);
-      // Reaplica el SCROLL al nuevo (activo), clampeado al alto NUEVO. El clamp usa `h*scale`
-      // —el alto del spacer tras esta carga— y no `scrollHeight` (que aún no re-renderizó): el
-      // contenido pudo ACORTARSE y el scrollTop viejo caer fuera. rAF para leer tras el paint.
-      requestAnimationFrame(() => {
-        const pane = scroller.current;
-        if (!pane) return;
-        const max = Math.max(0, h * scale - pane.clientHeight);
-        pane.scrollTop = Math.min(p.scroll, max);
-      });
     }
   };
 
   const recargar = () => {
     const nuevo = nextId.current++;
-    pendiente.current = { id: nuevo, scroll: scroller.current?.scrollTop ?? 0 };
+    pendiente.current = { id: nuevo, scroll: scrollActual(iframes.current.get(activoId)) };
     setFrames(fs => [...fs, nuevo]); // segundo iframe (oculto) carga en paralelo
   };
 
@@ -97,12 +106,18 @@ export default function TiendaPreview() {
 
   return (
     <div className={`tienda-split${colapsado ? ' tienda-split--sin-preview' : ''}`}>
-      {/* Vista previa (izq) — desktop escalado; se OCULTA bajo el breakpoint (§ duna.css). */}
-      <div ref={paneRef} className="tienda-preview-pane">
+      {/* Vista previa (izq) — el MARCO tiene el tamaño real de la ventana desktop escalada
+          (paneW × 800·scale) y se ancla arriba (align-self:start, § duna.css); el documento
+          scrollea DENTRO. Se OCULTA bajo el breakpoint. */}
+      <div
+        ref={paneRef}
+        className="tienda-preview-pane"
+        style={scale > 0 ? { height: DESKTOP_H * scale } : undefined}
+      >
         {scale > 0 && (
-          // El SPACER lleva el alto ESCALADO (transform no cambia el layout), así el pane
-          // scrollea la altura correcta; los iframes van escalados y superpuestos (top:0).
-          <div className="tienda-preview-lienzo" style={{ height: homeH * scale, width: DESKTOP * scale }}>
+          // Lienzo del tamaño de la ventana escalada; los iframes (viewport 1280×800) van
+          // escalados y superpuestos (top:0). Sin spacer de scrollHeight: el pane no scrollea.
+          <div className="tienda-preview-lienzo" style={{ height: DESKTOP_H * scale, width: DESKTOP_W * scale }}>
             {frames.map(id => (
               <iframe
                 key={id}
@@ -111,8 +126,8 @@ export default function TiendaPreview() {
                 title="Vista previa de la tienda"
                 onLoad={() => alCargar(id)}
                 style={{
-                  width: DESKTOP,
-                  height: homeH,
+                  width: DESKTOP_W,
+                  height: DESKTOP_H,
                   border: 0,
                   display: 'block',
                   position: 'absolute',
