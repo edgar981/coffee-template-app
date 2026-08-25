@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, ShoppingCart, Package, Users, Warehouse,
-  CreditCard, BarChart3, Zap,
+  CreditCard, BarChart3, Zap, Store,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { IconAnim } from '@/components/admin/AnimatedIcon';
@@ -49,4 +49,11 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { icon: CreditCard,      label: 'Pagos',            path: '/admin/pagos',            anim: 'lift', seccion: 'Operación' },
   { icon: BarChart3,       label: 'Analítica',        path: '/admin/analitica',        anim: 'lift', seccion: 'Crecimiento' },
   { icon: Zap,             label: 'Automatizaciones', path: '/admin/automatizaciones', anim: 'lift', seccion: 'Crecimiento' },
+  // "Tienda" — el CONTENIDO del storefront (la home). SUELTO, sin `seccion`: un grupo de un
+  // ítem es un encabezado que no agrupa (regla del owner). Semilla de un grupo "Tienda"
+  // futuro cuando exista una 2ª pantalla de storefront-admin (las páginas legales son el
+  // candidato — § legalNav vacío). RESERVA para el gate: un ítem suelto DESPUÉS de dos grupos
+  // etiquetados puede leerse como sobrante ("Hoy" funciona porque va primero); si no cuadra,
+  // la salida es el grupo de un ítem.
+  { icon: Store,           label: 'Tienda',           path: '/admin/tienda',           anim: 'lift' },
 ];

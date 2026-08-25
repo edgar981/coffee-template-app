@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { storage, DEFAULT_PREFIX } from '@/lib/storage';
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS, PREFIJOS_UPLOAD } from '@/constants/upload';
 
 // Upload de imágenes del admin. NO importa el SDK del proveedor: todo pasa por
 // `lib/storage.ts` (ver la nota del adaptador sobre por qué esa frontera existe).
@@ -45,8 +45,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // El prefijo lo elige el cliente pero contra una WHITELIST: 'productos' (default) o
+  // 'contenido'. Un valor fuera de la lista cae al default — nunca escribe en una ruta
+  // arbitraria del store.
+  const prefixRaw = form.get('prefix');
+  const prefix = (PREFIJOS_UPLOAD as readonly string[]).includes(prefixRaw as string)
+    ? (prefixRaw as string)
+    : DEFAULT_PREFIX;
+
   try {
-    const { url } = await storage.put(file, { prefix: DEFAULT_PREFIX });
+    const { url } = await storage.put(file, { prefix });
     return NextResponse.json({ url }, { status: 201 });
   } catch (e) {
     console.error('[upload] falló la subida', e);

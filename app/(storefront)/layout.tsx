@@ -8,6 +8,8 @@ import { CartProvider } from "@/lib/cartStore";
 import { StorefrontThemeProvider } from "@/components/theme/StorefrontThemeProvider";
 import { SiteSettingsProvider } from "@/components/storefront/SiteSettingsProvider";
 import { getSiteSettings } from "@/lib/config/site-settings";
+import { SiteContentProvider } from "@/components/storefront/SiteContentProvider";
+import { getSiteContent } from "@/lib/config/site-content";
 
 // ─── La identidad del STOREFRONT, declarada acá ──────────────────────────────
 //
@@ -39,21 +41,23 @@ interface StorefrontLayoutProps {
 export default async function StorefrontLayout({
   children,
 }: StorefrontLayoutProps) {
-  // Config del negocio, leída UNA vez en el layout server (React.cache dedupe por
-  // request) e inyectada al provider cliente; StoreFooter/checkout/suscripciones la leen
-  // sin fetch propio. Provider PROPIO del storefront (el admin tiene el suyo).
-  const settings = await getSiteSettings();
+  // Identidad del negocio (settings) y CONTENIDO de la home (content), leídos UNA vez en el
+  // layout server (React.cache dedupe por request) e inyectados a sus providers. Son
+  // INDEPENDIENTES entre sí, así que van en un Promise.all — no en cadena.
+  const [settings, content] = await Promise.all([getSiteSettings(), getSiteContent()]);
   return (
     <StorefrontThemeProvider>
       <SiteSettingsProvider value={settings}>
-        <CartProvider>
-          <div className="min-h-screen bg-[#faf7f4] font-inter">
-            <StoreNav />
-            <main>{children}</main>
-            <StoreFooter />
-            <CartDrawer />
-          </div>
-        </CartProvider>
+        <SiteContentProvider value={content}>
+          <CartProvider>
+            <div className="min-h-screen bg-[#faf7f4] font-inter">
+              <StoreNav />
+              <main>{children}</main>
+              <StoreFooter />
+              <CartDrawer />
+            </div>
+          </CartProvider>
+        </SiteContentProvider>
       </SiteSettingsProvider>
     </StorefrontThemeProvider>
   );
