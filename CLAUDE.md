@@ -1386,6 +1386,62 @@ gana la pantalla.
 el chequeo de la última fila en Inventario/Pagos). Cierra cuando el gate confirme que la banda
 se fue y nada quedó a ras.
 
+### 47. La galería variable (N fotos) es un REPEATER — se construye UNA vez para BrandStory Y Testimonios
+
+Hoy la galería de BrandStory son CUATRO imágenes FIJAS (`imagen1..4`), con el collage 2×2 y sus
+offsets escalonados **hardcodeados por posición** (`imagen1` sin offset, `imagen2` `mt-8`, `imagen3`
+`-mt-4`, `imagen4` `mt-4`). El disparador anotado —"un cliente con menos o más de cuatro fotos"—
+pide que sea un repeater (N fotos).
+
+**El modelo es casi gratis; el LAYOUT es el trabajo.** El REGISTRY ya tiene el concepto
+`repeater:{itemsKey}`, `imagenesDe` YA es repeater-aware (itera los items y junta el campo-imagen de
+cada uno → el borrado de blobs ya cubre repeaters), y `seccionEsVisible` ya hace hide-on-empty. Lo
+que falta del modelo: **el resolver no resuelve arrays de repeater** (`resolverSiteContent` itera
+`def.campos` planos). Lo caro es el LAYOUT: el collage 2×2 con offsets por posición **depende de que
+sean exactamente 4** — refluir con gracia a 2, 5 o 7 es rediseño de layout (una grilla/masonry pierde
+el escalonado artesanal, o se diseñan arreglos por rango de N). Y el editor cambia de 4 uploaders
+fijos a un repeater UI (agregar/quitar/–reordenar–).
+
+**SE CONSTRUYE UNA VEZ, SIRVIENDO A LOS DOS** (decisión del owner). Es el MISMO patrón de repeater que
+Testimonios (§ SiteContent, backlog #44). Lo COMPARTIDO: **modelo + resolver de repeater** (resolver
+arrays de items por campo) y un **`RepeaterEditor`** genérico (ítems como sub-forms con
+agregar/quitar/reordenar, cada ítem con su config de campos — galería: 1 imagen por ítem; testimonios:
+nombre + cita + avatar + rating). Lo que NO se comparte: el **render del storefront** (el collage vs
+las tarjetas de testimonio son componentes distintos; el layout es por-sección). Se construye **cuando
+se toque el primero de los dos**, diseñado para ambos desde el día uno — front-loadear la primitiva es
+barato comparado con construirla dos veces.
+
+**Costo YA pagado: ninguno.** Hoy Nayoli tiene sus cuatro fotos y el collage fijo se ve bien.
+
+**DISPARADOR: el primero de los dos que se toque** —un cliente con ≠4 fotos, o la tanda de
+Testimonios—. Ahí se construye el repeater compartido (modelo + resolver + `RepeaterEditor`) y el
+render por sección.
+
+### 48. VÍDEO en una sección es CAPACIDAD nueva, no un campo más — declarado, sin plan
+
+El modelo guarda URLs de IMAGEN, el upload valida JPG/PNG/WebP, y `next/image` no reproduce vídeo.
+Meter un vídeo en una sección (un fondo de hero, una toma en la galería) **no es un campo más**;
+arrastra:
+
+- **Formato**: un allowlist SEPARADO (mp4/webm), NO ampliar el de imágenes —mismo precedente que
+  comprobantes-con-PDF (§ Comprobantes): un vídeo en un `<img>`/`next/image` no falla ruidoso, se
+  queda en blanco—. Dos listas, no una ampliada.
+- **Subida directa a Blob (arrastra el #20)**: un vídeo excede el tope de 4 MB y el **límite de 4.5 MB
+  del body serverless de Vercel** —`/api/upload` no sirve—. Necesita subida DIRECTA a Blob (el cliente
+  sube con token, salteando el serverless). Es infra, no un campo. El #20 (subida sin comprimir) se
+  vuelve agudo.
+- **Poster**: un vídeo necesita su imagen POSTER (el frame antes de cargar/reproducir) → un "slot de
+  vídeo" es en realidad `{ url de vídeo, url de poster }`, DOS subidas.
+- **Rama de render**: un `<video>` (no `next/image`); el componente del storefront ramifica —campo
+  imagen → `next/image`, campo vídeo → `<video>` (controls, o autoplay-muted-loop para un fondo)—.
+- **Optimización/streaming**: Blob sirve el archivo crudo, sin transcodificar ni HLS. Para un loop de
+  fondo corto y comprimido alcanza; para vídeo largo, querría un host de vídeo.
+
+**Costo YA pagado: ninguno.** Queda DECLARADO, sin plan.
+
+**DISPARADOR: un cliente pidiéndolo.** Ahí se decide contra la subida directa a Blob (#20), la lista de
+formatos aparte, el poster y la rama de render.
+
 ## Config del negocio — `SiteSetting` (los planos editables)
 
 Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código
@@ -1665,17 +1721,34 @@ flujo FINAL, tras evaluar y retirar un iframe intermedio (ver "por qué se retir
     el viewport REAL del admin (~800px fijo) → **proporcional POR CONSTRUCCIÓN**. Un RO extra sobre
     el CONTENIDO da su alto para dimensionar el pane.
 
-- **READ↔EDIT + STICKY.** La vista en vivo es la LECTURA a ancho completo; **"Editar"** abre el
-  form junto a ella (split vista | form); **"Listo"** cierra (flush del pendiente). read↔edit
-  VOLVIÓ —se había retirado con el iframe porque el iframe era la lectura y no había read-view
-  propio; la vista en vivo ES la lectura—. **La vista queda STICKY** mientras el form scrollea (la
-  columna de campos es más larga que la vista): al bajar por los campos el hero sigue arriba y
-  cambia con cada tecla. Sticky contra la VENTANA (la página es document-scroll, no `.duna-sin-split`
-  → el scroll es el documento; la cadena de alto fijo #42 no aplica, y se verificó que ningún
-  ancestro tiene overflow que rompa el sticky). CAP al viewport (`max-height` + `overflow-y:auto`
-  en el pane) por si el hero escalado excede la ventana en pantallas cortas (sticky con contenido
-  más alto que la ventana no se queda quieto); en el caso normal (media pantalla, hero ~300px) no
-  se activa. Enlace **"Ver la tienda"** (`/`, pestaña nueva) para la home completa.
+- **LECTURA = TARJETA; EDICIÓN = VISTA GRANDE.** En lectura cada sección es una TARJETA compacta
+  —miniatura de la vista + título + badge de estado + "Editar"—; al entrar en edición esa sección
+  crece en su lugar a la vista grande + form (split vista | form), y las otras se quedan como
+  tarjetas. Resuelve dos síntomas de una: en lectura (cuando MENOS se necesita) cada sección ya no
+  ocupa toda la pantalla, y —la clave— **el scroll interno DESAPARECE en lectura**. El scroller que
+  atrapaba la página vivía en el pane grande (`overflow-y:auto` + `max-height`); la tarjeta es alto
+  fijo + `overflow:hidden`, sin scroller propio. Los editores son INDEPENDIENTES (cada sección con
+  su `editando`): forzar una sola abierta sería estado elevado para prevenir algo que nadie hace por
+  accidente. Edición independiente: **"Editar"** abre, **"Listo"** cierra (flush del pendiente).
+- **LA MINIATURA es la MISMA vista, sólo encuadrada distinto** (no una segunda representación que
+  pueda divergir — la razón por la que se retiró el iframe). `VistaTiendaEnVivo` gana un modo
+  `compacto`: **scale-to-FIT de la sección ENTERA** en una caja 16:9, centrada (letterbox mínimo —
+  hero y BrandStory son ~16:9). NO es una franja superior: como las secciones CENTRAN su contenido
+  (`items-center` + `py`), una franja lideraría con el padding; el fit muestra la composición real
+  (el hero: imagen + título; BrandStory: bloque de texto + collage). La vista es INERTE
+  (`pointer-events:none`) para que el clic abra Editar, no navegue por sus links. La sección OCULTA
+  no renderiza miniatura (se auto-oculta → vacío): muestra el aviso muted "No se muestra en la
+  tienda". El costo (montar el componente real por tarjeta) es el MISMO que la lectura ya pagaba.
+- **STICKY sólo en EDICIÓN.** La vista grande queda STICKY mientras el form scrollea (la columna de
+  campos es más larga): al bajar por los campos el hero sigue arriba y cambia con cada tecla. El
+  elemento `.tienda-vivo__vista` (sticky) **sólo se renderiza en la rama de edición**, así que al
+  dar "Listo" se DESMONTA y no queda ningún elemento pinneado sin razón. Sticky contra la VENTANA
+  (la página es document-scroll, no `.duna-sin-split` → el scroll es el documento; la cadena de alto
+  fijo #42 no aplica, y ningún ancestro tiene overflow que rompa el sticky). CAP al viewport
+  (`max-height` + `overflow-y:auto` en el pane grande) por si el hero escalado excede la ventana en
+  pantallas cortas; en el caso normal no se activa. Enlace **"Ver la tienda"** (`/`, pestaña nueva)
+  para la home completa. **El hero NO cambia de comportamiento al editar** (autoguardado, sticky,
+  publicar, descartar, indicador, imagen única, campos): sólo su LECTURA pasó a tarjeta, como todas.
 
 - **POR QUÉ SE RETIRÓ EL IFRAME.** Un iframe SIEMPRE tiene guardar → recargar → renderizar: el
   dueño teclea, espera el guardado, espera la recarga, y recién ve el cambio. Medido: el render de
