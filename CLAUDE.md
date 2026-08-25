@@ -688,36 +688,6 @@ Reglas de la lista, para que siga sirviendo:
 - **Un item que se completa se BORRA de acá** y su decisión, si tiene, se
   documenta en la sección que le corresponda. Esto no es un historial.
 
-### 43. Cinco automatizaciones internas están APAGADAS en producción, no por decisión
-
-Medido por el owner en producción: de las 9 filas de `AutomationSetting`, sólo
-`contraentrega_sin_cobrar` está en `activo=true`. Las otras CINCO internas —`stock_bajo`,
-el aviso interno de pedido nuevo en tienda (`orden_recibida`), `entrega_fallida`,
-`envio_estancado`, `entrega_sin_cobro`— están en `false`, y **NO porque alguien las
-apagara**: la migración `20260727120000` (2026-07-27) copió el estado `activa` de la tabla
-vieja `Automation` a las filas nuevas (`INSERT … SELECT tipo, activa`), y la doctrina de
-"las internas nacen encendidas" (`defaultActivo: true`, 2026-08-04) es POSTERIOR — nunca
-reconcilió las filas ya existentes. Una fila existente siempre gana sobre el `defaultActivo`
-(§ PRECONDICIÓN, por diseño), así que ese default es INERTE para toda automatización que
-haya tenido fila en la tabla vieja.
-
-**NO es defecto de código.** `saveAutomationSetting` honra el `defaultActivo` al crear una
-fila nueva (`patch.activo ?? def.defaultActivo`); el estado heredado de las filas viejas es
-el problema. El arreglo es una operación de **DATOS en producción** —encenderlas desde el
-panel, una por una, tras decidir cuáles corresponden—, **NO una migración**: un `UPDATE` en
-migración volvería a pisar el estado que el owner pueda haber elegido, que es exactamente lo
-que esta entrada critica.
-
-**Costo YA pagado:** el diagnóstico de una sesión (rastrear migración → copia de la tabla
-vieja → desfase con la doctrina). El costo que VIENE es el grave: si Nayoli lanza así, **no
-hay aviso de stock bajo, ni de pedido nuevo, ni de entrega fallida** — tres de las señales
-que la campana existe para dar. Es visible en la pantalla de Automatizaciones (se ven
-apagadas), pero el operador que confía en "nacen encendidas" cree lo contrario.
-
-**DISPARADOR: ANTES del go-live de Nayoli.** Es el único item de esta lista atado a esa
-fecha, y por eso va primero. Al encenderlas aplica § Bases de datos: verificar el ROL en la
-consola de Neon antes de tocar producción.
-
 ### 44. Los tres testimonios de la home son reseñas FABRICADAS, en producción
 
 `components/storefront/home/TestimonialSection.tsx` trae TRES testimonios hardcoded
@@ -5455,6 +5425,21 @@ de la página) siempre manda. Al aplicar la regla el 2026-08-04 se encendieron l
 tres internas que estaban en `false` (`stock_bajo`, `contraentrega_sin_cobrar`,
 `envio_estancado`) — `stock_bajo` estaba completa desde `b94e17e` y esa era la
 única razón de que la campana no mostrara nada.
+
+**DECISIÓN (owner, 2026-08-25) — las cinco internas que en PRODUCCIÓN quedaron apagadas se
+dejan apagadas: por decisión, ya no por herencia.** Medido por el owner en producción: de las
+9 filas de `AutomationSetting` sólo `contraentrega_sin_cobrar` está `activo=true`; siguen en
+`false` `stock_bajo`, `orden_recibida`, `entrega_fallida`, `envio_estancado` y
+`entrega_sin_cobro`. NO es defecto de código y no las apagó nadie: la migración
+`20260727120000` copió el estado `activa` de la tabla vieja `Automation`, y como una fila
+existente gana sobre el `defaultActivo` (§ PRECONDICIÓN, por diseño), la doctrina "nacen
+encendidas" quedó INERTE para las filas heredadas —por eso el toggle del 2026-08-04 de arriba
+no alcanzó las de producción—. Se evaluó encenderlas y se decidió que **NO, por ahora**. Si
+vuelve a proponerse, que sea con SU PROPIA razón —probablemente el go-live de Nayoli, cuando el
+operador quiera vigilancia real—, y entonces es una operación de **DATOS desde el panel** (una
+por una), **NUNCA un `UPDATE` en migración** (pisaría la elección del owner); aplica § Bases de
+datos (verificar el ROL en la consola de Neon antes de tocar producción). Cerró el ex-Backlog
+#43.
 
 ### Campana del operador — notificaciones internas
 
