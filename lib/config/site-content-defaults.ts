@@ -61,12 +61,16 @@ export interface SeccionDef {
   ocultable: boolean;
   repeater?: { itemsKey: string };
   campos: Record<string, CampoTipo>;
+  /** Nombres de los campos que son IMÁGENES (blobs). Los lee el borrado de blobs reemplazados
+   *  (`imagenesDe`), NO el resolver. Para un repeater la imagen vive en cada item. */
+  imagenes?: string[];
 }
 
 export const REGISTRY: Record<keyof SiteContentData, SeccionDef> = {
   hero: {
     label: 'Portada',
     ocultable: false,
+    imagenes: ['imagen'],
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',
