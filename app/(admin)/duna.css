@@ -522,13 +522,30 @@ html.admin {
 @media (max-width: 1079.98px) {
   .tienda-vivo--editando { grid-template-columns: 1fr; } /* angosto: apila vista y form */
 }
-.tienda-vivo__vista, .tienda-vivo__form { min-width: 0; }
+.tienda-vivo__form { min-width: 0; }
+
+/* La VISTA queda FIJA mientras el form scrollea: al bajar por los campos el hero sigue arriba y
+   cambia con cada tecla. Sticky contra la VENTANA (la tienda es document-scroll, no `.duna-sin-split`,
+   así que el scroll es el documento y el sticky se ancla al viewport — la cadena de alto fijo #42
+   no aplica acá). `top` = bajo la topbar fija; `align-self:start` para que la columna no se estire
+   al alto del form y tenga margen para pinnearse. */
+.tienda-vivo__vista {
+  min-width: 0;
+  position: sticky;
+  top: calc(var(--duna-topbar-h) + var(--duna-space-4));
+  align-self: start;
+}
 
 /* El PANE de la vista: marco que toma el alto del contenido escalado (fijado por JS). El
-   contenido (1280 de ancho, escalado) va absoluto adentro; `overflow:hidden` recorta al marco. */
+   contenido (1280 de ancho, escalado) va absoluto adentro. CAP al viewport: si el hero escalado
+   fuera más alto que la ventana (pantalla corta), el pane scrollea INTERNAMENTE y la columna
+   sticky nunca supera el viewport —así no se despega—; en el caso normal (media pantalla, hero
+   ~300px) nunca se activa. `overflow-x:hidden` recorta el bleed del ancho escalado. */
 .tienda-vivo-pane {
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: calc(100dvh - var(--duna-topbar-h) - var(--duna-space-6));
   border: 1px solid var(--duna-border);
   border-radius: var(--duna-r-l);
   background: var(--duna-bg);

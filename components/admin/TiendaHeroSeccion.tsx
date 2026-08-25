@@ -175,7 +175,7 @@ export default function TiendaHeroSeccion() {
             {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
           </div>
           <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
-            Así se ve en la tienda. Editá y los cambios se guardan solos; publicá cuando estén listos.{' '}
+            Así se ve en la tienda. Edita y los cambios se guardan solos; publica cuando estén listos.{' '}
             <a href="/" target="_blank" rel="noreferrer" className="duna-link">Ver la tienda</a>
           </p>
           {mostrarEstado && (
