@@ -6,30 +6,32 @@ import { Pencil, Upload } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import VistaTiendaEnVivo from '@/components/admin/VistaTiendaEnVivo';
+import type { SeccionConfig } from '@/components/admin/tienda-secciones';
 import { uploadImagen } from '@/lib/api/upload';
-import { DEFAULTS, type HeroContent } from '@/lib/config/site-content-defaults';
+import { DEFAULTS } from '@/lib/config/site-content-defaults';
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS, ACCEPT_IMAGENES } from '@/constants/upload';
 
-// Editor del HERO con VISTA PREVIA EN VIVO + read↔edit. La vista en vivo (componentes reales del
-// storefront alimentados por el form) es la LECTURA; "Editar" abre el formulario junto a ella;
-// "Listo" cierra. El form AUTOGUARDA mientras se edita (§ lib/autoguardado); la vista cambia en el
-// mismo render. Sin gesto de guardar; Publicar y Descartar son las acciones del borrador.
+// LA CÁSCARA del editor de una sección de la tienda, GENÉRICA. Todo lo que NO es específico de la
+// sección vive acá —VISTA PREVIA EN VIVO + read↔edit + autoguardado + publicar/descartar + el
+// indicador + beforeunload-en-error—; lo específico (campos, imágenes, toggle, identidad) llega por
+// `config` (§ tienda-secciones). Segundo consumidor de este patrón: no se duplica la lógica de
+// autoguardado ni la de publicación —un bug arreglado en un sitio y no en el otro sería el peor
+// modo de falla—.
+//
+// La vista en vivo (componentes reales del storefront alimentados por el form) es la LECTURA;
+// "Editar" abre el formulario junto a ella; "Listo" cierra. El form AUTOGUARDA mientras se edita
+// (§ lib/autoguardado); la vista cambia en el mismo render. Sin gesto de guardar; Publicar y
+// Descartar son las acciones del borrador.
 
-type Campo = { name: keyof HeroContent; label: string; opcional?: boolean; textarea?: boolean; hint: string };
+type Datos = Record<string, string | boolean>;
 
-const CAMPOS: Campo[] = [
-  { name: 'eyebrow',            label: 'Línea superior',   opcional: true, hint: 'La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },
-  { name: 'titulo',             label: 'Titular',          hint: 'Vacío: se usa el texto por defecto.' },
-  { name: 'tituloEnfasis',      label: 'Énfasis del titular', opcional: true, hint: 'La palabra en cursiva, en su propia línea bajo el titular. Vacío: no se muestra.' },
-  { name: 'subtitulo',          label: 'Subtítulo', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
-  { name: 'ctaPrimarioLabel',   label: 'Botón principal',  hint: 'Su destino es /tienda (fijo). Vacío: se usa el texto por defecto.' },
-  { name: 'ctaSecundarioLabel', label: 'Botón secundario', opcional: true, hint: 'Su destino es /suscripciones (fijo). Vacío: no se muestra.' },
-];
+export default function TiendaSeccionEditor({ config }: { config: SeccionConfig }) {
+  const { seccion } = config;
+  const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
 
-export default function TiendaHeroSeccion() {
   const [cargando, setCargando]       = useState(true);
   const [errorCarga, setErrorCarga]   = useState<string | null>(null);
-  const [form, setForm]               = useState<HeroContent | null>(null);
+  const [form, setForm]               = useState<Datos | null>(null);
   const [hayBorrador, setHayBorrador] = useState(false);
   const [editando, setEditando]       = useState(false);
   const [fase, setFase]               = useState<null | 'subiendo'>(null);
@@ -37,31 +39,32 @@ export default function TiendaHeroSeccion() {
   const [procesando, setProcesando]   = useState(false);
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const campoImagenRef = useRef<string | null>(null); // qué campo-imagen se está reemplazando
 
-  const formRef = useRef<HeroContent | null>(null); formRef.current = form;
+  const formRef = useRef<Datos | null>(null); formRef.current = form;
   const faseRef = useRef(fase); faseRef.current = fase;
 
-  const guardarHero = useCallback(async (data: HeroContent) => {
+  const guardarSeccion = useCallback(async (data: Datos) => {
     const res = await fetch('/api/site-content', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hero: data }),
+      body: JSON.stringify({ [seccion]: data }),
     });
     if (!res.ok) throw new Error('No se pudo guardar');
-  }, []);
-  const auto = useAutoguardado(guardarHero);
+  }, [seccion]);
+  const auto = useAutoguardado(guardarSeccion);
 
   const cargar = useCallback(async (inicial = false) => {
     try {
       const r = await fetch('/api/site-content');
       if (!r.ok) throw new Error();
       const d = await r.json();
-      setForm(d.contenido.hero);
-      setHayBorrador(!!d.sinPublicar?.hero);
+      setForm(d.contenido[seccion]);
+      setHayBorrador(!!d.sinPublicar?.[seccion]);
       if (inicial) setCargando(false);
     } catch {
       if (inicial) { setErrorCarga('No se pudo cargar el contenido.'); setCargando(false); }
     }
-  }, []);
+  }, [seccion]);
   useEffect(() => { cargar(true); }, [cargar]);
 
   // beforeunload SÓLO en 'error' (§ decisión): pendiente/guardando es común y recuperable.
@@ -72,19 +75,25 @@ export default function TiendaHeroSeccion() {
     return () => window.removeEventListener('beforeunload', h);
   }, [auto.estado]);
 
-  const set = (name: keyof HeroContent) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      const nf = { ...(formRef.current as HeroContent), [name]: e.target.value };
-      setForm(nf);
-      setHayBorrador(true);
-      // Bloqueo durante la subida: el texto queda en el form y se guarda al terminar (vía formRef).
-      if (faseRef.current !== 'subiendo') auto.marcarSucio(nf);
-    };
+  // Un cambio de campo/toggle: pisa el form, marca borrador y ensucia el autoguardado —salvo durante
+  // una subida, donde el valor queda en formRef y se guarda al terminar (no se pierde).
+  const cambiar = (parcial: Datos) => {
+    const nf = { ...(formRef.current as Datos), ...parcial };
+    setForm(nf);
+    setHayBorrador(true);
+    if (faseRef.current !== 'subiendo') auto.marcarSucio(nf);
+  };
+
+  const set = (name: string) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => cambiar({ [name]: e.target.value });
+
+  const pedirArchivo = (campo: string) => { campoImagenRef.current = campo; fileRef.current?.click(); };
 
   const elegirArchivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (!file) return;
+    const campo = campoImagenRef.current;
+    if (!file || !campo) return;
     if (!(TIPOS_PERMITIDOS as readonly string[]).includes(file.type)) {
       setErrorServidor('Formato no admitido. Usa JPG, PNG o WebP.'); return;
     }
@@ -95,7 +104,7 @@ export default function TiendaHeroSeccion() {
     setFase('subiendo');
     try {
       const { url } = await uploadImagen(file, 'contenido');
-      const nf = { ...(formRef.current as HeroContent), imagen: url };
+      const nf = { ...(formRef.current as Datos), [campo]: url };
       setForm(nf); setHayBorrador(true);
       auto.marcarSucio(nf); auto.flush();
     } catch (err) {
@@ -105,37 +114,33 @@ export default function TiendaHeroSeccion() {
     }
   };
 
-  const usarPorDefecto = () => {
-    const nf = { ...(formRef.current as HeroContent), imagen: DEFAULTS.hero.imagen };
+  const usarPorDefecto = (campo: string) => {
+    const nf = { ...(formRef.current as Datos), [campo]: defaults[campo] };
     setForm(nf); setHayBorrador(true);
     auto.marcarSucio(nf); auto.flush();
   };
 
   const cerrarEdicion = () => { auto.flush(); setEditando(false); };
 
-  const publicar = async () => {
+  const accionBorrador = async (accion: 'publicar' | 'descartar') => {
     setErrorServidor(null); setProcesando(true);
     try {
       const res = await fetch('/api/site-content', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accion: 'publicar', seccion: 'hero' }),
+        body: JSON.stringify({ accion, seccion }),
       });
-      if (!res.ok) { const d = await res.json().catch(() => null); setErrorServidor(d?.error ?? 'No se pudo publicar.'); return; }
-      setHayBorrador(false);
-      toast.success('Publicado — ya está en vivo.');
-    } finally { setProcesando(false); }
-  };
-
-  const descartarBorrador = async () => {
-    setErrorServidor(null); setProcesando(true);
-    try {
-      const res = await fetch('/api/site-content', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accion: 'descartar', seccion: 'hero' }),
-      });
-      if (!res.ok) { const d = await res.json().catch(() => null); setErrorServidor(d?.error ?? 'No se pudo descartar.'); return; }
-      await cargar(); // el form vuelve a lo publicado → la vista en vivo también
-      toast.success('Cambios descartados — volviste a lo publicado.');
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        setErrorServidor(d?.error ?? (accion === 'publicar' ? 'No se pudo publicar.' : 'No se pudo descartar.'));
+        return;
+      }
+      if (accion === 'publicar') {
+        setHayBorrador(false);
+        toast.success('Publicado — ya está en vivo.');
+      } else {
+        await cargar(); // el form vuelve a lo publicado → la vista en vivo también
+        toast.success('Cambios descartados — volviste a lo publicado.');
+      }
     } finally { setProcesando(false); }
   };
 
@@ -157,22 +162,24 @@ export default function TiendaHeroSeccion() {
     );
   }
 
+  const subiendo = fase === 'subiendo';
   const puedePublicar = auto.estado === 'guardado' && !procesando;
   const enError = auto.estado === 'error';
-  const mostrarEstado = editando || fase === 'subiendo' || auto.estado !== 'guardado';
-  const estadoTexto = fase === 'subiendo' ? 'Subiendo imagen…'
+  const oculta = config.ocultable && form.visible === false;
+  const mostrarEstado = editando || subiendo || auto.estado !== 'guardado';
+  const estadoTexto = subiendo ? 'Subiendo imagen…'
     : auto.estado === 'guardando' ? 'Guardando…'
     : auto.estado === 'error' ? 'No se pudo guardar'
     : 'Guardado';
-  const imagenPreview = form.imagen;
 
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)', flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
-            <h2 className="duna-title">Hero de la home</h2>
+            <h2 className="duna-title">{config.titulo}</h2>
             {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
+            {oculta && <span className="duna-badge duna-badge--neutral">Oculta</span>}
           </div>
           <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
             Así se ve en la tienda. Edita y los cambios se guardan solos; publica cuando estén listos.{' '}
@@ -203,7 +210,7 @@ export default function TiendaHeroSeccion() {
             </button>
           )}
           {hayBorrador && (
-            <button type="button" onClick={publicar} className="duna-btn duna-btn--primary" disabled={!puedePublicar}>
+            <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar}>
               {procesando ? 'Publicando…' : 'Publicar'}
             </button>
           )}
@@ -211,45 +218,83 @@ export default function TiendaHeroSeccion() {
       </div>
 
       <div className={`tienda-vivo${editando ? ' tienda-vivo--editando' : ''}`} style={{ marginTop: 'var(--duna-space-4)' }}>
-        {/* La VISTA — componentes reales alimentados por el form. */}
+        {/* La VISTA — componentes reales alimentados por el form. Oculta: la sección se auto-oculta
+            en el storefront (self-gate), así que la vista quedaría vacía; se muestra un aviso. */}
         <div className="tienda-vivo__vista">
-          <VistaTiendaEnVivo seccion="hero" valor={form} />
+          {oculta ? (
+            <div className="duna-card duna-card__pad" style={{ display: 'grid', placeItems: 'center', minHeight: '160px', textAlign: 'center' }}>
+              <div>
+                <p className="duna-title" style={{ margin: 0 }}>Sección oculta</p>
+                <p className="duna-sub" style={{ marginTop: '4px' }}>No se muestra en la tienda. Actívala con el interruptor para verla aquí.</p>
+              </div>
+            </div>
+          ) : (
+            <VistaTiendaEnVivo seccion={seccion} valor={form} />
+          )}
         </div>
 
         {/* El FORM — sólo al editar, junto a la vista. */}
         {editando && (
           <div className="tienda-vivo__form">
             <div className="duna-card duna-card__pad">
-              <div className="duna-field duna-form__full" style={{ marginBottom: 'var(--duna-space-5)' }}>
-                <span className="duna-field__label">Imagen de fondo</span>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={imagenPreview}
-                  alt=""
-                  style={{
-                    width: '100%', maxWidth: '360px', aspectRatio: '16 / 9', objectFit: 'cover',
-                    borderRadius: 'var(--duna-r-m)', border: '1px solid var(--duna-border)', marginTop: 'var(--duna-space-1)',
-                  }}
-                />
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-3)', alignItems: 'center', marginTop: 'var(--duna-space-3)' }}>
-                  <input ref={fileRef} type="file" accept={ACCEPT_IMAGENES} onChange={elegirArchivo} hidden disabled={fase === 'subiendo'} />
-                  <button type="button" onClick={() => fileRef.current?.click()} className="duna-btn duna-btn--secondary duna-btn--sm" disabled={fase === 'subiendo'}>
-                    <Upload /> Cambiar imagen
-                  </button>
-                  {form.imagen !== DEFAULTS.hero.imagen && (
-                    <button type="button" onClick={usarPorDefecto} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={fase === 'subiendo'}>
-                      Usar imagen por defecto
+              <input ref={fileRef} type="file" accept={ACCEPT_IMAGENES} onChange={elegirArchivo} hidden disabled={subiendo} />
+
+              {config.ocultable && (
+                <div className="duna-field duna-form__full" style={{ marginBottom: 'var(--duna-space-5)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={form.visible !== false}
+                      aria-label="Mostrar esta sección en la tienda"
+                      onClick={() => cambiar({ visible: form.visible === false })}
+                      className={`duna-switch${form.visible !== false ? ' is-on' : ''}`}
+                    >
+                      <span className="duna-switch__thumb" />
                     </button>
-                  )}
-                  <span className="duna-field__hint" style={{ margin: 0 }}>
-                    {fase === 'subiendo' ? 'Subiendo…' : `JPG, PNG o WebP · máx ${MAX_UPLOAD_MB} MB`}
-                  </span>
+                    <span className="duna-field__label" style={{ margin: 0 }}>Mostrar en la tienda</span>
+                  </div>
+                  <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>
+                    Si la apagas, esta sección desaparece de la home.
+                  </p>
                 </div>
-              </div>
+              )}
+
+              {config.imagenes.map(img => {
+                const val = String(form[img.name] ?? '');
+                const esDefault = val === String(defaults[img.name] ?? '');
+                return (
+                  <div key={img.name} className="duna-field duna-form__full" style={{ marginBottom: 'var(--duna-space-5)' }}>
+                    <span className="duna-field__label">{img.label}</span>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={val}
+                      alt=""
+                      style={{
+                        width: '100%', maxWidth: '360px', aspectRatio: '16 / 9', objectFit: 'cover',
+                        borderRadius: 'var(--duna-r-m)', border: '1px solid var(--duna-border)', marginTop: 'var(--duna-space-1)',
+                      }}
+                    />
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-3)', alignItems: 'center', marginTop: 'var(--duna-space-3)' }}>
+                      <button type="button" onClick={() => pedirArchivo(img.name)} className="duna-btn duna-btn--secondary duna-btn--sm" disabled={subiendo}>
+                        <Upload /> Cambiar imagen
+                      </button>
+                      {!esDefault && (
+                        <button type="button" onClick={() => usarPorDefecto(img.name)} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={subiendo}>
+                          Usar imagen por defecto
+                        </button>
+                      )}
+                      <span className="duna-field__hint" style={{ margin: 0 }}>
+                        {subiendo ? 'Subiendo…' : `JPG, PNG o WebP · máx ${MAX_UPLOAD_MB} MB`}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
 
               <div className="duna-form">
-                {CAMPOS.map(campo => {
-                  const id = `hero-${campo.name}`;
+                {config.campos.map(campo => {
+                  const id = `${seccion}-${campo.name}`;
                   const value = String(form[campo.name] ?? '');
                   return (
                     <div key={campo.name} className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
@@ -279,7 +324,7 @@ export default function TiendaHeroSeccion() {
 
       <ConfirmDescartarDialog
         abierto={confirmandoDescarte}
-        onDescartar={() => { setConfirmandoDescarte(false); descartarBorrador(); }}
+        onDescartar={() => { setConfirmandoDescarte(false); accionBorrador('descartar'); }}
         onSeguir={() => setConfirmandoDescarte(false)}
         titulo="¿Descartar los cambios sin publicar?"
         descripcion="Volverás a lo que está publicado. El borrador se perderá y no se puede recuperar."

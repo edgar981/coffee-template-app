@@ -7,6 +7,7 @@ import BrandStory from '@/components/storefront/home/BrandStory';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { DEFAULTS, type SiteContentData } from '@/lib/config/site-content-defaults';
+import type { SeccionVista } from '@/components/admin/tienda-secciones';
 
 // VISTA PREVIA EN VIVO — los componentes REALES del storefront renderizados en el panel,
 // alimentados por el estado del FORM. Sin iframe: se teclea y la vista cambia en el mismo render.
@@ -26,8 +27,6 @@ import { DEFAULTS, type SiteContentData } from '@/lib/config/site-content-defaul
 // escalado (una RO sobre el contenido), sin scroll.
 
 const DESKTOP_W = 1280;
-
-export type SeccionVista = 'hero' | 'brandStory';
 
 const COMPONENTES: Record<SeccionVista, ComponentType> = {
   hero: HeroSection,

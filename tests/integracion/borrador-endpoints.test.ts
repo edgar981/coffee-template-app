@@ -104,3 +104,31 @@ test('GUARDAR una imagen nueva en el borrador NO borra la publicada (aún viva)'
   const { blobsABorrar } = await guardarBorrador({ hero: { imagen: 'B.jpg', titulo: 'x' } });
   assert.deepEqual(blobsABorrar, []); // A vive en publicado; B recién entra al borrador
 });
+
+// BrandStory es la PRIMERA sección con CUATRO imágenes; se afirma el borrado end-to-end (a través
+// del write real, no sólo la función pura) porque es donde el set-diff-no-índice tiene que
+// sostenerse contra varios slots.
+
+test('PUBLICAR brandStory (4 imágenes) borra SÓLO la que salió de uso, deja las otras 3', async () => {
+  await prisma.siteContent.create({
+    data: {
+      id: 'default',
+      content:  { brandStory: { imagen1: 'A1', imagen2: 'A2', imagen3: 'A3', imagen4: 'A4', titulo: 'x' } },
+      borrador: { brandStory: { imagen1: 'A1', imagen2: 'B2', imagen3: 'A3', imagen4: 'A4', titulo: 'x' } }, // sólo imagen2 cambió
+    },
+  });
+  const { blobsABorrar } = await publicarSeccion('brandStory');
+  assert.deepEqual(blobsABorrar, ['A2']); // A2 ya sin referencias tras publicar B2; A1/A3/A4 siguen
+});
+
+test('PUBLICAR brandStory con un SWAP de posiciones entre las 4 imágenes NO borra ninguna (set-diff, no índice)', async () => {
+  await prisma.siteContent.create({
+    data: {
+      id: 'default',
+      content:  { brandStory: { imagen1: 'A1', imagen2: 'A2', imagen3: 'A3', imagen4: 'A4', titulo: 'x' } },
+      borrador: { brandStory: { imagen1: 'A2', imagen2: 'A1', imagen3: 'A4', imagen4: 'A3', titulo: 'x' } }, // permutación de las 4
+    },
+  });
+  const { blobsABorrar } = await publicarSeccion('brandStory');
+  assert.deepEqual(blobsABorrar, []); // el CONJUNTO de URLs no cambió → nada huérfano, aunque cada slot sí cambió
+});
