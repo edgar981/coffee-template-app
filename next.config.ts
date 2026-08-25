@@ -34,15 +34,8 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
       },
-      // El modo preview (`/?preview=1`, para el iframe de /admin/tienda) NUNCA se
-      // indexa. Hoy es redundante —el header de arriba cubre todo—, pero ESA línea se
-      // quita al lanzar ("Quitar cuando se promueva a producción real"); ésta, atada a
-      // `?preview`, sobrevive, así que la vista previa inerte no queda indexable ese día.
-      {
-        source: "/:path*",
-        has: [{ type: "query", key: "preview" }],
-        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
-      },
+      // (Se retiró la regla propia de `?preview`: existía para el iframe de /admin/tienda,
+      //  ya retirado. La vista previa ahora renderiza componentes en el panel, sin URL pública.)
     ];
   },
   async redirects() {

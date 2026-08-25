@@ -483,7 +483,10 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
                estrenaron van juntos y nada los contrastaba. */
             line-height: var(--duna-lh-normal); }
 .duna-btn--primary   { background: var(--duna-ink); color: var(--duna-paper); }
-.duna-btn--primary:not(:disabled):hover { opacity: .88; transform: translateY(-1px); box-shadow: var(--duna-shadow-2); }
+/* SIN elevación en hover: el translateY(-1px) es el patrón de las TARJETAS (`.duna-card--hoverable`),
+   no de los botones —el primary lo tenía y el ghost/secondary no, así que en una misma fila un
+   botón se levantaba y el otro no—. El hover del botón es sólo el cambio de opacidad. */
+.duna-btn--primary:not(:disabled):hover { opacity: .88; }
 .duna-btn--secondary { background: var(--duna-surface); border-color: var(--duna-border-2); color: var(--duna-ink); }
 .duna-btn--secondary:not(:disabled):hover { border-color: var(--duna-faint); box-shadow: var(--duna-shadow-1); }
 .duna-btn--ghost { color: var(--duna-muted); background: none; }

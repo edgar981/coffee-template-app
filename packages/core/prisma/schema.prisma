@@ -585,8 +585,13 @@ model SiteContent {
   // loader es SOFT (defaults-como-fallback): sin fila, el storefront renderiza los defaults
   // del código. Por eso su migración NO lleva INSERT —contraste con SiteSetting, que falla
   // ruidoso y SÍ necesitó sembrar la fila—. La fila aparece sólo cuando el dueño edita.
+  // `content` = PUBLICADO (lo que lee la tienda). `borrador` = TRABAJO sin publicar (lo que
+  // lee la vista previa del panel, gateada a admin). NULL = nada pendiente (borrador ≡
+  // publicado). Es un mapa PARCIAL por sección: guardar escribe borrador[seccion]; publicar
+  // copia esa sección a content y la limpia del borrador; descartar la limpia sin publicar.
   id        String   @id @default("default")
   content   Json     @default("{}")
+  borrador  Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

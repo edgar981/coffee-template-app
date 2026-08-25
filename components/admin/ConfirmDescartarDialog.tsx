@@ -14,12 +14,24 @@ import { DunaDialog } from '@/components/admin/DunaDialog';
 // editando" va primero en el DOM para que reciba el foco inicial: Enter conserva
 // el trabajo, nunca lo tira.
 
-export function ConfirmDescartarDialog({ abierto, onDescartar, onSeguir }: {
+export function ConfirmDescartarDialog({
+  abierto, onDescartar, onSeguir,
+  titulo = '¿Descartar los cambios?',
+  descripcion = 'Lo que escribiste se perderá y no se puede recuperar.',
+  confirmLabel = 'Descartar',
+  seguirLabel = 'Seguir editando',
+}: {
   abierto: boolean;
   /** Descartar los cambios y cerrar el drawer. */
   onDescartar: () => void;
   /** Seguir editando: cerrar sólo esta confirmación. */
   onSeguir: () => void;
+  // Copy opcional: el default es el flujo edit-cancel; el descarte de un BORRADOR guardado
+  // (§ /admin/tienda) pasa su propio texto —"volverás a lo publicado"— por otra semántica.
+  titulo?: string;
+  descripcion?: string;
+  confirmLabel?: string;
+  seguirLabel?: string;
 }) {
   return (
     <DunaDialog
@@ -27,16 +39,16 @@ export function ConfirmDescartarDialog({ abierto, onDescartar, onSeguir }: {
       // Cualquier cierre que no sea "Descartar" (Escape, o el velo — que en
       // AlertDialog no descarta de todos modos) es "seguir editando".
       onOpenChange={(o) => { if (!o) onSeguir(); }}
-      titulo="¿Descartar los cambios?"
-      descripcion="Lo que escribiste se perderá y no se puede recuperar."
+      titulo={titulo}
+      descripcion={descripcion}
     >
       <div className="duna-modal__foot">
         <div className="duna-modal__acciones">
           <button type="button" className="duna-btn duna-btn--ghost" onClick={onSeguir}>
-            Seguir editando
+            {seguirLabel}
           </button>
           <button type="button" className="duna-btn duna-btn--primary" onClick={onDescartar}>
-            Descartar
+            {confirmLabel}
           </button>
         </div>
       </div>

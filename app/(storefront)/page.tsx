@@ -1,5 +1,3 @@
-"use client";
-
 import HeroSection from "@/components/storefront/home/HeroSection";
 import TrustBadges from "@/components/storefront/home/TrustBadges";
 import FeaturedProducts from "@/components/storefront/home/FeaturedProducts";
@@ -10,6 +8,9 @@ import TestimonialSection from "@/components/storefront/home/TestimonialSection"
 // v1: Newsletter hidden — restore import when the newsletter feature ships
 // import Newsletter from "@/components/storefront/home/Newsletter";
 
+// La home lee el contenido PUBLICADO por el SiteContentProvider del layout. El borrador ya no se
+// sirve acá: la vista previa del panel renderiza los componentes reales alimentados por el form
+// (§ /admin/tienda), así que se retiró el gate de sesión / `?borrador` que existía para el iframe.
 export default function Home() {
   return (
     <>

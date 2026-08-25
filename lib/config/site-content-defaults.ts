@@ -61,12 +61,16 @@ export interface SeccionDef {
   ocultable: boolean;
   repeater?: { itemsKey: string };
   campos: Record<string, CampoTipo>;
+  /** Nombres de los campos que son IMÁGENES (blobs). Los lee el borrado de blobs reemplazados
+   *  (`imagenesDe`), NO el resolver. Para un repeater la imagen vive en cada item. */
+  imagenes?: string[];
 }
 
 export const REGISTRY: Record<keyof SiteContentData, SeccionDef> = {
   hero: {
     label: 'Portada',
     ocultable: false,
+    imagenes: ['imagen'],
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',
@@ -112,6 +116,19 @@ export function resolverSiteContent(stored: unknown): SiteContentData {
     out[key] = sec;
   }
   return out as SiteContentData;
+}
+
+/**
+ * Overlay POR SECCIÓN del borrador sobre lo publicado, EN CRUDO (antes de resolver). Cada
+ * sección presente en `borrador` PISA por completo la de `content` —el editor guarda secciones
+ * completas, no campos sueltos—; las no borroneadas quedan como en `content`. El resultado es el
+ * objeto crudo que el loader de borrador pasa a `resolverSiteContent`. Publicar una sección no
+ * arrastra otra porque el borrador es un mapa PARCIAL (sólo trae las secciones borroneadas).
+ */
+export function mezclarBorrador(content: unknown, borrador: unknown): Record<string, unknown> {
+  const c = esObj(content) ? content : {};
+  const b = esObj(borrador) ? borrador : {};
+  return { ...c, ...b };
 }
 
 /**
