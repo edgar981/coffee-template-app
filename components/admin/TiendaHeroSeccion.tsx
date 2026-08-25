@@ -30,7 +30,9 @@ const CAMPOS: Campo[] = [
   { name: 'ctaSecundarioLabel', label: 'Botón secundario', opcional: true, hint: 'Su destino es /suscripciones (fijo). Vacío: no se muestra.' },
 ];
 
-export default function TiendaHeroSeccion() {
+// `onGuardado` lo dispara el split tras un guardado exitoso: recarga el iframe de la vista
+// previa (con preservación de scroll). El editor no conoce el iframe — sólo avisa que guardó.
+export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => void }) {
   const guarda = useAccionGuardada();
 
   const [cargando, setCargando]       = useState(true);
@@ -145,6 +147,7 @@ export default function TiendaHeroSeccion() {
         setEditando(false);
         setImagenFile(null); setPreviewLocal(null);
         toast.success('Contenido del hero guardado.');
+        onGuardado?.(); // recarga la vista previa con el cambio ya publicado
       } catch (err) {
         setErrorServidor(
           etapa === 'subiendo'

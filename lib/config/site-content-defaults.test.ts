@@ -57,24 +57,24 @@ test('visible sólo se sobreescribe con un booleano explícito', () => {
 // ── seccionEsVisible ─────────────────────────────────────────────────────────
 
 test('el hero (ocultable:false) SIEMPRE es visible, aun con visible:false guardado', () => {
-  const def: SeccionDef = { ocultable: false, campos: {} };
+  const def: SeccionDef = { label: 'X',ocultable: false, campos: {} };
   assert.equal(seccionEsVisible(def, { visible: false }), true);
 });
 
 test('repeater: se auto-oculta con el array vacío (hide-on-empty), aun con visible:true', () => {
-  const def: SeccionDef = { ocultable: true, repeater: { itemsKey: 'items' }, campos: {} };
+  const def: SeccionDef = { label: 'X',ocultable: true, repeater: { itemsKey: 'items' }, campos: {} };
   assert.equal(seccionEsVisible(def, { visible: true, items: [] }), false);
   assert.equal(seccionEsVisible(def, { visible: true, items: [{ x: 1 }] }), true);
 });
 
 test('repeater ocultable:false igual se oculta si el array está vacío (hide-on-empty gana)', () => {
-  const def: SeccionDef = { ocultable: false, repeater: { itemsKey: 'items' }, campos: {} };
+  const def: SeccionDef = { label: 'X',ocultable: false, repeater: { itemsKey: 'items' }, campos: {} };
   assert.equal(seccionEsVisible(def, { items: [] }), false);
   assert.equal(seccionEsVisible(def, { items: [1] }), true);
 });
 
 test('sección ocultable no-repeater: visible:false → oculta; visible:true → muestra', () => {
-  const def: SeccionDef = { ocultable: true, campos: {} };
+  const def: SeccionDef = { label: 'X',ocultable: true, campos: {} };
   assert.equal(seccionEsVisible(def, { visible: false }), false);
   assert.equal(seccionEsVisible(def, { visible: true }), true);
 });
