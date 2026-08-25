@@ -89,7 +89,9 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
     }
     if (prev === 'guardando' && auto.estado === 'guardado') {
       if (reloadTimer.current) clearTimeout(reloadTimer.current);
-      reloadTimer.current = setTimeout(() => { onGuardadoRef.current?.(); reloadTimer.current = null; }, 1500);
+      // ~800ms tras ASENTARSE el guardado (no por tecla). El total percibido es debounce (1s del
+      // autoguardado) + PUT + esto; a 800 el dueño no espera de más tras dejar de teclear.
+      reloadTimer.current = setTimeout(() => { onGuardadoRef.current?.(); reloadTimer.current = null; }, 800);
     }
   }, [auto.estado]);
   useEffect(() => () => { if (reloadTimer.current) clearTimeout(reloadTimer.current); }, []);
@@ -168,11 +170,28 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (cargando) {
+    // Skeleton con la FORMA de lo que llega (imagen + campos), no un "Cargando…" — el patrón del
+    // panel (§ .duna-skel): la altura la producen los elementos reales, así que al cargar no salta.
     return (
       <>
         <h2 className="duna-title">Hero de la home</h2>
-        <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
-          <p className="duna-caption">Cargando…</p>
+        <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
+          La primera pantalla del storefront. Los cambios se guardan solos; publica cuando estén listos.
+        </p>
+        <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }} role="status">
+          <span className="duna-sr-only">Cargando el contenido de la tienda…</span>
+          <div className="duna-field duna-form__full" style={{ marginBottom: 'var(--duna-space-5)' }} aria-hidden>
+            <span className="duna-field__label duna-skel">Imagen de fondo</span>
+            <div className="duna-skel" style={{ width: '100%', maxWidth: '360px', aspectRatio: '16 / 9', borderRadius: 'var(--duna-r-m)', marginTop: 'var(--duna-space-1)' }} />
+          </div>
+          <div className="duna-form" aria-hidden>
+            {CAMPOS.map(campo => (
+              <div key={campo.name} className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
+                <span className="duna-field__label duna-skel">{campo.label}</span>
+                <div className="duna-input duna-skel">&nbsp;</div>
+              </div>
+            ))}
+          </div>
         </div>
       </>
     );
