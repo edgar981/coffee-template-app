@@ -696,6 +696,34 @@ apagadas), pero el operador que confía en "nacen encendidas" cree lo contrario.
 fecha, y por eso va primero. Al encenderlas aplica § Bases de datos: verificar el ROL en la
 consola de Neon antes de tocar producción.
 
+### 44. Los tres testimonios de la home son reseñas FABRICADAS, en producción
+
+`components/storefront/home/TestimonialSection.tsx` trae TRES testimonios hardcoded
+(Valentina Torres, Carlos Eduardo Mora, Laura Jiménez) que citan productos que Nayoli **NO
+vende** ("Café Nariño Premium", "Cold Brew Concentrado", "Suscripción Premium"). Son prueba
+social **FABRICADA** —no relleno de plantilla— y están sirviéndose en producción.
+
+**El vaciado se PROPUSO y se DESCARTÓ** (decisión del owner): se planteó vaciar el array y
+dejar la sección hide-on-empty ya, suelto. Se descartó — producción es hoy el PREVIEW de
+Luis, no una tienda con clientes, y las secciones se trabajan **COMPLETAS** hasta que el
+cliente decida cuáles usa; no se poda por adelantado. Cuando llegue la tanda de Testimonios,
+el contenido **REAL reemplaza al actual** (no se vacía suelto antes).
+
+**Costo YA pagado: ninguno todavía** —no hay clientes reales que las lean—, y por eso está
+acá y no urge HOY. El costo que viene es duro: una reseña inventada que cita un producto
+inexistente, frente al primer cliente real, es un problema de confianza y de publicidad
+engañosa, no un texto de relleno.
+
+**La salida YA está decidida** (§ Config del contenido — SiteContent, cuando exista): la
+sección Testimonios nace **SIN defaults** (array vacío; los tres falsos borrados del código)
+y es **hide-on-empty** — vuelve con testimonios REALES o no vuelve. Es la excepción a
+defaults-como-fallback: los defaults valen para copy, NO para un CLAIM falso (reseñas,
+ratings, premios).
+
+**DISPARADOR (duro, no negociable): antes del go-live del storefront, o cuando Luis confirme
+si usa la sección — lo que ocurra primero.** No pueden estar cuando la tienda reciba su
+primer cliente real.
+
 ### 2. `InventoryLog` no registra QUIÉN ajustó el stock
 
 Es la única mutación auditable del panel sin columna de actor: `Payment` guarda
