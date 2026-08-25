@@ -3,81 +3,81 @@
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { fadeUp } from "@/lib/animation";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { useIsPreview } from "@/components/storefront/PreviewMode";
+import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 
+// "Nuestra Historia" — lee el CONTENIDO de SiteContent (loader SOFT): titulo, parrafo1 y las
+// cuatro imágenes son requeridos (vienen resueltos, con default si estaban vacíos); eyebrow y
+// parrafo2 son OPCIONALES → se OMITEN si vienen vacíos (no caen al default). El h2 es UN campo:
+// el salto de línea de antes era estético (`<br/>`), ahora el título envuelve solo.
+//
+// PRIMERA sección OCULTABLE: si `visible=false`, no se renderiza (self-gate). La home la rinde
+// como hermano plano (sin envoltorio ni separador), así que devolver null no deja hueco.
+const IMAGENES = [
+  { campo: "imagen1", alt: "Café",    offset: "" },
+  { campo: "imagen2", alt: "Tostado", offset: "mt-8" },
+  { campo: "imagen3", alt: "Finca",   offset: "-mt-4" },
+  { campo: "imagen4", alt: "Barista", offset: "mt-4" },
+] as const;
 
 export default function BrandStory() {
+  const { brandStory } = useSiteContent();
+  const preview = useIsPreview();
+  if (!seccionEsVisible(REGISTRY.brandStory, brandStory)) return null;
+
+  // En la VISTA PREVIA del panel, las entradas por `whileInView` quedarían INVISIBLES: dentro del
+  // contenedor escalado (`transform: scale`) la intersección con el viewport no llega. Se cambia
+  // `whileInView`→`animate` con `initial={false}`: el elemento descansa en su estado visible desde
+  // el primer render, sin animación de entrada. Fuera de preview, idéntico a hoy. (Mismo criterio
+  // que HeroSection, ahí escrito para esta sección.)
   return (
     <section id="nuestra-historia" className="py-24 bg-[#1a0f08]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
+            initial={preview ? false : "hidden"}
+            animate={preview ? "visible" : undefined}
+            whileInView={preview ? undefined : "visible"}
+            viewport={preview ? undefined : { once: true }}
             variants={fadeUp}
           >
-            <p className="text-[#d4a97a] text-xs font-medium tracking-[0.2em] uppercase mb-4">
-              Nuestra Historia
-            </p>
+            {brandStory.eyebrow && (
+              <p className="text-[#d4a97a] text-xs font-medium tracking-[0.2em] uppercase mb-4">
+                {brandStory.eyebrow}
+              </p>
+            )}
             <h2 className="text-4xl sm:text-5xl font-playfair text-white leading-tight mb-6">
-              Del cafetal
-              <br />a tu taza
+              {brandStory.titulo}
             </h2>
             <p className="text-white/60 leading-relaxed mb-6 text-base">
-              Café Nayoli nace en un solo lugar: la Finca Nayoli, en la vereda Providencia de Supatá, Cundinamarca.
-              Cada grano viene de esta tierra, cultivado entre los 1.650 y 2.100 metros sobre el nivel del mar, 
-              donde la altura y el clima de la montaña colombiana dan al café su carácter.
+              {brandStory.parrafo1}
             </p>
-            <p className="text-white/60 leading-relaxed mb-8 text-base">
-              Trabajamos una sola variedad, Castillo, con proceso lavado — el método que mejor revela lo que esta tierra tiene para ofrecer. 
-              El resultado es una taza con fragancia a chocolate, aroma herbal e intenso, y un balance preciso entre acidez y cuerpo. 
-              El equilibrio que buscamos en cada tostión. Somos café de especialidad, 100% colombiano, de una finca con nombre y una historia que apenas comienza a contarse. 
-              Cuando abres una bolsa de Nayoli, sabes exactamente de dónde viene — y ese, para nosotros, es el verdadero secreto de Supatá.
-            </p>
+            {brandStory.parrafo2 && (
+              <p className="text-white/60 leading-relaxed mb-8 text-base">
+                {brandStory.parrafo2}
+              </p>
+            )}
           </motion.div>
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            initial={preview ? false : { opacity: 0, scale: 0.95 }}
+            animate={preview ? { opacity: 1, scale: 1 } : undefined}
+            whileInView={preview ? undefined : { opacity: 1, scale: 1 }}
+            viewport={preview ? undefined : { once: true }}
+            transition={preview ? undefined : { duration: 0.6 }}
             className="grid grid-cols-2 gap-4"
           >
-            <div className="relative h-48 overflow-hidden rounded-2xl">
-              <Image
-                src="/images/products-9.jpg"
-                alt="Café"
-                fill
-                sizes="(max-width: 768px) 50vw, 25vw"
-                className="object-cover"
-              />
-            </div>
-            <div className="relative h-48 overflow-hidden rounded-2xl mt-8">
-              <Image
-                src="/images/products-7.jpeg"
-                alt="Tostado"
-                fill
-                sizes="(max-width: 768px) 50vw, 25vw"
-                className="object-cover"
-              />
-            </div>
-            <div className="relative h-48 overflow-hidden rounded-2xl -mt-4">
-              <Image
-                src="/images/products-10.jpg"
-                alt="Finca"
-                fill
-                sizes="(max-width: 768px) 50vw, 25vw"
-                className="object-cover"
-              />
-            </div>
-            <div className="relative h-48 overflow-hidden rounded-2xl mt-4">
-              <Image
-                src="/images/products-11.jpg"
-                alt="Barista"
-                fill
-                sizes="(max-width: 768px) 50vw, 25vw"
-                className="object-cover"
-              />
-            </div>
+            {IMAGENES.map(({ campo, alt, offset }) => (
+              <div key={campo} className={`relative h-48 overflow-hidden rounded-2xl ${offset}`}>
+                <Image
+                  src={brandStory[campo]}
+                  alt={alt}
+                  fill
+                  sizes="(max-width: 768px) 50vw, 25vw"
+                  className="object-cover"
+                />
+              </div>
+            ))}
           </motion.div>
         </div>
       </div>

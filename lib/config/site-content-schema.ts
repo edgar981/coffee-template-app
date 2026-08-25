@@ -18,8 +18,23 @@ const heroEditableSchema = z.object({
   imagen: z.string().optional(),
 });
 
+// BrandStory: h2 en UN campo (`titulo`), dos párrafos, cuatro imágenes FIJAS. `visible` porque
+// es la primera sección ocultable. Todo opcional/SOFT, como el hero: el resolver decide.
+const brandStoryEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  eyebrow: z.string().optional(),
+  titulo: z.string().optional(),
+  parrafo1: z.string().optional(),
+  parrafo2: z.string().optional(),
+  imagen1: z.string().optional(),
+  imagen2: z.string().optional(),
+  imagen3: z.string().optional(),
+  imagen4: z.string().optional(),
+});
+
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
+  brandStory: brandStoryEditableSchema.optional(),
 });
 
 export type SiteContentEditable = z.infer<typeof siteContentEditableSchema>;

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULTS,
+  REGISTRY,
   mezclarBorrador,
   resolverSiteContent,
   seccionEsVisible,
@@ -117,4 +118,53 @@ test('el loader compone mezclar→resolver: el hero del borrador se ve resuelto'
   const r = resolverSiteContent(mezclarBorrador(content, borrador));
   assert.equal(r.hero.titulo, 'Hero borrador');            // el borrador del hero, resuelto
   assert.equal(r.hero.subtitulo, DEFAULTS.hero.subtitulo); // borrador pisó la sección entera → subtitulo ausente → default
+});
+
+// ── BrandStory (2ª sección: h2 un campo, 2 párrafos, 4 imágenes fijas, ocultable) ─────
+
+test('brandStory: sin nada guardado → todos los defaults', () => {
+  assert.deepEqual(resolverSiteContent({}).brandStory, DEFAULTS.brandStory);
+});
+
+test('brandStory REQUERIDO vacío → default (titulo, parrafo1, las 4 imágenes)', () => {
+  const r = resolverSiteContent({ brandStory: { titulo: '', parrafo1: '   ', imagen1: '', imagen3: '' } });
+  assert.equal(r.brandStory.titulo, DEFAULTS.brandStory.titulo);
+  assert.equal(r.brandStory.parrafo1, DEFAULTS.brandStory.parrafo1);
+  assert.equal(r.brandStory.imagen1, DEFAULTS.brandStory.imagen1);
+  assert.equal(r.brandStory.imagen3, DEFAULTS.brandStory.imagen3);
+});
+
+test('brandStory OPCIONAL presente-pero-vacío → "" (eyebrow y parrafo2 se omiten en el render)', () => {
+  const r = resolverSiteContent({ brandStory: { eyebrow: '', parrafo2: '' } });
+  assert.equal(r.brandStory.eyebrow, '');
+  assert.equal(r.brandStory.parrafo2, '');
+});
+
+test('brandStory OPCIONAL ausente → default (el editor lo pre-llena)', () => {
+  const r = resolverSiteContent({ brandStory: { titulo: 'x' } });
+  assert.equal(r.brandStory.eyebrow, DEFAULTS.brandStory.eyebrow);
+  assert.equal(r.brandStory.parrafo2, DEFAULTS.brandStory.parrafo2);
+});
+
+test('resolver una sección NO pisa la otra (hero y brandStory coexisten)', () => {
+  const r = resolverSiteContent({ brandStory: { titulo: 'Otra historia' } });
+  assert.equal(r.brandStory.titulo, 'Otra historia');
+  assert.deepEqual(r.hero, DEFAULTS.hero); // el hero intacto
+});
+
+test('brandStory es OCULTABLE de verdad: visible:false lo oculta; visible:true/ausente lo muestra', () => {
+  const def = REGISTRY.brandStory;
+  assert.equal(def.ocultable, true); // el primer ocultable real (hero es false)
+  assert.equal(seccionEsVisible(def, { visible: false }), false);
+  assert.equal(seccionEsVisible(def, { visible: true }), true);
+  assert.equal(seccionEsVisible(def, {}), true);
+});
+
+test('REGISTRY.brandStory.imagenes lista los 4 campos de imagen, y los 4 son requeridos', () => {
+  // Tripwire para el borrado de blobs (commit 3): si alguien agrega/renombra una imagen y olvida
+  // `imagenes`, el diff dejaría de cubrirla. Y las 4 deben ser requeridas (collage rígido).
+  assert.deepEqual(REGISTRY.brandStory.imagenes, ['imagen1', 'imagen2', 'imagen3', 'imagen4']);
+  for (const f of REGISTRY.brandStory.imagenes!) {
+    assert.equal(REGISTRY.brandStory.campos[f], 'requerido');
+  }
 });

@@ -1,13 +1,15 @@
-import TiendaHeroSeccion from '@/components/admin/TiendaHeroSeccion';
+import TiendaSeccionEditor from '@/components/admin/TiendaSeccionEditor';
+import { SECCIONES_TIENDA } from '@/components/admin/tienda-secciones';
 
 // ─── CONTENIDO DE LA TIENDA (el storefront) ──────────────────────────────────
 //
-// El contenido EDITORIAL del storefront —hoy, el hero de la home—. Distinto de Configuración,
-// que edita la IDENTIDAD del negocio (§ negocio≠tienda).
+// El contenido EDITORIAL del storefront —hoy, el hero y la Historia de la home—. Distinto de
+// Configuración, que edita la IDENTIDAD del negocio (§ negocio≠tienda).
 //
-// La sección (`TiendaHeroSeccion`) trae su VISTA PREVIA EN VIVO (componentes reales del storefront
-// alimentados por el form) + read↔edit + autoguardado. Las otras secciones (BrandStory, etc.)
-// entran acá con el mismo patrón.
+// Cada sección (`TiendaSeccionEditor`) trae su VISTA PREVIA EN VIVO (componentes reales del
+// storefront alimentados por el form) + read↔edit + autoguardado. La cáscara es una sola; lo que
+// cambia entre secciones es la config (§ tienda-secciones). La "home completa en una vista" (una
+// sección sobre otra) es su propio disparador —hoy cada sección se ve por separado—.
 export default function Tienda() {
   return (
     <div>
@@ -19,7 +21,11 @@ export default function Tienda() {
         </p>
       </div>
 
-      <TiendaHeroSeccion />
+      <div style={{ display: 'grid', gap: 'var(--duna-space-8)' }}>
+        {SECCIONES_TIENDA.map(config => (
+          <TiendaSeccionEditor key={config.seccion} config={config} />
+        ))}
+      </div>
     </div>
   );
 }

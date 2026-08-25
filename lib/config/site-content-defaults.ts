@@ -17,9 +17,27 @@ export interface HeroContent {
   imagen: string;
 }
 
+// BrandStory ("Nuestra Historia"): eyebrow + h2 + dos párrafos + un collage 2×2 de cuatro
+// imágenes FIJAS (mismo tamaño, el offset lo da la POSICIÓN, no el contenido). El h2 es UN
+// campo —el salto de línea es estético, no énfasis— así que NO lleva el `tituloEnfasis` del
+// hero. `eyebrow` y `parrafo2` son opcionales (se omiten vacíos); las cuatro imágenes son
+// requeridas (el collage 2×2 es rígido: menos de cuatro deja hueco, § doctrina).
+export interface BrandStoryContent {
+  visible: boolean;
+  eyebrow: string;
+  titulo: string;
+  parrafo1: string;
+  parrafo2: string;
+  imagen1: string;
+  imagen2: string;
+  imagen3: string;
+  imagen4: string;
+}
+
 export interface SiteContentData {
   hero: HeroContent;
-  // Futuro (sólo datos, sin tocar el modelo): brandStory, testimonials (repeater), subscriptionCTA.
+  brandStory: BrandStoryContent;
+  // Futuro (sólo datos, sin tocar el modelo): testimonials (repeater), subscriptionCTA.
 }
 
 // Los DEFAULTS son los literales que hoy viven en el JSX del hero. Se mueven acá; el
@@ -35,6 +53,19 @@ export const DEFAULTS: SiteContentData = {
     ctaPrimarioLabel: 'Explorar Café',
     ctaSecundarioLabel: 'Suscripción Mensual',
     imagen: '/images/hero-beans-v1.jpg',
+  },
+  brandStory: {
+    visible: true,
+    eyebrow: 'Nuestra Historia',
+    titulo: 'Del cafetal a tu taza',
+    parrafo1:
+      'Café Nayoli nace en un solo lugar: la Finca Nayoli, en la vereda Providencia de Supatá, Cundinamarca. Cada grano viene de esta tierra, cultivado entre los 1.650 y 2.100 metros sobre el nivel del mar, donde la altura y el clima de la montaña colombiana dan al café su carácter.',
+    parrafo2:
+      'Trabajamos una sola variedad, Castillo, con proceso lavado — el método que mejor revela lo que esta tierra tiene para ofrecer. El resultado es una taza con fragancia a chocolate, aroma herbal e intenso, y un balance preciso entre acidez y cuerpo. El equilibrio que buscamos en cada tostión. Somos café de especialidad, 100% colombiano, de una finca con nombre y una historia que apenas comienza a contarse. Cuando abres una bolsa de Nayoli, sabes exactamente de dónde viene — y ese, para nosotros, es el verdadero secreto de Supatá.',
+    imagen1: '/images/products-9.jpg',
+    imagen2: '/images/products-7.jpeg',
+    imagen3: '/images/products-10.jpg',
+    imagen4: '/images/products-11.jpg',
   },
 };
 
@@ -79,6 +110,21 @@ export const REGISTRY: Record<keyof SiteContentData, SeccionDef> = {
       ctaPrimarioLabel: 'requerido',
       ctaSecundarioLabel: 'opcional',
       imagen: 'requerido',
+    },
+  },
+  brandStory: {
+    label: 'Historia',
+    ocultable: true,
+    imagenes: ['imagen1', 'imagen2', 'imagen3', 'imagen4'],
+    campos: {
+      eyebrow: 'opcional',
+      titulo: 'requerido',
+      parrafo1: 'requerido',
+      parrafo2: 'opcional',
+      imagen1: 'requerido',
+      imagen2: 'requerido',
+      imagen3: 'requerido',
+      imagen4: 'requerido',
     },
   },
 };
@@ -137,11 +183,15 @@ export function mezclarBorrador(content: unknown, borrador: unknown): Record<str
  *  · `ocultable: false` → siempre visible, salvo que sea repeater y su array esté vacío.
  *  · repeater → se oculta con el array vacío, aunque `visible` sea true.
  */
-export function seccionEsVisible(def: SeccionDef, sec: Record<string, unknown>): boolean {
-  const items = def.repeater ? sec[def.repeater.itemsKey] : undefined;
+// `sec: object` para aceptar tanto los literales de test como los tipos de sección CONCRETOS
+// (`BrandStoryContent`, …), que no tienen index signature y por eso no encajan en un
+// `Record<string, unknown>` a secas. Se lee por el cast (`visible` e `itemsKey` del repeater).
+export function seccionEsVisible(def: SeccionDef, sec: object): boolean {
+  const rec = sec as Record<string, unknown>;
+  const items = def.repeater ? rec[def.repeater.itemsKey] : undefined;
   const tieneItems = Array.isArray(items) && items.length > 0;
 
   if (def.repeater && !tieneItems) return false; // hide-on-empty gana sobre todo
   if (!def.ocultable) return true;                // no se puede ocultar (hero)
-  return sec.visible !== false;
+  return rec.visible !== false;
 }
