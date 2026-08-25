@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Pencil, Upload } from 'lucide-react';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
@@ -11,13 +11,14 @@ import { siteContentEditableSchema } from '@/lib/config/site-content-schema';
 import { DEFAULTS, type HeroContent } from '@/lib/config/site-content-defaults';
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS, ACCEPT_IMAGENES } from '@/constants/upload';
 
-// Editor lectura↔edición del HERO de la home. Reusa la cáscara de DatosNegocioSeccion
-// (read-view/edit-view + useDescarteDeDrawer + ConfirmDescartarDialog); DIFIERE en la
-// IMAGEN, que usa la etapa 'subiendo'/'guardando' de ProductFormModal (uploadImagen) —el
-// único campo que no es texto—.
+// Editor lectura↔edición del HERO de la home, en el flujo BORRADOR/PUBLICADO. Guardar deja de
+// publicar: escribe el borrador (la vista previa lo muestra). En lectura, si hay cambios sin
+// publicar aparecen la píldora "Sin publicar" y los botones Publicar (primario) / Descartar
+// (ghost); Editar (secundario) siempre. Sin borrador, sólo Editar —nada de acciones muertas—.
 //
-// Loader SOFT: los opcionales vacíos SE OMITEN en el storefront (no caen al default), y el
-// hint de cada campo lo dice. Hero es `ocultable:false` → sin toggle de visibilidad.
+// Reusa la cáscara de DatosNegocioSeccion (useDescarteDeDrawer + ConfirmDescartarDialog para el
+// edit-cancel) y la etapa 'subiendo'/'guardando' de la imagen. Loader SOFT: opcionales vacíos se
+// OMITEN en el storefront; el hint de cada campo lo dice. Hero es ocultable:false → sin toggle.
 
 type Campo = { name: keyof HeroContent; label: string; opcional?: boolean; textarea?: boolean; hint: string };
 
@@ -30,14 +31,17 @@ const CAMPOS: Campo[] = [
   { name: 'ctaSecundarioLabel', label: 'Botón secundario', opcional: true, hint: 'Su destino es /suscripciones (fijo). Vacío: no se muestra.' },
 ];
 
-// `onGuardado` lo dispara el split tras un guardado exitoso: recarga el iframe de la vista
-// previa (con preservación de scroll). El editor no conoce el iframe — sólo avisa que guardó.
+// `onGuardado` lo dispara el split tras CUALQUIER mutación (guardar / publicar / descartar) para
+// recargar el iframe de la vista previa —que muestra el BORRADOR—: publicar no cambia lo que se
+// ve (el borrador ya estaba a la vista), descartar sí (vuelve a lo publicado); el doble-buffer
+// recarga en los dos casos.
 export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => void }) {
   const guarda = useAccionGuardada();
 
   const [cargando, setCargando]       = useState(true);
   const [errorCarga, setErrorCarga]   = useState<string | null>(null);
-  const [hero, setHero]               = useState<HeroContent | null>(null); // lo guardado (resuelto)
+  const [hero, setHero]               = useState<HeroContent | null>(null); // el contenido draft-merged
+  const [hayBorrador, setHayBorrador] = useState(false);                    // ¿cambios sin publicar?
   const [editando, setEditando]       = useState(false);
   const [form, setForm]               = useState<HeroContent | null>(null); // buffer de edición
   const [imagenFile, setImagenFile]   = useState<File | null>(null);
@@ -45,16 +49,26 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
   const [fase, setFase]               = useState<null | 'subiendo' | 'guardando'>(null);
   const [errores, setErrores]         = useState<Partial<Record<keyof HeroContent, string>>>({});
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    let vivo = true;
-    fetch('/api/site-content')
-      .then(async r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(d => { if (vivo) { setHero(d.hero); setCargando(false); } })
-      .catch(() => { if (vivo) { setErrorCarga('No se pudo cargar el contenido.'); setCargando(false); } });
-    return () => { vivo = false; };
+  // Trae el contenido draft-merged + si el hero tiene borrador. Se llama al montar y tras
+  // DESCARTAR (donde el contenido vuelve a lo publicado). Guardar/publicar ajustan el estado
+  // localmente sin re-fetch (ya conocen el resultado).
+  const cargar = useCallback(async (inicial = false) => {
+    try {
+      const r = await fetch('/api/site-content');
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      setHero(d.contenido.hero);
+      setHayBorrador(!!d.sinPublicar?.hero);
+      if (inicial) setCargando(false);
+    } catch {
+      if (inicial) { setErrorCarga('No se pudo cargar el contenido.'); setCargando(false); }
+    }
   }, []);
+
+  useEffect(() => { cargar(true); }, [cargar]);
 
   const salir = () => {
     setEditando(false);
@@ -84,7 +98,6 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
     const f = e.target.files?.[0];
     e.target.value = ''; // permite re-elegir el mismo archivo
     if (!f) return;
-    // Aviso temprano; la validación que MANDA está en /api/upload.
     if (!(TIPOS_PERMITIDOS as readonly string[]).includes(f.type)) {
       setErrorServidor('Formato no admitido. Usa JPG, PNG o WebP.');
       return;
@@ -103,6 +116,7 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
     setForm(f => (f ? { ...f, imagen: DEFAULTS.hero.imagen } : f));
   };
 
+  // GUARDAR (PUT) → escribe el BORRADOR. No publica.
   const guardar = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form) return;
@@ -112,7 +126,7 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
     if (!parsed.success) {
       const errs: Partial<Record<keyof HeroContent, string>> = {};
       for (const issue of parsed.error.issues) {
-        const campo = issue.path[1] as keyof HeroContent; // path = ['hero', <campo>]
+        const campo = issue.path[1] as keyof HeroContent;
         if (campo && !errs[campo]) errs[campo] = issue.message;
       }
       setErrores(errs);
@@ -121,8 +135,6 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
     setErrores({});
 
     guarda.ejecutar(async () => {
-      // SUBIR → GUARDAR. Si la subida falla, no se guarda nada; si el PUT falla, el blob
-      // nuevo queda huérfano (basura barata) pero tampoco se guardó — el dueño ve el error.
       let imagenUrl = form.imagen;
       let etapa: 'subiendo' | 'guardando' = 'subiendo';
       try {
@@ -144,10 +156,11 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
         }
         const nuevo = { ...form, imagen: imagenUrl };
         setHero(nuevo);
+        setHayBorrador(true);         // acaba de escribirse un borrador
         setEditando(false);
         setImagenFile(null); setPreviewLocal(null);
-        toast.success('Contenido del hero guardado.');
-        onGuardado?.(); // recarga la vista previa con el cambio ya publicado
+        toast.success('Borrador guardado.'); // la píldora "Sin publicar" carga el resto
+        onGuardado?.();
       } catch (err) {
         setErrorServidor(
           etapa === 'subiendo'
@@ -159,6 +172,43 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
       }
     });
   };
+
+  // PUBLICAR: la sección del borrador pasa a estar EN VIVO. El contenido a la vista no cambia
+  // (ya era el borrador); sólo deja de haber pendiente.
+  const publicar = () =>
+    guarda.ejecutar(async () => {
+      setErrorServidor(null);
+      const res = await fetch('/api/site-content', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'publicar', seccion: 'hero' }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        setErrorServidor(d?.error ?? 'No se pudo publicar.');
+        return;
+      }
+      setHayBorrador(false);
+      toast.success('Publicado — ya está en vivo.');
+      onGuardado?.();
+    });
+
+  // DESCARTAR: se pierde el borrador y se vuelve a lo publicado. Pregunta antes (destruye trabajo).
+  const descartarBorrador = () =>
+    guarda.ejecutar(async () => {
+      setErrorServidor(null);
+      const res = await fetch('/api/site-content', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'descartar', seccion: 'hero' }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        setErrorServidor(d?.error ?? 'No se pudo descartar.');
+        return;
+      }
+      await cargar(); // el contenido volvió a lo publicado
+      toast.success('Cambios descartados — volviste a lo publicado.');
+      onGuardado?.();
+    });
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -190,15 +240,32 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
     <>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)' }}>
         <div style={{ minWidth: 0 }}>
-          <h2 className="duna-title">Hero de la home</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
+            <h2 className="duna-title">Hero de la home</h2>
+            {!editando && hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
+          </div>
           <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
             La primera pantalla del storefront: imagen de fondo, titular y botones.
           </p>
         </div>
         {!editando && (
-          <button type="button" onClick={abrir} className="duna-btn duna-btn--secondary" style={{ flexShrink: 0 }}>
-            <Pencil /> Editar
-          </button>
+          // Sin borrador: sólo Editar. Con borrador: Descartar (ghost) · Editar (secundario) ·
+          // Publicar (primario). Publicar es el único primario sólido; a la derecha.
+          <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
+            {hayBorrador && (
+              <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={bloqueado}>
+                Descartar
+              </button>
+            )}
+            <button type="button" onClick={abrir} className="duna-btn duna-btn--secondary" disabled={bloqueado}>
+              <Pencil /> Editar
+            </button>
+            {hayBorrador && (
+              <button type="button" onClick={publicar} className="duna-btn duna-btn--primary" disabled={bloqueado}>
+                {bloqueado ? 'Publicando…' : 'Publicar'}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -260,7 +327,7 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
 
             <div className="duna-form__full" style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
               <button type="submit" className="duna-btn duna-btn--primary" disabled={bloqueado}>
-                {fase === 'subiendo' ? 'Subiendo imagen…' : fase === 'guardando' ? 'Guardando…' : 'Guardar cambios'}
+                {fase === 'subiendo' ? 'Subiendo imagen…' : fase === 'guardando' ? 'Guardando…' : 'Guardar borrador'}
               </button>
               <button type="button" onClick={descarte.intentarCerrar} className="duna-btn duna-btn--ghost" disabled={bloqueado}>
                 Cancelar
@@ -289,10 +356,22 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
         <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-3)' }}>{errorServidor}</p>
       )}
 
+      {/* Descarte de la EDICIÓN en curso (edit-cancel) — texto por defecto. */}
       <ConfirmDescartarDialog
         abierto={descarte.confirmando}
         onDescartar={descarte.descartar}
         onSeguir={descarte.seguirEditando}
+      />
+
+      {/* Descarte del BORRADOR guardado — su propia semántica: vuelve a lo publicado. */}
+      <ConfirmDescartarDialog
+        abierto={confirmandoDescarte}
+        onDescartar={() => { setConfirmandoDescarte(false); descartarBorrador(); }}
+        onSeguir={() => setConfirmandoDescarte(false)}
+        titulo="¿Descartar los cambios sin publicar?"
+        descripcion="Volverás a lo que está publicado. El borrador se perderá y no se puede recuperar."
+        confirmLabel="Descartar borrador"
+        seguirLabel="Conservar"
       />
     </>
   );

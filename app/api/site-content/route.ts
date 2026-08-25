@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { storage } from '@/lib/storage';
 import { siteContentEditableSchema } from '@/lib/config/site-content-schema';
-import { readSiteContent } from '@/lib/config/site-content-read';
+import { readSiteContentParaEditor } from '@/lib/config/site-content-read';
 import { REGISTRY } from '@/lib/config/site-content-defaults';
 import { guardarBorrador, publicarSeccion, descartarSeccion } from '@/lib/config/site-content-write';
 
@@ -34,8 +34,9 @@ async function borrarBlobs(urls: string[]) {
 export async function GET() {
   const { error } = await requireAdmin();
   if (error) return error;
-  // Publicado por ahora; el editor pasa a leer el borrador en la tanda del editor (commit 5).
-  return NextResponse.json(await readSiteContent());
+  // El editor muestra/edita el BORRADOR (draft-merged) y sabe qué secciones tienen cambios sin
+  // publicar. La tienda pública NO usa este endpoint —lee lo publicado por su loader (§ layout)—.
+  return NextResponse.json(await readSiteContentParaEditor());
 }
 
 // PUT = GUARDAR: escribe el BORRADOR, no publica.
