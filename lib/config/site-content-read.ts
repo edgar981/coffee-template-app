@@ -16,15 +16,6 @@ export async function readSiteContent(): Promise<SiteContentData> {
   return resolverSiteContent(row?.content ?? {});
 }
 
-// BORRADOR — lo que lee la VISTA PREVIA del panel (gateada a admin, commit 2). Overlay del
-// borrador sobre lo publicado, por sección; sin fila o sin borrador, es idéntico a lo
-// publicado. Nunca lo sirve la tienda pública: su único llamador es el render de preview
-// detrás del gate de sesión.
-export async function readSiteContentBorrador(): Promise<SiteContentData> {
-  const row = await prisma.siteContent.findUnique({ where: { id: 'default' } });
-  return resolverSiteContent(mezclarBorrador(row?.content ?? {}, row?.borrador ?? {}));
-}
-
 // PARA EL EDITOR del panel: el contenido draft-merged (lo que el editor muestra y edita —el
 // borrador sobre lo publicado) MÁS qué secciones tienen cambios sin publicar (`seccion in
 // borrador`), para la píldora "Sin publicar" y los botones Publicar/Descartar. Una sola query.

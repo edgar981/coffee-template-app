@@ -1,23 +1,16 @@
-'use client';
-
-import TiendaPreview from '@/components/admin/TiendaPreview';
+import TiendaHeroSeccion from '@/components/admin/TiendaHeroSeccion';
 
 // ─── CONTENIDO DE LA TIENDA (el storefront) ──────────────────────────────────
 //
-// El contenido EDITORIAL del storefront —hoy, el hero de la home—. Es distinto de
-// Configuración, que edita la IDENTIDAD del negocio (nombre, WhatsApp, correos); esta
-// pantalla edita lo que el CLIENTE ve en la tienda (§ negocio≠tienda).
+// El contenido EDITORIAL del storefront —hoy, el hero de la home—. Distinto de Configuración,
+// que edita la IDENTIDAD del negocio (§ negocio≠tienda).
 //
-// v1: sólo el hero. Las otras secciones (BrandStory, Testimonials, SubscriptionCTA) entran
-// acá como secciones nuevas, sobre el mismo modelo SiteContent.
+// TRANSITORIO (retiro del iframe, commit A): sin vista previa por ahora — sólo el editor, que
+// autoguarda. La VISTA PREVIA EN VIVO (componentes reales alimentados por el form) + el read↔edit
+// entran en el commit siguiente.
 export default function Tienda() {
-  // `.duna-sin-split`: pantalla de ALTO FIJO (gate 960). Es lo que hace que el pane de la
-  // vista previa herede su altura del chrome en vez de calcularla contra el viewport —un
-  // `100vh`/`calc` suelto en el root está prohibido (§ la cadena de altura / #42)—. El split
-  // es una anatomía de "dos columnas que scrollean", que encaja mejor en alto fijo que en
-  // document-scroll; su regla de scroll conviene a este layout (§ los DOS modelos de scroll).
   return (
-    <div className="duna-sin-split">
+    <div>
       <div style={{ minWidth: 0, marginBottom: 'var(--duna-space-4)' }}>
         <h1 className="duna-display-m">Contenido de la tienda</h1>
         <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
@@ -26,7 +19,7 @@ export default function Tienda() {
         </p>
       </div>
 
-      <TiendaPreview />
+      <TiendaHeroSeccion />
     </div>
   );
 }

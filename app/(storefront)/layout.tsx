@@ -10,7 +10,6 @@ import { SiteSettingsProvider } from "@/components/storefront/SiteSettingsProvid
 import { getSiteSettings } from "@/lib/config/site-settings";
 import { SiteContentProvider } from "@/components/storefront/SiteContentProvider";
 import { getSiteContent } from "@/lib/config/site-content";
-import { StorefrontFrame } from "@/components/storefront/PreviewMode";
 
 // El storefront se renderiza DINÁMICO (por request), no estático. Su layout lee la
 // identidad del negocio (SiteSetting) y el contenido de la home (SiteContent) de la BASE, y
@@ -63,12 +62,15 @@ export default async function StorefrontLayout({
       <SiteSettingsProvider value={settings}>
         <SiteContentProvider value={content}>
           <CartProvider>
-            <StorefrontFrame>
+            {/* El wrapper del storefront: fondo y fuente de la tienda. Antes lo ponía el wrapper
+                del iframe (que además leía `?preview`, ya retirado); queda el div plano con las
+                MISMAS clases (`bg-[#faf7f4] font-inter`) para no cambiar el aspecto de la tienda. */}
+            <div className="min-h-screen bg-[#faf7f4] font-inter">
               <StoreNav />
               <main>{children}</main>
               <StoreFooter />
               <CartDrawer />
-            </StorefrontFrame>
+            </div>
           </CartProvider>
         </SiteContentProvider>
       </SiteSettingsProvider>
