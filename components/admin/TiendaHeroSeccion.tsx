@@ -213,7 +213,7 @@ export default function TiendaHeroSeccion() {
       <div className={`tienda-vivo${editando ? ' tienda-vivo--editando' : ''}`} style={{ marginTop: 'var(--duna-space-4)' }}>
         {/* La VISTA — componentes reales alimentados por el form. */}
         <div className="tienda-vivo__vista">
-          <VistaTiendaEnVivo hero={form} />
+          <VistaTiendaEnVivo seccion="hero" valor={form} />
         </div>
 
         {/* El FORM — sólo al editar, junto a la vista. */}

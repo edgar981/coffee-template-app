@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 
 // "Nuestra Historia" — lee el CONTENIDO de SiteContent (loader SOFT): titulo, parrafo1 y las
@@ -22,16 +23,23 @@ const IMAGENES = [
 
 export default function BrandStory() {
   const { brandStory } = useSiteContent();
+  const preview = useIsPreview();
   if (!seccionEsVisible(REGISTRY.brandStory, brandStory)) return null;
 
+  // En la VISTA PREVIA del panel, las entradas por `whileInView` quedarían INVISIBLES: dentro del
+  // contenedor escalado (`transform: scale`) la intersección con el viewport no llega. Se cambia
+  // `whileInView`→`animate` con `initial={false}`: el elemento descansa en su estado visible desde
+  // el primer render, sin animación de entrada. Fuera de preview, idéntico a hoy. (Mismo criterio
+  // que HeroSection, ahí escrito para esta sección.)
   return (
     <section id="nuestra-historia" className="py-24 bg-[#1a0f08]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
+            initial={preview ? false : "hidden"}
+            animate={preview ? "visible" : undefined}
+            whileInView={preview ? undefined : "visible"}
+            viewport={preview ? undefined : { once: true }}
             variants={fadeUp}
           >
             {brandStory.eyebrow && (
@@ -52,10 +60,11 @@ export default function BrandStory() {
             )}
           </motion.div>
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            initial={preview ? false : { opacity: 0, scale: 0.95 }}
+            animate={preview ? { opacity: 1, scale: 1 } : undefined}
+            whileInView={preview ? undefined : { opacity: 1, scale: 1 }}
+            viewport={preview ? undefined : { once: true }}
+            transition={preview ? undefined : { duration: 0.6 }}
             className="grid grid-cols-2 gap-4"
           >
             {IMAGENES.map(({ campo, alt, offset }) => (
