@@ -716,26 +716,30 @@ ratings, premios).
 si usa la sección — lo que ocurra primero.** No pueden estar cuando la tienda reciba su
 primer cliente real.
 
-### 45. La vista previa de /admin/tienda se OCULTA entera bajo 1080 — falta un toggle
+### 46. El editor VISUAL — editar sobre la vista, no llenar campos
 
-El split de `/admin/tienda` (iframe de vista previa + editor) colapsa a UNA columna bajo
-1080px: el iframe se OCULTA (`display:none`) y el editor toma el ancho completo. Para v1 está
-bien —bajo ese ancho el desktop escalado + el editor no cohabitan con ancho útil—, pero es un
-corte DURO: no hay forma de recuperar la vista previa si el ancho baja de 1080.
+El dueño quiere clicar el texto EN la vista en vivo y editarlo ahí, como una plantilla, en vez de
+llenar campos. Viable porque los componentes se renderizan en el panel (§ La PANTALLA), sin tocar
+ni anotar el storefront público.
 
-**El caso que muerde:** un portátil con el rail EXPANDIDO deja al owner justo en ese límite, y
-**perder el preview por unos píxeles se va a notar** —el ancho oscila con el zoom del navegador,
-el escalado del sistema, o colapsar/expandir el rail—.
+La FORMA ya está descrita (discovery 2026-08-25): **`EditableText`** —un wrapper que en la tienda
+es passthrough (texto pelado, cero overhead) y en el editor renderiza `contentEditable` + captura
+el input → callback `(campo, valor)`—; **controles NO-texto** para lo que no se teclea (imagen de
+fondo, visibilidad de sección, orden de un repeater — quedan FUERA de la edición-sobre-la-vista);
+y **el form ENCOGIDO** a esos controles no-texto (el texto se edita en la vista). O sea DOS
+editores conviviendo —texto en la vista, no-texto en controles—, que es diseño nuevo.
 
-**La salida:** un TOGGLE de la vista previa bajo 1080 (mostrar/ocultar), en vez del corte duro.
-Cuando el ancho no alcanza para el split lado a lado, el preview se puede TRAER de vuelta a
-demanda (superpuesto, o empujando el editor) en vez de desaparecer sin control. Es la misma idea
-que el colapso por repeater (§ commit 3), pero disparado por el ANCHO, no por el modelo.
+**Lo que NO resuelve** (escrito para no re-descubrirlo): el COLOR de "historias" (y todo acento) es
+TEMA, no contenido — depende de la capa de tema-por-cliente (§ Mejoras post-multitenant), no del
+editor visual.
 
-**Costo YA pagado: ninguno** —es v1 y el corte duro funciona—. Es polish, no un defecto.
+**Costo YA pagado: ninguno.** El sticky (2026-08-25) ya resolvió el síntoma real —editar sin perder
+la vista de la vista—, así que esto es UX (editar en el lugar), no un defecto. Y trae la maña de
+`contentEditable` (cursor, pegado, IME, el conflicto controlado/no-controlado de React) + acopla
+más el componente que Fase B va a extraer.
 
-**DISPARADOR: cuando el editor de la tienda se use de verdad** (Nayoli / Luis), o si el owner
-lo topa en su portátil con el rail expandido — lo que ocurra primero.
+**DISPARADOR: cuando el owner use el editor con las CUATRO secciones y BUSCAR el campo siga siendo
+el estorbo.** Hoy, con UNA sección y el sticky puesto, no hay evidencia de que lo sea.
 
 ### 2. `InventoryLog` no registra QUIÉN ajustó el stock
 
@@ -1610,73 +1614,94 @@ sintético (deja la mecánica lista para las secciones que faltan, aunque el her
   href libre dejaría el botón principal apuntando a una ruta inexistente. DISPARADOR si se pide
   editarlos: un selector entre rutas CONOCIDAS, no un campo libre.
 
-### La PANTALLA — el split de vista previa + editor (`/admin/tienda`)
+### La PANTALLA — vista previa EN VIVO + editor con autoguardado (`/admin/tienda`)
 
-Tanda del 2026-08-25. `/admin/tienda` es un SPLIT: vista previa del storefront a la
-IZQUIERDA, editor de la sección a la DERECHA. CSS admin-level (`.tienda-*`, un solo
-consumidor). Lo decidido:
+Tanda del 2026-08-25. `/admin/tienda` edita el CONTENIDO editorial del storefront (hoy el hero
+de la home; distinto de Configuración, que edita la IDENTIDAD del negocio, § negocio≠tienda). El
+flujo FINAL, tras evaluar y retirar un iframe intermedio (ver "por qué se retiró", abajo):
 
-- **La vista previa es un IFRAME de la tienda REAL, no un croquis** (owner). Se evaluó el
-  croquis —una maqueta derivada del registry— y se descartó: un croquis es una SEGUNDA
-  representación del hero que hay que mantener en sincronía con el JSX real, y el día que
-  divergen el operador edita contra una mentira. El iframe muestra lo que el cliente verá, sin
-  una segunda fuente que mantener. Costo aceptado: cargar la home real (pesada) en un iframe.
+- **BORRADOR / PUBLICADO — guardar deja de publicar.** `SiteContent` tiene `content` (PUBLICADO,
+  lo que lee la tienda en vivo) y `borrador Json?` (el trabajo sin publicar). El editor escribe el
+  BORRADOR; **Publicar** copia la sección del borrador a `content`; **Descartar** la limpia sin
+  publicar. El borrador es un mapa PARCIAL por sección (`{ [seccion]: draft }`) para que publicar
+  una NO arrastre otra a medias —afirmado en el carril—. La escritura (con la mitad servidor
+  extraída para el carril, como `aplicarAjusteInventario`) vive en `lib/config/site-content-write.ts`.
+  **SIN lock cross-operación**, y es DECISIÓN con argumento: el race guardar↔publicar necesita dos
+  writes en la ventana de milisegundos entre el read y el write de publicar, que un operador
+  humano —aun con dos pestañas— no alcanza; el fallo es visible en la preview y recuperable, no un
+  libro corrompido como el despacho. DISPARADOR del lock (advisory, la fila es SOFT): automatización
+  que escriba borradores, o editores concurrentes de verdad.
 
-- **`?preview=1` es un modo PÚBLICO del storefront, INERTE, y vive en el STOREFRONT** (no en el
-  admin). El iframe carga `/?preview=1`; el parámetro vive en `components/storefront/PreviewMode.tsx`
-  (`StorefrontFrame` + `useIsPreview`) porque es la TIENDA la que tiene que saber "me miran en un
-  marco": pone `pointer-events:none`+`select-none` en el WRAPPER del contenido —**NO en html/body**,
-  así el scroller sigue interactivo y el scroll con rueda/dedo funciona— y OCULTA la flecha de
-  scroll en bucle del hero (una invitación a scrollear no significa nada dentro de un marco).
-  NoIndex: cubierto por el `X-Robots-Tag` global + una regla `?preview` propia en `next.config.ts`
-  que SOBREVIVE al retiro del noindex de lanzamiento. **Sin Suspense** alrededor del
-  `useSearchParams`: en una ruta `force-dynamic` no hace falta, y un fallback que renderiza
-  `{children}` DUPLICA la app en el DOM (bug medido y corregido).
+- **AUTOGUARDADO — el guardado no es un gesto.** El borrador se persiste solo mientras el dueño
+  edita (debounce 1s + flush en blur/unmount); **Publicar es el único botón**. La lógica delicada
+  (debounce, encolado, reintento) vive en un COORDINADOR puro framework-agnóstico
+  (`lib/autoguardado.ts`), probado con relojes falsos y VISTO FALLAR sin el mecanismo —una ráfaga
+  de teclas = un guardado; editar durante un guardado EN VUELO no se pierde; el fallo reintenta
+  solo—; el hook `useAutoguardado` sólo lo envuelve. El indicador "Guardando…/Guardado/No se pudo
+  guardar" (con Reintentar) es PERSISTENTE, no un toast por tecla; **"Guardado" sólo cuando NADA
+  pendiente ni en vuelo** (garantía del coordinador — un "Guardado" con algo encolado sería la
+  mentira que evita). **beforeunload SÓLO en 'error'** (§ decisión): pendiente/guardando es común
+  y su pérdida es una frase recuperable; un guardado que FALLÓ y no persiste es el caso grave. La
+  imagen va FUERA del debounce (sube al elegirla; el autoguardado del texto se BLOQUEA mientras
+  sube, y lo tecleado durante la subida queda en `formRef` y se guarda al terminar — no se pierde).
+  El schema es SOFT/todo-opcional → no hay validación que bloquee el autoguardado. El copy es corto
+  ("Borrador guardado.") — la píldora "Sin publicar" carga el peso.
 
-- **El iframe tiene alto FIJO de viewport (1280×800), NO `scrollHeight` — y esto NO se debe
-  "arreglar" volviendo a scrollHeight.** El hero es `min-h-[92vh]`, así que su alto CRECE con el
-  alto del marco. Si el iframe tomara el alto del documento, el hero se hincharía contra ese alto
-  y (a) se vería desproporcionado y (b) desincronizaría los scrollers. Medido en el storefront
-  real: a un marco de **5792px el hero mide 5329px** (ratio 4.16:1, grotesco); a **800px mide
-  736px** (0.575:1, la proporción real del desktop). Un viewport de alto fijo es lo ÚNICO que da
-  la proporción correcta; el conjunto se escala por `paneW/1280` (ResizeObserver sobre el PANE,
-  ESTABLE — el factor se recalcula al colapsar el rail). Está escrito en el código con los números.
+- **LA VISTA PREVIA ES EN VIVO — componentes REALES, no un iframe.** `VistaTiendaEnVivo` renderiza
+  el componente REAL del storefront (`HeroSection`) DENTRO del panel, alimentado por el estado del
+  FORM: se teclea y la vista cambia en el MISMO render, sin guardar→recargar. Tres piezas:
+  - **Provider LOCAL que pisa cualquiera de arriba:** `<SiteContentProvider value={{ ...DEFAULTS,
+    hero: form }}>` es el ÚNICO SiteContentProvider del subárbol admin (no hay otro), así que
+    HeroSection lee el FORM EN VIVO, no el borrador persistido; el value es un objeto NUEVO por
+    render → la vista sigue al form.
+  - **`PreviewProvider` (`useIsPreview=true`) → ESTÁTICO:** en preview HeroSection usa
+    `initial={false}` → renderiza en "visible" SIN animación de entrada (contenido asentado desde
+    el primer render; NO queda invisible esperando una intersección de `whileInView`, que dentro de
+    un contenedor escalado no llega), y la flecha en bucle se apaga. `useIsPreview` sobrevivió al
+    retiro del `?preview` con este sentido nuevo; la sección futura con `whileInView` (BrandStory)
+    aplica el mismo `initial={preview ? false : …}`.
+  - **Escala:** render a ancho DESKTOP (1280) + `transform: scale(paneW/1280)`, RO sobre el PANE
+    (ignora el aviso de ancho 0), recalcula al colapsar el rail. El `92vh` del hero resuelve contra
+    el viewport REAL del admin (~800px fijo) → **proporcional POR CONSTRUCCIÓN**. Un RO extra sobre
+    el CONTENIDO da su alto para dimensionar el pane.
 
-- **UN solo scroller: el INTERNO del iframe.** El documento scrollea DENTRO del marco (el mismo
-  gesto del visitante); el pane NO scrollea (`overflow:hidden`, sin spacer de scrollHeight). Dos
-  scrollers —el pane y el interno— topaban en puntos distintos (el spacer basado en un scrollHeight
-  rancio ≠ el contenido ya hinchado). Se DESCARTÓ sincronizar dos scrollers por JS (a-enlazado):
-  es superficie que se rompe en los bordes (rebote, teclado, `scrollTo` durante una recarga) y el
-  scroll interno ya es el gesto real. El pane es el MARCO: alto = 800·scale, anclado arriba
-  (`align-self:start`) para que su tope alinee con el editor; el resto de la celda `1fr` es lienzo
-  del panel.
+- **READ↔EDIT + STICKY.** La vista en vivo es la LECTURA a ancho completo; **"Editar"** abre el
+  form junto a ella (split vista | form); **"Listo"** cierra (flush del pendiente). read↔edit
+  VOLVIÓ —se había retirado con el iframe porque el iframe era la lectura y no había read-view
+  propio; la vista en vivo ES la lectura—. **La vista queda STICKY** mientras el form scrollea (la
+  columna de campos es más larga que la vista): al bajar por los campos el hero sigue arriba y
+  cambia con cada tecla. Sticky contra la VENTANA (la página es document-scroll, no `.duna-sin-split`
+  → el scroll es el documento; la cadena de alto fijo #42 no aplica, y se verificó que ningún
+  ancestro tiene overflow que rompa el sticky). CAP al viewport (`max-height` + `overflow-y:auto`
+  en el pane) por si el hero escalado excede la ventana en pantallas cortas (sticky con contenido
+  más alto que la ventana no se queda quieto); en el caso normal (media pantalla, hero ~300px) no
+  se activa. Enlace **"Ver la tienda"** (`/`, pestaña nueva) para la home completa.
 
-- **Al guardar, el preview recarga SIN parpadeo (doble-buffer).** Normalmente UN iframe; al
-  guardar se crea un SEGUNDO (oculto, cargando), y cuando termina hereda el scroll interno del
-  anterior y se vuelve el activo —el viejo se destruye—. Dos renders vivos a la vez es el doble del
-  peso, así que el segundo existe SÓLO durante el intercambio; el viejo se ve hasta que el nuevo
-  está listo → cero parpadeo. Se escucha el `load` del ELEMENTO iframe, no del `contentWindow` (que
-  cambia con la recarga). La preservación de scroll vive en `iframe.contentWindow.scrollY`, con
-  **`behavior:'instant'` OBLIGATORIO** —el storefront tiene `scroll-behavior:smooth`, así que sin
-  instant la restauración ANIMA y se ve el salto— y su clamp (`scrollHeight−800`; el contenido
-  puede acortarse entre recargas).
+- **POR QUÉ SE RETIRÓ EL IFRAME.** Un iframe SIEMPRE tiene guardar → recargar → renderizar: el
+  dueño teclea, espera el guardado, espera la recarga, y recién ve el cambio. Medido: el render de
+  la home en PROD eran ~157ms, y el retraso percibido era casi todo ESPERA DELIBERADA (debounce +
+  espera del reload), no el render — o sea el iframe nunca fue lento; el ciclo guardar-recargar era
+  el problema, y no se arregla con un debounce más corto. La vista en vivo lo elimina de raíz: la
+  vista es el mismo render que el form. Con el iframe se fueron el doble-buffer, `?preview=1`,
+  `StorefrontFrame`, el gate de sesión `?borrador=1` (`debeLeerBorrador`), `readSiteContentBorrador`
+  y la regla noindex de `?preview` (censo por contenido = 0 en el commit del retiro). El
+  storefront volvió a un div plano conservando `bg-[#faf7f4] font-inter` (verificado: la tienda no
+  cambió de aspecto). El **borrado de blobs generalizado se QUEDA** —in-use = content ∪ borrador
+  (§ el borrado de blobs), independiente del mecanismo de preview—.
 
-- **El COLAPSO del preview se DERIVA del registry**, no de un nombre de sección:
-  `REGISTRY[activa].repeater != null` → el editor toma el ancho completo y el preview se oculta
-  (`.tienda-split--sin-preview`). Una sección repeater (Testimonios) necesita la columna entera
-  para su lista; es la NATURALEZA de la sección, no un `if` con su nombre. Hoy la única (Portada)
-  no es repeater → nunca colapsa; la plataforma queda lista para las que faltan. El SELECTOR de
-  secciones también sale del registry y con UNA sola sección no se muestra (un tab de uno no es
-  una elección).
+- **PRECONDICIÓN de Fase B enlazada:** la vista en vivo importa `HeroSection` DIRECTO (Fase A, una
+  app). Fase B debe extraer los componentes del storefront a `packages/storefront-ui`, NO dejarlos
+  en `apps/storefront` (una app no importa de otra), o la vista en vivo se cae — está escrito con
+  su censo en § Monorepo / Fase B, junto con el disparador de Fase B (despliegues independientes o
+  el 2º cliente).
 
-- **Altura HEREDADA, no `calc(100vh)`:** la página opta a `.duna-sin-split` (alto fijo, gate 960),
-  así el chrome le da la altura y el `.tienda-split` la hereda con `height:100%` — un `100vh`/`calc`
-  suelto contra el viewport es lo que la § cadena de altura prohíbe (#42). El pane NO hereda ese
-  alto (se dimensiona a la ventana escalada); el editor sí lo llena.
+- **DISPARADOR — la home COMPLETA en la vista:** hoy la vista muestra la SECCIÓN activa (hero), no
+  la home entera (que arrastraría los fetches de FeaturedProducts/etc.). Cuando haya VARIAS
+  secciones y el dueño necesite ver cómo queda una ENCIMA de otra, la vista pasa a la home
+  completa. Hoy con una sección no aplica; el enlace "Ver la tienda" cubre el ínterin.
 
-- **Deuda declarada — § Backlog #45:** bajo 1080 el split se OCULTA entero (corte duro); falta un
-  toggle de la vista previa. Polish, no defecto; disparador: uso real del editor (Nayoli/Luis) o
-  el owner topándolo en su portátil con el rail expandido.
+- **El editor VISUAL (editar sobre la vista) — al backlog** (§ Backlog): se evaluó y se dejó para
+  su propia tanda.
 
 ### La propagación al storefront — el storefront es DINÁMICO (defecto medido y arreglado)
 
@@ -1759,6 +1784,26 @@ Origen: el rediseño de Analítica del 2026-08-05, donde se descubrió que
 el costo ACTUAL del catálogo (§ El COSTO no está snapshoteado). No depende
 técnicamente del multitenant, pero **sí de la sesión de costos reales con el
 cliente**: snapshotear el costo del seed sólo congelaría un dato inventado.
+
+### La capa de TEMA por cliente — colores, fuentes, animaciones son configuración
+
+El tema de cada cliente es CONFIGURACIÓN, no código por cliente (decisión del owner, 2026-08-25,
+al hacer viable la vista en vivo): la estructura es una base común (Hero, Productos, Historia…) y
+cada cliente elige QUÉ secciones muestra (la visibilidad ya construida, § SiteContent) y CON QUÉ
+tema se pintan (colores, imágenes, fuentes, animaciones). **El componente es UNO y sirve a todos**
+—por eso la vista en vivo escala: renderiza el mismo componente que producción—.
+
+Hoy el tema está HARDCODED: los colores literales viven en los componentes (`text-[#d4a97a]`,
+`bg-[#1a0f08]` en HeroSection) y en `globals.css`/`tokens.css`. La capa mueve esos literales a
+tokens por-cliente (`--acento`, `--fondo-hero`, …) editables + una superficie para elegirlos.
+
+Consecuencia que el discovery del editor visual dejó clara, escrita para no re-descubrirla:
+**editar el COLOR de "historias" (el énfasis del titular) NO se resuelve con el editor visual —es
+TEMA, no contenido— y depende de ESTA capa.** El editor visual da el TEXTO; el color es aparte.
+
+Va después del multitenant porque el tema por-cliente necesita el modelo de tenant (hoy no existe);
+adelantarlo sería configuración por un solo cliente. **DISPARADOR: el SEGUNDO cliente.** Con Nayoli
+sola, los colores literales están bien.
 
 ### Datos de negocio editables — `siteConfig` → `SiteSetting`
 
