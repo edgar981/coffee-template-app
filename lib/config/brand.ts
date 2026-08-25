@@ -1,20 +1,27 @@
-// El INYECTOR de marca del lado de la app: conoce el tenant actual (Nayoli, vía
-// `siteConfig`) y arma el `Brand` que el núcleo de notificaciones recibe. Vive en
-// la app a propósito — `siteConfig` es contenido de tenant y no entra a core.
+// El INYECTOR de marca del lado de la app: arma el `Brand` que el núcleo de
+// notificaciones recibe. Los campos PLANOS (nombre, tagline, remitente, replyTo) salen
+// de `SiteSetting` (editable); `emailColors` es ESTRUCTURADO y sigue en `siteConfig`
+// (código) en v1. El núcleo es agnóstico de tenant: recibe el `Brand`, nunca lo lee.
 //
-// Los route handlers llaman `buildBrand()` y pasan el resultado a
+// Los route handlers llaman `await buildBrand()` y pasan el resultado a
 // `createOrderWithCustomer`/`notifyOrderEnRoute`. El día del multitenant, esto se
 // deriva del tenant de la request; el resto del seam no cambia.
+//
+// Lee `readSiteSettings` (el lector RAW), NO `getSiteSettings` (server-only): buildBrand
+// corre en route handlers, en el motor de automatizaciones y en el CARRIL —contextos
+// donde `server-only` no resuelve—.
 
 import { siteConfig } from '@/lib/config/site';
+import { readSiteSettings } from '@/lib/config/site-settings-read';
 import type { Brand } from '@duna/core/notifications/brand';
 
-export function buildBrand(): Brand {
+export async function buildBrand(): Promise<Brand> {
+  const s = await readSiteSettings();
   return {
-    nombre:    siteConfig.tienda.nombre,
-    tagline:   siteConfig.brand.tagline,
+    nombre:    s.nombre,
+    tagline:   s.tagline,
     colors:    siteConfig.tienda.emailColors,
-    remitente: siteConfig.tienda.emailRemitente,
-    replyTo:   siteConfig.tienda.emailReplyTo,
+    remitente: s.emailRemitente,
+    replyTo:   s.emailReplyTo ?? undefined,
   };
 }

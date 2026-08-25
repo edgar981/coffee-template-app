@@ -204,7 +204,11 @@ function buildDailyDemoOrders(now: Date, products: SeedProduct[]) {
 }
 
 async function main() {
-  const email = process.env.ADMIN_EMAIL ?? "admin@sierranativa.co";
+  // SEED_OWNER_EMAIL: el LOGIN de la cuenta OWNER que siembra el seed. Es un dato
+  // distinto del destinatario runtime de los reportes (SiteSetting.adminEmail), y por
+  // eso lleva otro nombre — antes ambos eran ADMIN_EMAIL y esa doble función era la
+  // trampa (§ total_compras). ADMIN_PASSWORD/ADMIN_NAME siguen siendo sólo del seed.
+  const email = process.env.SEED_OWNER_EMAIL ?? "admin@sierranativa.co";
   const password = process.env.ADMIN_PASSWORD ?? "ChangeMe123!";
   const name = process.env.ADMIN_NAME ?? "Administrador";
 

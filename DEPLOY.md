@@ -47,15 +47,16 @@ quieres previews).
 | `BETTER_AUTH_URL` | **Sí** | `https://nayoli-demo.duna.solutions` |
 | `RESEND_API_KEY` | **Sí** (email) | Dashboard de Resend (`re_...`) |
 | `EMAIL_FROM` | **Sí** (email) | Remitente en dominio verificado, p. ej. `Café Nayoli <no-reply@duna.solutions>` |
-| `ADMIN_EMAIL` | Recomendada | Correo del OWNER del seed (evita el default público) |
-| `ADMIN_PASSWORD` | Recomendada | Password del OWNER del seed (evita `ChangeMe123!`) |
-| `ADMIN_NAME` | Opcional | Nombre del OWNER (default `Administrador`) |
+| `SEED_OWNER_EMAIL` | Local (seed) | Correo/login del OWNER que siembra el seed. SOLO local (`prisma db seed`), no va a Vercel. Evita el default público |
+| `ADMIN_PASSWORD` | Local (seed) | Password del OWNER del seed (evita `ChangeMe123!`). SOLO local |
+| `ADMIN_NAME` | Local (seed) | Nombre del OWNER (default `Administrador`). SOLO local |
 | `CRON_SECRET` | **Sí** (automatizaciones) | `openssl rand -hex 32`. MISMO valor en Vercel y en GitHub → Settings → Secrets → Actions |
 | `NOTIFICATIONS_REDIRECT_EMAIL` | Opcional | Solo dev/preview: desvía TODO correo a un buzón de pruebas. **Sin poner en Producción** |
 
-> `ADMIN_EMAIL` ya no es solo del seed: es el destinatario por defecto de los
-> reportes al equipo (semanal y diario) cuando su config no lista ninguno. Sin
-> ella y sin destinatarios configurados, esos correos quedan `OMITIDO`.
+> El destinatario por defecto de los reportes al equipo (semanal y diario) YA NO es
+> una env var: vive en la base como `SiteSetting.adminEmail`, editable en
+> **Configuración**. Encender un reporte sin ese correo Y sin "Destinatarios" en su
+> diálogo devuelve **400** (no se puede dejar encendido algo que omitiría en silencio).
 
 > `CRON_SECRET` protege `POST /api/cron/automations`. Sin la env var el endpoint
 > responde **503** (cerrado, no abierto); con un valor equivocado, **401**. El
@@ -96,7 +97,7 @@ desde `.env` (vía `prisma.config.ts` → `dotenv/config`).
 # 1) En .env (local), apunta a la conexión DIRECTA de Neon para migrar:
 #    DATABASE_URL="postgresql://USER:PASS@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require"
 #    BETTER_AUTH_SECRET="<el mismo que pondrás en Vercel>"
-#    ADMIN_EMAIL / ADMIN_PASSWORD / ADMIN_NAME
+#    SEED_OWNER_EMAIL / ADMIN_PASSWORD / ADMIN_NAME
 
 # 2) Aplica el esquema (25 migraciones):
 npx prisma migrate deploy

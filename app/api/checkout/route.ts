@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
       ciudad_entrega:    shipping.ciudad,
       deliverySlot:      slot?.id ?? null,
       items:             lines,
-      brand:             buildBrand(),
+      brand:             await buildBrand(),
     });
   } catch (error) {
     console.error('Checkout order creation failed:', error);

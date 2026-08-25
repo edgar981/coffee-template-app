@@ -126,7 +126,7 @@ test('createOrderWithCustomer rechaza un estado de cobro crudo y NO escribe fila
     canal:    'directo',
     total:    28000,
     items:    [{ producto_nombre: 'Café', cantidad: 1, subtotal: 28000 }],
-    brand:    buildBrand(),
+    brand:    await buildBrand(),
   };
 
   for (const estado of ['pagado', 'pendiente'] as const) {

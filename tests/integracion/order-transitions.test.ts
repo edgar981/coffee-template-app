@@ -28,7 +28,7 @@ test('CREACIÓN: un asiento cobro null→pendiente con el actor', async () => {
     canal:    'directo',
     total:    20000,
     items:    [{ producto_nombre: 'Café', cantidad: 1, subtotal: 20000 }],
-    brand:    buildBrand(),
+    brand:    await buildBrand(),
     actor,
   });
   const libro = await asientos(orden!.id);
@@ -46,7 +46,7 @@ test('CHECKOUT sin humano: el asiento de creación va con actor null', async () 
     canal:    'directo',
     total:    15000,
     items:    [{ producto_nombre: 'Café', cantidad: 1, subtotal: 15000 }],
-    brand:    buildBrand(),
+    brand:    await buildBrand(),
     // sin actor → storefront
   });
   const libro = await asientos(orden!.id);
@@ -132,7 +132,7 @@ test('el libro se LEE cronológico y con los dos ejes MEZCLADOS, incluso dentro 
     canal:    'directo',
     total:    20000,
     items:    [{ producto_nombre: 'Café', cantidad: 1, subtotal: 20000 }],
-    brand:    buildBrand(),
+    brand:    await buildBrand(),
     actor,
     immediatePayment: { metodo: 'NEQUI', registrado_por_nombre: 'Cajera' },
   });

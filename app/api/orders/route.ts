@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
         : null,
       items:             lines,
       idempotencyKey:    b.idempotencyKey ?? null,
-      brand:             buildBrand(),
+      brand:             await buildBrand(),
       actor:             { id: session.user.id, nombre: session.user.name ?? null },
     });
 

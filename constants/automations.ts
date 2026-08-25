@@ -180,7 +180,7 @@ const horaCampo = (label = 'Hora de ejecución'): ConfigCampo => ({
 
 const destinatariosCampo: ConfigCampo = {
   name: 'destinatarios', tipo: 'emails', label: 'Destinatarios',
-  ayuda: 'Separados por coma. Vacío = el correo del admin principal (ADMIN_EMAIL).',
+  ayuda: 'Separados por coma. Vacío = el correo del negocio (Configuración).',
 };
 
 // Formato de las frases de tarjeta (value-aware). `n` viene del config, que llega
