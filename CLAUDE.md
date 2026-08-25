@@ -2886,6 +2886,28 @@ el split: los enums de dominio (`OrderStatus`, `OrderChannel`, `CondicionPago`,
 type files de vista. Se difirió de Fase A a propósito: es un refactor de modelado,
 no un move, y el gate de Fase A (deploy real) no lo necesita.
 
+**PRECONDICIÓN de Fase B — los componentes del storefront se extraen a `packages/storefront-ui`,
+NO se quedan en `apps/storefront`.** Gemela de la de arriba. El panel (`apps/admin`) importa
+`HeroSection` —y las demás secciones de la home— para la **VISTA PREVIA EN VIVO** del editor de
+`/admin/tienda`: renderiza los componentes REALES del storefront alimentados por el estado del
+formulario (sin iframe; se teclea y la vista cambia en el mismo render). **En un workspace una app
+NO importa de otra app, sólo de `packages/*`**, así que si Fase B dejara esos componentes en
+`apps/storefront` el panel no podría importarlos y la vista en vivo se caería —habría que volver al
+iframe o publicar un paquete npm versionado—. Por eso van a `packages/storefront-ui`, que consumen
+las DOS apps. Se construyó la vista en vivo en Fase A contra el import directo (una sola app), a
+propósito: extraer el paquete antes es front-loadear esta precondición de una fase sin fecha, y es
+un refactor entangled que merece la tanda de Fase B.
+
+**Lo que ese paquete ARRASTRA (censado ahora para que Fase B no lo re-diagnostique):** a diferencia
+del design-system —presentacional PURO, sin un solo `'use client'`— `storefront-ui` es **UI
+ACOPLADA**: lleva `'use client'` + **framer-motion** (conducta), **`next/image`** como peer-dep de
+`next` (las dos apps lo tienen), y el **provider `SiteContentProvider` (client) al paquete** mientras
+el **loader `readSiteContent` (server/prisma) se queda en la app** y le pasa el dato. Y **ASUME que
+la app consumidora carga el `globals.css`** —el `@import` de las fuentes (Inter/Playfair) y los
+tokens `@theme`—, igual que el design-system asume que sus tokens están cargados. Los colores
+literales de la vertical viajan con el componente hasta la capa de tema-por-cliente (§ Mejoras
+post-multitenant), no antes.
+
 ## Migraciones y deploy
 
 - **CADA ENTORNO MIGRA SU PROPIA BASE.** `npm run build` corre `prisma
