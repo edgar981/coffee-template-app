@@ -1640,6 +1640,74 @@ sintético (deja la mecánica lista para las secciones que faltan, aunque el her
   href libre dejaría el botón principal apuntando a una ruta inexistente. DISPARADOR si se pide
   editarlos: un selector entre rutas CONOCIDAS, no un campo libre.
 
+### La PANTALLA — el split de vista previa + editor (`/admin/tienda`)
+
+Tanda del 2026-08-25. `/admin/tienda` es un SPLIT: vista previa del storefront a la
+IZQUIERDA, editor de la sección a la DERECHA. CSS admin-level (`.tienda-*`, un solo
+consumidor). Lo decidido:
+
+- **La vista previa es un IFRAME de la tienda REAL, no un croquis** (owner). Se evaluó el
+  croquis —una maqueta derivada del registry— y se descartó: un croquis es una SEGUNDA
+  representación del hero que hay que mantener en sincronía con el JSX real, y el día que
+  divergen el operador edita contra una mentira. El iframe muestra lo que el cliente verá, sin
+  una segunda fuente que mantener. Costo aceptado: cargar la home real (pesada) en un iframe.
+
+- **`?preview=1` es un modo PÚBLICO del storefront, INERTE, y vive en el STOREFRONT** (no en el
+  admin). El iframe carga `/?preview=1`; el parámetro vive en `components/storefront/PreviewMode.tsx`
+  (`StorefrontFrame` + `useIsPreview`) porque es la TIENDA la que tiene que saber "me miran en un
+  marco": pone `pointer-events:none`+`select-none` en el WRAPPER del contenido —**NO en html/body**,
+  así el scroller sigue interactivo y el scroll con rueda/dedo funciona— y OCULTA la flecha de
+  scroll en bucle del hero (una invitación a scrollear no significa nada dentro de un marco).
+  NoIndex: cubierto por el `X-Robots-Tag` global + una regla `?preview` propia en `next.config.ts`
+  que SOBREVIVE al retiro del noindex de lanzamiento. **Sin Suspense** alrededor del
+  `useSearchParams`: en una ruta `force-dynamic` no hace falta, y un fallback que renderiza
+  `{children}` DUPLICA la app en el DOM (bug medido y corregido).
+
+- **El iframe tiene alto FIJO de viewport (1280×800), NO `scrollHeight` — y esto NO se debe
+  "arreglar" volviendo a scrollHeight.** El hero es `min-h-[92vh]`, así que su alto CRECE con el
+  alto del marco. Si el iframe tomara el alto del documento, el hero se hincharía contra ese alto
+  y (a) se vería desproporcionado y (b) desincronizaría los scrollers. Medido en el storefront
+  real: a un marco de **5792px el hero mide 5329px** (ratio 4.16:1, grotesco); a **800px mide
+  736px** (0.575:1, la proporción real del desktop). Un viewport de alto fijo es lo ÚNICO que da
+  la proporción correcta; el conjunto se escala por `paneW/1280` (ResizeObserver sobre el PANE,
+  ESTABLE — el factor se recalcula al colapsar el rail). Está escrito en el código con los números.
+
+- **UN solo scroller: el INTERNO del iframe.** El documento scrollea DENTRO del marco (el mismo
+  gesto del visitante); el pane NO scrollea (`overflow:hidden`, sin spacer de scrollHeight). Dos
+  scrollers —el pane y el interno— topaban en puntos distintos (el spacer basado en un scrollHeight
+  rancio ≠ el contenido ya hinchado). Se DESCARTÓ sincronizar dos scrollers por JS (a-enlazado):
+  es superficie que se rompe en los bordes (rebote, teclado, `scrollTo` durante una recarga) y el
+  scroll interno ya es el gesto real. El pane es el MARCO: alto = 800·scale, anclado arriba
+  (`align-self:start`) para que su tope alinee con el editor; el resto de la celda `1fr` es lienzo
+  del panel.
+
+- **Al guardar, el preview recarga SIN parpadeo (doble-buffer).** Normalmente UN iframe; al
+  guardar se crea un SEGUNDO (oculto, cargando), y cuando termina hereda el scroll interno del
+  anterior y se vuelve el activo —el viejo se destruye—. Dos renders vivos a la vez es el doble del
+  peso, así que el segundo existe SÓLO durante el intercambio; el viejo se ve hasta que el nuevo
+  está listo → cero parpadeo. Se escucha el `load` del ELEMENTO iframe, no del `contentWindow` (que
+  cambia con la recarga). La preservación de scroll vive en `iframe.contentWindow.scrollY`, con
+  **`behavior:'instant'` OBLIGATORIO** —el storefront tiene `scroll-behavior:smooth`, así que sin
+  instant la restauración ANIMA y se ve el salto— y su clamp (`scrollHeight−800`; el contenido
+  puede acortarse entre recargas).
+
+- **El COLAPSO del preview se DERIVA del registry**, no de un nombre de sección:
+  `REGISTRY[activa].repeater != null` → el editor toma el ancho completo y el preview se oculta
+  (`.tienda-split--sin-preview`). Una sección repeater (Testimonios) necesita la columna entera
+  para su lista; es la NATURALEZA de la sección, no un `if` con su nombre. Hoy la única (Portada)
+  no es repeater → nunca colapsa; la plataforma queda lista para las que faltan. El SELECTOR de
+  secciones también sale del registry y con UNA sola sección no se muestra (un tab de uno no es
+  una elección).
+
+- **Altura HEREDADA, no `calc(100vh)`:** la página opta a `.duna-sin-split` (alto fijo, gate 960),
+  así el chrome le da la altura y el `.tienda-split` la hereda con `height:100%` — un `100vh`/`calc`
+  suelto contra el viewport es lo que la § cadena de altura prohíbe (#42). El pane NO hereda ese
+  alto (se dimensiona a la ventana escalada); el editor sí lo llena.
+
+- **Deuda declarada — § Backlog #45:** bajo 1080 el split se OCULTA entero (corte duro); falta un
+  toggle de la vista previa. Polish, no defecto; disparador: uso real del editor (Nayoli/Luis) o
+  el owner topándolo en su portátil con el rail expandido.
+
 ### La propagación al storefront — el storefront es DINÁMICO (defecto medido y arreglado)
 
 El storefront **era ESTÁTICO** —`○ /` y todas sus rutas salvo el detalle de producto—, y eso
