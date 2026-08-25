@@ -1,7 +1,7 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-24 (SiteSetting — los datos PLANOS del negocio, editables
-en Configuración; fase 1 del multi-tenant SIN fijar la tenancy).
+**Actualizado:** 2026-08-25 (SiteContent — el CONTENIDO del storefront editable,
+empezando por el hero; loader SOFT, defaults-como-fallback, editor en /admin/tienda).
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -46,6 +46,7 @@ Vercel, `main` = producción).
 | `/admin/dashboard` | Completa ("Hoy": hero + curva por hora + top-hoy + tarjetas) | Document-scroll |
 | `/admin/configuracion` | Completa. "Configuración" con DOS secciones: Datos del negocio (editor lectura↔edición) + Equipo y usuarios | Document-scroll |
 | `/admin/perfil` | Completa (cuenta limpia + cambiar contraseña real) | Document-scroll |
+| `/admin/tienda` | Nueva. Contenido del storefront (SiteContent); v1 = editor del HERO. Rail: "Tienda" suelto tras Crecimiento | Document-scroll |
 
 ### Pendientes de rediseño
 **Ninguna.** Todas las verticales del panel están en lenguaje Duna; no queda una
@@ -217,6 +218,17 @@ cabecera:
   definió el spec absorbió lo que iba a hacer.
 
 ### Trabajo cerrado
+- **SiteContent — el contenido del storefront editable, HERO primero** (2026-08-25, § CLAUDE.md
+  "Config del contenido — SiteContent"). El contenido editorial de la home salió del JSX a la
+  tabla `SiteContent` (singleton, born en `public`, **migración SIN INSERT**), editable en
+  `/admin/tienda`. Loader **SOFT** (`findUnique` → defaults-como-fallback; el vacío es legítimo)
+  — el contraste a propósito con SiteSetting (HARD, fail-loud). Requerido vacío → default;
+  opcional vacío → SE OMITE (ocultable). Visibilidad `visible` + `ocultable` declarado + hide-on-
+  empty (listo para las otras secciones). Imágenes por `/api/upload` prefix 'contenido'
+  (whitelist), string estático-o-URL, tope 4 MB. Editor reusa la cáscara de DatosNegocioSeccion +
+  la etapa de imagen de ProductFormModal. **PENDIENTE de gate:** la propagación al storefront tras
+  editar (si no se ve al recargar → `revalidatePath('/')`). Testimonios: `#44` (los falsos siguen;
+  vaciado propuesto y descartado). Faltan BrandStory/Testimonials/SubscriptionCTA (sólo datos).
 - **SiteSetting — los datos PLANOS del negocio, editables** (2026-08-24, § CLAUDE.md
   "Config del negocio — SiteSetting"). nombre, tagline, descripcionFooter, whatsapp,
   instagram, emailRemitente, emailReplyTo, adminEmail salieron de `siteConfig` (código)
