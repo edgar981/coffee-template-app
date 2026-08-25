@@ -1773,6 +1773,15 @@ flujo FINAL, tras evaluar y retirar un iframe intermedio (ver "por qué se retir
   secciones y el dueño necesite ver cómo queda una ENCIMA de otra, la vista pasa a la home
   completa. Hoy con una sección no aplica; el enlace "Ver la tienda" cubre el ínterin.
 
+  **SEGUNDO ARGUMENTO a favor de esta vista, y el que RETIRA el cartel "Sección oculta":** con la
+  home completa, apagar "Mostrar en la tienda" muestra el RESULTADO REAL —las secciones vecinas
+  juntándose, que es lo que el dueño quiere ver—, y el cartel deja de tener razón de ser. Hoy la
+  vista es de UNA sección, así que "la tienda sin esta sección" sería un pane VACÍO —que se lee
+  como roto, no como intención—; por eso, mientras la vista sea de una sección, el cartel es lo
+  HONESTO (§ el aviso muted "No se muestra en la tienda"), no un placeholder de relleno. Queda
+  escrito para no re-diagnosticarlo: el cartel no es una carencia a arreglar suelta, es correcto
+  hasta que exista la home completa, y ahí desaparece por innecesario.
+
 - **El editor VISUAL (editar sobre la vista) — al backlog** (§ Backlog): se evaluó y se dejó para
   su propia tanda.
 
