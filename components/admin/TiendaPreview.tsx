@@ -5,17 +5,18 @@ import TiendaHeroSeccion from '@/components/admin/TiendaHeroSeccion';
 
 // Ancho del viewport DESKTOP que el iframe renderiza. 1280 está por encima de `lg`, así que
 // la tienda sale en su layout de escritorio; el `transform: scale` lo reduce al ancho real
-// del pane (§ negocio≠tienda / vista previa). El home se ve chico pero fiel.
+// del pane. El home se ve chico pero fiel.
 const DESKTOP = 1280;
 
 export default function TiendaPreview() {
-  // Ancho REAL del pane, medido con ResizeObserver (mismo patrón que PagosCurva): un callback
-  // ref que engancha/desengancha con cada nodo y IGNORA el aviso de ancho 0 (nodo saliendo).
-  // Así el factor de escala se RECALCULA al colapsar el rail o redimensionar la ventana, no
-  // una sola vez al montar.
+  // Ancho REAL del pane, con ResizeObserver (patrón de PagosCurva): callback ref que
+  // engancha/desengancha con cada nodo e IGNORA el aviso de ancho 0 (nodo saliendo). El RO
+  // observa el PANE, que es ESTABLE —no se remonta al intercambiar iframes—, así que no hay
+  // que re-engancharlo por buffer; y si el pane se remontara, el callback ref lo cubre (es el
+  // caso que rompió el hover de PagosCurva por observar un nodo que ya no estaba). El factor
+  // `paneW/1280` se recalcula al colapsar el rail o redimensionar.
   const observador = useRef<ResizeObserver | null>(null);
-  const scroller   = useRef<HTMLDivElement | null>(null); // el pane que SCROLLEA
-  const iframeRef  = useRef<HTMLIFrameElement | null>(null);
+  const scroller   = useRef<HTMLDivElement | null>(null);
   const [paneW, setPaneW] = useState(0);
   const [homeH, setHomeH] = useState(2400); // alto del home en coords desktop; se mide al cargar
 
@@ -36,63 +37,80 @@ export default function TiendaPreview() {
 
   const scale = paneW > 0 ? paneW / DESKTOP : 0;
 
-  // Al cargar el iframe (mismo origen) se mide el alto real del home para dimensionar el
-  // spacer que le da al pane su altura de scroll. Si el contenido cambia (un guardado), se
-  // vuelve a medir.
-  const medir = () => {
+  // DOBLE-BUFFER: normalmente UN iframe. Al guardar se agrega un SEGUNDO (oculto, cargando);
+  // cuando termina, se vuelve el activo y el viejo se DESTRUYE —dos renders de la home vivos a
+  // la vez es el doble del peso, así que el segundo existe SÓLO durante el intercambio—. El
+  // viejo se ve hasta que el nuevo está listo → cero parpadeo.
+  const [frames, setFrames]     = useState<number[]>([0]); // ids; el ÚLTIMO es el objetivo
+  const [activoId, setActivoId] = useState(0);             // el que se muestra
+  const nextId    = useRef(1);
+  const pendiente = useRef<{ id: number; scroll: number } | null>(null);
+  const iframes   = useRef<Map<number, HTMLIFrameElement>>(new Map());
+
+  const alturaDe = (el: HTMLIFrameElement | undefined): number => {
     try {
-      const h = iframeRef.current?.contentWindow?.document?.documentElement?.scrollHeight;
-      if (h && h > 0) setHomeH(h);
-    } catch { /* mismo origen: no debería lanzar; si lo hace, se queda el alto previo */ }
+      const h = el?.contentWindow?.document?.documentElement?.scrollHeight;
+      if (h && h > 0) return h;
+    } catch { /* mismo origen: no debería lanzar */ }
+    return homeH;
   };
 
-  // Reload al guardar: preserva el scrollTop del PANE, CLAMPeado al alto NUEVO. El contenido
-  // puede ACORTARSE entre recargas (p. ej. borrar un párrafo de la historia); sin el clamp, el
-  // scrollTop viejo caería fuera de rango y el pane saltaría al fondo o quedaría en blanco.
-  const recargar = () => {
-    const pane = scroller.current;
-    const iframe = iframeRef.current;
-    if (!iframe?.contentWindow) return;
-    const prev = pane?.scrollTop ?? 0;
-    // El listener va en el ELEMENTO iframe, no en `contentWindow`: tras `reload()` el window
-    // puede ser otro objeto, y un listener sobre el viejo no se enteraría del nuevo `load`.
-    const alCargar = () => {
-      iframe.removeEventListener('load', alCargar);
-      medir();
-      // Tras re-medir, el spacer cambia de alto en el siguiente frame; ahí se clampea.
+  const alCargar = (id: number) => {
+    const h = alturaDe(iframes.current.get(id));
+    setHomeH(h);
+    const p = pendiente.current;
+    if (p && p.id === id) {
+      // Promoción: el nuevo se muestra y el viejo se desmonta (segundo iframe transitorio).
+      pendiente.current = null;
+      setActivoId(id);
+      setFrames([id]);
+      // Reaplica el SCROLL al nuevo (activo), clampeado al alto NUEVO. El clamp usa `h*scale`
+      // —el alto del spacer tras esta carga— y no `scrollHeight` (que aún no re-renderizó): el
+      // contenido pudo ACORTARSE y el scrollTop viejo caer fuera. rAF para leer tras el paint.
       requestAnimationFrame(() => {
+        const pane = scroller.current;
         if (!pane) return;
-        const max = Math.max(0, pane.scrollHeight - pane.clientHeight);
-        pane.scrollTop = Math.min(prev, max);
+        const max = Math.max(0, h * scale - pane.clientHeight);
+        pane.scrollTop = Math.min(p.scroll, max);
       });
-    };
-    iframe.addEventListener('load', alCargar);
-    iframe.contentWindow.location.reload();
+    }
+  };
+
+  const recargar = () => {
+    const nuevo = nextId.current++;
+    pendiente.current = { id: nuevo, scroll: scroller.current?.scrollTop ?? 0 };
+    setFrames(fs => [...fs, nuevo]); // segundo iframe (oculto) carga en paralelo
   };
 
   return (
     <div className="tienda-split">
-      {/* Vista previa (izq) — desktop escalado. Se OCULTA bajo el breakpoint (§ duna.css):
-          debajo el split no cabe y el editor toma el ancho completo. */}
+      {/* Vista previa (izq) — desktop escalado; se OCULTA bajo el breakpoint (§ duna.css). */}
       <div ref={paneRef} className="tienda-preview-pane">
         {scale > 0 && (
           // El SPACER lleva el alto ESCALADO (transform no cambia el layout), así el pane
-          // scrollea la altura correcta; el iframe va escalado dentro.
-          <div style={{ height: homeH * scale, width: DESKTOP * scale }}>
-            <iframe
-              ref={iframeRef}
-              src="/?preview=1"
-              title="Vista previa de la tienda"
-              onLoad={medir}
-              style={{
-                width: DESKTOP,
-                height: homeH,
-                border: 0,
-                display: 'block',
-                transform: `scale(${scale})`,
-                transformOrigin: 'top left',
-              }}
-            />
+          // scrollea la altura correcta; los iframes van escalados y superpuestos (top:0).
+          <div className="tienda-preview-lienzo" style={{ height: homeH * scale, width: DESKTOP * scale }}>
+            {frames.map(id => (
+              <iframe
+                key={id}
+                ref={el => { if (el) iframes.current.set(id, el); else iframes.current.delete(id); }}
+                src="/?preview=1"
+                title="Vista previa de la tienda"
+                onLoad={() => alCargar(id)}
+                style={{
+                  width: DESKTOP,
+                  height: homeH,
+                  border: 0,
+                  display: 'block',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  transform: `scale(${scale})`,
+                  transformOrigin: 'top left',
+                  visibility: id === activoId ? 'visible' : 'hidden',
+                }}
+              />
+            ))}
           </div>
         )}
       </div>

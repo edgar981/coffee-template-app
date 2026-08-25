@@ -510,29 +510,37 @@ html.admin {
 
 /* ═══ /admin/tienda · split de VISTA PREVIA + editor ══════════════════════════
    Admin-level (un solo consumidor, prefijo `tienda-`). El iframe muestra la tienda real
-   (`/?preview=1`, inerte) en desktop escalado; el editor a la derecha. */
+   (`/?preview=1`, inerte) en desktop escalado; el editor a la derecha.
+
+   ALTURA HEREDADA, no `calc(100vh)`: la página opta a `.duna-sin-split` (alto fijo, gate
+   960), así que el chrome le da la altura (`main:has(.duna-sin-split) { height:100dvh }`) y
+   ésta baja con `height:100%` hasta el pane —sin un `calc` contra el viewport, que es lo que
+   la § cadena de altura prohíbe (#42)—. El `.duna-sin-split` es la grid `auto 1fr`: el header
+   es `auto`, este split es `1fr`. */
 .tienda-split {
+  height: 100%;
+  min-height: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--duna-space-6);
-  align-items: start;
-  margin-top: var(--duna-space-6);
+  align-items: stretch;            /* ambas columnas al alto de la fila `1fr` */
 }
-/* El pane es STICKY: se queda a la vista mientras se scrollea el editor (document-scroll).
-   Alto = viewport menos el chrome de arriba; el iframe escalado scrollea DENTRO del pane. */
+/* El pane HEREDA la altura (stretch de la fila `1fr` acotada) y scrollea DENTRO; el iframe
+   escalado va superpuesto en el lienzo (position:relative). Nada de sticky ni `calc`. */
 .tienda-preview-pane {
-  position: sticky;
-  top: var(--duna-space-4);
-  height: calc(100vh - 9.5rem);   /* topbar + header de página + aire — afinar en el gate */
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   border: 1px solid var(--duna-border);
   border-radius: var(--duna-r-l);
   background: var(--duna-bg);
 }
+.tienda-preview-lienzo { position: relative; }
+.tienda-editor-col { min-height: 0; overflow-y: auto; }
 /* Bajo 1080 el split no cabe (el iframe escalado + el editor no cohabitan con ancho útil):
    una columna, la vista previa se OCULTA y el editor toma el ancho completo. En teléfono
-   queda el editor solo, usable. Un toggle "ver tienda" es mejora futura. */
+   (<960, sin alto fijo → document-scroll) queda el editor solo, usable. Un toggle "ver
+   tienda" es mejora futura. */
 @media (max-width: 1079.98px) {
   .tienda-split { grid-template-columns: 1fr; }
   .tienda-preview-pane { display: none; }
