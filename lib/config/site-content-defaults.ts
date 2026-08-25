@@ -183,11 +183,15 @@ export function mezclarBorrador(content: unknown, borrador: unknown): Record<str
  *  · `ocultable: false` → siempre visible, salvo que sea repeater y su array esté vacío.
  *  · repeater → se oculta con el array vacío, aunque `visible` sea true.
  */
-export function seccionEsVisible(def: SeccionDef, sec: Record<string, unknown>): boolean {
-  const items = def.repeater ? sec[def.repeater.itemsKey] : undefined;
+// `sec: object` para aceptar tanto los literales de test como los tipos de sección CONCRETOS
+// (`BrandStoryContent`, …), que no tienen index signature y por eso no encajan en un
+// `Record<string, unknown>` a secas. Se lee por el cast (`visible` e `itemsKey` del repeater).
+export function seccionEsVisible(def: SeccionDef, sec: object): boolean {
+  const rec = sec as Record<string, unknown>;
+  const items = def.repeater ? rec[def.repeater.itemsKey] : undefined;
   const tieneItems = Array.isArray(items) && items.length > 0;
 
   if (def.repeater && !tieneItems) return false; // hide-on-empty gana sobre todo
   if (!def.ocultable) return true;                // no se puede ocultar (hero)
-  return sec.visible !== false;
+  return rec.visible !== false;
 }
