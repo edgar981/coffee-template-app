@@ -507,3 +507,33 @@ html.admin {
 .admin-indicador__pleca--prob { background: var(--duna-bad); }
 .admin-indicador__lab { display: block; font-weight: var(--duna-w-semi); font-size: 0.76rem; }
 .admin-indicador__ctx { display: block; font-size: 0.7rem; color: var(--duna-muted); margin-top: 1px; }
+
+/* ═══ /admin/tienda · split de VISTA PREVIA + editor ══════════════════════════
+   Admin-level (un solo consumidor, prefijo `tienda-`). El iframe muestra la tienda real
+   (`/?preview=1`, inerte) en desktop escalado; el editor a la derecha. */
+.tienda-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--duna-space-6);
+  align-items: start;
+  margin-top: var(--duna-space-6);
+}
+/* El pane es STICKY: se queda a la vista mientras se scrollea el editor (document-scroll).
+   Alto = viewport menos el chrome de arriba; el iframe escalado scrollea DENTRO del pane. */
+.tienda-preview-pane {
+  position: sticky;
+  top: var(--duna-space-4);
+  height: calc(100vh - 9.5rem);   /* topbar + header de página + aire — afinar en el gate */
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid var(--duna-border);
+  border-radius: var(--duna-r-l);
+  background: var(--duna-bg);
+}
+/* Bajo 1080 el split no cabe (el iframe escalado + el editor no cohabitan con ancho útil):
+   una columna, la vista previa se OCULTA y el editor toma el ancho completo. En teléfono
+   queda el editor solo, usable. Un toggle "ver tienda" es mejora futura. */
+@media (max-width: 1079.98px) {
+  .tienda-split { grid-template-columns: 1fr; }
+  .tienda-preview-pane { display: none; }
+}

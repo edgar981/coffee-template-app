@@ -1,6 +1,6 @@
 'use client';
 
-import TiendaHeroSeccion from '@/components/admin/TiendaHeroSeccion';
+import TiendaPreview from '@/components/admin/TiendaPreview';
 
 // ─── CONTENIDO DE LA TIENDA (el storefront) ──────────────────────────────────
 //
@@ -21,9 +21,7 @@ export default function Tienda() {
         </p>
       </div>
 
-      <section style={{ marginTop: 'var(--duna-space-8)' }}>
-        <TiendaHeroSeccion />
-      </section>
+      <TiendaPreview />
     </div>
   );
 }
