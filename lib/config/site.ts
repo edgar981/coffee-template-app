@@ -1,8 +1,14 @@
-// Configuración del sitio — fuente única de datos de marca/contacto.
+// Configuración del sitio — lo ESTRUCTURADO del tenant que sigue en código (v1).
 //
-// Objetivo de template: el CÓDIGO es fijo; lo que varía por cliente vive
-// aquí (y en la data/DB). Esta primera pasada cubre solo footer + contacto;
-// el resto del sitio se migrará en pasadas posteriores.
+// Los campos PLANOS (nombre, tagline, descripcionFooter, whatsapp, instagram,
+// emailRemitente, emailReplyTo) se MUDARON a `SiteSetting` (base, editables en
+// Configuración) — ver `lib/config/site-settings*.ts`. Acá quedan sólo los
+// ESTRUCTURADOS, que un formulario simple no edita: la paleta de correos
+// (`emailColors`) y la navegación del footer (`footerNav`/`legalNav`). Su día de
+// editable es el multi-tenant (§ CLAUDE.md · Datos de negocio editables).
+//
+// Las funciones (whatsappUrl, formatWhatsappDisplay, instagramUrl) NO son datos de
+// tenant: son helpers puros y se quedan acá.
 
 export interface NavLink {
   label: string;
@@ -19,41 +25,35 @@ export interface NavLink {
 // DESPACHAR una orden sin pago (shippings PATCH). transitionOrder sigue siendo el
 // único que mueve Order.estado.
 
-// Dígitos wa.me (sin "+" ni separadores) a partir de contacto.whatsapp.
-const whatsappDigits = "+573155766064".replace(/\D/g, "");
-
-/** URL wa.me con mensaje opcional precargado. Client-safe: solo arma la URL. */
-export function whatsappUrl(mensaje?: string): string {
-  const base = `https://wa.me/${whatsappDigits}`;
+/** URL wa.me con mensaje opcional. Recibe el NÚMERO (una sola fuente: `SiteSetting.whatsapp`
+ *  vía el provider del storefront); ya no hay constante de módulo. Puro, client-safe. */
+export function whatsappUrl(number: string, mensaje?: string): string {
+  const digits = number.replace(/\D/g, "");
+  const base = `https://wa.me/${digits}`;
   return mensaje ? `${base}?text=${encodeURIComponent(mensaje)}` : base;
 }
 
-/** URL pública del perfil de Instagram a partir del handle en contacto. */
+/** Número crudo → display CO ("+573155766064" → "+57 315 576 6064"). Se DERIVA del mismo
+ *  número, sin un segundo campo (whatsappDisplay) que pudiera divergir. */
+export function formatWhatsappDisplay(whatsapp: string): string {
+  const nat = whatsapp.replace(/\D/g, "").replace(/^57/, "");
+  const m = nat.match(/^(\d{3})(\d{3})(\d{4})$/);
+  return m ? `+57 ${m[1]} ${m[2]} ${m[3]}` : whatsapp;
+}
+
+/** URL pública del perfil de Instagram a partir del handle. */
 export function instagramUrl(handle: string): string {
   return `https://instagram.com/${handle}`;
 }
 
 export const siteConfig = {
-  brand: {
-    nombre: "Café Nayoli",
-    tagline: "Supatá · Cundinamarca",
-    descripcionFooter:
-      "Café de especialidad colombiano. De nuestra finca en Supatá a tu taza.",
-  },
-
-  // ─── Identidad de la TIENDA para correos al cliente final ────────────────────
-  // Los correos al cliente llevan la marca de la tienda, NO la de Duna. Un solo
-  // lugar para el remitente/marca de todos los emails de notificación.
+  // ─── Paleta de correos al cliente (ESTRUCTURADO) ─────────────────────────────
+  // Los correos al cliente llevan la marca de la TIENDA (cream/espresso), NUNCA el
+  // ámbar del admin. Hex inline porque los clientes de correo no leen CSS variables.
+  // `buildBrand()` la inyecta junto con los planos (nombre/tagline/remitente), que
+  // ya vienen de SiteSetting. Es un editor rico, no un input de texto → se queda en
+  // código hasta el multi-tenant.
   tienda: {
-    nombre: "Café Nayoli",
-    // Remitente INTERINO hasta que exista dominio propio del cliente (Preguntas v2):
-    // `mail.duna.solutions` ya está verificado en Resend. Cambiar aquí = cambia en
-    // TODOS los correos. (El remitente muestra el nombre de la tienda, no "Duna".)
-    emailRemitente: "Café Nayoli <pedidos@mail.duna.solutions>",
-    // Sin correo de contacto propio de la tienda todavía → sin Reply-To (se omite).
-    emailReplyTo: undefined as string | undefined,
-    // Paleta del STOREFRONT (cream/espresso) para los correos — NUNCA el ámbar del
-    // admin. Hex inline porque los clientes de correo no leen CSS variables.
     emailColors: {
       crema:    "#faf7f2",
       papel:    "#ffffff",
@@ -64,13 +64,6 @@ export const siteConfig = {
     },
   },
 
-  contacto: {
-    // Formato internacional con "+" — usar whatsappUrl() para el enlace wa.me.
-    whatsapp: "+573155766064",
-    whatsappDisplay: "+57 315 576 6064",
-    instagram: "cafenayoliorigen",
-  },
-
   footerNav: {
     tienda: [
       { label: "Todos los productos", href: "/tienda" },
@@ -79,12 +72,13 @@ export const siteConfig = {
       { label: "Suscripciones", href: "/suscripciones" },
     ] satisfies NavLink[],
 
-    // Solo rutas con página real. "Contacto" apunta a WhatsApp (no hay página).
-    // Eliminados por no existir: Política de Envíos, Devoluciones.
+    // Solo rutas de página real. "Contacto" SALIÓ: era un link de WhatsApp horneado con
+    // el número —una SEGUNDA fuente del número— mientras las otras son rutas. El contacto
+    // de WhatsApp lo renderiza StoreFooter desde `SiteSetting.whatsapp` (una sola fuente).
+    // Eliminados antes por no existir: Política de Envíos, Devoluciones.
     ayuda: [
       { label: "Rastrear Pedido", href: "/rastrear-pedido" },
       { label: "Preguntas Frecuentes", href: "/preguntas-frecuentes" },
-      { label: "Contacto", href: whatsappUrl() },
     ] satisfies NavLink[],
 
     empresa: [

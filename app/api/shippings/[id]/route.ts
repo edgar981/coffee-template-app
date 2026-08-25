@@ -178,7 +178,7 @@ export async function PATCH(
     // the transition is idempotent, so the email hangs off it, not off re-renders).
     // Fully guarded — the email can never affect the dispatch outcome.
     if (resultado.justDispatched) {
-      try { await notifyOrderEnRoute(current.orden_id, buildBrand()); }
+      try { await notifyOrderEnRoute(current.orden_id, await buildBrand()); }
       catch (e) { console.error(`[notify] order.enRoute orden ${current.orden_id}:`, e); }
 
       // Cruces de stock mínimo provocados por este despacho. Post-commit: el stock

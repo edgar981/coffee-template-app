@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { authClient } from '@/lib/auth-client';
 import { useRouter } from 'next/navigation';
 import RoleBadge from '@/components/admin/RoleBadge';
-import { siteConfig } from '@/lib/config/site';
+import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 
 // ─── ESTA PANTALLA ES LA CUENTA DE QUIEN ESTÁ ADENTRO ────────────────────────
@@ -17,8 +17,8 @@ import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 //   que no hace. La contraseña REAL entra en la tanda de seguridad;
 // · el botón de cámara no tenía `onClick` — un adorno que finge una acción;
 // · la "Organización" decía "Bogotá, Colombia", que además de hardcoded era
-//   FALSO (Nayoli está en Supatá). Ahora sale de `siteConfig.brand` — la misma
-//   fuente que el resto del producto, y el día del multi-tenant migra con ella.
+//   FALSO (Nayoli está en Supatá). Ahora sale de `SiteSetting` vía el provider
+//   del admin — la misma fuente editable que el resto del producto.
 //
 // Lo que quedó es lo que la pantalla puede sostener de verdad: editar el nombre,
 // ver el correo y el rol, saber de qué negocio es la cuenta, y cerrar sesión.
@@ -39,6 +39,7 @@ const MIN_PASS = 8;
 
 export default function Perfil() {
   const router                = useRouter();
+  const settings              = useSiteSettings();
   const [loading, setLoading] = useState(true);
   const [form, setForm]       = useState({ name: '', email: '' });
   const [role, setRole]       = useState<string>('STAFF');
@@ -204,8 +205,8 @@ export default function Perfil() {
             <Building2 style={{ width: 16, height: 16, color: 'var(--duna-muted)' }} />
             <h3 className="duna-title" style={{ fontSize: 'var(--duna-text-body)', margin: 0 }}>Organización</h3>
           </div>
-          <p className="duna-body" style={{ fontWeight: 'var(--duna-w-semi)', margin: 0 }}>{siteConfig.brand.nombre}</p>
-          <p className="duna-sub" style={{ marginTop: '2px' }}>{siteConfig.brand.tagline}</p>
+          <p className="duna-body" style={{ fontWeight: 'var(--duna-w-semi)', margin: 0 }}>{settings.nombre}</p>
+          <p className="duna-sub" style={{ marginTop: '2px' }}>{settings.tagline}</p>
         </div>
       </div>
 

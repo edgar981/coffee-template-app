@@ -40,7 +40,7 @@ import { NewOrderModal } from '@/components/admin/NewOrderModal';
 import { DateRangePicker, rangoLabel } from '@/components/admin/DateRangePicker';
 import { findSlotLabel } from '@duna/core/shipping-config';
 import { customerWhatsappHref } from '@duna/core/whatsapp-link';
-import { siteConfig } from '@/lib/config/site';
+import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import { formatFecha } from '@duna/core/format-fecha';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
@@ -916,6 +916,7 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
   // por `onCerrar`, así que sin el embudo saltaría la guarda—. El "¿hay borrador?"
   // lo reporta la página, que es donde vive el borrador.
   const router = useRouter();
+  const settings = useSiteSettings();
   const clienteHref = orden.cliente_id ? `/admin/clientes?cliente=${encodeURIComponent(orden.cliente_id)}` : null;
 
   // WhatsApp al cliente, la acción más frecuente del operador de este negocio y
@@ -926,7 +927,7 @@ function Detalle({ orden, detalle, cargando, error, acciones }: {
   // pinta un botón muerto.
   const waHref = customerWhatsappHref(
     orden.cliente_telefono,
-    `Hola ${orden.cliente_nombre}, te escribimos de ${siteConfig.brand.nombre} por tu pedido ${orden.numero_orden}`,
+    `Hola ${orden.cliente_nombre}, te escribimos de ${settings.nombre} por tu pedido ${orden.numero_orden}`,
   );
 
   // El método REAL manda sobre el previsto: el pago que existe gana sobre la

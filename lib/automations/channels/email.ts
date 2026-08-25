@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
-import { siteConfig } from '@/lib/config/site';
 import { buildBrand } from '@/lib/config/brand';
+import { readSiteSettings } from '@/lib/config/site-settings-read';
 import { sendCustomerEmail } from '@duna/core/notifications/channels/email';
 import type { DispatchRequest, DispatchResult } from './types';
 import type { RenderedEmail } from '@duna/core/notifications/templates/shared';
@@ -8,9 +8,9 @@ import type { RenderedEmail } from '@duna/core/notifications/templates/shared';
 // Canal EMAIL de las automatizaciones. Dos identidades, elegidas por la AUDIENCIA
 // —no por quién dispara— porque son dos productos distintos hablando:
 //
-//   audiencia 'cliente' → identidad de la TIENDA (siteConfig.tienda.emailRemitente,
-//     "Café Nayoli <pedidos@…>"). Reusa `sendCustomerEmail`, el canal que ya
-//     existía para orden creada / en camino. No se duplica.
+//   audiencia 'cliente' → identidad de la TIENDA (SiteSetting.emailRemitente vía
+//     `readSiteSettings`/`buildBrand`, "Café Nayoli <pedidos@…>"). Reusa
+//     `sendCustomerEmail`, el canal que ya existía para orden creada / en camino.
 //
 //   audiencia 'equipo'  → identidad del PANEL (env EMAIL_FROM, la misma de las
 //     invitaciones). Un reporte interno que llegue firmado como la tienda le
@@ -19,19 +19,23 @@ import type { RenderedEmail } from '@duna/core/notifications/templates/shared';
 // El redirect de dev (NOTIFICATIONS_REDIRECT_EMAIL) aplica a AMBAS: en local y en
 // preview todo cae en un buzón, con el destinatario real anotado en el asunto.
 
-/** Destinatario por defecto de los correos al equipo cuando la config no lista ninguno. */
-export function defaultTeamRecipients(): string[] {
-  const admin = process.env.ADMIN_EMAIL?.trim();
+/**
+ * Destinatario por defecto de los correos al equipo cuando la config no lista ninguno:
+ * el correo del negocio (`SiteSetting.adminEmail`, editable en Configuración). Async
+ * porque lee la config; `[]` si no hay ninguno definido.
+ */
+export async function defaultTeamRecipients(): Promise<string[]> {
+  const admin = (await readSiteSettings()).adminEmail?.trim();
   return admin ? [admin] : [];
 }
 
-/** "a@x.com, b@y.com" → ["a@x.com","b@y.com"]. Vacío → el admin principal. */
-export function parseRecipients(raw: unknown): string[] {
+/** "a@x.com, b@y.com" → ["a@x.com","b@y.com"]. Vacío → el correo del negocio. */
+export async function parseRecipients(raw: unknown): Promise<string[]> {
   const lista = String(raw ?? '')
     .split(',')
     .map(s => s.trim())
     .filter(s => s.includes('@'));
-  return lista.length > 0 ? lista : defaultTeamRecipients();
+  return lista.length > 0 ? lista : await defaultTeamRecipients();
 }
 
 // Envío con la identidad del PANEL. Mismo contrato de fallos que sendCustomerEmail:
@@ -66,7 +70,7 @@ export async function dispatchEmail(
     to:         req.to,
     remitente:  req.audiencia === 'equipo'
       ? (process.env.EMAIL_FROM ?? '(EMAIL_FROM sin configurar)')
-      : siteConfig.tienda.emailRemitente,
+      : (await readSiteSettings()).emailRemitente,
     subject:    req.email.subject,
     // El texto plano, no el HTML: el payload es para leerlo en la auditoría.
     texto:      req.email.text,
@@ -75,7 +79,7 @@ export async function dispatchEmail(
   // Sin destinatarios no hay a quién escribirle. Es un run OMITIDO, no un fallo:
   // el barrido corrió bien, simplemente no había buzón configurado.
   if (req.to.length === 0) {
-    console.warn('[automations:email] sin destinatarios (config vacía y ADMIN_EMAIL sin definir)');
+    console.warn('[automations:email] sin destinatarios (config vacía y sin correo del negocio)');
     return { estado: 'OMITIDO', payload: { ...payload, motivo: 'sin destinatarios' } };
   }
 
@@ -84,10 +88,11 @@ export async function dispatchEmail(
   } else {
     // Identidad de tienda — el canal que ya existía, uno por destinatario. El
     // brand se inyecta con buildBrand() (este canal vive en la app y conoce el
-    // tenant). PRECONDICIÓN DE GO-LIVE: cuando las automatizaciones email-a-cliente
-    // se activen y el motor se mueva a core, el brand debe THREADEARSE por el
-    // evento — no leerse acá — igual que se hizo con notifications en Fase A.
-    for (const to of req.to) await sendCustomerEmail(to, req.email, buildBrand());
+    // tenant), UNA vez fuera del loop. PRECONDICIÓN DE GO-LIVE: cuando las
+    // automatizaciones email-a-cliente se activen y el motor se mueva a core, el
+    // brand debe THREADEARSE por el evento — no leerse acá — igual que notifications.
+    const brand = await buildBrand();
+    for (const to of req.to) await sendCustomerEmail(to, req.email, brand);
   }
 
   return { estado: 'ENVIADO', payload };

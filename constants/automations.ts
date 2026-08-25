@@ -62,8 +62,9 @@ export type AutomationTipo = 'evento' | 'programada';
 
 /**
  * A quién le habla — DECIDE LA IDENTIDAD DEL REMITENTE, no es decorativo:
- * `cliente` sale con la identidad de la tienda (siteConfig.tienda), `equipo` con
- * la del panel. Ver lib/automations/channels/email.ts.
+ * `cliente` sale con la identidad de la tienda (SiteSetting.emailRemitente +
+ * siteConfig.tienda.emailColors, vía buildBrand), `equipo` con la del panel
+ * (EMAIL_FROM). Ver lib/automations/channels/email.ts.
  */
 export type AutomationAudiencia = 'cliente' | 'equipo';
 
@@ -180,7 +181,7 @@ const horaCampo = (label = 'Hora de ejecución'): ConfigCampo => ({
 
 const destinatariosCampo: ConfigCampo = {
   name: 'destinatarios', tipo: 'emails', label: 'Destinatarios',
-  ayuda: 'Separados por coma. Vacío = el correo del admin principal (ADMIN_EMAIL).',
+  ayuda: 'Separados por coma. Vacío = el correo del negocio (Configuración).',
 };
 
 // Formato de las frases de tarjeta (value-aware). `n` viene del config, que llega

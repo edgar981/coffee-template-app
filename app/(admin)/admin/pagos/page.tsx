@@ -19,7 +19,7 @@ import { rangoDeDiasDelPeriodo, opcionesPreset } from '@/lib/metrics/periodo';
 import { bucketKey, bucketear } from '@/lib/pagos/bucketeo';
 import { fraseDePagos, mejorDiaDe } from '@/lib/pagos/frase';
 import { modeloInforme } from '@/lib/pagos/informe';
-import { siteConfig } from '@/lib/config/site';
+import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import { etiquetaBucket, type RecorteTiempo } from '@/lib/pagos/etiquetas';
 
 // Columnas del libro (grid-list). Flexibles: caben en la región sin scroll horizontal
@@ -40,6 +40,7 @@ function PagosInner() {
   const router       = useRouter();
   const pathname     = usePathname();
   const searchParams = useSearchParams();
+  const settings     = useSiteSettings();
   // La pantalla SIEMPRE abre con un rango: MES EN CURSO por defecto, o el `?desde/?hasta`
   // del deep-link del dashboard. El reloj se fija al montar.
   const ahora    = useMemo(() => new Date(), []);
@@ -172,7 +173,7 @@ function PagosInner() {
       // no de una segunda consulta: el informe no puede contener un conjunto que el
       // libro no muestre.
       const modelo = modeloInforme({
-        negocio: siteConfig.brand.nombre,
+        negocio: settings.nombre,
         ahora: new Date(),
         pagos: filtered, enBucket,
         desde: from, hasta: to,

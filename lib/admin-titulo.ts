@@ -14,18 +14,16 @@ import { ADMIN_NAV } from '@/constants/admin-nav';
 //
 // Las dos secciones que NO están en `ADMIN_NAV` (viven en el menú de cuenta) se
 // declaran abajo, con el texto que ya usa su propia pantalla. `/admin/configuracion`
-// dice "Equipo y usuarios" —el hub de tarjetas desapareció y la ruta hospeda hoy
-// la pantalla de equipo—, no "Configuración": la pestaña dice lo que la pantalla
-// HACE, no el nombre del área que la va a reagrupar el día del multi-tenant. La
-// subruta vieja `/configuracion/usuarios` ya no existe (redirige acá), así que no
-// declara título.
+// dice "Configuración": con el editor del negocio dejó de mostrar sólo equipo, así que
+// recupera el nombre del área (era "Equipo y usuarios" mientras eso era todo lo que
+// hacía). La subruta vieja `/configuracion/usuarios` ya no existe (redirige acá).
 
 /** Lo que sigue al título en cada pestaña del panel. */
 export const SUFIJO_PANEL = 'Panel Duna';
 
 /** Secciones fuera de `ADMIN_NAV`: el menú de cuenta. */
 const FUERA_DEL_NAV: Record<string, string> = {
-  '/admin/configuracion': 'Equipo y usuarios',
+  '/admin/configuracion': 'Configuración',
   '/admin/perfil':        'Mi perfil',
 };
 

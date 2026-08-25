@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { siteConfig } from "@/lib/config/site";
 
 // ─── Chasis de las pantallas PRE-AUTH ────────────────────────────────────────
 // Las únicas dos son /login y /aceptar-invitacion (auditado: no hay recuperación
@@ -8,9 +7,11 @@ import { siteConfig } from "@/lib/config/site";
 // otra con el logo— es exactamente el desorden que veníamos a arreglar.
 //
 // El admin es producto Duna; el storefront es la marca del cliente. Por eso acá
-// la marca primaria es Duna y la tienda es una línea de CONTEXTO, leída de
-// `siteConfig`: el día que el template sirva a otro cliente no hay nada que
-// editar en estas pantallas.
+// la marca primaria es Duna y la tienda es una línea de CONTEXTO. El nombre del
+// negocio llega por PROP (`nombre`) y no se lee acá: este chasis lo montan dos
+// componentes CLIENTE (login, aceptar-invitación), y `SiteSetting` es server-only.
+// Cada página es ahora un shell SERVER que lee `getSiteSettings()` y lo pasa —así
+// la línea de contexto refleja el nombre editable, con una sola fuente.
 
 /** Input de las pantallas pre-auth: alto cómodo, focus ring del sistema. */
 export const PREAUTH_INPUT =
@@ -43,9 +44,13 @@ export function AvisoError({ children }: { children: ReactNode }) {
 
 export function PreAuthShell({
   titulo,
+  nombre,
   children,
 }: {
   titulo: string;
+  /** Nombre del negocio para la línea de contexto ("Panel de …"). Lo pasa el
+      shell server de cada página desde `SiteSetting`. */
+  nombre: string;
   children: ReactNode;
 }) {
   return (
@@ -84,7 +89,7 @@ export function PreAuthShell({
             {titulo}
           </h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Panel de {siteConfig.brand.nombre}
+            Panel de {nombre}
           </p>
         </div>
 

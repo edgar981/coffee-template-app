@@ -204,7 +204,11 @@ function buildDailyDemoOrders(now: Date, products: SeedProduct[]) {
 }
 
 async function main() {
-  const email = process.env.ADMIN_EMAIL ?? "admin@sierranativa.co";
+  // SEED_OWNER_EMAIL: el LOGIN de la cuenta OWNER que siembra el seed. Es un dato
+  // distinto del destinatario runtime de los reportes (SiteSetting.adminEmail), y por
+  // eso lleva otro nombre — antes ambos eran ADMIN_EMAIL y esa doble función era la
+  // trampa (§ total_compras). ADMIN_PASSWORD/ADMIN_NAME siguen siendo sólo del seed.
+  const email = process.env.SEED_OWNER_EMAIL ?? "admin@sierranativa.co";
   const password = process.env.ADMIN_PASSWORD ?? "ChangeMe123!";
   const name = process.env.ADMIN_NAME ?? "Administrador";
 
@@ -226,6 +230,26 @@ async function main() {
   console.log(
     "✅ OWNER role assigned"
   );
+
+  // SiteSetting — la fila singleton de config del negocio (fase 1 multi-tenant). En
+  // PRODUCCIÓN la crea la MIGRACIÓN (el seed no corre allá); esto es para resets de dev.
+  // Valores HARDCODEADOS (no de `siteConfig`) a propósito: coinciden con el INSERT de la
+  // migración y sobreviven al retiro de los campos planos de `siteConfig` (commit 7).
+  // `update: {}` = idempotente, no pisa ediciones de dev en un re-seed.
+  await prisma.siteSetting.upsert({
+    where:  { id: 'default' },
+    update: {},
+    create: {
+      id:                'default',
+      nombre:            'Café Nayoli',
+      tagline:           'Supatá · Cundinamarca',
+      descripcionFooter: 'Café de especialidad colombiano. De nuestra finca en Supatá a tu taza.',
+      whatsapp:          '+573155766064',
+      instagram:         'cafenayoliorigen',
+      emailRemitente:    'Café Nayoli <pedidos@mail.duna.solutions>',
+    },
+  });
+  console.log("✅ SiteSetting singleton listo");
 
 
   for (const c of MOCK_CUSTOMERS) {

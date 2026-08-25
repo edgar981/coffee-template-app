@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { AUTOMATION_MAP } from '@/constants/automations';
-import { saveAutomationSetting } from '@/lib/automations/settings';
+import { saveAutomationSetting, loadAutomationState } from '@/lib/automations/settings';
+import { reporteSinDestinatario } from '@/lib/automations/destinatario-reporte';
 
 // Guarda la decisión del owner sobre UNA automatización: encenderla/apagarla y/o
 // cambiar su configuración. Un solo endpoint para ambas cosas — el toggle y el
@@ -42,6 +43,25 @@ export async function PATCH(
   if (!parsed.success) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
   if (parsed.data.activo === undefined && parsed.data.config === undefined) {
     return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 });
+  }
+
+  // Encender un reporte al equipo SIN destinatario efectivo lo dejaría prendido y luego
+  // OMITIENDO en silencio en cada corrida (config vacía Y sin correo del negocio). Se
+  // IMPIDE el estado inconsistente en la puerta, no se reporta después. La config a
+  // evaluar es la EFECTIVA tras este PATCH: la existente sobreescrita por lo que llega.
+  if (parsed.data.activo === true) {
+    const actual = await loadAutomationState(key);
+    const configEfectiva = { ...(actual?.config ?? {}), ...(parsed.data.config ?? {}) };
+    if (await reporteSinDestinatario(key, configEfectiva)) {
+      return NextResponse.json(
+        {
+          error:
+            'Este reporte no tiene a quién enviarse. Agrega un destinatario en los ' +
+            'Ajustes de la automatización, o define el correo del negocio en Configuración.',
+        },
+        { status: 400 },
+      );
+    }
   }
 
   const state = await saveAutomationSetting(key, parsed.data);

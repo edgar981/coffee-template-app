@@ -5,6 +5,7 @@ import { UserPlus, Search, MoreVertical, Mail, Users, Check, RefreshCw, MailWarn
 import { toast } from 'sonner';
 import RoleBadge from '@/components/admin/RoleBadge';
 import InviteUserModal from '@/components/admin/InviteUserModal';
+import DatosNegocioSeccion from '@/components/admin/DatosNegocioSeccion';
 import { normalize } from '@duna/core/utils';
 import { AdminUser, Role } from '@/types/admin';
 import { ROLES } from '@/constants/roles';
@@ -30,20 +31,18 @@ function venceEn(expiresAt: string): string {
   return 'Vence pronto';
 }
 
-// ─── ESTA ES LA PANTALLA DE EQUIPO ───────────────────────────────────────────
+// ─── ESTA ES LA PANTALLA DE CONFIGURACIÓN ────────────────────────────────────
 //
-// `/admin/configuracion` DEJÓ de ser un hub de tarjetas (cinco de ellas eran
-// "Próximamente" — la promesa vacía que el resto del rediseño retira). Es, hoy,
-// la gestión de equipo: quién entra al panel, con qué rol, y con qué acceso.
+// Se llamó "Equipo y usuarios" mientras SÓLO mostraba equipo —llamarla
+// "Configuración" con una única cosa adentro habría sido una promesa vacía—. Con el
+// editor del negocio (SiteSetting) ya hay contenido REAL, así que recupera el título
+// "Configuración" y se organiza en DOS secciones: "Datos del negocio" y "Equipo y
+// usuarios". Ése era el disparador anotado: el nombre volvía cuando hubiera config real.
 //
-// El HUB vuelve el día del multi-tenant, cuando haya secciones reales que agrupar
-// (negocio, facturación, integraciones). Entonces el equipo baja a un sub-route
-// con su nombre intacto, y "Configuración" nace con contenido. Por eso el TÍTULO
-// dice "Equipo y usuarios" (lo que la pantalla hace) y no "Configuración" (lo que
-// el área va a hacer algún día); el eyebrow nombra el área.
+// SIN sub-rutas todavía: dos secciones caben en una página. El HUB con sub-routes es la
+// era multi-tenant, cuando haya varias verticales de config (facturación, integraciones).
 //
-// La ruta se queda en `/admin/configuracion` a propósito: el UserMenu ya apunta
-// ahí, y mover rutas cuesta redirects. La subruta vieja `/configuracion/usuarios`
+// La ruta se queda en `/admin/configuracion`; la subruta vieja `/configuracion/usuarios`
 // redirige acá (§ lib/redirect-config).
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -59,7 +58,7 @@ const LEYENDA: { role: Role; desc: string }[] = [
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function EquipoYUsuarios() {
+export default function Configuracion() {
   const { data: session }           = authClient.useSession();
   const isOwner                     = session?.user?.role === 'OWNER';
   const [users, setUsers]           = useState<AdminUser[]>([]);
@@ -192,28 +191,41 @@ export default function EquipoYUsuarios() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)' }}>
-        <div style={{ minWidth: 0 }}>
-          <div className="duna-eyebrow">Configuración</div>
-          <h1 className="duna-display-m" style={{ marginTop: '2px' }}>Equipo y usuarios</h1>
-          <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
-            Quién tiene acceso al panel, con qué rol, y quién lo conserva. Invitar a
-            alguien le manda un correo; el usuario nace cuando acepta y define su
-            contraseña.
-          </p>
-        </div>
-        {isOwner && (
-          <button
-            type="button"
-            onClick={() => setShowInvite(true)}
-            className="duna-btn duna-btn--primary"
-            style={{ flexShrink: 0 }}
-          >
-            <UserPlus /> Agregar usuario
-          </button>
-        )}
+      {/* Header de la página */}
+      <div style={{ minWidth: 0 }}>
+        <h1 className="duna-display-m">Configuración</h1>
+        <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
+          La identidad del negocio y quién tiene acceso al panel.
+        </p>
       </div>
+
+      {/* ── Sección: Datos del negocio (lectura↔edición, dueña de su header) ── */}
+      <section style={{ marginTop: 'var(--duna-space-8)' }}>
+        <DatosNegocioSeccion />
+      </section>
+
+      {/* ── Sección: Equipo y usuarios ────────────────────────────────────── */}
+      <section style={{ marginTop: 'var(--duna-space-8)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)' }}>
+          <div style={{ minWidth: 0 }}>
+            <h2 className="duna-title">Equipo y usuarios</h2>
+            <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
+              Quién tiene acceso al panel, con qué rol, y quién lo conserva. Invitar a
+              alguien le manda un correo; el usuario nace cuando acepta y define su
+              contraseña.
+            </p>
+          </div>
+          {isOwner && (
+            <button
+              type="button"
+              onClick={() => setShowInvite(true)}
+              className="duna-btn duna-btn--secondary"
+              style={{ flexShrink: 0 }}
+            >
+              <UserPlus /> Agregar usuario
+            </button>
+          )}
+        </div>
 
       {/* Leyenda de roles */}
       <div className="duna-cards" style={{ marginTop: 'var(--duna-space-6)' }}>
@@ -456,6 +468,7 @@ export default function EquipoYUsuarios() {
           </div>
         </div>
       )}
+      </section>
 
       {/* Se reusa el confirm compartido con `confirmKind='default'`: desactivar NO
           destruye nada —el historial queda y la persona puede volver—, así que va

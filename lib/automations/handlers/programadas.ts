@@ -103,9 +103,10 @@ export const reporteSemanal: ScheduledHandler = async ({ config, now }) => {
   if (zonedIsoWeekday(now, BUSINESS_TZ) !== 1) return [];
 
   const email = await construirReporteSemanal(now);
+  const to = await parseRecipients(config.destinatarios);
   return [{
     targetId: 'global',
-    dispatch: { canal: 'email', audiencia: 'equipo', to: parseRecipients(config.destinatarios), email },
+    dispatch: { canal: 'email', audiencia: 'equipo', to, email },
   }];
 };
 
@@ -277,8 +278,9 @@ export const entregaSinCobro: ScheduledHandler = async ({ config, now }) => {
 // ── 9. Resumen diario ────────────────────────────────────────────────────────
 export const resumenDiario: ScheduledHandler = async ({ config, now }) => {
   const email = await construirResumenDiario(now);
+  const to = await parseRecipients(config.destinatarios);
   return [{
     targetId: 'global',
-    dispatch: { canal: 'email', audiencia: 'equipo', to: parseRecipients(config.destinatarios), email },
+    dispatch: { canal: 'email', audiencia: 'equipo', to, email },
   }];
 };

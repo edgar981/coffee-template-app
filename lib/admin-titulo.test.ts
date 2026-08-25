@@ -34,9 +34,10 @@ test('renombrar una sección en el menú arrastra la pestaña — no hay copia q
 });
 
 test('las secciones fuera del menú traen el texto de su propia pantalla', () => {
-  // "Equipo y usuarios", no "Configuración": la pestaña dice lo que la pantalla
-  // HACE. El hub de tarjetas desapareció; la ruta hospeda hoy el equipo.
-  assert.equal(tituloAdmin('/admin/configuracion'), 'Equipo y usuarios');
+  // "Configuración": con el editor del negocio la pantalla dejó de mostrar sólo
+  // equipo, así que recupera el nombre del área (fue "Equipo y usuarios" mientras
+  // eso era todo lo que hacía — la promesa vacía que el rediseño evitaba).
+  assert.equal(tituloAdmin('/admin/configuracion'), 'Configuración');
   assert.equal(tituloAdmin('/admin/perfil'), 'Mi perfil');
 });
 

@@ -541,3 +541,41 @@ model DashboardPreference {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// Datos EDITABLES del negocio (fase 1 del multi-tenant): lo que hoy vive en
+// `lib/config/site.ts` como código y el dueño debería poder cambiar sin developer.
+//
+// SÓLO LOS CAMPOS PLANOS (v1). Los estructurados de `siteConfig` —`emailColors`
+// (paleta hex), `footerNav`/`legalNav` (arrays de navegación)— SE QUEDAN EN CÓDIGO:
+// editarlos es un editor rico y nadie lo ha pedido. No es omisión; es alcance.
+//
+// UNA FILA, SIN discriminador de tenant (el `CHECK` la hace singleton). Un
+// `tenant_id` hoy sería una columna siempre-igual apuntando a una tabla que no
+// existe — la mina inerte de `Customer.activo`/`Product.agotado`. El scope de tenant
+// llega con el MOVIMIENTO de este modelo al esquema `duna_shop`, no con una columna
+// adelantada.
+//
+// DISPARADOR: cuando la arquitectura de TRES ESQUEMAS (duna_shop/duna_shared) llegue,
+// esta tabla migra a `duna_shop` (dato del tenant, NUNCA `duna_shared`) y el `id`
+// singleton pasa a ser la clave de tienda. Hoy nace en `public` porque el multi-schema
+// no existe aún.
+//
+// `adminEmail`/`emailReplyTo` nullable: opcionales (el destinatario de reportes de
+// equipo y el reply-to arrancan sin valor; las automatizaciones de correo nacen
+// apagadas, así que un `adminEmail` nulo no misrutea nada — se llena al encender un
+// reporte). La FILA la garantiza la migración con un INSERT (no el seed, que no corre
+// en producción): sin ella el loader falla ruidoso y el storefront cae.
+model SiteSetting {
+  // Singleton: id fijo `default` + CHECK. La migración inserta esta única fila.
+  id                String   @id @default("default")
+  nombre            String
+  tagline           String
+  descripcionFooter String
+  whatsapp          String
+  instagram         String
+  emailRemitente    String
+  emailReplyTo      String?
+  adminEmail        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}

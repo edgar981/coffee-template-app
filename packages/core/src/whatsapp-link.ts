@@ -1,15 +1,11 @@
-// Enlace de WhatsApp de pedidos (mismo número que el footer). Client-safe:
-// solo arma la URL wa.me con mensaje precargado — no envía nada. El ENVÍO
-// automático vive en lib/automations/channels/whatsapp.ts (stub de Meta).
+// Normalización de teléfonos de CLIENTE para wa.me. Client-safe: sólo arma URLs y
+// normaliza números — no envía nada (el envío automático vive en el stub de Meta).
 //
-// Fuente única del número: lib/config/site.ts (contacto.whatsapp).
-import { siteConfig, whatsappUrl } from "@/lib/config/site";
-
-export const WHATSAPP_PEDIDOS = siteConfig.contacto.whatsapp.replace(/\D/g, "");
-
-export function whatsappHref(mensaje: string): string {
-  return whatsappUrl(mensaje);
-}
+// El número de la TIENDA salió de acá: era `WHATSAPP_PEDIDOS`/`whatsappHref` leyendo
+// `siteConfig` (una const de módulo, build-time). Ahora el número del negocio es runtime
+// (`SiteSetting.whatsapp`) y sus enlaces los arma `whatsappUrl(number, msg)` de site.ts
+// desde el provider del storefront. Esto DECOPLA core de `siteConfig` — este archivo ya
+// no importa nada de la app.
 
 // Normaliza un teléfono colombiano a formato internacional wa.me (dígitos, con
 // prefijo 57): "300 000 0000" o "+573000000000" → "573000000000". Devuelve null
