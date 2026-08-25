@@ -122,7 +122,7 @@ export default function TiendaPreview() {
               <iframe
                 key={id}
                 ref={el => { if (el) iframes.current.set(id, el); else iframes.current.delete(id); }}
-                src="/?preview=1"
+                src="/?preview=1&borrador=1"
                 title="Vista previa de la tienda"
                 onLoad={() => alCargar(id)}
                 style={{
