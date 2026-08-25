@@ -5,7 +5,7 @@ import { UserPlus, Search, MoreVertical, Mail, Users, Check, RefreshCw, MailWarn
 import { toast } from 'sonner';
 import RoleBadge from '@/components/admin/RoleBadge';
 import InviteUserModal from '@/components/admin/InviteUserModal';
-import DatosNegocioEditor from '@/components/admin/DatosNegocioEditor';
+import DatosNegocioSeccion from '@/components/admin/DatosNegocioSeccion';
 import { normalize } from '@duna/core/utils';
 import { AdminUser, Role } from '@/types/admin';
 import { ROLES } from '@/constants/roles';
@@ -199,17 +199,9 @@ export default function Configuracion() {
         </p>
       </div>
 
-      {/* ── Sección: Datos del negocio ────────────────────────────────────── */}
+      {/* ── Sección: Datos del negocio (lectura↔edición, dueña de su header) ── */}
       <section style={{ marginTop: 'var(--duna-space-8)' }}>
-        <h2 className="duna-title">Datos del negocio</h2>
-        <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
-          Identidad y contacto: cómo se nombra la tienda, por dónde la contactan y
-          desde qué correo escribe. El contenido del storefront —fotos y textos— se
-          edita aparte.
-        </p>
-        <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
-          <DatosNegocioEditor />
-        </div>
+        <DatosNegocioSeccion />
       </section>
 
       {/* ── Sección: Equipo y usuarios ────────────────────────────────────── */}
@@ -227,7 +219,7 @@ export default function Configuracion() {
             <button
               type="button"
               onClick={() => setShowInvite(true)}
-              className="duna-btn duna-btn--primary"
+              className="duna-btn duna-btn--secondary"
               style={{ flexShrink: 0 }}
             >
               <UserPlus /> Agregar usuario
