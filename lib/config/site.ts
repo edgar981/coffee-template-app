@@ -1,8 +1,14 @@
-// Configuración del sitio — fuente única de datos de marca/contacto.
+// Configuración del sitio — lo ESTRUCTURADO del tenant que sigue en código (v1).
 //
-// Objetivo de template: el CÓDIGO es fijo; lo que varía por cliente vive
-// aquí (y en la data/DB). Esta primera pasada cubre solo footer + contacto;
-// el resto del sitio se migrará en pasadas posteriores.
+// Los campos PLANOS (nombre, tagline, descripcionFooter, whatsapp, instagram,
+// emailRemitente, emailReplyTo) se MUDARON a `SiteSetting` (base, editables en
+// Configuración) — ver `lib/config/site-settings*.ts`. Acá quedan sólo los
+// ESTRUCTURADOS, que un formulario simple no edita: la paleta de correos
+// (`emailColors`) y la navegación del footer (`footerNav`/`legalNav`). Su día de
+// editable es el multi-tenant (§ CLAUDE.md · Datos de negocio editables).
+//
+// Las funciones (whatsappUrl, formatWhatsappDisplay, instagramUrl) NO son datos de
+// tenant: son helpers puros y se quedan acá.
 
 export interface NavLink {
   label: string;
@@ -41,26 +47,13 @@ export function instagramUrl(handle: string): string {
 }
 
 export const siteConfig = {
-  brand: {
-    nombre: "Café Nayoli",
-    tagline: "Supatá · Cundinamarca",
-    descripcionFooter:
-      "Café de especialidad colombiano. De nuestra finca en Supatá a tu taza.",
-  },
-
-  // ─── Identidad de la TIENDA para correos al cliente final ────────────────────
-  // Los correos al cliente llevan la marca de la tienda, NO la de Duna. Un solo
-  // lugar para el remitente/marca de todos los emails de notificación.
+  // ─── Paleta de correos al cliente (ESTRUCTURADO) ─────────────────────────────
+  // Los correos al cliente llevan la marca de la TIENDA (cream/espresso), NUNCA el
+  // ámbar del admin. Hex inline porque los clientes de correo no leen CSS variables.
+  // `buildBrand()` la inyecta junto con los planos (nombre/tagline/remitente), que
+  // ya vienen de SiteSetting. Es un editor rico, no un input de texto → se queda en
+  // código hasta el multi-tenant.
   tienda: {
-    nombre: "Café Nayoli",
-    // Remitente INTERINO hasta que exista dominio propio del cliente (Preguntas v2):
-    // `mail.duna.solutions` ya está verificado en Resend. Cambiar aquí = cambia en
-    // TODOS los correos. (El remitente muestra el nombre de la tienda, no "Duna".)
-    emailRemitente: "Café Nayoli <pedidos@mail.duna.solutions>",
-    // Sin correo de contacto propio de la tienda todavía → sin Reply-To (se omite).
-    emailReplyTo: undefined as string | undefined,
-    // Paleta del STOREFRONT (cream/espresso) para los correos — NUNCA el ámbar del
-    // admin. Hex inline porque los clientes de correo no leen CSS variables.
     emailColors: {
       crema:    "#faf7f2",
       papel:    "#ffffff",
@@ -69,13 +62,6 @@ export const siteConfig = {
       muted:    "#8b6650",
       borde:    "#e8dccd",
     },
-  },
-
-  contacto: {
-    // Formato internacional con "+" — usar whatsappUrl() para el enlace wa.me.
-    whatsapp: "+573155766064",
-    whatsappDisplay: "+57 315 576 6064",
-    instagram: "cafenayoliorigen",
   },
 
   footerNav: {

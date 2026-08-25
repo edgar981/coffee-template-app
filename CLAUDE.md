@@ -1311,6 +1311,147 @@ gana la pantalla.
 el chequeo de la última fila en Inventario/Pagos). Cierra cuando el gate confirme que la banda
 se fue y nada quedó a ras.
 
+## Config del negocio — `SiteSetting` (los planos editables)
+
+Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código
+(`siteConfig`) y pasaron a `SiteSetting` (base), editables en Configuración. Lo que sigue
+es la implementación y sus decisiones; el encuadre de producto (qué se adelantó del
+multi-tenant y qué queda) vive en § Datos de negocio editables (Mejoras post-multitenant).
+
+**LA FRONTERA negocio ≠ tienda, que hay que tener escrita antes que nada:** esta pantalla
+es **CONFIGURACIÓN DEL NEGOCIO** —su IDENTIDAD: nombre, tagline, WhatsApp, Instagram,
+remitente de correos, correo de reportes—. NO es la sección **"Tienda"** de `duna-os.html`,
+que es el **CONTENIDO del storefront** (hero, fotos, títulos de producto) y sigue pendiente
+como trabajo aparte. Confundirlas lleva a meter fotos de producto en un formulario de
+identidad, o a creer que "Tienda" ya está hecha porque el negocio es editable. No lo está.
+
+### El modelo: fila única, born en `public`, SIN `tenant_id`
+
+`SiteSetting` es un SINGLETON: `id String @id @default("default")` + un CHECK
+(`SiteSetting_singleton`, `"id" = 'default'`) que hace **imposible** una segunda fila. No
+tiene `tenant_id` **a propósito** — agregarlo ahora fijaría la arquitectura multi-tenant
+desde un lado sin el acuerdo con Carlos. Es una **mina inerte al revés**: el día del
+multi-tenant, la fila `default` pasa a una por tenant y el CHECK se reemplaza por el scope;
+mientras tanto, una sola fila no puede mentir sobre a qué negocio pertenece porque sólo hay
+uno.
+
+**LA FILA LA GARANTIZA LA MIGRACIÓN, no el seed** (`20260824120000_add_site_setting`:
+CREATE TABLE + INSERT en el mismo `migration.sql`). Es el punto que hace desplegable la
+tanda: el build corre `migrate deploy` pero **NO** el seed, así que si la fila naciera en
+`prisma/seed.ts` producción arrancaría sin ella y todo lector `findUniqueOrThrow` reventaría.
+El seed hace un `upsert` idempotente de los mismos valores para el dev que se re-siembra.
+
+### Los DOS loaders — y por qué son dos
+
+Leer `SiteSetting` tiene dos entradas, y la separación NO es estilo:
+
+- **`readSiteSettings` (`lib/config/site-settings-read.ts`)** — el lector RAW: `findUniqueOrThrow`
+  + proyección, **SIN `server-only` ni `react/cache`**. Lo usan los contextos que NO son
+  renders: route handlers, `buildBrand`, el motor de automatizaciones, y **el CARRIL**.
+- **`getSiteSettings` (`lib/config/site-settings.ts`)** — envuelve al RAW con `cache()` y lleva
+  `import 'server-only'`. Es para RENDERS (layouts, páginas server): dedupe por request.
+
+**Por qué el RAW existe y por qué nada de la cadena del carril puede tocar `getSiteSettings`:**
+`server-only` **no resuelve en tsx/node** (es un alias del build de Next), así que un test del
+carril que importe —aunque sea transitivamente— un módulo con `import 'server-only'` revienta
+al importar. El carril importa `buildBrand` (directo) y toda la cadena de automatizaciones
+(que llega a `defaultTeamRecipients`/el canal email). Por eso `buildBrand`, los recipients y el
+guard del PATCH leen el RAW, nunca el cacheado. Un `import type` desde el archivo server-only SÍ
+es seguro (se borra en compilación) — así lo consumen los dos providers.
+
+**FALLA RUIDOSO, jamás fallback a los valores de código.** Los dos loaders usan
+`findUniqueOrThrow`: si la fila no existe, revienta. Un fallback a `siteConfig` mostraría datos
+rancios sin que nada falle —el peor modo, el mismo de § el artefacto rancio—. La fila la
+garantiza la migración, así que su ausencia es un deploy roto y debe fallar fuerte.
+
+### Dos providers CLIENTE separados, y el gate en paralelo
+
+Los lectores cliente reciben la config por contexto, no la fetchean. Son **DOS providers
+distintos** —`components/storefront/SiteSettingsProvider` y `components/admin/SiteSettingsProvider`—
+porque son dos layouts, dos árboles que no se tocan, y el admin tiene sesión/gate que el
+storefront no. Compartir uno ataría dos cosas independientes.
+
+- **Storefront**: el layout server lee `getSiteSettings()` y lo inyecta; StoreFooter/checkout/
+  suscripciones usan `useSiteSettings()`.
+- **Admin**: el layout-GATE (`app/(admin)/admin/layout.tsx`) lo lee en un `Promise.all` **con
+  `getSession`, NO después de la query de usuario**. No había Promise.all que reusar (el gate es
+  cadena dependiente sesión→usuario); el paralelismo posible es sesión ∥ config, porque la config
+  es independiente de la sesión. Ponerla tras la query de usuario duplicaría la latencia del gate
+  en cada request. Los 5 lectores cliente (perfil, pedidos, pagos, clientes, ScheduleDeliveryModal)
+  usan `useSiteSettings()`.
+
+**Las pantallas PRE-AUTH se partieron** (login, aceptar-invitación): PreAuthShell muestra
+"Panel de {nombre}" y es **client-rendered** (lo montan dos páginas `'use client'`), así que no
+puede leer el loader server-only. Cada página pasó a **shell SERVER** (lee `getSiteSettings`,
+pasa `nombre` por prop) + **form CLIENTE** (toda la lógica: estados, submit, redirect, el flujo
+del token). Se descartó un provider de grupo —consultaría la base en cada request anónimo de
+/login— y quitar el nombre —la línea de contexto está a propósito y deja de ser decorativa con
+más de un tenant— (owner).
+
+### ADMIN_EMAIL se retiró; el destinatario de reportes vive en la base
+
+`ADMIN_EMAIL` tenía DOBLE función —login del OWNER del seed Y destinatario runtime de los
+reportes al equipo— y esa doble función era la trampa (§ total_compras: un nombre, dos hechos).
+Se partió en dos, cada uno con su nombre:
+
+- **`SEED_OWNER_EMAIL`** — sólo el login del seed (local; no va a Vercel).
+- **`SiteSetting.adminEmail`** — el destinatario runtime, editable en Configuración.
+  `defaultTeamRecipients`/`parseRecipients` (canal email) lo leen del RAW; `buildBrand` lee de ahí
+  el remitente/marca de los correos al cliente.
+
+**EL GUARD del PATCH `/api/automations/[key]`** (`reporteSinDestinatario`): encender un reporte
+`email`+`equipo` sin destinatario efectivo (config `destinatarios` vacía Y `adminEmail` vacío)
+devuelve **400** con un mensaje que dice DÓNDE ponerlo (Ajustes de la automatización, o el correo
+del negocio en Configuración). **Impide el estado inconsistente en la puerta, no lo reporta
+después**: sin el guard, la automatización queda ENCENDIDA y luego OMITE en silencio en cada
+corrida. El guard reusa `parseRecipients`, así que la puerta y el envío no divergen sobre qué
+cuenta como destinatario. Afirmado en el carril (`reporte-destinatario.test.ts`, visto fallar sin
+el bloqueo; demuestra el OMITIDO que previene). **No borrar ese test.**
+
+**NOTA de deploy, verificada por el owner:** al momento del deploy de SiteSetting, `resumen_diario`
+y `reporte_semanal` estaban ambos `activo=false` en producción (cero filas encendidas). Así que
+`adminEmail` naciendo NULL **no dejó a nadie sin destinatario** — no hubo que backfillear el correo
+ni apagar ningún reporte. El guard cubre de aquí en adelante.
+
+### El editor NACE EN LECTURA — edición deliberada
+
+La sección "Datos del negocio" arranca mostrando los valores como TEXTO; un "Editar"
+(secundario) los vuelve editables; Guardar o Cancelar y vuelve a lectura. Razón: son datos que
+se cambian dos o tres veces al año — un formulario siempre abierto expone a un accidente algo que
+casi nunca se toca, y "sólo se guarda al dar Guardar" no basta (el operador no debería tener que
+saberlo).
+
+- **REUSA la maquinaria de descarte, no inventa una.** No hay patrón lectura↔edición in-place
+  (cliente/producto editan por modal), pero `useDescarteDeDrawer` es genérico (su `onCerrar` es "la
+  salida real" — acá, salir de edición) y `ConfirmDescartarDialog` es su UI. Cancelar con cambios
+  PREGUNTA; sin cambios vuelve directo. Lo único nuevo es la vista de lectura + un `editando` bool.
+- **Edición POR SECCIÓN**, no por campo: un "Editar" abre los 8 campos.
+- **`adminEmail` lleva etiqueta EXPLÍCITA** ("Correo donde llegan los reportes del equipo"): es el
+  único campo cuyo nombre no se explica solo.
+- **Validación compartida con el PATCH** (`siteSettingsEditableSchema`, sin `server-only`): aviso
+  temprano por campo en el cliente, el server MANDA. El write es COMPLETO (el editor manda todo el
+  formulario), así que NO aplica la trampa del PATCH parcial (§ El PATCH de producto es PARCIAL).
+- **Al guardar, `router.refresh()`** re-corre el layout server → los otros lectores del admin
+  (WhatsApp de pedidos, Perfil, correos) ven los valores nuevos sin recargar a mano.
+
+**Configuración recuperó su nombre.** Era "Equipo y usuarios" mientras SÓLO mostraba equipo
+(llamarla "Configuración" con una sola cosa adentro habría sido la promesa vacía que el rediseño
+evita). Con el editor del negocio hay contenido real, así que vuelve a "Configuración" con DOS
+secciones (Datos del negocio · Equipo y usuarios), y el UserMenu + el título de pestaña vuelven a
+"Configuración"/Settings. **SIN sub-rutas todavía**: dos secciones caben en una página; el hub con
+sub-routes es la era multi-tenant. Y **"Agregar usuario" bajó a secundario**: en lectura la
+pantalla no tiene primario sólido, y al editar "Guardar cambios" es el único ancla — sin dos
+primarios compitiendo (§ un solo primario sólido por vista).
+
+### Qué QUEDA en `siteConfig`
+
+Sólo lo ESTRUCTURADO: `tienda.emailColors` (paleta hex de los correos, la lee `buildBrand`),
+`footerNav` y `legalNav` (los lee StoreFooter). Y las FUNCIONES puras —`whatsappUrl`,
+`formatWhatsappDisplay`, `instagramUrl`— que no son datos de tenant. Todo lo demás (`brand`,
+`contacto`, los planos de `tienda`) se retiró. `whatsappUrl` recibe el número (una sola fuente:
+`SiteSetting.whatsapp`); `formatWhatsappDisplay` DERIVA el display del número, sin un segundo
+campo que pudiera divergir.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
@@ -1378,48 +1519,26 @@ cliente**: snapshotear el costo del seed sólo congelaría un dato inventado.
 
 ### Datos de negocio editables — `siteConfig` → `SiteSetting`
 
-Hoy los datos del negocio (nombre, tagline, WhatsApp, remitente de correo, paleta
-de correos, navegación del footer) viven en `lib/config/site.ts`, un archivo de
-**código**. Hacerlos editables es moverlos a la BASE, y eso es exactamente la
-**fase 1 del multi-tenant**: el modelo `SiteSetting` que esa arquitectura necesita
-de todos modos.
+**LOS CAMPOS PLANOS YA SON EDITABLES** (tanda del 2026-08-24). nombre, tagline,
+descripcionFooter, whatsapp, instagram, emailRemitente, emailReplyTo y adminEmail viven
+en `SiteSetting` (base) y se editan en **Configuración**. La implementación completa
+—modelo, loaders, providers, pre-auth, editor, retiro de ADMIN_EMAIL— está en
+**§ Config del negocio — `SiteSetting` (los planos editables)**.
 
-**Por qué NO se adelanta**, y es la razón que decide (owner, 2026-08-23): el modelo
-multi-tenant se está negociando con Carlos **por escrito (R1–R15)**. Crear
-`SiteSetting` ahora fijaría la PRIMERA pieza de esa arquitectura desde un lado, sin
-el acuerdo. La decisión de esquema espera al acuerdo, no al revés.
+**Se APARTÓ de la doctrina previa a propósito** (owner): esta sección decía "NO se
+adelanta hasta el acuerdo de esquema con Carlos". El owner decidió construir el editable
+AHORA, con la forma que **NO fija** la arquitectura multi-tenant: fila única
+`id='default'`, SIN `tenant_id`, born en `public`. La decisión de ESQUEMA multi-tenant
+sigue esperando el acuerdo; lo que se adelantó es la capacidad de editar, no el modelo de
+tenancy.
 
-**Origen y frontera de producto:** son datos del NEGOCIO, no de la cuenta. Perfil es
-"mi cuenta"; el negocio iría en Configuración —que es justo el hub que se retiró por
-vacío (§ Equipo y usuarios)—. Esa división es la que sostiene que Perfil y
-Configuración existan separadas: volver editable el negocio es lo que le devuelve
-contenido real al hub.
-
-**EL CENSO YA ESTÁ HECHO — es la mitad del trabajo de esa tanda, no repetirlo**
-(medido 2026-08-23). Ocho lectores en CUATRO superficies:
-
-| Superficie | Lee | Estado del acoplamiento |
-| --- | --- | --- |
-| **Correos / notificaciones** | nombre, tagline, colors, remitente, replyTo | **YA AISLADO en `buildBrand()`** (`lib/config/brand.ts`) — una función; core es tenant-agnóstico por diseño, así que el brand ya se INYECTA, no se lee adentro |
-| **PDF** (`lib/pagos/informe.ts`) | `brand.nombre` | **YA THREADED como dato** — la página lo pasa al modelo; el generador no lee `siteConfig` |
-| **Storefront** (`StoreFooter`, `checkout`) | brand, contacto, footerNav, legalNav | import estático directo en server components → `await` del loader |
-| **WhatsApp** (`whatsapp-link.ts`) | `contacto.whatsapp` | **constante a nivel de módulo** (build-time) → pasa a función/loader |
-| **Admin** (perfil, PreAuthShell, pedidos/pagos/clientes) | `brand.nombre` (×9), tagline | import estático → runtime |
-
-O sea: **dos de las cuatro superficies (correos y PDF) ya están del lado correcto**
-—`buildBrand` y el threading del PDF—; las que faltan convertir son el storefront, el
-WhatsApp y los usos directos del admin.
-
-**MATIZ que decide el alcance: sólo los campos PLANOS son baratos de volver editables.**
-`emailColors` (paleta hex) y `footerNav`/`legalNav` (arrays de navegación) NO son inputs
-de texto —editarlos es un editor rico, o se quedan en código—. Los planos (nombre,
-tagline, WhatsApp, remitente) sí son un formulario simple. Una primera versión editable
-razonable cubre sólo los planos y deja los estructurados en código.
-
-**Lo que falta, entonces:** el modelo `SiteSetting` (+ migración + seed de los valores de
-hoy) y su loader tenant-scoped en core; convertir los ~4 lectores que aún son import
-estático (storefront, WhatsApp, admin — los otros dos ya están); y el editor en
-Configuración (+ PATCH + validación). **DISPARADOR: el acuerdo de esquema con Carlos.**
+**Lo que QUEDA post-multitenant:**
+- el **`tenant_id` / multi-schema**: la fila `default` pasa a una por tenant, scopeada; el
+  loader gana el `storeId`. Es el único cambio de esquema, y es el que va con Carlos.
+- los **ESTRUCTURADOS editables** (`emailColors`, `footerNav`, `legalNav`): son editores
+  ricos, no inputs de texto — siguen en `siteConfig` (código) hasta que valga la pena.
+- el resto del inventario de tenant (§ Identidad, `app/manifest.ts`, el title/description
+  de la raíz) sigue en código.
 
 ## Imágenes en `public/`
 

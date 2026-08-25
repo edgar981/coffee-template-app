@@ -119,7 +119,7 @@ const fmtHora = new Intl.DateTimeFormat('es-CO', {
 });
 
 export function modeloInforme(input: {
-  /** El nombre del negocio (§ `siteConfig.brand.nombre`). El modelo no lo sabe solo. */
+  /** El nombre del negocio (§ `SiteSetting.nombre`). El modelo no lo sabe solo. */
   negocio: string;
   /** El reloj, como parámetro, para que un test pueda fijarlo. */
   ahora: Date;

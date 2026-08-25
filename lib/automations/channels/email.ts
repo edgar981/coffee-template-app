@@ -1,5 +1,4 @@
 import { Resend } from 'resend';
-import { siteConfig } from '@/lib/config/site';
 import { buildBrand } from '@/lib/config/brand';
 import { readSiteSettings } from '@/lib/config/site-settings-read';
 import { sendCustomerEmail } from '@duna/core/notifications/channels/email';
@@ -9,9 +8,9 @@ import type { RenderedEmail } from '@duna/core/notifications/templates/shared';
 // Canal EMAIL de las automatizaciones. Dos identidades, elegidas por la AUDIENCIA
 // —no por quién dispara— porque son dos productos distintos hablando:
 //
-//   audiencia 'cliente' → identidad de la TIENDA (siteConfig.tienda.emailRemitente,
-//     "Café Nayoli <pedidos@…>"). Reusa `sendCustomerEmail`, el canal que ya
-//     existía para orden creada / en camino. No se duplica.
+//   audiencia 'cliente' → identidad de la TIENDA (SiteSetting.emailRemitente vía
+//     `readSiteSettings`/`buildBrand`, "Café Nayoli <pedidos@…>"). Reusa
+//     `sendCustomerEmail`, el canal que ya existía para orden creada / en camino.
 //
 //   audiencia 'equipo'  → identidad del PANEL (env EMAIL_FROM, la misma de las
 //     invitaciones). Un reporte interno que llegue firmado como la tienda le
@@ -71,7 +70,7 @@ export async function dispatchEmail(
     to:         req.to,
     remitente:  req.audiencia === 'equipo'
       ? (process.env.EMAIL_FROM ?? '(EMAIL_FROM sin configurar)')
-      : siteConfig.tienda.emailRemitente,
+      : (await readSiteSettings()).emailRemitente,
     subject:    req.email.subject,
     // El texto plano, no el HTML: el payload es para leerlo en la auditoría.
     texto:      req.email.text,
