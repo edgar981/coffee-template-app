@@ -666,6 +666,36 @@ Reglas de la lista, para que siga sirviendo:
 - **Un item que se completa se BORRA de acá** y su decisión, si tiene, se
   documenta en la sección que le corresponda. Esto no es un historial.
 
+### 43. Cinco automatizaciones internas están APAGADAS en producción, no por decisión
+
+Medido por el owner en producción: de las 9 filas de `AutomationSetting`, sólo
+`contraentrega_sin_cobrar` está en `activo=true`. Las otras CINCO internas —`stock_bajo`,
+el aviso interno de pedido nuevo en tienda (`orden_recibida`), `entrega_fallida`,
+`envio_estancado`, `entrega_sin_cobro`— están en `false`, y **NO porque alguien las
+apagara**: la migración `20260727120000` (2026-07-27) copió el estado `activa` de la tabla
+vieja `Automation` a las filas nuevas (`INSERT … SELECT tipo, activa`), y la doctrina de
+"las internas nacen encendidas" (`defaultActivo: true`, 2026-08-04) es POSTERIOR — nunca
+reconcilió las filas ya existentes. Una fila existente siempre gana sobre el `defaultActivo`
+(§ PRECONDICIÓN, por diseño), así que ese default es INERTE para toda automatización que
+haya tenido fila en la tabla vieja.
+
+**NO es defecto de código.** `saveAutomationSetting` honra el `defaultActivo` al crear una
+fila nueva (`patch.activo ?? def.defaultActivo`); el estado heredado de las filas viejas es
+el problema. El arreglo es una operación de **DATOS en producción** —encenderlas desde el
+panel, una por una, tras decidir cuáles corresponden—, **NO una migración**: un `UPDATE` en
+migración volvería a pisar el estado que el owner pueda haber elegido, que es exactamente lo
+que esta entrada critica.
+
+**Costo YA pagado:** el diagnóstico de una sesión (rastrear migración → copia de la tabla
+vieja → desfase con la doctrina). El costo que VIENE es el grave: si Nayoli lanza así, **no
+hay aviso de stock bajo, ni de pedido nuevo, ni de entrega fallida** — tres de las señales
+que la campana existe para dar. Es visible en la pantalla de Automatizaciones (se ven
+apagadas), pero el operador que confía en "nacen encendidas" cree lo contrario.
+
+**DISPARADOR: ANTES del go-live de Nayoli.** Es el único item de esta lista atado a esa
+fecha, y por eso va primero. Al encenderlas aplica § Bases de datos: verificar el ROL en la
+consola de Neon antes de tocar producción.
+
 ### 2. `InventoryLog` no registra QUIÉN ajustó el stock
 
 Es la única mutación auditable del panel sin columna de actor: `Payment` guarda
