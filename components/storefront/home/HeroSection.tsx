@@ -8,6 +8,7 @@ import { ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { HERO_HREFS } from "@/lib/config/site-content-defaults";
 
 const fadeUp = {
@@ -22,6 +23,7 @@ const fadeUp = {
 // → siempre se renderiza. Los destinos de los CTA son ESTRUCTURA (`HERO_HREFS`), no editables.
 export default function HeroSection() {
   const { hero } = useSiteContent();
+  const preview = useIsPreview();
 
   return (
     <section className="relative flex min-h-[92vh] items-center overflow-hidden bg-[#1a0f08]">
@@ -106,15 +108,18 @@ export default function HeroSection() {
         </motion.div>
       </div>
 
-      {/* Scroll indicator */}
-      <motion.div
-        animate={{ y: [0, 8, 0] }}
-        transition={{ duration: 2, repeat: Infinity }}
-        className="absolute bottom-8 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-white/40"
-      >
-        <span className="text-xs tracking-widest uppercase">Scroll</span>
-        <div className="w-px h-12 bg-linear-to-b from-white/40 to-transparent" />
-      </motion.div>
+      {/* Scroll indicator — se OMITE en preview: una flecha en bucle que invita a
+          scrollear no significa nada dentro de un marco de vista previa (§ ?preview). */}
+      {!preview && (
+        <motion.div
+          animate={{ y: [0, 8, 0] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          className="absolute bottom-8 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-white/40"
+        >
+          <span className="text-xs tracking-widest uppercase">Scroll</span>
+          <div className="w-px h-12 bg-linear-to-b from-white/40 to-transparent" />
+        </motion.div>
+      )}
     </section>
   );
 }
