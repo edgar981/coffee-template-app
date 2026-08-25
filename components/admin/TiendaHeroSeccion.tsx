@@ -2,23 +2,18 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Upload } from 'lucide-react';
-import { useAccionGuardada } from '@/hooks/useAccionGuardada';
-import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
+import { Upload } from 'lucide-react';
+import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import { uploadImagen } from '@/lib/api/upload';
-import { siteContentEditableSchema } from '@/lib/config/site-content-schema';
 import { DEFAULTS, type HeroContent } from '@/lib/config/site-content-defaults';
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS, ACCEPT_IMAGENES } from '@/constants/upload';
 
-// Editor lectura↔edición del HERO de la home, en el flujo BORRADOR/PUBLICADO. Guardar deja de
-// publicar: escribe el borrador (la vista previa lo muestra). En lectura, si hay cambios sin
-// publicar aparecen la píldora "Sin publicar" y los botones Publicar (primario) / Descartar
-// (ghost); Editar (secundario) siempre. Sin borrador, sólo Editar —nada de acciones muertas—.
-//
-// Reusa la cáscara de DatosNegocioSeccion (useDescarteDeDrawer + ConfirmDescartarDialog para el
-// edit-cancel) y la etapa 'subiendo'/'guardando' de la imagen. Loader SOFT: opcionales vacíos se
-// OMITEN en el storefront; el hint de cada campo lo dice. Hero es ocultable:false → sin toggle.
+// Editor del HERO en el flujo borrador/publicado con AUTOGUARDADO: el guardado no es un gesto —el
+// borrador se persiste solo mientras el dueño edita (§ lib/autoguardado)—. El form está SIEMPRE
+// abierto (no hay read↔edit ni Guardar/Cancelar; el preview es la lectura). Las únicas acciones
+// son Publicar (en vivo) y Descartar (volver a lo publicado). El schema es SOFT/todo-opcional, así
+// que no hay validación que bloquee el autoguardado.
 
 type Campo = { name: keyof HeroContent; label: string; opcional?: boolean; textarea?: boolean; hint: string };
 
@@ -31,184 +26,144 @@ const CAMPOS: Campo[] = [
   { name: 'ctaSecundarioLabel', label: 'Botón secundario', opcional: true, hint: 'Su destino es /suscripciones (fijo). Vacío: no se muestra.' },
 ];
 
-// `onGuardado` lo dispara el split tras CUALQUIER mutación (guardar / publicar / descartar) para
-// recargar el iframe de la vista previa —que muestra el BORRADOR—: publicar no cambia lo que se
-// ve (el borrador ya estaba a la vista), descartar sí (vuelve a lo publicado); el doble-buffer
-// recarga en los dos casos.
 export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => void }) {
-  const guarda = useAccionGuardada();
-
   const [cargando, setCargando]       = useState(true);
   const [errorCarga, setErrorCarga]   = useState<string | null>(null);
-  const [hero, setHero]               = useState<HeroContent | null>(null); // el contenido draft-merged
-  const [hayBorrador, setHayBorrador] = useState(false);                    // ¿cambios sin publicar?
-  const [editando, setEditando]       = useState(false);
-  const [form, setForm]               = useState<HeroContent | null>(null); // buffer de edición
-  const [imagenFile, setImagenFile]   = useState<File | null>(null);
+  const [form, setForm]               = useState<HeroContent | null>(null);
+  const [hayBorrador, setHayBorrador] = useState(false);
+  const [fase, setFase]               = useState<null | 'subiendo'>(null);
   const [previewLocal, setPreviewLocal] = useState<string | null>(null);
-  const [fase, setFase]               = useState<null | 'subiendo' | 'guardando'>(null);
-  const [errores, setErrores]         = useState<Partial<Record<keyof HeroContent, string>>>({});
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
+  const [procesando, setProcesando]   = useState(false); // publicar / descartar en vuelo
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Trae el contenido draft-merged + si el hero tiene borrador. Se llama al montar y tras
-  // DESCARTAR (donde el contenido vuelve a lo publicado). Guardar/publicar ajustan el estado
-  // localmente sin re-fetch (ya conocen el resultado).
+  // Refs con el último valor, para los handlers async (subida) y el efecto del preview.
+  const formRef = useRef<HeroContent | null>(null); formRef.current = form;
+  const faseRef = useRef(fase); faseRef.current = fase;
+  const onGuardadoRef = useRef(onGuardado); onGuardadoRef.current = onGuardado;
+
+  // El PUT del autoguardado. Lanza en fallo → el coordinador pasa a 'error' y reintenta.
+  const guardarHero = useCallback(async (data: HeroContent) => {
+    const res = await fetch('/api/site-content', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hero: data }),
+    });
+    if (!res.ok) throw new Error('No se pudo guardar');
+  }, []);
+  const auto = useAutoguardado(guardarHero);
+
   const cargar = useCallback(async (inicial = false) => {
     try {
       const r = await fetch('/api/site-content');
       if (!r.ok) throw new Error();
       const d = await r.json();
-      setHero(d.contenido.hero);
+      setForm(d.contenido.hero);
       setHayBorrador(!!d.sinPublicar?.hero);
       if (inicial) setCargando(false);
     } catch {
       if (inicial) { setErrorCarga('No se pudo cargar el contenido.'); setCargando(false); }
     }
   }, []);
-
   useEffect(() => { cargar(true); }, [cargar]);
 
-  const salir = () => {
-    setEditando(false);
-    setImagenFile(null); setPreviewLocal(null);
-    setErrores({}); setErrorServidor(null);
-  };
-  const descarte = useDescarteDeDrawer({ enVuelo: guarda.enVuelo, onCerrar: salir });
+  // beforeunload SÓLO en 'error' (§ decisión): pendiente/guardando es común y su pérdida es una
+  // frase recuperable; un guardado que FALLÓ y no se persiste es el caso grave.
+  useEffect(() => {
+    if (auto.estado !== 'error') return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [auto.estado]);
 
-  const sucio = editando && !!form && hero
-    ? JSON.stringify(form) !== JSON.stringify(hero) || !!imagenFile
-    : false;
-  useEffect(() => { descarte.marcarCambios(sucio); }, [sucio, descarte]);
-
-  const abrir = () => {
-    if (!hero) return;
-    setForm({ ...hero });
-    setImagenFile(null); setPreviewLocal(null);
-    setErrores({}); setErrorServidor(null);
-    setEditando(true);
-  };
+  // El preview se recarga al ASENTARSE un guardado (transición guardando→guardado), tras una
+  // pausa —NO en cada PUT—: recargar el iframe cada tecla es inaceptable. Si arranca otro guardado
+  // antes, se cancela y se espera. Publicar/descartar recargan aparte (cambio discreto).
+  const prevEstado = useRef(auto.estado);
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const prev = prevEstado.current;
+    prevEstado.current = auto.estado;
+    if (auto.estado === 'guardando' && reloadTimer.current) {
+      clearTimeout(reloadTimer.current); reloadTimer.current = null;
+    }
+    if (prev === 'guardando' && auto.estado === 'guardado') {
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
+      reloadTimer.current = setTimeout(() => { onGuardadoRef.current?.(); reloadTimer.current = null; }, 1500);
+    }
+  }, [auto.estado]);
+  useEffect(() => () => { if (reloadTimer.current) clearTimeout(reloadTimer.current); }, []);
 
   const set = (name: keyof HeroContent) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setForm(f => (f ? { ...f, [name]: e.target.value } : f));
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      const nf = { ...(formRef.current as HeroContent), [name]: e.target.value };
+      setForm(nf);
+      setHayBorrador(true);
+      // BLOQUEO durante la subida de imagen: no se dispara el PUT (llevaría la URL vieja); el
+      // texto queda en el form y se guarda al terminar la subida (vía formRef). No se pierde.
+      if (faseRef.current !== 'subiendo') auto.marcarSucio(nf);
+    };
 
-  const elegirArchivo = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    e.target.value = ''; // permite re-elegir el mismo archivo
-    if (!f) return;
-    if (!(TIPOS_PERMITIDOS as readonly string[]).includes(f.type)) {
-      setErrorServidor('Formato no admitido. Usa JPG, PNG o WebP.');
-      return;
+  const elegirArchivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!(TIPOS_PERMITIDOS as readonly string[]).includes(file.type)) {
+      setErrorServidor('Formato no admitido. Usa JPG, PNG o WebP.'); return;
     }
-    if (f.size > MAX_UPLOAD_BYTES) {
-      setErrorServidor(`La imagen pesa ${(f.size / (1024 * 1024)).toFixed(1)} MB y el máximo es ${MAX_UPLOAD_MB} MB.`);
-      return;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setErrorServidor(`La imagen pesa ${(file.size / (1024 * 1024)).toFixed(1)} MB y el máximo es ${MAX_UPLOAD_MB} MB.`); return;
     }
     setErrorServidor(null);
-    setImagenFile(f);
-    setPreviewLocal(URL.createObjectURL(f));
+    setPreviewLocal(URL.createObjectURL(file));
+    setFase('subiendo'); // bloquea el autoguardado del texto mientras sube
+    try {
+      const { url } = await uploadImagen(file, 'contenido');
+      // formRef.current YA incluye lo que se tecleó DURANTE la subida → nada se pierde.
+      const nf = { ...(formRef.current as HeroContent), imagen: url };
+      setForm(nf); setPreviewLocal(null); setHayBorrador(true);
+      auto.marcarSucio(nf); auto.flush(); // imagen = cambio discreto: guarda ya
+    } catch (err) {
+      setErrorServidor(err instanceof Error ? err.message : 'No se pudo subir la imagen');
+      setPreviewLocal(null);
+    } finally {
+      setFase(null);
+    }
   };
 
   const usarPorDefecto = () => {
-    setImagenFile(null); setPreviewLocal(null);
-    setForm(f => (f ? { ...f, imagen: DEFAULTS.hero.imagen } : f));
+    const nf = { ...(formRef.current as HeroContent), imagen: DEFAULTS.hero.imagen };
+    setForm(nf); setPreviewLocal(null); setHayBorrador(true);
+    auto.marcarSucio(nf); auto.flush();
   };
 
-  // GUARDAR (PUT) → escribe el BORRADOR. No publica.
-  const guardar = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form) return;
-    setErrorServidor(null);
-
-    const parsed = siteContentEditableSchema.safeParse({ hero: form });
-    if (!parsed.success) {
-      const errs: Partial<Record<keyof HeroContent, string>> = {};
-      for (const issue of parsed.error.issues) {
-        const campo = issue.path[1] as keyof HeroContent;
-        if (campo && !errs[campo]) errs[campo] = issue.message;
-      }
-      setErrores(errs);
-      return;
-    }
-    setErrores({});
-
-    guarda.ejecutar(async () => {
-      let imagenUrl = form.imagen;
-      let etapa: 'subiendo' | 'guardando' = 'subiendo';
-      try {
-        if (imagenFile) {
-          setFase('subiendo');
-          imagenUrl = (await uploadImagen(imagenFile, 'contenido')).url;
-        }
-        etapa = 'guardando';
-        setFase('guardando');
-        const res = await fetch('/api/site-content', {
-          method:  'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ hero: { ...form, imagen: imagenUrl } }),
-        });
-        if (!res.ok) {
-          const d = await res.json().catch(() => null);
-          setErrorServidor(d?.error ?? 'No se pudo guardar. Intenta de nuevo.');
-          return;
-        }
-        const nuevo = { ...form, imagen: imagenUrl };
-        setHero(nuevo);
-        setHayBorrador(true);         // acaba de escribirse un borrador
-        setEditando(false);
-        setImagenFile(null); setPreviewLocal(null);
-        toast.success('Borrador guardado.'); // la píldora "Sin publicar" carga el resto
-        onGuardado?.();
-      } catch (err) {
-        setErrorServidor(
-          etapa === 'subiendo'
-            ? (err instanceof Error ? err.message : 'No se pudo subir la imagen')
-            : 'No se pudo guardar. Intenta de nuevo.',
-        );
-      } finally {
-        setFase(null);
-      }
-    });
-  };
-
-  // PUBLICAR: la sección del borrador pasa a estar EN VIVO. El contenido a la vista no cambia
-  // (ya era el borrador); sólo deja de haber pendiente.
-  const publicar = () =>
-    guarda.ejecutar(async () => {
-      setErrorServidor(null);
+  const publicar = async () => {
+    setErrorServidor(null); setProcesando(true);
+    try {
       const res = await fetch('/api/site-content', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accion: 'publicar', seccion: 'hero' }),
       });
-      if (!res.ok) {
-        const d = await res.json().catch(() => null);
-        setErrorServidor(d?.error ?? 'No se pudo publicar.');
-        return;
-      }
+      if (!res.ok) { const d = await res.json().catch(() => null); setErrorServidor(d?.error ?? 'No se pudo publicar.'); return; }
       setHayBorrador(false);
       toast.success('Publicado — ya está en vivo.');
-      onGuardado?.();
-    });
+      onGuardadoRef.current?.();
+    } finally { setProcesando(false); }
+  };
 
-  // DESCARTAR: se pierde el borrador y se vuelve a lo publicado. Pregunta antes (destruye trabajo).
-  const descartarBorrador = () =>
-    guarda.ejecutar(async () => {
-      setErrorServidor(null);
+  const descartarBorrador = async () => {
+    setErrorServidor(null); setProcesando(true);
+    try {
       const res = await fetch('/api/site-content', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accion: 'descartar', seccion: 'hero' }),
       });
-      if (!res.ok) {
-        const d = await res.json().catch(() => null);
-        setErrorServidor(d?.error ?? 'No se pudo descartar.');
-        return;
-      }
-      await cargar(); // el contenido volvió a lo publicado
+      if (!res.ok) { const d = await res.json().catch(() => null); setErrorServidor(d?.error ?? 'No se pudo descartar.'); return; }
+      await cargar(); // el form vuelve a lo publicado
       toast.success('Cambios descartados — volviste a lo publicado.');
-      onGuardado?.();
-    });
+      onGuardadoRef.current?.();
+    } finally { setProcesando(false); }
+  };
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -222,7 +177,7 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
       </>
     );
   }
-  if (errorCarga || !hero) {
+  if (errorCarga || !form) {
     return (
       <>
         <h2 className="duna-title">Hero de la home</h2>
@@ -233,8 +188,13 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
     );
   }
 
-  const imagenPreview = previewLocal ?? (editando ? form?.imagen : hero.imagen) ?? hero.imagen;
-  const bloqueado = guarda.enVuelo;
+  const imagenPreview = previewLocal ?? form.imagen;
+  const puedePublicar = auto.estado === 'guardado' && !procesando; // sólo con el borrador ya persistido
+  const enError = auto.estado === 'error';
+  const estadoTexto = fase === 'subiendo' ? 'Subiendo imagen…'
+    : auto.estado === 'guardando' ? 'Guardando…'
+    : auto.estado === 'error' ? 'No se pudo guardar'
+    : 'Guardado';
 
   return (
     <>
@@ -242,35 +202,37 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
             <h2 className="duna-title">Hero de la home</h2>
-            {!editando && hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
+            {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
           </div>
           <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
-            La primera pantalla del storefront: imagen de fondo, titular y botones.
+            La primera pantalla del storefront. Los cambios se guardan solos; publica cuando estén listos.
           </p>
+          {/* Indicador de autoguardado — persistente, no un toast por tecla. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: 'var(--duna-space-2)' }}>
+            <span className={enError ? 'duna-field__error' : 'duna-caption'} style={{ margin: 0 }} role={enError ? 'alert' : undefined}>
+              {estadoTexto}
+            </span>
+            {enError && (
+              <button type="button" onClick={() => auto.reintentar()} className="duna-btn duna-btn--ghost duna-btn--sm">
+                Reintentar
+              </button>
+            )}
+          </div>
         </div>
-        {!editando && (
-          // Sin borrador: sólo Editar. Con borrador: Descartar (ghost) · Editar (secundario) ·
-          // Publicar (primario). Publicar es el único primario sólido; a la derecha.
+        {hayBorrador && (
           <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
-            {hayBorrador && (
-              <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={bloqueado}>
-                Descartar
-              </button>
-            )}
-            <button type="button" onClick={abrir} className="duna-btn duna-btn--secondary" disabled={bloqueado}>
-              <Pencil /> Editar
+            <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
+              Descartar
             </button>
-            {hayBorrador && (
-              <button type="button" onClick={publicar} className="duna-btn duna-btn--primary" disabled={bloqueado}>
-                {bloqueado ? 'Publicando…' : 'Publicar'}
-              </button>
-            )}
+            <button type="button" onClick={publicar} className="duna-btn duna-btn--primary" disabled={!puedePublicar}>
+              {procesando ? 'Publicando…' : 'Publicar'}
+            </button>
           </div>
         )}
       </div>
 
       <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
-        {/* Imagen — el único campo que no es texto */}
+        {/* Imagen — se sube al elegirla; el autoguardado del texto se bloquea mientras sube. */}
         <div className="duna-field duna-form__full" style={{ marginBottom: 'var(--duna-space-5)' }}>
           <span className="duna-field__label">Imagen de fondo</span>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -283,87 +245,45 @@ export default function TiendaHeroSeccion({ onGuardado }: { onGuardado?: () => v
               marginTop: 'var(--duna-space-1)',
             }}
           />
-          {editando && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-3)', alignItems: 'center', marginTop: 'var(--duna-space-3)' }}>
-              <input ref={fileRef} type="file" accept={ACCEPT_IMAGENES} onChange={elegirArchivo} hidden disabled={bloqueado} />
-              <button type="button" onClick={() => fileRef.current?.click()} className="duna-btn duna-btn--secondary duna-btn--sm" disabled={bloqueado}>
-                <Upload /> Cambiar imagen
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-3)', alignItems: 'center', marginTop: 'var(--duna-space-3)' }}>
+            <input ref={fileRef} type="file" accept={ACCEPT_IMAGENES} onChange={elegirArchivo} hidden disabled={fase === 'subiendo'} />
+            <button type="button" onClick={() => fileRef.current?.click()} className="duna-btn duna-btn--secondary duna-btn--sm" disabled={fase === 'subiendo'}>
+              <Upload /> Cambiar imagen
+            </button>
+            {form.imagen !== DEFAULTS.hero.imagen && (
+              <button type="button" onClick={usarPorDefecto} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={fase === 'subiendo'}>
+                Usar imagen por defecto
               </button>
-              {form && form.imagen !== DEFAULTS.hero.imagen && (
-                <button type="button" onClick={usarPorDefecto} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={bloqueado}>
-                  Usar imagen por defecto
-                </button>
-              )}
-              <span className="duna-field__hint" style={{ margin: 0 }}>
-                {imagenFile ? imagenFile.name : `JPG, PNG o WebP · máx ${MAX_UPLOAD_MB} MB`}
-              </span>
-            </div>
-          )}
+            )}
+            <span className="duna-field__hint" style={{ margin: 0 }}>
+              {fase === 'subiendo' ? 'Subiendo…' : `JPG, PNG o WebP · máx ${MAX_UPLOAD_MB} MB`}
+            </span>
+          </div>
         </div>
 
-        {editando && form ? (
-          <form onSubmit={guardar} className="duna-form" noValidate>
-            {CAMPOS.map(campo => {
-              const err = errores[campo.name];
-              const id  = `hero-${campo.name}`;
-              const describedBy = err ? `${id}-err` : `${id}-hint`;
-              const value = String(form[campo.name] ?? '');
-              return (
-                <div key={campo.name} className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
-                  <label className="duna-field__label" htmlFor={id}>{campo.label}</label>
-                  {campo.textarea ? (
-                    <textarea id={id} className="duna-input" rows={2} value={value} onChange={set(campo.name)}
-                      aria-invalid={err ? true : undefined} aria-describedby={describedBy} disabled={bloqueado} />
-                  ) : (
-                    <input id={id} className="duna-input" value={value} onChange={set(campo.name)}
-                      aria-invalid={err ? true : undefined} aria-describedby={describedBy} disabled={bloqueado} />
-                  )}
-                  {err
-                    ? <p className="duna-field__error" id={`${id}-err`}>{err}</p>
-                    : <p className="duna-field__hint" id={`${id}-hint`}>{campo.hint}</p>}
-                </div>
-              );
-            })}
+        <div className="duna-form">
+          {CAMPOS.map(campo => {
+            const id = `hero-${campo.name}`;
+            const value = String(form[campo.name] ?? '');
+            return (
+              <div key={campo.name} className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
+                <label className="duna-field__label" htmlFor={id}>{campo.label}</label>
+                {campo.textarea ? (
+                  <textarea id={id} className="duna-input" rows={2} value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`} />
+                ) : (
+                  <input id={id} className="duna-input" value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`} />
+                )}
+                <p className="duna-field__hint" id={`${id}-hint`}>{campo.hint}</p>
+              </div>
+            );
+          })}
+        </div>
 
-            <div className="duna-form__full" style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
-              <button type="submit" className="duna-btn duna-btn--primary" disabled={bloqueado}>
-                {fase === 'subiendo' ? 'Subiendo imagen…' : fase === 'guardando' ? 'Guardando…' : 'Guardar borrador'}
-              </button>
-              <button type="button" onClick={descarte.intentarCerrar} className="duna-btn duna-btn--ghost" disabled={bloqueado}>
-                Cancelar
-              </button>
-              {errorServidor && <p className="duna-field__error" role="alert" style={{ margin: 0 }}>{errorServidor}</p>}
-            </div>
-          </form>
-        ) : (
-          <dl className="duna-form" style={{ margin: 0 }}>
-            {CAMPOS.map(campo => {
-              const texto = String(hero[campo.name] ?? '').trim();
-              return (
-                <div key={campo.name} className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
-                  <dt className="duna-field__label">{campo.label}</dt>
-                  <dd className="duna-body" style={{ margin: 0, wordBreak: 'break-word' }}>
-                    {texto || <span style={{ color: 'var(--duna-muted)' }}>{campo.opcional ? 'No se muestra' : 'Por defecto'}</span>}
-                  </dd>
-                </div>
-              );
-            })}
-          </dl>
+        {errorServidor && (
+          <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-3)' }}>{errorServidor}</p>
         )}
       </div>
 
-      {!editando && errorServidor && (
-        <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-3)' }}>{errorServidor}</p>
-      )}
-
-      {/* Descarte de la EDICIÓN en curso (edit-cancel) — texto por defecto. */}
-      <ConfirmDescartarDialog
-        abierto={descarte.confirmando}
-        onDescartar={descarte.descartar}
-        onSeguir={descarte.seguirEditando}
-      />
-
-      {/* Descarte del BORRADOR guardado — su propia semántica: vuelve a lo publicado. */}
       <ConfirmDescartarDialog
         abierto={confirmandoDescarte}
         onDescartar={() => { setConfirmandoDescarte(false); descartarBorrador(); }}
