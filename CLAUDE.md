@@ -1510,6 +1510,101 @@ Sólo lo ESTRUCTURADO: `tienda.emailColors` (paleta hex de los correos, la lee `
 `SiteSetting.whatsapp`); `formatWhatsappDisplay` DERIVA el display del número, sin un segundo
 campo que pudiera divergir.
 
+## Config del contenido — `SiteContent` (el storefront editable)
+
+Tanda del 2026-08-25 (hero primero). El CONTENIDO editorial del storefront —la home— dejó de
+vivir en el JSX y pasó a `SiteContent` (base), editable en `/admin/tienda`. Es la sección
+**"Tienda"** que el § negocio≠tienda dejó pendiente: lo que el CLIENTE ve, distinto de la
+IDENTIDAD del negocio (Configuración).
+
+### HARD vs SOFT — el contraste con SiteSetting, a PROPÓSITO
+
+| | **SiteSetting** (identidad) | **SiteContent** (contenido) |
+| --- | --- | --- |
+| cadencia | 2×/año | semanal |
+| loader | **HARD**: `findUniqueOrThrow`, falla ruidoso | **SOFT**: `findUnique` → defaults, nunca lanza |
+| migración | CREATE **+ INSERT** (la fila la garantiza la migración) | CREATE, **SIN INSERT** |
+| el vacío es… | un error (deploy roto) | un **estado LEGÍTIMO** del editor |
+
+Sin fila, SiteContent renderiza los **defaults del código** (los literales de hoy) → no hace
+falta sembrar la fila. SiteSetting falla ruidoso, así que SÍ necesitó el INSERT. Mismo patrón
+de "config editable", modos de falla OPUESTOS.
+
+### El modelo: JSON doc, dos loaders SOFT, provider propio
+
+- `SiteContent` singleton (`id='default'` + CHECK, sin `tenant_id`), `content Json`. Los
+  DEFAULTS (los literales del hero) + el REGISTRY viven en `lib/config/site-content-defaults.ts`
+  (PURO — capa 1 lo prueba).
+- Dos loaders como SiteSetting: `readSiteContent` (RAW, sin server-only, para route handlers/
+  carril) y `getSiteContent` (cached/server-only, para renders) — PERO SOFT (`findUnique`,
+  sin fila devuelve los defaults resueltos).
+- Provider PROPIO del storefront (`SiteContentProvider`), separado del de SiteSettings: dos
+  datos con cadencia y modo de falla distintos.
+
+### La FRONTERA fina de "defaults-como-fallback" — requerido ≠ opcional
+
+Es la contraparte de § los defaults-como-fallback, y merece quedar escrita porque es sutil:
+
+- **REQUERIDO vacío → cae al DEFAULT.** La página lo NECESITA (un hero sin titular no existe).
+- **OPCIONAL vacío → SE OMITE** (el elemento desaparece), **NO cae al default.** Si cayera, un
+  campo opcional **no sería OCULTABLE** y la distinción requerido/opcional no significaría nada.
+
+**La regla, en una línea: el fallback aplica a lo que la página NECESITA, no a lo que el dueño
+puede ELEGIR no mostrar.** El editor lo dice en el placeholder de CADA campo —requerido:
+"Vacío: se usa el texto por defecto"; opcional: "Vacío: no se muestra"— para que el vacío nunca
+sea una adivinanza. La mecánica vive en `resolverSiteContent` (`site-content-defaults.ts`): un
+requerido vacío toma el default; un opcional PRESENTE-aunque-vacío se respeta (→ se omite).
+
+### Visibilidad por sección — `visible` + `ocultable` declarado, hide-on-empty
+
+- **`visible` booleano por sección; qué sección EXPONE el toggle es `ocultable`** (declarado en
+  el REGISTRY), no un `if` en el renderer. **Hero `ocultable:false`** —una home sin encabezado
+  no es un caso de v1— → su editor no ofrece ocultar.
+- **REPEATER → hide-on-empty**: array vacío → la sección NO se renderiza (gana sobre `visible`).
+  Testimonios será el primero.
+- **La EXCEPCIÓN a los defaults (§Q4): sin defaults para un CLAIM falso.** Los defaults valen
+  para copy; NO para prueba social fabricada (reseñas, ratings, premios). Testimonios nace SIN
+  defaults y hide-on-empty (§ Backlog #44) — vuelve con testimonios reales o no vuelve.
+
+`seccionEsVisible(def, sec)` combina las tres reglas; probada en capa 1 con un repeater
+sintético (deja la mecánica lista para las secciones que faltan, aunque el hero no la ejercite).
+
+### Las imágenes
+
+- **Reusa `/api/upload` con `prefix: 'contenido'`** (whitelist `PREFIJOS_UPLOAD`: 'productos' |
+  'contenido'; un valor fuera cae al default, nunca a una ruta arbitraria). El campo es un
+  STRING: acepta path estático (`/images/…`) o URL de Blob —`next/image` sirve ambos,
+  `storage.delete` es no-op sobre estáticos—. **Los 8 assets NO se migran**: los defaults los
+  referencian estáticos.
+- **Tope 4 MB** (body serverless de Vercel; un 8 MB se rechaza con 400). Orden **SUBIR→GUARDAR**;
+  mientras sube todo se bloquea y el botón nombra la etapa —no hay "creyó que guardó y no
+  subió"—. El PUT borra el blob viejo REEMPLAZADO (diff, como productos).
+- **#20 (subida sin comprimir) sigue ABIERTO**, y el hero full-screen lo hace más visible: una
+  imagen de 4 MB servida sin comprimir pesa. Se señala; su fix es el disparador de #20.
+
+### El editor y el rail
+
+- El editor (`TiendaHeroSeccion`) REUSA la cáscara lectura↔edición de `DatosNegocioSeccion`
+  (`useDescarteDeDrawer` + `ConfirmDescartarDialog`); DIFIERE sólo en la imagen, que toma la
+  etapa `'subiendo'|'guardando'` de `ProductFormModal`. Compone dos patrones, no inventa.
+- **Rail: "Tienda" SUELTO** (sin `seccion`) tras Crecimiento. Un grupo de un ítem es un
+  encabezado que no agrupa (regla del owner). **Semilla de un grupo "Tienda"** cuando exista una
+  2ª pantalla de storefront-admin (las páginas legales, § `legalNav` vacío). RESERVA de gate: un
+  ítem suelto tras dos grupos etiquetados puede leerse como sobrante ("Hoy" funciona porque va
+  primero); si no cuadra, la salida es el grupo de un ítem. El conteo del tripwire de
+  `admin-titulo` pasó 8→9 a propósito.
+- **Los hrefs de los CTA son ESTRUCTURA** (`HERO_HREFS`): labels editables, destinos FIJOS. Un
+  href libre dejaría el botón principal apuntando a una ruta inexistente. DISPARADOR si se pide
+  editarlos: un selector entre rutas CONOCIDAS, no un campo libre.
+
+### PENDIENTE DE GATE — la propagación al storefront
+
+Editar el hero escribe la fila; la home es ruta DINÁMICA (lee la fila fresca por request), así
+que el cambio DEBERÍA verse al recargar. **No se pudo probar** —el editor vive tras el gate
+(`/admin/*` responde 307 sin sesión)—. **Si en el gate el cambio NO se ve al recargar el
+storefront, hace falta revalidación** (`revalidatePath('/')` tras el PUT). Queda como pendiente
+de gate, NO resuelto.
+
 ## Mejoras post-multitenant
 
 **NO es el backlog técnico.** El backlog es deuda que ya está costando; esto son
