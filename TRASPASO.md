@@ -1,7 +1,7 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-23 (cierre de Configuración/Equipo + Perfil — las dos
-últimas pantallas del panel).
+**Actualizado:** 2026-08-24 (SiteSetting — los datos PLANOS del negocio, editables
+en Configuración; fase 1 del multi-tenant SIN fijar la tenancy).
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -44,7 +44,7 @@ Vercel, `main` = producción).
 | `/admin/analitica` | Completa (cuatro preguntas de dueño, titulares) | Document-scroll (estado final — § Los DOS modelos de scroll) |
 | `/admin/automatizaciones` | Completa (rejilla, señal de vida, historial) | Document-scroll (estado final — § Los DOS modelos de scroll) |
 | `/admin/dashboard` | Completa ("Hoy": hero + curva por hora + top-hoy + tarjetas) | Document-scroll |
-| `/admin/configuracion` | Completa (Equipo y usuarios — el hub desapareció; #1 cerrado) | Document-scroll |
+| `/admin/configuracion` | Completa. "Configuración" con DOS secciones: Datos del negocio (editor lectura↔edición) + Equipo y usuarios | Document-scroll |
 | `/admin/perfil` | Completa (cuenta limpia + cambiar contraseña real) | Document-scroll |
 
 ### Pendientes de rediseño
@@ -54,12 +54,14 @@ pantalla heredada del template.
 **Configuración/Equipo + Perfil CERRADO** (2026-08-23, § CLAUDE.md "Equipo y
 usuarios, y Perfil") — las dos últimas pantallas. Cuatro commits:
 
-1. **El hub de Configuración desapareció.** `/admin/configuracion` ES ahora la
-   pantalla de equipo (cinco de sus seis tarjetas eran "Próximamente"). La subruta
-   `/configuracion/usuarios` redirige (`lib/redirect-config`, el sexto redirect —
-   path plano, sin traducción de query). **Título ≠ ruta:** la pestaña y el UserMenu
-   dicen "Equipo y usuarios" (lo que HACE); la ruta se queda en `/admin/configuracion`.
-   `RoleBadge` salió del pastel a `.duna-badge--neutral` (el rol es categoría).
+1. **El hub de Configuración desapareció y VOLVIÓ con contenido real.** Fue "Equipo
+   y usuarios" mientras SÓLO mostraba equipo (cinco de sus seis tarjetas eran
+   "Próximamente"); con el editor del negocio (SiteSetting, tanda 2026-08-24)
+   recuperó el nombre **"Configuración"** y DOS secciones (Datos del negocio + Equipo
+   y usuarios). La pestaña y el UserMenu dicen "Configuración" (ícono Settings). SIN
+   sub-rutas todavía (dos secciones caben en una página; el hub con sub-routes es la
+   era multi-tenant). La subruta `/configuracion/usuarios` redirige
+   (`lib/redirect-config`, el sexto redirect). `RoleBadge` en `.duna-badge--neutral`.
 2. **#1 cerrado** — invitaciones pendientes visibles y cancelables. `GET` + `DELETE`
    OWNER-only; la consulta se extrajo a `lib/invitations.ts` para el carril
    (`invitaciones-pendientes.test.ts`, visto fallar quitando `usedAt: null`). Una
@@ -215,6 +217,16 @@ cabecera:
   definió el spec absorbió lo que iba a hacer.
 
 ### Trabajo cerrado
+- **SiteSetting — los datos PLANOS del negocio, editables** (2026-08-24, § CLAUDE.md
+  "Config del negocio — SiteSetting"). nombre, tagline, descripcionFooter, whatsapp,
+  instagram, emailRemitente, emailReplyTo, adminEmail salieron de `siteConfig` (código)
+  a la tabla `SiteSetting` (singleton `id='default'`, born en `public`, SIN `tenant_id`
+  — no fija la tenancy). Editor lectura↔edición en Configuración. Dos loaders (RAW
+  `readSiteSettings` para no-renders/carril; `getSiteSettings` cached/server-only para
+  renders). `ADMIN_EMAIL` retirada → `SEED_OWNER_EMAIL` (seed) + `SiteSetting.adminEmail`
+  (runtime), con guard en el PATCH de automatizaciones. Estructurados (`emailColors`,
+  `footerNav`, `legalNav`) siguen en código. Abrió backlog **#43** (cinco internas
+  apagadas en prod — antes del go-live).
 - **Tandas 1 y 2** (drawers, detalle de Pedidos) + correctores C1–C5.
 - **Tanda 3** (layout del split con scroll por columna) y sus tres prerequisitos.
 - **Backlog #24** (alto fijo en Inventario), **#17**, **#9**, **#7**.
@@ -520,7 +532,8 @@ modelo seis veces. Un dato que nuestro schema no tiene **no existe**.
 Reglas: va ordenada y **el orden es la decisión**; el número es identidad, no
 posición. Cada entrada dice el **costo ya pagado**. Un ítem completado **se borra**.
 
-Vivos: `#2` · `#3` · `#4` · `#5` · `#8` · `#10` · `#16` · `#18` · `#19` · `#20` ·
+Vivos: **`#43`** (primero — antes del go-live: cinco internas apagadas en prod) ·
+`#2` · `#3` · `#4` · `#5` · `#8` · `#10` · `#16` · `#18` · `#19` · `#20` ·
 `#21` · `#23` · `#25` · `#26` · `#27` · `#32` · `#33` · `#34` · `#35` ·
 `#36` · `#37` · `#38` · `#39` · `#41` · `#42`. (`#1` y `#22` cerrados; `#22` no por
 hacerse sino por resolverse solo — la consolidación ya no aplica.)
