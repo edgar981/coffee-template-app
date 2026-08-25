@@ -579,3 +579,14 @@ model SiteSetting {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
+
+model SiteContent {
+  // El CONTENIDO editable del storefront (la home). Singleton como SiteSetting, PERO su
+  // loader es SOFT (defaults-como-fallback): sin fila, el storefront renderiza los defaults
+  // del código. Por eso su migración NO lleva INSERT —contraste con SiteSetting, que falla
+  // ruidoso y SÍ necesitó sembrar la fila—. La fila aparece sólo cuando el dueño edita.
+  id        String   @id @default("default")
+  content   Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
