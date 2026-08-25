@@ -167,6 +167,28 @@ Caso concreto (2026-08-24): un comentario `{/* … */}` suelto en el TOP-LEVEL d
 errores** y `next build` falló. Misma familia que la campana: un artefacto que pasa una
 capa puede fallar en otra, y la que importa es la que envía.
 
+### Verificar PROPAGACIÓN de un dato editable exige modo PRODUCCIÓN — dev engaña
+
+**Un loader que LEE la base no garantiza que el valor se VEA.** Next PRERENDERIZA las rutas
+estáticas al build: una ruta que lee un dato de la base sin forzar dinámica se hornea con el
+valor del BUILD, y después el dato correcto en la base **convive con el dato viejo en pantalla —
+sin error, sin nada rojo**. Es la familia del artefacto rancio (§ PRECONDICIÓN) subida un nivel:
+no es el `.next` local, es el prerender de producción.
+
+**La regla, la más cara del día (2026-08-25): verificar propagación exige modo PRODUCCIÓN
+(`npm run build` + `npm start` + curl), NUNCA dev.** `next dev` renderiza TODO dinámico, así que
+esconde el defecto: en dev el cambio SÍ se ve, y el checklist se reporta "pasa" sobre una
+mentira. **Dev engaña sobre el modo de render.** El discriminador barato, antes de cualquier
+prueba de runtime: **grepear el símbolo de la ruta en la salida de `next build`** —`ƒ` re-lee por
+request, `○`/`●` está horneada—.
+
+El incidente que la instaura: el checklist de propagación estaba en el gate de las DOS tandas de
+contenido editable (SiteSetting y SiteContent) y **se reportó pasado sin probarse**. El storefront
+salía `○` (estático) y editar el negocio o el hero no se veía en producción. Se probó tarde, con
+`npm start` + curl: la home servía el default del build aunque la fila cambiara. El fix
+(`force-dynamic`, § Config del contenido — la propagación) es de una línea; el costo fue el
+diagnóstico y el defecto vivo en producción entre dos merges.
+
 ### El carril de integración
 
 ```bash
@@ -1597,13 +1619,22 @@ sintético (deja la mecánica lista para las secciones que faltan, aunque el her
   href libre dejaría el botón principal apuntando a una ruta inexistente. DISPARADOR si se pide
   editarlos: un selector entre rutas CONOCIDAS, no un campo libre.
 
-### PENDIENTE DE GATE — la propagación al storefront
+### La propagación al storefront — el storefront es DINÁMICO (defecto medido y arreglado)
 
-Editar el hero escribe la fila; la home es ruta DINÁMICA (lee la fila fresca por request), así
-que el cambio DEBERÍA verse al recargar. **No se pudo probar** —el editor vive tras el gate
-(`/admin/*` responde 307 sin sesión)—. **Si en el gate el cambio NO se ve al recargar el
-storefront, hace falta revalidación** (`revalidatePath('/')` tras el PUT). Queda como pendiente
-de gate, NO resuelto.
+El storefront **era ESTÁTICO** —`○ /` y todas sus rutas salvo el detalle de producto—, y eso
+rompía la propagación: el layout lee SiteSetting y SiteContent de la BASE, pero Next las HORNEA
+al build, así que en producción editar el hero o el nombre del negocio **no se veía hasta un
+rebuild**. Afectaba a las DOS tandas (SiteSetting y SiteContent), no sólo al hero.
+
+El fix: **`export const dynamic = 'force-dynamic'` en el layout del storefront** — cada request
+re-lee (dos queries de una fila, baratas). Medido en modo producción (`npm start` + curl): antes
+la home servía el default del build aunque la fila cambiara; después muestra la fila. (§ Las tres
+capas — "dev engaña sobre el modo de render" es la regla que este defecto instaura.)
+
+**TRADEOFF con su DISPARADOR:** `force-dynamic` en v1 —correcto y seguro para una tienda de este
+tamaño—. Se descartó ISR (estático + `revalidatePath` en cada escritura de settings/content) por
+más superficie que equivocar sin ganancia real. **DISPARADOR de volver a estático + ISR: si el
+tráfico del storefront lo pide** (CDN/costo empiezan a importar). Hasta entonces, dinámico.
 
 ## Mejoras post-multitenant
 
