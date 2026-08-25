@@ -5,9 +5,9 @@ import TiendaHeroSeccion from '@/components/admin/TiendaHeroSeccion';
 // El contenido EDITORIAL del storefront —hoy, el hero de la home—. Distinto de Configuración,
 // que edita la IDENTIDAD del negocio (§ negocio≠tienda).
 //
-// TRANSITORIO (retiro del iframe, commit A): sin vista previa por ahora — sólo el editor, que
-// autoguarda. La VISTA PREVIA EN VIVO (componentes reales alimentados por el form) + el read↔edit
-// entran en el commit siguiente.
+// La sección (`TiendaHeroSeccion`) trae su VISTA PREVIA EN VIVO (componentes reales del storefront
+// alimentados por el form) + read↔edit + autoguardado. Las otras secciones (BrandStory, etc.)
+// entran acá con el mismo patrón.
 export default function Tienda() {
   return (
     <div>

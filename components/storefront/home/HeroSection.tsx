@@ -43,7 +43,12 @@ export default function HeroSection() {
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
         <motion.div
-          initial="hidden"
+          // En la VISTA PREVIA del panel (`preview`), `initial={false}` renderiza en el estado
+          // "visible" SIN animación de entrada: el contenido se ve asentado desde el primer render.
+          // Sin esto, `initial="hidden"` con la entrada por `animate` haría parpadear el preview en
+          // cada re-render del form; y una sección futura con `whileInView` quedaría INVISIBLE
+          // esperando una intersección que dentro del contenedor escalado no llega.
+          initial={preview ? false : 'hidden'}
           animate="visible"
           variants={{
             visible: {

@@ -508,6 +508,28 @@ html.admin {
 .admin-indicador__lab { display: block; font-weight: var(--duna-w-semi); font-size: 0.76rem; }
 .admin-indicador__ctx { display: block; font-size: 0.7rem; color: var(--duna-muted); margin-top: 1px; }
 
-/* /admin/tienda · el CSS de la VISTA PREVIA EN VIVO (componentes reales del storefront a escala,
-   junto al editor) entra con su componente en el commit siguiente. El bloque del iframe
-   (`.tienda-preview-*`, el split escalado) se retiró con el iframe. */
+/* ═══ /admin/tienda · VISTA EN VIVO + editor (read↔edit) ══════════════════════
+   La vista en vivo (componentes REALES del storefront a escala, § VistaTiendaEnVivo) es la
+   LECTURA a ancho completo; al editar, se parte en dos columnas (vista | form). Document-scroll
+   (no alto fijo): la vista toma el alto de su contenido escalado, el form el suyo. Admin-level. */
+.tienda-vivo {
+  display: grid;
+  grid-template-columns: 1fr;   /* lectura: la vista a ancho completo */
+  gap: var(--duna-space-6);
+  align-items: start;
+}
+.tienda-vivo--editando { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } /* editar: vista | form */
+@media (max-width: 1079.98px) {
+  .tienda-vivo--editando { grid-template-columns: 1fr; } /* angosto: apila vista y form */
+}
+.tienda-vivo__vista, .tienda-vivo__form { min-width: 0; }
+
+/* El PANE de la vista: marco que toma el alto del contenido escalado (fijado por JS). El
+   contenido (1280 de ancho, escalado) va absoluto adentro; `overflow:hidden` recorta al marco. */
+.tienda-vivo-pane {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--duna-border);
+  border-radius: var(--duna-r-l);
+  background: var(--duna-bg);
+}
