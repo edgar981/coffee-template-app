@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULTS,
+  mezclarBorrador,
   resolverSiteContent,
   seccionEsVisible,
   type SeccionDef,
@@ -77,4 +78,43 @@ test('sección ocultable no-repeater: visible:false → oculta; visible:true →
   const def: SeccionDef = { label: 'X',ocultable: true, campos: {} };
   assert.equal(seccionEsVisible(def, { visible: false }), false);
   assert.equal(seccionEsVisible(def, { visible: true }), true);
+});
+
+// ── mezclarBorrador (overlay por sección — la base del loader de borrador) ────────────
+
+test('mezclarBorrador: una sección borroneada pisa la publicada; las otras quedan', () => {
+  const content  = { hero: { titulo: 'Publicado' }, otra: { x: 1 } };
+  const borrador = { hero: { titulo: 'Borrador' } };
+  const m = mezclarBorrador(content, borrador);
+  assert.deepEqual(m.hero, { titulo: 'Borrador' }); // pisada entera por el borrador
+  assert.deepEqual(m.otra, { x: 1 });               // sin borrador → intacta (no se arrastra)
+});
+
+test('mezclarBorrador: sin borrador (null/undefined/{}) → idéntico a lo publicado', () => {
+  const content = { hero: { titulo: 'X' } };
+  for (const b of [null, undefined, {}]) {
+    assert.deepEqual(mezclarBorrador(content, b), content);
+  }
+});
+
+test('mezclarBorrador: borrador basura (string/array/número) → se ignora, queda lo publicado', () => {
+  const content = { hero: { titulo: 'X' } };
+  for (const b of ['x', [1], 42]) {
+    assert.deepEqual(mezclarBorrador(content, b), content);
+  }
+});
+
+test('mezclarBorrador PISA la sección entera, NO hace deep-merge de campos', () => {
+  // El editor guarda secciones COMPLETAS, así que la sección del borrador es la verdad entera.
+  const content  = { hero: { titulo: 'pub', subtitulo: 'sub pub' } };
+  const borrador = { hero: { titulo: 'draft' } };
+  assert.deepEqual(mezclarBorrador(content, borrador).hero, { titulo: 'draft' });
+});
+
+test('el loader compone mezclar→resolver: el hero del borrador se ve resuelto', () => {
+  const content  = { hero: { titulo: 'Hero publicado', subtitulo: 'Sub pub' } };
+  const borrador = { hero: { titulo: 'Hero borrador' } };
+  const r = resolverSiteContent(mezclarBorrador(content, borrador));
+  assert.equal(r.hero.titulo, 'Hero borrador');            // el borrador del hero, resuelto
+  assert.equal(r.hero.subtitulo, DEFAULTS.hero.subtitulo); // borrador pisó la sección entera → subtitulo ausente → default
 });

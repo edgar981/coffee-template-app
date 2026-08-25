@@ -115,6 +115,19 @@ export function resolverSiteContent(stored: unknown): SiteContentData {
 }
 
 /**
+ * Overlay POR SECCIÓN del borrador sobre lo publicado, EN CRUDO (antes de resolver). Cada
+ * sección presente en `borrador` PISA por completo la de `content` —el editor guarda secciones
+ * completas, no campos sueltos—; las no borroneadas quedan como en `content`. El resultado es el
+ * objeto crudo que el loader de borrador pasa a `resolverSiteContent`. Publicar una sección no
+ * arrastra otra porque el borrador es un mapa PARCIAL (sólo trae las secciones borroneadas).
+ */
+export function mezclarBorrador(content: unknown, borrador: unknown): Record<string, unknown> {
+  const c = esObj(content) ? content : {};
+  const b = esObj(borrador) ? borrador : {};
+  return { ...c, ...b };
+}
+
+/**
  * ¿Se muestra la sección? `visible` + hide-on-empty para repeaters. Recibe el def y la
  * sección ya resuelta (parametrizado para probarlo sin depender del REGISTRY global).
  *  · `ocultable: false` → siempre visible, salvo que sea repeater y su array esté vacío.
