@@ -172,6 +172,38 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
     : auto.estado === 'error' ? 'No se pudo guardar'
     : 'Guardado';
 
+  // ── LECTURA: la sección es una TARJETA compacta (miniatura + título + estado + Editar). La vista
+  //    grande (con sticky) sólo existe en edición; en lectura no hay scroller interno que atrape la
+  //    página. Publicar/Descartar viven en la vista expandida.
+  if (!editando) {
+    return (
+      <div className="tienda-tarjeta">
+        <div className="tienda-tarjeta__thumb" onClick={() => setEditando(true)}>
+          {oculta ? (
+            <div className="tienda-tarjeta__oculta">
+              <span className="duna-caption" style={{ margin: 0 }}>No se muestra en la tienda</span>
+            </div>
+          ) : (
+            <VistaTiendaEnVivo seccion={seccion} valor={form} compacto />
+          )}
+        </div>
+        <div className="tienda-tarjeta__meta">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
+            <h2 className="duna-title">{config.titulo}</h2>
+            {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
+            {oculta && <span className="duna-badge duna-badge--neutral">Oculta</span>}
+          </div>
+          <div>
+            <button type="button" onClick={() => setEditando(true)} className="duna-btn duna-btn--secondary">
+              <Pencil /> Editar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── EDICIÓN: la vista grande (sticky) + el form. El hero conserva su comportamiento exacto.
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)', flexWrap: 'wrap' }}>
@@ -197,13 +229,7 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
           )}
         </div>
         <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
-          {!editando ? (
-            <button type="button" onClick={() => setEditando(true)} className="duna-btn duna-btn--secondary">
-              <Pencil /> Editar
-            </button>
-          ) : (
-            <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Listo</button>
-          )}
+          <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Listo</button>
           {hayBorrador && (
             <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
               Descartar
@@ -217,9 +243,11 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
         </div>
       </div>
 
-      <div className={`tienda-vivo${editando ? ' tienda-vivo--editando' : ''}`} style={{ marginTop: 'var(--duna-space-4)' }}>
+      <div className="tienda-vivo tienda-vivo--editando" style={{ marginTop: 'var(--duna-space-4)' }}>
         {/* La VISTA — componentes reales alimentados por el form. Oculta: la sección se auto-oculta
-            en el storefront (self-gate), así que la vista quedaría vacía; se muestra un aviso. */}
+            en el storefront (self-gate), así que la vista quedaría vacía; se muestra un aviso.
+            `tienda-vivo__vista` es sticky: sólo existe en edición, así que al dar "Listo" se
+            desmonta y no queda ningún elemento pinneado. */}
         <div className="tienda-vivo__vista">
           {oculta ? (
             <div className="duna-card duna-card__pad" style={{ display: 'grid', placeItems: 'center', minHeight: '160px', textAlign: 'center' }}>
@@ -233,9 +261,8 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
           )}
         </div>
 
-        {/* El FORM — sólo al editar, junto a la vista. */}
-        {editando && (
-          <div className="tienda-vivo__form">
+        {/* El FORM — junto a la vista (esta rama es siempre edición). */}
+        <div className="tienda-vivo__form">
             <div className="duna-card duna-card__pad">
               <input ref={fileRef} type="file" accept={ACCEPT_IMAGENES} onChange={elegirArchivo} hidden disabled={subiendo} />
 
@@ -314,13 +341,8 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
                 <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-3)' }}>{errorServidor}</p>
               )}
             </div>
-          </div>
-        )}
+        </div>
       </div>
-
-      {!editando && errorServidor && (
-        <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-3)' }}>{errorServidor}</p>
-      )}
 
       <ConfirmDescartarDialog
         abierto={confirmandoDescarte}
