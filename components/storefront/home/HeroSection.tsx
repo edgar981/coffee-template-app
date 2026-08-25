@@ -7,19 +7,28 @@ import { ArrowRight } from "lucide-react";
 
 import { motion } from "framer-motion";
 
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { HERO_HREFS } from "@/lib/config/site-content-defaults";
+
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
 
   visible: { opacity: 1, y: 0 },
 };
 
+// El hero se renderiza desde SiteContent (loader SOFT): los campos ya vienen resueltos
+// —requeridos con su default, opcionales vacíos como ""—, así que acá sólo hay que OMITIR
+// los opcionales vacíos (eyebrow, el énfasis del titular, el 2º CTA). Hero es `ocultable:false`
+// → siempre se renderiza. Los destinos de los CTA son ESTRUCTURA (`HERO_HREFS`), no editables.
 export default function HeroSection() {
+  const { hero } = useSiteContent();
+
   return (
     <section className="relative flex min-h-[92vh] items-center overflow-hidden bg-[#1a0f08]">
       <div className="absolute inset-0">
         <Image
-          src="/images/hero-beans-v1.jpg"
-          alt="Granos de café de especialidad de Café Nayoli"
+          src={hero.imagen}
+          alt=""
           fill
           priority
           sizes="100vw"
@@ -43,33 +52,33 @@ export default function HeroSection() {
           }}
           className="max-w-2xl"
         >
-          <motion.p
-            variants={fadeUp}
-            className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-[#d4a97a]"
-          >
-            Café de Especialidad · Colombia
-          </motion.p>
+          {hero.eyebrow && (
+            <motion.p
+              variants={fadeUp}
+              className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-[#d4a97a]"
+            >
+              {hero.eyebrow}
+            </motion.p>
+          )}
 
           <motion.h1
             variants={fadeUp}
             className="mb-6 font-playfair text-5xl leading-[1.08] text-white sm:text-6xl lg:text-7xl"
           >
-            Café que cuenta
-            <br />
-            <em className="italic text-[#d4a97a]">
-              historias
-            </em>
+            {hero.titulo}
+            {hero.tituloEnfasis && (
+              <>
+                <br />
+                <em className="italic text-[#d4a97a]">{hero.tituloEnfasis}</em>
+              </>
+            )}
           </motion.h1>
 
           <motion.p
             variants={fadeUp}
             className="mb-10 max-w-md text-lg leading-relaxed text-white/70"
           >
-            Café de especialidad cultivado por
-            nuestra familia en Supatá,
-            Cundinamarca. Una sola finca, una
-            sola variedad, tostado en tandas
-            semanales.
+            {hero.subtitulo}
           </motion.p>
 
           <motion.div
@@ -77,36 +86,34 @@ export default function HeroSection() {
             className="flex flex-wrap gap-4"
           >
             <Link
-              href="/tienda"
+              href={HERO_HREFS.primario}
               className="inline-flex items-center gap-2 rounded-full bg-[#d4a97a] px-8 py-4 text-sm font-semibold text-[#1a0f08] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#c49060]"
             >
-              Explorar Café
+              {hero.ctaPrimarioLabel}
 
               <ArrowRight className="h-4 w-4" />
             </Link>
 
-            <Link
-              href="/suscripciones"
-              className="inline-flex items-center gap-2 rounded-full border border-white/30 px-8 py-4 text-sm font-medium text-white transition-all duration-200 hover:border-white/60 hover:bg-white/10"
-            >
-              Suscripción Mensual
-            </Link>
+            {hero.ctaSecundarioLabel && (
+              <Link
+                href={HERO_HREFS.secundario}
+                className="inline-flex items-center gap-2 rounded-full border border-white/30 px-8 py-4 text-sm font-medium text-white transition-all duration-200 hover:border-white/60 hover:bg-white/10"
+              >
+                {hero.ctaSecundarioLabel}
+              </Link>
+            )}
           </motion.div>
         </motion.div>
       </div>
 
-      {/* Scroll indicator */} 
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/40"> 
-        
-      </div>
-      <motion.div 
-        animate={{ y: [0, 8, 0], }}
-        transition={{ duration: 2, repeat: Infinity,
-        }}
+      {/* Scroll indicator */}
+      <motion.div
+        animate={{ y: [0, 8, 0] }}
+        transition={{ duration: 2, repeat: Infinity }}
         className="absolute bottom-8 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-white/40"
-    >
-        <span className="text-xs tracking-widest uppercase">Scroll</span> 
-        <div className="w-px h-12 bg-linear-to-b from-white/40 to-transparent" /> 
+      >
+        <span className="text-xs tracking-widest uppercase">Scroll</span>
+        <div className="w-px h-12 bg-linear-to-b from-white/40 to-transparent" />
       </motion.div>
     </section>
   );
