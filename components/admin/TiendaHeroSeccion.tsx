@@ -126,7 +126,7 @@ export default function TiendaHeroSeccion() {
       try {
         if (imagenFile) {
           setFase('subiendo');
-          imagenUrl = (await uploadImagen(imagenFile)).url;
+          imagenUrl = (await uploadImagen(imagenFile, 'contenido')).url;
         }
         etapa = 'guardando';
         setFase('guardando');
