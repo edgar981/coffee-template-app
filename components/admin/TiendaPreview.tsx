@@ -2,11 +2,17 @@
 
 import { useCallback, useRef, useState } from 'react';
 import TiendaHeroSeccion from '@/components/admin/TiendaHeroSeccion';
+import { REGISTRY, type SiteContentData } from '@/lib/config/site-content-defaults';
 
 // Ancho del viewport DESKTOP que el iframe renderiza. 1280 está por encima de `lg`, así que
 // la tienda sale en su layout de escritorio; el `transform: scale` lo reduce al ancho real
 // del pane. El home se ve chico pero fiel.
 const DESKTOP = 1280;
+
+// Las secciones editables SALEN del registry —el selector no tiene una lista propia—. Hoy es
+// UNA (Portada/hero); BrandStory/Testimonios/Suscripción entran agregándolas al registry + su
+// editor, sin tocar esta plataforma.
+const SECCIONES = Object.keys(REGISTRY) as (keyof SiteContentData)[];
 
 export default function TiendaPreview() {
   // Ancho REAL del pane, con ResizeObserver (patrón de PagosCurva): callback ref que
@@ -82,8 +88,15 @@ export default function TiendaPreview() {
     setFrames(fs => [...fs, nuevo]); // segundo iframe (oculto) carga en paralelo
   };
 
+  // Sección activa (UNA a la vez). El COLAPSO del iframe se DERIVA del modelo: una sección
+  // repeater (Testimonios, cuando exista) necesita la columna completa para su lista, así que
+  // el preview se oculta y el editor toma todo el ancho. Es `REGISTRY[activa].repeater`, no un
+  // `if` con el nombre de una sección. Hoy la única es Portada (no repeater) → nunca colapsa.
+  const [activa, setActiva] = useState<keyof SiteContentData>(SECCIONES[0]);
+  const colapsado = REGISTRY[activa].repeater != null;
+
   return (
-    <div className="tienda-split">
+    <div className={`tienda-split${colapsado ? ' tienda-split--sin-preview' : ''}`}>
       {/* Vista previa (izq) — desktop escalado; se OCULTA bajo el breakpoint (§ duna.css). */}
       <div ref={paneRef} className="tienda-preview-pane">
         {scale > 0 && (
@@ -115,9 +128,26 @@ export default function TiendaPreview() {
         )}
       </div>
 
-      {/* Editor (der) — el Hero (única sección de v1). El split le pasa el reload. */}
+      {/* Editor (der) — UNA sección a la vez. El selector sale del registry; con una sola
+          sección no se muestra (un tab de uno no es una elección). El split le pasa el reload. */}
       <div className="tienda-editor-col">
-        <TiendaHeroSeccion onGuardado={recargar} />
+        {SECCIONES.length > 1 && (
+          <div className="tienda-secciones" role="tablist" aria-label="Secciones de la tienda">
+            {SECCIONES.map(k => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={k === activa}
+                className={`duna-pill${k === activa ? ' is-on' : ''}`}
+                onClick={() => setActiva(k)}
+              >
+                {REGISTRY[k].label}
+              </button>
+            ))}
+          </div>
+        )}
+        {activa === 'hero' && <TiendaHeroSeccion onGuardado={recargar} />}
       </div>
     </div>
   );

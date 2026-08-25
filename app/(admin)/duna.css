@@ -537,6 +537,24 @@ html.admin {
 }
 .tienda-preview-lienzo { position: relative; }
 .tienda-editor-col { min-height: 0; overflow-y: auto; }
+
+/* Selector de secciones — fila de `.duna-pill` sobre el editor. Sólo se renderiza con >1
+   sección (hoy no aparece: sólo Portada). El activo usa `.is-on` (superficie + barra: "esto
+   está puesto", § Amber Minimal). */
+.tienda-secciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--duna-space-2);
+  margin-bottom: var(--duna-space-4);
+}
+
+/* COLAPSO POR REPEATER (derivado del modelo, no del viewport): una sección repeater
+   —Testimonios, cuando exista— necesita el ancho completo para su lista, así que el preview
+   se oculta y el editor toma todo. Misma FORMA que el colapso por breakpoint de abajo, otro
+   disparador. Hoy la única sección no es repeater → nunca se aplica. */
+.tienda-split--sin-preview { grid-template-columns: 1fr; }
+.tienda-split--sin-preview .tienda-preview-pane { display: none; }
+
 /* Bajo 1080 el split no cabe (el iframe escalado + el editor no cohabitan con ancho útil):
    una columna, la vista previa se OCULTA y el editor toma el ancho completo. En teléfono
    (<960, sin alto fijo → document-scroll) queda el editor solo, usable. Un toggle "ver

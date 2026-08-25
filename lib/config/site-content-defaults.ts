@@ -56,6 +56,8 @@ export const HERO_HREFS = { primario: '/tienda', secundario: '/suscripciones' } 
 export type CampoTipo = 'requerido' | 'opcional';
 
 export interface SeccionDef {
+  /** Nombre de la sección en el selector del editor (§ /admin/tienda). */
+  label: string;
   ocultable: boolean;
   repeater?: { itemsKey: string };
   campos: Record<string, CampoTipo>;
@@ -63,6 +65,7 @@ export interface SeccionDef {
 
 export const REGISTRY: Record<keyof SiteContentData, SeccionDef> = {
   hero: {
+    label: 'Portada',
     ocultable: false,
     campos: {
       eyebrow: 'opcional',

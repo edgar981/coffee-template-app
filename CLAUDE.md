@@ -746,6 +746,27 @@ ratings, premios).
 si usa la sección — lo que ocurra primero.** No pueden estar cuando la tienda reciba su
 primer cliente real.
 
+### 45. La vista previa de /admin/tienda se OCULTA entera bajo 1080 — falta un toggle
+
+El split de `/admin/tienda` (iframe de vista previa + editor) colapsa a UNA columna bajo
+1080px: el iframe se OCULTA (`display:none`) y el editor toma el ancho completo. Para v1 está
+bien —bajo ese ancho el desktop escalado + el editor no cohabitan con ancho útil—, pero es un
+corte DURO: no hay forma de recuperar la vista previa si el ancho baja de 1080.
+
+**El caso que muerde:** un portátil con el rail EXPANDIDO deja al owner justo en ese límite, y
+**perder el preview por unos píxeles se va a notar** —el ancho oscila con el zoom del navegador,
+el escalado del sistema, o colapsar/expandir el rail—.
+
+**La salida:** un TOGGLE de la vista previa bajo 1080 (mostrar/ocultar), en vez del corte duro.
+Cuando el ancho no alcanza para el split lado a lado, el preview se puede TRAER de vuelta a
+demanda (superpuesto, o empujando el editor) en vez de desaparecer sin control. Es la misma idea
+que el colapso por repeater (§ commit 3), pero disparado por el ANCHO, no por el modelo.
+
+**Costo YA pagado: ninguno** —es v1 y el corte duro funciona—. Es polish, no un defecto.
+
+**DISPARADOR: cuando el editor de la tienda se use de verdad** (Nayoli / Luis), o si el owner
+lo topa en su portátil con el rail expandido — lo que ocurra primero.
+
 ### 2. `InventoryLog` no registra QUIÉN ajustó el stock
 
 Es la única mutación auditable del panel sin columna de actor: `Payment` guarda
