@@ -2908,6 +2908,11 @@ tokens `@theme`—, igual que el design-system asume que sus tokens están carga
 literales de la vertical viajan con el componente hasta la capa de tema-por-cliente (§ Mejoras
 post-multitenant), no antes.
 
+**DISPARADOR de Fase B** (owner, 2026-08-25): **despliegues independientes de verdad** —que el
+panel y la tienda se deployeen por separado— **O el segundo cliente**, lo que llegue primero. Hasta
+entonces Fase A (una app) alcanza, y las dos precondiciones de arriba (split de tipos, extracción de
+`storefront-ui`) se ejecutan como parte de esa tanda, no antes.
+
 ## Migraciones y deploy
 
 - **CADA ENTORNO MIGRA SU PROPIA BASE.** `npm run build` corre `prisma
