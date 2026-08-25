@@ -11,6 +11,18 @@ import { getSiteSettings } from "@/lib/config/site-settings";
 import { SiteContentProvider } from "@/components/storefront/SiteContentProvider";
 import { getSiteContent } from "@/lib/config/site-content";
 
+// El storefront se renderiza DINÁMICO (por request), no estático. Su layout lee la
+// identidad del negocio (SiteSetting) y el contenido de la home (SiteContent) de la BASE, y
+// esos datos son EDITABLES desde el panel. Prerenderizado estático, Next hornea los valores
+// del BUILD y editar el nombre del negocio o el hero NO se vería hasta un rebuild —medido:
+// `/` salía `○` y servía el default aunque la fila cambiara—. `force-dynamic` hace que cada
+// request re-lea (dos queries de una fila, baratas). El detalle de producto ya era dinámico.
+//
+// La ALTERNATIVA (ISR: mantener estático + `revalidatePath` en cada escritura de settings/
+// content) se descartó para v1: más superficie que equivocar por un ahorro que una tienda de
+// este tamaño no necesita. Si el tráfico crece, ése es el momento de volver a estático + ISR.
+export const dynamic = 'force-dynamic';
+
 // ─── La identidad del STOREFRONT, declarada acá ──────────────────────────────
 //
 // Antes vivía en las convenciones de archivo de la raíz (`app/favicon.ico`,
