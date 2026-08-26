@@ -6,6 +6,7 @@ import { Pencil, Upload } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import VistaTiendaEnVivo from '@/components/admin/VistaTiendaEnVivo';
+import RepeaterEditor from '@/components/admin/RepeaterEditor';
 import type { SeccionConfig } from '@/components/admin/tienda-secciones';
 import { uploadImagen } from '@/lib/api/upload';
 import { DEFAULTS } from '@/lib/config/site-content-defaults';
@@ -23,7 +24,7 @@ import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS, ACCEPT_IMAGENES } fr
 // (§ lib/autoguardado); la vista cambia en el mismo render. Sin gesto de guardar; Publicar y
 // Descartar son las acciones del borrador.
 
-type Datos = Record<string, string | boolean>;
+type Datos = Record<string, unknown>; // strings/booleans planos + el array de items de un repeater
 
 export default function TiendaSeccionEditor({ config }: { config: SeccionConfig }) {
   const { seccion } = config;
@@ -336,6 +337,19 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
                   );
                 })}
               </div>
+
+              {/* Sección de LISTA (repeater): cada cambio del RepeaterEditor —editar, agregar, quitar,
+                  mover— pasa por `cambiar`, el mismo marcar-sucio + autoguardado que un campo plano. */}
+              {config.repeater && (
+                <div style={{ marginTop: 'var(--duna-space-5)' }}>
+                  <RepeaterEditor
+                    items={Array.isArray(form[config.repeater.itemsKey]) ? (form[config.repeater.itemsKey] as Record<string, unknown>[]) : []}
+                    descriptores={config.repeater.campos}
+                    itemLabel={config.repeater.itemLabel}
+                    onChange={nuevos => cambiar({ [config.repeater!.itemsKey]: nuevos })}
+                  />
+                </div>
+              )}
 
               {errorServidor && (
                 <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-3)' }}>{errorServidor}</p>

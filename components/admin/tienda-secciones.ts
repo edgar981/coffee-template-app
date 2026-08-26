@@ -10,6 +10,28 @@ export type SeccionVista = 'hero' | 'brandStory' | 'subscriptionCTA';
 export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; hint: string };
 export type CampoImagen = { name: string; label: string };
 
+// Descriptor de un campo DE ÍTEM (para el RepeaterEditor). `tipo` es GENÉRICO (no nombra ningún
+// campo concreto): texto / textarea / rating. `resumen` es el ROL del campo en el renglón colapsado
+// —principal (título) y detalle (fragmento)—, así el editor arma el resumen sin saber qué campo es.
+// `defaultValor` es el valor inicial de un ítem nuevo (un rating nace en 5; un texto en ''). Todo
+// serializable: el config cruza server→client como prop, así que NADA de funciones.
+export type CampoItem = {
+  name: string;
+  label: string;
+  tipo: 'texto' | 'textarea' | 'rating';
+  opcional?: boolean;
+  hint?: string;
+  defaultValor?: number;
+  resumen?: 'principal' | 'detalle';
+};
+
+export interface RepeaterConfig {
+  itemsKey: string;
+  /** Nombre SINGULAR del ítem, para los botones y el renglón ("Agregar testimonio", "Testimonio 1"). */
+  itemLabel: string;
+  campos: CampoItem[];
+}
+
 export interface SeccionConfig {
   seccion: SeccionVista;
   titulo: string;
@@ -17,6 +39,9 @@ export interface SeccionConfig {
   imagenes: CampoImagen[];
   /** Si la sección expone el toggle de visibilidad (§ REGISTRY.ocultable). El hero es false. */
   ocultable: boolean;
+  /** Presente → sección de LISTA: la cáscara renderiza el RepeaterEditor para este array de ítems,
+   *  además de los `campos` planos de sección. */
+  repeater?: RepeaterConfig;
 }
 
 const HERO: SeccionConfig = {
