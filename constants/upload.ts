@@ -62,10 +62,22 @@ export type PrefijoUpload = (typeof PREFIJOS_UPLOAD)[number];
 
 /** Para el `accept` del input de archivo. */
 export const ACCEPT_IMAGENES = TIPOS_PERMITIDOS.join(',');
-export const ACCEPT_VIDEO = TIPOS_VIDEO.join(',');
 
-/** Mensaje ACCIONABLE al rechazar un formato de vídeo no admitido (MOV/HEVC del iPhone es el caso):
- *  dice QUÉ hacer, no sólo "no soportado". (Safari suele transcodificar a MP4 al subir, así que el
- *  caso es raro; el rechazo es la red igual.) */
+/**
+ * El `accept` del picker de vídeo es DELIBERADAMENTE más ancho que `TIPOS_VIDEO` (`video/*`, no
+ * `video/mp4,video/webm`). Un `accept` acotado deja el .mov en GRIS en el diálogo del sistema: el
+ * operador no puede elegir su grabación del Mac y no recibe ninguna explicación. Con `video/*` el
+ * .mov SE ELIGE y la validación contra `TIPOS_VIDEO` (en `elegir`) lo rechaza con
+ * `MSG_VIDEO_NO_ADMITIDO` — el mensaje accionable en vez del silencio. La ÚNICA puerta es la
+ * validación de `file.type` (un `video/quicktime` no está en `TIPOS_VIDEO`); el `accept` sólo abre
+ * el picker. (Esto NO cierra el hueco del HEVC-en-mp4, que pasa por `file.type: 'video/mp4'` — ése
+ * es el fix por CÓDEC declarado en el § Backlog #48.)
+ */
+export const ACCEPT_VIDEO = 'video/*';
+
+/** Mensaje ACCIONABLE al rechazar un formato de vídeo no admitido (el .mov de una grabación del Mac
+ *  y el HEVC del iPhone son los casos). Dice QUÉ hacer y CÓMO, con la salida concreta —un "formato
+ *  no admitido" sin la ruta es justo lo que esto arregla—. */
 export const MSG_VIDEO_NO_ADMITIDO =
-  'Sube el video en MP4 (o WebM). Si lo grabaste con iPhone, puedes exportarlo o convertirlo a MP4 antes de subirlo.';
+  'Sube el video en MP4 o WebM. Para convertir un .mov en Mac: ábrelo en QuickTime → Archivo → ' +
+  'Exportar como → 1080p, que lo guarda en MP4. Desde iPhone, compártelo con la opción "Más compatible".';

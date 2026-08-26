@@ -1400,6 +1400,30 @@ decisión) → la rama de render (`<video autoplay muted loop playsinline`, sin 
 imagen|vídeo en la galería → el rechazo de MOV con mensaje accionable (§ decisiones B/C ya tomadas). El
 poster requerido-si-vídeo va en la tanda C (lógica condicional sobre descriptores planos).
 
+**EL FIX REAL ES POR CÓDEC, NO POR CONTENEDOR — hueco MEDIDO, declarado (2026-08-26).** La tanda B
+valida el vídeo por CONTENEDOR (allowlist mp4/webm en el token, rechazo de MOV/`video/quicktime`), y eso
+**no garantiza que el visitante lo vea** — porque el eje que decide la reproducibilidad es el CÓDEC, no
+el contenedor. Los hechos, medidos con `video.canPlayType(...)` en el Chromium del panel (Chrome 148,
+macOS):
+
+- **Un HEVC/H.265 dentro de un .mp4 PASA HOY** —su `file.type` es `video/mp4`, así que el allowlist por
+  contenedor lo acepta— y **medio navegador no lo reproduce** (Chrome/Firefox sin decodificador del SO).
+  El hueco ya existe; el MOV no lo abre, sólo lo hace visible.
+- **El fallo es SILENCIOSO y se muda al CLIENTE:** un `<video>` que no puede reproducir **no da error,
+  muestra el póster quieto**. El visitante en Firefox/Windows ve una foto congelada para siempre, y el
+  operador probando en su Mac —donde macOS le presta el decodificador HEVC a Chrome— **nunca se entera**.
+- **`canPlayType` NO sirve como test:** SUB-reporta (devuelve vacío para `video/quicktime; codecs="avc1"`
+  aunque Chrome a veces reproduce el .mov/H.264) y SOBRE-reporta (`video/mp4; codecs="hvc1"` → `probably`
+  en este Mac, `` en un Windows stock). Y `loadedmetadata` (lo que hace `dimsDeVideo`) prueba el navegador
+  del OPERADOR, no del visitante — el operador equivocado para la garantía que importa.
+- **La única respuesta robusta: leer el CÓDEC del archivo** (el box `avcC`/`hvcC` del contenedor, con
+  mp4box.js o un lector chico), allowlist **AVC-en-mp4 + VP8/VP9-en-webm**, rechazar HEVC/ProRes con el
+  mensaje accionable. Eso cierra el hueco del HEVC-en-mp4 a la vez.
+
+**Costo YA pagado: ninguno medido** —Nayoli no ha subido un HEVC que un cliente no vea—, y por eso es
+declaración, no herida. **DISPARADOR: un problema real de visibilidad** (un vídeo que se ve en el panel y
+no en la tienda), **o la primera vez que se quiera la garantía** de que todo visitante lo reproduce.
+
 ### 49. Las TRES tarjetas de plan de Suscripción son ESTRUCTURA — no editables (todavía)
 
 El editor de Suscripción (§ SubscriptionCTA) hace editable el TEXTO de la sección (eyebrow, título,
