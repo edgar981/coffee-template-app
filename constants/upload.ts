@@ -15,6 +15,18 @@ export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 export const MAX_UPLOAD_MB = MAX_UPLOAD_BYTES / (1024 * 1024);
 
+/**
+ * Tope de la SUBIDA DIRECTA a Blob (client upload). No pasa por la función serverless —el archivo va
+ * del navegador a Blob—, así que el límite de 4.5 MB del body NO aplica; el tope es de producto
+ * (200 MB deja subir un plano de finca de un par de minutos sin obligar a recortar antes). Se
+ * codifica EN EL TOKEN (`maximumSizeInBytes`), así que Blob lo impone en la subida, no es sólo un
+ * chequeo previo. NO reemplaza a `MAX_UPLOAD_BYTES`: ése sigue rigiendo el path server (legacy)
+ * mientras la migración del cliente no llegue.
+ */
+export const MAX_SUBIDA_DIRECTA_BYTES = 200 * 1024 * 1024;
+
+export const MAX_SUBIDA_DIRECTA_MB = MAX_SUBIDA_DIRECTA_BYTES / (1024 * 1024);
+
 /** Formatos aceptados. Lista blanca explícita, no un `startsWith('image/')`. */
 export const TIPOS_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp'] as const;
 

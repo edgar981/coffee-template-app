@@ -1,12 +1,20 @@
 import { put as blobPut, del as blobDel } from '@vercel/blob';
+import { handleUpload } from '@vercel/blob/client';
+import { PREFIJOS_UPLOAD } from '@/constants/upload';
 
 // ─── Adaptador de storage de archivos ────────────────────────────────────────
 // LA única frontera con el proveedor de blobs. Ningún otro archivo del repo
 // importa `@vercel/blob`: la elección de proveedor es REVISABLE (R2 es candidato
 // al pasar a multitenant) y el costo del cambio debe quedarse en "reimplementar
 // este archivo", nunca en tocar los call sites. Por eso la interfaz de acá abajo
-// es propia y mínima —`put` / `delete`, `{ url }` como única salida— y no expone
-// ni un tipo del SDK.
+// es propia y mínima —`put` / `delete` / `emitirTokenSubida`, `{ url }` como
+// única salida— y no expone ni un tipo del SDK.
+//
+// NOTA — la SUBIDA DIRECTA (client upload) suma una CARA CLIENTE a esta frontera:
+// `@vercel/blob/client` tiene `upload` (navegador) además de `handleUpload`
+// (server, acá). `handleUpload` se queda en este archivo (el server importa el
+// SDK sólo desde acá); el `upload` del navegador vivirá en su propio helper
+// cliente (commit 2). Al cambiar de proveedor se reimplementan las DOS caras.
 //
 // El store es PÚBLICO por decisión: cualquiera con el link lee el archivo. Es lo
 // correcto para imágenes de catálogo (van a un storefront abierto) y es lo que
@@ -117,7 +125,47 @@ export function isDeletable(url: string, env: NodeJS.ProcessEnv = process.env): 
   return new URL(url).pathname.startsWith(`/${prefix}`);
 }
 
+/**
+ * ¿El pathname que el cliente propone para una SUBIDA DIRECTA es aceptable?
+ *
+ * En la subida directa el archivo NO pasa por el server, así que este es el único
+ * lugar donde se acota DÓNDE puede escribir el token. Exige exactamente
+ * `[dev/]<prefijo>/<archivo>`:
+ *  - el segmento `dev/` DEBE coincidir con el del entorno (`envPrefix`) — así una
+ *    subida de dev no puede aterrizar en el prefijo de producción, ni al revés
+ *    (mismo aislamiento que `put`/`isDeletable`, § Storage);
+ *  - `<prefijo>` ∈ la whitelist (`productos` | `contenido`), no una carpeta libre;
+ *  - `<archivo>` es un solo segmento saneado (sin `/`, sin `..`): nada de subir
+ *    a una ruta anidada o escaparse con traversal.
+ *
+ * El sufijo aleatorio que hace única la URL lo agrega Blob al subir
+ * (`addRandomSuffix`), así que acá se valida el pathname BASE, sin el sufijo.
+ */
+export function pathnameSubidaValido(pathname: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  const m = pathname.match(/^(dev\/)?([^/]+)\/([^/]+)$/);
+  if (!m) return false;
+  const [, dev, prefijo, archivo] = m;
+  if ((dev ?? '') !== envPrefix(env)) return false;                        // aislamiento por entorno
+  if (!(PREFIJOS_UPLOAD as readonly string[]).includes(prefijo)) return false; // prefijo permitido
+  if (archivo.includes('..') || archivo !== sanitizeFilename(archivo)) return false; // sin traversal
+  return true;
+}
+
 export const storage = {
+  /**
+   * Emite el TOKEN de una subida directa (client upload). Envuelve `handleUpload`
+   * del SDK para que el import del proveedor no salga de este archivo; el
+   * `token` (BLOB_READ_WRITE_TOKEN) lo inyecta el SDK por convención.
+   *
+   * La AUTORIZACIÓN vive en el `onBeforeGenerateToken` que pasa el route (sesión,
+   * rol, pathname): este adaptador no conoce `auth`. Lo que devuelva ese callback
+   * —`allowedContentTypes`, `maximumSizeInBytes`, `validUntil`— queda CODIFICADO
+   * en el token y Blob lo impone en la subida.
+   */
+  emitirTokenSubida(opts: Omit<Parameters<typeof handleUpload>[0], 'token'>) {
+    return handleUpload(opts);
+  },
+
   /**
    * Sube un archivo y devuelve su URL pública.
    *
