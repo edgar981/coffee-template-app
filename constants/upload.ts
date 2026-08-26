@@ -30,6 +30,26 @@ export const MAX_SUBIDA_DIRECTA_MB = MAX_SUBIDA_DIRECTA_BYTES / (1024 * 1024);
 /** Formatos aceptados. Lista blanca explícita, no un `startsWith('image/')`. */
 export const TIPOS_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
+/** Formatos de VÍDEO web (H.264 en mp4, VP8/9 en webm). Lista aparte —un vídeo en un `<img>`/
+ *  `next/image` no falla ruidoso, se queda en blanco—, NUNCA se amplía la de imágenes. MOV/HEVC
+ *  quedan fuera (medio navegador no los reproduce): se rechazan con mensaje accionable en el cliente. */
+export const TIPOS_VIDEO = ['video/mp4', 'video/webm'] as const;
+
+/**
+ * El "kind" que el cliente declara al pedir un token de subida directa (§ subirDirecto). Acota qué
+ * `allowedContentTypes` firma el token: 'imagen' (portadas, hero, fotos de galería) o 'imagen-o-video'
+ * (el slot de vídeo de la galería). Es una de DOS listas CONOCIDAS —nunca un comodín ni los tipos que
+ * mande el cliente—, así que un token nunca sirve para "cualquier cosa".
+ */
+export const KINDS_UPLOAD = ['imagen', 'imagen-o-video'] as const;
+export type KindUpload = (typeof KINDS_UPLOAD)[number];
+
+/** Mapea un kind (posiblemente basura del cliente) a su lista de content-types. Un valor DESCONOCIDO
+ *  cae a sólo-imágenes: lo más restrictivo, nunca a video por accidente. */
+export function contentTypesParaKind(kind: unknown): string[] {
+  return kind === 'imagen-o-video' ? [...TIPOS_PERMITIDOS, ...TIPOS_VIDEO] : [...TIPOS_PERMITIDOS];
+}
+
 /**
  * Prefijos de storage que el upload acepta del cliente — WHITELIST, no un valor libre: el
  * prefijo es un segmento de la ruta del blob, y dejarlo abierto permitiría escribir en
