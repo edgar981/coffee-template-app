@@ -57,7 +57,7 @@ export interface SubscriptionCTAContent {
 // sección (eyebrow + titulo) sobre una LISTA de testimonios. Cada ítem: name/text requeridos,
 // city/product opcionales, y `stars` (número, no string → el resolver lo pasa tal cual). Es
 // OCULTABLE **y** hide-on-empty: con `items` vacío no se renderiza, y esa precedencia gana sobre el
-// toggle. NACE CON items VACÍOS a propósito (§ Backlog #44, cerrado): los defaults valen para copy,
+// toggle. NACE CON items VACÍOS a propósito (§ SiteContent — el repeater): los defaults valen para copy,
 // NO para un CLAIM falso — los tres testimonios fabricados no van a defaults; el owner carga los
 // reales como DATO por el editor.
 export interface TestimonialItem {
@@ -124,7 +124,7 @@ export const DEFAULTS: SiteContentData = {
     visible: true,
     eyebrow: 'Testimonios',
     titulo: 'Lo que dicen nuestros clientes',
-    items: [], // VACÍO a propósito (§ #44): sin claims falsos en defaults; hide-on-empty oculta la sección
+    items: [], // VACÍO a propósito (§ SiteContent — el repeater): sin claims falsos en defaults; hide-on-empty oculta
   },
 };
 

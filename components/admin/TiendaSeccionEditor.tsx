@@ -166,7 +166,17 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
   const subiendo = fase === 'subiendo';
   const puedePublicar = auto.estado === 'guardado' && !procesando;
   const enError = auto.estado === 'error';
+  // `oculta` = el TOGGLE apagado (para el badge "Oculta"). `repeaterVacio` = una lista sin ítems, que
+  // también hace que la sección no se renderice (hide-on-empty). `noSeMuestra` cubre las dos para el
+  // placeholder de la vista/tarjeta: sin él, un repeater vacío deja la vista en BLANCO, que se lee como
+  // roto. El mensaje distingue el porqué (toggle vs lista vacía).
   const oculta = config.ocultable && form.visible === false;
+  const items = config.repeater ? form[config.repeater.itemsKey] : undefined;
+  const repeaterVacio = !!config.repeater && !(Array.isArray(items) && items.length > 0);
+  const noSeMuestra = oculta || repeaterVacio;
+  const avisoNoSeMuestra = oculta
+    ? 'Actívala con el interruptor para verla aquí.'
+    : 'La lista está vacía — agrega el primero para verla aquí.';
   const mostrarEstado = editando || subiendo || auto.estado !== 'guardado';
   const estadoTexto = subiendo ? 'Subiendo imagen…'
     : auto.estado === 'guardando' ? 'Guardando…'
@@ -180,7 +190,7 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
     return (
       <div className="tienda-tarjeta">
         <div className="tienda-tarjeta__thumb" onClick={() => setEditando(true)}>
-          {oculta ? (
+          {noSeMuestra ? (
             <div className="tienda-tarjeta__oculta">
               <span className="duna-caption" style={{ margin: 0 }}>No se muestra en la tienda</span>
             </div>
@@ -250,11 +260,11 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
             `tienda-vivo__vista` es sticky: sólo existe en edición, así que al dar "Listo" se
             desmonta y no queda ningún elemento pinneado. */}
         <div className="tienda-vivo__vista">
-          {oculta ? (
+          {noSeMuestra ? (
             <div className="duna-card duna-card__pad" style={{ display: 'grid', placeItems: 'center', minHeight: '160px', textAlign: 'center' }}>
               <div>
-                <p className="duna-title" style={{ margin: 0 }}>Sección oculta</p>
-                <p className="duna-sub" style={{ marginTop: '4px' }}>No se muestra en la tienda. Actívala con el interruptor para verla aquí.</p>
+                <p className="duna-title" style={{ margin: 0 }}>No se muestra en la tienda</p>
+                <p className="duna-sub" style={{ marginTop: '4px' }}>{avisoNoSeMuestra}</p>
               </div>
             </div>
           ) : (

@@ -13,7 +13,7 @@ import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 // self-gate → null (la home la rinde como hermano plano, sin hueco ni separador).
 //
 // Los tres testimonios que vivían acá eran FABRICADOS (citaban productos que Nayoli no vende); se
-// retiraron del CÓDIGO (§ #44). La sección sigue existiendo — vuelve con testimonios REALES cuando
+// retiraron del CÓDIGO (§ SiteContent — el repeater). La sección sigue existiendo — vuelve con testimonios REALES cuando
 // el owner los cargue como dato por el editor.
 export default function TestimonialSection() {
   const { testimonials } = useSiteContent();

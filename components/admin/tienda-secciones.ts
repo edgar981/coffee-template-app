@@ -99,5 +99,30 @@ const SUBSCRIPTION: SeccionConfig = {
   ],
 };
 
-// El ORDEN es el orden en la pantalla (y en la home): hero, historia, suscripción.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, SUBSCRIPTION];
+const TESTIMONIOS: SeccionConfig = {
+  seccion: 'testimonials',
+  titulo: 'Testimonios',
+  ocultable: true,
+  imagenes: [], // sección de solo texto (el avatar es la inicial del nombre)
+  // Campos de SECCIÓN: el encabezado. La LISTA va en `repeater`.
+  campos: [
+    { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
+    { name: 'titulo',  label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
+  ],
+  // La LISTA de testimonios. `resumen` arma el renglón colapsado: nombre (principal) + la cita
+  // (detalle). `stars` es el rating (estrellas clicables, nace en 5). city/product son opcionales.
+  repeater: {
+    itemsKey: 'items',
+    itemLabel: 'Testimonio',
+    campos: [
+      { name: 'name',    label: 'Nombre',       tipo: 'texto',    resumen: 'principal', hint: 'Quién lo dice.' },
+      { name: 'city',    label: 'Ciudad',       tipo: 'texto',    opcional: true, hint: 'Opcional.' },
+      { name: 'text',    label: 'Testimonio',   tipo: 'textarea', resumen: 'detalle',  hint: 'Lo que dice, en sus palabras.' },
+      { name: 'product', label: 'Producto',     tipo: 'texto',    opcional: true, hint: 'Opcional. El producto que menciona, si aplica.' },
+      { name: 'stars',   label: 'Calificación', tipo: 'rating',   defaultValor: 5, hint: 'De 1 a 5 estrellas.' },
+    ],
+  },
+};
+
+// El ORDEN es el orden en la pantalla (y en la home): hero, historia, suscripción, testimonios.
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, SUBSCRIPTION, TESTIMONIOS];
