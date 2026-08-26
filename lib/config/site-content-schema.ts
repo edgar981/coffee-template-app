@@ -32,9 +32,25 @@ const brandStoryEditableSchema = z.object({
   imagen4: z.string().optional(),
 });
 
+// SubscriptionCTA: solo texto (sin imágenes). `bullet1..4` opcionales — el resolver los omite
+// vacíos y el componente los junta con `.filter` (hasta 4, sin hueco). `ctaLabel` editable; el href
+// es estructura. Todo opcional/SOFT, como los otros.
+const subscriptionCTAEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  eyebrow: z.string().optional(),
+  titulo: z.string().optional(),
+  subtitulo: z.string().optional(),
+  bullet1: z.string().optional(),
+  bullet2: z.string().optional(),
+  bullet3: z.string().optional(),
+  bullet4: z.string().optional(),
+  ctaLabel: z.string().optional(),
+});
+
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   brandStory: brandStoryEditableSchema.optional(),
+  subscriptionCTA: subscriptionCTAEditableSchema.optional(),
 });
 
 export type SiteContentEditable = z.infer<typeof siteContentEditableSchema>;

@@ -34,10 +34,30 @@ export interface BrandStoryContent {
   imagen4: string;
 }
 
+// SubscriptionCTA ("Plan Suscripción"): eyebrow + h2 + un párrafo + HASTA CUATRO bullets + el label
+// del CTA (su href es ESTRUCTURA, `/suscripciones`, no editable). Sección de SOLO TEXTO —sin
+// imágenes—. Los bullets son `bullet1..4` OPCIONALES: el componente los junta con un `.filter` que
+// SALTA los vacíos, así que "vaciar el 2 y dejar el 3" cierra la lista sin hueco — son "hasta cuatro
+// bullets", no "cuatro slots" (el editor lo dice en las etiquetas). 5+ bullets = el repeater
+// compartido (§ Backlog #47). Las TRES tarjetas de plan NO viven acá: son ESTRUCTURA desde
+// `SUBSCRIPTION_PLANS`, fuente compartida con /suscripciones (§ Backlog #49).
+export interface SubscriptionCTAContent {
+  visible: boolean;
+  eyebrow: string;
+  titulo: string;
+  subtitulo: string;
+  bullet1: string;
+  bullet2: string;
+  bullet3: string;
+  bullet4: string;
+  ctaLabel: string;
+}
+
 export interface SiteContentData {
   hero: HeroContent;
   brandStory: BrandStoryContent;
-  // Futuro (sólo datos, sin tocar el modelo): testimonials (repeater), subscriptionCTA.
+  subscriptionCTA: SubscriptionCTAContent;
+  // Futuro (sólo datos, sin tocar el modelo): testimonials (repeater).
 }
 
 // Los DEFAULTS son los literales que hoy viven en el JSX del hero. Se mueven acá; el
@@ -66,6 +86,17 @@ export const DEFAULTS: SiteContentData = {
     imagen2: '/images/products-7.jpeg',
     imagen3: '/images/products-10.jpg',
     imagen4: '/images/products-11.jpg',
+  },
+  subscriptionCTA: {
+    visible: true,
+    eyebrow: 'Plan Suscripción',
+    titulo: 'Tu café de Supatá, cada mes',
+    subtitulo: 'El mismo café de nuestra finca, tostado fresco y enviado a tu puerta. Pausa o cancela cuando quieras.',
+    bullet1: 'El mismo café de nuestra finca en Supatá',
+    bullet2: 'Grano o molido, como prefieras',
+    bullet3: 'Tostado fresco en tandas semanales',
+    bullet4: 'Pausa o cancela cuando quieras',
+    ctaLabel: 'Ver los planes',
   },
 };
 
@@ -125,6 +156,22 @@ export const REGISTRY: Record<keyof SiteContentData, SeccionDef> = {
       imagen2: 'requerido',
       imagen3: 'requerido',
       imagen4: 'requerido',
+    },
+  },
+  subscriptionCTA: {
+    label: 'Suscripción',
+    ocultable: true,
+    // Sin `imagenes`: sección de solo texto. Los bullets son OPCIONALES → vaciarlos los omite (el
+    // componente los junta con `.filter`), así que dan "hasta 4" sin hueco, no "4 slots fijos".
+    campos: {
+      eyebrow: 'opcional',
+      titulo: 'requerido',
+      subtitulo: 'requerido',
+      bullet1: 'opcional',
+      bullet2: 'opcional',
+      bullet3: 'opcional',
+      bullet4: 'opcional',
+      ctaLabel: 'requerido',
     },
   },
 };

@@ -168,3 +168,46 @@ test('REGISTRY.brandStory.imagenes lista los 4 campos de imagen, y los 4 son req
     assert.equal(REGISTRY.brandStory.campos[f], 'requerido');
   }
 });
+
+// ── SubscriptionCTA (3ª sección: solo texto, hasta 4 bullets opcionales, ocultable) ─────
+
+test('subscriptionCTA: sin nada guardado → todos los defaults', () => {
+  assert.deepEqual(resolverSiteContent({}).subscriptionCTA, DEFAULTS.subscriptionCTA);
+});
+
+test('subscriptionCTA REQUERIDO vacío → default (titulo, subtitulo, ctaLabel)', () => {
+  const r = resolverSiteContent({ subscriptionCTA: { titulo: '', subtitulo: '   ', ctaLabel: '' } });
+  assert.equal(r.subscriptionCTA.titulo, DEFAULTS.subscriptionCTA.titulo);
+  assert.equal(r.subscriptionCTA.subtitulo, DEFAULTS.subscriptionCTA.subtitulo);
+  assert.equal(r.subscriptionCTA.ctaLabel, DEFAULTS.subscriptionCTA.ctaLabel);
+});
+
+test('subscriptionCTA bullet OPCIONAL presente-pero-vacío → "" (el componente lo SALTA con .filter)', () => {
+  // Vaciar el 2 y dejar el 3: el resolver guarda bullet2="" y bullet3 con texto; el .filter del
+  // componente cierra la lista sin hueco (son "hasta 4 bullets", no "4 slots"). Acá se afirma la
+  // mitad del resolver —el vacío queda ""—; el cierre sin hueco es del componente (commit 2, gate).
+  const r = resolverSiteContent({ subscriptionCTA: { bullet2: '', bullet3: 'Tercero' } });
+  assert.equal(r.subscriptionCTA.bullet2, '');       // presente-vacío → "" → se omite en el render
+  assert.equal(r.subscriptionCTA.bullet3, 'Tercero'); // el que quedó, intacto
+});
+
+test('subscriptionCTA bullet/eyebrow OPCIONAL ausente → default (el editor lo pre-llena)', () => {
+  const r = resolverSiteContent({ subscriptionCTA: { titulo: 'x' } });
+  assert.equal(r.subscriptionCTA.eyebrow, DEFAULTS.subscriptionCTA.eyebrow);
+  assert.equal(r.subscriptionCTA.bullet1, DEFAULTS.subscriptionCTA.bullet1);
+});
+
+test('resolver: subscriptionCTA NO pisa a hero ni a brandStory', () => {
+  const r = resolverSiteContent({ subscriptionCTA: { titulo: 'Otro CTA' } });
+  assert.equal(r.subscriptionCTA.titulo, 'Otro CTA');
+  assert.deepEqual(r.hero, DEFAULTS.hero);
+  assert.deepEqual(r.brandStory, DEFAULTS.brandStory);
+});
+
+test('subscriptionCTA es OCULTABLE y NO tiene imagenes (sección de solo texto)', () => {
+  const def = REGISTRY.subscriptionCTA;
+  assert.equal(def.ocultable, true);
+  assert.equal(def.imagenes, undefined); // sin imágenes → no toca el borrado de blobs
+  assert.equal(seccionEsVisible(def, { visible: false }), false);
+  assert.equal(seccionEsVisible(def, { visible: true }), true);
+});
