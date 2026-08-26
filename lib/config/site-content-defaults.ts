@@ -53,11 +53,33 @@ export interface SubscriptionCTAContent {
   ctaLabel: string;
 }
 
+// Testimonios ("Lo que dicen nuestros clientes"): la PRIMERA sección REPEATER — un encabezado de
+// sección (eyebrow + titulo) sobre una LISTA de testimonios. Cada ítem: name/text requeridos,
+// city/product opcionales, y `stars` (número, no string → el resolver lo pasa tal cual). Es
+// OCULTABLE **y** hide-on-empty: con `items` vacío no se renderiza, y esa precedencia gana sobre el
+// toggle. NACE CON items VACÍOS a propósito (§ Backlog #44, cerrado): los defaults valen para copy,
+// NO para un CLAIM falso — los tres testimonios fabricados no van a defaults; el owner carga los
+// reales como DATO por el editor.
+export interface TestimonialItem {
+  name: string;
+  city: string;
+  text: string;
+  product: string;
+  stars: number;
+}
+
+export interface TestimonialsContent {
+  visible: boolean;
+  eyebrow: string;
+  titulo: string;
+  items: TestimonialItem[];
+}
+
 export interface SiteContentData {
   hero: HeroContent;
   brandStory: BrandStoryContent;
   subscriptionCTA: SubscriptionCTAContent;
-  // Futuro (sólo datos, sin tocar el modelo): testimonials (repeater).
+  testimonials: TestimonialsContent;
 }
 
 // Los DEFAULTS son los literales que hoy viven en el JSX del hero. Se mueven acá; el
@@ -97,6 +119,12 @@ export const DEFAULTS: SiteContentData = {
     bullet3: 'Tostado fresco en tandas semanales',
     bullet4: 'Pausa o cancela cuando quieras',
     ctaLabel: 'Ver los planes',
+  },
+  testimonials: {
+    visible: true,
+    eyebrow: 'Testimonios',
+    titulo: 'Lo que dicen nuestros clientes',
+    items: [], // VACÍO a propósito (§ #44): sin claims falsos en defaults; hide-on-empty oculta la sección
   },
 };
 
@@ -175,6 +203,26 @@ export const REGISTRY: Record<keyof SiteContentData, SeccionDef> = {
       bullet3: 'opcional',
       bullet4: 'opcional',
       ctaLabel: 'requerido',
+    },
+  },
+  testimonials: {
+    label: 'Testimonios',
+    ocultable: true,
+    // Campos de SECCIÓN (el encabezado). La LISTA va en `repeater.campos` (campos del ítem):
+    // name/text requeridos, city/product opcionales. `stars` NO va acá —es número, el resolver lo
+    // pasa tal cual—.
+    campos: {
+      eyebrow: 'opcional',
+      titulo: 'requerido',
+    },
+    repeater: {
+      itemsKey: 'items',
+      campos: {
+        name: 'requerido',
+        city: 'opcional',
+        text: 'requerido',
+        product: 'opcional',
+      },
     },
   },
 };

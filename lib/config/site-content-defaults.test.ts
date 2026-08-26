@@ -251,3 +251,33 @@ test('resolverItems: descarta lo que no es objeto, y un no-array → [] (SOFT, n
   assert.deepEqual(resolverItems({ nombre: 'requerido' }, ['x', 3, null, { nombre: 'Ana' }]), [{ nombre: 'Ana' }]);
   assert.deepEqual(resolverItems({ nombre: 'requerido' }, 'no-array'), []);
 });
+
+// ── Testimonios (la 1ª sección repeater: encabezado + lista, ocultable + hide-on-empty) ─────
+
+test('testimonials: sin nada guardado → defaults con items VACÍOS (los 3 fabricados NO están en defaults)', () => {
+  assert.deepEqual(resolverSiteContent({}).testimonials.items, []);
+});
+
+test('testimonials: los items guardados se RESUELVEN y vuelven (usa la plataforma del repeater)', () => {
+  const r = resolverSiteContent({ testimonials: { items: [{ name: 'Ana', text: 'Rico', stars: 4 }] } });
+  // name/text conservados, city/product ausentes → "", stars (número) passthrough
+  assert.deepEqual(r.testimonials.items, [{ name: 'Ana', text: 'Rico', stars: 4, city: '', product: '' }]);
+});
+
+test('testimonials: encabezado de sección — eyebrow opcional (vacío → ""), titulo requerido (vacío → default)', () => {
+  const r = resolverSiteContent({ testimonials: { eyebrow: '', titulo: '' } });
+  assert.equal(r.testimonials.eyebrow, '');
+  assert.equal(r.testimonials.titulo, DEFAULTS.testimonials.titulo);
+});
+
+test('testimonials PRECEDENCIA: items vacío OCULTA aunque visible sea true (hide-on-empty gana sobre el toggle)', () => {
+  const def = REGISTRY.testimonials;
+  assert.equal(def.ocultable, true);
+  // LA PRECEDENCIA decidida: vacío + visible:true → OCULTA. No confiada a la lectura del código.
+  assert.equal(seccionEsVisible(def, { visible: true, items: [] }), false);
+  // con items + visible:false → oculta por el TOGGLE (la otra razón)
+  assert.equal(seccionEsVisible(def, { visible: false, items: [{ name: 'Ana' }] }), false);
+  // con items + visible:true (o ausente) → se muestra
+  assert.equal(seccionEsVisible(def, { visible: true, items: [{ name: 'Ana' }] }), true);
+  assert.equal(seccionEsVisible(def, { items: [{ name: 'Ana' }] }), true);
+});
