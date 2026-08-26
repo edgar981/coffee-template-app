@@ -3,35 +3,73 @@
 import { motion } from "framer-motion";
 import { Star } from "lucide-react";
 import { fadeUp } from "@/lib/animation";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { useIsPreview } from "@/components/storefront/PreviewMode";
+import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 
+// "Lo que dicen nuestros clientes" — la 1ª sección REPEATER: encabezado (eyebrow/titulo) + una LISTA
+// de testimonios leída de SiteContent. Cada ítem: name/text (requeridos, vienen resueltos), city y
+// product (opcionales → se OMITEN vacíos), y `stars`. OCULTABLE + hide-on-empty: con `items` vacío,
+// self-gate → null (la home la rinde como hermano plano, sin hueco ni separador).
+//
+// Los tres testimonios que vivían acá eran FABRICADOS (citaban productos que Nayoli no vende); se
+// retiraron del CÓDIGO (§ #44). La sección sigue existiendo — vuelve con testimonios REALES cuando
+// el owner los cargue como dato por el editor.
 export default function TestimonialSection() {
+  const { testimonials } = useSiteContent();
+  const preview = useIsPreview();
+  if (!seccionEsVisible(REGISTRY.testimonials, testimonials)) return null;
+
+  const { eyebrow, titulo, items } = testimonials;
+
   return (
     <section className="py-20 bg-[#faf7f4]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="text-center mb-12">
-            <p className="text-[#8B4513] text-xs font-medium tracking-[0.2em] uppercase mb-2">Testimonios</p>
-            <h2 className="text-3xl font-playfair text-[#1a0f08]">Lo que dicen nuestros clientes</h2>
+          <motion.div
+            initial={preview ? false : "hidden"}
+            animate={preview ? "visible" : undefined}
+            whileInView={preview ? undefined : "visible"}
+            viewport={preview ? undefined : { once: true }}
+            variants={fadeUp}
+            className="text-center mb-12"
+          >
+            {eyebrow && <p className="text-[#8B4513] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</p>}
+            <h2 className="text-3xl font-playfair text-[#1a0f08]">{titulo}</h2>
           </motion.div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              { name: 'Valentina Torres', city: 'Bogotá', stars: 5, text: 'El Nariño Premium cambió mi ritual de mañana. Notas de frutas rojas increíbles. El packaging es bellísimo.', product: 'Café Nariño Premium' },
-              { name: 'Carlos Eduardo Mora', city: 'Bogotá', stars: 5, text: 'Tengo la suscripción premium hace 8 meses y cada mes me sorprenden. El soporte por WhatsApp es excelente.', product: 'Suscripción Premium' },
-              { name: 'Laura Jiménez', city: 'Manizales', stars: 5, text: 'El Cold Brew es adictivo. Llegó perfectamente empacado al día siguiente. Definitivamente el mejor café online.', product: 'Cold Brew Concentrado' },
-            ].map((t, i) => (
-              <motion.div key={t.name} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} transition={{ delay: i * 0.1 }} className="bg-white rounded-2xl p-6 shadow-sm border border-[#e8ddd0]">
-                <div className="flex gap-1 mb-4">{Array(t.stars).fill(0).map((_, j) => <Star key={j} className="w-4 h-4 fill-[#d4a97a] text-[#d4a97a]" />)}</div>
-                <p className="text-[#3d2314] text-sm leading-relaxed mb-4">&quot;{t.text}&quot;</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#e8ddd0] flex items-center justify-center">
-                    <span className="text-xs font-semibold text-[#8B4513]">{t.name[0]}</span>
+            {items.map((t, i) => {
+              // CINCO estrellas (llenas/vacías), no sólo las llenas: un 3 se lee "3 de 5", no tres sueltas.
+              const estrellas = Math.max(0, Math.min(5, Math.round(Number(t.stars) || 0)));
+              const atribucion = [t.city, t.product].filter(Boolean).join(" · ");
+              return (
+                <motion.div
+                  key={i}
+                  initial={preview ? false : "hidden"}
+                  animate={preview ? "visible" : undefined}
+                  whileInView={preview ? undefined : "visible"}
+                  viewport={preview ? undefined : { once: true }}
+                  variants={fadeUp}
+                  transition={preview ? undefined : { delay: i * 0.1 }}
+                  className="bg-white rounded-2xl p-6 shadow-sm border border-[#e8ddd0]"
+                >
+                  <div className="flex gap-1 mb-4">
+                    {[1, 2, 3, 4, 5].map(n => (
+                      <Star key={n} className="w-4 h-4" style={{ fill: n <= estrellas ? "#d4a97a" : "transparent", color: n <= estrellas ? "#d4a97a" : "#d8c4ad" }} />
+                    ))}
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold text-[#1a0f08]">{t.name}</p>
-                    <p className="text-xs text-[#8B4513]">{t.city} · {t.product}</p>
+                  <p className="text-[#3d2314] text-sm leading-relaxed mb-4">&quot;{t.text}&quot;</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-[#e8ddd0] flex items-center justify-center">
+                      <span className="text-xs font-semibold text-[#8B4513]">{(t.name || "?")[0]}</span>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-[#1a0f08]">{t.name}</p>
+                      {atribucion && <p className="text-xs text-[#8B4513]">{atribucion}</p>}
+                    </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       </section>

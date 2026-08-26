@@ -5,7 +5,7 @@
 // beforeunload, indicador, layout sticky) vive en la CÁSCARA (`TiendaSeccionEditor`). Si una
 // sección nueva necesitara algo fuera de esta config, es señal de que la cáscara se está forzando.
 
-export type SeccionVista = 'hero' | 'brandStory' | 'subscriptionCTA';
+export type SeccionVista = 'hero' | 'brandStory' | 'subscriptionCTA' | 'testimonials';
 
 export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; hint: string };
 export type CampoImagen = { name: string; label: string };
