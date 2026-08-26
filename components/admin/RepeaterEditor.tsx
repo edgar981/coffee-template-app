@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Star, ArrowUp, ArrowDown, Trash2, Plus, Pencil, Upload } from 'lucide-react';
+import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import type { CampoItem } from '@/components/admin/tienda-secciones';
 
 // EDITOR DE LISTA (repeater) GENÉRICO — agregar / quitar / editar / reordenar (flechas) ítems, con
@@ -63,6 +64,7 @@ export default function RepeaterEditor({
   items,
   descriptores,
   itemLabel,
+  genero = 'm',
   max,
   pedirImagen,
   subiendo,
@@ -71,6 +73,9 @@ export default function RepeaterEditor({
   items: Item[];
   descriptores: CampoItem[];
   itemLabel: string;
+  /** Género del `itemLabel`, sólo para el artículo del copy de confirmación ("esta foto" vs "este
+   *  testimonio"). Default masculino. */
+  genero?: 'f' | 'm';
   max?: number;
   /** Pide una subida al uploader compartido de la cáscara; entrega la url por el callback. Ausente
    *  en repeaters sin imágenes (testimonios). */
@@ -80,6 +85,10 @@ export default function RepeaterEditor({
   onChange: (nuevos: Item[]) => void;
 }) {
   const [expandido, setExpandido] = useState<number | null>(null);
+  // Índice del ítem pendiente de ELIMINAR (con confirmación). Borrar destruye trabajo —una foto o
+  // un testimonio— y no hay deshacer campo por campo, así que la papelera CONFIRMA antes de quitar.
+  // Va en la PLATAFORMA (no en el tipo imagen) porque el testimonio borrado destruye igual.
+  const [porEliminar, setPorEliminar] = useState<number | null>(null);
 
   // El PRIMER campo imagen es la foto principal del ítem: gobierna el agregar-subiendo y la miniatura
   // del renglón. Un repeater sin campo imagen (testimonios) no lo tiene y agrega vacío como siempre.
@@ -156,7 +165,7 @@ export default function RepeaterEditor({
               <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
                 <button type="button" onClick={() => mover(i, -1)} disabled={i === 0} aria-label="Subir" className="duna-btn duna-btn--ghost duna-btn--sm"><ArrowUp className="h-3.5 w-3.5" /></button>
                 <button type="button" onClick={() => mover(i, 1)} disabled={i === items.length - 1} aria-label="Bajar" className="duna-btn duna-btn--ghost duna-btn--sm"><ArrowDown className="h-3.5 w-3.5" /></button>
-                <button type="button" onClick={() => quitar(i)} aria-label={`Quitar ${itemLabel.toLowerCase()}`} className="duna-btn duna-btn--ghost duna-btn--sm"><Trash2 className="h-3.5 w-3.5" /></button>
+                <button type="button" onClick={() => setPorEliminar(i)} aria-label={`Eliminar ${itemLabel.toLowerCase()}`} className="duna-btn duna-btn--ghost duna-btn--sm"><Trash2 className="h-3.5 w-3.5" /></button>
               </div>
             </div>
 
@@ -209,6 +218,18 @@ export default function RepeaterEditor({
           </p>
         )}
       </div>
+
+      {/* Confirmación de borrado — reusa ConfirmDescartarDialog (superficie centrada que NO descarta
+          al tocar fuera, foco en la acción segura). El artículo del título sale de `genero`. */}
+      <ConfirmDescartarDialog
+        abierto={porEliminar !== null}
+        onDescartar={() => { const i = porEliminar; setPorEliminar(null); if (i !== null) quitar(i); }}
+        onSeguir={() => setPorEliminar(null)}
+        titulo={`¿Eliminar est${genero === 'f' ? 'a' : 'e'} ${itemLabel.toLowerCase()}?`}
+        descripcion="Se quita de la lista. Recuerda publicar para aplicar el cambio en la tienda."
+        confirmLabel="Eliminar"
+        seguirLabel="Conservar"
+      />
     </div>
   );
 }

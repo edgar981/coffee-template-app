@@ -40,6 +40,9 @@ export interface RepeaterConfig {
   itemsKey: string;
   /** Nombre SINGULAR del ítem, para los botones y el renglón ("Agregar testimonio", "Testimonio 1"). */
   itemLabel: string;
+  /** Género del `itemLabel`, sólo para el artículo del copy de confirmación ("esta foto" vs "este
+   *  testimonio"). Default masculino. */
+  genero?: 'f' | 'm';
   campos: CampoItem[];
   /** Tope de ítems. Al llegar, "Agregar" se deshabilita con un hint (mismo trato que el max de una
    *  lista). Ausente = sin tope (testimonios). */
@@ -134,6 +137,7 @@ const TESTIMONIOS: SeccionConfig = {
   repeater: {
     itemsKey: 'items',
     itemLabel: 'Testimonio',
+    genero: 'm', // "¿Eliminar este testimonio?"
     campos: [
       { name: 'name',    label: 'Nombre',       tipo: 'texto',    resumen: 'principal', hint: 'Quién lo dice.' },
       { name: 'city',    label: 'Ciudad',       tipo: 'texto',    opcional: true, hint: 'Opcional.' },
@@ -181,6 +185,7 @@ const NOSOTROS_GALERIA: SeccionConfig = {
   repeater: {
     itemsKey: 'items',
     itemLabel: 'Foto',
+    genero: 'f', // "¿Eliminar esta foto?"
     max: 12,
     campos: [
       { name: 'url', label: 'Foto',        tipo: 'imagen', hint: 'JPG, PNG o WebP.' },

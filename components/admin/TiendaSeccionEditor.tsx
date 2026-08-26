@@ -355,6 +355,7 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
                     items={Array.isArray(form[config.repeater.itemsKey]) ? (form[config.repeater.itemsKey] as Record<string, unknown>[]) : []}
                     descriptores={config.repeater.campos}
                     itemLabel={config.repeater.itemLabel}
+                    genero={config.repeater.genero}
                     max={config.repeater.max}
                     pedirImagen={subida.pedir}
                     subiendo={subiendo}
