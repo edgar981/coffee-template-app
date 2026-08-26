@@ -121,7 +121,10 @@ export interface SeccionDef {
   /** Nombre de la sección en el selector del editor (§ /admin/tienda). */
   label: string;
   ocultable: boolean;
-  repeater?: { itemsKey: string };
+  /** Sección de LISTA: `itemsKey` es la clave del array; `campos` es la config de campos de CADA
+   *  ÍTEM (requerido/opcional, para el resolver). Los campos NO-string del ítem (p. ej. un rating
+   *  numérico) no van acá: el resolver los pasa tal cual. Coexiste con `campos` de sección. */
+  repeater?: { itemsKey: string; campos: Record<string, CampoTipo> };
   campos: Record<string, CampoTipo>;
   /** Nombres de los campos que son IMÁGENES (blobs). Los lee el borrado de blobs reemplazados
    *  (`imagenesDe`), NO el resolver. Para un repeater la imagen vive en cada item. */
@@ -186,13 +189,19 @@ const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
  *    `opcional` AUSENTE → el DEFAULT (así el editor lo pre-llena la primera vez).
  * NUNCA lanza. `visible` sólo se sobreescribe con un booleano explícito.
  */
-export function resolverSiteContent(stored: unknown): SiteContentData {
+// Parametrizado en `registro`/`defaultsBase` (como `seccionEsVisible` e `imagenesDe`) para probar
+// la rama repeater con una sección SINTÉTICA, sin depender de que exista una repeater real.
+export function resolverSiteContent(
+  stored: unknown,
+  registro: Record<string, SeccionDef> = REGISTRY,
+  defaultsBase: Record<string, unknown> = DEFAULTS as unknown as Record<string, unknown>,
+): SiteContentData {
   const raw = esObj(stored) ? stored : {};
-  const out = {} as Record<keyof SiteContentData, unknown>;
+  const out = {} as Record<string, unknown>;
 
-  for (const key of Object.keys(DEFAULTS) as (keyof SiteContentData)[]) {
-    const def = REGISTRY[key];
-    const defaults = DEFAULTS[key] as unknown as Record<string, unknown>;
+  for (const key of Object.keys(defaultsBase)) {
+    const def = registro[key];
+    const defaults = defaultsBase[key] as Record<string, unknown>;
     const storedSec = esObj(raw[key]) ? (raw[key] as Record<string, unknown>) : {};
     const sec: Record<string, unknown> = { ...defaults };
 
@@ -206,9 +215,42 @@ export function resolverSiteContent(stored: unknown): SiteContentData {
         sec[campo] = campo in storedSec ? (val ?? '') : defaults[campo];
       }
     }
+
+    // REPEATER: resolver el ARRAY de items guardado. Sin esto, `sec[itemsKey]` se queda con el
+    // array DEFAULT (`{...defaults}`) y toda edición del repeater se pierde EN SILENCIO.
+    if (def.repeater) {
+      sec[def.repeater.itemsKey] = resolverItems(def.repeater.campos, storedSec[def.repeater.itemsKey]);
+    }
+
     out[key] = sec;
   }
-  return out as SiteContentData;
+  return out as unknown as SiteContentData;
+}
+
+// Resuelve el array de items de una sección repeater. Cada ítem: los campos `requerido`/`opcional`
+// (strings) se normalizan a string —el editor valida los requeridos, así que acá sólo se garantiza
+// la forma—; los demás campos del ítem (p. ej. un rating numérico) pasan TAL CUAL. Un valor que no
+// es objeto se descarta. NUNCA lanza (loader SOFT).
+export function resolverItems(
+  itemCampos: Record<string, CampoTipo>,
+  storedItems: unknown,
+): Record<string, unknown>[] {
+  if (!Array.isArray(storedItems)) return [];
+  const out: Record<string, unknown>[] = [];
+  for (const item of storedItems) {
+    if (!esObj(item)) continue;
+    const resuelto: Record<string, unknown> = { ...item }; // passthrough (rating numérico, etc.)
+    for (const [campo, tipo] of Object.entries(itemCampos)) {
+      const val = item[campo];
+      if (tipo === 'requerido') {
+        resuelto[campo] = typeof val === 'string' ? val : '';
+      } else {
+        resuelto[campo] = campo in item ? (val ?? '') : '';
+      }
+    }
+    out.push(resuelto);
+  }
+  return out;
 }
 
 /**
