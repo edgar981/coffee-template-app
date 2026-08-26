@@ -1,11 +1,63 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
+
+// Una celda de VÍDEO de la galería. NO usa el atributo `autoplay` —medido: `preload="none"` + autoplay
+// se contradicen y Chrome DESCARGA igual, y estar fuera del fold TAMPOCO lo difiere; con el atributo,
+// los 3 vídeos de la galería bajarían al cargar la página—. En su lugar: `preload="none"` + un
+// IntersectionObserver que hace `.play()` al ENTRAR al viewport (ahí recién dispara la carga) y
+// `.pause()` al salir. Así la descarga se difiere a cuando se scrollea al vídeo, y —clave— en móvil el
+// masonry es de UNA columna, así que sólo 1–2 vídeos están en el viewport a la vez (no 3): la
+// concurrencia queda acotada por la estructura, no por rastrear "el más visible".
+//
+// - PÓSTER a la proporción del VÍDEO: la celda fija `aspect-ratio` con las dims GUARDADAS (que son las
+//   del vídeo, § el modelo), y el `<video>` va `object-cover` → el póster ocupa el MISMO espacio con
+//   esa proporción (no la suya), así el masonry NO salta cuando el vídeo carga.
+// - `muted` se fija por REF (el prop de React no siempre llega al atributo del DOM, y iOS bloquea el
+//   autoplay sin él).
+// - PREFERS-REDUCED-MOTION: un vídeo que arranca solo ES movimiento. Con esa preferencia NO se
+//   auto-reproduce —se queda en el póster con `controls`, para que el usuario reproduzca si QUIERE
+//   (un play iniciado por el usuario es legítimo aun con reduced-motion)—. En el preview del editor,
+//   el póster sin controls (vista limpia).
+function VideoCelda({ src, poster, alt }: { src: string; poster?: string; alt: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const preview = useIsPreview();
+  const reduce = useReducedMotion();
+  const reproducirEnVista = !preview && !reduce;
+
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !reproducirEnVista) return;
+    v.muted = true;
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => (e.isIntersecting ? v.play().catch(() => {}) : v.pause())),
+      { threshold: 0.2 },
+    );
+    io.observe(v);
+    return () => io.disconnect();
+  }, [reproducirEnVista]);
+
+  return (
+    <video
+      ref={ref}
+      src={src}
+      poster={poster}
+      muted
+      loop
+      playsInline
+      preload="none"
+      controls={!!reduce && !preview}
+      aria-label={alt}
+      className="absolute inset-0 h-full w-full object-cover"
+    />
+  );
+}
 
 // La GALERÍA de /nosotros — la 2ª sección REPEATER, y la que estrena el tipo `imagen` por ítem. Un
 // encabezado OPCIONAL (eyebrow/titulo → se omiten vacíos) sobre un MASONRY de fotos: aquí la galería
@@ -37,7 +89,7 @@ export default function NosotrosGaleria({ negocio }: { negocio?: string }) {
   if (!seccionEsVisible(REGISTRY.nosotrosGaleria, nosotrosGaleria)) return null;
 
   const { eyebrow, titulo, items } = nosotrosGaleria;
-  const fotos = items.filter((f) => f.url.trim() !== ""); // defensivo: sin url no se renderiza un ítem
+  const medios = items.filter((f) => f.url.trim() !== ""); // defensivo: sin url no se renderiza un ítem
   // Fallback del alt: describe el CONTEXTO, no el índice (§ decisión del owner). El alt del ítem, si
   // el owner lo escribió, manda —es mejor para un lector de pantalla que cualquier genérico—.
   const altFallback = negocio ? `Foto de la galería de ${negocio}` : "Foto de la galería";
@@ -59,7 +111,7 @@ export default function NosotrosGaleria({ negocio }: { negocio?: string }) {
           </motion.div>
         )}
         <div className="columns-1 sm:columns-2 lg:columns-3 gap-4">
-          {fotos.map((f, i) => (
+          {medios.map((f, i) => (
             // El break-inside va en un envoltorio ESTÁTICO; la animación (transform) va dentro, para
             // no mezclar el transform con la regla de corte de columna.
             <div key={i} className="mb-4 break-inside-avoid">
@@ -72,13 +124,17 @@ export default function NosotrosGaleria({ negocio }: { negocio?: string }) {
                 className="relative overflow-hidden rounded-2xl bg-[#e8ddd0]"
                 style={{ aspectRatio: f.w && f.h ? `${f.w} / ${f.h}` : "4 / 3" }}
               >
-                <Image
-                  src={f.url}
-                  alt={f.alt.trim() || altFallback}
-                  fill
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                  className="object-cover"
-                />
+                {f.tipo === "video" ? (
+                  <VideoCelda src={f.url} poster={f.poster} alt={f.alt.trim() || altFallback} />
+                ) : (
+                  <Image
+                    src={f.url}
+                    alt={f.alt.trim() || altFallback}
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    className="object-cover"
+                  />
+                )}
               </motion.div>
             </div>
           ))}
