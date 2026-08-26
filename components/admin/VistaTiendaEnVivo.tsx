@@ -6,6 +6,7 @@ import HeroSection from '@/components/storefront/home/HeroSection';
 import BrandStory from '@/components/storefront/home/BrandStory';
 import SubscriptionCTA from '@/components/storefront/home/SubscriptionCTA';
 import TestimonialSection from '@/components/storefront/home/TestimonialSection';
+import NosotrosHistoria from '@/components/storefront/nosotros/NosotrosHistoria';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { DEFAULTS, type SiteContentData } from '@/lib/config/site-content-defaults';
@@ -40,6 +41,7 @@ const COMPONENTES: Record<SeccionVista, ComponentType> = {
   brandStory: BrandStory,
   subscriptionCTA: SubscriptionCTA,
   testimonials: TestimonialSection,
+  nosotrosHistoria: NosotrosHistoria,
 };
 
 export default function VistaTiendaEnVivo({

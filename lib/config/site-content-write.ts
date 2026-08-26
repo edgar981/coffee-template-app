@@ -81,3 +81,20 @@ export async function descartarSeccion(seccion: string): Promise<{ blobsABorrar:
     return { blobsABorrar: blobsHuerfanos({ content, borrador }, { content, borrador: nuevoBorrador }) };
   });
 }
+
+// ENCENDER/APAGAR una página (`content.paginas[pagina].visible`). Va DIRECTO a lo PUBLICADO —no por
+// el flujo borrador/publicar de secciones—: encender o apagar una página es un toggle de config, no
+// contenido en revisión, así que se aplica en el acto. No mueve blobs.
+export async function setPaginaVisible(pagina: string, visible: boolean): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const { content } = await leerFila(tx);
+    const paginas = esObj(content.paginas) ? content.paginas : {};
+    const previa = esObj(paginas[pagina]) ? paginas[pagina] : {};
+    const nuevoContent = { ...content, paginas: { ...paginas, [pagina]: { ...previa, visible } } };
+    await tx.siteContent.upsert({
+      where: { id: 'default' },
+      update: { content: nuevoContent as unknown as Prisma.InputJsonValue },
+      create: { id: 'default', content: nuevoContent as unknown as Prisma.InputJsonValue },
+    });
+  });
+}

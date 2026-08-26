@@ -7,14 +7,19 @@ import { useCartStore } from '@/lib/cartStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import NavSearch from './NavSearch';
 import { Logo } from '@/components/storefront/Logo';
-
-const links = [
-  { label: 'Tienda', path: '/tienda' },
-  { label: 'Suscripciones', path: '/suscripciones' },
-  { label: 'Nosotros', path: '/#nuestra-historia' },
-];
+import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 
 export default function StoreNav() {
+  // "Nosotros" es RUTA (/nosotros), y sólo aparece si la página está ENCENDIDA (§ paginas.nosotros).
+  // Apagada, el enlace desaparece. Antes era un ancla a la home (`/#nuestra-historia`), cuyo
+  // active-state por `pathname.startsWith` nunca matcheaba —la ruta real lo arregla—.
+  const { paginas } = useSiteContent();
+  const links = [
+    { label: 'Tienda', path: '/tienda' },
+    { label: 'Suscripciones', path: '/suscripciones' },
+    ...(paginas.nosotros.visible ? [{ label: 'Nosotros', path: '/nosotros' }] : []),
+  ];
+
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);

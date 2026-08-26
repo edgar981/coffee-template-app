@@ -1358,37 +1358,6 @@ gana la pantalla.
 el chequeo de la última fila en Inventario/Pagos). Cierra cuando el gate confirme que la banda
 se fue y nada quedó a ras.
 
-### 47. La galería variable (N fotos) es un REPEATER — se construye UNA vez para BrandStory Y Testimonios
-
-Hoy la galería de BrandStory son CUATRO imágenes FIJAS (`imagen1..4`), con el collage 2×2 y sus
-offsets escalonados **hardcodeados por posición** (`imagen1` sin offset, `imagen2` `mt-8`, `imagen3`
-`-mt-4`, `imagen4` `mt-4`). El disparador anotado —"un cliente con menos o más de cuatro fotos"—
-pide que sea un repeater (N fotos).
-
-**LA PLATAFORMA DEL REPEATER YA ESTÁ CONSTRUIDA** (la estrenó Testimonios, § SiteContent — el
-repeater): el resolver de arrays (`resolverItems`), el `RepeaterEditor` genérico (agregar/quitar/
-editar/reordenar-con-flechas, ítems colapsables), la config de campos por ítem, y el enganche en la
-cáscara. `imagenesDe` ya es repeater-aware (el borrado de blobs cubre repeaters) y `seccionEsVisible`
-ya hace hide-on-empty. **A la galería le queda SÓLO lo suyo:** cambiar `imagen1..4` fijas por un
-repeater de **imagen-por-ítem** (los descriptores cambian, la maquinaria no), y —lo caro— **el LAYOUT**:
-el collage 2×2 con offsets por posición **depende de que sean exactamente 4**; refluir con gracia a 2,
-5 o 7 es rediseño de layout (una grilla/masonry pierde el escalonado artesanal, o se diseñan arreglos
-por rango de N). El render del storefront es por-sección (el collage no se comparte con las tarjetas
-de testimonio); lo compartido —modelo + resolver + `RepeaterEditor`— ya existe.
-
-**Costo YA pagado: ninguno.** Hoy Nayoli tiene sus cuatro fotos y el collage fijo se ve bien.
-
-**UN TERCER CANDIDATO, más simple: los BENEFICIOS de Suscripción.** Hoy son `bullet1..4`
-OPCIONALES (§ SubscriptionCTA), que dan "hasta 4 sin hueco" sobre la cáscara genérica —tope duro en
-4—. Es un repeater de STRINGS (un campo por ítem), más liviano que la galería (1 imagen/ítem) o
-Testimonios (varios campos/ítem), pero el MISMO `RepeaterEditor` lo sirve. Su layout no es problema:
-la lista vertical (`space-y-3`) ya refluye con cualquier N. Sólo entra al repeater si se quieren 5+.
-
-**DISPARADOR: un cliente con ≠4 fotos en la galería** (o 5+ beneficios en Suscripción, que reusa lo
-mismo). La plataforma ya está —Testimonios la construyó—; lo que dispara este ítem es el LAYOUT de la
-galería (el reflujo del collage a N) + cambiar los `imagen1..4` fijos por un repeater de imagen-por-
-ítem. No es "construir el repeater": es usarlo y rehacer el collage.
-
 ### 48. VÍDEO en una sección es CAPACIDAD nueva, no un campo más — declarado, sin plan
 
 El modelo guarda URLs de IMAGEN, el upload valida JPG/PNG/WebP, y `next/image` no reproduce vídeo.
@@ -1658,18 +1627,18 @@ texto**), y **testimonials** (Testimonios, `ocultable:true`, la 1ª sección **R
 es la más simple —casi enteramente datos sobre la cáscara genérica (`TiendaSeccionEditor`)— y aporta
 dos cosas al modelo:
 - **Bullets OPCIONALES como repeater-pobre**: `bullet1..4` opcionales que el componente junta con un
-  `.filter` → "hasta 4 sin hueco" (vaciar uno cierra la lista), sin arrastrar el repeater real (§
-  Backlog #47, su disparador si se quieren 5+). Se etiquetan "Beneficio 1…4" (el nombre dice lo que
-  son; el hint del primero encuadra el grupo), NO "slot 1…4".
+  `.filter` → "hasta 4 sin hueco" (vaciar uno cierra la lista), sin arrastrar el repeater real (que la
+  plataforma ya tiene; se usa si se quieren 5+ beneficios —un repeater de strings—). Se etiquetan
+  "Beneficio 1…4" (el nombre dice lo que son; el hint del primero encuadra el grupo), NO "slot 1…4".
 - **Contenido editable ≠ estructura compartida**: las 3 tarjetas de plan quedan FUERA del editor
   —son `SUBSCRIPTION_PLANS`, fuente compartida con `/suscripciones` (§ Backlog #49)—. El editor toca
   el texto de la home, no una fuente que otra página también lee.
 
-### El REPEATER — la plataforma (Testimonios la estrena; sirve también a la galería de #47)
+### El REPEATER — la plataforma (Testimonios la estrena; sirve también a la galería de /nosotros)
 
 Testimonios es la 1ª sección de LISTA. La maquinaria es PLATAFORMA, agnóstica de sección —cambia sólo
-la config de campos por ítem—, así que la galería variable de Historia (#47) la reusa cambiando los
-descriptores (imagen por ítem en vez de texto+rating). Dos mitades:
+la config de campos por ítem—, así que la galería variable de /nosotros (§ la página /nosotros, tanda
+2) la reusa cambiando los descriptores (imagen por ítem en vez de texto+rating). Dos mitades:
 - **El resolver de arrays** (`resolverItems` + la rama repeater de `resolverSiteContent`): resuelve el
   array de items guardado; los campos string requerido/opcional se normalizan, los NO declarados (un
   rating numérico) pasan tal cual. `mezclarBorrador` pisa la sección entera, así que el borrador carga
@@ -1862,6 +1831,60 @@ capas — "dev engaña sobre el modo de render" es la regla que este defecto ins
 tamaño—. Se descartó ISR (estático + `revalidatePath` en cada escritura de settings/content) por
 más superficie que equivocar sin ganancia real. **DISPARADOR de volver a estático + ISR: si el
 tráfico del storefront lo pide** (CDN/costo empiezan a importar). Hasta entonces, dinámico.
+
+### La PÁGINA /nosotros — páginas por CONFIG, no anidado en el dato
+
+Tanda del 2026-08-26. El storefront gana una SEGUNDA página editable, `/nosotros` (la historia
+larga; la galería y el vídeo son sus tandas 2 y 3). Es una **capacidad para cualquier cliente:
+quien no la use, la apaga.** Decisiones:
+
+- **El "#47 CANCELADO" es la razón de que esta página exista.** Se iba a hacer variable la galería
+  del collage de la HOME (backlog #47); con la galería en /nosotros, **el collage de la home se
+  queda en CUATRO fotos fijas —el anzuelo, no el álbum—** y #47 se borró. La galería variable se
+  construye en /nosotros (tanda 2), donde tiene espacio; el **tipo `'imagen'` del `RepeaterEditor`**
+  (§ el repeater) se construye ahí, no en la home.
+
+- **PÁGINAS POR CONFIG, no anidado en el dato.** Las secciones de /nosotros son claves MÁS del mismo
+  `content` JSON (`nosotrosHistoria`), no un `content.pages.nosotros` anidado. La "página" es un tag
+  de config: `SeccionConfig.pagina` ('home'|'nosotros'). Así **el resolver, el mapa de borrador y el
+  write path NO cambian** (son key-agnósticos) — un anidado en el dato les habría metido una
+  dimensión de página a los tres. El resolver itera por `registro` (las secciones), no por
+  `defaultsBase`, para que la meta `paginas` no entre al loop de secciones (`SeccionKey` la excluye
+  del tipo del REGISTRY).
+
+- **La META de páginas es `content.paginas` (`{ nosotros: { visible } }`), NO una sección.** No lleva
+  `campos` ni la resuelve el loop de secciones; `resolverPaginas` la resuelve aparte. Es el flag que
+  gatea el redirect y el nav.
+
+- **DEFAULT ENCENDIDA, y el argumento que lo cierra:** el contenido por defecto es copy REAL de
+  Nayoli (el texto de brandStory), no un claim fabricado → **no repite el caso de los testimonios
+  (#44)**, así que nace viva. (OJO — el enlace de hoy NO es un 404: header y footer apuntan a
+  `/#nuestra-historia`, un ANCLA a la sección de la home que funciona; la tanda re-apunta el ancla a
+  la página, no arregla un 404 que no existe.)
+
+- **Apagada → REDIRECT 302/307 a la home, no 404.** La página EXISTE y sólo está apagada; un 404
+  diría que no existe. El `redirect()` de Next emite **307 (temporal)** —equivalente al 302 para
+  navegar a una página GET; un 302 literal exigiría middleware sin ganancia—. La ruta (server) lee
+  el flag y redirige antes de renderizar.
+
+- **El NAV es DATA-DRIVEN.** `StoreNav` (header) y `StoreFooter` son los dos `'use client'` DENTRO de
+  `SiteContentProvider` (el layout los envuelve), así que leen el flag por `useSiteContent()` —sin
+  pasar props—. El enlace "Nosotros" / "Nuestra Historia" aparece con la página ENCENDIDA y
+  **desaparece apagada** (el header lo omite del array; el footer filtra la entrada, y su columna
+  "Empresa" no queda vacía porque lleva el bloque de WhatsApp aparte). Re-apuntar de `/#nuestra-
+  historia` a `/nosotros` **arregla de yapa el active-state muerto** (`pathname.startsWith('/#…')`
+  nunca matcheaba). Eran las ÚNICAS dos anclas `/#` del nav; no hay más rotas.
+
+- **El toggle de encender/apagar va DIRECTO a lo publicado** (`setPaginaVisible`, escritura optimista),
+  NO por el flujo borrador/publicar de secciones —encender/apagar es config, no contenido en
+  revisión—. Mismo race aceptado que el flujo borrador (§ site-content-write, escala humana).
+
+- **El editor GANA un selector de página, SIN GATE.** `TiendaPaginas` agrupa `SECCIONES_TIENDA` por
+  `pagina` en pestañas (pill con semántica de tab). El selector se renderiza SIEMPRE: el config
+  define siempre ≥2 páginas, así que un gate "≥2 páginas" nunca se ejercería —código muerto que no
+  discrimina nada—. El día que un deployment pueda tener UNA sola página (un tenant sin /nosotros),
+  el guard entra ahí, con el caso real. El selector del editor es independiente del flag de
+  visibilidad: se edita /nosotros aunque esté apagada, para prepararla antes de encenderla.
 
 ## Mejoras post-multitenant
 

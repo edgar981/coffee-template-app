@@ -4,8 +4,8 @@ import { auth } from '@/lib/auth';
 import { storage } from '@/lib/storage';
 import { siteContentEditableSchema } from '@/lib/config/site-content-schema';
 import { readSiteContentParaEditor } from '@/lib/config/site-content-read';
-import { REGISTRY } from '@/lib/config/site-content-defaults';
-import { guardarBorrador, publicarSeccion, descartarSeccion } from '@/lib/config/site-content-write';
+import { REGISTRY, DEFAULTS } from '@/lib/config/site-content-defaults';
+import { guardarBorrador, publicarSeccion, descartarSeccion, setPaginaVisible } from '@/lib/config/site-content-write';
 
 // Contenido del storefront (SiteContent), flujo BORRADOR/PUBLICADO. Guardar deja de publicar:
 // el PUT escribe el BORRADOR; PUBLICAR (POST) copia una sección del borrador a lo publicado;
@@ -65,8 +65,25 @@ export async function POST(req: NextRequest) {
   const { error } = await requireAdmin();
   if (error) return error;
 
-  const body = (await req.json().catch(() => null)) as { accion?: string; seccion?: string } | null;
+  const body = (await req.json().catch(() => null)) as
+    { accion?: string; seccion?: string; pagina?: string; visible?: boolean } | null;
   const accion = body?.accion;
+
+  // TOGGLE de página (encender/apagar /nosotros): va directo a lo publicado, no por borrador.
+  if (accion === 'setPaginaVisible') {
+    const pagina = body?.pagina;
+    if (!pagina || !(pagina in DEFAULTS.paginas) || typeof body?.visible !== 'boolean') {
+      return NextResponse.json({ error: 'Página o valor inválido.' }, { status: 400 });
+    }
+    try {
+      await setPaginaVisible(pagina, body.visible);
+    } catch (e) {
+      console.error('[site-content] POST setPaginaVisible:', e);
+      return NextResponse.json({ error: 'No se pudo cambiar la visibilidad de la página.' }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   const seccion = body?.seccion;
   if ((accion !== 'publicar' && accion !== 'descartar') || !seccion || !(seccion in REGISTRY)) {
     return NextResponse.json({ error: 'Acción o sección inválida.' }, { status: 400 });

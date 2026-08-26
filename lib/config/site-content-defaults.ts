@@ -39,8 +39,8 @@ export interface BrandStoryContent {
 // imágenes—. Los bullets son `bullet1..4` OPCIONALES: el componente los junta con un `.filter` que
 // SALTA los vacíos, así que "vaciar el 2 y dejar el 3" cierra la lista sin hueco — son "hasta cuatro
 // bullets", no "cuatro slots" (el editor lo dice en las etiquetas). 5+ bullets = el repeater
-// compartido (§ Backlog #47). Las TRES tarjetas de plan NO viven acá: son ESTRUCTURA desde
-// `SUBSCRIPTION_PLANS`, fuente compartida con /suscripciones (§ Backlog #49).
+// compartido (la plataforma ya lo tiene). Las TRES tarjetas de plan NO viven acá: son ESTRUCTURA
+// desde `SUBSCRIPTION_PLANS`, fuente compartida con /suscripciones (§ Backlog #49).
 export interface SubscriptionCTAContent {
   visible: boolean;
   eyebrow: string;
@@ -75,11 +75,34 @@ export interface TestimonialsContent {
   items: TestimonialItem[];
 }
 
+// LA PÁGINA /nosotros — el relato largo (la home lleva el ANZUELO: el collage de 4 fotos fijas de
+// brandStory; la historia completa vive acá). Es una sección MÁS del mismo `content` JSON —la
+// "página" es una agrupación de CONFIG (§ tienda-secciones `pagina`), no un anidado en el dato—.
+// `ocultable:false` porque el ocultar es a nivel de PÁGINA (`paginas.nosotros.visible`), no de esta
+// sección.
+export interface NosotrosHistoriaContent {
+  visible: boolean;
+  eyebrow: string;
+  titulo: string;
+  parrafo1: string;
+  parrafo2: string;
+  parrafo3: string;
+}
+
+// META de páginas: qué páginas del storefront están ENCENDIDAS. NO es una sección (no lleva `campos`
+// ni la resuelve el loop de secciones); es una capacidad —una página existe y se puede apagar—. Hoy
+// sólo /nosotros; la home no se apaga.
+export interface PaginasContent {
+  nosotros: { visible: boolean };
+}
+
 export interface SiteContentData {
   hero: HeroContent;
   brandStory: BrandStoryContent;
   subscriptionCTA: SubscriptionCTAContent;
   testimonials: TestimonialsContent;
+  nosotrosHistoria: NosotrosHistoriaContent;
+  paginas: PaginasContent;
 }
 
 // Los DEFAULTS son los literales que hoy viven en el JSX del hero. Se mueven acá; el
@@ -126,6 +149,26 @@ export const DEFAULTS: SiteContentData = {
     titulo: 'Lo que dicen nuestros clientes',
     items: [], // VACÍO a propósito (§ SiteContent — el repeater): sin claims falsos en defaults; hide-on-empty oculta
   },
+  // El relato largo de la página /nosotros. El default REUSA el texto real de brandStory (no se
+  // fabrica copy); `parrafo3` nace vacío para que el owner expanda. La galería variable NO va acá:
+  // entra como su propia sección en la tanda 2 (§ /nosotros — la galería).
+  nosotrosHistoria: {
+    visible: true,
+    eyebrow: 'Nuestra Historia',
+    titulo: 'Del cafetal a tu taza',
+    parrafo1:
+      'Café Nayoli nace en un solo lugar: la Finca Nayoli, en la vereda Providencia de Supatá, Cundinamarca. Cada grano viene de esta tierra, cultivado entre los 1.650 y 2.100 metros sobre el nivel del mar, donde la altura y el clima de la montaña colombiana dan al café su carácter.',
+    parrafo2:
+      'Trabajamos una sola variedad, Castillo, con proceso lavado — el método que mejor revela lo que esta tierra tiene para ofrecer. El resultado es una taza con fragancia a chocolate, aroma herbal e intenso, y un balance preciso entre acidez y cuerpo. El equilibrio que buscamos en cada tostión. Somos café de especialidad, 100% colombiano, de una finca con nombre y una historia que apenas comienza a contarse. Cuando abres una bolsa de Nayoli, sabes exactamente de dónde viene — y ese, para nosotros, es el verdadero secreto de Supatá.',
+    parrafo3: '',
+  },
+  // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
+  // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
+  // un claim falso —es copy editable, no una reseña inventada—, así que default-encendida no repite
+  // el caso de los testimonios.
+  paginas: {
+    nosotros: { visible: true },
+  },
 };
 
 // Destinos de los CTA — ESTRUCTURA, no editable. Los labels se editan; los hrefs NO: un
@@ -159,7 +202,11 @@ export interface SeccionDef {
   imagenes?: string[];
 }
 
-export const REGISTRY: Record<keyof SiteContentData, SeccionDef> = {
+// Las claves de SECCIÓN (todo `SiteContentData` menos `paginas`, que es meta, no sección). El
+// REGISTRY las cubre a todas; `paginas` queda fuera a propósito.
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas'>;
+
+export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
     label: 'Portada',
     ocultable: false,
@@ -225,6 +272,17 @@ export const REGISTRY: Record<keyof SiteContentData, SeccionDef> = {
       },
     },
   },
+  nosotrosHistoria: {
+    label: 'Historia',
+    ocultable: false, // el ocultar es a nivel de PÁGINA (paginas.nosotros.visible), no de esta sección
+    campos: {
+      eyebrow: 'opcional',
+      titulo: 'requerido',
+      parrafo1: 'requerido',
+      parrafo2: 'opcional',
+      parrafo3: 'opcional',
+    },
+  },
 };
 
 const esVacio = (v: unknown): boolean => typeof v !== 'string' || v.trim() === '';
@@ -247,7 +305,9 @@ export function resolverSiteContent(
   const raw = esObj(stored) ? stored : {};
   const out = {} as Record<string, unknown>;
 
-  for (const key of Object.keys(defaultsBase)) {
+  // Se itera por `registro` (las SECCIONES), no por `defaultsBase`: así una clave que NO es sección
+  // —`paginas`— no entra al loop de secciones y se resuelve aparte, abajo.
+  for (const key of Object.keys(registro)) {
     const def = registro[key];
     const defaults = defaultsBase[key] as Record<string, unknown>;
     const storedSec = esObj(raw[key]) ? (raw[key] as Record<string, unknown>) : {};
@@ -272,7 +332,26 @@ export function resolverSiteContent(
 
     out[key] = sec;
   }
+
+  // PÁGINAS (meta, no sección): sólo `visible` booleano por página; el default manda si el guardado
+  // no trae un booleano explícito. Es lo que gatea el redirect de /nosotros y el enlace del nav.
+  out.paginas = resolverPaginas(raw.paginas, defaultsBase.paginas);
   return out as unknown as SiteContentData;
+}
+
+// Resuelve la meta de páginas: por cada página del default, `visible` sale del guardado sólo si es
+// booleano explícito; si no, del default. SOFT, nunca lanza.
+export function resolverPaginas(stored: unknown, defaults: unknown): Record<string, { visible: boolean }> {
+  const def = esObj(defaults) ? defaults : {};
+  const st = esObj(stored) ? stored : {};
+  const out: Record<string, { visible: boolean }> = {};
+  for (const pagina of Object.keys(def)) {
+    const dv = esObj(def[pagina]) && typeof (def[pagina] as Record<string, unknown>).visible === 'boolean'
+      ? (def[pagina] as { visible: boolean }).visible : true;
+    const sv = esObj(st[pagina]) ? (st[pagina] as Record<string, unknown>).visible : undefined;
+    out[pagina] = { visible: typeof sv === 'boolean' ? sv : dv };
+  }
+  return out;
 }
 
 // Resuelve el array de items de una sección repeater. Cada ítem: los campos `requerido`/`opcional`

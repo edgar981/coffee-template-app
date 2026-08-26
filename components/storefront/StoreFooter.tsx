@@ -15,6 +15,7 @@ import {
   formatWhatsappDisplay,
 } from "@/lib/config/site";
 import { useSiteSettings } from "@/components/storefront/SiteSettingsProvider";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 
 // `footerNav`/`legalNav` son ESTRUCTURADOS y se quedan en código (v1). La marca, el
 // whatsapp y el instagram vienen de SiteSetting vía el provider (una sola fuente).
@@ -22,6 +23,10 @@ const { footerNav, legalNav } = siteConfig;
 
 export default function StoreFooter() {
   const settings = useSiteSettings();
+  // La entrada a /nosotros se OCULTA cuando la página está apagada (§ paginas.nosotros). La columna
+  // "Empresa" no queda vacía —lleva el bloque de WhatsApp aparte del link—.
+  const { paginas } = useSiteContent();
+  const empresa = footerNav.empresa.filter((l) => l.href !== "/nosotros" || paginas.nosotros.visible);
   return (
     <footer className="bg-[#1a0f08] text-white">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
@@ -132,7 +137,7 @@ export default function StoreFooter() {
             </h4>
 
             <ul className="space-y-2.5 text-sm text-white/50">
-              {footerNav.empresa.map((link) => (
+              {empresa.map((link) => (
                 <li key={link.label}>
                   <Link
                     href={link.href}

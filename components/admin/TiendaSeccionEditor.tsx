@@ -309,9 +309,8 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
                     </button>
                     <span className="duna-field__label" style={{ margin: 0 }}>Mostrar en la tienda</span>
                   </div>
-                  <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>
-                    Si la apagas, esta sección desaparece de la home.
-                  </p>
+                  {/* Sin hint: el operador apaga y ve el resultado en la vista en vivo. El label + el
+                      switch bastan (mismo criterio que el toggle de página). */}
                 </div>
               )}
 

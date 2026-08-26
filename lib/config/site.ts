@@ -81,8 +81,10 @@ export const siteConfig = {
       { label: "Preguntas Frecuentes", href: "/preguntas-frecuentes" },
     ] satisfies NavLink[],
 
+    // "Nuestra Historia" → la página /nosotros (antes ancla `/#nuestra-historia` a la home). El
+    // footer la OCULTA cuando la página está apagada (§ paginas.nosotros, StoreFooter).
     empresa: [
-      { label: "Nuestra Historia", href: "/#nuestra-historia" },
+      { label: "Nuestra Historia", href: "/nosotros" },
     ] satisfies NavLink[],
   },
 
