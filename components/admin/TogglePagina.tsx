@@ -32,9 +32,7 @@ export default function TogglePagina({ pagina, label }: { pagina: string; label:
         body: JSON.stringify({ accion: 'setPaginaVisible', pagina, visible: nuevo }),
       });
       if (!res.ok) throw new Error();
-      toast.success(nuevo
-        ? `${label} encendida — visible en la tienda.`
-        : `${label} apagada — oculta; quien tenga el enlace va a la home.`);
+      toast.success(nuevo ? `${label} encendida.` : `${label} apagada.`);
     } catch {
       setVisible(!nuevo); // revertir
       toast.error('No se pudo cambiar la visibilidad de la página.');
@@ -57,14 +55,9 @@ export default function TogglePagina({ pagina, label }: { pagina: string; label:
       >
         <span className="duna-switch__thumb" />
       </button>
-      <div style={{ minWidth: 0 }}>
-        <span className="duna-field__label" style={{ margin: 0 }}>Mostrar la página en la tienda</span>
-        <p className="duna-field__hint" style={{ marginTop: '2px' }}>
-          {visible === null ? 'Cargando…'
-            : on ? 'Encendida: visible y enlazada en el nav.'
-            : 'Apagada: oculta del nav, y quien tenga el enlace va a la home.'}
-        </p>
-      </div>
+      {/* Sin hint: el operador apaga y ve el resultado (nav + storefront). El label + el switch
+          bastan; el toast confirma la acción. Mismo criterio que el toggle de sección. */}
+      <span className="duna-field__label" style={{ margin: 0 }}>Mostrar la página en la tienda</span>
     </div>
   );
 }
