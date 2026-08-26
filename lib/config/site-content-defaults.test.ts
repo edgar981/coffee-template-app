@@ -6,6 +6,7 @@ import {
   mezclarBorrador,
   resolverSiteContent,
   resolverItems,
+  resolverPaginas,
   seccionEsVisible,
   type SeccionDef,
 } from './site-content-defaults';
@@ -280,4 +281,46 @@ test('testimonials PRECEDENCIA: items vacío OCULTA aunque visible sea true (hid
   // con items + visible:true (o ausente) → se muestra
   assert.equal(seccionEsVisible(def, { visible: true, items: [{ name: 'Ana' }] }), true);
   assert.equal(seccionEsVisible(def, { items: [{ name: 'Ana' }] }), true);
+});
+
+// ── La página /nosotros: la sección de historia larga + la meta `paginas` ─────
+
+test('nosotrosHistoria: sin nada guardado → todos los defaults; parrafo3 nace ""', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.nosotrosHistoria.titulo, DEFAULTS.nosotrosHistoria.titulo);
+  assert.equal(r.nosotrosHistoria.parrafo1, DEFAULTS.nosotrosHistoria.parrafo1);
+  assert.equal(r.nosotrosHistoria.parrafo3, '');
+});
+
+test('nosotrosHistoria: requerido vacío → default; opcional presente-vacío → ""', () => {
+  const r = resolverSiteContent({ nosotrosHistoria: { titulo: '', parrafo1: '  ', parrafo2: '', parrafo3: 'Tercero' } });
+  assert.equal(r.nosotrosHistoria.titulo, DEFAULTS.nosotrosHistoria.titulo);   // requerido vacío → default
+  assert.equal(r.nosotrosHistoria.parrafo1, DEFAULTS.nosotrosHistoria.parrafo1); // requerido vacío → default
+  assert.equal(r.nosotrosHistoria.parrafo2, '');                                 // opcional presente-vacío → ""
+  assert.equal(r.nosotrosHistoria.parrafo3, 'Tercero');                          // opcional con valor → se conserva
+});
+
+test('paginas: por default /nosotros está ENCENDIDA', () => {
+  assert.equal(resolverSiteContent({}).paginas.nosotros.visible, true);
+});
+
+test('paginas: guardar visible:false la APAGA (el flag que gatea el redirect y el nav)', () => {
+  const r = resolverSiteContent({ paginas: { nosotros: { visible: false } } });
+  assert.equal(r.paginas.nosotros.visible, false);
+});
+
+test('paginas NO es una sección: no rompe el loop de secciones, y `nosotrosHistoria` sí resuelve', () => {
+  // `paginas` va por fuera del loop de secciones (se itera `registro`, no `defaultsBase`); si entrara
+  // como sección, `REGISTRY['paginas']` sería undefined y reventaría. Este test lo fija.
+  const r = resolverSiteContent({});
+  assert.ok(r.paginas && typeof r.paginas.nosotros.visible === 'boolean');
+  assert.ok(typeof r.nosotrosHistoria.titulo === 'string');
+});
+
+test('resolverPaginas: visible sólo se pisa con booleano explícito; si no, manda el default', () => {
+  const def = { nosotros: { visible: true } };
+  assert.deepEqual(resolverPaginas({ nosotros: { visible: false } }, def), { nosotros: { visible: false } });
+  assert.deepEqual(resolverPaginas({ nosotros: { visible: 'no-bool' } }, def), { nosotros: { visible: true } }); // basura → default
+  assert.deepEqual(resolverPaginas({}, def), { nosotros: { visible: true } });                                   // ausente → default
+  assert.deepEqual(resolverPaginas('basura', def), { nosotros: { visible: true } });                            // no-obj → default, no lanza
 });

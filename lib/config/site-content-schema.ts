@@ -64,11 +64,29 @@ const testimonialsEditableSchema = z.object({
   items: z.array(testimonialItemSchema).optional(),
 });
 
+// /nosotros — la historia larga. Sólo texto (la galería variable es su propia sección, tanda 2).
+const nosotrosHistoriaEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  eyebrow: z.string().optional(),
+  titulo: z.string().optional(),
+  parrafo1: z.string().optional(),
+  parrafo2: z.string().optional(),
+  parrafo3: z.string().optional(),
+});
+
+// META de páginas: `visible` por página. NO es una sección (no pasa por el flujo borrador/publicar
+// de secciones); el toggle de encender/apagar /nosotros la escribe directo (tanda 1, commit 3).
+const paginasEditableSchema = z.object({
+  nosotros: z.object({ visible: z.boolean().optional() }).optional(),
+});
+
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   brandStory: brandStoryEditableSchema.optional(),
   subscriptionCTA: subscriptionCTAEditableSchema.optional(),
   testimonials: testimonialsEditableSchema.optional(),
+  nosotrosHistoria: nosotrosHistoriaEditableSchema.optional(),
+  paginas: paginasEditableSchema.optional(),
 });
 
 export type SiteContentEditable = z.infer<typeof siteContentEditableSchema>;
