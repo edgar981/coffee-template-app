@@ -177,11 +177,28 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
   const avisoNoSeMuestra = oculta
     ? 'Actívala con el interruptor para verla aquí.'
     : 'La lista está vacía — agrega el primero para verla aquí.';
+  // En EDICIÓN se muestra siempre (incluido "Guardado", que confirma que no hay nada pendiente); en
+  // la TARJETA sólo cuando hay algo que decir (`estado !== 'guardado'` o una subida en curso).
   const mostrarEstado = editando || subiendo || auto.estado !== 'guardado';
   const estadoTexto = subiendo ? 'Subiendo imagen…'
     : auto.estado === 'guardando' ? 'Guardando…'
     : auto.estado === 'error' ? 'No se pudo guardar'
     : 'Guardado';
+
+  // UNA sola definición del indicador, renderizada en las DOS ramas. Vivía sólo en el editor, y eso
+  // dejaba INVISIBLE un guardado que fallara DESPUÉS de cerrar: el reintento seguía corriendo y el
+  // beforeunload seguía guardando, pero el operador no veía nada (§ un guardado que falla sin
+  // decirlo). Dos copias divergirían, así que se comparte, no se duplica.
+  const indicadorEstado = mostrarEstado ? (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
+      <span className={enError ? 'duna-field__error' : 'duna-caption'} style={{ margin: 0 }} role={enError ? 'alert' : undefined}>
+        {estadoTexto}
+      </span>
+      {enError && (
+        <button type="button" onClick={() => auto.reintentar()} className="duna-btn duna-btn--ghost duna-btn--sm">Reintentar</button>
+      )}
+    </div>
+  ) : null;
 
   // ── LECTURA: la sección es una TARJETA compacta (miniatura + título + estado + Editar). La vista
   //    grande (con sticky) sólo existe en edición; en lectura no hay scroller interno que atrape la
@@ -204,6 +221,9 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
             {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
             {oculta && <span className="duna-badge duna-badge--neutral">Oculta</span>}
           </div>
+          {/* El estado va ENTRE el título y la acción: se lee qué es → cómo está → qué hacer. En el
+              caso normal ('guardado') no renderiza nada y la tarjeta queda idéntica a antes. */}
+          {indicadorEstado}
           <div>
             <button type="button" onClick={() => setEditando(true)} className="duna-btn duna-btn--secondary">
               <Pencil /> Editar
@@ -228,19 +248,16 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
             Así se ve en la tienda. Edita y los cambios se guardan solos; publica cuando estén listos.{' '}
             <a href="/" target="_blank" rel="noreferrer" className="duna-link">Ver la tienda</a>
           </p>
-          {mostrarEstado && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: 'var(--duna-space-2)' }}>
-              <span className={enError ? 'duna-field__error' : 'duna-caption'} style={{ margin: 0 }} role={enError ? 'alert' : undefined}>
-                {estadoTexto}
-              </span>
-              {enError && (
-                <button type="button" onClick={() => auto.reintentar()} className="duna-btn duna-btn--ghost duna-btn--sm">Reintentar</button>
-              )}
-            </div>
-          )}
+          {indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
         </div>
+        {/* ASIMETRÍA DELIBERADA: Publicar y Descartar esperan al autoguardado (`!puedePublicar`)
+            porque MUTAN —publicar con algo pendiente publicaría un borrador viejo—. "Cerrar" NO muta:
+            sólo vuelve a la tarjeta, el cambio queda en el borrador. Por eso NUNCA se deshabilita —en
+            estado de error (que reintenta solo cada 5 s) apagarlo dejaría al operador sin salida— y no
+            hace falta esperar el flush: cerrar no DESMONTA nada (es otra rama del mismo componente, el
+            coordinador vive en su ref), y el PUT es fire-and-forget de todos modos. */}
         <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
-          <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Listo</button>
+          <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
           {hayBorrador && (
             <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
               Descartar
