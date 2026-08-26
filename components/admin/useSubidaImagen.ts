@@ -19,16 +19,35 @@ import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS } from '@/constants/u
 // cada llamador decide qué hacer con ella: la cáscara pisa un campo del form, el repeater un campo
 // del ítem. El hook no sabe nada de secciones ni de galerías.
 
+// Las dimensiones naturales de la imagen, para que la galería reserve el alto de cada celda por su
+// proporción (masonry sin salto de layout, § NosotrosGaleria). Se leen del ARCHIVO local (no de la
+// red). Si el navegador no puede decodificarla, `undefined` → la galería cae a una proporción por
+// defecto; nunca bloquea la subida.
+export type Dims = { w: number; h: number };
+
+async function dimsDeArchivo(file: File): Promise<Dims | undefined> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const d = { w: bitmap.width, h: bitmap.height };
+    bitmap.close();
+    return d.w > 0 && d.h > 0 ? d : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function useSubidaImagen({ onError }: { onError: (msg: string | null) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const pendienteRef = useRef<((url: string) => void) | null>(null);
+  const pendienteRef = useRef<((url: string, dims?: Dims) => void) | null>(null);
   const subiendoRef = useRef(false);
   const [subiendo, setSubiendo] = useState(false);
 
   // El estado (render) y el ref (lectura síncrona) se mueven JUNTOS, como el faseRef que reemplaza.
   const marcarSubiendo = (v: boolean) => { subiendoRef.current = v; setSubiendo(v); };
 
-  const pedir = (onUrl: (url: string) => void) => {
+  // `onUrl` recibe la url y —cuando se pudo leer— las dimensiones. La cáscara (campos-imagen fijos)
+  // ignora el segundo argumento; la galería lo usa. Un callback de un solo parámetro es asignable.
+  const pedir = (onUrl: (url: string, dims?: Dims) => void) => {
     pendienteRef.current = onUrl;
     inputRef.current?.click();
   };
@@ -55,12 +74,15 @@ export function useSubidaImagen({ onError }: { onError: (msg: string | null) => 
       onError(err instanceof Error ? err.message : 'No se pudo subir la imagen');
       return;
     }
+    // Las dimensiones se leen del archivo local (falla suave a undefined). Va DESPUÉS de la subida
+    // para no computarlas si la subida falló.
+    const dims = await dimsDeArchivo(file);
     // subiendo=false ANTES del callback: el marcar-sucio del consumidor (p. ej. `cambiar` de la
     // cáscara, que un ítem de galería atraviesa vía onChange) NO corre durante una subida, así que
     // la url no se guardaría si el flag siguiera en true al entregarla. El callback es síncrono, así
     // que no hay ventana visible sin "Subiendo…".
     marcarSubiendo(false);
-    onUrl(url);
+    onUrl(url, dims);
   };
 
   return { pedir, subiendo, subiendoRef, inputRef, alElegir };

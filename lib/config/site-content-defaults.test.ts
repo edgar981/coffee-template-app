@@ -345,6 +345,11 @@ test('nosotrosGaleria: los items guardados se RESUELVEN — url requerida, alt o
   ]);
 });
 
+test('nosotrosGaleria: w/h de un ítem pasan TAL CUAL (números, no declarados como campos string → passthrough, como stars)', () => {
+  const r = resolverSiteContent({ nosotrosGaleria: { items: [{ url: '/a.jpg', alt: 'x', w: 1600, h: 900 }] } });
+  assert.deepEqual(r.nosotrosGaleria.items, [{ url: '/a.jpg', alt: 'x', w: 1600, h: 900 }]);
+});
+
 test('nosotrosGaleria: encabezado OPCIONAL — titulo vacío → "" (a diferencia de testimonios, que cae al default)', () => {
   // La diferencia deliberada: una galería puede ir SIN heading; vaciar el titulo lo omite, no lo repone.
   const r = resolverSiteContent({ nosotrosGaleria: { eyebrow: '', titulo: '' } });

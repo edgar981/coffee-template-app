@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Star, ArrowUp, ArrowDown, Trash2, Plus, Pencil, Upload } from 'lucide-react';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import type { CampoItem } from '@/components/admin/tienda-secciones';
+import type { Dims } from '@/components/admin/useSubidaImagen';
 
 // EDITOR DE LISTA (repeater) GENÉRICO — agregar / quitar / editar / reordenar (flechas) ítems, con
 // cada ítem COLAPSADO a un renglón-resumen y expandible para editar. La maquinaria NO sabe nada de
@@ -51,6 +52,18 @@ function RatingInput({ valor, onChange }: { valor: number; onChange: (v: number)
   );
 }
 
+// Pone la url en un ítem y, si el descriptor de imagen declara `dims`, guarda ancho/alto en los
+// campos que nombra (para la proporción de la celda en la galería). Sin dims legibles, LIMPIA las
+// viejas —al reemplazar una foto, dejar la proporción anterior sería una celda del tamaño equivocado—.
+function conImagen(item: Item, d: CampoItem, url: string, dims?: Dims): Item {
+  const out: Item = { ...item, [d.name]: url };
+  if (d.dims) {
+    if (dims) { out[d.dims.w] = dims.w; out[d.dims.h] = dims.h; }
+    else { delete out[d.dims.w]; delete out[d.dims.h]; }
+  }
+  return out;
+}
+
 function resumenDe(item: Item, descriptores: CampoItem[], itemLabel: string, i: number) {
   const principal = descriptores.find(d => d.resumen === 'principal');
   const detalle = descriptores.find(d => d.resumen === 'detalle');
@@ -77,9 +90,9 @@ export default function RepeaterEditor({
    *  testimonio"). Default masculino. */
   genero?: 'f' | 'm';
   max?: number;
-  /** Pide una subida al uploader compartido de la cáscara; entrega la url por el callback. Ausente
-   *  en repeaters sin imágenes (testimonios). */
-  pedirImagen?: (onUrl: (url: string) => void) => void;
+  /** Pide una subida al uploader compartido de la cáscara; entrega la url (y las dims, cuando se
+   *  pudieron leer) por el callback. Ausente en repeaters sin imágenes (testimonios). */
+  pedirImagen?: (onUrl: (url: string, dims?: Dims) => void) => void;
   /** Una subida en curso (del uploader compartido): bloquea agregar/cambiar para no encimar dos. */
   subiendo?: boolean;
   onChange: (nuevos: Item[]) => void;
@@ -103,10 +116,9 @@ export default function RepeaterEditor({
   const agregar = () => {
     if (alMax) return;
     if (campoImagen && pedirImagen) {
-      // Agregar = subir primero, luego crear el ítem con la url. Sin foto no hay ítem.
-      pedirImagen(url => {
-        const nuevo = nuevoItem();
-        nuevo[campoImagen.name] = url;
+      // Agregar = subir primero, luego crear el ítem con la url (y sus dims). Sin foto no hay ítem.
+      pedirImagen((url, dims) => {
+        const nuevo = conImagen(nuevoItem(), campoImagen, url, dims);
         onChange([...items, nuevo]);
         setExpandido(items.length); // expandir el nuevo para el resto de campos (p. ej. el alt)
       });
@@ -188,7 +200,7 @@ export default function RepeaterEditor({
                             <img src={String(valor)} alt="" style={{ width: '100%', maxWidth: '240px', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 'var(--duna-r-m)', border: '1px solid var(--duna-border)' }} />
                           )}
                           <div>
-                            <button type="button" onClick={() => pedirImagen?.(url => editar(i, d.name, url))} disabled={subiendo} className="duna-btn duna-btn--secondary duna-btn--sm">
+                            <button type="button" onClick={() => pedirImagen?.((url, dims) => onChange(items.map((it, idx) => (idx === i ? conImagen(it, d, url, dims) : it))))} disabled={subiendo} className="duna-btn duna-btn--secondary duna-btn--sm">
                               <Upload className="h-3.5 w-3.5" /> {subiendo ? 'Subiendo…' : 'Cambiar imagen'}
                             </button>
                           </div>

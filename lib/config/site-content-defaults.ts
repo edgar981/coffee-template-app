@@ -96,9 +96,15 @@ export interface NosotrosHistoriaContent {
 // las fotos de la finca las sube el owner como DATO, no hay defaults de imagen que fabricar.
 // A DIFERENCIA de Testimonios, el `titulo` es OPCIONAL: una galería puede ir sin encabezado (las
 // fotos son el contenido), así que vaciarlo lo omite en vez de caer al default.
+// `w`/`h` son la proporción NATURAL de la foto, capturada en la subida (§ useSubidaImagen), para que
+// la galería reserve el alto de cada celda sin salto de layout (masonry). Opcionales: una foto vieja
+// o una que el navegador no pudo medir cae a una proporción por defecto. El resolver los pasa TAL
+// CUAL (no son campos string declarados), como el `stars` de un testimonio.
 export interface GaleriaItem {
   url: string;
   alt: string;
+  w?: number;
+  h?: number;
 }
 
 export interface NosotrosGaleriaContent {

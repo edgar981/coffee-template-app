@@ -1654,6 +1654,13 @@ cambiando los descriptores (imagen por ítem en vez de texto+rating). Dos mitade
   ítem-imagen vacío es una foto rota) y el renglón colapsado muestra una miniatura. `max` (opcional)
   deshabilita "Agregar" con hint al llegar al tope. Ambos son OPCIONALES: testimonios (sin imágenes,
   sin tope) no cambió.
+- **Borrar CONFIRMA, en la PLATAFORMA.** La papelera reusa `ConfirmDescartarDialog` (no borra directo):
+  borrar una foto o un testimonio destruye trabajo y no hay deshacer campo por campo. Va en el
+  RepeaterEditor, no en el tipo imagen —un testimonio borrado destruye igual—. El artículo del copy
+  sale de `RepeaterConfig.genero` ("¿Eliminar esta foto?" / "¿Eliminar este testimonio?"). Va con el
+  primario, no rojo: quitar un ítem del borrador no destruye un registro persistido (§ ConfirmDeleteDialog);
+  y es ESCALONADO —quitar una foto publicada no borra su blob hasta PUBLICAR (§ la galería, el blob), reversible
+  con Descartar hasta entonces—.
 
 **Un repeater tiene DOS razones para no mostrarse, y la PRECEDENCIA está fijada (afirmada en capa 1):
 items vacío OCULTA aunque `visible` sea true** (hide-on-empty gana sobre el toggle). En la cáscara,
@@ -1903,9 +1910,23 @@ Tanda 2 del 2026-08-26. /nosotros gana una galería de fotos de la finca. Decisi
   como Testimonios (defaults vacíos, hide-on-empty), sin el híbrido texto+fotos que mató al #47. Por
   eso mover la galería a /nosotros la volvió más SIMPLE, no sólo la reubicó.
 
-- **GRID UNIFORME que refluye (2/3 columnas), SIN patrón por rangos.** Aquí la galería ES el
-  contenido, no un adorno —no hay anzuelo que preservar— así que las fotos no compiten y un grid
-  parejo basta. El patrón por rangos era para el collage escalonado de la home, que ya no existe.
+- **MASONRY (CSS `columns`), NO grid con recorte al cuadrado.** El argumento NO es visual: el recorte
+  a un aspect fijo **decide por el dueño qué parte de su foto importa** —una panorámica sin sus lados
+  deja de serlo—. Cada celda toma la proporción NATURAL de su foto, capturada en la subida (`w`/`h`
+  del ítem; sin dims → 4/3). SIN patrón por rangos —la galería ES el contenido, no el collage
+  escalonado de la home—.
+  - **Las dims se capturan en la subida** (`useSubidaImagen` lee `createImageBitmap(file)` → `{w,h}`;
+    falla suave a `undefined`). El descriptor de imagen declara DÓNDE guardarlas (`CampoItem.dims =
+    { w:'w', h:'h' }`); `conImagen` las escribe al agregar Y al cambiar, y las LIMPIA si la foto nueva
+    no se pudo medir (dejar la proporción vieja daría una celda del tamaño equivocado). `w`/`h` son
+    `GaleriaItem` opcionales, passthrough del resolver (como `stars`), y **DECLARADOS en el schema** —
+    zod descarta lo no declarado, así que sin eso se perderían en silencio al guardar (test propio)—.
+  - **ORDEN POR COLUMNA, decisión escrita en el código:** CSS `columns` llena la 1ª columna
+    arriba-abajo, luego la 2ª → el orden fluye por COLUMNA, no por fila. Aceptable en una galería (sin
+    secuencia narrativa); si algún día se espera orden por FILAS, hay que cambiar a un grid-masonry
+    (JS/lib), no un ajuste de estilos. **En móvil (`columns-1`) el orden vuelve a ser EXACTAMENTE el
+    del array** (verificado). brandStory NO cambia: ahí el aspect fijo es correcto porque es un
+    COLLAGE compuesto, no una galería.
 
 - **TOPE 12, y NO es técnico.** `next/image` lazy-loadea de fábrica, así que el peso inicial no crece
   con N —el navegador no descarga lo que está bajo el fold—. El tope es de CURADURÍA: una galería de

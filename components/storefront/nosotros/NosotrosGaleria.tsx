@@ -8,9 +8,20 @@ import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 
 // La GALERÍA de /nosotros — la 2ª sección REPEATER, y la que estrena el tipo `imagen` por ítem. Un
-// encabezado OPCIONAL (eyebrow/titulo → se omiten vacíos) sobre un GRID UNIFORME de fotos que
-// refluye (2/3 columnas): aquí la galería ES el contenido, no un adorno, así que no hay patrón por
-// rangos —las fotos no compiten—. OCULTABLE + hide-on-empty: sin fotos, self-gate → null.
+// encabezado OPCIONAL (eyebrow/titulo → se omiten vacíos) sobre un MASONRY de fotos: aquí la galería
+// ES el contenido, no un adorno, así que no hay patrón por rangos —las fotos no compiten—. OCULTABLE
+// + hide-on-empty: sin fotos, self-gate → null.
+//
+// MASONRY (CSS columns), NO grid con recorte al cuadrado: el recorte decidiría por el dueño qué parte
+// de su foto importa —una panorámica sin sus lados deja de serlo—. Cada celda toma la proporción
+// NATURAL de su foto (`w`/`h`, capturadas en la subida); nada se recorta. Sin dims (foto vieja o no
+// medible) cae a 4/3.
+//
+// ORDEN POR COLUMNA — DECISIÓN, no descuido: CSS `columns` llena la 1ª columna de arriba a abajo,
+// luego la 2ª, así que el orden fluye por COLUMNA, no por fila. Es aceptable en una galería (no hay
+// secuencia narrativa). Si algún día se espera orden por FILAS, ESTO es lo que hay que cambiar (a un
+// grid-masonry por JS o una lib), no un ajuste de estilos. En MÓVIL (una columna, `columns-1`) el
+// orden vuelve a ser EXACTAMENTE el del array.
 //
 // `next/image` con `fill`: LAZY-LOAD de fábrica (las de abajo del fold no descargan hasta acercarse),
 // así el peso inicial no crece con N; el tope (12) es de curaduría, no técnico. Preview ESTÁTICO
@@ -47,26 +58,29 @@ export default function NosotrosGaleria({ negocio }: { negocio?: string }) {
             {titulo && <h2 className="text-3xl font-playfair text-[#1a0f08]">{titulo}</h2>}
           </motion.div>
         )}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="columns-1 sm:columns-2 lg:columns-3 gap-4">
           {fotos.map((f, i) => (
-            <motion.div
-              key={i}
-              initial={preview ? false : "hidden"}
-              animate={preview ? "visible" : undefined}
-              whileInView={preview ? undefined : "visible"}
-              viewport={preview ? undefined : { once: true }}
-              variants={fadeUp}
-              transition={preview ? undefined : { delay: (i % 3) * 0.1 }}
-              className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[#e8ddd0]"
-            >
-              <Image
-                src={f.url}
-                alt={f.alt.trim() || altFallback}
-                fill
-                sizes="(max-width: 768px) 50vw, 33vw"
-                className="object-cover"
-              />
-            </motion.div>
+            // El break-inside va en un envoltorio ESTÁTICO; la animación (transform) va dentro, para
+            // no mezclar el transform con la regla de corte de columna.
+            <div key={i} className="mb-4 break-inside-avoid">
+              <motion.div
+                initial={preview ? false : "hidden"}
+                animate={preview ? "visible" : undefined}
+                whileInView={preview ? undefined : "visible"}
+                viewport={preview ? undefined : { once: true }}
+                variants={fadeUp}
+                className="relative overflow-hidden rounded-2xl bg-[#e8ddd0]"
+                style={{ aspectRatio: f.w && f.h ? `${f.w} / ${f.h}` : "4 / 3" }}
+              >
+                <Image
+                  src={f.url}
+                  alt={f.alt.trim() || altFallback}
+                  fill
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  className="object-cover"
+                />
+              </motion.div>
+            </div>
           ))}
         </div>
       </div>

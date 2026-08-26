@@ -34,6 +34,9 @@ export type CampoItem = {
   hint?: string;
   defaultValor?: number;
   resumen?: 'principal' | 'detalle';
+  /** Sólo `tipo:'imagen'`: en qué campos del ítem guardar el ancho/alto natural de la foto (para la
+   *  proporción de la celda en la galería). El uploader los lee; sin esto no se capturan dims. */
+  dims?: { w: string; h: string };
 };
 
 export interface RepeaterConfig {
@@ -188,7 +191,7 @@ const NOSOTROS_GALERIA: SeccionConfig = {
     genero: 'f', // "¿Eliminar esta foto?"
     max: 12,
     campos: [
-      { name: 'url', label: 'Foto',        tipo: 'imagen', hint: 'JPG, PNG o WebP.' },
+      { name: 'url', label: 'Foto',        tipo: 'imagen', dims: { w: 'w', h: 'h' }, hint: 'JPG, PNG o WebP.' },
       { name: 'alt', label: 'Descripción', tipo: 'texto', opcional: true, resumen: 'principal', hint: 'Describe la foto para quien no puede verla. Vacío: se usa una descripción genérica.' },
     ],
   },
