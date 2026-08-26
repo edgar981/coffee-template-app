@@ -536,6 +536,24 @@ html.admin {
   align-self: start;
 }
 
+/* El indicador de estado (Subiendo N% / Guardando… / error) al TOPE de la columna del form. STICKY
+   ≥1080 al MISMO `top` que la vista —columnas separadas del grid, no compiten—, para que el estado y
+   la barra no se vayan de vista al scrollear los campos. En ANGOSTO (<1080) el grid apila y la vista
+   queda pinneada arriba; acá NO va sticky (se solaparían al mismo top) — scrollea con el form, que en
+   angosto es el comportamiento previo y la vista domina. El fondo tapa los campos que scrollean
+   debajo cuando está pinneado. */
+.tienda-vivo__estado {
+  background: var(--duna-bg);
+  padding-bottom: var(--duna-space-3);
+}
+@media (min-width: 1080px) {
+  .tienda-vivo__estado {
+    position: sticky;
+    top: calc(var(--duna-topbar-h) + var(--duna-space-4));
+    z-index: 2;
+  }
+}
+
 /* El PANE de la vista: marco que toma el alto del contenido escalado (fijado por JS). El
    contenido (1280 de ancho, escalado) va absoluto adentro. CAP al viewport: si el hero escalado
    fuera más alto que la ventana (pantalla corta), el pane scrollea INTERNAMENTE y la columna

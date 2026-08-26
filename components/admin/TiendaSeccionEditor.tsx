@@ -241,7 +241,8 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
             Así se ve en la tienda. Edita y los cambios se guardan solos; publica cuando estén listos.{' '}
             <a href="/" target="_blank" rel="noreferrer" className="duna-link">Ver la tienda</a>
           </p>
-          {indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
+          {/* El indicador de estado bajó al TOPE de la columna del form (sticky), para que no se vaya
+              de vista al scrollear los campos —§ .tienda-vivo__estado—. */}
         </div>
         {/* ASIMETRÍA DELIBERADA: Publicar y Descartar esperan al autoguardado (`!puedePublicar`)
             porque MUTAN —publicar con algo pendiente publicaría un borrador viejo—. "Cerrar" NO muta:
@@ -284,6 +285,13 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
 
         {/* El FORM — junto a la vista (esta rama es siempre edición). */}
         <div className="tienda-vivo__form">
+            {/* El indicador (Subiendo N% / Guardando… / error + Reintentar) STICKY al tope de esta
+                columna, mismo `top` que la vista (columna de al lado, no compiten). Así el estado y la
+                barra de progreso no se van de vista al scrollear los campos —el ítem que sube puede
+                estar muy abajo—. En angosto NO va sticky (§ .tienda-vivo__estado: la vista apila
+                arriba y queda pinneada; se solaparían). En edición siempre hay indicador (al menos
+                "Guardado"), así que el bloque no aparece/desaparece moviendo el layout. */}
+            <div className="tienda-vivo__estado">{indicadorEstado}</div>
             <div className="duna-card duna-card__pad">
               <input ref={subida.inputRef} type="file" accept={ACCEPT_IMAGENES} onChange={subida.alElegir} hidden disabled={subiendo} />
 
