@@ -1,7 +1,8 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-25 (SiteContent — el CONTENIDO del storefront editable,
-empezando por el hero; loader SOFT, defaults-como-fallback, editor en /admin/tienda).
+**Actualizado:** 2026-08-25 (SiteContent completo — las CUATRO secciones de la home
+editables en /admin/tienda: hero · Historia · Suscripción · Testimonios, con la
+plataforma del REPEATER y la lectura en tarjetas).
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -46,7 +47,7 @@ Vercel, `main` = producción).
 | `/admin/dashboard` | Completa ("Hoy": hero + curva por hora + top-hoy + tarjetas) | Document-scroll |
 | `/admin/configuracion` | Completa. "Configuración" con DOS secciones: Datos del negocio (editor lectura↔edición) + Equipo y usuarios | Document-scroll |
 | `/admin/perfil` | Completa (cuenta limpia + cambiar contraseña real) | Document-scroll |
-| `/admin/tienda` | Nueva. Contenido del storefront (SiteContent); v1 = editor del HERO. Rail: "Tienda" suelto tras Crecimiento | Document-scroll |
+| `/admin/tienda` | Completa. Contenido del storefront (SiteContent): las CUATRO secciones de la home (hero · Historia · Suscripción · Testimonios). Lectura en TARJETAS, edición en vista grande. Rail: "Tienda" suelto tras Crecimiento | Document-scroll |
 
 ### Pendientes de rediseño
 **Ninguna.** Todas las verticales del panel están en lenguaje Duna; no queda una
@@ -91,8 +92,6 @@ base casi vacía. **NO borrar sin pedirlo.** El día que haya que limpiarla, el
 manifiesto de ids exactos vive en **`scripts/seed-hoy-manifiesto.json`** — borrar
 por id exacto (nunca por prefijo ni rango) es la única forma segura, y ese archivo
 lleva la nota de cómo y contra qué verificar (§ la regla de las bases de datos).
-**Todas en document-scroll** (el `min-h-screen` por defecto de `AdminChrome`).
-No son convivencias — son pantallas que aún no se tocaron.
 
 **`/admin/entregas` RETIRADA** (2026-08-20). No se rediseñó: se retiró, porque su eje
 —el fulfillment— ya vive en Pedidos (el estado por fila en la columna Entrega, y la cola
@@ -218,17 +217,34 @@ cabecera:
   definió el spec absorbió lo que iba a hacer.
 
 ### Trabajo cerrado
-- **SiteContent — el contenido del storefront editable, HERO primero** (2026-08-25, § CLAUDE.md
+- **SiteContent — el storefront editable, LAS CUATRO SECCIONES** (2026-08-25, § CLAUDE.md
   "Config del contenido — SiteContent"). El contenido editorial de la home salió del JSX a la
   tabla `SiteContent` (singleton, born en `public`, **migración SIN INSERT**), editable en
   `/admin/tienda`. Loader **SOFT** (`findUnique` → defaults-como-fallback; el vacío es legítimo)
   — el contraste a propósito con SiteSetting (HARD, fail-loud). Requerido vacío → default;
-  opcional vacío → SE OMITE (ocultable). Visibilidad `visible` + `ocultable` declarado + hide-on-
-  empty (listo para las otras secciones). Imágenes por `/api/upload` prefix 'contenido'
-  (whitelist), string estático-o-URL, tope 4 MB. Editor reusa la cáscara de DatosNegocioSeccion +
-  la etapa de imagen de ProductFormModal. **PENDIENTE de gate:** la propagación al storefront tras
-  editar (si no se ve al recargar → `revalidatePath('/')`). Testimonios: `#44` (los falsos siguen;
-  vaciado propuesto y descartado). Faltan BrandStory/Testimonials/SubscriptionCTA (sólo datos).
+  opcional vacío → SE OMITE. Imágenes por `/api/upload` prefix 'contenido' (whitelist), string
+  estático-o-URL, tope 4 MB. El storefront es **`force-dynamic`** (era estático y horneaba el
+  contenido al build: editar no se veía en producción — se midió en modo producción, dev engaña).
+  - **BORRADOR/PUBLICADO + AUTOGUARDADO.** `content` (publicado) + `borrador Json?` (mapa PARCIAL
+    por sección, para que publicar una no arrastre otra). Guardar dejó de publicar: el editor
+    autoguarda (coordinador puro con debounce/encolado/reintento, probado con relojes falsos) y
+    **Publicar es el único botón**. `beforeunload` sólo en 'error'.
+  - **VISTA PREVIA EN VIVO, sin iframe:** los componentes REALES del storefront renderizados en el
+    panel, alimentados por el form (provider local + `PreviewProvider` estático + escala a 1280).
+    Se teclea y la vista cambia en el mismo render. El iframe se retiró con su censo.
+  - **LECTURA = TARJETA, EDICIÓN = VISTA GRANDE.** Cada sección es una tarjeta compacta (miniatura
+    = la misma vista a otra escala) y crece en su lugar al editar; el sticky vive sólo en edición.
+    Con eso desapareció el scroller interno que atrapaba la página en lectura.
+  - **UNA cáscara genérica** (`TiendaSeccionEditor`) parametrizada por config (campos, imágenes,
+    toggle, componente de vista); autoguardado y publicación NO se duplican por sección.
+  - **El REPEATER es plataforma** (Testimonios lo estrena; la galería de #47 lo reusa): resolver de
+    arrays + `RepeaterEditor` genérico (colapsables, flechas, rating). Destapó un defecto latente en
+    `main` —el resolver ignoraba `items`, así que un repeater habría perdido toda edición en
+    silencio—; visto fallar y arreglado.
+  - **`#44` CERRADO:** los tres testimonios FABRICADOS salieron del código; Testimonios nace con
+    `items: []` y hide-on-empty. El owner recarga los reales como DATO por el editor.
+  - Abrió backlog **#46** (editor visual), **#47** (galería variable), **#48** (vídeo), **#49**
+    (editar los planes de Suscripción) y **#50** (arrastrar para reordenar).
 - **SiteSetting — los datos PLANOS del negocio, editables** (2026-08-24, § CLAUDE.md
   "Config del negocio — SiteSetting"). nombre, tagline, descripcionFooter, whatsapp,
   instagram, emailRemitente, emailReplyTo, adminEmail salieron de `siteConfig` (código)
@@ -544,11 +560,16 @@ modelo seis veces. Un dato que nuestro schema no tiene **no existe**.
 Reglas: va ordenada y **el orden es la decisión**; el número es identidad, no
 posición. Cada entrada dice el **costo ya pagado**. Un ítem completado **se borra**.
 
-Vivos: **`#43`** (primero — antes del go-live: cinco internas apagadas en prod) ·
-`#2` · `#3` · `#4` · `#5` · `#8` · `#10` · `#16` · `#18` · `#19` · `#20` ·
-`#21` · `#23` · `#25` · `#26` · `#27` · `#32` · `#33` · `#34` · `#35` ·
-`#36` · `#37` · `#38` · `#39` · `#41` · `#42`. (`#1` y `#22` cerrados; `#22` no por
-hacerse sino por resolverse solo — la consolidación ya no aplica.)
+Vivos, **en el orden de `CLAUDE.md`** (el orden es la decisión): **`#46`** (primero —
+el editor visual) · `#2` · `#3` · `#4` · `#5` · `#8` · `#10` · `#16` · `#18` · `#19` ·
+`#20` · `#21` · `#23` · `#25` · `#26` · `#27` · `#33` · `#32` · `#34` · `#35` ·
+`#36` · `#37` · `#38` · `#39` · `#41` · `#42` · `#47` · `#48` · `#49` · `#50`.
+
+Cerrados y borrados: `#1`, `#22` (no por hacerse sino por resolverse solo — la
+consolidación ya no aplica), `#43` (**decisión del owner**: las cinco automatizaciones
+internas apagadas en producción se DEJAN apagadas; si se encienden, es operación de
+datos desde el panel, nunca un `UPDATE` en migración), `#44` (los testimonios
+fabricados salieron del código con la tanda de Testimonios) y `#45`.
 
 ---
 
@@ -592,20 +613,32 @@ hacerse sino por resolverse solo — la consolidación ya no aplica.)
 
 **TODAS las pantallas del panel están rediseñadas** (Pedidos, Clientes, Productos,
 Inventario, Pagos, Analítica, Automatizaciones, Dashboard, Configuración/Equipo,
-Perfil). No queda una vertical heredada del template. Lo que queda es acabado, no
+Perfil) **y el storefront ya es editable** (`/admin/tienda`, las cuatro secciones de la
+home). No queda una vertical heredada del template. Lo que queda es acabado, no
 pantallas nuevas ni consolidación (`#22` cerró — los dos modelos de scroll son el
 estado final, § 9):
 
-1. **`#23`** (barras de scroll tokenizadas) como tanda de acabado con gate visual
-   propio. Técnica estándar (`scrollbar-width` + `scrollbar-color`, canal transparente,
-   sin `::-webkit-scrollbar`); el pulgar en `--duna-border-2`.
-2. **`#42`** (el hilo de fondo bajo el alto fijo): opción 1 = pintar el canvas del
-   root (`html.admin`) con `--duna-bg`, sin tocar la cadena de altura. Si el gate
-   muestra que no cubre el hilo, se PARA — tocar la cadena por un píxel se decide con
-   el gate fallido delante, no antes.
-3. Backlog cuando sus disparadores se cumplan. Entre ellos el de la última tanda de
-   pantallas: **#41** (qué pasa con un pago cuando la orden se cancela), y ahora
-   `InviteUserModal` → `DunaDialog` con los diálogos que le faltan a H6.
+1. **`#23`** (barras de scroll tokenizadas) — **YA APLICADO, pendiente sólo del gate
+   visual.** Regla HEREDADA en `html.admin` (`scrollbar-width: thin` + `scrollbar-color`),
+   sin `::-webkit-scrollbar`, track transparente. **El pulgar es `--duna-muted`, NO
+   `--duna-border-2`** —medido: border-2 daba 1.30:1 / 1.53:1, bajo el 3:1 de un
+   componente UI; muted da 4.62 / 6.27—. Cierra cuando el gate confirme el pulgar
+   visible sin banda, en ambos temas.
+2. **`#42`** (la banda de fondo bajo el alto fijo) — **YA APLICADO, pendiente del gate.**
+   **La causa NO era el canvas del root:** esa hipótesis se aplicó y se REVIRTIÓ por
+   falsa. La banda son los **24px de `padding-bottom` del `p-6`** del wrapper de
+   `<main>`, atrapados dentro del viewport cuando la cadena de alto fijo le pone
+   `height:100%`. Fix: `padding-bottom: 0` en esos dos wrappers, scopeado por el
+   `main:has(...)` que la cadena ya usa. En el gate hay que mirar además que la última
+   fila de Inventario/Pagos no quede a ras.
+3. Backlog cuando sus disparadores se cumplan. Entre ellos **#41** (qué pasa con un
+   pago cuando la orden se cancela), **#46** (el editor visual — el primero de la lista),
+   e `InviteUserModal` → `DunaDialog` con los diálogos que le faltan a H6.
+
+**Y lo que sigue del storefront no es panel:** las secciones que faltan son las que la
+home no tiene todavía (páginas legales, `legalNav` vacío) y la **capa de TEMA por
+cliente** —colores/fuentes como configuración—, que está gateada al multi-tenant y al
+SEGUNDO cliente (§ Mejoras post-multitenant en `CLAUDE.md`).
 
 ### El flujo permanente: rama → PREVIEW → gate → merge → borrar la rama remota
 
