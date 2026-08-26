@@ -524,33 +524,21 @@ html.admin {
 }
 .tienda-vivo__form { min-width: 0; }
 
-/* La VISTA queda FIJA mientras el form scrollea: al bajar por los campos el hero sigue arriba y
-   cambia con cada tecla. Sticky contra la VENTANA (la tienda es document-scroll, no `.duna-sin-split`,
-   así que el scroll es el documento y el sticky se ancla al viewport — la cadena de alto fijo #42
-   no aplica acá). `top` = bajo la topbar fija; `align-self:start` para que la columna no se estire
-   al alto del form y tenga margen para pinnearse. */
+/* La VISTA queda FIJA (sticky) mientras el form scrollea: al bajar por los campos el hero sigue
+   arriba y cambia con cada tecla. PERO SÓLO ≥1080, donde el grid es de DOS columnas (vista | form).
+   En ANGOSTO (<1080) el grid apila (vista arriba, form abajo) y una vista pinneada TAPARÍA el form
+   —el operador no llega a los campos, y el toggle asoma "flotando" bajo la vista—: por eso ahí la
+   vista SCROLLEA con el contenido (position estático). Sticky contra la ventana (la tienda es
+   document-scroll, la cadena de alto fijo #42 no aplica). `align-self:start` para que la columna no
+   se estire al alto del form y tenga margen para pinnearse. */
 .tienda-vivo__vista {
   min-width: 0;
-  position: sticky;
-  top: calc(var(--duna-topbar-h) + var(--duna-space-4));
   align-self: start;
 }
-
-/* El indicador de estado (Subiendo N% / Guardando… / error) al TOPE de la columna del form. STICKY
-   ≥1080 al MISMO `top` que la vista —columnas separadas del grid, no compiten—, para que el estado y
-   la barra no se vayan de vista al scrollear los campos. En ANGOSTO (<1080) el grid apila y la vista
-   queda pinneada arriba; acá NO va sticky (se solaparían al mismo top) — scrollea con el form, que en
-   angosto es el comportamiento previo y la vista domina. El fondo tapa los campos que scrollean
-   debajo cuando está pinneado. */
-.tienda-vivo__estado {
-  background: var(--duna-bg);
-  padding-bottom: var(--duna-space-3);
-}
 @media (min-width: 1080px) {
-  .tienda-vivo__estado {
+  .tienda-vivo__vista {
     position: sticky;
     top: calc(var(--duna-topbar-h) + var(--duna-space-4));
-    z-index: 2;
   }
 }
 

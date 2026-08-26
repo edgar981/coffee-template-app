@@ -7,6 +7,7 @@ import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import VistaTiendaEnVivo from '@/components/admin/VistaTiendaEnVivo';
 import RepeaterEditor from '@/components/admin/RepeaterEditor';
+import BarraProgreso from '@/components/admin/BarraProgreso';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import type { SeccionConfig } from '@/components/admin/tienda-secciones';
 import { DEFAULTS } from '@/lib/config/site-content-defaults';
@@ -44,6 +45,12 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
   // El uploader compartido (§ useSubidaImagen): la cáscara lo instancia y lo comparte con el
   // RepeaterEditor por `subida.pedir`. Un solo <input>, un solo `subiendo`.
   const subida = useSubidaImagen({ onError: setErrorServidor });
+
+  // Qué campo-imagen FIJO está subiendo (hero: `imagen`; brandStory: `imagen1..4`), para pegarle la
+  // barra de progreso a ESE botón —no a todos—. Se limpia cuando la subida termina. (Las fotos del
+  // repeater las rastrea el RepeaterEditor con su propio `subiendoDesde`.)
+  const [subiendoCampo, setSubiendoCampo] = useState<string | null>(null);
+  useEffect(() => { if (!subida.subiendo) setSubiendoCampo(null); }, [subida.subiendo]);
 
   const guardarSeccion = useCallback(async (data: Datos) => {
     const res = await fetch('/api/site-content', {
@@ -94,11 +101,14 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
   // marcar-sucio + flush van EXPLÍCITOS (no por `cambiar`), como en el uploader original: subir,
   // luego guardar. El callback corre con `subiendo` ya en false (§ useSubidaImagen), así que
   // marcarSucio no se descarta.
-  const ponerImagen = (campo: string) => subida.pedir(url => {
-    const nf = { ...(formRef.current as Datos), [campo]: url };
-    setForm(nf); setHayBorrador(true);
-    auto.marcarSucio(nf); auto.flush();
-  });
+  const ponerImagen = (campo: string) => {
+    setSubiendoCampo(campo); // para pegarle la barra a este botón
+    subida.pedir(url => {
+      const nf = { ...(formRef.current as Datos), [campo]: url };
+      setForm(nf); setHayBorrador(true);
+      auto.marcarSucio(nf); auto.flush();
+    });
+  };
 
   const usarPorDefecto = (campo: string) => {
     const nf = { ...(formRef.current as Datos), [campo]: defaults[campo] };
@@ -164,9 +174,8 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
     : 'La lista está vacía — agrega el primero para verla aquí.';
   // En EDICIÓN se muestra siempre (incluido "Guardado", que confirma que no hay nada pendiente); en
   // la TARJETA sólo cuando hay algo que decir (`estado !== 'guardado'` o una subida en curso).
-  const mostrarEstado = editando || subiendo || auto.estado !== 'guardado';
-  const estadoTexto = subiendo ? `Subiendo imagen… ${subida.progreso ?? 0}%`
-    : auto.estado === 'guardando' ? 'Guardando…'
+  const mostrarEstado = editando || auto.estado !== 'guardado';
+  const estadoTexto = auto.estado === 'guardando' ? 'Guardando…'
     : auto.estado === 'error' ? 'No se pudo guardar'
     : 'Guardado';
 
@@ -179,14 +188,6 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
       <span className={enError ? 'duna-field__error' : 'duna-caption'} style={{ margin: 0 }} role={enError ? 'alert' : undefined}>
         {estadoTexto}
       </span>
-      {/* Barra de progreso de la subida (vive en el indicador de estado, no por-ítem: una subida a la
-          vez, y así sirve igual a un campo fijo y a una foto de galería). Al terminar, la imagen
-          aparece —ésa es la señal de "listo"—, así que la barra desaparece en vez de dejar un cartel. */}
-      {subiendo && (
-        <span aria-hidden style={{ position: 'relative', width: '120px', height: '4px', borderRadius: '2px', background: 'var(--duna-border)', overflow: 'hidden' }}>
-          <span style={{ position: 'absolute', inset: 0, width: `${subida.progreso ?? 0}%`, background: 'var(--duna-ink)', transition: 'width 120ms linear' }} />
-        </span>
-      )}
       {enError && (
         <button type="button" onClick={() => auto.reintentar()} className="duna-btn duna-btn--ghost duna-btn--sm">Reintentar</button>
       )}
@@ -241,8 +242,13 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
             Así se ve en la tienda. Edita y los cambios se guardan solos; publica cuando estén listos.{' '}
             <a href="/" target="_blank" rel="noreferrer" className="duna-link">Ver la tienda</a>
           </p>
-          {/* El indicador de estado bajó al TOPE de la columna del form (sticky), para que no se vaya
-              de vista al scrollear los campos —§ .tienda-vivo__estado—. */}
+          {/* El indicador de GUARDADO (Guardando… / Guardado / error) va en la cabecera, SIN sticky: el
+              guardado es rápido y el error es persistente (el operador sube a verlo). El PROGRESO de la
+              subida NO vive acá —vive pegado al botón que la disparó (§ la barra por-botón)—. Un sticky
+              acá cortaría la tarjeta: sobre una superficie necesitaría `--duna-surface` y aun así
+              partiría la sección; el sticky del head de `.duna-lista` funciona porque sus filas van
+              sobre el fondo de PÁGINA, no sobre una tarjeta — esa es la distinción. */}
+          {indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
         </div>
         {/* ASIMETRÍA DELIBERADA: Publicar y Descartar esperan al autoguardado (`!puedePublicar`)
             porque MUTAN —publicar con algo pendiente publicaría un borrador viejo—. "Cerrar" NO muta:
@@ -285,13 +291,6 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
 
         {/* El FORM — junto a la vista (esta rama es siempre edición). */}
         <div className="tienda-vivo__form">
-            {/* El indicador (Subiendo N% / Guardando… / error + Reintentar) STICKY al tope de esta
-                columna, mismo `top` que la vista (columna de al lado, no compiten). Así el estado y la
-                barra de progreso no se van de vista al scrollear los campos —el ítem que sube puede
-                estar muy abajo—. En angosto NO va sticky (§ .tienda-vivo__estado: la vista apila
-                arriba y queda pinneada; se solaparían). En edición siempre hay indicador (al menos
-                "Guardado"), así que el bloque no aparece/desaparece moviendo el layout. */}
-            <div className="tienda-vivo__estado">{indicadorEstado}</div>
             <div className="duna-card duna-card__pad">
               <input ref={subida.inputRef} type="file" accept={ACCEPT_IMAGENES} onChange={subida.alElegir} hidden disabled={subiendo} />
 
@@ -340,9 +339,13 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
                         </button>
                       )}
                       <span className="duna-field__hint" style={{ margin: 0 }}>
-                        {subiendo ? `Subiendo… ${subida.progreso ?? 0}%` : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
+                        {subiendo && subiendoCampo === img.name ? `Subiendo… ${subida.progreso ?? 0}%` : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
                       </span>
                     </div>
+                    {/* La barra pegada a ESTE botón (sólo el campo que sube), no en la cabecera. */}
+                    {subiendo && subiendoCampo === img.name && (
+                      <div style={{ marginTop: 'var(--duna-space-2)' }}><BarraProgreso pct={subida.progreso ?? 0} /></div>
+                    )}
                   </div>
                 );
               })}
@@ -377,6 +380,7 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
                     max={config.repeater.max}
                     pedirImagen={subida.pedir}
                     subiendo={subiendo}
+                    progreso={subida.progreso}
                     onChange={nuevos => cambiar({ [config.repeater!.itemsKey]: nuevos })}
                   />
                 </div>
