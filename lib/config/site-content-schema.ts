@@ -64,7 +64,7 @@ const testimonialsEditableSchema = z.object({
   items: z.array(testimonialItemSchema).optional(),
 });
 
-// /nosotros — la historia larga. Sólo texto (la galería variable es su propia sección, tanda 2).
+// /nosotros — la historia larga. Sólo texto (la galería es su propia sección, abajo).
 const nosotrosHistoriaEditableSchema = z.object({
   visible: z.boolean().optional(),
   eyebrow: z.string().optional(),
@@ -72,6 +72,23 @@ const nosotrosHistoriaEditableSchema = z.object({
   parrafo1: z.string().optional(),
   parrafo2: z.string().optional(),
   parrafo3: z.string().optional(),
+});
+
+// /nosotros — la galería (repeater con tipo imagen). Encabezado opcional + un ARRAY de ítems `{ url,
+// alt }`, ambos strings opcionales (loader SOFT: la url la exige el editor, no el schema).
+// `w`/`h` (proporción natural, capturada en la subida): DEBEN declararse o zod los descartaría al
+// guardar y la galería perdería la proporción de cada celda. Opcionales/positivos.
+const galeriaItemSchema = z.object({
+  url: z.string().optional(),
+  alt: z.string().optional(),
+  w: z.number().positive().optional(),
+  h: z.number().positive().optional(),
+});
+const nosotrosGaleriaEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  eyebrow: z.string().optional(),
+  titulo: z.string().optional(),
+  items: z.array(galeriaItemSchema).optional(),
 });
 
 // META de páginas: `visible` por página. NO es una sección (no pasa por el flujo borrador/publicar
@@ -86,6 +103,7 @@ export const siteContentEditableSchema = z.object({
   subscriptionCTA: subscriptionCTAEditableSchema.optional(),
   testimonials: testimonialsEditableSchema.optional(),
   nosotrosHistoria: nosotrosHistoriaEditableSchema.optional(),
+  nosotrosGaleria: nosotrosGaleriaEditableSchema.optional(),
   paginas: paginasEditableSchema.optional(),
 });
 

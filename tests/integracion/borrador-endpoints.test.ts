@@ -121,6 +121,50 @@ test('PUBLICAR brandStory (4 imágenes) borra SÓLO la que salió de uso, deja l
   assert.deepEqual(blobsABorrar, ['A2']); // A2 ya sin referencias tras publicar B2; A1/A3/A4 siguen
 });
 
+// La GALERÍA de /nosotros es el PRIMER repeater CON IMÁGENES que pasa por el write (Testimonios no
+// tiene fotos). Se afirma el borrado de blobs POR ÍTEM end-to-end (a través del write real, no sólo
+// la función pura): la foto de un ítem reemplazada en el borrador se borra al publicar; un swap de
+// posiciones entre ítems no borra ninguna (set-diff, no índice).
+
+test('PUBLICAR nosotrosGaleria borra SÓLO la foto del ítem que se reemplazó', async () => {
+  await prisma.siteContent.create({
+    data: {
+      id: 'default',
+      content:  { nosotrosGaleria: { items: [{ url: 'A', alt: '' }, { url: 'B', alt: '' }] } },
+      borrador: { nosotrosGaleria: { items: [{ url: 'X', alt: '' }, { url: 'B', alt: '' }] } }, // ítem 0: A→X
+    },
+  });
+  const { blobsABorrar } = await publicarSeccion('nosotrosGaleria');
+  assert.deepEqual(blobsABorrar, ['A']); // A ya sin referencias; X publicado, B sigue
+});
+
+test('PUBLICAR nosotrosGaleria con un SWAP de ítems NO borra ninguna foto (set-diff por ítem)', async () => {
+  await prisma.siteContent.create({
+    data: {
+      id: 'default',
+      content:  { nosotrosGaleria: { items: [{ url: 'A' }, { url: 'B' }] } },
+      borrador: { nosotrosGaleria: { items: [{ url: 'B' }, { url: 'A' }] } }, // reordenadas
+    },
+  });
+  const { blobsABorrar } = await publicarSeccion('nosotrosGaleria');
+  assert.deepEqual(blobsABorrar, []); // el CONJUNTO de urls no cambió, aunque el orden sí
+});
+
+test('QUITAR una foto del BORRADOR NO borra el blob mientras sigue en lo PUBLICADO; publicar lo borra', async () => {
+  // El caso que la confirmación de borrado promete (§ la confirmación): quitar del borrador es
+  // ESCALONADO y reversible hasta publicar. El set-diff lo cubre (en-uso = content ∪ borrador);
+  // acá se afirma con el caso exacto de quitar-un-ítem, no reemplazar.
+  await prisma.siteContent.create({
+    data: { id: 'default', content: { nosotrosGaleria: { items: [{ url: 'A' }, { url: 'B' }] } } }, // A y B publicadas
+  });
+  // Guardar el borrador con B QUITADA: B sigue viva en lo publicado → NO se borra.
+  const g = await guardarBorrador({ nosotrosGaleria: { items: [{ url: 'A' }] } });
+  assert.deepEqual(g.blobsABorrar, []);
+  // Publicar la sección: recién ahí lo publicado pierde B → se borra.
+  const p = await publicarSeccion('nosotrosGaleria');
+  assert.deepEqual(p.blobsABorrar, ['B']);
+});
+
 test('PUBLICAR brandStory con un SWAP de posiciones entre las 4 imágenes NO borra ninguna (set-diff, no índice)', async () => {
   await prisma.siteContent.create({
     data: {

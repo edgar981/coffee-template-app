@@ -5,7 +5,7 @@
 // beforeunload, indicador, layout sticky) vive en la CÁSCARA (`TiendaSeccionEditor`). Si una
 // sección nueva necesitara algo fuera de esta config, es señal de que la cáscara se está forzando.
 
-export type SeccionVista = 'hero' | 'brandStory' | 'subscriptionCTA' | 'testimonials' | 'nosotrosHistoria';
+export type SeccionVista = 'hero' | 'brandStory' | 'subscriptionCTA' | 'testimonials' | 'nosotrosHistoria' | 'nosotrosGaleria';
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
@@ -20,25 +20,36 @@ export type CampoTexto = { name: string; label: string; opcional?: boolean; text
 export type CampoImagen = { name: string; label: string };
 
 // Descriptor de un campo DE ÍTEM (para el RepeaterEditor). `tipo` es GENÉRICO (no nombra ningún
-// campo concreto): texto / textarea / rating. `resumen` es el ROL del campo en el renglón colapsado
-// —principal (título) y detalle (fragmento)—, así el editor arma el resumen sin saber qué campo es.
-// `defaultValor` es el valor inicial de un ítem nuevo (un rating nace en 5; un texto en ''). Todo
-// serializable: el config cruza server→client como prop, así que NADA de funciones.
+// campo concreto): texto / textarea / rating / imagen. `resumen` es el ROL del campo en el renglón
+// colapsado —principal (título) y detalle (fragmento)—, así el editor arma el resumen sin saber qué
+// campo es. `defaultValor` es el valor inicial de un ítem nuevo (un rating nace en 5; un texto o una
+// imagen en ''). Todo serializable: el config cruza server→client como prop, así que NADA de
+// funciones. El `'imagen'` sube por el uploader compartido de la cáscara (§ useSubidaImagen); un
+// repeater con un campo 'imagen' agrega SUBIENDO primero (un ítem-imagen vacío es una foto rota).
 export type CampoItem = {
   name: string;
   label: string;
-  tipo: 'texto' | 'textarea' | 'rating';
+  tipo: 'texto' | 'textarea' | 'rating' | 'imagen';
   opcional?: boolean;
   hint?: string;
   defaultValor?: number;
   resumen?: 'principal' | 'detalle';
+  /** Sólo `tipo:'imagen'`: en qué campos del ítem guardar el ancho/alto natural de la foto (para la
+   *  proporción de la celda en la galería). El uploader los lee; sin esto no se capturan dims. */
+  dims?: { w: string; h: string };
 };
 
 export interface RepeaterConfig {
   itemsKey: string;
   /** Nombre SINGULAR del ítem, para los botones y el renglón ("Agregar testimonio", "Testimonio 1"). */
   itemLabel: string;
+  /** Género del `itemLabel`, sólo para el artículo del copy de confirmación ("esta foto" vs "este
+   *  testimonio"). Default masculino. */
+  genero?: 'f' | 'm';
   campos: CampoItem[];
+  /** Tope de ítems. Al llegar, "Agregar" se deshabilita con un hint (mismo trato que el max de una
+   *  lista). Ausente = sin tope (testimonios). */
+  max?: number;
 }
 
 export interface SeccionConfig {
@@ -129,6 +140,7 @@ const TESTIMONIOS: SeccionConfig = {
   repeater: {
     itemsKey: 'items',
     itemLabel: 'Testimonio',
+    genero: 'm', // "¿Eliminar este testimonio?"
     campos: [
       { name: 'name',    label: 'Nombre',       tipo: 'texto',    resumen: 'principal', hint: 'Quién lo dice.' },
       { name: 'city',    label: 'Ciudad',       tipo: 'texto',    opcional: true, hint: 'Opcional.' },
@@ -157,6 +169,34 @@ const NOSOTROS_HISTORIA: SeccionConfig = {
   ],
 };
 
+// La GALERÍA de /nosotros: la 2ª sección REPEATER, y la que estrena el tipo `imagen` por ítem. El
+// encabezado (eyebrow/titulo) es OPCIONAL —una galería puede ir sin heading—. La LISTA de fotos va
+// en `repeater`, con TOPE 12 (curaduría: dos pantallas de grid cuentan una finca; sin tope el
+// operador sube todo lo que tiene). Cada ítem: `url` (tipo imagen, sube por el uploader compartido) +
+// `alt` opcional. El `alt` es el `resumen.principal` del renglón colapsado —muestra la descripción,
+// o "Foto N" si está vacía—; la miniatura la pone el propio campo imagen.
+const NOSOTROS_GALERIA: SeccionConfig = {
+  seccion: 'nosotrosGaleria',
+  pagina: 'nosotros',
+  titulo: 'Galería',
+  ocultable: true,
+  imagenes: [], // sin imágenes FIJAS de sección: las fotos viven en los ítems del repeater
+  campos: [
+    { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
+    { name: 'titulo',  label: 'Título',         opcional: true, hint: 'El encabezado de la galería. Vacío: no se muestra (las fotos van sin título).' },
+  ],
+  repeater: {
+    itemsKey: 'items',
+    itemLabel: 'Foto',
+    genero: 'f', // "¿Eliminar esta foto?"
+    max: 12,
+    campos: [
+      { name: 'url', label: 'Foto',        tipo: 'imagen', dims: { w: 'w', h: 'h' }, hint: 'JPG, PNG o WebP.' },
+      { name: 'alt', label: 'Descripción', tipo: 'texto', opcional: true, resumen: 'principal', hint: 'Describe la foto para quien no puede verla. Vacío: se usa una descripción genérica.' },
+    ],
+  },
+};
+
 // El ORDEN es el orden en la pantalla. Las de la home primero (en el orden de la home), después las
 // de /nosotros; el editor las agrupa por `pagina` en pestañas.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, SUBSCRIPTION, TESTIMONIOS, NOSOTROS_HISTORIA];
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, SUBSCRIPTION, TESTIMONIOS, NOSOTROS_HISTORIA, NOSOTROS_GALERIA];

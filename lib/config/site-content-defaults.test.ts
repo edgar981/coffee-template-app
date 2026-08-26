@@ -324,3 +324,51 @@ test('resolverPaginas: visible sólo se pisa con booleano explícito; si no, man
   assert.deepEqual(resolverPaginas({}, def), { nosotros: { visible: true } });                                   // ausente → default
   assert.deepEqual(resolverPaginas('basura', def), { nosotros: { visible: true } });                            // no-obj → default, no lanza
 });
+
+// ── La galería de /nosotros (2ª sección repeater: tipo imagen por ítem, encabezado OPCIONAL) ─────
+
+test('nosotrosGaleria: sin nada guardado → defaults con items VACÍOS (no hay fotos que fabricar)', () => {
+  assert.deepEqual(resolverSiteContent({}).nosotrosGaleria.items, []);
+  assert.equal(resolverSiteContent({}).nosotrosGaleria.titulo, DEFAULTS.nosotrosGaleria.titulo);
+});
+
+test('nosotrosGaleria: los items guardados se RESUELVEN — url requerida, alt opcional', () => {
+  const r = resolverSiteContent({ nosotrosGaleria: { items: [
+    { url: '/a.jpg', alt: 'Cafetal al amanecer' }, // ambos presentes
+    { url: '/b.jpg' },                              // alt ausente → ""
+    { url: '', alt: 'sin foto' },                   // url requerida vacía → "" (el editor la exige; el resolver sólo da forma)
+  ] } });
+  assert.deepEqual(r.nosotrosGaleria.items, [
+    { url: '/a.jpg', alt: 'Cafetal al amanecer' },
+    { url: '/b.jpg', alt: '' },
+    { url: '', alt: 'sin foto' },
+  ]);
+});
+
+test('nosotrosGaleria: w/h de un ítem pasan TAL CUAL (números, no declarados como campos string → passthrough, como stars)', () => {
+  const r = resolverSiteContent({ nosotrosGaleria: { items: [{ url: '/a.jpg', alt: 'x', w: 1600, h: 900 }] } });
+  assert.deepEqual(r.nosotrosGaleria.items, [{ url: '/a.jpg', alt: 'x', w: 1600, h: 900 }]);
+});
+
+test('nosotrosGaleria: encabezado OPCIONAL — titulo vacío → "" (a diferencia de testimonios, que cae al default)', () => {
+  // La diferencia deliberada: una galería puede ir SIN heading; vaciar el titulo lo omite, no lo repone.
+  const r = resolverSiteContent({ nosotrosGaleria: { eyebrow: '', titulo: '' } });
+  assert.equal(r.nosotrosGaleria.eyebrow, '');
+  assert.equal(r.nosotrosGaleria.titulo, ''); // opcional presente-vacío → "" (no default)
+});
+
+test('nosotrosGaleria PRECEDENCIA: items vacío OCULTA aunque visible sea true (hide-on-empty gana)', () => {
+  const def = REGISTRY.nosotrosGaleria;
+  assert.equal(def.ocultable, true);
+  assert.equal(seccionEsVisible(def, { visible: true, items: [] }), false);              // vacío → oculta
+  assert.equal(seccionEsVisible(def, { visible: false, items: [{ url: '/a.jpg' }] }), false); // toggle apagado → oculta
+  assert.equal(seccionEsVisible(def, { visible: true, items: [{ url: '/a.jpg' }] }), true);
+});
+
+test('REGISTRY.nosotrosGaleria.imagenes = [url] y url es requerido (tripwire del borrado de blobs por ítem)', () => {
+  // Si alguien renombra el campo-imagen del ítem y olvida `imagenes`, `imagenesDe` dejaría de juntar
+  // las urls de la galería y el diff no borraría los blobs reemplazados. Y la url debe ser requerida
+  // (sin foto no hay ítem).
+  assert.deepEqual(REGISTRY.nosotrosGaleria.imagenes, ['url']);
+  assert.equal(REGISTRY.nosotrosGaleria.repeater!.campos.url, 'requerido');
+});

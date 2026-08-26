@@ -1,0 +1,89 @@
+"use client";
+
+import Image from "next/image";
+import { motion } from "framer-motion";
+import { fadeUp } from "@/lib/animation";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { useIsPreview } from "@/components/storefront/PreviewMode";
+import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
+
+// La GALERÍA de /nosotros — la 2ª sección REPEATER, y la que estrena el tipo `imagen` por ítem. Un
+// encabezado OPCIONAL (eyebrow/titulo → se omiten vacíos) sobre un MASONRY de fotos: aquí la galería
+// ES el contenido, no un adorno, así que no hay patrón por rangos —las fotos no compiten—. OCULTABLE
+// + hide-on-empty: sin fotos, self-gate → null.
+//
+// MASONRY (CSS columns), NO grid con recorte al cuadrado: el recorte decidiría por el dueño qué parte
+// de su foto importa —una panorámica sin sus lados deja de serlo—. Cada celda toma la proporción
+// NATURAL de su foto (`w`/`h`, capturadas en la subida); nada se recorta. Sin dims (foto vieja o no
+// medible) cae a 4/3.
+//
+// ORDEN POR COLUMNA — DECISIÓN, no descuido: CSS `columns` llena la 1ª columna de arriba a abajo,
+// luego la 2ª, así que el orden fluye por COLUMNA, no por fila. Es aceptable en una galería (no hay
+// secuencia narrativa). Si algún día se espera orden por FILAS, ESTO es lo que hay que cambiar (a un
+// grid-masonry por JS o una lib), no un ajuste de estilos. En MÓVIL (una columna, `columns-1`) el
+// orden vuelve a ser EXACTAMENTE el del array.
+//
+// `next/image` con `fill`: LAZY-LOAD de fábrica (las de abajo del fold no descargan hasta acercarse),
+// así el peso inicial no crece con N; el tope (12) es de curaduría, no técnico. Preview ESTÁTICO
+// (`initial={false}`), como el resto, para que la vista en vivo del editor no lo deje invisible.
+//
+// EL `negocio` LLEGA POR PROP (la página server lo pasa desde SiteSettings), NO por
+// `useSiteSettings()`: la vista en vivo del editor monta este componente en el árbol del ADMIN, que
+// no tiene el SiteSettingsProvider del storefront —usarlo ahí lanzaría—. Sin prop (el preview) el
+// alt cae a un fallback genérico, que en un preview no importa.
+export default function NosotrosGaleria({ negocio }: { negocio?: string }) {
+  const { nosotrosGaleria } = useSiteContent();
+  const preview = useIsPreview();
+  if (!seccionEsVisible(REGISTRY.nosotrosGaleria, nosotrosGaleria)) return null;
+
+  const { eyebrow, titulo, items } = nosotrosGaleria;
+  const fotos = items.filter((f) => f.url.trim() !== ""); // defensivo: sin url no se renderiza un ítem
+  // Fallback del alt: describe el CONTEXTO, no el índice (§ decisión del owner). El alt del ítem, si
+  // el owner lo escribió, manda —es mejor para un lector de pantalla que cualquier genérico—.
+  const altFallback = negocio ? `Foto de la galería de ${negocio}` : "Foto de la galería";
+
+  return (
+    <section className="py-20 bg-[#faf7f4]">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        {(eyebrow || titulo) && (
+          <motion.div
+            initial={preview ? false : "hidden"}
+            animate={preview ? "visible" : undefined}
+            whileInView={preview ? undefined : "visible"}
+            viewport={preview ? undefined : { once: true }}
+            variants={fadeUp}
+            className="text-center mb-12"
+          >
+            {eyebrow && <p className="text-[#8B4513] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</p>}
+            {titulo && <h2 className="text-3xl font-playfair text-[#1a0f08]">{titulo}</h2>}
+          </motion.div>
+        )}
+        <div className="columns-1 sm:columns-2 lg:columns-3 gap-4">
+          {fotos.map((f, i) => (
+            // El break-inside va en un envoltorio ESTÁTICO; la animación (transform) va dentro, para
+            // no mezclar el transform con la regla de corte de columna.
+            <div key={i} className="mb-4 break-inside-avoid">
+              <motion.div
+                initial={preview ? false : "hidden"}
+                animate={preview ? "visible" : undefined}
+                whileInView={preview ? undefined : "visible"}
+                viewport={preview ? undefined : { once: true }}
+                variants={fadeUp}
+                className="relative overflow-hidden rounded-2xl bg-[#e8ddd0]"
+                style={{ aspectRatio: f.w && f.h ? `${f.w} / ${f.h}` : "4 / 3" }}
+              >
+                <Image
+                  src={f.url}
+                  alt={f.alt.trim() || altFallback}
+                  fill
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  className="object-cover"
+                />
+              </motion.div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}

@@ -89,6 +89,31 @@ export interface NosotrosHistoriaContent {
   parrafo3: string;
 }
 
+// La GALERÍA de /nosotros: la SEGUNDA sección REPEATER (Testimonios fue la primera), y la que
+// estrena el tipo `imagen` por ítem. Un encabezado OPCIONAL (eyebrow + titulo) sobre una LISTA de
+// fotos. Cada ítem: `url` requerida (la foto), `alt` opcional (la descripción para lectores de
+// pantalla). Es OCULTABLE **y** hide-on-empty: sin fotos no se renderiza. NACE VACÍA (§ el repeater):
+// las fotos de la finca las sube el owner como DATO, no hay defaults de imagen que fabricar.
+// A DIFERENCIA de Testimonios, el `titulo` es OPCIONAL: una galería puede ir sin encabezado (las
+// fotos son el contenido), así que vaciarlo lo omite en vez de caer al default.
+// `w`/`h` son la proporción NATURAL de la foto, capturada en la subida (§ useSubidaImagen), para que
+// la galería reserve el alto de cada celda sin salto de layout (masonry). Opcionales: una foto vieja
+// o una que el navegador no pudo medir cae a una proporción por defecto. El resolver los pasa TAL
+// CUAL (no son campos string declarados), como el `stars` de un testimonio.
+export interface GaleriaItem {
+  url: string;
+  alt: string;
+  w?: number;
+  h?: number;
+}
+
+export interface NosotrosGaleriaContent {
+  visible: boolean;
+  eyebrow: string;
+  titulo: string;
+  items: GaleriaItem[];
+}
+
 // META de páginas: qué páginas del storefront están ENCENDIDAS. NO es una sección (no lleva `campos`
 // ni la resuelve el loop de secciones); es una capacidad —una página existe y se puede apagar—. Hoy
 // sólo /nosotros; la home no se apaga.
@@ -102,6 +127,7 @@ export interface SiteContentData {
   subscriptionCTA: SubscriptionCTAContent;
   testimonials: TestimonialsContent;
   nosotrosHistoria: NosotrosHistoriaContent;
+  nosotrosGaleria: NosotrosGaleriaContent;
   paginas: PaginasContent;
 }
 
@@ -161,6 +187,15 @@ export const DEFAULTS: SiteContentData = {
     parrafo2:
       'Trabajamos una sola variedad, Castillo, con proceso lavado — el método que mejor revela lo que esta tierra tiene para ofrecer. El resultado es una taza con fragancia a chocolate, aroma herbal e intenso, y un balance preciso entre acidez y cuerpo. El equilibrio que buscamos en cada tostión. Somos café de especialidad, 100% colombiano, de una finca con nombre y una historia que apenas comienza a contarse. Cuando abres una bolsa de Nayoli, sabes exactamente de dónde viene — y ese, para nosotros, es el verdadero secreto de Supatá.',
     parrafo3: '',
+  },
+  // La galería de /nosotros. Encabezado con defaults de COPY (se muestran sólo cuando hay fotos, por
+  // hide-on-empty); `items` VACÍO —las fotos de la finca son DATO del owner, no hay imagen que
+  // fabricar en defaults—. Con items vacíos la sección no se renderiza.
+  nosotrosGaleria: {
+    visible: true,
+    eyebrow: 'Galería',
+    titulo: 'La finca en imágenes',
+    items: [],
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
@@ -281,6 +316,26 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       parrafo1: 'requerido',
       parrafo2: 'opcional',
       parrafo3: 'opcional',
+    },
+  },
+  nosotrosGaleria: {
+    label: 'Galería',
+    ocultable: true,
+    // `imagenes: ['url']` es el nombre del campo-imagen DENTRO de cada ítem: `imagenesDe` itera los
+    // items del repeater y junta cada `item.url` para el borrado de blobs reemplazados/quitados. El
+    // encabezado (eyebrow/titulo) es OPCIONAL —la galería puede ir sin heading—. La LISTA va en
+    // `repeater.campos`: url requerida (sin foto no hay ítem), alt opcional.
+    imagenes: ['url'],
+    campos: {
+      eyebrow: 'opcional',
+      titulo: 'opcional',
+    },
+    repeater: {
+      itemsKey: 'items',
+      campos: {
+        url: 'requerido',
+        alt: 'opcional',
+      },
     },
   },
 };
