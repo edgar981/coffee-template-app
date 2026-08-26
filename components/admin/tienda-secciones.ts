@@ -20,14 +20,16 @@ export type CampoTexto = { name: string; label: string; opcional?: boolean; text
 export type CampoImagen = { name: string; label: string };
 
 // Descriptor de un campo DE ÍTEM (para el RepeaterEditor). `tipo` es GENÉRICO (no nombra ningún
-// campo concreto): texto / textarea / rating. `resumen` es el ROL del campo en el renglón colapsado
-// —principal (título) y detalle (fragmento)—, así el editor arma el resumen sin saber qué campo es.
-// `defaultValor` es el valor inicial de un ítem nuevo (un rating nace en 5; un texto en ''). Todo
-// serializable: el config cruza server→client como prop, así que NADA de funciones.
+// campo concreto): texto / textarea / rating / imagen. `resumen` es el ROL del campo en el renglón
+// colapsado —principal (título) y detalle (fragmento)—, así el editor arma el resumen sin saber qué
+// campo es. `defaultValor` es el valor inicial de un ítem nuevo (un rating nace en 5; un texto o una
+// imagen en ''). Todo serializable: el config cruza server→client como prop, así que NADA de
+// funciones. El `'imagen'` sube por el uploader compartido de la cáscara (§ useSubidaImagen); un
+// repeater con un campo 'imagen' agrega SUBIENDO primero (un ítem-imagen vacío es una foto rota).
 export type CampoItem = {
   name: string;
   label: string;
-  tipo: 'texto' | 'textarea' | 'rating';
+  tipo: 'texto' | 'textarea' | 'rating' | 'imagen';
   opcional?: boolean;
   hint?: string;
   defaultValor?: number;
@@ -39,6 +41,9 @@ export interface RepeaterConfig {
   /** Nombre SINGULAR del ítem, para los botones y el renglón ("Agregar testimonio", "Testimonio 1"). */
   itemLabel: string;
   campos: CampoItem[];
+  /** Tope de ítems. Al llegar, "Agregar" se deshabilita con un hint (mismo trato que el max de una
+   *  lista). Ausente = sin tope (testimonios). */
+  max?: number;
 }
 
 export interface SeccionConfig {

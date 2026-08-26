@@ -7,10 +7,10 @@ import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import VistaTiendaEnVivo from '@/components/admin/VistaTiendaEnVivo';
 import RepeaterEditor from '@/components/admin/RepeaterEditor';
+import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import type { SeccionConfig } from '@/components/admin/tienda-secciones';
-import { uploadImagen } from '@/lib/api/upload';
 import { DEFAULTS } from '@/lib/config/site-content-defaults';
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS, ACCEPT_IMAGENES } from '@/constants/upload';
+import { MAX_UPLOAD_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 
 // LA CÁSCARA del editor de una sección de la tienda, GENÉRICA. Todo lo que NO es específico de la
 // sección vive acá —VISTA PREVIA EN VIVO + read↔edit + autoguardado + publicar/descartar + el
@@ -35,15 +35,15 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
   const [form, setForm]               = useState<Datos | null>(null);
   const [hayBorrador, setHayBorrador] = useState(false);
   const [editando, setEditando]       = useState(false);
-  const [fase, setFase]               = useState<null | 'subiendo'>(null);
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
   const [procesando, setProcesando]   = useState(false);
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const campoImagenRef = useRef<string | null>(null); // qué campo-imagen se está reemplazando
 
   const formRef = useRef<Datos | null>(null); formRef.current = form;
-  const faseRef = useRef(fase); faseRef.current = fase;
+
+  // El uploader compartido (§ useSubidaImagen): la cáscara lo instancia y lo comparte con el
+  // RepeaterEditor por `subida.pedir`. Un solo <input>, un solo `subiendo`.
+  const subida = useSubidaImagen({ onError: setErrorServidor });
 
   const guardarSeccion = useCallback(async (data: Datos) => {
     const res = await fetch('/api/site-content', {
@@ -82,38 +82,21 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
     const nf = { ...(formRef.current as Datos), ...parcial };
     setForm(nf);
     setHayBorrador(true);
-    if (faseRef.current !== 'subiendo') auto.marcarSucio(nf);
+    if (!subida.subiendoRef.current) auto.marcarSucio(nf);
   };
 
   const set = (name: string) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => cambiar({ [name]: e.target.value });
 
-  const pedirArchivo = (campo: string) => { campoImagenRef.current = campo; fileRef.current?.click(); };
-
-  const elegirArchivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    const campo = campoImagenRef.current;
-    if (!file || !campo) return;
-    if (!(TIPOS_PERMITIDOS as readonly string[]).includes(file.type)) {
-      setErrorServidor('Formato no admitido. Usa JPG, PNG o WebP.'); return;
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      setErrorServidor(`La imagen pesa ${(file.size / (1024 * 1024)).toFixed(1)} MB y el máximo es ${MAX_UPLOAD_MB} MB.`); return;
-    }
-    setErrorServidor(null);
-    setFase('subiendo');
-    try {
-      const { url } = await uploadImagen(file, 'contenido');
-      const nf = { ...(formRef.current as Datos), [campo]: url };
-      setForm(nf); setHayBorrador(true);
-      auto.marcarSucio(nf); auto.flush();
-    } catch (err) {
-      setErrorServidor(err instanceof Error ? err.message : 'No se pudo subir la imagen');
-    } finally {
-      setFase(null);
-    }
-  };
+  // Pide una subida al uploader compartido y pisa el campo-imagen con la url resultante. El
+  // marcar-sucio + flush van EXPLÍCITOS (no por `cambiar`), como en el uploader original: subir,
+  // luego guardar. El callback corre con `subiendo` ya en false (§ useSubidaImagen), así que
+  // marcarSucio no se descarta.
+  const ponerImagen = (campo: string) => subida.pedir(url => {
+    const nf = { ...(formRef.current as Datos), [campo]: url };
+    setForm(nf); setHayBorrador(true);
+    auto.marcarSucio(nf); auto.flush();
+  });
 
   const usarPorDefecto = (campo: string) => {
     const nf = { ...(formRef.current as Datos), [campo]: defaults[campo] };
@@ -163,7 +146,7 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
     );
   }
 
-  const subiendo = fase === 'subiendo';
+  const subiendo = subida.subiendo;
   const puedePublicar = auto.estado === 'guardado' && !procesando;
   const enError = auto.estado === 'error';
   // `oculta` = el TOGGLE apagado (para el badge "Oculta"). `repeaterVacio` = una lista sin ítems, que
@@ -292,7 +275,7 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
         {/* El FORM — junto a la vista (esta rama es siempre edición). */}
         <div className="tienda-vivo__form">
             <div className="duna-card duna-card__pad">
-              <input ref={fileRef} type="file" accept={ACCEPT_IMAGENES} onChange={elegirArchivo} hidden disabled={subiendo} />
+              <input ref={subida.inputRef} type="file" accept={ACCEPT_IMAGENES} onChange={subida.alElegir} hidden disabled={subiendo} />
 
               {config.ocultable && (
                 <div className="duna-field duna-form__full" style={{ marginBottom: 'var(--duna-space-5)' }}>
@@ -330,7 +313,7 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
                       }}
                     />
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-3)', alignItems: 'center', marginTop: 'var(--duna-space-3)' }}>
-                      <button type="button" onClick={() => pedirArchivo(img.name)} className="duna-btn duna-btn--secondary duna-btn--sm" disabled={subiendo}>
+                      <button type="button" onClick={() => ponerImagen(img.name)} className="duna-btn duna-btn--secondary duna-btn--sm" disabled={subiendo}>
                         <Upload /> Cambiar imagen
                       </button>
                       {!esDefault && (
@@ -372,6 +355,9 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
                     items={Array.isArray(form[config.repeater.itemsKey]) ? (form[config.repeater.itemsKey] as Record<string, unknown>[]) : []}
                     descriptores={config.repeater.campos}
                     itemLabel={config.repeater.itemLabel}
+                    max={config.repeater.max}
+                    pedirImagen={subida.pedir}
+                    subiendo={subiendo}
                     onChange={nuevos => cambiar({ [config.repeater!.itemsKey]: nuevos })}
                   />
                 </div>

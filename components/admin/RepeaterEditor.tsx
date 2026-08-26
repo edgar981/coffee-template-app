@@ -1,18 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import { Star, ArrowUp, ArrowDown, Trash2, Plus, Pencil } from 'lucide-react';
+import { Star, ArrowUp, ArrowDown, Trash2, Plus, Pencil, Upload } from 'lucide-react';
 import type { CampoItem } from '@/components/admin/tienda-secciones';
 
 // EDITOR DE LISTA (repeater) GENÉRICO — agregar / quitar / editar / reordenar (flechas) ítems, con
 // cada ítem COLAPSADO a un renglón-resumen y expandible para editar. La maquinaria NO sabe nada de
 // testimonios ni de fotos: opera sobre `descriptores` (nombre + tipo + rol de resumen). El mismo
-// componente sirve a la galería variable de /nosotros (tanda 2) cambiando sólo los descriptores.
+// componente sirve a la galería de /nosotros (tanda 2): sólo cambian los descriptores (un campo
+// `tipo:'imagen'` en vez de texto+rating).
 //
 // CONTROLADO: el array `items` lo posee el padre (`TiendaSeccionEditor`), para que TODO cambio pase
 // por `onChange` → el mismo marcar-sucio + autoguardado que un campo plano. Agregar, quitar y mover
 // también llaman a `onChange` (no son onChange de input — son los que más fácil se olvidan). Lo
 // único LOCAL es qué ítem está expandido (estado de UI, no contenido).
+//
+// IMÁGENES: el repeater NO tiene su propio uploader —lo pide por `pedirImagen` (el `pedir` del hook
+// compartido que la cáscara instancia)—, así hay UN solo <input file> y un solo `subiendo` que
+// bloquea todo. Un repeater con un campo `tipo:'imagen'` AGREGA subiendo primero: un ítem-imagen
+// vacío se renderizaría como una foto rota, así que "Agregar" abre el picker y crea el ítem con la
+// url ya puesta.
 
 type Item = Record<string, unknown>;
 
@@ -56,22 +63,48 @@ export default function RepeaterEditor({
   items,
   descriptores,
   itemLabel,
+  max,
+  pedirImagen,
+  subiendo,
   onChange,
 }: {
   items: Item[];
   descriptores: CampoItem[];
   itemLabel: string;
+  max?: number;
+  /** Pide una subida al uploader compartido de la cáscara; entrega la url por el callback. Ausente
+   *  en repeaters sin imágenes (testimonios). */
+  pedirImagen?: (onUrl: (url: string) => void) => void;
+  /** Una subida en curso (del uploader compartido): bloquea agregar/cambiar para no encimar dos. */
+  subiendo?: boolean;
   onChange: (nuevos: Item[]) => void;
 }) {
   const [expandido, setExpandido] = useState<number | null>(null);
 
+  // El PRIMER campo imagen es la foto principal del ítem: gobierna el agregar-subiendo y la miniatura
+  // del renglón. Un repeater sin campo imagen (testimonios) no lo tiene y agrega vacío como siempre.
+  const campoImagen = descriptores.find(d => d.tipo === 'imagen');
+  const alMax = max != null && items.length >= max;
+
   const editar = (i: number, campo: string, valor: unknown) =>
     onChange(items.map((it, idx) => (idx === i ? { ...it, [campo]: valor } : it)));
 
+  const nuevoItem = (): Item => Object.fromEntries(descriptores.map(d => [d.name, d.defaultValor ?? '']));
+
   const agregar = () => {
-    const nuevo: Item = Object.fromEntries(descriptores.map(d => [d.name, d.defaultValor ?? '']));
-    onChange([...items, nuevo]);
-    setExpandido(items.length); // expandir el nuevo para llenarlo
+    if (alMax) return;
+    if (campoImagen && pedirImagen) {
+      // Agregar = subir primero, luego crear el ítem con la url. Sin foto no hay ítem.
+      pedirImagen(url => {
+        const nuevo = nuevoItem();
+        nuevo[campoImagen.name] = url;
+        onChange([...items, nuevo]);
+        setExpandido(items.length); // expandir el nuevo para el resto de campos (p. ej. el alt)
+      });
+      return;
+    }
+    onChange([...items, nuevoItem()]);
+    setExpandido(items.length);
   };
 
   const quitar = (i: number) => {
@@ -99,10 +132,15 @@ export default function RepeaterEditor({
       {items.map((item, i) => {
         const abierto = expandido === i;
         const { titulo, fragmento } = resumenDe(item, descriptores, itemLabel, i);
+        const miniatura = campoImagen ? String(item[campoImagen.name] ?? '') : '';
         return (
           <div key={i} className="duna-card" style={{ padding: 'var(--duna-space-3)' }}>
-            {/* Renglón-resumen: título + fragmento a la izquierda; controles a la derecha. */}
+            {/* Renglón-resumen: (miniatura) + título + fragmento a la izquierda; controles a la derecha. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)' }}>
+              {miniatura && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={miniatura} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 'var(--duna-r-s)', border: '1px solid var(--duna-border)', flexShrink: 0 }} />
+              )}
               <button
                 type="button"
                 onClick={() => setExpandido(abierto ? null : i)}
@@ -128,12 +166,24 @@ export default function RepeaterEditor({
                 {descriptores.map(d => {
                   const id = `item-${i}-${d.name}`;
                   const valor = item[d.name];
-                  const full = d.tipo === 'textarea';
+                  const full = d.tipo === 'textarea' || d.tipo === 'imagen';
                   return (
                     <div key={d.name} className={`duna-field${full ? ' duna-form__full' : ''}`}>
-                      <label className="duna-field__label" htmlFor={d.tipo === 'rating' ? undefined : id}>{d.label}</label>
+                      <label className="duna-field__label" htmlFor={d.tipo === 'rating' || d.tipo === 'imagen' ? undefined : id}>{d.label}</label>
                       {d.tipo === 'rating' ? (
                         <RatingInput valor={Number(valor) || 0} onChange={v => editar(i, d.name, v)} />
+                      ) : d.tipo === 'imagen' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)' }}>
+                          {String(valor ?? '') && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={String(valor)} alt="" style={{ width: '100%', maxWidth: '240px', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 'var(--duna-r-m)', border: '1px solid var(--duna-border)' }} />
+                          )}
+                          <div>
+                            <button type="button" onClick={() => pedirImagen?.(url => editar(i, d.name, url))} disabled={subiendo} className="duna-btn duna-btn--secondary duna-btn--sm">
+                              <Upload className="h-3.5 w-3.5" /> {subiendo ? 'Subiendo…' : 'Cambiar imagen'}
+                            </button>
+                          </div>
+                        </div>
                       ) : d.tipo === 'textarea' ? (
                         <textarea id={id} className="duna-input" rows={2} value={String(valor ?? '')} onChange={e => editar(i, d.name, e.target.value)} aria-describedby={d.hint ? `${id}-hint` : undefined} />
                       ) : (
@@ -150,9 +200,14 @@ export default function RepeaterEditor({
       })}
 
       <div>
-        <button type="button" onClick={agregar} className="duna-btn duna-btn--secondary duna-btn--sm">
-          <Plus className="h-3.5 w-3.5" /> Agregar {itemLabel.toLowerCase()}
+        <button type="button" onClick={agregar} disabled={alMax || subiendo} className="duna-btn duna-btn--secondary duna-btn--sm">
+          <Plus className="h-3.5 w-3.5" /> {campoImagen ? (subiendo ? 'Subiendo…' : `Agregar ${itemLabel.toLowerCase()}`) : `Agregar ${itemLabel.toLowerCase()}`}
         </button>
+        {alMax && (
+          <p className="duna-field__hint" style={{ margin: '6px 0 0' }}>
+            Llegaste al máximo de {max} {itemLabel.toLowerCase()}s. Quita alguno para agregar otro.
+          </p>
+        )}
       </div>
     </div>
   );
