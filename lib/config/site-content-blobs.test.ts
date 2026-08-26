@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { imagenesDe, blobsAReemplazar, blobsHuerfanos } from './site-content-blobs';
-import type { SeccionDef } from './site-content-defaults';
+import { REGISTRY, type SeccionDef } from './site-content-defaults';
 
 // Registro SINTÉTICO: una sección de collage (4 imágenes fijas, como brandStory) y una REPEATER
 // (como será Testimonios). No depende del REGISTRY real —que en esta rama sólo tiene el hero—,
@@ -27,6 +27,13 @@ test('imagenesDe SOFT: doc/sección/valores ausentes o mal formados → sin imá
   assert.deepEqual(imagenesDe(null, REG), []);
   assert.deepEqual(imagenesDe({ collage: 'no-obj' }, REG), []);
   assert.deepEqual(imagenesDe({ collage: { i1: '', i2: '  ' } }, REG), []); // vacíos no cuentan
+});
+
+test('imagenesDe con el REGISTRY REAL junta las urls de los ítems de la GALERÍA (cableado end-to-end)', () => {
+  // Afirma el CABLEADO, no sólo el mecanismo: la galería real declara `imagenes:['url']` sobre un
+  // repeater, así que sus fotos entran al borrado de blobs. Sin segundo arg → REGISTRY real.
+  const doc = { nosotrosGaleria: { items: [{ url: '/a.jpg', alt: 'x' }, { url: '/b.jpg' }, { alt: 'sin foto' }] } };
+  assert.deepEqual(imagenesDe(doc).sort(), ['/a.jpg', '/b.jpg']);
 });
 
 // ── blobsAReemplazar: SET-diff, NO por índice (modo a) ──────────────────────────
