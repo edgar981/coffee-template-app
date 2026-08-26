@@ -1,8 +1,8 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-25 (SiteContent completo — las CUATRO secciones de la home
-editables en /admin/tienda: hero · Historia · Suscripción · Testimonios, con la
-plataforma del REPEATER y la lectura en tarjetas).
+**Actualizado:** 2026-08-26 (la página /nosotros como CAPACIDAD editable y apagable —
+tanda 1: la historia larga; la galería y el vídeo son las tandas 2 y 3—. El storefront ya
+tiene DOS páginas editables: la home (4 secciones) y /nosotros).
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -47,7 +47,7 @@ Vercel, `main` = producción).
 | `/admin/dashboard` | Completa ("Hoy": hero + curva por hora + top-hoy + tarjetas) | Document-scroll |
 | `/admin/configuracion` | Completa. "Configuración" con DOS secciones: Datos del negocio (editor lectura↔edición) + Equipo y usuarios | Document-scroll |
 | `/admin/perfil` | Completa (cuenta limpia + cambiar contraseña real) | Document-scroll |
-| `/admin/tienda` | Completa. Contenido del storefront (SiteContent): las CUATRO secciones de la home (hero · Historia · Suscripción · Testimonios). Lectura en TARJETAS, edición en vista grande. Rail: "Tienda" suelto tras Crecimiento | Document-scroll |
+| `/admin/tienda` | Completa. Contenido del storefront (SiteContent), DOS páginas (selector Home/Nosotros): la home (hero · Historia · Suscripción · Testimonios) y /nosotros (historia larga, apagable). Lectura en TARJETAS, edición en vista grande. Rail: "Tienda" suelto tras Crecimiento | Document-scroll |
 
 ### Pendientes de rediseño
 **Ninguna.** Todas las verticales del panel están en lenguaje Duna; no queda una
@@ -217,6 +217,20 @@ cabecera:
   definió el spec absorbió lo que iba a hacer.
 
 ### Trabajo cerrado
+- **La página /nosotros como CAPACIDAD — tanda 1: la historia** (2026-08-26, § CLAUDE.md
+  "La PÁGINA /nosotros"). El storefront gana una 2ª página editable, apagable por cualquier
+  cliente. **Páginas por CONFIG, no anidado en el dato**: las secciones de /nosotros son claves
+  más del `content` JSON (`nosotrosHistoria`), la "página" es un tag `SeccionConfig.pagina` —así
+  el resolver, el borrador y el write path NO cambian—. La meta `content.paginas` (`{ nosotros:
+  { visible } }`) es aparte (`resolverPaginas`, fuera del REGISTRY). **Default ENCENDIDA** (copy
+  real de Nayoli, no un claim fabricado → no repite #44). Apagada → **redirect 307** a la home
+  (no 404: la página existe). **Nav DATA-DRIVEN**: header y footer leen el flag por
+  `useSiteContent()` y ocultan el enlace apagada; re-apuntar el ancla `/#nuestra-historia` →
+  `/nosotros` arregla de yapa el active-state muerto. Editor: **selector Home/Nosotros SIN gate**
+  (siempre ≥2 páginas) + toggle encender/apagar (write DIRECTO). **#47 CANCELADO** (la galería
+  variable vive en /nosotros, tanda 2; el collage de la home se queda en 4 fijas). Los hints que
+  restaban el hecho en los dos toggles de visibilidad se retiraron. **Faltan: tanda 2** (la
+  galería variable + el tipo 'imagen' del RepeaterEditor) **y tanda 3** (el vídeo, #48).
 - **SiteContent — el storefront editable, LAS CUATRO SECCIONES** (2026-08-25, § CLAUDE.md
   "Config del contenido — SiteContent"). El contenido editorial de la home salió del JSX a la
   tabla `SiteContent` (singleton, born en `public`, **migración SIN INSERT**), editable en
@@ -563,13 +577,15 @@ posición. Cada entrada dice el **costo ya pagado**. Un ítem completado **se bo
 Vivos, **en el orden de `CLAUDE.md`** (el orden es la decisión): **`#46`** (primero —
 el editor visual) · `#2` · `#3` · `#4` · `#5` · `#8` · `#10` · `#16` · `#18` · `#19` ·
 `#20` · `#21` · `#23` · `#25` · `#26` · `#27` · `#33` · `#32` · `#34` · `#35` ·
-`#36` · `#37` · `#38` · `#39` · `#41` · `#42` · `#47` · `#48` · `#49` · `#50`.
+`#36` · `#37` · `#38` · `#39` · `#41` · `#42` · `#48` · `#49` · `#50`.
 
 Cerrados y borrados: `#1`, `#22` (no por hacerse sino por resolverse solo — la
 consolidación ya no aplica), `#43` (**decisión del owner**: las cinco automatizaciones
 internas apagadas en producción se DEJAN apagadas; si se encienden, es operación de
 datos desde el panel, nunca un `UPDATE` en migración), `#44` (los testimonios
-fabricados salieron del código con la tanda de Testimonios) y `#45`.
+fabricados salieron del código con la tanda de Testimonios), `#45` y `#47`
+(**CANCELADO**: la galería variable no va en la home —el collage se queda en 4 fijas, el
+anzuelo—; vive en /nosotros, tanda 2, donde se construye el tipo 'imagen' del RepeaterEditor).
 
 ---
 
