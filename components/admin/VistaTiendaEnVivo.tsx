@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import HeroSection from '@/components/storefront/home/HeroSection';
 import BrandStory from '@/components/storefront/home/BrandStory';
+import SubscriptionCTA from '@/components/storefront/home/SubscriptionCTA';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { DEFAULTS, type SiteContentData } from '@/lib/config/site-content-defaults';
@@ -36,6 +37,7 @@ const DESKTOP_W = 1280;
 const COMPONENTES: Record<SeccionVista, ComponentType> = {
   hero: HeroSection,
   brandStory: BrandStory,
+  subscriptionCTA: SubscriptionCTA,
 };
 
 export default function VistaTiendaEnVivo({
