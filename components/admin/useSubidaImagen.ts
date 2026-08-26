@@ -18,6 +18,7 @@ import { MAX_SUBIDA_DIRECTA_BYTES, MAX_SUBIDA_DIRECTA_MB, TIPOS_PERMITIDOS } fro
 export type Dims = { w: number; h: number };
 
 async function dimsDeArchivo(file: File): Promise<Dims | undefined> {
+  if (file.type.startsWith('video/')) return dimsDeVideo(file);
   try {
     const bitmap = await createImageBitmap(file);
     const d = { w: bitmap.width, h: bitmap.height };
@@ -26,6 +27,30 @@ async function dimsDeArchivo(file: File): Promise<Dims | undefined> {
   } catch {
     return undefined;
   }
+}
+
+// Las dimensiones de un VÍDEO salen de `videoWidth`/`videoHeight` tras `loadedmetadata` —del ELEMENTO
+// vídeo, no del póster (el póster puede venir recortado; la celda la gobierna el vídeo)—. FALLA SUAVE
+// como la imagen: si la metadata no llega (error, o un timeout de 8 s por si el archivo cuelga), se
+// resuelve `undefined` → el ítem se crea SIN dims y el masonry usa su fallback 4/3. Nunca bloquea la
+// subida. `preload='metadata'` carga sólo la metadata, no el vídeo entero.
+function dimsDeVideo(file: File): Promise<Dims | undefined> {
+  return new Promise((resolve) => {
+    const v = document.createElement('video');
+    const url = URL.createObjectURL(file);
+    let listo = false;
+    const terminar = (d: Dims | undefined) => {
+      if (listo) return;
+      listo = true;
+      URL.revokeObjectURL(url);
+      resolve(d);
+    };
+    const t = setTimeout(() => terminar(undefined), 8000);
+    v.preload = 'metadata';
+    v.onloadedmetadata = () => { clearTimeout(t); terminar(v.videoWidth > 0 && v.videoHeight > 0 ? { w: v.videoWidth, h: v.videoHeight } : undefined); };
+    v.onerror = () => { clearTimeout(t); terminar(undefined); };
+    v.src = url;
+  });
 }
 
 export function useSubidaImagen({ onError }: { onError: (msg: string | null) => void }) {
