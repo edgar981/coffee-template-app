@@ -2,27 +2,19 @@
 
 import { useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { uploadImagen } from '@/lib/api/upload';
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
+import { subirDirecto } from '@/lib/api/upload';
+import { MAX_SUBIDA_DIRECTA_BYTES, MAX_SUBIDA_DIRECTA_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
 
-// EL UPLOADER de imágenes de contenido, EXTRAÍDO de TiendaSeccionEditor para que lo compartan la
-// CÁSCARA (los campos-imagen fijos del hero y de brandStory) y el RepeaterEditor (la foto de un
-// ítem de galería). Antes vivía inline en la cáscara; duplicar la validación + subida en el repeater
-// sería dos definiciones de lo mismo —el modo de falla de razonDelServidor/cruzoMinimo—. Se
-// instancia UNA vez (en la cáscara) y se comparte hacia abajo por `pedir`, así hay un solo <input>
-// y un solo `subiendo` que bloquea todo mientras una imagen viaja.
+// EL UPLOADER de imágenes de contenido, compartido por la cáscara (campos-imagen fijos) y el
+// RepeaterEditor (foto por ítem). Sube DIRECTO a Blob (§ subirDirecto): el archivo va del navegador
+// a Blob, sin el límite de 4.5 MB del serverless, hasta 200 MB. Expone `progreso` (0–100) para la
+// barra y `subiendo` para bloquear los DISPARADORES de subida (no el formulario: una subida de
+// minutos no puede congelar la edición — el texto se sigue editando y autoguardando).
 //
-// Mecánica: posee el <input type=file> —el consumidor lo renderiza con `inputRef`/`alElegir`—, valida
-// tipo y tamaño, sube a Blob bajo el prefijo 'contenido', y expone `subiendo` (para bloquear en el
-// render) + `subiendoRef` (lectura SÍNCRONA, para el marcar-sucio que NO debe correr durante una
-// subida). La url resultante se entrega por el callback `onUrl` que el consumidor pasó a `pedir`, así
-// cada llamador decide qué hacer con ella: la cáscara pisa un campo del form, el repeater un campo
-// del ítem. El hook no sabe nada de secciones ni de galerías.
+// Mecánica: posee el <input type=file> (el consumidor lo renderiza con inputRef/alElegir), valida
+// tipo y tamaño, sube con progreso, y entrega la url (y las dims para el masonry) por el callback
+// `onUrl`. `subiendoRef` es la lectura SÍNCRONA para ordenar el flush post-subida.
 
-// Las dimensiones naturales de la imagen, para que la galería reserve el alto de cada celda por su
-// proporción (masonry sin salto de layout, § NosotrosGaleria). Se leen del ARCHIVO local (no de la
-// red). Si el navegador no puede decodificarla, `undefined` → la galería cae a una proporción por
-// defecto; nunca bloquea la subida.
 export type Dims = { w: number; h: number };
 
 async function dimsDeArchivo(file: File): Promise<Dims | undefined> {
@@ -41,12 +33,10 @@ export function useSubidaImagen({ onError }: { onError: (msg: string | null) => 
   const pendienteRef = useRef<((url: string, dims?: Dims) => void) | null>(null);
   const subiendoRef = useRef(false);
   const [subiendo, setSubiendo] = useState(false);
+  const [progreso, setProgreso] = useState<number | null>(null); // 0–100 mientras sube; null si no
 
-  // El estado (render) y el ref (lectura síncrona) se mueven JUNTOS, como el faseRef que reemplaza.
   const marcarSubiendo = (v: boolean) => { subiendoRef.current = v; setSubiendo(v); };
 
-  // `onUrl` recibe la url y —cuando se pudo leer— las dimensiones. La cáscara (campos-imagen fijos)
-  // ignora el segundo argumento; la galería lo usa. Un callback de un solo parámetro es asignable.
   const pedir = (onUrl: (url: string, dims?: Dims) => void) => {
     pendienteRef.current = onUrl;
     inputRef.current?.click();
@@ -61,29 +51,30 @@ export function useSubidaImagen({ onError }: { onError: (msg: string | null) => 
     if (!(TIPOS_PERMITIDOS as readonly string[]).includes(file.type)) {
       onError('Formato no admitido. Usa JPG, PNG o WebP.'); return;
     }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      onError(`La imagen pesa ${(file.size / (1024 * 1024)).toFixed(1)} MB y el máximo es ${MAX_UPLOAD_MB} MB.`); return;
+    if (file.size > MAX_SUBIDA_DIRECTA_BYTES) {
+      onError(`La imagen pesa ${(file.size / (1024 * 1024)).toFixed(0)} MB y el máximo es ${MAX_SUBIDA_DIRECTA_MB} MB.`); return;
     }
     onError(null);
     marcarSubiendo(true);
+    setProgreso(0);
     let url: string;
     try {
-      ({ url } = await uploadImagen(file, 'contenido'));
+      ({ url } = await subirDirecto(file, { carpeta: 'contenido', onProgress: setProgreso }));
     } catch (err) {
+      // Falla a mitad: el consumidor NO recibe url, así que el ítem/campo queda con su valor VIEJO
+      // (o no se crea, si era un "Agregar"): se pierde la subida, no el trabajo. El error invita a
+      // reintentar.
       marcarSubiendo(false);
-      onError(err instanceof Error ? err.message : 'No se pudo subir la imagen');
+      setProgreso(null);
+      onError(err instanceof Error ? err.message : 'No se pudo subir la imagen. Reintenta.');
       return;
     }
-    // Las dimensiones se leen del archivo local (falla suave a undefined). Va DESPUÉS de la subida
-    // para no computarlas si la subida falló.
     const dims = await dimsDeArchivo(file);
-    // subiendo=false ANTES del callback: el marcar-sucio del consumidor (p. ej. `cambiar` de la
-    // cáscara, que un ítem de galería atraviesa vía onChange) NO corre durante una subida, así que
-    // la url no se guardaría si el flag siguiera en true al entregarla. El callback es síncrono, así
-    // que no hay ventana visible sin "Subiendo…".
+    // subiendo=false ANTES del callback: el flush del consumidor corre con la url ya lista.
     marcarSubiendo(false);
+    setProgreso(null);
     onUrl(url, dims);
   };
 
-  return { pedir, subiendo, subiendoRef, inputRef, alElegir };
+  return { pedir, subiendo, subiendoRef, progreso, inputRef, alElegir };
 }

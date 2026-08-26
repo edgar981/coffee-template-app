@@ -11,9 +11,9 @@ import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { MoliendasOpcionesEditor } from '@/components/admin/MoliendasOpcionesEditor';
 import { ImageLightbox } from '@/components/admin/ImageLightbox';
 import { createProduct, updateProduct } from '@/lib/api/products';
-import { uploadImagen } from '@/lib/api/upload';
+import { subirDirecto } from '@/lib/api/upload';
 import { CATEGORIAS, EMPTY_PRODUCT_FORM, TOSTADOS } from '@/constants/product';
-import { ACCEPT_IMAGENES, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
+import { ACCEPT_IMAGENES, MAX_SUBIDA_DIRECTA_BYTES, MAX_SUBIDA_DIRECTA_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
 import { MAX_GALERIA_IMAGENES } from '@duna/core/product-gallery';
 import { puedeGuardarProducto, obligatoriosFaltantes, hayCambiosProducto } from '@duna/core/product-form';
 import { sanitizeOpciones, validarOpciones, revisarEdicion, type MoliendaOpcion } from '@duna/core/moliendas-opciones';
@@ -145,6 +145,7 @@ function Cuerpo({ product, guarda, marcarCambios, intentarCerrar, onClose, onSav
   // doble-submit no es un toast repetido — es una SEGUNDA subida a Blob, que deja
   // un blob huérfano que nadie va a borrar.
   const [fase, setFase] = useState<null | 'subiendo' | 'guardando'>(null);
+  const [progreso, setProgreso] = useState<number | null>(null); // % de la subida directa en curso
   const error = useErrorDialogo();
 
   // Se INTENTÓ guardar. Los errores de campo no aparecen antes: marcar en rojo un
@@ -257,8 +258,8 @@ function Cuerpo({ product, guarda, marcarCambios, intentarCerrar, onClose, onSav
     if (!(TIPOS_PERMITIDOS as readonly string[]).includes(file.type)) {
       return `"${file.name}": formato no admitido. Usa JPG, PNG o WebP.`;
     }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      return `"${file.name}" pesa ${(file.size / (1024 * 1024)).toFixed(1)} MB y el máximo es ${MAX_UPLOAD_MB} MB.`;
+    if (file.size > MAX_SUBIDA_DIRECTA_BYTES) {
+      return `"${file.name}" pesa ${(file.size / (1024 * 1024)).toFixed(0)} MB y el máximo es ${MAX_SUBIDA_DIRECTA_MB} MB.`;
     }
     return null;
   }
@@ -350,10 +351,13 @@ function Cuerpo({ product, guarda, marcarCambios, intentarCerrar, onClose, onSav
     try {
       if (imagenFile || galeriaPendiente.length > 0) {
         setFase('subiendo');
-        if (imagenFile) imagenUrl = (await uploadImagen(imagenFile)).url;
-        // En serie y no en paralelo: son pocas y así el primer fallo corta sin
-        // dejar a medias un lote de blobs sin producto que los referencie.
-        for (const { file } of galeriaPendiente) galeriaSubidas.push((await uploadImagen(file)).url);
+        // Subida DIRECTA a Blob (§ subirDirecto): sin el límite de 4.5 MB del serverless, hasta
+        // 200 MB, con progreso. En serie y no en paralelo: son pocas y así el primer fallo corta
+        // sin dejar a medias un lote de blobs sin producto que los referencie. El % se reinicia por
+        // archivo (una a la vez).
+        if (imagenFile) { setProgreso(0); imagenUrl = (await subirDirecto(imagenFile, { carpeta: 'productos', onProgress: setProgreso })).url; }
+        for (const { file } of galeriaPendiente) { setProgreso(0); galeriaSubidas.push((await subirDirecto(file, { carpeta: 'productos', onProgress: setProgreso })).url); }
+        setProgreso(null);
       }
 
       const data = {
@@ -385,10 +389,13 @@ function Cuerpo({ product, guarda, marcarCambios, intentarCerrar, onClose, onSav
       if (product) onSaved(await updateProduct(product.id, data), 'actualizado');
       else         onSaved(await createProduct(data), 'creado');
     } catch (e) {
-      error.mostrar(e, etapa === 'subiendo' ? 'No se pudo subir la imagen' : 'No se pudo guardar el producto');
+      // Falla a mitad de una subida: el producto NO se guardó, y las imágenes ya guardadas siguen
+      // siendo las buenas (el PATCH no corrió). Se pierde la subida, no el trabajo — reintentar.
+      error.mostrar(e, etapa === 'subiendo' ? 'No se pudo subir la imagen. Reintenta.' : 'No se pudo guardar el producto');
       return;
     } finally {
       setFase(null);
+      setProgreso(null);
     }
 
     // Cierre SÓLO tras confirmación del servidor. Si falla, el drawer se queda
@@ -538,7 +545,7 @@ function Cuerpo({ product, guarda, marcarCambios, intentarCerrar, onClose, onSav
               <input ref={fileInputRef} type="file" accept={ACCEPT_IMAGENES} onChange={onPickImagen}
                      disabled={bloqueado} className="duna-input" />
               <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>
-                JPG, PNG o WebP · máx. {MAX_UPLOAD_MB} MB. Se sube al guardar.
+                JPG, PNG o WebP · máx. {MAX_SUBIDA_DIRECTA_MB} MB. Se sube al guardar.
               </p>
               {(imagenFile || imagenPreview) && (
                 <button type="button" className="duna-btn duna-btn--ghost duna-btn--sm"
@@ -612,7 +619,7 @@ function Cuerpo({ product, guarda, marcarCambios, intentarCerrar, onClose, onSav
           <p className="duna-field__hint">
             {cupoLleno
               ? `Máximo alcanzado (${MAX_GALERIA_IMAGENES}). Quita alguna para agregar otra.`
-              : `JPG, PNG o WebP · máx. ${MAX_UPLOAD_MB} MB cada una. Se suben al guardar.`}
+              : `JPG, PNG o WebP · máx. ${MAX_SUBIDA_DIRECTA_MB} MB cada una. Se suben al guardar.`}
           </p>
           {/* EL ERROR DE ARCHIVO ES INLINE, no un toast: vive al lado del control
               que lo produjo y persiste hasta que se corrige. El `toast.error` de
@@ -632,7 +639,7 @@ function Cuerpo({ product, guarda, marcarCambios, intentarCerrar, onClose, onSav
           </button>
           <button type="button" className="duna-btn duna-btn--primary" onClick={guardar}
                   disabled={!puedeGuardarProducto(form, bloqueado) || sinCambios}>
-            {fase === 'subiendo' ? 'Subiendo imagen…' : fase === 'guardando' ? 'Guardando…' : 'Guardar'}
+            {fase === 'subiendo' ? `Subiendo imagen… ${progreso ?? 0}%` : fase === 'guardando' ? 'Guardando…' : 'Guardar'}
           </button>
         </div>
         {/* Un botón muerto sin explicación no distingue "te falta un campo" de "la

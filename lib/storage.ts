@@ -1,6 +1,11 @@
 import { put as blobPut, del as blobDel } from '@vercel/blob';
 import { handleUpload } from '@vercel/blob/client';
 import { PREFIJOS_UPLOAD } from '@/constants/upload';
+import { sanitizeFilename } from '@/lib/storage-path';
+
+// `sanitizeFilename` se extrajo a `storage-path` (puro, sin SDK) para que el CLIENTE de la subida
+// directa lo use igual. Se re-exporta acá para no romper a quien lo importa desde `./storage`.
+export { sanitizeFilename } from '@/lib/storage-path';
 
 // ─── Adaptador de storage de archivos ────────────────────────────────────────
 // LA única frontera con el proveedor de blobs. Ningún otro archivo del repo
@@ -58,16 +63,6 @@ export function envPrefix(env: NodeJS.ProcessEnv = process.env): string {
   return env.VERCEL_ENV === 'production' ? '' : 'dev/';
 }
 
-/** Deja el nombre en algo seguro para una ruta, conservando la extensión. */
-export function sanitizeFilename(name: string): string {
-  const base = name.split(/[\\/]/).pop() ?? 'archivo';
-  const limpio = base
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // sin tildes
-    .replace(/[^a-zA-Z0-9._-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^[-.]+/, '');
-  return limpio || 'archivo';
-}
 
 /**
  * Ruta final dentro del store: `[dev/]<prefix>/<archivo>`. El sufijo aleatorio

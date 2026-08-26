@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
-import { storage, pathnameSubidaValido } from '@/lib/storage';
+import { storage, pathnameSubidaValido, envPrefix } from '@/lib/storage';
 import { TIPOS_PERMITIDOS, MAX_SUBIDA_DIRECTA_BYTES } from '@/constants/upload';
+
+async function sesionAdmin() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return null;
+  return ['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '') ? session : null;
+}
+
+// GET: el CLIENTE de la subida directa pregunta el prefijo de ENTORNO (`''` o `'dev/'`) para armar
+// un pathname que el POST acepte —el navegador no ve `VERCEL_ENV`, y sin este dato una subida de dev
+// aterrizaría en el namespace de producción (§ aislamiento)—. Gateado como el resto: sólo admin.
+export async function GET() {
+  if (!(await sesionAdmin())) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  return NextResponse.json({ prefijo: envPrefix() });
+}
 
 // Emite el TOKEN de la SUBIDA DIRECTA a Blob (client upload). El archivo NO pasa por acá —va del
 // navegador a Blob—; este endpoint sólo FIRMA un token acotado. Por eso el gate de sesión de ESTE
@@ -26,11 +40,7 @@ export async function POST(req: NextRequest) {
       body,
       onBeforeGenerateToken: async (pathname) => {
         // 1. SESIÓN + ROL. Sin esto, cualquiera firmaría un token para tu Blob.
-        const session = await auth.api.getSession({ headers: await headers() });
-        if (!session) throw new Error('No autorizado');
-        if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) {
-          throw new Error('No autorizado');
-        }
+        if (!(await sesionAdmin())) throw new Error('No autorizado');
 
         // 2. PATHNAME. Acota DÓNDE puede escribir (prefijo whitelisted + aislamiento `dev/` por
         //    entorno + sin traversal). El token queda ligado a este pathname; no sirve para otra
