@@ -39,8 +39,8 @@ export interface BrandStoryContent {
 // imágenes—. Los bullets son `bullet1..4` OPCIONALES: el componente los junta con un `.filter` que
 // SALTA los vacíos, así que "vaciar el 2 y dejar el 3" cierra la lista sin hueco — son "hasta cuatro
 // bullets", no "cuatro slots" (el editor lo dice en las etiquetas). 5+ bullets = el repeater
-// compartido (§ Backlog #47). Las TRES tarjetas de plan NO viven acá: son ESTRUCTURA desde
-// `SUBSCRIPTION_PLANS`, fuente compartida con /suscripciones (§ Backlog #49).
+// compartido (la plataforma ya lo tiene). Las TRES tarjetas de plan NO viven acá: son ESTRUCTURA
+// desde `SUBSCRIPTION_PLANS`, fuente compartida con /suscripciones (§ Backlog #49).
 export interface SubscriptionCTAContent {
   visible: boolean;
   eyebrow: string;

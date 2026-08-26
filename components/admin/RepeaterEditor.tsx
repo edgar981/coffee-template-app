@@ -7,7 +7,7 @@ import type { CampoItem } from '@/components/admin/tienda-secciones';
 // EDITOR DE LISTA (repeater) GENÉRICO — agregar / quitar / editar / reordenar (flechas) ítems, con
 // cada ítem COLAPSADO a un renglón-resumen y expandible para editar. La maquinaria NO sabe nada de
 // testimonios ni de fotos: opera sobre `descriptores` (nombre + tipo + rol de resumen). El mismo
-// componente sirve a la galería variable de Historia (#47) cambiando sólo los descriptores.
+// componente sirve a la galería variable de /nosotros (tanda 2) cambiando sólo los descriptores.
 //
 // CONTROLADO: el array `items` lo posee el padre (`TiendaSeccionEditor`), para que TODO cambio pase
 // por `onChange` → el mismo marcar-sucio + autoguardado que un campo plano. Agregar, quitar y mover
