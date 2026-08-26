@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   envPrefix, buildPathname, sanitizeFilename, isManaged, isDeletable, DEFAULT_PREFIX,
+  pathnameSubidaValido,
 } from './storage';
 
 // El store de Blob es UNO SOLO para todos los entornos (no tiene ramas como
@@ -129,4 +130,38 @@ test('la guarda de prefijo no rescata a una URL que ni siquiera es del store', (
 test('un prefijo que solo EMPIEZA parecido no cuenta como dev/', () => {
   // `devastador/` no es `dev/`: la comparación es por segmento de ruta completo.
   assert.equal(isDeletable(`${STORE}/devastador/productos/x.webp`, env({})), false);
+});
+
+// ─── pathnameSubidaValido (la subida DIRECTA: el único control de DÓNDE escribe el token) ──────────
+// En el client upload el archivo no pasa por el server, así que este validador es lo único que acota
+// el destino. Los tests afirman las tres reglas: aislamiento dev/ por entorno, prefijo whitelisted,
+// y un solo segmento saneado (sin traversal ni carpetas anidadas).
+
+const prod = env({ VERCEL_ENV: 'production' });
+const dev  = env({});
+
+test('subida directa: pathname válido en PRODUCCIÓN (sin dev/) y en DEV (con dev/)', () => {
+  assert.equal(pathnameSubidaValido('contenido/foto.jpg', prod), true);
+  assert.equal(pathnameSubidaValido('productos/portada.webp', prod), true);
+  assert.equal(pathnameSubidaValido('dev/contenido/foto.jpg', dev), true);
+  assert.equal(pathnameSubidaValido('dev/productos/portada.webp', dev), true);
+});
+
+test('subida directa: el dev/ DEBE coincidir con el entorno (aislamiento, como isDeletable)', () => {
+  assert.equal(pathnameSubidaValido('dev/contenido/foto.jpg', prod), false); // dev/ en producción → NO
+  assert.equal(pathnameSubidaValido('contenido/foto.jpg', dev), false);      // falta dev/ en dev → NO
+});
+
+test('subida directa: prefijo fuera de la whitelist → NO (no una carpeta libre)', () => {
+  assert.equal(pathnameSubidaValido('dev/secretos/x.jpg', dev), false);
+  assert.equal(pathnameSubidaValido('dev/comprobantes/x.jpg', dev), false); // ni un prefijo real de OTRO dominio
+  assert.equal(pathnameSubidaValido('secretos/x.jpg', prod), false);
+});
+
+test('subida directa: traversal y carpetas anidadas → NO (un solo segmento saneado)', () => {
+  assert.equal(pathnameSubidaValido('dev/contenido/../secret', dev), false);
+  assert.equal(pathnameSubidaValido('dev/contenido/a/b.jpg', dev), false);   // anidado: el regex exige 1 segmento
+  assert.equal(pathnameSubidaValido('dev/contenido/', dev), false);          // sin archivo
+  assert.equal(pathnameSubidaValido('contenido', prod), false);              // sin carpeta/archivo
+  assert.equal(pathnameSubidaValido('dev/contenido/e t c.jpg', dev), false); // espacios: no es su forma saneada
 });

@@ -7,10 +7,11 @@ import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import VistaTiendaEnVivo from '@/components/admin/VistaTiendaEnVivo';
 import RepeaterEditor from '@/components/admin/RepeaterEditor';
+import BarraProgreso from '@/components/admin/BarraProgreso';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import type { SeccionConfig } from '@/components/admin/tienda-secciones';
 import { DEFAULTS } from '@/lib/config/site-content-defaults';
-import { MAX_UPLOAD_MB, ACCEPT_IMAGENES } from '@/constants/upload';
+import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 
 // LA CÁSCARA del editor de una sección de la tienda, GENÉRICA. Todo lo que NO es específico de la
 // sección vive acá —VISTA PREVIA EN VIVO + read↔edit + autoguardado + publicar/descartar + el
@@ -45,6 +46,12 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
   // RepeaterEditor por `subida.pedir`. Un solo <input>, un solo `subiendo`.
   const subida = useSubidaImagen({ onError: setErrorServidor });
 
+  // Qué campo-imagen FIJO está subiendo (hero: `imagen`; brandStory: `imagen1..4`), para pegarle la
+  // barra de progreso a ESE botón —no a todos—. Se limpia cuando la subida termina. (Las fotos del
+  // repeater las rastrea el RepeaterEditor con su propio `subiendoDesde`.)
+  const [subiendoCampo, setSubiendoCampo] = useState<string | null>(null);
+  useEffect(() => { if (!subida.subiendo) setSubiendoCampo(null); }, [subida.subiendo]);
+
   const guardarSeccion = useCallback(async (data: Datos) => {
     const res = await fetch('/api/site-content', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -76,13 +83,15 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
     return () => window.removeEventListener('beforeunload', h);
   }, [auto.estado]);
 
-  // Un cambio de campo/toggle: pisa el form, marca borrador y ensucia el autoguardado —salvo durante
-  // una subida, donde el valor queda en formRef y se guarda al terminar (no se pierde).
+  // Un cambio de campo/toggle: pisa el form, marca borrador y ensucia el autoguardado — SIEMPRE,
+  // incluso durante una subida. Una subida directa puede durar minutos y NO puede pausar la edición:
+  // el texto se sigue guardando con la url VIEJA (o sin el ítem nuevo, que se crea al terminar), y la
+  // url nueva llega en el flush post-subida. Nunca se guarda un ítem a medias (§ subirDirecto).
   const cambiar = (parcial: Datos) => {
     const nf = { ...(formRef.current as Datos), ...parcial };
     setForm(nf);
     setHayBorrador(true);
-    if (!subida.subiendoRef.current) auto.marcarSucio(nf);
+    auto.marcarSucio(nf);
   };
 
   const set = (name: string) =>
@@ -92,11 +101,14 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
   // marcar-sucio + flush van EXPLÍCITOS (no por `cambiar`), como en el uploader original: subir,
   // luego guardar. El callback corre con `subiendo` ya en false (§ useSubidaImagen), así que
   // marcarSucio no se descarta.
-  const ponerImagen = (campo: string) => subida.pedir(url => {
-    const nf = { ...(formRef.current as Datos), [campo]: url };
-    setForm(nf); setHayBorrador(true);
-    auto.marcarSucio(nf); auto.flush();
-  });
+  const ponerImagen = (campo: string) => {
+    setSubiendoCampo(campo); // para pegarle la barra a este botón
+    subida.pedir(url => {
+      const nf = { ...(formRef.current as Datos), [campo]: url };
+      setForm(nf); setHayBorrador(true);
+      auto.marcarSucio(nf); auto.flush();
+    });
+  };
 
   const usarPorDefecto = (campo: string) => {
     const nf = { ...(formRef.current as Datos), [campo]: defaults[campo] };
@@ -162,9 +174,8 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
     : 'La lista está vacía — agrega el primero para verla aquí.';
   // En EDICIÓN se muestra siempre (incluido "Guardado", que confirma que no hay nada pendiente); en
   // la TARJETA sólo cuando hay algo que decir (`estado !== 'guardado'` o una subida en curso).
-  const mostrarEstado = editando || subiendo || auto.estado !== 'guardado';
-  const estadoTexto = subiendo ? 'Subiendo imagen…'
-    : auto.estado === 'guardando' ? 'Guardando…'
+  const mostrarEstado = editando || auto.estado !== 'guardado';
+  const estadoTexto = auto.estado === 'guardando' ? 'Guardando…'
     : auto.estado === 'error' ? 'No se pudo guardar'
     : 'Guardado';
 
@@ -231,6 +242,12 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
             Así se ve en la tienda. Edita y los cambios se guardan solos; publica cuando estén listos.{' '}
             <a href="/" target="_blank" rel="noreferrer" className="duna-link">Ver la tienda</a>
           </p>
+          {/* El indicador de GUARDADO (Guardando… / Guardado / error) va en la cabecera, SIN sticky: el
+              guardado es rápido y el error es persistente (el operador sube a verlo). El PROGRESO de la
+              subida NO vive acá —vive pegado al botón que la disparó (§ la barra por-botón)—. Un sticky
+              acá cortaría la tarjeta: sobre una superficie necesitaría `--duna-surface` y aun así
+              partiría la sección; el sticky del head de `.duna-lista` funciona porque sus filas van
+              sobre el fondo de PÁGINA, no sobre una tarjeta — esa es la distinción. */}
           {indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
         </div>
         {/* ASIMETRÍA DELIBERADA: Publicar y Descartar esperan al autoguardado (`!puedePublicar`)
@@ -322,9 +339,13 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
                         </button>
                       )}
                       <span className="duna-field__hint" style={{ margin: 0 }}>
-                        {subiendo ? 'Subiendo…' : `JPG, PNG o WebP · máx ${MAX_UPLOAD_MB} MB`}
+                        {subiendo && subiendoCampo === img.name ? `Subiendo… ${subida.progreso ?? 0}%` : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
                       </span>
                     </div>
+                    {/* La barra pegada a ESTE botón (sólo el campo que sube), no en la cabecera. */}
+                    {subiendo && subiendoCampo === img.name && (
+                      <div style={{ marginTop: 'var(--duna-space-2)' }}><BarraProgreso pct={subida.progreso ?? 0} /></div>
+                    )}
                   </div>
                 );
               })}
@@ -359,6 +380,7 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
                     max={config.repeater.max}
                     pedirImagen={subida.pedir}
                     subiendo={subiendo}
+                    progreso={subida.progreso}
                     onChange={nuevos => cambiar({ [config.repeater!.itemsKey]: nuevos })}
                   />
                 </div>

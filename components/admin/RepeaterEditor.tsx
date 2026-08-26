@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Star, ArrowUp, ArrowDown, Trash2, Plus, Pencil, Upload } from 'lucide-react';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
+import BarraProgreso from '@/components/admin/BarraProgreso';
 import type { CampoItem } from '@/components/admin/tienda-secciones';
 import type { Dims } from '@/components/admin/useSubidaImagen';
 
@@ -81,6 +82,7 @@ export default function RepeaterEditor({
   max,
   pedirImagen,
   subiendo,
+  progreso,
   onChange,
 }: {
   items: Item[];
@@ -95,9 +97,16 @@ export default function RepeaterEditor({
   pedirImagen?: (onUrl: (url: string, dims?: Dims) => void) => void;
   /** Una subida en curso (del uploader compartido): bloquea agregar/cambiar para no encimar dos. */
   subiendo?: boolean;
+  /** % de la subida en curso (0–100), para la barra pegada al botón que la disparó. */
+  progreso?: number | null;
   onChange: (nuevos: Item[]) => void;
 }) {
   const [expandido, setExpandido] = useState<number | null>(null);
+  // Qué control disparó la subida en curso —'agregar' o el índice del ítem en "Cambiar"— para pegarle
+  // la barra a ESE botón (§ el progreso donde el ojo). Sólo se setea cuando la subida la inicia ESTE
+  // repeater; si sube un campo fijo de la cáscara, queda null (la barra va allá). Se limpia al terminar.
+  const [subiendoDesde, setSubiendoDesde] = useState<'agregar' | number | null>(null);
+  useEffect(() => { if (!subiendo) setSubiendoDesde(null); }, [subiendo]);
   // Índice del ítem pendiente de ELIMINAR (con confirmación). Borrar destruye trabajo —una foto o
   // un testimonio— y no hay deshacer campo por campo, así que la papelera CONFIRMA antes de quitar.
   // Va en la PLATAFORMA (no en el tipo imagen) porque el testimonio borrado destruye igual.
@@ -117,6 +126,7 @@ export default function RepeaterEditor({
     if (alMax) return;
     if (campoImagen && pedirImagen) {
       // Agregar = subir primero, luego crear el ítem con la url (y sus dims). Sin foto no hay ítem.
+      setSubiendoDesde('agregar'); // la barra va pegada al botón "Agregar"
       pedirImagen((url, dims) => {
         const nuevo = conImagen(nuevoItem(), campoImagen, url, dims);
         onChange([...items, nuevo]);
@@ -200,10 +210,12 @@ export default function RepeaterEditor({
                             <img src={String(valor)} alt="" style={{ width: '100%', maxWidth: '240px', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 'var(--duna-r-m)', border: '1px solid var(--duna-border)' }} />
                           )}
                           <div>
-                            <button type="button" onClick={() => pedirImagen?.((url, dims) => onChange(items.map((it, idx) => (idx === i ? conImagen(it, d, url, dims) : it))))} disabled={subiendo} className="duna-btn duna-btn--secondary duna-btn--sm">
-                              <Upload className="h-3.5 w-3.5" /> {subiendo ? 'Subiendo…' : 'Cambiar imagen'}
+                            <button type="button" onClick={() => { setSubiendoDesde(i); pedirImagen?.((url, dims) => onChange(items.map((it, idx) => (idx === i ? conImagen(it, d, url, dims) : it)))); }} disabled={subiendo} className="duna-btn duna-btn--secondary duna-btn--sm">
+                              <Upload className="h-3.5 w-3.5" /> {subiendo && subiendoDesde === i ? `Subiendo… ${progreso ?? 0}%` : 'Cambiar imagen'}
                             </button>
                           </div>
+                          {/* La barra pegada a ESTE botón (sólo el ítem que sube). */}
+                          {subiendo && subiendoDesde === i && <BarraProgreso pct={progreso ?? 0} />}
                         </div>
                       ) : d.tipo === 'textarea' ? (
                         <textarea id={id} className="duna-input" rows={2} value={String(valor ?? '')} onChange={e => editar(i, d.name, e.target.value)} aria-describedby={d.hint ? `${id}-hint` : undefined} />
@@ -222,8 +234,12 @@ export default function RepeaterEditor({
 
       <div>
         <button type="button" onClick={agregar} disabled={alMax || subiendo} className="duna-btn duna-btn--secondary duna-btn--sm">
-          <Plus className="h-3.5 w-3.5" /> {campoImagen ? (subiendo ? 'Subiendo…' : `Agregar ${itemLabel.toLowerCase()}`) : `Agregar ${itemLabel.toLowerCase()}`}
+          <Plus className="h-3.5 w-3.5" /> {campoImagen && subiendo && subiendoDesde === 'agregar' ? `Subiendo… ${progreso ?? 0}%` : `Agregar ${itemLabel.toLowerCase()}`}
         </button>
+        {/* La barra pegada al botón "Agregar" mientras la foto nueva sube (agregar = subir primero). */}
+        {subiendo && subiendoDesde === 'agregar' && (
+          <div style={{ marginTop: 'var(--duna-space-2)', maxWidth: '240px' }}><BarraProgreso pct={progreso ?? 0} /></div>
+        )}
         {alMax && (
           <p className="duna-field__hint" style={{ margin: '6px 0 0' }}>
             Llegaste al máximo de {max} {itemLabel.toLowerCase()}s. Quita alguno para agregar otro.
