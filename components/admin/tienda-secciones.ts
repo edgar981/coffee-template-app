@@ -47,9 +47,13 @@ export interface RepeaterConfig {
    *  testimonio"). Default masculino. */
   genero?: 'f' | 'm';
   campos: CampoItem[];
-  /** Tope de ítems. Al llegar, "Agregar" se deshabilita con un hint (mismo trato que el max de una
-   *  lista). Ausente = sin tope (testimonios). */
+  /** Tope de ítems (las FOTOS, si el repeater acepta vídeo). Al llegar, "Agregar foto" se deshabilita
+   *  con un hint. Ausente = sin tope (testimonios). */
   max?: number;
+  /** Tope de VÍDEOS, SEPARADO del de fotos (§ galería: 12 fotos + 3 vídeos — el tope de vídeo es por
+   *  PESO, no por composición). Presente → el repeater acepta vídeo (botón "Agregar vídeo", ítems
+   *  `tipo:'video'`). Ausente → sólo fotos. */
+  maxVideo?: number;
 }
 
 export interface SeccionConfig {
@@ -189,7 +193,8 @@ const NOSOTROS_GALERIA: SeccionConfig = {
     itemsKey: 'items',
     itemLabel: 'Foto',
     genero: 'f', // "¿Eliminar esta foto?"
-    max: 12,
+    max: 12,      // fotos
+    maxVideo: 3,  // vídeos (tope por PESO — con autoplay-on-view los tres bajan al entrar; § render)
     campos: [
       { name: 'url', label: 'Foto',        tipo: 'imagen', dims: { w: 'w', h: 'h' }, hint: 'JPG, PNG o WebP.' },
       { name: 'alt', label: 'Descripción', tipo: 'texto', opcional: true, resumen: 'principal', hint: 'Describe la foto para quien no puede verla. Vacío: se usa una descripción genérica.' },

@@ -1,11 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Star, ArrowUp, ArrowDown, Trash2, Plus, Pencil, Upload } from 'lucide-react';
+import { Star, ArrowUp, ArrowDown, Trash2, Plus, Pencil, Upload, Film, X } from 'lucide-react';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import BarraProgreso from '@/components/admin/BarraProgreso';
 import type { CampoItem } from '@/components/admin/tienda-secciones';
 import type { Dims } from '@/components/admin/useSubidaImagen';
+import {
+  TIPOS_PERMITIDOS, TIPOS_VIDEO, ACCEPT_IMAGENES, ACCEPT_VIDEO, MSG_VIDEO_NO_ADMITIDO, type KindUpload,
+} from '@/constants/upload';
 
 // EDITOR DE LISTA (repeater) GENÉRICO — agregar / quitar / editar / reordenar (flechas) ítems, con
 // cada ítem COLAPSADO a un renglón-resumen y expandible para editar. La maquinaria NO sabe nada de
@@ -80,9 +83,13 @@ export default function RepeaterEditor({
   itemLabel,
   genero = 'm',
   max,
+  maxVideo,
   pedirImagen,
+  elegir,
+  subir,
   subiendo,
   progreso,
+  onError,
   onChange,
 }: {
   items: Item[];
@@ -92,38 +99,110 @@ export default function RepeaterEditor({
    *  testimonio"). Default masculino. */
   genero?: 'f' | 'm';
   max?: number;
+  /** Tope de VÍDEOS (separado de las fotos). Presente → el repeater ACEPTA vídeo: aparece "Agregar
+   *  vídeo" y los ítems `tipo:'video'` se cuentan y renderizan aparte. Ausente → sólo fotos. */
+  maxVideo?: number;
   /** Pide una subida al uploader compartido de la cáscara; entrega la url (y las dims, cuando se
    *  pudieron leer) por el callback. Ausente en repeaters sin imágenes (testimonios). */
   pedirImagen?: (onUrl: (url: string, dims?: Dims) => void) => void;
+  /** ELEGIR un archivo sin subirlo (para el alta de vídeo: se eligen los dos y se sube al final). */
+  elegir?: (onFile: (f: File) => void, opts: { tipos: readonly string[]; accept: string; msgError: string }) => void;
+  /** SUBIR un archivo ya elegido, con su kind. Devuelve url + dims. */
+  subir?: (file: File, opts: { kind: KindUpload }) => Promise<{ url: string; dims?: Dims }>;
   /** Una subida en curso (del uploader compartido): bloquea agregar/cambiar para no encimar dos. */
   subiendo?: boolean;
   /** % de la subida en curso (0–100), para la barra pegada al botón que la disparó. */
   progreso?: number | null;
+  /** Para los errores de subida del flujo de vídeo (los de validación ya van por el onError del hook). */
+  onError?: (msg: string) => void;
   onChange: (nuevos: Item[]) => void;
 }) {
   const [expandido, setExpandido] = useState<number | null>(null);
   // Qué control disparó la subida en curso —'agregar' o el índice del ítem en "Cambiar"— para pegarle
   // la barra a ESE botón (§ el progreso donde el ojo). Sólo se setea cuando la subida la inicia ESTE
   // repeater; si sube un campo fijo de la cáscara, queda null (la barra va allá). Se limpia al terminar.
-  const [subiendoDesde, setSubiendoDesde] = useState<'agregar' | number | null>(null);
+  const [subiendoDesde, setSubiendoDesde] = useState<'agregar' | 'agregar-video' | number | null>(null);
   useEffect(() => { if (!subiendo) setSubiendoDesde(null); }, [subiendo]);
   // Índice del ítem pendiente de ELIMINAR (con confirmación). Borrar destruye trabajo —una foto o
   // un testimonio— y no hay deshacer campo por campo, así que la papelera CONFIRMA antes de quitar.
   // Va en la PLATAFORMA (no en el tipo imagen) porque el testimonio borrado destruye igual.
   const [porEliminar, setPorEliminar] = useState<number | null>(null);
+  // El alta de VÍDEO junta los dos archivos y sube al final (§ la decisión): el vídeo elegido queda
+  // RETENIDO acá esperando el póster —así cancelar el póster no deja un vídeo huérfano, no hay nada
+  // subido—. `subiendoPaso` nombra el paso ("póster"/"vídeo") para la etiqueta de la barra.
+  const [videoPendiente, setVideoPendiente] = useState<File | null>(null);
+  const [subiendoPaso, setSubiendoPaso] = useState<'póster' | 'vídeo' | null>(null);
 
-  // El PRIMER campo imagen es la foto principal del ítem: gobierna el agregar-subiendo y la miniatura
-  // del renglón. Un repeater sin campo imagen (testimonios) no lo tiene y agrega vacío como siempre.
+  // El PRIMER campo imagen es el MEDIA principal del ítem (foto o vídeo van en su `url`): gobierna la
+  // miniatura y el agregar. Un repeater sin campo imagen (testimonios) no lo tiene y agrega vacío.
   const campoImagen = descriptores.find(d => d.tipo === 'imagen');
-  const alMax = max != null && items.length >= max;
+  // Conteo POR TIPO: fotos y vídeos tienen topes separados. `tipo` ausente = foto (ítems previos).
+  const videos = items.filter(it => it.tipo === 'video');
+  const fotos = items.filter(it => it.tipo !== 'video');
+  const alMaxFoto = max != null && fotos.length >= max;
+  const alMaxVideo = maxVideo != null && videos.length >= maxVideo;
+  const aceptaVideo = maxVideo != null && !!elegir && !!subir && !!campoImagen;
 
   const editar = (i: number, campo: string, valor: unknown) =>
     onChange(items.map((it, idx) => (idx === i ? { ...it, [campo]: valor } : it)));
 
   const nuevoItem = (): Item => Object.fromEntries(descriptores.map(d => [d.name, d.defaultValor ?? '']));
 
+  // ── ALTA DE VÍDEO: elegir vídeo → elegir póster → subir PÓSTER (chico) → subir VÍDEO (grande) ──────
+  // El póster va PRIMERO a propósito: si el VÍDEO (grande, el que más probablemente falla en una red
+  // lenta) falla después, el huérfano es una imagen de póster (~200 KB), NO un vídeo de ~200 MB. NO
+  // invertir "por subir el grande primero por si falla": eso vuelve el huérfano un vídeo. (Y sin
+  // borrado desde el cliente: mandar una url a borrar reabre lo que el borrado server-side previene.)
+  const subirVideoYPoster = async (video: File, poster: File) => {
+    setSubiendoDesde('agregar-video');
+    try {
+      setSubiendoPaso('póster');
+      const { url: posterUrl } = await subir!(poster, { kind: 'imagen' });
+      setSubiendoPaso('vídeo');
+      const { url: videoUrl, dims } = await subir!(video, { kind: 'imagen-o-video' });
+      const nuevo: Item = { ...nuevoItem(), tipo: 'video', poster: posterUrl, [campoImagen!.name]: videoUrl };
+      if (campoImagen!.dims && dims) { nuevo[campoImagen!.dims.w] = dims.w; nuevo[campoImagen!.dims.h] = dims.h; }
+      onChange([...items, nuevo]);
+      setExpandido(items.length);
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : 'No se pudo subir el vídeo. Reintenta.');
+    } finally {
+      setVideoPendiente(null);
+      setSubiendoPaso(null);
+    }
+  };
+  const agregarVideo = () => {
+    if (alMaxVideo) return;
+    elegir?.(f => setVideoPendiente(f), { tipos: TIPOS_VIDEO, accept: ACCEPT_VIDEO, msgError: MSG_VIDEO_NO_ADMITIDO });
+  };
+  const elegirPosterParaVideo = () => {
+    const video = videoPendiente;
+    if (!video) return;
+    elegir?.(poster => subirVideoYPoster(video, poster), { tipos: TIPOS_PERMITIDOS, accept: ACCEPT_IMAGENES, msgError: 'Formato no admitido. Usa JPG, PNG o WebP.' });
+  };
+  // Reemplazar el vídeo o el póster de un ítem-vídeo existente (una sola subida). El póster mantiene su
+  // proporción de celda del vídeo; sólo "Cambiar vídeo" actualiza las dims.
+  const cambiarMedia = (i: number, campo: string, kind: KindUpload, conDims: boolean, tipos: readonly string[], accept: string, msgError: string) => {
+    setSubiendoDesde(i);
+    setSubiendoPaso(kind === 'imagen-o-video' ? 'vídeo' : 'póster');
+    elegir?.(file => {
+      subir!(file, { kind })
+        .then(({ url, dims }) => onChange(items.map((it, idx) => {
+          if (idx !== i) return it;
+          const out: Item = { ...it, [campo]: url };
+          if (conDims && campoImagen!.dims) {
+            if (dims) { out[campoImagen!.dims.w] = dims.w; out[campoImagen!.dims.h] = dims.h; }
+            else { delete out[campoImagen!.dims.w]; delete out[campoImagen!.dims.h]; }
+          }
+          return out;
+        })))
+        .catch(err => onError?.(err instanceof Error ? err.message : 'No se pudo subir. Reintenta.'))
+        .finally(() => setSubiendoPaso(null));
+    }, { tipos, accept, msgError });
+  };
+
   const agregar = () => {
-    if (alMax) return;
+    if (alMaxFoto) return;
     if (campoImagen && pedirImagen) {
       // Agregar = subir primero, luego crear el ítem con la url (y sus dims). Sin foto no hay ítem.
       setSubiendoDesde('agregar'); // la barra va pegada al botón "Agregar"
@@ -163,14 +242,19 @@ export default function RepeaterEditor({
       {items.map((item, i) => {
         const abierto = expandido === i;
         const { titulo, fragmento } = resumenDe(item, descriptores, itemLabel, i);
-        const miniatura = campoImagen ? String(item[campoImagen.name] ?? '') : '';
+        const esVideo = item.tipo === 'video';
+        // La miniatura de un VÍDEO es su PÓSTER (el `url` es un vídeo, un `<img>` con eso saldría roto).
+        const miniatura = campoImagen ? String((esVideo ? item.poster : item[campoImagen.name]) ?? '') : '';
         return (
           <div key={i} className="duna-card" style={{ padding: 'var(--duna-space-3)' }}>
             {/* Renglón-resumen: (miniatura) + título + fragmento a la izquierda; controles a la derecha. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)' }}>
               {miniatura && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={miniatura} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 'var(--duna-r-s)', border: '1px solid var(--duna-border)', flexShrink: 0 }} />
+                <span style={{ position: 'relative', flexShrink: 0, width: 40, height: 40 }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={miniatura} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 'var(--duna-r-s)', border: '1px solid var(--duna-border)', display: 'block' }} />
+                  {esVideo && <Film className="h-3 w-3" style={{ position: 'absolute', right: 2, bottom: 2, color: '#fff', filter: 'drop-shadow(0 0 2px rgba(0,0,0,.8))' }} aria-label="vídeo" />}
+                </span>
               )}
               <button
                 type="button"
@@ -204,25 +288,50 @@ export default function RepeaterEditor({
                       {d.tipo === 'rating' ? (
                         <RatingInput valor={Number(valor) || 0} onChange={v => editar(i, d.name, v)} />
                       ) : d.tipo === 'imagen' ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)' }}>
-                          {String(valor ?? '') && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={String(valor)} alt="" style={{ width: '100%', maxWidth: '240px', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 'var(--duna-r-m)', border: '1px solid var(--duna-border)' }} />
-                          )}
-                          <div>
-                            <button type="button" onClick={() => { setSubiendoDesde(i); pedirImagen?.((url, dims) => onChange(items.map((it, idx) => (idx === i ? conImagen(it, d, url, dims) : it)))); }} disabled={subiendo} className="duna-btn duna-btn--secondary duna-btn--sm">
-                              <Upload className="h-3.5 w-3.5" /> {subiendo && subiendoDesde === i ? `Subiendo… ${progreso ?? 0}%` : 'Cambiar imagen'}
-                            </button>
+                        esVideo ? (
+                          // ÍTEM-VÍDEO: el preview es el PÓSTER (el `url` es un vídeo). Dos reemplazos
+                          // independientes; sólo "Cambiar vídeo" actualiza la proporción de la celda.
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)' }}>
+                            {String(item.poster ?? '') && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={String(item.poster)} alt="" style={{ width: '100%', maxWidth: '240px', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 'var(--duna-r-m)', border: '1px solid var(--duna-border)' }} />
+                            )}
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)' }}>
+                              <button type="button" onClick={() => cambiarMedia(i, campoImagen!.name, 'imagen-o-video', true, TIPOS_VIDEO, ACCEPT_VIDEO, MSG_VIDEO_NO_ADMITIDO)} disabled={subiendo} className="duna-btn duna-btn--secondary duna-btn--sm">
+                                <Film className="h-3.5 w-3.5" /> Cambiar vídeo
+                              </button>
+                              <button type="button" onClick={() => cambiarMedia(i, 'poster', 'imagen', false, TIPOS_PERMITIDOS, ACCEPT_IMAGENES, 'Formato no admitido. Usa JPG, PNG o WebP.')} disabled={subiendo} className="duna-btn duna-btn--ghost duna-btn--sm">
+                                <Upload className="h-3.5 w-3.5" /> Cambiar póster
+                              </button>
+                            </div>
+                            {subiendo && subiendoDesde === i && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <span className="duna-field__hint" style={{ margin: 0 }}>Subiendo {subiendoPaso}… {progreso ?? 0}%</span>
+                                <BarraProgreso pct={progreso ?? 0} />
+                              </div>
+                            )}
                           </div>
-                          {/* La barra pegada a ESTE botón (sólo el ítem que sube). */}
-                          {subiendo && subiendoDesde === i && <BarraProgreso pct={progreso ?? 0} />}
-                        </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)' }}>
+                            {String(valor ?? '') && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={String(valor)} alt="" style={{ width: '100%', maxWidth: '240px', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 'var(--duna-r-m)', border: '1px solid var(--duna-border)' }} />
+                            )}
+                            <div>
+                              <button type="button" onClick={() => { setSubiendoDesde(i); pedirImagen?.((url, dims) => onChange(items.map((it, idx) => (idx === i ? conImagen(it, d, url, dims) : it)))); }} disabled={subiendo} className="duna-btn duna-btn--secondary duna-btn--sm">
+                                <Upload className="h-3.5 w-3.5" /> {subiendo && subiendoDesde === i ? `Subiendo… ${progreso ?? 0}%` : 'Cambiar imagen'}
+                              </button>
+                            </div>
+                            {/* La barra pegada a ESTE botón (sólo el ítem que sube). */}
+                            {subiendo && subiendoDesde === i && <BarraProgreso pct={progreso ?? 0} />}
+                          </div>
+                        )
                       ) : d.tipo === 'textarea' ? (
                         <textarea id={id} className="duna-input" rows={2} value={String(valor ?? '')} onChange={e => editar(i, d.name, e.target.value)} aria-describedby={d.hint ? `${id}-hint` : undefined} />
                       ) : (
                         <input id={id} className="duna-input" value={String(valor ?? '')} onChange={e => editar(i, d.name, e.target.value)} aria-describedby={d.hint ? `${id}-hint` : undefined} />
                       )}
-                      {d.hint && <p className="duna-field__hint" id={`${id}-hint`}>{d.hint}</p>}
+                      {d.hint && !(esVideo && d.tipo === 'imagen') && <p className="duna-field__hint" id={`${id}-hint`}>{d.hint}</p>}
                     </div>
                   );
                 })}
@@ -232,18 +341,49 @@ export default function RepeaterEditor({
         );
       })}
 
-      <div>
-        <button type="button" onClick={agregar} disabled={alMax || subiendo} className="duna-btn duna-btn--secondary duna-btn--sm">
-          <Plus className="h-3.5 w-3.5" /> {campoImagen && subiendo && subiendoDesde === 'agregar' ? `Subiendo… ${progreso ?? 0}%` : `Agregar ${itemLabel.toLowerCase()}`}
-        </button>
-        {/* La barra pegada al botón "Agregar" mientras la foto nueva sube (agregar = subir primero). */}
-        {subiendo && subiendoDesde === 'agregar' && (
-          <div style={{ marginTop: 'var(--duna-space-2)', maxWidth: '240px' }}><BarraProgreso pct={progreso ?? 0} /></div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)' }}>
+          <button type="button" onClick={agregar} disabled={alMaxFoto || subiendo || !!videoPendiente} className="duna-btn duna-btn--secondary duna-btn--sm">
+            <Plus className="h-3.5 w-3.5" /> {campoImagen && subiendo && subiendoDesde === 'agregar' ? `Subiendo… ${progreso ?? 0}%` : `Agregar ${itemLabel.toLowerCase()}`}
+          </button>
+          {aceptaVideo && (
+            <button type="button" onClick={agregarVideo} disabled={alMaxVideo || subiendo || !!videoPendiente} className="duna-btn duna-btn--secondary duna-btn--sm">
+              <Film className="h-3.5 w-3.5" /> Agregar vídeo
+            </button>
+          )}
+        </div>
+
+        {/* Paso EXPLÍCITO del póster: el vídeo ya se eligió (RETENIDO, sin subir), falta el póster. No
+            es un segundo picker que se abre solo — el operador ve qué eligió y decide el póster.
+            Cancelar acá NO deja huérfano (nada subido todavía). */}
+        {videoPendiente && !subiendo && (
+          <div className="duna-card" style={{ padding: 'var(--duna-space-3)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
+            <span className="duna-caption" style={{ margin: 0, flex: 1, minWidth: '12rem' }}>
+              Vídeo elegido: <strong>{videoPendiente.name}</strong>. Ahora subí el <strong>póster</strong> —la imagen que se ve antes de reproducir—.
+            </span>
+            <button type="button" onClick={elegirPosterParaVideo} className="duna-btn duna-btn--primary duna-btn--sm">
+              <Upload className="h-3.5 w-3.5" /> Elegir póster
+            </button>
+            <button type="button" onClick={() => setVideoPendiente(null)} className="duna-btn duna-btn--ghost duna-btn--sm">
+              <X className="h-3.5 w-3.5" /> Cancelar
+            </button>
+          </div>
         )}
-        {alMax && (
-          <p className="duna-field__hint" style={{ margin: '6px 0 0' }}>
-            Llegaste al máximo de {max} {itemLabel.toLowerCase()}s. Quita alguno para agregar otro.
-          </p>
+
+        {/* La barra del alta —foto o vídeo—. En el vídeo, la ETIQUETA nombra el paso (póster/vídeo)
+            para que se lea como DOS pasos, no como un reinicio. */}
+        {subiendo && (subiendoDesde === 'agregar' || subiendoDesde === 'agregar-video') && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '240px' }}>
+            {subiendoDesde === 'agregar-video' && <span className="duna-field__hint" style={{ margin: 0 }}>Subiendo {subiendoPaso}… {progreso ?? 0}%</span>}
+            <BarraProgreso pct={progreso ?? 0} />
+          </div>
+        )}
+
+        {alMaxFoto && (
+          <p className="duna-field__hint" style={{ margin: 0 }}>Llegaste al máximo de {max} {itemLabel.toLowerCase()}s. Quita alguno para agregar otro.</p>
+        )}
+        {aceptaVideo && alMaxVideo && (
+          <p className="duna-field__hint" style={{ margin: 0 }}>Llegaste al máximo de {maxVideo} vídeos. Quita alguno para agregar otro.</p>
         )}
       </div>
 

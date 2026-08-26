@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { subirDirecto } from '@/lib/api/upload';
-import { MAX_SUBIDA_DIRECTA_BYTES, MAX_SUBIDA_DIRECTA_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
+import { MAX_SUBIDA_DIRECTA_BYTES, MAX_SUBIDA_DIRECTA_MB, TIPOS_PERMITIDOS, type KindUpload } from '@/constants/upload';
 
 // EL UPLOADER de imágenes de contenido, compartido por la cáscara (campos-imagen fijos) y el
 // RepeaterEditor (foto por ítem). Sube DIRECTO a Blob (§ subirDirecto): el archivo va del navegador
@@ -101,5 +101,49 @@ export function useSubidaImagen({ onError }: { onError: (msg: string | null) => 
     onUrl(url, dims);
   };
 
-  return { pedir, subiendo, subiendoRef, progreso, inputRef, alElegir };
+  // ── ELEGIR / SUBIR desacoplados (para el alta de VÍDEO, § galería) ─────────────────────────────
+  // El camino de arriba (pedir/alElegir/inputRef) es pick+subir ATÓMICO y NO se toca —lo usan las
+  // imágenes en 5 sitios—. Lo de acá es ADITIVO: un SEGUNDO input propio y sus métodos, para el flujo
+  // "elegir los dos (vídeo + póster) y subir al final" (así cancelar el póster no deja un vídeo
+  // huérfano — no hay nada subido hasta que están los dos, § la decisión del alta).
+  const inputHoldRef = useRef<HTMLInputElement>(null);
+  const holdRef = useRef<{ onFile: (f: File) => void; tipos: readonly string[]; msgError: string } | null>(null);
+
+  /** Abre el picker, valida tipo/tamaño, y ENTREGA el File sin subirlo (lo retiene el consumidor). */
+  const elegir = (onFile: (f: File) => void, { tipos, accept, msgError }: { tipos: readonly string[]; accept: string; msgError: string }) => {
+    holdRef.current = { onFile, tipos, msgError };
+    const el = inputHoldRef.current;
+    if (el) { el.accept = accept; el.click(); }
+  };
+
+  const alElegirHold = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    const h = holdRef.current;
+    holdRef.current = null;
+    if (!file || !h) return;
+    if (!(h.tipos as readonly string[]).includes(file.type)) { onError(h.msgError); return; }
+    if (file.size > MAX_SUBIDA_DIRECTA_BYTES) {
+      onError(`El archivo pesa ${(file.size / (1024 * 1024)).toFixed(0)} MB y el máximo es ${MAX_SUBIDA_DIRECTA_MB} MB.`); return;
+    }
+    onError(null);
+    h.onFile(file); // HOLD: NO sube — el consumidor decide cuándo (§ subir de abajo)
+  };
+
+  /** Sube un File YA elegido (con su kind) y devuelve url + dims. Gestiona subiendo/progreso; el
+   *  LABEL del paso ("póster"/"vídeo") lo pone el consumidor. Lanza si falla (el consumidor limpia). */
+  const subir = async (file: File, { kind }: { kind: KindUpload }): Promise<{ url: string; dims?: Dims }> => {
+    marcarSubiendo(true);
+    setProgreso(0);
+    try {
+      const { url } = await subirDirecto(file, { carpeta: 'contenido', kind, onProgress: setProgreso });
+      const dims = await dimsDeArchivo(file);
+      return { url, dims };
+    } finally {
+      marcarSubiendo(false);
+      setProgreso(null);
+    }
+  };
+
+  return { pedir, subiendo, subiendoRef, progreso, inputRef, alElegir, inputHoldRef, alElegirHold, elegir, subir };
 }

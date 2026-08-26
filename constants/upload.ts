@@ -62,3 +62,10 @@ export type PrefijoUpload = (typeof PREFIJOS_UPLOAD)[number];
 
 /** Para el `accept` del input de archivo. */
 export const ACCEPT_IMAGENES = TIPOS_PERMITIDOS.join(',');
+export const ACCEPT_VIDEO = TIPOS_VIDEO.join(',');
+
+/** Mensaje ACCIONABLE al rechazar un formato de vídeo no admitido (MOV/HEVC del iPhone es el caso):
+ *  dice QUÉ hacer, no sólo "no soportado". (Safari suele transcodificar a MP4 al subir, así que el
+ *  caso es raro; el rechazo es la red igual.) */
+export const MSG_VIDEO_NO_ADMITIDO =
+  'Sube el video en MP4 (o WebM). Si lo grabaste con iPhone, puedes exportarlo o convertirlo a MP4 antes de subirlo.';
