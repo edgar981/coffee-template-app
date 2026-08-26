@@ -7,6 +7,7 @@ import BrandStory from '@/components/storefront/home/BrandStory';
 import SubscriptionCTA from '@/components/storefront/home/SubscriptionCTA';
 import TestimonialSection from '@/components/storefront/home/TestimonialSection';
 import NosotrosHistoria from '@/components/storefront/nosotros/NosotrosHistoria';
+import NosotrosGaleria from '@/components/storefront/nosotros/NosotrosGaleria';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { DEFAULTS, type SiteContentData } from '@/lib/config/site-content-defaults';
@@ -42,6 +43,9 @@ const COMPONENTES: Record<SeccionVista, ComponentType> = {
   subscriptionCTA: SubscriptionCTA,
   testimonials: TestimonialSection,
   nosotrosHistoria: NosotrosHistoria,
+  // La galería toma `negocio` opcional para el fallback del alt; en el preview va sin prop (el alt de
+  // un preview no se usa). Todo-opcional → asignable a ComponentType.
+  nosotrosGaleria: NosotrosGaleria,
 };
 
 export default function VistaTiendaEnVivo({

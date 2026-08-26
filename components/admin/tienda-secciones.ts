@@ -5,7 +5,7 @@
 // beforeunload, indicador, layout sticky) vive en la CÁSCARA (`TiendaSeccionEditor`). Si una
 // sección nueva necesitara algo fuera de esta config, es señal de que la cáscara se está forzando.
 
-export type SeccionVista = 'hero' | 'brandStory' | 'subscriptionCTA' | 'testimonials' | 'nosotrosHistoria';
+export type SeccionVista = 'hero' | 'brandStory' | 'subscriptionCTA' | 'testimonials' | 'nosotrosHistoria' | 'nosotrosGaleria';
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
@@ -162,6 +162,33 @@ const NOSOTROS_HISTORIA: SeccionConfig = {
   ],
 };
 
+// La GALERÍA de /nosotros: la 2ª sección REPEATER, y la que estrena el tipo `imagen` por ítem. El
+// encabezado (eyebrow/titulo) es OPCIONAL —una galería puede ir sin heading—. La LISTA de fotos va
+// en `repeater`, con TOPE 12 (curaduría: dos pantallas de grid cuentan una finca; sin tope el
+// operador sube todo lo que tiene). Cada ítem: `url` (tipo imagen, sube por el uploader compartido) +
+// `alt` opcional. El `alt` es el `resumen.principal` del renglón colapsado —muestra la descripción,
+// o "Foto N" si está vacía—; la miniatura la pone el propio campo imagen.
+const NOSOTROS_GALERIA: SeccionConfig = {
+  seccion: 'nosotrosGaleria',
+  pagina: 'nosotros',
+  titulo: 'Galería',
+  ocultable: true,
+  imagenes: [], // sin imágenes FIJAS de sección: las fotos viven en los ítems del repeater
+  campos: [
+    { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
+    { name: 'titulo',  label: 'Título',         opcional: true, hint: 'El encabezado de la galería. Vacío: no se muestra (las fotos van sin título).' },
+  ],
+  repeater: {
+    itemsKey: 'items',
+    itemLabel: 'Foto',
+    max: 12,
+    campos: [
+      { name: 'url', label: 'Foto',        tipo: 'imagen', hint: 'JPG, PNG o WebP.' },
+      { name: 'alt', label: 'Descripción', tipo: 'texto', opcional: true, resumen: 'principal', hint: 'Describe la foto para quien no puede verla. Vacío: se usa una descripción genérica.' },
+    ],
+  },
+};
+
 // El ORDEN es el orden en la pantalla. Las de la home primero (en el orden de la home), después las
 // de /nosotros; el editor las agrupa por `pagina` en pestañas.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, SUBSCRIPTION, TESTIMONIOS, NOSOTROS_HISTORIA];
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, SUBSCRIPTION, TESTIMONIOS, NOSOTROS_HISTORIA, NOSOTROS_GALERIA];

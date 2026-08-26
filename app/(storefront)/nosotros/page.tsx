@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSiteContent } from "@/lib/config/site-content";
+import { getSiteSettings } from "@/lib/config/site-settings";
 import NosotrosHistoria from "@/components/storefront/nosotros/NosotrosHistoria";
+import NosotrosGaleria from "@/components/storefront/nosotros/NosotrosGaleria";
 
 // Sólo "Nosotros": la raíz aplica el template `%s · Café Nayoli` (app/layout.tsx).
 export const metadata: Metadata = { title: "Nosotros" };
@@ -16,6 +18,15 @@ export default async function NosotrosPage() {
   const content = await getSiteContent();
   if (!content.paginas.nosotros.visible) redirect("/");
 
-  // El provider de SiteContent lo monta el layout del storefront → NosotrosHistoria lee el contenido.
-  return <NosotrosHistoria />;
+  // El nombre del negocio alimenta el fallback del alt de la galería (§ NosotrosGaleria): va por PROP
+  // desde el server, no por `useSiteSettings()`, para que la vista en vivo del editor no lo exija.
+  const settings = await getSiteSettings();
+
+  // El provider de SiteContent lo monta el layout del storefront → las secciones leen el contenido.
+  return (
+    <>
+      <NosotrosHistoria />
+      <NosotrosGaleria negocio={settings.nombre} />
+    </>
+  );
 }

@@ -1637,8 +1637,8 @@ dos cosas al modelo:
 ### El REPEATER — la plataforma (Testimonios la estrena; sirve también a la galería de /nosotros)
 
 Testimonios es la 1ª sección de LISTA. La maquinaria es PLATAFORMA, agnóstica de sección —cambia sólo
-la config de campos por ítem—, así que la galería variable de /nosotros (§ la página /nosotros, tanda
-2) la reusa cambiando los descriptores (imagen por ítem en vez de texto+rating). Dos mitades:
+la config de campos por ítem—, así que la galería de /nosotros (§ La GALERÍA de /nosotros) la reusa
+cambiando los descriptores (imagen por ítem en vez de texto+rating). Dos mitades:
 - **El resolver de arrays** (`resolverItems` + la rama repeater de `resolverSiteContent`): resuelve el
   array de items guardado; los campos string requerido/opcional se normalizan, los NO declarados (un
   rating numérico) pasan tal cual. `mezclarBorrador` pisa la sección entera, así que el borrador carga
@@ -1648,6 +1648,12 @@ la config de campos por ítem—, así que la galería variable de /nosotros (§
   clicables. NO NOMBRA NINGÚN CAMPO CONCRETO: opera sobre `descriptor.name`/`.tipo` y los roles
   `resumen` (principal/detalle). CONTROLADO por la cáscara: todo cambio —incluidos agregar y quitar—
   pasa por `onChange → cambiar`, el mismo autoguardado que un campo plano.
+- **El tipo `imagen` y el `max`** (tanda 2 de /nosotros): un campo `tipo:'imagen'` sube por
+  `pedirImagen` (el `pedir` del uploader compartido de la cáscara, § useSubidaImagen) —el repeater no
+  tiene uploader propio: un `<input>`, un `subiendo`—; con un campo imagen, "Agregar" sube primero (un
+  ítem-imagen vacío es una foto rota) y el renglón colapsado muestra una miniatura. `max` (opcional)
+  deshabilita "Agregar" con hint al llegar al tope. Ambos son OPCIONALES: testimonios (sin imágenes,
+  sin tope) no cambió.
 
 **Un repeater tiene DOS razones para no mostrarse, y la PRECEDENCIA está fijada (afirmada en capa 1):
 items vacío OCULTA aunque `visible` sea true** (hide-on-empty gana sobre el toggle). En la cáscara,
@@ -1835,14 +1841,15 @@ tráfico del storefront lo pide** (CDN/costo empiezan a importar). Hasta entonce
 ### La PÁGINA /nosotros — páginas por CONFIG, no anidado en el dato
 
 Tanda del 2026-08-26. El storefront gana una SEGUNDA página editable, `/nosotros` (la historia
-larga; la galería y el vídeo son sus tandas 2 y 3). Es una **capacidad para cualquier cliente:
-quien no la use, la apaga.** Decisiones:
+larga en la tanda 1; la galería en la tanda 2, § La GALERÍA de /nosotros abajo; el vídeo es la
+tanda 3). Es una **capacidad para cualquier cliente: quien no la use, la apaga.** Decisiones de la
+tanda 1 (la página, el toggle, el nav, el selector):
 
 - **El "#47 CANCELADO" es la razón de que esta página exista.** Se iba a hacer variable la galería
   del collage de la HOME (backlog #47); con la galería en /nosotros, **el collage de la home se
   queda en CUATRO fotos fijas —el anzuelo, no el álbum—** y #47 se borró. La galería variable se
-  construye en /nosotros (tanda 2), donde tiene espacio; el **tipo `'imagen'` del `RepeaterEditor`**
-  (§ el repeater) se construye ahí, no en la home.
+  construyó en /nosotros (§ La GALERÍA de /nosotros, tanda 2), donde tiene espacio; ahí se estrenó el
+  **tipo `'imagen'` del `RepeaterEditor`** (§ el repeater), no en la home.
 
 - **PÁGINAS POR CONFIG, no anidado en el dato.** Las secciones de /nosotros son claves MÁS del mismo
   `content` JSON (`nosotrosHistoria`), no un `content.pages.nosotros` anidado. La "página" es un tag
@@ -1885,6 +1892,61 @@ quien no la use, la apaga.** Decisiones:
   discrimina nada—. El día que un deployment pueda tener UNA sola página (un tenant sin /nosotros),
   el guard entra ahí, con el caso real. El selector del editor es independiente del flag de
   visibilidad: se edita /nosotros aunque esté apagada, para prepararla antes de encenderla.
+
+### La GALERÍA de /nosotros — la 2ª sección REPEATER, y el tipo `imagen`
+
+Tanda 2 del 2026-08-26. /nosotros gana una galería de fotos de la finca. Decisiones:
+
+- **SECCIÓN PROPIA (`nosotrosGaleria`), no imágenes dentro de la historia.** Se oculta sola
+  (hide-on-empty) y su vacío es legítimo; la historia con fotos no podría —vaciarlas ocultaría el
+  relato—. Y **disuelve la colisión del #47**: como sección propia, la galería es un repeater LIMPIO
+  como Testimonios (defaults vacíos, hide-on-empty), sin el híbrido texto+fotos que mató al #47. Por
+  eso mover la galería a /nosotros la volvió más SIMPLE, no sólo la reubicó.
+
+- **GRID UNIFORME que refluye (2/3 columnas), SIN patrón por rangos.** Aquí la galería ES el
+  contenido, no un adorno —no hay anzuelo que preservar— así que las fotos no compiten y un grid
+  parejo basta. El patrón por rangos era para el collage escalonado de la home, que ya no existe.
+
+- **TOPE 12, y NO es técnico.** `next/image` lazy-loadea de fábrica, así que el peso inicial no crece
+  con N —el navegador no descarga lo que está bajo el fold—. El tope es de CURADURÍA: una galería de
+  30 fotos no la mira nadie, y sin límite el operador sube todo lo que tiene; 12 son dos pantallas de
+  grid, suficiente para contar una finca. Vive en `RepeaterConfig.max`; al llegar, "Agregar" se
+  deshabilita con hint (mismo trato que cualquier max de lista). El costo del original pesado sigue
+  siendo el **#20** (subida sin comprimir) — más visible con más fotos, no un tope nuevo.
+
+- **EL ALT es OPCIONAL con FALLBACK CONTEXTUAL, no requerido.** Un campo requerido que el operador no
+  entiende se llena con basura ("foto1"), peor para un lector de pantalla que un fallback derivado.
+  Opcional + hint que dice PARA QUÉ sirve ("Describe la foto para quien no puede verla"), y el
+  fallback describe el CONTEXTO, no el índice: **"Foto de la galería de {negocio}"**, no "Galería 3".
+
+- **EL `{negocio}` DEL FALLBACK LLEGA POR PROP, no por `useSiteSettings()`.** La vista en vivo del
+  editor monta `NosotrosGaleria` en el árbol del ADMIN, que **no tiene** el `SiteSettingsProvider` del
+  storefront —usar el hook ahí LANZARÍA—. La página server pasa `negocio={settings.nombre}`; sin prop
+  (el preview) el alt cae a un genérico, que en un preview no importa. Ninguna sección de la
+  home/nosotros usa `useSiteSettings()` por esta misma razón; la galería no es la excepción.
+
+- **LA PLATAFORMA: `useSubidaImagen` (uploader extraído) + tipo `imagen` en el RepeaterEditor.** El
+  uploader vivía inline en `TiendaSeccionEditor`; se extrajo a un hook para que lo COMPARTAN la
+  cáscara (campos-imagen fijos) y el repeater (foto por ítem) —duplicarlo sería dos validaciones del
+  mismo dato—. Se instancia UNA vez (la cáscara) y se comparte por `subida.pedir`: un `<input>`, un
+  `subiendo`. Un repeater con campo `imagen` AGREGA subiendo primero (un ítem-imagen vacío es una foto
+  rota). Detalle del hook: entrega la url con `subiendo` ya en false, porque un ítem de galería
+  atraviesa `cambiar` (que descarta el marca-sucio durante una subida).
+
+- **EL BORRADO DE BLOBS POR ÍTEM sale GRATIS de `imagenesDe`.** `REGISTRY.nosotrosGaleria.imagenes =
+  ['url']` nombra el campo-imagen DENTRO de cada ítem; `imagenesDe` (repeater-aware) itera los items y
+  junta cada `item.url`. El set-diff de `blobsHuerfanos` cubre reemplazos y quitados —una foto
+  reubicada NO se borra—. Afirmado en el carril (primer repeater con imágenes que pasa por el write).
+
+- **El `titulo` de la galería es OPCIONAL** (a diferencia de Testimonios, donde es requerido): una
+  galería puede ir SIN heading —las fotos son el contenido—, así que vaciarlo lo omite en vez de caer
+  al default. Es el discriminador en el resolver que un test fija.
+
+- **NO entra en esta tanda: el proceso ni el equipo.** El mínimo que sirve para una página "Nosotros"
+  es historia + galería. Proceso/equipo son secciones ADITIVAS —con la plataforma ya construida, cada
+  una es config + un componente— pero no hay evidencia de que se pidan. **El VÍDEO sigue declarado
+  para la tanda 3** (§ Backlog #48: es capacidad nueva —formato aparte, subida directa a Blob, poster,
+  rama de render—, no un campo más).
 
 ## Mejoras post-multitenant
 
