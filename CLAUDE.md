@@ -1413,9 +1413,15 @@ barato comparado con construirla dos veces.
 
 **Costo YA pagado: ninguno.** Hoy Nayoli tiene sus cuatro fotos y el collage fijo se ve bien.
 
-**DISPARADOR: el primero de los dos que se toque** —un cliente con ≠4 fotos, o la tanda de
-Testimonios—. Ahí se construye el repeater compartido (modelo + resolver + `RepeaterEditor`) y el
-render por sección.
+**UN TERCER CANDIDATO, más simple: los BENEFICIOS de Suscripción.** Hoy son `bullet1..4`
+OPCIONALES (§ SubscriptionCTA), que dan "hasta 4 sin hueco" sobre la cáscara genérica —tope duro en
+4—. Es un repeater de STRINGS (un campo por ítem), más liviano que la galería (1 imagen/ítem) o
+Testimonios (varios campos/ítem), pero el MISMO `RepeaterEditor` lo sirve. Su layout no es problema:
+la lista vertical (`space-y-3`) ya refluye con cualquier N. Sólo entra al repeater si se quieren 5+.
+
+**DISPARADOR: el primero de los tres que lo pida** —un cliente con ≠4 fotos en la galería, 5+
+beneficios en Suscripción, o la tanda de Testimonios—. Ahí se construye el repeater compartido
+(modelo + resolver + `RepeaterEditor`) y el render por sección.
 
 ### 48. VÍDEO en una sección es CAPACIDAD nueva, no un campo más — declarado, sin plan
 
@@ -1441,6 +1447,30 @@ arrastra:
 
 **DISPARADOR: un cliente pidiéndolo.** Ahí se decide contra la subida directa a Blob (#20), la lista de
 formatos aparte, el poster y la rama de render.
+
+### 49. Las TRES tarjetas de plan de Suscripción son ESTRUCTURA — no editables (todavía)
+
+El editor de Suscripción (§ SubscriptionCTA) hace editable el TEXTO de la sección (eyebrow, título,
+subtítulo, beneficios, label del CTA), pero **las tres tarjetas de plan NO**: siguen viniendo de
+`SUBSCRIPTION_PLANS` (`lib/mock/subscriptions.ts`), como estructura.
+
+**OJO — NO son datos falsos, y hay que dejarlo escrito para que nadie las confunda con los testimonios
+(#44):** el "mock" está en el PATH (`lib/mock/`), no en el CONTENIDO. Son la propuesta real de Nayoli
+(Plan 250 g / 500 g / Familiar, bolsas de su propio café), **SIN precio ni descuento** —el tipo
+`Subscription` no tiene campo de precio, y el CTA abre WhatsApp "me interesa", no cobra—. No hay ningún
+claim que Nayoli no honre. A diferencia de los testimonios, acá no hay nada que vaciar.
+
+**Por qué quedaron fuera del editor** (decisión del owner): `SUBSCRIPTION_PLANS` es **fuente
+COMPARTIDA con la página `/suscripciones`** (dos consumidores). Hacerlas editables en SiteContent las
+haría DIVERGIR de esa página, o exigiría que `/suscripciones` también lea de SiteContent — una decisión
+más grande que "el texto de la home".
+
+**Costo YA pagado: ninguno.** Las tarjetas se ven bien y dicen la verdad.
+
+**DISPARADOR: cuando alguien quiera editar los planes.** Ahí se decide (a) si `/suscripciones` también
+lee de SiteContent —para no divergir—, y (b) que son un repeater propio con DOS restricciones de layout
+ya conocidas: **el `sm:grid-cols-3` y el flag `popular` (i===1) asumen EXACTAMENTE tres** planes, así
+que variar el número es rediseño de esa rejilla, no sólo modelo.
 
 ## Config del negocio — `SiteSetting` (los planos editables)
 
@@ -1641,6 +1671,18 @@ requerido vacío toma el default; un opcional PRESENTE-aunque-vacío se respeta 
 
 `seccionEsVisible(def, sec)` combina las tres reglas; probada en capa 1 con un repeater
 sintético (deja la mecánica lista para las secciones que faltan, aunque el hero no la ejercite).
+
+**LAS SECCIONES EDITABLES HOY SON TRES:** hero (portada, `ocultable:false`), brandStory (Historia,
+`ocultable:true`, 4 imágenes fijas), y **subscriptionCTA** (Suscripción, `ocultable:true`, **solo
+texto**). La de Suscripción es la más simple —casi enteramente datos sobre la cáscara genérica
+(`TiendaSeccionEditor`), sin imágenes— y aporta dos cosas nuevas al modelo:
+- **Bullets OPCIONALES como repeater-pobre**: `bullet1..4` opcionales que el componente junta con un
+  `.filter` → "hasta 4 sin hueco" (vaciar uno cierra la lista), sin arrastrar el repeater real (§
+  Backlog #47, su disparador si se quieren 5+). Se etiquetan "Beneficio 1…4" (el nombre dice lo que
+  son; el hint del primero encuadra el grupo), NO "slot 1…4".
+- **Contenido editable ≠ estructura compartida**: las 3 tarjetas de plan quedan FUERA del editor
+  —son `SUBSCRIPTION_PLANS`, fuente compartida con `/suscripciones` (§ Backlog #49)—. El editor toca
+  el texto de la home, no una fuente que otra página también lee.
 
 ### Las imágenes
 

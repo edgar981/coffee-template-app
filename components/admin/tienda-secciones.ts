@@ -54,5 +54,25 @@ const BRAND_STORY: SeccionConfig = {
   ],
 };
 
-// El ORDEN es el orden en la pantalla (y en la home): primero el hero, después la historia.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY];
+const SUBSCRIPTION: SeccionConfig = {
+  seccion: 'subscriptionCTA',
+  titulo: 'Suscripción',
+  ocultable: true,
+  imagenes: [], // sección de solo texto
+  // Los beneficios son "Beneficio 1…4", NO "slot 1…4": el nombre dice lo que son, y el hint del
+  // primero encuadra el grupo —opcionales, los vacíos no dejan hueco—. El número sólo distingue los
+  // cuatro inputs (a11y). El CTA lleva label editable; su destino (/suscripciones) es estructura.
+  campos: [
+    { name: 'eyebrow',   label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
+    { name: 'titulo',    label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'subtitulo', label: 'Subtítulo', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'bullet1',   label: 'Beneficio 1', opcional: true, hint: 'Hasta 4. Deja vacíos los que no uses — la lista se cierra sin huecos.' },
+    { name: 'bullet2',   label: 'Beneficio 2', opcional: true, hint: 'Opcional.' },
+    { name: 'bullet3',   label: 'Beneficio 3', opcional: true, hint: 'Opcional.' },
+    { name: 'bullet4',   label: 'Beneficio 4', opcional: true, hint: 'Opcional.' },
+    { name: 'ctaLabel',  label: 'Botón',       hint: 'Su destino es /suscripciones (fijo). Vacío: se usa el texto por defecto.' },
+  ],
+};
+
+// El ORDEN es el orden en la pantalla (y en la home): hero, historia, suscripción.
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, SUBSCRIPTION];
