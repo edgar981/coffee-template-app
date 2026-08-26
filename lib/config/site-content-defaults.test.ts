@@ -350,6 +350,15 @@ test('nosotrosGaleria: w/h de un ítem pasan TAL CUAL (números, no declarados c
   assert.deepEqual(r.nosotrosGaleria.items, [{ url: '/a.jpg', alt: 'x', w: 1600, h: 900 }]);
 });
 
+test('nosotrosGaleria: tipo/poster de un ítem-VÍDEO pasan TAL CUAL (passthrough, como w/h)', () => {
+  const r = resolverSiteContent({ nosotrosGaleria: { items: [
+    { url: '/finca.mp4', alt: 'La finca', w: 1920, h: 1080, tipo: 'video', poster: '/finca-poster.jpg' },
+  ] } });
+  assert.deepEqual(r.nosotrosGaleria.items, [
+    { url: '/finca.mp4', alt: 'La finca', w: 1920, h: 1080, tipo: 'video', poster: '/finca-poster.jpg' },
+  ]);
+});
+
 test('nosotrosGaleria: encabezado OPCIONAL — titulo vacío → "" (a diferencia de testimonios, que cae al default)', () => {
   // La diferencia deliberada: una galería puede ir SIN heading; vaciar el titulo lo omite, no lo repone.
   const r = resolverSiteContent({ nosotrosGaleria: { eyebrow: '', titulo: '' } });
@@ -365,10 +374,10 @@ test('nosotrosGaleria PRECEDENCIA: items vacío OCULTA aunque visible sea true (
   assert.equal(seccionEsVisible(def, { visible: true, items: [{ url: '/a.jpg' }] }), true);
 });
 
-test('REGISTRY.nosotrosGaleria.imagenes = [url] y url es requerido (tripwire del borrado de blobs por ítem)', () => {
-  // Si alguien renombra el campo-imagen del ítem y olvida `imagenes`, `imagenesDe` dejaría de juntar
-  // las urls de la galería y el diff no borraría los blobs reemplazados. Y la url debe ser requerida
-  // (sin foto no hay ítem).
-  assert.deepEqual(REGISTRY.nosotrosGaleria.imagenes, ['url']);
+test('REGISTRY.nosotrosGaleria.imagenes = [url, poster] y url es requerido (tripwire del borrado de blobs por ítem)', () => {
+  // Si alguien renombra un campo-blob del ítem y olvida `imagenes`, `imagenesDe` dejaría de juntar esas
+  // urls y el diff no borraría los blobs reemplazados. `poster` está para que el blob del póster de un
+  // vídeo se borre con el ítem. Y la url debe ser requerida (sin archivo no hay ítem).
+  assert.deepEqual(REGISTRY.nosotrosGaleria.imagenes, ['url', 'poster']);
   assert.equal(REGISTRY.nosotrosGaleria.repeater!.campos.url, 'requerido');
 });

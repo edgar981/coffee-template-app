@@ -30,10 +30,19 @@ test('imagenesDe SOFT: doc/sección/valores ausentes o mal formados → sin imá
 });
 
 test('imagenesDe con el REGISTRY REAL junta las urls de los ítems de la GALERÍA (cableado end-to-end)', () => {
-  // Afirma el CABLEADO, no sólo el mecanismo: la galería real declara `imagenes:['url']` sobre un
-  // repeater, así que sus fotos entran al borrado de blobs. Sin segundo arg → REGISTRY real.
+  // Afirma el CABLEADO, no sólo el mecanismo: la galería real declara `imagenes:['url','poster']` sobre
+  // un repeater, así que sus fotos entran al borrado de blobs. Sin segundo arg → REGISTRY real.
   const doc = { nosotrosGaleria: { items: [{ url: '/a.jpg', alt: 'x' }, { url: '/b.jpg' }, { alt: 'sin foto' }] } };
   assert.deepEqual(imagenesDe(doc).sort(), ['/a.jpg', '/b.jpg']);
+});
+
+test('imagenesDe REAL: un ítem-VÍDEO aporta url Y poster (los dos blobs se borran con el ítem)', () => {
+  // Un ítem-imagen no tiene `poster` → sólo su url; un ítem-vídeo tiene los dos.
+  const doc = { nosotrosGaleria: { items: [
+    { url: '/foto.jpg', alt: 'x' },                                  // imagen: sólo url
+    { url: '/finca.mp4', poster: '/finca-poster.jpg', tipo: 'video' }, // vídeo: url + poster
+  ] } };
+  assert.deepEqual(imagenesDe(doc).sort(), ['/finca-poster.jpg', '/finca.mp4', '/foto.jpg']);
 });
 
 // ── blobsAReemplazar: SET-diff, NO por índice (modo a) ──────────────────────────

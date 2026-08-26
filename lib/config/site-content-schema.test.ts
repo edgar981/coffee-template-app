@@ -25,3 +25,14 @@ test('galería: w/h no-positivos se rechazan (0 o negativo no es una proporción
   assert.throws(() => siteContentEditableSchema.parse({ nosotrosGaleria: { items: [{ url: '/a.jpg', w: 0, h: 900 }] } }));
   assert.throws(() => siteContentEditableSchema.parse({ nosotrosGaleria: { items: [{ url: '/a.jpg', w: 1600, h: -1 }] } }));
 });
+
+test('galería: tipo (video) y poster de un ítem SOBREVIVEN al parse', () => {
+  const parsed = siteContentEditableSchema.parse({
+    nosotrosGaleria: { items: [{ url: '/finca.mp4', alt: 'x', tipo: 'video', poster: '/p.jpg' }] },
+  });
+  assert.deepEqual(parsed.nosotrosGaleria!.items, [{ url: '/finca.mp4', alt: 'x', tipo: 'video', poster: '/p.jpg' }]);
+});
+
+test('galería: un tipo FUERA del enum se rechaza (no cualquier string en `tipo`)', () => {
+  assert.throws(() => siteContentEditableSchema.parse({ nosotrosGaleria: { items: [{ url: '/a.jpg', tipo: 'audio' }] } }));
+});

@@ -150,6 +150,19 @@ test('PUBLICAR nosotrosGaleria con un SWAP de ítems NO borra ninguna foto (set-
   assert.deepEqual(blobsABorrar, []); // el CONJUNTO de urls no cambió, aunque el orden sí
 });
 
+test('PUBLICAR: quitar un ítem-VÍDEO de la galería borra sus DOS blobs (url + poster)', async () => {
+  // El ítem-vídeo aporta `url` (el vídeo) y `poster` (su imagen) al borrado, por `imagenes:['url','poster']`.
+  await prisma.siteContent.create({
+    data: {
+      id: 'default',
+      content:  { nosotrosGaleria: { items: [{ url: '/foto.jpg' }, { url: '/finca.mp4', poster: '/finca-poster.jpg', tipo: 'video' }] } },
+      borrador: { nosotrosGaleria: { items: [{ url: '/foto.jpg' }] } }, // el vídeo quitado
+    },
+  });
+  const { blobsABorrar } = await publicarSeccion('nosotrosGaleria');
+  assert.deepEqual(blobsABorrar.sort(), ['/finca-poster.jpg', '/finca.mp4']); // los dos blobs del vídeo
+});
+
 test('QUITAR una foto del BORRADOR NO borra el blob mientras sigue en lo PUBLICADO; publicar lo borra', async () => {
   // El caso que la confirmación de borrado promete (§ la confirmación): quitar del borrador es
   // ESCALONADO y reversible hasta publicar. El set-diff lo cubre (en-uso = content ∪ borrador);
