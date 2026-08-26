@@ -1,8 +1,9 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-26 (la página /nosotros como CAPACIDAD editable y apagable —
-tanda 1: la historia larga; la galería y el vídeo son las tandas 2 y 3—. El storefront ya
-tiene DOS páginas editables: la home (4 secciones) y /nosotros).
+**Actualizado:** 2026-08-26 (la página /nosotros, tanda 2: la GALERÍA — masonry con la
+proporción de cada foto, sin recorte; estrena el tipo `imagen` del RepeaterEditor y el
+uploader extraído. Falta la tanda 3, el vídeo (#48). El storefront tiene DOS páginas
+editables: la home (4 secciones) y /nosotros (historia + galería)).
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -47,7 +48,7 @@ Vercel, `main` = producción).
 | `/admin/dashboard` | Completa ("Hoy": hero + curva por hora + top-hoy + tarjetas) | Document-scroll |
 | `/admin/configuracion` | Completa. "Configuración" con DOS secciones: Datos del negocio (editor lectura↔edición) + Equipo y usuarios | Document-scroll |
 | `/admin/perfil` | Completa (cuenta limpia + cambiar contraseña real) | Document-scroll |
-| `/admin/tienda` | Completa. Contenido del storefront (SiteContent), DOS páginas (selector Home/Nosotros): la home (hero · Historia · Suscripción · Testimonios) y /nosotros (historia larga, apagable). Lectura en TARJETAS, edición en vista grande. Rail: "Tienda" suelto tras Crecimiento | Document-scroll |
+| `/admin/tienda` | Completa. Contenido del storefront (SiteContent), DOS páginas (selector Home/Nosotros): la home (hero · Historia · Suscripción · Testimonios) y /nosotros (historia larga · GALERÍA masonry, apagable). Lectura en TARJETAS, edición en vista grande. Rail: "Tienda" suelto tras Crecimiento | Document-scroll |
 
 ### Pendientes de rediseño
 **Ninguna.** Todas las verticales del panel están en lenguaje Duna; no queda una
@@ -217,6 +218,21 @@ cabecera:
   definió el spec absorbió lo que iba a hacer.
 
 ### Trabajo cerrado
+- **La GALERÍA de /nosotros — tanda 2** (2026-08-26, § CLAUDE.md "La GALERÍA de /nosotros").
+  La 2ª sección REPEATER (`nosotrosGaleria`, ítem `{ url, alt, w, h }`), sección PROPIA —se
+  oculta sola, su vacío es legítimo—, que disuelve la colisión del #47. Estrena la PLATAFORMA:
+  el **uploader extraído** (`useSubidaImagen`, compartido por la cáscara y el repeater — un
+  `<input>`, un `subiendo`) y el **tipo `imagen`** en el `RepeaterEditor` (agrega subiendo
+  primero, miniatura en el renglón, `max: 12` de curaduría). **MASONRY** (CSS columns) con la
+  proporción NATURAL de cada foto —dims capturadas en la subida (`createImageBitmap`), sin
+  recorte al cuadrado que decidiría por el dueño qué parte importa—; orden por columna (decisión
+  escrita), móvil 1 columna = orden del array. **Alt** opcional con fallback contextual "Foto de
+  la galería de {negocio}" (por PROP, no `useSiteSettings()`). **Borrar CONFIRMA** en la
+  plataforma (RepeaterEditor, reusa ConfirmDescartarDialog; el artículo del copy sale de
+  `RepeaterConfig.genero`). El borrado de blobs por ítem sale gratis de `imagenesDe`
+  (`imagenes:['url']`); quitar una foto publicada es ESCALONADO (el blob se va al PUBLICAR).
+  Verificado en modo producción con siembra reversible (proporciones mixtas). Falta la tanda 3
+  (el vídeo, #48).
 - **La página /nosotros como CAPACIDAD — tanda 1: la historia** (2026-08-26, § CLAUDE.md
   "La PÁGINA /nosotros"). El storefront gana una 2ª página editable, apagable por cualquier
   cliente. **Páginas por CONFIG, no anidado en el dato**: las secciones de /nosotros son claves
@@ -228,9 +244,8 @@ cabecera:
   `useSiteContent()` y ocultan el enlace apagada; re-apuntar el ancla `/#nuestra-historia` →
   `/nosotros` arregla de yapa el active-state muerto. Editor: **selector Home/Nosotros SIN gate**
   (siempre ≥2 páginas) + toggle encender/apagar (write DIRECTO). **#47 CANCELADO** (la galería
-  variable vive en /nosotros, tanda 2; el collage de la home se queda en 4 fijas). Los hints que
-  restaban el hecho en los dos toggles de visibilidad se retiraron. **Faltan: tanda 2** (la
-  galería variable + el tipo 'imagen' del RepeaterEditor) **y tanda 3** (el vídeo, #48).
+  variable vive en /nosotros, ya construida en la tanda 2; el collage de la home se queda en 4
+  fijas). Los hints que restaban el hecho en los dos toggles de visibilidad se retiraron.
 - **SiteContent — el storefront editable, LAS CUATRO SECCIONES** (2026-08-25, § CLAUDE.md
   "Config del contenido — SiteContent"). El contenido editorial de la home salió del JSX a la
   tabla `SiteContent` (singleton, born en `public`, **migración SIN INSERT**), editable en
@@ -251,14 +266,16 @@ cabecera:
     Con eso desapareció el scroller interno que atrapaba la página en lectura.
   - **UNA cáscara genérica** (`TiendaSeccionEditor`) parametrizada por config (campos, imágenes,
     toggle, componente de vista); autoguardado y publicación NO se duplican por sección.
-  - **El REPEATER es plataforma** (Testimonios lo estrena; la galería de #47 lo reusa): resolver de
+  - **El REPEATER es plataforma** (Testimonios lo estrena; la galería de /nosotros lo reusa —
+    construida en su tanda 2, con el tipo `imagen`): resolver de
     arrays + `RepeaterEditor` genérico (colapsables, flechas, rating). Destapó un defecto latente en
     `main` —el resolver ignoraba `items`, así que un repeater habría perdido toda edición en
     silencio—; visto fallar y arreglado.
   - **`#44` CERRADO:** los tres testimonios FABRICADOS salieron del código; Testimonios nace con
     `items: []` y hide-on-empty. El owner recarga los reales como DATO por el editor.
-  - Abrió backlog **#46** (editor visual), **#47** (galería variable), **#48** (vídeo), **#49**
-    (editar los planes de Suscripción) y **#50** (arrastrar para reordenar).
+  - Abrió backlog **#46** (editor visual), **#47** (galería variable — CANCELADO: la galería vive
+    en /nosotros, ya construida), **#48** (vídeo), **#49** (editar los planes de Suscripción) y
+    **#50** (arrastrar para reordenar).
 - **SiteSetting — los datos PLANOS del negocio, editables** (2026-08-24, § CLAUDE.md
   "Config del negocio — SiteSetting"). nombre, tagline, descripcionFooter, whatsapp,
   instagram, emailRemitente, emailReplyTo, adminEmail salieron de `siteConfig` (código)
@@ -585,7 +602,8 @@ internas apagadas en producción se DEJAN apagadas; si se encienden, es operaci�
 datos desde el panel, nunca un `UPDATE` en migración), `#44` (los testimonios
 fabricados salieron del código con la tanda de Testimonios), `#45` y `#47`
 (**CANCELADO**: la galería variable no va en la home —el collage se queda en 4 fijas, el
-anzuelo—; vive en /nosotros, tanda 2, donde se construye el tipo 'imagen' del RepeaterEditor).
+anzuelo—; vive en /nosotros, ya construida en la tanda 2, donde se estrenó el tipo 'imagen'
+del RepeaterEditor con masonry por proporción).
 
 ---
 
