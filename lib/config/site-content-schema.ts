@@ -47,10 +47,28 @@ const subscriptionCTAEditableSchema = z.object({
   ctaLabel: z.string().optional(),
 });
 
+// Testimonios: sección repeater. Encabezado (eyebrow/titulo) + un ARRAY de ítems. Cada ítem SOFT:
+// strings opcionales + `stars` número opcional. La validación de campos requeridos del ítem (name,
+// text) es del EDITOR, no del schema — acá sólo se valida el TIPO (loader SOFT).
+const testimonialItemSchema = z.object({
+  name: z.string().optional(),
+  city: z.string().optional(),
+  text: z.string().optional(),
+  product: z.string().optional(),
+  stars: z.number().optional(),
+});
+const testimonialsEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  eyebrow: z.string().optional(),
+  titulo: z.string().optional(),
+  items: z.array(testimonialItemSchema).optional(),
+});
+
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   brandStory: brandStoryEditableSchema.optional(),
   subscriptionCTA: subscriptionCTAEditableSchema.optional(),
+  testimonials: testimonialsEditableSchema.optional(),
 });
 
 export type SiteContentEditable = z.infer<typeof siteContentEditableSchema>;

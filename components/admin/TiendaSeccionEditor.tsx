@@ -6,6 +6,7 @@ import { Pencil, Upload } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import VistaTiendaEnVivo from '@/components/admin/VistaTiendaEnVivo';
+import RepeaterEditor from '@/components/admin/RepeaterEditor';
 import type { SeccionConfig } from '@/components/admin/tienda-secciones';
 import { uploadImagen } from '@/lib/api/upload';
 import { DEFAULTS } from '@/lib/config/site-content-defaults';
@@ -23,7 +24,7 @@ import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, TIPOS_PERMITIDOS, ACCEPT_IMAGENES } fr
 // (§ lib/autoguardado); la vista cambia en el mismo render. Sin gesto de guardar; Publicar y
 // Descartar son las acciones del borrador.
 
-type Datos = Record<string, string | boolean>;
+type Datos = Record<string, unknown>; // strings/booleans planos + el array de items de un repeater
 
 export default function TiendaSeccionEditor({ config }: { config: SeccionConfig }) {
   const { seccion } = config;
@@ -165,12 +166,39 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
   const subiendo = fase === 'subiendo';
   const puedePublicar = auto.estado === 'guardado' && !procesando;
   const enError = auto.estado === 'error';
+  // `oculta` = el TOGGLE apagado (para el badge "Oculta"). `repeaterVacio` = una lista sin ítems, que
+  // también hace que la sección no se renderice (hide-on-empty). `noSeMuestra` cubre las dos para el
+  // placeholder de la vista/tarjeta: sin él, un repeater vacío deja la vista en BLANCO, que se lee como
+  // roto. El mensaje distingue el porqué (toggle vs lista vacía).
   const oculta = config.ocultable && form.visible === false;
+  const items = config.repeater ? form[config.repeater.itemsKey] : undefined;
+  const repeaterVacio = !!config.repeater && !(Array.isArray(items) && items.length > 0);
+  const noSeMuestra = oculta || repeaterVacio;
+  const avisoNoSeMuestra = oculta
+    ? 'Actívala con el interruptor para verla aquí.'
+    : 'La lista está vacía — agrega el primero para verla aquí.';
+  // En EDICIÓN se muestra siempre (incluido "Guardado", que confirma que no hay nada pendiente); en
+  // la TARJETA sólo cuando hay algo que decir (`estado !== 'guardado'` o una subida en curso).
   const mostrarEstado = editando || subiendo || auto.estado !== 'guardado';
   const estadoTexto = subiendo ? 'Subiendo imagen…'
     : auto.estado === 'guardando' ? 'Guardando…'
     : auto.estado === 'error' ? 'No se pudo guardar'
     : 'Guardado';
+
+  // UNA sola definición del indicador, renderizada en las DOS ramas. Vivía sólo en el editor, y eso
+  // dejaba INVISIBLE un guardado que fallara DESPUÉS de cerrar: el reintento seguía corriendo y el
+  // beforeunload seguía guardando, pero el operador no veía nada (§ un guardado que falla sin
+  // decirlo). Dos copias divergirían, así que se comparte, no se duplica.
+  const indicadorEstado = mostrarEstado ? (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
+      <span className={enError ? 'duna-field__error' : 'duna-caption'} style={{ margin: 0 }} role={enError ? 'alert' : undefined}>
+        {estadoTexto}
+      </span>
+      {enError && (
+        <button type="button" onClick={() => auto.reintentar()} className="duna-btn duna-btn--ghost duna-btn--sm">Reintentar</button>
+      )}
+    </div>
+  ) : null;
 
   // ── LECTURA: la sección es una TARJETA compacta (miniatura + título + estado + Editar). La vista
   //    grande (con sticky) sólo existe en edición; en lectura no hay scroller interno que atrape la
@@ -179,7 +207,7 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
     return (
       <div className="tienda-tarjeta">
         <div className="tienda-tarjeta__thumb" onClick={() => setEditando(true)}>
-          {oculta ? (
+          {noSeMuestra ? (
             <div className="tienda-tarjeta__oculta">
               <span className="duna-caption" style={{ margin: 0 }}>No se muestra en la tienda</span>
             </div>
@@ -193,6 +221,9 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
             {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
             {oculta && <span className="duna-badge duna-badge--neutral">Oculta</span>}
           </div>
+          {/* El estado va ENTRE el título y la acción: se lee qué es → cómo está → qué hacer. En el
+              caso normal ('guardado') no renderiza nada y la tarjeta queda idéntica a antes. */}
+          {indicadorEstado}
           <div>
             <button type="button" onClick={() => setEditando(true)} className="duna-btn duna-btn--secondary">
               <Pencil /> Editar
@@ -217,19 +248,16 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
             Así se ve en la tienda. Edita y los cambios se guardan solos; publica cuando estén listos.{' '}
             <a href="/" target="_blank" rel="noreferrer" className="duna-link">Ver la tienda</a>
           </p>
-          {mostrarEstado && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: 'var(--duna-space-2)' }}>
-              <span className={enError ? 'duna-field__error' : 'duna-caption'} style={{ margin: 0 }} role={enError ? 'alert' : undefined}>
-                {estadoTexto}
-              </span>
-              {enError && (
-                <button type="button" onClick={() => auto.reintentar()} className="duna-btn duna-btn--ghost duna-btn--sm">Reintentar</button>
-              )}
-            </div>
-          )}
+          {indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
         </div>
+        {/* ASIMETRÍA DELIBERADA: Publicar y Descartar esperan al autoguardado (`!puedePublicar`)
+            porque MUTAN —publicar con algo pendiente publicaría un borrador viejo—. "Cerrar" NO muta:
+            sólo vuelve a la tarjeta, el cambio queda en el borrador. Por eso NUNCA se deshabilita —en
+            estado de error (que reintenta solo cada 5 s) apagarlo dejaría al operador sin salida— y no
+            hace falta esperar el flush: cerrar no DESMONTA nada (es otra rama del mismo componente, el
+            coordinador vive en su ref), y el PUT es fire-and-forget de todos modos. */}
         <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
-          <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Listo</button>
+          <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
           {hayBorrador && (
             <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
               Descartar
@@ -249,11 +277,11 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
             `tienda-vivo__vista` es sticky: sólo existe en edición, así que al dar "Listo" se
             desmonta y no queda ningún elemento pinneado. */}
         <div className="tienda-vivo__vista">
-          {oculta ? (
+          {noSeMuestra ? (
             <div className="duna-card duna-card__pad" style={{ display: 'grid', placeItems: 'center', minHeight: '160px', textAlign: 'center' }}>
               <div>
-                <p className="duna-title" style={{ margin: 0 }}>Sección oculta</p>
-                <p className="duna-sub" style={{ marginTop: '4px' }}>No se muestra en la tienda. Actívala con el interruptor para verla aquí.</p>
+                <p className="duna-title" style={{ margin: 0 }}>No se muestra en la tienda</p>
+                <p className="duna-sub" style={{ marginTop: '4px' }}>{avisoNoSeMuestra}</p>
               </div>
             </div>
           ) : (
@@ -336,6 +364,19 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
                   );
                 })}
               </div>
+
+              {/* Sección de LISTA (repeater): cada cambio del RepeaterEditor —editar, agregar, quitar,
+                  mover— pasa por `cambiar`, el mismo marcar-sucio + autoguardado que un campo plano. */}
+              {config.repeater && (
+                <div style={{ marginTop: 'var(--duna-space-5)' }}>
+                  <RepeaterEditor
+                    items={Array.isArray(form[config.repeater.itemsKey]) ? (form[config.repeater.itemsKey] as Record<string, unknown>[]) : []}
+                    descriptores={config.repeater.campos}
+                    itemLabel={config.repeater.itemLabel}
+                    onChange={nuevos => cambiar({ [config.repeater!.itemsKey]: nuevos })}
+                  />
+                </div>
+              )}
 
               {errorServidor && (
                 <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-3)' }}>{errorServidor}</p>

@@ -5,6 +5,7 @@ import {
   REGISTRY,
   mezclarBorrador,
   resolverSiteContent,
+  resolverItems,
   seccionEsVisible,
   type SeccionDef,
 } from './site-content-defaults';
@@ -64,13 +65,13 @@ test('el hero (ocultable:false) SIEMPRE es visible, aun con visible:false guarda
 });
 
 test('repeater: se auto-oculta con el array vacío (hide-on-empty), aun con visible:true', () => {
-  const def: SeccionDef = { label: 'X',ocultable: true, repeater: { itemsKey: 'items' }, campos: {} };
+  const def: SeccionDef = { label: 'X',ocultable: true, repeater: { itemsKey: 'items', campos: {} }, campos: {} };
   assert.equal(seccionEsVisible(def, { visible: true, items: [] }), false);
   assert.equal(seccionEsVisible(def, { visible: true, items: [{ x: 1 }] }), true);
 });
 
 test('repeater ocultable:false igual se oculta si el array está vacío (hide-on-empty gana)', () => {
-  const def: SeccionDef = { label: 'X',ocultable: false, repeater: { itemsKey: 'items' }, campos: {} };
+  const def: SeccionDef = { label: 'X',ocultable: false, repeater: { itemsKey: 'items', campos: {} }, campos: {} };
   assert.equal(seccionEsVisible(def, { items: [] }), false);
   assert.equal(seccionEsVisible(def, { items: [1] }), true);
 });
@@ -210,4 +211,73 @@ test('subscriptionCTA es OCULTABLE y NO tiene imagenes (sección de solo texto)'
   assert.equal(def.imagenes, undefined); // sin imágenes → no toca el borrado de blobs
   assert.equal(seccionEsVisible(def, { visible: false }), false);
   assert.equal(seccionEsVisible(def, { visible: true }), true);
+});
+
+// ── PLATAFORMA: el resolver de arrays (repeater), y el DEFECTO LATENTE que destapa ─────
+//
+// El REGISTRY ganó `repeater:{itemsKey}` hace tandas (lo leen `seccionEsVisible` e `imagenesDe`),
+// PERO el resolver nunca resolvió el array de items. Como no hay ninguna sección repeater todavía,
+// nadie lo vio: es el patrón de "código correcto en apariencia, sin consumidor que lo delate".
+// Estos tests afirman el HECHO —los items guardados vuelven—, y el primero se ve FALLAR contra el
+// resolver de hoy (que devuelve el array default).
+
+const REGISTRO_REPEATER: Record<string, SeccionDef> = {
+  lista: {
+    label: 'Lista', ocultable: true,
+    repeater: { itemsKey: 'items', campos: { nombre: 'requerido', ciudad: 'opcional' } },
+    campos: {},
+  },
+};
+const DEFAULTS_REPEATER: Record<string, unknown> = { lista: { visible: true, items: [] } };
+
+test('SILENT-LOSS: el resolver DEVUELVE los items guardados (hoy los ignora → se perderían en silencio)', () => {
+  const stored = { lista: { items: [{ nombre: 'Ana', ciudad: 'Cali' }, { nombre: 'Beto', ciudad: 'Medellín' }] } };
+  const r = resolverSiteContent(stored, REGISTRO_REPEATER, DEFAULTS_REPEATER) as unknown as Record<string, { items: unknown[] }>;
+  // El HECHO: los guardados, no el default []. Con el resolver viejo esto es [] → rojo.
+  assert.deepEqual(r.lista.items, [{ nombre: 'Ana', ciudad: 'Cali' }, { nombre: 'Beto', ciudad: 'Medellín' }]);
+});
+
+test('resolverItems: requerido se conserva; opcional presente-vacío → ""; opcional ausente → ""', () => {
+  const r = resolverItems({ nombre: 'requerido', ciudad: 'opcional' }, [{ nombre: 'Ana', ciudad: '' }, { nombre: 'Beto' }]);
+  assert.deepEqual(r, [{ nombre: 'Ana', ciudad: '' }, { nombre: 'Beto', ciudad: '' }]);
+});
+
+test('resolverItems: los campos NO declarados (un rating numérico) pasan TAL CUAL', () => {
+  const r = resolverItems({ nombre: 'requerido' }, [{ nombre: 'Ana', stars: 4 }]);
+  assert.deepEqual(r, [{ nombre: 'Ana', stars: 4 }]);
+});
+
+test('resolverItems: descarta lo que no es objeto, y un no-array → [] (SOFT, no lanza)', () => {
+  assert.deepEqual(resolverItems({ nombre: 'requerido' }, ['x', 3, null, { nombre: 'Ana' }]), [{ nombre: 'Ana' }]);
+  assert.deepEqual(resolverItems({ nombre: 'requerido' }, 'no-array'), []);
+});
+
+// ── Testimonios (la 1ª sección repeater: encabezado + lista, ocultable + hide-on-empty) ─────
+
+test('testimonials: sin nada guardado → defaults con items VACÍOS (los 3 fabricados NO están en defaults)', () => {
+  assert.deepEqual(resolverSiteContent({}).testimonials.items, []);
+});
+
+test('testimonials: los items guardados se RESUELVEN y vuelven (usa la plataforma del repeater)', () => {
+  const r = resolverSiteContent({ testimonials: { items: [{ name: 'Ana', text: 'Rico', stars: 4 }] } });
+  // name/text conservados, city/product ausentes → "", stars (número) passthrough
+  assert.deepEqual(r.testimonials.items, [{ name: 'Ana', text: 'Rico', stars: 4, city: '', product: '' }]);
+});
+
+test('testimonials: encabezado de sección — eyebrow opcional (vacío → ""), titulo requerido (vacío → default)', () => {
+  const r = resolverSiteContent({ testimonials: { eyebrow: '', titulo: '' } });
+  assert.equal(r.testimonials.eyebrow, '');
+  assert.equal(r.testimonials.titulo, DEFAULTS.testimonials.titulo);
+});
+
+test('testimonials PRECEDENCIA: items vacío OCULTA aunque visible sea true (hide-on-empty gana sobre el toggle)', () => {
+  const def = REGISTRY.testimonials;
+  assert.equal(def.ocultable, true);
+  // LA PRECEDENCIA decidida: vacío + visible:true → OCULTA. No confiada a la lectura del código.
+  assert.equal(seccionEsVisible(def, { visible: true, items: [] }), false);
+  // con items + visible:false → oculta por el TOGGLE (la otra razón)
+  assert.equal(seccionEsVisible(def, { visible: false, items: [{ name: 'Ana' }] }), false);
+  // con items + visible:true (o ausente) → se muestra
+  assert.equal(seccionEsVisible(def, { visible: true, items: [{ name: 'Ana' }] }), true);
+  assert.equal(seccionEsVisible(def, { items: [{ name: 'Ana' }] }), true);
 });

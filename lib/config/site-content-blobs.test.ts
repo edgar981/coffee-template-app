@@ -8,7 +8,7 @@ import type { SeccionDef } from './site-content-defaults';
 // y de paso demuestra que el camino del repeater ya funciona.
 const REG: Record<string, SeccionDef> = {
   collage:     { label: 'C', ocultable: true, imagenes: ['i1', 'i2', 'i3', 'i4'], campos: {} },
-  testimonios: { label: 'T', ocultable: true, repeater: { itemsKey: 'items' }, imagenes: ['foto'], campos: {} },
+  testimonios: { label: 'T', ocultable: true, repeater: { itemsKey: 'items', campos: {} }, imagenes: ['foto'], campos: {} },
 };
 
 // ── imagenesDe ────────────────────────────────────────────────────────────────

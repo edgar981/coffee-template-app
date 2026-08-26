@@ -5,6 +5,7 @@ import type { ComponentType } from 'react';
 import HeroSection from '@/components/storefront/home/HeroSection';
 import BrandStory from '@/components/storefront/home/BrandStory';
 import SubscriptionCTA from '@/components/storefront/home/SubscriptionCTA';
+import TestimonialSection from '@/components/storefront/home/TestimonialSection';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { DEFAULTS, type SiteContentData } from '@/lib/config/site-content-defaults';
@@ -38,6 +39,7 @@ const COMPONENTES: Record<SeccionVista, ComponentType> = {
   hero: HeroSection,
   brandStory: BrandStory,
   subscriptionCTA: SubscriptionCTA,
+  testimonials: TestimonialSection,
 };
 
 export default function VistaTiendaEnVivo({

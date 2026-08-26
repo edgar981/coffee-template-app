@@ -53,11 +53,33 @@ export interface SubscriptionCTAContent {
   ctaLabel: string;
 }
 
+// Testimonios ("Lo que dicen nuestros clientes"): la PRIMERA sección REPEATER — un encabezado de
+// sección (eyebrow + titulo) sobre una LISTA de testimonios. Cada ítem: name/text requeridos,
+// city/product opcionales, y `stars` (número, no string → el resolver lo pasa tal cual). Es
+// OCULTABLE **y** hide-on-empty: con `items` vacío no se renderiza, y esa precedencia gana sobre el
+// toggle. NACE CON items VACÍOS a propósito (§ SiteContent — el repeater): los defaults valen para copy,
+// NO para un CLAIM falso — los tres testimonios fabricados no van a defaults; el owner carga los
+// reales como DATO por el editor.
+export interface TestimonialItem {
+  name: string;
+  city: string;
+  text: string;
+  product: string;
+  stars: number;
+}
+
+export interface TestimonialsContent {
+  visible: boolean;
+  eyebrow: string;
+  titulo: string;
+  items: TestimonialItem[];
+}
+
 export interface SiteContentData {
   hero: HeroContent;
   brandStory: BrandStoryContent;
   subscriptionCTA: SubscriptionCTAContent;
-  // Futuro (sólo datos, sin tocar el modelo): testimonials (repeater).
+  testimonials: TestimonialsContent;
 }
 
 // Los DEFAULTS son los literales que hoy viven en el JSX del hero. Se mueven acá; el
@@ -98,6 +120,12 @@ export const DEFAULTS: SiteContentData = {
     bullet4: 'Pausa o cancela cuando quieras',
     ctaLabel: 'Ver los planes',
   },
+  testimonials: {
+    visible: true,
+    eyebrow: 'Testimonios',
+    titulo: 'Lo que dicen nuestros clientes',
+    items: [], // VACÍO a propósito (§ SiteContent — el repeater): sin claims falsos en defaults; hide-on-empty oculta
+  },
 };
 
 // Destinos de los CTA — ESTRUCTURA, no editable. Los labels se editan; los hrefs NO: un
@@ -121,7 +149,10 @@ export interface SeccionDef {
   /** Nombre de la sección en el selector del editor (§ /admin/tienda). */
   label: string;
   ocultable: boolean;
-  repeater?: { itemsKey: string };
+  /** Sección de LISTA: `itemsKey` es la clave del array; `campos` es la config de campos de CADA
+   *  ÍTEM (requerido/opcional, para el resolver). Los campos NO-string del ítem (p. ej. un rating
+   *  numérico) no van acá: el resolver los pasa tal cual. Coexiste con `campos` de sección. */
+  repeater?: { itemsKey: string; campos: Record<string, CampoTipo> };
   campos: Record<string, CampoTipo>;
   /** Nombres de los campos que son IMÁGENES (blobs). Los lee el borrado de blobs reemplazados
    *  (`imagenesDe`), NO el resolver. Para un repeater la imagen vive en cada item. */
@@ -174,6 +205,26 @@ export const REGISTRY: Record<keyof SiteContentData, SeccionDef> = {
       ctaLabel: 'requerido',
     },
   },
+  testimonials: {
+    label: 'Testimonios',
+    ocultable: true,
+    // Campos de SECCIÓN (el encabezado). La LISTA va en `repeater.campos` (campos del ítem):
+    // name/text requeridos, city/product opcionales. `stars` NO va acá —es número, el resolver lo
+    // pasa tal cual—.
+    campos: {
+      eyebrow: 'opcional',
+      titulo: 'requerido',
+    },
+    repeater: {
+      itemsKey: 'items',
+      campos: {
+        name: 'requerido',
+        city: 'opcional',
+        text: 'requerido',
+        product: 'opcional',
+      },
+    },
+  },
 };
 
 const esVacio = (v: unknown): boolean => typeof v !== 'string' || v.trim() === '';
@@ -186,13 +237,19 @@ const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
  *    `opcional` AUSENTE → el DEFAULT (así el editor lo pre-llena la primera vez).
  * NUNCA lanza. `visible` sólo se sobreescribe con un booleano explícito.
  */
-export function resolverSiteContent(stored: unknown): SiteContentData {
+// Parametrizado en `registro`/`defaultsBase` (como `seccionEsVisible` e `imagenesDe`) para probar
+// la rama repeater con una sección SINTÉTICA, sin depender de que exista una repeater real.
+export function resolverSiteContent(
+  stored: unknown,
+  registro: Record<string, SeccionDef> = REGISTRY,
+  defaultsBase: Record<string, unknown> = DEFAULTS as unknown as Record<string, unknown>,
+): SiteContentData {
   const raw = esObj(stored) ? stored : {};
-  const out = {} as Record<keyof SiteContentData, unknown>;
+  const out = {} as Record<string, unknown>;
 
-  for (const key of Object.keys(DEFAULTS) as (keyof SiteContentData)[]) {
-    const def = REGISTRY[key];
-    const defaults = DEFAULTS[key] as unknown as Record<string, unknown>;
+  for (const key of Object.keys(defaultsBase)) {
+    const def = registro[key];
+    const defaults = defaultsBase[key] as Record<string, unknown>;
     const storedSec = esObj(raw[key]) ? (raw[key] as Record<string, unknown>) : {};
     const sec: Record<string, unknown> = { ...defaults };
 
@@ -206,9 +263,42 @@ export function resolverSiteContent(stored: unknown): SiteContentData {
         sec[campo] = campo in storedSec ? (val ?? '') : defaults[campo];
       }
     }
+
+    // REPEATER: resolver el ARRAY de items guardado. Sin esto, `sec[itemsKey]` se queda con el
+    // array DEFAULT (`{...defaults}`) y toda edición del repeater se pierde EN SILENCIO.
+    if (def.repeater) {
+      sec[def.repeater.itemsKey] = resolverItems(def.repeater.campos, storedSec[def.repeater.itemsKey]);
+    }
+
     out[key] = sec;
   }
-  return out as SiteContentData;
+  return out as unknown as SiteContentData;
+}
+
+// Resuelve el array de items de una sección repeater. Cada ítem: los campos `requerido`/`opcional`
+// (strings) se normalizan a string —el editor valida los requeridos, así que acá sólo se garantiza
+// la forma—; los demás campos del ítem (p. ej. un rating numérico) pasan TAL CUAL. Un valor que no
+// es objeto se descarta. NUNCA lanza (loader SOFT).
+export function resolverItems(
+  itemCampos: Record<string, CampoTipo>,
+  storedItems: unknown,
+): Record<string, unknown>[] {
+  if (!Array.isArray(storedItems)) return [];
+  const out: Record<string, unknown>[] = [];
+  for (const item of storedItems) {
+    if (!esObj(item)) continue;
+    const resuelto: Record<string, unknown> = { ...item }; // passthrough (rating numérico, etc.)
+    for (const [campo, tipo] of Object.entries(itemCampos)) {
+      const val = item[campo];
+      if (tipo === 'requerido') {
+        resuelto[campo] = typeof val === 'string' ? val : '';
+      } else {
+        resuelto[campo] = campo in item ? (val ?? '') : '';
+      }
+    }
+    out.push(resuelto);
+  }
+  return out;
 }
 
 /**

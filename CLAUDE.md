@@ -688,34 +688,6 @@ Reglas de la lista, para que siga sirviendo:
 - **Un item que se completa se BORRA de acá** y su decisión, si tiene, se
   documenta en la sección que le corresponda. Esto no es un historial.
 
-### 44. Los tres testimonios de la home son reseñas FABRICADAS, en producción
-
-`components/storefront/home/TestimonialSection.tsx` trae TRES testimonios hardcoded
-(Valentina Torres, Carlos Eduardo Mora, Laura Jiménez) que citan productos que Nayoli **NO
-vende** ("Café Nariño Premium", "Cold Brew Concentrado", "Suscripción Premium"). Son prueba
-social **FABRICADA** —no relleno de plantilla— y están sirviéndose en producción.
-
-**El vaciado se PROPUSO y se DESCARTÓ** (decisión del owner): se planteó vaciar el array y
-dejar la sección hide-on-empty ya, suelto. Se descartó — producción es hoy el PREVIEW de
-Luis, no una tienda con clientes, y las secciones se trabajan **COMPLETAS** hasta que el
-cliente decida cuáles usa; no se poda por adelantado. Cuando llegue la tanda de Testimonios,
-el contenido **REAL reemplaza al actual** (no se vacía suelto antes).
-
-**Costo YA pagado: ninguno todavía** —no hay clientes reales que las lean—, y por eso está
-acá y no urge HOY. El costo que viene es duro: una reseña inventada que cita un producto
-inexistente, frente al primer cliente real, es un problema de confianza y de publicidad
-engañosa, no un texto de relleno.
-
-**La salida YA está decidida** (§ Config del contenido — SiteContent, cuando exista): la
-sección Testimonios nace **SIN defaults** (array vacío; los tres falsos borrados del código)
-y es **hide-on-empty** — vuelve con testimonios REALES o no vuelve. Es la excepción a
-defaults-como-fallback: los defaults valen para copy, NO para un CLAIM falso (reseñas,
-ratings, premios).
-
-**DISPARADOR (duro, no negociable): antes del go-live del storefront, o cuando Luis confirme
-si usa la sección — lo que ocurra primero.** No pueden estar cuando la tienda reciba su
-primer cliente real.
-
 ### 46. El editor VISUAL — editar sobre la vista, no llenar campos
 
 El dueño quiere clicar el texto EN la vista en vivo y editarlo ahí, como una plantilla, en vez de
@@ -1393,23 +1365,16 @@ offsets escalonados **hardcodeados por posición** (`imagen1` sin offset, `image
 `-mt-4`, `imagen4` `mt-4`). El disparador anotado —"un cliente con menos o más de cuatro fotos"—
 pide que sea un repeater (N fotos).
 
-**El modelo es casi gratis; el LAYOUT es el trabajo.** El REGISTRY ya tiene el concepto
-`repeater:{itemsKey}`, `imagenesDe` YA es repeater-aware (itera los items y junta el campo-imagen de
-cada uno → el borrado de blobs ya cubre repeaters), y `seccionEsVisible` ya hace hide-on-empty. Lo
-que falta del modelo: **el resolver no resuelve arrays de repeater** (`resolverSiteContent` itera
-`def.campos` planos). Lo caro es el LAYOUT: el collage 2×2 con offsets por posición **depende de que
-sean exactamente 4** — refluir con gracia a 2, 5 o 7 es rediseño de layout (una grilla/masonry pierde
-el escalonado artesanal, o se diseñan arreglos por rango de N). Y el editor cambia de 4 uploaders
-fijos a un repeater UI (agregar/quitar/–reordenar–).
-
-**SE CONSTRUYE UNA VEZ, SIRVIENDO A LOS DOS** (decisión del owner). Es el MISMO patrón de repeater que
-Testimonios (§ SiteContent, backlog #44). Lo COMPARTIDO: **modelo + resolver de repeater** (resolver
-arrays de items por campo) y un **`RepeaterEditor`** genérico (ítems como sub-forms con
-agregar/quitar/reordenar, cada ítem con su config de campos — galería: 1 imagen por ítem; testimonios:
-nombre + cita + avatar + rating). Lo que NO se comparte: el **render del storefront** (el collage vs
-las tarjetas de testimonio son componentes distintos; el layout es por-sección). Se construye **cuando
-se toque el primero de los dos**, diseñado para ambos desde el día uno — front-loadear la primitiva es
-barato comparado con construirla dos veces.
+**LA PLATAFORMA DEL REPEATER YA ESTÁ CONSTRUIDA** (la estrenó Testimonios, § SiteContent — el
+repeater): el resolver de arrays (`resolverItems`), el `RepeaterEditor` genérico (agregar/quitar/
+editar/reordenar-con-flechas, ítems colapsables), la config de campos por ítem, y el enganche en la
+cáscara. `imagenesDe` ya es repeater-aware (el borrado de blobs cubre repeaters) y `seccionEsVisible`
+ya hace hide-on-empty. **A la galería le queda SÓLO lo suyo:** cambiar `imagen1..4` fijas por un
+repeater de **imagen-por-ítem** (los descriptores cambian, la maquinaria no), y —lo caro— **el LAYOUT**:
+el collage 2×2 con offsets por posición **depende de que sean exactamente 4**; refluir con gracia a 2,
+5 o 7 es rediseño de layout (una grilla/masonry pierde el escalonado artesanal, o se diseñan arreglos
+por rango de N). El render del storefront es por-sección (el collage no se comparte con las tarjetas
+de testimonio); lo compartido —modelo + resolver + `RepeaterEditor`— ya existe.
 
 **Costo YA pagado: ninguno.** Hoy Nayoli tiene sus cuatro fotos y el collage fijo se ve bien.
 
@@ -1419,9 +1384,10 @@ OPCIONALES (§ SubscriptionCTA), que dan "hasta 4 sin hueco" sobre la cáscara g
 Testimonios (varios campos/ítem), pero el MISMO `RepeaterEditor` lo sirve. Su layout no es problema:
 la lista vertical (`space-y-3`) ya refluye con cualquier N. Sólo entra al repeater si se quieren 5+.
 
-**DISPARADOR: el primero de los tres que lo pida** —un cliente con ≠4 fotos en la galería, 5+
-beneficios en Suscripción, o la tanda de Testimonios—. Ahí se construye el repeater compartido
-(modelo + resolver + `RepeaterEditor`) y el render por sección.
+**DISPARADOR: un cliente con ≠4 fotos en la galería** (o 5+ beneficios en Suscripción, que reusa lo
+mismo). La plataforma ya está —Testimonios la construyó—; lo que dispara este ítem es el LAYOUT de la
+galería (el reflujo del collage a N) + cambiar los `imagen1..4` fijos por un repeater de imagen-por-
+ítem. No es "construir el repeater": es usarlo y rehacer el collage.
 
 ### 48. VÍDEO en una sección es CAPACIDAD nueva, no un campo más — declarado, sin plan
 
@@ -1455,7 +1421,7 @@ subtítulo, beneficios, label del CTA), pero **las tres tarjetas de plan NO**: s
 `SUBSCRIPTION_PLANS` (`lib/mock/subscriptions.ts`), como estructura.
 
 **OJO — NO son datos falsos, y hay que dejarlo escrito para que nadie las confunda con los testimonios
-(#44):** el "mock" está en el PATH (`lib/mock/`), no en el CONTENIDO. Son la propuesta real de Nayoli
+fabricados (§ SiteContent — el repeater):** el "mock" está en el PATH (`lib/mock/`), no en el CONTENIDO. Son la propuesta real de Nayoli
 (Plan 250 g / 500 g / Familiar, bolsas de su propio café), **SIN precio ni descuento** —el tipo
 `Subscription` no tiene campo de precio, y el CTA abre WhatsApp "me interesa", no cobra—. No hay ningún
 claim que Nayoli no honre. A diferencia de los testimonios, acá no hay nada que vaciar.
@@ -1471,6 +1437,20 @@ más grande que "el texto de la home".
 lee de SiteContent —para no divergir—, y (b) que son un repeater propio con DOS restricciones de layout
 ya conocidas: **el `sm:grid-cols-3` y el flag `popular` (i===1) asumen EXACTAMENTE tres** planes, así
 que variar el número es rediseño de esa rejilla, no sólo modelo.
+
+### 50. Reordenar ítems del RepeaterEditor es con FLECHAS — arrastrar es otra pieza
+
+El `RepeaterEditor` (§ SiteContent — el repeater) reordena con **flechas Subir/Bajar**
+(`move(i, ±1)`, precedente `DashboardCustomizer`): barato, sin dependencia, accesible por teclado.
+**Arrastrar** (drag-and-drop) se descartó para v1 —es una pieza nueva: librería dnd o pointer-handling
+propio + su a11y de teclado—.
+
+**Costo YA pagado: ninguno.** Con las listas de Nayoli (unos pocos testimonios, cuatro fotos) las
+flechas alcanzan de sobra; mover un ítem tres posiciones son tres clics, no una molestia real.
+
+**DISPARADOR: listas largas de verdad** —una vertical con, digamos, 15+ ítems donde reordenar con
+flechas se vuelva tedioso—. Ahí se evalúa el drag (con su a11y: siempre debe quedar el camino por
+teclado, las flechas no se retiran).
 
 ## Config del negocio — `SiteSetting` (los planos editables)
 
@@ -1664,18 +1644,19 @@ requerido vacío toma el default; un opcional PRESENTE-aunque-vacío se respeta 
   el REGISTRY), no un `if` en el renderer. **Hero `ocultable:false`** —una home sin encabezado
   no es un caso de v1— → su editor no ofrece ocultar.
 - **REPEATER → hide-on-empty**: array vacío → la sección NO se renderiza (gana sobre `visible`).
-  Testimonios será el primero.
+  Testimonios es el primero (construido; § el repeater, abajo).
 - **La EXCEPCIÓN a los defaults (§Q4): sin defaults para un CLAIM falso.** Los defaults valen
   para copy; NO para prueba social fabricada (reseñas, ratings, premios). Testimonios nace SIN
-  defaults y hide-on-empty (§ Backlog #44) — vuelve con testimonios reales o no vuelve.
+  defaults y hide-on-empty (§ el repeater, abajo) — vuelve con testimonios reales o no vuelve.
 
 `seccionEsVisible(def, sec)` combina las tres reglas; probada en capa 1 con un repeater
 sintético (deja la mecánica lista para las secciones que faltan, aunque el hero no la ejercite).
 
-**LAS SECCIONES EDITABLES HOY SON TRES:** hero (portada, `ocultable:false`), brandStory (Historia,
-`ocultable:true`, 4 imágenes fijas), y **subscriptionCTA** (Suscripción, `ocultable:true`, **solo
-texto**). La de Suscripción es la más simple —casi enteramente datos sobre la cáscara genérica
-(`TiendaSeccionEditor`), sin imágenes— y aporta dos cosas nuevas al modelo:
+**LAS SECCIONES EDITABLES HOY SON CUATRO:** hero (portada, `ocultable:false`), brandStory (Historia,
+`ocultable:true`, 4 imágenes fijas), **subscriptionCTA** (Suscripción, `ocultable:true`, **solo
+texto**), y **testimonials** (Testimonios, `ocultable:true`, la 1ª sección **REPEATER**). Suscripción
+es la más simple —casi enteramente datos sobre la cáscara genérica (`TiendaSeccionEditor`)— y aporta
+dos cosas al modelo:
 - **Bullets OPCIONALES como repeater-pobre**: `bullet1..4` opcionales que el componente junta con un
   `.filter` → "hasta 4 sin hueco" (vaciar uno cierra la lista), sin arrastrar el repeater real (§
   Backlog #47, su disparador si se quieren 5+). Se etiquetan "Beneficio 1…4" (el nombre dice lo que
@@ -1683,6 +1664,44 @@ texto**). La de Suscripción es la más simple —casi enteramente datos sobre l
 - **Contenido editable ≠ estructura compartida**: las 3 tarjetas de plan quedan FUERA del editor
   —son `SUBSCRIPTION_PLANS`, fuente compartida con `/suscripciones` (§ Backlog #49)—. El editor toca
   el texto de la home, no una fuente que otra página también lee.
+
+### El REPEATER — la plataforma (Testimonios la estrena; sirve también a la galería de #47)
+
+Testimonios es la 1ª sección de LISTA. La maquinaria es PLATAFORMA, agnóstica de sección —cambia sólo
+la config de campos por ítem—, así que la galería variable de Historia (#47) la reusa cambiando los
+descriptores (imagen por ítem en vez de texto+rating). Dos mitades:
+- **El resolver de arrays** (`resolverItems` + la rama repeater de `resolverSiteContent`): resuelve el
+  array de items guardado; los campos string requerido/opcional se normalizan, los NO declarados (un
+  rating numérico) pasan tal cual. `mezclarBorrador` pisa la sección entera, así que el borrador carga
+  el array completo (sin merge por ítem).
+- **El `RepeaterEditor`** (`components/admin/RepeaterEditor.tsx`): agregar/quitar/editar/reordenar
+  (**flechas**, § Backlog #50) ítems COLAPSABLES (renglón-resumen + expandir). Rating = estrellas
+  clicables. NO NOMBRA NINGÚN CAMPO CONCRETO: opera sobre `descriptor.name`/`.tipo` y los roles
+  `resumen` (principal/detalle). CONTROLADO por la cáscara: todo cambio —incluidos agregar y quitar—
+  pasa por `onChange → cambiar`, el mismo autoguardado que un campo plano.
+
+**Un repeater tiene DOS razones para no mostrarse, y la PRECEDENCIA está fijada (afirmada en capa 1):
+items vacío OCULTA aunque `visible` sea true** (hide-on-empty gana sobre el toggle). En la cáscara,
+`noSeMuestra = toggle-apagado ∨ lista-vacía` pinta el placeholder de la vista/tarjeta —sin él un
+repeater vacío deja la vista en BLANCO, que se lee como roto—; el aviso distingue el porqué. El badge
+"Oculta" sigue atado sólo al toggle.
+
+**Testimonios (§ #44, CERRADO): defaults con `items: []` VACÍOS, los tres fabricados BORRADOS del
+código.** Citaban productos que Nayoli no vende; eran prueba social fabricada horneada en el JSX. La
+sección EXISTE y su editor está listo; con items vacíos la home la oculta. El owner recarga los
+testimonios REALES —o los tres actuales como placeholder hasta hablar con Luis— **como DATO por el
+editor** (borrador→publicar), NUNCA en defaults. Es la excepción a defaults-como-fallback: los defaults
+valen para copy, no para un CLAIM falso (reseñas, ratings, premios). Si vuelve a entrar contenido
+fabricado, es DATO que el owner controla y reemplaza antes del primer cliente real —ya no un invariante
+del código—.
+
+**HALLAZGO DE MÉTODO — en un repeater los DEFAULTS no sirven para verificar el render.** El resolver
+SIEMPRE usa los items GUARDADOS (el default del array queda muerto), y eso es a propósito: es lo que
+protege el invariante de #44 —un default de lista jamás puede mostrarse, así que nadie puede hornear
+reseñas falsas "de relleno"—. La contrapartida: **verificar el render de un repeater NO se puede hacer
+tocando los defaults** (son inertes); exige **sembrar datos REVERSIBLES** en la base (§ la verificación
+del display de 5 estrellas se hizo así: seed → check → restore). Es la vuelta de tuerca de
+"defaults-como-fallback": valen para copy, y en un repeater no valen para nada.
 
 ### Las imágenes
 
