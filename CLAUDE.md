@@ -1378,10 +1378,18 @@ arrastra:
 - **Optimización/streaming**: Blob sirve el archivo crudo, sin transcodificar ni HLS. Para un loop de
   fondo corto y comprimido alcanza; para vídeo largo, querría un host de vídeo.
 
-**Costo YA pagado: ninguno.** Queda DECLARADO, sin plan.
+**Costo YA pagado: ninguno todavía**, pero **el DISPARADOR se CUMPLIÓ** (2026-08-26): el owner confirmó
+que el cliente tiene VIDEOS DE LA FINCA, así que deja de ser hipotético —es capacidad pedida, no
+declarada—.
 
-**DISPARADOR: un cliente pidiéndolo.** Ahí se decide contra la subida directa a Blob (#20), la lista de
-formatos aparte, el poster y la rama de render.
+**ARRASTRA EL #20, y es por dónde arranca:** un vídeo **NO pasa por el endpoint actual** (`/api/upload`
+no comprime y corta en 4 MB / el límite de 4.5 MB del body serverless de Vercel). Antes de tocar el
+modelo, el poster o el render, hay que resolver la **subida DIRECTA a Blob** (el cliente sube con token,
+salteando el serverless) — el #20 se vuelve agudo y es el primer eslabón.
+
+**DISPARADOR: CUMPLIDO — el cliente tiene los videos.** Cuando se construya, el orden es: subida directa
+a Blob (#20) → allowlist de formato aparte (mp4/webm) → el poster (`{ url de vídeo, url de poster }`,
+dos subidas) → la rama de render (`<video>`, no `next/image`).
 
 ### 49. Las TRES tarjetas de plan de Suscripción son ESTRUCTURA — no editables (todavía)
 
