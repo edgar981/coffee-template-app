@@ -1,7 +1,7 @@
 import { test, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { prisma } from './fixtures';
-import { guardarBorrador, publicarSeccion, descartarSeccion } from '../../lib/config/site-content-write';
+import { guardarBorrador, publicarSeccion, descartarSeccion, setPaginaVisible } from '../../lib/config/site-content-write';
 
 // EL FLUJO BORRADOR/PUBLICADO, contra base real. Se afirma acá y no en la suite pura porque lo
 // que importa es qué queda ESCRITO en la fila tras cada operación (content vs borrador), y —lo
@@ -131,4 +131,25 @@ test('PUBLICAR brandStory con un SWAP de posiciones entre las 4 imágenes NO bor
   });
   const { blobsABorrar } = await publicarSeccion('brandStory');
   assert.deepEqual(blobsABorrar, []); // el CONJUNTO de URLs no cambió → nada huérfano, aunque cada slot sí cambió
+});
+
+// El toggle de página va DIRECTO a lo publicado (no por borrador); se afirma que escribe el flag y
+// NO clobberea el resto del content —es un write que preserva las demás claves—.
+
+test('setPaginaVisible escribe el flag y NO toca el resto del content', async () => {
+  await prisma.siteContent.create({ data: { id: 'default', content: { hero: { titulo: 'H' } } } });
+  await setPaginaVisible('nosotros', false);
+  const { content } = await fila();
+  assert.equal(content!.paginas.nosotros.visible, false); // el flag escrito
+  assert.equal(content!.hero.titulo, 'H');                // el resto del content, intacto
+});
+
+test('setPaginaVisible re-enciende sin perder otras páginas ya guardadas', async () => {
+  await prisma.siteContent.create({
+    data: { id: 'default', content: { paginas: { nosotros: { visible: false }, otra: { visible: true } } } },
+  });
+  await setPaginaVisible('nosotros', true);
+  const { content } = await fila();
+  assert.equal(content!.paginas.nosotros.visible, true); // re-encendida
+  assert.equal(content!.paginas.otra.visible, true);     // otra página, intacta
 });

@@ -5,7 +5,16 @@
 // beforeunload, indicador, layout sticky) vive en la CÁSCARA (`TiendaSeccionEditor`). Si una
 // sección nueva necesitara algo fuera de esta config, es señal de que la cáscara se está forzando.
 
-export type SeccionVista = 'hero' | 'brandStory' | 'subscriptionCTA' | 'testimonials';
+export type SeccionVista = 'hero' | 'brandStory' | 'subscriptionCTA' | 'testimonials' | 'nosotrosHistoria';
+
+// Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
+// anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
+// muestra una pestaña por página. `home` no se apaga; `nosotros` sí (§ paginas.nosotros.visible).
+export type PaginaKey = 'home' | 'nosotros';
+export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean }[] = [
+  { key: 'home',     label: 'Home',     apagable: false },
+  { key: 'nosotros', label: 'Nosotros', apagable: true },
+];
 
 export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; hint: string };
 export type CampoImagen = { name: string; label: string };
@@ -34,6 +43,8 @@ export interface RepeaterConfig {
 
 export interface SeccionConfig {
   seccion: SeccionVista;
+  /** A qué página del storefront pertenece (§ PAGINAS). El editor agrupa por esto. */
+  pagina: PaginaKey;
   titulo: string;
   campos: CampoTexto[];
   imagenes: CampoImagen[];
@@ -46,6 +57,7 @@ export interface SeccionConfig {
 
 const HERO: SeccionConfig = {
   seccion: 'hero',
+  pagina: 'home',
   titulo: 'Hero de la home',
   ocultable: false,
   imagenes: [{ name: 'imagen', label: 'Imagen de fondo' }],
@@ -61,6 +73,7 @@ const HERO: SeccionConfig = {
 
 const BRAND_STORY: SeccionConfig = {
   seccion: 'brandStory',
+  pagina: 'home',
   titulo: 'Nuestra Historia',
   ocultable: true,
   // El collage 2×2 del storefront: imagen1 arriba-izq, imagen2 arriba-der, imagen3 abajo-izq,
@@ -81,6 +94,7 @@ const BRAND_STORY: SeccionConfig = {
 
 const SUBSCRIPTION: SeccionConfig = {
   seccion: 'subscriptionCTA',
+  pagina: 'home',
   titulo: 'Suscripción',
   ocultable: true,
   imagenes: [], // sección de solo texto
@@ -101,6 +115,7 @@ const SUBSCRIPTION: SeccionConfig = {
 
 const TESTIMONIOS: SeccionConfig = {
   seccion: 'testimonials',
+  pagina: 'home',
   titulo: 'Testimonios',
   ocultable: true,
   imagenes: [], // sección de solo texto (el avatar es la inicial del nombre)
@@ -124,5 +139,24 @@ const TESTIMONIOS: SeccionConfig = {
   },
 };
 
-// El ORDEN es el orden en la pantalla (y en la home): hero, historia, suscripción, testimonios.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, SUBSCRIPTION, TESTIMONIOS];
+// La página /nosotros: la historia larga (sólo texto; la galería variable es su propia sección,
+// tanda 2). `ocultable:false` — el ocultar es a nivel de PÁGINA (el toggle de encender/apagar), no
+// de esta sección.
+const NOSOTROS_HISTORIA: SeccionConfig = {
+  seccion: 'nosotrosHistoria',
+  pagina: 'nosotros',
+  titulo: 'Historia',
+  ocultable: false,
+  imagenes: [],
+  campos: [
+    { name: 'eyebrow',  label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
+    { name: 'titulo',   label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'parrafo1', label: 'Primer párrafo', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'parrafo2', label: 'Segundo párrafo', opcional: true, textarea: true, hint: 'Vacío: no se muestra.' },
+    { name: 'parrafo3', label: 'Tercer párrafo',  opcional: true, textarea: true, hint: 'Vacío: no se muestra.' },
+  ],
+};
+
+// El ORDEN es el orden en la pantalla. Las de la home primero (en el orden de la home), después las
+// de /nosotros; el editor las agrupa por `pagina` en pestañas.
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, SUBSCRIPTION, TESTIMONIOS, NOSOTROS_HISTORIA];
