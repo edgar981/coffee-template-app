@@ -947,24 +947,30 @@ navegación no ocurre — un no-op, no una pérdida.
 conservar. Entonces se eleva al padre como el borrador, o el detalle recibe una
 identidad estable entre contenedores.
 
-### 20. Las portadas de producto pesan ~1.4 MB (sin comprimir en la subida)
+### 20. Comprimir la imagen en la subida — pendiente, disparador CORREGIDO
 
-Las portadas de catálogo llegan a ~1.4 MB. El optimizador de Next las SIRVE
-reducidas (el storefront y las cards ven una versión chica), pero en cada frío de
-caché descarga el **original** entero desde Vercel Blob para re-codificar. En una
-red lenta eso es lo que hace expirar a `/_next/image`.
+**LA MITAD QUE DOLÍA SE CERRÓ** (tanda del #48/#20, la subida directa a Blob): el tope de
+4 MB **murió con el endpoint viejo `/api/upload`**; las subidas van DIRECTO del navegador a
+Blob, hasta **200 MB** (§ La subida DIRECTA a Blob). "El peso bloquea la subida" ya no pasa,
+y por eso este ítem dejó de ser sobre el TOPE.
 
-**Costo YA pagado:** el 500 `TimeoutError` de `/admin/productos` en local
-(2026-08-17). Medido con curl directo al blob: el cuerpo baja a ~50 KB/s → >15 s
-para 1.4 MB, mientras los headers vuelven en <1 s (por eso un HEAD engaña). Es
-**ambiental** (throughput a Blob desde esa red), no código —el diff de la rama no
-toca el optimizador ni `next.config`— pero el peso del original es lo que lo
-vuelve visible. En producción, servido desde el edge, hoy no muerde.
+Lo que QUEDA es sólo **COMPRIMIR**: las portadas se suben SIN recomprimir, así que el
+original pesa lo que pese. Next las SIRVE reducidas, pero en cada frío de caché descarga el
+ORIGINAL entero para re-codificar.
 
-**DISPARADOR: al tocar el flujo de carga de imágenes.** Ahí se comprime en la
-SUBIDA (redimensionar/recomprimir antes de `storage.put`), y el original deja de
-pesar 1.4 MB. Antes de eso no se comprime nada suelto: el flujo de subida es el
-único sitio donde el tope se aplica una vez y para siempre.
+**DISPARADOR CORREGIDO (owner) — NO es el tope de subida, es que el STOREFRONT SE VEA LENTO.**
+Ése es el hecho observable que justificaría comprimir. Comprimir en el navegador es otra
+capacidad —pérdida de calidad, tiempo, formatos— y no se adelanta a un síntoma que no
+existe. Cuando el storefront arrastre (CDN/peso empezando a importar), se comprime en la
+SUBIDA (redimensionar/recomprimir en el cliente antes de subir). **Las portadas YA subidas
+no encogen retroactivamente** —sólo las nuevas—; un backfill es decisión aparte (toca
+imágenes de producto vivas).
+
+**Costo YA pagado:** el 500 `TimeoutError` de `/admin/productos` en local (2026-08-17).
+Medido con curl directo al blob: el cuerpo baja a ~50 KB/s → >15 s para 1.4 MB, mientras los
+headers vuelven en <1 s (por eso un HEAD engaña). Es **ambiental** (throughput a Blob desde
+esa red), no código. En producción, servido desde el edge, hoy no muerde — que es por qué el
+disparador es la lentitud OBSERVADA, no la teórica.
 
 ### 21. El dev heredado del reset apunta a blobs de PRODUCCIÓN
 
@@ -1367,10 +1373,11 @@ arrastra:
 - **Formato**: un allowlist SEPARADO (mp4/webm), NO ampliar el de imágenes —mismo precedente que
   comprobantes-con-PDF (§ Comprobantes): un vídeo en un `<img>`/`next/image` no falla ruidoso, se
   queda en blanco—. Dos listas, no una ampliada.
-- **Subida directa a Blob (arrastra el #20)**: un vídeo excede el tope de 4 MB y el **límite de 4.5 MB
-  del body serverless de Vercel** —`/api/upload` no sirve—. Necesita subida DIRECTA a Blob (el cliente
-  sube con token, salteando el serverless). Es infra, no un campo. El #20 (subida sin comprimir) se
-  vuelve agudo.
+- **Subida directa a Blob — YA CONSTRUIDA** (tanda A, § La subida DIRECTA a Blob): un vídeo excede el
+  tope de 4 MB y el límite de 4.5 MB del body serverless, así que necesitaba la subida DIRECTA (el
+  cliente sube con token, salteando el serverless). Ese eslabón ya está: `subirDirecto` + el endpoint
+  del token, con `allowedContentTypes` en el token. Para vídeo, la tanda B AMPLÍA ese allowlist a
+  mp4/webm (hoy sólo imágenes) — no reescribe la infra.
 - **Poster**: un vídeo necesita su imagen POSTER (el frame antes de cargar/reproducir) → un "slot de
   vídeo" es en realidad `{ url de vídeo, url de poster }`, DOS subidas.
 - **Rama de render**: un `<video>` (no `next/image`); el componente del storefront ramifica —campo
@@ -1382,14 +1389,16 @@ arrastra:
 que el cliente tiene VIDEOS DE LA FINCA, así que deja de ser hipotético —es capacidad pedida, no
 declarada—.
 
-**ARRASTRA EL #20, y es por dónde arranca:** un vídeo **NO pasa por el endpoint actual** (`/api/upload`
-no comprime y corta en 4 MB / el límite de 4.5 MB del body serverless de Vercel). Antes de tocar el
-modelo, el poster o el render, hay que resolver la **subida DIRECTA a Blob** (el cliente sube con token,
-salteando el serverless) — el #20 se vuelve agudo y es el primer eslabón.
+**EL PRIMER ESLABÓN (la subida directa) YA ESTÁ:** la tanda A construyó `subirDirecto` + el endpoint del
+token (200 MB, restricciones en el token). Un vídeo ya podría subir por ahí; lo único que lo frena es
+que el token de hoy sólo permite imágenes (`allowedContentTypes`). Así que la tanda B **NO empieza de
+cero**: arranca ampliando el allowlist a mp4/webm, y sigue con lo que es propio del vídeo.
 
-**DISPARADOR: CUMPLIDO — el cliente tiene los videos.** Cuando se construya, el orden es: subida directa
-a Blob (#20) → allowlist de formato aparte (mp4/webm) → el poster (`{ url de vídeo, url de poster }`,
-dos subidas) → la rama de render (`<video>`, no `next/image`).
+**DISPARADOR: CUMPLIDO — el cliente tiene los videos.** Con la subida directa hecha, el orden restante
+es: allowlist mp4/webm en el token (§ tanda B) → el poster (SUBIDO, no generado; requerido-si-vídeo, §
+decisión) → la rama de render (`<video autoplay muted loop playsinline`, sin controles) → el ítem MIXTO
+imagen|vídeo en la galería → el rechazo de MOV con mensaje accionable (§ decisiones B/C ya tomadas). El
+poster requerido-si-vídeo va en la tanda C (lógica condicional sobre descriptores planos).
 
 ### 49. Las TRES tarjetas de plan de Suscripción son ESTRUCTURA — no editables (todavía)
 
@@ -2604,6 +2613,71 @@ Recepción automática por WhatsApp —la entidad queda lista para que ese canal
 alimente cuando llegue el bot—, verificación en lote, y notificaciones de
 comprobante pendiente. `tienePendienteDeVerificar` es la definición única que ese
 aviso futuro debe consumir, para que la campana y la lista no diverjan.
+
+## La subida DIRECTA a Blob (client upload)
+
+Tanda del 2026-08-26 (del #48/#20). Las imágenes de CONTENIDO —portadas y galería de producto,
+hero, brandStory, la galería de /nosotros— suben DIRECTO del navegador a Blob, sin pasar por la
+función serverless. El endpoint viejo `/api/upload` (server put) y su cliente `uploadImagen` se
+RETIRARON: dejar los dos sería dos caminos y el tope de 4 MB sobreviviendo donde nadie lo espera.
+
+**POR QUÉ, en una línea:** `storage.put` corría DENTRO de la función, así que el archivo viajaba en
+el body — y Vercel corta el body en ~4.5 MB. La subida directa saltea eso: el archivo va browser→Blob,
+hasta 200 MB (un plano de finca de un par de minutos sin recortar antes).
+
+### La SEGURIDAD es todo lo que hay — el gate del token
+
+Como el archivo NO pasa por el server, **el gate de sesión del endpoint del token es lo ÚNICO que
+impide que un tercero suba a tu Blob.** `POST /api/upload/token` llama a `handleUpload` (§
+`@vercel/blob/client`), y en `onBeforeGenerateToken` (server, ANTES de firmar):
+
+- **Valida sesión + rol** (OWNER/MANAGER; throw → no hay token). Va DENTRO del callback, no arriba,
+  porque el mismo route sirve también el webhook `upload-completed` que Blob manda SIN sesión.
+- **Devuelve las restricciones, que quedan CODIFICADAS EN EL TOKEN** (Blob las impone al subir, no
+  son un chequeo previo salteable): `allowedContentTypes` (hoy sólo imágenes — un token de hoy NO
+  puede subir un mp4; el vídeo amplía esto), `maximumSizeInBytes` (200 MB), `validUntil` (60 min,
+  para que una subida lenta por multipart no se quede sin token a mitad).
+- **El PATHNAME queda acotado** por `pathnameSubidaValido` (`lib/storage.ts`): exige
+  `[dev/]<prefijo>/<archivo>` —el `dev/` DEBE coincidir con el entorno (mismo aislamiento que
+  `isDeletable`: una subida de dev no aterriza en producción), prefijo ∈ whitelist, un solo segmento
+  saneado (sin traversal)—. Es el único control de DÓNDE escribe, porque el archivo no pasa por el
+  server. Afirmado en capa 1 (`lib/storage.test.ts`). `getPayloadFromClientToken` decodifica un token
+  y prueba que trae esas restricciones.
+
+**El navegador no ve `VERCEL_ENV`**, así que pregunta el prefijo de entorno con un GET al mismo route
+(gateado) y lo cachea, para armar el pathname con el `dev/` correcto.
+
+### La FRONTERA del proveedor gana una cara CLIENTE
+
+Antes sólo `lib/storage.ts` importaba `@vercel/blob` (server). Ahora la subida directa suma
+`@vercel/blob/client`: `handleUpload` (server) se queda en `lib/storage.ts` (`emitirTokenSubida`), y
+`upload` (navegador) vive en el helper cliente `lib/api/upload.ts` (`subirDirecto`). **Al cambiar de
+proveedor se reimplementan las DOS caras.** `sanitizeFilename` se extrajo a `lib/storage-path.ts`
+(puro, sin SDK) para que el cliente sanee el nombre IGUAL que el server valida.
+
+### La migración fue TOTAL — comprobantes NO, a propósito
+
+Todos los call sites de imagen de CONTENIDO migraron a `subirDirecto` (`useSubidaImagen`,
+`ProductFormModal`); `uploadImagen` y `/api/upload` se borraron. **Los COMPROBANTES se quedan en
+server-put** (`storage.put` directo en su route): son otro subsistema —pruebas de pago, con PDF,
+atadas a la orden, su 4 MB propio— y nunca usaron `uploadImagen`. No es "dos caminos para lo mismo":
+es un subsistema distinto. `storage.put` y `MAX_UPLOAD_BYTES` (4 MB) siguen vivos para ellos.
+
+### El PROGRESO va PEGADO AL BOTÓN, no en un sticky
+
+Una subida de minutos no puede bloquear la edición: el autoguardado corre SIEMPRE (también durante
+una subida — el ítem que sube no está en el borrador hasta que llega su url, así que nunca se guarda a
+medias). La barra de progreso (`BarraProgreso`) va **pegada al botón que disparó la subida** —"Agregar
+foto"/"Cambiar imagen"— donde el ojo ya está; cada editor rastrea cuál control la disparó
+(`subiendoDesde`/`subiendoCampo`) para no ponerla en todos. El indicador de GUARDADO (Guardando…/error)
+vive en la cabecera, sin sticky.
+
+**POR QUÉ EL PROGRESO NO VA EN UN STICKY DENTRO DE LA TARJETA** (defecto pagado, 2026-08-26): un sticky
+sobre una `.duna-card` (`--duna-surface`) necesitaría ese color —no `--duna-bg`— y AUN ASÍ sería una
+franja cortando la sección. El sticky del head de `.duna-lista` funciona porque sus filas van sobre el
+fondo de PÁGINA, no sobre una superficie elevada. **Esa es la distinción a recordar la próxima vez que
+alguien quiera pinnear algo dentro de una tarjeta.** (Y la vista previa sí es sticky, pero SÓLO ≥1080:
+en angosto el grid apila y una vista pinneada tapaba el form — `.tienda-vivo__vista` gateado a ≥1080.)
 
 ## Storage de imágenes de producto
 

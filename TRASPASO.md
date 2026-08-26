@@ -1,9 +1,10 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-26 (la página /nosotros, tanda 2: la GALERÍA — masonry con la
-proporción de cada foto, sin recorte; estrena el tipo `imagen` del RepeaterEditor y el
-uploader extraído. Falta la tanda 3, el vídeo (#48). El storefront tiene DOS páginas
-editables: la home (4 secciones) y /nosotros (historia + galería)).
+**Actualizado:** 2026-08-26 (la SUBIDA DIRECTA a Blob — tanda A del #48/#20. Las imágenes de
+contenido suben del navegador a Blob hasta 200 MB, salteando el serverless; el endpoint viejo
+`/api/upload` y `uploadImagen` se retiraron. Cerró la mitad del #20 que dolía —el tope de 4 MB—;
+comprimir queda con disparador corregido (storefront lento). El progreso va pegado al botón.
+Antes: /nosotros tanda 2, la galería masonry).
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -218,6 +219,18 @@ cabecera:
   definió el spec absorbió lo que iba a hacer.
 
 ### Trabajo cerrado
+- **La SUBIDA DIRECTA a Blob — tanda A del #48/#20** (2026-08-26, § CLAUDE.md "La subida DIRECTA a
+  Blob"). Las imágenes de contenido (portadas y galería de producto, hero, brandStory, galería de
+  /nosotros) suben del navegador a Blob con `subirDirecto` + un endpoint de token, hasta **200 MB**,
+  salteando el límite de 4.5 MB del serverless. **Migración TOTAL**: `uploadImagen` y `/api/upload`
+  RETIRADOS —un solo camino—; los comprobantes NO migran (subsistema aparte, server-put, PDF, 4 MB
+  propio). **Seguridad**: el gate del token es lo único que protege el Blob (el archivo no pasa por el
+  server) — `onBeforeGenerateToken` valida sesión+rol y acota `allowedContentTypes` (sólo imágenes) +
+  `maximumSizeInBytes` (200 MB) + el pathname (con aislamiento `dev/`) EN el token; probado sin sesión
+  → 401. **Progreso pegado al botón** (no un sticky sobre tarjeta, que cortaba; ni la vista sticky en
+  móvil, que tapaba el form — ambos arreglados). Cerró la mitad del #20 que dolía (el tope de 4 MB);
+  **comprimir** queda como #20 con disparador corregido (el storefront LENTO, no el tope). El vídeo
+  (#48) hereda esta infra: la tanda B amplía el allowlist del token a mp4/webm, no reescribe la subida.
 - **La GALERÍA de /nosotros — tanda 2** (2026-08-26, § CLAUDE.md "La GALERÍA de /nosotros").
   La 2ª sección REPEATER (`nosotrosGaleria`, ítem `{ url, alt, w, h }`), sección PROPIA —se
   oculta sola, su vacío es legítimo—, que disuelve la colisión del #47. Estrena la PLATAFORMA:
