@@ -264,7 +264,6 @@ async function main() {
         direccion:      c.direccion      || null,
         canal:          c.canal          || 'directo',
         notas:          c.notas          || null,
-        activo:         c.activo         ?? true,
         numero_ordenes: c.numero_ordenes ?? 0,
         total_compras:  c.total_compras  ?? 0,
       },
@@ -310,7 +309,6 @@ async function main() {
         imagenes:    p.imagenes     || [],
         bestseller:  p.bestseller   ?? false,
         badge:       p.badge        ?? null,
-        agotado:     p.agotado      ?? false,
         ...contenido,
       },
     });

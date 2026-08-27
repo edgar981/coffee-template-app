@@ -131,8 +131,12 @@ export const clienteInactivo: ScheduledHandler = async ({ config, now }) => {
     .map(g => g.cliente_id as string);
   if (inactivos.length === 0) return [];
 
+  // El conjunto `inactivos` ya sale de las órdenes PAGADAS, así que excluye por
+  // construcción a quien nunca compró. NO hay filtro por `activo`: esa columna se
+  // retiró (§ Backlog #8) — era decorativa aquí (todo cliente valía `true`, medido:
+  // con y sin el `where` el conjunto era idéntico). `telefono: {not:null}` sí filtra.
   const clientes = await prisma.customer.findMany({
-    where:  { id: { in: inactivos }, activo: true, telefono: { not: null } },
+    where:  { id: { in: inactivos }, telefono: { not: null } },
     select: { id: true, nombre: true, telefono: true },
     take:   TOPE_POR_BARRIDO,
   });

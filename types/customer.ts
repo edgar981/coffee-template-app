@@ -32,7 +32,6 @@ export interface Customer {
   // fila no se contradiga; NO la del barrido de reactivación, que mira la última
   // orden PAGADA porque responde otra pregunta.
   ultimaOrden?: string | null;
-  activo:           boolean;
   createdAt:        string;
 }
 
@@ -44,7 +43,6 @@ export interface CustomerForm {
   direccion: string;
   canal:     OrderChannel;
   notas:     string;
-  activo:   boolean;
 }
 
 // One row of a customer's order history (profile page). Payment state is

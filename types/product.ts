@@ -76,11 +76,10 @@ export interface Product {
   imagenes?: string[];
   bestseller?: boolean;
   badge?: string | null;
-  agotado?: boolean;
   esSuscripcion?: boolean;
   /**
    * Disponibilidad pública del catálogo storefront (reemplaza a `stock`, que el
-   * cliente nunca recibe). `true` = hay existencias y no está agotado.
+   * cliente nunca recibe). `true` = hay existencias (`stock > 0`).
    */
   disponible?: boolean;
   /**

@@ -104,7 +104,6 @@ export async function POST(req: NextRequest) {
       direccion: body.direccion || null,
       canal:     body.canal     || 'directo',
       notas:     body.notas     || null,
-      activo:    body.activo    ?? true,
     },
   });
 

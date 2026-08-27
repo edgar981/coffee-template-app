@@ -43,15 +43,16 @@ export async function GET() {
       imagenes:          true,
       bestseller:        true,
       badge:             true,
-      agotado:           true,
     },
   });
 
   // Descartamos `stock` de la respuesta y derivamos los flags públicos.
-  const publicos = products.map(({ stock, agotado, ...p }) => ({
+  // `disponible` depende SÓLO del stock: la columna manual `agotado` se retiró
+  // (§ Backlog #10) — su único aporte sobre stock=0 era "no vendible con stock",
+  // hueco que ya cubre `activo:false` (oculta el producto).
+  const publicos = products.map(({ stock, ...p }) => ({
     ...p,
-    agotado,
-    disponible: stock > 0 && !agotado,
+    disponible: stock > 0,
     maxCompra:  Math.min(stock, MAX_UNIDADES_POR_LINEA),
   }));
 
