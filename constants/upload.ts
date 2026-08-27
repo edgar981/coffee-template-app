@@ -95,8 +95,8 @@ export const MSG_VIDEO_NO_ADMITIDO =
  *  consecuencia real: el cliente vería una imagen fija. */
 export const MSG_VIDEO_HEVC =
   'Ese video usa H.265 (HEVC), que Chrome y Firefox no siempre reproducen —tus clientes verían una imagen ' +
-  'fija—. Conviértelo a H.264: en Mac, ábrelo en QuickTime → Archivo → Exportar como → 1080p (re-codifica ' +
-  'a H.264; queda en .mov, y eso ahora se acepta). En iPhone, activa Ajustes → Cámara → Formatos → ' +
+  'fija—. Conviértelo a H.264: en Mac, ábrelo en QuickTime → Archivo → Exportar como → 1080p (lo ' +
+  're-codifica a H.264 y lo guarda en .mov, que sirve). En iPhone, activa Ajustes → Cámara → Formatos → ' +
   '"Más compatible" para las próximas grabaciones.';
 
 export const MSG_VIDEO_PRORES =

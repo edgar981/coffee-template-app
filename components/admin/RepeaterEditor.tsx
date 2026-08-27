@@ -128,10 +128,12 @@ export default function RepeaterEditor({
   // un testimonio— y no hay deshacer campo por campo, así que la papelera CONFIRMA antes de quitar.
   // Va en la PLATAFORMA (no en el tipo imagen) porque el testimonio borrado destruye igual.
   const [porEliminar, setPorEliminar] = useState<number | null>(null);
-  // El alta de VÍDEO junta los dos archivos y sube al final (§ la decisión): el vídeo elegido queda
-  // RETENIDO acá esperando el póster —así cancelar el póster no deja un vídeo huérfano, no hay nada
-  // subido—. `subiendoPaso` nombra el paso ("póster"/"vídeo") para la etiqueta de la barra.
-  const [videoPendiente, setVideoPendiente] = useState<File | null>(null);
+  // El alta/cambio de VÍDEO junta los dos archivos y sube al final (§ la decisión): el vídeo elegido
+  // queda RETENIDO acá esperando el póster —así cancelar no deja un vídeo huérfano, no hay nada subido—.
+  // `editar` = índice del ítem a REEMPLAZAR (Cambiar vídeo) o null = alta de un ítem nuevo: el MISMO paso
+  // de póster (scrubber + subir imagen) sirve a los dos, para que cambiar el vídeo RE-DERIVE su póster y
+  // el ítem nunca muestre el frame de un vídeo que ya no está. `subiendoPaso` nombra el paso.
+  const [videoPendiente, setVideoPendiente] = useState<{ file: File; editar: number | null } | null>(null);
   const [subiendoPaso, setSubiendoPaso] = useState<'póster' | 'vídeo' | null>(null);
 
   // El PRIMER campo imagen es el MEDIA principal del ítem (foto o vídeo van en su `url`): gobierna la
@@ -154,17 +156,32 @@ export default function RepeaterEditor({
   // lenta) falla después, el huérfano es una imagen de póster (~200 KB), NO un vídeo de ~200 MB. NO
   // invertir "por subir el grande primero por si falla": eso vuelve el huérfano un vídeo. (Y sin
   // borrado desde el cliente: mandar una url a borrar reabre lo que el borrado server-side previene.)
-  const subirVideoYPoster = async (video: File, poster: File) => {
-    setSubiendoDesde('agregar-video');
+  const subirVideoYPoster = async (video: File, poster: File, editar: number | null) => {
+    setSubiendoDesde(editar === null ? 'agregar-video' : editar);
     try {
       setSubiendoPaso('póster');
       const { url: posterUrl } = await subir!(poster, { kind: 'imagen' });
       setSubiendoPaso('vídeo');
       const { url: videoUrl, dims } = await subir!(video, { kind: 'imagen-o-video' });
-      const nuevo: Item = { ...nuevoItem(), tipo: 'video', poster: posterUrl, [campoImagen!.name]: videoUrl };
-      if (campoImagen!.dims && dims) { nuevo[campoImagen!.dims.w] = dims.w; nuevo[campoImagen!.dims.h] = dims.h; }
-      onChange([...items, nuevo]);
-      setExpandido(items.length);
+      const ponerDims = (o: Item) => {
+        if (!campoImagen!.dims) return;
+        if (dims) { o[campoImagen!.dims.w] = dims.w; o[campoImagen!.dims.h] = dims.h; }
+        else { delete o[campoImagen!.dims.w]; delete o[campoImagen!.dims.h]; } // vídeo no medible → limpiar, no dejar la proporción vieja
+      };
+      if (editar === null) {
+        const nuevo: Item = { ...nuevoItem(), tipo: 'video', poster: posterUrl, [campoImagen!.name]: videoUrl };
+        ponerDims(nuevo);
+        onChange([...items, nuevo]);
+        setExpandido(items.length);
+      } else {
+        // Cambiar vídeo: se reemplazan vídeo Y póster (el póster es el frame del vídeo nuevo) y las dims.
+        onChange(items.map((it, idx) => {
+          if (idx !== editar) return it;
+          const out: Item = { ...it, poster: posterUrl, [campoImagen!.name]: videoUrl };
+          ponerDims(out);
+          return out;
+        }));
+      }
     } catch (err) {
       onError?.(err instanceof Error ? err.message : 'No se pudo subir el vídeo. Reintenta.');
     } finally {
@@ -174,15 +191,20 @@ export default function RepeaterEditor({
   };
   const agregarVideo = () => {
     if (alMaxVideo) return;
-    elegir?.(f => setVideoPendiente(f), { tipos: TIPOS_VIDEO, accept: ACCEPT_VIDEO, msgError: MSG_VIDEO_NO_ADMITIDO });
+    elegir?.(f => setVideoPendiente({ file: f, editar: null }), { tipos: TIPOS_VIDEO, accept: ACCEPT_VIDEO, msgError: MSG_VIDEO_NO_ADMITIDO });
+  };
+  // Cambiar el vídeo de un ítem abre EL MISMO paso de póster que el alta (el póster se re-deriva del vídeo
+  // nuevo): un póster del vídeo viejo sería el frame de algo que ya no está — el defecto que esto cierra.
+  const cambiarVideo = (i: number) => {
+    elegir?.(f => setVideoPendiente({ file: f, editar: i }), { tipos: TIPOS_VIDEO, accept: ACCEPT_VIDEO, msgError: MSG_VIDEO_NO_ADMITIDO });
   };
   const elegirPosterParaVideo = () => {
-    const video = videoPendiente;
-    if (!video) return;
-    elegir?.(poster => subirVideoYPoster(video, poster), { tipos: TIPOS_PERMITIDOS, accept: ACCEPT_IMAGENES, msgError: 'Formato no admitido. Usa JPG, PNG o WebP.' });
+    const vp = videoPendiente;
+    if (!vp) return;
+    elegir?.(poster => subirVideoYPoster(vp.file, poster, vp.editar), { tipos: TIPOS_PERMITIDOS, accept: ACCEPT_IMAGENES, msgError: 'Formato no admitido. Usa JPG, PNG o WebP.' });
   };
-  // Reemplazar el vídeo o el póster de un ítem-vídeo existente (una sola subida). El póster mantiene su
-  // proporción de celda del vídeo; sólo "Cambiar vídeo" actualiza las dims.
+  // Reemplazar SÓLO el PÓSTER de un ítem-vídeo con una imagen a mano (una subida, sin tocar el vídeo ni
+  // las dims). "Cambiar vídeo" ya no pasa por acá: re-deriva su póster por el scrubber (§ cambiarVideo).
   const cambiarMedia = (i: number, campo: string, kind: KindUpload, conDims: boolean, tipos: readonly string[], accept: string, msgError: string) => {
     setSubiendoDesde(i);
     setSubiendoPaso(kind === 'imagen-o-video' ? 'vídeo' : 'póster');
@@ -290,28 +312,40 @@ export default function RepeaterEditor({
                         <RatingInput valor={Number(valor) || 0} onChange={v => editar(i, d.name, v)} />
                       ) : d.tipo === 'imagen' ? (
                         esVideo ? (
-                          // ÍTEM-VÍDEO: el preview es el PÓSTER (el `url` es un vídeo). Dos reemplazos
-                          // independientes; sólo "Cambiar vídeo" actualiza la proporción de la celda.
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)' }}>
-                            {String(item.poster ?? '') && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={String(item.poster)} alt="" style={{ width: '100%', maxWidth: '240px', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 'var(--duna-r-m)', border: '1px solid var(--duna-border)' }} />
-                            )}
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)' }}>
-                              <button type="button" onClick={() => cambiarMedia(i, campoImagen!.name, 'imagen-o-video', true, TIPOS_VIDEO, ACCEPT_VIDEO, MSG_VIDEO_NO_ADMITIDO)} disabled={subiendo} className="duna-btn duna-btn--secondary duna-btn--sm">
-                                <Film className="h-3.5 w-3.5" /> Cambiar vídeo
-                              </button>
-                              <button type="button" onClick={() => cambiarMedia(i, 'poster', 'imagen', false, TIPOS_PERMITIDOS, ACCEPT_IMAGENES, 'Formato no admitido. Usa JPG, PNG o WebP.')} disabled={subiendo} className="duna-btn duna-btn--ghost duna-btn--sm">
-                                <Upload className="h-3.5 w-3.5" /> Cambiar póster
-                              </button>
-                            </div>
-                            {subiendo && subiendoDesde === i && (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <span className="duna-field__hint" style={{ margin: 0 }}>Subiendo {subiendoPaso}… {progreso ?? 0}%</span>
-                                <BarraProgreso pct={progreso ?? 0} />
+                          videoPendiente && videoPendiente.editar === i && !subiendo ? (
+                            // Cambiar vídeo abre EL MISMO paso de póster que el alta, aquí en el ítem donde
+                            // se clickeó: el póster se re-deriva del vídeo nuevo (scrubber), con "Subir una
+                            // imagen" como alternativa. Cancelar no deja huérfano (nada subido).
+                            <PosterScrubber
+                              video={videoPendiente.file}
+                              onPoster={(poster) => subirVideoYPoster(videoPendiente.file, poster, i)}
+                              onSubirImagen={elegirPosterParaVideo}
+                              onCancelar={() => setVideoPendiente(null)}
+                            />
+                          ) : (
+                            // ÍTEM-VÍDEO: el preview es el PÓSTER (el `url` es un vídeo). "Cambiar vídeo"
+                            // re-deriva su póster (§ cambiarVideo); "Cambiar póster" reemplaza sólo la imagen.
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)' }}>
+                              {String(item.poster ?? '') && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={String(item.poster)} alt="" style={{ width: '100%', maxWidth: '240px', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 'var(--duna-r-m)', border: '1px solid var(--duna-border)' }} />
+                              )}
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)' }}>
+                                <button type="button" onClick={() => cambiarVideo(i)} disabled={subiendo || !!videoPendiente} className="duna-btn duna-btn--secondary duna-btn--sm">
+                                  <Film className="h-3.5 w-3.5" /> Cambiar vídeo
+                                </button>
+                                <button type="button" onClick={() => cambiarMedia(i, 'poster', 'imagen', false, TIPOS_PERMITIDOS, ACCEPT_IMAGENES, 'Formato no admitido. Usa JPG, PNG o WebP.')} disabled={subiendo || !!videoPendiente} className="duna-btn duna-btn--ghost duna-btn--sm">
+                                  <Upload className="h-3.5 w-3.5" /> Cambiar póster
+                                </button>
                               </div>
-                            )}
-                          </div>
+                              {subiendo && subiendoDesde === i && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                  <span className="duna-field__hint" style={{ margin: 0 }}>Subiendo {subiendoPaso}… {progreso ?? 0}%</span>
+                                  <BarraProgreso pct={progreso ?? 0} />
+                                </div>
+                              )}
+                            </div>
+                          )
                         ) : (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)' }}>
                             {String(valor ?? '') && (
@@ -354,14 +388,14 @@ export default function RepeaterEditor({
           )}
         </div>
 
-        {/* Paso del póster: el vídeo ya se eligió (RETENIDO, sin subir), y el póster sale de un FRAME del
-            propio vídeo (scrubber). "Subir una imagen" es la ALTERNATIVA; Cancelar NO deja huérfano (nada
-            subido todavía). Cualquiera de los dos caminos entra por subirVideoYPoster → el póster sube
-            PRIMERO, después el vídeo. */}
-        {videoPendiente && !subiendo && (
+        {/* Paso del póster del ALTA (editar === null): el vídeo ya se eligió (RETENIDO, sin subir), y el
+            póster sale de un FRAME del propio vídeo (scrubber). "Subir una imagen" es la ALTERNATIVA;
+            Cancelar NO deja huérfano. El paso del CAMBIO va INLINE en su ítem (arriba). Cualquiera entra
+            por subirVideoYPoster → el póster sube PRIMERO, después el vídeo. */}
+        {videoPendiente && videoPendiente.editar === null && !subiendo && (
           <PosterScrubber
-            video={videoPendiente}
-            onPoster={(poster) => subirVideoYPoster(videoPendiente, poster)}
+            video={videoPendiente.file}
+            onPoster={(poster) => subirVideoYPoster(videoPendiente.file, poster, null)}
             onSubirImagen={elegirPosterParaVideo}
             onCancelar={() => setVideoPendiente(null)}
           />
