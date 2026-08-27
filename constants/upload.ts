@@ -111,10 +111,11 @@ export const MSG_VIDEO_PRORES =
   'Ese video no está en un formato que los navegadores reproduzcan (por ejemplo ProRes). Súbelo en H.264 (MP4).';
 
 /** Rechazo por TAMAÑO de un vídeo de galería (§ MAX_VIDEO_GALERIA_BYTES). Pide un clip corto Y dice el
- *  orden de magnitud —el operador necesita saber QUÉ es corto—, con el porqué (que cargue en el móvil). */
+ *  orden de magnitud —el operador necesita saber QUÉ es corto—, con el porqué. NO presupone el dispositivo
+ *  del cliente ("que cargue rápido", no "en el celular"): no todos entran desde móvil. */
 export const MSG_VIDEO_GALERIA_LARGO =
   'Ese video pesa demasiado para la galería. Súbelo como un clip corto —unos 15 a 30 segundos— para que ' +
-  'cargue rápido en el celular de tus clientes.';
+  'cargue rápido y tus clientes no esperen.';
 
 /** Elige el mensaje de rechazo según el fourcc que devolvió el parser: HEVC (hvc1/hev1/…) → la palanca
  *  del iPhone; el resto → el genérico de H.264. */
