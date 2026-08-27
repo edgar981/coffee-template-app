@@ -46,8 +46,13 @@ export default async function AdminLayout({
     select: { role: true, activo: true },
   });
 
-  if (!usuario || !usuario.activo) redirect("/login");
-  if (usuario.role !== "OWNER" && usuario.role !== "MANAGER") redirect("/login");
+  // EL REBOTE NO ES SILENCIOSO. Alguien con cuenta VÁLIDA (autenticó) pero sin
+  // acceso al panel —rol insuficiente o cuenta desactivada— tiene que saber POR QUÉ
+  // no entra: sin el motivo, el login "carga y ya" (el botón no baja su loading en
+  // éxito, a propósito), y un acceso denegado se ve idéntico a un bug. El `motivo`
+  // viaja en el query y lo muestra /login.
+  if (!usuario || !usuario.activo) redirect("/login?motivo=inactivo");
+  if (usuario.role !== "OWNER" && usuario.role !== "MANAGER") redirect("/login?motivo=sin_acceso");
 
   return (
     <SiteSettingsProvider value={settings}>

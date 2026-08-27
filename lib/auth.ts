@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import prisma from "@duna/core";
+import { sendResetPasswordEmail } from "@/lib/email";
 
 // Environment-aware base URL. Better Auth rejects sign-ins whose request origin
 // doesn't match baseURL, and BETTER_AUTH_URL is registered to the PRODUCTION
@@ -31,6 +32,35 @@ export const auth = betterAuth({
     // provisioning step, not a flow a browser follows up on — without this, Better Auth
     // creates a session row that never gets a cookie to go with it.
     autoSignIn: false,
+    // Recuperación de contraseña. El único acceso hoy era que otro OWNER re-invitara;
+    // con un solo dueño eso es quedarse fuera del propio negocio para siempre.
+    //
+    // MATA TODAS LAS SESIONES al resetear. Es la razón de ser del flujo: quien
+    // resetea porque le robaron la clave NO debe dejar viva la sesión del ladrón.
+    // A diferencia de `changePassword` (que preserva la sesión actual con
+    // `revokeOtherSessions`), acá no hay sesión actual que preservar —el usuario no
+    // está logueado—, así que se borran todas. Afirmado en el carril
+    // (`tests/integracion/reset-revoca-sesiones.test.ts`), visto fallar sin el flag.
+    revokeSessionsOnPasswordReset: true,
+    // Better Auth arma el `url` (su callback `/reset-password/<token>` que valida y
+    // redirige a la pantalla) y nos pasa `{ user, url, token }`. Sólo mandamos el correo.
+    //
+    // DECISIÓN — NO igualamos el timing entre un correo que EXISTE y uno que no.
+    // Better Auth ya devuelve el MISMO cuerpo en ambos casos (simula la generación de
+    // token para el correo inexistente), así que no se filtra por la respuesta. Lo que
+    // difiere es la LATENCIA: el caso real espera el envío de Resend (Better Auth
+    // awaitea esta función), el falso no. NO se cierra ese canal a propósito:
+    //   · el atacante tendría que medir latencias contra el panel de un negocio con
+    //     menos de diez usuarios, donde ya sabe cuál es el correo del dueño —no revela
+    //     casi nada—;
+    //   · un retardo fijo se vuelve mentira en cuanto la red varíe, y un `after()`/cola
+    //     es complejidad para cerrar un canal que aquí no vale nada.
+    // Awaitar el envío ADEMÁS lo hace confiable en serverless (la función no se congela
+    // a mitad). DISPARADOR de reconsiderar: si el panel llega a tener muchos usuarios o
+    // registro abierto, la enumeración por tiempo pasa a importar y ahí se cierra.
+    sendResetPassword: async ({ user, url }) => {
+      await sendResetPasswordEmail({ to: user.email, url });
+    },
   },
   user: {
     additionalFields: {
