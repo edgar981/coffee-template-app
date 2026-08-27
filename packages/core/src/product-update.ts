@@ -49,8 +49,8 @@ export function trae(body: Record<string, unknown>, campo: string): boolean {
  *
  * Los campos que el endpoint nunca escribió (`variedad`, `proceso`, `altitudMin`,
  * `altitudMax`, `molienda`, `notas`, `notasCata`, `descripcionCorta`,
- * `bestseller`, `badge`, `agotado`) siguen sin escribirse: agregarlos es una
- * decisión de producto, no parte de este arreglo.
+ * `bestseller`, `badge`) siguen sin escribirse: agregarlos es una decisión de
+ * producto, no parte de este arreglo.
  */
 export function datosDelPatch(body: Record<string, unknown>): Prisma.ProductUncheckedUpdateInput {
   const data: Prisma.ProductUncheckedUpdateInput = {};

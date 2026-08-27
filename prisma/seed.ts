@@ -310,7 +310,6 @@ async function main() {
         imagenes:    p.imagenes     || [],
         bestseller:  p.bestseller   ?? false,
         badge:       p.badge        ?? null,
-        agotado:     p.agotado      ?? false,
         ...contenido,
       },
     });

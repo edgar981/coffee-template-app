@@ -94,9 +94,7 @@ export default function ProductCard({
             <div className="absolute top-3 left-3">
               <span
                 className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  product.agotado
-                    ? "bg-gray-800/80 text-white"
-                    : product.bestseller
+                  product.bestseller
                     ? "bg-[#8B4513] text-white"
                     : "bg-[#d4a97a] text-[#1a0f08]"
                 }`}
