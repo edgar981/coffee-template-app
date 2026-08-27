@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { readSiteSettings } from "@/lib/config/site-settings-read";
 
 interface SendInvitationEmailArgs {
   to: string;
@@ -104,6 +105,80 @@ export async function sendInvitationEmail({ to, name, link }: SendInvitationEmai
     // dominio sin verificar o un payload rechazado (422).
     throw new Error(
       `No se pudo enviar la invitación (Resend): ${error.message ?? "error desconocido"}`,
+      { cause: error },
+    );
+  }
+}
+
+// ─── Correo de RECUPERACIÓN DE CONTRASEÑA ────────────────────────────────────
+//
+// La identidad sale de `SiteSetting` (editable), NO de un literal del negocio: el
+// remitente y el nombre son los MISMOS que usan los correos de cliente
+// (`brand.remitente` = `SiteSetting.emailRemitente`, § buildBrand). El API key
+// sigue en env. En dev sin RESEND_API_KEY se loguea el enlace, igual que la
+// invitación, para que el flujo corra sin cuenta de Resend.
+//
+// El `url` lo arma Better Auth (`/reset-password/<token>?callbackURL=…`, § lib/auth):
+// es su callback, que valida el token y redirige a la pantalla. No se construye acá.
+export async function sendResetPasswordEmail({ to, url }: { to: string; url: string }) {
+  const apiKey = envSinComillas("RESEND_API_KEY");
+  const { nombre, emailRemitente, emailReplyTo } = await readSiteSettings();
+
+  // Mismo aviso temprano que la invitación: un remitente mal formado da un 422
+  // genérico de Resend que no dice qué falló.
+  if (emailRemitente && !EMAIL_FROM_RE.test(emailRemitente)) {
+    console.error(
+      `[correo] SiteSetting.emailRemitente no tiene formato de remitente válido: ${JSON.stringify(emailRemitente)}. ` +
+      `Se espera "algo@dominio.com" o "Nombre <algo@dominio.com>".`,
+    );
+  }
+
+  if (!apiKey) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("El envío de correos no está configurado (RESEND_API_KEY)");
+    }
+    console.log(`[email:reset] Para: ${to}\nEnlace de recuperación (vence en 1 hora): ${url}`);
+    return;
+  }
+
+  const resend = new Resend(apiKey);
+  const { error } = await resend.emails.send({
+    from: emailRemitente,
+    to,
+    subject: `Restablece tu contraseña · ${nombre}`,
+    // "Si no lo pediste, ignóralo — tu contraseña sigue igual": tranquiliza a quien
+    // recibe un reset que no solicitó (el caso en que alguien más metió su correo).
+    text:
+      `Recibimos una solicitud para restablecer la contraseña de tu acceso al panel de ${nombre}.\n\n` +
+      `Crea una contraseña nueva (el enlace vence en 1 hora):\n${url}\n\n` +
+      `Si no lo pediste, ignora este correo — tu contraseña sigue igual.`,
+    html: `
+      <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1917">
+        <h1 style="font-size:18px;margin:0 0 4px">${nombre}</h1>
+        <p style="font-size:14px;color:#78716c;margin:0 0 24px">Panel de administración</p>
+        <p style="font-size:15px;line-height:1.5;margin:0 0 20px">
+          Recibimos una solicitud para restablecer la contraseña de tu acceso al panel de ${nombre}.
+        </p>
+        <p style="margin:0 0 24px">
+          <a href="${url}" style="display:inline-block;background:#b45309;color:#fff;text-decoration:none;font-size:15px;font-weight:600;padding:12px 20px;border-radius:10px">
+            Crear contraseña nueva
+          </a>
+        </p>
+        <p style="font-size:13px;color:#78716c;line-height:1.5;margin:0 0 16px">
+          El enlace vence en 1 hora. Si el botón no funciona, copia y pega esta URL:<br>
+          <a href="${url}" style="color:#b45309;word-break:break-all">${url}</a>
+        </p>
+        <p style="font-size:13px;color:#78716c;line-height:1.5;margin:0">
+          Si no lo pediste, ignora este correo — tu contraseña sigue igual.
+        </p>
+      </div>
+    `,
+    ...(emailReplyTo ? { replyTo: emailReplyTo } : {}),
+  });
+
+  if (error) {
+    throw new Error(
+      `No se pudo enviar el correo de recuperación (Resend): ${error.message ?? "error desconocido"}`,
       { cause: error },
     );
   }
