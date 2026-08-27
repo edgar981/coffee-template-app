@@ -154,8 +154,7 @@ export async function sendResetPasswordEmail({ to, url }: { to: string; url: str
       `Si no lo pediste, ignora este correo — tu contraseña sigue igual.`,
     html: `
       <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1917">
-        <h1 style="font-size:18px;margin:0 0 4px">${nombre}</h1>
-        <p style="font-size:14px;color:#78716c;margin:0 0 24px">Panel de administración</p>
+        <h1 style="font-size:18px;margin:0 0 24px">${nombre}</h1>
         <p style="font-size:15px;line-height:1.5;margin:0 0 20px">
           Recibimos una solicitud para restablecer la contraseña de tu acceso al panel de ${nombre}.
         </p>

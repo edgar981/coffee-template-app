@@ -47,8 +47,7 @@ export default function RecuperarClaveForm({ nombre }: { nombre: string }) {
             te enviamos un enlace para crear una contraseña nueva. Vence en 1 hora.
           </p>
           <p className="text-xs text-muted-foreground/80">
-            No es un error si no llega: puede que ese correo no tenga cuenta. Revisa también
-            la carpeta de spam.
+            Revisa también la carpeta de spam.
           </p>
           <Link href="/login" className={`${PREAUTH_BOTON} block text-center`}>
             Volver al inicio de sesión
