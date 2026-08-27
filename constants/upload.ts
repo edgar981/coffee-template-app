@@ -30,14 +30,15 @@ export const MAX_SUBIDA_DIRECTA_MB = MAX_SUBIDA_DIRECTA_BYTES / (1024 * 1024);
 /** Formatos aceptados. Lista blanca explícita, no un `startsWith('image/')`. */
 export const TIPOS_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
-/** Contenedores de VÍDEO aceptados. Lista aparte —un vídeo en un `<img>`/`next/image` no falla ruidoso,
- *  se queda en blanco—, NUNCA se amplía la de imágenes. Incluye `video/quicktime` (.mov) SÓLO porque la
- *  PUERTA DURA pasó a ser el CÓDEC (§ lib/video-codec): un .mov con H.264 se reproduce en todos lados y
- *  ahora se acepta; uno con ProRes/HEVC lo rechaza el gate de códec, no el contenedor. **No leer
- *  "aceptamos quicktime" como un aflojamiento** — sin el parser de códec SÍ lo sería (un HEVC-en-mp4 pasa
- *  el contenedor y no se reproduce). El WebM no se parsea (EBML, otro formato) y pasa por contenedor: sus
- *  códecs reales de entrada (VP8/9/AV1) son todos web-amigables. */
-export const TIPOS_VIDEO = ['video/mp4', 'video/webm', 'video/quicktime'] as const;
+/** Contenedores de VÍDEO aceptados: mp4 y webm, NO `video/quicktime` (.mov). Lista aparte —un vídeo en un
+ *  `<img>`/`next/image` no falla ruidoso, se queda en blanco—, NUNCA se amplía la de imágenes. El .mov se
+ *  RECHAZA por contenedor aunque traiga H.264: **Firefox no reproduce el contenedor .mov** (y Chrome sólo
+ *  por sniffing), así que aceptarlo dejaría al visitante de Firefox viendo el póster fijo —el fallo
+ *  silencioso que el gate vino a evitar, movido del códec al contenedor—. El operador nunca se entera
+ *  porque en su Mac funciona. El CÓDEC sigue siendo la otra puerta (§ lib/video-codec): dentro de un mp4,
+ *  rechaza el HEVC. El WebM no se parsea (EBML, otro formato) y pasa por contenedor: sus códecs reales de
+ *  entrada (VP8/9/AV1) son todos web-amigables. */
+export const TIPOS_VIDEO = ['video/mp4', 'video/webm'] as const;
 
 /**
  * El "kind" que el cliente declara al pedir un token de subida directa (§ subirDirecto). Acota qué
@@ -50,9 +51,10 @@ export type KindUpload = (typeof KINDS_UPLOAD)[number];
 
 /** Mapea un kind (posiblemente basura del cliente) a su lista de content-types para el TOKEN. Un valor
  *  DESCONOCIDO cae a sólo-imágenes: lo más restrictivo, nunca a vídeo por accidente. El token acota el
- *  CONTENEDOR (+ tamaño + pathname); el CÓDEC lo filtra el cliente antes de subir (§ lib/video-codec),
- *  que es un gate de CALIDAD, no de seguridad —un admin ya puede subir basura; el gate lo protege de
- *  PUBLICAR un vídeo que sus clientes no verían—. */
+ *  CONTENEDOR a mp4/webm (+ imágenes) —NO quicktime: la puerta dura no puede firmar lo que el mensaje
+ *  rechaza (§ TIPOS_VIDEO)—, más tamaño + pathname; el CÓDEC lo filtra el cliente antes de subir
+ *  (§ lib/video-codec), que es un gate de CALIDAD, no de seguridad —un admin ya puede subir basura; el
+ *  gate lo protege de PUBLICAR un vídeo que sus clientes no verían—. */
 export function contentTypesParaKind(kind: unknown): string[] {
   return kind === 'imagen-o-video' ? [...TIPOS_PERMITIDOS, ...TIPOS_VIDEO] : [...TIPOS_PERMITIDOS];
 }
@@ -82,26 +84,27 @@ export const ACCEPT_IMAGENES = TIPOS_PERMITIDOS.join(',');
  */
 export const ACCEPT_VIDEO = 'video/*';
 
-/** Rechazo por CONTENEDOR no admitido (un .avi/.mkv): dice los contenedores que sí. El .mov ya entra
- *  —lo decide el CÓDEC, no el contenedor (§ lib/video-codec)—, así que no aparece como rechazado acá. */
+/** Rechazo por CONTENEDOR no admitido (un .mov, .avi, .mkv). El .mov cae acá aunque traiga H.264 (§
+ *  TIPOS_VIDEO). Dice qué USAR (MP4 + la ruta de Mac real: iMovie); NO desaconseja QuickTime —el operador
+ *  no estaba pensando en QuickTime hasta que se lo nombras—. avconvert (Terminal) queda FUERA: una línea
+ *  de Terminal en un aviso de UI haría pensar que subir un video pide saber programar. */
 export const MSG_VIDEO_NO_ADMITIDO =
-  'Ese formato de video no se admite. Súbelo en MP4, WebM o MOV (con códec H.264).';
+  'Ese formato de video no se reproduce en todos los navegadores. Súbelo en MP4 (H.264). En Mac, ' +
+  'conviértelo con iMovie: Archivo → Compartir → Archivo, calidad Alta.';
 
 /** Rechazo por CÓDEC (§ lib/video-codec, § mensajeCodecRechazado). El HEVC llega de DOS orígenes —el
  *  iPhone Y la grabación de pantalla de macOS, que graba en H.265 por defecto—, así que el mensaje cubre
- *  los dos. La ruta de Mac REAL: QuickTime → Exportar como → 1080p RE-CODIFICA a H.264 (queda en .mov, que
- *  ahora se acepta porque el gate es el códec) — es lo que el mensaje viejo pedía mal (creía que daba .mp4;
- *  da .mov, y bajo el gate de contenedor eso se rechazaba). El de ProRes va al genérico. Ambos nombran la
- *  consecuencia real: el cliente vería una imagen fija. */
+ *  los dos. La ruta de Mac REAL a H.264/MP4 es iMovie (Compartir → Archivo, calidad Alta): QuickTime NO
+ *  sirve —sólo exporta a .mov, que se rechaza por contenedor (§ TIPOS_VIDEO)—. El de ProRes va al genérico.
+ *  Ambos nombran la consecuencia real: el cliente vería una imagen fija. */
 export const MSG_VIDEO_HEVC =
   'Ese video usa H.265 (HEVC), que Chrome y Firefox no siempre reproducen —tus clientes verían una imagen ' +
-  'fija—. Conviértelo a H.264: en Mac, ábrelo en QuickTime → Archivo → Exportar como → 1080p (lo ' +
-  're-codifica a H.264 y lo guarda en .mov, que sirve). En iPhone, activa Ajustes → Cámara → Formatos → ' +
-  '"Más compatible" para las próximas grabaciones.';
+  'fija—. Conviértelo a H.264: en Mac, con iMovie (Archivo → Compartir → Archivo, calidad Alta, no ' +
+  '"Óptima ProRes"). En iPhone, activa Ajustes → Cámara → Formatos → "Más compatible" para las próximas grabaciones.';
 
 export const MSG_VIDEO_PRORES =
-  'Ese video no está en un formato que los navegadores reproduzcan (por ejemplo ProRes). Expórtalo o ' +
-  'conviértelo a H.264 (MP4) antes de subirlo.';
+  'Ese video no está en un formato que los navegadores reproduzcan (por ejemplo ProRes). Conviértelo a ' +
+  'H.264 (MP4) — en Mac, con iMovie, calidad Alta (no "Óptima ProRes").';
 
 /** Elige el mensaje de rechazo según el fourcc que devolvió el parser: HEVC (hvc1/hev1/…) → la palanca
  *  del iPhone; el resto → el genérico de H.264. */

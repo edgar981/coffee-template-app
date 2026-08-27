@@ -1415,16 +1415,24 @@ con `Blob.slice()`, NO mp4box.js (~340 KB para leer 4 caracteres)—). **AVC** (
 veredicto **ILEGIBLE** (webm, archivo raro, truncado) cae a la RED DEL CONTENEDOR —rechazar por no poder
 leer bloquearía archivos válidos por un parser incompleto (decisión del owner)—.
 
-Con el códec como puerta dura, **el .mov se ACEPTA si trae H.264** (la grabación de pantalla del Mac), y el
-token amplió su allowlist a `video/quicktime` **SÓLO por eso** (§ constants/upload, `TIPOS_VIDEO`): no es un
-aflojamiento —la puerta se movió del contenedor al códec—. El gate de códec es de **CALIDAD** (corre en el
-cliente), NO de seguridad: el token sigue acotando contenedor + tamaño + pathname, y un admin que ya puede
-subir basura no es el modelo de amenaza; el gate lo protege de PUBLICAR un vídeo que sus clientes no verían.
+**El .mov se RECHAZA por contenedor, aunque traiga H.264.** Firefox no reproduce el contenedor .mov (Chrome
+sólo por sniffing), así que aceptarlo dejaría al visitante de Firefox viendo el póster fijo —el MISMO fallo
+silencioso que el gate de códec evita, movido del códec al contenedor; el operador no se entera porque en su
+Mac funciona—. Por eso `video/quicktime` **NO** está en `TIPOS_VIDEO` ni en el token (§ constants/upload): la
+puerta dura no puede firmar lo que el mensaje rechaza (afirmado en `constants/upload.test.ts`). El parser de
+códec SE QUEDA: dentro de un mp4, rechaza el HEVC. El gate de códec es de **CALIDAD** (corre en el cliente),
+NO de seguridad: el token acota contenedor (mp4/webm) + tamaño + pathname, y un admin que ya puede subir
+basura no es el modelo de amenaza; el gate lo protege de PUBLICAR un vídeo que sus clientes no verían.
 
-**Por qué NO se corrige por mensaje de conversión:** no hay ruta simple sin-instalar en Mac a un MP4/H.264
-—QuickTime "Exportar como → 1080p" guarda **.mov**, no .mp4 (el owner la siguió y obtuvo otro .mov)—. Con el
-gate de códec el .mov-H.264 pasa directo, así que el mensaje sólo cubre HEVC/ProRes (el HEVC del iPhone lo
-resuelve Ajustes → Cámara → Formatos → "Más compatible").
+**La ruta de Mac a MP4/H.264 es iMovie** (Compartir → Archivo, calidad Alta) o `avconvert` en la Terminal
+—verificados presentes en el Mac—. **QuickTime NO sirve: sólo exporta a .mov**, que se rechaza (fue el mensaje
+falso que nos quemó: creía que daba .mp4). El mensaje de rechazo apunta a iMovie; avconvert queda FUERA del
+mensaje —una línea de Terminal en un aviso de UI haría pensar que subir un video pide saber programar—. Y el
+mensaje NO desaconseja QuickTime: el operador no lo tiene en la cabeza hasta que se lo nombras.
+
+**El CONTENEDOR no garantiza la reproducibilidad, y por eso el parser importa aunque se rechace .mov:** un
+HEVC dentro de un .mp4 pasa el check de contenedor (su `file.type` es `video/mp4`) y Chrome/Firefox no lo
+reproducen. Ése es el hueco que el parser cierra —su valor principal, independiente del .mov—.
 
 **HUECOS NOMBRADOS, menores:** el WebM pasa por contenedor (EBML, otro formato; sus códecs de entrada reales
 —VP8/9/AV1— son web-amigables); un mp4 que el parser no pueda leer pasa por la red del contenedor (un

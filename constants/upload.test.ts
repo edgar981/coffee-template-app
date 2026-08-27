@@ -26,9 +26,10 @@ test('NUNCA devuelve un comodín ni un tipo fuera de las dos listas', () => {
   assert.ok(!todos.includes('*'));
 });
 
-test('el .mov (video/quicktime) entra al CONTENEDOR del token, no a la lista de imágenes', () => {
-  // Se acepta el contenedor .mov SÓLO porque la puerta dura pasó al códec (§ lib/video-codec): el token
-  // firma quicktime, pero un sólo-imágenes jamás. Si esto se rompe, alguien quitó el gate de códec.
-  assert.ok(contentTypesParaKind('imagen-o-video').includes('video/quicktime'));
+test('el token NO firma .mov (video/quicktime) — la puerta dura no contradice el mensaje que lo rechaza', () => {
+  // Rechazamos el .mov por contenedor (Firefox no reproduce el contenedor .mov, § TIPOS_VIDEO). El token
+  // —la puerta dura— tampoco puede firmarlo: si el allowlist siguiera abierto acá, un .mov subiría igual y
+  // el mensaje de rechazo mentiría. NUNCA en ninguno de los dos kinds.
+  assert.ok(!contentTypesParaKind('imagen-o-video').includes('video/quicktime'));
   assert.ok(!contentTypesParaKind('imagen').includes('video/quicktime'));
 });
