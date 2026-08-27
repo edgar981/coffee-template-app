@@ -76,13 +76,16 @@ const nosotrosHistoriaEditableSchema = z.object({
 
 // /nosotros — la galería (repeater con tipo imagen). Encabezado opcional + un ARRAY de ítems `{ url,
 // alt }`, ambos strings opcionales (loader SOFT: la url la exige el editor, no el schema).
-// `w`/`h` (proporción natural, capturada en la subida): DEBEN declararse o zod los descartaría al
-// guardar y la galería perdería la proporción de cada celda. Opcionales/positivos.
+// `w`/`h` (proporción), `tipo` (imagen|video) y `poster` (la imagen del vídeo): DEBEN declararse o zod
+// los descartaría al guardar. `tipo` es un enum acotado; `poster` es una url (string). Todo opcional
+// —`tipo` ausente = 'imagen', y un ítem-imagen no lleva `poster`—.
 const galeriaItemSchema = z.object({
   url: z.string().optional(),
   alt: z.string().optional(),
   w: z.number().positive().optional(),
   h: z.number().positive().optional(),
+  tipo: z.enum(['imagen', 'video']).optional(),
+  poster: z.string().optional(),
 });
 const nosotrosGaleriaEditableSchema = z.object({
   visible: z.boolean().optional(),

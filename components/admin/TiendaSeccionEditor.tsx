@@ -293,6 +293,9 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
         <div className="tienda-vivo__form">
             <div className="duna-card duna-card__pad">
               <input ref={subida.inputRef} type="file" accept={ACCEPT_IMAGENES} onChange={subida.alElegir} hidden disabled={subiendo} />
+              {/* Segundo input para el flujo "elegir sin subir" (alta de vídeo); su `accept` lo fija
+                  `subida.elegir` por llamada (vídeo o imagen del póster). */}
+              <input ref={subida.inputHoldRef} type="file" onChange={subida.alElegirHold} hidden />
 
               {config.ocultable && (
                 <div className="duna-field duna-form__full" style={{ marginBottom: 'var(--duna-space-5)' }}>
@@ -378,7 +381,11 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
                     itemLabel={config.repeater.itemLabel}
                     genero={config.repeater.genero}
                     max={config.repeater.max}
+                    maxVideo={config.repeater.maxVideo}
                     pedirImagen={subida.pedir}
+                    elegir={subida.elegir}
+                    subir={subida.subir}
+                    onError={setErrorServidor}
                     subiendo={subiendo}
                     progreso={subida.progreso}
                     onChange={nuevos => cambiar({ [config.repeater!.itemsKey]: nuevos })}

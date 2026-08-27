@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { storage, pathnameSubidaValido, envPrefix } from '@/lib/storage';
-import { TIPOS_PERMITIDOS, MAX_SUBIDA_DIRECTA_BYTES } from '@/constants/upload';
+import { contentTypesParaKind, MAX_SUBIDA_DIRECTA_BYTES } from '@/constants/upload';
 
 async function sesionAdmin() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const json = await storage.emitirTokenSubida({
       request: req,
       body,
-      onBeforeGenerateToken: async (pathname) => {
+      onBeforeGenerateToken: async (pathname, clientPayload) => {
         // 1. SESIÓN + ROL. Sin esto, cualquiera firmaría un token para tu Blob.
         if (!(await sesionAdmin())) throw new Error('No autorizado');
 
@@ -47,12 +47,16 @@ export async function POST(req: NextRequest) {
         //    carpeta. Es el único control de destino —el archivo no pasa por el server—.
         if (!pathnameSubidaValido(pathname)) throw new Error('Ruta de subida no permitida');
 
-        // 3. RESTRICCIONES EN EL TOKEN. Blob las impone al subir, no es un chequeo previo salteable:
-        //    SÓLO imágenes (el vídeo es la tanda B — un token de hoy no puede subir un mp4) y
-        //    ≤200 MB. `validUntil` generoso (60 min) para que una subida lenta de 200 MB por
-        //    multipart no se quede sin token a mitad.
+        // 3. RESTRICCIONES EN EL TOKEN. Blob las impone al subir, no es un chequeo previo salteable.
+        //    El `kind` del clientPayload (lo manda el navegador) mapea a UNA DE DOS LISTAS CONOCIDAS
+        //    —'imagen' o 'imagen-o-video'—, nunca a un comodín ni a los tipos que mande el cliente. Un
+        //    kind basura cae a sólo-imágenes. Así que aunque un cliente pida 'imagen-o-video' para
+        //    cualquier subida, el PEOR caso es un mp4 donde debía ir una foto (rol y pathname siguen
+        //    validados): un error de contenido, no una brecha. Tamaño ≤200 MB; validUntil 60 min.
+        let kind: unknown;
+        try { kind = clientPayload ? JSON.parse(clientPayload).kind : undefined; } catch { kind = undefined; }
         return {
-          allowedContentTypes: [...TIPOS_PERMITIDOS],
+          allowedContentTypes: contentTypesParaKind(kind),
           maximumSizeInBytes: MAX_SUBIDA_DIRECTA_BYTES,
           addRandomSuffix: true,
           validUntil: Date.now() + 60 * 60 * 1000,

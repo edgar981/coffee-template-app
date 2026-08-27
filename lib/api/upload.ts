@@ -2,7 +2,7 @@
 
 import { upload } from '@vercel/blob/client';
 import { sanitizeFilename } from '@/lib/storage-path';
-import type { PrefijoUpload } from '@/constants/upload';
+import type { PrefijoUpload, KindUpload } from '@/constants/upload';
 
 // SUBIDA DIRECTA a Blob (client upload). El archivo va del NAVEGADOR a Blob, sin pasar por la función
 // serverless —así el límite de 4.5 MB del body no aplica y sube hasta 200 MB (§ el endpoint del
@@ -27,14 +27,16 @@ function envPrefijo(): Promise<string> {
 }
 
 /**
- * Sube una imagen DIRECTO a Blob y devuelve su URL pública. `carpeta` es la "carpeta" del store
+ * Sube un archivo DIRECTO a Blob y devuelve su URL pública. `carpeta` es la "carpeta" del store
  * ('productos' | 'contenido'); el pathname se arma `[dev/]<carpeta>/<archivo saneado>` para que el
- * endpoint del token lo acepte (mismo saneo que valida el server). `onProgress` recibe el porcentaje
- * 0–100. Lanza con el mensaje del error (el token venció, red caída, tipo/tamaño rechazado por Blob).
+ * endpoint del token lo acepte (mismo saneo que valida el server). `kind` (default 'imagen') declara
+ * qué acepta el token —'imagen' o 'imagen-o-video'—; viaja como `clientPayload` y el server lo mapea
+ * a una lista CONOCIDA (nunca un comodín). `onProgress` recibe el porcentaje 0–100. Lanza con el
+ * mensaje del error (el token venció, red caída, tipo/tamaño rechazado por Blob).
  */
 export async function subirDirecto(
   file: File,
-  { carpeta, onProgress }: { carpeta: PrefijoUpload; onProgress?: (pct: number) => void },
+  { carpeta, kind = 'imagen', onProgress }: { carpeta: PrefijoUpload; kind?: KindUpload; onProgress?: (pct: number) => void },
 ): Promise<{ url: string }> {
   const prefijo = await envPrefijo();
   const pathname = `${prefijo}${carpeta}/${sanitizeFilename(file.name)}`;
@@ -44,6 +46,7 @@ export async function subirDirecto(
     handleUploadUrl: '/api/upload/token',
     multipart: true, // en PARTES: una conexión lenta sólo tarda más, no hay un timeout único que la mate
     contentType: file.type || undefined,
+    clientPayload: JSON.stringify({ kind }),
     onUploadProgress: ({ percentage }) => onProgress?.(percentage),
   });
 

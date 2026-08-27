@@ -96,15 +96,24 @@ export interface NosotrosHistoriaContent {
 // las fotos de la finca las sube el owner como DATO, no hay defaults de imagen que fabricar.
 // A DIFERENCIA de Testimonios, el `titulo` es OPCIONAL: una galería puede ir sin encabezado (las
 // fotos son el contenido), así que vaciarlo lo omite en vez de caer al default.
-// `w`/`h` son la proporción NATURAL de la foto, capturada en la subida (§ useSubidaImagen), para que
-// la galería reserve el alto de cada celda sin salto de layout (masonry). Opcionales: una foto vieja
-// o una que el navegador no pudo medir cae a una proporción por defecto. El resolver los pasa TAL
-// CUAL (no son campos string declarados), como el `stars` de un testimonio.
+// `w`/`h` son la proporción NATURAL de la foto/vídeo, capturada en la subida (§ useSubidaImagen; de
+// `createImageBitmap` para imagen, de `loadedmetadata` para vídeo), para que la galería reserve el
+// alto de cada celda sin salto de layout (masonry). Opcionales: un ítem viejo o uno que el navegador
+// no pudo medir cae a una proporción por defecto.
+//
+// `tipo` es un HECHO DECLARADO (no se deduce de la extensión — un vídeo trae DOS urls de distinto
+// tipo, el vídeo y el póster; y la doctrina prefiere un dato a un string parseado, § agotado).
+// AUSENTE = 'imagen' (los ítems previos no lo tienen; retrocompatible). `poster` es la imagen que se
+// ve mientras el vídeo carga / antes de reproducir — REQUERIDA para un vídeo, y el alta lo garantiza
+// por construcción (el ítem-vídeo nace con vídeo Y póster; § el editor). Los cuatro pasan TAL CUAL por
+// el resolver (no son campos string declarados del repeater), como el `stars` de un testimonio.
 export interface GaleriaItem {
   url: string;
   alt: string;
   w?: number;
   h?: number;
+  tipo?: 'imagen' | 'video';
+  poster?: string;
 }
 
 export interface NosotrosGaleriaContent {
@@ -321,11 +330,12 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   nosotrosGaleria: {
     label: 'Galería',
     ocultable: true,
-    // `imagenes: ['url']` es el nombre del campo-imagen DENTRO de cada ítem: `imagenesDe` itera los
-    // items del repeater y junta cada `item.url` para el borrado de blobs reemplazados/quitados. El
-    // encabezado (eyebrow/titulo) es OPCIONAL —la galería puede ir sin heading—. La LISTA va en
-    // `repeater.campos`: url requerida (sin foto no hay ítem), alt opcional.
-    imagenes: ['url'],
+    // `imagenes` nombra los campos-BLOB DENTRO de cada ítem: `imagenesDe` itera los items del repeater
+    // y junta cada `item[campo]` para el borrado de blobs reemplazados/quitados. `url` (la foto o el
+    // vídeo) Y `poster` (la imagen del vídeo): un ítem-vídeo quitado borra los DOS blobs; un ítem-imagen
+    // no tiene `poster`, así que `empujarUrl` lo saltea. El encabezado (eyebrow/titulo) es OPCIONAL. La
+    // LISTA va en `repeater.campos`: url requerida (sin archivo no hay ítem), alt opcional.
+    imagenes: ['url', 'poster'],
     campos: {
       eyebrow: 'opcional',
       titulo: 'opcional',
