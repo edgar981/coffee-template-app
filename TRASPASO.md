@@ -57,6 +57,31 @@ Vercel, `main` = producción).
 **Ninguna.** Todas las verticales del panel están en lenguaje Duna; no queda una
 pantalla heredada del template.
 
+### Recuperación de contraseña — CONSTRUIDA (2026-08-27)
+
+El flujo de reset **NO EXISTÍA** — no estaba a medias, no estaba. La única
+recuperación era que otro OWNER re-invitara; con un solo dueño, eso es quedarse fuera
+del propio negocio para siempre. Construido entero sobre Better Auth: `sendResetPassword`
++ correo con identidad de SiteSetting + `revokeSessionsOnPasswordReset` (mata TODAS las
+sesiones al resetear — el caso "me robaron la clave"); dos pantallas (`/recuperar-clave`
++ `/recuperar-clave/nueva`) que **REUSAN** las piezas compartidas de aceptar-invitación
+(`FormClaveNueva`, `EnlaceNoDisponible`); el enlace "¿Olvidaste tu contraseña?" en login.
+Las TRES pantallas de la puerta comparten el mismo `PreAuthShell`. Gate end-to-end pasado
+(correo → clic → 302 → pantalla → clave nueva → entrar); carril de la revocación de
+sesiones, visto fallar sin el flag.
+
+- **Timing anti-enumeración NO se iguala** (decisión escrita en `lib/auth.ts`): BA
+  uniforma el CUERPO; la latencia difiere y no se cierra —panel de <10 usuarios, un
+  retardo fijo miente al variar la red—. Disparador: muchos usuarios o registro abierto.
+- **En Preview el enlace del correo apunta al preview** (`baseURL = https://VERCEL_URL`
+  en preview, no `BETTER_AUTH_URL`), verificado.
+
+**Hallazgo PREEXISTENTE que esta tanda destapó:** el gate del panel rebotaba a `/login`
+**EN SILENCIO** a quien autenticaba con rol insuficiente (o cuenta desactivada) —
+indistinguible de un cuelgue, porque el botón de login no baja su loading en éxito—.
+Ahora el gate lleva un `?motivo=` y el login lo EXPLICA. Un acceso denegado se dice, no
+se finge un cuelgue.
+
 **Configuración/Equipo + Perfil CERRADO** (2026-08-23, § CLAUDE.md "Equipo y
 usuarios, y Perfil") — las dos últimas pantallas. Cuatro commits:
 

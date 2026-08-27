@@ -1,15 +1,16 @@
 import type { ReactNode } from "react";
 
 // ─── Chasis de las pantallas PRE-AUTH ────────────────────────────────────────
-// Las únicas dos son /login y /aceptar-invitacion (auditado: no hay recuperación
-// de contraseña). Comparten chasis acá y no por copia porque son la PUERTA del
-// producto Duna: dos puertas con marcas distintas —o una con la N del cliente y
-// otra con el logo— es exactamente el desorden que veníamos a arreglar.
+// Las TRES son /login, /aceptar-invitacion y /recuperar-clave (+ su
+// /recuperar-clave/nueva). Comparten chasis acá y no por copia porque son la
+// PUERTA del producto Duna: puertas con marcas distintas —o una con la N del
+// cliente y otra con el logo— es exactamente el desorden que veníamos a arreglar.
 //
 // El admin es producto Duna; el storefront es la marca del cliente. Por eso acá
 // la marca primaria es Duna y la tienda es una línea de CONTEXTO. El nombre del
-// negocio llega por PROP (`nombre`) y no se lee acá: este chasis lo montan dos
-// componentes CLIENTE (login, aceptar-invitación), y `SiteSetting` es server-only.
+// negocio llega por PROP (`nombre`) y no se lee acá: este chasis lo montan
+// componentes CLIENTE (login, aceptar-invitación, recuperar-clave), y
+// `SiteSetting` es server-only.
 // Cada página es ahora un shell SERVER que lee `getSiteSettings()` y lo pasa —así
 // la línea de contexto refleja el nombre editable, con una sola fuente.
 
