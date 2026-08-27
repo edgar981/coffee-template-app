@@ -4,7 +4,18 @@ import { useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { subirDirecto } from '@/lib/api/upload';
 import { leerCodecVideo } from '@/lib/video-codec';
-import { MAX_SUBIDA_DIRECTA_BYTES, MAX_SUBIDA_DIRECTA_MB, TIPOS_PERMITIDOS, mensajeCodecRechazado, type KindUpload } from '@/constants/upload';
+import {
+  MAX_SUBIDA_DIRECTA_BYTES, MAX_SUBIDA_DIRECTA_MB, MAX_REMUX_BYTES, TIPOS_PERMITIDOS, CONTENEDORES_REMUXEABLES,
+  mensajeCodecRechazado, MSG_VIDEO_MUY_PESADO, type KindUpload,
+} from '@/constants/upload';
+
+// Tope efectivo del remux: MAX_REMUX_BYTES, bajado si el equipo reporta poca RAM. `navigator.deviceMemory`
+// es una pista GRUESA y sólo en Chrome (Firefox/Safari no la exponen, por fingerprinting); NO hay una API
+// de memoria disponible cross-browser, así que el tope fijo es la guarda principal y esto sólo lo endurece.
+function capRemuxBytes(): number {
+  const mem = (navigator as { deviceMemory?: number }).deviceMemory;
+  return mem && mem <= 4 ? 128 * 1024 * 1024 : MAX_REMUX_BYTES;
+}
 
 // EL UPLOADER de imágenes de contenido, compartido por la cáscara (campos-imagen fijos) y el
 // RepeaterEditor (foto por ítem). Sube DIRECTO a Blob (§ subirDirecto): el archivo va del navegador
@@ -123,15 +134,20 @@ export function useSubidaImagen({ onError }: { onError: (msg: string | null) => 
     const h = holdRef.current;
     holdRef.current = null;
     if (!file || !h) return;
-    if (!(h.tipos as readonly string[]).includes(file.type)) { onError(h.msgError); return; }
-    if (file.size > MAX_SUBIDA_DIRECTA_BYTES) {
+    // El .mov (remuxeable) se ACEPTA aunque no esté en `h.tipos`: se re-envasa a .mp4 antes de subir
+    // (§ subirVideoYPoster → lib/video-remux). Su tope es el del REMUX (memoria), no el de subida.
+    const remuxeable = (CONTENEDORES_REMUXEABLES as readonly string[]).includes(file.type);
+    if (!(h.tipos as readonly string[]).includes(file.type) && !remuxeable) { onError(h.msgError); return; }
+    if (remuxeable) {
+      if (file.size > capRemuxBytes()) { onError(MSG_VIDEO_MUY_PESADO); return; }
+    } else if (file.size > MAX_SUBIDA_DIRECTA_BYTES) {
       onError(`El archivo pesa ${(file.size / (1024 * 1024)).toFixed(0)} MB y el máximo es ${MAX_SUBIDA_DIRECTA_MB} MB.`); return;
     }
-    // GATE DE CÓDEC (sólo vídeo): el contenedor no dice si el visitante lo verá —un HEVC-en-mp4 pasa el
-    // check de contenedor y medio navegador no lo reproduce, muestra el póster quieto (§ lib/video-codec)—.
-    // AVC pasa; HEVC/ProRes se rechazan con su mensaje. ILEGIBLE (archivo raro, webm) → se DEJA pasar con
-    // el contenedor como red: rechazar por no poder leer bloquearía archivos válidos por un parser
-    // incompleto. Lee sólo cabeceras (rápido, incluso en un archivo de 200 MB), antes de retener el File.
+    // GATE DE CÓDEC (sólo vídeo), ANTES del remux: el contenedor no dice si el visitante lo verá —un
+    // HEVC-en-mp4 pasa el check de contenedor y medio navegador no lo reproduce (§ lib/video-codec)—. AVC
+    // pasa; HEVC/ProRes se rechazan con su mensaje SIN intentar convertir (el remux copia el códec, no lo
+    // arregla). ILEGIBLE (archivo raro, webm) → se DEJA pasar con el contenedor como red. Lee sólo
+    // cabeceras (rápido, aun en 250 MB), antes de retener el File.
     if (file.type.startsWith('video/')) {
       const v = await leerCodecVideo(file);
       if (v.estado === 'rechazado') { onError(mensajeCodecRechazado(v.codec)); return; }

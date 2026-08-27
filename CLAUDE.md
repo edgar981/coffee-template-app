@@ -1415,28 +1415,36 @@ con `Blob.slice()`, NO mp4box.js (~340 KB para leer 4 caracteres)—). **AVC** (
 veredicto **ILEGIBLE** (webm, archivo raro, truncado) cae a la RED DEL CONTENEDOR —rechazar por no poder
 leer bloquearía archivos válidos por un parser incompleto (decisión del owner)—.
 
-**El .mov se RECHAZA por contenedor, aunque traiga H.264.** Firefox no reproduce el contenedor .mov (Chrome
-sólo por sniffing), así que aceptarlo dejaría al visitante de Firefox viendo el póster fijo —el MISMO fallo
-silencioso que el gate de códec evita, movido del códec al contenedor; el operador no se entera porque en su
-Mac funciona—. Por eso `video/quicktime` **NO** está en `TIPOS_VIDEO` ni en el token (§ constants/upload): la
-puerta dura no puede firmar lo que el mensaje rechaza (afirmado en `constants/upload.test.ts`). El parser de
-códec SE QUEDA: dentro de un mp4, rechaza el HEVC. El gate de códec es de **CALIDAD** (corre en el cliente),
-NO de seguridad: el token acota contenedor (mp4/webm) + tamaño + pathname, y un admin que ya puede subir
-basura no es el modelo de amenaza; el gate lo protege de PUBLICAR un vídeo que sus clientes no verían.
+**El .mov se ACEPTA y se CONVIERTE SOLO — no se pide una conversión manual.** Firefox no reproduce el
+contenedor .mov (Chrome sólo por sniffing), así que guardarlo dejaría al visitante de Firefox viendo el
+póster fijo. Rechazarlo tampoco servía: **no hay ruta práctica de conversión en Mac** —QuickTime da .mov,
+iMovie exige crear un proyecto (el owner no supo ni abrir el video), avconvert es la Terminal—; tres
+instrucciones, ninguna que el operador logre. La salida es re-envasar el .mov a .mp4 EN EL NAVEGADOR, sin
+re-codificar (`lib/video-remux.ts`, mp4box): sube su .mov y el navegador lo convierte. **MEDIDO sobre el
+.mov real de 180 MB: ~4 s, salida .mp4 que reproduce.**
 
-**La ruta de Mac a MP4/H.264 es iMovie** (Compartir → Archivo, calidad Alta) o `avconvert` en la Terminal
-—verificados presentes en el Mac—. **QuickTime NO sirve: sólo exporta a .mov**, que se rechaza (fue el mensaje
-falso que nos quemó: creía que daba .mp4). El mensaje de rechazo apunta a iMovie; avconvert queda FUERA del
-mensaje —una línea de Terminal en un aviso de UI haría pensar que subir un video pide saber programar—. Y el
-mensaje NO desaconseja QuickTime: el operador no lo tiene en la cabeza hasta que se lo nombras.
+- **mp4box PINNEADO a 0.5.2** — el 2.4.1 (reescritura con rolldown) cambió `initializeSegmentation` y su
+  `onSegment` NO emitía media en este flujo (medido: init-solo, cero frames). Import DINÁMICO (~31 KB gzip,
+  code-splitteado por Next) → sólo viaja al subir un .mov. Sin tipos → `types/mp4box.d.ts`.
+- **VIDEO-ONLY** (audio dropeado): la galería es muted. **NO comprime** —180 MB entran, ~166 MB salen— así
+  que el peso sigue siendo #20 (comprimir). Streaming de la entrada; la salida se acumula en memoria (~1×),
+  por eso el **tope MAX_REMUX_BYTES = 250 MB** (180 MB usan ~0.5–0.7 GB; en móvil de gama baja tumba la
+  pestaña). Se puede bajar con `navigator.deviceMemory` —pista GRUESA, sólo Chrome; no hay API cross-browser
+  de memoria disponible, así que el tope fijo es la guarda principal—. Pasado el tope: se pide un video más
+  corto, NO una conversión.
+- **El .mov NUNCA se sube como .mov:** se convierte antes, así que `video/quicktime` **NO** está en el token
+  ni en `TIPOS_VIDEO` (queda en `CONTENEDORES_REMUXEABLES`, aceptado-para-convertir; afirmado en
+  `constants/upload.test.ts`). El token sigue firmando sólo mp4/webm.
+- **EL PARSER DE CÓDEC CORRE ANTES DEL REMUX:** un .mov con **HEVC** se rechaza sin intentar convertir —el
+  remux copia el códec, no lo arregla—. Y su valor principal es independiente del .mov: un **HEVC-en-mp4**
+  pasa el check de contenedor (`file.type: video/mp4`) y no se reproduce; el parser lo caza.
+- **El mensaje de HEVC NO promete conversión** (no hay una que el operador logre): dice lo que SÍ se puede,
+  grabar en "Más compatible" la próxima vez. Es la lección de las tres instrucciones fallidas.
+- **La etapa "Convirtiendo el video…"** va nombrada, antes de "Subiendo póster" y "Subiendo video" (tres
+  etapas). El remux es local, así que va primero sin romper el póster-primero anti-huérfano.
 
-**El CONTENEDOR no garantiza la reproducibilidad, y por eso el parser importa aunque se rechace .mov:** un
-HEVC dentro de un .mp4 pasa el check de contenedor (su `file.type` es `video/mp4`) y Chrome/Firefox no lo
-reproducen. Ése es el hueco que el parser cierra —su valor principal, independiente del .mov—.
-
-**HUECOS NOMBRADOS, menores:** el WebM pasa por contenedor (EBML, otro formato; sus códecs de entrada reales
-—VP8/9/AV1— son web-amigables); un mp4 que el parser no pueda leer pasa por la red del contenedor (un
-HEVC-en-mp4 malformado se colaría, raro). Ampliar el parser a EBML, o endurecer la red, es su propia decisión.
+**HUECOS NOMBRADOS, menores:** el WebM pasa por contenedor (EBML, otro formato; códecs web-amigables); un mp4
+que el parser no pueda leer pasa por la red del contenedor (un HEVC-en-mp4 malformado se colaría, raro).
 
 ### 49. Las TRES tarjetas de plan de Suscripción son ESTRUCTURA — no editables (todavía)
 
