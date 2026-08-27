@@ -687,6 +687,17 @@ Reglas de la lista, para que siga sirviendo:
   tome en abstracto.
 - **Un item que se completa se BORRA de acá** y su decisión, si tiene, se
   documenta en la sección que le corresponda. Esto no es un historial.
+- **PODAR LEYENDO TÍTULOS NO SIRVE — hay que verificar contra el CÓDIGO.** El
+  título de un item describe el PROBLEMA, no si sigue vivo: un item resuelto de
+  paso en otra tanda conserva su título de "pendiente" y parece deuda. Pasó TRES
+  veces —**#16** (la campana ya migró a `--duna-sol`), **#36** (la tabla ya es
+  `.duna-lista`) y **#2** (el actor de `InventoryLog` ya está: columnas, escritura
+  por las dos puertas, lectura en el kardex, test de carril)—: los tres estaban
+  HECHOS y el título los hacía parecer vivos. Antes de borrar, reescribir o dar por
+  vivo un item que describe un DEFECTO concreto, se GREPEA el símbolo contra el
+  código —igual que la regla del artefacto (§ PRECONDICIÓN): lo que el item DICE no
+  prueba lo que el código HACE—. Los items que esperan una DECISIÓN de producto (no
+  un defecto) no necesitan este grep.
 
 ### 46. El editor VISUAL — editar sobre la vista, no llenar campos
 
@@ -712,23 +723,6 @@ más el componente que Fase B va a extraer.
 
 **DISPARADOR: cuando el owner use el editor con las CUATRO secciones y BUSCAR el campo siga siendo
 el estorbo.** Hoy, con UNA sección y el sticky puesto, no hay evidencia de que lo sea.
-
-### 2. `InventoryLog` no registra QUIÉN ajustó el stock
-
-Es la única mutación auditable del panel sin columna de actor: `Payment` guarda
-`registrado_por` + `registrado_por_nombre` y `Comprobante` guarda `subido_por` y
-`verificado_por` con sus nombres, pero un ajuste de inventario no deja rastro de
-la persona.
-
-Aditiva y con el patrón que ya existe: `ajustado_por` + `ajustado_por_nombre`,
-`String?`, snapshot y **sin FK** — igual que los otros dos, para que el historial
-sobreviva a que el usuario se vaya. Se llena de aquí en adelante; las filas
-viejas quedan en `null`, que es honesto (nadie sabe quién las hizo).
-
-Se descubrió haciendo el descubrimiento de la tanda de usuarios: la premisa era
-que borrar un usuario dejaría referencias colgando, y resultó que **el historial
-ya está blindado** porque todo es snapshot… salvo acá, donde directamente no hay
-nada que blindar.
 
 ### 3. La ventana de 45 s del polling de la campana
 
