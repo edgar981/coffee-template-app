@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Star, ArrowUp, ArrowDown, Trash2, Plus, Pencil, Upload, Film, X } from 'lucide-react';
+import { Star, ArrowUp, ArrowDown, Trash2, Plus, Pencil, Upload, Film } from 'lucide-react';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import BarraProgreso from '@/components/admin/BarraProgreso';
+import PosterScrubber from '@/components/admin/PosterScrubber';
 import type { CampoItem } from '@/components/admin/tienda-secciones';
 import type { Dims } from '@/components/admin/useSubidaImagen';
 import {
@@ -353,21 +354,17 @@ export default function RepeaterEditor({
           )}
         </div>
 
-        {/* Paso EXPLÍCITO del póster: el vídeo ya se eligió (RETENIDO, sin subir), falta el póster. No
-            es un segundo picker que se abre solo — el operador ve qué eligió y decide el póster.
-            Cancelar acá NO deja huérfano (nada subido todavía). */}
+        {/* Paso del póster: el vídeo ya se eligió (RETENIDO, sin subir), y el póster sale de un FRAME del
+            propio vídeo (scrubber). "Subir una imagen" es la ALTERNATIVA; Cancelar NO deja huérfano (nada
+            subido todavía). Cualquiera de los dos caminos entra por subirVideoYPoster → el póster sube
+            PRIMERO, después el vídeo. */}
         {videoPendiente && !subiendo && (
-          <div className="duna-card" style={{ padding: 'var(--duna-space-3)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
-            <span className="duna-caption" style={{ margin: 0, flex: 1, minWidth: '12rem' }}>
-              Vídeo elegido: <strong>{videoPendiente.name}</strong>. Ahora sube el <strong>póster</strong> —la imagen que se ve antes de reproducir—.
-            </span>
-            <button type="button" onClick={elegirPosterParaVideo} className="duna-btn duna-btn--primary duna-btn--sm">
-              <Upload className="h-3.5 w-3.5" /> Elegir póster
-            </button>
-            <button type="button" onClick={() => setVideoPendiente(null)} className="duna-btn duna-btn--ghost duna-btn--sm">
-              <X className="h-3.5 w-3.5" /> Cancelar
-            </button>
-          </div>
+          <PosterScrubber
+            video={videoPendiente}
+            onPoster={(poster) => subirVideoYPoster(videoPendiente, poster)}
+            onSubirImagen={elegirPosterParaVideo}
+            onCancelar={() => setVideoPendiente(null)}
+          />
         )}
 
         {/* La barra del alta —foto o vídeo—. En el vídeo, la ETIQUETA nombra el paso (póster/vídeo)
