@@ -1426,12 +1426,19 @@ re-codificar (`lib/video-remux.ts`, mp4box): sube su .mov y el navegador lo conv
 - **mp4box PINNEADO a 0.5.2** — el 2.4.1 (reescritura con rolldown) cambió `initializeSegmentation` y su
   `onSegment` NO emitía media en este flujo (medido: init-solo, cero frames). Import DINÁMICO (~31 KB gzip,
   code-splitteado por Next) → sólo viaja al subir un .mov. Sin tipos → `types/mp4box.d.ts`.
-- **VIDEO-ONLY** (audio dropeado): la galería es muted. **NO comprime** —180 MB entran, ~166 MB salen— así
-  que el peso sigue siendo #20 (comprimir). Streaming de la entrada; la salida se acumula en memoria (~1×),
-  por eso el **tope MAX_REMUX_BYTES = 250 MB** (180 MB usan ~0.5–0.7 GB; en móvil de gama baja tumba la
-  pestaña). Se puede bajar con `navigator.deviceMemory` —pista GRUESA, sólo Chrome; no hay API cross-browser
-  de memoria disponible, así que el tope fijo es la guarda principal—. Pasado el tope: se pide un video más
-  corto, NO una conversión.
+- **VIDEO-ONLY** (audio dropeado): la galería es muted. **NO comprime** —salida ≈ entrada—, y por eso el
+  peso NO se arregla con el remux sino con el TOPE DE GALERÍA (abajo). El remux es local; streaming de la
+  entrada, salida en memoria.
+- **TOPE DE GALERÍA = 20 MB (`MAX_VIDEO_GALERIA_BYTES`), y NO es arbitrario:** una galería de finca son
+  loops CORTOS, no un documental —es la forma del contenido—, y es lo que hace que un cliente en MÓVIL lo
+  vea (166 MB tardan minutos; 20 MB cargan en segundos). Comprimir NO resolvería lo que duele: 3 min aun
+  comprimidos siguen siendo ~87 MB (medido: 1080p @ 4 Mbps = 29 MB/min) — la DURACIÓN manda. El **#20**
+  queda para aceptar clips cortos de bitrate ALTO, no vídeos largos. El tope aplica a lo que se SUBE
+  (post-remux); en el pick hay un pre-chequeo generoso (1.5×) para no gastar el remux en un archivo
+  obviamente grande. El mensaje pide un clip corto Y dice el orden de magnitud ("15 a 30 segundos").
+- **El tope de remux de 250 MB SE RETIRÓ** (con él, la lógica de `navigator.deviceMemory`): con el tope de
+  galería, al remux nunca le llega nada mayor a ~30 MB (~60–90 MB de memoria, seguro en cualquier móvil),
+  así que su riesgo de OOM desapareció y el tope quedó sin caso.
 - **El .mov NUNCA se sube como .mov:** se convierte antes, así que `video/quicktime` **NO** está en el token
   ni en `TIPOS_VIDEO` (queda en `CONTENEDORES_REMUXEABLES`, aceptado-para-convertir; afirmado en
   `constants/upload.test.ts`). El token sigue firmando sólo mp4/webm.

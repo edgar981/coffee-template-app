@@ -45,11 +45,13 @@ export const TIPOS_VIDEO = ['video/mp4', 'video/webm'] as const;
  *  un códec). */
 export const CONTENEDORES_REMUXEABLES = ['video/quicktime'] as const;
 
-/** Tope para re-envasar en el navegador. El remux acumula la SALIDA en memoria (~1× el archivo) sobre la
- *  entrada: 180 MB usan ~0.5–0.7 GB, y en un móvil de gama baja eso tumba la pestaña sin explicación. Por
- *  encima de esto se pide un video más corto, NO una conversión. El llamador puede bajarlo aún más si
- *  `navigator.deviceMemory` reporta poca RAM (§ useSubidaImagen) — pista gruesa, sólo en Chrome. */
-export const MAX_REMUX_BYTES = 250 * 1024 * 1024;
+/** Tope de peso para un vídeo de GALERÍA. NO es una limitación arbitraria: una galería de finca son loops
+ *  CORTOS, no un documental —es la forma del contenido—, y es lo que hace que un cliente en MÓVIL lo vea
+ *  (166 MB tardan minutos; 20 MB cargan en segundos). Comprimir no resolvería lo que duele: 3 minutos aun
+ *  comprimidos siguen siendo ~87 MB (medido) — la DURACIÓN manda, no el bitrate. El tope aplica a lo que se
+ *  SUBE (post-remux). El de remux de 250 MB se retiró: con este tope, al remux nunca le llega nada grande
+ *  (§ useSubidaImagen: pre-chequeo del original), así que su riesgo de memoria desaparece. */
+export const MAX_VIDEO_GALERIA_BYTES = 20 * 1024 * 1024;
 
 /**
  * El "kind" que el cliente declara al pedir un token de subida directa (§ subirDirecto). Acota qué
@@ -108,10 +110,11 @@ export const MSG_VIDEO_HEVC =
 export const MSG_VIDEO_PRORES =
   'Ese video no está en un formato que los navegadores reproduzcan (por ejemplo ProRes). Súbelo en H.264 (MP4).';
 
-/** Rechazo por TAMAÑO al re-envasar (§ MAX_REMUX_BYTES): pide algo razonable —un video más corto—, no una
- *  conversión. Sin número fijo: el tope efectivo puede bajar en equipos con poca RAM. */
-export const MSG_VIDEO_MUY_PESADO =
-  'Ese video pesa demasiado para convertirlo en el navegador. Súbelo más corto o en menor resolución.';
+/** Rechazo por TAMAÑO de un vídeo de galería (§ MAX_VIDEO_GALERIA_BYTES). Pide un clip corto Y dice el
+ *  orden de magnitud —el operador necesita saber QUÉ es corto—, con el porqué (que cargue en el móvil). */
+export const MSG_VIDEO_GALERIA_LARGO =
+  'Ese video pesa demasiado para la galería. Súbelo como un clip corto —unos 15 a 30 segundos— para que ' +
+  'cargue rápido en el celular de tus clientes.';
 
 /** Elige el mensaje de rechazo según el fourcc que devolvió el parser: HEVC (hvc1/hev1/…) → la palanca
  *  del iPhone; el resto → el genérico de H.264. */

@@ -5,17 +5,9 @@ import type { ChangeEvent } from 'react';
 import { subirDirecto } from '@/lib/api/upload';
 import { leerCodecVideo } from '@/lib/video-codec';
 import {
-  MAX_SUBIDA_DIRECTA_BYTES, MAX_SUBIDA_DIRECTA_MB, MAX_REMUX_BYTES, TIPOS_PERMITIDOS, CONTENEDORES_REMUXEABLES,
-  mensajeCodecRechazado, MSG_VIDEO_MUY_PESADO, type KindUpload,
+  MAX_SUBIDA_DIRECTA_BYTES, MAX_SUBIDA_DIRECTA_MB, MAX_VIDEO_GALERIA_BYTES, TIPOS_PERMITIDOS,
+  CONTENEDORES_REMUXEABLES, mensajeCodecRechazado, MSG_VIDEO_GALERIA_LARGO, type KindUpload,
 } from '@/constants/upload';
-
-// Tope efectivo del remux: MAX_REMUX_BYTES, bajado si el equipo reporta poca RAM. `navigator.deviceMemory`
-// es una pista GRUESA y sólo en Chrome (Firefox/Safari no la exponen, por fingerprinting); NO hay una API
-// de memoria disponible cross-browser, así que el tope fijo es la guarda principal y esto sólo lo endurece.
-function capRemuxBytes(): number {
-  const mem = (navigator as { deviceMemory?: number }).deviceMemory;
-  return mem && mem <= 4 ? 128 * 1024 * 1024 : MAX_REMUX_BYTES;
-}
 
 // EL UPLOADER de imágenes de contenido, compartido por la cáscara (campos-imagen fijos) y el
 // RepeaterEditor (foto por ítem). Sube DIRECTO a Blob (§ subirDirecto): el archivo va del navegador
@@ -135,12 +127,19 @@ export function useSubidaImagen({ onError }: { onError: (msg: string | null) => 
     holdRef.current = null;
     if (!file || !h) return;
     // El .mov (remuxeable) se ACEPTA aunque no esté en `h.tipos`: se re-envasa a .mp4 antes de subir
-    // (§ subirVideoYPoster → lib/video-remux). Su tope es el del REMUX (memoria), no el de subida.
+    // (§ subirVideoYPoster → lib/video-remux).
     const remuxeable = (CONTENEDORES_REMUXEABLES as readonly string[]).includes(file.type);
     if (!(h.tipos as readonly string[]).includes(file.type) && !remuxeable) { onError(h.msgError); return; }
+    // TOPE DE TAMAÑO por caso. Un vídeo de galería tope a 20 MB —loops cortos, § MAX_VIDEO_GALERIA_BYTES—.
     if (remuxeable) {
-      if (file.size > capRemuxBytes()) { onError(MSG_VIDEO_MUY_PESADO); return; }
+      // .mov: el tope EXACTO va post-remux (lo que se sube, § subirVideoYPoster); acá sólo un pre-chequeo
+      // generoso (1.5×) para no gastar el remux en un archivo obviamente muy grande (el caso de 180 MB).
+      if (file.size > MAX_VIDEO_GALERIA_BYTES * 1.5) { onError(MSG_VIDEO_GALERIA_LARGO); return; }
+    } else if (file.type.startsWith('video/')) {
+      // mp4/webm: lo que se elige es lo que se sube → el tope de galería exacto.
+      if (file.size > MAX_VIDEO_GALERIA_BYTES) { onError(MSG_VIDEO_GALERIA_LARGO); return; }
     } else if (file.size > MAX_SUBIDA_DIRECTA_BYTES) {
+      // imágenes: el tope de la subida directa.
       onError(`El archivo pesa ${(file.size / (1024 * 1024)).toFixed(0)} MB y el máximo es ${MAX_SUBIDA_DIRECTA_MB} MB.`); return;
     }
     // GATE DE CÓDEC (sólo vídeo), ANTES del remux: el contenedor no dice si el visitante lo verá —un

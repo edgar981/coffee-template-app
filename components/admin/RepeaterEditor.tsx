@@ -9,8 +9,8 @@ import type { CampoItem } from '@/components/admin/tienda-secciones';
 import type { Dims } from '@/components/admin/useSubidaImagen';
 import { remuxMovAMp4 } from '@/lib/video-remux';
 import {
-  TIPOS_PERMITIDOS, TIPOS_VIDEO, ACCEPT_IMAGENES, ACCEPT_VIDEO, MSG_VIDEO_NO_ADMITIDO, MSG_VIDEO_MUY_PESADO,
-  MAX_SUBIDA_DIRECTA_BYTES, CONTENEDORES_REMUXEABLES, type KindUpload,
+  TIPOS_PERMITIDOS, TIPOS_VIDEO, ACCEPT_IMAGENES, ACCEPT_VIDEO, MSG_VIDEO_NO_ADMITIDO, MSG_VIDEO_GALERIA_LARGO,
+  MAX_VIDEO_GALERIA_BYTES, CONTENEDORES_REMUXEABLES, type KindUpload,
 } from '@/constants/upload';
 
 // EDITOR DE LISTA (repeater) GENÉRICO — agregar / quitar / editar / reordenar (flechas) ítems, con
@@ -187,7 +187,9 @@ export default function RepeaterEditor({
         setConvirtiendo(true);
         try { videoFinal = await remuxMovAMp4(video); }
         finally { setConvirtiendo(false); }
-        if (videoFinal.size > MAX_SUBIDA_DIRECTA_BYTES) throw new Error(MSG_VIDEO_MUY_PESADO);
+        // El tope EXACTO de galería sobre lo que se SUBE: un .mov que pasó el pre-chequeo (1.5×) pero cuya
+        // salida video-only sigue > 20 MB se rechaza acá con el mismo mensaje de "clip corto".
+        if (videoFinal.size > MAX_VIDEO_GALERIA_BYTES) throw new Error(MSG_VIDEO_GALERIA_LARGO);
       }
       setSubiendoPaso('póster');
       const { url: posterUrl } = await subir!(poster, { kind: 'imagen' });

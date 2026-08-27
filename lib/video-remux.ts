@@ -9,9 +9,10 @@
 // nunca en el bundle de quien no sube vídeo.
 //
 // STREAMING de la ENTRADA: el File se lee por chunks y se van appendeando —no hay una segunda copia del
-// archivo—. La SALIDA sí se acumula en memoria (los segmentos juntos); por eso el llamador topa el tamaño
-// antes de convertir (§ MAX_REMUX_BYTES): 180 MB usan ~0.5–0.7 GB, que en móvil de gama baja puede tumbar
-// la pestaña. NO es barrera de seguridad; es una conversión de conveniencia.
+// archivo—. La SALIDA sí se acumula en memoria (los segmentos juntos). El llamador ya acotó el tamaño al
+// tope de galería (§ MAX_VIDEO_GALERIA_BYTES = 20 MB, con pre-chequeo generoso), así que acá nunca llega
+// nada grande —la memoria del remux es ~60–90 MB, segura en cualquier móvil—. Es una conversión de
+// conveniencia, no una barrera de seguridad.
 
 // El shape de mp4box (0.5.2) que usamos. Pinneado a 0.5.2 A PROPÓSITO: el 2.x (reescritura con rolldown)
 // cambió `initializeSegmentation` y su `onSegment` NO emitía media en este flujo —medido, salía el init
