@@ -16,5 +16,4 @@ export const EMPTY_CUSTOMER_FORM: CustomerForm = {
   direccion: '',
   canal:     'directo',
   notas:     '',
-  activo:   true,
 };

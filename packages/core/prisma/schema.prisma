@@ -101,7 +101,6 @@ model Customer {
   direccion      String?
   canal          String?  @default("directo")
   notas          String?
-  activo         Boolean  @default(true)
   numero_ordenes Int      @default(0)
   total_compras  Float    @default(0)
   createdAt      DateTime @default(now())
@@ -550,9 +549,10 @@ model DashboardPreference {
 //
 // UNA FILA, SIN discriminador de tenant (el `CHECK` la hace singleton). Un
 // `tenant_id` hoy sería una columna siempre-igual apuntando a una tabla que no
-// existe — la mina inerte de `Customer.activo`/`Product.agotado`. El scope de tenant
-// llega con el MOVIMIENTO de este modelo al esquema `duna_shop`, no con una columna
-// adelantada.
+// existe — la clase de columna inerte que ya se retiró de `Customer` y `Product`
+// (los ex `activo`/`agotado`, § Backlog #8/#10: su valor nunca variaba del default).
+// El scope de tenant llega con el MOVIMIENTO de este modelo al esquema `duna_shop`,
+// no con una columna adelantada.
 //
 // DISPARADOR: cuando la arquitectura de TRES ESQUEMAS (duna_shop/duna_shared) llegue,
 // esta tabla migra a `duna_shop` (dato del tenant, NUNCA `duna_shared`) y el `id`

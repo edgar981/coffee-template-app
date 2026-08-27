@@ -11,7 +11,6 @@ const base: CustomerForm = {
   direccion: 'Cra 1 # 2-3',
   canal:     'whatsapp',
   notas:     '',
-  activo:    true,
 };
 
 const form = (patch: Partial<CustomerForm>): CustomerForm => ({ ...base, ...patch });

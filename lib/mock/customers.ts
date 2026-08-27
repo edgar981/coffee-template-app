@@ -12,9 +12,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
     total_compras: 485000,
     numero_ordenes: 7,
     notas:
-      "Cliente VIP. Prefiere tostado ligero. Siempre paga puntual.",
-    activo: true,
-    createdAt: "2024-01-15T10:30:00Z",
+      "Cliente VIP. Prefiere tostado ligero. Siempre paga puntual.",    createdAt: "2024-01-15T10:30:00Z",
   },
   {
     id: "c2",
@@ -27,9 +25,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
     total_compras: 320000,
     numero_ordenes: 4,
     notas:
-      "Le gustan las suscripciones. Pregunta por nuevos lotes.",
-    activo: true,
-    createdAt: "2024-02-20T14:45:00Z",
+      "Le gustan las suscripciones. Pregunta por nuevos lotes.",    createdAt: "2024-02-20T14:45:00Z",
   },
   {
     id: "c3",
@@ -41,9 +37,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
     canal: "directo",
     total_compras: 128000,
     numero_ordenes: 2,
-    notas: "",
-    activo: true,
-    createdAt: "2024-03-05T09:20:00Z",
+    notas: "",    createdAt: "2024-03-05T09:20:00Z",
   },
   {
     id: "c4",
@@ -56,9 +50,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
     total_compras: 890000,
     numero_ordenes: 12,
     notas:
-      "Compra para su empresa. Pedidos grandes cada 3 semanas.",
-    activo: true,
-    createdAt: "2024-01-30T11:15:00Z",
+      "Compra para su empresa. Pedidos grandes cada 3 semanas.",    createdAt: "2024-01-30T11:15:00Z",
   },
   {
     id: "c5",
@@ -70,9 +62,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
     canal: "instagram",
     total_compras: 215000,
     numero_ordenes: 3,
-    notas: "",
-    activo: true,
-    createdAt: "2024-02-10T16:00:00Z",
+    notas: "",    createdAt: "2024-02-10T16:00:00Z",
   },
   {
     id: "c6",
@@ -84,9 +74,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
     canal: "whatsapp",
     total_compras: 152000,
     numero_ordenes: 2,
-    notas: "",
-    activo: true,
-    createdAt: "2024-03-12T13:40:00Z",
+    notas: "",    createdAt: "2024-03-12T13:40:00Z",
   },
   {
     id: "c7",
@@ -99,9 +87,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
     total_compras: 540000,
     numero_ordenes: 8,
     notas:
-      "Apasionada del café de especialidad. Fan del cold brew.",
-    activo: true,
-    createdAt: "2024-01-25T12:00:00Z",
+      "Apasionada del café de especialidad. Fan del cold brew.",    createdAt: "2024-01-25T12:00:00Z",
   },
   {
     id: "c8",
@@ -114,9 +100,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
     total_compras: 1250000,
     numero_ordenes: 18,
     notas:
-      "Nuestro mejor cliente. Tiene suscripción premium activa.",
-    activo: true,
-    createdAt: "2024-01-10T08:30:00Z",
+      "Nuestro mejor cliente. Tiene suscripción premium activa.",    createdAt: "2024-01-10T08:30:00Z",
   },
   {
     id: "c9",
@@ -128,9 +112,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
     canal: "instagram",
     total_compras: 280000,
     numero_ordenes: 4,
-    notas: "",
-    activo: true,
-    createdAt: "2024-02-05T15:25:00Z",
+    notas: "",    createdAt: "2024-02-05T15:25:00Z",
   },
   {
     id: "c10",
@@ -142,8 +124,6 @@ export const MOCK_CUSTOMERS: Customer[] = [
     canal: "referido",
     total_compras: 95000,
     numero_ordenes: 1,
-    notas: "",
-    activo: true,
-    createdAt: "2024-03-15T14:20:00Z",
+    notas: "",    createdAt: "2024-03-15T14:20:00Z",
   },
 ];

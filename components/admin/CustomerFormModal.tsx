@@ -43,7 +43,6 @@ const buildForm = (c: Customer): CustomerForm => ({
   direccion: c.direccion ?? '',
   canal:     c.canal     ?? 'directo',
   notas:     c.notas     ?? '',
-  activo:    c.activo,
 });
 
 export function CustomerFormModal({ open, customer, onOpenChange, onSaved }: {
