@@ -56,7 +56,7 @@ export function PreAuthShell({
   children: ReactNode;
 }) {
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-10">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10">
       {/* Profundidad sutil: UN tinte radial del primario a muy baja opacidad,
           para que el fondo no sea un plano muerto. Sale de tokens, así que se
           adapta a claro y oscuro, y se queda muy por debajo de la card — el
@@ -101,6 +101,15 @@ export function PreAuthShell({
 
         {children}
       </div>
+
+      {/* Pie de marca. "Dos puertas" es la METÁFORA del producto —un negocio con
+          dos puertas, el admin y el storefront, sobre un mismo sistema operativo—,
+          NO el número de pantallas de la puerta (que son tres). Sin versión: un
+          literal envejece y no le dice nada a quien entra. `relative` para quedar
+          por encima de la duna del fondo. */}
+      <p className="relative z-10 mt-9 text-center text-xs text-muted-foreground/70">
+        Un negocio. Dos puertas. Un sistema operativo.
+      </p>
     </div>
   );
 }
