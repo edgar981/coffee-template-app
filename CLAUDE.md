@@ -891,24 +891,6 @@ o **quitar la columna** y dejar que `disponible` dependa sólo del stock — que
 que hoy pasa de facto, porque nadie la escribe. Lo que no puede quedar es la
 tercera, que es la de hoy.
 
-### 16. `NotificationBell` usa `accent-amber` en vez de `--duna-sol`
-
-La campana pinta su conteo, el tinte de las no-leídas y su color con la utilidad
-shadcn `text-accent-amber` / `bg-accent-amber`
-(`components/admin/NotificationBell.tsx:261,326,330`), no con el token del sistema.
-El ámbar ahí es semánticamente correcto —atención— pero `--accent-amber` en
-oscuro (`43 96% 62%`) NO es `--duna-sol` (`#F59E0B`): migrarlo **cambia el aspecto
-en tema oscuro**, así que no es un reemplazo mecánico.
-
-**Costo YA pagado: ninguno.** El color se lee bien en los dos temas; el defecto es
-sólo que el token diverge. Salió del censo de `accent-amber` de la tanda de
-correctores —donde el MISMO patrón en el drawer de Programar entrega sí se migró a
-`.duna-link` y a los tres roles del sol—. Los otros `accent-amber` de dashboard y
-analítica NO entran acá: migran cuando migren esas verticales.
-
-**DISPARADOR:** el rediseño del Dashboard, o una tanda de acabado con **gate
-propio** — porque el cambio altera el tema oscuro y hay que verlo en ambos.
-
 ### 18. El detalle pierde la POSICIÓN DE SCROLL al cruzar el umbral del split
 
 Cruzar 1080 remonta el detalle de una superficie a la otra (panel `.duna-split__panel`
@@ -947,7 +929,7 @@ navegación no ocurre — un no-op, no una pérdida.
 conservar. Entonces se eleva al padre como el borrador, o el detalle recibe una
 identidad estable entre contenedores.
 
-### 20. Comprimir la imagen en la subida — pendiente, disparador CORREGIDO
+### 20. Comprimir la PORTADA en la subida — alcance IMAGEN (el de vídeo murió con el tope)
 
 **LA MITAD QUE DOLÍA SE CERRÓ** (tanda del #48/#20, la subida directa a Blob): el tope de
 4 MB **murió con el endpoint viejo `/api/upload`**; las subidas van DIRECTO del navegador a
@@ -972,15 +954,13 @@ headers vuelven en <1 s (por eso un HEAD engaña). Es **ambiental** (throughput 
 esa red), no código. En producción, servido desde el edge, hoy no muerde — que es por qué el
 disparador es la lentitud OBSERVADA, no la teórica.
 
-**EL DISPARADOR SE CUMPLIÓ PARA VÍDEO (tanda B, 2026-08-26), y acotó el alcance.** Un asset de vídeo de
-**180 MB** (una grabación de finca) arrastró el storefront —tardaba MINUTOS en cargar, inusable en móvil—.
-La respuesta NO fue comprimir: fue el **TOPE DE GALERÍA de 20 MB** (§ Backlog #48), porque MEDIDO, la
-**DURACIÓN manda** —3 min aun comprimidos siguen siendo ~87 MB (1080p @ 4 Mbps = 29 MB/min)—, así que
-comprimir no arregla un vídeo largo. Lo que QUEDA de #20 para VÍDEO es aceptar **clips cortos de bitrate
-ALTO** re-codificándolos a bitrate web (WebCodecs — MEDIDO viable: H.264 High encodea ~más rápido que
-tiempo real en Chrome/Safari), NO vídeos largos. La mitad de IMAGEN sigue con su disparador (storefront
-lento observado). Bajar la resolución al remuxear NO es opción (medido/confirmado: escalar exige
-re-codificar); Vercel Blob no transcodifica ni hace bitrate adaptativo (eso sería un host de vídeo, § #48).
+**EL ALCANCE DE VÍDEO SE CERRÓ — su disparador se volvió IMPOSIBLE (owner, 2026-08-27).** El disparador
+de comprimir-vídeo era el asset de 180 MB, y el **TOPE DE GALERÍA de 20 MB** (§ Backlog #48) hace que ese
+asset ya no pueda existir. Comprimir tampoco lo habría arreglado: MEDIDO, la DURACIÓN manda —3 min aun
+comprimidos siguen siendo ~87 MB (1080p @ 4 Mbps = 29 MB/min)—. Así que **este ítem es sólo de IMAGEN**
+(las portadas de 1.4 MB, arriba). El único residuo de vídeo —re-codificar un clip CORTO de bitrate alto
+con WebCodecs (medido viable) para colar algo más largo bajo los 20 MB— es marginal, no tiene costo pagado
+ni caso pedido, y vive en el § #48, no acá.
 
 ### 21. El dev heredado del reset apunta a blobs de PRODUCCIÓN
 
@@ -1001,36 +981,6 @@ path la respete.
 imágenes.** Ahí se verifica qué hace `lib/storage` en `delete`/reemplazo contra una
 URL de prefijo `productos/` heredada, y que la guarda cubra ese path — antes de
 darle al operador un botón que pueda alcanzar un archivo de producción.
-
-### 23. Las barras de scroll de las columnas usan el estilo del navegador
-
-Las columnas con `overflow-y: auto` del shell de alto fijo (§ duna.css, el shell)
-scrollean con la barra por defecto del navegador, ajena al sistema. Falta el estilo
-tokenizado (`scrollbar-width`/`scrollbar-color` + `::-webkit-scrollbar`).
-
-**Costo YA pagado: ninguno** — es cosmético y la barra por defecto funciona. Va a
-la PRIMITIVA (no ad-hoc por página), con tokens, en commit propio.
-
-**CUIDADO, y por eso se anota con la advertencia:** una barra demasiado sutil deja
-de anunciar que hay contenido abajo — y eso es INFORMACIÓN, no decoración. El
-riesgo del estilo es esconder la señal de "hay más", que es justo lo que una barra
-de scroll comunica. El acabado tiene que conservar esa señal.
-
-**DISPARADOR: una tanda de acabado del shell**, con gate visual propio (el cambio
-se ve, y hay que verlo en los dos temas).
-
-**ESTADO (2026-08-23): APLICADO, pendiente de gate.** Una regla HEREDADA en
-`html.admin` (`scrollbar-width: thin; scrollbar-color: var(--duna-muted) transparent;`,
-`duna.css`) —no ad-hoc por scroller ni una utilidad: las dos props heredan, así que
-cubren el documento y los ~7 scrollers anidados de una—. **SIN `::-webkit-scrollbar`**
-(fuerza barras persistentes a quien usa overlay; su preferencia, no la nuestra — la
-línea de arriba que lo mencionaba está desactualizada respecto a esta decisión). El
-`transparent` del track quita la BANDA, que es lo que molestaba. **El pulgar es `muted`,
-no `border-2`, MEDIDO**: border-2 daba 1.30:1 claro / 1.53:1 oscuro (por debajo del 3:1
-de un componente UI); muted da 4.62 / 6.27 — visible pero discreto, conserva la señal
-"hay más". Efecto medido: el canal de `scrollbar-gutter: stable` baja 15→11px (barra y
-canal siguen cuadrando); reflow de ~4px en los 4 scrollers con gutter, no defecto. Cierra
-sólo cuando el gate confirme el pulgar visible sin banda en los dos temas.
 
 ### 25. Las reglas del alto fijo están gateadas a un VALOR (1080), no a un ROL
 
@@ -1106,23 +1056,23 @@ ocurre—: el disparador correcto es el HECHO (mover la consulta), no la tanda q
 suponía que lo traería. Cambiar el fetch sólo por el lint sigue siendo tocar dos cosas
 cuando el hecho real va a tocar una.
 
-### 33. `aceptar-invitacion` se traga el fallo de carga en silencio
+### 33. `aceptar-invitacion` — VERIFICADO resuelto (2026-08-27)
 
-`app/(admin)/aceptar-invitacion/page.tsx:53` cierra su fetch con `.catch(() => {})`. Es
-el MISMO patrón que costó el defecto de Pagos del 2026-08-19: una carga que falla sin
-decirlo deja la pantalla mostrando un estado que el dato no respalda.
+El ítem describía un "guardado que falla en silencio" en la puerta de entrada de un usuario nuevo. Se
+verificó el flujo COMPLETO contra el código y **los dos caminos surfacen el error**:
 
-**Costo YA pagado: ninguno medido** —no se ha reportado—, pero la pantalla es la puerta
-de entrada de un usuario invitado: si la carga falla en silencio, el invitado ve una
-pantalla que no explica nada y no tiene a quién preguntarle.
+- **La carga (chequeo del enlace):** el `.catch(() => {})` MOVIÓ de `page.tsx:53` a
+  `AceptarInvitacionForm.tsx:57` (el pre-auth se partió en shell+form, § SiteSetting) y ahí es
+  DELIBERADO —un fallo de RED deja pasar al formulario para que el canje decida; marcarlo "enlace
+  muerto" por una conexión intermitente sería mentir (tiene comentario)—. Degrada al form, no a un
+  dead-end.
+- **El SUBMIT (el canje que CREA la cuenta):** `handleSubmit` hace `setError(...)` en `!res.ok` y en el
+  `catch` de red, y ese error **se RENDERIZA** —`{error && <AvisoError>{error}</AvisoError>}`, línea
+  197—. Si el POST falla, el invitado ve el mensaje, no un formulario mudo.
 
-**El tercer `catch` vacío del censo, `NotificationBell.tsx:116`, se QUEDA**: es
-`el.play().catch(() => {})`, la política de autoplay del navegador. No hay nada que
-reportarle al operador, y ahí el silencio es correcto.
-
-**DISPARADOR: al tocar esa pantalla.** La forma ya está resuelta al lado (§ Pagos): el
-fallo se hace visible, el dato viejo NO sobrevive bajo una etiqueta nueva, y el aviso
-lleva "Reintentar" — sin toast, porque el error es persistente y hay algo que hacer.
+Así que no hay defecto: no es un fix de una línea porque ya está hecho. **Se deja como registro de que
+se verificó**; borrable en la próxima poda. (El tercer `catch` vacío del censo, `NotificationBell.tsx`
+`el.play().catch(() => {})`, es la política de autoplay del navegador — silencio correcto, se queda.)
 
 ### 32. El logo de Duna no entra en el PDF: va como TEXTO
 
@@ -1171,9 +1121,11 @@ que YA es el scroller —`overflow-y: auto`—, así que hay que verificar que m
 a la primitiva no cambie qué elemento scrollea (el sheet tiene `max-height` y el cuerpo es
 el que debe scrollear).
 
-**DISPARADOR: el QUINTO consumidor de `DunaSheet`, o la próxima vez que se toque la
-primitiva.** Antes no —con cuatro consumidores todavía es más barato el wrap repetido que
-el refactor de la primitiva + sus tres call sites—.
+**DISPARADOR (hecho observable): cuando un QUINTO consumidor de `DunaSheet` olvide el
+`__body`** y aparezca el hueco de padding —contenido pegado a los bordes del sheet, el
+defecto que MobileNav ya tuvo una vez—. NO "la próxima vez que se toque la primitiva": lo
+que dispara es el DEFECTO, no un toque genérico. Antes de eso, con cuatro consumidores es
+más barato el wrap repetido que el refactor de la primitiva + sus tres call sites.
 
 ### 35. Los carriles de Pedidos son NUEVE — la barra empezó a leerse como lista
 
@@ -1196,47 +1148,6 @@ intuición es cómo se quita el que sí importaba. La forma probable, si hiciera
 del dato: agrupar los de fulfillment (preparación · listas · camino · entregados) bajo un
 control distinto de los de cobro, o mover los acumuladores (Todos · Entregados · Cancelado)
 fuera de la barra.
-
-### 36. La tabla de "Órdenes Recientes" del Dashboard se SUPERPONE en teléfono
-
-`app/(admin)/admin/dashboard/page.tsx:327` — `<div className="overflow-x-auto">` con
-`<table className="w-full text-sm">`. Es la GEMELA exacta de la tabla de detalle de
-Analítica, que se arregla en su tanda de forma migrando a `.duna-lista`.
-
-**El mecanismo, escrito para no re-diagnosticarlo** (se diagnosticó el 2026-08-20
-sobre la gemela de Analítica, con el síntoma reportado por el owner en teléfono):
-
-- **`w-full` ANULA al `overflow-x-auto`.** La clase fuerza la tabla al ancho del
-  contenedor, así que NUNCA desborda y el scroll horizontal que el `div` promete no
-  se activa jamás. Las columnas se comprimen en su lugar.
-- **Las columnas con `whitespace-nowrap` no pueden ceder**, así que al comprimirse su
-  contenido **se desborda de la celda y se toca con el vecino** — de ahí que los
-  encabezados salgan pegados (`UdsVenta de mercancíaMargen / ud` en la de Analítica)
-  y las cifras se superpongan.
-- **La única columna SIN `nowrap` es la que envuelve a dos líneas** mientras las
-  demás no. Los tres síntomas son el MISMO mecanismo, no tres defectos.
-
-O sea: no es sólo "le falta el reflujo móvil de `.duna-lista`" (§ Listas tabulares —
-el defecto que esa primitiva cerró para Pagos e Inventario). Es que **esas dos clases
-no pueden convivir**, y el resultado es peor que el scroll horizontal que se quería
-evitar: `.duna-lista` reflúa, esto se SUPERPONE.
-
-**Costo YA pagado: ninguno medido en el Dashboard** —el síntoma se vio en Analítica—,
-y por eso está acá abajo. Es el mismo defecto latente esperando a que alguien abra el
-Dashboard en un teléfono.
-
-**DISPARADOR: cuando se rediseñe el Dashboard.** Ahí migra a `.duna-lista` como su
-gemela, no con un parche de Tailwind — arreglar el `w-full` a mano dejaría una tabla
-que el rediseño rehace igual, y sin el reflujo seguiría siendo scroll horizontal en
-una tabla de datos.
-
-**SEGUNDA MITAD, mismo disparador o el primero que pase por ahí:
-`components/ui/table.tsx` NO TIENE CONSUMIDORES.** Verificado por grep (2026-08-20):
-cero imports en todo el repo. Es candidata a RETIRO, exactamente como `DunaTable`
-—que se retiró cuando su único consumidor migró—. Mientras siga ahí es una segunda
-forma de hacer una tabla, disponible para que la próxima pantalla la elija sin
-criterio; y las dos tablas crudas del panel ni siquiera la usan, que es la señal de
-que ya no es la respuesta a nada.
 
 ### 37. DOS controles de período en el panel, con la misma forma y distinta naturaleza
 
@@ -1279,11 +1190,27 @@ identificador** en las dos capas.
 es que el nombre lo diga. Se descubrió haciendo el descubrimiento de la tanda 3
 (§ Backlog #6, cerrado), buscando quién leía la columna.
 
-**DISPARADOR: al tocar el endpoint de Clientes, o el retiro de la columna.** Dos
-salidas y son excluyentes: renombrar el campo del API a lo que es (`pagado`,
-`totalPagado`) y actualizar sus dos consumidores, o retirar la columna del schema y
-dejar que el nombre quede libre. Lo que no puede quedar es la tercera, que es la de
-hoy.
+**ES RETIRO DIRECTO, NO UNA ESPERA (owner, 2026-08-27).** El disparador viejo ("al tocar el
+endpoint de Clientes") no es un HECHO OBSERVABLE: nadie ve el momento en que un dev lee la
+COLUMNA muerta creyéndola el campo del API. Y una columna demo muerta junto a un campo vivo del
+MISMO nombre es una TRAMPA, no una espera.
+
+**CENSO POR CONTENIDO (2026-08-27), para la migración —que es DESTRUCTIVA—:**
+- **Lecturas para mostrar: CERO.** La lista y el perfil pintan `cliente.total_compras`, pero ése
+  es el campo de la RESPUESTA del API, que `app/api/customers/route.ts:69` SOBRESCRIBE con
+  `paidTotalByCustomer()`. La columna nunca se lee; el valor mostrado es dinero real.
+- **Escrituras de runtime: CERO.** El `prisma.customer.create` (route.ts:96-108) NO incluye
+  `total_compras` (ni por spread) — cae al `@default(0)`; el PATCH tampoco la escribe.
+- **La toca el SEED:** `prisma/seed.ts:269` (`total_compras: c.total_compras ?? 0`) desde
+  `lib/mock/customers.ts` (valores demo). Es plomería de demo, no un consumidor de runtime.
+- **El campo/tipo del API `total_compras` (= `paidTotalByCustomer`) SE QUEDA** —es otra cosa, con
+  el mismo nombre—. `types/customer.ts:21` es ESE campo, no la columna.
+
+**El DROP es seguro (cero runtime), pero arrastra el seed.** La migración = quitar
+`total_compras Float @default(0)` del schema + borrar `seed.ts:269` + limpiar `total_compras` de
+`lib/mock/customers.ts` (queda muerto). Las tres van JUNTAS o el seed rompe. Verificado que nadie
+más la escribe al crear un cliente. Falta sólo el OK del owner para escribir la migración (contract:
+como nadie la lee, no necesita expand/contract en deploys separados).
 
 ### 39. Dos voces para el mismo umbral: `def.disparador` (diálogo) y `def.frase` (tarjeta)
 
@@ -1332,47 +1259,6 @@ sin reembolsos modelados, esconderlos desincronizaría del libro de Pagos.
 pago sobre orden cancelada necesita un estado (reembolsado / retenido) y si el ingreso lo
 resta. Las cuatro superficies leen la misma definición, así que el cambio es en UN sitio
 (`REVENUE_ORDER_SCOPE` + el nuevo estado del `Payment`), no en cuatro.
-
-### 42. La banda de fondo bajo el alto fijo ERA el padding-bottom de `p-6`
-
-En las pantallas de **alto fijo** (Pedidos, Clientes, Productos, Inventario, Pagos) aparecía
-una **banda del color del fondo** pegada al borde inferior del viewport; NO en las de
-document-scroll.
-
-**LA CAUSA REAL** (2026-08-23): el wrapper de `<main>` (`AdminChrome.tsx:87`,
-`animate-fade-in duna-nav-hueco p-6`) trae `p-6` = **24px por lado**. En document-scroll ese
-`padding-bottom` es el aire bajo el último contenido —hace falta—. Pero la cadena de alto fijo
-le pone `height: 100%` a ese wrapper (`duna.css`, `main:has(.duna-pantalla-fija) > div` /
-`main:has(.duna-sin-split) > div`) **sin quitarle el padding**, así que los 24px inferiores
-quedan ATRAPADOS dentro del viewport: el contenido termina 24px arriba del borde y esos 24px
-muestran el fondo. Eso es la banda — padding, no un píxel.
-
-**El fix:** `padding-bottom: 0` en esos dos wrappers, scopeado por el `main:has(...)` que la
-cadena YA usa —así las cinco de document-scroll conservan su aire inferior intacto—. El
-superior y el lateral de `p-6` se QUEDAN (dan el aire bajo la topbar y el margen del rail, que
-la cadena no provee). En el split, las columnas ya traen 16px de aire propio; en sin-split
-(Inventario/Pagos) el aire del último renglón lo debe dar el scroller —**a verificar en el
-gate; si pasa, el aire va en el scroller, no en el wrapper**—.
-
-**QUIÉN LO ENCONTRÓ, Y ES LA LECCIÓN: el owner, mirando la pantalla — después de DOS
-diagnósticos (uno de Claude Code, otro de la sesión de asesoría) que se sostuvieron sobre el
-CSS y eran FALSOS.** El primero: "`100dvh` no calza con el área visible, asoma un píxel del
-body". El segundo: "es el CANVAS del root, `<html>` sin `background`" — y hasta se aplicó
-`html.admin { background }`, que **se revirtió** porque tapaba un píxel que no era el problema
-(la banda es padding, está DELANTE del canvas). Los dos eran coherentes leyendo el CSS y
-ninguno era la causa.
-
-Es la **TERCERA vez en la sesión** que un diagnóstico derivado del CSS resulta falso y la
-respuesta estaba en la pantalla, no en el archivo. Es la misma familia que
-**§ REGLA · un número de layout sólo vale si viene de la pantalla donde se TRABAJA**, y es su
-ejemplo MÁS LIMPIO: *el CSS explicaba una banda que era otra cosa.* Una explicación derivada
-del CSS de un defecto VISUAL es una hipótesis, no un diagnóstico — se confirma contra el píxel
-renderizado, no contra la coherencia del código. Cuando el que ve la pantalla dice otra cosa,
-gana la pantalla.
-
-**ESTADO: fix aplicado, pendiente del gate visual** (las cinco de alto fijo, ambos temas, +
-el chequeo de la última fila en Inventario/Pagos). Cierra cuando el gate confirme que la banda
-se fue y nada quedó a ras.
 
 ### 48. VÍDEO en la galería de /nosotros — CONSTRUIDO (tanda B, 2026-08-26)
 
@@ -1470,20 +1356,6 @@ más grande que "el texto de la home".
 lee de SiteContent —para no divergir—, y (b) que son un repeater propio con DOS restricciones de layout
 ya conocidas: **el `sm:grid-cols-3` y el flag `popular` (i===1) asumen EXACTAMENTE tres** planes, así
 que variar el número es rediseño de esa rejilla, no sólo modelo.
-
-### 50. Reordenar ítems del RepeaterEditor es con FLECHAS — arrastrar es otra pieza
-
-El `RepeaterEditor` (§ SiteContent — el repeater) reordena con **flechas Subir/Bajar**
-(`move(i, ±1)`, precedente `DashboardCustomizer`): barato, sin dependencia, accesible por teclado.
-**Arrastrar** (drag-and-drop) se descartó para v1 —es una pieza nueva: librería dnd o pointer-handling
-propio + su a11y de teclado—.
-
-**Costo YA pagado: ninguno.** Con las listas de Nayoli (unos pocos testimonios, cuatro fotos) las
-flechas alcanzan de sobra; mover un ítem tres posiciones son tres clics, no una molestia real.
-
-**DISPARADOR: listas largas de verdad** —una vertical con, digamos, 15+ ítems donde reordenar con
-flechas se vuelva tedioso—. Ahí se evalúa el drag (con su a11y: siempre debe quedar el camino por
-teclado, las flechas no se retiran).
 
 ### 51. Lightbox de imágenes en la galería de /nosotros — ampliar una foto al clic
 
@@ -4546,10 +4418,12 @@ rechazó.
 **Esta tanda NO construyó media H6.** H6 queda con su precio y su disparador sin
 cambio.
 
-**DISPARADOR: `.duna-sheet` queda con la misma naturaleza que `.duna-scrim`** —CSS
-que alguien tiene que cablear bien—. El día que el paquete adopte comportamiento
-(H6, o la Fase B con su propia app), las DOS se absorben en la primitiva que lo
-tenga y dejan de ser reglas sueltas.
+**DISPARADOR (hecho observable): cuando aparezca un TERCER consumidor de sheet o scrim
+FUERA del admin** —hoy `.duna-sheet`/`.duna-scrim` son CSS admin-level que alguien cablea
+bien; un consumidor no-admin es lo que fuerza a moverlas al paquete (con su conducta, para
+que no-admin las use)—. NO "al tocar el DS": ese toque genérico no dispara nada. El otro
+camino a la absorción sigue siendo que el paquete adopte comportamiento (H6, o Fase B con su
+propia app); lo que se reescribe es el disparador de ESTE lado, que era vago.
 
 **`.admin-tooltip` es el MISMO caso, con un paso menos hecho** (owner, 2026-08-18):
 la superficie del tooltip (`app/(admin)/duna.css`) es CSS que alguien cablea, con
