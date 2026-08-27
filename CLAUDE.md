@@ -1216,6 +1216,20 @@ otra pieza. Sólo las celdas-IMAGEN abren; las de vídeo no.
 propio del storefront; menos si se extrae la primitiva) + su a11y (teclado, foco). **DISPARADOR: que
 alguien quiera ver una foto en grande.**
 
+### 52. "Ingresar con WhatsApp" en el login — capacidad que no existe
+
+La maqueta del rediseño del login dibujaba un "Ingresar con WhatsApp". **NO se dibujó** (rediseño del
+2026-08-27): en la PUERTA, un botón/enlace de un método de acceso que no existe es un **enlace muerto**
+que bloquea a quien cree que ése es su camino —exactamente lo que el rediseño del login existe para no
+tener, y la misma razón por la que el reset se construyó ANTES de cablear su enlace—. Hoy no hay login
+por WhatsApp: ni el flujo (OTP/número → sesión), ni el canal de Meta conectado (§ los prerequisitos de
+go-live de WhatsApp, que están para las AUTOMATIZACIONES, no para auth).
+
+**Costo YA pagado: ninguno.** Es una capacidad no construida, no un defecto.
+
+**DISPARADOR: cuando exista un login por WhatsApp/OTP cableado** (un flujo real que cree sesión). Ese
+día se dibuja el botón, apuntando a algo real. No antes.
+
 ## Config del negocio — `SiteSetting` (los planos editables)
 
 Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código
@@ -5133,6 +5147,19 @@ regla es una y es de SITIO, no de color:
   del producto, no un semáforo, y pedir una variante sin el sol sería quitarle lo que lo
   hace el logo. Ya vivía en el mark colapsado; el lockup expandido lo lleva a la vista
   siempre.
+- **LA DUNA DEL LOGIN — identidad de la puerta, y el caso PRIMARIO de esta rama**
+  (decisión del owner, 2026-08-27): las tres pantallas pre-auth (login · aceptar-invitación
+  · recuperar-clave) llevan al fondo una duna con un sol que la recorre lentamente (§ el
+  componente `DunaPie`). Es MARCA en su forma más pura —la marca contando su metáfora—, una
+  TERCERA naturaleza distinta del DATO (curvas del panel) y del ESTADO (badges): **el orden
+  de la regla es marca (el logo y ESTA duna) → estado (badges/pills/puntos) → dato (curvas
+  del panel).** La curva es **FIJA y dibujada a mano, SIN datos detrás**: el `pathDe` del
+  panel deriva su trazo de los buckets, y reusarlo acá obligaría a inventarlos. Se parece a
+  las del panel a propósito (línea de tinta a .5 + lavado de sol) y ESO es lo que la hace
+  marca. El sol **NO pulsa** —en el panel el pulso significa "ahora", y acá no hay un ahora
+  que marcar; sería decoración—: la identidad la lleva el DESPLAZAMIENTO. **Un censo futuro
+  que encuentre "una curva con sol y sin datos" tiene que saber que está BIEN: es identidad,
+  no un gráfico al que le falten los datos.**
 - **EL ÁREA DE LAS GRÁFICAS** (decisión del owner, 2026-08-24): el relleno bajo la curva
   de Hoy y la de Pagos pasó de tinta al 5% a un gradiente ámbar 10%→0% (`--duna-sol`). Es
   una superficie de DATO, no un badge — el ámbar acá es firma, no atención. Analítica NO
