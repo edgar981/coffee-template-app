@@ -5160,6 +5160,21 @@ regla es una y es de SITIO, no de color:
   que marcar; sería decoración—: la identidad la lleva el DESPLAZAMIENTO. **Un censo futuro
   que encuentre "una curva con sol y sin datos" tiene que saber que está BIEN: es identidad,
   no un gráfico al que le falten los datos.**
+  - **EL SOL SE PONE Y SALE, NO VA Y VIENE** (decisión del owner): la cresta se extiende
+    fuera del viewBox por los dos lados, y el sol la cruza en UN sentido —se pone por un
+    borde y sale por el otro, con el salto del loop cayendo en las colas invisibles—. Se
+    descartó el ping-pong (ir y venir) a propósito: **un sol que va y viene se lee como un
+    ELEMENTO ANIMADO; uno que cruza y se pone cuenta el PASO DEL TIEMPO, que es la metáfora
+    de la marca.** El rato fuera de pantalla no es un costo —es lo que hace un sol—. Por eso
+    el random del arranque SÍ se acota a la parte visible (la primera impresión debe tener
+    sol), pero el recorrido no.
+  - **El CRUCE VISIBLE tarda 180 s** (~3 min, lento de verdad). Como el path es más largo que
+    lo visible por las colas, el `dur` TOTAL se DERIVA para mantener ese cruce (`dur = 180 ·
+    total/visible`); hoy son **220 s** totales. Si alguien alarga las colas sin recalcular el
+    `dur`, el sol cruzaría la pantalla más rápido —el número que importa es el visible, no el
+    total—. (Nota de verificación: `getScreenCTM`/`getBoundingClientRect` NO capturan el
+    transform de `animateMotion` en Chromium; el movimiento se comprueba con capturas, no con
+    esas APIs.)
 - **EL ÁREA DE LAS GRÁFICAS** (decisión del owner, 2026-08-24): el relleno bajo la curva
   de Hoy y la de Pagos pasó de tinta al 5% a un gradiente ámbar 10%→0% (`--duna-sol`). Es
   una superficie de DATO, no un badge — el ámbar acá es firma, no atención. Analítica NO
