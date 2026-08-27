@@ -1056,26 +1056,23 @@ ocurre—: el disparador correcto es el HECHO (mover la consulta), no la tanda q
 suponía que lo traería. Cambiar el fetch sólo por el lint sigue siendo tocar dos cosas
 cuando el hecho real va a tocar una.
 
-### 33. `aceptar-invitacion` — verificar el flujo completo antes del go-live del equipo
+### 33. `aceptar-invitacion` — VERIFICADO resuelto (2026-08-27)
 
-El `.catch(() => {})` MOVIÓ de `page.tsx:53` a **`AceptarInvitacionForm.tsx:57`** (el pre-auth se
-partió en shell server + form cliente, § SiteSetting). Y AHÍ es DELIBERADO: está sobre el fetch que
-CHEQUEA la validez del enlace, y un fallo de RED deja pasar al formulario para que el canje decida
-—marcarlo "enlace muerto" por una conexión intermitente sería mentir— (tiene comentario que lo dice).
-Así que el "dead-end silencioso" que este ítem describía **ya no es la conducta**: degrada al form.
+El ítem describía un "guardado que falla en silencio" en la puerta de entrada de un usuario nuevo. Se
+verificó el flujo COMPLETO contra el código y **los dos caminos surfacen el error**:
 
-Lo que QUEDA por verificar es el otro extremo: **el SUBMIT (el canje que CREA la cuenta).** Si ESE
-falla en silencio, el invitado no puede crear su cuenta y no sabe por qué —y es la única pantalla por
-donde entra un usuario nuevo—. La forma correcta ya está resuelta al lado (§ Pagos): el fallo se hace
-visible, con "Reintentar", sin toast.
+- **La carga (chequeo del enlace):** el `.catch(() => {})` MOVIÓ de `page.tsx:53` a
+  `AceptarInvitacionForm.tsx:57` (el pre-auth se partió en shell+form, § SiteSetting) y ahí es
+  DELIBERADO —un fallo de RED deja pasar al formulario para que el canje decida; marcarlo "enlace
+  muerto" por una conexión intermitente sería mentir (tiene comentario)—. Degrada al form, no a un
+  dead-end.
+- **El SUBMIT (el canje que CREA la cuenta):** `handleSubmit` hace `setError(...)` en `!res.ok` y en el
+  `catch` de red, y ese error **se RENDERIZA** —`{error && <AvisoError>{error}</AvisoError>}`, línea
+  197—. Si el POST falla, el invitado ve el mensaje, no un formulario mudo.
 
-**El tercer `catch` vacío del censo, `NotificationBell.tsx`, se QUEDA**: es `el.play().catch(() => {})`,
-la política de autoplay del navegador — silencio correcto.
-
-**Costo YA pagado: ninguno medido.** **DISPARADOR (hecho observable): antes de invitar a alguien DE
-VERDAD — el go-live del equipo.** Ahí se corre el flujo completo (red caída al cargar → form, que ya
-degrada bien; y sobre todo un CANJE que falla → un aviso, no un silencio). Es más barato verificarlo
-cuando haya un invitado real que arreglar a ciegas un extremo que hoy funciona.
+Así que no hay defecto: no es un fix de una línea porque ya está hecho. **Se deja como registro de que
+se verificó**; borrable en la próxima poda. (El tercer `catch` vacío del censo, `NotificationBell.tsx`
+`el.play().catch(() => {})`, es la política de autoplay del navegador — silencio correcto, se queda.)
 
 ### 32. El logo de Duna no entra en el PDF: va como TEXTO
 
@@ -1195,12 +1192,25 @@ es que el nombre lo diga. Se descubrió haciendo el descubrimiento de la tanda 3
 
 **ES RETIRO DIRECTO, NO UNA ESPERA (owner, 2026-08-27).** El disparador viejo ("al tocar el
 endpoint de Clientes") no es un HECHO OBSERVABLE: nadie ve el momento en que un dev lee la
-COLUMNA muerta creyéndola el campo del API —no hay señal en runtime—. Y una columna demo
-muerta junto a un campo vivo del MISMO nombre es una TRAMPA, no una espera. Acción: **retirar
-la columna `Customer.total_compras` del schema** (migración de drop; nadie la lee para mostrar,
-el campo homónimo del API es `paidTotalByCustomer`, sin relación). Con eso el nombre queda
-libre y la trampa desaparece. La otra salida —renombrar el CAMPO del API a `pagado`/`totalPagado`
-y actualizar sus dos consumidores— es más grande y no hace falta si la columna se va.
+COLUMNA muerta creyéndola el campo del API. Y una columna demo muerta junto a un campo vivo del
+MISMO nombre es una TRAMPA, no una espera.
+
+**CENSO POR CONTENIDO (2026-08-27), para la migración —que es DESTRUCTIVA—:**
+- **Lecturas para mostrar: CERO.** La lista y el perfil pintan `cliente.total_compras`, pero ése
+  es el campo de la RESPUESTA del API, que `app/api/customers/route.ts:69` SOBRESCRIBE con
+  `paidTotalByCustomer()`. La columna nunca se lee; el valor mostrado es dinero real.
+- **Escrituras de runtime: CERO.** El `prisma.customer.create` (route.ts:96-108) NO incluye
+  `total_compras` (ni por spread) — cae al `@default(0)`; el PATCH tampoco la escribe.
+- **La toca el SEED:** `prisma/seed.ts:269` (`total_compras: c.total_compras ?? 0`) desde
+  `lib/mock/customers.ts` (valores demo). Es plomería de demo, no un consumidor de runtime.
+- **El campo/tipo del API `total_compras` (= `paidTotalByCustomer`) SE QUEDA** —es otra cosa, con
+  el mismo nombre—. `types/customer.ts:21` es ESE campo, no la columna.
+
+**El DROP es seguro (cero runtime), pero arrastra el seed.** La migración = quitar
+`total_compras Float @default(0)` del schema + borrar `seed.ts:269` + limpiar `total_compras` de
+`lib/mock/customers.ts` (queda muerto). Las tres van JUNTAS o el seed rompe. Verificado que nadie
+más la escribe al crear un cliente. Falta sólo el OK del owner para escribir la migración (contract:
+como nadie la lee, no necesita expand/contract en deploys separados).
 
 ### 39. Dos voces para el mismo umbral: `def.disparador` (diálogo) y `def.frase` (tarjeta)
 
