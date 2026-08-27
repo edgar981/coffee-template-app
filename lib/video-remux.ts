@@ -29,9 +29,26 @@ type ArchivoMp4 = {
   flush: () => void;
 };
 
+type ModMp4 = { createFile: () => ArchivoMp4; Log?: { error?: (...a: unknown[]) => void } };
+
 export async function remuxMovAMp4(file: File): Promise<File> {
-  const { createFile } = (await import('mp4box')) as unknown as { createFile: () => ArchivoMp4 };
-  const mp4 = createFile();
+  const mod = (await import('mp4box')) as unknown as ModMp4;
+  // mp4box loguea con `Log.error` (→ console.error) los boxes que declaran un tamaño mayor que su
+  // contenedor —datos de relleno/borde al final del stream troceado; CONFIRMADO en su fuente (BoxParser,
+  // "has a size … greater than its container"): NO aborta, devuelve ERR_NOT_ENOUGH_DATA y el output sale
+  // completo—. Es ruido BENIGNO en la consola del OPERADOR. Se silencia SÓLO durante el remux (nuestro
+  // `onError` + el guard de segmentos-vacíos es la ruta real de fallo, y sigue intacto: `Log.error` es el
+  // logger interno, distinto del callback `onError`), y se restaura en el finally.
+  const logErrorOriginal = mod.Log?.error;
+  if (mod.Log) mod.Log.error = () => {};
+  try {
+    return await hacerRemux(mod.createFile(), file);
+  } finally {
+    if (mod.Log && logErrorOriginal) mod.Log.error = logErrorOriginal;
+  }
+}
+
+async function hacerRemux(mp4: ArchivoMp4, file: File): Promise<File> {
   const segmentos: Uint8Array[] = [];
   let error: string | null = null;
   let listo = false;

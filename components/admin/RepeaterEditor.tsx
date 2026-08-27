@@ -74,7 +74,10 @@ function conImagen(item: Item, d: CampoItem, url: string, dims?: Dims): Item {
 function resumenDe(item: Item, descriptores: CampoItem[], itemLabel: string, i: number) {
   const principal = descriptores.find(d => d.resumen === 'principal');
   const detalle = descriptores.find(d => d.resumen === 'detalle');
-  const titulo = (principal && String(item[principal.name] ?? '').trim()) || `${itemLabel} ${i + 1}`;
+  // El fallback del título se deriva por TIPO del ítem, no por sección: un ítem-vídeo dice "Vídeo N",
+  // no "Foto N", aunque viva en una galería de fotos.
+  const labelTipo = item.tipo === 'video' ? 'Vídeo' : itemLabel;
+  const titulo = (principal && String(item[principal.name] ?? '').trim()) || `${labelTipo} ${i + 1}`;
   const detTexto = detalle ? String(item[detalle.name] ?? '').trim() : '';
   const fragmento = detTexto.length > 60 ? detTexto.slice(0, 60) + '…' : detTexto;
   return { titulo, fragmento };
@@ -159,6 +162,12 @@ export default function RepeaterEditor({
     onChange(items.map((it, idx) => (idx === i ? { ...it, [campo]: valor } : it)));
 
   const nuevoItem = (): Item => Object.fromEntries(descriptores.map(d => [d.name, d.defaultValor ?? '']));
+
+  // El label del ítem se deriva por TIPO, no por sección: un ítem-vídeo dentro de una galería de "fotos"
+  // dice "vídeo" (masculino), no "foto" —el copy de borrado usaba el itemLabel de la sección y salía
+  // "¿Eliminar esta foto?" para un vídeo—. Un mismo repeater mezcla fotos y vídeos (topes separados).
+  const etiquetaItem = (item?: Item): { label: string; genero: 'f' | 'm' } =>
+    item?.tipo === 'video' ? { label: 'vídeo', genero: 'm' } : { label: itemLabel.toLowerCase(), genero };
 
   // ── ALTA DE VÍDEO: elegir vídeo → elegir póster → subir PÓSTER (chico) → subir VÍDEO (grande) ──────
   // El póster va PRIMERO a propósito: si el VÍDEO (grande, el que más probablemente falla en una red
@@ -315,7 +324,7 @@ export default function RepeaterEditor({
               <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
                 <button type="button" onClick={() => mover(i, -1)} disabled={i === 0} aria-label="Subir" className="duna-btn duna-btn--ghost duna-btn--sm"><ArrowUp className="h-3.5 w-3.5" /></button>
                 <button type="button" onClick={() => mover(i, 1)} disabled={i === items.length - 1} aria-label="Bajar" className="duna-btn duna-btn--ghost duna-btn--sm"><ArrowDown className="h-3.5 w-3.5" /></button>
-                <button type="button" onClick={() => setPorEliminar(i)} aria-label={`Eliminar ${itemLabel.toLowerCase()}`} className="duna-btn duna-btn--ghost duna-btn--sm"><Trash2 className="h-3.5 w-3.5" /></button>
+                <button type="button" onClick={() => setPorEliminar(i)} aria-label={`Eliminar ${etiquetaItem(item).label}`} className="duna-btn duna-btn--ghost duna-btn--sm"><Trash2 className="h-3.5 w-3.5" /></button>
               </div>
             </div>
 
@@ -440,16 +449,19 @@ export default function RepeaterEditor({
       </div>
 
       {/* Confirmación de borrado — reusa ConfirmDescartarDialog (superficie centrada que NO descarta
-          al tocar fuera, foco en la acción segura). El artículo del título sale de `genero`. */}
+          al tocar fuera, foco en la acción segura). El label y su artículo se derivan por TIPO del ítem
+          que se va a borrar (§ etiquetaItem): "esta foto" / "este vídeo". */}
+      {(() => { const etq = etiquetaItem(porEliminar !== null ? items[porEliminar] : undefined); return (
       <ConfirmDescartarDialog
         abierto={porEliminar !== null}
         onDescartar={() => { const i = porEliminar; setPorEliminar(null); if (i !== null) quitar(i); }}
         onSeguir={() => setPorEliminar(null)}
-        titulo={`¿Eliminar est${genero === 'f' ? 'a' : 'e'} ${itemLabel.toLowerCase()}?`}
+        titulo={`¿Eliminar est${etq.genero === 'f' ? 'a' : 'e'} ${etq.label}?`}
         descripcion="Se quita de la lista. Recuerda publicar para aplicar el cambio en la tienda."
         confirmLabel="Eliminar"
         seguirLabel="Conservar"
       />
+      ); })()}
     </div>
   );
 }
