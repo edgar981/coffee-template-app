@@ -634,11 +634,20 @@ Reglas: va ordenada y **el orden es la decisión**; el número es identidad, no
 posición. Cada entrada dice el **costo ya pagado**. Un ítem completado **se borra**.
 
 Vivos, **en el orden de `CLAUDE.md`** (el orden es la decisión): **`#46`** (primero —
-el editor visual) · `#3` · `#4` · `#5` · `#8` · `#10` · `#18` · `#19` ·
+el editor visual) · `#3` · `#4` · `#8` · `#10` · `#18` · `#19` ·
 `#20` · `#21` · `#25` · `#26` · `#27` · `#32` · `#34` · `#35` ·
-`#37` · `#39` · `#41` · `#49` · `#51`. **(21 ítems; los 13 que describen un defecto
-concreto —#5,#8,#10,#18,#19,#21,#25,#26,#27,#32,#34,#37,#39— se VERIFICARON contra el
-código en la 2ª pasada: todos siguen ciertos, ninguno resuelto de paso.)**
+`#37` · `#39` · `#41` · `#49` · `#51`. **(20 ítems; los que describen un defecto
+concreto —#8,#10,#18,#19,#21,#25,#26,#27,#32,#34,#37,#39— se VERIFICARON contra el
+código: todos siguen ciertos. `#5` era el 13º y se CERRÓ con su fix, abajo.)**
+
+**`#5` CERRADO con su FIX (owner, 2026-08-27) — el PATCH de cliente ahora es PARCIAL.**
+El endpoint escribía los 8 campos con fallbacks (`email || null`, `canal || 'directo'`,
+`activo ?? true`); mandar `{ nombre }` solo borraba el resto. Era técnico puro (no
+decisión de producto): se copió el patrón probado `datosDelPatch` + `trae` a
+`packages/core/src/customer-update.ts`, y el route lo usa. Test de carril
+(`patch-cliente-parcial.test.ts`) VISTO fallar 5/6 contra el código de hoy, 6/6 con el
+fix. **Desarma la mina de #8-A**: el día que exista un toggle de `activo`, no vaciará el
+cliente. Doctrina en § CLAUDE.md "El PATCH de producto es PARCIAL — el gemelo de clientes".
 
 **PODA del backlog (owner, 2026-08-27):** verificado contra el código, no la doctrina.
 - **LECCIÓN (van TRES): podar leyendo TÍTULOS no sirve — se verifica contra el CÓDIGO.** Un item
