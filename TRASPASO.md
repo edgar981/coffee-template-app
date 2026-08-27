@@ -634,11 +634,22 @@ Reglas: va ordenada y **el orden es la decisión**; el número es identidad, no
 posición. Cada entrada dice el **costo ya pagado**. Un ítem completado **se borra**.
 
 Vivos, **en el orden de `CLAUDE.md`** (el orden es la decisión): **`#46`** (primero —
-el editor visual) · `#2` · `#3` · `#4` · `#5` · `#8` · `#10` · `#18` · `#19` ·
+el editor visual) · `#3` · `#4` · `#5` · `#8` · `#10` · `#18` · `#19` ·
 `#20` · `#21` · `#25` · `#26` · `#27` · `#32` · `#34` · `#35` ·
-`#37` · `#39` · `#41` · `#49` · `#51`.
+`#37` · `#39` · `#41` · `#49` · `#51`. **(21 ítems; los 13 que describen un defecto
+concreto —#5,#8,#10,#18,#19,#21,#25,#26,#27,#32,#34,#37,#39— se VERIFICARON contra el
+código en la 2ª pasada: todos siguen ciertos, ninguno resuelto de paso.)**
 
 **PODA del backlog (owner, 2026-08-27):** verificado contra el código, no la doctrina.
+- **LECCIÓN (van TRES): podar leyendo TÍTULOS no sirve — se verifica contra el CÓDIGO.** Un item
+  resuelto de paso conserva su título de "pendiente" y parece deuda. Está escrito en las reglas del
+  backlog (§ CLAUDE.md "Backlog técnico"). Los tres: #16, #36 y **#2**.
+- **`#2` CERRADO con evidencia y borrado:** el actor de `InventoryLog` YA está —columnas
+  `ajustado_por`/`ajustado_por_nombre` + `orden_id` (schema), ESCRITURA por las dos puertas manuales
+  (`inventory.ts:133`, `product-update.ts:180/215`, con el usuario de sesión desde las rutas), el
+  SISTEMA marcado con `orden_id` y actor null en despacho/devolución (`fulfillment.ts:182/251`),
+  LECTURA en el kardex (`inventario/page.tsx:319`, `—` para viejos/sistema), y TEST de carril
+  (`kardex-actor.test.ts`)—. Estaba hecho; el título "no registra QUIÉN" lo hacía parecer pendiente.
 - **Borrados (obsoletos, resueltos de paso):** **`#16`** (la campana ya migró a `--duna-sol` en
   el rediseño del Dashboard — el "accent-amber" que quedaba era un COMENTARIO) y **`#36`** (Órdenes
   Recientes → `.duna-lista` y `components/ui/table.tsx` RETIRADO, ambos en ese mismo rediseño).
