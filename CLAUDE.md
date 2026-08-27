@@ -972,6 +972,16 @@ headers vuelven en <1 s (por eso un HEAD engaña). Es **ambiental** (throughput 
 esa red), no código. En producción, servido desde el edge, hoy no muerde — que es por qué el
 disparador es la lentitud OBSERVADA, no la teórica.
 
+**EL DISPARADOR SE CUMPLIÓ PARA VÍDEO (tanda B, 2026-08-26), y acotó el alcance.** Un asset de vídeo de
+**180 MB** (una grabación de finca) arrastró el storefront —tardaba MINUTOS en cargar, inusable en móvil—.
+La respuesta NO fue comprimir: fue el **TOPE DE GALERÍA de 20 MB** (§ Backlog #48), porque MEDIDO, la
+**DURACIÓN manda** —3 min aun comprimidos siguen siendo ~87 MB (1080p @ 4 Mbps = 29 MB/min)—, así que
+comprimir no arregla un vídeo largo. Lo que QUEDA de #20 para VÍDEO es aceptar **clips cortos de bitrate
+ALTO** re-codificándolos a bitrate web (WebCodecs — MEDIDO viable: H.264 High encodea ~más rápido que
+tiempo real en Chrome/Safari), NO vídeos largos. La mitad de IMAGEN sigue con su disparador (storefront
+lento observado). Bajar la resolución al remuxear NO es opción (medido/confirmado: escalar exige
+re-codificar); Vercel Blob no transcodifica ni hace bitrate adaptativo (eso sería un host de vídeo, § #48).
+
 ### 21. El dev heredado del reset apunta a blobs de PRODUCCIÓN
 
 Medido en `development` (2026-08-17): **3 de 4 portadas** apuntan a
@@ -1364,43 +1374,27 @@ gana la pantalla.
 el chequeo de la última fila en Inventario/Pagos). Cierra cuando el gate confirme que la banda
 se fue y nada quedó a ras.
 
-### 48. VÍDEO en una sección es CAPACIDAD nueva, no un campo más — declarado, sin plan
+### 48. VÍDEO en la galería de /nosotros — CONSTRUIDO (tanda B, 2026-08-26)
 
-El modelo guarda URLs de IMAGEN, el upload valida JPG/PNG/WebP, y `next/image` no reproduce vídeo.
-Meter un vídeo en una sección (un fondo de hero, una toma en la galería) **no es un campo más**;
-arrastra:
+Un vídeo en una sección NO es un campo más —el modelo guardaba URLs de imagen, el upload validaba
+JPG/PNG/WebP, y `next/image` no reproduce vídeo—. La tanda B (18 commits) lo construyó sobre la subida
+directa a Blob de la tanda A. El diseño enviado:
 
-- **Formato**: un allowlist SEPARADO (mp4/webm), NO ampliar el de imágenes —mismo precedente que
-  comprobantes-con-PDF (§ Comprobantes): un vídeo en un `<img>`/`next/image` no falla ruidoso, se
-  queda en blanco—. Dos listas, no una ampliada.
-- **Subida directa a Blob — YA CONSTRUIDA** (tanda A, § La subida DIRECTA a Blob): un vídeo excede el
-  tope de 4 MB y el límite de 4.5 MB del body serverless, así que necesitaba la subida DIRECTA (el
-  cliente sube con token, salteando el serverless). Ese eslabón ya está: `subirDirecto` + el endpoint
-  del token, con `allowedContentTypes` en el token. Para vídeo, la tanda B AMPLÍA ese allowlist a
-  mp4/webm (hoy sólo imágenes) — no reescribe la infra.
-- **Poster**: un vídeo necesita su imagen POSTER (el frame antes de cargar/reproducir) → un "slot de
-  vídeo" es en realidad `{ url de vídeo, url de poster }`, DOS subidas.
-- **Rama de render**: un `<video>` (no `next/image`); el componente del storefront ramifica —campo
-  imagen → `next/image`, campo vídeo → `<video>` (controls, o autoplay-muted-loop para un fondo)—.
-- **Optimización/streaming**: Blob sirve el archivo crudo, sin transcodificar ni HLS. Para un loop de
-  fondo corto y comprimido alcanza; para vídeo largo, querría un host de vídeo.
+- **Ítem MIXTO imagen|vídeo** en el repeater de la galería: `tipo: 'imagen'|'video'` **declarado** (no
+  deducido de la extensión, § el modelo), `poster` por vídeo, `w`/`h` para la proporción de la celda.
+- **Poster SUBIDO, no generado**, y sale de un FRAME del propio vídeo (scrubber, `canvas.toBlob` sobre el
+  objectURL local — no contamina, medido) o de una imagen a mano (§ PosterScrubber). El alta junta los
+  dos y sube al final, el póster PRIMERO (huérfano de 200 KB, no de 20 MB). "Cambiar vídeo" re-deriva su
+  póster (un póster de un vídeo que ya no está es incoherente).
+- **Rama de render**: imagen → `next/image`; vídeo → `<video muted loop playsInline preload="none">` +
+  IntersectionObserver que reproduce al entrar en vista (MEDIDO: `autoplay` con `preload="none"` descarga
+  igual). Reduced-motion → póster + controls. Badge de play PERSISTENTE, tinta sobre fondo tenue (un
+  vídeo que no arranca se ve idéntico a una foto). El póster ocupa la celda a la proporción del VÍDEO
+  (`object-cover`), así el masonry no salta.
+- **Formato → CÓDEC, no contenedor; el .mov se re-envasa; el peso se acota por TOPE DE GALERÍA**: las
+  subsecciones de abajo, que son el corazón de la tanda.
 
-**Costo YA pagado: ninguno todavía**, pero **el DISPARADOR se CUMPLIÓ** (2026-08-26): el owner confirmó
-que el cliente tiene VIDEOS DE LA FINCA, así que deja de ser hipotético —es capacidad pedida, no
-declarada—.
-
-**EL PRIMER ESLABÓN (la subida directa) YA ESTÁ:** la tanda A construyó `subirDirecto` + el endpoint del
-token (200 MB, restricciones en el token). Un vídeo ya podría subir por ahí; lo único que lo frena es
-que el token de hoy sólo permite imágenes (`allowedContentTypes`). Así que la tanda B **NO empieza de
-cero**: arranca ampliando el allowlist a mp4/webm, y sigue con lo que es propio del vídeo.
-
-**DISPARADOR: CUMPLIDO — el cliente tiene los videos.** Con la subida directa hecha, el orden restante
-es: allowlist mp4/webm en el token (§ tanda B) → el poster (SUBIDO, no generado; requerido-si-vídeo, §
-decisión) → la rama de render (`<video autoplay muted loop playsinline`, sin controles) → el ítem MIXTO
-imagen|vídeo en la galería → el rechazo de MOV con mensaje accionable (§ decisiones B/C ya tomadas). El
-poster requerido-si-vídeo va en la tanda C (lógica condicional sobre descriptores planos).
-
-**EL GATE DEL VÍDEO ES EL CÓDEC, NO EL CONTENEDOR — construido (tanda B, 2026-08-26).** El allowlist por
+**EL GATE DEL VÍDEO ES EL CÓDEC, NO EL CONTENEDOR.** El allowlist por
 CONTENEDOR (mp4/webm) NO garantiza que el visitante lo vea: el eje que decide la reproducibilidad es el
 CÓDEC. Medido con `video.canPlayType(...)` (Chrome 148, macOS): un **HEVC-en-mp4 pasa el contenedor** (su
 `file.type` es `video/mp4`) y da `probably` en ese Mac —macOS le presta el decodificador— pero vacío en un
@@ -1490,6 +1484,21 @@ flechas alcanzan de sobra; mover un ítem tres posiciones son tres clics, no una
 **DISPARADOR: listas largas de verdad** —una vertical con, digamos, 15+ ítems donde reordenar con
 flechas se vuelva tedioso—. Ahí se evalúa el drag (con su a11y: siempre debe quedar el camino por
 teclado, las flechas no se retiran).
+
+### 51. Lightbox de imágenes en la galería de /nosotros — ampliar una foto al clic
+
+Hoy una foto de la galería no se puede ampliar. Es la expectativa normal de una galería (clic → foto
+grande), pero es CAPACIDAD NUEVA. La primitiva `ImageLightbox` (`components/admin/ImageLightbox.tsx`,
+`{src, alt, onClose}`) EXISTE pero es **admin-level** —estilada para el panel, tema oscuro incluido—, así
+que **no es reuso gratis**: o se extrae a un lugar compartido/neutral, o se escribe un lightbox propio del
+storefront (overlay + imagen + cerrar con Esc/click-fuera + foco atrapado).
+
+**Alcance: SÓLO imágenes.** El vídeo reproduce inline; un "lightbox de vídeo" (reproductor ampliado) es
+otra pieza. Sólo las celdas-IMAGEN abren; las de vídeo no.
+
+**Costo YA pagado: ninguno** —es una mejora, no un defecto—. Estimado **BAJO-MEDIO** (~40–60 líneas si es
+propio del storefront; menos si se extrae la primitiva) + su a11y (teclado, foco). **DISPARADOR: que
+alguien quiera ver una foto en grande.**
 
 ## Config del negocio — `SiteSetting` (los planos editables)
 

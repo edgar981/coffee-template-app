@@ -1,10 +1,12 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-26 (la SUBIDA DIRECTA a Blob — tanda A del #48/#20. Las imágenes de
-contenido suben del navegador a Blob hasta 200 MB, salteando el serverless; el endpoint viejo
-`/api/upload` y `uploadImagen` se retiraron. Cerró la mitad del #20 que dolía —el tope de 4 MB—;
-comprimir queda con disparador corregido (storefront lento). El progreso va pegado al botón.
-Antes: /nosotros tanda 2, la galería masonry).
+**Actualizado:** 2026-08-26 (el VÍDEO en la galería de /nosotros — tanda B del #48/#20, MERGEADA.
+Ítem imagen|vídeo con póster (de un FRAME del vídeo por scrubber, o una imagen a mano); gate por
+CÓDEC no por contenedor (HEVC rechazado con "Más compatible"); el **.mov se re-envasa a .mp4 en el
+navegador** (mp4box 0.5.2, porque Firefox no reproduce el contenedor .mov); render play-on-view +
+badge persistente + reduced-motion→póster; **tope de galería 20 MB** (loops cortos, no un documental
+— comprimir no arregla la duración: 3 min ≈ 87 MB, medido). **#48 CERRADO**; abrió **#51** (lightbox
+de imágenes). Antes: la subida directa a Blob — tanda A).
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -49,7 +51,7 @@ Vercel, `main` = producción).
 | `/admin/dashboard` | Completa ("Hoy": hero + curva por hora + top-hoy + tarjetas) | Document-scroll |
 | `/admin/configuracion` | Completa. "Configuración" con DOS secciones: Datos del negocio (editor lectura↔edición) + Equipo y usuarios | Document-scroll |
 | `/admin/perfil` | Completa (cuenta limpia + cambiar contraseña real) | Document-scroll |
-| `/admin/tienda` | Completa. Contenido del storefront (SiteContent), DOS páginas (selector Home/Nosotros): la home (hero · Historia · Suscripción · Testimonios) y /nosotros (historia larga · GALERÍA masonry, apagable). Lectura en TARJETAS, edición en vista grande. Rail: "Tienda" suelto tras Crecimiento | Document-scroll |
+| `/admin/tienda` | Completa. Contenido del storefront (SiteContent), DOS páginas (selector Home/Nosotros): la home (hero · Historia · Suscripción · Testimonios) y /nosotros (historia larga · GALERÍA masonry con fotos y VÍDEO, apagable). Lectura en TARJETAS, edición en vista grande. Rail: "Tienda" suelto tras Crecimiento | Document-scroll |
 
 ### Pendientes de rediseño
 **Ninguna.** Todas las verticales del panel están en lenguaje Duna; no queda una
@@ -219,6 +221,33 @@ cabecera:
   definió el spec absorbió lo que iba a hacer.
 
 ### Trabajo cerrado
+- **El VÍDEO en la galería de /nosotros — tanda B del #48/#20** (2026-08-26, § CLAUDE.md "VÍDEO en la
+  galería de /nosotros"). 18 commits. Cerró **#48**.
+  - **Ítem MIXTO imagen|vídeo** en el repeater: `tipo` declarado, `poster` por vídeo, `w`/`h` para la
+    celda. **Póster de un FRAME del vídeo** (PosterScrubber: `<video>` local + scrubber + `canvas.toBlob`,
+    JPEG, dims del vídeo — el objectURL local NO contamina el canvas, medido) o una imagen a mano; el alta
+    junta los dos y sube el póster PRIMERO (huérfano de 200 KB, no de 20 MB). "Cambiar vídeo" re-deriva su
+    póster.
+  - **Gate por CÓDEC, no por contenedor** (`lib/video-codec.ts`, parser propio ~110 líneas del box `stsd`,
+    NO mp4box para leer 4 chars): AVC pasa, HEVC/ProRes se rechazan —un HEVC-en-mp4 pasa el contenedor y
+    Firefox/Chrome no lo reproducen; el `<video>` muestra el póster quieto, medido—. El mensaje de HEVC NO
+    promete una conversión que nadie logra: dice grabar en "Más compatible".
+  - **El .mov se ACEPTA y se re-envasa a .mp4 en el navegador** (`lib/video-remux.ts`, mp4box **0.5.2** —el
+    2.4.1 no emitía media, medido—): Firefox no reproduce el contenedor .mov, así que en vez de pedir una
+    conversión (QuickTime/iMovie no funcionaron en la práctica) el navegador convierte solo. Video-only
+    (audio dropeado, la galería es muted). MEDIDO sobre el .mov real de 180 MB: ~4 s, sale .mp4 que
+    reproduce. Import dinámico (~31 KB gzip).
+  - **Render**: `<video preload="none">` + IntersectionObserver play-on-view (MEDIDO: `autoplay` con
+    `preload="none"` descarga igual); badge de play PERSISTENTE (tinta sobre fondo tenue — un vídeo que no
+    arranca se ve como una foto); reduced-motion → póster + controls; póster a la proporción del vídeo.
+  - **TOPE DE GALERÍA de 20 MB** (`MAX_VIDEO_GALERIA_BYTES`): un vídeo de 166 MB tarda MINUTOS en móvil. No
+    es arbitrario —una galería de finca son loops CORTOS—, y comprimir no lo arregla (la DURACIÓN manda: 3
+    min ≈ 87 MB comprimido, medido). El tope aplica post-remux (lo que se sube), con pre-chequeo generoso
+    (1.5×) en el pick para no remuxear un archivo obviamente grande. El tope de remux de 250 MB + la lógica
+    de `deviceMemory` se RETIRARON (con 20 MB, al remux nunca le llega nada grande). El **#20** queda para
+    aceptar clips cortos de bitrate ALTO (WebCodecs, medido viable), no vídeos largos.
+  - Label del ítem por TIPO ("¿Eliminar este vídeo?"), y los warnings benignos de mp4box silenciados
+    (confirmado en su fuente). Abrió **#51** (lightbox de imágenes).
 - **La SUBIDA DIRECTA a Blob — tanda A del #48/#20** (2026-08-26, § CLAUDE.md "La subida DIRECTA a
   Blob"). Las imágenes de contenido (portadas y galería de producto, hero, brandStory, galería de
   /nosotros) suben del navegador a Blob con `subirDirecto` + un endpoint de token, hasta **200 MB**,
@@ -244,8 +273,8 @@ cabecera:
   plataforma (RepeaterEditor, reusa ConfirmDescartarDialog; el artículo del copy sale de
   `RepeaterConfig.genero`). El borrado de blobs por ítem sale gratis de `imagenesDe`
   (`imagenes:['url']`); quitar una foto publicada es ESCALONADO (el blob se va al PUBLICAR).
-  Verificado en modo producción con siembra reversible (proporciones mixtas). Falta la tanda 3
-  (el vídeo, #48).
+  Verificado en modo producción con siembra reversible (proporciones mixtas). El vídeo (#48) se
+  construyó en la tanda 3/B (arriba, "El VÍDEO en la galería").
 - **La página /nosotros como CAPACIDAD — tanda 1: la historia** (2026-08-26, § CLAUDE.md
   "La PÁGINA /nosotros"). El storefront gana una 2ª página editable, apagable por cualquier
   cliente. **Páginas por CONFIG, no anidado en el dato**: las secciones de /nosotros son claves
@@ -607,16 +636,17 @@ posición. Cada entrada dice el **costo ya pagado**. Un ítem completado **se bo
 Vivos, **en el orden de `CLAUDE.md`** (el orden es la decisión): **`#46`** (primero —
 el editor visual) · `#2` · `#3` · `#4` · `#5` · `#8` · `#10` · `#16` · `#18` · `#19` ·
 `#20` · `#21` · `#23` · `#25` · `#26` · `#27` · `#33` · `#32` · `#34` · `#35` ·
-`#36` · `#37` · `#38` · `#39` · `#41` · `#42` · `#48` · `#49` · `#50`.
+`#36` · `#37` · `#38` · `#39` · `#41` · `#42` · `#49` · `#50` · `#51`.
 
 Cerrados y borrados: `#1`, `#22` (no por hacerse sino por resolverse solo — la
 consolidación ya no aplica), `#43` (**decisión del owner**: las cinco automatizaciones
 internas apagadas en producción se DEJAN apagadas; si se encienden, es operación de
 datos desde el panel, nunca un `UPDATE` en migración), `#44` (los testimonios
-fabricados salieron del código con la tanda de Testimonios), `#45` y `#47`
+fabricados salieron del código con la tanda de Testimonios), `#45`, `#47`
 (**CANCELADO**: la galería variable no va en la home —el collage se queda en 4 fijas, el
 anzuelo—; vive en /nosotros, ya construida en la tanda 2, donde se estrenó el tipo 'imagen'
-del RepeaterEditor con masonry por proporción).
+del RepeaterEditor con masonry por proporción) y **`#48`** (VÍDEO en la galería — CONSTRUIDO
+en la tanda B; en `CLAUDE.md` queda como diseño enviado, no como deuda).
 
 ---
 
