@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { Eye, EyeOff } from "lucide-react";
 import {
@@ -96,6 +97,15 @@ export default function LoginForm({ nombre }: { nombre: string }) {
         <button type="submit" disabled={loading} className={PREAUTH_BOTON}>
           {loading ? "Ingresando…" : "Iniciar sesión"}
         </button>
+
+        {/* La ÚNICA otra puerta cuando no se puede entrar. Apunta a un flujo REAL
+            (/recuperar-clave), construido en esta tanda — no a un enlace muerto. */}
+        <Link
+          href="/recuperar-clave"
+          className="block text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
+        >
+          ¿Olvidaste tu contraseña?
+        </Link>
       </form>
     </PreAuthShell>
   );
