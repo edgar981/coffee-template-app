@@ -3,7 +3,8 @@
 import { useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { subirDirecto } from '@/lib/api/upload';
-import { MAX_SUBIDA_DIRECTA_BYTES, MAX_SUBIDA_DIRECTA_MB, TIPOS_PERMITIDOS, type KindUpload } from '@/constants/upload';
+import { leerCodecVideo } from '@/lib/video-codec';
+import { MAX_SUBIDA_DIRECTA_BYTES, MAX_SUBIDA_DIRECTA_MB, TIPOS_PERMITIDOS, mensajeCodecRechazado, type KindUpload } from '@/constants/upload';
 
 // EL UPLOADER de imágenes de contenido, compartido por la cáscara (campos-imagen fijos) y el
 // RepeaterEditor (foto por ítem). Sube DIRECTO a Blob (§ subirDirecto): el archivo va del navegador
@@ -116,7 +117,7 @@ export function useSubidaImagen({ onError }: { onError: (msg: string | null) => 
     if (el) { el.accept = accept; el.click(); }
   };
 
-  const alElegirHold = (e: ChangeEvent<HTMLInputElement>) => {
+  const alElegirHold = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     const h = holdRef.current;
@@ -125,6 +126,15 @@ export function useSubidaImagen({ onError }: { onError: (msg: string | null) => 
     if (!(h.tipos as readonly string[]).includes(file.type)) { onError(h.msgError); return; }
     if (file.size > MAX_SUBIDA_DIRECTA_BYTES) {
       onError(`El archivo pesa ${(file.size / (1024 * 1024)).toFixed(0)} MB y el máximo es ${MAX_SUBIDA_DIRECTA_MB} MB.`); return;
+    }
+    // GATE DE CÓDEC (sólo vídeo): el contenedor no dice si el visitante lo verá —un HEVC-en-mp4 pasa el
+    // check de contenedor y medio navegador no lo reproduce, muestra el póster quieto (§ lib/video-codec)—.
+    // AVC pasa; HEVC/ProRes se rechazan con su mensaje. ILEGIBLE (archivo raro, webm) → se DEJA pasar con
+    // el contenedor como red: rechazar por no poder leer bloquearía archivos válidos por un parser
+    // incompleto. Lee sólo cabeceras (rápido, incluso en un archivo de 200 MB), antes de retener el File.
+    if (file.type.startsWith('video/')) {
+      const v = await leerCodecVideo(file);
+      if (v.estado === 'rechazado') { onError(mensajeCodecRechazado(v.codec)); return; }
     }
     onError(null);
     h.onFile(file); // HOLD: NO sube — el consumidor decide cuándo (§ subir de abajo)

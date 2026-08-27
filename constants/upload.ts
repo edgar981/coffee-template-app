@@ -30,10 +30,14 @@ export const MAX_SUBIDA_DIRECTA_MB = MAX_SUBIDA_DIRECTA_BYTES / (1024 * 1024);
 /** Formatos aceptados. Lista blanca explícita, no un `startsWith('image/')`. */
 export const TIPOS_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
-/** Formatos de VÍDEO web (H.264 en mp4, VP8/9 en webm). Lista aparte —un vídeo en un `<img>`/
- *  `next/image` no falla ruidoso, se queda en blanco—, NUNCA se amplía la de imágenes. MOV/HEVC
- *  quedan fuera (medio navegador no los reproduce): se rechazan con mensaje accionable en el cliente. */
-export const TIPOS_VIDEO = ['video/mp4', 'video/webm'] as const;
+/** Contenedores de VÍDEO aceptados. Lista aparte —un vídeo en un `<img>`/`next/image` no falla ruidoso,
+ *  se queda en blanco—, NUNCA se amplía la de imágenes. Incluye `video/quicktime` (.mov) SÓLO porque la
+ *  PUERTA DURA pasó a ser el CÓDEC (§ lib/video-codec): un .mov con H.264 se reproduce en todos lados y
+ *  ahora se acepta; uno con ProRes/HEVC lo rechaza el gate de códec, no el contenedor. **No leer
+ *  "aceptamos quicktime" como un aflojamiento** — sin el parser de códec SÍ lo sería (un HEVC-en-mp4 pasa
+ *  el contenedor y no se reproduce). El WebM no se parsea (EBML, otro formato) y pasa por contenedor: sus
+ *  códecs reales de entrada (VP8/9/AV1) son todos web-amigables. */
+export const TIPOS_VIDEO = ['video/mp4', 'video/webm', 'video/quicktime'] as const;
 
 /**
  * El "kind" que el cliente declara al pedir un token de subida directa (§ subirDirecto). Acota qué
@@ -44,8 +48,11 @@ export const TIPOS_VIDEO = ['video/mp4', 'video/webm'] as const;
 export const KINDS_UPLOAD = ['imagen', 'imagen-o-video'] as const;
 export type KindUpload = (typeof KINDS_UPLOAD)[number];
 
-/** Mapea un kind (posiblemente basura del cliente) a su lista de content-types. Un valor DESCONOCIDO
- *  cae a sólo-imágenes: lo más restrictivo, nunca a video por accidente. */
+/** Mapea un kind (posiblemente basura del cliente) a su lista de content-types para el TOKEN. Un valor
+ *  DESCONOCIDO cae a sólo-imágenes: lo más restrictivo, nunca a vídeo por accidente. El token acota el
+ *  CONTENEDOR (+ tamaño + pathname); el CÓDEC lo filtra el cliente antes de subir (§ lib/video-codec),
+ *  que es un gate de CALIDAD, no de seguridad —un admin ya puede subir basura; el gate lo protege de
+ *  PUBLICAR un vídeo que sus clientes no verían—. */
 export function contentTypesParaKind(kind: unknown): string[] {
   return kind === 'imagen-o-video' ? [...TIPOS_PERMITIDOS, ...TIPOS_VIDEO] : [...TIPOS_PERMITIDOS];
 }
@@ -75,9 +82,26 @@ export const ACCEPT_IMAGENES = TIPOS_PERMITIDOS.join(',');
  */
 export const ACCEPT_VIDEO = 'video/*';
 
-/** Mensaje ACCIONABLE al rechazar un formato de vídeo no admitido (el .mov de una grabación del Mac
- *  y el HEVC del iPhone son los casos). Dice QUÉ hacer y CÓMO, con la salida concreta —un "formato
- *  no admitido" sin la ruta es justo lo que esto arregla—. */
+/** Rechazo por CONTENEDOR no admitido (un .avi/.mkv): dice los contenedores que sí. El .mov ya entra
+ *  —lo decide el CÓDEC, no el contenedor (§ lib/video-codec)—, así que no aparece como rechazado acá. */
 export const MSG_VIDEO_NO_ADMITIDO =
-  'Sube el video en MP4 o WebM. Para convertir un .mov en Mac: ábrelo en QuickTime → Archivo → ' +
-  'Exportar como → 1080p, que lo guarda en MP4. Desde iPhone, compártelo con la opción "Más compatible".';
+  'Ese formato de video no se admite. Súbelo en MP4, WebM o MOV (con códec H.264).';
+
+/** Rechazo por CÓDEC (§ lib/video-codec, § mensajeCodecRechazado). El HEVC del iPhone es el caso común y
+ *  tiene una palanca CONFIABLE —el ajuste de la cámara—; el resto (ProRes/edición) va al genérico. Ambos
+ *  nombran la consecuencia real: el cliente vería una imagen fija. Un "no soportado" sin la salida es lo
+ *  que la falsedad de QuickTime (el mensaje viejo) nos enseñó a no escribir. */
+export const MSG_VIDEO_HEVC =
+  'Ese video usa H.265 (HEVC): Safari lo reproduce, pero Chrome y Firefox no siempre, y tus clientes ' +
+  'verían una imagen fija. Súbelo en H.264: en el iPhone, entra a Ajustes → Cámara → Formatos → ' +
+  '"Más compatible" y vuelve a grabarlo. Un video ya grabado hay que convertirlo a H.264 (MP4) antes de subirlo.';
+
+export const MSG_VIDEO_PRORES =
+  'Ese video no está en un formato que los navegadores reproduzcan (por ejemplo ProRes). Expórtalo o ' +
+  'conviértelo a H.264 (MP4) antes de subirlo.';
+
+/** Elige el mensaje de rechazo según el fourcc que devolvió el parser: HEVC (hvc1/hev1/…) → la palanca
+ *  del iPhone; el resto → el genérico de H.264. */
+export function mensajeCodecRechazado(codec: string): string {
+  return codec.startsWith('hv') || codec.startsWith('he') ? MSG_VIDEO_HEVC : MSG_VIDEO_PRORES;
+}

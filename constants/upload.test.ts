@@ -25,3 +25,10 @@ test('NUNCA devuelve un comodín ni un tipo fuera de las dos listas', () => {
   for (const t of todos) assert.ok([...TIPOS_PERMITIDOS, ...TIPOS_VIDEO].includes(t as never));
   assert.ok(!todos.includes('*'));
 });
+
+test('el .mov (video/quicktime) entra al CONTENEDOR del token, no a la lista de imágenes', () => {
+  // Se acepta el contenedor .mov SÓLO porque la puerta dura pasó al códec (§ lib/video-codec): el token
+  // firma quicktime, pero un sólo-imágenes jamás. Si esto se rompe, alguien quitó el gate de códec.
+  assert.ok(contentTypesParaKind('imagen-o-video').includes('video/quicktime'));
+  assert.ok(!contentTypesParaKind('imagen').includes('video/quicktime'));
+});
