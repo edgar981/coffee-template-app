@@ -1216,6 +1216,20 @@ otra pieza. Sólo las celdas-IMAGEN abren; las de vídeo no.
 propio del storefront; menos si se extrae la primitiva) + su a11y (teclado, foco). **DISPARADOR: que
 alguien quiera ver una foto en grande.**
 
+### 52. "Ingresar con WhatsApp" en el login — capacidad que no existe
+
+La maqueta del rediseño del login dibujaba un "Ingresar con WhatsApp". **NO se dibujó** (rediseño del
+2026-08-27): en la PUERTA, un botón/enlace de un método de acceso que no existe es un **enlace muerto**
+que bloquea a quien cree que ése es su camino —exactamente lo que el rediseño del login existe para no
+tener, y la misma razón por la que el reset se construyó ANTES de cablear su enlace—. Hoy no hay login
+por WhatsApp: ni el flujo (OTP/número → sesión), ni el canal de Meta conectado (§ los prerequisitos de
+go-live de WhatsApp, que están para las AUTOMATIZACIONES, no para auth).
+
+**Costo YA pagado: ninguno.** Es una capacidad no construida, no un defecto.
+
+**DISPARADOR: cuando exista un login por WhatsApp/OTP cableado** (un flujo real que cree sesión). Ese
+día se dibuja el botón, apuntando a algo real. No antes.
+
 ## Config del negocio — `SiteSetting` (los planos editables)
 
 Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código
@@ -5133,6 +5147,34 @@ regla es una y es de SITIO, no de color:
   del producto, no un semáforo, y pedir una variante sin el sol sería quitarle lo que lo
   hace el logo. Ya vivía en el mark colapsado; el lockup expandido lo lleva a la vista
   siempre.
+- **LA DUNA DEL LOGIN — identidad de la puerta, y el caso PRIMARIO de esta rama**
+  (decisión del owner, 2026-08-27): las tres pantallas pre-auth (login · aceptar-invitación
+  · recuperar-clave) llevan al fondo una duna con un sol que la recorre lentamente (§ el
+  componente `DunaPie`). Es MARCA en su forma más pura —la marca contando su metáfora—, una
+  TERCERA naturaleza distinta del DATO (curvas del panel) y del ESTADO (badges): **el orden
+  de la regla es marca (el logo y ESTA duna) → estado (badges/pills/puntos) → dato (curvas
+  del panel).** La curva es **FIJA y dibujada a mano, SIN datos detrás**: el `pathDe` del
+  panel deriva su trazo de los buckets, y reusarlo acá obligaría a inventarlos. Se parece a
+  las del panel a propósito (línea de tinta a .5 + lavado de sol) y ESO es lo que la hace
+  marca. El sol **NO pulsa** —en el panel el pulso significa "ahora", y acá no hay un ahora
+  que marcar; sería decoración—: la identidad la lleva el DESPLAZAMIENTO. **Un censo futuro
+  que encuentre "una curva con sol y sin datos" tiene que saber que está BIEN: es identidad,
+  no un gráfico al que le falten los datos.**
+  - **EL SOL SE PONE Y SALE, NO VA Y VIENE** (decisión del owner): la cresta se extiende
+    fuera del viewBox por los dos lados, y el sol la cruza en UN sentido —se pone por un
+    borde y sale por el otro, con el salto del loop cayendo en las colas invisibles—. Se
+    descartó el ping-pong (ir y venir) a propósito: **un sol que va y viene se lee como un
+    ELEMENTO ANIMADO; uno que cruza y se pone cuenta el PASO DEL TIEMPO, que es la metáfora
+    de la marca.** El rato fuera de pantalla no es un costo —es lo que hace un sol—. Por eso
+    el random del arranque SÍ se acota a la parte visible (la primera impresión debe tener
+    sol), pero el recorrido no.
+  - **El CRUCE VISIBLE tarda 180 s** (~3 min, lento de verdad). Como el path es más largo que
+    lo visible por las colas, el `dur` TOTAL se DERIVA para mantener ese cruce (`dur = 180 ·
+    total/visible`); hoy son **220 s** totales. Si alguien alarga las colas sin recalcular el
+    `dur`, el sol cruzaría la pantalla más rápido —el número que importa es el visible, no el
+    total—. (Nota de verificación: `getScreenCTM`/`getBoundingClientRect` NO capturan el
+    transform de `animateMotion` en Chromium; el movimiento se comprueba con capturas, no con
+    esas APIs.)
 - **EL ÁREA DE LAS GRÁFICAS** (decisión del owner, 2026-08-24): el relleno bajo la curva
   de Hoy y la de Pagos pasó de tinta al 5% a un gradiente ámbar 10%→0% (`--duna-sol`). Es
   una superficie de DATO, no un badge — el ámbar acá es firma, no atención. Analítica NO

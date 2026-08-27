@@ -57,6 +57,27 @@ Vercel, `main` = producción).
 **Ninguna.** Todas las verticales del panel están en lenguaje Duna; no queda una
 pantalla heredada del template.
 
+### Rediseño del login (la PUERTA) — CONSTRUIDO (2026-08-27)
+
+Las tres pantallas pre-auth (login · aceptar-invitación · recuperar-clave) comparten
+`PreAuthShell`, así que el rediseño va en el shell y las toca a las tres. Dos piezas:
+
+- **La duna con el sol** (`components/admin/DunaPie.tsx`) — identidad de la puerta, la
+  marca contando su metáfora. Curva PROPIA fija dibujada a mano (no deriva de datos como las
+  del panel); el sol la recorre con `<animateMotion>` + `<mpath>` sobre `<circle>` (SVG
+  nativo, sin offset-path), 3 min, arranque aleatorio ACOTADO en `useEffect` (nunca en un
+  borde, sin hydration mismatch), quieto con reduced-motion, `aria-hidden`. `width:100%` +
+  `height:auto` → sol circular y visible a cualquier ancho. SIN pulso (no hay un "ahora").
+  Es MARCA, no gráfico → a doctrina (§ CLAUDE.md, el ámbar según el sitio, caso primario).
+- **El pie de marca** "Un negocio. Dos puertas. Un sistema operativo." — SIN versión (un
+  literal envejece). "Dos puertas" = la metáfora (admin + storefront), no el conteo de
+  pantallas.
+
+La card auto-ajusta a los tres contenidos (login 2 campos · recuperar 1 · terminal sin
+form) y las tres se ven bien —la terminal no queda rara—. El enlace de reset se QUEDA (el
+flujo ya existe). **"Ingresar con WhatsApp" NO se dibujó** (enlace muerto en la puerta) →
+backlog #52 con disparador. Gate visual del owner en el preview de la rama.
+
 ### Recuperación de contraseña — CONSTRUIDA (2026-08-27)
 
 El flujo de reset **NO EXISTÍA** — no estaba a medias, no estaba. La única
@@ -661,8 +682,9 @@ posición. Cada entrada dice el **costo ya pagado**. Un ítem completado **se bo
 Vivos, **en el orden de `CLAUDE.md`** (el orden es la decisión): **`#46`** (primero —
 el editor visual) · `#3` · `#4` · `#18` · `#19` ·
 `#20` · `#21` · `#25` · `#26` · `#27` · `#32` · `#34` · `#35` ·
-`#37` · `#39` · `#41` · `#49` · `#51`. **(18 ítems; los que describen un defecto
-concreto —#18,#19,#21,#25,#26,#27,#32,#34,#37,#39— se VERIFICARON contra el código.
+`#37` · `#39` · `#41` · `#49` · `#51` · `#52` (Ingresar con WhatsApp — capacidad
+que no existe; disparador: cuando el login por WhatsApp exista). **(19 ítems; los que
+describen un defecto concreto —#18,#19,#21,#25,#26,#27,#32,#34,#37,#39— se VERIFICARON contra el código.
 `#5`, `#8` y `#10` eran la familia "campo que le falta su otra mitad"; los tres se
 CERRARON el 2026-08-27, abajo.)**
 

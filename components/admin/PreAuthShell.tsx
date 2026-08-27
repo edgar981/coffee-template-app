@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { DunaPie } from "@/components/admin/DunaPie";
 
 // ─── Chasis de las pantallas PRE-AUTH ────────────────────────────────────────
 // Las TRES son /login, /aceptar-invitacion y /recuperar-clave (+ su
@@ -55,7 +56,7 @@ export function PreAuthShell({
   children: ReactNode;
 }) {
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-10">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10">
       {/* Profundidad sutil: UN tinte radial del primario a muy baja opacidad,
           para que el fondo no sea un plano muerto. Sale de tokens, así que se
           adapta a claro y oscuro, y se queda muy por debajo de la card — el
@@ -64,6 +65,10 @@ export function PreAuthShell({
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(48rem_32rem_at_50%_0%,hsl(var(--primary)/0.07),transparent_70%)]"
       />
+
+      {/* La duna con el sol, al fondo — identidad de la puerta. Detrás de la card
+          (la card es `relative`, con su fondo `bg-card` que la separa del trazo). */}
+      <DunaPie />
 
       <div className="relative w-full max-w-sm rounded-2xl border border-border bg-card p-8 shadow-sm sm:p-10">
         <div className="mb-9 flex flex-col items-center text-center">
@@ -96,6 +101,15 @@ export function PreAuthShell({
 
         {children}
       </div>
+
+      {/* Pie de marca. "Dos puertas" es la METÁFORA del producto —un negocio con
+          dos puertas, el admin y el storefront, sobre un mismo sistema operativo—,
+          NO el número de pantallas de la puerta (que son tres). Sin versión: un
+          literal envejece y no le dice nada a quien entra. `relative` para quedar
+          por encima de la duna del fondo. */}
+      <p className="relative z-10 mt-9 text-center text-xs text-muted-foreground/70">
+        Un negocio. Dos puertas. Un sistema operativo.
+      </p>
     </div>
   );
 }
