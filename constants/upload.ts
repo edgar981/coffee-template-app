@@ -87,14 +87,17 @@ export const ACCEPT_VIDEO = 'video/*';
 export const MSG_VIDEO_NO_ADMITIDO =
   'Ese formato de video no se admite. Súbelo en MP4, WebM o MOV (con códec H.264).';
 
-/** Rechazo por CÓDEC (§ lib/video-codec, § mensajeCodecRechazado). El HEVC del iPhone es el caso común y
- *  tiene una palanca CONFIABLE —el ajuste de la cámara—; el resto (ProRes/edición) va al genérico. Ambos
- *  nombran la consecuencia real: el cliente vería una imagen fija. Un "no soportado" sin la salida es lo
- *  que la falsedad de QuickTime (el mensaje viejo) nos enseñó a no escribir. */
+/** Rechazo por CÓDEC (§ lib/video-codec, § mensajeCodecRechazado). El HEVC llega de DOS orígenes —el
+ *  iPhone Y la grabación de pantalla de macOS, que graba en H.265 por defecto—, así que el mensaje cubre
+ *  los dos. La ruta de Mac REAL: QuickTime → Exportar como → 1080p RE-CODIFICA a H.264 (queda en .mov, que
+ *  ahora se acepta porque el gate es el códec) — es lo que el mensaje viejo pedía mal (creía que daba .mp4;
+ *  da .mov, y bajo el gate de contenedor eso se rechazaba). El de ProRes va al genérico. Ambos nombran la
+ *  consecuencia real: el cliente vería una imagen fija. */
 export const MSG_VIDEO_HEVC =
-  'Ese video usa H.265 (HEVC): Safari lo reproduce, pero Chrome y Firefox no siempre, y tus clientes ' +
-  'verían una imagen fija. Súbelo en H.264: en el iPhone, entra a Ajustes → Cámara → Formatos → ' +
-  '"Más compatible" y vuelve a grabarlo. Un video ya grabado hay que convertirlo a H.264 (MP4) antes de subirlo.';
+  'Ese video usa H.265 (HEVC), que Chrome y Firefox no siempre reproducen —tus clientes verían una imagen ' +
+  'fija—. Conviértelo a H.264: en Mac, ábrelo en QuickTime → Archivo → Exportar como → 1080p (re-codifica ' +
+  'a H.264; queda en .mov, y eso ahora se acepta). En iPhone, activa Ajustes → Cámara → Formatos → ' +
+  '"Más compatible" para las próximas grabaciones.';
 
 export const MSG_VIDEO_PRORES =
   'Ese video no está en un formato que los navegadores reproduzcan (por ejemplo ProRes). Expórtalo o ' +

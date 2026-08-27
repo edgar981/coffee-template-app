@@ -359,7 +359,7 @@ export default function RepeaterEditor({
         {videoPendiente && !subiendo && (
           <div className="duna-card" style={{ padding: 'var(--duna-space-3)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
             <span className="duna-caption" style={{ margin: 0, flex: 1, minWidth: '12rem' }}>
-              Vídeo elegido: <strong>{videoPendiente.name}</strong>. Ahora subí el <strong>póster</strong> —la imagen que se ve antes de reproducir—.
+              Vídeo elegido: <strong>{videoPendiente.name}</strong>. Ahora sube el <strong>póster</strong> —la imagen que se ve antes de reproducir—.
             </span>
             <button type="button" onClick={elegirPosterParaVideo} className="duna-btn duna-btn--primary duna-btn--sm">
               <Upload className="h-3.5 w-3.5" /> Elegir póster
