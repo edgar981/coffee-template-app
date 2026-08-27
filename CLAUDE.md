@@ -768,95 +768,6 @@ otra pantalla fije la suya, migrar los ejemplos de la referencia a etiquetas
 **evidentemente de muestra** (Paso 1 · Paso 2 · …) con el descargo. Enseña menos,
 pero no puede caducar.
 
-### 8. `Customer.activo` finge filtrar: el gate de reactivación es INERTE
-
-No es que nadie escriba la columna. Es que **el `where` que la consulta no puede
-excluir a nadie**, y eso no se ve mirando ninguna de las tres piezas por separado:
-
-- `reactivacion_cliente` filtra con `activo: true`
-  (`lib/automations/handlers/programadas.ts`) — es su ÚNICO lector en todo el
-  repo;
-- el POST y el PATCH de `/api/customers` lo escriben con `body.activo ?? true`;
-- **ningún formulario lo expone.** Ni el modal de alta/edición, ni nada. Sólo lo
-  arrastran como campo del form para que un guardado no lo pise.
-
-Resultado: todo cliente vale `true`, para siempre, y ese `where` es decoración.
-Un lector futuro lee la línea y concluye que hay clientes desactivados que el
-barrido respeta. No los hay, y nada en el código lo dice.
-
-**Costo YA pagado: ninguno**, y por eso está acá abajo — la automatización está
-apagada por doble prerequisito (canal Meta + consentimiento de marketing). El día
-que se encienda, empieza a costar: le va a escribir a TODO cliente inactivo, sin
-la exclusión que su propia consulta aparenta ofrecer.
-
-Se descubrió haciendo el retiro de la Clientes vieja, buscando el equivalente de
-`notas_internas` —un campo que el sistema produce y nadie lee—. La sorpresa fue
-al revés: **sí tiene lector, y es el lector el que no puede hacer nada.**
-
-**DISPARADOR: antes de activar `reactivacion_cliente`.** Dos salidas, y son
-excluyentes: exponer un control de `activo` (y entonces el `where` empieza a
-significar algo), o quitar el `where` (y entonces la consulta deja de prometer un
-filtro que no aplica). Lo que no puede quedar es la tercera, que es la de hoy.
-
-La salida-A (exponer un control) ya tiene su red puesta: el ex-#5 —el PATCH de
-cliente ahora es PARCIAL (§ El PATCH de producto es PARCIAL de verdad, la nota del
-gemelo de clientes)— así que un toggle `{ activo: false }` cambia SÓLO `activo` y
-no vacía el resto del cliente. Antes ese control era la mina; hoy es seguro
-construirlo. Sigue faltando la decisión de producto: ¿existe el concepto de
-cliente desactivado?
-
-### 10. `Product.agotado`: el lector puede EXCLUIR y nada puede volver a INCLUIR
-
-No es "nadie lo escribe". Es que **el lector saca al producto de la tienda y el
-panel no tiene forma de devolverlo.**
-
-- **Lector con efecto**: `app/api/catalog/route.ts` computa
-  `disponible: stock > 0 && !agotado`, y `disponible` es lo que apaga el botón de
-  comprar (`ProductCard`), bloquea el detalle del storefront y deshabilita la
-  opción en Nuevo pedido. `ProductCard` además lo usa para el color del badge.
-- **Escritores: CERO.** Ningún formulario lo expone; `product-update.ts` lo lista
-  explícitamente entre los campos que el endpoint NUNCA escribe. El único que lo
-  toca es `prisma/seed.ts`, siempre a `false`.
-
-Es el gemelo invertido del ítem 8 (`Customer.activo`): allá el `where` no puede
-excluir a nadie; acá el lector **sí excluye** y no hay puerta de vuelta. Y es la
-misma trampa que `accionEstadoProducto` cerró para `activo` —"un botón que
-desactiva sin su inverso no es una acción, es una trampa"— salvo que acá ni
-siquiera existe el botón que la abre.
-
-**Costo YA pagado: ninguno.** Medido en `development` (2026-08-15): 4 productos,
-**0 con `agotado = true`**. Es una mina puesta, no una herida.
-
-**Y el rediseño de Productos le agregó una segunda cara**, que conviene tener
-escrita antes de que confunda: la pantalla nueva dice **"Agotado"** cuando
-`stock === 0` (`nivelStock`, § lib/productos/stock), que es un hecho DISTINTO de
-la columna y sí se arregla desde el panel con Ajustar stock. O sea que hoy
-conviven dos "agotado":
-
-| | qué significa | ¿se arregla desde el panel? |
-| --- | --- | --- |
-| `nivelStock(p) === 'agotado'` | `stock === 0` | **sí** — Ajustar stock |
-| `Product.agotado === true` | bandera manual | **no** |
-
-Un producto con `agotado: true` y stock 5 diría **"5 en existencia"** en el panel
-y **"Agotado"** en la tienda. No es una bandera invisible: es dos superficies
-contradiciéndose sobre el mismo producto, y el operador que mire el panel no tiene
-de dónde sospecharlo.
-
-**DISPARADOR — el que se cumpla primero:**
-
-1. **antes de que cualquier path escriba `agotado`** (un import, un backfill, un
-   endpoint nuevo). Ése es el instante en que la mina pasa a herida;
-2. **o si se decide exponer la bandera en la pantalla.** Hoy el "Agotado" que se
-   ve es el de stock 0 y por eso no miente — pero el día que alguien quiera un
-   "marcar como agotado" manual, la columna necesita su inverso ANTES, no después.
-
-Dos salidas y son excluyentes: exponer el par activar/agotar con la forma ya
-probada de `accionEstadoProducto` (un verbo que es siempre el inverso del estado),
-o **quitar la columna** y dejar que `disponible` dependa sólo del stock — que es lo
-que hoy pasa de facto, porque nadie la escribe. Lo que no puede quedar es la
-tercera, que es la de hoy.
-
 ### 18. El detalle pierde la POSICIÓN DE SCROLL al cruzar el umbral del split
 
 Cruzar 1080 remonta el detalle de una superficie a la otra (panel `.duna-split__panel`
@@ -1131,7 +1042,7 @@ algún día se toca el schema de `Customer` por OTRA razón, la columna sale de 
 demo que nadie lee para mostrar. Pero `GET /api/customers` devuelve un campo del MISMO nombre cuyo valor
 NO viene de esa columna —`route.ts:69` lo sobrescribe con `paidTotalByCustomer()`, dinero real—. Así que
 `cliente.total_compras` en un componente es el campo del API (dinero real), NUNCA la columna. Misma familia
-que `agotado` (#10), pero peor: el mismo identificador en las dos capas.
+que el ex-`Product.agotado` (columna inerte, dropeada en el #10), pero peor: el mismo identificador en las dos capas.
 
 **CENSO POR CONTENIDO (2026-08-27), para que el próximo NO lo re-mida:**
 - **Lecturas para mostrar de la COLUMNA: CERO.** La lista/perfil pintan el campo de la RESPUESTA (el
@@ -2111,8 +2022,8 @@ implementación:
   parcial), que nosotros no tenemos.
 
 Adoptar los nombres sin el mecanismo crearía dos estados con **cero escritores** —
-la misma trampa de los backlog `#8` (`Customer.activo`) y `#10`
-(`Product.agotado`).
+la misma trampa de los ex-backlog #8/#10 (`Customer.activo`/`Product.agotado`),
+columnas inertes que por eso mismo se acabaron dropeando.
 
 **Se reservan por escrito:** el día que exista pago parcial, esos son los nombres.
 Nadie inventa otros.
@@ -2685,26 +2596,29 @@ base tiene respaldos; los blobs no.**
 
 ### El gemelo de CLIENTES — la misma regla, la misma forma (ex-Backlog #5)
 
-`PATCH /api/customers/[id]` tenía **exactamente** el mismo defecto —escribía los
-ocho campos sin condición, con un fallback sobre cada clave (`body.email || null`,
-`canal || 'directo'`, `activo ?? true`)— y se cerró el 2026-08-27 con la misma
-forma, no una nueva:
+`PATCH /api/customers/[id]` tenía **exactamente** el mismo defecto —escribía todos
+los campos sin condición, con un fallback sobre cada clave (`body.email || null`,
+`canal || 'directo'`)— y se cerró el 2026-08-27 con la misma forma, no una nueva:
 
 - **`datosDelPatch` de clientes vive en `packages/core/src/customer-update.ts`** y
   **REUSA `trae` de `product-update`** —presencia de la clave, no verdad del valor—
   en vez de inventar un segundo chequeo de presencia. El manejo de cada valor
   PRESENTE quedó idéntico al del route de antes (`'' → null` en opcionales, `canal`
   a `'directo'` sólo si viene vacío, el teléfono canonizado con
-  `normalizeCustomerPhone`, `activo` respeta `false`).
+  `normalizeCustomerPhone`).
 - **Era una MINA, no una herida:** el único control que llama a este PATCH —el
   modal de cliente— manda el formulario COMPLETO, así que ningún campo se perdía.
   El arreglo la desactivó ANTES de que exista un control que mande un campo suelto
-  —el toggle de `activo` de la salida-A del #8—: ese día, `{ activo: false }` no
-  vaciará el cliente. Está enlazado desde el DISPARADOR de #8.
+  —cualquier acción rápida de fila que edite un solo dato—: ese día,
+  `{ ciudad: 'X' }` cambia sólo la ciudad y no vacía el resto del cliente.
 - **El test va en el CARRIL** (`tests/integracion/patch-cliente-parcial.test.ts`),
   por la misma razón: se afirma la fila DESPUÉS de escribir, no la forma del
-  objeto. Se lo vio fallar **5 de 6** contra los fallbacks de hoy; con el arreglo,
-  6/6. **No borrar ese archivo.**
+  objeto. Se lo vio fallar contra los fallbacks de hoy (un campo suelto borraba los
+  demás); con el arreglo, pasa. **No borrar ese archivo.**
+
+  (El ejemplo original era el toggle de `activo` de la salida-A del ex-#8; esa
+  columna se retiró el mismo 2026-08-27 —migración `drop_customer_activo`, salida-B
+  del #8— así que el caso vive ahora en cualquier otro campo suelto.)
 
 ### Activar y desactivar: cada dirección por su puerta
 
@@ -3255,6 +3169,43 @@ entonces Fase A (una app) alcanza, y las dos precondiciones de arriba (split de 
   Prisma 7 no tiene `directUrl` en el config: esta separación de env
   vars es el equivalente.
 
+### LA VENTANA del `migrate deploy` — un DROP COLUMN no es atómico con el código
+
+`npm run build` corre `migrate deploy` **antes** de `next build`, contra la base de
+PRODUCCIÓN, **mientras el deploy VIEJO sigue sirviendo tráfico**. La migración toca
+la base viva; el código nuevo NO está en línea hasta que el build termina y Vercel
+hace el swap (~1–3 min después). Entre esos dos instantes:
+
+- una migración **ADITIVA** (columna nullable/con default, enum nuevo) es
+  inofensiva: el código viejo no la conoce y no la consulta;
+- un **DROP COLUMN** (o un rename, o un `NOT NULL` nuevo) abre una **VENTANA** en la
+  que el código VIEJO consulta una columna que **ya no existe** → Postgres devuelve
+  42703 y ese endpoint da 500 durante TODO el build.
+
+O sea: meter el DROP y el código-que-deja-de-leerla **en el mismo deploy NO es
+atómico** — el código nuevo llega DESPUÉS del drop, no con él. Para una columna que
+lee un path con tráfico (p. ej. `Product.agotado`, que el catálogo público leía en
+cada request), esa ventana es una caída real, no teórica.
+
+**LA REGLA, y hay que tenerla ANTES del go-live, no después:** un cambio de schema
+que ROMPE (drop / rename / `NOT NULL` nuevo) va en **DOS deploys — code-first**:
+
+1. **Deploy 1 (contraer el CÓDIGO):** quitar toda lectura/escritura de la columna.
+   La columna SIGUE en la base, sin uso. Cuando este deploy está EN LÍNEA, ya ningún
+   código la toca.
+2. **Deploy 2 (contraer el SCHEMA):** la migración DROP + el campo fuera de
+   `schema.prisma`. Segura, porque el código vivo (Deploy 1) ya no la referencia.
+
+**La ÚNICA excepción es "sin tráfico":** un storefront pre-lanzamiento no tiene
+requests que caigan en la ventana, así que ahí el drop y su código pueden ir en UN
+commit/deploy sin costo — es lo que se hizo con `Customer.activo` y `Product.agotado`
+el 2026-08-27, con la condición ESCRITA (en cada migración) de que era pre-lanzamiento.
+En cuanto el storefront reciba tráfico real, la excepción CADUCA y vuelve la regla de
+los dos deploys.
+
+Es el refinamiento concreto de "expand → migrate → contract en deploys separados"
+(arriba): el **porqué** es la ventana, y el **cuándo importa** es el tráfico.
+
 ## Design system del admin — chips de stat cards
 
 Los icon chips de las stat cards del **DASHBOARD** son NEUTROS por defecto; el
@@ -3453,7 +3404,9 @@ El marco del día no necesita lo multi-día ni lo duplicado, así que se retiró
   preguntas ya las responde Analítica; con ellos, `getDashboardChart`, `/api/dashboard/chart`,
   `lib/metrics/distribuciones`, `DASHBOARD_COLORS`;
 - **`--chart-*` ENTERO** (@theme + los dos temas): la curva nueva es tinta, así que la escala
-  perdió su último consumidor — **cerró el Backlog #8** (por retiro, no por migración);
+  perdió su último consumidor y se retiró entera. (NO cerró un ítem de backlog: nunca lo fue —
+  código sin uso, no una deuda numerada. La frase original decía "cerró el Backlog #8", un número
+  equivocado: el #8 siempre fue `Customer.activo`, hoy ya dropeado.);
 - **`components/ui/table.tsx`** (cero consumidores) y los **pastels muertos de STAT_CHIP**
   (`chipTono` sólo alcanza amber/neutral/alert);
 - la tabla cruda de **Órdenes recientes → `.duna-lista`** — **cerró el Backlog #36** (el

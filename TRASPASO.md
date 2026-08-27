@@ -634,20 +634,36 @@ Reglas: va ordenada y **el orden es la decisión**; el número es identidad, no
 posición. Cada entrada dice el **costo ya pagado**. Un ítem completado **se borra**.
 
 Vivos, **en el orden de `CLAUDE.md`** (el orden es la decisión): **`#46`** (primero —
-el editor visual) · `#3` · `#4` · `#8` · `#10` · `#18` · `#19` ·
+el editor visual) · `#3` · `#4` · `#18` · `#19` ·
 `#20` · `#21` · `#25` · `#26` · `#27` · `#32` · `#34` · `#35` ·
-`#37` · `#39` · `#41` · `#49` · `#51`. **(20 ítems; los que describen un defecto
-concreto —#8,#10,#18,#19,#21,#25,#26,#27,#32,#34,#37,#39— se VERIFICARON contra el
-código: todos siguen ciertos. `#5` era el 13º y se CERRÓ con su fix, abajo.)**
+`#37` · `#39` · `#41` · `#49` · `#51`. **(18 ítems; los que describen un defecto
+concreto —#18,#19,#21,#25,#26,#27,#32,#34,#37,#39— se VERIFICARON contra el código.
+`#5`, `#8` y `#10` eran la familia "campo que le falta su otra mitad"; los tres se
+CERRARON el 2026-08-27, abajo.)**
 
 **`#5` CERRADO con su FIX (owner, 2026-08-27) — el PATCH de cliente ahora es PARCIAL.**
-El endpoint escribía los 8 campos con fallbacks (`email || null`, `canal || 'directo'`,
-`activo ?? true`); mandar `{ nombre }` solo borraba el resto. Era técnico puro (no
-decisión de producto): se copió el patrón probado `datosDelPatch` + `trae` a
-`packages/core/src/customer-update.ts`, y el route lo usa. Test de carril
-(`patch-cliente-parcial.test.ts`) VISTO fallar 5/6 contra el código de hoy, 6/6 con el
-fix. **Desarma la mina de #8-A**: el día que exista un toggle de `activo`, no vaciará el
-cliente. Doctrina en § CLAUDE.md "El PATCH de producto es PARCIAL — el gemelo de clientes".
+El endpoint escribía los campos con fallbacks (`email || null`, `canal || 'directo'`);
+mandar un campo suelto borraba el resto. Era técnico puro (no decisión de producto): se
+copió el patrón probado `datosDelPatch` + `trae` a `packages/core/src/customer-update.ts`,
+y el route lo usa. Test de carril (`patch-cliente-parcial.test.ts`) VISTO fallar contra el
+código de hoy, pasa con el fix. Doctrina en § CLAUDE.md "El PATCH de producto es PARCIAL —
+el gemelo de clientes".
+
+**`#8` y `#10` CERRADOS con salida-B (owner, 2026-08-27) — DOS drops de columna, dos
+migraciones separadas.** La decisión de producto era la misma para los dos: la columna es
+inerte, se dropea. Verificado por censo (schema, seed, mocks, tipos, formularios, la fórmula
+`disponible`) y por conteo: **producción está en los defaults (0 clientes con `activo=false`,
+0 productos con `agotado=true`, consola de Neon)**, así que el drop no cambia nada visible.
+- **`#10` `Product.agotado`** (`drop_product_agotado`): bandera manual sin escritores; su único
+  aporte sobre `stock=0` era "no vendible CON stock", que ya cubre `activo:false`. Ahora
+  `disponible = stock > 0`. Lo derivado de stock (carril "Agotados", etiqueta de la tarjeta) NO
+  se toca.
+- **`#8` `Customer.activo`** (`drop_customer_activo`): su único lector —el `where activo:true` de
+  `reactivacion_cliente`— era DECORATIVO (medido: con y sin él, 7 = 7). El predicado queda correcto
+  porque las órdenes pagadas ya excluyen a quien nunca compró.
+- **Orden de deploy seguro:** en cada commit el código-que-deja-de-leer viaja CON el drop, nunca
+  después. Pre-lanzamiento sin tráfico → la ventana de build (migrate corre mientras el deploy viejo
+  sirve) no golpea a nadie. Verificación: tsc 0 · capa 1 751/751 · carril 178/178 · next build OK.
 
 **PODA del backlog (owner, 2026-08-27):** verificado contra el código, no la doctrina.
 - **LECCIÓN (van TRES): podar leyendo TÍTULOS no sirve — se verifica contra el CÓDIGO.** Un item
