@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { DunaPie } from "@/components/admin/DunaPie";
 
 // ─── Chasis de las pantallas PRE-AUTH ────────────────────────────────────────
 // Las TRES son /login, /aceptar-invitacion y /recuperar-clave (+ su
@@ -64,6 +65,10 @@ export function PreAuthShell({
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(48rem_32rem_at_50%_0%,hsl(var(--primary)/0.07),transparent_70%)]"
       />
+
+      {/* La duna con el sol, al fondo — identidad de la puerta. Detrás de la card
+          (la card es `relative`, con su fondo `bg-card` que la separa del trazo). */}
+      <DunaPie />
 
       <div className="relative w-full max-w-sm rounded-2xl border border-border bg-card p-8 shadow-sm sm:p-10">
         <div className="mb-9 flex flex-col items-center text-center">
