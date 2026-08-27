@@ -44,18 +44,34 @@ function VideoCelda({ src, poster, alt }: { src: string; poster?: string; alt: s
   }, [reproducirEnVista]);
 
   return (
-    <video
-      ref={ref}
-      src={src}
-      poster={poster}
-      muted
-      loop
-      playsInline
-      preload="none"
-      controls={!!reduce && !preview}
-      aria-label={alt}
-      className="absolute inset-0 h-full w-full object-cover"
-    />
+    <>
+      <video
+        ref={ref}
+        src={src}
+        poster={poster}
+        muted
+        loop
+        playsInline
+        preload="none"
+        controls={!!reduce && !preview}
+        aria-label={alt}
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+      {/* Señal PERSISTENTE de "esto es un video". Sobrevive a que esté reproduciendo A PROPÓSITO: el caso
+          que resuelve es el vídeo que NO arranca —lento de bufferear, o reducir-movimiento—, donde se ve
+          idéntico a una foto muerta. Tinta sobre un fondo tenue (nunca ámbar: no es estado, es una marca).
+          `pointer-events:none` + `aria-hidden`: es SEÑAL, no control — no pide clic ni intercepta el del
+          vídeo. */}
+      <span
+        aria-hidden="true"
+        className="absolute left-2 bottom-2 flex items-center justify-center rounded-full"
+        style={{ width: 30, height: 30, background: "rgba(250,247,244,0.82)", color: "#1a0f08", pointerEvents: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" style={{ marginLeft: 1 }} aria-hidden="true">
+          <path d="M8 5v14l11-7z" fill="currentColor" />
+        </svg>
+      </span>
+    </>
   );
 }
 
