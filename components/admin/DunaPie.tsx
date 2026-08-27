@@ -4,62 +4,100 @@ import { useEffect, useRef, useState } from "react";
 
 // ─── La DUNA con el SOL — identidad de la puerta, no un gráfico ───────────────
 //
-// La marca contando su metáfora: una duna con un sol que la recorre lentamente.
-// Distinta de las curvas del panel —allí la curva es DATO (`pathDe` deriva su
-// trazo de los buckets); acá NO hay datos, así que la curva es FIJA y dibujada a
-// mano—. Reusar la de datos obligaría a inventarlos. Se parece a las del panel a
-// propósito (mismo lenguaje: línea de tinta + lavado de sol), pero es IDENTIDAD.
+// La marca contando su metáfora: una duna con un sol que la CRUZA, se pone por un
+// borde y sale por el otro. Distinta de las curvas del panel —allí la curva es
+// DATO (`pathDe` deriva su trazo de los buckets); acá NO hay datos, así que la
+// curva es FIJA y dibujada a mano—. Se parece a las del panel a propósito (línea
+// de tinta + lavado de sol), pero es IDENTIDAD.
+//
+// LA CRESTA SALE DE LA PANTALLA por los dos lados: el path arranca antes de x=0 y
+// termina después de x=1440 (el viewBox recorta lo de afuera), así que la línea
+// cruza ENTERA, sin planos ni cortes en los extremos.
 //
 // EL SOL RECORRE LA CRESTA con `<animateMotion>` + `<mpath>` sobre `<circle>` —SVG
-// nativo, sin `offset-path` ni depender de la caja CSS—. Corre fuera del hilo
-// principal, así que NO compite con quien teclea su contraseña; y sólo repinta la
-// caja diminuta del sol. SIN pulso: en el panel el pulso significa "ahora", y acá
-// no hay un ahora que marcar —sería decoración, que la doctrina prohíbe—; la
-// identidad la lleva el desplazamiento.
+// nativo, sin offset-path—. Cruza en UN sentido y el salto del loop (fin→inicio
+// del path) cae en las COLAS invisibles: el sol se pone por un borde y sale por el
+// otro, sin teletransporte visible. Un sol que se va y vuelve NO se lee como el
+// paso del tiempo (eso sería ping-pong); el rato fuera de pantalla es lo que hace
+// un sol. Corre fuera del hilo principal (no compite con quien teclea) y sólo
+// repinta la caja del sol. SIN pulso: acá no hay un "ahora" que marcar.
 //
-// Decorativa: `aria-hidden` y `pointer-events:none` — no se anuncia ni intercepta
-// clics sobre la card.
+// Decorativa: `aria-hidden` y `pointer-events:none`.
 
-const DUR = 180; // 3 min de travesía — lento de verdad.
+// Cuánto tarda el sol en cruzar el TRAMO VISIBLE. El `dur` TOTAL se deriva de esto
+// (el path es más largo que lo visible por las colas), para que cruzar la pantalla
+// siga tardando esto y no se acelere al alargar el path.
+const CRUCE_VISIBLE_S = 180; // 3 min
 
-// La cresta (para el trazo Y el `mpath` del sol). Endpoints INSET (x 40..1400 en un
-// viewBox de 1440): el sol nunca llega a los bordes del SVG. Tres crestas suaves.
-const D_CRESTA = "M 40 150 C 260 110, 420 114, 600 148 S 940 194, 1120 152 S 1340 106, 1400 140";
-// El relleno: la misma cresta extendida a los bordes (planitos) y cerrada al piso.
-const D_RELLENO = "M 0 150 L 40 150 C 260 110, 420 114, 600 148 S 940 194, 1120 152 S 1340 106, 1400 140 L 1440 140 L 1440 220 L 0 220 Z";
+// El viewBox visible es 0..1440 en x. El path se EXTIENDE a x −160..1600: las colas
+// (−160..0 y 1440..1600) quedan fuera y el viewBox las recorta. Tres crestas suaves
+// en la parte visible; las colas sólo continúan el trazo para que el sol entre/salga
+// liso. Sirve para el trazo, el `mpath` y (cerrada al piso) el relleno.
+const D_CRESTA =
+  "M -160 146 C 40 120, 220 116, 400 148 C 580 180, 760 184, 940 150 C 1120 118, 1300 112, 1440 142 C 1520 156, 1560 154, 1600 150";
+const D_RELLENO = `${D_CRESTA} L 1600 240 L -160 240 Z`;
+
+const VIS_X0 = 0;
+const VIS_X1 = 1440;
+const MARGEN = 44; // px adentro de cada borde: el sol nunca ARRANCA medio cortado.
+
+type SolAnimado = { dur: number; begin: string };
+type SolQuieto = { cx: number; cy: number };
 
 export function DunaPie() {
   const crestaRef = useRef<SVGPathElement>(null);
-  // El sol se resuelve en el CLIENTE (posición aleatoria) para no arrastrar un
+  // Se resuelve en el CLIENTE (posición/tiempo aleatorios) para no arrastrar un
   // valor del servidor —hydration mismatch—. Hasta entonces no se dibuja.
-  const [sol, setSol] = useState<{ begin: string } | { cx: number; cy: number } | null>(null);
+  const [sol, setSol] = useState<SolAnimado | SolQuieto | null>(null);
 
   useEffect(() => {
-    const reducir = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    // Fracción ACOTADA [0.12, 0.88]: nunca arranca en un borde (medio sol cortado
-    // se lee como error). El inset de la cresta ya lo mantiene visible en toda la
-    // travesía; esto además evita que ASOME en un extremo.
-    const f = 0.12 + Math.random() * 0.76;
-    if (reducir) {
-      const p = crestaRef.current;
-      if (p) {
-        const pt = p.getPointAtLength(f * p.getTotalLength());
-        setSol({ cx: pt.x, cy: pt.y });
+    const p = crestaRef.current;
+    if (!p) return;
+    const total = p.getTotalLength();
+
+    // Longitud del path donde su x cruza `targetX`. x es MONÓTONA (cada comando
+    // avanza en x), así que una búsqueda binaria por longitud es exacta.
+    const lenEnX = (targetX: number) => {
+      let lo = 0, hi = total;
+      for (let i = 0; i < 26; i++) {
+        const mid = (lo + hi) / 2;
+        if (p.getPointAtLength(mid).x < targetX) lo = mid; else hi = mid;
       }
+      return (lo + hi) / 2;
+    };
+
+    // El TRAMO VISIBLE, en longitud de path; el `dur` total mantiene su cruce en
+    // CRUCE_VISIBLE_S (velocidad constante — `calcMode` "paced" por defecto).
+    const lVis0 = lenEnX(VIS_X0);
+    const lVis1 = lenEnX(VIS_X1);
+    const durTotal = (CRUCE_VISIBLE_S * total) / (lVis1 - lVis0);
+
+    // Arranque ALEATORIO acotado a la parte visible (con margen para no asomar
+    // medio cortado): la primera impresión SIEMPRE tiene sol.
+    const lIni = lenEnX(VIS_X0 + MARGEN);
+    const lFin = lenEnX(VIS_X1 - MARGEN);
+    const lInicio = lIni + Math.random() * (lFin - lIni);
+
+    const reducir = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reducir) {
+      const pt = p.getPointAtLength(lInicio);
+      setSol({ cx: pt.x, cy: pt.y });
     } else {
-      // `begin` NEGATIVO = arranca a mitad de ciclo, en un punto aleatorio.
-      setSol({ begin: `-${(f * DUR).toFixed(1)}s` });
+      // `begin` NEGATIVO = arranca a mitad de ciclo. Con velocidad constante, la
+      // fracción de tiempo == fracción de longitud, así que este begin coloca al
+      // sol justo en `lInicio` (dentro de lo visible).
+      const begin = -((lInicio / total) * durTotal);
+      setSol({ dur: durTotal, begin: `${begin.toFixed(1)}s` });
     }
   }, []);
 
   return (
     <svg
       aria-hidden
-      viewBox="0 0 1440 220"
-      // `width:100%` + `height:auto` → el alto sigue al ancho por la proporción del
-      // viewBox: la duna ENTERA se ve a cualquier ancho (sin recorte), el sol queda
-      // CIRCULAR (escala uniforme) y NUNCA se corta, y cruza toda la pantalla. En
-      // móvil la banda es proporcionalmente más baja —sutil, no menos—.
+      viewBox="0 0 1440 240"
+      // `width:100%` + `height:auto`: alto proporcional al ancho; la duna cruza toda
+      // la pantalla, el sol queda CIRCULAR (escala uniforme). El viewBox recorta las
+      // colas del path (x<0, x>1440), así que la cresta y el sol "salen" por los bordes.
       style={{ height: "auto" }}
       className="pointer-events-none absolute inset-x-0 bottom-0 w-full"
     >
@@ -85,11 +123,12 @@ export function DunaPie() {
         strokeLinecap="round"
       />
 
-      {/* El sol. Recorre la cresta (animado) o queda quieto en su punto (reduced-
-          motion). No se dibuja hasta que el cliente fija su posición aleatoria. */}
+      {/* El sol. Cruza la cresta (animado, se pone/sale por las colas) o queda quieto
+          en su punto visible (reduced-motion). No se dibuja hasta que el cliente fija
+          su tiempo/posición aleatorios. */}
       {sol && "begin" in sol ? (
         <circle r="11" fill="var(--duna-sol)">
-          <animateMotion dur={`${DUR}s`} repeatCount="indefinite" begin={sol.begin}>
+          <animateMotion dur={`${sol.dur.toFixed(1)}s`} repeatCount="indefinite" begin={sol.begin}>
             <mpath href="#duna-cresta" />
           </animateMotion>
         </circle>
