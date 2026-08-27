@@ -1056,24 +1056,6 @@ ocurre—: el disparador correcto es el HECHO (mover la consulta), no la tanda q
 suponía que lo traería. Cambiar el fetch sólo por el lint sigue siendo tocar dos cosas
 cuando el hecho real va a tocar una.
 
-### 33. `aceptar-invitacion` — VERIFICADO resuelto (2026-08-27)
-
-El ítem describía un "guardado que falla en silencio" en la puerta de entrada de un usuario nuevo. Se
-verificó el flujo COMPLETO contra el código y **los dos caminos surfacen el error**:
-
-- **La carga (chequeo del enlace):** el `.catch(() => {})` MOVIÓ de `page.tsx:53` a
-  `AceptarInvitacionForm.tsx:57` (el pre-auth se partió en shell+form, § SiteSetting) y ahí es
-  DELIBERADO —un fallo de RED deja pasar al formulario para que el canje decida; marcarlo "enlace
-  muerto" por una conexión intermitente sería mentir (tiene comentario)—. Degrada al form, no a un
-  dead-end.
-- **El SUBMIT (el canje que CREA la cuenta):** `handleSubmit` hace `setError(...)` en `!res.ok` y en el
-  `catch` de red, y ese error **se RENDERIZA** —`{error && <AvisoError>{error}</AvisoError>}`, línea
-  197—. Si el POST falla, el invitado ve el mensaje, no un formulario mudo.
-
-Así que no hay defecto: no es un fix de una línea porque ya está hecho. **Se deja como registro de que
-se verificó**; borrable en la próxima poda. (El tercer `catch` vacío del censo, `NotificationBell.tsx`
-`el.play().catch(() => {})`, es la política de autoplay del navegador — silencio correcto, se queda.)
-
 ### 32. El logo de Duna no entra en el PDF: va como TEXTO
 
 El informe de Pagos cierra su pie con **"Generado con Duna"** en texto plano. El logo
@@ -1172,45 +1154,30 @@ hipótesis suelta: es la MISMA decisión pendiente que bloquea el destino de la 
 de Pedidos del carrusel (§ la gráfica no tiene destino). Las dos se resuelven juntas o
 ninguna.
 
-### 38. `Customer.total_compras`: columna demo MUERTA y campo de API con el mismo nombre
+### 38. `Customer.total_compras` — CERRADO: NO se dropea (decisión + censo, 2026-08-27)
 
-La columna `Customer.total_compras` es data de demo que **nadie lee para mostrar**.
-Pero el nombre SÍ tiene lector, y ahí está la trampa: `GET /api/customers` devuelve
-un campo **llamado `total_compras` cuyo valor NO viene de esa columna** —
-`app/api/customers/route.ts` lo sobrescribe con `paidTotalByCustomer()`, o sea
-dinero real. La lista y el perfil de Clientes pintan ese valor.
+**DECISIÓN (owner): la columna NO se retira.** Una columna que nadie lee no cuesta nada; dropearla
+exigiría tocar TRES cosas (schema + seed + mocks) por un riesgo de CONFUSIÓN, no de datos. Y la trampa
+del nombre —que era el único problema real— **ya queda documentada acá**, que es lo que la desactiva. Si
+algún día se toca el schema de `Customer` por OTRA razón, la columna sale de paso; hasta entonces, se deja.
 
-O sea que **`cliente.total_compras` significa una cosa en la base y otra en el
-cliente**, y quien lea la propiedad en un componente no tiene de dónde sospecharlo.
-Es la misma familia que el `agotado` de #10 —dos hechos distintos bajo un nombre—
-pero peor en un aspecto: allá son dos columnas distinguibles, acá es **el mismo
-identificador** en las dos capas.
+**LA TRAMPA, documentada para que no vuelva a engañar:** la COLUMNA `Customer.total_compras` es data de
+demo que nadie lee para mostrar. Pero `GET /api/customers` devuelve un campo del MISMO nombre cuyo valor
+NO viene de esa columna —`route.ts:69` lo sobrescribe con `paidTotalByCustomer()`, dinero real—. Así que
+`cliente.total_compras` en un componente es el campo del API (dinero real), NUNCA la columna. Misma familia
+que `agotado` (#10), pero peor: el mismo identificador en las dos capas.
 
-**Costo YA pagado: ninguno.** El valor que se muestra es el correcto; lo que falta
-es que el nombre lo diga. Se descubrió haciendo el descubrimiento de la tanda 3
-(§ Backlog #6, cerrado), buscando quién leía la columna.
+**CENSO POR CONTENIDO (2026-08-27), para que el próximo NO lo re-mida:**
+- **Lecturas para mostrar de la COLUMNA: CERO.** La lista/perfil pintan el campo de la RESPUESTA (el
+  override de `route.ts:69`), no la columna.
+- **Escrituras de runtime: CERO.** `customer.create` (route.ts:96-108) no la incluye ni por spread; el
+  PATCH tampoco. Cae al `@default(0)`.
+- **La toca sólo el SEED:** `prisma/seed.ts:269` desde `lib/mock/customers.ts` (plomería de demo).
+- **El campo/tipo del API homónimo (= `paidTotalByCustomer`) es OTRA cosa** y se queda; `types/customer.ts:21`
+  es ESE campo, no la columna.
 
-**ES RETIRO DIRECTO, NO UNA ESPERA (owner, 2026-08-27).** El disparador viejo ("al tocar el
-endpoint de Clientes") no es un HECHO OBSERVABLE: nadie ve el momento en que un dev lee la
-COLUMNA muerta creyéndola el campo del API. Y una columna demo muerta junto a un campo vivo del
-MISMO nombre es una TRAMPA, no una espera.
-
-**CENSO POR CONTENIDO (2026-08-27), para la migración —que es DESTRUCTIVA—:**
-- **Lecturas para mostrar: CERO.** La lista y el perfil pintan `cliente.total_compras`, pero ése
-  es el campo de la RESPUESTA del API, que `app/api/customers/route.ts:69` SOBRESCRIBE con
-  `paidTotalByCustomer()`. La columna nunca se lee; el valor mostrado es dinero real.
-- **Escrituras de runtime: CERO.** El `prisma.customer.create` (route.ts:96-108) NO incluye
-  `total_compras` (ni por spread) — cae al `@default(0)`; el PATCH tampoco la escribe.
-- **La toca el SEED:** `prisma/seed.ts:269` (`total_compras: c.total_compras ?? 0`) desde
-  `lib/mock/customers.ts` (valores demo). Es plomería de demo, no un consumidor de runtime.
-- **El campo/tipo del API `total_compras` (= `paidTotalByCustomer`) SE QUEDA** —es otra cosa, con
-  el mismo nombre—. `types/customer.ts:21` es ESE campo, no la columna.
-
-**El DROP es seguro (cero runtime), pero arrastra el seed.** La migración = quitar
-`total_compras Float @default(0)` del schema + borrar `seed.ts:269` + limpiar `total_compras` de
-`lib/mock/customers.ts` (queda muerto). Las tres van JUNTAS o el seed rompe. Verificado que nadie
-más la escribe al crear un cliente. Falta sólo el OK del owner para escribir la migración (contract:
-como nadie la lee, no necesita expand/contract en deploys separados).
+Si algún día SÍ se dropea: las tres (schema + `seed.ts:269` + `lib/mock`) van JUNTAS o el seed rompe; no
+necesita expand/contract (nadie la lee).
 
 ### 39. Dos voces para el mismo umbral: `def.disparador` (diálogo) y `def.frase` (tarjeta)
 

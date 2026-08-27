@@ -635,22 +635,26 @@ posición. Cada entrada dice el **costo ya pagado**. Un ítem completado **se bo
 
 Vivos, **en el orden de `CLAUDE.md`** (el orden es la decisión): **`#46`** (primero —
 el editor visual) · `#2` · `#3` · `#4` · `#5` · `#8` · `#10` · `#18` · `#19` ·
-`#20` · `#21` · `#25` · `#26` · `#27` · `#33` · `#32` · `#34` · `#35` ·
-`#37` · `#38` · `#39` · `#41` · `#49` · `#51`.
+`#20` · `#21` · `#25` · `#26` · `#27` · `#32` · `#34` · `#35` ·
+`#37` · `#39` · `#41` · `#49` · `#51`.
 
 **PODA del backlog (owner, 2026-08-27):** verificado contra el código, no la doctrina.
 - **Borrados (obsoletos, resueltos de paso):** **`#16`** (la campana ya migró a `--duna-sol` en
   el rediseño del Dashboard — el "accent-amber" que quedaba era un COMENTARIO) y **`#36`** (Órdenes
   Recientes → `.duna-lista` y `components/ui/table.tsx` RETIRADO, ambos en ese mismo rediseño).
+- **`#33` CERRADO con evidencia y borrado:** el flujo se verificó completo —el canje (`handleSubmit`)
+  hace `setError` en `!res.ok` y en el `catch` de red, y ese error SE RENDERIZA (`AvisoError`, línea
+  197)—, así que NO falla en silencio. La carga degrada al form a propósito. No había defecto.
+- **`#38` CERRADO (decisión del owner): la columna `total_compras` NO se dropea.** Una columna que nadie
+  lee no cuesta nada; dropearla tocaría schema + seed + mocks por un riesgo de CONFUSIÓN, no de datos, y
+  la trampa del nombre ya quedó DOCUMENTADA (§ CLAUDE.md #38, con el censo, para no re-medirla). Si el
+  schema de `Customer` se toca por otra razón, sale de paso.
 - **Borrado (no es deuda):** **`#50`** (arrastrar para reordenar — feature UX sin costo; su decisión
   vive en la doctrina del `RepeaterEditor`).
 - **Salieron del backlog de DEUDA a "cómo continuar" (§10):** **`#23`** (barras de scroll tokenizadas)
   y **`#42`** (la banda de fondo) — son código **APLICADO, pendiente sólo del gate**, no deuda de build.
-- **Disparadores reescritos a un HECHO observable:** #34 (un quinto consumidor que olvide el `__body`),
-  #38 (→ retiro DIRECTO de la columna demo `total_compras`: "alguien lee el campo equivocado" no se
-  observa, y un campo muerto homónimo de uno vivo es una trampa, no una espera), #33 (→ el go-live del
-  equipo; y su defecto MOVIÓ a `AceptarInvitacionForm.tsx:57`, donde el catch es DELIBERADO), y el de
-  `.duna-sheet`/`.duna-scrim` al paquete (§ Duna OS en ANGOSTO → un tercer consumidor fuera del admin).
+- **Disparadores reescritos a un HECHO observable:** #34 (un quinto consumidor que olvide el `__body`) y
+  el de `.duna-sheet`/`.duna-scrim` al paquete (§ Duna OS en ANGOSTO → un tercer consumidor fuera del admin).
 - **`#20` reencuadrado a IMAGEN:** su disparador de vídeo (el asset de 180 MB) se volvió IMPOSIBLE con
   el tope de galería de 20 MB; queda sólo comprimir las portadas de producto (storefront lento observado).
 
