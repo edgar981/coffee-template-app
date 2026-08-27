@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { contentTypesParaKind, TIPOS_PERMITIDOS, TIPOS_VIDEO } from './upload';
+import { contentTypesParaKind, TIPOS_PERMITIDOS, TIPOS_VIDEO, CONTENEDORES_REMUXEABLES } from './upload';
 
 // `contentTypesParaKind` decide qué tipos firma el token de subida directa. El `kind` lo manda el
 // NAVEGADOR (clientPayload), así que un cliente malicioso podría mandar cualquier cosa: lo que importa
@@ -26,10 +26,11 @@ test('NUNCA devuelve un comodín ni un tipo fuera de las dos listas', () => {
   assert.ok(!todos.includes('*'));
 });
 
-test('el token NO firma .mov (video/quicktime) — la puerta dura no contradice el mensaje que lo rechaza', () => {
-  // Rechazamos el .mov por contenedor (Firefox no reproduce el contenedor .mov, § TIPOS_VIDEO). El token
-  // —la puerta dura— tampoco puede firmarlo: si el allowlist siguiera abierto acá, un .mov subiría igual y
-  // el mensaje de rechazo mentiría. NUNCA en ninguno de los dos kinds.
+test('el .mov se acepta por REMUX, no por el token: quicktime ∈ remuxeables, ∉ el token', () => {
+  // El .mov entra al picker y se re-envasa a .mp4 antes de subir (§ lib/video-remux), así que el token
+  // NUNCA firma quicktime —el .mov no llega a Blob como .mov—. Si quicktime apareciera en el token, alguien
+  // saltó el remux y estaría subiendo un contenedor que Firefox no reproduce.
+  assert.ok((CONTENEDORES_REMUXEABLES as readonly string[]).includes('video/quicktime'));
   assert.ok(!contentTypesParaKind('imagen-o-video').includes('video/quicktime'));
   assert.ok(!contentTypesParaKind('imagen').includes('video/quicktime'));
 });

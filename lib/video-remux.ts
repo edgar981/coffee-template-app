@@ -1,0 +1,69 @@
+// Re-envasa un .mov (H.264/AVC en contenedor QuickTime) a .mp4 EN EL NAVEGADOR, SIN re-codificar: toma el
+// track de vídeo H.264 y copia sus samples tal cual a un contenedor mp4 (fragmentado, fMP4). Resuelve el
+// hueco de Firefox —que no reproduce el contenedor .mov— sin pedirle al operador que convierta nada: sube
+// su .mov y el navegador lo convierte solo. MEDIDO sobre el .mov real de 180 MB: ~4 s, salida `video/mp4`
+// que reproduce (loadeddata OK). NO comprime —el peso sigue siendo #20, otro problema—.
+//
+// VIDEO-ONLY: dropea el audio A PROPÓSITO (la galería reproduce muted) → un solo track, un fMP4 simple y
+// válido (init + media). mp4box entra por import DINÁMICO (~17 KB gzip) → sólo se descarga al subir un .mov,
+// nunca en el bundle de quien no sube vídeo.
+//
+// STREAMING de la ENTRADA: el File se lee por chunks y se van appendeando —no hay una segunda copia del
+// archivo—. La SALIDA sí se acumula en memoria (los segmentos juntos); por eso el llamador topa el tamaño
+// antes de convertir (§ MAX_REMUX_BYTES): 180 MB usan ~0.5–0.7 GB, que en móvil de gama baja puede tumbar
+// la pestaña. NO es barrera de seguridad; es una conversión de conveniencia.
+
+// El shape de mp4box (0.5.2) que usamos. Pinneado a 0.5.2 A PROPÓSITO: el 2.x (reescritura con rolldown)
+// cambió `initializeSegmentation` y su `onSegment` NO emitía media en este flujo —medido, salía el init
+// solo, cero frames—. 0.5.2 está MEDIDO produciendo un .mp4 que reproduce. `initializeSegmentation()`
+// devuelve el ARRAY de inits por track (acá, uno: el de vídeo).
+type InfoMp4 = { videoTracks?: Array<{ id: number }> };
+type ArchivoMp4 = {
+  onReady: (info: InfoMp4) => void;
+  onError: (e: unknown) => void;
+  onSegment: (id: number, user: unknown, buffer: ArrayBuffer) => void;
+  setSegmentOptions: (id: number, user: unknown, opts: { nbSamples: number }) => void;
+  initializeSegmentation: () => Array<{ buffer: ArrayBuffer }>;
+  start: () => void;
+  appendBuffer: (data: ArrayBuffer & { fileStart: number }) => void;
+  flush: () => void;
+};
+
+export async function remuxMovAMp4(file: File): Promise<File> {
+  const { createFile } = (await import('mp4box')) as unknown as { createFile: () => ArchivoMp4 };
+  const mp4 = createFile();
+  const segmentos: Uint8Array[] = [];
+  let error: string | null = null;
+  let listo = false;
+
+  mp4.onError = (e) => { if (!error) error = String(e); };
+  mp4.onSegment = (_id, _user, buffer) => { segmentos.push(new Uint8Array(buffer)); };
+  mp4.onReady = (info) => {
+    const vt = info.videoTracks?.[0];
+    if (!vt) { error = 'sin pista de vídeo'; return; }
+    // Un solo segmento con TODOS los samples (nbSamples enorme): un fMP4 de una pieza, no un stream
+    // troceado. Sólo se segmenta el track de vídeo → los inits salen video-only, el audio se cae.
+    mp4.setSegmentOptions(vt.id, null, { nbSamples: 1e9 });
+    for (const s of mp4.initializeSegmentation()) segmentos.push(new Uint8Array(s.buffer));
+    mp4.start();
+    listo = true;
+  };
+
+  const reader = file.stream().getReader();
+  let offset = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done || error) break;
+    const ab = value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as ArrayBuffer & { fileStart: number };
+    ab.fileStart = offset;
+    offset += ab.byteLength;
+    mp4.appendBuffer(ab);
+  }
+  mp4.flush();
+
+  if (error) throw new Error(`No se pudo convertir el video (${error}).`);
+  if (!listo || segmentos.length === 0) throw new Error('No se pudo leer el video para convertirlo.');
+
+  const nombre = file.name.replace(/\.[^.]+$/, '') + '.mp4';
+  return new File([new Blob(segmentos as BlobPart[], { type: 'video/mp4' })], nombre, { type: 'video/mp4' });
+}
