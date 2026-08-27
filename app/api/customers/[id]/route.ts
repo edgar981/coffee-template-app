@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@duna/core';
 import { headers } from 'next/headers';
-import { normalizeCustomerPhone } from '@duna/core/whatsapp-link';
+import { datosDelPatch } from '@duna/core/customer-update';
 import { pedidosDelCliente } from '@/lib/clientes/detalle';
 
 // Cliente + su historial de pedidos, para el panel de detalle.
@@ -42,22 +42,14 @@ export async function PATCH(
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   if (!['OWNER', 'MANAGER'].includes((session.user as { role?: string }).role ?? '')) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   const { id } = await params;
-  const body    = await req.json();
+  const body = await req.json();
+  // PARCIAL de verdad: escribe SÓLO los campos que el body TRAE (§ datosDelPatch,
+  // packages/core). El modal manda el formulario completo, así que esto no cambia
+  // nada hoy; lo que cierra es la mina del día que un control mande un campo
+  // suelto —un toggle de `activo`— sin vaciar el resto del cliente.
   const updated = await prisma.customer.update({
     where: { id: id },
-    data: {
-      nombre:    body.nombre,
-      email:     body.email     || null,
-      // Canonicalize on write — same normalizer as order matching (raw fallback
-      // for non-mobile numbers).
-      telefono:  normalizeCustomerPhone(body.telefono) ?? (body.telefono || null),
-      ciudad:    body.ciudad    || null,
-      direccion: body.direccion || null,
-      canal:     body.canal     || 'directo',
-      notas:     body.notas     || null,
-      activo:    body.activo    ?? true,
-      updatedAt: new Date(),
-    },
+    data:  { ...datosDelPatch(body), updatedAt: new Date() },
   });
 
   return NextResponse.json(updated);
