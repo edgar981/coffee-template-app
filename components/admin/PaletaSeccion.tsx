@@ -8,6 +8,7 @@ import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import ProductCard from '@/components/storefront/ProductCard';
 import { Logo } from '@/components/storefront/Logo';
 import TrustBadges from '@/components/storefront/home/TrustBadges';
+import { EscalaDesktop } from '@/components/admin/EscalaDesktop';
 import { CartProvider } from '@/lib/cartStore';
 import type { Product } from '@/types/product';
 import { paletaEditableSchema } from '@/lib/config/palette-schema';
@@ -90,12 +91,24 @@ const PRODUCTOS_MUESTRA: Product[] = [
     activo: true, disponible: true, descripcion: 'Segundo producto de ejemplo para la vista previa.',
     notas: ['Frutal', 'Cítrico'],
   },
+  {
+    id: 'muestra-3', nombre: 'Tercer producto de muestra', slug: 'muestra-3',
+    categoria: 'cafe_bolsa', precio: 52000, costo: 24000, sku: null, stock: 6,
+    activo: true, disponible: true, descripcion: 'Tercer producto de ejemplo para la vista previa.',
+    notas: ['Chocolate', 'Nuez'],
+  },
 ];
 
 /** La vista previa es un FRAGMENTO que se lee como pantalla, con COMPONENTES REALES del
  *  storefront —no un croquis—: una barra con el wordmark (`Logo`), la franja de garantías
- *  (`TrustBadges`) y dos `ProductCard`, sobre `--sf-fondo` y alimentados por la paleta DERIVADA
+ *  (`TrustBadges`) y tres `ProductCard`, sobre `--sf-fondo` y alimentados por la paleta DERIVADA
  *  del form. Todo INERTE (`pointer-events:none`: sin carrito, sin navegación, sin hover).
+ *
+ *  Se renderiza a ANCHO DE ESCRITORIO (1280) y se ESCALA a la columna con `EscalaDesktop`: así los
+ *  componentes se ven a su layout de DISEÑO —TrustBadges en sus 4 columnas, las tarjetas en fila de
+ *  3— y no reflowados a un ancho angosto que ningún visitante usa (el defecto que rompía a
+ *  TrustBadges). Por eso las rejillas internas usan el layout de escritorio (`max-w-6xl` centrado,
+ *  `repeat(3,1fr)` de tarjetas): a 1280 se ven naturales, no dos tarjetas gigantes escaladas.
  *
  *  Qué se puede montar sin arrastrar fetch (censo del gate): `Logo` recibe `nombre` por PROP,
  *  sin providers; `TrustBadges` es estático (array + iconos), sin providers ni datos. `StoreNav`
@@ -108,23 +121,22 @@ function PreviewTiendaReal({ raices, nombre }: { raices: Form; nombre: string })
   const p = derivarPaleta(raices);
   const vars = Object.fromEntries(Object.entries(p).map(([k, v]) => [`--sf-${k}`, v])) as CSSProperties;
   return (
-    <div
-      className="font-inter"
-      style={{ ...vars, background: 'var(--sf-fondo)', borderRadius: 14, overflow: 'hidden', pointerEvents: 'none' }}
-    >
-      {/* Barra superior con el wordmark real */}
-      <div style={{ padding: '14px 18px' }}>
-        <Logo nombre={nombre} />
-      </div>
-      {/* Franja de garantías real (su propio `border-y` separa de la barra) */}
-      <TrustBadges />
-      {/* Dos tarjetas reales, bajo un CartProvider local inerte */}
-      <CartProvider>
-        <div style={{ padding: 18, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          {PRODUCTOS_MUESTRA.map(pr => <ProductCard key={pr.id} product={pr} />)}
+    <EscalaDesktop style={{ borderRadius: 14, overflow: 'hidden', pointerEvents: 'none' }}>
+      <div className="font-inter" style={{ ...vars, background: 'var(--sf-fondo)' }}>
+        {/* Barra superior con el wordmark real (centrada como el nav) */}
+        <div className="mx-auto max-w-6xl px-6 py-4">
+          <Logo nombre={nombre} />
         </div>
-      </CartProvider>
-    </div>
+        {/* Franja de garantías real (su propio `border-y` la separa; a 1280 usa sus 4 columnas) */}
+        <TrustBadges />
+        {/* Tres tarjetas reales en fila de escritorio, bajo un CartProvider local inerte */}
+        <CartProvider>
+          <div className="mx-auto max-w-6xl px-6 py-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+            {PRODUCTOS_MUESTRA.map(pr => <ProductCard key={pr.id} product={pr} />)}
+          </div>
+        </CartProvider>
+      </div>
+    </EscalaDesktop>
   );
 }
 
