@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Pencil } from 'lucide-react';
 import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
+import ProductCard from '@/components/storefront/ProductCard';
+import type { Product } from '@/types/product';
 import { paletaEditableSchema } from '@/lib/config/palette-schema';
 import { derivarPaleta, contraste } from '@/lib/config/palette-derive';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
@@ -50,35 +52,45 @@ function desdeSettings(s: Settings): Form {
 
 const HEX6 = /^#[0-9a-fA-F]{6}$/;
 
-/** El fragmento de tienda RECONOCIBLE (no swatches): titular, párrafo, franja, precio,
- *  BOTÓN con su texto auto-volteado, y un enlace. Se pinta con la paleta DERIVADA de las
- *  raíces del form — es lo mismo que verá el cliente, con el botón mostrando el flip. */
-function PreviewTienda({ raices }: { raices: Form }) {
+// Producto de MUESTRA para la vista previa. Nombre GENÉRICO a propósito —no un café de
+// Nayoli— para que nadie lo confunda con un producto real. Sin imagen (ProductCard cae a su
+// fondo de superficie). `bestseller` + `badge` para que el chip de acento (bg acento + texto
+// `acento-txt`, el flip) se vea SIN hover —el botón "agregar" es hover-only y bajo
+// `pointer-events:none` no aparece, así que el badge es quien muestra el acento en estático—.
+const PRODUCTO_MUESTRA: Product = {
+  id: 'muestra',
+  nombre: 'Producto de muestra',
+  slug: 'producto-de-muestra',
+  categoria: 'cafe_bolsa',
+  precio: 45000,
+  costo: 20000,
+  sku: null,
+  stock: 12,
+  activo: true,
+  disponible: true,
+  descripcion: 'Producto de ejemplo para la vista previa de la paleta.',
+  bestseller: true,
+  badge: 'Destacado',
+  notas: ['Suave', 'Equilibrado'],
+};
+
+/** La vista previa es el `ProductCard` REAL del storefront —el mismo componente que ve el
+ *  cliente, no un croquis— alimentado por la paleta DERIVADA de las raíces del form e INERTE
+ *  (`pointer-events:none`: sin carrito, sin navegación, sin hover). Muestra fondo (el marco),
+ *  superficie (la tarjeta), línea, tinta (el nombre), acento-texto (el origen) y el acento con
+ *  su texto volteado (el badge). El botón "agregar" es hover-only del propio ProductCard; bajo
+ *  `pointer-events:none` no se ve, y el badge lo suple. Censo: las secciones con contenido de
+ *  VistaTiendaEnVivo (hero/brandStory/subscriptionCTA) son OSCURAS y no muestran el acento. */
+function PreviewTiendaReal({ raices }: { raices: Form }) {
   const p = derivarPaleta(raices);
   const vars = Object.fromEntries(Object.entries(p).map(([k, v]) => [`--sf-${k}`, v])) as CSSProperties;
-  const S = (k: string) => `var(--sf-${k})`;
   return (
-    <div style={vars}>
-      <div style={{ background: S('fondo'), border: `1px solid ${S('linea')}`, borderRadius: 12, padding: '20px 22px' }}>
-        <p style={{ color: S('texto-suave'), fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 8px' }}>Edición limitada</p>
-        <h4 style={{ color: S('tinta'), fontSize: 22, lineHeight: 1.1, margin: '0 0 8px', fontWeight: 700 }}>Lo bueno se hace despacio.</h4>
-        <p style={{ color: S('texto'), fontSize: 14, lineHeight: 1.55, margin: '0 0 14px', maxWidth: '42ch' }}>
-          Cada pieza pasa por manos que la conocen. Elegimos los materiales y cuidamos el detalle.
-        </p>
-        <div style={{ background: S('superficie'), borderRadius: 8, padding: '7px 11px', fontSize: 13, color: S('texto'), margin: '0 0 16px' }}>
-          Envío gratis desde <b style={{ color: S('acento-texto') }}>$80.000</b>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ color: S('tinta'), fontSize: 20, fontWeight: 700 }}>$ 48.000</span>
-          {/* EL BOTÓN — bg acento, texto `acento-txt` (auto-flip). Acá el cliente ve que su
-              acento (incluso un neón) tiene texto legible, o que su elección se ve rara. */}
-          <button type="button" style={{ background: S('acento'), color: S('acento-txt'), border: 0, borderRadius: 9, padding: '9px 16px', fontSize: 14, fontWeight: 600, cursor: 'default' }}>
-            Agregar al carrito
-          </button>
-        </div>
-        <a style={{ display: 'inline-block', marginTop: 14, fontSize: 13, fontWeight: 600, color: S('acento-texto'), borderBottom: `2px solid ${S('tostado')}`, paddingBottom: 1, textDecoration: 'none' }}>
-          Ver detalles →
-        </a>
+    <div
+      className="font-inter"
+      style={{ ...vars, background: 'var(--sf-fondo)', borderRadius: 14, padding: 22, pointerEvents: 'none' }}
+    >
+      <div style={{ maxWidth: 300, margin: '0 auto' }}>
+        <ProductCard product={PRODUCTO_MUESTRA} />
       </div>
     </div>
   );
@@ -221,7 +233,7 @@ export default function PaletaSeccion() {
             <div className="duna-form__full">
               <span className="duna-field__label">Vista previa</span>
               <div style={{ marginTop: '6px', maxWidth: 440 }}>
-                <PreviewTienda raices={form} />
+                <PreviewTiendaReal raices={form} />
               </div>
               {avisos.length > 0 && (
                 <div role="status" style={{ marginTop: 'var(--duna-space-3)', maxWidth: 440, display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -245,10 +257,11 @@ export default function PaletaSeccion() {
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-5)', alignItems: 'flex-start' }}>
             <div style={{ flex: '1 1 300px', maxWidth: 440 }}>
-              {/* Durante el refresco post-guardado, skeleton en vez de la paleta VIEJA (§ el flash). */}
+              {/* Durante el refresco post-guardado, skeleton en vez de la paleta VIEJA (§ el flash).
+                  Aspecto de TARJETA (portrait), como la forma del ProductCard del preview. */}
               {refrescando
-                ? <div className="duna-skel" aria-hidden style={{ width: '100%', aspectRatio: '16 / 9', borderRadius: 12 }} />
-                : <PreviewTienda raices={desdeSettings(settings)} />}
+                ? <div className="duna-skel" aria-hidden style={{ width: '100%', aspectRatio: '3 / 4', borderRadius: 14 }} />
+                : <PreviewTiendaReal raices={desdeSettings(settings)} />}
             </div>
             <p className="duna-sub" style={{ margin: 0, maxWidth: '24rem' }}>
               {settings.paletaAcento
