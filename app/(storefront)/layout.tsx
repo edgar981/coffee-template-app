@@ -32,9 +32,11 @@ export const dynamic = 'force-dynamic';
 // Esto SOBREESCRIBE el `title.default`/`template` de la raíz (que es de Nayoli) para todo
 // el subárbol del storefront; la raíz queda como fallback muerto (siempre se sobreescribe).
 //
-// Los ICONOS siguen siendo assets por archivo (favicon, apple, manifest). En esta tanda:
-// el favicon pasa a `/api/favicon` con Cache-Control corto (commit 2), y el color del
-// tema sale de SiteSetting (commit 4). El mark del `Logo` es un asset por-despliegue.
+// Los ICONOS son assets por archivo PER-CLIENTE (favicon, PWA, apple): hoy los de Nayoli,
+// un segundo cliente los REEMPLAZA por-despliegue. Su cache-safety la da una regla
+// `headers()` en `next.config.ts` (Cache-Control corto sobre /favicon.ico y hermanos) — la
+// MISMA URL que usa el probe ciego, así que no hay puerta de atrás; no una ruta /api/favicon.
+// El color del tema y el mark del `Logo` (wordmark-first) salen de SiteSetting en el commit 4.
 export async function generateMetadata(): Promise<Metadata> {
   const { nombre, descripcionFooter } = await getSiteSettings();
   return {

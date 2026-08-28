@@ -36,6 +36,38 @@ const nextConfig: NextConfig = {
       },
       // (Se retiró la regla propia de `?preview`: existía para el iframe de /admin/tienda,
       //  ya retirado. La vista previa ahora renderiza componentes en el panel, sin URL pública.)
+
+      // ── ICONOS DE MARCA DEL STOREFRONT · Cache-Control corto ──────────────────
+      // Son los iconos PER-CLIENTE (favicon, PWA, apple-touch). Hoy son los de Nayoli;
+      // un segundo cliente los REEMPLAZA como asset por-despliegue. Sin esta regla, un
+      // reemplazo quedaría cacheado eterno.
+      //
+      // La regla va sobre la URL del ARCHIVO, no sobre una ruta aparte, y eso es
+      // deliberado: cubre a la vez el `<link rel=icon>` Y el probe CIEGO a /favicon.ico
+      // —crawlers y algunos navegadores lo piden sin mirar el `<link>`—. Los dos comparten
+      // esta misma URL, así que la "puerta de atrás" del caché eterno queda cerrada por
+      // construcción. Una ruta /api/favicon separada dejaría el probe sobre el estático
+      // (puerta abierta) salvo rewrite + borrar el estático — más piezas para el mismo fin.
+      //
+      // max-age=3600 (1h): un favicon cambia rarísimo (rebranding, onboarding), así que 1h
+      // de propagación alcanza, y 1h de caché toca el archivo ≤1 vez/hora/visitante, no en
+      // cada carga. MATIZ del navegador: muchos cachean el favicon por SESIÓN ignorando el
+      // header —límite del navegador, no del server—; 3600 es la señal correcta para CDN,
+      // crawlers y los que sí lo respetan, y el resto lo refresca al reabrir.
+      //
+      // POR QUÉ NO UNA RUTA /api/favicon: con assets ESTÁTICOS por-despliegue no hay URL de
+      // blob, así que el motivo de la ruta —no fijar una URL de blob que se cachea sola—
+      // no aplica. La ruta se gana su lugar SÓLO cuando el favicon se vuelva SUBIBLE desde
+      // el panel (décimo cliente): ahí el `<link>` no puede apuntar a un blob sin
+      // reintroducir el caché eterno, y la ruta (URL estable + caché corto) es la
+      // indirección necesaria. Hasta entonces, headers() sobre el estático es más simple.
+      //
+      // Los iconos del ADMIN (/brand/*-duna.*) NO van acá: son de Duna, constantes entre
+      // despliegues, así que su caché normal está bien.
+      {
+        source: "/:icon(favicon\\.ico|icon\\.svg|apple-icon\\.png|icon-192\\.png|icon-512\\.png|icon-512-maskable\\.png)",
+        headers: [{ key: "Cache-Control", value: "public, max-age=3600" }],
+      },
     ];
   },
   async redirects() {
