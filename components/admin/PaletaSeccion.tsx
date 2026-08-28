@@ -32,6 +32,13 @@ const DEFAULT_RAICES = { fondo: '#faf7f4', tinta: '#1a0f08', acento: '#8b4513' }
 // el acento va aparte. La PRIMERA es NEUTRA a propósito (gris cálido): un rubro concreto de
 // primera —'Café' liderando— pondría la marca de Nayoli como punto de partida de todo cliente
 // nuevo. 'Crema' (la base de Nayoli) va después, y su nombre ya no evoca el rubro.
+//
+// DISPARADOR de una QUINTA base: NO es "otra base más". Las cuatro son lienzos CLAROS (fondo
+// claro, texto oscuro), y el reparto —acento libre carga la identidad, base callada— las sostiene
+// para v1. El único faltante real es un lienzo OSCURO, y ése NO es una base: es MODO OSCURO del
+// storefront —los componentes asumen fondo claro, así que un fondo oscuro exige que cada uno
+// maneje el lienzo invertido, como el dark-mode del panel—. Se agrega cuando un cliente pida
+// tienda oscura, no antes.
 const BASES: { label: string; fondo: string; tinta: string }[] = [
   { label: 'Neutro',  fondo: '#f6f5f3', tinta: '#1c1a18' },
   { label: 'Crema',   fondo: '#faf7f4', tinta: '#1a0f08' },

@@ -5,8 +5,11 @@
 // lee el contexto sólo puede vivir dentro de él, y Logo no tiene por qué. Antes el wordmark
 // decía "Café Nayoli" hardcoded.
 //
-// EL MARK (la flor geométrica) es hoy la marca de Nayoli. Para un segundo cliente es un
-// ASSET por-despliegue —o un mark genérico—; esa decisión es de la tanda de assets (commit 2).
+// EL MARK (la flor geométrica) es hoy la marca de Nayoli, y NO es portable: es un ASSET
+// POR-DESPLIEGUE, como el favicon. Un segundo cliente reemplaza el SVG por el suyo, o ship
+// wordmark-solo. La identidad portable es el WORDMARK (arriba); el logo subido, cuando exista,
+// se RESPETA nunca se tiñe. Doctrina: § El WORDMARK carga la identidad; el MARK es asset
+// por-despliegue (CLAUDE.md).
 //
 // Usage:
 //   <LogoMark className="h-7 w-7" />                                      — sólo el ícono

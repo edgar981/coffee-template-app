@@ -1263,6 +1263,27 @@ es ergonomía (el gesto esperado), no un bloqueo.
 sigue intentando arrastrar y se traba, o lo reporta—. No antes: hoy hay dos salidas que
 funcionan, y el swipe es un tercer camino esperado, no una carencia que rompa nada.
 
+### 54. El favicon derivado del wordmark — el motor de `ImageResponse`
+
+Hoy el favicon es un asset ESTÁTICO por-despliegue (§ Identidad, § El wordmark carga la
+identidad). Para un cliente **self-serve** —que configura su tienda sin forkear el repo ni
+poner un PNG a mano en `public/`— el favicon debería DERIVARSE del wordmark: un monograma
+(1–2 letras del negocio) en la fuente de marca + `--sf-acento` sobre `--sf-fondo`, renderizado
+con `ImageResponse` de `next/og` (JSX→PNG).
+
+**Costo YA pagado: ninguno** — es capacidad futura, no un defecto.
+
+**El censo del costo** (medido en el gate del motor de color, 2026-08-28): una ruta de ícono
+**DINÁMICA** —re-abre la puerta que § Identidad cerró al pasar los íconos a `public/` estáticos—,
+cargar el **BINARIO de la fuente** para que `ImageResponse` la use, leer la paleta de
+`SiteSetting`, un **cache keyed a nombre+paleta** (invalida cuando cambian), y las **4 variantes
+de tamaño** (32 · apple 180 · maskable 192/512). ~un commit propio.
+
+**DISPARADOR: el flujo SELF-SERVE.** Para el PRIMER segundo cliente —un fork con su favicon
+puesto a mano— el estático sale más barato; la derivación paga a **escala** (muchas tiendas que
+se configuran solas). NO antes: construir el motor para un solo cliente es infraestructura por
+adelantado, para un ícono que se pone una vez.
+
 ## Config del negocio — `SiteSetting` (los planos editables)
 
 Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código
@@ -2896,6 +2917,43 @@ no una fuga.
 `app/manifest.ts` son de la TIENDA, no de Duna. Van al inventario de la fase 1
 (`SiteSetting`) el día del multitenant. Lo que queda del lado del producto es lo
 que declara `app/(admin)/layout.tsx`.
+
+## El WORDMARK carga la identidad; el MARK es asset por-despliegue
+
+Tanda del storefront-por-cliente (2026-08-28). La identidad PORTABLE del storefront es el
+**WORDMARK** —el nombre del negocio, que sale de `SiteSetting.nombre` (§ Config del negocio) y
+lo pasa el CONSUMIDOR a `Logo` (StoreNav/StoreFooter), para que `Logo` siga presentacional—. Un
+segundo cliente cambia su nombre en Configuración y el wordmark lo sigue, sin tocar código. Con
+eso el nombre, el favicon, el título de pestaña y la paleta ya son suyos.
+
+El **MARK** (`LogoMark`, la flor geométrica de Nayoli) **NO es portable: es un ASSET
+POR-DESPLIEGUE**, como el favicon (§ Identidad). Nayoli lo conserva; un segundo cliente
+reemplaza el SVG por el suyo, o ship wordmark-solo. **NO hay campo de logo en `SiteSetting`, y
+no se agrega uno especulativo** —no hay subida de logo todavía, así que un `logoUrl` sin
+escritor sería la mina inerte de siempre (§ el ex-`Product.agotado`)—. La decisión del mark
+quedó pendiente ("de la tanda de assets") y se resuelve acá: es per-despliegue, y el wordmark es
+lo que hace que un segundo cliente se vea suyo sin tocar el mark.
+
+### El logo subido se RESPETA, nunca se tiñe
+
+Cuando exista subida de logo (capacidad futura), la regla es **RESPETARLO tal cual, jamás
+teñirlo con la paleta**. Un logo lleva color intencional —de marca, a veces legalmente fijo— y
+recolorearlo es el default equivocado. Es lo que hacen las plataformas de referencia:
+**Shopify, Squarespace y Wix respetan el logo subido** y, para fondos oscuros, ofrecen un SLOT
+de logo claro/oscuro APARTE —no auto-tinte—. El tinte se reserva a sistemas de ícono monocromo
+(glyphs tipo SF Symbols), y ahí es OPT-IN explícito de quien declara "mi marca es un mono-color".
+
+- **Logo oscuro que desaparecería sobre el HERO → WORDMARK de fallback, no teñir.** El hero es
+  oscuro (`bg-[var(--sf-tinta)]`; § el censo de secciones): un logo oscuro se perdería ahí. La
+  salida es caer al wordmark —que ya se adapta con `variant="dark"`—, NUNCA recolorear el logo
+  del cliente. El wordmark ES el fallback universal precisamente porque no depende de un asset.
+
+### El favicon es estático por-despliegue; su derivación es backlog
+
+El favicon sigue el modelo de § Identidad —asset estático por-despliegue—. Derivarlo del
+wordmark (un monograma con `ImageResponse`) es capacidad de la era **self-serve**, anotada en
+**§ Backlog #54** con su disparador (el flujo self-serve) y su censo de costo. Para el primer
+segundo cliente, un favicon puesto a mano sale más barato que el motor.
 
 ## Política de tema (dark mode)
 
