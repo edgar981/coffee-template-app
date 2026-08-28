@@ -4366,6 +4366,30 @@ una superficie sin consumidor real en la prueba viva, que es exactamente lo que 
 H10 es. Mover la superficie al paquete y hacer que la referencia use la clase real
 cierra el H10 y la absorción a la vez.
 
+### El `--lado` deja un carril de scrim — "cerrar = clic-fuera" ASUME que hay scrim
+
+`DunaSheet` no tiene X: cierra por **scrim (clic-fuera)** o **Escape** (la conducta la pone
+Radix, arriba). Eso **asume que hay scrim que tocar** — y un `.duna-sheet--lado` a
+`width: 100%` en un teléfono **no lo deja**: ocupa la pantalla, y en móvil tampoco hay tecla
+Escape. Así que un `--lado` **sin botón de cierre en su foot** deja al operador ATRAPADO,
+sin más salida que recargar. Pasó en producción con el customizer de Personalizar (su foot
+tenía sólo "Restablecer"); los form-sheets se salvaban por su "Cancelar", y el detalle de
+pedido por ir `--abajo` (que deja 20vh de scrim arriba).
+
+**La primitiva lo garantiza ahora, no el consumidor:** `.duna-sheet--lado` es
+`width: min(480px, calc(100% - 2.75rem))` — nunca llega a 100%, deja **~44px de scrim tocable
+a la IZQUIERDA** (el sheet entra por la derecha, `right:0`, así que el hueco cae a la
+izquierda), en TODO ancho. Es la **simetría del `--abajo`** (20vh de scrim arriba). Sin media
+query: sigue siendo drawer lateral en las dos anchuras. Con esto, **cualquier `--lado` futuro
+es cerrable por clic-fuera en móvil sin que su consumidor recuerde un botón** — era el
+modo de falla del § Backlog #34, una responsabilidad repartida que alguien olvida.
+
+**El botón de cierre del consumidor sigue siendo la salida DESCUBRIBLE** (un carril de 44px se
+TOCA, un botón se VE): los form-sheets lo tienen como "Cancelar"; el customizer ganó **"Listo"**
+—no "Cerrar" ni "Guardar", porque su cierre **GUARDA** (auto-save al salir): "Cerrar" callaría
+que se conserva, "Guardar" reintroduciría el gesto que el diseño quitó—. Las dos capas son
+complementarias: la primitiva garantiza que la salida EXISTE, el botón que se VE.
+
 ### El scroll-lock es lo que decide el gate, y no es el del drawer viejo
 
 `react-remove-scroll` (entra con `@radix-ui/react-dialog`) previene a nivel de

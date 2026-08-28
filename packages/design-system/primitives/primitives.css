@@ -1160,15 +1160,24 @@ textarea.duna-input { resize: vertical; min-height: 64px; line-height: var(--dun
   border-top-right-radius: var(--duna-r-xl);
 }
 
-/* LADO · los flujos con formulario. Ocupa el ALTO y tiene tope de ancho, que es
-   la simetría exacta del de abajo.
-   `min(480px, 100%)`: en un teléfono ocupa todo, así que el mismo drawer sirve
-   en las dos anchuras sin una media query — un formulario no gana nada
-   convirtiéndose en sheet inferior, y tener dos formas del mismo flujo según el
-   ancho es una decisión más que tomar por pantalla. */
+/* LADO · los flujos con formulario. Ocupa el ALTO y tiene tope de ancho, simetría
+   del de abajo (que deja 20vh de scrim arriba, tocable).
+   `min(480px, calc(100% - 2.75rem))`: NUNCA llega a 100%. Deja un carril de ~44px de
+   scrim a la IZQUIERDA (el sheet entra por la derecha, `right:0`, así que el hueco cae
+   a la izquierda), tocable en TODO ancho — en desktop el `min` da 480 y el resto es
+   scrim natural; sólo "muerde" bajo ~524px, dejando el carril constante—. Sin media
+   query: sigue siendo drawer lateral en las dos anchuras (no sheet inferior; un
+   formulario no gana nada convirtiéndose en uno, y dos formas del mismo flujo por ancho
+   es una decisión más que tomar por pantalla).
+   POR QUÉ EL CARRIL Y NO `100%`: "cerrar = clic-fuera" (§ DunaSheet: no hay X, se cierra
+   por scrim/Escape) ASUME que hay scrim. A 100% en un teléfono no hay scrim que tocar ni
+   tecla Escape, y un --lado sin botón de cierre en su foot dejaba al operador ATRAPADO
+   (el customizer de Personalizar, en producción). El carril lo garantiza desde la
+   PRIMITIVA, sin depender de que cada consumidor recuerde un botón — era el modo de falla
+   del #34 (una responsabilidad repartida que alguien olvida). */
 .duna-sheet--lado {
   top: 0; bottom: 0; right: 0;
-  width: min(480px, 100%);
+  width: min(480px, calc(100% - 2.75rem));
   border-left: 1px solid var(--duna-border);
   border-top-left-radius: var(--duna-r-xl);
   border-bottom-left-radius: var(--duna-r-xl);

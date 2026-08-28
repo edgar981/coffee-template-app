@@ -68,9 +68,14 @@ export default function DashboardCustomizer({ open, onOpenChange, value, onApply
 
   // Persistir sólo si cambió, para no escribir en un abrir/cerrar sin tocar nada.
   const persistirSiCambio = () => { if (!sameOrder(draft, value)) onApply(draft); };
-  // Cerrar = guardar. Lo usan las DOS salidas: el DunaSheet (clic-fuera / Escape, vía
-  // `onCerrar`) y el botón Guardar. La segunda es prop-driven, así que no re-dispara
-  // `onCerrar` de Radix — se persiste una sola vez por cada cierre.
+  // Cerrar = GUARDAR (auto-save al salir; no hay un "Guardar" explícito porque la
+  // confirmación es el panel cambiando detrás). Lo usan las TRES salidas: el botón
+  // "Listo", el clic-fuera y Escape (los dos últimos vía `onCerrar` de Radix). "Listo"
+  // es prop-driven, así que no re-dispara `onCerrar` — se persiste una sola vez por
+  // cierre. El botón es la salida DESCUBRIBLE: en un teléfono el sheet --lado no deja
+  // scrim que tocar ni hay tecla Escape, así que clic-fuera dejaba al operador ATRAPADO
+  // (defecto de producción). El carril de scrim de la primitiva garantiza que clic-fuera
+  // EXISTA; "Listo" garantiza que se VEA.
   const cerrar = () => { persistirSiCambio(); onOpenChange(false); };
   const reset  = () => setDraft(DEFAULT_WIDGET_KEYS);
 
@@ -162,11 +167,17 @@ export default function DashboardCustomizer({ open, onOpenChange, value, onApply
       </div>
 
       <div className="duna-modal__foot">
-        {/* Sólo Restablecer: no hay botón Guardar (a propósito — ver el comentario de
-            cerrar=guardar arriba), y la confirmación de que se guardó es el panel de
-            atrás cambiando al layout nuevo al cerrar. */}
-        <button type="button" className="duna-btn duna-btn--ghost" onClick={reset}>
+        {/* Restablecer (ghost, IZQUIERDA con `mr-auto`) · "Listo" (primario, derecha).
+            "Listo" y no "Cerrar"/"Guardar": cerrar GUARDA, así que "Cerrar" callaría que
+            se conserva y "Guardar" reintroduciría el gesto que el diseño quitó. Es la
+            salida explícita que faltaba en móvil (§ el comentario de `cerrar`). El foot es
+            `justify-content:flex-end`; `mr-auto` empuja Restablecer al borde izquierdo,
+            igual que los form-sheets empujan su aviso con `.duna-modal__aviso`. */}
+        <button type="button" className="duna-btn duna-btn--ghost mr-auto" onClick={reset}>
           <RotateCcw className="h-3.5 w-3.5" /> Restablecer
+        </button>
+        <button type="button" className="duna-btn duna-btn--primary" onClick={cerrar}>
+          Listo
         </button>
       </div>
     </DunaSheet>
