@@ -1230,6 +1230,39 @@ go-live de WhatsApp, que están para las AUTOMATIZACIONES, no para auth).
 **DISPARADOR: cuando exista un login por WhatsApp/OTP cableado** (un flujo real que cree sesión). Ese
 día se dibuja el botón, apuntando a algo real. No antes.
 
+### 53. Swipe-to-dismiss en los sheets — arrastrar para cerrar
+
+Arrastrar el sheet para cerrarlo **no existe** —ni en `--abajo` ni en `--lado`—, y no es
+una regresión del fix del carril: **Radix (`@radix-ui/react-dialog`) no trae
+swipe-to-dismiss**, así que el gesto nunca estuvo. Hoy los sheets se cierran por scrim
+(clic-fuera, garantizado por el carril de `--lado`), Escape (no en móvil) y el botón del
+consumidor ("Cancelar" / "Listo"). El swipe es el gesto que **la mano prueba primero** en un
+teléfono, y su ausencia se siente aunque haya salida.
+
+**EL EJE DEL GESTO ES EL DEL ANCLAJE, y es lo que hay que tener escrito:** arrastrar hacia
+**ABAJO** pertenece a los sheets inferiores (`--abajo`, el detalle de pedido en angosto); un
+`--lado` se descartaría arrastrando hacia **EL LADO** (a la derecha, que es por donde entra).
+Confundirlos —un swipe hacia abajo cerrando un drawer lateral— sería un gesto que apunta al
+borde equivocado, la misma incoherencia que el grip que sólo va en `--abajo`.
+
+**Costo aproximado, las dos rutas:**
+- **`vaul`** (drawer de React sobre Radix, con drag + snap, y `direction` para los dos ejes):
+  gratis el gesto, PERO **re-funda `DunaSheet`** —hoy es Radix Dialog + `react-remove-scroll`
+  con su portal al shell, su scrim y su reduced-motion (§ la costura forma↔conducta)—, así que
+  habría que **re-verificar todo eso y re-gatear los ~8 consumidores**. Medio-alto: no es "agregar
+  una lib", es cambiar el cimiento del sheet.
+- **Pointer handling propio** (mantener Radix, agregar una capa de drag sobre la superficie):
+  `pointerdown/move/up` + `transform` que sigue al dedo + umbral/velocidad para descartar, por
+  eje (`--abajo`→abajo, `--lado`→derecha), respetando `reduced-motion` y sin pelear con el
+  scroll del cuerpo. Sin dependencia. Medio: un hook de arrastre + los dos ejes.
+
+**Costo YA pagado: ninguno.** El fix del carril + el botón ya dan una salida que funciona; esto
+es ergonomía (el gesto esperado), no un bloqueo.
+
+**DISPARADOR: si el clic-fuera y el botón resultan INSUFICIENTES en uso real** —el operador
+sigue intentando arrastrar y se traba, o lo reporta—. No antes: hoy hay dos salidas que
+funcionan, y el swipe es un tercer camino esperado, no una carencia que rompa nada.
+
 ## Config del negocio — `SiteSetting` (los planos editables)
 
 Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código
@@ -4365,6 +4398,30 @@ cambia, la referencia sigue mostrando lo viejo y **miente** sin que nada lo dela
 una superficie sin consumidor real en la prueba viva, que es exactamente lo que un
 H10 es. Mover la superficie al paquete y hacer que la referencia use la clase real
 cierra el H10 y la absorción a la vez.
+
+### El `--lado` deja un carril de scrim — "cerrar = clic-fuera" ASUME que hay scrim
+
+`DunaSheet` no tiene X: cierra por **scrim (clic-fuera)** o **Escape** (la conducta la pone
+Radix, arriba). Eso **asume que hay scrim que tocar** — y un `.duna-sheet--lado` a
+`width: 100%` en un teléfono **no lo deja**: ocupa la pantalla, y en móvil tampoco hay tecla
+Escape. Así que un `--lado` **sin botón de cierre en su foot** deja al operador ATRAPADO,
+sin más salida que recargar. Pasó en producción con el customizer de Personalizar (su foot
+tenía sólo "Restablecer"); los form-sheets se salvaban por su "Cancelar", y el detalle de
+pedido por ir `--abajo` (que deja 20vh de scrim arriba).
+
+**La primitiva lo garantiza ahora, no el consumidor:** `.duna-sheet--lado` es
+`width: min(480px, calc(100% - 2.75rem))` — nunca llega a 100%, deja **~44px de scrim tocable
+a la IZQUIERDA** (el sheet entra por la derecha, `right:0`, así que el hueco cae a la
+izquierda), en TODO ancho. Es la **simetría del `--abajo`** (20vh de scrim arriba). Sin media
+query: sigue siendo drawer lateral en las dos anchuras. Con esto, **cualquier `--lado` futuro
+es cerrable por clic-fuera en móvil sin que su consumidor recuerde un botón** — era el
+modo de falla del § Backlog #34, una responsabilidad repartida que alguien olvida.
+
+**El botón de cierre del consumidor sigue siendo la salida DESCUBRIBLE** (un carril de 44px se
+TOCA, un botón se VE): los form-sheets lo tienen como "Cancelar"; el customizer ganó **"Listo"**
+—no "Cerrar" ni "Guardar", porque su cierre **GUARDA** (auto-save al salir): "Cerrar" callaría
+que se conserva, "Guardar" reintroduciría el gesto que el diseño quitó—. Las dos capas son
+complementarias: la primitiva garantiza que la salida EXISTE, el botón que se VE.
 
 ### El scroll-lock es lo que decide el gate, y no es el del drawer viejo
 
