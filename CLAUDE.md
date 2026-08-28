@@ -1230,6 +1230,39 @@ go-live de WhatsApp, que están para las AUTOMATIZACIONES, no para auth).
 **DISPARADOR: cuando exista un login por WhatsApp/OTP cableado** (un flujo real que cree sesión). Ese
 día se dibuja el botón, apuntando a algo real. No antes.
 
+### 53. Swipe-to-dismiss en los sheets — arrastrar para cerrar
+
+Arrastrar el sheet para cerrarlo **no existe** —ni en `--abajo` ni en `--lado`—, y no es
+una regresión del fix del carril: **Radix (`@radix-ui/react-dialog`) no trae
+swipe-to-dismiss**, así que el gesto nunca estuvo. Hoy los sheets se cierran por scrim
+(clic-fuera, garantizado por el carril de `--lado`), Escape (no en móvil) y el botón del
+consumidor ("Cancelar" / "Listo"). El swipe es el gesto que **la mano prueba primero** en un
+teléfono, y su ausencia se siente aunque haya salida.
+
+**EL EJE DEL GESTO ES EL DEL ANCLAJE, y es lo que hay que tener escrito:** arrastrar hacia
+**ABAJO** pertenece a los sheets inferiores (`--abajo`, el detalle de pedido en angosto); un
+`--lado` se descartaría arrastrando hacia **EL LADO** (a la derecha, que es por donde entra).
+Confundirlos —un swipe hacia abajo cerrando un drawer lateral— sería un gesto que apunta al
+borde equivocado, la misma incoherencia que el grip que sólo va en `--abajo`.
+
+**Costo aproximado, las dos rutas:**
+- **`vaul`** (drawer de React sobre Radix, con drag + snap, y `direction` para los dos ejes):
+  gratis el gesto, PERO **re-funda `DunaSheet`** —hoy es Radix Dialog + `react-remove-scroll`
+  con su portal al shell, su scrim y su reduced-motion (§ la costura forma↔conducta)—, así que
+  habría que **re-verificar todo eso y re-gatear los ~8 consumidores**. Medio-alto: no es "agregar
+  una lib", es cambiar el cimiento del sheet.
+- **Pointer handling propio** (mantener Radix, agregar una capa de drag sobre la superficie):
+  `pointerdown/move/up` + `transform` que sigue al dedo + umbral/velocidad para descartar, por
+  eje (`--abajo`→abajo, `--lado`→derecha), respetando `reduced-motion` y sin pelear con el
+  scroll del cuerpo. Sin dependencia. Medio: un hook de arrastre + los dos ejes.
+
+**Costo YA pagado: ninguno.** El fix del carril + el botón ya dan una salida que funciona; esto
+es ergonomía (el gesto esperado), no un bloqueo.
+
+**DISPARADOR: si el clic-fuera y el botón resultan INSUFICIENTES en uso real** —el operador
+sigue intentando arrastrar y se traba, o lo reporta—. No antes: hoy hay dos salidas que
+funcionan, y el swipe es un tercer camino esperado, no una carencia que rompa nada.
+
 ## Config del negocio — `SiteSetting` (los planos editables)
 
 Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código
