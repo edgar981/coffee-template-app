@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, type CSSProperties } from 'react';
+import { useState, useEffect, useTransition, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Pencil } from 'lucide-react';
@@ -27,10 +27,12 @@ import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialo
 const DEFAULT_RAICES = { fondo: '#faf7f4', tinta: '#1a0f08', acento: '#8b4513' };
 
 // Bases fondo+tinta CURADAS (todas ≥AA de texto sobre fondo, medido). El cliente elige una;
-// el acento va aparte. La primera es la de Nayoli (Café).
+// el acento va aparte. La PRIMERA es NEUTRA a propósito (gris cálido): un rubro concreto de
+// primera —'Café' liderando— pondría la marca de Nayoli como punto de partida de todo cliente
+// nuevo. 'Crema' (la base de Nayoli) va después, y su nombre ya no evoca el rubro.
 const BASES: { label: string; fondo: string; tinta: string }[] = [
-  { label: 'Café',    fondo: '#faf7f4', tinta: '#1a0f08' },
   { label: 'Neutro',  fondo: '#f6f5f3', tinta: '#1c1a18' },
+  { label: 'Crema',   fondo: '#faf7f4', tinta: '#1a0f08' },
   { label: 'Taupe',   fondo: '#f5f4f2', tinta: '#1b1a17' },
   { label: 'Pizarra', fondo: '#f5f6f7', tinta: '#191a1c' },
 ];
@@ -86,6 +88,11 @@ export default function PaletaSeccion() {
   const settings = useSiteSettings();
   const router   = useRouter();
   const guarda   = useAccionGuardada();
+  // El refresco post-guardado re-lee el layout (los `settings` nuevos). Hasta que llega ese
+  // RSC, `useSiteSettings()` devuelve los VIEJOS → la tarjeta pintaría la paleta anterior un
+  // instante (el flash que el owner vio). `useTransition` marca ese refresco: mientras
+  // `refrescando`, la lectura muestra el SKELETON en vez de la paleta vieja.
+  const [refrescando, startTransition] = useTransition();
 
   const [editando, setEditando]           = useState(false);
   const [form, setForm]                   = useState<Form>(() => desdeSettings(settings));
@@ -135,7 +142,7 @@ export default function PaletaSeccion() {
       }
       toast.success('Colores de la tienda guardados.');
       setEditando(false);
-      router.refresh();
+      startTransition(() => router.refresh());
     });
   };
 
@@ -238,7 +245,10 @@ export default function PaletaSeccion() {
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-5)', alignItems: 'flex-start' }}>
             <div style={{ flex: '1 1 300px', maxWidth: 440 }}>
-              <PreviewTienda raices={desdeSettings(settings)} />
+              {/* Durante el refresco post-guardado, skeleton en vez de la paleta VIEJA (§ el flash). */}
+              {refrescando
+                ? <div className="duna-skel" aria-hidden style={{ width: '100%', aspectRatio: '16 / 9', borderRadius: 12 }} />
+                : <PreviewTienda raices={desdeSettings(settings)} />}
             </div>
             <p className="duna-sub" style={{ margin: 0, maxWidth: '24rem' }}>
               {settings.paletaAcento
