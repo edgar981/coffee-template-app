@@ -32,7 +32,7 @@ export default function BrandStory() {
   // el primer render, sin animación de entrada. Fuera de preview, idéntico a hoy. (Mismo criterio
   // que HeroSection, ahí escrito para esta sección.)
   return (
-    <section id="nuestra-historia" className="py-24 bg-[#1a0f08]">
+    <section id="nuestra-historia" className="py-24 bg-[var(--sf-tinta)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <motion.div
@@ -43,7 +43,7 @@ export default function BrandStory() {
             variants={fadeUp}
           >
             {brandStory.eyebrow && (
-              <p className="text-[#d4a97a] text-xs font-medium tracking-[0.2em] uppercase mb-4">
+              <p className="text-[var(--sf-tostado)] text-xs font-medium tracking-[0.2em] uppercase mb-4">
                 {brandStory.eyebrow}
               </p>
             )}

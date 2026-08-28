@@ -5,7 +5,8 @@ import { getSiteSettings } from "@/lib/config/site-settings";
 import NosotrosHistoria from "@/components/storefront/nosotros/NosotrosHistoria";
 import NosotrosGaleria from "@/components/storefront/nosotros/NosotrosGaleria";
 
-// Sólo "Nosotros": la raíz aplica el template `%s · Café Nayoli` (app/layout.tsx).
+// Sólo "Nosotros": el layout del storefront aplica el template `%s · {nombre}` desde
+// SiteSetting (app/(storefront)/layout.tsx), así que el título resuelve a "Nosotros · {nombre}".
 export const metadata: Metadata = { title: "Nosotros" };
 
 // La página /nosotros. Es una CAPACIDAD que se puede apagar (`paginas.nosotros.visible`): apagada,

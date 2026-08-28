@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import RoleBadge from '@/components/admin/RoleBadge';
 import InviteUserModal from '@/components/admin/InviteUserModal';
 import DatosNegocioSeccion from '@/components/admin/DatosNegocioSeccion';
+import PaletaSeccion from '@/components/admin/PaletaSeccion';
 import { normalize } from '@duna/core/utils';
 import { AdminUser, Role } from '@/types/admin';
 import { ROLES } from '@/constants/roles';
@@ -202,6 +203,11 @@ export default function Configuracion() {
       {/* ── Sección: Datos del negocio (lectura↔edición, dueña de su header) ── */}
       <section style={{ marginTop: 'var(--duna-space-8)' }}>
         <DatosNegocioSeccion />
+      </section>
+
+      {/* ── Sección: Colores de la tienda (misma cáscara que Datos del negocio) ── */}
+      <section style={{ marginTop: 'var(--duna-space-8)' }}>
+        <PaletaSeccion />
       </section>
 
       {/* ── Sección: Equipo y usuarios ────────────────────────────────────── */}

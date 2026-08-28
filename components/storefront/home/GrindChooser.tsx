@@ -5,7 +5,11 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { fadeUp } from "@/lib/animation";
+import { useSiteSettings } from "@/components/storefront/SiteSettingsProvider";
 
+// FLAG (commit 2 — assets): las rutas `img` son fotos de PRODUCTO de Nayoli. Un segundo
+// cliente las reemplaza como asset por-despliegue (o esta sección migra a SiteContent). El
+// `alt` sí es identidad textual y ya sale de `nombre`.
 const OPCIONES = [
   {
     label: "En grano",
@@ -22,29 +26,30 @@ const OPCIONES = [
 ];
 
 export default function GrindChooser() {
+  const { nombre } = useSiteSettings();
   return (
-    <section className="py-20 bg-[#faf7f4]">
+    <section className="py-20 bg-[var(--sf-fondo)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="text-center mb-12">
-          <p className="text-[#8B4513] text-xs font-medium tracking-[0.2em] uppercase mb-2">Elige tu presentación</p>
-          <h2 className="text-3xl sm:text-4xl font-playfair text-[#1a0f08]">¿Cómo tomas tu café?</h2>
+          <p className="text-[var(--sf-acento-texto)] text-xs font-medium tracking-[0.2em] uppercase mb-2">Elige tu presentación</p>
+          <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-tinta)]">¿Cómo tomas tu café?</h2>
         </motion.div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {OPCIONES.map((op, i) => (
             <motion.div key={op.label} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} transition={{ delay: i * 0.08 }}>
-              <Link href={op.path} className="group relative flex flex-col justify-end overflow-hidden rounded-3xl aspect-[4/5] sm:aspect-[3/2] bg-[#e8ddd0]">
+              <Link href={op.path} className="group relative flex flex-col justify-end overflow-hidden rounded-3xl aspect-[4/5] sm:aspect-[3/2] bg-[var(--sf-linea)]">
                 <Image
                   src={op.img}
-                  alt={`Café Nayoli ${op.label}`}
+                  alt={`${nombre} ${op.label}`}
                   fill
                   sizes="(max-width: 768px) 100vw, 50vw"
                   className="object-cover group-hover:scale-105 transition-transform duration-500"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#1a0f08]/80 via-[#1a0f08]/20 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[var(--sf-tinta)]/80 via-[var(--sf-tinta)]/20 to-transparent" />
                 <div className="relative p-8">
                   <h3 className="text-2xl sm:text-3xl font-playfair text-white mb-1">{op.label}</h3>
                   <p className="text-white/80 text-sm mb-4 max-w-xs">{op.copy}</p>
-                  <span className="inline-flex items-center gap-2 text-[#d4a97a] font-semibold text-sm group-hover:gap-3 transition-all">
+                  <span className="inline-flex items-center gap-2 text-[var(--sf-tostado)] font-semibold text-sm group-hover:gap-3 transition-all">
                     Ver café {op.label.toLowerCase()} <ArrowRight className="w-4 h-4" />
                   </span>
                 </div>

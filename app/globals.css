@@ -41,6 +41,59 @@
      Playfair (do not import the font twice). */
   --font-display: 'Playfair Display', serif;
 
+  /* ── Tokens de MARCA del STOREFRONT ────────────────────────────────────────
+     La paleta del storefront (café, cremas, tostados) tokenizada. TOKENIZACIÓN
+     FIEL, byte-idéntica: cada tono distinto es su propia var; sólo 3 near-dups
+     IMPERCEPTIBLES colapsan (#f9f6f4/#f9f5f0 → fondo, ≤4u; #1e150e → tinta, 6u).
+     El storefront es LIGHT-ONLY, así que no llevan variante oscura.
+
+     AGRUPADAS POR ORIGEN, para la derivación del commit 4: 18 colores no son
+     configurables, así que el cliente elegirá ~3 RAÍCES (fondo · tinta · acento) y
+     la COLA se DERIVA de ellas. La familia dice de cuál sale cada tono:
+       · FONDO  → los cremas (superficie, línea son el fondo, más hondo)
+       · TINTA  → los near-negros
+       · ACENTO → los marrones y tostados (texto incluido: son marrones cálidos,
+                  variaciones del acento — por eso van en esta familia, no aparte)
+     Tokenizar ≠ rediseñar: acá NADA cambia de tono; la reducción a raíces+derivadas
+     es la decisión del commit 4. */
+
+  /* FONDO family — cremas */
+  --sf-fondo:        #faf7f4;   /* fondo de página (+#f9f6f4, #f9f5f0) */
+  --sf-superficie:   #f0e8de;   /* superficie/panel claro */
+  --sf-linea:        #e8ddd0;   /* borde / hairline */
+  --sf-superficie-2: #e4d3c0;   /* crema más honda (1 uso) */
+
+  /* TINTA family — near-negros */
+  --sf-tinta:        #1a0f08;   /* texto principal + fondos oscuros + gradientes (+#1e150e) */
+  --sf-tinta-2:      #2d1a0e;   /* near-negro cálido (gradiente) */
+
+  /* ACENTO family — marrones cálidos + tostados */
+  --sf-acento:       #8b4513;   /* el acento de marca — SUPERFICIE (botón/badge/borde/ring/ícono) */
+  /* EL ACENTO SE PARTE en dos por USO: crudo para superficie (arriba) y con PISO DE
+     CONTRASTE para TEXTO (links/labels sobre fondo claro). Para Nayoli los dos valen
+     #8b4513 —su acento ya contrasta 7:1 sobre crema— así que los 39 sitios de texto quedan
+     byte-idénticos. Para un acento CLARO (un cliente elige neón), el motor del commit 4
+     oscurece SÓLO este `-texto` hasta ≥4.5:1; el botón (superficie) conserva el neón. Un
+     solo valor no puede ser floreado-para-texto y crudo-para-botón a la vez — por eso el
+     split. (§ la regla de dirección del piso, en la doctrina.) */
+  --sf-acento-texto: #8b4513;   /* el acento como TEXTO — piso de contraste sobre fondo */
+  --sf-acento-txt:   #ffffff;   /* TEXTO sobre el botón/badge de acento — auto-flip blanco/tinta.
+                                   Default #ffffff = byte-idéntico con el `text-white` de hoy;
+                                   un acento claro lo voltea a tinta oscura (§ palette-derive). */
+  --sf-acento-2:     #3d2314;   /* marrón oscuro */
+  --sf-acento-3:     #5a2d0c;   /* marrón oscuro anaranjado */
+  --sf-acento-4:     #b5794e;   /* marrón medio (botón /cuenta, hoy dead code comentado) */
+  --sf-texto:        #5a3a28;   /* texto de cuerpo (marrón cálido oscuro) */
+  --sf-texto-suave:  #8b6650;   /* texto atenuado */
+  --sf-tostado:      #d4a97a;   /* tostado claro (decorativo, hover) */
+  --sf-tostado-2:    #c0a080;
+  --sf-tostado-3:    #a07050;
+  --sf-tostado-4:    #c49060;
+  --sf-tostado-5:    #ba9c7b;
+  --sf-tostado-6:    #e8c095;
+  --sf-tostado-7:    #d8c4ad;
+  --sf-tostado-8:    #d4b896;
+
   /* Border Radius */
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);

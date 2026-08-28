@@ -8,8 +8,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import NavSearch from './NavSearch';
 import { Logo } from '@/components/storefront/Logo';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
+import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 
 export default function StoreNav() {
+  const { nombre } = useSiteSettings();
   // "Nosotros" es RUTA (/nosotros), y sólo aparece si la página está ENCENDIDA (§ paginas.nosotros).
   // Apagada, el enlace desaparece. Antes era un ancla a la home (`/#nuestra-historia`), cuyo
   // active-state por `pathname.startsWith` nunca matcheaba —la ruta real lo arregla—.
@@ -35,10 +37,10 @@ export default function StoreNav() {
 
   const navBg = isHome && !scrolled
     ? 'bg-transparent text-white'
-    : 'bg-white/95 backdrop-blur shadow-sm text-[#1a0f08]';
+    : 'bg-white/95 backdrop-blur shadow-sm text-[var(--sf-tinta)]';
 
-  const linkColor = isHome && !scrolled ? 'text-white/80 hover:text-white' : 'text-[#5a3a28] hover:text-[#1a0f08]';
-  const iconColor = isHome && !scrolled ? 'text-white/80 hover:text-white' : 'text-[#5a3a28] hover:text-[#1a0f08]';
+  const linkColor = isHome && !scrolled ? 'text-white/80 hover:text-white' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
+  const iconColor = isHome && !scrolled ? 'text-white/80 hover:text-white' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
 
   return (
     <>
@@ -46,15 +48,15 @@ export default function StoreNav() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 lg:h-18">
             {/* Logo */}
-            <Link href="/" aria-label="Café Nayoli — inicio" className="transition-colors">
+            <Link href="/" aria-label={`${nombre} — inicio`} className="transition-colors">
               {/* Cream lockup over the transparent hero, espresso once scrolled */}
-              <Logo variant={isHome && !scrolled ? 'dark' : 'light'} />
+              <Logo nombre={nombre} variant={isHome && !scrolled ? 'dark' : 'light'} />
             </Link>
 
             {/* Desktop Nav */}
             <nav className="relative hidden lg:flex items-center gap-8">
               {links.map(l => (
-                <Link key={l.path} href={l.path} className={`text-sm font-medium transition-colors ${linkColor} ${pathname.startsWith(l.path) ? 'text-[#8B4513]!' : ''}`}>
+                <Link key={l.path} href={l.path} className={`text-sm font-medium transition-colors ${linkColor} ${pathname.startsWith(l.path) ? 'text-[var(--sf-acento-texto)]!' : ''}`}>
                   {l.label}
                 </Link>
               ))}
@@ -75,15 +77,15 @@ export default function StoreNav() {
               <button onClick={openCart} className={`relative p-2 rounded-full transition-colors ${iconColor} cursor-pointer`}>
                 <ShoppingBag className="w-5 h-5" />
                 {count > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 bg-[#8B4513] text-white text-[10px] rounded-full flex items-center justify-center font-bold" style={{ width: 18, height: 18, fontSize: 10 }}>
+                  <span className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] text-[10px] rounded-full flex items-center justify-center font-bold" style={{ width: 18, height: 18, fontSize: 10 }}>
                     {count > 9 ? '9+' : count}
                   </span>
                 )}
               </button>
               {/* v1: /cuenta link hidden — restore when account feature ships */}
               {/* <Link href="/cuenta" className={`hidden sm:flex items-center ml-1 text-sm font-medium rounded-full transition-colors ${linkColor}`}>
-                <button className={`p-2 pt-1.5 cursor-pointer rounded-full transition-colors ${iconColor} bg-[#8B4513]/10`}>
-                  <span className="text-xs font-bold text-[#b5794e]">Mi</span>
+                <button className={`p-2 pt-1.5 cursor-pointer rounded-full transition-colors ${iconColor} bg-[var(--sf-acento)]/10`}>
+                  <span className="text-xs font-bold text-[var(--sf-acento-4)]">Mi</span>
                 </button>
               </Link> */}
               <button className={`lg:hidden p-2 ${iconColor}`} onClick={() => setMobileOpen(!mobileOpen)}>
@@ -97,14 +99,14 @@ export default function StoreNav() {
       {/* Mobile Menu */}
       <AnimatePresence>
         {mobileOpen && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="fixed top-16 left-0 right-0 z-40 bg-white shadow-lg border-b border-[#e8ddd0]">
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="fixed top-16 left-0 right-0 z-40 bg-white shadow-lg border-b border-[var(--sf-linea)]">
             <nav className="relative flex flex-col px-4 py-4 gap-4">
               {links.map(l => (
-                <Link key={l.path} href={l.path} onClick={() => setMobileOpen(false)} className="text-[#3d2314] font-medium py-2 border-b border-[#f0e8de] last:border-0">{l.label}</Link>
+                <Link key={l.path} href={l.path} onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2 border-b border-[var(--sf-superficie)] last:border-0">{l.label}</Link>
               ))}
               {/* v1: /cuenta link hidden — restore when account feature ships */}
-              {/* <Link href="/cuenta" onClick={() => setMobileOpen(false)} className="text-[#3d2314] font-medium py-2">Mi Cuenta</Link> */}
-              <Link href="/rastrear-pedido" onClick={() => setMobileOpen(false)} className="text-[#3d2314] font-medium py-2">Rastrear Pedido</Link>
+              {/* <Link href="/cuenta" onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2">Mi Cuenta</Link> */}
+              <Link href="/rastrear-pedido" onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2">Rastrear Pedido</Link>
             </nav>
           </motion.div>
         )}

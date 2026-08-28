@@ -74,11 +74,11 @@ export default function ProductCard({
       <motion.div
         whileHover={{ y: -4 }}
         transition={{ duration: 0.2 }}
-        className="overflow-hidden rounded-2xl border border-[#e8ddd0] bg-white transition-all duration-300 hover:shadow-lg"
+        className="overflow-hidden rounded-2xl border border-[var(--sf-linea)] bg-white transition-all duration-300 hover:shadow-lg"
       >
         {/* Image — el contenedor crema de marca queda como fallback si el
             producto no tiene imagen (evita pasar undefined a next/image). */}
-        <div className="relative aspect-square overflow-hidden bg-[#f0e8de]">
+        <div className="relative aspect-square overflow-hidden bg-[var(--sf-superficie)]">
           {product.imagen && (
             <Image
               src={product.imagen}
@@ -95,8 +95,8 @@ export default function ProductCard({
               <span
                 className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                   product.bestseller
-                    ? "bg-[#8B4513] text-white"
-                    : "bg-[#d4a97a] text-[#1a0f08]"
+                    ? "bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]"
+                    : "bg-[var(--sf-tostado)] text-[var(--sf-tinta)]"
                 }`}
               >
                 {product.badge}
@@ -116,7 +116,7 @@ export default function ProductCard({
                     : `Elegir molienda de ${product.nombre}`
                 }
                 title={agregaDirecto ? 'Agregar al carrito' : 'Elegir molienda'}
-                className="absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md opacity-0 transition-opacity hover:bg-[#8B4513] hover:text-white group-hover:opacity-100 cursor-pointer"
+                className="absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md opacity-0 transition-opacity hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)] group-hover:opacity-100 cursor-pointer"
               >
                 {agregaDirecto
                   ? <ShoppingBag className="h-4 w-4" />
@@ -127,12 +127,12 @@ export default function ProductCard({
 
         {/* Info */}
         <div className="p-4">
-          <p className="mb-1 text-xs capitalize text-[#8B4513]">
+          <p className="mb-1 text-xs capitalize text-[var(--sf-acento-texto)]">
             {product.origen ||
               product.categoria?.replace("_", " ")}
           </p>
 
-          <h3 className="mb-2 line-clamp-2 text-sm leading-tight font-medium text-[#1a0f08]">
+          <h3 className="mb-2 line-clamp-2 text-sm leading-tight font-medium text-[var(--sf-tinta)]">
             {product.nombre}
           </h3>
 
@@ -144,7 +144,7 @@ export default function ProductCard({
                 .map((note) => (
                   <span
                     key={note}
-                    className="rounded-full bg-[#f0e8de] px-2 py-0.5 text-[10px] text-[#5a3a28]"
+                    className="rounded-full bg-[var(--sf-superficie)] px-2 py-0.5 text-[10px] text-[var(--sf-texto)]"
                   >
                     {note}
                   </span>
@@ -155,12 +155,12 @@ export default function ProductCard({
           {/* Footer */}
           <div className="flex items-center justify-between">
             <div>
-              <span className="font-bold text-[#1a0f08]">
+              <span className="font-bold text-[var(--sf-tinta)]">
                 {formatCOP(product.precio)}
               </span>
 
               {product.esSuscripcion && (
-                <span className="ml-1 text-xs text-[#8B4513]">
+                <span className="ml-1 text-xs text-[var(--sf-acento-texto)]">
                   /mes
                 </span>
               )}
@@ -172,9 +172,9 @@ export default function ProductCard({
               </span>
             ) : (
               <div className="flex items-center gap-0.5">
-                <Star className="h-3 w-3 fill-[#d4a97a] text-[#d4a97a]" />
+                <Star className="h-3 w-3 fill-[var(--sf-tostado)] text-[var(--sf-tostado)]" />
 
-                <span className="text-xs text-[#5a3a28]">
+                <span className="text-xs text-[var(--sf-texto)]">
                   4.9
                 </span>
               </div>

@@ -10,6 +10,7 @@ import { SiteSettingsProvider } from "@/components/storefront/SiteSettingsProvid
 import { getSiteSettings } from "@/lib/config/site-settings";
 import { SiteContentProvider } from "@/components/storefront/SiteContentProvider";
 import { getSiteContent } from "@/lib/config/site-content";
+import { cssPaleta } from "@/lib/config/palette-style";
 
 // El storefront se renderiza DINÁMICO (por request), no estático. Su layout lee la
 // identidad del negocio (SiteSetting) y el contenido de la home (SiteContent) de la BASE, y
@@ -23,28 +24,40 @@ import { getSiteContent } from "@/lib/config/site-content";
 // este tamaño no necesita. Si el tráfico crece, ése es el momento de volver a estático + ISR.
 export const dynamic = 'force-dynamic';
 
-// ─── La identidad del STOREFRONT, declarada acá ──────────────────────────────
+// ─── La identidad del STOREFRONT, dinámica desde SiteSetting ──────────────────
 //
-// Antes vivía en las convenciones de archivo de la raíz (`app/favicon.ico`,
-// `app/icon.svg`, `app/apple-icon.png`), y ése era el bug: Next las aplica a TODA
-// la app, así que el panel de Duna servía el favicon de Café Nayoli. Los archivos
-// se movieron a `public/` —mismas URLs, mismos bytes— y el grupo los declara.
+// El TÍTULO y la DESCRIPCIÓN de la pestaña salen de SiteSetting (editables desde el
+// panel). El storefront es `force-dynamic`, así que `generateMetadata` re-corre por
+// request: cambiar el nombre del negocio se ve en el siguiente load, sin rebuild ni
+// caché rancio (el `<title>` viaja en el HTML, no es un binario cacheado como el favicon).
+// Esto SOBREESCRIBE el `title.default`/`template` de la raíz (que es de Nayoli) para todo
+// el subárbol del storefront; la raíz queda como fallback muerto (siempre se sobreescribe).
 //
-// NOTA PARA EL TEMPLATE: esto es **contenido de tenant**, no chrome del producto.
-// El nombre, la descripción, el favicon y los íconos del manifest son de la
-// tienda, no de Duna; van al inventario de la fase 1 (SiteSetting) el día del
-// multitenant, junto con `app/manifest.ts` y el `title`/`description` de la raíz,
-// que siguen siendo de Nayoli a propósito.
-export const metadata: Metadata = {
-  icons: {
-    icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/favicon.ico", sizes: "any" },
-    ],
-    apple: { url: "/apple-icon.png", type: "image/png", sizes: "180x180" },
-    shortcut: "/favicon.ico",
-  },
-};
+// Los ICONOS son assets por archivo PER-CLIENTE (favicon, PWA, apple): hoy los de Nayoli,
+// un segundo cliente los REEMPLAZA por-despliegue. Su cache-safety la da una regla
+// `headers()` en `next.config.ts` (Cache-Control corto sobre /favicon.ico y hermanos) — la
+// MISMA URL que usa el probe ciego, así que no hay puerta de atrás; no una ruta /api/favicon.
+// El color del tema y el mark del `Logo` (wordmark-first) salen de SiteSetting en el commit 4.
+export async function generateMetadata(): Promise<Metadata> {
+  const { nombre, descripcionFooter } = await getSiteSettings();
+  return {
+    // `absolute` (NO `default`) + `template`: un `title.default` de segmento hijo SIGUE
+    // pasando por el `template` de la RAÍZ (`%s · Café Nayoli`) → la home salía duplicada
+    // "Café Nayoli · Café Nayoli". `absolute` ignora el template heredado, igual que hizo el
+    // admin con "Panel Duna" (§ Identidad — la trampa ya estaba documentada). Así: la home →
+    // "{nombre}"; una hija con `title: "X"` (p.ej. /nosotros) → "X · {nombre}".
+    title: { absolute: nombre, template: `%s · ${nombre}` },
+    description: descripcionFooter,
+    icons: {
+      icon: [
+        { url: "/icon.svg", type: "image/svg+xml" },
+        { url: "/favicon.ico", sizes: "any" },
+      ],
+      apple: { url: "/apple-icon.png", type: "image/png", sizes: "180x180" },
+      shortcut: "/favicon.ico",
+    },
+  };
+}
 
 interface StorefrontLayoutProps {
   children: ReactNode;
@@ -57,15 +70,21 @@ export default async function StorefrontLayout({
   // layout server (React.cache dedupe por request) e inyectados a sus providers. Son
   // INDEPENDIENTES entre sí, así que van en un Promise.all — no en cadena.
   const [settings, content] = await Promise.all([getSiteSettings(), getSiteContent()]);
+  // La PALETA del cliente, derivada de sus 3 raíces e inyectada como `:root{--sf-*}` en un
+  // <style> SERVER-RENDERED (sin flash — va en el primer paint; gana a los defaults de
+  // globals.css por orden de fuente). Nayoli tiene las raíces en null → `null` → sin <style>
+  // → defaults de código → byte-idéntico. (§ palette-style.)
+  const paletaCss = cssPaleta(settings.paletaFondo, settings.paletaTinta, settings.paletaAcento);
   return (
     <StorefrontThemeProvider>
+      {paletaCss && <style dangerouslySetInnerHTML={{ __html: paletaCss }} />}
       <SiteSettingsProvider value={settings}>
         <SiteContentProvider value={content}>
           <CartProvider>
             {/* El wrapper del storefront: fondo y fuente de la tienda. Antes lo ponía el wrapper
                 del iframe (que además leía `?preview`, ya retirado); queda el div plano con las
-                MISMAS clases (`bg-[#faf7f4] font-inter`) para no cambiar el aspecto de la tienda. */}
-            <div className="min-h-screen bg-[#faf7f4] font-inter">
+                MISMAS clases (`bg-[var(--sf-fondo)] font-inter`) para no cambiar el aspecto de la tienda. */}
+            <div className="min-h-screen bg-[var(--sf-fondo)] font-inter">
               <StoreNav />
               <main>{children}</main>
               <StoreFooter />

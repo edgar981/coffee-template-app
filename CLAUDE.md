@@ -167,6 +167,30 @@ Caso concreto (2026-08-24): un comentario `{/* … */}` suelto en el TOP-LEVEL d
 errores** y `next build` falló. Misma familia que la campana: un artefacto que pasa una
 capa puede fallar en otra, y la que importa es la que envía.
 
+### Montar un componente en OTRO árbol de providers no lo atrapa ni `tsc` ni el build
+
+**Un hook con nombre de STORE puede ser un CONTEXT con throw duro.** `useCartStore`
+(`lib/cartStore.tsx`) SUENA a zustand —un store standalone que no necesita provider— pero es
+`useContext(CartContext)` + `throw new Error("useCartStore must be used within CartProvider")`.
+Montar el componente que lo usa (`ProductCard`) FUERA de su árbol —el `CartProvider` que sólo
+monta el layout del storefront— revienta en **RUNTIME**, y como `ProductCard` es `'use client'`
+pero se renderiza en SSR, el throw es **server-side y tira la ruta entera**.
+
+**Ni `tsc` ni `next build` lo atrapan, EN VERDE los dos.** Es la misma familia que § `tsc` ≠ SWC,
+subida un nivel: cada capa atrapa lo suyo —tsc ve los tipos, el build ve el parseo— y el
+**MONTAJE de un componente en un árbol sin sus providers no lo ve ninguna**: el provider ausente
+sólo aparece cuando React EJECUTA el hook, al renderizar la ruta. Costó `/admin/configuracion`
+caído en un preview (2026-08-28): la vista previa de paleta montó el `ProductCard` del storefront
+en el admin, que no monta `CartProvider`. Y el descuido que lo dejó pasar fue afirmar
+"autocontenido, sin providers" **por el nombre del hook, sin verificar** qué contexts lee.
+
+**La regla al montar un componente de un árbol en OTRO (storefront↔admin):** verificar qué
+CONTEXTS lee su cadena —no confiar en el nombre del hook—, y montar el provider que falta, LOCAL,
+como `VistaTiendaEnVivo` monta su `SiteContentProvider` (§ La PANTALLA) y como la vista previa de
+paleta monta ahora `CartProvider`. La verificación de esto NO es tsc ni el build: es cargar la
+ruta (capa 3), o —barato y sin sesión— un probe que renderice el hook en SSR sin su provider y
+lo vea lanzar.
+
 ### Verificar PROPAGACIÓN de un dato editable exige modo PRODUCCIÓN — dev engaña
 
 **Un loader que LEE la base no garantiza que el valor se VEA.** Next PRERENDERIZA las rutas
@@ -724,6 +748,32 @@ más el componente que Fase B va a extraer.
 **DISPARADOR: cuando el owner use el editor con las CUATRO secciones y BUSCAR el campo siga siendo
 el estorbo.** Hoy, con UNA sección y el sticky puesto, no hay evidencia de que lo sea.
 
+### 55. La PALETA se comporta como CONTENIDO pero vive en el modelo de IDENTIDAD
+
+La paleta (`SiteSetting.paletaFondo/Tinta/Acento`) **se cambia por gusto, se quiere ver antes de
+publicar, y equivocarse es VISIBLE en el storefront** —o sea se comporta como CONTENIDO
+(§ SiteContent, con su borrador → ver → publicar / descartar)—. Pero vive en `SiteSetting`, el
+modelo **HARD de IDENTIDAD** (cadencia 2×/año, sin borrador, **guardar = publicar en vivo al
+instante**). La frontera identidad↔contenido está en el sitio equivocado PARA ESTE CAMPO.
+
+**Costo YA pagado:** el owner pidió volver a un tema anterior y **hoy no se puede** —guardar
+publica al instante, no hay borrador que descartar—. Es el MISMO defecto que motivó el flujo de
+borrador del contenido (§ La PANTALLA — "cambiar un color sale en vivo al instante"), una capa más
+arriba. El botón **"Usar el tema por defecto"** (tanda de marca) cubre "me perdí" → FÁBRICA, pero
+NO "volver a mi tema anterior".
+
+**DISPARADOR: ya cumplido** (el owner pidió volver atrás; no se puede).
+
+**LA DECISIÓN REAL no es "agregar borrador" — es DÓNDE VIVE LA PALETA:** (a) **injertar borrador en
+`SiteSetting`** (un `paletaBorrador` JSON) sin mover el campo, o (b) **mover la paleta a
+`SiteContent`** (el modelo SOFT que ya trae borrador/publicar/descartar). La (b) reubica la
+frontera; la (a) la deja y le agrega el flujo. **Merece su propio DISCOVERY**, no una tanda de
+implementación directa. Lo que ADELANTA el terreno: la maquinaria de flujo ya está probada
+(`site-content-write.ts`), y la **vista previa en vivo del editor de paleta YA existe** (el
+`ProductCard` sigue al form), así que la mitad "ver antes de publicar" está medio construida. Lo
+que falta decidir es la UBICACIÓN. **(La opción C del reporte de "volver atrás"; la B —historial de
+temas publicados— se descartó: sobre-ingeniería y bloqueada por el no-borrador.)**
+
 ### 3. La ventana de 45 s del polling de la campana
 
 `POLL_MS = 45_000`. El badge se computa sobre el snapshot del cliente, así que una
@@ -1262,6 +1312,62 @@ es ergonomía (el gesto esperado), no un bloqueo.
 **DISPARADOR: si el clic-fuera y el botón resultan INSUFICIENTES en uso real** —el operador
 sigue intentando arrastrar y se traba, o lo reporta—. No antes: hoy hay dos salidas que
 funcionan, y el swipe es un tercer camino esperado, no una carencia que rompa nada.
+
+### 54. El favicon derivado del wordmark — el motor de `ImageResponse`
+
+Hoy el favicon es un asset ESTÁTICO por-despliegue (§ Identidad, § El wordmark carga la
+identidad). Para un cliente **self-serve** —que configura su tienda sin forkear el repo ni
+poner un PNG a mano en `public/`— el favicon debería DERIVARSE del wordmark: un monograma
+(1–2 letras del negocio) en la fuente de marca + `--sf-acento` sobre `--sf-fondo`, renderizado
+con `ImageResponse` de `next/og` (JSX→PNG).
+
+**Costo YA pagado: ninguno** — es capacidad futura, no un defecto.
+
+**El censo del costo** (medido en el gate del motor de color, 2026-08-28): una ruta de ícono
+**DINÁMICA** —re-abre la puerta que § Identidad cerró al pasar los íconos a `public/` estáticos—,
+cargar el **BINARIO de la fuente** para que `ImageResponse` la use, leer la paleta de
+`SiteSetting`, un **cache keyed a nombre+paleta** (invalida cuando cambian), y las **4 variantes
+de tamaño** (32 · apple 180 · maskable 192/512). ~un commit propio.
+
+**DISPARADOR: el flujo SELF-SERVE.** Para el PRIMER segundo cliente —un fork con su favicon
+puesto a mano— el estático sale más barato; la derivación paga a **escala** (muchas tiendas que
+se configuran solas). NO antes: construir el motor para un solo cliente es infraestructura por
+adelantado, para un ícono que se pone una vez.
+
+### 56. El MANIFEST del panel es del CLIENTE — el PWA del admin se instala como la tienda
+
+Hay **UN solo** `app/manifest.ts` (servido en `/manifest.webmanifest`, lo enlazan TODAS las
+rutas), y la tanda de marca lo hizo **dinámico leyendo `SiteSetting`**: `name`/`short_name` = el
+nombre del negocio, y sus `icons` apuntan a `/icon-192.png`/`/icon-512.png`/maskable, que son los
+íconos del CLIENTE en `public/`. El **admin NO sobreescribe `metadata.manifest`**, así que hereda
+ése. Resultado: **instalar el PANEL como PWA lo anuncia como "Café Nayoli" con los íconos de
+Nayoli** — el panel es Duna y debería instalarse como Duna.
+
+**Es DEFECTO, no mejora, y la razón es multi-cliente:** con dos clientes, dos paneles se
+instalarían con íconos DISTINTOS y **ninguno sería el de Duna**. (El favicon de PESTAÑA del admin
+SÍ es Duna —`app/(admin)/layout.tsx` declara `metadata.icons` → `/brand/icon-duna.svg` +
+`favicon-duna.ico`, que sobreescriben la convención de raíz (§ Identidad)—; el hueco es SÓLO el
+manifest de instalación.)
+
+**Costo — el CÓDIGO es barato, pero está GATEADO por un ASSET, así que NO entra "ya":**
+- **Código (chico):** una ruta propia que sirva el manifest de Duna (JSON estático, sin
+  `SiteSetting`: name "Panel Duna", colores de Duna, no los `#F9F6F4`/`#1E150E` de Nayoli) + setear
+  `metadata.manifest` en el layout del admin apuntando a ella. El navegador elige el manifest por
+  el `<link rel="manifest">` de la PÁGINA desde donde se agrega a inicio —así, instalar desde
+  `/admin` usa el de Duna; desde la tienda, el del cliente—.
+- **CAVEAT a verificar:** que `metadata.manifest` del admin REEMPLACE el `<link>` de la convención
+  de raíz (`app/manifest.ts` lo auto-inyecta en todas las rutas), no que AGREGUE un segundo — es la
+  misma lección que obligó a mover los íconos a `public/` (§ Identidad: el `metadata.icons` del hijo
+  agrega, no retira, la convención de raíz).
+- **BLOQUEO real (asset):** un manifest necesita **PNG 192/512 + maskable**, y de Duna sólo hay
+  **SVG + ICO** (`public/brand/`: `icon-duna.svg`, `favicon-duna.ico` — ningún PNG). Generar los PNG
+  de marca Duna (elegir el mark, rasterizar a 192/512 + la zona segura del maskable) es decisión de
+  ASSET, no código. Ya estaba declarado como PENDIENTE en § Identidad; esto lo numera.
+
+**DISPARADOR: el segundo cliente** (o antes, si molesta instalar el panel y verlo como la tienda).
+**Merece su propia tanda pequeña** por el asset. Partial barato posible si urge: fijar sólo el
+`name`/colores de Duna con el ícono SVG —arregla el nombre, el más visible—, dejando el maskable
+PNG de seguimiento; pero un install "propio" de verdad quiere los PNG.
 
 ## Config del negocio — `SiteSetting` (los planos editables)
 
@@ -2896,6 +3002,43 @@ no una fuga.
 `app/manifest.ts` son de la TIENDA, no de Duna. Van al inventario de la fase 1
 (`SiteSetting`) el día del multitenant. Lo que queda del lado del producto es lo
 que declara `app/(admin)/layout.tsx`.
+
+## El WORDMARK carga la identidad; el MARK es asset por-despliegue
+
+Tanda del storefront-por-cliente (2026-08-28). La identidad PORTABLE del storefront es el
+**WORDMARK** —el nombre del negocio, que sale de `SiteSetting.nombre` (§ Config del negocio) y
+lo pasa el CONSUMIDOR a `Logo` (StoreNav/StoreFooter), para que `Logo` siga presentacional—. Un
+segundo cliente cambia su nombre en Configuración y el wordmark lo sigue, sin tocar código. Con
+eso el nombre, el favicon, el título de pestaña y la paleta ya son suyos.
+
+El **MARK** (`LogoMark`, la flor geométrica de Nayoli) **NO es portable: es un ASSET
+POR-DESPLIEGUE**, como el favicon (§ Identidad). Nayoli lo conserva; un segundo cliente
+reemplaza el SVG por el suyo, o ship wordmark-solo. **NO hay campo de logo en `SiteSetting`, y
+no se agrega uno especulativo** —no hay subida de logo todavía, así que un `logoUrl` sin
+escritor sería la mina inerte de siempre (§ el ex-`Product.agotado`)—. La decisión del mark
+quedó pendiente ("de la tanda de assets") y se resuelve acá: es per-despliegue, y el wordmark es
+lo que hace que un segundo cliente se vea suyo sin tocar el mark.
+
+### El logo subido se RESPETA, nunca se tiñe
+
+Cuando exista subida de logo (capacidad futura), la regla es **RESPETARLO tal cual, jamás
+teñirlo con la paleta**. Un logo lleva color intencional —de marca, a veces legalmente fijo— y
+recolorearlo es el default equivocado. Es lo que hacen las plataformas de referencia:
+**Shopify, Squarespace y Wix respetan el logo subido** y, para fondos oscuros, ofrecen un SLOT
+de logo claro/oscuro APARTE —no auto-tinte—. El tinte se reserva a sistemas de ícono monocromo
+(glyphs tipo SF Symbols), y ahí es OPT-IN explícito de quien declara "mi marca es un mono-color".
+
+- **Logo oscuro que desaparecería sobre el HERO → WORDMARK de fallback, no teñir.** El hero es
+  oscuro (`bg-[var(--sf-tinta)]`; § el censo de secciones): un logo oscuro se perdería ahí. La
+  salida es caer al wordmark —que ya se adapta con `variant="dark"`—, NUNCA recolorear el logo
+  del cliente. El wordmark ES el fallback universal precisamente porque no depende de un asset.
+
+### El favicon es estático por-despliegue; su derivación es backlog
+
+El favicon sigue el modelo de § Identidad —asset estático por-despliegue—. Derivarlo del
+wordmark (un monograma con `ImageResponse`) es capacidad de la era **self-serve**, anotada en
+**§ Backlog #54** con su disparador (el flujo self-serve) y su censo de costo. Para el primer
+segundo cliente, un favicon puesto a mano sale más barato que el motor.
 
 ## Política de tema (dark mode)
 
@@ -5143,6 +5286,29 @@ que el admin no debería pedir.
 **El gate `isScheduledShipping` no cambia.** Pre-llenar un campo no programa nada:
 una entrega sigue estando "lista para despachar" solo con mensajero Y fecha, y la
 fecha la sigue poniendo una persona.
+
+## El COPY va en TUTEO colombiano (tú), nunca voseo (vos)
+
+Todo texto de cara al usuario —toasts, hints, errores, labels, placeholders, estados
+vacíos, copy del storefront— va en **tuteo**: "prueba", "elige", "usa", "edita", "ten en
+cuenta". **Nunca voseo**: "probá", "elegís", "usá", "editá", "tené". Nayoli es colombiana
+y el registro de todo el producto es el tuteo; un "probá" suelto suena de otro país en una
+tienda que no lo es.
+
+**El tell es el ACENTO en la última sílaba.** Voseo acentúa el final: prob**á**, eleg**í**s,
+us**á**, edit**á**, mand**á**, dej**á**, seguí, tenés, podés. Tuteo no: pr**ue**ba,
+el**i**ge, **u**sa, ed**i**ta. Ojo con los falsos positivos al barrer: "se hace despacio",
+"la que manda", "deja escrito" son 3ª persona, no voseo — el discriminador es el acento
+final en un IMPERATIVO o un PRESENTE de 2ª persona, no cualquier `-a`/`-e`.
+
+**Está escrito porque se recuerda mal: se coló TRES tandas seguidas** (los tres commits de
+la tanda de marca lo trajeron y el owner lo cazó las tres veces). Una regla que depende de
+acordarse es una que se olvida — por eso vive acá. Barrido rápido antes de cerrar cualquier
+tanda con copy nuevo:
+
+```bash
+grep -rniE "\b(prob[áé]|eleg[íé]s?|us[áé]|edit[áé]|mand[áé]|dej[áé]|ten[éí]s|pod[éí]s|quer[éí]s|segu[íé]s|and[áé]|fijate|acordate)\b" <archivos con copy nuevo>
+```
 
 ## Principio rector del admin (Amber Minimal)
 
