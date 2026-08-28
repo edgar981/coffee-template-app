@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { Pencil } from 'lucide-react';
 import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import ProductCard from '@/components/storefront/ProductCard';
+import { Logo } from '@/components/storefront/Logo';
+import TrustBadges from '@/components/storefront/home/TrustBadges';
 import { CartProvider } from '@/lib/cartStore';
 import type { Product } from '@/types/product';
 import { paletaEditableSchema } from '@/lib/config/palette-schema';
@@ -70,53 +72,56 @@ function desdeSettings(s: Settings): Form {
   };
 }
 
-// Producto de MUESTRA para la vista previa. Nombre GENÉRICO a propósito —no un café de
-// Nayoli— para que nadie lo confunda con un producto real. Sin imagen (ProductCard cae a su
-// fondo de superficie). `bestseller` + `badge` para que el chip de acento (bg acento + texto
+// Productos de MUESTRA para la vista previa. Nombres GENÉRICOS a propósito —no cafés de Nayoli—
+// para que nadie los confunda con productos reales. Sin imagen (ProductCard cae a su fondo de
+// superficie). Uno `bestseller` + `badge` para que el chip de acento (bg acento + texto
 // `acento-txt`, el flip) se vea SIN hover —el botón "agregar" es hover-only y bajo
 // `pointer-events:none` no aparece, así que el badge es quien muestra el acento en estático—.
-const PRODUCTO_MUESTRA: Product = {
-  id: 'muestra',
-  nombre: 'Producto de muestra',
-  slug: 'producto-de-muestra',
-  categoria: 'cafe_bolsa',
-  precio: 45000,
-  costo: 20000,
-  sku: null,
-  stock: 12,
-  activo: true,
-  disponible: true,
-  descripcion: 'Producto de ejemplo para la vista previa de la paleta.',
-  bestseller: true,
-  badge: 'Destacado',
-  notas: ['Suave', 'Equilibrado'],
-};
+const PRODUCTOS_MUESTRA: Product[] = [
+  {
+    id: 'muestra-1', nombre: 'Producto de muestra', slug: 'muestra-1',
+    categoria: 'cafe_bolsa', precio: 45000, costo: 20000, sku: null, stock: 12,
+    activo: true, disponible: true, descripcion: 'Producto de ejemplo para la vista previa de la paleta.',
+    bestseller: true, badge: 'Destacado', notas: ['Suave', 'Equilibrado'],
+  },
+  {
+    id: 'muestra-2', nombre: 'Otro producto de muestra', slug: 'muestra-2',
+    categoria: 'cafe_bolsa', precio: 38000, costo: 18000, sku: null, stock: 8,
+    activo: true, disponible: true, descripcion: 'Segundo producto de ejemplo para la vista previa.',
+    notas: ['Frutal', 'Cítrico'],
+  },
+];
 
-/** La vista previa es el `ProductCard` REAL del storefront —el mismo componente que ve el
- *  cliente, no un croquis— alimentado por la paleta DERIVADA de las raíces del form e INERTE
- *  (`pointer-events:none`: sin carrito, sin navegación, sin hover). Muestra fondo (el marco),
- *  superficie (la tarjeta), línea, tinta (el nombre), acento-texto (el origen) y el acento con
- *  su texto volteado (el badge). El botón "agregar" es hover-only del propio ProductCard; bajo
- *  `pointer-events:none` no se ve, y el badge lo suple. Censo: las secciones con contenido de
- *  VistaTiendaEnVivo (hero/brandStory/subscriptionCTA) son OSCURAS y no muestran el acento. */
-function PreviewTiendaReal({ raices }: { raices: Form }) {
+/** La vista previa es un FRAGMENTO que se lee como pantalla, con COMPONENTES REALES del
+ *  storefront —no un croquis—: una barra con el wordmark (`Logo`), la franja de garantías
+ *  (`TrustBadges`) y dos `ProductCard`, sobre `--sf-fondo` y alimentados por la paleta DERIVADA
+ *  del form. Todo INERTE (`pointer-events:none`: sin carrito, sin navegación, sin hover).
+ *
+ *  Qué se puede montar sin arrastrar fetch (censo del gate): `Logo` recibe `nombre` por PROP,
+ *  sin providers; `TrustBadges` es estático (array + iconos), sin providers ni datos. `StoreNav`
+ *  quedó FUERA a propósito: pide TRES providers (Cart, SiteContent, SiteSettings del storefront)
+ *  y trae buscador/carrito/hamburguesa inertes por una barra que sólo aportaría el nombre —y el
+ *  `Logo` ya lo da—. `ProductCard` sólo necesita `CartProvider`, montado local e inerte (§ Las
+ *  tres capas — montar un componente en otro árbol de providers; `useCartStore` es un context con
+ *  throw duro, no un store standalone). El badge de bestseller muestra el acento en estático. */
+function PreviewTiendaReal({ raices, nombre }: { raices: Form; nombre: string }) {
   const p = derivarPaleta(raices);
   const vars = Object.fromEntries(Object.entries(p).map(([k, v]) => [`--sf-${k}`, v])) as CSSProperties;
   return (
     <div
       className="font-inter"
-      style={{ ...vars, background: 'var(--sf-fondo)', borderRadius: 14, padding: 22, pointerEvents: 'none' }}
+      style={{ ...vars, background: 'var(--sf-fondo)', borderRadius: 14, overflow: 'hidden', pointerEvents: 'none' }}
     >
-      {/* `ProductCard` llama `useCartStore()`, que NO es un store standalone sino un CONTEXT con
-          throw duro (`must be used within CartProvider`). El storefront lo monta en su layout; el
-          admin no, así que sin este provider la ruta revienta en SSR (§ Las tres capas — montar un
-          componente en otro árbol de providers). `CartProvider` es inerte —useState vacío, sin
-          storage ni efectos— así que es un carrito nuevo y aislado; y bajo `pointer-events:none` el
-          `addItem` jamás se dispara. Precedente: `VistaTiendaEnVivo` monta su `SiteContentProvider`
-          local igual. */}
+      {/* Barra superior con el wordmark real */}
+      <div style={{ padding: '14px 18px' }}>
+        <Logo nombre={nombre} />
+      </div>
+      {/* Franja de garantías real (su propio `border-y` separa de la barra) */}
+      <TrustBadges />
+      {/* Dos tarjetas reales, bajo un CartProvider local inerte */}
       <CartProvider>
-        <div style={{ maxWidth: 300, margin: '0 auto' }}>
-          <ProductCard product={PRODUCTO_MUESTRA} />
+        <div style={{ padding: 18, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          {PRODUCTOS_MUESTRA.map(pr => <ProductCard key={pr.id} product={pr} />)}
         </div>
       </CartProvider>
     </div>
@@ -180,6 +185,31 @@ export default function PaletaSeccion() {
         return;
       }
       toast.success('Colores de la tienda guardados.');
+      setEditando(false);
+      startTransition(() => router.refresh());
+    });
+  };
+
+  // "Usar el tema por defecto": PATCH con las 3 raíces en null → el storefront vuelve a los
+  // defaults de código (§ cssPaleta con null → sin inyección). Cubre "me perdí" volviendo a
+  // FÁBRICA —no a un tema custom anterior; eso es § Backlog #55, la paleta al flujo de borrador—.
+  // Sólo se ofrece si hay un tema custom guardado: con el default ya puesto, "Cancelar" ya vuelve.
+  const tieneCustom = settings.paletaFondo != null || settings.paletaTinta != null || settings.paletaAcento != null;
+
+  const usarDefault = () => {
+    setErrorServidor(null);
+    guarda.ejecutar(async () => {
+      const res = await fetch('/api/site-settings/palette', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ paletaFondo: null, paletaTinta: null, paletaAcento: null }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setErrorServidor(data?.error ?? 'No se pudo aplicar el tema por defecto. Intenta de nuevo.');
+        return;
+      }
+      toast.success('Volviste al tema por defecto.');
       setEditando(false);
       startTransition(() => router.refresh());
     });
@@ -260,7 +290,7 @@ export default function PaletaSeccion() {
             <div className="duna-form__full">
               <span className="duna-field__label">Vista previa</span>
               <div style={{ marginTop: '6px', maxWidth: 440 }}>
-                <PreviewTiendaReal raices={form} />
+                <PreviewTiendaReal raices={form} nombre={settings.nombre} />
               </div>
               {avisos.length > 0 && (
                 <div role="status" style={{ marginTop: 'var(--duna-space-3)', maxWidth: 440, display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -279,6 +309,16 @@ export default function PaletaSeccion() {
                 Cancelar
               </button>
               {errorServidor && <p className="duna-field__error" role="alert" style={{ margin: 0 }}>{errorServidor}</p>}
+              {/* Escape hatch a FÁBRICA (§ el botón de fábrica). Empujado a la derecha —es un
+                  reset, distinto del par guardar/cancelar—. Sólo con un tema custom guardado. */}
+              {tieneCustom && (
+                <button
+                  type="button" onClick={usarDefault} disabled={guarda.enVuelo}
+                  className="duna-btn duna-btn--ghost" style={{ marginLeft: 'auto' }}
+                >
+                  Usar el tema por defecto
+                </button>
+              )}
             </div>
           </form>
         ) : (
@@ -288,7 +328,7 @@ export default function PaletaSeccion() {
                   Aspecto de TARJETA (portrait), como la forma del ProductCard del preview. */}
               {refrescando
                 ? <div className="duna-skel" aria-hidden style={{ width: '100%', aspectRatio: '3 / 4', borderRadius: 14 }} />
-                : <PreviewTiendaReal raices={desdeSettings(settings)} />}
+                : <PreviewTiendaReal raices={desdeSettings(settings)} nombre={settings.nombre} />}
             </div>
             <p className="duna-sub" style={{ margin: 0, maxWidth: '24rem' }}>
               {settings.paletaAcento

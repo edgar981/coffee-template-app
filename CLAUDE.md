@@ -748,6 +748,32 @@ más el componente que Fase B va a extraer.
 **DISPARADOR: cuando el owner use el editor con las CUATRO secciones y BUSCAR el campo siga siendo
 el estorbo.** Hoy, con UNA sección y el sticky puesto, no hay evidencia de que lo sea.
 
+### 55. La PALETA se comporta como CONTENIDO pero vive en el modelo de IDENTIDAD
+
+La paleta (`SiteSetting.paletaFondo/Tinta/Acento`) **se cambia por gusto, se quiere ver antes de
+publicar, y equivocarse es VISIBLE en el storefront** —o sea se comporta como CONTENIDO
+(§ SiteContent, con su borrador → ver → publicar / descartar)—. Pero vive en `SiteSetting`, el
+modelo **HARD de IDENTIDAD** (cadencia 2×/año, sin borrador, **guardar = publicar en vivo al
+instante**). La frontera identidad↔contenido está en el sitio equivocado PARA ESTE CAMPO.
+
+**Costo YA pagado:** el owner pidió volver a un tema anterior y **hoy no se puede** —guardar
+publica al instante, no hay borrador que descartar—. Es el MISMO defecto que motivó el flujo de
+borrador del contenido (§ La PANTALLA — "cambiar un color sale en vivo al instante"), una capa más
+arriba. El botón **"Usar el tema por defecto"** (tanda de marca) cubre "me perdí" → FÁBRICA, pero
+NO "volver a mi tema anterior".
+
+**DISPARADOR: ya cumplido** (el owner pidió volver atrás; no se puede).
+
+**LA DECISIÓN REAL no es "agregar borrador" — es DÓNDE VIVE LA PALETA:** (a) **injertar borrador en
+`SiteSetting`** (un `paletaBorrador` JSON) sin mover el campo, o (b) **mover la paleta a
+`SiteContent`** (el modelo SOFT que ya trae borrador/publicar/descartar). La (b) reubica la
+frontera; la (a) la deja y le agrega el flujo. **Merece su propio DISCOVERY**, no una tanda de
+implementación directa. Lo que ADELANTA el terreno: la maquinaria de flujo ya está probada
+(`site-content-write.ts`), y la **vista previa en vivo del editor de paleta YA existe** (el
+`ProductCard` sigue al form), así que la mitad "ver antes de publicar" está medio construida. Lo
+que falta decidir es la UBICACIÓN. **(La opción C del reporte de "volver atrás"; la B —historial de
+temas publicados— se descartó: sobre-ingeniería y bloqueada por el no-borrador.)**
+
 ### 3. La ventana de 45 s del polling de la campana
 
 `POLL_MS = 45_000`. El badge se computa sobre el snapshot del cliente, así que una
