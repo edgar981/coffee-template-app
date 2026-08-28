@@ -41,6 +41,48 @@
      Playfair (do not import the font twice). */
   --font-display: 'Playfair Display', serif;
 
+  /* ── Tokens de MARCA del STOREFRONT ────────────────────────────────────────
+     La paleta del storefront (café, cremas, tostados) tokenizada. TOKENIZACIÓN
+     FIEL, byte-idéntica: cada tono distinto es su propia var; sólo 3 near-dups
+     IMPERCEPTIBLES colapsan (#f9f6f4/#f9f5f0 → fondo, ≤4u; #1e150e → tinta, 6u).
+     El storefront es LIGHT-ONLY, así que no llevan variante oscura.
+
+     AGRUPADAS POR ORIGEN, para la derivación del commit 4: 18 colores no son
+     configurables, así que el cliente elegirá ~3 RAÍCES (fondo · tinta · acento) y
+     la COLA se DERIVA de ellas. La familia dice de cuál sale cada tono:
+       · FONDO  → los cremas (superficie, línea son el fondo, más hondo)
+       · TINTA  → los near-negros
+       · ACENTO → los marrones y tostados (texto incluido: son marrones cálidos,
+                  variaciones del acento — por eso van en esta familia, no aparte)
+     Tokenizar ≠ rediseñar: acá NADA cambia de tono; la reducción a raíces+derivadas
+     es la decisión del commit 4. */
+
+  /* FONDO family — cremas */
+  --sf-fondo:        #faf7f4;   /* fondo de página (+#f9f6f4, #f9f5f0) */
+  --sf-superficie:   #f0e8de;   /* superficie/panel claro */
+  --sf-linea:        #e8ddd0;   /* borde / hairline */
+  --sf-superficie-2: #e4d3c0;   /* crema más honda (1 uso) */
+
+  /* TINTA family — near-negros */
+  --sf-tinta:        #1a0f08;   /* texto principal + fondos oscuros + gradientes (+#1e150e) */
+  --sf-tinta-2:      #2d1a0e;   /* near-negro cálido (gradiente) */
+
+  /* ACENTO family — marrones cálidos + tostados */
+  --sf-acento:       #8b4513;   /* el acento de marca */
+  --sf-acento-2:     #3d2314;   /* marrón oscuro */
+  --sf-acento-3:     #5a2d0c;   /* marrón oscuro anaranjado */
+  --sf-acento-4:     #b5794e;   /* marrón medio (botón /cuenta, hoy dead code comentado) */
+  --sf-texto:        #5a3a28;   /* texto de cuerpo (marrón cálido oscuro) */
+  --sf-texto-suave:  #8b6650;   /* texto atenuado */
+  --sf-tostado:      #d4a97a;   /* tostado claro (decorativo, hover) */
+  --sf-tostado-2:    #c0a080;
+  --sf-tostado-3:    #a07050;
+  --sf-tostado-4:    #c49060;
+  --sf-tostado-5:    #ba9c7b;
+  --sf-tostado-6:    #e8c095;
+  --sf-tostado-7:    #d8c4ad;
+  --sf-tostado-8:    #d4b896;
+
   /* Border Radius */
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);

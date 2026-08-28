@@ -84,7 +84,7 @@ export default function ProductPage({
   if (catalog === null) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center pt-16">
-        <p className="font-playfair text-xl text-[#8B6650]">Cargando…</p>
+        <p className="font-playfair text-xl text-[var(--sf-texto-suave)]">Cargando…</p>
       </div>
     );
   }
@@ -98,7 +98,7 @@ export default function ProductPage({
 
         <Link
           href="/tienda"
-          className="text-sm text-[#8B4513] underline"
+          className="text-sm text-[var(--sf-acento)] underline"
         >
           ← Volver a la tienda
         </Link>
@@ -165,10 +165,10 @@ export default function ProductPage({
     <div className="pt-16">
       {/* Breadcrumb */}
       <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6 lg:px-8">
-        <nav className="flex items-center gap-2 text-xs text-[#8B6650]">
+        <nav className="flex items-center gap-2 text-xs text-[var(--sf-texto-suave)]">
           <Link
             href="/"
-            className="hover:text-[#8B4513]"
+            className="hover:text-[var(--sf-acento)]"
           >
             Inicio
           </Link>
@@ -177,14 +177,14 @@ export default function ProductPage({
 
           <Link
             href="/tienda"
-            className="hover:text-[#8B4513]"
+            className="hover:text-[var(--sf-acento)]"
           >
             Tienda
           </Link>
 
           <span>/</span>
 
-          <span className="text-[#1a0f08]">
+          <span className="text-[var(--sf-tinta)]">
             {product.nombre}
           </span>
         </nav>
@@ -199,7 +199,7 @@ export default function ProductPage({
               key={imgIdx}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="relative aspect-square overflow-hidden rounded-3xl bg-[#f0e8de]"
+              className="relative aspect-square overflow-hidden rounded-3xl bg-[var(--sf-superficie)]"
             >
               {heroSrc && (
                 <Image
@@ -228,7 +228,7 @@ export default function ProductPage({
                       }
                       className={`h-16 w-16 overflow-hidden rounded-xl border-2 transition-all ${
                         imgIdx === i
-                          ? "border-[#8B4513]"
+                          ? "border-[var(--sf-acento)]"
                           : "border-transparent opacity-60 hover:opacity-100"
                       }`}
                     >
@@ -251,17 +251,17 @@ export default function ProductPage({
           {/* Info */}
           <div className="space-y-6">
               {product.badge && (
-                <span className="inline-block text-xs font-semibold bg-[#d4a97a] text-[#1a0f08] px-3 py-1 rounded-full">{product.badge}</span>
+                <span className="inline-block text-xs font-semibold bg-[var(--sf-tostado)] text-[var(--sf-tinta)] px-3 py-1 rounded-full">{product.badge}</span>
               )}
               <div>
-                <p className="text-sm text-[#8B4513] mb-1 capitalize">{product.origen || product.categoria?.replace('_', ' ')}</p>
-                <h1 className="text-3xl sm:text-4xl font-playfair text-[#1a0f08] leading-tight">{product.nombre}</h1>
+                <p className="text-sm text-[var(--sf-acento)] mb-1 capitalize">{product.origen || product.categoria?.replace('_', ' ')}</p>
+                <h1 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-tinta)] leading-tight">{product.nombre}</h1>
               </div>
 
               {/* Rating */}
               <div className="flex items-center gap-3">
-                <div className="flex gap-1">{Array(5).fill(0).map((_, i) => <Star key={i} className="w-4 h-4 fill-[#d4a97a] text-[#d4a97a]" />)}</div>
-                <span className="text-sm text-[#5a3a28]">4.9 · 124 reseñas</span>
+                <div className="flex gap-1">{Array(5).fill(0).map((_, i) => <Star key={i} className="w-4 h-4 fill-[var(--sf-tostado)] text-[var(--sf-tostado)]" />)}</div>
+                <span className="text-sm text-[var(--sf-texto)]">4.9 · 124 reseñas</span>
               </div>
 
               {/* Ficha técnica — pills compactas (datos estructurados del empaque) */}
@@ -276,29 +276,29 @@ export default function ProductPage({
                     {product.peso_gramos != null && <Chip label="Tamaño" value={`${product.peso_gramos} g`} />}
                     {product.variedad && <Chip label="Variedad" value={product.variedad} />}
                   </div>
-                  <p className="text-xs text-[#8B6650] mt-2">Café de especialidad · 100% colombiano</p>
+                  <p className="text-xs text-[var(--sf-texto-suave)] mt-2">Café de especialidad · 100% colombiano</p>
                 </div>
               )}
 
               {/* Notas de cata (empaque) */}
               {(product.notasCata?.length ?? 0) > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-[#5a3a28] uppercase tracking-wide mb-2">Notas de cata</p>
+                  <p className="text-xs font-semibold text-[var(--sf-texto)] uppercase tracking-wide mb-2">Notas de cata</p>
                   <div className="flex flex-wrap gap-2">
                     {product.notasCata!.map(n => (
-                      <span key={n} className="text-sm bg-[#f0e8de] text-[#5a3a28] px-3 py-1 rounded-full border border-[#e8ddd0]">{n}</span>
+                      <span key={n} className="text-sm bg-[var(--sf-superficie)] text-[var(--sf-texto)] px-3 py-1 rounded-full border border-[var(--sf-linea)]">{n}</span>
                     ))}
                   </div>
                 </div>
               )}
 
-              <p className="text-[#5a3a28] leading-relaxed text-sm">{product.descripcion}</p>
+              <p className="text-[var(--sf-texto)] leading-relaxed text-sm">{product.descripcion}</p>
 
               {/* Tipo de molienda — data-driven desde el producto. Molido: escala
                   completa con solo las disponibles clickeables; Grano: chip único. */}
               {(product.moliendasOpciones?.length ?? 0) > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-[#5a3a28] uppercase tracking-wide mb-2">Tipo de molienda</p>
+                  <p className="text-xs font-semibold text-[var(--sf-texto)] uppercase tracking-wide mb-2">Tipo de molienda</p>
                   <div className="flex flex-wrap gap-2">
                     {product.moliendasOpciones!.map(o => {
                       const selected = molienda === o.nombre;
@@ -310,14 +310,14 @@ export default function ProductPage({
                           title={o.disponible ? undefined : 'Próximamente'}
                           className={`px-3 py-2 rounded-lg text-left border transition-all ${
                             selected
-                              ? 'border-[#8B4513] bg-[#8B4513]/5'
+                              ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5'
                               : o.disponible
-                                ? 'border-[#e8ddd0] hover:border-[#8B4513]/40 cursor-pointer'
-                                : 'border-[#e8ddd0] opacity-40 cursor-not-allowed'
+                                ? 'border-[var(--sf-linea)] hover:border-[var(--sf-acento)]/40 cursor-pointer'
+                                : 'border-[var(--sf-linea)] opacity-40 cursor-not-allowed'
                           }`}
                         >
-                          <span className={`block text-xs font-medium ${selected ? 'text-[#8B4513]' : 'text-[#1a0f08]'}`}>{o.nombre}</span>
-                          <span className="block text-[10px] text-[#8B6650]">{o.metodo}</span>
+                          <span className={`block text-xs font-medium ${selected ? 'text-[var(--sf-acento)]' : 'text-[var(--sf-tinta)]'}`}>{o.nombre}</span>
+                          <span className="block text-[10px] text-[var(--sf-texto-suave)]">{o.metodo}</span>
                         </button>
                       );
                     })}
@@ -329,13 +329,13 @@ export default function ProductPage({
                   suscripciones todavía (SUBSCRIPTIONS_ENABLED). El componente se
                   conserva para reactivarlo cuando se definan precio y descuento. */}
               {SUBSCRIPTIONS_ENABLED && !product.esSuscripcion && (
-                <div className={`rounded-2xl border-2 p-4 cursor-pointer transition-all ${suscripcion ? 'border-[#8B4513] bg-[#8B4513]/5' : 'border-[#e8ddd0] hover:border-[#c0a080]'}`} onClick={() => setSuscripcion(!suscripcion)}>
+                <div className={`rounded-2xl border-2 p-4 cursor-pointer transition-all ${suscripcion ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)] hover:border-[var(--sf-tostado-2)]'}`} onClick={() => setSuscripcion(!suscripcion)}>
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="font-semibold text-[#1a0f08] text-sm">Suscribirse y ahorrar {Math.round(SUBSCRIPTION_DISCOUNT * 100)}%</p>
-                      <p className="text-xs text-[#5a3a28] mt-0.5">Entrega mensual · Pausa o cancela cuando quieras</p>
+                      <p className="font-semibold text-[var(--sf-tinta)] text-sm">Suscribirse y ahorrar {Math.round(SUBSCRIPTION_DISCOUNT * 100)}%</p>
+                      <p className="text-xs text-[var(--sf-texto)] mt-0.5">Entrega mensual · Pausa o cancela cuando quieras</p>
                     </div>
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${suscripcion ? 'border-[#8B4513] bg-[#8B4513]' : 'border-[#c0a080]'}`}>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${suscripcion ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]' : 'border-[var(--sf-tostado-2)]'}`}>
                       {suscripcion && <CheckCircle className="w-3.5 h-3.5 text-white" />}
                     </div>
                   </div>
@@ -348,17 +348,17 @@ export default function ProductPage({
               {/* Price + CTA */}
               <div className="space-y-4">
                 <div className="flex items-end gap-3">
-                  <span className="text-4xl font-bold text-[#1a0f08]">{formatCOP(price)}</span>
-                  {suscripcion && <span className="text-lg text-[#a07050] line-through">{formatCOP(product.precio)}</span>}
-                  {product.esSuscripcion && <span className="text-sm text-[#5a3a28]">/mes</span>}
+                  <span className="text-4xl font-bold text-[var(--sf-tinta)]">{formatCOP(price)}</span>
+                  {suscripcion && <span className="text-lg text-[var(--sf-tostado-3)] line-through">{formatCOP(product.precio)}</span>}
+                  {product.esSuscripcion && <span className="text-sm text-[var(--sf-texto)]">/mes</span>}
                 </div>
 
                 {product.disponible ? (
                   <div className="space-y-3">
                     <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2 bg-[#f0e8de] rounded-xl px-1">
-                        <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-9 h-9 flex items-center justify-center hover:bg-[#e8ddd0] rounded-lg transition-colors cursor-pointer"><Minus className="w-4 h-4" /></button>
-                        <span className="w-8 text-center font-semibold text-[#1a0f08]">{qty}</span>
+                      <div className="flex items-center gap-2 bg-[var(--sf-superficie)] rounded-xl px-1">
+                        <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-9 h-9 flex items-center justify-center hover:bg-[var(--sf-linea)] rounded-lg transition-colors cursor-pointer"><Minus className="w-4 h-4" /></button>
+                        <span className="w-8 text-center font-semibold text-[var(--sf-tinta)]">{qty}</span>
                         <button
                           onClick={() =>
                             setQty((q) => {
@@ -370,21 +370,21 @@ export default function ProductPage({
                               return q + 1;
                             })
                           }
-                          className="w-9 h-9 flex items-center justify-center hover:bg-[#e8ddd0] rounded-lg transition-colors cursor-pointer"
+                          className="w-9 h-9 flex items-center justify-center hover:bg-[var(--sf-linea)] rounded-lg transition-colors cursor-pointer"
                         >
                           <Plus className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
                     <div className="flex gap-3">
-                      <button onClick={handleAdd} className="flex-1 flex items-center justify-center gap-2 bg-[#1a0f08] hover:bg-[#2d1a0e] text-white font-semibold py-4 rounded-2xl transition-all hover:-translate-y-0.5 text-sm">
+                      <button onClick={handleAdd} className="flex-1 flex items-center justify-center gap-2 bg-[var(--sf-tinta)] hover:bg-[var(--sf-tinta-2)] text-white font-semibold py-4 rounded-2xl transition-all hover:-translate-y-0.5 text-sm">
                         <ShoppingBag className="w-4 h-4" /> Agregar al carrito
                       </button>
-                      <button onClick={() => setWishlisted(!wishlisted)} className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all ${wishlisted ? 'border-red-400 bg-red-50 text-red-500' : 'border-[#e8ddd0] text-[#a07050] hover:border-red-300'}`}>
+                      <button onClick={() => setWishlisted(!wishlisted)} className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all ${wishlisted ? 'border-red-400 bg-red-50 text-red-500' : 'border-[var(--sf-linea)] text-[var(--sf-tostado-3)] hover:border-red-300'}`}>
                         <Heart className={`w-5 h-5 ${wishlisted ? 'fill-red-400' : ''}`} />
                       </button>
                     </div>
-                    <button onClick={() => { handleAdd(); }} className="w-full border-2 border-[#8B4513] text-[#8B4513] hover:bg-[#8B4513] hover:text-white font-semibold py-4 rounded-2xl transition-all text-sm">
+                    <button onClick={() => { handleAdd(); }} className="w-full border-2 border-[var(--sf-acento)] text-[var(--sf-acento)] hover:bg-[var(--sf-acento)] hover:text-white font-semibold py-4 rounded-2xl transition-all text-sm">
                       Comprar ahora
                     </button>
                   </div>
@@ -394,7 +394,7 @@ export default function ProductPage({
                     <p className="text-sm text-gray-400 mt-1">Déjanos tu correo para notificarte cuando regrese.</p>
                     <div className="flex gap-2 mt-3">
                       <input type="email" placeholder="tu@correo.com" className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-                      <button className="bg-[#8B4513] text-white px-4 py-2 rounded-lg text-sm font-medium">Avisar</button>
+                      <button className="bg-[var(--sf-acento)] text-white px-4 py-2 rounded-lg text-sm font-medium">Avisar</button>
                     </div>
                   </div>
                 )}
@@ -403,8 +403,8 @@ export default function ProductPage({
               {/* Shipping Perks */}
               <div className="flex flex-col gap-2 pt-2">
                 {[{ icon: Truck, text: 'Envío a todo Colombia · Gratis +$150.000' }, { icon: RotateCcw, text: 'Garantía de frescura de 30 días' }, { icon: CheckCircle, text: 'Tostado dentro de los 7 días previos al envío' }].map(({ icon: Icon, text }) => (
-                  <div key={text} className="flex items-center gap-2 text-xs text-[#5a3a28]">
-                    <Icon className="w-3.5 h-3.5 text-[#8B4513] shrink-0" /> {text}
+                  <div key={text} className="flex items-center gap-2 text-xs text-[var(--sf-texto)]">
+                    <Icon className="w-3.5 h-3.5 text-[var(--sf-acento)] shrink-0" /> {text}
                   </div>
                 ))}
               </div>
@@ -414,9 +414,9 @@ export default function ProductPage({
 
       {/* Related */}
       {related.length > 0 && (
-        <div className="bg-[#f0e8de] py-16">
+        <div className="bg-[var(--sf-superficie)] py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-            <h2 className="mb-8 font-playfair text-2xl text-[#1a0f08]">
+            <h2 className="mb-8 font-playfair text-2xl text-[var(--sf-tinta)]">
               También te puede gustar
             </h2>
 

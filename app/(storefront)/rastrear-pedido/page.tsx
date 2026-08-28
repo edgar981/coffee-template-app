@@ -94,9 +94,9 @@ function OrderTrackingInner() {
   return (
       <div className="pt-16 min-h-screen">
         {/* Header */}
-        <div className="bg-[#1a0f08] py-16 text-center">
+        <div className="bg-[var(--sf-tinta)] py-16 text-center">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-            <p className="text-[#d4a97a] text-xs tracking-widest uppercase mb-3">Seguimiento</p>
+            <p className="text-[var(--sf-tostado)] text-xs tracking-widest uppercase mb-3">Seguimiento</p>
             <h1 className="text-4xl font-playfair text-white mb-3">Rastrear Pedido</h1>
             <p className="text-white/60 text-sm">Ingresa tu número de orden y el correo de tu compra para ver el estado de tu envío.</p>
           </motion.div>
@@ -104,9 +104,9 @@ function OrderTrackingInner() {
 
         {/* Search */}
         <div className="max-w-xl mx-auto px-4 -mt-8 relative z-10">
-          <div className="bg-white rounded-2xl shadow-lg border border-[#e8ddd0] p-5 space-y-4">
+          <div className="bg-white rounded-2xl shadow-lg border border-[var(--sf-linea)] p-5 space-y-4">
             <div>
-              <label htmlFor="track-orden" className="block text-xs font-medium text-[#5a3a28] mb-1.5">Número de orden</label>
+              <label htmlFor="track-orden" className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Número de orden</label>
               <input
                 id="track-orden"
                 type="text"
@@ -114,11 +114,11 @@ function OrderTrackingInner() {
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSearch()}
                 placeholder="Ej: CN-000041"
-                className="w-full px-4 py-3 bg-[#faf7f4] border border-[#e8ddd0] rounded-xl text-[#1a0f08] text-sm focus:outline-none focus:ring-2 focus:ring-[#8B4513]/20 focus:border-[#8B4513]"
+                className="w-full px-4 py-3 bg-[var(--sf-fondo)] border border-[var(--sf-linea)] rounded-xl text-[var(--sf-tinta)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
               />
             </div>
             <div>
-              <label htmlFor="track-email" className="block text-xs font-medium text-[#5a3a28] mb-1.5">Correo de tu compra</label>
+              <label htmlFor="track-email" className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Correo de tu compra</label>
               <input
                 id="track-email"
                 type="email"
@@ -126,13 +126,13 @@ function OrderTrackingInner() {
                 onChange={e => setEmail(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSearch()}
                 placeholder="Ej: correo@ejemplo.com"
-                className="w-full px-4 py-3 bg-[#faf7f4] border border-[#e8ddd0] rounded-xl text-[#1a0f08] text-sm focus:outline-none focus:ring-2 focus:ring-[#8B4513]/20 focus:border-[#8B4513]"
+                className="w-full px-4 py-3 bg-[var(--sf-fondo)] border border-[var(--sf-linea)] rounded-xl text-[var(--sf-tinta)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
               />
             </div>
             <button
               onClick={handleSearch}
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 bg-[#8B4513] hover:bg-[#5a2d0c] text-white font-semibold px-5 py-3 rounded-xl text-sm transition-colors disabled:opacity-60"
+              className="w-full flex items-center justify-center gap-2 bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] text-white font-semibold px-5 py-3 rounded-xl text-sm transition-colors disabled:opacity-60"
             >
               <Search className="w-4 h-4" /> {loading ? 'Buscando...' : 'Buscar'}
             </button>
@@ -142,7 +142,7 @@ function OrderTrackingInner() {
         {/* Result */}
         <div className="max-w-2xl mx-auto px-4 py-12">
           {!searched && (
-            <div className="text-center py-8 text-[#a07050]">
+            <div className="text-center py-8 text-[var(--sf-tostado-3)]">
               <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p className="text-sm">Ingresa el número de tu orden y tu correo para comenzar.</p>
             </div>
@@ -150,38 +150,38 @@ function OrderTrackingInner() {
 
           {searched && !loading && !order && (
             <div className="text-center py-8">
-              <div className="w-16 h-16 bg-[#f0e8de] rounded-full flex items-center justify-center mx-auto mb-4">
-                <Search className="w-7 h-7 text-[#c0a080]" />
+              <div className="w-16 h-16 bg-[var(--sf-superficie)] rounded-full flex items-center justify-center mx-auto mb-4">
+                <Search className="w-7 h-7 text-[var(--sf-tostado-2)]" />
               </div>
-              <p className="font-medium text-[#1a0f08] mb-1">Orden no encontrada</p>
-              <p className="text-sm text-[#8B6650]">Verifica el número de orden y el correo con el que hiciste tu compra.</p>
+              <p className="font-medium text-[var(--sf-tinta)] mb-1">Orden no encontrada</p>
+              <p className="text-sm text-[var(--sf-texto-suave)]">Verifica el número de orden y el correo con el que hiciste tu compra.</p>
             </div>
           )}
 
           {order && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
               {/* Order Header */}
-              <div className="bg-white rounded-2xl border border-[#e8ddd0] p-6">
+              <div className="bg-white rounded-2xl border border-[var(--sf-linea)] p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <p className="text-xs text-[#8B6650] mb-1">Número de orden</p>
-                    <p className="text-2xl font-bold text-[#8B4513]">{order.numero_orden}</p>
+                    <p className="text-xs text-[var(--sf-texto-suave)] mb-1">Número de orden</p>
+                    <p className="text-2xl font-bold text-[var(--sf-acento)]">{order.numero_orden}</p>
                   </div>
                   <StatusBadge status={displayEstado} theme="light" />
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-xs text-[#8B6650]">Fecha del pedido</p>
-                    <p className="font-medium text-[#1a0f08]">{formatDate(order.createdAt)}</p>
+                    <p className="text-xs text-[var(--sf-texto-suave)]">Fecha del pedido</p>
+                    <p className="font-medium text-[var(--sf-tinta)]">{formatDate(order.createdAt)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-[#8B6650]">Total</p>
-                    <p className="font-bold text-[#1a0f08]">{formatCOP(order.total)}</p>
+                    <p className="text-xs text-[var(--sf-texto-suave)]">Total</p>
+                    <p className="font-bold text-[var(--sf-tinta)]">{formatCOP(order.total)}</p>
                   </div>
                   {order.ciudad_entrega && (
                     <div className="col-span-2">
-                      <p className="text-xs text-[#8B6650] flex items-center gap-1"><MapPin className="w-3 h-3" /> Destino</p>
-                      <p className="font-medium text-[#1a0f08]">{order.ciudad_entrega}</p>
+                      <p className="text-xs text-[var(--sf-texto-suave)] flex items-center gap-1"><MapPin className="w-3 h-3" /> Destino</p>
+                      <p className="font-medium text-[var(--sf-tinta)]">{order.ciudad_entrega}</p>
                     </div>
                   )}
                 </div>
@@ -196,8 +196,8 @@ function OrderTrackingInner() {
                       <XCircle className="w-4 h-4 text-red-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-[#1a0f08]">Pedido cancelado</p>
-                      <p className="text-xs mt-0.5 text-[#8B6650]">Este pedido fue cancelado. Si crees que es un error, contáctanos por WhatsApp y con gusto te ayudamos.</p>
+                      <p className="text-sm font-semibold text-[var(--sf-tinta)]">Pedido cancelado</p>
+                      <p className="text-xs mt-0.5 text-[var(--sf-texto-suave)]">Este pedido fue cancelado. Si crees que es un error, contáctanos por WhatsApp y con gusto te ayudamos.</p>
                     </div>
                   </div>
                 </div>
@@ -208,14 +208,14 @@ function OrderTrackingInner() {
                       <AlertTriangle className="w-4 h-4 text-amber-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-[#1a0f08]">Entrega fallida</p>
-                      <p className="text-xs mt-0.5 text-[#8B6650]">No pudimos completar la entrega. Nuestro equipo se pondrá en contacto contigo por WhatsApp para reprogramarla.</p>
+                      <p className="text-sm font-semibold text-[var(--sf-tinta)]">Entrega fallida</p>
+                      <p className="text-xs mt-0.5 text-[var(--sf-texto-suave)]">No pudimos completar la entrega. Nuestro equipo se pondrá en contacto contigo por WhatsApp para reprogramarla.</p>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="bg-white rounded-2xl border border-[#e8ddd0] p-6">
-                  <h3 className="font-semibold text-[#1a0f08] mb-6">Estado del pedido</h3>
+                <div className="bg-white rounded-2xl border border-[var(--sf-linea)] p-6">
+                  <h3 className="font-semibold text-[var(--sf-tinta)] mb-6">Estado del pedido</h3>
                   <div className="space-y-0">
                     {TIMELINE.map((step, i) => {
                       const done = i <= currentStep;
@@ -224,16 +224,16 @@ function OrderTrackingInner() {
                       return (
                         <div key={step.estado} className="flex gap-4">
                           <div className="flex flex-col items-center">
-                            <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${done ? active ? 'bg-[#8B4513] ring-4 ring-[#8B4513]/20' : 'bg-[#8B4513]' : 'bg-[#f0e8de]'}`}>
-                              <Icon className={`w-4 h-4 ${done ? 'text-white' : 'text-[#c0a080]'}`} />
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${done ? active ? 'bg-[var(--sf-acento)] ring-4 ring-[var(--sf-acento)]/20' : 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-superficie)]'}`}>
+                              <Icon className={`w-4 h-4 ${done ? 'text-white' : 'text-[var(--sf-tostado-2)]'}`} />
                             </div>
                             {i < TIMELINE.length - 1 && (
-                              <div className={`w-0.5 h-10 mt-1 rounded-full transition-all ${i < currentStep ? 'bg-[#8B4513]' : 'bg-[#e8ddd0]'}`} />
+                              <div className={`w-0.5 h-10 mt-1 rounded-full transition-all ${i < currentStep ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-linea)]'}`} />
                             )}
                           </div>
                           <div className={`pb-6 ${i === TIMELINE.length - 1 ? 'pb-0' : ''}`}>
-                            <p className={`text-sm font-semibold ${done ? 'text-[#1a0f08]' : 'text-[#a07050]'}`}>{step.label}</p>
-                            <p className={`text-xs mt-0.5 ${done ? 'text-[#5a3a28]' : 'text-[#c0a080]'}`}>{step.desc}</p>
+                            <p className={`text-sm font-semibold ${done ? 'text-[var(--sf-tinta)]' : 'text-[var(--sf-tostado-3)]'}`}>{step.label}</p>
+                            <p className={`text-xs mt-0.5 ${done ? 'text-[var(--sf-texto)]' : 'text-[var(--sf-tostado-2)]'}`}>{step.desc}</p>
                           </div>
                         </div>
                       );
@@ -244,26 +244,26 @@ function OrderTrackingInner() {
 
               {/* Items */}
               {order.items?.length > 0 && (
-                <div className="bg-white rounded-2xl border border-[#e8ddd0] p-6">
-                  <h3 className="font-semibold text-[#1a0f08] mb-4">Productos</h3>
+                <div className="bg-white rounded-2xl border border-[var(--sf-linea)] p-6">
+                  <h3 className="font-semibold text-[var(--sf-tinta)] mb-4">Productos</h3>
                   <div className="space-y-2">
                     {order.items.map((item, i: number) => (
-                      <div key={i} className="flex justify-between text-sm py-2 border-b border-[#f0e8de] last:border-0">
-                        <span className="text-[#5a3a28]">{item.producto_nombre} × {item.cantidad}</span>
-                        <span className="font-medium text-[#1a0f08]">{formatCOP(item.subtotal)}</span>
+                      <div key={i} className="flex justify-between text-sm py-2 border-b border-[var(--sf-superficie)] last:border-0">
+                        <span className="text-[var(--sf-texto)]">{item.producto_nombre} × {item.cantidad}</span>
+                        <span className="font-medium text-[var(--sf-tinta)]">{formatCOP(item.subtotal)}</span>
                       </div>
                     ))}
                     <div className="space-y-2 pt-3 text-sm">
-                      <div className="flex justify-between text-[#5a3a28]">
+                      <div className="flex justify-between text-[var(--sf-texto)]">
                         <span>Subtotal</span><span>{formatCOP(order.subtotal)}</span>
                       </div>
-                      <div className="flex justify-between text-[#5a3a28]">
+                      <div className="flex justify-between text-[var(--sf-texto)]">
                         <span>Envío</span>
                         <span className={order.costo_envio === 0 ? 'text-emerald-600' : ''}>{order.costo_envio === 0 ? 'Gratis' : formatCOP(order.costo_envio)}</span>
                       </div>
-                      <div className="flex justify-between pt-2 border-t border-[#f0e8de] font-bold">
+                      <div className="flex justify-between pt-2 border-t border-[var(--sf-superficie)] font-bold">
                         <span>Total</span>
-                        <span className="text-[#8B4513]">{formatCOP(order.total)}</span>
+                        <span className="text-[var(--sf-acento)]">{formatCOP(order.total)}</span>
                       </div>
                     </div>
                   </div>

@@ -131,19 +131,19 @@ export default function Checkout() {
             <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <Clock className="w-10 h-10 text-amber-600" />
             </div>
-            <h1 className="text-3xl font-playfair text-[#1a0f08] mb-2">¡Pedido recibido!</h1>
-            <p className="text-[#5a3a28] mb-2">Gracias, {info.nombre}. Recibimos tu pedido.</p>
-            <p className="text-sm text-[#8B6650] mb-4">Tu pedido está reservado. Confirmaremos el pago por WhatsApp y luego preparamos tu envío.</p>
+            <h1 className="text-3xl font-playfair text-[var(--sf-tinta)] mb-2">¡Pedido recibido!</h1>
+            <p className="text-[var(--sf-texto)] mb-2">Gracias, {info.nombre}. Recibimos tu pedido.</p>
+            <p className="text-sm text-[var(--sf-texto-suave)] mb-4">Tu pedido está reservado. Confirmaremos el pago por WhatsApp y luego preparamos tu envío.</p>
             <div className="flex items-center justify-center gap-2 mb-6">
-              <span className="text-xs text-[#8B6650]">Estado:</span>
+              <span className="text-xs text-[var(--sf-texto-suave)]">Estado:</span>
               <StatusBadge status={confirmation.estado} theme="light" />
             </div>
-            <div className="bg-[#f0e8de] rounded-2xl p-5 mb-6 text-left">
-              <p className="text-xs text-[#8B6650] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[#8B4513] mb-4 text-center">{confirmation.numero_orden}</p>
-              <div className="space-y-2 pt-3 border-t border-[#e8ddd0]">
+            <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
+              <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
+              <p className="text-2xl font-bold text-[var(--sf-acento)] mb-4 text-center">{confirmation.numero_orden}</p>
+              <div className="space-y-2 pt-3 border-t border-[var(--sf-linea)]">
                 {confirmation.items.map((item, i) => (
-                  <div key={i} className="flex justify-between text-xs text-[#5a3a28]">
+                  <div key={i} className="flex justify-between text-xs text-[var(--sf-texto)]">
                     <span className="min-w-0 truncate pr-2">
                       {item.producto_nombre}
                       {item.moliendaSeleccionada ? ` · ${item.moliendaSeleccionada}` : ''} × {item.cantidad}
@@ -152,16 +152,16 @@ export default function Checkout() {
                   </div>
                 ))}
               </div>
-              <div className="space-y-2 pt-3 mt-3 border-t border-[#e8ddd0] text-sm">
-                <div className="flex justify-between text-[#5a3a28]">
+              <div className="space-y-2 pt-3 mt-3 border-t border-[var(--sf-linea)] text-sm">
+                <div className="flex justify-between text-[var(--sf-texto)]">
                   <span>Subtotal</span><span>{formatCOP(confirmation.subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-[#5a3a28]">
+                <div className="flex justify-between text-[var(--sf-texto)]">
                   <span>Envío</span>
                   <span className={confirmation.costo_envio === 0 ? 'text-emerald-600' : ''}>{confirmation.costo_envio === 0 ? 'Gratis' : formatCOP(confirmation.costo_envio)}</span>
                 </div>
                 {confirmation.metodo_envio && (
-                  <div className="flex justify-between text-[#5a3a28]">
+                  <div className="flex justify-between text-[var(--sf-texto)]">
                     <span>Entrega</span>
                     <span className="text-right">
                       {getShippingMethod(confirmation.metodo_envio)?.label ?? confirmation.metodo_envio}
@@ -170,19 +170,19 @@ export default function Checkout() {
                   </div>
                 )}
                 {confirmation.direccion_detalle && (
-                  <div className="flex justify-between text-[#5a3a28]">
+                  <div className="flex justify-between text-[var(--sf-texto)]">
                     <span>Detalles</span>
                     <span className="text-right">{confirmation.direccion_detalle}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-bold text-[#1a0f08] text-base pt-1 border-t border-[#e8ddd0]">
+                <div className="flex justify-between font-bold text-[var(--sf-tinta)] text-base pt-1 border-t border-[var(--sf-linea)]">
                   <span>Total</span><span>{formatCOP(confirmation.total)}</span>
                 </div>
               </div>
             </div>
             <div className="flex flex-col gap-3">
-              <Link href={`/rastrear-pedido?orden=${encodeURIComponent(confirmation.numero_orden)}&email=${encodeURIComponent(info.email)}`} className="block w-full bg-[#1a0f08] text-white font-semibold py-3.5 rounded-xl text-sm hover:bg-[#2d1a0e] transition-colors">Rastrear mi pedido</Link>
-              <Link href="/tienda" className="block w-full border border-[#e8ddd0] text-[#5a3a28] font-medium py-3.5 rounded-xl text-sm hover:bg-[#f0e8de] transition-colors">Seguir comprando</Link>
+              <Link href={`/rastrear-pedido?orden=${encodeURIComponent(confirmation.numero_orden)}&email=${encodeURIComponent(info.email)}`} className="block w-full bg-[var(--sf-tinta)] text-white font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)] transition-colors">Rastrear mi pedido</Link>
+              <Link href="/tienda" className="block w-full border border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)] transition-colors">Seguir comprando</Link>
             </div>
           </motion.div>
         </div>
@@ -194,34 +194,34 @@ export default function Checkout() {
         <div className="min-h-[60vh] flex items-center justify-center pt-16">
           <div className="text-center">
             <p className="text-xl font-playfair mb-4">Tu carrito está vacío</p>
-            <Link href="/" className="text-[#8B4513] underline text-sm">← Explorar productos</Link>
+            <Link href="/" className="text-[var(--sf-acento)] underline text-sm">← Explorar productos</Link>
           </div>
         </div>
     );
   }
 
   return (
-      <div className="pt-16 min-h-screen bg-[#faf7f4]">
+      <div className="pt-16 min-h-screen bg-[var(--sf-fondo)]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <div className="flex items-center gap-4 mb-8">
-            <Link href="/tienda" className="p-2 hover:bg-[#f0e8de] rounded-lg transition-colors cursor-pointer">
-              <ArrowLeft className="w-5 h-5 text-[#5a3a28]" />
+            <Link href="/tienda" className="p-2 hover:bg-[var(--sf-superficie)] rounded-lg transition-colors cursor-pointer">
+              <ArrowLeft className="w-5 h-5 text-[var(--sf-texto)]" />
             </Link>
-            <h1 className="text-2xl font-playfair text-[#1a0f08]">Checkout</h1>
+            <h1 className="text-2xl font-playfair text-[var(--sf-tinta)]">Checkout</h1>
           </div>
 
           {/* Steps */}
           <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2">
             {STEPS.map((s, i) => (
               <div key={s} className="flex items-center gap-2 shrink-0">
-                <div className={`flex items-center gap-2 ${i === step ? 'text-[#8B4513]' : i < step ? 'text-emerald-600' : 'text-[#a07050]'}`}>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${i === step ? 'bg-[#8B4513] text-white' : i < step ? 'bg-emerald-600 text-white' : 'bg-[#e8ddd0] text-[#8B6650]'}`}>
+                <div className={`flex items-center gap-2 ${i === step ? 'text-[var(--sf-acento)]' : i < step ? 'text-emerald-600' : 'text-[var(--sf-tostado-3)]'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${i === step ? 'bg-[var(--sf-acento)] text-white' : i < step ? 'bg-emerald-600 text-white' : 'bg-[var(--sf-linea)] text-[var(--sf-texto-suave)]'}`}>
                     {i < step ? '✓' : i + 1}
                   </div>
                   <span className="text-sm font-medium">{s}</span>
                 </div>
-                {i < STEPS.length - 1 && <div className="w-8 h-px bg-[#e8ddd0] mx-1" />}
+                {i < STEPS.length - 1 && <div className="w-8 h-px bg-[var(--sf-linea)] mx-1" />}
               </div>
             ))}
           </div>
@@ -229,24 +229,24 @@ export default function Checkout() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Form */}
             <div className="lg:col-span-2">
-              <div className="bg-white rounded-2xl border border-[#e8ddd0] p-6">
+              <div className="bg-white rounded-2xl border border-[var(--sf-linea)] p-6">
                 {/* Step 0: Info */}
                 {step === 0 && (
                   <div className="space-y-4">
-                    <h2 className="font-semibold text-[#1a0f08] mb-4">Información de contacto</h2>
+                    <h2 className="font-semibold text-[var(--sf-tinta)] mb-4">Información de contacto</h2>
                     <div className="grid grid-cols-2 gap-4">
                       <Field label="Nombre *" value={info.nombre} onChange={v => setInfo({ ...info, nombre: v })} />
                       <Field label="Apellido *" value={info.apellido} onChange={v => setInfo({ ...info, apellido: v })} />
                     </div>
                     <Field label="Correo electrónico *" type="email" value={info.email} onChange={v => setInfo({ ...info, email: v })} />
                     <div>
-                      <label className="block text-xs font-medium text-[#5a3a28] mb-1.5">Teléfono / WhatsApp *</label>
+                      <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Teléfono / WhatsApp *</label>
                       <div className="flex items-stretch">
-                        <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-[#e8ddd0] bg-[#f0e8de] text-sm font-medium text-[#5a3a28] select-none">+57</span>
+                        <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-[var(--sf-linea)] bg-[var(--sf-superficie)] text-sm font-medium text-[var(--sf-texto)] select-none">+57</span>
                         <input
                           type="tel" inputMode="numeric" value={info.telefono}
                           onChange={e => setInfo({ ...info, telefono: e.target.value })} placeholder="300 000 0000"
-                          className="w-full px-4 py-3 bg-[#faf7f4] border border-[#e8ddd0] rounded-r-xl text-sm text-[#1a0f08] focus:outline-none focus:ring-2 focus:ring-[#8B4513]/20 focus:border-[#8B4513]"
+                          className="w-full px-4 py-3 bg-[var(--sf-fondo)] border border-[var(--sf-linea)] rounded-r-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
                         />
                       </div>
                       {info.telefono && !phoneValid && (
@@ -254,16 +254,16 @@ export default function Checkout() {
                       )}
                     </div>
                     <div className="space-y-4">
-                    <h2 className="font-semibold text-[#1a0f08] mb-4">Dirección de entrega</h2>
+                    <h2 className="font-semibold text-[var(--sf-tinta)] mb-4">Dirección de entrega</h2>
                     <Field label="Dirección *" value={address.linea1} onChange={v => setAddress({ ...address, linea1: v })} placeholder="Calle, Carrera, número" />
                     <Field label="Detalles adicionales (opcional)" value={address.detalle} onChange={v => setAddress({ ...address, detalle: v })} placeholder="Apto, torre, interior, indicaciones de entrega." />
                     <div className="grid grid-cols-2 gap-4">
                       <Field label="Ciudad *" value={address.ciudad} onChange={v => setAddress({ ...address, ciudad: v })} />
                       <div>
-                        <label className="block text-xs font-medium text-[#5a3a28] mb-1.5">Departamento *</label>
+                        <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Departamento *</label>
                         <select
                           value={address.departamento} onChange={e => selectDepartamento(e.target.value)}
-                          className="w-full px-4 py-3 bg-[#faf7f4] border border-[#e8ddd0] rounded-xl text-sm text-[#1a0f08] focus:outline-none focus:ring-2 focus:ring-[#8B4513]/20 focus:border-[#8B4513]"
+                          className="w-full px-4 py-3 bg-[var(--sf-fondo)] border border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
                         >
                           <option value="" disabled>Selecciona departamento</option>
                           {COLOMBIA_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
@@ -271,29 +271,29 @@ export default function Checkout() {
                       </div>
                     </div>
                     <div className="space-y-3 mt-4">
-                      <p className="text-sm font-semibold text-[#1a0f08]">Método de envío</p>
+                      <p className="text-sm font-semibold text-[var(--sf-tinta)]">Método de envío</p>
                       {/* Method, price and franja are derived from departamento. */}
                       {!shippingMethod ? (
-                        <p className="text-sm text-[#8B6650] p-4 rounded-xl border-2 border-dashed border-[#e8ddd0]">
+                        <p className="text-sm text-[var(--sf-texto-suave)] p-4 rounded-xl border-2 border-dashed border-[var(--sf-linea)]">
                           Selecciona tu departamento para ver el método y el costo de envío.
                         </p>
                       ) : (
                         <div>
-                          <div className="flex items-center justify-between p-4 rounded-xl border-2 border-[#8B4513] bg-[#8B4513]/5">
+                          <div className="flex items-center justify-between p-4 rounded-xl border-2 border-[var(--sf-acento)] bg-[var(--sf-acento)]/5">
                             <div>
-                              <span className="block text-sm font-medium text-[#1a0f08]">{shippingMethod.label}</span>
-                              <span className="block text-xs text-[#8B6650]">{shippingMethod.description}</span>
+                              <span className="block text-sm font-medium text-[var(--sf-tinta)]">{shippingMethod.label}</span>
+                              <span className="block text-xs text-[var(--sf-texto-suave)]">{shippingMethod.description}</span>
                             </div>
-                            <span className="text-sm font-bold text-[#8B4513] shrink-0">{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost!)}</span>
+                            <span className="text-sm font-bold text-[var(--sf-acento)] shrink-0">{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost!)}</span>
                           </div>
                           {/* Franja horaria — required for Bogotá D.C., framed as a preference */}
                           {isBogota && shippingMethod.slots && (
-                            <div className="mt-3 ml-4 pl-4 border-l-2 border-[#e8ddd0] space-y-2">
-                              <p className="text-xs font-semibold text-[#5a3a28]">Franja horaria * <span className="font-normal text-[#8B6650]">(preferencia)</span></p>
+                            <div className="mt-3 ml-4 pl-4 border-l-2 border-[var(--sf-linea)] space-y-2">
+                              <p className="text-xs font-semibold text-[var(--sf-texto)]">Franja horaria * <span className="font-normal text-[var(--sf-texto-suave)]">(preferencia)</span></p>
                               {shippingMethod.slots.map(s => (
-                                <label key={s.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${slot === s.id ? 'border-[#8B4513] bg-[#8B4513]/5' : 'border-[#e8ddd0]'}`}>
-                                  <input type="radio" name="slot" value={s.id} checked={slot === s.id} onChange={() => setSlot(s.id)} className="accent-[#8B4513]" />
-                                  <span className="text-sm text-[#1a0f08]">{s.label}</span>
+                                <label key={s.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${slot === s.id ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
+                                  <input type="radio" name="slot" value={s.id} checked={slot === s.id} onChange={() => setSlot(s.id)} className="accent-[var(--sf-acento)]" />
+                                  <span className="text-sm text-[var(--sf-tinta)]">{s.label}</span>
                                 </label>
                               ))}
                             </div>
@@ -302,8 +302,8 @@ export default function Checkout() {
                       )}
                     </div>
                     <div className="flex gap-3 mt-2">
-                      <button onClick={() => setStep(0)} className="flex-1 border border-[#e8ddd0] text-[#5a3a28] font-medium py-3.5 rounded-xl text-sm hover:bg-[#f0e8de]">Atrás</button>
-                      <button onClick={() => setStep(1)} disabled={!address.linea1 || !address.ciudad || !address.departamento || !phoneValid || (isBogota && !slot)} className="flex-1 bg-[#1a0f08] disabled:opacity-40 text-white font-semibold py-3.5 rounded-xl text-sm hover:bg-[#2d1a0e]">Continuar al pago</button>
+                      <button onClick={() => setStep(0)} className="flex-1 border border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)]">Atrás</button>
+                      <button onClick={() => setStep(1)} disabled={!address.linea1 || !address.ciudad || !address.departamento || !phoneValid || (isBogota && !slot)} className="flex-1 bg-[var(--sf-tinta)] disabled:opacity-40 text-white font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)]">Continuar al pago</button>
                     </div>
                   </div>
                   </div>
@@ -315,14 +315,14 @@ export default function Checkout() {
                 {/* Step 2: Payment */}
                 {step === 1 && (
                   <div className="space-y-4">
-                    <h2 className="font-semibold text-[#1a0f08] mb-4">Método de pago</h2>
+                    <h2 className="font-semibold text-[var(--sf-tinta)] mb-4">Método de pago</h2>
                     <div className="space-y-3">
                       {availablePayments.map(opt => (
-                        <label key={opt.id} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${payment === opt.id ? 'border-[#8B4513] bg-[#8B4513]/5' : 'border-[#e8ddd0]'}`}>
-                          <input type="radio" name="payment" value={opt.id} checked={payment === opt.id} onChange={() => setPayment(opt.id)} className="mt-0.5 accent-[#8B4513]" />
+                        <label key={opt.id} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${payment === opt.id ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
+                          <input type="radio" name="payment" value={opt.id} checked={payment === opt.id} onChange={() => setPayment(opt.id)} className="mt-0.5 accent-[var(--sf-acento)]" />
                           <div>
-                            <p className="text-sm font-semibold text-[#1a0f08]">{opt.label}</p>
-                            <p className="text-xs text-[#8B6650]">{opt.desc}</p>
+                            <p className="text-sm font-semibold text-[var(--sf-tinta)]">{opt.label}</p>
+                            <p className="text-xs text-[var(--sf-texto-suave)]">{opt.desc}</p>
                           </div>
                         </label>
                       ))}
@@ -330,13 +330,13 @@ export default function Checkout() {
                     {(payment === 'nequi' || payment === 'daviplata' || payment === 'transferencia') && (
                       <Field label="Referencia de pago (opcional)" value={refTransfer} onChange={setRefTransfer} placeholder="Número de confirmación" />
                     )}
-                    <div className="bg-[#f0e8de] rounded-xl p-4 flex items-start gap-2 text-xs text-[#5a3a28]">
-                      <Lock className="w-3.5 h-3.5 text-[#8B4513] shrink-0 mt-0.5" />
+                    <div className="bg-[var(--sf-superficie)] rounded-xl p-4 flex items-start gap-2 text-xs text-[var(--sf-texto)]">
+                      <Lock className="w-3.5 h-3.5 text-[var(--sf-acento)] shrink-0 mt-0.5" />
                       <span>Tu información está segura. Nuestro equipo confirmará el pago por WhatsApp y procesará tu pedido en menos de 2 horas hábiles.</span>
                     </div>
                     <div className="flex gap-3">
-                      <button onClick={() => setStep(0)} className="flex-1 border border-[#e8ddd0] text-[#5a3a28] font-medium py-3.5 rounded-xl text-sm hover:bg-[#f0e8de]">Atrás</button>
-                      <button onClick={handleOrder} disabled={loading} className="flex-1 bg-[#8B4513] hover:bg-[#5a2d0c] disabled:opacity-60 text-white font-bold py-3.5 rounded-xl text-sm transition-colors">
+                      <button onClick={() => setStep(0)} className="flex-1 border border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)]">Atrás</button>
+                      <button onClick={handleOrder} disabled={loading} className="flex-1 bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 text-white font-bold py-3.5 rounded-xl text-sm transition-colors">
                         {loading ? 'Procesando...' : `Confirmar pedido · ${formatCOP(total)}`}
                       </button>
                     </div>
@@ -347,47 +347,47 @@ export default function Checkout() {
 
             {/* Order Summary */}
             <div>
-              <div className="bg-white rounded-2xl border border-[#e8ddd0] p-5 sticky top-20">
-                <h3 className="font-semibold text-[#1a0f08] mb-4">Resumen del pedido</h3>
+              <div className="bg-white rounded-2xl border border-[var(--sf-linea)] p-5 sticky top-20">
+                <h3 className="font-semibold text-[var(--sf-tinta)] mb-4">Resumen del pedido</h3>
                 <div className="space-y-3 mb-4">
                   {items.map(item => {
                     const sinStock = sinStockIds.includes(item.id);
                     return (
                     <div key={item.key} className={`flex gap-3 ${sinStock ? 'rounded-lg -mx-1 px-1 ring-1 ring-red-300 bg-red-50/60' : ''}`}>
-                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-[#f0e8de] shrink-0">
+                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-[var(--sf-superficie)] shrink-0">
                         <img src={item.imagen} alt={item.nombre} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-[#1a0f08] line-clamp-2">{item.nombre}</p>
+                        <p className="text-xs font-medium text-[var(--sf-tinta)] line-clamp-2">{item.nombre}</p>
                         {typeof item.options?.molienda === 'string' && (
-                          <p className="text-xs text-[#a07050]">Molienda: {item.options.molienda}</p>
+                          <p className="text-xs text-[var(--sf-tostado-3)]">Molienda: {item.options.molienda}</p>
                         )}
-                        <p className="text-xs text-[#8B6650]">× {item.quantity}</p>
+                        <p className="text-xs text-[var(--sf-texto-suave)]">× {item.quantity}</p>
                         {sinStock && (
                           <p className="text-xs font-medium text-red-600 mt-0.5">Cantidad no disponible</p>
                         )}
                       </div>
-                      <p className="text-xs font-bold text-[#1a0f08] shrink-0">{formatCOP(item.precio * item.quantity)}</p>
+                      <p className="text-xs font-bold text-[var(--sf-tinta)] shrink-0">{formatCOP(item.precio * item.quantity)}</p>
                     </div>
                     );
                   })}
                 </div>
-                <div className="space-y-2 pt-3 border-t border-[#e8ddd0] text-sm">
-                  <div className="flex justify-between text-[#5a3a28]">
+                <div className="space-y-2 pt-3 border-t border-[var(--sf-linea)] text-sm">
+                  <div className="flex justify-between text-[var(--sf-texto)]">
                     <span>Subtotal</span><span>{formatCOP(subtotal)}</span>
                   </div>
-                  <div className="flex justify-between text-[#5a3a28]">
+                  <div className="flex justify-between text-[var(--sf-texto)]">
                     <span>Envío</span>
                     {shippingCost === null
-                      ? <span className="text-[#8B6650]">Selecciona departamento</span>
+                      ? <span className="text-[var(--sf-texto-suave)]">Selecciona departamento</span>
                       : <span className={shippingCost === 0 ? 'text-emerald-600' : ''}>{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost)}</span>}
                   </div>
-                  <div className="flex justify-between font-bold text-[#1a0f08] text-base pt-1 border-t border-[#e8ddd0]">
+                  <div className="flex justify-between font-bold text-[var(--sf-tinta)] text-base pt-1 border-t border-[var(--sf-linea)]">
                     <span>Total</span><span>{formatCOP(total)}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 mt-4 text-xs text-[#8B6650]">
-                  <Shield className="w-3.5 h-3.5 text-[#8B4513]" />
+                <div className="flex items-center gap-2 mt-4 text-xs text-[var(--sf-texto-suave)]">
+                  <Shield className="w-3.5 h-3.5 text-[var(--sf-acento)]" />
                   <span>Compra 100% segura y verificada</span>
                 </div>
               </div>
@@ -413,10 +413,10 @@ interface FieldProps {
 function Field({ label, value, onChange, type = 'text', placeholder }: FieldProps) {
   return (
     <div>
-      <label className="block text-xs font-medium text-[#5a3a28] mb-1.5">{label}</label>
+      <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">{label}</label>
       <input
         type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full px-4 py-3 bg-[#faf7f4] border border-[#e8ddd0] rounded-xl text-sm text-[#1a0f08] focus:outline-none focus:ring-2 focus:ring-[#8B4513]/20 focus:border-[#8B4513]"
+        className="w-full px-4 py-3 bg-[var(--sf-fondo)] border border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
       />
     </div>
   );

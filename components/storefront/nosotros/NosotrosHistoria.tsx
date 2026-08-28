@@ -16,7 +16,7 @@ export default function NosotrosHistoria() {
   const parrafos = [parrafo1, parrafo2, parrafo3].filter(p => p.trim() !== "");
 
   return (
-    <section className="py-24 bg-[#faf7f4]">
+    <section className="py-24 bg-[var(--sf-fondo)]">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={preview ? false : "hidden"}
@@ -25,12 +25,12 @@ export default function NosotrosHistoria() {
           viewport={preview ? undefined : { once: true }}
           variants={fadeUp}
         >
-          {eyebrow && <p className="text-[#8B4513] text-xs font-medium tracking-[0.2em] uppercase mb-3">{eyebrow}</p>}
+          {eyebrow && <p className="text-[var(--sf-acento)] text-xs font-medium tracking-[0.2em] uppercase mb-3">{eyebrow}</p>}
           {/* h1: es el encabezado principal de la PÁGINA (la home usa h2 por sección). */}
-          <h1 className="text-4xl sm:text-5xl font-playfair text-[#1a0f08] leading-tight mb-8">{titulo}</h1>
+          <h1 className="text-4xl sm:text-5xl font-playfair text-[var(--sf-tinta)] leading-tight mb-8">{titulo}</h1>
           <div className="space-y-6">
             {parrafos.map((p, i) => (
-              <p key={i} className="text-[#3d2314]/80 leading-relaxed text-lg">{p}</p>
+              <p key={i} className="text-[var(--sf-acento-2)]/80 leading-relaxed text-lg">{p}</p>
             ))}
           </div>
         </motion.div>

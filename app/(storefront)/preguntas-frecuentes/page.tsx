@@ -3,7 +3,7 @@ import React from 'react'
 
 export default function PreguntasFrecuentesPage() {
   return (
-    <main className="bg-[#faf7f4] py-16 min-h-screen">
+    <main className="bg-[var(--sf-fondo)] py-16 min-h-screen">
   <PreguntasFrecuentes />
 </main>
   )

@@ -130,12 +130,12 @@ export default function NavSearch({
             transition={{
               duration: 0.2,
             }}
-            className="absolute left-0 top-full z-50 w-full border-t border-[#e8ddd0] bg-white shadow-2xl"
+            className="absolute left-0 top-full z-50 w-full border-t border-[var(--sf-linea)] bg-white shadow-2xl"
           >
             <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
               {/* Search Input */}
               <div className="relative mb-6">
-                <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#a07050]" />
+                <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--sf-tostado-3)]" />
 
                 <input
                   ref={inputRef}
@@ -147,12 +147,12 @@ export default function NavSearch({
                     )
                   }
                   placeholder="Buscar café, origen, categoría..."
-                  className="w-full rounded-2xl border border-[#e8ddd0] bg-[#faf7f4] py-4 pl-12 pr-14 text-sm text-[#1a0f08] outline-none transition-all focus:border-[#8B4513] focus:ring-4 focus:ring-[#8B4513]/10"
+                  className="w-full rounded-2xl border border-[var(--sf-linea)] bg-[var(--sf-fondo)] py-4 pl-12 pr-14 text-sm text-[var(--sf-tinta)] outline-none transition-all focus:border-[var(--sf-acento)] focus:ring-4 focus:ring-[var(--sf-acento)]/10"
                 />
 
                 <button
                   onClick={onClose}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8B6650] transition-colors hover:text-[#1a0f08]"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--sf-texto-suave)] transition-colors hover:text-[var(--sf-tinta)]"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -161,7 +161,7 @@ export default function NavSearch({
               {/* Empty State */}
               {!query.trim() && (
                 <div className="py-10 text-center">
-                  <p className="mb-2 text-sm text-[#8B6650]">
+                  <p className="mb-2 text-sm text-[var(--sf-texto-suave)]">
                     Busca productos,
                     categorías o cafés
                     de origen.
@@ -179,7 +179,7 @@ export default function NavSearch({
                         onClick={() =>
                           setQuery(term)
                         }
-                        className="rounded-full bg-[#f0e8de] px-4 py-2 text-xs font-medium text-[#5a3a28] transition-colors hover:bg-[#e4d3c0]"
+                        className="rounded-full bg-[var(--sf-superficie)] px-4 py-2 text-xs font-medium text-[var(--sf-texto)] transition-colors hover:bg-[var(--sf-superficie-2)]"
                       >
                         {term}
                       </button>
@@ -202,9 +202,9 @@ export default function NavSearch({
                             onClick={
                               onClose
                             }
-                            className="group flex items-center gap-4 rounded-2xl p-3 transition-colors hover:bg-[#faf7f4]"
+                            className="group flex items-center gap-4 rounded-2xl p-3 transition-colors hover:bg-[var(--sf-fondo)]"
                           >
-                            <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-[#f0e8de]">
+                            <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-[var(--sf-superficie)]">
                               <Image
                                 src={
                                   product.imagen ?? "/images/placeholder-producto-v1.png"
@@ -219,37 +219,37 @@ export default function NavSearch({
                             </div>
 
                             <div className="min-w-0 flex-1">
-                              <p className="mb-1 text-xs capitalize tracking-wide text-[#8B4513]">
+                              <p className="mb-1 text-xs capitalize tracking-wide text-[var(--sf-acento)]">
                                 {product.categoria.replace(
                                   "_",
                                   " "
                                 )}
                               </p>
 
-                              <h3 className="truncate font-medium text-[#1a0f08]">
+                              <h3 className="truncate font-medium text-[var(--sf-tinta)]">
                                 {
                                   product.nombre
                                 }
                               </h3>
 
-                              <p className="mt-1 text-sm font-semibold text-[#5a3a28]">
+                              <p className="mt-1 text-sm font-semibold text-[var(--sf-texto)]">
                                 {formatCOP(
                                   product.precio
                                 )}
                               </p>
                             </div>
 
-                            <ArrowRight className="h-4 w-4 text-[#8B6650] transition-transform group-hover:translate-x-1" />
+                            <ArrowRight className="h-4 w-4 text-[var(--sf-texto-suave)] transition-transform group-hover:translate-x-1" />
                           </Link>
                         )
                       )}
                     </div>
                   ) : (
                     <div className="py-12 text-center">
-                      <p className="text-sm text-[#8B6650]">
+                      <p className="text-sm text-[var(--sf-texto-suave)]">
                         No encontramos
                         resultados para{" "}
-                        <span className="font-medium text-[#1a0f08]">
+                        <span className="font-medium text-[var(--sf-tinta)]">
                           &quot;{query}&quot;
                         </span>
                       </p>

@@ -29,8 +29,8 @@ type MarkProps = {
 
 export function LogoMark({
   className,
-  stroke = "#BA9C7B",
-  cherry = "#1E150E",
+  stroke = "var(--sf-tostado-5)",
+  cherry = "var(--sf-tinta)",
 }: MarkProps) {
   return (
     <svg
@@ -63,8 +63,8 @@ type LogoProps = {
 };
 
 export function Logo({ className, variant = "light", stacked = false, subtitle, nombre }: LogoProps) {
-  const wordmark = variant === "light" ? "text-[#1E150E]" : "text-[#F9F6F4]";
-  const cherry = variant === "light" ? "#1E150E" : "#F9F6F4";
+  const wordmark = variant === "light" ? "text-[var(--sf-tinta)]" : "text-[var(--sf-fondo)]";
+  const cherry = variant === "light" ? "var(--sf-tinta)" : "var(--sf-fondo)";
 
   if (stacked) {
     return (
@@ -73,7 +73,7 @@ export function Logo({ className, variant = "light", stacked = false, subtitle, 
         <div className="flex flex-col items-center gap-0.5">
           <span className={cn("font-display text-2xl", wordmark)}>{nombre}</span>
           {subtitle && (
-            <span className="font-display text-[13px] italic text-[#BA9C7B]">{subtitle}</span>
+            <span className="font-display text-[13px] italic text-[var(--sf-tostado-5)]">{subtitle}</span>
           )}
         </div>
       </div>

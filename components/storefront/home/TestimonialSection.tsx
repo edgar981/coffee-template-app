@@ -23,7 +23,7 @@ export default function TestimonialSection() {
   const { eyebrow, titulo, items } = testimonials;
 
   return (
-    <section className="py-20 bg-[#faf7f4]">
+    <section className="py-20 bg-[var(--sf-fondo)]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={preview ? false : "hidden"}
@@ -33,8 +33,8 @@ export default function TestimonialSection() {
             variants={fadeUp}
             className="text-center mb-12"
           >
-            {eyebrow && <p className="text-[#8B4513] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</p>}
-            <h2 className="text-3xl font-playfair text-[#1a0f08]">{titulo}</h2>
+            {eyebrow && <p className="text-[var(--sf-acento)] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</p>}
+            <h2 className="text-3xl font-playfair text-[var(--sf-tinta)]">{titulo}</h2>
           </motion.div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {items.map((t, i) => {
@@ -50,21 +50,21 @@ export default function TestimonialSection() {
                   viewport={preview ? undefined : { once: true }}
                   variants={fadeUp}
                   transition={preview ? undefined : { delay: i * 0.1 }}
-                  className="bg-white rounded-2xl p-6 shadow-sm border border-[#e8ddd0]"
+                  className="bg-white rounded-2xl p-6 shadow-sm border border-[var(--sf-linea)]"
                 >
                   <div className="flex gap-1 mb-4">
                     {[1, 2, 3, 4, 5].map(n => (
-                      <Star key={n} className="w-4 h-4" style={{ fill: n <= estrellas ? "#d4a97a" : "transparent", color: n <= estrellas ? "#d4a97a" : "#d8c4ad" }} />
+                      <Star key={n} className="w-4 h-4" style={{ fill: n <= estrellas ? "var(--sf-tostado)" : "transparent", color: n <= estrellas ? "var(--sf-tostado)" : "var(--sf-tostado-7)" }} />
                     ))}
                   </div>
-                  <p className="text-[#3d2314] text-sm leading-relaxed mb-4">&quot;{t.text}&quot;</p>
+                  <p className="text-[var(--sf-acento-2)] text-sm leading-relaxed mb-4">&quot;{t.text}&quot;</p>
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#e8ddd0] flex items-center justify-center">
-                      <span className="text-xs font-semibold text-[#8B4513]">{(t.name || "?")[0]}</span>
+                    <div className="w-8 h-8 rounded-full bg-[var(--sf-linea)] flex items-center justify-center">
+                      <span className="text-xs font-semibold text-[var(--sf-acento)]">{(t.name || "?")[0]}</span>
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-[#1a0f08]">{t.name}</p>
-                      {atribucion && <p className="text-xs text-[#8B4513]">{atribucion}</p>}
+                      <p className="text-xs font-semibold text-[var(--sf-tinta)]">{t.name}</p>
+                      {atribucion && <p className="text-xs text-[var(--sf-acento)]">{atribucion}</p>}
                     </div>
                   </div>
                 </motion.div>

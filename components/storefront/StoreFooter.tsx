@@ -28,7 +28,7 @@ export default function StoreFooter() {
   const { paginas } = useSiteContent();
   const empresa = footerNav.empresa.filter((l) => l.href !== "/nosotros" || paginas.nosotros.visible);
   return (
-    <footer className="bg-[#1a0f08] text-white">
+    <footer className="bg-[var(--sf-tinta)] text-white">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
@@ -88,7 +88,7 @@ export default function StoreFooter() {
                 <li key={link.label}>
                   <Link
                     href={link.href}
-                    className="transition-colors hover:text-[#d4a97a]"
+                    className="transition-colors hover:text-[var(--sf-tostado)]"
                   >
                     {link.label}
                   </Link>
@@ -113,14 +113,14 @@ export default function StoreFooter() {
                         href={link.href}
                         target="_blank"
                         rel="noopener"
-                        className="transition-colors hover:text-[#d4a97a]"
+                        className="transition-colors hover:text-[var(--sf-tostado)]"
                       >
                         {link.label}
                       </a>
                     ) : (
                       <Link
                         href={link.href}
-                        className="transition-colors hover:text-[#d4a97a]"
+                        className="transition-colors hover:text-[var(--sf-tostado)]"
                       >
                         {link.label}
                       </Link>
@@ -142,7 +142,7 @@ export default function StoreFooter() {
                 <li key={link.label}>
                   <Link
                     href={link.href}
-                    className="transition-colors hover:text-[#d4a97a]"
+                    className="transition-colors hover:text-[var(--sf-tostado)]"
                   >
                     {link.label}
                   </Link>
@@ -157,7 +157,7 @@ export default function StoreFooter() {
                 href={whatsappUrl(settings.whatsapp)}
                 target="_blank"
                 rel="noopener"
-                className="text-[#d4a97a] hover:text-[#e8c095]"
+                className="text-[var(--sf-tostado)] hover:text-[var(--sf-tostado-6)]"
               >
                 {formatWhatsappDisplay(settings.whatsapp)}
               </a>

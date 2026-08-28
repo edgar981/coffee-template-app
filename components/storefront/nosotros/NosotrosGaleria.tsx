@@ -65,7 +65,7 @@ function VideoCelda({ src, poster, alt }: { src: string; poster?: string; alt: s
       <span
         aria-hidden="true"
         className="absolute left-2 bottom-2 flex items-center justify-center rounded-full"
-        style={{ width: 30, height: 30, background: "rgba(250,247,244,0.82)", color: "#1a0f08", pointerEvents: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }}
+        style={{ width: 30, height: 30, background: "rgba(250,247,244,0.82)", color: "var(--sf-tinta)", pointerEvents: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" style={{ marginLeft: 1 }} aria-hidden="true">
           <path d="M8 5v14l11-7z" fill="currentColor" />
@@ -111,7 +111,7 @@ export default function NosotrosGaleria({ negocio }: { negocio?: string }) {
   const altFallback = negocio ? `Foto de la galería de ${negocio}` : "Foto de la galería";
 
   return (
-    <section className="py-20 bg-[#faf7f4]">
+    <section className="py-20 bg-[var(--sf-fondo)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {(eyebrow || titulo) && (
           <motion.div
@@ -122,8 +122,8 @@ export default function NosotrosGaleria({ negocio }: { negocio?: string }) {
             variants={fadeUp}
             className="text-center mb-12"
           >
-            {eyebrow && <p className="text-[#8B4513] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</p>}
-            {titulo && <h2 className="text-3xl font-playfair text-[#1a0f08]">{titulo}</h2>}
+            {eyebrow && <p className="text-[var(--sf-acento)] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</p>}
+            {titulo && <h2 className="text-3xl font-playfair text-[var(--sf-tinta)]">{titulo}</h2>}
           </motion.div>
         )}
         <div className="columns-1 sm:columns-2 lg:columns-3 gap-4">
@@ -137,7 +137,7 @@ export default function NosotrosGaleria({ negocio }: { negocio?: string }) {
                 whileInView={preview ? undefined : "visible"}
                 viewport={preview ? undefined : { once: true }}
                 variants={fadeUp}
-                className="relative overflow-hidden rounded-2xl bg-[#e8ddd0]"
+                className="relative overflow-hidden rounded-2xl bg-[var(--sf-linea)]"
                 style={{ aspectRatio: f.w && f.h ? `${f.w} / ${f.h}` : "4 / 3" }}
               >
                 {f.tipo === "video" ? (

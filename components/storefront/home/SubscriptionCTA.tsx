@@ -31,7 +31,7 @@ export default function SubscriptionCTA() {
   ].filter(b => b.trim() !== ""); // vacíos omitidos → la lista se cierra sin hueco
 
   return (
-    <section className="py-20 bg-[#2d1a0e]">
+    <section className="py-20 bg-[var(--sf-tinta-2)]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* En preview, `whileInView`→`animate` con `initial={false}`: la vista escalada no dispara
@@ -44,19 +44,19 @@ export default function SubscriptionCTA() {
               variants={fadeUp}
             >
               {subscriptionCTA.eyebrow && (
-                <p className="text-[#d4a97a] text-xs tracking-[0.2em] uppercase mb-3">{subscriptionCTA.eyebrow}</p>
+                <p className="text-[var(--sf-tostado)] text-xs tracking-[0.2em] uppercase mb-3">{subscriptionCTA.eyebrow}</p>
               )}
               <h2 className="text-4xl font-playfair text-white mb-4">{subscriptionCTA.titulo}</h2>
               <p className="text-white/60 mb-8 leading-relaxed">{subscriptionCTA.subtitulo}</p>
               <div className="space-y-3 mb-8">
                 {beneficios.map((b, i) => (
                   <div key={i} className="flex items-center gap-3 text-sm text-white/70">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#d4a97a]" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-[var(--sf-tostado)]" />
                     {b}
                   </div>
                 ))}
               </div>
-              <Link href="/suscripciones" className="inline-flex items-center gap-2 bg-[#d4a97a] hover:bg-[#c49060] text-[#1a0f08] font-semibold px-8 py-4 rounded-full text-sm transition-all hover:-translate-y-0.5">
+              <Link href="/suscripciones" className="inline-flex items-center gap-2 bg-[var(--sf-tostado)] hover:bg-[var(--sf-tostado-4)] text-[var(--sf-tinta)] font-semibold px-8 py-4 rounded-full text-sm transition-all hover:-translate-y-0.5">
                 {subscriptionCTA.ctaLabel} <ArrowRight className="w-4 h-4" />
               </Link>
             </motion.div>
@@ -69,8 +69,8 @@ export default function SubscriptionCTA() {
               className="grid grid-cols-1 sm:grid-cols-3 gap-4"
             >
               {SUBSCRIPTION_PLANS.map((p, i) => (
-                <div key={p.id} className={`rounded-2xl p-5 text-white ${i === 1 ? 'bg-[#8B4513]' : 'bg-[#3d2314]'}`}>
-                  <p className="text-[#d4a97a] text-xs font-medium mb-2">{p.nombre}</p>
+                <div key={p.id} className={`rounded-2xl p-5 text-white ${i === 1 ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-acento-2)]'}`}>
+                  <p className="text-[var(--sf-tostado)] text-xs font-medium mb-2">{p.nombre}</p>
                   <p className="text-white/70 text-xs leading-snug">{p.descripcion}</p>
                 </div>
               ))}

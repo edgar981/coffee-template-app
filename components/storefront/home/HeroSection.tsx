@@ -26,7 +26,7 @@ export default function HeroSection() {
   const preview = useIsPreview();
 
   return (
-    <section className="relative flex min-h-[92vh] items-center overflow-hidden bg-[#1a0f08]">
+    <section className="relative flex min-h-[92vh] items-center overflow-hidden bg-[var(--sf-tinta)]">
       <div className="absolute inset-0">
         <Image
           src={hero.imagen}
@@ -38,7 +38,7 @@ export default function HeroSection() {
           className="object-cover opacity-40"
         />
 
-        <div className="absolute inset-0 bg-linear-to-b from-[#1a0f08]/60 via-transparent to-[#1a0f08]/80" />
+        <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-tinta)]/80" />
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -62,7 +62,7 @@ export default function HeroSection() {
           {hero.eyebrow && (
             <motion.p
               variants={fadeUp}
-              className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-[#d4a97a]"
+              className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-[var(--sf-tostado)]"
             >
               {hero.eyebrow}
             </motion.p>
@@ -76,7 +76,7 @@ export default function HeroSection() {
             {hero.tituloEnfasis && (
               <>
                 <br />
-                <em className="italic text-[#d4a97a]">{hero.tituloEnfasis}</em>
+                <em className="italic text-[var(--sf-tostado)]">{hero.tituloEnfasis}</em>
               </>
             )}
           </motion.h1>
@@ -94,7 +94,7 @@ export default function HeroSection() {
           >
             <Link
               href={HERO_HREFS.primario}
-              className="inline-flex items-center gap-2 rounded-full bg-[#d4a97a] px-8 py-4 text-sm font-semibold text-[#1a0f08] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#c49060]"
+              className="inline-flex items-center gap-2 rounded-full bg-[var(--sf-tostado)] px-8 py-4 text-sm font-semibold text-[var(--sf-tinta)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--sf-tostado-4)]"
             >
               {hero.ctaPrimarioLabel}
 

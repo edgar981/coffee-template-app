@@ -76,8 +76,8 @@ export default async function StorefrontLayout({
           <CartProvider>
             {/* El wrapper del storefront: fondo y fuente de la tienda. Antes lo ponía el wrapper
                 del iframe (que además leía `?preview`, ya retirado); queda el div plano con las
-                MISMAS clases (`bg-[#faf7f4] font-inter`) para no cambiar el aspecto de la tienda. */}
-            <div className="min-h-screen bg-[#faf7f4] font-inter">
+                MISMAS clases (`bg-[var(--sf-fondo)] font-inter`) para no cambiar el aspecto de la tienda. */}
+            <div className="min-h-screen bg-[var(--sf-fondo)] font-inter">
               <StoreNav />
               <main>{children}</main>
               <StoreFooter />
