@@ -1334,6 +1334,41 @@ puesto a mano— el estático sale más barato; la derivación paga a **escala**
 se configuran solas). NO antes: construir el motor para un solo cliente es infraestructura por
 adelantado, para un ícono que se pone una vez.
 
+### 56. El MANIFEST del panel es del CLIENTE — el PWA del admin se instala como la tienda
+
+Hay **UN solo** `app/manifest.ts` (servido en `/manifest.webmanifest`, lo enlazan TODAS las
+rutas), y la tanda de marca lo hizo **dinámico leyendo `SiteSetting`**: `name`/`short_name` = el
+nombre del negocio, y sus `icons` apuntan a `/icon-192.png`/`/icon-512.png`/maskable, que son los
+íconos del CLIENTE en `public/`. El **admin NO sobreescribe `metadata.manifest`**, así que hereda
+ése. Resultado: **instalar el PANEL como PWA lo anuncia como "Café Nayoli" con los íconos de
+Nayoli** — el panel es Duna y debería instalarse como Duna.
+
+**Es DEFECTO, no mejora, y la razón es multi-cliente:** con dos clientes, dos paneles se
+instalarían con íconos DISTINTOS y **ninguno sería el de Duna**. (El favicon de PESTAÑA del admin
+SÍ es Duna —`app/(admin)/layout.tsx` declara `metadata.icons` → `/brand/icon-duna.svg` +
+`favicon-duna.ico`, que sobreescriben la convención de raíz (§ Identidad)—; el hueco es SÓLO el
+manifest de instalación.)
+
+**Costo — el CÓDIGO es barato, pero está GATEADO por un ASSET, así que NO entra "ya":**
+- **Código (chico):** una ruta propia que sirva el manifest de Duna (JSON estático, sin
+  `SiteSetting`: name "Panel Duna", colores de Duna, no los `#F9F6F4`/`#1E150E` de Nayoli) + setear
+  `metadata.manifest` en el layout del admin apuntando a ella. El navegador elige el manifest por
+  el `<link rel="manifest">` de la PÁGINA desde donde se agrega a inicio —así, instalar desde
+  `/admin` usa el de Duna; desde la tienda, el del cliente—.
+- **CAVEAT a verificar:** que `metadata.manifest` del admin REEMPLACE el `<link>` de la convención
+  de raíz (`app/manifest.ts` lo auto-inyecta en todas las rutas), no que AGREGUE un segundo — es la
+  misma lección que obligó a mover los íconos a `public/` (§ Identidad: el `metadata.icons` del hijo
+  agrega, no retira, la convención de raíz).
+- **BLOQUEO real (asset):** un manifest necesita **PNG 192/512 + maskable**, y de Duna sólo hay
+  **SVG + ICO** (`public/brand/`: `icon-duna.svg`, `favicon-duna.ico` — ningún PNG). Generar los PNG
+  de marca Duna (elegir el mark, rasterizar a 192/512 + la zona segura del maskable) es decisión de
+  ASSET, no código. Ya estaba declarado como PENDIENTE en § Identidad; esto lo numera.
+
+**DISPARADOR: el segundo cliente** (o antes, si molesta instalar el panel y verlo como la tienda).
+**Merece su propia tanda pequeña** por el asset. Partial barato posible si urge: fijar sólo el
+`name`/colores de Duna con el ícono SVG —arregla el nombre, el más visible—, dejando el maskable
+PNG de seguimiento; pero un install "propio" de verdad quiere los PNG.
+
 ## Config del negocio — `SiteSetting` (los planos editables)
 
 Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código
