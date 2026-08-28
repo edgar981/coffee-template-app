@@ -3,8 +3,9 @@
 import { useState, useEffect, useTransition, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Pencil } from 'lucide-react';
+import { Pencil, Maximize2 } from 'lucide-react';
 import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import ProductCard from '@/components/storefront/ProductCard';
 import { Logo } from '@/components/storefront/Logo';
 import TrustBadges from '@/components/storefront/home/TrustBadges';
@@ -99,44 +100,92 @@ const PRODUCTOS_MUESTRA: Product[] = [
   },
 ];
 
-/** La vista previa es un FRAGMENTO que se lee como pantalla, con COMPONENTES REALES del
+/** EL FRAGMENTO: un pedazo de tienda que se lee como pantalla, con COMPONENTES REALES del
  *  storefront —no un croquis—: una barra con el wordmark (`Logo`), la franja de garantías
  *  (`TrustBadges`) y tres `ProductCard`, sobre `--sf-fondo` y alimentados por la paleta DERIVADA
- *  del form. Todo INERTE (`pointer-events:none`: sin carrito, sin navegación, sin hover).
+ *  del form. INERTE (`pointer-events:none` en la raíz: sin carrito, sin navegación, sin hover — en
+ *  el inline el clic lo captura el wrapper de ampliar; en el overlay es sólo para ver).
  *
- *  Se renderiza a ANCHO DE ESCRITORIO (1280) y se ESCALA a la columna con `EscalaDesktop`: así los
- *  componentes se ven a su layout de DISEÑO —TrustBadges en sus 4 columnas, las tarjetas en fila de
- *  3— y no reflowados a un ancho angosto que ningún visitante usa (el defecto que rompía a
- *  TrustBadges). Por eso las rejillas internas usan el layout de escritorio (`max-w-6xl` centrado,
- *  `repeat(3,1fr)` de tarjetas): a 1280 se ven naturales, no dos tarjetas gigantes escaladas.
+ *  Es UNA sola pieza: la renderizan tanto el preview inline (`EscalaDesktop` grande) como el
+ *  overlay de ampliar (`EscalaDesktop` compacto). NO diverge entre los dos —lo único que cambia es
+ *  el MODO de EscalaDesktop, que va afuera—, así que no hay segunda representación que mienta.
  *
- *  Qué se puede montar sin arrastrar fetch (censo del gate): `Logo` recibe `nombre` por PROP,
- *  sin providers; `TrustBadges` es estático (array + iconos), sin providers ni datos. `StoreNav`
- *  quedó FUERA a propósito: pide TRES providers (Cart, SiteContent, SiteSettings del storefront)
- *  y trae buscador/carrito/hamburguesa inertes por una barra que sólo aportaría el nombre —y el
- *  `Logo` ya lo da—. `ProductCard` sólo necesita `CartProvider`, montado local e inerte (§ Las
- *  tres capas — montar un componente en otro árbol de providers; `useCartStore` es un context con
- *  throw duro, no un store standalone). El badge de bestseller muestra el acento en estático. */
-function PreviewTiendaReal({ raices, nombre }: { raices: Form; nombre: string }) {
+ *  Layout de ESCRITORIO interno (`max-w-6xl` centrado, TrustBadges en sus 4 columnas a 1280,
+ *  tarjetas en `repeat(3,1fr)`): a 1280 se ve natural, no dos tarjetas gigantes escaladas.
+ *
+ *  Qué se monta sin fetch (censo del gate): `Logo` por PROP sin providers; `TrustBadges` estático;
+ *  `StoreNav` quedó FUERA (3 providers + chrome inerte). `ProductCard` sólo necesita `CartProvider`
+ *  local e inerte (§ Las tres capas — montar un componente en otro árbol de providers). */
+function FragmentoTienda({ raices, nombre }: { raices: Form; nombre: string }) {
   const p = derivarPaleta(raices);
   const vars = Object.fromEntries(Object.entries(p).map(([k, v]) => [`--sf-${k}`, v])) as CSSProperties;
   return (
-    <EscalaDesktop style={{ borderRadius: 14, overflow: 'hidden', pointerEvents: 'none' }}>
-      <div className="font-inter" style={{ ...vars, background: 'var(--sf-fondo)' }}>
-        {/* Barra superior con el wordmark real (centrada como el nav) */}
-        <div className="mx-auto max-w-6xl px-6 py-4">
-          <Logo nombre={nombre} />
-        </div>
-        {/* Franja de garantías real (su propio `border-y` la separa; a 1280 usa sus 4 columnas) */}
-        <TrustBadges />
-        {/* Tres tarjetas reales en fila de escritorio, bajo un CartProvider local inerte */}
-        <CartProvider>
-          <div className="mx-auto max-w-6xl px-6 py-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
-            {PRODUCTOS_MUESTRA.map(pr => <ProductCard key={pr.id} product={pr} />)}
-          </div>
-        </CartProvider>
+    <div className="font-inter" style={{ ...vars, background: 'var(--sf-fondo)', pointerEvents: 'none' }}>
+      {/* Barra superior con el wordmark real (centrada como el nav) */}
+      <div className="mx-auto max-w-6xl px-6 py-4">
+        <Logo nombre={nombre} />
       </div>
-    </EscalaDesktop>
+      {/* Franja de garantías real (su propio `border-y` la separa; a 1280 usa sus 4 columnas) */}
+      <TrustBadges />
+      {/* Tres tarjetas reales en fila de escritorio, bajo un CartProvider local inerte */}
+      <CartProvider>
+        <div className="mx-auto max-w-6xl px-6 py-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+          {PRODUCTOS_MUESTRA.map(pr => <ProductCard key={pr.id} product={pr} />)}
+        </div>
+      </CartProvider>
+    </div>
+  );
+}
+
+/** El preview INLINE: el fragmento escalado por ancho (`EscalaDesktop` grande), AMPLIABLE al clic.
+ *  El botón de ampliar es un HERMANO absoluto que cubre el preview —NO un wrapper—: envolver el
+ *  fragmento en un `<button>` anidaría los `<a>`/`<button>` del ProductCard dentro de un botón,
+ *  que es HTML inválido. El fragmento es `pointer-events:none`, así que el clic pasa al botón de
+ *  encima; `cursor: zoom-in` + el chip "Ampliar" hacen visible que se abre grande. */
+function PreviewTiendaReal({ raices, nombre, onAmpliar }: { raices: Form; nombre: string; onAmpliar: () => void }) {
+  return (
+    <div style={{ position: 'relative' }}>
+      <EscalaDesktop style={{ borderRadius: 14, overflow: 'hidden' }}>
+        <FragmentoTienda raices={raices} nombre={nombre} />
+      </EscalaDesktop>
+      <button
+        type="button" onClick={onAmpliar} aria-label="Ampliar la vista previa de la tienda"
+        style={{ position: 'absolute', inset: 0, cursor: 'zoom-in', border: 0, background: 'none', padding: 0, borderRadius: 14 }}
+      >
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 4,
+            padding: '5px 8px', borderRadius: 8, background: 'rgba(20,18,16,0.62)', color: '#fff',
+            fontSize: 11, fontWeight: 600, backdropFilter: 'blur(2px)',
+          }}
+        >
+          <Maximize2 size={13} /> Ampliar
+        </span>
+      </button>
+    </div>
+  );
+}
+
+/** El overlay de AMPLIAR: el MISMO fragmento (vivo por construcción — las mismas raíces) en el
+ *  `Dialog` del admin (Esc, clic-afuera, foco atrapado, X, scroll-lock, todo de Radix — NO
+ *  ImageLightbox, que es image-only). `EscalaDesktop` COMPACTO lo encaja entero en la caja
+ *  (scale-to-fit, letterbox), como una foto en un visor. */
+function AmpliarOverlay({ abierto, onCerrar, raices, nombre }: { abierto: boolean; onCerrar: () => void; raices: Form; nombre: string }) {
+  return (
+    <Dialog open={abierto} onOpenChange={o => { if (!o) onCerrar(); }}>
+      <DialogContent
+        aria-describedby={undefined}
+        className="w-[92vw] max-w-[1400px] p-4 sm:p-6"
+      >
+        <DialogTitle className="sr-only">Vista previa ampliada de los colores de la tienda</DialogTitle>
+        {/* Alto EXPLÍCITO (vh), no `height:100%`: compacto necesita una caja de alto definido para
+            el scale-to-fit, y una cadena de `100%` a través del padding del Dialog es frágil. */}
+        <EscalaDesktop compacto style={{ width: '100%', height: '82vh', overflow: 'hidden' }}>
+          <FragmentoTienda raices={raices} nombre={nombre} />
+        </EscalaDesktop>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -153,6 +202,7 @@ export default function PaletaSeccion() {
   const [editando, setEditando]           = useState(false);
   const [form, setForm]                   = useState<Form>(() => desdeSettings(settings));
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
+  const [ampliado, setAmpliado]           = useState(false);
 
   const salir = () => { setEditando(false); setErrorServidor(null); };
   const descarte = useDescarteDeDrawer({ enVuelo: guarda.enVuelo, onCerrar: salir });
@@ -302,7 +352,7 @@ export default function PaletaSeccion() {
             <div className="duna-form__full">
               <span className="duna-field__label">Vista previa</span>
               <div style={{ marginTop: '6px', maxWidth: 440 }}>
-                <PreviewTiendaReal raices={form} nombre={settings.nombre} />
+                <PreviewTiendaReal raices={form} nombre={settings.nombre} onAmpliar={() => setAmpliado(true)} />
               </div>
               {avisos.length > 0 && (
                 <div role="status" style={{ marginTop: 'var(--duna-space-3)', maxWidth: 440, display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -340,7 +390,7 @@ export default function PaletaSeccion() {
                   Aspecto de TARJETA (portrait), como la forma del ProductCard del preview. */}
               {refrescando
                 ? <div className="duna-skel" aria-hidden style={{ width: '100%', aspectRatio: '3 / 4', borderRadius: 14 }} />
-                : <PreviewTiendaReal raices={desdeSettings(settings)} nombre={settings.nombre} />}
+                : <PreviewTiendaReal raices={desdeSettings(settings)} nombre={settings.nombre} onAmpliar={() => setAmpliado(true)} />}
             </div>
             <p className="duna-sub" style={{ margin: 0, maxWidth: '24rem' }}>
               {settings.paletaAcento
@@ -355,6 +405,15 @@ export default function PaletaSeccion() {
         abierto={descarte.confirmando}
         onDescartar={descarte.descartar}
         onSeguir={descarte.seguirEditando}
+      />
+
+      {/* Ampliar: el mismo fragmento en grande, con las raíces del modo VISIBLE (form en edición,
+          guardadas en lectura) → vivo por construcción, sin snapshot. */}
+      <AmpliarOverlay
+        abierto={ampliado}
+        onCerrar={() => setAmpliado(false)}
+        raices={editando ? form : desdeSettings(settings)}
+        nombre={settings.nombre}
       />
     </>
   );
