@@ -50,15 +50,25 @@ const BASES: { label: string; fondo: string; tinta: string }[] = [
 interface Form { fondo: string; tinta: string; acento: string }
 type Settings = ReturnType<typeof useSiteSettings>;
 
-function desdeSettings(s: Settings): Form {
-  return {
-    fondo:  s.paletaFondo  ?? DEFAULT_RAICES.fondo,
-    tinta:  s.paletaTinta  ?? DEFAULT_RAICES.tinta,
-    acento: s.paletaAcento ?? DEFAULT_RAICES.acento,
-  };
+const HEX6 = /^#[0-9a-fA-F]{6}$/;
+
+// El seed de cada raíz cae al default cuando el valor guardado NO es un hex válido —null,
+// undefined, cadena VACÍA o basura—, no sólo cuando es nullish. `?? default` atrapaba SÓLO
+// null/undefined, así que un `''` guardado se colaba a `form`: el campo de texto nacía
+// VACÍO y en rojo mientras el input de color lo enmascaraba con su propio fallback (los dos
+// leen el mismo `form.acento`, pero sólo el color tenía respaldo). Espeja a `cssPaleta`, que
+// ya trata `''` como "sin paleta" (`if (!acento) return null`).
+function raizValida(v: string | null, def: string): string {
+  return v && HEX6.test(v) ? v : def;
 }
 
-const HEX6 = /^#[0-9a-fA-F]{6}$/;
+function desdeSettings(s: Settings): Form {
+  return {
+    fondo:  raizValida(s.paletaFondo,  DEFAULT_RAICES.fondo),
+    tinta:  raizValida(s.paletaTinta,  DEFAULT_RAICES.tinta),
+    acento: raizValida(s.paletaAcento, DEFAULT_RAICES.acento),
+  };
+}
 
 // Producto de MUESTRA para la vista previa. Nombre GENÉRICO a propósito —no un café de
 // Nayoli— para que nadie lo confunda con un producto real. Sin imagen (ProductCard cae a su
