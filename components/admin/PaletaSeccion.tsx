@@ -137,32 +137,35 @@ function FragmentoTienda({ raices, nombre }: { raices: Form; nombre: string }) {
   );
 }
 
-/** El preview INLINE: el fragmento escalado por ancho (`EscalaDesktop` grande), AMPLIABLE al clic.
- *  El botón de ampliar es un HERMANO absoluto que cubre el preview —NO un wrapper—: envolver el
- *  fragmento en un `<button>` anidaría los `<a>`/`<button>` del ProductCard dentro de un botón,
- *  que es HTML inválido. El fragmento es `pointer-events:none`, así que el clic pasa al botón de
- *  encima; `cursor: zoom-in` + el chip "Ampliar" hacen visible que se abre grande. */
-function PreviewTiendaReal({ raices, nombre, onAmpliar }: { raices: Form; nombre: string; onAmpliar: () => void }) {
+/** El preview INLINE: el fragmento escalado por ancho (`EscalaDesktop` grande). AMPLIABLE SÓLO en
+ *  edición (`onAmpliar` presente) — en lectura el owner no está afinando nada, así que el chip y el
+ *  cursor-zoom no tienen razón de ser y no aparecen. El botón de ampliar es un HERMANO absoluto que
+ *  cubre el preview —NO un wrapper—: envolver el fragmento en un `<button>` anidaría los
+ *  `<a>`/`<button>` del ProductCard dentro de un botón, que es HTML inválido. El fragmento es
+ *  `pointer-events:none`, así que el clic pasa al botón de encima. */
+function PreviewTiendaReal({ raices, nombre, onAmpliar }: { raices: Form; nombre: string; onAmpliar?: () => void }) {
   return (
     <div style={{ position: 'relative' }}>
       <EscalaDesktop style={{ borderRadius: 14, overflow: 'hidden' }}>
         <FragmentoTienda raices={raices} nombre={nombre} />
       </EscalaDesktop>
-      <button
-        type="button" onClick={onAmpliar} aria-label="Ampliar la vista previa de la tienda"
-        style={{ position: 'absolute', inset: 0, cursor: 'zoom-in', border: 0, background: 'none', padding: 0, borderRadius: 14 }}
-      >
-        <span
-          aria-hidden
-          style={{
-            position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 4,
-            padding: '5px 8px', borderRadius: 8, background: 'rgba(20,18,16,0.62)', color: '#fff',
-            fontSize: 11, fontWeight: 600, backdropFilter: 'blur(2px)',
-          }}
+      {onAmpliar && (
+        <button
+          type="button" onClick={onAmpliar} aria-label="Ampliar la vista previa de la tienda"
+          style={{ position: 'absolute', inset: 0, cursor: 'zoom-in', border: 0, background: 'none', padding: 0, borderRadius: 14 }}
         >
-          <Maximize2 size={13} /> Ampliar
-        </span>
-      </button>
+          <span
+            aria-hidden
+            style={{
+              position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 4,
+              padding: '5px 8px', borderRadius: 8, background: 'rgba(20,18,16,0.62)', color: '#fff',
+              fontSize: 11, fontWeight: 600, backdropFilter: 'blur(2px)',
+            }}
+          >
+            <Maximize2 size={13} /> Ampliar
+          </span>
+        </button>
+      )}
     </div>
   );
 }
@@ -390,7 +393,7 @@ export default function PaletaSeccion() {
                   Aspecto de TARJETA (portrait), como la forma del ProductCard del preview. */}
               {refrescando
                 ? <div className="duna-skel" aria-hidden style={{ width: '100%', aspectRatio: '3 / 4', borderRadius: 14 }} />
-                : <PreviewTiendaReal raices={desdeSettings(settings)} nombre={settings.nombre} onAmpliar={() => setAmpliado(true)} />}
+                : <PreviewTiendaReal raices={desdeSettings(settings)} nombre={settings.nombre} />}
             </div>
             <p className="duna-sub" style={{ margin: 0, maxWidth: '24rem' }}>
               {settings.paletaAcento

@@ -571,6 +571,15 @@ button.duna-tile--add:hover, a.duna-tile--add:hover { border-color: var(--duna-i
    margen de verdad: un ajuste de token no lo tumba. */
 .duna-btn:disabled { cursor: default; opacity: .65; }
 
+/* FOCO: anillo SÓLO por teclado. `.duna-btn` no declaraba foco, así que caía al outline
+   por DEFECTO del navegador —que en WebKit aparece al CLIC del mouse, no sólo al tabular—.
+   Se anula ese outline en `:focus` (cualquier foco) y se pone el anillo del sistema en
+   `:focus-visible` (que el navegador sólo marca en navegación por teclado). El keyboard
+   ring NO se pierde: pasa de ser el default del navegador a ser `--duna-ring`. El `outline`
+   transparente es para alto contraste (mismo patrón que `.duna-tile`/`.duna-order-card`). */
+.duna-btn:focus { outline: none; }
+.duna-btn:focus-visible { box-shadow: var(--duna-ring); outline: 2px solid transparent; outline-offset: 2px; }
+
 /* EL ÍCONO DEL BOTÓN LO DIMENSIONA EL SISTEMA ────────────────────────────────
    El `gap` de arriba ya declaraba la ranura de ícono ("ícono↔label"), pero nada
    le daba tamaño — y una ranura prometida y no dimensionada es peor que no
