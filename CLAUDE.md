@@ -167,6 +167,30 @@ Caso concreto (2026-08-24): un comentario `{/* … */}` suelto en el TOP-LEVEL d
 errores** y `next build` falló. Misma familia que la campana: un artefacto que pasa una
 capa puede fallar en otra, y la que importa es la que envía.
 
+### Montar un componente en OTRO árbol de providers no lo atrapa ni `tsc` ni el build
+
+**Un hook con nombre de STORE puede ser un CONTEXT con throw duro.** `useCartStore`
+(`lib/cartStore.tsx`) SUENA a zustand —un store standalone que no necesita provider— pero es
+`useContext(CartContext)` + `throw new Error("useCartStore must be used within CartProvider")`.
+Montar el componente que lo usa (`ProductCard`) FUERA de su árbol —el `CartProvider` que sólo
+monta el layout del storefront— revienta en **RUNTIME**, y como `ProductCard` es `'use client'`
+pero se renderiza en SSR, el throw es **server-side y tira la ruta entera**.
+
+**Ni `tsc` ni `next build` lo atrapan, EN VERDE los dos.** Es la misma familia que § `tsc` ≠ SWC,
+subida un nivel: cada capa atrapa lo suyo —tsc ve los tipos, el build ve el parseo— y el
+**MONTAJE de un componente en un árbol sin sus providers no lo ve ninguna**: el provider ausente
+sólo aparece cuando React EJECUTA el hook, al renderizar la ruta. Costó `/admin/configuracion`
+caído en un preview (2026-08-28): la vista previa de paleta montó el `ProductCard` del storefront
+en el admin, que no monta `CartProvider`. Y el descuido que lo dejó pasar fue afirmar
+"autocontenido, sin providers" **por el nombre del hook, sin verificar** qué contexts lee.
+
+**La regla al montar un componente de un árbol en OTRO (storefront↔admin):** verificar qué
+CONTEXTS lee su cadena —no confiar en el nombre del hook—, y montar el provider que falta, LOCAL,
+como `VistaTiendaEnVivo` monta su `SiteContentProvider` (§ La PANTALLA) y como la vista previa de
+paleta monta ahora `CartProvider`. La verificación de esto NO es tsc ni el build: es cargar la
+ruta (capa 3), o —barato y sin sesión— un probe que renderice el hook en SSR sin su provider y
+lo vea lanzar.
+
 ### Verificar PROPAGACIÓN de un dato editable exige modo PRODUCCIÓN — dev engaña
 
 **Un loader que LEE la base no garantiza que el valor se VEA.** Next PRERENDERIZA las rutas

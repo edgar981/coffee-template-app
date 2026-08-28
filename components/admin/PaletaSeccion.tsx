@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Pencil } from 'lucide-react';
 import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import ProductCard from '@/components/storefront/ProductCard';
+import { CartProvider } from '@/lib/cartStore';
 import type { Product } from '@/types/product';
 import { paletaEditableSchema } from '@/lib/config/palette-schema';
 import { derivarPaleta, contraste } from '@/lib/config/palette-derive';
@@ -96,9 +97,18 @@ function PreviewTiendaReal({ raices }: { raices: Form }) {
       className="font-inter"
       style={{ ...vars, background: 'var(--sf-fondo)', borderRadius: 14, padding: 22, pointerEvents: 'none' }}
     >
-      <div style={{ maxWidth: 300, margin: '0 auto' }}>
-        <ProductCard product={PRODUCTO_MUESTRA} />
-      </div>
+      {/* `ProductCard` llama `useCartStore()`, que NO es un store standalone sino un CONTEXT con
+          throw duro (`must be used within CartProvider`). El storefront lo monta en su layout; el
+          admin no, así que sin este provider la ruta revienta en SSR (§ Las tres capas — montar un
+          componente en otro árbol de providers). `CartProvider` es inerte —useState vacío, sin
+          storage ni efectos— así que es un carrito nuevo y aislado; y bajo `pointer-events:none` el
+          `addItem` jamás se dispara. Precedente: `VistaTiendaEnVivo` monta su `SiteContentProvider`
+          local igual. */}
+      <CartProvider>
+        <div style={{ maxWidth: 300, margin: '0 auto' }}>
+          <ProductCard product={PRODUCTO_MUESTRA} />
+        </div>
+      </CartProvider>
     </div>
   );
 }
