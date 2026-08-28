@@ -33,7 +33,7 @@ export default function TestimonialSection() {
             variants={fadeUp}
             className="text-center mb-12"
           >
-            {eyebrow && <p className="text-[var(--sf-acento)] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</p>}
+            {eyebrow && <p className="text-[var(--sf-acento-texto)] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</p>}
             <h2 className="text-3xl font-playfair text-[var(--sf-tinta)]">{titulo}</h2>
           </motion.div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -60,11 +60,11 @@ export default function TestimonialSection() {
                   <p className="text-[var(--sf-acento-2)] text-sm leading-relaxed mb-4">&quot;{t.text}&quot;</p>
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-[var(--sf-linea)] flex items-center justify-center">
-                      <span className="text-xs font-semibold text-[var(--sf-acento)]">{(t.name || "?")[0]}</span>
+                      <span className="text-xs font-semibold text-[var(--sf-acento-texto)]">{(t.name || "?")[0]}</span>
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-[var(--sf-tinta)]">{t.name}</p>
-                      {atribucion && <p className="text-xs text-[var(--sf-acento)]">{atribucion}</p>}
+                      {atribucion && <p className="text-xs text-[var(--sf-acento-texto)]">{atribucion}</p>}
                     </div>
                   </div>
                 </motion.div>

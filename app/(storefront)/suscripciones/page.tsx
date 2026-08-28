@@ -44,19 +44,19 @@ export default function Subscription() {
                   className={`relative flex flex-col rounded-2xl p-6 border-2 bg-white ${plan.popular ? 'border-[var(--sf-acento)] shadow-lg shadow-[var(--sf-acento)]/10' : 'border-[var(--sf-linea)]'}`}
                 >
                   {plan.popular && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[var(--sf-acento)] text-white text-xs font-bold px-4 py-1 rounded-full">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] text-xs font-bold px-4 py-1 rounded-full">
                       Más Popular
                     </div>
                   )}
                   <div className="w-10 h-10 rounded-xl mb-4 flex items-center justify-center bg-[var(--sf-acento)]/10">
-                    <Coffee className="w-5 h-5 text-[var(--sf-acento)]" />
+                    <Coffee className="w-5 h-5 text-[var(--sf-acento-texto)]" />
                   </div>
                   <h3 className="text-xl font-playfair text-[var(--sf-tinta)] mb-1">{plan.nombre}</h3>
                   <p className="text-sm text-[var(--sf-texto-suave)] mb-4">{plan.descripcion}</p>
                   <div className="space-y-2 mb-6">
                     {plan.beneficios.map(b => (
                       <div key={b} className="flex items-center gap-2 text-sm text-[var(--sf-acento-2)]">
-                        <CheckCircle className="w-4 h-4 text-[var(--sf-acento)] shrink-0" /> {b}
+                        <CheckCircle className="w-4 h-4 text-[var(--sf-acento-texto)] shrink-0" /> {b}
                       </div>
                     ))}
                   </div>
@@ -64,7 +64,7 @@ export default function Subscription() {
                     href={interesHref(plan.nombre)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`mt-auto inline-flex items-center justify-center gap-2 font-semibold px-6 py-3 rounded-full text-sm transition-all hover:-translate-y-0.5 ${plan.popular ? 'bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] text-white' : 'border-2 border-[var(--sf-acento)] text-[var(--sf-acento)] hover:bg-[var(--sf-acento)] hover:text-white'}`}
+                    className={`mt-auto inline-flex items-center justify-center gap-2 font-semibold px-6 py-3 rounded-full text-sm transition-all hover:-translate-y-0.5 ${plan.popular ? 'bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] text-[var(--sf-acento-txt)]' : 'border-2 border-[var(--sf-acento)] text-[var(--sf-acento-texto)] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]'}`}
                   >
                     Me interesa <ArrowRight className="w-4 h-4" />
                   </a>

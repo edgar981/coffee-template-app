@@ -132,7 +132,7 @@ function OrderTrackingInner() {
             <button
               onClick={handleSearch}
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] text-white font-semibold px-5 py-3 rounded-xl text-sm transition-colors disabled:opacity-60"
+              className="w-full flex items-center justify-center gap-2 bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] text-[var(--sf-acento-txt)] font-semibold px-5 py-3 rounded-xl text-sm transition-colors disabled:opacity-60"
             >
               <Search className="w-4 h-4" /> {loading ? 'Buscando...' : 'Buscar'}
             </button>
@@ -165,7 +165,7 @@ function OrderTrackingInner() {
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <p className="text-xs text-[var(--sf-texto-suave)] mb-1">Número de orden</p>
-                    <p className="text-2xl font-bold text-[var(--sf-acento)]">{order.numero_orden}</p>
+                    <p className="text-2xl font-bold text-[var(--sf-acento-texto)]">{order.numero_orden}</p>
                   </div>
                   <StatusBadge status={displayEstado} theme="light" />
                 </div>
@@ -225,7 +225,10 @@ function OrderTrackingInner() {
                         <div key={step.estado} className="flex gap-4">
                           <div className="flex flex-col items-center">
                             <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${done ? active ? 'bg-[var(--sf-acento)] ring-4 ring-[var(--sf-acento)]/20' : 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-superficie)]'}`}>
-                              <Icon className={`w-4 h-4 ${done ? 'text-white' : 'text-[var(--sf-tostado-2)]'}`} />
+                              {/* `done` → el ícono va sobre el círculo de acento (que el cliente
+                                  puede elegir claro): `acento-txt` (auto-flip). Sin done → sobre
+                                  superficie clara, con tostado-2 (decorativo). */}
+                              <Icon className={`w-4 h-4 ${done ? 'text-[var(--sf-acento-txt)]' : 'text-[var(--sf-tostado-2)]'}`} />
                             </div>
                             {i < TIMELINE.length - 1 && (
                               <div className={`w-0.5 h-10 mt-1 rounded-full transition-all ${i < currentStep ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-linea)]'}`} />
@@ -263,7 +266,7 @@ function OrderTrackingInner() {
                       </div>
                       <div className="flex justify-between pt-2 border-t border-[var(--sf-superficie)] font-bold">
                         <span>Total</span>
-                        <span className="text-[var(--sf-acento)]">{formatCOP(order.total)}</span>
+                        <span className="text-[var(--sf-acento-texto)]">{formatCOP(order.total)}</span>
                       </div>
                     </div>
                   </div>

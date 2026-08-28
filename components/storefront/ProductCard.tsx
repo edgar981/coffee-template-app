@@ -95,7 +95,7 @@ export default function ProductCard({
               <span
                 className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                   product.bestseller
-                    ? "bg-[var(--sf-acento)] text-white"
+                    ? "bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]"
                     : "bg-[var(--sf-tostado)] text-[var(--sf-tinta)]"
                 }`}
               >
@@ -116,7 +116,7 @@ export default function ProductCard({
                     : `Elegir molienda de ${product.nombre}`
                 }
                 title={agregaDirecto ? 'Agregar al carrito' : 'Elegir molienda'}
-                className="absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md opacity-0 transition-opacity hover:bg-[var(--sf-acento)] hover:text-white group-hover:opacity-100 cursor-pointer"
+                className="absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md opacity-0 transition-opacity hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)] group-hover:opacity-100 cursor-pointer"
               >
                 {agregaDirecto
                   ? <ShoppingBag className="h-4 w-4" />
@@ -127,7 +127,7 @@ export default function ProductCard({
 
         {/* Info */}
         <div className="p-4">
-          <p className="mb-1 text-xs capitalize text-[var(--sf-acento)]">
+          <p className="mb-1 text-xs capitalize text-[var(--sf-acento-texto)]">
             {product.origen ||
               product.categoria?.replace("_", " ")}
           </p>
@@ -160,7 +160,7 @@ export default function ProductCard({
               </span>
 
               {product.esSuscripcion && (
-                <span className="ml-1 text-xs text-[var(--sf-acento)]">
+                <span className="ml-1 text-xs text-[var(--sf-acento-texto)]">
                   /mes
                 </span>
               )}

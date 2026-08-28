@@ -24,10 +24,10 @@ export default function FeaturedProducts() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="flex items-end justify-between mb-12">
             <div>
-              <p className="text-[var(--sf-acento)] text-xs font-medium tracking-[0.2em] uppercase mb-2">Nuestro Catálogo</p>
+              <p className="text-[var(--sf-acento-texto)] text-xs font-medium tracking-[0.2em] uppercase mb-2">Nuestro Catálogo</p>
               <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-tinta)]">Selección del mes</h2>
             </div>
-            <Link href="/tienda" className="hidden sm:flex items-center gap-1 text-sm font-medium text-[var(--sf-acento)] hover:text-[var(--sf-acento-3)] transition-colors">
+            <Link href="/tienda" className="hidden sm:flex items-center gap-1 text-sm font-medium text-[var(--sf-acento-texto)] hover:text-[var(--sf-acento-3)] transition-colors">
               Ver todo <ArrowRight className="w-4 h-4" />
             </Link>
           </motion.div>
@@ -39,7 +39,7 @@ export default function FeaturedProducts() {
             ))}
           </div>
           <div className="mt-8 text-center sm:hidden">
-            <Link href="/tienda" className="inline-flex items-center gap-1 text-sm font-medium text-[var(--sf-acento)]">Ver todos los productos <ArrowRight className="w-4 h-4" /></Link>
+            <Link href="/tienda" className="inline-flex items-center gap-1 text-sm font-medium text-[var(--sf-acento-texto)]">Ver todos los productos <ArrowRight className="w-4 h-4" /></Link>
           </div>
         </div>
       </section>

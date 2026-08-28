@@ -31,7 +31,7 @@ export default function GrindChooser() {
     <section className="py-20 bg-[var(--sf-fondo)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="text-center mb-12">
-          <p className="text-[var(--sf-acento)] text-xs font-medium tracking-[0.2em] uppercase mb-2">Elige tu presentación</p>
+          <p className="text-[var(--sf-acento-texto)] text-xs font-medium tracking-[0.2em] uppercase mb-2">Elige tu presentación</p>
           <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-tinta)]">¿Cómo tomas tu café?</h2>
         </motion.div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

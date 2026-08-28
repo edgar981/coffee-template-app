@@ -122,7 +122,7 @@ export default function NosotrosGaleria({ negocio }: { negocio?: string }) {
             variants={fadeUp}
             className="text-center mb-12"
           >
-            {eyebrow && <p className="text-[var(--sf-acento)] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</p>}
+            {eyebrow && <p className="text-[var(--sf-acento-texto)] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</p>}
             {titulo && <h2 className="text-3xl font-playfair text-[var(--sf-tinta)]">{titulo}</h2>}
           </motion.div>
         )}

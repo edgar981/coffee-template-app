@@ -56,7 +56,7 @@ export default function StoreNav() {
             {/* Desktop Nav */}
             <nav className="relative hidden lg:flex items-center gap-8">
               {links.map(l => (
-                <Link key={l.path} href={l.path} className={`text-sm font-medium transition-colors ${linkColor} ${pathname.startsWith(l.path) ? 'text-[var(--sf-acento)]!' : ''}`}>
+                <Link key={l.path} href={l.path} className={`text-sm font-medium transition-colors ${linkColor} ${pathname.startsWith(l.path) ? 'text-[var(--sf-acento-texto)]!' : ''}`}>
                   {l.label}
                 </Link>
               ))}
@@ -77,7 +77,7 @@ export default function StoreNav() {
               <button onClick={openCart} className={`relative p-2 rounded-full transition-colors ${iconColor} cursor-pointer`}>
                 <ShoppingBag className="w-5 h-5" />
                 {count > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 bg-[var(--sf-acento)] text-white text-[10px] rounded-full flex items-center justify-center font-bold" style={{ width: 18, height: 18, fontSize: 10 }}>
+                  <span className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] text-[10px] rounded-full flex items-center justify-center font-bold" style={{ width: 18, height: 18, fontSize: 10 }}>
                     {count > 9 ? '9+' : count}
                   </span>
                 )}

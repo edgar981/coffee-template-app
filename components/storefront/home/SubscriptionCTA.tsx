@@ -69,9 +69,13 @@ export default function SubscriptionCTA() {
               className="grid grid-cols-1 sm:grid-cols-3 gap-4"
             >
               {SUBSCRIPTION_PLANS.map((p, i) => (
-                <div key={p.id} className={`rounded-2xl p-5 text-white ${i === 1 ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-acento-2)]'}`}>
+                /* El color de texto va POR RAMA: sobre el acento (i===1, que el cliente puede
+                   elegir claro) usa `acento-txt` (auto-flip); sobre acento-2 (derivado OSCURO) el
+                   blanco es correcto para cualquier acento. La descripción hereda el color de la
+                   tarjeta con `opacity-70` (antes `text-white/70`, que fijaba blanco). */
+                <div key={p.id} className={`rounded-2xl p-5 ${i === 1 ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : 'bg-[var(--sf-acento-2)] text-white'}`}>
                   <p className="text-[var(--sf-tostado)] text-xs font-medium mb-2">{p.nombre}</p>
-                  <p className="text-white/70 text-xs leading-snug">{p.descripcion}</p>
+                  <p className="opacity-70 text-xs leading-snug">{p.descripcion}</p>
                 </div>
               ))}
             </motion.div>

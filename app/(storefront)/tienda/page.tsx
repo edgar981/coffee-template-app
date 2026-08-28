@@ -111,7 +111,7 @@ function ShopInner() {
                 className="w-full pl-9 pr-4 py-2.5 bg-white border border-[var(--sf-linea)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 text-[var(--sf-tinta)]"
               />
             </div>
-            <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-colors ${showFilters ? 'bg-[var(--sf-acento)] text-white border-[var(--sf-acento)]' : 'bg-white border-[var(--sf-linea)] text-[var(--sf-texto)] hover:border-[var(--sf-acento)]'}`}>
+            <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-colors ${showFilters ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] border-[var(--sf-acento)]' : 'bg-white border-[var(--sf-linea)] text-[var(--sf-texto)] hover:border-[var(--sf-acento)]'}`}>
               <SlidersHorizontal className="w-4 h-4" /> Filtros
               {activeFilters.length > 0 && <span className="bg-white/30 text-inherit text-xs rounded-full w-4 h-4 flex items-center justify-center">{activeFilters.length}</span>}
             </button>
@@ -128,7 +128,7 @@ function ShopInner() {
                 <div className="flex flex-wrap gap-2">
                   {[['all', 'Todos'], ...Object.entries(CATEGORIA_LABELS)].map(([k, v]) => (
                     <button key={k} onClick={() => setCatFilter(k as ProductCategory | "all")}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${catFilter === k ? 'bg-[var(--sf-acento)] text-white' : 'bg-[var(--sf-superficie)] text-[var(--sf-texto)] hover:bg-[var(--sf-linea)]'}`}>
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${catFilter === k ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : 'bg-[var(--sf-superficie)] text-[var(--sf-texto)] hover:bg-[var(--sf-linea)]'}`}>
                       {v}
                     </button>
                   ))}
@@ -139,7 +139,7 @@ function ShopInner() {
                 <div className="flex flex-wrap gap-2">
                   {[['all', 'Todos'], ...Object.entries(TOSTADO_LABELS)].map(([k, v]) => (
                     <button key={k} onClick={() => setTostadoFilter(k as RoastLevel | "all")}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${tostadoFilter === k ? 'bg-[var(--sf-acento)] text-white' : 'bg-[var(--sf-superficie)] text-[var(--sf-texto)] hover:bg-[var(--sf-linea)]'}`}>
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${tostadoFilter === k ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : 'bg-[var(--sf-superficie)] text-[var(--sf-texto)] hover:bg-[var(--sf-linea)]'}`}>
                       {v}
                     </button>
                   ))}
@@ -152,7 +152,7 @@ function ShopInner() {
           {activeFilters.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-5">
               {activeFilters.map(f => (
-                <button key={f.key} onClick={f.clear} className="flex items-center gap-1.5 bg-[var(--sf-acento)]/10 text-[var(--sf-acento)] text-xs font-medium px-3 py-1.5 rounded-full hover:bg-[var(--sf-acento)]/20 transition-colors">
+                <button key={f.key} onClick={f.clear} className="flex items-center gap-1.5 bg-[var(--sf-acento)]/10 text-[var(--sf-acento-texto)] text-xs font-medium px-3 py-1.5 rounded-full hover:bg-[var(--sf-acento)]/20 transition-colors">
                   {f.label} <X className="w-3 h-3" />
                 </button>
               ))}

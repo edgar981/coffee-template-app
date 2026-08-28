@@ -166,7 +166,7 @@ export default function AccountPage() {
                   }
                   className={`flex w-full items-center gap-3 border-b border-[var(--sf-superficie)] px-4 py-3.5 text-sm font-medium transition-colors last:border-0 ${
                     tab === tabItem.id
-                      ? "bg-[var(--sf-superficie)] text-[var(--sf-acento)]"
+                      ? "bg-[var(--sf-superficie)] text-[var(--sf-acento-texto)]"
                       : "text-[var(--sf-texto)] hover:bg-[var(--sf-fondo)]"
                   }`}
                 >
@@ -179,7 +179,7 @@ export default function AccountPage() {
                   <ChevronRight
                     className={`ml-auto hidden h-3 w-3 sm:block ${
                       tab === tabItem.id
-                        ? "text-[var(--sf-acento)]"
+                        ? "text-[var(--sf-acento-texto)]"
                         : "text-[var(--sf-tostado-2)]"
                     }`}
                   />
@@ -222,7 +222,7 @@ export default function AccountPage() {
 
                     <Link
                       href="/shop"
-                      className="inline-block rounded-xl bg-[var(--sf-acento)] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--sf-acento-3)]"
+                      className="inline-block rounded-xl bg-[var(--sf-acento)] px-6 py-2.5 text-sm font-semibold text-[var(--sf-acento-txt)] transition-colors hover:bg-[var(--sf-acento-3)]"
                     >
                       Ir a la tienda
                     </Link>
@@ -235,7 +235,7 @@ export default function AccountPage() {
                         className="flex items-center justify-between p-4 transition-colors hover:bg-[var(--sf-fondo)]"
                       >
                         <div>
-                          <p className="text-sm font-semibold text-[var(--sf-acento)]">
+                          <p className="text-sm font-semibold text-[var(--sf-acento-texto)]">
                             {order.numero_orden}
                           </p>
 
@@ -278,7 +278,7 @@ export default function AccountPage() {
                     <Coffee className="w-10 h-10 text-[var(--sf-tostado-2)] mx-auto mb-3" />
                     <p className="font-medium text-[var(--sf-tinta)] mb-1">No tienes suscripciones activas</p>
                     <p className="text-sm text-[var(--sf-texto-suave)] mb-4">Suscríbete y recibe café fresco cada mes con descuento.</p>
-                    <Link href="/suscripciones" className="inline-block bg-[var(--sf-acento)] text-white text-sm font-semibold px-6 py-2.5 rounded-xl hover:bg-[var(--sf-acento-3)] transition-colors">Ver planes</Link>
+                    <Link href="/suscripciones" className="inline-block bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] text-sm font-semibold px-6 py-2.5 rounded-xl hover:bg-[var(--sf-acento-3)] transition-colors">Ver planes</Link>
                   </div>
                 </div>
               )}

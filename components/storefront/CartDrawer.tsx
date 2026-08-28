@@ -66,14 +66,14 @@ export default function CartDrawer() {
             {/* Header */}
             <div className="flex items-center justify-between border-b border-[var(--sf-linea)] px-5 py-4">
               <div className="flex items-center gap-2">
-                <ShoppingBag className="h-5 w-5 text-[var(--sf-acento)]" />
+                <ShoppingBag className="h-5 w-5 text-[var(--sf-acento-texto)]" />
 
                 <h2 className="font-semibold text-[var(--sf-tinta)]">
                   Tu Carrito
                 </h2>
 
                 {items.length > 0 && (
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--sf-acento)] text-xs text-white">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--sf-acento)] text-xs text-[var(--sf-acento-txt)]">
                     {totalItems}
                   </span>
                 )}
@@ -105,7 +105,7 @@ export default function CartDrawer() {
 
                   <button
                     onClick={closeCart}
-                    className="text-sm font-medium text-[var(--sf-acento)] underline underline-offset-2 crusor-pointer"
+                    className="text-sm font-medium text-[var(--sf-acento-texto)] underline underline-offset-2 crusor-pointer"
                   >
                     Seguir comprando
                   </button>

@@ -25,7 +25,7 @@ export default function NosotrosHistoria() {
           viewport={preview ? undefined : { once: true }}
           variants={fadeUp}
         >
-          {eyebrow && <p className="text-[var(--sf-acento)] text-xs font-medium tracking-[0.2em] uppercase mb-3">{eyebrow}</p>}
+          {eyebrow && <p className="text-[var(--sf-acento-texto)] text-xs font-medium tracking-[0.2em] uppercase mb-3">{eyebrow}</p>}
           {/* h1: es el encabezado principal de la PÁGINA (la home usa h2 por sección). */}
           <h1 className="text-4xl sm:text-5xl font-playfair text-[var(--sf-tinta)] leading-tight mb-8">{titulo}</h1>
           <div className="space-y-6">

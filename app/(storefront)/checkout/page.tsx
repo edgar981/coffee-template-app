@@ -140,7 +140,7 @@ export default function Checkout() {
             </div>
             <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
               <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-acento)] mb-4 text-center">{confirmation.numero_orden}</p>
+              <p className="text-2xl font-bold text-[var(--sf-acento-texto)] mb-4 text-center">{confirmation.numero_orden}</p>
               <div className="space-y-2 pt-3 border-t border-[var(--sf-linea)]">
                 {confirmation.items.map((item, i) => (
                   <div key={i} className="flex justify-between text-xs text-[var(--sf-texto)]">
@@ -194,7 +194,7 @@ export default function Checkout() {
         <div className="min-h-[60vh] flex items-center justify-center pt-16">
           <div className="text-center">
             <p className="text-xl font-playfair mb-4">Tu carrito está vacío</p>
-            <Link href="/" className="text-[var(--sf-acento)] underline text-sm">← Explorar productos</Link>
+            <Link href="/" className="text-[var(--sf-acento-texto)] underline text-sm">← Explorar productos</Link>
           </div>
         </div>
     );
@@ -215,8 +215,8 @@ export default function Checkout() {
           <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2">
             {STEPS.map((s, i) => (
               <div key={s} className="flex items-center gap-2 shrink-0">
-                <div className={`flex items-center gap-2 ${i === step ? 'text-[var(--sf-acento)]' : i < step ? 'text-emerald-600' : 'text-[var(--sf-tostado-3)]'}`}>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${i === step ? 'bg-[var(--sf-acento)] text-white' : i < step ? 'bg-emerald-600 text-white' : 'bg-[var(--sf-linea)] text-[var(--sf-texto-suave)]'}`}>
+                <div className={`flex items-center gap-2 ${i === step ? 'text-[var(--sf-acento-texto)]' : i < step ? 'text-emerald-600' : 'text-[var(--sf-tostado-3)]'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${i === step ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : i < step ? 'bg-emerald-600 text-white' : 'bg-[var(--sf-linea)] text-[var(--sf-texto-suave)]'}`}>
                     {i < step ? '✓' : i + 1}
                   </div>
                   <span className="text-sm font-medium">{s}</span>
@@ -284,7 +284,7 @@ export default function Checkout() {
                               <span className="block text-sm font-medium text-[var(--sf-tinta)]">{shippingMethod.label}</span>
                               <span className="block text-xs text-[var(--sf-texto-suave)]">{shippingMethod.description}</span>
                             </div>
-                            <span className="text-sm font-bold text-[var(--sf-acento)] shrink-0">{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost!)}</span>
+                            <span className="text-sm font-bold text-[var(--sf-acento-texto)] shrink-0">{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost!)}</span>
                           </div>
                           {/* Franja horaria — required for Bogotá D.C., framed as a preference */}
                           {isBogota && shippingMethod.slots && (
@@ -331,12 +331,12 @@ export default function Checkout() {
                       <Field label="Referencia de pago (opcional)" value={refTransfer} onChange={setRefTransfer} placeholder="Número de confirmación" />
                     )}
                     <div className="bg-[var(--sf-superficie)] rounded-xl p-4 flex items-start gap-2 text-xs text-[var(--sf-texto)]">
-                      <Lock className="w-3.5 h-3.5 text-[var(--sf-acento)] shrink-0 mt-0.5" />
+                      <Lock className="w-3.5 h-3.5 text-[var(--sf-acento-texto)] shrink-0 mt-0.5" />
                       <span>Tu información está segura. Nuestro equipo confirmará el pago por WhatsApp y procesará tu pedido en menos de 2 horas hábiles.</span>
                     </div>
                     <div className="flex gap-3">
                       <button onClick={() => setStep(0)} className="flex-1 border border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)]">Atrás</button>
-                      <button onClick={handleOrder} disabled={loading} className="flex-1 bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 text-white font-bold py-3.5 rounded-xl text-sm transition-colors">
+                      <button onClick={handleOrder} disabled={loading} className="flex-1 bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors">
                         {loading ? 'Procesando...' : `Confirmar pedido · ${formatCOP(total)}`}
                       </button>
                     </div>
@@ -387,7 +387,7 @@ export default function Checkout() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 mt-4 text-xs text-[var(--sf-texto-suave)]">
-                  <Shield className="w-3.5 h-3.5 text-[var(--sf-acento)]" />
+                  <Shield className="w-3.5 h-3.5 text-[var(--sf-acento-texto)]" />
                   <span>Compra 100% segura y verificada</span>
                 </div>
               </div>

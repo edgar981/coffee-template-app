@@ -98,7 +98,7 @@ export default function ProductPage({
 
         <Link
           href="/tienda"
-          className="text-sm text-[var(--sf-acento)] underline"
+          className="text-sm text-[var(--sf-acento-texto)] underline"
         >
           ← Volver a la tienda
         </Link>
@@ -168,7 +168,7 @@ export default function ProductPage({
         <nav className="flex items-center gap-2 text-xs text-[var(--sf-texto-suave)]">
           <Link
             href="/"
-            className="hover:text-[var(--sf-acento)]"
+            className="hover:text-[var(--sf-acento-texto)]"
           >
             Inicio
           </Link>
@@ -177,7 +177,7 @@ export default function ProductPage({
 
           <Link
             href="/tienda"
-            className="hover:text-[var(--sf-acento)]"
+            className="hover:text-[var(--sf-acento-texto)]"
           >
             Tienda
           </Link>
@@ -254,7 +254,7 @@ export default function ProductPage({
                 <span className="inline-block text-xs font-semibold bg-[var(--sf-tostado)] text-[var(--sf-tinta)] px-3 py-1 rounded-full">{product.badge}</span>
               )}
               <div>
-                <p className="text-sm text-[var(--sf-acento)] mb-1 capitalize">{product.origen || product.categoria?.replace('_', ' ')}</p>
+                <p className="text-sm text-[var(--sf-acento-texto)] mb-1 capitalize">{product.origen || product.categoria?.replace('_', ' ')}</p>
                 <h1 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-tinta)] leading-tight">{product.nombre}</h1>
               </div>
 
@@ -316,7 +316,7 @@ export default function ProductPage({
                                 : 'border-[var(--sf-linea)] opacity-40 cursor-not-allowed'
                           }`}
                         >
-                          <span className={`block text-xs font-medium ${selected ? 'text-[var(--sf-acento)]' : 'text-[var(--sf-tinta)]'}`}>{o.nombre}</span>
+                          <span className={`block text-xs font-medium ${selected ? 'text-[var(--sf-acento-texto)]' : 'text-[var(--sf-tinta)]'}`}>{o.nombre}</span>
                           <span className="block text-[10px] text-[var(--sf-texto-suave)]">{o.metodo}</span>
                         </button>
                       );
@@ -384,7 +384,7 @@ export default function ProductPage({
                         <Heart className={`w-5 h-5 ${wishlisted ? 'fill-red-400' : ''}`} />
                       </button>
                     </div>
-                    <button onClick={() => { handleAdd(); }} className="w-full border-2 border-[var(--sf-acento)] text-[var(--sf-acento)] hover:bg-[var(--sf-acento)] hover:text-white font-semibold py-4 rounded-2xl transition-all text-sm">
+                    <button onClick={() => { handleAdd(); }} className="w-full border-2 border-[var(--sf-acento)] text-[var(--sf-acento-texto)] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)] font-semibold py-4 rounded-2xl transition-all text-sm">
                       Comprar ahora
                     </button>
                   </div>
@@ -394,7 +394,7 @@ export default function ProductPage({
                     <p className="text-sm text-gray-400 mt-1">Déjanos tu correo para notificarte cuando regrese.</p>
                     <div className="flex gap-2 mt-3">
                       <input type="email" placeholder="tu@correo.com" className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-                      <button className="bg-[var(--sf-acento)] text-white px-4 py-2 rounded-lg text-sm font-medium">Avisar</button>
+                      <button className="bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] px-4 py-2 rounded-lg text-sm font-medium">Avisar</button>
                     </div>
                   </div>
                 )}
@@ -404,7 +404,7 @@ export default function ProductPage({
               <div className="flex flex-col gap-2 pt-2">
                 {[{ icon: Truck, text: 'Envío a todo Colombia · Gratis +$150.000' }, { icon: RotateCcw, text: 'Garantía de frescura de 30 días' }, { icon: CheckCircle, text: 'Tostado dentro de los 7 días previos al envío' }].map(({ icon: Icon, text }) => (
                   <div key={text} className="flex items-center gap-2 text-xs text-[var(--sf-texto)]">
-                    <Icon className="w-3.5 h-3.5 text-[var(--sf-acento)] shrink-0" /> {text}
+                    <Icon className="w-3.5 h-3.5 text-[var(--sf-acento-texto)] shrink-0" /> {text}
                   </div>
                 ))}
               </div>

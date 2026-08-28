@@ -41,7 +41,7 @@ export default function TrustBadges() {
                 className="flex items-center gap-3"
               >
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--sf-tostado)]/20">
-                  <Icon className="h-4 w-4 text-[var(--sf-acento)]" />
+                  <Icon className="h-4 w-4 text-[var(--sf-acento-texto)]" />
                 </div>
 
                 <span className="text-sm font-medium text-[var(--sf-acento-2)]">

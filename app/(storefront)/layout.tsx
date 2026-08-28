@@ -10,6 +10,7 @@ import { SiteSettingsProvider } from "@/components/storefront/SiteSettingsProvid
 import { getSiteSettings } from "@/lib/config/site-settings";
 import { SiteContentProvider } from "@/components/storefront/SiteContentProvider";
 import { getSiteContent } from "@/lib/config/site-content";
+import { cssPaleta } from "@/lib/config/palette-style";
 
 // El storefront se renderiza DINÁMICO (por request), no estático. Su layout lee la
 // identidad del negocio (SiteSetting) y el contenido de la home (SiteContent) de la BASE, y
@@ -69,8 +70,14 @@ export default async function StorefrontLayout({
   // layout server (React.cache dedupe por request) e inyectados a sus providers. Son
   // INDEPENDIENTES entre sí, así que van en un Promise.all — no en cadena.
   const [settings, content] = await Promise.all([getSiteSettings(), getSiteContent()]);
+  // La PALETA del cliente, derivada de sus 3 raíces e inyectada como `:root{--sf-*}` en un
+  // <style> SERVER-RENDERED (sin flash — va en el primer paint; gana a los defaults de
+  // globals.css por orden de fuente). Nayoli tiene las raíces en null → `null` → sin <style>
+  // → defaults de código → byte-idéntico. (§ palette-style.)
+  const paletaCss = cssPaleta(settings.paletaFondo, settings.paletaTinta, settings.paletaAcento);
   return (
     <StorefrontThemeProvider>
+      {paletaCss && <style dangerouslySetInnerHTML={{ __html: paletaCss }} />}
       <SiteSettingsProvider value={settings}>
         <SiteContentProvider value={content}>
           <CartProvider>
