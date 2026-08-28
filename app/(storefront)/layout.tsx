@@ -23,28 +23,38 @@ import { getSiteContent } from "@/lib/config/site-content";
 // este tamaño no necesita. Si el tráfico crece, ése es el momento de volver a estático + ISR.
 export const dynamic = 'force-dynamic';
 
-// ─── La identidad del STOREFRONT, declarada acá ──────────────────────────────
+// ─── La identidad del STOREFRONT, dinámica desde SiteSetting ──────────────────
 //
-// Antes vivía en las convenciones de archivo de la raíz (`app/favicon.ico`,
-// `app/icon.svg`, `app/apple-icon.png`), y ése era el bug: Next las aplica a TODA
-// la app, así que el panel de Duna servía el favicon de Café Nayoli. Los archivos
-// se movieron a `public/` —mismas URLs, mismos bytes— y el grupo los declara.
+// El TÍTULO y la DESCRIPCIÓN de la pestaña salen de SiteSetting (editables desde el
+// panel). El storefront es `force-dynamic`, así que `generateMetadata` re-corre por
+// request: cambiar el nombre del negocio se ve en el siguiente load, sin rebuild ni
+// caché rancio (el `<title>` viaja en el HTML, no es un binario cacheado como el favicon).
+// Esto SOBREESCRIBE el `title.default`/`template` de la raíz (que es de Nayoli) para todo
+// el subárbol del storefront; la raíz queda como fallback muerto (siempre se sobreescribe).
 //
-// NOTA PARA EL TEMPLATE: esto es **contenido de tenant**, no chrome del producto.
-// El nombre, la descripción, el favicon y los íconos del manifest son de la
-// tienda, no de Duna; van al inventario de la fase 1 (SiteSetting) el día del
-// multitenant, junto con `app/manifest.ts` y el `title`/`description` de la raíz,
-// que siguen siendo de Nayoli a propósito.
-export const metadata: Metadata = {
-  icons: {
-    icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/favicon.ico", sizes: "any" },
-    ],
-    apple: { url: "/apple-icon.png", type: "image/png", sizes: "180x180" },
-    shortcut: "/favicon.ico",
-  },
-};
+// Los ICONOS siguen siendo assets por archivo (favicon, apple, manifest). En esta tanda:
+// el favicon pasa a `/api/favicon` con Cache-Control corto (commit 2), y el color del
+// tema sale de SiteSetting (commit 4). El mark del `Logo` es un asset por-despliegue.
+export async function generateMetadata(): Promise<Metadata> {
+  const { nombre, descripcionFooter } = await getSiteSettings();
+  return {
+    // `absolute` (NO `default`) + `template`: un `title.default` de segmento hijo SIGUE
+    // pasando por el `template` de la RAÍZ (`%s · Café Nayoli`) → la home salía duplicada
+    // "Café Nayoli · Café Nayoli". `absolute` ignora el template heredado, igual que hizo el
+    // admin con "Panel Duna" (§ Identidad — la trampa ya estaba documentada). Así: la home →
+    // "{nombre}"; una hija con `title: "X"` (p.ej. /nosotros) → "X · {nombre}".
+    title: { absolute: nombre, template: `%s · ${nombre}` },
+    description: descripcionFooter,
+    icons: {
+      icon: [
+        { url: "/icon.svg", type: "image/svg+xml" },
+        { url: "/favicon.ico", sizes: "any" },
+      ],
+      apple: { url: "/apple-icon.png", type: "image/png", sizes: "180x180" },
+      shortcut: "/favicon.ico",
+    },
+  };
+}
 
 interface StorefrontLayoutProps {
   children: ReactNode;

@@ -36,6 +36,7 @@ export default function StoreFooter() {
             <div className="mb-4">
               {/* Espresso background → dark (cream) stacked lockup */}
               <Logo
+                nombre={settings.nombre}
                 variant="dark"
                 stacked
                 subtitle={settings.tagline}
@@ -52,7 +53,7 @@ export default function StoreFooter() {
                 href={instagramUrl(settings.instagram)}
                 target="_blank"
                 rel="noopener"
-                aria-label="Instagram de Café Nayoli"
+                aria-label={`Instagram de ${settings.nombre}`}
                 className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
               >
                 <Image
@@ -68,7 +69,7 @@ export default function StoreFooter() {
                 href={whatsappUrl(settings.whatsapp)}
                 target="_blank"
                 rel="noopener"
-                aria-label="WhatsApp de Café Nayoli"
+                aria-label={`WhatsApp de ${settings.nombre}`}
                 className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
               >
                 <MessageCircle className="h-4 w-4 text-white/60" />

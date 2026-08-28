@@ -1,10 +1,18 @@
-// components/brand/Logo.tsx
-// Café Nayoli — approved mark (kit direction 2b: geometric flor, cherry center)
+// El lockup de marca del STOREFRONT: mark (ícono) + wordmark (el nombre del negocio).
+//
+// EL WORDMARK ES `nombre`, de SiteSetting — lo pasa el CONSUMIDOR (StoreNav/StoreFooter,
+// que lo leen del provider), para que Logo siga siendo PRESENTACIONAL: un componente que
+// lee el contexto sólo puede vivir dentro de él, y Logo no tiene por qué. Antes el wordmark
+// decía "Café Nayoli" hardcoded.
+//
+// EL MARK (la flor geométrica) es hoy la marca de Nayoli. Para un segundo cliente es un
+// ASSET por-despliegue —o un mark genérico—; esa decisión es de la tanda de assets (commit 2).
+//
 // Usage:
-//   <LogoMark className="h-7 w-7" />                       — icon only
-//   <Logo />                                               — nav lockup (tan mark + espresso wordmark)
-//   <Logo variant="dark" />                                — for espresso backgrounds
-//   <Logo stacked subtitle="Supatá · Cundinamarca" />      — footer / splash
+//   <LogoMark className="h-7 w-7" />                                      — sólo el ícono
+//   <Logo nombre={settings.nombre} />                                     — lockup del nav
+//   <Logo nombre={settings.nombre} variant="dark" />                      — sobre fondo espresso
+//   <Logo nombre={settings.nombre} stacked subtitle={settings.tagline} /> — footer
 
 import { cn } from "@duna/core/utils";
 
@@ -49,9 +57,12 @@ type LogoProps = {
   variant?: "light" | "dark";
   stacked?: boolean;
   subtitle?: string;
+  /** El wordmark: el nombre del negocio (SiteSetting). Lo pasa el consumidor —requerido,
+      para que el compilador señale a cualquiera que lo olvide. */
+  nombre: string;
 };
 
-export function Logo({ className, variant = "light", stacked = false, subtitle }: LogoProps) {
+export function Logo({ className, variant = "light", stacked = false, subtitle, nombre }: LogoProps) {
   const wordmark = variant === "light" ? "text-[#1E150E]" : "text-[#F9F6F4]";
   const cherry = variant === "light" ? "#1E150E" : "#F9F6F4";
 
@@ -60,7 +71,7 @@ export function Logo({ className, variant = "light", stacked = false, subtitle }
       <div className={cn("flex flex-col items-center gap-3", className)}>
         <LogoMark className="h-12 w-12" cherry={cherry} />
         <div className="flex flex-col items-center gap-0.5">
-          <span className={cn("font-display text-2xl", wordmark)}>Café Nayoli</span>
+          <span className={cn("font-display text-2xl", wordmark)}>{nombre}</span>
           {subtitle && (
             <span className="font-display text-[13px] italic text-[#BA9C7B]">{subtitle}</span>
           )}
@@ -73,7 +84,7 @@ export function Logo({ className, variant = "light", stacked = false, subtitle }
     <div className={cn("flex items-center gap-2.5", className)}>
       <LogoMark className="h-7 w-7" cherry={cherry} />
       <span className={cn("font-display text-[22px] leading-none", wordmark)}>
-        Café Nayoli
+        {nombre}
       </span>
     </div>
   );

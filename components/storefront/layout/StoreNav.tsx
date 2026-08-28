@@ -8,8 +8,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import NavSearch from './NavSearch';
 import { Logo } from '@/components/storefront/Logo';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
+import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 
 export default function StoreNav() {
+  const { nombre } = useSiteSettings();
   // "Nosotros" es RUTA (/nosotros), y sólo aparece si la página está ENCENDIDA (§ paginas.nosotros).
   // Apagada, el enlace desaparece. Antes era un ancla a la home (`/#nuestra-historia`), cuyo
   // active-state por `pathname.startsWith` nunca matcheaba —la ruta real lo arregla—.
@@ -46,9 +48,9 @@ export default function StoreNav() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 lg:h-18">
             {/* Logo */}
-            <Link href="/" aria-label="Café Nayoli — inicio" className="transition-colors">
+            <Link href="/" aria-label={`${nombre} — inicio`} className="transition-colors">
               {/* Cream lockup over the transparent hero, espresso once scrolled */}
-              <Logo variant={isHome && !scrolled ? 'dark' : 'light'} />
+              <Logo nombre={nombre} variant={isHome && !scrolled ? 'dark' : 'light'} />
             </Link>
 
             {/* Desktop Nav */}

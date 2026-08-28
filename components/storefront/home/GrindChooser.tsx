@@ -5,7 +5,11 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { fadeUp } from "@/lib/animation";
+import { useSiteSettings } from "@/components/storefront/SiteSettingsProvider";
 
+// FLAG (commit 2 — assets): las rutas `img` son fotos de PRODUCTO de Nayoli. Un segundo
+// cliente las reemplaza como asset por-despliegue (o esta sección migra a SiteContent). El
+// `alt` sí es identidad textual y ya sale de `nombre`.
 const OPCIONES = [
   {
     label: "En grano",
@@ -22,6 +26,7 @@ const OPCIONES = [
 ];
 
 export default function GrindChooser() {
+  const { nombre } = useSiteSettings();
   return (
     <section className="py-20 bg-[#faf7f4]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -35,7 +40,7 @@ export default function GrindChooser() {
               <Link href={op.path} className="group relative flex flex-col justify-end overflow-hidden rounded-3xl aspect-[4/5] sm:aspect-[3/2] bg-[#e8ddd0]">
                 <Image
                   src={op.img}
-                  alt={`Café Nayoli ${op.label}`}
+                  alt={`${nombre} ${op.label}`}
                   fill
                   sizes="(max-width: 768px) 100vw, 50vw"
                   className="object-cover group-hover:scale-105 transition-transform duration-500"
