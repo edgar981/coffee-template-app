@@ -5087,6 +5087,29 @@ que el admin no debería pedir.
 una entrega sigue estando "lista para despachar" solo con mensajero Y fecha, y la
 fecha la sigue poniendo una persona.
 
+## El COPY va en TUTEO colombiano (tú), nunca voseo (vos)
+
+Todo texto de cara al usuario —toasts, hints, errores, labels, placeholders, estados
+vacíos, copy del storefront— va en **tuteo**: "prueba", "elige", "usa", "edita", "ten en
+cuenta". **Nunca voseo**: "probá", "elegís", "usá", "editá", "tené". Nayoli es colombiana
+y el registro de todo el producto es el tuteo; un "probá" suelto suena de otro país en una
+tienda que no lo es.
+
+**El tell es el ACENTO en la última sílaba.** Voseo acentúa el final: prob**á**, eleg**í**s,
+us**á**, edit**á**, mand**á**, dej**á**, seguí, tenés, podés. Tuteo no: pr**ue**ba,
+el**i**ge, **u**sa, ed**i**ta. Ojo con los falsos positivos al barrer: "se hace despacio",
+"la que manda", "deja escrito" son 3ª persona, no voseo — el discriminador es el acento
+final en un IMPERATIVO o un PRESENTE de 2ª persona, no cualquier `-a`/`-e`.
+
+**Está escrito porque se recuerda mal: se coló TRES tandas seguidas** (los tres commits de
+la tanda de marca lo trajeron y el owner lo cazó las tres veces). Una regla que depende de
+acordarse es una que se olvida — por eso vive acá. Barrido rápido antes de cerrar cualquier
+tanda con copy nuevo:
+
+```bash
+grep -rniE "\b(prob[áé]|eleg[íé]s?|us[áé]|edit[áé]|mand[áé]|dej[áé]|ten[éí]s|pod[éí]s|quer[éí]s|segu[íé]s|and[áé]|fijate|acordate)\b" <archivos con copy nuevo>
+```
+
 ## Principio rector del admin (Amber Minimal)
 
 El color es información, no decoración. Reglas de sistema (se implementan en los
