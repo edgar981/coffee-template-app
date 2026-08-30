@@ -14,12 +14,8 @@ export interface SiteSettings {
   emailRemitente:    string;
   emailReplyTo:      string | null;
   adminEmail:        string | null;
-  // Raíces de paleta del storefront: null = defaults de código (Nayoli). El layout las
-  // deriva e inyecta si están presentes (§ palette-derive). Viajan al provider pero los
-  // componentes NO las usan —consumen las CSS vars inyectadas—; es una sola fuente.
-  paletaFondo:       string | null;
-  paletaTinta:       string | null;
-  paletaAcento:      string | null;
+  // La PALETA ya no está acá: se mudó a `SiteContent.content.tema` (§ Backlog #55). El storefront
+  // la lee de `getSiteContent()`, no de este loader.
 }
 
 /**
@@ -45,8 +41,5 @@ export async function readSiteSettings(): Promise<SiteSettings> {
     emailRemitente:    s.emailRemitente,
     emailReplyTo:      s.emailReplyTo,
     adminEmail:        s.adminEmail,
-    paletaFondo:       s.paletaFondo,
-    paletaTinta:       s.paletaTinta,
-    paletaAcento:      s.paletaAcento,
   };
 }

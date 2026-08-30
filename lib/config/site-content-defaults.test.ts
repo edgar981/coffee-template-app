@@ -7,6 +7,7 @@ import {
   resolverSiteContent,
   resolverItems,
   resolverPaginas,
+  resolverTema,
   seccionEsVisible,
   type SeccionDef,
 } from './site-content-defaults';
@@ -380,4 +381,47 @@ test('REGISTRY.nosotrosGaleria.imagenes = [url, poster] y url es requerido (trip
   // vídeo se borre con el ítem. Y la url debe ser requerida (sin archivo no hay ítem).
   assert.deepEqual(REGISTRY.nosotrosGaleria.imagenes, ['url', 'poster']);
   assert.equal(REGISTRY.nosotrosGaleria.repeater!.campos.url, 'requerido');
+});
+
+// ── El TEMA (paleta): clave no-sección, gemela de `paginas` ───────────────────
+
+test('tema: sin nada guardado → las 3 raíces en null (el storefront cae a los defaults de código)', () => {
+  assert.deepEqual(resolverSiteContent({}).tema, { fondo: null, tinta: null, acento: null });
+});
+
+test('tema NO es una sección: no rompe el loop de secciones, y el hero sí resuelve', () => {
+  const r = resolverSiteContent({ tema: { fondo: '#101010' } });
+  assert.equal(r.tema.fondo, '#101010');
+  assert.ok(typeof r.hero.titulo === 'string'); // las secciones siguen resolviendo
+});
+
+test('tema: SeccionKey lo excluye — el REGISTRY no tiene entrada `tema` (no es sección)', () => {
+  assert.equal('tema' in REGISTRY, false);
+  assert.equal('paginas' in REGISTRY, false);
+});
+
+test('resolverTema: raíz hex válida se respeta; null/vacío/basura/no-hex → null', () => {
+  const def = { fondo: null, tinta: null, acento: null };
+  assert.deepEqual(
+    resolverTema({ fondo: '#FAF7F4', tinta: '#1a0f08', acento: '#8b4513' }, def),
+    { fondo: '#FAF7F4', tinta: '#1a0f08', acento: '#8b4513' },
+  );
+  // no-hex / vacío / hex de 3 dígitos / número → null (la defensa del loader SOFT: un valor corrupto
+  // editado a mano NO llega al motor de derivación)
+  assert.deepEqual(
+    resolverTema({ fondo: 'rojo', tinta: '', acento: '#abc', extra: 42 }, def),
+    { fondo: null, tinta: null, acento: null },
+  );
+  // parcial: sólo fondo puesto, las otras dos en null (el write exige las 3-o-ninguna; el loader no lo asume)
+  assert.deepEqual(resolverTema({ fondo: '#123456' }, def), { fondo: '#123456', tinta: null, acento: null });
+  // entrada no-objeto → todo al default, NO lanza (SOFT)
+  assert.deepEqual(resolverTema('basura', def), { fondo: null, tinta: null, acento: null });
+  assert.deepEqual(resolverTema(null, def), { fondo: null, tinta: null, acento: null });
+});
+
+test('resolverTema: un DEFAULT hex se usa cuando el guardado no trae raíz válida (defensa simétrica)', () => {
+  // Hoy los defaults del tema son null, pero la mecánica del default hex es la misma que en `paginas`:
+  // si el default fuera un hex, se usaría ante un guardado inválido. Fija el contrato del fallback.
+  const def = { fondo: '#000000', tinta: '#ffffff', acento: '#8b4513' };
+  assert.deepEqual(resolverTema({ fondo: 'basura' }, def), { fondo: '#000000', tinta: '#ffffff', acento: '#8b4513' });
 });

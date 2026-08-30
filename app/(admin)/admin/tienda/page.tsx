@@ -1,12 +1,15 @@
+import PaletaSeccion from '@/components/admin/PaletaSeccion';
 import TiendaPaginas from '@/components/admin/TiendaPaginas';
 
 // ─── CONTENIDO DE LA TIENDA (el storefront) ──────────────────────────────────
 //
-// El contenido EDITORIAL del storefront, agrupado por PÁGINA (Home · Nosotros). Distinto de
-// Configuración, que edita la IDENTIDAD del negocio (§ negocio≠tienda).
-//
-// Cada sección (`TiendaSeccionEditor`) trae su VISTA PREVIA EN VIVO + read↔edit + autoguardado; el
-// selector de página (`TiendaPaginas`) las agrupa. La página /nosotros se puede encender/apagar.
+// El contenido EDITORIAL del storefront. Distinto de Configuración, que edita la IDENTIDAD del
+// negocio (§ negocio≠tienda). Dos ejes en la pantalla:
+//   · COLORES (`PaletaSeccion`) — la PIEL de todo el storefront, store-wide, va ARRIBA del selector
+//     de página porque no pertenece a una página (§ content.tema, clave no-sección);
+//   · las SECCIONES agrupadas por PÁGINA (`TiendaPaginas`, Home · Nosotros) — cada una con su vista
+//     previa en vivo + read↔edit + autoguardado.
+// Los DOS adoptan el mismo flujo borrador/publicar: Tienda es "lo que se publica".
 export default function Tienda() {
   return (
     <div>
@@ -17,6 +20,13 @@ export default function Tienda() {
           correos— se edita en Configuración.
         </p>
       </div>
+
+      {/* COLORES — store-wide, SOBRE el selector de página: la paleta no es de una página, así que va
+          FUERA del control de página. La simetría del modelo (`content.tema` es clave no-sección). */}
+      <PaletaSeccion />
+
+      {/* Separador entre lo store-wide (colores) y lo per-página (secciones). */}
+      <hr style={{ border: 0, borderTop: '1px solid var(--duna-border)', margin: 'var(--duna-space-8) 0' }} />
 
       <TiendaPaginas />
     </div>

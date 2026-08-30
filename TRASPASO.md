@@ -1,14 +1,17 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-28 (EL STOREFRONT SE VISTE DEL CLIENTE — primera tanda del storefront-por-cliente,
-**MERGEADA a producción** (`41d4e6a`, deploy verde, migración aplicada). La identidad textual y la PALETA del
-storefront salen de `SiteSetting`: motor de color OKLCH (3 raíces fondo·tinta·acento → 22 tintas derivadas +
-piso de contraste + acento auto-volteado), tokenización de 506 hex → vars `--sf-*`, editor "Colores de la
-tienda" en Configuración con vista previa de componentes REALES escalada a 1280 (`EscalaDesktop`) + ampliar en
-overlay + botón de fábrica. **Nayoli sale byte-idéntico** (raíces null → defaults de código). El WORDMARK carga
-la identidad; el MARK es asset por-despliegue. Migración `20260828120000` (columnas paleta nullable, sin
-backfill) aplicada en prod. Abrió **#55** (paleta al flujo de borrador) y **#56** (manifest del panel es del
-cliente). Antes: el VÍDEO en la galería de /nosotros — tanda B del #48/#20.)
+**Actualizado:** 2026-08-30 (LA PALETA → SiteContent con flujo de BORRADOR — cierra § Backlog #55. La paleta
+del storefront (fondo·tinta·acento) se mudó de `SiteSetting` (modelo HARD, guardar=publicar al instante) a
+`SiteContent.content.tema` (clave NO-sección, gemela de `paginas`, `resolverTema` aparte del loop) para ganar
+borrador/publicar/descartar. **La frontera borrador/no-borrador pasó a ser de PANTALLA:** Configuración =
+identidad en vivo; Tienda = lo que se publica. El editor de colores se mudó de Configuración a `/admin/tienda`
+SOBRE el selector de página (es store-wide, no de una página), con autoguardado-si-válido + Publicar/Descartar +
+píldora "Sin publicar" + reset-a-fábrica directo con confirmación. Reusa la máquina de secciones
+(`publicarSeccion('tema')`) + `guardarTemaBorrador` + route `/api/site-content/tema`. DROP de las 3 columnas de
+`SiteSetting` (migración `20260830120000`, MISMO deploy que el código, condición segura = UN SOLO usuario del
+panel, no "sin tráfico"). Nayoli byte-idéntico (nulls → defaults de código). 6 commits en `feat/paleta-borrador`,
+capa 1 772/772 · carril 184/184 · next build verde — **pendiente el gate del owner**. Antes: EL STOREFRONT SE
+VISTE DEL CLIENTE (`41d4e6a`, en producción).)
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -51,9 +54,9 @@ Vercel, `main` = producción).
 | `/admin/analitica` | Completa (cuatro preguntas de dueño, titulares) | Document-scroll (estado final — § Los DOS modelos de scroll) |
 | `/admin/automatizaciones` | Completa (rejilla, señal de vida, historial) | Document-scroll (estado final — § Los DOS modelos de scroll) |
 | `/admin/dashboard` | Completa ("Hoy": hero + curva por hora + top-hoy + tarjetas) | Document-scroll |
-| `/admin/configuracion` | Completa. "Configuración" con TRES secciones: Datos del negocio (editor lectura↔edición) + **Colores de la tienda** (paleta del storefront, con vista previa de componentes reales) + Equipo y usuarios | Document-scroll |
+| `/admin/configuracion` | Completa. "Configuración" con DOS secciones: Datos del negocio (editor lectura↔edición) + Equipo y usuarios. Instant-save puro (identidad); los COLORES se mudaron a `/admin/tienda` | Document-scroll |
 | `/admin/perfil` | Completa (cuenta limpia + cambiar contraseña real) | Document-scroll |
-| `/admin/tienda` | Completa. Contenido del storefront (SiteContent), DOS páginas (selector Home/Nosotros): la home (hero · Historia · Suscripción · Testimonios) y /nosotros (historia larga · GALERÍA masonry con fotos y VÍDEO, apagable). Lectura en TARJETAS, edición en vista grande. Rail: "Tienda" suelto tras Crecimiento | Document-scroll |
+| `/admin/tienda` | Completa. **Colores de la tienda** (paleta del storefront, borrador/publicar) SOBRE el selector de página + Contenido del storefront (SiteContent), DOS páginas (selector Home/Nosotros): la home (hero · Historia · Suscripción · Testimonios) y /nosotros (historia larga · GALERÍA masonry con fotos y VÍDEO, apagable). Lectura en TARJETAS, edición en vista grande. Rail: "Tienda" suelto tras Crecimiento | Document-scroll |
 
 ### Pendientes de rediseño
 **Ninguna.** Todas las verticales del panel están en lenguaje Duna; no queda una
@@ -72,7 +75,8 @@ del owner pasado, mergeado `--no-ff` y desplegado (deploy verde, migración de c
   server-side como `:root{}` `<style>` (sin flash), memoizada por raíces.
 - **Tokenización** (commit 3): 506 hex literales del storefront → 20 vars `--sf-*` semánticas, byte-idéntico
   (verificado en producción: Nayoli con raíces null → los 20 `--sf-*` = sus hex exactos).
-- **El editor "Colores de la tienda"** en Configuración: BASES curadas (NEUTRA primero — un rubro de
+- **El editor "Colores de la tienda"** (nació en Configuración; **luego mudado a `/admin/tienda` con flujo de
+  borrador**, § la tanda de la paleta-borrador abajo): BASES curadas (NEUTRA primero — un rubro de
   primera pondría a Nayoli de punto de partida) para fondo+tinta + picker libre para el acento; **vista
   previa de COMPONENTES REALES** del storefront (Logo + TrustBadges + 3 ProductCard) escalada a 1280 con
   `EscalaDesktop` (render a ancho de DISEÑO + transform scale — no reflow a un ancho que ningún visitante
@@ -88,10 +92,38 @@ del owner pasado, mergeado `--no-ff` y desplegado (deploy verde, migración de c
   (`:focus-visible`) en todo el panel, tab-testeado (el keyboard ring se conserva, el mouse no lo muestra).
 - **Migración `20260828120000_add_site_setting_palette`**: `paletaFondo/Tinta/Acento` nullable, sin default,
   sin backfill → la fila de Nayoli queda en null. Aditiva; aplicada en prod con el deploy.
-- Abrió **#55** (la paleta se comporta como CONTENIDO —se cambia por gusto, se quiere ver antes de publicar—
-  pero vive en el modelo HARD de identidad, donde guardar publica al instante; su discovery: injertar borrador
-  en `SiteSetting` o mover la paleta a `SiteContent`) y **#56** (el manifest del panel es del CLIENTE → el PWA
-  del admin se instala como la tienda; gateado por assets: Duna sólo tiene SVG+ICO, un manifest quiere PNG).
+- Abrió **#55** (la paleta se comporta como CONTENIDO pero vivía en el modelo HARD de identidad) —**CERRADO por
+  la tanda de la paleta-borrador**, ver abajo— y **#56** (el manifest del panel es del CLIENTE → el PWA del admin
+  se instala como la tienda; gateado por assets: Duna sólo tiene SVG+ICO, un manifest quiere PNG — sigue vivo).
+
+### La PALETA → SiteContent (borrador) — CONSTRUIDA, en la rama (2026-08-30, `feat/paleta-borrador`)
+
+Cierra **§ Backlog #55**. La paleta se mudó de `SiteSetting` (HARD, guardar=publicar al instante) a
+`SiteContent.content.tema` para ganar borrador/publicar/descartar. **Decisión: opción B** (mover la paleta a
+SiteContent), porque A (injertar borrador en SiteSetting) y C (frontera por campo) dejan Configuración BILINGÜE
+—conocimiento que el operador carga por-campo—; con B la frontera es de **PANTALLA**. 6 commits, pendiente el gate
+del owner.
+
+- **Modelo:** `content.tema` es la SEGUNDA clave no-sección de `SiteContentData` (tras `paginas`): `resolverTema`
+  la resuelve aparte del loop, no está en el REGISTRY, `SeccionKey` la excluye. Nulls → defaults de código →
+  Nayoli byte-idéntico. `content.paginas` ya había abierto ese camino, así que ensanchar SiteContent a "estado de
+  presentación del storefront" es honesto, no forzado.
+- **Write:** reusa las key-agnósticas `publicarSeccion('tema')`/`descartarSeccion('tema')` + `guardarTemaBorrador`
+  (guardar propio: la paleta valida DURO —hex-6, todo-o-nada—). Route `/api/site-content/tema` (PUT guardar
+  borrador · POST publicar/descartar). Carril: 5 casos de `tema` (guardar sin tocar publicado, publicar sin blobs,
+  descartar, volver-a-fábrica sin arrastrar secciones).
+- **El editor** (`PaletaSeccion`) se mudó a `/admin/tienda` SOBRE el selector de página, con el contrato de
+  borrador de las secciones. DOS adaptaciones por la validación DURA: (1) autoguardado SÓLO en estados válidos —un
+  acento a medio teclear muestra el error inline y NO guarda; guarda solo al volver a ser válido—; (2) "Usar el
+  tema por defecto" = RESET DIRECTO que publica nulls (misma clase que el toggle de página: config), con
+  confirmación. NULL, no los hexes: los hexes pasarían por el motor de derivación (aproximación); el null → sin
+  `<style>` → los `--sf-*` exactos → byte-idéntico. Configuración volvió a instant-save puro.
+- **DROP** de las 3 columnas de `SiteSetting` (migración `20260830120000`), MISMO deploy que el código que deja de
+  leerlas. La razón va en la migración: la ventana del `migrate deploy` aplica aunque estén en null, y **la
+  condición segura es UN SOLO usuario del panel** (SiteSetting la lee también el admin), no "sin tráfico" — con un
+  equipo vuelve a dos deploys.
+- **El CAVEAT que sobrevive:** descartar → publicado, fábrica → defaults; **"republicar un tema PASADO" sigue
+  siendo HISTORIAL y sigue DESCARTADO** (sobre-ingeniería). El borrador no resuelve el historial.
 
 ### Rediseño del login (la PUERTA) — CONSTRUIDO (2026-08-27)
 
@@ -716,15 +748,14 @@ Reglas: va ordenada y **el orden es la decisión**; el número es identidad, no
 posición. Cada entrada dice el **costo ya pagado**. Un ítem completado **se borra**.
 
 Vivos, **en el orden de `CLAUDE.md`** (el orden es la decisión): **`#46`** (primero —
-el editor visual) · **`#55`** (prioridad alta — la paleta se comporta como CONTENIDO pero vive
-en el modelo HARD de identidad; su discovery: injertar borrador en SiteSetting o mover la paleta
-a SiteContent) · `#3` · `#4` · `#18` · `#19` ·
+el editor visual) · `#3` · `#4` · `#18` · `#19` ·
 `#20` · `#21` · `#25` · `#26` · `#27` · `#32` · `#34` · `#35` ·
 `#37` · `#39` · `#41` · `#49` · `#51` · `#52` (Ingresar con WhatsApp — capacidad
 que no existe; disparador: cuando el login por WhatsApp exista) · `#53` (swipe-to-dismiss
 en los sheets) · `#54` (favicon derivado del wordmark — motor de ImageResponse, era del storefront) ·
 `#56` (el manifest del panel es del CLIENTE → el PWA del admin se instala como la tienda;
-gateado por assets PNG de Duna). **(23 ítems; los que
+gateado por assets PNG de Duna). **(#55 —la paleta al flujo de borrador— CERRADO por la tanda
+de la paleta-borrador; ver la sección arriba. Quedan 22 ítems; los que
 describen un defecto concreto —#18,#19,#21,#25,#26,#27,#32,#34,#37,#39— se VERIFICARON contra el código.
 `#5`, `#8` y `#10` eran la familia "campo que le falta su otra mitad"; los tres se
 CERRARON el 2026-08-27, abajo.)**

@@ -47,6 +47,27 @@ export async function guardarBorrador(data: SiteContentEditable): Promise<{ blob
   });
 }
 
+// GUARDAR EL TEMA: escribe `borrador.tema` (las 3 raíces). Es el guardar de la PALETA —clave
+// no-sección (§ site-content-defaults), validada por `paletaEditableSchema` (3 hex o null), no por
+// el schema de secciones—, así que tiene su propio guardar en vez de pasar por `guardarBorrador`.
+// PUBLICAR/DESCARTAR el tema SÍ reusan `publicarSeccion('tema')`/`descartarSeccion('tema')` (son
+// key-agnósticas). Sin blobs: la paleta son 3 strings, no imágenes —`imagenesDe` no toca `tema`
+// (no está en el REGISTRY)—, así que no devuelve `blobsABorrar`.
+export async function guardarTemaBorrador(
+  tema: { fondo: string | null; tinta: string | null; acento: string | null },
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const { borrador } = await leerFila(tx);
+    const nuevoBorrador = { ...borrador, tema };
+    const json = nuevoBorrador as unknown as Prisma.InputJsonValue;
+    await tx.siteContent.upsert({
+      where: { id: 'default' },
+      update: { borrador: json },
+      create: { id: 'default', content: {}, borrador: json },
+    });
+  });
+}
+
 // PUBLICAR: mueve borrador[seccion] a content[seccion] y lo saca del borrador. Sin borrador para
 // esa sección no hace nada (no hay fila que crear).
 export async function publicarSeccion(seccion: string): Promise<{ blobsABorrar: string[] }> {
