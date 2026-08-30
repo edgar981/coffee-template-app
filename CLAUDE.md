@@ -748,31 +748,31 @@ más el componente que Fase B va a extraer.
 **DISPARADOR: cuando el owner use el editor con las CUATRO secciones y BUSCAR el campo siga siendo
 el estorbo.** Hoy, con UNA sección y el sticky puesto, no hay evidencia de que lo sea.
 
-### 55. La PALETA se comporta como CONTENIDO pero vive en el modelo de IDENTIDAD
+### 55. La PALETA → SiteContent (borrador) — CONSTRUIDO (opción B, 2026-08-30)
 
-La paleta (`SiteSetting.paletaFondo/Tinta/Acento`) **se cambia por gusto, se quiere ver antes de
-publicar, y equivocarse es VISIBLE en el storefront** —o sea se comporta como CONTENIDO
-(§ SiteContent, con su borrador → ver → publicar / descartar)—. Pero vive en `SiteSetting`, el
-modelo **HARD de IDENTIDAD** (cadencia 2×/año, sin borrador, **guardar = publicar en vivo al
-instante**). La frontera identidad↔contenido está en el sitio equivocado PARA ESTE CAMPO.
+**DECISIÓN: la paleta se mudó de `SiteSetting` a `SiteContent.content.tema`** (opción B del
+discovery). El argumento que la decidió: injertar borrador en `SiteSetting` (opción A) o poner la
+frontera por CAMPO (opción C) dejan **Configuración BILINGÜE** —el WhatsApp sale en vivo, el color
+pide Publicar—, y eso es conocimiento que el operador tiene que cargar por-campo. Con B la frontera
+es de **PANTALLA**: Configuración = identidad en vivo; Tienda = lo que se publica. Y `content.paginas`
+ya había abierto el camino de la clave NO-sección, así que ensanchar SiteContent a "estado de
+presentación del storefront" es honesto, no forzado. (A, iterado, SE VUELVE C: el segundo campo de
+SiteSetting que quisiera borrador fuerza el mapa general que es C.)
 
-**Costo YA pagado:** el owner pidió volver a un tema anterior y **hoy no se puede** —guardar
-publica al instante, no hay borrador que descartar—. Es el MISMO defecto que motivó el flujo de
-borrador del contenido (§ La PANTALLA — "cambiar un color sale en vivo al instante"), una capa más
-arriba. El botón **"Usar el tema por defecto"** (tanda de marca) cubre "me perdí" → FÁBRICA, pero
-NO "volver a mi tema anterior".
+**Lo que se construyó** (§ Config del contenido — SiteContent, la PALETA): `content.tema` (clave
+no-sección, gemela de `paginas`, `resolverTema` aparte del loop de secciones); el write por borrador
+reusando las key-agnósticas `publicarSeccion('tema')`/`descartarSeccion('tema')` + `guardarTemaBorrador`;
+el storefront lee la paleta de `content.tema` (no de SiteSetting); el editor se mudó a `/admin/tienda`
+SOBRE el selector de página (es store-wide, no de una página) con el contrato de borrador de las
+secciones —autoguardado-si-válido, Publicar/Descartar, píldora "Sin publicar", reset-a-fábrica directo
+con confirmación—; y el DROP de las 3 columnas de `SiteSetting`.
 
-**DISPARADOR: ya cumplido** (el owner pidió volver atrás; no se puede).
-
-**LA DECISIÓN REAL no es "agregar borrador" — es DÓNDE VIVE LA PALETA:** (a) **injertar borrador en
-`SiteSetting`** (un `paletaBorrador` JSON) sin mover el campo, o (b) **mover la paleta a
-`SiteContent`** (el modelo SOFT que ya trae borrador/publicar/descartar). La (b) reubica la
-frontera; la (a) la deja y le agrega el flujo. **Merece su propio DISCOVERY**, no una tanda de
-implementación directa. Lo que ADELANTA el terreno: la maquinaria de flujo ya está probada
-(`site-content-write.ts`), y la **vista previa en vivo del editor de paleta YA existe** (el
-`ProductCard` sigue al form), así que la mitad "ver antes de publicar" está medio construida. Lo
-que falta decidir es la UBICACIÓN. **(La opción C del reporte de "volver atrás"; la B —historial de
-temas publicados— se descartó: sobre-ingeniería y bloqueada por el no-borrador.)**
+**EL CAVEAT QUE SOBREVIVE — que nadie crea que esto cerró el historial:** descartar vuelve al tema
+**PUBLICADO**; "Usar el tema por defecto" vuelve a **FÁBRICA** (publica nulls → los `--sf-*` exactos
+de código; NO los hexes de Nayoli, que pasarían por el motor de derivación y darían una APROXIMACIÓN).
+Pero **"republicar un tema PASADO" —un custom que publicaste antes— sigue siendo HISTORIAL de temas, y
+sigue DESCARTADO** (sobre-ingeniería, § el reporte de volver-atrás). El borrador NO resuelve el caso de
+historial; si "volver a mi tema anterior" resulta ser el caso real, es su propia decisión, aparte.
 
 ### 3. La ventana de 45 s del polling de la campana
 
@@ -1540,6 +1540,30 @@ de "config editable", modos de falla OPUESTOS.
   sin fila devuelve los defaults resueltos).
 - Provider PROPIO del storefront (`SiteContentProvider`), separado del de SiteSettings: dos
   datos con cadencia y modo de falla distintos.
+
+### La PALETA es `content.tema` — segunda clave NO-sección, flujo de borrador (§ Backlog #55)
+
+La paleta del storefront (fondo·tinta·acento) vive en `content.tema`, la SEGUNDA clave no-sección de
+`SiteContentData` tras `paginas`: `resolverTema` la resuelve APARTE del loop de secciones (gemela de
+`resolverPaginas`), no está en el REGISTRY, y `SeccionKey` la excluye. Nulls = defaults de código
+(§ globals.css `--sf-*`) → Nayoli byte-idéntico. Se mudó desde `SiteSetting` (modelo HARD, guardar =
+publicar al instante) para ganar el flujo borrador/publicar — la frontera borrador/no-borrador es de
+PANTALLA: Configuración = identidad en vivo, Tienda = lo que se publica.
+
+- **El write reusa la máquina de secciones, key-agnóstica:** `publicarSeccion('tema')` /
+  `descartarSeccion('tema')` (idénticas a las de una sección) + `guardarTemaBorrador` (guardar propio,
+  porque la paleta valida DURO —`paletaEditableSchema`, hex-6 todo-o-nada— y no tiene blobs). El route
+  es `/api/site-content/tema` (PUT guardar borrador · POST publicar/descartar); el mapeo wire→stored
+  (`paletaFondo`→`tema.fondo`) vive en ese route.
+- **El editor** (`components/admin/PaletaSeccion`) vive en `/admin/tienda` SOBRE el selector de página
+  (es store-wide, no de una página). Adopta el contrato de borrador de `TiendaSeccionEditor`, con DOS
+  adaptaciones por la validación DURA: (1) el autoguardado dispara SÓLO en estados válidos —un acento a
+  medio teclear muestra el error inline y NO guarda; guarda solo al volver a ser válido—; (2) "Usar el
+  tema por defecto" es un RESET DIRECTO que publica nulls (misma clase que el toggle de página: config,
+  no contenido en revisión), con confirmación. NULL, no los hexes: publicar los hexes los pasaría por el
+  motor de derivación (aproximación); el null → sin `<style>` → los `--sf-*` exactos → byte-idéntico.
+- **El caveat de historial** (§ Backlog #55): descartar vuelve al PUBLICADO y fábrica vuelve a los
+  defaults; "republicar un tema PASADO" es historial y sigue DESCARTADO.
 
 ### La FRONTERA fina de "defaults-como-fallback" — requerido ≠ opcional
 
