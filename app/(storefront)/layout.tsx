@@ -72,9 +72,11 @@ export default async function StorefrontLayout({
   const [settings, content] = await Promise.all([getSiteSettings(), getSiteContent()]);
   // La PALETA del cliente, derivada de sus 3 raíces e inyectada como `:root{--sf-*}` en un
   // <style> SERVER-RENDERED (sin flash — va en el primer paint; gana a los defaults de
-  // globals.css por orden de fuente). Nayoli tiene las raíces en null → `null` → sin <style>
-  // → defaults de código → byte-idéntico. (§ palette-style.)
-  const paletaCss = cssPaleta(settings.paletaFondo, settings.paletaTinta, settings.paletaAcento);
+  // globals.css por orden de fuente). Las raíces salen de `content.tema` (lo PUBLICADO), no de
+  // SiteSetting: la paleta se mudó a SiteContent para ganar el flujo borrador/publicar (§ doctrina:
+  // la frontera borrador/no-borrador es de PANTALLA). Sin fila / raíces en null → `null` → sin
+  // <style> → defaults de código → byte-idéntico. (§ palette-style, resolverTema.)
+  const paletaCss = cssPaleta(content.tema.fondo, content.tema.tinta, content.tema.acento);
   return (
     <StorefrontThemeProvider>
       {paletaCss && <style dangerouslySetInnerHTML={{ __html: paletaCss }} />}
