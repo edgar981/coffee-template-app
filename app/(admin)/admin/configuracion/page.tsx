@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import RoleBadge from '@/components/admin/RoleBadge';
 import InviteUserModal from '@/components/admin/InviteUserModal';
 import DatosNegocioSeccion from '@/components/admin/DatosNegocioSeccion';
-import PaletaSeccion from '@/components/admin/PaletaSeccion';
 import { normalize } from '@duna/core/utils';
 import { AdminUser, Role } from '@/types/admin';
 import { ROLES } from '@/constants/roles';
@@ -205,10 +204,10 @@ export default function Configuracion() {
         <DatosNegocioSeccion />
       </section>
 
-      {/* ── Sección: Colores de la tienda (misma cáscara que Datos del negocio) ── */}
-      <section style={{ marginTop: 'var(--duna-space-8)' }}>
-        <PaletaSeccion />
-      </section>
+      {/* Los COLORES de la tienda se editan en /admin/tienda (SOBRE el selector de página): la paleta
+          es la piel del storefront —contenido que se PUBLICA, no identidad del negocio— y pasó al flujo
+          borrador/publicar (§ Backlog #55, la frontera es de PANTALLA). Configuración quedó instant-save
+          puro (identidad + equipo). */}
 
       {/* ── Sección: Equipo y usuarios ────────────────────────────────────── */}
       <section style={{ marginTop: 'var(--duna-space-8)' }}>

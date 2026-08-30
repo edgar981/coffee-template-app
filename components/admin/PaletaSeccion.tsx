@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition, type CSSProperties } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react';
 import { toast } from 'sonner';
 import { Pencil, Maximize2 } from 'lucide-react';
 import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
@@ -12,23 +11,33 @@ import TrustBadges from '@/components/storefront/home/TrustBadges';
 import { EscalaDesktop } from '@/components/admin/EscalaDesktop';
 import { CartProvider } from '@/lib/cartStore';
 import type { Product } from '@/types/product';
-import { paletaEditableSchema } from '@/lib/config/palette-schema';
 import { derivarPaleta, contraste } from '@/lib/config/palette-derive';
-import { useAccionGuardada } from '@/hooks/useAccionGuardada';
-import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
+import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 
-// ─── Sección COLORES DE LA TIENDA (commit 4) ─────────────────────────────────
+// ─── Bloque COLORES DE LA TIENDA — vive en /admin/tienda, SOBRE el selector de página ────────────
 //
-// El cliente elige 3 RAÍCES —fondo·tinta·acento—; el motor deriva las demás y las
-// inyecta el layout del storefront. Reusa la MISMA cáscara que Datos del negocio
-// (lectura↔edición, `useDescarteDeDrawer`, `useAccionGuardada`, `ConfirmDescartarDialog`,
-// PATCH + `router.refresh()`) — un solo flujo de edición en la pantalla, no dos.
+// La paleta es la PIEL de TODO el storefront (nav, footer, cada página), ortogonal a las páginas —
+// por eso su bloque va SOBRE `TiendaPaginas`, no dentro de una pestaña—. El cliente elige 3 RAÍCES
+// —fondo·tinta·acento—; el motor deriva las demás y las inyecta el layout del storefront.
 //
-// HÍBRIDO (owner): BASES curadas para fondo+tinta (garantizan el contraste bg↔texto) +
-// picker LIBRE para el acento (es el color de marca, y una tienda casi siempre tiene el
-// suyo). El PISO de contraste y el auto-flip cubren lo derivado; el aviso, lo que el
-// cliente elige. Avisa, NO bloquea — es su tienda.
+// Adopta el CONTRATO de borrador de las secciones vecinas (§ TiendaSeccionEditor): read↔edit +
+// AUTOGUARDADO del borrador (`useAutoguardado`) + píldora "Sin publicar" + Publicar/Descartar +
+// `ConfirmDescartarDialog`. Una sola conducta en la pantalla —Tienda es "lo que se publica"; la
+// paleta se mudó de SiteSetting (donde guardar=publicar al instante) a `content.tema` para ganar
+// ese flujo (§ doctrina: la frontera borrador/no-borrador es de PANTALLA).
+//
+// DOS diferencias con las secciones, ambas por la validación DURA de la paleta (hex-6, todo-o-nada):
+//  · el autoguardado dispara SÓLO en estados VÁLIDOS (§ el guard `esValido`): un acento a medio
+//    teclear no es un guardado parcial, es un 400 — el error inline lo cubre y guarda solo al volver
+//    a ser válido;
+//  · "Usar el tema por defecto" es un RESET DIRECTO —publica las 3 raíces en NULL al instante (misma
+//    clase que el toggle de página: config, no contenido en revisión)—, con CONFIRMACIÓN porque borra
+//    el trabajo sin publicar y resetea lo publicado sin vuelta atrás.
+//
+// HÍBRIDO (owner): BASES curadas para fondo+tinta (garantizan el contraste bg↔texto) + picker LIBRE
+// para el acento. El PISO de contraste y el auto-flip cubren lo derivado; el aviso, lo que el cliente
+// elige. Avisa, NO bloquea — es su tienda.
 
 // Los defaults de código (§ globals.css `--sf-*`) = la paleta de Nayoli. Raíces null → estos.
 const DEFAULT_RAICES = { fondo: '#faf7f4', tinta: '#1a0f08', acento: '#8b4513' };
@@ -52,26 +61,17 @@ const BASES: { label: string; fondo: string; tinta: string }[] = [
 ];
 
 interface Form { fondo: string; tinta: string; acento: string }
-type Settings = ReturnType<typeof useSiteSettings>;
 
 const HEX6 = /^#[0-9a-fA-F]{6}$/;
 
-// El seed de cada raíz cae al default cuando el valor guardado NO es un hex válido —null,
-// undefined, cadena VACÍA o basura—, no sólo cuando es nullish. `?? default` atrapaba SÓLO
-// null/undefined, así que un `''` guardado se colaba a `form`: el campo de texto nacía
-// VACÍO y en rojo mientras el input de color lo enmascaraba con su propio fallback (los dos
-// leen el mismo `form.acento`, pero sólo el color tenía respaldo). Espeja a `cssPaleta`, que
-// ya trata `''` como "sin paleta" (`if (!acento) return null`).
+// El seed de cada raíz para el FORM (que renderiza pickers, y por eso siempre necesita un hex) cae al
+// default cuando el valor guardado en `content.tema` NO es un hex válido —null (fábrica), undefined,
+// vacío o basura—, no sólo cuando es nullish. El `content.tema` ya viene resuelto por `resolverTema`
+// (hex-o-null), así que en la práctica se recibe hex o null; esta función mapea el null de fábrica al
+// hex de defecto para que el picker tenga algo que mostrar. La distinción fábrica/custom NO sale de
+// acá —sale de si la raíz venía en null— (§ `esFabrica` en el componente).
 function raizValida(v: string | null, def: string): string {
   return v && HEX6.test(v) ? v : def;
-}
-
-function desdeSettings(s: Settings): Form {
-  return {
-    fondo:  raizValida(s.paletaFondo,  DEFAULT_RAICES.fondo),
-    tinta:  raizValida(s.paletaTinta,  DEFAULT_RAICES.tinta),
-    acento: raizValida(s.paletaAcento, DEFAULT_RAICES.acento),
-  };
 }
 
 // Productos de MUESTRA para la vista previa. Nombres GENÉRICOS a propósito —no cafés de Nayoli—
@@ -193,32 +193,149 @@ function AmpliarOverlay({ abierto, onCerrar, raices, nombre }: { abierto: boolea
 }
 
 export default function PaletaSeccion() {
-  const settings = useSiteSettings();
-  const router   = useRouter();
-  const guarda   = useAccionGuardada();
-  // El refresco post-guardado re-lee el layout (los `settings` nuevos). Hasta que llega ese
-  // RSC, `useSiteSettings()` devuelve los VIEJOS → la tarjeta pintaría la paleta anterior un
-  // instante (el flash que el owner vio). `useTransition` marca ese refresco: mientras
-  // `refrescando`, la lectura muestra el SKELETON en vez de la paleta vieja.
-  const [refrescando, startTransition] = useTransition();
+  const settings = useSiteSettings(); // sólo para el `nombre` del wordmark del preview
 
+  const [cargando, setCargando]           = useState(true);
+  const [errorCarga, setErrorCarga]       = useState<string | null>(null);
+  const [form, setForm]                   = useState<Form | null>(null);
+  const [esFabrica, setEsFabrica]         = useState(true);   // el tema draft-merged son las 3 raíces en null (defaults de código)
+  const [hayBorrador, setHayBorrador]     = useState(false);
   const [editando, setEditando]           = useState(false);
-  const [form, setForm]                   = useState<Form>(() => desdeSettings(settings));
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
+  const [procesando, setProcesando]       = useState(false);
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
+  const [confirmandoFabrica, setConfirmandoFabrica]   = useState(false);
   const [ampliado, setAmpliado]           = useState(false);
 
-  const salir = () => { setEditando(false); setErrorServidor(null); };
-  const descarte = useDescarteDeDrawer({ enVuelo: guarda.enVuelo, onCerrar: salir });
-  const sucio = editando && JSON.stringify(form) !== JSON.stringify(desdeSettings(settings));
-  useEffect(() => { descarte.marcarCambios(sucio); }, [sucio, descarte]);
+  const formRef = useRef<Form | null>(null); formRef.current = form;
 
-  const abrir = () => { setForm(desdeSettings(settings)); setErrorServidor(null); setEditando(true); };
+  // AUTOGUARDADO del borrador del tema — la MISMA máquina que las secciones (§ useAutoguardado). Sólo
+  // se ensucia con una paleta VÁLIDA (§ `cambiar`); un PUT con un hex a medias sería un 400.
+  const guardarTema = useCallback(async (raices: Form) => {
+    const res = await fetch('/api/site-content/tema', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paletaFondo: raices.fondo, paletaTinta: raices.tinta, paletaAcento: raices.acento }),
+    });
+    if (!res.ok) throw new Error('No se pudo guardar');
+  }, []);
+  const auto = useAutoguardado(guardarTema);
 
-  // Avisos de contraste — dicen QUÉ pasa, no un ratio. Cubren lo que el cliente ELIGE
-  // (fondo/tinta y el acento); lo derivado ya lo protege el piso + el auto-flip.
+  // Carga el tema draft-merged (GET /api/site-content → `contenido.tema` + `sinPublicar.tema`). El
+  // FORM siempre tiene hexes (el picker los necesita); la distinción fábrica/custom sale de si la
+  // raíz venía en null.
+  const cargar = useCallback(async (inicial = false) => {
+    try {
+      const r = await fetch('/api/site-content');
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      const t = (d.contenido?.tema ?? {}) as { fondo?: string | null; tinta?: string | null; acento?: string | null };
+      setForm({
+        fondo:  raizValida(t.fondo  ?? null, DEFAULT_RAICES.fondo),
+        tinta:  raizValida(t.tinta  ?? null, DEFAULT_RAICES.tinta),
+        acento: raizValida(t.acento ?? null, DEFAULT_RAICES.acento),
+      });
+      setEsFabrica(t.fondo == null);          // sin raíces guardadas = fábrica (defaults de código)
+      setHayBorrador(!!d.sinPublicar?.tema);
+      if (inicial) setCargando(false);
+    } catch {
+      if (inicial) { setErrorCarga('No se pudieron cargar los colores.'); setCargando(false); }
+    }
+  }, []);
+  useEffect(() => { cargar(true); }, [cargar]);
+
+  // beforeunload SÓLO en 'error' (§ decisión), igual que las secciones: pendiente/guardando es común
+  // y recuperable; un guardado que FALLÓ y no persiste es el caso grave.
+  useEffect(() => {
+    if (auto.estado !== 'error') return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [auto.estado]);
+
+  const esValido = (f: Form) => HEX6.test(f.fondo) && HEX6.test(f.tinta) && HEX6.test(f.acento);
+
+  // Un cambio de raíz: pisa el form y —SI queda válido— marca borrador y ensucia el autoguardado. Si
+  // el acento quedó inválido (a medio teclear), NO se guarda: el error inline lo cubre, y el PRÓXIMO
+  // cambio que lo devuelva a hex válido dispara el autoguardado SOLO, sin que el operador toque nada
+  // más. El picker de BASE y el `type=color` siempre producen hex válido.
+  const cambiar = (parcial: Partial<Form>) => {
+    const nf = { ...(formRef.current as Form), ...parcial };
+    setForm(nf);
+    setEsFabrica(false);                 // elegir colores = tema custom
+    if (esValido(nf)) { setHayBorrador(true); auto.marcarSucio(nf); }
+  };
+
+  const elegirBase = (b: (typeof BASES)[number]) => cambiar({ fondo: b.fondo, tinta: b.tinta });
+  const cerrarEdicion = () => { auto.flush(); setEditando(false); };
+
+  // Publicar / Descartar el borrador del tema (POST /api/site-content/tema). Publicar deja lo editado
+  // en vivo; descartar recarga el form a lo publicado (el preview también vuelve).
+  const accionBorrador = async (accion: 'publicar' | 'descartar') => {
+    setErrorServidor(null); setProcesando(true);
+    try {
+      const res = await fetch('/api/site-content/tema', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        setErrorServidor(d?.error ?? (accion === 'publicar' ? 'No se pudo publicar.' : 'No se pudo descartar.'));
+        return;
+      }
+      if (accion === 'publicar') { setHayBorrador(false); toast.success('Publicado — ya está en vivo.'); }
+      else { await cargar(); toast.success('Cambios descartados — volviste a lo publicado.'); }
+    } finally { setProcesando(false); }
+  };
+
+  // Volver a FÁBRICA: publica las 3 raíces en NULL al instante (RESET DIRECTO, misma clase que el
+  // toggle de página — config, no contenido en revisión). NULL, no los hexes de Nayoli: publicar los
+  // hexes los pasaría por el motor de derivación y dejaría una APROXIMACIÓN; el null → sin <style> →
+  // los `--sf-*` exactos de globals.css (§ byte-idéntico). CONFIRMA porque borra el trabajo sin
+  // publicar Y resetea lo publicado sin vuelta atrás. (Cubre "me perdí" → fábrica; NO "volver a mi
+  // tema custom anterior", que es historial y sigue descartado — § Backlog #55.)
+  const resetFabrica = async () => {
+    setConfirmandoFabrica(false);
+    setErrorServidor(null); setProcesando(true);
+    try {
+      const put = await fetch('/api/site-content/tema', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paletaFondo: null, paletaTinta: null, paletaAcento: null }),
+      });
+      if (!put.ok) { const d = await put.json().catch(() => null); setErrorServidor(d?.error ?? 'No se pudo aplicar el tema por defecto.'); return; }
+      const post = await fetch('/api/site-content/tema', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'publicar' }),
+      });
+      if (!post.ok) { const d = await post.json().catch(() => null); setErrorServidor(d?.error ?? 'No se pudo aplicar el tema por defecto.'); return; }
+      await cargar();
+      toast.success('Volviste al tema por defecto.');
+    } finally { setProcesando(false); }
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  if (cargando) {
+    return (
+      <div className="duna-card duna-card__pad" role="status">
+        <span className="duna-sr-only">Cargando los colores de la tienda…</span>
+        <div className="duna-skel" aria-hidden style={{ width: '100%', maxWidth: '440px', aspectRatio: '3 / 4', borderRadius: 14 }} />
+      </div>
+    );
+  }
+  if (errorCarga || !form) {
+    return (
+      <div className="duna-card duna-card__pad">
+        <p className="duna-field__error" role="alert">{errorCarga ?? 'No se pudieron cargar los colores.'}</p>
+      </div>
+    );
+  }
+
+  // Derivados (form ya no es null)
+  const baseActiva = BASES.find(b => b.fondo === form.fondo && b.tinta === form.tinta);
+  const acentoInvalido = !HEX6.test(form.acento);
   const acentoTxt = derivarPaleta(form)['acento-txt'];
   const avisos: string[] = [];
-  if (HEX6.test(form.acento)) {
+  if (!acentoInvalido) {
     if (contraste(form.tinta, form.fondo) < 4.5)
       avisos.push('El texto principal puede costar de leer sobre este fondo. Prueba una base más contrastada.');
     if (contraste(acentoTxt, form.acento) < 4.5)
@@ -227,81 +344,66 @@ export default function PaletaSeccion() {
       avisos.push('El acento casi no se distingue del fondo: los botones y detalles pueden perderse.');
   }
 
-  const acentoInvalido = editando && !HEX6.test(form.acento);
+  const puedePublicar = auto.estado === 'guardado' && !procesando;
+  const enError = auto.estado === 'error';
+  const mostrarEstado = editando || auto.estado !== 'guardado';
+  const estadoTexto = auto.estado === 'guardando' ? 'Guardando…' : auto.estado === 'error' ? 'No se pudo guardar' : 'Guardado';
+  const indicadorEstado = mostrarEstado ? (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
+      <span className={enError ? 'duna-field__error' : 'duna-caption'} style={{ margin: 0 }} role={enError ? 'alert' : undefined}>
+        {estadoTexto}
+      </span>
+      {enError && (
+        <button type="button" onClick={() => auto.reintentar()} className="duna-btn duna-btn--ghost duna-btn--sm">Reintentar</button>
+      )}
+    </div>
+  ) : null;
 
-  const elegirBase = (b: (typeof BASES)[number]) => setForm(f => ({ ...f, fondo: b.fondo, tinta: b.tinta }));
-
-  const guardar = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorServidor(null);
-    const payload = { paletaFondo: form.fondo, paletaTinta: form.tinta, paletaAcento: form.acento };
-    const parsed = paletaEditableSchema.safeParse(payload);
-    if (!parsed.success) { setErrorServidor(parsed.error.issues[0]?.message ?? 'Colores inválidos'); return; }
-
-    guarda.ejecutar(async () => {
-      const res = await fetch('/api/site-settings/palette', {
-        method:  'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setErrorServidor(data?.error ?? 'No se pudo guardar. Intenta de nuevo.');
-        return;
-      }
-      toast.success('Colores de la tienda guardados.');
-      setEditando(false);
-      startTransition(() => router.refresh());
-    });
-  };
-
-  // "Usar el tema por defecto": PATCH con las 3 raíces en null → el storefront vuelve a los
-  // defaults de código (§ cssPaleta con null → sin inyección). Cubre "me perdí" volviendo a
-  // FÁBRICA —no a un tema custom anterior; eso es § Backlog #55, la paleta al flujo de borrador—.
-  // Sólo se ofrece si hay un tema custom guardado: con el default ya puesto, "Cancelar" ya vuelve.
-  const tieneCustom = settings.paletaFondo != null || settings.paletaTinta != null || settings.paletaAcento != null;
-
-  const usarDefault = () => {
-    setErrorServidor(null);
-    guarda.ejecutar(async () => {
-      const res = await fetch('/api/site-settings/palette', {
-        method:  'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ paletaFondo: null, paletaTinta: null, paletaAcento: null }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setErrorServidor(data?.error ?? 'No se pudo aplicar el tema por defecto. Intenta de nuevo.');
-        return;
-      }
-      toast.success('Volviste al tema por defecto.');
-      setEditando(false);
-      startTransition(() => router.refresh());
-    });
-  };
-
-  const baseActiva = BASES.find(b => b.fondo === form.fondo && b.tinta === form.tinta);
+  // El botón de fábrica se ofrece cuando hay algo NO-fábrica que resetear (tema custom o un borrador).
+  const puedeResetear = !esFabrica || hayBorrador;
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)', flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0 }}>
-          <h2 className="duna-title">Colores de la tienda</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
+            <h2 className="duna-title">Colores de la tienda</h2>
+            {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
+          </div>
           <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
-            El fondo, la tinta del texto y el acento de marca. Eliges tres colores y el resto
-            de la paleta del storefront se calcula sola.
+            El fondo, la tinta del texto y el acento de marca — la piel de todo el storefront. Eliges
+            tres colores y el resto de la paleta se calcula sola; publica cuando esté listo.
           </p>
+          {editando && indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
         </div>
-        {!editando && (
-          <button type="button" onClick={abrir} className="duna-btn duna-btn--secondary" style={{ flexShrink: 0 }}>
+        {/* LECTURA: Editar. EDICIÓN: Cerrar / Descartar / Publicar. Publicar y Descartar esperan al
+            autoguardado (`!puedePublicar`) porque MUTAN; "Cerrar" NO muta (el borrador queda), así que
+            nunca se deshabilita. Publicar además se apaga con el acento inválido: no se publica un form
+            que muestra un valor que no es hex. */}
+        {!editando ? (
+          <button type="button" onClick={() => setEditando(true)} className="duna-btn duna-btn--secondary" style={{ flexShrink: 0 }}>
             <Pencil /> Editar
           </button>
+        ) : (
+          <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
+            <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
+            {hayBorrador && (
+              <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
+                Descartar
+              </button>
+            )}
+            {hayBorrador && (
+              <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar || acentoInvalido}>
+                {procesando ? 'Publicando…' : 'Publicar'}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
       <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
         {editando ? (
-          <form onSubmit={guardar} className="duna-form" noValidate style={{ gap: 'var(--duna-space-5)' }}>
+          <div className="duna-form" style={{ gap: 'var(--duna-space-5)' }}>
             {/* BASES (fondo + tinta) */}
             <div className="duna-form__full">
               <span className="duna-field__label">Base (fondo y texto)</span>
@@ -338,13 +440,13 @@ export default function PaletaSeccion() {
                 <input
                   id="pal-acento" type="color"
                   value={HEX6.test(form.acento) ? form.acento : '#8b4513'}
-                  onChange={e => setForm(f => ({ ...f, acento: e.target.value }))}
+                  onChange={e => cambiar({ acento: e.target.value })}
                   style={{ width: 44, height: 36, padding: 0, border: '1px solid var(--duna-border)', borderRadius: 'var(--duna-r-m)', background: 'none', cursor: 'pointer' }}
                   aria-label="Elegir color de acento"
                 />
                 <input
                   className="duna-input" style={{ width: 130, fontFamily: 'var(--duna-font-mono)' }}
-                  value={form.acento} onChange={e => setForm(f => ({ ...f, acento: e.target.value }))}
+                  value={form.acento} onChange={e => cambiar({ acento: e.target.value })}
                   aria-invalid={acentoInvalido || undefined}
                 />
               </div>
@@ -366,58 +468,57 @@ export default function PaletaSeccion() {
               )}
             </div>
 
-            <div className="duna-form__full" style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
-              <button type="submit" className="duna-btn duna-btn--primary" disabled={guarda.enVuelo || acentoInvalido}>
-                {guarda.enVuelo ? 'Guardando…' : 'Guardar cambios'}
-              </button>
-              <button type="button" onClick={descarte.intentarCerrar} className="duna-btn duna-btn--ghost" disabled={guarda.enVuelo}>
-                Cancelar
-              </button>
-              {errorServidor && <p className="duna-field__error" role="alert" style={{ margin: 0 }}>{errorServidor}</p>}
-              {/* Escape hatch a FÁBRICA (§ el botón de fábrica). Empujado a la derecha —es un
-                  reset, distinto del par guardar/cancelar—. Sólo con un tema custom guardado. */}
-              {tieneCustom && (
+            {errorServidor && <p className="duna-field__error" role="alert" style={{ margin: 0 }}>{errorServidor}</p>}
+
+            {/* Escape hatch a FÁBRICA (§ el botón de fábrica). Reset DIRECTO con confirmación; empujado
+                a la derecha —es un reset, no el par publicar/descartar—. Sólo con algo que resetear. */}
+            {puedeResetear && (
+              <div className="duna-form__full" style={{ display: 'flex' }}>
                 <button
-                  type="button" onClick={usarDefault} disabled={guarda.enVuelo}
+                  type="button" onClick={() => setConfirmandoFabrica(true)} disabled={procesando}
                   className="duna-btn duna-btn--ghost" style={{ marginLeft: 'auto' }}
                 >
                   Usar el tema por defecto
                 </button>
-              )}
-            </div>
-          </form>
+              </div>
+            )}
+          </div>
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-5)', alignItems: 'flex-start' }}>
             <div style={{ flex: '1 1 300px', maxWidth: 440 }}>
-              {/* Durante el refresco post-guardado, skeleton en vez de la paleta VIEJA (§ el flash).
-                  Aspecto de TARJETA (portrait), como la forma del ProductCard del preview. */}
-              {refrescando
-                ? <div className="duna-skel" aria-hidden style={{ width: '100%', aspectRatio: '3 / 4', borderRadius: 14 }} />
-                : <PreviewTiendaReal raices={desdeSettings(settings)} nombre={settings.nombre} />}
+              <PreviewTiendaReal raices={form} nombre={settings.nombre} />
             </div>
             <p className="duna-sub" style={{ margin: 0, maxWidth: '24rem' }}>
-              {settings.paletaAcento
-                ? <>Base <b>{baseActiva?.label ?? 'personalizada'}</b>, con tu acento. Así se ve tu tienda.</>
-                : <>Estás usando los colores de fábrica. Edita para elegir los tuyos.</>}
+              {esFabrica
+                ? <>Estás usando los colores de fábrica. Edita para elegir los tuyos.</>
+                : <>Base <b>{baseActiva?.label ?? 'personalizada'}</b>, con tu acento. Así se ve tu tienda.</>}
             </p>
           </div>
         )}
       </div>
 
       <ConfirmDescartarDialog
-        abierto={descarte.confirmando}
-        onDescartar={descarte.descartar}
-        onSeguir={descarte.seguirEditando}
+        abierto={confirmandoDescarte}
+        onDescartar={() => { setConfirmandoDescarte(false); accionBorrador('descartar'); }}
+        onSeguir={() => setConfirmandoDescarte(false)}
+        titulo="¿Descartar los cambios sin publicar?"
+        descripcion="Volverás a los colores publicados. El borrador se perderá y no se puede recuperar."
+        confirmLabel="Descartar borrador"
+        seguirLabel="Conservar"
       />
 
-      {/* Ampliar: el mismo fragmento en grande, con las raíces del modo VISIBLE (form en edición,
-          guardadas en lectura) → vivo por construcción, sin snapshot. */}
-      <AmpliarOverlay
-        abierto={ampliado}
-        onCerrar={() => setAmpliado(false)}
-        raices={editando ? form : desdeSettings(settings)}
-        nombre={settings.nombre}
+      <ConfirmDescartarDialog
+        abierto={confirmandoFabrica}
+        onDescartar={resetFabrica}
+        onSeguir={() => setConfirmandoFabrica(false)}
+        titulo="¿Volver al tema por defecto?"
+        descripcion="La tienda vuelve a los colores de fábrica al instante. Se descarta cualquier cambio sin publicar y no se puede deshacer."
+        confirmLabel="Usar el tema por defecto"
+        seguirLabel="Conservar mis colores"
       />
+
+      {/* Ampliar: el mismo fragmento en grande con las raíces actuales (form) → vivo por construcción. */}
+      <AmpliarOverlay abierto={ampliado} onCerrar={() => setAmpliado(false)} raices={form} nombre={settings.nombre} />
     </>
   );
 }
