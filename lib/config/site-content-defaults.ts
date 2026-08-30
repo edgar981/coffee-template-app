@@ -130,6 +130,19 @@ export interface PaginasContent {
   nosotros: { visible: boolean };
 }
 
+// META de TEMA: las 3 RAÍCES de paleta del storefront (fondo·tinta·acento). NO es una sección (no
+// lleva `campos` ni la resuelve el loop de secciones); es la PIEL de TODO el storefront, ortogonal a
+// las páginas —por eso vive como clave no-sección, gemela de `paginas`, y su editor va SOBRE el
+// selector de página, no dentro—. `null` en una raíz = el storefront cae a los defaults de código
+// (§ cssPaleta / palette-derive), que SON la paleta de Nayoli. El motor deriva las demás tintas de
+// estas tres; acá sólo se guardan las raíces. (Se mudó de SiteSetting —modelo HARD, guardar=publicar
+// al instante— a acá para ganar el flujo borrador/publicar; § doctrina, la frontera es de PANTALLA.)
+export interface TemaContent {
+  fondo: string | null;
+  tinta: string | null;
+  acento: string | null;
+}
+
 export interface SiteContentData {
   hero: HeroContent;
   brandStory: BrandStoryContent;
@@ -138,6 +151,7 @@ export interface SiteContentData {
   nosotrosHistoria: NosotrosHistoriaContent;
   nosotrosGaleria: NosotrosGaleriaContent;
   paginas: PaginasContent;
+  tema: TemaContent;
 }
 
 // Los DEFAULTS son los literales que hoy viven en el JSX del hero. Se mueven acá; el
@@ -213,6 +227,15 @@ export const DEFAULTS: SiteContentData = {
   paginas: {
     nosotros: { visible: true },
   },
+  // TEMA por defecto: las 3 raíces en null → el storefront usa los defaults de código (§ globals.css
+  // `--sf-*`), que SON la paleta de Nayoli → byte-idéntico sin depender de una fila. Un cliente setea
+  // sus raíces y el motor deriva el resto. La migración NO siembra `tema` (loader SOFT, como todo
+  // SiteContent): sin la clave, `resolverTema` la resuelve a estos nulls.
+  tema: {
+    fondo: null,
+    tinta: null,
+    acento: null,
+  },
 };
 
 // Destinos de los CTA — ESTRUCTURA, no editable. Los labels se editan; los hrefs NO: un
@@ -246,9 +269,10 @@ export interface SeccionDef {
   imagenes?: string[];
 }
 
-// Las claves de SECCIÓN (todo `SiteContentData` menos `paginas`, que es meta, no sección). El
-// REGISTRY las cubre a todas; `paginas` queda fuera a propósito.
-export type SeccionKey = Exclude<keyof SiteContentData, 'paginas'>;
+// Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas` y `tema`, que no son
+// secciones). El REGISTRY las cubre a todas; `paginas` y `tema` quedan fuera a propósito —cada una se
+// resuelve aparte del loop de secciones.
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema'>;
 
 export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
@@ -370,8 +394,8 @@ export function resolverSiteContent(
   const raw = esObj(stored) ? stored : {};
   const out = {} as Record<string, unknown>;
 
-  // Se itera por `registro` (las SECCIONES), no por `defaultsBase`: así una clave que NO es sección
-  // —`paginas`— no entra al loop de secciones y se resuelve aparte, abajo.
+  // Se itera por `registro` (las SECCIONES), no por `defaultsBase`: así las claves que NO son sección
+  // —`paginas`, `tema`— no entran al loop de secciones y se resuelven aparte, abajo.
   for (const key of Object.keys(registro)) {
     const def = registro[key];
     const defaults = defaultsBase[key] as Record<string, unknown>;
@@ -401,6 +425,8 @@ export function resolverSiteContent(
   // PÁGINAS (meta, no sección): sólo `visible` booleano por página; el default manda si el guardado
   // no trae un booleano explícito. Es lo que gatea el redirect de /nosotros y el enlace del nav.
   out.paginas = resolverPaginas(raw.paginas, defaultsBase.paginas);
+  // TEMA (meta, no sección): las 3 raíces de paleta, resueltas aparte del loop igual que `paginas`.
+  out.tema = resolverTema(raw.tema, defaultsBase.tema);
   return out as unknown as SiteContentData;
 }
 
@@ -417,6 +443,25 @@ export function resolverPaginas(stored: unknown, defaults: unknown): Record<stri
     out[pagina] = { visible: typeof sv === 'boolean' ? sv : dv };
   }
   return out;
+}
+
+// Resuelve el TEMA (las 3 raíces de paleta), gemela de `resolverPaginas`: una clave no-sección
+// resuelta aparte del loop de secciones. Cada raíz sale del guardado sólo si es un hex de 6 dígitos
+// VÁLIDO; si no —null, vacío, o basura—, cae al default (que es null → el storefront usa los
+// defaults de código, § cssPaleta). SOFT, nunca lanza. La validación que MANDA es el write
+// (`paletaEditableSchema`); ésta es la defensa del loader SOFT, que jamás debe romper por un valor
+// corrupto en la fila (una raíz `'rojo'` editada a mano no llega al motor de derivación).
+const HEX6_TEMA = /^#[0-9a-fA-F]{6}$/;
+export function resolverTema(stored: unknown, defaults: unknown): TemaContent {
+  const st = esObj(stored) ? stored : {};
+  const def = esObj(defaults) ? defaults : {};
+  const raiz = (k: string): string | null => {
+    const sv = st[k];
+    if (typeof sv === 'string' && HEX6_TEMA.test(sv)) return sv;
+    const dv = def[k];
+    return typeof dv === 'string' && HEX6_TEMA.test(dv) ? dv : null;
+  };
+  return { fondo: raiz('fondo'), tinta: raiz('tinta'), acento: raiz('acento') };
 }
 
 // Resuelve el array de items de una sección repeater. Cada ítem: los campos `requerido`/`opcional`
