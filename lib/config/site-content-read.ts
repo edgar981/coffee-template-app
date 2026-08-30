@@ -28,5 +28,8 @@ export async function readSiteContentParaEditor(): Promise<{
   const contenido = resolverSiteContent(mezclarBorrador(row?.content ?? {}, borrador));
   const sinPublicar: Record<string, boolean> = {};
   for (const key of Object.keys(REGISTRY)) sinPublicar[key] = key in borrador;
+  // `tema` (la paleta) NO está en el REGISTRY —es clave no-sección, como `paginas`— pero también se
+  // borronea: su píldora "Sin publicar" y sus botones Publicar/Descartar salen de este mismo flag.
+  sinPublicar.tema = 'tema' in borrador;
   return { contenido, sinPublicar };
 }

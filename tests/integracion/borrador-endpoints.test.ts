@@ -1,7 +1,7 @@
 import { test, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { prisma } from './fixtures';
-import { guardarBorrador, publicarSeccion, descartarSeccion, setPaginaVisible } from '../../lib/config/site-content-write';
+import { guardarBorrador, publicarSeccion, descartarSeccion, setPaginaVisible, guardarTemaBorrador } from '../../lib/config/site-content-write';
 
 // EL FLUJO BORRADOR/PUBLICADO, contra base real. Se afirma acá y no en la suite pura porque lo
 // que importa es qué queda ESCRITO en la fila tras cada operación (content vs borrador), y —lo
@@ -209,4 +209,58 @@ test('setPaginaVisible re-enciende sin perder otras páginas ya guardadas', asyn
   const { content } = await fila();
   assert.equal(content!.paginas.nosotros.visible, true); // re-encendida
   assert.equal(content!.paginas.otra.visible, true);     // otra página, intacta
+});
+
+// EL TEMA (la paleta) por el MISMO flujo borrador/publicado. Guarda con su propia función
+// (`guardarTemaBorrador`, validación distinta) pero PUBLICA/DESCARTA reusando las key-agnósticas
+// `publicarSeccion('tema')`/`descartarSeccion('tema')`. Se afirma contra base real porque lo que
+// importa es qué queda ESCRITO (content.tema vs borrador.tema) y que el tema NO arrastre secciones.
+
+const RAICES = { fondo: '#101010', tinta: '#f0f0f0', acento: '#c04000' };
+
+test('GUARDAR TEMA escribe borrador.tema y NO toca lo publicado', async () => {
+  await prisma.siteContent.create({ data: { id: 'default', content: { tema: { fondo: '#000000', tinta: '#ffffff', acento: '#8b4513' } } } });
+  await guardarTemaBorrador(RAICES);
+  const { content, borrador } = await fila();
+  assert.deepEqual(content!.tema, { fondo: '#000000', tinta: '#ffffff', acento: '#8b4513' }); // publicado INTACTO
+  assert.deepEqual(borrador!.tema, RAICES);                                                    // borrador escrito
+});
+
+test('GUARDAR TEMA sin fila previa crea la fila con el borrador (SOFT)', async () => {
+  await guardarTemaBorrador(RAICES);
+  const { borrador } = await fila();
+  assert.deepEqual(borrador!.tema, RAICES);
+});
+
+test('PUBLICAR TEMA mueve borrador.tema a content.tema y lo saca del borrador; sin blobs', async () => {
+  await prisma.siteContent.create({
+    data: { id: 'default', content: { tema: { fondo: '#000000', tinta: '#ffffff', acento: '#8b4513' } }, borrador: { tema: RAICES } },
+  });
+  const { blobsABorrar } = await publicarSeccion('tema');
+  const { content, borrador } = await fila();
+  assert.deepEqual(content!.tema, RAICES);      // publicado
+  assert.equal(borrador!.tema, undefined);      // fuera del borrador
+  assert.deepEqual(blobsABorrar, []);           // la paleta no tiene imágenes
+});
+
+test('DESCARTAR TEMA saca borrador.tema SIN tocar lo publicado (vuelve al tema publicado)', async () => {
+  const publicado = { fondo: '#000000', tinta: '#ffffff', acento: '#8b4513' };
+  await prisma.siteContent.create({ data: { id: 'default', content: { tema: publicado }, borrador: { tema: RAICES } } });
+  await descartarSeccion('tema');
+  const { content, borrador } = await fila();
+  assert.deepEqual(content!.tema, publicado); // publicado INTACTO
+  assert.equal(borrador!.tema, undefined);    // borrador limpio
+});
+
+test('PUBLICAR TEMA con las 3 raíces en null (volver a FÁBRICA) publica los nulls, no arrastra secciones', async () => {
+  // "Usar el tema por defecto": guardar borrador.tema con nulls → publicar → content.tema = nulls →
+  // el storefront cae a los defaults de código. Y publicar el tema NO toca el borrador de una sección.
+  await prisma.siteContent.create({
+    data: { id: 'default', content: { tema: RAICES }, borrador: { tema: { fondo: null, tinta: null, acento: null }, hero: { titulo: 'DRAFT_H' } } },
+  });
+  await publicarSeccion('tema');
+  const { content, borrador } = await fila();
+  assert.deepEqual(content!.tema, { fondo: null, tinta: null, acento: null }); // fábrica publicada
+  assert.equal(borrador!.tema, undefined);              // tema fuera del borrador
+  assert.equal(borrador!.hero.titulo, 'DRAFT_H');       // el borrador del hero, INTACTO (no arrastrado)
 });
