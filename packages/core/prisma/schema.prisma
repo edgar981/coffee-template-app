@@ -575,14 +575,9 @@ model SiteSetting {
   emailRemitente    String
   emailReplyTo      String?
   adminEmail        String?
-  // Raíces de paleta del storefront (commit 4). NULLABLE, y null = defaults de código
-  // (§ globals.css `--sf-*`). Nayoli queda con las tres en null → usa sus defaults →
-  // byte-idéntico SIN depender de una siembra. Un cliente nuevo setea sus 3 raíces y el
-  // motor (`lib/config/palette-derive`) deriva las 17 restantes. Hex validado en el write
-  // (`paletaEditableSchema`): "rojo" o un hex de 4 dígitos no llega al motor.
-  paletaFondo       String?
-  paletaTinta       String?
-  paletaAcento      String?
+  // La PALETA del storefront ya NO vive acá: se mudó a `SiteContent.content.tema` (§ Backlog #55)
+  // para ganar el flujo borrador/publicar. SiteSetting es IDENTIDAD (guardar = en vivo al instante);
+  // la paleta es CONTENIDO que se publica. Migración `drop_site_setting_palette`.
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
