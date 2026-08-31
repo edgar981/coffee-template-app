@@ -30,14 +30,16 @@ test('estadoTile: valor null/undefined (fuente caída) → null', () => {
 // EL DEFAULT DE LA PANTALLA "HOY" (2026-08-22) y la garantía de que el cambio de
 // default NO le quita nada a quien ya eligió sus tarjetas.
 
-test('el default son las dos tarjetas de acción del día (sin `pedidos_por_atender` ni `alertas_stock`)', () => {
+test('el default son TRES indicadores en fila (la forma de duna-os)', () => {
   // `ventas_hoy` y `pedidos_hoy` salieron del default (su cifra vive en el hero y en la
   // curva); `ingresos_mes`/`ordenes_mes` son de mes, no del día. `pedidos_por_atender` y
   // `alertas_stock` se RETIRARON: sus hechos salen en la sección "Necesita tu atención"
   // (§ lib/atencion/items) — el conteo de pedidos es el badge, y el stock bajo va como
-  // ítems rojos. `por_cobrar` se queda: muestra el MONTO ($ en la calle), que la sección no.
+  // ítems rojos. El tercero es `promedio_por_orden` (el "Ticket promedio" de la maqueta):
+  // llena la fila de tres sin dejar la mitad vacía. `por_cobrar` muestra el MONTO ($ en la
+  // calle), que la sección no. TRES es el ARRANQUE, no un número fijo — el customizer manda.
   assert.deepEqual(DEFAULT_WIDGET_KEYS, [
-    'por_cobrar', 'despachos_hoy',
+    'por_cobrar', 'despachos_hoy', 'promedio_por_orden',
   ]);
 });
 

@@ -1,4 +1,3 @@
-import type { Order } from './order';
 import type { InsightMonthPoint } from '@/lib/metrics/insights';
 import type { OrdenAtencion } from '@/lib/atencion/items';
 
@@ -74,9 +73,6 @@ export interface DashboardStats {
   hoyKey: string;
   /** Current-month average received per sale (revenueMonth / payments this month). */
   avgTicket: number;
-
-  /** N most recent NON-CANCELLED orders by creation date, newest first. */
-  recentOrders: Order[];
 
   /**
    * Month-over-month: current calendar month (in progress) vs the previous

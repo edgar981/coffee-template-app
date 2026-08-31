@@ -14,8 +14,6 @@ import { pedidosPorHoraDeHoy, topHoyVendido } from '@/lib/dashboard/hoy-server';
 // el correo del lunes no puede contradecir al dashboard.
 import { NOT_CANCELLED, REVENUE_ORDER_SCOPE, POR_COBRAR_WHERE, ORDENES_REALES } from '@duna/core/metrics/prisma-scopes';
 
-const RECENT_LIMIT = 6;
-
 // Meses de la serie que alimenta los insights: 7 CERRADOS + el mes en curso. Los
 // 7 no son arbitrarios — la regla semestral compara el último mes cerrado contra
 // el promedio de los 6 anteriores (lib/metrics/insights.ts), así que con menos
@@ -62,7 +60,6 @@ export async function GET() {
     ordenesParaAtencion,
     despachosHoy,
     pedidosHoy,
-    recentOrders,
     curMonthOrders,
     prevMonthOrders,
     firstPayment,
@@ -124,13 +121,6 @@ export async function GET() {
     // ── Pedidos de hoy ── real orders created today (excl. cancelled and SN-).
     prisma.order.count({
       where: { ...NOT_CANCELLED, numero_orden: { startsWith: 'CN-' }, createdAt: { gte: todayStart, lt: tomorrowStart } },
-    }),
-    // Recent orders EXCLUDE cancelled (same definition as every other metric).
-    prisma.order.findMany({
-      where:   NOT_CANCELLED,
-      include: { items: true },
-      orderBy: { createdAt: 'desc' },
-      take:    RECENT_LIMIT,
     }),
     // Order counts per month (for the "Órdenes del mes" value + its MoM pill).
     prisma.order.count({ where: { ...NOT_CANCELLED, createdAt: { gte: monthStart, lt: nextMonthStart } } }),
@@ -277,7 +267,6 @@ export async function GET() {
     /** Día de referencia (America/Bogota) para calcular "hace N días" en cliente. */
     hoyKey:         zonedDayKey(now, BUSINESS_TZ),
     avgTicket:      avgTicketCur,
-    recentOrders,
     monthly: {
       revenue:   { current: revenueMonth, previous: revenuePrev },
       orders:    { current: curMonthOrders, previous: prevMonthOrders },

@@ -1,18 +1,22 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-31 (EL DASHBOARD gana "Necesita tu atención" + el login se pulió. Tres commits en
-`feat/dashboard-atencion`: (1) el LOGIN —el pie se separa de la duna anclando el CONTENIDO (no capando el SVG,
-para no letterboxearla ni clipar el sol); el tagline afirma la CATEGORÍA ("El sistema operativo de tu negocio.")
-en vez de contar piezas; el sol ~40 s fuera de pantalla de cada ~220 s anotado como DISEÑADO—; (2) la SECCIÓN
-"Necesita tu atención", la ÚNICA lista que UNIFICA pedidos-atención + stock-bajo (fuente `itemsDeAtencion`, orden
-por PRIORIDAD DECLARADA —por costo, no por sección; el COLOR es la clase (pedidos ámbar, stock ROJO) y el orden
-es el costo, ejes distintos—, un ítem por orden con motivos encadenados, NAVEGA no muta, cap 4 que EXPANDE en el
-sitio, vacío = "Todo al día"; se retiraron DOS tiles (`pedidos_por_atender` → el badge, y `alertas_stock` → los
-ítems rojos, sin perder el único rojo del panel)); (3) la REDISTRIBUCIÓN de "Lo que más vendió" | "Órdenes
-recientes" a DOS columnas (Órdenes recientes se movió y bajó a TRES columnas: Orden·Cliente·Estado). capa 1
-779/779 · tsc + next build verde. El gate VISUAL del dashboard es del owner (la
-ruta va tras sesión). **Pendiente el gate del owner.** Antes: EL MANIFEST DEL PANEL YA ES DE DUNA (§ #56), en
-producción (`3f86792`).)
+**Actualizado:** 2026-08-31 (EL DASHBOARD adopta la ESTRUCTURA de duna-os + "Necesita tu atención", y el login se
+pulió. En `feat/dashboard-atencion`: (1) el LOGIN —el pie se separa de la duna anclando el CONTENIDO (no capando
+el SVG, para no letterboxearla ni clipar el sol); el tagline afirma la CATEGORÍA ("El sistema operativo de tu
+negocio.") en vez de contar piezas; el sol ~40 s fuera de pantalla de cada ~220 s anotado como DISEÑADO—; (2) la
+SECCIÓN "Necesita tu atención", la ÚNICA lista que UNIFICA pedidos-atención + stock-bajo (fuente `itemsDeAtencion`,
+orden por PRIORIDAD DECLARADA —por costo, no por sección; el COLOR es la clase (pedidos ámbar, stock ROJO) y el
+orden es el costo, ejes distintos—, un ítem por orden con motivos encadenados, NAVEGA no muta, cap 4 que EXPANDE
+en el sitio, vacío = "Todo al día"; se retiraron DOS tiles: `pedidos_por_atender` → el badge, `alertas_stock` → los
+ítems rojos); (3) la ESTRUCTURA de duna-os: **hero + curva + TRES indicadores en fila + dos columnas ("Necesita tu
+atención" 1.35fr | "Lo que más vendió hoy")**. La tabla de ÓRDENES RECIENTES se RETIRA (única tabla de una pantalla
+sin tablas; su contenido vive en Pedidos a un clic) —con ella `OrdersLista`/`ORDENES_COLS`, los imports
+`StatusBadge`/`Order`, y el dato MUERTO `recentOrders` del endpoint + `types/dashboard.ts`—; `.duna-lista` SE QUEDA
+(Pagos, kardex, Analítica, editor de tienda). Los indicadores suben ENTRE la curva y las columnas y pasan de 2 a 3
+por defecto (`promedio_por_orden` = el "Ticket promedio" de la maqueta gana `defaultVisible`; la tira de 4-col a
+3-col); el CUSTOMIZER sobrevive —"tres" es el arranque, no un tope—. capa 1 779/779 · tsc + next build verde. El
+gate VISUAL del dashboard es del owner (la ruta va tras sesión). **Pendiente el gate del owner.** Antes: EL MANIFEST
+DEL PANEL YA ES DE DUNA (§ #56), en producción (`3f86792`).)
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -54,7 +58,7 @@ Vercel, `main` = producción).
 | `/admin/pagos` | Completa (frase + curva) | Alto fijo ≥960 (`.duna-sin-split`), scroller único; **el gráfico va en la zona fija** |
 | `/admin/analitica` | Completa (cuatro preguntas de dueño, titulares) | Document-scroll (estado final — § Los DOS modelos de scroll) |
 | `/admin/automatizaciones` | Completa (rejilla, señal de vida, historial) | Document-scroll (estado final — § Los DOS modelos de scroll) |
-| `/admin/dashboard` | Completa ("Hoy": hero + curva por hora + **"Necesita tu atención"** (lista transversal pedidos+stock) + indicadores + top-hoy \| órdenes recientes en DOS columnas) | Document-scroll |
+| `/admin/dashboard` | Completa ("Hoy" a la duna-os: hero + curva por hora + **TRES indicadores en fila** + dos columnas **"Necesita tu atención"** (lista transversal pedidos+stock) \| "Lo que más vendió hoy". Órdenes recientes RETIRADA) | Document-scroll |
 | `/admin/configuracion` | Completa. "Configuración" con DOS secciones: Datos del negocio (editor lectura↔edición) + Equipo y usuarios. Instant-save puro (identidad); los COLORES se mudaron a `/admin/tienda` | Document-scroll |
 | `/admin/perfil` | Completa (cuenta limpia + cambiar contraseña real) | Document-scroll |
 | `/admin/tienda` | Completa. **Colores de la tienda** (paleta del storefront, borrador/publicar) SOBRE el selector de página + Contenido del storefront (SiteContent), DOS páginas (selector Home/Nosotros): la home (hero · Historia · Suscripción · Testimonios) y /nosotros (historia larga · GALERÍA masonry con fotos y VÍDEO, apagable). Lectura en TARJETAS, edición en vista grande. Rail: "Tienda" suelto tras Crecimiento | Document-scroll |
@@ -138,11 +142,16 @@ encadenados, NAVEGA no muta (cada ítem al detalle), cap 4 que EXPANDE en el sit
 secciones, no hay una sola página que muestre ambas), vacío = "Todo al día". **El COLOR es la clase, el ORDEN es
 el costo:** los pedidos van ámbar (`atencion`), el stock ROJO (`alerta`, antes ámbar por error) pero SIGUE al
 final. Se retiraron DOS tiles: `pedidos_por_atender` (→ el badge) y `alertas_stock` (→ los ítems rojos, sin
-perder el único rojo del panel); `por_cobrar` se quedó (muestra el monto). **(3) Redistribución:** "Lo que más
-vendió" \| "Órdenes recientes" a dos columnas (`lg:grid-cols-2`, `items-start`), y Órdenes recientes bajó a TRES
-columnas (Orden·Cliente·Estado; se quitaron Canal y Total, que forzaban scroll en media pantalla). capa 1
+perder el único rojo del panel); `por_cobrar` se quedó (muestra el monto). **(3) Estructura de duna-os:** hero +
+curva + TRES indicadores en fila + dos columnas ("Necesita tu atención" 1.35fr \| "Lo que más vendió hoy"). La
+tabla de **Órdenes recientes se RETIRA** (única tabla de una pantalla sin tablas; su contenido vive en Pedidos a
+un clic) —con ella `OrdersLista`/`ORDENES_COLS`, los imports `StatusBadge`/`Order`, y el dato MUERTO `recentOrders`
+(endpoint + `types/dashboard.ts`); `.duna-lista` SE QUEDA (4 consumidores: Pagos, kardex, Analítica, editor de
+tienda). Los indicadores suben ENTRE la curva y las columnas, de 2 a 3 por defecto (`promedio_por_orden` gana
+`defaultVisible`; tira 4-col → 3-col); el CUSTOMIZER sobrevive ("tres" = arranque, no tope). capa 1
 779/779 · tsc + next build verde. **El gate visual del dashboard es del owner** (la ruta va tras sesión, § LÍMITE
-CONOCIDO). Lo NO construido de la maqueta: asistente, "se agota mañana" (predicción), PSE.
+CONOCIDO). Lo NO construido de la maqueta: asistente, "se agota mañana" (predicción), PSE, "Conversaciones activas"
+y "Duna sugiere" (su sitio en la maqueta lo ocupa ahora la columna de atención).
 
 ### El MANIFEST del panel ya es de Duna — en PRODUCCIÓN (2026-08-30, `3f86792`)
 

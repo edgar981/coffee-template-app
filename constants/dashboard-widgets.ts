@@ -199,7 +199,11 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
   // grid (`sanitizeWidgetKeys` descarta las keys que ya no existen — por diseño).
   // El sub dice la BASE real del promedio: se divide por PAGOS registrados, no por
   // órdenes (el título es heredado). "Promedio por venta" solo repetía el título.
-  { key: 'promedio_por_orden', titulo: 'Promedio por orden', subtitulo: 'Por pago registrado · mes en curso', icono: TrendingUp, formato: 'cop', categoria: 'mes', defaultVisible: false, color: STAT_CHIP.neutral },
+  // `defaultVisible: true` para que el default sean TRES indicadores en fila (la forma
+  // de duna-os) y no dos con la mitad de la tira vacía. Es el "Ticket promedio" de la
+  // maqueta. Sigue siendo opt-out: el operador lo quita en Personalizar como cualquier
+  // otro — "tres" es el ARRANQUE, no un número fijo (el customizer manda).
+  { key: 'promedio_por_orden', titulo: 'Promedio por orden', subtitulo: 'Por pago registrado · mes en curso', icono: TrendingUp, formato: 'cop', categoria: 'mes', defaultVisible: true, color: STAT_CHIP.neutral },
   // ── Histórico ──
   // El all-time que salió del sub de "Ingresos del mes": una cifra histórica no
   // admite flecha mes-contra-mes, así que como widget propio queda sin trend y
@@ -224,7 +228,8 @@ export const WIDGET_MAP: Record<string, WidgetDef> = Object.fromEntries(
   DASHBOARD_WIDGETS.map((w) => [w.key, w]),
 );
 
-/** Default layout = the `defaultVisible` widgets in catalog order (8 cards). */
+/** Default layout = the `defaultVisible` widgets in catalog order (3: por_cobrar,
+ *  despachos_hoy, promedio_por_orden — tres en fila, la forma de duna-os). */
 export const DEFAULT_WIDGET_KEYS: string[] = DASHBOARD_WIDGETS.filter((w) => w.defaultVisible).map((w) => w.key);
 
 /**

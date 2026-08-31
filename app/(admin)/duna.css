@@ -441,8 +441,8 @@ html.admin {
    y la primera de cada fila envuelta queda con un filete izquierdo suelto, sin corte
    entre filas. Con conteo fijo, `nth-child` alcanza las dos cosas: "sin filete izq en
    la primera de cada fila" y "filete-top de la fila 2+". El costo —una columna suelta
-   en una fila parcial (5, 9…)— es la pérdida de calma editorial que el owner aceptó
-   para >6 (el default son 4: una fila limpia).
+   en una fila parcial (4, 7…)— es la pérdida de calma editorial que el owner aceptó
+   para >3 (el default son 3: una fila limpia, la forma de duna-os).
 
    TODAS las reglas de borde usan `:nth-child(...)` (incluida la de reset, `nth-child(n)`
    = todos) para que tengan la MISMA especificidad (0,2,0). Así el desempate lo hace el
@@ -451,7 +451,7 @@ html.admin {
    de otro tier. */
 .admin-indicadores {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   border-top: 1px solid var(--duna-border-2);
   border-bottom: 1px solid var(--duna-border-2);
 }
@@ -465,10 +465,10 @@ html.admin {
 }
 .admin-indicador:hover { background: var(--duna-surface); }
 
-/* ≥960: 4 columnas (base) */
+/* ≥960: 3 columnas (base) — tres en fila, la forma de duna-os */
 .admin-indicador:nth-child(n)    { border-left: 1px solid var(--duna-border-2); border-top: none; }
-.admin-indicador:nth-child(4n+1) { border-left: none; }
-.admin-indicador:nth-child(n+5)  { border-top: 1px solid var(--duna-border-2); }
+.admin-indicador:nth-child(3n+1) { border-left: none; }
+.admin-indicador:nth-child(n+4)  { border-top: 1px solid var(--duna-border-2); }
 
 @media (max-width: 959.98px) {   /* 2 columnas */
   .admin-indicadores { grid-template-columns: repeat(2, 1fr); }

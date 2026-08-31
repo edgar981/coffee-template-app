@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SlidersHorizontal, ArrowRight, Check } from 'lucide-react';
 import { toast } from 'sonner';
-import StatusBadge from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { DunaTooltip } from '@/components/admin/DunaTooltip';
 import { getDashboardStats } from '@/lib/api/dashboard';
@@ -13,7 +12,6 @@ import { getAnalytics } from '@/lib/api/analytics';
 import { getProducts } from '@/lib/api/products';
 import { getCustomers } from '@/lib/api/customers';
 import { getDashboardPrefs, saveDashboardPrefs } from '@/lib/api/dashboardPrefs';
-import type { Order } from '@/types/order';
 import type { Product } from '@/types/product';
 import type { Customer } from '@/types/customer';
 import type { DashboardStats } from '@/types/dashboard';
@@ -305,15 +303,13 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* NECESITA TU ATENCIÓN — la lista transversal (pedidos + stock), lo más accionable
-          del día. Lidera lo accionable, sobre los indicadores. NAVEGA, no muta: cada ítem
-          lleva al detalle donde vive la acción (§ Dashboard: cada indicador navega). */}
-      <SeccionAtencion items={itemsAtencion} loading={loading} />
-
-      {/* Tira editorial de indicadores — la ÚNICA superficie personalizable. Los
-          widgets se renderizan en el orden elegido; el hero, la curva, top-hoy y
-          órdenes recientes son fijos. Una key retirada (WIDGET_MAP miss) se salta, no
-          revienta. Un widget cuya fuente falló muestra `—` (ver widgetValues). */}
+      {/* Tira editorial de indicadores — TRES en fila (la forma de duna-os), la ÚNICA
+          superficie personalizable. Va entre la curva y las dos columnas, como la
+          `stat-row` de la maqueta bajo el hero. Los widgets se renderizan en el orden
+          elegido; el hero, la curva, la sección de atención y top-hoy son fijos. Una key
+          retirada (WIDGET_MAP miss) se salta, no revienta. Un widget cuya fuente falló
+          muestra `—` (ver widgetValues). "Tres" es el ARRANQUE, no un tope: el operador
+          elige cuántos ve en Personalizar y la tira refluye (§ duna.css, filetes 3-col). */}
       {loading ? (
         <IndicadoresSkeleton count={widgetKeys.length} />
       ) : widgetKeys.length === 0 ? (
@@ -364,49 +360,34 @@ export default function Dashboard() {
         onApply={applyWidgets}
       />
 
-      {/* DOS COLUMNAS en escritorio (colapsan a una en angosto): "Lo que más vendió hoy" y
-          "Órdenes recientes", antes apiladas en columna única. `items-start` porque tienen
-          altos distintos; `gap-6` da el espacio (dentro del grid, `space-y-6` no aplica). La
-          sección de atención lidera arriba, full-width; esto es el detalle del día, en dos. */}
-      <div className="grid gap-6 lg:grid-cols-2 items-start">
-      {/* Lo que más vendió hoy — eje del DINERO (incluye canceladas), lista corta. */}
-      <div className="duna-card duna-card__pad">
-        <h2 className="duna-heading" style={{ margin: '0 0 var(--duna-space-3)' }}>Lo que más vendió hoy</h2>
-        {loading ? (
-          <div className="space-y-2" aria-hidden>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} style={{ height: '1.4em', borderRadius: 4, background: 'var(--duna-skel)', opacity: 1 - i * 0.2 }} />
-            ))}
-          </div>
-        ) : !stats || stats.topHoy.length === 0 ? (
-          <p className="duna-sub" style={{ margin: 0 }}>Aún no se ha vendido nada hoy.</p>
-        ) : (
-          <TopHoy filas={stats.topHoy} />
-        )}
-      </div>
+      {/* DOS COLUMNAS en escritorio (colapsan a una en angosto): "Necesita tu atención"
+          (IZQUIERDA, más ancha 1.35fr —es texto y lo accionable del día) | "Lo que más
+          vendió hoy" (derecha). Reemplaza a la sección de atención full-width + la tabla
+          de Órdenes recientes (RETIRADA: era la única tabla de una pantalla sin tablas, y
+          su contenido vive en Pedidos a un clic). En la maqueta ese sitio lo ocupaban
+          "Conversaciones activas"/"Duna sugiere", que no existen; la columna queda para
+          atención. `items-start` porque tienen altos distintos; `gap-6` da el espacio. */}
+      <div className="grid gap-6 lg:grid-cols-[1.35fr_1fr] items-start">
+        {/* Necesita tu atención — la lista transversal (pedidos + stock), lo accionable
+            del día. NAVEGA, no muta: cada ítem lleva al detalle donde vive la acción
+            (§ Dashboard: cada indicador navega). */}
+        <SeccionAtencion items={itemsAtencion} loading={loading} />
 
-      {/* Órdenes recientes — grid-list (§ .duna-lista): refluye en móvil en vez de
-          scrollear horizontal. La lista va A SANGRE (sin card__pad): sus filas ya
-          traen su propio padding, y un doble padding dejaría los separadores
-          flotando dentro de la tarjeta. El encabezado lleva su padding aparte. */}
-      <div className="duna-card" style={{ overflow: 'hidden' }}>
-        <div className="flex items-center justify-between"
-             style={{ padding: 'var(--duna-space-4) var(--duna-space-4)', borderBottom: '1px solid var(--duna-border)' }}>
-          <h2 className="duna-heading" style={{ margin: 0 }}>Órdenes recientes</h2>
-          <Link href="/admin/pedidos" className="duna-link">Ver todas →</Link>
+        {/* Lo que más vendió hoy — eje del DINERO (incluye canceladas), lista corta. */}
+        <div className="duna-card duna-card__pad">
+          <h2 className="duna-heading" style={{ margin: '0 0 var(--duna-space-3)' }}>Lo que más vendió hoy</h2>
+          {loading ? (
+            <div className="space-y-2" aria-hidden>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} style={{ height: '1.4em', borderRadius: 4, background: 'var(--duna-skel)', opacity: 1 - i * 0.2 }} />
+              ))}
+            </div>
+          ) : !stats || stats.topHoy.length === 0 ? (
+            <p className="duna-sub" style={{ margin: 0 }}>Aún no se ha vendido nada hoy.</p>
+          ) : (
+            <TopHoy filas={stats.topHoy} />
+          )}
         </div>
-        {loading ? (
-          <div className="space-y-2" style={{ padding: 'var(--duna-space-4)' }} aria-hidden>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} style={{ height: '1.6em', borderRadius: 4, background: 'var(--duna-skel)', opacity: 1 - i * 0.15 }} />
-            ))}
-          </div>
-        ) : !stats || stats.recentOrders.length === 0 ? (
-          <p className="duna-sub" style={{ margin: 0, padding: 'var(--duna-space-5)' }}>Aún no hay órdenes.</p>
-        ) : (
-          <OrdersLista orders={stats.recentOrders} />
-        )}
-      </div>
       </div>{/* fin de las dos columnas */}
     </div>
   );
@@ -442,9 +423,11 @@ function IndicadoresSkeleton({ count }: { count: number }) {
 // una lista— porque los ítems son de DOS secciones y no hay una sola página que
 // muestre ambas; la lista completa es ésta, en el lugar. Cada ítem sí navega a su
 // detalle. El vacío es el estado BUENO y se lee como tal.
-// 4 visibles (bajó de 6): la sección se queda full-width y liderando —es lo accionable
-// del día, no información pasiva—, y lo que se reduce es el ALTO. El "y N restantes"
-// expande el resto en el sitio, así que con 4 ocupa la mitad sin perder nada.
+// 4 visibles: la sección vive en la COLUMNA IZQUIERDA (1.35fr) del detalle del día,
+// junto a "Lo que más vendió hoy" (que muestra hasta 5 filas cortas). El cap la mantiene
+// a un alto parejo con esa columna; el "y N restantes" expande el resto EN EL SITIO, sin
+// perder nada. (Antes era full-width y liderando; con la estructura de duna-os —hero,
+// curva, tres indicadores, dos columnas— pasó a la columna izquierda.)
 const CAP_ATENCION = 4;
 
 function SeccionAtencion({ items, loading }: { items: ItemAtencion[]; loading: boolean }) {
@@ -533,54 +516,6 @@ function TopHoy({ filas }: { filas: { nombre: string; total: number; producto_id
           <div style={{ height: 4, marginTop: 6, borderRadius: 2, background: 'color-mix(in srgb, var(--duna-ink) 8%, transparent)' }}>
             <div style={{ height: '100%', width: `${(f.total / max) * 100}%`, background: 'var(--duna-ink)', opacity: 0.5, borderRadius: 2 }} />
           </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Órdenes recientes (grid-list) ────────────────────────────────────────────
-// `.duna-lista`: refluye en móvil (§ Listas tabulares) en vez de scrollear
-// horizontal. La fila navega al detalle del pedido (`?pedido=`); el número es un
-// <Link> real para middle-click y foco de teclado, con `stopPropagation` para no
-// navegar dos veces.
-// TRES columnas: Orden · Cliente · Estado. En el dashboard esta lista vive en UNA
-// MITAD (grid de dos columnas), y siete/cinco columnas ahí no caben —un scroll
-// horizontal dentro de una columna es incómodo—. Se quitaron Canal y Total; quien
-// quiera el detalle completo entra a Pedidos (cada fila navega). El mínimo suma
-// ~316px (108 + 7rem + 96), así que a media pantalla (~480px) entra sin scroll y
-// Cliente (la única `fr`) absorbe el sobrante.
-const ORDENES_COLS = '108px minmax(7rem,1fr) minmax(96px,auto)';
-
-function OrdersLista({ orders }: { orders: Order[] }) {
-  const router = useRouter();
-  const orderHref = (o: Order) => `/admin/pedidos?pedido=${encodeURIComponent(o.numero_orden)}`;
-
-  return (
-    <div className="duna-lista">
-      {/* `--en-pliegue`: el `__head` nace `position: sticky`, pensado para la región de
-          una pantalla de alto fijo. El Dashboard es document-scroll y esta lista no
-          tiene scroller propio, así que sin esto el encabezado se pegaría bajo la
-          topbar, despegado de sus filas (§ Analítica, mismo neutralizador). */}
-      <div className="duna-lista__fila duna-lista__head duna-lista--en-pliegue" style={{ gridTemplateColumns: ORDENES_COLS }}>
-        <span>Orden</span><span>Cliente</span><span>Estado</span>
-      </div>
-      {orders.map(o => (
-        <div
-          key={o.id}
-          className="duna-lista__fila"
-          style={{ gridTemplateColumns: ORDENES_COLS, cursor: 'pointer' }}
-          onClick={() => router.push(orderHref(o))}
-        >
-          <span data-label="Orden" className="duna-mono">
-            <Link href={orderHref(o)} onClick={e => e.stopPropagation()} className="duna-link">
-              {o.numero_orden ?? `#${o.id.slice(-6)}`}
-            </Link>
-          </span>
-          <span data-label="Cliente" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {o.cliente_nombre}
-          </span>
-          <span data-label="Estado"><StatusBadge status={o.estado} /></span>
         </div>
       ))}
     </div>
