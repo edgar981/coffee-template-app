@@ -383,13 +383,15 @@ export default function Dashboard() {
 
         {/* Lo que más vendió hoy — eje del DINERO (incluye canceladas), lista corta. */}
         <div className="duna-card duna-card__pad">
-          <h2 className="duna-heading" style={{ margin: '0 0 var(--duna-space-3)' }}>Lo que más vendió hoy</h2>
+          {/* El encabezado también lleva skeleton mientras carga (antes salía en claro
+              mientras las otras tarjetas ya lo tenían): el `.duna-skel` va sobre un span con
+              el TEXTO real adentro, así el alto lo da el line-height de `.duna-heading`
+              —heredado, no un número a mano (§ primitives.css, `.duna-skel` HEREDA su alto)—. */}
+          <h2 className="duna-heading" style={{ margin: '0 0 var(--duna-space-3)' }}>
+            {loading ? <span className="duna-skel">Lo que más vendió hoy</span> : 'Lo que más vendió hoy'}
+          </h2>
           {loading ? (
-            <div className="space-y-2" aria-hidden>
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} style={{ height: '1.4em', borderRadius: 4, background: 'var(--duna-skel)', opacity: 1 - i * 0.2 }} />
-              ))}
-            </div>
+            <TopHoySkeleton />
           ) : !stats || stats.topHoy.length === 0 ? (
             <p className="duna-sub" style={{ margin: 0 }}>Aún no se ha vendido nada hoy.</p>
           ) : (
@@ -445,7 +447,13 @@ function SeccionAtencion({ items, loading }: { items: ItemAtencion[]; loading: b
     return (
       <div className="duna-card duna-card__pad" role="status">
         <span className="duna-sr-only">Cargando lo que necesita tu atención…</span>
-        <div className="duna-skel" aria-hidden style={{ height: '1.1em', width: '11rem', borderRadius: 4 }} />
+        {/* Encabezado con el alto HEREDADO del `.duna-heading` real (texto de relleno bajo
+            `.duna-skel`), igual que "Lo que más vendió hoy" — no un alto a mano, así el
+            título no salta al cargar. */}
+        <h2 className="duna-heading" style={{ margin: 0 }} aria-hidden><span className="duna-skel">Necesita tu atención</span></h2>
+        {/* Las FILAS sí son aproximadas (44px): los ítems reales tienen alto variable (dos
+            renglones, cap 4) y no se pueden renderizar sin datos, así que su alto no puede
+            heredarse — reservan el de un ítem de dos líneas. */}
         <div className="space-y-2" style={{ marginTop: 'var(--duna-space-3)' }} aria-hidden>
           {[0, 1, 2].map(i => <div key={i} className="duna-skel" style={{ height: 44, borderRadius: 8 }} />)}
         </div>
@@ -526,6 +534,29 @@ function TopHoy({ filas }: { filas: { nombre: string; total: number; producto_id
           <div style={{ height: 4, marginTop: 6, borderRadius: 2, background: 'color-mix(in srgb, var(--duna-ink) 8%, transparent)' }}>
             <div style={{ height: '100%', width: `${(f.total / max) * 100}%`, background: 'var(--duna-ink)', opacity: 0.5, borderRadius: 2 }} />
           </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Skeleton de "Lo que más vendió hoy" — MISMO markup que TopHoy, con `.duna-skel` sobre los
+// elementos REALES (con texto de relleno adentro): el alto de cada fila lo produce el
+// line-height real de `duna-body-sm`/`duna-num`, no un número a mano, así que no salta al
+// llegar el dato (§ primitives.css: `.duna-skel` HEREDA su alto). La barra de proporción es
+// una dimensión FIJA real (4px), se reusa tal cual como skeleton.
+function TopHoySkeleton({ filas = 3 }: { filas?: number }) {
+  const relleno = ['Café de la casa', 'Combo desayuno', 'Chocolate artesanal'];
+  const nombreEstilo = { minWidth: 0, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const };
+  return (
+    <div className="space-y-3" aria-hidden>
+      {Array.from({ length: filas }).map((_, i) => (
+        <div key={i}>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="duna-body-sm duna-skel" style={nombreEstilo}>{relleno[i % relleno.length]}</span>
+            <span className="duna-num duna-skel" style={{ fontWeight: 'var(--duna-w-semi)', whiteSpace: 'nowrap' }}>$ 000.000</span>
+          </div>
+          <div className="duna-skel" style={{ height: 4, marginTop: 6, borderRadius: 2 }} />
         </div>
       ))}
     </div>
