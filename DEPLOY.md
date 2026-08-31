@@ -90,40 +90,49 @@ Claude no puede crear cuentas ni manejar secretos. Antes de continuar:
 
 ## 4. Migraciones + seed (contra Neon)
 
-Se corren **una vez, en local**, apuntando a Neon. Prisma 7 lee `DATABASE_URL`
-desde `.env` (vía `prisma.config.ts` → `dotenv/config`).
+**Las migraciones las corre el BUILD de Vercel, no tú a mano** (§ CLAUDE.md,
+"Migraciones y deploy"): `npm run build` ejecuta `npm run db:deploy -w @duna/core`
+(= `prisma migrate deploy`) contra `DIRECT_DATABASE_URL` **antes** de `next build`,
+así que cada entorno migra su propia base solo. **El seed NO va en el build** — es
+el único paso manual, y crea el primer OWNER (sin él nadie entra al panel; el
+sign-up público está cerrado y las invitaciones exigen un OWNER previo).
+
+Para correr migraciones/seed a mano en local (sembrar el owner + demo la primera
+vez), apunta el `.env` de la raíz a la conexión **DIRECTA** de Neon y corre:
 
 ```bash
-# 1) En .env (local), apunta a la conexión DIRECTA de Neon para migrar:
-#    DATABASE_URL="postgresql://USER:PASS@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require"
-#    BETTER_AUTH_SECRET="<el mismo que pondrás en Vercel>"
-#    SEED_OWNER_EMAIL / ADMIN_PASSWORD / ADMIN_NAME
+# .env (raíz): la conexión DIRECTA (sin -pooler) va en DIRECT_DATABASE_URL, más
+#   DATABASE_URL, BETTER_AUTH_SECRET (el mismo de Vercel) y
+#   SEED_OWNER_EMAIL / ADMIN_PASSWORD / ADMIN_NAME.
 
-# 2) Aplica el esquema (25 migraciones):
-npx prisma migrate deploy
+# 1) Aplica el esquema (46 migraciones). El schema vive en packages/core:
+npm run db:deploy -w @duna/core
 
-# 3) Carga el demo completo (admin OWNER, catálogo Nayoli, órdenes,
-#    pagos, envíos, inventario, automatizaciones inactivas):
-npx prisma db seed
+# 2) Carga el demo (admin OWNER, catálogo Nayoli, órdenes, pagos, envíos,
+#    inventario; las automatizaciones nacen inactivas). El seed es `tsx` SIN
+#    cargador de `.env` propio, así que hay que pasárselo con --env-file:
+npx tsx --env-file=.env prisma/seed.ts
 ```
 
-- **`migrate deploy`** usa la conexión **directa** (PgBouncer/pooled puede
-  romper el advisory-lock de migraciones).
+- **`migrate deploy` usa la conexión DIRECTA** (PgBouncer/pooled rompe el
+  advisory-lock de migraciones). La lee `packages/core/prisma.config.ts`
+  (`DIRECT_DATABASE_URL ?? DATABASE_URL`).
 - El seed es **idempotente** (upserts). Excepción: `InventoryLog` no tiene clave
   única → re-seedear **duplica** los logs de inventario (ver §7).
 - El seed crea el OWNER vía Better Auth: necesita `DATABASE_URL` **y**
-  `BETTER_AUTH_SECRET` presentes al correrlo.
+  `BETTER_AUTH_SECRET` presentes al correrlo (por eso el `--env-file`).
 
 ---
 
 ## 5. Deploy en Vercel
 
 1. **Import** del repo en Vercel (framework detectado: Next.js).
-2. **Build**: el cliente Prisma vive en `src/generated/prisma`, que está
-   **gitignored** → debe generarse en cada build. `vercel.json` fija el build
-   command a `prisma generate && next build` (el `postinstall` por sí solo no es
-   fiable en Vercel). No sobreescribas el Build Command en el dashboard: déjalo
-   heredar de `vercel.json`.
+2. **Build**: `vercel.json` fija el build command a `npm run build`, que es
+   `npm run db:deploy -w @duna/core && next build` — o sea **migra la base
+   (`migrate deploy`) y luego compila**. El cliente Prisma (gitignored, en
+   `packages/core/src/generated/prisma`) lo genera el `postinstall`
+   (`npm run generate -w @duna/core`) tras `npm install`. No sobreescribas el
+   Build Command en el dashboard: déjalo heredar de `vercel.json`.
 3. **Env vars**: carga todas las de §2 **antes del primer build** (`DATABASE_URL`
    = string **pooled**).
 4. **Deploy**. Node 20/22 (default de Vercel; el proyecto pide Node ≥ 20.9).
@@ -176,7 +185,7 @@ printf '%s\n' \
   'DELETE FROM "Customer";' \
   'DELETE FROM "InventoryLog";' \
   'DELETE FROM "Notification";' \
-  | npx prisma db execute --stdin --schema prisma/schema.prisma
+  | npx prisma db execute --stdin --schema packages/core/prisma/schema.prisma
 
 # 2) Seed limpio: recrea clientes, pedidos (fechas relativas + items reales),
 #    pagos y envíos; re-upserta productos y automatizaciones; conserva el admin.
@@ -214,7 +223,7 @@ Cuando el template esté listo, migrar el demo a producción implica:
 
 | Síntoma | Causa probable | Fix |
 |---|---|---|
-| Build falla: `@/src/generated/prisma` no existe | `prisma generate` no corrió | Verifica el script `postinstall`; re-deploy limpiando caché |
+| Build falla: `packages/core/src/generated/prisma` no existe | `prisma generate` (postinstall) no corrió | Verifica el `postinstall` (`npm run generate -w @duna/core`); re-deploy limpiando caché |
 | `migrate deploy` cuelga o falla con advisory lock | Usaste la conexión pooled | Usa la conexión **directa** de Neon para migrar |
 | Login falla / CSRF / origin | `BETTER_AUTH_URL` no coincide con el dominio | Ponlo exactamente en `https://nayoli-demo.duna.solutions` |
 | Invitación devuelve 500 | Falta `RESEND_API_KEY`/`EMAIL_FROM` o dominio no verificado | Configura Resend y verifica el dominio de `EMAIL_FROM` |
