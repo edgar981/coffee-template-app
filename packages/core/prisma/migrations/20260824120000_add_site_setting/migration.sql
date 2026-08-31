@@ -34,14 +34,31 @@ CREATE TABLE "SiteSetting" (
     CONSTRAINT "SiteSetting_singleton" CHECK ("id" = 'default')
 );
 
+-- VALORES NEUTROS, NO Café Nayoli. El loader es HARD (findUniqueOrThrow), así que la
+-- fila DEBE existir para que el storefront no reviente — pero sus VALORES son de
+-- placeholder, no de un negocio real: `nombre` se lee como "falta configurar" (aparece
+-- en el wordmark, la pestaña y el manifest, tres sitios), y el resto va VACÍO (un
+-- WhatsApp/Instagram placeholder sería un dato FALSO publicado, peor que un campo en
+-- blanco; el storefront oculta esos enlaces cuando están vacíos). Un cliente nuevo
+-- arranca diciendo "Configura tu tienda" y edita todo en Configuración. La DEMO de
+-- Nayoli no cambia: su seed sigue haciendo el upsert de SiteSetting con los valores
+-- reales de Nayoli sobre esta fila.
+--
+-- POR QUÉ SE EDITA ESTA MIGRACIÓN YA APLICADA, en vez de crear una NUEVA: una migración
+-- nueva correría TAMBIÉN sobre la base de Nayoli y PISARÍA su config real — no puede
+-- distinguir "fila fresca con el default" de "fila que el owner ya editó". Editar el
+-- INSERT de aquí sólo afecta bases que AÚN NO aplicaron esta migración (los clientes
+-- nuevos): `prisma migrate deploy` (el build) aplica sólo lo PENDIENTE y SALTA lo ya
+-- aplicado, así que Nayoli y dev quedan intactos. (Local `migrate dev`/`migrate status`
+-- notarán el checksum modificado — es cosmético; el pipeline usa `migrate deploy`.)
 INSERT INTO "SiteSetting"
     ("id", "nombre", "tagline", "descripcionFooter", "whatsapp", "instagram", "emailRemitente", "updatedAt")
 VALUES
     ('default',
-     'Café Nayoli',
-     'Supatá · Cundinamarca',
-     'Café de especialidad colombiano. De nuestra finca en Supatá a tu taza.',
-     '+573155766064',
-     'cafenayoliorigen',
-     'Café Nayoli <pedidos@mail.duna.solutions>',
+     'Configura tu tienda',
+     '',
+     '',
+     '',
+     '',
+     '',
      CURRENT_TIMESTAMP);

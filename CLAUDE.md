@@ -3045,6 +3045,40 @@ wordmark (un monograma con `ImageResponse`) es capacidad de la era **self-serve*
 **§ Backlog #54** con su disparador (el flujo self-serve) y su censo de costo. Para el primer
 segundo cliente, un favicon puesto a mano sale más barato que el motor.
 
+### El código compartido no NACE siendo Nayoli/demo — defaults neutros, no literales
+
+Tanda del 2026-08-31 (onboarding por-despliegue: cada cliente = su repo/deploy + su DB + su
+Vercel, mismo código). Cuatro defectos donde el código COMPARTIDO horneaba Nayoli/demo, así
+que un cliente nuevo nacía equivocado. La regla que dejan: **lo GARANTIZADO (migración, código)
+es NEUTRO; lo por-despliegue es DATO (SiteSetting) o env, nunca un literal de Nayoli.**
+
+- **El INSERT de `SiteSetting` de la migración es NEUTRO** (`nombre='Configura tu tienda'`, el
+  resto vacío), no "Café Nayoli". El loader es HARD (`findUniqueOrThrow`), así que la fila DEBE
+  existir — pero sus valores son placeholder: `nombre` se lee como "falta configurar" (wordmark +
+  pestaña + manifest), y un WhatsApp/Instagram placeholder sería un dato FALSO publicado. La DEMO
+  de Nayoli no cambia: su seed upserta los valores reales sobre la fila. **Se editó la migración
+  YA APLICADA a propósito** (el porqué vive DENTRO del SQL): una migración NUEVA correría también
+  sobre Nayoli y PISARÍA su config real —no distingue "fresco" de "editado"—; `migrate deploy`
+  salta lo ya aplicado, así que Nayoli/dev quedan intactos. Verificado: el carril de integración
+  aplica las 46 migraciones en un Postgres fresco (verde), y el build corrió `migrate deploy`
+  contra dev sin error de checksum sobre la migración editada.
+- **El noindex es OPT-IN de ocultamiento, no default.** `next.config.ts` emite `noindex` fuera de
+  producción **o** con `NOINDEX=1`. La producción de un cliente real es INDEXABLE (default seguro:
+  un cliente no nace invisible); la DEMO setea `NOINDEX=1`. Antes cubría TODA producción.
+- **Ni `CRON_URL` ni los redirects se hardcodean a Nayoli.** El workflow del cron FALLA ruidoso si
+  falta `CRON_URL` (antes caía al dominio de la demo → un fork le pegaba al cron ajeno). Los
+  redirects "1lb→500g" (demo-only, nunca indexados por el noindex) se borraron; un redirect
+  por-cliente, si hiciera falta, sería data-driven.
+- **Los enlaces del storefront desde SiteSetting se OCULTAN si el campo está vacío** (footer:
+  WhatsApp/Instagram/contacto; CTA de Suscripción): un `wa.me/` o `instagram.com/` sin dato es un
+  botón muerto, peor que no mostrarlo. (El número de pago móvil del checkout NO es un enlace —es un
+  display—: queda como config de pago del cliente, anotado, no como enlace muerto.)
+
+Lo ARTESANAL que esto NO cierra (va a **TANDA C**): los 6 íconos de `public/`, el mark inline del
+`Logo`, las fuentes (**no existe `fontPair`** — verificado, cero apariciones), y `lib/config/site.ts`
+(emailColors/footerNav/legalNav). El **import de catálogo** —lo que decide "día vs semana" y lo único
+que el cliente podría hacer solo— es **TANDA B** (discovery al abrirse).
+
 ## Política de tema (dark mode)
 
 El storefront es light-only (paleta de marca fija). El admin soporta

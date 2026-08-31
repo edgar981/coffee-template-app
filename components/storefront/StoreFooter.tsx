@@ -48,32 +48,39 @@ export default function StoreFooter() {
               {settings.descripcionFooter}
             </p>
 
+            {/* Los botones sociales se OCULTAN cuando su campo está vacío (cliente sin
+                configurar): un enlace a instagram.com/ o wa.me/ SIN número es un botón
+                muerto, peor que no mostrarlo. */}
             <div className="flex gap-3">
-              <a
-                href={instagramUrl(settings.instagram)}
-                target="_blank"
-                rel="noopener"
-                aria-label={`Instagram de ${settings.nombre}`}
-                className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
-              >
-                <Image
+              {settings.instagram && (
+                <a
+                  href={instagramUrl(settings.instagram)}
+                  target="_blank"
+                  rel="noopener"
+                  aria-label={`Instagram de ${settings.nombre}`}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
+                >
+                  <Image
                     src="/icons/instagram-white.svg"
                     alt=""
                     width={16}
                     height={16}
                     className="opacity-60"
-                    />
-              </a>
+                  />
+                </a>
+              )}
 
-              <a
-                href={whatsappUrl(settings.whatsapp)}
-                target="_blank"
-                rel="noopener"
-                aria-label={`WhatsApp de ${settings.nombre}`}
-                className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
-              >
-                <MessageCircle className="h-4 w-4 text-white/60" />
-              </a>
+              {settings.whatsapp && (
+                <a
+                  href={whatsappUrl(settings.whatsapp)}
+                  target="_blank"
+                  rel="noopener"
+                  aria-label={`WhatsApp de ${settings.nombre}`}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
+                >
+                  <MessageCircle className="h-4 w-4 text-white/60" />
+                </a>
+              )}
             </div>
           </div>
 
@@ -150,18 +157,20 @@ export default function StoreFooter() {
               ))}
             </ul>
 
-            <div className="mt-6 text-sm text-white/50">
-              <p>📱 WhatsApp</p>
+            {settings.whatsapp && (
+              <div className="mt-6 text-sm text-white/50">
+                <p>📱 WhatsApp</p>
 
-              <a
-                href={whatsappUrl(settings.whatsapp)}
-                target="_blank"
-                rel="noopener"
-                className="text-[var(--sf-tostado)] hover:text-[var(--sf-tostado-6)]"
-              >
-                {formatWhatsappDisplay(settings.whatsapp)}
-              </a>
-            </div>
+                <a
+                  href={whatsappUrl(settings.whatsapp)}
+                  target="_blank"
+                  rel="noopener"
+                  className="text-[var(--sf-tostado)] hover:text-[var(--sf-tostado-6)]"
+                >
+                  {formatWhatsappDisplay(settings.whatsapp)}
+                </a>
+              </div>
+            )}
           </div>
         </div>
       </div>

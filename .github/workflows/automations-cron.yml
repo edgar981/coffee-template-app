@@ -49,9 +49,15 @@ jobs:
             echo "::error::Falta el secret CRON_SECRET (Settings → Secrets and variables → Actions)."
             exit 1
           fi
-          # URL de producción. Configurable como variable del repo para no tener el
-          # dominio incrustado en el workflow.
-          URL="${CRON_URL:-https://nayoli-demo.duna.solutions/api/cron/automations}"
+          # URL de producción del deploy: variable del repo (Settings → Secrets and
+          # variables → Actions → Variables), p. ej. https://<tu-dominio>/api/cron/automations.
+          # SIN fallback a un dominio incrustado: un fork que la olvide debe FALLAR ruidoso,
+          # no pegarle al cron de OTRO deploy (antes caía a nayoli-demo, un ping al ajeno).
+          if [ -z "${CRON_URL}" ]; then
+            echo "::error::Falta la variable CRON_URL (Settings → Secrets and variables → Actions → Variables). Apúntala a https://<tu-dominio>/api/cron/automations."
+            exit 1
+          fi
+          URL="${CRON_URL}"
 
           echo "POST ${URL}"
           # --fail-with-body: un 4xx/5xx falla el job PERO imprime el cuerpo, que es

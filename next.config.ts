@@ -25,15 +25,21 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '**.public.blob.vercel-storage.com' },
     ],
   },
-  // DEMO: mantener todo el sitio fuera de los buscadores. Un header cubre TODA
-  // respuesta (HTML, API, assets, redirects), a diferencia de un <meta> que solo
-  // aplica a documentos HTML. Quitar cuando se promueva a producción real.
+  // El noindex se emite fuera de PRODUCCIÓN (previews) y en cualquier deploy que lo
+  // PIDA con `NOINDEX=1` — la DEMO de Nayoli es env `production` pero NO debe indexarse,
+  // así que setea esa var. La PRODUCCIÓN de un cliente real NO lo emite (deja `NOINDEX`
+  // sin poner): debe ser indexable, y ése era el defecto que se corrige —un cliente
+  // nacía INVISIBLE porque el header cubría también producción—. El default seguro es
+  // "indexable en producción" para que un cliente que no configure nada no quede oculto;
+  // ocultar es el opt-in (demos). Un header cubre TODA respuesta (HTML, API, assets,
+  // redirects), a diferencia de un <meta> que solo aplica a documentos HTML.
   async headers() {
+    const ocultarDeBuscadores =
+      process.env.VERCEL_ENV !== "production" || process.env.NOINDEX === "1";
     return [
-      {
-        source: "/:path*",
-        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
-      },
+      ...(ocultarDeBuscadores
+        ? [{ source: "/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] }]
+        : []),
       // (Se retiró la regla propia de `?preview`: existía para el iframe de /admin/tienda,
       //  ya retirado. La vista previa ahora renderiza componentes en el panel, sin URL pública.)
 
@@ -71,11 +77,11 @@ const nextConfig: NextConfig = {
     ];
   },
   async redirects() {
-    // Slugs antiguos "1 lb" → "500 g" (renombrados en catálogo).
-    return [
-      { source: "/tienda/cafe-nayoli-grano-1lb",  destination: "/tienda/cafe-nayoli-grano-500g",  permanent: true },
-      { source: "/tienda/cafe-nayoli-molido-1lb", destination: "/tienda/cafe-nayoli-molido-500g", permanent: true },
-    ];
+    // Sin redirects hardcodeados: los dos de "1 lb → 500 g" eran de la DEMO de Nayoli
+    // (slugs viejos que ningún deploy indexado tuvo —el noindex estuvo siempre puesto—),
+    // así que un cliente nuevo no debe heredarlos. Un redirect por-cliente, si algún día
+    // hiciera falta, sería data-driven, no un literal en el código compartido.
+    return [];
   },
 };
 
