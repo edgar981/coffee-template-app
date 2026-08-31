@@ -365,6 +365,11 @@ export default function Dashboard() {
         onApply={applyWidgets}
       />
 
+      {/* DOS COLUMNAS en escritorio (colapsan a una en angosto): "Lo que más vendió hoy" y
+          "Órdenes recientes", antes apiladas en columna única. `items-start` porque tienen
+          altos distintos; `gap-6` da el espacio (dentro del grid, `space-y-6` no aplica). La
+          sección de atención lidera arriba, full-width; esto es el detalle del día, en dos. */}
+      <div className="grid gap-6 lg:grid-cols-2 items-start">
       {/* Lo que más vendió hoy — eje del DINERO (incluye canceladas), lista corta. */}
       <div className="duna-card duna-card__pad">
         <h2 className="duna-heading" style={{ margin: '0 0 var(--duna-space-3)' }}>Lo que más vendió hoy</h2>
@@ -403,6 +408,7 @@ export default function Dashboard() {
           <OrdersLista orders={stats.recentOrders} />
         )}
       </div>
+      </div>{/* fin de las dos columnas */}
     </div>
   );
 }
