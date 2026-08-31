@@ -60,14 +60,18 @@ export default function Subscription() {
                       </div>
                     ))}
                   </div>
-                  <a
-                    href={interesHref(plan.nombre)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`mt-auto inline-flex items-center justify-center gap-2 font-semibold px-6 py-3 rounded-full text-sm transition-all hover:-translate-y-0.5 ${plan.popular ? 'bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] text-[var(--sf-acento-txt)]' : 'border-2 border-[var(--sf-acento)] text-[var(--sf-acento-texto)] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]'}`}
-                  >
-                    Me interesa <ArrowRight className="w-4 h-4" />
-                  </a>
+                  {/* El CTA es un enlace a WhatsApp: se OCULTA si el número no está
+                      configurado (un `wa.me/` sin número es un botón muerto). */}
+                  {settings.whatsapp && (
+                    <a
+                      href={interesHref(plan.nombre)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`mt-auto inline-flex items-center justify-center gap-2 font-semibold px-6 py-3 rounded-full text-sm transition-all hover:-translate-y-0.5 ${plan.popular ? 'bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] text-[var(--sf-acento-txt)]' : 'border-2 border-[var(--sf-acento)] text-[var(--sf-acento-texto)] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]'}`}
+                    >
+                      Me interesa <ArrowRight className="w-4 h-4" />
+                    </a>
+                  )}
                 </motion.div>
               ))}
             </div>

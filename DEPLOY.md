@@ -52,6 +52,13 @@ quieres previews).
 | `ADMIN_NAME` | Local (seed) | Nombre del OWNER (default `Administrador`). SOLO local |
 | `CRON_SECRET` | **Sí** (automatizaciones) | `openssl rand -hex 32`. MISMO valor en Vercel y en GitHub → Settings → Secrets → Actions |
 | `NOTIFICATIONS_REDIRECT_EMAIL` | Opcional | Solo dev/preview: desvía TODO correo a un buzón de pruebas. **Sin poner en Producción** |
+| `NOINDEX` | Opcional (demos/pilotos) | `=1` en CUALQUIER despliegue que NO deba indexarse (demos, pilotos). **Ausente = indexable**, el default SEGURO para un cliente real (no nace invisible). La demo la pone; un cliente real NO |
+| `CRON_URL` | **Obligatoria** (GitHub Actions, no Vercel) | Variable del repo (Settings → Secrets and variables → Actions → **Variables**), UNA por despliegue: la URL EXACTA del cron, `https://<dominio>/api/cron/automations` (path incluido). **SIN fallback**: si falta, el cron FALLA ruidoso en vez de pegarle a otro dominio |
+
+> **Las DOS variables POR-DESPLIEGUE que un cliente nuevo necesita** (antes sin documentar):
+> **`NOINDEX`** — ponla `=1` sólo en lo que NO debe indexarse (demos, pilotos); su ausencia
+> es "indexable", el default seguro para un cliente real. Y **`CRON_URL`** — obligatoria,
+> SIN fallback: si falta, el cron falla ruidoso en vez de pegarle a otro dominio.
 
 > El destinatario por defecto de los reportes al equipo (semanal y diario) YA NO es
 > una env var: vive en la base como `SiteSetting.adminEmail`, editable en
@@ -149,9 +156,11 @@ npx tsx --env-file=.env prisma/seed.ts
 
 ## 6. Protecciones del demo
 
-- **noindex**: `next.config.ts` emite `X-Robots-Tag: noindex, nofollow` en
-  **toda** respuesta (`source: '/:path*'`). Cubre HTML, API y assets. Se quita al
-  promover a producción real.
+- **noindex**: `next.config.ts` emite `X-Robots-Tag: noindex, nofollow` en **toda**
+  respuesta (HTML, API, assets) cuando el deploy NO es producción **o** cuando
+  `NOINDEX=1`. La demo es env `production`, así que **setea `NOINDEX=1`** para quedar
+  fuera de buscadores. La producción de un cliente real deja `NOINDEX` sin poner →
+  indexable (un cliente real no puede nacer invisible).
 - **Admin con login obligatorio**: `proxy.ts` (middleware) redirige a `/login`
   cualquier `/admin/*` sin cookie de sesión; además `app/(admin)/admin/layout.tsx`
   revalida sesión **y** rol (OWNER/MANAGER) en el server, y cada `/api` sensible
@@ -208,8 +217,9 @@ Cuando el template esté listo, migrar el demo a producción implica:
    demo. Nuevo `DATABASE_URL`.
 2. **Secretos nuevos**: `BETTER_AUTH_SECRET` distinto; `ADMIN_PASSWORD` real;
    rotar API keys.
-3. **Quitar el noindex**: eliminar el bloque `headers()` de `next.config.ts` (o
-   condicionarlo por entorno) para permitir indexación.
+3. **Indexación**: la producción de un cliente real ya es indexable
+   automáticamente (el noindex sólo se emite fuera de producción o con `NOINDEX=1`).
+   No hay bloque que quitar: sólo **no** setear `NOINDEX` en el proyecto del cliente.
 4. **Dominio final**: apuntar el dominio de producción y actualizar
    `BETTER_AUTH_URL`.
 5. **Resend real**: credenciales productivas y dominio de envío definitivo.

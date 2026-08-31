@@ -1,26 +1,21 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-31 (EL DASHBOARD adopta la ESTRUCTURA de duna-os + "Necesita tu atención", y el login se
-pulió. En `feat/dashboard-atencion`: (1) el LOGIN —el pie se separa de la duna anclando el CONTENIDO (no capando
-el SVG, para no letterboxearla ni clipar el sol); el tagline afirma la CATEGORÍA ("El sistema operativo de tu
-negocio.") en vez de contar piezas; el sol ~40 s fuera de pantalla de cada ~220 s anotado como DISEÑADO—; (2) la
-SECCIÓN "Necesita tu atención", la ÚNICA lista que UNIFICA pedidos-atención + stock-bajo (fuente `itemsDeAtencion`,
-orden por PRIORIDAD DECLARADA —por costo, no por sección; el COLOR es la clase (pedidos ámbar, stock ROJO) y el
-orden es el costo, ejes distintos—, un ítem por orden con motivos encadenados, NAVEGA no muta, cap 4 que EXPANDE
-en el sitio, vacío = "Todo al día"; el badge "N pendientes" va a la esquina DERECHA del encabezado (space-between,
-como duna-os); `pedidos_por_atender` y `alertas_stock` salieron del DEFAULT (su hecho = el badge / los ítems rojos)
-pero SIGUEN en el CATÁLOGO, elegibles —RETIRAR DEL DEFAULT ≠ BORRAR DEL CATÁLOGO, catálogo = 13—); (3) la ESTRUCTURA
-de duna-os: **hero + curva + TRES indicadores en fila + dos columnas ("Necesita tu atención" 1.35fr | "Lo que más
-vendió hoy")**. La tabla de ÓRDENES RECIENTES se RETIRA (única tabla de una pantalla sin tablas; su contenido vive
-en Pedidos a un clic) —con ella `OrdersLista`/`ORDENES_COLS`, los imports `StatusBadge`/`Order`, y el dato MUERTO
-`recentOrders` del endpoint + `types/dashboard.ts`—; `.duna-lista` SE QUEDA (Pagos, kardex, Analítica, editor de
-tienda). Los indicadores suben ENTRE la curva y las columnas; el DEFAULT pasa de 2 a 3 (`promedio_por_orden` = el
-"Ticket promedio" de la maqueta gana `defaultVisible`; la tira de 4-col a 3-col); el CUSTOMIZER sobrevive —"tres" es
-el arranque, no un tope—. HALLAZGO: la PREFERENCIA GUARDADA gana sobre el default (sólo una fila ausente cae al
-default), así que un panel ya usado no ve el default nuevo —conducta correcta, su selección manda—. capa 1 779/779 ·
-tsc + next build verde. El
-gate VISUAL del dashboard es del owner (la ruta va tras sesión). **Pendiente el gate del owner.** Antes: EL MANIFEST
-DEL PANEL YA ES DE DUNA (§ #56), en producción (`3f86792`).)
+**Actualizado:** 2026-08-31 (ONBOARDING POR-DESPLIEGUE, **TANDA A**: "un cliente nuevo no nace siendo Nayoli".
+Cuatro defectos del código COMPARTIDO que horneaban Nayoli/demo, corregidos en `fix/cliente-nuevo-no-nace-nayoli`
+(**pendiente merge**): (1) el INSERT de `SiteSetting` de la migración pasa a NEUTRO (`nombre='Configura tu tienda'`,
+el resto vacío) — se EDITÓ la migración YA aplicada a propósito (una nueva pisaría la config real de Nayoli;
+`migrate deploy` salta lo aplicado; el porqué va DENTRO del SQL); (2) el noindex se gatea: producción indexable por
+default, `NOINDEX=1` para ocultar la demo (un cliente real no nace invisible); (3) el cron FALLA ruidoso si falta
+`CRON_URL` (antes caía al dominio de la demo → ping al cron ajeno); (4) se borran los redirects "1lb" de Nayoli
+(demo-only, nunca indexados). + la GUARDA del footer/suscripción: los enlaces de WhatsApp/Instagram desde SiteSetting
+se OCULTAN si el campo está vacío (un `wa.me/` sin número es botón muerto). El copy neutro se decidió midiendo qué
+rompe con cada campo vacío: sólo `nombre` rompe (wordmark/pestaña/manifest) → texto que se lee como "falta configurar";
+el resto vacío (un placeholder sería dato falso publicado). capa 1 780/780 · carril 184/184 (Postgres fresco, 46
+migraciones) · tsc + next build verde. SIN gate visual (las guardas sólo se ven con campos vacíos, que no existen en
+dev). Lo ARTESANAL (íconos, mark, fuentes —**NO existe `fontPair`**—, `site.ts`) es TANDA C; el import de catálogo
+—lo único que el cliente haría solo, y lo que decide "día vs semana"— es TANDA B (discovery al abrirse). **YA en
+main:** DEPLOY.md al día contra el código real (46 migraciones, build real, y ahora el noindex/CRON_URL de tanda A) —
+`4671972`. Antes: el DASHBOARD a la estructura de duna-os + "Necesita tu atención", en producción (`bd0c6da`).)
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
