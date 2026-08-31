@@ -24,6 +24,11 @@ export interface ItemAtencion {
   titulo: string;
   subtitulo: string;
   href: string;
+  /** QUÉ CLASE de problema es (§ Amber Minimal): `atencion` (ámbar) para los pedidos,
+   *  `alerta` (rojo) para el stock bajo —es riesgo real, no una cola de trabajo, y
+   *  antes se pintaba ámbar por error—. El color dice la CLASE; el ORDEN (prioridad,
+   *  abajo) dice el COSTO. Son ejes distintos: el stock va rojo Y al final. */
+  tono: 'atencion' | 'alerta';
   /** Menor = más urgente. Sale de `PRIORIDAD_ATENCION`, no de un sort ad hoc. */
   prioridad: number;
   /** Desempate DENTRO de un mismo nivel, menor primero: para pedidos es la
@@ -83,6 +88,7 @@ export function itemsDeAtencion(ordenes: OrdenAtencion[], productos: ProductoAte
       titulo:    tituloOrden(orden),
       subtitulo: ordenados.map(textoDeMotivo).join(' · '),
       href:      `/admin/pedidos?pedido=${encodeURIComponent(orden.numero_orden)}`,
+      tono:      'atencion',                             // ámbar: cola de trabajo
       prioridad: PRIORIDAD_ATENCION[ordenados[0].tipo], // el más urgente
       desempate: new Date(orden.createdAt).getTime(),   // más viejo primero
     });
@@ -95,8 +101,9 @@ export function itemsDeAtencion(ordenes: OrdenAtencion[], productos: ProductoAte
       titulo:    p.nombre,
       subtitulo: p.stock === 0 ? 'Agotado · sin unidades' : `Quedan ${p.stock} · bajo el mínimo`,
       href:      RUTA_REPONER,
-      prioridad: PRIORIDAD_ATENCION.stock,
-      desempate: p.stock, // 0 primero
+      tono:      'alerta',                 // ROJO: riesgo real, no una cola (§ el único rojo del panel)
+      prioridad: PRIORIDAD_ATENCION.stock, // pero SIGUE al final: el color es la clase, el orden es el costo
+      desempate: p.stock,                  // 0 primero
     });
   }
 

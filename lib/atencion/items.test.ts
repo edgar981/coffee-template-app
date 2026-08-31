@@ -72,6 +72,9 @@ test('el orden GLOBAL respeta la escala de prioridad (los 4 motivos + stock), pa
   assert.deepEqual(items.map(i => i.seccion), ['pedidos', 'pedidos', 'pedidos', 'pedidos', 'productos']);
   assert.equal(items[0].titulo, 'Cob · CN-COB'); // por_cobrar lidera
   assert.equal(items[4].titulo, 'Stock');        // el stock cierra
+  // El COLOR es la clase, el ORDEN es el costo: los pedidos van ámbar, el stock ROJO —
+  // Y sigue al final aunque sea rojo. Dos ejes distintos.
+  assert.deepEqual(items.map(i => i.tono), ['atencion', 'atencion', 'atencion', 'atencion', 'alerta']);
 });
 
 test('vacío es vacío: sin órdenes ni productos, y una orden sin motivos se SALTA', () => {

@@ -5,10 +5,12 @@
 para no letterboxearla ni clipar el sol); el tagline afirma la CATEGORÍA ("El sistema operativo de tu negocio.")
 en vez de contar piezas; el sol ~40 s fuera de pantalla de cada ~220 s anotado como DISEÑADO—; (2) la SECCIÓN
 "Necesita tu atención", la ÚNICA lista que UNIFICA pedidos-atención + stock-bajo (fuente `itemsDeAtencion`, orden
-por PRIORIDAD DECLARADA —por costo, no por sección—, un ítem por orden con motivos encadenados, NAVEGA no muta,
-cap 6 que EXPANDE en el sitio, vacío = "Todo al día", tile `pedidos_por_atender` RETIRADO —su número es el
-badge—); (3) la REDISTRIBUCIÓN de "Lo que más vendió" | "Órdenes recientes" a DOS columnas (Órdenes recientes se
-movió, no se retiró). capa 1 778/778 · tsc + next build verde. El gate VISUAL del dashboard es del owner (la
+por PRIORIDAD DECLARADA —por costo, no por sección; el COLOR es la clase (pedidos ámbar, stock ROJO) y el orden
+es el costo, ejes distintos—, un ítem por orden con motivos encadenados, NAVEGA no muta, cap 4 que EXPANDE en el
+sitio, vacío = "Todo al día"; se retiraron DOS tiles (`pedidos_por_atender` → el badge, y `alertas_stock` → los
+ítems rojos, sin perder el único rojo del panel)); (3) la REDISTRIBUCIÓN de "Lo que más vendió" | "Órdenes
+recientes" a DOS columnas (Órdenes recientes se movió y bajó a TRES columnas: Orden·Cliente·Estado). capa 1
+779/779 · tsc + next build verde. El gate VISUAL del dashboard es del owner (la
 ruta va tras sesión). **Pendiente el gate del owner.** Antes: EL MANIFEST DEL PANEL YA ES DE DUNA (§ #56), en
 producción (`3f86792`).)
 
@@ -130,14 +132,17 @@ Tres commits. **(1) Login:** el pie se separa de la duna anclando el contenido (
 de la cresta), NO capando el SVG —capar la letterboxea o clipa el sol circular—; el tagline pasó a "El sistema
 operativo de tu negocio." (afirma la categoría, no cuenta piezas); el sol ~40 s fuera de ~220 s anotado como
 diseñado. **(2) La sección "Necesita tu atención":** la ÚNICA lista que unifica pedidos-atención + stock-bajo
-(hasta ahora sólo se unificaban en el punto del rail). Fuente única `itemsDeAtencion` (puro, capa 1, 6 tests que
+(hasta ahora sólo se unificaban en el punto del rail). Fuente única `itemsDeAtencion` (puro, capa 1, tests que
 afirman el ORDEN); prioridad DECLARADA por costo (`por_cobrar` → … → stock), un ítem por orden con motivos
-encadenados, NAVEGA no muta (cada ítem al detalle), cap 6 que EXPANDE en el sitio (los ítems son de dos
-secciones, no hay una sola página que muestre ambas), vacío = "Todo al día". El tile `pedidos_por_atender` se
-retiró (su número es el badge). **(3) Redistribución:** "Lo que más vendió" \| "Órdenes recientes" a dos columnas
-(`lg:grid-cols-2`), Órdenes recientes se movió. capa 1 778/778 · tsc + next build verde. **El gate visual del
-dashboard es del owner** (la ruta va tras sesión, § LÍMITE CONOCIDO). Lo NO construido de la maqueta: asistente,
-"se agota mañana" (predicción), PSE.
+encadenados, NAVEGA no muta (cada ítem al detalle), cap 4 que EXPANDE en el sitio (los ítems son de dos
+secciones, no hay una sola página que muestre ambas), vacío = "Todo al día". **El COLOR es la clase, el ORDEN es
+el costo:** los pedidos van ámbar (`atencion`), el stock ROJO (`alerta`, antes ámbar por error) pero SIGUE al
+final. Se retiraron DOS tiles: `pedidos_por_atender` (→ el badge) y `alertas_stock` (→ los ítems rojos, sin
+perder el único rojo del panel); `por_cobrar` se quedó (muestra el monto). **(3) Redistribución:** "Lo que más
+vendió" \| "Órdenes recientes" a dos columnas (`lg:grid-cols-2`, `items-start`), y Órdenes recientes bajó a TRES
+columnas (Orden·Cliente·Estado; se quitaron Canal y Total, que forzaban scroll en media pantalla). capa 1
+779/779 · tsc + next build verde. **El gate visual del dashboard es del owner** (la ruta va tras sesión, § LÍMITE
+CONOCIDO). Lo NO construido de la maqueta: asistente, "se agota mañana" (predicción), PSE.
 
 ### El MANIFEST del panel ya es de Duna — en PRODUCCIÓN (2026-08-30, `3f86792`)
 

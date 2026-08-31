@@ -24,7 +24,6 @@ import DashboardCustomizer from '@/components/admin/DashboardCustomizer';
 import CurvaPedidosHoy, { ALTO_CURVA } from '@/components/admin/CurvaPedidosHoy';
 import { curvaDibuja } from '@/lib/dashboard/hoy';
 import { currentMonthOrdersQuery, currentMonthRange } from '@duna/core/metrics/order-stat-filters';
-import { isLowStock } from '@duna/core/metrics/inventory-filters';
 import { itemsDeAtencion, type ItemAtencion } from '@/lib/atencion/items';
 import {
   WIDGET_MAP, DEFAULT_WIDGET_KEYS, estadoTile,
@@ -117,7 +116,6 @@ export default function Dashboard() {
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  const lowStock       = products.filter(isLowStock).length;
   const activeProducts = products.filter(p => p.activo !== false).length;
 
   // La lista transversal "Necesita tu atención": las órdenes que piden acción (del
@@ -166,7 +164,8 @@ export default function Dashboard() {
     // tu atención", § itemsAtencion abajo).
     promedio_por_orden:   stats ? { raw: stats.avgTicket } : undefined,
     // products/customers default to []/[] and load independently of stats.
-    alertas_stock:        { raw: lowStock },
+    // `alertas_stock` se retiró: el stock bajo sale en la sección "Necesita tu atención"
+    // (§ itemsAtencion), con tono rojo propio.
     productos_activos:    { raw: activeProducts },
     clientes_totales:     { raw: customers.length },
     // `recurrencia.pct` es el MISMO número que traía `kpis.tasaRetencion`
@@ -489,7 +488,7 @@ function SeccionAtencion({ items, loading }: { items: ItemAtencion[]; loading: b
         <div>
           {mostradas.map((it, i) => (
             <Link key={`${it.seccion}-${it.href}-${i}`} href={it.href} className="admin-atencion-item">
-              <span className="admin-atencion-item__dot" aria-hidden />
+              <span className={`admin-atencion-item__dot${it.tono === 'alerta' ? ' admin-atencion-item__dot--alerta' : ''}`} aria-hidden />
               <span className="admin-atencion-item__cuerpo">
                 <span className="admin-atencion-item__titulo">{it.titulo}</span>
                 <span className="admin-atencion-item__sub">{it.subtitulo}</span>

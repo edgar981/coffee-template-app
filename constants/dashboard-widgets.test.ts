@@ -30,12 +30,14 @@ test('estadoTile: valor null/undefined (fuente caída) → null', () => {
 // EL DEFAULT DE LA PANTALLA "HOY" (2026-08-22) y la garantía de que el cambio de
 // default NO le quita nada a quien ya eligió sus tarjetas.
 
-test('el default son las tres tarjetas de acción del día (sin `pedidos_por_atender`, retirado)', () => {
-  // `ventas_hoy` y `pedidos_hoy` salieron del default (su cifra vive en el hero y en
-  // la curva); `ingresos_mes`/`ordenes_mes` son de mes, no del día. Y `pedidos_por_atender`
-  // se RETIRÓ: su número es el badge de la sección "Necesita tu atención" (§ lib/atencion/items).
+test('el default son las dos tarjetas de acción del día (sin `pedidos_por_atender` ni `alertas_stock`)', () => {
+  // `ventas_hoy` y `pedidos_hoy` salieron del default (su cifra vive en el hero y en la
+  // curva); `ingresos_mes`/`ordenes_mes` son de mes, no del día. `pedidos_por_atender` y
+  // `alertas_stock` se RETIRARON: sus hechos salen en la sección "Necesita tu atención"
+  // (§ lib/atencion/items) — el conteo de pedidos es el badge, y el stock bajo va como
+  // ítems rojos. `por_cobrar` se queda: muestra el MONTO ($ en la calle), que la sección no.
   assert.deepEqual(DEFAULT_WIDGET_KEYS, [
-    'por_cobrar', 'despachos_hoy', 'alertas_stock',
+    'por_cobrar', 'despachos_hoy',
   ]);
 });
 
@@ -48,10 +50,20 @@ test('los que salieron del default SIGUEN en el catálogo — nadie que los teng
   }
 });
 
-test('una preferencia guardada con las viejas keys se conserva intacta', () => {
+test('una preferencia guardada con keys VÁLIDAS se conserva intacta', () => {
   // El caso concreto de verificación 1: quien guardó el default anterior (con
   // ventas_hoy/pedidos_hoy/ingresos_mes/ordenes_mes) las mantiene — el cambio de
   // `defaultVisible` sólo toca a quien NO tiene preferencia guardada.
-  const guardadas = ['ventas_hoy', 'pedidos_hoy', 'ingresos_mes', 'ordenes_mes', 'alertas_stock'];
+  const guardadas = ['ventas_hoy', 'pedidos_hoy', 'ingresos_mes', 'ordenes_mes', 'productos_activos'];
   assert.deepEqual(sanitizeWidgetKeys(guardadas), guardadas);
+});
+
+test('una key RETIRADA (alertas_stock, pedidos_por_atender) se DESCARTA de la preferencia guardada', () => {
+  // El otro lado de lo mismo: quien tuviera guardado un tile ya retirado lo pierde del
+  // grid —su hecho vive ahora en la sección "Necesita tu atención"—. Es el gate por
+  // diseño (§ el retiro de los tiles); las demás keys válidas se conservan.
+  assert.deepEqual(
+    sanitizeWidgetKeys(['por_cobrar', 'alertas_stock', 'pedidos_por_atender', 'productos_activos']),
+    ['por_cobrar', 'productos_activos'],
+  );
 });

@@ -3418,8 +3418,11 @@ puro), NO un color hardcodeado por widget:
   alerta; una cola vacía no pide nada.
 - **Ámbar** (`tono: 'atencion'`): colas de trabajo con valor > 0 — Por cobrar,
   Órdenes Pendientes.
-- **Rojo** (`tono: 'alerta'`, `STAT_CHIP.alert`): riesgo real con valor > 0 —
-  Alertas de Stock. Sigue siendo la única alerta roja del panel; el rojo escaso.
+- **Rojo** (`tono: 'alerta'`): riesgo real — el rojo escaso, la única alerta roja
+  del panel. **El tile "Alertas de Stock" SE RETIRÓ (2026-08-31)**: el stock bajo sale
+  ahora como ÍTEMS ROJOS en la sección "Necesita tu atención" (§ Dashboard "Hoy"). El
+  rojo no se perdió —se movió a los ítems, donde vive el hecho—; el color sigue diciendo
+  la CLASE de problema (alerta), y ahí el orden lo da el costo, no el color.
 
 **La TENDENCIA no colorea el chip**: su color (verde alza / rojo baja) vive en el
 `TrendPill` de `StatCard`. Duplicarlo en el chip volvería el rojo frecuente
@@ -3647,21 +3650,31 @@ detalle pasan a dos columnas.
 - **NAVEGA, no muta** (§ el rediseño: cada indicador navega): cada ítem es un `<Link>` al detalle
   (Pedidos `?pedido=`, Productos "Por reponer"), donde vive la acción. Mutar desde Hoy reabriría el
   doble-submit, el error inline y el refresco que esa pantalla no tiene.
-- **Cap 6 con "y N restantes" que EXPANDE EN EL SITIO**, no navega: los ítems son de DOS secciones y
+- **EL COLOR es la CLASE, el ORDEN es el COSTO — dos ejes distintos** (`ItemAtencion.tono`): los
+  pedidos van ÁMBAR (`atencion`, cola de trabajo); el stock bajo va ROJO (`alerta`, riesgo real —
+  antes se pintaba ámbar por error—). Pero el stock **SIGUE AL FINAL** aunque sea rojo: el rojo dice
+  QUÉ clase de problema es, la prioridad dice qué CUESTA más (plata en la calle > reposición). Un
+  rojo al final no se lee raro porque el subtítulo hace legible el porqué de cada posición.
+- **Cap 4 con "y N restantes" que EXPANDE EN EL SITIO**, no navega: los ítems son de DOS secciones y
   no hay una sola página que muestre ambas, así que la lista completa es ésta, en el lugar. El badge
-  muestra el total real.
+  muestra el total real. (Bajó de 6 a 4: la sección se queda full-width y liderando —es lo accionable
+  del día—, y lo que se reduce es el ALTO, no su jerarquía.)
 - **El VACÍO es el estado BUENO** ("Todo al día — nada pide tu atención ahora."), sin ámbar, con un
   ✓: se lee como logro, no como vacío roto.
-- **El tile `pedidos_por_atender` SE RETIRÓ**: su número es el badge de la sección. Un tile con el
-  conteo Y la sección con la lista en la misma pantalla era la duplicación que la sección cierra;
-  `sanitizeWidgetKeys` descarta la key vieja y el default de Hoy pasó a 3 tarjetas. `por_cobrar` y
-  `alertas_stock` se quedan (monto / cruza a Productos).
+- **DOS tiles se RETIRARON** (`pedidos_por_atender` y `alertas_stock`): sus hechos salen en la
+  sección. `pedidos_por_atender` era el conteo de pedidos → el badge; `alertas_stock` era el conteo
+  de stock → los ítems rojos. **El rojo de escasez NO se perdió: se movió a los ítems**, donde vive
+  el hecho, en vez de un tile aparte. `sanitizeWidgetKeys` descarta las keys viejas; el default de
+  Hoy pasó a 2 tarjetas. **`por_cobrar` SÍ se quedó**: muestra el MONTO ($ en la calle), dato que la
+  sección no tiene —por eso no es redundante—.
 - **Lo que NO se construyó de la maqueta** (§ duna-os.html): las conversaciones del asistente, la
   predicción "se agota mañana" (hoy es "bajo mínimo", un saldo, no un pronóstico) y el pago PSE sin
   acreditar. Son del stack de Carlos / pago en línea; no existen acá.
 - **REDISTRIBUCIÓN:** "Lo que más vendió hoy" y "Órdenes recientes" pasan de columna única a DOS
-  columnas (`lg:grid-cols-2`, colapsan a una en angosto). Órdenes recientes se MOVIÓ, no se retiró;
-  la sección de atención lidera arriba, full-width.
+  columnas (`lg:grid-cols-2`, `items-start` — la card vacía queda corta, no estira). Órdenes recientes
+  se MOVIÓ (no se retiró) y bajó a **TRES columnas** (Orden · Cliente · Estado; se quitaron Canal y
+  Total): en una mitad del ancho, cinco columnas forzaban scroll horizontal. La sección de atención
+  lidera arriba, full-width.
 
 ## Equipo y usuarios, y Perfil — las dos últimas pantallas del panel
 

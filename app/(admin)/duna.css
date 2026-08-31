@@ -613,6 +613,9 @@ html.admin {
   width: 8px; height: 8px; border-radius: 999px;
   background: var(--duna-sol); flex-shrink: 0;
 }
+/* Stock bajo = ALERTA (rojo), no atención (§ Amber Minimal: el color es la clase de
+   problema). El mismo `--duna-bad` que la pleca `--prob` del indicador. */
+.admin-atencion-item__dot--alerta { background: var(--duna-bad); }
 .admin-atencion-item__cuerpo { min-width: 0; flex: 1; }
 .admin-atencion-item__titulo {
   display: block; font-size: .875rem; font-weight: var(--duna-w-medium); color: var(--duna-ink);

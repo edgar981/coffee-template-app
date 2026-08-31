@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Banknote, Wallet, Truck, ShoppingCart, DollarSign,
-  AlertTriangle, Users, Package, TrendingUp, Coins,
+  Users, Package, TrendingUp, Coins,
 } from 'lucide-react';
 import {
   widgetInsight, insightUltimoEvento,
@@ -9,7 +9,6 @@ import {
 } from '@/lib/metrics/insights';
 import { formatFecha } from '@duna/core/format-fecha';
 import { POR_COBRAR_QUERY_PEDIDOS } from '@duna/core/metrics/order-stat-filters';
-import { RUTA_REPONER } from '@/lib/productos/filtros';
 import { STAT_CHIP } from '@/constants/stat-chip';
 
 // ─── Dashboard widget registry ───────────────────────────────────────────────
@@ -208,7 +207,11 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
   // quien lo quiera lo activa en Personalizar.
   { key: 'ingresos_historicos', titulo: 'Ingresos históricos', subtitulo: 'Todos los pagos registrados', icono: Coins, formato: 'cop', categoria: 'historico', defaultVisible: false, color: STAT_CHIP.neutral, href: '/admin/pagos' },
   // ── Inventario ──
-  { key: 'alertas_stock',    tono: 'alerta', titulo: 'Alertas de Stock',   subtitulo: 'Productos bajo mínimo', icono: AlertTriangle, formato: 'int', categoria: 'inventario', defaultVisible: true,  color: STAT_CHIP.neutral,        href: RUTA_REPONER },
+  // EL TILE `alertas_stock` SE RETIRÓ: los productos bajo mínimo salen ahora en la
+  // sección "Necesita tu atención" (§ lib/atencion/items), con tono ROJO propio —así
+  // que el tile era el conteo redundante del mismo hecho, como `pedidos_por_atender`—.
+  // El ROJO de escasez (el único del panel) se preservó: se movió a esos ítems, donde
+  // vive el hecho, en vez de un tile aparte. `sanitizeWidgetKeys` descarta la key vieja.
   // Sin sub: "En catálogo" repetía "Productos Activos".
   { key: 'productos_activos', titulo: 'Productos Activos',  subtitulo: '', icono: Package,          formato: 'int', categoria: 'inventario', defaultVisible: false, color: STAT_CHIP.neutral },
   // ── Clientes ──
