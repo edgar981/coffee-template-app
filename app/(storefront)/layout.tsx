@@ -48,6 +48,10 @@ export async function generateMetadata(): Promise<Metadata> {
     // "{nombre}"; una hija con `title: "X"` (p.ej. /nosotros) → "X · {nombre}".
     title: { absolute: nombre, template: `%s · ${nombre}` },
     description: descripcionFooter,
+    // El manifest PWA del cliente. Se declara acá (por grupo) desde que se retiró la convención
+    // `app/manifest.ts` —que auto-inyectaba su link en TODA la app y ganaba sobre `metadata.manifest`,
+    // así que el panel no podía tener el suyo (§ el route handler /api/manifest, § Identidad)—.
+    manifest: "/api/manifest",
     icons: {
       icon: [
         { url: "/icon.svg", type: "image/svg+xml" },

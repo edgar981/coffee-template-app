@@ -1,17 +1,18 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-30 (LA PALETA → SiteContent con flujo de BORRADOR — cierra § Backlog #55. La paleta
-del storefront (fondo·tinta·acento) se mudó de `SiteSetting` (modelo HARD, guardar=publicar al instante) a
-`SiteContent.content.tema` (clave NO-sección, gemela de `paginas`, `resolverTema` aparte del loop) para ganar
-borrador/publicar/descartar. **La frontera borrador/no-borrador pasó a ser de PANTALLA:** Configuración =
-identidad en vivo; Tienda = lo que se publica. El editor de colores se mudó de Configuración a `/admin/tienda`
-SOBRE el selector de página (es store-wide, no de una página), con autoguardado-si-válido + Publicar/Descartar +
-píldora "Sin publicar" + reset-a-fábrica directo con confirmación. Reusa la máquina de secciones
-(`publicarSeccion('tema')`) + `guardarTemaBorrador` + route `/api/site-content/tema`. DROP de las 3 columnas de
-`SiteSetting` (migración `20260830120000`, MISMO deploy que el código, condición segura = UN SOLO usuario del
-panel, no "sin tráfico"). Nayoli byte-idéntico (nulls → defaults de código). 6 commits en `feat/paleta-borrador`,
-capa 1 772/772 · carril 184/184 · next build verde — **pendiente el gate del owner**. Antes: EL STOREFRONT SE
-VISTE DEL CLIENTE (`41d4e6a`, en producción).)
+**Actualizado:** 2026-08-30 (EL MANIFEST DEL PANEL YA ES DE DUNA — cierra § Backlog #56. Había UN solo manifest
+—la convención `app/manifest.ts`, dinámica del CLIENTE— que se auto-inyectaba en TODA la app y GANA sobre
+`metadata.manifest` (doc de Next: "File-based metadata has the higher priority"), así que instalar el panel lo
+anunciaba como el negocio del cliente con sus íconos, y su `start_url:"/"` hacía que el ícono instalado
+**ABRIERA LA TIENDA** (defecto aparte, más grave). Fix = el playbook de los íconos: se RETIRÓ la convención y
+cada grupo declara su manifest — storefront → route handler `app/api/manifest` (dinámico, lee SiteSetting);
+admin → `public/duna.webmanifest` estático (`start_url:"/admin"`, colores Duna). El admin ganó el
+`apple-touch-icon` que le faltaba (iOS IGNORA el manifest). Íconos de Duna generados DESDE EL SVG con sharp
+(marca clara sobre tinta #121212, SIN alfa): `apple-icon-duna.png` 180 + `icon-duna-512-maskable.png`; el ícono
+`any` es el SVG que ya existía. VERIFICADO POR CONTENIDO en el `<head>` renderizado (el modo de falla de los
+íconos): storefront → 1 solo link → /api/manifest; admin → 1 solo → /duna.webmanifest; /manifest.webmanifest →
+404. tsc + build verde. En `feat/manifest-panel-duna`, **pendiente el gate del owner**. Antes: LA PALETA →
+SiteContent (borrador, § #55), en producción (`e5c1e55`).)
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -96,13 +97,13 @@ del owner pasado, mergeado `--no-ff` y desplegado (deploy verde, migración de c
   la tanda de la paleta-borrador**, ver abajo— y **#56** (el manifest del panel es del CLIENTE → el PWA del admin
   se instala como la tienda; gateado por assets: Duna sólo tiene SVG+ICO, un manifest quiere PNG — sigue vivo).
 
-### La PALETA → SiteContent (borrador) — CONSTRUIDA, en la rama (2026-08-30, `feat/paleta-borrador`)
+### La PALETA → SiteContent (borrador) — CONSTRUIDA, en PRODUCCIÓN (2026-08-30, `e5c1e55`)
 
 Cierra **§ Backlog #55**. La paleta se mudó de `SiteSetting` (HARD, guardar=publicar al instante) a
 `SiteContent.content.tema` para ganar borrador/publicar/descartar. **Decisión: opción B** (mover la paleta a
 SiteContent), porque A (injertar borrador en SiteSetting) y C (frontera por campo) dejan Configuración BILINGÜE
-—conocimiento que el operador carga por-campo—; con B la frontera es de **PANTALLA**. 6 commits, pendiente el gate
-del owner.
+—conocimiento que el operador carga por-campo—; con B la frontera es de **PANTALLA**. 6 commits, gateado,
+mergeado y en producción (`e5c1e55`).
 
 - **Modelo:** `content.tema` es la SEGUNDA clave no-sección de `SiteContentData` (tras `paginas`): `resolverTema`
   la resuelve aparte del loop, no está en el REGISTRY, `SeccionKey` la excluye. Nulls → defaults de código →
@@ -124,6 +125,30 @@ del owner.
   equipo vuelve a dos deploys.
 - **El CAVEAT que sobrevive:** descartar → publicado, fábrica → defaults; **"republicar un tema PASADO" sigue
   siendo HISTORIAL y sigue DESCARTADO** (sobre-ingeniería). El borrador no resuelve el historial.
+
+### El MANIFEST del panel ya es de Duna — CONSTRUIDA, en la rama (2026-08-30, `feat/manifest-panel-duna`)
+
+Cierra **§ Backlog #56**. Instalar el panel como PWA lo anunciaba como el negocio del cliente (nombre + íconos)
+y su `start_url:"/"` hacía que el ícono instalado **abriera la tienda, no el panel** — dos defectos, el segundo
+más grave. Causa: UN solo manifest, la convención `app/manifest.ts` (dinámica del cliente), que se auto-inyecta
+en toda la app y **GANA sobre `metadata.manifest`** (doc de Next verificada) — la MISMA trampa que movió los
+íconos a `public/`.
+
+- **Fix = playbook de los íconos:** se BORRÓ la convención y cada grupo declara su manifest. Storefront → route
+  handler `app/api/manifest/route.ts` (dinámico, lee SiteSetting, `application/manifest+json`) + `metadata.manifest`
+  en el layout del storefront. Admin → `public/duna.webmanifest` estático (name "Panel Duna", `start_url:"/admin"`,
+  colores Duna) + `metadata.manifest` en el layout del admin.
+- **iOS:** el admin ganó el `apple-touch-icon` que le faltaba — iOS IGNORA el manifest, así que sin él el panel se
+  instalaba con una captura.
+- **Íconos generados DESDE EL SVG con `sharp`** (marca crema `#F4F3EF` sobre tinta `#121212`, `flatten` → SIN
+  canal alfa, porque iOS pinta negro donde hay alpha): `apple-icon-duna.png` (180, cuadrado a sangre, sin esquinas
+  propias — iOS aplica su máscara) y `icon-duna-512-maskable.png` (marca dentro del 80% central). El ícono `any`
+  del manifest de Duna es el `/brand/icon-duna.svg` que ya existía (Chrome lo renderiza) → no hicieron falta PNG
+  192/512. Verificado por contenido: `hasAlpha:false`, 4 esquinas `#121212` opacas, sol `#f59e0b` y barra `#f4f3ef`
+  en su sitio.
+- **La verificación que decide, POR CONTENIDO en el `<head>` renderizado** (no el código — el modo de falla de los
+  íconos): storefront `/` → 1 solo `<link rel=manifest>` → /api/manifest; admin `/login` → 1 solo → /duna.webmanifest;
+  `/manifest.webmanifest` → 404 (sin residual). tsc + build verde.
 
 ### Rediseño del login (la PUERTA) — CONSTRUIDO (2026-08-27)
 
@@ -752,10 +777,9 @@ el editor visual) · `#3` · `#4` · `#18` · `#19` ·
 `#20` · `#21` · `#25` · `#26` · `#27` · `#32` · `#34` · `#35` ·
 `#37` · `#39` · `#41` · `#49` · `#51` · `#52` (Ingresar con WhatsApp — capacidad
 que no existe; disparador: cuando el login por WhatsApp exista) · `#53` (swipe-to-dismiss
-en los sheets) · `#54` (favicon derivado del wordmark — motor de ImageResponse, era del storefront) ·
-`#56` (el manifest del panel es del CLIENTE → el PWA del admin se instala como la tienda;
-gateado por assets PNG de Duna). **(#55 —la paleta al flujo de borrador— CERRADO por la tanda
-de la paleta-borrador; ver la sección arriba. Quedan 22 ítems; los que
+en los sheets) · `#54` (favicon derivado del wordmark — motor de ImageResponse, era del storefront).
+**(#55 —la paleta al flujo de borrador— y #56 —el manifest del panel es del cliente— CERRADOS (ver
+sus secciones arriba). Quedan 21 ítems; los que
 describen un defecto concreto —#18,#19,#21,#25,#26,#27,#32,#34,#37,#39— se VERIFICARON contra el código.
 `#5`, `#8` y `#10` eran la familia "campo que le falta su otra mitad"; los tres se
 CERRARON el 2026-08-27, abajo.)**

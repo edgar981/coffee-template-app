@@ -30,6 +30,19 @@ import { SUFIJO_PANEL } from "@/lib/admin-titulo";
 // (`app/icon.svg`, `app/favicon.ico`, `app/apple-icon.png`), que Next aplica a
 // toda la app y no sólo al storefront. Los del storefront no se tocan.
 //
+// `manifest` acá es el PWA del PANEL (Duna). Antes había UN solo manifest (la
+// convención `app/manifest.ts`, dinámico del CLIENTE) que se auto-inyectaba en toda
+// la app, así que instalar el panel lo anunciaba como el negocio del cliente, con
+// sus íconos, y su `start_url:"/"` hacía que el ícono instalado ABRIERA LA TIENDA
+// —un defecto aparte del ícono, y más grave—. La convención GANA sobre
+// `metadata.manifest` (doc de Next), así que se RETIRÓ y cada grupo declara el suyo:
+// el storefront apunta a `/api/manifest` (dinámico), el admin a `/duna.webmanifest`
+// (estático, `start_url:"/admin"`). Misma trampa que los íconos (§ Identidad).
+//
+// El `apple` faltaba: iOS IGNORA el manifest y usa `apple-touch-icon`, así que sin
+// esto instalar el panel en iPhone daba una captura. El PNG es marca clara sobre
+// tinta, cuadrado a sangre y SIN alfa (iOS pinta negro donde hay alpha).
+//
 // Los títulos de sección los declara cada `layout.tsx` de ruta y salen de
 // `ADMIN_NAV` (§ lib/admin-titulo): la pestaña dice lo que dice el menú.
 export const metadata: Metadata = {
@@ -40,11 +53,13 @@ export const metadata: Metadata = {
   // esta misma línea es el que aplican las secciones de abajo.
   title: { absolute: SUFIJO_PANEL, template: `%s · ${SUFIJO_PANEL}` },
   description: "Panel de operación Duna.",
+  manifest: "/duna.webmanifest",
   icons: {
     icon: [
       { url: "/brand/icon-duna.svg", type: "image/svg+xml" },
       { url: "/brand/favicon-duna.ico", sizes: "any" },
     ],
+    apple: { url: "/brand/apple-icon-duna.png", type: "image/png", sizes: "180x180" },
     shortcut: "/brand/favicon-duna.ico",
   },
 };
