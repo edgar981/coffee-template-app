@@ -30,11 +30,16 @@ test('estadoTile: valor null/undefined (fuente caída) → null', () => {
 // EL DEFAULT DE LA PANTALLA "HOY" (2026-08-22) y la garantía de que el cambio de
 // default NO le quita nada a quien ya eligió sus tarjetas.
 
-test('el default es EXACTAMENTE las cuatro tarjetas de acción del día', () => {
-  // `ventas_hoy` y `pedidos_hoy` salieron del default (su cifra vive en el hero y en
-  // la curva); `ingresos_mes`/`ordenes_mes` son de mes, no del día. Quedan estas 4.
+test('el default son TRES indicadores en fila (la forma de duna-os)', () => {
+  // `ventas_hoy` y `pedidos_hoy` salieron del default (su cifra vive en el hero y en la
+  // curva); `ingresos_mes`/`ordenes_mes` son de mes, no del día. `pedidos_por_atender` y
+  // `alertas_stock` se RETIRARON: sus hechos salen en la sección "Necesita tu atención"
+  // (§ lib/atencion/items) — el conteo de pedidos es el badge, y el stock bajo va como
+  // ítems rojos. El tercero es `promedio_por_orden` (el "Ticket promedio" de la maqueta):
+  // llena la fila de tres sin dejar la mitad vacía. `por_cobrar` muestra el MONTO ($ en la
+  // calle), que la sección no. TRES es el ARRANQUE, no un número fijo — el customizer manda.
   assert.deepEqual(DEFAULT_WIDGET_KEYS, [
-    'por_cobrar', 'despachos_hoy', 'pedidos_por_atender', 'alertas_stock',
+    'por_cobrar', 'despachos_hoy', 'promedio_por_orden',
   ]);
 });
 
@@ -47,10 +52,39 @@ test('los que salieron del default SIGUEN en el catálogo — nadie que los teng
   }
 });
 
-test('una preferencia guardada con las viejas keys se conserva intacta', () => {
+test('una preferencia guardada con keys VÁLIDAS se conserva intacta', () => {
   // El caso concreto de verificación 1: quien guardó el default anterior (con
   // ventas_hoy/pedidos_hoy/ingresos_mes/ordenes_mes) las mantiene — el cambio de
   // `defaultVisible` sólo toca a quien NO tiene preferencia guardada.
-  const guardadas = ['ventas_hoy', 'pedidos_hoy', 'ingresos_mes', 'ordenes_mes', 'alertas_stock'];
+  const guardadas = ['ventas_hoy', 'pedidos_hoy', 'ingresos_mes', 'ordenes_mes', 'productos_activos'];
   assert.deepEqual(sanitizeWidgetKeys(guardadas), guardadas);
+});
+
+test('una key que NO existe en el catálogo se DESCARTA de la preferencia guardada', () => {
+  // El gate por diseño: una preferencia guardada con una key inexistente (una key
+  // retirada DE VERDAD, o basura de un cliente malicioso) la pierde; las válidas se
+  // conservan en orden.
+  assert.deepEqual(
+    sanitizeWidgetKeys(['por_cobrar', 'no_existe_este_widget', 'productos_activos']),
+    ['por_cobrar', 'productos_activos'],
+  );
+});
+
+test('alertas_stock y pedidos_por_atender SIGUEN en el catálogo — disponibles, no default', () => {
+  // RETIRAR DEL DEFAULT ≠ BORRAR DEL CATÁLOGO. Los dos salieron del DEFAULT (su hecho vive
+  // en la sección "Necesita tu atención": el conteo de pedidos es el badge, el stock bajo
+  // son los ítems rojos), pero SIGUEN siendo opciones elegibles en el customizer. Por eso
+  // NO se descartan de una preferencia guardada que los incluya —ésa es la diferencia con
+  // una key retirada de verdad—, y NO están en el default. Un operador que quiera el conteo
+  // como tile ADEMÁS del badge puede: es su pantalla.
+  assert.ok('alertas_stock' in WIDGET_MAP, 'alertas_stock debe estar en el catálogo');
+  assert.ok('pedidos_por_atender' in WIDGET_MAP, 'pedidos_por_atender debe estar en el catálogo');
+  assert.ok(!DEFAULT_WIDGET_KEYS.includes('alertas_stock'), 'alertas_stock NO va por defecto');
+  assert.ok(!DEFAULT_WIDGET_KEYS.includes('pedidos_por_atender'), 'pedidos_por_atender NO va por defecto');
+  // Una preferencia guardada con las cuatro (el default VIEJO) se conserva ENTERA: al volver
+  // los dos al catálogo, `sanitize` deja de podarlos. (Es exactamente la fila del owner.)
+  assert.deepEqual(
+    sanitizeWidgetKeys(['por_cobrar', 'despachos_hoy', 'pedidos_por_atender', 'alertas_stock']),
+    ['por_cobrar', 'despachos_hoy', 'pedidos_por_atender', 'alertas_stock'],
+  );
 });

@@ -56,7 +56,13 @@ export function PreAuthShell({
   children: ReactNode;
 }) {
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10">
+    // El padding-BOTTOM reserva la banda de la duna, para que el contenido centrado (la card y el
+    // pie) quede POR ENCIMA de la cresta y ésta cruce fondo vacío, no el texto. Se ancla el
+    // contenido en vez de capar el SVG: la duna es decoración con el sol CIRCULAR ridando la cresta
+    // (animateMotion), así que capar el alto o la letterboxea (deja de cruzar toda la pantalla) o
+    // clipa el sol en el pico. `11vw` sigue el alto de la cresta —proporcional al ancho, ~0.09·W del
+    // borde inferior (viewBox 1440×240, pico en y≈112; § DunaPie)— con un piso de 3.5rem en angosto.
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-background px-4 pt-10 pb-[max(3.5rem,11vw)]">
       {/* Profundidad sutil: UN tinte radial del primario a muy baja opacidad,
           para que el fondo no sea un plano muerto. Sale de tokens, así que se
           adapta a claro y oscuro, y se queda muy por debajo de la card — el
@@ -102,13 +108,13 @@ export function PreAuthShell({
         {children}
       </div>
 
-      {/* Pie de marca. "Dos puertas" es la METÁFORA del producto —un negocio con
-          dos puertas, el admin y el storefront, sobre un mismo sistema operativo—,
-          NO el número de pantallas de la puerta (que son tres). Sin versión: un
-          literal envejece y no le dice nada a quien entra. `relative` para quedar
-          por encima de la duna del fondo. */}
+      {/* Pie de marca. AFIRMA LA CATEGORÍA —qué ES Duna, el sistema operativo de un negocio— en vez
+          de CONTAR sus piezas. El tagline anterior ("Un negocio. Dos puertas…") enumeraba admin +
+          storefront, pero "dos puertas" se lee como canales y con WhatsApp serían tres: un recuento
+          envejece con cada canal que se agrega. La afirmación de categoría no. Sin versión: un
+          literal no le dice nada a quien entra. `relative z-10` para quedar por encima de la duna. */}
       <p className="relative z-10 mt-9 text-center text-xs text-muted-foreground/70">
-        Un negocio. Dos puertas. Un sistema operativo.
+        El sistema operativo de tu negocio.
       </p>
     </div>
   );

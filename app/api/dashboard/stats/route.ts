@@ -14,8 +14,6 @@ import { pedidosPorHoraDeHoy, topHoyVendido } from '@/lib/dashboard/hoy-server';
 // el correo del lunes no puede contradecir al dashboard.
 import { NOT_CANCELLED, REVENUE_ORDER_SCOPE, POR_COBRAR_WHERE, ORDENES_REALES } from '@duna/core/metrics/prisma-scopes';
 
-const RECENT_LIMIT = 6;
-
 // Meses de la serie que alimenta los insights: 7 CERRADOS + el mes en curso. Los
 // 7 no son arbitrarios — la regla semestral compara el último mes cerrado contra
 // el promedio de los 6 anteriores (lib/metrics/insights.ts), así que con menos
@@ -62,7 +60,6 @@ export async function GET() {
     ordenesParaAtencion,
     despachosHoy,
     pedidosHoy,
-    recentOrders,
     curMonthOrders,
     prevMonthOrders,
     firstPayment,
@@ -109,6 +106,9 @@ export async function GET() {
         estado: true, condicion_pago: true,
         shipping:     { select: { estado: true, mensajero: true, fecha_programada: true } },
         comprobantes: { select: { estado: true } },
+        // Para la LISTA "Necesita tu atención" (no sólo el conteo): el ancla del ítem
+        // (nº + cliente), su navegación (nº) y el desempate por antigüedad (createdAt).
+        numero_orden: true, cliente_nombre: true, createdAt: true,
       },
     }),
     // ── Despachos de hoy ── shipments that LEFT today. `stock_descontado_at` is
@@ -121,13 +121,6 @@ export async function GET() {
     // ── Pedidos de hoy ── real orders created today (excl. cancelled and SN-).
     prisma.order.count({
       where: { ...NOT_CANCELLED, numero_orden: { startsWith: 'CN-' }, createdAt: { gte: todayStart, lt: tomorrowStart } },
-    }),
-    // Recent orders EXCLUDE cancelled (same definition as every other metric).
-    prisma.order.findMany({
-      where:   NOT_CANCELLED,
-      include: { items: true },
-      orderBy: { createdAt: 'desc' },
-      take:    RECENT_LIMIT,
     }),
     // Order counts per month (for the "Órdenes del mes" value + its MoM pill).
     prisma.order.count({ where: { ...NOT_CANCELLED, createdAt: { gte: monthStart, lt: nextMonthStart } } }),
@@ -216,10 +209,20 @@ export async function GET() {
   // `OrderStatus` es la lectura que hace la app. El cast vive acá, en la frontera,
   // y no dentro de la regla — la regla es pura y no debe saber de dónde vienen sus
   // datos. Mismo movimiento que en `/api/atencion`.
-  const porAtender = ordenesParaAtencion
+  // Las órdenes que piden acción, con los detalles que la LISTA necesita (la página
+  // arma los ítems con `itemsDeAtencion`, combinando esto con sus productos bajos —
+  // que ya tiene client-side—). Se FILTRA acá con la misma `necesitaAtencion` que el
+  // pill y el punto del nav: una fuente. El conteo (el badge de la sección) es su
+  // largo; el tile `pedidos_por_atender` se retiró (su número es ese badge).
+  const atencionPedidos = ordenesParaAtencion
     .map(o => ({ ...o, estado: o.estado as OrderStatus }))
     .filter(necesitaAtencion)
-    .length;
+    .map(o => ({
+      estado: o.estado, condicion_pago: o.condicion_pago,
+      shipping: o.shipping, comprobantes: o.comprobantes,
+      numero_orden: o.numero_orden, cliente_nombre: o.cliente_nombre,
+      createdAt: o.createdAt.toISOString(),
+    }));
 
   // ── Serie mensual (insights) ──
   // Zero-fill sobre los meses de la ventana: un mes sin ventas es un 0 real, y
@@ -249,9 +252,10 @@ export async function GET() {
     // Cuentas por cobrar (count + pesos)
     porCobrar,
     porCobrarMonto: porCobrarAgg._sum.total ?? 0,
-    // Pedidos que piden acción. `porCobrar` es UNO de los cuatro motivos, así que
-    // es un subconjunto de éste — ya no su complemento (§ types/dashboard).
-    porAtender,
+    // Las órdenes que piden acción, CON detalles — la página arma la lista transversal
+    // "Necesita tu atención" combinándolas con sus productos bajos. `porCobrar` es UNO
+    // de los cuatro motivos, así que es un subconjunto de este conjunto.
+    atencionPedidos,
     // Ingresos (Payments)
     revenueMonth,
     revenueTotal:   revenueTotalAgg._sum.monto ?? 0,
@@ -263,7 +267,6 @@ export async function GET() {
     /** Día de referencia (America/Bogota) para calcular "hace N días" en cliente. */
     hoyKey:         zonedDayKey(now, BUSINESS_TZ),
     avgTicket:      avgTicketCur,
-    recentOrders,
     monthly: {
       revenue:   { current: revenueMonth, previous: revenuePrev },
       orders:    { current: curMonthOrders, previous: prevMonthOrders },

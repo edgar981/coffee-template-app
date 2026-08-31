@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { SlidersHorizontal } from 'lucide-react';
+import { SlidersHorizontal, ArrowRight, Check } from 'lucide-react';
 import { toast } from 'sonner';
-import StatusBadge from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { DunaTooltip } from '@/components/admin/DunaTooltip';
 import { getDashboardStats } from '@/lib/api/dashboard';
@@ -13,7 +12,6 @@ import { getAnalytics } from '@/lib/api/analytics';
 import { getProducts } from '@/lib/api/products';
 import { getCustomers } from '@/lib/api/customers';
 import { getDashboardPrefs, saveDashboardPrefs } from '@/lib/api/dashboardPrefs';
-import type { Order } from '@/types/order';
 import type { Product } from '@/types/product';
 import type { Customer } from '@/types/customer';
 import type { DashboardStats } from '@/types/dashboard';
@@ -25,6 +23,7 @@ import CurvaPedidosHoy, { ALTO_CURVA } from '@/components/admin/CurvaPedidosHoy'
 import { curvaDibuja } from '@/lib/dashboard/hoy';
 import { currentMonthOrdersQuery, currentMonthRange } from '@duna/core/metrics/order-stat-filters';
 import { isLowStock } from '@duna/core/metrics/inventory-filters';
+import { itemsDeAtencion, type ItemAtencion } from '@/lib/atencion/items';
 import {
   WIDGET_MAP, DEFAULT_WIDGET_KEYS, estadoTile,
   type WidgetFormato, type WidgetHrefContext,
@@ -116,8 +115,17 @@ export default function Dashboard() {
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  const lowStock       = products.filter(isLowStock).length;
   const activeProducts = products.filter(p => p.activo !== false).length;
+  // `alertas_stock` (widget elegible, NO default) cuenta los productos bajo mínimo con el
+  // MISMO `isLowStock` que la sección de atención y el motor de la campana — nunca un
+  // criterio propio, o el tile y la sección dejarían de reconciliar.
+  const lowStock = products.filter(isLowStock).length;
+
+  // La lista transversal "Necesita tu atención": las órdenes que piden acción (del
+  // endpoint, ya filtradas) + los productos bajos (que la página ya tiene). Una
+  // fuente (`itemsDeAtencion`, § lib/atencion/items): la lista, su largo (el badge)
+  // y el orden por prioridad salen de acá, no de un sort en el render.
+  const itemsAtencion = itemsDeAtencion(stats?.atencionPedidos ?? [], products);
 
   // Deep-link context (America/Bogota day keys + the shared month query), fed to
   // each widget's href builder so a card links to exactly the rows it counts.
@@ -155,17 +163,14 @@ export default function Dashboard() {
     ingresos_mes:         stats ? { raw: stats.revenueMonth } : undefined,
     ingresos_historicos:  stats ? { raw: stats.revenueTotal, sub: stats.revenueSince ? `Desde ${formatFecha(stats.revenueSince)}` : undefined } : undefined,
     ordenes_mes:          stats ? { raw: stats.monthly.orders.current } : undefined,
-    // El cross-reference con "Por cobrar" SE QUEDA, pero cambió de signo y por eso
-    // cambia el texto: antes las dos tarjetas eran un conjunto y su COMPLEMENTO
-    // ("N por cobrar aparte", descontadas de este número); ahora por-cobrar es uno
-    // de los cuatro motivos de atención, así que va INCLUIDA. Dejar el "aparte"
-    // habría sido la misma frase afirmando lo contrario de lo que pasa.
-    // Lo que no cambia es por qué existe la línea: dos tarjetas que hablan de
-    // conjuntos que se tocan tienen que decir cómo se tocan, o se leen como cifras
-    // rivales. Sin por-cobrar cae al sub del registry.
-    pedidos_por_atender:  stats ? { raw: stats.porAtender, sub: porCobrarN > 0 ? `Incluye ${porCobrarN} por cobrar` : undefined } : undefined,
+    // `pedidos_por_atender` (elegible, NO default): el conteo de órdenes que piden acción —
+    // el MISMO conjunto que el badge de la sección "Necesita tu atención" (`atencionPedidos`),
+    // no un cálculo aparte—. El sub cruza el subconjunto por-cobrar, como el original.
+    pedidos_por_atender:  stats ? { raw: stats.atencionPedidos.length, sub: porCobrarN > 0 ? `Incluye ${porCobrarN} por cobrar` : undefined } : undefined,
     promedio_por_orden:   stats ? { raw: stats.avgTicket } : undefined,
     // products/customers default to []/[] and load independently of stats.
+    // `alertas_stock` (elegible, NO default): el conteo de productos bajo mínimo. Su hecho
+    // también vive como ítems ROJOS en la sección; el tile es el conteo de un vistazo.
     alertas_stock:        { raw: lowStock },
     productos_activos:    { raw: activeProducts },
     clientes_totales:     { raw: customers.length },
@@ -306,10 +311,13 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Tira editorial de indicadores — la ÚNICA superficie personalizable. Los
-          widgets se renderizan en el orden elegido; el hero, la curva, top-hoy y
-          órdenes recientes son fijos. Una key retirada (WIDGET_MAP miss) se salta, no
-          revienta. Un widget cuya fuente falló muestra `—` (ver widgetValues). */}
+      {/* Tira editorial de indicadores — TRES en fila (la forma de duna-os), la ÚNICA
+          superficie personalizable. Va entre la curva y las dos columnas, como la
+          `stat-row` de la maqueta bajo el hero. Los widgets se renderizan en el orden
+          elegido; el hero, la curva, la sección de atención y top-hoy son fijos. Una key
+          retirada (WIDGET_MAP miss) se salta, no revienta. Un widget cuya fuente falló
+          muestra `—` (ver widgetValues). "Tres" es el ARRANQUE, no un tope: el operador
+          elige cuántos ve en Personalizar y la tira refluye (§ duna.css, filetes 3-col). */}
       {loading ? (
         <IndicadoresSkeleton count={widgetKeys.length} />
       ) : widgetKeys.length === 0 ? (
@@ -360,44 +368,37 @@ export default function Dashboard() {
         onApply={applyWidgets}
       />
 
-      {/* Lo que más vendió hoy — eje del DINERO (incluye canceladas), lista corta. */}
-      <div className="duna-card duna-card__pad">
-        <h2 className="duna-heading" style={{ margin: '0 0 var(--duna-space-3)' }}>Lo que más vendió hoy</h2>
-        {loading ? (
-          <div className="space-y-2" aria-hidden>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} style={{ height: '1.4em', borderRadius: 4, background: 'var(--duna-skel)', opacity: 1 - i * 0.2 }} />
-            ))}
-          </div>
-        ) : !stats || stats.topHoy.length === 0 ? (
-          <p className="duna-sub" style={{ margin: 0 }}>Aún no se ha vendido nada hoy.</p>
-        ) : (
-          <TopHoy filas={stats.topHoy} />
-        )}
-      </div>
+      {/* DOS COLUMNAS en escritorio (colapsan a una en angosto): "Necesita tu atención"
+          (IZQUIERDA, más ancha 1.35fr —es texto y lo accionable del día) | "Lo que más
+          vendió hoy" (derecha). Reemplaza a la sección de atención full-width + la tabla
+          de Órdenes recientes (RETIRADA: era la única tabla de una pantalla sin tablas, y
+          su contenido vive en Pedidos a un clic). En la maqueta ese sitio lo ocupaban
+          "Conversaciones activas"/"Duna sugiere", que no existen; la columna queda para
+          atención. `items-start` porque tienen altos distintos; `gap-6` da el espacio. */}
+      <div className="grid gap-6 lg:grid-cols-[1.35fr_1fr] items-start">
+        {/* Necesita tu atención — la lista transversal (pedidos + stock), lo accionable
+            del día. NAVEGA, no muta: cada ítem lleva al detalle donde vive la acción
+            (§ Dashboard: cada indicador navega). */}
+        <SeccionAtencion items={itemsAtencion} loading={loading} />
 
-      {/* Órdenes recientes — grid-list (§ .duna-lista): refluye en móvil en vez de
-          scrollear horizontal. La lista va A SANGRE (sin card__pad): sus filas ya
-          traen su propio padding, y un doble padding dejaría los separadores
-          flotando dentro de la tarjeta. El encabezado lleva su padding aparte. */}
-      <div className="duna-card" style={{ overflow: 'hidden' }}>
-        <div className="flex items-center justify-between"
-             style={{ padding: 'var(--duna-space-4) var(--duna-space-4)', borderBottom: '1px solid var(--duna-border)' }}>
-          <h2 className="duna-heading" style={{ margin: 0 }}>Órdenes recientes</h2>
-          <Link href="/admin/pedidos" className="duna-link">Ver todas →</Link>
+        {/* Lo que más vendió hoy — eje del DINERO (incluye canceladas), lista corta. */}
+        <div className="duna-card duna-card__pad">
+          {/* El encabezado también lleva skeleton mientras carga (antes salía en claro
+              mientras las otras tarjetas ya lo tenían): el `.duna-skel` va sobre un span con
+              el TEXTO real adentro, así el alto lo da el line-height de `.duna-heading`
+              —heredado, no un número a mano (§ primitives.css, `.duna-skel` HEREDA su alto)—. */}
+          <h2 className="duna-heading" style={{ margin: '0 0 var(--duna-space-3)' }}>
+            {loading ? <span className="duna-skel">Lo que más vendió hoy</span> : 'Lo que más vendió hoy'}
+          </h2>
+          {loading ? (
+            <TopHoySkeleton />
+          ) : !stats || stats.topHoy.length === 0 ? (
+            <p className="duna-sub" style={{ margin: 0 }}>Aún no se ha vendido nada hoy.</p>
+          ) : (
+            <TopHoy filas={stats.topHoy} />
+          )}
         </div>
-        {loading ? (
-          <div className="space-y-2" style={{ padding: 'var(--duna-space-4)' }} aria-hidden>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} style={{ height: '1.6em', borderRadius: 4, background: 'var(--duna-skel)', opacity: 1 - i * 0.15 }} />
-            ))}
-          </div>
-        ) : !stats || stats.recentOrders.length === 0 ? (
-          <p className="duna-sub" style={{ margin: 0, padding: 'var(--duna-space-5)' }}>Aún no hay órdenes.</p>
-        ) : (
-          <OrdersLista orders={stats.recentOrders} />
-        )}
-      </div>
+      </div>{/* fin de las dos columnas */}
     </div>
   );
 }
@@ -422,6 +423,92 @@ function IndicadoresSkeleton({ count }: { count: number }) {
           <span className="admin-indicador__ctx"><span style={{ ...barra, width: '65%' }} /></span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── Necesita tu atención (lista transversal: pedidos + stock) ─────────────────
+// La lista sale ORDENADA y COMPLETA de `itemsDeAtencion` (helper puro); acá sólo se
+// muestra un tope y se expande. El "y N restantes" EXPANDE EN EL SITIO —no navega a
+// una lista— porque los ítems son de DOS secciones y no hay una sola página que
+// muestre ambas; la lista completa es ésta, en el lugar. Cada ítem sí navega a su
+// detalle. El vacío es el estado BUENO y se lee como tal.
+// 4 visibles: la sección vive en la COLUMNA IZQUIERDA (1.35fr) del detalle del día,
+// junto a "Lo que más vendió hoy" (que muestra hasta 5 filas cortas). El cap la mantiene
+// a un alto parejo con esa columna; el "y N restantes" expande el resto EN EL SITIO, sin
+// perder nada. (Antes era full-width y liderando; con la estructura de duna-os —hero,
+// curva, tres indicadores, dos columnas— pasó a la columna izquierda.)
+const CAP_ATENCION = 4;
+
+function SeccionAtencion({ items, loading }: { items: ItemAtencion[]; loading: boolean }) {
+  const [expandida, setExpandida] = useState(false);
+
+  if (loading) {
+    return (
+      <div className="duna-card duna-card__pad" role="status">
+        <span className="duna-sr-only">Cargando lo que necesita tu atención…</span>
+        {/* Encabezado con el alto HEREDADO del `.duna-heading` real (texto de relleno bajo
+            `.duna-skel`), igual que "Lo que más vendió hoy" — no un alto a mano, así el
+            título no salta al cargar. */}
+        <h2 className="duna-heading" style={{ margin: 0 }} aria-hidden><span className="duna-skel">Necesita tu atención</span></h2>
+        {/* Las FILAS sí son aproximadas (44px): los ítems reales tienen alto variable (dos
+            renglones, cap 4) y no se pueden renderizar sin datos, así que su alto no puede
+            heredarse — reservan el de un ítem de dos líneas. */}
+        <div className="space-y-2" style={{ marginTop: 'var(--duna-space-3)' }} aria-hidden>
+          {[0, 1, 2].map(i => <div key={i} className="duna-skel" style={{ height: 44, borderRadius: 8 }} />)}
+        </div>
+      </div>
+    );
+  }
+
+  const mostradas = expandida ? items : items.slice(0, CAP_ATENCION);
+  const restantes = items.length - mostradas.length;
+
+  return (
+    <div className="duna-card duna-card__pad">
+      {/* El badge va a la esquina DERECHA del encabezado (`space-between`), como el
+          `.card-head` de duna-os — no pegado al título. */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-3)' }}>
+        <h2 className="duna-heading" style={{ margin: 0 }}>Necesita tu atención</h2>
+        {items.length > 0 ? (
+          <span className="duna-badge duna-badge--attention">
+            {items.length} {items.length === 1 ? 'pendiente' : 'pendientes'}
+          </span>
+        ) : (
+          <span className="duna-badge duna-badge--neutral">Al día</span>
+        )}
+      </div>
+
+      {items.length === 0 ? (
+        // El estado BUENO — se lee como logro, no como vacío roto. Sin ámbar.
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)' }}>
+          <Check className="w-4 h-4" aria-hidden style={{ color: 'var(--duna-ok, currentColor)' }} />
+          <p className="duna-sub" style={{ margin: 0 }}>Todo al día — nada pide tu atención ahora.</p>
+        </div>
+      ) : (
+        <div>
+          {mostradas.map((it, i) => (
+            <Link key={`${it.seccion}-${it.href}-${i}`} href={it.href} className="admin-atencion-item">
+              <span className={`admin-atencion-item__dot${it.tono === 'alerta' ? ' admin-atencion-item__dot--alerta' : ''}`} aria-hidden />
+              <span className="admin-atencion-item__cuerpo">
+                <span className="admin-atencion-item__titulo">{it.titulo}</span>
+                <span className="admin-atencion-item__sub">{it.subtitulo}</span>
+              </span>
+              <ArrowRight className="w-4 h-4 shrink-0" aria-hidden style={{ color: 'var(--duna-muted)' }} />
+            </Link>
+          ))}
+          {restantes > 0 && (
+            <button type="button" onClick={() => setExpandida(true)} className="duna-link" style={{ marginTop: 'var(--duna-space-3)' }}>
+              Ver las {restantes} restantes
+            </button>
+          )}
+          {expandida && items.length > CAP_ATENCION && (
+            <button type="button" onClick={() => setExpandida(false)} className="duna-link" style={{ marginTop: 'var(--duna-space-3)' }}>
+              Ver menos
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -453,54 +540,23 @@ function TopHoy({ filas }: { filas: { nombre: string; total: number; producto_id
   );
 }
 
-// ─── Órdenes recientes (grid-list) ────────────────────────────────────────────
-// `.duna-lista`: refluye en móvil (§ Listas tabulares) en vez de scrollear
-// horizontal. La fila navega al detalle del pedido (`?pedido=`); el número es un
-// <Link> real para middle-click y foco de teclado, con `stopPropagation` para no
-// navegar dos veces.
-// Anchos DEFINIDOS por columna (patrón de Pagos): sin esto, Cliente —única `fr`— se
-// come el sobrante y Canal/Total/Estado, en `auto`, se encogen y se apiñan a la
-// derecha. Cada columna con su ancho; Cliente crece (es la de nombre). `Total` va a
-// 96px, EL MISMO ancho que `Monto` en Pagos, para que el dinero se lea al mismo ancho
-// en las tres listas del panel y la cifra no flote (§ Listas tabulares — el número a
-// la derecha va en MEDIO, nunca al borde). NO mover Total al final: crearía una
-// segunda convención (Pagos e Inventario lo tienen en medio, con columnas después).
-const ORDENES_COLS = '108px minmax(7rem,1fr) minmax(84px,auto) 96px minmax(96px,auto)';
-
-function OrdersLista({ orders }: { orders: Order[] }) {
-  const router = useRouter();
-  const orderHref = (o: Order) => `/admin/pedidos?pedido=${encodeURIComponent(o.numero_orden)}`;
-
+// Skeleton de "Lo que más vendió hoy" — MISMO markup que TopHoy, con `.duna-skel` sobre los
+// elementos REALES (con texto de relleno adentro): el alto de cada fila lo produce el
+// line-height real de `duna-body-sm`/`duna-num`, no un número a mano, así que no salta al
+// llegar el dato (§ primitives.css: `.duna-skel` HEREDA su alto). La barra de proporción es
+// una dimensión FIJA real (4px), se reusa tal cual como skeleton.
+function TopHoySkeleton({ filas = 3 }: { filas?: number }) {
+  const relleno = ['Café de la casa', 'Combo desayuno', 'Chocolate artesanal'];
+  const nombreEstilo = { minWidth: 0, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const };
   return (
-    <div className="duna-lista">
-      {/* `--en-pliegue`: el `__head` nace `position: sticky`, pensado para la región de
-          una pantalla de alto fijo. El Dashboard es document-scroll y esta lista no
-          tiene scroller propio, así que sin esto el encabezado se pegaría bajo la
-          topbar, despegado de sus filas (§ Analítica, mismo neutralizador). */}
-      <div className="duna-lista__fila duna-lista__head duna-lista--en-pliegue" style={{ gridTemplateColumns: ORDENES_COLS }}>
-        <span>Orden</span><span>Cliente</span><span>Canal</span>
-        <span className="duna-lista__r">Total</span><span>Estado</span>
-      </div>
-      {orders.map(o => (
-        <div
-          key={o.id}
-          className="duna-lista__fila"
-          style={{ gridTemplateColumns: ORDENES_COLS, cursor: 'pointer' }}
-          onClick={() => router.push(orderHref(o))}
-        >
-          <span data-label="Orden" className="duna-mono">
-            <Link href={orderHref(o)} onClick={e => e.stopPropagation()} className="duna-link">
-              {o.numero_orden ?? `#${o.id.slice(-6)}`}
-            </Link>
-          </span>
-          <span data-label="Cliente" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {o.cliente_nombre}
-          </span>
-          <span data-label="Canal">
-            <span className="duna-chip" style={{ textTransform: 'capitalize' }}>{o.canal ?? 'directo'}</span>
-          </span>
-          <span data-label="Total" className="duna-lista__r duna-num">{formatCOP(o.total)}</span>
-          <span data-label="Estado"><StatusBadge status={o.estado} /></span>
+    <div className="space-y-3" aria-hidden>
+      {Array.from({ length: filas }).map((_, i) => (
+        <div key={i}>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="duna-body-sm duna-skel" style={nombreEstilo}>{relleno[i % relleno.length]}</span>
+            <span className="duna-num duna-skel" style={{ fontWeight: 'var(--duna-w-semi)', whiteSpace: 'nowrap' }}>$ 000.000</span>
+          </div>
+          <div className="duna-skel" style={{ height: 4, marginTop: 6, borderRadius: 2 }} />
         </div>
       ))}
     </div>

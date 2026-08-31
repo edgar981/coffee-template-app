@@ -1,5 +1,5 @@
-import type { Order } from './order';
 import type { InsightMonthPoint } from '@/lib/metrics/insights';
+import type { OrdenAtencion } from '@/lib/atencion/items';
 
 export interface DashboardStats {
   // ── Fila "Hoy" (America/Bogota) ──
@@ -38,17 +38,14 @@ export interface DashboardStats {
 
   // ── Pedidos que piden acción ──
   /**
-   * Cuántos pedidos necesitan atención AHORA, por `necesitaAtencion` — la MISMA
-   * definición que filtra el pill de `/admin/pedidos` y que enciende el punto sol
-   * del nav. Tres consumidores, una definición: no pueden divergir.
-   *
-   * REEMPLAZA a `pendingOrders` ("pendiente menos por-cobrar"), que era una cifra
-   * del eje de COBRO. La relación con `porCobrar` cambió de forma y conviene
-   * tenerlo escrito: antes eran un conjunto y su COMPLEMENTO (sumaban todo
-   * `pendiente`); ahora por-cobrar es uno de los cuatro motivos de atención, así
-   * que es un SUBCONJUNTO de éste. El sub de la tarjeta lo dice.
+   * Las ÓRDENES que necesitan atención AHORA, filtradas por `necesitaAtencion` —la
+   * MISMA definición que el pill de `/admin/pedidos` y el punto sol del nav— y CON
+   * los detalles que la lista transversal "Necesita tu atención" necesita (la página
+   * las combina con sus productos bajos vía `itemsDeAtencion`). Antes era sólo el
+   * conteo (`porAtender`); ahora es la lista, y el conteo es su largo. `porCobrar` es
+   * uno de los cuatro motivos, así que es un SUBCONJUNTO de este conjunto.
    */
-  porAtender: number;
+  atencionPedidos: OrdenAtencion[];
 
   // ── Ingresos (Payments ledger, CN- orders, non-cancelled) ──
   /** Sum of Payment.monto this calendar month (America/Bogota). */
@@ -76,9 +73,6 @@ export interface DashboardStats {
   hoyKey: string;
   /** Current-month average received per sale (revenueMonth / payments this month). */
   avgTicket: number;
-
-  /** N most recent NON-CANCELLED orders by creation date, newest first. */
-  recentOrders: Order[];
 
   /**
    * Month-over-month: current calendar month (in progress) vs the previous

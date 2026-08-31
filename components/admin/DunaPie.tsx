@@ -22,6 +22,14 @@ import { useEffect, useRef, useState } from "react";
 // un sol. Corre fuera del hilo principal (no compite con quien teclea) y sólo
 // repinta la caja del sol. SIN pulso: acá no hay un "ahora" que marcar.
 //
+// "A VECES NO SE VE EL SOL" ES DISEÑADO, NO UN BUG. Las colas son ~18% del path
+// (160px de cada lado sobre ~1760), así que el sol pasa **~40 s FUERA DE PANTALLA
+// de cada ~220 s** del ciclo (se pone y vuelve a salir). Eso NO contradice que "al
+// cargar SIEMPRE hay sol": el ARRANQUE aleatorio se acota a la parte visible
+// (abajo, `lInicio`), así que la primera impresión lo tiene; lo que se va y vuelve
+// es el recorrido, no el arranque. Si esos ~40 s se sienten largos, se afina la
+// LONGITUD de las colas (colas más cortas → menos tiempo fuera), no es un defecto.
+//
 // Decorativa: `aria-hidden` y `pointer-events:none`.
 
 // Cuánto tarda el sol en cruzar el TRAMO VISIBLE. El `dur` TOTAL se deriva de esto

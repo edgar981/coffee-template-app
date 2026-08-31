@@ -441,8 +441,8 @@ html.admin {
    y la primera de cada fila envuelta queda con un filete izquierdo suelto, sin corte
    entre filas. Con conteo fijo, `nth-child` alcanza las dos cosas: "sin filete izq en
    la primera de cada fila" y "filete-top de la fila 2+". El costo —una columna suelta
-   en una fila parcial (5, 9…)— es la pérdida de calma editorial que el owner aceptó
-   para >6 (el default son 4: una fila limpia).
+   en una fila parcial (4, 7…)— es la pérdida de calma editorial que el owner aceptó
+   para >3 (el default son 3: una fila limpia, la forma de duna-os).
 
    TODAS las reglas de borde usan `:nth-child(...)` (incluida la de reset, `nth-child(n)`
    = todos) para que tengan la MISMA especificidad (0,2,0). Así el desempate lo hace el
@@ -451,7 +451,7 @@ html.admin {
    de otro tier. */
 .admin-indicadores {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   border-top: 1px solid var(--duna-border-2);
   border-bottom: 1px solid var(--duna-border-2);
 }
@@ -465,10 +465,10 @@ html.admin {
 }
 .admin-indicador:hover { background: var(--duna-surface); }
 
-/* ≥960: 4 columnas (base) */
+/* ≥960: 3 columnas (base) — tres en fila, la forma de duna-os */
 .admin-indicador:nth-child(n)    { border-left: 1px solid var(--duna-border-2); border-top: none; }
-.admin-indicador:nth-child(4n+1) { border-left: none; }
-.admin-indicador:nth-child(n+5)  { border-top: 1px solid var(--duna-border-2); }
+.admin-indicador:nth-child(3n+1) { border-left: none; }
+.admin-indicador:nth-child(n+4)  { border-top: 1px solid var(--duna-border-2); }
 
 @media (max-width: 959.98px) {   /* 2 columnas */
   .admin-indicadores { grid-template-columns: repeat(2, 1fr); }
@@ -595,4 +595,31 @@ html.admin {
 @media (max-width: 639.98px) {
   .tienda-tarjeta { flex-direction: column; align-items: stretch; }
   .tienda-tarjeta__thumb { width: 100%; }
+}
+
+/* ─── Necesita tu atención — la lista transversal del dashboard (§ lib/atencion/items) ───
+   Admin-level (un solo consumidor, prefijo `admin-`, como `.admin-indicador`). Filas
+   NAVEGABLES (cada una es un <Link> al detalle): hover de TINTE, punto sol a la izquierda. */
+.admin-atencion-item {
+  display: flex; align-items: center; gap: var(--duna-space-3);
+  padding: var(--duna-space-3) var(--duna-space-2);
+  border-radius: var(--duna-r-m);
+  color: inherit; text-decoration: none;
+  transition: background .14s ease;
+}
+.admin-atencion-item + .admin-atencion-item { border-top: 1px solid var(--duna-border); }
+.admin-atencion-item:hover { background: var(--duna-wash-hover); }
+.admin-atencion-item__dot {
+  width: 8px; height: 8px; border-radius: 999px;
+  background: var(--duna-sol); flex-shrink: 0;
+}
+/* Stock bajo = ALERTA (rojo), no atención (§ Amber Minimal: el color es la clase de
+   problema). El mismo `--duna-bad` que la pleca `--prob` del indicador. */
+.admin-atencion-item__dot--alerta { background: var(--duna-bad); }
+.admin-atencion-item__cuerpo { min-width: 0; flex: 1; }
+.admin-atencion-item__titulo {
+  display: block; font-size: .875rem; font-weight: var(--duna-w-medium); color: var(--duna-ink);
+}
+.admin-atencion-item__sub {
+  display: block; font-size: .8rem; color: var(--duna-muted); margin-top: 1px;
 }

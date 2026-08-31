@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
-  Banknote, Wallet, Truck, ShoppingCart, DollarSign, AlertCircle,
-  AlertTriangle, Users, Package, TrendingUp, Coins,
+  Banknote, Wallet, Truck, ShoppingCart, DollarSign,
+  Users, Package, TrendingUp, Coins, AlertCircle, AlertTriangle,
 } from 'lucide-react';
 import {
   widgetInsight, insightUltimoEvento,
@@ -193,26 +193,19 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
   // el insight, que sí agrega algo (tendencia o por qué todavía no hay tendencia).
   // OFF por defecto (2026-08-22): el mes no es "Hoy". Opt-in en Personalizar.
   { key: 'ordenes_mes',        titulo: 'Órdenes del mes',    subtitulo: '', icono: ShoppingCart, formato: 'int', categoria: 'mes', defaultVisible: false, color: STAT_CHIP.neutral,              href: (c) => `/admin/pedidos?${c.monthQuery}`, insight: widgetInsight },
-  // También SIN scopeSuffix (mismo motivo: es el conteo vigente, no un período). Lo
-  // que mantiene coherente el par con "Por cobrar" es el cross-reference del sub en
-  // vivo ("· N por cobrar aparte"), no una etiqueta de scope — ver CLAUDE.md
-  // § Por cobrar vs Pendientes.
-  // CAMBIÓ DE PREGUNTA, no de destino. Contaba "pendiente MENOS por-cobrar" —una
-  // cifra del eje de COBRO— y en la pantalla nueva el cobro es una propiedad que se
-  // ve en cada fila, no un carril por el que se entra. La pregunta que sí mueve el
-  // día es "¿qué pide acción?", y ésa tiene carril, tiene endpoint y tiene una sola
-  // definición (`necesitaAtencion`) compartida con el pill y con el punto del nav:
-  // los tres no pueden divergir.
-  //
-  // La KEY cambia con ella. Una key `ordenes_pendientes` que cuenta atención es
-  // exactamente la segunda opinión que esta tanda vino a quitar; el costo es que
-  // quien tuviera la tarjeta vieja guardada la pierde del grid y la vuelve a
-  // agregar en Personalizar (`sanitizeWidgetKeys` descarta las keys que ya no
-  // existen — por diseño).
-  { key: 'pedidos_por_atender', tono: 'atencion', titulo: 'Necesitan atención', subtitulo: 'Pedidos que piden acción', icono: AlertCircle, formato: 'int', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.neutral,         href: '/admin/pedidos?f=atencion' },
+  // `pedidos_por_atender` — su conteo es el BADGE de la sección "Necesita tu atención"
+  // (§ lib/atencion/items), así que salió del DEFAULT (redundante con el badge). Pero SIGUE
+  // EN EL CATÁLOGO (`defaultVisible: false`): RETIRAR DEL DEFAULT ≠ BORRAR DEL CATÁLOGO
+  // (§ esa distinción, abajo). Borrarlo le quitaría al operador la opción de tener el conteo
+  // como tile ADEMÁS del badge — el customizer existe para que ÉL decida qué le importa.
+  { key: 'pedidos_por_atender', tono: 'atencion', titulo: 'Necesitan atención', subtitulo: 'Pedidos que piden acción', icono: AlertCircle, formato: 'int', categoria: 'mes', defaultVisible: false, color: STAT_CHIP.neutral, href: '/admin/pedidos?f=atencion' },
   // El sub dice la BASE real del promedio: se divide por PAGOS registrados, no por
   // órdenes (el título es heredado). "Promedio por venta" solo repetía el título.
-  { key: 'promedio_por_orden', titulo: 'Promedio por orden', subtitulo: 'Por pago registrado · mes en curso', icono: TrendingUp, formato: 'cop', categoria: 'mes', defaultVisible: false, color: STAT_CHIP.neutral },
+  // `defaultVisible: true` para que el default sean TRES indicadores en fila (la forma
+  // de duna-os) y no dos con la mitad de la tira vacía. Es el "Ticket promedio" de la
+  // maqueta. Sigue siendo opt-out: el operador lo quita en Personalizar como cualquier
+  // otro — "tres" es el ARRANQUE, no un número fijo (el customizer manda).
+  { key: 'promedio_por_orden', titulo: 'Promedio por orden', subtitulo: 'Por pago registrado · mes en curso', icono: TrendingUp, formato: 'cop', categoria: 'mes', defaultVisible: true, color: STAT_CHIP.neutral },
   // ── Histórico ──
   // El all-time que salió del sub de "Ingresos del mes": una cifra histórica no
   // admite flecha mes-contra-mes, así que como widget propio queda sin trend y
@@ -220,7 +213,14 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
   // quien lo quiera lo activa en Personalizar.
   { key: 'ingresos_historicos', titulo: 'Ingresos históricos', subtitulo: 'Todos los pagos registrados', icono: Coins, formato: 'cop', categoria: 'historico', defaultVisible: false, color: STAT_CHIP.neutral, href: '/admin/pagos' },
   // ── Inventario ──
-  { key: 'alertas_stock',    tono: 'alerta', titulo: 'Alertas de Stock',   subtitulo: 'Productos bajo mínimo', icono: AlertTriangle, formato: 'int', categoria: 'inventario', defaultVisible: true,  color: STAT_CHIP.neutral,        href: RUTA_REPONER },
+  // `alertas_stock` — los productos bajo mínimo salen en la sección "Necesita tu atención"
+  // con tono ROJO (§ lib/atencion/items), así que salió del DEFAULT. Pero SIGUE EN EL
+  // CATÁLOGO (`defaultVisible: false`): el conteo-tile es un hecho distinto de los ítems
+  // (un número de un vistazo vs la lista), y quitárselo al operador sería BORRAR una opción
+  // que nadie pidió borrar — RETIRAR DEL DEFAULT ≠ BORRAR DEL CATÁLOGO (§ la distinción).
+  // El ROJO de escasez (el único del panel) vive en los ítems de la sección; el tile lo
+  // conserva vía `tono: 'alerta'` para quien lo elija.
+  { key: 'alertas_stock',    tono: 'alerta', titulo: 'Alertas de Stock',   subtitulo: 'Productos bajo mínimo', icono: AlertTriangle, formato: 'int', categoria: 'inventario', defaultVisible: false, color: STAT_CHIP.neutral,        href: RUTA_REPONER },
   // Sin sub: "En catálogo" repetía "Productos Activos".
   { key: 'productos_activos', titulo: 'Productos Activos',  subtitulo: '', icono: Package,          formato: 'int', categoria: 'inventario', defaultVisible: false, color: STAT_CHIP.neutral },
   // ── Clientes ──
@@ -233,7 +233,8 @@ export const WIDGET_MAP: Record<string, WidgetDef> = Object.fromEntries(
   DASHBOARD_WIDGETS.map((w) => [w.key, w]),
 );
 
-/** Default layout = the `defaultVisible` widgets in catalog order (8 cards). */
+/** Default layout = the `defaultVisible` widgets in catalog order (3: por_cobrar,
+ *  despachos_hoy, promedio_por_orden — tres en fila, la forma de duna-os). */
 export const DEFAULT_WIDGET_KEYS: string[] = DASHBOARD_WIDGETS.filter((w) => w.defaultVisible).map((w) => w.key);
 
 /**

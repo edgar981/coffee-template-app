@@ -3418,8 +3418,13 @@ puro), NO un color hardcodeado por widget:
   alerta; una cola vacía no pide nada.
 - **Ámbar** (`tono: 'atencion'`): colas de trabajo con valor > 0 — Por cobrar,
   Órdenes Pendientes.
-- **Rojo** (`tono: 'alerta'`, `STAT_CHIP.alert`): riesgo real con valor > 0 —
-  Alertas de Stock. Sigue siendo la única alerta roja del panel; el rojo escaso.
+- **Rojo** (`tono: 'alerta'`): riesgo real — el rojo escaso, la única alerta roja
+  del panel. **El tile "Alertas de Stock" salió del DEFAULT (2026-08-31)** —pero SIGUE en el
+  CATÁLOGO, elegible (§ RETIRAR DEL DEFAULT ≠ BORRAR DEL CATÁLOGO)—: el stock bajo sale
+  ahora como ÍTEMS ROJOS en la sección "Necesita tu atención" (§ Dashboard "Hoy"). El
+  rojo no se perdió —se movió a los ítems, donde vive el hecho—; el color sigue diciendo
+  la CLASE de problema (alerta), y ahí el orden lo da el costo, no el color. El tile conserva
+  su `tono: 'alerta'` para quien lo elija.
 
 **La TENDENCIA no colorea el chip**: su color (verde alza / rojo baja) vive en el
 `TrendPill` de `StatCard`. Duplicarlo en el chip volvería el rojo frecuente
@@ -3623,8 +3628,89 @@ no lo lleva, la curva es lectura + navegación por hora, sin acotar en sitio). P
 - **La siembra para gate CADUCA al cruzar la medianoche de Bogotá** (§ GATE DE CAPA 3): una
   siembra de scope HOY sembrada ayer cae fuera de la ventana y el gate ve estados-vacíos que
   parecen bugs de la pantalla nueva.
-- **El número a la derecha va en MEDIO, nunca al borde** (§ Listas tabulares): el `Total` de
-  Órdenes recientes a 96px, sin reordenar el dinero al final.
+- **El número a la derecha va en MEDIO, nunca al borde** (§ Listas tabulares): la regla que
+  regía el `Total` de Órdenes recientes; la tabla se retiró en la segunda pasada, la regla sigue
+  viva en Pagos e Inventario.
+
+### "Necesita tu atención" — la lista TRANSVERSAL (pedidos + stock), y las dos columnas
+
+Tanda del 2026-08-31 (dos pasadas el mismo día). Hoy gana una SECCIÓN que lista lo que pide
+acción; luego la pantalla adopta ENTERA la estructura de duna-os —hero + curva + TRES indicadores
+en fila + dos columnas ("Necesita tu atención" | "Lo que más vendió hoy")— y la tabla de Órdenes
+recientes se RETIRA (§ La estructura de duna-os, abajo).
+
+- **La sección es la ÚNICA superficie que UNIFICA pedidos-atención + stock-bajo en UNA lista.**
+  Hasta ahora esos dos se unificaban sólo en el punto del rail; el conteo, el carril de Pedidos y la
+  card de stock iban por separado. Por eso es HOGAR, no duplicado: es la lista transversal que no
+  existía. **`itemsDeAtencion` (`lib/atencion/items.ts`, puro, capa 1) es la fuente** —la lista, su
+  largo (el badge) y el orden salen de ahí—. REUSA `motivosDeAtencion` (pedidos) e `isLowStock`
+  (stock): NO inventa un predicado, así que no puede divergir del carril, el punto ni la card.
+- **UN ítem por ORDEN**, no por motivo: una orden con dos motivos es UNA fila, con los motivos
+  ENCADENADOS en el subtítulo (nada escondido); el título es el ancla (cliente + nº).
+- **El orden es por PRIORIDAD DECLARADA** (`PRIORIDAD_ATENCION`), NO un sort en el render, y el
+  criterio es el COSTO, no la sección: `por_cobrar` (plata en la calle) → `entrega_fallida` →
+  `comprobante_sin_verificar` → `programacion_a_medias` → stock (reposición, al final). Una orden con
+  varios motivos hereda la MÁS ALTA; desempate dentro del nivel: antigüedad (pedidos) / unidades
+  (stock). El test de capa 1 afirma el ORDEN, no sólo que la lista se arma.
+- **NAVEGA, no muta** (§ el rediseño: cada indicador navega): cada ítem es un `<Link>` al detalle
+  (Pedidos `?pedido=`, Productos "Por reponer"), donde vive la acción. Mutar desde Hoy reabriría el
+  doble-submit, el error inline y el refresco que esa pantalla no tiene.
+- **EL COLOR es la CLASE, el ORDEN es el COSTO — dos ejes distintos** (`ItemAtencion.tono`): los
+  pedidos van ÁMBAR (`atencion`, cola de trabajo); el stock bajo va ROJO (`alerta`, riesgo real —
+  antes se pintaba ámbar por error—). Pero el stock **SIGUE AL FINAL** aunque sea rojo: el rojo dice
+  QUÉ clase de problema es, la prioridad dice qué CUESTA más (plata en la calle > reposición). Un
+  rojo al final no se lee raro porque el subtítulo hace legible el porqué de cada posición.
+- **Cap 4 con "y N restantes" que EXPANDE EN EL SITIO**, no navega: los ítems son de DOS secciones y
+  no hay una sola página que muestre ambas, así que la lista completa es ésta, en el lugar. El badge
+  muestra el total real. (Bajó de 6 a 4; la segunda pasada la movió de full-width a la COLUMNA
+  IZQUIERDA —1.35fr—, y el cap la mantiene a un alto parejo con "Lo que más vendió hoy".)
+- **El VACÍO es el estado BUENO** ("Todo al día — nada pide tu atención ahora."), sin ámbar, con un
+  ✓: se lee como logro, no como vacío roto.
+- **DOS tiles salieron del DEFAULT** (`pedidos_por_atender` y `alertas_stock`): sus hechos salen en la
+  sección. `pedidos_por_atender` era el conteo de pedidos → el badge; `alertas_stock` era el conteo
+  de stock → los ítems rojos. **El rojo de escasez NO se perdió: se movió a los ítems**, donde vive
+  el hecho, en vez de un tile aparte. **Pero SIGUEN en el CATÁLOGO, elegibles** (§ RETIRAR DEL DEFAULT ≠
+  BORRAR DEL CATÁLOGO): un operador que quiera el conteo como tile ADEMÁS del badge/ítems puede —es su
+  pantalla—. (El primer intento los BORRÓ del catálogo; fue un overreach corregido el 2026-08-31.) El
+  default de Hoy quedó en 3 tarjetas (§ La estructura de duna-os), ninguna de estas dos. **`por_cobrar`
+  SÍ está en el default**: muestra el MONTO ($ en la calle), dato que la sección no tiene —por eso no es redundante—.
+- **Lo que NO se construyó de la maqueta** (§ duna-os.html): las conversaciones del asistente, la
+  predicción "se agota mañana" (hoy es "bajo mínimo", un saldo, no un pronóstico) y el pago PSE sin
+  acreditar. Son del stack de Carlos / pago en línea; no existen acá.
+### La estructura de duna-os — hero + curva + TRES indicadores + dos columnas (segunda pasada)
+
+La segunda pasada del 2026-08-31 alinea la pantalla ENTERA con la maqueta: **hero + curva + TRES
+indicadores en fila + dos columnas**. La única tabla de una pantalla sin tablas se retira.
+
+- **LA TABLA "ÓRDENES RECIENTES" SE RETIRA, no se mueve.** Era la ÚNICA tabla de una pantalla sin
+  tablas, y su contenido vive en Pedidos a un clic. En la maqueta ese sitio lo ocupaban
+  "Conversaciones activas"/"Duna sugiere", que **no existen** (§ lo que NO se construyó), así que la
+  columna queda para atención. **CENSO DEL RETIRO** (qué queda sin consumidores): con la tabla se
+  fueron `OrdersLista`, `ORDENES_COLS`, y los imports `StatusBadge`/`Order` de la página —su único
+  consumidor era la tabla—; y —**dato MUERTO**— `recentOrders` del endpoint (`prisma.order.findMany`
+  + `RECENT_LIMIT` + su campo en la respuesta), su campo `recentOrders: Order[]` en `types/dashboard.ts`
+  (con el import `Order` que quedaba huérfano) y su consumo. Se quita entero porque su ÚNICO lector era
+  esa tabla —dejarlo sería una query con `include: items` en cada carga sin nadie que la lea—.
+- **`.duna-lista` SE QUEDA** (el owner lo pidió explícito): la usan **cuatro** consumidores —Pagos, el
+  kardex de Inventario, Analítica y el editor de tienda—. El Dashboard dejó de ser uno de sus
+  consumidores; la primitiva no se toca.
+- **LOS INDICADORES suben a ENTRE la curva y las columnas** —el sitio de la `stat-row` de la maqueta,
+  bajo el hero— y pasan de **2 a 3 por defecto**: `promedio_por_orden` (el "Ticket promedio" de la
+  maqueta) gana `defaultVisible`, así el trío llena la fila sin dejar la mitad vacía. La tira editorial
+  pasó de **4-col a 3-col** (`duna.css`, filetes `3n+1`/`n+4`; § EL REFLUJO).
+- **EL CUSTOMIZER SOBREVIVE — "tres" es el ARRANQUE, no un número fijo.** El operador sigue eligiendo
+  cuántos indicadores ve y en qué orden; la tira refluye (3-col ≥960 / 2 600-959 / 1 <600). La forma
+  "columnas separadas por filetes" ya ERA la de la maqueta desde el rediseño editorial (2026-08-24);
+  no eran "cuatro tarjetas" —las cajas murieron ese día—, así que no hubo decisión de fondo que tomar,
+  sólo el default y el número de columnas. El botón "Personalizar" del hero se queda.
+- **DOS COLUMNAS `lg:grid-cols-[1.35fr_1fr]`, `items-start`:** izquierda "Necesita tu atención" (más
+  ancha —es texto y lo accionable del día), derecha "Lo que más vendió hoy". La proporción 1.35/1 sale
+  de la maqueta (su `grid-3` es `1.35fr 1fr`) y da aire a los subtítulos encadenados de atención.
+  `items-start` para que la columna corta no se estire a la larga.
+- **LA ATENCIÓN YA NO LIDERA SOBRE LOS INDICADORES** — la primera pasada la puso full-width sobre la
+  tira; la maqueta pone la `stat-row` bajo el hero y atención en la columna. Es un cambio consciente de
+  jerarquía (el owner adopta la maqueta), no un descuido: los indicadores son el "vistazo" y atención
+  el "detalle accionable" en la columna.
 
 ## Equipo y usuarios, y Perfil — las dos últimas pantallas del panel
 
@@ -3737,8 +3823,8 @@ persistida por usuario (`DashboardPreference.widgets` = array de keys; API
 reales del registry, sin duplicados, orden preservado) → una key retirada o un payload
 malicioso nunca llega al grid. El binding key→dato vive en el dashboard (junto a los
 datos); el registry es presentación pura + deep-links que reusan los helpers compartidos
-(card=lista). SOLO los indicadores son personalizables: los gráficos y Órdenes Recientes
-son fijos, fuera del sistema (v1).
+(card=lista). SOLO los indicadores son personalizables: la curva y las dos columnas
+(atención | "Lo que más vendió hoy") son fijas, fuera del sistema (v1).
 
 - **Costura MULTITENANT (documentada, NO construida):** hoy no hay modelo de
   tienda/tenant. Cuando exista: (a) cada `WidgetDef` gana un filtro por vertical
@@ -3754,6 +3840,45 @@ son fijos, fuera del sistema (v1).
 - TODO (no implementado): el endpoint de stats calcula TODAS las métricas aunque
   el usuario muestre pocas tarjetas. Optimizar a cálculo selectivo por las keys
   visibles queda anotado, no hecho.
+
+### RETIRAR DEL DEFAULT ≠ BORRAR DEL CATÁLOGO — dos decisiones, dos razones
+
+Son cosas distintas y confundirlas le quita opciones al operador (incidente 2026-08-31):
+
+- **Sacar un widget del DEFAULT** (`defaultVisible: false`) dice "esto no se muestra de
+  arranque". Su razón basta con "su hecho ya vive en otro lado" —el conteo de
+  `pedidos_por_atender` es el badge de la sección, los ítems de `alertas_stock` son las filas
+  rojas—. El operador NUEVO no lo ve; el que lo quiera lo agrega en Personalizar.
+- **Borrar un widget del CATÁLOGO** (quitar su entrada del registry) dice "esto ya no existe
+  como opción". Es una decisión MÁS FUERTE y necesita SU PROPIA razón —el customizer existe
+  justamente para que el operador decida qué le importa, así que quitarle una opción hay que
+  justificarlo, no heredarlo de "salió del default"—.
+
+El overreach que lo instaura: al mover `pedidos_por_atender` y `alertas_stock` fuera del
+default se BORRARON del catálogo de paso. El owner sólo había pedido sacarlos del DEFAULT;
+borrarlos de la lista de opciones nunca se pidió. Se devolvieron como `defaultVisible: false`
+(elegibles, no default) — catálogo de 13. **Regla: sacar del default es barato y su razón es
+"ya está en otro lado"; borrar del catálogo es una decisión aparte que quita una opción, y sin
+su propia razón NO se hace.**
+
+### La PREFERENCIA GUARDADA gana sobre el default — cambiar `defaultVisible` no le llega a quien ya eligió
+
+`GET /api/dashboard/prefs`: **sólo una fila AUSENTE cae a `DEFAULT_WIDGET_KEYS`**; con fila,
+usa las keys guardadas (pasadas por `sanitizeWidgetKeys`). Así que **cambiar el default no toca
+a quien ya tiene preferencia** —su selección manda, la conducta correcta—.
+
+Es exactamente por qué el owner "veía dos" tras subir el default a tres (2026-08-31): su fila
+guardada era el default VIEJO de 4 (`por_cobrar, despachos_hoy, pedidos_por_atender,
+alertas_stock`), y al haber BORRADO del catálogo los dos últimos, `sanitizeWidgetKeys` los
+podaba en la lectura → 2. No era un bug del default nuevo: era el default viejo guardado,
+podado. Al devolver los dos al catálogo, `sanitize` deja de podarlos y su fila vuelve a resolver
+a las 4 que eligió —sin tocarle la preferencia—.
+
+**Corolario, para no re-diagnosticarlo:** un cambio de `defaultVisible` (o del set de default)
+se ve SÓLO en cuentas SIN fila guardada. Para probarlo en un panel que ya se usó, o se mira con
+una cuenta nueva, o se lee la fila (`DashboardPreference`) para saber qué tiene —nunca se asume
+que "el default nuevo se ve"—. Retirar una key del catálogo, en cambio, SÍ le llega a todos (la
+poda de `sanitize` corre en cada lectura), y por eso es la decisión fuerte.
 
 ### La FORMA de los indicadores es EDITORIAL — columnas con filete, pleca = estado
 
@@ -3778,19 +3903,21 @@ contexto (insight y sub siguen compitiendo por un solo renglón, como en la stat
   (`duna.css`, prefijo `admin-`, un solo consumidor). Reemplaza a `.stat-card`.
 
 **EL REFLUJO: columnas FIJAS por breakpoint, NO auto-fit — decisión, no re-litigar.** V3
-respira con 4-6 y el catálogo tiene 13. Hoy el default son 4 y nadie ha personalizado, así
-que limitar por adelantado sería decidir contra un uso que no existe: se ACEPTA que con más
-envuelva a varias filas y pierda la calma editorial. Conteo FIJO (4 ≥960 / 2 600-959 / 1
-<600) + `nth-child` para los filetes: con `auto-fit` (columnas variables) los filetes no se
-pueden targetear por fila —no hay selector "primera de la fila visual"— y la primera de cada
-fila envuelta queda con un filete izquierdo suelto, sin corte entre filas. Todas las reglas
-de borde usan `nth-child` (misma especificidad) para que el reset por tier lo resuelva el
-orden de fuente. **DISPARADOR:** si alguien elige 9+ y la pantalla se vuelve ilegible, ahí se
-decide (limitar el customizer, o una segunda forma para listas largas). No antes.
+respira con 3-6 y el catálogo tiene 13. Hoy el default son **3 —tres en fila, la forma de
+duna-os (§ La estructura de duna-os)—** y nadie ha personalizado, así que limitar por adelantado
+sería decidir contra un uso que no existe: se ACEPTA que con más envuelva a varias filas y pierda
+la calma editorial. Conteo FIJO (**3** ≥960 / 2 600-959 / 1 <600) + `nth-child` para los filetes
+(`3n+1` sin filete izq, `n+4` filete-top): con `auto-fit` (columnas variables) los filetes no se
+pueden targetear por fila —no hay selector "primera de la fila visual"— y la primera de cada fila
+envuelta queda con un filete izquierdo suelto, sin corte entre filas. Todas las reglas de borde
+usan `nth-child` (misma especificidad) para que el reset por tier lo resuelva el orden de fuente.
+**El paso de 4-col a 3-col NO re-litiga "fijo, no auto-fit"** —sólo cambia el NÚMERO fijo para que
+el default de tres llene la fila—. **DISPARADOR:** si alguien elige 9+ y la pantalla se vuelve
+ilegible, ahí se decide (limitar el customizer, o una segunda forma para listas largas). No antes.
 
 **MÓVIL a 1 columna bajo 600, cifra a 1.7rem SIN reducir.** A 2 columnas un monto de 8 dígitos
 ("$ 1.284.500" ≈ 166px contra ~135px de columna) se corta incluso reducido, y un dato
-recortado es peor que una lista más larga. El breakpoint es el nuestro (960 para 4→2, 600
+recortado es peor que una lista más larga. El breakpoint es el nuestro (960 para 3→2, 600
 para 2→1), no el 700 de la maqueta. El skeleton reusa las MISMAS clases → reserva el alto real
 por construcción y la pantalla no salta al cargar (como el de Pagos).
 
@@ -5403,6 +5530,20 @@ regla es una y es de SITIO, no de color:
     total—. (Nota de verificación: `getScreenCTM`/`getBoundingClientRect` NO capturan el
     transform de `animateMotion` en Chromium; el movimiento se comprueba con capturas, no con
     esas APIs.)
+  - **EL SOL ~40 s FUERA DE PANTALLA DE CADA ~220 s ES DISEÑADO, no un bug** (2026-08-31, anotado
+    en `DunaPie`): las colas son ~18% del path, así que el sol se pone y vuelve a salir; el arranque
+    aleatorio se acota a lo visible, así que al CARGAR siempre hay sol. Si se sienten largos, se
+    afinan las colas — no es defecto. (Se anotó el número en el código para que no se re-diagnostique.)
+  - **EL PIE SE SEPARA DE LA CRESTA anclando el CONTENIDO, no capando el SVG** (2026-08-31): el
+    contenedor de `PreAuthShell` reserva la banda de la duna (padding-bottom `11vw` ~ el alto de la
+    cresta, piso 3.5rem) para que la card y el pie queden por encima y la cresta cruce fondo vacío.
+    Capar el SVG la LETTERBOXEA (deja de cruzar toda la pantalla) o CLIPA el sol en el pico —el sol
+    es circular ridando la cresta—, así que el ornamento se deja entero y el contenido le cede la
+    franja de abajo.
+  - **EL TAGLINE afirma la CATEGORÍA, no cuenta piezas** (2026-08-31): "El sistema operativo de tu
+    negocio." reemplazó a "Un negocio. Dos puertas. Un sistema operativo." — "dos puertas" (admin +
+    storefront) se leía como canales, y con WhatsApp serían tres; un recuento envejece con cada
+    canal. La afirmación de categoría no.
 - **EL ÁREA DE LAS GRÁFICAS** (decisión del owner, 2026-08-24): el relleno bajo la curva
   de Hoy y la de Pagos pasó de tinta al 5% a un gradiente ámbar 10%→0% (`--duna-sol`). Es
   una superficie de DATO, no un badge — el ámbar acá es firma, no atención. Analítica NO
@@ -5482,12 +5623,14 @@ ya no hay dos patrones para lo mismo.
 
 ### El número alineado a la derecha va en MEDIO, nunca al borde
 
-Regla de ORDEN de columnas, común a las tres listas del panel (2026-08-23). El dinero y
+Regla de ORDEN de columnas, común a las listas del panel (2026-08-23). El dinero y
 los conteos se alinean a la derecha (`.duna-lista__r`, unidades bajo unidades), pero su
-columna va **en el medio de la fila, seguida de más columnas** — **nunca la última**. Las
-tres lo cumplen: Pagos (`Monto` 4ª de 8, con Método/Referencia/Registrado después),
-Inventario (`Cantidad`/`Antes→Después` 3ª–4ª de 7, con Motivo/Quién/Fecha después) y
-Órdenes recientes del Dashboard (`Total` 4ª de 5, con Estado después).
+columna va **en el medio de la fila, seguida de más columnas** — **nunca la última**. La
+cumplen Pagos (`Monto` 4ª de 8, con Método/Referencia/Registrado después) e Inventario
+(`Cantidad`/`Antes→Después` 3ª–4ª de 7, con Motivo/Quién/Fecha después). **Órdenes recientes
+del Dashboard también la cumplía** (`Total` 4ª de 5, con Estado después) **hasta que la tabla
+se retiró el 2026-08-31** (§ La estructura de duna-os); su historia sigue abajo porque es el
+ORIGEN del ancho de 96px que Pagos e Inventario heredan.
 
 **Mover el dinero al final crearía una SEGUNDA convención** —una lista con el número al
 borde derecho contra dos con el número en medio— y casi pasa: el `Total` de Órdenes se veía
@@ -5496,10 +5639,10 @@ ANCHO. `Total` estaba a 112px (contra los 96px de `Monto` en Pagos), así que la
 right-aligned tenía más aire vacío a su izquierda. **Se igualó a 96px** —el mismo ancho del
 dinero en las tres— y el flote se fue sin tocar el orden ni la alineación.
 
-**Residuo aceptado:** la columna que sigue al número en Órdenes es un BADGE (Estado),
-donde Pagos e Inventario tienen TEXTO. El mismo gap de 12px se lee un poco más apretado
-junto a un chip con borde; es inherente a que esa lista tiene estado donde las otras tienen
-metadatos, y separarlo (reorden o Estado a la derecha) divergiría de las otras dos. Se deja.
+**Residuo que fue (ya no aplica):** la columna que seguía al número en Órdenes era un BADGE
+(Estado), donde Pagos e Inventario tienen TEXTO —el mismo gap de 12px se leía un poco más
+apretado junto a un chip con borde—. Con la tabla retirada (2026-08-31) el residuo desaparece;
+queda escrito porque explica por qué el ancho es 96px y no se re-litiga en las dos listas vivas.
 
 ## Pagos — la FRASE y la CURVA (tercer y último rediseño)
 
