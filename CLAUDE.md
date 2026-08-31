@@ -3626,6 +3626,43 @@ no lo lleva, la curva es lectura + navegación por hora, sin acotar en sitio). P
 - **El número a la derecha va en MEDIO, nunca al borde** (§ Listas tabulares): el `Total` de
   Órdenes recientes a 96px, sin reordenar el dinero al final.
 
+### "Necesita tu atención" — la lista TRANSVERSAL (pedidos + stock), y las dos columnas
+
+Tanda del 2026-08-31. Hoy gana una SECCIÓN que lista lo que pide acción, y los dos bloques de
+detalle pasan a dos columnas.
+
+- **La sección es la ÚNICA superficie que UNIFICA pedidos-atención + stock-bajo en UNA lista.**
+  Hasta ahora esos dos se unificaban sólo en el punto del rail; el conteo, el carril de Pedidos y la
+  card de stock iban por separado. Por eso es HOGAR, no duplicado: es la lista transversal que no
+  existía. **`itemsDeAtencion` (`lib/atencion/items.ts`, puro, capa 1) es la fuente** —la lista, su
+  largo (el badge) y el orden salen de ahí—. REUSA `motivosDeAtencion` (pedidos) e `isLowStock`
+  (stock): NO inventa un predicado, así que no puede divergir del carril, el punto ni la card.
+- **UN ítem por ORDEN**, no por motivo: una orden con dos motivos es UNA fila, con los motivos
+  ENCADENADOS en el subtítulo (nada escondido); el título es el ancla (cliente + nº).
+- **El orden es por PRIORIDAD DECLARADA** (`PRIORIDAD_ATENCION`), NO un sort en el render, y el
+  criterio es el COSTO, no la sección: `por_cobrar` (plata en la calle) → `entrega_fallida` →
+  `comprobante_sin_verificar` → `programacion_a_medias` → stock (reposición, al final). Una orden con
+  varios motivos hereda la MÁS ALTA; desempate dentro del nivel: antigüedad (pedidos) / unidades
+  (stock). El test de capa 1 afirma el ORDEN, no sólo que la lista se arma.
+- **NAVEGA, no muta** (§ el rediseño: cada indicador navega): cada ítem es un `<Link>` al detalle
+  (Pedidos `?pedido=`, Productos "Por reponer"), donde vive la acción. Mutar desde Hoy reabriría el
+  doble-submit, el error inline y el refresco que esa pantalla no tiene.
+- **Cap 6 con "y N restantes" que EXPANDE EN EL SITIO**, no navega: los ítems son de DOS secciones y
+  no hay una sola página que muestre ambas, así que la lista completa es ésta, en el lugar. El badge
+  muestra el total real.
+- **El VACÍO es el estado BUENO** ("Todo al día — nada pide tu atención ahora."), sin ámbar, con un
+  ✓: se lee como logro, no como vacío roto.
+- **El tile `pedidos_por_atender` SE RETIRÓ**: su número es el badge de la sección. Un tile con el
+  conteo Y la sección con la lista en la misma pantalla era la duplicación que la sección cierra;
+  `sanitizeWidgetKeys` descarta la key vieja y el default de Hoy pasó a 3 tarjetas. `por_cobrar` y
+  `alertas_stock` se quedan (monto / cruza a Productos).
+- **Lo que NO se construyó de la maqueta** (§ duna-os.html): las conversaciones del asistente, la
+  predicción "se agota mañana" (hoy es "bajo mínimo", un saldo, no un pronóstico) y el pago PSE sin
+  acreditar. Son del stack de Carlos / pago en línea; no existen acá.
+- **REDISTRIBUCIÓN:** "Lo que más vendió hoy" y "Órdenes recientes" pasan de columna única a DOS
+  columnas (`lg:grid-cols-2`, colapsan a una en angosto). Órdenes recientes se MOVIÓ, no se retiró;
+  la sección de atención lidera arriba, full-width.
+
 ## Equipo y usuarios, y Perfil — las dos últimas pantallas del panel
 
 Tanda del 2026-08-23. Con esto **todas las verticales del admin están en lenguaje
@@ -5403,6 +5440,20 @@ regla es una y es de SITIO, no de color:
     total—. (Nota de verificación: `getScreenCTM`/`getBoundingClientRect` NO capturan el
     transform de `animateMotion` en Chromium; el movimiento se comprueba con capturas, no con
     esas APIs.)
+  - **EL SOL ~40 s FUERA DE PANTALLA DE CADA ~220 s ES DISEÑADO, no un bug** (2026-08-31, anotado
+    en `DunaPie`): las colas son ~18% del path, así que el sol se pone y vuelve a salir; el arranque
+    aleatorio se acota a lo visible, así que al CARGAR siempre hay sol. Si se sienten largos, se
+    afinan las colas — no es defecto. (Se anotó el número en el código para que no se re-diagnostique.)
+  - **EL PIE SE SEPARA DE LA CRESTA anclando el CONTENIDO, no capando el SVG** (2026-08-31): el
+    contenedor de `PreAuthShell` reserva la banda de la duna (padding-bottom `11vw` ~ el alto de la
+    cresta, piso 3.5rem) para que la card y el pie queden por encima y la cresta cruce fondo vacío.
+    Capar el SVG la LETTERBOXEA (deja de cruzar toda la pantalla) o CLIPA el sol en el pico —el sol
+    es circular ridando la cresta—, así que el ornamento se deja entero y el contenido le cede la
+    franja de abajo.
+  - **EL TAGLINE afirma la CATEGORÍA, no cuenta piezas** (2026-08-31): "El sistema operativo de tu
+    negocio." reemplazó a "Un negocio. Dos puertas. Un sistema operativo." — "dos puertas" (admin +
+    storefront) se leía como canales, y con WhatsApp serían tres; un recuento envejece con cada
+    canal. La afirmación de categoría no.
 - **EL ÁREA DE LAS GRÁFICAS** (decisión del owner, 2026-08-24): el relleno bajo la curva
   de Hoy y la de Pagos pasó de tinta al 5% a un gradiente ámbar 10%→0% (`--duna-sol`). Es
   una superficie de DATO, no un badge — el ámbar acá es firma, no atención. Analítica NO

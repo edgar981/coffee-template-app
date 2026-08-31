@@ -1,18 +1,16 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-30 (EL MANIFEST DEL PANEL YA ES DE DUNA — cierra § Backlog #56. Había UN solo manifest
-—la convención `app/manifest.ts`, dinámica del CLIENTE— que se auto-inyectaba en TODA la app y GANA sobre
-`metadata.manifest` (doc de Next: "File-based metadata has the higher priority"), así que instalar el panel lo
-anunciaba como el negocio del cliente con sus íconos, y su `start_url:"/"` hacía que el ícono instalado
-**ABRIERA LA TIENDA** (defecto aparte, más grave). Fix = el playbook de los íconos: se RETIRÓ la convención y
-cada grupo declara su manifest — storefront → route handler `app/api/manifest` (dinámico, lee SiteSetting);
-admin → `public/duna.webmanifest` estático (`start_url:"/admin"`, colores Duna). El admin ganó el
-`apple-touch-icon` que le faltaba (iOS IGNORA el manifest). Íconos de Duna generados DESDE EL SVG con sharp
-(marca clara sobre tinta #121212, SIN alfa): `apple-icon-duna.png` 180 + `icon-duna-512-maskable.png`; el ícono
-`any` es el SVG que ya existía. VERIFICADO POR CONTENIDO en el `<head>` renderizado (el modo de falla de los
-íconos): storefront → 1 solo link → /api/manifest; admin → 1 solo → /duna.webmanifest; /manifest.webmanifest →
-404. tsc + build verde. En `feat/manifest-panel-duna`, **pendiente el gate del owner**. Antes: LA PALETA →
-SiteContent (borrador, § #55), en producción (`e5c1e55`).)
+**Actualizado:** 2026-08-31 (EL DASHBOARD gana "Necesita tu atención" + el login se pulió. Tres commits en
+`feat/dashboard-atencion`: (1) el LOGIN —el pie se separa de la duna anclando el CONTENIDO (no capando el SVG,
+para no letterboxearla ni clipar el sol); el tagline afirma la CATEGORÍA ("El sistema operativo de tu negocio.")
+en vez de contar piezas; el sol ~40 s fuera de pantalla de cada ~220 s anotado como DISEÑADO—; (2) la SECCIÓN
+"Necesita tu atención", la ÚNICA lista que UNIFICA pedidos-atención + stock-bajo (fuente `itemsDeAtencion`, orden
+por PRIORIDAD DECLARADA —por costo, no por sección—, un ítem por orden con motivos encadenados, NAVEGA no muta,
+cap 6 que EXPANDE en el sitio, vacío = "Todo al día", tile `pedidos_por_atender` RETIRADO —su número es el
+badge—); (3) la REDISTRIBUCIÓN de "Lo que más vendió" | "Órdenes recientes" a DOS columnas (Órdenes recientes se
+movió, no se retiró). capa 1 778/778 · tsc + next build verde. El gate VISUAL del dashboard es del owner (la
+ruta va tras sesión). **Pendiente el gate del owner.** Antes: EL MANIFEST DEL PANEL YA ES DE DUNA (§ #56), en
+producción (`3f86792`).)
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -54,7 +52,7 @@ Vercel, `main` = producción).
 | `/admin/pagos` | Completa (frase + curva) | Alto fijo ≥960 (`.duna-sin-split`), scroller único; **el gráfico va en la zona fija** |
 | `/admin/analitica` | Completa (cuatro preguntas de dueño, titulares) | Document-scroll (estado final — § Los DOS modelos de scroll) |
 | `/admin/automatizaciones` | Completa (rejilla, señal de vida, historial) | Document-scroll (estado final — § Los DOS modelos de scroll) |
-| `/admin/dashboard` | Completa ("Hoy": hero + curva por hora + top-hoy + tarjetas) | Document-scroll |
+| `/admin/dashboard` | Completa ("Hoy": hero + curva por hora + **"Necesita tu atención"** (lista transversal pedidos+stock) + indicadores + top-hoy \| órdenes recientes en DOS columnas) | Document-scroll |
 | `/admin/configuracion` | Completa. "Configuración" con DOS secciones: Datos del negocio (editor lectura↔edición) + Equipo y usuarios. Instant-save puro (identidad); los COLORES se mudaron a `/admin/tienda` | Document-scroll |
 | `/admin/perfil` | Completa (cuenta limpia + cambiar contraseña real) | Document-scroll |
 | `/admin/tienda` | Completa. **Colores de la tienda** (paleta del storefront, borrador/publicar) SOBRE el selector de página + Contenido del storefront (SiteContent), DOS páginas (selector Home/Nosotros): la home (hero · Historia · Suscripción · Testimonios) y /nosotros (historia larga · GALERÍA masonry con fotos y VÍDEO, apagable). Lectura en TARJETAS, edición en vista grande. Rail: "Tienda" suelto tras Crecimiento | Document-scroll |
@@ -126,7 +124,22 @@ mergeado y en producción (`e5c1e55`).
 - **El CAVEAT que sobrevive:** descartar → publicado, fábrica → defaults; **"republicar un tema PASADO" sigue
   siendo HISTORIAL y sigue DESCARTADO** (sobre-ingeniería). El borrador no resuelve el historial.
 
-### El MANIFEST del panel ya es de Duna — CONSTRUIDA, en la rama (2026-08-30, `feat/manifest-panel-duna`)
+### El DASHBOARD "Necesita tu atención" + el login — CONSTRUIDA, en la rama (2026-08-31, `feat/dashboard-atencion`)
+
+Tres commits. **(1) Login:** el pie se separa de la duna anclando el contenido (padding-bottom `11vw` ~ el alto
+de la cresta), NO capando el SVG —capar la letterboxea o clipa el sol circular—; el tagline pasó a "El sistema
+operativo de tu negocio." (afirma la categoría, no cuenta piezas); el sol ~40 s fuera de ~220 s anotado como
+diseñado. **(2) La sección "Necesita tu atención":** la ÚNICA lista que unifica pedidos-atención + stock-bajo
+(hasta ahora sólo se unificaban en el punto del rail). Fuente única `itemsDeAtencion` (puro, capa 1, 6 tests que
+afirman el ORDEN); prioridad DECLARADA por costo (`por_cobrar` → … → stock), un ítem por orden con motivos
+encadenados, NAVEGA no muta (cada ítem al detalle), cap 6 que EXPANDE en el sitio (los ítems son de dos
+secciones, no hay una sola página que muestre ambas), vacío = "Todo al día". El tile `pedidos_por_atender` se
+retiró (su número es el badge). **(3) Redistribución:** "Lo que más vendió" \| "Órdenes recientes" a dos columnas
+(`lg:grid-cols-2`), Órdenes recientes se movió. capa 1 778/778 · tsc + next build verde. **El gate visual del
+dashboard es del owner** (la ruta va tras sesión, § LÍMITE CONOCIDO). Lo NO construido de la maqueta: asistente,
+"se agota mañana" (predicción), PSE.
+
+### El MANIFEST del panel ya es de Duna — en PRODUCCIÓN (2026-08-30, `3f86792`)
 
 Cierra **§ Backlog #56**. Instalar el panel como PWA lo anunciaba como el negocio del cliente (nombre + íconos)
 y su `start_url:"/"` hacía que el ícono instalado **abriera la tienda, no el panel** — dos defectos, el segundo
