@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
-  Banknote, Wallet, Truck, ShoppingCart, DollarSign, AlertCircle,
+  Banknote, Wallet, Truck, ShoppingCart, DollarSign,
   AlertTriangle, Users, Package, TrendingUp, Coins,
 } from 'lucide-react';
 import {
@@ -193,23 +193,11 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
   // el insight, que sí agrega algo (tendencia o por qué todavía no hay tendencia).
   // OFF por defecto (2026-08-22): el mes no es "Hoy". Opt-in en Personalizar.
   { key: 'ordenes_mes',        titulo: 'Órdenes del mes',    subtitulo: '', icono: ShoppingCart, formato: 'int', categoria: 'mes', defaultVisible: false, color: STAT_CHIP.neutral,              href: (c) => `/admin/pedidos?${c.monthQuery}`, insight: widgetInsight },
-  // También SIN scopeSuffix (mismo motivo: es el conteo vigente, no un período). Lo
-  // que mantiene coherente el par con "Por cobrar" es el cross-reference del sub en
-  // vivo ("· N por cobrar aparte"), no una etiqueta de scope — ver CLAUDE.md
-  // § Por cobrar vs Pendientes.
-  // CAMBIÓ DE PREGUNTA, no de destino. Contaba "pendiente MENOS por-cobrar" —una
-  // cifra del eje de COBRO— y en la pantalla nueva el cobro es una propiedad que se
-  // ve en cada fila, no un carril por el que se entra. La pregunta que sí mueve el
-  // día es "¿qué pide acción?", y ésa tiene carril, tiene endpoint y tiene una sola
-  // definición (`necesitaAtencion`) compartida con el pill y con el punto del nav:
-  // los tres no pueden divergir.
-  //
-  // La KEY cambia con ella. Una key `ordenes_pendientes` que cuenta atención es
-  // exactamente la segunda opinión que esta tanda vino a quitar; el costo es que
-  // quien tuviera la tarjeta vieja guardada la pierde del grid y la vuelve a
-  // agregar en Personalizar (`sanitizeWidgetKeys` descarta las keys que ya no
-  // existen — por diseño).
-  { key: 'pedidos_por_atender', tono: 'atencion', titulo: 'Necesitan atención', subtitulo: 'Pedidos que piden acción', icono: AlertCircle, formato: 'int', categoria: 'mes', defaultVisible: true,  color: STAT_CHIP.neutral,         href: '/admin/pedidos?f=atencion' },
+  // EL TILE `pedidos_por_atender` SE RETIRÓ: su número es ahora el BADGE de la sección
+  // "Necesita tu atención" (la lista transversal pedidos + stock, § lib/atencion/items).
+  // Un tile con el conteo Y una sección con la lista en la misma pantalla era la
+  // duplicación que la sección vino a cerrar. Quien lo tuviera guardado lo pierde del
+  // grid (`sanitizeWidgetKeys` descarta las keys que ya no existen — por diseño).
   // El sub dice la BASE real del promedio: se divide por PAGOS registrados, no por
   // órdenes (el título es heredado). "Promedio por venta" solo repetía el título.
   { key: 'promedio_por_orden', titulo: 'Promedio por orden', subtitulo: 'Por pago registrado · mes en curso', icono: TrendingUp, formato: 'cop', categoria: 'mes', defaultVisible: false, color: STAT_CHIP.neutral },

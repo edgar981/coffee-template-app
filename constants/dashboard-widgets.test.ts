@@ -30,11 +30,12 @@ test('estadoTile: valor null/undefined (fuente caída) → null', () => {
 // EL DEFAULT DE LA PANTALLA "HOY" (2026-08-22) y la garantía de que el cambio de
 // default NO le quita nada a quien ya eligió sus tarjetas.
 
-test('el default es EXACTAMENTE las cuatro tarjetas de acción del día', () => {
+test('el default son las tres tarjetas de acción del día (sin `pedidos_por_atender`, retirado)', () => {
   // `ventas_hoy` y `pedidos_hoy` salieron del default (su cifra vive en el hero y en
-  // la curva); `ingresos_mes`/`ordenes_mes` son de mes, no del día. Quedan estas 4.
+  // la curva); `ingresos_mes`/`ordenes_mes` son de mes, no del día. Y `pedidos_por_atender`
+  // se RETIRÓ: su número es el badge de la sección "Necesita tu atención" (§ lib/atencion/items).
   assert.deepEqual(DEFAULT_WIDGET_KEYS, [
-    'por_cobrar', 'despachos_hoy', 'pedidos_por_atender', 'alertas_stock',
+    'por_cobrar', 'despachos_hoy', 'alertas_stock',
   ]);
 });
 

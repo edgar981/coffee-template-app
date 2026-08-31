@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { SlidersHorizontal } from 'lucide-react';
+import { SlidersHorizontal, ArrowRight, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,7 @@ import CurvaPedidosHoy, { ALTO_CURVA } from '@/components/admin/CurvaPedidosHoy'
 import { curvaDibuja } from '@/lib/dashboard/hoy';
 import { currentMonthOrdersQuery, currentMonthRange } from '@duna/core/metrics/order-stat-filters';
 import { isLowStock } from '@duna/core/metrics/inventory-filters';
+import { itemsDeAtencion, type ItemAtencion } from '@/lib/atencion/items';
 import {
   WIDGET_MAP, DEFAULT_WIDGET_KEYS, estadoTile,
   type WidgetFormato, type WidgetHrefContext,
@@ -119,6 +120,12 @@ export default function Dashboard() {
   const lowStock       = products.filter(isLowStock).length;
   const activeProducts = products.filter(p => p.activo !== false).length;
 
+  // La lista transversal "Necesita tu atención": las órdenes que piden acción (del
+  // endpoint, ya filtradas) + los productos bajos (que la página ya tiene). Una
+  // fuente (`itemsDeAtencion`, § lib/atencion/items): la lista, su largo (el badge)
+  // y el orden por prioridad salen de acá, no de un sort en el render.
+  const itemsAtencion = itemsDeAtencion(stats?.atencionPedidos ?? [], products);
+
   // Deep-link context (America/Bogota day keys + the shared month query), fed to
   // each widget's href builder so a card links to exactly the rows it counts.
   const monthQuery = currentMonthOrdersQuery();
@@ -155,15 +162,8 @@ export default function Dashboard() {
     ingresos_mes:         stats ? { raw: stats.revenueMonth } : undefined,
     ingresos_historicos:  stats ? { raw: stats.revenueTotal, sub: stats.revenueSince ? `Desde ${formatFecha(stats.revenueSince)}` : undefined } : undefined,
     ordenes_mes:          stats ? { raw: stats.monthly.orders.current } : undefined,
-    // El cross-reference con "Por cobrar" SE QUEDA, pero cambió de signo y por eso
-    // cambia el texto: antes las dos tarjetas eran un conjunto y su COMPLEMENTO
-    // ("N por cobrar aparte", descontadas de este número); ahora por-cobrar es uno
-    // de los cuatro motivos de atención, así que va INCLUIDA. Dejar el "aparte"
-    // habría sido la misma frase afirmando lo contrario de lo que pasa.
-    // Lo que no cambia es por qué existe la línea: dos tarjetas que hablan de
-    // conjuntos que se tocan tienen que decir cómo se tocan, o se leen como cifras
-    // rivales. Sin por-cobrar cae al sub del registry.
-    pedidos_por_atender:  stats ? { raw: stats.porAtender, sub: porCobrarN > 0 ? `Incluye ${porCobrarN} por cobrar` : undefined } : undefined,
+    // `pedidos_por_atender` se retiró (su número es el badge de la sección "Necesita
+    // tu atención", § itemsAtencion abajo).
     promedio_por_orden:   stats ? { raw: stats.avgTicket } : undefined,
     // products/customers default to []/[] and load independently of stats.
     alertas_stock:        { raw: lowStock },
@@ -306,6 +306,11 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* NECESITA TU ATENCIÓN — la lista transversal (pedidos + stock), lo más accionable
+          del día. Lidera lo accionable, sobre los indicadores. NAVEGA, no muta: cada ítem
+          lleva al detalle donde vive la acción (§ Dashboard: cada indicador navega). */}
+      <SeccionAtencion items={itemsAtencion} loading={loading} />
+
       {/* Tira editorial de indicadores — la ÚNICA superficie personalizable. Los
           widgets se renderizan en el orden elegido; el hero, la curva, top-hoy y
           órdenes recientes son fijos. Una key retirada (WIDGET_MAP miss) se salta, no
@@ -422,6 +427,79 @@ function IndicadoresSkeleton({ count }: { count: number }) {
           <span className="admin-indicador__ctx"><span style={{ ...barra, width: '65%' }} /></span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── Necesita tu atención (lista transversal: pedidos + stock) ─────────────────
+// La lista sale ORDENADA y COMPLETA de `itemsDeAtencion` (helper puro); acá sólo se
+// muestra un tope y se expande. El "y N restantes" EXPANDE EN EL SITIO —no navega a
+// una lista— porque los ítems son de DOS secciones y no hay una sola página que
+// muestre ambas; la lista completa es ésta, en el lugar. Cada ítem sí navega a su
+// detalle. El vacío es el estado BUENO y se lee como tal.
+const CAP_ATENCION = 6;
+
+function SeccionAtencion({ items, loading }: { items: ItemAtencion[]; loading: boolean }) {
+  const [expandida, setExpandida] = useState(false);
+
+  if (loading) {
+    return (
+      <div className="duna-card duna-card__pad" role="status">
+        <span className="duna-sr-only">Cargando lo que necesita tu atención…</span>
+        <div className="duna-skel" aria-hidden style={{ height: '1.1em', width: '11rem', borderRadius: 4 }} />
+        <div className="space-y-2" style={{ marginTop: 'var(--duna-space-3)' }} aria-hidden>
+          {[0, 1, 2].map(i => <div key={i} className="duna-skel" style={{ height: 44, borderRadius: 8 }} />)}
+        </div>
+      </div>
+    );
+  }
+
+  const mostradas = expandida ? items : items.slice(0, CAP_ATENCION);
+  const restantes = items.length - mostradas.length;
+
+  return (
+    <div className="duna-card duna-card__pad">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-3)' }}>
+        <h2 className="duna-heading" style={{ margin: 0 }}>Necesita tu atención</h2>
+        {items.length > 0 ? (
+          <span className="duna-badge duna-badge--attention">
+            {items.length} {items.length === 1 ? 'pendiente' : 'pendientes'}
+          </span>
+        ) : (
+          <span className="duna-badge duna-badge--neutral">Al día</span>
+        )}
+      </div>
+
+      {items.length === 0 ? (
+        // El estado BUENO — se lee como logro, no como vacío roto. Sin ámbar.
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)' }}>
+          <Check className="w-4 h-4" aria-hidden style={{ color: 'var(--duna-ok, currentColor)' }} />
+          <p className="duna-sub" style={{ margin: 0 }}>Todo al día — nada pide tu atención ahora.</p>
+        </div>
+      ) : (
+        <div>
+          {mostradas.map((it, i) => (
+            <Link key={`${it.seccion}-${it.href}-${i}`} href={it.href} className="admin-atencion-item">
+              <span className="admin-atencion-item__dot" aria-hidden />
+              <span className="admin-atencion-item__cuerpo">
+                <span className="admin-atencion-item__titulo">{it.titulo}</span>
+                <span className="admin-atencion-item__sub">{it.subtitulo}</span>
+              </span>
+              <ArrowRight className="w-4 h-4 shrink-0" aria-hidden style={{ color: 'var(--duna-muted)' }} />
+            </Link>
+          ))}
+          {restantes > 0 && (
+            <button type="button" onClick={() => setExpandida(true)} className="duna-link" style={{ marginTop: 'var(--duna-space-3)' }}>
+              Ver las {restantes} restantes
+            </button>
+          )}
+          {expandida && items.length > CAP_ATENCION && (
+            <button type="button" onClick={() => setExpandida(false)} className="duna-link" style={{ marginTop: 'var(--duna-space-3)' }}>
+              Ver menos
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
