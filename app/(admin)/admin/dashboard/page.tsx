@@ -22,6 +22,7 @@ import DashboardCustomizer from '@/components/admin/DashboardCustomizer';
 import CurvaPedidosHoy, { ALTO_CURVA } from '@/components/admin/CurvaPedidosHoy';
 import { curvaDibuja } from '@/lib/dashboard/hoy';
 import { currentMonthOrdersQuery, currentMonthRange } from '@duna/core/metrics/order-stat-filters';
+import { isLowStock } from '@duna/core/metrics/inventory-filters';
 import { itemsDeAtencion, type ItemAtencion } from '@/lib/atencion/items';
 import {
   WIDGET_MAP, DEFAULT_WIDGET_KEYS, estadoTile,
@@ -115,6 +116,10 @@ export default function Dashboard() {
   // ── Derived ────────────────────────────────────────────────────────────────
 
   const activeProducts = products.filter(p => p.activo !== false).length;
+  // `alertas_stock` (widget elegible, NO default) cuenta los productos bajo mínimo con el
+  // MISMO `isLowStock` que la sección de atención y el motor de la campana — nunca un
+  // criterio propio, o el tile y la sección dejarían de reconciliar.
+  const lowStock = products.filter(isLowStock).length;
 
   // La lista transversal "Necesita tu atención": las órdenes que piden acción (del
   // endpoint, ya filtradas) + los productos bajos (que la página ya tiene). Una
@@ -158,12 +163,15 @@ export default function Dashboard() {
     ingresos_mes:         stats ? { raw: stats.revenueMonth } : undefined,
     ingresos_historicos:  stats ? { raw: stats.revenueTotal, sub: stats.revenueSince ? `Desde ${formatFecha(stats.revenueSince)}` : undefined } : undefined,
     ordenes_mes:          stats ? { raw: stats.monthly.orders.current } : undefined,
-    // `pedidos_por_atender` se retiró (su número es el badge de la sección "Necesita
-    // tu atención", § itemsAtencion abajo).
+    // `pedidos_por_atender` (elegible, NO default): el conteo de órdenes que piden acción —
+    // el MISMO conjunto que el badge de la sección "Necesita tu atención" (`atencionPedidos`),
+    // no un cálculo aparte—. El sub cruza el subconjunto por-cobrar, como el original.
+    pedidos_por_atender:  stats ? { raw: stats.atencionPedidos.length, sub: porCobrarN > 0 ? `Incluye ${porCobrarN} por cobrar` : undefined } : undefined,
     promedio_por_orden:   stats ? { raw: stats.avgTicket } : undefined,
     // products/customers default to []/[] and load independently of stats.
-    // `alertas_stock` se retiró: el stock bajo sale en la sección "Necesita tu atención"
-    // (§ itemsAtencion), con tono rojo propio.
+    // `alertas_stock` (elegible, NO default): el conteo de productos bajo mínimo. Su hecho
+    // también vive como ítems ROJOS en la sección; el tile es el conteo de un vistazo.
+    alertas_stock:        { raw: lowStock },
     productos_activos:    { raw: activeProducts },
     clientes_totales:     { raw: customers.length },
     // `recurrencia.pct` es el MISMO número que traía `kpis.tasaRetencion`
@@ -450,7 +458,9 @@ function SeccionAtencion({ items, loading }: { items: ItemAtencion[]; loading: b
 
   return (
     <div className="duna-card duna-card__pad">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-3)' }}>
+      {/* El badge va a la esquina DERECHA del encabezado (`space-between`), como el
+          `.card-head` de duna-os — no pegado al título. */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-3)' }}>
         <h2 className="duna-heading" style={{ margin: 0 }}>Necesita tu atención</h2>
         {items.length > 0 ? (
           <span className="duna-badge duna-badge--attention">

@@ -7,14 +7,18 @@ negocio.") en vez de contar piezas; el sol ~40 s fuera de pantalla de cada ~220 
 SECCIÓN "Necesita tu atención", la ÚNICA lista que UNIFICA pedidos-atención + stock-bajo (fuente `itemsDeAtencion`,
 orden por PRIORIDAD DECLARADA —por costo, no por sección; el COLOR es la clase (pedidos ámbar, stock ROJO) y el
 orden es el costo, ejes distintos—, un ítem por orden con motivos encadenados, NAVEGA no muta, cap 4 que EXPANDE
-en el sitio, vacío = "Todo al día"; se retiraron DOS tiles: `pedidos_por_atender` → el badge, `alertas_stock` → los
-ítems rojos); (3) la ESTRUCTURA de duna-os: **hero + curva + TRES indicadores en fila + dos columnas ("Necesita tu
-atención" 1.35fr | "Lo que más vendió hoy")**. La tabla de ÓRDENES RECIENTES se RETIRA (única tabla de una pantalla
-sin tablas; su contenido vive en Pedidos a un clic) —con ella `OrdersLista`/`ORDENES_COLS`, los imports
-`StatusBadge`/`Order`, y el dato MUERTO `recentOrders` del endpoint + `types/dashboard.ts`—; `.duna-lista` SE QUEDA
-(Pagos, kardex, Analítica, editor de tienda). Los indicadores suben ENTRE la curva y las columnas y pasan de 2 a 3
-por defecto (`promedio_por_orden` = el "Ticket promedio" de la maqueta gana `defaultVisible`; la tira de 4-col a
-3-col); el CUSTOMIZER sobrevive —"tres" es el arranque, no un tope—. capa 1 779/779 · tsc + next build verde. El
+en el sitio, vacío = "Todo al día"; el badge "N pendientes" va a la esquina DERECHA del encabezado (space-between,
+como duna-os); `pedidos_por_atender` y `alertas_stock` salieron del DEFAULT (su hecho = el badge / los ítems rojos)
+pero SIGUEN en el CATÁLOGO, elegibles —RETIRAR DEL DEFAULT ≠ BORRAR DEL CATÁLOGO, catálogo = 13—); (3) la ESTRUCTURA
+de duna-os: **hero + curva + TRES indicadores en fila + dos columnas ("Necesita tu atención" 1.35fr | "Lo que más
+vendió hoy")**. La tabla de ÓRDENES RECIENTES se RETIRA (única tabla de una pantalla sin tablas; su contenido vive
+en Pedidos a un clic) —con ella `OrdersLista`/`ORDENES_COLS`, los imports `StatusBadge`/`Order`, y el dato MUERTO
+`recentOrders` del endpoint + `types/dashboard.ts`—; `.duna-lista` SE QUEDA (Pagos, kardex, Analítica, editor de
+tienda). Los indicadores suben ENTRE la curva y las columnas; el DEFAULT pasa de 2 a 3 (`promedio_por_orden` = el
+"Ticket promedio" de la maqueta gana `defaultVisible`; la tira de 4-col a 3-col); el CUSTOMIZER sobrevive —"tres" es
+el arranque, no un tope—. HALLAZGO: la PREFERENCIA GUARDADA gana sobre el default (sólo una fila ausente cae al
+default), así que un panel ya usado no ve el default nuevo —conducta correcta, su selección manda—. capa 1 779/779 ·
+tsc + next build verde. El
 gate VISUAL del dashboard es del owner (la ruta va tras sesión). **Pendiente el gate del owner.** Antes: EL MANIFEST
 DEL PANEL YA ES DE DUNA (§ #56), en producción (`3f86792`).)
 
@@ -141,17 +145,23 @@ afirman el ORDEN); prioridad DECLARADA por costo (`por_cobrar` → … → stock
 encadenados, NAVEGA no muta (cada ítem al detalle), cap 4 que EXPANDE en el sitio (los ítems son de dos
 secciones, no hay una sola página que muestre ambas), vacío = "Todo al día". **El COLOR es la clase, el ORDEN es
 el costo:** los pedidos van ámbar (`atencion`), el stock ROJO (`alerta`, antes ámbar por error) pero SIGUE al
-final. Se retiraron DOS tiles: `pedidos_por_atender` (→ el badge) y `alertas_stock` (→ los ítems rojos, sin
-perder el único rojo del panel); `por_cobrar` se quedó (muestra el monto). **(3) Estructura de duna-os:** hero +
+final. El badge "N pendientes" va a la esquina DERECHA (space-between, como duna-os). `pedidos_por_atender` (→ el
+badge) y `alertas_stock` (→ los ítems rojos) salieron del DEFAULT pero SIGUEN en el CATÁLOGO, elegibles —RETIRAR DEL
+DEFAULT ≠ BORRAR DEL CATÁLOGO; el primer intento los borró del catálogo, overreach corregido—; `por_cobrar` está en
+el default (muestra el monto). **(3) Estructura de duna-os:** hero +
 curva + TRES indicadores en fila + dos columnas ("Necesita tu atención" 1.35fr \| "Lo que más vendió hoy"). La
 tabla de **Órdenes recientes se RETIRA** (única tabla de una pantalla sin tablas; su contenido vive en Pedidos a
 un clic) —con ella `OrdersLista`/`ORDENES_COLS`, los imports `StatusBadge`/`Order`, y el dato MUERTO `recentOrders`
 (endpoint + `types/dashboard.ts`); `.duna-lista` SE QUEDA (4 consumidores: Pagos, kardex, Analítica, editor de
-tienda). Los indicadores suben ENTRE la curva y las columnas, de 2 a 3 por defecto (`promedio_por_orden` gana
-`defaultVisible`; tira 4-col → 3-col); el CUSTOMIZER sobrevive ("tres" = arranque, no tope). capa 1
-779/779 · tsc + next build verde. **El gate visual del dashboard es del owner** (la ruta va tras sesión, § LÍMITE
-CONOCIDO). Lo NO construido de la maqueta: asistente, "se agota mañana" (predicción), PSE, "Conversaciones activas"
-y "Duna sugiere" (su sitio en la maqueta lo ocupa ahora la columna de atención).
+tienda). Los indicadores suben ENTRE la curva y las columnas; el DEFAULT de 2 a 3 (`promedio_por_orden` gana
+`defaultVisible`; tira 4-col → 3-col); el CUSTOMIZER sobrevive ("tres" = arranque, no tope). **HALLAZGO — la
+preferencia guardada gana sobre el default:** sólo una fila AUSENTE cae a `DEFAULT_WIDGET_KEYS`; con fila, manda lo
+guardado. El owner tenía guardado el default VIEJO de 4, así que veía 2 (los dos borrados se podaban) y el default
+nuevo no le llegaba — conducta correcta (su selección manda). Devolver los dos al catálogo deja de podarlos → su
+fila resuelve a las 4 que eligió, sin tocarle la preferencia. capa 1 779/779 · tsc + next build verde. **El gate
+visual del dashboard es del owner** (la ruta va tras sesión, § LÍMITE CONOCIDO). Lo NO construido de la maqueta:
+asistente, "se agota mañana" (predicción), PSE, "Conversaciones activas" y "Duna sugiere" (su sitio en la maqueta lo
+ocupa ahora la columna de atención).
 
 ### El MANIFEST del panel ya es de Duna — en PRODUCCIÓN (2026-08-30, `3f86792`)
 

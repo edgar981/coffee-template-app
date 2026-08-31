@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Banknote, Wallet, Truck, ShoppingCart, DollarSign,
-  Users, Package, TrendingUp, Coins,
+  Users, Package, TrendingUp, Coins, AlertCircle, AlertTriangle,
 } from 'lucide-react';
 import {
   widgetInsight, insightUltimoEvento,
@@ -9,6 +9,7 @@ import {
 } from '@/lib/metrics/insights';
 import { formatFecha } from '@duna/core/format-fecha';
 import { POR_COBRAR_QUERY_PEDIDOS } from '@duna/core/metrics/order-stat-filters';
+import { RUTA_REPONER } from '@/lib/productos/filtros';
 import { STAT_CHIP } from '@/constants/stat-chip';
 
 // ─── Dashboard widget registry ───────────────────────────────────────────────
@@ -192,11 +193,12 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
   // el insight, que sí agrega algo (tendencia o por qué todavía no hay tendencia).
   // OFF por defecto (2026-08-22): el mes no es "Hoy". Opt-in en Personalizar.
   { key: 'ordenes_mes',        titulo: 'Órdenes del mes',    subtitulo: '', icono: ShoppingCart, formato: 'int', categoria: 'mes', defaultVisible: false, color: STAT_CHIP.neutral,              href: (c) => `/admin/pedidos?${c.monthQuery}`, insight: widgetInsight },
-  // EL TILE `pedidos_por_atender` SE RETIRÓ: su número es ahora el BADGE de la sección
-  // "Necesita tu atención" (la lista transversal pedidos + stock, § lib/atencion/items).
-  // Un tile con el conteo Y una sección con la lista en la misma pantalla era la
-  // duplicación que la sección vino a cerrar. Quien lo tuviera guardado lo pierde del
-  // grid (`sanitizeWidgetKeys` descarta las keys que ya no existen — por diseño).
+  // `pedidos_por_atender` — su conteo es el BADGE de la sección "Necesita tu atención"
+  // (§ lib/atencion/items), así que salió del DEFAULT (redundante con el badge). Pero SIGUE
+  // EN EL CATÁLOGO (`defaultVisible: false`): RETIRAR DEL DEFAULT ≠ BORRAR DEL CATÁLOGO
+  // (§ esa distinción, abajo). Borrarlo le quitaría al operador la opción de tener el conteo
+  // como tile ADEMÁS del badge — el customizer existe para que ÉL decida qué le importa.
+  { key: 'pedidos_por_atender', tono: 'atencion', titulo: 'Necesitan atención', subtitulo: 'Pedidos que piden acción', icono: AlertCircle, formato: 'int', categoria: 'mes', defaultVisible: false, color: STAT_CHIP.neutral, href: '/admin/pedidos?f=atencion' },
   // El sub dice la BASE real del promedio: se divide por PAGOS registrados, no por
   // órdenes (el título es heredado). "Promedio por venta" solo repetía el título.
   // `defaultVisible: true` para que el default sean TRES indicadores en fila (la forma
@@ -211,11 +213,14 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
   // quien lo quiera lo activa en Personalizar.
   { key: 'ingresos_historicos', titulo: 'Ingresos históricos', subtitulo: 'Todos los pagos registrados', icono: Coins, formato: 'cop', categoria: 'historico', defaultVisible: false, color: STAT_CHIP.neutral, href: '/admin/pagos' },
   // ── Inventario ──
-  // EL TILE `alertas_stock` SE RETIRÓ: los productos bajo mínimo salen ahora en la
-  // sección "Necesita tu atención" (§ lib/atencion/items), con tono ROJO propio —así
-  // que el tile era el conteo redundante del mismo hecho, como `pedidos_por_atender`—.
-  // El ROJO de escasez (el único del panel) se preservó: se movió a esos ítems, donde
-  // vive el hecho, en vez de un tile aparte. `sanitizeWidgetKeys` descarta la key vieja.
+  // `alertas_stock` — los productos bajo mínimo salen en la sección "Necesita tu atención"
+  // con tono ROJO (§ lib/atencion/items), así que salió del DEFAULT. Pero SIGUE EN EL
+  // CATÁLOGO (`defaultVisible: false`): el conteo-tile es un hecho distinto de los ítems
+  // (un número de un vistazo vs la lista), y quitárselo al operador sería BORRAR una opción
+  // que nadie pidió borrar — RETIRAR DEL DEFAULT ≠ BORRAR DEL CATÁLOGO (§ la distinción).
+  // El ROJO de escasez (el único del panel) vive en los ítems de la sección; el tile lo
+  // conserva vía `tono: 'alerta'` para quien lo elija.
+  { key: 'alertas_stock',    tono: 'alerta', titulo: 'Alertas de Stock',   subtitulo: 'Productos bajo mínimo', icono: AlertTriangle, formato: 'int', categoria: 'inventario', defaultVisible: false, color: STAT_CHIP.neutral,        href: RUTA_REPONER },
   // Sin sub: "En catálogo" repetía "Productos Activos".
   { key: 'productos_activos', titulo: 'Productos Activos',  subtitulo: '', icono: Package,          formato: 'int', categoria: 'inventario', defaultVisible: false, color: STAT_CHIP.neutral },
   // ── Clientes ──

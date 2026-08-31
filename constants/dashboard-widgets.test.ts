@@ -60,12 +60,31 @@ test('una preferencia guardada con keys VÁLIDAS se conserva intacta', () => {
   assert.deepEqual(sanitizeWidgetKeys(guardadas), guardadas);
 });
 
-test('una key RETIRADA (alertas_stock, pedidos_por_atender) se DESCARTA de la preferencia guardada', () => {
-  // El otro lado de lo mismo: quien tuviera guardado un tile ya retirado lo pierde del
-  // grid —su hecho vive ahora en la sección "Necesita tu atención"—. Es el gate por
-  // diseño (§ el retiro de los tiles); las demás keys válidas se conservan.
+test('una key que NO existe en el catálogo se DESCARTA de la preferencia guardada', () => {
+  // El gate por diseño: una preferencia guardada con una key inexistente (una key
+  // retirada DE VERDAD, o basura de un cliente malicioso) la pierde; las válidas se
+  // conservan en orden.
   assert.deepEqual(
-    sanitizeWidgetKeys(['por_cobrar', 'alertas_stock', 'pedidos_por_atender', 'productos_activos']),
+    sanitizeWidgetKeys(['por_cobrar', 'no_existe_este_widget', 'productos_activos']),
     ['por_cobrar', 'productos_activos'],
+  );
+});
+
+test('alertas_stock y pedidos_por_atender SIGUEN en el catálogo — disponibles, no default', () => {
+  // RETIRAR DEL DEFAULT ≠ BORRAR DEL CATÁLOGO. Los dos salieron del DEFAULT (su hecho vive
+  // en la sección "Necesita tu atención": el conteo de pedidos es el badge, el stock bajo
+  // son los ítems rojos), pero SIGUEN siendo opciones elegibles en el customizer. Por eso
+  // NO se descartan de una preferencia guardada que los incluya —ésa es la diferencia con
+  // una key retirada de verdad—, y NO están en el default. Un operador que quiera el conteo
+  // como tile ADEMÁS del badge puede: es su pantalla.
+  assert.ok('alertas_stock' in WIDGET_MAP, 'alertas_stock debe estar en el catálogo');
+  assert.ok('pedidos_por_atender' in WIDGET_MAP, 'pedidos_por_atender debe estar en el catálogo');
+  assert.ok(!DEFAULT_WIDGET_KEYS.includes('alertas_stock'), 'alertas_stock NO va por defecto');
+  assert.ok(!DEFAULT_WIDGET_KEYS.includes('pedidos_por_atender'), 'pedidos_por_atender NO va por defecto');
+  // Una preferencia guardada con las cuatro (el default VIEJO) se conserva ENTERA: al volver
+  // los dos al catálogo, `sanitize` deja de podarlos. (Es exactamente la fila del owner.)
+  assert.deepEqual(
+    sanitizeWidgetKeys(['por_cobrar', 'despachos_hoy', 'pedidos_por_atender', 'alertas_stock']),
+    ['por_cobrar', 'despachos_hoy', 'pedidos_por_atender', 'alertas_stock'],
   );
 });

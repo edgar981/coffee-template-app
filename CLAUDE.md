@@ -3419,10 +3419,12 @@ puro), NO un color hardcodeado por widget:
 - **Ámbar** (`tono: 'atencion'`): colas de trabajo con valor > 0 — Por cobrar,
   Órdenes Pendientes.
 - **Rojo** (`tono: 'alerta'`): riesgo real — el rojo escaso, la única alerta roja
-  del panel. **El tile "Alertas de Stock" SE RETIRÓ (2026-08-31)**: el stock bajo sale
+  del panel. **El tile "Alertas de Stock" salió del DEFAULT (2026-08-31)** —pero SIGUE en el
+  CATÁLOGO, elegible (§ RETIRAR DEL DEFAULT ≠ BORRAR DEL CATÁLOGO)—: el stock bajo sale
   ahora como ÍTEMS ROJOS en la sección "Necesita tu atención" (§ Dashboard "Hoy"). El
   rojo no se perdió —se movió a los ítems, donde vive el hecho—; el color sigue diciendo
-  la CLASE de problema (alerta), y ahí el orden lo da el costo, no el color.
+  la CLASE de problema (alerta), y ahí el orden lo da el costo, no el color. El tile conserva
+  su `tono: 'alerta'` para quien lo elija.
 
 **La TENDENCIA no colorea el chip**: su color (verde alza / rojo baja) vive en el
 `TrendPill` de `StatCard`. Duplicarlo en el chip volvería el rojo frecuente
@@ -3664,12 +3666,14 @@ recientes se RETIRA (§ La estructura de duna-os, abajo).
   IZQUIERDA —1.35fr—, y el cap la mantiene a un alto parejo con "Lo que más vendió hoy".)
 - **El VACÍO es el estado BUENO** ("Todo al día — nada pide tu atención ahora."), sin ámbar, con un
   ✓: se lee como logro, no como vacío roto.
-- **DOS tiles se RETIRARON** (`pedidos_por_atender` y `alertas_stock`): sus hechos salen en la
+- **DOS tiles salieron del DEFAULT** (`pedidos_por_atender` y `alertas_stock`): sus hechos salen en la
   sección. `pedidos_por_atender` era el conteo de pedidos → el badge; `alertas_stock` era el conteo
   de stock → los ítems rojos. **El rojo de escasez NO se perdió: se movió a los ítems**, donde vive
-  el hecho, en vez de un tile aparte. `sanitizeWidgetKeys` descarta las keys viejas; el default de
-  Hoy quedó en 2 tarjetas (y la segunda pasada lo subió a 3 —§ La estructura de duna-os—). **`por_cobrar`
-  SÍ se quedó**: muestra el MONTO ($ en la calle), dato que la sección no tiene —por eso no es redundante—.
+  el hecho, en vez de un tile aparte. **Pero SIGUEN en el CATÁLOGO, elegibles** (§ RETIRAR DEL DEFAULT ≠
+  BORRAR DEL CATÁLOGO): un operador que quiera el conteo como tile ADEMÁS del badge/ítems puede —es su
+  pantalla—. (El primer intento los BORRÓ del catálogo; fue un overreach corregido el 2026-08-31.) El
+  default de Hoy quedó en 3 tarjetas (§ La estructura de duna-os), ninguna de estas dos. **`por_cobrar`
+  SÍ está en el default**: muestra el MONTO ($ en la calle), dato que la sección no tiene —por eso no es redundante—.
 - **Lo que NO se construyó de la maqueta** (§ duna-os.html): las conversaciones del asistente, la
   predicción "se agota mañana" (hoy es "bajo mínimo", un saldo, no un pronóstico) y el pago PSE sin
   acreditar. Son del stack de Carlos / pago en línea; no existen acá.
@@ -3819,8 +3823,8 @@ persistida por usuario (`DashboardPreference.widgets` = array de keys; API
 reales del registry, sin duplicados, orden preservado) → una key retirada o un payload
 malicioso nunca llega al grid. El binding key→dato vive en el dashboard (junto a los
 datos); el registry es presentación pura + deep-links que reusan los helpers compartidos
-(card=lista). SOLO los indicadores son personalizables: los gráficos y Órdenes Recientes
-son fijos, fuera del sistema (v1).
+(card=lista). SOLO los indicadores son personalizables: la curva y las dos columnas
+(atención | "Lo que más vendió hoy") son fijas, fuera del sistema (v1).
 
 - **Costura MULTITENANT (documentada, NO construida):** hoy no hay modelo de
   tienda/tenant. Cuando exista: (a) cada `WidgetDef` gana un filtro por vertical
@@ -3836,6 +3840,45 @@ son fijos, fuera del sistema (v1).
 - TODO (no implementado): el endpoint de stats calcula TODAS las métricas aunque
   el usuario muestre pocas tarjetas. Optimizar a cálculo selectivo por las keys
   visibles queda anotado, no hecho.
+
+### RETIRAR DEL DEFAULT ≠ BORRAR DEL CATÁLOGO — dos decisiones, dos razones
+
+Son cosas distintas y confundirlas le quita opciones al operador (incidente 2026-08-31):
+
+- **Sacar un widget del DEFAULT** (`defaultVisible: false`) dice "esto no se muestra de
+  arranque". Su razón basta con "su hecho ya vive en otro lado" —el conteo de
+  `pedidos_por_atender` es el badge de la sección, los ítems de `alertas_stock` son las filas
+  rojas—. El operador NUEVO no lo ve; el que lo quiera lo agrega en Personalizar.
+- **Borrar un widget del CATÁLOGO** (quitar su entrada del registry) dice "esto ya no existe
+  como opción". Es una decisión MÁS FUERTE y necesita SU PROPIA razón —el customizer existe
+  justamente para que el operador decida qué le importa, así que quitarle una opción hay que
+  justificarlo, no heredarlo de "salió del default"—.
+
+El overreach que lo instaura: al mover `pedidos_por_atender` y `alertas_stock` fuera del
+default se BORRARON del catálogo de paso. El owner sólo había pedido sacarlos del DEFAULT;
+borrarlos de la lista de opciones nunca se pidió. Se devolvieron como `defaultVisible: false`
+(elegibles, no default) — catálogo de 13. **Regla: sacar del default es barato y su razón es
+"ya está en otro lado"; borrar del catálogo es una decisión aparte que quita una opción, y sin
+su propia razón NO se hace.**
+
+### La PREFERENCIA GUARDADA gana sobre el default — cambiar `defaultVisible` no le llega a quien ya eligió
+
+`GET /api/dashboard/prefs`: **sólo una fila AUSENTE cae a `DEFAULT_WIDGET_KEYS`**; con fila,
+usa las keys guardadas (pasadas por `sanitizeWidgetKeys`). Así que **cambiar el default no toca
+a quien ya tiene preferencia** —su selección manda, la conducta correcta—.
+
+Es exactamente por qué el owner "veía dos" tras subir el default a tres (2026-08-31): su fila
+guardada era el default VIEJO de 4 (`por_cobrar, despachos_hoy, pedidos_por_atender,
+alertas_stock`), y al haber BORRADO del catálogo los dos últimos, `sanitizeWidgetKeys` los
+podaba en la lectura → 2. No era un bug del default nuevo: era el default viejo guardado,
+podado. Al devolver los dos al catálogo, `sanitize` deja de podarlos y su fila vuelve a resolver
+a las 4 que eligió —sin tocarle la preferencia—.
+
+**Corolario, para no re-diagnosticarlo:** un cambio de `defaultVisible` (o del set de default)
+se ve SÓLO en cuentas SIN fila guardada. Para probarlo en un panel que ya se usó, o se mira con
+una cuenta nueva, o se lee la fila (`DashboardPreference`) para saber qué tiene —nunca se asume
+que "el default nuevo se ve"—. Retirar una key del catálogo, en cambio, SÍ le llega a todos (la
+poda de `sanitize` corre en cada lectura), y por eso es la decisión fuerte.
 
 ### La FORMA de los indicadores es EDITORIAL — columnas con filete, pleca = estado
 
