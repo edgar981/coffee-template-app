@@ -443,7 +443,10 @@ function IndicadoresSkeleton({ count }: { count: number }) {
 // una lista— porque los ítems son de DOS secciones y no hay una sola página que
 // muestre ambas; la lista completa es ésta, en el lugar. Cada ítem sí navega a su
 // detalle. El vacío es el estado BUENO y se lee como tal.
-const CAP_ATENCION = 6;
+// 4 visibles (bajó de 6): la sección se queda full-width y liderando —es lo accionable
+// del día, no información pasiva—, y lo que se reduce es el ALTO. El "y N restantes"
+// expande el resto en el sitio, así que con 4 ocupa la mitad sin perder nada.
+const CAP_ATENCION = 4;
 
 function SeccionAtencion({ items, loading }: { items: ItemAtencion[]; loading: boolean }) {
   const [expandida, setExpandida] = useState(false);
@@ -542,14 +545,13 @@ function TopHoy({ filas }: { filas: { nombre: string; total: number; producto_id
 // horizontal. La fila navega al detalle del pedido (`?pedido=`); el número es un
 // <Link> real para middle-click y foco de teclado, con `stopPropagation` para no
 // navegar dos veces.
-// Anchos DEFINIDOS por columna (patrón de Pagos): sin esto, Cliente —única `fr`— se
-// come el sobrante y Canal/Total/Estado, en `auto`, se encogen y se apiñan a la
-// derecha. Cada columna con su ancho; Cliente crece (es la de nombre). `Total` va a
-// 96px, EL MISMO ancho que `Monto` en Pagos, para que el dinero se lea al mismo ancho
-// en las tres listas del panel y la cifra no flote (§ Listas tabulares — el número a
-// la derecha va en MEDIO, nunca al borde). NO mover Total al final: crearía una
-// segunda convención (Pagos e Inventario lo tienen en medio, con columnas después).
-const ORDENES_COLS = '108px minmax(7rem,1fr) minmax(84px,auto) 96px minmax(96px,auto)';
+// TRES columnas: Orden · Cliente · Estado. En el dashboard esta lista vive en UNA
+// MITAD (grid de dos columnas), y siete/cinco columnas ahí no caben —un scroll
+// horizontal dentro de una columna es incómodo—. Se quitaron Canal y Total; quien
+// quiera el detalle completo entra a Pedidos (cada fila navega). El mínimo suma
+// ~316px (108 + 7rem + 96), así que a media pantalla (~480px) entra sin scroll y
+// Cliente (la única `fr`) absorbe el sobrante.
+const ORDENES_COLS = '108px minmax(7rem,1fr) minmax(96px,auto)';
 
 function OrdersLista({ orders }: { orders: Order[] }) {
   const router = useRouter();
@@ -562,8 +564,7 @@ function OrdersLista({ orders }: { orders: Order[] }) {
           tiene scroller propio, así que sin esto el encabezado se pegaría bajo la
           topbar, despegado de sus filas (§ Analítica, mismo neutralizador). */}
       <div className="duna-lista__fila duna-lista__head duna-lista--en-pliegue" style={{ gridTemplateColumns: ORDENES_COLS }}>
-        <span>Orden</span><span>Cliente</span><span>Canal</span>
-        <span className="duna-lista__r">Total</span><span>Estado</span>
+        <span>Orden</span><span>Cliente</span><span>Estado</span>
       </div>
       {orders.map(o => (
         <div
@@ -580,10 +581,6 @@ function OrdersLista({ orders }: { orders: Order[] }) {
           <span data-label="Cliente" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {o.cliente_nombre}
           </span>
-          <span data-label="Canal">
-            <span className="duna-chip" style={{ textTransform: 'capitalize' }}>{o.canal ?? 'directo'}</span>
-          </span>
-          <span data-label="Total" className="duna-lista__r duna-num">{formatCOP(o.total)}</span>
           <span data-label="Estado"><StatusBadge status={o.estado} /></span>
         </div>
       ))}
