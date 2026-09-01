@@ -1,6 +1,7 @@
 "use client";
 import { useState } from 'react';
 import Link from "next/link";
+import { imagenPortada } from "@/lib/producto-imagen";
 import { ArrowLeft, Shield, Lock, CreditCard, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore } from '@/lib/cartStore';
@@ -355,7 +356,7 @@ export default function Checkout() {
                     return (
                     <div key={item.key} className={`flex gap-3 ${sinStock ? 'rounded-lg -mx-1 px-1 ring-1 ring-red-300 bg-red-50/60' : ''}`}>
                       <div className="w-12 h-12 rounded-lg overflow-hidden bg-[var(--sf-superficie)] shrink-0">
-                        <img src={item.imagen} alt={item.nombre} className="w-full h-full object-cover" />
+                        <img src={imagenPortada(item.imagen)} alt={item.nombre} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-[var(--sf-tinta)] line-clamp-2">{item.nombre}</p>

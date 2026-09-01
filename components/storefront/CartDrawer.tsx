@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { imagenPortada } from "@/lib/producto-imagen";
 
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -120,7 +121,7 @@ export default function CartDrawer() {
                       {/* Image */}
                       <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-[var(--sf-superficie)]">
                         <Image
-                          src={item.imagen ?? "/images/placeholder-producto-v1.png"}
+                          src={imagenPortada(item.imagen)}
                           alt={item.nombre}
                           fill
                           className="object-cover"

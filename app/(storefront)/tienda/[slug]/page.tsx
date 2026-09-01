@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 
 import Image from "next/image";
 import Link from "next/link";
+import { imagenPortada } from "@/lib/producto-imagen";
 
 import {
   ShoppingBag,
@@ -123,7 +124,7 @@ export default function ProductPage({
   // que el hero arranca en ella. Puede quedar vacía (producto sin imágenes) →
   // se renderiza el bloque crema de marca.
   const galeria = galeriaCompleta(product.imagen, product.imagenes);
-  const heroSrc = galeria[imgIdx] ?? galeria[0];
+  const heroSrc = imagenPortada(galeria[imgIdx] ?? galeria[0]);
 
   const related = catalog.filter(
     (p) =>
