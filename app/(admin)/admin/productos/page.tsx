@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { LayoutGrid, List, Package, Plus, X } from 'lucide-react';
+import { LayoutGrid, List, Package, Plus, Upload, X } from 'lucide-react';
 import { OrderCard } from '@duna/design-system/components/OrderCard';
 import { SearchField } from '@duna/design-system/components/SearchField';
 import { SkeletonOrderCards } from '@duna/design-system/components/SkeletonOrderCard';
@@ -19,6 +19,7 @@ import { useDetalleAlLado } from '@/hooks/useDetalleAlLado';
 import { useSheetDesdeAbajo } from '@/hooks/useSheetDesdeAbajo';
 import { useHidratado } from '@/hooks/useHidratado';
 import { ProductFormModal } from '@/components/admin/ProductFormModal';
+import { ImportarCatalogoSheet } from '@/components/admin/ImportarCatalogoSheet';
 import { AdjustStockModal } from '@/components/admin/AdjustStockModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { ImageLightbox } from '@/components/admin/ImageLightbox';
@@ -190,6 +191,9 @@ function Productos() {
   // caso es que el panel reabra ya con el cambio aplicado.
   const [editando, setEditando]         = useState<Product | null>(null);
   const [creando, setCreando]           = useState(false);
+  const [importando, setImportando]     = useState(false);
+  // Tras importar, refresca la lista (el import crea N productos server-side).
+  const recargarProductos = useCallback(() => { getProducts().then(setProductos).catch(() => {}); }, []);
   const [borrando, setBorrando]         = useState<Product | null>(null);
   const [activarTarget, setActivarTarget] = useState<Product | null>(null);
   const [ajustando, setAjustando]         = useState<Product | null>(null);
@@ -347,14 +351,22 @@ function Productos() {
             Con la creación en secundario, la vista queda sin primario sólido, y
             Amber Minimal lo permite ("máx. una"). Decisión de sistema, igual en
             Pedidos y Clientes. */}
-        <button
-          type="button"
-          className="duna-btn duna-btn--secondary"
-          style={{ marginLeft: 'auto', flexShrink: 0 }}
-          onClick={() => setCreando(true)}
-        >
-          <Plus /> Nuevo producto
-        </button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
+          <button
+            type="button"
+            className="duna-btn duna-btn--secondary"
+            onClick={() => setImportando(true)}
+          >
+            <Upload /> Importar
+          </button>
+          <button
+            type="button"
+            className="duna-btn duna-btn--secondary"
+            onClick={() => setCreando(true)}
+          >
+            <Plus /> Nuevo producto
+          </button>
+        </div>
       </header>
 
       {/* ── Buscador · la primitiva del sistema. Ella pinta el campo; QUÉ
@@ -537,6 +549,12 @@ function Productos() {
         product={editando}
         onOpenChange={(abierto) => { if (!abierto) { setCreando(false); setEditando(null); } }}
         onSaved={guardado}
+      />
+
+      <ImportarCatalogoSheet
+        abierto={importando}
+        onCerrar={() => setImportando(false)}
+        onImportado={recargarProductos}
       />
 
       <ConfirmDeleteDialog
