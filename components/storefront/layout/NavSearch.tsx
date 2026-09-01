@@ -9,6 +9,7 @@ import {
 
 import Link from "next/link";
 import Image from "next/image";
+import { imagenPortada } from "@/lib/producto-imagen";
 
 import {
   Search,
@@ -206,9 +207,7 @@ export default function NavSearch({
                           >
                             <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-[var(--sf-superficie)]">
                               <Image
-                                src={
-                                  product.imagen ?? "/images/placeholder-producto-v1.png"
-                                }
+                                src={imagenPortada(product.imagen)}
                                 alt={
                                   product.nombre
                                 }
