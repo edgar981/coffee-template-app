@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 
 // Escala un fragmento renderizado a ANCHO DE ESCRITORIO hacia el ancho real de su contenedor,
 // con `transform: scale`. Así los componentes del storefront se ven a su layout de DISEÑO —no
@@ -8,7 +8,9 @@ import { useCallback, useRef, useState, type CSSProperties, type ReactNode } fro
 // la clase de defecto que rompía a TrustBadges en la columna del editor de paleta.
 //
 // GENÉRICO A PROPÓSITO: no sabe de `SiteContent`, secciones, providers ni de qué se renderiza —
-// sólo MIDE (dos ResizeObserver: ancho del pane, alto natural del contenido) y ESCALA `children`.
+// sólo MIDE (dos ResizeObserver: ancho del pane, alto natural del contenido), ESCALA `children`, y
+// NEUTRALIZA la navegación de sus enlaces (es una vista PREVIA, no un storefront navegable — ver
+// `neutralizarEnlace` abajo). Un `<a>` es HTML genérico, no conocimiento del storefront.
 // Lo que se extrajo de `VistaTiendaEnVivo` es exactamente eso: la lógica de las dos ROs con el
 // cálculo de escala, que es la clase que diverge en silencio si se duplica. Todo lo específico de
 // la vista de contenido (el mapa de secciones, el `SiteContentProvider`, el `PreviewProvider`, el
@@ -85,8 +87,24 @@ export function EscalaDesktop({
 
   const alto = compacto ? undefined : (scale > 0 && contenidoH > 0 ? contenidoH * scale : undefined);
 
+  // La vista previa NO es un storefront navegable: sus `<Link>`/`<a>` se ven como enlaces —mismo
+  // estilo, mismo cursor— pero NO navegan. Se neutralizan ACÁ, en la frontera de la vista escalada:
+  // es el ÚNICO punto por el que pasan TODOS los consumidores (VistaTiendaEnVivo, PaletaSeccion) y sus
+  // superficies (tarjeta, vista grande, overlay de ampliar), así que el fix vale para todos sin que un
+  // componente del storefront sepa nada del admin. `stopPropagation` en CAPTURE corta la navegación de
+  // `next/link` —su `onClick` de burbuja no llega a correr— y `preventDefault` corta el default nativo
+  // de un `<a href>`. Sólo intercepta clics SOBRE un enlace (`closest('a')`): el clic de la TARJETA que
+  // abre "Editar" —contenido en `pointer-events:none`, click al thumb ancestro— pasa intacto. `auxclick`
+  // cubre el clic-medio (abrir en pestaña nueva). NO cambia el aspecto: el enlace sigue siendo un `<a>`.
+  const neutralizarEnlace = useCallback((e: ReactMouseEvent) => {
+    if ((e.target as HTMLElement | null)?.closest?.('a')) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, []);
+
   return (
-    <div ref={paneRef} className={className} style={{ position: 'relative', ...(alto != null ? { height: alto } : {}), ...style }}>
+    <div ref={paneRef} className={className} onClickCapture={neutralizarEnlace} onAuxClickCapture={neutralizarEnlace} style={{ position: 'relative', ...(alto != null ? { height: alto } : {}), ...style }}>
       {/* Se monta con paneW>0 (no scale>0): en compacto la escala depende de `contenidoH`, que sólo
           se mide una vez montado el contenido. El `scale(0)` de un tick es medible e invisible. */}
       {paneW > 0 && (
