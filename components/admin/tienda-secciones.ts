@@ -5,7 +5,7 @@
 // beforeunload, indicador, layout sticky) vive en la CÁSCARA (`TiendaSeccionEditor`). Si una
 // sección nueva necesitara algo fuera de esta config, es señal de que la cáscara se está forzando.
 
-export type SeccionVista = 'hero' | 'brandStory' | 'subscriptionCTA' | 'testimonials' | 'nosotrosHistoria' | 'nosotrosGaleria';
+export type SeccionVista = 'hero' | 'brandStory' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'nosotrosHistoria' | 'nosotrosGaleria';
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
@@ -107,6 +107,28 @@ const BRAND_STORY: SeccionConfig = {
   ],
 };
 
+// Presentaciones ("¿Cómo tomas tu café?"): DOS tarjetas de cardinalidad FIJA → campos PLANOS con
+// imágenes (patrón brandStory), NO un repeater. Cada tarjeta es un trío nombre+descripción+imagen; los
+// destinos (`path`) son ESTRUCTURA (PRESENTACIONES_HREFS), no se editan.
+const PRESENTACIONES: SeccionConfig = {
+  seccion: 'presentaciones',
+  pagina: 'home',
+  titulo: 'Presentaciones',
+  ocultable: true,
+  imagenes: [
+    { name: 'imagen1', label: 'Imagen · presentación 1' },
+    { name: 'imagen2', label: 'Imagen · presentación 2' },
+  ],
+  campos: [
+    { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
+    { name: 'titulo',  label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'label1',  label: 'Presentación 1 · nombre',       hint: 'Ej. "En grano". Vacío: se usa el texto por defecto.' },
+    { name: 'copy1',   label: 'Presentación 1 · descripción',  textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'label2',  label: 'Presentación 2 · nombre',       hint: 'Ej. "Molido". Vacío: se usa el texto por defecto.' },
+    { name: 'copy2',   label: 'Presentación 2 · descripción',  textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
+  ],
+};
+
 const SUBSCRIPTION: SeccionConfig = {
   seccion: 'subscriptionCTA',
   pagina: 'home',
@@ -204,4 +226,4 @@ const NOSOTROS_GALERIA: SeccionConfig = {
 
 // El ORDEN es el orden en la pantalla. Las de la home primero (en el orden de la home), después las
 // de /nosotros; el editor las agrupa por `pagina` en pestañas.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, SUBSCRIPTION, TESTIMONIOS, NOSOTROS_HISTORIA, NOSOTROS_GALERIA];
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, NOSOTROS_HISTORIA, NOSOTROS_GALERIA];

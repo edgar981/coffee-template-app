@@ -32,6 +32,21 @@ const brandStoryEditableSchema = z.object({
   imagen4: z.string().optional(),
 });
 
+// Presentaciones: DOS tarjetas de cardinalidad FIJA (campos planos, no repeater). Cada tarjeta:
+// label + copy + imagen. Todo opcional/SOFT como el resto —el resolver aplica el default a los
+// requeridos—. Las imágenes son string (path /public o URL de Blob, como el hero).
+const presentacionesEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  eyebrow: z.string().optional(),
+  titulo: z.string().optional(),
+  label1: z.string().optional(),
+  copy1: z.string().optional(),
+  imagen1: z.string().optional(),
+  label2: z.string().optional(),
+  copy2: z.string().optional(),
+  imagen2: z.string().optional(),
+});
+
 // SubscriptionCTA: solo texto (sin imágenes). `bullet1..4` opcionales — el resolver los omite
 // vacíos y el componente los junta con `.filter` (hasta 4, sin hueco). `ctaLabel` editable; el href
 // es estructura. Todo opcional/SOFT, como los otros.
@@ -103,6 +118,7 @@ const paginasEditableSchema = z.object({
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   brandStory: brandStoryEditableSchema.optional(),
+  presentaciones: presentacionesEditableSchema.optional(),
   subscriptionCTA: subscriptionCTAEditableSchema.optional(),
   testimonials: testimonialsEditableSchema.optional(),
   nosotrosHistoria: nosotrosHistoriaEditableSchema.optional(),

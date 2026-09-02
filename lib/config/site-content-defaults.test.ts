@@ -9,6 +9,7 @@ import {
   resolverPaginas,
   resolverTema,
   seccionEsVisible,
+  PRESENTACIONES_HREFS,
   type SeccionDef,
 } from './site-content-defaults';
 
@@ -424,4 +425,45 @@ test('resolverTema: un DEFAULT hex se usa cuando el guardado no trae raíz váli
   // si el default fuera un hex, se usaría ante un guardado inválido. Fija el contrato del fallback.
   const def = { fondo: '#000000', tinta: '#ffffff', acento: '#8b4513' };
   assert.deepEqual(resolverTema({ fondo: 'basura' }, def), { fondo: '#000000', tinta: '#ffffff', acento: '#8b4513' });
+});
+
+// ─── Presentaciones (C1): byte-idéntico a los literales de GrindChooser antes de la migración ───
+// Estos son los literales EXACTOS que vivían en `components/storefront/home/GrindChooser.tsx`
+// (`OPCIONES` + el encabezado) antes de moverlos a SiteContent. La regla de C1: SIN fila, la home de
+// Nayoli queda IDÉNTICA. Es comparación MECÁNICA (deep-equal), no aseveración: si alguien toca un
+// default y desincroniza la home, este test cae. (Un repeater NO podría verificarse así —su default
+// jamás se muestra—; campos planos sí, que es la razón del modelado, § doctrina.)
+const PRESENTACIONES_ANTES = {
+  visible: true,
+  eyebrow: 'Elige tu presentación',
+  titulo: '¿Cómo tomas tu café?',
+  label1: 'En grano',
+  copy1: 'Para moler en casa, máxima frescura.',
+  imagen1: '/images/cafe-nayoli-250g-grano.webp',
+  label2: 'Molido',
+  copy2: 'Listo para tu greca, filtro o prensa.',
+  imagen2: '/images/cafe-nayoli-250g-molido.webp',
+};
+
+test('presentaciones: sin fila, los defaults resueltos reproducen los literales de GrindChooser', () => {
+  const r = resolverSiteContent({});
+  assert.deepEqual(r.presentaciones, PRESENTACIONES_ANTES);
+});
+
+test('presentaciones: los paths son ESTRUCTURA y son los mismos que las OPCIONES viejas', () => {
+  assert.deepEqual(PRESENTACIONES_HREFS, { path1: '/tienda?cat=cafe_grano', path2: '/tienda?cat=cafe_molido' });
+});
+
+test('presentaciones: es OCULTABLE (una tienda no-café la apaga) y NO es repeater (cardinalidad fija)', () => {
+  assert.equal(REGISTRY.presentaciones.ocultable, true);
+  assert.equal(REGISTRY.presentaciones.repeater, undefined); // campos planos, no lista
+  // visible=false oculta; sin toggle explícito, se muestra (default visible:true).
+  assert.equal(seccionEsVisible(REGISTRY.presentaciones, { ...PRESENTACIONES_ANTES, visible: false }), false);
+  assert.equal(seccionEsVisible(REGISTRY.presentaciones, PRESENTACIONES_ANTES), true);
+});
+
+test('presentaciones: un label requerido vacío cae al default (tarjeta nunca a medias)', () => {
+  const r = resolverSiteContent({ presentaciones: { label1: '', copy2: '   ' } });
+  assert.equal(r.presentaciones.label1, PRESENTACIONES_ANTES.label1); // requerido vacío → default
+  assert.equal(r.presentaciones.copy2, PRESENTACIONES_ANTES.copy2);
 });
