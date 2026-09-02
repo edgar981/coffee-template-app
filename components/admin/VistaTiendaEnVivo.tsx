@@ -3,6 +3,7 @@
 import type { ComponentType } from 'react';
 import HeroSection from '@/components/storefront/home/HeroSection';
 import BrandStory from '@/components/storefront/home/BrandStory';
+import GrindChooser from '@/components/storefront/home/GrindChooser';
 import SubscriptionCTA from '@/components/storefront/home/SubscriptionCTA';
 import TestimonialSection from '@/components/storefront/home/TestimonialSection';
 import NosotrosHistoria from '@/components/storefront/nosotros/NosotrosHistoria';
@@ -39,6 +40,9 @@ import type { SeccionVista } from '@/components/admin/tienda-secciones';
 const COMPONENTES: Record<SeccionVista, ComponentType> = {
   hero: HeroSection,
   brandStory: BrandStory,
+  // GrindChooser toma `negocio` opcional para el alt (identidad); en el preview va sin prop (el alt de
+  // un preview no se usa). Todo-opcional → asignable a ComponentType, como NosotrosGaleria.
+  presentaciones: GrindChooser,
   subscriptionCTA: SubscriptionCTA,
   testimonials: TestimonialSection,
   nosotrosHistoria: NosotrosHistoria,
