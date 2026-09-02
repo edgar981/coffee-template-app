@@ -1,21 +1,26 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-08-31 (ONBOARDING POR-DESPLIEGUE, **TANDA A**: "un cliente nuevo no nace siendo Nayoli".
-Cuatro defectos del código COMPARTIDO que horneaban Nayoli/demo, corregidos en `fix/cliente-nuevo-no-nace-nayoli`
-(**pendiente merge**): (1) el INSERT de `SiteSetting` de la migración pasa a NEUTRO (`nombre='Configura tu tienda'`,
-el resto vacío) — se EDITÓ la migración YA aplicada a propósito (una nueva pisaría la config real de Nayoli;
-`migrate deploy` salta lo aplicado; el porqué va DENTRO del SQL); (2) el noindex se gatea: producción indexable por
-default, `NOINDEX=1` para ocultar la demo (un cliente real no nace invisible); (3) el cron FALLA ruidoso si falta
-`CRON_URL` (antes caía al dominio de la demo → ping al cron ajeno); (4) se borran los redirects "1lb" de Nayoli
-(demo-only, nunca indexados). + la GUARDA del footer/suscripción: los enlaces de WhatsApp/Instagram desde SiteSetting
-se OCULTAN si el campo está vacío (un `wa.me/` sin número es botón muerto). El copy neutro se decidió midiendo qué
-rompe con cada campo vacío: sólo `nombre` rompe (wordmark/pestaña/manifest) → texto que se lee como "falta configurar";
-el resto vacío (un placeholder sería dato falso publicado). capa 1 780/780 · carril 184/184 (Postgres fresco, 46
-migraciones) · tsc + next build verde. SIN gate visual (las guardas sólo se ven con campos vacíos, que no existen en
-dev). Lo ARTESANAL (íconos, mark, fuentes —**NO existe `fontPair`**—, `site.ts`) es TANDA C; el import de catálogo
-—lo único que el cliente haría solo, y lo que decide "día vs semana"— es TANDA B (discovery al abrirse). **YA en
-main:** DEPLOY.md al día contra el código real (46 migraciones, build real, y ahora el noindex/CRON_URL de tanda A) —
-`4671972`. Antes: el DASHBOARD a la estructura de duna-os + "Necesita tu atención", en producción (`bd0c6da`).)
+**Actualizado:** 2026-09-02 (ONBOARDING POR-DESPLIEGUE, **TANDA B**: el IMPORT DE CATÁLOGO — lo único que un
+cliente nuevo haría solo, y lo que decide "día vs semana" para montar su tienda. `/admin/productos` gana
+**"Importar"**: pegar o subir un archivo (CSV/TSV/TXT), que convergen en `FilaGrid[]` **ANTES de validar** → grilla
+editable → éxito parcial, dedup por slug (`slugDeNombre`, la del alta manual), asiento inaugural. Pegar y archivo son
+DOS ENTRADAS al mismo sitio, no dos caminos; el archivo se lee en el CLIENTE (`file.text()`, sin subirlo → sin
+multipart ni el 4.5 MB del serverless). El SEPARADOR corta COLUMNAS, no productos: **default Tab, coma opt-in, sin
+auto-detector** (auto-coma convertía tres nombres pegados en tres columnas sin que nadie lo eligiera); la interfaz
+nombra los dos ejes ("Columnas separadas por" + "Un producto por línea" fijo + ejemplo vivo que re-dibuja la 1ª fila
+con el separador elegido). Un `.csv` arranca en coma por la EXTENSIÓN (`sepDeArchivo`), no por adivinar el contenido.
+**Tokenizador RFC-4180 propio (cero deps)** que arregla un defecto que YA existía: un pegado con `"Café, tueste
+medio",28000` se partía mal EN SILENCIO. El encabezado se salta con match EXACTO (dirección SEGURA: una fila de más
+—que se ve y se quita— antes que un producto perdido). La categoría es TEXTO libre con datalist de sugerencia (una
+categoría fuera de las 6 se crea igual). El PLACEHOLDER de producto ahora atrapa la CADENA VACÍA (`imagenPortada`,
+`||` no `??` — el import crea con `imagen:''`, y `??` no atrapaba `''`). XLSX → **backlog #57** (`import()` dinámico
+como jsPDF, converge en `FilaGrid[]` igual). capa 1 **792/792** · carril con `import-catalogo.test.ts` (éxito parcial
++ dedup contra base real) · tsc + next build verde. **Gate visual del owner PASADO. En main (pendiente push):** el
+merge `--no-ff` de `feat/import-catalogo` (4 commits) + esta doctrina. **YA en main/producción:** TANDA A "un
+cliente nuevo no nace siendo Nayoli" (`998b95e`) — 4 defectos del código compartido (migración INSERT neutro, noindex
+gateado, cron sin fallback demo, redirects Nayoli borrados) + guardas de enlaces vacíos; verificado en vivo (noindex
+✓ en la demo con `NOINDEX=1`, cron ✓ 2xx). Lo ARTESANAL (íconos, mark, fuentes —**NO existe `fontPair`**—, `site.ts`)
+sigue siendo TANDA C.)
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -52,7 +57,7 @@ Vercel, `main` = producción).
 |---|---|---|
 | `/admin/pedidos` | Completa. 9 carriles (con "Listas para despachar") | Alto fijo ≥1080 (`.duna-pantalla-fija`), split 2 columnas |
 | `/admin/clientes` | Completa | Igual |
-| `/admin/productos` | Completa | Igual, con clase condicional (cuadrícula sin selección queda en document-scroll) |
+| `/admin/productos` | Completa. Con **import de catálogo** (pegar o subir CSV/TSV/TXT → grilla editable → crear; XLSX en backlog #57) | Igual, con clase condicional (cuadrícula sin selección queda en document-scroll) |
 | `/admin/inventario` | Completa, encogida a auditoría | Alto fijo ≥960 (`.duna-sin-split`), scroller único |
 | `/admin/pagos` | Completa (frase + curva) | Alto fijo ≥960 (`.duna-sin-split`), scroller único; **el gráfico va en la zona fija** |
 | `/admin/analitica` | Completa (cuatro preguntas de dueño, titulares) | Document-scroll (estado final — § Los DOS modelos de scroll) |

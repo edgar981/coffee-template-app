@@ -2953,6 +2953,98 @@ la tienda cambia sin que nada lo anuncie.
 - v1 **sin reordenamiento** y sin catálogo global de moliendas: siguen siendo Json
   por producto, igual que la galería.
 
+## El import de catálogo — pegar o subir, UNA convergencia en `FilaGrid[]`
+
+Tanda del 2026-09-02. `/admin/productos` gana **"Importar"**: montar la tienda de un
+prospecto con SU catálogo (Instagram, un menú, una lista de WhatsApp, un CSV que mandó),
+no un export limpio. El flujo es **PEGAR o SUBIR → GRILLA editable → revisar → crear**.
+
+### DOS entradas, UN pipeline — la convergencia ANTES de validar
+
+Pegar y subir un archivo son **dos ENTRADAS al mismo sitio, no dos caminos**: las dos
+producen `FilaGrid[]` y caen en la MISMA grilla **antes de cualquier validación**. Desde
+`FilaGrid[]` en adelante todo es compartido —`motivoInvalida` (cliente), el endpoint
+`/api/products/import`, `procesarFilasImport` (dedup por slug + éxito parcial + asiento
+inaugural)—. Lo único por-formato es el LECTOR que convierte bytes→filas. El XLSX futuro
+(§ Backlog #57) es un tercer lector que converge igual; por eso es "un lector más, no una
+ruta paralela".
+
+- **El archivo se lee en el CLIENTE** (`file.text()`), no se sube: las filas viajan como
+  el MISMO JSON que el pegado. Así no toca multipart ni el límite de 4.5 MB del serverless
+  —el archivo nunca sale del navegador, sólo las filas parseadas—.
+- **El parseo vive en `lib/productos/import-parse.ts`** (PURO, capa 1), no en el
+  componente: la parte riesgosa se afirma en un test, no atrapada en el JSX. La creación
+  vive en `packages/core/src/product-import.ts` (`procesarFilasImport`), afirmada en el
+  carril (`tests/integracion/import-catalogo.test.ts` — éxito parcial + dedup contra base
+  real; **no borrar**).
+- **El slug se deriva con `slugDeNombre`** (`product-update.ts`) — LA MISMA del alta
+  manual, no una segunda implementación —, así el dedup del import y el POST no divergen.
+- **ÉXITO PARCIAL**: una fila mala (sin nombre o sin categoría) no aborta las demás;
+  vuelve marcada con su motivo para corregir. Reimportar es seguro (dedup por slug: la
+  existente se OMITE). El bucle es SECUENCIAL, así dos filas del mismo nombre en el mismo
+  lote → la 1ª crea, la 2ª omite.
+
+### El SEPARADOR corta COLUMNAS, no productos — el malentendido de la coma
+
+El modelo tiene DOS ejes y la interfaz nombra los DOS (era el defecto):
+- **salto de línea = un producto** (un producto por línea);
+- **el separador = corta cada línea en columnas** Nombre·Precio·Categoría·SKU·Stock.
+
+**El default es TAB (una hoja pegada trae tabs); la coma/`;` son OPT-IN, y NO se
+auto-detecta la coma.** Auto-elegirla convertía tres nombres pegados en tres COLUMNAS de
+un producto sin que nadie lo eligiera; con Tab ese mismo pegado cae como un nombre raro
+—visiblemente mal— en vez de parecer correcto. Un ARCHIVO `.csv` sí arranca en coma, pero
+por la EXTENSIÓN (`sepDeArchivo`) — leer el formato, no adivinar el contenido.
+
+Lo que EVITA el error (no lo explica después): la etiqueta dice **"Columnas separadas
+por"**, arriba va fijo **"Un producto por línea"**, y un **ejemplo vivo** re-dibuja la 1ª
+fila con el separador elegido (Nombre «…» · Precio «…» · Categoría «…»), para que el error
+se vea AL ELEGIR. Se descartó un modo "la coma separa productos": haría que la coma
+signifique dos cosas, y ese caso ya lo cubre "un nombre por línea".
+
+### El tokenizador es QUOTE-AWARE — arregla un defecto que YA existía
+
+El parseo cortaba con `split` a secas, así que un pegado con un campo entrecomillado con
+coma adentro (`"Café, tueste medio",28000`) se partía mal **EN SILENCIO**. `tokenizar`
+(RFC-4180, propio, **cero dependencias**) lo cierra: un campo que EMPIEZA con comilla está
+entrecomillado (coma/`\n` de adentro literales), `""` es comilla literal, y una comilla
+que NO abre campo sobrevive (`Café 12"`). **No es por el CSV: es un defecto del pegado que
+ya existía**, y por eso va sí o sí, con sus tests en el módulo puro.
+
+### El encabezado se salta con match EXACTO — la dirección SEGURA
+
+Un CSV/pegado con encabezado salta la 1ª fila si su primera celda es exactamente
+`nombre`/`producto`/`name` (case-insensitive). El match es EXACTO a propósito: **"Nombre
+del producto" NO se salta — cae como fila editable que el operador borra**. La dirección
+es la segura: **una fila de más (que se ve y se quita) antes que un producto perdido (que
+se traga en silencio)**. Un producto llamado exactamente "Nombre" es improbable; adivinar
+de más para saltar encabezados largos costaría productos reales.
+
+### La categoría es TEXTO libre con datalist de SUGERENCIA
+
+Las 6 categorías de café (`CATEGORIAS`) se ofrecen como `<datalist>` en la grilla, pero la
+columna es TEXTO libre: un import con una categoría fuera de la lista **se crea igual** (la
+categoría es un string en el modelo, no un enum). El datalist sugiere, no restringe — un
+prospecto de otra vertical no queda bloqueado por las categorías de Nayoli.
+
+## El placeholder de producto atrapa la CADENA VACÍA, no sólo el null
+
+`Product.imagen` es `String @default('')`, así que un producto sin foto trae `''`, **NO
+`null`**. El fallback con `??` (`imagen ?? '/images/…'`) **no atrapa `''`** —`??` sólo cae
+con null/undefined— así que el `<img src="">` pedía la URL de la PÁGINA y el producto se
+veía roto. **`imagenPortada(imagen)`** (`lib/producto-imagen.ts`) usa `imagen ||
+PLACEHOLDER_PRODUCTO` (truthy: atrapa `''`, null y undefined) y es el ÚNICO fallback —
+carrito, buscador, checkout y el hero del detalle lo usan—. El asset
+`public/images/placeholder-producto-v1.png` es la flor de marca sobre café; compone sobre
+el fondo del contenedor.
+
+- **Por qué importa acá:** el import crea productos con `imagen: ''` (§ el import de
+  catálogo), así que sin este fix cada producto importado nacería con la imagen rota. El
+  commit del placeholder fue por eso el PRIMERO de la tanda.
+- **Las cards con guarda propia (`{imagen && …}`) se dejaron:** ProductCard y las cards
+  del admin ya renderizan un fallback de marca crema cuando `imagen` es vacío; no es el
+  `<img src="">` roto, así que no necesitan el helper.
+
 ## Identidad: cada producto declara la suya
 
 El admin mostraba el favicon de Café Nayoli aunque su chrome ya fuera Duna. La
