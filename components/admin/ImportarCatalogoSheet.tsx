@@ -1,21 +1,21 @@
 'use client';
-import { useState } from 'react';
-import { Upload, Trash2, CheckCircle2, AlertCircle, MinusCircle } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Upload, Trash2, CheckCircle2, AlertCircle, MinusCircle, FileUp } from 'lucide-react';
 import { DunaSheet } from '@/components/admin/DunaSheet';
 import { CATEGORIAS } from '@/constants/product';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import type { ResultadoImport } from '@duna/core/product-import';
-import { parsear, detectarSep, motivoInvalida, SEP_LABEL, type Sep, type FilaGrid } from '@/lib/productos/import-parse';
+import { parsear, sepDeArchivo, motivoInvalida, SEP_LABEL, type Sep, type FilaGrid } from '@/lib/productos/import-parse';
 
-// Import de catálogo pegable. El caso real: montar la tienda de un prospecto con SU
-// catálogo copiado a mano. La forma es PEGAR → GRILLA editable → revisar → importar.
+// Import de catálogo. El caso real: montar la tienda de un prospecto con SU catálogo
+// (Instagram, un menú, una lista de WhatsApp, un CSV que mandó). DOS ENTRADAS al MISMO
+// sitio —pegar o subir un archivo—, no dos caminos: las dos producen `FilaGrid[]`,
+// caen en la MISMA grilla editable y pasan la MISMA validación (`motivoInvalida` acá,
+// re-validada por fila en el endpoint). El parseo vive en `lib/productos/import-parse`.
 //
-// EL PARSEO ES TSV-FIRST, PERO NUNCA EN SILENCIO. El dato limpio sale de una hoja de
-// cálculo (copiar de una hoja da TSV), así que el default corta por TAB. Pero la grilla
-// MUESTRA el resultado del parseo y es EDITABLE, así que nada se importa mal-parseado sin
-// que el operador lo vea: si el separador no fue el correcto, lo cambia acá y RE-VE el
-// parseo. Una línea SIN separador es una fila de sólo-Nombre (pegar una lista de nombres
-// de un chat → cada línea un nombre, el precio y la categoría se completan en la grilla).
+// EL SEPARADOR CORTA COLUMNAS, NO PRODUCTOS. Un producto es una LÍNEA; el separador
+// corta cada línea en Nombre·Precio·Categoría. La interfaz nombra los dos ejes y el
+// default es Tab (coma opt-in), para que pegar tres nombres no se lea como tres columnas.
 
 type Fila = FilaGrid;
 const COLS: { campo: keyof Fila; label: string; ancho: string }[] = [
@@ -29,25 +29,40 @@ const COLS: { campo: keyof Fila; label: string; ancho: string }[] = [
 export function ImportarCatalogoSheet({ abierto, onCerrar, onImportado }: {
   abierto: boolean; onCerrar: () => void; onImportado: () => void;
 }) {
-  const [crudo, setCrudo]       = useState('');
-  const [sep, setSep]           = useState<Sep>('tab');
-  const [filas, setFilas]       = useState<Fila[]>([]);
+  const [crudo, setCrudo]         = useState('');
+  const [sep, setSep]             = useState<Sep>('tab');
+  const [filas, setFilas]         = useState<Fila[]>([]);
   const [resultado, setResultado] = useState<ResultadoImport | null>(null);
-  const [errorGlobal, setError] = useState<string | null>(null);
+  const [errorGlobal, setError]   = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const guarda = useAccionGuardada();
 
-  const reset = () => { setCrudo(''); setFilas([]); setResultado(null); setError(null); };
+  const reset  = () => { setCrudo(''); setFilas([]); setResultado(null); setError(null); if (fileRef.current) fileRef.current.value = ''; };
   const cerrar = () => { reset(); onCerrar(); };
+
+  // El default SIEMPRE es Tab (no se auto-detecta la coma: convertía tres nombres en
+  // tres columnas sin que nadie lo eligiera). El operador cambia a Coma/`;` si hace falta.
+  const cargar = (texto: string, s: Sep) => { setCrudo(texto); setSep(s); setFilas(parsear(texto, s)); setResultado(null); setError(null); };
 
   const alPegar = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const texto = e.clipboardData.getData('text');
     if (!texto.trim()) return;
     e.preventDefault();
-    const s = detectarSep(texto);
-    setCrudo(texto); setSep(s); setFilas(parsear(texto, s)); setResultado(null); setError(null);
+    cargar(texto, 'tab');
   };
+
+  // Un archivo entra por la MISMA puerta: se lee en el CLIENTE (sin subirlo), se parsea
+  // igual y cae en la grilla. El separador sale de la EXTENSIÓN (.csv → coma), que es
+  // leer el formato, no adivinar el contenido.
+  const alArchivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const texto = await f.text();
+    cargar(texto, sepDeArchivo(f.name));
+  };
+
   // Cambiar el separador RE-PARSEA el texto crudo (descarta la grilla actual a propósito:
-  // si el separador estaba mal, las columnas estaban mal). Se cambia justo tras pegar.
+  // si el separador estaba mal, las columnas estaban mal).
   const cambiarSep = (s: Sep) => { setSep(s); setFilas(parsear(crudo, s)); setResultado(null); };
 
   const editar = (i: number, campo: keyof Fila, valor: string) =>
@@ -71,45 +86,66 @@ export function ImportarCatalogoSheet({ abierto, onCerrar, onImportado }: {
 
   const resPorFila = new Map((resultado?.resultados ?? []).map(r => [r.fila, r]));
   const gridCols = COLS.map(c => c.ancho).join(' ') + ' auto';
+  const ejemplo = filas[0]; // la 1ª fila leída, para el ejemplo vivo del separador
 
   return (
     <DunaSheet abierto={abierto} onCerrar={cerrar} titulo="Importar catálogo"
-               descripcion="Pega tu lista de productos y revísala antes de crearla.">
+               descripcion="Pega tu lista o sube un archivo y revísalo antes de crearlo.">
       <div className="duna-sheet__body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-4)' }}>
 
         {filas.length === 0 ? (
-          // PASO 1 · pegar. El formato se dice ANTES de pegar, no después de fallar.
+          // PASO 1 · entrar los datos. Los DOS ejes se dicen ANTES de pegar, no después de fallar.
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)' }}>
             <p className="duna-sub" style={{ margin: 0 }}>
-              Pega desde una <strong>hoja de cálculo</strong> — columnas en este orden:
-              <strong> Nombre · Precio · Categoría</strong> (SKU y Stock opcionales).
+              <strong>Un producto por línea.</strong> En cada línea, las columnas van en este
+              orden: <strong>Nombre · Precio · Categoría</strong> (SKU y Stock opcionales),
+              separadas por tabulación —lo que sale de copiar una hoja de cálculo—.
               ¿Copiaste de un chat? Pega los <strong>nombres uno por línea</strong> y completa
-              el precio y la categoría acá.
+              el precio y la categoría en la grilla.
             </p>
             <textarea
               className="duna-input" rows={8} autoFocus
               placeholder={"Café Huila 500 g\t28000\tcafe_grano\nCombo Desayuno\t35000\tcaja_regalo\n…"}
               onPaste={alPegar}
-              onChange={e => { const t = e.target.value; const s = detectarSep(t); setCrudo(t); setSep(s); setFilas(parsear(t, s)); }}
+              onChange={e => cargar(e.target.value, 'tab')}
               style={{ fontFamily: 'var(--duna-font-mono)', fontSize: '0.8rem', whiteSpace: 'pre' }}
             />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)' }}>
+              <span className="duna-caption">o</span>
+              <button type="button" className="duna-btn duna-btn--ghost" onClick={() => fileRef.current?.click()}>
+                <FileUp className="w-4 h-4" /> Subir un archivo (.csv)
+              </button>
+              <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
+                     onChange={alArchivo} style={{ display: 'none' }} />
+            </div>
           </div>
         ) : (
           <>
-            {/* Separador visible: si el pegado no era TSV, el operador cambia y RE-VE. */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', flexWrap: 'wrap' }}>
-              <span className="duna-caption">Separado por:</span>
-              {(['tab', 'coma', 'puntoycoma'] as Sep[]).map(s => (
-                <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
-                  <input type="radio" name="sep-import" checked={sep === s}
-                         onChange={() => cambiarSep(s)} />
-                  <span className="duna-body-sm">{SEP_LABEL[s]}</span>
-                </label>
-              ))}
-              <span className="duna-caption" style={{ marginLeft: 'auto' }}>
-                {listos} {listos === 1 ? 'listo' : 'listos'}
-                {problemas > 0 && <span style={{ color: 'var(--duna-bad-ink, var(--duna-bad))' }}> · {problemas} con problemas</span>}
-              </span>
+            {/* Separador: nombra QUÉ separa (columnas), y el ejemplo vivo muestra cómo quedó. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', flexWrap: 'wrap' }}>
+                <span className="duna-caption">Columnas separadas por:</span>
+                {(['tab', 'coma', 'puntoycoma'] as Sep[]).map(s => (
+                  <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                    <input type="radio" name="sep-import" checked={sep === s} onChange={() => cambiarSep(s)} />
+                    <span className="duna-body-sm">{SEP_LABEL[s]}</span>
+                  </label>
+                ))}
+                <span className="duna-caption" style={{ marginLeft: 'auto' }}>
+                  {listos} {listos === 1 ? 'listo' : 'listos'}
+                  {problemas > 0 && <span style={{ color: 'var(--duna-bad-ink, var(--duna-bad))' }}> · {problemas} con problemas</span>}
+                </span>
+              </div>
+              {/* EJEMPLO VIVO: la 1ª fila leída con el separador actual. Si son nombres en
+                  columnas equivocadas, el error se ve acá, en el momento de elegir. */}
+              {ejemplo && !resultado && (
+                <p className="duna-caption" style={{ margin: 0 }}>
+                  Tu primera fila se leyó así — Nombre «<strong>{ejemplo.nombre || '—'}</strong>»
+                  {' · '}Precio «{ejemplo.precio || '—'}»
+                  {' · '}Categoría «{ejemplo.categoria || '—'}». ¿No cuadra? Cambia el separador
+                  o pon un producto por línea.
+                </p>
+              )}
             </div>
 
             {/* La grilla editable. Cada fila muestra su estado tras importar. */}
@@ -130,7 +166,7 @@ export function ImportarCatalogoSheet({ abierto, onCerrar, onImportado }: {
                       {COLS.map(c => (
                         <input key={c.campo} className="duna-input" value={f[c.campo]}
                                onChange={e => editar(i, c.campo, e.target.value)}
-                               aria-invalid={c.campo === 'categoria' && !f.categoria.trim() ? true : c.campo === 'nombre' && !f.nombre.trim() ? true : undefined}
+                               aria-invalid={c.campo === 'nombre' && !f.nombre.trim() ? true : c.campo === 'categoria' && !f.categoria.trim() ? true : undefined}
                                list={c.campo === 'categoria' ? 'cats-import' : undefined}
                                style={{ padding: '4px 8px', fontSize: '0.82rem' }} />
                       ))}
