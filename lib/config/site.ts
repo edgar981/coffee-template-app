@@ -65,10 +65,12 @@ export const siteConfig = {
   },
 
   footerNav: {
+    // C3: los 2 atajos de categoría café ("Café en Grano"/"Café Molido" → cat=…) se RETIRARON —
+    // eran literales café, y footerNav es ESTRUCTURA estática que StoreFooter lee sin tocar el
+    // catálogo; derivar links de categoría exigiría pasarle el catálogo al footer. Un cliente que
+    // quiera atajos de categoría en el footer es footerNav→editable (su propio ítem), no esto.
     tienda: [
       { label: "Todos los productos", href: "/tienda" },
-      { label: "Café en Grano", href: "/tienda?cat=cafe_grano" },
-      { label: "Café Molido", href: "/tienda?cat=cafe_molido" },
       { label: "Suscripciones", href: "/suscripciones" },
     ] satisfies NavLink[],
 
