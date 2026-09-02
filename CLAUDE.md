@@ -1334,6 +1334,31 @@ puesto a mano— el estático sale más barato; la derivación paga a **escala**
 se configuran solas). NO antes: construir el motor para un solo cliente es infraestructura por
 adelantado, para un ícono que se pone una vez.
 
+### 57. Importar XLSX en el import de catálogo — el lector de Excel
+
+El import de catálogo (§ Config del negocio no; vive en `/admin/productos`) acepta **pegar**
+y **subir CSV/TSV/TXT**, que se leen en el cliente y convergen en `FilaGrid[]` antes de
+cualquier validación (`lib/productos/import-parse.ts`, tokenizador RFC-4180 propio, sin
+dependencia). **Falta el `.xlsx`**: un prospecto que manda un Excel crudo tiene que
+"Guardar como CSV" primero (un clic, pero un paso).
+
+**Costo YA pagado: ninguno** — el CSV cubre el caso común (todo export de catálogo sale
+CSV o Google Sheets, que da CSV/TSV al copiar); el `.xlsx` directo es el caso más raro.
+
+**El censo del costo:** Excel NO es texto (es un ZIP de XML), así que exige LIBRERÍA. La
+de-facto es **SheetJS (`xlsx`)**, PESADA (~300 KB gzip, build completo); alternativa
+sólo-lectura más liviana, **`read-excel-file`** (archivo→filas 2D, sin el resto). **Pinnear
+el tamaño exacto antes de comprometerse** (hoy no hay ninguna instalada). El PLAYBOOK ya
+está resuelto: **`import()` DINÁMICO al elegir un `.xlsx`** —igual que jsPDF en el informe
+de Pagos—, así el bundle de Productos no la carga nunca; sólo baja si alguien sube un Excel.
+El lector convierte las celdas 2D a `FilaGrid[]` y de ahí en adelante es el MISMO pipeline
+(grilla editable → `motivoInvalida` → `/api/products/import` → `procesarFilasImport`). Es
+un LECTOR más, no una ruta paralela — la arquitectura ya está lista para recibirlo.
+
+**DISPARADOR: un prospecto que mande un `.xlsx` de verdad** (o que el "Guardar como CSV"
+resulte fricción real en uso). NO antes: cargar la librería para un caso que el CSV ya
+cubre es peso por adelantado.
+
 ## Config del negocio — `SiteSetting` (los planos editables)
 
 Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código

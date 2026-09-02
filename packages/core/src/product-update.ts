@@ -41,6 +41,18 @@ export function trae(body: Record<string, unknown>, campo: string): boolean {
 }
 
 /**
+ * Slug a partir del nombre. Es LA derivación del slug —una sola—: el POST de productos
+ * la hacía inline y el import la necesitaba, y dos formas de generar el mismo slug es la
+ * divergencia de siempre. Preserva el comportamiento existente TAL CUAL: minúsculas,
+ * espacios → `-`, y descarta lo que no sea `[a-z0-9-]`. OJO con el quirk conservado a
+ * propósito: los acentos se ELIMINAN, no se transliteran ("Café" → "caf"). Cambiarlo
+ * movería los slugs que el alta manual ya produce, así que es otra decisión, no ésta.
+ */
+export function slugDeNombre(nombre: string): string {
+  return nombre.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
+/**
  * Los campos que este PATCH debe escribir, ya normalizados.
  *
  * El manejo de cada valor PRESENTE es idéntico al que tenía el endpoint —esta

@@ -4,7 +4,7 @@ import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { sanitizeGaleria, MAX_GALERIA_IMAGENES } from '@duna/core/product-gallery';
 import { sanitizeOpciones, validarOpciones } from '@duna/core/moliendas-opciones';
-import { crearProductoConAsiento } from '@duna/core/product-update';
+import { crearProductoConAsiento, slugDeNombre } from '@duna/core/product-update';
 import type { Prisma } from '@duna/core';
 
 export async function GET() {
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   // `crearProductoConAsiento`).
   const product = await crearProductoConAsiento({
       nombre:      body.nombre,
-      slug:        body.slug || body.nombre.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+      slug:        body.slug || slugDeNombre(body.nombre),
       descripcion: body.descripcion  || '',
       categoria:   body.categoria,
       precio:      Number(body.precio)      || 0,
