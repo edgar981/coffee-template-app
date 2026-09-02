@@ -1,26 +1,36 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-09-02 (ONBOARDING POR-DESPLIEGUE, **TANDA B**: el IMPORT DE CATÁLOGO — lo único que un
-cliente nuevo haría solo, y lo que decide "día vs semana" para montar su tienda. `/admin/productos` gana
-**"Importar"**: pegar o subir un archivo (CSV/TSV/TXT), que convergen en `FilaGrid[]` **ANTES de validar** → grilla
-editable → éxito parcial, dedup por slug (`slugDeNombre`, la del alta manual), asiento inaugural. Pegar y archivo son
-DOS ENTRADAS al mismo sitio, no dos caminos; el archivo se lee en el CLIENTE (`file.text()`, sin subirlo → sin
-multipart ni el 4.5 MB del serverless). El SEPARADOR corta COLUMNAS, no productos: **default Tab, coma opt-in, sin
-auto-detector** (auto-coma convertía tres nombres pegados en tres columnas sin que nadie lo eligiera); la interfaz
-nombra los dos ejes ("Columnas separadas por" + "Un producto por línea" fijo + ejemplo vivo que re-dibuja la 1ª fila
-con el separador elegido). Un `.csv` arranca en coma por la EXTENSIÓN (`sepDeArchivo`), no por adivinar el contenido.
-**Tokenizador RFC-4180 propio (cero deps)** que arregla un defecto que YA existía: un pegado con `"Café, tueste
-medio",28000` se partía mal EN SILENCIO. El encabezado se salta con match EXACTO (dirección SEGURA: una fila de más
-—que se ve y se quita— antes que un producto perdido). La categoría es TEXTO libre con datalist de sugerencia (una
-categoría fuera de las 6 se crea igual). El PLACEHOLDER de producto ahora atrapa la CADENA VACÍA (`imagenPortada`,
-`||` no `??` — el import crea con `imagen:''`, y `??` no atrapaba `''`). XLSX → **backlog #57** (`import()` dinámico
-como jsPDF, converge en `FilaGrid[]` igual). capa 1 **792/792** · carril con `import-catalogo.test.ts` (éxito parcial
-+ dedup contra base real) · tsc + next build verde. **Gate visual del owner PASADO. En main (pendiente push):** el
-merge `--no-ff` de `feat/import-catalogo` (4 commits) + esta doctrina. **YA en main/producción:** TANDA A "un
-cliente nuevo no nace siendo Nayoli" (`998b95e`) — 4 defectos del código compartido (migración INSERT neutro, noindex
-gateado, cron sin fallback demo, redirects Nayoli borrados) + guardas de enlaces vacíos; verificado en vivo (noindex
-✓ en la demo con `NOINDEX=1`, cron ✓ 2xx). Lo ARTESANAL (íconos, mark, fuentes —**NO existe `fontPair`**—, `site.ts`)
-sigue siendo TANDA C.)
+**Actualizado:** 2026-09-02 (ONBOARDING POR-DESPLIEGUE, **TANDA C1**: presentaciones a SiteContent. GrindChooser
+—"¿Cómo tomas tu café?", las 2 tarjetas de presentación de la home— era la **ÚNICA sección hardcodeada de la home**;
+hero/Historia/Suscripción/Testimonios/galería YA eran dato editable. El outlier, no la regla. Pasa a la sección
+`presentaciones` de SiteContent, editable en `/admin/tienda` (borrador/publicar, visible/ocultable), en producción
+(`3588aee`). MODELADO: campos PLANOS (patrón brandStory), **NO un repeater** — el diagnóstico mostró que un repeater
+no puede dar defaults byte-idénticos: `resolverItems` devuelve `[]` sin fila (el default del array queda muerto,
+invariante #44 + hide-on-empty), así que la sección se ocultaría en vez de mostrar las 2 presentaciones de Nayoli.
+Cardinalidad FIJA (el grid asume 2) → campos planos, que SÍ renderizan sus defaults. Byte-idéntico verificado por
+TEST (deep-equal contra los literales de GrindChooser), no aseveración. `path` = ESTRUCTURA (`PRESENTACIONES_HREFS`);
+el `negocio` del alt llega por PROP, no por `useSiteSettings()` (el hook lanza en el árbol del admin de la vista
+previa; identidad, no se mueve a SiteContent). capa 1 **796/796** · tsc + next build verde · carril no aplica. Gate
+visual del owner PASADO. **footerNav NO se movió** (era commit 2 opcional, gate disparado — pasa a C3, ver el censo
+abajo). **YA en main/producción, antes:** TANDA B import de catálogo (`21f50b0`) y TANDA A "un cliente nuevo no nace
+siendo Nayoli" (`998b95e`).
+
+**EL CENSO DE TANDA C (de-Nayolificación de lo artesanal), partido en TRES por MECANISMO** — escrito acá porque el
+veredicto vivía en un chat perdido:
+- **C1 · Home a SiteContent (CERRADA):** GrindChooser → `presentaciones`. Era el único hardcode de la home.
+- **C2 · Tema por cliente:** fuentes (`fontPair`, que **no existe** — hoy Inter+Playfair literales en `globals.css`)
+  + `emailColors` + el mark inline del `Logo` + los 6 íconos de `public/`. Se **solapa con el Backlog #54** (motor de
+  favicon). Es la "capa de tema por cliente" de Mejoras post-multitenant; la paleta ya se mudó, esto la completa.
+- **C3 · Taxonomía (estructural):** las 6 categorías de café + el filtro **Tostión** (`ligero/medio/oscuro`). Ancho:
+  el tipo `ProductCategory`, las pestañas de `/tienda`, los labels (y su duplicación `CATEGORIAS` ≠ `CATEGORIA_LABELS`).
+  **`footerNav` ENTRA acá, NO en C2** — sus destinos (`cat=cafe_grano` / `cat=cafe_molido`) son taxonomía, así que
+  "labels editables, destinos fijos" dejaría a un cliente no-café con un footer que dice "Café en Grano". Mover
+  footerNav es mover taxonomía; va con C3. (Escrito para no re-litigar el "de paso".)
+- **EL ORDEN C2 vs C3 depende de UN dato:** si el segundo cliente es **cafetero**, C3 espera (solo cambian ASSETS =
+  C1 + C2 alcanzan); si **no** es cafetero, C3 es el bloqueante y **sube a segunda**. Sin ese dato, no se prioriza.
+
+**NO se tocan en ninguna sub-tanda hasta que les toque:** `emailColors`, `legalNav` (vacío para todos, capacidad
+futura, no un toque de Nayoli), íconos, mark, fuentes, categorías.
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
@@ -65,7 +75,7 @@ Vercel, `main` = producción).
 | `/admin/dashboard` | Completa ("Hoy" a la duna-os: hero + curva por hora + **TRES indicadores en fila** + dos columnas **"Necesita tu atención"** (lista transversal pedidos+stock) \| "Lo que más vendió hoy". Órdenes recientes RETIRADA) | Document-scroll |
 | `/admin/configuracion` | Completa. "Configuración" con DOS secciones: Datos del negocio (editor lectura↔edición) + Equipo y usuarios. Instant-save puro (identidad); los COLORES se mudaron a `/admin/tienda` | Document-scroll |
 | `/admin/perfil` | Completa (cuenta limpia + cambiar contraseña real) | Document-scroll |
-| `/admin/tienda` | Completa. **Colores de la tienda** (paleta del storefront, borrador/publicar) SOBRE el selector de página + Contenido del storefront (SiteContent), DOS páginas (selector Home/Nosotros): la home (hero · Historia · Suscripción · Testimonios) y /nosotros (historia larga · GALERÍA masonry con fotos y VÍDEO, apagable). Lectura en TARJETAS, edición en vista grande. Rail: "Tienda" suelto tras Crecimiento | Document-scroll |
+| `/admin/tienda` | Completa. **Colores de la tienda** (paleta del storefront, borrador/publicar) SOBRE el selector de página + Contenido del storefront (SiteContent), DOS páginas (selector Home/Nosotros): la home (hero · Historia · **Presentaciones** · Suscripción · Testimonios) y /nosotros (historia larga · GALERÍA masonry con fotos y VÍDEO, apagable). Lectura en TARJETAS, edición en vista grande. Rail: "Tienda" suelto tras Crecimiento | Document-scroll |
 
 ### Pendientes de rediseño
 **Ninguna.** Todas las verticales del panel están en lenguaje Duna; no queda una

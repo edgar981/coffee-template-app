@@ -1359,6 +1359,28 @@ un LECTOR más, no una ruta paralela — la arquitectura ya está lista para rec
 resulte fricción real en uso). NO antes: cargar la librería para un caso que el CSV ya
 cubre es peso por adelantado.
 
+### 58. El ENCUADRE de las imágenes subidas — punto focal, no recorte con caja
+
+**Hecho observado (C1, 2026-09-02):** una imagen subida a una sección editable se ve RECORTADA
+en el storefront (las celdas usan `object-cover` con proporción fija) y el cliente **no puede
+elegir QUÉ parte se muestra**. Una foto vertical de una bolsa de café puede quedar decapitada, y
+hoy no hay control.
+
+**Aplica a TODO campo `tipo:'imagen'`**, no sólo a `presentaciones`: hero, brandStory (el collage
+2×2), `presentaciones` (las 2 tarjetas), la galería de /nosotros. Es transversal a SiteContent.
+
+**Alcance MÍNIMO escrito, para no sobre-ingeniar:** un **PUNTO FOCAL** —clic en la imagen del
+editor marca el punto que debe quedar visible → se guarda como `object-position` (dos números,
+x/y en %) y el storefront lo aplica al `object-cover` de esa celda—. **NO** un editor de recorte
+con caja arrastrable, zoom, ni relaciones de aspecto por breakpoint: eso es una pieza mucho mayor
+para un problema que el punto focal resuelve. El punto focal es un par de números por imagen,
+passthrough por el resolver (como `w`/`h` de la galería), declarado en el schema o se descarta.
+
+**Costo YA pagado: ninguno** —es una mejora, no un defecto—; hoy las imágenes de Nayoli están
+encuadradas bien porque se eligieron para estas celdas. **DISPARADOR: la PRIMERA imagen de un
+cliente real que quede mal encuadrada.** No antes: sin una foto que se vea mal, es infraestructura
+por adelantado.
+
 ## Config del negocio — `SiteSetting` (los planos editables)
 
 Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código
@@ -1646,6 +1668,43 @@ reseñas falsas "de relleno"—. La contrapartida: **verificar el render de un r
 tocando los defaults** (son inertes); exige **sembrar datos REVERSIBLES** en la base (§ la verificación
 del display de 5 estrellas se hizo así: seed → check → restore). Es la vuelta de tuerca de
 "defaults-como-fallback": valen para copy, y en un repeater no valen para nada.
+
+### La BIFURCACIÓN de cardinalidad: FIJA → campos planos, VARIABLE → repeater
+
+Cerrada con `presentaciones` (C1, 2026-09-02: GrindChooser → SiteContent, la última sección
+hardcodeada de la home). La regla, para que la próxima sección NO la re-litigue:
+
+- **Cardinalidad VARIABLE (agregar/quitar) → REPEATER** (testimonios, galería). Sus **defaults
+  JAMÁS se muestran**: `resolverItems` devuelve `[]` sin fila y `seccionEsVisible` oculta el array
+  vacío (hide-on-empty) — el invariante #44, ESTRUCTURAL, que impide hornear prueba social falsa.
+- **Cardinalidad FIJA (N tarjetas, el layout asume N) → CAMPOS PLANOS** (brandStory `imagen1..4`,
+  los bullets de subscriptionCTA, `presentaciones` = `label1/copy1/imagen1` + `label2/copy2/imagen2`).
+  Sus defaults **SÍ se muestran** (rama `requerido` del resolver), así que son los ÚNICOS que pueden
+  dar **byte-idéntico sin fila**.
+
+**La consecuencia que DECIDE el modelado: si necesitás defaults byte-idénticos, NO puede ser un
+repeater.** `presentaciones` es EXACTAMENTE 2 (el grid `md:grid-cols-2` lo asume, "sin agregar ni
+quitar"), su regla de onboarding es "sin fila, la home queda idéntica", y un repeater la habría
+OCULTADO sin fila en vez de mostrar las 2 tarjetas de Nayoli. Los `path` van en código
+(`PRESENTACIONES_HREFS`, estructura, precedente HERO_HREFS); mismo trato de layout-fijo que las 3
+tarjetas de plan (§ Backlog #49, `sm:grid-cols-3` asume 3). **Verificable por deep-equal** contra los
+literales viejos (un repeater sería INVERIFICABLE — su default no se muestra, § HALLAZGO DE MÉTODO).
+
+**El `{negocio}` del alt llega por PROP, no por `useSiteSettings()`** — mismo caso que NosotrosGaleria
+(§ el {negocio} del fallback llega por PROP). GrindChooser se monta también en la vista previa del
+panel (árbol admin SIN el `SiteSettingsProvider` del storefront → el hook LANZARÍA). La home pasa
+`negocio={nombre}`; el preview va sin prop → alt genérico. El nombre sigue siendo IDENTIDAD (no se
+mueve a SiteContent): sólo cambia POR DÓNDE se lee. Y el componente gana el switch `useIsPreview`
+(animate vs whileInView) o el preview quedaría en blanco (§ La PANTALLA — PreviewProvider).
+
+**EL TRIPWIRE PROTEGE CONTRA LA INSTRUCCIÓN, NO SÓLO CONTRA EL TERRENO.** El spec de C1 decía literal
+"un repeater de EXACTAMENTE 2 ítems" — un ERROR de modelado de la asesoría/owner, no una sorpresa del
+código. El diagnóstico-antes-de-fix ("PARA y repórtalo antes de inventar uno") lo atrapó ANTES de
+escribir un resolver que habría roto byte-idéntico. Es la MISMA familia que *lo escrito no prueba lo
+que corre*, ahora en su TERCERA fuente: el **artefacto** (§ PRECONDICIÓN — el `.next` rancio), la
+**base** (§ Bases de datos — el rol de Neon que el nombre de la rama no prueba), y ahora el **SPEC**
+(una instrucción que el diagnóstico contradice). El tripwire no confía en el terreno NI en la orden:
+verifica, y cuando el patrón existente no cubre el caso, PARA — no inventa una forma nueva.
 
 ### Las imágenes
 
