@@ -2,7 +2,6 @@
 import { useRef, useState } from 'react';
 import { Upload, Trash2, CheckCircle2, AlertCircle, MinusCircle, FileUp } from 'lucide-react';
 import { DunaSheet } from '@/components/admin/DunaSheet';
-import { CATEGORIAS } from '@/constants/product';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import type { ResultadoImport } from '@duna/core/product-import';
 import { parsear, sepDeArchivo, motivoInvalida, SEP_LABEL, type Sep, type FilaGrid } from '@/lib/productos/import-parse';
@@ -26,8 +25,12 @@ const COLS: { campo: keyof Fila; label: string; ancho: string }[] = [
   { campo: 'stock',     label: 'Stock',     ancho: 'minmax(4rem,0.7fr)' },
 ];
 
-export function ImportarCatalogoSheet({ abierto, onCerrar, onImportado }: {
-  abierto: boolean; onCerrar: () => void; onImportado: () => void;
+export function ImportarCatalogoSheet({ abierto, categorias, onCerrar, onImportado }: {
+  abierto: boolean;
+  /** Categorías EXISTENTES del catálogo (derivadas), sugeridas en el datalist — la categoría es
+   *  texto libre, no un set cerrado. Un catálogo vacío no sugiere nada; el cliente escribe la suya. */
+  categorias: string[];
+  onCerrar: () => void; onImportado: () => void;
 }) {
   const [crudo, setCrudo]         = useState('');
   const [sep, setSep]             = useState<Sep>('tab');
@@ -179,7 +182,7 @@ export function ImportarCatalogoSheet({ abierto, onCerrar, onImportado }: {
                 })}
               </div>
               <datalist id="cats-import">
-                {Object.entries(CATEGORIAS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                {categorias.map(c => <option key={c} value={c} />)}
               </datalist>
             </div>
 

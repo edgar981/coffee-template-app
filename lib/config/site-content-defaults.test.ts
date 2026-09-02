@@ -450,8 +450,13 @@ test('presentaciones: sin fila, los defaults resueltos reproducen los literales 
   assert.deepEqual(r.presentaciones, PRESENTACIONES_ANTES);
 });
 
-test('presentaciones: los paths son ESTRUCTURA y son los mismos que las OPCIONES viejas', () => {
-  assert.deepEqual(PRESENTACIONES_HREFS, { path1: '/tienda?cat=cafe_grano', path2: '/tienda?cat=cafe_molido' });
+test('presentaciones: los paths son ESTRUCTURA y apuntan a las categorías reales de Nayoli (C3)', () => {
+  // C3: la taxonomía se deriva del catálogo; el seed de Nayoli pasó a labels limpios, así que los
+  // paths de la home apuntan a "Café en Grano"/"Café Molido" (encoded), no a la vieja clave `cafe_grano`.
+  assert.deepEqual(PRESENTACIONES_HREFS, {
+    path1: `/tienda?cat=${encodeURIComponent('Café en Grano')}`,
+    path2: `/tienda?cat=${encodeURIComponent('Café Molido')}`,
+  });
 });
 
 test('presentaciones: es OCULTABLE (una tienda no-café la apaga) y NO es repeater (cardinalidad fija)', () => {

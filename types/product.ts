@@ -1,10 +1,7 @@
-export type ProductCategory =
-  | "cafe_bolsa"
-  | "cafe_grano"
-  | "cafe_molido"
-  | "cold_brew"
-  | "caja_regalo"
-  | "suscripcion";
+// `ProductCategory` (union cerrada de 6 categorías café) se RETIRÓ en C3: la taxonomía se DERIVA
+// del catálogo (§ lib/productos/categorias), no se declara. `Product.categoria` es ahora `string`
+// libre —el cliente escribe su categoría en el import, y la columna ya era `String` en la base—.
+// `RoastLevel` SE QUEDA: es el vocabulario de un cliente CAFETERO (la Tostión), que sigue existiendo.
 
 export type RoastLevel =
   | "ligero"
@@ -24,7 +21,7 @@ export interface Product {
   id: string;
   nombre: string;
   slug: string;
-  categoria: ProductCategory;
+  categoria: string;
   precio: number;
   costo: number;
   /**
@@ -93,7 +90,7 @@ export interface Product {
 export type ProductForm = {
   nombre:      string;
   descripcion: string;
-  categoria:   ProductCategory | '';
+  categoria:   string;
   precio:      string;
   costo:       string;
   sku:         string;

@@ -270,7 +270,9 @@ export default function ProductPage({
                 <div>
                   <div className="flex flex-wrap gap-3">
                     {product.proceso && <Chip label="Proceso" value={product.proceso} />}
-                    {product.tostado && <Chip label="Tostión" value={TOSTION_LABELS[product.tostado]} />}
+                    {/* Sólo si `tostado` es uno de los 4 niveles conocidos: un valor fuera de RoastLevel
+                        (un catálogo no-café) NO pinta "Tostión: undefined" (C3, hardening). */}
+                    {product.tostado && TOSTION_LABELS[product.tostado] && <Chip label="Tostión" value={TOSTION_LABELS[product.tostado]} />}
                     {product.altitudMin != null && product.altitudMax != null && (
                       <Chip label="Altitud" value={`${product.altitudMin.toLocaleString('es-CO')}–${product.altitudMax.toLocaleString('es-CO')} m s.n.m.`} />
                     )}
