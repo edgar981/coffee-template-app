@@ -1849,6 +1849,21 @@ flujo FINAL, tras evaluar y retirar un iframe intermedio (ver "por qué se retir
 - **El editor VISUAL (editar sobre la vista) — al backlog** (§ Backlog): se evaluó y se dejó para
   su propia tanda.
 
+- **LA VISTA PREVIA NO NAVEGA — los `<a>` bajo `EscalaDesktop` son INERTES por diseño** (fix de
+  producción, 2026-09-02). La previa monta componentes REALES del storefront en el árbol del admin
+  (el iframe se retiró), así que sus `<Link>` de next/link **navegaban el router de verdad** y un clic
+  en "Explorar café" sacaba al owner del panel. Una previa no es un storefront navegable: navegar
+  DENTRO exigiría estado de ruteo que no existe y no se construye. El fix vive en **`EscalaDesktop`
+  (la frontera COMÚN)** —`onClickCapture`/`onAuxClickCapture` que neutraliza los clics sobre un `<a>`
+  (`closest('a')` → `preventDefault` + `stopPropagation`; el capture corta next/link antes de su onClick
+  de burbuja)—, **NO en los componentes del storefront** (un `<a>` es HTML genérico, no conocimiento del
+  admin) **ni por consumidor**: dos de las tres superficies ya eran inertes por `pointer-events:none`
+  (la tarjeta compacta, el `MarcoStorefront` de la paleta) y un fix por-consumidor podía divergir; la
+  frontera única lo hace uniforme para todo consumidor/modo, presente y futuro. El aspecto NO cambia (el
+  enlace sigue siendo un `<a>` con su cursor); sólo no navega. El clic de la TARJETA que abre "Editar"
+  pasa intacto (su contenido es `pointer-events:none`, el clic va al thumb ancestro; el handler sólo
+  actúa sobre un `<a>`).
+
 ### La propagación al storefront — el storefront es DINÁMICO (defecto medido y arreglado)
 
 El storefront **era ESTÁTICO** —`○ /` y todas sus rutas salvo el detalle de producto—, y eso

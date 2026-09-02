@@ -15,6 +15,11 @@ visual del owner PASADO. **footerNav NO se movió** (era commit 2 opcional, gate
 abajo). **YA en main/producción, antes:** TANDA B import de catálogo (`21f50b0`) y TANDA A "un cliente nuevo no nace
 siendo Nayoli" (`998b95e`).
 
+**FIX de producción (2026-09-02, `53e5601`):** en la vista previa de `/admin/tienda`, un clic en un enlace del
+storefront (p. ej. "Explorar café") sacaba al owner del panel — la previa monta componentes REALES cuyos `<Link>`
+navegan de verdad (el iframe se retiró). Los `<a>` bajo `EscalaDesktop` (la frontera común de las previas) son ahora
+INERTES por diseño; el storefront no se tocó. (§ CLAUDE.md · La VISTA PREVIA NO NAVEGA.) NO es C2/C3.
+
 **EL CENSO DE TANDA C (de-Nayolificación de lo artesanal), partido en TRES por MECANISMO** — escrito acá porque el
 veredicto vivía en un chat perdido:
 - **C1 · Home a SiteContent (CERRADA):** GrindChooser → `presentaciones`. Era el único hardcode de la home.
