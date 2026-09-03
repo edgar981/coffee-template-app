@@ -16,7 +16,10 @@ export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean }[] = [
   { key: 'nosotros', label: 'Nosotros', apagable: true },
 ];
 
-export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; hint: string };
+// `categoria: true` → el campo es un DESTINO de categoría: la cáscara lo renderiza con el
+// CategoriaCombobox (la lista real del catálogo) y avisa si el valor ya no existe (§ el destino de
+// Presentaciones es DATO). Excluye `textarea`.
+export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; hint: string };
 export type CampoImagen = { name: string; label: string };
 
 // Descriptor de un campo DE ÍTEM (para el RepeaterEditor). `tipo` es GENÉRICO (no nombra ningún
@@ -108,8 +111,10 @@ const BRAND_STORY: SeccionConfig = {
 };
 
 // Presentaciones ("¿Cómo tomas tu café?"): DOS tarjetas de cardinalidad FIJA → campos PLANOS con
-// imágenes (patrón brandStory), NO un repeater. Cada tarjeta es un trío nombre+descripción+imagen; los
-// destinos (`path`) son ESTRUCTURA (PRESENTACIONES_HREFS), no se editan.
+// imágenes (patrón brandStory), NO un repeater. Cada tarjeta es nombre + descripción + imagen + el
+// DESTINO (`categoria`, editable con el combobox de categorías reales; § el destino de Presentaciones
+// es DATO). El destino dejó de ser estructura porque un path fijo se rompe cuando el cliente renombra
+// la categoría.
 const PRESENTACIONES: SeccionConfig = {
   seccion: 'presentaciones',
   pagina: 'home',
@@ -122,10 +127,12 @@ const PRESENTACIONES: SeccionConfig = {
   campos: [
     { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
     { name: 'titulo',  label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'label1',  label: 'Presentación 1 · nombre',       hint: 'Ej. "En grano". Vacío: se usa el texto por defecto.' },
-    { name: 'copy1',   label: 'Presentación 1 · descripción',  textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'label2',  label: 'Presentación 2 · nombre',       hint: 'Ej. "Molido". Vacío: se usa el texto por defecto.' },
-    { name: 'copy2',   label: 'Presentación 2 · descripción',  textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'label1',     label: 'Presentación 1 · nombre',       hint: 'Ej. "En grano". Vacío: se usa el texto por defecto.' },
+    { name: 'copy1',      label: 'Presentación 1 · descripción',  textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'categoria1', label: 'Presentación 1 · lleva a',      categoria: true, hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
+    { name: 'label2',     label: 'Presentación 2 · nombre',       hint: 'Ej. "Molido". Vacío: se usa el texto por defecto.' },
+    { name: 'copy2',      label: 'Presentación 2 · descripción',  textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'categoria2', label: 'Presentación 2 · lleva a',      categoria: true, hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
   ],
 };
 

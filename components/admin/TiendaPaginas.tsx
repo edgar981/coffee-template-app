@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import TiendaSeccionEditor from '@/components/admin/TiendaSeccionEditor';
 import TogglePagina from '@/components/admin/TogglePagina';
 import { SECCIONES_TIENDA, PAGINAS, type PaginaKey } from '@/components/admin/tienda-secciones';
+import { getProducts } from '@/lib/api/products';
+import { categoriasDelCatalogo } from '@/lib/productos/categorias';
 
 // El editor del storefront agrupado por PÁGINA (Home / Nosotros). El selector se renderiza SIEMPRE:
 // el config define siempre ≥2 páginas (Home con sus secciones, Nosotros con la suya), así que hay
@@ -13,6 +15,21 @@ export default function TiendaPaginas() {
   const [pagina, setPagina] = useState<PaginaKey>('home');
   const paginaMeta = PAGINAS.find(p => p.key === pagina)!;
   const secciones = SECCIONES_TIENDA.filter(c => c.pagina === pagina);
+
+  // Las categorías DERIVADAS del catálogo, para el campo-destino de Presentaciones (el combobox + el
+  // aviso de destino inexistente). Se cargan UNA vez —misma fuente que /admin/productos
+  // (`getProducts` + `categoriasDelCatalogo`), sin endpoint nuevo—. Si el fetch falla, `categoriasListas`
+  // queda en false: el combobox sólo deja escribir y el aviso NO se muestra (no afirmar sobre un
+  // catálogo que no tenemos).
+  const [categorias, setCategorias] = useState<string[]>([]);
+  const [categoriasListas, setCategoriasListas] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    getProducts()
+      .then(ps => { if (vivo) { setCategorias(categoriasDelCatalogo(ps)); setCategoriasListas(true); } })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
 
   return (
     <div>
@@ -36,7 +53,7 @@ export default function TiendaPaginas() {
 
       <div style={{ display: 'grid', gap: 'var(--duna-space-8)' }}>
         {secciones.map(config => (
-          <TiendaSeccionEditor key={config.seccion} config={config} />
+          <TiendaSeccionEditor key={config.seccion} config={config} categorias={categorias} categoriasListas={categoriasListas} />
         ))}
       </div>
     </div>
