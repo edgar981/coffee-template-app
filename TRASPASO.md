@@ -1,6 +1,18 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-09-03 (**PRESENTACIONES cardinalidad VARIABLE 2-4 CERRADA** — tres ítems del gate anterior en
+**Actualizado:** 2026-09-04 (**CUENTA BANCARIA config + RATING borrado CERRADA** — dos defectos reales que el censo de
+avisos destapó, más urgentes que la tanda que los destapó. (1) El checkout mostraba una cuenta Bancolombia HARDCODEADA
+falsa en la ruta del dinero → 4 campos editables en SiteSetting (`bancoNombre/TipoCuenta/NumeroCuenta/Titular`, todos
+`String?`); `opcionTransferencia` (puro, capa 1) muestra el método SÓLO con banco+tipo+número (titular opcional),
+vacío → no se muestra; el seed NO trae cuenta (NULL); migración ADITIVA. (2) El rating fabricado ("4.9 · 124 reseñas"
+en detalle y card) se BORRÓ —prueba social falsa, familia #44, publicidad engañosa—, NO configurable; `Star` huérfano
+retirado, sin hueco de layout. Doctrina: la cuenta es DATO del tenant + la PRÁCTICA del censo periódico de datos
+falsos. Backlog **#64** (reseñas reales: modelo + verificación de compra + moderación) y **#65** (aviso de config del
+Dashboard, Fase 1 = #1+#2 del censo + los defectos dormidos). capa 1 **814/814** · tsc + next build verde. Gate del
+owner PASADO, mergeada a `main` `--no-ff`. **Sigue de inmediato la tanda del checkout: scroll al cambiar de paso +
+métodos de pago encender/apagar — en su rama.**
+
+**ANTES — PRESENTACIONES cardinalidad VARIABLE 2-4 CERRADA.** Tres ítems del gate anterior en
 uso real. (1) Placeholder del campo categoría → "Elige una categoría". (2) El destino de cada tarjeta se rotula por
 el TÍTULO en vivo de su tarjeta —«En grano» lleva a:—, no por posición ("Presentación 1", que el owner no sabía si
 era izq o der); título vacío → fallback. (3) **CARDINALIDAD VARIABLE 2-4**: revierte el "exactamente 2" de C1 con dato
