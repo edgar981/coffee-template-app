@@ -8,7 +8,6 @@ import { imagenPortada } from "@/lib/producto-imagen";
 
 import {
   ShoppingBag,
-  Star,
   Minus,
   Plus,
   Heart,
@@ -257,12 +256,6 @@ export default function ProductPage({
               <div>
                 <p className="text-sm text-[var(--sf-acento-texto)] mb-1 capitalize">{product.origen || product.categoria?.replace('_', ' ')}</p>
                 <h1 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-tinta)] leading-tight">{product.nombre}</h1>
-              </div>
-
-              {/* Rating */}
-              <div className="flex items-center gap-3">
-                <div className="flex gap-1">{Array(5).fill(0).map((_, i) => <Star key={i} className="w-4 h-4 fill-[var(--sf-tostado)] text-[var(--sf-tostado)]" />)}</div>
-                <span className="text-sm text-[var(--sf-texto)]">4.9 · 124 reseñas</span>
               </div>
 
               {/* Ficha técnica — pills compactas (datos estructurados del empaque) */}

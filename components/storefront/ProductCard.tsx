@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { ShoppingBag, SlidersHorizontal, Star } from "lucide-react";
+import { ShoppingBag, SlidersHorizontal } from "lucide-react";
 
 import { motion } from "framer-motion";
 
@@ -166,18 +166,10 @@ export default function ProductCard({
               )}
             </div>
 
-            {!product.disponible ? (
+            {!product.disponible && (
               <span className="text-xs text-gray-400">
                 Agotado
               </span>
-            ) : (
-              <div className="flex items-center gap-0.5">
-                <Star className="h-3 w-3 fill-[var(--sf-tostado)] text-[var(--sf-tostado)]" />
-
-                <span className="text-xs text-[var(--sf-texto)]">
-                  4.9
-                </span>
-              </div>
             )}
           </div>
         </div>
