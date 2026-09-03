@@ -24,13 +24,13 @@ import { AdjustStockModal } from '@/components/admin/AdjustStockModal';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { ImageLightbox } from '@/components/admin/ImageLightbox';
 import { ProductoAccionesMenu } from '@/components/admin/ProductoAccionesMenu';
-import { CATEGORIAS } from '@/constants/product';
 import {
   CARRILES_PRODUCTOS, aplicarCarril, aplicarCategoria, conteosProductos,
   carrilPorKey, buscarProductos, type CarrilKey,
 } from '@/lib/productos/filtros';
+import { categoriasDelCatalogo } from '@/lib/productos/categorias';
 import { nivelStock, etiquetaStock, claseStock } from '@/lib/productos/stock';
-import type { Product, ProductCategory } from '@/types/product';
+import type { Product } from '@/types/product';
 import type { InventoryLog } from '@/types/inventory';
 
 // ═══ PRODUCTOS · la tercera vertical del rediseño Duna OS ════════════════════
@@ -149,6 +149,9 @@ function Productos() {
   // calculan sobre lo que hay DEBAJO del alcance puesto, así que "Por reponer · 2"
   // dice dos entre los encontrados de esa categoría.
   const encontrados = useMemo(() => buscarProductos(productos, busqueda), [productos, busqueda]);
+  // Las categorías EXISTENTES en el catálogo (derivadas, § categorias): pueblan el filtro, el
+  // datalist del form y el del import. No hay set declarado — la taxonomía la fija el import.
+  const categoriasExistentes = useMemo(() => categoriasDelCatalogo(productos), [productos]);
   const enAlcance   = useMemo(() => aplicarCategoria(encontrados, categoria), [encontrados, categoria]);
   const visibles    = useMemo(() => aplicarCarril(enAlcance, carril), [enAlcance, carril]);
   const cuentas     = useMemo(() => conteosProductos(enAlcance), [enAlcance]);
@@ -416,8 +419,9 @@ function Productos() {
           {/* Acá NO elegir SÍ es una respuesta válida —"todas"— así que el vacío es
               una opción de verdad y no lleva `disabled hidden`. */}
           <option value="">Todas las categorías</option>
-          {(Object.entries(CATEGORIAS) as [ProductCategory, string][]).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
+          {/* Las categorías REALES del catálogo (derivadas). Un filtro sólo ofrece lo que existe. */}
+          {categoriasExistentes.map(c => (
+            <option key={c} value={c}>{c}</option>
           ))}
         </select>
 
@@ -547,12 +551,14 @@ function Productos() {
       <ProductFormModal
         open={formAbierto}
         product={editando}
+        categorias={categoriasExistentes}
         onOpenChange={(abierto) => { if (!abierto) { setCreando(false); setEditando(null); } }}
         onSaved={guardado}
       />
 
       <ImportarCatalogoSheet
         abierto={importando}
+        categorias={categoriasExistentes}
         onCerrar={() => setImportando(false)}
         onImportado={recargarProductos}
       />
@@ -749,7 +755,7 @@ function Detalle({ producto: p, kardex, cargandoKardex, errorKardex, onCerrar, o
   const moliendas = (p.moliendasOpciones ?? []).filter(o => o.disponible);
 
   const ficha: { label: string; valor?: string | null }[] = [
-    { label: 'Categoría', valor: CATEGORIAS[p.categoria] ?? p.categoria },
+    { label: 'Categoría', valor: p.categoria },
     { label: 'SKU',       valor: p.sku },
     { label: 'Variante',  valor: p.variante },
     { label: 'Origen',    valor: p.origen },

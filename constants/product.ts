@@ -1,4 +1,4 @@
-import { ProductCategory, ProductForm, RoastLevel } from "@/types/product";
+import { ProductForm, RoastLevel } from "@/types/product";
 
 export const EMPTY_PRODUCT_FORM: ProductForm = {
   nombre: '', descripcion: '', categoria: '', precio: '', costo: '',
@@ -7,15 +7,9 @@ export const EMPTY_PRODUCT_FORM: ProductForm = {
   slug: '', imagen: '',
 };
 
-export const CATEGORIAS: Record<ProductCategory, string> = {
-  cafe_bolsa:  'Café Bolsa',
-  cafe_grano:  'Café Grano',
-  cafe_molido: 'Café Molido',
-  cold_brew:   'Cold Brew',
-  caja_regalo: 'Caja Regalo',
-  suscripcion: 'Suscripción',
-};
-
+// `CATEGORIAS` (el mapa de labels de las 6 categorías café) se RETIRÓ en C3: la taxonomía se DERIVA
+// del catálogo (§ lib/productos/categorias) y el label es la categoría misma, sin mapa. `TOSTADOS`
+// (abajo) se queda: es el vocabulario de tostado de un cliente cafetero.
 export const TOSTADOS: Record<RoastLevel, string> = {
   ligero:   'Ligero',
   medio:    'Medio',

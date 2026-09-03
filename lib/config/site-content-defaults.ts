@@ -280,7 +280,15 @@ export const HERO_HREFS = { primario: '/tienda', secundario: '/suscripciones' } 
 // Destinos de las dos tarjetas de Presentaciones — ESTRUCTURA, no editable (misma decisión que
 // HERO_HREFS). Los labels y copys se editan; los paths NO: apuntan a filtros de categoría que deben
 // existir, y un path libre dejaría la tarjeta apuntando a una ruta muerta.
-export const PRESENTACIONES_HREFS = { path1: '/tienda?cat=cafe_grano', path2: '/tienda?cat=cafe_molido' } as const;
+//
+// C3: la taxonomía se DERIVA del catálogo y el `?cat=` es la CATEGORÍA MISMA (texto), no una clave.
+// El seed de Nayoli pasó a "Café en Grano"/"Café Molido", así que estos paths apuntan a ESAS
+// categorías (encodeURIComponent para el espacio/acento). Consecuencia directa del edit del seed —
+// sin esto la home de Nayoli quedaría con dos links a "/tienda?cat=cafe_grano" que ya no matchea nada.
+export const PRESENTACIONES_HREFS = {
+  path1: `/tienda?cat=${encodeURIComponent('Café en Grano')}`,
+  path2: `/tienda?cat=${encodeURIComponent('Café Molido')}`,
+} as const;
 
 // ── El REGISTRY: la naturaleza de cada sección y campo ───────────────────────
 // Es lo que deja el MODELO listo para BrandStory/Testimonials/SubscriptionCTA (que entran

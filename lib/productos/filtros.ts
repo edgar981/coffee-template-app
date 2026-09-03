@@ -1,6 +1,5 @@
 import { isLowStock, type StockRef } from '@duna/core/metrics/inventory-filters';
 import { conteosDeCola, type CarrilBase, type ConteosDeCola } from '@/lib/carriles';
-import type { ProductCategory } from '@/types/product';
 
 // ─── LOS CARRILES DE PRODUCTOS · un registro, no ifs en el JSX ───────────────
 //
@@ -14,7 +13,7 @@ import type { ProductCategory } from '@/types/product';
 export interface ProductoParaFiltro extends StockRef {
   nombre?: string | null;
   sku?:    string | null;
-  categoria?: ProductCategory | string | null;
+  categoria?: string | null;
 }
 
 export type CarrilKey = 'todos' | 'reponer' | 'agotados' | 'sin_publicar';

@@ -4,10 +4,10 @@ import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ProductCard from '@/components/storefront/ProductCard';
 import { TOSTADO_LABELS } from '@/constants/roast-levels';
-import { CATEGORIA_LABELS } from '@/constants/categories';
 import { getCatalog } from '@/lib/api/products';
+import { categoriasDelCatalogo, catalogoTieneTostado } from '@/lib/productos/categorias';
 import { useSearchParams } from 'next/navigation';
-import {Product, ProductCategory, RoastLevel} from '@/types/product';
+import {Product, RoastLevel} from '@/types/product';
 
 
 const SORTBY = [
@@ -20,12 +20,12 @@ const SORTBY = [
 function ShopInner() {
   const searchParams = useSearchParams();
   const [search, setSearch] = useState('');
-  const [catFilter, setCatFilter] = useState<
-  ProductCategory | "all"
->(
-  (searchParams.get("cat") as ProductCategory) ||
-    "all"
-);
+  // La categoría es texto libre (la taxonomía se DERIVA del catálogo, § categorias): el estado es
+  // `string`. Un `?cat=X` que no exista simplemente filtra a vacío y su chip muestra "X" —no
+  // `undefined`, porque el label ES la categoría misma, no un mapa que pueda no tener la clave.
+  const [catFilter, setCatFilter] = useState<string>(
+    searchParams.get("cat") || "all"
+  );
   const [tostadoFilter, setTostadoFilter] = useState<
   RoastLevel | "all"
 >(
@@ -52,6 +52,12 @@ function ShopInner() {
     return list;
   }, [catalog, search, catFilter, tostadoFilter, sortBy]);
 
+  // DERIVADO del catálogo real: las pestañas de categoría (las que el cliente puebla) y si existe la
+  // dimensión Tostión. No hay set declarado — un cliente no-café ve SUS categorías, sin filtro de
+  // Tostión; Nayoli ve sus 2 categorías y su Tostión (todos sus productos tienen tostado).
+  const categorias = useMemo(() => categoriasDelCatalogo(catalog ?? []), [catalog]);
+  const hayTostados = useMemo(() => catalogoTieneTostado(catalog ?? []), [catalog]);
+
   interface ActiveFilter {
     key: string;
     label: string;
@@ -63,8 +69,8 @@ function ShopInner() {
     ? {
         key: "cat",
 
-        label:
-          CATEGORIA_LABELS[catFilter],
+        // El label ES la categoría misma (sin mapa) → nunca `undefined`, ni con un `?cat=X` raro.
+        label: catFilter,
 
         clear: () =>
           setCatFilter("all"),
@@ -126,14 +132,18 @@ function ShopInner() {
               <div>
                 <p className="text-xs font-semibold text-[var(--sf-texto)] uppercase tracking-wide mb-3">Categoría</p>
                 <div className="flex flex-wrap gap-2">
-                  {[['all', 'Todos'], ...Object.entries(CATEGORIA_LABELS)].map(([k, v]) => (
-                    <button key={k} onClick={() => setCatFilter(k as ProductCategory | "all")}
+                  {/* DERIVADAS del catálogo: "Todos" + las categorías reales. El label es la categoría misma. */}
+                  {['all', ...categorias].map(k => (
+                    <button key={k} onClick={() => setCatFilter(k)}
                       className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${catFilter === k ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : 'bg-[var(--sf-superficie)] text-[var(--sf-texto)] hover:bg-[var(--sf-linea)]'}`}>
-                      {v}
+                      {k === 'all' ? 'Todos' : k}
                     </button>
                   ))}
                 </div>
               </div>
+              {/* "Nivel de Tostado" es vocabulario CAFETERO: sólo se muestra si el catálogo lo puebla
+                  (hide-on-empty). Un catálogo no-café no lo ve; Nayoli sí (todos con tostado). */}
+              {hayTostados && (
               <div>
                 <p className="text-xs font-semibold text-[var(--sf-texto)] uppercase tracking-wide mb-3">Nivel de Tostado</p>
                 <div className="flex flex-wrap gap-2">
@@ -145,6 +155,7 @@ function ShopInner() {
                   ))}
                 </div>
               </div>
+              )}
             </motion.div>
           )}
 

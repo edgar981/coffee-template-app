@@ -12,12 +12,12 @@ import { MoliendasOpcionesEditor } from '@/components/admin/MoliendasOpcionesEdi
 import { ImageLightbox } from '@/components/admin/ImageLightbox';
 import { createProduct, updateProduct } from '@/lib/api/products';
 import { subirDirecto } from '@/lib/api/upload';
-import { CATEGORIAS, EMPTY_PRODUCT_FORM, TOSTADOS } from '@/constants/product';
+import { EMPTY_PRODUCT_FORM, TOSTADOS } from '@/constants/product';
 import { ACCEPT_IMAGENES, MAX_SUBIDA_DIRECTA_BYTES, MAX_SUBIDA_DIRECTA_MB, TIPOS_PERMITIDOS } from '@/constants/upload';
 import { MAX_GALERIA_IMAGENES } from '@duna/core/product-gallery';
 import { puedeGuardarProducto, obligatoriosFaltantes, hayCambiosProducto } from '@duna/core/product-form';
 import { sanitizeOpciones, validarOpciones, revisarEdicion, type MoliendaOpcion } from '@duna/core/moliendas-opciones';
-import type { Product, ProductCategory, ProductForm, RoastLevel } from '@/types/product';
+import type { Product, ProductForm, RoastLevel } from '@/types/product';
 
 // ═══ ALTA Y EDICIÓN DE PRODUCTO ══════════════════════════════════════════════
 //
@@ -63,10 +63,13 @@ import type { Product, ProductCategory, ProductForm, RoastLevel } from '@/types/
 /** Ancho del preview de portada: dos miniaturas. Todo en tokens, sin px sueltos. */
 const ANCHO_PORTADA = 'calc(var(--duna-thumb-w) * 2)';
 
-export function ProductFormModal({ open, product, onOpenChange, onSaved }: {
+export function ProductFormModal({ open, product, categorias, onOpenChange, onSaved }: {
   open: boolean;
   /** `null` = alta. Con producto, edición. */
   product: Product | null;
+  /** Las categorías EXISTENTES del catálogo (derivadas), para sugerir en el datalist. La categoría
+   *  es texto libre —igual que el import—: se puede elegir una existente o escribir una nueva. */
+  categorias: string[];
   onOpenChange: (o: boolean) => void;
   onSaved: (p: Product, modo: 'creado' | 'actualizado') => void;
 }) {
@@ -96,7 +99,7 @@ export function ProductFormModal({ open, product, onOpenChange, onSaved }: {
         {/* El cuerpo sólo existe mientras está abierto, así que se re-siembra del
             producto actual en cada apertura sin un solo efecto — y el error inline
             se limpia solo al cerrar. Mismo patrón que `CustomerFormModal`. */}
-        {open && <Cuerpo product={product} guarda={guarda} marcarCambios={descarte.marcarCambios} intentarCerrar={descarte.intentarCerrar} onClose={() => onOpenChange(false)} onSaved={onSaved} />}
+        {open && <Cuerpo product={product} categorias={categorias} guarda={guarda} marcarCambios={descarte.marcarCambios} intentarCerrar={descarte.intentarCerrar} onClose={() => onOpenChange(false)} onSaved={onSaved} />}
       </DunaSheet>
       <ConfirmDescartarDialog abierto={descarte.confirmando} onDescartar={descarte.descartar} onSeguir={descarte.seguirEditando} />
     </>
@@ -127,8 +130,9 @@ function buildForm(p: Product): ProductForm {
   };
 }
 
-function Cuerpo({ product, guarda, marcarCambios, intentarCerrar, onClose, onSaved }: {
+function Cuerpo({ product, categorias, guarda, marcarCambios, intentarCerrar, onClose, onSaved }: {
   product: Product | null;
+  categorias: string[];
   guarda: ReturnType<typeof useAccionGuardada>;
   marcarCambios: (hay: boolean) => void;
   /** Cerrar pasando por la guarda de descarte (Cancelar/Esc/scrim). */
@@ -363,7 +367,7 @@ function Cuerpo({ product, guarda, marcarCambios, intentarCerrar, onClose, onSav
       const data = {
         nombre:       form.nombre,
         descripcion:  form.descripcion,
-        categoria:    form.categoria as ProductCategory,
+        categoria:    form.categoria,
         precio:       Number(form.precio),
         costo:        Number(form.costo),
         sku:          form.sku,
@@ -424,18 +428,18 @@ function Cuerpo({ product, guarda, marcarCambios, intentarCerrar, onClose, onSav
 
         <div className="duna-field">
           <label className="duna-field__label" htmlFor="pf-categoria">Categoría *</label>
-          <select className="duna-input duna-select" id="pf-categoria" value={form.categoria} disabled={bloqueado}
-                  onChange={e => setForm(f => ({ ...f, categoria: e.target.value as ProductCategory }))}
-                  aria-invalid={(intentado && !form.categoria) || undefined}
-                  aria-describedby={intentado && !form.categoria ? 'pf-cat-err' : undefined}>
-            {/* `disabled hidden`: no elegir no es una respuesta válida acá, así que
-                el placeholder no debe poder re-elegirse. */}
-            <option value="" disabled hidden>Seleccionar</option>
-            {(Object.entries(CATEGORIAS) as [ProductCategory, string][]).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-          {intentado && !form.categoria && <p className="duna-field__error" id="pf-cat-err">Elige una categoría.</p>}
+          {/* TEXTO LIBRE con datalist, como el import (§ C3): la taxonomía la fija el catálogo, no un
+              set cerrado. El operador elige una categoría existente del datalist o escribe una nueva. */}
+          <input className="duna-input" id="pf-categoria" value={form.categoria} disabled={bloqueado}
+                 list="pf-categorias" autoComplete="off"
+                 onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
+                 placeholder="Ej: Café en Grano"
+                 aria-invalid={(intentado && !form.categoria.trim()) || undefined}
+                 aria-describedby={intentado && !form.categoria.trim() ? 'pf-cat-err' : undefined} />
+          <datalist id="pf-categorias">
+            {categorias.map(c => <option key={c} value={c} />)}
+          </datalist>
+          {intentado && !form.categoria.trim() && <p className="duna-field__error" id="pf-cat-err">Elige o escribe una categoría.</p>}
         </div>
 
         <div className="duna-field">

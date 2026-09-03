@@ -1381,6 +1381,44 @@ encuadradas bien porque se eligieron para estas celdas. **DISPARADOR: la PRIMERA
 cliente real que quede mal encuadrada.** No antes: sin una foto que se vea mal, es infraestructura
 por adelantado.
 
+### 59. Los ATRIBUTOS café del producto — la FICHA entera es café-shape
+
+C3 quitó el café-shape de la TAXONOMÍA (categorías + Tostión, § La taxonomía se DERIVA del
+catálogo), pero la FICHA del producto sigue siendo de café: `Product` declara `origen`,
+`variedad`, `proceso`, `altitudMin/Max`, `tostado` (`RoastLevel`), `notas`/`notasCata` y
+`molienda`/`moliendasOpciones` (`types/product.ts`); el modal de producto tiene esos campos
+FIJOS; y el detalle del storefront (`/tienda/[slug]`) los pinta como Chips con vocabulario café
+("Proceso", "Tostión", "Altitud", "Variedad", "Origen", "Notas de cata"). Un cliente no-café
+llena una ficha que no es la suya, y su detalle muestra etiquetas que no le sirven.
+
+**Es UN SISTEMA, no un campo:** cada atributo vive en el MODELO (columna), en el FORM (input
+fijo) y en el RENDER (Chip con label café). Genericarlo es el trabajo grande —una ficha
+POR-VERTICAL, declarada como dato— que se solapa con la capa de estructura/tema por-cliente
+(§ Mejoras post-multitenant). C3 dejó a propósito la taxonomía derivada y la ficha para tandas
+distintas: son dos ejes, y mezclarlos habría sido una tanda sin fin.
+
+**Costo YA pagado: ninguno** — Nayoli ES café, así que su ficha es correcta. **DISPARADOR: el
+segundo cliente, ya CONFIRMADO no-café** — así que el ítem queda activo en cuanto ese cliente
+monte su catálogo. Ahí se decide la forma (atributos declarados como dato vs. un set fijo por
+vertical).
+
+### 60. `footerNav` → editable — atajos de categoría en el footer
+
+C3 BORRÓ los 2 atajos de categoría café del footer (`lib/config/site.ts`, "Café en Grano"/"Café
+Molido" → `?cat=…`): `footerNav` es ESTRUCTURA estática que `StoreFooter` lee sin tocar el
+catálogo, así que derivar links de categoría exigiría pasarle el catálogo al footer —y un literal
+café en el footer de un cliente no-café es peor que no tenerlo—. Quedó con "Todos los productos" +
+"Suscripciones".
+
+Un cliente que SÍ quiera atajos de categoría en el footer necesita `footerNav` EDITABLE, y es su
+propio ítem: **NO** "labels editables, destinos fijos" —eso dejaría el destino apuntando a una
+categoría que el cliente puede renombrar, el mismo defecto rancio que el destino de Presentaciones
+resolvió—, **sino un selector de categorías REALES** del catálogo derivado.
+
+**Costo YA pagado: ninguno.** **DISPARADOR: un cliente que pida atajos de categoría en el footer.**
+Es el gemelo, en otra superficie, del destino editable de las tarjetas de Presentaciones: la misma
+decisión —links a categorías reales, no a un set cerrado—.
+
 ## Config del negocio — `SiteSetting` (los planos editables)
 
 Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código
@@ -3094,12 +3132,68 @@ es la segura: **una fila de más (que se ve y se quita) antes que un producto pe
 se traga en silencio)**. Un producto llamado exactamente "Nombre" es improbable; adivinar
 de más para saltar encabezados largos costaría productos reales.
 
-### La categoría es TEXTO libre con datalist de SUGERENCIA
+### La categoría es TEXTO libre con sugerencia — derivada del catálogo
 
-Las 6 categorías de café (`CATEGORIAS`) se ofrecen como `<datalist>` en la grilla, pero la
-columna es TEXTO libre: un import con una categoría fuera de la lista **se crea igual** (la
-categoría es un string en el modelo, no un enum). El datalist sugiere, no restringe — un
-prospecto de otra vertical no queda bloqueado por las categorías de Nayoli.
+La columna categoría del import es TEXTO libre: un import con una categoría fuera de la lista
+**se crea igual** (la categoría es un `string` en el modelo, no un enum). Las categorías
+EXISTENTES —DERIVADAS del catálogo (`categoriasDelCatalogo`, § La taxonomía se DERIVA del
+catálogo)— se ofrecen como sugerencia, el MISMO control que el campo categoría del form de
+producto. Sugieren, no restringen: un prospecto de otra vertical no queda bloqueado por las
+categorías de Nayoli.
+
+## La taxonomía se DERIVA del catálogo — sin set cerrado
+
+Tanda C3 (2026-09-02). El segundo cliente es NO-café, así que el café-shape de la TAXONOMÍA
+tenía que salir. La decisión: **las categorías se DERIVAN del catálogo, no se declaran en un
+set cerrado ni en un editor.** El import ya hace que el cliente escriba sus categorías (§ El
+import de catálogo); un editor de taxonomía se las pediría DOS veces.
+
+- **`categoriasDelCatalogo(items)`** (`lib/productos/categorias.ts`, puro, capa 1): el conjunto
+  de `categoria` no-vacías del catálogo, **alfabético es-CO**. El orden es ALFABÉTICO y no por
+  conteo A PROPÓSITO: es ESTABLE —agregar o quitar un producto no reordena las pestañas ni mueve
+  la que el shopper ya ubicó—; por conteo, cada venta las barajaría. Lo consumen las pestañas de
+  `/tienda`, el filtro de `/admin/productos` y la sugerencia del campo categoría (form + import).
+- **El LABEL es la categoría MISMA, sin mapa.** Ya no hay `CATEGORIA_LABELS` (archivo borrado) ni
+  `ProductCategory` (union borrado): `Product.categoria` es un `string` libre. Un `?cat=X` que no
+  exista filtra a vacío y su chip muestra "X" —nunca `undefined`—.
+- **La TOSTIÓN se apaga sola** (`catalogoTieneTostado(items)`): la sección "Nivel de Tostado" de
+  `/tienda` es hide-on-empty —sólo se muestra si algún producto trae `tostado`—. Un catálogo
+  no-café no la ve; Nayoli sí. El chip "Tostión" del detalle va blindado
+  (`product.tostado && TOSTION_LABELS[product.tostado]`) para no pintar "Tostión: undefined".
+- **El campo categoría es texto libre con sugerencia** (input + datalist de las categorías
+  derivadas, MISMO control en el form de producto y el import). El operador elige una existente o
+  escribe una nueva; la taxonomía la fija el catálogo, no un set cerrado. (El CONTROL evoluciona a
+  combobox en su propia mini-tanda — § el combobox de categoría; la DERIVACIÓN no cambia.)
+
+**EL TRIPWIRE ATRAPÓ UN SPEC FALSO.** El spec de C3 asumía "6 pestañas byte-idéntico" — y era
+falso: el seed de Nayoli tenía **2** categorías, en CLAVES DE MÁQUINA (`cafe_grano`/`cafe_molido`),
+no 6 labels limpios. El diagnóstico-antes-de-fix lo verificó contra el seed ANTES de escribir un
+resolver de "6 categorías". Es la misma familia que *lo escrito no prueba lo que corre*, en su
+fuente SPEC (§ El TRIPWIRE PROTEGE CONTRA LA INSTRUCCIÓN — el artefacto, la base, y el spec).
+
+### El SEED se editó, pero editar el seed NO cambia una base ya sembrada
+
+El seed pasó a labels limpios (`cafe_grano` → 'Café en Grano', `cafe_molido` → 'Café Molido';
+`prisma/seed-products.ts`), y `PRESENTACIONES_HREFS` se re-apuntó a esos labels (consecuencia
+directa: sin eso la home de Nayoli quedaría con dos links a la clave vieja que ya no matchea).
+
+**Pero editar el seed sólo cambia lo que se inserta en una base FRESCA — no toca filas existentes**
+(§ Bases de datos). Así que TODAS las bases ya sembradas —dev/preview Y producción— siguen con las
+claves de máquina hasta que se edite cada producto. La corrección es IGUAL para las dos: desde el
+panel, con el campo categoría. La afirmación "el seed arregla dev" es FALSA; la corrección aplica a
+AMBAS bases por igual.
+
+**Paso del owner en PRODUCCIÓN, en este orden:** deploy → editar los 4 productos desde
+`/admin/productos` (categoría a "Café en Grano"/"Café Molido") → verificar la home (las tarjetas de
+Presentaciones traen productos). Ventana de labels crudos = inofensiva (pre-lanzamiento, sin
+tráfico).
+
+### Lo que SIGUE siendo café-shape (backlog #59, #60)
+
+La taxonomía se derivó; la FICHA del producto (origen/variedad/proceso/altitud/tostado/notas/
+molienda: modelo + form + chips del detalle) sigue café → **#59**. Y `footerNav` perdió sus 2
+atajos de categoría; un cliente que los quiera necesita footerNav editable → **#60**. Los dos son
+ejes distintos de la taxonomía y van a sus propias tandas.
 
 ## El placeholder de producto atrapa la CADENA VACÍA, no sólo el null
 
@@ -3350,6 +3444,20 @@ Para verificar el rol desde fuera de la consola, la única fuente válida es el
 `process.env` DEL deployment (así se resolvió el 2026-08-02: un route handler
 temporal, gateado a OWNER, que devolvía `new URL(...).hostname` — nunca la
 cadena de conexión — y `VERCEL_ENV`).
+
+### Editar el seed NO cambia una base ya sembrada
+
+Un cambio en `prisma/seed.ts` / `prisma/seed-products.ts` sólo altera lo que se INSERTA en una
+base FRESCA (`db:seed` sobre tablas vacías / el upsert idempotente). NO reescribe filas
+existentes, y el build **NO corre el seed** (corre `migrate deploy`, § Migraciones). Así que
+corregir un dato ya sembrado —en dev/preview O en producción— es una operación de DATOS desde el
+panel (o un `UPDATE` explícito con el rol verificado en la consola), NUNCA "editar el seed y
+redeploy".
+
+Lo instauró C3 (2026-09-02): se editaron las categorías del seed a labels limpios, y la
+afirmación "el seed arregla dev" era FALSA —dev seguía con las claves viejas, igual que
+producción—. Es el mismo modo de falla de siempre acá: **lo que está escrito (el seed) no prueba
+lo que está corriendo (las filas)**.
 
 ### Purga pre-lanzamiento del 2026-08-03 — EXCEPCIÓN ÚNICA, no precedente
 
