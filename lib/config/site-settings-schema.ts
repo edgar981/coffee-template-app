@@ -21,6 +21,14 @@ export const siteSettingsEditableSchema = z.object({
   // Opcionales: '' se normaliza a null en el server. `.email()` sólo si hay valor.
   emailReplyTo:      z.union([z.literal(''), z.string().trim().email('Correo inválido')]).nullable().optional(),
   adminEmail:        z.union([z.literal(''), z.string().trim().email('Correo inválido')]).nullable().optional(),
+  // Cuenta para transferencias del checkout — texto libre, vacío permitido (''→null en el server).
+  // Sin regex: banco/tipo/titular son texto, y el número varía por banco (largos y separadores
+  // distintos), así que restringir el formato rechazaría cuentas válidas. La guarda del checkout
+  // (banco+tipo+número presentes) es lo que evita mostrar datos a medias, no una validación.
+  bancoNombre:       z.string().trim().optional(),
+  bancoTipoCuenta:   z.string().trim().optional(),
+  bancoNumeroCuenta: z.string().trim().optional(),
+  bancoTitular:      z.string().trim().optional(),
 });
 
 export type SiteSettingsEditable = z.infer<typeof siteSettingsEditableSchema>;

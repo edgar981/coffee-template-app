@@ -50,6 +50,10 @@ export async function PATCH(req: NextRequest) {
       emailRemitente:    d.emailRemitente,
       emailReplyTo:      d.emailReplyTo || null,
       adminEmail:        d.adminEmail || null,
+      bancoNombre:       d.bancoNombre || null,
+      bancoTipoCuenta:   d.bancoTipoCuenta || null,
+      bancoNumeroCuenta: d.bancoNumeroCuenta || null,
+      bancoTitular:      d.bancoTitular || null,
     },
   });
   return NextResponse.json({ ok: true });
