@@ -1,6 +1,19 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-09-04 (**CUENTA BANCARIA config + RATING borrado CERRADA** — dos defectos reales que el censo de
+**Actualizado:** 2026-09-04 (**CHECKOUT: scroll al cambiar de paso + MÉTODOS DE PAGO config CERRADA.** (1) Los pasos
+del checkout son estado en una página; al Continuar/Atrás la vista mantenía la posición del paso anterior → `useEffect`
+sobre `[step]` → `window.scrollTo top:0`, `behavior` según prefers-reduced-motion. (2) Los 4 métodos (nequi, daviplata,
+transferencia, efectivo) son DATO del tenant: 4 booleanos `pago*Activo` (default true) + `pagoMovilNumero`, en
+SiteSetting. Un método se muestra con toggle ON *y* datos completos (`metodosDisponibles`, capa 1); mínimo uno ON
+(refine del schema) + guarda defensiva en el checkout ("escríbenos para coordinar el pago"). **`pagoMovilNumero` es
+campo PROPIO sin fallback a whatsapp** —el fallback perpetuaba la conflación contacto↔pago—; la migración lo
+BACKFILLEA desde whatsapp una vez (Nayoli igual, datos separados desde el día 1). Un método ON sin datos se declara en
+el editor ("Encendido — falta configurarlo"). Encender/apagar NO toca el eje de Pagos (derivarCondicionPago es
+string-check de EFECTIVO, metodo_pago string libre); el enum MetodoPago del admin "Nuevo pedido" es otra superficie,
+fuera de alcance. Migración ADITIVA + backfill. capa 1 **821/821** · tsc + next build verde. Gate del owner PASADO,
+mergeada `--no-ff`. **NO quedan pasos manuales abiertos** (el dato de C3 en prod ya lo hizo el owner).
+
+**ANTES — CUENTA BANCARIA config + RATING borrado.** Dos defectos reales que el censo de
 avisos destapó, más urgentes que la tanda que los destapó. (1) El checkout mostraba una cuenta Bancolombia HARDCODEADA
 falsa en la ruta del dinero → 4 campos editables en SiteSetting (`bancoNombre/TipoCuenta/NumeroCuenta/Titular`, todos
 `String?`); `opcionTransferencia` (puro, capa 1) muestra el método SÓLO con banco+tipo+número (titular opcional),
@@ -50,9 +63,9 @@ La Tostión se apaga sola (`catalogoTieneTostado`, hide-on-empty). `footerNav` p
 ATRAPÓ UN SPEC FALSO** ("6 pestañas byte-idéntico" — el seed tenía 2 categorías en claves de máquina, no 6 labels): el
 diagnóstico lo verificó contra el seed antes de escribir el resolver. Seed a labels limpios + `PRESENTACIONES_HREFS`
 re-apuntado. **CORRECCIÓN del gate: editar el seed NO arregla una base ya sembrada** —dev/preview Y producción se
-corrigen IGUAL desde el panel; la afirmación "el seed arregla dev" era falsa (§ CLAUDE.md · Bases de datos). Paso del
-owner en PROD: deploy → editar los 4 productos → verificar la home. Lo que SIGUE café-shape: la FICHA del producto
-(#59) y footerNav editable (#60). capa 1 **801/801** · tsc + next build verde. Mergeada a `main` `--no-ff` (`268f3ea`).
+corrigen IGUAL desde el panel; la afirmación "el seed arregla dev" era falsa (§ CLAUDE.md · Bases de datos). En PROD el
+owner YA editó los 4 productos de Nayoli a "Café en Grano"/"Café Molido" (sin pendientes). Lo que SIGUE café-shape: la
+FICHA del producto (#59) y footerNav editable (#60). capa 1 **801/801** · tsc + next build verde. Mergeada `--no-ff` (`268f3ea`).
 
 **ANTES — TANDA C1** (presentaciones a SiteContent, `3588aee`, en producción): GrindChooser era la ÚNICA sección
 hardcodeada de la home. Campos PLANOS (patrón brandStory), NO repeater —un repeater no da defaults byte-idénticos

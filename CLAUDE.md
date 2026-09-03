@@ -1663,6 +1663,39 @@ número inventado. Pasó a CUATRO campos editables en `SiteSetting` (Configuraci
   data-driven). Es la MISMA frontera que el resto de la identidad de pago (whatsapp): identidad del
   negocio, guardar = en vivo.
 
+### Los MÉTODOS de pago son DATO del tenant — encender/apagar + el número móvil propio
+
+Tanda del 2026-09-04. Los 4 métodos del checkout (nequi, daviplata, transferencia, efectivo) son
+FIJOS y se configuran desde Configuración: **4 booleanos `pago*Activo` en SiteSetting** (default
+true) + **`pagoMovilNumero`**. NO es un motor de métodos arbitrarios —eso es Wompi/pasarela, un flujo
+con webhooks, no "un método más"; queda en el backlog con disparador (§ Mejoras post-multitenant)—.
+
+- **Un método SE MUESTRA con toggle ON *y* datos completos.** La regla vive en `metodosDisponibles`
+  (`lib/checkout/metodos-pago.ts`, pura, capa 1): nequi/daviplata → `pagoMovilNumero`; transferencia →
+  cuenta completa (`opcionTransferencia`); efectivo → nada que configurar, pero `isBogota` (regla de
+  envío). **Mínimo UNO encendido**, validado en el editor (refine del schema, error en
+  `pagoNequiActivo`) + una **guarda defensiva** en el checkout: lista vacía → "escríbenos para
+  coordinar el pago" y el botón deshabilitado, nunca un paso de pago mudo.
+- **`pagoMovilNumero` es campo PROPIO, SIN fallback a `whatsapp`.** Nequi/Daviplata colgaban del
+  whatsapp —conflación CONTACTO↔PAGO, accidental—; un fallback la habría perpetuado por la puerta de
+  atrás (contacto y pago vuelven a ser el mismo dato y nadie se entera). En su lugar, la MIGRACIÓN
+  **backfillea** `pagoMovilNumero = whatsapp` una vez: Nayoli queda igual y los dos datos quedan
+  separados desde el primer día. Es dato de la propia migración que crea la columna, no negocio.
+- **Un método ON pero SIN DATOS se DECLARA en el editor** ("Encendido — falta configurarlo",
+  `estadoMetodoEditor`), no se calla. Un despliegue nuevo nace con los cuatro ON y sin datos; sin ese
+  aviso el método simplemente no aparece en la tienda y nadie sabe por qué. Copy + estado visual, no
+  estructura.
+- **Encender/apagar NO toca el eje de Pagos.** `derivarCondicionPago` (`packages/core/src/orders.ts`)
+  es un string-check de EFECTIVO → CONTRAENTREGA; `Order.metodo_pago` es STRING LIBRE, así que apagar
+  un método no huerfaniza órdenes viejas (conservan su string) ni cambia la derivación. El enum
+  `MetodoPago` (admin "Nuevo pedido" `metodoPagoPrevisto`, `Payment.metodo`) es OTRA superficie, en
+  MAYÚSCULAS, y NO se toca — el checkout usa strings minúsculas aparte.
+- **El checkout SUBE AL INICIO al cambiar de paso.** Los pasos son estado en UNA página (`useState`,
+  no rutas), así que la vista mantenía la posición del paso anterior y el cliente aterrizaba a media
+  pantalla —en Pago, sin ver las instrucciones de arriba—. `useEffect` sobre `[step]` →
+  `window.scrollTo({ top: 0 })`, `behavior` según `prefers-reduced-motion` (salto instantáneo si se
+  pide). En el montaje (step 0, página arriba) es no-op.
+
 ### El RATING fabricado se BORRÓ — y el censo periódico de datos falsos
 
 El detalle de producto (`4.9 · 124 reseñas`) y la card (`4.9`) eran **LITERALES**: no existe sistema de

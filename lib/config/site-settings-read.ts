@@ -20,6 +20,12 @@ export interface SiteSettings {
   bancoTipoCuenta:   string | null;
   bancoNumeroCuenta: string | null;
   bancoTitular:      string | null;
+  // Métodos de pago del checkout: encender/apagar + el número de pago móvil propio.
+  pagoNequiActivo:         boolean;
+  pagoDaviplataActivo:     boolean;
+  pagoTransferenciaActivo: boolean;
+  pagoEfectivoActivo:      boolean;
+  pagoMovilNumero:         string | null;
   // La PALETA ya no está acá: se mudó a `SiteContent.content.tema` (§ Backlog #55). El storefront
   // la lee de `getSiteContent()`, no de este loader.
 }
@@ -51,5 +57,10 @@ export async function readSiteSettings(): Promise<SiteSettings> {
     bancoTipoCuenta:   s.bancoTipoCuenta,
     bancoNumeroCuenta: s.bancoNumeroCuenta,
     bancoTitular:      s.bancoTitular,
+    pagoNequiActivo:         s.pagoNequiActivo,
+    pagoDaviplataActivo:     s.pagoDaviplataActivo,
+    pagoTransferenciaActivo: s.pagoTransferenciaActivo,
+    pagoEfectivoActivo:      s.pagoEfectivoActivo,
+    pagoMovilNumero:         s.pagoMovilNumero,
   };
 }

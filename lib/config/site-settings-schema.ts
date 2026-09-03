@@ -29,6 +29,18 @@ export const siteSettingsEditableSchema = z.object({
   bancoTipoCuenta:   z.string().trim().optional(),
   bancoNumeroCuenta: z.string().trim().optional(),
   bancoTitular:      z.string().trim().optional(),
-});
+  // Métodos de pago: encender/apagar + el número de pago móvil (Nequi/Daviplata), propio (ya no
+  // cuelga de whatsapp). El número es texto libre (formatos por operador), vacío permitido.
+  pagoNequiActivo:         z.boolean(),
+  pagoDaviplataActivo:     z.boolean(),
+  pagoTransferenciaActivo: z.boolean(),
+  pagoEfectivoActivo:      z.boolean(),
+  pagoMovilNumero:         z.string().trim().optional(),
+}).refine(
+  // Al menos un método ENCENDIDO: el checkout no puede quedar sin forma de pagar. Regla del editor
+  // (aviso temprano) y del server (la que MANDA) — una definición, como "al menos una molienda".
+  d => d.pagoNequiActivo || d.pagoDaviplataActivo || d.pagoTransferenciaActivo || d.pagoEfectivoActivo,
+  { message: 'Deja al menos un método de pago encendido', path: ['pagoNequiActivo'] },
+);
 
 export type SiteSettingsEditable = z.infer<typeof siteSettingsEditableSchema>;
