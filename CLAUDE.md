@@ -1419,6 +1419,37 @@ resolvió—, **sino un selector de categorías REALES** del catálogo derivado.
 Es el gemelo, en otra superficie, del destino editable de las tarjetas de Presentaciones: la misma
 decisión —links a categorías reales, no a un set cerrado—.
 
+### 61. STOCK OPCIONAL — por producto o por despliegue
+
+Hoy TODO producto lleva inventario: descuenta al despacho (§ las TRES puertas del stock), alerta al
+cruzar el mínimo (`stock_bajo`), y genera kardex (`InventoryLog`). Pero hay verticales enteras que
+NO cuentan stock —un restaurante, un servicio, producción por encargo—: para ellas el inventario no
+es un dato que falta, es un CONCEPTO que no aplica.
+
+**La forma: un producto (o un despliegue entero) sin tracking está SIEMPRE disponible.** No descuenta
+al despacho, no alerta, no deja asiento de kardex; y la vertical de Inventario **se apaga sola**
+(hide-on-empty, el patrón que C3 estrenó con la Tostión — una capacidad cafetera desaparece cuando
+ningún producto la puebla). El `disponible` de un producto sin tracking es siempre true; los tres
+carriles de stock (Por reponer / Agotados) no lo cuentan.
+
+**NO es café-shape del código** —por eso no salió en el censo de C3—: es una FAMILIA DE CLIENTE
+futura. **Costo YA pagado: ninguno** (Nayoli cuenta stock). **DISPARADOR: el primer cliente FIRMADO
+que no cuenta stock** (restaurante, servicios, producción por encargo).
+
+### 62. VARIANTES (talla/color) — stock por combinación, un PROYECTO no una tanda
+
+Un producto con variantes (una camiseta S/M/L × negro/blanco) tiene stock POR COMBINACIÓN, no un
+número único. Eso NO es un campo más: reescribe el eje entero de inventario.
+
+**Lo que toca, para que nadie lo subestime como "una tanda":** las DOS puertas de escritura de stock
+(el ajuste y la edición de ficha, § las DOS puertas del stock), el descuento ATÓMICO al despacho (§ la
+TERCERA puerta, el lock ORDEN→SHIPPING), el kardex de `InventoryLog` (el asiento pasa a ser por
+variante), la fórmula `disponible`, el carril "Agotados", y el CHECKOUT (el cliente elige la
+combinación, y el carrito la lleva). Es un PROYECTO transversal, no un cambio de modelo aislado.
+
+**NO es café-shape del código** —familia de cliente futura, invisible al censo—. **Costo YA pagado:
+ninguno.** **DISPARADOR: el primer cliente de ropa/calzado FIRMADO.**
+
 ## Config del negocio — `SiteSetting` (los planos editables)
 
 Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código
