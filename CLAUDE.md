@@ -1723,10 +1723,12 @@ hardcodeada de la home). La regla, para que la próxima sección NO la re-litigu
 **La consecuencia que DECIDE el modelado: si necesitás defaults byte-idénticos, NO puede ser un
 repeater.** `presentaciones` es EXACTAMENTE 2 (el grid `md:grid-cols-2` lo asume, "sin agregar ni
 quitar"), su regla de onboarding es "sin fila, la home queda idéntica", y un repeater la habría
-OCULTADO sin fila en vez de mostrar las 2 tarjetas de Nayoli. Los `path` van en código
-(`PRESENTACIONES_HREFS`, estructura, precedente HERO_HREFS); mismo trato de layout-fijo que las 3
-tarjetas de plan (§ Backlog #49, `sm:grid-cols-3` asume 3). **Verificable por deep-equal** contra los
-literales viejos (un repeater sería INVERIFICABLE — su default no se muestra, § HALLAZGO DE MÉTODO).
+OCULTADO sin fila en vez de mostrar las 2 tarjetas de Nayoli. Lo que queda layout-fijo es la
+CARDINALIDAD 2 (mismo trato que las 3 tarjetas de plan, § Backlog #49, `sm:grid-cols-3` asume 3).
+**Verificable por deep-equal** contra los literales viejos (un repeater sería INVERIFICABLE — su
+default no se muestra, § HALLAZGO DE MÉTODO). (El DESTINO de cada tarjeta, en cambio, DEJÓ de ser
+estructura y es DATO editable — § el combobox de categoría; el `PRESENTACIONES_HREFS` fijo se rompía
+al renombrar la categoría, y cardinalidad-fija y destino-dato son ejes distintos.)
 
 **El `{negocio}` del alt llega por PROP, no por `useSiteSettings()`** — mismo caso que NosotrosGaleria
 (§ el {negocio} del fallback llega por PROP). GrindChooser se monta también en la vista previa del
@@ -3160,10 +3162,12 @@ import de catálogo); un editor de taxonomía se las pediría DOS veces.
   `/tienda` es hide-on-empty —sólo se muestra si algún producto trae `tostado`—. Un catálogo
   no-café no la ve; Nayoli sí. El chip "Tostión" del detalle va blindado
   (`product.tostado && TOSTION_LABELS[product.tostado]`) para no pintar "Tostión: undefined".
-- **El campo categoría es texto libre con sugerencia** (input + datalist de las categorías
-  derivadas, MISMO control en el form de producto y el import). El operador elige una existente o
-  escribe una nueva; la taxonomía la fija el catálogo, no un set cerrado. (El CONTROL evoluciona a
-  combobox en su propia mini-tanda — § el combobox de categoría; la DERIVACIÓN no cambia.)
+- **El campo categoría es texto libre con sugerencia**, y el CONTROL es un COMBOBOX (§ el combobox de
+  categoría) — la lista desplegable de las categorías derivadas como camino primario, escribir una
+  nueva como el escape. MISMO control en el form de producto y el import. El operador elige una
+  existente o escribe una nueva; la taxonomía la fija el catálogo, no un set cerrado. (C3 lo construyó
+  como `input + datalist`; su mini-tanda lo pasó a combobox porque la lista de un datalist NO SE VE. La
+  DERIVACIÓN no cambió.)
 
 **EL TRIPWIRE ATRAPÓ UN SPEC FALSO.** El spec de C3 asumía "6 pestañas byte-idéntico" — y era
 falso: el seed de Nayoli tenía **2** categorías, en CLAVES DE MÁQUINA (`cafe_grano`/`cafe_molido`),
@@ -3194,6 +3198,78 @@ La taxonomía se derivó; la FICHA del producto (origen/variedad/proceso/altitud
 molienda: modelo + form + chips del detalle) sigue café → **#59**. Y `footerNav` perdió sus 2
 atajos de categoría; un cliente que los quiera necesita footerNav editable → **#60**. Los dos son
 ejes distintos de la taxonomía y van a sus propias tandas.
+
+## El combobox de categoría, y el destino de Presentaciones como DATO
+
+Mini-tanda post-C3 (2026-09-03), de dos ítems que salieron del gate visual en USO REAL.
+
+### CategoriaCombobox — la lista se VE, y escribir una nueva es el escape
+
+C3 dejó el campo categoría como `input + datalist` (texto libre con sugerencia). El defecto: **la
+lista de un datalist NO SE VE** —el campo se comporta como texto pelado y hay que adivinar que la
+sugerencia existe—. `components/admin/CategoriaCombobox.tsx` la pone DESPLEGABLE: elegir de la lista
+de categorías derivadas es el camino PRIMARIO; escribir una nueva ("Usar «X»") es el ESCAPE.
+
+- **NO es una primitiva nueva** (el tripwire del DS no se dispara): es el ENSAMBLAJE canónico de shadcn
+  —`Popover` (superficie) + `Command`/cmdk (lista filtrable)—, las dos YA instaladas y en uso en el
+  panel (`DateField`/`DateRangePicker` montan Popover; `CommandPalette` monta Command). No se agrega
+  conducta al design-system; se compone lo que ya está.
+- **Portalea al puente como `DateField`** (`container={contenedor}` de `dunaPortal`): el desplegable
+  vive dentro de `.admin-shell` (hereda el puente de fuentes) y aparece SOBRE el sheet —el combobox se
+  monta dentro de `ProductFormModal`, un DunaSheet, y `DateField` ya prueba ese popover-en-sheet—.
+- **Filtrado manual** (`shouldFilter={false}`): el afford de "usar una categoría NUEVA" aparece justo
+  cuando lo tecleado no matchea, y eso es más limpio a mano que peleando con el filtro de cmdk.
+- **MISMO control en el form de producto y en el import** (celda `compacto`), consistentes a propósito
+  —era la condición de C3 y se mantiene—. El `datalist` (`#cats-import`, `#pf-categorias`) se retiró.
+- **No contradice "el select es NATIVO"** (§ Controles de formulario): esa regla es para un `<select>`
+  de opciones fijas —su lista aparece un segundo y no compite con nada—. El combobox de categoría es
+  otra cosa: lista LARGA y creciente + texto libre, que un `<select>` no da. Es la misma excepción por
+  COMPETENCIA/NATURALEZA que la fecha (custom porque el dato lo pide), no custom por moda.
+
+### El DESTINO de las tarjetas de Presentaciones es DATO — revierte C1 con dato nuevo
+
+Las tarjetas de "¿Cómo tomas tu café?" apuntaban a `PRESENTACIONES_HREFS` —un path FIJO, "Café en
+Grano"—. **Defecto observado en el PRIMER uso real:** el owner escribió "Café grano" en un producto y
+el filtro no trajo nada. **Un link fijo hacia un texto que el cliente escribe libremente se rompe
+solo.**
+
+Esto **REVIERTE, con dato nuevo, la decisión de C1 "el path es ESTRUCTURA"** (§ La BIFURCACIÓN de
+cardinalidad). Esa decisión no fue un error: asumía un set CERRADO de categorías —premisa válida
+entonces—. **C3 mató esa premisa** (taxonomía derivada, texto libre), así que el destino tiene que
+seguir al dato.
+
+- **`categoria1/2` son campos PLANOS de `content.presentaciones`** (patrón C1: requerido → vacío cae al
+  default; el RESOLVER no se tocó — era la frontera del tripwire de esta mini-tanda). Default = las
+  categorías de hoy → **byte-idéntico** (afirmado por test: los defaults resueltos + `hrefCategoria`
+  dan los links de Nayoli sin fila; no rompe C1).
+- **`hrefCategoria(cat)`** (`lib/productos/categorias`, la contraparte de `categoriasDelCatalogo`)
+  construye el link; vacío → `/tienda`. `PRESENTACIONES_HREFS` se retiró. Se edita con el MISMO combobox.
+- **`HERO_HREFS` NO se movió**: los CTA del hero apuntan a `/tienda` y `/suscripciones` —RUTAS, no
+  categorías—, así que no tienen el problema del texto-libre. La reversión es del destino de CATEGORÍA,
+  no de todo href. (El footer es el gemelo pendiente, § Backlog #60.)
+
+### Destino rancio → AVISO en el editor (opción b), no hide-on-empty
+
+Cuando el destino elegido ya no existe en el catálogo, el editor de `/admin/tienda` lo AVISA ("la
+tarjeta no traerá resultados"). **Opción b, y no c (ocultar la tarjeta):** Presentaciones es
+cardinalidad FIJA de 2 (`md:grid-cols-2` lo asume); ocultar UNA tarjeta ROMPE el grid —hide-on-empty
+es para una SECCIÓN entera con vacío legítimo (Tostión), no para un puntero rancio en una de dos
+tarjetas fijas—. Y (a) "no hacer nada" es el defecto que se acaba de reportar, en silencio.
+
+- **NO bloquea:** el combobox permite a propósito una categoría que AÚN no existe (el operador puede
+  estar por crearla), así que el aviso informa, no impide guardar. Ámbar (`--duna-sol-ink`) = atención.
+- **Sólo si el catálogo YA cargó** (`categoriasListas`): un fetch fallido no puede afirmar que una
+  categoría no existe —afirmarlo sería mentir sobre un dato que no se tiene—.
+- **El aviso reusa la MISMA lista** que alimenta el combobox (`value ∉ categorias`), así que costó ~nada
+  sobre el combobox, y avisa DONDE se arregla (el editor).
+
+### `/admin/tienda` carga el catálogo — misma fuente que Productos, sin endpoint nuevo
+
+El editor no cargaba el catálogo. `TiendaPaginas` hace UN `getProducts()` + `categoriasDelCatalogo`
+(la MISMA fuente y el MISMO helper que `/admin/productos`, sin endpoint nuevo) y baja `categorias` +
+`categoriasListas` como prop a `TiendaSeccionEditor`. Sólo la sección con un campo `categoria: true`
+(Presentaciones) los usa; las demás los ignoran. No tocó el resolver ni creó primitiva → ningún
+tripwire. Fetch fallido → `categoriasListas` false → el aviso no se muestra (no miente).
 
 ## El placeholder de producto atrapa la CADENA VACÍA, no sólo el null
 

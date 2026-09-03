@@ -1,6 +1,21 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-09-02 (**TANDA C3 CERRADA — la TAXONOMÍA se DERIVA del catálogo**. Segundo cliente confirmado
+**Actualizado:** 2026-09-03 (**MINI-TANDA post-C3 CERRADA — combobox de categoría + destino de Presentaciones como
+DATO**. Dos ítems que salieron del gate de C3 en USO REAL. (1) El campo categoría era `input + datalist` (la lista
+NO SE VE) → **CategoriaCombobox**: ensamblaje canónico shadcn `Popover` + `Command`/cmdk (NO primitiva nueva; ya en
+uso en `DateField`/`CommandPalette`), portalea al puente como `DateField`, lista desplegable primaria + escribir una
+nueva como escape; MISMO control en el form de producto y el import. (2) El destino de las tarjetas de Presentaciones
+(`¿Cómo tomas tu café?`) apuntaba a `PRESENTACIONES_HREFS` FIJO — el owner escribió "Café grano" en un producto y el
+link "Café en Grano" dejó de traer nada: **un link fijo hacia texto que el cliente escribe libremente se rompe solo**.
+Pasa a DATO editable (`categoria1/2` planos de `content.presentaciones`, patrón C1, RESOLVER intacto; `hrefCategoria`
+construye el link; `PRESENTACIONES_HREFS` retirado). Byte-idéntico por TEST (defaults + `hrefCategoria` = links de hoy).
+REVIERTE la decisión de C1 "el path es estructura" con dato nuevo —C1 asumía un set CERRADO, C3 lo mató—. Destino
+rancio → **AVISO en el editor (opción b)**, NO hide-on-empty (cardinalidad fija de 2, ocultar rompe el grid); no
+bloquea (una categoría futura es legítima). `/admin/tienda` carga el catálogo (`getProducts` + `categoriasDelCatalogo`,
+misma fuente que Productos, sin endpoint nuevo). capa 1 **803/803** · tsc + next build verde. Gate del owner PASADO,
+mergeada a `main` `--no-ff`.
+
+**ANTES — TANDA C3 CERRADA — la TAXONOMÍA se DERIVA del catálogo.** Segundo cliente confirmado
 NO-café, así que el café-shape de la taxonomía tenía que salir. Las categorías se DERIVAN del catálogo
 (`categoriasDelCatalogo`, alfabético es-CO estable), NO un set cerrado ni un editor —el import ya hace que el cliente
 escriba sus categorías, un editor las pediría dos veces—. El label ES la categoría misma: `ProductCategory` (union) y
@@ -11,8 +26,7 @@ diagnóstico lo verificó contra el seed antes de escribir el resolver. Seed a l
 re-apuntado. **CORRECCIÓN del gate: editar el seed NO arregla una base ya sembrada** —dev/preview Y producción se
 corrigen IGUAL desde el panel; la afirmación "el seed arregla dev" era falsa (§ CLAUDE.md · Bases de datos). Paso del
 owner en PROD: deploy → editar los 4 productos → verificar la home. Lo que SIGUE café-shape: la FICHA del producto
-(#59) y footerNav editable (#60). capa 1 **801/801** · tsc + next build verde. Mergeada a `main` `--no-ff`. **Le sigue
-de inmediato la mini-tanda del combobox + destino de Presentaciones — en su rama, gate del owner.**
+(#59) y footerNav editable (#60). capa 1 **801/801** · tsc + next build verde. Mergeada a `main` `--no-ff` (`268f3ea`).
 
 **ANTES — TANDA C1** (presentaciones a SiteContent, `3588aee`, en producción): GrindChooser era la ÚNICA sección
 hardcodeada de la home. Campos PLANOS (patrón brandStory), NO repeater —un repeater no da defaults byte-idénticos
