@@ -445,6 +445,9 @@ const PRESENTACIONES_ANTES = {
   copy2: 'Listo para tu greca, filtro o prensa.',
   imagen2: '/images/cafe-nayoli-250g-molido.webp',
   categoria2: 'Café Molido',
+  // Slots 3-4 opcionales, VACÍOS por defecto → la home de Nayoli renderiza 2 (byte-idéntico).
+  label3: '', copy3: '', imagen3: '', categoria3: '',
+  label4: '', copy4: '', imagen4: '', categoria4: '',
 };
 
 test('presentaciones: sin fila, los defaults resueltos reproducen los literales de GrindChooser', () => {
