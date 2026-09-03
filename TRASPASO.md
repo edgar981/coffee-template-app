@@ -1,41 +1,44 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-09-02 (ONBOARDING POR-DESPLIEGUE, **TANDA C1**: presentaciones a SiteContent. GrindChooser
-—"¿Cómo tomas tu café?", las 2 tarjetas de presentación de la home— era la **ÚNICA sección hardcodeada de la home**;
-hero/Historia/Suscripción/Testimonios/galería YA eran dato editable. El outlier, no la regla. Pasa a la sección
-`presentaciones` de SiteContent, editable en `/admin/tienda` (borrador/publicar, visible/ocultable), en producción
-(`3588aee`). MODELADO: campos PLANOS (patrón brandStory), **NO un repeater** — el diagnóstico mostró que un repeater
-no puede dar defaults byte-idénticos: `resolverItems` devuelve `[]` sin fila (el default del array queda muerto,
-invariante #44 + hide-on-empty), así que la sección se ocultaría en vez de mostrar las 2 presentaciones de Nayoli.
-Cardinalidad FIJA (el grid asume 2) → campos planos, que SÍ renderizan sus defaults. Byte-idéntico verificado por
-TEST (deep-equal contra los literales de GrindChooser), no aseveración. `path` = ESTRUCTURA (`PRESENTACIONES_HREFS`);
-el `negocio` del alt llega por PROP, no por `useSiteSettings()` (el hook lanza en el árbol del admin de la vista
-previa; identidad, no se mueve a SiteContent). capa 1 **796/796** · tsc + next build verde · carril no aplica. Gate
-visual del owner PASADO. **footerNav NO se movió** (era commit 2 opcional, gate disparado — pasa a C3, ver el censo
-abajo). **YA en main/producción, antes:** TANDA B import de catálogo (`21f50b0`) y TANDA A "un cliente nuevo no nace
-siendo Nayoli" (`998b95e`).
+**Actualizado:** 2026-09-02 (**TANDA C3 CERRADA — la TAXONOMÍA se DERIVA del catálogo**. Segundo cliente confirmado
+NO-café, así que el café-shape de la taxonomía tenía que salir. Las categorías se DERIVAN del catálogo
+(`categoriasDelCatalogo`, alfabético es-CO estable), NO un set cerrado ni un editor —el import ya hace que el cliente
+escriba sus categorías, un editor las pediría dos veces—. El label ES la categoría misma: `ProductCategory` (union) y
+`CATEGORIA_LABELS` (archivo) BORRADOS, cero consumidores (censo por contenido); `Product.categoria` es `string` libre.
+La Tostión se apaga sola (`catalogoTieneTostado`, hide-on-empty). `footerNav` perdió sus 2 atajos café. **EL TRIPWIRE
+ATRAPÓ UN SPEC FALSO** ("6 pestañas byte-idéntico" — el seed tenía 2 categorías en claves de máquina, no 6 labels): el
+diagnóstico lo verificó contra el seed antes de escribir el resolver. Seed a labels limpios + `PRESENTACIONES_HREFS`
+re-apuntado. **CORRECCIÓN del gate: editar el seed NO arregla una base ya sembrada** —dev/preview Y producción se
+corrigen IGUAL desde el panel; la afirmación "el seed arregla dev" era falsa (§ CLAUDE.md · Bases de datos). Paso del
+owner en PROD: deploy → editar los 4 productos → verificar la home. Lo que SIGUE café-shape: la FICHA del producto
+(#59) y footerNav editable (#60). capa 1 **801/801** · tsc + next build verde. Mergeada a `main` `--no-ff`. **Le sigue
+de inmediato la mini-tanda del combobox + destino de Presentaciones — en su rama, gate del owner.**
+
+**ANTES — TANDA C1** (presentaciones a SiteContent, `3588aee`, en producción): GrindChooser era la ÚNICA sección
+hardcodeada de la home. Campos PLANOS (patrón brandStory), NO repeater —un repeater no da defaults byte-idénticos
+(`resolverItems` devuelve `[]`, invariante #44 + hide-on-empty)—; cardinalidad FIJA (grid asume 2) → campos planos que
+SÍ renderizan sus defaults, byte-idéntico por TEST. El `negocio` del alt llega por PROP (el hook `useSiteSettings`
+lanza en el árbol del admin de la vista previa). **YA en main/producción, antes:** TANDA B import de catálogo
+(`21f50b0`) y TANDA A "un cliente nuevo no nace siendo Nayoli" (`998b95e`).
 
 **FIX de producción (2026-09-02, `53e5601`):** en la vista previa de `/admin/tienda`, un clic en un enlace del
 storefront (p. ej. "Explorar café") sacaba al owner del panel — la previa monta componentes REALES cuyos `<Link>`
 navegan de verdad (el iframe se retiró). Los `<a>` bajo `EscalaDesktop` (la frontera común de las previas) son ahora
 INERTES por diseño; el storefront no se tocó. (§ CLAUDE.md · La VISTA PREVIA NO NAVEGA.) NO es C2/C3.
 
-**EL CENSO DE TANDA C (de-Nayolificación de lo artesanal), partido en TRES por MECANISMO** — escrito acá porque el
-veredicto vivía en un chat perdido:
+**EL CENSO DE TANDA C (de-Nayolificación de lo artesanal), partido en TRES por MECANISMO:**
 - **C1 · Home a SiteContent (CERRADA):** GrindChooser → `presentaciones`. Era el único hardcode de la home.
-- **C2 · Tema por cliente:** fuentes (`fontPair`, que **no existe** — hoy Inter+Playfair literales en `globals.css`)
-  + `emailColors` + el mark inline del `Logo` + los 6 íconos de `public/`. Se **solapa con el Backlog #54** (motor de
-  favicon). Es la "capa de tema por cliente" de Mejoras post-multitenant; la paleta ya se mudó, esto la completa.
-- **C3 · Taxonomía (estructural):** las 6 categorías de café + el filtro **Tostión** (`ligero/medio/oscuro`). Ancho:
-  el tipo `ProductCategory`, las pestañas de `/tienda`, los labels (y su duplicación `CATEGORIAS` ≠ `CATEGORIA_LABELS`).
-  **`footerNav` ENTRA acá, NO en C2** — sus destinos (`cat=cafe_grano` / `cat=cafe_molido`) son taxonomía, así que
-  "labels editables, destinos fijos" dejaría a un cliente no-café con un footer que dice "Café en Grano". Mover
-  footerNav es mover taxonomía; va con C3. (Escrito para no re-litigar el "de paso".)
-- **EL ORDEN C2 vs C3 depende de UN dato:** si el segundo cliente es **cafetero**, C3 espera (solo cambian ASSETS =
-  C1 + C2 alcanzan); si **no** es cafetero, C3 es el bloqueante y **sube a segunda**. Sin ese dato, no se prioriza.
+- **C3 · Taxonomía (CERRADA):** las categorías se DERIVAN del catálogo (no un set cerrado); `ProductCategory` y
+  `CATEGORIA_LABELS` borrados; Tostión hide-on-empty; `footerNav` sin sus 2 atajos café (BORRADOS — un selector de
+  categorías editable en el footer es su propio ítem, #60). Lo que QUEDA café-shape: la FICHA del producto (#59).
+- **C2 · Tema por cliente (PENDIENTE):** fuentes (`fontPair`, que **no existe** — hoy Inter+Playfair literales en
+  `globals.css`) + `emailColors` + el mark inline del `Logo` + los 6 íconos de `public/`. Se **solapa con el Backlog
+  #54** (motor de favicon). Es la "capa de tema por cliente" de Mejoras post-multitenant; la paleta ya se mudó, esto la
+  completa. Con C3 cerrada y el segundo cliente confirmado no-café, C2 es lo único que queda de Tanda C (más la ficha
+  del producto, #59, que es su propia tanda).
 
 **NO se tocan en ninguna sub-tanda hasta que les toque:** `emailColors`, `legalNav` (vacío para todos, capacidad
-futura, no un toque de Nayoli), íconos, mark, fuentes, categorías.
+futura, no un toque de Nayoli), íconos, mark, fuentes.
 
 > **Este archivo se actualiza como paso final de cada tanda, junto con el push.**
 > No es un historial: describe el estado de HOY y las decisiones que no se
