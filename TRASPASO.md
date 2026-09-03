@@ -1,7 +1,21 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-09-03 (**MINI-TANDA post-C3 CERRADA — combobox de categoría + destino de Presentaciones como
-DATO**. Dos ítems que salieron del gate de C3 en USO REAL. (1) El campo categoría era `input + datalist` (la lista
+**Actualizado:** 2026-09-03 (**PRESENTACIONES cardinalidad VARIABLE 2-4 CERRADA** — tres ítems del gate anterior en
+uso real. (1) Placeholder del campo categoría → "Elige una categoría". (2) El destino de cada tarjeta se rotula por
+el TÍTULO en vivo de su tarjeta —«En grano» lleva a:—, no por posición ("Presentación 1", que el owner no sabía si
+era izq o der); título vacío → fallback. (3) **CARDINALIDAD VARIABLE 2-4**: revierte el "exactamente 2" de C1 con dato
+nuevo —2 era restricción de NAYOLI, no del producto (una pastelería quiere Tortas/Galletas/Postres)—. Forma: campos
+PLANOS, **2 slots REQUERIDOS + 2 OPCIONALES**, NO repeater (un repeater no da defaults byte-idénticos sin perforar
+#44). Qué tarjeta se muestra lo decide el COMPONENTE (`tarjetasDePresentaciones`, capa 1), no el resolver —criterio
+**OR** (título O imagen): una tarjeta a medio llenar APARECE con el hueco visible, no desaparece sin explicación—.
+Grid por lookup literal 2→cols-2 · 3→cols-3 · 4→**2×2** (medido a 800px: cols-4 daría ~170px ilegibles). Editor
+agrupado por "Tarjeta N (opcional)", sin rediseño (el form largo es evidencia del #46). Nayoli (2) byte-idéntica. El
+CTA "Ver café {label}" NO se tocó —café-shape, pero cambiarlo rompe el byte-idéntico— → **backlog #63** (censo de copy
+café-shape del storefront, con C2). capa 1 **810/810** · tsc + next build verde. Gate del owner PASADO, mergeada a
+`main` `--no-ff`.
+
+**ANTES — MINI-TANDA post-C3 (combobox de categoría + destino de Presentaciones como DATO).** Dos ítems del gate de C3
+en USO REAL. (1) El campo categoría era `input + datalist` (la lista
 NO SE VE) → **CategoriaCombobox**: ensamblaje canónico shadcn `Popover` + `Command`/cmdk (NO primitiva nueva; ya en
 uso en `DateField`/`CommandPalette`), portalea al puente como `DateField`, lista desplegable primaria + escribir una
 nueva como escape; MISMO control en el form de producto y el import. (2) El destino de las tarjetas de Presentaciones

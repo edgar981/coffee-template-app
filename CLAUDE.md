@@ -1450,6 +1450,23 @@ combinación, y el carrito la lleva). Es un PROYECTO transversal, no un cambio d
 **NO es café-shape del código** —familia de cliente futura, invisible al censo—. **Costo YA pagado:
 ninguno.** **DISPARADOR: el primer cliente de ropa/calzado FIRMADO.**
 
+### 63. COPY café-shape del storefront — censo de todo el microcopy
+
+**Hecho observado (2026-09-03, cardinalidad variable de Presentaciones):** el CTA de cada tarjeta dice
+"Ver café {label}" (`GrindChooser`), así que una pastelería con una tarjeta "Tortas" leería **"Ver café
+tortas"**. NO es un literal suelto: es una FAMILIA. Hay que censar TODO el copy del storefront por
+café-shapes —CTAs, microcopy, estados vacíos, aria-labels, placeholders— no sólo ese CTA.
+
+**Por qué no se arregló en la tanda que lo destapó:** cambiar "Ver café {label}" altera el copy de
+NAYOLI ("Ver café en grano" → "Ver en grano"), y eso **rompe el byte-idéntico** que la de-Nayolificación
+exige preservar. Así que decafeinar el copy no es un fix suelto: va con la capa de **copy/tema por
+cliente** —cada cliente tiene su propio copy, y el de Nayoli queda como su dato, no como el default del
+código—.
+
+**Costo YA pagado: ninguno** (Nayoli ES café, su copy es correcto). **DISPARADOR: el primer cliente
+no-café FIRMADO — el MISMO que activa C2** (tema/estructura por cliente). El censo y la capa de copy van
+juntos: sin la capa, un censo no tiene dónde poner el resultado.
+
 ## Config del negocio — `SiteSetting` (los planos editables)
 
 Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código
@@ -1743,23 +1760,25 @@ del display de 5 estrellas se hizo así: seed → check → restore). Es la vuel
 Cerrada con `presentaciones` (C1, 2026-09-02: GrindChooser → SiteContent, la última sección
 hardcodeada de la home). La regla, para que la próxima sección NO la re-litigue:
 
-- **Cardinalidad VARIABLE (agregar/quitar) → REPEATER** (testimonios, galería). Sus **defaults
-  JAMÁS se muestran**: `resolverItems` devuelve `[]` sin fila y `seccionEsVisible` oculta el array
-  vacío (hide-on-empty) — el invariante #44, ESTRUCTURAL, que impide hornear prueba social falsa.
-- **Cardinalidad FIJA (N tarjetas, el layout asume N) → CAMPOS PLANOS** (brandStory `imagen1..4`,
-  los bullets de subscriptionCTA, `presentaciones` = `label1/copy1/imagen1` + `label2/copy2/imagen2`).
-  Sus defaults **SÍ se muestran** (rama `requerido` del resolver), así que son los ÚNICOS que pueden
-  dar **byte-idéntico sin fila**.
+- **Cardinalidad VARIABLE que NO necesita defaults → REPEATER** (testimonios, galería). Sus
+  **defaults JAMÁS se muestran**: `resolverItems` devuelve `[]` sin fila y `seccionEsVisible` oculta el
+  array vacío (hide-on-empty) — el invariante #44, ESTRUCTURAL, que impide hornear prueba social falsa.
+- **Cardinalidad FIJA, o VARIABLE que SÍ necesita defaults byte-idénticos → CAMPOS PLANOS**
+  (brandStory `imagen1..4`, los bullets de subscriptionCTA, `presentaciones`). Sus defaults **SÍ se
+  muestran** (rama `requerido` del resolver), así que son los ÚNICOS que dan **byte-idéntico sin fila**.
+  La cardinalidad VARIABLE sobre campos planos se expresa con SLOTS —N requeridos + M opcionales— y el
+  filtrado por-tarjeta vive en el COMPONENTE, no en el resolver (§ Presentaciones 2-4).
 
 **La consecuencia que DECIDE el modelado: si necesitás defaults byte-idénticos, NO puede ser un
-repeater.** `presentaciones` es EXACTAMENTE 2 (el grid `md:grid-cols-2` lo asume, "sin agregar ni
-quitar"), su regla de onboarding es "sin fila, la home queda idéntica", y un repeater la habría
-OCULTADO sin fila en vez de mostrar las 2 tarjetas de Nayoli. Lo que queda layout-fijo es la
-CARDINALIDAD 2 (mismo trato que las 3 tarjetas de plan, § Backlog #49, `sm:grid-cols-3` asume 3).
+repeater** —los defaults de un repeater no sobreviven sin perforar #44—. `presentaciones` lo prueba en
+las DOS direcciones: nació FIJA-2 (C1), y cuando el segundo cliente pidió 2-4 (una pastelería:
+Tortas/Galletas/Postres) **NO se volvió repeater** —seguiría sin poder mostrar las 2 tarjetas de Nayoli
+sin fila—: pasó a **2 slots REQUERIDOS + 2 OPCIONALES**, campos planos igual. El "exactamente 2" de C1
+era una restricción de NAYOLI, no del producto; el modelado no cambió, sólo se sumaron 2 slots.
 **Verificable por deep-equal** contra los literales viejos (un repeater sería INVERIFICABLE — su
 default no se muestra, § HALLAZGO DE MÉTODO). (El DESTINO de cada tarjeta, en cambio, DEJÓ de ser
 estructura y es DATO editable — § el combobox de categoría; el `PRESENTACIONES_HREFS` fijo se rompía
-al renombrar la categoría, y cardinalidad-fija y destino-dato son ejes distintos.)
+al renombrar la categoría, y cardinalidad y destino-dato son ejes distintos.)
 
 **El `{negocio}` del alt llega por PROP, no por `useSiteSettings()`** — mismo caso que NosotrosGaleria
 (§ el {negocio} del fallback llega por PROP). GrindChooser se monta también en la vista previa del
@@ -1776,6 +1795,33 @@ que corre*, ahora en su TERCERA fuente: el **artefacto** (§ PRECONDICIÓN — e
 **base** (§ Bases de datos — el rol de Neon que el nombre de la rama no prueba), y ahora el **SPEC**
 (una instrucción que el diagnóstico contradice). El tripwire no confía en el terreno NI en la orden:
 verifica, y cuando el patrón existente no cubre el caso, PARA — no inventa una forma nueva.
+
+### Presentaciones 2-4 — cardinalidad variable sobre campos planos (revierte C1 con dato nuevo)
+
+El segundo cliente (no-café) mató la premisa de C1 "exactamente 2": 2 era una restricción de NAYOLI,
+no del producto. Rango **2 a 4** —no menos de 2 (una sola tarjeta no es una elección de presentación),
+no más de 4 (el grid se vuelve ilegible)—. La forma NO es un repeater (§ arriba): es **2 slots
+REQUERIDOS (defaults de Nayoli) + 2 OPCIONALES (defaults vacíos)**, y el resolver NO se toca —los slots
+3-4 son campos opcionales más—.
+
+- **Qué tarjeta SE MUESTRA lo decide el COMPONENTE, no el resolver.** `tarjetasDePresentaciones`
+  (`lib/storefront/presentaciones.ts`, puro, capa 1) filtra: los 2 requeridos SIEMPRE; los opcionales
+  si tienen título **O** imagen. `resolverSiteContent` y `seccionEsVisible` quedan intactos (la sección
+  siempre tiene ≥2 tarjetas, así que sigue visible). Es lo que hace que 2→4 no toque ni el resolver ni
+  #44.
+- **El criterio es OR, no AND, y es una DECISIÓN:** con AND, un cliente que escribió el título y la
+  descripción pero todavía no subió la foto vería su tarjeta DESAPARECER sin saber por qué (el editor no
+  lo dice). Con OR la tarjeta APARECE apenas se empieza a llenar, y la imagen faltante es un defecto
+  VISIBLE —`GrindChooser` pinta el fondo `--sf-linea`, NUNCA un `<img src="">` roto— que el cliente sabe
+  arreglar. Fijado con test (título-solo aparece, imagen-sola aparece).
+- **El GRID va por lookup LITERAL** (`gridColsPresentaciones`): 2→`md:grid-cols-2`, 3→`md:grid-cols-3`,
+  **4→`md:grid-cols-2` (2×2), NO `cols-4`** —medido a 800px: 4-en-fila da ~170px/tarjeta (título+copy+CTA
+  ilegibles) contra ~364px legibles del 2×2—. Literal y no interpolado, para que el JIT de Tailwind vea
+  las clases. Nayoli (2) → `md:grid-cols-2`, className byte-idéntico a hoy.
+- **El editor agrupa por "Tarjeta N"** (los slots 3-4 marcados "(opcional)", con hint "escribe un nombre
+  o sube una imagen para agregar una tarjeta"). NO se rediseñó el editor: agrupar es suficiente. **El
+  dolor de un formulario largo (14 campos con 4 tarjetas) es evidencia del editor visual (§ Backlog #46),
+  no deuda de Presentaciones** — no se construye nada de #46 acá.
 
 ### Las imágenes
 
