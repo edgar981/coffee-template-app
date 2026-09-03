@@ -16,8 +16,7 @@ import {
   type ShippingMethodId,
 } from '@duna/core/shipping-config';
 import { COLOMBIA_DEPARTMENTS, isBogotaDC } from '@duna/core/colombia-departments';
-import { formatWhatsappDisplay } from '@/lib/config/site';
-import { opcionTransferencia } from '@/lib/checkout/transferencia';
+import { metodosDisponibles } from '@/lib/checkout/metodos-pago';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 
 const STEPS = ['Información', 'Pago'];
@@ -64,40 +63,23 @@ export default function Checkout() {
   const phoneDigits = info.telefono.replace(/\D/g, '');
   const phoneValid = /^3\d{9}$/.test(phoneDigits);
 
-  // Nequi/Daviplata reciben en el celular del negocio (10 dígitos locales). El número
-  // sale de SiteSetting (una sola fuente), con el display derivado del número crudo.
   const settings = useSiteSettings();
-  const pagoMovilNumero = formatWhatsappDisplay(settings.whatsapp).replace(/^\+57\s*/, '');
 
-  // Transferencia bancaria: la cuenta es CONFIG (SiteSetting.banco*), no un literal — antes había
-  // una cuenta HARDCODEADA falsa en la ruta del dinero. `opcionTransferencia` la muestra SÓLO con los
-  // esenciales (banco+tipo+número); vacío = el método no aparece —"no a medias"— (precedente: el CTA
-  // de suscripciones se oculta sin whatsapp). El dueño pone la cuenta en Configuración; el seed no
-  // trae una falsa.
-  const transferencia = opcionTransferencia(settings);
+  // Los métodos que el checkout MUESTRA: ON + datos completos (§ metodos-pago). Cada uno se
+  // enciende/apaga y edita en Configuración. Puede quedar VACÍO (todos apagados o sin datos) → la
+  // guarda defensiva del paso de pago muestra "escríbenos para coordinar el pago" en vez de un paso
+  // sin opciones. El SELECCIONADO se acota a lo disponible en el render (sin efecto): si el elegido
+  // ya no está —apagado, o salió de Bogotá— cae al primero disponible, así nunca viaja un método
+  // que la tienda no ofrece.
+  const availablePayments = metodosDisponibles(settings, { isBogota });
+  const metodoActivo = availablePayments.some((o) => o.id === payment) ? payment : (availablePayments[0]?.id ?? '');
 
-  const paymentOptions = [
-    { id: 'nequi', label: 'Nequi', desc: `Enviar a ${pagoMovilNumero}` },
-    { id: 'daviplata', label: 'Daviplata', desc: `Enviar a ${pagoMovilNumero}` },
-    ...(transferencia ? [{ id: 'transferencia', label: 'Transferencia Bancaria', desc: transferencia.desc }] : []),
-    { id: 'efectivo', label: 'Contra entrega', desc: 'Solo disponible en Bogotá D.C.' },
-  ];
-
-  // "Contra entrega" (efectivo) is only valid for Bogotá D.C. deliveries — hide it otherwise. Server
-  // enforces the same rule off departamento; this is UX only. (Transferencia is already excluded
-  // upstream, above, when the bank account is incomplete — a selected method can't reach submit
-  // because it never renders as an option.)
-  const availablePayments = paymentOptions.filter(
-    (o) => o.id !== 'efectivo' || isBogota,
-  );
-
-  // Changing departamento re-derives the method; leaving Bogotá clears the franja
-  // AND resets a contra-entrega choice so no invalid combo reaches the Pago step.
+  // Changing departamento re-derives the method; leaving Bogotá clears the franja. (No hace falta
+  // resetear el método: `metodoActivo` cae al primero disponible cuando efectivo deja de estarlo.)
   const selectDepartamento = (value: string) => {
     setAddress((a) => ({ ...a, departamento: value }));
     if (!isBogotaDC(value)) {
       setSlot(null);
-      if (payment === 'efectivo') setPayment('nequi');
     }
   };
 
@@ -123,7 +105,7 @@ export default function Checkout() {
           franja:            slot,
         },
         payment: {
-          metodo:     payment as 'nequi' | 'daviplata' | 'transferencia' | 'efectivo',
+          metodo:     metodoActivo as 'nequi' | 'daviplata' | 'transferencia' | 'efectivo',
           referencia: refTransfer.trim() || undefined,
         },
         items: items.map((i) => ({
@@ -338,19 +320,30 @@ export default function Checkout() {
                 {step === 1 && (
                   <div className="space-y-4">
                     <h2 className="font-semibold text-[var(--sf-tinta)] mb-4">Método de pago</h2>
-                    <div className="space-y-3">
-                      {availablePayments.map(opt => (
-                        <label key={opt.id} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${payment === opt.id ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
-                          <input type="radio" name="payment" value={opt.id} checked={payment === opt.id} onChange={() => setPayment(opt.id)} className="mt-0.5 accent-[var(--sf-acento)]" />
-                          <div>
-                            <p className="text-sm font-semibold text-[var(--sf-tinta)]">{opt.label}</p>
-                            <p className="text-xs text-[var(--sf-texto-suave)]">{opt.desc}</p>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                    {(payment === 'nequi' || payment === 'daviplata' || payment === 'transferencia') && (
-                      <Field label="Referencia de pago (opcional)" value={refTransfer} onChange={setRefTransfer} placeholder="Número de confirmación" />
+                    {availablePayments.length === 0 ? (
+                      // Guarda defensiva: el dueño apagó TODOS los métodos (o ninguno tiene datos). El
+                      // editor exige ≥1 encendido, así que casi no pasa —pero el checkout no puede quedar
+                      // mudo—: se ofrece coordinar el pago por WhatsApp en vez de un paso sin opciones.
+                      <div className="bg-[var(--sf-superficie)] rounded-xl p-4 text-sm text-[var(--sf-texto)]">
+                        No hay un método de pago disponible ahora mismo. Escríbenos para coordinar el pago y completar tu pedido.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="space-y-3">
+                          {availablePayments.map(opt => (
+                            <label key={opt.id} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${metodoActivo === opt.id ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
+                              <input type="radio" name="payment" value={opt.id} checked={metodoActivo === opt.id} onChange={() => setPayment(opt.id)} className="mt-0.5 accent-[var(--sf-acento)]" />
+                              <div>
+                                <p className="text-sm font-semibold text-[var(--sf-tinta)]">{opt.label}</p>
+                                <p className="text-xs text-[var(--sf-texto-suave)]">{opt.desc}</p>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                        {(metodoActivo === 'nequi' || metodoActivo === 'daviplata' || metodoActivo === 'transferencia') && (
+                          <Field label="Referencia de pago (opcional)" value={refTransfer} onChange={setRefTransfer} placeholder="Número de confirmación" />
+                        )}
+                      </>
                     )}
                     <div className="bg-[var(--sf-superficie)] rounded-xl p-4 flex items-start gap-2 text-xs text-[var(--sf-texto)]">
                       <Lock className="w-3.5 h-3.5 text-[var(--sf-acento-texto)] shrink-0 mt-0.5" />
@@ -358,7 +351,7 @@ export default function Checkout() {
                     </div>
                     <div className="flex gap-3">
                       <button onClick={() => setStep(0)} className="flex-1 border border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)]">Atrás</button>
-                      <button onClick={handleOrder} disabled={loading} className="flex-1 bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors">
+                      <button onClick={handleOrder} disabled={loading || availablePayments.length === 0} className="flex-1 bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors">
                         {loading ? 'Procesando...' : `Confirmar pedido · ${formatCOP(total)}`}
                       </button>
                     </div>

@@ -54,6 +54,11 @@ export async function PATCH(req: NextRequest) {
       bancoTipoCuenta:   d.bancoTipoCuenta || null,
       bancoNumeroCuenta: d.bancoNumeroCuenta || null,
       bancoTitular:      d.bancoTitular || null,
+      pagoNequiActivo:         d.pagoNequiActivo,
+      pagoDaviplataActivo:     d.pagoDaviplataActivo,
+      pagoTransferenciaActivo: d.pagoTransferenciaActivo,
+      pagoEfectivoActivo:      d.pagoEfectivoActivo,
+      pagoMovilNumero:         d.pagoMovilNumero || null,
     },
   });
   return NextResponse.json({ ok: true });

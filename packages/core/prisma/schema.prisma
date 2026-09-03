@@ -583,6 +583,16 @@ model SiteSetting {
   bancoTipoCuenta   String?
   bancoNumeroCuenta String?
   bancoTitular      String?
+  // MÉTODOS de pago del checkout: encender/apagar por método (fijos, no un motor de métodos).
+  // Default true → la fila existente queda con los 4 encendidos (comportamiento de hoy). Un método
+  // se muestra si está ON *y* tiene sus datos (§ metodos-pago).
+  pagoNequiActivo         Boolean @default(true)
+  pagoDaviplataActivo     Boolean @default(true)
+  pagoTransferenciaActivo Boolean @default(true)
+  pagoEfectivoActivo      Boolean @default(true)
+  // Número de pago móvil (Nequi/Daviplata) — su PROPIO dato, ya no cuelga de `whatsapp` (conflación
+  // contacto↔pago). La migración lo sembró desde whatsapp una vez; de ahí en más es independiente.
+  pagoMovilNumero   String?
   // La PALETA del storefront ya NO vive acá: se mudó a `SiteContent.content.tema` (§ Backlog #55)
   // para ganar el flujo borrador/publicar. SiteSetting es IDENTIDAD (guardar = en vivo al instante);
   // la paleta es CONTENIDO que se publica. Migración `drop_site_setting_palette`.

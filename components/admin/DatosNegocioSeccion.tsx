@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Pencil } from 'lucide-react';
 import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import { siteSettingsEditableSchema } from '@/lib/config/site-settings-schema';
+import { estadoMetodoEditor, type MetodoPagoId } from '@/lib/checkout/metodos-pago';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
@@ -31,10 +32,19 @@ interface FormState {
   whatsapp: string; instagram: string; emailRemitente: string;
   emailReplyTo: string; adminEmail: string;
   bancoNombre: string; bancoTipoCuenta: string; bancoNumeroCuenta: string; bancoTitular: string;
+  // Métodos de pago (toggles) + el número de pago móvil. Los booleanos NO van en CAMPOS (se
+  // renderizan como toggles); el número sí (es texto).
+  pagoNequiActivo: boolean; pagoDaviplataActivo: boolean; pagoTransferenciaActivo: boolean; pagoEfectivoActivo: boolean;
+  pagoMovilNumero: string;
 }
 
+// Sólo las claves de FormState que son STRING (para CAMPOS y `set`, que manejan `<input>`s de texto).
+// Los booleanos de método quedan fuera —se editan con toggles, no con `set`—.
+type FormTextoKey = { [K in keyof FormState]: FormState[K] extends string ? K : never }[keyof FormState];
+type FormBoolKey  = { [K in keyof FormState]: FormState[K] extends boolean ? K : never }[keyof FormState];
+
 type Campo = {
-  name: keyof FormState;
+  name: FormTextoKey;
   label: string;
   hint?: string;
   textarea?: boolean;
@@ -57,6 +67,8 @@ const CAMPOS: Campo[] = [
   { name: 'bancoTipoCuenta',   label: 'Tipo de cuenta',      hint: 'Ahorros o Corriente.' },
   { name: 'bancoNumeroCuenta', label: 'Número de cuenta' },
   { name: 'bancoTitular',      label: 'Titular de la cuenta (opcional)', hint: 'A nombre de quién está la cuenta. Vacío: no se muestra.' },
+  // Número de pago móvil (Nequi/Daviplata) — su propio dato, ya no cuelga del WhatsApp.
+  { name: 'pagoMovilNumero',   label: 'Número de pago móvil (Nequi/Daviplata)', hint: 'Donde recibes Nequi y Daviplata. Puede ser distinto del WhatsApp. Vacío: esos métodos no se muestran.' },
 ];
 
 function desdeSettings(s: SiteSettings): FormState {
@@ -73,8 +85,21 @@ function desdeSettings(s: SiteSettings): FormState {
     bancoTipoCuenta:   s.bancoTipoCuenta ?? '',
     bancoNumeroCuenta: s.bancoNumeroCuenta ?? '',
     bancoTitular:      s.bancoTitular ?? '',
+    pagoNequiActivo:         s.pagoNequiActivo,
+    pagoDaviplataActivo:     s.pagoDaviplataActivo,
+    pagoTransferenciaActivo: s.pagoTransferenciaActivo,
+    pagoEfectivoActivo:      s.pagoEfectivoActivo,
+    pagoMovilNumero:         s.pagoMovilNumero ?? '',
   };
 }
+
+// Los 4 métodos, para el bloque de toggles. El campo booleano de cada uno en el form.
+const METODOS_PAGO: { id: MetodoPagoId; activoKey: FormBoolKey; label: string }[] = [
+  { id: 'nequi',         activoKey: 'pagoNequiActivo',         label: 'Nequi' },
+  { id: 'daviplata',     activoKey: 'pagoDaviplataActivo',     label: 'Daviplata' },
+  { id: 'transferencia', activoKey: 'pagoTransferenciaActivo', label: 'Transferencia bancaria' },
+  { id: 'efectivo',      activoKey: 'pagoEfectivoActivo',      label: 'Contra entrega (efectivo)' },
+];
 
 export default function DatosNegocioSeccion() {
   const settings = useSiteSettings();
@@ -193,6 +218,34 @@ export default function DatosNegocioSeccion() {
               );
             })}
 
+            {/* Métodos de pago del checkout: encender/apagar. Un método ON sin sus datos NO se muestra
+                en la tienda —el estado "falta configurarlo" lo hace visible acá para que no sea un
+                silencio—. El schema exige ≥1 encendido (el error cae en `pagoNequiActivo`). */}
+            <div className="duna-form__full">
+              <h3 className="duna-field__label" style={{ marginBottom: 'var(--duna-space-1)' }}>Métodos de pago del checkout</h3>
+              <p className="duna-field__hint" style={{ marginTop: 0, marginBottom: 'var(--duna-space-2)' }}>
+                Enciende los que ofreces. Uno encendido sin sus datos (número, cuenta) no se muestra hasta completarlo.
+              </p>
+              {METODOS_PAGO.map(m => {
+                const estado = estadoMetodoEditor(form, m.id);
+                return (
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', padding: '2px 0' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={form[m.activoKey]}
+                             onChange={e => setForm(f => ({ ...f, [m.activoKey]: e.target.checked }))} />
+                      <span className="duna-body">{m.label}</span>
+                    </label>
+                    {estado === 'activo_sin_datos' && (
+                      <span className="duna-caption" style={{ color: 'var(--duna-sol-ink)' }}>Encendido — falta configurarlo</span>
+                    )}
+                  </div>
+                );
+              })}
+              {errores.pagoNequiActivo && (
+                <p className="duna-field__error" style={{ marginTop: 'var(--duna-space-1)' }}>{errores.pagoNequiActivo}</p>
+              )}
+            </div>
+
             <div className="duna-form__full" style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
               <button type="submit" className="duna-btn duna-btn--primary" disabled={guarda.enVuelo}>
                 {guarda.enVuelo ? 'Guardando…' : 'Guardar cambios'}
@@ -223,6 +276,25 @@ export default function DatosNegocioSeccion() {
                 </div>
               );
             })}
+            {/* Métodos de pago, en lectura: encendido / apagado / encendido-sin-datos. */}
+            <div className="duna-field duna-form__full">
+              <dt className="duna-field__label">Métodos de pago del checkout</dt>
+              <dd className="duna-body" style={{ margin: 0 }}>
+                {METODOS_PAGO.map(m => {
+                  const estado = estadoMetodoEditor(settings, m.id);
+                  return (
+                    <div key={m.id} style={{ display: 'flex', gap: 'var(--duna-space-2)', alignItems: 'baseline' }}>
+                      <span>{m.label}:</span>
+                      {estado === 'apagado'
+                        ? <span style={{ color: 'var(--duna-muted)' }}>Apagado</span>
+                        : estado === 'activo_sin_datos'
+                          ? <span style={{ color: 'var(--duna-sol-ink)' }}>Encendido — falta configurarlo</span>
+                          : <span>Encendido</span>}
+                    </div>
+                  );
+                })}
+              </dd>
+            </div>
           </dl>
         )}
       </div>
