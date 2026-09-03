@@ -8,17 +8,17 @@ import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
-import { hrefCategoria } from "@/lib/productos/categorias";
+import { tarjetasDePresentaciones, gridColsPresentaciones } from "@/lib/storefront/presentaciones";
 
-// "¿Cómo tomas tu café?" — las DOS tarjetas de presentación, EDITABLES desde SiteContent (sección
+// "¿Cómo tomas tu café?" — las tarjetas de presentación, EDITABLES desde SiteContent (sección
 // `presentaciones`). Antes era la única sección de la home hardcodeada; hoy lee del provider como las
 // otras cuatro.
 //
-// CARDINALIDAD FIJA (2 tarjetas, el grid las asume): campos PLANOS (label/copy/imagen por tarjeta),
-// NO un repeater (§ doctrina: cardinalidad fija → campos planos; el repeater es para variable y sus
-// defaults jamás se muestran). El DESTINO de cada tarjeta es DATO editable (`categoria1/2`); el href
-// lo construye `hrefCategoria` desde la categoría elegida. Un path FIJO se rompía cuando el cliente
-// renombraba la categoría (§ el destino de Presentaciones es DATO).
+// CARDINALIDAD VARIABLE 2-4 sobre campos PLANOS (NO un repeater — un repeater no da defaults
+// byte-idénticos, § doctrina). Qué tarjetas se muestran (2 requeridas + hasta 2 opcionales, con título
+// O imagen) y el grid por conteo salen de `tarjetasDePresentaciones`/`gridColsPresentaciones` (capa 1
+// pura), NO del resolver — así 2→4 no toca ni el resolver ni #44. El DESTINO de cada tarjeta es DATO
+// editable (`categoriaN`); el href lo construye `hrefCategoria`. Nayoli (2) queda byte-idéntica.
 //
 // EL `negocio` DEL ALT LLEGA POR PROP, no por `useSiteSettings()` — es IDENTIDAD, no contenido, y se
 // queda leyendo el nombre del negocio (no se mueve a SiteContent). Pero llega por prop porque este
@@ -31,10 +31,8 @@ export default function GrindChooser({ negocio }: { negocio?: string }) {
   const preview = useIsPreview();
   if (!seccionEsVisible(REGISTRY.presentaciones, presentaciones)) return null;
 
-  const tarjetas = [
-    { label: presentaciones.label1, copy: presentaciones.copy1, img: presentaciones.imagen1, path: hrefCategoria(presentaciones.categoria1) },
-    { label: presentaciones.label2, copy: presentaciones.copy2, img: presentaciones.imagen2, path: hrefCategoria(presentaciones.categoria2) },
-  ];
+  const tarjetas = tarjetasDePresentaciones(presentaciones);
+  const gridCols = gridColsPresentaciones(tarjetas.length);
 
   return (
     <section className="py-20 bg-[var(--sf-fondo)]">
@@ -54,7 +52,7 @@ export default function GrindChooser({ negocio }: { negocio?: string }) {
           )}
           <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-tinta)]">{presentaciones.titulo}</h2>
         </motion.div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className={`grid grid-cols-1 ${gridCols} gap-6`}>
           {tarjetas.map((op, i) => (
             <motion.div
               key={i}
@@ -65,14 +63,19 @@ export default function GrindChooser({ negocio }: { negocio?: string }) {
               variants={fadeUp}
               transition={{ delay: i * 0.08 }}
             >
-              <Link href={op.path} className="group relative flex flex-col justify-end overflow-hidden rounded-3xl aspect-[4/5] sm:aspect-[3/2] bg-[var(--sf-linea)]">
-                <Image
-                  src={op.img}
-                  alt={negocio ? `${negocio} ${op.label}` : op.label}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  className="object-cover group-hover:scale-105 transition-transform duration-500"
-                />
+              <Link href={op.href} className="group relative flex flex-col justify-end overflow-hidden rounded-3xl aspect-[4/5] sm:aspect-[3/2] bg-[var(--sf-linea)]">
+                {/* Imagen condicional: una tarjeta opcional puede mostrarse SÓLO con título (criterio
+                    OR); sin foto se ve el fondo `--sf-linea` de la tarjeta —un hueco VISIBLE que el
+                    cliente sabe llenar—, nunca un `<img src="">` roto que pide la URL de la página. */}
+                {op.img && (
+                  <Image
+                    src={op.img}
+                    alt={negocio ? `${negocio} ${op.label}` : op.label}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 50vw"
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[var(--sf-tinta)]/80 via-[var(--sf-tinta)]/20 to-transparent" />
                 <div className="relative p-8">
                   <h3 className="text-2xl sm:text-3xl font-playfair text-white mb-1">{op.label}</h3>

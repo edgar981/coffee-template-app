@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { toast } from 'sonner';
 import { Pencil, Upload } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
@@ -326,11 +326,18 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                 </div>
               )}
 
-              {config.imagenes.map(img => {
+              {config.imagenes.map((img, i) => {
                 const val = String(form[img.name] ?? '');
                 const esDefault = val === String(defaults[img.name] ?? '');
+                const nuevoGrupo = img.grupo && img.grupo !== config.imagenes[i - 1]?.grupo;
                 return (
-                  <div key={img.name} className="duna-field duna-form__full" style={{ marginBottom: 'var(--duna-space-5)' }}>
+                  <Fragment key={img.name}>
+                  {nuevoGrupo && (
+                    <div style={{ marginTop: i > 0 ? 'var(--duna-space-4)' : 0, marginBottom: 'var(--duna-space-2)', paddingTop: i > 0 ? 'var(--duna-space-3)' : 0, borderTop: i > 0 ? '1px solid var(--duna-border)' : 'none' }}>
+                      <span className="duna-caption" style={{ fontWeight: 600 }}>{img.grupo}</span>
+                    </div>
+                  )}
+                  <div className="duna-field duna-form__full" style={{ marginBottom: 'var(--duna-space-5)' }}>
                     <span className="duna-field__label">{img.label}</span>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -359,20 +366,34 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                       <div style={{ marginTop: 'var(--duna-space-2)' }}><BarraProgreso pct={subida.progreso ?? 0} /></div>
                     )}
                   </div>
+                  </Fragment>
                 );
               })}
 
               <div className="duna-form">
-                {config.campos.map(campo => {
+                {config.campos.map((campo, i) => {
                   const id = `${seccion}-${campo.name}`;
                   const value = String(form[campo.name] ?? '');
                   // Aviso (b): el destino elegido ya no está en el catálogo → la tarjeta no traería
                   // resultados. NO bloqueante (el combobox permite a propósito una categoría futura), y
                   // sólo si el catálogo YA cargó (un fetch fallido no puede afirmar que no existe).
                   const destinoInexistente = !!campo.categoria && categoriasListas && value.trim() !== '' && !categorias.includes(value);
+                  // Rótulo POR TÍTULO (§ ítem 2): el destino se lee «En grano» lleva a: usando el
+                  // título en vivo de la misma tarjeta. Vacío el título → el `label` estático (fallback
+                  // "Presentación N · lleva a"), que es lo que evita "lleva a:" sin sujeto.
+                  const tituloTarjeta = campo.tituloDe ? String(form[campo.tituloDe] ?? '').trim() : '';
+                  const etiqueta = campo.tituloDe && tituloTarjeta ? `«${tituloTarjeta}» lleva a:` : campo.label;
+                  // Encabezado de grupo ("Tarjeta N") cuando cambia respecto del campo anterior.
+                  const nuevoGrupo = campo.grupo && campo.grupo !== config.campos[i - 1]?.grupo;
                   return (
-                    <div key={campo.name} className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
-                      <label className="duna-field__label" htmlFor={id}>{campo.label}</label>
+                    <Fragment key={campo.name}>
+                    {nuevoGrupo && (
+                      <div className="duna-form__full" style={{ marginTop: 'var(--duna-space-3)', paddingTop: 'var(--duna-space-3)', borderTop: '1px solid var(--duna-border)' }}>
+                        <span className="duna-caption" style={{ fontWeight: 600 }}>{campo.grupo}</span>
+                      </div>
+                    )}
+                    <div className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
+                      <label className="duna-field__label" htmlFor={id}>{etiqueta}</label>
                       {campo.categoria ? (
                         <CategoriaCombobox id={id} value={value} categorias={categorias}
                                            onChange={v => cambiar({ [campo.name]: v })} ariaDescribedby={`${id}-hint`} />
@@ -388,6 +409,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                       )}
                       <p className="duna-field__hint" id={`${id}-hint`}>{campo.hint}</p>
                     </div>
+                    </Fragment>
                   );
                 })}
               </div>

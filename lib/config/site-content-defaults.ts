@@ -34,16 +34,18 @@ export interface BrandStoryContent {
   imagen4: string;
 }
 
-// Presentaciones ("¿Cómo tomas tu café?"): DOS tarjetas de presentación del producto. CARDINALIDAD
-// FIJA —el grid asume 2, sin agregar ni quitar—, así que son campos PLANOS (patrón brandStory), NO un
-// repeater: un repeater es para cardinalidad VARIABLE y sus defaults JAMÁS se muestran (§ doctrina:
-// cardinalidad fija → campos planos). Cada tarjeta: label + copy + imagen + `categoria` (el DESTINO,
-// § el destino de Presentaciones es DATO), todos requeridos → vacío cae al default, el storefront no
-// muestra una tarjeta a medias ni sin destino. El href lo construye `hrefCategoria(categoria)`.
+// Presentaciones ("¿Cómo tomas tu café?"): de 2 a 4 tarjetas de presentación. Cardinalidad VARIABLE
+// pero con campos PLANOS, NO un repeater —un repeater no puede dar defaults byte-idénticos
+// (`resolverItems` → `[]` sin fila, invariante #44)—. La variable se expresa como **2 slots REQUERIDOS
+// (siempre, con los defaults de Nayoli) + 2 OPCIONALES (defaults vacíos)**: mínimo 2, máximo 4. Cada
+// tarjeta: label + copy + imagen + `categoria` (el DESTINO, § el destino de Presentaciones es DATO).
+// El href lo construye `hrefCategoria(categoria)`. Qué tarjeta SE MUESTRA lo decide el componente
+// (`tarjetasDePresentaciones`, título O imagen), NO el resolver — así 2→4 no toca ni el resolver ni #44.
 export interface PresentacionesContent {
   visible: boolean;
   eyebrow: string;
   titulo: string;
+  // Tarjetas 1-2 REQUERIDAS (siempre renderizan → mínimo 2, con los defaults de Nayoli).
   label1: string;
   copy1: string;
   imagen1: string;
@@ -52,6 +54,17 @@ export interface PresentacionesContent {
   copy2: string;
   imagen2: string;
   categoria2: string;
+  // Tarjetas 3-4 OPCIONALES (defaults VACÍOS): la tarjeta se muestra si tiene título O imagen
+  // (§ tarjetasDePresentaciones). Es lo que sube la cardinalidad de FIJA-2 a VARIABLE 2-4 sin tocar
+  // el resolver ni #44 — son campos opcionales más, y el filtrado por-tarjeta vive en el componente.
+  label3: string;
+  copy3: string;
+  imagen3: string;
+  categoria3: string;
+  label4: string;
+  copy4: string;
+  imagen4: string;
+  categoria4: string;
 }
 
 // SubscriptionCTA ("Plan Suscripción"): eyebrow + h2 + un párrafo + HASTA CUATRO bullets + el label
@@ -217,6 +230,10 @@ export const DEFAULTS: SiteContentData = {
     copy2: 'Listo para tu greca, filtro o prensa.',
     imagen2: '/images/cafe-nayoli-250g-molido.webp',
     categoria2: 'Café Molido',
+    // Tarjetas 3-4 opcionales, VACÍAS por defecto → Nayoli renderiza 2 (byte-idéntico). Un cliente
+    // con 3-4 presentaciones las llena en el editor.
+    label3: '', copy3: '', imagen3: '', categoria3: '',
+    label4: '', copy4: '', imagen4: '', categoria4: '',
   },
   subscriptionCTA: {
     visible: true,
@@ -352,12 +369,11 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   presentaciones: {
     label: 'Presentaciones',
     ocultable: true,
-    // Cardinalidad FIJA (2 tarjetas): campos PLANOS con imágenes, como brandStory —NO un repeater—.
-    // Los dos campos-imagen se borran de Blob por diff (`imagenesDe` lee esto). Todos los textos
-    // requeridos: una tarjeta sin label/copy/imagen se ve rota, así que vacío cae al default.
-    // `categoria1/2` = el DESTINO de cada tarjeta (§ el destino de Presentaciones es DATO). Requerido:
-    // una tarjeta tiene que llevar a algún lado, así que vacío cae al default (la categoría de Nayoli).
-    imagenes: ['imagen1', 'imagen2'],
+    // Cardinalidad VARIABLE 2-4: campos PLANOS con imágenes, como brandStory —NO un repeater—.
+    // Los cuatro campos-imagen se borran de Blob por diff (`imagenesDe` lee esto). Tarjetas 1-2
+    // REQUERIDAS (vacío cae al default de Nayoli → mínimo 2); 3-4 OPCIONALES (vacío se respeta → la
+    // tarjeta no se muestra si no se llena). `categoriaN` = el DESTINO (§ el destino es DATO).
+    imagenes: ['imagen1', 'imagen2', 'imagen3', 'imagen4'],
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',
@@ -369,6 +385,14 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       copy2: 'requerido',
       imagen2: 'requerido',
       categoria2: 'requerido',
+      label3: 'opcional',
+      copy3: 'opcional',
+      imagen3: 'opcional',
+      categoria3: 'opcional',
+      label4: 'opcional',
+      copy4: 'opcional',
+      imagen4: 'opcional',
+      categoria4: 'opcional',
     },
   },
   subscriptionCTA: {
