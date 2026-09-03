@@ -19,7 +19,10 @@ export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean }[] = [
 // `categoria: true` → el campo es un DESTINO de categoría: la cáscara lo renderiza con el
 // CategoriaCombobox (la lista real del catálogo) y avisa si el valor ya no existe (§ el destino de
 // Presentaciones es DATO). Excluye `textarea`.
-export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; hint: string };
+// `tituloDe` → nombre del campo cuyo VALOR EN VIVO rotula este campo: el destino se lee «En grano»
+// lleva a: usando el título editable de la MISMA tarjeta, no "Presentación 1" (posición, que el
+// owner no sabe si es izq o der). Vacío el título → cae al `label` estático (el fallback).
+export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; tituloDe?: string; hint: string };
 export type CampoImagen = { name: string; label: string };
 
 // Descriptor de un campo DE ÍTEM (para el RepeaterEditor). `tipo` es GENÉRICO (no nombra ningún
@@ -129,10 +132,10 @@ const PRESENTACIONES: SeccionConfig = {
     { name: 'titulo',  label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'label1',     label: 'Presentación 1 · nombre',       hint: 'Ej. "En grano". Vacío: se usa el texto por defecto.' },
     { name: 'copy1',      label: 'Presentación 1 · descripción',  textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'categoria1', label: 'Presentación 1 · lleva a',      categoria: true, hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
+    { name: 'categoria1', label: 'Presentación 1 · lleva a',      categoria: true, tituloDe: 'label1', hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
     { name: 'label2',     label: 'Presentación 2 · nombre',       hint: 'Ej. "Molido". Vacío: se usa el texto por defecto.' },
     { name: 'copy2',      label: 'Presentación 2 · descripción',  textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'categoria2', label: 'Presentación 2 · lleva a',      categoria: true, hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
+    { name: 'categoria2', label: 'Presentación 2 · lleva a',      categoria: true, tituloDe: 'label2', hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
   ],
 };
 

@@ -370,9 +370,14 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                   // resultados. NO bloqueante (el combobox permite a propósito una categoría futura), y
                   // sólo si el catálogo YA cargó (un fetch fallido no puede afirmar que no existe).
                   const destinoInexistente = !!campo.categoria && categoriasListas && value.trim() !== '' && !categorias.includes(value);
+                  // Rótulo POR TÍTULO (§ ítem 2): el destino se lee «En grano» lleva a: usando el
+                  // título en vivo de la misma tarjeta. Vacío el título → el `label` estático (fallback
+                  // "Presentación N · lleva a"), que es lo que evita "lleva a:" sin sujeto.
+                  const tituloTarjeta = campo.tituloDe ? String(form[campo.tituloDe] ?? '').trim() : '';
+                  const etiqueta = campo.tituloDe && tituloTarjeta ? `«${tituloTarjeta}» lleva a:` : campo.label;
                   return (
                     <div key={campo.name} className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
-                      <label className="duna-field__label" htmlFor={id}>{campo.label}</label>
+                      <label className="duna-field__label" htmlFor={id}>{etiqueta}</label>
                       {campo.categoria ? (
                         <CategoriaCombobox id={id} value={value} categorias={categorias}
                                            onChange={v => cambiar({ [campo.name]: v })} ariaDescribedby={`${id}-hint`} />
