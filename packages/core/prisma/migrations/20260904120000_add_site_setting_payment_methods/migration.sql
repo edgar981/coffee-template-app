@@ -1,5 +1,9 @@
 -- Métodos de pago del checkout: encender/apagar por método, y el número de pago móvil PROPIO.
 --
+-- NATURALEZA: ADITIVA (5 columnas nuevas, nada se altera ni se borra) + UN BACKFILL de datos
+-- (`pagoMovilNumero` ← `whatsapp`, una vez). El backfill no cambia comportamiento: copia el número
+-- que hoy ya se usa como pago móvil, para separar el dato de contacto del de pago sin romper a Nayoli.
+--
 -- Los 4 métodos son FIJOS (nequi, daviplata, transferencia, efectivo) — no un motor de métodos
 -- arbitrarios (eso es Wompi/pasarela, un flujo con webhooks, no "un método más"). Cada uno es un
 -- BOOLEANO en SiteSetting; el dueño lo enciende/apaga desde Configuración.
