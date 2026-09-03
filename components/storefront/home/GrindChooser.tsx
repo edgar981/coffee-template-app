@@ -7,7 +7,8 @@ import Image from "next/image";
 import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
-import { REGISTRY, seccionEsVisible, PRESENTACIONES_HREFS } from "@/lib/config/site-content-defaults";
+import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
+import { hrefCategoria } from "@/lib/productos/categorias";
 
 // "¿Cómo tomas tu café?" — las DOS tarjetas de presentación, EDITABLES desde SiteContent (sección
 // `presentaciones`). Antes era la única sección de la home hardcodeada; hoy lee del provider como las
@@ -15,8 +16,9 @@ import { REGISTRY, seccionEsVisible, PRESENTACIONES_HREFS } from "@/lib/config/s
 //
 // CARDINALIDAD FIJA (2 tarjetas, el grid las asume): campos PLANOS (label/copy/imagen por tarjeta),
 // NO un repeater (§ doctrina: cardinalidad fija → campos planos; el repeater es para variable y sus
-// defaults jamás se muestran). Los `path` son ESTRUCTURA (PRESENTACIONES_HREFS, destinos fijos), no
-// editables (precedente HERO_HREFS).
+// defaults jamás se muestran). El DESTINO de cada tarjeta es DATO editable (`categoria1/2`); el href
+// lo construye `hrefCategoria` desde la categoría elegida. Un path FIJO se rompía cuando el cliente
+// renombraba la categoría (§ el destino de Presentaciones es DATO).
 //
 // EL `negocio` DEL ALT LLEGA POR PROP, no por `useSiteSettings()` — es IDENTIDAD, no contenido, y se
 // queda leyendo el nombre del negocio (no se mueve a SiteContent). Pero llega por prop porque este
@@ -30,8 +32,8 @@ export default function GrindChooser({ negocio }: { negocio?: string }) {
   if (!seccionEsVisible(REGISTRY.presentaciones, presentaciones)) return null;
 
   const tarjetas = [
-    { label: presentaciones.label1, copy: presentaciones.copy1, img: presentaciones.imagen1, path: PRESENTACIONES_HREFS.path1 },
-    { label: presentaciones.label2, copy: presentaciones.copy2, img: presentaciones.imagen2, path: PRESENTACIONES_HREFS.path2 },
+    { label: presentaciones.label1, copy: presentaciones.copy1, img: presentaciones.imagen1, path: hrefCategoria(presentaciones.categoria1) },
+    { label: presentaciones.label2, copy: presentaciones.copy2, img: presentaciones.imagen2, path: hrefCategoria(presentaciones.categoria2) },
   ];
 
   return (

@@ -9,9 +9,9 @@ import {
   resolverPaginas,
   resolverTema,
   seccionEsVisible,
-  PRESENTACIONES_HREFS,
   type SeccionDef,
 } from './site-content-defaults';
+import { hrefCategoria } from '../productos/categorias';
 
 // Capa 1 del loader SOFT del contenido: el resolver (default/omit por campo) y la
 // visibilidad (visible + hide-on-empty). Sin base — lógica pura.
@@ -440,9 +440,11 @@ const PRESENTACIONES_ANTES = {
   label1: 'En grano',
   copy1: 'Para moler en casa, máxima frescura.',
   imagen1: '/images/cafe-nayoli-250g-grano.webp',
+  categoria1: 'Café en Grano',
   label2: 'Molido',
   copy2: 'Listo para tu greca, filtro o prensa.',
   imagen2: '/images/cafe-nayoli-250g-molido.webp',
+  categoria2: 'Café Molido',
 };
 
 test('presentaciones: sin fila, los defaults resueltos reproducen los literales de GrindChooser', () => {
@@ -450,13 +452,19 @@ test('presentaciones: sin fila, los defaults resueltos reproducen los literales 
   assert.deepEqual(r.presentaciones, PRESENTACIONES_ANTES);
 });
 
-test('presentaciones: los paths son ESTRUCTURA y apuntan a las categorías reales de Nayoli (C3)', () => {
-  // C3: la taxonomía se deriva del catálogo; el seed de Nayoli pasó a labels limpios, así que los
-  // paths de la home apuntan a "Café en Grano"/"Café Molido" (encoded), no a la vieja clave `cafe_grano`.
-  assert.deepEqual(PRESENTACIONES_HREFS, {
-    path1: `/tienda?cat=${encodeURIComponent('Café en Grano')}`,
-    path2: `/tienda?cat=${encodeURIComponent('Café Molido')}`,
-  });
+test('presentaciones: sin fila, el DESTINO editable resuelve a los links de hoy (byte-idéntico, no rompe C1)', () => {
+  // El destino de cada tarjeta dejó de ser ESTRUCTURA (PRESENTACIONES_HREFS retirado) y es DATO
+  // (`categoria1/2`). Sin fila, los defaults resueltos + `hrefCategoria` deben dar EXACTAMENTE los
+  // links que la home de Nayoli tenía: "Café en Grano"/"Café Molido" encoded. Si esto cae, se rompió
+  // la premisa byte-idéntico de C1.
+  const r = resolverSiteContent({});
+  assert.equal(hrefCategoria(r.presentaciones.categoria1), `/tienda?cat=${encodeURIComponent('Café en Grano')}`);
+  assert.equal(hrefCategoria(r.presentaciones.categoria2), `/tienda?cat=${encodeURIComponent('Café Molido')}`);
+});
+
+test('presentaciones: una categoría (destino) requerida vacía cae al default (la tarjeta lleva a algún lado)', () => {
+  const r = resolverSiteContent({ presentaciones: { categoria1: '' } });
+  assert.equal(r.presentaciones.categoria1, PRESENTACIONES_ANTES.categoria1); // requerido vacío → default
 });
 
 test('presentaciones: es OCULTABLE (una tienda no-café la apaga) y NO es repeater (cardinalidad fija)', () => {

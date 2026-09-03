@@ -8,6 +8,7 @@ import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialo
 import VistaTiendaEnVivo from '@/components/admin/VistaTiendaEnVivo';
 import RepeaterEditor from '@/components/admin/RepeaterEditor';
 import BarraProgreso from '@/components/admin/BarraProgreso';
+import { CategoriaCombobox } from '@/components/admin/CategoriaCombobox';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import type { SeccionConfig } from '@/components/admin/tienda-secciones';
 import { DEFAULTS } from '@/lib/config/site-content-defaults';
@@ -27,7 +28,15 @@ import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 
 type Datos = Record<string, unknown>; // strings/booleans planos + el array de items de un repeater
 
-export default function TiendaSeccionEditor({ config }: { config: SeccionConfig }) {
+export default function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false }: {
+  config: SeccionConfig;
+  /** Las categorías DERIVADAS del catálogo, para los campos-destino (§ el destino de Presentaciones es
+   *  DATO). Sólo las usa la sección con un campo `categoria: true`; las demás las ignoran. */
+  categorias?: string[];
+  /** Si el catálogo ya cargó — el aviso "no existe" NO se muestra hasta saberlo (un fetch fallido no
+   *  puede afirmar que una categoría no existe). */
+  categoriasListas?: boolean;
+}) {
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
 
@@ -357,13 +366,25 @@ export default function TiendaSeccionEditor({ config }: { config: SeccionConfig 
                 {config.campos.map(campo => {
                   const id = `${seccion}-${campo.name}`;
                   const value = String(form[campo.name] ?? '');
+                  // Aviso (b): el destino elegido ya no está en el catálogo → la tarjeta no traería
+                  // resultados. NO bloqueante (el combobox permite a propósito una categoría futura), y
+                  // sólo si el catálogo YA cargó (un fetch fallido no puede afirmar que no existe).
+                  const destinoInexistente = !!campo.categoria && categoriasListas && value.trim() !== '' && !categorias.includes(value);
                   return (
                     <div key={campo.name} className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
                       <label className="duna-field__label" htmlFor={id}>{campo.label}</label>
-                      {campo.textarea ? (
+                      {campo.categoria ? (
+                        <CategoriaCombobox id={id} value={value} categorias={categorias}
+                                           onChange={v => cambiar({ [campo.name]: v })} ariaDescribedby={`${id}-hint`} />
+                      ) : campo.textarea ? (
                         <textarea id={id} className="duna-input" rows={2} value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`} />
                       ) : (
                         <input id={id} className="duna-input" value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`} />
+                      )}
+                      {destinoInexistente && (
+                        <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)', marginBottom: 0 }}>
+                          Ningún producto tiene la categoría «{value}» todavía — la tarjeta no traerá resultados.
+                        </p>
                       )}
                       <p className="duna-field__hint" id={`${id}-hint`}>{campo.hint}</p>
                     </div>
