@@ -1,5 +1,5 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from "next/link";
 import { imagenPortada } from "@/lib/producto-imagen";
 import { ArrowLeft, Shield, Lock, CreditCard, Clock } from 'lucide-react';
@@ -26,6 +26,17 @@ export default function Checkout() {
   const { items, subtotal, clearCart } = useCartStore();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+
+  // Al cambiar de paso (Continuar o Atrás), subir al inicio: el checkout son pasos por ESTADO en
+  // una sola página (no rutas), así que la posición vertical del paso anterior se conserva y el
+  // cliente aterriza a media pantalla —sin ver el encabezado del paso nuevo ni, en Pago, las
+  // instrucciones de pago que están arriba—. `window.scrollTo` porque el scroll es del documento.
+  // Respeta prefers-reduced-motion: salto instantáneo si el usuario lo pide. En el montaje (step 0)
+  // la página ya está arriba → no-op.
+  useEffect(() => {
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+  }, [step]);
   // Authoritative, server-persisted order — sourced entirely from the
   // create-order response, never from the (soon-to-be-cleared) cart store.
   const [confirmation, setConfirmation] = useState<CheckoutResult | null>(null);
