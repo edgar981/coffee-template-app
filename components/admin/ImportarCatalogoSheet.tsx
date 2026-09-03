@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import { Upload, Trash2, CheckCircle2, AlertCircle, MinusCircle, FileUp } from 'lucide-react';
 import { DunaSheet } from '@/components/admin/DunaSheet';
+import { CategoriaCombobox } from '@/components/admin/CategoriaCombobox';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import type { ResultadoImport } from '@duna/core/product-import';
 import { parsear, sepDeArchivo, motivoInvalida, SEP_LABEL, type Sep, type FilaGrid } from '@/lib/productos/import-parse';
@@ -27,8 +28,8 @@ const COLS: { campo: keyof Fila; label: string; ancho: string }[] = [
 
 export function ImportarCatalogoSheet({ abierto, categorias, onCerrar, onImportado }: {
   abierto: boolean;
-  /** Categorías EXISTENTES del catálogo (derivadas), sugeridas en el datalist — la categoría es
-   *  texto libre, no un set cerrado. Un catálogo vacío no sugiere nada; el cliente escribe la suya. */
+  /** Categorías EXISTENTES del catálogo (derivadas), en el combobox de la celda categoría — la
+   *  categoría es texto libre, no un set cerrado. Un catálogo vacío no sugiere nada; se escribe la suya. */
   categorias: string[];
   onCerrar: () => void; onImportado: () => void;
 }) {
@@ -167,11 +168,19 @@ export function ImportarCatalogoSheet({ abierto, categorias, onCerrar, onImporta
                   return (
                     <div key={i} className="duna-lista__fila" style={{ gridTemplateColumns: gridCols, alignItems: 'center', borderLeft: `2px solid ${tono}` }}>
                       {COLS.map(c => (
-                        <input key={c.campo} className="duna-input" value={f[c.campo]}
-                               onChange={e => editar(i, c.campo, e.target.value)}
-                               aria-invalid={c.campo === 'nombre' && !f.nombre.trim() ? true : c.campo === 'categoria' && !f.categoria.trim() ? true : undefined}
-                               list={c.campo === 'categoria' ? 'cats-import' : undefined}
-                               style={{ padding: '4px 8px', fontSize: '0.82rem' }} />
+                        c.campo === 'categoria' ? (
+                          // MISMO combobox que el form de producto (§ el combobox de categoría): la
+                          // lista de categorías derivadas es visible en la celda, y se puede escribir
+                          // una nueva —común en un import de otro catálogo—.
+                          <CategoriaCombobox key={c.campo} compacto value={f.categoria} categorias={categorias}
+                                             onChange={v => editar(i, 'categoria', v)}
+                                             ariaInvalid={!f.categoria.trim()} />
+                        ) : (
+                          <input key={c.campo} className="duna-input" value={f[c.campo]}
+                                 onChange={e => editar(i, c.campo, e.target.value)}
+                                 aria-invalid={c.campo === 'nombre' && !f.nombre.trim() ? true : undefined}
+                                 style={{ padding: '4px 8px', fontSize: '0.82rem' }} />
+                        )
                       ))}
                       <button type="button" onClick={() => quitar(i)} aria-label="Quitar fila"
                               className="duna-btn duna-btn--ghost" style={{ padding: 4 }}>
@@ -181,9 +190,6 @@ export function ImportarCatalogoSheet({ abierto, categorias, onCerrar, onImporta
                   );
                 })}
               </div>
-              <datalist id="cats-import">
-                {categorias.map(c => <option key={c} value={c} />)}
-              </datalist>
             </div>
 
             {/* Resultado por fila tras importar. */}

@@ -10,6 +10,7 @@ import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialo
 import { ErrorDialogo, useErrorDialogo } from '@/components/admin/ErrorDialogo';
 import { MoliendasOpcionesEditor } from '@/components/admin/MoliendasOpcionesEditor';
 import { ImageLightbox } from '@/components/admin/ImageLightbox';
+import { CategoriaCombobox } from '@/components/admin/CategoriaCombobox';
 import { createProduct, updateProduct } from '@/lib/api/products';
 import { subirDirecto } from '@/lib/api/upload';
 import { EMPTY_PRODUCT_FORM, TOSTADOS } from '@/constants/product';
@@ -428,17 +429,19 @@ function Cuerpo({ product, categorias, guarda, marcarCambios, intentarCerrar, on
 
         <div className="duna-field">
           <label className="duna-field__label" htmlFor="pf-categoria">Categoría *</label>
-          {/* TEXTO LIBRE con datalist, como el import (§ C3): la taxonomía la fija el catálogo, no un
-              set cerrado. El operador elige una categoría existente del datalist o escribe una nueva. */}
-          <input className="duna-input" id="pf-categoria" value={form.categoria} disabled={bloqueado}
-                 list="pf-categorias" autoComplete="off"
-                 onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
-                 placeholder="Ej: Café en Grano"
-                 aria-invalid={(intentado && !form.categoria.trim()) || undefined}
-                 aria-describedby={intentado && !form.categoria.trim() ? 'pf-cat-err' : undefined} />
-          <datalist id="pf-categorias">
-            {categorias.map(c => <option key={c} value={c} />)}
-          </datalist>
+          {/* COMBOBOX (§ el combobox de categoría): la lista DESPLEGABLE de las categorías derivadas
+              del catálogo es el camino primario; escribir una nueva es el escape. El datalist las
+              tenía pero no se veían. Mismo control en el form y el import. */}
+          <CategoriaCombobox
+            id="pf-categoria"
+            value={form.categoria}
+            categorias={categorias}
+            disabled={bloqueado}
+            placeholder="Elige o escribe una categoría"
+            onChange={v => setForm(f => ({ ...f, categoria: v }))}
+            ariaInvalid={intentado && !form.categoria.trim()}
+            ariaDescribedby={intentado && !form.categoria.trim() ? 'pf-cat-err' : undefined}
+          />
           {intentado && !form.categoria.trim() && <p className="duna-field__error" id="pf-cat-err">Elige o escribe una categoría.</p>}
         </div>
 
