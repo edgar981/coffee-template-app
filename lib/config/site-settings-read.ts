@@ -14,6 +14,12 @@ export interface SiteSettings {
   emailRemitente:    string;
   emailReplyTo:      string | null;
   adminEmail:        string | null;
+  // Cuenta para transferencias del checkout (§ el número de pago es config). Null = vacío → el
+  // método "Transferencia" no se muestra.
+  bancoNombre:       string | null;
+  bancoTipoCuenta:   string | null;
+  bancoNumeroCuenta: string | null;
+  bancoTitular:      string | null;
   // La PALETA ya no está acá: se mudó a `SiteContent.content.tema` (§ Backlog #55). El storefront
   // la lee de `getSiteContent()`, no de este loader.
 }
@@ -41,5 +47,9 @@ export async function readSiteSettings(): Promise<SiteSettings> {
     emailRemitente:    s.emailRemitente,
     emailReplyTo:      s.emailReplyTo,
     adminEmail:        s.adminEmail,
+    bancoNombre:       s.bancoNombre,
+    bancoTipoCuenta:   s.bancoTipoCuenta,
+    bancoNumeroCuenta: s.bancoNumeroCuenta,
+    bancoTitular:      s.bancoTitular,
   };
 }

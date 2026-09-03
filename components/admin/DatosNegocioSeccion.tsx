@@ -30,6 +30,7 @@ interface FormState {
   nombre: string; tagline: string; descripcionFooter: string;
   whatsapp: string; instagram: string; emailRemitente: string;
   emailReplyTo: string; adminEmail: string;
+  bancoNombre: string; bancoTipoCuenta: string; bancoNumeroCuenta: string; bancoTitular: string;
 }
 
 type Campo = {
@@ -50,6 +51,12 @@ const CAMPOS: Campo[] = [
   { name: 'emailReplyTo',      label: 'Reply-To (opcional)', hint: 'A dónde responden los clientes. Vacío = sin reply-to propio.' },
   // adminEmail: el ÚNICO campo cuyo nombre no se explica solo — la etiqueta dice para qué sirve.
   { name: 'adminEmail',        label: 'Correo donde llegan los reportes del equipo', hint: 'Destinatario por defecto del resumen diario y el reporte semanal. Vacío = cada reporte usa los suyos.' },
+  // Cuenta para transferencias del checkout. El hint del primer campo enmarca el grupo; con los
+  // esenciales (banco+tipo+número) vacíos, el método "Transferencia bancaria" no se muestra.
+  { name: 'bancoNombre',       label: 'Banco (para transferencias)', hint: 'La cuenta del método "Transferencia bancaria" del checkout. Deja banco, tipo y número vacíos y ese método no se muestra.' },
+  { name: 'bancoTipoCuenta',   label: 'Tipo de cuenta',      hint: 'Ahorros o Corriente.' },
+  { name: 'bancoNumeroCuenta', label: 'Número de cuenta' },
+  { name: 'bancoTitular',      label: 'Titular de la cuenta (opcional)', hint: 'A nombre de quién está la cuenta. Vacío: no se muestra.' },
 ];
 
 function desdeSettings(s: SiteSettings): FormState {
@@ -62,6 +69,10 @@ function desdeSettings(s: SiteSettings): FormState {
     emailRemitente:    s.emailRemitente,
     emailReplyTo:      s.emailReplyTo ?? '',
     adminEmail:        s.adminEmail ?? '',
+    bancoNombre:       s.bancoNombre ?? '',
+    bancoTipoCuenta:   s.bancoTipoCuenta ?? '',
+    bancoNumeroCuenta: s.bancoNumeroCuenta ?? '',
+    bancoTitular:      s.bancoTitular ?? '',
   };
 }
 

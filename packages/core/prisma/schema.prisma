@@ -575,6 +575,14 @@ model SiteSetting {
   emailRemitente    String
   emailReplyTo      String?
   adminEmail        String?
+  // Cuenta para TRANSFERENCIAS bancarias del checkout (§ el número de pago es config, no un
+  // literal). NULLABLE, sin default: vacío = el método "Transferencia" no se muestra (§ checkout,
+  // guarda con los 3 esenciales). El seed NO trae cuenta —una cuenta falsa en la ruta del dinero
+  // es peor que un método menos—; el dueño la pone desde Configuración.
+  bancoNombre       String?
+  bancoTipoCuenta   String?
+  bancoNumeroCuenta String?
+  bancoTitular      String?
   // La PALETA del storefront ya NO vive acá: se mudó a `SiteContent.content.tema` (§ Backlog #55)
   // para ganar el flujo borrador/publicar. SiteSetting es IDENTIDAD (guardar = en vivo al instante);
   // la paleta es CONTENIDO que se publica. Migración `drop_site_setting_palette`.

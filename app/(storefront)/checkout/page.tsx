@@ -17,6 +17,7 @@ import {
 } from '@duna/core/shipping-config';
 import { COLOMBIA_DEPARTMENTS, isBogotaDC } from '@duna/core/colombia-departments';
 import { formatWhatsappDisplay } from '@/lib/config/site';
+import { opcionTransferencia } from '@/lib/checkout/transferencia';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 
 const STEPS = ['Información', 'Pago'];
@@ -57,15 +58,24 @@ export default function Checkout() {
   const settings = useSiteSettings();
   const pagoMovilNumero = formatWhatsappDisplay(settings.whatsapp).replace(/^\+57\s*/, '');
 
+  // Transferencia bancaria: la cuenta es CONFIG (SiteSetting.banco*), no un literal — antes había
+  // una cuenta HARDCODEADA falsa en la ruta del dinero. `opcionTransferencia` la muestra SÓLO con los
+  // esenciales (banco+tipo+número); vacío = el método no aparece —"no a medias"— (precedente: el CTA
+  // de suscripciones se oculta sin whatsapp). El dueño pone la cuenta en Configuración; el seed no
+  // trae una falsa.
+  const transferencia = opcionTransferencia(settings);
+
   const paymentOptions = [
     { id: 'nequi', label: 'Nequi', desc: `Enviar a ${pagoMovilNumero}` },
     { id: 'daviplata', label: 'Daviplata', desc: `Enviar a ${pagoMovilNumero}` },
-    { id: 'transferencia', label: 'Transferencia Bancaria', desc: 'Bancolombia · Cta Ahorro · 123-456789-00' },
+    ...(transferencia ? [{ id: 'transferencia', label: 'Transferencia Bancaria', desc: transferencia.desc }] : []),
     { id: 'efectivo', label: 'Contra entrega', desc: 'Solo disponible en Bogotá D.C.' },
   ];
 
-  // "Contra entrega" (efectivo) is only valid for Bogotá D.C. deliveries — hide
-  // it otherwise. Server enforces the same rule off departamento; this is UX only.
+  // "Contra entrega" (efectivo) is only valid for Bogotá D.C. deliveries — hide it otherwise. Server
+  // enforces the same rule off departamento; this is UX only. (Transferencia is already excluded
+  // upstream, above, when the bank account is incomplete — a selected method can't reach submit
+  // because it never renders as an option.)
   const availablePayments = paymentOptions.filter(
     (o) => o.id !== 'efectivo' || isBogota,
   );

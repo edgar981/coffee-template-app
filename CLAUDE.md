@@ -1467,6 +1467,39 @@ código—.
 no-café FIRMADO — el MISMO que activa C2** (tema/estructura por cliente). El censo y la capa de copy van
 juntos: sin la capa, un censo no tiene dónde poner el resultado.
 
+### 64. RESEÑAS de producto — el sistema real que reemplaza al rating borrado
+
+El rating fabricado (`4.9 · 124 reseñas`) se BORRÓ (§ El RATING fabricado se BORRÓ). No se volvió
+configurable A PROPÓSITO: un rating editable sin reseñas reales es una herramienta para fabricar prueba
+social (familia #44, publicidad engañosa). Las reseñas REALES son un SISTEMA, no un campo: modelo
+(`Review` atada a `OrderItem`/`Customer`), **verificación de compra** (sólo reseña quien compró),
+**moderación** (aprobar/ocultar), y el render (promedio + conteo + lista) que reemplaza al literal.
+
+**Costo YA pagado: ninguno** —el literal ya no está, así que no hay dato falso vivo—. **DISPARADOR: un
+cliente que las PIDA *y* tenga volumen de ventas para que signifiquen algo.** Una reseña sobre 3 ventas
+no es prueba social, es ruido; el sistema paga cuando hay masa.
+
+### 65. AVISO de configuración del Dashboard — Fase 1 + los defectos dormidos del censo
+
+El censo (2026-09-03) inventarió los defectos de CONFIGURACIÓN que dejan el storefront roto/vacío para
+el visitante sin que el dueño se entere (destino de Presentaciones rancio, sección publicada con imagen
+faltante, etc.). Van en un AVISO APARTE del Dashboard —del DUEÑO, distinto de "Necesita tu atención"
+(del OPERADOR, que se vacía)—, hermano del banner `metricsFailed` (`dashboard/page.tsx:258-263`), ámbar,
+visible sólo cuando hay algo, con enlace a donde se arregla.
+
+- **Fase 1 (≤3): #1 destino de Presentaciones rancio** (el que fires hoy — el que destapó la tanda) **+
+  #2 tarjeta con título sin imagen** (gratis sobre el mismo fetch). Cruza catálogo (en mano en el
+  dashboard) × SiteContent PUBLICADO (fetch nuevo — el `GET /api/site-content` devuelve BORRADOR, no lo
+  publicado; el aviso necesita lo publicado).
+- **Los DORMIDOS** (no fires para Nayoli hoy — defaults SON Nayoli, schema+seed garantizan whatsapp):
+  la familia "campo requerido vacío → default de Nayoli en otro tenant" (hero/brandStory/nosotros),
+  empty-whatsapp en checkout/suscripciones, galería con vídeo sin póster. Disparan con el **2º cliente**
+  (ligan a C2/#63). Un lector de SiteContent publicado destraba toda la familia.
+
+**Costo YA pagado: ninguno** —el más urgente del censo (la cuenta bancaria falsa) se arregló como
+tanda propia—. **DISPARADOR: cuando el owner quiera que el dueño vea sus defectos de config sin abrir el
+editor**; Fase 1 es chica y ya tiene el censo hecho.
+
 ## Config del negocio — `SiteSetting` (los planos editables)
 
 Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código
@@ -1607,6 +1640,47 @@ Sólo lo ESTRUCTURADO: `tienda.emailColors` (paleta hex de los correos, la lee `
 `contacto`, los planos de `tienda`) se retiró. `whatsappUrl` recibe el número (una sola fuente:
 `SiteSetting.whatsapp`); `formatWhatsappDisplay` DERIVA el display del número, sin un segundo
 campo que pudiera divergir.
+
+### La cuenta de transferencia del checkout es DATO del tenant, no un literal
+
+Tanda del 2026-09-04. El checkout mostraba una cuenta bancaria **HARDCODEADA** —"Bancolombia · Cta
+Ahorro · 123-456789-00"— en la ruta del dinero: si el negocio lanza, un cliente real transfiere a un
+número inventado. Pasó a CUATRO campos editables en `SiteSetting` (Configuración → Datos del negocio):
+`bancoNombre`, `bancoTipoCuenta`, `bancoNumeroCuenta`, `bancoTitular`.
+
+- **Todos `String?` nullable.** El NÚMERO es string siempre —ceros a la izquierda, guiones, largos que
+  varían por banco—; un `number` los perdería. **NIT/cédula quedó FUERA**: una transferencia por número
+  de cuenta no exige el documento del beneficiario; si un cliente lo pide, es un `add` aditivo.
+- **VACÍO = el método "Transferencia" NO se muestra.** La lógica vive en `opcionTransferencia`
+  (`lib/checkout/transferencia.ts`, pura, capa 1): con banco+tipo+número (los tres ESENCIALES) devuelve
+  la opción, si falta uno devuelve `null`. "No a medias" —una instrucción de pago incompleta es peor que
+  un método menos—, precedente del CTA de suscripciones que se oculta sin whatsapp. El **titular es
+  OPCIONAL** (una línea de confirmación de a quién se paga; el número enruta la plata).
+- **El SEED NO trae cuenta** (queda NULL). En dev el checkout no muestra ese método —la verdad, no una
+  cuenta falsa—. Migración **ADITIVA/nullable** (`add_site_setting_bank`, precedente `_palette`); la fila
+  de Nayoli queda en NULL sin backfill.
+- El write reusa la máquina de SiteSetting (schema editable con `''`→null, PATCH completo, editor
+  data-driven). Es la MISMA frontera que el resto de la identidad de pago (whatsapp): identidad del
+  negocio, guardar = en vivo.
+
+### El RATING fabricado se BORRÓ — y el censo periódico de datos falsos
+
+El detalle de producto (`4.9 · 124 reseñas`) y la card (`4.9`) eran **LITERALES**: no existe sistema de
+reseñas. Es **prueba social FABRICADA** —la misma familia que el invariante #44 (que impide hornear
+testimonios falsos), y en Colombia es publicidad engañosa—. Se **BORRÓ**; **NO se volvió configurable**
+(un rating editable sin reseñas reales es una herramienta para fabricar prueba social). Las reseñas
+REALES son capacidad futura con su propio modelo (§ Backlog #64). El `Star` quedó huérfano en los dos
+archivos y se retiró; el layout no dejó hueco (spacing automático); el único `Star` que queda —las
+estrellas de un testimonio— es dato REAL editable (`t.stars`), no un literal.
+
+**LA PRÁCTICA que esto instaura — censo periódico de DATOS FALSOS en el storefront.** Dos datos falsos
+convivieron sin que nadie los notara: una cuenta bancaria en la ruta del dinero y un rating de prueba
+social. Los dos eran LITERALES horneados que se leen como reales. **Antes de un lanzamiento —y cada
+tanda que toque el storefront— se barre por datos falsos/placeholder** (cuentas, ratings, reseñas,
+teléfonos de muestra, "lorem", contadores inventados): un literal que se hace pasar por dato del negocio
+es peor que un hueco, porque nadie lo cuestiona. El grep arranca por `reseñas|rating|4\.9|123-456|lorem|
+ejemplo|placeholder` en `app/(storefront)` y `components/storefront`, pero el juicio es por CONTENIDO,
+no por patrón.
 
 ## Config del contenido — `SiteContent` (el storefront editable)
 
