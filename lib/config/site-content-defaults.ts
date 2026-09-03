@@ -37,9 +37,9 @@ export interface BrandStoryContent {
 // Presentaciones ("¿Cómo tomas tu café?"): DOS tarjetas de presentación del producto. CARDINALIDAD
 // FIJA —el grid asume 2, sin agregar ni quitar—, así que son campos PLANOS (patrón brandStory), NO un
 // repeater: un repeater es para cardinalidad VARIABLE y sus defaults JAMÁS se muestran (§ doctrina:
-// cardinalidad fija → campos planos). Cada tarjeta: label + copy + imagen (todos requeridos → vacío
-// cae al default, el storefront no muestra una tarjeta a medias). Los `path` NO están acá: son
-// ESTRUCTURA (PRESENTACIONES_HREFS, destinos fijos), no editables (precedente HERO_HREFS).
+// cardinalidad fija → campos planos). Cada tarjeta: label + copy + imagen + `categoria` (el DESTINO,
+// § el destino de Presentaciones es DATO), todos requeridos → vacío cae al default, el storefront no
+// muestra una tarjeta a medias ni sin destino. El href lo construye `hrefCategoria(categoria)`.
 export interface PresentacionesContent {
   visible: boolean;
   eyebrow: string;
@@ -47,9 +47,11 @@ export interface PresentacionesContent {
   label1: string;
   copy1: string;
   imagen1: string;
+  categoria1: string;
   label2: string;
   copy2: string;
   imagen2: string;
+  categoria2: string;
 }
 
 // SubscriptionCTA ("Plan Suscripción"): eyebrow + h2 + un párrafo + HASTA CUATRO bullets + el label
@@ -210,9 +212,11 @@ export const DEFAULTS: SiteContentData = {
     label1: 'En grano',
     copy1: 'Para moler en casa, máxima frescura.',
     imagen1: '/images/cafe-nayoli-250g-grano.webp',
+    categoria1: 'Café en Grano',
     label2: 'Molido',
     copy2: 'Listo para tu greca, filtro o prensa.',
     imagen2: '/images/cafe-nayoli-250g-molido.webp',
+    categoria2: 'Café Molido',
   },
   subscriptionCTA: {
     visible: true,
@@ -277,18 +281,13 @@ export const DEFAULTS: SiteContentData = {
 // no un campo libre (§ Config del contenido — SiteContent, en doctrina).
 export const HERO_HREFS = { primario: '/tienda', secundario: '/suscripciones' } as const;
 
-// Destinos de las dos tarjetas de Presentaciones — ESTRUCTURA, no editable (misma decisión que
-// HERO_HREFS). Los labels y copys se editan; los paths NO: apuntan a filtros de categoría que deben
-// existir, y un path libre dejaría la tarjeta apuntando a una ruta muerta.
-//
-// C3: la taxonomía se DERIVA del catálogo y el `?cat=` es la CATEGORÍA MISMA (texto), no una clave.
-// El seed de Nayoli pasó a "Café en Grano"/"Café Molido", así que estos paths apuntan a ESAS
-// categorías (encodeURIComponent para el espacio/acento). Consecuencia directa del edit del seed —
-// sin esto la home de Nayoli quedaría con dos links a "/tienda?cat=cafe_grano" que ya no matchea nada.
-export const PRESENTACIONES_HREFS = {
-  path1: `/tienda?cat=${encodeURIComponent('Café en Grano')}`,
-  path2: `/tienda?cat=${encodeURIComponent('Café Molido')}`,
-} as const;
+// El destino de las tarjetas de Presentaciones DEJÓ de ser ESTRUCTURA: es DATO (`categoria1/2` de la
+// sección, editables con el combobox de categorías reales). `PRESENTACIONES_HREFS` se retiró — un path
+// FIJO hacia un texto que el cliente escribe libremente se rompe solo: el owner escribió "Café grano"
+// en un producto y el link "Café en Grano" dejó de traer nada. La C1 había asumido un SET CERRADO de
+// categorías (path = estructura); C3 mató esa premisa (taxonomía derivada, texto libre), así que el
+// destino tiene que seguir al dato. El href lo construye `hrefCategoria(categoria)` (§ lib/productos/
+// categorias) desde el valor editable; el default resuelve a las categorías de hoy (byte-idéntico).
 
 // ── El REGISTRY: la naturaleza de cada sección y campo ───────────────────────
 // Es lo que deja el MODELO listo para BrandStory/Testimonials/SubscriptionCTA (que entran
@@ -356,6 +355,8 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // Cardinalidad FIJA (2 tarjetas): campos PLANOS con imágenes, como brandStory —NO un repeater—.
     // Los dos campos-imagen se borran de Blob por diff (`imagenesDe` lee esto). Todos los textos
     // requeridos: una tarjeta sin label/copy/imagen se ve rota, así que vacío cae al default.
+    // `categoria1/2` = el DESTINO de cada tarjeta (§ el destino de Presentaciones es DATO). Requerido:
+    // una tarjeta tiene que llevar a algún lado, así que vacío cae al default (la categoría de Nayoli).
     imagenes: ['imagen1', 'imagen2'],
     campos: {
       eyebrow: 'opcional',
@@ -363,9 +364,11 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       label1: 'requerido',
       copy1: 'requerido',
       imagen1: 'requerido',
+      categoria1: 'requerido',
       label2: 'requerido',
       copy2: 'requerido',
       imagen2: 'requerido',
+      categoria2: 'requerido',
     },
   },
   subscriptionCTA: {

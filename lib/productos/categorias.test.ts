@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { categoriasDelCatalogo, catalogoTieneTostado } from './categorias';
+import { categoriasDelCatalogo, catalogoTieneTostado, hrefCategoria } from './categorias';
 
 // La taxonomía DERIVADA — el corazón de C3. Se afirma que un catálogo ARBITRARIO (no-café)
 // produce sus categorías correctas, y que el de Nayoli (redefinido con labels limpios en el seed)
@@ -49,4 +49,13 @@ test('catalogoTieneTostado: true si algún producto lo puebla, false si ninguno'
   assert.equal(catalogoTieneTostado([]), false);
   // Nayoli: sus 4 productos tienen tostado='medio' → la sección "Nivel de Tostado" se muestra.
   assert.equal(catalogoTieneTostado([{ tostado: 'medio' }, { tostado: 'medio' }]), true);
+});
+
+test('hrefCategoria: encodea la categoría (espacio/acento), vacío → /tienda', () => {
+  assert.equal(hrefCategoria('Café en Grano'), `/tienda?cat=${encodeURIComponent('Café en Grano')}`);
+  assert.equal(hrefCategoria('Camisetas'), '/tienda?cat=Camisetas');
+  // Un destino en blanco lleva a la tienda entera, no a "?cat=" (que el storefront leería como "all"
+  // igual, pero /tienda es el link honesto). Trim: espacios no son un destino.
+  assert.equal(hrefCategoria(''), '/tienda');
+  assert.equal(hrefCategoria('   '), '/tienda');
 });

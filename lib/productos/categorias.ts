@@ -25,3 +25,13 @@ export function categoriasDelCatalogo(items: { categoria?: string | null }[]): s
 export function catalogoTieneTostado(items: { tostado?: string | null }[]): boolean {
   return items.some(it => typeof it.tostado === 'string' && it.tostado.trim() !== '');
 }
+
+/** El link al filtro de una categoría en `/tienda`. `?cat=` es la CATEGORÍA MISMA (texto),
+ *  encodeada para el espacio/acento; `/tienda` lo compara crudo (`p.categoria === cat`). La
+ *  contraparte de `categoriasDelCatalogo`: derivar la lista, y construir el link a UNA. Lo usan las
+ *  tarjetas de Presentaciones, cuyo destino es DATO editable (§ el destino de Presentaciones es DATO).
+ *  Categoría vacía → `/tienda` (todos): un destino en blanco lleva a la tienda entera, no a nada. */
+export function hrefCategoria(categoria: string): string {
+  const c = categoria.trim();
+  return c ? `/tienda?cat=${encodeURIComponent(c)}` : '/tienda';
+}
