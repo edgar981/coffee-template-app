@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Upload } from 'lucide-react';
+import { Pencil, Upload, Plus } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import VistaTiendaEnVivo from '@/components/admin/VistaTiendaEnVivo';
@@ -11,7 +11,7 @@ import BarraProgreso from '@/components/admin/BarraProgreso';
 import { CategoriaCombobox } from '@/components/admin/CategoriaCombobox';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import type { SeccionConfig } from '@/components/admin/tienda-secciones';
-import { grupoDeTarjeta } from '@/lib/tienda/puente-tarjetas';
+import { grupoDeTarjeta, slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { DEFAULTS } from '@/lib/config/site-content-defaults';
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 
@@ -80,6 +80,19 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
       nodo.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
     }
   }, [config]);
+
+  // ── COLAPSO de grupos opcionales VACÍOS (Defecto 2) — SÓLO Presentaciones ─────────────────────
+  // Un slot opcional (3-4) con todos sus campos en blanco se muestra como UNA línea "+ Agregar N
+  // tarjeta"; al clicarla se EXPANDE y no se vuelve a colapsar solo. Los slots siguen siendo campos
+  // PLANOS fijos: esto es presentación del editor, no un repeater. Y como una tarjeta VISIBLE nunca
+  // está vacía (§ slotVacio), su grupo nunca está colapsado → el puente siempre tiene destino.
+  const [expandidos, setExpandidos] = useState<Set<number>>(new Set());
+  const slotDe = (name: string) => { const m = name.match(/(\d+)$/); return m ? Number(m[1]) : null; };
+  const colapsado = (slot: number | null): slot is number =>
+    slot != null && puenteTarjetas && slotOpcional(config, slot)
+    && slotVacio(form as Record<string, unknown>, slot) && !expandidos.has(slot);
+  const expandir = (slot: number) => setExpandidos(prev => new Set(prev).add(slot));
+  const ORDINAL: Record<number, string> = { 3: 'tercera', 4: 'cuarta' };
 
   // El uploader compartido (§ useSubidaImagen): la cáscara lo instancia y lo comparte con el
   // RepeaterEditor por `subida.pedir`. Un solo <input>, un solo `subiendo`.
@@ -370,6 +383,10 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
               )}
 
               {config.imagenes.map((img, i) => {
+                // Grupo opcional colapsado → su imagen no se muestra tampoco (la tarjeta entera se
+                // colapsa a la línea "+ Agregar" del bloque de campos). `nuevoGrupo` del siguiente
+                // sigue bien: compara contra el array, no contra lo renderizado.
+                if (colapsado(slotDe(img.name))) return null;
                 const val = String(form[img.name] ?? '');
                 const esDefault = val === String(defaults[img.name] ?? '');
                 const nuevoGrupo = img.grupo && img.grupo !== config.imagenes[i - 1]?.grupo;
@@ -415,6 +432,25 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
 
               <div className="duna-form">
                 {config.campos.map((campo, i) => {
+                  // Encabezado de grupo ("Tarjeta N") cuando cambia respecto del campo anterior.
+                  const nuevoGrupo = campo.grupo && campo.grupo !== config.campos[i - 1]?.grupo;
+                  const slotCampo = slotDe(campo.name);
+                  // Grupo opcional VACÍO → colapsado a una sola línea "+ Agregar N tarjeta" (Defecto 2):
+                  // se muestra en el primer campo del grupo y se saltan los campos. `colapsado` estrecha
+                  // `slotCampo` a number.
+                  if (colapsado(slotCampo)) {
+                    return (
+                      <Fragment key={campo.name}>
+                        {nuevoGrupo && (
+                          <div className="duna-form__full" style={{ marginTop: 'var(--duna-space-3)', paddingTop: 'var(--duna-space-3)', borderTop: '1px solid var(--duna-border)' }}>
+                            <button type="button" onClick={() => expandir(slotCampo)} className="duna-btn duna-btn--secondary duna-btn--sm">
+                              <Plus /> Agregar {ORDINAL[slotCampo] ?? ''} tarjeta
+                            </button>
+                          </div>
+                        )}
+                      </Fragment>
+                    );
+                  }
                   const id = `${seccion}-${campo.name}`;
                   const value = String(form[campo.name] ?? '');
                   // Aviso (b): el destino elegido ya no está en el catálogo → la tarjeta no traería
@@ -426,18 +462,17 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                   // "Presentación N · lleva a"), que es lo que evita "lleva a:" sin sujeto.
                   const tituloTarjeta = campo.tituloDe ? String(form[campo.tituloDe] ?? '').trim() : '';
                   const etiqueta = campo.tituloDe && tituloTarjeta ? `«${tituloTarjeta}» lleva a:` : campo.label;
-                  // Encabezado de grupo ("Tarjeta N") cuando cambia respecto del campo anterior.
-                  const nuevoGrupo = campo.grupo && campo.grupo !== config.campos[i - 1]?.grupo;
                   return (
                     <Fragment key={campo.name}>
                     {nuevoGrupo && (
                       // El destino del scroll del puente (§ Presentaciones). El ref se registra por
                       // nombre de grupo; `is-activo` le da el "esto está puesto" cuando su tarjeta está
-                      // clicada en la vista. Sólo el puente (Presentaciones) usa ambos.
+                      // clicada en la vista. El divisor (margen/padding/borde superior) vive en la CLASE,
+                      // no inline, para que `.is-activo` pueda apagar el borde superior sin pelear con un
+                      // estilo inline (§ Defecto 1). Sólo el puente (Presentaciones) usa ref + is-activo.
                       <div
                         ref={puenteTarjetas ? (el => { const m = gruposRef.current; if (el) m.set(campo.grupo!, el); else m.delete(campo.grupo!); }) : undefined}
                         className={`duna-form__full grupo-tarjeta${grupoActivo && grupoActivo === campo.grupo ? ' is-activo' : ''}`}
-                        style={{ marginTop: 'var(--duna-space-3)', paddingTop: 'var(--duna-space-3)', borderTop: '1px solid var(--duna-border)' }}
                       >
                         <span className="duna-caption" style={{ fontWeight: 600 }}>{campo.grupo}</span>
                       </div>

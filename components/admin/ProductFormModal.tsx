@@ -437,7 +437,6 @@ function Cuerpo({ product, categorias, guarda, marcarCambios, intentarCerrar, on
             value={form.categoria}
             categorias={categorias}
             disabled={bloqueado}
-            placeholder="Elige una categoría"
             onChange={v => setForm(f => ({ ...f, categoria: v }))}
             ariaInvalid={intentado && !form.categoria.trim()}
             ariaDescribedby={intentado && !form.categoria.trim() ? 'pf-cat-err' : undefined}

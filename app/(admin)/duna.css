@@ -620,13 +620,27 @@ html.admin {
 .puente-tarjetas[data-tarjeta-activa="3"] [data-sf-tarjeta="3"],
 .puente-tarjetas[data-tarjeta-activa="4"] [data-sf-tarjeta="4"] { box-shadow: 0 0 0 4px var(--duna-ink); }
 
-/* El grupo "Tarjeta N" del FORM: destino del scroll y confirmación FUERTE (tamaño real). Activo → el
-   "esto está puesto" literal: superficie + barra de tinta a la izquierda. Base neutra (sólo la
-   transición para que el resaltado entre suave). */
-.grupo-tarjeta { border-radius: var(--duna-r-s); transition: background-color .18s ease, box-shadow .18s ease; }
+/* El grupo "Tarjeta N" del FORM: destino del scroll y confirmación FUERTE (tamaño real). El DIVISOR
+   (margen/padding/borde superior) vive ACÁ, no inline, para que `.is-activo` pueda apagar el borde
+   superior (un estilo inline no se deja pisar por una clase). Es un divisor+etiqueta, NO una caja. */
+.grupo-tarjeta {
+  margin-top: var(--duna-space-3);
+  padding-top: var(--duna-space-3);
+  border-top: 1px solid var(--duna-border);
+  transition: background-color .18s ease, border-color .18s ease;
+}
+/* Activo → el "esto está puesto" ADAPTADO a un divisor (§ Defecto 1): wash de seleccionado
+   (--duna-wash-active, que SÍ se ve sobre la tarjeta --duna-surface; --duna-surface era invisible) +
+   barra de tinta a la izquierda (inset, sin mover el layout). El borde superior se APAGA para que no
+   forme esquina con la barra, y NO hay border-radius sobre el divisor (redondear una línea de sólo
+   borde-superior era la "llave" rota). El texto libra la barra con un padding-left. */
 .grupo-tarjeta.is-activo {
-  background: var(--duna-surface);
+  border-top-color: transparent;
+  background: var(--duna-wash-active);
   box-shadow: inset 3px 0 0 var(--duna-ink);
+  padding-left: var(--duna-space-3);
+  padding-bottom: var(--duna-space-2);
+  border-radius: 0 var(--duna-r-s) var(--duna-r-s) 0;
 }
 @media (prefers-reduced-motion: reduce) {
   .grupo-tarjeta { transition: none; }
