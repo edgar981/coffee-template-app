@@ -11,6 +11,7 @@ import BarraProgreso from '@/components/admin/BarraProgreso';
 import { CategoriaCombobox } from '@/components/admin/CategoriaCombobox';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import type { SeccionConfig } from '@/components/admin/tienda-secciones';
+import { grupoDeTarjeta } from '@/lib/tienda/puente-tarjetas';
 import { DEFAULTS } from '@/lib/config/site-content-defaults';
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 
@@ -50,6 +51,35 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
 
   const formRef = useRef<Datos | null>(null); formRef.current = form;
+
+  // ── EL PUENTE vista→formulario (§ Backlog #46, Fase 1) — SÓLO Presentaciones ──────────────────
+  // Clic en una tarjeta de la VISTA salta a su grupo "Tarjeta N" del FORM. `tarjetaActiva` es el SLOT
+  // (1-4) de la última clicada; la vista la resalta (anillo) y el grupo del form la resalta ("puesto")
+  // + hace scroll a él. El mapeo puro slot→grupo vive en `grupoDeTarjeta` (capa 1); acá va lo del DOM.
+  const puenteTarjetas = seccion === 'presentaciones';
+  const [tarjetaActiva, setTarjetaActiva] = useState<number | null>(null);
+  const grupoActivo = tarjetaActiva != null ? grupoDeTarjeta(config, tarjetaActiva) : null;
+  // Los headers de grupo del form, por nombre de grupo — el destino del scroll. Callback ref que
+  // limpia al desmontar (un nodo viejo tras remontaje es el defecto del observer, § EscalaDesktop).
+  const gruposRef = useRef<Map<string, HTMLElement>>(new Map());
+
+  // CAPTURE en un ancestro de EscalaDesktop → corre ANTES que su neutralización de enlaces (que es un
+  // DESCENDIENTE) y NO llama stopPropagation, así que ambos coexisten: yo leo el slot, EscalaDesktop
+  // mata la navegación. Sólo actúo si el clic cae sobre una tarjeta (`data-sf-tarjeta`, que sólo existe
+  // en preview); un clic al fondo/eyebrow no hace nada.
+  const onClicTarjeta = useCallback((e: React.MouseEvent) => {
+    const el = (e.target as HTMLElement | null)?.closest?.('[data-sf-tarjeta]') as HTMLElement | null;
+    if (!el) return;
+    const slot = Number(el.dataset.sfTarjeta);
+    if (!Number.isInteger(slot)) return;
+    setTarjetaActiva(slot);
+    const grupo = grupoDeTarjeta(config, slot);
+    const nodo = grupo ? gruposRef.current.get(grupo) : null;
+    if (nodo) {
+      const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      nodo.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+    }
+  }, [config]);
 
   // El uploader compartido (§ useSubidaImagen): la cáscara lo instancia y lo comparte con el
   // RepeaterEditor por `subida.pedir`. Un solo <input>, un solo `subiendo`.
@@ -125,7 +155,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     auto.marcarSucio(nf); auto.flush();
   };
 
-  const cerrarEdicion = () => { auto.flush(); setEditando(false); };
+  const cerrarEdicion = () => { auto.flush(); setEditando(false); setTarjetaActiva(null); };
 
   const accionBorrador = async (accion: 'publicar' | 'descartar') => {
     setErrorServidor(null); setProcesando(true);
@@ -293,6 +323,19 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                 <p className="duna-sub" style={{ marginTop: '4px' }}>{avisoNoSeMuestra}</p>
               </div>
             </div>
+          ) : puenteTarjetas ? (
+            // El puente vive SÓLO en Presentaciones. La leyenda da la INSTRUCCIÓN ("clic para editar")
+            // en tamaño legible —dentro de la vista escalada (0.3-0.6×) el texto sería ilegible—; el
+            // hover sobre la tarjeta sólo confirma "esta responde" (§ duna.css .puente-tarjetas). El
+            // wrapper es `display:contents` (cero efecto en layout/escala) y captura el clic.
+            <>
+              <p className="duna-caption" style={{ margin: '0 0 var(--duna-space-2)' }}>
+                Haz clic en una tarjeta para editar sus campos.
+              </p>
+              <div className="puente-tarjetas" data-tarjeta-activa={tarjetaActiva ?? undefined} onClickCapture={onClicTarjeta}>
+                <VistaTiendaEnVivo seccion={seccion} valor={form} />
+              </div>
+            </>
           ) : (
             <VistaTiendaEnVivo seccion={seccion} valor={form} />
           )}
@@ -388,7 +431,14 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                   return (
                     <Fragment key={campo.name}>
                     {nuevoGrupo && (
-                      <div className="duna-form__full" style={{ marginTop: 'var(--duna-space-3)', paddingTop: 'var(--duna-space-3)', borderTop: '1px solid var(--duna-border)' }}>
+                      // El destino del scroll del puente (§ Presentaciones). El ref se registra por
+                      // nombre de grupo; `is-activo` le da el "esto está puesto" cuando su tarjeta está
+                      // clicada en la vista. Sólo el puente (Presentaciones) usa ambos.
+                      <div
+                        ref={puenteTarjetas ? (el => { const m = gruposRef.current; if (el) m.set(campo.grupo!, el); else m.delete(campo.grupo!); }) : undefined}
+                        className={`duna-form__full grupo-tarjeta${grupoActivo && grupoActivo === campo.grupo ? ' is-activo' : ''}`}
+                        style={{ marginTop: 'var(--duna-space-3)', paddingTop: 'var(--duna-space-3)', borderTop: '1px solid var(--duna-border)' }}
+                      >
                         <span className="duna-caption" style={{ fontWeight: 600 }}>{campo.grupo}</span>
                       </div>
                     )}

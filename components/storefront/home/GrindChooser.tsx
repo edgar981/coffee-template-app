@@ -63,7 +63,12 @@ export default function GrindChooser({ negocio }: { negocio?: string }) {
               variants={fadeUp}
               transition={{ delay: i * 0.08 }}
             >
-              <Link href={op.href} className="group relative flex flex-col justify-end overflow-hidden rounded-3xl aspect-[4/5] sm:aspect-[3/2] bg-[var(--sf-linea)]">
+              {/* `data-sf-tarjeta`: marcador INERTE del slot (1-4) para el puente vista→formulario del
+                  editor (§ Backlog #46). Se emite SÓLO en preview (`useIsPreview`) → en la tienda del
+                  visitante la propiedad es `undefined` y React OMITE el atributo: markup byte-idéntico,
+                  cero efecto visible. No es un import del admin ni una prop de comportamiento: es un
+                  atributo de datos que nadie lee salvo el capture-handler del editor. */}
+              <Link href={op.href} data-sf-tarjeta={preview ? op.slot : undefined} className="group relative flex flex-col justify-end overflow-hidden rounded-3xl aspect-[4/5] sm:aspect-[3/2] bg-[var(--sf-linea)]">
                 {/* Imagen condicional: una tarjeta opcional puede mostrarse SÓLO con título (criterio
                     OR); sin foto se ve el fondo `--sf-linea` de la tarjeta —un hueco VISIBLE que el
                     cliente sabe llenar—, nunca un `<img src="">` roto que pide la URL de la página. */}

@@ -597,6 +597,41 @@ html.admin {
   .tienda-tarjeta__thumb { width: 100%; }
 }
 
+/* ─── EL PUENTE vista→formulario (§ Backlog #46, Fase 1 · SÓLO Presentaciones) ───────────────────
+   Clic en una tarjeta de la vista previa → salta a su grupo "Tarjeta N" del formulario. El marcador
+   `data-sf-tarjeta` (slot 1-4) lo emite GrindChooser SÓLO en preview (inerte, invisible al visitante
+   → storefront byte-idéntico); TODO el lenguaje visual del puente vive ACÁ, admin-level.
+   El wrapper es `display:contents`: cero efecto en layout/escala, pero queda en el árbol DOM para
+   capturar el clic (su handler corre ANTES que la neutralización de enlaces de EscalaDesktop, que es
+   un descendiente) y para colgar el resaltado de la tarjeta activa por atributo. */
+.puente-tarjetas { display: contents; }
+/* DESCUBRIBILIDAD. El cursor y un anillo al hover dicen "esta tarjeta responde"; la INSTRUCCIÓN
+   ("clic para editar") va en la leyenda de arriba, en tamaño legible —dentro de la vista escalada
+   (0.3-0.6×) el texto sería ilegible—. El anillo va en --duna-muted (pista interactiva neutra, no
+   sol=atención ni bad=problema). Escala con la vista, pero la confirmación fuerte es del lado del
+   form (el grupo resaltado, a tamaño real). */
+.puente-tarjetas [data-sf-tarjeta] { cursor: pointer; }
+.puente-tarjetas [data-sf-tarjeta]:hover { box-shadow: 0 0 0 3px var(--duna-muted); }
+/* ACTIVA: la última tarjeta clicada, anillo de --duna-ink (adaptación del "esto está puesto": el par
+   superficie+barra no cabe en una tarjeta-foto, el anillo de tinta cumple el mismo rol). Una regla
+   por slot porque CSS no puede comparar dos atributos entre sí. */
+.puente-tarjetas[data-tarjeta-activa="1"] [data-sf-tarjeta="1"],
+.puente-tarjetas[data-tarjeta-activa="2"] [data-sf-tarjeta="2"],
+.puente-tarjetas[data-tarjeta-activa="3"] [data-sf-tarjeta="3"],
+.puente-tarjetas[data-tarjeta-activa="4"] [data-sf-tarjeta="4"] { box-shadow: 0 0 0 4px var(--duna-ink); }
+
+/* El grupo "Tarjeta N" del FORM: destino del scroll y confirmación FUERTE (tamaño real). Activo → el
+   "esto está puesto" literal: superficie + barra de tinta a la izquierda. Base neutra (sólo la
+   transición para que el resaltado entre suave). */
+.grupo-tarjeta { border-radius: var(--duna-r-s); transition: background-color .18s ease, box-shadow .18s ease; }
+.grupo-tarjeta.is-activo {
+  background: var(--duna-surface);
+  box-shadow: inset 3px 0 0 var(--duna-ink);
+}
+@media (prefers-reduced-motion: reduce) {
+  .grupo-tarjeta { transition: none; }
+}
+
 /* ─── Necesita tu atención — la lista transversal del dashboard (§ lib/atencion/items) ───
    Admin-level (un solo consumidor, prefijo `admin-`, como `.admin-indicador`). Filas
    NAVEGABLES (cada una es un <Link> al detalle): hover de TINTE, punto sol a la izquierda. */
