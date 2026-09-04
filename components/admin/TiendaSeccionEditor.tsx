@@ -168,7 +168,13 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     auto.marcarSucio(nf); auto.flush();
   };
 
-  const cerrarEdicion = () => { auto.flush(); setEditando(false); setTarjetaActiva(null); };
+  // Abrir/cerrar edición RESETEA el estado efímero del editor —tarjeta activa del puente y grupos
+  // expandidos a mano—. El componente NO se desmonta al cerrar (es otra rama del mismo render, § la
+  // pantalla), así que `useState(new Set())` no vuelve a correr; sin este reset, un grupo opcional
+  // que abrí a mano seguiría abierto al reabrir. El colapso DERIVA de los datos (vacío → colapsado);
+  // la expansión manual vive sólo mientras el editor está abierto (§ Fix 2).
+  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); };
+  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); };
 
   const accionBorrador = async (accion: 'publicar' | 'descartar') => {
     setErrorServidor(null); setProcesando(true);
@@ -252,7 +258,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   if (!editando) {
     return (
       <div className="tienda-tarjeta">
-        <div className="tienda-tarjeta__thumb" onClick={() => setEditando(true)}>
+        <div className="tienda-tarjeta__thumb" onClick={abrirEdicion}>
           {noSeMuestra ? (
             <div className="tienda-tarjeta__oculta">
               <span className="duna-caption" style={{ margin: 0 }}>No se muestra en la tienda</span>
@@ -271,7 +277,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
               caso normal ('guardado') no renderiza nada y la tarjeta queda idéntica a antes. */}
           {indicadorEstado}
           <div>
-            <button type="button" onClick={() => setEditando(true)} className="duna-btn duna-btn--secondary">
+            <button type="button" onClick={abrirEdicion} className="duna-btn duna-btn--secondary">
               <Pencil /> Editar
             </button>
           </div>
@@ -393,8 +399,12 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                 return (
                   <Fragment key={img.name}>
                   {nuevoGrupo && (
-                    <div style={{ marginTop: i > 0 ? 'var(--duna-space-4)' : 0, marginBottom: 'var(--duna-space-2)', paddingTop: i > 0 ? 'var(--duna-space-3)' : 0, borderTop: i > 0 ? '1px solid var(--duna-border)' : 'none' }}>
-                      <span className="duna-caption" style={{ fontWeight: 600 }}>{img.grupo}</span>
+                    // Encabezado de grupo "Tarjeta N": el MISMO tratamiento que el bloque de campos y
+                    // que las subsecciones del resto del panel (h3 `duna-field__label`, § DatosNegocioSeccion)
+                    // — no un `duna-caption` en negrita ad-hoc. El divisor lo pone `.grupo-tarjeta` (no un
+                    // borde inline), así los dos encabezados de la misma tarjeta se ven idénticos (§ Fix 3).
+                    <div className="grupo-tarjeta" style={{ marginBottom: 'var(--duna-space-2)' }}>
+                      <span className="duna-field__label">{img.grupo}</span>
                     </div>
                   )}
                   <div className="duna-field duna-form__full" style={{ marginBottom: 'var(--duna-space-5)' }}>
@@ -442,7 +452,9 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                     return (
                       <Fragment key={campo.name}>
                         {nuevoGrupo && (
-                          <div className="duna-form__full" style={{ marginTop: 'var(--duna-space-3)', paddingTop: 'var(--duna-space-3)', borderTop: '1px solid var(--duna-border)' }}>
+                          // Misma línea divisoria que un encabezado de grupo (`.grupo-tarjeta`), no un
+                          // borde inline: la fila colapsada ocupa el lugar del header y respira igual.
+                          <div className="grupo-tarjeta duna-form__full">
                             <button type="button" onClick={() => expandir(slotCampo)} className="duna-btn duna-btn--secondary duna-btn--sm">
                               <Plus /> Agregar {ORDINAL[slotCampo] ?? ''} tarjeta
                             </button>
@@ -474,7 +486,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                         ref={puenteTarjetas ? (el => { const m = gruposRef.current; if (el) m.set(campo.grupo!, el); else m.delete(campo.grupo!); }) : undefined}
                         className={`duna-form__full grupo-tarjeta${grupoActivo && grupoActivo === campo.grupo ? ' is-activo' : ''}`}
                       >
-                        <span className="duna-caption" style={{ fontWeight: 600 }}>{campo.grupo}</span>
+                        <span className="duna-field__label">{campo.grupo}</span>
                       </div>
                     )}
                     <div className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>

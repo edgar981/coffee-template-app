@@ -129,8 +129,8 @@ const PRESENTACIONES: SeccionConfig = {
   imagenes: [
     { name: 'imagen1', label: 'Imagen', grupo: 'Tarjeta 1' },
     { name: 'imagen2', label: 'Imagen', grupo: 'Tarjeta 2' },
-    { name: 'imagen3', label: 'Imagen', grupo: 'Tarjeta 3 (opcional)' },
-    { name: 'imagen4', label: 'Imagen', grupo: 'Tarjeta 4 (opcional)' },
+    { name: 'imagen3', label: 'Imagen', grupo: 'Tarjeta 3' },
+    { name: 'imagen4', label: 'Imagen', grupo: 'Tarjeta 4' },
   ],
   // 2 a 4 tarjetas: 1-2 REQUERIDAS (defaults de Nayoli), 3-4 OPCIONALES (vacías → la tarjeta no se
   // muestra; con título O imagen aparece). Agrupadas por "Tarjeta N" — el hint de los slots 3-4 dice
@@ -144,12 +144,12 @@ const PRESENTACIONES: SeccionConfig = {
     { name: 'label2',     label: 'Nombre',      grupo: 'Tarjeta 2', hint: 'Ej. "Molido". Vacío: se usa el texto por defecto.' },
     { name: 'copy2',      label: 'Descripción', grupo: 'Tarjeta 2', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'categoria2', label: 'Presentación 2 · lleva a', grupo: 'Tarjeta 2', categoria: true, tituloDe: 'label2', hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
-    { name: 'label3',     label: 'Nombre',      grupo: 'Tarjeta 3 (opcional)', opcional: true, hint: 'Vacío: la tarjeta no se muestra. Escribe un nombre (o sube una imagen) para agregar una tercera tarjeta.' },
-    { name: 'copy3',      label: 'Descripción', grupo: 'Tarjeta 3 (opcional)', opcional: true, textarea: true, hint: 'Opcional.' },
-    { name: 'categoria3', label: 'Presentación 3 · lleva a', grupo: 'Tarjeta 3 (opcional)', categoria: true, tituloDe: 'label3', opcional: true, hint: 'La categoría del catálogo que abre esta tarjeta.' },
-    { name: 'label4',     label: 'Nombre',      grupo: 'Tarjeta 4 (opcional)', opcional: true, hint: 'Vacío: la tarjeta no se muestra. Escribe un nombre (o sube una imagen) para agregar una cuarta tarjeta.' },
-    { name: 'copy4',      label: 'Descripción', grupo: 'Tarjeta 4 (opcional)', opcional: true, textarea: true, hint: 'Opcional.' },
-    { name: 'categoria4', label: 'Presentación 4 · lleva a', grupo: 'Tarjeta 4 (opcional)', categoria: true, tituloDe: 'label4', opcional: true, hint: 'La categoría del catálogo que abre esta tarjeta.' },
+    { name: 'label3',     label: 'Nombre',      grupo: 'Tarjeta 3', opcional: true, hint: 'Vacío: la tarjeta no se muestra. Escribe un nombre (o sube una imagen) para agregar una tercera tarjeta.' },
+    { name: 'copy3',      label: 'Descripción', grupo: 'Tarjeta 3', opcional: true, textarea: true, hint: 'Opcional.' },
+    { name: 'categoria3', label: 'Presentación 3 · lleva a', grupo: 'Tarjeta 3', categoria: true, tituloDe: 'label3', opcional: true, hint: 'La categoría del catálogo que abre esta tarjeta.' },
+    { name: 'label4',     label: 'Nombre',      grupo: 'Tarjeta 4', opcional: true, hint: 'Vacío: la tarjeta no se muestra. Escribe un nombre (o sube una imagen) para agregar una cuarta tarjeta.' },
+    { name: 'copy4',      label: 'Descripción', grupo: 'Tarjeta 4', opcional: true, textarea: true, hint: 'Opcional.' },
+    { name: 'categoria4', label: 'Presentación 4 · lleva a', grupo: 'Tarjeta 4', categoria: true, tituloDe: 'label4', opcional: true, hint: 'La categoría del catálogo que abre esta tarjeta.' },
   ],
 };
 

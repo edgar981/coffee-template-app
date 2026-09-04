@@ -11,11 +11,12 @@ import { DEFAULTS } from '@/lib/config/site-content-defaults';
 
 const PRESENTACIONES = SECCIONES_TIENDA.find(s => s.seccion === 'presentaciones')!;
 
-test('cada slot mapea a su grupo "Tarjeta N" del descriptor (fuente única, incluye el sufijo opcional)', () => {
+test('cada slot mapea a su grupo "Tarjeta N" del descriptor (fuente única)', () => {
+  // Sin sufijo "(opcional)": la línea "+ Agregar N tarjeta" ya comunica que es opcional (§ Fix 1).
   assert.equal(grupoDeTarjeta(PRESENTACIONES, 1), 'Tarjeta 1');
   assert.equal(grupoDeTarjeta(PRESENTACIONES, 2), 'Tarjeta 2');
-  assert.equal(grupoDeTarjeta(PRESENTACIONES, 3), 'Tarjeta 3 (opcional)');
-  assert.equal(grupoDeTarjeta(PRESENTACIONES, 4), 'Tarjeta 4 (opcional)');
+  assert.equal(grupoDeTarjeta(PRESENTACIONES, 3), 'Tarjeta 3');
+  assert.equal(grupoDeTarjeta(PRESENTACIONES, 4), 'Tarjeta 4');
 });
 
 test('un slot fuera de rango → null (el puente no salta a ningún grupo)', () => {
