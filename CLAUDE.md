@@ -1248,10 +1248,15 @@ más grande que "el texto de la home".
 
 **Costo YA pagado: ninguno.** Las tarjetas se ven bien y dicen la verdad.
 
-**DISPARADOR: cuando alguien quiera editar los planes.** Ahí se decide (a) si `/suscripciones` también
+**DISPARADOR: el primer cliente con suscripciones propias** (heredaría los planes de Nayoli), o antes si
+alguien quiere editarlos. **El censo de datos falsos (§ El RATING fabricado se BORRÓ) NO lo adelanta:**
+verificado 2026-09-05 —los planes no traen precio (el tipo `Subscription` no tiene campo de precio) ni un
+claim que Nayoli no honre (§ arriba)—, así que no hay dato falso que vaciar; el disparador se queda en el
+cliente, no en el censo. Ahí se decide (a) si `/suscripciones` también
 lee de SiteContent —para no divergir—, y (b) que son un repeater propio con DOS restricciones de layout
 ya conocidas: **el `sm:grid-cols-3` y el flag `popular` (i===1) asumen EXACTAMENTE tres** planes, así
-que variar el número es rediseño de esa rejilla, no sólo modelo.
+que variar el número es rediseño de esa rejilla, no sólo modelo. (SubscriptionCTA usa `i===1` para la
+tarjeta central; `/suscripciones` usa `plan.popular` — los dos asumen tres.)
 
 ### 51. Lightbox de imágenes en la galería de /nosotros — ampliar una foto al clic
 
