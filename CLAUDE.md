@@ -726,8 +726,9 @@ Reglas de la lista, para que siga sirviendo:
 ### 46. El editor VISUAL, FASE 2 — el campo flotante para el TEXTO (Fase 1 CERRADA)
 
 **FASE 1 CERRADA (2026-09-04): el PUENTE vista→formulario** —clic en una tarjeta de la vista previa
-→ scroll + resalte de su grupo "Tarjeta N" en el formulario, SÓLO Presentaciones—. La doctrina de lo
-construido vive en **§ El PUENTE vista→formulario** (bajo § La PANTALLA). El censo (mismo día)
+→ scroll + resalte de su BLOQUE-tarjeta en el formulario, SÓLO Presentaciones—. La doctrina de lo
+construido vive en **§ El editor de la tienda dibuja por BLOQUES** (bajo § La PANTALLA), donde el
+rediseño del 2026-09-05 rehízo el puente sobre el modelo de bloques (slot→bloque). El censo (mismo día)
 descartó la edición-in-situ REAL por la ESCALA: a `paneW/1280` (~0.30–0.44 a los anchos comunes) un
 título de 30px se ve a 9–13px, así que escribir DENTRO del elemento escalado es ilegible, y no hay
 precedente de `contentEditable` en el repo. El puente ataca el dolor LITERAL —"no se ve cuál campo
@@ -1507,22 +1508,6 @@ visible sólo cuando hay algo, con enlace a donde se arregla.
 tanda propia—. **DISPARADOR: cuando el owner quiera que el dueño vea sus defectos de config sin abrir el
 editor**; Fase 1 es chica y ya tiene el censo hecho.
 
-### 66. Placeholder de imagen vacía en el editor de la tienda
-
-El bloque de imagen del editor de secciones (`TiendaSeccionEditor`, cáscara compartida) es un `<img
-src={val}>` con estilos inline: con la url VACÍA sale un ícono de imagen rota, no un marco. Debe ser
-un marco del DS con placeholder muted —la gramática de `.duna-tile`— igual que el storefront pinta el
-hueco `--sf-linea` en vez de un `<img src="">` roto.
-
-**NO es drop-in:** `.duna-tile` es aspect 1:1 y el preview del editor es 16/9, así que copiarlo
-recortaría; hace falta un marco 16/9 con el placeholder, o una variante de aspecto. Y el bloque es
-COMPARTIDO (hero, brandStory, presentaciones), así que tocarlo re-gatea esas secciones.
-
-**Costo YA pagado: ninguno** —los slots opcionales vacíos ahora se COLAPSAN (§ el puente), así que el
-`<img>` roto casi no se ve; el caso vivo es una imagen a medio llenar—. **DISPARADOR: la próxima tanda
-que toque la cáscara compartida del editor** (probablemente la Fase 2 de #46, que agrega el campo
-flotante): ahí el archivo ya está abierto y el marco entra de paso, no como tanda propia.
-
 ## Config del negocio — `SiteSetting` (los planos editables)
 
 Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código
@@ -1792,6 +1777,16 @@ PANTALLA: Configuración = identidad en vivo, Tienda = lo que se publica.
   motor de derivación (aproximación); el null → sin `<style>` → los `--sf-*` exactos → byte-idéntico.
 - **El caveat de historial** (§ Backlog #55): descartar vuelve al PUBLICADO y fábrica vuelve a los
   defaults; "republicar un tema PASADO" es historial y sigue DESCARTADO.
+- **EL EDITOR ENTRA AL MODELO DE BLOQUES (2026-09-05, § El editor dibuja por BLOQUES).** En edición la
+  vista previa pasa a la COLUMNA del split (sticky ≥1080, como las secciones; "Ampliar" se conserva) y
+  los controles son TRES PIEZAS sobre el panel recesado: **Base** (las 4 bases curadas, cada una con su
+  muestra "Aa" —tinta sobre fondo— y su razón de contraste ESCRITA, que `contraste()` ya calcula),
+  **Acento** (el picker libre con el AUTO-FLIP del texto del botón DECLARADO en palabras —"Texto del
+  botón: blanco · contraste 8.4:1"— en vez de un valor invisible), y **Lo que se calcula solo** (los 19
+  derivados de `derivarPaleta`, COLAPSADOS, visibles pero NO editables). Los avisos de contraste se
+  PEGAN al control que los causa (base→texto/fondo; acento→texto del botón y acento/fondo), ya no una
+  pila bajo el preview. Conservado íntegro: el autoguardado sólo-si-válido, Publicar/Descartar y el
+  reset a fábrica de arriba — sólo cambió la FORMA, no el contrato.
 
 ### La FRONTERA fina de "defaults-como-fallback" — requerido ≠ opcional
 
@@ -2111,47 +2106,70 @@ flujo FINAL, tras evaluar y retirar un iframe intermedio (ver "por qué se retir
   pasa intacto (su contenido es `pointer-events:none`, el clic va al thumb ancestro; el handler sólo
   actúa sobre un `<a>`).
 
-### El PUENTE vista→formulario (editor visual #46, Fase 1 · SÓLO Presentaciones)
+### El editor de la tienda dibuja por BLOQUES — y el puente mapea slot→bloque (#46 Fase 1)
 
-Tanda del 2026-09-04. Clic en una tarjeta de la vista previa → la vista la resalta y el formulario
-hace **scroll a su grupo "Tarjeta N"** y lo resalta. Es la Fase 1 de #46 (la in-situ real se descartó
-por la escala, § Backlog #46): resuelve el dolor LITERAL —"no se ve cuál campo es cuál"— sin tocar la
-escala ni estrenar `contentEditable`. El mapeo puro slot→grupo vive en `lib/tienda/puente-tarjetas.ts`
-(capa 1); el DOM/eventos en `TiendaSeccionEditor`.
+Tanda del 2026-09-05 (rediseño del editor de `/admin/tienda`, adoptado ENTERO de una sesión de diseño
+con mockup navegable — el ciclo de parches sobre parches se cortó parando a diseñar). La cáscara del
+editor (`TiendaSeccionEditor`) dibuja por **BLOQUES**, no por tipo de campo. **Un bloque es una PIEZA
+de la tienda que POSEE sus imágenes y sus textos** (tarjeta, encabezado, collage, lista). Antes había
+DOS loops paralelos —todas las imágenes, luego todos los textos—, así que una tarjeta quedaba PARTIDA
+en dos lugares de la pantalla y su encabezado se pintaba duplicado. **`grupo` se retiró**: era config
+declarada dos veces para armar un encabezado que no agrupaba nada.
 
-- **EL MAPEO ES POR SLOT, NO POR POSICIÓN.** La posición VISIBLE miente cuando una tarjeta opcional se
-  llena fuera de orden: slot 4 lleno con el 3 vacío → la 3ª tarjeta visible es el slot 4.
-  `tarjetasDePresentaciones` PRESERVA el `slot` (1-4) a través del filtro, y el puente mapea ese slot
-  a su grupo con `grupoDeTarjeta(config, slot)` —derivado del `label${slot}` del descriptor, fuente
-  única, no un literal—. Afirmado en capa 1, incluida la prueba de relleno fuera de orden.
-- **EL MARCADOR EN GRINDCHOOSER ES UN `data-*` INERTE, gated en `useIsPreview`.**
-  `data-sf-tarjeta={preview ? op.slot : undefined}`: en la tienda del visitante `preview` es false →
-  React omite el atributo → **storefront BYTE-IDÉNTICO** (verificado por ejecución: 0 apariciones en
-  la home pública). No es un import del admin, ni una prop de comportamiento, ni un wrapper con lógica
-  —el mínimo que la frontera admite—. `useIsPreview` ya era estado legítimo del storefront (apaga
-  animaciones en cualquier preview), así que ramificar en él no ensucia el componente.
-- **CONVIVE CON LA NEUTRALIZACIÓN DE ENLACES DE `EscalaDesktop` POR ESTRUCTURA DEL DOM, no por
-  timing.** El capture-handler del puente vive en un ANCESTRO de `EscalaDesktop` (el wrapper
-  `.puente-tarjetas`, `display:contents`): en fase de captura el ancestro corre ANTES y NO llama
-  `stopPropagation`, así que después corre el handler de EscalaDesktop y mata la navegación del `<a>`.
-  El orden lo garantiza la ancestría (captura va de afuera hacia adentro), no una carrera. Un clic al
-  fondo/eyebrow (sin `data-sf-tarjeta`) no hace nada.
-- **EL COLAPSO DE GRUPOS OPCIONALES VACÍOS DERIVA DE LOS DATOS.** Un slot opcional (3-4) con
-  label/copy/categoría/imagen en blanco se muestra como UNA línea "+ Agregar N tarjeta"; al clic
-  EXPANDE. Los slots siguen siendo campos PLANOS fijos —es presentación del editor, no un repeater—.
-  El estado de expansión NO sobrevive al ciclo abrir→cerrar edición: `TiendaSeccionEditor` **no se
-  desmonta al cerrar** (TiendaPaginas lo monta una vez por sección, cerrar sólo cambia la rama de
-  render), así que `useState(new Set())` no vuelve a correr — se resetea EXPLÍCITO en `abrirEdicion`
-  y `cerrarEdicion`. **INVARIANTE puente↔colapso (capa 1):** una tarjeta VISIBLE nunca está en un slot
-  vacío (visible = título O imagen; vacío = ambos, y más, en blanco), así que su grupo nunca está
-  colapsado → el puente siempre tiene destino de scroll. Los grupos se rotulan "Tarjeta N" a secas
-  (sin "(opcional)": la línea "+ Agregar" ya lo comunica).
-- **LOS ENCABEZADOS DE GRUPO USAN EL PATRÓN DE SUBSECCIÓN DEL PANEL** (`duna-field__label`, igual que
-  "Métodos de pago" en `DatosNegocioSeccion`), no un `duna-caption` en negrita ad-hoc, con el divisor
-  de la clase `.grupo-tarjeta` (no bordes inline) — así los dos encabezados de la misma tarjeta (el del
-  bloque de imágenes y el de campos) se ven idénticos. El editor YA estaba sobre primitivas Duna
-  (censo: cero hex crudo, cero clases de color Tailwind, cero shadcn); la divergencia era este ritmo,
-  no una cáscara genérica.
+- **LOS BLOQUES son la descripción; `bloquesResueltos` (`lib/tienda/bloques.ts`, capa 1) es el
+  RESOLVEDOR.** Cada `SeccionConfig` declara `bloques?: BloqueConfig[]` (union `seccion|tarjeta|lista|
+  collage`); el resolvedor traduce los NOMBRES a los descriptores reales del `config`. **NO toca el
+  resolver de SiteContent, el modelo (campos planos) ni #44** —ésos leen su propio REGISTRY
+  (§ site-content-defaults), no el descriptor—, así que retirar `grupo` y dibujar por bloques es del
+  lado del editor: el tripwire quedó limpio.
+
+- **EL BLOQUE DERIVADO POR DEFECTO ES LA RED DE SEGURIDAD.** Una sección SIN `bloques` declarados cae a
+  UN bloque `seccion` con TODAS sus imágenes y campos → renderiza EXACTAMENTE como antes. Por eso la
+  migración NO fue atómica: migradas y no migradas conviven. **Se construyó y verificó ANTES de migrar
+  ninguna sección** —las cinco idénticas por el camino de bloques ES el punto de retorno—. Afirmado en
+  `bloques.test.ts` para las siete secciones.
+
+- **RETIRAR `grupo` VA ACOPLADO A DARLE BLOQUES A PRESENTACIONES, EN EL MISMO COMMIT** —nunca un estado
+  donde Presentaciones perdió sus encabezados sin ganar sus bloques—. Era la única pieza que dependía
+  de `grupo` (el puente).
+
+- **LISTA PLANA COMPACTA (`lib/tienda/lista-plana.ts`, capa 1).** Los slots de una familia
+  (`bullet1..4`) se presentan como lista y el DATO se COMPACTA: "×" sube los de abajo (`quitar`), "+
+  Agregar" escribe en el primer vacío (`empacar`/`ultimoLleno`). Dejar huecos haría coincidir editor y
+  storefront sólo en lo RENDERIZADO (el storefront filtra vacíos), no en el DATO, y el operador que
+  borra la fila del medio quedaría con un agujero invisible. El modelo sigue siendo campos planos —esto
+  es presentación (#44 intacto)—.
+
+- **SUPERFICIES: panel RECESADO que contiene PIEZAS elevadas.** El form es `.tienda-form` (`--duna-bg`,
+  borde, `gap`) y cada bloque es una `.tienda-form__bloque` / `.bloque-tarjeta` (`--duna-surface`) — la
+  elevación surface-sobre-bg es la doctrina de siempre, SÓLO tokens existentes. Antes era UN `.duna-card`
+  blanco con todos los bloques planos adentro ("toda blanca", sin zonas). El resalte "esto está puesto"
+  del puente hace **LAYER** del wash sobre la superficie (`linear-gradient(wash, wash), surface`), no la
+  reemplaza —así conserva la elevación—. Sobre un bloque (que es una CAJA) el tratamiento del DS aplica
+  limpio (§ Amber Minimal, el par superficie+barra); era el DIVISOR el que producía artefactos.
+
+- **EL PUENTE MAPEA slot→BLOQUE** (antes slot→grupo). `bloqueDeTarjeta(config, slot)`
+  (`lib/tienda/puente-tarjetas.ts`, capa 1) devuelve el bloque-tarjeta de ese slot; el DOM/eventos en
+  `TiendaSeccionEditor` (`bloquesRef` = `Map<slot, HTMLElement>`, `onClicTarjeta` scrollea por slot). El
+  mapeo es POR SLOT, no por posición: la posición VISIBLE miente cuando una tarjeta opcional se llena
+  fuera de orden (slot 4 lleno con el 3 vacío). **El marcador `data-sf-tarjeta` del storefront NO
+  cambió** —`data-sf-tarjeta={preview ? op.slot : undefined}` en GrindChooser, gated en `useIsPreview`:
+  en la tienda del visitante `preview` es false → React omite el atributo → **storefront BYTE-IDÉNTICO**
+  (verificado por ejecución: 0 apariciones en la home pública)—. Convive con la neutralización de
+  enlaces de `EscalaDesktop` por ESTRUCTURA del DOM (el capture-handler vive en el ancestro
+  `.puente-tarjetas`, `display:contents`; la captura corre de afuera hacia adentro y no llama
+  `stopPropagation`), no por timing.
+
+- **INVARIANTE puente↔pieza-opcional (capa 1):** una tarjeta VISIBLE en la vista SIEMPRE tiene su bloque
+  montado y expandido, **nunca detrás de "Agregar tarjeta"**. Visible = título O imagen; una pieza
+  opcional (slot 3-4) con label/copy/categoría/imagen en blanco se COLAPSA a la oferta "+ Agregar
+  tarjeta" (al clic expande; "Quitar" la vacía y la devuelve a la oferta). El colapso DERIVA de los
+  datos; el estado de expansión se resetea EXPLÍCITO en `abrirEdicion`/`cerrarEdicion` (el componente no
+  se desmonta al cerrar). El test incluye la config de relleno FUERA DE ORDEN. El botón dice **"Agregar
+  tarjeta"** a secas —el tope (4) se descubre solo cuando desaparece al llegar a 4—.
+
+- **#66 CERRADO:** la miniatura de imagen vacía pinta un marco placeholder (`.duna-tile` con `ImageIcon`
+  muted), NUNCA un `<img src="">` roto — igual que el storefront pinta el hueco en vez de romperse.
 
 ### La propagación al storefront — el storefront es DINÁMICO (defecto medido y arreglado)
 
@@ -6146,6 +6164,14 @@ neutro):
     cumple su supuesto, no el CSS puntual. **La variante para un DIVISOR:** `--duna-wash-active` (el
     "seleccionado suave", que SÍ se ve sobre una superficie) + barra de tinta inset + borde superior
     transparente, y SIN `border-radius`.
+    - **CERRADO por el rediseño de bloques (2026-09-05, § El editor dibuja por BLOQUES):** la tarjeta de
+      Presentaciones volvió a ser una CAJA CONTENIDA (`.bloque-tarjeta`, `--duna-surface` + borde +
+      radio), así que el tratamiento LIMPIO aplica y la variante-divisor ya no se usa ahí. La única
+      sutileza es que `is-activo` hace **LAYER** del wash sobre la superficie
+      (`linear-gradient(--duna-wash-active, --duna-wash-active), --duna-surface`) y NO lo reemplaza —si
+      lo reemplazara, el wash semitransparente compondría sobre el panel recesado (`--duna-bg`) y la
+      pieza perdería su elevación—. La doctrina del DIVISOR queda escrita por si un encabezado-línea la
+      vuelve a necesitar; hoy no hay consumidor.
 - **Una sola utilidad de fecha visible**: `formatFecha` (`lib/format-fecha.ts`,
   `14 may 2026`, es-CO/America-Bogota). No `toLocaleDateString` ad-hoc en vistas.
 - **Icon chips en familia cálida** — ver la sección de chips arriba

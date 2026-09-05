@@ -1,6 +1,34 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-09-04 (**EDITOR VISUAL #46, FASE 1 CERRADA — el PUENTE vista→formulario.** Clic en una tarjeta
+**Actualizado:** 2026-09-05 (**EDITOR DE /admin/tienda REDISEÑADO — dibuja por BLOQUES + superficies + Colores.**
+Adoptado ENTERO de una sesión de diseño con mockup navegable (el ciclo de parches sobre parches se cortó parando a
+diseñar). La cáscara del editor (`TiendaSeccionEditor`) dibuja por **BLOQUES** —una PIEZA de la tienda que POSEE sus
+imágenes y sus textos—, no por dos loops paralelos (todas las imágenes, luego todos los textos) que partían una tarjeta
+en dos lugares y duplicaban su encabezado; **`grupo` se retiró** (config declarada dos veces para un encabezado que no
+agrupaba nada). El **bloque derivado por defecto** (`bloquesResueltos`, `lib/tienda/bloques.ts`, capa 1) es la RED DE
+SEGURIDAD: una sección SIN bloques cae a un `seccion` con TODO → idéntica, así que la migración NO fue atómica
+—construido y verificado ANTES de migrar ninguna sección—. Retirar `grupo` va ACOPLADO a darle bloques a Presentaciones
+en el MISMO commit. NO toca el resolver de SiteContent, el modelo (campos planos) ni #44 (tripwire limpio). **Lista
+plana COMPACTA** (`lib/tienda/lista-plana.ts`, capa 1): "×" sube los de abajo, "+ Agregar" escribe en el primer vacío —
+el dato coincide con el storefront, no sólo lo renderizado (#44 intacto, presentación). **Superficies**: el form es un
+panel RECESADO (`--duna-bg`) con piezas ELEVADAS (`--duna-surface`); el resalte "esto está puesto" hace **LAYER** del
+wash sobre la superficie (no la reemplaza) → conserva la elevación; el bloque es una CAJA, así que el DS aplica limpio
+(era el DIVISOR el que daba artefactos). **Puente slot→BLOQUE** (`bloqueDeTarjeta`, antes slot→grupo); el marcador
+`data-sf-tarjeta` del storefront SIN cambio (byte-idéntico); invariante puente↔pieza-opcional —tarjeta VISIBLE siempre
+montada y expandida, nunca detrás de "Agregar tarjeta"— con test incluida la config de relleno FUERA DE ORDEN. El botón
+dice **"Agregar tarjeta"** a secas (el tope 4 se descubre al desaparecer). **COLORES DE LA TIENDA** entra al mismo modelo
+de bloques: **Base** (bases curadas con muestra "Aa" + razón de contraste ESCRITA), **Acento** (auto-flip del texto del
+botón DECLARADO en palabras —"blanco · 8.4:1"—, no invisible), **Lo que se calcula solo** (los 19 derivados colapsados,
+visibles, NO editables); avisos pegados al control que los causa (no una pila bajo el preview); preview a la COLUMNA del
+split, "Ampliar" conservado; autoguardado sólo-si-válido + Publicar/Descartar + reset-a-NULL conservados íntegros. **#66
+CERRADO** (miniatura vacía = marco placeholder `.duna-tile`, no `<img>` roto). capa 1 **838/838** · tsc 0 · next build
+verde · **storefront byte-idéntico** (0 archivos de storefront tocados en toda la rama). Gate del owner PASADO, mergeada
+a `main` `--no-ff` (`b97be30`), rama borrada. **#58 (punto focal) sigue FUERA** —necesita campos de coordenadas en el
+modelo; el botón "Punto focal" de la captura era del MOCKUP, no del código (verificado por grep: 0 apariciones)—. **#49
+enriquecido** (planes de Suscripción no editables: viven en `SUBSCRIPTION_PLANS`, dos consumidores, el grid asume 3, SIN
+precios horneados → el censo de datos falsos NO lo adelanta). **NO quedan pasos manuales abiertos.**)
+
+**ANTES — 2026-09-04 · EDITOR VISUAL #46, FASE 1 CERRADA — el PUENTE vista→formulario.** Clic en una tarjeta
 de la vista previa → scroll + resalte de su grupo "Tarjeta N" en el formulario, SÓLO Presentaciones. Ataca el dolor
 LITERAL ("no se ve cuál campo es cuál") SIN la in-situ real —descartada por la ESCALA: a paneW/1280 (~0.30–0.44 a los
 anchos comunes) un título de 30px se ve a 9–13px, ilegible, y no hay precedente de contentEditable—. **Mapeo por SLOT,
@@ -17,7 +45,8 @@ sobre un DIVISOR → wash-active + barra + borde transparente, sin radius—; y 
 subsección del panel (`duna-field__label`); censo confirmó que el editor YA estaba sobre primitivas Duna. capa 1
 **828/828** · tsc + next build verde · **storefront byte-idéntico**. Gate del owner PASADO, mergeada a `main`
 `--no-ff` (`cc6c04e`), rama borrada. **Fase 2 (campo flotante para el TEXTO) al backlog #46**; placeholder de imagen
-vacía al **#66** (entra cuando la Fase 2 toque la cáscara compartida). **NO quedan pasos manuales abiertos.**)
+vacía al **#66** (entra cuando la Fase 2 toque la cáscara compartida). **NO quedan pasos manuales abiertos.** _(→ #66
+luego CERRADO en la tanda de bloques del 2026-09-05, arriba.)_
 
 **ANTES — CHECKOUT: scroll al cambiar de paso + MÉTODOS DE PAGO config CERRADA.** (1) Los pasos
 del checkout son estado en una página; al Continuar/Atrás la vista mantenía la posición del paso anterior → `useEffect`
