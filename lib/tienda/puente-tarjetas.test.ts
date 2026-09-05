@@ -1,38 +1,35 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { grupoDeTarjeta, slotOpcional, slotVacio } from './puente-tarjetas';
+import { bloqueDeTarjeta, slotOpcional, slotVacio } from './puente-tarjetas';
 import { SECCIONES_TIENDA } from '@/components/admin/tienda-secciones';
 import { tarjetasDePresentaciones } from '@/lib/storefront/presentaciones';
 import { DEFAULTS } from '@/lib/config/site-content-defaults';
 
-// Capa 1 del mapeo SLOT → grupo del formulario (el puente vista→formulario, § Backlog #46). Afirma
-// que el slot de una tarjeta clicada en la vista lleva a su grupo "Tarjeta N" real del descriptor —
-// incluidos los slots opcionales (3-4), que llevan el sufijo "(opcional)"—.
+// Capa 1 del mapeo SLOT → BLOQUE-tarjeta (el puente vista→formulario, § Backlog #46). Afirma que el
+// slot de una tarjeta clicada en la vista lleva a su bloque real del descriptor, POR SLOT (no por
+// posición), y que el invariante puente↔pieza-opcional se sostiene incluso con relleno fuera de orden.
 
 const PRESENTACIONES = SECCIONES_TIENDA.find(s => s.seccion === 'presentaciones')!;
 
-test('cada slot mapea a su grupo "Tarjeta N" del descriptor (fuente única)', () => {
-  // Sin sufijo "(opcional)": la línea "+ Agregar N tarjeta" ya comunica que es opcional (§ Fix 1).
-  assert.equal(grupoDeTarjeta(PRESENTACIONES, 1), 'Tarjeta 1');
-  assert.equal(grupoDeTarjeta(PRESENTACIONES, 2), 'Tarjeta 2');
-  assert.equal(grupoDeTarjeta(PRESENTACIONES, 3), 'Tarjeta 3');
-  assert.equal(grupoDeTarjeta(PRESENTACIONES, 4), 'Tarjeta 4');
-});
-
-test('un slot fuera de rango → null (el puente no salta a ningún grupo)', () => {
-  assert.equal(grupoDeTarjeta(PRESENTACIONES, 5), null);
-  assert.equal(grupoDeTarjeta(PRESENTACIONES, 0), null);
-});
-
-test('el grupo sale del DESCRIPTOR, no de un literal: coincide con el `grupo` del campo label del slot', () => {
-  // Si alguien renombra el grupo en el descriptor, este mapeo lo sigue sin tocar el puente.
+test('cada slot mapea a su BLOQUE-tarjeta del descriptor (fuente única, por slot)', () => {
   for (const slot of [1, 2, 3, 4]) {
-    const esperado = PRESENTACIONES.campos.find(c => c.name === `label${slot}`)?.grupo ?? null;
-    assert.equal(grupoDeTarjeta(PRESENTACIONES, slot), esperado);
+    const b = bloqueDeTarjeta(PRESENTACIONES, slot);
+    assert.equal(b?.slot, slot);
+    assert.equal(b?.titulo, `Tarjeta ${slot}`);
   }
 });
 
-// ── Colapso de grupos opcionales vacíos (Defecto 2) ───────────────────────────────────────────────
+test('un slot fuera de rango → null (el puente no salta a ningún bloque)', () => {
+  assert.equal(bloqueDeTarjeta(PRESENTACIONES, 5), null);
+  assert.equal(bloqueDeTarjeta(PRESENTACIONES, 0), null);
+});
+
+test('una sección SIN bloques-tarjeta → null (el puente no aplica)', () => {
+  const hero = SECCIONES_TIENDA.find(s => s.seccion === 'hero')!;
+  assert.equal(bloqueDeTarjeta(hero, 1), null);
+});
+
+// ── El invariante puente↔pieza-opcional ───────────────────────────────────────────────────────────
 const base = DEFAULTS.presentaciones;
 
 test('slotOpcional: 1-2 requeridos (false), 3-4 opcionales (true)', () => {
@@ -53,10 +50,11 @@ test('slotVacio: todo en blanco → vacío; cualquier campo con algo → no vac�
   assert.equal(slotVacio(comoForm(base), 1), false); // los requeridos traen defaults → nunca vacíos
 });
 
-test('INVARIANTE puente↔colapso: toda tarjeta VISIBLE está en un slot NO colapsable (nunca vacío)', () => {
-  // Un slot colapsado no registra su grupo → no tendría destino de scroll. La garantía es que un slot
-  // que produce tarjeta visible nunca está vacío (visible = label O imagen; vacío = ambos, y más, en
-  // blanco). Se prueba en varias configuraciones, incluidas las de relleno fuera de orden.
+test('INVARIANTE puente↔pieza-opcional: toda tarjeta VISIBLE tiene su bloque montado y expandido', () => {
+  // Una pieza opcional COLAPSADA (detrás de "+ Agregar tarjeta") no monta su bloque → no tendría
+  // destino de scroll. La garantía es que un slot que produce tarjeta VISIBLE nunca es colapsable
+  // (visible = label O imagen; colapsable = opcional Y vacío = ambos, y más, en blanco). Se prueba en
+  // varias configuraciones, INCLUIDA la de relleno fuera de orden (slot 4 lleno con el 3 vacío).
   const configs = [
     base,
     { ...base, label3: 'Tortas', imagen3: '' },                       // opcional visible sólo por título
