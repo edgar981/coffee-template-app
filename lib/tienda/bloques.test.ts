@@ -9,29 +9,52 @@ import { SECCIONES_TIENDA } from '@/components/admin/tienda-secciones';
 
 test('sin `bloques` → UN bloque `seccion` con todas las imágenes y campos (red de seguridad)', () => {
   for (const config of SECCIONES_TIENDA) {
+    if (config.bloques) continue; // las que declaran bloques se prueban aparte
     const bloques = bloquesResueltos(config);
     assert.equal(bloques.length, 1, `${config.seccion}: un solo bloque`);
-    assert.equal(bloques[0].tipo, 'seccion');
-    assert.deepEqual(bloques[0].imagenes, config.imagenes, `${config.seccion}: todas las imágenes`);
-    assert.deepEqual(bloques[0].campos, config.campos, `${config.seccion}: todos los campos`);
+    const b = bloques[0];
+    assert.equal(b.tipo, 'seccion');
+    if (b.tipo !== 'seccion') throw new Error('narrow');
+    assert.deepEqual(b.imagenes, config.imagenes, `${config.seccion}: todas las imágenes`);
+    assert.deepEqual(b.campos, config.campos, `${config.seccion}: todos los campos`);
   }
 });
 
 test('un bloque `seccion` DECLARADO resuelve los NOMBRES a sus descriptores, en orden', () => {
-  const base = SECCIONES_TIENDA.find(s => s.seccion === 'presentaciones')!;
-  const config = { ...base, bloques: [{ tipo: 'seccion' as const, imagenes: ['imagen1'], campos: ['label1', 'copy1'] }] };
+  const base = SECCIONES_TIENDA.find(s => s.seccion === 'subscriptionCTA')!;
+  const config = { ...base, bloques: [{ tipo: 'seccion' as const, campos: ['titulo', 'eyebrow'] }] };
   const [b] = bloquesResueltos(config);
   assert.equal(b.tipo, 'seccion');
-  assert.deepEqual(b.imagenes.map(i => i.name), ['imagen1']);
-  assert.deepEqual(b.campos.map(c => c.name), ['label1', 'copy1']);
-  // Los descriptores son los REALES del config (no copias vacías).
-  assert.equal(b.campos[0].label, 'Nombre');
+  if (b.tipo !== 'seccion') throw new Error('narrow');
+  assert.deepEqual(b.campos.map(c => c.name), ['titulo', 'eyebrow']);
+  assert.equal(b.campos[0].label, 'Título'); // el descriptor REAL, no una copia vacía
 });
 
 test('un bloque sin `campos`/`imagenes` declarados resuelve a listas vacías (no lanza)', () => {
   const base = SECCIONES_TIENDA.find(s => s.seccion === 'subscriptionCTA')!;
   const config = { ...base, bloques: [{ tipo: 'seccion' as const }] };
   const [b] = bloquesResueltos(config);
+  assert.equal(b.tipo, 'seccion');
+  if (b.tipo !== 'seccion') throw new Error('narrow');
   assert.deepEqual(b.imagenes, []);
   assert.deepEqual(b.campos, []);
+});
+
+// ── Presentaciones EN BLOQUES: encabezado + 4 tarjetas por slot ────────────────────────────────────
+test('Presentaciones resuelve a un encabezado + 4 tarjetas; cada tarjeta trae su imagen y sus campos', () => {
+  const config = SECCIONES_TIENDA.find(s => s.seccion === 'presentaciones')!;
+  const bloques = bloquesResueltos(config);
+  assert.equal(bloques.length, 5); // encabezado + 4
+  assert.equal(bloques[0].tipo, 'seccion');
+
+  const tarjetas = bloques.filter(b => b.tipo === 'tarjeta');
+  assert.equal(tarjetas.length, 4);
+  for (let i = 0; i < 4; i++) {
+    const t = tarjetas[i];
+    if (t.tipo !== 'tarjeta') throw new Error('narrow');
+    assert.equal(t.slot, i + 1);
+    assert.equal(t.imagen?.name, `imagen${i + 1}`);
+    assert.deepEqual(t.campos.map(c => c.name), [`label${i + 1}`, `copy${i + 1}`, `categoria${i + 1}`]);
+    assert.equal(t.opcional, i + 1 >= 3); // 1-2 requeridas, 3-4 opcionales
+  }
 });

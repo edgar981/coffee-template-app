@@ -11,7 +11,8 @@ import type { SeccionConfig, CampoTexto, CampoImagen } from '@/components/admin/
 // propio REGISTRY (§ site-content-defaults), no el descriptor—.
 
 export type BloqueResuelto =
-  | { tipo: 'seccion'; imagenes: CampoImagen[]; campos: CampoTexto[] };
+  | { tipo: 'seccion'; imagenes: CampoImagen[]; campos: CampoTexto[] }
+  | { tipo: 'tarjeta'; slot: number; titulo: string; imagen?: CampoImagen; campos: CampoTexto[]; opcional: boolean };
 
 /**
  * Los bloques RESUELTOS de una sección, en orden. Sin `bloques` declarados → un solo bloque `seccion`
@@ -24,9 +25,21 @@ export function bloquesResueltos(config: SeccionConfig): BloqueResuelto[] {
   }
   const porImg = new Map(config.imagenes.map(i => [i.name, i]));
   const porCampo = new Map(config.campos.map(c => [c.name, c]));
-  return config.bloques.map(b => ({
-    tipo: 'seccion' as const,
-    imagenes: (b.imagenes ?? []).map(n => porImg.get(n)!),
-    campos: (b.campos ?? []).map(n => porCampo.get(n)!),
-  }));
+  return config.bloques.map((b): BloqueResuelto => {
+    if (b.tipo === 'tarjeta') {
+      return {
+        tipo: 'tarjeta',
+        slot: b.slot,
+        titulo: b.titulo,
+        imagen: b.imagen ? porImg.get(b.imagen) : undefined,
+        campos: b.campos.map(n => porCampo.get(n)!),
+        opcional: b.opcional === true,
+      };
+    }
+    return {
+      tipo: 'seccion',
+      imagenes: (b.imagenes ?? []).map(n => porImg.get(n)!),
+      campos: (b.campos ?? []).map(n => porCampo.get(n)!),
+    };
+  });
 }
