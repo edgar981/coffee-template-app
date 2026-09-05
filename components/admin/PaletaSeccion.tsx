@@ -192,6 +192,17 @@ function AmpliarOverlay({ abierto, onCerrar, raices, nombre }: { abierto: boolea
   );
 }
 
+/** Un aviso de contraste, PEGADO al control que lo causa (§ Fix 3) — ámbar (`--duna-sol-ink` =
+ *  atención), no rojo: avisa, no bloquea (es su tienda). */
+function Aviso({ children }: { children: string }) {
+  return (
+    <p className="duna-caption" role="status"
+       style={{ color: 'var(--duna-sol-ink)', lineHeight: 1.4, marginTop: 'var(--duna-space-2)', marginBottom: 0 }}>
+      ⚠ {children}
+    </p>
+  );
+}
+
 export default function PaletaSeccion() {
   const settings = useSiteSettings(); // sólo para el `nombre` del wordmark del preview
 
@@ -330,19 +341,21 @@ export default function PaletaSeccion() {
     );
   }
 
-  // Derivados (form ya no es null)
+  // Derivados (form ya no es null). El mapa COMPLETO lo da `derivarPaleta`; con un acento inválido
+  // (a medio teclear) los derivados salen basura, así que lo dependiente del acento se muestra sólo
+  // cuando es válido (el error inline cubre el ínterin).
   const baseActiva = BASES.find(b => b.fondo === form.fondo && b.tinta === form.tinta);
   const acentoInvalido = !HEX6.test(form.acento);
-  const acentoTxt = derivarPaleta(form)['acento-txt'];
-  const avisos: string[] = [];
-  if (!acentoInvalido) {
-    if (contraste(form.tinta, form.fondo) < 4.5)
-      avisos.push('El texto principal puede costar de leer sobre este fondo. Prueba una base más contrastada.');
-    if (contraste(acentoTxt, form.acento) < 4.5)
-      avisos.push('El texto del botón puede costar de leer sobre este acento. Prueba un acento más oscuro o más claro.');
-    if (contraste(form.acento, form.fondo) < 1.35)
-      avisos.push('El acento casi no se distingue del fondo: los botones y detalles pueden perderse.');
-  }
+  const derivada = derivarPaleta(form);
+  const acentoTxt = derivada['acento-txt'];
+  // Los 19 DERIVADOS (todo menos las 3 raíces editables), en el orden en que los produce el motor.
+  const derivados = Object.keys(derivada).filter(k => k !== 'fondo' && k !== 'tinta' && k !== 'acento');
+  const razon = (a: string, b: string) => contraste(a, b).toFixed(1); // "8.4" — la razón que contraste() calcula
+  // Los AVISOS de contraste van PEGADOS al control que los causa (§ Fix 3), no en una pila bajo el
+  // preview. Base → texto sobre fondo; Acento → texto del botón (auto-flip) y acento contra fondo.
+  const avisoBaseTexto   = !acentoInvalido && contraste(form.tinta, form.fondo) < 4.5;
+  const avisoBotonTexto  = !acentoInvalido && contraste(acentoTxt, form.acento) < 4.5;
+  const avisoAcentoFondo = !acentoInvalido && contraste(form.acento, form.fondo) < 1.35;
 
   const puedePublicar = auto.estado === 'guardado' && !procesando;
   const enError = auto.estado === 'error';
@@ -401,89 +414,130 @@ export default function PaletaSeccion() {
         )}
       </div>
 
-      <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
-        {editando ? (
-          <div className="duna-form" style={{ gap: 'var(--duna-space-5)' }}>
-            {/* BASES (fondo + tinta) */}
-            <div className="duna-form__full">
-              <span className="duna-field__label">Base (fondo y texto)</span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', marginTop: '6px' }}>
-                {BASES.map(b => {
-                  const activa = baseActiva?.label === b.label;
-                  return (
-                    <button
-                      key={b.label} type="button" onClick={() => elegirBase(b)}
-                      aria-pressed={activa}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px 6px 6px',
-                        borderRadius: 'var(--duna-r-l)', cursor: 'pointer',
-                        border: `1px solid ${activa ? 'var(--duna-ink)' : 'var(--duna-border)'}`,
-                        background: activa ? 'var(--duna-surface)' : 'transparent',
-                        boxShadow: activa ? 'var(--duna-shadow-1)' : 'none',
-                      }}
-                    >
-                      <span style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--duna-border)' }}>
-                        <i style={{ width: 16, height: 20, background: b.fondo }} />
-                        <i style={{ width: 16, height: 20, background: b.tinta }} />
-                      </span>
-                      <span className="duna-body" style={{ fontSize: 13, fontWeight: activa ? 600 : 500 }}>{b.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+      {editando ? (
+        // EDICIÓN: la vista previa pasa a la COLUMNA del split (sticky ≥1080), como las secciones
+        // (§ Fix 3); los controles van como TRES piezas sobre el panel recesado (§ Fix 2, mismo
+        // lenguaje que el editor de secciones). "Ampliar" se conserva.
+        <div className="tienda-vivo tienda-vivo--editando" style={{ marginTop: 'var(--duna-space-4)' }}>
+          <div className="tienda-vivo__vista">
+            <PreviewTiendaReal raices={form} nombre={settings.nombre} onAmpliar={() => setAmpliado(true)} />
+          </div>
 
-            {/* ACENTO (picker libre) */}
-            <div className="duna-field">
-              <label className="duna-field__label" htmlFor="pal-acento">Acento de marca</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: '6px' }}>
-                <input
-                  id="pal-acento" type="color"
-                  value={HEX6.test(form.acento) ? form.acento : '#8b4513'}
-                  onChange={e => cambiar({ acento: e.target.value })}
-                  style={{ width: 44, height: 36, padding: 0, border: '1px solid var(--duna-border)', borderRadius: 'var(--duna-r-m)', background: 'none', cursor: 'pointer' }}
-                  aria-label="Elegir color de acento"
-                />
-                <input
-                  className="duna-input" style={{ width: 130, fontFamily: 'var(--duna-font-mono)' }}
-                  value={form.acento} onChange={e => cambiar({ acento: e.target.value })}
-                  aria-invalid={acentoInvalido || undefined}
-                />
+          <div className="tienda-vivo__form">
+            <div className="tienda-form">
+              {/* PIEZA 1 · BASE (fondo + tinta): cada base con su muestra "Aa" (tinta sobre fondo) y su
+                  razón de contraste escrita (`contraste()` ya la calcula). El aviso de "texto sobre
+                  fondo" se pega ACÁ, donde se elige la base. */}
+              <div className="tienda-form__bloque">
+                <span className="duna-field__label">Base (fondo y texto)</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', marginTop: '6px' }}>
+                  {BASES.map(b => {
+                    const activa = baseActiva?.label === b.label;
+                    return (
+                      <button
+                        key={b.label} type="button" onClick={() => elegirBase(b)} aria-pressed={activa}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px 8px 8px',
+                          borderRadius: 'var(--duna-r-l)', cursor: 'pointer',
+                          border: `1px solid ${activa ? 'var(--duna-ink)' : 'var(--duna-border)'}`,
+                          background: activa ? 'var(--duna-surface)' : 'transparent',
+                          boxShadow: activa ? 'var(--duna-shadow-1)' : 'none',
+                        }}
+                      >
+                        {/* La muestra "Aa": tinta sobre fondo — la prueba REAL de legibilidad de la base. */}
+                        <span aria-hidden style={{
+                          display: 'grid', placeItems: 'center', width: 34, height: 30, borderRadius: 8,
+                          background: b.fondo, color: b.tinta, border: '1px solid var(--duna-border)',
+                          fontWeight: 700, fontSize: 14, lineHeight: 1,
+                        }}>Aa</span>
+                        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
+                          <span className="duna-body" style={{ fontSize: 13, fontWeight: activa ? 600 : 500 }}>{b.label}</span>
+                          <span className="duna-caption" style={{ margin: 0 }}>Contraste {razon(b.tinta, b.fondo)}:1</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {avisoBaseTexto && <Aviso>El texto principal puede costar de leer sobre este fondo. Prueba una base más contrastada.</Aviso>}
               </div>
-              {acentoInvalido && <p className="duna-field__error" style={{ marginTop: '4px' }}>Usa un hex de 6 dígitos, p. ej. #8b4513.</p>}
-            </div>
 
-            {/* PREVIEW + avisos */}
-            <div className="duna-form__full">
-              <span className="duna-field__label">Vista previa</span>
-              <div style={{ marginTop: '6px', maxWidth: 440 }}>
-                <PreviewTiendaReal raices={form} nombre={settings.nombre} onAmpliar={() => setAmpliado(true)} />
+              {/* PIEZA 2 · ACENTO (picker libre): con el auto-flip del texto del botón DECLARADO
+                  ("blanco, 8.4:1" en vez de invisible). Los avisos del acento van pegados ACÁ. */}
+              <div className="tienda-form__bloque">
+                <label className="duna-field__label" htmlFor="pal-acento">Acento de marca</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: '6px' }}>
+                  <input
+                    id="pal-acento" type="color"
+                    value={HEX6.test(form.acento) ? form.acento : '#8b4513'}
+                    onChange={e => cambiar({ acento: e.target.value })}
+                    style={{ width: 44, height: 36, padding: 0, border: '1px solid var(--duna-border)', borderRadius: 'var(--duna-r-m)', background: 'none', cursor: 'pointer' }}
+                    aria-label="Elegir color de acento"
+                  />
+                  <input
+                    className="duna-input" style={{ width: 130, fontFamily: 'var(--duna-font-mono)' }}
+                    value={form.acento} onChange={e => cambiar({ acento: e.target.value })}
+                    aria-invalid={acentoInvalido || undefined}
+                  />
+                </div>
+                {acentoInvalido ? (
+                  <p className="duna-field__error" style={{ marginTop: '4px', marginBottom: 0 }}>Usa un hex de 6 dígitos, p. ej. #8b4513.</p>
+                ) : (
+                  // AUTO-FLIP DECLARADO: el texto del botón de acento es FIJO (el cliente no lo elige) —
+                  // blanco o tinta, el que más contraste—. Se dice cuál y con cuánto, en vez de dejarlo
+                  // como un valor invisible que el operador no puede verificar.
+                  <p className="duna-caption" style={{ marginTop: '6px', marginBottom: 0 }}>
+                    Texto del botón: <b>{acentoTxt.toLowerCase() === '#ffffff' ? 'blanco' : 'oscuro'}</b> · contraste {razon(acentoTxt, form.acento)}:1
+                  </p>
+                )}
+                {avisoBotonTexto && <Aviso>El texto del botón puede costar de leer sobre este acento. Prueba un acento más oscuro o más claro.</Aviso>}
+                {avisoAcentoFondo && <Aviso>El acento casi no se distingue del fondo: los botones y detalles pueden perderse.</Aviso>}
               </div>
-              {avisos.length > 0 && (
-                <div role="status" style={{ marginTop: 'var(--duna-space-3)', maxWidth: 440, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {avisos.map((a, i) => (
-                    <p key={i} className="duna-caption" style={{ color: 'var(--duna-sol-ink)', lineHeight: 1.4 }}>⚠ {a}</p>
-                  ))}
+
+              {/* PIEZA 3 · LO QUE SE CALCULA SOLO: los 19 derivados, COLAPSADOS, visibles pero NO
+                  editables. `derivarPaleta` ya devuelve el mapa completo; esto es renderizarlo. */}
+              {!acentoInvalido && (
+                <div className="tienda-form__bloque">
+                  <details>
+                    <summary style={{ cursor: 'pointer' }}>
+                      <span className="duna-field__label">Lo que se calcula solo</span>
+                    </summary>
+                    <p className="duna-caption" style={{ marginTop: '4px' }}>
+                      El resto de la paleta se deriva de tus tres colores. No se edita.
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-2)' }}>
+                      {derivados.map(nombre => (
+                        <div key={nombre} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                          <span aria-hidden style={{ width: 22, height: 22, borderRadius: 6, background: derivada[nombre], border: '1px solid var(--duna-border)', flexShrink: 0 }} />
+                          <span style={{ minWidth: 0 }}>
+                            <span className="duna-caption" style={{ display: 'block', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombre}</span>
+                            <span style={{ display: 'block', fontFamily: 'var(--duna-font-mono)', fontSize: 11, color: 'var(--duna-muted)' }}>{derivada[nombre]}</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              )}
+
+              {errorServidor && <p className="duna-field__error" role="alert" style={{ margin: 0 }}>{errorServidor}</p>}
+
+              {/* Escape hatch a FÁBRICA — reset DIRECTO con confirmación; empujado a la derecha (es un
+                  reset, no el par publicar/descartar). Sólo con algo que resetear. */}
+              {puedeResetear && (
+                <div style={{ display: 'flex' }}>
+                  <button
+                    type="button" onClick={() => setConfirmandoFabrica(true)} disabled={procesando}
+                    className="duna-btn duna-btn--ghost" style={{ marginLeft: 'auto' }}
+                  >
+                    Usar el tema por defecto
+                  </button>
                 </div>
               )}
             </div>
-
-            {errorServidor && <p className="duna-field__error" role="alert" style={{ margin: 0 }}>{errorServidor}</p>}
-
-            {/* Escape hatch a FÁBRICA (§ el botón de fábrica). Reset DIRECTO con confirmación; empujado
-                a la derecha —es un reset, no el par publicar/descartar—. Sólo con algo que resetear. */}
-            {puedeResetear && (
-              <div className="duna-form__full" style={{ display: 'flex' }}>
-                <button
-                  type="button" onClick={() => setConfirmandoFabrica(true)} disabled={procesando}
-                  className="duna-btn duna-btn--ghost" style={{ marginLeft: 'auto' }}
-                >
-                  Usar el tema por defecto
-                </button>
-              </div>
-            )}
           </div>
-        ) : (
+        </div>
+      ) : (
+        <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-5)', alignItems: 'flex-start' }}>
             <div style={{ flex: '1 1 300px', maxWidth: 440 }}>
               <PreviewTiendaReal raices={form} nombre={settings.nombre} />
@@ -494,8 +548,8 @@ export default function PaletaSeccion() {
                 : <>Base <b>{baseActiva?.label ?? 'personalizada'}</b>, con tu acento. Así se ve tu tienda.</>}
             </p>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <ConfirmDescartarDialog
         abierto={confirmandoDescarte}
