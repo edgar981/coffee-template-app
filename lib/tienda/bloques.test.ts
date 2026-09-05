@@ -58,3 +58,21 @@ test('Presentaciones resuelve a un encabezado + 4 tarjetas; cada tarjeta trae su
     assert.equal(t.opcional, i + 1 >= 3); // 1-2 requeridas, 3-4 opcionales
   }
 });
+
+test('BrandStory resuelve a un COLLAGE (4 imágenes) + un bloque de texto', () => {
+  const config = SECCIONES_TIENDA.find(s => s.seccion === 'brandStory')!;
+  const bloques = bloquesResueltos(config);
+  const collage = bloques.find(b => b.tipo === 'collage');
+  assert.ok(collage);
+  if (collage?.tipo !== 'collage') throw new Error('narrow');
+  assert.deepEqual(collage.imagenes.map(i => i.name), ['imagen1', 'imagen2', 'imagen3', 'imagen4']);
+});
+
+test('Suscripción resuelve a una LISTA sobre bullet1..4', () => {
+  const config = SECCIONES_TIENDA.find(s => s.seccion === 'subscriptionCTA')!;
+  const lista = bloquesResueltos(config).find(b => b.tipo === 'lista');
+  assert.ok(lista);
+  if (lista?.tipo !== 'lista') throw new Error('narrow');
+  assert.deepEqual(lista.slots, ['bullet1', 'bullet2', 'bullet3', 'bullet4']);
+  assert.equal(lista.itemLabel, 'beneficio');
+});

@@ -79,7 +79,9 @@ export type BloqueConfig =
   | { tipo: 'tarjeta'; slot: number; titulo: string; imagen?: string; campos: string[]; opcional?: boolean }
   // Una LISTA PLANA sobre slots fijos (los beneficios): filas para los llenos, "+ Agregar" y "×". Se
   // COMPACTA (rule 2 · § lista-plana). `slots` son los nombres de campo; `itemLabel` el singular.
-  | { tipo: 'lista'; slots: string[]; itemLabel: string; hint?: string };
+  | { tipo: 'lista'; slots: string[]; itemLabel: string; hint?: string }
+  // Un COLLAGE 2×2 de miniaturas (Historia): la posición se VE en el grid, como en la tienda (rule 1).
+  | { tipo: 'collage'; titulo?: string; imagenes: string[] };
 
 export interface SeccionConfig {
   seccion: SeccionVista;
@@ -132,6 +134,11 @@ const BRAND_STORY: SeccionConfig = {
     { name: 'titulo',   label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'parrafo1', label: 'Primer párrafo', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'parrafo2', label: 'Segundo párrafo', opcional: true, textarea: true, hint: 'Vacío: no se muestra.' },
+  ],
+  // BLOQUES: el COLLAGE 2×2 (la posición de cada foto se ve en el grid, como en la tienda) + el texto.
+  bloques: [
+    { tipo: 'collage', titulo: 'Fotos (así se ubican en la tienda)', imagenes: ['imagen1', 'imagen2', 'imagen3', 'imagen4'] },
+    { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'parrafo1', 'parrafo2'] },
   ],
 };
 

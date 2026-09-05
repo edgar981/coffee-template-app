@@ -304,7 +304,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     const esDefault = val === String(defaults[img.name] ?? '');
     const subiendoEste = subiendo && subiendoCampo === img.name;
     return (
-      <div className="duna-field" style={{ marginBottom: 'var(--duna-space-4)' }}>
+      <div key={img.name} className="duna-field" style={{ marginBottom: 'var(--duna-space-4)' }}>
         <span className="duna-field__label">{img.label}</span>
         <div style={{ display: 'flex', gap: 'var(--duna-space-3)', alignItems: 'flex-start', marginTop: 'var(--duna-space-1)' }}>
           <div className="duna-tile" style={{ width: 'calc(var(--duna-thumb-w) * 2)' }}>
@@ -333,48 +333,44 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     );
   };
 
-  // El preview GRANDE de imagen (16/9) — lo usan las secciones aún NO migradas a bloques (hero,
-  // brandStory). Sin cambio respecto de antes; se unifica con la miniatura cuando migren.
-  const renderImagenGrande = (img: CampoImagen) => {
+  // UNA CELDA del collage: una miniatura CLICABLE (clic = Cambiar) que ocupa su cuadro del 2×2; la
+  // POSICIÓN la da el grid (rule 1: la posición se VE como en la tienda). Vacía → placeholder muted
+  // (§ #66). "Por defecto" abajo si cambió.
+  const renderCeldaCollage = (img: CampoImagen) => {
     const val = String(form[img.name] ?? '');
     const esDefault = val === String(defaults[img.name] ?? '');
     const subiendoEste = subiendo && subiendoCampo === img.name;
     return (
-      <div key={img.name} className="duna-field duna-form__full" style={{ marginBottom: 'var(--duna-space-5)' }}>
-        <span className="duna-field__label">{img.label}</span>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={val}
-          alt=""
-          style={{
-            width: '100%', maxWidth: '360px', aspectRatio: '16 / 9', objectFit: 'cover',
-            borderRadius: 'var(--duna-r-m)', border: '1px solid var(--duna-border)', marginTop: 'var(--duna-space-1)',
-          }}
-        />
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-3)', alignItems: 'center', marginTop: 'var(--duna-space-3)' }}>
-          <button type="button" onClick={() => ponerImagen(img.name)} className="duna-btn duna-btn--secondary duna-btn--sm" disabled={subiendo}>
-            <Upload /> Cambiar imagen
+      <div key={img.name} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-1)', minWidth: 0 }}>
+        <button type="button" onClick={() => ponerImagen(img.name)} className="duna-tile" style={{ width: '100%' }} disabled={subiendo} aria-label={`Cambiar ${img.label}`}>
+          {val
+            ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={val} alt="" />
+            : <ImageIcon aria-hidden width={20} height={20} />}
+        </button>
+        {!esDefault && !subiendoEste && (
+          <button type="button" onClick={() => usarPorDefecto(img.name)} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={subiendo} style={{ alignSelf: 'flex-start' }}>
+            Por defecto
           </button>
-          {!esDefault && (
-            <button type="button" onClick={() => usarPorDefecto(img.name)} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={subiendo}>
-              Usar imagen por defecto
-            </button>
-          )}
-          <span className="duna-field__hint" style={{ margin: 0 }}>
-            {subiendoEste ? `Subiendo… ${subida.progreso ?? 0}%` : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
-          </span>
-        </div>
-        {subiendoEste && (
-          <div style={{ marginTop: 'var(--duna-space-2)' }}><BarraProgreso pct={subida.progreso ?? 0} /></div>
         )}
+        {subiendoEste && <BarraProgreso pct={subida.progreso ?? 0} />}
       </div>
     );
   };
 
-  // Bloque SECCIÓN: imágenes (preview grande) + campos. Sin encabezados de grupo (se retiraron).
+  // Bloque COLLAGE (rule 1): las fotos en un 2×2 para que la posición se VEA como en la tienda.
+  const renderBloqueCollage = (bloque: Extract<BloqueResuelto, { tipo: 'collage' }>) => (
+    <div style={{ marginBottom: 'var(--duna-space-4)' }}>
+      {bloque.titulo && <span className="duna-field__label">{bloque.titulo}</span>}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-2)', maxWidth: '280px' }}>
+        {bloque.imagenes.map(renderCeldaCollage)}
+      </div>
+    </div>
+  );
+
+  // Bloque SECCIÓN: imágenes (miniatura, § rule 1) + campos. Sin encabezados de grupo (se retiraron).
   const renderBloqueSeccion = (bloque: Extract<BloqueResuelto, { tipo: 'seccion' }>) => (
     <>
-      {bloque.imagenes.map(renderImagenGrande)}
+      {bloque.imagenes.map(renderMiniatura)}
       {bloque.campos.length > 0 && (
         <div className="duna-form">{bloque.campos.map(renderCampo)}</div>
       )}
@@ -595,6 +591,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                 <Fragment key={i}>
                   {b.tipo === 'tarjeta' ? renderBloqueTarjeta(b)
                     : b.tipo === 'lista' ? renderBloqueLista(b)
+                    : b.tipo === 'collage' ? renderBloqueCollage(b)
                     : renderBloqueSeccion(b)}
                 </Fragment>
               ))}
