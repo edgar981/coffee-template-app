@@ -76,7 +76,10 @@ export type BloqueConfig =
   | { tipo: 'seccion'; imagenes?: string[]; campos?: string[] }
   // Una TARJETA: su imagen (miniatura) + sus campos, direccionada por `slot` (el mapeo del puente es
   // por slot, no por posición). `opcional` → la pieza no aparece hasta que se agrega (rule 3).
-  | { tipo: 'tarjeta'; slot: number; titulo: string; imagen?: string; campos: string[]; opcional?: boolean };
+  | { tipo: 'tarjeta'; slot: number; titulo: string; imagen?: string; campos: string[]; opcional?: boolean }
+  // Una LISTA PLANA sobre slots fijos (los beneficios): filas para los llenos, "+ Agregar" y "×". Se
+  // COMPACTA (rule 2 · § lista-plana). `slots` son los nombres de campo; `itemLabel` el singular.
+  | { tipo: 'lista'; slots: string[]; itemLabel: string; hint?: string };
 
 export interface SeccionConfig {
   seccion: SeccionVista;
@@ -185,18 +188,24 @@ const SUBSCRIPTION: SeccionConfig = {
   titulo: 'Suscripción',
   ocultable: true,
   imagenes: [], // sección de solo texto
-  // Los beneficios son "Beneficio 1…4", NO "slot 1…4": el nombre dice lo que son, y el hint del
-  // primero encuadra el grupo —opcionales, los vacíos no dejan hueco—. El número sólo distingue los
-  // cuatro inputs (a11y). El CTA lleva label editable; su destino (/suscripciones) es estructura.
+  // Los beneficios son campos PLANOS `bullet1..4`; los BLOQUES los presentan como una LISTA (abajo). El
+  // CTA lleva label editable; su destino (/suscripciones) es estructura.
   campos: [
     { name: 'eyebrow',   label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
     { name: 'titulo',    label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'subtitulo', label: 'Subtítulo', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'bullet1',   label: 'Beneficio 1', opcional: true, hint: 'Hasta 4. Deja vacíos los que no uses — la lista se cierra sin huecos.' },
-    { name: 'bullet2',   label: 'Beneficio 2', opcional: true, hint: 'Opcional.' },
-    { name: 'bullet3',   label: 'Beneficio 3', opcional: true, hint: 'Opcional.' },
-    { name: 'bullet4',   label: 'Beneficio 4', opcional: true, hint: 'Opcional.' },
+    { name: 'bullet1',   label: 'Beneficio', opcional: true, hint: 'Un beneficio de la suscripción.' },
+    { name: 'bullet2',   label: 'Beneficio', opcional: true, hint: 'Un beneficio de la suscripción.' },
+    { name: 'bullet3',   label: 'Beneficio', opcional: true, hint: 'Un beneficio de la suscripción.' },
+    { name: 'bullet4',   label: 'Beneficio', opcional: true, hint: 'Un beneficio de la suscripción.' },
     { name: 'ctaLabel',  label: 'Botón',       hint: 'Su destino es /suscripciones (fijo). Vacío: se usa el texto por defecto.' },
+  ],
+  // BLOQUES: encabezado + la LISTA de beneficios + el botón. Los beneficios pasan de 4 inputs fijos a
+  // una lista plana que se cierra sin huecos (rule 2 · § lista-plana).
+  bloques: [
+    { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'subtitulo'] },
+    { tipo: 'lista', slots: ['bullet1', 'bullet2', 'bullet3', 'bullet4'], itemLabel: 'beneficio', hint: 'Hasta 4. La lista se cierra sin huecos.' },
+    { tipo: 'seccion', campos: ['ctaLabel'] },
   ],
 };
 

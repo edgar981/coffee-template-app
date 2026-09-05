@@ -12,7 +12,8 @@ import type { SeccionConfig, CampoTexto, CampoImagen } from '@/components/admin/
 
 export type BloqueResuelto =
   | { tipo: 'seccion'; imagenes: CampoImagen[]; campos: CampoTexto[] }
-  | { tipo: 'tarjeta'; slot: number; titulo: string; imagen?: CampoImagen; campos: CampoTexto[]; opcional: boolean };
+  | { tipo: 'tarjeta'; slot: number; titulo: string; imagen?: CampoImagen; campos: CampoTexto[]; opcional: boolean }
+  | { tipo: 'lista'; slots: string[]; itemLabel: string; hint?: string };
 
 /**
  * Los bloques RESUELTOS de una sección, en orden. Sin `bloques` declarados → un solo bloque `seccion`
@@ -35,6 +36,9 @@ export function bloquesResueltos(config: SeccionConfig): BloqueResuelto[] {
         campos: b.campos.map(n => porCampo.get(n)!),
         opcional: b.opcional === true,
       };
+    }
+    if (b.tipo === 'lista') {
+      return { tipo: 'lista', slots: b.slots, itemLabel: b.itemLabel, hint: b.hint };
     }
     return {
       tipo: 'seccion',

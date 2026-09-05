@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Upload, Plus, ImageIcon } from 'lucide-react';
+import { Pencil, Upload, Plus, ImageIcon, X } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import VistaTiendaEnVivo from '@/components/admin/VistaTiendaEnVivo';
@@ -13,6 +13,7 @@ import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import type { SeccionConfig, CampoTexto, CampoImagen } from '@/components/admin/tienda-secciones';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
+import { quitar as quitarDeLista, ultimoLleno } from '@/lib/tienda/lista-plana';
 import { DEFAULTS } from '@/lib/config/site-content-defaults';
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 
@@ -86,6 +87,10 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   // "Quitar" vacía sus campos y la devuelve a "+ Agregar". Los slots siguen siendo campos PLANOS
   // fijos (presentación del editor, no un repeater). INVARIANTE: una tarjeta VISIBLE nunca está vacía
   // (§ slotVacio) → su bloque siempre está montado y expandido, nunca detrás de "+ Agregar".
+  // Cuántas filas mostrar en la lista plana de beneficios (rule 2). `null` → deriva del último lleno;
+  // "+ Agregar" / "×" la mueven. Se resetea al abrir/cerrar (como `expandidos`). Una sola lista por
+  // sección hoy (Suscripción); si hubiera varias, esto sería un Map por bloque.
+  const [mostradosLista, setMostradosLista] = useState<number | null>(null);
   const [expandidos, setExpandidos] = useState<Set<number>>(new Set());
   const colapsado = (slot: number): boolean =>
     puenteTarjetas && slotOpcional(config, slot)
@@ -176,8 +181,8 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   // pantalla), así que `useState(new Set())` no vuelve a correr; sin este reset, un grupo opcional
   // que abrí a mano seguiría abierto al reabrir. El colapso DERIVA de los datos (vacío → colapsado);
   // la expansión manual vive sólo mientras el editor está abierto (§ Fix 2).
-  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); };
-  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); };
+  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(null); };
+  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(null); };
 
   const accionBorrador = async (accion: 'publicar' | 'descartar') => {
     setErrorServidor(null); setProcesando(true);
@@ -401,6 +406,50 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     );
   };
 
+  // Bloque LISTA (rule 2): los beneficios como lista plana COMPACTA. Filas para los llenos + "+
+  // Agregar" + "×". Se COMPACTA al quitar (§ lista-plana); editar en el sitio escribe el slot.
+  const renderBloqueLista = (bloque: Extract<BloqueResuelto, { tipo: 'lista' }>) => {
+    const { slots, itemLabel, hint } = bloque;
+    const valores = slots.map(s => String(form[s] ?? ''));
+    const base = ultimoLleno(valores) + 1;                 // filas para llegar al último lleno
+    const mostrados = Math.min(slots.length, Math.max(mostradosLista ?? base, base));
+    const quitarFila = (i: number) => {
+      const nv = quitarDeLista(valores, i);
+      cambiar(Object.fromEntries(slots.map((s, idx) => [s, nv[idx]])));
+      setMostradosLista(Math.max(0, mostrados - 1));
+    };
+    const singular = itemLabel;
+    const label = singular.charAt(0).toUpperCase() + singular.slice(1);
+    return (
+      <div style={{ marginTop: 'var(--duna-space-4)' }}>
+        <span className="duna-field__label">{label}s</span>
+        {hint && <p className="duna-field__hint" style={{ marginTop: 0 }}>{hint}</p>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)', marginTop: 'var(--duna-space-2)' }}>
+          {Array.from({ length: mostrados }, (_, i) => (
+            <div key={slots[i]} style={{ display: 'flex', gap: 'var(--duna-space-2)', alignItems: 'center' }}>
+              <input
+                className="duna-input"
+                value={valores[i]}
+                onChange={e => cambiar({ [slots[i]]: e.target.value })}
+                aria-label={`${label} ${i + 1}`}
+              />
+              <button type="button" onClick={() => quitarFila(i)} className="duna-btn duna-btn--ghost duna-btn--icon" aria-label={`Quitar ${singular} ${i + 1}`}>
+                <X />
+              </button>
+            </div>
+          ))}
+        </div>
+        {mostrados < slots.length && (
+          <div style={{ marginTop: 'var(--duna-space-2)' }}>
+            <button type="button" onClick={() => setMostradosLista(mostrados + 1)} className="duna-btn duna-btn--secondary duna-btn--sm">
+              <Plus /> Agregar {singular}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Los bloques resueltos, y las tarjetas OPCIONALES aún colapsadas → la oferta "+ Agregar tarjeta".
   const bloques = bloquesResueltos(config);
   const tarjetasColapsadas = bloques.filter((b): b is Extract<BloqueResuelto, { tipo: 'tarjeta' }> => b.tipo === 'tarjeta' && colapsado(b.slot));
@@ -544,7 +593,9 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
 
               {bloques.map((b, i) => (
                 <Fragment key={i}>
-                  {b.tipo === 'tarjeta' ? renderBloqueTarjeta(b) : renderBloqueSeccion(b)}
+                  {b.tipo === 'tarjeta' ? renderBloqueTarjeta(b)
+                    : b.tipo === 'lista' ? renderBloqueLista(b)
+                    : renderBloqueSeccion(b)}
                 </Fragment>
               ))}
               {/* La oferta de la pieza opcional (rule 3): agrega la PRIMERA tarjeta colapsada. Se
