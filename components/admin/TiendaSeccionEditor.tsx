@@ -359,7 +359,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
 
   // Bloque COLLAGE (rule 1): las fotos en un 2×2 para que la posición se VEA como en la tienda.
   const renderBloqueCollage = (bloque: Extract<BloqueResuelto, { tipo: 'collage' }>) => (
-    <div style={{ marginBottom: 'var(--duna-space-4)' }}>
+    <div>
       {bloque.titulo && <span className="duna-field__label">{bloque.titulo}</span>}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-2)', maxWidth: '280px' }}>
         {bloque.imagenes.map(renderCeldaCollage)}
@@ -417,7 +417,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     const singular = itemLabel;
     const label = singular.charAt(0).toUpperCase() + singular.slice(1);
     return (
-      <div style={{ marginTop: 'var(--duna-space-4)' }}>
+      <div>
         <span className="duna-field__label">{label}s</span>
         {hint && <p className="duna-field__hint" style={{ marginTop: 0 }}>{hint}</p>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)', marginTop: 'var(--duna-space-2)' }}>
@@ -559,16 +559,18 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
           )}
         </div>
 
-        {/* El FORM — junto a la vista (esta rama es siempre edición). */}
+        {/* El FORM — junto a la vista (esta rama es siempre edición). El contenedor es un PANEL
+            RECESADO (--duna-bg) que CONTIENE las piezas; cada bloque es una PIEZA elevada
+            (--duna-surface) → los bloques se leen separados, no como un formulario plano (§ Fix 2). */}
         <div className="tienda-vivo__form">
-            <div className="duna-card duna-card__pad">
+            <div className="tienda-form">
               <input ref={subida.inputRef} type="file" accept={ACCEPT_IMAGENES} onChange={subida.alElegir} hidden disabled={subiendo} />
               {/* Segundo input para el flujo "elegir sin subir" (alta de vídeo); su `accept` lo fija
                   `subida.elegir` por llamada (vídeo o imagen del póster). */}
               <input ref={subida.inputHoldRef} type="file" onChange={subida.alElegirHold} hidden />
 
               {config.ocultable && (
-                <div className="duna-field duna-form__full" style={{ marginBottom: 'var(--duna-space-5)' }}>
+                <div className="tienda-form__bloque">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
                     <button
                       type="button"
@@ -587,28 +589,38 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                 </div>
               )}
 
+              {/* Cada bloque es una PIEZA. La `tarjeta` YA es su propia caja (`.bloque-tarjeta`), así
+                  que no se re-envuelve —doble caja—; los demás van en la pieza genérica. */}
               {bloques.map((b, i) => (
                 <Fragment key={i}>
-                  {b.tipo === 'tarjeta' ? renderBloqueTarjeta(b)
-                    : b.tipo === 'lista' ? renderBloqueLista(b)
-                    : b.tipo === 'collage' ? renderBloqueCollage(b)
-                    : renderBloqueSeccion(b)}
+                  {b.tipo === 'tarjeta'
+                    ? renderBloqueTarjeta(b)
+                    : (
+                      <div className="tienda-form__bloque">
+                        {b.tipo === 'lista' ? renderBloqueLista(b)
+                          : b.tipo === 'collage' ? renderBloqueCollage(b)
+                          : renderBloqueSeccion(b)}
+                      </div>
+                    )}
                 </Fragment>
               ))}
               {/* La oferta de la pieza opcional (rule 3): agrega la PRIMERA tarjeta colapsada. Se
                   esconde cuando no queda ninguna (las 4 visibles). Sólo Presentaciones tiene tarjetas. */}
               {tarjetasColapsadas.length > 0 && (
-                <div style={{ marginTop: 'var(--duna-space-4)' }}>
+                <div>
                   <button type="button" onClick={agregarTarjeta} className="duna-btn duna-btn--secondary">
-                    <Plus /> Agregar tarjeta (hasta 4)
+                    <Plus /> Agregar tarjeta
                   </button>
                 </div>
               )}
 
               {/* Sección de LISTA (repeater): cada cambio del RepeaterEditor —editar, agregar, quitar,
                   mover— pasa por `cambiar`, el mismo marcar-sucio + autoguardado que un campo plano. */}
+              {/* El repeater NO se envuelve en una pieza: sus ítems ya son `.duna-card` (blancos), y
+                  una pieza blanca alrededor los dejaría blanco-sobre-blanco. Va sobre el panel, sus
+                  ítems son las piezas. */}
               {config.repeater && (
-                <div style={{ marginTop: 'var(--duna-space-5)' }}>
+                <div>
                   <RepeaterEditor
                     items={Array.isArray(form[config.repeater.itemsKey]) ? (form[config.repeater.itemsKey] as Record<string, unknown>[]) : []}
                     descriptores={config.repeater.campos}

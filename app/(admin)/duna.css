@@ -620,25 +620,49 @@ html.admin {
 .puente-tarjetas[data-tarjeta-activa="3"] [data-sf-tarjeta="3"],
 .puente-tarjetas[data-tarjeta-activa="4"] [data-sf-tarjeta="4"] { box-shadow: 0 0 0 4px var(--duna-ink); }
 
-/* El BLOQUE-tarjeta del FORM: la PIEZA (miniatura + campos) de una tarjeta. Destino del scroll del
-   puente y confirmación FUERTE (tamaño real). Es una CAJA CONTENIDA —a diferencia del viejo
-   encabezado-divisor (§ Defecto 1)—, así que el "esto está puesto" del DS aplica LIMPIO. */
-.bloque-tarjeta {
+/* EL PANEL del FORM en edición (§ Fix 2): un contenedor RECESADO (--duna-bg) que CONTIENE las piezas.
+   Antes era UN `.duna-card` blanco con todos los bloques planos adentro → "toda blanca", sin zonas.
+   Ahora el panel es el fondo de la app y cada bloque es una PIEZA elevada (--duna-surface): la
+   elevación surface-sobre-bg es la doctrina de siempre —sólo tokens existentes—; el `gap` separa las
+   piezas (por eso los bloques ya no llevan margin propio). */
+.tienda-form {
+  background: var(--duna-bg);
+  border: 1px solid var(--duna-border);
+  border-radius: var(--duna-r-l);
+  padding: var(--duna-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--duna-space-4);
+}
+/* La PIEZA genérica: encabezado, collage, lista, toggle. La `tarjeta` tiene su propia clase con más
+   conducta (`.bloque-tarjeta`), pero comparte la misma superficie/borde/radio/padding. */
+.tienda-form__bloque {
+  background: var(--duna-surface);
   border: 1px solid var(--duna-border);
   border-radius: var(--duna-r-m);
   padding: var(--duna-space-4);
-  margin-top: var(--duna-space-4);
+}
+
+/* El BLOQUE-tarjeta del FORM: la PIEZA (miniatura + campos) de una tarjeta. Destino del scroll del
+   puente y confirmación FUERTE (tamaño real). Es una CAJA CONTENIDA —a diferencia del viejo
+   encabezado-divisor (§ Defecto 1)—, así que el "esto está puesto" del DS aplica LIMPIO. Misma
+   superficie que `.tienda-form__bloque`; su margen lo da el `gap` del panel (§ Fix 2). */
+.bloque-tarjeta {
+  background: var(--duna-surface);
+  border: 1px solid var(--duna-border);
+  border-radius: var(--duna-r-m);
+  padding: var(--duna-space-4);
   transition: background-color .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
 .bloque-tarjeta__head {
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--duna-space-2); margin-bottom: var(--duna-space-3);
 }
-/* Activo → "esto está puesto": wash de seleccionado (--duna-wash-active, que SÍ se ve sobre la tarjeta
-   --duna-surface del form) + barra de tinta a la izquierda. La caja ya tiene borde/radio, así que no
-   hay artefacto de esquina; el padding de la caja libra la barra. */
+/* Activo → "esto está puesto": wash de seleccionado LAYERED sobre la superficie (no reemplazándola —
+   así conserva la elevación sobre el panel recesado) + barra de tinta a la izquierda. La caja ya tiene
+   borde/radio, así que no hay artefacto de esquina; el padding de la caja libra la barra. */
 .bloque-tarjeta.is-activo {
-  background: var(--duna-wash-active);
+  background: linear-gradient(var(--duna-wash-active), var(--duna-wash-active)), var(--duna-surface);
   box-shadow: inset 3px 0 0 var(--duna-ink);
   border-color: var(--duna-border-2);
 }
