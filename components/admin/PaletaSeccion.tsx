@@ -11,7 +11,7 @@ import TrustBadges from '@/components/storefront/home/TrustBadges';
 import { EscalaDesktop } from '@/components/admin/EscalaDesktop';
 import { CartProvider } from '@/lib/cartStore';
 import type { Product } from '@/types/product';
-import { derivarPaleta, contraste } from '@/lib/config/palette-derive';
+import { derivarPaleta, contraste, RAICES_DEFECTO } from '@/lib/config/palette-derive';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 
@@ -40,7 +40,8 @@ import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialo
 // elige. Avisa, NO bloquea — es su tienda.
 
 // Los defaults de código (§ globals.css `--sf-*`) = la paleta de Nayoli. Raíces null → estos.
-const DEFAULT_RAICES = { fondo: '#faf7f4', tinta: '#1a0f08', acento: '#8b4513' };
+// FUENTE ÚNICA con los correos (§ email-colors): mismo `RAICES_DEFECTO` de palette-derive.
+const DEFAULT_RAICES = RAICES_DEFECTO;
 
 // Bases fondo+tinta CURADAS (todas ≥AA de texto sobre fondo, medido). El cliente elige una;
 // el acento va aparte. La PRIMERA es NEUTRA a propósito (gris cálido): un rubro concreto de

@@ -23,6 +23,11 @@
 export type RaicesPaleta = { fondo: string; tinta: string; acento: string };
 export type PaletaDerivada = Record<string, string>; // clave = nombre de var sin `--sf-`
 
+/** Las 3 RAÍCES por defecto = la paleta de Nayoli (§ globals.css `--sf-fondo/tinta/acento`). Un
+ *  deployment sin `content.tema` (raíces null) DERIVA de éstas. Fuente ÚNICA para los consumidores
+ *  server (buildBrand · los correos) y cliente (PaletaSeccion · el editor). */
+export const RAICES_DEFECTO: RaicesPaleta = { fondo: '#faf7f4', tinta: '#1a0f08', acento: '#8b4513' };
+
 // ── OKLab / OKLCH (sRGB↔OKLab, mezcla en oklch, WCAG) ────────────────────────
 const srgbToLin = (c: number) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
 const linToSrgb = (c: number) => { const v = c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055; return Math.max(0, Math.min(255, Math.round(v * 255))); };
