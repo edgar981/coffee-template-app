@@ -1,6 +1,25 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-09-04 (**CHECKOUT: scroll al cambiar de paso + MÉTODOS DE PAGO config CERRADA.** (1) Los pasos
+**Actualizado:** 2026-09-04 (**EDITOR VISUAL #46, FASE 1 CERRADA — el PUENTE vista→formulario.** Clic en una tarjeta
+de la vista previa → scroll + resalte de su grupo "Tarjeta N" en el formulario, SÓLO Presentaciones. Ataca el dolor
+LITERAL ("no se ve cuál campo es cuál") SIN la in-situ real —descartada por la ESCALA: a paneW/1280 (~0.30–0.44 a los
+anchos comunes) un título de 30px se ve a 9–13px, ilegible, y no hay precedente de contentEditable—. **Mapeo por SLOT,
+no por posición** (slot 4 lleno con el 3 vacío = 3ª tarjeta visible; `tarjetasDePresentaciones` PRESERVA el slot,
+`grupoDeTarjeta` mapea desde el descriptor, capa 1 incluida la prueba de relleno fuera de orden). El marcador en
+GrindChooser es un `data-sf-tarjeta` INERTE gated en `useIsPreview` → en la tienda del visitante NO existe
+(**byte-idéntico, verificado por ejecución: 0 apariciones**). Convive con los enlaces inertes de EscalaDesktop por
+ESTRUCTURA del DOM (captura en un ancestro `.puente-tarjetas` display:contents, SIN stopPropagation), no por timing.
+**Colapso de grupos opcionales vacíos DERIVA de los datos** ("+ Agregar N tarjeta"; el componente no se desmonta al
+cerrar la edición → reset explícito en abrir/cerrar; invariante puente↔colapso afirmado en capa 1). Los 3 defectos del
+gate: "(opcional)" fuera de los títulos; resalte del grupo activo SIN artefacto —el "esto está puesto" asume una CAJA,
+sobre un DIVISOR → wash-active + barra + borde transparente, sin radius—; y copy del CategoriaCombobox con UNA fuente
+("Elige una categoría", antes divergía por override vs default). Pulido Duna: encabezados de grupo al patrón de
+subsección del panel (`duna-field__label`); censo confirmó que el editor YA estaba sobre primitivas Duna. capa 1
+**828/828** · tsc + next build verde · **storefront byte-idéntico**. Gate del owner PASADO, mergeada a `main`
+`--no-ff` (`cc6c04e`), rama borrada. **Fase 2 (campo flotante para el TEXTO) al backlog #46**; placeholder de imagen
+vacía al **#66** (entra cuando la Fase 2 toque la cáscara compartida). **NO quedan pasos manuales abiertos.**)
+
+**ANTES — CHECKOUT: scroll al cambiar de paso + MÉTODOS DE PAGO config CERRADA.** (1) Los pasos
 del checkout son estado en una página; al Continuar/Atrás la vista mantenía la posición del paso anterior → `useEffect`
 sobre `[step]` → `window.scrollTo top:0`, `behavior` según prefers-reduced-motion. (2) Los 4 métodos (nequi, daviplata,
 transferencia, efectivo) son DATO del tenant: 4 booleanos `pago*Activo` (default true) + `pagoMovilNumero`, en

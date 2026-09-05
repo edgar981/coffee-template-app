@@ -723,30 +723,32 @@ Reglas de la lista, para que siga sirviendo:
   prueba lo que el código HACE—. Los items que esperan una DECISIÓN de producto (no
   un defecto) no necesitan este grep.
 
-### 46. El editor VISUAL — editar sobre la vista, no llenar campos
+### 46. El editor VISUAL, FASE 2 — el campo flotante para el TEXTO (Fase 1 CERRADA)
 
-El dueño quiere clicar el texto EN la vista en vivo y editarlo ahí, como una plantilla, en vez de
-llenar campos. Viable porque los componentes se renderizan en el panel (§ La PANTALLA), sin tocar
-ni anotar el storefront público.
+**FASE 1 CERRADA (2026-09-04): el PUENTE vista→formulario** —clic en una tarjeta de la vista previa
+→ scroll + resalte de su grupo "Tarjeta N" en el formulario, SÓLO Presentaciones—. La doctrina de lo
+construido vive en **§ El PUENTE vista→formulario** (bajo § La PANTALLA). El censo (mismo día)
+descartó la edición-in-situ REAL por la ESCALA: a `paneW/1280` (~0.30–0.44 a los anchos comunes) un
+título de 30px se ve a 9–13px, así que escribir DENTRO del elemento escalado es ilegible, y no hay
+precedente de `contentEditable` en el repo. El puente ataca el dolor LITERAL —"no se ve cuál campo
+es cuál"— conectando vista↔formulario, a una fracción del costo.
 
-La FORMA ya está descrita (discovery 2026-08-25): **`EditableText`** —un wrapper que en la tienda
-es passthrough (texto pelado, cero overhead) y en el editor renderiza `contentEditable` + captura
-el input → callback `(campo, valor)`—; **controles NO-texto** para lo que no se teclea (imagen de
-fondo, visibilidad de sección, orden de un repeater — quedan FUERA de la edición-sobre-la-vista);
-y **el form ENCOGIDO** a esos controles no-texto (el texto se edita en la vista). O sea DOS
-editores conviviendo —texto en la vista, no-texto en controles—, que es diseño nuevo.
+**LO QUE QUEDA (Fase 2): el CAMPO FLOTANTE para los ~10 campos de TEXTO** (eyebrow, título, 4
+nombres, 4 descripciones): un input a 100% posicionado SOBRE el elemento —fuera del subárbol escalado
+para no deformarse; `getBoundingClientRect` del nodo escalado da su caja real en pantalla—. Cubre
+SÓLO el texto: imágenes (4), destinos-combobox (4) y el toggle siguen en el formulario pase lo que
+pase (~la mitad de los 19 campos). Y a diferencia del puente —que mapea por TARJETA con un marcador
+inerte— necesita mapeo por-CAMPO: `data-*` por campo o el `EditableText` del discovery, y los dos
+TOCAN el storefront (el tripwire que el puente sorteó). El `EditableText` es passthrough en la tienda
+(texto pelado), así que threadea el tripwire, pero cambia todo componente de storefront editable.
 
-**Lo que NO resuelve** (escrito para no re-descubrirlo): el COLOR de "historias" (y todo acento) es
-TEMA, no contenido — depende de la capa de tema-por-cliente (§ Mejoras post-multitenant), no del
-editor visual.
+**Lo que NO resuelve** (para no re-descubrirlo): el COLOR de "historias" y todo acento es TEMA, no
+contenido — depende de la capa de tema-por-cliente (§ Mejoras post-multitenant), no del editor visual.
 
-**Costo YA pagado: ninguno.** El sticky (2026-08-25) ya resolvió el síntoma real —editar sin perder
-la vista de la vista—, así que esto es UX (editar en el lugar), no un defecto. Y trae la maña de
-`contentEditable` (cursor, pegado, IME, el conflicto controlado/no-controlado de React) + acopla
-más el componente que Fase B va a extraer.
-
-**DISPARADOR: cuando el owner use el editor con las CUATRO secciones y BUSCAR el campo siga siendo
-el estorbo.** Hoy, con UNA sección y el sticky puesto, no hay evidencia de que lo sea.
+**Costo YA pagado: ninguno** —el puente ya resolvió el dolor OBSERVADO—. **DISPARADOR: el owner usa
+el puente en sesiones reales y editar/buscar el campo sigue siendo el estorbo.** Hoy, recién entregado
+el puente, no hay esa evidencia — que es exactamente la diferencia con el spec original, que asumía
+la in-situ real sin medir la escala.
 
 ### 55. La PALETA → SiteContent (borrador) — CONSTRUIDO (opción B, 2026-08-30)
 
@@ -1500,6 +1502,22 @@ visible sólo cuando hay algo, con enlace a donde se arregla.
 tanda propia—. **DISPARADOR: cuando el owner quiera que el dueño vea sus defectos de config sin abrir el
 editor**; Fase 1 es chica y ya tiene el censo hecho.
 
+### 66. Placeholder de imagen vacía en el editor de la tienda
+
+El bloque de imagen del editor de secciones (`TiendaSeccionEditor`, cáscara compartida) es un `<img
+src={val}>` con estilos inline: con la url VACÍA sale un ícono de imagen rota, no un marco. Debe ser
+un marco del DS con placeholder muted —la gramática de `.duna-tile`— igual que el storefront pinta el
+hueco `--sf-linea` en vez de un `<img src="">` roto.
+
+**NO es drop-in:** `.duna-tile` es aspect 1:1 y el preview del editor es 16/9, así que copiarlo
+recortaría; hace falta un marco 16/9 con el placeholder, o una variante de aspecto. Y el bloque es
+COMPARTIDO (hero, brandStory, presentaciones), así que tocarlo re-gatea esas secciones.
+
+**Costo YA pagado: ninguno** —los slots opcionales vacíos ahora se COLAPSAN (§ el puente), así que el
+`<img>` roto casi no se ve; el caso vivo es una imagen a medio llenar—. **DISPARADOR: la próxima tanda
+que toque la cáscara compartida del editor** (probablemente la Fase 2 de #46, que agrega el campo
+flotante): ahí el archivo ya está abierto y el marco entra de paso, no como tanda propia.
+
 ## Config del negocio — `SiteSetting` (los planos editables)
 
 Tanda del 2026-08-24. Los datos PLANOS del negocio dejaron de vivir en código
@@ -2087,6 +2105,48 @@ flujo FINAL, tras evaluar y retirar un iframe intermedio (ver "por qué se retir
   enlace sigue siendo un `<a>` con su cursor); sólo no navega. El clic de la TARJETA que abre "Editar"
   pasa intacto (su contenido es `pointer-events:none`, el clic va al thumb ancestro; el handler sólo
   actúa sobre un `<a>`).
+
+### El PUENTE vista→formulario (editor visual #46, Fase 1 · SÓLO Presentaciones)
+
+Tanda del 2026-09-04. Clic en una tarjeta de la vista previa → la vista la resalta y el formulario
+hace **scroll a su grupo "Tarjeta N"** y lo resalta. Es la Fase 1 de #46 (la in-situ real se descartó
+por la escala, § Backlog #46): resuelve el dolor LITERAL —"no se ve cuál campo es cuál"— sin tocar la
+escala ni estrenar `contentEditable`. El mapeo puro slot→grupo vive en `lib/tienda/puente-tarjetas.ts`
+(capa 1); el DOM/eventos en `TiendaSeccionEditor`.
+
+- **EL MAPEO ES POR SLOT, NO POR POSICIÓN.** La posición VISIBLE miente cuando una tarjeta opcional se
+  llena fuera de orden: slot 4 lleno con el 3 vacío → la 3ª tarjeta visible es el slot 4.
+  `tarjetasDePresentaciones` PRESERVA el `slot` (1-4) a través del filtro, y el puente mapea ese slot
+  a su grupo con `grupoDeTarjeta(config, slot)` —derivado del `label${slot}` del descriptor, fuente
+  única, no un literal—. Afirmado en capa 1, incluida la prueba de relleno fuera de orden.
+- **EL MARCADOR EN GRINDCHOOSER ES UN `data-*` INERTE, gated en `useIsPreview`.**
+  `data-sf-tarjeta={preview ? op.slot : undefined}`: en la tienda del visitante `preview` es false →
+  React omite el atributo → **storefront BYTE-IDÉNTICO** (verificado por ejecución: 0 apariciones en
+  la home pública). No es un import del admin, ni una prop de comportamiento, ni un wrapper con lógica
+  —el mínimo que la frontera admite—. `useIsPreview` ya era estado legítimo del storefront (apaga
+  animaciones en cualquier preview), así que ramificar en él no ensucia el componente.
+- **CONVIVE CON LA NEUTRALIZACIÓN DE ENLACES DE `EscalaDesktop` POR ESTRUCTURA DEL DOM, no por
+  timing.** El capture-handler del puente vive en un ANCESTRO de `EscalaDesktop` (el wrapper
+  `.puente-tarjetas`, `display:contents`): en fase de captura el ancestro corre ANTES y NO llama
+  `stopPropagation`, así que después corre el handler de EscalaDesktop y mata la navegación del `<a>`.
+  El orden lo garantiza la ancestría (captura va de afuera hacia adentro), no una carrera. Un clic al
+  fondo/eyebrow (sin `data-sf-tarjeta`) no hace nada.
+- **EL COLAPSO DE GRUPOS OPCIONALES VACÍOS DERIVA DE LOS DATOS.** Un slot opcional (3-4) con
+  label/copy/categoría/imagen en blanco se muestra como UNA línea "+ Agregar N tarjeta"; al clic
+  EXPANDE. Los slots siguen siendo campos PLANOS fijos —es presentación del editor, no un repeater—.
+  El estado de expansión NO sobrevive al ciclo abrir→cerrar edición: `TiendaSeccionEditor` **no se
+  desmonta al cerrar** (TiendaPaginas lo monta una vez por sección, cerrar sólo cambia la rama de
+  render), así que `useState(new Set())` no vuelve a correr — se resetea EXPLÍCITO en `abrirEdicion`
+  y `cerrarEdicion`. **INVARIANTE puente↔colapso (capa 1):** una tarjeta VISIBLE nunca está en un slot
+  vacío (visible = título O imagen; vacío = ambos, y más, en blanco), así que su grupo nunca está
+  colapsado → el puente siempre tiene destino de scroll. Los grupos se rotulan "Tarjeta N" a secas
+  (sin "(opcional)": la línea "+ Agregar" ya lo comunica).
+- **LOS ENCABEZADOS DE GRUPO USAN EL PATRÓN DE SUBSECCIÓN DEL PANEL** (`duna-field__label`, igual que
+  "Métodos de pago" en `DatosNegocioSeccion`), no un `duna-caption` en negrita ad-hoc, con el divisor
+  de la clase `.grupo-tarjeta` (no bordes inline) — así los dos encabezados de la misma tarjeta (el del
+  bloque de imágenes y el de campos) se ven idénticos. El editor YA estaba sobre primitivas Duna
+  (censo: cero hex crudo, cero clases de color Tailwind, cero shadcn); la divergencia era este ritmo,
+  no una cáscara genérica.
 
 ### La propagación al storefront — el storefront es DINÁMICO (defecto medido y arreglado)
 
@@ -3405,6 +3465,12 @@ de categorías derivadas es el camino PRIMARIO; escribir una nueva ("Usar «X»"
   cuando lo tecleado no matchea, y eso es más limpio a mano que peleando con el filtro de cmdk.
 - **MISMO control en el form de producto y en el import** (celda `compacto`), consistentes a propósito
   —era la condición de C3 y se mantiene—. El `datalist` (`#cats-import`, `#pf-categorias`) se retiró.
+- **EL COPY TIENE UNA SOLA FUENTE: el default del componente ("Elige una categoría").** Las tres
+  apariciones (producto, tienda, import) divergían porque el form de producto pasaba un `placeholder`
+  override y las otras dos heredaban el default viejo ("Elige o escribe una categoría") — mismo control,
+  dos textos. Se unificó al canónico como DEFAULT y se quitó el override redundante; ahora las tres
+  dicen lo mismo desde un solo sitio. La lección general: cuando un control comparte copy entre varias
+  apariciones, el texto vive en su DEFAULT, no en overrides por call-site que después divergen.
 - **No contradice "el select es NATIVO"** (§ Controles de formulario): esa regla es para un `<select>`
   de opciones fijas —su lista aparece un segundo y no compite con nada—. El combobox de categoría es
   otra cosa: lista LARGA y creciente + texto libre, que un `<select>` no da. Es la misma excepción por
@@ -6066,6 +6132,15 @@ neutro):
   la misma forma. Es TINTA a propósito: no compite con el sol (ATENCIÓN) ni con
   `--duna-bad` (PROBLEMA) —"puesto" no es un estado accionable—. El día que otra superficie
   tenga que decir "esto está puesto", usa este par; no inventa uno.
+  - **EL PAR ASUME UNA CAJA CONTENIDA. Sobre un DIVISOR produce artefactos** (aprendido con el resalte
+    del grupo activo del puente, 2026-09-04). Un encabezado de grupo cuyo único borde es `border-top`
+    (una línea, no una caja) no cumple el supuesto: un `border-radius` le redondea las dos puntas de esa
+    línea → una "llave" partida; un `--duna-surface` de fondo es INVISIBLE si el contenedor ya es
+    surface; y el borde superior inline no se deja apagar por una clase, así que cualquier barra a la
+    izquierda le forma una esquina dura. La causa raíz es aplicar el tratamiento a una estructura que no
+    cumple su supuesto, no el CSS puntual. **La variante para un DIVISOR:** `--duna-wash-active` (el
+    "seleccionado suave", que SÍ se ve sobre una superficie) + barra de tinta inset + borde superior
+    transparente, y SIN `border-radius`.
 - **Una sola utilidad de fecha visible**: `formatFecha` (`lib/format-fecha.ts`,
   `14 may 2026`, es-CO/America-Bogota). No `toLocaleDateString` ad-hoc en vistas.
 - **Icon chips en familia cálida** — ver la sección de chips arriba
