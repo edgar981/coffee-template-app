@@ -47,14 +47,16 @@ export async function guardarBorrador(data: SiteContentEditable): Promise<{ blob
   });
 }
 
-// GUARDAR EL TEMA: escribe `borrador.tema` (las 3 raíces). Es el guardar de la PALETA —clave
-// no-sección (§ site-content-defaults), validada por `paletaEditableSchema` (3 hex o null), no por
-// el schema de secciones—, así que tiene su propio guardar en vez de pasar por `guardarBorrador`.
-// PUBLICAR/DESCARTAR el tema SÍ reusan `publicarSeccion('tema')`/`descartarSeccion('tema')` (son
-// key-agnósticas). Sin blobs: la paleta son 3 strings, no imágenes —`imagenesDe` no toca `tema`
-// (no está en el REGISTRY)—, así que no devuelve `blobsABorrar`.
+// GUARDAR EL TEMA: escribe `borrador.tema` COMPLETO (las 3 raíces + el par tipográfico). Es el guardar
+// del TEMA —clave no-sección (§ site-content-defaults), validado por `paletaEditableSchema` (3 hex o
+// null + par del set cerrado), no por el schema de secciones—, así que tiene su propio guardar en vez
+// de pasar por `guardarBorrador`. PUBLICAR/DESCARTAR el tema SÍ reusan `publicarSeccion('tema')`/
+// `descartarSeccion('tema')` (son key-agnósticas). El editor manda el tema COMPLETO —las 3 raíces Y el
+// par a la vez—, así que el objeto se guarda entero y publicar no puede pisar uno con el otro (un solo
+// borrador, un solo publicar; § por qué el editor es UNIFICADO). Sin blobs: el tema son strings, no
+// imágenes —`imagenesDe` no toca `tema` (no está en el REGISTRY)—, así que no devuelve `blobsABorrar`.
 export async function guardarTemaBorrador(
-  tema: { fondo: string | null; tinta: string | null; acento: string | null },
+  tema: { fondo: string | null; tinta: string | null; acento: string | null; fuentePar: string | null },
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const { borrador } = await leerFila(tx);

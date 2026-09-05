@@ -441,7 +441,11 @@ html {
    UTILITY CLASSES
    ============================================ */
 @layer utilities {
-  .font-inter    { font-family: 'Inter', sans-serif; }
-  .font-playfair { font-family: 'Playfair Display', serif; }
-  .font-display  { font-family: 'Playfair Display', serif; }
+  /* El PAR TIPOGRÁFICO del cliente (§ Tanda C2 · #3): las clases leen las vars `--sf-fuente-*` que
+     inyecta cssFuentes en el layout del storefront (gemelo de la paleta). SIN la var —Editorial, el
+     default— caen al fallback Inter/Playfair, que carga el `@import` de arriba → Nayoli byte-idéntico.
+     `.font-inter` = rol CUERPO; `.font-playfair`/`.font-display` = rol DISPLAY (títulos y wordmark). */
+  .font-inter    { font-family: var(--sf-fuente-cuerpo, 'Inter', sans-serif); }
+  .font-playfair { font-family: var(--sf-fuente-titulo, 'Playfair Display', serif); }
+  .font-display  { font-family: var(--sf-fuente-titulo, 'Playfair Display', serif); }
 }

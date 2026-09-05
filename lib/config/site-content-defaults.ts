@@ -6,6 +6,8 @@
 // Sin fila en la base, gobiernan estos defaults — por eso SiteContent no siembra fila en su
 // migración.
 
+import { resolverFuentePar, type ClaveFuentePar } from './fuentes';
+
 export interface HeroContent {
   visible: boolean;
   eyebrow: string;
@@ -174,6 +176,10 @@ export interface TemaContent {
   fondo: string | null;
   tinta: string | null;
   acento: string | null;
+  // El PAR TIPOGRÁFICO del storefront (§ Tanda C2 · #3, `lib/config/fuentes`). `null` = Editorial (el
+  // default: Inter/Playfair, las de hoy) — como las raíces en null = fábrica. Un valor CUSTOM
+  // ('calido'|'moderno'|'clasico'|'nitido') hace que el layout inyecte cssFuentes + el `<link>` del par.
+  fuentePar: ClaveFuentePar | null;
 }
 
 export interface SiteContentData {
@@ -289,6 +295,7 @@ export const DEFAULTS: SiteContentData = {
     fondo: null,
     tinta: null,
     acento: null,
+    fuentePar: null,   // Editorial (Inter/Playfair) — el default byte-idéntico
   },
 };
 
@@ -552,7 +559,9 @@ export function resolverTema(stored: unknown, defaults: unknown): TemaContent {
     const dv = def[k];
     return typeof dv === 'string' && HEX6_TEMA.test(dv) ? dv : null;
   };
-  return { fondo: raiz('fondo'), tinta: raiz('tinta'), acento: raiz('acento') };
+  // El par tipográfico: clave CUSTOM válida, o null (Editorial). `resolverFuentePar` normaliza null,
+  // 'editorial' y basura → null (§ fuentes). No usa `defaults` porque el default ES null.
+  return { fondo: raiz('fondo'), tinta: raiz('tinta'), acento: raiz('acento'), fuentePar: resolverFuentePar(st['fuentePar']) };
 }
 
 // Resuelve el array de items de una sección repeater. Cada ítem: los campos `requerido`/`opcional`

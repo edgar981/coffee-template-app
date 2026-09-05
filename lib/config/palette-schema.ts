@@ -1,7 +1,8 @@
 import { z } from 'zod';
+import { CLAVES_FUENTES } from './fuentes';
 
-// Validación de las RAÍCES de paleta que manda el editor (commit 4). UNA definición que
-// corren el PATCH (la que MANDA) y el editor (aviso temprano) — como
+// Validación del TEMA que manda el editor (§ Tanda C2): las 3 RAÍCES de paleta + el PAR tipográfico.
+// UNA definición que corren el PUT (la que MANDA) y el editor (aviso temprano) — como
 // `siteSettingsEditableSchema`. SIN `server-only`: el form cliente la importa.
 //
 // El editor manda STRINGS; esta es la puerta que impide que un valor basura llegue al
@@ -20,6 +21,10 @@ export const paletaEditableSchema = z
     paletaFondo:  raizColor.nullable(),
     paletaTinta:  raizColor.nullable(),
     paletaAcento: raizColor.nullable(),
+    // El PAR tipográfico: una clave del set cerrado, o `null` (= Editorial, el default). `resolverTema`
+    // normaliza 'editorial' → null (Editorial no se guarda). Independiente del all-or-nothing de las
+    // raíces: elegir fuente no obliga a elegir colores, ni al revés.
+    fuentePar: z.enum(CLAVES_FUENTES).nullable(),
   })
   // ALL-OR-NOTHING: el motor necesita las 3 raíces para derivar. Una paleta a medias
   // (fondo puesto, tinta null) no es derivable —quedaría ignorada en silencio—, así que

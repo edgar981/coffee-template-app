@@ -11,6 +11,8 @@ import { getSiteSettings } from "@/lib/config/site-settings";
 import { SiteContentProvider } from "@/components/storefront/SiteContentProvider";
 import { getSiteContent } from "@/lib/config/site-content";
 import { cssPaleta } from "@/lib/config/palette-style";
+import { cssFuentes } from "@/lib/config/fuentes-style";
+import { linkFuentePar } from "@/lib/config/fuentes";
 
 // El storefront se renderiza DINÁMICO (por request), no estático. Su layout lee la
 // identidad del negocio (SiteSetting) y el contenido de la home (SiteContent) de la BASE, y
@@ -81,9 +83,17 @@ export default async function StorefrontLayout({
   // la frontera borrador/no-borrador es de PANTALLA). Sin fila / raíces en null → `null` → sin
   // <style> → defaults de código → byte-idéntico. (§ palette-style, resolverTema.)
   const paletaCss = cssPaleta(content.tema.fondo, content.tema.tinta, content.tema.acento);
+  // El PAR TIPOGRÁFICO del cliente (§ Tanda C2 · #3, gemelo de la paleta): cssFuentes es el `:root{
+  // --sf-fuente-*}` (null para Editorial → las clases caen a Inter/Playfair del `@import`), y el
+  // `<link>` descarga las 2 familias del par CUSTOM (Editorial no lleva link: lo cubre el `@import`).
+  // Así, por despliegue se descargan 2 familias. Sin flash: ambos van en el HTML del server (dynamic).
+  const fuentesCss = cssFuentes(content.tema.fuentePar);
+  const fuentesLink = linkFuentePar(content.tema.fuentePar);
   return (
     <StorefrontThemeProvider>
+      {fuentesLink && <link rel="stylesheet" href={fuentesLink} />}
       {paletaCss && <style dangerouslySetInnerHTML={{ __html: paletaCss }} />}
+      {fuentesCss && <style dangerouslySetInnerHTML={{ __html: fuentesCss }} />}
       <SiteSettingsProvider value={settings}>
         <SiteContentProvider value={content}>
           <CartProvider>

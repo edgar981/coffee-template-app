@@ -40,8 +40,8 @@ export async function PUT(req: NextRequest) {
 
   try {
     // El wire usa las claves históricas (`paletaFondo…`); lo GUARDADO usa la forma de `content.tema`
-    // (`fondo/tinta/acento`). El mapeo vive acá, en la frontera.
-    await guardarTemaBorrador({ fondo: d.paletaFondo, tinta: d.paletaTinta, acento: d.paletaAcento });
+    // (`fondo/tinta/acento`). El par (`fuentePar`) ya viene con su nombre final. El mapeo vive acá.
+    await guardarTemaBorrador({ fondo: d.paletaFondo, tinta: d.paletaTinta, acento: d.paletaAcento, fuentePar: d.fuentePar });
   } catch (e) {
     console.error('[site-content/tema] PUT guardarTemaBorrador:', e);
     return NextResponse.json({ error: 'No se pudo guardar el borrador del tema.' }, { status: 500 });
