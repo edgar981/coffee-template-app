@@ -7,6 +7,11 @@ import type { PresentacionesContent } from '../config/site-content-defaults';
 // ni el invariante #44 (un repeater habría exigido perforarlo para mostrar defaults).
 
 export interface TarjetaPresentacion {
+  /** El SLOT (1-4) del que salió la tarjeta, PRESERVADO a través del filtro. La POSICIÓN en la lista
+   *  visible NO es el slot cuando una tarjeta opcional se llena fuera de orden (slot 4 con slot 3
+   *  vacío → la 3ª tarjeta visible es el slot 4). El editor lo usa para el puente vista→formulario
+   *  (§ el marcador `data-sf-tarjeta`); en el storefront no tiene efecto. */
+  slot: number;
   label: string;
   copy: string;
   img: string;
@@ -26,14 +31,14 @@ export interface TarjetaPresentacion {
  */
 export function tarjetasDePresentaciones(p: PresentacionesContent): TarjetaPresentacion[] {
   const slots = [
-    { label: p.label1, copy: p.copy1, img: p.imagen1, cat: p.categoria1, req: true },
-    { label: p.label2, copy: p.copy2, img: p.imagen2, cat: p.categoria2, req: true },
-    { label: p.label3, copy: p.copy3, img: p.imagen3, cat: p.categoria3, req: false },
-    { label: p.label4, copy: p.copy4, img: p.imagen4, cat: p.categoria4, req: false },
+    { slot: 1, label: p.label1, copy: p.copy1, img: p.imagen1, cat: p.categoria1, req: true },
+    { slot: 2, label: p.label2, copy: p.copy2, img: p.imagen2, cat: p.categoria2, req: true },
+    { slot: 3, label: p.label3, copy: p.copy3, img: p.imagen3, cat: p.categoria3, req: false },
+    { slot: 4, label: p.label4, copy: p.copy4, img: p.imagen4, cat: p.categoria4, req: false },
   ];
   return slots
     .filter(s => s.req || s.label.trim() !== '' || s.img.trim() !== '')
-    .map(s => ({ label: s.label, copy: s.copy, img: s.img, href: hrefCategoria(s.cat) }));
+    .map(s => ({ slot: s.slot, label: s.label, copy: s.copy, img: s.img, href: hrefCategoria(s.cat) }));
 }
 
 /**

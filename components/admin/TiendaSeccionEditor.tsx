@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Upload } from 'lucide-react';
+import { Pencil, Upload, Plus } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import VistaTiendaEnVivo from '@/components/admin/VistaTiendaEnVivo';
@@ -11,6 +11,7 @@ import BarraProgreso from '@/components/admin/BarraProgreso';
 import { CategoriaCombobox } from '@/components/admin/CategoriaCombobox';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import type { SeccionConfig } from '@/components/admin/tienda-secciones';
+import { grupoDeTarjeta, slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { DEFAULTS } from '@/lib/config/site-content-defaults';
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 
@@ -50,6 +51,48 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
 
   const formRef = useRef<Datos | null>(null); formRef.current = form;
+
+  // ── EL PUENTE vista→formulario (§ Backlog #46, Fase 1) — SÓLO Presentaciones ──────────────────
+  // Clic en una tarjeta de la VISTA salta a su grupo "Tarjeta N" del FORM. `tarjetaActiva` es el SLOT
+  // (1-4) de la última clicada; la vista la resalta (anillo) y el grupo del form la resalta ("puesto")
+  // + hace scroll a él. El mapeo puro slot→grupo vive en `grupoDeTarjeta` (capa 1); acá va lo del DOM.
+  const puenteTarjetas = seccion === 'presentaciones';
+  const [tarjetaActiva, setTarjetaActiva] = useState<number | null>(null);
+  const grupoActivo = tarjetaActiva != null ? grupoDeTarjeta(config, tarjetaActiva) : null;
+  // Los headers de grupo del form, por nombre de grupo — el destino del scroll. Callback ref que
+  // limpia al desmontar (un nodo viejo tras remontaje es el defecto del observer, § EscalaDesktop).
+  const gruposRef = useRef<Map<string, HTMLElement>>(new Map());
+
+  // CAPTURE en un ancestro de EscalaDesktop → corre ANTES que su neutralización de enlaces (que es un
+  // DESCENDIENTE) y NO llama stopPropagation, así que ambos coexisten: yo leo el slot, EscalaDesktop
+  // mata la navegación. Sólo actúo si el clic cae sobre una tarjeta (`data-sf-tarjeta`, que sólo existe
+  // en preview); un clic al fondo/eyebrow no hace nada.
+  const onClicTarjeta = useCallback((e: React.MouseEvent) => {
+    const el = (e.target as HTMLElement | null)?.closest?.('[data-sf-tarjeta]') as HTMLElement | null;
+    if (!el) return;
+    const slot = Number(el.dataset.sfTarjeta);
+    if (!Number.isInteger(slot)) return;
+    setTarjetaActiva(slot);
+    const grupo = grupoDeTarjeta(config, slot);
+    const nodo = grupo ? gruposRef.current.get(grupo) : null;
+    if (nodo) {
+      const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      nodo.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+    }
+  }, [config]);
+
+  // ── COLAPSO de grupos opcionales VACÍOS (Defecto 2) — SÓLO Presentaciones ─────────────────────
+  // Un slot opcional (3-4) con todos sus campos en blanco se muestra como UNA línea "+ Agregar N
+  // tarjeta"; al clicarla se EXPANDE y no se vuelve a colapsar solo. Los slots siguen siendo campos
+  // PLANOS fijos: esto es presentación del editor, no un repeater. Y como una tarjeta VISIBLE nunca
+  // está vacía (§ slotVacio), su grupo nunca está colapsado → el puente siempre tiene destino.
+  const [expandidos, setExpandidos] = useState<Set<number>>(new Set());
+  const slotDe = (name: string) => { const m = name.match(/(\d+)$/); return m ? Number(m[1]) : null; };
+  const colapsado = (slot: number | null): slot is number =>
+    slot != null && puenteTarjetas && slotOpcional(config, slot)
+    && slotVacio(form as Record<string, unknown>, slot) && !expandidos.has(slot);
+  const expandir = (slot: number) => setExpandidos(prev => new Set(prev).add(slot));
+  const ORDINAL: Record<number, string> = { 3: 'tercera', 4: 'cuarta' };
 
   // El uploader compartido (§ useSubidaImagen): la cáscara lo instancia y lo comparte con el
   // RepeaterEditor por `subida.pedir`. Un solo <input>, un solo `subiendo`.
@@ -125,7 +168,13 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     auto.marcarSucio(nf); auto.flush();
   };
 
-  const cerrarEdicion = () => { auto.flush(); setEditando(false); };
+  // Abrir/cerrar edición RESETEA el estado efímero del editor —tarjeta activa del puente y grupos
+  // expandidos a mano—. El componente NO se desmonta al cerrar (es otra rama del mismo render, § la
+  // pantalla), así que `useState(new Set())` no vuelve a correr; sin este reset, un grupo opcional
+  // que abrí a mano seguiría abierto al reabrir. El colapso DERIVA de los datos (vacío → colapsado);
+  // la expansión manual vive sólo mientras el editor está abierto (§ Fix 2).
+  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); };
+  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); };
 
   const accionBorrador = async (accion: 'publicar' | 'descartar') => {
     setErrorServidor(null); setProcesando(true);
@@ -209,7 +258,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   if (!editando) {
     return (
       <div className="tienda-tarjeta">
-        <div className="tienda-tarjeta__thumb" onClick={() => setEditando(true)}>
+        <div className="tienda-tarjeta__thumb" onClick={abrirEdicion}>
           {noSeMuestra ? (
             <div className="tienda-tarjeta__oculta">
               <span className="duna-caption" style={{ margin: 0 }}>No se muestra en la tienda</span>
@@ -228,7 +277,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
               caso normal ('guardado') no renderiza nada y la tarjeta queda idéntica a antes. */}
           {indicadorEstado}
           <div>
-            <button type="button" onClick={() => setEditando(true)} className="duna-btn duna-btn--secondary">
+            <button type="button" onClick={abrirEdicion} className="duna-btn duna-btn--secondary">
               <Pencil /> Editar
             </button>
           </div>
@@ -293,6 +342,19 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                 <p className="duna-sub" style={{ marginTop: '4px' }}>{avisoNoSeMuestra}</p>
               </div>
             </div>
+          ) : puenteTarjetas ? (
+            // El puente vive SÓLO en Presentaciones. La leyenda da la INSTRUCCIÓN ("clic para editar")
+            // en tamaño legible —dentro de la vista escalada (0.3-0.6×) el texto sería ilegible—; el
+            // hover sobre la tarjeta sólo confirma "esta responde" (§ duna.css .puente-tarjetas). El
+            // wrapper es `display:contents` (cero efecto en layout/escala) y captura el clic.
+            <>
+              <p className="duna-caption" style={{ margin: '0 0 var(--duna-space-2)' }}>
+                Haz clic en una tarjeta para editar sus campos.
+              </p>
+              <div className="puente-tarjetas" data-tarjeta-activa={tarjetaActiva ?? undefined} onClickCapture={onClicTarjeta}>
+                <VistaTiendaEnVivo seccion={seccion} valor={form} />
+              </div>
+            </>
           ) : (
             <VistaTiendaEnVivo seccion={seccion} valor={form} />
           )}
@@ -327,14 +389,22 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
               )}
 
               {config.imagenes.map((img, i) => {
+                // Grupo opcional colapsado → su imagen no se muestra tampoco (la tarjeta entera se
+                // colapsa a la línea "+ Agregar" del bloque de campos). `nuevoGrupo` del siguiente
+                // sigue bien: compara contra el array, no contra lo renderizado.
+                if (colapsado(slotDe(img.name))) return null;
                 const val = String(form[img.name] ?? '');
                 const esDefault = val === String(defaults[img.name] ?? '');
                 const nuevoGrupo = img.grupo && img.grupo !== config.imagenes[i - 1]?.grupo;
                 return (
                   <Fragment key={img.name}>
                   {nuevoGrupo && (
-                    <div style={{ marginTop: i > 0 ? 'var(--duna-space-4)' : 0, marginBottom: 'var(--duna-space-2)', paddingTop: i > 0 ? 'var(--duna-space-3)' : 0, borderTop: i > 0 ? '1px solid var(--duna-border)' : 'none' }}>
-                      <span className="duna-caption" style={{ fontWeight: 600 }}>{img.grupo}</span>
+                    // Encabezado de grupo "Tarjeta N": el MISMO tratamiento que el bloque de campos y
+                    // que las subsecciones del resto del panel (h3 `duna-field__label`, § DatosNegocioSeccion)
+                    // — no un `duna-caption` en negrita ad-hoc. El divisor lo pone `.grupo-tarjeta` (no un
+                    // borde inline), así los dos encabezados de la misma tarjeta se ven idénticos (§ Fix 3).
+                    <div className="grupo-tarjeta" style={{ marginBottom: 'var(--duna-space-2)' }}>
+                      <span className="duna-field__label">{img.grupo}</span>
                     </div>
                   )}
                   <div className="duna-field duna-form__full" style={{ marginBottom: 'var(--duna-space-5)' }}>
@@ -372,6 +442,27 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
 
               <div className="duna-form">
                 {config.campos.map((campo, i) => {
+                  // Encabezado de grupo ("Tarjeta N") cuando cambia respecto del campo anterior.
+                  const nuevoGrupo = campo.grupo && campo.grupo !== config.campos[i - 1]?.grupo;
+                  const slotCampo = slotDe(campo.name);
+                  // Grupo opcional VACÍO → colapsado a una sola línea "+ Agregar N tarjeta" (Defecto 2):
+                  // se muestra en el primer campo del grupo y se saltan los campos. `colapsado` estrecha
+                  // `slotCampo` a number.
+                  if (colapsado(slotCampo)) {
+                    return (
+                      <Fragment key={campo.name}>
+                        {nuevoGrupo && (
+                          // Misma línea divisoria que un encabezado de grupo (`.grupo-tarjeta`), no un
+                          // borde inline: la fila colapsada ocupa el lugar del header y respira igual.
+                          <div className="grupo-tarjeta duna-form__full">
+                            <button type="button" onClick={() => expandir(slotCampo)} className="duna-btn duna-btn--secondary duna-btn--sm">
+                              <Plus /> Agregar {ORDINAL[slotCampo] ?? ''} tarjeta
+                            </button>
+                          </div>
+                        )}
+                      </Fragment>
+                    );
+                  }
                   const id = `${seccion}-${campo.name}`;
                   const value = String(form[campo.name] ?? '');
                   // Aviso (b): el destino elegido ya no está en el catálogo → la tarjeta no traería
@@ -383,13 +474,19 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                   // "Presentación N · lleva a"), que es lo que evita "lleva a:" sin sujeto.
                   const tituloTarjeta = campo.tituloDe ? String(form[campo.tituloDe] ?? '').trim() : '';
                   const etiqueta = campo.tituloDe && tituloTarjeta ? `«${tituloTarjeta}» lleva a:` : campo.label;
-                  // Encabezado de grupo ("Tarjeta N") cuando cambia respecto del campo anterior.
-                  const nuevoGrupo = campo.grupo && campo.grupo !== config.campos[i - 1]?.grupo;
                   return (
                     <Fragment key={campo.name}>
                     {nuevoGrupo && (
-                      <div className="duna-form__full" style={{ marginTop: 'var(--duna-space-3)', paddingTop: 'var(--duna-space-3)', borderTop: '1px solid var(--duna-border)' }}>
-                        <span className="duna-caption" style={{ fontWeight: 600 }}>{campo.grupo}</span>
+                      // El destino del scroll del puente (§ Presentaciones). El ref se registra por
+                      // nombre de grupo; `is-activo` le da el "esto está puesto" cuando su tarjeta está
+                      // clicada en la vista. El divisor (margen/padding/borde superior) vive en la CLASE,
+                      // no inline, para que `.is-activo` pueda apagar el borde superior sin pelear con un
+                      // estilo inline (§ Defecto 1). Sólo el puente (Presentaciones) usa ref + is-activo.
+                      <div
+                        ref={puenteTarjetas ? (el => { const m = gruposRef.current; if (el) m.set(campo.grupo!, el); else m.delete(campo.grupo!); }) : undefined}
+                        className={`duna-form__full grupo-tarjeta${grupoActivo && grupoActivo === campo.grupo ? ' is-activo' : ''}`}
+                      >
+                        <span className="duna-field__label">{campo.grupo}</span>
                       </div>
                     )}
                     <div className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>

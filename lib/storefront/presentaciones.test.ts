@@ -14,6 +14,15 @@ test('Nayoli (defaults): exactamente 2 tarjetas, con los destinos de hoy', () =>
   assert.equal(t.length, 2);
   assert.equal(t[0].href, hrefCategoria('Café en Grano'));
   assert.equal(t[1].href, hrefCategoria('Café Molido'));
+  assert.equal(t[0].slot, 1);
+  assert.equal(t[1].slot, 2);
+});
+
+test('el SLOT se preserva a través del filtro: slot 4 lleno con slot 3 vacío → la 3ª visible es el slot 4', () => {
+  // La POSICIÓN no es el slot. Sin esto, el puente vista→formulario saltaría al grupo equivocado.
+  const t = tarjetasDePresentaciones({ ...base, label3: '', imagen3: '', label4: 'Postres', imagen4: '/p.webp', categoria4: 'Postres' });
+  assert.equal(t.length, 3);
+  assert.deepEqual(t.map(x => x.slot), [1, 2, 4]);
 });
 
 test('slot 3-4 vacíos → no se muestran (Nayoli queda en 2)', () => {

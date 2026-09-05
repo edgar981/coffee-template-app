@@ -37,7 +37,7 @@ import { cn } from '@duna/core/utils';
 // no está en la lista" tiene que aparecer JUSTO cuando lo tecleado no matchea —y
 // eso es más limpio controlando el filtro a mano que peleando con el de cmdk—.
 
-export function CategoriaCombobox({ value, onChange, categorias, id, placeholder = 'Elige o escribe una categoría', disabled, ariaInvalid, ariaDescribedby, compacto }: {
+export function CategoriaCombobox({ value, onChange, categorias, id, placeholder = 'Elige una categoría', disabled, ariaInvalid, ariaDescribedby, compacto }: {
   value: string;
   onChange: (v: string) => void;
   /** Las categorías EXISTENTES del catálogo (derivadas). Puede venir vacía (catálogo sin
