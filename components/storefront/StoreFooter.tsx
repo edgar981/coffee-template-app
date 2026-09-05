@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import { Logo } from "@/components/storefront/Logo";
+import { STOREFRONT_TIENE_MARK } from "@/lib/config/storefront-marca";
 import {
   siteConfig,
   whatsappUrl,
@@ -40,6 +41,7 @@ export default function StoreFooter() {
                 variant="dark"
                 stacked
                 subtitle={settings.tagline}
+                conMark={STOREFRONT_TIENE_MARK}
                 className="items-start [&>div]:items-start"
               />
             </div>

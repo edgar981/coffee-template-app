@@ -7,6 +7,7 @@ import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import ProductCard from '@/components/storefront/ProductCard';
 import { Logo } from '@/components/storefront/Logo';
+import { STOREFRONT_TIENE_MARK } from '@/lib/config/storefront-marca';
 import TrustBadges from '@/components/storefront/home/TrustBadges';
 import { EscalaDesktop } from '@/components/admin/EscalaDesktop';
 import { CartProvider } from '@/lib/cartStore';
@@ -129,7 +130,7 @@ function FragmentoTienda({ raices, nombre, fuentePar }: { raices: Form; nombre: 
     <div className="font-inter" style={{ ...vars, background: 'var(--sf-fondo)', pointerEvents: 'none' }}>
       {/* Barra superior con el wordmark real (centrada como el nav) */}
       <div className="mx-auto max-w-6xl px-6 py-4">
-        <Logo nombre={nombre} />
+        <Logo nombre={nombre} conMark={STOREFRONT_TIENE_MARK} />
       </div>
       {/* Franja de garantías real (su propio `border-y` la separa; a 1280 usa sus 4 columnas) */}
       <TrustBadges />
