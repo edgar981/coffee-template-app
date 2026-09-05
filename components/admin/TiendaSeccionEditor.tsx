@@ -11,6 +11,7 @@ import BarraProgreso from '@/components/admin/BarraProgreso';
 import { CategoriaCombobox } from '@/components/admin/CategoriaCombobox';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import type { SeccionConfig } from '@/components/admin/tienda-secciones';
+import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { grupoDeTarjeta, slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { DEFAULTS } from '@/lib/config/site-content-defaults';
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
@@ -252,6 +253,119 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     </div>
   ) : null;
 
+  // ── BLOQUES (§ tienda-secciones · BloqueConfig): la sección se dibuja por BLOQUE, no por dos loops
+  //    (imágenes / campos). Sin `bloques` declarados hay UN bloque `seccion` con TODO → idéntico a
+  //    antes (§ bloques.ts · la red de seguridad). Cada bloque posee SUS imágenes y SUS campos.
+  const renderBloqueSeccion = (bloque: BloqueResuelto, bi: number) => (
+    <Fragment key={bi}>
+      {bloque.imagenes.map((img, i) => {
+        // Grupo opcional colapsado → su imagen no se muestra (la tarjeta entera colapsa a "+ Agregar").
+        if (colapsado(slotDe(img.name))) return null;
+        const val = String(form[img.name] ?? '');
+        const esDefault = val === String(defaults[img.name] ?? '');
+        const nuevoGrupo = img.grupo && img.grupo !== bloque.imagenes[i - 1]?.grupo;
+        return (
+          <Fragment key={img.name}>
+          {nuevoGrupo && (
+            <div className="grupo-tarjeta" style={{ marginBottom: 'var(--duna-space-2)' }}>
+              <span className="duna-field__label">{img.grupo}</span>
+            </div>
+          )}
+          <div className="duna-field duna-form__full" style={{ marginBottom: 'var(--duna-space-5)' }}>
+            <span className="duna-field__label">{img.label}</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={val}
+              alt=""
+              style={{
+                width: '100%', maxWidth: '360px', aspectRatio: '16 / 9', objectFit: 'cover',
+                borderRadius: 'var(--duna-r-m)', border: '1px solid var(--duna-border)', marginTop: 'var(--duna-space-1)',
+              }}
+            />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-3)', alignItems: 'center', marginTop: 'var(--duna-space-3)' }}>
+              <button type="button" onClick={() => ponerImagen(img.name)} className="duna-btn duna-btn--secondary duna-btn--sm" disabled={subiendo}>
+                <Upload /> Cambiar imagen
+              </button>
+              {!esDefault && (
+                <button type="button" onClick={() => usarPorDefecto(img.name)} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={subiendo}>
+                  Usar imagen por defecto
+                </button>
+              )}
+              <span className="duna-field__hint" style={{ margin: 0 }}>
+                {subiendo && subiendoCampo === img.name ? `Subiendo… ${subida.progreso ?? 0}%` : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
+              </span>
+            </div>
+            {/* La barra pegada a ESTE botón (sólo el campo que sube), no en la cabecera. */}
+            {subiendo && subiendoCampo === img.name && (
+              <div style={{ marginTop: 'var(--duna-space-2)' }}><BarraProgreso pct={subida.progreso ?? 0} /></div>
+            )}
+          </div>
+          </Fragment>
+        );
+      })}
+
+      <div className="duna-form">
+        {bloque.campos.map((campo, i) => {
+          // Encabezado de grupo ("Tarjeta N") cuando cambia respecto del campo anterior DEL BLOQUE.
+          const nuevoGrupo = campo.grupo && campo.grupo !== bloque.campos[i - 1]?.grupo;
+          const slotCampo = slotDe(campo.name);
+          // Grupo opcional VACÍO → colapsado a una sola línea "+ Agregar N tarjeta" (§ el puente).
+          if (colapsado(slotCampo)) {
+            return (
+              <Fragment key={campo.name}>
+                {nuevoGrupo && (
+                  <div className="grupo-tarjeta duna-form__full">
+                    <button type="button" onClick={() => expandir(slotCampo)} className="duna-btn duna-btn--secondary duna-btn--sm">
+                      <Plus /> Agregar {ORDINAL[slotCampo] ?? ''} tarjeta
+                    </button>
+                  </div>
+                )}
+              </Fragment>
+            );
+          }
+          const id = `${seccion}-${campo.name}`;
+          const value = String(form[campo.name] ?? '');
+          // Aviso: el destino elegido ya no está en el catálogo (sólo si el catálogo YA cargó).
+          const destinoInexistente = !!campo.categoria && categoriasListas && value.trim() !== '' && !categorias.includes(value);
+          // Rótulo POR TÍTULO: «En grano» lleva a: usando el título en vivo de la misma tarjeta.
+          const tituloTarjeta = campo.tituloDe ? String(form[campo.tituloDe] ?? '').trim() : '';
+          const etiqueta = campo.tituloDe && tituloTarjeta ? `«${tituloTarjeta}» lleva a:` : campo.label;
+          return (
+            <Fragment key={campo.name}>
+            {nuevoGrupo && (
+              // El destino del scroll del puente. El ref se registra por nombre de grupo; `is-activo`
+              // le da el "esto está puesto". El divisor vive en la CLASE (§ Fix 1), no inline.
+              <div
+                ref={puenteTarjetas ? (el => { const m = gruposRef.current; if (el) m.set(campo.grupo!, el); else m.delete(campo.grupo!); }) : undefined}
+                className={`duna-form__full grupo-tarjeta${grupoActivo && grupoActivo === campo.grupo ? ' is-activo' : ''}`}
+              >
+                <span className="duna-field__label">{campo.grupo}</span>
+              </div>
+            )}
+            <div className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
+              <label className="duna-field__label" htmlFor={id}>{etiqueta}</label>
+              {campo.categoria ? (
+                <CategoriaCombobox id={id} value={value} categorias={categorias}
+                                   onChange={v => cambiar({ [campo.name]: v })} ariaDescribedby={`${id}-hint`} />
+              ) : campo.textarea ? (
+                <textarea id={id} className="duna-input" rows={2} value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`} />
+              ) : (
+                <input id={id} className="duna-input" value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`} />
+              )}
+              {destinoInexistente && (
+                <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)', marginBottom: 0 }}>
+                  Ningún producto tiene la categoría «{value}» todavía — la tarjeta no traerá resultados.
+                </p>
+              )}
+              <p className="duna-field__hint" id={`${id}-hint`}>{campo.hint}</p>
+            </div>
+            </Fragment>
+          );
+        })}
+      </div>
+    </Fragment>
+  );
+
   // ── LECTURA: la sección es una TARJETA compacta (miniatura + título + estado + Editar). La vista
   //    grande (con sticky) sólo existe en edición; en lectura no hay scroller interno que atrape la
   //    página. Publicar/Descartar viven en la vista expandida.
@@ -388,128 +502,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                 </div>
               )}
 
-              {config.imagenes.map((img, i) => {
-                // Grupo opcional colapsado → su imagen no se muestra tampoco (la tarjeta entera se
-                // colapsa a la línea "+ Agregar" del bloque de campos). `nuevoGrupo` del siguiente
-                // sigue bien: compara contra el array, no contra lo renderizado.
-                if (colapsado(slotDe(img.name))) return null;
-                const val = String(form[img.name] ?? '');
-                const esDefault = val === String(defaults[img.name] ?? '');
-                const nuevoGrupo = img.grupo && img.grupo !== config.imagenes[i - 1]?.grupo;
-                return (
-                  <Fragment key={img.name}>
-                  {nuevoGrupo && (
-                    // Encabezado de grupo "Tarjeta N": el MISMO tratamiento que el bloque de campos y
-                    // que las subsecciones del resto del panel (h3 `duna-field__label`, § DatosNegocioSeccion)
-                    // — no un `duna-caption` en negrita ad-hoc. El divisor lo pone `.grupo-tarjeta` (no un
-                    // borde inline), así los dos encabezados de la misma tarjeta se ven idénticos (§ Fix 3).
-                    <div className="grupo-tarjeta" style={{ marginBottom: 'var(--duna-space-2)' }}>
-                      <span className="duna-field__label">{img.grupo}</span>
-                    </div>
-                  )}
-                  <div className="duna-field duna-form__full" style={{ marginBottom: 'var(--duna-space-5)' }}>
-                    <span className="duna-field__label">{img.label}</span>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={val}
-                      alt=""
-                      style={{
-                        width: '100%', maxWidth: '360px', aspectRatio: '16 / 9', objectFit: 'cover',
-                        borderRadius: 'var(--duna-r-m)', border: '1px solid var(--duna-border)', marginTop: 'var(--duna-space-1)',
-                      }}
-                    />
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-3)', alignItems: 'center', marginTop: 'var(--duna-space-3)' }}>
-                      <button type="button" onClick={() => ponerImagen(img.name)} className="duna-btn duna-btn--secondary duna-btn--sm" disabled={subiendo}>
-                        <Upload /> Cambiar imagen
-                      </button>
-                      {!esDefault && (
-                        <button type="button" onClick={() => usarPorDefecto(img.name)} className="duna-btn duna-btn--ghost duna-btn--sm" disabled={subiendo}>
-                          Usar imagen por defecto
-                        </button>
-                      )}
-                      <span className="duna-field__hint" style={{ margin: 0 }}>
-                        {subiendo && subiendoCampo === img.name ? `Subiendo… ${subida.progreso ?? 0}%` : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
-                      </span>
-                    </div>
-                    {/* La barra pegada a ESTE botón (sólo el campo que sube), no en la cabecera. */}
-                    {subiendo && subiendoCampo === img.name && (
-                      <div style={{ marginTop: 'var(--duna-space-2)' }}><BarraProgreso pct={subida.progreso ?? 0} /></div>
-                    )}
-                  </div>
-                  </Fragment>
-                );
-              })}
-
-              <div className="duna-form">
-                {config.campos.map((campo, i) => {
-                  // Encabezado de grupo ("Tarjeta N") cuando cambia respecto del campo anterior.
-                  const nuevoGrupo = campo.grupo && campo.grupo !== config.campos[i - 1]?.grupo;
-                  const slotCampo = slotDe(campo.name);
-                  // Grupo opcional VACÍO → colapsado a una sola línea "+ Agregar N tarjeta" (Defecto 2):
-                  // se muestra en el primer campo del grupo y se saltan los campos. `colapsado` estrecha
-                  // `slotCampo` a number.
-                  if (colapsado(slotCampo)) {
-                    return (
-                      <Fragment key={campo.name}>
-                        {nuevoGrupo && (
-                          // Misma línea divisoria que un encabezado de grupo (`.grupo-tarjeta`), no un
-                          // borde inline: la fila colapsada ocupa el lugar del header y respira igual.
-                          <div className="grupo-tarjeta duna-form__full">
-                            <button type="button" onClick={() => expandir(slotCampo)} className="duna-btn duna-btn--secondary duna-btn--sm">
-                              <Plus /> Agregar {ORDINAL[slotCampo] ?? ''} tarjeta
-                            </button>
-                          </div>
-                        )}
-                      </Fragment>
-                    );
-                  }
-                  const id = `${seccion}-${campo.name}`;
-                  const value = String(form[campo.name] ?? '');
-                  // Aviso (b): el destino elegido ya no está en el catálogo → la tarjeta no traería
-                  // resultados. NO bloqueante (el combobox permite a propósito una categoría futura), y
-                  // sólo si el catálogo YA cargó (un fetch fallido no puede afirmar que no existe).
-                  const destinoInexistente = !!campo.categoria && categoriasListas && value.trim() !== '' && !categorias.includes(value);
-                  // Rótulo POR TÍTULO (§ ítem 2): el destino se lee «En grano» lleva a: usando el
-                  // título en vivo de la misma tarjeta. Vacío el título → el `label` estático (fallback
-                  // "Presentación N · lleva a"), que es lo que evita "lleva a:" sin sujeto.
-                  const tituloTarjeta = campo.tituloDe ? String(form[campo.tituloDe] ?? '').trim() : '';
-                  const etiqueta = campo.tituloDe && tituloTarjeta ? `«${tituloTarjeta}» lleva a:` : campo.label;
-                  return (
-                    <Fragment key={campo.name}>
-                    {nuevoGrupo && (
-                      // El destino del scroll del puente (§ Presentaciones). El ref se registra por
-                      // nombre de grupo; `is-activo` le da el "esto está puesto" cuando su tarjeta está
-                      // clicada en la vista. El divisor (margen/padding/borde superior) vive en la CLASE,
-                      // no inline, para que `.is-activo` pueda apagar el borde superior sin pelear con un
-                      // estilo inline (§ Defecto 1). Sólo el puente (Presentaciones) usa ref + is-activo.
-                      <div
-                        ref={puenteTarjetas ? (el => { const m = gruposRef.current; if (el) m.set(campo.grupo!, el); else m.delete(campo.grupo!); }) : undefined}
-                        className={`duna-form__full grupo-tarjeta${grupoActivo && grupoActivo === campo.grupo ? ' is-activo' : ''}`}
-                      >
-                        <span className="duna-field__label">{campo.grupo}</span>
-                      </div>
-                    )}
-                    <div className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
-                      <label className="duna-field__label" htmlFor={id}>{etiqueta}</label>
-                      {campo.categoria ? (
-                        <CategoriaCombobox id={id} value={value} categorias={categorias}
-                                           onChange={v => cambiar({ [campo.name]: v })} ariaDescribedby={`${id}-hint`} />
-                      ) : campo.textarea ? (
-                        <textarea id={id} className="duna-input" rows={2} value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`} />
-                      ) : (
-                        <input id={id} className="duna-input" value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`} />
-                      )}
-                      {destinoInexistente && (
-                        <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)', marginBottom: 0 }}>
-                          Ningún producto tiene la categoría «{value}» todavía — la tarjeta no traerá resultados.
-                        </p>
-                      )}
-                      <p className="duna-field__hint" id={`${id}-hint`}>{campo.hint}</p>
-                    </div>
-                    </Fragment>
-                  );
-                })}
-              </div>
+              {bloquesResueltos(config).map(renderBloqueSeccion)}
 
               {/* Sección de LISTA (repeater): cada cambio del RepeaterEditor —editar, agregar, quitar,
                   mover— pasa por `cambiar`, el mismo marcar-sucio + autoguardado que un campo plano. */}

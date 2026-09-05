@@ -65,6 +65,16 @@ export interface RepeaterConfig {
   maxVideo?: number;
 }
 
+// ── BLOQUES · un tercer modo de dibujar la sección en el editor ──────────────────────────────────
+// Un BLOQUE es una PIEZA de la tienda (una tarjeta, el encabezado, el collage) y POSEE sus imágenes y
+// sus campos (por NOMBRE — el descriptor sigue teniendo los campos planos; el bloque sólo los AGRUPA).
+// La presentación deja de ser el reflejo de la declaración (dos loops imágenes/campos): pasa a ser lo
+// que los bloques dicen. El MODELO no se toca (campos planos, defaults, #44). Una sección SIN `bloques`
+// cae a un bloque `seccion` derivado con TODO —la red de seguridad: renderiza como antes (§ bloques.ts)—.
+// Cada `tipo` gana su renderer en su tanda; hoy sólo `seccion`.
+export type BloqueConfig =
+  | { tipo: 'seccion'; imagenes?: string[]; campos?: string[] };
+
 export interface SeccionConfig {
   seccion: SeccionVista;
   /** A qué página del storefront pertenece (§ PAGINAS). El editor agrupa por esto. */
@@ -77,6 +87,9 @@ export interface SeccionConfig {
   /** Presente → sección de LISTA: la cáscara renderiza el RepeaterEditor para este array de ítems,
    *  además de los `campos` planos de sección. */
   repeater?: RepeaterConfig;
+  /** Cómo se DIBUJA la sección en el editor (§ BloqueConfig). Ausente → un bloque `seccion` derivado
+   *  con todas las imágenes y campos (idéntico a antes). Cada bloque posee sus campos por NOMBRE. */
+  bloques?: BloqueConfig[];
 }
 
 const HERO: SeccionConfig = {
