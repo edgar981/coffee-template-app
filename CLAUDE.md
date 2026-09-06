@@ -1,5 +1,25 @@
 @AGENTS.md
 
+## Quién decide qué
+
+El proyecto lo mueven TRES roles, y confundir cuál decide qué es cómo una decisión
+se toma en el nivel equivocado. (La ELECCIÓN de cada decisión y su porqué —opciones,
+descartes— viven en `DECISIONS.md`, la raíz; acá vive la REGLA resultante.)
+
+- **EL OWNER decide PRODUCTO:** qué se construye y en qué orden, qué ve un cliente,
+  cómo se modela un concepto del dominio, el gate visual (capa 3), y si algo se
+  mergea. **Toda operación de datos en las bases es suya** (§ Bases de datos —
+  verificar el ROL en la consola antes de tocar).
+- **LA SESIÓN DE ASESORÍA estructura:** arma specs y prompts, disiente con posición,
+  presenta las decisiones como OPCIONES con costos. **NO ejecuta.**
+- **CODE (esta sesión) decide todo lo MEDIBLE:** lo que un comando, un test o el
+  código responden NO es pregunta del owner. Mide el estado FRESCO (git, código,
+  ejecución) y desconfía de TODO contexto escrito —incluidos los specs de asesoría,
+  que esta época atrapó CINCO veces con el tripwire (§ El TRIPWIRE PROTEGE CONTRA LA
+  INSTRUCCIÓN — el artefacto, la base, y el spec)—.
+- **Las preguntas al owner van en términos de PRODUCTO:** 2-4 opciones, con costo y
+  qué CIERRA cada una, y una recomendación. UNA decisión por pregunta.
+
 ## PRECONDICIÓN — verificación local sobre dev server reiniciado EN FRÍO
 
 Toda verificación manual en local se corre contra un dev server **reiniciado con
