@@ -2314,6 +2314,45 @@ declarada dos veces para armar un encabezado que no agrupaba nada.
 - **#66 CERRADO:** la miniatura de imagen vacía pinta un marco placeholder (`.duna-tile` con `ImageIcon`
   muted), NUNCA un `<img src="">` roto — igual que el storefront pinta el hueco en vez de romperse.
 
+### La CASCADA de /admin/tienda — LAZY-MOUNT de las previews, y el fetch 5→1
+
+Tanda del 2026-09-06 (el defecto que el deep-link del aviso de config **EXPUSO**, no creó). Al cargar
+`/admin/tienda` las secciones se pintaban UNA POR UNA, y con un enlace que promete un destino la lentitud
+se leía como "no pasó nada". El censo (solo lectura, antes de tocar) separó dos causas y midió cuál pesa:
+
+- **[1] LA CAUSA NO ERAN LOS FETCHES — eran CINCO storefronts reales montándose a la vez.** Cada tarjeta
+  de lectura monta un componente REAL del storefront a 1280px + `EscalaDesktop` (dos `ResizeObserver`,
+  render-a-1280 luego medir-luego-escalar): PESADO (§ VistaTiendaEnVivo). Los fetches YA iban en paralelo;
+  el hilo principal lo saturaba el RENDER. El fix es **LAZY-MOUNT**: la preview compacta monta cuando su
+  tarjeta ENTRA EN VISTA (`IntersectionObserver`, `rootMargin: 300px`, callback-ref —el patrón robusto de
+  EscalaDesktop—, se desconecta al primer cruce; sin `IntersectionObserver` monta directo, nunca esconde).
+  En el deep-link la sección enlazada abre en EDICIÓN (monta igual) y las otras quedan como placeholder
+  barato → el objetivo aterriza rápido **sin reordenar cómo monta `TiendaPaginas`** (el aterrizaje temprano
+  sale como efecto lateral). **El costo pasa de LINEAL en el número de secciones a ACOTADO a lo visible.**
+  Medido en harness: eager 5/5 → lazy 2/5 a un viewport de 800px.
+- **[2] EL PLACEHOLDER NO CALCULA ALTO — el thumb ya es una caja fija.** `.tienda-tarjeta__thumb` fija su
+  alto con `aspect-ratio: 16/9` sobre un ancho `clamp(...)`, INDEPENDIENTE del hijo (así funciona el
+  scale-to-fit compacto), así que el placeholder reserva por CONSTRUCCIÓN y no hay salto al montar. El alto
+  NO varía por sección. Usa `.duna-skel`, el MISMO esqueleto del estado de carga de datos.
+- **[3] EL FETCH BAJÓ DE 5 A 1 — es HIGIENE, NO el fix de la cascada, y decirlo importa.** Cada editor
+  fetcheaba `/api/site-content` COMPLETO y descartaba el 80% del payload —5 requests idénticos—. El GET
+  subió a `TiendaPaginas` (una vez) y cada editor recibe su rebanada + `sinPublicar` por props, siembra su
+  `form` UNA vez (`form===null`) y de ahí es dueño de su form. El wrinkle: el editor re-leía tras
+  **Descartar** → `recargar()` re-lee el doc y DEVUELVE lo fresco, el editor re-siembra SU form del retorno,
+  sin tocar el borrador de las otras. Las ESCRITURAS (PUT autoguardado, POST publicar/descartar) siguen POR
+  SECCIÓN, sin tocar — sólo se consolidó la LECTURA (bajo riesgo). Arreglar 5 requests idénticos era deuda
+  real, pero **no habría movido la percepción**: la cascada es render, no fetch.
+- **[4] PaletaSeccion MANTIENE su GET propio, a propósito.** Está SOBRE el `<Suspense>` (store-wide, otro
+  concern); foldearla cruzaría el boundary + refactorizaría su propia carga/descartar. Neto en la home:
+  6→2, no 6→1. Decisión aparte, no deuda oculta.
+- **[5] UN DEEP-LINK CON DESTINO EXPONE lentitudes que la entrada normal TOLERA.** El enlace del aviso
+  nunca tuvo un defecto; hizo visible el de la pantalla porque el dueño estaba esperando llegar a un sitio.
+  Es la lección de método: un enlace que promete un destino es un test de rendimiento gratis de esa pantalla.
+- **LÍMITE de verificación (declarado):** el callback del `IntersectionObserver` no se ejercitó por
+  ejecución —el pane del harness renderiza la pestaña con `document.hidden=true`, y un IO sobre un documento
+  oculto no dispara; el 2/5 es la regla del IO sobre geometría real—. El viaje con sesión (carga inicial,
+  deep-link, editar/publicar/**descartar** re-seed) es el gate de capa 3 del owner.
+
 ### La propagación al storefront — el storefront es DINÁMICO (defecto medido y arreglado)
 
 El storefront **era ESTÁTICO** —`○ /` y todas sus rutas salvo el detalle de producto—, y eso

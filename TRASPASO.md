@@ -1,6 +1,30 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-09-06 (**AVISO DE CONFIGURACIÓN del Dashboard MERGEADO — Fase 1 (§ #65) + fix del schema
+**Actualizado:** 2026-09-06 (**LA CASCADA de /admin/tienda ARREGLADA — lazy-mount de las previews + fetch 5→1.**
+Cierra el segundo pulido salido del gate de #65. Al cargar `/admin/tienda` las secciones se pintaban UNA POR UNA;
+el enlace del aviso de config lo hacía leer como "no pasó nada". **El censo (solo lectura) mostró que la causa NO
+eran los fetches —ya paralelos— sino CINCO storefronts reales montándose y midiéndose a la vez** (dos
+ResizeObserver c/u, render a 1280, medir-luego-escalar; § VistaTiendaEnVivo/EscalaDesktop). **COMMIT 1 (la causa):**
+lazy-mount — la preview de la tarjeta de lectura monta cuando entra en vista (IntersectionObserver, rootMargin
+300px, callback-ref, se desconecta al primer cruce; sin IO monta directo). El costo pasa de LINEAL en el número de
+secciones a ACOTADO a lo visible; en el deep-link la sección enlazada abre en EDICIÓN y aterriza rápido, sin
+reordenar cómo monta TiendaPaginas. **Placeholder sin salto:** el thumb ya es una caja `aspect-ratio 16/9` sobre
+un ancho clamp → reserva por construcción; `.duna-skel` (el mismo esqueleto del estado de carga). EscalaDesktop
+NO se tocó (tripwire respetado). **COMMIT 2 (higiene, no el fix):** el GET del contenido sube a TiendaPaginas —5
+requests idénticos que descartaban el 80% del payload → 1—; cada editor recibe su rebanada + `sinPublicar` por
+props y siembra su form una vez; `recargar()` devuelve lo fresco para el re-seed tras Descartar; las escrituras
+(PUT/POST por sección) sin tocar. **PaletaSeccion mantiene su GET** (sobre el `<Suspense>`, otro concern): neto
+6→2, no 6→1 — decisión aparte. **Lección:** un deep-link con destino EXPONE lentitudes que la entrada normal
+tolera (el enlace nunca tuvo defecto). Medición (harness): eager 5/5 → lazy 2/5 a viewport 800px (la regla del IO
+sobre geometría real; el callback no se pudo ejecutar en el pane oculto). Verificación: tsc 0 · capa 1 **869/869**
+· next build (`/admin/tienda` compila) · lint sin errores nuevos. NO verificado por ejecución: el callback del IO
+y el viaje con sesión (capa 3). Gate del owner PASADO. Mergeada a `main` `--no-ff` (`28a972a`), rama borrada,
+deploy a producción disparado. **#65 Fase 1 queda cerrada con sus DOS correcciones** —el schema que strippeaba
+(§ #65-B) y esta cascada de previews—. **SIGUIENTE (owner): #49** (planes de suscripción en `SUBSCRIPTION_PLANS`,
+grid que asume 3, sin precios horneados). **NO TOCAR: #54, #58, #61, #62, Fase 2 de #46.** **NO quedan pasos
+manuales abiertos.**)
+
+**ANTES —** 2026-09-06 (**AVISO DE CONFIGURACIÓN del Dashboard MERGEADO — Fase 1 (§ #65) + fix del schema
 editable (§ #65-B).** El DUEÑO ve sus defectos de configuración del storefront sin abrir el editor. Fase 1
 detecta dos: una tarjeta de Presentaciones cuyo destino ya no existe en el catálogo, y una tarjeta con título
 sin imagen. **Cuatro decisiones de MODELO:** (1) van en un AVISO APARTE, NUNCA dentro de "Necesita tu atención"
