@@ -2,10 +2,10 @@
 //
 // Los campos PLANOS (nombre, tagline, descripcionFooter, whatsapp, instagram,
 // emailRemitente, emailReplyTo) se MUDARON a `SiteSetting` (base, editables en
-// Configuración) — ver `lib/config/site-settings*.ts`. Acá quedan sólo los
-// ESTRUCTURADOS, que un formulario simple no edita: la paleta de correos
-// (`emailColors`) y la navegación del footer (`footerNav`/`legalNav`). Su día de
-// editable es el multi-tenant (§ CLAUDE.md · Datos de negocio editables).
+// Configuración) — ver `lib/config/site-settings*.ts`. La paleta de correos se DERIVA
+// de la paleta del storefront (§ Tanda C2, `lib/config/email-colors.ts`). Acá queda sólo
+// la navegación del footer (`footerNav`/`legalNav`), un editor rico que un formulario
+// simple no edita — su día de editable es el multi-tenant (§ CLAUDE.md · Datos de negocio).
 //
 // Las funciones (whatsappUrl, formatWhatsappDisplay, instagramUrl) NO son datos de
 // tenant: son helpers puros y se quedan acá.
@@ -47,22 +47,9 @@ export function instagramUrl(handle: string): string {
 }
 
 export const siteConfig = {
-  // ─── Paleta de correos al cliente (ESTRUCTURADO) ─────────────────────────────
-  // Los correos al cliente llevan la marca de la TIENDA (cream/espresso), NUNCA el
-  // ámbar del admin. Hex inline porque los clientes de correo no leen CSS variables.
-  // `buildBrand()` la inyecta junto con los planos (nombre/tagline/remitente), que
-  // ya vienen de SiteSetting. Es un editor rico, no un input de texto → se queda en
-  // código hasta el multi-tenant.
-  tienda: {
-    emailColors: {
-      crema:    "#faf7f2",
-      papel:    "#ffffff",
-      espresso: "#2a1a10",
-      cafe:     "#8b4513",
-      muted:    "#8b6650",
-      borde:    "#e8dccd",
-    },
-  },
+  // La paleta de los correos al cliente YA NO vive acá: se DERIVA de las 3 raíces del
+  // storefront (`content.tema`) en `lib/config/email-colors.ts`, que `buildBrand()` inyecta
+  // (§ Tanda C2). Antes era un set hand-picked de 6 hex (`tienda.emailColors`), hoy retirado.
 
   footerNav: {
     // C3: los 2 atajos de categoría café ("Café en Grano"/"Café Molido" → cat=…) se RETIRARON —

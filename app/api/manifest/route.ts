@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSiteSettings } from "@/lib/config/site-settings";
+import { getSiteContent } from "@/lib/config/site-content";
+import { coloresPWA } from "@/lib/config/pwa-colores";
 
 // El manifest PWA del STOREFRONT (del CLIENTE): nombre, descripción e íconos del negocio, editables
 // desde el panel (SiteSetting). Vive como ROUTE HANDLER —NO como la convención `app/manifest.ts`— a
@@ -16,15 +18,23 @@ import { getSiteSettings } from "@/lib/config/site-settings";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const { nombre, descripcionFooter } = await getSiteSettings();
+  // El nombre/descripción de SiteSetting; los COLORES de la PWA de la paleta (`content.tema`, § #1):
+  // background_color = fondo del cliente, theme_color = su tinta (null → los literales de Nayoli,
+  // byte-idéntico). Los dos son independientes → Promise.all.
+  const [{ nombre, descripcionFooter }, content] = await Promise.all([getSiteSettings(), getSiteContent()]);
+  const { chrome, pwaTheme } = coloresPWA(content.tema.fondo, content.tema.tinta);
   const manifest = {
     name: nombre,
     short_name: nombre,
     description: descripcionFooter,
     start_url: "/",
     display: "standalone",
-    background_color: "#F9F6F4",
-    theme_color: "#1E150E",
+    background_color: chrome,
+    theme_color: pwaTheme,
+    // Los ÍCONOS son assets ESTÁTICOS por-despliegue (§ EL PUNTO DE SWAP): un cliente nuevo REEMPLAZA
+    // estos archivos en `public/` (mismos nombres) — cero código. Están inventariados con su regla de
+    // caché en `next.config.ts` (§ ICONOS DE MARCA DEL STOREFRONT). Derivarlos de la paleta (un
+    // monograma con ImageResponse) es el motor #54, fuera de C2.
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png" },

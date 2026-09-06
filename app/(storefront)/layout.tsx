@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
 import StoreNav from "@/components/storefront/layout/StoreNav";
@@ -11,6 +11,9 @@ import { getSiteSettings } from "@/lib/config/site-settings";
 import { SiteContentProvider } from "@/components/storefront/SiteContentProvider";
 import { getSiteContent } from "@/lib/config/site-content";
 import { cssPaleta } from "@/lib/config/palette-style";
+import { cssFuentes } from "@/lib/config/fuentes-style";
+import { linkFuentePar } from "@/lib/config/fuentes";
+import { coloresPWA } from "@/lib/config/pwa-colores";
 
 // El storefront se renderiza DINÁMICO (por request), no estático. Su layout lee la
 // identidad del negocio (SiteSetting) y el contenido de la home (SiteContent) de la BASE, y
@@ -52,6 +55,10 @@ export async function generateMetadata(): Promise<Metadata> {
     // `app/manifest.ts` —que auto-inyectaba su link en TODA la app y ganaba sobre `metadata.manifest`,
     // así que el panel no podía tener el suyo (§ el route handler /api/manifest, § Identidad)—.
     manifest: "/api/manifest",
+    // LOS ÍCONOS son assets ESTÁTICOS por-despliegue (§ #1, EL PUNTO DE SWAP): un cliente nuevo REEMPLAZA
+    // estos 6 archivos en `public/` (mismos nombres) → cero código. Inventariados con su regla de caché
+    // corto en `next.config.ts` (§ ICONOS DE MARCA DEL STOREFRONT). El COLOR de chrome/PWA sí se deriva
+    // de la paleta (§ generateViewport abajo + /api/manifest); el ícono-imagen no (eso es el motor #54).
     icons: {
       icon: [
         { url: "/icon.svg", type: "image/svg+xml" },
@@ -61,6 +68,17 @@ export async function generateMetadata(): Promise<Metadata> {
       shortcut: "/favicon.ico",
     },
   };
+}
+
+// El `theme-color` del navegador (la barra de direcciones) DERIVA de la paleta del cliente (§ #1):
+// `content.tema.fondo`, o el literal de Nayoli cuando es fábrica (byte-idéntico, § coloresPWA). Sobre­
+// escribe el `themeColor` de la RAÍZ (Nayoli) para el subárbol del storefront —igual que el admin
+// sobreescribe el suyo (§ Identidad)—; la raíz queda como fallback para lo que no está en un grupo.
+// `getSiteContent` está cacheado por request (React.cache), así que no agrega una query sobre el layout.
+export async function generateViewport(): Promise<Viewport> {
+  const content = await getSiteContent();
+  const { chrome } = coloresPWA(content.tema.fondo, content.tema.tinta);
+  return { themeColor: chrome };
 }
 
 interface StorefrontLayoutProps {
@@ -81,9 +99,17 @@ export default async function StorefrontLayout({
   // la frontera borrador/no-borrador es de PANTALLA). Sin fila / raíces en null → `null` → sin
   // <style> → defaults de código → byte-idéntico. (§ palette-style, resolverTema.)
   const paletaCss = cssPaleta(content.tema.fondo, content.tema.tinta, content.tema.acento);
+  // El PAR TIPOGRÁFICO del cliente (§ Tanda C2 · #3, gemelo de la paleta): cssFuentes es el `:root{
+  // --sf-fuente-*}` (null para Editorial → las clases caen a Inter/Playfair del `@import`), y el
+  // `<link>` descarga las 2 familias del par CUSTOM (Editorial no lleva link: lo cubre el `@import`).
+  // Así, por despliegue se descargan 2 familias. Sin flash: ambos van en el HTML del server (dynamic).
+  const fuentesCss = cssFuentes(content.tema.fuentePar);
+  const fuentesLink = linkFuentePar(content.tema.fuentePar);
   return (
     <StorefrontThemeProvider>
+      {fuentesLink && <link rel="stylesheet" href={fuentesLink} />}
       {paletaCss && <style dangerouslySetInnerHTML={{ __html: paletaCss }} />}
+      {fuentesCss && <style dangerouslySetInnerHTML={{ __html: fuentesCss }} />}
       <SiteSettingsProvider value={settings}>
         <SiteContentProvider value={content}>
           <CartProvider>

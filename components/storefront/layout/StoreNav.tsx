@@ -7,6 +7,7 @@ import { useCartStore } from '@/lib/cartStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import NavSearch from './NavSearch';
 import { Logo } from '@/components/storefront/Logo';
+import { STOREFRONT_TIENE_MARK } from '@/lib/config/storefront-marca';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 
@@ -50,7 +51,7 @@ export default function StoreNav() {
             {/* Logo */}
             <Link href="/" aria-label={`${nombre} — inicio`} className="transition-colors">
               {/* Cream lockup over the transparent hero, espresso once scrolled */}
-              <Logo nombre={nombre} variant={isHome && !scrolled ? 'dark' : 'light'} />
+              <Logo nombre={nombre} variant={isHome && !scrolled ? 'dark' : 'light'} conMark={STOREFRONT_TIENE_MARK} />
             </Link>
 
             {/* Desktop Nav */}

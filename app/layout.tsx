@@ -10,6 +10,9 @@ export const metadata: Metadata = {
 
 // La política de tema NO vive aquí: cada grupo de rutas monta su propio
 // ThemeProvider (storefront light-only, admin con dark). Ver CLAUDE.md.
+// Este `themeColor` es un FALLBACK: el admin lo sobreescribe (§ Identidad) y el storefront lo
+// DERIVA de su paleta (§ (storefront)/layout `generateViewport`, #1) — para páginas fuera de un
+// grupo (login) queda este literal de Nayoli.
 export const viewport: Viewport = {
   themeColor: "#F9F6F4",
 };
