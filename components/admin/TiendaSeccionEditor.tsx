@@ -31,7 +31,7 @@ import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 
 type Datos = Record<string, unknown>; // strings/booleans planos + el array de items de un repeater
 
-export default function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null }: {
+export default function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga }: {
   config: SeccionConfig;
   /** Las categorías DERIVADAS del catálogo, para los campos-destino (§ el destino de Presentaciones es
    *  DATO). Sólo las usa la sección con un campo `categoria: true`; las demás las ignoran. */
@@ -43,12 +43,21 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
    *  resaltar+scrollear el bloque del `slot` (reusa el puente vista→formulario). `null` = sin deep-link.
    *  `slot` null = abrir la sección sin resaltar un bloque (para secciones sin tarjetas, futuro). */
   resaltar?: { seccion: string; slot: number | null } | null;
+  /** EL CONTENIDO lo carga TiendaPaginas UNA vez y baja la rebanada de esta sección (§ fetch 6→1): antes
+   *  cada editor fetcheaba `/api/site-content` COMPLETO y usaba sólo su slice — N requests idénticos. El
+   *  editor SIEMBRA su `form` local desde `valor` (una vez), y de ahí es dueño de su form. `recargar`
+   *  re-lee el doc COMPLETO y devuelve lo fresco, para re-sembrar tras "Descartar" (el wrinkle del refetch). */
+  carga: {
+    valor?: Datos;          // valor draft-merged de esta sección; undefined = aún cargando
+    sinPublicar: boolean;   // el flag `sinPublicar[seccion]` bajado por el padre
+    listo: boolean;         // el padre terminó de cargar el doc
+    error: boolean;         // el fetch del padre falló
+    recargar: () => Promise<{ contenido?: Record<string, unknown>; sinPublicar?: Record<string, boolean> }>;
+  };
 }) {
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
 
-  const [cargando, setCargando]       = useState(true);
-  const [errorCarga, setErrorCarga]   = useState<string | null>(null);
   const [form, setForm]               = useState<Datos | null>(null);
   const [hayBorrador, setHayBorrador] = useState(false);
   const [editando, setEditando]       = useState(false);
@@ -125,19 +134,17 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   }, [seccion]);
   const auto = useAutoguardado(guardarSeccion);
 
-  const cargar = useCallback(async (inicial = false) => {
-    try {
-      const r = await fetch('/api/site-content');
-      if (!r.ok) throw new Error();
-      const d = await r.json();
-      setForm(d.contenido[seccion]);
-      setHayBorrador(!!d.sinPublicar?.[seccion]);
-      if (inicial) setCargando(false);
-    } catch {
-      if (inicial) { setErrorCarga('No se pudo cargar el contenido.'); setCargando(false); }
-    }
-  }, [seccion]);
-  useEffect(() => { cargar(true); }, [cargar]);
+  // SIEMBRA del form desde el dato que bajó el padre (§ fetch 6→1). Una sola vez —guarda `form === null`—;
+  // de ahí en más el editor es DUEÑO de su form (edita/autoguarda local), así que un re-render del padre
+  // (p. ej. otro editor descartó y el doc se recargó) NO pisa los cambios de esta sección. `cargando`/
+  // `errorCarga` DERIVAN del estado del padre — ya no hay fetch propio.
+  useEffect(() => {
+    if (form !== null || !carga.listo || carga.valor === undefined) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- siembra única del form desde el dato bajado por el padre (guarda `form === null`); no hay fetch que esperar
+    setForm(carga.valor); setHayBorrador(carga.sinPublicar);
+  }, [carga.listo, carga.valor, carga.sinPublicar, form]);
+  const cargando = form === null && !carga.error;
+  const errorCarga = carga.error ? 'No se pudo cargar el contenido.' : null;
 
   // beforeunload SÓLO en 'error' (§ decisión): pendiente/guardando es común y recuperable.
   useEffect(() => {
@@ -261,7 +268,13 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
         setHayBorrador(false);
         toast.success('Publicado — ya está en vivo.');
       } else {
-        await cargar(); // el form vuelve a lo publicado → la vista en vivo también
+        // Descartar re-lee lo PUBLICADO. Con el GET lifted, se pide el refetch COMPARTIDO al padre (que
+        // devuelve el doc fresco) y se re-siembra el form de ESTA sección desde él → la vista en vivo
+        // vuelve a lo publicado. Se re-siembra directo del retorno (no se espera el prop) y sólo esta
+        // sección: el borrador de las otras no se toca (su `form !== null` bloquea la re-siembra por prop).
+        const fresco = await carga.recargar();
+        setForm((fresco.contenido?.[seccion] ?? {}) as Datos);
+        setHayBorrador(false);
         toast.success('Cambios descartados — volviste a lo publicado.');
       }
     } finally { setProcesando(false); }
