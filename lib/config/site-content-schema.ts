@@ -32,19 +32,20 @@ const brandStoryEditableSchema = z.object({
   imagen4: z.string().optional(),
 });
 
-// Presentaciones: DOS tarjetas de cardinalidad FIJA (campos planos, no repeater). Cada tarjeta:
-// label + copy + imagen. Todo opcional/SOFT como el resto —el resolver aplica el default a los
-// requeridos—. Las imágenes son string (path /public o URL de Blob, como el hero).
+// Presentaciones: cardinalidad VARIABLE 2-4 con campos PLANOS (no repeater). Cada tarjeta: label +
+// copy + imagen + CATEGORIA (el destino, § el destino de Presentaciones es DATO). TODOS los campos
+// deben declararse o zod los STRIPPEA EN SILENCIO al guardar —era el bug #65-B: el schema quedó
+// congelado en "exactamente 2 sin categoria" desde C1 mientras el modelo creció a 2-4 + destino-dato,
+// así que `categoria1/2` y todo el slot 3-4 se perdían en cada ciclo—. Todo opcional/SOFT: el resolver
+// aplica el default a los requeridos (1-2) y omite los opcionales (3-4). Imágenes string (path o Blob).
 const presentacionesEditableSchema = z.object({
   visible: z.boolean().optional(),
   eyebrow: z.string().optional(),
   titulo: z.string().optional(),
-  label1: z.string().optional(),
-  copy1: z.string().optional(),
-  imagen1: z.string().optional(),
-  label2: z.string().optional(),
-  copy2: z.string().optional(),
-  imagen2: z.string().optional(),
+  label1: z.string().optional(), copy1: z.string().optional(), imagen1: z.string().optional(), categoria1: z.string().optional(),
+  label2: z.string().optional(), copy2: z.string().optional(), imagen2: z.string().optional(), categoria2: z.string().optional(),
+  label3: z.string().optional(), copy3: z.string().optional(), imagen3: z.string().optional(), categoria3: z.string().optional(),
+  label4: z.string().optional(), copy4: z.string().optional(), imagen4: z.string().optional(), categoria4: z.string().optional(),
 });
 
 // SubscriptionCTA: solo texto (sin imágenes). `bullet1..4` opcionales — el resolver los omite

@@ -789,3 +789,26 @@ html.admin {
 .admin-atencion-item__sub {
   display: block; font-size: .8rem; color: var(--duna-muted); margin-top: 1px;
 }
+
+/* ─── AVISO DE CONFIGURACIÓN del Dashboard (§ Backlog #65) — la banda "esto te toca como DUEÑO" ───
+   Hermano del banner metricsFailed pero ÁMBAR (--duna-sol = ATENCIÓN) en vez de rojo: un defecto de
+   config no es un error del sistema, es algo que el DUEÑO arregla UNA vez. El borde ámbar es suave
+   (color-mix 45%, como el /30 del metricsFailed) para no gritar. Admin-level. NO es la cola del
+   OPERADOR (§ admin-atencion, ámbar en PUNTOS): otro destinatario, y no acumula. */
+.admin-aviso-config {
+  border: 1px solid color-mix(in oklab, var(--duna-sol) 45%, transparent);
+  background: var(--duna-sol-soft);
+  border-radius: var(--duna-r-l);
+  padding: var(--duna-space-3) var(--duna-space-4);
+}
+.admin-aviso-config__titulo {
+  display: block; font-weight: var(--duna-w-semi); font-size: .85rem; color: var(--duna-sol-ink);
+}
+.admin-aviso-config__lista {
+  list-style: none; margin: var(--duna-space-2) 0 0; padding: 0;
+  display: flex; flex-direction: column; gap: var(--duna-space-1);
+}
+.admin-aviso-config__item {
+  color: var(--duna-sol-ink); font-size: .8rem; line-height: 1.4; text-decoration: none;
+}
+.admin-aviso-config__item:hover { text-decoration: underline; }
