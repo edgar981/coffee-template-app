@@ -160,7 +160,7 @@ function FragmentoTienda({ raices, nombre, fuentePar }: { raices: Form; nombre: 
  *  chip del escenario—: en lectura el owner no está afinando nada y no lo necesita. */
 function PreviewTiendaReal({ raices, nombre, fuentePar }: { raices: Form; nombre: string; fuentePar: ClaveFuentePar | null }) {
   return (
-    <EscalaDesktop style={{ borderRadius: 14, overflow: 'hidden' }}>
+    <EscalaDesktop className="tienda-vivo-pane">
       <FragmentoTienda raices={raices} nombre={nombre} fuentePar={fuentePar} />
     </EscalaDesktop>
   );
