@@ -1239,34 +1239,49 @@ re-codificar (`lib/video-remux.ts`, mp4box): sube su .mov y el navegador lo conv
 **HUECOS NOMBRADOS, menores:** el WebM pasa por contenedor (EBML, otro formato; códecs web-amigables); un mp4
 que el parser no pueda leer pasa por la red del contenedor (un HEVC-en-mp4 malformado se colaría, raro).
 
-### 49. Las TRES tarjetas de plan de Suscripción son ESTRUCTURA — no editables (todavía)
+### 49. Planes de Suscripción como DATO de SiteContent — con la decisión del PRECIO adentro (opción 1)
 
-El editor de Suscripción (§ SubscriptionCTA) hace editable el TEXTO de la sección (eyebrow, título,
-subtítulo, beneficios, label del CTA), pero **las tres tarjetas de plan NO**: siguen viniendo de
-`SUBSCRIPTION_PLANS` (`lib/mock/subscriptions.ts`), como estructura.
+**LA CAPACIDAD APAGABLE ya está** (§ La SUSCRIPCIÓN es una capacidad APAGABLE): un cliente que no venda
+suscripciones las apaga sin tocar código. Lo que QUEDA de #49 es hacer los PLANES editables (opción 1).
 
-**OJO — NO son datos falsos, y hay que dejarlo escrito para que nadie las confunda con los testimonios
-fabricados (§ SiteContent — el repeater):** el "mock" está en el PATH (`lib/mock/`), no en el CONTENIDO. Son la propuesta real de Nayoli
-(Plan 250 g / 500 g / Familiar, bolsas de su propio café), **SIN precio ni descuento** —el tipo
-`Subscription` no tiene campo de precio, y el CTA abre WhatsApp "me interesa", no cobra—. No hay ningún
-claim que Nayoli no honre. A diferencia de los testimonios, acá no hay nada que vaciar.
+Hoy las tarjetas de plan vienen de `SUBSCRIPTION_PLANS` (`lib/mock/subscriptions.ts`) como ESTRUCTURA
+—fuente COMPARTIDA con `/suscripciones` (dos consumidores)—, y los pasos "¿Cómo funciona?"
+(`constants/subscription-steps.ts`) son café-shape explícito ("café de nuestra finca", "grano o molido").
+**NO son datos falsos:** el "mock" está en el PATH, no en el contenido —son la propuesta real de Nayoli,
+SIN precio ni claim que no honre (el tipo `Subscription` no tiene campo de precio; el CTA abre WhatsApp)—.
 
-**Por qué quedaron fuera del editor** (decisión del owner): `SUBSCRIPTION_PLANS` es **fuente
-COMPARTIDA con la página `/suscripciones`** (dos consumidores). Hacerlas editables en SiteContent las
-haría DIVERGIR de esa página, o exigiría que `/suscripciones` también lea de SiteContent — una decisión
-más grande que "el texto de la home".
+**Hacerlos DATO editable exige tres decisiones, y una es de PRODUCTO, no de forma:**
+- **EL PRECIO.** El tipo `Subscription` no tiene campo de precio. Agregarlo es decisión de MODELO **Y un
+  CLAIM que debe ser real** —un precio inventado es dato falso en la ruta del dinero (familia § el rating
+  fabricado)—, así que entra sólo con precios reales del cliente, nunca de relleno.
+- **la CARDINALIDAD del grid:** `sm:grid-cols-3` + `i===1` (SubscriptionCTA) y `md:grid-cols-3` +
+  `plan.popular` (/suscripciones) asumen EXACTAMENTE 3; variar el número es rediseño de la rejilla (patrón
+  `gridColsPresentaciones`, § Presentaciones 2-4), no sólo modelo.
+- **la FUENTE compartida:** o `/suscripciones` también lee de SiteContent (para no divergir de la home), o
+  los planes divergen entre las dos páginas. Y los pasos café-shape se decafeinan acá (van con la capa de
+  copy por cliente, § #63).
 
-**Costo YA pagado: ninguno.** Las tarjetas se ven bien y dicen la verdad.
+**Costo YA pagado: ninguno** (Nayoli ES café, sus planes dicen la verdad). **DISPARADOR: un cliente que
+venda suscripciones Y quiera planes distintos de los de Nayoli.**
 
-**DISPARADOR: el primer cliente con suscripciones propias** (heredaría los planes de Nayoli), o antes si
-alguien quiere editarlos. **El censo de datos falsos (§ El RATING fabricado se BORRÓ) NO lo adelanta:**
-verificado 2026-09-05 —los planes no traen precio (el tipo `Subscription` no tiene campo de precio) ni un
-claim que Nayoli no honre (§ arriba)—, así que no hay dato falso que vaciar; el disparador se queda en el
-cliente, no en el censo. Ahí se decide (a) si `/suscripciones` también
-lee de SiteContent —para no divergir—, y (b) que son un repeater propio con DOS restricciones de layout
-ya conocidas: **el `sm:grid-cols-3` y el flag `popular` (i===1) asumen EXACTAMENTE tres** planes, así
-que variar el número es rediseño de esa rejilla, no sólo modelo. (SubscriptionCTA usa `i===1` para la
-tarjeta central; `/suscripciones` usa `plan.popular` — los dos asumen tres.)
+**LA VIDA OPERATIVA es OTRO nivel — PROYECTO, no tanda.** Suscripciones que generen órdenes recurrentes y
+cobro tocan el eje de cobro (§ El eje de COBRO — el Payment como único escritor) y el puente con Carlos —un
+tercer escritor de dinero—. Disparador propio, aparte de la opción 1.
+
+### 68. Código muerto de suscripción TRANSACCIONAL — borrar o cablear, no dejar ambiguo
+
+Dos residuos de cuando se pensó una suscripción que COBRA, hoy sin un solo escritor:
+- **`Product.esSuscripcion?`** (`types/product.ts`): campo de TIPO sin columna en el schema Prisma (grep
+  vacío), ningún seed lo pone → SIEMPRE false. Leído en 3 sitios (tienda/[slug] sufijo "/mes" + el toggle
+  oculto, `ProductCard` badge) que nunca disparan. Familia del ex-`Product.agotado`, pero sin haber tenido
+  columna nunca.
+- **`SUBSCRIPTIONS_ENABLED` / `SUBSCRIPTION_DISCOUNT`** (`constants/features.ts`): flag hardcodeado en
+  `false` + un descuento (0.15) que sólo aplicaría con el flag en true. Plomería APAGADA —el widget
+  "Suscribirse y ahorrar %" del detalle de producto nunca renderiza—.
+
+**La regla del owner: código muerto se BORRA o se CABLEA, no se deja AMBIGUO.** Hoy es lo tercero.
+**Costo YA pagado: ninguno** (dead, sin daño). **DISPARADOR: la tanda que decida la vida transaccional de
+las suscripciones** (§ #49, vida operativa) — ahí se cablea; si esa tanda no llega, se borra en una limpieza.
 
 ### 51. Lightbox de imágenes en la galería de /nosotros — ampliar una foto al clic
 
@@ -1764,6 +1779,16 @@ teléfonos de muestra, "lorem", contadores inventados): un literal que se hace p
 es peor que un hueco, porque nadie lo cuestiona. El grep arranca por `reseñas|rating|4\.9|123-456|lorem|
 ejemplo|placeholder` en `app/(storefront)` y `components/storefront`, pero el juicio es por CONTENIDO,
 no por patrón.
+
+**TERCERA aparición en una sola sesión (2026-09-06): el andamiaje de `/cuenta`.** Una pantalla de cuenta
+de cliente SIN construir (v1) que cargaba `MOCK_ORDERS` como historial + un auth stub con un usuario
+horneado. **Se BORRÓ, no se dejó redirigiendo** —ya redirigía a `/` en su primera línea, con el enlace del
+nav comentado desde v1—: **un route que sólo existe para REDIRIGIR es un hack que oculta código muerto y
+mantiene vivos sus servicios mock** (`auth.service.ts`, y 5 stubs de `order.service.ts`, todos sin
+importadores; `getOrderByNumber` sobrevive porque /rastrear-pedido es dato REAL). **Andamiaje no construido
+se BORRA, no se deja redirigiendo.** Y los TRES datos falsos de la sesión (cuenta bancaria · rating · el
+andamiaje de /cuenta) los destapó OTRA tanda, ninguno un test — que es exactamente por qué el censo
+periódico se gana su lugar: el barrido POR CONTENIDO encuentra lo que ninguna suite mira.
 
 ## Config del contenido — `SiteContent` (el storefront editable)
 
@@ -2493,6 +2518,36 @@ Tanda 2 del 2026-08-26. /nosotros gana una galería de fotos de la finca. Decisi
   una es config + un componente— pero no hay evidencia de que se pidan. **El VÍDEO sigue declarado
   para la tanda 3** (§ Backlog #48: es capacidad nueva —formato aparte, subida directa a Blob, poster,
   rama de render—, no un campo más).
+
+## La SUSCRIPCIÓN es una capacidad APAGABLE (§ #49 opción 2)
+
+Tanda del 2026-09-06. Una suscripción hoy es SÓLO un mensaje de WhatsApp —sin Order/Payment/checkout, sin
+modelo en la base—, así que ofrecerla o no es CONFIG del tenant, no un modelo. El segundo cliente (café,
+pero puede no vender suscripciones) las apaga sin tocar código.
+
+- **[1] ES UNA CAPACIDAD APAGABLE, y gatea CINCO superficies JUNTAS.** `content.paginas.suscripciones.visible`
+  (default ENCENDIDA, patrón /nosotros — clave meta, `resolverPaginas` key-agnóstico). Apagada, ocultan el
+  enlace a /suscripciones las CINCO: la RUTA (redirect 307, `page.tsx` server + `Contenido.tsx` cliente,
+  como /nosotros), el NAV (`StoreNav`), el FOOTER (`StoreFooter` filtra `footerNav.tienda`), el CTA de la
+  HOME (`SubscriptionCTA`), y el **2º CTA del HERO** (`HeroSection`, `HERO_HREFS.secundario`). **LA QUINTA
+  APARECIÓ VERIFICANDO POR EJECUCIÓN, NO LEYENDO:** el censo por lectura dio CUATRO; cargar la home con el
+  flag apagado mostró un "Suscripción Mensual" vivo hacia una página que redirige. Es la lección de método
+  —un censo de superficies por lectura miente; el navegador con el flag apagado no—.
+- **[2] EL FLAG DE PÁGINA MANDA SOBRE EL TOGGLE DE SECCIÓN.** `SubscriptionCTA` tiene su propio toggle de
+  sección (mostrar el teaser de la home o no); el flag de capacidad lo PISA: capacidad apagada → el CTA se
+  oculta AUNQUE la sección esté visible. **Capacidad = EXISTENCIA; toggle de sección = PRESENTACIÓN dentro de
+  una capacidad que existe.** Un teaser hacia una página que redirige es anzuelo muerto. (En el preview del
+  editor, `paginas` viene de DEFAULTS —siempre true—, así que la sección sigue editable aunque esté apagada.)
+- **[5] UNA PÁGINA ES UNA PESTAÑA, no un ajuste global suelto.** Suscripciones entró a `PAGINAS`
+  (`tienda-secciones`) como una pestaña apagable más, junto a Home/Nosotros, con el render GENÉRICO de
+  página (`{paginaMeta.apagable && <TogglePagina …/>}`, el patrón de Nosotros) — NO como un interruptor
+  flotando arriba del selector. **Dos clases de página sin explicación enseñan mal el modelo.** Su pestaña
+  hoy no tiene secciones editables (los planes viven en código, § #49): eso es HONESTO —una `nota` de la
+  página dice qué gobierna el interruptor y que sus planes aún no se editan aquí— y la pestaña se llenará
+  sola cuando se construya la opción 1. El toggle de Nosotros NO se movió.
+
+El OFF/ON de las cinco superficies se verificó por EJECUCIÓN (flip reversible del flag en dev, el storefront
+no está gateado por sesión). El toggle en el admin (ruta con sesión) es capa 3.
 
 ## El AVISO DE CONFIGURACIÓN del Dashboard — el defecto de config es del DUEÑO
 

@@ -1,6 +1,31 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-09-06 (**LA CASCADA de /admin/tienda ARREGLADA — lazy-mount de las previews + fetch 5→1.**
+**Actualizado:** 2026-09-06 (**/CUENTA BORRADA + SUSCRIPCIÓN APAGABLE MERGEADAS — el 2º cliente puede apagar
+suscripciones sin tocar código.** DOS tandas en un merge (`--no-ff`, `d003d69`). **A — /cuenta:** andamiaje de
+cuenta de cliente SIN construir que servía dato falso (cargaba `MOCK_ORDERS` como historial + auth stub). Ya
+redirigía a `/` en su primera línea con el enlace del nav comentado desde v1; **un route que sólo redirige es un
+hack que oculta código muerto**, así que SE BORRÓ con censo de dependencias —`auth.service.ts`, `customers.service.ts`
+(cero importadores, foldeado en el merge por el owner) y 5 stubs de `order.service.ts` sin importadores;
+`getOrderByNumber` sobrevive porque /rastrear-pedido es dato REAL—. TERCERA aparición de dato falso en superficie
+pública en la sesión (cuenta bancaria · rating · /cuenta), ninguna destapada por un test → la práctica del censo
+periódico se gana su lugar. **B — la suscripción es una capacidad APAGABLE** (`content.paginas.suscripciones.visible`,
+default ENCENDIDA, patrón /nosotros): el interruptor gatea CINCO superficies que enlazan a /suscripciones —ruta
+(redirect 307), nav, footer, CTA de la home, y el 2º CTA del hero—. **La QUINTA apareció verificando por EJECUCIÓN,
+no leyendo** (un censo por lectura dio cuatro; el navegador con el flag apagado mostró el "Suscripción Mensual" del
+hero vivo hacia una página que redirige). El flag de PÁGINA manda sobre el toggle de SECCIÓN del CTA (capacidad =
+existencia; toggle = presentación). **Suscripciones se presenta como PESTAÑA** en el selector del editor (patrón de
+Nosotros, render genérico de página apagable), NO como ajuste global suelto —dos clases de página sin explicación
+enseñan mal el modelo—; su pestaña sin secciones editables es honesta (los planes están en código, #49) y se llena
+sola cuando se construya la opción 1. Verificación: tsc 0 · capa 1 **871/871** · next build · OFF/ON de las 5
+superficies por EJECUCIÓN (flip reversible del flag en dev; el storefront no está gateado por sesión). Gate del owner
+PASADO. Mergeada a `main` `--no-ff` (`d003d69`), rama borrada, deploy a producción disparado. **BACKLOG:** #49 pasa a
+"(1) planes como dato de SiteContent" con la decisión del PRECIO adentro (un precio inventado es dato falso en la
+ruta del dinero) + los pasos café-shape; la vida OPERATIVA (órdenes recurrentes, cobro) es PROYECTO aparte (eje de
+cobro + Carlos); y **#68 nuevo** — código muerto de suscripción transaccional (`Product.esSuscripcion?`,
+`SUBSCRIPTIONS_ENABLED`/`SUBSCRIPTION_DISCOUNT`) a borrar o cablear. **SIGUIENTE (owner): #49.** **NO TOCAR: #54, #58,
+#61, #62, Fase 2 de #46.** **NO quedan pasos manuales abiertos.**)
+
+**ANTES —** 2026-09-06 (**LA CASCADA de /admin/tienda ARREGLADA — lazy-mount de las previews + fetch 5→1.**
 Cierra el segundo pulido salido del gate de #65. Al cargar `/admin/tienda` las secciones se pintaban UNA POR UNA;
 el enlace del aviso de config lo hacía leer como "no pasó nada". **El censo (solo lectura) mostró que la causa NO
 eran los fetches —ya paralelos— sino CINCO storefronts reales montándose y midiéndose a la vez** (dos
