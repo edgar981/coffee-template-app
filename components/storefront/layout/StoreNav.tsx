@@ -19,7 +19,9 @@ export default function StoreNav() {
   const { paginas } = useSiteContent();
   const links = [
     { label: 'Tienda', path: '/tienda' },
-    { label: 'Suscripciones', path: '/suscripciones' },
+    // Suscripciones y Nosotros son CAPACIDADES apagables: su link aparece sólo si la página está viva
+    // (§ paginas.*.visible). Un link a una página que redirige a la home sería un enlace muerto.
+    ...(paginas.suscripciones.visible ? [{ label: 'Suscripciones', path: '/suscripciones' }] : []),
     ...(paginas.nosotros.visible ? [{ label: 'Nosotros', path: '/nosotros' }] : []),
   ];
 

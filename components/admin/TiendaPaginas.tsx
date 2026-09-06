@@ -63,7 +63,10 @@ export default function TiendaPaginas() {
 
   return (
     <div>
-      {/* Selector de página. Visual de pill, semántica de tab (una página es un destino, no un toggle). */}
+      {/* Selector de página. Visual de pill, semántica de tab (una página es un destino, no un toggle).
+          Suscripciones es una PESTAÑA como Home/Nosotros (§ PAGINAS): su interruptor vive DENTRO de su
+          pestaña —igual que el de Nosotros—, no suelto arriba, así no hay "dos clases de página" que
+          nada explique. Hoy su pestaña sólo tiene el interruptor (sus planes están en código, § #49). */}
       <div role="tablist" aria-label="Página del storefront" style={{ display: 'flex', gap: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-5)' }}>
         {PAGINAS.map(p => (
           <button
@@ -78,8 +81,14 @@ export default function TiendaPaginas() {
         ))}
       </div>
 
-      {/* El toggle de encender/apagar, sólo en las páginas apagables (Nosotros). */}
+      {/* El toggle de encender/apagar, DENTRO de la pestaña de la página apagable (Nosotros · Suscripciones). */}
       {paginaMeta.apagable && <TogglePagina pagina={pagina} label={paginaMeta.label} />}
+
+      {/* La `nota` de la página — hoy sólo Suscripciones, cuya pestaña no tiene secciones editables:
+          dice QUÉ gobierna el interruptor (las 5 superficies) y que sus planes todavía no se editan aquí. */}
+      {paginaMeta.nota && (
+        <p className="duna-sub" style={{ marginTop: 'var(--duna-space-3)', maxWidth: '42rem' }}>{paginaMeta.nota}</p>
+      )}
 
       <div style={{ display: 'grid', gap: 'var(--duna-space-8)' }}>
         {secciones.map(config => (

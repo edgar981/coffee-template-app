@@ -160,9 +160,12 @@ export interface NosotrosGaleriaContent {
 
 // META de páginas: qué páginas del storefront están ENCENDIDAS. NO es una sección (no lleva `campos`
 // ni la resuelve el loop de secciones); es una capacidad —una página existe y se puede apagar—. Hoy
-// sólo /nosotros; la home no se apaga.
+// /nosotros y /suscripciones son CAPACIDADES apagables (la home no se apaga). `suscripciones`
+// gatea la página + el link del nav + la entrada del footer + el CTA de la home (§ Backlog #49):
+// una suscripción hoy es sólo un mensaje de WhatsApp, así que apagarla es config, no un modelo.
 export interface PaginasContent {
   nosotros: { visible: boolean };
+  suscripciones: { visible: boolean };
 }
 
 // META de TEMA: las 3 RAÍCES de paleta del storefront (fondo·tinta·acento). NO es una sección (no
@@ -284,8 +287,12 @@ export const DEFAULTS: SiteContentData = {
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
   // un claim falso —es copy editable, no una reseña inventada—, así que default-encendida no repite
   // el caso de los testimonios.
+  // suscripciones DEFAULT ENCENDIDA (Nayoli propone suscripciones): al deployar, /suscripciones queda
+  // viva con sus planes y el CTA "Me interesa" por WhatsApp. Un cliente que no venda suscripciones la
+  // apaga → la página redirige, y el nav/footer/home CTA la esconden juntos (§ Backlog #49, opción 2).
   paginas: {
     nosotros: { visible: true },
+    suscripciones: { visible: true },
   },
   // TEMA por defecto: las 3 raíces en null → el storefront usa los defaults de código (§ globals.css
   // `--sf-*`), que SON la paleta de Nayoli → byte-idéntico sin depender de una fila. Un cliente setea

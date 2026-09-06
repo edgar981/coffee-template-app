@@ -9,11 +9,18 @@ export type SeccionVista = 'hero' | 'brandStory' | 'presentaciones' | 'subscript
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
-// muestra una pestaña por página. `home` no se apaga; `nosotros` sí (§ paginas.nosotros.visible).
-export type PaginaKey = 'home' | 'nosotros';
-export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean }[] = [
+// muestra una pestaña por página. `home` no se apaga; `nosotros` y `suscripciones` sí
+// (§ paginas.<pagina>.visible). `nota` es una línea opcional para una pestaña SIN secciones editables.
+export type PaginaKey = 'home' | 'nosotros' | 'suscripciones';
+export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?: string }[] = [
   { key: 'home',     label: 'Home',     apagable: false },
   { key: 'nosotros', label: 'Nosotros', apagable: true },
+  // Suscripciones es una PÁGINA como las otras —su pestaña vive junto a Home/Nosotros—, pero HOY no
+  // tiene secciones editables: sus planes y sus pasos siguen en código (§ Backlog #49), así que su
+  // pestaña sólo lleva el interruptor + esta `nota`, y se llenará sola cuando #49 se construya. El
+  // interruptor gobierna las 5 superficies que enlazan a /suscripciones (§ paginas.suscripciones).
+  { key: 'suscripciones', label: 'Suscripciones', apagable: true,
+    nota: 'El interruptor muestra u oculta las suscripciones en toda la tienda: la página, el enlace del menú y del pie, y el bloque de la home. Sus planes todavía no se editan aquí.' },
 ];
 
 // `categoria: true` → el campo es un DESTINO de categoría: la cáscara lo renderiza con el

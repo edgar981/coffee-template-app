@@ -28,6 +28,9 @@ export default function StoreFooter() {
   // "Empresa" no queda vacía —lleva el bloque de WhatsApp aparte del link—.
   const { paginas } = useSiteContent();
   const empresa = footerNav.empresa.filter((l) => l.href !== "/nosotros" || paginas.nosotros.visible);
+  // La entrada a /suscripciones se OCULTA cuando la capacidad está apagada (§ paginas.suscripciones,
+  // Backlog #49). La columna "Tienda" no queda vacía —lleva "Todos los productos" aparte—.
+  const tienda = footerNav.tienda.filter((l) => l.href !== "/suscripciones" || paginas.suscripciones.visible);
   return (
     <footer className="bg-[var(--sf-tinta)] text-white">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
@@ -93,7 +96,7 @@ export default function StoreFooter() {
             </h4>
 
             <ul className="space-y-2.5 text-sm text-white/50">
-              {footerNav.tienda.map((link) => (
+              {tienda.map((link) => (
                 <li key={link.label}>
                   <Link
                     href={link.href}

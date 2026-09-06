@@ -22,8 +22,14 @@ const fadeUp = {
 // los opcionales vacíos (eyebrow, el énfasis del titular, el 2º CTA). Hero es `ocultable:false`
 // → siempre se renderiza. Los destinos de los CTA son ESTRUCTURA (`HERO_HREFS`), no editables.
 export default function HeroSection() {
-  const { hero } = useSiteContent();
+  const { hero, paginas } = useSiteContent();
   const preview = useIsPreview();
+  // El 2º CTA del hero apunta a /suscripciones (`HERO_HREFS.secundario`, estructura). Si la capacidad
+  // de suscripciones está apagada (§ paginas.suscripciones, Backlog #49), se OCULTA —igual que el link
+  // del nav/footer y el bloque de la home—: un CTA "Suscripción Mensual" a una página que redirige
+  // sería un enlace muerto. Es la QUINTA superficie que enlaza a /suscripciones. En preview (editor)
+  // `paginas` viene de DEFAULTS (siempre true), así que el 2º CTA sigue editable.
+  const mostrarCtaSuscripcion = HERO_HREFS.secundario !== '/suscripciones' || paginas.suscripciones.visible;
 
   return (
     <section className="relative flex min-h-[92vh] items-center overflow-hidden bg-[var(--sf-tinta)]">
@@ -101,7 +107,7 @@ export default function HeroSection() {
               <ArrowRight className="h-4 w-4" />
             </Link>
 
-            {hero.ctaSecundarioLabel && (
+            {hero.ctaSecundarioLabel && mostrarCtaSuscripcion && (
               <Link
                 href={HERO_HREFS.secundario}
                 className="inline-flex items-center gap-2 rounded-full border border-white/30 px-8 py-4 text-sm font-medium text-white transition-all duration-200 hover:border-white/60 hover:bg-white/10"
