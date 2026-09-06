@@ -27,7 +27,7 @@ test('#1 destino inexistente — la categoría de la tarjeta no está en el cat�
   assert.equal(avs.length, 1);
   assert.equal(avs[0].clave, 'presentaciones-destino-1');
   assert.match(avs[0].mensaje, /Café Descafeinado/);
-  assert.equal(avs[0].href, '/admin/tienda');
+  assert.equal(avs[0].href, '/admin/tienda?seccion=presentaciones&tarjeta=1');
 });
 
 test('#1 usa el MISMO predicado que el editor — un destino que SÍ está en el catálogo NO dispara', () => {
@@ -50,7 +50,7 @@ test('#2 título SIN imagen — tarjeta con label y sin foto → un aviso de ima
   const avs = imagenes(c, CATS_NAYOLI);
   assert.equal(avs.length, 1);
   assert.equal(avs[0].clave, 'presentaciones-imagen-1');
-  assert.equal(avs[0].href, '/admin/tienda');
+  assert.equal(avs[0].href, '/admin/tienda?seccion=presentaciones&tarjeta=1');
 });
 
 test('#2 NO depende del catálogo — dispara aunque catalogoListo sea false', () => {
@@ -70,6 +70,8 @@ test('una tarjeta OPCIONAL visible por su título dispara sus defectos por SLOT'
   const avisos = avisosDeConfiguracion(c, CATS_NAYOLI, true);
   assert.ok(avisos.some(a => a.clave === 'presentaciones-destino-3'), 'destino-3 esperado');
   assert.ok(avisos.some(a => a.clave === 'presentaciones-imagen-3'), 'imagen-3 esperado');
+  // el enlace aterriza en el BLOQUE de ESA tarjeta (slot 3), no en la pantalla a secas.
+  assert.ok(avisos.every(a => a.href === '/admin/tienda?seccion=presentaciones&tarjeta=3'), 'href al slot 3');
 });
 
 test('Presentaciones OCULTA (visible:false) → sin avisos aunque haya defectos', () => {

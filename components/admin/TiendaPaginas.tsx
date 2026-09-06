@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import TiendaSeccionEditor from '@/components/admin/TiendaSeccionEditor';
 import TogglePagina from '@/components/admin/TogglePagina';
 import { SECCIONES_TIENDA, PAGINAS, type PaginaKey } from '@/components/admin/tienda-secciones';
@@ -12,7 +13,20 @@ import { categoriasDelCatalogo } from '@/lib/productos/categorias';
 // dos elecciones reales — un gate "≥2 páginas" nunca se ejercería, sería código muerto. El día que
 // un deployment pudiera tener una sola página, el guard entra ahí, con ese caso real.
 export default function TiendaPaginas() {
-  const [pagina, setPagina] = useState<PaginaKey>('home');
+  // DEEP-LINK del aviso de config del Dashboard (§ Backlog #65): `?seccion=&tarjeta=` abre esa sección
+  // en su página y resalta el bloque de la tarjeta. Precedente de query-params en el panel: `?pedido=`
+  // de Pedidos (por eso el page envuelve esto en <Suspense>, como Pedidos). El deep-link se pasa a cada
+  // editor; sólo el de la sección objetivo actúa. La lógica de abrir/resaltar/scrollear vive en el editor
+  // (reusa el puente vista→formulario), no acá.
+  const params = useSearchParams();
+  const seccionParam = params.get('seccion');
+  const tarjetaNum = params.get('tarjeta') != null ? Number(params.get('tarjeta')) : NaN;
+  const resaltar = seccionParam
+    ? { seccion: seccionParam, slot: Number.isInteger(tarjetaNum) ? tarjetaNum : null }
+    : null;
+  // La página INICIAL = la de la sección del deep-link (Presentaciones → home); sin deep-link, home.
+  const paginaObjetivo = seccionParam ? SECCIONES_TIENDA.find(c => c.seccion === seccionParam)?.pagina : undefined;
+  const [pagina, setPagina] = useState<PaginaKey>(paginaObjetivo ?? 'home');
   const paginaMeta = PAGINAS.find(p => p.key === pagina)!;
   const secciones = SECCIONES_TIENDA.filter(c => c.pagina === pagina);
 
@@ -53,7 +67,7 @@ export default function TiendaPaginas() {
 
       <div style={{ display: 'grid', gap: 'var(--duna-space-8)' }}>
         {secciones.map(config => (
-          <TiendaSeccionEditor key={config.seccion} config={config} categorias={categorias} categoriasListas={categoriasListas} />
+          <TiendaSeccionEditor key={config.seccion} config={config} categorias={categorias} categoriasListas={categoriasListas} resaltar={resaltar} />
         ))}
       </div>
     </div>

@@ -16,8 +16,12 @@ export interface AvisoConfig {
   href: string;
 }
 
-// El destino de los avisos de Fase 1: el editor de la tienda (donde vive Presentaciones).
-const HREF_TIENDA = '/admin/tienda';
+// El enlace de un aviso ATERRIZA EN EL DEFECTO, no en la pantalla: abre la sección correcta con su
+// edición y resalta el BLOQUE de la tarjeta (§ el fix del gate). Es el MISMO aterrizaje del puente
+// vista→formulario, disparado por query params que /admin/tienda lee al cargar (`?seccion=&tarjeta=`,
+// precedente `?pedido=` de Pedidos — sin inventar API). `seccion` elige la página + abre esa sección;
+// `tarjeta` (el SLOT) resalta y scrollea su bloque, reusando `tarjetaActiva`/`bloquesRef` del puente.
+const hrefTarjeta = (slot: number) => `/admin/tienda?seccion=presentaciones&tarjeta=${slot}`;
 
 /**
  * Los defectos de CONFIGURACIÓN del storefront PUBLICADO —cruzando el contenido que ve el visitante
@@ -59,7 +63,7 @@ export function avisosDeConfiguracion(
         avisos.push({
           clave: `presentaciones-destino-${t.slot}`,
           mensaje: `La tarjeta ${nombre} de la portada lleva a la categoría «${cat}», que ningún producto tiene todavía: no traerá productos.`,
-          href: HREF_TIENDA,
+          href: hrefTarjeta(t.slot),
         });
       }
 
@@ -69,7 +73,7 @@ export function avisosDeConfiguracion(
         avisos.push({
           clave: `presentaciones-imagen-${t.slot}`,
           mensaje: `La tarjeta «${titulo}» de la portada no tiene imagen: se ve un hueco en la tienda.`,
-          href: HREF_TIENDA,
+          href: hrefTarjeta(t.slot),
         });
       }
     }

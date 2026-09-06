@@ -31,7 +31,7 @@ import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 
 type Datos = Record<string, unknown>; // strings/booleans planos + el array de items de un repeater
 
-export default function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false }: {
+export default function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null }: {
   config: SeccionConfig;
   /** Las categorías DERIVADAS del catálogo, para los campos-destino (§ el destino de Presentaciones es
    *  DATO). Sólo las usa la sección con un campo `categoria: true`; las demás las ignoran. */
@@ -39,6 +39,10 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   /** Si el catálogo ya cargó — el aviso "no existe" NO se muestra hasta saberlo (un fetch fallido no
    *  puede afirmar que una categoría no existe). */
   categoriasListas?: boolean;
+  /** DEEP-LINK del aviso de config del Dashboard (§ Backlog #65): abrir la edición de ESTA sección y
+   *  resaltar+scrollear el bloque del `slot` (reusa el puente vista→formulario). `null` = sin deep-link.
+   *  `slot` null = abrir la sección sin resaltar un bloque (para secciones sin tarjetas, futuro). */
+  resaltar?: { seccion: string; slot: number | null } | null;
 }) {
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
@@ -183,6 +187,33 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   // la expansión manual vive sólo mientras el editor está abierto (§ Fix 2).
   const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(null); };
   const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(null); };
+
+  // ── DEEP-LINK del aviso de config del Dashboard (§ Backlog #65) ────────────────────────────────
+  // El enlace del aviso aterriza EN EL DEFECTO: abre la edición de ESTA sección y resalta+scrollea el
+  // bloque del slot, reusando la MISMA maquinaria del puente (`tarjetaActiva` → `is-activo`, `bloquesRef`
+  // → scrollIntoView). Abrir edición NO muta (no autosave, no borrador, no "Sin publicar") → no pelea el
+  // contrato de borrador. Una sola vez, tras cargar el contenido:
+  //  1. edición cerrada → abrirla y marcar el slot (como abrirEdicion, pero SIN nullear tarjetaActiva);
+  //  2. edición abierta → el bloque ya montó (una tarjeta con defecto está SIEMPRE visible, § el invariante),
+  //     scrollear a él. Guardado por ref para no re-disparar al editar/cambiar de página.
+  const esObjetivo = resaltar != null && resaltar.seccion === seccion;
+  const objetivoSlot = esObjetivo && puenteTarjetas ? resaltar!.slot : null;
+  const deepLinkHecho = useRef(false);
+  useEffect(() => {
+    if (!esObjetivo || cargando || deepLinkHecho.current) return;
+    if (!editando) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- deep-link: abrir edición desde el enlace del aviso (sin mutar); el bloque se monta en el próximo render y el re-run scrollea. `objetivoSlot` puede ser null (sección sin tarjetas) → sin resaltar, sólo abre.
+      setEditando(true); setExpandidos(new Set()); setMostradosLista(null); setTarjetaActiva(objetivoSlot);
+      return;
+    }
+    // Edición abierta: sin slot (sección sin tarjetas) con abrir alcanza; con slot, scrollear al bloque.
+    if (objetivoSlot == null) { deepLinkHecho.current = true; return; }
+    const nodo = bloquesRef.current.get(objetivoSlot);
+    if (!nodo) return; // el bloque aún no montó; el próximo render (deps: form/editando) lo tendrá
+    deepLinkHecho.current = true;
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    nodo.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+  }, [esObjetivo, objetivoSlot, cargando, editando, form]);
 
   const accionBorrador = async (accion: 'publicar' | 'descartar') => {
     setErrorServidor(null); setProcesando(true);

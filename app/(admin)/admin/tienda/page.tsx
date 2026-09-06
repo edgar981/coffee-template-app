@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import PaletaSeccion from '@/components/admin/PaletaSeccion';
 import TiendaPaginas from '@/components/admin/TiendaPaginas';
 
@@ -28,7 +29,11 @@ export default function Tienda() {
       {/* Separador entre lo store-wide (colores) y lo per-página (secciones). */}
       <hr style={{ border: 0, borderTop: '1px solid var(--duna-border)', margin: 'var(--duna-space-8) 0' }} />
 
-      <TiendaPaginas />
+      {/* <Suspense> porque TiendaPaginas usa `useSearchParams` (deep-link del aviso de config,
+          § Backlog #65) — mismo requisito que Pedidos con `?pedido=`. */}
+      <Suspense fallback={null}>
+        <TiendaPaginas />
+      </Suspense>
     </div>
   );
 }
