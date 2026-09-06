@@ -311,6 +311,16 @@ test('paginas: guardar visible:false la APAGA (el flag que gatea el redirect y e
   assert.equal(r.paginas.nosotros.visible, false);
 });
 
+test('paginas: por default /suscripciones está ENCENDIDA (§ Backlog #49, opción 2)', () => {
+  assert.equal(resolverSiteContent({}).paginas.suscripciones.visible, true);
+});
+
+test('paginas: apagar suscripciones NO toca nosotros, y viceversa (páginas independientes)', () => {
+  const r = resolverSiteContent({ paginas: { suscripciones: { visible: false } } });
+  assert.equal(r.paginas.suscripciones.visible, false); // el flag que gatea la ruta + nav + footer + home CTA
+  assert.equal(r.paginas.nosotros.visible, true);       // la otra capacidad, intacta (default)
+});
+
 test('paginas NO es una sección: no rompe el loop de secciones, y `nosotrosHistoria` sí resuelve', () => {
   // `paginas` va por fuera del loop de secciones (se itera `registro`, no `defaultsBase`); si entrara
   // como sección, `REGISTRY['paginas']` sería undefined y reventaría. Este test lo fija.

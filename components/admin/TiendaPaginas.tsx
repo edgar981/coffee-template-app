@@ -63,6 +63,19 @@ export default function TiendaPaginas() {
 
   return (
     <div>
+      {/* CAPACIDAD de suscripciones (§ Backlog #49): store-wide, va SOBRE el selector de página porque
+          no es una página del editor —sus planes son estructura, no editable aún— sino un interruptor
+          que gobierna la página /suscripciones, su enlace en el menú y el pie, y el bloque de la home
+          JUNTOS. Reusa `TogglePagina` (key-agnóstico) sobre `paginas.suscripciones`. Default: encendida. */}
+      <div style={{ marginBottom: 'var(--duna-space-6)' }}>
+        <h2 className="duna-title" style={{ marginBottom: 'var(--duna-space-1)' }}>Suscripciones</h2>
+        <p className="duna-sub" style={{ marginTop: 0, marginBottom: 'var(--duna-space-3)', maxWidth: '42rem' }}>
+          Muestra u oculta las suscripciones en toda la tienda: la página, el enlace del menú y del pie,
+          y el bloque de la home. Apágala si tu negocio no las ofrece. Los planes se coordinan por WhatsApp.
+        </p>
+        <TogglePagina pagina="suscripciones" label="Suscripciones" />
+      </div>
+
       {/* Selector de página. Visual de pill, semántica de tab (una página es un destino, no un toggle). */}
       <div role="tablist" aria-label="Página del storefront" style={{ display: 'flex', gap: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-5)' }}>
         {PAGINAS.map(p => (

@@ -19,8 +19,16 @@ const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 // /suscripciones — § Backlog #49); el href del CTA es estructura (`/suscripciones`), sólo el label
 // es editable.
 export default function SubscriptionCTA() {
-  const { subscriptionCTA } = useSiteContent();
+  const { subscriptionCTA, paginas } = useSiteContent();
   const preview = useIsPreview();
+  // EL FLAG DE PÁGINA MANDA sobre el toggle de sección: si la capacidad de suscripciones está apagada
+  // (§ paginas.suscripciones, Backlog #49), este CTA se oculta AUNQUE la sección esté visible — enlaza
+  // a /suscripciones, que redirige, así que un teaser encendido sería un anzuelo muerto. Con la
+  // capacidad ENCENDIDA, el toggle de sección decide (mostrar el teaser o no). El orden es coherente:
+  // la capacidad gobierna la EXISTENCIA; el toggle de sección, la PRESENTACIÓN dentro de una capacidad
+  // que existe. En preview (editor) NO se apaga por el flag: `paginas` viene de DEFAULTS (siempre true),
+  // así que el editor de la sección sigue viéndose para editarla aunque el cliente la haya apagado.
+  if (!paginas.suscripciones.visible) return null;
   if (!seccionEsVisible(REGISTRY.subscriptionCTA, subscriptionCTA)) return null;
 
   const beneficios = [
