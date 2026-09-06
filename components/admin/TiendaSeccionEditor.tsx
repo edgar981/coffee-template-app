@@ -31,7 +31,7 @@ import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 
 type Datos = Record<string, unknown>; // strings/booleans planos + el array de items de un repeater
 
-export default function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null }: {
+export default function TiendaSeccionEditor({ config, categorias = [], categoriasListas = false, resaltar = null, carga }: {
   config: SeccionConfig;
   /** Las categorías DERIVADAS del catálogo, para los campos-destino (§ el destino de Presentaciones es
    *  DATO). Sólo las usa la sección con un campo `categoria: true`; las demás las ignoran. */
@@ -43,12 +43,21 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
    *  resaltar+scrollear el bloque del `slot` (reusa el puente vista→formulario). `null` = sin deep-link.
    *  `slot` null = abrir la sección sin resaltar un bloque (para secciones sin tarjetas, futuro). */
   resaltar?: { seccion: string; slot: number | null } | null;
+  /** EL CONTENIDO lo carga TiendaPaginas UNA vez y baja la rebanada de esta sección (§ fetch 6→1): antes
+   *  cada editor fetcheaba `/api/site-content` COMPLETO y usaba sólo su slice — N requests idénticos. El
+   *  editor SIEMBRA su `form` local desde `valor` (una vez), y de ahí es dueño de su form. `recargar`
+   *  re-lee el doc COMPLETO y devuelve lo fresco, para re-sembrar tras "Descartar" (el wrinkle del refetch). */
+  carga: {
+    valor?: Datos;          // valor draft-merged de esta sección; undefined = aún cargando
+    sinPublicar: boolean;   // el flag `sinPublicar[seccion]` bajado por el padre
+    listo: boolean;         // el padre terminó de cargar el doc
+    error: boolean;         // el fetch del padre falló
+    recargar: () => Promise<{ contenido?: Record<string, unknown>; sinPublicar?: Record<string, boolean> }>;
+  };
 }) {
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
 
-  const [cargando, setCargando]       = useState(true);
-  const [errorCarga, setErrorCarga]   = useState<string | null>(null);
   const [form, setForm]               = useState<Datos | null>(null);
   const [hayBorrador, setHayBorrador] = useState(false);
   const [editando, setEditando]       = useState(false);
@@ -125,19 +134,17 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   }, [seccion]);
   const auto = useAutoguardado(guardarSeccion);
 
-  const cargar = useCallback(async (inicial = false) => {
-    try {
-      const r = await fetch('/api/site-content');
-      if (!r.ok) throw new Error();
-      const d = await r.json();
-      setForm(d.contenido[seccion]);
-      setHayBorrador(!!d.sinPublicar?.[seccion]);
-      if (inicial) setCargando(false);
-    } catch {
-      if (inicial) { setErrorCarga('No se pudo cargar el contenido.'); setCargando(false); }
-    }
-  }, [seccion]);
-  useEffect(() => { cargar(true); }, [cargar]);
+  // SIEMBRA del form desde el dato que bajó el padre (§ fetch 6→1). Una sola vez —guarda `form === null`—;
+  // de ahí en más el editor es DUEÑO de su form (edita/autoguarda local), así que un re-render del padre
+  // (p. ej. otro editor descartó y el doc se recargó) NO pisa los cambios de esta sección. `cargando`/
+  // `errorCarga` DERIVAN del estado del padre — ya no hay fetch propio.
+  useEffect(() => {
+    if (form !== null || !carga.listo || carga.valor === undefined) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- siembra única del form desde el dato bajado por el padre (guarda `form === null`); no hay fetch que esperar
+    setForm(carga.valor); setHayBorrador(carga.sinPublicar);
+  }, [carga.listo, carga.valor, carga.sinPublicar, form]);
+  const cargando = form === null && !carga.error;
+  const errorCarga = carga.error ? 'No se pudo cargar el contenido.' : null;
 
   // beforeunload SÓLO en 'error' (§ decisión): pendiente/guardando es común y recuperable.
   useEffect(() => {
@@ -215,6 +222,36 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     nodo.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
   }, [esObjetivo, objetivoSlot, cargando, editando, form]);
 
+  // ── LAZY-MOUNT de la vista previa de la tarjeta de LECTURA ──────────────────────────────────────
+  // La preview compacta monta un componente REAL del storefront a 1280px + dos ResizeObserver
+  // (§ VistaTiendaEnVivo / EscalaDesktop): es PESADA. Montar las N secciones de lectura a la vez pinta
+  // la pantalla en cascada —el defecto que el deep-link EXPONE (el censo: cada sección es un mount
+  // pesado, gateado sólo por su propio fetch)—. Se monta cuando la tarjeta ENTRA EN VISTA
+  // (IntersectionObserver con margen para adelantarse al scroll): en carga montan 1-2 en vez de 5, y en
+  // el deep-link la sección enlazada abre en EDICIÓN (monta igual) mientras las otras quedan como
+  // placeholder barato → el objetivo es lo único pesado montándose y aterriza rápido. NO toca cómo
+  // TiendaPaginas ordena las secciones: el aterrizaje temprano sale como efecto lateral.
+  //
+  // EL ALTO DEL PLACEHOLDER NO SALTA porque el thumb es una CAJA FIJA: `.tienda-tarjeta__thumb` fija su
+  // alto con `aspect-ratio: 16/9` sobre un ancho `clamp(...)` —INDEPENDIENTE del hijo (así funciona el
+  // scale-to-fit compacto)—, así que el placeholder reserva EXACTAMENTE la caja que la preview ocupará.
+  // El alto NO varía por sección: es la misma caja para todas.
+  //
+  // Callback ref (no efecto `[]`): el observer se engancha/desengancha con el nodo y se DESCONECTA al
+  // primer cruce (montada la preview, no hay que seguir observando) — el mismo patrón robusto que
+  // EscalaDesktop. Sin `IntersectionObserver` (entorno sin DOM) monta directo, para no esconder nunca.
+  const [previaVisible, setPreviaVisible] = useState(false);
+  const ioPrevia = useRef<IntersectionObserver | null>(null);
+  const thumbRef = useCallback((nodo: HTMLDivElement | null) => {
+    ioPrevia.current?.disconnect(); ioPrevia.current = null;
+    if (!nodo) return;
+    if (typeof IntersectionObserver === 'undefined') { setPreviaVisible(true); return; }
+    const io = new IntersectionObserver(entradas => {
+      if (entradas.some(e => e.isIntersecting)) { setPreviaVisible(true); io.disconnect(); ioPrevia.current = null; }
+    }, { rootMargin: '300px 0px' });
+    io.observe(nodo); ioPrevia.current = io;
+  }, []);
+
   const accionBorrador = async (accion: 'publicar' | 'descartar') => {
     setErrorServidor(null); setProcesando(true);
     try {
@@ -231,7 +268,13 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
         setHayBorrador(false);
         toast.success('Publicado — ya está en vivo.');
       } else {
-        await cargar(); // el form vuelve a lo publicado → la vista en vivo también
+        // Descartar re-lee lo PUBLICADO. Con el GET lifted, se pide el refetch COMPARTIDO al padre (que
+        // devuelve el doc fresco) y se re-siembra el form de ESTA sección desde él → la vista en vivo
+        // vuelve a lo publicado. Se re-siembra directo del retorno (no se espera el prop) y sólo esta
+        // sección: el borrador de las otras no se toca (su `form !== null` bloquea la re-siembra por prop).
+        const fresco = await carga.recargar();
+        setForm((fresco.contenido?.[seccion] ?? {}) as Datos);
+        setHayBorrador(false);
         toast.success('Cambios descartados — volviste a lo publicado.');
       }
     } finally { setProcesando(false); }
@@ -488,13 +531,17 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   if (!editando) {
     return (
       <div className="tienda-tarjeta">
-        <div className="tienda-tarjeta__thumb" onClick={abrirEdicion}>
+        <div ref={thumbRef} className="tienda-tarjeta__thumb" onClick={abrirEdicion}>
           {noSeMuestra ? (
             <div className="tienda-tarjeta__oculta">
               <span className="duna-caption" style={{ margin: 0 }}>No se muestra en la tienda</span>
             </div>
-          ) : (
+          ) : previaVisible ? (
             <VistaTiendaEnVivo seccion={seccion} valor={form} compacto />
+          ) : (
+            // La tarjeta esperando: el esqueleto del panel rellena la caja (alto reservado por el
+            // `aspect-ratio` del thumb) hasta que entra en vista y la preview monta. Sin salto.
+            <div className="duna-skel" aria-hidden style={{ width: '100%', height: '100%', borderRadius: 0 }} />
           )}
         </div>
         <div className="tienda-tarjeta__meta">

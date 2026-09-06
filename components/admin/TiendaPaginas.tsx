@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import TiendaSeccionEditor from '@/components/admin/TiendaSeccionEditor';
 import TogglePagina from '@/components/admin/TogglePagina';
@@ -45,6 +45,22 @@ export default function TiendaPaginas() {
     return () => { vivo = false; };
   }, []);
 
+  // EL CONTENIDO se pide UNA vez acá y se baja a cada editor su rebanada (§ fetch 6→1): antes cada sección
+  // fetcheaba `/api/site-content` COMPLETO y usaba sólo su slice —5 requests idénticos en la home—. El GET
+  // devuelve el doc draft-merged entero (`contenido`) + el mapa `sinPublicar`; el editor siembra su form de
+  // su slice. `recargar` re-lee y DEVUELVE lo fresco, para el re-seed del editor tras "Descartar" (el único
+  // que re-leía). Las ESCRITURAS (PUT autoguardado, POST publicar/descartar) siguen POR SECCIÓN, sin tocar.
+  const [doc, setDoc] = useState<{ contenido: Record<string, unknown>; sinPublicar: Record<string, boolean> } | null>(null);
+  const [errorDoc, setErrorDoc] = useState(false);
+  const recargarDoc = useCallback(async () => {
+    const r = await fetch('/api/site-content');
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+    setDoc({ contenido: d.contenido ?? {}, sinPublicar: d.sinPublicar ?? {} });
+    return d as { contenido?: Record<string, unknown>; sinPublicar?: Record<string, boolean> };
+  }, []);
+  useEffect(() => { recargarDoc().catch(() => setErrorDoc(true)); }, [recargarDoc]);
+
   return (
     <div>
       {/* Selector de página. Visual de pill, semántica de tab (una página es un destino, no un toggle). */}
@@ -67,7 +83,20 @@ export default function TiendaPaginas() {
 
       <div style={{ display: 'grid', gap: 'var(--duna-space-8)' }}>
         {secciones.map(config => (
-          <TiendaSeccionEditor key={config.seccion} config={config} categorias={categorias} categoriasListas={categoriasListas} resaltar={resaltar} />
+          <TiendaSeccionEditor
+            key={config.seccion}
+            config={config}
+            categorias={categorias}
+            categoriasListas={categoriasListas}
+            resaltar={resaltar}
+            carga={{
+              valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
+              sinPublicar: doc ? !!doc.sinPublicar[config.seccion] : false,
+              listo: !!doc,
+              error: errorDoc,
+              recargar: recargarDoc,
+            }}
+          />
         ))}
       </div>
     </div>
