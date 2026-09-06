@@ -50,6 +50,23 @@ export function planesDeSuscripcion(p: SuscripcionPlanesContent): PlanSuscripcio
     }));
 }
 
+// Las OPCIONES del select de "plan destacado" del editor (§ Backlog #49, FIX 2). Se DERIVAN de los
+// planes que EXISTEN —los que la tienda muestra—, no del tope: "Ninguno" + un plan por cada uno con
+// nombre. Al agregar un plan aparece; al vaciarlo, desaparece de la lista. Y si el destacado apunta a un
+// plan que se VACIÓ (el índice queda colgando), NO se pierde en silencio: se muestra como una opción
+// marcada "vacío" para que el operador la vea y la corrija —la tienda no destaca ninguna tarjeta porque
+// ningún plan visible tiene ese slot, así que no destaca una que no está—.
+export function opcionesDestaque(sec: SuscripcionPlanesContent): { value: string; label: string }[] {
+  const existentes = planesDeSuscripcion(sec);
+  const opts: { value: string; label: string }[] = [{ value: '', label: 'Ninguno' }];
+  for (const p of existentes) opts.push({ value: String(p.slot), label: p.nombre.trim() || `Plan ${p.slot}` });
+  const actual = (sec.destacadoSlot ?? '').trim();
+  if (actual !== '' && !existentes.some(p => String(p.slot) === actual)) {
+    opts.push({ value: actual, label: `Plan ${actual} · vacío (no se muestra)` });
+  }
+  return opts;
+}
+
 export interface PasoSuscripcion {
   label: string;
   descripcion: string;

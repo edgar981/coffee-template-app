@@ -31,10 +31,12 @@ export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?:
 // owner no sabe si es izq o der). Vacío el título → cae al `label` estático (el fallback).
 // (`grupo` se RETIRÓ: era config declarada dos veces —una en imágenes, otra en campos— para armar un
 // encabezado duplicado; la agrupación por tarjeta la expresan ahora los BLOQUES, § BloqueConfig.)
-// `opciones` → el campo es un SELECT NATIVO de opciones fijas (`destacadoSlot`: qué plan destacar). El
-// select nativo es la regla del panel para opciones fijas —su lista aparece un segundo y no compite con
-// nada (§ Controles de formulario)—. Excluye `textarea`/`categoria`.
-export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; tituloDe?: string; opciones?: { value: string; label: string }[]; hint: string };
+// `opciones` → el campo es un SELECT NATIVO de opciones fijas. `opcionesDinamicas` → un select cuyas
+// opciones se DERIVAN del form (hoy `'destaquePlanes'`: los planes que existen, § opcionesDestaque) — un
+// MARCADOR serializable (string, no función: el config es serializable). El select nativo es la regla del
+// panel para opciones fijas (§ Controles de formulario). `placeholder` → texto-guía del input (el ejemplo
+// de formato del precio). Excluyen `textarea`/`categoria`.
+export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; tituloDe?: string; opciones?: { value: string; label: string }[]; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string };
 export type CampoImagen = { name: string; label: string };
 
 // Descriptor de un campo DE ÍTEM (para el RepeaterEditor). `tipo` es GENÉRICO (no nombra ningún
@@ -320,28 +322,24 @@ const SUSCRIPCION_PLANES: SeccionConfig = {
     { name: 'planesTitulo',    label: 'Título de los planes', hint: 'Ej. "Elige tu plan". Vacío: se usa el texto por defecto.' },
     { name: 'planesSubtitulo', label: 'Subtítulo de los planes', opcional: true, textarea: true, hint: 'Vacío: no se muestra.' },
     { name: 'ctaLabel',        label: 'Botón de cada plan',   hint: 'El texto del botón que abre WhatsApp (ej. "Me interesa"). Vacío: se usa el texto por defecto.' },
-    { name: 'destacadoSlot',   label: 'Plan destacado',       opcional: true, hint: 'El plan que se resalta como "Más Popular". Sólo uno.',
-      opciones: [
-        { value: '',  label: 'Ninguno' },
-        { value: '1', label: 'Plan 1' },
-        { value: '2', label: 'Plan 2' },
-        { value: '3', label: 'Plan 3' },
-        { value: '4', label: 'Plan 4' },
-      ] },
+    // El select de destaque DERIVA sus opciones de los planes que existen (§ opcionesDestaque), no de un
+    // set fijo: con 3 planes lista "Ninguno" + los 3; al agregar el 4º aparece; un destacado que apunta a
+    // un plan vaciado se muestra colgando en vez de perderse.
+    { name: 'destacadoSlot',   label: 'Plan destacado',       opcional: true, opcionesDinamicas: 'destaquePlanes', hint: 'El plan que se resalta como "Más Popular". Sólo uno; la lista muestra los planes que existen.' },
     // Plan 1 (requerido). Los `benN_*` NO llevan descriptor: la lista los pasa por NOMBRE (§ bloques).
     { name: 'nombre1',      label: 'Nombre',      hint: 'Ej. "Plan 250 g". Vacío: se usa el texto por defecto.' },
     { name: 'descripcion1', label: 'Descripción', textarea: true, hint: 'Cantidad y frecuencia, p. ej. "Una bolsa de 250 g cada mes". Vacío: se usa el texto por defecto.' },
-    { name: 'precio1',      label: 'Precio',      opcional: true, hint: 'Opcional, como TEXTO (la moneda y el formato son tuyos). Vacío: no se muestra.' },
+    { name: 'precio1',      label: 'Precio',      opcional: true, placeholder: '$ 45.000/mes', hint: 'Opcional, como TEXTO: escribe la moneda y la unidad, p. ej. «$ 45.000/mes» o «desde $ 40.000». Vacío: no se muestra.' },
     // Planes 2-4 (opcionales): nombre vacío → el plan no se muestra.
     { name: 'nombre2',      label: 'Nombre',      opcional: true, hint: 'Vacío: este plan no se muestra.' },
     { name: 'descripcion2', label: 'Descripción', opcional: true, textarea: true, hint: 'Cantidad y frecuencia. Vacío: no se muestra.' },
-    { name: 'precio2',      label: 'Precio',      opcional: true, hint: 'Opcional, como texto. Vacío: no se muestra.' },
+    { name: 'precio2',      label: 'Precio',      opcional: true, placeholder: '$ 45.000/mes', hint: 'Opcional, como TEXTO, p. ej. «$ 45.000/mes». Vacío: no se muestra.' },
     { name: 'nombre3',      label: 'Nombre',      opcional: true, hint: 'Vacío: este plan no se muestra.' },
     { name: 'descripcion3', label: 'Descripción', opcional: true, textarea: true, hint: 'Cantidad y frecuencia. Vacío: no se muestra.' },
-    { name: 'precio3',      label: 'Precio',      opcional: true, hint: 'Opcional, como texto. Vacío: no se muestra.' },
+    { name: 'precio3',      label: 'Precio',      opcional: true, placeholder: '$ 45.000/mes', hint: 'Opcional, como TEXTO, p. ej. «$ 45.000/mes». Vacío: no se muestra.' },
     { name: 'nombre4',      label: 'Nombre',      opcional: true, hint: 'Vacío: este plan no se muestra.' },
     { name: 'descripcion4', label: 'Descripción', opcional: true, textarea: true, hint: 'Cantidad y frecuencia. Vacío: no se muestra.' },
-    { name: 'precio4',      label: 'Precio',      opcional: true, hint: 'Opcional, como texto. Vacío: no se muestra.' },
+    { name: 'precio4',      label: 'Precio',      opcional: true, placeholder: '$ 45.000/mes', hint: 'Opcional, como TEXTO, p. ej. «$ 45.000/mes». Vacío: no se muestra.' },
   ],
   bloques: [
     { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'tituloEnfasis', 'subtitulo'] },

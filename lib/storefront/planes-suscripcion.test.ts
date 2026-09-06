@@ -4,6 +4,7 @@ import {
   planesDeSuscripcion,
   pasosDeSuscripcion,
   planesDelTeaser,
+  opcionesDestaque,
   gridColsPlanes,
   gridColsTeaser,
   type PlanSuscripcion,
@@ -105,6 +106,39 @@ test('teaser: destacado FUERA del recorte → se incluye reemplazando al último
 test('teaser: destacado YA dentro del recorte → recorte natural, sin reemplazo', () => {
   const cuatro = [plan(1), plan(2, true), plan(3), plan(4)];
   assert.deepEqual(planesDelTeaser(cuatro, 3).map(p => p.slot), [1, 2, 3]);
+});
+
+// El select de destaque (§ FIX 2): opciones derivadas de los planes que EXISTEN, no del tope.
+test('destaque: las opciones son "Ninguno" + los planes que existen (con su nombre)', () => {
+  const opts = opcionesDestaque(DEFAULTS.suscripcionPlanes);
+  assert.deepEqual(opts, [
+    { value: '',  label: 'Ninguno' },
+    { value: '1', label: 'Plan 250 g' },
+    { value: '2', label: 'Plan 500 g' },
+    { value: '3', label: 'Plan Familiar' },
+  ], 'con 3 planes: Ninguno + los 3, NO un 4º fantasma');
+});
+
+test('destaque: al agregar el 4º plan, aparece en la lista', () => {
+  const opts = opcionesDestaque({ ...DEFAULTS.suscripcionPlanes, nombre4: 'Plan Oficina' });
+  assert.deepEqual(opts.map(o => o.value), ['', '1', '2', '3', '4']);
+  assert.equal(opts[4].label, 'Plan Oficina');
+});
+
+test('destaque COLGANDO: si el destacado apunta a un plan vaciado, se muestra "vacío" (no se pierde en silencio)', () => {
+  // destacadoSlot='3' pero el plan 3 se vació (nombre3 → '') → el plan 3 ya no existe.
+  const opts = opcionesDestaque({ ...DEFAULTS.suscripcionPlanes, destacadoSlot: '3', nombre3: '' });
+  // Ninguno + plan 1 + plan 2 + la opción colgante del 3.
+  assert.deepEqual(opts.map(o => o.value), ['', '1', '2', '3']);
+  assert.match(opts[3].label, /vacío/, 'el slot 3 colgante se marca "vacío", no se omite');
+  // Y la tienda NO destaca una tarjeta que no está: ningún plan visible tiene slot 3.
+  const planes = planesDeSuscripcion({ ...DEFAULTS.suscripcionPlanes, destacadoSlot: '3', nombre3: '' });
+  assert.ok(planes.every(p => !p.destacado), 'ningún plan visible queda destacado');
+});
+
+test('destaque: un destacado VÁLIDO no agrega opción colgante', () => {
+  const opts = opcionesDestaque({ ...DEFAULTS.suscripcionPlanes, destacadoSlot: '2' });
+  assert.deepEqual(opts.map(o => o.value), ['', '1', '2', '3']); // sin colgante
 });
 
 test('grids: lookups LITERALES por conteo (byte-idéntico Nayoli con 3)', () => {

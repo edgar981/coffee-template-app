@@ -63,10 +63,13 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
                   <Coffee className="w-5 h-5 text-[var(--sf-acento-texto)]" />
                 </div>
                 <h3 className="text-xl font-playfair text-[var(--sf-tinta)] mb-1">{plan.nombre}</h3>
+                {/* El PRECIO es TEXTO libre (§ site-content-defaults). Va con el TRATAMIENTO DE PRECIO del
+                    storefront —`font-bold text-[var(--sf-tinta)]`, el peso que usan ProductCard y el detalle
+                    de producto—, no un estilo nuevo; y UNDER el nombre (jerarquía de tarjeta de precio:
+                    nombre → precio → qué es → beneficios → CTA). Vacío → NO se muestra (nunca placeholder ni
+                    "desde"); Nayoli no lo lleva, así que este bloque no aparece → byte-idéntico. */}
+                {plan.precio && <p className="text-3xl font-bold text-[var(--sf-tinta)] mb-1">{plan.precio}</p>}
                 {plan.descripcion && <p className="text-sm text-[var(--sf-texto-suave)] mb-4">{plan.descripcion}</p>}
-                {/* El PRECIO es OPCIONAL y de TEXTO: vacío → NO se muestra (nunca placeholder ni "desde";
-                    § site-content-defaults). Nayoli no lo lleva, así que este bloque no aparece. */}
-                {plan.precio && <p className="text-2xl font-playfair text-[var(--sf-tinta)] mb-4">{plan.precio}</p>}
                 <div className="space-y-2 mb-6">
                   {plan.beneficios.map(b => (
                     <div key={b} className="flex items-center gap-2 text-sm text-[var(--sf-acento-2)]">
@@ -74,9 +77,14 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
                     </div>
                   ))}
                 </div>
-                {/* El CTA es un enlace a WhatsApp: se OCULTA si el número no está configurado (un
-                    `wa.me/` sin número es un botón muerto). En el preview `whatsapp` va sin prop. */}
-                {whatsapp && (
+                {/* El CTA es un enlace a WhatsApp. En la TIENDA REAL se OCULTA sin número (un `wa.me/` sin
+                    número es un botón muerto, § los enlaces se ocultan si el campo está vacío). En el PREVIEW
+                    del panel `whatsapp` va sin prop —el árbol del admin no tiene SiteSettings—, pero se
+                    RENDERIZA igual para que el operador VEA y verifique su label; queda INERTE por
+                    `EscalaDesktop`, que neutraliza el clic sobre `<a>` como los demás enlaces (la FRONTERA del
+                    preview, no el componente), y el href `whatsappUrl('')` es inofensivo. `preview` es false
+                    en la tienda real, así que ahí no cambia nada (byte-idéntico). */}
+                {(whatsapp || preview) && (
                   <a
                     href={interesHref(plan.nombre)}
                     target="_blank"

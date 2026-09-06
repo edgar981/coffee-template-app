@@ -14,7 +14,8 @@ import type { SeccionConfig, CampoTexto, CampoImagen } from '@/components/admin/
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { quitar as quitarDeLista, ultimoLleno } from '@/lib/tienda/lista-plana';
-import { DEFAULTS } from '@/lib/config/site-content-defaults';
+import { opcionesDestaque } from '@/lib/storefront/planes-suscripcion';
+import { DEFAULTS, type SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 
 // LA CÁSCARA del editor de una sección de la tienda, GENÉRICA. Todo lo que NO es específico de la
@@ -350,21 +351,26 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     // Rótulo POR TÍTULO: «En grano» lleva a: usando el título en vivo de la misma tarjeta.
     const tituloTarjeta = campo.tituloDe ? String(form[campo.tituloDe] ?? '').trim() : '';
     const etiqueta = campo.tituloDe && tituloTarjeta ? `«${tituloTarjeta}» lleva a:` : campo.label;
+    // Opciones del select: estáticas (`opciones`) o DERIVADAS del form (`opcionesDinamicas`, hoy los
+    // planes que existen para el destaque, § opcionesDestaque). El form ES el contenido de la sección.
+    const opciones = campo.opcionesDinamicas === 'destaquePlanes'
+      ? opcionesDestaque(form as unknown as SuscripcionPlanesContent)
+      : campo.opciones;
     return (
       <div key={campo.name} className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
         <label className="duna-field__label" htmlFor={id}>{etiqueta}</label>
         {campo.categoria ? (
           <CategoriaCombobox id={id} value={value} categorias={categorias}
                              onChange={v => cambiar({ [campo.name]: v })} ariaDescribedby={`${id}-hint`} />
-        ) : campo.opciones ? (
-          // SELECT NATIVO de opciones fijas (§ Controles de formulario) — `destacadoSlot`.
+        ) : opciones ? (
+          // SELECT NATIVO (§ Controles de formulario) — `destacadoSlot`, con opciones derivadas.
           <select id={id} className="duna-input duna-select" value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`}>
-            {campo.opciones.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {opciones.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         ) : campo.textarea ? (
-          <textarea id={id} className="duna-input" rows={2} value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`} />
+          <textarea id={id} className="duna-input" rows={2} value={value} onChange={set(campo.name)} placeholder={campo.placeholder} aria-describedby={`${id}-hint`} />
         ) : (
-          <input id={id} className="duna-input" value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`} />
+          <input id={id} className="duna-input" value={value} onChange={set(campo.name)} placeholder={campo.placeholder} aria-describedby={`${id}-hint`} />
         )}
         {destinoInexistente && (
           <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)', marginBottom: 0 }}>
