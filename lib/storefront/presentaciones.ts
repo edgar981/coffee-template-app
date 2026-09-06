@@ -16,6 +16,10 @@ export interface TarjetaPresentacion {
   copy: string;
   img: string;
   href: string;
+  /** El destino CRUDO (la categoría editable), ANTES de `hrefCategoria`. El storefront usa `href`
+   *  (no lo lee), pero el AVISO de configuración del Dashboard lo necesita para cruzarlo contra el
+   *  catálogo (§ Backlog #65 — un destino que no existe no trae productos). Vacío = /tienda (todos). */
+  cat: string;
 }
 
 /**
@@ -38,7 +42,7 @@ export function tarjetasDePresentaciones(p: PresentacionesContent): TarjetaPrese
   ];
   return slots
     .filter(s => s.req || s.label.trim() !== '' || s.img.trim() !== '')
-    .map(s => ({ slot: s.slot, label: s.label, copy: s.copy, img: s.img, href: hrefCategoria(s.cat) }));
+    .map(s => ({ slot: s.slot, label: s.label, copy: s.copy, img: s.img, href: hrefCategoria(s.cat), cat: s.cat }));
 }
 
 /**
