@@ -3,10 +3,10 @@
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { SUBSCRIPTION_PLANS } from "@/lib/mock/subscriptions";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
+import { planesDeSuscripcion, planesDelTeaser, gridColsTeaser } from "@/lib/storefront/planes-suscripcion";
 
 const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 
@@ -15,12 +15,15 @@ const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 // un `.filter` que SALTA los vacíos → la lista se cierra sin hueco (hasta 4, no 4 slots). Sección
 // OCULTABLE: si `visible=false`, self-gate → null (la home la rinde como hermano plano, sin hueco).
 //
-// Las TRES tarjetas de plan siguen desde `SUBSCRIPTION_PLANS` (ESTRUCTURA, compartida con
-// /suscripciones — § Backlog #49); el href del CTA es estructura (`/suscripciones`), sólo el label
-// es editable.
+// Las tarjetas de plan son DATO: leen la MISMA sección `suscripcionPlanes` que /suscripciones (§ Backlog
+// #49, opción 1) → las dos superficies no divergen. El teaser LIMITA los planes (`planesDelTeaser`, § d):
+// es un anzuelo que enlaza a /suscripciones, no el grid completo. El destaque sale del dato
+// (`plan.destacado`, el `destacadoSlot` de la sección), no del `i===1` hardcodeado de antes. El href del
+// CTA es estructura (`/suscripciones`), sólo el label es editable.
 export default function SubscriptionCTA() {
-  const { subscriptionCTA, paginas } = useSiteContent();
+  const { subscriptionCTA, suscripcionPlanes, paginas } = useSiteContent();
   const preview = useIsPreview();
+  const planesTeaser = planesDelTeaser(planesDeSuscripcion(suscripcionPlanes));
   // EL FLAG DE PÁGINA MANDA sobre el toggle de sección: si la capacidad de suscripciones está apagada
   // (§ paginas.suscripciones, Backlog #49), este CTA se oculta AUNQUE la sección esté visible — enlaza
   // a /suscripciones, que redirige, así que un teaser encendido sería un anzuelo muerto. Con la
@@ -74,14 +77,14 @@ export default function SubscriptionCTA() {
               whileInView={preview ? undefined : { opacity: 1, x: 0 }}
               viewport={preview ? undefined : { once: true }}
               transition={preview ? undefined : { duration: 0.6 }}
-              className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+              className={`grid grid-cols-1 ${gridColsTeaser(planesTeaser.length)} gap-4`}
             >
-              {SUBSCRIPTION_PLANS.map((p, i) => (
-                /* El color de texto va POR RAMA: sobre el acento (i===1, que el cliente puede
-                   elegir claro) usa `acento-txt` (auto-flip); sobre acento-2 (derivado OSCURO) el
-                   blanco es correcto para cualquier acento. La descripción hereda el color de la
+              {planesTeaser.map(p => (
+                /* El color de texto va POR RAMA: sobre el acento (el plan DESTACADO, que el cliente
+                   puede elegir claro) usa `acento-txt` (auto-flip); sobre acento-2 (derivado OSCURO)
+                   el blanco es correcto para cualquier acento. La descripción hereda el color de la
                    tarjeta con `opacity-70` (antes `text-white/70`, que fijaba blanco). */
-                <div key={p.id} className={`rounded-2xl p-5 ${i === 1 ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : 'bg-[var(--sf-acento-2)] text-white'}`}>
+                <div key={p.slot} className={`rounded-2xl p-5 ${p.destacado ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : 'bg-[var(--sf-acento-2)] text-white'}`}>
                   <p className="text-[var(--sf-tostado)] text-xs font-medium mb-2">{p.nombre}</p>
                   <p className="opacity-70 text-xs leading-snug">{p.descripcion}</p>
                 </div>
