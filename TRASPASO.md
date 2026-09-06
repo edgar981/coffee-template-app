@@ -1,6 +1,37 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-09-05 (**TANDA C2 MERGEADA — la capa de TEMA e IDENTIDAD por cliente. Con C1 y C3, la
+**Actualizado:** 2026-09-06 (**«COLORES Y TIPOGRAFÍA» PASA A ESCENARIO — el preview de la paleta a ancho
+completo + los controles como REGLETA acoplada.** La pieza de la paleta de /admin/tienda deja el split
+`.tienda-vivo--editando` (las OTRAS CUATRO secciones lo conservan INTACTO): su edición es un ESCENARIO —el
+preview a ancho ÚTIL completo con la regleta de controles acoplada a su borde inferior, en el mismo marco,
+nunca a un scroll de distancia—. **POR QUÉ difiere, doctrina no gusto: EL LAYOUT SIGUE A LA CARDINALIDAD DEL
+CONTROL** —acá DIEZ controles CERRADOS (4 bases + 1 picker + 5 pares) sin texto libre caben en una regleta de
+alto acotado; las otras son SUPERFICIE ABIERTA (textareas, imágenes, tarjetas) de alto IMPREDECIBLE y necesitan
+columna propia, y acá el PREVIEW es el OBJETO DE TRABAJO—. De 1000 a 1440 la escala del preview crece sin escalones: muere el umbral
+1080 SÓLO para esta pieza (reemplaza al split, cuya escala era no-monótona —subía hasta 1000, se cortaba a la
+mitad a 1080—). **El alto se DERIVA del top real medido** (`getBoundingClientRect().top + scrollY` restado del
+viewport, ResizeObserver sobre la cabecera + resize), sin un `76` horneado; el pane usa `EscalaDesktop`
+COMPACTO (NO se tocó) y el reparto pane↔regleta lo hace el flexbox. **La FORMA de la regleta cambia con el
+ancho** (CSS + estado `grupoActivo`): ≥1080 las tres piezas a la vista, <1080 tabs + la del `data-grupo`
+activo; las piezas (Base · Acento · Tipografía) se mueven ENTERAS, ni un control cambia de comportamiento.
+**Los derivados** pasan de `<details>` a una CAPA sobre el pane, **y el chip que la abre se OCULTA mientras la
+capa está abierta (PUNTO 8 de doctrina — un disparador que sigue flotando sobre lo que abrió tapa su propio
+contenido; con la capa abierta el cierre vive en el "Cerrar" de la capa)** —fue el fix del gate—. El pane de
+LECTURA se alineó de paso a `.tienda-vivo-pane` (era la única vista en vivo con pane inline, sin el cap al
+viewport). CONSERVADO: el contrato de borrador entero, fuentes/colores ejes independientes con un solo
+borrador, "Ampliar" (ya no como remedio), el fragmento como representación única, y el SPLIT de las otras cuatro
+secciones (byte-idéntico; diff de duna.css puramente ADITIVO, TiendaSeccionEditor/VistaTiendaEnVivo sin tocar).
+ACEPTADO/DECLARADO: a 800px el escenario deja el preview algo más chico (Ampliar queda para ese caso); el alto
+es el `disp` medido, no `min(contentFit, disp)` —no duplicar la medición interna de EscalaDesktop—.
+Verificación: tsc · capa 1 **858/858** · next build (SWC, `/admin/tienda` compila) · mecánica CSS del
+escenario/regleta verificada por EJECUCIÓN en un harness aislado (ancho=3 piezas, angosto=tabs+1, pane sobre
+regleta, capa de derivados, chip oculto con capa abierta). LÍMITE conocido: la vista LIVE con sesión (medición
+real, scale-to-fit del fragmento real) es el gate de capa 3 del owner. **Gate del owner PASADO** (con el fix
+del chip). Mergeada a `main` `--no-ff` (`3990bee`, dos padres `9404ba1`+`08ab50d`), rama borrada. **SIGUIENTE,
+sin cambio (owner):** los defectos DORMIDOS del censo de avisos (#65), luego **#49**. **NO TOCAR: #54, #58,
+#61, #62, Fase 2 de #46.** **NO quedan pasos manuales abiertos.**)
+
+**ANTES —** 2026-09-05 (**TANDA C2 MERGEADA — la capa de TEMA e IDENTIDAD por cliente. Con C1 y C3, la
 de-Nayolificación del template TERMINÓ.** Cuatro ejes, cada uno DERIVA de `content.tema` o es opt-in por despliegue, para
 que un despliegue nuevo no vista la identidad de Nayoli. **#4a emailColors:** los correos DERIVAN su paleta de
 `content.tema` (`coloresCorreo`, capa 1); 4 mapeos exactos por rol + 2 de criterio (**espresso→tinta**, **muted→texto-suave**,

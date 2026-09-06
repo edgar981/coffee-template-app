@@ -1795,16 +1795,49 @@ PANTALLA: Configuración = identidad en vivo, Tienda = lo que se publica.
   motor de derivación (aproximación); el null → sin `<style>` → los `--sf-*` exactos → byte-idéntico.
 - **El caveat de historial** (§ Backlog #55): descartar vuelve al PUBLICADO y fábrica vuelve a los
   defaults; "republicar un tema PASADO" es historial y sigue DESCARTADO.
-- **EL EDITOR ENTRA AL MODELO DE BLOQUES (2026-09-05, § El editor dibuja por BLOQUES).** En edición la
-  vista previa pasa a la COLUMNA del split (sticky ≥1080, como las secciones; "Ampliar" se conserva) y
-  los controles son TRES PIEZAS sobre el panel recesado: **Base** (las 4 bases curadas, cada una con su
-  muestra "Aa" —tinta sobre fondo— y su razón de contraste ESCRITA, que `contraste()` ya calcula),
-  **Acento** (el picker libre con el AUTO-FLIP del texto del botón DECLARADO en palabras —"Texto del
-  botón: blanco · contraste 8.4:1"— en vez de un valor invisible), y **Lo que se calcula solo** (los 19
-  derivados de `derivarPaleta`, COLAPSADOS, visibles pero NO editables). Los avisos de contraste se
-  PEGAN al control que los causa (base→texto/fondo; acento→texto del botón y acento/fondo), ya no una
-  pila bajo el preview. Conservado íntegro: el autoguardado sólo-si-válido, Publicar/Descartar y el
-  reset a fábrica de arriba — sólo cambió la FORMA, no el contrato.
+- **EL EDITOR ES UN ESCENARIO (2026-09-06).** [1] La pieza de la paleta NO usa el split `.tienda-vivo--editando`
+  (las OTRAS CUATRO secciones lo conservan INTACTO): en edición el preview toma el ancho ÚTIL completo y los
+  controles se ACUESTAN en una REGLETA acoplada a su borde inferior, dentro del MISMO marco, nunca a un scroll
+  de distancia. De 1000 a 1440 la escala del preview crece sin escalones (muere el umbral 1080 SÓLO para esta pieza).
+  - **[2] POR QUÉ difiere de las otras cuatro — y es DOCTRINA, no gusto: EL LAYOUT SIGUE A LA CARDINALIDAD DEL
+    CONTROL.** Acá son DIEZ controles CERRADOS (4 bases + 1 picker + 5 pares) SIN texto libre → caben en una
+    regleta de alto acotado. En las otras secciones el form es SUPERFICIE ABIERTA —textareas, imágenes, tarjetas
+    que se agregan— de alto IMPREDECIBLE, y por eso necesita su COLUMNA propia (el split). Y acá el PREVIEW es el
+    OBJETO DE TRABAJO: se mira el storefront, no el control. Un layout no se copia entre pantallas por parecido;
+    sale de la forma del control. (Por eso el split de las otras cuatro no se toca — su forma es la correcta PARA
+    ELLAS.)
+  - **[3] La CAUSA del defecto: el umbral 1080 gobernaba DOS comportamientos** — el ancho completo del preview
+    (duna.css:523 histórico) Y el apagado del sticky (:538-543) —, así que ningún ancho ganaba las dos y la escala
+    no era MONÓTONA: subía hasta 1000, se cortaba a la mitad al cruzar 1080 y no recuperaba lo perdido. **Un umbral
+    que gobierna dos comportamientos distintos es la FORMA del bug, no el número** — por eso el fix no es mover
+    1080, es que esta pieza deje de depender de él.
+  - **[4] El ALTO del escenario se MIDE, no se hornea con un `calc()`:** `getBoundingClientRect().top + scrollY`
+    (estable ante el scroll: `main` scrollea con la ventana porque /admin/tienda no opta por alto fijo) restado del
+    viewport, re-medido con un ResizeObserver sobre la cabecera + el resize. Un literal mágico se rompe en silencio
+    el día que cambie el alto del título y nadie sabe por qué. El pane usa `EscalaDesktop` COMPACTO (el del overlay
+    de Ampliar; `EscalaDesktop` NO se tocó) y el reparto pane↔regleta lo hace el flexbox (`pane flex:1;min-height:0`,
+    `regleta flex:0 0 auto`), sin JS. El único breakpoint que lee el JS es 960 (la barra inferior), el MISMO que la
+    enciende en primitives.css — se mueven juntos.
+  - **La FORMA de la regleta cambia con el ancho** (puro CSS + el estado `grupoActivo`): ≥1080 las TRES piezas a la
+    vista; <1080 una columna de tabs + la del `data-grupo` activo. Las piezas —**Base** (bases "Aa" + el contraste
+    de la base activa escrito), **Acento** (picker libre + auto-flip DECLARADO) y **Tipografía** (el par del set
+    cerrado)— se mueven ENTERAS: ni un control cambia de comportamiento.
+  - **Lo que se calcula solo** (los 19 derivados de `derivarPaleta`) pasó de un `<details>` en la columna a una
+    CAPA sobre el pane, abierta por un chip. **[8] PUNTO 8 (doctrina general de UI) — un chip/disparador que abre
+    una CAPA se OCULTA mientras la capa está abierta:** uno que sigue flotando sobre lo que abrió TAPA su propio
+    contenido; con la capa abierta el cierre vive en el "Cerrar" DE LA CAPA, no en el chip. (El fix del gate; el
+    mockup ya ponía el cierre en la capa.)
+  - **[6] La regleta ES el panel recesado ACOSTADO** (`--duna-surface` sobre `--duna-bg`, como los bloques del
+    editor de secciones; **cero tokens nuevos — el vocabulario no difiere aunque el layout sí**). **[5]** El pane de
+    LECTURA se alineó de paso a `.tienda-vivo-pane` —era la ÚNICA vista en vivo con pane inline, sin el cap al
+    viewport que la clase documenta; ya no hay excepción silenciosa—. CONSERVADO íntegro: el autoguardado
+    sólo-si-válido, Publicar/Descartar, el reset a fábrica y fuentes/colores como ejes independientes con un solo
+    borrador — sólo cambió la FORMA, no el contrato. "Ampliar" queda como chip, ya no como remedio.
+  - **[7] ACEPTADO/DECLARADO:** a 800px el escenario deja el preview algo más chico que el apilado viejo (no hay
+    alto para ancho completo Y regleta a la vez); "Ampliar" cubre ese caso. Y el alto es el DISPONIBLE medido, no
+    `min(contenido, disponible)` —en viewports altos hay letterbox `--duna-bg`, como Ampliar—: replicar el min
+    exigiría duplicar la medición interna de `EscalaDesktop`, que se extrajo justamente para no duplicar sus
+    ResizeObservers.
 
 ### Las FUENTES son `content.tema.fuentePar` — gemelo de la paleta, set CERRADO (C2 · #3)
 
