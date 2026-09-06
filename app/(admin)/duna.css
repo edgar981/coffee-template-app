@@ -557,6 +557,99 @@ html.admin {
   background: var(--duna-bg);
 }
 
+/* ═══ EL ESCENARIO — SÓLO la pieza «Colores y tipografía» (§ el escenario) ══════════════════════
+   Esta pieza NO usa el split `.tienda-vivo--editando` (las OTRAS CUATRO secciones sí, arriba). Su
+   edición es un ESCENARIO: el preview a ANCHO COMPLETO con los controles como REGLETA acoplada al
+   borde inferior, en el MISMO marco —nunca a un scroll de distancia—. De 1000 a 1440 la escala
+   crece sin escalones (no hay umbral 1080 que corte el ancho del preview a la mitad).
+
+   Columna FLEX de alto ACOTADO: el `height` (definido) lo pone el componente, DERIVADO del top real
+   medido —no un literal (§ la decisión del owner)—. El pane toma lo que quede (`flex:1; min-height:0`)
+   y la regleta su alto natural (`flex:0 0 auto`), así que el reparto pane↔regleta lo hace el flexbox,
+   sin JS. El pane usa `EscalaDesktop` COMPACTO (scale-to-fit, el mismo del overlay de Ampliar), que
+   necesita una caja de alto RESUELTO —por eso el escenario lleva `height`, no sólo `max-height`—. */
+.tienda-escena {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--duna-border);
+  border-radius: var(--duna-r-l);
+  background: var(--duna-bg);
+}
+.tienda-escena__pane {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--duna-bg);
+}
+
+/* LA REGLETA: el panel recesado (§ el editor por bloques) ACOSTADO — franja de piezas elevadas
+   contra el borde inferior del escenario. Cada pieza (Base · Acento · Tipografía) es `--duna-surface`
+   sobre el `--duna-bg` de la regleta, igual que `.tienda-form__bloque` lo es sobre `.tienda-form`.
+   Cero tokens nuevos. La FORMA cambia con el ancho (abajo); las piezas NO cambian de comportamiento. */
+.tienda-regleta {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--duna-border);
+  background: var(--duna-bg);
+  padding: var(--duna-space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--duna-space-2);
+  align-items: stretch;
+}
+.tienda-regleta__pieza {
+  flex: 1 1 220px;
+  min-width: 0;
+  background: var(--duna-surface);
+  border: 1px solid var(--duna-border);
+  border-radius: var(--duna-r-m);
+  padding: var(--duna-space-3);
+}
+/* La columna de TABS sólo existe en la forma ANGOSTA (la enciende el media query de abajo). */
+.tienda-regleta__tabs { display: none; }
+
+/* ANGOSTO (<1080): no hay ancho para las tres piezas a la vez, así que la regleta muestra UNA —la
+   del `data-grupo` activo— con una columna de tabs a la izquierda para cambiar de eje. El umbral
+   1080 es el MISMO del split de las otras secciones: la pieza no usa el split, pero la FORMA de su
+   regleta cambia justo donde el ancho deja de alcanzar para las tres. */
+@media (max-width: 1079.98px) {
+  .tienda-regleta { flex-wrap: nowrap; }
+  .tienda-regleta__tabs {
+    display: flex;
+    flex-direction: column;
+    gap: var(--duna-space-1);
+    flex: 0 0 auto;
+    width: 104px;
+  }
+  .tienda-regleta__pieza { display: none; flex-basis: auto; }
+  .tienda-regleta[data-grupo="base"]   .tienda-regleta__pieza--base,
+  .tienda-regleta[data-grupo="acento"] .tienda-regleta__pieza--acento,
+  .tienda-regleta[data-grupo="tipo"]   .tienda-regleta__pieza--tipo { display: block; }
+}
+
+/* La CAPA de derivados: «Lo que se calcula solo» pasa de un `<details>` en la columna a una CAPA
+   sobre el pane (se abre con el chip de abajo-izquierda). Cubre el fondo del pane y scrollea si
+   hace falta; no roba alto a la regleta ni al preview. */
+.tienda-escena__capa {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+  max-height: 62%;
+  overflow-y: auto;
+  padding: var(--duna-space-3) var(--duna-space-4);
+  background: var(--duna-surface);
+  border-top: 1px solid var(--duna-border-2);
+  box-shadow: var(--duna-shadow-2);
+}
+/* Los chips flotantes del pane (Ampliar arriba-der · «Lo que se calcula solo» abajo-izq): la
+   pastilla oscura de siempre, sobre la vista. La POSICIÓN la pone el consumidor (inline). */
+.tienda-escena__chip {
+  position: absolute; z-index: 3;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 8px; border: 0; border-radius: var(--duna-r-s);
+  background: rgba(20, 18, 16, 0.62); color: #fff;
+  font-size: 11px; font-weight: var(--duna-w-semi); cursor: pointer;
+}
+
 /* LECTURA: la sección es una TARJETA — miniatura (scale-to-fit de la vista real) + título +
    estado + Editar. La miniatura es la MISMA vista, sólo encuadrada distinto (no una segunda
    representación que pueda divergir). Alto fijo + overflow:hidden → SIN scroll interno: el que

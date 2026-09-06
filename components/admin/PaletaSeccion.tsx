@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, type CSSProperties } from 'react';
 import { toast } from 'sonner';
 import { Pencil, Maximize2 } from 'lucide-react';
 import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
@@ -66,6 +66,16 @@ const BASES: { label: string; fondo: string; tinta: string }[] = [
 interface Form { fondo: string; tinta: string; acento: string }
 
 const HEX6 = /^#[0-9a-fA-F]{6}$/;
+
+// EL ESCENARIO se ACOTA al viewport para que el preview Y la regleta quepan sin scroll. Su alto NO
+// es un literal: se DERIVA del top real medido (§ el cálculo en el componente). Constantes del cálculo:
+const ESCENA_MIN     = 240; // piso: nunca colapsa por debajo de esto
+const ESCENA_COLCHON = 16;  // aire bajo el escenario, para no pegar contra el borde del viewport
+const MOBNAV_ALTO    = 64;  // la barra inferior fija (`.duna-mobnav`, <960) que tapa el fondo en angosto
+
+// `useLayoutEffect` isomórfico: en el CLIENTE mide antes del paint (sin parpadeo del alto del escenario);
+// en SSR cae a `useEffect` para no emitir el warning de React (la pieza es 'use client' y se SSR-renderiza).
+const useLayoutSeguro = typeof document !== 'undefined' ? useLayoutEffect : useEffect;
 
 // El seed de cada raíz para el FORM (que renderiza pickers, y por eso siempre necesita un hex) cae al
 // default cuando el valor guardado en `content.tema` NO es un hex válido —null (fábrica), undefined,
@@ -144,36 +154,15 @@ function FragmentoTienda({ raices, nombre, fuentePar }: { raices: Form; nombre: 
   );
 }
 
-/** El preview INLINE: el fragmento escalado por ancho (`EscalaDesktop` grande). AMPLIABLE SÓLO en
- *  edición (`onAmpliar` presente) — en lectura el owner no está afinando nada, así que el chip y el
- *  cursor-zoom no tienen razón de ser y no aparecen. El botón de ampliar es un HERMANO absoluto que
- *  cubre el preview —NO un wrapper—: envolver el fragmento en un `<button>` anidaría los
- *  `<a>`/`<button>` del ProductCard dentro de un botón, que es HTML inválido. El fragmento es
- *  `pointer-events:none`, así que el clic pasa al botón de encima. */
-function PreviewTiendaReal({ raices, nombre, fuentePar, onAmpliar }: { raices: Form; nombre: string; fuentePar: ClaveFuentePar | null; onAmpliar?: () => void }) {
+/** El preview de LECTURA: el fragmento escalado por ancho (`EscalaDesktop` grande) dentro del pane
+ *  COMÚN de las vistas en vivo (`.tienda-vivo-pane`, § alineado con VistaTiendaEnVivo). El escenario
+ *  de EDICIÓN usa su propio pane (`.tienda-escena__pane`), así que "Ampliar" ya no vive acá —es un
+ *  chip del escenario—: en lectura el owner no está afinando nada y no lo necesita. */
+function PreviewTiendaReal({ raices, nombre, fuentePar }: { raices: Form; nombre: string; fuentePar: ClaveFuentePar | null }) {
   return (
-    <div style={{ position: 'relative' }}>
-      <EscalaDesktop style={{ borderRadius: 14, overflow: 'hidden' }}>
-        <FragmentoTienda raices={raices} nombre={nombre} fuentePar={fuentePar} />
-      </EscalaDesktop>
-      {onAmpliar && (
-        <button
-          type="button" onClick={onAmpliar} aria-label="Ampliar la vista previa de la tienda"
-          style={{ position: 'absolute', inset: 0, cursor: 'zoom-in', border: 0, background: 'none', padding: 0, borderRadius: 14 }}
-        >
-          <span
-            aria-hidden
-            style={{
-              position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 4,
-              padding: '5px 8px', borderRadius: 8, background: 'rgba(20,18,16,0.62)', color: '#fff',
-              fontSize: 11, fontWeight: 600, backdropFilter: 'blur(2px)',
-            }}
-          >
-            <Maximize2 size={13} /> Ampliar
-          </span>
-        </button>
-      )}
-    </div>
+    <EscalaDesktop style={{ borderRadius: 14, overflow: 'hidden' }}>
+      <FragmentoTienda raices={raices} nombre={nombre} fuentePar={fuentePar} />
+    </EscalaDesktop>
   );
 }
 
@@ -225,10 +214,43 @@ export default function PaletaSeccion() {
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
   const [confirmandoFabrica, setConfirmandoFabrica]   = useState(false);
   const [ampliado, setAmpliado]           = useState(false);
+  const [grupoActivo, setGrupoActivo]     = useState<'base' | 'acento' | 'tipo'>('base'); // regleta ANGOSTA: qué eje se ve
+  const [verCalculado, setVerCalculado]   = useState(false); // la capa de derivados sobre el pane
+  const [altoEscena, setAltoEscena]       = useState<number>(); // alto del escenario, DERIVADO del top medido
 
   const formRef = useRef<Form | null>(null); formRef.current = form;
   const fuenteParRef = useRef<ClaveFuentePar | null>(null); fuenteParRef.current = fuentePar;
   const esFabricaRef = useRef(true); esFabricaRef.current = esFabrica;
+  const escenaRef = useRef<HTMLDivElement | null>(null);
+  const cabeceraRef = useRef<HTMLDivElement | null>(null);
+
+  // EL ALTO DEL ESCENARIO — DERIVADO, sin literal (§ la decisión del owner). Medimos el TOP real del
+  // escenario en el documento (`rect.top + scrollY`, estable ante el scroll: `main` scrollea con la
+  // ventana porque /admin/tienda NO opta por alto fijo —tiene TiendaPaginas abajo—) y restamos del
+  // viewport. Así el número sale de la PANTALLA —topbar + título + cabecera + aire, lo que sea— y no
+  // de un 76 horneado que se rompe en silencio si el título cambia de alto.
+  const medirEscena = useCallback(() => {
+    const el = escenaRef.current;
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    // En angosto la barra inferior fija (`.duna-mobnav`) tapa el fondo del viewport. El umbral 960 es
+    // el MISMO que la enciende (primitives.css) — se mueven juntos, como el par CSS↔hook del split.
+    const angosto = window.matchMedia('(max-width: 959.98px)').matches;
+    const alto = Math.round(window.innerHeight - top - ESCENA_COLCHON - (angosto ? MOBNAV_ALTO : 0));
+    setAltoEscena(Math.max(ESCENA_MIN, alto));
+  }, []);
+
+  // Re-mide al entrar en edición, cuando cambia el alto de la CABECERA (píldora "Sin publicar",
+  // indicador de guardado, error del servidor → ResizeObserver) o el viewport (resize). El
+  // ResizeObserver sobre la cabecera no puede entrar en bucle: su alto no depende del alto del escenario.
+  useLayoutSeguro(() => {
+    if (!editando) return;
+    medirEscena();
+    const ro = new ResizeObserver(medirEscena);
+    if (cabeceraRef.current) ro.observe(cabeceraRef.current);
+    window.addEventListener('resize', medirEscena);
+    return () => { ro.disconnect(); window.removeEventListener('resize', medirEscena); };
+  }, [editando, medirEscena]);
 
   // El TEMA que viaja al PUT: las 3 raíces (NULL si los colores siguen en fábrica → se preserva
   // byte-idéntico; hexes si el cliente eligió colores) + el par. Elegir FUENTE no fuerza los colores a
@@ -424,203 +446,238 @@ export default function PaletaSeccion() {
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)', flexWrap: 'wrap' }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
-            <h2 className="duna-title">Colores y tipografía</h2>
-            {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
+      {/* CABECERA — su alto (píldora, indicador de guardado, error del servidor) mueve el TOP del
+          escenario, así que va OBSERVADA (`cabeceraRef`) para re-derivar el alto. En EDICIÓN el
+          subtítulo se oculta: su alto es el que el escenario necesita. */}
+      <div ref={cabeceraRef}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-4)', flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
+              <h2 className="duna-title">Colores y tipografía</h2>
+              {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
+            </div>
+            {!editando && (
+              <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
+                El color y las fuentes — la piel de todo el storefront. Eliges el fondo, la tinta y el
+                acento (el resto de la paleta se calcula sola) y un par tipográfico; publica cuando esté listo.
+              </p>
+            )}
+            {editando && indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
           </div>
-          <p className="duna-sub" style={{ marginTop: '3px', maxWidth: '42rem' }}>
-            El color y las fuentes — la piel de todo el storefront. Eliges el fondo, la tinta y el
-            acento (el resto de la paleta se calcula sola) y un par tipográfico; publica cuando esté listo.
-          </p>
-          {editando && indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
+          {/* LECTURA: Editar. EDICIÓN: Usar el tema por defecto / Cerrar / Descartar / Publicar. El reset
+              baja de la columna del form (que ya no existe en el escenario) a la cabecera. Publicar y
+              Descartar esperan al autoguardado (`!puedePublicar`) porque MUTAN; "Cerrar" NO muta (el
+              borrador queda), así que nunca se deshabilita. Publicar además se apaga con el acento inválido. */}
+          {!editando ? (
+            <button type="button" onClick={() => setEditando(true)} className="duna-btn duna-btn--secondary" style={{ flexShrink: 0 }}>
+              <Pencil /> Editar
+            </button>
+          ) : (
+            <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0, flexWrap: 'wrap' }}>
+              {puedeResetear && (
+                <button type="button" onClick={() => setConfirmandoFabrica(true)} disabled={procesando} className="duna-btn duna-btn--ghost">
+                  Usar el tema por defecto
+                </button>
+              )}
+              <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
+              {hayBorrador && (
+                <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
+                  Descartar
+                </button>
+              )}
+              {hayBorrador && (
+                <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar || acentoInvalido}>
+                  {procesando ? 'Publicando…' : 'Publicar'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
-        {/* LECTURA: Editar. EDICIÓN: Cerrar / Descartar / Publicar. Publicar y Descartar esperan al
-            autoguardado (`!puedePublicar`) porque MUTAN; "Cerrar" NO muta (el borrador queda), así que
-            nunca se deshabilita. Publicar además se apaga con el acento inválido: no se publica un form
-            que muestra un valor que no es hex. */}
-        {!editando ? (
-          <button type="button" onClick={() => setEditando(true)} className="duna-btn duna-btn--secondary" style={{ flexShrink: 0 }}>
-            <Pencil /> Editar
-          </button>
-        ) : (
-          <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0 }}>
-            <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
-            {hayBorrador && (
-              <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
-                Descartar
-              </button>
-            )}
-            {hayBorrador && (
-              <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar || acentoInvalido}>
-                {procesando ? 'Publicando…' : 'Publicar'}
-              </button>
-            )}
-          </div>
+        {editando && errorServidor && (
+          <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-2)', marginBottom: 0 }}>{errorServidor}</p>
         )}
       </div>
 
       {editando ? (
-        // EDICIÓN: la vista previa pasa a la COLUMNA del split (sticky ≥1080), como las secciones
-        // (§ Fix 3); los controles van como TRES piezas sobre el panel recesado (§ Fix 2, mismo
-        // lenguaje que el editor de secciones). "Ampliar" se conserva.
-        <div className="tienda-vivo tienda-vivo--editando" style={{ marginTop: 'var(--duna-space-4)' }}>
-          <div className="tienda-vivo__vista">
-            <PreviewTiendaReal raices={form} nombre={settings.nombre} fuentePar={fuentePar} onAmpliar={() => setAmpliado(true)} />
+        // EDICIÓN: EL ESCENARIO — el preview a ANCHO COMPLETO (ya no media columna del split) con los
+        // controles como REGLETA acoplada a su borde inferior, en el MISMO marco (§ el escenario). Esta
+        // pieza NO usa `.tienda-vivo--editando` (las otras cuatro secciones sí). El alto lo fija
+        // `altoEscena` (DERIVADO del top medido). "Ampliar" queda como chip, no como remedio.
+        <div ref={escenaRef} className="tienda-escena" style={{ height: altoEscena, marginTop: 'var(--duna-space-4)' }}>
+          <div className="tienda-escena__pane">
+            {/* El fragmento REAL, scale-to-fit dentro del pane (EscalaDesktop COMPACTO, el mismo del
+                overlay de Ampliar). El pane toma el alto que el flexbox le deja bajo la regleta. */}
+            <EscalaDesktop compacto style={{ width: '100%', height: '100%' }}>
+              <FragmentoTienda raices={form} nombre={settings.nombre} fuentePar={fuentePar} />
+            </EscalaDesktop>
+
+            {/* Ampliar (chip arriba-der): abre el overlay con el mismo fragmento en grande. */}
+            <button
+              type="button" className="tienda-escena__chip" style={{ top: 8, right: 8, cursor: 'zoom-in' }}
+              onClick={() => setAmpliado(true)} aria-label="Ampliar la vista previa de la tienda"
+            >
+              <Maximize2 size={13} /> Ampliar
+            </button>
+
+            {/* «Lo que se calcula solo» (chip abajo-izq) → CAPA sobre el pane (§ Fix: de <details> en la
+                columna a capa sobre el pane). Sólo con acento VÁLIDO: a medio teclear los derivados salen basura. */}
+            {!acentoInvalido && (
+              <button
+                type="button" className="tienda-escena__chip" style={{ bottom: 8, left: 8 }}
+                onClick={() => setVerCalculado(v => !v)} aria-expanded={verCalculado}
+              >
+                Lo que se calcula solo
+              </button>
+            )}
+            {!acentoInvalido && verCalculado && (
+              <div className="tienda-escena__capa">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--duna-space-3)', marginBottom: 'var(--duna-space-2)' }}>
+                  <span className="duna-field__label">Lo que se calcula solo</span>
+                  <button type="button" onClick={() => setVerCalculado(false)} className="duna-btn duna-btn--ghost duna-btn--sm">Cerrar</button>
+                </div>
+                <p className="duna-caption" style={{ marginTop: 0, marginBottom: 'var(--duna-space-2)' }}>
+                  El resto de la paleta se deriva de tus tres colores. No se edita.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 'var(--duna-space-3)' }}>
+                  {derivados.map(nombre => (
+                    <div key={nombre} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <span aria-hidden style={{ width: 22, height: 22, borderRadius: 6, background: derivada[nombre], border: '1px solid var(--duna-border)', flexShrink: 0 }} />
+                      <span style={{ minWidth: 0 }}>
+                        <span className="duna-caption" style={{ display: 'block', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombre}</span>
+                        <span style={{ display: 'block', fontFamily: 'var(--duna-font-mono)', fontSize: 11, color: 'var(--duna-muted)' }}>{derivada[nombre]}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="tienda-vivo__form">
-            <div className="tienda-form">
-              {/* PIEZA 1 · BASE (fondo + tinta): cada base con su muestra "Aa" (tinta sobre fondo) y su
-                  razón de contraste escrita (`contraste()` ya la calcula). El aviso de "texto sobre
-                  fondo" se pega ACÁ, donde se elige la base. */}
-              <div className="tienda-form__bloque">
-                <span className="duna-field__label">Base (fondo y texto)</span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', marginTop: '6px' }}>
-                  {BASES.map(b => {
-                    const activa = baseActiva?.label === b.label;
-                    return (
-                      <button
-                        key={b.label} type="button" onClick={() => elegirBase(b)} aria-pressed={activa}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px 8px 8px',
-                          borderRadius: 'var(--duna-r-l)', cursor: 'pointer',
-                          border: `1px solid ${activa ? 'var(--duna-ink)' : 'var(--duna-border)'}`,
-                          background: activa ? 'var(--duna-surface)' : 'transparent',
-                          boxShadow: activa ? 'var(--duna-shadow-1)' : 'none',
-                        }}
-                      >
-                        {/* La muestra "Aa": tinta sobre fondo — la prueba REAL de legibilidad de la base. */}
-                        <span aria-hidden style={{
-                          display: 'grid', placeItems: 'center', width: 34, height: 30, borderRadius: 8,
-                          background: b.fondo, color: b.tinta, border: '1px solid var(--duna-border)',
-                          fontWeight: 700, fontSize: 14, lineHeight: 1,
-                        }}>Aa</span>
-                        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
-                          <span className="duna-body" style={{ fontSize: 13, fontWeight: activa ? 600 : 500 }}>{b.label}</span>
-                          <span className="duna-caption" style={{ margin: 0 }}>Contraste {razon(b.tinta, b.fondo)}:1</span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {avisoBaseTexto && <Aviso>El texto principal puede costar de leer sobre este fondo. Prueba una base más contrastada.</Aviso>}
-              </div>
-
-              {/* PIEZA 2 · ACENTO (picker libre): con el auto-flip del texto del botón DECLARADO
-                  ("blanco, 8.4:1" en vez de invisible). Los avisos del acento van pegados ACÁ. */}
-              <div className="tienda-form__bloque">
-                <label className="duna-field__label" htmlFor="pal-acento">Acento de marca</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: '6px' }}>
-                  <input
-                    id="pal-acento" type="color"
-                    value={HEX6.test(form.acento) ? form.acento : '#8b4513'}
-                    onChange={e => cambiar({ acento: e.target.value })}
-                    style={{ width: 44, height: 36, padding: 0, border: '1px solid var(--duna-border)', borderRadius: 'var(--duna-r-m)', background: 'none', cursor: 'pointer' }}
-                    aria-label="Elegir color de acento"
-                  />
-                  <input
-                    className="duna-input" style={{ width: 130, fontFamily: 'var(--duna-font-mono)' }}
-                    value={form.acento} onChange={e => cambiar({ acento: e.target.value })}
-                    aria-invalid={acentoInvalido || undefined}
-                  />
-                </div>
-                {acentoInvalido ? (
-                  <p className="duna-field__error" style={{ marginTop: '4px', marginBottom: 0 }}>Usa un hex de 6 dígitos, p. ej. #8b4513.</p>
-                ) : (
-                  // AUTO-FLIP DECLARADO: el texto del botón de acento es FIJO (el cliente no lo elige) —
-                  // blanco o tinta, el que más contraste—. Se dice cuál y con cuánto, en vez de dejarlo
-                  // como un valor invisible que el operador no puede verificar.
-                  <p className="duna-caption" style={{ marginTop: '6px', marginBottom: 0 }}>
-                    Texto del botón: <b>{acentoTxt.toLowerCase() === '#ffffff' ? 'blanco' : 'oscuro'}</b> · contraste {razon(acentoTxt, form.acento)}:1
-                  </p>
-                )}
-                {avisoBotonTexto && <Aviso>El texto del botón puede costar de leer sobre este acento. Prueba un acento más oscuro o más claro.</Aviso>}
-                {avisoAcentoFondo && <Aviso>El acento casi no se distingue del fondo: los botones y detalles pueden perderse.</Aviso>}
-              </div>
-
-              {/* PIEZA 3 · LO QUE SE CALCULA SOLO: los 19 derivados, COLAPSADOS, visibles pero NO
-                  editables. `derivarPaleta` ya devuelve el mapa completo; esto es renderizarlo. */}
-              {!acentoInvalido && (
-                <div className="tienda-form__bloque">
-                  <details>
-                    <summary style={{ cursor: 'pointer' }}>
-                      <span className="duna-field__label">Lo que se calcula solo</span>
-                    </summary>
-                    <p className="duna-caption" style={{ marginTop: '4px' }}>
-                      El resto de la paleta se deriva de tus tres colores. No se edita.
-                    </p>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 'var(--duna-space-3)', marginTop: 'var(--duna-space-2)' }}>
-                      {derivados.map(nombre => (
-                        <div key={nombre} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                          <span aria-hidden style={{ width: 22, height: 22, borderRadius: 6, background: derivada[nombre], border: '1px solid var(--duna-border)', flexShrink: 0 }} />
-                          <span style={{ minWidth: 0 }}>
-                            <span className="duna-caption" style={{ display: 'block', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombre}</span>
-                            <span style={{ display: 'block', fontFamily: 'var(--duna-font-mono)', fontSize: 11, color: 'var(--duna-muted)' }}>{derivada[nombre]}</span>
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                </div>
-              )}
-
-              {/* PIEZA 4 · TIPOGRAFÍA: el par tipográfico, del SET CERRADO (§ fuentes). Cada opción se
-                  muestra CON sus fuentes —el label en la display, la descripción en el cuerpo—, así el
-                  cliente ve el par antes de elegir. Elegir uno actualiza la vista previa en vivo. Un par
-                  siempre es válido, así que no tiene aviso ni estado inválido (a diferencia del acento). */}
-              <div className="tienda-form__bloque">
-                <span className="duna-field__label">Tipografía</span>
-                <p className="duna-caption" style={{ marginTop: '2px' }}>
-                  Las fuentes de los títulos y del texto. Editorial son las de hoy.
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)', marginTop: '6px' }}>
-                  {PARES_FUENTES.map(par => {
-                    const activo = (fuentePar ?? 'editorial') === par.clave;
-                    return (
-                      <button
-                        key={par.clave} type="button" aria-pressed={activo}
-                        onClick={() => cambiarFuente(par.clave === 'editorial' ? null : par.clave)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px 10px 12px',
-                          width: '100%', textAlign: 'left', borderRadius: 'var(--duna-r-l)', cursor: 'pointer',
-                          border: `1px solid ${activo ? 'var(--duna-ink)' : 'var(--duna-border)'}`,
-                          background: activo ? 'var(--duna-surface)' : 'transparent',
-                          boxShadow: activo ? 'var(--duna-shadow-1)' : 'none',
-                        }}
-                      >
-                        {/* La muestra: "Ag" en la fuente DISPLAY del par —lo primero que se lee de una tipografía—. */}
-                        <span aria-hidden style={{
-                          display: 'grid', placeItems: 'center', width: 44, height: 40, flexShrink: 0,
-                          borderRadius: 8, background: 'var(--duna-bg)', border: '1px solid var(--duna-border)',
-                          fontFamily: par.titulo, fontSize: 24, lineHeight: 1, color: 'var(--duna-ink)',
-                        }}>Ag</span>
-                        <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                          {/* El LABEL en la display, la DESCRIPCIÓN en el cuerpo → se ven las dos fuentes del par. */}
-                          <span style={{ fontFamily: par.titulo, fontSize: 15, fontWeight: 600, color: 'var(--duna-ink)' }}>{par.label}</span>
-                          <span className="duna-caption" style={{ fontFamily: par.cuerpo, margin: 0 }}>{par.descripcion}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {errorServidor && <p className="duna-field__error" role="alert" style={{ margin: 0 }}>{errorServidor}</p>}
-
-              {/* Escape hatch a FÁBRICA — reset DIRECTO con confirmación; empujado a la derecha (es un
-                  reset, no el par publicar/descartar). Sólo con algo que resetear. */}
-              {puedeResetear && (
-                <div style={{ display: 'flex' }}>
+          {/* LA REGLETA: Base · Acento · Tipografía. ANCHO (≥1080): las tres a la vista. ANGOSTO
+              (<1080): la columna de tabs + la pieza del `data-grupo` activo (todo por CSS; el estado
+              sólo elige el eje). Las piezas se mueven ENTERAS: ni un control cambia de comportamiento. */}
+          <div className="tienda-regleta" data-grupo={grupoActivo}>
+            <div className="tienda-regleta__tabs" role="tablist" aria-label="Eje a editar">
+              {([
+                { clave: 'base',   label: 'Base',       aviso: avisoBaseTexto },
+                { clave: 'acento', label: 'Acento',     aviso: avisoBotonTexto || avisoAcentoFondo },
+                { clave: 'tipo',   label: 'Tipografía', aviso: false },
+              ] as const).map(t => {
+                const on = grupoActivo === t.clave;
+                return (
                   <button
-                    type="button" onClick={() => setConfirmandoFabrica(true)} disabled={procesando}
-                    className="duna-btn duna-btn--ghost" style={{ marginLeft: 'auto' }}
+                    key={t.clave} type="button" role="tab" aria-selected={on} onClick={() => setGrupoActivo(t.clave)}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+                      padding: '5px 10px', borderRadius: 'var(--duna-r-full)', fontSize: 11, fontWeight: 600,
+                      cursor: 'pointer', textAlign: 'left',
+                      border: on ? '1px solid var(--duna-border-2)' : '1px solid transparent',
+                      background: on ? 'var(--duna-surface)' : 'none',
+                      color: on ? 'var(--duna-ink)' : 'var(--duna-muted)',
+                      boxShadow: on ? 'var(--duna-shadow-1)' : 'none',
+                    }}
                   >
-                    Usar el tema por defecto
+                    <span>{t.label}</span>
+                    {t.aviso && !on && <span aria-hidden style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--duna-sol)', flexShrink: 0 }} />}
                   </button>
-                </div>
+                );
+              })}
+            </div>
+
+            {/* PIEZA · BASE: muestras "Aa" (tinta sobre fondo). En el strip el contraste va en UNA línea
+                (el de la base activa), no por-chip; el aviso se pega ACÁ. */}
+            <div className="tienda-regleta__pieza tienda-regleta__pieza--base">
+              <span className="duna-field__label">Base (fondo y texto)</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                {BASES.map(b => {
+                  const activa = baseActiva?.label === b.label;
+                  return (
+                    <button
+                      key={b.label} type="button" onClick={() => elegirBase(b)} aria-pressed={activa}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px 5px 5px',
+                        borderRadius: 'var(--duna-r-m)', cursor: 'pointer',
+                        border: `1px solid ${activa ? 'var(--duna-ink)' : 'var(--duna-border)'}`,
+                        background: activa ? 'var(--duna-surface)' : 'transparent',
+                        boxShadow: activa ? 'var(--duna-shadow-1)' : 'none',
+                      }}
+                    >
+                      <span aria-hidden style={{
+                        display: 'grid', placeItems: 'center', width: 30, height: 24, borderRadius: 8,
+                        background: b.fondo, color: b.tinta, border: '1px solid var(--duna-border)',
+                        fontWeight: 700, fontSize: 12, lineHeight: 1, flexShrink: 0,
+                      }}>Aa</span>
+                      <span className="duna-body" style={{ fontSize: 11, fontWeight: activa ? 600 : 500, whiteSpace: 'nowrap' }}>{b.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="duna-caption" style={{ margin: '6px 0 0' }}>Texto sobre fondo: {razon(form.tinta, form.fondo)}:1</p>
+              {avisoBaseTexto && <Aviso>El texto principal puede costar de leer sobre este fondo. Prueba una base más contrastada.</Aviso>}
+            </div>
+
+            {/* PIEZA · ACENTO (picker libre): con el auto-flip del texto del botón DECLARADO. */}
+            <div className="tienda-regleta__pieza tienda-regleta__pieza--acento">
+              <label className="duna-field__label" htmlFor="pal-acento">Acento de marca</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginTop: '6px' }}>
+                <input
+                  id="pal-acento" type="color"
+                  value={HEX6.test(form.acento) ? form.acento : '#8b4513'}
+                  onChange={e => cambiar({ acento: e.target.value })}
+                  style={{ width: 34, height: 30, padding: 0, border: '1px solid var(--duna-border)', borderRadius: 'var(--duna-r-m)', background: 'none', cursor: 'pointer' }}
+                  aria-label="Elegir color de acento"
+                />
+                <input
+                  className="duna-input" style={{ width: 110, fontFamily: 'var(--duna-font-mono)' }}
+                  value={form.acento} onChange={e => cambiar({ acento: e.target.value })}
+                  aria-invalid={acentoInvalido || undefined}
+                />
+              </div>
+              {acentoInvalido ? (
+                <p className="duna-field__error" style={{ marginTop: '4px', marginBottom: 0 }}>Usa un hex de 6 dígitos, p. ej. #8b4513.</p>
+              ) : (
+                // AUTO-FLIP DECLARADO: el texto del botón de acento es FIJO (blanco o tinta, el que más
+                // contraste). Se dice cuál y con cuánto, en vez de dejarlo como un valor invisible.
+                <p className="duna-caption" style={{ marginTop: '6px', marginBottom: 0 }}>
+                  Texto del botón: <b>{acentoTxt.toLowerCase() === '#ffffff' ? 'blanco' : 'oscuro'}</b> · contraste {razon(acentoTxt, form.acento)}:1
+                </p>
               )}
+              {avisoBotonTexto && <Aviso>El texto del botón puede costar de leer sobre este acento. Prueba un acento más oscuro o más claro.</Aviso>}
+              {avisoAcentoFondo && <Aviso>El acento casi no se distingue del fondo: los botones y detalles pueden perderse.</Aviso>}
+            </div>
+
+            {/* PIEZA · TIPOGRAFÍA: "Ag" en la fuente DISPLAY del par + el nombre, del SET CERRADO (§ fuentes).
+                En el strip la muestra es compacta (sin la descripción del cuerpo); el control es el mismo. */}
+            <div className="tienda-regleta__pieza tienda-regleta__pieza--tipo">
+              <span className="duna-field__label">Tipografía</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                {PARES_FUENTES.map(par => {
+                  const activo = (fuentePar ?? 'editorial') === par.clave;
+                  return (
+                    <button
+                      key={par.clave} type="button" aria-pressed={activo}
+                      onClick={() => cambiarFuente(par.clave === 'editorial' ? null : par.clave)}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, width: 56,
+                        padding: '6px 4px', borderRadius: 'var(--duna-r-m)', cursor: 'pointer',
+                        border: `1px solid ${activo ? 'var(--duna-ink)' : 'var(--duna-border)'}`,
+                        background: activo ? 'var(--duna-surface)' : 'transparent',
+                        boxShadow: activo ? 'var(--duna-shadow-1)' : 'none',
+                      }}
+                    >
+                      <span aria-hidden style={{
+                        display: 'grid', placeItems: 'center', width: 34, height: 28, borderRadius: 8,
+                        background: 'var(--duna-bg)', border: '1px solid var(--duna-border)',
+                        fontFamily: par.titulo, fontSize: 18, lineHeight: 1, color: 'var(--duna-ink)',
+                      }}>Ag</span>
+                      <span style={{
+                        fontFamily: par.titulo, fontSize: 11, fontWeight: 600, color: 'var(--duna-ink)',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%',
+                      }}>{par.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
