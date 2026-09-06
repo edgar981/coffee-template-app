@@ -1642,12 +1642,30 @@ primarios compitiendo (§ un solo primario sólido por vista).
 
 ### Qué QUEDA en `siteConfig`
 
-Sólo lo ESTRUCTURADO: `tienda.emailColors` (paleta hex de los correos, la lee `buildBrand`),
-`footerNav` y `legalNav` (los lee StoreFooter). Y las FUNCIONES puras —`whatsappUrl`,
-`formatWhatsappDisplay`, `instagramUrl`— que no son datos de tenant. Todo lo demás (`brand`,
-`contacto`, los planos de `tienda`) se retiró. `whatsappUrl` recibe el número (una sola fuente:
-`SiteSetting.whatsapp`); `formatWhatsappDisplay` DERIVA el display del número, sin un segundo
-campo que pudiera divergir.
+Sólo lo ESTRUCTURADO: `footerNav` y `legalNav` (los lee StoreFooter). Y las FUNCIONES puras
+—`whatsappUrl`, `formatWhatsappDisplay`, `instagramUrl`— que no son datos de tenant. Todo lo demás
+(`brand`, `contacto`, los planos de `tienda`, **y `tienda.emailColors`**) se retiró. `whatsappUrl`
+recibe el número (una sola fuente: `SiteSetting.whatsapp`); `formatWhatsappDisplay` DERIVA el display
+del número, sin un segundo campo que pudiera divergir.
+
+### Los COLORES de los correos DERIVAN de la paleta (C2 · #4a)
+
+Tanda C2 (2026-09-05). Los 6 colores de los correos al cliente dejaron de ser un set hand-picked
+(`siteConfig.tienda.emailColors`, retirado) y **DERIVAN de la paleta del cliente** (`content.tema`), vía
+`coloresCorreo(fondo, tinta, acento)` (`lib/config/email-colors.ts`, puro, capa 1) que corre las 3 raíces
+por `derivarPaleta` y mapea. Los clientes de correo no leen CSS vars, así que van INLINE —por eso el núcleo
+los recibe como VALORES (`Brand.colors`), no tokens—.
+
+- **`buildBrand` lee `content.tema`** (el lector RAW `readSiteContent`, lo PUBLICADO, NUNCA el borrador —un
+  correo lleva el tema en vivo—). Un segundo cliente → sus correos visten su paleta, sin tocar código.
+- **EL MAPEO: 4 exactos por rol + 2 de CRITERIO**, y los de criterio se decidieron por lo que la plantilla
+  (`shared.ts`, `const C = brand.colors`) **PINTA** con cada uno, no por parecido de hex:
+  - exactos: crema→fondo · papel→superficie · cafe→acento · borde→linea.
+  - **espresso→tinta**: `C.espresso` pinta los TÍTULOS y el cuerpo → el rol ink más oscuro (la tinta).
+  - **muted→texto-suave**: `C.muted` pinta el texto SECUNDARIO (tagline, pie, subtexto) → el rol texto-suave.
+- **Nayoli corre de hexes** (aceptado por el owner): sin `content.tema` (raíces null) deriva de
+  `RAICES_DEFECTO`, así que `cafe` queda idéntico (#8b4513) y los demás se ajustan a los derivados. Los
+  correos NO están gateados a byte-idéntico. Afirmado en `email-colors.test.ts` (el CABLEADO, no valores).
 
 ### La cuenta de transferencia del checkout es DATO del tenant, no un literal
 
@@ -1787,6 +1805,38 @@ PANTALLA: Configuración = identidad en vivo, Tienda = lo que se publica.
   PEGAN al control que los causa (base→texto/fondo; acento→texto del botón y acento/fondo), ya no una
   pila bajo el preview. Conservado íntegro: el autoguardado sólo-si-válido, Publicar/Descartar y el
   reset a fábrica de arriba — sólo cambió la FORMA, no el contrato.
+
+### Las FUENTES son `content.tema.fuentePar` — gemelo de la paleta, set CERRADO (C2 · #3)
+
+Tanda C2 (2026-09-05). El storefront gana un PAR TIPOGRÁFICO configurable, cuarto campo de `content.tema`
+(`{fondo, tinta, acento, fuentePar}`). **`null` = Editorial (Inter/Playfair, las de hoy), el default**,
+como las raíces en null = fábrica. La mecánica es el GEMELO de la paleta:
+
+- **SET CERRADO de 5 pares curados** (`lib/config/fuentes.ts`, puro): Editorial (default) · Cálido
+  (Fraunces+Nunito Sans) · Moderno (Sora+Inter) · Clásico (Lora+Source Sans 3) · Nítido (Poppins+Work
+  Sans). NO hay campo de fuente libre —evita subir una fuente rota o una que borre la separación
+  producto/cliente—. Pesos por ROL iguales a hoy (display 400;500;600, cuerpo 300;400;500;600;700).
+- **`cssFuentes(fuentePar)` gemelo de `cssPaleta`** (`lib/config/fuentes-style.ts`): `:root{--sf-fuente-*}`
+  o `null` (Editorial). Las clases **`.font-*` leen `var(--sf-fuente-{cuerpo,titulo}, <Inter/Playfair>)`**
+  SIN renombrarse; sin la var (Editorial) caen al fallback → **Nayoli byte-idéntico** (el `@import` de
+  globals.css se queda como loader de Editorial + el default del panel).
+- **El `<link>` sólo del par CUSTOM** (el layout del storefront lo inyecta); Editorial NO lleva link —lo
+  cubre el `@import`—, así **por despliegue se descargan 2 familias** (las del par). SIN next/font.
+- **FUENTES y COLORES son EJES INDEPENDIENTES.** El editor es UNIFICADO (una pieza "Tipografía" junto a
+  Base/Acento/Calculado, § el modelo de bloques; un solo borrador/publicar, para que publicar no pise un
+  eje con el otro), PERO elegir fuente NO fuerza los colores a custom, ni al revés: `wireDe` manda las
+  raíces en NULL si los colores siguen en fábrica y el `fuentePar` aparte (verificado: fábrica-colores +
+  par-custom coexisten byte-idéntico en los colores). Reset a fábrica resetea AMBOS.
+- **Space Grotesk NO se ofrece a clientes** (owner): es la tipografía de DUNA (el design system del
+  panel), y un cliente vistiendo su tienda como el panel borra la separación producto/cliente. **Sora**
+  (otro grotesque geométrico) ocupa "Moderno". Afirmado con test: ningún par ofrece Space Grotesk/Hanken/
+  Spline.
+- **COSTO DE RED medido** (latin, woff2 deduplicado, vs Editorial el actual): **Editorial ~85 KB es el
+  MÁS pesado**; los otros cuatro pesan 12–19 KB MENOS. Ninguno pesa notablemente más.
+- **El schema del PUT** (`paletaEditableSchema`) gana `fuentePar` (z.enum del set + null, **REQUERIDO** —el
+  tema se escribe wholesale, omitirlo lo resetearía en silencio). `guardarTemaBorrador` escribe el tema
+  COMPLETO. La verificación del picker del panel es capa 3 (ruta con sesión); el mecanismo del storefront
+  (byte-identidad + derivación per-cliente) se midió en navegador.
 
 ### La FRONTERA fina de "defaults-como-fallback" — requerido ≠ opcional
 
@@ -2397,6 +2447,15 @@ Va después del multitenant porque el tema por-cliente necesita el modelo de ten
 adelantarlo sería configuración por un solo cliente. **DISPARADOR: el SEGUNDO cliente.** Con Nayoli
 sola, los colores literales están bien.
 
+**LO QUE C2 YA ENTREGÓ (2026-09-05), y por qué NO cierra esta capa:** la PALETA (fondo·tinta·acento →
+los `--sf-*`, § #55), las FUENTES (`content.tema.fuentePar`, § Las FUENTES son content.tema), los COLORES
+de correo (§ #4a) y los de chrome/PWA (§ los 3 colores DERIVAN, #1) YA son configuración por cliente
+—derivada de `content.tema`, sin código por cliente—. Lo que QUEDA hardcodeado son los **literales de
+color POR-COMPONENTE** que NO salen de las 3 raíces: `text-[#d4a97a]`/`bg-[#1a0f08]` sueltos en
+HeroSection y hermanos, y el **color de "historias"** (el énfasis del titular). Ésos son acentos
+específicos de sección, no derivables de fondo/tinta/acento, así que siguen esperando esta capa (tokens
+por-componente + su superficie de edición). C2 movió lo que la paleta puede derivar; esto es lo que no.
+
 ### Datos de negocio editables — `siteConfig` → `SiteSetting`
 
 **LOS CAMPOS PLANOS YA SON EDITABLES** (tanda del 2026-08-24). nombre, tagline,
@@ -2415,10 +2474,11 @@ tenancy.
 **Lo que QUEDA post-multitenant:**
 - el **`tenant_id` / multi-schema**: la fila `default` pasa a una por tenant, scopeada; el
   loader gana el `storeId`. Es el único cambio de esquema, y es el que va con Carlos.
-- los **ESTRUCTURADOS editables** (`emailColors`, `footerNav`, `legalNav`): son editores
-  ricos, no inputs de texto — siguen en `siteConfig` (código) hasta que valga la pena.
-- el resto del inventario de tenant (§ Identidad, `app/manifest.ts`, el title/description
-  de la raíz) sigue en código.
+- los **ESTRUCTURADOS que quedan** (`footerNav`, `legalNav`): son editores ricos, no inputs de
+  texto — siguen en `siteConfig` (código) hasta que valga la pena. (`emailColors` ya NO está acá: se
+  retiró en C2 y DERIVA de la paleta, § Los COLORES de los correos DERIVAN de la paleta.)
+- el resto del inventario de tenant (§ Identidad, el title/description de la raíz) sigue en código;
+  los COLORES de chrome/PWA y el manifest del cliente ya derivan de `content.tema` (§ #1).
 
 ## Imágenes en `public/`
 
@@ -3642,6 +3702,30 @@ Sigue sin haber `openGraph` ni `twitter` en ningún lado: es una ausencia, no un
 el día del multitenant. Lo del lado del producto (Duna) es lo que declara `app/(admin)/layout.tsx`
 y `public/duna.webmanifest`.
 
+### Los 3 colores de chrome/PWA DERIVAN de la paleta; los íconos son PUNTO DE SWAP (C2 · #1)
+
+Tanda C2 (2026-09-05). Los tres literales de color adyacentes a los íconos dejaron de ser hardcodeados de
+Nayoli y DERIVAN de la paleta del cliente (`content.tema`), vía `coloresPWA(fondo, tinta)` (puro, capa 1):
+
+- **`theme-color` del navegador** (barra de direcciones) ← fondo. Vive en un **`generateViewport`** del
+  layout del storefront que SOBREESCRIBE el `themeColor` de la RAÍZ (que queda como fallback para páginas
+  fuera de un grupo, p. ej. login) —igual que el admin sobreescribe el suyo—.
+- **`background_color` del manifest** (splash de la PWA) ← fondo.
+- **`theme_color` del manifest** (barra en standalone) ← tinta.
+
+**NULL (Nayoli/fábrica) → los literales EXACTOS de hoy** (`#F9F6F4`/`#1E150E`, near-dups de la paleta): se
+mantienen exactos para BYTE-IDENTIDAD del chrome/PWA de Nayoli —mismo criterio que la paleta con raíces
+null (§ cssPaleta)—. CUSTOM → el fondo/tinta del cliente (medido: fondo `#0a3d2a` → chrome/bg, tinta
+`#f5fff8` → PWA theme). Con esto un segundo cliente viste su navegador y su PWA con SU color.
+
+**LOS ÍCONOS-IMAGEN (6 archivos) siguen siendo assets ESTÁTICOS por-despliegue — PUNTO DE SWAP, sin motor.**
+Un cliente nuevo REEMPLAZA `favicon.ico`·`icon.svg`·`apple-icon.png`·`icon-192/512/512-maskable.png` en
+`public/` con los MISMOS nombres → cero código (ni el layout ni el manifest cambian). Están inventariados
+con su regla de caché corto en `next.config.ts` (§ ICONOS DE MARCA DEL STOREFRONT), y los dos sitios que
+los referencian (layout `metadata.icons` + `/api/manifest`) apuntan a ese swap point. **DERIVAR el
+ícono-imagen de la paleta (un monograma con `ImageResponse`) es el motor #54**, fuera de C2; su ruta
+dinámica sigue cerrada (`next.config.ts`, § Backlog #54) hasta que el favicon sea SUBIBLE (escala self-serve).
+
 ## El WORDMARK carga la identidad; el MARK es asset por-despliegue
 
 Tanda del storefront-por-cliente (2026-08-28). La identidad PORTABLE del storefront es el
@@ -3657,6 +3741,19 @@ no se agrega uno especulativo** —no hay subida de logo todavía, así que un `
 escritor sería la mina inerte de siempre (§ el ex-`Product.agotado`)—. La decisión del mark
 quedó pendiente ("de la tanda de assets") y se resuelve acá: es per-despliegue, y el wordmark es
 lo que hace que un segundo cliente se vea suyo sin tocar el mark.
+
+**EL MARK ES OPT-IN POR DESPLIEGUE; EL DEFAULT ES WORDMARK-SOLO (C2, 2026-09-05).** `Logo` gana
+`conMark` (default **false**): sin él el lockup es sólo el wordmark, SIN hueco (el `gap` de flex sólo
+separa ENTRE hijos, verificado en nav y footer). El flag por-despliegue es `STOREFRONT_TIENE_MARK`
+(env **`NEXT_PUBLIC_STOREFRONT_MARK=1`**, `lib/config/storefront-marca`), y los consumidores lo pasan.
+Es ENV y **no un literal en el código compartido** (§ El código compartido no NACE siendo Nayoli): un
+`const = true` haría que un fork mostrara la flor de Nayoli sin pedirlo. Mismo patrón que `NOINDEX`.
+`NEXT_PUBLIC_` porque el mark se renderiza en cliente (StoreNav/StoreFooter) y se inlinea en build. El
+SVG de la flor sigue INLINE en `Logo.tsx` como el PUNTO DE SWAP. **DEUDA DECLARADA:** el flag vive en
+env, no en dato — cuando el logo sea SUBIBLE desde el panel (§ Backlog #54), el mark se muda a
+`SiteSetting` y el flag se deriva de "hay logo o no". **PASO DE DESPLIEGUE (obligatorio para conservar
+un mark):** poner `NEXT_PUBLIC_STOREFRONT_MARK=1` en Vercel ANTES del build (se inlinea en build);
+Nayoli ya lo tiene. Sin él → wordmark-solo. En local, la misma var en `.env` (gitignored).
 
 ### El logo subido se RESPETA, nunca se tiñe
 
@@ -3708,10 +3805,14 @@ es NEUTRO; lo por-despliegue es DATO (SiteSetting) o env, nunca un literal de Na
   botón muerto, peor que no mostrarlo. (El número de pago móvil del checkout NO es un enlace —es un
   display—: queda como config de pago del cliente, anotado, no como enlace muerto.)
 
-Lo ARTESANAL que esto NO cierra (va a **TANDA C**): los 6 íconos de `public/`, el mark inline del
-`Logo`, las fuentes (**no existe `fontPair`** — verificado, cero apariciones), y `lib/config/site.ts`
-(emailColors/footerNav/legalNav). El **import de catálogo** —lo que decide "día vs semana" y lo único
-que el cliente podría hacer solo— es **TANDA B** (discovery al abrirse).
+**TANDA C CERRADA (2026-09-05): la de-Nayolificación del template terminó** (C1 presentaciones, C2
+tema/identidad, C3 taxonomía). Lo que era "artesanal" ya no lo es: los **6 íconos** son punto de swap
+documentado (§ Identidad, sin motor —eso es #54—); el **mark inline** es opt-in por despliegue (§ arriba);
+las **fuentes** son `content.tema.fuentePar` (§ Las FUENTES son content.tema; el "no existe fontPair" de
+antes quedó OBSOLETO —ahora existe—); y de `lib/config/site.ts` los **emailColors** DERIVAN de la paleta
+(§ El inyector de marca), quedando sólo `footerNav`/`legalNav` (editores ricos, post-multitenant). El
+**import de catálogo** (TANDA B) ya se abrió (§ El import de catálogo). Lo que queda café-shape es de
+CLIENTE, no de template: #59 (ficha del producto), #60 (footerNav), #63 (copy), #65 (defectos dormidos).
 
 ## Política de tema (dark mode)
 

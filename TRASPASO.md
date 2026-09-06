@@ -1,6 +1,34 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-09-05 (**EDITOR DE /admin/tienda REDISEÑADO — dibuja por BLOQUES + superficies + Colores.**
+**Actualizado:** 2026-09-05 (**TANDA C2 MERGEADA — la capa de TEMA e IDENTIDAD por cliente. Con C1 y C3, la
+de-Nayolificación del template TERMINÓ.** Cuatro ejes, cada uno DERIVA de `content.tema` o es opt-in por despliegue, para
+que un despliegue nuevo no vista la identidad de Nayoli. **#4a emailColors:** los correos DERIVAN su paleta de
+`content.tema` (`coloresCorreo`, capa 1); 4 mapeos exactos por rol + 2 de criterio (**espresso→tinta**, **muted→texto-suave**,
+decididos por lo que la plantilla PINTA, no por parecido de hex); `buildBrand` lee lo PUBLICADO; se retiró el
+`siteConfig.tienda.emailColors` hand-picked; Nayoli corre de hexes (aceptado). **#3 fuentes:** set CERRADO de 5 pares
+curados (`lib/config/fuentes`), `fuentePar` cuarto campo de `content.tema`; `cssFuentes` GEMELO de `cssPaleta`; las clases
+`.font-*` leen `var(--sf-fuente-*, <Inter/Playfair>)` SIN renombrarse → Editorial (default) no inyecta nada = **Nayoli
+byte-idéntico**; el `<link>` sólo del par CUSTOM (2 familias por despliegue); SIN next/font; fuentes y colores son EJES
+INDEPENDIENTES (`wireDe` manda raíces null si los colores siguen en fábrica). **Sora ocupa "Moderno"** (Space Grotesk es de
+DUNA, no se ofrece a clientes; test lo afirma). Control unificado en /admin/tienda ("Colores y tipografía", PIEZA 4). Costo
+de red medido: **Editorial es el par MÁS pesado**; los otros 4 pesan 12–19 KB menos (nada que sacar). **#2 mark:** OPT-IN
+por despliegue (`Logo.conMark`, default WORDMARK-SOLO, sin hueco en nav/footer); flag `STOREFRONT_TIENE_MARK` (env
+`NEXT_PUBLIC_STOREFRONT_MARK=1`, patrón NOINDEX, no un literal en código compartido); el SVG de la flor queda inline como
+punto de swap. DEUDA declarada: cuando el logo sea subible (#54) se mueve a SiteSetting. **#1 íconos:** punto de swap
+documentado (6 assets estáticos por-despliegue, reemplazar archivos = cero código; el motor `ImageResponse` es #54, su ruta
+sigue cerrada); los 3 colores adyacentes (theme-color del navegador vía `generateViewport` + background/theme del manifest)
+SÍ DERIVAN de la paleta (`coloresPWA`), byte-idénticos para Nayoli, per-cliente en custom. Verificación: capa 1 **858/858**
+· carril **189/189** · next build (SWC) verde · **capa 3 storefront** medida en navegador (byte-identidad de Nayoli:
+Editorial sin `<style>`/`<link>` extra, theme-color meta único #F9F6F4, manifest sin cambio; + derivación per-cliente:
+Cálido/Sora cargan y cambian, fondo custom → chrome/PWA). Gate del panel PASADO por el owner. Mergeada a `main` `--no-ff`
+(`60e7f78`), rama borrada. **PASO DE DESPLIEGUE — ya hecho por el owner: `NEXT_PUBLIC_STOREFRONT_MARK=1` en Vercel para el
+despliegue de Nayoli** (se inlinea en build; sin él, wordmark-solo). Para cualquier cliente que suba su propio mark, ese es
+el paso. **SIGUIENTE, en este orden (owner):** los defectos DORMIDOS del censo de avisos (§ Backlog #65 — hoy un despliegue
+nuevo sin personalizar muestra el copy y las imágenes de NAYOLI como si fueran del cliente, la condición por defecto de toda
+tienda nueva), luego **#49** (planes de suscripción hardcodeados). **NO TOCAR: #54, #58, #61, #62, Fase 2 de #46.** **NO
+quedan pasos manuales abiertos.**)
+
+**ANTES — 2026-09-05 · EDITOR DE /admin/tienda REDISEÑADO — dibuja por BLOQUES + superficies + Colores.**
 Adoptado ENTERO de una sesión de diseño con mockup navegable (el ciclo de parches sobre parches se cortó parando a
 diseñar). La cáscara del editor (`TiendaSeccionEditor`) dibuja por **BLOQUES** —una PIEZA de la tienda que POSEE sus
 imágenes y sus textos—, no por dos loops paralelos (todas las imágenes, luego todos los textos) que partían una tarjeta
@@ -26,7 +54,7 @@ verde · **storefront byte-idéntico** (0 archivos de storefront tocados en toda
 a `main` `--no-ff` (`b97be30`), rama borrada. **#58 (punto focal) sigue FUERA** —necesita campos de coordenadas en el
 modelo; el botón "Punto focal" de la captura era del MOCKUP, no del código (verificado por grep: 0 apariciones)—. **#49
 enriquecido** (planes de Suscripción no editables: viven en `SUBSCRIPTION_PLANS`, dos consumidores, el grid asume 3, SIN
-precios horneados → el censo de datos falsos NO lo adelanta). **NO quedan pasos manuales abiertos.**)
+precios horneados → el censo de datos falsos NO lo adelanta). **NO quedan pasos manuales abiertos.** _(→ TANDA C2 mergeada el 2026-09-05, arriba.)_
 
 **ANTES — 2026-09-04 · EDITOR VISUAL #46, FASE 1 CERRADA — el PUENTE vista→formulario.** Clic en una tarjeta
 de la vista previa → scroll + resalte de su grupo "Tarjeta N" en el formulario, SÓLO Presentaciones. Ataca el dolor
