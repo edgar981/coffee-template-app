@@ -20,6 +20,29 @@ test('sin `bloques` → UN bloque `seccion` con todas las imágenes y campos (re
   }
 });
 
+// INVARIANTE general: `bloquesResueltos` mapea los NOMBRES de campo/imagen de cada bloque a los
+// descriptores del `config` con `porCampo.get(n)!` — un `!` que MIENTE si el nombre no existe (typo o
+// campo no declarado en `config.campos`), dejando `undefined` en el array → la cáscara crashea al
+// renderizarlo. Este test lo caza para TODAS las secciones (las que declaran bloques Y las que no), así
+// que agregar una sección con un nombre de campo suelto falla acá, no en runtime.
+test('todo campo/imagen de bloque resuelve a un descriptor REAL (ningún nombre suelto)', () => {
+  for (const config of SECCIONES_TIENDA) {
+    for (const b of bloquesResueltos(config)) {
+      if (b.tipo === 'seccion' || b.tipo === 'tarjeta') {
+        b.campos.forEach((c, i) => assert.ok(c != null, `${config.seccion}/${b.tipo}: campo #${i} no existe en config.campos`));
+      }
+      if (b.tipo === 'seccion') {
+        b.imagenes.forEach((im, i) => assert.ok(im != null, `${config.seccion}/seccion: imagen #${i} no existe en config.imagenes`));
+      }
+      // (La imagen de un `tarjeta` no lleva `!` en el resolver —`b.imagen ? … : undefined`—, así que un
+      //  nombre suelto y "sin imagen" son ambos `undefined`, indistinguibles; no se puede afirmar acá.)
+      if (b.tipo === 'collage') {
+        b.imagenes.forEach((im, i) => assert.ok(im != null, `${config.seccion}/collage: imagen #${i} no existe`));
+      }
+    }
+  }
+});
+
 test('un bloque `seccion` DECLARADO resuelve los NOMBRES a sus descriptores, en orden', () => {
   const base = SECCIONES_TIENDA.find(s => s.seccion === 'subscriptionCTA')!;
   const config = { ...base, bloques: [{ tipo: 'seccion' as const, campos: ['titulo', 'eyebrow'] }] };

@@ -8,6 +8,8 @@ import SubscriptionCTA from '@/components/storefront/home/SubscriptionCTA';
 import TestimonialSection from '@/components/storefront/home/TestimonialSection';
 import NosotrosHistoria from '@/components/storefront/nosotros/NosotrosHistoria';
 import NosotrosGaleria from '@/components/storefront/nosotros/NosotrosGaleria';
+import SuscripcionPlanes from '@/components/storefront/suscripciones/SuscripcionPlanes';
+import SuscripcionPasos from '@/components/storefront/suscripciones/SuscripcionPasos';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { EscalaDesktop } from '@/components/admin/EscalaDesktop';
@@ -49,6 +51,10 @@ const COMPONENTES: Record<SeccionVista, ComponentType> = {
   // La galería toma `negocio` opcional para el fallback del alt; en el preview va sin prop (el alt de
   // un preview no se usa). Todo-opcional → asignable a ComponentType.
   nosotrosGaleria: NosotrosGaleria,
+  // SuscripcionPlanes toma `whatsapp` opcional para el CTA; en el preview va sin prop → el CTA se oculta
+  // (un `wa.me/` sin número es un botón muerto). Todo-opcional → asignable a ComponentType.
+  suscripcionPlanes: SuscripcionPlanes,
+  suscripcionPasos: SuscripcionPasos,
 };
 
 export default function VistaTiendaEnVivo({

@@ -5,7 +5,7 @@
 // beforeunload, indicador, layout sticky) vive en la CÁSCARA (`TiendaSeccionEditor`). Si una
 // sección nueva necesitara algo fuera de esta config, es señal de que la cáscara se está forzando.
 
-export type SeccionVista = 'hero' | 'brandStory' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'nosotrosHistoria' | 'nosotrosGaleria';
+export type SeccionVista = 'hero' | 'brandStory' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos';
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
@@ -15,12 +15,12 @@ export type PaginaKey = 'home' | 'nosotros' | 'suscripciones';
 export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?: string }[] = [
   { key: 'home',     label: 'Home',     apagable: false },
   { key: 'nosotros', label: 'Nosotros', apagable: true },
-  // Suscripciones es una PÁGINA como las otras —su pestaña vive junto a Home/Nosotros—, pero HOY no
-  // tiene secciones editables: sus planes y sus pasos siguen en código (§ Backlog #49), así que su
-  // pestaña sólo lleva el interruptor + esta `nota`, y se llenará sola cuando #49 se construya. El
-  // interruptor gobierna las 5 superficies que enlazan a /suscripciones (§ paginas.suscripciones).
+  // Suscripciones es una PÁGINA como las otras —su pestaña vive junto a Home/Nosotros— con sus planes y
+  // sus pasos editables (§ Backlog #49, opción 1). El interruptor gobierna las 5 superficies que enlazan
+  // a /suscripciones (la página, el menú, el pie, el bloque de la home y el 2º CTA del hero); la `nota`
+  // lo dice porque ese alcance no es obvio.
   { key: 'suscripciones', label: 'Suscripciones', apagable: true,
-    nota: 'El interruptor muestra u oculta las suscripciones en toda la tienda: la página, el enlace del menú y del pie, y el bloque de la home. Sus planes todavía no se editan aquí.' },
+    nota: 'El interruptor muestra u oculta las suscripciones en toda la tienda: la página, el enlace del menú y del pie, y el bloque de la home.' },
 ];
 
 // `categoria: true` → el campo es un DESTINO de categoría: la cáscara lo renderiza con el
@@ -31,7 +31,10 @@ export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?:
 // owner no sabe si es izq o der). Vacío el título → cae al `label` estático (el fallback).
 // (`grupo` se RETIRÓ: era config declarada dos veces —una en imágenes, otra en campos— para armar un
 // encabezado duplicado; la agrupación por tarjeta la expresan ahora los BLOQUES, § BloqueConfig.)
-export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; tituloDe?: string; hint: string };
+// `opciones` → el campo es un SELECT NATIVO de opciones fijas (`destacadoSlot`: qué plan destacar). El
+// select nativo es la regla del panel para opciones fijas —su lista aparece un segundo y no compite con
+// nada (§ Controles de formulario)—. Excluye `textarea`/`categoria`.
+export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; tituloDe?: string; opciones?: { value: string; label: string }[]; hint: string };
 export type CampoImagen = { name: string; label: string };
 
 // Descriptor de un campo DE ÍTEM (para el RepeaterEditor). `tipo` es GENÉRICO (no nombra ningún
@@ -297,6 +300,92 @@ const NOSOTROS_GALERIA: SeccionConfig = {
   },
 };
 
-// El ORDEN es el orden en la pantalla. Las de la home primero (en el orden de la home), después las
-// de /nosotros; el editor las agrupa por `pagina` en pestañas.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, NOSOTROS_HISTORIA, NOSOTROS_GALERIA];
+// Los PLANES de /suscripciones (§ Backlog #49, opción 1). Encabezado + "Elige tu plan" (con el
+// select de plan destacado) + 4 slots de plan, cada uno un BLOQUE `tarjeta` ("Plan N") seguido de la
+// LISTA PLANA de sus beneficios (`benN_1..4`, como los bullets de subscriptionCTA, con compactado del
+// dato). Los planes 2-4 son opcionales: se muestran en el editor vacíos (el operador los llena para
+// agregarlos; el componente omite un plan sin nombre). NO hay tarjeta-colapso ni puente (eso es de
+// Presentaciones) — todos los planes se ven. Sección `ocultable:false` (el ocultar es a nivel de PÁGINA).
+const SUSCRIPCION_PLANES: SeccionConfig = {
+  seccion: 'suscripcionPlanes',
+  pagina: 'suscripciones',
+  titulo: 'Planes',
+  ocultable: false,
+  imagenes: [], // sección de solo texto (los planes no llevan imagen)
+  campos: [
+    { name: 'eyebrow',         label: 'Línea superior',       opcional: true, hint: 'La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },
+    { name: 'titulo',          label: 'Titular',              hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'tituloEnfasis',   label: 'Énfasis del titular',  opcional: true, hint: 'La palabra en cursiva bajo el titular (ej. "cada mes"). Vacío: no se muestra.' },
+    { name: 'subtitulo',       label: 'Subtítulo',            textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'planesTitulo',    label: 'Título de los planes', hint: 'Ej. "Elige tu plan". Vacío: se usa el texto por defecto.' },
+    { name: 'planesSubtitulo', label: 'Subtítulo de los planes', opcional: true, textarea: true, hint: 'Vacío: no se muestra.' },
+    { name: 'ctaLabel',        label: 'Botón de cada plan',   hint: 'El texto del botón que abre WhatsApp (ej. "Me interesa"). Vacío: se usa el texto por defecto.' },
+    { name: 'destacadoSlot',   label: 'Plan destacado',       opcional: true, hint: 'El plan que se resalta como "Más Popular". Sólo uno.',
+      opciones: [
+        { value: '',  label: 'Ninguno' },
+        { value: '1', label: 'Plan 1' },
+        { value: '2', label: 'Plan 2' },
+        { value: '3', label: 'Plan 3' },
+        { value: '4', label: 'Plan 4' },
+      ] },
+    // Plan 1 (requerido). Los `benN_*` NO llevan descriptor: la lista los pasa por NOMBRE (§ bloques).
+    { name: 'nombre1',      label: 'Nombre',      hint: 'Ej. "Plan 250 g". Vacío: se usa el texto por defecto.' },
+    { name: 'descripcion1', label: 'Descripción', textarea: true, hint: 'Cantidad y frecuencia, p. ej. "Una bolsa de 250 g cada mes". Vacío: se usa el texto por defecto.' },
+    { name: 'precio1',      label: 'Precio',      opcional: true, hint: 'Opcional, como TEXTO (la moneda y el formato son tuyos). Vacío: no se muestra.' },
+    // Planes 2-4 (opcionales): nombre vacío → el plan no se muestra.
+    { name: 'nombre2',      label: 'Nombre',      opcional: true, hint: 'Vacío: este plan no se muestra.' },
+    { name: 'descripcion2', label: 'Descripción', opcional: true, textarea: true, hint: 'Cantidad y frecuencia. Vacío: no se muestra.' },
+    { name: 'precio2',      label: 'Precio',      opcional: true, hint: 'Opcional, como texto. Vacío: no se muestra.' },
+    { name: 'nombre3',      label: 'Nombre',      opcional: true, hint: 'Vacío: este plan no se muestra.' },
+    { name: 'descripcion3', label: 'Descripción', opcional: true, textarea: true, hint: 'Cantidad y frecuencia. Vacío: no se muestra.' },
+    { name: 'precio3',      label: 'Precio',      opcional: true, hint: 'Opcional, como texto. Vacío: no se muestra.' },
+    { name: 'nombre4',      label: 'Nombre',      opcional: true, hint: 'Vacío: este plan no se muestra.' },
+    { name: 'descripcion4', label: 'Descripción', opcional: true, textarea: true, hint: 'Cantidad y frecuencia. Vacío: no se muestra.' },
+    { name: 'precio4',      label: 'Precio',      opcional: true, hint: 'Opcional, como texto. Vacío: no se muestra.' },
+  ],
+  bloques: [
+    { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'tituloEnfasis', 'subtitulo'] },
+    { tipo: 'seccion', campos: ['planesTitulo', 'planesSubtitulo', 'ctaLabel', 'destacadoSlot'] },
+    { tipo: 'tarjeta', slot: 1, titulo: 'Plan 1', campos: ['nombre1', 'descripcion1', 'precio1'] },
+    { tipo: 'lista', slots: ['ben1_1', 'ben1_2', 'ben1_3', 'ben1_4'], itemLabel: 'beneficio', hint: 'Hasta 4. La lista se cierra sin huecos.' },
+    { tipo: 'tarjeta', slot: 2, titulo: 'Plan 2 (opcional)', campos: ['nombre2', 'descripcion2', 'precio2'] },
+    { tipo: 'lista', slots: ['ben2_1', 'ben2_2', 'ben2_3', 'ben2_4'], itemLabel: 'beneficio' },
+    { tipo: 'tarjeta', slot: 3, titulo: 'Plan 3 (opcional)', campos: ['nombre3', 'descripcion3', 'precio3'] },
+    { tipo: 'lista', slots: ['ben3_1', 'ben3_2', 'ben3_3', 'ben3_4'], itemLabel: 'beneficio' },
+    { tipo: 'tarjeta', slot: 4, titulo: 'Plan 4 (opcional)', campos: ['nombre4', 'descripcion4', 'precio4'] },
+    { tipo: 'lista', slots: ['ben4_1', 'ben4_2', 'ben4_3', 'ben4_4'], itemLabel: 'beneficio' },
+  ],
+};
+
+// Los pasos "¿Cómo funciona?" de /suscripciones. Cardinalidad FIJA 4; cada paso un BLOQUE `tarjeta`
+// ("Paso N") con nombre + descripción. Los íconos y el número son estructura (por índice en el
+// componente), no se editan. Sección OCULTABLE.
+const SUSCRIPCION_PASOS: SeccionConfig = {
+  seccion: 'suscripcionPasos',
+  pagina: 'suscripciones',
+  titulo: 'Cómo funciona',
+  ocultable: true,
+  imagenes: [],
+  campos: [
+    { name: 'titulo',     label: 'Título',   hint: 'Ej. "¿Cómo funciona?". Vacío: se usa el texto por defecto.' },
+    { name: 'paso1Label', label: 'Nombre',   hint: 'El nombre del paso. Vacío: se usa el texto por defecto.' },
+    { name: 'paso1Desc',  label: 'Descripción', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'paso2Label', label: 'Nombre',   hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'paso2Desc',  label: 'Descripción', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'paso3Label', label: 'Nombre',   hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'paso3Desc',  label: 'Descripción', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'paso4Label', label: 'Nombre',   hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'paso4Desc',  label: 'Descripción', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
+  ],
+  bloques: [
+    { tipo: 'seccion', campos: ['titulo'] },
+    { tipo: 'tarjeta', slot: 1, titulo: 'Paso 1', campos: ['paso1Label', 'paso1Desc'] },
+    { tipo: 'tarjeta', slot: 2, titulo: 'Paso 2', campos: ['paso2Label', 'paso2Desc'] },
+    { tipo: 'tarjeta', slot: 3, titulo: 'Paso 3', campos: ['paso3Label', 'paso3Desc'] },
+    { tipo: 'tarjeta', slot: 4, titulo: 'Paso 4', campos: ['paso4Label', 'paso4Desc'] },
+  ],
+};
+
+// El ORDEN es el orden en la pantalla. Las de la home primero (en el orden de la home), después las de
+// /nosotros, y por último /suscripciones; el editor las agrupa por `pagina` en pestañas.
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS];
