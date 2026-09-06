@@ -64,6 +64,15 @@ dicho en el reporte (decisión del owner, 2026-08-05: la liturgia del deploy
 declarado se queda porque es barata y ya pagó). Reportar el desfase no es
 autorización para cerrarlo.
 
+**REESCRIBIR HISTORIA DE `main` (`--amend` + `--force-with-lease`) es aceptable HOY,
+y su condición es lo que hay que tener escrito:** un commit de docs ya pusheado a
+`main` se puede enmendar y re-pushear con `--force-with-lease` **mientras sea
+docs-only, con UN solo dev, y la lease verificada** (que garantiza no pisar un push
+ajeno entre medio). **Deja de serlo en cuanto haya un segundo colaborador en
+`duna-solutions`** —reescribir `main` bajo los pies de otro es cómo se pierde trabajo
+sin que nada avise—. La salida entonces es un commit de corrección encima, no un
+force. (Se usó el 2026-09-06 para enmendar el commit de docs `59506ad`.)
+
 ### GATE DE CAPA 3 = rama declarada + server frío + verificación del artefacto
 
 **Ningún gate manual del owner arranca sin las tres.** No es ceremonia: es el
@@ -1487,26 +1496,41 @@ social (familia #44, publicidad engañosa). Las reseñas REALES son un SISTEMA, 
 cliente que las PIDA *y* tenga volumen de ventas para que signifiquen algo.** Una reseña sobre 3 ventas
 no es prueba social, es ruido; el sistema paga cuando hay masa.
 
-### 65. AVISO de configuración del Dashboard — Fase 1 + los defectos dormidos del censo
+### 65. AVISO de configuración del Dashboard — Fase 1 CERRADA; quedan los DORMIDOS del censo
 
-El censo (2026-09-03) inventarió los defectos de CONFIGURACIÓN que dejan el storefront roto/vacío para
-el visitante sin que el dueño se entere (destino de Presentaciones rancio, sección publicada con imagen
-faltante, etc.). Van en un AVISO APARTE del Dashboard —del DUEÑO, distinto de "Necesita tu atención"
-(del OPERADOR, que se vacía)—, hermano del banner `metricsFailed` (`dashboard/page.tsx:258-263`), ámbar,
-visible sólo cuando hay algo, con enlace a donde se arregla.
+**FASE 1 CERRADA (2026-09-06):** #1 destino de Presentaciones rancio + #2 tarjeta con título sin imagen.
+La doctrina de lo construido —el aviso APARTE del dueño, el lector de publicado, el enlace que aterriza EN
+el defecto, y el fix del schema que la tanda destapó (§ #65-B)— vive en **§ El AVISO DE CONFIGURACIÓN del
+Dashboard**. Con Nayoli sano: CERO avisos.
 
-- **Fase 1 (≤3): #1 destino de Presentaciones rancio** (el que fires hoy — el que destapó la tanda) **+
-  #2 tarjeta con título sin imagen** (gratis sobre el mismo fetch). Cruza catálogo (en mano en el
-  dashboard) × SiteContent PUBLICADO (fetch nuevo — el `GET /api/site-content` devuelve BORRADOR, no lo
-  publicado; el aviso necesita lo publicado).
-- **Los DORMIDOS** (no fires para Nayoli hoy — defaults SON Nayoli, schema+seed garantizan whatsapp):
-  la familia "campo requerido vacío → default de Nayoli en otro tenant" (hero/brandStory/nosotros),
-  empty-whatsapp en checkout/suscripciones, galería con vídeo sin póster. Disparan con el **2º cliente**
-  (ligan a C2/#63). Un lector de SiteContent publicado destraba toda la familia.
+**LO QUE QUEDA — los DORMIDOS** (no fires para Nayoli hoy: los defaults SON Nayoli, y el schema+seed
+garantizan el whatsapp): la familia "campo requerido vacío → default de Nayoli en OTRO tenant"
+(hero/brandStory/nosotros), empty-whatsapp en checkout/suscripciones, galería con vídeo sin póster. **La
+PLOMERÍA ya está** —el lector de SiteContent publicado (`GET /api/site-content/publicado`) devuelve el
+contenido COMPLETO, así que cada dormido es detección nueva sobre el MISMO fetch, sin tocar el lector—.
 
-**Costo YA pagado: ninguno** —el más urgente del censo (la cuenta bancaria falsa) se arregló como
-tanda propia—. **DISPARADOR: cuando el owner quiera que el dueño vea sus defectos de config sin abrir el
-editor**; Fase 1 es chica y ya tiene el censo hecho.
+**Costo YA pagado: ninguno.** **DISPARADOR: el 2º cliente** (ligan a C2/#63): ahí los defaults dejan de
+SER el tenant y "campo requerido vacío → default de Nayoli" pasa a ser un defecto real que el dueño debe ver.
+
+### 67. Derivar el SCHEMA EDITABLE del REGISTRY — que ninguna divergencia pueda ocurrir
+
+`siteContentEditableSchema` (`lib/config/site-content-schema.ts`) es una SEGUNDA lista escrita a mano de los
+campos del modelo (§ el schema editable STRIPPEA lo no declarado). Un campo del modelo que no se declara ahí
+**se pierde en silencio al guardar** —fue el bug #65-B: `presentacionesEditableSchema` quedó congelado desde
+C1 mientras el modelo creció—. Derivar el schema del REGISTRY (como ya se derivan las categorías del catálogo,
+§ La taxonomía se DERIVA) haría **imposible** la divergencia, no sólo detectable.
+
+**Costo YA pagado:** el diagnóstico de #65-B (una tanda), más el dato revirtiendo al default de Nayoli en cada
+guardado desde C1 (sin tráfico real, así que cero daño de cliente). **El test DERIVADO ya cierra la brecha**
+(`site-content-schema.test.ts`: modelo ⊆ schema, falla nombrando el campo) —es el mínimo aceptable y ya está—,
+así que esto es la versión FUERTE, no urgente.
+
+**El censo del costo:** el REGISTRY hoy sólo declara **requerido/opcional**, no el TIPO JS por campo, y varios
+son number/enum/array (`stars`, `w`/`h`, `tipo`, `items`). Derivar el schema exigiría meterle **metadata de
+tipo por campo** al REGISTRY + un builder que la traduzca a zod — ~un día tocando las 7 secciones.
+
+**DISPARADOR: una TERCERA divergencia de esta clase, o una sección nueva que haga el mantenimiento a mano
+insostenible.** Hasta entonces el test derivado alcanza y el refactor sería infraestructura por adelantado.
 
 ## Config del negocio — `SiteSetting` (los planos editables)
 
@@ -2031,6 +2055,42 @@ REQUERIDOS (defaults de Nayoli) + 2 OPCIONALES (defaults vacíos)**, y el resolv
   dolor de un formulario largo (14 campos con 4 tarjetas) es evidencia del editor visual (§ Backlog #46),
   no deuda de Presentaciones** — no se construye nada de #46 acá.
 
+### El schema editable STRIPPEA lo no declarado — modelo ⊆ schema, o hay TEST (§ #65-B)
+
+Tanda del 2026-09-06, salida del gate de #65. **`zod z.object` DESCARTA las claves no declaradas por
+defecto**, así que un campo que el modelo soporta pero el `siteContentEditableSchema` no declara **se
+pierde EN SILENCIO en cada guardado** —el editor lo manda, el schema lo strippea, y al releer el resolver
+lo rellena con el DEFAULT—. Vivía en `presentacionesEditableSchema` **desde C1**: quedó congelado en
+"exactamente 2 sin categoria" mientras el modelo creció a 2-4 slots + destino-DATO (§ el destino es DATO),
+así que `categoria1/2` y todo el slot 3-4 revertían al default de Nayoli en cada ciclo. Es un defecto de
+PERSISTENCIA, no del resolver ni del publish —el modelo, el resolver y el publish SIEMPRE lo soportaron; el
+schema era el único eslabón congelado—.
+
+- **EL FIX ES EL SCHEMA, no el síntoma:** `presentacionesEditableSchema` declara los 10 campos que
+  faltaban (`categoria1-4` + los slots 3-4), todos `z.string().optional()` (SOFT, como el resto). No toca
+  resolver ni publish.
+- **CENSO de las OTRAS SEIS secciones:** presentaciones era la **ÚNICA** divergencia
+  (hero/brandStory/subscriptionCTA/testimonials+item/nosotrosHistoria/nosotrosGaleria+item coinciden campo
+  por campo con su modelo). Confirma que fue un bug de mantener DOS listas a mano, no algo de presentaciones.
+- **DOCTRINA: cuando dos declaraciones describen el mismo conjunto, o una DERIVA de la otra o hay un TEST
+  que las ata.** Es el 2º defecto de esta clase —el 1º fue `CATEGORIAS ≠ CATEGORIA_LABELS` en C3, cerrado por
+  ELIMINACIÓN (§ La taxonomía se DERIVA)—. Acá lo cierra un test **DERIVADO** (`site-content-schema.test.ts`):
+  `DEFAULTS[seccion]` (el modelo REAL, la instancia) ⊆ el `.shape` de su sub-schema, que **falla nombrando el
+  campo faltante** —agregar un campo al modelo obliga a declararlo en el schema—. Derivado de fuentes que ya
+  existen (DEFAULTS + el `.shape`), NO una tercera lista a mano. **Visto fallar** sin el fix (nombra
+  `categoria1`). **ALCANCE: primer nivel.** Los campos de ÍTEM de los repeaters NO se derivan de `DEFAULTS`
+  (arrays vacíos) — los cubren los tests ítem-por-ítem que YA viven en ese archivo (w/h/tipo/poster).
+  Limitación NOMBRADA.
+- **Los tests de HELPER no bastan para un contrato de PERSISTENCIA.** Ninguno atrapó esto porque todos
+  probaban lógica pura; el que falla es el VIAJE real —borrador → publicar → releer, POR EL SCHEMA—.
+  `tests/integracion/presentaciones-viaje.test.ts` (carril) lo prueba: parsea con el schema real (como el
+  route), guarda, publica, relee. Dos casos, las dos caras del bug —el slot 3 título-sin-imagen (OR) y el
+  destino `categoria1` que no debe revertir—. **Vistos fallar** con el schema viejo (`label3` strippeado,
+  `categoria1` revertido). **No borrar** ninguno de los dos.
+- **BACKLOG (§ #67):** derivar el SCHEMA del REGISTRY cerraría la clase entera, no sólo el test. No ahora
+  —el REGISTRY sólo declara requerido/opcional; faltaría metadata de TIPO por campo (number/enum/array) + un
+  builder, ~un día tocando las 7 secciones—. El test derivado cierra la brecha sin el refactor.
+
 ### Las imágenes
 
 - **Reusa `/api/upload` con `prefix: 'contenido'`** (whitelist `PREFIJOS_UPLOAD`: 'productos' |
@@ -2394,6 +2454,38 @@ Tanda 2 del 2026-08-26. /nosotros gana una galería de fotos de la finca. Decisi
   una es config + un componente— pero no hay evidencia de que se pidan. **El VÍDEO sigue declarado
   para la tanda 3** (§ Backlog #48: es capacidad nueva —formato aparte, subida directa a Blob, poster,
   rama de render—, no un campo más).
+
+## El AVISO DE CONFIGURACIÓN del Dashboard — el defecto de config es del DUEÑO
+
+Tanda del 2026-09-06 (§ Backlog #65, Fase 1). El Dashboard gana una BANDA que le muestra al dueño los
+defectos de CONFIGURACIÓN que dejan el storefront roto/vacío para el visitante sin que él se entere. Fase 1
+detecta dos: **#1** una tarjeta de Presentaciones cuyo destino ya no existe en el catálogo, y **#2** una
+tarjeta con título y SIN imagen. Las decisiones, que son de MODELO y no re-litigables:
+
+- **[1] LOS DEFECTOS DE CONFIGURACIÓN VIVEN EN UN AVISO APARTE, NUNCA dentro de "Necesita tu atención".**
+  Esa lista es la cola de trabajo del DÍA y **SE VACÍA**; un defecto de configuración se arregla UNA vez y no
+  vuelve, así que la convertiría en un ACUMULADOR —y una cola que nunca llega a cero deja de mirarse—. Además
+  son de otro DESTINATARIO: la cola es del OPERADOR, la configuración del DUEÑO.
+- **[2] EL AVISO LEE LO PUBLICADO, NO EL BORRADOR.** `GET /api/site-content` devuelve draft-merged, así que
+  avisaría de un defecto que el visitante aún NO ve, o CALLARÍA uno que sí. Por eso existe
+  **`GET /api/site-content/publicado`** (`readSiteContent`, gateado OWNER/MANAGER) y devuelve el contenido
+  COMPLETO: la detección de los DORMIDOS (§ #65) se suma sin tocar el lector.
+- **[3] UN solo ámbar-BANNER.** Los otros ámbares del dashboard son ACENTOS (pleca de 2-3px, punto de 8px)
+  —distinto PESO, no compiten (§ EXCEPCIÓN DECLARADA: el ámbar es marca/dato o estado según el SITIO)—. El
+  rojo de `metricsFailed` queda ARRIBA: error del SISTEMA > atención de configuración. Se diagnosticó ANTES de
+  construir; no hay dos ámbares peleando.
+- **[4] LA DETECCIÓN REUSA EL MISMO PREDICADO QUE EL EDITOR** (`value ∉ categorias`), no una copia —dos voces
+  del mismo umbral es el patrón #39—. Vive en `avisosDeConfiguracion` (`lib/config/avisos-configuracion.ts`,
+  puro, capa 1); afirmado que con Nayoli sano da CERO avisos.
+- **[6] EL AVISO ATERRIZA EN EL DEFECTO, no en la pantalla.** `/admin/tienda?seccion=…&tarjeta=…` (query
+  params, el precedente de Pedidos `?pedido/?f/?hora`, con `useSearchParams` + `<Suspense>`). Cada defecto
+  enlaza a SU bloque. **Reusa la maquinaria del puente vista→formulario** (`tarjetaActiva` + `bloquesRef` +
+  `scrollIntoView`), NO una segunda forma de resaltar. Llevar a la pantalla y no al defecto deja al dueño
+  buscando entre cinco secciones.
+- **[7] ABRIR EDICIÓN DESDE UN ENLACE NO TOCA EL CONTRATO DE BORRADOR.** `setEditando` sólo MUESTRA el
+  formulario; el autoguardado dispara al CAMBIAR, y el deep-link no cambia nada. Verificado por trazado ANTES
+  de construir —un aviso que ensuciara el estado de publicación con un clic sería peor que el defecto que
+  reporta—.
 
 ## Mejoras post-multitenant
 

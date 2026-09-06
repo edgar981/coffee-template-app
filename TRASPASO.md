@@ -1,6 +1,33 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-09-06 (**«COLORES Y TIPOGRAFÍA» PASA A ESCENARIO — el preview de la paleta a ancho
+**Actualizado:** 2026-09-06 (**AVISO DE CONFIGURACIÓN del Dashboard MERGEADO — Fase 1 (§ #65) + fix del schema
+editable (§ #65-B).** El DUEÑO ve sus defectos de configuración del storefront sin abrir el editor. Fase 1
+detecta dos: una tarjeta de Presentaciones cuyo destino ya no existe en el catálogo, y una tarjeta con título
+sin imagen. **Cuatro decisiones de MODELO:** (1) van en un AVISO APARTE, NUNCA dentro de "Necesita tu atención"
+—esa cola es del OPERADOR y SE VACÍA, la config es del DUEÑO y se arregla una vez; un acumulador que no llega a
+cero deja de mirarse—; (2) el aviso lee lo PUBLICADO, no el borrador (`GET /api/site-content/publicado`,
+`readSiteContent`, gateado OWNER/MANAGER, contenido COMPLETO → los DORMIDOS se suman sin tocar el lector); (3)
+UN solo ámbar-BANNER —los otros ámbares son acentos de 2-8px que no compiten; el rojo de `metricsFailed` queda
+arriba—; (4) la detección reusa el MISMO predicado del editor (`value ∉ categorias`, patrón #39). El enlace
+ATERRIZA EN el defecto (`/admin/tienda?seccion&tarjeta`, precedente Pedidos, reusa el puente vista→formulario)
+y abrir edición NO ensucia el contrato de borrador. **#65-B — el schema editable perdía dato en SILENCIO** (zod
+strippea lo no declarado): `presentacionesEditableSchema` quedó congelado en "exactamente 2 sin categoria" desde
+C1, así que `categoria1/2` + los slots 3-4 revertían al default de Nayoli en cada guardado. FIX 1: declara los 10
+campos. FIX 2: censo — presentaciones era la ÚNICA de las 7 secciones que divergía. FIX 3: test DERIVADO
+(`DEFAULTS[seccion]` ⊆ el `.shape`, falla nombrando el campo) + carril de punta a punta (schema→guardar→publicar→
+releer), los dos VISTOS FALLAR sin el fix. **Defecto A del gate anterior (el deep-link ensuciaba el borrador) NO
+reprodujo en estado limpio** —era la revelación del borrador rancio de B, como se diagnosticó; el owner lo probó
+en el gate y NO se re-abre—. **DOCTRINA (§ CLAUDE.md):** cuando dos declaraciones describen el mismo conjunto, o
+una DERIVA de la otra o hay un TEST que las ata (2º de la clase; el 1º fue CATEGORIAS≠CATEGORIA_LABELS en C3).
+Verificación: tsc 0 · capa 1 **869/869** · carril **191/191** · next build (SWC, `/admin/tienda` compila). Con
+Nayoli sano: CERO avisos. Gate del owner PASADO. Mergeada a `main` `--no-ff` (`b3b2b10`), rama borrada, deploy a
+producción disparado. **DORMIDOS (#3/#4/#6/#7/#8 del censo)** quedan con su disparador: **2º cliente** (los
+defaults dejan de SER Nayoli); la plomería del lector de publicado ya los destraba. **BACKLOG #67:** derivar el
+schema del REGISTRY (haría imposible la divergencia; el test derivado cierra la brecha hoy; disparador: 3ª
+divergencia). **SIGUIENTE (owner): #49** (planes de suscripción en `SUBSCRIPTION_PLANS`, grid que asume 3, sin
+precios horneados). **NO TOCAR: #54, #58, #61, #62, Fase 2 de #46.** **NO quedan pasos manuales abiertos.**)
+
+**ANTES —** 2026-09-06 (**«COLORES Y TIPOGRAFÍA» PASA A ESCENARIO — el preview de la paleta a ancho
 completo + los controles como REGLETA acoplada.** La pieza de la paleta de /admin/tienda deja el split
 `.tienda-vivo--editando` (las OTRAS CUATRO secciones lo conservan INTACTO): su edición es un ESCENARIO —el
 preview a ancho ÚTIL completo con la regleta de controles acoplada a su borde inferior, en el mismo marco,
