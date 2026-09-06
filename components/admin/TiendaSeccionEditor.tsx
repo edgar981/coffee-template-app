@@ -215,6 +215,36 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     nodo.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
   }, [esObjetivo, objetivoSlot, cargando, editando, form]);
 
+  // ── LAZY-MOUNT de la vista previa de la tarjeta de LECTURA ──────────────────────────────────────
+  // La preview compacta monta un componente REAL del storefront a 1280px + dos ResizeObserver
+  // (§ VistaTiendaEnVivo / EscalaDesktop): es PESADA. Montar las N secciones de lectura a la vez pinta
+  // la pantalla en cascada —el defecto que el deep-link EXPONE (el censo: cada sección es un mount
+  // pesado, gateado sólo por su propio fetch)—. Se monta cuando la tarjeta ENTRA EN VISTA
+  // (IntersectionObserver con margen para adelantarse al scroll): en carga montan 1-2 en vez de 5, y en
+  // el deep-link la sección enlazada abre en EDICIÓN (monta igual) mientras las otras quedan como
+  // placeholder barato → el objetivo es lo único pesado montándose y aterriza rápido. NO toca cómo
+  // TiendaPaginas ordena las secciones: el aterrizaje temprano sale como efecto lateral.
+  //
+  // EL ALTO DEL PLACEHOLDER NO SALTA porque el thumb es una CAJA FIJA: `.tienda-tarjeta__thumb` fija su
+  // alto con `aspect-ratio: 16/9` sobre un ancho `clamp(...)` —INDEPENDIENTE del hijo (así funciona el
+  // scale-to-fit compacto)—, así que el placeholder reserva EXACTAMENTE la caja que la preview ocupará.
+  // El alto NO varía por sección: es la misma caja para todas.
+  //
+  // Callback ref (no efecto `[]`): el observer se engancha/desengancha con el nodo y se DESCONECTA al
+  // primer cruce (montada la preview, no hay que seguir observando) — el mismo patrón robusto que
+  // EscalaDesktop. Sin `IntersectionObserver` (entorno sin DOM) monta directo, para no esconder nunca.
+  const [previaVisible, setPreviaVisible] = useState(false);
+  const ioPrevia = useRef<IntersectionObserver | null>(null);
+  const thumbRef = useCallback((nodo: HTMLDivElement | null) => {
+    ioPrevia.current?.disconnect(); ioPrevia.current = null;
+    if (!nodo) return;
+    if (typeof IntersectionObserver === 'undefined') { setPreviaVisible(true); return; }
+    const io = new IntersectionObserver(entradas => {
+      if (entradas.some(e => e.isIntersecting)) { setPreviaVisible(true); io.disconnect(); ioPrevia.current = null; }
+    }, { rootMargin: '300px 0px' });
+    io.observe(nodo); ioPrevia.current = io;
+  }, []);
+
   const accionBorrador = async (accion: 'publicar' | 'descartar') => {
     setErrorServidor(null); setProcesando(true);
     try {
@@ -488,13 +518,17 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   if (!editando) {
     return (
       <div className="tienda-tarjeta">
-        <div className="tienda-tarjeta__thumb" onClick={abrirEdicion}>
+        <div ref={thumbRef} className="tienda-tarjeta__thumb" onClick={abrirEdicion}>
           {noSeMuestra ? (
             <div className="tienda-tarjeta__oculta">
               <span className="duna-caption" style={{ margin: 0 }}>No se muestra en la tienda</span>
             </div>
-          ) : (
+          ) : previaVisible ? (
             <VistaTiendaEnVivo seccion={seccion} valor={form} compacto />
+          ) : (
+            // La tarjeta esperando: el esqueleto del panel rellena la caja (alto reservado por el
+            // `aspect-ratio` del thumb) hasta que entra en vista y la preview monta. Sin salto.
+            <div className="duna-skel" aria-hidden style={{ width: '100%', height: '100%', borderRadius: 0 }} />
           )}
         </div>
         <div className="tienda-tarjeta__meta">
