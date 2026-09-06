@@ -12,6 +12,10 @@ import { getAnalytics } from '@/lib/api/analytics';
 import { getProducts } from '@/lib/api/products';
 import { getCustomers } from '@/lib/api/customers';
 import { getDashboardPrefs, saveDashboardPrefs } from '@/lib/api/dashboardPrefs';
+import { getSiteContentPublicado } from '@/lib/api/site-content';
+import { avisosDeConfiguracion } from '@/lib/config/avisos-configuracion';
+import { categoriasDelCatalogo } from '@/lib/productos/categorias';
+import type { SiteContentData } from '@/lib/config/site-content-defaults';
 import type { Product } from '@/types/product';
 import type { Customer } from '@/types/customer';
 import type { DashboardStats } from '@/types/dashboard';
@@ -80,6 +84,11 @@ export default function Dashboard() {
   const [analytics, setAnalytics]   = useState<AnalyticsData | null>(null);
   const [products, setProducts]     = useState<Product[]>([]);
   const [customers, setCustomers]   = useState<Customer[]>([]);
+  // El contenido PUBLICADO del storefront (lo que ve el VISITANTE) y si el catálogo cargó — para el
+  // AVISO DE CONFIGURACIÓN (§ Backlog #65). `null` hasta cargar / si el fetch falla → sin avisos (no se
+  // puede afirmar un defecto sin lo publicado). `catalogoListo` gatea sólo #1 (destino inexistente).
+  const [siteContent, setSiteContent] = useState<SiteContentData | null>(null);
+  const [catalogoListo, setCatalogoListo] = useState(false);
   // The admin's chosen indicator layout (ordered visible widget keys). Defaults to
   // the registry default until the persisted preference loads.
   const [widgetKeys, setWidgetKeys] = useState<string[]>(DEFAULT_WIDGET_KEYS);
@@ -91,12 +100,15 @@ export default function Dashboard() {
   // so the UI can show `—` + a retry banner instead of a lying `0`. `setLoading` on
   // finish only — the mount path leaves the initial `loading=true` untouched.
   const fetchCore = useCallback(() => {
-    Promise.allSettled([getDashboardStats(), getAnalytics(), getProducts(), getCustomers()])
-      .then(([s, a, p, c]) => {
+    Promise.allSettled([getDashboardStats(), getAnalytics(), getProducts(), getCustomers(), getSiteContentPublicado()])
+      .then(([s, a, p, c, sc]) => {
         setStats(s.status === 'fulfilled' ? s.value : null);
         setAnalytics(a.status === 'fulfilled' ? a.value : null);
         if (p.status === 'fulfilled') setProducts(p.value);
         if (c.status === 'fulfilled') setCustomers(c.value);
+        // El aviso de config falla SEGURO: sin lo publicado (fetch falló) → null → sin avisos.
+        setSiteContent(sc.status === 'fulfilled' ? sc.value : null);
+        setCatalogoListo(p.status === 'fulfilled');
         setLoading(false);
       });
   }, []);
@@ -126,6 +138,15 @@ export default function Dashboard() {
   // fuente (`itemsDeAtencion`, § lib/atencion/items): la lista, su largo (el badge)
   // y el orden por prioridad salen de acá, no de un sort en el render.
   const itemsAtencion = itemsDeAtencion(stats?.atencionPedidos ?? [], products);
+
+  // Los AVISOS DE CONFIGURACIÓN (§ Backlog #65): defectos que el VISITANTE ve pero el dueño no —hoy,
+  // Presentaciones con destino inexistente o título sin imagen—. DERIVADO: cruza el contenido
+  // PUBLICADO con las categorías del catálogo. Sin lo publicado (el fetch falló) → `[]` (no se afirma
+  // un defecto a ciegas). Van en un aviso APARTE del DUEÑO, NO en "Necesita tu atención" (la cola del
+  // OPERADOR, que se vacía). Los dormidos (#3/#4/#8) se suman en `avisosDeConfiguracion`, no acá.
+  const avisosConfig = siteContent
+    ? avisosDeConfiguracion(siteContent, categoriasDelCatalogo(products), catalogoListo)
+    : [];
 
   // Deep-link context (America/Bogota day keys + the shared month query), fed to
   // each widget's href builder so a card links to exactly the rows it counts.
@@ -259,6 +280,26 @@ export default function Dashboard() {
         <div className="flex flex-col gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
           <span className="text-destructive">No se pudieron cargar las métricas.</span>
           <Button variant="outline" size="sm" className="shrink-0" onClick={retry}>Reintentar</Button>
+        </div>
+      )}
+
+      {/* AVISO DE CONFIGURACIÓN (§ Backlog #65) — la banda "esto te toca como DUEÑO": defectos que el
+          VISITANTE ve y el dueño no (destino de portada inexistente, tarjeta sin imagen). ÁMBAR (§ el
+          ámbar es ATENCIÓN), hermano del banner metricsFailed pero un escalón menos urgente —config, no
+          error del sistema— y BAJO él → jerarquía por severidad (rojo arriba, ámbar debajo). Condicional:
+          sólo cuando hay algo; para una tienda SANA no existe. NO es la cola del operador (§ SeccionAtencion):
+          otro destinatario (el DUEÑO), se arregla una vez y no vuelve —por eso no va en "Necesita tu atención",
+          que la volvería un acumulador—. Cada ítem enlaza a donde se arregla. */}
+      {avisosConfig.length > 0 && (
+        <div className="admin-aviso-config" role="status">
+          <span className="admin-aviso-config__titulo">Revisa la configuración de tu tienda</span>
+          <ul className="admin-aviso-config__lista">
+            {avisosConfig.map(av => (
+              <li key={av.clave}>
+                <Link href={av.href} className="admin-aviso-config__item">{av.mensaje}</Link>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
