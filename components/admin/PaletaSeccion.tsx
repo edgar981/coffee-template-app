@@ -520,11 +520,14 @@ export default function PaletaSeccion() {
             </button>
 
             {/* «Lo que se calcula solo» (chip abajo-izq) → CAPA sobre el pane (§ Fix: de <details> en la
-                columna a capa sobre el pane). Sólo con acento VÁLIDO: a medio teclear los derivados salen basura. */}
-            {!acentoInvalido && (
+                columna a capa sobre el pane). Sólo con acento VÁLIDO: a medio teclear los derivados salen basura.
+                El chip SE OCULTA mientras la capa está abierta (§ el fix del gate): un disparador que sigue
+                flotando sobre lo que abrió TAPA sus propios derivados. Con la capa abierta el cierre vive en el
+                "Cerrar" de la capa (abajo), no en el chip — el mismo lugar que el mockup. */}
+            {!acentoInvalido && !verCalculado && (
               <button
                 type="button" className="tienda-escena__chip" style={{ bottom: 8, left: 8 }}
-                onClick={() => setVerCalculado(v => !v)} aria-expanded={verCalculado}
+                onClick={() => setVerCalculado(true)} aria-expanded={false}
               >
                 Lo que se calcula solo
               </button>
