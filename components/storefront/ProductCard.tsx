@@ -158,12 +158,6 @@ export default function ProductCard({
               <span className="font-bold text-[var(--sf-tinta)]">
                 {formatCOP(product.precio)}
               </span>
-
-              {product.esSuscripcion && (
-                <span className="ml-1 text-xs text-[var(--sf-acento-texto)]">
-                  /mes
-                </span>
-              )}
             </div>
 
             {!product.disponible && (

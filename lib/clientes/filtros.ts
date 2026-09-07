@@ -45,11 +45,13 @@ export const tieneAtencion = (c: ClienteParaFiltro): boolean => (c.pedidosPorAte
  *
  * No es "el cliente se suscribió": es "compró más de una vez". La INTENCIÓN de
  * recurrencia —un plan con su frecuencia y su descuento— NO EXISTE en este
- * dominio: no hay modelo, `SUBSCRIPTIONS_ENABLED` es `false`, los planes viven en
- * `lib/mock/` y el descuento está pendiente de definir con el cliente. Mientras no
- * exista, esto es lo único que se puede afirmar, y por eso el carril y su stat
- * declaran la fórmula en vez de insinuar una marca del negocio que nadie
- * registró.
+ * dominio: no hay modelo, y una suscripción hoy es sólo un mensaje de WhatsApp.
+ * Los planes son CONTENIDO editable (`suscripcionPlanes` de SiteContent, § Backlog
+ * #49), no una relación que ate a un cliente con una frecuencia y un cobro; su
+ * vida operativa —órdenes recurrentes, cobro— es un proyecto aparte con su propio
+ * disparador. Mientras no exista, esto es lo único que se puede afirmar, y por eso
+ * el carril y su stat declaran la fórmula en vez de insinuar una marca del negocio
+ * que nadie registró.
  *
  * Y por eso mismo NO va como distintivo en la tarjeta. La lista vieja pintaba una
  * ★ a quien tuviera más de dos pedidos: un adorno que se lee como categoría de
