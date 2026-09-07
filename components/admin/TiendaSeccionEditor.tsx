@@ -14,7 +14,8 @@ import type { SeccionConfig, CampoTexto, CampoImagen } from '@/components/admin/
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { quitar as quitarDeLista, ultimoLleno } from '@/lib/tienda/lista-plana';
-import { DEFAULTS } from '@/lib/config/site-content-defaults';
+import { opcionesDestaque } from '@/lib/storefront/planes-suscripcion';
+import { DEFAULTS, type SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 
 // LA CÁSCARA del editor de una sección de la tienda, GENÉRICA. Todo lo que NO es específico de la
@@ -100,10 +101,11 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   // "Quitar" vacía sus campos y la devuelve a "+ Agregar". Los slots siguen siendo campos PLANOS
   // fijos (presentación del editor, no un repeater). INVARIANTE: una tarjeta VISIBLE nunca está vacía
   // (§ slotVacio) → su bloque siempre está montado y expandido, nunca detrás de "+ Agregar".
-  // Cuántas filas mostrar en la lista plana de beneficios (rule 2). `null` → deriva del último lleno;
-  // "+ Agregar" / "×" la mueven. Se resetea al abrir/cerrar (como `expandidos`). Una sola lista por
-  // sección hoy (Suscripción); si hubiera varias, esto sería un Map por bloque.
-  const [mostradosLista, setMostradosLista] = useState<number | null>(null);
+  // Cuántas filas mostrar en CADA lista plana (rule 2), POR LISTA (clave = su primer slot). Es un Map
+  // porque una sección puede tener VARIAS listas —los beneficios POR PLAN de Suscripción (§ Backlog
+  // #49): una lista por plan—, y "+ Agregar" en la de un plan no debe mover la de otro. Ausente para
+  // una clave → deriva del último lleno; "+ Agregar" / "×" la mueven. Se resetea al abrir/cerrar.
+  const [mostradosLista, setMostradosLista] = useState<Map<string, number>>(new Map());
   const [expandidos, setExpandidos] = useState<Set<number>>(new Set());
   const colapsado = (slot: number): boolean =>
     puenteTarjetas && slotOpcional(config, slot)
@@ -166,7 +168,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   };
 
   const set = (name: string) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => cambiar({ [name]: e.target.value });
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => cambiar({ [name]: e.target.value });
 
   // Pide una subida al uploader compartido y pisa el campo-imagen con la url resultante. El
   // marcar-sucio + flush van EXPLÍCITOS (no por `cambiar`), como en el uploader original: subir,
@@ -192,8 +194,8 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   // pantalla), así que `useState(new Set())` no vuelve a correr; sin este reset, un grupo opcional
   // que abrí a mano seguiría abierto al reabrir. El colapso DERIVA de los datos (vacío → colapsado);
   // la expansión manual vive sólo mientras el editor está abierto (§ Fix 2).
-  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(null); };
-  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(null); };
+  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); };
+  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); };
 
   // ── DEEP-LINK del aviso de config del Dashboard (§ Backlog #65) ────────────────────────────────
   // El enlace del aviso aterriza EN EL DEFECTO: abre la edición de ESTA sección y resalta+scrollea el
@@ -210,7 +212,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     if (!esObjetivo || cargando || deepLinkHecho.current) return;
     if (!editando) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- deep-link: abrir edición desde el enlace del aviso (sin mutar); el bloque se monta en el próximo render y el re-run scrollea. `objetivoSlot` puede ser null (sección sin tarjetas) → sin resaltar, sólo abre.
-      setEditando(true); setExpandidos(new Set()); setMostradosLista(null); setTarjetaActiva(objetivoSlot);
+      setEditando(true); setExpandidos(new Set()); setMostradosLista(new Map()); setTarjetaActiva(objetivoSlot);
       return;
     }
     // Edición abierta: sin slot (sección sin tarjetas) con abrir alcanza; con slot, scrollear al bloque.
@@ -349,16 +351,26 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     // Rótulo POR TÍTULO: «En grano» lleva a: usando el título en vivo de la misma tarjeta.
     const tituloTarjeta = campo.tituloDe ? String(form[campo.tituloDe] ?? '').trim() : '';
     const etiqueta = campo.tituloDe && tituloTarjeta ? `«${tituloTarjeta}» lleva a:` : campo.label;
+    // Opciones del select: estáticas (`opciones`) o DERIVADAS del form (`opcionesDinamicas`, hoy los
+    // planes que existen para el destaque, § opcionesDestaque). El form ES el contenido de la sección.
+    const opciones = campo.opcionesDinamicas === 'destaquePlanes'
+      ? opcionesDestaque(form as unknown as SuscripcionPlanesContent)
+      : campo.opciones;
     return (
       <div key={campo.name} className={`duna-field${campo.textarea ? ' duna-form__full' : ''}`}>
         <label className="duna-field__label" htmlFor={id}>{etiqueta}</label>
         {campo.categoria ? (
           <CategoriaCombobox id={id} value={value} categorias={categorias}
                              onChange={v => cambiar({ [campo.name]: v })} ariaDescribedby={`${id}-hint`} />
+        ) : opciones ? (
+          // SELECT NATIVO (§ Controles de formulario) — `destacadoSlot`, con opciones derivadas.
+          <select id={id} className="duna-input duna-select" value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`}>
+            {opciones.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         ) : campo.textarea ? (
-          <textarea id={id} className="duna-input" rows={2} value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`} />
+          <textarea id={id} className="duna-input" rows={2} value={value} onChange={set(campo.name)} placeholder={campo.placeholder} aria-describedby={`${id}-hint`} />
         ) : (
-          <input id={id} className="duna-input" value={value} onChange={set(campo.name)} aria-describedby={`${id}-hint`} />
+          <input id={id} className="duna-input" value={value} onChange={set(campo.name)} placeholder={campo.placeholder} aria-describedby={`${id}-hint`} />
         )}
         {destinoInexistente && (
           <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)', marginBottom: 0 }}>
@@ -480,13 +492,14 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   // Agregar" + "×". Se COMPACTA al quitar (§ lista-plana); editar en el sitio escribe el slot.
   const renderBloqueLista = (bloque: Extract<BloqueResuelto, { tipo: 'lista' }>) => {
     const { slots, itemLabel, hint } = bloque;
+    const clave = slots[0];                                // identidad de ESTA lista (su primer slot)
     const valores = slots.map(s => String(form[s] ?? ''));
     const base = ultimoLleno(valores) + 1;                 // filas para llegar al último lleno
-    const mostrados = Math.min(slots.length, Math.max(mostradosLista ?? base, base));
+    const mostrados = Math.min(slots.length, Math.max(mostradosLista.get(clave) ?? base, base));
     const quitarFila = (i: number) => {
       const nv = quitarDeLista(valores, i);
       cambiar(Object.fromEntries(slots.map((s, idx) => [s, nv[idx]])));
-      setMostradosLista(Math.max(0, mostrados - 1));
+      setMostradosLista(m => new Map(m).set(clave, Math.max(0, mostrados - 1)));
     };
     const singular = itemLabel;
     const label = singular.charAt(0).toUpperCase() + singular.slice(1);
@@ -511,7 +524,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
         </div>
         {mostrados < slots.length && (
           <div style={{ marginTop: 'var(--duna-space-2)' }}>
-            <button type="button" onClick={() => setMostradosLista(mostrados + 1)} className="duna-btn duna-btn--secondary duna-btn--sm">
+            <button type="button" onClick={() => setMostradosLista(m => new Map(m).set(clave, mostrados + 1))} className="duna-btn duna-btn--secondary duna-btn--sm">
               <Plus /> Agregar {singular}
             </button>
           </div>

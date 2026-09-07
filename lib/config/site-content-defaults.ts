@@ -74,8 +74,9 @@ export interface PresentacionesContent {
 // imágenes—. Los bullets son `bullet1..4` OPCIONALES: el componente los junta con un `.filter` que
 // SALTA los vacíos, así que "vaciar el 2 y dejar el 3" cierra la lista sin hueco — son "hasta cuatro
 // bullets", no "cuatro slots" (el editor lo dice en las etiquetas). 5+ bullets = el repeater
-// compartido (la plataforma ya lo tiene). Las TRES tarjetas de plan NO viven acá: son ESTRUCTURA
-// desde `SUBSCRIPTION_PLANS`, fuente compartida con /suscripciones (§ Backlog #49).
+// compartido (la plataforma ya lo tiene). Las tarjetas de plan del teaser NO viven acá: son la sección
+// `suscripcionPlanes` (DATO editable, § Backlog #49), la MISMA que lee /suscripciones — este teaser las
+// recorta con `planesDelTeaser` (§ lib/storefront/planes-suscripcion).
 export interface SubscriptionCTAContent {
   visible: boolean;
   eyebrow: string;
@@ -158,6 +159,65 @@ export interface NosotrosGaleriaContent {
   items: GaleriaItem[];
 }
 
+// LA PÁGINA /suscripciones — los PLANES como DATO (§ Backlog #49, opción 1). Antes las tarjetas de
+// plan venían de `SUBSCRIPTION_PLANS` (`lib/mock/subscriptions`, ESTRUCTURA compartida con la home);
+// ahora son contenido editable, y las DOS superficies (esta página Y el teaser de la home) leen esta
+// MISMA sección → no divergen (era el temor de #49; hacerlas dato lo RESUELVE, no lo causa).
+//
+// CARDINALIDAD 1-4 con CAMPOS PLANOS (no repeater — un repeater no da defaults byte-idénticos, § la
+// bifurcación de cardinalidad). Plan 1 REQUERIDO (empty → default de Nayoli → mínimo 1); planes 2-4
+// OPCIONALES (empty → el plan no se muestra). Qué plan SE MUESTRA lo decide el componente
+// (`planesDeSuscripcion`, nombre presente), NO el resolver — como Presentaciones.
+//
+// El PRECIO es OPCIONAL y de TEXTO (owner): un plan puede llevarlo o no; la moneda, el formato y frases
+// como "desde $X" son del cliente, y un número inventado sería dato FALSO en la ruta del dinero. Vacío
+// → NO se muestra (nunca placeholder ni "desde"). Nayoli no lleva precio → sus `precioN` nacen vacíos.
+//
+// La FRECUENCIA vive DENTRO de `descripcion` ("Una bolsa de 250 g cada mes"), como frase (owner, § b):
+// el sistema no la usa como dato —no hay pedidos recurrentes— así que un campo aparte sería una mina
+// inerte. Los BENEFICIOS por plan son `benN_1..4` OPCIONALES (el componente los junta con `.filter`,
+// hasta 4 sin hueco — como los bullets de subscriptionCTA). El DESTAQUE es UN índice de sección
+// (`destacadoSlot`, § c): unifica el `plan.popular` de esta página y el `i===1` hardcodeado del teaser
+// —estructuralmente imposible destacar dos—. '' = ninguno; default '2' (el Plan 500 g de hoy).
+export interface SuscripcionPlanesContent {
+  visible: boolean;
+  eyebrow: string;
+  titulo: string;
+  tituloEnfasis: string;
+  subtitulo: string;
+  planesTitulo: string;
+  planesSubtitulo: string;
+  ctaLabel: string;
+  /** El SLOT del plan destacado ('1'..'4'), o '' (ninguno). Un índice, no un booleano por plan:
+   *  imposible destacar dos. Lo consumen las DOS superficies (esta página + el teaser). */
+  destacadoSlot: string;
+  // Plan 1 REQUERIDO (defaults de Nayoli). `precio` y los beneficios OPCIONALES.
+  nombre1: string; descripcion1: string; precio1: string;
+  ben1_1: string; ben1_2: string; ben1_3: string; ben1_4: string;
+  // Planes 2-4 OPCIONALES: nombre vacío → el plan no se muestra (§ planesDeSuscripcion).
+  nombre2: string; descripcion2: string; precio2: string;
+  ben2_1: string; ben2_2: string; ben2_3: string; ben2_4: string;
+  nombre3: string; descripcion3: string; precio3: string;
+  ben3_1: string; ben3_2: string; ben3_3: string; ben3_4: string;
+  nombre4: string; descripcion4: string; precio4: string;
+  ben4_1: string; ben4_2: string; ben4_3: string; ben4_4: string;
+}
+
+// Los PASOS "¿Cómo funciona?" de /suscripciones (§ Backlog #49 · e). Café-shape en el TEXTO ("café de
+// nuestra finca", "grano o molido", "tandas semanales") → entran como DATO editable. Cardinalidad FIJA
+// 4 (una historia de 4 pasos; variar el número es otra decisión) → campos PLANOS requeridos, byte-
+// idénticos a los `SUBSCRIPTION_STEPS` de hoy. Los ÍCONOS y el número "01".."04" quedan ESTRUCTURALES
+// (secuencia, no contenido): el componente los pone por índice; un selector de íconos es capacidad
+// mayor, no un campo. Sección OCULTABLE (un cliente puede no querer un "cómo funciona").
+export interface SuscripcionPasosContent {
+  visible: boolean;
+  titulo: string;
+  paso1Label: string; paso1Desc: string;
+  paso2Label: string; paso2Desc: string;
+  paso3Label: string; paso3Desc: string;
+  paso4Label: string; paso4Desc: string;
+}
+
 // META de páginas: qué páginas del storefront están ENCENDIDAS. NO es una sección (no lleva `campos`
 // ni la resuelve el loop de secciones); es una capacidad —una página existe y se puede apagar—. Hoy
 // /nosotros y /suscripciones son CAPACIDADES apagables (la home no se apaga). `suscripciones`
@@ -193,6 +253,8 @@ export interface SiteContentData {
   testimonials: TestimonialsContent;
   nosotrosHistoria: NosotrosHistoriaContent;
   nosotrosGaleria: NosotrosGaleriaContent;
+  suscripcionPlanes: SuscripcionPlanesContent;
+  suscripcionPasos: SuscripcionPasosContent;
   paginas: PaginasContent;
   tema: TemaContent;
 }
@@ -282,6 +344,38 @@ export const DEFAULTS: SiteContentData = {
     eyebrow: 'Galería',
     titulo: 'La finca en imágenes',
     items: [],
+  },
+  // Los PLANES de /suscripciones (antes `SUBSCRIPTION_PLANS` + los literales del encabezado). Byte a
+  // byte: sin fila, /suscripciones y el teaser de la home quedan IDÉNTICOS. Precios VACÍOS (Nayoli no
+  // lleva). Destacado = slot '2' (el Plan 500 g, que hoy es el `popular`). Cada plan trae 3 beneficios
+  // (ben*_1..3); el 4º queda vacío (el componente lo omite → 3 bullets, como hoy).
+  suscripcionPlanes: {
+    visible: true,
+    eyebrow: 'Suscripción de Café',
+    titulo: 'Tu café de Supatá,',
+    tituloEnfasis: 'cada mes',
+    subtitulo: 'El mismo café de nuestra finca, tostado fresco y enviado a tu puerta. Pausa o cancela cuando quieras.',
+    planesTitulo: 'Elige tu plan',
+    planesSubtitulo: 'Escríbenos y coordinamos tu suscripción por WhatsApp. Sin compromisos, pausa o cancela cuando quieras.',
+    ctaLabel: 'Me interesa',
+    destacadoSlot: '2',
+    nombre1: 'Plan 250 g', descripcion1: 'Una bolsa de 250 g cada mes', precio1: '',
+    ben1_1: 'Grano o molido, como prefieras', ben1_2: 'El mismo café de nuestra finca en Supatá', ben1_3: 'Tostado fresco en tandas semanales', ben1_4: '',
+    nombre2: 'Plan 500 g', descripcion2: 'Una bolsa de 500 g cada mes', precio2: '',
+    ben2_1: 'Grano o molido, como prefieras', ben2_2: 'El mismo café de nuestra finca en Supatá', ben2_3: 'Tostado fresco en tandas semanales', ben2_4: '',
+    nombre3: 'Plan Familiar', descripcion3: 'Dos bolsas de 500 g cada mes', precio3: '',
+    ben3_1: 'Grano o molido, como prefieras', ben3_2: 'Ideal para el hogar o la oficina', ben3_3: 'Tostado fresco en tandas semanales', ben3_4: '',
+    nombre4: '', descripcion4: '', precio4: '',
+    ben4_1: '', ben4_2: '', ben4_3: '', ben4_4: '',
+  },
+  // Los pasos "¿Cómo funciona?" (antes `SUBSCRIPTION_STEPS`). Los íconos van por índice en el componente.
+  suscripcionPasos: {
+    visible: true,
+    titulo: '¿Cómo funciona?',
+    paso1Label: 'Elige tu plan', paso1Desc: 'Selecciona la frecuencia y cantidad que mejor se adapte a ti.',
+    paso2Label: 'Elige grano o molido', paso2Desc: 'Siempre el mismo café de nuestra finca — tú eliges cómo lo prefieres.',
+    paso3Label: 'Tostamos fresco', paso3Desc: 'Tostamos tu café en tandas semanales, días antes del envío.',
+    paso4Label: 'Recíbelo en casa', paso4Desc: 'Enviamos tu café fresco a todo el país.',
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
@@ -475,6 +569,46 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
         url: 'requerido',
         alt: 'opcional',
       },
+    },
+  },
+  // Los PLANES de /suscripciones. Encabezado + "Elige tu plan" + 4 slots de plan (1 requerido, 2-4
+  // opcionales). Plan 1: nombre/descripcion REQUERIDOS (default de Nayoli → mínimo 1 plan); precio y
+  // beneficios OPCIONALES. Planes 2-4: TODO opcional (nombre vacío → el componente omite el plan).
+  // `destacadoSlot` opcional (vacío = ninguno). Como Presentaciones: el resolver NO decide la
+  // cardinalidad, sólo default-vs-omit por campo; el componente filtra los planes visibles.
+  suscripcionPlanes: {
+    label: 'Planes',
+    ocultable: false, // el ocultar es a nivel de PÁGINA (paginas.suscripciones.visible), no de esta sección
+    campos: {
+      eyebrow: 'opcional',
+      titulo: 'requerido',
+      tituloEnfasis: 'opcional',
+      subtitulo: 'requerido',
+      planesTitulo: 'requerido',
+      planesSubtitulo: 'opcional',
+      ctaLabel: 'requerido',
+      destacadoSlot: 'opcional',
+      nombre1: 'requerido', descripcion1: 'requerido', precio1: 'opcional',
+      ben1_1: 'opcional', ben1_2: 'opcional', ben1_3: 'opcional', ben1_4: 'opcional',
+      nombre2: 'opcional', descripcion2: 'opcional', precio2: 'opcional',
+      ben2_1: 'opcional', ben2_2: 'opcional', ben2_3: 'opcional', ben2_4: 'opcional',
+      nombre3: 'opcional', descripcion3: 'opcional', precio3: 'opcional',
+      ben3_1: 'opcional', ben3_2: 'opcional', ben3_3: 'opcional', ben3_4: 'opcional',
+      nombre4: 'opcional', descripcion4: 'opcional', precio4: 'opcional',
+      ben4_1: 'opcional', ben4_2: 'opcional', ben4_3: 'opcional', ben4_4: 'opcional',
+    },
+  },
+  // Los pasos "¿Cómo funciona?" — cardinalidad FIJA 4, todos REQUERIDOS (empty → default; no se
+  // agregan/quitan pasos en v1). Íconos y número por índice en el componente (estructura).
+  suscripcionPasos: {
+    label: 'Cómo funciona',
+    ocultable: true,
+    campos: {
+      titulo: 'requerido',
+      paso1Label: 'requerido', paso1Desc: 'requerido',
+      paso2Label: 'requerido', paso2Desc: 'requerido',
+      paso3Label: 'requerido', paso3Desc: 'requerido',
+      paso4Label: 'requerido', paso4Desc: 'requerido',
     },
   },
 };

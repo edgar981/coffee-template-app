@@ -110,6 +110,41 @@ const nosotrosGaleriaEditableSchema = z.object({
   items: z.array(galeriaItemSchema).optional(),
 });
 
+// /suscripciones — los PLANES como dato (§ Backlog #49). Encabezado + "Elige tu plan" + `destacadoSlot`
+// (índice del destacado, string) + 4 slots de plan, cada uno nombre/descripcion/precio + 4 beneficios.
+// TODOS los campos deben declararse o zod los STRIPPEA al guardar (§ #65-B). Todo opcional/SOFT: el
+// resolver aplica default (requerido) u omisión (opcional). El precio es string (texto, no número — la
+// moneda/el formato son del cliente). El `site-content-schema.test.ts` verifica modelo ⊆ schema.
+const suscripcionPlanesEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  eyebrow: z.string().optional(),
+  titulo: z.string().optional(),
+  tituloEnfasis: z.string().optional(),
+  subtitulo: z.string().optional(),
+  planesTitulo: z.string().optional(),
+  planesSubtitulo: z.string().optional(),
+  ctaLabel: z.string().optional(),
+  destacadoSlot: z.string().optional(),
+  nombre1: z.string().optional(), descripcion1: z.string().optional(), precio1: z.string().optional(),
+  ben1_1: z.string().optional(), ben1_2: z.string().optional(), ben1_3: z.string().optional(), ben1_4: z.string().optional(),
+  nombre2: z.string().optional(), descripcion2: z.string().optional(), precio2: z.string().optional(),
+  ben2_1: z.string().optional(), ben2_2: z.string().optional(), ben2_3: z.string().optional(), ben2_4: z.string().optional(),
+  nombre3: z.string().optional(), descripcion3: z.string().optional(), precio3: z.string().optional(),
+  ben3_1: z.string().optional(), ben3_2: z.string().optional(), ben3_3: z.string().optional(), ben3_4: z.string().optional(),
+  nombre4: z.string().optional(), descripcion4: z.string().optional(), precio4: z.string().optional(),
+  ben4_1: z.string().optional(), ben4_2: z.string().optional(), ben4_3: z.string().optional(), ben4_4: z.string().optional(),
+});
+
+// /suscripciones — los pasos "¿Cómo funciona?". Cardinalidad fija 4, sólo texto (íconos estructurales).
+const suscripcionPasosEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  titulo: z.string().optional(),
+  paso1Label: z.string().optional(), paso1Desc: z.string().optional(),
+  paso2Label: z.string().optional(), paso2Desc: z.string().optional(),
+  paso3Label: z.string().optional(), paso3Desc: z.string().optional(),
+  paso4Label: z.string().optional(), paso4Desc: z.string().optional(),
+});
+
 // META de páginas: `visible` por página. NO es una sección (no pasa por el flujo borrador/publicar
 // de secciones); el toggle de encender/apagar /nosotros la escribe directo (tanda 1, commit 3).
 const paginasEditableSchema = z.object({
@@ -124,6 +159,8 @@ export const siteContentEditableSchema = z.object({
   testimonials: testimonialsEditableSchema.optional(),
   nosotrosHistoria: nosotrosHistoriaEditableSchema.optional(),
   nosotrosGaleria: nosotrosGaleriaEditableSchema.optional(),
+  suscripcionPlanes: suscripcionPlanesEditableSchema.optional(),
+  suscripcionPasos: suscripcionPasosEditableSchema.optional(),
   paginas: paginasEditableSchema.optional(),
 });
 
