@@ -181,3 +181,34 @@ Cierra el gemelo que #8 censó y dejó a propósito. La guarda de `availablePaym
 **AVISO `checkout-sin-salida`:** el Dashboard avisa el combo severo —ningún método MOSTRABLE (§ metodos-pago: ON *y* con datos) Y `whatsapp` vacío—. Usa `isBogota: true`, o sea el dead-end TOTAL: nadie, en ninguna ciudad, tendría con qué pagar.
 **LO QUE NO CUBRE, y por qué no es un aviso:** el caso PARCIAL —sólo Efectivo mostrable, que deja sin salida al comprador FUERA de Bogotá—. "Sólo entrego en Bogotá, sólo efectivo" es una forma LEGÍTIMA de operar, y un aviso que le grita al dueño por operar como decidió es ruido (mismo criterio que descartó "comparar contra los defaults" en los dormidos #3/#4). El problema real es que el comprador de fuera se entera AL FINAL: eso no lo arregla una alerta al dueño sino que la tienda diga A DÓNDE ENTREGA antes del checkout. Queda como decisión de producto: § cobertura de entrega visible.
 Regla: § Backlog #8 (gemelo CERRADO).
+
+## 2026-09-07 — Cuatro pares tipográficos nuevos (eje 3): el set cerrado pasa de 5 a 9
+`b3df709` (Merge slice/pares-fuentes-4-nuevos-1)
+
+Extensión ADITIVA del eje 3, de la sesión de diseño "Forma y composición · cinco ejes" (adoptada entera por el owner). Cada par llena un hueco de CARÁCTER DE NEGOCIO que los cinco actuales no tenían, no "otra serif elegante": **Robusta** (Oswald + Archivo) la condensada de cartel, para quien vende en bulto con el precio grande; **Técnico** (IBM Plex Mono + IBM Plex Sans) el registro de la hoja de cata —lote, altitud, fecha de tueste—, el hueco más raro dado el rubro; **Relato** (Familjen Grotesk + Source Serif 4) el ÚNICO con cuerpo serif, e invertido, para quien vende contando; **Cercano** (Quicksand + Mulish) la geometría redonda de cafetería de barrio. Nayoli es BYTE-IDÉNTICA: Editorial es el default y nunca se guarda (null), así que su fila no cambia.
+
+**TÉCNICO VA RECORTADO, y es el único par que sube de peso.** IBM Plex Mono no tiene versión variable en Google Fonts —son 3 archivos estáticos—, así que a pesos plenos son ~118 KB (+33 sobre Editorial). Con el display en `400;600` queda ~94 KB (+9). Se recorta porque mucha compra en Colombia es por datos móviles. **Y alcanza, medido:** el storefront usa el rol DISPLAY en UN SOLO peso, 400 — cero usos de `font-playfair`/`font-display` con clase de peso en todo el repo, cero reglas `font-weight` en globals.css.
+
+**DOS AFIRMACIONES DE LA CABECERA QUEDABAN FALSAS Y SE CORRIGIERON.** Decía "Ninguno pesa más — no hay nada que marcar" (falso: Técnico sube) y "PESOS por ROL, iguales a los de hoy: display 400;500;600" (ya no es universal). Además las cifras de red de los cuatro nuevos quedaron marcadas como ESTIMADAS: vienen de la propuesta, no de medir contra el CDN como las cinco actuales. Un número que se lee medido y no lo es es dato falso.
+**LA PROPUESTA SE CORRIGIÓ CON MEDICIÓN:** decía que `linkFuentesTodas()` pasaría de 8 a 16 specs; medido, pasa de **9 a 17** (5 pares → 9 únicos con Inter deduplicado, + 8 nuevos). Se usó el número medido. El invariante que importaba se mantiene: Inter sigue siendo el único dedup y ningún par nuevo comparte familia.
+
+**LA MATRIZ par×personalidad NO VA AL PICKER — es documentación de onboarding, no UI.** La elección de par y personalidad se hace en la sesión de alta; un aviso que dice "se puede ver peor" sin impedir nada se ignora, y un aviso que suena sin problema deja de leerse. **Nada se prohíbe en código:** el set cerrado ya garantiza que nada se rompe, sólo que algo se vea peor. La personalidad de forma es el eje 4, aún no construido; esto se registra ahora para que llegue con su documentación hecha.
+
+  DESCARTADOS (2, del documento):
+  · **Técnico + Suave** — un titular mono ya es rectangular; radios de 24px y píldoras lo contradicen en cada esquina.
+  · **Cercano + Recta** — la esquina viva le quita a Quicksand justo lo que la hace elegible, y en versalitas pierde la curva que la distingue de Poppins.
+
+  CON RESERVA, del documento (3):
+  · **Robusta + Suave** — la píldora de 999px contra un titular vertical comprimido son dos ritmos en desacuerdo; el badge redondo le quita el filo que es su razón de ser.
+  · **Relato + Mínima** — sin divisores ni sombra, la mancha serif necesita más aire del que dan los radios cortos; funciona si el cliente escribe párrafos, no si pone listas.
+  · **Cercano + Mínima** — el radio corto alcanza, pero sin sombra ni divisores la página queda blanda, porque el par tampoco aporta filo.
+
+  LA FRICCIÓN QUE YA EXISTÍA Y NADIE HABÍA NOMBRADO (del documento):
+  · **Editorial + Recta** — Playfair es de contraste alto y trazo fino; con esquina 0, borde 1.5px e íconos de trazo 1.25 la página se vuelve toda fina y pierde jerarquía. Nayoli está en Suave, así que no la afecta — pero el picker debería decirlo.
+
+  DERIVADOS POR EL ORQUESTADOR, **no tomados del documento** (2), por decisión del owner de completarlos. Mismo mecanismo que Editorial+Recta: **Recta impone el lenguaje de la etiqueta impresa** —esquina 0, borde 1.5px, versalitas con .12em— y eso contradice el carácter de las serif cuyo valor es la suavidad o la serenidad:
+  · **Cálido + Recta** — la calidez de Fraunces viene del REMATE; la esquina viva y las versalitas la endurecen. Es el mismo choque que Cercano+Recta pero menos extremo: Fraunces conserva su identidad serif, así que es reserva y no descarte.
+  · **Clásico + Recta** — Lora es serif de LIBRO, serena; el registro de etiqueta dura la saca de su lugar. A diferencia de Editorial no se vuelve fina (su trazo es más parejo), así que el problema es de REGISTRO, no de jerarquía.
+
+  NOTA DE CONTEO, honesta: el documento afirma "cinco llevan reserva" pero no las desglosa todas. La lista de arriba no cuadra exactamente con ese número, y no se forzó para que cuadre — se registra cada cruce con su razón y su PROCEDENCIA, que es lo que sirve en el onboarding; el número suelto no.
+Regla: § el set cerrado de pares tipográficos (9) · la matriz vive en el ledger, no en el picker.
