@@ -171,3 +171,13 @@ Segundo dormido del censo de avisos (§ #65) construido. `SiteSetting.whatsapp` 
 **PLAZO (mismo renglón, decisión del owner):** "en menos de 2 horas hábiles" → "lo más pronto posible" en las dos ramas. Un plazo horneado es una promesa que el negocio no eligió y el template no garantiza por cliente.
 **GEMELO (censado, NO tocado, por instrucción del owner):** la guarda de "todos los métodos apagados" (checkout, "Escríbenos para coordinar el pago") NO lee `whatsapp` y no renderiza enlace; mismo hueco conceptual, cableado a nada. Se resuelve aparte (necesita un DESTINO que ofrecer, no un borrado): § AVISOS-DORMANT-8-TWIN-1.
 Regla: § Backlog #8 (CONSTRUIDO).
+
+## 2026-09-07 — El gemelo de #8: la guarda "sin métodos de pago" gana un DESTINO
+`355e8d5` (Merge slice/avisos-dormant-8-twin-1)
+
+Cierra el gemelo que #8 censó y dejó a propósito. La guarda de `availablePayments.length === 0` decía "Escríbenos para coordinar el pago" SIN leer `whatsapp` y SIN enlace: mismo hueco conceptual que las promesas que #8 gateó, pero cableado a nada.
+**Por qué NO se gateó como #8:** esa frase ES el fallback —no tiene otra a la que caer—, así que apagarla dejaría el paso de pago MUDO, justo lo que la guarda existe para evitar. Cerrar el hueco pedía un DESTINO, no un borrado.
+**Elección (opción 1 del owner):** con canal, se NOMBRA —"No hay un método de pago disponible ahora mismo. Escríbenos por WhatsApp para coordinar el pago y completar tu pedido."—; sin canal, copy mínima y honesta que no inventa un canal ni expone la mala configuración al comprador: "No podemos completar tu pedido en este momento. Vuelve a intentarlo más tarde." Descartado dejarla vaga: vago no es honesto —el comprador tiene que adivinar por dónde escribir—, familia de la cuenta bancaria falsa y el rating fabricado.
+**AVISO `checkout-sin-salida`:** el Dashboard avisa el combo severo —ningún método MOSTRABLE (§ metodos-pago: ON *y* con datos) Y `whatsapp` vacío—. Usa `isBogota: true`, o sea el dead-end TOTAL: nadie, en ninguna ciudad, tendría con qué pagar.
+**LO QUE NO CUBRE, y por qué no es un aviso:** el caso PARCIAL —sólo Efectivo mostrable, que deja sin salida al comprador FUERA de Bogotá—. "Sólo entrego en Bogotá, sólo efectivo" es una forma LEGÍTIMA de operar, y un aviso que le grita al dueño por operar como decidió es ruido (mismo criterio que descartó "comparar contra los defaults" en los dormidos #3/#4). El problema real es que el comprador de fuera se entera AL FINAL: eso no lo arregla una alerta al dueño sino que la tienda diga A DÓNDE ENTREGA antes del checkout. Queda como decisión de producto: § cobertura de entrega visible.
+Regla: § Backlog #8 (gemelo CERRADO).
