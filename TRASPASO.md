@@ -53,7 +53,9 @@ PASADO. Mergeada a `main` `--no-ff` (`d003d69`), rama borrada, deploy a producci
 "(1) planes como dato de SiteContent" con la decisión del PRECIO adentro (un precio inventado es dato falso en la
 ruta del dinero) + los pasos café-shape; la vida OPERATIVA (órdenes recurrentes, cobro) es PROYECTO aparte (eje de
 cobro + Carlos); y **#68 nuevo** — código muerto de suscripción transaccional (`Product.esSuscripcion?`,
-`SUBSCRIPTIONS_ENABLED`/`SUBSCRIPTION_DISCOUNT`) a borrar o cablear. **SIGUIENTE (owner): #49.** **NO TOCAR: #54, #58,
+`SUBSCRIPTIONS_ENABLED`/`SUBSCRIPTION_DISCOUNT`) a borrar o cablear (**resuelto después: BORRADO el 2026-09-07,
+`c503d5e`** —no se cableó; no tocó schema, `esSuscripcion` nunca tuvo columna Prisma—; § Backlog #68).
+**SIGUIENTE (owner): #49.** **NO TOCAR: #54, #58,
 #61, #62, Fase 2 de #46.** **NO quedan pasos manuales abiertos.**)
 
 **ANTES —** 2026-09-06 (**LA CASCADA de /admin/tienda ARREGLADA — lazy-mount de las previews + fetch 5→1.**
