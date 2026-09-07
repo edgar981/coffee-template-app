@@ -1,5 +1,8 @@
 import { tarjetasDePresentaciones } from '../storefront/presentaciones';
 import type { SiteContentData } from './site-content-defaults';
+// `import type` desde un módulo SIN `server-only` (el lector RAW): sólo viaja el TIPO y este archivo
+// sigue siendo puro (capa 1), como el `SiteContentData` de arriba.
+import type { SiteSettings } from './site-settings-read';
 
 // AVISOS DE CONFIGURACIÓN del Dashboard (§ Backlog #65, Fase 1). Un aviso es un defecto que deja el
 // storefront ROTO/INCOMPLETO para el VISITANTE sin que el dueño se entere. Distinto de "Necesita tu
@@ -23,6 +26,15 @@ export interface AvisoConfig {
 // `tarjeta` (el SLOT) resalta y scrollea su bloque, reusando `tarjetaActiva`/`bloquesRef` del puente.
 const hrefTarjeta = (slot: number) => `/admin/tienda?seccion=presentaciones&tarjeta=${slot}`;
 
+// EL DEEP-LINK DEL AVISO #8 ATERRIZA EN LA PANTALLA, NO EN EL CAMPO — y es un LÍMITE de la convención,
+// no un descuido. `?seccion=&tarjeta=` es del editor de CONTENIDO (`/admin/tienda`): `seccion` es una
+// clave de SiteContent y `tarjeta` un SLOT de un bloque. El `whatsapp` es un SiteSetting —IDENTIDAD del
+// negocio, otra pantalla (§ la frontera negocio≠tienda)— y `/admin/configuracion` NO lee query params
+// (medido: cero `useSearchParams` en esa página y en `DatosNegocioSeccion`), así que no hay a qué
+// aterrizar más fino. Se cae a la pantalla donde vive el campo, que es lo más cerca que la convención
+// permite hoy; el día que Configuración gane sub-rutas o deep-link por sección, esto lo aprovecha.
+const HREF_DATOS_NEGOCIO = '/admin/configuracion';
+
 /**
  * Los defectos de CONFIGURACIÓN del storefront PUBLICADO —cruzando el contenido que ve el visitante
  * (`readSiteContent` → `SiteContentData`) con el catálogo—. FASE 1: SÓLO Presentaciones —
@@ -30,19 +42,25 @@ const hrefTarjeta = (slot: number) => `/admin/tienda?seccion=presentaciones&tarj
  *   #2 tarjeta con TÍTULO y SIN imagen (hueco visible: el criterio OR de la cardinalidad variable la
  *      muestra apenas tiene título, y la imagen faltante queda como estado incompleto persistente).
  *
- * LA PUERTA DE LOS DORMIDOS QUEDA ABIERTA: los defectos #3/#4/#8 (hero/brandStory/whatsapp — que NO
- * disparan para Nayoli, porque los defaults SON Nayoli) se agregan ACÁ cuando llegue el 2º cliente —
- * mismo contenido publicado, misma forma de aviso— sin tocar el lector ni la UI. NO se construyen ahora.
+ * FASE 2 suma el DORMIDO #8 — WHATSAPP VACÍO —, que ya no cruza contenido sino la IDENTIDAD del negocio
+ * (`SiteSettings`, cuarto argumento): el checkout le promete al comprador que se confirma el pago por
+ * WhatsApp, y `SiteSetting.whatsapp` puede estar VACÍO (la migración neutral siembra `''` — un cliente
+ * nuevo nace sin número; sólo el seed de Nayoli lo llena, que es por qué el defecto está DORMIDO acá).
+ * Con esta tanda el checkout deja de prometer ese canal cuando no existe (§ el GATE del storefront), y
+ * el dueño se entera por este aviso. Los dormidos #3/#4 (hero/brandStory requeridos vacíos) siguen sin
+ * construirse: son contenido, y para Nayoli los defaults SON el tenant.
  *
  * `catalogoListo` gatea SÓLO #1: un fetch de catálogo fallido NO puede afirmar que una categoría "no
  * existe" —mentiría—. #2 no depende del catálogo y corre igual. Mismo criterio que el aviso del editor
  * (`categoriasListas`, TiendaSeccionEditor). El predicado de #1 es el MISMO que ese aviso
  * (`value ∉ categorias`), sacado del editor abierto al Dashboard —una sola definición de "destino roto"—.
+ * #8 tampoco depende del catálogo.
  */
 export function avisosDeConfiguracion(
   contenido: SiteContentData,
   categorias: string[],
   catalogoListo: boolean,
+  ajustes: SiteSettings,
 ): AvisoConfig[] {
   const avisos: AvisoConfig[] = [];
   const pres = contenido.presentaciones;
@@ -77,6 +95,18 @@ export function avisosDeConfiguracion(
         });
       }
     }
+  }
+
+  // #8 — WHATSAPP VACÍO. El mensaje dice la CONSECUENCIA que el COMPRADOR vive, no el mecanismo: el
+  // dueño no tiene por qué saber que existe un campo `whatsapp`, sí que su checkout dejó de ofrecer el
+  // canal por el que iba a confirmar los pagos (§ #65: la copy es del dueño, no del sistema). Un
+  // `whatsapp` de sólo espacios cuenta como vacío — es lo mismo que el visitante recibe.
+  if (ajustes.whatsapp.trim() === '') {
+    avisos.push({
+      clave: 'negocio-whatsapp',
+      mensaje: 'No cargaste el WhatsApp del negocio: tu checkout ya no le ofrece a los compradores confirmar el pago por ese canal.',
+      href: HREF_DATOS_NEGOCIO,
+    });
   }
 
   return avisos;

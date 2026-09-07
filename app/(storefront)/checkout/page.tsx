@@ -65,6 +65,15 @@ export default function Checkout() {
 
   const settings = useSiteSettings();
 
+  // ¿HAY CANAL DE WHATSAPP? El checkout le PROMETE al comprador que el pago se confirma por WhatsApp,
+  // y `SiteSetting.whatsapp` puede estar VACÍO (la migración neutral siembra `''`: un cliente nuevo
+  // nace sin número). Sin canal, la copy NO ofrece ese camino — la MISMA regla que el CTA de
+  // /suscripciones, que se oculta sin número (§ los enlaces se ocultan si el campo está vacío). Acá no
+  // hay enlace que ocultar sino una PROMESA que retirar: cada frase se escribe ENTERA por rama (no un
+  // prefijo con cola variable), así ninguna queda a medias ni deja un hueco donde estaba el canal. El
+  // dueño se entera por el aviso de configuración del Dashboard (§ avisos-configuracion, #8).
+  const tieneWhatsapp = settings.whatsapp.trim() !== '';
+
   // Los métodos que el checkout MUESTRA: ON + datos completos (§ metodos-pago). Cada uno se
   // enciende/apaga y edita en Configuración. Puede quedar VACÍO (todos apagados o sin datos) → la
   // guarda defensiva del paso de pago muestra "escríbenos para coordinar el pago" en vez de un paso
@@ -137,7 +146,11 @@ export default function Checkout() {
             </div>
             <h1 className="text-3xl font-playfair text-[var(--sf-tinta)] mb-2">¡Pedido recibido!</h1>
             <p className="text-[var(--sf-texto)] mb-2">Gracias, {info.nombre}. Recibimos tu pedido.</p>
-            <p className="text-sm text-[var(--sf-texto-suave)] mb-4">Tu pedido está reservado. Confirmaremos el pago por WhatsApp y luego preparamos tu envío.</p>
+            <p className="text-sm text-[var(--sf-texto-suave)] mb-4">
+              {tieneWhatsapp
+                ? 'Tu pedido está reservado. Confirmaremos el pago por WhatsApp y luego preparamos tu envío.'
+                : 'Tu pedido está reservado. Confirmaremos el pago y luego preparamos tu envío.'}
+            </p>
             <div className="flex items-center justify-center gap-2 mb-6">
               <span className="text-xs text-[var(--sf-texto-suave)]">Estado:</span>
               <StatusBadge status={confirmation.estado} theme="light" />
@@ -347,7 +360,15 @@ export default function Checkout() {
                     )}
                     <div className="bg-[var(--sf-superficie)] rounded-xl p-4 flex items-start gap-2 text-xs text-[var(--sf-texto)]">
                       <Lock className="w-3.5 h-3.5 text-[var(--sf-acento-texto)] shrink-0 mt-0.5" />
-                      <span>Tu información está segura. Nuestro equipo confirmará el pago por WhatsApp y procesará tu pedido en menos de 2 horas hábiles.</span>
+                      {/* El PLAZO no lo promete el template: «en menos de 2 horas hábiles» era una
+                          promesa horneada que ningún cliente eligió y que la tienda no puede garantizar
+                          por despliegue (§ el censo de datos falsos: un literal que se hace pasar por
+                          compromiso del negocio). Va «lo más pronto posible» en las DOS ramas. */}
+                      <span>
+                        {tieneWhatsapp
+                          ? 'Tu información está segura. Nuestro equipo confirmará el pago por WhatsApp y procesará tu pedido lo más pronto posible.'
+                          : 'Tu información está segura. Nuestro equipo confirmará el pago y procesará tu pedido lo más pronto posible.'}
+                      </span>
                     </div>
                     <div className="flex gap-3">
                       <button onClick={() => setStep(0)} className="flex-1 border border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)]">Atrás</button>
