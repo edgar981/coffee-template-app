@@ -1,5 +1,17 @@
 @AGENTS.md
 
+## Tier 1 — superficies protegidas (agregado por el protocolo dev-protocol, 2026-09-06)
+
+El protocolo orquestador (dev-protocol) marca estas superficies como Tier 1: se
+investigan primero en una sesión read-only y solo se escriben en una SEGUNDA etapa,
+tras tu visto bueno explícito. La suite verde no reemplaza el gate visual (capa 3)
+sobre el preview de Vercel. La lista fue MEDIDA contra el código, no asumida —
+migraciones y schema son la memoria del producto; site-content es el schema que
+strippeaba en silencio; app/(storefront)/ son los bytes del visitante; y el resto
+es la ruta del dinero: cada puerta de escritura de stock, pagos y pedidos.
+
+Tier 1 slices run in a separate read-only session first, then a second stage that writes only after the owner's explicit go, over these measured surfaces: packages/core/prisma/schema.prisma, packages/core/prisma/migrations/, lib/config/site-content-schema.ts, lib/config/site-content-defaults.ts, app/(storefront)/, packages/core/src/inventory.ts, packages/core/src/fulfillment.ts, packages/core/src/product-update.ts, packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/shipping-transition.ts, app/api/checkout/route.ts, app/api/inventory/adjust/route.ts, app/api/orders/[id]/payments/route.ts, app/api/orders/route.ts, app/api/orders/[id]/address/route.ts, app/api/comprobantes/[id]/route.ts and app/api/shippings/route.ts.
+
 ## Quién decide qué
 
 El proyecto lo mueven TRES roles, y confundir cuál decide qué es cómo una decisión
