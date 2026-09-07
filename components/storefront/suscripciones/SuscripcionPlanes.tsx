@@ -63,12 +63,16 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
                   <Coffee className="w-5 h-5 text-[var(--sf-acento-texto)]" />
                 </div>
                 <h3 className="text-xl font-playfair text-[var(--sf-tinta)] mb-1">{plan.nombre}</h3>
-                {/* El PRECIO es TEXTO libre (§ site-content-defaults). Va con el TRATAMIENTO DE PRECIO del
-                    storefront —`font-bold text-[var(--sf-tinta)]`, el peso que usan ProductCard y el detalle
-                    de producto—, no un estilo nuevo; y UNDER el nombre (jerarquía de tarjeta de precio:
-                    nombre → precio → qué es → beneficios → CTA). Vacío → NO se muestra (nunca placeholder ni
-                    "desde"); Nayoli no lo lleva, así que este bloque no aparece → byte-idéntico. */}
-                {plan.precio && <p className="text-3xl font-bold text-[var(--sf-tinta)] mb-1">{plan.precio}</p>}
+                {/* El PRECIO es TEXTO libre (§ site-content-defaults). Lleva la clase de precio de
+                    ProductCard VERBATIM —`font-bold text-[var(--sf-tinta)]`— tras MEDIR los estilos
+                    computados (§ Backlog #49, FIX B): ProductCard y el detalle de producto ya coincidían con
+                    esto en familia (Inter), peso (700), tracking (normal) y color (--sf-tinta) — no había
+                    familia/tracking «que faltara»; lo ÚNICO nuevo era un tamaño inventado (text-3xl). El
+                    `text-4xl` del detalle DESBORDA un precio largo en esta tarjeta (medido: 268px > 252px de
+                    caja a 304px de tarjeta), así que se copia la clase de ProductCard (16px heredado), que
+                    entra en una línea para cualquier precio. UNDER el nombre (nombre → precio → qué es →
+                    beneficios → CTA). Vacío → NO se muestra; Nayoli no lo lleva → byte-idéntico. */}
+                {plan.precio && <p className="font-bold text-[var(--sf-tinta)] mb-1">{plan.precio}</p>}
                 {plan.descripcion && <p className="text-sm text-[var(--sf-texto-suave)] mb-4">{plan.descripcion}</p>}
                 <div className="space-y-2 mb-6">
                   {plan.beneficios.map(b => (

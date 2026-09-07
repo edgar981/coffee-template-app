@@ -52,7 +52,14 @@ test('BYTE-IDÉNTICO: los pasos derivados reproducen los SUBSCRIPTION_STEPS de h
   assert.deepEqual(pasos, PASOS_VIEJOS);
 });
 
-test('cardinalidad: plan 1 SIEMPRE; planes 2-4 sólo con nombre (como Presentaciones)', () => {
+test('REGLA ÚNICA (FIX A): un plan sin nombre NO se muestra — TAMBIÉN el slot 1, y TAMBIÉN si es el destacado', () => {
+  // Slot 1 (antes forzado por `req`) sin nombre → NO se muestra. Con destacadoSlot=1 tampoco.
+  const p1 = planesDeSuscripcion({ ...DEFAULTS.suscripcionPlanes, destacadoSlot: '1', nombre1: '' });
+  assert.deepEqual(p1.map(p => p.slot), [2, 3], 'el plan 1 destacado sin nombre se filtra igual que uno opcional');
+  assert.ok(p1.every(p => !p.destacado), 'y no queda ningún destacado colgando');
+});
+
+test('cardinalidad: planes 2-4 sólo con nombre (como Presentaciones); el piso lo da el resolver', () => {
   // Sólo el slot 1 con nombre → un solo plan.
   const unSolo: SuscripcionPlanesContent = {
     ...DEFAULTS.suscripcionPlanes,

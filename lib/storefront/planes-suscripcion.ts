@@ -26,20 +26,27 @@ export interface PlanSuscripcion {
 /**
  * Los planes PRESENTES de una config de suscripción.
  *
- * Plan 1 SIEMPRE (nombre/descripcion requeridos → mínimo 1, con los defaults de Nayoli). Planes 2-4
- * sólo si tienen NOMBRE (el nombre es el ancla del plan; sin él no es un plan). Es el mismo criterio de
- * cardinalidad-variable-sobre-campos-planos que Presentaciones: el componente filtra, el resolver no.
+ * REGLA ÚNICA: un plan se muestra sólo si tiene NOMBRE —el nombre es el ancla del plan; sin él no es un
+ * plan—, para TODOS los slots, destacado o no (§ Backlog #49, FIX A). Antes el slot 1 tenía un `req` que
+ * lo forzaba a mostrarse aun VACÍO, así que un plan 1 DESTACADO sin nombre seguía apareciendo (la
+ * inclusión ganaba al filtro); la regla es una sola.
+ *
+ * EL PISO DE 1 PLAN NO lo garantiza esta función, sino el RESOLVER: `nombre1`/`descripcion1` son
+ * REQUERIDOS en el REGISTRY, así que en la tienda real el resolver llena `nombre1` con el default de
+ * Nayoli → plan 1 siempre tiene nombre → siempre se muestra (byte-idéntico). En el preview del editor
+ * (form CRUDO, sin re-resolver) vaciar el nombre oculta el plan —honesto al borrador, y el operador
+ * aprende que un plan sin nombre no va—. El componente filtra, el resolver no (como Presentaciones).
  */
 export function planesDeSuscripcion(p: SuscripcionPlanesContent): PlanSuscripcion[] {
   const destacadoSlot = Number.parseInt(p.destacadoSlot, 10); // NaN si '' (ninguno) → nunca matchea
   const slots = [
-    { slot: 1, nombre: p.nombre1, descripcion: p.descripcion1, precio: p.precio1, bens: [p.ben1_1, p.ben1_2, p.ben1_3, p.ben1_4], req: true },
-    { slot: 2, nombre: p.nombre2, descripcion: p.descripcion2, precio: p.precio2, bens: [p.ben2_1, p.ben2_2, p.ben2_3, p.ben2_4], req: false },
-    { slot: 3, nombre: p.nombre3, descripcion: p.descripcion3, precio: p.precio3, bens: [p.ben3_1, p.ben3_2, p.ben3_3, p.ben3_4], req: false },
-    { slot: 4, nombre: p.nombre4, descripcion: p.descripcion4, precio: p.precio4, bens: [p.ben4_1, p.ben4_2, p.ben4_3, p.ben4_4], req: false },
+    { slot: 1, nombre: p.nombre1, descripcion: p.descripcion1, precio: p.precio1, bens: [p.ben1_1, p.ben1_2, p.ben1_3, p.ben1_4] },
+    { slot: 2, nombre: p.nombre2, descripcion: p.descripcion2, precio: p.precio2, bens: [p.ben2_1, p.ben2_2, p.ben2_3, p.ben2_4] },
+    { slot: 3, nombre: p.nombre3, descripcion: p.descripcion3, precio: p.precio3, bens: [p.ben3_1, p.ben3_2, p.ben3_3, p.ben3_4] },
+    { slot: 4, nombre: p.nombre4, descripcion: p.descripcion4, precio: p.precio4, bens: [p.ben4_1, p.ben4_2, p.ben4_3, p.ben4_4] },
   ];
   return slots
-    .filter(s => s.req || s.nombre.trim() !== '')
+    .filter(s => s.nombre.trim() !== '') // REGLA ÚNICA: sin nombre no se muestra, destacado o no (FIX A)
     .map(s => ({
       slot: s.slot,
       nombre: s.nombre,
