@@ -336,9 +336,20 @@ export default function Checkout() {
                     {availablePayments.length === 0 ? (
                       // Guarda defensiva: el dueño apagó TODOS los métodos (o ninguno tiene datos). El
                       // editor exige ≥1 encendido, así que casi no pasa —pero el checkout no puede quedar
-                      // mudo—: se ofrece coordinar el pago por WhatsApp en vez de un paso sin opciones.
+                      // mudo—: en vez de un paso sin opciones se ofrece coordinar el pago por WhatsApp.
+                      //
+                      // ESTA GUARDA NO SE PUEDE GATEAR CON UN BORRADO, y es lo que la separa de las otras
+                      // dos promesas de canal de esta página: aquéllas tienen una frase a la que caer (la
+                      // misma sin el canal), y ÉSTA ES EL FALLBACK MISMO —quitarle el canal la dejaría
+                      // muda—. Así que sin WhatsApp no se borra: se le cambia el DESTINO por uno honesto
+                      // ("vuelve más tarde"), que no inventa un canal que no existe ni le enseña al
+                      // comprador la mala configuración de la tienda. Cada rama se escribe ENTERA (§ el
+                      // gate del canal, #8). El dueño se entera del combo —sin pago Y sin canal, que es
+                      // una venta muerta— por el aviso `checkout-sin-salida` del Dashboard.
                       <div className="bg-[var(--sf-superficie)] rounded-xl p-4 text-sm text-[var(--sf-texto)]">
-                        No hay un método de pago disponible ahora mismo. Escríbenos para coordinar el pago y completar tu pedido.
+                        {tieneWhatsapp
+                          ? 'No hay un método de pago disponible ahora mismo. Escríbenos por WhatsApp para coordinar el pago y completar tu pedido.'
+                          : 'No podemos completar tu pedido en este momento. Vuelve a intentarlo más tarde.'}
                       </div>
                     ) : (
                       <>

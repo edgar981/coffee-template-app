@@ -144,7 +144,8 @@ export default function Dashboard() {
   const itemsAtencion = itemsDeAtencion(stats?.atencionPedidos ?? [], products);
 
   // Los AVISOS DE CONFIGURACIÓN (§ Backlog #65): defectos que el VISITANTE ve pero el dueño no —hoy,
-  // Presentaciones con destino inexistente o título sin imagen, y el WhatsApp del negocio sin cargar—.
+  // Presentaciones con destino inexistente o título sin imagen, el WhatsApp del negocio sin cargar, y el
+  // combo severo de ese dato: un checkout SIN SALIDA (ningún método de pago mostrable y sin WhatsApp)—.
   // DERIVADO: cruza el contenido PUBLICADO con las categorías del catálogo y la identidad del negocio.
   // Sin lo publicado (el fetch falló) → `[]` (no se afirma un defecto a ciegas). Van en un aviso APARTE
   // del DUEÑO, NO en "Necesita tu atención" (la cola del OPERADOR, que se vacía). Los dormidos que

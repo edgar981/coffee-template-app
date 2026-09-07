@@ -31,6 +31,12 @@ const imagenes = (c: SiteContentData, cats: string[], listo = true) =>
   avisosDeConfiguracion(c, cats, listo, AJUSTES_SANOS).filter(a => a.clave.startsWith('presentaciones-imagen'));
 const whatsapps = (s: SiteSettings) =>
   avisosDeConfiguracion(NAYOLI, CATS_NAYOLI, true, s).filter(a => a.clave === 'negocio-whatsapp');
+const salidas = (s: SiteSettings) =>
+  avisosDeConfiguracion(NAYOLI, CATS_NAYOLI, true, s).filter(a => a.clave === 'checkout-sin-salida');
+/** Los cuatro métodos APAGADOS: la config que deja el paso de pago sin una sola opción que mostrar. */
+const SIN_METODOS: Pick<SiteSettings, 'pagoNequiActivo' | 'pagoDaviplataActivo' | 'pagoTransferenciaActivo' | 'pagoEfectivoActivo'> = {
+  pagoNequiActivo: false, pagoDaviplataActivo: false, pagoTransferenciaActivo: false, pagoEfectivoActivo: false,
+};
 
 test('Nayoli SANO (defaults + catálogo alineado + identidad cargada) → CERO avisos', () => {
   const avisos = avisosDeConfiguracion(NAYOLI, CATS_NAYOLI, true, AJUSTES_SANOS);
@@ -130,4 +136,56 @@ test('#8 convive con los de Presentaciones — cada defecto es su propio aviso',
   const avisos = avisosDeConfiguracion(c, CATS_NAYOLI, true, conWhatsapp(''));
   assert.equal(avisos.length, 2);
   assert.deepEqual(avisos.map(a => a.clave).sort(), ['negocio-whatsapp', 'presentaciones-imagen-1']);
+});
+
+// ── #8-GEMELO · CHECKOUT SIN SALIDA ───────────────────────────────────────────────────────────────
+// El combo severo: sin método de pago MOSTRABLE la guarda defensiva del checkout es lo único que
+// queda, y sin WhatsApp esa guarda ya no ofrece por dónde coordinar → el comprador llega al pago y
+// no puede terminar. Es una venta muerta, no un canal menos.
+
+test('el gemelo exige las DOS mitades — sin métodos PERO con WhatsApp no dispara', () => {
+  assert.equal(salidas({ ...AJUSTES_SANOS, ...SIN_METODOS }).length, 0);
+});
+
+test('el gemelo exige las DOS mitades — sin WhatsApp PERO con un método mostrable no dispara', () => {
+  // AJUSTES_SANOS deja efectivo ENCENDIDO (no necesita datos), así que hay un método que mostrar.
+  assert.equal(salidas(conWhatsapp('')).length, 0);
+});
+
+test('sin métodos Y sin WhatsApp → el aviso del dead-end, donde se editan los dos datos', () => {
+  const avs = salidas({ ...AJUSTES_SANOS, ...SIN_METODOS, whatsapp: '' });
+  assert.equal(avs.length, 1);
+  assert.equal(avs[0].clave, 'checkout-sin-salida');
+  assert.equal(avs[0].href, '/admin/configuracion');
+});
+
+test('un método ENCENDIDO pero SIN SUS DATOS no cuenta como mostrable — es la regla del checkout', () => {
+  // Sólo nequi encendido, y `pagoMovilNumero` sin cargar: el checkout NO lo muestra (§ metodos-pago),
+  // así que el paso de pago queda igual de vacío que con todo apagado.
+  const s: SiteSettings = { ...AJUSTES_SANOS, ...SIN_METODOS, pagoNequiActivo: true, pagoMovilNumero: null, whatsapp: '' };
+  assert.equal(salidas(s).length, 1);
+  // y con el número cargado el mismo método SÍ se muestra → deja de haber dead-end.
+  assert.equal(salidas({ ...s, pagoMovilNumero: '+573155766064' }).length, 0);
+});
+
+test('el dead-end NO se juzga con la ciudad del comprador — efectivo encendido es un método mostrable', () => {
+  // `isBogota` es la dirección del COMPRADOR, no configuración: el aviso dispara sólo cuando NINGÚN
+  // comprador tendría método. Efectivo encendido (aunque sólo sirva en Bogotá) no es un dead-end cierto.
+  const s: SiteSettings = { ...AJUSTES_SANOS, ...SIN_METODOS, pagoEfectivoActivo: true, whatsapp: '' };
+  assert.equal(salidas(s).length, 0);
+});
+
+test('el gemelo y #8 conviven — un canal retirado y un pedido imposible son hechos distintos', () => {
+  const avisos = avisosDeConfiguracion(NAYOLI, CATS_NAYOLI, true, { ...AJUSTES_SANOS, ...SIN_METODOS, whatsapp: '' });
+  assert.deepEqual(avisos.map(a => a.clave), ['checkout-sin-salida', 'negocio-whatsapp'], 'el severo va primero');
+});
+
+test('el gemelo dice la CONSECUENCIA del comprador, no el mecanismo de la config', () => {
+  const [av] = salidas({ ...AJUSTES_SANOS, ...SIN_METODOS, whatsapp: '' });
+  assert.match(av.mensaje, /checkout/i, 'nombra dónde lo sufre el comprador');
+  assert.doesNotMatch(av.mensaje, /campo|apagad|SiteSetting|null|booleano/i, 'no habla del mecanismo');
+});
+
+test('Nayoli SANO sigue en CERO avisos con el gemelo puesto', () => {
+  assert.equal(avisosDeConfiguracion(NAYOLI, CATS_NAYOLI, true, AJUSTES_SANOS).length, 0);
 });

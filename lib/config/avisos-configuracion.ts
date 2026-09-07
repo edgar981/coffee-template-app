@@ -1,3 +1,4 @@
+import { metodosDisponibles } from '../checkout/metodos-pago';
 import { tarjetasDePresentaciones } from '../storefront/presentaciones';
 import type { SiteContentData } from './site-content-defaults';
 // `import type` desde un módulo SIN `server-only` (el lector RAW): sólo viaja el TIPO y este archivo
@@ -47,8 +48,10 @@ const HREF_DATOS_NEGOCIO = '/admin/configuracion';
  * WhatsApp, y `SiteSetting.whatsapp` puede estar VACÍO (la migración neutral siembra `''` — un cliente
  * nuevo nace sin número; sólo el seed de Nayoli lo llena, que es por qué el defecto está DORMIDO acá).
  * Con esta tanda el checkout deja de prometer ese canal cuando no existe (§ el GATE del storefront), y
- * el dueño se entera por este aviso. Los dormidos #3/#4 (hero/brandStory requeridos vacíos) siguen sin
- * construirse: son contenido, y para Nayoli los defaults SON el tenant.
+ * el dueño se entera por este aviso. Con él va su GEMELO —`checkout-sin-salida`—, el combo severo del
+ * mismo dato: ningún método de pago mostrable Y sin WhatsApp, o sea un checkout al que se llega y del
+ * que no se sale. Los dormidos #3/#4 (hero/brandStory requeridos vacíos) siguen sin construirse: son
+ * contenido, y para Nayoli los defaults SON el tenant.
  *
  * `catalogoListo` gatea SÓLO #1: un fetch de catálogo fallido NO puede afirmar que una categoría "no
  * existe" —mentiría—. #2 no depende del catálogo y corre igual. Mismo criterio que el aviso del editor
@@ -95,6 +98,33 @@ export function avisosDeConfiguracion(
         });
       }
     }
+  }
+
+  // #8-GEMELO — CHECKOUT SIN SALIDA. Va PRIMERO porque es el combo MÁS SEVERO de esta familia, no una
+  // variante del de abajo: sin ningún método de pago MOSTRABLE el paso de pago cae a su guarda defensiva,
+  // y sin WhatsApp esa guarda ya no puede ofrecer coordinar el pago (§ el gate del checkout) — el
+  // comprador llega al final y no tiene por dónde salir. Es una VENTA MUERTA, no un canal menos, así que
+  // se dice APARTE aunque `negocio-whatsapp` dispare también: los dos hechos son ciertos y dicen cosas
+  // distintas (un canal retirado ≠ un pedido que nadie puede completar), y esta lista ya es "un aviso por
+  // defecto" (cada tarjeta rota trae el suyo). Los dos aterrizan en la misma pantalla porque los dos
+  // datos —métodos y WhatsApp— se editan ahí.
+  //
+  // "MOSTRABLE" ES LA REGLA DEL CHECKOUT, NO UNA COPIA: `metodosDisponibles` (§ metodos-pago) es la única
+  // definición de "ON *y* con datos", así que la banda del Dashboard y la tienda no pueden discrepar
+  // sobre si hay método — el modo de falla del patrón de las dos voces del mismo umbral.
+  //
+  // `isBogota: true` A PROPÓSITO, y conviene leerlo despacio: `isBogota` NO es configuración, es la
+  // dirección del COMPRADOR (una regla de envío), y este aviso juzga la CONFIGURACIÓN. Con `true` sólo
+  // dispara cuando NINGÚN comprador, en ninguna ciudad, tendría método: el dead-end CIERTO, sin falso
+  // positivo. El caso PARCIAL —efectivo como único método encendido, que deja sin salida a quien compra
+  // FUERA de Bogotá— NO lo cubre este aviso: si un negocio "sólo Bogotá" es un defecto es una pregunta de
+  // producto, no una medición, y se decide en su propio ítem.
+  if (metodosDisponibles(ajustes, { isBogota: true }).length === 0 && ajustes.whatsapp.trim() === '') {
+    avisos.push({
+      clave: 'checkout-sin-salida',
+      mensaje: 'Tu checkout no puede recibir pedidos: no hay ningún método de pago para mostrar ni un WhatsApp por donde coordinar, así que quien llega al paso de pago no puede terminar su compra.',
+      href: HREF_DATOS_NEGOCIO,
+    });
   }
 
   // #8 — WHATSAPP VACÍO. El mensaje dice la CONSECUENCIA que el COMPRADOR vive, no el mecanismo: el
