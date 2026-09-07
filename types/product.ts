@@ -73,7 +73,6 @@ export interface Product {
   imagenes?: string[];
   bestseller?: boolean;
   badge?: string | null;
-  esSuscripcion?: boolean;
   /**
    * Disponibilidad pública del catálogo storefront (reemplaza a `stock`, que el
    * cliente nunca recibe). `true` = hay existencias (`stock > 0`).

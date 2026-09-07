@@ -57,9 +57,11 @@ import type { OrderStatus, CondicionPago } from '@/types/order';
 // ── LO QUE ESTA PANTALLA NO MUESTRA, Y POR QUÉ ───────────────────────────────
 //
 // No hay marca de recurrencia en la tarjeta. La INTENCIÓN de recurrencia —un plan
-// con su frecuencia y su descuento— no existe en este dominio: no hay modelo,
-// `SUBSCRIPTIONS_ENABLED` es `false`, los planes viven en `lib/mock/` y el
-// descuento está pendiente de definir con el cliente. Lo único afirmable es el
+// con su frecuencia y su descuento— no existe en este dominio: no hay modelo, y una
+// suscripción hoy es sólo un mensaje de WhatsApp. Los planes son CONTENIDO editable
+// (`suscripcionPlanes` de SiteContent, § Backlog #49), no una relación que ate a un
+// cliente con una frecuencia y un cobro; su vida operativa —órdenes recurrentes,
+// cobro— es un proyecto aparte. Lo único afirmable es el
 // derivado "compró más de una vez", que va como CARRIL —donde además FILTRA—,
 // nunca como distintivo de la fila. La lista vieja pintaba una ★ a quien tuviera
 // más de dos pedidos: un adorno que se lee como categoría de cliente y que nadie

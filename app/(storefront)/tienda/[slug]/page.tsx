@@ -29,7 +29,6 @@ import { moliendasDisponibles, moliendaAceptada } from "@duna/core/moliendas-opc
 import { toast } from "sonner";
 import { formatCOP } from "@duna/core/utils";
 import { TOSTION_LABELS } from "@/constants/roast-levels";
-import { SUBSCRIPTIONS_ENABLED, SUBSCRIPTION_DISCOUNT } from "@/constants/features";
 import Chip from "@/components/storefront/ProductChip";
 import { galeriaCompleta } from "@duna/core/product-gallery";
 
@@ -58,9 +57,6 @@ export default function ProductPage({
 
   const [imgIdx, setImgIdx] =
     useState(0);
-
-  const [suscripcion, setSuscripcion] =
-    useState(false);
 
   const [wishlisted, setWishlisted] =
     useState(false);
@@ -106,10 +102,6 @@ export default function ProductPage({
     );
   }
 
-  const price = suscripcion
-    ? Math.round(product.precio * (1 - SUBSCRIPTION_DISCOUNT))
-    : product.precio;
-
   // Tope del selector de cantidad. Viene acotado desde el catálogo (no revela
   // el stock real); si faltara, caemos a 1 para no permitir compras ciegas.
   const maxCompra = product.maxCompra ?? 1;
@@ -143,16 +135,12 @@ export default function ProductPage({
     }
 
     addItem(
-      {
-        ...product,
-        precio: price,
-      },
+      product,
 
       qty,
 
       {
         ...(molienda ? { molienda } : {}),
-        suscripcion,
       }
     );
 
@@ -321,32 +309,10 @@ export default function ProductPage({
                 </div>
               )}
 
-              {/* Subscription Toggle — OCULTO por ahora: Nayoli no opera
-                  suscripciones todavía (SUBSCRIPTIONS_ENABLED). El componente se
-                  conserva para reactivarlo cuando se definan precio y descuento. */}
-              {SUBSCRIPTIONS_ENABLED && !product.esSuscripcion && (
-                <div className={`rounded-2xl border-2 p-4 cursor-pointer transition-all ${suscripcion ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)] hover:border-[var(--sf-tostado-2)]'}`} onClick={() => setSuscripcion(!suscripcion)}>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold text-[var(--sf-tinta)] text-sm">Suscribirse y ahorrar {Math.round(SUBSCRIPTION_DISCOUNT * 100)}%</p>
-                      <p className="text-xs text-[var(--sf-texto)] mt-0.5">Entrega mensual · Pausa o cancela cuando quieras</p>
-                    </div>
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${suscripcion ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]' : 'border-[var(--sf-tostado-2)]'}`}>
-                      {suscripcion && <CheckCircle className="w-3.5 h-3.5 text-white" />}
-                    </div>
-                  </div>
-                  {suscripcion && (
-                    <p className="text-xs text-emerald-700 mt-2 font-medium">Ahorras {formatCOP(product.precio - price)} por entrega</p>
-                  )}
-                </div>
-              )}
-
               {/* Price + CTA */}
               <div className="space-y-4">
                 <div className="flex items-end gap-3">
-                  <span className="text-4xl font-bold text-[var(--sf-tinta)]">{formatCOP(price)}</span>
-                  {suscripcion && <span className="text-lg text-[var(--sf-tostado-3)] line-through">{formatCOP(product.precio)}</span>}
-                  {product.esSuscripcion && <span className="text-sm text-[var(--sf-texto)]">/mes</span>}
+                  <span className="text-4xl font-bold text-[var(--sf-tinta)]">{formatCOP(product.precio)}</span>
                 </div>
 
                 {product.disponible ? (
