@@ -1318,8 +1318,8 @@ lo resuelve). Byte-idéntico para Nayoli en las dos.
   preview que esconde lo que el visitante ve impide verificar el propio cambio.
 
 - **LA FRECUENCIA se queda dentro de `descripcion`.** Es una FRASE ("Una bolsa de 250 g cada mes"), no un dato
-  que el sistema use. Sacarla a campo crearía una columna sin escritor operativo —la mina inerte de
-  `esSuscripcion`/`total_compras`—.
+  que el sistema use. Sacarla a campo crearía una columna sin escritor operativo —la mina inerte del
+  ex-`esSuscripcion` (BORRADO, § #68, por eso el grep no lo encuentra) y de `total_compras`—.
 
 **El residuo de backlog de esta tanda vive donde su disparador:** la FAQ literal al pie de /suscripciones → § #63
 (copy café-shape); los ~45 campos de la pestaña → § #46 Fase 2 (evidencia acumulada, no su disparador).
@@ -1328,20 +1328,26 @@ lo resuelve). Byte-idéntico para Nayoli en las dos.
 tocan el eje de cobro (§ El eje de COBRO — el Payment como único escritor) y el puente con Carlos —un tercer
 escritor de dinero—. Disparador propio, aparte de la opción 1.
 
-### 68. Código muerto de suscripción TRANSACCIONAL — borrar o cablear, no dejar ambiguo
+### 68. Código muerto de suscripción TRANSACCIONAL — BORRADO (2026-09-07)
 
-Dos residuos de cuando se pensó una suscripción que COBRA, hoy sin un solo escritor:
-- **`Product.esSuscripcion?`** (`types/product.ts`): campo de TIPO sin columna en el schema Prisma (grep
-  vacío), ningún seed lo pone → SIEMPRE false. Leído en 3 sitios (tienda/[slug] sufijo "/mes" + el toggle
-  oculto, `ProductCard` badge) que nunca disparan. Familia del ex-`Product.agotado`, pero sin haber tenido
-  columna nunca.
-- **`SUBSCRIPTIONS_ENABLED` / `SUBSCRIPTION_DISCOUNT`** (`constants/features.ts`): flag hardcodeado en
-  `false` + un descuento (0.15) que sólo aplicaría con el flag en true. Plomería APAGADA —el widget
-  "Suscribirse y ahorrar %" del detalle de producto nunca renderiza—.
+**BORRADO, no cableado** (`c503d5e`; el asiento con el porqué vive en DECISIONS.md, 2026-09-07). Eran residuos
+de cuando se pensó una suscripción que COBRA, sin un solo escritor: **`Product.esSuscripcion?`**
+(`types/product.ts`, 3 lecturas y 0 escritores), **`SUBSCRIPTIONS_ENABLED` / `SUBSCRIPTION_DISCOUNT`**
+(`constants/features.ts` — el flag era el literal `false` y el descuento quedaba inalcanzable tras él), y un
+**CUARTO que este censo NO nombraba**: la opción de carrito `suscripcion`, write-only. Hoy un grep de los
+cuatro símbolos da CERO.
 
-**La regla del owner: código muerto se BORRA o se CABLEA, no se deja AMBIGUO.** Hoy es lo tercero.
-**Costo YA pagado: ninguno** (dead, sin daño). **DISPARADOR: la tanda que decida la vida transaccional de
-las suscripciones** (§ #49, vida operativa) — ahí se cablea; si esa tanda no llega, se borra en una limpieza.
+**NO tocó schema ni migración**, y conviene tenerlo escrito porque la versión anterior de este ítem lo dejaba
+dudoso: `esSuscripcion` era campo SÓLO de TypeScript —**nunca tuvo columna Prisma**—, así que no hubo ventana
+de `migrate deploy` (§ LA VENTANA del `migrate deploy`) ni runbook. Es la familia del ex-`Product.agotado`
+con una diferencia que importa: aquél SÍ tenía columna y éste no.
+
+**LA REGLA QUE SOBREVIVE —y es la razón de que el ítem se quede en esta lista en vez de borrarse: código
+muerto se BORRA o se CABLEA, nunca se deja AMBIGUO.** El argumento que eligió BORRAR sobre CABLEAR es
+reusable: **el código muerto NO reserva el lugar de la capacidad futura** —no le ahorra nada al proyecto que
+construya la vida transaccional de las suscripciones (§ #49, vida operativa: PROYECTO aparte, con su propio
+disparador)— y mientras tanto cada persona que lo lee tiene que averiguar de nuevo que no hace NADA. Familia
+del rating fabricado: lo inerte que se ve vivo es deuda que se paga en cada lectura.
 
 ### 51. Lightbox de imágenes en la galería de /nosotros — ampliar una foto al clic
 
