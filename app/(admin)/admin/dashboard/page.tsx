@@ -14,6 +14,7 @@ import { getCustomers } from '@/lib/api/customers';
 import { getDashboardPrefs, saveDashboardPrefs } from '@/lib/api/dashboardPrefs';
 import { getSiteContentPublicado } from '@/lib/api/site-content';
 import { avisosDeConfiguracion } from '@/lib/config/avisos-configuracion';
+import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import { categoriasDelCatalogo } from '@/lib/productos/categorias';
 import type { SiteContentData } from '@/lib/config/site-content-defaults';
 import type { Product } from '@/types/product';
@@ -91,6 +92,9 @@ export default function Dashboard() {
   const [catalogoListo, setCatalogoListo] = useState(false);
   // The admin's chosen indicator layout (ordered visible widget keys). Defaults to
   // the registry default until the persisted preference loads.
+  // La IDENTIDAD del negocio (§ Config del negocio — SiteSetting), que el layout-gate del admin ya leyó
+  // e inyectó: NO se fetchea acá. La usa el aviso #8 (whatsapp vacío). Sexto lector cliente del provider.
+  const settings = useSiteSettings();
   const [widgetKeys, setWidgetKeys] = useState<string[]>(DEFAULT_WIDGET_KEYS);
   const [customizing, setCustomizing] = useState(false);
   const [loading, setLoading]       = useState(true);
@@ -140,12 +144,13 @@ export default function Dashboard() {
   const itemsAtencion = itemsDeAtencion(stats?.atencionPedidos ?? [], products);
 
   // Los AVISOS DE CONFIGURACIÓN (§ Backlog #65): defectos que el VISITANTE ve pero el dueño no —hoy,
-  // Presentaciones con destino inexistente o título sin imagen—. DERIVADO: cruza el contenido
-  // PUBLICADO con las categorías del catálogo. Sin lo publicado (el fetch falló) → `[]` (no se afirma
-  // un defecto a ciegas). Van en un aviso APARTE del DUEÑO, NO en "Necesita tu atención" (la cola del
-  // OPERADOR, que se vacía). Los dormidos (#3/#4/#8) se suman en `avisosDeConfiguracion`, no acá.
+  // Presentaciones con destino inexistente o título sin imagen, y el WhatsApp del negocio sin cargar—.
+  // DERIVADO: cruza el contenido PUBLICADO con las categorías del catálogo y la identidad del negocio.
+  // Sin lo publicado (el fetch falló) → `[]` (no se afirma un defecto a ciegas). Van en un aviso APARTE
+  // del DUEÑO, NO en "Necesita tu atención" (la cola del OPERADOR, que se vacía). Los dormidos que
+  // quedan (#3/#4) se suman en `avisosDeConfiguracion`, no acá.
   const avisosConfig = siteContent
-    ? avisosDeConfiguracion(siteContent, categoriasDelCatalogo(products), catalogoListo)
+    ? avisosDeConfiguracion(siteContent, categoriasDelCatalogo(products), catalogoListo, settings)
     : [];
 
   // Deep-link context (America/Bogota day keys + the shared month query), fed to
