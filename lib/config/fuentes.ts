@@ -8,9 +8,18 @@
 // caen a su fallback (Inter/Playfair, que carga el `@import` de globals.css) → Nayoli byte-idéntico.
 // Por eso `editorial` NUNCA se guarda: el picker manda `null` para Editorial (§ resolverFuentePar).
 //
-// PESOS por ROL, iguales a los de hoy (§ el `@import`): display 400;500;600, cuerpo 300;400;500;600;700.
-// El costo de red se midió por par (latin, woff2 deduplicado): Editorial ~85 KB es el MÁS pesado; los
-// otros cuatro pesan 12–19 KB MENOS. Ninguno pesa más — no hay nada que marcar.
+// PESOS por ROL: display 400;500;600, cuerpo 300;400;500;600;700 en casi todos los pares. EXCEPCIÓN:
+// 'Técnico' recorta su display a 400;600 —IBM Plex Mono no tiene variable en Google Fonts, así que
+// son 3 archivos estáticos; el recorte los baja a 2— y el storefront usa el rol DISPLAY en UN solo
+// peso (400), verificado (cero clases de peso sobre `.font-display`/`.font-playfair`, cero
+// `font-weight` en globals.css), así que 400;600 alcanza.
+// El costo de red de los CINCO PRIMEROS se midió por par (latin, woff2 deduplicado): Editorial ~85 KB
+// es el MÁS pesado; Cálido/Moderno/Clásico/Nítido pesan 12–19 KB MENOS. El único que SUBE es 'Técnico':
+// ~94 KB recortado (+9 sobre Editorial; sería ~118/+33 sin el recorte de display). Va recortado a
+// propósito (mucha compra en Colombia es por datos móviles). Las cifras de los CUATRO NUEVOS son
+// ESTIMACIONES de la propuesta de diseño, NO medidas contra el CDN como las cinco actuales:
+// Robusta ~68 KB (−17 est.), Técnico ~94 KB (+9 est., recortado), Relato ~80 KB (−5 est.),
+// Cercano ~66 KB (−19 est.).
 //
 // SORA reemplaza a Space Grotesk en 'Moderno' (decisión del owner): Space Grotesk es la tipografía de
 // DUNA (el design system del panel), y ofrecerla a un cliente borraría la separación producto/cliente.
@@ -21,7 +30,7 @@
 // server), el layout del storefront (el `<link>`) y el picker del panel (`PaletaSeccion`).
 
 // El tuple runtime del set cerrado — para el `z.enum` del schema del PUT (una sola fuente con el tipo).
-export const CLAVES_FUENTES = ['editorial', 'calido', 'moderno', 'clasico', 'nitido'] as const;
+export const CLAVES_FUENTES = ['editorial', 'calido', 'moderno', 'clasico', 'nitido', 'robusta', 'tecnico', 'relato', 'cercano'] as const;
 export type ClaveFuentePar = (typeof CLAVES_FUENTES)[number];
 
 export interface ParFuentes {
@@ -65,6 +74,27 @@ export const PARES_FUENTES: readonly ParFuentes[] = [
     titulo: "'Poppins', sans-serif", cuerpo: "'Work Sans', sans-serif",
     googleTitulo: 'Poppins:wght@400;500;600', googleCuerpo: 'Work+Sans:wght@300;400;500;600;700',
   },
+  {
+    clave: 'robusta', label: 'Robusta', descripcion: 'condensada de impacto, con cuerpo grotesque industrial.',
+    titulo: "'Oswald', sans-serif", cuerpo: "'Archivo', sans-serif",
+    googleTitulo: 'Oswald:wght@400;500;600', googleCuerpo: 'Archivo:wght@300;400;500;600;700',
+  },
+  {
+    // DISPLAY recortado a 400;600 (mitigación de peso): IBM Plex Mono no es variable en Google Fonts.
+    clave: 'tecnico', label: 'Técnico', descripcion: 'monoespaciada de titular, del registro de la hoja de cata.',
+    titulo: "'IBM Plex Mono', monospace", cuerpo: "'IBM Plex Sans', sans-serif",
+    googleTitulo: 'IBM+Plex+Mono:wght@400;600', googleCuerpo: 'IBM+Plex+Sans:wght@300;400;500;600;700',
+  },
+  {
+    clave: 'relato', label: 'Relato', descripcion: 'sans de titular con cuerpo serif, para quien escribe párrafos.',
+    titulo: "'Familjen Grotesk', sans-serif", cuerpo: "'Source Serif 4', serif",
+    googleTitulo: 'Familjen+Grotesk:wght@400;500;600', googleCuerpo: 'Source+Serif+4:wght@300;400;500;600;700',
+  },
+  {
+    clave: 'cercano', label: 'Cercano', descripcion: 'geometría redonda y dulce, sin ninguna serif.',
+    titulo: "'Quicksand', sans-serif", cuerpo: "'Mulish', sans-serif",
+    googleTitulo: 'Quicksand:wght@400;500;600', googleCuerpo: 'Mulish:wght@300;400;500;600;700',
+  },
 ] as const;
 
 const POR_CLAVE = new Map(PARES_FUENTES.map((p) => [p.clave, p]));
@@ -73,7 +103,7 @@ const POR_CLAVE = new Map(PARES_FUENTES.map((p) => [p.clave, p]));
 export const PAR_DEFECTO = POR_CLAVE.get('editorial')!;
 
 /** Los pares CUSTOM (todo menos el default). Un `fuentePar` guardado sólo puede ser uno de éstos. */
-const CLAVES_CUSTOM = new Set<string>(['calido', 'moderno', 'clasico', 'nitido']);
+const CLAVES_CUSTOM = new Set<string>(['calido', 'moderno', 'clasico', 'nitido', 'robusta', 'tecnico', 'relato', 'cercano']);
 
 /**
  * Normaliza el `fuentePar` guardado a una clave CUSTOM válida, o `null` (= Editorial, el default).
@@ -106,8 +136,9 @@ export function linkFuentePar(fuentePar: ClaveFuentePar | null): string | null {
 
 /**
  * UN `<link>` que carga TODOS los pares —para el PANEL: el picker muestra una muestra por par y la
- * vista previa refleja el elegido, así que el editor necesita las familias de los 5 a la vez—. Dedup
- * por spec (Inter aparece en Editorial y Moderno con el mismo peso). NO se usa en el storefront.
+ * vista previa refleja el elegido, así que el editor necesita todas las familias a la vez—. Dedup
+ * por spec (Inter aparece en Editorial y Moderno con el mismo peso — el único par que comparte
+ * familia con otro). NO se usa en el storefront.
  */
 export function linkFuentesTodas(): string {
   const specs = new Set<string>();

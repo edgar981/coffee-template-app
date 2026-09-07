@@ -16,7 +16,7 @@ test('el default es Editorial, y NUNCA se guarda: editorial/null/basura → null
 });
 
 test('un par CUSTOM válido se respeta', () => {
-  for (const c of ['calido', 'moderno', 'clasico', 'nitido'] as const) {
+  for (const c of ['calido', 'moderno', 'clasico', 'nitido', 'robusta', 'tecnico', 'relato', 'cercano'] as const) {
     assert.equal(resolverFuentePar(c), c);
     assert.equal(parDeFuentePar(c).clave, c);
   }
@@ -58,10 +58,43 @@ test('linkFuentesTodas: UN link con TODAS las familias, deduplicado (Inter una s
   const l = linkFuentesTodas();
   assert.match(l, /^https:\/\/fonts\.googleapis\.com\/css2\?/);
   // Inter aparece en Editorial y Moderno con el mismo peso → una sola vez en el link combinado.
+  // Es el ÚNICO par que comparte familia con otro: ningún par nuevo repite familia.
   assert.equal((l.match(/family=Inter:/g) ?? []).length, 1);
-  // Están las familias de los 5 pares.
-  for (const fam of ['Playfair\\+Display', 'Fraunces', 'Sora', 'Lora', 'Poppins', 'Nunito\\+Sans', 'Source\\+Sans\\+3', 'Work\\+Sans']) {
+  // Están las familias de los 9 pares (2 por par, deduplicadas: 9 pares → 17 specs, Inter una vez).
+  for (const fam of [
+    'Playfair\\+Display', 'Fraunces', 'Sora', 'Lora', 'Poppins', 'Nunito\\+Sans', 'Source\\+Sans\\+3', 'Work\\+Sans',
+    'Oswald', 'Archivo', 'IBM\\+Plex\\+Mono', 'IBM\\+Plex\\+Sans', 'Familjen\\+Grotesk', 'Source\\+Serif\\+4', 'Quicksand', 'Mulish',
+  ]) {
     assert.match(l, new RegExp(`family=${fam}`));
+  }
+  assert.equal((l.match(/family=/g) ?? []).length, 17);
+});
+
+test('Técnico recorta su DISPLAY a 400;600 (mitigación de peso: IBM Plex Mono no es variable)', () => {
+  const tecnico = PARES_FUENTES.find((p) => p.clave === 'tecnico')!;
+  assert.equal(tecnico.googleTitulo, 'IBM+Plex+Mono:wght@400;600');   // display recortado, NO 400;500;600
+  assert.equal(tecnico.googleCuerpo, 'IBM+Plex+Sans:wght@300;400;500;600;700');   // cuerpo completo
+  const l = linkFuentePar('tecnico');
+  assert.ok(l);
+  assert.match(l!, /family=IBM\+Plex\+Mono:wght@400;600/);
+  assert.doesNotMatch(l!, /IBM\+Plex\+Mono:wght@400;500;600/);
+});
+
+test('los CUATRO pares nuevos tienen label, descripción y <link> con sus 2 familias', () => {
+  const esperado = {
+    robusta: { label: 'Robusta', titulo: /Oswald/, cuerpo: /Archivo/ },
+    tecnico: { label: 'Técnico', titulo: /IBM Plex Mono/, cuerpo: /IBM Plex Sans/ },
+    relato:  { label: 'Relato',  titulo: /Familjen Grotesk/, cuerpo: /Source Serif 4/ },
+    cercano: { label: 'Cercano', titulo: /Quicksand/, cuerpo: /Mulish/ },
+  } as const;
+  for (const [clave, e] of Object.entries(esperado)) {
+    const par = PARES_FUENTES.find((p) => p.clave === clave)!;
+    assert.equal(par.label, e.label);
+    assert.ok(par.descripcion.length > 0);
+    assert.match(par.titulo, e.titulo);
+    assert.match(par.cuerpo, e.cuerpo);
+    const l = linkFuentePar(clave as typeof par.clave);
+    assert.ok(l, `${clave} debe llevar <link>`);
   }
 });
 
