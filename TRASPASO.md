@@ -1,6 +1,37 @@
 # TRASPASO.md — contexto vivo del rediseño Duna OS
 
-**Actualizado:** 2026-09-06 (**/CUENTA BORRADA + SUSCRIPCIÓN APAGABLE MERGEADAS — el 2º cliente puede apagar
+**Actualizado:** 2026-09-06 (**PLANES DE SUSCRIPCIÓN = DATO MERGEADOS — #49 opción 1 CERRADA.** Los planes y
+pasos de suscripción dejan de vivir en `SUBSCRIPTION_PLANS`/`SUBSCRIPTION_STEPS` (mock/constante, RETIRADOS) y son
+DOS secciones de SiteContent en la pestaña Suscripciones (`suscripcionPlanes`, `suscripcionPasos`), editables con
+el editor de bloques. La fuente única la leen las DOS superficies —/suscripciones y el teaser de la home— vía
+`planesDeSuscripcion` (capa 1), así que no divergen (era el temor de #49). **Byte-idéntico para Nayoli en las dos.**
+**Seis decisiones:** (1) un bloque tarjeta por plan, campos PLANOS, beneficios como lista plana compacta, rango 1-4
+—piso 1 lo da el RESOLVER (`nombre1`/`descripcion1` requeridos), el componente FILTRA por nombre; REGLA ÚNICA: sin
+nombre no se muestra, destacado o no—. (2) EL PRECIO es TEXTO OPCIONAL, no número —la moneda/"/mes"/"desde $X" son
+del cliente, un precio inventado es dato falso en la ruta del dinero; vacío se OMITE; el campo ENSEÑA el formato
+(`formatCOP`) pero NO valida; la tarjeta le da el tratamiento de precio de ProductCard (16px verbatim), no de título
+—`text-3xl` era inventado, `text-4xl` desborda la caja de 252px con precios largos, medido—. (3) EL DESTAQUE es UN
+índice de sección (`destacadoSlot`), no un boolean por plan —dos `true` es un estado malo posible, dos índices no
+existe—; el select DERIVA de los planes que existen, un índice colgante se DECLARA y no destaca nada. (4) EL TEASER
+recorta a 3 (medido en la pantalla real); el destacado fuera del recorte reemplaza al último, no va primero
+(byte-idéntico). (5) EL CTA se resuelve en la FRONTERA del preview (`whatsapp || preview`): inerte por EscalaDesktop,
+guard por dato en la tienda real —un preview que esconde lo que el visitante ve impide verificar el cambio—. (6) LA
+FRECUENCIA se queda dentro de `descripcion` —es una frase, no un dato; sacarla a campo sería una columna sin
+escritor—. **Segundo gate del owner (3 FIX):** FIX A un plan destacado con nombre vacío seguía mostrándose —el slot
+1 llevaba `req:true` que lo forzaba aun vacío; se retira, regla única, + un test a nivel del COMPONENTE
+(`renderToStaticMarkup`), no sólo del helper—. FIX B la fuente del precio —medido, no elegido: sólo divergía el
+tamaño; se adopta la clase de ProductCard verbatim—. FIX C el placeholder que "no salía" NO era bug —era un valor
+sembrado en el borrador de la rama-dev COMPARTIDA (`precio1="23000"`); el campo nace vacío y el placeholder se ve;
+no se tocó el borrador del owner—. Verificación: tsc 0 · capa 1 **890/890** (FIX A cubierto a nivel del COMPONENTE)
+· next build ✓ 47/47 · byte-idéntico por ejecución en las dos superficies. Gate del owner PASADO. Mergeada a `main`
+`--no-ff` (`728bb45`), verificación por contenido (6 archivos con `planesDeSuscripcion`; 0 imports vivos de los
+módulos retirados), rama borrada, deploy a producción disparado. **BACKLOG que queda:** la FAQ literal al pie de
+/suscripciones → #63 (copy café-shape); los ~45 campos de la pestaña → #46 Fase 2 (evidencia acumulada, no su
+disparador). **La VIDA OPERATIVA de suscripciones (órdenes recurrentes, cobro) sigue siendo PROYECTO aparte** (eje
+de cobro + Carlos). **SIGUIENTE (owner): sin definir — #49 cerrada.** **NO TOCAR: #54, #58, #61, #62, Fase 2 de
+#46.** **NO quedan pasos manuales abiertos** (sin migración — es SiteContent, JSON).)
+
+**ANTES —** 2026-09-06 (**/CUENTA BORRADA + SUSCRIPCIÓN APAGABLE MERGEADAS — el 2º cliente puede apagar
 suscripciones sin tocar código.** DOS tandas en un merge (`--no-ff`, `d003d69`). **A — /cuenta:** andamiaje de
 cuenta de cliente SIN construir que servía dato falso (cargaba `MOCK_ORDERS` como historial + auth stub). Ya
 redirigía a `/` en su primera línea con el enlace del nav comentado desde v1; **un route que sólo redirige es un

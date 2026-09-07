@@ -138,3 +138,18 @@ _Primera entrada NUEVA (no backfill)._
 **Contexto:** al adoptar dos artefactos del protocolo de orquestación de Carlos (este `DECISIONS.md` y la sección "Quién decide qué" de CLAUDE.md), se evaluaron otros dos y se DESCARTARON. Se adopta lo que aporta, no el seed completo — este repo ya tiene su doctrina.
 **No adoptamos `queue/pending.txt`** (una cola plana de pendientes): el BACKLOG con DISPARADORES de CLAUDE.md es más rico. Una cola plana no sabe de disparadores; un ítem del backlog no es "lo próximo", es "lo próximo CUANDO pase X" (el 2º cliente, un tercer caso, tráfico real). Una cola plana pierde esa condición.
 **No adoptamos el modo "corre sin parar":** choca con la disciplina de gates. El non-stop vale para censos / docs / tests; pero **todo lo que llega a un PREVIEW PARA en el gate del owner (capa 3)**. Un orquestador que no para se saltaría el gate visual, que es justo la capa que esta época existe para proteger (§ GATE DE CAPA 3).
+
+---
+
+## 2026-09-06 — Planes de suscripción como DATO de SiteContent (opción 1 de #49)
+`728bb45` (Merge feat/planes-suscripcion-dato)
+
+Cierra el hilo que la entrada de la opción 2 (2026-09-06, `d003d69`) dejó abierto: "(1) espera al cliente que venda suscripciones… → backlog #49".
+
+**Elección:** los planes y pasos de suscripción pasan de `SUBSCRIPTION_PLANS`/`SUBSCRIPTION_STEPS` (mock/constante, RETIRADOS) a dos secciones de SiteContent (`suscripcionPlanes`, `suscripcionPasos`), campos PLANOS + lista plana compacta, rango 1-4 (piso 1). La fuente única la leen /suscripciones y el teaser de la home → no divergen (era el temor de #49).
+**PRECIO = TEXTO OPCIONAL, no número.** Descartado el número: perdería la moneda, el "/mes" y el "desde $X" —del cliente— y un precio inventado sería dato falso en la ruta del dinero (familia § el rating fabricado). Vacío se OMITE. El campo ENSEÑA el formato (`formatCOP`) pero NO valida. La tarjeta usa el tratamiento de precio de ProductCard (16px verbatim); descartados `text-3xl` (inventado) y `text-4xl` (desborda la caja de 252px con precios largos — medido, no elegido por nombre).
+**DESTAQUE = UN índice de sección (`destacadoSlot`), no un boolean por plan.** Descartado el boolean: dos en `true` es un estado malo posible; dos índices no existe. Unifica `plan.popular` (página) e `i===1` (teaser). Índice colgante → se DECLARA, no destaca nada.
+**TEASER recorta a 3** (medido: la media columna de la home no da para 4 legibles); el destacado fuera del recorte REEMPLAZA al último, no va primero —ir primero rompería el byte-idéntico—.
+**CTA en la FRONTERA del preview** (`whatsapp || preview`): un componente cuyo CTA cuelga de un dato que el árbol del admin no tiene MIENTE en el preview; se ve pero queda inerte por EscalaDesktop, y en la tienda real el guard sigue siendo el dato.
+**FRECUENCIA se queda dentro de `descripcion`:** es una frase, no un dato que el sistema use; sacarla a campo sería una columna sin escritor (la mina inerte de `esSuscripcion`/`total_compras`).
+Regla: § Backlog #49 (CONSTRUIDO).

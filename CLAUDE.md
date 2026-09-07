@@ -780,6 +780,11 @@ el puente en sesiones reales y editar/buscar el campo sigue siendo el estorbo.**
 el puente, no hay esa evidencia — que es exactamente la diferencia con el spec original, que asumía
 la in-situ real sin medir la escala.
 
+**EVIDENCIA acumulándose (§ #49, 2026-09-06):** la pestaña Suscripciones nació con ~45 campos (planes ×
+campos planos + pasos + encabezados). Es EVIDENCIA de Fase 2 —un formulario largo es cansado de recorrer—,
+NO su disparador: recién construida, no hay todavía la señal de "editar/buscar el campo es el estorbo" en
+sesión real. Se anota para no confundir volumen de campos con dolor medido.
+
 ### 55. La PALETA → SiteContent (borrador) — CONSTRUIDO (opción B, 2026-08-30)
 
 **DECISIÓN: la paleta se mudó de `SiteSetting` a `SiteContent.content.tema`** (opción B del
@@ -1259,34 +1264,57 @@ re-codificar (`lib/video-remux.ts`, mp4box): sube su .mov y el navegador lo conv
 **HUECOS NOMBRADOS, menores:** el WebM pasa por contenedor (EBML, otro formato; códecs web-amigables); un mp4
 que el parser no pueda leer pasa por la red del contenedor (un HEVC-en-mp4 malformado se colaría, raro).
 
-### 49. Planes de Suscripción como DATO de SiteContent — con la decisión del PRECIO adentro (opción 1)
+### 49. Planes de Suscripción como DATO de SiteContent — CONSTRUIDO (opción 1, 2026-09-06)
 
-**LA CAPACIDAD APAGABLE ya está** (§ La SUSCRIPCIÓN es una capacidad APAGABLE): un cliente que no venda
-suscripciones las apaga sin tocar código. Lo que QUEDA de #49 es hacer los PLANES editables (opción 1).
+**LA OPCIÓN 1 ESTÁ CONSTRUIDA** (`728bb45`): los planes y los pasos de suscripción dejaron de vivir en
+`SUBSCRIPTION_PLANS`/`SUBSCRIPTION_STEPS` (mock/constante, RETIRADOS) y son DOS secciones de SiteContent en la
+pestaña Suscripciones (`suscripcionPlanes`, `suscripcionPasos`), editables con el editor de bloques. La fuente
+única la leen las DOS superficies —/suscripciones y el teaser de la home— vía `planesDeSuscripcion`
+(`lib/storefront/planes-suscripcion.ts`, capa 1), así que no divergen (era el temor de #49; el dato compartido
+lo resuelve). Byte-idéntico para Nayoli en las dos.
 
-Hoy las tarjetas de plan vienen de `SUBSCRIPTION_PLANS` (`lib/mock/subscriptions.ts`) como ESTRUCTURA
-—fuente COMPARTIDA con `/suscripciones` (dos consumidores)—, y los pasos "¿Cómo funciona?"
-(`constants/subscription-steps.ts`) son café-shape explícito ("café de nuestra finca", "grano o molido").
-**NO son datos falsos:** el "mock" está en el PATH, no en el contenido —son la propuesta real de Nayoli,
-SIN precio ni claim que no honre (el tipo `Subscription` no tiene campo de precio; el CTA abre WhatsApp)—.
+- **UN BLOQUE TARJETA POR PLAN, campos PLANOS, beneficios como LISTA PLANA COMPACTA.** Rango 1-4, y el PISO es
+  **1** —"un único plan, suscríbete" es un negocio real—. El piso lo garantiza el RESOLVER (`nombre1`/
+  `descripcion1` REQUERIDOS → default de Nayoli), NO esta función; el componente FILTRA por nombre (§ la
+  BIFURCACIÓN de cardinalidad, como Presentaciones). REGLA ÚNICA: sin NOMBRE no se muestra, destacado o no —el
+  slot 1 tenía un `req` que lo forzaba aun vacío y por eso un plan 1 destacado sin nombre seguía apareciendo;
+  la regla es UNA sola.
 
-**Hacerlos DATO editable exige tres decisiones, y una es de PRODUCTO, no de forma:**
-- **EL PRECIO.** El tipo `Subscription` no tiene campo de precio. Agregarlo es decisión de MODELO **Y un
-  CLAIM que debe ser real** —un precio inventado es dato falso en la ruta del dinero (familia § el rating
-  fabricado)—, así que entra sólo con precios reales del cliente, nunca de relleno.
-- **la CARDINALIDAD del grid:** `sm:grid-cols-3` + `i===1` (SubscriptionCTA) y `md:grid-cols-3` +
-  `plan.popular` (/suscripciones) asumen EXACTAMENTE 3; variar el número es rediseño de la rejilla (patrón
-  `gridColsPresentaciones`, § Presentaciones 2-4), no sólo modelo.
-- **la FUENTE compartida:** o `/suscripciones` también lee de SiteContent (para no divergir de la home), o
-  los planes divergen entre las dos páginas. Y los pasos café-shape se decafeinan acá (van con la capa de
-  copy por cliente, § #63).
+- **EL PRECIO es TEXTO OPCIONAL, no número.** La moneda, el "/mes" y frases como "desde $X" son del cliente; un
+  precio inventado sería dato falso en la ruta del dinero (familia § el rating fabricado). Vacío se OMITE
+  —nunca placeholder ni "desde"—. El campo ENSEÑA el formato (placeholder con `formatCOP`, para que la tienda no
+  hable dos idiomas de precio) pero NO valida ni normaliza lo que el cliente escribe. Y la tarjeta le da el
+  TRATAMIENTO DE PRECIO del storefront (peso de ProductCard), no el de título —estaba en `font-playfair` y por
+  eso se leía raro—. El TAMAÑO es el de ProductCard VERBATIM (16px heredado), no uno propio: `text-3xl` era
+  inventado y `text-4xl` DESBORDA la caja de 252px con precios largos (medido 268px > 252px — no elegido por
+  nombre; los computados de ProductCard/detalle ya coincidían en familia, peso, tracking y color).
 
-**Costo YA pagado: ninguno** (Nayoli ES café, sus planes dicen la verdad). **DISPARADOR: un cliente que
-venda suscripciones Y quiera planes distintos de los de Nayoli.**
+- **EL DESTAQUE es UN índice de sección (`destacadoSlot`), no un boolean por plan.** Dos booleans en `true` es un
+  estado malo posible; dos índices no existe. Unifica la divergencia que había entre `plan.popular` (página) e
+  `i===1` (teaser). El select DERIVA de los planes que EXISTEN, no del tope. Un índice colgante se DECLARA
+  ("Plan N · vacío") y no destaca nada —la tienda no resalta una tarjeta que no está—.
 
-**LA VIDA OPERATIVA es OTRO nivel — PROYECTO, no tanda.** Suscripciones que generen órdenes recurrentes y
-cobro tocan el eje de cobro (§ El eje de COBRO — el Payment como único escritor) y el puente con Carlos —un
-tercer escritor de dinero—. Disparador propio, aparte de la opción 1.
+- **EL TEASER de la home RECORTA a 3 planes, medido en la pantalla REAL:** la columna derecha del
+  `lg:grid-cols-2` mide 520px en su mejor caso; 3 tarjetas a 163px son legibles, 4 a 118px no. Si el destacado
+  queda FUERA del recorte, REEMPLAZA al último visible —no va primero: ir primero reordenaría y rompería el
+  byte-idéntico (Nayoli con 3 muestra las 3, sin recorte)—.
+
+- **EL CTA se resuelve en la FRONTERA del preview, no en el componente.** Un componente del storefront cuyo CTA
+  cuelga de un dato que el árbol del ADMIN no tiene (el `whatsapp`) MIENTE en el preview —se veía vacío—. El
+  guard es `whatsapp || preview`: en el preview se VE y queda INERTE por `EscalaDesktop` (como los demás
+  enlaces); en la tienda real el guard sigue siendo el DATO (un `wa.me/` sin número es un botón muerto). Un
+  preview que esconde lo que el visitante ve impide verificar el propio cambio.
+
+- **LA FRECUENCIA se queda dentro de `descripcion`.** Es una FRASE ("Una bolsa de 250 g cada mes"), no un dato
+  que el sistema use. Sacarla a campo crearía una columna sin escritor operativo —la mina inerte de
+  `esSuscripcion`/`total_compras`—.
+
+**El residuo de backlog de esta tanda vive donde su disparador:** la FAQ literal al pie de /suscripciones → § #63
+(copy café-shape); los ~45 campos de la pestaña → § #46 Fase 2 (evidencia acumulada, no su disparador).
+
+**LA VIDA OPERATIVA sigue siendo PROYECTO, no tanda.** Suscripciones que generen órdenes recurrentes y cobro
+tocan el eje de cobro (§ El eje de COBRO — el Payment como único escritor) y el puente con Carlos —un tercer
+escritor de dinero—. Disparador propio, aparte de la opción 1.
 
 ### 68. Código muerto de suscripción TRANSACCIONAL — borrar o cablear, no dejar ambiguo
 
@@ -1518,6 +1546,10 @@ código—.
 **Costo YA pagado: ninguno** (Nayoli ES café, su copy es correcto). **DISPARADOR: el primer cliente
 no-café FIRMADO — el MISMO que activa C2** (tema/estructura por cliente). El censo y la capa de copy van
 juntos: sin la capa, un censo no tiene dónde poner el resultado.
+
+**Al censo entra la FAQ del pie de /suscripciones (§ #49, 2026-09-06):** las PreguntasFrecuentes al pie de
+esa página siguen LITERALES y café-shape. No se decafeinaron con los planes-como-dato —cambiarlas rompería
+el byte-idéntico de Nayoli, igual que el resto del copy—, así que van con esta misma capa, mismo disparador.
 
 ### 64. RESEÑAS de producto — el sistema real que reemplaza al rating borrado
 
