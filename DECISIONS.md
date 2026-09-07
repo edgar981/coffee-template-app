@@ -153,3 +153,11 @@ Cierra el hilo que la entrada de la opción 2 (2026-09-06, `d003d69`) dejó abie
 **CTA en la FRONTERA del preview** (`whatsapp || preview`): un componente cuyo CTA cuelga de un dato que el árbol del admin no tiene MIENTE en el preview; se ve pero queda inerte por EscalaDesktop, y en la tienda real el guard sigue siendo el dato.
 **FRECUENCIA se queda dentro de `descripcion`:** es una frase, no un dato que el sistema use; sacarla a campo sería una columna sin escritor (la mina inerte de `esSuscripcion`/`total_compras`).
 Regla: § Backlog #49 (CONSTRUIDO).
+
+## 2026-09-07 — #68 código muerto de suscripción transaccional: BORRADO, no cableado
+`c503d5e` (Merge slice/sub-txn-dead-code-2)
+
+**Elección:** se BORRA el residuo transaccional de suscripción —`SUBSCRIPTIONS_ENABLED`, `SUBSCRIPTION_DISCOUNT`, `Product.esSuscripcion?`, y un 4º residuo que el censo #68 no nombraba: la opción de carrito `suscripcion` (write-only, leída por nadie)—. Medido 100% muerto: `SUBSCRIPTIONS_ENABLED` es el literal `false`, `SUBSCRIPTION_DISCOUNT` queda inalcanzable tras él, y `esSuscripcion` tiene 3 lecturas y 0 escritores. No toca schema ni migración: `esSuscripcion` es campo SÓLO de TypeScript, NO tiene columna Prisma.
+**Por qué BORRAR y no CABLEAR:** una suscripción hoy es sólo un mensaje de WhatsApp; su vida operativa —órdenes recurrentes, cobro— es PROYECTO APARTE con su propio disparador. El código muerto NO reserva el lugar de esa capacidad: no le ahorra nada al proyecto que la construya cuando su disparador se cumpla, y mientras tanto cada persona que lo lee tiene que averiguar de nuevo que no hace NADA. Familia del rating fabricado: lo inerte que se ve vivo es deuda que se paga en cada lectura.
+**Corrección al asiento #68 anterior:** implicaba que un borrado podría tocar el schema; NO puede —no hay columna—, así que no hubo ventana de migrate ni runbook. Gate capa-1 890/890, next build 0. Gate visual del owner PASADO sobre el preview: sin hueco donde vivían el badge/"/mes" del ProductCard, el toggle oculto del detalle, ni el "/mes" de la fila de precio (todos gateados por una condición SIEMPRE falsa, así que el render era byte-idéntico —revisado, no por suerte—). Merge `--no-ff`, tree del merge == tree de la rama, deploy a producción disparado.
+Regla: § Backlog #68 (BORRADO).
