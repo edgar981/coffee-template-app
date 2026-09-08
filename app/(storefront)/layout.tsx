@@ -13,6 +13,7 @@ import { getSiteContent } from "@/lib/config/site-content";
 import { cssPaleta } from "@/lib/config/palette-style";
 import { cssFuentes } from "@/lib/config/fuentes-style";
 import { linkFuentePar } from "@/lib/config/fuentes";
+import { cssForma } from "@/lib/config/forma-style";
 import { coloresPWA } from "@/lib/config/pwa-colores";
 
 // El storefront se renderiza DINÁMICO (por request), no estático. Su layout lee la
@@ -105,11 +106,18 @@ export default async function StorefrontLayout({
   // Así, por despliegue se descargan 2 familias. Sin flash: ambos van en el HTML del server (dynamic).
   const fuentesCss = cssFuentes(content.tema.fuentePar);
   const fuentesLink = linkFuentePar(content.tema.fuentePar);
+  // La PERSONALIDAD DE FORMA del cliente (§ eje 4, gemelo de la paleta y las fuentes): cssForma es el
+  // `:root{--radius-3xl/2xl/xl: … + tokens propios}` que overridea los radios de las tarjetas (y emite
+  // los tokens de la segunda mitad, inertes hoy). Suave/null → `null` → sin <style> → los radios de hoy
+  // (Tailwind v4) → byte-idéntico. Sin flash: va en el HTML del server (dynamic). Sólo el storefront lo
+  // recibe (documento aparte del admin), así que el `:root` no alcanza al panel (§ forma-style).
+  const formaCss = cssForma(content.tema.forma);
   return (
     <StorefrontThemeProvider>
       {fuentesLink && <link rel="stylesheet" href={fuentesLink} />}
       {paletaCss && <style dangerouslySetInnerHTML={{ __html: paletaCss }} />}
       {fuentesCss && <style dangerouslySetInnerHTML={{ __html: fuentesCss }} />}
+      {formaCss && <style dangerouslySetInnerHTML={{ __html: formaCss }} />}
       <SiteSettingsProvider value={settings}>
         <SiteContentProvider value={content}>
           <CartProvider>

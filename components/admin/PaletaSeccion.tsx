@@ -14,6 +14,7 @@ import { CartProvider } from '@/lib/cartStore';
 import type { Product } from '@/types/product';
 import { derivarPaleta, contraste, RAICES_DEFECTO } from '@/lib/config/palette-derive';
 import { PARES_FUENTES, varsDeFuentePar, linkFuentesTodas, resolverFuentePar, type ClaveFuentePar } from '@/lib/config/fuentes';
+import { FORMAS, varsDeForma, resolverForma, type ClaveForma } from '@/lib/config/formas';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 
@@ -129,13 +130,14 @@ const PRODUCTOS_MUESTRA: Product[] = [
  *  Qué se monta sin fetch (censo del gate): `Logo` por PROP sin providers; `TrustBadges` estático;
  *  `StoreNav` quedó FUERA (3 providers + chrome inerte). `ProductCard` sólo necesita `CartProvider`
  *  local e inerte (§ Las tres capas — montar un componente en otro árbol de providers). */
-function FragmentoTienda({ raices, nombre, fuentePar }: { raices: Form; nombre: string; fuentePar: ClaveFuentePar | null }) {
+function FragmentoTienda({ raices, nombre, fuentePar, forma }: { raices: Form; nombre: string; fuentePar: ClaveFuentePar | null; forma: ClaveForma | null }) {
   const p = derivarPaleta(raices);
-  // Las vars de COLOR (derivadas) + las de FUENTE (del par elegido). Un par CUSTOM setea `--sf-fuente-*`
-  // → las clases `.font-*` de los componentes reales las leen; Editorial no las setea → caen a
-  // Inter/Playfair (cargadas en el panel por el `@import`). Las familias del par las carga el `<link>`
-  // de todos los pares que inyecta el editor (§ el efecto en PaletaSeccion).
-  const vars = { ...Object.fromEntries(Object.entries(p).map(([k, v]) => [`--sf-${k}`, v])), ...varsDeFuentePar(fuentePar) } as CSSProperties;
+  // Las vars de COLOR (derivadas) + las de FUENTE (del par elegido) + las de FORMA (radios). Una forma
+  // CUSTOM setea `--radius-3xl/2xl/xl` → las clases `rounded-*` de los componentes reales las leen; Suave
+  // no las setea → caen a los radios de hoy. Un par CUSTOM setea `--sf-fuente-*` → las clases `.font-*` las
+  // leen; Editorial no las setea → caen a Inter/Playfair (cargadas en el panel por el `@import`). Las
+  // familias del par las carga el `<link>` de todos los pares que inyecta el editor (§ el efecto en PaletaSeccion).
+  const vars = { ...Object.fromEntries(Object.entries(p).map(([k, v]) => [`--sf-${k}`, v])), ...varsDeFuentePar(fuentePar), ...varsDeForma(forma) } as CSSProperties;
   return (
     <div className="font-inter" style={{ ...vars, background: 'var(--sf-fondo)', pointerEvents: 'none' }}>
       {/* Barra superior con el wordmark real (centrada como el nav) */}
@@ -158,10 +160,10 @@ function FragmentoTienda({ raices, nombre, fuentePar }: { raices: Form; nombre: 
  *  COMÚN de las vistas en vivo (`.tienda-vivo-pane`, § alineado con VistaTiendaEnVivo). El escenario
  *  de EDICIÓN usa su propio pane (`.tienda-escena__pane`), así que "Ampliar" ya no vive acá —es un
  *  chip del escenario—: en lectura el owner no está afinando nada y no lo necesita. */
-function PreviewTiendaReal({ raices, nombre, fuentePar }: { raices: Form; nombre: string; fuentePar: ClaveFuentePar | null }) {
+function PreviewTiendaReal({ raices, nombre, fuentePar, forma }: { raices: Form; nombre: string; fuentePar: ClaveFuentePar | null; forma: ClaveForma | null }) {
   return (
     <EscalaDesktop className="tienda-vivo-pane">
-      <FragmentoTienda raices={raices} nombre={nombre} fuentePar={fuentePar} />
+      <FragmentoTienda raices={raices} nombre={nombre} fuentePar={fuentePar} forma={forma} />
     </EscalaDesktop>
   );
 }
@@ -170,7 +172,7 @@ function PreviewTiendaReal({ raices, nombre, fuentePar }: { raices: Form; nombre
  *  `Dialog` del admin (Esc, clic-afuera, foco atrapado, X, scroll-lock, todo de Radix — NO
  *  ImageLightbox, que es image-only). `EscalaDesktop` COMPACTO lo encaja entero en la caja
  *  (scale-to-fit, letterbox), como una foto en un visor. */
-function AmpliarOverlay({ abierto, onCerrar, raices, nombre, fuentePar }: { abierto: boolean; onCerrar: () => void; raices: Form; nombre: string; fuentePar: ClaveFuentePar | null }) {
+function AmpliarOverlay({ abierto, onCerrar, raices, nombre, fuentePar, forma }: { abierto: boolean; onCerrar: () => void; raices: Form; nombre: string; fuentePar: ClaveFuentePar | null; forma: ClaveForma | null }) {
   return (
     <Dialog open={abierto} onOpenChange={o => { if (!o) onCerrar(); }}>
       <DialogContent
@@ -181,7 +183,7 @@ function AmpliarOverlay({ abierto, onCerrar, raices, nombre, fuentePar }: { abie
         {/* Alto EXPLÍCITO (vh), no `height:100%`: compacto necesita una caja de alto definido para
             el scale-to-fit, y una cadena de `100%` a través del padding del Dialog es frágil. */}
         <EscalaDesktop compacto style={{ width: '100%', height: '82vh', overflow: 'hidden' }}>
-          <FragmentoTienda raices={raices} nombre={nombre} fuentePar={fuentePar} />
+          <FragmentoTienda raices={raices} nombre={nombre} fuentePar={fuentePar} forma={forma} />
         </EscalaDesktop>
       </DialogContent>
     </Dialog>
@@ -207,6 +209,7 @@ export default function PaletaSeccion() {
   const [form, setForm]                   = useState<Form | null>(null);
   const [esFabrica, setEsFabrica]         = useState(true);   // las 3 raíces en null (colores de fábrica); NO habla del par
   const [fuentePar, setFuentePar]         = useState<ClaveFuentePar | null>(null);   // null = Editorial (el par por defecto)
+  const [forma, setForma]                 = useState<ClaveForma | null>(null);       // null = Suave (la forma por defecto)
   const [hayBorrador, setHayBorrador]     = useState(false);
   const [editando, setEditando]           = useState(false);
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
@@ -214,12 +217,13 @@ export default function PaletaSeccion() {
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
   const [confirmandoFabrica, setConfirmandoFabrica]   = useState(false);
   const [ampliado, setAmpliado]           = useState(false);
-  const [grupoActivo, setGrupoActivo]     = useState<'base' | 'acento' | 'tipo'>('base'); // regleta ANGOSTA: qué eje se ve
+  const [grupoActivo, setGrupoActivo]     = useState<'base' | 'acento' | 'tipo' | 'forma'>('base'); // regleta ANGOSTA: qué eje se ve
   const [verCalculado, setVerCalculado]   = useState(false); // la capa de derivados sobre el pane
   const [altoEscena, setAltoEscena]       = useState<number>(); // alto del escenario, DERIVADO del top medido
 
   const formRef = useRef<Form | null>(null); formRef.current = form;
   const fuenteParRef = useRef<ClaveFuentePar | null>(null); fuenteParRef.current = fuentePar;
+  const formaRef = useRef<ClaveForma | null>(null); formaRef.current = forma;
   const esFabricaRef = useRef(true); esFabricaRef.current = esFabrica;
   const escenaRef = useRef<HTMLDivElement | null>(null);
   const cabeceraRef = useRef<HTMLDivElement | null>(null);
@@ -255,12 +259,13 @@ export default function PaletaSeccion() {
   // El TEMA que viaja al PUT: las 3 raíces (NULL si los colores siguen en fábrica → se preserva
   // byte-idéntico; hexes si el cliente eligió colores) + el par. Elegir FUENTE no fuerza los colores a
   // custom, ni al revés: cada eje conserva su default. `marcarSucio` recibe este objeto ya resuelto.
-  type TemaWire = { paletaFondo: string | null; paletaTinta: string | null; paletaAcento: string | null; fuentePar: ClaveFuentePar | null };
-  const wireDe = (f: Form, coloresFabrica: boolean, fp: ClaveFuentePar | null): TemaWire => ({
+  type TemaWire = { paletaFondo: string | null; paletaTinta: string | null; paletaAcento: string | null; fuentePar: ClaveFuentePar | null; forma: ClaveForma | null };
+  const wireDe = (f: Form, coloresFabrica: boolean, fp: ClaveFuentePar | null, fm: ClaveForma | null): TemaWire => ({
     paletaFondo:  coloresFabrica ? null : f.fondo,
     paletaTinta:  coloresFabrica ? null : f.tinta,
     paletaAcento: coloresFabrica ? null : f.acento,
     fuentePar: fp,
+    forma: fm,
   });
 
   // AUTOGUARDADO del borrador del tema — la MISMA máquina que las secciones (§ useAutoguardado). Sólo
@@ -294,7 +299,7 @@ export default function PaletaSeccion() {
       const r = await fetch('/api/site-content');
       if (!r.ok) throw new Error();
       const d = await r.json();
-      const t = (d.contenido?.tema ?? {}) as { fondo?: string | null; tinta?: string | null; acento?: string | null; fuentePar?: unknown };
+      const t = (d.contenido?.tema ?? {}) as { fondo?: string | null; tinta?: string | null; acento?: string | null; fuentePar?: unknown; forma?: unknown };
       setForm({
         fondo:  raizValida(t.fondo  ?? null, DEFAULT_RAICES.fondo),
         tinta:  raizValida(t.tinta  ?? null, DEFAULT_RAICES.tinta),
@@ -302,6 +307,7 @@ export default function PaletaSeccion() {
       });
       setEsFabrica(t.fondo == null);          // sin raíces guardadas = colores de fábrica (defaults de código)
       setFuentePar(resolverFuentePar(t.fuentePar));  // par CUSTOM válido, o null (Editorial)
+      setForma(resolverForma(t.forma));              // forma CUSTOM válida, o null (Suave)
       setHayBorrador(!!d.sinPublicar?.tema);
       if (inicial) setCargando(false);
     } catch {
@@ -329,7 +335,7 @@ export default function PaletaSeccion() {
     const nf = { ...(formRef.current as Form), ...parcial };
     setForm(nf);
     setEsFabrica(false);                 // elegir COLORES = colores custom (no toca el par)
-    if (esValido(nf)) { setHayBorrador(true); auto.marcarSucio(wireDe(nf, false, fuenteParRef.current)); }
+    if (esValido(nf)) { setHayBorrador(true); auto.marcarSucio(wireDe(nf, false, fuenteParRef.current, formaRef.current)); }
   };
 
   // Elegir FUENTE: un par siempre es VÁLIDO (set cerrado), así que siempre ensucia el autoguardado —a
@@ -338,7 +344,16 @@ export default function PaletaSeccion() {
   const cambiarFuente = (fp: ClaveFuentePar | null) => {
     setFuentePar(fp);
     setHayBorrador(true);
-    auto.marcarSucio(wireDe(formRef.current as Form, esFabricaRef.current, fp));
+    auto.marcarSucio(wireDe(formRef.current as Form, esFabricaRef.current, fp, formaRef.current));
+  };
+
+  // Elegir FORMA: una forma siempre es VÁLIDA (set cerrado), así que siempre ensucia el autoguardado.
+  // NO toca `esFabrica` ni el par: cambiar la forma no fuerza los colores ni la tipografía a custom
+  // (cada eje conserva su default). `null` = Suave (§ formas).
+  const cambiarForma = (fm: ClaveForma | null) => {
+    setForma(fm);
+    setHayBorrador(true);
+    auto.marcarSucio(wireDe(formRef.current as Form, esFabricaRef.current, fuenteParRef.current, fm));
   };
 
   const elegirBase = (b: (typeof BASES)[number]) => cambiar({ fondo: b.fondo, tinta: b.tinta });
@@ -375,7 +390,7 @@ export default function PaletaSeccion() {
     try {
       const put = await fetch('/api/site-content/tema', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paletaFondo: null, paletaTinta: null, paletaAcento: null, fuentePar: null }),
+        body: JSON.stringify({ paletaFondo: null, paletaTinta: null, paletaAcento: null, fuentePar: null, forma: null }),
       });
       if (!put.ok) { const d = await put.json().catch(() => null); setErrorServidor(d?.error ?? 'No se pudo aplicar el tema por defecto.'); return; }
       const post = await fetch('/api/site-content/tema', {
@@ -440,9 +455,10 @@ export default function PaletaSeccion() {
   // El TEMA es de fábrica cuando los colores están en fábrica Y el par es Editorial (el default). El
   // botón de fábrica se ofrece cuando hay algo NO-fábrica que resetear (colores custom, par custom, o
   // un borrador). El par elegido (Editorial si es null) para la copy de lectura.
-  const temaEsFabrica = esFabrica && fuentePar == null;
+  const temaEsFabrica = esFabrica && fuentePar == null && forma == null;
   const puedeResetear = !temaEsFabrica || hayBorrador;
   const parActual = PARES_FUENTES.find(p => p.clave === (fuentePar ?? 'editorial'))!;
+  const formaActual = FORMAS.find(f => f.clave === (forma ?? 'suave'))!;
 
   return (
     <>
@@ -508,7 +524,7 @@ export default function PaletaSeccion() {
             {/* El fragmento REAL, scale-to-fit dentro del pane (EscalaDesktop COMPACTO, el mismo del
                 overlay de Ampliar). El pane toma el alto que el flexbox le deja bajo la regleta. */}
             <EscalaDesktop compacto style={{ width: '100%', height: '100%' }}>
-              <FragmentoTienda raices={form} nombre={settings.nombre} fuentePar={fuentePar} />
+              <FragmentoTienda raices={form} nombre={settings.nombre} fuentePar={fuentePar} forma={forma} />
             </EscalaDesktop>
 
             {/* Ampliar (chip arriba-der): abre el overlay con el mismo fragmento en grande. */}
@@ -565,6 +581,7 @@ export default function PaletaSeccion() {
                 { clave: 'base',   label: 'Base',       aviso: avisoBaseTexto },
                 { clave: 'acento', label: 'Acento',     aviso: avisoBotonTexto || avisoAcentoFondo },
                 { clave: 'tipo',   label: 'Tipografía', aviso: false },
+                { clave: 'forma',  label: 'Forma',      aviso: false },
               ] as const).map(t => {
                 const on = grupoActivo === t.clave;
                 return (
@@ -682,18 +699,52 @@ export default function PaletaSeccion() {
                 })}
               </div>
             </div>
+
+            {/* PIEZA · FORMA: una tarjeta-muestra con las esquinas de la personalidad (`--radius-2xl`, el
+                escalón representativo) + el nombre, del SET CERRADO (§ formas). Suave = null. Es el gemelo
+                del picker de tipografía: la muestra dibuja lo que la forma HACE (el radio), no una letra. */}
+            <div className="tienda-regleta__pieza tienda-regleta__pieza--forma">
+              <span className="duna-field__label">Forma</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                {FORMAS.map(f => {
+                  const activo = (forma ?? 'suave') === f.clave;
+                  return (
+                    <button
+                      key={f.clave} type="button" aria-pressed={activo} title={f.descripcion}
+                      onClick={() => cambiarForma(f.clave === 'suave' ? null : f.clave)}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, width: 56,
+                        padding: '6px 4px', borderRadius: 'var(--duna-r-m)', cursor: 'pointer',
+                        border: `1px solid ${activo ? 'var(--duna-ink)' : 'var(--duna-border)'}`,
+                        background: activo ? 'var(--duna-surface)' : 'transparent',
+                        boxShadow: activo ? 'var(--duna-shadow-1)' : 'none',
+                      }}
+                    >
+                      <span aria-hidden style={{
+                        width: 30, height: 24, borderRadius: f.radius2xl,
+                        background: 'var(--duna-bg)', border: '1.5px solid var(--duna-ink)',
+                      }} />
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, color: 'var(--duna-ink)',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%',
+                      }}>{f.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       ) : (
         <div className="duna-card duna-card__pad" style={{ marginTop: 'var(--duna-space-4)' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-5)', alignItems: 'flex-start' }}>
             <div style={{ flex: '1 1 300px', maxWidth: 440 }}>
-              <PreviewTiendaReal raices={form} nombre={settings.nombre} fuentePar={fuentePar} />
+              <PreviewTiendaReal raices={form} nombre={settings.nombre} fuentePar={fuentePar} forma={forma} />
             </div>
             <p className="duna-sub" style={{ margin: 0, maxWidth: '24rem' }}>
               {temaEsFabrica
                 ? <>Estás usando la apariencia de fábrica. Edita para elegir la tuya.</>
-                : <>{esFabrica ? <>Colores de fábrica</> : <>Base <b>{baseActiva?.label ?? 'personalizada'}</b></>}, tipografía <b>{parActual.label}</b>. Así se ve tu tienda.</>}
+                : <>{esFabrica ? <>Colores de fábrica</> : <>Base <b>{baseActiva?.label ?? 'personalizada'}</b></>}, tipografía <b>{parActual.label}</b>, forma <b>{formaActual.label}</b>. Así se ve tu tienda.</>}
             </p>
           </div>
         </div>
@@ -720,7 +771,7 @@ export default function PaletaSeccion() {
       />
 
       {/* Ampliar: el mismo fragmento en grande con las raíces + el par actuales → vivo por construcción. */}
-      <AmpliarOverlay abierto={ampliado} onCerrar={() => setAmpliado(false)} raices={form} nombre={settings.nombre} fuentePar={fuentePar} />
+      <AmpliarOverlay abierto={ampliado} onCerrar={() => setAmpliado(false)} raices={form} nombre={settings.nombre} fuentePar={fuentePar} forma={forma} />
     </>
   );
 }

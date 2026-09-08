@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CLAVES_FUENTES } from './fuentes';
+import { CLAVES_FORMAS } from './formas';
 
 // Validación del TEMA que manda el editor (§ Tanda C2): las 3 RAÍCES de paleta + el PAR tipográfico.
 // UNA definición que corren el PUT (la que MANDA) y el editor (aviso temprano) — como
@@ -25,6 +26,10 @@ export const paletaEditableSchema = z
     // normaliza 'editorial' → null (Editorial no se guarda). Independiente del all-or-nothing de las
     // raíces: elegir fuente no obliga a elegir colores, ni al revés.
     fuentePar: z.enum(CLAVES_FUENTES).nullable(),
+    // La FORMA (personalidad de radios/grosores): una clave del set cerrado, o `null` (= Suave, el
+    // default). Gemela de `fuentePar`: `resolverTema` normaliza 'suave' → null (Suave no se guarda), e
+    // independiente del all-or-nothing de las raíces —elegir forma no obliga a elegir colores ni fuente—.
+    forma: z.enum(CLAVES_FORMAS).nullable(),
   })
   // ALL-OR-NOTHING: el motor necesita las 3 raíces para derivar. Una paleta a medias
   // (fondo puesto, tinta null) no es derivable —quedaría ignorada en silencio—, así que
