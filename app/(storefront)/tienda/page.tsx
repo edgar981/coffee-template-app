@@ -114,21 +114,21 @@ function ShopInner() {
               <input
                 type="text" value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Buscar café..."
-                className="w-full pl-9 pr-4 py-2.5 bg-white sf-borde border-[var(--sf-linea)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 text-[var(--sf-tinta)]"
+                className="w-full pl-9 pr-4 py-2.5 bg-[var(--sf-tarjeta)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 text-[var(--sf-tinta)]"
               />
             </div>
-            <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium sf-borde transition-colors ${showFilters ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] border-[var(--sf-acento)]' : 'bg-white border-[var(--sf-linea)] text-[var(--sf-texto)] hover:border-[var(--sf-acento)]'}`}>
+            <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium sf-borde transition-colors ${showFilters ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] border-[var(--sf-acento)]' : 'bg-[var(--sf-tarjeta)] border-[var(--sf-linea)] text-[var(--sf-texto)] hover:border-[var(--sf-acento)]'}`}>
               <SlidersHorizontal className="w-4 h-4" /> Filtros
               {activeFilters.length > 0 && <span className="bg-white/30 text-inherit text-xs rounded-full w-4 h-4 flex items-center justify-center">{activeFilters.length}</span>}
             </button>
-            <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="px-4 py-2.5 bg-white sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-texto)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 cursor-pointer">
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="px-4 py-2.5 bg-[var(--sf-tarjeta)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-texto)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 cursor-pointer">
               {SORTBY.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
 
           {/* Filter Panel */}
           {showFilters && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="bg-white sf-borde border-[var(--sf-linea)] rounded-2xl p-5 mb-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="bg-[var(--sf-tarjeta)] sf-borde border-[var(--sf-linea)] rounded-2xl p-5 mb-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
                 <p className="text-xs font-semibold text-[var(--sf-texto)] uppercase tracking-wide mb-3">Categoría</p>
                 <div className="flex flex-wrap gap-2">

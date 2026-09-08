@@ -97,14 +97,14 @@ function OrderTrackingInner() {
         <div className="bg-[var(--sf-tinta)] py-16 text-center">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
             <p className="text-[var(--sf-tostado)] text-xs tracking-widest uppercase mb-3">Seguimiento</p>
-            <h1 className="text-4xl font-playfair text-white mb-3">Rastrear Pedido</h1>
-            <p className="text-white/60 text-sm">Ingresa tu número de orden y el correo de tu compra para ver el estado de tu envío.</p>
+            <h1 className="text-4xl font-playfair text-[var(--sf-sobre)] mb-3">Rastrear Pedido</h1>
+            <p className="text-[var(--sf-sobre)]/60 text-sm">Ingresa tu número de orden y el correo de tu compra para ver el estado de tu envío.</p>
           </motion.div>
         </div>
 
         {/* Search */}
         <div className="max-w-xl mx-auto px-4 -mt-8 relative z-10">
-          <div className="bg-white rounded-2xl shadow-lg sf-borde border-[var(--sf-linea)] p-5 space-y-4">
+          <div className="bg-[var(--sf-tarjeta)] rounded-2xl shadow-lg sf-borde border-[var(--sf-linea)] p-5 space-y-4">
             <div>
               <label htmlFor="track-orden" className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Número de orden</label>
               <input
@@ -161,7 +161,7 @@ function OrderTrackingInner() {
           {order && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
               {/* Order Header */}
-              <div className="bg-white rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
+              <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <p className="text-xs text-[var(--sf-texto-suave)] mb-1">Número de orden</p>
@@ -190,7 +190,7 @@ function OrderTrackingInner() {
               {/* Cancelled (payment) and failed delivery (fulfillment) get their own
                   rendering; everything else uses the combined linear timeline. */}
               {isCancelled ? (
-                <div className="bg-white rounded-2xl border border-red-200 p-6">
+                <div className="bg-[var(--sf-tarjeta)] rounded-2xl border border-red-200 p-6">
                   <div className="flex items-start gap-4">
                     <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
                       <XCircle className="w-4 h-4 text-red-600" />
@@ -202,7 +202,7 @@ function OrderTrackingInner() {
                   </div>
                 </div>
               ) : isFailed ? (
-                <div className="bg-white rounded-2xl border border-amber-200 p-6">
+                <div className="bg-[var(--sf-tarjeta)] rounded-2xl border border-amber-200 p-6">
                   <div className="flex items-start gap-4">
                     <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
                       <AlertTriangle className="w-4 h-4 text-amber-600" />
@@ -214,7 +214,7 @@ function OrderTrackingInner() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-white rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
+                <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
                   <h3 className="font-semibold text-[var(--sf-tinta)] mb-6">Estado del pedido</h3>
                   <div className="space-y-0">
                     {TIMELINE.map((step, i) => {
@@ -247,7 +247,7 @@ function OrderTrackingInner() {
 
               {/* Items */}
               {order.items?.length > 0 && (
-                <div className="bg-white rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
+                <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
                   <h3 className="font-semibold text-[var(--sf-tinta)] mb-4">Productos</h3>
                   <div className="space-y-2">
                     {order.items.map((item, i: number) => (

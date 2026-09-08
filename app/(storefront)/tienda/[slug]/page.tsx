@@ -339,7 +339,7 @@ export default function ProductPage({
                       </div>
                     </div>
                     <div className="flex gap-3">
-                      <button onClick={handleAdd} className="flex-1 flex items-center justify-center gap-2 bg-[var(--sf-tinta)] hover:bg-[var(--sf-tinta-2)] text-white font-semibold py-4 rounded-2xl transition-all hover:-translate-y-0.5 text-sm">
+                      <button onClick={handleAdd} className="flex-1 flex items-center justify-center gap-2 bg-[var(--sf-tinta)] hover:bg-[var(--sf-tinta-2)] text-[var(--sf-sobre)] font-semibold py-4 rounded-2xl transition-all hover:-translate-y-0.5 text-sm">
                         <ShoppingBag className="w-4 h-4" /> Agregar al carrito
                       </button>
                       <button onClick={() => setWishlisted(!wishlisted)} className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all ${wishlisted ? 'border-red-400 bg-red-50 text-red-500' : 'border-[var(--sf-linea)] text-[var(--sf-tostado-3)] hover:border-red-300'}`}>

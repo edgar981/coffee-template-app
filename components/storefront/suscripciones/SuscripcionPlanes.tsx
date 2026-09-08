@@ -29,10 +29,10 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
       <section className="bg-[var(--sf-tinta)] py-20 text-center px-4">
         <motion.div initial={preview ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           {c.eyebrow && <p className="text-[var(--sf-tostado)] text-xs tracking-widest uppercase mb-4">{c.eyebrow}</p>}
-          <h1 className="text-5xl sm:text-6xl font-playfair text-white mb-4">
+          <h1 className="text-5xl sm:text-6xl font-playfair text-[var(--sf-sobre)] mb-4">
             {c.titulo}{c.tituloEnfasis && (<><br /><em className="text-[var(--sf-tostado)] italic">{c.tituloEnfasis}</em></>)}
           </h1>
-          <p className="text-white/60 text-lg max-w-xl mx-auto">{c.subtitulo}</p>
+          <p className="text-[var(--sf-sobre)]/60 text-lg max-w-xl mx-auto">{c.subtitulo}</p>
         </motion.div>
       </section>
 
@@ -52,7 +52,7 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
                 whileInView={preview ? undefined : { opacity: 1, y: 0 }}
                 animate={preview ? { opacity: 1, y: 0 } : undefined}
                 viewport={preview ? undefined : { once: true }}
-                className={`relative flex flex-col rounded-2xl p-6 border-2 bg-white ${plan.destacado ? 'border-[var(--sf-acento)] shadow-lg shadow-[var(--sf-acento)]/10' : 'border-[var(--sf-linea)]'}`}
+                className={`relative flex flex-col rounded-2xl p-6 border-2 bg-[var(--sf-tarjeta)] ${plan.destacado ? 'border-[var(--sf-acento)] shadow-lg shadow-[var(--sf-acento)]/10' : 'border-[var(--sf-linea)]'}`}
               >
                 {plan.destacado && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] text-xs font-bold px-4 py-1 sf-pildora sf-badge">
