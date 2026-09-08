@@ -8,6 +8,13 @@
 
 import { resolverFuentePar, type ClaveFuentePar } from './fuentes';
 import { resolverForma, type ClaveForma } from './formas';
+import type { EsquemaId } from './palette-derive';
+
+// Alias con el vocabulario de esta capa (§ eje 5b, mitad B — el EFECTO en el home). Es EL MISMO
+// tipo que `EsquemaId` de `palette-derive.ts` (el MOTOR ya lo declaró): 'crema' | 'superficie' |
+// 'oscuro' | 'acento'. No se redeclara — un segundo set cerrado es cómo diverge del que el motor
+// realmente deriva.
+export type ClaveEsquema = EsquemaId;
 
 export interface HeroContent {
   visible: boolean;
@@ -262,7 +269,17 @@ export interface SiteContentData {
   suscripcionPasos: SuscripcionPasosContent;
   paginas: PaginasContent;
   tema: TemaContent;
+  esquemas: EsquemasContent;
 }
+
+// META de esquemas (§ eje 5b, mitad B): el mapa bandaId→esquema que decide sobre QUÉ superficie
+// vive cada banda del home (§ palette-derive, `derivarEsquema`). NO es una sección (no lleva
+// `campos` ni la resuelve el loop) — es la PIEL POR-BANDA, gemela de `tema` (que es la piel de
+// TODO el storefront) pero con un dominio de claves ABIERTO: cualquier bandaId puede tener una
+// entrada, así que no hay un `defaults` fijo que enumerar (§ `resolverEsquemas`, key-agnóstico).
+// Una banda AUSENTE del mapa (o con basura) = SIN OVERRIDE = su token CANÓNICO de hoy — el
+// mecanismo que mantiene a Nayoli byte-idéntica sin sembrar fila (§ `--sf-banda` en `esquema-style`).
+export type EsquemasContent = Record<string, ClaveEsquema>;
 
 // Los DEFAULTS son los literales que hoy viven en el JSX del hero. Se mueven acá; el
 // componente los recibe resueltos.
@@ -404,6 +421,12 @@ export const DEFAULTS: SiteContentData = {
     fuentePar: null,   // Editorial (Inter/Playfair) — el default byte-idéntico
     forma: null,       // Suave (radios de hoy) — el default byte-idéntico
   },
+  // ESQUEMAS por defecto: el mapa nace VACÍO a propósito (§ eje 5b, mitad B). Ninguna banda tiene
+  // entrada → todas caen a su token CANÓNICO de hoy (tinta/tinta-2/fondo/superficie, cada una la
+  // suya) → Nayoli byte-idéntica. NO pre-llenar con 'crema'/'oscuro': eso rompería `tinta-2`
+  // (SubscriptionCTA, un oscuro cálido DISTINTO de `oscuro`=tinta) y el blanco puro de hoy contra
+  // el texto cálido 8.49:1 que sólo aparece cuando un tenant ASIGNA el esquema.
+  esquemas: {},
 };
 
 // Destinos de los CTA — ESTRUCTURA, no editable. Los labels se editan; los hrefs NO: un
@@ -445,10 +468,10 @@ export interface SeccionDef {
   imagenes?: string[];
 }
 
-// Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas` y `tema`, que no son
-// secciones). El REGISTRY las cubre a todas; `paginas` y `tema` quedan fuera a propósito —cada una se
-// resuelve aparte del loop de secciones.
-export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema'>;
+// Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema` y `esquemas`, que
+// no son secciones). El REGISTRY las cubre a todas; las tres metas quedan fuera a propósito —cada
+// una se resuelve aparte del loop de secciones.
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'esquemas'>;
 
 export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
@@ -672,6 +695,10 @@ export function resolverSiteContent(
   out.paginas = resolverPaginas(raw.paginas, defaultsBase.paginas);
   // TEMA (meta, no sección): las 3 raíces de paleta, resueltas aparte del loop igual que `paginas`.
   out.tema = resolverTema(raw.tema, defaultsBase.tema);
+  // ESQUEMAS (meta, no sección): el mapa banda→esquema, resuelto aparte del loop igual que `paginas`
+  // y `tema` — pero KEY-AGNÓSTICO (§ `resolverEsquemas`, abajo): a diferencia de esas dos, no hay un
+  // `defaults` con un set fijo de claves que enumerar.
+  out.esquemas = resolverEsquemas(raw.esquemas);
   return out as unknown as SiteContentData;
 }
 
@@ -714,6 +741,26 @@ export function resolverTema(stored: unknown, defaults: unknown): TemaContent {
     fuentePar: resolverFuentePar(st['fuentePar']),
     forma: resolverForma(st['forma']),
   };
+}
+
+const ESQUEMA_IDS = new Set<ClaveEsquema>(['crema', 'superficie', 'oscuro', 'acento']);
+
+/**
+ * Resuelve el mapa banda→esquema (§ eje 5b), gemelo de `resolverPaginas`/`resolverTema` pero
+ * KEY-AGNÓSTICO: aquellas enumeran un set FIJO de páginas/raíces conocido de antemano por su
+ * `defaults`; acá el set de bandaIds es ABIERTO —cualquier sección del home puede tener una
+ * entrada—, así que se itera el GUARDADO, no un `def` fijo. Cada valor se valida contra el set
+ * CERRADO de 4 esquemas; basura (o una clave ausente) NI SIQUIERA aparece en el resultado — es lo
+ * que hace que el consumidor la lea como "sin override" (cae a su token canónico de hoy, § el
+ * mecanismo de byte-identidad). SOFT, nunca lanza.
+ */
+export function resolverEsquemas(stored: unknown): EsquemasContent {
+  const st = esObj(stored) ? stored : {};
+  const out: EsquemasContent = {};
+  for (const [banda, val] of Object.entries(st)) {
+    if (typeof val === 'string' && ESQUEMA_IDS.has(val as ClaveEsquema)) out[banda] = val as ClaveEsquema;
+  }
+  return out;
 }
 
 // Resuelve el array de items de una sección repeater. Cada ítem: los campos `requerido`/`opcional`

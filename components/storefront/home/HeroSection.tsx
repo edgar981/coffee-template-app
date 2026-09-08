@@ -21,7 +21,7 @@ const fadeUp = {
 // —requeridos con su default, opcionales vacíos como ""—, así que acá sólo hay que OMITIR
 // los opcionales vacíos (eyebrow, el énfasis del titular, el 2º CTA). Hero es `ocultable:false`
 // → siempre se renderiza. Los destinos de los CTA son ESTRUCTURA (`HERO_HREFS`), no editables.
-export default function HeroSection() {
+export default function HeroSection({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, paginas } = useSiteContent();
   const preview = useIsPreview();
   // El 2º CTA del hero apunta a /suscripciones (`HERO_HREFS.secundario`, estructura). Si la capacidad
@@ -32,7 +32,7 @@ export default function HeroSection() {
   const mostrarCtaSuscripcion = HERO_HREFS.secundario !== '/suscripciones' || paginas.suscripciones.visible;
 
   return (
-    <section className="relative flex min-h-[92vh] items-center overflow-hidden bg-[var(--sf-tinta)]">
+    <section className="relative flex min-h-[92vh] items-center overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))]" style={style}>
       <div className="absolute inset-0">
         <Image
           src={hero.imagen}
@@ -76,7 +76,7 @@ export default function HeroSection() {
 
           <motion.h1
             variants={fadeUp}
-            className="mb-6 font-playfair text-5xl leading-[1.08] text-white sm:text-6xl lg:text-7xl"
+            className="mb-6 font-playfair text-5xl leading-[1.08] text-[var(--sf-sobre)] sm:text-6xl lg:text-7xl"
           >
             {hero.titulo}
             {hero.tituloEnfasis && (
@@ -89,7 +89,7 @@ export default function HeroSection() {
 
           <motion.p
             variants={fadeUp}
-            className="mb-10 max-w-md text-lg leading-relaxed text-white/70"
+            className="mb-10 max-w-md text-lg leading-relaxed text-[var(--sf-sobre)]/70"
           >
             {hero.subtitulo}
           </motion.p>
@@ -110,7 +110,7 @@ export default function HeroSection() {
             {hero.ctaSecundarioLabel && mostrarCtaSuscripcion && (
               <Link
                 href={HERO_HREFS.secundario}
-                className="inline-flex items-center gap-2 sf-pildora border border-white/30 px-8 py-4 text-sm font-medium text-white transition-all duration-200 hover:border-white/60 hover:bg-white/10"
+                className="inline-flex items-center gap-2 sf-pildora border border-[var(--sf-linea-sobre,white)]/30 px-8 py-4 text-sm font-medium text-[var(--sf-sobre)] transition-all duration-200 hover:border-[var(--sf-linea-sobre,white)]/60 hover:bg-white/10"
               >
                 {hero.ctaSecundarioLabel}
               </Link>
@@ -125,7 +125,7 @@ export default function HeroSection() {
         <motion.div
           animate={{ y: [0, 8, 0] }}
           transition={{ duration: 2, repeat: Infinity }}
-          className="absolute bottom-8 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-white/40"
+          className="absolute bottom-8 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-[var(--sf-sobre)]/40"
         >
           <span className="text-xs tracking-widest uppercase">Scroll</span>
           <div className="w-px h-12 bg-linear-to-b from-white/40 to-transparent" />

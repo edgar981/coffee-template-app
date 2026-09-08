@@ -66,3 +66,14 @@ test('todo campo del MODELO está en el schema editable (sin strip silencioso)',
       `«${seccion}»: campos del modelo que el schema editable STRIPPEA (agrégalos a site-content-schema.ts): ${faltantes.join(', ')}`);
   }
 });
+
+// ─── ESQUEMAS (§ eje 5b, mitad B): declarada como meta — sin STRIP silencioso, aunque hoy no
+// exista editor que la escriba (SIN PICKER, decisión del owner) ─────────────────────────────
+test('esquemas: un mapa banda→esquema válido SOBREVIVE al parse (si no, zod lo descartaría al guardar)', () => {
+  const parsed = siteContentEditableSchema.parse({ esquemas: { hero: 'oscuro', trustBadges: 'acento' } });
+  assert.deepEqual(parsed.esquemas, { hero: 'oscuro', trustBadges: 'acento' });
+});
+
+test('esquemas: un VALOR fuera del set cerrado de 4 se rechaza (a diferencia del resolver, que la absorbe SOFT)', () => {
+  assert.throws(() => siteContentEditableSchema.parse({ esquemas: { hero: 'neon' } }));
+});

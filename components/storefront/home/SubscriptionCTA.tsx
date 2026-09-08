@@ -20,7 +20,7 @@ const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 // es un anzuelo que enlaza a /suscripciones, no el grid completo. El destaque sale del dato
 // (`plan.destacado`, el `destacadoSlot` de la sección), no del `i===1` hardcodeado de antes. El href del
 // CTA es estructura (`/suscripciones`), sólo el label es editable.
-export default function SubscriptionCTA() {
+export default function SubscriptionCTA({ style }: { style?: React.CSSProperties } = {}) {
   const { subscriptionCTA, suscripcionPlanes, paginas } = useSiteContent();
   const preview = useIsPreview();
   const planesTeaser = planesDelTeaser(planesDeSuscripcion(suscripcionPlanes));
@@ -42,7 +42,7 @@ export default function SubscriptionCTA() {
   ].filter(b => b.trim() !== ""); // vacíos omitidos → la lista se cierra sin hueco
 
   return (
-    <section className="py-20 bg-[var(--sf-tinta-2)]">
+    <section className="py-20 bg-[var(--sf-banda,var(--sf-tinta-2))]" style={style}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* En preview, `whileInView`→`animate` con `initial={false}`: la vista escalada no dispara
@@ -57,11 +57,11 @@ export default function SubscriptionCTA() {
               {subscriptionCTA.eyebrow && (
                 <p className="text-[var(--sf-tostado)] text-xs tracking-[0.2em] uppercase mb-3">{subscriptionCTA.eyebrow}</p>
               )}
-              <h2 className="text-4xl font-playfair text-white mb-4">{subscriptionCTA.titulo}</h2>
-              <p className="text-white/60 mb-8 leading-relaxed">{subscriptionCTA.subtitulo}</p>
+              <h2 className="text-4xl font-playfair text-[var(--sf-sobre)] mb-4">{subscriptionCTA.titulo}</h2>
+              <p className="text-[var(--sf-sobre)]/60 mb-8 leading-relaxed">{subscriptionCTA.subtitulo}</p>
               <div className="space-y-3 mb-8">
                 {beneficios.map((b, i) => (
-                  <div key={i} className="flex items-center gap-3 text-sm text-white/70">
+                  <div key={i} className="flex items-center gap-3 text-sm text-[var(--sf-sobre)]/70">
                     <div className="w-1.5 h-1.5 rounded-full bg-[var(--sf-tostado)]" />
                     {b}
                   </div>

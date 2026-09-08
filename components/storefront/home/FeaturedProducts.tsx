@@ -10,7 +10,7 @@ import ProductCard from "../ProductCard";
 
 const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 
-export default function FeaturedProducts() {
+export default function FeaturedProducts({ style }: { style?: React.CSSProperties } = {}) {
   // Fuente única: catálogo público desde la DB (petición compartida/memoizada).
   const [catalog, setCatalog] = useState<Product[]>([]);
   useEffect(() => {
@@ -20,7 +20,7 @@ export default function FeaturedProducts() {
   const featured = catalog.slice(0, 4);
 
   return (
-    <section className="py-20 bg-[var(--sf-fondo)]">
+    <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="flex items-end justify-between mb-12">
             <div>

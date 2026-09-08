@@ -21,7 +21,7 @@ const IMAGENES = [
   { campo: "imagen4", alt: "Barista", offset: "mt-4" },
 ] as const;
 
-export default function BrandStory() {
+export default function BrandStory({ style }: { style?: React.CSSProperties } = {}) {
   const { brandStory } = useSiteContent();
   const preview = useIsPreview();
   if (!seccionEsVisible(REGISTRY.brandStory, brandStory)) return null;
@@ -32,7 +32,7 @@ export default function BrandStory() {
   // el primer render, sin animación de entrada. Fuera de preview, idéntico a hoy. (Mismo criterio
   // que HeroSection, ahí escrito para esta sección.)
   return (
-    <section id="nuestra-historia" className="py-24 bg-[var(--sf-tinta)]">
+    <section id="nuestra-historia" className="py-24 bg-[var(--sf-banda,var(--sf-tinta))]" style={style}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <motion.div
@@ -47,14 +47,14 @@ export default function BrandStory() {
                 {brandStory.eyebrow}
               </p>
             )}
-            <h2 className="text-4xl sm:text-5xl font-playfair text-white leading-tight mb-6">
+            <h2 className="text-4xl sm:text-5xl font-playfair text-[var(--sf-sobre)] leading-tight mb-6">
               {brandStory.titulo}
             </h2>
-            <p className="text-white/60 leading-relaxed mb-6 text-base">
+            <p className="text-[var(--sf-sobre)]/60 leading-relaxed mb-6 text-base">
               {brandStory.parrafo1}
             </p>
             {brandStory.parrafo2 && (
-              <p className="text-white/60 leading-relaxed mb-8 text-base">
+              <p className="text-[var(--sf-sobre)]/60 leading-relaxed mb-8 text-base">
                 {brandStory.parrafo2}
               </p>
             )}

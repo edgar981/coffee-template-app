@@ -10,13 +10,14 @@ import { Logo } from '@/components/storefront/Logo';
 import { STOREFRONT_TIENE_MARK } from '@/lib/config/storefront-marca';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
+import { heroEsOscuro } from '@/lib/config/esquema-style';
 
 export default function StoreNav() {
   const { nombre } = useSiteSettings();
   // "Nosotros" es RUTA (/nosotros), y sólo aparece si la página está ENCENDIDA (§ paginas.nosotros).
   // Apagada, el enlace desaparece. Antes era un ancla a la home (`/#nuestra-historia`), cuyo
   // active-state por `pathname.startsWith` nunca matcheaba —la ruta real lo arregla—.
-  const { paginas } = useSiteContent();
+  const { paginas, esquemas, tema } = useSiteContent();
   const links = [
     { label: 'Tienda', path: '/tienda' },
     // Suscripciones y Nosotros son CAPACIDADES apagables: su link aparece sólo si la página está viva
@@ -38,12 +39,20 @@ export default function StoreNav() {
     return () => window.removeEventListener('scroll', fn);
   }, []);
 
-  const navBg = isHome && !scrolled
-    ? 'bg-transparent text-white'
+  // El nav flota TRANSPARENTE sólo en home+sin-scroll (sobre el hero); su TEXTO va claro sólo si,
+  // además, el hero queda OSCURO con el esquema asignado (§ heroEsOscuro, eje 5b mitad B) — antes
+  // asumía el hero SIEMPRE oscuro, y un hero con esquema CLARO ('crema'/'superficie') habría dejado
+  // el nav blanco sobre blanco. Sin esquema asignado (canónica = tinta), `heroEsOscuro` da `true` →
+  // byte-idéntico al `isHome && !scrolled` de hoy.
+  const navFlotando = isHome && !scrolled;
+  const navClaro = navFlotando && heroEsOscuro(esquemas.hero, tema.fondo, tema.tinta, tema.acento);
+
+  const navBg = navFlotando
+    ? (navClaro ? 'bg-transparent text-white' : 'bg-transparent text-[var(--sf-tinta)]')
     : 'bg-white/95 backdrop-blur shadow-sm text-[var(--sf-tinta)]';
 
-  const linkColor = isHome && !scrolled ? 'text-white/80 hover:text-white' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
-  const iconColor = isHome && !scrolled ? 'text-white/80 hover:text-white' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
+  const linkColor = navClaro ? 'text-white/80 hover:text-white' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
+  const iconColor = navClaro ? 'text-white/80 hover:text-white' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
 
   return (
     <>
@@ -53,7 +62,7 @@ export default function StoreNav() {
             {/* Logo */}
             <Link href="/" aria-label={`${nombre} — inicio`} className="transition-colors">
               {/* Cream lockup over the transparent hero, espresso once scrolled */}
-              <Logo nombre={nombre} variant={isHome && !scrolled ? 'dark' : 'light'} conMark={STOREFRONT_TIENE_MARK} />
+              <Logo nombre={nombre} variant={navClaro ? 'dark' : 'light'} conMark={STOREFRONT_TIENE_MARK} />
             </Link>
 
             {/* Desktop Nav */}

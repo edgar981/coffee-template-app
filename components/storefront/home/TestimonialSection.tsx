@@ -15,7 +15,7 @@ import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 // Los tres testimonios que vivían acá eran FABRICADOS (citaban productos que Nayoli no vende); se
 // retiraron del CÓDIGO (§ SiteContent — el repeater). La sección sigue existiendo — vuelve con testimonios REALES cuando
 // el owner los cargue como dato por el editor.
-export default function TestimonialSection() {
+export default function TestimonialSection({ style }: { style?: React.CSSProperties } = {}) {
   const { testimonials } = useSiteContent();
   const preview = useIsPreview();
   if (!seccionEsVisible(REGISTRY.testimonials, testimonials)) return null;
@@ -23,7 +23,7 @@ export default function TestimonialSection() {
   const { eyebrow, titulo, items } = testimonials;
 
   return (
-    <section className="py-20 bg-[var(--sf-fondo)]">
+    <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={preview ? false : "hidden"}
@@ -50,7 +50,7 @@ export default function TestimonialSection() {
                   viewport={preview ? undefined : { once: true }}
                   variants={fadeUp}
                   transition={preview ? undefined : { delay: i * 0.1 }}
-                  className="bg-white rounded-2xl p-6 shadow-sm sf-borde border-[var(--sf-linea)]"
+                  className="bg-[var(--sf-tarjeta)] rounded-2xl p-6 shadow-sm sf-borde border-[var(--sf-linea)]"
                 >
                   <div className="flex gap-1 mb-4">
                     {[1, 2, 3, 4, 5].map(n => (

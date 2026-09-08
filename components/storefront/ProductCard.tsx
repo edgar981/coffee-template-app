@@ -74,7 +74,7 @@ export default function ProductCard({
       <motion.div
         whileHover={{ y: -4 }}
         transition={{ duration: 0.2 }}
-        className="overflow-hidden rounded-2xl sf-borde border-[var(--sf-linea)] bg-white transition-all duration-300 hover:shadow-lg"
+        className="overflow-hidden rounded-2xl sf-borde border-[var(--sf-linea)] bg-[var(--sf-tarjeta)] transition-all duration-300 hover:shadow-lg"
       >
         {/* Image — el contenedor crema de marca queda como fallback si el
             producto no tiene imagen (evita pasar undefined a next/image). */}

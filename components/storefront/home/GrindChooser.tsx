@@ -26,7 +26,7 @@ import { tarjetasDePresentaciones, gridColsPresentaciones } from "@/lib/storefro
 // del storefront → el hook LANZARÍA). La home lo pasa desde el nombre del negocio; el preview va sin
 // prop → alt genérico (irrelevante en un preview). Mismo patrón que NosotrosGaleria (§ el {negocio}
 // del fallback llega por PROP).
-export default function GrindChooser({ negocio }: { negocio?: string }) {
+export default function GrindChooser({ negocio, style }: { negocio?: string; style?: React.CSSProperties }) {
   const { presentaciones } = useSiteContent();
   const preview = useIsPreview();
   if (!seccionEsVisible(REGISTRY.presentaciones, presentaciones)) return null;
@@ -35,7 +35,7 @@ export default function GrindChooser({ negocio }: { negocio?: string }) {
   const gridCols = gridColsPresentaciones(tarjetas.length);
 
   return (
-    <section className="py-20 bg-[var(--sf-fondo)]">
+    <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* En el preview escalado, `whileInView` no dispara (la intersección no llega) → se cambia a
             `animate` con `initial={false}`, asentado desde el primer render. Fuera de preview, idéntico. */}
@@ -83,8 +83,8 @@ export default function GrindChooser({ negocio }: { negocio?: string }) {
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[var(--sf-tinta)]/80 via-[var(--sf-tinta)]/20 to-transparent" />
                 <div className="relative p-8">
-                  <h3 className="text-2xl sm:text-3xl font-playfair text-white mb-1">{op.label}</h3>
-                  <p className="text-white/80 text-sm mb-4 max-w-xs">{op.copy}</p>
+                  <h3 className="text-2xl sm:text-3xl font-playfair text-[var(--sf-sobre)] mb-1">{op.label}</h3>
+                  <p className="text-[var(--sf-sobre)]/80 text-sm mb-4 max-w-xs">{op.copy}</p>
                   <span className="inline-flex items-center gap-2 text-[var(--sf-tostado)] font-semibold text-sm group-hover:gap-3 transition-all">
                     Ver café {op.label.toLowerCase()} <ArrowRight className="w-4 h-4" />
                   </span>

@@ -29,9 +29,9 @@ const BADGES = [
   },
 ];
 
-export default function TrustBadges() {
+export default function TrustBadges({ style }: { style?: React.CSSProperties } = {}) {
   return (
-    <section className="sf-divisor-y border-[var(--sf-linea)] bg-[var(--sf-fondo)] py-6">
+    <section className="sf-divisor-y border-[var(--sf-linea)] bg-[var(--sf-banda,var(--sf-fondo))] py-6" style={style}>
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
           {BADGES.map(
