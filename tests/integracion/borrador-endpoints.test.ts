@@ -218,7 +218,7 @@ test('setPaginaVisible re-enciende sin perder otras páginas ya guardadas', asyn
 
 // El tema COMPLETO: las 3 raíces + el par tipográfico (§ Tanda C2 · #3). Un par CUSTOM ejercita el
 // round-trip guardar→publicar→descartar del par junto con la paleta (un solo objeto, un solo borrador).
-const RAICES = { fondo: '#101010', tinta: '#f0f0f0', acento: '#c04000', fuentePar: 'moderno' };
+const RAICES = { fondo: '#101010', tinta: '#f0f0f0', acento: '#c04000', fuentePar: 'moderno', forma: 'recta' };
 
 test('GUARDAR TEMA escribe borrador.tema y NO toca lo publicado', async () => {
   await prisma.siteContent.create({ data: { id: 'default', content: { tema: { fondo: '#000000', tinta: '#ffffff', acento: '#8b4513' } } } });

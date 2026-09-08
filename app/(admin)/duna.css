@@ -625,7 +625,8 @@ html.admin {
   .tienda-regleta__pieza { display: none; flex-basis: auto; }
   .tienda-regleta[data-grupo="base"]   .tienda-regleta__pieza--base,
   .tienda-regleta[data-grupo="acento"] .tienda-regleta__pieza--acento,
-  .tienda-regleta[data-grupo="tipo"]   .tienda-regleta__pieza--tipo { display: block; }
+  .tienda-regleta[data-grupo="tipo"]   .tienda-regleta__pieza--tipo,
+  .tienda-regleta[data-grupo="forma"]  .tienda-regleta__pieza--forma { display: block; }
 }
 
 /* La CAPA de derivados: «Lo que se calcula solo» pasa de un `<details>` en la columna a una CAPA

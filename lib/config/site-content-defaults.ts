@@ -7,6 +7,7 @@
 // migración.
 
 import { resolverFuentePar, type ClaveFuentePar } from './fuentes';
+import { resolverForma, type ClaveForma } from './formas';
 
 export interface HeroContent {
   visible: boolean;
@@ -243,6 +244,10 @@ export interface TemaContent {
   // default: Inter/Playfair, las de hoy) — como las raíces en null = fábrica. Un valor CUSTOM
   // ('calido'|'moderno'|'clasico'|'nitido') hace que el layout inyecte cssFuentes + el `<link>` del par.
   fuentePar: ClaveFuentePar | null;
+  // La PERSONALIDAD DE FORMA del storefront (§ eje 4, `lib/config/formas`). `null` = Suave (el default:
+  // los radios de hoy, 1.5/1/0.75rem) — como `fuentePar` en null = Editorial. Un valor CUSTOM
+  // ('recta'|'minima') hace que el layout inyecte cssForma (§ forma-style).
+  forma: ClaveForma | null;
 }
 
 export interface SiteContentData {
@@ -397,6 +402,7 @@ export const DEFAULTS: SiteContentData = {
     tinta: null,
     acento: null,
     fuentePar: null,   // Editorial (Inter/Playfair) — el default byte-idéntico
+    forma: null,       // Suave (radios de hoy) — el default byte-idéntico
   },
 };
 
@@ -700,9 +706,14 @@ export function resolverTema(stored: unknown, defaults: unknown): TemaContent {
     const dv = def[k];
     return typeof dv === 'string' && HEX6_TEMA.test(dv) ? dv : null;
   };
-  // El par tipográfico: clave CUSTOM válida, o null (Editorial). `resolverFuentePar` normaliza null,
-  // 'editorial' y basura → null (§ fuentes). No usa `defaults` porque el default ES null.
-  return { fondo: raiz('fondo'), tinta: raiz('tinta'), acento: raiz('acento'), fuentePar: resolverFuentePar(st['fuentePar']) };
+  // El par tipográfico y la forma: clave CUSTOM válida, o null (Editorial/Suave). `resolverFuentePar`/
+  // `resolverForma` normalizan null, la clave del default y basura → null (§ fuentes, § formas). No usan
+  // `defaults` porque el default ES null.
+  return {
+    fondo: raiz('fondo'), tinta: raiz('tinta'), acento: raiz('acento'),
+    fuentePar: resolverFuentePar(st['fuentePar']),
+    forma: resolverForma(st['forma']),
+  };
 }
 
 // Resuelve el array de items de una sección repeater. Cada ítem: los campos `requerido`/`opcional`

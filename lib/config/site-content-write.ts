@@ -56,7 +56,7 @@ export async function guardarBorrador(data: SiteContentEditable): Promise<{ blob
 // borrador, un solo publicar; § por qué el editor es UNIFICADO). Sin blobs: el tema son strings, no
 // imágenes —`imagenesDe` no toca `tema` (no está en el REGISTRY)—, así que no devuelve `blobsABorrar`.
 export async function guardarTemaBorrador(
-  tema: { fondo: string | null; tinta: string | null; acento: string | null; fuentePar: string | null },
+  tema: { fondo: string | null; tinta: string | null; acento: string | null; fuentePar: string | null; forma: string | null },
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const { borrador } = await leerFila(tx);
