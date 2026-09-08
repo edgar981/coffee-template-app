@@ -32,7 +32,7 @@ export default function StoreFooter() {
   // Backlog #49). La columna "Tienda" no queda vacía —lleva "Todos los productos" aparte—.
   const tienda = footerNav.tienda.filter((l) => l.href !== "/suscripciones" || paginas.suscripciones.visible);
   return (
-    <footer className="bg-[var(--sf-tinta)] text-white">
+    <footer className="bg-[var(--sf-tinta)] text-[var(--sf-sobre)]">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
@@ -49,7 +49,7 @@ export default function StoreFooter() {
               />
             </div>
 
-            <p className="mb-6 text-sm leading-relaxed text-white/50">
+            <p className="mb-6 text-sm leading-relaxed text-[var(--sf-sobre)]/50">
               {settings.descripcionFooter}
             </p>
 
@@ -63,7 +63,7 @@ export default function StoreFooter() {
                   target="_blank"
                   rel="noopener"
                   aria-label={`Instagram de ${settings.nombre}`}
-                  className="flex h-9 w-9 items-center justify-center sf-radio-lg bg-white/10 transition-colors hover:bg-white/20"
+                  className="flex h-9 w-9 items-center justify-center sf-radio-lg bg-[var(--sf-sobre)]/10 transition-colors hover:bg-[var(--sf-sobre)]/20"
                 >
                   <Image
                     src="/icons/instagram-white.svg"
@@ -81,9 +81,9 @@ export default function StoreFooter() {
                   target="_blank"
                   rel="noopener"
                   aria-label={`WhatsApp de ${settings.nombre}`}
-                  className="flex h-9 w-9 items-center justify-center sf-radio-lg bg-white/10 transition-colors hover:bg-white/20"
+                  className="flex h-9 w-9 items-center justify-center sf-radio-lg bg-[var(--sf-sobre)]/10 transition-colors hover:bg-[var(--sf-sobre)]/20"
                 >
-                  <MessageCircle className="h-4 w-4 text-white/60" />
+                  <MessageCircle className="h-4 w-4 text-[var(--sf-sobre)]/60" />
                 </a>
               )}
             </div>
@@ -91,11 +91,11 @@ export default function StoreFooter() {
 
           {/* Tienda */}
           <div>
-            <h4 className="mb-4 text-sm font-semibold text-white">
+            <h4 className="mb-4 text-sm font-semibold text-[var(--sf-sobre)]">
               Tienda
             </h4>
 
-            <ul className="space-y-2.5 text-sm text-white/50">
+            <ul className="space-y-2.5 text-sm text-[var(--sf-sobre)]/50">
               {tienda.map((link) => (
                 <li key={link.label}>
                   <Link
@@ -111,11 +111,11 @@ export default function StoreFooter() {
 
           {/* Ayuda */}
           <div>
-            <h4 className="mb-4 text-sm font-semibold text-white">
+            <h4 className="mb-4 text-sm font-semibold text-[var(--sf-sobre)]">
               Ayuda
             </h4>
 
-            <ul className="space-y-2.5 text-sm text-white/50">
+            <ul className="space-y-2.5 text-sm text-[var(--sf-sobre)]/50">
               {footerNav.ayuda.map((link) => {
                 const external = link.href.startsWith("http");
                 return (
@@ -145,11 +145,11 @@ export default function StoreFooter() {
 
           {/* Empresa */}
           <div>
-            <h4 className="mb-4 text-sm font-semibold text-white">
+            <h4 className="mb-4 text-sm font-semibold text-[var(--sf-sobre)]">
               Empresa
             </h4>
 
-            <ul className="space-y-2.5 text-sm text-white/50">
+            <ul className="space-y-2.5 text-sm text-[var(--sf-sobre)]/50">
               {empresa.map((link) => (
                 <li key={link.label}>
                   <Link
@@ -163,7 +163,7 @@ export default function StoreFooter() {
             </ul>
 
             {settings.whatsapp && (
-              <div className="mt-6 text-sm text-white/50">
+              <div className="mt-6 text-sm text-[var(--sf-sobre)]/50">
                 <p>📱 WhatsApp</p>
 
                 <a
@@ -182,7 +182,7 @@ export default function StoreFooter() {
 
       {/* Bottom Bar */}
       <div className="sf-divisor-t border-white/10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-4 text-xs text-white/30 sm:flex-row sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-4 text-xs text-[var(--sf-sobre)]/30 sm:flex-row sm:px-6 lg:px-8">
           <p>
             © 2026 {settings.nombre}.
             Todos los derechos reservados.
@@ -194,7 +194,7 @@ export default function StoreFooter() {
                 <Link
                   key={link.label}
                   href={link.href}
-                  className="transition-colors hover:text-white/60"
+                  className="transition-colors hover:text-[var(--sf-sobre)]/60"
                 >
                   {link.label}
                 </Link>
