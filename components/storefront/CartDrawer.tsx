@@ -62,7 +62,7 @@ export default function CartDrawer() {
               damping: 30,
               stiffness: 300,
             }}
-            className="fixed top-0 right-0 z-50 flex h-full w-full max-w-sm flex-col bg-white shadow-2xl"
+            className="fixed top-0 right-0 z-50 flex h-full w-full max-w-sm flex-col bg-[var(--sf-tarjeta)] shadow-2xl"
           >
             {/* Header */}
             <div className="flex items-center justify-between sf-divisor-b border-[var(--sf-linea)] px-5 py-4">
@@ -227,7 +227,7 @@ export default function CartDrawer() {
                 <Link
                   href="/checkout"
                   onClick={closeCart}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--sf-tinta)] py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--sf-tinta-2)]"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--sf-tinta)] py-3.5 text-sm font-semibold text-[var(--sf-sobre)] transition-colors hover:bg-[var(--sf-tinta-2)]"
                 >
                   Ir al Checkout
 
