@@ -1,7 +1,7 @@
 import { derivarPaleta } from './palette-derive';
 
 // Puente entre las RAÍCES de SiteSetting y el CSS que inyecta el layout del storefront.
-// Deriva las 21 tintas y arma un `:root{ --sf-*: … }` para un <style> SERVER-RENDERED.
+// Deriva las 24 tintas y arma un `:root{ --sf-*: … }` para un <style> SERVER-RENDERED.
 //
 // POR QUÉ `:root` Y NO un style inline en el wrapper: algunos componentes del storefront
 // se PORTALEAN a <body> (el carrito, buscadores) y escaparían de las vars del wrapper. Un
@@ -21,7 +21,7 @@ import { derivarPaleta } from './palette-derive';
 let memo: { clave: string; css: string } | null = null;
 
 /**
- * CSS `:root{…}` con las 21 vars `--sf-*` derivadas de las raíces, o `null` si el cliente
+ * CSS `:root{…}` con las 24 vars `--sf-*` derivadas de las raíces, o `null` si el cliente
  * no configuró paleta (las tres null) → cae a los defaults de `globals.css` (Nayoli
  * byte-idéntico, sin depender de una siembra). Los valores son hex del motor —seguros para
  * un `<style>`—; el write ya rechazó cualquier basura (§ palette-schema).

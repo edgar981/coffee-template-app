@@ -47,7 +47,7 @@
      IMPERCEPTIBLES colapsan (#f9f6f4/#f9f5f0 → fondo, ≤4u; #1e150e → tinta, 6u).
      El storefront es LIGHT-ONLY, así que no llevan variante oscura.
 
-     AGRUPADAS POR ORIGEN, para la derivación del commit 4: 18 colores no son
+     AGRUPADAS POR ORIGEN, para la derivación del commit 4: 21 colores no son
      configurables, así que el cliente elegirá ~3 RAÍCES (fondo · tinta · acento) y
      la COLA se DERIVA de ellas. La familia dice de cuál sale cada tono:
        · FONDO  → los cremas (superficie, línea son el fondo, más hondo)
@@ -93,6 +93,15 @@
   --sf-tostado-6:    #e8c095;
   --sf-tostado-7:    #d8c4ad;
   --sf-tostado-8:    #d4b896;
+
+  /* TARJETA/SOBRE (§ eje 5b, el MOTOR de esquemas) — la superficie de una tarjeta sobre el
+     esquema CREMA/default y su texto/ícono. Hoy son `bg-white`/`text-white` LITERALES en el
+     código, constantes sin importar el acento del cliente; estos dos fallbacks son ESOS mismos
+     literales, así que cablear `bg-white`→`var(--sf-tarjeta)` y `text-white`→`var(--sf-sobre)`
+     (5b-B) deja a Nayoli BYTE-IDÉNTICA. `derivarEsquema` los re-deriva para los otros 3 esquemas
+     (superficie/oscuro/acento); acá sólo el esquema por defecto. INERTES: nadie los lee todavía. */
+  --sf-tarjeta:      #ffffff;
+  --sf-sobre:        #ffffff;
 
   /* NEUTRO — un gris FRÍO, a propósito FUERA de las 3 familias cálidas de arriba (§ eje 4, remate 2).
      No lo toca `derivarPaleta` (no está en su RECETA), así que un cliente con paleta custom no lo
