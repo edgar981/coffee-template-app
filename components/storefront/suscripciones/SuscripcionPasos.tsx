@@ -28,7 +28,7 @@ export default function SuscripcionPasos() {
             return (
               <div key={i} className="text-center">
                 <div className="w-12 h-12 bg-[var(--sf-acento)] rounded-2xl flex items-center justify-center mx-auto mb-3">
-                  <Icono className="w-5 h-5 text-white" />
+                  <Icono className="w-5 h-5 text-[var(--sf-acento-txt)]" />
                 </div>
                 <p className="text-[var(--sf-tostado)] text-xs font-bold mb-1">{String(i + 1).padStart(2, '0')}</p>
                 <p className="font-semibold text-[var(--sf-tinta)] mb-1 text-sm">{paso.label}</p>

@@ -9,7 +9,7 @@ export default function PreguntasFrecuentes() {
             <h2 className="text-2xl font-playfair text-[var(--sf-tinta)] text-center mb-8">Preguntas frecuentes</h2>
             <div className="space-y-4">
               {SUBSCRIPTION_FAQ.map(faq => (
-                <div key={faq.question} className="bg-white rounded-2xl sf-borde border-[var(--sf-linea)] p-5">
+                <div key={faq.question} className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-5">
                   <p className="font-semibold text-[var(--sf-tinta)] text-sm mb-2">{faq.question}</p>
                   <p className="text-sm text-[var(--sf-texto)]">{faq.answer}</p>
                 </div>
