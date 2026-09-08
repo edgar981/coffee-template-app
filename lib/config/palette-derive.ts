@@ -192,7 +192,16 @@ function textoClaroSobreOscuro(base: PaletaDerivada, superficie: string, dir: Di
  * la superficie del esquema (una tarjeta un ~10% más clara que su banda, con su propio
  * auto-flip de texto).
  *
- * INERTE: nadie la llama todavía — la cablea 5b-B (§ Backlog, eje 5b).
+ * `texto`/`texto-suave` cumplen DOBLE rol, y es a propósito (§ eje 5b, home-2): además del texto
+ * DE CUERPO de siempre, son la fuente de `--sf-sobre-banda`/`-suave` (`esquema-style.ts`) — el
+ * texto/ícono que se apoya DIRECTO en el fondo de la banda (no en una tarjeta). Sirven para eso
+ * SIN cambio: ya están floreados contra `superficie` —la banda MISMA, no la tarjeta (que es
+ * ~10% distinta)— y el test de abajo («los 4 esquemas dan texto/texto-suave/acento-texto ≥4.5:1
+ * contra su propia superficie») ya lo prueba. `--sf-sobre` NO sirve para ese caso: está floreado
+ * contra la TARJETA, y con 'crema' la tarjeta es blanco fijo mientras la banda es clara —1.07:1,
+ * medido— así que reusarlo ahí repetiría el hueco que home-2 cierra.
+ *
+ * La cablea `esquema-style.ts` (§ eje 5b, mitad B y home-2).
  */
 export function derivarEsquema(raices: RaicesPaleta, id: EsquemaId): PaletaDerivada {
   const base = derivarPaleta(raices);

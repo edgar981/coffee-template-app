@@ -8,6 +8,7 @@ import {
   resolverItems,
   resolverPaginas,
   resolverTema,
+  resolverEsquemas,
   seccionEsVisible,
   type SeccionDef,
 } from './site-content-defaults';
@@ -444,6 +445,44 @@ test('resolverTema: fuentePar CUSTOM válido se respeta; editorial/null/basura �
   assert.equal(resolverTema({ fuentePar: 'editorial' }, def).fuentePar, null); // Editorial = el default, no se guarda
   assert.equal(resolverTema({ fuentePar: 'inexistente' }, def).fuentePar, null);
   assert.equal(resolverTema({ fondo: '#101010' }, def).fuentePar, null);       // sin par → null, sin arrastrar
+});
+
+// ── Los ESQUEMAS (§ eje 5b, mitad B): mapa banda→esquema, gemelo KEY-AGNÓSTICO de `paginas`/`tema` ──
+
+test('esquemas: sin nada guardado → mapa VACÍO (ninguna banda tiene override, § el mecanismo de byte-identidad)', () => {
+  assert.deepEqual(resolverSiteContent({}).esquemas, {});
+});
+
+test('esquemas NO es una sección: no rompe el loop de secciones, y el hero sí resuelve', () => {
+  const r = resolverSiteContent({ esquemas: { hero: 'oscuro' } });
+  assert.equal(r.esquemas.hero, 'oscuro');
+  assert.ok(typeof r.hero.titulo === 'string'); // las secciones siguen resolviendo
+});
+
+test('esquemas: SeccionKey lo excluye — el REGISTRY no tiene entrada `esquemas` (no es sección)', () => {
+  assert.equal('esquemas' in REGISTRY, false);
+});
+
+test('resolverEsquemas: los 4 esquemas válidos se respetan, por banda', () => {
+  assert.deepEqual(
+    resolverEsquemas({ hero: 'crema', trustBadges: 'superficie', subscriptionCTA: 'oscuro', featured: 'acento' }),
+    { hero: 'crema', trustBadges: 'superficie', subscriptionCTA: 'oscuro', featured: 'acento' },
+  );
+});
+
+test('resolverEsquemas: basura por banda (string inválido, no-string, ausente) NI SIQUIERA aparece en el resultado — es "sin override", no un default forzado', () => {
+  assert.deepEqual(resolverEsquemas({ hero: 'neon', trustBadges: 42, brandStory: null }), {});
+  assert.deepEqual(resolverEsquemas({}), {});
+});
+
+test('resolverEsquemas: entrada no-objeto → mapa vacío, NO lanza (SOFT)', () => {
+  for (const basura of [null, undefined, 'x', 42, []]) {
+    assert.deepEqual(resolverEsquemas(basura), {});
+  }
+});
+
+test('resolverEsquemas: es KEY-AGNÓSTICO — acepta cualquier bandaId, no un set fijo conocido de antemano', () => {
+  assert.deepEqual(resolverEsquemas({ unaBandaQueNoExisteHoy: 'acento' }), { unaBandaQueNoExisteHoy: 'acento' });
 });
 
 // ─── Presentaciones (C1): byte-idéntico a los literales de GrindChooser antes de la migración ───

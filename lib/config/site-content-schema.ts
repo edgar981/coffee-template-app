@@ -151,6 +151,14 @@ const paginasEditableSchema = z.object({
   nosotros: z.object({ visible: z.boolean().optional() }).optional(),
 });
 
+// META de esquemas (§ eje 5b, mitad B): el mapa banda→esquema. NO es una sección —tampoco pasa por
+// el flujo borrador/publicar—; se declara acá SÓLO para que un futuro write general no la STRIPPEE
+// en silencio (§ #65-B). HOY no hay editor que la escriba (SIN PICKER, decisión del owner): se
+// compone en el onboarding, directo en la fila. `z.record` acepta cualquier bandaId (key-agnóstico,
+// como `resolverEsquemas`); el VALOR sí se acota al set cerrado de 4 —a diferencia del resolver
+// (que absorbe basura SOFT para no romper una lectura ya guardada), el WRITE puede rechazarla.
+const esquemasEditableSchema = z.record(z.string(), z.enum(['crema', 'superficie', 'oscuro', 'acento']));
+
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   brandStory: brandStoryEditableSchema.optional(),
@@ -162,6 +170,7 @@ export const siteContentEditableSchema = z.object({
   suscripcionPlanes: suscripcionPlanesEditableSchema.optional(),
   suscripcionPasos: suscripcionPasosEditableSchema.optional(),
   paginas: paginasEditableSchema.optional(),
+  esquemas: esquemasEditableSchema.optional(),
 });
 
 export type SiteContentEditable = z.infer<typeof siteContentEditableSchema>;

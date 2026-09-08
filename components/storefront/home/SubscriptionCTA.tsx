@@ -20,7 +20,7 @@ const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 // es un anzuelo que enlaza a /suscripciones, no el grid completo. El destaque sale del dato
 // (`plan.destacado`, el `destacadoSlot` de la sección), no del `i===1` hardcodeado de antes. El href del
 // CTA es estructura (`/suscripciones`), sólo el label es editable.
-export default function SubscriptionCTA() {
+export default function SubscriptionCTA({ style }: { style?: React.CSSProperties } = {}) {
   const { subscriptionCTA, suscripcionPlanes, paginas } = useSiteContent();
   const preview = useIsPreview();
   const planesTeaser = planesDelTeaser(planesDeSuscripcion(suscripcionPlanes));
@@ -42,7 +42,7 @@ export default function SubscriptionCTA() {
   ].filter(b => b.trim() !== ""); // vacíos omitidos → la lista se cierra sin hueco
 
   return (
-    <section className="py-20 bg-[var(--sf-tinta-2)]">
+    <section className="py-20 bg-[var(--sf-banda,var(--sf-tinta-2))]" style={style}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* En preview, `whileInView`→`animate` con `initial={false}`: la vista escalada no dispara
@@ -54,14 +54,28 @@ export default function SubscriptionCTA() {
               viewport={preview ? undefined : { once: true }}
               variants={fadeUp}
             >
+              {/* `--sf-tostado` era FIJO (§ eje 5b, home-2 — mismo hueco que el eyebrow del hero):
+                  `--sf-sobre-banda` con `--sf-tostado` de fallback preserva hoy y se adapta por
+                  esquema. El bullet-dot y las tarjetas de plan del teaser NO se tocan: el primero es
+                  decorativo (no texto), las segundas son tarjetas self-contained con su propio par
+                  acento/acento-txt, independiente del esquema de la sección.
+                  EL TÍTULO/SUBTÍTULO/BENEFICIOS (§ eje 5b, home-3) estaban en `--sf-sobre`
+                  —floreado contra la TARJETA— y daban 1.07:1 al asignar 'crema' a esta banda
+                  (canónica oscura). Se apoyan DIRECTO en el fondo de la banda: el título va a
+                  `--sf-sobre-banda`; subtítulo/beneficios (con el alfa de diseño) van a
+                  `--sf-sobre-banda-suave`, SIN el modificador `/NN` de Tailwind encima (reduciría el
+                  `texto-suave` ya floreado por debajo de AA), con el alfa horneado en el fallback
+                  (`color-mix(in oklab, white NN%, transparent)` — la MISMA fórmula que Tailwind
+                  genera para `/NN` — así que sin esquema el resultado es el mismo píxel que
+                  `text-white/NN` de siempre). */}
               {subscriptionCTA.eyebrow && (
-                <p className="text-[var(--sf-tostado)] text-xs tracking-[0.2em] uppercase mb-3">{subscriptionCTA.eyebrow}</p>
+                <p className="text-[var(--sf-sobre-banda,var(--sf-tostado))] text-xs tracking-[0.2em] uppercase mb-3">{subscriptionCTA.eyebrow}</p>
               )}
-              <h2 className="text-4xl font-playfair text-white mb-4">{subscriptionCTA.titulo}</h2>
-              <p className="text-white/60 mb-8 leading-relaxed">{subscriptionCTA.subtitulo}</p>
+              <h2 className="text-4xl font-playfair text-[var(--sf-sobre-banda,white)] mb-4">{subscriptionCTA.titulo}</h2>
+              <p className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] mb-8 leading-relaxed">{subscriptionCTA.subtitulo}</p>
               <div className="space-y-3 mb-8">
                 {beneficios.map((b, i) => (
-                  <div key={i} className="flex items-center gap-3 text-sm text-white/70">
+                  <div key={i} className="flex items-center gap-3 text-sm text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]">
                     <div className="w-1.5 h-1.5 rounded-full bg-[var(--sf-tostado)]" />
                     {b}
                   </div>

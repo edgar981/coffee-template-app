@@ -10,7 +10,7 @@ import ProductCard from "../ProductCard";
 
 const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 
-export default function FeaturedProducts() {
+export default function FeaturedProducts({ style }: { style?: React.CSSProperties } = {}) {
   // Fuente única: catálogo público desde la DB (petición compartida/memoizada).
   const [catalog, setCatalog] = useState<Product[]>([]);
   useEffect(() => {
@@ -20,14 +20,17 @@ export default function FeaturedProducts() {
   const featured = catalog.slice(0, 4);
 
   return (
-    <section className="py-20 bg-[var(--sf-fondo)]">
+    <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Eyebrow/título/link SOBRE EL FONDO de la banda: `--sf-sobre-banda` con el literal de hoy
+              como fallback (§ eje 5b, home-2). Las ProductCard de la grilla NO se tocan: su texto va
+              sobre `--sf-tarjeta`, no sobre la banda. */}
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="flex items-end justify-between mb-12">
             <div>
-              <p className="text-[var(--sf-acento-texto)] text-xs font-medium tracking-[0.2em] uppercase mb-2">Nuestro Catálogo</p>
-              <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-tinta)]">Selección del mes</h2>
+              <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">Nuestro Catálogo</p>
+              <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]">Selección del mes</h2>
             </div>
-            <Link href="/tienda" className="hidden sm:flex items-center gap-1 text-sm font-medium text-[var(--sf-acento-texto)] hover:text-[var(--sf-acento-3)] transition-colors">
+            <Link href="/tienda" className="hidden sm:flex items-center gap-1 text-sm font-medium text-[var(--sf-sobre-banda,var(--sf-acento-texto))] hover:text-[var(--sf-acento-3)] transition-colors">
               Ver todo <ArrowRight className="w-4 h-4" />
             </Link>
           </motion.div>
@@ -39,7 +42,7 @@ export default function FeaturedProducts() {
             ))}
           </div>
           <div className="mt-8 text-center sm:hidden">
-            <Link href="/tienda" className="inline-flex items-center gap-1 text-sm font-medium text-[var(--sf-acento-texto)]">Ver todos los productos <ArrowRight className="w-4 h-4" /></Link>
+            <Link href="/tienda" className="inline-flex items-center gap-1 text-sm font-medium text-[var(--sf-sobre-banda,var(--sf-acento-texto))]">Ver todos los productos <ArrowRight className="w-4 h-4" /></Link>
           </div>
         </div>
       </section>
