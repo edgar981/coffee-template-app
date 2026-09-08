@@ -48,11 +48,11 @@ export default function StoreNav() {
   const navClaro = navFlotando && heroEsOscuro(esquemas.hero, tema.fondo, tema.tinta, tema.acento);
 
   const navBg = navFlotando
-    ? (navClaro ? 'bg-transparent text-white' : 'bg-transparent text-[var(--sf-tinta)]')
-    : 'bg-white/95 backdrop-blur shadow-sm text-[var(--sf-tinta)]';
+    ? (navClaro ? 'bg-transparent text-[var(--sf-sobre)]' : 'bg-transparent text-[var(--sf-tinta)]')
+    : 'bg-[var(--sf-tarjeta)]/95 backdrop-blur shadow-sm text-[var(--sf-tinta)]';
 
-  const linkColor = navClaro ? 'text-white/80 hover:text-white' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
-  const iconColor = navClaro ? 'text-white/80 hover:text-white' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
+  const linkColor = navClaro ? 'text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
+  const iconColor = navClaro ? 'text-[var(--sf-sobre)]/80 hover:text-[var(--sf-sobre)]' : 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
 
   return (
     <>
@@ -111,7 +111,7 @@ export default function StoreNav() {
       {/* Mobile Menu */}
       <AnimatePresence>
         {mobileOpen && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="fixed top-16 left-0 right-0 z-40 bg-white shadow-lg sf-divisor-b border-[var(--sf-linea)]">
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="fixed top-16 left-0 right-0 z-40 bg-[var(--sf-tarjeta)] shadow-lg sf-divisor-b border-[var(--sf-linea)]">
             <nav className="relative flex flex-col px-4 py-4 gap-4">
               {links.map(l => (
                 <Link key={l.path} href={l.path} onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2 sf-divisor-b border-[var(--sf-superficie)] last:border-0">{l.label}</Link>

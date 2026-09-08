@@ -131,7 +131,7 @@ export default function NavSearch({
             transition={{
               duration: 0.2,
             }}
-            className="absolute left-0 top-full z-50 w-full sf-divisor-t border-[var(--sf-linea)] bg-white shadow-2xl"
+            className="absolute left-0 top-full z-50 w-full sf-divisor-t border-[var(--sf-linea)] bg-[var(--sf-tarjeta)] shadow-2xl"
           >
             <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
               {/* Search Input */}
