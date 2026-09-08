@@ -1,7 +1,7 @@
 // ─── EL MOTOR DE COLOR DEL STOREFRONT · derivar 24 tintas de 3 RAÍCES ─────────
 //
-// El cliente elige 3 RAÍCES —fondo · tinta · acento—; las otras 17 tintas del
-// storefront (§ globals.css `--sf-*`) se DERIVAN acá. 18 colores no son
+// El cliente elige 3 RAÍCES —fondo · tinta · acento—; las otras 21 tintas del
+// storefront (§ globals.css `--sf-*`) se DERIVAN acá. 21 colores no son
 // configurables; 3 sí. La derivación es una mezcla en OKLCH con un peso por token
 // (los pesos REPRODUCEN la paleta de Nayoli dentro de ~1 JND — medido; era, en su
 // mayoría, una mezcla de 2 raíces) MÁS un PISO DE CONTRASTE sobre los roles de texto.
@@ -152,16 +152,45 @@ export function derivarPaleta(raices: RaicesPaleta): PaletaDerivada {
 // superficie base y, con ella, la DIRECCIÓN del piso de contraste de los roles de texto.
 export type EsquemaId = 'crema' | 'superficie' | 'oscuro' | 'acento';
 
+// ── TEXTO SOBRE UNA BANDA OSCURA: reusa un candidato CLARO, no re-florea el oscuro ──────────
+// Florear `texto`/`texto-suave` (mezclas OSCURAS de acento/tinta, hechas para leerse sobre el
+// fondo CLARO de hoy) hasta el piso mínimo sobre una superficie OSCURA da un resultado RASO:
+// apenas ~4.5:1, un gris apagado que pasa AA de milagro y no se ve cálido ni de marca — medido
+// en el primer intento de este eje, ~4.5–4.6 en los dos esquemas oscuros. Una superficie oscura
+// necesita un texto CLARO de entrada, no un oscuro forzado a medio aclarar.
+//
+// La RECETA ya deriva justo eso, sin color nuevo: `tostado` (el tono cálido y claro del acento
+// hacia el fondo, w=0.56) y `tostado-3` (su gemelo más apagado, w=0.24) existen para decoración,
+// pero sirven igual como texto sobre una banda oscura — son las MISMAS 3 raíces. `texto` reusa
+// `tostado`; si floreado no alcanza un margen cómodo (una superficie MENOS oscura, como el
+// acento crudo, deja poco radio antes de tocar blanco), cae a `acento-txt` — el texto YA
+// diseñado para el contraste MÁXIMO contra el acento (el auto-flip del botón), que en ese caso
+// es la opción cálida-y-clara que sí alcanza. `texto-suave` reusa siempre `tostado-3`, más
+// discreto por diseño (el rol "suave"), floreado igual si la superficie lo exige.
+//
+// Medido contra Nayoli: oscuro (bg tinta) → texto 8.49:1, texto-suave 4.52:1; acento (bg acento)
+// → texto 7.10:1, texto-suave 4.51:1 — cálido y con holgura, no raso.
+const UMBRAL_CALIDO = 6; // holgura sobre AA (4.5) que separa "cálido de sobra" de "raso"
+
+function textoClaroSobreOscuro(base: PaletaDerivada, superficie: string, dir: DireccionPiso): string {
+  const tostadoFl = pisoContraste(base.tostado, superficie, 4.5, dir);
+  if (contraste(tostadoFl, superficie) >= UMBRAL_CALIDO) return tostadoFl;
+  return pisoContraste(base['acento-txt'], superficie, 4.5, dir);
+}
+
 /**
  * Deriva el set de tokens `--sf-*` de UN ESQUEMA, de las MISMAS 3 raíces (cero color nuevo).
  * `crema` es EXACTO al output de `derivarPaleta` de hoy —byte-idéntico, es literalmente el
  * mismo objeto—. Los otros tres reusan `mezclar` y la `RECETA` INTACTAS: lo único que cambia
  * es la SUPERFICIE base (`superficie` → la superficie ya derivada; `oscuro` → la raíz tinta;
  * `acento` → la raíz acento) y, con ella, la dirección del piso —derivada automáticamente por
- * `pisoContraste` de la luminancia de esa superficie (§ `direccionDePiso`)—. Los roles que se
- * re-florean son los tres de siempre —`texto`, `texto-suave`, `acento-texto`—, re-anclados a la
- * NUEVA superficie en vez de a la raíz `fondo`. `tarjeta`/`sobre` se re-derivan de la superficie
- * del esquema (una tarjeta un ~10% más clara que su banda, con su propio auto-flip de texto).
+ * `pisoContraste` de la luminancia de esa superficie (§ `direccionDePiso`)—. `acento-texto` se
+ * re-florea de siempre (el rol oscuro, anclado a la NUEVA superficie). `texto`/`texto-suave`
+ * se re-florean igual sobre una superficie CLARA (`crema` ya se resolvió arriba; sólo queda
+ * `superficie`); sobre una OSCURA (`oscuro`, `acento`) reusan un candidato claro en vez de
+ * re-florear el oscuro (§ `textoClaroSobreOscuro`, arriba). `tarjeta`/`sobre` se re-derivan de
+ * la superficie del esquema (una tarjeta un ~10% más clara que su banda, con su propio
+ * auto-flip de texto).
  *
  * INERTE: nadie la llama todavía — la cablea 5b-B (§ Backlog, eje 5b).
  */
@@ -170,9 +199,17 @@ export function derivarEsquema(raices: RaicesPaleta, id: EsquemaId): PaletaDeriv
   if (id === 'crema') return base;
 
   const superficie = id === 'superficie' ? base.superficie : id === 'oscuro' ? raices.tinta : raices.acento;
+  const dir = direccionDePiso(superficie);
   const out: PaletaDerivada = { ...base, fondo: superficie };
-  for (const rol of ['acento-texto', 'texto', 'texto-suave'] as const) {
-    out[rol] = pisoContraste(base[rol], superficie, 4.5);
+  out['acento-texto'] = pisoContraste(base['acento-texto'], superficie, 4.5, dir);
+  if (dir === 'aclarar') {
+    out['texto'] = textoClaroSobreOscuro(base, superficie, dir);
+    out['texto-suave'] = pisoContraste(base['tostado-3'], superficie, 4.5, dir);
+  } else {
+    // Superficie CLARA (crema ya salió arriba; sólo queda `superficie`): el mecanismo de
+    // siempre — el rol oscuro ya contrasta o se florea un poco más oscuro. Sin cambios.
+    out['texto'] = pisoContraste(base['texto'], superficie, 4.5, dir);
+    out['texto-suave'] = pisoContraste(base['texto-suave'], superficie, 4.5, dir);
   }
   // tarjeta: la superficie del esquema, ~10% hacia la raíz fondo (una tarjeta más clara que su
   // banda, siempre en dirección a la luz — nunca hacia tinta/acento, que oscurecería más).

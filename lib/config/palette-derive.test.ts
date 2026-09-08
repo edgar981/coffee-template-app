@@ -147,6 +147,52 @@ test('derivarEsquema: "oscuro" y "acento" aclaran (nunca oscurecen) el piso de t
   assert.notEqual(acentoEsq.texto, '#000000');
 });
 
+// ── EL TEXTO DE LOS ESQUEMAS OSCUROS ES CÁLIDO Y BRILLANTE, NO UN PISO RASO ──────────────────
+// Regresión del defecto que esta pasada del eje cierra: florear el rol `texto` oscuro (una
+// mezcla acento/tinta) hasta el mínimo daba un piso RASO —~4.5–4.6:1, apenas AA, un gris
+// apagado sin identidad de marca—. `texto` sobre una superficie OSCURA debe reusar un candidato
+// CLARO ya derivado (`tostado`/`acento-txt`) y quedar con HOLGURA sobre el piso, no pegado a él.
+
+test('derivarEsquema: "oscuro"/"acento" — texto es CÁLIDO con holgura (≥6.5:1), no un piso raso a 4.5', () => {
+  const oscuro = derivarEsquema(NAYOLI, 'oscuro');
+  const acentoEsq = derivarEsquema(NAYOLI, 'acento');
+  assert.ok(
+    contraste(oscuro.texto, oscuro.fondo) >= 6.5,
+    `oscuro.texto debe tener holgura, no quedar raso a 4.5 (fue ${contraste(oscuro.texto, oscuro.fondo).toFixed(2)})`,
+  );
+  assert.ok(
+    contraste(acentoEsq.texto, acentoEsq.fondo) >= 6.5,
+    `acento.texto debe tener holgura, no quedar raso a 4.5 (fue ${contraste(acentoEsq.texto, acentoEsq.fondo).toFixed(2)})`,
+  );
+});
+
+test('derivarEsquema: contraste por esquema, medido contra Nayoli — cerca de las figuras del doc (§ eje 5b-motor-2)', () => {
+  // Las figuras del doc (superficie · texto · texto-suave): crema 9.97/7.70 (= derivarPaleta de
+  // hoy, sin cambios), superficie 8.71/6.73 (sin cambios), oscuro 8.49/4.52, acento 7.10/4.56.
+  // Tolerancia generosa (±0.3) porque el piso avanza en pasos discretos de L y no siempre puede
+  // pisar el número exacto — la meta es ACERCARSE, no calzar al centavo (el piso de 4.5 SÍ es
+  // exacto, y ya lo cubre el test de arriba).
+  const FIGURAS: Record<EsquemaId, { texto: number; textoSuave: number }> = {
+    crema: { texto: 9.97, textoSuave: 7.70 },
+    superficie: { texto: 8.71, textoSuave: 6.73 },
+    oscuro: { texto: 8.49, textoSuave: 4.52 },
+    acento: { texto: 7.10, textoSuave: 4.56 },
+  };
+  for (const [id, objetivo] of Object.entries(FIGURAS) as [EsquemaId, { texto: number; textoSuave: number }][]) {
+    const p = derivarEsquema(NAYOLI, id);
+    const cTexto = contraste(p.texto, p.fondo);
+    const cSuave = contraste(p['texto-suave'], p.fondo);
+    assert.ok(
+      Math.abs(cTexto - objetivo.texto) <= 0.3,
+      `${id}.texto lejos del objetivo ${objetivo.texto} (fue ${cTexto.toFixed(2)})`,
+    );
+    assert.ok(
+      Math.abs(cSuave - objetivo.textoSuave) <= 0.3,
+      `${id}.texto-suave lejos del objetivo ${objetivo.textoSuave} (fue ${cSuave.toFixed(2)})`,
+    );
+  }
+});
+
 test('derivarEsquema: tarjeta/sobre por esquema no-crema NO son blanco fijo (se re-derivan de la superficie)', () => {
   for (const id of ['superficie', 'oscuro', 'acento'] as const) {
     const p = derivarEsquema(NAYOLI, id);
