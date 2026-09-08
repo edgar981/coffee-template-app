@@ -55,7 +55,7 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
                 className={`relative flex flex-col rounded-2xl p-6 border-2 bg-white ${plan.destacado ? 'border-[var(--sf-acento)] shadow-lg shadow-[var(--sf-acento)]/10' : 'border-[var(--sf-linea)]'}`}
               >
                 {plan.destacado && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] text-xs font-bold px-4 py-1 sf-pildora">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] text-xs font-bold px-4 py-1 sf-pildora sf-badge">
                     Más Popular
                   </div>
                 )}

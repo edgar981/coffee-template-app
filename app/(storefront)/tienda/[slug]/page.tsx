@@ -239,7 +239,7 @@ export default function ProductPage({
           {/* Info */}
           <div className="space-y-6">
               {product.badge && (
-                <span className="inline-block text-xs font-semibold bg-[var(--sf-tostado)] text-[var(--sf-tinta)] px-3 py-1 sf-pildora">{product.badge}</span>
+                <span className="inline-block text-xs font-semibold bg-[var(--sf-tostado)] text-[var(--sf-tinta)] px-3 py-1 sf-pildora sf-badge">{product.badge}</span>
               )}
               <div>
                 <p className="text-sm text-[var(--sf-acento-texto)] mb-1 capitalize">{product.origen || product.categoria?.replace('_', ' ')}</p>

@@ -15,7 +15,7 @@ import { varsDeForma, type ClaveForma } from './formas';
 //
 // SUAVE (o null, o basura) → `null`: sin <style>. Las utilidades caen a los defaults de Tailwind v4
 // (radios 1.5/1/0.75rem) → Nayoli byte-idéntico, sin depender de una siembra. Una forma CUSTOM → el
-// <style> con sus 8 vars.
+// <style> con sus 10 vars.
 //
 // Emite EXACTAMENTE las mismas vars que `varsDeForma` (que alimenta la vista previa inline del panel),
 // serializadas — para que el server y el preview no puedan divergir (§ el test de consistencia).

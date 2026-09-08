@@ -94,6 +94,14 @@
   --sf-tostado-7:    #d8c4ad;
   --sf-tostado-8:    #d4b896;
 
+  /* NEUTRO — un gris FRÍO, a propósito FUERA de las 3 familias cálidas de arriba (§ eje 4, remate 2).
+     No lo toca `derivarPaleta` (no está en su RECETA), así que un cliente con paleta custom no lo
+     mueve — es un neutro de sistema, no de marca. Default = `var(--color-gray-400)`, el mismo valor
+     que Tailwind v4 ya compila para `text-gray-400` (medido en `tailwindcss/theme.css`:
+     `oklch(70.7% 0.022 261.325)`), así que referenciarlo en vez de repetir el oklch es byte-idéntico
+     Y sigue a Tailwind si su gray-400 cambiara de versión. Hoy: sólo "Agotado" de ProductCard. */
+  --sf-neutro:       var(--color-gray-400);
+
   /* Border Radius */
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -450,12 +458,13 @@ html {
   .font-display  { font-family: var(--sf-fuente-titulo, 'Playfair Display', serif); }
 
   /* ── Eje 4 (forma) · la superficie var-backed del storefront (§ formas, § forma-style) ──
-     Los CINCO tokens que el <style> de cssForma inyecta en el layout del storefront se CABLEAN
-     acá (la segunda mitad; B1 los dejó emitidos pero inertes). Cada utilidad cae a su FALLBACK
-     = el valor de HOY cuando NO hay <style> (Suave/null no emite) → Nayoli byte-idéntico; una
-     forma CUSTOM (Recta/Mínima) mueve la superficie entera. NO son de marca ni cruzan al admin:
-     como los `--sf-*` de paleta/fuentes, sólo el layout del grupo (storefront) inyecta los
-     tokens; el `:root` del admin nunca los recibe (documento aparte). */
+     Los CINCO tokens de superficie que el <style> de cssForma inyecta en el layout del storefront
+     se CABLEAN acá (la segunda mitad; B1 los dejó emitidos pero inertes), MÁS los DOS de tipografía
+     del badge (§ remate 1, el cierre del eje). Cada utilidad cae a su FALLBACK = el valor de HOY
+     cuando NO hay <style> (Suave/null no emite) → Nayoli byte-idéntico; una forma CUSTOM
+     (Recta/Mínima) mueve la superficie entera. NO son de marca ni cruzan al admin: como los
+     `--sf-*` de paleta/fuentes, sólo el layout del grupo (storefront) inyecta los tokens; el
+     `:root` del admin nunca los recibe (documento aparte). */
 
   /* PÍLDORAS y el escalón `lg`. Fallback ∞ = el `rounded-full` de Tailwind v4; 0.75rem = el
      `rounded-lg` de hoy (que compila a --radius-lg → --radius). NO se pisa `--radius-lg`: es
@@ -475,6 +484,12 @@ html {
   .sf-divisor-t { border-top-width: var(--sf-divisor, 1px); }
   .sf-divisor-b { border-bottom-width: var(--sf-divisor, 1px); }
   .sf-divisor-y { border-top-width: var(--sf-divisor, 1px); border-bottom-width: var(--sf-divisor, 1px); }
+
+  /* TIPOGRAFÍA del BADGE (§ eje 4, remate 1 — el último token de forma). Va JUNTO a `.sf-pildora`
+     en los tres badges de ETIQUETA (product.badge de ProductCard y el detalle, "Más Popular" de
+     Suscripción) — NUNCA en un chip/control (el filtro de notas de ProductCard, el contador del
+     carrito). Fallbacks `none`/`normal` = la caja y el tracking de HOY → Suave byte-idéntica. */
+  .sf-badge { text-transform: var(--sf-badge-caja, none); letter-spacing: var(--sf-badge-tracking, normal); }
 }
 
 /* TRAZO de ícono (§ eje 4, forma). UNA regla sobre los íconos lucide del storefront: lucide
