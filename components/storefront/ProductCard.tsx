@@ -93,7 +93,7 @@ export default function ProductCard({
           {product.badge && (
             <div className="absolute top-3 left-3">
               <span
-                className={`sf-pildora px-2.5 py-1 text-xs font-semibold ${
+                className={`sf-pildora sf-badge px-2.5 py-1 text-xs font-semibold ${
                   product.bestseller
                     ? "bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]"
                     : "bg-[var(--sf-tostado)] text-[var(--sf-tinta)]"
@@ -136,7 +136,8 @@ export default function ProductCard({
             {product.nombre}
           </h3>
 
-          {/* Tags */}
+          {/* Tags — notas de cata (contenido descriptivo, p. ej. "Chocolate"), NO una etiqueta de
+              estado/categoría: `.sf-badge` (§ eje 4, remate 1) NO va acá, sólo en `product.badge`. */}
           {product.notas && (
             <div className="mb-3 flex flex-wrap gap-1">
               {product.notas
@@ -161,7 +162,7 @@ export default function ProductCard({
             </div>
 
             {!product.disponible && (
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-[var(--sf-neutro)]">
                 Agotado
               </span>
             )}

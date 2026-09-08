@@ -23,6 +23,11 @@
 // cablea la segunda mitad (el swap de píldoras, el escalón `rounded-lg`, bordes/divisores, el trazo de
 // ícono y el badge). Se emiten igual para que esa mitad sea puro cableado de superficie.
 //
+// `badgeCaja`/`badgeTracking` (§ eje 4, REMATE 1) son los dos últimos: la FORMA del badge (píldora) la
+// cableó B2 vía `.sf-pildora`; la TIPOGRAFÍA (versalitas + tracking) no tenía mecanismo hasta acá.
+// Suave = `none`/`normal` (byte-idéntico); van SÓLO en `.sf-badge` (globals.css), sólo sobre etiquetas
+// de estado (product.badge, "Más Popular") — nunca en un chip/control.
+//
 // SOMBRAS FUERA en v1 (decisión del owner): no hay `--sf-sombra`. Las tres personalidades funcionan sin
 // ella; entra cuando una la necesite.
 //
@@ -47,6 +52,11 @@ export interface Forma {
   borde: string;     // --sf-borde     (grosor del borde)
   divisor: string;   // --sf-divisor   (grosor del divisor de banda)
   trazo: string;     // --sf-trazo     (stroke-width del ícono; unitless)
+  // Tipografía del BADGE (§ eje 4, remate 1). SÓLO etiquetas —product.badge, "Más Popular"—,
+  // nunca un chip/control (§ .sf-badge en globals.css). Suave = caja natural sin tracking
+  // (byte-idéntica a hoy); Recta/Mínima = versalitas con distinto tracking.
+  badgeCaja: string;      // --sf-badge-caja      (text-transform del badge)
+  badgeTracking: string;  // --sf-badge-tracking  (letter-spacing del badge)
 }
 
 // El registro. `suave` va PRIMERO (es el default) y su muestra en el picker representa "la de hoy".
@@ -58,18 +68,21 @@ export const FORMAS: readonly Forma[] = [
     // NUNCA se guarda, así que estos valores NO se emiten en un <style>; existen para el picker y el test.
     radius3xl: '1.5rem', radius2xl: '1rem', radiusXl: '0.75rem',
     radioLg: '0.75rem', pildora: '9999px', borde: '1px', divisor: '1px', trazo: '2',
+    badgeCaja: 'none', badgeTracking: 'normal',
   },
   {
     clave: 'recta', label: 'Recta',
     descripcion: 'Esquina viva y regla tipográfica.',
     radius3xl: '0', radius2xl: '0', radiusXl: '0',
     radioLg: '2px', pildora: '0', borde: '1.5px', divisor: '1px', trazo: '1.25',
+    badgeCaja: 'uppercase', badgeTracking: '0.12em',
   },
   {
     clave: 'minima', label: 'Mínima',
     descripcion: 'Radio corto y parejo, sin divisores de banda.',
     radius3xl: '10px', radius2xl: '8px', radiusXl: '6px',
     radioLg: '6px', pildora: '8px', borde: '1px', divisor: '0', trazo: '1.5',
+    badgeCaja: 'uppercase', badgeTracking: '0.05em',
   },
 ] as const;
 
@@ -98,8 +111,8 @@ export function formaDeForma(forma: ClaveForma | null): Forma {
 /**
  * Las vars de forma para un `style` INLINE (la vista previa del panel, que no pasa por el `<style>`
  * server de cssForma). Suave/null → `{}`: sin override, las utilidades de radio caen a su valor de hoy
- * (Tailwind v4). Una forma CUSTOM → las 8 vars (las 3 leídas + las 5 inertes, para que preview y
- * `<style>` no puedan divergir; § el test de consistencia). Gemelo de `varsDeFuentePar`.
+ * (Tailwind v4). Una forma CUSTOM → las 10 vars (las 3 leídas + las 5 de superficie + las 2 de badge,
+ * para que preview y `<style>` no puedan divergir; § el test de consistencia). Gemelo de `varsDeFuentePar`.
  */
 export function varsDeForma(forma: ClaveForma | null): Record<string, string> {
   const clave = resolverForma(forma);
@@ -114,5 +127,7 @@ export function varsDeForma(forma: ClaveForma | null): Record<string, string> {
     '--sf-borde': f.borde,
     '--sf-divisor': f.divisor,
     '--sf-trazo': f.trazo,
+    '--sf-badge-caja': f.badgeCaja,
+    '--sf-badge-tracking': f.badgeTracking,
   };
 }
