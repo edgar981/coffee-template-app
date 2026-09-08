@@ -58,15 +58,24 @@ export default function SubscriptionCTA({ style }: { style?: React.CSSProperties
                   `--sf-sobre-banda` con `--sf-tostado` de fallback preserva hoy y se adapta por
                   esquema. El bullet-dot y las tarjetas de plan del teaser NO se tocan: el primero es
                   decorativo (no texto), las segundas son tarjetas self-contained con su propio par
-                  acento/acento-txt, independiente del esquema de la sección. */}
+                  acento/acento-txt, independiente del esquema de la sección.
+                  EL TÍTULO/SUBTÍTULO/BENEFICIOS (§ eje 5b, home-3) estaban en `--sf-sobre`
+                  —floreado contra la TARJETA— y daban 1.07:1 al asignar 'crema' a esta banda
+                  (canónica oscura). Se apoyan DIRECTO en el fondo de la banda: el título va a
+                  `--sf-sobre-banda`; subtítulo/beneficios (con el alfa de diseño) van a
+                  `--sf-sobre-banda-suave`, SIN el modificador `/NN` de Tailwind encima (reduciría el
+                  `texto-suave` ya floreado por debajo de AA), con el alfa horneado en el fallback
+                  (`color-mix(in oklab, white NN%, transparent)` — la MISMA fórmula que Tailwind
+                  genera para `/NN` — así que sin esquema el resultado es el mismo píxel que
+                  `text-white/NN` de siempre). */}
               {subscriptionCTA.eyebrow && (
                 <p className="text-[var(--sf-sobre-banda,var(--sf-tostado))] text-xs tracking-[0.2em] uppercase mb-3">{subscriptionCTA.eyebrow}</p>
               )}
-              <h2 className="text-4xl font-playfair text-[var(--sf-sobre)] mb-4">{subscriptionCTA.titulo}</h2>
-              <p className="text-[var(--sf-sobre)]/60 mb-8 leading-relaxed">{subscriptionCTA.subtitulo}</p>
+              <h2 className="text-4xl font-playfair text-[var(--sf-sobre-banda,white)] mb-4">{subscriptionCTA.titulo}</h2>
+              <p className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] mb-8 leading-relaxed">{subscriptionCTA.subtitulo}</p>
               <div className="space-y-3 mb-8">
                 {beneficios.map((b, i) => (
-                  <div key={i} className="flex items-center gap-3 text-sm text-[var(--sf-sobre)]/70">
+                  <div key={i} className="flex items-center gap-3 text-sm text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]">
                     <div className="w-1.5 h-1.5 rounded-full bg-[var(--sf-tostado)]" />
                     {b}
                   </div>

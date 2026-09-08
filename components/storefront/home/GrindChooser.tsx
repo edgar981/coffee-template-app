@@ -84,10 +84,18 @@ export default function GrindChooser({ negocio, style }: { negocio?: string; sty
                     className="object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                 )}
+                {/* El gradiente de la tile es `--sf-tinta` CRUDO —la raíz, no un token que el
+                    esquema mueva—, así que SIEMPRE queda oscuro sin importar qué esquema se le
+                    asigne a la SECCIÓN (§ eje 5b, home-3). `op.label`/`op.copy` habían pasado por
+                    mitad B a `--sf-sobre` —floreado contra la TARJETA, que SÍ sigue al esquema— y
+                    con 'superficie' asignado ese `sobre` se auto-flipeaba a tinta oscura,
+                    fundiéndose con el overlay siempre-oscuro (~1.00:1, medido). Es el caso (b): una
+                    superficie FIJA que el esquema no mueve exige texto CLARO FIJO, no banda-scoped.
+                    Revertido al blanco de su diseño original (pre mitad B). */}
                 <div className="absolute inset-0 bg-gradient-to-t from-[var(--sf-tinta)]/80 via-[var(--sf-tinta)]/20 to-transparent" />
                 <div className="relative p-8">
-                  <h3 className="text-2xl sm:text-3xl font-playfair text-[var(--sf-sobre)] mb-1">{op.label}</h3>
-                  <p className="text-[var(--sf-sobre)]/80 text-sm mb-4 max-w-xs">{op.copy}</p>
+                  <h3 className="text-2xl sm:text-3xl font-playfair text-white mb-1">{op.label}</h3>
+                  <p className="text-white/80 text-sm mb-4 max-w-xs">{op.copy}</p>
                   <span className="inline-flex items-center gap-2 text-[var(--sf-tostado)] font-semibold text-sm group-hover:gap-3 transition-all">
                     Ver café {op.label.toLowerCase()} <ArrowRight className="w-4 h-4" />
                   </span>

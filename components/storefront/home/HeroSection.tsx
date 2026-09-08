@@ -68,8 +68,19 @@ export default function HeroSection({ style }: { style?: React.CSSProperties } =
           {/* El eyebrow y el énfasis del titular usaban `--sf-tostado` —FIJO, no recomputado por
               esquema (§ eje 5b, home-2)— así que sobre un esquema CLARO (crema/superficie) quedaban
               tan claros como el fondo: medido, 2.02:1/1.76:1. `--sf-sobre-banda` con `--sf-tostado`
-              de fallback preserva el tostado de hoy sin esquema y se adapta con uno asignado. El
-              título/subtítulo YA usan `--sf-sobre` (mitad B) — quedan intactos. */}
+              de fallback preserva el tostado de hoy sin esquema y se adapta con uno asignado.
+              EL TÍTULO/SUBTÍTULO/CTA SECUNDARIO/SCROLL (§ eje 5b, home-3) estaban en `--sf-sobre`
+              —floreado contra la TARJETA, no la banda— y ese hueco daba 1.07:1 al asignar 'crema'
+              a esta banda (su canónica es oscura; 'crema' hardcodea sobre=#ffffff sin auto-flip).
+              Se apoyan DIRECTO en el fondo de la banda: título/CTA (sin alfa) van a
+              `--sf-sobre-banda`; subtítulo/scroll (con alfa de diseño) van a
+              `--sf-sobre-banda-suave`, SIN el modificador `/NN` de Tailwind encima —aplicarlo
+              reduciría el `texto-suave` ya floreado (raso en oscuro/acento, 4.52/4.56:1, § motor)
+              por debajo de AA— con el alfa horneado DENTRO del fallback
+              (`color-mix(in oklab, white NN%, transparent)`, la MISMA fórmula que Tailwind genera
+              para un modificador de opacidad): sin esquema, `--sf-sobre-banda-suave` no está seteada
+              y el `var()` cae a ese fallback → el mismo píxel que el `text-white/NN` de siempre; con
+              esquema, cae al `texto-suave` YA floreado (≥4.5:1 en los 4, medido) a opacidad plena. */}
           {hero.eyebrow && (
             <motion.p
               variants={fadeUp}
@@ -81,7 +92,7 @@ export default function HeroSection({ style }: { style?: React.CSSProperties } =
 
           <motion.h1
             variants={fadeUp}
-            className="mb-6 font-playfair text-5xl leading-[1.08] text-[var(--sf-sobre)] sm:text-6xl lg:text-7xl"
+            className="mb-6 font-playfair text-5xl leading-[1.08] text-[var(--sf-sobre-banda,white)] sm:text-6xl lg:text-7xl"
           >
             {hero.titulo}
             {hero.tituloEnfasis && (
@@ -94,7 +105,7 @@ export default function HeroSection({ style }: { style?: React.CSSProperties } =
 
           <motion.p
             variants={fadeUp}
-            className="mb-10 max-w-md text-lg leading-relaxed text-[var(--sf-sobre)]/70"
+            className="mb-10 max-w-md text-lg leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]"
           >
             {hero.subtitulo}
           </motion.p>
@@ -115,7 +126,7 @@ export default function HeroSection({ style }: { style?: React.CSSProperties } =
             {hero.ctaSecundarioLabel && mostrarCtaSuscripcion && (
               <Link
                 href={HERO_HREFS.secundario}
-                className="inline-flex items-center gap-2 sf-pildora border border-[var(--sf-linea-sobre,white)]/30 px-8 py-4 text-sm font-medium text-[var(--sf-sobre)] transition-all duration-200 hover:border-[var(--sf-linea-sobre,white)]/60 hover:bg-white/10"
+                className="inline-flex items-center gap-2 sf-pildora border border-[var(--sf-linea-sobre,white)]/30 px-8 py-4 text-sm font-medium text-[var(--sf-sobre-banda,white)] transition-all duration-200 hover:border-[var(--sf-linea-sobre,white)]/60 hover:bg-white/10"
               >
                 {hero.ctaSecundarioLabel}
               </Link>
@@ -130,7 +141,7 @@ export default function HeroSection({ style }: { style?: React.CSSProperties } =
         <motion.div
           animate={{ y: [0, 8, 0] }}
           transition={{ duration: 2, repeat: Infinity }}
-          className="absolute bottom-8 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-[var(--sf-sobre)]/40"
+          className="absolute bottom-8 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_40%,transparent))]"
         >
           <span className="text-xs tracking-widest uppercase">Scroll</span>
           <div className="w-px h-12 bg-linear-to-b from-white/40 to-transparent" />

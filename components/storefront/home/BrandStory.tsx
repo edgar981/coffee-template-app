@@ -43,20 +43,28 @@ export default function BrandStory({ style }: { style?: React.CSSProperties } = 
             variants={fadeUp}
           >
             {/* `--sf-tostado` era FIJO (§ eje 5b, home-2 — mismo hueco que el eyebrow del hero):
-                `--sf-sobre-banda` con `--sf-tostado` de fallback preserva hoy y se adapta por esquema. */}
+                `--sf-sobre-banda` con `--sf-tostado` de fallback preserva hoy y se adapta por esquema.
+                EL TÍTULO/PÁRRAFOS (§ eje 5b, home-3) estaban en `--sf-sobre` —floreado contra la
+                TARJETA— y daban 1.07:1 al asignar 'crema' a esta banda (canónica oscura). Se apoyan
+                DIRECTO en el fondo de la banda: el título va a `--sf-sobre-banda`; los párrafos
+                (con el /60 de diseño) van a `--sf-sobre-banda-suave`, SIN el modificador `/NN` de
+                Tailwind encima (reduciría el `texto-suave` ya floreado por debajo de AA), con el
+                alfa horneado en el fallback (`color-mix(in oklab, white 60%, transparent)` — la
+                MISMA fórmula que Tailwind genera para `/60` — así que sin esquema el resultado es el
+                mismo píxel que `text-white/60` de siempre). */}
             {brandStory.eyebrow && (
               <p className="text-[var(--sf-sobre-banda,var(--sf-tostado))] text-xs font-medium tracking-[0.2em] uppercase mb-4">
                 {brandStory.eyebrow}
               </p>
             )}
-            <h2 className="text-4xl sm:text-5xl font-playfair text-[var(--sf-sobre)] leading-tight mb-6">
+            <h2 className="text-4xl sm:text-5xl font-playfair text-[var(--sf-sobre-banda,white)] leading-tight mb-6">
               {brandStory.titulo}
             </h2>
-            <p className="text-[var(--sf-sobre)]/60 leading-relaxed mb-6 text-base">
+            <p className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] leading-relaxed mb-6 text-base">
               {brandStory.parrafo1}
             </p>
             {brandStory.parrafo2 && (
-              <p className="text-[var(--sf-sobre)]/60 leading-relaxed mb-8 text-base">
+              <p className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] leading-relaxed mb-8 text-base">
                 {brandStory.parrafo2}
               </p>
             )}
