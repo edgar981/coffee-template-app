@@ -50,7 +50,7 @@ export default function TestimonialSection() {
                   viewport={preview ? undefined : { once: true }}
                   variants={fadeUp}
                   transition={preview ? undefined : { delay: i * 0.1 }}
-                  className="bg-white rounded-2xl p-6 shadow-sm border border-[var(--sf-linea)]"
+                  className="bg-white rounded-2xl p-6 shadow-sm sf-borde border-[var(--sf-linea)]"
                 >
                   <div className="flex gap-1 mb-4">
                     {[1, 2, 3, 4, 5].map(n => (

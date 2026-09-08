@@ -8,7 +8,7 @@ export default function Chip({
   value,
 }: ChipProps) {
   return (
-    <div className="rounded-lg bg-[var(--sf-superficie)] px-3 py-2 text-xs">
+    <div className="sf-radio-lg bg-[var(--sf-superficie)] px-3 py-2 text-xs">
       <p className="mb-0.5 text-[var(--sf-tostado-3)]">
         {label}
       </p>

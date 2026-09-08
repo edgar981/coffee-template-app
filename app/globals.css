@@ -448,4 +448,39 @@ html {
   .font-inter    { font-family: var(--sf-fuente-cuerpo, 'Inter', sans-serif); }
   .font-playfair { font-family: var(--sf-fuente-titulo, 'Playfair Display', serif); }
   .font-display  { font-family: var(--sf-fuente-titulo, 'Playfair Display', serif); }
+
+  /* ── Eje 4 (forma) · la superficie var-backed del storefront (§ formas, § forma-style) ──
+     Los CINCO tokens que el <style> de cssForma inyecta en el layout del storefront se CABLEAN
+     acá (la segunda mitad; B1 los dejó emitidos pero inertes). Cada utilidad cae a su FALLBACK
+     = el valor de HOY cuando NO hay <style> (Suave/null no emite) → Nayoli byte-idéntico; una
+     forma CUSTOM (Recta/Mínima) mueve la superficie entera. NO son de marca ni cruzan al admin:
+     como los `--sf-*` de paleta/fuentes, sólo el layout del grupo (storefront) inyecta los
+     tokens; el `:root` del admin nunca los recibe (documento aparte). */
+
+  /* PÍLDORAS y el escalón `lg`. Fallback ∞ = el `rounded-full` de Tailwind v4; 0.75rem = el
+     `rounded-lg` de hoy (que compila a --radius-lg → --radius). NO se pisa `--radius-lg`: es
+     del panel (globals.css @theme). Por eso el escalón lg necesita su token propio. */
+  .sf-pildora   { border-radius: var(--sf-pildora, calc(infinity * 1px)); }
+  .sf-radio-lg  { border-radius: var(--sf-radio-lg, 0.75rem); }
+
+  /* BORDE (ciñe una tarjeta/control) vs DIVISOR (separa dos bandas de página). Se SEPARAN para
+     que Mínima pueda APAGAR los divisores (divisor:0) sin apagar el borde de una tarjeta —que
+     obligaría a tocar el RELLENO, y el relleno es PALETA (§ el spec, los dos ejes se pisarían)—.
+     Fallback 1px = el hairline de hoy en ambos roles. Sólo se cablean los hairlines de 1px; los
+     `border-2` de énfasis quedan como están (fuera del rango del token de una sola anchura). */
+  .sf-borde     { border-width: var(--sf-borde, 1px); }
+  .sf-borde-t   { border-top-width: var(--sf-borde, 1px); }
+  .sf-borde-b   { border-bottom-width: var(--sf-borde, 1px); }
+  .sf-borde-l   { border-left-width: var(--sf-borde, 1px); }
+  .sf-divisor-t { border-top-width: var(--sf-divisor, 1px); }
+  .sf-divisor-b { border-bottom-width: var(--sf-divisor, 1px); }
+  .sf-divisor-y { border-top-width: var(--sf-divisor, 1px); border-bottom-width: var(--sf-divisor, 1px); }
 }
+
+/* TRAZO de ícono (§ eje 4, forma). UNA regla sobre los íconos lucide del storefront: lucide
+   emite `stroke-width` como ATRIBUTO y la propiedad CSS gana (va sin `@layer` para ganar con
+   seguridad sobre el atributo). Scope `html:not(.admin)` = todo lo que no es el panel (el admin
+   lleva el marcador `.admin` en <html>), así NO toca los íconos del panel, que tienen su propio
+   trazo. El selector `.lucide` deja fuera los `<svg>` inline propios (Logo, NosotrosGaleria),
+   que conservan su trazo. Fallback 2 = el default de lucide → Suave byte-idéntico. */
+html:not(.admin) .lucide { stroke-width: var(--sf-trazo, 2); }

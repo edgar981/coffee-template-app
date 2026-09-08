@@ -36,6 +36,20 @@ test('SUAVE es byte-idéntico a HOY: los radios exactos en REM (1.5/1/0.75rem)',
   assert.equal(FORMA_DEFECTO.radiusXl, '0.75rem');
 });
 
+test('SUAVE reproduce los CINCO tokens de HOY — el contrato byte-idéntico que B2 cablea', () => {
+  // La segunda mitad (eje 4, superficie) cableó estos 5 a las utilidades `.sf-*` con FALLBACKS =
+  // el valor de HOY. Suave es null → cssForma no emite <style> → cada utilidad cae a su fallback,
+  // así que Suave queda byte-idéntico. Este test fija esos literales: si alguien cambia un token de
+  // Suave, deja de reproducir el de hoy y esto lo caza. (El fallback CSS de la píldora es
+  // `calc(infinity*1px)` = el `rounded-full` de Tailwind v4; el '9999px' de acá es la muestra del
+  // picker — ambos renderizan una píldora completa para cualquier elemento real.)
+  assert.equal(FORMA_DEFECTO.radioLg, '0.75rem');  // = `.sf-radio-lg` fallback (rounded-lg de hoy)
+  assert.equal(FORMA_DEFECTO.pildora, '9999px');   // = `.sf-pildora` (fallback ∞)
+  assert.equal(FORMA_DEFECTO.borde, '1px');        // = `.sf-borde` fallback (hairline de hoy)
+  assert.equal(FORMA_DEFECTO.divisor, '1px');      // = `.sf-divisor-*` fallback (divisor de hoy)
+  assert.equal(FORMA_DEFECTO.trazo, '2');          // = `.lucide` stroke-width fallback (lucide default)
+});
+
 test('varsDeForma: Suave/null → {} (cae a los radios de hoy); CUSTOM → las 8 vars', () => {
   assert.deepEqual(varsDeForma(null), {});
   assert.deepEqual(varsDeForma('suave'), {});

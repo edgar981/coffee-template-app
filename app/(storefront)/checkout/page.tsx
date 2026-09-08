@@ -158,7 +158,7 @@ export default function Checkout() {
             <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
               <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
               <p className="text-2xl font-bold text-[var(--sf-acento-texto)] mb-4 text-center">{confirmation.numero_orden}</p>
-              <div className="space-y-2 pt-3 border-t border-[var(--sf-linea)]">
+              <div className="space-y-2 pt-3 sf-divisor-t border-[var(--sf-linea)]">
                 {confirmation.items.map((item, i) => (
                   <div key={i} className="flex justify-between text-xs text-[var(--sf-texto)]">
                     <span className="min-w-0 truncate pr-2">
@@ -169,7 +169,7 @@ export default function Checkout() {
                   </div>
                 ))}
               </div>
-              <div className="space-y-2 pt-3 mt-3 border-t border-[var(--sf-linea)] text-sm">
+              <div className="space-y-2 pt-3 mt-3 sf-divisor-t border-[var(--sf-linea)] text-sm">
                 <div className="flex justify-between text-[var(--sf-texto)]">
                   <span>Subtotal</span><span>{formatCOP(confirmation.subtotal)}</span>
                 </div>
@@ -192,14 +192,14 @@ export default function Checkout() {
                     <span className="text-right">{confirmation.direccion_detalle}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-bold text-[var(--sf-tinta)] text-base pt-1 border-t border-[var(--sf-linea)]">
+                <div className="flex justify-between font-bold text-[var(--sf-tinta)] text-base pt-1 sf-divisor-t border-[var(--sf-linea)]">
                   <span>Total</span><span>{formatCOP(confirmation.total)}</span>
                 </div>
               </div>
             </div>
             <div className="flex flex-col gap-3">
               <Link href={`/rastrear-pedido?orden=${encodeURIComponent(confirmation.numero_orden)}&email=${encodeURIComponent(info.email)}`} className="block w-full bg-[var(--sf-tinta)] text-white font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)] transition-colors">Rastrear mi pedido</Link>
-              <Link href="/tienda" className="block w-full border border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)] transition-colors">Seguir comprando</Link>
+              <Link href="/tienda" className="block w-full sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)] transition-colors">Seguir comprando</Link>
             </div>
           </motion.div>
         </div>
@@ -222,7 +222,7 @@ export default function Checkout() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <div className="flex items-center gap-4 mb-8">
-            <Link href="/tienda" className="p-2 hover:bg-[var(--sf-superficie)] rounded-lg transition-colors cursor-pointer">
+            <Link href="/tienda" className="p-2 hover:bg-[var(--sf-superficie)] sf-radio-lg transition-colors cursor-pointer">
               <ArrowLeft className="w-5 h-5 text-[var(--sf-texto)]" />
             </Link>
             <h1 className="text-2xl font-playfair text-[var(--sf-tinta)]">Checkout</h1>
@@ -246,7 +246,7 @@ export default function Checkout() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Form */}
             <div className="lg:col-span-2">
-              <div className="bg-white rounded-2xl border border-[var(--sf-linea)] p-6">
+              <div className="bg-white rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
                 {/* Step 0: Info */}
                 {step === 0 && (
                   <div className="space-y-4">
@@ -259,11 +259,11 @@ export default function Checkout() {
                     <div>
                       <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Teléfono / WhatsApp *</label>
                       <div className="flex items-stretch">
-                        <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-[var(--sf-linea)] bg-[var(--sf-superficie)] text-sm font-medium text-[var(--sf-texto)] select-none">+57</span>
+                        <span className="inline-flex items-center px-3 rounded-l-xl sf-borde-t sf-borde-b sf-borde-l border-[var(--sf-linea)] bg-[var(--sf-superficie)] text-sm font-medium text-[var(--sf-texto)] select-none">+57</span>
                         <input
                           type="tel" inputMode="numeric" value={info.telefono}
                           onChange={e => setInfo({ ...info, telefono: e.target.value })} placeholder="300 000 0000"
-                          className="w-full px-4 py-3 bg-[var(--sf-fondo)] border border-[var(--sf-linea)] rounded-r-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
+                          className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-r-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
                         />
                       </div>
                       {info.telefono && !phoneValid && (
@@ -280,7 +280,7 @@ export default function Checkout() {
                         <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Departamento *</label>
                         <select
                           value={address.departamento} onChange={e => selectDepartamento(e.target.value)}
-                          className="w-full px-4 py-3 bg-[var(--sf-fondo)] border border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
+                          className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
                         >
                           <option value="" disabled>Selecciona departamento</option>
                           {COLOMBIA_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
@@ -308,7 +308,7 @@ export default function Checkout() {
                             <div className="mt-3 ml-4 pl-4 border-l-2 border-[var(--sf-linea)] space-y-2">
                               <p className="text-xs font-semibold text-[var(--sf-texto)]">Franja horaria * <span className="font-normal text-[var(--sf-texto-suave)]">(preferencia)</span></p>
                               {shippingMethod.slots.map(s => (
-                                <label key={s.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${slot === s.id ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
+                                <label key={s.id} className={`flex items-center gap-3 p-3 sf-radio-lg sf-borde cursor-pointer transition-all ${slot === s.id ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
                                   <input type="radio" name="slot" value={s.id} checked={slot === s.id} onChange={() => setSlot(s.id)} className="accent-[var(--sf-acento)]" />
                                   <span className="text-sm text-[var(--sf-tinta)]">{s.label}</span>
                                 </label>
@@ -319,7 +319,7 @@ export default function Checkout() {
                       )}
                     </div>
                     <div className="flex gap-3 mt-2">
-                      <button onClick={() => setStep(0)} className="flex-1 border border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)]">Atrás</button>
+                      <button onClick={() => setStep(0)} className="flex-1 sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)]">Atrás</button>
                       <button onClick={() => setStep(1)} disabled={!address.linea1 || !address.ciudad || !address.departamento || !phoneValid || (isBogota && !slot)} className="flex-1 bg-[var(--sf-tinta)] disabled:opacity-40 text-white font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)]">Continuar al pago</button>
                     </div>
                   </div>
@@ -382,7 +382,7 @@ export default function Checkout() {
                       </span>
                     </div>
                     <div className="flex gap-3">
-                      <button onClick={() => setStep(0)} className="flex-1 border border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)]">Atrás</button>
+                      <button onClick={() => setStep(0)} className="flex-1 sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)]">Atrás</button>
                       <button onClick={handleOrder} disabled={loading || availablePayments.length === 0} className="flex-1 bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors">
                         {loading ? 'Procesando...' : `Confirmar pedido · ${formatCOP(total)}`}
                       </button>
@@ -394,14 +394,14 @@ export default function Checkout() {
 
             {/* Order Summary */}
             <div>
-              <div className="bg-white rounded-2xl border border-[var(--sf-linea)] p-5 sticky top-20">
+              <div className="bg-white rounded-2xl sf-borde border-[var(--sf-linea)] p-5 sticky top-20">
                 <h3 className="font-semibold text-[var(--sf-tinta)] mb-4">Resumen del pedido</h3>
                 <div className="space-y-3 mb-4">
                   {items.map(item => {
                     const sinStock = sinStockIds.includes(item.id);
                     return (
-                    <div key={item.key} className={`flex gap-3 ${sinStock ? 'rounded-lg -mx-1 px-1 ring-1 ring-red-300 bg-red-50/60' : ''}`}>
-                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-[var(--sf-superficie)] shrink-0">
+                    <div key={item.key} className={`flex gap-3 ${sinStock ? 'sf-radio-lg -mx-1 px-1 ring-1 ring-red-300 bg-red-50/60' : ''}`}>
+                      <div className="w-12 h-12 sf-radio-lg overflow-hidden bg-[var(--sf-superficie)] shrink-0">
                         <img src={imagenPortada(item.imagen)} alt={item.nombre} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -419,7 +419,7 @@ export default function Checkout() {
                     );
                   })}
                 </div>
-                <div className="space-y-2 pt-3 border-t border-[var(--sf-linea)] text-sm">
+                <div className="space-y-2 pt-3 sf-divisor-t border-[var(--sf-linea)] text-sm">
                   <div className="flex justify-between text-[var(--sf-texto)]">
                     <span>Subtotal</span><span>{formatCOP(subtotal)}</span>
                   </div>
@@ -429,7 +429,7 @@ export default function Checkout() {
                       ? <span className="text-[var(--sf-texto-suave)]">Selecciona departamento</span>
                       : <span className={shippingCost === 0 ? 'text-emerald-600' : ''}>{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost)}</span>}
                   </div>
-                  <div className="flex justify-between font-bold text-[var(--sf-tinta)] text-base pt-1 border-t border-[var(--sf-linea)]">
+                  <div className="flex justify-between font-bold text-[var(--sf-tinta)] text-base pt-1 sf-divisor-t border-[var(--sf-linea)]">
                     <span>Total</span><span>{formatCOP(total)}</span>
                   </div>
                 </div>
@@ -463,7 +463,7 @@ function Field({ label, value, onChange, type = 'text', placeholder }: FieldProp
       <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">{label}</label>
       <input
         type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full px-4 py-3 bg-[var(--sf-fondo)] border border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
+        className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
       />
     </div>
   );

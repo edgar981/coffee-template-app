@@ -55,7 +55,7 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
                 className={`relative flex flex-col rounded-2xl p-6 border-2 bg-white ${plan.destacado ? 'border-[var(--sf-acento)] shadow-lg shadow-[var(--sf-acento)]/10' : 'border-[var(--sf-linea)]'}`}
               >
                 {plan.destacado && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] text-xs font-bold px-4 py-1 rounded-full">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] text-xs font-bold px-4 py-1 sf-pildora">
                     Más Popular
                   </div>
                 )}
@@ -93,7 +93,7 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
                     href={interesHref(plan.nombre)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`mt-auto inline-flex items-center justify-center gap-2 font-semibold px-6 py-3 rounded-full text-sm transition-all hover:-translate-y-0.5 ${plan.destacado ? 'bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] text-[var(--sf-acento-txt)]' : 'border-2 border-[var(--sf-acento)] text-[var(--sf-acento-texto)] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]'}`}
+                    className={`mt-auto inline-flex items-center justify-center gap-2 font-semibold px-6 py-3 sf-pildora text-sm transition-all hover:-translate-y-0.5 ${plan.destacado ? 'bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] text-[var(--sf-acento-txt)]' : 'border-2 border-[var(--sf-acento)] text-[var(--sf-acento-texto)] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]'}`}
                   >
                     {c.ctaLabel} <ArrowRight className="w-4 h-4" />
                   </a>

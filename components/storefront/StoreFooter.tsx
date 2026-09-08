@@ -63,7 +63,7 @@ export default function StoreFooter() {
                   target="_blank"
                   rel="noopener"
                   aria-label={`Instagram de ${settings.nombre}`}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
+                  className="flex h-9 w-9 items-center justify-center sf-radio-lg bg-white/10 transition-colors hover:bg-white/20"
                 >
                   <Image
                     src="/icons/instagram-white.svg"
@@ -81,7 +81,7 @@ export default function StoreFooter() {
                   target="_blank"
                   rel="noopener"
                   aria-label={`WhatsApp de ${settings.nombre}`}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
+                  className="flex h-9 w-9 items-center justify-center sf-radio-lg bg-white/10 transition-colors hover:bg-white/20"
                 >
                   <MessageCircle className="h-4 w-4 text-white/60" />
                 </a>
@@ -181,7 +181,7 @@ export default function StoreFooter() {
       </div>
 
       {/* Bottom Bar */}
-      <div className="border-t border-white/10">
+      <div className="sf-divisor-t border-white/10">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-4 text-xs text-white/30 sm:flex-row sm:px-6 lg:px-8">
           <p>
             © 2026 {settings.nombre}.

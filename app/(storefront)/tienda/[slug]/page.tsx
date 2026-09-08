@@ -239,7 +239,7 @@ export default function ProductPage({
           {/* Info */}
           <div className="space-y-6">
               {product.badge && (
-                <span className="inline-block text-xs font-semibold bg-[var(--sf-tostado)] text-[var(--sf-tinta)] px-3 py-1 rounded-full">{product.badge}</span>
+                <span className="inline-block text-xs font-semibold bg-[var(--sf-tostado)] text-[var(--sf-tinta)] px-3 py-1 sf-pildora">{product.badge}</span>
               )}
               <div>
                 <p className="text-sm text-[var(--sf-acento-texto)] mb-1 capitalize">{product.origen || product.categoria?.replace('_', ' ')}</p>
@@ -270,7 +270,7 @@ export default function ProductPage({
                   <p className="text-xs font-semibold text-[var(--sf-texto)] uppercase tracking-wide mb-2">Notas de cata</p>
                   <div className="flex flex-wrap gap-2">
                     {product.notasCata!.map(n => (
-                      <span key={n} className="text-sm bg-[var(--sf-superficie)] text-[var(--sf-texto)] px-3 py-1 rounded-full border border-[var(--sf-linea)]">{n}</span>
+                      <span key={n} className="text-sm bg-[var(--sf-superficie)] text-[var(--sf-texto)] px-3 py-1 sf-pildora sf-borde border-[var(--sf-linea)]">{n}</span>
                     ))}
                   </div>
                 </div>
@@ -292,7 +292,7 @@ export default function ProductPage({
                           disabled={!o.disponible}
                           onClick={() => o.disponible && setMolienda(o.nombre)}
                           title={o.disponible ? undefined : 'Próximamente'}
-                          className={`px-3 py-2 rounded-lg text-left border transition-all ${
+                          className={`px-3 py-2 sf-radio-lg text-left sf-borde transition-all ${
                             selected
                               ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5'
                               : o.disponible
@@ -319,7 +319,7 @@ export default function ProductPage({
                   <div className="space-y-3">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2 bg-[var(--sf-superficie)] rounded-xl px-1">
-                        <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-9 h-9 flex items-center justify-center hover:bg-[var(--sf-linea)] rounded-lg transition-colors cursor-pointer"><Minus className="w-4 h-4" /></button>
+                        <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-9 h-9 flex items-center justify-center hover:bg-[var(--sf-linea)] sf-radio-lg transition-colors cursor-pointer"><Minus className="w-4 h-4" /></button>
                         <span className="w-8 text-center font-semibold text-[var(--sf-tinta)]">{qty}</span>
                         <button
                           onClick={() =>
@@ -332,7 +332,7 @@ export default function ProductPage({
                               return q + 1;
                             })
                           }
-                          className="w-9 h-9 flex items-center justify-center hover:bg-[var(--sf-linea)] rounded-lg transition-colors cursor-pointer"
+                          className="w-9 h-9 flex items-center justify-center hover:bg-[var(--sf-linea)] sf-radio-lg transition-colors cursor-pointer"
                         >
                           <Plus className="w-4 h-4" />
                         </button>
@@ -355,8 +355,8 @@ export default function ProductPage({
                     <p className="font-semibold text-gray-600">Producto Agotado</p>
                     <p className="text-sm text-gray-400 mt-1">Déjanos tu correo para notificarte cuando regrese.</p>
                     <div className="flex gap-2 mt-3">
-                      <input type="email" placeholder="tu@correo.com" className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-                      <button className="bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] px-4 py-2 rounded-lg text-sm font-medium">Avisar</button>
+                      <input type="email" placeholder="tu@correo.com" className="flex-1 px-3 py-2 border border-gray-200 sf-radio-lg text-sm" />
+                      <button className="bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] px-4 py-2 sf-radio-lg text-sm font-medium">Avisar</button>
                     </div>
                   </div>
                 )}

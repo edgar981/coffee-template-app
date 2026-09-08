@@ -102,10 +102,10 @@ export default function StoreNav() {
       {/* Mobile Menu */}
       <AnimatePresence>
         {mobileOpen && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="fixed top-16 left-0 right-0 z-40 bg-white shadow-lg border-b border-[var(--sf-linea)]">
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="fixed top-16 left-0 right-0 z-40 bg-white shadow-lg sf-divisor-b border-[var(--sf-linea)]">
             <nav className="relative flex flex-col px-4 py-4 gap-4">
               {links.map(l => (
-                <Link key={l.path} href={l.path} onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2 border-b border-[var(--sf-superficie)] last:border-0">{l.label}</Link>
+                <Link key={l.path} href={l.path} onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2 sf-divisor-b border-[var(--sf-superficie)] last:border-0">{l.label}</Link>
               ))}
               {/* v1: /cuenta link hidden — restore when account feature ships */}
               {/* <Link href="/cuenta" onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2">Mi Cuenta</Link> */}
