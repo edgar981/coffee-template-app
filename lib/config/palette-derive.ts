@@ -1,4 +1,4 @@
-// ─── EL MOTOR DE COLOR DEL STOREFRONT · derivar 20 tintas de 3 RAÍCES ─────────
+// ─── EL MOTOR DE COLOR DEL STOREFRONT · derivar 24 tintas de 3 RAÍCES ─────────
 //
 // El cliente elige 3 RAÍCES —fondo · tinta · acento—; las otras 17 tintas del
 // storefront (§ globals.css `--sf-*`) se DERIVAN acá. 18 colores no son
@@ -54,18 +54,37 @@ export function mezclar(h1: string, h2: string, w: number): string {
   let dh = c2.H - c1.H; if (dh > 180) dh -= 360; if (dh < -180) dh += 360;
   return oklabToHex(lchToLab({ L: c1.L + (c2.L - c1.L) * w, C: c1.C + (c2.C - c1.C) * w, H: (c1.H + dh * w + 360) % 360 }));
 }
+/** Luminancia relativa WCAG de un hex (0..1). Compartida por `contraste` y por la dirección
+ *  del piso: una superficie es "clara" si su luminancia pasa 0.5. */
+const luminancia = (hex: string): number => {
+  const f = (i: number) => srgbToLin(parseInt(hex.slice(i, i + 2), 16));
+  return 0.2126 * f(1) + 0.7152 * f(3) + 0.0722 * f(5);
+};
 /** Contraste WCAG entre dos hex (1..21). */
 export function contraste(a: string, b: string): number {
-  const lum = (hex: string) => { const f = (i: number) => srgbToLin(parseInt(hex.slice(i, i + 2), 16)); return 0.2126 * f(1) + 0.7152 * f(3) + 0.0722 * f(5); };
-  const l1 = lum(a), l2 = lum(b), hi = Math.max(l1, l2), lo = Math.min(l1, l2);
+  const l1 = luminancia(a), l2 = luminancia(b), hi = Math.max(l1, l2), lo = Math.min(l1, l2);
   return (hi + 0.05) / (lo + 0.05);
 }
-/** Oscurece `hex` (baja L en OKLCH) hasta alcanzar `objetivo:1` de contraste sobre `bg`.
- *  El piso de contraste: garantiza que un rol de TEXTO sobre fondo claro se lea, sea cual
- *  sea el acento del cliente (un neón se oscurece a oro legible; un acento ya oscuro no se toca). */
-export function pisoContraste(hex: string, bg: string, objetivo = 4.5): string {
+export type DireccionPiso = 'oscurecer' | 'aclarar';
+/** La regla de dirección (§ cabecera), vuelta código: superficie CLARA → oscurecer (la regla de
+ *  hoy); superficie OSCURA → aclarar. Es el default de `pisoContraste` cuando no se pasa `dir`. */
+const direccionDePiso = (bg: string): DireccionPiso => (luminancia(bg) > 0.5 ? 'oscurecer' : 'aclarar');
+/** Floréa `hex` (mueve L en OKLCH, hacia oscuro o hacia claro según `dir`) hasta alcanzar
+ *  `objetivo:1` de contraste sobre `bg`. El piso de contraste: garantiza que un rol de TEXTO se
+ *  lea sobre SU superficie, sea cual sea el acento del cliente (un neón se oscurece a oro legible
+ *  sobre fondo claro; un acento oscuro se aclara sobre una superficie oscura).
+ *
+ *  `dir` es OPCIONAL: si se omite, se DERIVA de la luminancia de `bg` (§ `direccionDePiso`). El
+ *  único call site de producción de hoy (`derivarPaleta`, más abajo) no pasa `dir` y su `bg` es
+ *  siempre la raíz `fondo` —CLARA en Nayoli—, así que la dirección derivada es 'oscurecer' y el
+ *  resultado es BYTE-IDÉNTICO al de antes de este parámetro (afirmado en el test). */
+export function pisoContraste(hex: string, bg: string, objetivo = 4.5, dir: DireccionPiso = direccionDePiso(bg)): string {
   let lch = labToLch(hexToOklab(hex)), out = hex;
-  for (let i = 0; i < 140 && contraste(out, bg) < objetivo; i++) { lch = { ...lch, L: Math.max(0, lch.L - 0.008) }; out = oklabToHex(lchToLab(lch)); }
+  const paso = dir === 'oscurecer' ? -0.008 : 0.008;
+  for (let i = 0; i < 140 && contraste(out, bg) < objetivo; i++) {
+    lch = { ...lch, L: Math.min(1, Math.max(0, lch.L + paso)) };
+    out = oklabToHex(lchToLab(lch));
+  }
   return out;
 }
 
@@ -94,9 +113,10 @@ const RECETA: Record<string, { a: keyof RaicesPaleta; b: keyof RaicesPaleta; w: 
 };
 
 /**
- * Deriva las 20 tintas `--sf-*` de las 3 raíces. Devuelve un mapa {nombre → hex} listo
- * para inyectar como CSS vars. Las 3 raíces se copian tal cual; el resto se mezcla; los
- * roles de texto se florean sobre el fondo.
+ * Deriva las 24 tintas `--sf-*` de las 3 raíces (3 raíces + 18 de la RECETA + `acento-txt` +
+ * `tarjeta`/`sobre` — § eje 5b). Devuelve un mapa {nombre → hex} listo para inyectar como CSS
+ * vars. Las 3 raíces se copian tal cual; el resto se mezcla; los roles de texto se florean
+ * sobre el fondo.
  */
 export function derivarPaleta(raices: RaicesPaleta): PaletaDerivada {
   const { fondo, tinta, acento } = raices;
@@ -116,5 +136,47 @@ export function derivarPaleta(raices: RaicesPaleta): PaletaDerivada {
   // → gana el blanco) queda #ffffff EXACTO → byte-idéntico. Para un acento claro (neón →
   // gana la tinta) el botón toma texto oscuro. (§ el gemelo del split de links.)
   out['acento-txt'] = contraste('#ffffff', acento) >= contraste(tinta, acento) ? '#ffffff' : tinta;
+  // tarjeta/sobre (§ eje 5b, los 2 tokens nuevos): la superficie de una TARJETA sobre el
+  // esquema CREMA/default y su texto/ícono. Hoy son `bg-white`/`text-white` LITERALES en el
+  // código —constantes, sin importar el acento del cliente—; acá el motor los deja igual de
+  // constantes para el esquema por defecto. `derivarEsquema` los REDERIVA para los otros
+  // esquemas (superficie oscura/acento), donde blanco puro ya no es la superficie correcta.
+  out['tarjeta'] = '#ffffff';
+  out['sobre'] = '#ffffff';
+  return out;
+}
+
+// ── LOS ESQUEMAS (§ eje 5b) ──────────────────────────────────────────────────
+// Un esquema es la superficie sobre la que vive una BANDA de la tienda (una tarjeta, un hero,
+// un CTA) — set CERRADO de cuatro. `crema` es el default de hoy; los otros tres cambian la
+// superficie base y, con ella, la DIRECCIÓN del piso de contraste de los roles de texto.
+export type EsquemaId = 'crema' | 'superficie' | 'oscuro' | 'acento';
+
+/**
+ * Deriva el set de tokens `--sf-*` de UN ESQUEMA, de las MISMAS 3 raíces (cero color nuevo).
+ * `crema` es EXACTO al output de `derivarPaleta` de hoy —byte-idéntico, es literalmente el
+ * mismo objeto—. Los otros tres reusan `mezclar` y la `RECETA` INTACTAS: lo único que cambia
+ * es la SUPERFICIE base (`superficie` → la superficie ya derivada; `oscuro` → la raíz tinta;
+ * `acento` → la raíz acento) y, con ella, la dirección del piso —derivada automáticamente por
+ * `pisoContraste` de la luminancia de esa superficie (§ `direccionDePiso`)—. Los roles que se
+ * re-florean son los tres de siempre —`texto`, `texto-suave`, `acento-texto`—, re-anclados a la
+ * NUEVA superficie en vez de a la raíz `fondo`. `tarjeta`/`sobre` se re-derivan de la superficie
+ * del esquema (una tarjeta un ~10% más clara que su banda, con su propio auto-flip de texto).
+ *
+ * INERTE: nadie la llama todavía — la cablea 5b-B (§ Backlog, eje 5b).
+ */
+export function derivarEsquema(raices: RaicesPaleta, id: EsquemaId): PaletaDerivada {
+  const base = derivarPaleta(raices);
+  if (id === 'crema') return base;
+
+  const superficie = id === 'superficie' ? base.superficie : id === 'oscuro' ? raices.tinta : raices.acento;
+  const out: PaletaDerivada = { ...base, fondo: superficie };
+  for (const rol of ['acento-texto', 'texto', 'texto-suave'] as const) {
+    out[rol] = pisoContraste(base[rol], superficie, 4.5);
+  }
+  // tarjeta: la superficie del esquema, ~10% hacia la raíz fondo (una tarjeta más clara que su
+  // banda, siempre en dirección a la luz — nunca hacia tinta/acento, que oscurecería más).
+  out['tarjeta'] = mezclar(superficie, raices.fondo, 0.10);
+  out['sobre'] = contraste('#ffffff', out['tarjeta']) >= contraste(raices.tinta, out['tarjeta']) ? '#ffffff' : raices.tinta;
   return out;
 }
