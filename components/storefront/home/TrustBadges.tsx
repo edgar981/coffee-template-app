@@ -31,7 +31,7 @@ const BADGES = [
 
 export default function TrustBadges() {
   return (
-    <section className="border-y border-[var(--sf-linea)] bg-[var(--sf-fondo)] py-6">
+    <section className="sf-divisor-y border-[var(--sf-linea)] bg-[var(--sf-fondo)] py-6">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
           {BADGES.map(

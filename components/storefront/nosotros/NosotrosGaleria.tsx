@@ -65,7 +65,7 @@ function VideoCelda({ src, poster, alt }: { src: string; poster?: string; alt: s
       <span
         aria-hidden="true"
         className="absolute left-2 bottom-2 flex items-center justify-center rounded-full"
-        style={{ width: 30, height: 30, background: "rgba(250,247,244,0.82)", color: "var(--sf-tinta)", pointerEvents: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }}
+        style={{ width: 30, height: 30, background: "color-mix(in srgb, var(--sf-fondo) 82%, transparent)", color: "var(--sf-tinta)", pointerEvents: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" style={{ marginLeft: 1 }} aria-hidden="true">
           <path d="M8 5v14l11-7z" fill="currentColor" />

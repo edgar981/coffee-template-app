@@ -13,8 +13,8 @@ export default function Newsletter() {
             <h2 className="text-2xl sm:text-3xl font-playfair text-[var(--sf-tinta)] mb-3">Únete a la comunidad</h2>
             <p className="text-sm text-[var(--sf-texto)] mb-6">Recibe novedades, recetas y descuentos exclusivos. Solo café, sin spam.</p>
             <form className="flex gap-3 max-w-sm mx-auto" onSubmit={e => e.preventDefault()}>
-              <input type="email" placeholder="tu@correo.com" className="flex-1 px-4 py-3 rounded-full bg-white border border-[var(--sf-tostado-8)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/30" />
-              <button type="submit" className="bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] text-[var(--sf-acento-txt)] font-medium px-6 py-3 rounded-full text-sm transition-colors shrink-0">Suscribir</button>
+              <input type="email" placeholder="tu@correo.com" className="flex-1 px-4 py-3 sf-pildora bg-white border border-[var(--sf-tostado-8)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/30" />
+              <button type="submit" className="bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] text-[var(--sf-acento-txt)] font-medium px-6 py-3 sf-pildora text-sm transition-colors shrink-0">Suscribir</button>
             </form>
           </motion.div>
         </div>

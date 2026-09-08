@@ -131,7 +131,7 @@ export default function NavSearch({
             transition={{
               duration: 0.2,
             }}
-            className="absolute left-0 top-full z-50 w-full border-t border-[var(--sf-linea)] bg-white shadow-2xl"
+            className="absolute left-0 top-full z-50 w-full sf-divisor-t border-[var(--sf-linea)] bg-white shadow-2xl"
           >
             <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
               {/* Search Input */}
@@ -148,7 +148,7 @@ export default function NavSearch({
                     )
                   }
                   placeholder="Buscar café, origen, categoría..."
-                  className="w-full rounded-2xl border border-[var(--sf-linea)] bg-[var(--sf-fondo)] py-4 pl-12 pr-14 text-sm text-[var(--sf-tinta)] outline-none transition-all focus:border-[var(--sf-acento)] focus:ring-4 focus:ring-[var(--sf-acento)]/10"
+                  className="w-full rounded-2xl sf-borde border-[var(--sf-linea)] bg-[var(--sf-fondo)] py-4 pl-12 pr-14 text-sm text-[var(--sf-tinta)] outline-none transition-all focus:border-[var(--sf-acento)] focus:ring-4 focus:ring-[var(--sf-acento)]/10"
                 />
 
                 <button
@@ -180,7 +180,7 @@ export default function NavSearch({
                         onClick={() =>
                           setQuery(term)
                         }
-                        className="rounded-full bg-[var(--sf-superficie)] px-4 py-2 text-xs font-medium text-[var(--sf-texto)] transition-colors hover:bg-[var(--sf-superficie-2)]"
+                        className="sf-pildora bg-[var(--sf-superficie)] px-4 py-2 text-xs font-medium text-[var(--sf-texto)] transition-colors hover:bg-[var(--sf-superficie-2)]"
                       >
                         {term}
                       </button>

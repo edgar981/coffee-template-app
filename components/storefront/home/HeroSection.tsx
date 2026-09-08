@@ -100,7 +100,7 @@ export default function HeroSection() {
           >
             <Link
               href={HERO_HREFS.primario}
-              className="inline-flex items-center gap-2 rounded-full bg-[var(--sf-tostado)] px-8 py-4 text-sm font-semibold text-[var(--sf-tinta)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--sf-tostado-4)]"
+              className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-tostado)] px-8 py-4 text-sm font-semibold text-[var(--sf-tinta)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--sf-tostado-4)]"
             >
               {hero.ctaPrimarioLabel}
 
@@ -110,7 +110,7 @@ export default function HeroSection() {
             {hero.ctaSecundarioLabel && mostrarCtaSuscripcion && (
               <Link
                 href={HERO_HREFS.secundario}
-                className="inline-flex items-center gap-2 rounded-full border border-white/30 px-8 py-4 text-sm font-medium text-white transition-all duration-200 hover:border-white/60 hover:bg-white/10"
+                className="inline-flex items-center gap-2 sf-pildora border border-white/30 px-8 py-4 text-sm font-medium text-white transition-all duration-200 hover:border-white/60 hover:bg-white/10"
               >
                 {hero.ctaSecundarioLabel}
               </Link>

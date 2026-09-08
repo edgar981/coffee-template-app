@@ -65,7 +65,7 @@ export default function CartDrawer() {
             className="fixed top-0 right-0 z-50 flex h-full w-full max-w-sm flex-col bg-white shadow-2xl"
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-[var(--sf-linea)] px-5 py-4">
+            <div className="flex items-center justify-between sf-divisor-b border-[var(--sf-linea)] px-5 py-4">
               <div className="flex items-center gap-2">
                 <ShoppingBag className="h-5 w-5 text-[var(--sf-acento-texto)]" />
 
@@ -82,7 +82,7 @@ export default function CartDrawer() {
 
               <button
                 onClick={closeCart}
-                className="rounded-lg p-1.5 transition-colors hover:bg-[var(--sf-superficie)]"
+                className="sf-radio-lg p-1.5 transition-colors hover:bg-[var(--sf-superficie)]"
               >
                 <X className="h-5 w-5 text-[var(--sf-texto)]" />
               </button>
@@ -147,7 +147,7 @@ export default function CartDrawer() {
 
                         {/* Quantity Controls */}
                         <div className="mt-2 flex items-center gap-3">
-                          <div className="flex items-center gap-1 rounded-lg bg-[var(--sf-superficie)]">
+                          <div className="flex items-center gap-1 sf-radio-lg bg-[var(--sf-superficie)]">
                             <button
                               onClick={() =>
                                 updateQuantity(
@@ -155,7 +155,7 @@ export default function CartDrawer() {
                                   item.quantity - 1
                                 )
                               }
-                              className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-[var(--sf-linea)] cursor-pointer"
+                              className="flex h-7 w-7 items-center justify-center sf-radio-lg transition-colors hover:bg-[var(--sf-linea)] cursor-pointer"
                             >
                               <Minus className="h-3 w-3" />
                             </button>
@@ -171,7 +171,7 @@ export default function CartDrawer() {
                                   item.quantity + 1
                                 )
                               }
-                              className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-[var(--sf-linea)] cursor-pointer"
+                              className="flex h-7 w-7 items-center justify-center sf-radio-lg transition-colors hover:bg-[var(--sf-linea)] cursor-pointer"
                             >
                               <Plus className="h-3 w-3" />
                             </button>
@@ -200,7 +200,7 @@ export default function CartDrawer() {
 
             {/* Footer */}
             {items.length > 0 && (
-              <div className="space-y-3 border-t border-[var(--sf-linea)] px-5 py-4">
+              <div className="space-y-3 sf-divisor-t border-[var(--sf-linea)] px-5 py-4">
                 <div className="space-y-1.5 text-sm">
                   <div className="flex justify-between text-[var(--sf-texto)]">
                     <span>Envío</span>
@@ -217,7 +217,7 @@ export default function CartDrawer() {
                     </p>
                   )}
 
-                  <div className="flex justify-between border-t border-[var(--sf-linea)] pt-1 text-base font-bold text-[var(--sf-tinta)]">
+                  <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1 text-base font-bold text-[var(--sf-tinta)]">
                     <span>Subtotal</span>
 
                     <span>{formatCOP(subtotal)}</span>

@@ -74,7 +74,7 @@ export default function ProductCard({
       <motion.div
         whileHover={{ y: -4 }}
         transition={{ duration: 0.2 }}
-        className="overflow-hidden rounded-2xl border border-[var(--sf-linea)] bg-white transition-all duration-300 hover:shadow-lg"
+        className="overflow-hidden rounded-2xl sf-borde border-[var(--sf-linea)] bg-white transition-all duration-300 hover:shadow-lg"
       >
         {/* Image — el contenedor crema de marca queda como fallback si el
             producto no tiene imagen (evita pasar undefined a next/image). */}
@@ -93,7 +93,7 @@ export default function ProductCard({
           {product.badge && (
             <div className="absolute top-3 left-3">
               <span
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                className={`sf-pildora px-2.5 py-1 text-xs font-semibold ${
                   product.bestseller
                     ? "bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]"
                     : "bg-[var(--sf-tostado)] text-[var(--sf-tinta)]"
@@ -144,7 +144,7 @@ export default function ProductCard({
                 .map((note) => (
                   <span
                     key={note}
-                    className="rounded-full bg-[var(--sf-superficie)] px-2 py-0.5 text-[10px] text-[var(--sf-texto)]"
+                    className="sf-pildora bg-[var(--sf-superficie)] px-2 py-0.5 text-[10px] text-[var(--sf-texto)]"
                   >
                     {note}
                   </span>
