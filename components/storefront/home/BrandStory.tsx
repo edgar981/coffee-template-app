@@ -42,8 +42,10 @@ export default function BrandStory({ style }: { style?: React.CSSProperties } = 
             viewport={preview ? undefined : { once: true }}
             variants={fadeUp}
           >
+            {/* `--sf-tostado` era FIJO (§ eje 5b, home-2 — mismo hueco que el eyebrow del hero):
+                `--sf-sobre-banda` con `--sf-tostado` de fallback preserva hoy y se adapta por esquema. */}
             {brandStory.eyebrow && (
-              <p className="text-[var(--sf-tostado)] text-xs font-medium tracking-[0.2em] uppercase mb-4">
+              <p className="text-[var(--sf-sobre-banda,var(--sf-tostado))] text-xs font-medium tracking-[0.2em] uppercase mb-4">
                 {brandStory.eyebrow}
               </p>
             )}

@@ -47,10 +47,13 @@ export default function GrindChooser({ negocio, style }: { negocio?: string; sty
           variants={fadeUp}
           className="text-center mb-12"
         >
+          {/* Eyebrow/título SOBRE EL FONDO de la banda (no una tarjeta): `--sf-sobre-banda` con el
+              literal de hoy como fallback (§ eje 5b, home-2) — las tarjetas de abajo (`op.label`/
+              `op.copy`) NO se tocan: viven sobre el gradiente oscuro de su propia tile, no de la banda. */}
           {presentaciones.eyebrow && (
-            <p className="text-[var(--sf-acento-texto)] text-xs font-medium tracking-[0.2em] uppercase mb-2">{presentaciones.eyebrow}</p>
+            <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{presentaciones.eyebrow}</p>
           )}
-          <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-tinta)]">{presentaciones.titulo}</h2>
+          <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]">{presentaciones.titulo}</h2>
         </motion.div>
         <div className={`grid grid-cols-1 ${gridCols} gap-6`}>
           {tarjetas.map((op, i) => (

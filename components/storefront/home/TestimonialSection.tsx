@@ -33,8 +33,11 @@ export default function TestimonialSection({ style }: { style?: React.CSSPropert
             variants={fadeUp}
             className="text-center mb-12"
           >
-            {eyebrow && <p className="text-[var(--sf-acento-texto)] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</p>}
-            <h2 className="text-3xl font-playfair text-[var(--sf-tinta)]">{titulo}</h2>
+            {/* Eyebrow/título SOBRE EL FONDO de la banda: `--sf-sobre-banda` con el literal de hoy
+                como fallback (§ eje 5b, home-2). Las tarjetas de testimonio de abajo NO se tocan:
+                su texto va sobre `--sf-tarjeta`. */}
+            {eyebrow && <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{eyebrow}</p>}
+            <h2 className="text-3xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]">{titulo}</h2>
           </motion.div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {items.map((t, i) => {

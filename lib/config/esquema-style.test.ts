@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { esquemaStyle, heroEsOscuro } from './esquema-style';
-import { RAICES_DEFECTO, derivarEsquema } from './palette-derive';
+import { RAICES_DEFECTO, derivarEsquema, contraste } from './palette-derive';
 
 // Capa 1 del PUENTE banda→esquema (§ eje 5b, mitad B). Sin base — lógica pura.
 
@@ -10,9 +10,12 @@ test('esquemaStyle: sin esquema (null/undefined) → {} — CERO vars locales (b
   assert.deepEqual(esquemaStyle(undefined, null, null, null), {});
 });
 
-test('esquemaStyle: con esquema, emite exactamente las 4 vars que un esquema mueve', () => {
+test('esquemaStyle: con esquema, emite exactamente las 6 vars que un esquema mueve (§ home-2: + sobre-banda/-suave)', () => {
   const s = esquemaStyle('oscuro', null, null, null);
-  assert.deepEqual(Object.keys(s).sort(), ['--sf-banda', '--sf-linea-sobre', '--sf-sobre', '--sf-tarjeta']);
+  assert.deepEqual(
+    Object.keys(s).sort(),
+    ['--sf-banda', '--sf-linea-sobre', '--sf-sobre', '--sf-sobre-banda', '--sf-sobre-banda-suave', '--sf-tarjeta'],
+  );
 });
 
 test('esquemaStyle: los valores emitidos SON los de `derivarEsquema` (mismo motor, sin redefinir la derivación)', () => {
@@ -23,7 +26,36 @@ test('esquemaStyle: los valores emitidos SON los de `derivarEsquema` (mismo moto
     '--sf-tarjeta': p.tarjeta,
     '--sf-sobre': p.sobre,
     '--sf-linea-sobre': p.linea,
+    '--sf-sobre-banda': p.texto,
+    '--sf-sobre-banda-suave': p['texto-suave'],
   });
+});
+
+// ── --sf-sobre-banda(-suave): texto DIRECTO sobre la banda, no sobre la tarjeta (§ home-2) ──────
+// El hueco medido que esta pasada cierra: `--sf-sobre` está floreado contra la TARJETA (buen
+// margen en 3/4 esquemas por coincidencia — tarjeta ≈ banda ±10% — pero FALLA en 'crema' porque el
+// sobre de esa rama es el blanco fijo de hoy, no un auto-flip). `--sf-sobre-banda` reusa
+// `texto`/`texto-suave`, que SIEMPRE están floreados contra el fondo de la banda misma.
+
+test('esquemaStyle: --sf-sobre-banda(-suave) ≥4.5:1 contra --sf-banda en LOS 4 ESQUEMAS (el peor caso, "crema", incluido)', () => {
+  for (const id of ['crema', 'superficie', 'oscuro', 'acento'] as const) {
+    const s = esquemaStyle(id, null, null, null);
+    assert.ok(
+      contraste(s['--sf-sobre-banda'], s['--sf-banda']) >= 4.5,
+      `${id}: --sf-sobre-banda debe leerse sobre --sf-banda`,
+    );
+    assert.ok(
+      contraste(s['--sf-sobre-banda-suave'], s['--sf-banda']) >= 4.5,
+      `${id}: --sf-sobre-banda-suave debe leerse sobre --sf-banda`,
+    );
+  }
+});
+
+test('esquemaStyle: --sf-sobre (tarjeta-scoped) NO alcanza 4.5:1 contra --sf-banda con "crema" — por eso existe --sf-sobre-banda', () => {
+  // Regresión documentada: si alguien "simplificara" reusando --sf-sobre para texto-sobre-banda,
+  // este caso (medido 1.07:1) lo delata.
+  const s = esquemaStyle('crema', null, null, null);
+  assert.ok(contraste(s['--sf-sobre'], s['--sf-banda']) < 4.5);
 });
 
 test('esquemaStyle: crema es EXACTO al output de `derivarPaleta` (tarjeta/sobre = #ffffff, byte-idéntico al literal de hoy)', () => {

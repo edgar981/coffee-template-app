@@ -65,10 +65,15 @@ export default function HeroSection({ style }: { style?: React.CSSProperties } =
           }}
           className="max-w-2xl"
         >
+          {/* El eyebrow y el énfasis del titular usaban `--sf-tostado` —FIJO, no recomputado por
+              esquema (§ eje 5b, home-2)— así que sobre un esquema CLARO (crema/superficie) quedaban
+              tan claros como el fondo: medido, 2.02:1/1.76:1. `--sf-sobre-banda` con `--sf-tostado`
+              de fallback preserva el tostado de hoy sin esquema y se adapta con uno asignado. El
+              título/subtítulo YA usan `--sf-sobre` (mitad B) — quedan intactos. */}
           {hero.eyebrow && (
             <motion.p
               variants={fadeUp}
-              className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-[var(--sf-tostado)]"
+              className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-[var(--sf-sobre-banda,var(--sf-tostado))]"
             >
               {hero.eyebrow}
             </motion.p>
@@ -82,7 +87,7 @@ export default function HeroSection({ style }: { style?: React.CSSProperties } =
             {hero.tituloEnfasis && (
               <>
                 <br />
-                <em className="italic text-[var(--sf-tostado)]">{hero.tituloEnfasis}</em>
+                <em className="italic text-[var(--sf-sobre-banda,var(--sf-tostado))]">{hero.tituloEnfasis}</em>
               </>
             )}
           </motion.h1>

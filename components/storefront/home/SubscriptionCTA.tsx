@@ -54,8 +54,13 @@ export default function SubscriptionCTA({ style }: { style?: React.CSSProperties
               viewport={preview ? undefined : { once: true }}
               variants={fadeUp}
             >
+              {/* `--sf-tostado` era FIJO (§ eje 5b, home-2 — mismo hueco que el eyebrow del hero):
+                  `--sf-sobre-banda` con `--sf-tostado` de fallback preserva hoy y se adapta por
+                  esquema. El bullet-dot y las tarjetas de plan del teaser NO se tocan: el primero es
+                  decorativo (no texto), las segundas son tarjetas self-contained con su propio par
+                  acento/acento-txt, independiente del esquema de la sección. */}
               {subscriptionCTA.eyebrow && (
-                <p className="text-[var(--sf-tostado)] text-xs tracking-[0.2em] uppercase mb-3">{subscriptionCTA.eyebrow}</p>
+                <p className="text-[var(--sf-sobre-banda,var(--sf-tostado))] text-xs tracking-[0.2em] uppercase mb-3">{subscriptionCTA.eyebrow}</p>
               )}
               <h2 className="text-4xl font-playfair text-[var(--sf-sobre)] mb-4">{subscriptionCTA.titulo}</h2>
               <p className="text-[var(--sf-sobre)]/60 mb-8 leading-relaxed">{subscriptionCTA.subtitulo}</p>
