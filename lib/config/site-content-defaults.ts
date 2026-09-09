@@ -270,6 +270,7 @@ export interface SiteContentData {
   paginas: PaginasContent;
   tema: TemaContent;
   esquemas: EsquemasContent;
+  orden: OrdenContent;
 }
 
 // META de esquemas (§ eje 5b, mitad B): el mapa bandaId→esquema que decide sobre QUÉ superficie
@@ -280,6 +281,20 @@ export interface SiteContentData {
 // Una banda AUSENTE del mapa (o con basura) = SIN OVERRIDE = su token CANÓNICO de hoy — el
 // mecanismo que mantiene a Nayoli byte-idéntica sin sembrar fila (§ `--sf-banda` en `esquema-style`).
 export type EsquemasContent = Record<string, ClaveEsquema>;
+
+// META de ORDEN (§ eje 5, parte c — el orden de las bandas del home como DATO). A diferencia de
+// `esquemas` (dominio ABIERTO, cualquier bandaId), acá el dominio es CERRADO: los 7 ids de banda
+// que hoy monta `app/(storefront)/page.tsx`. `BANDA_IDS` es la ÚNICA lista de esos ids —
+// `site-content-schema.ts` la importa para su `z.enum` en vez de declarar una segunda—, y ya está
+// en el ORDEN DEFAULT de hoy, así que `[...BANDA_IDS]` sirve directo como default. Newsletter
+// (`newsletter`) queda FUERA: sigue oculta/comentada en v1 (§ page.tsx) y no se renderiza, así que
+// no es un id reordenable — agregarla es el día que se reactive esa sección.
+export const BANDA_IDS = [
+  'hero', 'trustBadges', 'featured', 'brandStory', 'presentaciones', 'subscriptionCTA', 'testimonials',
+] as const;
+export type BandaId = typeof BANDA_IDS[number];
+export type OrdenContent = BandaId[];
+export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 
 // Los DEFAULTS son los literales que hoy viven en el JSX del hero. Se mueven acá; el
 // componente los recibe resueltos.
@@ -427,6 +442,10 @@ export const DEFAULTS: SiteContentData = {
   // (SubscriptionCTA, un oscuro cálido DISTINTO de `oscuro`=tinta) y el blanco puro de hoy contra
   // el texto cálido 8.49:1 que sólo aparece cuando un tenant ASIGNA el esquema.
   esquemas: {},
+  // ORDEN por defecto: la secuencia de HOY del home (§ eje 5, parte c) — el mismo `[...BANDA_IDS]`
+  // que `ORDEN_DEFAULT`. Sin fila, `.map` en `page.tsx` produce el MISMO árbol que el JSX fijo de
+  // ayer → byte-idéntico.
+  orden: ORDEN_DEFAULT,
 };
 
 // Destinos de los CTA — ESTRUCTURA, no editable. Los labels se editan; los hrefs NO: un
@@ -468,10 +487,10 @@ export interface SeccionDef {
   imagenes?: string[];
 }
 
-// Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema` y `esquemas`, que
-// no son secciones). El REGISTRY las cubre a todas; las tres metas quedan fuera a propósito —cada
-// una se resuelve aparte del loop de secciones.
-export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'esquemas'>;
+// Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema`, `esquemas` y
+// `orden`, que no son secciones). El REGISTRY las cubre a todas; las cuatro metas quedan fuera a
+// propósito —cada una se resuelve aparte del loop de secciones.
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'esquemas' | 'orden'>;
 
 export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
@@ -699,6 +718,9 @@ export function resolverSiteContent(
   // y `tema` — pero KEY-AGNÓSTICO (§ `resolverEsquemas`, abajo): a diferencia de esas dos, no hay un
   // `defaults` con un set fijo de claves que enumerar.
   out.esquemas = resolverEsquemas(raw.esquemas);
+  // ORDEN (meta, no sección): la secuencia de bandas, resuelta aparte del loop igual que las otras
+  // tres — pero con dominio CERRADO (§ `resolverOrden`, abajo), a diferencia de `esquemas`.
+  out.orden = resolverOrden(raw.orden);
   return out as unknown as SiteContentData;
 }
 
@@ -759,6 +781,34 @@ export function resolverEsquemas(stored: unknown): EsquemasContent {
   const out: EsquemasContent = {};
   for (const [banda, val] of Object.entries(st)) {
     if (typeof val === 'string' && ESQUEMA_IDS.has(val as ClaveEsquema)) out[banda] = val as ClaveEsquema;
+  }
+  return out;
+}
+
+const ORDEN_IDS = new Set<BandaId>(BANDA_IDS);
+
+/**
+ * Resuelve el ORDEN de las bandas del home (§ eje 5, parte c), gemelo de `resolverEsquemas` pero
+ * con dominio CERRADO (`BANDA_IDS`) en vez de key-agnóstico. Filtra `stored` a ids CONOCIDOS,
+ * DEDUPLICA (la primera aparición gana), y AGREGA al final —en el orden default— cualquier id
+ * conocido que falte. Así un orden parcial, con repetidos, o pura basura SIEMPRE resuelve a la
+ * lista COMPLETA de 7: ninguna banda puede caerse del home por un `orden` corrupto. `orden` NO
+ * controla visibilidad (eso es `paginas`/`visible` por sección); es sólo SECUENCIA. SOFT, nunca
+ * lanza — misma familia que el resto de los loaders de SiteContent.
+ */
+export function resolverOrden(stored: unknown): BandaId[] {
+  const out: BandaId[] = [];
+  const vistos = new Set<BandaId>();
+  if (Array.isArray(stored)) {
+    for (const v of stored) {
+      if (typeof v === 'string' && ORDEN_IDS.has(v as BandaId) && !vistos.has(v as BandaId)) {
+        out.push(v as BandaId);
+        vistos.add(v as BandaId);
+      }
+    }
+  }
+  for (const id of BANDA_IDS) {
+    if (!vistos.has(id)) out.push(id);
   }
   return out;
 }
