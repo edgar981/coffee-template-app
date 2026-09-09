@@ -39,6 +39,8 @@ const brandStoryEditableSchema = z.object({
 // congelado en "exactamente 2 sin categoria" desde C1 mientras el modelo creció a 2-4 + destino-dato,
 // así que `categoria1/2` y todo el slot 3-4 se perdían en cada ciclo—. Todo opcional/SOFT: el resolver
 // aplica el default a los requeridos (1-2) y omite los opcionales (3-4). Imágenes string (path o Blob).
+// `variante` (§ eje 5e): la COMPOSICIÓN de la sección ('mosaico'|'indice'); `z.string()` porque el
+// set de claves es por-sección y el resolver SOFT (`resolverVariante`) la clampa a la canónica.
 const presentacionesEditableSchema = z.object({
   visible: z.boolean().optional(),
   eyebrow: z.string().optional(),
@@ -47,6 +49,7 @@ const presentacionesEditableSchema = z.object({
   label2: z.string().optional(), copy2: z.string().optional(), imagen2: z.string().optional(), categoria2: z.string().optional(),
   label3: z.string().optional(), copy3: z.string().optional(), imagen3: z.string().optional(), categoria3: z.string().optional(),
   label4: z.string().optional(), copy4: z.string().optional(), imagen4: z.string().optional(), categoria4: z.string().optional(),
+  variante: z.string().optional(),
 });
 
 // SubscriptionCTA: solo texto (sin imágenes). `bullet1..4` opcionales — el resolver los omite

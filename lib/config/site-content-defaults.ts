@@ -75,6 +75,9 @@ export interface PresentacionesContent {
   copy4: string;
   imagen4: string;
   categoria4: string;
+  // La VARIANTE de composición (§ eje 5e). 'mosaico' (canónica, la de Nayoli) | 'indice'. Escalar de
+  // SECCIÓN —como `visible`—, no un `campos`: no lo toca el loop requerido/opcional del resolver.
+  variante: string;
 }
 
 // SubscriptionCTA ("Plan Suscripción"): eyebrow + h2 + un párrafo + HASTA CUATRO bullets + el label
@@ -368,6 +371,8 @@ export const DEFAULTS: SiteContentData = {
     // con 3-4 presentaciones las llena en el editor.
     label3: '', copy3: '', imagen3: '', categoria3: '',
     label4: '', copy4: '', imagen4: '', categoria4: '',
+    // La canónica (§ eje 5e): Nayoli queda byte-idéntica al mosaico de hoy.
+    variante: 'mosaico',
   },
   subscriptionCTA: {
     visible: true,
@@ -499,6 +504,22 @@ export const HERO_HREFS = { primario: '/tienda', secundario: '/suscripciones' } 
 //    `opcional` (vacío → el render lo OMITE).
 export type CampoTipo = 'requerido' | 'opcional';
 
+// VARIANTES DE COMPOSICIÓN (§ eje 5e): una sección puede declarar el mismo contenido con OTRO
+// esqueleto. No es color (`content.tema`/`esquemas`) ni contenido (los `campos`): es una propiedad
+// de la SECCIÓN, hermana exacta de `repeater`. `claves` es el set CERRADO de composiciones válidas;
+// `canonica` es la de Nayoli — resuelve `''`, null, ausente y basura (§ `resolverVariante`).
+//
+// NACE SIN `sobreOscuro` A PROPÓSITO: sería un SEGUNDO origen de verdad sobre si la banda es oscura,
+// y esa verdad ya es ÚNICA y EXPLÍCITA (`bandaEsOscura`, `esquema-style.ts` — por esquema asignado, o
+// la canónica `BANDAS_OSCURAS` sin esquema). Repetirla acá reintroduciría la familia de suposición
+// heredada que ese mecanismo existe para cerrar.
+export interface VariantesDef {
+  /** El set CERRADO de claves de composición de esta sección. */
+  claves: readonly string[];
+  /** La canónica —la de Nayoli—. Es lo que resuelve `''`, null, ausente y basura. */
+  canonica: string;
+}
+
 export interface SeccionDef {
   /** Nombre de la sección en el selector del editor (§ /admin/tienda). */
   label: string;
@@ -507,6 +528,9 @@ export interface SeccionDef {
    *  ÍTEM (requerido/opcional, para el resolver). Los campos NO-string del ítem (p. ej. un rating
    *  numérico) no van acá: el resolver los pasa tal cual. Coexiste con `campos` de sección. */
   repeater?: { itemsKey: string; campos: Record<string, CampoTipo> };
+  /** Sección con VARIANTES de composición (§ eje 5e). Hermano de `repeater`: declara el set cerrado
+   *  y la canónica; el resolver escribe `sec.variante` con `resolverVariante`. */
+  variantes?: VariantesDef;
   campos: Record<string, CampoTipo>;
   /** Nombres de los campos que son IMÁGENES (blobs). Los lee el borrado de blobs reemplazados
    *  (`imagenesDe`), NO el resolver. Para un repeater la imagen vive en cada item. */
@@ -556,6 +580,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // REQUERIDAS (vacío cae al default de Nayoli → mínimo 2); 3-4 OPCIONALES (vacío se respeta → la
     // tarjeta no se muestra si no se llena). `categoriaN` = el DESTINO (§ el destino es DATO).
     imagenes: ['imagen1', 'imagen2', 'imagen3', 'imagen4'],
+    // VARIANTES DE COMPOSICIÓN (§ eje 5e): 'mosaico' es la canónica —el GrindChooser de HOY,
+    // verbatim—; 'indice' es la nueva (filas numeradas). Ninguna otra sección declara `variantes`
+    // en este slice.
+    variantes: { claves: ['mosaico', 'indice'], canonica: 'mosaico' },
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',
@@ -691,6 +719,17 @@ const esVacio = (v: unknown): boolean => typeof v !== 'string' || v.trim() === '
 const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /**
+ * Normaliza la `variante` guardada a una clave del set CERRADO de la sección, o la CANÓNICA
+ * (§ eje 5e). Gemela de `resolverForma`/`resolverFuentePar`: `''`, null, ausente, basura u objeto
+ * → la canónica; NUNCA lanza. A diferencia de esas dos (donde el default es `null` = "sin
+ * override"), acá el default ES un valor del set — la canónica es una variante de verdad, no la
+ * ausencia de una.
+ */
+export function resolverVariante(def: VariantesDef, v: unknown): string {
+  return typeof v === 'string' && def.claves.includes(v) ? v : def.canonica;
+}
+
+/**
  * Merge SOFT del contenido guardado sobre los DEFAULTS. Por campo:
  *  · `requerido` vacío/ausente → el DEFAULT (el storefront nunca queda sin ese dato);
  *  · `opcional` PRESENTE (aun vacío) → se respeta (vacío = el render lo omite);
@@ -731,6 +770,10 @@ export function resolverSiteContent(
     if (def.repeater) {
       sec[def.repeater.itemsKey] = resolverItems(def.repeater.campos, storedSec[def.repeater.itemsKey]);
     }
+
+    // VARIANTES (§ eje 5e): resolver la composición guardada al set cerrado de la sección, o la
+    // canónica. `''`, null, ausente y basura → la canónica.
+    if (def.variantes) sec.variante = resolverVariante(def.variantes, storedSec.variante);
 
     out[key] = sec;
   }
