@@ -3,12 +3,15 @@ import assert from 'node:assert/strict';
 import {
   DEFAULTS,
   REGISTRY,
+  BANDA_IDS,
+  ORDEN_DEFAULT,
   mezclarBorrador,
   resolverSiteContent,
   resolverItems,
   resolverPaginas,
   resolverTema,
   resolverEsquemas,
+  resolverOrden,
   seccionEsVisible,
   type SeccionDef,
 } from './site-content-defaults';
@@ -540,4 +543,69 @@ test('presentaciones: un label requerido vacío cae al default (tarjeta nunca a 
   const r = resolverSiteContent({ presentaciones: { label1: '', copy2: '   ' } });
   assert.equal(r.presentaciones.label1, PRESENTACIONES_ANTES.label1); // requerido vacío → default
   assert.equal(r.presentaciones.copy2, PRESENTACIONES_ANTES.copy2);
+});
+
+// ── El ORDEN de las bandas (§ eje 5, parte c): meta CERRADA, gemela de `paginas`/`tema`/`esquemas` ──
+
+test('ORDEN_DEFAULT es exactamente la secuencia de HOY del home (byte-idéntico al JSX fijo de ayer)', () => {
+  assert.deepEqual(ORDEN_DEFAULT, [
+    'hero', 'trustBadges', 'featured', 'brandStory', 'presentaciones', 'subscriptionCTA', 'testimonials',
+  ]);
+  assert.deepEqual(BANDA_IDS, ORDEN_DEFAULT); // misma lista, una sola fuente
+});
+
+test('orden: sin nada guardado → el orden default completo (los 7 ids, en orden)', () => {
+  assert.deepEqual(resolverSiteContent({}).orden, ORDEN_DEFAULT);
+});
+
+test('orden NO es una sección: no rompe el loop de secciones, y el hero sí resuelve', () => {
+  const r = resolverSiteContent({ orden: ['featured', 'hero'] });
+  assert.deepEqual(r.orden, ['featured', 'hero', 'trustBadges', 'brandStory', 'presentaciones', 'subscriptionCTA', 'testimonials']);
+  assert.ok(typeof r.hero.titulo === 'string'); // las secciones siguen resolviendo
+});
+
+test('orden: SeccionKey lo excluye — el REGISTRY no tiene entrada `orden` (no es sección)', () => {
+  assert.equal('orden' in REGISTRY, false);
+});
+
+test('resolverOrden: un orden VÁLIDO y COMPLETO se respeta tal cual', () => {
+  assert.deepEqual(resolverOrden(ORDEN_DEFAULT), ORDEN_DEFAULT);
+  const alterno = ['presentaciones', 'hero', 'featured', 'trustBadges', 'brandStory', 'testimonials', 'subscriptionCTA'];
+  assert.deepEqual(resolverOrden(alterno), alterno);
+});
+
+test('resolverOrden: PARCIAL → se completa con lo faltante AL FINAL, en el orden default', () => {
+  assert.deepEqual(
+    resolverOrden(['presentaciones', 'featured']),
+    ['presentaciones', 'featured', 'hero', 'trustBadges', 'brandStory', 'subscriptionCTA', 'testimonials'],
+  );
+});
+
+test('resolverOrden: DEDUPLICA — la primera aparición gana, la repetida se descarta', () => {
+  assert.deepEqual(
+    resolverOrden(['hero', 'featured', 'hero', 'featured']),
+    ['hero', 'featured', 'trustBadges', 'brandStory', 'presentaciones', 'subscriptionCTA', 'testimonials'],
+  );
+});
+
+test('resolverOrden: ids DESCONOCIDOS se descartan (no revientan, no ocupan un lugar)', () => {
+  assert.deepEqual(
+    resolverOrden(['hero', 'unaSeccionQueNoExiste', 'featured']),
+    ['hero', 'featured', 'trustBadges', 'brandStory', 'presentaciones', 'subscriptionCTA', 'testimonials'],
+  );
+});
+
+test('resolverOrden: entrada basura (no-array, o array de basura) → el orden default entero, NO lanza', () => {
+  for (const basura of [null, undefined, 'x', 42, {}, [1, 2, 3], [null, 'hero', {}]]) {
+    const r = resolverOrden(basura);
+    assert.deepEqual([...r].sort(), [...ORDEN_DEFAULT].sort());
+    assert.equal(r.length, ORDEN_DEFAULT.length);
+  }
+});
+
+test('resolverOrden: SIEMPRE devuelve las 7 bandas — ninguna se cae, pase lo que pase en `stored`', () => {
+  for (const stored of [[], ['hero'], ['hero', 'hero', 'hero'], ORDEN_DEFAULT]) {
+    assert.equal(resolverOrden(stored).length, BANDA_IDS.length);
+    assert.deepEqual(new Set(resolverOrden(stored)), new Set(BANDA_IDS));
+  }
 });

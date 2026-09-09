@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { BANDA_IDS } from './site-content-defaults';
 
 // Forma EDITABLE del contenido del storefront. La corren el PATCH (la que MANDA) y el editor
 // (aviso temprano) — como el schema de SiteSetting.
@@ -159,6 +160,19 @@ const paginasEditableSchema = z.object({
 // (que absorbe basura SOFT para no romper una lectura ya guardada), el WRITE puede rechazarla.
 const esquemasEditableSchema = z.record(z.string(), z.enum(['crema', 'superficie', 'oscuro', 'acento']));
 
+// META de ORDEN (§ eje 5, parte c — el orden de las bandas del home como dato). NO es una sección
+// —tampoco pasa por el flujo borrador/publicar—; se declara acá SÓLO para que un futuro write
+// general no la STRIPPEE en silencio (§ #65-B). El set cerrado (`BANDA_IDS`) es la MISMA lista que
+// `resolverOrden` usa para filtrar — importada, no una segunda declaración. El LOADER
+// (`resolverOrden`) es la última red SOFT: aunque el schema deje pasar un array raro (o ninguno),
+// el resolver filtra a ids conocidos, deduplica y completa lo faltante. Acá el WRITE puede ser más
+// estricto que el loader (como `esquemasEditableSchema`): un id fuera del set cerrado, o repetido,
+// se rechaza.
+const ordenEditableSchema = z.array(z.enum(BANDA_IDS)).refine(
+  (arr) => new Set(arr).size === arr.length,
+  { message: 'orden: una banda no puede repetirse' },
+);
+
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   brandStory: brandStoryEditableSchema.optional(),
@@ -171,6 +185,7 @@ export const siteContentEditableSchema = z.object({
   suscripcionPasos: suscripcionPasosEditableSchema.optional(),
   paginas: paginasEditableSchema.optional(),
   esquemas: esquemasEditableSchema.optional(),
+  orden: ordenEditableSchema.optional(),
 });
 
 export type SiteContentEditable = z.infer<typeof siteContentEditableSchema>;

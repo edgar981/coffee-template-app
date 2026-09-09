@@ -11,13 +11,14 @@ import { STOREFRONT_TIENE_MARK } from '@/lib/config/storefront-marca';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { heroEsOscuro } from '@/lib/config/esquema-style';
+import { resolverOrden } from '@/lib/config/site-content-defaults';
 
 export default function StoreNav() {
   const { nombre } = useSiteSettings();
   // "Nosotros" es RUTA (/nosotros), y sólo aparece si la página está ENCENDIDA (§ paginas.nosotros).
   // Apagada, el enlace desaparece. Antes era un ancla a la home (`/#nuestra-historia`), cuyo
   // active-state por `pathname.startsWith` nunca matcheaba —la ruta real lo arregla—.
-  const { paginas, esquemas, tema } = useSiteContent();
+  const { paginas, esquemas, tema, orden } = useSiteContent();
   const links = [
     { label: 'Tienda', path: '/tienda' },
     // Suscripciones y Nosotros son CAPACIDADES apagables: su link aparece sólo si la página está viva
@@ -39,13 +40,23 @@ export default function StoreNav() {
     return () => window.removeEventListener('scroll', fn);
   }, []);
 
-  // El nav flota TRANSPARENTE sólo en home+sin-scroll (sobre el hero); su TEXTO va claro sólo si,
-  // además, el hero queda OSCURO con el esquema asignado (§ heroEsOscuro, eje 5b mitad B) — antes
-  // asumía el hero SIEMPRE oscuro, y un hero con esquema CLARO ('crema'/'superficie') habría dejado
-  // el nav blanco sobre blanco. Sin esquema asignado (canónica = tinta), `heroEsOscuro` da `true` →
-  // byte-idéntico al `isHome && !scrolled` de hoy.
+  // El nav flota TRANSPARENTE sólo en home+sin-scroll (sobre la PRIMERA banda del orden, § eje 5
+  // parte c — antes siempre el hero, hardcodeado); su TEXTO va claro sólo si, además, esa banda
+  // queda OSCURA con el esquema asignado (§ heroEsOscuro, eje 5b mitad B) — antes asumía el hero
+  // SIEMPRE oscuro, y un hero con esquema CLARO ('crema'/'superficie') habría dejado el nav blanco
+  // sobre blanco. Sin esquema asignado (canónica = tinta), `heroEsOscuro` da `true` → byte-idéntico
+  // al `isHome && !scrolled` de hoy — el orden default arranca en 'hero', así que `primera`==='hero'.
+  //
+  // HUECO CONOCIDO: `heroEsOscuro` es ESPECÍFICA del hero (§ su docstring en esquema-style.ts) — su
+  // fallback SIN esquema asume la canónica del HERO (`tinta`, oscura), no la de la banda que resulte
+  // primera. Si `orden` algún día pone una banda de canónica CLARA (trustBadges/featured/
+  // presentaciones/testimonials, todas `--sf-fondo`) primera Y sin esquema asignado, esta función
+  // daría "oscura" cuando en realidad es clara. Generalizarla exige una canónica por banda —vive en
+  // `lib/config/esquema-style.ts`, fuera de los archivos que toca este slice—; queda anotado para la
+  // tanda que dé edición real de `orden` (hoy no hay editor que lo escriba).
   const navFlotando = isHome && !scrolled;
-  const navClaro = navFlotando && heroEsOscuro(esquemas.hero, tema.fondo, tema.tinta, tema.acento);
+  const primera = resolverOrden(orden)[0];
+  const navClaro = navFlotando && heroEsOscuro(esquemas[primera], tema.fondo, tema.tinta, tema.acento);
 
   const navBg = navFlotando
     ? (navClaro ? 'bg-transparent text-[var(--sf-sobre)]' : 'bg-transparent text-[var(--sf-tinta)]')

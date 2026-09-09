@@ -77,3 +77,28 @@ test('esquemas: un mapa banda→esquema válido SOBREVIVE al parse (si no, zod l
 test('esquemas: un VALOR fuera del set cerrado de 4 se rechaza (a diferencia del resolver, que la absorbe SOFT)', () => {
   assert.throws(() => siteContentEditableSchema.parse({ esquemas: { hero: 'neon' } }));
 });
+
+// ─── ORDEN (§ eje 5, parte c): declarada como meta — sin STRIP silencioso, dominio CERRADO ────────
+
+test('orden: un array VÁLIDO de bandaIds conocidos SOBREVIVE al parse (si no, zod lo descartaría al guardar)', () => {
+  const parsed = siteContentEditableSchema.parse({ orden: ['presentaciones', 'hero', 'featured'] });
+  assert.deepEqual(parsed.orden, ['presentaciones', 'hero', 'featured']);
+});
+
+test('orden: un id FUERA del set cerrado se rechaza (a diferencia del resolver, que la absorbe SOFT)', () => {
+  assert.throws(() => siteContentEditableSchema.parse({ orden: ['hero', 'unaSeccionQueNoExiste'] }));
+});
+
+test('orden: una banda REPETIDA se rechaza (el write es más estricto que el loader, que dedupe)', () => {
+  assert.throws(() => siteContentEditableSchema.parse({ orden: ['hero', 'featured', 'hero'] }));
+});
+
+test('orden: un array PARCIAL (no las 7) se acepta — el schema no exige completitud, el resolver la garantiza', () => {
+  const parsed = siteContentEditableSchema.parse({ orden: ['hero'] });
+  assert.deepEqual(parsed.orden, ['hero']);
+});
+
+test('orden: ausente no rompe el parse (es opcional, como las otras metas)', () => {
+  const parsed = siteContentEditableSchema.parse({});
+  assert.equal(parsed.orden, undefined);
+});
