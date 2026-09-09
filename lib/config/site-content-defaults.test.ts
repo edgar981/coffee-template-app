@@ -14,6 +14,7 @@ import {
   resolverOrden,
   resolverVariante,
   bandaOscuraCanonica,
+  bandaUniforme,
   varianteDeBanda,
   seccionEsVisible,
   type SeccionDef,
@@ -595,8 +596,8 @@ test('una sección SIN `variantes` declarado no gana `variante` en el resuelto (
 // ── EL HERO GANA VARIANTES (§ EJE-5-VARIANTES-HERO): segunda sección con `variantes`, gemela de
 // Presentaciones (§ eje 5e) ──────────────────────────────────────────────────────────────────────
 
-test('REGISTRY.hero declara `variantes` con el set cerrado y la canónica', () => {
-  assert.deepEqual(REGISTRY.hero.variantes, { claves: ['curtina', 'ficha'], canonica: 'curtina' });
+test('REGISTRY.hero declara `variantes` con el set cerrado, la canónica y `noUniformes: [\'ficha\']` (§ EJE-5-NAV-UNIFORME)', () => {
+  assert.deepEqual(REGISTRY.hero.variantes, { claves: ['curtina', 'ficha'], canonica: 'curtina', noUniformes: ['ficha'] });
 });
 
 test('hero: sin fila, `variante` resuelve a la canónica "curtina" (byte-idéntico)', () => {
@@ -656,6 +657,35 @@ test('bandaOscuraCanonica: bandas claras SIN variante propia (trustBadges/featur
     assert.equal(bandaOscuraCanonica(bandaId, 'ficha'), false);
     assert.equal(bandaOscuraCanonica(bandaId, 'indice'), false); // presentaciones tiene sus PROPIAS variantes, ninguna oscura
   }
+});
+
+// ── `bandaUniforme` (§ EJE-5-NAV-UNIFORME): ¿la banda tiene UN solo tono? Puro LAYOUT, fuente
+// ÚNICA en `VariantesDef.noUniformes` — a diferencia de la darkness (fuente dinámica, el esquema,
+// § `bandaOscuraCanonica`/`bandaEsOscura`), un esquema no parte ni une una banda.
+
+test('bandaUniforme: hero·ficha → false (bi-tonal: crema a la izquierda, foto oscura a la derecha) — el FIX de este slice', () => {
+  assert.equal(bandaUniforme('hero', 'ficha'), false);
+});
+
+test('bandaUniforme: hero·curtina (o variante ausente) → true', () => {
+  assert.equal(bandaUniforme('hero', 'curtina'), true);
+  assert.equal(bandaUniforme('hero'), true);
+  assert.equal(bandaUniforme('hero', undefined), true);
+});
+
+test('bandaUniforme: presentaciones·mosaico e ·indice → true (ninguna variante de presentaciones es partida)', () => {
+  assert.equal(bandaUniforme('presentaciones', 'mosaico'), true);
+  assert.equal(bandaUniforme('presentaciones', 'indice'), true);
+});
+
+test('bandaUniforme: una banda ESTRUCTURAL sin sección (trustBadges/featured) → true — sin `variantes` declaradas, uniforme por default', () => {
+  assert.equal(bandaUniforme('trustBadges', undefined), true);
+  assert.equal(bandaUniforme('featured', undefined), true);
+});
+
+test('bandaUniforme: una sección SIN `variantes` declarado (brandStory) → true, para cualquier `variante` recibida', () => {
+  assert.equal(bandaUniforme('brandStory', undefined), true);
+  assert.equal(bandaUniforme('brandStory', 'ficha'), true);
 });
 
 // ── `varianteDeBanda` (§ EJE-5-VARIANTES-HERO): la variante resuelta de una banda, para el nav ────

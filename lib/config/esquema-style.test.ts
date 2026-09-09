@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { esquemaStyle, bandaEsOscura } from './esquema-style';
+import { esquemaStyle, bandaEsOscura, tratamientoNav } from './esquema-style';
 import { RAICES_DEFECTO, derivarEsquema, contraste } from './palette-derive';
 import { BANDA_IDS, BANDAS_OSCURAS, type EsquemasContent } from './site-content-defaults';
 
@@ -171,4 +171,35 @@ test('bandaEsOscura: CON esquema asignado, la variante se IGNORA — el esquema 
   // Banda OSCURA (hero) + esquema 'crema' → clara, para las DOS variantes.
   assert.equal(bandaEsOscura('hero', 'curtina', { hero: 'crema' }, null, null, null), false);
   assert.equal(bandaEsOscura('hero', 'ficha', { hero: 'crema' }, null, null, null), false);
+});
+
+// ── tratamientoNav (§ EJE-5-NAV-UNIFORME) — UNA regla: flotante (uniformidad) + textoClaro (darkness) ─
+// Corrige la SUPOSICIÓN de que la primera banda siempre admite un nav transparente-flotante. El gate
+// visual del owner encontró el nav ilegible sobre la ficha (bi-tonal): ningún color de texto único
+// se lee sobre las dos mitades.
+
+test('tratamientoNav: hero·ficha SIN esquema → {flotante:false, textoClaro:false} — el FIX. VISTO FALLAR sin uniformidad: heredaría {flotante:true, textoClaro:false} (el bug del gate, nav transparente sobre foto)', () => {
+  assert.deepEqual(tratamientoNav('hero', 'ficha', {}, null, null, null), { flotante: false, textoClaro: false });
+});
+
+test('tratamientoNav: hero·curtina SIN esquema → {flotante:true, textoClaro:true} — byte-idéntico al `isHome && !scrolled` de HOY (Nayoli)', () => {
+  assert.deepEqual(tratamientoNav('hero', 'curtina', {}, null, null, null), { flotante: true, textoClaro: true });
+});
+
+test('tratamientoNav: una banda clara UNIFORME (trustBadges, sin sección/variantes) → {flotante:true, textoClaro:false}', () => {
+  assert.deepEqual(tratamientoNav('trustBadges', undefined, {}, null, null, null), { flotante: true, textoClaro: false });
+});
+
+test('tratamientoNav: una banda + esquema "oscuro" → {flotante:true, textoClaro:true} — el esquema manda sobre la canónica, la uniformidad no depende de él', () => {
+  assert.deepEqual(
+    tratamientoNav('featured', undefined, { featured: 'oscuro' }, null, null, null),
+    { flotante: true, textoClaro: true },
+  );
+});
+
+test('tratamientoNav: hero·ficha CON esquema sigue SIN flotar — la uniformidad es del LAYOUT, un esquema no une las dos mitades partidas', () => {
+  assert.deepEqual(
+    tratamientoNav('hero', 'ficha', { hero: 'oscuro' }, null, null, null),
+    { flotante: false, textoClaro: false },
+  );
 });

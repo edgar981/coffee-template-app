@@ -1,5 +1,5 @@
 import { derivarEsquema, contraste, RAICES_DEFECTO, type EsquemaId, type RaicesPaleta } from './palette-derive';
-import { bandaOscuraCanonica, type BandaId, type EsquemasContent } from './site-content-defaults';
+import { bandaOscuraCanonica, bandaUniforme, type BandaId, type EsquemasContent } from './site-content-defaults';
 
 // Puente entre UN esquema asignado a una BANDA (§ SiteContentData.esquemas, eje 5b mitad B) y las
 // CSS custom properties que el WRAPPER de esa banda inyecta vía `style` en su <section> raíz. Las
@@ -68,9 +68,11 @@ export function esquemaStyle(
 /**
  * ¿La banda `bandaId` queda OSCURA con la configuración actual? La decide el CONTRASTE real del
  * fondo derivado, no el NOMBRE del esquema — 'acento' puede ser claro u oscuro según el acento del
- * cliente (misma regla de `direccionDePiso` que usa el motor). Es la función que consume el nav
- * (§ StoreNav): el nav flota SIEMPRE sobre `orden[0]` (§ eje 5, el orden de las bandas como dato),
- * que YA NO es necesariamente el hero.
+ * cliente (misma regla de `direccionDePiso` que usa el motor). Es el COMPUTADOR de darkness; su
+ * consumidor es `tratamientoNav` (§ EJE-5-NAV-UNIFORME, abajo), no StoreNav directo — el nav flota
+ * SIEMPRE sobre `orden[0]` (§ eje 5, el orden de las bandas como dato), que YA NO es necesariamente
+ * el hero, y `tratamientoNav` decide primero si esa banda ADMITE flotar antes de preguntarle a ésta
+ * si es oscura.
  *
  * CON esquema asignado (`esquemas[bandaId]`) = el cálculo de contraste de hoy, sobre el fondo que
  * `derivarEsquema` produce para ese esquema. `variante` se IGNORA en esta rama a propósito: el
@@ -109,4 +111,36 @@ export function bandaEsOscura(
   if (!id) return bandaOscuraCanonica(bandaId, variante);
   const bandaFondo = derivarEsquema(raices, id).fondo;
   return contraste('#ffffff', bandaFondo) >= contraste(raices.tinta, bandaFondo);
+}
+
+/**
+ * Cómo debe tratar el nav a la banda sobre la que flota (§ StoreNav, EJE-5-NAV-UNIFORME). UNA regla
+ * sobre la primera banda, no dos que el consumidor combine a mano.
+ *
+ * `flotante`: ¿puede el nav flotar TRANSPARENTE sobre esta banda? Sólo si la banda es UNIFORME
+ * (`bandaUniforme`, § site-content-defaults.ts) — una banda partida (la ficha del hero: crema a la
+ * izquierda, foto oscura a la derecha) no tiene un color de texto único que se lea sobre las dos
+ * mitades, así que el nav cae a SÓLIDO.
+ *
+ * `textoClaro`: si flota, ¿el texto va claro? = la banda es oscura (`bandaEsOscura` — el
+ * COMPUTADOR de darkness, por contraste real CON esquema, por la canónica declarada SIN esquema).
+ * Con `flotante: false` no hay texto claro que decidir: el sólido va con texto oscuro siempre
+ * (misma lectura que el nav con scroll de hoy).
+ *
+ * MINA CERRADA (§ EJE-5-NAV-UNIFORME): el nav asumía que TODA banda es uniforme —cierto mientras la
+ * única variante de la primera banda era la curtina (foto oscura a sangre) o un esquema asignado (un
+ * solo color derivado)—. La ficha del hero es bi-tonal, y el gate visual del owner encontró el nav
+ * transparente con texto oscuro ilegible sobre su mitad de foto. Antes de preguntar si la banda es
+ * oscura, hay que preguntar si tiene UN tono que preguntar eso.
+ */
+export function tratamientoNav(
+  bandaId: BandaId,
+  variante: string | undefined,
+  esquemas: EsquemasContent,
+  fondo: string | null,
+  tinta: string | null,
+  acento: string | null,
+): { flotante: boolean; textoClaro: boolean } {
+  if (!bandaUniforme(bandaId, variante)) return { flotante: false, textoClaro: false };
+  return { flotante: true, textoClaro: bandaEsOscura(bandaId, variante, esquemas, fondo, tinta, acento) };
 }

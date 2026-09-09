@@ -10,7 +10,7 @@ import { Logo } from '@/components/storefront/Logo';
 import { STOREFRONT_TIENE_MARK } from '@/lib/config/storefront-marca';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
-import { bandaEsOscura } from '@/lib/config/esquema-style';
+import { tratamientoNav } from '@/lib/config/esquema-style';
 import { resolverOrden, varianteDeBanda } from '@/lib/config/site-content-defaults';
 
 export default function StoreNav() {
@@ -41,13 +41,14 @@ export default function StoreNav() {
     return () => window.removeEventListener('scroll', fn);
   }, []);
 
-  // El nav flota TRANSPARENTE sólo en home+sin-scroll (sobre la PRIMERA banda del orden, § eje 5
-  // parte c); su TEXTO va claro sólo si, además, esa banda queda OSCURA (§ `bandaEsOscura`,
-  // EJE-5-ORDEN-NAV-CANONICA). CON esquema asignado es el cálculo de contraste de siempre; SIN
-  // esquema es la CANÓNICA declarada de la banda (`bandaOscuraCanonica` en site-content-defaults.ts:
-  // hero/brandStory/subscriptionCTA oscuras, el resto claras) — YA NO asume que la primera banda es
-  // siempre el hero. El orden default arranca en 'hero' con variante 'curtina' (oscura, sin esquema)
-  // → byte-idéntico al `isHome && !scrolled` de hoy.
+  // El nav trata a la PRIMERA banda del orden (§ eje 5 parte c) con UNA sola regla,
+  // `tratamientoNav` (esquema-style.ts): flota TRANSPARENTE sólo en home+sin-scroll Y sobre una
+  // banda UNIFORME; si flota, su TEXTO va claro sólo si esa banda queda OSCURA. CON esquema
+  // asignado la darkness es el cálculo de contraste de siempre; SIN esquema es la CANÓNICA
+  // declarada de la banda (`bandaOscuraCanonica` en site-content-defaults.ts: hero/brandStory/
+  // subscriptionCTA oscuras, el resto claras) — YA NO asume que la primera banda es siempre el
+  // hero. El orden default arranca en 'hero' con variante 'curtina' (uniforme, oscura, sin
+  // esquema) → byte-idéntico al `isHome && !scrolled` de hoy.
   //
   // MINA CERRADA (era HUECO CONOCIDO): `heroEsOscuro` era específica del hero y su fallback SIN
   // esquema asumía SIEMPRE la canónica del hero (oscura) para CUALQUIER banda primera — correcto
@@ -58,9 +59,18 @@ export default function StoreNav() {
   // el hero ganó variantes de composición — 'ficha' es CLARA, al revés de 'curtina'. `bandaEsOscura`
   // ahora recibe también la VARIANTE de esa banda (`varianteDeBanda`); sin esto, un hero·ficha
   // primero-y-sin-esquema habría dejado el nav con texto claro sobre banda clara.
-  const navFlotando = isHome && !scrolled;
+  //
+  // MINA CERRADA #3 (§ EJE-5-NAV-UNIFORME): flotar transparente ASUMÍA que la primera banda siempre
+  // admite un único color de texto — cierto mientras esa banda era la curtina (foto oscura a sangre)
+  // o un esquema asignado (un solo color derivado). La ficha del hero es BI-TONAL —crema a la
+  // izquierda, foto oscura a la derecha— y ningún color único se lee sobre las dos mitades; el gate
+  // visual del owner lo encontró (texto oscuro del nav ilegible sobre la foto). `tratamientoNav`
+  // pregunta PRIMERO si la banda es uniforme (`bandaUniforme`, § site-content-defaults.ts): si no lo
+  // es, el nav cae a SÓLIDO desde el primer render, sin importar scroll ni esquema.
   const primera = resolverOrden(orden)[0];
-  const navClaro = navFlotando && bandaEsOscura(primera, varianteDeBanda(content, primera), esquemas, tema.fondo, tema.tinta, tema.acento);
+  const t = tratamientoNav(primera, varianteDeBanda(content, primera), esquemas, tema.fondo, tema.tinta, tema.acento);
+  const navFlotando = isHome && !scrolled && t.flotante;
+  const navClaro = navFlotando && t.textoClaro;
 
   const navBg = navFlotando
     ? (navClaro ? 'bg-transparent text-[var(--sf-sobre)]' : 'bg-transparent text-[var(--sf-tinta)]')
