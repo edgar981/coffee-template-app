@@ -296,6 +296,32 @@ export type BandaId = typeof BANDA_IDS[number];
 export type OrdenContent = BandaId[];
 export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 
+// LA CANÓNICA DE DARKNESS POR BANDA (§ eje 5, cierra la mina del nav abierta por el orden-como-dato).
+// `bandaEsOscura` (`lib/config/esquema-style.ts`, el ÚNICO consumidor vía StoreNav) necesita saber si
+// la banda sobre la que flota el nav es oscura CUANDO esa banda NO tiene esquema asignado. Antes de
+// este set no existía tal cosa: la función (entonces `heroEsOscuro`) asumía SIEMPRE la canónica del
+// HERO —correcto sólo mientras `orden[0]` era necesariamente 'hero'—; el eje 5 (el orden como dato)
+// rompió esa garantía, así que una banda CLARA sin esquema puesta primera habría dejado el nav con
+// texto claro sobre fondo claro.
+//
+// El DEFAULT es CLARO: oscuro es la EXCEPCIÓN declarada acá, no la regla. Atado a los fondos
+// canónicos que cada componente del home trae como fallback de `bg-[var(--sf-banda,<token>)]`
+// (grep vivo contra el código, no supuesto — verificar de nuevo si un componente cambia su fallback):
+//   hero            → var(--sf-tinta)      (HeroSection.tsx)        → OSCURA
+//   brandStory      → var(--sf-tinta)      (BrandStory.tsx)         → OSCURA
+//   subscriptionCTA → var(--sf-tinta-2)    (SubscriptionCTA.tsx)    → OSCURA
+//   trustBadges     → var(--sf-fondo)      (TrustBadges.tsx)        → clara
+//   featured        → var(--sf-fondo)      (FeaturedProducts.tsx)   → clara
+//   presentaciones  → var(--sf-fondo)      (GrindChooser.tsx)       → clara
+//   testimonials    → var(--sf-fondo)      (TestimonialSection.tsx) → clara
+//   (newsletter     → var(--sf-superficie) (Newsletter.tsx), oculta v1 — no en BANDA_IDS, no aplica)
+//
+// Esta lista DUPLICA a propósito el token que cada componente ya declara en su JSX — no se
+// refactorizaron los fondos canónicos a un dato compartido en esta pasada (alcance mayor al de este
+// slice, a decidir aparte). Si un componente cambia su fallback de `--sf-banda`, este set hay que
+// actualizarlo A MANO contra el grep de arriba, o divergen en silencio.
+export const BANDAS_OSCURAS: ReadonlySet<BandaId> = new Set<BandaId>(['hero', 'brandStory', 'subscriptionCTA']);
+
 // Los DEFAULTS son los literales que hoy viven en el JSX del hero. Se mueven acá; el
 // componente los recibe resueltos.
 export const DEFAULTS: SiteContentData = {
