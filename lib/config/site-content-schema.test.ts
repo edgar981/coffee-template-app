@@ -39,6 +39,12 @@ test('galería: un tipo FUERA del enum se rechaza (no cualquier string en `tipo`
   assert.throws(() => siteContentEditableSchema.parse({ nosotrosGaleria: { items: [{ url: '/a.jpg', tipo: 'audio' }] } }));
 });
 
+// ─── VARIANTES DE COMPOSICIÓN (§ eje 5e): `variante` de presentaciones SOBREVIVE al parse ────────
+test('presentaciones: `variante` SOBREVIVE al parse (si no, zod la descartaría al guardar)', () => {
+  const parsed = siteContentEditableSchema.parse({ presentaciones: { variante: 'indice' } });
+  assert.equal(parsed.presentaciones!.variante, 'indice');
+});
+
 // ─── EL DERIVADO (§ Backlog #65-B, FIX 3): modelo ⊆ schema, sin una tercera lista a mano ─────────
 // Los tests de arriba prueban ÍTEM POR ÍTEM lo que sobrevive/se rechaza (la mitad de repeater). Éste
 // cierra la OTRA brecha —la que costó #65-B—: que TODO campo de PRIMER NIVEL del modelo esté en el

@@ -12,8 +12,10 @@ import {
   resolverTema,
   resolverEsquemas,
   resolverOrden,
+  resolverVariante,
   seccionEsVisible,
   type SeccionDef,
+  type VariantesDef,
 } from './site-content-defaults';
 import { hrefCategoria } from '../productos/categorias';
 
@@ -509,6 +511,8 @@ const PRESENTACIONES_ANTES = {
   // Slots 3-4 opcionales, VACÍOS por defecto → la home de Nayoli renderiza 2 (byte-idéntico).
   label3: '', copy3: '', imagen3: '', categoria3: '',
   label4: '', copy4: '', imagen4: '', categoria4: '',
+  // La canónica de composición (§ eje 5e): 'mosaico' es el GrindChooser de hoy, verbatim.
+  variante: 'mosaico',
 };
 
 test('presentaciones: sin fila, los defaults resueltos reproducen los literales de GrindChooser', () => {
@@ -543,6 +547,47 @@ test('presentaciones: un label requerido vacío cae al default (tarjeta nunca a 
   const r = resolverSiteContent({ presentaciones: { label1: '', copy2: '   ' } });
   assert.equal(r.presentaciones.label1, PRESENTACIONES_ANTES.label1); // requerido vacío → default
   assert.equal(r.presentaciones.copy2, PRESENTACIONES_ANTES.copy2);
+});
+
+// ── VARIANTES DE COMPOSICIÓN (§ eje 5e): el MECANISMO, hermano de `repeater` ─────────────────────
+
+const VARIANTES_TEST: VariantesDef = { claves: ['mosaico', 'indice'], canonica: 'mosaico' };
+
+test('resolverVariante: ausente, vacío, null, basura u objeto → la canónica', () => {
+  assert.equal(resolverVariante(VARIANTES_TEST, undefined), 'mosaico');
+  assert.equal(resolverVariante(VARIANTES_TEST, ''), 'mosaico');
+  assert.equal(resolverVariante(VARIANTES_TEST, null), 'mosaico');
+  assert.equal(resolverVariante(VARIANTES_TEST, 'foo'), 'mosaico'); // fuera del set → canónica
+  assert.equal(resolverVariante(VARIANTES_TEST, { indice: true }), 'mosaico');
+});
+
+test('resolverVariante: una clave DEL SET se respeta', () => {
+  assert.equal(resolverVariante(VARIANTES_TEST, 'indice'), 'indice');
+  assert.equal(resolverVariante(VARIANTES_TEST, 'mosaico'), 'mosaico');
+});
+
+test('presentaciones: sin fila, `variante` resuelve a la canónica "mosaico" (byte-idéntico)', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.presentaciones.variante, 'mosaico');
+});
+
+test('presentaciones: una `variante` guardada válida se respeta', () => {
+  const r = resolverSiteContent({ presentaciones: { variante: 'indice' } });
+  assert.equal(r.presentaciones.variante, 'indice');
+});
+
+test('presentaciones: una `variante` guardada fuera del set cae a la canónica', () => {
+  const r = resolverSiteContent({ presentaciones: { variante: 'no-existe' } });
+  assert.equal(r.presentaciones.variante, 'mosaico');
+});
+
+test('REGISTRY.presentaciones declara `variantes` con el set cerrado y la canónica', () => {
+  assert.deepEqual(REGISTRY.presentaciones.variantes, { claves: ['mosaico', 'indice'], canonica: 'mosaico' });
+});
+
+test('una sección SIN `variantes` declarado no gana `variante` en el resuelto (el hero, p. ej.)', () => {
+  const r = resolverSiteContent({});
+  assert.equal((r.hero as Record<string, unknown>).variante, undefined);
 });
 
 // ── El ORDEN de las bandas (§ eje 5, parte c): meta CERRADA, gemela de `paginas`/`tema`/`esquemas` ──
