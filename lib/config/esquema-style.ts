@@ -1,5 +1,5 @@
 import { derivarEsquema, contraste, RAICES_DEFECTO, type EsquemaId, type RaicesPaleta } from './palette-derive';
-import { BANDAS_OSCURAS, type BandaId, type EsquemasContent } from './site-content-defaults';
+import { bandaOscuraCanonica, type BandaId, type EsquemasContent } from './site-content-defaults';
 
 // Puente entre UN esquema asignado a una BANDA (§ SiteContentData.esquemas, eje 5b mitad B) y las
 // CSS custom properties que el WRAPPER de esa banda inyecta vía `style` en su <section> raíz. Las
@@ -73,12 +73,15 @@ export function esquemaStyle(
  * que YA NO es necesariamente el hero.
  *
  * CON esquema asignado (`esquemas[bandaId]`) = el cálculo de contraste de hoy, sobre el fondo que
- * `derivarEsquema` produce para ese esquema.
+ * `derivarEsquema` produce para ese esquema. `variante` se IGNORA en esta rama a propósito: el
+ * wrapper del esquema setea `--sf-banda` igual para las dos variantes de una sección, así que el
+ * contraste del fondo derivado ya decide bien sin mirar la composición.
  *
- * SIN esquema asignado = la CANÓNICA DE LA BANDA (`BANDAS_OSCURAS`, § `site-content-defaults.ts`):
- * oscura si `bandaId` está en ese set (hero/brandStory/subscriptionCTA — fondo literal de hoy
- * `tinta`/`tinta-2`), clara si no (trustBadges/featured/presentaciones/testimonials — fondo literal
- * `fondo`). El DEFAULT es CLARO: oscuro es la EXCEPCIÓN declarada, no la regla.
+ * SIN esquema asignado = la CANÓNICA DE LA BANDA (`bandaOscuraCanonica`, § `site-content-defaults.ts`),
+ * que SÍ mira `variante` — hoy sólo el hero bifurca: 'curtina' oscura (fondo literal `tinta`), 'ficha'
+ * clara (fondo literal `fondo`). El resto de las bandas (brandStory/subscriptionCTA oscuras;
+ * trustBadges/featured/presentaciones/testimonials claras) no varían con su variante. El DEFAULT es
+ * CLARO: oscuro es la EXCEPCIÓN declarada, no la regla.
  *
  * MINA CERRADA (§ eje 5, EJE-5-ORDEN-NAV-CANONICA): esta función se llamaba `heroEsOscuro` y su
  * fallback SIN esquema asumía SIEMPRE la canónica del HERO (`tinta`, oscura) para CUALQUIER banda
@@ -86,9 +89,16 @@ export function esquemaStyle(
  * orden como dato) rompió esa garantía: una banda CLARA sin esquema puesta primera habría dejado el
  * nav con texto claro sobre fondo claro. Generalizada a tomar la canónica DE LA BANDA que resulte
  * primera, no la del hero.
+ *
+ * MINA CERRADA #2 (§ EJE-5-VARIANTES-HERO): la canónica de una banda dejó de ser fija cuando el hero
+ * ganó variantes de composición —'ficha' es CLARA, al revés de 'curtina'—, así que esta función pasó
+ * a recibir la VARIANTE de la banda primera y delegarla a `bandaOscuraCanonica`. Sin este parámetro,
+ * un hero·ficha primero-y-sin-esquema habría dejado el nav con texto claro sobre banda clara (el
+ * mismo modo de falla de la mina #1, una capa más abajo).
  */
 export function bandaEsOscura(
   bandaId: BandaId,
+  variante: string | undefined,
   esquemas: EsquemasContent,
   fondo: string | null,
   tinta: string | null,
@@ -96,7 +106,7 @@ export function bandaEsOscura(
 ): boolean {
   const raices = raicesResueltas(fondo, tinta, acento);
   const id = esquemas[bandaId];
-  if (!id) return BANDAS_OSCURAS.has(bandaId);
+  if (!id) return bandaOscuraCanonica(bandaId, variante);
   const bandaFondo = derivarEsquema(raices, id).fondo;
   return contraste('#ffffff', bandaFondo) >= contraste(raices.tinta, bandaFondo);
 }

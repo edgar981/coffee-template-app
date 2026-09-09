@@ -13,6 +13,8 @@ import {
   resolverEsquemas,
   resolverOrden,
   resolverVariante,
+  bandaOscuraCanonica,
+  varianteDeBanda,
   seccionEsVisible,
   type SeccionDef,
   type VariantesDef,
@@ -585,9 +587,98 @@ test('REGISTRY.presentaciones declara `variantes` con el set cerrado y la canón
   assert.deepEqual(REGISTRY.presentaciones.variantes, { claves: ['mosaico', 'indice'], canonica: 'mosaico' });
 });
 
-test('una sección SIN `variantes` declarado no gana `variante` en el resuelto (el hero, p. ej.)', () => {
+test('una sección SIN `variantes` declarado no gana `variante` en el resuelto (brandStory, p. ej. — el hero SÍ, § EJE-5-VARIANTES-HERO)', () => {
   const r = resolverSiteContent({});
-  assert.equal((r.hero as Record<string, unknown>).variante, undefined);
+  assert.equal((r.brandStory as Record<string, unknown>).variante, undefined);
+});
+
+// ── EL HERO GANA VARIANTES (§ EJE-5-VARIANTES-HERO): segunda sección con `variantes`, gemela de
+// Presentaciones (§ eje 5e) ──────────────────────────────────────────────────────────────────────
+
+test('REGISTRY.hero declara `variantes` con el set cerrado y la canónica', () => {
+  assert.deepEqual(REGISTRY.hero.variantes, { claves: ['curtina', 'ficha'], canonica: 'curtina' });
+});
+
+test('hero: sin fila, `variante` resuelve a la canónica "curtina" (byte-idéntico)', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.hero.variante, 'curtina');
+});
+
+test('DEFAULTS.hero.variante es "curtina" (byte-idéntico al hero de hoy)', () => {
+  assert.equal(DEFAULTS.hero.variante, 'curtina');
+});
+
+test('hero: una `variante` guardada válida se respeta', () => {
+  const r = resolverSiteContent({ hero: { variante: 'ficha' } });
+  assert.equal(r.hero.variante, 'ficha');
+});
+
+test('hero: una `variante` guardada fuera del set cae a la canónica', () => {
+  const r = resolverSiteContent({ hero: { variante: 'no-existe' } });
+  assert.equal(r.hero.variante, 'curtina');
+});
+
+test('resolverVariante con las claves del hero: ausente/vacío/null/basura → "curtina"; "ficha" se respeta', () => {
+  assert.equal(resolverVariante(REGISTRY.hero.variantes!, undefined), 'curtina');
+  assert.equal(resolverVariante(REGISTRY.hero.variantes!, ''), 'curtina');
+  assert.equal(resolverVariante(REGISTRY.hero.variantes!, null), 'curtina');
+  assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'foo'), 'curtina');
+  assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'ficha'), 'ficha');
+  assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'curtina'), 'curtina');
+});
+
+// ── `bandaOscuraCanonica` (§ EJE-5-VARIANTES-HERO): la canónica de darkness, VARIANT-AWARE ────────
+// El hero es la ÚNICA banda cuya canónica depende de su variante — 'curtina' oscura (el fondo
+// literal de hoy, `--sf-tinta`), 'ficha' clara (`--sf-fondo`). El resto de las bandas no varía con
+// su variante y sigue resolviendo por `BANDAS_OSCURAS` a secas, para CUALQUIER `variante` recibida.
+
+test('bandaOscuraCanonica: hero·curtina (o variante ausente) → true (oscura)', () => {
+  assert.equal(bandaOscuraCanonica('hero', 'curtina'), true);
+  assert.equal(bandaOscuraCanonica('hero'), true);
+  assert.equal(bandaOscuraCanonica('hero', undefined), true);
+});
+
+test('bandaOscuraCanonica: hero·ficha → false (clara) — el FLIP que este slice introduce', () => {
+  assert.equal(bandaOscuraCanonica('hero', 'ficha'), false);
+});
+
+test('bandaOscuraCanonica: bandas oscuras SIN variante propia (brandStory/subscriptionCTA) siguen oscuras para CUALQUIER variante', () => {
+  for (const bandaId of ['brandStory', 'subscriptionCTA'] as const) {
+    assert.equal(bandaOscuraCanonica(bandaId), true);
+    assert.equal(bandaOscuraCanonica(bandaId, 'ficha'), true); // ignorada: no bifurcan
+    assert.equal(bandaOscuraCanonica(bandaId, 'curtina'), true);
+  }
+});
+
+test('bandaOscuraCanonica: bandas claras SIN variante propia (trustBadges/featured/presentaciones/testimonials) siguen claras para CUALQUIER variante', () => {
+  for (const bandaId of ['trustBadges', 'featured', 'presentaciones', 'testimonials'] as const) {
+    assert.equal(bandaOscuraCanonica(bandaId), false);
+    assert.equal(bandaOscuraCanonica(bandaId, 'ficha'), false);
+    assert.equal(bandaOscuraCanonica(bandaId, 'indice'), false); // presentaciones tiene sus PROPIAS variantes, ninguna oscura
+  }
+});
+
+// ── `varianteDeBanda` (§ EJE-5-VARIANTES-HERO): la variante resuelta de una banda, para el nav ────
+
+test('varianteDeBanda: hero resuelve a "curtina" con los DEFAULTS resueltos (sin fila)', () => {
+  const r = resolverSiteContent({});
+  assert.equal(varianteDeBanda(r, 'hero'), 'curtina');
+});
+
+test('varianteDeBanda: hero resuelve a "ficha" cuando se guarda esa variante', () => {
+  const r = resolverSiteContent({ hero: { variante: 'ficha' } });
+  assert.equal(varianteDeBanda(r, 'hero'), 'ficha');
+});
+
+test('varianteDeBanda: una banda ESTRUCTURAL sin sección en SiteContentData (trustBadges/featured) → undefined', () => {
+  const r = resolverSiteContent({});
+  assert.equal(varianteDeBanda(r, 'trustBadges'), undefined);
+  assert.equal(varianteDeBanda(r, 'featured'), undefined);
+});
+
+test('varianteDeBanda: una sección SIN `variantes` declarado (brandStory) → undefined, aunque SÍ sea una sección', () => {
+  const r = resolverSiteContent({});
+  assert.equal(varianteDeBanda(r, 'brandStory'), undefined);
 });
 
 // ── El ORDEN de las bandas (§ eje 5, parte c): meta CERRADA, gemela de `paginas`/`tema`/`esquemas` ──

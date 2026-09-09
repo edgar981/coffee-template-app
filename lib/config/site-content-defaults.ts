@@ -25,6 +25,10 @@ export interface HeroContent {
   ctaPrimarioLabel: string;
   ctaSecundarioLabel: string;
   imagen: string;
+  // La VARIANTE de composición (§ eje 5, EJE-5-VARIANTES-HERO). 'curtina' (canónica, la de Nayoli) |
+  // 'ficha'. Escalar de SECCIÓN —como `visible`—, no un `campos`: no lo toca el loop
+  // requerido/opcional del resolver. Gemela de `presentaciones.variante` (§ eje 5e).
+  variante: string;
 }
 
 // BrandStory ("Nuestra Historia"): eyebrow + h2 + dos párrafos + un collage 2×2 de cuatro
@@ -310,7 +314,8 @@ export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 // El DEFAULT es CLARO: oscuro es la EXCEPCIÓN declarada acá, no la regla. Atado a los fondos
 // canónicos que cada componente del home trae como fallback de `bg-[var(--sf-banda,<token>)]`
 // (grep vivo contra el código, no supuesto — verificar de nuevo si un componente cambia su fallback):
-//   hero            → var(--sf-tinta)      (HeroSection.tsx)        → OSCURA
+//   hero            → var(--sf-tinta)      (HeroCurtina.tsx, variante 'curtina') → OSCURA
+//                     var(--sf-fondo)      (HeroFicha.tsx, variante 'ficha')     → clara
 //   brandStory      → var(--sf-tinta)      (BrandStory.tsx)         → OSCURA
 //   subscriptionCTA → var(--sf-tinta-2)    (SubscriptionCTA.tsx)    → OSCURA
 //   trustBadges     → var(--sf-fondo)      (TrustBadges.tsx)        → clara
@@ -323,7 +328,31 @@ export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 // refactorizaron los fondos canónicos a un dato compartido en esta pasada (alcance mayor al de este
 // slice, a decidir aparte). Si un componente cambia su fallback de `--sf-banda`, este set hay que
 // actualizarlo A MANO contra el grep de arriba, o divergen en silencio.
+//
+// EL HERO ES LA ÚNICA BANDA CUYA CANÓNICA DEPENDE DE SU VARIANTE (§ EJE-5-VARIANTES-HERO): este
+// `Set` sólo puede decir "oscura o clara", no "depende de X" — por eso el hero SIGUE apareciendo acá
+// (oscura, la de la variante 'curtina', la canónica de Nayoli) pero `bandaOscuraCanonica` (abajo) es
+// el punto de entrada real para cualquier consumidor, porque es la única función que sabe bifurcar
+// por variante. Las demás bandas de este set no varían con su variante hoy (ninguna otra sección
+// declara `variantes` que cambie su fondo canónico) y siguen resolviendo por `BANDAS_OSCURAS` a secas.
 export const BANDAS_OSCURAS: ReadonlySet<BandaId> = new Set<BandaId>(['hero', 'brandStory', 'subscriptionCTA']);
+
+/** La darkness CANÓNICA (sin esquema) de una banda, dependiente de su VARIANTE cuando la
+ *  tiene. Hoy sólo el HERO: 'curtina' es OSCURA (fondo `--sf-tinta`), 'ficha' es CLARA (fondo
+ *  `--sf-fondo`) — atado al fallback `bg-[var(--sf-banda,<token>)]` de cada componente, como
+ *  `BANDAS_OSCURAS`. El resto de las bandas no varían con la variante → `BANDAS_OSCURAS`. */
+export function bandaOscuraCanonica(bandaId: BandaId, variante?: string): boolean {
+  if (bandaId === 'hero') return variante !== 'ficha'; // curtina/ausente = oscura; ficha = clara
+  return BANDAS_OSCURAS.has(bandaId);
+}
+
+/** La variante resuelta de una banda, o undefined si la banda no es una sección con variante
+ *  (p.ej. trustBadges/featured son bandas ESTRUCTURALES, sin sección en SiteContentData). */
+export function varianteDeBanda(content: SiteContentData, bandaId: BandaId): string | undefined {
+  const sec = (content as unknown as Record<string, unknown>)[bandaId];
+  return sec && typeof sec === 'object' && 'variante' in sec
+    ? (sec as { variante?: string }).variante : undefined;
+}
 
 // Los DEFAULTS son los literales que hoy viven en el JSX del hero. Se mueven acá; el
 // componente los recibe resueltos.
@@ -338,6 +367,8 @@ export const DEFAULTS: SiteContentData = {
     ctaPrimarioLabel: 'Explorar Café',
     ctaSecundarioLabel: 'Suscripción Mensual',
     imagen: '/images/hero-beans-v1.jpg',
+    // La canónica (§ eje 5, EJE-5-VARIANTES-HERO): Nayoli queda byte-idéntica a la curtina de hoy.
+    variante: 'curtina',
   },
   brandStory: {
     visible: true,
@@ -547,6 +578,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     label: 'Portada',
     ocultable: false,
     imagenes: ['imagen'],
+    // VARIANTES DE COMPOSICIÓN (§ eje 5, EJE-5-VARIANTES-HERO): 'curtina' es la canónica —el hero de
+    // HOY, verbatim—; 'ficha' es la nueva (tipografía en tinta sobre crema, foto a sangre a la
+    // derecha, sin degradado). Segunda sección con `variantes`, tras `presentaciones` (§ eje 5e).
+    variantes: { claves: ['curtina', 'ficha'], canonica: 'curtina' },
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',

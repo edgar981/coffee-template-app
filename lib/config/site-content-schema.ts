@@ -17,6 +17,10 @@ const heroEditableSchema = z.object({
   ctaSecundarioLabel: z.string().optional(),
   // Path estático (`/images/…`) o URL de Blob — el modelo acepta ambos, así que sólo string.
   imagen: z.string().optional(),
+  // `variante` (§ eje 5, EJE-5-VARIANTES-HERO): la COMPOSICIÓN de la sección ('curtina'|'ficha');
+  // `z.string()` porque el set de claves es por-sección y el resolver SOFT (`resolverVariante`) la
+  // clampa a la canónica — gemela de `presentaciones.variante`.
+  variante: z.string().optional(),
 });
 
 // BrandStory: h2 en UN campo (`titulo`), dos párrafos, cuatro imágenes FIJAS. `visible` porque
