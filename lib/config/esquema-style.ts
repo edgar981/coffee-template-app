@@ -1,5 +1,5 @@
 import { derivarEsquema, contraste, RAICES_DEFECTO, type EsquemaId, type RaicesPaleta } from './palette-derive';
-import { BANDAS_OSCURAS, type BandaId, type EsquemasContent } from './site-content-defaults';
+import { bandaOscuraCanonica, bandaUniforme, type BandaId, type EsquemasContent } from './site-content-defaults';
 
 // Puente entre UN esquema asignado a una BANDA (§ SiteContentData.esquemas, eje 5b mitad B) y las
 // CSS custom properties que el WRAPPER de esa banda inyecta vía `style` en su <section> raíz. Las
@@ -68,17 +68,22 @@ export function esquemaStyle(
 /**
  * ¿La banda `bandaId` queda OSCURA con la configuración actual? La decide el CONTRASTE real del
  * fondo derivado, no el NOMBRE del esquema — 'acento' puede ser claro u oscuro según el acento del
- * cliente (misma regla de `direccionDePiso` que usa el motor). Es la función que consume el nav
- * (§ StoreNav): el nav flota SIEMPRE sobre `orden[0]` (§ eje 5, el orden de las bandas como dato),
- * que YA NO es necesariamente el hero.
+ * cliente (misma regla de `direccionDePiso` que usa el motor). Es el COMPUTADOR de darkness; su
+ * consumidor es `tratamientoNav` (§ EJE-5-NAV-UNIFORME, abajo), no StoreNav directo — el nav flota
+ * SIEMPRE sobre `orden[0]` (§ eje 5, el orden de las bandas como dato), que YA NO es necesariamente
+ * el hero, y `tratamientoNav` decide primero si esa banda ADMITE flotar antes de preguntarle a ésta
+ * si es oscura.
  *
  * CON esquema asignado (`esquemas[bandaId]`) = el cálculo de contraste de hoy, sobre el fondo que
- * `derivarEsquema` produce para ese esquema.
+ * `derivarEsquema` produce para ese esquema. `variante` se IGNORA en esta rama a propósito: el
+ * wrapper del esquema setea `--sf-banda` igual para las dos variantes de una sección, así que el
+ * contraste del fondo derivado ya decide bien sin mirar la composición.
  *
- * SIN esquema asignado = la CANÓNICA DE LA BANDA (`BANDAS_OSCURAS`, § `site-content-defaults.ts`):
- * oscura si `bandaId` está en ese set (hero/brandStory/subscriptionCTA — fondo literal de hoy
- * `tinta`/`tinta-2`), clara si no (trustBadges/featured/presentaciones/testimonials — fondo literal
- * `fondo`). El DEFAULT es CLARO: oscuro es la EXCEPCIÓN declarada, no la regla.
+ * SIN esquema asignado = la CANÓNICA DE LA BANDA (`bandaOscuraCanonica`, § `site-content-defaults.ts`),
+ * que SÍ mira `variante` — hoy sólo el hero bifurca: 'curtina' oscura (fondo literal `tinta`), 'ficha'
+ * clara (fondo literal `fondo`). El resto de las bandas (brandStory/subscriptionCTA oscuras;
+ * trustBadges/featured/presentaciones/testimonials claras) no varían con su variante. El DEFAULT es
+ * CLARO: oscuro es la EXCEPCIÓN declarada, no la regla.
  *
  * MINA CERRADA (§ eje 5, EJE-5-ORDEN-NAV-CANONICA): esta función se llamaba `heroEsOscuro` y su
  * fallback SIN esquema asumía SIEMPRE la canónica del HERO (`tinta`, oscura) para CUALQUIER banda
@@ -86,9 +91,16 @@ export function esquemaStyle(
  * orden como dato) rompió esa garantía: una banda CLARA sin esquema puesta primera habría dejado el
  * nav con texto claro sobre fondo claro. Generalizada a tomar la canónica DE LA BANDA que resulte
  * primera, no la del hero.
+ *
+ * MINA CERRADA #2 (§ EJE-5-VARIANTES-HERO): la canónica de una banda dejó de ser fija cuando el hero
+ * ganó variantes de composición —'ficha' es CLARA, al revés de 'curtina'—, así que esta función pasó
+ * a recibir la VARIANTE de la banda primera y delegarla a `bandaOscuraCanonica`. Sin este parámetro,
+ * un hero·ficha primero-y-sin-esquema habría dejado el nav con texto claro sobre banda clara (el
+ * mismo modo de falla de la mina #1, una capa más abajo).
  */
 export function bandaEsOscura(
   bandaId: BandaId,
+  variante: string | undefined,
   esquemas: EsquemasContent,
   fondo: string | null,
   tinta: string | null,
@@ -96,7 +108,39 @@ export function bandaEsOscura(
 ): boolean {
   const raices = raicesResueltas(fondo, tinta, acento);
   const id = esquemas[bandaId];
-  if (!id) return BANDAS_OSCURAS.has(bandaId);
+  if (!id) return bandaOscuraCanonica(bandaId, variante);
   const bandaFondo = derivarEsquema(raices, id).fondo;
   return contraste('#ffffff', bandaFondo) >= contraste(raices.tinta, bandaFondo);
+}
+
+/**
+ * Cómo debe tratar el nav a la banda sobre la que flota (§ StoreNav, EJE-5-NAV-UNIFORME). UNA regla
+ * sobre la primera banda, no dos que el consumidor combine a mano.
+ *
+ * `flotante`: ¿puede el nav flotar TRANSPARENTE sobre esta banda? Sólo si la banda es UNIFORME
+ * (`bandaUniforme`, § site-content-defaults.ts) — una banda partida (la ficha del hero: crema a la
+ * izquierda, foto oscura a la derecha) no tiene un color de texto único que se lea sobre las dos
+ * mitades, así que el nav cae a SÓLIDO.
+ *
+ * `textoClaro`: si flota, ¿el texto va claro? = la banda es oscura (`bandaEsOscura` — el
+ * COMPUTADOR de darkness, por contraste real CON esquema, por la canónica declarada SIN esquema).
+ * Con `flotante: false` no hay texto claro que decidir: el sólido va con texto oscuro siempre
+ * (misma lectura que el nav con scroll de hoy).
+ *
+ * MINA CERRADA (§ EJE-5-NAV-UNIFORME): el nav asumía que TODA banda es uniforme —cierto mientras la
+ * única variante de la primera banda era la curtina (foto oscura a sangre) o un esquema asignado (un
+ * solo color derivado)—. La ficha del hero es bi-tonal, y el gate visual del owner encontró el nav
+ * transparente con texto oscuro ilegible sobre su mitad de foto. Antes de preguntar si la banda es
+ * oscura, hay que preguntar si tiene UN tono que preguntar eso.
+ */
+export function tratamientoNav(
+  bandaId: BandaId,
+  variante: string | undefined,
+  esquemas: EsquemasContent,
+  fondo: string | null,
+  tinta: string | null,
+  acento: string | null,
+): { flotante: boolean; textoClaro: boolean } {
+  if (!bandaUniforme(bandaId, variante)) return { flotante: false, textoClaro: false };
+  return { flotante: true, textoClaro: bandaEsOscura(bandaId, variante, esquemas, fondo, tinta, acento) };
 }

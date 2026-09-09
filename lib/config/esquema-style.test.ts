@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { esquemaStyle, bandaEsOscura } from './esquema-style';
+import { esquemaStyle, bandaEsOscura, tratamientoNav } from './esquema-style';
 import { RAICES_DEFECTO, derivarEsquema, contraste } from './palette-derive';
 import { BANDA_IDS, BANDAS_OSCURAS, type EsquemasContent } from './site-content-defaults';
 
@@ -80,26 +80,31 @@ test('esquemaStyle: raíces CUSTOM (no-null) se usan tal cual, no caen a RAICES_
 // ── bandaEsOscura: el nav ─────────────────────────────────────────────────────
 // (era `heroEsOscuro`, ESPECÍFICA del hero — generalizada en EJE-5-ORDEN-NAV-CANONICA porque
 // `orden[0]` ya no es necesariamente 'hero'. § site-content-defaults.ts, `BANDAS_OSCURAS`.)
+//
+// La firma ganó el 2º parámetro `variante` en EJE-5-VARIANTES-HERO (§ abajo). Estos tests
+// pre-existentes pasan `undefined` donde la banda de la prueba no varía por composición (todas salvo
+// el hero, y el propio hero en su forma canónica) — es EXACTAMENTE lo que StoreNav envía cuando
+// `varianteDeBanda` no encuentra sección (bandas estructurales) o la banda resuelve a su canónica.
 
 test('bandaEsOscura: hero SIN esquema asignado (mapa vacío, o sin entrada para "hero") → true — byte-idéntico al `isHome && !scrolled` de hoy', () => {
-  assert.equal(bandaEsOscura('hero', {}, null, null, null), true);
-  assert.equal(bandaEsOscura('hero', { testimonials: 'oscuro' }, null, null, null), true);
+  assert.equal(bandaEsOscura('hero', undefined, {}, null, null, null), true);
+  assert.equal(bandaEsOscura('hero', undefined, { testimonials: 'oscuro' }, null, null, null), true);
 });
 
 test('bandaEsOscura: hero con esquema OSCURO (fondo = raíz tinta) → true', () => {
-  assert.equal(bandaEsOscura('hero', { hero: 'oscuro' }, null, null, null), true);
+  assert.equal(bandaEsOscura('hero', undefined, { hero: 'oscuro' }, null, null, null), true);
 });
 
 test('bandaEsOscura: hero con esquema CLARO (crema/superficie) → false — el esquema manda sobre la canónica', () => {
-  assert.equal(bandaEsOscura('hero', { hero: 'crema' }, null, null, null), false);
-  assert.equal(bandaEsOscura('hero', { hero: 'superficie' }, null, null, null), false);
+  assert.equal(bandaEsOscura('hero', undefined, { hero: 'crema' }, null, null, null), false);
+  assert.equal(bandaEsOscura('hero', undefined, { hero: 'superficie' }, null, null, null), false);
 });
 
 test('bandaEsOscura: esquema ACENTO sigue la luminancia REAL del acento del cliente, no el nombre del esquema', () => {
   // El acento de Nayoli (#8b4513) es oscuro → 'acento' da una banda oscura, como 'oscuro'.
-  assert.equal(bandaEsOscura('hero', { hero: 'acento' }, null, null, null), true);
+  assert.equal(bandaEsOscura('hero', undefined, { hero: 'acento' }, null, null, null), true);
   // Un acento CLARO (un cliente con acento pastel) da una banda clara con el MISMO esquema 'acento'.
-  assert.equal(bandaEsOscura('hero', { hero: 'acento' }, '#faf7f4', '#1a0f08', '#f5e6c8'), false);
+  assert.equal(bandaEsOscura('hero', undefined, { hero: 'acento' }, '#faf7f4', '#1a0f08', '#f5e6c8'), false);
 });
 
 // ── La CANÓNICA por banda (sin esquema): la mina que este slice desactiva ────────────────────────
@@ -108,11 +113,11 @@ test('bandaEsOscura: esquema ACENTO sigue la luminancia REAL del acento del clie
 // viejo (comportamiento "todo-oscuro"): con `bandaFondo` fijo en `raices.tinta` sin importar la
 // banda, TODA banda sin esquema —incluidas las canónicamente CLARAS— daba `true`.
 
-test('bandaEsOscura: CADA banda del home, SIN esquema, da exactamente su canónica declarada en BANDAS_OSCURAS', () => {
+test('bandaEsOscura: CADA banda del home, SIN esquema y SIN variante, da exactamente su canónica declarada en BANDAS_OSCURAS', () => {
   for (const bandaId of BANDA_IDS) {
     const esperado = BANDAS_OSCURAS.has(bandaId);
     assert.equal(
-      bandaEsOscura(bandaId, {}, null, null, null),
+      bandaEsOscura(bandaId, undefined, {}, null, null, null),
       esperado,
       `${bandaId} debe dar ${esperado ? 'oscura' : 'clara'}`,
     );
@@ -122,17 +127,79 @@ test('bandaEsOscura: CADA banda del home, SIN esquema, da exactamente su canóni
 test('bandaEsOscura: las bandas OSCURAS canónicas son exactamente hero/brandStory/subscriptionCTA (el resto, claras)', () => {
   assert.deepEqual([...BANDAS_OSCURAS].sort(), ['brandStory', 'hero', 'subscriptionCTA']);
   for (const bandaId of BANDA_IDS) {
-    if (!BANDAS_OSCURAS.has(bandaId)) assert.equal(bandaEsOscura(bandaId, {}, null, null, null), false);
+    if (!BANDAS_OSCURAS.has(bandaId)) assert.equal(bandaEsOscura(bandaId, undefined, {}, null, null, null), false);
   }
 });
 
 test('bandaEsOscura: una banda CLARA sin su propio esquema no se contagia del esquema de OTRA banda', () => {
-  assert.equal(bandaEsOscura('featured', { hero: 'oscuro' }, null, null, null), false);
+  assert.equal(bandaEsOscura('featured', undefined, { hero: 'oscuro' }, null, null, null), false);
 });
 
 test('bandaEsOscura: el esquema asignado SIEMPRE manda sobre la canónica, en las dos direcciones', () => {
   // canónica CLARA + esquema oscuro → oscura
-  assert.equal(bandaEsOscura('featured', { featured: 'oscuro' }, null, null, null), true);
+  assert.equal(bandaEsOscura('featured', undefined, { featured: 'oscuro' }, null, null, null), true);
   // canónica OSCURA + esquema crema → clara
-  assert.equal(bandaEsOscura('brandStory', { brandStory: 'crema' }, null, null, null), false);
+  assert.equal(bandaEsOscura('brandStory', undefined, { brandStory: 'crema' }, null, null, null), false);
+});
+
+// ── bandaEsOscura VARIANT-AWARE (§ EJE-5-VARIANTES-HERO) — la MINA que este slice desactiva ──────
+// El hero ganó una SEGUNDA variante ('ficha', CLARA) y `orden[0]` ya no garantiza 'curtina' (oscura).
+// Sin el parámetro `variante`, un hero·ficha primero-y-sin-esquema daría "oscura" (heredado del set
+// `BANDAS_OSCURAS`) y el nav quedaría con texto claro sobre banda clara.
+
+test('bandaEsOscura: hero·ficha SIN esquema → false (clara) — VISTO FALLAR sin variant-aware (daría oscura, heredado de BANDAS_OSCURAS)', () => {
+  assert.equal(bandaEsOscura('hero', 'ficha', {}, null, null, null), false);
+});
+
+test('bandaEsOscura: hero·curtina SIN esquema → true (oscura, la canónica de Nayoli)', () => {
+  assert.equal(bandaEsOscura('hero', 'curtina', {}, null, null, null), true);
+});
+
+test('bandaEsOscura: hero con variante AUSENTE (undefined) SIN esquema → true (byte-idéntico a curtina)', () => {
+  assert.equal(bandaEsOscura('hero', undefined, {}, null, null, null), true);
+});
+
+test('bandaEsOscura: una banda CLARA sin variante propia (trustBadges) sigue clara sin importar qué `variante` se le pase', () => {
+  assert.equal(bandaEsOscura('trustBadges', undefined, {}, null, null, null), false);
+  assert.equal(bandaEsOscura('trustBadges', 'ficha', {}, null, null, null), false); // ignorada: sólo el hero bifurca
+});
+
+test('bandaEsOscura: CON esquema asignado, la variante se IGNORA — el esquema decide para las DOS variantes del hero', () => {
+  // Banda CLARA (featured) + esquema 'oscuro' → oscura, la variante da igual.
+  assert.equal(bandaEsOscura('featured', 'ficha', { featured: 'oscuro' }, null, null, null), true);
+  assert.equal(bandaEsOscura('featured', undefined, { featured: 'oscuro' }, null, null, null), true);
+  // Banda OSCURA (hero) + esquema 'crema' → clara, para las DOS variantes.
+  assert.equal(bandaEsOscura('hero', 'curtina', { hero: 'crema' }, null, null, null), false);
+  assert.equal(bandaEsOscura('hero', 'ficha', { hero: 'crema' }, null, null, null), false);
+});
+
+// ── tratamientoNav (§ EJE-5-NAV-UNIFORME) — UNA regla: flotante (uniformidad) + textoClaro (darkness) ─
+// Corrige la SUPOSICIÓN de que la primera banda siempre admite un nav transparente-flotante. El gate
+// visual del owner encontró el nav ilegible sobre la ficha (bi-tonal): ningún color de texto único
+// se lee sobre las dos mitades.
+
+test('tratamientoNav: hero·ficha SIN esquema → {flotante:false, textoClaro:false} — el FIX. VISTO FALLAR sin uniformidad: heredaría {flotante:true, textoClaro:false} (el bug del gate, nav transparente sobre foto)', () => {
+  assert.deepEqual(tratamientoNav('hero', 'ficha', {}, null, null, null), { flotante: false, textoClaro: false });
+});
+
+test('tratamientoNav: hero·curtina SIN esquema → {flotante:true, textoClaro:true} — byte-idéntico al `isHome && !scrolled` de HOY (Nayoli)', () => {
+  assert.deepEqual(tratamientoNav('hero', 'curtina', {}, null, null, null), { flotante: true, textoClaro: true });
+});
+
+test('tratamientoNav: una banda clara UNIFORME (trustBadges, sin sección/variantes) → {flotante:true, textoClaro:false}', () => {
+  assert.deepEqual(tratamientoNav('trustBadges', undefined, {}, null, null, null), { flotante: true, textoClaro: false });
+});
+
+test('tratamientoNav: una banda + esquema "oscuro" → {flotante:true, textoClaro:true} — el esquema manda sobre la canónica, la uniformidad no depende de él', () => {
+  assert.deepEqual(
+    tratamientoNav('featured', undefined, { featured: 'oscuro' }, null, null, null),
+    { flotante: true, textoClaro: true },
+  );
+});
+
+test('tratamientoNav: hero·ficha CON esquema sigue SIN flotar — la uniformidad es del LAYOUT, un esquema no une las dos mitades partidas', () => {
+  assert.deepEqual(
+    tratamientoNav('hero', 'ficha', { hero: 'oscuro' }, null, null, null),
+    { flotante: false, textoClaro: false },
+  );
 });

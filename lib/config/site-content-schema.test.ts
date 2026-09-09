@@ -45,6 +45,12 @@ test('presentaciones: `variante` SOBREVIVE al parse (si no, zod la descartaría 
   assert.equal(parsed.presentaciones!.variante, 'indice');
 });
 
+// ─── VARIANTES DE COMPOSICIÓN (§ EJE-5-VARIANTES-HERO): `variante` del hero SOBREVIVE al parse ───
+test('hero: `variante` SOBREVIVE al parse (si no, zod la descartaría al guardar)', () => {
+  const parsed = siteContentEditableSchema.parse({ hero: { variante: 'ficha' } });
+  assert.equal(parsed.hero!.variante, 'ficha');
+});
+
 // ─── EL DERIVADO (§ Backlog #65-B, FIX 3): modelo ⊆ schema, sin una tercera lista a mano ─────────
 // Los tests de arriba prueban ÍTEM POR ÍTEM lo que sobrevive/se rechaza (la mitad de repeater). Éste
 // cierra la OTRA brecha —la que costó #65-B—: que TODO campo de PRIMER NIVEL del modelo esté en el

@@ -25,6 +25,10 @@ export interface HeroContent {
   ctaPrimarioLabel: string;
   ctaSecundarioLabel: string;
   imagen: string;
+  // La VARIANTE de composición (§ eje 5, EJE-5-VARIANTES-HERO). 'curtina' (canónica, la de Nayoli) |
+  // 'ficha'. Escalar de SECCIÓN —como `visible`—, no un `campos`: no lo toca el loop
+  // requerido/opcional del resolver. Gemela de `presentaciones.variante` (§ eje 5e).
+  variante: string;
 }
 
 // BrandStory ("Nuestra Historia"): eyebrow + h2 + dos párrafos + un collage 2×2 de cuatro
@@ -300,8 +304,8 @@ export type OrdenContent = BandaId[];
 export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 
 // LA CANÓNICA DE DARKNESS POR BANDA (§ eje 5, cierra la mina del nav abierta por el orden-como-dato).
-// `bandaEsOscura` (`lib/config/esquema-style.ts`, el ÚNICO consumidor vía StoreNav) necesita saber si
-// la banda sobre la que flota el nav es oscura CUANDO esa banda NO tiene esquema asignado. Antes de
+// `bandaEsOscura` (`lib/config/esquema-style.ts`, consumida por `tratamientoNav` → StoreNav) necesita
+// saber si la banda sobre la que flota el nav es oscura CUANDO esa banda NO tiene esquema asignado. Antes de
 // este set no existía tal cosa: la función (entonces `heroEsOscuro`) asumía SIEMPRE la canónica del
 // HERO —correcto sólo mientras `orden[0]` era necesariamente 'hero'—; el eje 5 (el orden como dato)
 // rompió esa garantía, así que una banda CLARA sin esquema puesta primera habría dejado el nav con
@@ -310,7 +314,8 @@ export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 // El DEFAULT es CLARO: oscuro es la EXCEPCIÓN declarada acá, no la regla. Atado a los fondos
 // canónicos que cada componente del home trae como fallback de `bg-[var(--sf-banda,<token>)]`
 // (grep vivo contra el código, no supuesto — verificar de nuevo si un componente cambia su fallback):
-//   hero            → var(--sf-tinta)      (HeroSection.tsx)        → OSCURA
+//   hero            → var(--sf-tinta)      (HeroCurtina.tsx, variante 'curtina') → OSCURA
+//                     var(--sf-fondo)      (HeroFicha.tsx, variante 'ficha')     → clara
 //   brandStory      → var(--sf-tinta)      (BrandStory.tsx)         → OSCURA
 //   subscriptionCTA → var(--sf-tinta-2)    (SubscriptionCTA.tsx)    → OSCURA
 //   trustBadges     → var(--sf-fondo)      (TrustBadges.tsx)        → clara
@@ -323,7 +328,46 @@ export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 // refactorizaron los fondos canónicos a un dato compartido en esta pasada (alcance mayor al de este
 // slice, a decidir aparte). Si un componente cambia su fallback de `--sf-banda`, este set hay que
 // actualizarlo A MANO contra el grep de arriba, o divergen en silencio.
+//
+// EL HERO ES LA ÚNICA BANDA CUYA CANÓNICA DEPENDE DE SU VARIANTE (§ EJE-5-VARIANTES-HERO): este
+// `Set` sólo puede decir "oscura o clara", no "depende de X" — por eso el hero SIGUE apareciendo acá
+// (oscura, la de la variante 'curtina', la canónica de Nayoli) pero `bandaOscuraCanonica` (abajo) es
+// el punto de entrada real para cualquier consumidor, porque es la única función que sabe bifurcar
+// por variante. Las demás bandas de este set no varían con su variante hoy (ninguna otra sección
+// declara `variantes` que cambie su fondo canónico) y siguen resolviendo por `BANDAS_OSCURAS` a secas.
 export const BANDAS_OSCURAS: ReadonlySet<BandaId> = new Set<BandaId>(['hero', 'brandStory', 'subscriptionCTA']);
+
+/** La darkness CANÓNICA (sin esquema) de una banda, dependiente de su VARIANTE cuando la
+ *  tiene. Hoy sólo el HERO: 'curtina' es OSCURA (fondo `--sf-tinta`), 'ficha' es CLARA (fondo
+ *  `--sf-fondo`) — atado al fallback `bg-[var(--sf-banda,<token>)]` de cada componente, como
+ *  `BANDAS_OSCURAS`. El resto de las bandas no varían con la variante → `BANDAS_OSCURAS`. */
+export function bandaOscuraCanonica(bandaId: BandaId, variante?: string): boolean {
+  if (bandaId === 'hero') return variante !== 'ficha'; // curtina/ausente = oscura; ficha = clara
+  return BANDAS_OSCURAS.has(bandaId);
+}
+
+/** ¿La banda `bandaId` en su `variante` es UNIFORME (un solo tono, § EJE-5-NAV-UNIFORME)? El nav
+ *  transparente-flotante sólo puede posarse sobre una banda uniforme —una banda partida (bi-tonal)
+ *  no tiene un color de texto único que se lea sobre las dos mitades—. La fuente es la VARIANTE
+ *  (`VariantesDef.noUniformes`), no un esquema: un esquema no parte ni une una banda, así que la
+ *  uniformidad es puro LAYOUT sin otra fuente con la que discrepar (a diferencia de la darkness,
+ *  que SÍ tiene fuente dinámica —el esquema— y por eso se computa en `bandaEsOscura`, nunca se
+ *  declara). Lookup SEGURO: `bandaId` puede no ser una `SeccionKey` (trustBadges/featured son
+ *  bandas ESTRUCTURALES, sin sección en `SiteContentData`) — sin `variantes` declaradas, uniforme
+ *  por default. */
+export function bandaUniforme(bandaId: BandaId, variante?: string): boolean {
+  const def = (REGISTRY as Record<string, SeccionDef | undefined>)[bandaId];
+  const nu = def?.variantes?.noUniformes;
+  return !(nu && variante !== undefined && nu.includes(variante));
+}
+
+/** La variante resuelta de una banda, o undefined si la banda no es una sección con variante
+ *  (p.ej. trustBadges/featured son bandas ESTRUCTURALES, sin sección en SiteContentData). */
+export function varianteDeBanda(content: SiteContentData, bandaId: BandaId): string | undefined {
+  const sec = (content as unknown as Record<string, unknown>)[bandaId];
+  return sec && typeof sec === 'object' && 'variante' in sec
+    ? (sec as { variante?: string }).variante : undefined;
+}
 
 // Los DEFAULTS son los literales que hoy viven en el JSX del hero. Se mueven acá; el
 // componente los recibe resueltos.
@@ -338,6 +382,8 @@ export const DEFAULTS: SiteContentData = {
     ctaPrimarioLabel: 'Explorar Café',
     ctaSecundarioLabel: 'Suscripción Mensual',
     imagen: '/images/hero-beans-v1.jpg',
+    // La canónica (§ eje 5, EJE-5-VARIANTES-HERO): Nayoli queda byte-idéntica a la curtina de hoy.
+    variante: 'curtina',
   },
   brandStory: {
     visible: true,
@@ -518,6 +564,17 @@ export interface VariantesDef {
   claves: readonly string[];
   /** La canónica —la de Nayoli—. Es lo que resuelve `''`, null, ausente y basura. */
   canonica: string;
+  /** Las claves cuya banda NO es UNIFORME (bi-tonal / partida): el nav transparente-flotante no
+   *  puede leerse sobre ellas (ningún color de texto único sirve para las dos zonas) → el nav cae
+   *  a SÓLIDO. Ausente = todas las variantes son uniformes. NO es darkness (§ el rechazo de
+   *  `sobreOscuro` arriba): la darkness tiene fuente DINÁMICA (un esquema asignado puede
+   *  oscurecer/aclarar CUALQUIER banda) y por eso se COMPUTA (`bandaEsOscura`) en vez de
+   *  declararse — declararla acá sería un 2º origen que puede discrepar del esquema, la mina que
+   *  `sobreOscuro` existía para cerrar. La UNIFORMIDAD no tiene fuente dinámica: un esquema no
+   *  parte ni une una banda — la ficha es partida tenga los colores que tenga —, así que es puro
+   *  LAYOUT sin otra fuente con la que discrepar, y la variante es su fuente ÚNICA correcta. Único
+   *  consumidor: `tratamientoNav` (esquema-style.ts). */
+  noUniformes?: readonly string[];
 }
 
 export interface SeccionDef {
@@ -547,6 +604,13 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     label: 'Portada',
     ocultable: false,
     imagenes: ['imagen'],
+    // VARIANTES DE COMPOSICIÓN (§ eje 5, EJE-5-VARIANTES-HERO): 'curtina' es la canónica —el hero de
+    // HOY, verbatim—; 'ficha' es la nueva (tipografía en tinta sobre crema, foto a sangre a la
+    // derecha, sin degradado). Segunda sección con `variantes`, tras `presentaciones` (§ eje 5e).
+    // `noUniformes: ['ficha']` (§ EJE-5-NAV-UNIFORME): la ficha es BI-TONAL —crema a la izquierda,
+    // foto oscura a la derecha— y ningún color de texto único del nav se lee sobre las dos mitades;
+    // el nav transparente-flotante cae a SÓLIDO sobre ella (§ `tratamientoNav`, esquema-style.ts).
+    variantes: { claves: ['curtina', 'ficha'], canonica: 'curtina', noUniformes: ['ficha'] },
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',
