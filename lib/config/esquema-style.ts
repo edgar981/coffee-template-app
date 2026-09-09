@@ -1,4 +1,5 @@
 import { derivarEsquema, contraste, RAICES_DEFECTO, type EsquemaId, type RaicesPaleta } from './palette-derive';
+import { BANDAS_OSCURAS, type BandaId, type EsquemasContent } from './site-content-defaults';
 
 // Puente entre UN esquema asignado a una BANDA (§ SiteContentData.esquemas, eje 5b mitad B) y las
 // CSS custom properties que el WRAPPER de esa banda inyecta vía `style` en su <section> raíz. Las
@@ -65,24 +66,37 @@ export function esquemaStyle(
 }
 
 /**
- * ¿La banda del HERO queda OSCURA con este esquema? La decide el CONTRASTE real del fondo
- * derivado, no el NOMBRE del esquema — 'acento' puede ser claro u oscuro según el acento del
- * cliente (misma regla de `direccionDePiso` que usa el motor). Es la función que le falta al nav
- * (§ StoreNav): hoy asume el hero SIEMPRE oscuro (`isHome && !scrolled` → texto blanco); un hero con
- * esquema CLARO ('crema'/'superficie') dejaría el nav blanco sobre blanco sin este ajuste.
+ * ¿La banda `bandaId` queda OSCURA con la configuración actual? La decide el CONTRASTE real del
+ * fondo derivado, no el NOMBRE del esquema — 'acento' puede ser claro u oscuro según el acento del
+ * cliente (misma regla de `direccionDePiso` que usa el motor). Es la función que consume el nav
+ * (§ StoreNav): el nav flota SIEMPRE sobre `orden[0]` (§ eje 5, el orden de las bandas como dato),
+ * que YA NO es necesariamente el hero.
  *
- * SIN esquema (id ausente/null) = la CANÓNICA del hero, que es la raíz `tinta` (oscura) — el fondo
- * literal de hoy (`bg-[var(--sf-banda,var(--sf-tinta))]`), no `derivarEsquema('crema', …)`. Por eso
- * el fallback es `raices.tinta`, no `base.fondo`: son bandas con canónicas DISTINTAS (§ doctrina),
- * y esta función es específica del hero (la única banda cuyo nav lee su esquema).
+ * CON esquema asignado (`esquemas[bandaId]`) = el cálculo de contraste de hoy, sobre el fondo que
+ * `derivarEsquema` produce para ese esquema.
+ *
+ * SIN esquema asignado = la CANÓNICA DE LA BANDA (`BANDAS_OSCURAS`, § `site-content-defaults.ts`):
+ * oscura si `bandaId` está en ese set (hero/brandStory/subscriptionCTA — fondo literal de hoy
+ * `tinta`/`tinta-2`), clara si no (trustBadges/featured/presentaciones/testimonials — fondo literal
+ * `fondo`). El DEFAULT es CLARO: oscuro es la EXCEPCIÓN declarada, no la regla.
+ *
+ * MINA CERRADA (§ eje 5, EJE-5-ORDEN-NAV-CANONICA): esta función se llamaba `heroEsOscuro` y su
+ * fallback SIN esquema asumía SIEMPRE la canónica del HERO (`tinta`, oscura) para CUALQUIER banda
+ * que resultara primera — correcto sólo mientras `orden[0]` era necesariamente 'hero'. El eje 5 (el
+ * orden como dato) rompió esa garantía: una banda CLARA sin esquema puesta primera habría dejado el
+ * nav con texto claro sobre fondo claro. Generalizada a tomar la canónica DE LA BANDA que resulte
+ * primera, no la del hero.
  */
-export function heroEsOscuro(
-  id: EsquemaId | null | undefined,
+export function bandaEsOscura(
+  bandaId: BandaId,
+  esquemas: EsquemasContent,
   fondo: string | null,
   tinta: string | null,
   acento: string | null,
 ): boolean {
   const raices = raicesResueltas(fondo, tinta, acento);
-  const bandaFondo = id ? derivarEsquema(raices, id).fondo : raices.tinta;
+  const id = esquemas[bandaId];
+  if (!id) return BANDAS_OSCURAS.has(bandaId);
+  const bandaFondo = derivarEsquema(raices, id).fondo;
   return contraste('#ffffff', bandaFondo) >= contraste(raices.tinta, bandaFondo);
 }
