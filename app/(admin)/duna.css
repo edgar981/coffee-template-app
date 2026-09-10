@@ -586,7 +586,7 @@ html.admin {
 
 /* LA REGLETA: el panel recesado (§ el editor por bloques) ACOSTADO — franja de piezas elevadas
    contra el borde inferior del escenario. Cada pieza (Base · Acento · Tipografía) es `--duna-surface`
-   sobre el `--duna-bg` de la regleta, igual que `.tienda-form__bloque` lo es sobre `.tienda-form`.
+   sobre el `--duna-bg` de la regleta, igual que `.admin-bloque` lo es sobre `.admin-bloques`.
    Cero tokens nuevos. La FORMA cambia con el ancho (abajo); las piezas NO cambian de comportamiento. */
 .tienda-regleta {
   flex: 0 0 auto;
@@ -714,12 +714,16 @@ html.admin {
 .puente-tarjetas[data-tarjeta-activa="3"] [data-sf-tarjeta="3"],
 .puente-tarjetas[data-tarjeta-activa="4"] [data-sf-tarjeta="4"] { box-shadow: 0 0 0 4px var(--duna-ink); }
 
-/* EL PANEL del FORM en edición (§ Fix 2): un contenedor RECESADO (--duna-bg) que CONTIENE las piezas.
-   Antes era UN `.duna-card` blanco con todos los bloques planos adentro → "toda blanca", sin zonas.
-   Ahora el panel es el fondo de la app y cada bloque es una PIEZA elevada (--duna-surface): la
-   elevación surface-sobre-bg es la doctrina de siempre —sólo tokens existentes—; el `gap` separa las
-   piezas (por eso los bloques ya no llevan margin propio). */
-.tienda-form {
+/* EL PANEL DE BLOQUES (§ Fix 2 · generalizado en ADMIN-CONFIG-REDISENO-1): un contenedor RECESADO
+   (--duna-bg) que CONTIENE las piezas. Nació en /admin/tienda como `.tienda-form`/`.tienda-form__bloque`;
+   con Configuración como segundo consumidor (el bloque «Datos del negocio»), se generalizó a
+   admin-level (`.admin-bloques`/`.admin-bloque`) — el disparador de siempre: una clase con un solo
+   consumidor se queda con nombre local, con dos se promueve. Antes era UN `.duna-card` blanco con
+   todos los bloques planos adentro → "toda blanca", sin zonas. Ahora el panel es el fondo de la app y
+   cada bloque es una PIEZA elevada (--duna-surface): la elevación surface-sobre-bg es la doctrina de
+   siempre —sólo tokens existentes—; el `gap` separa las piezas (por eso los bloques ya no llevan
+   margin propio). */
+.admin-bloques {
   background: var(--duna-bg);
   border: 1px solid var(--duna-border);
   border-radius: var(--duna-r-l);
@@ -728,19 +732,58 @@ html.admin {
   flex-direction: column;
   gap: var(--duna-space-4);
 }
-/* La PIEZA genérica: encabezado, collage, lista, toggle. La `tarjeta` tiene su propia clase con más
-   conducta (`.bloque-tarjeta`), pero comparte la misma superficie/borde/radio/padding. */
-.tienda-form__bloque {
+/* La PIEZA genérica: encabezado, collage, lista, toggle. La `tarjeta` (sólo /admin/tienda) tiene su
+   propia clase con más conducta (`.bloque-tarjeta`), pero comparte la misma superficie/borde/radio/
+   padding. */
+.admin-bloque {
   background: var(--duna-surface);
   border: 1px solid var(--duna-border);
   border-radius: var(--duna-r-m);
   padding: var(--duna-space-4);
 }
 
-/* El BLOQUE-tarjeta del FORM: la PIEZA (miniatura + campos) de una tarjeta. Destino del scroll del
-   puente y confirmación FUERTE (tamaño real). Es una CAJA CONTENIDA —a diferencia del viejo
-   encabezado-divisor (§ Defecto 1)—, así que el "esto está puesto" del DS aplica LIMPIO. Misma
-   superficie que `.tienda-form__bloque`; su margen lo da el `gap` del panel (§ Fix 2). */
+/* ─── EL MÉTODO DE PAGO, con su config ADENTRO (§ Configuración · bloque «Pagos») ───────────────
+   Cada método (Pago móvil, Transferencia, Contra entrega) es su propia sub-pieza DENTRO del
+   `.admin-bloque` de Pagos, admin-level (un solo consumidor: `DatosNegocioSeccion`). ENCENDIDO
+   usa el par "esto está puesto" del DS (§ Amber Minimal): superficie elevada + barra de tinta a
+   la izquierda — TINTA, no ámbar, porque "encendido" no es un estado accionable. APAGADO cae al
+   `--duna-surface-2` sin barra. La ZONA DE CONFIG es SIEMPRE `--duna-surface-2` (sunken), esté
+   encendido o no el método — es donde se editan sus datos, no un indicador de estado. */
+.admin-metodo {
+  border: 1px solid var(--duna-border);
+  border-radius: var(--duna-r-m);
+  background: var(--duna-surface-2);
+  overflow: hidden;
+}
+.admin-metodo + .admin-metodo { margin-top: var(--duna-space-3); }
+.admin-metodo.is-on {
+  background: var(--duna-surface);
+  box-shadow: inset 3px 0 0 var(--duna-ink);
+  border-color: var(--duna-border-2);
+}
+.admin-metodo__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--duna-space-2);
+  padding: var(--duna-space-3) var(--duna-space-4);
+}
+.admin-metodo__fila { display: flex; align-items: center; gap: var(--duna-space-3); }
+.admin-metodo__config {
+  border-top: 1px solid var(--duna-border);
+  background: var(--duna-surface-2);
+  padding: var(--duna-space-4);
+}
+.admin-metodo__aviso {
+  margin: var(--duna-space-3) 0 0;
+  font-size: var(--duna-text-caption);
+  font-weight: var(--duna-w-semi);
+  color: var(--duna-sol-ink);
+}
+
+/* El BLOQUE-tarjeta del FORM (sólo /admin/tienda): la PIEZA (miniatura + campos) de una tarjeta.
+   Destino del scroll del puente y confirmación FUERTE (tamaño real). Es una CAJA CONTENIDA —a
+   diferencia del viejo encabezado-divisor (§ Defecto 1)—, así que el "esto está puesto" del DS aplica
+   LIMPIO. Misma superficie que `.admin-bloque`; su margen lo da el `gap` del panel (§ Fix 2). */
 .bloque-tarjeta {
   background: var(--duna-surface);
   border: 1px solid var(--duna-border);

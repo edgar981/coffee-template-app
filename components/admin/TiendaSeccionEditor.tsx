@@ -654,14 +654,14 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
             RECESADO (--duna-bg) que CONTIENE las piezas; cada bloque es una PIEZA elevada
             (--duna-surface) → los bloques se leen separados, no como un formulario plano (§ Fix 2). */}
         <div className="tienda-vivo__form">
-            <div className="tienda-form">
+            <div className="admin-bloques">
               <input ref={subida.inputRef} type="file" accept={ACCEPT_IMAGENES} onChange={subida.alElegir} hidden disabled={subiendo} />
               {/* Segundo input para el flujo "elegir sin subir" (alta de vídeo); su `accept` lo fija
                   `subida.elegir` por llamada (vídeo o imagen del póster). */}
               <input ref={subida.inputHoldRef} type="file" onChange={subida.alElegirHold} hidden />
 
               {config.ocultable && (
-                <div className="tienda-form__bloque">
+                <div className="admin-bloque">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
                     <button
                       type="button"
@@ -687,7 +687,7 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
                   {b.tipo === 'tarjeta'
                     ? renderBloqueTarjeta(b)
                     : (
-                      <div className="tienda-form__bloque">
+                      <div className="admin-bloque">
                         {b.tipo === 'lista' ? renderBloqueLista(b)
                           : b.tipo === 'collage' ? renderBloqueCollage(b)
                           : renderBloqueSeccion(b)}
