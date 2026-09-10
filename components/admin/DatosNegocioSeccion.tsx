@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Pencil } from 'lucide-react';
 import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import { siteSettingsEditableSchema } from '@/lib/config/site-settings-schema';
-import { estadoMetodoEditor, type MetodoPagoId, type SettingsMetodos } from '@/lib/checkout/metodos-pago';
+import { estadoMetodoEditor, type EstadoMetodoEditor, type MetodoPagoId, type SettingsMetodos } from '@/lib/checkout/metodos-pago';
 import { partirTelefono, componerTelefono, INDICATIVOS } from '@/lib/config/telefono';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
@@ -104,6 +104,25 @@ const METODOS_PAGO: { id: MetodoPagoId; activoKey: FormBoolKey; label: string }[
   { id: 'efectivo',      activoKey: 'pagoEfectivoActivo',      label: 'Contra entrega (efectivo)' },
 ];
 
+// La descripción corta que acompaña al eyebrow de cada bloque (§ ADMIN-CONFIG-LECTURA-1): el
+// eyebrow ROTULA, esto EXPLICA para qué es el bloque. Va al lado, no debajo — por eso el mismo
+// renderer sirve en lectura y en edición (mismo esqueleto, § el principio del diseño).
+const DESCRIPCION_BLOQUE = {
+  Identidad: 'Cómo se nombra la tienda',
+  Contacto:  'Por dónde te escriben los clientes',
+  Correos:   'Desde dónde escribe la tienda y a dónde le llegan los reportes',
+  Pagos:     'Cómo te pagan en el checkout',
+} as const;
+
+function renderEncabezadoBloque(eyebrow: keyof typeof DESCRIPCION_BLOQUE, style?: React.CSSProperties) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--duna-space-2)', flexWrap: 'wrap', ...style }}>
+      <span className="duna-eyebrow">{eyebrow}</span>
+      <span className="duna-caption">{DESCRIPCION_BLOQUE[eyebrow]}</span>
+    </div>
+  );
+}
+
 function desdeSettings(s: SiteSettings): FormState {
   const wa    = partirTelefono(s.whatsapp);
   const movil = partirTelefono(s.pagoMovilNumero ?? '');
@@ -145,6 +164,14 @@ function comoMetodos(form: FormState): SettingsMetodos {
     pagoEfectivoActivo:      form.pagoEfectivoActivo,
     pagoMovilNumero: componerTelefono(form.movilIndicativo, form.movilNumero),
   };
+}
+
+// SÓLO PRESENTACIÓN (§ ADMIN-CONFIG-LECTURA-1): la lectura muestra el indicativo separado del
+// número (partir + volver a componer con el espacio que `componerTelefono` mete entre los dos).
+// El dato guardado sigue siendo la columna compuesta tal cual — esto no la toca.
+function telefonoDisplay(valor: string): string {
+  const partido = partirTelefono(valor);
+  return componerTelefono(partido.indicativo, partido.numero);
 }
 
 export default function DatosNegocioSeccion() {
@@ -277,7 +304,7 @@ export default function DatosNegocioSeccion() {
         <form onSubmit={guardar} className="admin-bloques" style={{ marginTop: 'var(--duna-space-4)' }} noValidate>
           {/* Identidad */}
           <div className="admin-bloque">
-            <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-3)' }}>Identidad</div>
+            {renderEncabezadoBloque('Identidad', { marginBottom: 'var(--duna-space-3)' })}
             <div className="duna-form">
               {CAMPOS_IDENTIDAD.map(campo => renderCampoEdit(campo, form, errores, set))}
             </div>
@@ -285,7 +312,7 @@ export default function DatosNegocioSeccion() {
 
           {/* Contacto */}
           <div className="admin-bloque">
-            <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-3)' }}>Contacto</div>
+            {renderEncabezadoBloque('Contacto', { marginBottom: 'var(--duna-space-3)' })}
             <div className="duna-form">
               <ControlTelefono
                 idBase="whatsapp"
@@ -303,7 +330,7 @@ export default function DatosNegocioSeccion() {
 
           {/* Correos */}
           <div className="admin-bloque">
-            <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-3)' }}>Correos</div>
+            {renderEncabezadoBloque('Correos', { marginBottom: 'var(--duna-space-3)' })}
             <div className="duna-form">
               {CAMPOS_CORREOS.map(campo => renderCampoEdit(campo, form, errores, set))}
             </div>
@@ -312,9 +339,10 @@ export default function DatosNegocioSeccion() {
           {/* Pagos — cada método con su config ADENTRO (§ el defecto que este bloque arregla:
               antes los 4 checkboxes vivían al fondo y sus datos, arriba, lejos del toggle). */}
           <div className="admin-bloque">
-            <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-1)' }}>Pagos</div>
+            {renderEncabezadoBloque('Pagos', { marginBottom: 'var(--duna-space-1)' })}
             <p className="duna-field__hint" style={{ marginTop: 0, marginBottom: 'var(--duna-space-3)' }}>
-              Enciende los que ofreces. Uno encendido sin sus datos (número, cuenta) no se muestra hasta completarlo.
+              Enciende los que ofreces; cada uno pide sus datos aquí mismo. Un método encendido sin sus
+              datos no se muestra en la tienda.
             </p>
 
             {/* a) Pago móvil — Nequi y Daviplata comparten el mismo número. */}
@@ -423,55 +451,106 @@ export default function DatosNegocioSeccion() {
       ) : (
         <div className="admin-bloques" style={{ marginTop: 'var(--duna-space-4)' }}>
           <div className="admin-bloque">
-            <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-3)' }}>Identidad</div>
+            {renderEncabezadoBloque('Identidad', { marginBottom: 'var(--duna-space-3)' })}
             <dl className="duna-form" style={{ margin: 0 }}>
               {CAMPOS_IDENTIDAD.map(campo => renderCampoLectura(campo, settings))}
             </dl>
           </div>
 
           <div className="admin-bloque">
-            <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-3)' }}>Contacto</div>
+            {renderEncabezadoBloque('Contacto', { marginBottom: 'var(--duna-space-3)' })}
             <dl className="duna-form" style={{ margin: 0 }}>
               <div className="duna-field">
                 <dt className="duna-field__label">WhatsApp</dt>
                 <dd className="duna-body" style={{ margin: 0, wordBreak: 'break-word' }}>
-                  {settings.whatsapp.trim() || <span style={{ color: 'var(--duna-muted)' }}>Sin definir</span>}
+                  {settings.whatsapp.trim()
+                    ? telefonoDisplay(settings.whatsapp)
+                    : <span style={{ color: 'var(--duna-muted)' }}>Sin definir</span>}
                 </dd>
               </div>
-              {renderCampoLectura(CAMPO_INSTAGRAM, settings)}
+              <div className="duna-field">
+                <dt className="duna-field__label">Instagram</dt>
+                <dd className="duna-body" style={{ margin: 0, wordBreak: 'break-word' }}>
+                  {settings.instagram.trim()
+                    ? `@${settings.instagram.trim()}`
+                    : <span style={{ color: 'var(--duna-muted)' }}>Sin definir</span>}
+                </dd>
+              </div>
             </dl>
           </div>
 
           <div className="admin-bloque">
-            <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-3)' }}>Correos</div>
+            {renderEncabezadoBloque('Correos', { marginBottom: 'var(--duna-space-3)' })}
             <dl className="duna-form" style={{ margin: 0 }}>
               {CAMPOS_CORREOS.map(campo => renderCampoLectura(campo, settings))}
             </dl>
           </div>
 
+          {/* Pagos — MISMO esqueleto que edición (§ ADMIN-CONFIG-LECTURA-1: el mockup usa la MISMA
+              estructura en lectura y edición; sólo cambia el control por su valor). Las tres
+              sub-piezas (`.admin-metodo`) se reusan tal cual — el estado sale de
+              `estadoMetodoEditor`, nunca reimplementado acá. */}
           <div className="admin-bloque">
-            <div className="duna-eyebrow" style={{ marginBottom: 'var(--duna-space-3)' }}>Pagos</div>
-            {/* Métodos de pago, en lectura: encendido / apagado / encendido-sin-datos. */}
-            <dl className="duna-form" style={{ margin: 0 }}>
-              <div className="duna-field duna-form__full">
-                <dt className="duna-field__label">Métodos de pago del checkout</dt>
-                <dd className="duna-body" style={{ margin: 0 }}>
-                  {METODOS_PAGO.map(m => {
-                    const estado = estadoMetodoEditor(settings, m.id);
-                    return (
-                      <div key={m.id} style={{ display: 'flex', gap: 'var(--duna-space-2)', alignItems: 'baseline' }}>
-                        <span>{m.label}:</span>
-                        {estado === 'apagado'
-                          ? <span style={{ color: 'var(--duna-muted)' }}>Apagado</span>
-                          : estado === 'activo_sin_datos'
-                            ? <span style={{ color: 'var(--duna-sol-ink)' }}>Encendido — falta configurarlo</span>
-                            : <span>Encendido</span>}
-                      </div>
-                    );
-                  })}
-                </dd>
+            {renderEncabezadoBloque('Pagos', { marginBottom: 'var(--duna-space-1)' })}
+            <p className="duna-field__hint" style={{ marginTop: 0, marginBottom: 'var(--duna-space-3)' }}>
+              Enciende los que ofreces; cada uno pide sus datos aquí mismo. Un método encendido sin sus
+              datos no se muestra en la tienda.
+            </p>
+
+            {/* a) Pago móvil — Nequi y Daviplata comparten el mismo número. */}
+            <div className={`admin-metodo${(settings.pagoNequiActivo || settings.pagoDaviplataActivo) ? ' is-on' : ''}`}>
+              <div className="admin-metodo__head">
+                {(['nequi', 'daviplata'] as const).map(id => {
+                  const m = METODOS_PAGO.find(x => x.id === id)!;
+                  return renderFilaMetodoLectura(id, m.label, settings, 'Falta el número');
+                })}
               </div>
-            </dl>
+              <div className="admin-metodo__config">
+                <dl className="duna-form" style={{ margin: 0 }}>
+                  <div className="duna-field">
+                    <dt className="duna-field__label">Número de pago móvil</dt>
+                    <dd className="duna-body" style={{ margin: 0, wordBreak: 'break-word' }}>
+                      {(settings.pagoMovilNumero ?? '').trim()
+                        ? telefonoDisplay(settings.pagoMovilNumero ?? '')
+                        : <span style={{ color: 'var(--duna-muted)' }}>Sin definir</span>}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>
+                  Un solo número para Nequi y Daviplata. Puede ser distinto del WhatsApp; sin él, esos
+                  dos métodos no se muestran.
+                </p>
+              </div>
+            </div>
+
+            {/* b) Transferencia bancaria. */}
+            <div className={`admin-metodo${settings.pagoTransferenciaActivo ? ' is-on' : ''}`}>
+              <div className="admin-metodo__head">
+                {renderFilaMetodoLectura('transferencia', 'Transferencia bancaria', settings, 'Falta la cuenta')}
+              </div>
+              <div className="admin-metodo__config">
+                <dl className="duna-form" style={{ margin: 0 }}>
+                  {CAMPOS_BANCO.map(campo => renderCampoLectura(campo, settings))}
+                </dl>
+                <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-3)' }}>
+                  Banco, tipo y número son los que hacen que el método se muestre. Vacíos, la
+                  Transferencia queda encendida pero oculta en la tienda.
+                </p>
+              </div>
+            </div>
+
+            {/* c) Contra entrega (efectivo) — sin config: no hay nada que configurar. */}
+            <div className={`admin-metodo${settings.pagoEfectivoActivo ? ' is-on' : ''}`}>
+              <div className="admin-metodo__head">
+                <div className="admin-metodo__fila" style={{ justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
+                    <span className="duna-field__label" style={{ margin: 0 }}>Contra entrega (efectivo)</span>
+                    <span className="duna-caption">No necesita datos</span>
+                  </div>
+                  {renderEstadoMetodoTexto(estadoMetodoEditor(settings, 'efectivo'))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -529,6 +608,40 @@ function renderCampoLectura(campo: Campo, settings: SiteSettings) {
       </dd>
     </div>
   );
+}
+
+// La fila de UN método en la cabecera de su sub-pieza, en LECTURA: nombre a la izquierda, estado
+// a la derecha (§ ADMIN-CONFIG-LECTURA-1). `faltaLabel` es el chip ámbar de "qué falta"
+// ("Falta el número" / "Falta la cuenta") — sólo aparece junto al texto cuando el método está
+// encendido SIN sus datos; el chip dice qué falta, el texto dice la consecuencia. El estado sale
+// SIEMPRE de `estadoMetodoEditor` — nunca un predicado propio.
+function renderFilaMetodoLectura(id: MetodoPagoId, label: string, settings: SiteSettings, faltaLabel: string) {
+  const estado = estadoMetodoEditor(settings, id);
+  return (
+    <div key={id} className="admin-metodo__fila" style={{ justifyContent: 'space-between' }}>
+      <span className="duna-field__label" style={{ margin: 0 }}>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)' }}>
+        {estado === 'activo_sin_datos' && (
+          <span className="duna-badge duna-badge--attention">{faltaLabel}</span>
+        )}
+        {renderEstadoMetodoTexto(estado)}
+      </div>
+    </div>
+  );
+}
+
+// El texto de estado ("Apagado" / "Encendido" / "Encendido — falta configurarlo"), compartido
+// por las tres sub-piezas de Pagos en lectura. Reusa `.admin-metodo__aviso` (el mismo estilo que
+// ya llevaba el aviso en edición) para la frase de atención, con el margen apagado — acá vive en
+// la cabecera, no debajo de la config.
+function renderEstadoMetodoTexto(estado: EstadoMetodoEditor) {
+  if (estado === 'apagado') {
+    return <span className="duna-caption">Apagado</span>;
+  }
+  if (estado === 'activo_sin_datos') {
+    return <span className="admin-metodo__aviso" style={{ margin: 0 }}>Encendido — falta configurarlo</span>;
+  }
+  return <span className="duna-caption" style={{ color: 'var(--duna-ink)' }}>Encendido</span>;
 }
 
 // El control de TELÉFONO: indicativo (select) + número (input) en UNA fila
