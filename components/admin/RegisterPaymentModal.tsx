@@ -267,11 +267,6 @@ function RegisterForm({ target, declaredMetodo, verificando, guarda, marcarCambi
               opcionesMetodo.map(m => <option key={m} value={m}>{METODO_PAGO_LABEL[m]}</option>)
             )}
           </select>
-          {hayComprobante && (
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Un comprobante implica transferencia — el efectivo no aparece.
-            </p>
-          )}
         </div>
         <div>
           <label className="duna-field__label" htmlFor="rp-fecha">Fecha en que entró el pago</label>
