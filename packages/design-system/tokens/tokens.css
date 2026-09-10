@@ -54,10 +54,19 @@
 :root {
   /* ── COLOR · roles, no nombres de color ─────────────────────────────────── */
   /* Superficies / papel */
-  --duna-paper:      #F4F3EF;   /* fondo de marca (rail) */
+  --duna-paper:      #F4F3EF;   /* fondo de marca — texto de `.duna-btn--primary` y fondos de badge; NO es el rail */
   --duna-bg:         #F7F6F2;   /* fondo de la app (≠ papel) */
   --duna-surface:    #FFFFFF;   /* tarjetas */
   --duna-surface-2:  #FBFAF7;   /* superficie hundida / secundaria */
+
+  /* RAIL · token propio, separado de `--duna-paper` (CHROME-RAIL-COLOR-1, 2026-09-10).
+     `--duna-paper` es el rol PAPEL: se invierte junto con `--duna-ink` y además pinta el
+     TEXTO de `.duna-btn--primary` (primitives.css) y el fondo de dos badges — moverlo
+     habría cambiado eso también. El rail necesita su PROPIO valor porque la relación que
+     pide el owner es distinta por tema: en claro el rail se ELEVA sobre la página (más
+     claro que `--duna-bg`); en oscuro se HUNDE bajo ella (más oscuro). Ninguna de las dos
+     relaciones es "= paper" en los dos temas a la vez. */
+  --duna-rail:       #FFFFFF;   /* claro: el rail se ELEVA sobre la página (mismo blanco que `--duna-surface`; los separa `--duna-bg`) */
 
   /* Texto (tinta / arena) — #141311 es el swatch canónico del logo */
   --duna-ink:        #141311;   /* texto primario · acción sólida (primario = TINTA) */
@@ -271,22 +280,35 @@
 /* ── DARK ─────────────────────────────────────────────────────────────────
    Solo el admin aplica el tema oscuro (el storefront es light-only). */
 [data-theme="dark"] {
+  /* RAMPA RE-BALANCEADA (CHROME-RAIL-COLOR-1, 2026-09-10, decisión del owner):
+     el rail gana su propio token y se hunde bajo la página; la página sube para
+     abrir espacio al rail sin comprimir la elevación de las tarjetas. Los deltas
+     de HOY se conservan corridos, no se inventan de nuevo:
+       --duna-rail       0F0E0D   8 pasos POR DEBAJO de --duna-bg (el contraste pedido)
+       --duna-bg         171614   sube (cálido, no el gris neutro del mock)
+       --duna-surface    1F1E1B   bg +8  (igual que hoy: bg 131211 → surface 1B1A18)
+       --duna-surface-2  1C1B18   bg +5  (igual que hoy)
+       --duna-border     2E2C27   surface +15 (igual que hoy)
+       --duna-border-2   3C3932   surface +29 (igual que hoy)
+       --duna-skel       32302B   surface +19 (igual que hoy; se mueve CON surface, ver su nota)
+     `--duna-paper` NO se toca: sigue siendo el texto del botón primario, no el rail. */
   --duna-paper:      #121212;
-  --duna-bg:         #131211;
-  --duna-surface:    #1B1A18;
-  --duna-surface-2:  #181715;
+  --duna-rail:       #0F0E0D;   /* oscuro: el rail se HUNDE bajo la página */
+  --duna-bg:         #171614;
+  --duna-surface:    #1F1E1B;
+  --duna-surface-2:  #1C1B18;
 
   --duna-ink:        #F4F3EF;
   --duna-ink-2:      #CFCBC0;
   --duna-muted:      #9A958A;
   --duna-faint:      #6E6A60;
 
-  --duna-border:     #2A2824;
-  --duna-border-2:   #38352F;
+  --duna-border:     #2E2C27;
+  --duna-border-2:   #3C3932;
 
-  /* Más claro que la tarjeta (#1B1A18), como en claro es más oscuro que ella:
+  /* Más claro que la tarjeta (#1F1E1B), como en claro es más oscuro que ella:
      el esqueleto es siempre un escalón de contraste, no un color fijo. */
-  --duna-skel:       #2E2C28;
+  --duna-skel:       #32302B;
 
   --duna-sol-ink:    #F5B04C;               /* texto ámbar legible en oscuro */
   --duna-sol-soft:   rgba(245,158,11,.14);

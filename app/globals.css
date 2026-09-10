@@ -181,9 +181,12 @@
      distribución del Dashboard, sus únicos consumidores (§ Backlog #8, cerrado por
      retiro). El color categórico del panel vive ahora en `--duna-serie-*`. */
 
-  /* El RAIL: fondo = papel de marca, hover = wash. `sidebar-primary` (el marcador
-     activo) y `sidebar-ring` quedan SIN mapear por lo mismo que `ring`. */
-  --color-sidebar:                      var(--duna-paper,      hsl(var(--sidebar-background)));
+  /* El RAIL: fondo = token propio `--duna-rail` (CHROME-RAIL-COLOR-1, 2026-09-10;
+     antes reusaba `--duna-paper`, el rol del texto del botón primario — se separó
+     porque la relación rail↔página que pide el owner difiere por tema), hover =
+     wash. `sidebar-primary` (el marcador activo) y `sidebar-ring` quedan SIN
+     mapear por lo mismo que `ring`. */
+  --color-sidebar:                      var(--duna-rail,       hsl(var(--sidebar-background)));
   --color-sidebar-foreground:           var(--duna-ink,        hsl(var(--sidebar-foreground)));
   --color-sidebar-primary:              hsl(var(--sidebar-primary));
   --color-sidebar-primary-foreground:   hsl(var(--sidebar-primary-foreground));
