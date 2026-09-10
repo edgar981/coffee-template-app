@@ -15,10 +15,11 @@ import { subirComprobante, decidirComprobante } from '@/lib/api/comprobantes';
 import { SelectorComprobante, AyudaComprobante, ComprobanteEnVerificacion } from '@/components/admin/Comprobantes';
 import { DateField } from '@/components/admin/DateField';
 import { formatearTamano } from '@/lib/comprobante';
+import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import type { Comprobante } from '@/types/comprobante';
 import type { Order } from '@/types/order';
 import type { Payment, MetodoPago } from '@/types/payment';
-import { METODOS_PAGO, METODO_PAGO_LABEL } from '@/types/payment';
+import { METODOS_PAGO, METODO_PAGO_LABEL, toMetodoPago } from '@/types/payment';
 
 // Registrar pago desde una orden. Cliente y monto son de SOLO LECTURA (vienen de
 // la orden, no se digitan); el admin elige método y opcionalmente referencia y
@@ -136,6 +137,26 @@ function RegisterForm({ target, declaredMetodo, verificando, guarda, marcarCambi
   const hayComprobante = !!verificando || !!archivo;
   const opcionesMetodo = hayComprobante ? METODOS_PAGO.filter(m => m !== 'EFECTIVO') : METODOS_PAGO;
 
+  // Los métodos siguen TODOS elegibles (§ PAGOS-METODOS-SELECT-1 §2): `Payment.metodo`
+  // es cómo llegó la plata REALMENTE, distinto de lo que la tienda OFRECE en el
+  // checkout (`SiteSetting.metodosPago`) — filtrar por lo configurado haría IMPOSIBLE
+  // registrar plata real que entró por un medio que el negocio no publica. Lo único que
+  // cambia es que los no configurados se agrupan y se rotulan, para que el operador vea
+  // la diferencia sin quedar bloqueado.
+  const settings = useSiteSettings();
+  const metodosConfigurados = new Set(
+    settings.metodosPago.map(m => toMetodoPago(m.tipo)).filter((m): m is MetodoPago => m !== null),
+  );
+  // OTRO es el residual por diseño: no tiene contraparte en `metodosPago` (el checkout
+  // no lo ofrece a propósito, es lo que no encaja en ningún método), así que rotularlo
+  // "no lo ofreces" sería una falsedad sobre un valor que existe para eso mismo.
+  const seOfrece = (m: MetodoPago) => m === 'OTRO' || metodosConfigurados.has(m);
+  const ofrecidos   = opcionesMetodo.filter(seOfrece);
+  const noOfrecidos = opcionesMetodo.filter(m => !seOfrece(m));
+  // Sin nada que distinguir —todo cae del mismo lado— el agrupado no aporta: un solo
+  // <optgroup> es un encabezado que no agrupa nada, así que ahí va la lista plana.
+  const hayDistincion = ofrecidos.length > 0 && noOfrecidos.length > 0;
+
   // ¿Hay algo que descartar al cerrar? Método distinto del sugerido, referencia o
   // notas escritas, o un soporte adjunto. (Registrar pago no lleva guarda de
   // "sin cambios" en el botón —siempre hace algo—, pero cerrarlo a medias sí
@@ -233,7 +254,18 @@ function RegisterForm({ target, declaredMetodo, verificando, guarda, marcarCambi
             {/* Placeholder sólo cuando no hay preselección (declarado efectivo con
                 comprobante): no elegir NO es válido, así que va disabled+hidden. */}
             {metodo === '' && <option value="" disabled hidden>Elige el método</option>}
-            {opcionesMetodo.map(m => <option key={m} value={m}>{METODO_PAGO_LABEL[m]}</option>)}
+            {hayDistincion ? (
+              <>
+                <optgroup label="Los que ofreces">
+                  {ofrecidos.map(m => <option key={m} value={m}>{METODO_PAGO_LABEL[m]}</option>)}
+                </optgroup>
+                <optgroup label="No los ofreces en tu checkout">
+                  {noOfrecidos.map(m => <option key={m} value={m}>{METODO_PAGO_LABEL[m]}</option>)}
+                </optgroup>
+              </>
+            ) : (
+              opcionesMetodo.map(m => <option key={m} value={m}>{METODO_PAGO_LABEL[m]}</option>)
+            )}
           </select>
           {hayComprobante && (
             <p className="mt-1 text-[11px] text-muted-foreground">
