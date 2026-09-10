@@ -351,17 +351,25 @@ export default function DatosNegocioSeccion() {
                 {(['nequi', 'daviplata'] as const).map(id => {
                   const m = METODOS_PAGO.find(x => x.id === id)!;
                   const activo = form[m.activoKey];
+                  const estado = id === 'nequi' ? nequiEstado : daviplataEstado;
                   return (
                     <div key={id} className="admin-metodo__fila">
-                      <button
-                        type="button" role="switch" aria-checked={activo}
-                        aria-label={`Encender ${m.label}`}
-                        onClick={() => setForm(f => ({ ...f, [m.activoKey]: !f[m.activoKey] }))}
-                        className={`duna-switch${activo ? ' is-on' : ''}`}
-                      >
-                        <span className="duna-switch__thumb" />
-                      </button>
                       <span className="duna-field__label" style={{ margin: 0 }}>{m.label}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginLeft: 'auto' }}>
+                        {estado === 'activo_sin_datos' && (
+                          <span className="duna-badge duna-badge--attention">
+                            <span className="duna-badge__dot" />Falta el número
+                          </span>
+                        )}
+                        <button
+                          type="button" role="switch" aria-checked={activo}
+                          aria-label={`Encender ${m.label}`}
+                          onClick={() => setForm(f => ({ ...f, [m.activoKey]: !f[m.activoKey] }))}
+                          className={`duna-switch${activo ? ' is-on' : ''}`}
+                        >
+                          <span className="duna-switch__thumb" />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -387,15 +395,22 @@ export default function DatosNegocioSeccion() {
             <div className={`admin-metodo${form.pagoTransferenciaActivo ? ' is-on' : ''}`}>
               <div className="admin-metodo__head">
                 <div className="admin-metodo__fila">
-                  <button
-                    type="button" role="switch" aria-checked={form.pagoTransferenciaActivo}
-                    aria-label="Encender Transferencia bancaria"
-                    onClick={() => setForm(f => ({ ...f, pagoTransferenciaActivo: !f.pagoTransferenciaActivo }))}
-                    className={`duna-switch${form.pagoTransferenciaActivo ? ' is-on' : ''}`}
-                  >
-                    <span className="duna-switch__thumb" />
-                  </button>
                   <span className="duna-field__label" style={{ margin: 0 }}>Transferencia bancaria</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginLeft: 'auto' }}>
+                    {transfFaltaDatos && (
+                      <span className="duna-badge duna-badge--attention">
+                        <span className="duna-badge__dot" />Falta la cuenta
+                      </span>
+                    )}
+                    <button
+                      type="button" role="switch" aria-checked={form.pagoTransferenciaActivo}
+                      aria-label="Encender Transferencia bancaria"
+                      onClick={() => setForm(f => ({ ...f, pagoTransferenciaActivo: !f.pagoTransferenciaActivo }))}
+                      className={`duna-switch${form.pagoTransferenciaActivo ? ' is-on' : ''}`}
+                    >
+                      <span className="duna-switch__thumb" />
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="admin-metodo__config">
@@ -412,15 +427,16 @@ export default function DatosNegocioSeccion() {
             <div className={`admin-metodo${form.pagoEfectivoActivo ? ' is-on' : ''}`}>
               <div className="admin-metodo__head">
                 <div className="admin-metodo__fila">
+                  <span className="duna-field__label" style={{ margin: 0 }}>Contra entrega (efectivo)</span>
                   <button
                     type="button" role="switch" aria-checked={form.pagoEfectivoActivo}
                     aria-label="Encender Contra entrega (efectivo)"
                     onClick={() => setForm(f => ({ ...f, pagoEfectivoActivo: !f.pagoEfectivoActivo }))}
                     className={`duna-switch${form.pagoEfectivoActivo ? ' is-on' : ''}`}
+                    style={{ marginLeft: 'auto' }}
                   >
                     <span className="duna-switch__thumb" />
                   </button>
-                  <span className="duna-field__label" style={{ margin: 0 }}>Contra entrega (efectivo)</span>
                 </div>
               </div>
             </div>
@@ -622,7 +638,9 @@ function renderFilaMetodoLectura(id: MetodoPagoId, label: string, settings: Site
       <span className="duna-field__label" style={{ margin: 0 }}>{label}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)' }}>
         {estado === 'activo_sin_datos' && (
-          <span className="duna-badge duna-badge--attention">{faltaLabel}</span>
+          <span className="duna-badge duna-badge--attention">
+            <span className="duna-badge__dot" />{faltaLabel}
+          </span>
         )}
         {renderEstadoMetodoTexto(estado)}
       </div>
