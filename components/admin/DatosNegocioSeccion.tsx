@@ -6,7 +6,10 @@ import { toast } from 'sonner';
 import { Pencil } from 'lucide-react';
 import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import { siteSettingsEditableSchema } from '@/lib/config/site-settings-schema';
-import { estadoMetodoEditor, type EstadoMetodoEditor, type MetodoPagoId, type SettingsMetodos } from '@/lib/checkout/metodos-pago';
+import {
+  METODOS_PAGO_ORDEN, CAMPOS_METODO, labelMetodo, metodoIncompleto,
+  type MetodoPagoTipo, type MetodoPagoGuardado,
+} from '@/lib/checkout/metodos-pago';
 import { partirTelefono, componerTelefono, INDICATIVOS } from '@/lib/config/telefono';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
@@ -28,15 +31,16 @@ import type { SiteSettings } from '@/lib/config/site-settings';
 // valores nuevos a todo el admin sin recargar a mano. Validación compartida con el PATCH
 // (`siteSettingsEditableSchema`): aviso temprano por campo, el server manda.
 //
-// REDISEÑO (ADMIN-CONFIG-REDISENO-1): la sección pasa del `CAMPOS.map` plano dentro de UNA
-// tarjeta al modelo de BLOQUES que `/admin/tienda` ya usaba —`.admin-bloques`/`.admin-bloque`,
-// generalizado de `.tienda-form`/`.tienda-form__bloque` acá mismo, en `duna.css`, porque
-// Configuración es su SEGUNDO consumidor—. Cuatro piezas: Identidad · Contacto · Correos ·
-// Pagos (con la config de cada método ADENTRO, § abajo).
+// PAGOS PASÓ A LISTA (§ PAGOS-METODOS-MODELO-1): revierte el modelo de "4 booleanos fijos +
+// un número compartido" — estar en la lista ES ofrecer el método, sin encendido/apagado
+// aparte. Ésta es la forma NUEVA MÍNIMA (agregar/quitar + los campos de cada tipo); el
+// pulido visual del mockup adoptado (grupos "Pagan antes"/"Pagan al recibir", el menú
+// desplegable, confirmar al quitar, el toast con Deshacer) es la tanda siguiente
+// (PAGOS-METODOS-UI-1), sobre esta misma rama.
 //
 // EL TELÉFONO se parte en indicativo+número SÓLO en esta frontera (`lib/config/telefono.ts`):
-// el DATO sigue siendo UNA columna (`whatsapp`, `pagoMovilNumero`) — se COMPONE antes de
-// validar contra el schema, que NO cambió. Ningún consumidor del valor compuesto se tocó
+// el DATO sigue siendo UNA columna (`whatsapp`) — se COMPONE antes de validar contra el
+// schema, que NO cambió para este campo. Ningún consumidor del valor compuesto se tocó
 // (`whatsappUrl`, el footer, el checkout).
 
 interface FormState {
@@ -44,25 +48,18 @@ interface FormState {
   whatsappIndicativo: string; whatsappNumero: string;
   instagram: string; emailRemitente: string;
   emailReplyTo: string; adminEmail: string;
-  bancoNombre: string; bancoTipoCuenta: string; bancoNumeroCuenta: string; bancoTitular: string;
-  // Métodos de pago (toggles) + el número de pago móvil, partido para editar.
-  pagoNequiActivo: boolean; pagoDaviplataActivo: boolean; pagoTransferenciaActivo: boolean; pagoEfectivoActivo: boolean;
-  movilIndicativo: string; movilNumero: string;
+  metodosPago: MetodoPagoGuardado[];
 }
-
-// Sólo las claves booleanas de FormState (para el toggle de cada método).
-type FormBoolKey = { [K in keyof FormState]: FormState[K] extends boolean ? K : never }[keyof FormState];
 
 // Los nombres de campo TEXTO PLANO que existen IDÉNTICOS en FormState y en SiteSettings — por
 // eso un mismo `Campo[]` alimenta el `set()` de edición Y el `dt/dd` de lectura, sin castear.
-// El teléfono (WhatsApp, pago móvil) queda FUERA a propósito: en el form vive PARTIDO
-// (whatsappIndicativo/whatsappNumero, movilIndicativo/movilNumero) y en SiteSettings vive
-// COMPUESTO (whatsapp, pagoMovilNumero) — cada lado tiene su propio control
-// (`ControlTelefono` / texto plano), no este renderer genérico.
+// El teléfono (WhatsApp) y los métodos de pago quedan FUERA a propósito: el teléfono vive
+// PARTIDO en el form (whatsappIndicativo/whatsappNumero) y COMPUESTO en SiteSettings
+// (whatsapp) — cada lado tiene su propio control (`ControlTelefono` / texto plano); los
+// métodos son su propia lista, con su propio renderer.
 type CampoNombre =
   | 'nombre' | 'tagline' | 'descripcionFooter' | 'instagram'
-  | 'emailRemitente' | 'emailReplyTo' | 'adminEmail'
-  | 'bancoNombre' | 'bancoTipoCuenta' | 'bancoNumeroCuenta' | 'bancoTitular';
+  | 'emailRemitente' | 'emailReplyTo' | 'adminEmail';
 
 type Campo = {
   name: CampoNombre;
@@ -87,23 +84,6 @@ const CAMPOS_CORREOS: Campo[] = [
   { name: 'adminEmail',     label: 'Correo donde llegan los reportes del equipo', hint: 'Destinatario por defecto del resumen diario y el reporte semanal. Vacío = cada reporte usa los suyos.' },
 ];
 
-// La config de la sub-pieza «Transferencia bancaria» (§ Pagos). El hint del primer campo
-// enmarca el grupo; con los esenciales (banco+tipo+número) vacíos, ese método no se muestra.
-const CAMPOS_BANCO: Campo[] = [
-  { name: 'bancoNombre',       label: 'Banco', hint: 'La cuenta del método "Transferencia bancaria" del checkout. Deja banco, tipo y número vacíos y ese método no se muestra.' },
-  { name: 'bancoTipoCuenta',   label: 'Tipo de cuenta', hint: 'Ahorros o Corriente.' },
-  { name: 'bancoNumeroCuenta', label: 'Número de cuenta' },
-  { name: 'bancoTitular',      label: 'Titular de la cuenta (opcional)', hint: 'A nombre de quién está la cuenta. Vacío: no se muestra.' },
-];
-
-// Los 4 métodos, para el bloque de toggles. El campo booleano de cada uno en el form.
-const METODOS_PAGO: { id: MetodoPagoId; activoKey: FormBoolKey; label: string }[] = [
-  { id: 'nequi',         activoKey: 'pagoNequiActivo',         label: 'Nequi' },
-  { id: 'daviplata',     activoKey: 'pagoDaviplataActivo',     label: 'Daviplata' },
-  { id: 'transferencia', activoKey: 'pagoTransferenciaActivo', label: 'Transferencia bancaria' },
-  { id: 'efectivo',      activoKey: 'pagoEfectivoActivo',      label: 'Contra entrega (efectivo)' },
-];
-
 // La descripción corta que acompaña al eyebrow de cada bloque (§ ADMIN-CONFIG-LECTURA-1): el
 // eyebrow ROTULA, esto EXPLICA para qué es el bloque. Va al lado, no debajo — por eso el mismo
 // renderer sirve en lectura y en edición (mismo esqueleto, § el principio del diseño).
@@ -124,8 +104,7 @@ function renderEncabezadoBloque(eyebrow: keyof typeof DESCRIPCION_BLOQUE, style?
 }
 
 function desdeSettings(s: SiteSettings): FormState {
-  const wa    = partirTelefono(s.whatsapp);
-  const movil = partirTelefono(s.pagoMovilNumero ?? '');
+  const wa = partirTelefono(s.whatsapp);
   return {
     nombre:              s.nombre,
     tagline:             s.tagline,
@@ -136,33 +115,7 @@ function desdeSettings(s: SiteSettings): FormState {
     emailRemitente:      s.emailRemitente,
     emailReplyTo:        s.emailReplyTo ?? '',
     adminEmail:          s.adminEmail ?? '',
-    bancoNombre:         s.bancoNombre ?? '',
-    bancoTipoCuenta:     s.bancoTipoCuenta ?? '',
-    bancoNumeroCuenta:   s.bancoNumeroCuenta ?? '',
-    bancoTitular:        s.bancoTitular ?? '',
-    pagoNequiActivo:         s.pagoNequiActivo,
-    pagoDaviplataActivo:     s.pagoDaviplataActivo,
-    pagoTransferenciaActivo: s.pagoTransferenciaActivo,
-    pagoEfectivoActivo:      s.pagoEfectivoActivo,
-    movilIndicativo:     movil.indicativo,
-    movilNumero:         movil.numero,
-  };
-}
-
-// La forma que `estadoMetodoEditor` espera (`SettingsMetodos`), armada desde el form EN
-// EDICIÓN: compone el teléfono partido de vuelta a un valor EFÍMERO, sólo para evaluar el
-// predicado compartido — NO es lo que se guarda; `guardar()` compone su propio payload.
-function comoMetodos(form: FormState): SettingsMetodos {
-  return {
-    bancoNombre:       form.bancoNombre,
-    bancoTipoCuenta:   form.bancoTipoCuenta,
-    bancoNumeroCuenta: form.bancoNumeroCuenta,
-    bancoTitular:      form.bancoTitular,
-    pagoNequiActivo:         form.pagoNequiActivo,
-    pagoDaviplataActivo:     form.pagoDaviplataActivo,
-    pagoTransferenciaActivo: form.pagoTransferenciaActivo,
-    pagoEfectivoActivo:      form.pagoEfectivoActivo,
-    pagoMovilNumero: componerTelefono(form.movilIndicativo, form.movilNumero),
+    metodosPago:         s.metodosPago,
   };
 }
 
@@ -172,6 +125,14 @@ function comoMetodos(form: FormState): SettingsMetodos {
 function telefonoDisplay(valor: string): string {
   const partido = partirTelefono(valor);
   return componerTelefono(partido.indicativo, partido.numero);
+}
+
+/** Los métodos de la lista, en el orden CANÓNICO — sin importar el orden de guardado ni el de
+ *  agregado durante la edición. */
+function enOrdenCanonico(metodos: MetodoPagoGuardado[]): MetodoPagoGuardado[] {
+  return METODOS_PAGO_ORDEN
+    .map(t => metodos.find(m => m.tipo === t))
+    .filter((m): m is MetodoPagoGuardado => m !== undefined);
 }
 
 export default function DatosNegocioSeccion() {
@@ -205,13 +166,29 @@ export default function DatosNegocioSeccion() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm(f => ({ ...f, [name]: e.target.value }));
 
+  // Los métodos que TODAVÍA no están en la lista — lo que ofrece el "+ Agregar".
+  const faltantes = METODOS_PAGO_ORDEN.filter(t => !form.metodosPago.some(m => m.tipo === t));
+
+  const agregarMetodo = (tipo: MetodoPagoTipo) => {
+    setForm(f => ({ ...f, metodosPago: [...f.metodosPago, { tipo, datos: {} }] }));
+  };
+  const quitarMetodo = (tipo: MetodoPagoTipo) => {
+    setForm(f => ({ ...f, metodosPago: f.metodosPago.filter(m => m.tipo !== tipo) }));
+  };
+  const setDatoMetodo = (tipo: MetodoPagoTipo, campo: string, valor: string) => {
+    setForm(f => ({
+      ...f,
+      metodosPago: f.metodosPago.map(m => (m.tipo === tipo ? { ...m, datos: { ...m.datos, [campo]: valor } } : m)),
+    }));
+  };
+
   const guardar = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorServidor(null);
 
-    // Se COMPONE antes de validar: el schema sigue validando el valor COMPUESTO, tal cual
-    // siempre. Si le pasáramos el form partido, zod strippearía `whatsapp`/`pagoMovilNumero`
-    // (no los declara) y el teléfono se perdería en silencio al guardar.
+    // Se COMPONE antes de validar: el schema sigue validando el whatsapp COMPUESTO, tal cual
+    // siempre. Si le pasáramos el form partido, zod strippearía `whatsapp` (no lo declara) y el
+    // teléfono se perdería en silencio al guardar.
     const payload = {
       nombre:            form.nombre,
       tagline:           form.tagline,
@@ -221,15 +198,7 @@ export default function DatosNegocioSeccion() {
       emailRemitente:    form.emailRemitente,
       emailReplyTo:      form.emailReplyTo,
       adminEmail:        form.adminEmail,
-      bancoNombre:       form.bancoNombre,
-      bancoTipoCuenta:   form.bancoTipoCuenta,
-      bancoNumeroCuenta: form.bancoNumeroCuenta,
-      bancoTitular:      form.bancoTitular,
-      pagoNequiActivo:         form.pagoNequiActivo,
-      pagoDaviplataActivo:     form.pagoDaviplataActivo,
-      pagoTransferenciaActivo: form.pagoTransferenciaActivo,
-      pagoEfectivoActivo:      form.pagoEfectivoActivo,
-      pagoMovilNumero:         componerTelefono(form.movilIndicativo, form.movilNumero),
+      metodosPago:       form.metodosPago,
     };
 
     const parsed = siteSettingsEditableSchema.safeParse(payload);
@@ -241,7 +210,6 @@ export default function DatosNegocioSeccion() {
         // con ese nombre: se mapea al slot del control de teléfono correspondiente.
         const destino: keyof FormState | undefined =
           campo === 'whatsapp' ? 'whatsappNumero' :
-          campo === 'pagoMovilNumero' ? 'movilNumero' :
           (campo as keyof FormState);
         if (destino && !errs[destino]) errs[destino] = issue.message; // el primero por campo
       }
@@ -266,15 +234,6 @@ export default function DatosNegocioSeccion() {
       router.refresh(); // re-corre el layout server → el resto del admin ve lo nuevo
     });
   };
-
-  // Estados de los tres métodos con config, para el aviso "Encendido — falta configurarlo"
-  // (§ Pagos). Reusa `estadoMetodoEditor` — NO se reimplementa ese predicado.
-  const metodos          = comoMetodos(form);
-  const nequiEstado      = estadoMetodoEditor(metodos, 'nequi');
-  const daviplataEstado  = estadoMetodoEditor(metodos, 'daviplata');
-  const transfEstado     = estadoMetodoEditor(metodos, 'transferencia');
-  const movilFaltaDatos  = nequiEstado === 'activo_sin_datos' || daviplataEstado === 'activo_sin_datos';
-  const transfFaltaDatos = transfEstado === 'activo_sin_datos';
 
   return (
     <>
@@ -336,114 +295,83 @@ export default function DatosNegocioSeccion() {
             </div>
           </div>
 
-          {/* Pagos — cada método con su config ADENTRO (§ el defecto que este bloque arregla:
-              antes los 4 checkboxes vivían al fondo y sus datos, arriba, lejos del toggle). */}
+          {/* Pagos — LISTA (§ PAGOS-METODOS-MODELO-1): estar acá ES ofrecerlo, sin encendido/
+              apagado aparte. Agregar/quitar + los campos de cada uno, adentro. */}
           <div className="admin-bloque">
             {renderEncabezadoBloque('Pagos', { marginBottom: 'var(--duna-space-1)' })}
             <p className="duna-field__hint" style={{ marginTop: 0, marginBottom: 'var(--duna-space-3)' }}>
-              Enciende los que ofreces; cada uno pide sus datos aquí mismo. Un método encendido sin sus
+              Agrega los métodos que ofreces; cada uno pide sus datos aquí mismo. Un método sin sus
               datos no se muestra en la tienda.
             </p>
 
-            {/* a) Pago móvil — Nequi y Daviplata comparten el mismo número. */}
-            <div className={`admin-metodo${(form.pagoNequiActivo || form.pagoDaviplataActivo) ? ' is-on' : ''}`}>
-              <div className="admin-metodo__head">
-                {(['nequi', 'daviplata'] as const).map(id => {
-                  const m = METODOS_PAGO.find(x => x.id === id)!;
-                  const activo = form[m.activoKey];
-                  const estado = id === 'nequi' ? nequiEstado : daviplataEstado;
-                  return (
-                    <div key={id} className="admin-metodo__fila">
-                      <span className="duna-field__label" style={{ margin: 0 }}>{m.label}</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginLeft: 'auto' }}>
-                        {estado === 'activo_sin_datos' && (
+            {enOrdenCanonico(form.metodosPago).map(m => {
+              const falta = metodoIncompleto(m);
+              const campos = CAMPOS_METODO[m.tipo];
+              return (
+                <div key={m.tipo} className="admin-metodo is-on">
+                  <div className="admin-metodo__head">
+                    <div className="admin-metodo__fila" style={{ justifyContent: 'space-between' }}>
+                      <span className="duna-field__label" style={{ margin: 0 }}>{labelMetodo(m.tipo)}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)' }}>
+                        {falta && (
                           <span className="duna-badge duna-badge--attention">
-                            <span className="duna-badge__dot" />Falta el número
+                            <span className="duna-badge__dot" />{falta}
                           </span>
                         )}
                         <button
-                          type="button" role="switch" aria-checked={activo}
-                          aria-label={`Encender ${m.label}`}
-                          onClick={() => setForm(f => ({ ...f, [m.activoKey]: !f[m.activoKey] }))}
-                          className={`duna-switch${activo ? ' is-on' : ''}`}
+                          type="button"
+                          onClick={() => quitarMetodo(m.tipo)}
+                          className="duna-btn duna-btn--ghost duna-btn--sm"
                         >
-                          <span className="duna-switch__thumb" />
+                          Quitar
                         </button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-              <div className="admin-metodo__config">
-                <ControlTelefono
-                  idBase="movil"
-                  label="Número de pago móvil"
-                  hint="Donde recibes Nequi y Daviplata. Puede ser distinto del WhatsApp. Vacío: esos métodos no se muestran."
-                  error={errores.movilNumero}
-                  indicativo={form.movilIndicativo}
-                  numero={form.movilNumero}
-                  onIndicativo={v => setForm(f => ({ ...f, movilIndicativo: v }))}
-                  onNumero={v => setForm(f => ({ ...f, movilNumero: v }))}
-                />
-                {movilFaltaDatos && (
-                  <p className="admin-metodo__aviso">Encendido — falta configurarlo</p>
-                )}
-              </div>
-            </div>
-
-            {/* b) Transferencia bancaria. */}
-            <div className={`admin-metodo${form.pagoTransferenciaActivo ? ' is-on' : ''}`}>
-              <div className="admin-metodo__head">
-                <div className="admin-metodo__fila">
-                  <span className="duna-field__label" style={{ margin: 0 }}>Transferencia bancaria</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)', marginLeft: 'auto' }}>
-                    {transfFaltaDatos && (
-                      <span className="duna-badge duna-badge--attention">
-                        <span className="duna-badge__dot" />Falta la cuenta
-                      </span>
-                    )}
-                    <button
-                      type="button" role="switch" aria-checked={form.pagoTransferenciaActivo}
-                      aria-label="Encender Transferencia bancaria"
-                      onClick={() => setForm(f => ({ ...f, pagoTransferenciaActivo: !f.pagoTransferenciaActivo }))}
-                      className={`duna-switch${form.pagoTransferenciaActivo ? ' is-on' : ''}`}
-                    >
-                      <span className="duna-switch__thumb" />
-                    </button>
                   </div>
+                  {campos.length > 0 && (
+                    <div className="admin-metodo__config">
+                      <div className="duna-form">
+                        {campos.map(c => {
+                          const id = `met-${m.tipo}-${c.name}`;
+                          return (
+                            <div className="duna-field" key={c.name}>
+                              <label className="duna-field__label" htmlFor={id}>{c.label}</label>
+                              <input
+                                id={id}
+                                className="duna-input"
+                                value={m.datos[c.name] ?? ''}
+                                onChange={e => setDatoMetodo(m.tipo, c.name, e.target.value)}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-              <div className="admin-metodo__config">
-                <div className="duna-form">
-                  {CAMPOS_BANCO.map(campo => renderCampoEdit(campo, form, errores, set))}
-                </div>
-                {transfFaltaDatos && (
-                  <p className="admin-metodo__aviso">Encendido — falta configurarlo</p>
-                )}
-              </div>
-            </div>
+              );
+            })}
 
-            {/* c) Contra entrega (efectivo) — sin config: no hay nada que configurar. */}
-            <div className={`admin-metodo${form.pagoEfectivoActivo ? ' is-on' : ''}`}>
-              <div className="admin-metodo__head">
-                <div className="admin-metodo__fila">
-                  <span className="duna-field__label" style={{ margin: 0 }}>Contra entrega (efectivo)</span>
-                  <button
-                    type="button" role="switch" aria-checked={form.pagoEfectivoActivo}
-                    aria-label="Encender Contra entrega (efectivo)"
-                    onClick={() => setForm(f => ({ ...f, pagoEfectivoActivo: !f.pagoEfectivoActivo }))}
-                    className={`duna-switch${form.pagoEfectivoActivo ? ' is-on' : ''}`}
-                    style={{ marginLeft: 'auto' }}
-                  >
-                    <span className="duna-switch__thumb" />
-                  </button>
-                </div>
+            {faltantes.length > 0 && (
+              <div style={{ marginTop: 'var(--duna-space-3)' }}>
+                <select
+                  className="duna-input duna-select"
+                  aria-label="Agregar método de pago"
+                  value=""
+                  onChange={e => {
+                    const tipo = e.target.value as MetodoPagoTipo;
+                    if (tipo) agregarMetodo(tipo);
+                  }}
+                >
+                  <option value="" disabled>+ Agregar método de pago</option>
+                  {faltantes.map(t => <option key={t} value={t}>{labelMetodo(t)}</option>)}
+                </select>
               </div>
-            </div>
+            )}
 
-            {/* Al menos un método encendido — el error del schema cae en `pagoNequiActivo`. */}
-            {errores.pagoNequiActivo && (
-              <p className="duna-field__error" style={{ marginTop: 'var(--duna-space-3)' }}>{errores.pagoNequiActivo}</p>
+            {/* La lista no puede quedar vacía — el error del schema cae en `metodosPago`. */}
+            {errores.metodosPago && (
+              <p className="duna-field__error" style={{ marginTop: 'var(--duna-space-3)' }}>{errores.metodosPago}</p>
             )}
           </div>
 
@@ -502,71 +430,53 @@ export default function DatosNegocioSeccion() {
             </dl>
           </div>
 
-          {/* Pagos — MISMO esqueleto que edición (§ ADMIN-CONFIG-LECTURA-1: el mockup usa la MISMA
-              estructura en lectura y edición; sólo cambia el control por su valor). Las tres
-              sub-piezas (`.admin-metodo`) se reusan tal cual — el estado sale de
-              `estadoMetodoEditor`, nunca reimplementado acá. */}
+          {/* Pagos — MISMO esqueleto que edición, sin los controles de agregar/quitar. Un método
+              en la lista sin sus datos muestra el mismo chip ámbar que en edición: el estado sale
+              SIEMPRE de `metodoIncompleto`, nunca reimplementado acá. */}
           <div className="admin-bloque">
             {renderEncabezadoBloque('Pagos', { marginBottom: 'var(--duna-space-1)' })}
             <p className="duna-field__hint" style={{ marginTop: 0, marginBottom: 'var(--duna-space-3)' }}>
-              Enciende los que ofreces; cada uno pide sus datos aquí mismo. Un método encendido sin sus
-              datos no se muestra en la tienda.
+              Los métodos que ofreces en el checkout. Un método sin sus datos no se muestra en la
+              tienda.
             </p>
 
-            {/* a) Pago móvil — Nequi y Daviplata comparten el mismo número. */}
-            <div className={`admin-metodo${(settings.pagoNequiActivo || settings.pagoDaviplataActivo) ? ' is-on' : ''}`}>
-              <div className="admin-metodo__head">
-                {(['nequi', 'daviplata'] as const).map(id => {
-                  const m = METODOS_PAGO.find(x => x.id === id)!;
-                  return renderFilaMetodoLectura(id, m.label, settings, 'Falta el número');
-                })}
-              </div>
-              <div className="admin-metodo__config">
-                <dl className="duna-form" style={{ margin: 0 }}>
-                  <div className="duna-field">
-                    <dt className="duna-field__label">Número de pago móvil</dt>
-                    <dd className="duna-body" style={{ margin: 0, wordBreak: 'break-word' }}>
-                      {(settings.pagoMovilNumero ?? '').trim()
-                        ? telefonoDisplay(settings.pagoMovilNumero ?? '')
-                        : <span style={{ color: 'var(--duna-muted)' }}>Sin definir</span>}
-                    </dd>
+            {settings.metodosPago.length === 0 ? (
+              <p className="duna-body" style={{ margin: 0, color: 'var(--duna-muted)' }}>
+                No hay ningún método de pago configurado.
+              </p>
+            ) : settings.metodosPago.map(m => {
+              const falta = metodoIncompleto(m);
+              const campos = CAMPOS_METODO[m.tipo];
+              return (
+                <div key={m.tipo} className="admin-metodo is-on">
+                  <div className="admin-metodo__head">
+                    <div className="admin-metodo__fila" style={{ justifyContent: 'space-between' }}>
+                      <span className="duna-field__label" style={{ margin: 0 }}>{labelMetodo(m.tipo)}</span>
+                      {falta && (
+                        <span className="duna-badge duna-badge--attention">
+                          <span className="duna-badge__dot" />{falta}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </dl>
-                <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>
-                  Un solo número para Nequi y Daviplata. Puede ser distinto del WhatsApp; sin él, esos
-                  dos métodos no se muestran.
-                </p>
-              </div>
-            </div>
-
-            {/* b) Transferencia bancaria. */}
-            <div className={`admin-metodo${settings.pagoTransferenciaActivo ? ' is-on' : ''}`}>
-              <div className="admin-metodo__head">
-                {renderFilaMetodoLectura('transferencia', 'Transferencia bancaria', settings, 'Falta la cuenta')}
-              </div>
-              <div className="admin-metodo__config">
-                <dl className="duna-form" style={{ margin: 0 }}>
-                  {CAMPOS_BANCO.map(campo => renderCampoLectura(campo, settings))}
-                </dl>
-                <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-3)' }}>
-                  Banco, tipo y número son los que hacen que el método se muestre. Vacíos, la
-                  Transferencia queda encendida pero oculta en la tienda.
-                </p>
-              </div>
-            </div>
-
-            {/* c) Contra entrega (efectivo) — sin config: no hay nada que configurar. */}
-            <div className={`admin-metodo${settings.pagoEfectivoActivo ? ' is-on' : ''}`}>
-              <div className="admin-metodo__head">
-                <div className="admin-metodo__fila" style={{ justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--duna-space-2)', flexWrap: 'wrap' }}>
-                    <span className="duna-field__label" style={{ margin: 0 }}>Contra entrega (efectivo)</span>
-                    <span className="duna-caption">No necesita datos</span>
-                  </div>
-                  {renderEstadoMetodoTexto(estadoMetodoEditor(settings, 'efectivo'))}
+                  {campos.length > 0 && (
+                    <div className="admin-metodo__config">
+                      <dl className="duna-form" style={{ margin: 0 }}>
+                        {campos.map(c => (
+                          <div className="duna-field" key={c.name}>
+                            <dt className="duna-field__label">{c.label}</dt>
+                            <dd className="duna-body" style={{ margin: 0, wordBreak: 'break-word' }}>
+                              {(m.datos[c.name] ?? '').trim()
+                                || <span style={{ color: 'var(--duna-muted)' }}>Sin definir</span>}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  )}
                 </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -624,42 +534,6 @@ function renderCampoLectura(campo: Campo, settings: SiteSettings) {
       </dd>
     </div>
   );
-}
-
-// La fila de UN método en la cabecera de su sub-pieza, en LECTURA: nombre a la izquierda, estado
-// a la derecha (§ ADMIN-CONFIG-LECTURA-1). `faltaLabel` es el chip ámbar de "qué falta"
-// ("Falta el número" / "Falta la cuenta") — sólo aparece junto al texto cuando el método está
-// encendido SIN sus datos; el chip dice qué falta, el texto dice la consecuencia. El estado sale
-// SIEMPRE de `estadoMetodoEditor` — nunca un predicado propio.
-function renderFilaMetodoLectura(id: MetodoPagoId, label: string, settings: SiteSettings, faltaLabel: string) {
-  const estado = estadoMetodoEditor(settings, id);
-  return (
-    <div key={id} className="admin-metodo__fila" style={{ justifyContent: 'space-between' }}>
-      <span className="duna-field__label" style={{ margin: 0 }}>{label}</span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)' }}>
-        {estado === 'activo_sin_datos' && (
-          <span className="duna-badge duna-badge--attention">
-            <span className="duna-badge__dot" />{faltaLabel}
-          </span>
-        )}
-        {renderEstadoMetodoTexto(estado)}
-      </div>
-    </div>
-  );
-}
-
-// El texto de estado ("Apagado" / "Encendido" / "Encendido — falta configurarlo"), compartido
-// por las tres sub-piezas de Pagos en lectura. Reusa `.admin-metodo__aviso` (el mismo estilo que
-// ya llevaba el aviso en edición) para la frase de atención, con el margen apagado — acá vive en
-// la cabecera, no debajo de la config.
-function renderEstadoMetodoTexto(estado: EstadoMetodoEditor) {
-  if (estado === 'apagado') {
-    return <span className="duna-caption">Apagado</span>;
-  }
-  if (estado === 'activo_sin_datos') {
-    return <span className="admin-metodo__aviso" style={{ margin: 0 }}>Encendido — falta configurarlo</span>;
-  }
-  return <span className="duna-caption" style={{ color: 'var(--duna-ink)' }}>Encendido</span>;
 }
 
 // El control de TELÉFONO: indicativo (select) + número (input) en UNA fila

@@ -7,19 +7,29 @@ export type PaymentMethod =
   | 'transferencia'
   | 'nequi'
   | 'daviplata'
+  | 'breb'
   | 'tarjeta'
   | 'otro';
 
 // Mirrors the Prisma `MetodoPago` enum — the method of a registered payment.
+//
+// ES UN ESPEJO A MANO, no un `import` de `@duna/core` (§ PAGOS-METODOS-MODELO-1 §6, el censo
+// que lo destapó): este archivo alimenta la UI admin del dinero (RegisterPaymentModal, la
+// página de Pagos, PagosCurva, el informe PDF) sin importar Prisma. Un valor nuevo del enum
+// de Prisma que no se sume ACÁ se pierde en silencio del desglose «Por método» del PDF
+// (`lib/pagos/informe.ts` itera `Object.keys(METODO_PAGO_LABEL)`) — un documento financiero
+// cuyas partes no suman su total, sin que nada avise. `lib/pagos/metodos-pago-enum.test.ts`
+// ata las dos declaraciones: falla NOMBRANDO el valor que falte.
 export type MetodoPago =
   | 'NEQUI'
   | 'DAVIPLATA'
   | 'EFECTIVO'
   | 'TRANSFERENCIA'
-  | 'OTRO';
+  | 'OTRO'
+  | 'BREB';
 
 export const METODOS_PAGO: MetodoPago[] = [
-  'NEQUI', 'DAVIPLATA', 'EFECTIVO', 'TRANSFERENCIA', 'OTRO',
+  'NEQUI', 'DAVIPLATA', 'EFECTIVO', 'TRANSFERENCIA', 'OTRO', 'BREB',
 ];
 
 export const METODO_PAGO_LABEL: Record<MetodoPago, string> = {
@@ -28,6 +38,7 @@ export const METODO_PAGO_LABEL: Record<MetodoPago, string> = {
   EFECTIVO:      'Efectivo',
   TRANSFERENCIA: 'Transferencia',
   OTRO:          'Otro',
+  BREB:          'Bre-B',
 };
 
 // Coerce a loose string (e.g. Order.metodo_pago "nequi", or a form value) to the
@@ -61,6 +72,8 @@ export const METODO_CATEGORIA: Record<MetodoPago, PaymentCategoria> = {
   DAVIPLATA:     'TRANSFERENCIA',
   TRANSFERENCIA: 'TRANSFERENCIA',
   OTRO:          'OTRO',
+  // Bre-B es plata que llega por un riel digital, no efectivo — mismo bucket que Nequi/Daviplata.
+  BREB:          'TRANSFERENCIA',
 };
 
 export const PAYMENT_CATEGORIA_LABEL: Record<PaymentCategoria, string> = {

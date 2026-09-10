@@ -367,12 +367,20 @@ enum ComprobanteEstado {
 
 // Manual payment methods. Extensible for online rails later (e.g. WOMPI) via
 // `ALTER TYPE "MetodoPago" ADD VALUE 'WOMPI'`.
+//
+// BREB (§ PAGOS-METODOS-MODELO-1, migración 20260910120100): pago por llave, el riel más
+// usado hoy en Colombia. Va al bucket TRANSFERENCIA en `METODO_CATEGORIA` (types/payment.ts)
+// — es plata que llega por un riel digital, no efectivo. `types/payment.ts` MIRROREA este
+// enum a mano (MetodoPago/METODOS_PAGO/METODO_PAGO_LABEL/METODO_CATEGORIA); un test derivado
+// (`lib/pagos/metodos-pago-enum.test.ts`) ata las dos declaraciones para que un valor nuevo
+// acá no pueda faltar allá en silencio.
 enum MetodoPago {
   NEQUI
   DAVIPLATA
   EFECTIVO
   TRANSFERENCIA
   OTRO
+  BREB
 }
 
 // Condición de pago de la orden (ver Order.condicion_pago). Es una CONDICIÓN,
@@ -575,24 +583,33 @@ model SiteSetting {
   emailRemitente    String
   emailReplyTo      String?
   adminEmail        String?
-  // Cuenta para TRANSFERENCIAS bancarias del checkout (§ el número de pago es config, no un
-  // literal). NULLABLE, sin default: vacío = el método "Transferencia" no se muestra (§ checkout,
-  // guarda con los 3 esenciales). El seed NO trae cuenta —una cuenta falsa en la ruta del dinero
-  // es peor que un método menos—; el dueño la pone desde Configuración.
+  // RETIRADAS (§ PAGOS-METODOS-MODELO-1, 2026-09-10): estas 9 columnas — la cuenta bancaria y los
+  // 4 booleanos + el número móvil — DEJARON de leerse. El eje entero se mudó a `metodosPago`
+  // (abajo), una LISTA que reemplaza "4 booleanos fijos + 1 número compartido" por "un elemento
+  // por método, cada uno con SU config". SIN LECTORES desde esta tanda: la migración
+  // `20260910120000_site_setting_metodos_pago` las lee UNA VEZ para el backfill y no las vuelve a
+  // tocar. Se QUEDAN en la fila (no DROP) por dos razones — son la marcha atrás barata si el
+  // backfill sale mal, y un DROP en el mismo deploy que el código que deja de leerlas abriría la
+  // VENTANA del `migrate deploy` (§ CLAUDE.md — un DROP no es atómico con el código: el código
+  // nuevo llega DESPUÉS del drop, no con él). El DROP es su propia tanda, code-first, cuando el
+  // código de esta tanda ya esté en línea en producción.
   bancoNombre       String?
   bancoTipoCuenta   String?
   bancoNumeroCuenta String?
   bancoTitular      String?
-  // MÉTODOS de pago del checkout: encender/apagar por método (fijos, no un motor de métodos).
-  // Default true → la fila existente queda con los 4 encendidos (comportamiento de hoy). Un método
-  // se muestra si está ON *y* tiene sus datos (§ metodos-pago).
   pagoNequiActivo         Boolean @default(true)
   pagoDaviplataActivo     Boolean @default(true)
   pagoTransferenciaActivo Boolean @default(true)
   pagoEfectivoActivo      Boolean @default(true)
-  // Número de pago móvil (Nequi/Daviplata) — su PROPIO dato, ya no cuelga de `whatsapp` (conflación
-  // contacto↔pago). La migración lo sembró desde whatsapp una vez; de ahí en más es independiente.
   pagoMovilNumero   String?
+  // MÉTODOS de pago del checkout, LISTA (§ PAGOS-METODOS-MODELO-1): set cerrado de CINCO tipos
+  // (nequi · daviplata · breb · transferencia · efectivo), un elemento por tipo, `{ tipo, datos }`.
+  // Estar en la lista es OFRECERLO — un solo eje, sin encendido/apagado aparte; quitar del array es
+  // la única forma de dejar de ofrecer un método. `[]` no puede persistir: el checkout necesita al
+  // menos uno (`siteSettingsEditableSchema`, refine). Parseada SOFT por `parseMetodosPago`
+  // (lib/checkout/metodos-pago.ts) — nunca lanza sobre un JSON raro. Backfileada desde las 9
+  // columnas de arriba en la MISMA migración que la crea.
+  metodosPago Json @default("[]")
   // La PALETA del storefront ya NO vive acá: se mudó a `SiteContent.content.tema` (§ Backlog #55)
   // para ganar el flujo borrador/publicar. SiteSetting es IDENTIDAD (guardar = en vivo al instante);
   // la paleta es CONTENIDO que se publica. Migración `drop_site_setting_palette`.

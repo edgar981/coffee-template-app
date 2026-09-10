@@ -80,7 +80,7 @@ export default function Checkout() {
   // sin opciones. El SELECCIONADO se acota a lo disponible en el render (sin efecto): si el elegido
   // ya no está —apagado, o salió de Bogotá— cae al primero disponible, así nunca viaja un método
   // que la tienda no ofrece.
-  const availablePayments = metodosDisponibles(settings, { isBogota });
+  const availablePayments = metodosDisponibles(settings.metodosPago, { isBogota });
   const metodoActivo = availablePayments.some((o) => o.id === payment) ? payment : (availablePayments[0]?.id ?? '');
 
   // Changing departamento re-derives the method; leaving Bogotá clears the franja. (No hace falta
@@ -114,6 +114,10 @@ export default function Checkout() {
           franja:            slot,
         },
         payment: {
+          // El cast sigue en el union VIEJO de `CheckoutPayload` (`services/checkout.service.ts`,
+          // FUERA de esta tanda — no está en `touches:`): ese archivo no se toca, así que el cast
+          // no "miente" sobre el runtime (metodoActivo SÍ puede ser 'breb' — sólo el TIPO del
+          // parámetro no lo declara todavía). Ver el open_followup del reporte de la tanda.
           metodo:     metodoActivo as 'nequi' | 'daviplata' | 'transferencia' | 'efectivo',
           referencia: refTransfer.trim() || undefined,
         },
@@ -364,7 +368,7 @@ export default function Checkout() {
                             </label>
                           ))}
                         </div>
-                        {(metodoActivo === 'nequi' || metodoActivo === 'daviplata' || metodoActivo === 'transferencia') && (
+                        {(metodoActivo === 'nequi' || metodoActivo === 'daviplata' || metodoActivo === 'breb' || metodoActivo === 'transferencia') && (
                           <Field label="Referencia de pago (opcional)" value={refTransfer} onChange={setRefTransfer} placeholder="Número de confirmación" />
                         )}
                       </>

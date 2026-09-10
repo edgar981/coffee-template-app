@@ -4,21 +4,32 @@ import { avisosDeConfiguracion } from './avisos-configuracion';
 import { resolverSiteContent, type SiteContentData, type PresentacionesContent } from './site-content-defaults';
 // `import type` (erased en compilación): el módulo trae prisma, pero sólo viaja el TIPO.
 import type { SiteSettings } from './site-settings-read';
+import type { MetodoPagoGuardado } from '../checkout/metodos-pago';
 
 // Nayoli resuelto (los defaults) = la config "SANA" de referencia. Sus presentaciones apuntan a
 // 'Café en Grano' / 'Café Molido' y traen imagen.
 const NAYOLI = resolverSiteContent({});
 const CATS_NAYOLI = ['Café en Grano', 'Café Molido']; // el catálogo alineado con las presentaciones
 
-// La IDENTIDAD sana de referencia: lo único que este módulo mira de `SiteSettings` es `whatsapp`, pero
-// el fixture se declara COMPLETO para que agregar un campo al tipo rompa acá y no en silencio.
+// Los métodos "sanos" de referencia: nequi/daviplata/transferencia ENCENDIDOS pero SIN datos —
+// el mismo estado que dejaba el modelo viejo con los booleanos en true y el número/cuenta sin
+// llenar—, y efectivo completo. Sólo efectivo es MOSTRABLE (y sólo en Bogotá), que es justo el
+// comportamiento que el fixture viejo producía.
+const METODOS_SANOS: MetodoPagoGuardado[] = [
+  { tipo: 'nequi', datos: { numero: '' } },
+  { tipo: 'daviplata', datos: { numero: '' } },
+  { tipo: 'transferencia', datos: { banco: '', tipoCuenta: '', numeroCuenta: '', titular: '' } },
+  { tipo: 'efectivo', datos: {} },
+];
+
+// La IDENTIDAD sana de referencia: lo único que este módulo mira de `SiteSettings` es `whatsapp` y
+// `metodosPago`, pero el fixture se declara COMPLETO para que agregar un campo al tipo rompa acá y
+// no en silencio.
 const AJUSTES_SANOS: SiteSettings = {
   nombre: 'Café Nayoli', tagline: '', descripcionFooter: '',
   whatsapp: '+573155766064', instagram: '', emailRemitente: '',
   emailReplyTo: null, adminEmail: null,
-  bancoNombre: null, bancoTipoCuenta: null, bancoNumeroCuenta: null, bancoTitular: null,
-  pagoNequiActivo: true, pagoDaviplataActivo: true, pagoTransferenciaActivo: true,
-  pagoEfectivoActivo: true, pagoMovilNumero: null,
+  metodosPago: METODOS_SANOS,
 };
 const conWhatsapp = (whatsapp: string): SiteSettings => ({ ...AJUSTES_SANOS, whatsapp });
 
@@ -33,10 +44,13 @@ const whatsapps = (s: SiteSettings) =>
   avisosDeConfiguracion(NAYOLI, CATS_NAYOLI, true, s).filter(a => a.clave === 'negocio-whatsapp');
 const salidas = (s: SiteSettings) =>
   avisosDeConfiguracion(NAYOLI, CATS_NAYOLI, true, s).filter(a => a.clave === 'checkout-sin-salida');
-/** Los cuatro métodos APAGADOS: la config que deja el paso de pago sin una sola opción que mostrar. */
-const SIN_METODOS: Pick<SiteSettings, 'pagoNequiActivo' | 'pagoDaviplataActivo' | 'pagoTransferenciaActivo' | 'pagoEfectivoActivo'> = {
-  pagoNequiActivo: false, pagoDaviplataActivo: false, pagoTransferenciaActivo: false, pagoEfectivoActivo: false,
-};
+/** La lista VACÍA: la config que deja el paso de pago sin una sola opción que mostrar. */
+const SIN_METODOS: Pick<SiteSettings, 'metodosPago'> = { metodosPago: [] };
+/** Sólo efectivo, completo — un método mostrable (y sólo en Bogotá). */
+const SOLO_EFECTIVO: Pick<SiteSettings, 'metodosPago'> = { metodosPago: [{ tipo: 'efectivo', datos: {} }] };
+/** Nequi encendido pero incompleto (sin número) — no cuenta como mostrable. */
+const NEQUI_SIN_NUMERO: Pick<SiteSettings, 'metodosPago'> = { metodosPago: [{ tipo: 'nequi', datos: { numero: '' } }] };
+const NEQUI_CON_NUMERO: Pick<SiteSettings, 'metodosPago'> = { metodosPago: [{ tipo: 'nequi', datos: { numero: '+573155766064' } }] };
 
 test('Nayoli SANO (defaults + catálogo alineado + identidad cargada) → CERO avisos', () => {
   const avisos = avisosDeConfiguracion(NAYOLI, CATS_NAYOLI, true, AJUSTES_SANOS);
@@ -159,19 +173,19 @@ test('sin métodos Y sin WhatsApp → el aviso del dead-end, donde se editan los
   assert.equal(avs[0].href, '/admin/configuracion');
 });
 
-test('un método ENCENDIDO pero SIN SUS DATOS no cuenta como mostrable — es la regla del checkout', () => {
-  // Sólo nequi encendido, y `pagoMovilNumero` sin cargar: el checkout NO lo muestra (§ metodos-pago),
-  // así que el paso de pago queda igual de vacío que con todo apagado.
-  const s: SiteSettings = { ...AJUSTES_SANOS, ...SIN_METODOS, pagoNequiActivo: true, pagoMovilNumero: null, whatsapp: '' };
+test('un método en la lista pero SIN SUS DATOS no cuenta como mostrable — es la regla del checkout', () => {
+  // Sólo nequi en la lista, y su número sin cargar: el checkout NO lo muestra (§ metodos-pago),
+  // así que el paso de pago queda igual de vacío que con la lista entera afuera.
+  const s: SiteSettings = { ...AJUSTES_SANOS, ...NEQUI_SIN_NUMERO, whatsapp: '' };
   assert.equal(salidas(s).length, 1);
   // y con el número cargado el mismo método SÍ se muestra → deja de haber dead-end.
-  assert.equal(salidas({ ...s, pagoMovilNumero: '+573155766064' }).length, 0);
+  assert.equal(salidas({ ...AJUSTES_SANOS, ...NEQUI_CON_NUMERO, whatsapp: '' }).length, 0);
 });
 
-test('el dead-end NO se juzga con la ciudad del comprador — efectivo encendido es un método mostrable', () => {
+test('el dead-end NO se juzga con la ciudad del comprador — efectivo en la lista es un método mostrable', () => {
   // `isBogota` es la dirección del COMPRADOR, no configuración: el aviso dispara sólo cuando NINGÚN
-  // comprador tendría método. Efectivo encendido (aunque sólo sirva en Bogotá) no es un dead-end cierto.
-  const s: SiteSettings = { ...AJUSTES_SANOS, ...SIN_METODOS, pagoEfectivoActivo: true, whatsapp: '' };
+  // comprador tendría método. Efectivo en la lista (aunque sólo sirva en Bogotá) no es un dead-end cierto.
+  const s: SiteSettings = { ...AJUSTES_SANOS, ...SOLO_EFECTIVO, whatsapp: '' };
   assert.equal(salidas(s).length, 0);
 });
 

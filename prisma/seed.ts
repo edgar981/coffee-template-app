@@ -236,6 +236,11 @@ async function main() {
   // Valores HARDCODEADOS (no de `siteConfig`) a propósito: coinciden con el INSERT de la
   // migración y sobreviven al retiro de los campos planos de `siteConfig` (commit 7).
   // `update: {}` = idempotente, no pisa ediciones de dev en un re-seed.
+  //
+  // `metodosPago` (§ PAGOS-METODOS-MODELO-1): los CUATRO de siempre, tal como los dejaban los
+  // defaults viejos antes de esta tanda — nequi/daviplata/transferencia SIN datos (nada
+  // inventado: el seed nunca trajo cuenta bancaria ni número de pago móvil propios) y efectivo
+  // completo (no pide datos). Bre-B NO se siembra — nadie lo tenía.
   await prisma.siteSetting.upsert({
     where:  { id: 'default' },
     update: {},
@@ -247,6 +252,12 @@ async function main() {
       whatsapp:          '+573155766064',
       instagram:         'cafenayoliorigen',
       emailRemitente:    'Café Nayoli <pedidos@mail.duna.solutions>',
+      metodosPago: [
+        { tipo: 'nequi', datos: { numero: '' } },
+        { tipo: 'daviplata', datos: { numero: '' } },
+        { tipo: 'transferencia', datos: { banco: '', tipoCuenta: '', numeroCuenta: '', titular: '' } },
+        { tipo: 'efectivo', datos: {} },
+      ],
     },
   });
   console.log("✅ SiteSetting singleton listo");
