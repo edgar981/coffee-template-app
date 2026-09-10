@@ -32,7 +32,7 @@ const checkoutSchema = z.object({
     franja:            z.string().trim().min(1).nullish(),
   }),
   payment: z.object({
-    metodo:     z.enum(['nequi', 'daviplata', 'transferencia', 'efectivo']),
+    metodo:     z.enum(['nequi', 'daviplata', 'breb', 'transferencia', 'efectivo']),
     referencia: z.string().trim().min(1).optional(),
   }),
   items: z

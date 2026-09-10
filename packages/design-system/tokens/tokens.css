@@ -117,13 +117,17 @@
      serie-4↔ok, que por eso se movió del teal #356E78 de la maqueta a este cyan
      (sube a 24.7 claro / 22.8 oscuro). Con eso el PISO de toda la paleta contra
      estados queda en ~22 ΔE2000; el más ajustado hoy es serie-1↔ok = 22.1 (oscuro).
-     Regla para una serie-6: se mide contra sol/ok/bad en los dos temas, y si
+     serie-6 (Bre-B, § PAGOS-METODOS-REMATES-1) es MISMO hex en los dos temas —como
+     sol—: medida, su par más ajustado es serie-6↔ok = 24.4 claro / 24.7 oscuro, y
+     contra serie-5 24.2 claro / 24.7 oscuro; no baja el piso de ~22.
+     Regla para una serie nueva: se mide contra sol/ok/bad en los dos temas, y si
      compite, se mueve la SERIE, no el estado — el estado manda. */
   --duna-serie-1:    #2F2D28;               /* casi tinta */
   --duna-serie-2:    #42648F;               /* azul */
   --duna-serie-3:    #7A5480;               /* morado */
   --duna-serie-4:    #2496AB;               /* cyan (movido de #356E78, competía con ok) */
   --duna-serie-5:    #A8A399;               /* neutro · el residual "Otro" por diseño */
+  --duna-serie-6:    #908A00;               /* oliva-mustard · Bre-B */
 
   /* Superficie del TOAST — tinta de marca CONSTANTE. Decisión explícita (owner):
      el toast es la voz del sistema y no se voltea con el tema (a diferencia de
@@ -323,12 +327,15 @@
 
   /* SERIE CATEGÓRICA en oscuro (ver el rol en :root). Aclaradas para el fondo
      oscuro, misma identidad por serie. serie-4 es el cyan movido (competía con ok);
-     su ΔE2000 a ok sube a 22.8 y el piso de la paleta contra estados queda en ~22. */
+     su ΔE2000 a ok sube a 22.8 y el piso de la paleta contra estados queda en ~22.
+     serie-6 (Bre-B) repite el MISMO hex que en :root —como sol—: medido, ya cumple
+     el piso en oscuro (24.7 contra ok, 24.7 contra serie-5) sin aclararlo. */
   --duna-serie-1:    #D8D4C8;               /* crema */
   --duna-serie-2:    #7C9FC9;               /* azul */
   --duna-serie-3:    #B08CB6;               /* morado */
   --duna-serie-4:    #52C0D6;               /* cyan (movido de #6FA8B0, competía con ok) */
   --duna-serie-5:    #6E6A60;               /* neutro · el residual "Otro" */
+  --duna-serie-6:    #908A00;               /* oliva-mustard · Bre-B (mismo hex que en :root) */
 
   /* --duna-toast-surface / --duna-toast-text / --duna-ok-on-ink / --duna-bad-on-ink NO se
      sobreescriben acá a propósito: el toast es superficie constante. */

@@ -119,7 +119,7 @@ export function avisosDeConfiguracion(
   // positivo. El caso PARCIAL —efectivo como único método encendido, que deja sin salida a quien compra
   // FUERA de Bogotá— NO lo cubre este aviso: si un negocio "sólo Bogotá" es un defecto es una pregunta de
   // producto, no una medición, y se decide en su propio ítem.
-  if (metodosDisponibles(ajustes, { isBogota: true }).length === 0 && ajustes.whatsapp.trim() === '') {
+  if (metodosDisponibles(ajustes.metodosPago, { isBogota: true }).length === 0 && ajustes.whatsapp.trim() === '') {
     avisos.push({
       clave: 'checkout-sin-salida',
       mensaje: 'Tu checkout no puede recibir pedidos: no hay ningún método de pago para mostrar ni un WhatsApp por donde coordinar, así que quien llega al paso de pago no puede terminar su compra.',

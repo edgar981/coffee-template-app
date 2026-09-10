@@ -11,7 +11,10 @@ import { toast } from 'sonner';
 import { PagosCurva, PagosCurvaEsqueleto } from '@/components/admin/PagosCurva';
 import { getPayments } from '@/lib/api/payments';
 import type { Payment, MetodoPago } from '@/types/payment';
-import { METODO_PAGO_LABEL, METODO_CATEGORIA, PAYMENT_CATEGORIA_LABEL, type PaymentCategoria } from '@/types/payment';
+import {
+  METODOS_PAGO, METODO_PAGO_LABEL, METODO_CATEGORIA, PAYMENT_CATEGORIA_LABEL,
+  PAYMENT_CATEGORIAS, PAYMENT_CATEGORIAS_MULTI, type PaymentCategoria,
+} from '@/types/payment';
 import { formatCOP } from '@duna/core/utils';
 import { formatFecha } from '@duna/core/format-fecha';
 import { BUSINESS_TZ, zonedDayKey, startOfZonedDay } from '@duna/core/timezone';
@@ -25,6 +28,17 @@ import { etiquetaBucket, type RecorteTiempo } from '@/lib/pagos/etiquetas';
 // Columnas del libro (grid-list). Flexibles: caben en la región sin scroll horizontal
 // en escritorio, y refluyen a 2 columnas en móvil (§ duna.css, `.duna-lista`).
 const COLS = '84px 104px minmax(70px,1.1fr) 96px 108px minmax(70px,1.3fr) 104px 22px';
+
+// Rótulo del <optgroup> del filtro de método, por CÓMO LLEGA LA PLATA (lo que el
+// operador distingue) — no el nombre técnico de PAYMENT_CATEGORIA_LABEL (ese es
+// para el desglose «Por método»). Cubre las TRES categorías de PaymentCategoria a
+// propósito: un método cuya categoría no tuviera rótulo acá desaparecería del
+// filtro en silencio (§ PAGOS-METODOS-SELECT-1).
+const GRUPO_METODO_LABEL: Record<PaymentCategoria, string> = {
+  TRANSFERENCIA: 'Digitales',
+  EFECTIVO:      'Físicos',
+  OTRO:          'Otros',
+};
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -276,24 +290,30 @@ function PagosInner() {
             onChange={e => setMetodo(e.target.value)}
           >
             {/* Agrupado por CÓMO LLEGA LA PLATA (lo que el operador distingue), no por la
-                mecánica del filtro. "Cualquier digital" (value cat:*) conserva la
-                capacidad de grupo —filtrar los tres digitales de un golpe— como primera
-                opción del grupo, separada de los métodos por un divisor inerte (lo más
-                cerca de "visualmente separada" que da un <select> nativo). */}
+                mecánica del filtro. Los grupos y sus métodos se DERIVAN de METODO_CATEGORIA
+                —la cuarta lista a mano que copiaba este mismo conjunto se retiró en
+                PAGOS-METODOS-SELECT-1—, así que un método nuevo del enum cae solo en su
+                grupo sin tocar esta pantalla. "Cualquier digital" (value cat:*) conserva la
+                capacidad de grupo —filtrar los varios métodos de una categoría de un
+                golpe— como primera opción, separada de los métodos por un divisor inerte
+                (lo más cerca de "visualmente separada" que da un <select> nativo); sólo se
+                ofrece para una categoría con MÁS de un método (PAYMENT_CATEGORIAS_MULTI) —
+                hoy únicamente Digitales—, porque en una categoría de un solo método el
+                grupo sería idéntico al método. */}
             <option value="all">Método · todos</option>
-            <optgroup label="Digitales">
-              <option value="cat:TRANSFERENCIA">Cualquier digital</option>
-              <option value="" disabled>──────────</option>
-              <option value="NEQUI">{METODO_PAGO_LABEL.NEQUI}</option>
-              <option value="DAVIPLATA">{METODO_PAGO_LABEL.DAVIPLATA}</option>
-              <option value="TRANSFERENCIA">{METODO_PAGO_LABEL.TRANSFERENCIA}</option>
-            </optgroup>
-            <optgroup label="Físicos">
-              <option value="EFECTIVO">{METODO_PAGO_LABEL.EFECTIVO}</option>
-            </optgroup>
-            <optgroup label="Otros">
-              <option value="OTRO">{METODO_PAGO_LABEL.OTRO}</option>
-            </optgroup>
+            {PAYMENT_CATEGORIAS.map(cat => (
+              <optgroup key={cat} label={GRUPO_METODO_LABEL[cat]}>
+                {PAYMENT_CATEGORIAS_MULTI.includes(cat) && (
+                  <>
+                    <option value={`cat:${cat}`}>Cualquier digital</option>
+                    <option value="" disabled>──────────</option>
+                  </>
+                )}
+                {METODOS_PAGO.filter(m => METODO_CATEGORIA[m] === cat).map(m => (
+                  <option key={m} value={m}>{METODO_PAGO_LABEL[m]}</option>
+                ))}
+              </optgroup>
+            ))}
           </select>
           <PresetsPeriodo opciones={presetsPagos} desde={from} hasta={to} onSelect={setRango} />
           <DateRangePicker desde={from || null} hasta={to || null} onChange={setRango} />

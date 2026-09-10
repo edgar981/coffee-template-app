@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { METODOS_PAGO_ORDEN, type MetodoPagoTipo } from '../checkout/metodos-pago';
 
 // Validación de los campos EDITABLES de SiteSetting (los planos). UNA definición que
 // corren el PATCH (la que MANDA) y el editor de Configuración (aviso temprano) — como
@@ -11,6 +12,15 @@ import { z } from 'zod';
 /** "a@b.com" o "Nombre <a@b.com>" — el formato de un remitente de correo. */
 const REMITENTE = /^(.+\s)?<?[^\s@]+@[^\s@]+\.[^\s@]+>?$/;
 
+// Un método guardado: su tipo (dentro del set cerrado) + sus datos, texto libre. Sin regex sobre
+// los VALORES de `datos` — un número de Nequi, una llave Bre-B o un número de cuenta varían de
+// forma por operador/banco, así que restringir el formato rechazaría datos válidos. La guarda de
+// "¿se muestra?" (§ metodos-pago) es la que evita un método a medias, no una validación acá.
+const metodoPagoSchema = z.object({
+  tipo:  z.enum(METODOS_PAGO_ORDEN as [MetodoPagoTipo, ...MetodoPagoTipo[]]),
+  datos: z.record(z.string(), z.string()),
+});
+
 export const siteSettingsEditableSchema = z.object({
   nombre:            z.string().trim().min(1, 'El nombre del negocio es obligatorio'),
   tagline:           z.string().trim().min(1, 'El tagline es obligatorio'),
@@ -21,26 +31,19 @@ export const siteSettingsEditableSchema = z.object({
   // Opcionales: '' se normaliza a null en el server. `.email()` sólo si hay valor.
   emailReplyTo:      z.union([z.literal(''), z.string().trim().email('Correo inválido')]).nullable().optional(),
   adminEmail:        z.union([z.literal(''), z.string().trim().email('Correo inválido')]).nullable().optional(),
-  // Cuenta para transferencias del checkout — texto libre, vacío permitido (''→null en el server).
-  // Sin regex: banco/tipo/titular son texto, y el número varía por banco (largos y separadores
-  // distintos), así que restringir el formato rechazaría cuentas válidas. La guarda del checkout
-  // (banco+tipo+número presentes) es lo que evita mostrar datos a medias, no una validación.
-  bancoNombre:       z.string().trim().optional(),
-  bancoTipoCuenta:   z.string().trim().optional(),
-  bancoNumeroCuenta: z.string().trim().optional(),
-  bancoTitular:      z.string().trim().optional(),
-  // Métodos de pago: encender/apagar + el número de pago móvil (Nequi/Daviplata), propio (ya no
-  // cuelga de whatsapp). El número es texto libre (formatos por operador), vacío permitido.
-  pagoNequiActivo:         z.boolean(),
-  pagoDaviplataActivo:     z.boolean(),
-  pagoTransferenciaActivo: z.boolean(),
-  pagoEfectivoActivo:      z.boolean(),
-  pagoMovilNumero:         z.string().trim().optional(),
+  // Los métodos de pago — LISTA (§ PAGOS-METODOS-MODELO-1), SIN tipos repetidos (un elemento por
+  // tipo). Un método INCOMPLETO no bloquea el guardado (ámbar, no rojo): se guarda y simplemente
+  // no se muestra en la tienda — las dos validaciones DURAS de este bloque son los refines de abajo.
+  metodosPago: z.array(metodoPagoSchema),
 }).refine(
-  // Al menos un método ENCENDIDO: el checkout no puede quedar sin forma de pagar. Regla del editor
-  // (aviso temprano) y del server (la que MANDA) — una definición, como "al menos una molienda".
-  d => d.pagoNequiActivo || d.pagoDaviplataActivo || d.pagoTransferenciaActivo || d.pagoEfectivoActivo,
-  { message: 'Deja al menos un método de pago encendido', path: ['pagoNequiActivo'] },
+  d => new Set(d.metodosPago.map(m => m.tipo)).size === d.metodosPago.length,
+  { message: 'No puedes repetir un método de pago', path: ['metodosPago'] },
+).refine(
+  // La lista no puede quedar VACÍA: sin ningún método el checkout no puede cobrar. Regla del
+  // editor (aviso temprano) y del server (la que MANDA) — una definición, como "al menos una
+  // molienda".
+  d => d.metodosPago.length > 0,
+  { message: 'Deja al menos un método de pago', path: ['metodosPago'] },
 );
 
 export type SiteSettingsEditable = z.infer<typeof siteSettingsEditableSchema>;

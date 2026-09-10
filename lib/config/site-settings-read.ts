@@ -1,4 +1,5 @@
 import prisma from '@duna/core';
+import { parseMetodosPago, type MetodoPagoGuardado } from '../checkout/metodos-pago';
 
 /**
  * Config EDITABLE del negocio, resuelta a un objeto plano (serializable, para pasar
@@ -14,18 +15,10 @@ export interface SiteSettings {
   emailRemitente:    string;
   emailReplyTo:      string | null;
   adminEmail:        string | null;
-  // Cuenta para transferencias del checkout (§ el número de pago es config). Null = vacío → el
-  // método "Transferencia" no se muestra.
-  bancoNombre:       string | null;
-  bancoTipoCuenta:   string | null;
-  bancoNumeroCuenta: string | null;
-  bancoTitular:      string | null;
-  // Métodos de pago del checkout: encender/apagar + el número de pago móvil propio.
-  pagoNequiActivo:         boolean;
-  pagoDaviplataActivo:     boolean;
-  pagoTransferenciaActivo: boolean;
-  pagoEfectivoActivo:      boolean;
-  pagoMovilNumero:         string | null;
+  // Los métodos de pago del checkout — LISTA (§ PAGOS-METODOS-MODELO-1), ya pasada por
+  // `parseMetodosPago` (SOFT): nadie fuera de este loader lee el JSON crudo de la columna.
+  // Reemplaza los 9 campos viejos (los 4 booleanos + el número móvil + los 4 de banco).
+  metodosPago: MetodoPagoGuardado[];
   // La PALETA ya no está acá: se mudó a `SiteContent.content.tema` (§ Backlog #55). El storefront
   // la lee de `getSiteContent()`, no de este loader.
 }
@@ -53,14 +46,6 @@ export async function readSiteSettings(): Promise<SiteSettings> {
     emailRemitente:    s.emailRemitente,
     emailReplyTo:      s.emailReplyTo,
     adminEmail:        s.adminEmail,
-    bancoNombre:       s.bancoNombre,
-    bancoTipoCuenta:   s.bancoTipoCuenta,
-    bancoNumeroCuenta: s.bancoNumeroCuenta,
-    bancoTitular:      s.bancoTitular,
-    pagoNequiActivo:         s.pagoNequiActivo,
-    pagoDaviplataActivo:     s.pagoDaviplataActivo,
-    pagoTransferenciaActivo: s.pagoTransferenciaActivo,
-    pagoEfectivoActivo:      s.pagoEfectivoActivo,
-    pagoMovilNumero:         s.pagoMovilNumero,
+    metodosPago:       parseMetodosPago(s.metodosPago),
   };
 }

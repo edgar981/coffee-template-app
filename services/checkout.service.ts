@@ -13,7 +13,12 @@ export interface CheckoutPayload {
     franja?: string | null;              // slot id ("am"/"pm"); Bogotá only
   };
   payment: {
-    metodo: 'nequi' | 'daviplata' | 'transferencia' | 'efectivo';
+    // § PAGOS-METODOS-REMATES-1: el servidor ya acepta 'breb' (su z.enum se sumó en
+    // PAGOS-METODOS-MODELO-1) — este tipo sólo estaba sub-declarando lo que ya viaja
+    // en runtime. `app/(storefront)/checkout/page.tsx` es tier 1 y NO se toca acá: su
+    // `as` a la unión vieja sigue compilando contra ésta (un cast a un tipo más
+    // angosto es asignable al más ancho).
+    metodo: 'nequi' | 'daviplata' | 'transferencia' | 'efectivo' | 'breb';
     referencia?: string;
   };
   items: {
