@@ -14,19 +14,24 @@ import { etiquetaEje, etiquetaBucket, type RecorteTiempo } from '@/lib/pagos/eti
 // DOS EJES INTERCAMBIABLES, y la regla de siempre: EL EJE NUNCA SE FILTRA A SÍ MISMO.
 // - modo TIEMPO (4–92 puntos): una curva sobre los buckets; filtra por MÉTODO (el select).
 // - modo MÉTODO (el recorte es 1 bucket): una barra por método; filtra por TIEMPO.
-//   Se muestran las cinco y se resalta la activa; una nota lo declara.
+//   Se muestran las seis y se resalta la activa; una nota lo declara.
 // - 2–3 buckets: ni tendencia ni método → se declara y la frase de arriba ya lo dice.
 // - >92 puntos ni en meses: no dibuja, se declara.
 //
 // La curva NO se apila por método (una curva apilada no existe): el desglose por método
 // vive en el modo método y en el select. Por eso acá no hay toggle ni leyenda.
 
-const METODOS_SERIE: { metodo: MetodoPago; color: string }[] = [
+// EXPORTADO para `lib/pagos/metodos-pago-enum.test.ts` (§ PAGOS-METODOS-REMATES-1): el
+// test lo ata al enum de Prisma, así que un método nuevo que no se sume ACÁ rompe la
+// suite NOMBRÁNDOLO, en vez de quedar sin barra en silencio (el modo de falla real: Bre-B
+// sumó al total y al desglose del libro/PDF pero no tenía barra en el modo método).
+export const METODOS_SERIE: { metodo: MetodoPago; color: string }[] = [
   { metodo: 'EFECTIVO',      color: 'var(--duna-serie-1)' },
   { metodo: 'NEQUI',         color: 'var(--duna-serie-2)' },
   { metodo: 'DAVIPLATA',     color: 'var(--duna-serie-3)' },
   { metodo: 'TRANSFERENCIA', color: 'var(--duna-serie-4)' },
   { metodo: 'OTRO',          color: 'var(--duna-serie-5)' },
+  { metodo: 'BREB',          color: 'var(--duna-serie-6)' },
 ];
 
 /**
@@ -276,7 +281,7 @@ export function PagosCurva({
             );
           })}
         </div>
-        {/* Se DECLARA sólo cuando ocurre: cinco barras sobre una tabla filtrada se
+        {/* Se DECLARA sólo cuando ocurre: seis barras sobre una tabla filtrada se
             leería como fallo si no se dice. */}
         {metodoSel && (
           <p className="admin-grafico__nota">

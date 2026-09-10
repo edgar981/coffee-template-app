@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MetodoPago as MetodoPagoPrisma } from '@duna/core';
 import { METODOS_PAGO, METODO_PAGO_LABEL, METODO_CATEGORIA } from '@/types/payment';
+import { METODOS_SERIE } from '@/components/admin/PagosCurva';
 
 // `types/payment.ts` MIRROREA a mano el enum de Prisma `MetodoPago` — no lo importa, porque
 // alimenta la UI admin del dinero (RegisterPaymentModal, la página de Pagos, PagosCurva, el
@@ -46,4 +47,24 @@ test('todo valor del enum tiene categoría en METODO_CATEGORIA — el resumen «
       `METODO_CATEGORIA no declara "${v}"`,
     );
   }
+});
+
+// § PAGOS-METODOS-REMATES-1 — la CUARTA declaración a mano del mismo conjunto: el
+// modo-método de PagosCurva. Un método sin entrada acá no dibuja barra (aunque SÍ
+// sume al total y al desglose del libro/PDF), y uno de más dibujaría una barra para
+// un método que no existe. DERIVADO del enum, no una quinta lista a mano.
+const VALORES_SERIE = METODOS_SERIE.map(m => m.metodo) as string[];
+
+test('METODOS_SERIE (PagosCurva) cubre EXACTAMENTE los valores del enum — ni de menos ni de más', () => {
+  const faltantesEnSerie = VALORES_PRISMA.filter(v => !VALORES_SERIE.includes(v));
+  assert.deepEqual(
+    faltantesEnSerie, [],
+    `METODOS_SERIE (components/admin/PagosCurva.tsx) no declara: ${faltantesEnSerie.join(', ')} — ese método no dibuja barra en el modo método`,
+  );
+
+  const sobrantesEnSerie = VALORES_SERIE.filter(v => !VALORES_PRISMA.includes(v));
+  assert.deepEqual(
+    sobrantesEnSerie, [],
+    `METODOS_SERIE declara valores que el enum de Prisma NO tiene: ${sobrantesEnSerie.join(', ')}`,
+  );
 });
