@@ -40,9 +40,8 @@ export async function PATCH(req: NextRequest) {
   // Write COMPLETO (el editor manda todo el formulario): sin la trampa del PATCH
   // parcial. `'' → null` en los opcionales para no guardar cadenas vacías.
   //
-  // Las 9 columnas viejas (bancoNombre…pagoMovilNumero) NO se escriben acá — quedan
-  // congeladas con el valor que tenían al backfillear `metodosPago` (§ schema.prisma,
-  // RETIRADAS). Escribirlas de nuevo las resucitaría como una segunda fuente de verdad.
+  // Las 9 columnas viejas de pago (bancoNombre…pagoMovilNumero) ya NO EXISTEN
+  // (§ PAGOS-METODOS-DROP-VIEJAS-1): su dato vive en `metodosPago`, más abajo.
   await prisma.siteSetting.update({
     where: { id: 'default' },
     data: {
