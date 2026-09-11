@@ -1,8 +1,10 @@
 // El teléfono se PARTE en indicativo + número SÓLO en la FRONTERA DEL FORMULARIO
 // (§ Configuración, rediseño de «Datos del negocio» a bloques). El DATO sigue siendo UNA
-// sola columna (`SiteSetting.whatsapp`, `SiteSetting.pagoMovilNumero`): esta capa no
-// migra nada y no toca un solo consumidor — `whatsappUrl`, `formatWhatsappDisplay`, el
-// footer y el checkout siguen leyendo el valor COMPUESTO tal cual, como hoy.
+// sola columna para el WhatsApp del negocio (`SiteSetting.whatsapp`): esta capa no migra
+// nada y no toca un solo consumidor — `whatsappUrl`, `formatWhatsappDisplay`, el footer y
+// el checkout siguen leyendo el valor COMPUESTO tal cual, como hoy. (El número de pago
+// móvil YA NO es una columna aparte: vive dentro de `SiteSetting.metodosPago`, § PAGOS-
+// METODOS-MODELO-1 — esta doctrina de partir/componer aplica igual a ese campo.)
 //
 // Puro (capa 1), sin `server-only`: lo importa el form cliente.
 

@@ -583,32 +583,15 @@ model SiteSetting {
   emailRemitente    String
   emailReplyTo      String?
   adminEmail        String?
-  // RETIRADAS (§ PAGOS-METODOS-MODELO-1, 2026-09-10): estas 9 columnas — la cuenta bancaria y los
-  // 4 booleanos + el número móvil — DEJARON de leerse. El eje entero se mudó a `metodosPago`
-  // (abajo), una LISTA que reemplaza "4 booleanos fijos + 1 número compartido" por "un elemento
-  // por método, cada uno con SU config". SIN LECTORES desde esta tanda: la migración
-  // `20260910120000_site_setting_metodos_pago` las lee UNA VEZ para el backfill y no las vuelve a
-  // tocar. Se QUEDAN en la fila (no DROP) por dos razones — son la marcha atrás barata si el
-  // backfill sale mal, y un DROP en el mismo deploy que el código que deja de leerlas abriría la
-  // VENTANA del `migrate deploy` (§ CLAUDE.md — un DROP no es atómico con el código: el código
-  // nuevo llega DESPUÉS del drop, no con él). El DROP es su propia tanda, code-first, cuando el
-  // código de esta tanda ya esté en línea en producción.
-  bancoNombre       String?
-  bancoTipoCuenta   String?
-  bancoNumeroCuenta String?
-  bancoTitular      String?
-  pagoNequiActivo         Boolean @default(true)
-  pagoDaviplataActivo     Boolean @default(true)
-  pagoTransferenciaActivo Boolean @default(true)
-  pagoEfectivoActivo      Boolean @default(true)
-  pagoMovilNumero   String?
   // MÉTODOS de pago del checkout, LISTA (§ PAGOS-METODOS-MODELO-1): set cerrado de CINCO tipos
   // (nequi · daviplata · breb · transferencia · efectivo), un elemento por tipo, `{ tipo, datos }`.
   // Estar en la lista es OFRECERLO — un solo eje, sin encendido/apagado aparte; quitar del array es
   // la única forma de dejar de ofrecer un método. `[]` no puede persistir: el checkout necesita al
   // menos uno (`siteSettingsEditableSchema`, refine). Parseada SOFT por `parseMetodosPago`
-  // (lib/checkout/metodos-pago.ts) — nunca lanza sobre un JSON raro. Backfileada desde las 9
-  // columnas de arriba en la MISMA migración que la crea.
+  // (lib/checkout/metodos-pago.ts) — nunca lanza sobre un JSON raro. Backfileada, en la MISMA
+  // migración que la crea (`20260910120000_site_setting_metodos_pago`), desde las 9 columnas
+  // viejas de pago (cuenta bancaria + 4 booleanos + número móvil) que esa migración leyó y que
+  // `20260910130000_drop_site_setting_pago_viejas` retiró — ya no existen en este modelo.
   metodosPago Json @default("[]")
   // La PALETA del storefront ya NO vive acá: se mudó a `SiteContent.content.tema` (§ Backlog #55)
   // para ganar el flujo borrador/publicar. SiteSetting es IDENTIDAD (guardar = en vivo al instante);
