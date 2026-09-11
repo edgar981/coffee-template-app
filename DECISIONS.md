@@ -402,3 +402,23 @@ Los únicos bytes fuera del schema son **dos comentarios que quedaban mintiendo*
 
 Merge `--no-ff` mecánico tras el gate del owner, tree del merge == tree gateado (`f7d398f`), `npm test` y `npm run build` verdes.
 Regla: § un DROP espera al DEPLOY que dejó de leer la columna, no al merge; y cuando la migración destructiva retira la última marcha atrás, el merge se condiciona a verificar **producción** —no dev— porque no tienen el mismo dato.
+
+## 2026-09-11 · El motor de paleta deja de entregar texto bajo el piso de contraste (`TEMAS-P6-MOTOR-1`)
+`e1254a6` en `slice/temas-p6-motor-1`, merge `--no-ff`
+
+Primera mitad de **P6**, el prerrequisito de plataforma del programa de THEMES: la del **MOTOR**. Los consumidores (`ProductCard`, `ProductChip`, `Logo`, `SubscriptionCTA`) van en su propio slice. `palette-derive.ts` tenía **tres defectos medidos contra sí mismo**, y los tres entregaban texto por debajo de 4.5:1 sin decirlo.
+
+**NO ES UNA REVERSIÓN DE DOCTRINA, ES SU EXTENSIÓN CON LA CONDICIÓN QUE LE FALTABA.** El repo tenía escrito que «`acento-texto` sobre tarjeta se deja intacto, § doctrina» (`esquema-style.ts`). Esa decisión **se tomó cuando la tarjeta era SIEMPRE BLANCA**. Con el eje de esquemas, un theme puede poner un acento de luminancia media y el contraste cae a 2.91:1 — ilegible. **El espíritu de la regla no cambia: el texto flora contra LA SUPERFICIE QUE LO SOSTIENE. Lo que apareció fue una superficie nueva.**
+
+**EL DEFECTO DE FONDO ERA UNA PREGUNTA MAL HECHA.** `direccionDePiso` preguntaba *«¿el fondo es claro u oscuro?»* (`luminancia > 0.5`) cuando la pregunta útil es **«¿qué dirección ALCANZA el objetivo?»**. Los dos casos que una investigación previa había declarado «sin salida» tienen salida **en direcciones OPUESTAS** —CORTE `#a3643a` se salva con BLANCO (4.728 vs 4.441 del negro) y PATIO `#c8662b` con NEGRO (5.391 vs 3.895 del blanco)—, que es exactamente por qué un umbral fijo de luminancia no puede acertar nunca. Los otros dos defectos eran de la misma familia: `pisoContraste` caminaba sólo `L` y **devolvía el hex parcial sin avisar** al agotar las iteraciones, y `acento-txt` era un **pick binario** blanco-vs-tinta que nunca pasaba por el piso y entregaba al perdedor-menos-malo (4.238:1 sobre el acento de PATIO).
+
+**«NO ALCANZA» NO EXISTE, Y ESO SE DEMOSTRÓ EN VEZ DE SUPONERSE.** La pregunta abierta era qué debía hacer `pisoContraste` cuando ninguna dirección llegara al piso — la salida conservadora era devolver el mejor esfuerzo **con una señal**. No hizo falta: para **cualquier** luminancia de fondo en `[0,1]`, `max(contraste_blanco, contraste_negro) ≥ **4.5826**`, con el peor caso en el cruce algebraico `L = √0.0525 − 0.05 = 0.179129` (verificado además con un barrido de 100.001 puntos). **El piso siempre es alcanzable**, así que la función pasa a tener garantía dura y no una salida degradada. El arreglo es una escalera de tres pasos: caminar `L` → **bajar croma conservando el tono** → extremo puro de la dirección elegida.
+
+**NAYOLI QUEDA BYTE-IDÉNTICA: 0 de las 24 tintas cambian, y 0 en cada uno de los 4 esquemas.** Es el hecho que gobierna el riesgo de este slice: se tocó el motor que deriva la paleta de TODOS los clientes, y la única tienda en línea no se mueve un píxel. **El gate del owner por lo tanto NO fue visual** —no había nada que mirar— sino la medición, que es reproducible con `npm test`. El arreglo sólo se manifiesta en paletas que todavía no existen.
+
+**EL TEST SE VIO FALLAR ANTES, y su hueco era la razón de que esto llegara hasta acá.** `palette-derive.test.ts` sólo iteraba `[NAYOLI, NEON]` — acentos de luminancia **0.0979** y **0.8818**, los dos extremos, **nunca uno medio**, que es justo donde la regla del umbral falla. La fixture nueva (`#d98324`, luminancia 0.3111) contra el motor viejo da **dos fallas exactas: `acento-texto` 2.384 y `texto-suave` 2.521**; verde con el arreglo. Es la forma de siempre: **un test que nunca se vio fallar no prueba que atrapa nada**, y un set de fixtures que sólo cubre los extremos deja el medio sin guardia.
+
+Después: VETA/acento 2.384→**4.515** y 2.521→**4.548** · PATIO/acento 3.756/3.320/3.075→**4.546/4.522/4.522** · CORTE/acento 4.288/4.081→**4.514/4.501** · `acento-txt` de PATIO 4.238→**4.513**.
+
+Merge `--no-ff` mecánico tras el gate del owner, tree del merge == tree gateado (`14d85de`), `npm test` **1030/1030 antes y después**.
+Regla: § la dirección del piso de contraste se elige por ALCANCE REAL, no por un umbral de luminancia; y una doctrina de color que se escribió con una sola superficie se EXTIENDE con la condición que le faltaba cuando aparece la segunda, no se revierte.
