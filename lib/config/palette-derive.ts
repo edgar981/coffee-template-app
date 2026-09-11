@@ -19,6 +19,19 @@
 // `texto`, `textoSuave` y `acentoTexto` —los tres que van como texto sobre fondo— y a
 // NADA MÁS. No "completar la simetría" floreando tonos claros-sobre-oscuro: no lo
 // necesitan, y oscurecerlos los rompería en su fondo real.
+//
+// EXTENSIÓN (§ TEMAS-P6-MOTOR-1): "claro pisa a oscuro, oscuro pisa a claro" asumía que toda
+// superficie de texto era CLARAMENTE una u otra. Pero `acento-texto`/`acento-txt` pisan contra
+// una superficie de LUMINANCIA MEDIA (el propio acento del cliente) — y ahí el umbral de 0.5 elige
+// la dirección EQUIVOCADA: para un acento de luminancia 0.31 (medido, `#d98324`), aclarar (la regla
+// vieja) da 2.91:1 sobre su propio fondo; oscurecer da 6.95:1. La dirección correcta NO es "¿la
+// superficie es clara?" sino "¿qué dirección alcanza MÁS contraste?" — que es lo que
+// `direccionDePiso` prueba ahora (comparando blanco puro vs negro puro contra la superficie). El
+// cruce real está en L≈0.1791 (demostrado algebraicamente, no 0.5): para CUALQUIER luminancia de
+// fondo el mejor de blanco/negro puro da ≥4.58:1 — nunca menos, así que el piso de 4.5 siempre es
+// alcanzable en la dirección correcta. El espíritu de la regla no cambia (texto flota contra LA
+// SUPERFICIE QUE LO SOSTIENE); lo que cambia es que "clara u oscura" se decide por ALCANCE REAL, no
+// por un umbral crudo.
 
 export type RaicesPaleta = { fondo: string; tinta: string; acento: string };
 export type PaletaDerivada = Record<string, string>; // clave = nombre de var sin `--sf-`
@@ -66,25 +79,62 @@ export function contraste(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 export type DireccionPiso = 'oscurecer' | 'aclarar';
-/** La regla de dirección (§ cabecera), vuelta código: superficie CLARA → oscurecer (la regla de
- *  hoy); superficie OSCURA → aclarar. Es el default de `pisoContraste` cuando no se pasa `dir`. */
-const direccionDePiso = (bg: string): DireccionPiso => (luminancia(bg) > 0.5 ? 'oscurecer' : 'aclarar');
+/** La regla de dirección (§ TEMAS-P6-MOTOR-1): NO un umbral crudo de luminancia — la dirección
+ *  que MÁS CONTRASTE alcanza sobre `bg`, probando las dos (blanco puro vs negro puro) y
+ *  quedándose con la que gana. Es el default de `pisoContraste` cuando no se pasa `dir`.
+ *
+ *  El umbral viejo (`luminancia(bg) > 0.5`) coincide con éste para toda superficie CLARA (>0.5) u
+ *  OSCURA (<0.1791) — donde las dos reglas concuerdan, así que Nayoli/NEON quedan byte-idénticos—,
+ *  pero DIVERGE en la banda intermedia (0.1791, 0.5): ahí el umbral viejo elegía "aclarar" para
+ *  TODA luminancia bajo 0.5, cuando el cruce real (blanco==negro en contraste WCAG) está en
+ *  L≈0.1791, no en 0.5. Un acento de luminancia 0.31 (medido, `#d98324`) caía en esa banda y
+ *  "aclarar" le daba 2.91:1 sobre sí mismo — la dirección que MENOS alcanza. */
+const direccionDePiso = (bg: string): DireccionPiso =>
+  contraste('#000000', bg) >= contraste('#ffffff', bg) ? 'oscurecer' : 'aclarar';
 /** Floréa `hex` (mueve L en OKLCH, hacia oscuro o hacia claro según `dir`) hasta alcanzar
  *  `objetivo:1` de contraste sobre `bg`. El piso de contraste: garantiza que un rol de TEXTO se
  *  lea sobre SU superficie, sea cual sea el acento del cliente (un neón se oscurece a oro legible
  *  sobre fondo claro; un acento oscuro se aclara sobre una superficie oscura).
  *
- *  `dir` es OPCIONAL: si se omite, se DERIVA de la luminancia de `bg` (§ `direccionDePiso`). El
- *  único call site de producción de hoy (`derivarPaleta`, más abajo) no pasa `dir` y su `bg` es
- *  siempre la raíz `fondo` —CLARA en Nayoli—, así que la dirección derivada es 'oscurecer' y el
- *  resultado es BYTE-IDÉNTICO al de antes de este parámetro (afirmado en el test). */
+ *  `dir` es OPCIONAL: si se omite, se DERIVA por alcance real de la luminancia de `bg`
+ *  (§ `direccionDePiso`). El call site de `derivarPaleta` no pasa `dir` y su `bg` es siempre la
+ *  raíz `fondo` —CLARA en Nayoli—, así que la dirección derivada sigue siendo 'oscurecer' y el
+ *  resultado es BYTE-IDÉNTICO al de antes de este parámetro (afirmado en el test).
+ *
+ *  LA ESCALERA (§ TEMAS-P6-MOTOR-1), en orden — cada paso sólo corre si el anterior no alcanzó:
+ *   1. caminar L (el mecanismo de siempre, sin cambios);
+ *   2. si L llegó a su extremo (0 o 1) sin alcanzar el objetivo, bajar CROMA conservando el TONO
+ *      —un tono muy saturado puede quedar corto de contraste aun en el extremo de L: `CORTE` con
+ *      L=1 y C=0.0995 (paso 1 solo) da 4.08:1, pero el mismo L con C=0 (blanco puro) da 4.73:1—;
+ *   3. si aún no alcanza, el extremo PURO de esta dirección (#000000/#ffffff exacto) es el mejor
+ *      esfuerzo posible SIN CAMBIAR DE DIRECCIÓN — `dir` se respeta siempre, incluso forzado
+ *      (el test "dir explícito SE RESPETA" lo exige); los pasos 1+2 ya convergen ahí salvo
+ *      redondeo de punto flotante, así que este paso es la red, no el mecanismo principal.
+ *
+ *  GARANTÍA (demostrada algebraicamente, no sólo medida): para CUALQUIER luminancia de fondo en
+ *  [0,1], max(contraste con blanco puro, contraste con negro puro) ≥ 4.5826 — el peor caso posible,
+ *  en el cruce L≈0.1791 — así que con `dir` AUTO-DERIVADO (sin forzar) `pisoContraste` SIEMPRE
+ *  alcanza objetivo=4.5, para cualquier candidato y cualquier `bg`. Con `dir` forzado a la
+ *  dirección que NO gana, el paso 3 puede devolver por debajo del objetivo — es física del
+ *  contraste, no un bug (§ el test de arriba). */
 export function pisoContraste(hex: string, bg: string, objetivo = 4.5, dir: DireccionPiso = direccionDePiso(bg)): string {
   let lch = labToLch(hexToOklab(hex)), out = hex;
-  const paso = dir === 'oscurecer' ? -0.008 : 0.008;
+  const signo = dir === 'oscurecer' ? -1 : 1;
+  // 1) caminar L.
   for (let i = 0; i < 140 && contraste(out, bg) < objetivo; i++) {
-    lch = { ...lch, L: Math.min(1, Math.max(0, lch.L + paso)) };
+    lch = { ...lch, L: Math.min(1, Math.max(0, lch.L + signo * 0.008)) };
     out = oklabToHex(lchToLab(lch));
   }
+  // 2) bajar croma conservando el tono, desde donde L quedó.
+  if (contraste(out, bg) < objetivo && lch.C > 0) {
+    const pasoC = lch.C / 140;
+    for (let i = 0; i < 140 && contraste(out, bg) < objetivo && lch.C > 0; i++) {
+      lch = { ...lch, C: Math.max(0, lch.C - pasoC) };
+      out = oklabToHex(lchToLab(lch));
+    }
+  }
+  // 3) el extremo puro de ESTA dirección, como mejor esfuerzo final.
+  if (contraste(out, bg) < objetivo) out = dir === 'oscurecer' ? '#000000' : '#ffffff';
   return out;
 }
 
@@ -135,7 +185,15 @@ export function derivarPaleta(raices: RaicesPaleta): PaletaDerivada {
   // propósito: el texto de los botones era `text-white`, así que para Nayoli (acento oscuro
   // → gana el blanco) queda #ffffff EXACTO → byte-idéntico. Para un acento claro (neón →
   // gana la tinta) el botón toma texto oscuro. (§ el gemelo del split de links.)
-  out['acento-txt'] = contraste('#ffffff', acento) >= contraste(tinta, acento) ? '#ffffff' : tinta;
+  //
+  // GANA PISO (§ TEMAS-P6-MOTOR-1): el auto-flip era un pick BINARIO sin garantía — devolvía
+  // el "perdedor menos malo" cuando NINGUNO de los dos candidatos alcanzaba 4.5 (medido: acento
+  // de PATIO, `#c8662b`, el pick daba la tinta a 4.238:1, bajo el piso, sin florear más). Ahora
+  // el candidato ganador pasa por el MISMO mecanismo que el resto de los roles de texto —
+  // `pisoContraste` contra el acento (la superficie real del botón), nunca contra `fondo`. Para
+  // Nayoli el candidato ya pasa (7.10:1) y el piso no lo toca → byte-idéntico.
+  const candidatoAcentoTxt = contraste('#ffffff', acento) >= contraste(tinta, acento) ? '#ffffff' : tinta;
+  out['acento-txt'] = pisoContraste(candidatoAcentoTxt, acento, 4.5);
   // tarjeta/sobre (§ eje 5b, los 2 tokens nuevos): la superficie de una TARJETA sobre el
   // esquema CREMA/default y su texto/ícono. Hoy son `bg-white`/`text-white` LITERALES en el
   // código —constantes, sin importar el acento del cliente—; acá el motor los deja igual de
@@ -187,8 +245,12 @@ function textoClaroSobreOscuro(base: PaletaDerivada, superficie: string, dir: Di
  * `pisoContraste` de la luminancia de esa superficie (§ `direccionDePiso`)—. `acento-texto` se
  * re-florea de siempre (el rol oscuro, anclado a la NUEVA superficie). `texto`/`texto-suave`
  * se re-florean igual sobre una superficie CLARA (`crema` ya se resolvió arriba; sólo queda
- * `superficie`); sobre una OSCURA (`oscuro`, `acento`) reusan un candidato claro en vez de
- * re-florear el oscuro (§ `textoClaroSobreOscuro`, arriba). `tarjeta`/`sobre` se re-derivan de
+ * `superficie`); sobre una OSCURA (`oscuro`, siempre; `acento` sólo si el acento del cliente es
+ * de verdad oscuro, § TEMAS-P6-MOTOR-1 — `dir` decide por ALCANCE REAL, no por el id del esquema)
+ * reusan un candidato claro en vez de re-florear el oscuro (§ `textoClaroSobreOscuro`, arriba).
+ * Un acento de luminancia MEDIA (ni claramente claro ni oscuro, p.ej. `#c8662b`) puede caer del
+ * lado CLARO (`dir === 'oscurecer'`) pese a llamarse esquema "acento": es correcto, porque ahí es
+ * donde el texto oscuro sí alcanza más contraste que uno claro. `tarjeta`/`sobre` se re-derivan de
  * la superficie del esquema (una tarjeta un ~10% más clara que su banda, con su propio
  * auto-flip de texto).
  *

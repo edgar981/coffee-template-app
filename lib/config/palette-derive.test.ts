@@ -8,6 +8,10 @@ import { derivarPaleta, derivarEsquema, pisoContraste, contraste, mezclar, type 
 
 const NAYOLI: RaicesPaleta = { fondo: '#faf7f4', tinta: '#1a0f08', acento: '#8b4513' };
 const NEON:   RaicesPaleta = { fondo: '#f6f5f3', tinta: '#1c1a18', acento: '#e5ff00' };
+// Acento de luminancia MEDIA (0.3111) — NAYOLI (0.0979) y NEON (0.8818) nunca pasan por acá, que
+// es justo donde el umbral crudo de `direccionDePiso` (§ TEMAS-P6-MOTOR-1) elegía la dirección
+// equivocada: 'aclarar' (por luminancia<0.5) cuando 'oscurecer' es la que más contraste alcanza.
+const MEDIO: RaicesPaleta = { fondo: '#16120e', tinta: '#080605', acento: '#d98324' };
 
 test('las 3 raíces se copian tal cual', () => {
   const p = derivarPaleta(NAYOLI);
@@ -118,7 +122,7 @@ test('derivarEsquema("crema", …) es EXACTO a derivarPaleta(…) — byte-idén
 
 test('derivarEsquema: los 4 esquemas dan texto/texto-suave/acento-texto ≥4.5:1 contra su propia superficie', () => {
   const ids: EsquemaId[] = ['crema', 'superficie', 'oscuro', 'acento'];
-  for (const raices of [NAYOLI, NEON]) {
+  for (const raices of [NAYOLI, NEON, MEDIO]) {
     for (const id of ids) {
       const p = derivarEsquema(raices, id);
       const superficie = p.fondo;
