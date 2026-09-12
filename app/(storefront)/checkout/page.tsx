@@ -16,7 +16,7 @@ import {
   type ShippingMethodId,
 } from '@duna/core/shipping-config';
 import { COLOMBIA_DEPARTMENTS, isBogotaDC } from '@duna/core/colombia-departments';
-import { metodosDisponibles } from '@/lib/checkout/metodos-pago';
+import { metodosDisponibles, type MetodoPagoTipo } from '@/lib/checkout/metodos-pago';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 
 const STEPS = ['Información', 'Pago'];
@@ -43,7 +43,7 @@ export default function Checkout() {
   const [info, setInfo] = useState({ nombre: '', apellido: '', email: '', telefono: '' });
   const [address, setAddress] = useState({ linea1: '', detalle: '', ciudad: '', departamento: '', cp: '' });
   const [slot, setSlot] = useState<string | null>(null);
-  const [payment, setPayment] = useState('nequi');
+  const [payment, setPayment] = useState<MetodoPagoTipo>('nequi');
   const [refTransfer, setRefTransfer] = useState('');
   // IDs de producto rechazados por stock en el último intento — el carrito se
   // conserva y se marca la línea afectada. Se limpia al reintentar.
@@ -81,7 +81,18 @@ export default function Checkout() {
   // ya no está —apagado, o salió de Bogotá— cae al primero disponible, así nunca viaja un método
   // que la tienda no ofrece.
   const availablePayments = metodosDisponibles(settings.metodosPago, { isBogota });
-  const metodoActivo = availablePayments.some((o) => o.id === payment) ? payment : (availablePayments[0]?.id ?? '');
+  // Con `noUncheckedIndexedAccess` apagado en este tsconfig, `arr[0]` tipa como `MetodoCheckout`
+  // (nunca `| undefined`) aunque el array esté vacío en runtime — un `?? null` sobre eso sería
+  // letra muerta para el compilador (§ CHECKOUT-BREB-CAST-1: medido con tsc, no supuesto). Por
+  // eso el `null` sale de chequear el LARGO explícito, no de indexar y esperar `undefined`. Se
+  // descartó `.at(0)` (§ CHECKOUT-BREB-CAST-CIERRE-1): es ES2022 y Next no lo polyfillea
+  // (cero apariciones en `polyfill-nomodule.js`), así que en Safari < 15.4 —dentro del rango que
+  // cubre el target `ES2017` de este repo— tira `TypeError` y se lleva el checkout entero.
+  const metodoActivo: MetodoPagoTipo | null = availablePayments.some((o) => o.id === payment)
+    ? payment
+    : availablePayments.length > 0
+      ? availablePayments[0].id
+      : null;
 
   // Changing departamento re-derives the method; leaving Bogotá clears the franja. (No hace falta
   // resetear el método: `metodoActivo` cae al primero disponible cuando efectivo deja de estarlo.)
@@ -93,6 +104,13 @@ export default function Checkout() {
   };
 
   const handleOrder = async () => {
+    // Sin método disponible no hay nada que enviar — el mismo caso que deshabilita el botón más
+    // abajo (`availablePayments.length === 0`), pero acá es el TIPO el que lo exige: `metodoActivo`
+    // es `MetodoPagoTipo | null` (§ CHECKOUT-BREB-CAST-1) y el payload no acepta null. Va ANTES de
+    // `setLoading(true)`: un `return` después dejaría el botón clavado en "Procesando…" para
+    // siempre, y el `disabled` de arriba ya impide llegar acá en ese estado — esto es la guarda de
+    // TIPO, no una segunda explicación para el comprador.
+    if (!metodoActivo) return;
     setLoading(true);
     setSinStockIds([]);
     try {
@@ -114,11 +132,10 @@ export default function Checkout() {
           franja:            slot,
         },
         payment: {
-          // El cast sigue en el union VIEJO de `CheckoutPayload` (`services/checkout.service.ts`,
-          // FUERA de esta tanda — no está en `touches:`): ese archivo no se toca, así que el cast
-          // no "miente" sobre el runtime (metodoActivo SÍ puede ser 'breb' — sólo el TIPO del
-          // parámetro no lo declara todavía). Ver el open_followup del reporte de la tanda.
-          metodo:     metodoActivo as 'nequi' | 'daviplata' | 'transferencia' | 'efectivo',
+          // `metodoActivo` es `MetodoPagoTipo | null` (§ CHECKOUT-BREB-CAST-1): null sólo cuando
+          // no hay ningún método disponible, y ese caso ya corta arriba en `handleOrder` antes de
+          // llegar acá. Sin cast: `CheckoutPayload.payment.metodo` acepta el mismo set cerrado.
+          metodo:     metodoActivo,
           referencia: refTransfer.trim() || undefined,
         },
         items: items.map((i) => ({
