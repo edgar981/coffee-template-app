@@ -493,44 +493,44 @@ test('resolverEsquemas: es KEY-AGNÓSTICO — acepta cualquier bandaId, no un se
   assert.deepEqual(resolverEsquemas({ unaBandaQueNoExisteHoy: 'acento' }), { unaBandaQueNoExisteHoy: 'acento' });
 });
 
-// ─── Presentaciones (C1): byte-idéntico a los literales de GrindChooser antes de la migración ───
-// Estos son los literales EXACTOS que vivían en `components/storefront/home/GrindChooser.tsx`
-// (`OPCIONES` + el encabezado) antes de moverlos a SiteContent. La regla de C1: SIN fila, la home de
-// Nayoli queda IDÉNTICA. Es comparación MECÁNICA (deep-equal), no aseveración: si alguien toca un
-// default y desincroniza la home, este test cae. (Un repeater NO podría verificarse así —su default
-// jamás se muestra—; campos planos sí, que es la razón del modelado, § doctrina.)
+// ─── Presentaciones: el default resuelto reproduce el copy CANÓNICO declarado en DEFAULTS ───
+// CONTENIDO-NEUTRALIZAR-1 (2026-09-12) reemplazó los literales de café/Nayoli que vivían acá por
+// copy GENÉRICO de comercio — el objeto de abajo se actualizó junto con `DEFAULTS.presentaciones`.
+// La PROPIEDAD que este test afirma no cambió: sin fila guardada, el resolver reproduce EXACTAMENTE
+// los defaults declarados (comparación MECÁNICA, deep-equal, no aseveración) — si alguien toca un
+// default y desincroniza esta copia, el test cae. (Un repeater NO podría verificarse así —su
+// default jamás se muestra—; campos planos sí, que es la razón del modelado, § doctrina.)
 const PRESENTACIONES_ANTES = {
   visible: true,
   eyebrow: 'Elige tu presentación',
-  titulo: '¿Cómo tomas tu café?',
-  label1: 'En grano',
-  copy1: 'Para moler en casa, máxima frescura.',
+  titulo: '¿Cómo lo prefieres?',
+  label1: 'Presentación Clásica',
+  copy1: 'La opción original, lista para usar.',
   imagen1: '/images/cafe-nayoli-250g-grano.webp',
-  categoria1: 'Café en Grano',
-  label2: 'Molido',
-  copy2: 'Listo para tu greca, filtro o prensa.',
+  categoria1: 'Clásico',
+  label2: 'Presentación Especial',
+  copy2: 'Pensada para quien busca algo distinto.',
   imagen2: '/images/cafe-nayoli-250g-molido.webp',
-  categoria2: 'Café Molido',
-  // Slots 3-4 opcionales, VACÍOS por defecto → la home de Nayoli renderiza 2 (byte-idéntico).
+  categoria2: 'Especial',
+  // Slots 3-4 opcionales, VACÍOS por defecto → la home renderiza 2 (byte-idéntico al copy canónico).
   label3: '', copy3: '', imagen3: '', categoria3: '',
   label4: '', copy4: '', imagen4: '', categoria4: '',
   // La canónica de composición (§ eje 5e): 'mosaico' es el GrindChooser de hoy, verbatim.
   variante: 'mosaico',
 };
 
-test('presentaciones: sin fila, los defaults resueltos reproducen los literales de GrindChooser', () => {
+test('presentaciones: sin fila, los defaults resueltos reproducen el copy canónico declarado', () => {
   const r = resolverSiteContent({});
   assert.deepEqual(r.presentaciones, PRESENTACIONES_ANTES);
 });
 
-test('presentaciones: sin fila, el DESTINO editable resuelve a los links de hoy (byte-idéntico, no rompe C1)', () => {
+test('presentaciones: sin fila, el DESTINO editable resuelve a los links del copy canónico', () => {
   // El destino de cada tarjeta dejó de ser ESTRUCTURA (PRESENTACIONES_HREFS retirado) y es DATO
   // (`categoria1/2`). Sin fila, los defaults resueltos + `hrefCategoria` deben dar EXACTAMENTE los
-  // links que la home de Nayoli tenía: "Café en Grano"/"Café Molido" encoded. Si esto cae, se rompió
-  // la premisa byte-idéntico de C1.
+  // links que el copy canónico declara.
   const r = resolverSiteContent({});
-  assert.equal(hrefCategoria(r.presentaciones.categoria1), `/tienda?cat=${encodeURIComponent('Café en Grano')}`);
-  assert.equal(hrefCategoria(r.presentaciones.categoria2), `/tienda?cat=${encodeURIComponent('Café Molido')}`);
+  assert.equal(hrefCategoria(r.presentaciones.categoria1), `/tienda?cat=${encodeURIComponent('Clásico')}`);
+  assert.equal(hrefCategoria(r.presentaciones.categoria2), `/tienda?cat=${encodeURIComponent('Especial')}`);
 });
 
 test('presentaciones: una categoría (destino) requerida vacía cae al default (la tarjeta lleva a algún lado)', () => {
@@ -801,4 +801,65 @@ test('resolverOrden: SIEMPRE devuelve las 7 bandas — ninguna se cae, pase lo q
     assert.equal(resolverOrden(stored).length, BANDA_IDS.length);
     assert.deepEqual(new Set(resolverOrden(stored)), new Set(BANDA_IDS));
   }
+});
+
+// ── CONTENIDO-NEUTRALIZAR-1 (2026-09-12): los defaults dejaron de ser el contenido de Nayoli ──────
+// Antes DEFAULTS *era* el contenido de Nayoli, y la familia de tests "byte-idéntico" (arriba) lo
+// protegía con razón. Ahora Nayoli tiene su propia fila de SiteContent (sembrada en producción), y
+// lo que hay que proteger es lo CONTRARIO: que el default no sea el contenido de NADIE. Las dos
+// pruebas de abajo son el regression-catcher real — atrapan al próximo que agregue una sección
+// cafetera (o cualquier identidad de cliente) sin pensarlo, y ninguna de las dos enumera campos a
+// mano: caminan `DEFAULTS`/`REGISTRY` tal como existen.
+
+// Términos prohibidos en el copy de comercio genérico: café (y su familia — grano/molido/tueste/
+// tostado/cafetal/greca), y la identidad concreta de Nayoli (el nombre, la finca, Supatá,
+// Cundinamarca). Ampliado a propósito más allá de los 6 términos mínimos del spec (café, granos,
+// tueste, finca, Supatá, Nayoli): un catcher angosto deja pasar el mismo defecto con otra palabra.
+const TERMINOS_PROHIBIDOS = /caf[eé]|nayoli|supat[aá]|cundinamarca|\bgrano|molid|tueste|tosta|finca|cafetal|greca/i;
+
+function walkStrings(v: unknown, path: string, out: [string, string][]): void {
+  if (typeof v === 'string') { out.push([path, v]); return; }
+  if (v === null || typeof v !== 'object') return;
+  if (Array.isArray(v)) { v.forEach((x, i) => walkStrings(x, `${path}[${i}]`, out)); return; }
+  for (const k of Object.keys(v)) walkStrings((v as Record<string, unknown>)[k], path ? `${path}.${k}` : k, out);
+}
+
+// Los NOMBRES de campo-imagen salen del REGISTRY (`def.imagenes`), no de una lista a mano: es la
+// MISMA fuente que ya gobierna el borrado de blobs (`imagenesDe`, `site-content-blobs.ts`). Las
+// rutas de imagen quedan EXCLUIDAS del catcher a propósito — son ítem aparte
+// (`MARCA-DE-CLIENTE-EN-EL-REPO-1`) y no las toca este slice.
+function valoresDeCamposImagen(): Set<string> {
+  const out = new Set<string>();
+  for (const key of Object.keys(REGISTRY) as (keyof typeof DEFAULTS)[]) {
+    const def = REGISTRY[key as keyof typeof REGISTRY];
+    if (!def.imagenes?.length) continue;
+    const sec = DEFAULTS[key] as Record<string, unknown>;
+    for (const campo of def.imagenes) {
+      const v = sec[campo];
+      if (typeof v === 'string' && v.trim() !== '') out.add(v);
+    }
+  }
+  return out;
+}
+
+test('DEFAULTS: ningún campo de TEXTO menciona café, Nayoli ni su identidad — las rutas de imagen quedan EXCLUIDAS a propósito (§ MARCA-DE-CLIENTE-EN-EL-REPO-1, no es parte de este slice)', () => {
+  const rutasDeImagen = valoresDeCamposImagen();
+  const todas: [string, string][] = [];
+  walkStrings(DEFAULTS as unknown, '', todas);
+  const ofensores = todas.filter(([, val]) => !rutasDeImagen.has(val) && TERMINOS_PROHIBIDOS.test(val));
+  assert.deepEqual(ofensores, [], `campos con identidad de café/Nayoli: ${ofensores.map(([p]) => p).join(', ')}`);
+});
+
+test('DEFAULTS: ningún campo `requerido` del REGISTRY queda vacío en DEFAULTS (un requerido vacío nunca neutraliza — reaparece el default en cada lectura)', () => {
+  const vacios: string[] = [];
+  for (const key of Object.keys(REGISTRY) as (keyof typeof DEFAULTS)[]) {
+    const def = REGISTRY[key as keyof typeof REGISTRY];
+    const sec = DEFAULTS[key] as Record<string, unknown>;
+    for (const [campo, tipo] of Object.entries(def.campos)) {
+      if (tipo !== 'requerido') continue;
+      const val = sec[campo];
+      if (typeof val !== 'string' || val.trim() === '') vacios.push(`${key}.${campo}`);
+    }
+  }
+  assert.deepEqual(vacios, []);
 });

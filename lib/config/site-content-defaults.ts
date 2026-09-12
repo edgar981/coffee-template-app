@@ -380,12 +380,12 @@ export function varianteDeBanda(content: SiteContentData, bandaId: BandaId): str
 export const DEFAULTS: SiteContentData = {
   hero: {
     visible: true,
-    eyebrow: 'Café de Especialidad · Colombia',
-    titulo: 'Café que cuenta',
+    eyebrow: 'Calidad Artesanal · Hecho con Cuidado',
+    titulo: 'Productos que cuentan',
     tituloEnfasis: 'historias',
     subtitulo:
-      'Café de especialidad cultivado por nuestra familia en Supatá, Cundinamarca. Una sola finca, una sola variedad, tostado en tandas semanales.',
-    ctaPrimarioLabel: 'Explorar Café',
+      'Productos hechos con dedicación por un equipo que cree en la calidad sobre la cantidad. Cada pieza recibe el mismo cuidado, de principio a fin.',
+    ctaPrimarioLabel: 'Ver Catálogo',
     ctaSecundarioLabel: 'Suscripción Mensual',
     imagen: '/images/hero-beans-v1.jpg',
     // La canónica (§ eje 5, EJE-5-VARIANTES-HERO): Nayoli queda byte-idéntica a la curtina de hoy.
@@ -394,11 +394,11 @@ export const DEFAULTS: SiteContentData = {
   brandStory: {
     visible: true,
     eyebrow: 'Nuestra Historia',
-    titulo: 'Del cafetal a tu taza',
+    titulo: 'De nuestras manos a las tuyas',
     parrafo1:
-      'Café Nayoli nace en un solo lugar: la Finca Nayoli, en la vereda Providencia de Supatá, Cundinamarca. Cada grano viene de esta tierra, cultivado entre los 1.650 y 2.100 metros sobre el nivel del mar, donde la altura y el clima de la montaña colombiana dan al café su carácter.',
+      'Nuestra historia empieza en un solo lugar, con un equipo que decidió hacer las cosas bien desde el principio. Cada producto nace de un proceso cuidado paso a paso, pensado para que se note la diferencia.',
     parrafo2:
-      'Trabajamos una sola variedad, Castillo, con proceso lavado — el método que mejor revela lo que esta tierra tiene para ofrecer. El resultado es una taza con fragancia a chocolate, aroma herbal e intenso, y un balance preciso entre acidez y cuerpo. El equilibrio que buscamos en cada tostión. Somos café de especialidad, 100% colombiano, de una finca con nombre y una historia que apenas comienza a contarse. Cuando abres una bolsa de Nayoli, sabes exactamente de dónde viene — y ese, para nosotros, es el verdadero secreto de Supatá.',
+      'Trabajamos con materiales seleccionados y un proceso propio — el que mejor revela lo que sabemos hacer. El resultado es un producto con carácter propio y un balance preciso entre calidad y detalle. El equilibrio que buscamos en cada pieza. Hacemos las cosas con cuidado, de principio a fin, con una historia que apenas comienza a contarse. Cuando eliges uno de nuestros productos, sabes exactamente qué hay detrás — y ese, para nosotros, es el verdadero valor de lo que hacemos.',
     imagen1: '/images/products-9.jpg',
     imagen2: '/images/products-7.jpeg',
     imagen3: '/images/products-10.jpg',
@@ -412,15 +412,15 @@ export const DEFAULTS: SiteContentData = {
   presentaciones: {
     visible: true,
     eyebrow: 'Elige tu presentación',
-    titulo: '¿Cómo tomas tu café?',
-    label1: 'En grano',
-    copy1: 'Para moler en casa, máxima frescura.',
+    titulo: '¿Cómo lo prefieres?',
+    label1: 'Presentación Clásica',
+    copy1: 'La opción original, lista para usar.',
     imagen1: '/images/cafe-nayoli-250g-grano.webp',
-    categoria1: 'Café en Grano',
-    label2: 'Molido',
-    copy2: 'Listo para tu greca, filtro o prensa.',
+    categoria1: 'Clásico',
+    label2: 'Presentación Especial',
+    copy2: 'Pensada para quien busca algo distinto.',
     imagen2: '/images/cafe-nayoli-250g-molido.webp',
-    categoria2: 'Café Molido',
+    categoria2: 'Especial',
     // Tarjetas 3-4 opcionales, VACÍAS por defecto → Nayoli renderiza 2 (byte-idéntico). Un cliente
     // con 3-4 presentaciones las llena en el editor.
     label3: '', copy3: '', imagen3: '', categoria3: '',
@@ -431,11 +431,11 @@ export const DEFAULTS: SiteContentData = {
   subscriptionCTA: {
     visible: true,
     eyebrow: 'Plan Suscripción',
-    titulo: 'Tu café de Supatá, cada mes',
-    subtitulo: 'El mismo café de nuestra finca, tostado fresco y enviado a tu puerta. Pausa o cancela cuando quieras.',
-    bullet1: 'El mismo café de nuestra finca en Supatá',
-    bullet2: 'Grano o molido, como prefieras',
-    bullet3: 'Tostado fresco en tandas semanales',
+    titulo: 'Tu pedido, cada mes',
+    subtitulo: 'El mismo producto de siempre, preparado fresco y enviado a tu puerta. Pausa o cancela cuando quieras.',
+    bullet1: 'El mismo producto de siempre, hecho con cuidado',
+    bullet2: 'Elige la presentación que prefieras',
+    bullet3: 'Preparado fresco en tandas semanales',
     bullet4: 'Pausa o cancela cuando quieras',
     ctaLabel: 'Ver los planes',
   },
@@ -451,11 +451,11 @@ export const DEFAULTS: SiteContentData = {
   nosotrosHistoria: {
     visible: true,
     eyebrow: 'Nuestra Historia',
-    titulo: 'Del cafetal a tu taza',
+    titulo: 'De nuestras manos a las tuyas',
     parrafo1:
-      'Café Nayoli nace en un solo lugar: la Finca Nayoli, en la vereda Providencia de Supatá, Cundinamarca. Cada grano viene de esta tierra, cultivado entre los 1.650 y 2.100 metros sobre el nivel del mar, donde la altura y el clima de la montaña colombiana dan al café su carácter.',
+      'Nuestra historia empieza en un solo lugar, con un equipo que decidió hacer las cosas bien desde el principio. Cada producto nace de un proceso cuidado paso a paso, pensado para que se note la diferencia.',
     parrafo2:
-      'Trabajamos una sola variedad, Castillo, con proceso lavado — el método que mejor revela lo que esta tierra tiene para ofrecer. El resultado es una taza con fragancia a chocolate, aroma herbal e intenso, y un balance preciso entre acidez y cuerpo. El equilibrio que buscamos en cada tostión. Somos café de especialidad, 100% colombiano, de una finca con nombre y una historia que apenas comienza a contarse. Cuando abres una bolsa de Nayoli, sabes exactamente de dónde viene — y ese, para nosotros, es el verdadero secreto de Supatá.',
+      'Trabajamos con materiales seleccionados y un proceso propio — el que mejor revela lo que sabemos hacer. El resultado es un producto con carácter propio y un balance preciso entre calidad y detalle. El equilibrio que buscamos en cada pieza. Hacemos las cosas con cuidado, de principio a fin, con una historia que apenas comienza a contarse. Cuando eliges uno de nuestros productos, sabes exactamente qué hay detrás — y ese, para nosotros, es el verdadero valor de lo que hacemos.',
     parrafo3: '',
   },
   // La galería de /nosotros. Encabezado con defaults de COPY (se muestran sólo cuando hay fotos, por
@@ -464,7 +464,7 @@ export const DEFAULTS: SiteContentData = {
   nosotrosGaleria: {
     visible: true,
     eyebrow: 'Galería',
-    titulo: 'La finca en imágenes',
+    titulo: 'Nuestro trabajo en imágenes',
     items: [],
   },
   // Los PLANES de /suscripciones (antes `SUBSCRIPTION_PLANS` + los literales del encabezado). Byte a
@@ -473,20 +473,20 @@ export const DEFAULTS: SiteContentData = {
   // (ben*_1..3); el 4º queda vacío (el componente lo omite → 3 bullets, como hoy).
   suscripcionPlanes: {
     visible: true,
-    eyebrow: 'Suscripción de Café',
-    titulo: 'Tu café de Supatá,',
+    eyebrow: 'Suscripción Mensual',
+    titulo: 'Tu pedido,',
     tituloEnfasis: 'cada mes',
-    subtitulo: 'El mismo café de nuestra finca, tostado fresco y enviado a tu puerta. Pausa o cancela cuando quieras.',
+    subtitulo: 'El mismo producto de siempre, preparado fresco y enviado a tu puerta. Pausa o cancela cuando quieras.',
     planesTitulo: 'Elige tu plan',
     planesSubtitulo: 'Escríbenos y coordinamos tu suscripción por WhatsApp. Sin compromisos, pausa o cancela cuando quieras.',
     ctaLabel: 'Me interesa',
     destacadoSlot: '2',
     nombre1: 'Plan 250 g', descripcion1: 'Una bolsa de 250 g cada mes', precio1: '',
-    ben1_1: 'Grano o molido, como prefieras', ben1_2: 'El mismo café de nuestra finca en Supatá', ben1_3: 'Tostado fresco en tandas semanales', ben1_4: '',
+    ben1_1: 'Elige la presentación que prefieras', ben1_2: 'El mismo producto de siempre, hecho con cuidado', ben1_3: 'Preparado fresco en tandas semanales', ben1_4: '',
     nombre2: 'Plan 500 g', descripcion2: 'Una bolsa de 500 g cada mes', precio2: '',
-    ben2_1: 'Grano o molido, como prefieras', ben2_2: 'El mismo café de nuestra finca en Supatá', ben2_3: 'Tostado fresco en tandas semanales', ben2_4: '',
+    ben2_1: 'Elige la presentación que prefieras', ben2_2: 'El mismo producto de siempre, hecho con cuidado', ben2_3: 'Preparado fresco en tandas semanales', ben2_4: '',
     nombre3: 'Plan Familiar', descripcion3: 'Dos bolsas de 500 g cada mes', precio3: '',
-    ben3_1: 'Grano o molido, como prefieras', ben3_2: 'Ideal para el hogar o la oficina', ben3_3: 'Tostado fresco en tandas semanales', ben3_4: '',
+    ben3_1: 'Elige la presentación que prefieras', ben3_2: 'Ideal para el hogar o la oficina', ben3_3: 'Preparado fresco en tandas semanales', ben3_4: '',
     nombre4: '', descripcion4: '', precio4: '',
     ben4_1: '', ben4_2: '', ben4_3: '', ben4_4: '',
   },
@@ -495,9 +495,9 @@ export const DEFAULTS: SiteContentData = {
     visible: true,
     titulo: '¿Cómo funciona?',
     paso1Label: 'Elige tu plan', paso1Desc: 'Selecciona la frecuencia y cantidad que mejor se adapte a ti.',
-    paso2Label: 'Elige grano o molido', paso2Desc: 'Siempre el mismo café de nuestra finca — tú eliges cómo lo prefieres.',
-    paso3Label: 'Tostamos fresco', paso3Desc: 'Tostamos tu café en tandas semanales, días antes del envío.',
-    paso4Label: 'Recíbelo en casa', paso4Desc: 'Enviamos tu café fresco a todo el país.',
+    paso2Label: 'Elige tu presentación', paso2Desc: 'Elaborado con el mismo cuidado de siempre — tú eliges la presentación.',
+    paso3Label: 'Preparamos fresco', paso3Desc: 'Preparamos tu pedido en tandas semanales, días antes del envío.',
+    paso4Label: 'Recíbelo en casa', paso4Desc: 'Enviamos tu pedido fresco a todo el país.',
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
