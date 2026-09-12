@@ -194,12 +194,18 @@ export interface NosotrosGaleriaContent {
 // como "desde $X" son del cliente, y un número inventado sería dato FALSO en la ruta del dinero. Vacío
 // → NO se muestra (nunca placeholder ni "desde"). Nayoli no lleva precio → sus `precioN` nacen vacíos.
 //
-// La FRECUENCIA vive DENTRO de `descripcion` ("Una bolsa de 250 g cada mes"), como frase (owner, § b):
-// el sistema no la usa como dato —no hay pedidos recurrentes— así que un campo aparte sería una mina
-// inerte. Los BENEFICIOS por plan son `benN_1..4` OPCIONALES (el componente los junta con `.filter`,
-// hasta 4 sin hueco — como los bullets de subscriptionCTA). El DESTAQUE es UN índice de sección
-// (`destacadoSlot`, § c): unifica el `plan.popular` de esta página y el `i===1` hardcodeado del teaser
-// —estructuralmente imposible destacar dos—. '' = ninguno; default '2' (el Plan 500 g de hoy).
+// La FRECUENCIA vive DENTRO de `descripcion` ("El doble del plan básico, cada mes"), como frase
+// (owner, § b): el sistema no la usa como dato —no hay pedidos recurrentes— así que un campo aparte
+// sería una mina inerte. Los BENEFICIOS por plan son `benN_1..4` OPCIONALES (el componente los junta
+// con `.filter`, hasta 4 sin hueco — como los bullets de subscriptionCTA). El DESTAQUE es UN índice de
+// sección (`destacadoSlot`, § c): unifica el `plan.popular` de esta página y el `i===1` hardcodeado del
+// teaser —estructuralmente imposible destacar dos—. '' = ninguno; default '2' (el Plan Estándar de hoy).
+//
+// LOS NOMBRES NO LLEVAN UNIDAD (§ CONTENIDO-NEUTRALIZAR-3): 'Plan 250 g'/'Plan 500 g' presuponían
+// gramos, o sea la mercadería — un cliente de cualquier otro rubro los vería tal cual. Lo que un plan
+// distingue en CUALQUIER rubro es CUÁNTO (relativo al plan anterior) y CADA CUÁNTO, sin nombrar el
+// producto ni asumir peso/volumen: 'Plan Básico' → 'Plan Estándar' (el doble) → 'Plan Familiar' (el
+// doble del anterior). 'Plan Familiar' ya era genérico y no cambió.
 export interface SuscripcionPlanesContent {
   visible: boolean;
   eyebrow: string;
@@ -469,8 +475,9 @@ export const DEFAULTS: SiteContentData = {
   },
   // Los PLANES de /suscripciones (antes `SUBSCRIPTION_PLANS` + los literales del encabezado). Byte a
   // byte: sin fila, /suscripciones y el teaser de la home quedan IDÉNTICOS. Precios VACÍOS (Nayoli no
-  // lleva). Destacado = slot '2' (el Plan 500 g, que hoy es el `popular`). Cada plan trae 3 beneficios
-  // (ben*_1..3); el 4º queda vacío (el componente lo omite → 3 bullets, como hoy).
+  // lleva). Destacado = slot '2' (el Plan Estándar, que hoy es el `popular`). Cada plan trae 3
+  // beneficios (ben*_1..3); el 4º queda vacío (el componente lo omite → 3 bullets, como hoy). Los
+  // NOMBRES son genéricos por CANTIDAD RELATIVA, no por unidad (§ CONTENIDO-NEUTRALIZAR-3, arriba).
   suscripcionPlanes: {
     visible: true,
     eyebrow: 'Suscripción Mensual',
@@ -481,11 +488,11 @@ export const DEFAULTS: SiteContentData = {
     planesSubtitulo: 'Escríbenos y coordinamos tu suscripción por WhatsApp. Sin compromisos, pausa o cancela cuando quieras.',
     ctaLabel: 'Me interesa',
     destacadoSlot: '2',
-    nombre1: 'Plan 250 g', descripcion1: 'Una bolsa de 250 g cada mes', precio1: '',
+    nombre1: 'Plan Básico', descripcion1: 'La opción de entrada, cada mes.', precio1: '',
     ben1_1: 'La cantidad justa para empezar', ben1_2: 'Sin compromiso: cancela cuando quieras', ben1_3: 'Te llega el mismo día, cada mes', ben1_4: '',
-    nombre2: 'Plan 500 g', descripcion2: 'Una bolsa de 500 g cada mes', precio2: '',
+    nombre2: 'Plan Estándar', descripcion2: 'El doble del plan básico, cada mes.', precio2: '',
     ben2_1: 'El doble de cantidad del plan básico', ben2_2: 'Pensado para quien ya sabe que quiere seguir', ben2_3: 'Nunca te quedas sin, mes tras mes', ben2_4: '',
-    nombre3: 'Plan Familiar', descripcion3: 'Dos bolsas de 500 g cada mes', precio3: '',
+    nombre3: 'Plan Familiar', descripcion3: 'El doble del plan estándar, para compartir.', precio3: '',
     ben3_1: 'El doble de cantidad del plan estándar', ben3_2: 'Ideal para el hogar o la oficina', ben3_3: 'Ajusta la fecha cuando lo necesites', ben3_4: '',
     nombre4: '', descripcion4: '', precio4: '',
     ben4_1: '', ben4_2: '', ben4_3: '', ben4_4: '',

@@ -90,14 +90,26 @@ test('teaser: destacado YA dentro del recorte → recorte natural, sin reemplazo
 });
 
 // El select de destaque (§ FIX 2): opciones derivadas de los planes que EXISTEN, no del tope.
-test('destaque: las opciones son "Ninguno" + los planes que existen (con su nombre)', () => {
+//
+// DERIVADO de DEFAULTS (§ CONTENIDO-NEUTRALIZAR-3): antes comparaba contra los nombres LITERALES
+// ('Plan 250 g'/'Plan 500 g'/'Plan Familiar'), una segunda declaración del mismo contenido que
+// `site-content-defaults.ts` — la misma falla que este repo ya pagó cuatro veces (§ CLAUDE.md,
+// "documentar el criterio"). Lo que esta prueba afirma no es CUÁLES son los nombres, sino que
+// `opcionesDestaque` los REFLEJA: exactamente 4 opciones (Ninguno + los 3 planes CON nombre, sin un
+// 4º fantasma — el plan 4 nace vacío), en orden de slot, y el label es el nombre CONFIGURADO tal
+// cual — no el fallback `Plan ${slot}` (que sólo aparece si el nombre viniera vacío). Eso sigue
+// siendo una afirmación real aunque los nombres cambien: si `opcionesDestaque` alguna vez cayera al
+// fallback en vez de pasar el nombre, o si el plan 4 (sin nombre) colara una opción de más, esta
+// prueba lo atrapa igual.
+test('destaque: las opciones son "Ninguno" + los planes que existen (con su nombre configurado, no el fallback)', () => {
+  const { nombre1, nombre2, nombre3 } = DEFAULTS.suscripcionPlanes;
   const opts = opcionesDestaque(DEFAULTS.suscripcionPlanes);
   assert.deepEqual(opts, [
     { value: '',  label: 'Ninguno' },
-    { value: '1', label: 'Plan 250 g' },
-    { value: '2', label: 'Plan 500 g' },
-    { value: '3', label: 'Plan Familiar' },
-  ], 'con 3 planes: Ninguno + los 3, NO un 4º fantasma');
+    { value: '1', label: nombre1 },
+    { value: '2', label: nombre2 },
+    { value: '3', label: nombre3 },
+  ], 'con 3 planes: Ninguno + los 3 nombres configurados, en orden de slot, NO un 4º fantasma');
 });
 
 test('destaque: al agregar el 4º plan, aparece en la lista', () => {
