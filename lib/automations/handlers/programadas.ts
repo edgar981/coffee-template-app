@@ -5,6 +5,7 @@ import { BUSINESS_TZ, zonedIsoWeekday } from '@duna/core/timezone';
 import { POR_COBRAR_WHERE, ORDENES_REALES } from '@duna/core/metrics/prisma-scopes';
 import { PENDING_ESTADO } from '@duna/core/metrics/order-stat-filters';
 import { AUTOMATION_HREF, hrefOrden, hrefOrdenOLista } from '@/constants/automations';
+import { readSiteSettings } from '@/lib/config/site-settings-read';
 import {
   HORAS_ENTREGA_SIN_COBRO, corteEntregaISO, entregaVencidaSinCobro, horasDesdeEntrega,
 } from '../reglas';
@@ -25,6 +26,14 @@ const TOPE_POR_BARRIDO = 50;
 
 const dias = (n: number) => n * 86_400_000;
 const horas = (n: number) => n * 3_600_000;
+
+// Fila de variables posicionales de `cliente_inactivo`, pura (sin prisma) para que
+// su ARIDAD se pueda atar contra la plantilla en un test de capa 1
+// (programadas.test.ts). El nombre del negocio es la 2ª variable, entre el nombre
+// del cliente y la promoción (§ constants/automations.ts) — no la última.
+export function variablesClienteInactivo(nombreCliente: string, negocio: string, promo: string): string[] {
+  return [nombreCliente, negocio, promo];
+}
 
 
 /** Ids que ya tienen run para esta automatización — pre-filtro barato. El gate duro
@@ -141,6 +150,9 @@ export const clienteInactivo: ScheduledHandler = async ({ config, now }) => {
     take:   TOPE_POR_BARRIDO,
   });
 
+  // La plantilla declara el nombre del negocio como su 2ª variable (§ constants/automations.ts).
+  const { nombre: negocio } = await readSiteSettings();
+
   return clientes.map<Objetivo>(c => {
     const to = toWhatsappNumber(c.telefono);
     return to
@@ -148,7 +160,7 @@ export const clienteInactivo: ScheduledHandler = async ({ config, now }) => {
           targetId: c.id,
           dispatch: {
             canal: 'whatsapp', to: `+${to}`, templateKey: 'cliente_inactivo',
-            variables: [nombreCorto(c.nombre), promo],
+            variables: variablesClienteInactivo(nombreCorto(c.nombre), negocio, promo),
           },
         }
       : { targetId: c.id, omitir: 'el cliente no tiene un celular colombiano válido' };
