@@ -125,19 +125,24 @@ export default function ProductCard({
             )}
         </div>
 
-        {/* Info */}
+        {/* Info — texto DENTRO de bg-[var(--sf-tarjeta)]: los dos roles floreados contra ELLA
+            (§ TEMAS-P6-FAMILIAS-1, familia `tarjeta`), no contra tokens de otras familias.
+            `var(--sf-sobre-tarjeta*,<token de hoy>)`: sin esquema asignado (el caso de Nayoli en
+            /tienda) cae exactamente al texto de hoy — cero cambio visual. */}
         <div className="p-4">
-          <p className="mb-1 text-xs capitalize text-[var(--sf-acento-texto)]">
+          <p className="mb-1 text-xs capitalize text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))]">
             {product.origen ||
               product.categoria?.replace("_", " ")}
           </p>
 
-          <h3 className="mb-2 line-clamp-2 text-sm leading-tight font-medium text-[var(--sf-tinta)]">
+          <h3 className="mb-2 line-clamp-2 text-sm leading-tight font-medium text-[var(--sf-sobre-tarjeta,var(--sf-tinta))]">
             {product.nombre}
           </h3>
 
           {/* Tags — notas de cata (contenido descriptivo, p. ej. "Chocolate"), NO una etiqueta de
-              estado/categoría: `.sf-badge` (§ eje 4, remate 1) NO va acá, sólo en `product.badge`. */}
+              estado/categoría: `.sf-badge` (§ eje 4, remate 1) NO va acá, sólo en `product.badge`.
+              La píldora vive sobre `bg-[var(--sf-superficie)]`, familia DISTINTA de la tarjeta que
+              la contiene (§ TEMAS-P6-FAMILIAS-1, familia `superficie`) — floreada contra ELLA. */}
           {product.notas && (
             <div className="mb-3 flex flex-wrap gap-1">
               {product.notas
@@ -145,7 +150,7 @@ export default function ProductCard({
                 .map((note) => (
                   <span
                     key={note}
-                    className="sf-pildora bg-[var(--sf-superficie)] px-2 py-0.5 text-[10px] text-[var(--sf-texto)]"
+                    className="sf-pildora bg-[var(--sf-superficie)] px-2 py-0.5 text-[10px] text-[var(--sf-sobre-superficie,var(--sf-texto))]"
                   >
                     {note}
                   </span>
@@ -156,7 +161,7 @@ export default function ProductCard({
           {/* Footer */}
           <div className="flex items-center justify-between">
             <div>
-              <span className="font-bold text-[var(--sf-tinta)]">
+              <span className="font-bold text-[var(--sf-sobre-tarjeta,var(--sf-tinta))]">
                 {formatCOP(product.precio)}
               </span>
             </div>

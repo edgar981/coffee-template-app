@@ -61,13 +61,18 @@ export default function TestimonialSection({ style }: { style?: React.CSSPropert
                     ))}
                   </div>
                   <p className="text-[var(--sf-acento-2)] text-sm leading-relaxed mb-4">&quot;{t.text}&quot;</p>
+                  {/* La tarjeta entera vive sobre bg-[var(--sf-tarjeta)] (arriba); los tres roles
+                      pasan al PAR de la familia `tarjeta` (§ TEMAS-P6-FAMILIAS-1), floreado contra
+                      ELLA — no contra `--sf-tinta`/`--sf-acento-texto` (de otras familias), que
+                      medían 1.215–1.249:1 con NAYOLI en un esquema asignado. Fallback al texto de
+                      hoy: sin esquema (el caso real), cero cambio visual. */}
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-[var(--sf-linea)] flex items-center justify-center">
-                      <span className="text-xs font-semibold text-[var(--sf-acento-texto)]">{(t.name || "?")[0]}</span>
+                      <span className="text-xs font-semibold text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))]">{(t.name || "?")[0]}</span>
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-[var(--sf-tinta)]">{t.name}</p>
-                      {atribucion && <p className="text-xs text-[var(--sf-acento-texto)]">{atribucion}</p>}
+                      <p className="text-xs font-semibold text-[var(--sf-sobre-tarjeta,var(--sf-tinta))]">{t.name}</p>
+                      {atribucion && <p className="text-xs text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))]">{atribucion}</p>}
                     </div>
                   </div>
                 </motion.div>

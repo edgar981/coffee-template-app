@@ -20,19 +20,23 @@ const raicesResueltas = (fondo: string | null, tinta: string | null, acento: str
  * SIN esquema asignado (`id` ausente/null) → `{}` — CERO vars locales. La <section> no setea nada
  * y cada clase del componente cae a su LITERAL/token GLOBAL de hoy: `--sf-tarjeta`/`--sf-sobre`
  * tienen default `#ffffff` en `:root` (§ globals.css, eje 5b MOTOR); `--sf-banda`/`--sf-linea-sobre`/
- * `--sf-sobre-banda`/`--sf-sobre-banda-suave` NO tienen default global —cada usuario trae su propio
- * fallback en la clase, `var(--sf-banda,<su token de hoy>)`— porque bandas distintas tienen fondos
- * (y por tanto textos-sobre-banda) canónicos distintos, y un default único no serviría a todas.
+ * `--sf-sobre-banda`/`--sf-sobre-banda-suave`/`--sf-sobre-tarjeta`/`--sf-sobre-tarjeta-suave` NO
+ * tienen default global —cada usuario trae su propio fallback en la clase,
+ * `var(--sf-banda,<su token de hoy>)`— porque bandas distintas tienen fondos (y por tanto
+ * textos-sobre-banda/tarjeta) canónicos distintos, y un default único no serviría a todas.
  * Resultado: byte-idéntico sin fila.
  *
- * CON esquema, se emiten las SEIS vars que un esquema efectivamente MUEVE para una banda:
+ * CON esquema, se emiten las OCHO vars que un esquema efectivamente MUEVE para una banda:
  *   - el fondo de la banda (`--sf-banda`);
- *   - la superficie de tarjeta (`--sf-tarjeta`) y su texto (`--sf-sobre` — TARJETA-scoped: floreado
- *     contra `p.tarjeta`, para texto DENTRO de un `bg-[var(--sf-tarjeta)]`, nunca directo sobre la
- *     banda — usarlo para texto-sobre-banda con un fondo CLARO da 1.07:1 con 'crema' explícito,
- *     medido; ver `--sf-sobre-banda` para ese caso);
+ *   - la superficie de tarjeta (`--sf-tarjeta`) y su texto (`--sf-sobre` — el token VIEJO, texto
+ *     sobre TINTA en el resto del storefront, no tocar su significado);
+ *   - **`--sf-sobre-tarjeta`/`--sf-sobre-tarjeta-suave` (§ TEMAS-P6-FAMILIAS-1) — el PAR de la
+ *     familia `tarjeta`: floreado GARANTIZADO (`sobreTarjetaDe`/`pisoContraste`) contra `p.tarjeta`,
+ *     para texto DENTRO de un `bg-[var(--sf-tarjeta)]`. `--sf-sobre` (arriba) NO sirve para esto —
+ *     es OTRO rol (texto-sobre-tinta) y además queda degenerado en 'crema' (blanco sobre tarjeta
+ *     blanca, 1:1, medido) —, así que el par nuevo tiene NOMBRE PROPIO, no reusa `--sf-sobre`;
  *   - la línea sobre esa superficie (`--sf-linea-sobre`, del rol `linea`);
- *   - **`--sf-sobre-banda`/`--sf-sobre-banda-suave` (§ eje 5b, home-2) — el HUECO que esta pasada
+ *   - **`--sf-sobre-banda`/`--sf-sobre-banda-suave` (§ eje 5b, home-2) — el HUECO que esa pasada
  *     cierra: texto/ícono que se apoya DIRECTO en el fondo de la banda (título, eyebrow, ícono),
  *     no en una tarjeta.** Reusan `p.texto`/`p['texto-suave']`, NO una derivación nueva: esos dos
  *     roles YA están floreados contra `p.fondo` (la superficie MISMA de la banda, no la tarjeta —
@@ -43,9 +47,12 @@ const raicesResueltas = (fondo: string | null, tinta: string | null, acento: str
  *     3 de 4 esquemas por coincidencia, pero falla en 'crema' — 1.07:1, medido — porque el `sobre`
  *     de 'crema' es el blanco fijo de la tarjeta de hoy, no un auto-flip contra el fondo claro).
  *
- * El resto de las 24 vars de la paleta sigue viniendo del `:root` global (`derivarEsquema` no las
+ * El resto de las 28 vars de la paleta sigue viniendo del `:root` global (`derivarEsquema` no las
  * toca para `superficie`/`oscuro`/`acento`, salvo `acento-texto` — que ningún consumidor de home lee
- * DIRECTO sobre una banda hoy; sus usos DENTRO de una tarjeta se dejan intactos, § doctrina).
+ * DIRECTO sobre una banda hoy; sus usos DENTRO de una tarjeta se dejan intactos, § doctrina). La
+ * familia `superficie` (`--sf-sobre-superficie`/`-suave`) NO entra a esta lista: `--sf-superficie`
+ * es RAÍZ y ningún esquema la re-deriva, así que su par vive sólo en `derivarPaleta`/`cssPaleta`,
+ * nunca acá (§ palette-derive.ts).
  */
 export function esquemaStyle(
   id: EsquemaId | null | undefined,
@@ -59,6 +66,16 @@ export function esquemaStyle(
     '--sf-banda': p.fondo,
     '--sf-tarjeta': p.tarjeta,
     '--sf-sobre': p.sobre,
+    // --sf-sobre-tarjeta/-suave (§ TEMAS-P6-FAMILIAS-1): el PAR de la familia `tarjeta`, floreado
+    // GARANTIZADO contra `p.tarjeta` (`sobreTarjetaDe`/`pisoContraste`, § palette-derive.ts). NO es
+    // `--sf-sobre` (arriba): ese token es OTRO rol —texto sobre TINTA, usado en el resto del
+    // storefront (footer, botones, nav) donde SU default de :root (#ffffff) es correcto— y además
+    // queda degenerado para 'crema' (tarjeta blanca + #ffffff = 1:1, medido). `--sf-sobre-tarjeta`
+    // SIN default en globals.css a propósito (mismo patrón que `--sf-sobre-banda`, abajo): los
+    // consumidores traen su fallback al texto de hoy (`var(--sf-sobre-tarjeta,var(--sf-tinta))`),
+    // así que una banda SIN esquema (el `{}` de arriba) no rompe nada.
+    '--sf-sobre-tarjeta': p['sobre-tarjeta'],
+    '--sf-sobre-tarjeta-suave': p['sobre-tarjeta-suave'],
     '--sf-linea-sobre': p.linea,
     '--sf-sobre-banda': p.texto,
     '--sf-sobre-banda-suave': p['texto-suave'],

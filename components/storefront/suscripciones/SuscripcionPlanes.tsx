@@ -60,9 +60,9 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
                   </div>
                 )}
                 <div className="w-10 h-10 rounded-xl mb-4 flex items-center justify-center bg-[var(--sf-acento)]/10">
-                  <Coffee className="w-5 h-5 text-[var(--sf-acento-texto)]" />
+                  <Coffee className="w-5 h-5 text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))]" />
                 </div>
-                <h3 className="text-xl font-playfair text-[var(--sf-tinta)] mb-1">{plan.nombre}</h3>
+                <h3 className="text-xl font-playfair text-[var(--sf-sobre-tarjeta,var(--sf-tinta))] mb-1">{plan.nombre}</h3>
                 {/* El PRECIO es TEXTO libre (§ site-content-defaults). Lleva la clase de precio de
                     ProductCard VERBATIM —`font-bold text-[var(--sf-tinta)]`— tras MEDIR los estilos
                     computados (§ Backlog #49, FIX B): ProductCard y el detalle de producto ya coincidían con
@@ -71,13 +71,15 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
                     `text-4xl` del detalle DESBORDA un precio largo en esta tarjeta (medido: 268px > 252px de
                     caja a 304px de tarjeta), así que se copia la clase de ProductCard (16px heredado), que
                     entra en una línea para cualquier precio. UNDER el nombre (nombre → precio → qué es →
-                    beneficios → CTA). Vacío → NO se muestra; Nayoli no lo lleva → byte-idéntico. */}
-                {plan.precio && <p className="font-bold text-[var(--sf-tinta)] mb-1">{plan.precio}</p>}
+                    beneficios → CTA). Vacío → NO se muestra; Nayoli no lo lleva → byte-idéntico.
+                    El color pasó a `--sf-sobre-tarjeta` (§ TEMAS-P6-FAMILIAS-1, familia `tarjeta`, floreado
+                    contra ELLA) con fallback al `--sf-tinta` de siempre — Nayoli no cambia. */}
+                {plan.precio && <p className="font-bold text-[var(--sf-sobre-tarjeta,var(--sf-tinta))] mb-1">{plan.precio}</p>}
                 {plan.descripcion && <p className="text-sm text-[var(--sf-texto-suave)] mb-4">{plan.descripcion}</p>}
                 <div className="space-y-2 mb-6">
                   {plan.beneficios.map(b => (
                     <div key={b} className="flex items-center gap-2 text-sm text-[var(--sf-acento-2)]">
-                      <CheckCircle className="w-4 h-4 text-[var(--sf-acento-texto)] shrink-0" /> {b}
+                      <CheckCircle className="w-4 h-4 text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))] shrink-0" /> {b}
                     </div>
                   ))}
                 </div>
