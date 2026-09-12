@@ -4,7 +4,7 @@ import prisma from '@duna/core';
 import { headers } from 'next/headers';
 import { necesitaAtencion } from '@/lib/pedidos/atencion';
 import { isLowStock } from '@duna/core/metrics/inventory-filters';
-import { SECCIONES_CON_ATENCION, type MapaAtencion } from '@/lib/atencion/registro';
+import { SECCIONES_CON_ATENCION, type MapaAtencion, type ClaveAtencion } from '@/lib/atencion/registro';
 import type { OrderStatus } from '@/types/order';
 
 // ─── ¿QUÉ SECCIONES PIDEN ATENCIÓN? ──────────────────────────────────────────
@@ -72,8 +72,13 @@ async function contarProductos(): Promise<number> {
   return productos.filter(isLowStock).length;
 }
 
-/** Contador por clave del registro. Si falta uno, el test del registro lo dice. */
-const CONTADORES: Record<string, () => Promise<number>> = {
+/**
+ * Contador por clave del registro. `Record<ClaveAtencion, …>` es EXHAUSTIVO
+ * —`ClaveAtencion` deriva de `SECCIONES_CON_ATENCION`—, así que agregar una
+ * sección sin su contador acá deja de compilar. No es un test que lo diga:
+ * es el `tsc`, antes de que nada se despliegue.
+ */
+const CONTADORES: Record<ClaveAtencion, () => Promise<number>> = {
   pedidos:   contarPedidos,
   productos: contarProductos,
 };
