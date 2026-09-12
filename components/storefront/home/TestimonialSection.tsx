@@ -60,12 +60,18 @@ export default function TestimonialSection({ style }: { style?: React.CSSPropert
                       <Star key={n} className="w-4 h-4" style={{ fill: n <= estrellas ? "var(--sf-tostado)" : "transparent", color: n <= estrellas ? "var(--sf-tostado)" : "var(--sf-tostado-7)" }} />
                     ))}
                   </div>
-                  <p className="text-[var(--sf-acento-2)] text-sm leading-relaxed mb-4">&quot;{t.text}&quot;</p>
-                  {/* La tarjeta entera vive sobre bg-[var(--sf-tarjeta)] (arriba); los tres roles
-                      pasan al PAR de la familia `tarjeta` (§ TEMAS-P6-FAMILIAS-1), floreado contra
-                      ELLA — no contra `--sf-tinta`/`--sf-acento-texto` (de otras familias), que
-                      medían 1.215–1.249:1 con NAYOLI en un esquema asignado. Fallback al texto de
-                      hoy: sin esquema (el caso real), cero cambio visual. */}
+                  {/* El texto del testimonio va SUAVE (no principal): es cuerpo, no un encabezado —el
+                      nombre de abajo ya es principal—, y `acento-2` es de la familia `acento` (mismo
+                      linaje que `acento-texto`, la fuente de `sobre-tarjeta-suave`), no de `tinta` (§
+                      TEMAS-P6-FAMILIAS-CIERRE-1). Fallback a `--sf-acento-2`, su propio token de
+                      siempre → Nayoli byte-idéntico. */}
+                  <p className="text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-2))] text-sm leading-relaxed mb-4">&quot;{t.text}&quot;</p>
+                  {/* La tarjeta entera vive sobre bg-[var(--sf-tarjeta)] (arriba); los CUATRO roles
+                      (texto, avatar, nombre, atribución) pasan al PAR de la familia `tarjeta`
+                      (§ TEMAS-P6-FAMILIAS-1/CIERRE-1), floreado contra ELLA — no contra
+                      `--sf-tinta`/`--sf-acento-texto`/`--sf-acento-2` (de otras familias), que
+                      medían hasta 1.067:1 con NAYOLI en un esquema asignado (§ el cuadro del commit).
+                      Fallback al texto de hoy: sin esquema (el caso real), cero cambio visual. */}
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-[var(--sf-linea)] flex items-center justify-center">
                       <span className="text-xs font-semibold text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))]">{(t.name || "?")[0]}</span>

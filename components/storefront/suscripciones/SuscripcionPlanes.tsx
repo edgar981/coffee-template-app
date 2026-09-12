@@ -75,10 +75,15 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
                     El color pasó a `--sf-sobre-tarjeta` (§ TEMAS-P6-FAMILIAS-1, familia `tarjeta`, floreado
                     contra ELLA) con fallback al `--sf-tinta` de siempre — Nayoli no cambia. */}
                 {plan.precio && <p className="font-bold text-[var(--sf-sobre-tarjeta,var(--sf-tinta))] mb-1">{plan.precio}</p>}
-                {plan.descripcion && <p className="text-sm text-[var(--sf-texto-suave)] mb-4">{plan.descripcion}</p>}
+                {/* descripcion/beneficios (§ TEMAS-P6-FAMILIAS-CIERRE-1): mismo par `tarjeta`, miembro
+                    SUAVE — son texto de APOYO bajo el nombre/precio (que ya son principal), no un
+                    encabezado. Fallback al token PROPIO de cada uno (no al de otro consumidor): con eso
+                    Nayoli (sin esquema, sin inyección) queda byte-idéntico, y sólo un esquema asignado
+                    (§ derivarEsquema) hace que el valor real gane sobre el fallback. */}
+                {plan.descripcion && <p className="text-sm text-[var(--sf-sobre-tarjeta-suave,var(--sf-texto-suave))] mb-4">{plan.descripcion}</p>}
                 <div className="space-y-2 mb-6">
                   {plan.beneficios.map(b => (
-                    <div key={b} className="flex items-center gap-2 text-sm text-[var(--sf-acento-2)]">
+                    <div key={b} className="flex items-center gap-2 text-sm text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-2))]">
                       <CheckCircle className="w-4 h-4 text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))] shrink-0" /> {b}
                     </div>
                   ))}
@@ -90,12 +95,18 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
                     `EscalaDesktop`, que neutraliza el clic sobre `<a>` como los demás enlaces (la FRONTERA del
                     preview, no el componente), y el href `whatsappUrl('')` es inofensivo. `preview` es false
                     en la tienda real, así que ahí no cambia nada (byte-idéntico). */}
+                {/* El CTA OUTLINE (no destacado) reposa DIRECTO sobre `--sf-tarjeta` (sin bg propio
+                    salvo en :hover, donde pasa a acento y su texto ya usa `acento-txt` —correcto,
+                    floreado contra el acento, sin tocar). Su texto en reposo leía `acento-texto` crudo
+                    —MISMO token que el ícono Coffee/CheckCircle antes de esta familia—, así que entra al
+                    par por el MISMO camino: `sobre-tarjeta-suave` con fallback a su propio token de
+                    siempre → Nayoli byte-idéntico (el fallback es exactamente lo que ya leía). */}
                 {(whatsapp || preview) && (
                   <a
                     href={interesHref(plan.nombre)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`mt-auto inline-flex items-center justify-center gap-2 font-semibold px-6 py-3 sf-pildora text-sm transition-all hover:-translate-y-0.5 ${plan.destacado ? 'bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] text-[var(--sf-acento-txt)]' : 'border-2 border-[var(--sf-acento)] text-[var(--sf-acento-texto)] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]'}`}
+                    className={`mt-auto inline-flex items-center justify-center gap-2 font-semibold px-6 py-3 sf-pildora text-sm transition-all hover:-translate-y-0.5 ${plan.destacado ? 'bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] text-[var(--sf-acento-txt)]' : 'border-2 border-[var(--sf-acento)] text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))] hover:bg-[var(--sf-acento)] hover:text-[var(--sf-acento-txt)]'}`}
                   >
                     {c.ctaLabel} <ArrowRight className="w-4 h-4" />
                   </a>
