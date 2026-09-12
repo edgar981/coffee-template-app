@@ -5,7 +5,7 @@
 // beforeunload, indicador, layout sticky) vive en la CÁSCARA (`TiendaSeccionEditor`). Si una
 // sección nueva necesitara algo fuera de esta config, es señal de que la cáscara se está forzando.
 
-export type SeccionVista = 'hero' | 'brandStory' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos';
+export type SeccionVista = 'hero' | 'brandStory' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
@@ -15,12 +15,13 @@ export type PaginaKey = 'home' | 'nosotros' | 'suscripciones';
 export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?: string }[] = [
   { key: 'home',     label: 'Home',     apagable: false },
   { key: 'nosotros', label: 'Nosotros', apagable: true },
-  // Suscripciones es una PÁGINA como las otras —su pestaña vive junto a Home/Nosotros— con sus planes y
-  // sus pasos editables (§ Backlog #49, opción 1). El interruptor gobierna las 5 superficies que enlazan
-  // a /suscripciones (la página, el menú, el pie, el bloque de la home y el 2º CTA del hero); la `nota`
-  // lo dice porque ese alcance no es obvio.
+  // Suscripciones es una PÁGINA como las otras —su pestaña vive junto a Home/Nosotros— con sus planes,
+  // sus pasos y su FAQ editables (§ Backlog #49, opción 1; § SUSCRIPCIONES-FAQ-DATO-1). El interruptor
+  // gobierna las SEIS superficies que enlazan a /suscripciones: la página, el menú, el pie, el bloque
+  // de la home, el 2º CTA del hero, y —desde esta tanda— /preguntas-frecuentes (su único contenido es
+  // la FAQ de esta capacidad, § faqSuscripcionesVisible); la `nota` lo dice porque ese alcance no es obvio.
   { key: 'suscripciones', label: 'Suscripciones', apagable: true,
-    nota: 'El interruptor muestra u oculta las suscripciones en toda la tienda: la página, el enlace del menú y del pie, y el bloque de la home.' },
+    nota: 'El interruptor muestra u oculta las suscripciones en toda la tienda: la página, el enlace del menú y del pie, el bloque de la home, el segundo botón del hero, y la página de Preguntas Frecuentes.' },
 ];
 
 // `categoria: true` → el campo es un DESTINO de categoría: la cáscara lo renderiza con el
@@ -384,6 +385,34 @@ const SUSCRIPCION_PASOS: SeccionConfig = {
   ],
 };
 
+// La FAQ de /suscripciones (§ SUSCRIPCIONES-FAQ-EDITOR-1, sobre § SUSCRIPCIONES-FAQ-DATO-1). REPEATER,
+// gemela de TESTIMONIOS: un encabezado (`titulo`, sin eyebrow — el modelo no lo tiene, § REGISTRY) + una
+// LISTA de preguntas. `question`/`answer` LOS DOS requeridos (§ REGISTRY.suscripcionFaq) — una pregunta
+// sin respuesta es un hueco, no media FAQ. `ocultable:true`: un cliente puede querer los planes y los
+// pasos sin FAQ, además del gate de PÁGINA (`paginas.suscripciones.visible`, § faqSuscripcionesVisible).
+// Nace con `items: []` (hide-on-empty, § #44) — sin `bloques` declarados, como TESTIMONIOS: cae al bloque
+// `seccion` derivado por defecto.
+const SUSCRIPCION_FAQ: SeccionConfig = {
+  seccion: 'suscripcionFaq',
+  pagina: 'suscripciones',
+  titulo: 'Preguntas frecuentes',
+  ocultable: true,
+  imagenes: [], // sección de solo texto
+  campos: [
+    { name: 'titulo', label: 'Título', hint: 'Vacío: se usa el texto por defecto.' },
+  ],
+  repeater: {
+    itemsKey: 'items',
+    itemLabel: 'Pregunta',
+    genero: 'f', // "¿Eliminar esta pregunta?"
+    campos: [
+      { name: 'question', label: 'Pregunta',  tipo: 'texto',    resumen: 'principal', hint: 'La pregunta que hace el cliente.' },
+      { name: 'answer',   label: 'Respuesta', tipo: 'textarea', resumen: 'detalle',   hint: 'La respuesta, en un lenguaje claro.' },
+    ],
+  },
+};
+
 // El ORDEN es el orden en la pantalla. Las de la home primero (en el orden de la home), después las de
-// /nosotros, y por último /suscripciones; el editor las agrupa por `pagina` en pestañas.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS];
+// /nosotros, y por último /suscripciones (planes → pasos → FAQ, el orden en que aparecen en la página);
+// el editor las agrupa por `pagina` en pestañas.
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];

@@ -10,6 +10,7 @@ import NosotrosHistoria from '@/components/storefront/nosotros/NosotrosHistoria'
 import NosotrosGaleria from '@/components/storefront/nosotros/NosotrosGaleria';
 import SuscripcionPlanes from '@/components/storefront/suscripciones/SuscripcionPlanes';
 import SuscripcionPasos from '@/components/storefront/suscripciones/SuscripcionPasos';
+import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { EscalaDesktop } from '@/components/admin/EscalaDesktop';
@@ -55,6 +56,10 @@ const COMPONENTES: Record<SeccionVista, ComponentType> = {
   // (un `wa.me/` sin número es un botón muerto). Todo-opcional → asignable a ComponentType.
   suscripcionPlanes: SuscripcionPlanes,
   suscripcionPasos: SuscripcionPasos,
+  // PreguntasFrecuentes sólo lee `useSiteContent()` (§ SUSCRIPCIONES-FAQ-EDITOR-1, verificado leyendo
+  // la cadena entera: sin `useSiteSettings` ni otro hook con provider propio) — cubierto por el
+  // `SiteContentProvider` de acá abajo, sin prop adicional.
+  suscripcionFaq: PreguntasFrecuentes,
 };
 
 export default function VistaTiendaEnVivo({

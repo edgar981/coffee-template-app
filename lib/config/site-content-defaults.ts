@@ -245,6 +245,26 @@ export interface SuscripcionPasosContent {
   paso4Label: string; paso4Desc: string;
 }
 
+// La FAQ de /suscripciones (§ SUSCRIPCIONES-FAQ-DATO-1, sobre § Backlog #49 y § SiteContent — el
+// repeater). Antes vivía en `constants/subscription-faq.ts` (RETIRADO): cuatro preguntas con
+// respuestas FALSAS —"pausar… desde tu cuenta" (la ruta `/cuenta` está borrada), "el cobro se
+// realiza el mismo día de cada mes" y "el cambio aplica desde el siguiente ciclo" (no hay cobro
+// recurrente: `esSuscripcion`/`SUBSCRIPTIONS_ENABLED` dan CERO en el repo, § #68), y "envío gratis a
+// nivel nacional" (`computeShippingCost` cobra envío bajo `freeShippingThreshold` y no conoce el
+// concepto de suscripción)—. Es el mismo caso que TESTIMONIOS (§ #44): los defaults valen para copy,
+// NO para un CLAIM falso sobre el negocio, así que NACE VACÍA — REPEATER, hide-on-empty, sin copiar
+// ninguna de las cuatro respuestas viejas.
+export interface SuscripcionFaqItem {
+  question: string;
+  answer: string;
+}
+
+export interface SuscripcionFaqContent {
+  visible: boolean;
+  titulo: string;
+  items: SuscripcionFaqItem[];
+}
+
 // META de páginas: qué páginas del storefront están ENCENDIDAS. NO es una sección (no lleva `campos`
 // ni la resuelve el loop de secciones); es una capacidad —una página existe y se puede apagar—. Hoy
 // /nosotros y /suscripciones son CAPACIDADES apagables (la home no se apaga). `suscripciones`
@@ -286,6 +306,7 @@ export interface SiteContentData {
   nosotrosGaleria: NosotrosGaleriaContent;
   suscripcionPlanes: SuscripcionPlanesContent;
   suscripcionPasos: SuscripcionPasosContent;
+  suscripcionFaq: SuscripcionFaqContent;
   paginas: PaginasContent;
   tema: TemaContent;
   esquemas: EsquemasContent;
@@ -505,6 +526,18 @@ export const DEFAULTS: SiteContentData = {
     paso2Label: 'Personaliza tu pedido', paso2Desc: 'Escoge la opción que mejor se ajuste a lo que buscas.',
     paso3Label: 'Confirmamos tu pedido', paso3Desc: 'Te avisamos antes de que se procese, para que nunca haya sorpresas.',
     paso4Label: 'Recíbelo en casa', paso4Desc: 'Enviamos tu pedido a todo el país.',
+  },
+  // La FAQ de /suscripciones (§ SUSCRIPCIONES-FAQ-DATO-1). NACE VACÍA a propósito: las cuatro
+  // respuestas del `constants/subscription-faq.ts` retirado eran FALSAS —prometían pausar "desde tu
+  // cuenta" (ruta borrada), cobro mensual recurrente y cambio "desde el siguiente ciclo" (no hay
+  // cobro recurrente en el sistema) y "envío gratis a nivel nacional" (no existe esa regla)— y no se
+  // copian. `titulo` conserva el único literal que el componente viejo pintaba (el `<h2>` fijo), sin
+  // ningún claim. El owner carga preguntas REALES por el editor; hasta entonces, hide-on-empty oculta
+  // la sección y /preguntas-frecuentes redirige (§ faqSuscripcionesVisible).
+  suscripcionFaq: {
+    visible: true,
+    titulo: 'Preguntas frecuentes',
+    items: [],
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
@@ -800,6 +833,24 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       paso4Label: 'requerido', paso4Desc: 'requerido',
     },
   },
+  // La FAQ de /suscripciones (§ SUSCRIPCIONES-FAQ-DATO-1). REPEATER, gemela de `testimonials`: un
+  // encabezado (`titulo`) + una LISTA de preguntas. `question`/`answer` LOS DOS requeridos —una
+  // pregunta sin respuesta es un hueco, no media FAQ—. `ocultable:true`: un cliente puede querer los
+  // planes y los pasos sin una FAQ, además del gate de PÁGINA (`paginas.suscripciones.visible`).
+  suscripcionFaq: {
+    label: 'Preguntas frecuentes',
+    ocultable: true,
+    campos: {
+      titulo: 'requerido',
+    },
+    repeater: {
+      itemsKey: 'items',
+      campos: {
+        question: 'requerido',
+        answer: 'requerido',
+      },
+    },
+  },
 };
 
 const esVacio = (v: unknown): boolean => typeof v !== 'string' || v.trim() === '';
@@ -1025,4 +1076,19 @@ export function seccionEsVisible(def: SeccionDef, sec: object): boolean {
   if (def.repeater && !tieneItems) return false; // hide-on-empty gana sobre todo
   if (!def.ocultable) return true;                // no se puede ocultar (hero)
   return rec.visible !== false;
+}
+
+/**
+ * ¿Debe mostrarse /preguntas-frecuentes —y su enlace, en el footer— (§ SUSCRIPCIONES-FAQ-DATO-1)?
+ * Compone DOS condiciones: la CAPACIDAD de suscripciones está encendida
+ * (`paginas.suscripciones.visible` — la FAQ es hoy contenido de esa capacidad, la misma que gatea el
+ * 2º CTA del hero, el nav, el footer y el bloque de la home, § Backlog #49) Y la sección
+ * `suscripcionFaq` se muestra (`seccionEsVisible`, que ya cubre su propio toggle Y hide-on-empty).
+ * Sin las dos, la página quedaría en BLANCO —su único contenido es esta FAQ— y su enlace apuntaría a
+ * nada. UNA función para los DOS consumidores (la ruta y `StoreFooter`): escribir la condición dos
+ * veces es la falla de las dos declaraciones que este repo ya pagó varias veces (§ CLAUDE.md,
+ * `razonDelServidor`/`cruzoMinimo`).
+ */
+export function faqSuscripcionesVisible(content: SiteContentData): boolean {
+  return content.paginas.suscripciones.visible && seccionEsVisible(REGISTRY.suscripcionFaq, content.suscripcionFaq);
 }

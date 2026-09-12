@@ -13,7 +13,9 @@ import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
 // vista previa del editor monta—. El `whatsapp` (para el CTA "Me interesa", que abre WhatsApp, no crea
 // pedidos) sale de SiteSetting (una sola fuente) y se pasa por PROP: el componente se monta también en
 // el preview del panel, que no tiene el SiteSettingsProvider del storefront. Las PreguntasFrecuentes
-// siguen como componente aparte (§ Backlog #63: su copy café-shape es otra superficie, otra tanda).
+// son DATO editable, sección repeater (§ SUSCRIPCIONES-FAQ-DATO-1) que NACE VACÍA — sus cuatro
+// respuestas de código (RETIRADAS) prometían cobro recurrente, ciclos y envío gratis que no existen
+// en el sistema. Se auto-oculta (hide-on-empty) hasta que el owner cargue preguntas reales.
 export default function SuscripcionesContenido() {
   const settings = useSiteSettings();
   return (
