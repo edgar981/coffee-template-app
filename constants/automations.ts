@@ -109,6 +109,14 @@ export type AutomationSeveridad = 'alerta' | 'info';
 //     causa #1 de rechazo.
 // El día que llegue la API, `nombre` es el template name registrado y `variables`
 // documenta el binding posicional. Ver lib/automations/channels/whatsapp.ts.
+//
+// EL NOMBRE DEL NEGOCIO ES UNA VARIABLE `{{n}}`, NUNCA TEXTO FIJO (WHATSAPP-PLANTILLAS-
+// MARCA-1). Antes de que Meta apruebe la primera de estas tres plantillas, cambiar su
+// texto es gratis; después, cada cambio de estos strings exige re-aprobación. Hornear
+// «Café Nayoli» en el cuerpo lo hacía intocable para el segundo cliente. El nombre real
+// lo aporta quien arme `variables` al despachar (hoy PENDIENTE_CANAL, sin ese dato
+// threadeado — ver `lib/automations/channels/whatsapp.ts`); esta constante no lee
+// `SiteSetting` porque no tiene base a mano y es compartida con el cliente.
 
 export interface WhatsappTemplate {
   /** Template name tal como se registra en Meta: snake_case, minúsculas. */
@@ -211,8 +219,8 @@ export const AUTOMATIONS: AutomationDef[] = [
       cuerpo:
         'Hola {{1}}, confirmamos tu orden {{2}} por un total de {{3}}. ' +
         'Ya estamos preparándola y te avisamos apenas salga a ruta. ' +
-        'Gracias por comprar en Café Nayoli.',
-      variables: ['nombre del cliente', 'número de orden', 'total formateado en COP'],
+        'Gracias por comprar en {{4}}.',
+      variables: ['nombre del cliente', 'número de orden', 'total formateado en COP', 'nombre del negocio'],
     },
   },
 
@@ -323,10 +331,10 @@ export const AUTOMATIONS: AutomationDef[] = [
     plantilla: {
       nombre: 'reactivacion_cliente', categoria: 'MARKETING', idioma: 'es',
       cuerpo:
-        'Hola {{1}}, hace un tiempo no pasas por Café Nayoli y queremos verte de vuelta. ' +
-        'Tenemos para ti {{2}} en tu próxima compra. ' +
+        'Hola {{1}}, hace un tiempo no pasas por {{2}} y queremos verte de vuelta. ' +
+        'Tenemos para ti {{3}} en tu próxima compra. ' +
         'Respóndenos por aquí y te ayudamos con el pedido.',
-      variables: ['nombre del cliente', 'texto de la promoción (config)'],
+      variables: ['nombre del cliente', 'nombre del negocio', 'texto de la promoción (config)'],
     },
   },
 
@@ -346,9 +354,9 @@ export const AUTOMATIONS: AutomationDef[] = [
       nombre: 'orden_entregada', categoria: 'UTILITY', idioma: 'es',
       cuerpo:
         'Hola {{1}}, tu orden {{2}} fue entregada. ' +
-        'Gracias por elegir Café Nayoli, esperamos que la disfrutes. ' +
+        'Gracias por elegir {{3}}, esperamos que la disfrutes. ' +
         'Si algo no salió bien, respóndenos por aquí y lo resolvemos.',
-      variables: ['nombre del cliente', 'número de orden'],
+      variables: ['nombre del cliente', 'número de orden', 'nombre del negocio'],
     },
   },
 
