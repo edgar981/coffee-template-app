@@ -561,3 +561,31 @@ Regla: § un preset que nombra una capacidad que el producto no tiene se REHÚSA
 
 Merge `--no-ff` mecánico tras el gate del owner, tree == tree gateado (`e7a9a66`), `npm test` **1084/1084** y `npx tsc --noEmit` en **0**.
 Regla: § la foto de producto de un cliente no es un default, es su marca — y un default que hace parecer COMPLETO a un despliegue vacío miente dos veces: sobre el cliente que no lo llenó y sobre el cliente cuya foto se está sirviendo.
+
+## 2026-09-12 · El primer slice de P6 que se VE, y el alcance que se partió por el nombre equivocado (`TEMAS-P6-NAYOLI-FIX-1`)
+`36a0fe0`, merge `--no-ff`
+
+**ES EL PRIMERO DE P6 QUE CAMBIA UN PÍXEL DE LA TIENDA VIVA.** Los anteriores eran byte-idénticos para Nayoli y la razón es estructural: sus **tres raíces están en `null`**, así que `cssPaleta` no inyecta nada y su storefront pinta los **literales estáticos de `globals.css`** — el motor de derivación, que es lo que P6 viene construyendo, **no corre para ella**. Este slice mueve uno de esos literales, y por eso fue el primero que el owner tuvo que gatear MIRANDO.
+
+`--sf-tostado-3`: **`#a07050` → `#8c5d3e`**. Contra `superficie`/`fondo`/`tarjeta`: **3,511 / 3,992 / 4,261 → 4,614 / 5,246 / 5,599**. Los nueve usos pasan AA.
+
+**LO QUE HIZO SEGURO MOVER EL TOKEN EN VEZ DE EDITAR NUEVE CONSUMIDORES fue una medición, no una preferencia:** los nueve usos son **texto o ícono, CERO como fondo, borde o ring** (grep repo-wide). Un token que sólo se usa como tinta no le cambia el aspecto a ninguna superficie cuando se oscurece. La razón del owner va al asiento: *«la causa está en el token, no en los 9 consumidores; editarlos disfraza el problema y deja el token roto para el próximo».*
+
+**Los cuatro íconos de estado vacío** (`CartDrawer`, `rastrear-pedido` ×2, `tienda`) a `aria-hidden`, con la condición **verificada uno por uno**: en los cuatro el texto vecino dice el estado completo —carrito vacío, «Orden no encontrada» con su detalle, cada paso del timeline con label y descripción, «Sin resultados» con el suyo—. Ninguno es la única pista, así que la premisa del owner aguanta en los cuatro. No se les tocó el color: un ícono decorativo no tiene piso que cumplir.
+
+**EL WORKER SE NEGÓ A LA §2 DEL SPEC, Y TENÍA RAZÓN — verificado en el código por el orquestador, no aceptado de palabra.** El spec le ordenaba: si la paleta DERIVADA también da un `tostado-3` corto, darle `piso` en la RECETA. Sí falla en los seis presets (peor caso PATIO, **2,303** contra `superficie`). Pero:
+
+  - **`palette-derive.ts`: `if (r.piso) hex = pisoContraste(hex, fondo, 4.5)`** — el piso florea **sólo contra `fondo`**, hardcodeado;
+  - **`palette-derive.ts:273`: `out['tarjeta'] = '#ffffff'`** — la tarjeta es **blanco FIJO**, no derivado de las raíces;
+  - **`themes.ts:303`, VETA: `fondo: '#16120e'`** — **fondo oscuro** con esa tarjeta blanca fija.
+
+**Ningún hex único pasa AA contra un fondo oscuro Y una tarjeta blanca a la vez.** Simulado el flag: seguiría bajo AA contra `superficie` en los **seis** presets (3,99–4,16) y contra `tarjeta` en VETA (4,073). O sea que obedecer habría dejado el token **verde contra `fondo` y rojo contra todo lo demás: AA FALSO**, que es peor que no arreglarlo — se ve arreglado. **Una guarda que sólo cubre una de las superficies donde el token vive no es media guarda: es una que miente.**
+
+**EL ERROR ERA DEL SPEC, Y LA LECCIÓN ES LA DOCTRINA DEL OWNER LEÍDA AL REVÉS.** El mismo spec dejaba `tostado`/`tostado-2` explícitamente fuera («ni los mires acá») porque son el **patrón de familia** —un token que vive sobre dos fondos se parte en dos, no se promedia— y metía `tostado-3` adentro. **El alcance se partió por el NOMBRE DEL TOKEN cuando la propiedad que decide es otra: ¿vive sobre dos fondos?** En el estático de Nayoli `tostado-3` vive sobre tres superficies claras y un solo hex alcanza; en la paleta DERIVADA vive sobre un fondo que puede ser oscuro y una tarjeta que siempre es blanca, exactamente como sus hermanos. **Es el mismo defecto, no uno vecino.**
+
+**TEMAS-P6-TOSTADO-FAMILIA-1 se lleva los TRES en UN solo slice** (decisión del orquestador; el tamaño de un slice es suyo). El worker preguntó si `tostado-3` necesitaba el propio: no. Los tres necesitan **el mismo mecanismo que falta** —un piso multi-superficie, o el par de la familia—, y en tres slices se derivaría tres veces, o peor, tres veces distinto. El estático de Nayoli ya quedó bien; lo que queda es sólo la mitad DERIVADA, que hoy no le llega a ningún cliente.
+
+**EL TEST NUEVO LEE EL ARTEFACTO, NO LO TRANSCRIBE.** El hex vive en CSS, no en el módulo, así que la garantía se escribió leyendo `app/globals.css` **por regex** y calculando el contraste — un test que copiara `#8c5d3e` afirmaría que el archivo dice lo que el test dice, que es nada. **Visto fallar** con el hex viejo (3,511) antes del fix.
+
+Merge `--no-ff` mecánico tras el gate del owner, tree == tree gateado (`8f27b76`), `npm test` **1085/1085** y `npx tsc --noEmit` en **0**.
+Regla: § un alcance se parte por la PROPIEDAD que define el defecto, nunca por el nombre del símbolo — dos tokens con nombres distintos y la misma propiedad son un solo problema, y un tercero con el mismo nombre y otra propiedad son dos.
