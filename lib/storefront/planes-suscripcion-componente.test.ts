@@ -20,10 +20,18 @@ function render(sec: SuscripcionPlanesContent): string {
 }
 const nTarjetas = (html: string) => (html.match(/rounded-2xl p-6/g) || []).length;
 
+// DERIVADO de DEFAULTS (§ CONTENIDO-NEUTRALIZAR-4): antes comparaba contra los nombres LITERALES
+// ('Plan 250 g'/'Plan 500 g'/'Plan Familiar'), una TERCERA declaración del mismo contenido que
+// `site-content-defaults.ts` — el mismo patrón que `opcionesDestaque` ya pagó en
+// `planes-suscripcion.test.ts`. Lo que esta prueba afirma no es CUÁLES son los nombres, sino que el
+// COMPONENTE los pinta en el HTML y no se los come: si `SuscripcionPlanes` dejara de leer `nombreN`
+// del contenido (un fallback hardcodeado, un campo cambiado por otro), esta prueba lo atrapa igual.
 test('COMPONENTE: Nayoli renderiza 3 tarjetas, con "Más Popular" en la destacada (slot 2)', () => {
   const html = render(DEFAULTS.suscripcionPlanes);
   assert.equal(nTarjetas(html), 3);
-  assert.ok(html.includes('Plan 250 g') && html.includes('Plan 500 g') && html.includes('Plan Familiar'));
+  const { nombre1, nombre2, nombre3 } = DEFAULTS.suscripcionPlanes;
+  assert.ok(html.includes(nombre1) && html.includes(nombre2) && html.includes(nombre3),
+    'los nombres CONFIGURADOS llegan al HTML — el componente los pinta, no se los come');
   assert.ok(html.includes('Más Popular'));
 });
 
