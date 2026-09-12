@@ -49,5 +49,9 @@ next-env.d.ts
 # scratch PR body (not part of the project)
 /PR_BODY.md
 
+# scratch commit-message drafts a worker writes to disk before `git commit -F` (§ Commit msg con
+# backticks) — untracked leftovers from a prior slice block the guard that gates the next dispatch.
+.git-commit-msg-*
+
 # Mapa de los repos de Carlos — material de la sesión de asesoría, no del producto.
 /CARTOGRAFIA-DUNA.md
