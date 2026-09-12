@@ -87,7 +87,9 @@
   --sf-texto-suave:  #8b6650;   /* texto atenuado */
   --sf-tostado:      #d4a97a;   /* tostado claro (decorativo, hover) */
   --sf-tostado-2:    #c0a080;
-  --sf-tostado-3:    #a07050;
+  --sf-tostado-3:    #8c5d3e;   /* §TEMAS-P6-NAYOLI-FIX-1: era #a07050, bajo AA en sus 9 usos (texto/
+                                   ícono, cero fondo/borde/ring) contra --sf-superficie/-fondo/-tarjeta
+                                   (3.511/3.992/4.261). Nuevo: 4.614/5.246/5.599 — los 3 pasan AA. */
   --sf-tostado-4:    #c49060;
   --sf-tostado-5:    #ba9c7b;
   --sf-tostado-6:    #e8c095;

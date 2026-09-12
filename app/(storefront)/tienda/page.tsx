@@ -177,7 +177,7 @@ function ShopInner() {
 
           {filtered.length === 0 ? (
             <div className="text-center py-20">
-              <Search className="w-10 h-10 text-[var(--sf-tostado-2)] mx-auto mb-3" />
+              <Search aria-hidden="true" className="w-10 h-10 text-[var(--sf-tostado-2)] mx-auto mb-3" />
               <p className="font-medium text-[var(--sf-tinta)] mb-1">Sin resultados</p>
               <p className="text-sm text-[var(--sf-texto-suave)]">Prueba con otros filtros o términos de búsqueda.</p>
             </div>
