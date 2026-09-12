@@ -5,7 +5,7 @@
 // beforeunload, indicador, layout sticky) vive en la CÁSCARA (`TiendaSeccionEditor`). Si una
 // sección nueva necesitara algo fuera de esta config, es señal de que la cáscara se está forzando.
 
-export type SeccionVista = 'hero' | 'brandStory' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos';
+export type SeccionVista = 'hero' | 'brandStory' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
@@ -385,15 +385,34 @@ const SUSCRIPCION_PASOS: SeccionConfig = {
   ],
 };
 
+// La FAQ de /suscripciones (§ SUSCRIPCIONES-FAQ-EDITOR-1, sobre § SUSCRIPCIONES-FAQ-DATO-1). REPEATER,
+// gemela de TESTIMONIOS: un encabezado (`titulo`, sin eyebrow — el modelo no lo tiene, § REGISTRY) + una
+// LISTA de preguntas. `question`/`answer` LOS DOS requeridos (§ REGISTRY.suscripcionFaq) — una pregunta
+// sin respuesta es un hueco, no media FAQ. `ocultable:true`: un cliente puede querer los planes y los
+// pasos sin FAQ, además del gate de PÁGINA (`paginas.suscripciones.visible`, § faqSuscripcionesVisible).
+// Nace con `items: []` (hide-on-empty, § #44) — sin `bloques` declarados, como TESTIMONIOS: cae al bloque
+// `seccion` derivado por defecto.
+const SUSCRIPCION_FAQ: SeccionConfig = {
+  seccion: 'suscripcionFaq',
+  pagina: 'suscripciones',
+  titulo: 'Preguntas frecuentes',
+  ocultable: true,
+  imagenes: [], // sección de solo texto
+  campos: [
+    { name: 'titulo', label: 'Título', hint: 'Vacío: se usa el texto por defecto.' },
+  ],
+  repeater: {
+    itemsKey: 'items',
+    itemLabel: 'Pregunta',
+    genero: 'f', // "¿Eliminar esta pregunta?"
+    campos: [
+      { name: 'question', label: 'Pregunta',  tipo: 'texto',    resumen: 'principal', hint: 'La pregunta que hace el cliente.' },
+      { name: 'answer',   label: 'Respuesta', tipo: 'textarea', resumen: 'detalle',   hint: 'La respuesta, en un lenguaje claro.' },
+    ],
+  },
+};
+
 // El ORDEN es el orden en la pantalla. Las de la home primero (en el orden de la home), después las de
-// /nosotros, y por último /suscripciones; el editor las agrupa por `pagina` en pestañas.
-//
-// LA FAQ (`suscripcionFaq`, § SUSCRIPCIONES-FAQ-DATO-1) NO ENTRA ACÁ TODAVÍA: el modelo, el schema y
-// el render ya existen (`lib/config/site-content-defaults.ts`, `site-content-schema.ts`,
-// `PreguntasFrecuentes.tsx`), pero declararla como una sección MÁS de `SeccionVista` obliga a
-// `components/admin/VistaTiendaEnVivo.tsx` a registrar su componente en `COMPONENTES` —es un
-// `Record<SeccionVista, ComponentType>` EXHAUSTIVO, así que el tipo nuevo lo rompe— y ese archivo
-// queda FUERA del alcance aprobado de esta tanda. Abrirla al editor del panel es su propio slice
-// (tocar `tienda-secciones.ts` Y `VistaTiendaEnVivo.tsx` juntos); hasta entonces la FAQ se administra
-// como el resto de `SiteContentData` — por API, no por el editor visual.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS];
+// /nosotros, y por último /suscripciones (planes → pasos → FAQ, el orden en que aparecen en la página);
+// el editor las agrupa por `pagina` en pestañas.
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];
