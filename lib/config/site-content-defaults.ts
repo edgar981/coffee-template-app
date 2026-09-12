@@ -380,11 +380,11 @@ export function varianteDeBanda(content: SiteContentData, bandaId: BandaId): str
 export const DEFAULTS: SiteContentData = {
   hero: {
     visible: true,
-    eyebrow: 'Calidad Artesanal · Hecho con Cuidado',
+    eyebrow: 'Calidad en cada pedido',
     titulo: 'Productos que cuentan',
     tituloEnfasis: 'historias',
     subtitulo:
-      'Productos hechos con dedicación por un equipo que cree en la calidad sobre la cantidad. Cada pieza recibe el mismo cuidado, de principio a fin.',
+      'Cuidamos cada pedido de principio a fin: eliges lo que necesitas, te confirmamos enseguida, y lo recibes tal como lo esperabas.',
     ctaPrimarioLabel: 'Ver Catálogo',
     ctaSecundarioLabel: 'Suscripción Mensual',
     imagen: '/images/hero-beans-v1.jpg',
@@ -394,11 +394,11 @@ export const DEFAULTS: SiteContentData = {
   brandStory: {
     visible: true,
     eyebrow: 'Nuestra Historia',
-    titulo: 'De nuestras manos a las tuyas',
+    titulo: 'Detrás de cada pedido',
     parrafo1:
-      'Nuestra historia empieza en un solo lugar, con un equipo que decidió hacer las cosas bien desde el principio. Cada producto nace de un proceso cuidado paso a paso, pensado para que se note la diferencia.',
+      'Empezamos con una idea simple: que comprar algo bueno no debería ser complicado. Por eso cuidamos cada pedido como si fuera el único, desde que lo eliges hasta que lo recibes.',
     parrafo2:
-      'Trabajamos con materiales seleccionados y un proceso propio — el que mejor revela lo que sabemos hacer. El resultado es un producto con carácter propio y un balance preciso entre calidad y detalle. El equilibrio que buscamos en cada pieza. Hacemos las cosas con cuidado, de principio a fin, con una historia que apenas comienza a contarse. Cuando eliges uno de nuestros productos, sabes exactamente qué hay detrás — y ese, para nosotros, es el verdadero valor de lo que hacemos.',
+      'Seguimos aquí gracias a quienes vuelven a pedir, y eso es lo que más nos importa cuidar: que la próxima vez sea tan buena como la primera.',
     imagen1: '/images/products-9.jpg',
     imagen2: '/images/products-7.jpeg',
     imagen3: '/images/products-10.jpg',
@@ -432,10 +432,10 @@ export const DEFAULTS: SiteContentData = {
     visible: true,
     eyebrow: 'Plan Suscripción',
     titulo: 'Tu pedido, cada mes',
-    subtitulo: 'El mismo producto de siempre, preparado fresco y enviado a tu puerta. Pausa o cancela cuando quieras.',
-    bullet1: 'El mismo producto de siempre, hecho con cuidado',
+    subtitulo: 'Recibe lo de siempre sin tener que acordarte de pedirlo cada vez.',
+    bullet1: 'Siempre lo mismo, sin que tengas que volver a elegirlo',
     bullet2: 'Elige la presentación que prefieras',
-    bullet3: 'Preparado fresco en tandas semanales',
+    bullet3: 'Se renueva automáticamente, sin líos',
     bullet4: 'Pausa o cancela cuando quieras',
     ctaLabel: 'Ver los planes',
   },
@@ -450,12 +450,12 @@ export const DEFAULTS: SiteContentData = {
   // entra como su propia sección en la tanda 2 (§ /nosotros — la galería).
   nosotrosHistoria: {
     visible: true,
-    eyebrow: 'Nuestra Historia',
-    titulo: 'De nuestras manos a las tuyas',
+    eyebrow: 'Quiénes Somos',
+    titulo: 'Cómo llegamos hasta acá',
     parrafo1:
-      'Nuestra historia empieza en un solo lugar, con un equipo que decidió hacer las cosas bien desde el principio. Cada producto nace de un proceso cuidado paso a paso, pensado para que se note la diferencia.',
+      'Este negocio empezó con ganas de hacerlo distinto: responder rápido, cumplir lo que prometemos, y tratar a cada cliente como si fuera el primero. Con el tiempo eso se volvió la forma en que trabajamos todos los días.',
     parrafo2:
-      'Trabajamos con materiales seleccionados y un proceso propio — el que mejor revela lo que sabemos hacer. El resultado es un producto con carácter propio y un balance preciso entre calidad y detalle. El equilibrio que buscamos en cada pieza. Hacemos las cosas con cuidado, de principio a fin, con una historia que apenas comienza a contarse. Cuando eliges uno de nuestros productos, sabes exactamente qué hay detrás — y ese, para nosotros, es el verdadero valor de lo que hacemos.',
+      'Hoy seguimos con la misma idea: que elegir, pedir y recibir sea simple, y que cada persona que confía en nosotros sienta que valió la pena.',
     parrafo3: '',
   },
   // La galería de /nosotros. Encabezado con defaults de COPY (se muestran sólo cuando hay fotos, por
@@ -476,17 +476,17 @@ export const DEFAULTS: SiteContentData = {
     eyebrow: 'Suscripción Mensual',
     titulo: 'Tu pedido,',
     tituloEnfasis: 'cada mes',
-    subtitulo: 'El mismo producto de siempre, preparado fresco y enviado a tu puerta. Pausa o cancela cuando quieras.',
+    subtitulo: 'Elige cuánto quieres recibir y con qué frecuencia. Cambia, pausa o cancela cuando quieras.',
     planesTitulo: 'Elige tu plan',
     planesSubtitulo: 'Escríbenos y coordinamos tu suscripción por WhatsApp. Sin compromisos, pausa o cancela cuando quieras.',
     ctaLabel: 'Me interesa',
     destacadoSlot: '2',
     nombre1: 'Plan 250 g', descripcion1: 'Una bolsa de 250 g cada mes', precio1: '',
-    ben1_1: 'Elige la presentación que prefieras', ben1_2: 'El mismo producto de siempre, hecho con cuidado', ben1_3: 'Preparado fresco en tandas semanales', ben1_4: '',
+    ben1_1: 'La cantidad justa para empezar', ben1_2: 'Sin compromiso: cancela cuando quieras', ben1_3: 'Te llega el mismo día, cada mes', ben1_4: '',
     nombre2: 'Plan 500 g', descripcion2: 'Una bolsa de 500 g cada mes', precio2: '',
-    ben2_1: 'Elige la presentación que prefieras', ben2_2: 'El mismo producto de siempre, hecho con cuidado', ben2_3: 'Preparado fresco en tandas semanales', ben2_4: '',
+    ben2_1: 'El doble de cantidad del plan básico', ben2_2: 'Pensado para quien ya sabe que quiere seguir', ben2_3: 'Nunca te quedas sin, mes tras mes', ben2_4: '',
     nombre3: 'Plan Familiar', descripcion3: 'Dos bolsas de 500 g cada mes', precio3: '',
-    ben3_1: 'Elige la presentación que prefieras', ben3_2: 'Ideal para el hogar o la oficina', ben3_3: 'Preparado fresco en tandas semanales', ben3_4: '',
+    ben3_1: 'El doble de cantidad del plan estándar', ben3_2: 'Ideal para el hogar o la oficina', ben3_3: 'Ajusta la fecha cuando lo necesites', ben3_4: '',
     nombre4: '', descripcion4: '', precio4: '',
     ben4_1: '', ben4_2: '', ben4_3: '', ben4_4: '',
   },
@@ -494,10 +494,10 @@ export const DEFAULTS: SiteContentData = {
   suscripcionPasos: {
     visible: true,
     titulo: '¿Cómo funciona?',
-    paso1Label: 'Elige tu plan', paso1Desc: 'Selecciona la frecuencia y cantidad que mejor se adapte a ti.',
-    paso2Label: 'Elige tu presentación', paso2Desc: 'Elaborado con el mismo cuidado de siempre — tú eliges la presentación.',
-    paso3Label: 'Preparamos fresco', paso3Desc: 'Preparamos tu pedido en tandas semanales, días antes del envío.',
-    paso4Label: 'Recíbelo en casa', paso4Desc: 'Enviamos tu pedido fresco a todo el país.',
+    paso1Label: 'Selecciona tu plan', paso1Desc: 'Selecciona la frecuencia y cantidad que mejor se adapte a ti.',
+    paso2Label: 'Personaliza tu pedido', paso2Desc: 'Escoge la opción que mejor se ajuste a lo que buscas.',
+    paso3Label: 'Confirmamos tu pedido', paso3Desc: 'Te avisamos antes de que se procese, para que nunca haya sorpresas.',
+    paso4Label: 'Recíbelo en casa', paso4Desc: 'Enviamos tu pedido a todo el país.',
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es

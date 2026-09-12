@@ -812,10 +812,22 @@ test('resolverOrden: SIEMPRE devuelve las 7 bandas — ninguna se cae, pase lo q
 // mano: caminan `DEFAULTS`/`REGISTRY` tal como existen.
 
 // Términos prohibidos en el copy de comercio genérico: café (y su familia — grano/molido/tueste/
-// tostado/cafetal/greca), y la identidad concreta de Nayoli (el nombre, la finca, Supatá,
-// Cundinamarca). Ampliado a propósito más allá de los 6 términos mínimos del spec (café, granos,
-// tueste, finca, Supatá, Nayoli): un catcher angosto deja pasar el mismo defecto con otra palabra.
-const TERMINOS_PROHIBIDOS = /caf[eé]|nayoli|supat[aá]|cundinamarca|\bgrano|molid|tueste|tosta|finca|cafetal|greca/i;
+// tostado/cafetal/greca), la identidad concreta de Nayoli (el nombre, la finca, Supatá,
+// Cundinamarca), y la SEGUNDA CAPA (CONTENIDO-NEUTRALIZAR-2) — los que asumen manufactura o
+// producto perecedero SIN nombrar café: tanda(s), elaborad(o/a/ación), prepara(do/mos/ción)
+// —cubre tanto el adjetivo ("preparado fresco") como el verbo ("preparamos"), las dos formas que
+// el molde cafetero traducido usaba—, fresco, material(es), artesanal. Ampliado a propósito más
+// allá de los 6 términos mínimos del spec original (café, granos, tueste, finca, Supatá, Nayoli):
+// un catcher angosto deja pasar el mismo defecto con otra palabra.
+//
+// EL LÍMITE, dicho en vez de escondido: esta lista NO intenta atrapar toda suposición de origen
+// del producto — "proceso", "pieza", "producto" son palabras de negocio genéricas y ambiguas
+// (un "proceso de compra" es neutro; "pieza de ropa" es un uso legítimo) que banearlas produciría
+// falsos positivos sin ganar precisión. Lo que se agregó acá son los términos que, en la revisión
+// de CONTENIDO-NEUTRALIZAR-2, aparecieron repetidos y sin ambigüedad de lectura (siempre asumen
+// manufactura o perecedero). Si esta lista sigue creciendo en la próxima tanda, es señal de que el
+// test correcto ya no es un grep de términos sino una revisión de lectura — anotarlo, no forzarlo.
+const TERMINOS_PROHIBIDOS = /caf[eé]|nayoli|supat[aá]|cundinamarca|\bgrano|molid|tueste|tosta|finca|cafetal|greca|tanda|elaborad|prepara|fresco|material|artesanal/i;
 
 function walkStrings(v: unknown, path: string, out: [string, string][]): void {
   if (typeof v === 'string') { out.push([path, v]); return; }
@@ -842,12 +854,51 @@ function valoresDeCamposImagen(): Set<string> {
   return out;
 }
 
-test('DEFAULTS: ningún campo de TEXTO menciona café, Nayoli ni su identidad — las rutas de imagen quedan EXCLUIDAS a propósito (§ MARCA-DE-CLIENTE-EN-EL-REPO-1, no es parte de este slice)', () => {
+test('DEFAULTS: ningún campo de TEXTO menciona café, Nayoli, ni asume manufactura/perecedero (tanda, elaborad-, prepara-, fresco, material, artesanal) — las rutas de imagen quedan EXCLUIDAS a propósito (§ MARCA-DE-CLIENTE-EN-EL-REPO-1, no es parte de este slice)', () => {
   const rutasDeImagen = valoresDeCamposImagen();
   const todas: [string, string][] = [];
   walkStrings(DEFAULTS as unknown, '', todas);
   const ofensores = todas.filter(([, val]) => !rutasDeImagen.has(val) && TERMINOS_PROHIBIDOS.test(val));
-  assert.deepEqual(ofensores, [], `campos con identidad de café/Nayoli: ${ofensores.map(([p]) => p).join(', ')}`);
+  assert.deepEqual(ofensores, [], `campos con identidad de café/Nayoli o molde cafetero traducido: ${ofensores.map(([p]) => p).join(', ')}`);
+});
+
+// ── CONTENIDO-NEUTRALIZAR-2 (2026-09-12): ningún texto exacto se repite entre secciones ──────────
+// Defecto b del gate del owner: `'De nuestras manos a las tuyas'` aparecía IDÉNTICO en brandStory
+// (home) y nosotrosHistoria (/nosotros) — un cliente que no edite ve el mismo título dos veces. El
+// barrido completo (hecho a mano durante la reescritura) encontró SEIS duplicados exactos más:
+// subscriptionCTA.subtitulo = suscripcionPlanes.subtitulo, subscriptionCTA.bullet1 = ben1_2 = ben2_2,
+// bullet2 = ben1_1 = ben2_1 = ben3_1, bullet3 = ben1_3 = ben2_3 = ben3_3 (los TRES planes con el
+// mismo beneficio, el defecto b del gate), brandStory/nosotrosHistoria.{titulo,parrafo1,parrafo2}, y
+// suscripcionPasos.{paso1Label,paso2Label} = suscripcionPlanes.planesTitulo/presentaciones.eyebrow.
+// Éste es el regression-catcher: camina `DEFAULTS` tal como existe (no enumera campos a mano) y
+// falla si un valor de texto no-vacío se repite, salvo la excepción declarada.
+//
+// LA ÚNICA EXCEPCIÓN AL COLLATOR: 'Suscripción Mensual' en hero.ctaSecundarioLabel (el CTA del home)
+// y suscripcionPlanes.eyebrow (el kicker de la página a la que ese CTA lleva). No es el defecto que
+// el owner señaló —un párrafo idéntico narrando la misma historia dos veces—: es un botón y el
+// título de SU destino diciendo lo mismo, que es la consistencia de nomenclatura esperada de
+// cualquier link (un botón "Ver Catálogo" que lleve a una página titulada "Catálogo" no es un
+// duplicado a resolver). Declarada explícita para que un futuro cambio de cualquiera de los dos la
+// vea y decida a propósito, no la pierda en un refactor.
+const DUPLICADO_PERMITIDO = new Set(['Suscripción Mensual']);
+
+test('DEFAULTS: ningún texto (no-imagen) se repite EXACTO entre campos distintos — salvo el CTA↔destino declarado', () => {
+  const rutasDeImagen = valoresDeCamposImagen();
+  const todas: [string, string][] = [];
+  walkStrings(DEFAULTS as unknown, '', todas);
+  const porValor = new Map<string, string[]>();
+  for (const [path, val] of todas) {
+    if (val.trim() === '' || rutasDeImagen.has(val) || DUPLICADO_PERMITIDO.has(val)) continue;
+    const arr = porValor.get(val) ?? [];
+    arr.push(path);
+    porValor.set(val, arr);
+  }
+  const duplicados = [...porValor.entries()].filter(([, paths]) => paths.length > 1);
+  assert.deepEqual(
+    duplicados,
+    [],
+    `textos repetidos entre secciones: ${duplicados.map(([val, paths]) => `"${val}" en ${paths.join(' | ')}`).join(' ; ')}`,
+  );
 });
 
 test('DEFAULTS: ningún campo `requerido` del REGISTRY queda vacío en DEFAULTS (un requerido vacío nunca neutraliza — reaparece el default en cada lectura)', () => {
