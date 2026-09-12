@@ -81,12 +81,18 @@ export default function Checkout() {
   // ya no está —apagado, o salió de Bogotá— cae al primero disponible, así nunca viaja un método
   // que la tienda no ofrece.
   const availablePayments = metodosDisponibles(settings.metodosPago, { isBogota });
-  // `.at(0)`, no `[0]`: con `noUncheckedIndexedAccess` apagado en este tsconfig, `arr[0]` tipa
-  // como `MetodoCheckout` (nunca `| undefined`) aunque el array esté vacío en runtime — `?? null`
-  // sobre eso sería letra muerta para el compilador (§ CHECKOUT-BREB-CAST-1: medido con tsc, no
-  // supuesto). `.at(0)` sí devuelve `T | undefined` de fábrica, así que el `null` es real y
-  // `metodoActivo` queda genuinamente `MetodoPagoTipo | null`.
-  const metodoActivo: MetodoPagoTipo | null = availablePayments.some((o) => o.id === payment) ? payment : (availablePayments.at(0)?.id ?? null);
+  // Con `noUncheckedIndexedAccess` apagado en este tsconfig, `arr[0]` tipa como `MetodoCheckout`
+  // (nunca `| undefined`) aunque el array esté vacío en runtime — un `?? null` sobre eso sería
+  // letra muerta para el compilador (§ CHECKOUT-BREB-CAST-1: medido con tsc, no supuesto). Por
+  // eso el `null` sale de chequear el LARGO explícito, no de indexar y esperar `undefined`. Se
+  // descartó `.at(0)` (§ CHECKOUT-BREB-CAST-CIERRE-1): es ES2022 y Next no lo polyfillea
+  // (cero apariciones en `polyfill-nomodule.js`), así que en Safari < 15.4 —dentro del rango que
+  // cubre el target `ES2017` de este repo— tira `TypeError` y se lleva el checkout entero.
+  const metodoActivo: MetodoPagoTipo | null = availablePayments.some((o) => o.id === payment)
+    ? payment
+    : availablePayments.length > 0
+      ? availablePayments[0].id
+      : null;
 
   // Changing departamento re-derives the method; leaving Bogotá clears the franja. (No hace falta
   // resetear el método: `metodoActivo` cae al primero disponible cuando efectivo deja de estarlo.)
