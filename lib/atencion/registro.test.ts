@@ -13,6 +13,16 @@ import { ADMIN_NAV } from '@/constants/admin-nav';
 // y una sección registrada que el endpoint no cuenta. En los dos casos no se
 // rompe nada: el punto simplemente no se enciende nunca, que es indistinguible de
 // "no hay nada que atender".
+//
+// EL SEGUNDO MODO YA NO LO PROTEGE UN TEST DE ESTE ARCHIVO: lo protege el
+// COMPILADOR. `ClaveAtencion` deriva de `SECCIONES_CON_ATENCION` y el route usa
+// `Record<ClaveAtencion, …>` para `CONTADORES`, así que una sección sin su
+// contador deja de compilar — no llega a un 500 en runtime. No se duplica esa
+// afirmación acá con un test propio: hacerlo exigiría importar el route handler
+// (que trae `next/server`, `@/lib/auth` y `@duna/core`) dentro de un test de
+// capa 1, la misma frontera que el carril ya respeta al no montar HTTP. El tipo
+// exhaustivo alcanza; una imposibilidad declarada por `tsc` vale más que un test
+// forzado a cruzar esa frontera.
 
 test('el registro tiene DOS secciones — la generalización se hizo con dos casos, no con uno', () => {
   assert.equal(SECCIONES_CON_ATENCION.length, 2);

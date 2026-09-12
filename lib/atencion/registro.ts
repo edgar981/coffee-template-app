@@ -50,16 +50,31 @@ export interface SeccionConAtencion {
 
 /**
  * EL registro. Agregar una sección es una entrada acá y un contador en el
- * endpoint; nada más. Las dos mitades están amarradas por los tests de este
- * archivo, así que ninguna puede quedarse a medias en silencio.
+ * endpoint — pero "nada más" no lo garantiza un test: lo garantiza el
+ * COMPILADOR. `ClaveAtencion` (abajo) DERIVA de este array, y el `CONTADORES`
+ * del route es `Record<ClaveAtencion, …>` — exhaustivo. Agregar una clave acá
+ * sin su contador deja de compilar; el `tsc` lo va a pedir.
+ *
+ * Lo que el compilador NO actualiza solo: el test de forma de este archivo
+ * (`registro.test.ts`, `length === 2` y las dos claves) también se cae al
+ * agregar una sección — es correcto que se caiga, y hay que ponerlo al día a
+ * mano. Documenta el conjunto esperado; no amarra la otra mitad.
  */
-export const SECCIONES_CON_ATENCION: readonly SeccionConAtencion[] = [
+export const SECCIONES_CON_ATENCION = [
   { key: 'pedidos',   path: '/admin/pedidos' },
   // La ruta es la de la SECCIÓN, no la de una implementación: mientras el
   // rediseño conviva en una ruta con sufijo, el punto sigue viviendo en la
   // entrada del menú, que es la que el operador ve.
   { key: 'productos', path: '/admin/productos' },
-];
+] as const satisfies readonly SeccionConAtencion[];
+
+/**
+ * La unión de claves del registro, DERIVADA — no una segunda lista a mano.
+ * La consume `CONTADORES` en el route como `Record<ClaveAtencion, …>`: con
+ * eso, agregar una sección sin su contador es un error de `tsc`, no un 500 en
+ * producción.
+ */
+export type ClaveAtencion = (typeof SECCIONES_CON_ATENCION)[number]['key'];
 
 /** Lo que el endpoint reporta de UNA sección. */
 export interface ConteoAtencion {
