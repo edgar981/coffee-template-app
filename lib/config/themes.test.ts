@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   PLIEGO, CORTE, PATIO, VETA, VITRINA, ARRANQUE, PRESETS,
   validarPreset, presetCompleto, temasCompletos, mergePresetEnContent,
-  type PresetTema,
+  type PresetTema, type FaltanteTema,
 } from './themes';
 
 // EL PRESET DE THEME COMO DATO (§ programa THEMES, pieza 0(d)). Puro; capa 1. Afirma:
@@ -11,6 +11,26 @@ import {
 //  2) el preset de ARRANQUE (sólo capacidades reales) es el ÚNICO que valida completo;
 //  3) el merge quirúrgico preserva todo texto/imagen del dueño, tocando sólo tema/esquemas/orden/variante;
 //  4) aplicar el mismo preset dos veces es idempotente.
+//
+// LOS TESTS DE PRESET NOMBRAN QUÉ FALTA, NUNCA CUÁNTO (TEMAS-PRESET-DATO-CIERRE-1). Un conteo escrito
+// a mano de faltantes de `variante` es una SEGUNDA DECLARACIÓN del mismo conjunto que el REGISTRY ya
+// produce: cuando una sección gana su slot (pasó con `brandStory`, TEMAS-P2-BRANDSTORY-1, ya en main),
+// el NÚMERO de faltantes cambia sin que el CÓDIGO de este archivo tenga ningún defecto — y un
+// `assert.equal(…, 5)` rompe igual que si lo tuviera. Por eso cada assert de abajo nombra el CONJUNTO
+// de secciones que fallan (ordenado, comparado con `deepEqual`), derivado del propio `detalle` — una
+// lista que no existe no puede divergir.
+function seccionDeFaltanteVariante(f: FaltanteTema): string {
+  assert.equal(f.regla, 'variante', `no es un faltante de variante: ${JSON.stringify(f)}`);
+  const m = f.detalle.match(/pide `([^`]+)·/);
+  if (!m) throw new Error(`no se pudo leer la sección pedida de: ${f.detalle}`);
+  return m[1];
+}
+function seccionesQueFallanVariante(preset: PresetTema): string[] {
+  return validarPreset(preset)
+    .filter((f) => f.regla === 'variante')
+    .map(seccionDeFaltanteVariante)
+    .sort();
+}
 
 test('HOY ninguno de los cinco themes del diseño valida completo, y ARRANQUE sí', () => {
   for (const p of [PLIEGO, CORTE, PATIO, VETA, VITRINA]) {
@@ -30,12 +50,23 @@ test('la validación FALLA y NOMBRA la clave: una variante inexistente se rechaz
 });
 
 test('una variante pedida sobre una sección SIN slot se nombra distinto de una clave inexistente', () => {
-  // brandStory no declara `variantes` en el REGISTRY (medido — no coincide con lo que el spec de
-  // este slice afirmaba). El mensaje lo dice explícito, no lo confunde con "clave inexistente".
+  // `brandStory` ganó su slot (TEMAS-P2-BRANDSTORY-1, ya en main: `variantes: { claves: ['columnas'] }`)
+  // y dejó de servir para este caso — hoy `brandStory·hilo` es "clave inexistente", no "sin slot".
+  // `featured` sigue siendo el caso vivo: ni siquiera es una `SeccionKey` (es una banda ESTRUCTURAL,
+  // § site-content-defaults.ts), así que el REGISTRY no tiene entrada para nombrarle variantes.
+  // (`subscriptionCTA` también calificaría — SÍ es `SeccionKey` pero no declara `variantes` — pero
+  // `featured` es el caso más claro.) La distinción SIGUE siendo comprobable.
   const faltantes = validarPreset(PLIEGO);
-  const brandStory = faltantes.find((f) => f.detalle.includes('brandStory·hilo'));
-  assert.ok(brandStory, JSON.stringify(faltantes));
-  assert.ok(brandStory!.detalle.includes('no declara variantes en el REGISTRY'));
+  const featured = faltantes.find((f) => f.detalle.includes('featured·tabla'));
+  assert.ok(featured, JSON.stringify(faltantes));
+  assert.ok(featured!.detalle.includes('no declara variantes en el REGISTRY'));
+  assert.ok(!featured!.detalle.includes('esa clave no existe'));
+
+  // hero·marquesina, en cambio, SÍ tiene slot (hero declara `curtina`/`ficha`) — se nombra distinto.
+  const hero = faltantes.find((f) => f.detalle.includes('hero·marquesina'));
+  assert.ok(hero, JSON.stringify(faltantes));
+  assert.ok(hero!.detalle.includes('esa clave no existe'));
+  assert.ok(!hero!.detalle.includes('no declara variantes en el REGISTRY'));
 });
 
 test('la validación ACEPTA lo que sí existe — el preset de ARRANQUE es el único aplicable hoy', () => {
@@ -43,35 +74,39 @@ test('la validación ACEPTA lo que sí existe — el preset de ARRANQUE es el ú
   assert.deepEqual(faltantes, []);
 });
 
-test('PLIEGO: raíces y forma/par válidos, pero las 5 variantes (hero/featured/brandStory/presentaciones/subscriptionCTA) fallan', () => {
+test('PLIEGO: raíces y forma/par válidos, pero las 5 variantes fallan — todas, por nombre', () => {
   const faltantes = validarPreset(PLIEGO);
   assert.equal(faltantes.filter((f) => f.regla === 'fuentePar').length, 0);
   assert.equal(faltantes.filter((f) => f.regla === 'forma').length, 0);
-  assert.equal(faltantes.filter((f) => f.regla === 'variante').length, 5);
+  assert.deepEqual(
+    seccionesQueFallanVariante(PLIEGO),
+    ['brandStory', 'featured', 'hero', 'presentaciones', 'subscriptionCTA'],
+  );
   assert.equal(faltantes.filter((f) => f.regla === 'orden').length, 0);
 });
 
-test('CORTE: presentaciones·mosaico SÍ es válida (es la canónica) — sólo 4 variantes fallan', () => {
-  const faltantes = validarPreset(CORTE);
-  const variante = faltantes.filter((f) => f.regla === 'variante');
-  assert.equal(variante.length, 4);
-  assert.ok(!variante.some((f) => f.detalle.includes('presentaciones')));
+test('CORTE: presentaciones·mosaico y brandStory·columnas SON válidas (las dos canónicas) — sólo hero/featured/subscriptionCTA fallan', () => {
+  // brandStory·columnas coincide con la única clave que `brandStory` acepta hoy (la canónica), así
+  // que dejó de fallar apenas ganó su slot — CORTE pasó de 4 faltantes de variante a 3.
+  assert.deepEqual(seccionesQueFallanVariante(CORTE), ['featured', 'hero', 'subscriptionCTA']);
 });
 
-test('VETA: hero·curtina y presentaciones·indice SÍ existen — sólo 3 variantes fallan (featured/brandStory/subscriptionCTA)', () => {
+test('VETA: hero·curtina y presentaciones·indice SÍ existen — featured/brandStory/subscriptionCTA fallan', () => {
   const faltantes = validarPreset(VETA);
-  const variante = faltantes.filter((f) => f.regla === 'variante');
-  assert.equal(variante.length, 3);
-  assert.ok(!variante.some((f) => f.detalle.includes('hero')));
-  assert.ok(!variante.some((f) => f.detalle.includes('presentaciones')));
+  assert.deepEqual(seccionesQueFallanVariante(VETA), ['brandStory', 'featured', 'subscriptionCTA']);
   // el mapa de esquemas de VETA se dejó VACÍO (el spec lo describía en prosa contradictoria, sin
   // pares concretos) — no debe fallar por eso: un mapa vacío no viola la regla (b).
   assert.equal(faltantes.filter((f) => f.regla === 'esquema').length, 0);
 });
 
-test('PATIO: las 5 variantes fallan Y el orden nombra `banner` y `faq` como bandas inexistentes', () => {
+test('PATIO: brandStory·columnas SÍ es válida (es la canónica) — hero/featured/presentaciones/subscriptionCTA fallan, Y el orden nombra `banner` y `faq` como bandas inexistentes', () => {
+  // Igual que CORTE: brandStory·columnas coincide con la canónica y dejó de fallar — PATIO pasó de
+  // 5 faltantes de variante a 4.
   const faltantes = validarPreset(PATIO);
-  assert.equal(faltantes.filter((f) => f.regla === 'variante').length, 5);
+  assert.deepEqual(
+    seccionesQueFallanVariante(PATIO),
+    ['featured', 'hero', 'presentaciones', 'subscriptionCTA'],
+  );
   const orden = faltantes.filter((f) => f.regla === 'orden');
   assert.equal(orden.length, 2);
   assert.ok(orden.some((f) => f.detalle.includes('`banner`')));
@@ -87,8 +122,7 @@ test('VITRINA: fuentePar y forma SIN DECIDIR (null) se nombran como faltantes, d
   assert.ok(fuentePar!.detalle.includes('no tiene un par tipográfico decidido'));
   assert.ok(forma!.detalle.includes('no tiene una forma decidida'));
   // hero·ficha y presentaciones·indice SÍ existen hoy.
-  const variante = faltantes.filter((f) => f.regla === 'variante');
-  assert.equal(variante.length, 3); // featured, brandStory, subscriptionCTA
+  assert.deepEqual(seccionesQueFallanVariante(VITRINA), ['brandStory', 'featured', 'subscriptionCTA']);
 });
 
 test('regla (b): una banda inexistente y un esquema inexistente se nombran por separado', () => {
