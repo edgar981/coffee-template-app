@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { derivarPaleta, derivarEsquema, pisoContraste, contraste, mezclar, type RaicesPaleta, type EsquemaId } from './palette-derive';
 
 // El motor de color del storefront — puro, así que los tests son propiedades sobre la
@@ -380,4 +383,37 @@ test('derivarPaleta: sobre-acento-2 en MEDIO reproduce la cifra medida (12.567:1
   const p = derivarPaleta(MEDIO);
   assert.equal(p['sobre-acento-2'], '#ffffff');
   assert.ok(Math.abs(contraste(p['sobre-acento-2'], p['acento-2']) - 12.567) < 0.05);
+});
+
+// ── `--sf-tostado-3` ESTÁTICO (§TEMAS-P6-NAYOLI-FIX-1) ──────────────────────────────────────────
+// Las raíces de Nayoli están en `null` (§ site-content-defaults.ts), así que `cssPaleta` no
+// inyecta nada y su tienda pinta con el hex LITERAL de `app/globals.css`, no con lo que
+// `derivarPaleta` calcula. Ese literal NUNCA pasa por este módulo, así que la garantía de AA no
+// puede vivir en una función pura sobre un hex copiado a mano — tiene que leer el ARTEFACTO real,
+// o el test puede quedar verde mientras el CSS diverge. Se lee `app/globals.css` con regex sobre
+// la declaración `--sf-<nombre>: #hex`, no se transcribe el valor.
+function leerVarCssRaiz(nombre: string): string {
+  const cssPath = path.join(fileURLToPath(new URL('.', import.meta.url)), '../../app/globals.css');
+  const css = readFileSync(cssPath, 'utf8');
+  const m = css.match(new RegExp(`--${nombre}:\\s*(#[0-9a-f]{6})`, 'i'));
+  if (!m) throw new Error(`no se encontró --${nombre} en app/globals.css`);
+  return m[1];
+}
+
+// VISTO FALLAR con el hex viejo (#a07050) antes de este slice: tostado-3/superficie 3.511,
+// tostado-3/fondo 3.992, tostado-3/tarjeta 4.261 — los 3 bajo AA (4.5). Con #8c5d3e: 4.614 /
+// 5.246 / 5.599 — los 3 pasan.
+test('`--sf-tostado-3` (ESTÁTICO, app/globals.css) pasa AA contra superficie/fondo/tarjeta — Nayoli no pasa por el motor', () => {
+  const tostado3 = leerVarCssRaiz('sf-tostado-3');
+  const superficies: [string, string][] = [
+    ['superficie', leerVarCssRaiz('sf-superficie')],
+    ['fondo', leerVarCssRaiz('sf-fondo')],
+    ['tarjeta', leerVarCssRaiz('sf-tarjeta')],
+  ];
+  for (const [nombre, hex] of superficies) {
+    assert.ok(
+      contraste(tostado3, hex) >= 4.5,
+      `tostado-3/${nombre} debía pasar AA (fue ${contraste(tostado3, hex).toFixed(3)})`,
+    );
+  }
 });

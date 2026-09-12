@@ -93,7 +93,7 @@ export default function CartDrawer() {
               {items.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center text-center">
                   <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--sf-superficie)]">
-                    <ShoppingBag className="h-7 w-7 text-[var(--sf-tostado)]" />
+                    <ShoppingBag aria-hidden="true" className="h-7 w-7 text-[var(--sf-tostado)]" />
                   </div>
 
                   <p className="mb-1 font-medium text-[var(--sf-tinta)]">

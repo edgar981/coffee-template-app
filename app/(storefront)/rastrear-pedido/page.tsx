@@ -151,7 +151,7 @@ function OrderTrackingInner() {
           {searched && !loading && !order && (
             <div className="text-center py-8">
               <div className="w-16 h-16 bg-[var(--sf-superficie)] rounded-full flex items-center justify-center mx-auto mb-4">
-                <Search className="w-7 h-7 text-[var(--sf-tostado-2)]" />
+                <Search aria-hidden="true" className="w-7 h-7 text-[var(--sf-tostado-2)]" />
               </div>
               <p className="font-medium text-[var(--sf-tinta)] mb-1">Orden no encontrada</p>
               <p className="text-sm text-[var(--sf-texto-suave)]">Verifica el número de orden y el correo con el que hiciste tu compra.</p>
@@ -228,7 +228,7 @@ function OrderTrackingInner() {
                               {/* `done` → el ícono va sobre el círculo de acento (que el cliente
                                   puede elegir claro): `acento-txt` (auto-flip). Sin done → sobre
                                   superficie clara, con tostado-2 (decorativo). */}
-                              <Icon className={`w-4 h-4 ${done ? 'text-[var(--sf-acento-txt)]' : 'text-[var(--sf-tostado-2)]'}`} />
+                              <Icon aria-hidden="true" className={`w-4 h-4 ${done ? 'text-[var(--sf-acento-txt)]' : 'text-[var(--sf-tostado-2)]'}`} />
                             </div>
                             {i < TIMELINE.length - 1 && (
                               <div className={`w-0.5 h-10 mt-1 rounded-full transition-all ${i < currentStep ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-linea)]'}`} />
