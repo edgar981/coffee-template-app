@@ -25,6 +25,7 @@ import {
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 import { categoriasDelCatalogo } from "@/lib/productos/categorias";
+import { buscarProductos } from "@/lib/productos/buscar";
 
 import { formatCOP } from "@duna/core/utils";
 
@@ -79,28 +80,13 @@ export default function NavSearch({
     };
   }, [onClose]);
 
-  const filteredProducts = useMemo(() => {
-    if (!query.trim()) return [];
-
-    return catalog.filter(
-      (product) =>
-        product.nombre
-          .toLowerCase()
-          .includes(
-            query.toLowerCase()
-          ) ||
-        product.categoria
-          .toLowerCase()
-          .includes(
-            query.toLowerCase()
-          ) ||
-        product.origen
-          ?.toLowerCase()
-          .includes(
-            query.toLowerCase()
-          )
-    ).slice(0, 6);
-  }, [catalog, query]);
+  // El predicado de coincidencia vive en lib/productos/buscar.ts (afirmable en un test);
+  // el tope de 6 es de PRESENTACIÓN (cuántas tarjetas caben en el panel), no de coincidencia,
+  // y se queda acá.
+  const filteredProducts = useMemo(
+    () => buscarProductos(catalog, query).slice(0, 6),
+    [catalog, query]
+  );
 
   // Sugerencias del estado vacío: DERIVADAS del catálogo, no literales horneados —
   // el mismo helper que alimenta las pestañas de /tienda (§ La taxonomía se DERIVA
