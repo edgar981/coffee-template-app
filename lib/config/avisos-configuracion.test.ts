@@ -6,14 +6,25 @@ import { resolverSiteContent, type SiteContentData, type PresentacionesContent }
 import type { SiteSettings } from './site-settings-read';
 import type { MetodoPagoGuardado } from '../checkout/metodos-pago';
 
-// Los defaults resueltos = la config "SANA" de referencia — YA NO son "Nayoli": los defaults dejaron
-// de ser el contenido de ningún cliente (§ CONTENIDO-NEUTRALIZAR-1), así que el nombre no puede seguir
-// prometiendo un tenant. El catálogo ALINEADO se DERIVA de esos mismos defaults, nunca se re-escribe a
-// mano con las categorías de hoy: dos listas describiendo el mismo conjunto es cómo divergen (la misma
-// trampa que el schema editable STRIPPEANDO lo no declarado) — si un default cambia mañana, esta lista
-// lo sigue sola.
-const DEFAULTS_SANOS = resolverSiteContent({});
-const CATS_ALINEADO = [DEFAULTS_SANOS.presentaciones.categoria1, DEFAULTS_SANOS.presentaciones.categoria2];
+// Los defaults resueltos = la config de un despliegue FRESCO, sin fila de SiteContent. YA NO son
+// "Nayoli": los defaults dejaron de ser el contenido de ningún cliente (§ MARCA-CLIENTE-PRESENTACIONES-1
+// vació imagen1/imagen2 de presentaciones), así que el nombre no puede seguir prometiendo un tenant.
+const DEFAULTS_CRUDOS = resolverSiteContent({});
+
+// El catálogo ALINEADO se DERIVA de esos mismos defaults, nunca se re-escribe a mano con las categorías
+// de hoy: dos listas describiendo el mismo conjunto es cómo divergen (la misma trampa que el schema
+// editable STRIPPEANDO lo no declarado) — si un default cambia mañana, esta lista lo sigue sola.
+const CATS_ALINEADO = [DEFAULTS_CRUDOS.presentaciones.categoria1, DEFAULTS_CRUDOS.presentaciones.categoria2];
+
+// La config "SANA" de referencia para el resto de esta suite: DEFAULTS_CRUDOS + las dos imágenes de
+// presentaciones rellenas con una ruta plausible cualquiera (NO las de Nayoli — sería volver a meter por
+// la puerta del test lo que MARCA-CLIENTE-PRESENTACIONES-1 sacó por la del código). El aviso #2 ("título
+// sin imagen") existe justo para detectar el hueco que los defaults crudos ahora dejan (ver el test
+// "un despliegue FRESCO…" abajo); un fixture que se llama "sano" no puede ser el que dispara ese aviso.
+const DEFAULTS_SANOS: SiteContentData = {
+  ...DEFAULTS_CRUDOS,
+  presentaciones: { ...DEFAULTS_CRUDOS.presentaciones, imagen1: '/images/x1.webp', imagen2: '/images/x2.webp' },
+};
 
 // Los métodos "sanos" de referencia: nequi/daviplata/transferencia ENCENDIDOS pero SIN datos —
 // el mismo estado que dejaba el modelo viejo con los booleanos en true y el número/cuenta sin
@@ -112,6 +123,21 @@ test('una tarjeta OPCIONAL visible por su título dispara sus defectos por SLOT'
   assert.ok(avisos.some(a => a.clave === 'presentaciones-imagen-3'), 'imagen-3 esperado');
   // el enlace aterriza en el BLOQUE de ESA tarjeta (slot 3), no en la pantalla a secas.
   assert.ok(avisos.every(a => a.href === '/admin/tienda?seccion=presentaciones&tarjeta=3'), 'href al slot 3');
+});
+
+// ── EL DESPLIEGUE FRESCO ─────────────────────────────────────────────────────────────────────────
+// Con MARCA-CLIENTE-PRESENTACIONES-1, `imagen1`/`imagen2` de presentaciones dejaron de ser la foto de
+// la bolsa de Café Nayoli y pasaron a ''. Los títulos (label1/label2) siguen presentes en el default,
+// así que un despliegue SIN fila de SiteContent hoy cumple EXACTAMENTE la condición que #2 existe para
+// detectar: título con hueco de imagen, uno por slot. Es la propiedad nueva que el owner decidió que
+// dispare (§ MARCA-CLIENTE-PRESENTACIONES-CIERRE-1): antes callaba con la foto de otro cliente adentro,
+// ahora avisa lo que de verdad falta.
+test('un despliegue FRESCO (defaults crudos, sin rellenar) avisa sus dos huecos de imagen', () => {
+  const avisos = avisosDeConfiguracion(DEFAULTS_CRUDOS, CATS_ALINEADO, true, AJUSTES_SANOS);
+  const clavesImagen = avisos.filter(a => a.clave.startsWith('presentaciones-imagen')).map(a => a.clave).sort();
+  assert.deepEqual(clavesImagen, ['presentaciones-imagen-1', 'presentaciones-imagen-2']);
+  // y son los ÚNICOS avisos: catálogo alineado + WhatsApp cargado no agregan ruido.
+  assert.deepEqual(avisos.map(a => a.clave).sort(), ['presentaciones-imagen-1', 'presentaciones-imagen-2']);
 });
 
 test('Presentaciones OCULTA (visible:false) → sin avisos aunque haya defectos', () => {
