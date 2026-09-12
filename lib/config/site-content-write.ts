@@ -2,6 +2,7 @@ import prisma from '@duna/core';
 import type { Prisma } from '@duna/core';
 import { blobsHuerfanos } from './site-content-blobs';
 import type { SiteContentEditable } from './site-content-schema';
+import { validarPreset, mergePresetEnContent, type PresetTema, type FaltanteTema } from './themes';
 
 // LA ESCRITURA del flujo borrador/publicado. Extraída del route (como aplicarAjusteInventario /
 // aplicarTransicionEnvio) para afirmarla en el carril contra una base real. Devuelve los blobs a
@@ -114,6 +115,55 @@ export async function setPaginaVisible(pagina: string, visible: boolean): Promis
     const paginas = esObj(content.paginas) ? content.paginas : {};
     const previa = esObj(paginas[pagina]) ? paginas[pagina] : {};
     const nuevoContent = { ...content, paginas: { ...paginas, [pagina]: { ...previa, visible } } };
+    await tx.siteContent.upsert({
+      where: { id: 'default' },
+      update: { content: nuevoContent as unknown as Prisma.InputJsonValue },
+      create: { id: 'default', content: nuevoContent as unknown as Prisma.InputJsonValue },
+    });
+  });
+}
+
+// El theme pedido no está completo (§ programa THEMES, pieza 0(d)): al menos uno de sus seis ejes
+// pide algo que el producto todavía no sabe hacer (una variante de sección sin slot, un par/forma
+// sin decidir, una banda o un esquema que no existen). `faltantes` nombra CADA uno por separado
+// (`validarPreset`, `lib/config/themes.ts`) — nunca un solo mensaje genérico.
+export class PresetIncompletoError extends Error {
+  constructor(public readonly preset: string, public readonly faltantes: FaltanteTema[]) {
+    super(`El theme «${preset}» no se puede aplicar — le falta: ${faltantes.map((f) => f.detalle).join('; ')}`);
+    this.name = 'PresetIncompletoError';
+  }
+}
+
+// APLICAR UN PRESET DE THEME (§ programa THEMES, pieza 0(d)). Corre desde un RUNBOOK, no desde el
+// panel — la composición (esquema · orden · variante) se arma en ONBOARDING, nunca la elige el
+// cliente (DECISIONS.md, EJE-5-ORDEN-EDITOR-1/EJE-5-VARIANTES-EDITOR retirados). Precedente EXACTO:
+// `setPaginaVisible` de arriba — escritura DIRECTA a `content` (lo PUBLICADO), merge quirúrgico, UN
+// solo write transaccional, sin draft ni publish (un preset de theme es config, no contenido en
+// revisión, igual que encender/apagar una página).
+//
+// VALIDA ANTES DE ESCRIBIR Y SE NIEGA COMPLETO: si `validarPreset` devuelve algo, esta función NO
+// TOCA LA BASE — lanza `PresetIncompletoError` con cada faltante nombrado. Una validación parcial
+// que escribiera la mitad sería peor que ninguna (§3).
+//
+// INVARIANTE QUE ESTA FUNCIÓN GARANTIZA POR CONSTRUCCIÓN (nunca por disciplina del caller): NI UN
+// TEXTO NI UNA IMAGEN DEL DUEÑO se tocan. El cálculo del nuevo `content` vive en
+// `mergePresetEnContent` (puro, `lib/config/themes.ts`) — sólo reemplaza `tema`/`esquemas`/`orden`
+// (composición, no contenido) y el campo `variante` DENTRO de cada sección afectada, preservando
+// cualquier otro campo que esa sección ya tuviera.
+//
+// IDEMPOTENTE: aplicar el mismo preset dos veces da el mismo `content` (el merge es una función
+// pura del estado actual + el preset, sin acumular).
+//
+// PROPIEDAD CONOCIDA, no un olvido: no hay guarda contra reaplicar un preset DISTINTO sobre un
+// tenant que un operador ya afinó a mano — hoy el dueño nunca compone desde el panel (§ arriba), así
+// que el caso no existe; el día que exista, es una decisión aparte, no una que este slice tome.
+export async function aplicarPreset(preset: PresetTema): Promise<void> {
+  const faltantes = validarPreset(preset);
+  if (faltantes.length > 0) throw new PresetIncompletoError(preset.clave, faltantes);
+
+  await prisma.$transaction(async (tx) => {
+    const { content } = await leerFila(tx);
+    const nuevoContent = mergePresetEnContent(content, preset);
     await tx.siteContent.upsert({
       where: { id: 'default' },
       update: { content: nuevoContent as unknown as Prisma.InputJsonValue },
