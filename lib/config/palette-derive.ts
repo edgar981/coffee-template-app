@@ -1,8 +1,9 @@
-// ─── EL MOTOR DE COLOR DEL STOREFRONT · derivar 28 tintas de 3 RAÍCES ─────────
+// ─── EL MOTOR DE COLOR DEL STOREFRONT · derivar 31 tintas de 3 RAÍCES ─────────
 //
-// El cliente elige 3 RAÍCES —fondo · tinta · acento—; las otras 25 tintas del
-// storefront (§ globals.css `--sf-*`, + los 4 pares de familia de § TEMAS-P6-FAMILIAS-1)
-// se DERIVAN acá. 25 colores no son configurables; 3 sí. La derivación es una
+// El cliente elige 3 RAÍCES —fondo · tinta · acento—; las otras 28 tintas del
+// storefront (§ globals.css `--sf-*`, + los 4 pares de familia de § TEMAS-P6-FAMILIAS-1 +
+// `sobre-tinta`/`sobre-acento`/`sobre-acento-2` de § TEMAS-P6-FAMILIAS-2)
+// se DERIVAN acá. 28 colores no son configurables; 3 sí. La derivación es una
 // mezcla en OKLCH con un peso por token
 // (los pesos REPRODUCEN la paleta de Nayoli dentro de ~1 JND — medido; era, en su
 // mayoría, una mezcla de 2 raíces) MÁS un PISO DE CONTRASTE sobre los roles de texto.
@@ -164,11 +165,12 @@ const RECETA: Record<string, { a: keyof RaicesPaleta; b: keyof RaicesPaleta; w: 
 };
 
 /**
- * Deriva las 28 tintas `--sf-*` de las 3 raíces (3 raíces + 18 de la RECETA + `acento-txt` +
+ * Deriva las 31 tintas `--sf-*` de las 3 raíces (3 raíces + 18 de la RECETA + `acento-txt` +
  * `tarjeta`/`sobre` — § eje 5b — + `sobre-superficie`/`-suave` + `sobre-tarjeta`/`-suave` —
- * § TEMAS-P6-FAMILIAS-1). Devuelve un mapa {nombre → hex} listo para inyectar como CSS vars. Las
- * 3 raíces se copian tal cual; el resto se mezcla; los roles de texto se florean sobre el fondo
- * (o, para los 2 pares nuevos, sobre SU PROPIA superficie — § el comentario de cada uno, abajo).
+ * § TEMAS-P6-FAMILIAS-1 — + `sobre-tinta` + `sobre-acento`/`sobre-acento-2` — § TEMAS-P6-FAMILIAS-2).
+ * Devuelve un mapa {nombre → hex} listo para inyectar como CSS vars. Las 3 raíces se copian tal
+ * cual; el resto se mezcla; los roles de texto se florean sobre el fondo (o, para los pares
+ * nuevos, sobre SU PROPIA superficie — § el comentario de cada uno, abajo).
  */
 export function derivarPaleta(raices: RaicesPaleta): PaletaDerivada {
   const { fondo, tinta, acento } = raices;
@@ -200,6 +202,29 @@ export function derivarPaleta(raices: RaicesPaleta): PaletaDerivada {
   // fallback al token de hoy (`var(--sf-sobre-superficie,var(--sf-tinta))`) y quedan intactos.
   out['sobre-superficie'] = pisoContraste(mezclar(acento, tinta, 0.34), out.superficie, 4.5);
   out['sobre-superficie-suave'] = pisoContraste(mezclar(acento, tinta, 0.12), out.superficie, 4.5);
+  // sobre-tinta (§ TEMAS-P6-FAMILIAS-2): el TEXTO/ícono que se apoya DIRECTO sobre `--sf-tinta`
+  // como SUPERFICIE (el wordmark y el cherry del mark en el footer, `bg-[var(--sf-tinta)]`).
+  // `tinta` es RAÍZ y NINGÚN esquema la re-deriva, así que su par vive ACÁ y no en
+  // esquema-style.ts — mismo criterio que `sobre-superficie`, arriba.
+  //
+  // El defecto medido: `Logo.tsx` leía `--sf-fondo` CRUDO como texto sobre `tinta` en el footer —
+  // 1,085:1 en VETA (fondo y tinta caen del mismo lado de luminancia, casi idénticos; el `fondo`
+  // de un cliente NO está garantizado a ser "el opuesto claro" de su `tinta`). Auto-flip
+  // blanco/fondo (el candidato natural de texto CLARO) GANA PISO (§ TEMAS-P6-MOTOR-1) contra
+  // `tinta`: 20,22:1 en VETA, sin empeorar ninguna de las otras paletas medidas. Para Nayoli
+  // (fondo ya casi blanco) el candidato ya gana con blanco puro y el piso no lo toca.
+  //
+  // SIN "-suave": un solo peso consume este token hoy (wordmark y cherry son la MISMA jerarquía
+  // visual, no principal/secundaria) — agregar el gemelo sin consumidor sería la mina inerte que
+  // el código muerto ya le costó a este repo (CLAUDE.md, ex-#68). SIN default en `globals.css`
+  // (mismo patrón que `sobre-superficie`): el consumidor trae su propio fallback al token de hoy
+  // (`var(--sf-sobre-tinta,var(--sf-fondo))`), así que Nayoli (raíces null → sin inyección) queda
+  // byte-idéntico.
+  out['sobre-tinta'] = pisoContraste(
+    contraste('#ffffff', tinta) >= contraste(fondo, tinta) ? '#ffffff' : fondo,
+    tinta,
+    4.5,
+  );
   // acento-txt: el TEXTO sobre el BOTÓN/badge de acento. Es un elemento FIJO (el cliente
   // no lo elige), así que debe ser legible con CUALQUIER acento — auto-flip: BLANCO PURO o
   // tinta, el que más contraste con el acento. Blanco (#ffffff), NO el fondo crema, a
@@ -215,6 +240,31 @@ export function derivarPaleta(raices: RaicesPaleta): PaletaDerivada {
   // Nayoli el candidato ya pasa (7.10:1) y el piso no lo toca → byte-idéntico.
   const candidatoAcentoTxt = contraste('#ffffff', acento) >= contraste(tinta, acento) ? '#ffffff' : tinta;
   out['acento-txt'] = pisoContraste(candidatoAcentoTxt, acento, 4.5);
+  // sobre-acento / sobre-acento-2 (§ TEMAS-P6-FAMILIAS-2): el texto del NOMBRE de un plan de
+  // suscripción sobre SU tarjeta — floreado CONTRA LA SUPERFICIE que esa tarjeta realmente pinta
+  // (`acento` en la destacada, `acento-2` en las demás), no contra un token decorativo ajeno. El
+  // defecto medido: `SubscriptionCTA` leía `--sf-tostado` (decorativo, sin piso alguno) en las DOS
+  // tarjetas — 3,135:1 sobre `acento` y 1,378:1 sobre `acento-2` (VETA/MEDIO), las dos bajo AA.
+  //
+  // `sobre-acento` NO es `acento-txt` con otro nombre por capricho: es EL MISMO VALOR
+  // (`acento-txt` YA GANA PISO contra `acento`, arriba) bajo un nombre SIN default en
+  // `globals.css` — mismo motivo que `sobre-tarjeta` frente a `sobre` (§ TEMAS-P6-FAMILIAS-1):
+  // `--sf-acento-txt` tiene default de raíz (`#ffffff`), así que un `var(--sf-acento-txt,
+  // fallback)` nunca cae al fallback, y leerlo DIRECTO habría cambiado el color HOY-visible de
+  // Nayoli en esta tarjeta (tostado, 3,135:1 — un defecto propio, medido, pero es el de
+  // TEMAS-P6-NAYOLI-FIX, no el de este slice; § LA PROMESA QUE NO SE ROMPE).
+  //
+  // `sobre-acento-2` reusa el MISMO mecanismo (auto-flip blanco/tinta, GANA PISO) pero evaluado
+  // contra `acento-2` — medido: reusar `acento-txt` tal cual (floreado contra `acento`) da sólo
+  // 1,609:1 contra `acento-2`, sigue fallando; el auto-flip evaluado contra la superficie
+  // CORRECTA da 12,567:1 en VETA/MEDIO.
+  //
+  // Las dos SIN default en `globals.css`: los consumidores traen su propio fallback a
+  // `--sf-tostado` (`var(--sf-sobre-acento,var(--sf-tostado))` / `var(--sf-sobre-acento-2,
+  // var(--sf-tostado))`), así que Nayoli queda byte-idéntico.
+  out['sobre-acento'] = out['acento-txt'];
+  const candidatoAcento2Txt = contraste('#ffffff', out['acento-2']) >= contraste(tinta, out['acento-2']) ? '#ffffff' : tinta;
+  out['sobre-acento-2'] = pisoContraste(candidatoAcento2Txt, out['acento-2'], 4.5);
   // tarjeta/sobre (§ eje 5b, los 2 tokens nuevos): la superficie de una TARJETA sobre el
   // esquema CREMA/default y su texto/ícono. Hoy son `bg-white`/`text-white` LITERALES en el
   // código —constantes, sin importar el acento del cliente—; acá el motor los deja igual de

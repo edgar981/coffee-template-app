@@ -72,8 +72,12 @@ type LogoProps = {
 };
 
 export function Logo({ className, variant = "light", stacked = false, subtitle, nombre, conMark = false }: LogoProps) {
-  const wordmark = variant === "light" ? "text-[var(--sf-tinta)]" : "text-[var(--sf-fondo)]";
-  const cherry = variant === "light" ? "var(--sf-tinta)" : "var(--sf-fondo)";
+  // variant="dark" (el footer, sobre `--sf-tinta`): el wordmark/cherry leían `--sf-fondo` CRUDO
+  // como texto — sin garantía de contraste contra `tinta` (§ TEMAS-P6-FAMILIAS-2, medido 1,085:1
+  // en VETA). `--sf-sobre-tinta` GANA PISO contra `tinta`; SIN default en `globals.css`, así que
+  // el fallback a `--sf-fondo` es el que Nayoli sigue resolviendo (raíces null → sin inyección).
+  const wordmark = variant === "light" ? "text-[var(--sf-tinta)]" : "text-[var(--sf-sobre-tinta,var(--sf-fondo))]";
+  const cherry = variant === "light" ? "var(--sf-tinta)" : "var(--sf-sobre-tinta,var(--sf-fondo))";
 
   if (stacked) {
     return (
