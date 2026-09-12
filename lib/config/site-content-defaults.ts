@@ -421,11 +421,11 @@ export const DEFAULTS: SiteContentData = {
     titulo: '¿Cómo lo prefieres?',
     label1: 'Presentación Clásica',
     copy1: 'La opción original, lista para usar.',
-    imagen1: '/images/cafe-nayoli-250g-grano.webp',
+    imagen1: '',
     categoria1: 'Clásico',
     label2: 'Presentación Especial',
     copy2: 'Pensada para quien busca algo distinto.',
-    imagen2: '/images/cafe-nayoli-250g-molido.webp',
+    imagen2: '',
     categoria2: 'Especial',
     // Tarjetas 3-4 opcionales, VACÍAS por defecto → Nayoli renderiza 2 (byte-idéntico). Un cliente
     // con 3-4 presentaciones las llena en el editor.

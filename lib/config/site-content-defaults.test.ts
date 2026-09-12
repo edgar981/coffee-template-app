@@ -496,6 +496,9 @@ test('resolverEsquemas: es KEY-AGNÓSTICO — acepta cualquier bandaId, no un se
 // ─── Presentaciones: el default resuelto reproduce el copy CANÓNICO declarado en DEFAULTS ───
 // CONTENIDO-NEUTRALIZAR-1 (2026-09-12) reemplazó los literales de café/Nayoli que vivían acá por
 // copy GENÉRICO de comercio — el objeto de abajo se actualizó junto con `DEFAULTS.presentaciones`.
+// MARCA-CLIENTE-PRESENTACIONES-1 (2026-09-12) hizo lo mismo con `imagen1`/`imagen2`: eran la foto
+// REAL de la bolsa de Café Nayoli, compilada como default de todo despliegue nuevo (§ CLAUDE.md,
+// La FRONTERA fina...) — pasan a '' (§ el render las tolera vacías, GrindChooserMosaico/Indice:71/86).
 // La PROPIEDAD que este test afirma no cambió: sin fila guardada, el resolver reproduce EXACTAMENTE
 // los defaults declarados (comparación MECÁNICA, deep-equal, no aseveración) — si alguien toca un
 // default y desincroniza esta copia, el test cae. (Un repeater NO podría verificarse así —su
@@ -506,11 +509,11 @@ const PRESENTACIONES_ANTES = {
   titulo: '¿Cómo lo prefieres?',
   label1: 'Presentación Clásica',
   copy1: 'La opción original, lista para usar.',
-  imagen1: '/images/cafe-nayoli-250g-grano.webp',
+  imagen1: '',
   categoria1: 'Clásico',
   label2: 'Presentación Especial',
   copy2: 'Pensada para quien busca algo distinto.',
-  imagen2: '/images/cafe-nayoli-250g-molido.webp',
+  imagen2: '',
   categoria2: 'Especial',
   // Slots 3-4 opcionales, VACÍOS por defecto → la home renderiza 2 (byte-idéntico al copy canónico).
   label3: '', copy3: '', imagen3: '', categoria3: '',
@@ -901,7 +904,19 @@ test('DEFAULTS: ningún texto (no-imagen) se repite EXACTO entre campos distinto
   );
 });
 
-test('DEFAULTS: ningún campo `requerido` del REGISTRY queda vacío en DEFAULTS (un requerido vacío nunca neutraliza — reaparece el default en cada lectura)', () => {
+// EXCEPCIÓN DECLARADA (MARCA-CLIENTE-PRESENTACIONES-1, 2026-09-12), mismo patrón que
+// `DUPLICADO_PERMITIDO` arriba: `presentaciones.imagen1`/`.imagen2` son `requerido` en el REGISTRY
+// pero su DEFAULT es '' a propósito. No es el descuido que este test existe para atrapar — el propio
+// RENDER tolera el hueco (`op.img &&`, GrindChooserMosaico.tsx:71 / GrindChooserIndice.tsx:86: sin
+// foto se ve el fondo `--sf-linea`, nunca un `<img src="">` roto) — así que un default vacío es tan
+// seguro ahí como uno lleno. La alternativa era la foto REAL de la bolsa de Café Nayoli horneada como
+// default de todo despliegue nuevo, que es el defecto que esta tanda cierra. Con el default vacío,
+// `requerido` y `opcional` resuelven IDÉNTICO para estos dos campos —los dos dan '' ante ausente o
+// vacío—, así que no hay diferencia funcional en dejarlos `requerido`; se conservan así por
+// consistencia con el resto de la tarjeta (label1/label2 sí necesitan su default no-vacío).
+const REQUERIDO_VACIO_PERMITIDO = new Set(['presentaciones.imagen1', 'presentaciones.imagen2']);
+
+test('DEFAULTS: ningún campo `requerido` del REGISTRY queda vacío en DEFAULTS (un requerido vacío nunca neutraliza — reaparece el default en cada lectura), salvo la excepción declarada', () => {
   const vacios: string[] = [];
   for (const key of Object.keys(REGISTRY) as (keyof typeof DEFAULTS)[]) {
     const def = REGISTRY[key as keyof typeof REGISTRY];
@@ -912,5 +927,33 @@ test('DEFAULTS: ningún campo `requerido` del REGISTRY queda vacío en DEFAULTS 
       if (typeof val !== 'string' || val.trim() === '') vacios.push(`${key}.${campo}`);
     }
   }
-  assert.deepEqual(vacios, []);
+  assert.deepEqual(vacios.filter(v => !REQUERIDO_VACIO_PERMITIDO.has(v)), []);
+});
+
+// La propiedad NUEVA que evita que esto vuelva (MARCA-CLIENTE-PRESENTACIONES-1). Deriva los campos-
+// imagen del REGISTRY (`def.imagenes`, la MISMA fuente que `valoresDeCamposImagen` arriba y el
+// borrado de blobs en `site-content-blobs.ts`) en vez de enumerar rutas a mano: un futuro default de
+// imagen queda cubierto sin que nadie recuerde agregarlo acá.
+//
+// EL PATRÓN ES PARCIAL, NO GENERAL, y hay que decirlo para no confiar de más en esta guarda: sólo
+// puede reconocer marca por el NOMBRE DEL CLIENTE ACTUAL ('nayoli'), porque un ARCHIVO DE IMAGEN no
+// lleva ningún otro marcador de "esto es la foto de un cliente" — a diferencia del catcher de TEXTO
+// de arriba, que reconoce un VOCABULARIO (café, tueste, finca…) que cualquier cliente cafetero
+// repetiría con otras palabras. El PRÓXIMO cliente que suba su propia foto y la deje referenciada
+// desde un default de código (en vez de subirla al Blob del editor, que es el camino real) NO
+// dispara este test — necesitaría su propio nombre agregado a mano acá, o un mecanismo distinto (p.
+// ej.: prohibir todo literal `/images/*` NUEVO en un campo-imagen del REGISTRY y exigir Blob). Se
+// deja escrito para que la guarda se lea como lo que es —parcial, no general— y no como cerrada.
+test('DEFAULTS: ningún campo-imagen apunta a un archivo con marca de un cliente (nayoli)', () => {
+  const ofensores: string[] = [];
+  for (const key of Object.keys(REGISTRY) as (keyof typeof DEFAULTS)[]) {
+    const def = REGISTRY[key as keyof typeof REGISTRY];
+    if (!def.imagenes?.length) continue;
+    const sec = DEFAULTS[key] as Record<string, unknown>;
+    for (const campo of def.imagenes) {
+      const v = sec[campo];
+      if (typeof v === 'string' && /nayoli/i.test(v)) ofensores.push(`${key}.${campo} = "${v}"`);
+    }
+  }
+  assert.deepEqual(ofensores, [], `default de imagen con marca de cliente: ${ofensores.join(' ; ')}`);
 });
