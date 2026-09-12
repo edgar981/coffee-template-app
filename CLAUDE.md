@@ -1780,51 +1780,68 @@ los recibe como VALORES (`Brand.colors`), no tokens—.
 
 Tanda del 2026-09-04. El checkout mostraba una cuenta bancaria **HARDCODEADA** —"Bancolombia · Cta
 Ahorro · 123-456789-00"— en la ruta del dinero: si el negocio lanza, un cliente real transfiere a un
-número inventado. Pasó a CUATRO campos editables en `SiteSetting` (Configuración → Datos del negocio):
-`bancoNombre`, `bancoTipoCuenta`, `bancoNumeroCuenta`, `bancoTitular`.
+número inventado. Pasó a ser editable. **El mecanismo de esa tanda —cuatro columnas propias en
+`SiteSetting` (`bancoNombre`, `bancoTipoCuenta`, `bancoNumeroCuenta`, `bancoTitular`)— se DROPEÓ el
+2026-09-11** (`PAGOS-METODOS-DROP-VIEJAS-1`): hoy la cuenta vive como los `datos` (`banco`, `tipoCuenta`,
+`numeroCuenta`, `titular`) del elemento `transferencia` dentro de `SiteSetting.metodosPago` — la LISTA
+de métodos de pago (§ abajo). El razonamiento de esta sección es el que sobrevivió a ese cambio de
+mecanismo.
 
-- **Todos `String?` nullable.** El NÚMERO es string siempre —ceros a la izquierda, guiones, largos que
-  varían por banco—; un `number` los perdería. **NIT/cédula quedó FUERA**: una transferencia por número
-  de cuenta no exige el documento del beneficiario; si un cliente lo pide, es un `add` aditivo.
+- **El NÚMERO es string siempre** —ceros a la izquierda, guiones, largos que varían por banco—; un
+  `number` los perdería. **NIT/cédula quedó FUERA**: una transferencia por número de cuenta no exige el
+  documento del beneficiario; si un cliente lo pide, es un `add` aditivo.
 - **VACÍO = el método "Transferencia" NO se muestra.** La lógica vive en `opcionTransferencia`
   (`lib/checkout/transferencia.ts`, pura, capa 1): con banco+tipo+número (los tres ESENCIALES) devuelve
   la opción, si falta uno devuelve `null`. "No a medias" —una instrucción de pago incompleta es peor que
   un método menos—, precedente del CTA de suscripciones que se oculta sin whatsapp. El **titular es
   OPCIONAL** (una línea de confirmación de a quién se paga; el número enruta la plata).
-- **El SEED NO trae cuenta** (queda NULL). En dev el checkout no muestra ese método —la verdad, no una
-  cuenta falsa—. Migración **ADITIVA/nullable** (`add_site_setting_bank`, precedente `_palette`); la fila
-  de Nayoli queda en NULL sin backfill.
-- El write reusa la máquina de SiteSetting (schema editable con `''`→null, PATCH completo, editor
-  data-driven). Es la MISMA frontera que el resto de la identidad de pago (whatsapp): identidad del
-  negocio, guardar = en vivo.
+- **`opcionTransferencia` sigue recibiendo esos cuatro nombres, pero ya NO son columnas.** Son la
+  interfaz `CuentaBancaria` (`lib/checkout/transferencia.ts`) — subsiste porque es TypeScript, no
+  schema—, y `lib/checkout/metodos-pago.ts` traduce `datos.banco → bancoNombre` (y así con el resto) al
+  invocarla. Dos capas con el mismo nombre; el drop se llevó sólo la de la base.
+- El write reusa la máquina de SiteSetting (schema editable, PATCH completo, editor data-driven). Es la
+  MISMA frontera que el resto de la identidad de pago (whatsapp): identidad del negocio, guardar = en
+  vivo.
 
-### Los MÉTODOS de pago son DATO del tenant — encender/apagar + el número móvil propio
+### Los MÉTODOS de pago son una LISTA — set cerrado, cada uno con su propia config
 
-Tanda del 2026-09-04. Los 4 métodos del checkout (nequi, daviplata, transferencia, efectivo) son
-FIJOS y se configuran desde Configuración: **4 booleanos `pago*Activo` en SiteSetting** (default
-true) + **`pagoMovilNumero`**. NO es un motor de métodos arbitrarios —eso es Wompi/pasarela, un flujo
-con webhooks, no "un método más"; queda en el backlog con disparador (§ Mejoras post-multitenant)—.
+Tanda del 2026-09-04, **reemplazada de mecanismo el 2026-09-10/11** (`PAGOS-METODOS-LISTA-1` +
+`PAGOS-METODOS-DROP-VIEJAS-1`). El modelo original —4 booleanos fijos `pago*Activo` en `SiteSetting`
++ un `pagoMovilNumero` COMPARTIDO entre Nequi y Daviplata— no distinguía negocios con números
+DISTINTOS para cada uno, y no tenía **Bre-B** (pago por llave), el método que más se usa hoy en
+Colombia. Esas nueve columnas (las cuatro de banco + los cuatro booleanos + `pagoMovilNumero`) se
+DROPEARON; ya no existen.
 
-- **Un método SE MUESTRA con toggle ON *y* datos completos.** La regla vive en `metodosDisponibles`
-  (`lib/checkout/metodos-pago.ts`, pura, capa 1): nequi/daviplata → `pagoMovilNumero`; transferencia →
-  cuenta completa (`opcionTransferencia`); efectivo → nada que configurar, pero `isBogota` (regla de
-  envío). **Mínimo UNO encendido**, validado en el editor (refine del schema, error en
-  `pagoNequiActivo`) + una **guarda defensiva** en el checkout: lista vacía → "escríbenos para
+**Hoy `SiteSetting.metodosPago` es una LISTA JSON de `{tipo, datos}`** (`lib/checkout/metodos-pago.ts`),
+set CERRADO de CINCO tipos en orden CANÓNICO —`nequi · daviplata · breb · transferencia · efectivo`—,
+cada uno dueño de sus propios `datos` (string→string). **Estar en la lista ES ofrecerlo: un solo eje,
+sin encendido/apagado aparte** —con dos ejes el dueño leería dos cosas por fila para la misma pregunta
+("¿qué ve mi cliente al pagar?")—. NO es un motor de métodos arbitrarios —eso es Wompi/pasarela, un
+flujo con webhooks, no "un método más"; queda en el backlog con disparador (§ Mejoras
+post-multitenant)—.
+
+- **Un método SE MUESTRA con estar en la lista *y* datos completos.** La regla vive en
+  `metodosDisponibles` (`lib/checkout/metodos-pago.ts`, pura, capa 1): nequi/daviplata → su propio
+  `datos.numero`; breb → `datos.llave`; transferencia → cuenta completa (`opcionTransferencia`);
+  efectivo → nada que configurar, pero `isBogota` (regla de envío). **La lista no puede quedar VACÍA**
+  (refine de `siteSettingsEditableSchema`, error en `metodosPago` — sin ningún método el checkout no
+  puede cobrar) + una **guarda defensiva** en el checkout: sin métodos disponibles → "escríbenos para
   coordinar el pago" y el botón deshabilitado, nunca un paso de pago mudo.
-- **`pagoMovilNumero` es campo PROPIO, SIN fallback a `whatsapp`.** Nequi/Daviplata colgaban del
-  whatsapp —conflación CONTACTO↔PAGO, accidental—; un fallback la habría perpetuado por la puerta de
-  atrás (contacto y pago vuelven a ser el mismo dato y nadie se entera). En su lugar, la MIGRACIÓN
-  **backfillea** `pagoMovilNumero = whatsapp` una vez: Nayoli queda igual y los dos datos quedan
-  separados desde el primer día. Es dato de la propia migración que crea la columna, no negocio.
-- **Un método ON pero SIN DATOS se DECLARA en el editor** ("Encendido — falta configurarlo",
-  `estadoMetodoEditor`), no se calla. Un despliegue nuevo nace con los cuatro ON y sin datos; sin ese
-  aviso el método simplemente no aparece en la tienda y nadie sabe por qué. Copy + estado visual, no
-  estructura.
-- **Encender/apagar NO toca el eje de Pagos.** `derivarCondicionPago` (`packages/core/src/orders.ts`)
-  es un string-check de EFECTIVO → CONTRAENTREGA; `Order.metodo_pago` es STRING LIBRE, así que apagar
-  un método no huerfaniza órdenes viejas (conservan su string) ni cambia la derivación. El enum
-  `MetodoPago` (admin "Nuevo pedido" `metodoPagoPrevisto`, `Payment.metodo`) es OTRA superficie, en
-  MAYÚSCULAS, y NO se toca — el checkout usa strings minúsculas aparte.
+- **`efectivo` ES LA RUTA DEL DINERO, y su id es su CONTRATO.** `derivarCondicionPago`
+  (`packages/core/src/orders.ts`) compara la cadena contra `'EFECTIVO'` y de ahí sale si la orden nace
+  CONTRAENTREGA o ANTICIPADO — lo que gobierna despacho-sin-cobro, cartera y el carril "Por cobrar".
+  Renombrar ese id rompería el modelo de cobro **EN SILENCIO**.
+- **Un método sin datos se DECLARA en el editor** (`metodoIncompleto` devuelve la frase "Falta …"), no
+  se calla: un despliegue nuevo puede tener un método en la lista sin sus datos, y sin ese aviso
+  simplemente no aparece en la tienda y nadie sabe por qué. Copy + estado visual, no estructura.
+- **`SiteSetting.metodosPago` es lo que la tienda OFRECE; `Payment.metodo` es cómo llegó la plata
+  REALMENTE — y son DELIBERADAMENTE distintos.** El select de "Registrar Pago" no filtra por esta
+  config, para NINGÚN método: filtrar volvería imposible registrar plata que sí entró por un medio que
+  el checkout no publica.
+- **Agregar/quitar un método de la lista NO toca el eje de Pagos.** `Order.metodo_pago` es STRING
+  LIBRE, así que quitar un método no huerfaniza órdenes viejas (conservan su string) ni cambia la
+  derivación. El enum `MetodoPago` (admin "Nuevo pedido" `metodoPagoPrevisto`, `Payment.metodo`) es
+  OTRA superficie, en MAYÚSCULAS, y NO se toca — el checkout usa strings minúsculas aparte.
 - **El checkout SUBE AL INICIO al cambiar de paso.** Los pasos son estado en UNA página (`useState`,
   no rutas), así que la vista mantenía la posición del paso anterior y el cliente aterrizaba a media
   pantalla —en Pago, sin ver las instrucciones de arriba—. `useEffect` sobre `[step]` →
