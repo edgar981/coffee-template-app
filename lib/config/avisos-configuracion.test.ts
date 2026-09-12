@@ -6,10 +6,14 @@ import { resolverSiteContent, type SiteContentData, type PresentacionesContent }
 import type { SiteSettings } from './site-settings-read';
 import type { MetodoPagoGuardado } from '../checkout/metodos-pago';
 
-// Nayoli resuelto (los defaults) = la config "SANA" de referencia. Sus presentaciones apuntan a
-// 'Café en Grano' / 'Café Molido' y traen imagen.
-const NAYOLI = resolverSiteContent({});
-const CATS_NAYOLI = ['Café en Grano', 'Café Molido']; // el catálogo alineado con las presentaciones
+// Los defaults resueltos = la config "SANA" de referencia — YA NO son "Nayoli": los defaults dejaron
+// de ser el contenido de ningún cliente (§ CONTENIDO-NEUTRALIZAR-1), así que el nombre no puede seguir
+// prometiendo un tenant. El catálogo ALINEADO se DERIVA de esos mismos defaults, nunca se re-escribe a
+// mano con las categorías de hoy: dos listas describiendo el mismo conjunto es cómo divergen (la misma
+// trampa que el schema editable STRIPPEANDO lo no declarado) — si un default cambia mañana, esta lista
+// lo sigue sola.
+const DEFAULTS_SANOS = resolverSiteContent({});
+const CATS_ALINEADO = [DEFAULTS_SANOS.presentaciones.categoria1, DEFAULTS_SANOS.presentaciones.categoria2];
 
 // Los métodos "sanos" de referencia: nequi/daviplata/transferencia ENCENDIDOS pero SIN datos —
 // el mismo estado que dejaba el modelo viejo con los booleanos en true y el número/cuenta sin
@@ -34,16 +38,16 @@ const AJUSTES_SANOS: SiteSettings = {
 const conWhatsapp = (whatsapp: string): SiteSettings => ({ ...AJUSTES_SANOS, whatsapp });
 
 function conPresentaciones(parcial: Partial<PresentacionesContent>): SiteContentData {
-  return { ...NAYOLI, presentaciones: { ...NAYOLI.presentaciones, ...parcial } };
+  return { ...DEFAULTS_SANOS, presentaciones: { ...DEFAULTS_SANOS.presentaciones, ...parcial } };
 }
 const destinos = (c: SiteContentData, cats: string[], listo = true) =>
   avisosDeConfiguracion(c, cats, listo, AJUSTES_SANOS).filter(a => a.clave.startsWith('presentaciones-destino'));
 const imagenes = (c: SiteContentData, cats: string[], listo = true) =>
   avisosDeConfiguracion(c, cats, listo, AJUSTES_SANOS).filter(a => a.clave.startsWith('presentaciones-imagen'));
 const whatsapps = (s: SiteSettings) =>
-  avisosDeConfiguracion(NAYOLI, CATS_NAYOLI, true, s).filter(a => a.clave === 'negocio-whatsapp');
+  avisosDeConfiguracion(DEFAULTS_SANOS, CATS_ALINEADO, true, s).filter(a => a.clave === 'negocio-whatsapp');
 const salidas = (s: SiteSettings) =>
-  avisosDeConfiguracion(NAYOLI, CATS_NAYOLI, true, s).filter(a => a.clave === 'checkout-sin-salida');
+  avisosDeConfiguracion(DEFAULTS_SANOS, CATS_ALINEADO, true, s).filter(a => a.clave === 'checkout-sin-salida');
 /** La lista VACÍA: la config que deja el paso de pago sin una sola opción que mostrar. */
 const SIN_METODOS: Pick<SiteSettings, 'metodosPago'> = { metodosPago: [] };
 /** Sólo efectivo, completo — un método mostrable (y sólo en Bogotá). */
@@ -52,14 +56,14 @@ const SOLO_EFECTIVO: Pick<SiteSettings, 'metodosPago'> = { metodosPago: [{ tipo:
 const NEQUI_SIN_NUMERO: Pick<SiteSettings, 'metodosPago'> = { metodosPago: [{ tipo: 'nequi', datos: { numero: '' } }] };
 const NEQUI_CON_NUMERO: Pick<SiteSettings, 'metodosPago'> = { metodosPago: [{ tipo: 'nequi', datos: { numero: '+573155766064' } }] };
 
-test('Nayoli SANO (defaults + catálogo alineado + identidad cargada) → CERO avisos', () => {
-  const avisos = avisosDeConfiguracion(NAYOLI, CATS_NAYOLI, true, AJUSTES_SANOS);
+test('defaults SANOS (catálogo alineado + identidad cargada) → CERO avisos', () => {
+  const avisos = avisosDeConfiguracion(DEFAULTS_SANOS, CATS_ALINEADO, true, AJUSTES_SANOS);
   assert.equal(avisos.length, 0, `esperaba 0 avisos, hubo: ${JSON.stringify(avisos)}`);
 });
 
 test('#1 destino inexistente — la categoría de la tarjeta no está en el catálogo', () => {
   const c = conPresentaciones({ categoria1: 'Café Descafeinado' });
-  const avs = destinos(c, CATS_NAYOLI);
+  const avs = destinos(c, CATS_ALINEADO);
   assert.equal(avs.length, 1);
   assert.equal(avs[0].clave, 'presentaciones-destino-1');
   assert.match(avs[0].mensaje, /Café Descafeinado/);
@@ -67,8 +71,8 @@ test('#1 destino inexistente — la categoría de la tarjeta no está en el cat�
 });
 
 test('#1 usa el MISMO predicado que el editor — un destino que SÍ está en el catálogo NO dispara', () => {
-  const c = conPresentaciones({ categoria1: 'Café Molido' }); // está en CATS_NAYOLI
-  assert.equal(destinos(c, CATS_NAYOLI).length, 0);
+  const c = conPresentaciones({ categoria1: CATS_ALINEADO[1] }); // la categoría DEL OTRO slot, tomada del mismo derivado
+  assert.equal(destinos(c, CATS_ALINEADO).length, 0);
 });
 
 test('#1 NO dispara si el catálogo no cargó (no se puede afirmar que la categoría no existe)', () => {
@@ -78,12 +82,12 @@ test('#1 NO dispara si el catálogo no cargó (no se puede afirmar que la catego
 
 test('#1 destino VACÍO no es defecto (lleva a /tienda, todos)', () => {
   const c = conPresentaciones({ categoria1: '' });
-  assert.equal(destinos(c, CATS_NAYOLI).length, 0);
+  assert.equal(destinos(c, CATS_ALINEADO).length, 0);
 });
 
 test('#2 título SIN imagen — tarjeta con label y sin foto → un aviso de imagen', () => {
   const c = conPresentaciones({ imagen1: '' }); // label1 sigue, imagen1 vacía
-  const avs = imagenes(c, CATS_NAYOLI);
+  const avs = imagenes(c, CATS_ALINEADO);
   assert.equal(avs.length, 1);
   assert.equal(avs[0].clave, 'presentaciones-imagen-1');
   assert.equal(avs[0].href, '/admin/tienda?seccion=presentaciones&tarjeta=1');
@@ -97,13 +101,13 @@ test('#2 NO depende del catálogo — dispara aunque catalogoListo sea false', (
 test('una tarjeta SIN título (imagen sola) no dispara #2 —no hay hueco de imagen que avisar—', () => {
   // slot 3 visible sólo por su imagen (label vacío): no hay título → #2 no aplica.
   const c = conPresentaciones({ label3: '', imagen3: '/images/x.webp', categoria3: 'Café Molido' });
-  assert.equal(imagenes(c, CATS_NAYOLI).length, 0);
+  assert.equal(imagenes(c, CATS_ALINEADO).length, 0);
 });
 
 test('una tarjeta OPCIONAL visible por su título dispara sus defectos por SLOT', () => {
   // slot 3 visible por su título; destino inexistente + sin imagen → un aviso de cada tipo, del slot 3.
   const c = conPresentaciones({ label3: 'Cápsulas', copy3: 'x', imagen3: '', categoria3: 'Cápsulas' });
-  const avisos = avisosDeConfiguracion(c, CATS_NAYOLI, true, AJUSTES_SANOS);
+  const avisos = avisosDeConfiguracion(c, CATS_ALINEADO, true, AJUSTES_SANOS);
   assert.ok(avisos.some(a => a.clave === 'presentaciones-destino-3'), 'destino-3 esperado');
   assert.ok(avisos.some(a => a.clave === 'presentaciones-imagen-3'), 'imagen-3 esperado');
   // el enlace aterriza en el BLOQUE de ESA tarjeta (slot 3), no en la pantalla a secas.
@@ -112,7 +116,7 @@ test('una tarjeta OPCIONAL visible por su título dispara sus defectos por SLOT'
 
 test('Presentaciones OCULTA (visible:false) → sin avisos aunque haya defectos', () => {
   const c = conPresentaciones({ visible: false, categoria1: 'Inexistente', imagen1: '' });
-  assert.equal(avisosDeConfiguracion(c, CATS_NAYOLI, true, AJUSTES_SANOS).length, 0);
+  assert.equal(avisosDeConfiguracion(c, CATS_ALINEADO, true, AJUSTES_SANOS).length, 0);
 });
 
 // ── #8 · WHATSAPP VACÍO ───────────────────────────────────────────────────────────────────────────
@@ -135,7 +139,7 @@ test('#8 whatsapp de SÓLO ESPACIOS cuenta como vacío — es lo mismo que recib
 });
 
 test('#8 NO depende del catálogo ni del contenido — dispara con catalogoListo false', () => {
-  const avs = avisosDeConfiguracion(NAYOLI, [], false, conWhatsapp(''));
+  const avs = avisosDeConfiguracion(DEFAULTS_SANOS, [], false, conWhatsapp(''));
   assert.equal(avs.filter(a => a.clave === 'negocio-whatsapp').length, 1);
 });
 
@@ -147,7 +151,7 @@ test('#8 el mensaje dice la CONSECUENCIA del comprador, no el mecanismo del camp
 
 test('#8 convive con los de Presentaciones — cada defecto es su propio aviso', () => {
   const c = conPresentaciones({ imagen1: '' });
-  const avisos = avisosDeConfiguracion(c, CATS_NAYOLI, true, conWhatsapp(''));
+  const avisos = avisosDeConfiguracion(c, CATS_ALINEADO, true, conWhatsapp(''));
   assert.equal(avisos.length, 2);
   assert.deepEqual(avisos.map(a => a.clave).sort(), ['negocio-whatsapp', 'presentaciones-imagen-1']);
 });
@@ -190,7 +194,7 @@ test('el dead-end NO se juzga con la ciudad del comprador — efectivo en la lis
 });
 
 test('el gemelo y #8 conviven — un canal retirado y un pedido imposible son hechos distintos', () => {
-  const avisos = avisosDeConfiguracion(NAYOLI, CATS_NAYOLI, true, { ...AJUSTES_SANOS, ...SIN_METODOS, whatsapp: '' });
+  const avisos = avisosDeConfiguracion(DEFAULTS_SANOS, CATS_ALINEADO, true, { ...AJUSTES_SANOS, ...SIN_METODOS, whatsapp: '' });
   assert.deepEqual(avisos.map(a => a.clave), ['checkout-sin-salida', 'negocio-whatsapp'], 'el severo va primero');
 });
 
@@ -200,6 +204,6 @@ test('el gemelo dice la CONSECUENCIA del comprador, no el mecanismo de la config
   assert.doesNotMatch(av.mensaje, /campo|apagad|SiteSetting|null|booleano/i, 'no habla del mecanismo');
 });
 
-test('Nayoli SANO sigue en CERO avisos con el gemelo puesto', () => {
-  assert.equal(avisosDeConfiguracion(NAYOLI, CATS_NAYOLI, true, AJUSTES_SANOS).length, 0);
+test('defaults SANOS siguen en CERO avisos con el gemelo puesto', () => {
+  assert.equal(avisosDeConfiguracion(DEFAULTS_SANOS, CATS_ALINEADO, true, AJUSTES_SANOS).length, 0);
 });

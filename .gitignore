@@ -53,5 +53,10 @@ next-env.d.ts
 # backticks) — untracked leftovers from a prior slice block the guard that gates the next dispatch.
 .git-commit-msg-*
 
+# throwaway files a slice worker writes mid-task (commit-message drafts, one-off scripts, counts) —
+# a NAMED directory instead of chasing unpredictable filenames, so an untracked leftover never again
+# blocks the next dispatch's guard.
+.scratch/
+
 # Mapa de los repos de Carlos — material de la sesión de asesoría, no del producto.
 /CARTOGRAFIA-DUNA.md
