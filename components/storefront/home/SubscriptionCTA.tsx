@@ -97,9 +97,14 @@ export default function SubscriptionCTA({ style }: { style?: React.CSSProperties
                 /* El color de texto va POR RAMA: sobre el acento (el plan DESTACADO, que el cliente
                    puede elegir claro) usa `acento-txt` (auto-flip); sobre acento-2 (derivado OSCURO)
                    el blanco es correcto para cualquier acento. La descripción hereda el color de la
-                   tarjeta con `opacity-70` (antes `text-white/70`, que fijaba blanco). */
+                   tarjeta con `opacity-70` (antes `text-white/70`, que fijaba blanco).
+                   EL NOMBRE DEL PLAN (§ TEMAS-P6-FAMILIAS-2) leía `--sf-tostado` fijo, sin piso
+                   contra NINGUNA de las dos superficies —3,135:1 sobre `acento`, 1,378:1 sobre
+                   `acento-2`, medido en VETA—. `sobre-acento`/`sobre-acento-2` GANAN PISO contra
+                   la superficie que cada rama realmente pinta, con fallback a `--sf-tostado`
+                   (Nayoli, sin raíces custom, sigue viendo el tostado de hoy). */
                 <div key={p.slot} className={`rounded-2xl p-5 ${p.destacado ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : 'bg-[var(--sf-acento-2)] text-white'}`}>
-                  <p className="text-[var(--sf-tostado)] text-xs font-medium mb-2">{p.nombre}</p>
+                  <p className={`text-xs font-medium mb-2 ${p.destacado ? 'text-[var(--sf-sobre-acento,var(--sf-tostado))]' : 'text-[var(--sf-sobre-acento-2,var(--sf-tostado))]'}`}>{p.nombre}</p>
                   <p className="opacity-70 text-xs leading-snug">{p.descripcion}</p>
                 </div>
               ))}
