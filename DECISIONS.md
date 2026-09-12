@@ -440,3 +440,32 @@ Segunda mitad de **P6**, la de los CONSUMIDORES. La primera (`TEMAS-P6-MOTOR-1`)
 
 Merge `--no-ff` mecánico tras el gate del owner, tree del merge == tree gateado (`5bebb38`), `npm test` **1039/1039**.
 Regla: § cada familia de superficie lleva su propio par de tintas floreado CONTRA ELLA —reusar el de otra familia es medible y es peor—, y la naturaleza del token (raíz o por banda) sigue a la de su superficie.
+
+## 2026-09-12 — DOS RULINGS DEL OWNER sobre el proceso y sobre el color
+
+**EL GATE SE RESERVA PARA LO QUE EL OWNER PUEDE VER O PROBAR.** Hasta hoy TODO diff que tocara bytes de cliente paraba en AWAITING_APPROVAL. Una tanda nocturna de seis slices mostró el costo: **cinco de los seis eran byte-idénticos para la tienda viva** —tokens con fallback, documentación, tipos, un script nuevo— y el owner no tenía nada que mirar en ninguno. Su ruling: *«el gate para cosas que visualmente realmente yo vea que cambiaron o que se realizó un ajuste en la funcionalidad; del resto, no tengo que hacer tantos gates»*.
+
+**El test operativo, y es el que evita que esto se vuelva una excusa: ¿el diff cambia lo que un humano VE, o lo que el producto HACE?** Si la respuesta es no, y está **MEDIDO** que es no —byte-identidad demostrada, no afirmada—, el slice no necesita el gate del owner: necesita su verificación mecánica. Si la respuesta es sí, o si **no se puede medir que es no**, el gate sigue siendo del owner. **La duda cuenta como sí.** Esto NO toca las otras dos reservas del owner, que siguen enteras: **el merge a `main` es suyo** y **toda operación de datos es suya**.
+
+**UN TOKEN QUE VIVE SOBRE DOS FONDOS SE PARTE EN DOS, NO SE PROMEDIA.** Es la **tercera** vez que la misma forma aparece y por eso deja de ser un caso y pasa a ser doctrina: **`borde`/`divisor`** se separaron porque apagar uno obligaba a cambiar el otro; **`tarjeta`/`superficie`** ganaron cada una su par floreado porque reusar el de la otra medía PEOR en 5 de 6 paletas; y ahora **`tostado`/`tostado-2`**, que se usan sobre superficies claras (fallan, 1,77–2,45:1) **y** oscuras (pasan, 6,7–8,7:1). **Un valor único para los dos contextos no existe: moverlo arregla un lado y rompe el otro.** El síntoma que la delata es siempre el mismo — se mide el token en dos sitios y da bien en uno y mal en el otro, y la tentación es promediar.
+
+**Corolario que el owner resolvió en el mismo movimiento, y que va contra la salida barata:** cuando el defecto está en el TOKEN, se arregla el token, no sus consumidores. Para `tostado-3` había dos caminos medidos —mover el hex a `#8c5d3e` (arregla los nueve usos de una) o editar los nueve consumidores para que lean otro token—; se eligió el hex porque *«la causa está en el token, no en los 9 consumidores; editarlos disfraza el problema y deja el token roto para el próximo»*. **Nueve ediciones que dejan viva la causa no son un arreglo, son nueve testigos.**
+
+Regla: § el gate del owner es para lo que se VE o lo que el producto HACE, y la byte-identidad tiene que estar MEDIDA para saltarlo; y un token que vive sobre dos fondos se parte en dos, mientras que un defecto del token se arregla en el token y no en sus consumidores.
+
+## 2026-09-12 · El producto deja de estar hardcodeado a UN cliente (`ONBOARDING-OWNER-MINIMO-1`, `ONBOARDING-HUECOS-MARCA-1`, `DOCS-QUE-MIENTEN-1`)
+`1bbb7af` · `17c4a6a` · `7203b6b`, tres merges `--no-ff`
+
+Primera tanda del trabajo hacia el SEGUNDO cliente. Un censo (`ONBOARDING-CENSO-1`) midió que **el hueco más caro no era de código sino de PROCESO: no existía forma de crear el primer OWNER sin sembrar el catálogo, los diez clientes falsos y las ~100 órdenes de Café Nayoli.** `signUpEmail` tenía dos call-sites de producción —el seed, y `accept-invite`, que exige una invitación de un OWNER que todavía no existe— y `package.json` un solo script de seed.
+
+**SE ELIGIÓ NO ENSUCIAR ANTES QUE LIMPIAR BIEN, y la razón es del owner:** la alternativa era sembrar Nayoli y después borrar, lo que *«confía en que el borrado sea completo. Un residuo que sobreviva es dato falso en producción»*. **Un borrado completo es una AFIRMACIÓN que alguien tiene que verificar cada vez; una base que nace limpia no afirma nada.** `prisma/crear-owner.ts` crea el OWNER y nada más, reusando el `signUpEmail` del seed verbatim para que el hashing no diverja.
+
+**Y ENDURECIÓ LO QUE EL SEED DEJABA BLANDO, por decisión del worker:** el seed trata sus tres env vars como opcionales y **cae en silencio a credenciales PÚBLICAS y documentadas** (`admin@sierranativa.co` / `ChangeMe123!`) — apropiado para una demo, un agujero para el primer OWNER de un cliente real. `crear-owner` las exige y sale nombrando cuál falta. En el mismo movimiento estrechó el `try/catch` **CIEGO** del seed (que trata cualquier error como «ya existe») al código concreto de Better Auth que `accept-invite` ya usaba.
+
+**EL NOMBRE DEL NEGOCIO ES DATO, Y SU ÚNICA FUENTE ES `SiteSetting.nombre`.** Tres lugares lo tenían hardcodeado fuera del alcance del panel: el rail del admin (visible desde el primer login, en todas las pantallas), el correo de invitación —**cuyo arreglo ya estaba escrito 45 líneas más abajo EN EL MISMO ARCHIVO**, porque alguien lo resolvió para el correo de reset y no para éste— y el cierre de los dos reportes al equipo. **Si hace falta un fallback, es NEUTRO**: un default con la marca de otro cliente es el mismo defecto con más pasos. No hizo falta ninguno: la migración de `SiteSetting` ya inserta `'Configura tu tienda'`.
+
+**`CLAUDE.md` describía nueve columnas que se habían dropeado el día anterior** — la doctrina del repo mintiendo sobre la RUTA DEL DINERO, que es el peor lugar posible, porque es lo que un worker lee para orientarse antes de tocar pagos. Se reescribió **el mecanismo y no el argumento**: esas secciones explican POR QUÉ el modelo es así, y eso no caducó. De las 6 apariciones quedan 4, las cuatro contextualizadas como historia.
+
+**Hallazgo medido que abre una ventana con fecha de cierre:** **ninguna de las tres plantillas de WhatsApp está registrada ni aprobada por Meta todavía.** Parametrizar el nombre del negocio es GRATIS hoy; en cuanto se envíe la primera, cada cambio pasa por aprobación **carácter por carácter**. **Queda como PRECONDICIÓN DE GO-LIVE de WhatsApp**, no como mejora opcional.
+
+Regla: § el primer OWNER de una tienda se crea sin sembrar la marca de otra —no ensuciar le gana a limpiar bien—, y el nombre del negocio es dato con una sola fuente, cuyo fallback nunca es el nombre de un cliente.
