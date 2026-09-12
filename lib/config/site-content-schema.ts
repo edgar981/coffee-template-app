@@ -25,6 +25,9 @@ const heroEditableSchema = z.object({
 
 // BrandStory: h2 en UN campo (`titulo`), dos párrafos, cuatro imágenes FIJAS. `visible` porque
 // es la primera sección ocultable. Todo opcional/SOFT, como el hero: el resolver decide.
+// `variante` (§ eje 5e, TEMAS-P2-BRANDSTORY-1): la COMPOSICIÓN de la sección ('columnas', hoy la
+// única clave); `z.string()` porque el set de claves es por-sección y el resolver SOFT
+// (`resolverVariante`) la clampa a la canónica — gemela de `hero.variante`/`presentaciones.variante`.
 const brandStoryEditableSchema = z.object({
   visible: z.boolean().optional(),
   eyebrow: z.string().optional(),
@@ -35,6 +38,7 @@ const brandStoryEditableSchema = z.object({
   imagen2: z.string().optional(),
   imagen3: z.string().optional(),
   imagen4: z.string().optional(),
+  variante: z.string().optional(),
 });
 
 // Presentaciones: cardinalidad VARIABLE 2-4 con campos PLANOS (no repeater). Cada tarjeta: label +

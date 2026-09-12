@@ -10,6 +10,7 @@
     "build": "npm run db:deploy -w @duna/core && next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"lib/**/*.test.ts\" \"constants/**/*.test.ts\" \"packages/core/**/*.test.ts\"",
     "postinstall": "npm run generate -w @duna/core",
     "db:seed": "tsx prisma/seed.ts",

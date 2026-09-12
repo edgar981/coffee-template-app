@@ -588,9 +588,26 @@ test('REGISTRY.presentaciones declara `variantes` con el set cerrado y la canón
   assert.deepEqual(REGISTRY.presentaciones.variantes, { claves: ['mosaico', 'indice'], canonica: 'mosaico' });
 });
 
-test('una sección SIN `variantes` declarado no gana `variante` en el resuelto (brandStory, p. ej. — el hero SÍ, § EJE-5-VARIANTES-HERO)', () => {
+test('una sección SIN `variantes` declarado no gana `variante` en el resuelto (subscriptionCTA, p. ej. — hero/presentaciones/brandStory SÍ, § EJE-5-VARIANTES-HERO y TEMAS-P2-BRANDSTORY-1)', () => {
   const r = resolverSiteContent({});
-  assert.equal((r.brandStory as Record<string, unknown>).variante, undefined);
+  // Sin cast: lo que se afirma es que la CLAVE no se ganó, no que valga `undefined` (una clave
+  // presente con valor `undefined` pasaría el `assert.equal` de antes sin que la sección
+  // realmente careciera de `variante`).
+  assert.equal('variante' in r.subscriptionCTA, false);
+});
+
+test('brandStory: sin fila, `variante` resuelve a la canónica "columnas" (byte-idéntico) — el slot que TEMAS-P2-BRANDSTORY-1 abre', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.brandStory.variante, 'columnas');
+});
+
+test('brandStory: una `variante` guardada fuera del set cae a la canónica', () => {
+  const r = resolverSiteContent({ brandStory: { variante: 'no-existe' } });
+  assert.equal(r.brandStory.variante, 'columnas');
+});
+
+test('REGISTRY.brandStory declara `variantes` con UNA sola clave (la canónica) y SIN `noUniformes`', () => {
+  assert.deepEqual(REGISTRY.brandStory.variantes, { claves: ['columnas'], canonica: 'columnas' });
 });
 
 // ── EL HERO GANA VARIANTES (§ EJE-5-VARIANTES-HERO): segunda sección con `variantes`, gemela de
@@ -683,9 +700,14 @@ test('bandaUniforme: una banda ESTRUCTURAL sin sección (trustBadges/featured) �
   assert.equal(bandaUniforme('featured', undefined), true);
 });
 
-test('bandaUniforme: una sección SIN `variantes` declarado (brandStory) → true, para cualquier `variante` recibida', () => {
+test('bandaUniforme: una sección SIN `variantes` declarado (subscriptionCTA) → true, para cualquier `variante` recibida', () => {
+  assert.equal(bandaUniforme('subscriptionCTA', undefined), true);
+  assert.equal(bandaUniforme('subscriptionCTA', 'ficha'), true);
+});
+
+test('bandaUniforme: brandStory·columnas → true (sin `noUniformes` declarado, § TEMAS-P2-BRANDSTORY-1)', () => {
+  assert.equal(bandaUniforme('brandStory', 'columnas'), true);
   assert.equal(bandaUniforme('brandStory', undefined), true);
-  assert.equal(bandaUniforme('brandStory', 'ficha'), true);
 });
 
 // ── `varianteDeBanda` (§ EJE-5-VARIANTES-HERO): la variante resuelta de una banda, para el nav ────
@@ -706,9 +728,14 @@ test('varianteDeBanda: una banda ESTRUCTURAL sin sección en SiteContentData (tr
   assert.equal(varianteDeBanda(r, 'featured'), undefined);
 });
 
-test('varianteDeBanda: una sección SIN `variantes` declarado (brandStory) → undefined, aunque SÍ sea una sección', () => {
+test('varianteDeBanda: una sección SIN `variantes` declarado (subscriptionCTA) → undefined, aunque SÍ sea una sección', () => {
   const r = resolverSiteContent({});
-  assert.equal(varianteDeBanda(r, 'brandStory'), undefined);
+  assert.equal(varianteDeBanda(r, 'subscriptionCTA'), undefined);
+});
+
+test('varianteDeBanda: brandStory resuelve a "columnas" con los DEFAULTS resueltos (sin fila) — TEMAS-P2-BRANDSTORY-1', () => {
+  const r = resolverSiteContent({});
+  assert.equal(varianteDeBanda(r, 'brandStory'), 'columnas');
 });
 
 // ── El ORDEN de las bandas (§ eje 5, parte c): meta CERRADA, gemela de `paginas`/`tema`/`esquemas` ──
