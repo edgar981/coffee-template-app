@@ -4,6 +4,7 @@ import { formatFecha } from '@duna/core/format-fecha';
 import { BUSINESS_TZ, startOfZonedDay, startOfZonedWeek, zonedDayKey } from '@duna/core/timezone';
 import { NOT_CANCELLED, REVENUE_ORDER_SCOPE, POR_COBRAR_WHERE, ORDENES_REALES } from '@duna/core/metrics/prisma-scopes';
 import type { RenderedEmail } from '@duna/core/notifications/templates/shared';
+import { readSiteSettings } from '@/lib/config/site-settings-read';
 
 // Los reportes al EQUIPO. Todas las cifras salen de los scopes compartidos
 // (lib/metrics/prisma-scopes) — los mismos que cuenta /api/dashboard/stats — para
@@ -11,6 +12,12 @@ import type { RenderedEmail } from '@duna/core/notifications/templates/shared';
 //   · ingreso = libro de PAGOS (Payment), no el total de las órdenes;
 //   · sólo órdenes reales (`CN-`), nunca canceladas;
 //   · "por cobrar" = contraentrega despachada y sin pagar.
+//
+// El nombre del negocio en el cierre sale de `SiteSetting.nombre` (`readSiteSettings`,
+// el lector RAW — sin `server-only`, seguro en este contexto de motor), nunca un
+// literal: los dos reportes nacen `defaultActivo: false`, pero encenderlos es
+// exactamente lo que el panel permite, y ese día el equipo debe recibirlos firmados
+// con SU marca.
 
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -100,9 +107,10 @@ export async function construirReporteSemanal(now: Date): Promise<RenderedEmail>
       nota:  top ? `${top._sum.cantidad ?? 0} unidades` : 'sin ventas en la semana' },
   ];
 
+  const { nombre } = await readSiteSettings();
   const subtitulo = `Del ${formatFecha(inicio)} al ${formatFecha(new Date(fin.getTime() - 1))}`;
   const titulo    = 'Reporte semanal de ventas';
-  const cierre    = 'Cifras del panel de Café Nayoli. Los ingresos cuentan pagos recibidos, no órdenes creadas.';
+  const cierre    = `Cifras del panel de ${nombre}. Los ingresos cuentan pagos recibidos, no órdenes creadas.`;
 
   return {
     subject: `Reporte semanal · ${formatCOP(ingresos._sum.monto ?? 0)} en ventas`,
@@ -141,9 +149,10 @@ export async function construirResumenDiario(now: Date): Promise<RenderedEmail> 
     { label: 'Despachos programados para hoy', valor: String(despachosHoy) },
   ];
 
+  const { nombre } = await readSiteSettings();
   const titulo    = 'Resumen diario';
   const subtitulo = `Ayer, ${formatFecha(ayer)}`;
-  const cierre    = 'Cifras del panel de Café Nayoli. Los ingresos cuentan pagos recibidos, no órdenes creadas.';
+  const cierre    = `Cifras del panel de ${nombre}. Los ingresos cuentan pagos recibidos, no órdenes creadas.`;
 
   return {
     subject: `Resumen diario · ${formatCOP(ingresos._sum.monto ?? 0)} ayer`,
