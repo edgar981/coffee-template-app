@@ -15,12 +15,13 @@ export type PaginaKey = 'home' | 'nosotros' | 'suscripciones';
 export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?: string }[] = [
   { key: 'home',     label: 'Home',     apagable: false },
   { key: 'nosotros', label: 'Nosotros', apagable: true },
-  // Suscripciones es una PÁGINA como las otras —su pestaña vive junto a Home/Nosotros— con sus planes y
-  // sus pasos editables (§ Backlog #49, opción 1). El interruptor gobierna las 5 superficies que enlazan
-  // a /suscripciones (la página, el menú, el pie, el bloque de la home y el 2º CTA del hero); la `nota`
-  // lo dice porque ese alcance no es obvio.
+  // Suscripciones es una PÁGINA como las otras —su pestaña vive junto a Home/Nosotros— con sus planes,
+  // sus pasos y su FAQ editables (§ Backlog #49, opción 1; § SUSCRIPCIONES-FAQ-DATO-1). El interruptor
+  // gobierna las SEIS superficies que enlazan a /suscripciones: la página, el menú, el pie, el bloque
+  // de la home, el 2º CTA del hero, y —desde esta tanda— /preguntas-frecuentes (su único contenido es
+  // la FAQ de esta capacidad, § faqSuscripcionesVisible); la `nota` lo dice porque ese alcance no es obvio.
   { key: 'suscripciones', label: 'Suscripciones', apagable: true,
-    nota: 'El interruptor muestra u oculta las suscripciones en toda la tienda: la página, el enlace del menú y del pie, y el bloque de la home.' },
+    nota: 'El interruptor muestra u oculta las suscripciones en toda la tienda: la página, el enlace del menú y del pie, el bloque de la home, el segundo botón del hero, y la página de Preguntas Frecuentes.' },
 ];
 
 // `categoria: true` → el campo es un DESTINO de categoría: la cáscara lo renderiza con el
@@ -386,4 +387,13 @@ const SUSCRIPCION_PASOS: SeccionConfig = {
 
 // El ORDEN es el orden en la pantalla. Las de la home primero (en el orden de la home), después las de
 // /nosotros, y por último /suscripciones; el editor las agrupa por `pagina` en pestañas.
+//
+// LA FAQ (`suscripcionFaq`, § SUSCRIPCIONES-FAQ-DATO-1) NO ENTRA ACÁ TODAVÍA: el modelo, el schema y
+// el render ya existen (`lib/config/site-content-defaults.ts`, `site-content-schema.ts`,
+// `PreguntasFrecuentes.tsx`), pero declararla como una sección MÁS de `SeccionVista` obliga a
+// `components/admin/VistaTiendaEnVivo.tsx` a registrar su componente en `COMPONENTES` —es un
+// `Record<SeccionVista, ComponentType>` EXHAUSTIVO, así que el tipo nuevo lo rompe— y ese archivo
+// queda FUERA del alcance aprobado de esta tanda. Abrirla al editor del panel es su propio slice
+// (tocar `tienda-secciones.ts` Y `VistaTiendaEnVivo.tsx` juntos); hasta entonces la FAQ se administra
+// como el resto de `SiteContentData` — por API, no por el editor visual.
 export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, BRAND_STORY, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS];

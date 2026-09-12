@@ -17,6 +17,7 @@ import {
   bandaUniforme,
   varianteDeBanda,
   seccionEsVisible,
+  faqSuscripcionesVisible,
   type SeccionDef,
   type VariantesDef,
 } from './site-content-defaults';
@@ -401,6 +402,76 @@ test('REGISTRY.nosotrosGaleria.imagenes = [url, poster] y url es requerido (trip
   // vídeo se borre con el ítem. Y la url debe ser requerida (sin archivo no hay ítem).
   assert.deepEqual(REGISTRY.nosotrosGaleria.imagenes, ['url', 'poster']);
   assert.equal(REGISTRY.nosotrosGaleria.repeater!.campos.url, 'requerido');
+});
+
+// ── La FAQ de /suscripciones (§ SUSCRIPCIONES-FAQ-DATO-1) — 3ª sección repeater, gemela de
+// testimonials/nosotrosGaleria: encabezado (`titulo`, requerido) + una LISTA de preguntas ─────────
+
+test('suscripcionFaq: sin nada guardado → defaults con items VACÍOS (ningún claim falso de código, § el repeater)', () => {
+  // DERIVADO del propio resolver, no una lista escrita a mano: el punto de esta tanda es que NINGUNA
+  // de las cuatro respuestas falsas de `constants/subscription-faq.ts` (retirado) sobreviva al default.
+  assert.deepEqual(resolverSiteContent({}).suscripcionFaq.items, []);
+  assert.equal(resolverSiteContent({}).suscripcionFaq.titulo, DEFAULTS.suscripcionFaq.titulo);
+});
+
+test('DEFAULTS.suscripcionFaq.items está VACÍO (recorrido directo del modelo, no una comparación contra las respuestas viejas)', () => {
+  assert.deepEqual(DEFAULTS.suscripcionFaq.items, []);
+});
+
+test('suscripcionFaq: los items guardados se RESUELVEN — question/answer, LOS DOS requeridos', () => {
+  const r = resolverSiteContent({ suscripcionFaq: { items: [
+    { question: '¿Puedo cambiar de plan?', answer: 'Sí, escríbenos por WhatsApp.' },
+    { question: '', answer: '' }, // los dos requeridos vacíos → "" (el editor los exige, el resolver sólo da forma)
+  ] } });
+  assert.deepEqual(r.suscripcionFaq.items, [
+    { question: '¿Puedo cambiar de plan?', answer: 'Sí, escríbenos por WhatsApp.' },
+    { question: '', answer: '' },
+  ]);
+});
+
+test('suscripcionFaq: encabezado — titulo requerido vacío → default (a diferencia de nosotrosGaleria, cuyo titulo es opcional)', () => {
+  const r = resolverSiteContent({ suscripcionFaq: { titulo: '' } });
+  assert.equal(r.suscripcionFaq.titulo, DEFAULTS.suscripcionFaq.titulo);
+});
+
+test('suscripcionFaq PRECEDENCIA: items vacío OCULTA aunque visible sea true (hide-on-empty gana sobre el toggle)', () => {
+  const def = REGISTRY.suscripcionFaq;
+  assert.equal(def.ocultable, true);
+  assert.equal(seccionEsVisible(def, { visible: true, items: [] }), false);
+  assert.equal(seccionEsVisible(def, { visible: false, items: [{ question: 'q', answer: 'a' }] }), false); // toggle apagado → oculta
+  assert.equal(seccionEsVisible(def, { visible: true, items: [{ question: 'q', answer: 'a' }] }), true);
+});
+
+// ── faqSuscripcionesVisible: compone paginas.suscripciones.visible Y seccionEsVisible(suscripcionFaq) ─
+// (§ SUSCRIPCIONES-FAQ-DATO-1) — la condición ÚNICA que gatea /preguntas-frecuentes y su enlace del
+// footer. Las CUATRO combinaciones, para que ninguna quede sin cubrir.
+
+test('faqSuscripcionesVisible: capacidad ENCENDIDA + FAQ con ítems → true (se muestra)', () => {
+  const r = resolverSiteContent({ suscripcionFaq: { items: [{ question: 'q', answer: 'a' }] } });
+  assert.equal(faqSuscripcionesVisible(r), true);
+});
+
+test('faqSuscripcionesVisible: capacidad APAGADA (aunque la FAQ tenga ítems) → false', () => {
+  const r = resolverSiteContent({
+    paginas: { suscripciones: { visible: false } },
+    suscripcionFaq: { items: [{ question: 'q', answer: 'a' }] },
+  });
+  assert.equal(faqSuscripcionesVisible(r), false);
+});
+
+test('faqSuscripcionesVisible: capacidad ENCENDIDA pero FAQ SIN ítems (el estado por defecto) → false', () => {
+  const r = resolverSiteContent({}); // paginas.suscripciones.visible=true (default), suscripcionFaq.items=[] (default)
+  assert.equal(faqSuscripcionesVisible(r), false);
+});
+
+test('faqSuscripcionesVisible: capacidad APAGADA y FAQ SIN ítems → false (las dos razones a la vez)', () => {
+  const r = resolverSiteContent({ paginas: { suscripciones: { visible: false } } });
+  assert.equal(faqSuscripcionesVisible(r), false);
+});
+
+test('faqSuscripcionesVisible: capacidad ENCENDIDA + FAQ con ítems pero su propio toggle apagado → false', () => {
+  const r = resolverSiteContent({ suscripcionFaq: { visible: false, items: [{ question: 'q', answer: 'a' }] } });
+  assert.equal(faqSuscripcionesVisible(r), false);
 });
 
 // ── El TEMA (paleta): clave no-sección, gemela de `paginas` ───────────────────

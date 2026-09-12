@@ -17,6 +17,7 @@ import {
 } from "@/lib/config/site";
 import { useSiteSettings } from "@/components/storefront/SiteSettingsProvider";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { faqSuscripcionesVisible } from "@/lib/config/site-content-defaults";
 
 // `footerNav`/`legalNav` son ESTRUCTURADOS y se quedan en código (v1). La marca, el
 // whatsapp y el instagram vienen de SiteSetting vía el provider (una sola fuente).
@@ -24,13 +25,18 @@ const { footerNav, legalNav } = siteConfig;
 
 export default function StoreFooter() {
   const settings = useSiteSettings();
+  const content = useSiteContent();
   // La entrada a /nosotros se OCULTA cuando la página está apagada (§ paginas.nosotros). La columna
   // "Empresa" no queda vacía —lleva el bloque de WhatsApp aparte del link—.
-  const { paginas } = useSiteContent();
+  const { paginas } = content;
   const empresa = footerNav.empresa.filter((l) => l.href !== "/nosotros" || paginas.nosotros.visible);
   // La entrada a /suscripciones se OCULTA cuando la capacidad está apagada (§ paginas.suscripciones,
   // Backlog #49). La columna "Tienda" no queda vacía —lleva "Todos los productos" aparte—.
   const tienda = footerNav.tienda.filter((l) => l.href !== "/suscripciones" || paginas.suscripciones.visible);
+  // La entrada a /preguntas-frecuentes se OCULTA cuando esa página no tiene nada que mostrar
+  // (§ SUSCRIPCIONES-FAQ-DATO-1, faqSuscripcionesVisible — MISMA condición que la ruta). La columna
+  // "Ayuda" no queda vacía —le queda "Rastrear Pedido"—.
+  const ayuda = footerNav.ayuda.filter((l) => l.href !== "/preguntas-frecuentes" || faqSuscripcionesVisible(content));
   return (
     <footer className="bg-[var(--sf-tinta)] text-[var(--sf-sobre)]">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
@@ -116,7 +122,7 @@ export default function StoreFooter() {
             </h4>
 
             <ul className="space-y-2.5 text-sm text-[var(--sf-sobre)]/50">
-              {footerNav.ayuda.map((link) => {
+              {ayuda.map((link) => {
                 const external = link.href.startsWith("http");
                 return (
                   <li key={link.label}>

@@ -157,6 +157,19 @@ const suscripcionPasosEditableSchema = z.object({
   paso4Label: z.string().optional(), paso4Desc: z.string().optional(),
 });
 
+// /suscripciones — la FAQ (§ SUSCRIPCIONES-FAQ-DATO-1). Sección repeater: encabezado (`titulo`) + un
+// ARRAY de ítems `{ question, answer }`. Cada ítem SOFT: strings opcionales — la validación de
+// requeridos (question, answer) es del EDITOR, no del schema (loader SOFT), como testimonios.
+const suscripcionFaqItemSchema = z.object({
+  question: z.string().optional(),
+  answer: z.string().optional(),
+});
+const suscripcionFaqEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  titulo: z.string().optional(),
+  items: z.array(suscripcionFaqItemSchema).optional(),
+});
+
 // META de páginas: `visible` por página. NO es una sección (no pasa por el flujo borrador/publicar
 // de secciones); el toggle de encender/apagar /nosotros la escribe directo (tanda 1, commit 3).
 const paginasEditableSchema = z.object({
@@ -194,6 +207,7 @@ export const siteContentEditableSchema = z.object({
   nosotrosGaleria: nosotrosGaleriaEditableSchema.optional(),
   suscripcionPlanes: suscripcionPlanesEditableSchema.optional(),
   suscripcionPasos: suscripcionPasosEditableSchema.optional(),
+  suscripcionFaq: suscripcionFaqEditableSchema.optional(),
   paginas: paginasEditableSchema.optional(),
   esquemas: esquemasEditableSchema.optional(),
   orden: ordenEditableSchema.optional(),
