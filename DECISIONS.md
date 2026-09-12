@@ -489,3 +489,19 @@ Tercera y cuarta entrega de **P6**, más el slot de `brandStory` y —de rebote�
 
 Merges `--no-ff` mecánicos tras el gate del owner, trees == trees gateados, y **verificación del ÁRBOL COMBINADO** —que ninguna rama había probado— en `npm test` **1052/1052** y `npx tsc --noEmit` en **0**.
 Regla: § el mecanismo de piso puede estar bien y el FONDO contra el que evalúa estar mal; un test que castea afirma lo que no prueba; y un gate que corre con un transpilador sin chequeo de tipos no es una guarda de tipos.
+
+## 2026-09-12 · El nombre del negocio sale del texto que Meta va a aprobar (`WHATSAPP-PLANTILLAS-MARCA-1` + `-CABLEADO-1`)
+`5d4d264` + `5969335`, merge `--no-ff`
+
+Las tres plantillas de WhatsApp al cliente (`nueva_orden`, `cliente_inactivo`, `orden_entregada`) horneaban **«Café Nayoli»** en el cuerpo. Ahora es una **variable posicional**, y los tres handlers la llenan desde `readSiteSettings()`.
+
+**SE HIZO AHORA POR IRREVERSIBILIDAD CRECIENTE, NO POR TAMAÑO.** Son **WhatsApp Business Message Templates**: Meta las aprueba **carácter por carácter** salvo las variables. Medido: **ninguna está registrada todavía** (el canal es un stub deliberado, `PENDIENTE_CANAL`). **Mientras eso sea cierto el cambio es gratis; desde la primera aprobación, cada palabra cuesta una re-aprobación.** El owner lo puso arriba de la lista por eso, y **queda como precondición de go-live de WhatsApp**: si el nombre se hornea otra vez antes de enviar, el costo ya no se recupera.
+
+**LA POSICIÓN NO ES LA MISMA EN LAS TRES —4ª, 3ª y 2ª— y eso era el filo del slice.** Meter el nombre al final de cada array habría roto dos de tres **en silencio**: `renderWhatsappTemplate` sustituye con `variables[i] ?? match`, así que un desalineamiento no lanza, no falla ningún test, y sale como texto corrido con los datos cambiados de lugar.
+
+**EL PRIMER INTENTO DEJÓ UNA MEDIA VERDAD, Y LA LECCIÓN ES SOBRE QUÉ MIDE UN TEST.** El slice que abrió la variable dejó un test de byte-identidad **verde** — pero le pasaba la cuarta variable **a mano**, mientras el handler real seguía pasando tres. Probaba que **la plantilla** era byte-idéntica *dada* la variable, **no que el pipeline lo fuera**: por el camino real el mensaje decía *«Gracias por comprar en `{{4}}`.»*. **Un test de byte-identidad tiene que medir la MISMA UNIDAD que el cambio afecta** — probar el componente aislado con entradas fabricadas da una luz verde falsa, y la da justo donde se usa para saltarse un gate.
+
+**El regression-catcher que faltaba es una relación DERIVADA:** el largo del array que arma cada handler contra el largo del que declara su plantilla. Para poder atarla se extrajo una función pura por handler. No puede divergir en silencio, que es la misma doctrina que este repo pagó tres veces esta semana con conteos escritos a mano.
+
+Merge `--no-ff` mecánico, tree == tree del slice (`f8f1565`), `npm test` **1063/1063** y `npx tsc --noEmit` en **0** — el typecheck ya es parte del gate por ruling del owner. **La byte-identidad se verificó POR EL CAMINO REAL**: los tres renders dan el texto de siempre con el nombre resuelto y sin ningún `{{n}}` colgado.
+Regla: § el texto que un tercero va a aprobar carácter por carácter se parametriza ANTES de la primera aprobación, porque ahí el cambio es gratis y después no; y una variable posicional se ubica leyendo la plantilla, nunca al final por costumbre.
