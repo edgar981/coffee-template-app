@@ -46,6 +46,12 @@ export interface BrandStoryContent {
   imagen2: string;
   imagen3: string;
   imagen4: string;
+  // La VARIANTE de composición (§ eje 5e, TEMAS-P2-BRANDSTORY-1). 'columnas' es la ÚNICA clave hoy
+  // —y la canónica—: abre el slot para la PLATAFORMA de themes (tres de los cinco themes del programa
+  // la necesitan) sin construir ninguna forma alternativa todavía. Escalar de SECCIÓN —como
+  // `visible`—, no un `campos`: no lo toca el loop requerido/opcional del resolver. Gemela de
+  // `hero.variante`/`presentaciones.variante`.
+  variante: string;
 }
 
 // Presentaciones ("¿Cómo tomas tu café?"): de 2 a 4 tarjetas de presentación. Cardinalidad VARIABLE
@@ -397,6 +403,8 @@ export const DEFAULTS: SiteContentData = {
     imagen2: '/images/products-7.jpeg',
     imagen3: '/images/products-10.jpg',
     imagen4: '/images/products-11.jpg',
+    // La canónica (§ eje 5e, TEMAS-P2-BRANDSTORY-1): Nayoli queda byte-idéntica al collage de hoy.
+    variante: 'columnas',
   },
   // Los literales que hoy viven en GrindChooser (OPCIONES + el encabezado). Byte a byte: sin fila de
   // SiteContent, la home queda IDÉNTICA (§ el test de byte-idéntico). Las imágenes son paths /public
@@ -625,6 +633,14 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     label: 'Historia',
     ocultable: true,
     imagenes: ['imagen1', 'imagen2', 'imagen3', 'imagen4'],
+    // VARIANTES DE COMPOSICIÓN (§ eje 5e, TEMAS-P2-BRANDSTORY-1) — PRERREQUISITO del programa de
+    // themes, no una forma nueva: 'columnas' es la ÚNICA clave y la canónica —el layout de HOY,
+    // verbatim (texto a un lado, collage 2×2 al otro, `grid-cols-1 lg:grid-cols-2`)—. Abre el slot
+    // para que el theme que la necesite (tres de los cinco del programa) declare su alternativa sin
+    // tocar esta mecánica; el día que exista una segunda clave, `BrandStory.tsx` gana su dispatcher.
+    // `noUniformes`: NO — la banda es de un solo tono sólido (`bg-[var(--sf-banda,var(--sf-tinta))]`),
+    // nunca bi-tonal, y con una sola clave no hay otra variante con la que discrepar.
+    variantes: { claves: ['columnas'], canonica: 'columnas' },
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',
