@@ -3,6 +3,7 @@ import { formatCOP } from '@duna/core/utils';
 import { toWhatsappNumber } from '@duna/core/whatsapp-link';
 import { isLowStock } from '@duna/core/metrics/inventory-filters';
 import { AUTOMATION_HREF, hrefOrden, hrefOrdenOLista } from '@/constants/automations';
+import { readSiteSettings } from '@/lib/config/site-settings-read';
 import { esOrigenNotificable } from '../reglas';
 import type { EventHandler, Objetivo } from '../types';
 
@@ -28,6 +29,24 @@ export function nombreCorto(nombre: string | null | undefined): string {
   return primero.charAt(0).toUpperCase() + primero.slice(1).toLowerCase();
 }
 
+// Arman la fila de variables posicionales para cada plantilla. Son funciones PURAS
+// —sin tocar prisma— justamente para que su ARIDAD se pueda atar contra la
+// declaración de la plantilla en un test de capa 1 (eventos.test.ts), sin base:
+// la posición del nombre del negocio NO es la misma en las tres plantillas
+// (§ constants/automations.ts), y una función nombrada por plantilla hace
+// imposible que el handler la ponga en el lugar equivocado sin que el test lo note.
+export function variablesNuevaOrden(
+  nombreCliente: string, numeroOrden: string, total: string, negocio: string,
+): string[] {
+  return [nombreCliente, numeroOrden, total, negocio];
+}
+
+export function variablesOrdenEntregada(
+  nombreCliente: string, numeroOrden: string, negocio: string,
+): string[] {
+  return [nombreCliente, numeroOrden, negocio];
+}
+
 // ── 1. Notificación Nueva Orden — orden → pagado ─────────────────────────────
 export const nuevaOrden: EventHandler = async (event): Promise<Objetivo | null> => {
   if (event.tipo !== 'order.pagado') return null;
@@ -43,13 +62,16 @@ export const nuevaOrden: EventHandler = async (event): Promise<Objetivo | null> 
   const to = toWhatsappNumber(order.cliente_telefono);
   if (!to) return { targetId: order.id, omitir: 'la orden no tiene un celular colombiano válido' };
 
+  // La plantilla declara el nombre del negocio como su 4ª variable (§ constants/automations.ts).
+  const { nombre } = await readSiteSettings();
+
   return {
     targetId: order.id,
     dispatch: {
       canal:       'whatsapp',
       to:          `+${to}`,
       templateKey: 'nueva_orden',
-      variables:   [nombreCorto(order.cliente_nombre), order.numero_orden, formatCOP(order.total)],
+      variables:   variablesNuevaOrden(nombreCorto(order.cliente_nombre), order.numero_orden, formatCOP(order.total), nombre),
     },
   };
 };
@@ -156,13 +178,16 @@ export const ordenEntregada: EventHandler = async (event): Promise<Objetivo | nu
   const to = toWhatsappNumber(order.cliente_telefono);
   if (!to) return { targetId: order.id, omitir: 'la orden no tiene un celular colombiano válido' };
 
+  // La plantilla declara el nombre del negocio como su 3ª variable (§ constants/automations.ts).
+  const { nombre } = await readSiteSettings();
+
   return {
     targetId: order.id,
     dispatch: {
       canal:       'whatsapp',
       to:          `+${to}`,
       templateKey: 'orden_entregada',
-      variables:   [nombreCorto(order.cliente_nombre), order.numero_orden],
+      variables:   variablesOrdenEntregada(nombreCorto(order.cliente_nombre), order.numero_orden, nombre),
     },
   };
 };

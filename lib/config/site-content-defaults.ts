@@ -46,6 +46,12 @@ export interface BrandStoryContent {
   imagen2: string;
   imagen3: string;
   imagen4: string;
+  // La VARIANTE de composición (§ eje 5e, TEMAS-P2-BRANDSTORY-1). 'columnas' es la ÚNICA clave hoy
+  // —y la canónica—: abre el slot para la PLATAFORMA de themes (tres de los cinco themes del programa
+  // la necesitan) sin construir ninguna forma alternativa todavía. Escalar de SECCIÓN —como
+  // `visible`—, no un `campos`: no lo toca el loop requerido/opcional del resolver. Gemela de
+  // `hero.variante`/`presentaciones.variante`.
+  variante: string;
 }
 
 // Presentaciones ("¿Cómo tomas tu café?"): de 2 a 4 tarjetas de presentación. Cardinalidad VARIABLE
@@ -188,12 +194,18 @@ export interface NosotrosGaleriaContent {
 // como "desde $X" son del cliente, y un número inventado sería dato FALSO en la ruta del dinero. Vacío
 // → NO se muestra (nunca placeholder ni "desde"). Nayoli no lleva precio → sus `precioN` nacen vacíos.
 //
-// La FRECUENCIA vive DENTRO de `descripcion` ("Una bolsa de 250 g cada mes"), como frase (owner, § b):
-// el sistema no la usa como dato —no hay pedidos recurrentes— así que un campo aparte sería una mina
-// inerte. Los BENEFICIOS por plan son `benN_1..4` OPCIONALES (el componente los junta con `.filter`,
-// hasta 4 sin hueco — como los bullets de subscriptionCTA). El DESTAQUE es UN índice de sección
-// (`destacadoSlot`, § c): unifica el `plan.popular` de esta página y el `i===1` hardcodeado del teaser
-// —estructuralmente imposible destacar dos—. '' = ninguno; default '2' (el Plan 500 g de hoy).
+// La FRECUENCIA vive DENTRO de `descripcion` ("El doble del plan básico, cada mes"), como frase
+// (owner, § b): el sistema no la usa como dato —no hay pedidos recurrentes— así que un campo aparte
+// sería una mina inerte. Los BENEFICIOS por plan son `benN_1..4` OPCIONALES (el componente los junta
+// con `.filter`, hasta 4 sin hueco — como los bullets de subscriptionCTA). El DESTAQUE es UN índice de
+// sección (`destacadoSlot`, § c): unifica el `plan.popular` de esta página y el `i===1` hardcodeado del
+// teaser —estructuralmente imposible destacar dos—. '' = ninguno; default '2' (el Plan Estándar de hoy).
+//
+// LOS NOMBRES NO LLEVAN UNIDAD (§ CONTENIDO-NEUTRALIZAR-3): 'Plan 250 g'/'Plan 500 g' presuponían
+// gramos, o sea la mercadería — un cliente de cualquier otro rubro los vería tal cual. Lo que un plan
+// distingue en CUALQUIER rubro es CUÁNTO (relativo al plan anterior) y CADA CUÁNTO, sin nombrar el
+// producto ni asumir peso/volumen: 'Plan Básico' → 'Plan Estándar' (el doble) → 'Plan Familiar' (el
+// doble del anterior). 'Plan Familiar' ya era genérico y no cambió.
 export interface SuscripcionPlanesContent {
   visible: boolean;
   eyebrow: string;
@@ -374,12 +386,12 @@ export function varianteDeBanda(content: SiteContentData, bandaId: BandaId): str
 export const DEFAULTS: SiteContentData = {
   hero: {
     visible: true,
-    eyebrow: 'Café de Especialidad · Colombia',
-    titulo: 'Café que cuenta',
+    eyebrow: 'Calidad en cada pedido',
+    titulo: 'Productos que cuentan',
     tituloEnfasis: 'historias',
     subtitulo:
-      'Café de especialidad cultivado por nuestra familia en Supatá, Cundinamarca. Una sola finca, una sola variedad, tostado en tandas semanales.',
-    ctaPrimarioLabel: 'Explorar Café',
+      'Cuidamos cada pedido de principio a fin: eliges lo que necesitas, te confirmamos enseguida, y lo recibes tal como lo esperabas.',
+    ctaPrimarioLabel: 'Ver Catálogo',
     ctaSecundarioLabel: 'Suscripción Mensual',
     imagen: '/images/hero-beans-v1.jpg',
     // La canónica (§ eje 5, EJE-5-VARIANTES-HERO): Nayoli queda byte-idéntica a la curtina de hoy.
@@ -388,15 +400,17 @@ export const DEFAULTS: SiteContentData = {
   brandStory: {
     visible: true,
     eyebrow: 'Nuestra Historia',
-    titulo: 'Del cafetal a tu taza',
+    titulo: 'Detrás de cada pedido',
     parrafo1:
-      'Café Nayoli nace en un solo lugar: la Finca Nayoli, en la vereda Providencia de Supatá, Cundinamarca. Cada grano viene de esta tierra, cultivado entre los 1.650 y 2.100 metros sobre el nivel del mar, donde la altura y el clima de la montaña colombiana dan al café su carácter.',
+      'Empezamos con una idea simple: que comprar algo bueno no debería ser complicado. Por eso cuidamos cada pedido como si fuera el único, desde que lo eliges hasta que lo recibes.',
     parrafo2:
-      'Trabajamos una sola variedad, Castillo, con proceso lavado — el método que mejor revela lo que esta tierra tiene para ofrecer. El resultado es una taza con fragancia a chocolate, aroma herbal e intenso, y un balance preciso entre acidez y cuerpo. El equilibrio que buscamos en cada tostión. Somos café de especialidad, 100% colombiano, de una finca con nombre y una historia que apenas comienza a contarse. Cuando abres una bolsa de Nayoli, sabes exactamente de dónde viene — y ese, para nosotros, es el verdadero secreto de Supatá.',
+      'Seguimos aquí gracias a quienes vuelven a pedir, y eso es lo que más nos importa cuidar: que la próxima vez sea tan buena como la primera.',
     imagen1: '/images/products-9.jpg',
     imagen2: '/images/products-7.jpeg',
     imagen3: '/images/products-10.jpg',
     imagen4: '/images/products-11.jpg',
+    // La canónica (§ eje 5e, TEMAS-P2-BRANDSTORY-1): Nayoli queda byte-idéntica al collage de hoy.
+    variante: 'columnas',
   },
   // Los literales que hoy viven en GrindChooser (OPCIONES + el encabezado). Byte a byte: sin fila de
   // SiteContent, la home queda IDÉNTICA (§ el test de byte-idéntico). Las imágenes son paths /public
@@ -404,15 +418,15 @@ export const DEFAULTS: SiteContentData = {
   presentaciones: {
     visible: true,
     eyebrow: 'Elige tu presentación',
-    titulo: '¿Cómo tomas tu café?',
-    label1: 'En grano',
-    copy1: 'Para moler en casa, máxima frescura.',
+    titulo: '¿Cómo lo prefieres?',
+    label1: 'Presentación Clásica',
+    copy1: 'La opción original, lista para usar.',
     imagen1: '/images/cafe-nayoli-250g-grano.webp',
-    categoria1: 'Café en Grano',
-    label2: 'Molido',
-    copy2: 'Listo para tu greca, filtro o prensa.',
+    categoria1: 'Clásico',
+    label2: 'Presentación Especial',
+    copy2: 'Pensada para quien busca algo distinto.',
     imagen2: '/images/cafe-nayoli-250g-molido.webp',
-    categoria2: 'Café Molido',
+    categoria2: 'Especial',
     // Tarjetas 3-4 opcionales, VACÍAS por defecto → Nayoli renderiza 2 (byte-idéntico). Un cliente
     // con 3-4 presentaciones las llena en el editor.
     label3: '', copy3: '', imagen3: '', categoria3: '',
@@ -423,11 +437,11 @@ export const DEFAULTS: SiteContentData = {
   subscriptionCTA: {
     visible: true,
     eyebrow: 'Plan Suscripción',
-    titulo: 'Tu café de Supatá, cada mes',
-    subtitulo: 'El mismo café de nuestra finca, tostado fresco y enviado a tu puerta. Pausa o cancela cuando quieras.',
-    bullet1: 'El mismo café de nuestra finca en Supatá',
-    bullet2: 'Grano o molido, como prefieras',
-    bullet3: 'Tostado fresco en tandas semanales',
+    titulo: 'Tu pedido, cada mes',
+    subtitulo: 'Recibe lo de siempre sin tener que acordarte de pedirlo cada vez.',
+    bullet1: 'Siempre lo mismo, sin que tengas que volver a elegirlo',
+    bullet2: 'Elige la presentación que prefieras',
+    bullet3: 'Se renueva automáticamente, sin líos',
     bullet4: 'Pausa o cancela cuando quieras',
     ctaLabel: 'Ver los planes',
   },
@@ -442,12 +456,12 @@ export const DEFAULTS: SiteContentData = {
   // entra como su propia sección en la tanda 2 (§ /nosotros — la galería).
   nosotrosHistoria: {
     visible: true,
-    eyebrow: 'Nuestra Historia',
-    titulo: 'Del cafetal a tu taza',
+    eyebrow: 'Quiénes Somos',
+    titulo: 'Cómo llegamos hasta acá',
     parrafo1:
-      'Café Nayoli nace en un solo lugar: la Finca Nayoli, en la vereda Providencia de Supatá, Cundinamarca. Cada grano viene de esta tierra, cultivado entre los 1.650 y 2.100 metros sobre el nivel del mar, donde la altura y el clima de la montaña colombiana dan al café su carácter.',
+      'Este negocio empezó con ganas de hacerlo distinto: responder rápido, cumplir lo que prometemos, y tratar a cada cliente como si fuera el primero. Con el tiempo eso se volvió la forma en que trabajamos todos los días.',
     parrafo2:
-      'Trabajamos una sola variedad, Castillo, con proceso lavado — el método que mejor revela lo que esta tierra tiene para ofrecer. El resultado es una taza con fragancia a chocolate, aroma herbal e intenso, y un balance preciso entre acidez y cuerpo. El equilibrio que buscamos en cada tostión. Somos café de especialidad, 100% colombiano, de una finca con nombre y una historia que apenas comienza a contarse. Cuando abres una bolsa de Nayoli, sabes exactamente de dónde viene — y ese, para nosotros, es el verdadero secreto de Supatá.',
+      'Hoy seguimos con la misma idea: que elegir, pedir y recibir sea simple, y que cada persona que confía en nosotros sienta que valió la pena.',
     parrafo3: '',
   },
   // La galería de /nosotros. Encabezado con defaults de COPY (se muestran sólo cuando hay fotos, por
@@ -456,29 +470,30 @@ export const DEFAULTS: SiteContentData = {
   nosotrosGaleria: {
     visible: true,
     eyebrow: 'Galería',
-    titulo: 'La finca en imágenes',
+    titulo: 'Nuestro trabajo en imágenes',
     items: [],
   },
   // Los PLANES de /suscripciones (antes `SUBSCRIPTION_PLANS` + los literales del encabezado). Byte a
   // byte: sin fila, /suscripciones y el teaser de la home quedan IDÉNTICOS. Precios VACÍOS (Nayoli no
-  // lleva). Destacado = slot '2' (el Plan 500 g, que hoy es el `popular`). Cada plan trae 3 beneficios
-  // (ben*_1..3); el 4º queda vacío (el componente lo omite → 3 bullets, como hoy).
+  // lleva). Destacado = slot '2' (el Plan Estándar, que hoy es el `popular`). Cada plan trae 3
+  // beneficios (ben*_1..3); el 4º queda vacío (el componente lo omite → 3 bullets, como hoy). Los
+  // NOMBRES son genéricos por CANTIDAD RELATIVA, no por unidad (§ CONTENIDO-NEUTRALIZAR-3, arriba).
   suscripcionPlanes: {
     visible: true,
-    eyebrow: 'Suscripción de Café',
-    titulo: 'Tu café de Supatá,',
+    eyebrow: 'Suscripción Mensual',
+    titulo: 'Tu pedido,',
     tituloEnfasis: 'cada mes',
-    subtitulo: 'El mismo café de nuestra finca, tostado fresco y enviado a tu puerta. Pausa o cancela cuando quieras.',
+    subtitulo: 'Elige cuánto quieres recibir y con qué frecuencia. Cambia, pausa o cancela cuando quieras.',
     planesTitulo: 'Elige tu plan',
     planesSubtitulo: 'Escríbenos y coordinamos tu suscripción por WhatsApp. Sin compromisos, pausa o cancela cuando quieras.',
     ctaLabel: 'Me interesa',
     destacadoSlot: '2',
-    nombre1: 'Plan 250 g', descripcion1: 'Una bolsa de 250 g cada mes', precio1: '',
-    ben1_1: 'Grano o molido, como prefieras', ben1_2: 'El mismo café de nuestra finca en Supatá', ben1_3: 'Tostado fresco en tandas semanales', ben1_4: '',
-    nombre2: 'Plan 500 g', descripcion2: 'Una bolsa de 500 g cada mes', precio2: '',
-    ben2_1: 'Grano o molido, como prefieras', ben2_2: 'El mismo café de nuestra finca en Supatá', ben2_3: 'Tostado fresco en tandas semanales', ben2_4: '',
-    nombre3: 'Plan Familiar', descripcion3: 'Dos bolsas de 500 g cada mes', precio3: '',
-    ben3_1: 'Grano o molido, como prefieras', ben3_2: 'Ideal para el hogar o la oficina', ben3_3: 'Tostado fresco en tandas semanales', ben3_4: '',
+    nombre1: 'Plan Básico', descripcion1: 'La opción de entrada, cada mes.', precio1: '',
+    ben1_1: 'La cantidad justa para empezar', ben1_2: 'Sin compromiso: cancela cuando quieras', ben1_3: 'Te llega el mismo día, cada mes', ben1_4: '',
+    nombre2: 'Plan Estándar', descripcion2: 'El doble del plan básico, cada mes.', precio2: '',
+    ben2_1: 'El doble de cantidad del plan básico', ben2_2: 'Pensado para quien ya sabe que quiere seguir', ben2_3: 'Nunca te quedas sin, mes tras mes', ben2_4: '',
+    nombre3: 'Plan Familiar', descripcion3: 'El doble del plan estándar, para compartir.', precio3: '',
+    ben3_1: 'El doble de cantidad del plan estándar', ben3_2: 'Ideal para el hogar o la oficina', ben3_3: 'Ajusta la fecha cuando lo necesites', ben3_4: '',
     nombre4: '', descripcion4: '', precio4: '',
     ben4_1: '', ben4_2: '', ben4_3: '', ben4_4: '',
   },
@@ -486,10 +501,10 @@ export const DEFAULTS: SiteContentData = {
   suscripcionPasos: {
     visible: true,
     titulo: '¿Cómo funciona?',
-    paso1Label: 'Elige tu plan', paso1Desc: 'Selecciona la frecuencia y cantidad que mejor se adapte a ti.',
-    paso2Label: 'Elige grano o molido', paso2Desc: 'Siempre el mismo café de nuestra finca — tú eliges cómo lo prefieres.',
-    paso3Label: 'Tostamos fresco', paso3Desc: 'Tostamos tu café en tandas semanales, días antes del envío.',
-    paso4Label: 'Recíbelo en casa', paso4Desc: 'Enviamos tu café fresco a todo el país.',
+    paso1Label: 'Selecciona tu plan', paso1Desc: 'Selecciona la frecuencia y cantidad que mejor se adapte a ti.',
+    paso2Label: 'Personaliza tu pedido', paso2Desc: 'Escoge la opción que mejor se ajuste a lo que buscas.',
+    paso3Label: 'Confirmamos tu pedido', paso3Desc: 'Te avisamos antes de que se procese, para que nunca haya sorpresas.',
+    paso4Label: 'Recíbelo en casa', paso4Desc: 'Enviamos tu pedido a todo el país.',
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
@@ -625,6 +640,14 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     label: 'Historia',
     ocultable: true,
     imagenes: ['imagen1', 'imagen2', 'imagen3', 'imagen4'],
+    // VARIANTES DE COMPOSICIÓN (§ eje 5e, TEMAS-P2-BRANDSTORY-1) — PRERREQUISITO del programa de
+    // themes, no una forma nueva: 'columnas' es la ÚNICA clave y la canónica —el layout de HOY,
+    // verbatim (texto a un lado, collage 2×2 al otro, `grid-cols-1 lg:grid-cols-2`)—. Abre el slot
+    // para que el theme que la necesite (tres de los cinco del programa) declare su alternativa sin
+    // tocar esta mecánica; el día que exista una segunda clave, `BrandStory.tsx` gana su dispatcher.
+    // `noUniformes`: NO — la banda es de un solo tono sólido (`bg-[var(--sf-banda,var(--sf-tinta))]`),
+    // nunca bi-tonal, y con una sola clave no hay otra variante con la que discrepar.
+    variantes: { claves: ['columnas'], canonica: 'columnas' },
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',

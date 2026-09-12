@@ -20,10 +20,10 @@ test('las 3 raíces se copian tal cual', () => {
   assert.equal(p.acento, '#8b4513');
 });
 
-test('deriva las 28 tintas (3 raíces + 18 de la RECETA + acento-txt + tarjeta/sobre + los 4 pares de §TEMAS-P6-FAMILIAS-1)', () => {
+test('deriva las 31 tintas (3 raíces + 18 de la RECETA + acento-txt + tarjeta/sobre + los 4 pares de §TEMAS-P6-FAMILIAS-1 + los 3 de §TEMAS-P6-FAMILIAS-2)', () => {
   const p = derivarPaleta(NAYOLI);
-  assert.equal(Object.keys(p).length, 28);
-  for (const k of ['superficie','linea','superficie-2','tinta-2','acento-2','acento-3','acento-4','acento-texto','acento-txt','texto','texto-suave','tostado','tostado-2','tostado-3','tostado-4','tostado-5','tostado-6','tostado-7','tostado-8','tarjeta','sobre','sobre-superficie','sobre-superficie-suave','sobre-tarjeta','sobre-tarjeta-suave']) {
+  assert.equal(Object.keys(p).length, 31);
+  for (const k of ['superficie','linea','superficie-2','tinta-2','acento-2','acento-3','acento-4','acento-texto','acento-txt','texto','texto-suave','tostado','tostado-2','tostado-3','tostado-4','tostado-5','tostado-6','tostado-7','tostado-8','tarjeta','sobre','sobre-superficie','sobre-superficie-suave','sobre-tarjeta','sobre-tarjeta-suave','sobre-tinta','sobre-acento','sobre-acento-2']) {
     assert.match(p[k], /^#[0-9a-f]{6}$/, `${k} debe ser hex`);
   }
 });
@@ -302,4 +302,82 @@ test('derivarEsquema: sobre-tarjeta CIERRA el hueco medido (1.215/1.249 con NAYO
   assert.ok(contraste(derivarPaleta(NAYOLI)['acento-texto'], acentoEsq.tarjeta) < 4.5, 'precondición: el defecto viejo debía existir en acento');
   assert.ok(contraste(oscuro['sobre-tarjeta'], oscuro.tarjeta) >= 4.5);
   assert.ok(contraste(acentoEsq['sobre-tarjeta-suave'], acentoEsq.tarjeta) >= 4.5);
+});
+
+// ── `sobre-tinta` (§ TEMAS-P6-FAMILIAS-2) — el WORDMARK del footer ──────────────────────────
+// El defecto: `Logo.tsx` (variant="dark", el footer sobre `bg-[var(--sf-tinta)]`) leía
+// `--sf-fondo` CRUDO como texto. `fondo` es RAÍZ, sin ninguna garantía de contrastar con `tinta`
+// —los dos son elegidos por el cliente por separado—. MEDIO reproduce el caso real: fondo y tinta
+// caen del mismo lado de luminancia (los dos casi negros), 1.085:1, muy por debajo de AA.
+test('REGRESIÓN §TEMAS-P6-FAMILIAS-2: `--sf-fondo` crudo como texto sobre `--sf-tinta` NO pasa AA de forma confiable (MEDIO)', () => {
+  assert.ok(
+    contraste(MEDIO.fondo, MEDIO.tinta) < 4.5,
+    `defecto esperado: fondo/tinta de MEDIO debía estar bajo AA (fue ${contraste(MEDIO.fondo, MEDIO.tinta).toFixed(3)})`,
+  );
+});
+
+test('derivarPaleta: sobre-tinta ≥4.5:1 contra `tinta`, en las 3 raíces del test', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO]) {
+    const p = derivarPaleta(raices);
+    assert.ok(
+      contraste(p['sobre-tinta'], p.tinta) >= 4.5,
+      `sobre-tinta debe pasar AA sobre tinta (fue ${contraste(p['sobre-tinta'], p.tinta).toFixed(3)})`,
+    );
+  }
+});
+
+test('derivarPaleta: sobre-tinta en MEDIO reproduce la cifra medida (20.22:1, blanco puro)', () => {
+  const p = derivarPaleta(MEDIO);
+  assert.equal(p['sobre-tinta'], '#ffffff');
+  assert.ok(Math.abs(contraste(p['sobre-tinta'], MEDIO.tinta) - 20.22) < 0.05);
+});
+
+// ── `sobre-acento`/`sobre-acento-2` (§ TEMAS-P6-FAMILIAS-2) — el NOMBRE del plan de suscripción ──
+// El defecto: `SubscriptionCTA` pintaba `p.nombre` con `--sf-tostado` fijo, decorativo y SIN piso,
+// sobre CUALQUIERA de las dos superficies de la tarjeta (`acento` la destacada, `acento-2` las
+// demás). MEDIO reproduce las dos cifras exactas del reporte: 3.135:1 sobre acento, 1.378:1 sobre
+// acento-2 — las dos bajo AA.
+test('REGRESIÓN §TEMAS-P6-FAMILIAS-2: `--sf-tostado` como texto de plan NO pasa AA contra `acento` ni `acento-2` (MEDIO)', () => {
+  const p = derivarPaleta(MEDIO);
+  assert.ok(
+    contraste(p.tostado, MEDIO.acento) < 4.5,
+    `defecto esperado: tostado/acento de MEDIO debía estar bajo AA (fue ${contraste(p.tostado, MEDIO.acento).toFixed(3)})`,
+  );
+  assert.ok(
+    contraste(p.tostado, p['acento-2']) < 4.5,
+    `defecto esperado: tostado/acento-2 de MEDIO debía estar bajo AA (fue ${contraste(p.tostado, p['acento-2']).toFixed(3)})`,
+  );
+});
+
+test('REGRESIÓN §TEMAS-P6-FAMILIAS-2: reusar `acento-txt` tal cual (floreado contra `acento`) NO alcanza contra `acento-2` (MEDIO)', () => {
+  const p = derivarPaleta(MEDIO);
+  assert.ok(
+    contraste(p['acento-txt'], p['acento-2']) < 4.5,
+    `defecto esperado: acento-txt/acento-2 de MEDIO debía estar bajo AA (fue ${contraste(p['acento-txt'], p['acento-2']).toFixed(3)})`,
+  );
+});
+
+test('derivarPaleta: sobre-acento/sobre-acento-2 ≥4.5:1 contra su propia superficie, en las 3 raíces del test', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO]) {
+    const p = derivarPaleta(raices);
+    assert.ok(
+      contraste(p['sobre-acento'], raices.acento) >= 4.5,
+      `sobre-acento debe pasar AA sobre acento (fue ${contraste(p['sobre-acento'], raices.acento).toFixed(3)})`,
+    );
+    assert.ok(
+      contraste(p['sobre-acento-2'], p['acento-2']) >= 4.5,
+      `sobre-acento-2 debe pasar AA sobre acento-2 (fue ${contraste(p['sobre-acento-2'], p['acento-2']).toFixed(3)})`,
+    );
+  }
+});
+
+test('derivarPaleta: sobre-acento en MEDIO es EXACTAMENTE acento-txt (mismo valor, nombre sin default)', () => {
+  const p = derivarPaleta(MEDIO);
+  assert.equal(p['sobre-acento'], p['acento-txt']);
+});
+
+test('derivarPaleta: sobre-acento-2 en MEDIO reproduce la cifra medida (12.567:1, blanco puro)', () => {
+  const p = derivarPaleta(MEDIO);
+  assert.equal(p['sobre-acento-2'], '#ffffff');
+  assert.ok(Math.abs(contraste(p['sobre-acento-2'], p['acento-2']) - 12.567) < 0.05);
 });

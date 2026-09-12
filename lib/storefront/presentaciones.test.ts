@@ -9,11 +9,13 @@ import { hrefCategoria } from '../productos/categorias';
 
 const base = DEFAULTS.presentaciones;
 
-test('Nayoli (defaults): exactamente 2 tarjetas, con los destinos de hoy', () => {
+test('los defaults: exactamente 2 tarjetas, con los destinos que las mismas categorías declaran', () => {
+  // El destino se DERIVA de `base.categoria1/2` (no de un literal de categoría propio del test): dos
+  // descripciones del mismo dato es cómo divergen — si el default cambia mañana, esto lo sigue solo.
   const t = tarjetasDePresentaciones(base);
   assert.equal(t.length, 2);
-  assert.equal(t[0].href, hrefCategoria('Café en Grano'));
-  assert.equal(t[1].href, hrefCategoria('Café Molido'));
+  assert.equal(t[0].href, hrefCategoria(base.categoria1));
+  assert.equal(t[1].href, hrefCategoria(base.categoria2));
   assert.equal(t[0].slot, 1);
   assert.equal(t[1].slot, 2);
 });

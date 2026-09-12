@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   planesDeSuscripcion,
-  pasosDeSuscripcion,
   planesDelTeaser,
   opcionesDestaque,
   gridColsPlanes,
@@ -11,46 +10,21 @@ import {
 } from './planes-suscripcion';
 import { DEFAULTS, type SuscripcionPlanesContent } from '../config/site-content-defaults';
 
-// § Backlog #49 — los planes de suscripción pasan a ser DATO. El invariante que MANDA es
-// BYTE-IDÉNTICO: los defaults resueltos deben reproducir los `SUBSCRIPTION_PLANS`/`SUBSCRIPTION_STEPS`
-// que hoy vive en el mock/constante (retirados en esta tanda). Se capturan sus valores como FIXTURE y
-// se comparan contra lo que `planesDeSuscripcion`/`pasosDeSuscripcion` derivan de `DEFAULTS`. Si un
-// default se desvía, este test cae — es la red que impide romper Nayoli sin darse cuenta.
-
-// FIXTURE: los `SUBSCRIPTION_PLANS` de hoy (verbatim del `lib/mock/subscriptions.ts` retirado).
-const PLANES_VIEJOS = [
-  { nombre: 'Plan 250 g', descripcion: 'Una bolsa de 250 g cada mes',
-    beneficios: ['Grano o molido, como prefieras', 'El mismo café de nuestra finca en Supatá', 'Tostado fresco en tandas semanales'], popular: false },
-  { nombre: 'Plan 500 g', descripcion: 'Una bolsa de 500 g cada mes',
-    beneficios: ['Grano o molido, como prefieras', 'El mismo café de nuestra finca en Supatá', 'Tostado fresco en tandas semanales'], popular: true },
-  { nombre: 'Plan Familiar', descripcion: 'Dos bolsas de 500 g cada mes',
-    beneficios: ['Grano o molido, como prefieras', 'Ideal para el hogar o la oficina', 'Tostado fresco en tandas semanales'], popular: false },
-];
-
-// FIXTURE: los `SUBSCRIPTION_STEPS` de hoy (verbatim del `constants/subscription-steps.ts` retirado).
-const PASOS_VIEJOS = [
-  { label: 'Elige tu plan', descripcion: 'Selecciona la frecuencia y cantidad que mejor se adapte a ti.' },
-  { label: 'Elige grano o molido', descripcion: 'Siempre el mismo café de nuestra finca — tú eliges cómo lo prefieres.' },
-  { label: 'Tostamos fresco', descripcion: 'Tostamos tu café en tandas semanales, días antes del envío.' },
-  { label: 'Recíbelo en casa', descripcion: 'Enviamos tu café fresco a todo el país.' },
-];
-
-test('BYTE-IDÉNTICO: los planes derivados de los DEFAULTS reproducen los SUBSCRIPTION_PLANS de hoy', () => {
-  const planes = planesDeSuscripcion(DEFAULTS.suscripcionPlanes);
-  assert.equal(planes.length, PLANES_VIEJOS.length, 'Nayoli tiene 3 planes (el 4º slot vacío se filtra)');
-  planes.forEach((p, i) => {
-    assert.equal(p.nombre, PLANES_VIEJOS[i].nombre);
-    assert.equal(p.descripcion, PLANES_VIEJOS[i].descripcion);
-    assert.deepEqual(p.beneficios, PLANES_VIEJOS[i].beneficios, 'los 3 beneficios, sin el 4º vacío');
-    assert.equal(p.destacado, PLANES_VIEJOS[i].popular, 'destacadoSlot=2 reproduce el `popular` del Plan 500 g');
-    assert.equal(p.precio, '', 'Nayoli no lleva precio (vacío → el componente lo omite)');
-  });
-});
-
-test('BYTE-IDÉNTICO: los pasos derivados reproducen los SUBSCRIPTION_STEPS de hoy', () => {
-  const pasos = pasosDeSuscripcion(DEFAULTS.suscripcionPasos);
-  assert.deepEqual(pasos, PASOS_VIEJOS);
-});
+// § Backlog #49 — los planes de suscripción pasaron a ser DATO. Este archivo probaba dos cosas
+// DISTINTAS bajo el mismo `describe` implícito: la MIGRACIÓN (que mudar el contenido de
+// `lib/mock/subscriptions.ts`/`constants/subscription-steps.ts` a `DEFAULTS` no perdiera nada) y la
+// CONDUCTA del resolver (cardinalidad, compactación de beneficios, la regla "sin nombre no se
+// muestra", los recortes del teaser). Las pruebas de conducta SIGUEN ACÁ, abajo — no dependen de qué
+// texto traigan los defaults.
+//
+// LAS DOS PRUEBAS "BYTE-IDÉNTICO" (planes y pasos) SE RETIRARON en CONTENIDO-NEUTRALIZAR-CIERRE-1.
+// Eran el GUARD de esa migración: comparaban `planesDeSuscripcion(DEFAULTS.suscripcionPlanes)` contra
+// una copia verbatim de los dos módulos retirados, para que mover el contenido no cambiara ni una
+// palabra. Esa migración YA TERMINÓ (los dos módulos no existen desde hace rato) y el guard cumplió su
+// función. Mantenerlo vivo hoy afirmaría lo CONTRARIO de lo que este slice decide a propósito: que los
+// defaults de `DEFAULTS.suscripcionPlanes`/`suscripcionPasos` siguen siendo el contenido de un cliente
+// (Café Nayoli) para siempre. La propiedad que hoy importa es la inversa —que los defaults NO son de
+// ningún cliente— y esa vive en `lib/config/site-content-defaults.test.ts`, no acá.
 
 test('REGLA ÚNICA (FIX A): un plan sin nombre NO se muestra — TAMBIÉN el slot 1, y TAMBIÉN si es el destacado', () => {
   // Slot 1 (antes forzado por `req`) sin nombre → NO se muestra. Con destacadoSlot=1 tampoco.
@@ -116,14 +90,26 @@ test('teaser: destacado YA dentro del recorte → recorte natural, sin reemplazo
 });
 
 // El select de destaque (§ FIX 2): opciones derivadas de los planes que EXISTEN, no del tope.
-test('destaque: las opciones son "Ninguno" + los planes que existen (con su nombre)', () => {
+//
+// DERIVADO de DEFAULTS (§ CONTENIDO-NEUTRALIZAR-3): antes comparaba contra los nombres LITERALES
+// ('Plan 250 g'/'Plan 500 g'/'Plan Familiar'), una segunda declaración del mismo contenido que
+// `site-content-defaults.ts` — la misma falla que este repo ya pagó cuatro veces (§ CLAUDE.md,
+// "documentar el criterio"). Lo que esta prueba afirma no es CUÁLES son los nombres, sino que
+// `opcionesDestaque` los REFLEJA: exactamente 4 opciones (Ninguno + los 3 planes CON nombre, sin un
+// 4º fantasma — el plan 4 nace vacío), en orden de slot, y el label es el nombre CONFIGURADO tal
+// cual — no el fallback `Plan ${slot}` (que sólo aparece si el nombre viniera vacío). Eso sigue
+// siendo una afirmación real aunque los nombres cambien: si `opcionesDestaque` alguna vez cayera al
+// fallback en vez de pasar el nombre, o si el plan 4 (sin nombre) colara una opción de más, esta
+// prueba lo atrapa igual.
+test('destaque: las opciones son "Ninguno" + los planes que existen (con su nombre configurado, no el fallback)', () => {
+  const { nombre1, nombre2, nombre3 } = DEFAULTS.suscripcionPlanes;
   const opts = opcionesDestaque(DEFAULTS.suscripcionPlanes);
   assert.deepEqual(opts, [
     { value: '',  label: 'Ninguno' },
-    { value: '1', label: 'Plan 250 g' },
-    { value: '2', label: 'Plan 500 g' },
-    { value: '3', label: 'Plan Familiar' },
-  ], 'con 3 planes: Ninguno + los 3, NO un 4º fantasma');
+    { value: '1', label: nombre1 },
+    { value: '2', label: nombre2 },
+    { value: '3', label: nombre3 },
+  ], 'con 3 planes: Ninguno + los 3 nombres configurados, en orden de slot, NO un 4º fantasma');
 });
 
 test('destaque: al agregar el 4º plan, aparece en la lista', () => {

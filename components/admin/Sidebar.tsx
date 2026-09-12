@@ -12,6 +12,7 @@ import { authClient } from "@/lib/auth-client";
 import { UserMenu } from '@/components/admin/UserMenu';
 import { useAtencion } from '@/hooks/useAtencion';
 import { atencionDeRuta, type MapaAtencion } from '@/lib/atencion/registro';
+import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 
 // ─── EL PUNTO SOL ─────────────────────────────────────────────────────────────
 //
@@ -183,12 +184,16 @@ function UserFooter({ compact }: { compact: boolean }) {
 // `-horizontal-v1.svg` hornea mark+lettering en un archivo, así que achicar las
 // letras achica el mark; por eso el wordmark va como texto y el mark va suelto
 // —`duna-mark-v1.svg`, el mismo que el rail colapsado, con su negativo en oscuro—.
-// El negocio ("Café Nayoli") debajo, muted, para que el wordmark no domine.
+// El negocio (`SiteSetting.nombre`, vía `useSiteSettings()`) debajo, muted, para que
+// el wordmark no domine. Antes era el nombre del negocio hardcodeado en texto plano —
+// el admin ya monta `SiteSettingsProvider` (app/(admin)/admin/layout.tsx) y este
+// componente no lo leía.
 //
 // EL ÁMBAR DEL MARK (#F59E0B = `--duna-sol`) ES MARCA, NO ESTADO — excepción
 // declarada (§ CLAUDE.md, "El ámbar del logo es marca, no atención"). Un logo es la
 // firma del producto, no un semáforo; ya vivía en el mark colapsado.
 function BrandLockup() {
+  const { nombre } = useSiteSettings();
   return (
     <div className="min-w-0 overflow-hidden">
       {/* EL LOCKUP HORIZONTAL real (mark + "DUNA" con su lettering propio), no texto:
@@ -207,7 +212,7 @@ function BrandLockup() {
         className="mt-1 whitespace-nowrap leading-none text-sidebar-foreground/55"
         style={{ fontSize: '.8rem', fontFamily: 'var(--duna-font-ui)' }}
       >
-        Café Nayoli
+        {nombre}
       </p>
     </div>
   );
