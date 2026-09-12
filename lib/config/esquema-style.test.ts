@@ -11,11 +11,11 @@ test('esquemaStyle: sin esquema (null/undefined) → {} — CERO vars locales (b
   assert.deepEqual(esquemaStyle(undefined, null, null, null), {});
 });
 
-test('esquemaStyle: con esquema, emite exactamente las 6 vars que un esquema mueve (§ home-2: + sobre-banda/-suave)', () => {
+test('esquemaStyle: con esquema, emite exactamente las 8 vars que un esquema mueve (§ home-2 + § TEMAS-P6-FAMILIAS-1: + sobre-tarjeta/-suave)', () => {
   const s = esquemaStyle('oscuro', null, null, null);
   assert.deepEqual(
     Object.keys(s).sort(),
-    ['--sf-banda', '--sf-linea-sobre', '--sf-sobre', '--sf-sobre-banda', '--sf-sobre-banda-suave', '--sf-tarjeta'],
+    ['--sf-banda', '--sf-linea-sobre', '--sf-sobre', '--sf-sobre-banda', '--sf-sobre-banda-suave', '--sf-sobre-tarjeta', '--sf-sobre-tarjeta-suave', '--sf-tarjeta'],
   );
 });
 
@@ -26,10 +26,40 @@ test('esquemaStyle: los valores emitidos SON los de `derivarEsquema` (mismo moto
     '--sf-banda': p.fondo,
     '--sf-tarjeta': p.tarjeta,
     '--sf-sobre': p.sobre,
+    '--sf-sobre-tarjeta': p['sobre-tarjeta'],
+    '--sf-sobre-tarjeta-suave': p['sobre-tarjeta-suave'],
     '--sf-linea-sobre': p.linea,
     '--sf-sobre-banda': p.texto,
     '--sf-sobre-banda-suave': p['texto-suave'],
   });
+});
+
+// ── --sf-sobre-tarjeta(-suave): el PAR de la familia tarjeta (§ TEMAS-P6-FAMILIAS-1) ─────────────
+// El hueco medido: los consumidores (ProductCard, SuscripcionPlanes, TestimonialSection) leían
+// tokens RAÍZ (`--sf-tinta`/`--sf-acento-texto`) dentro de `bg-[var(--sf-tarjeta)]`, sin florear
+// contra ELLA. `--sf-sobre` (ya existente) no sirve de reemplazo: es OTRO rol (texto-sobre-tinta,
+// usado en footer/botones/nav) y queda degenerado en 'crema' (ver el test de abajo).
+
+test('esquemaStyle: --sf-sobre-tarjeta(-suave) ≥4.5:1 contra --sf-tarjeta en LOS 4 ESQUEMAS (el peor caso, "crema", incluido)', () => {
+  for (const id of ['crema', 'superficie', 'oscuro', 'acento'] as const) {
+    const s = esquemaStyle(id, null, null, null);
+    assert.ok(
+      contraste(s['--sf-sobre-tarjeta'], s['--sf-tarjeta']) >= 4.5,
+      `${id}: --sf-sobre-tarjeta debe leerse sobre --sf-tarjeta`,
+    );
+    assert.ok(
+      contraste(s['--sf-sobre-tarjeta-suave'], s['--sf-tarjeta']) >= 4.5,
+      `${id}: --sf-sobre-tarjeta-suave debe leerse sobre --sf-tarjeta`,
+    );
+  }
+});
+
+test('esquemaStyle: --sf-sobre (el token VIEJO) NO alcanza 4.5:1 contra --sf-tarjeta con "crema" — por eso --sf-sobre-tarjeta no lo reusa', () => {
+  // Regresión documentada: si alguien "simplificara" reusando --sf-sobre para texto-sobre-tarjeta,
+  // este caso (medido 1:1, blanco sobre tarjeta blanca) lo delata.
+  const s = esquemaStyle('crema', null, null, null);
+  assert.ok(contraste(s['--sf-sobre'], s['--sf-tarjeta']) < 4.5);
+  assert.ok(contraste(s['--sf-sobre-tarjeta'], s['--sf-tarjeta']) >= 4.5, 'el par nuevo sí pasa donde el viejo no');
 });
 
 // ── --sf-sobre-banda(-suave): texto DIRECTO sobre la banda, no sobre la tarjeta (§ home-2) ──────

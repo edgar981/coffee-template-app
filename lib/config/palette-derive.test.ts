@@ -20,10 +20,10 @@ test('las 3 raíces se copian tal cual', () => {
   assert.equal(p.acento, '#8b4513');
 });
 
-test('deriva las 24 tintas (3 raíces + 18 de la RECETA + acento-txt + tarjeta/sobre, § eje 5b)', () => {
+test('deriva las 28 tintas (3 raíces + 18 de la RECETA + acento-txt + tarjeta/sobre + los 4 pares de §TEMAS-P6-FAMILIAS-1)', () => {
   const p = derivarPaleta(NAYOLI);
-  assert.equal(Object.keys(p).length, 24);
-  for (const k of ['superficie','linea','superficie-2','tinta-2','acento-2','acento-3','acento-4','acento-texto','acento-txt','texto','texto-suave','tostado','tostado-2','tostado-3','tostado-4','tostado-5','tostado-6','tostado-7','tostado-8','tarjeta','sobre']) {
+  assert.equal(Object.keys(p).length, 28);
+  for (const k of ['superficie','linea','superficie-2','tinta-2','acento-2','acento-3','acento-4','acento-texto','acento-txt','texto','texto-suave','tostado','tostado-2','tostado-3','tostado-4','tostado-5','tostado-6','tostado-7','tostado-8','tarjeta','sobre','sobre-superficie','sobre-superficie-suave','sobre-tarjeta','sobre-tarjeta-suave']) {
     assert.match(p[k], /^#[0-9a-f]{6}$/, `${k} debe ser hex`);
   }
 });
@@ -203,4 +203,103 @@ test('derivarEsquema: tarjeta/sobre por esquema no-crema NO son blanco fijo (se 
     assert.notEqual(p.tarjeta, '#ffffff', `${id}.tarjeta no debe quedar en el blanco fijo del default`);
     assert.ok(contraste(p.sobre, p.tarjeta) >= 4.5, `${id}.sobre debe leerse sobre ${id}.tarjeta`);
   }
+});
+
+// ── FAMILIA `superficie` (§ TEMAS-P6-FAMILIAS-1) — REGRESIÓN del defecto que el par nuevo cierra ──
+// `--sf-superficie` es RAÍZ (RECETA, nunca esquema-scoped), y hoy la leen ProductChip/ProductCard
+// con tokens de OTRAS familias (`--sf-tostado-3`, `--sf-tinta`, `--sf-texto`) que NUNCA se florearon
+// contra ella. Este test afirma el defecto tal cual estaba ANTES de este slice, con los exports que
+// YA existían (`derivarPaleta`, `contraste`) — VISTO FALLAR (node --import tsx --test
+// lib/config/palette-derive.test.ts) antes de agregar `sobre-superficie`: NAYOLI tostado-3/superficie
+// = 3.412 (medido, cerca de la cifra del censo, 3.41) y MEDIO texto/superficie = 4.186 — los dos bajo
+// 4.5. Éste es el discriminador de §4(c): un test que nunca se vio fallar no prueba nada.
+test('REGRESIÓN §2.2: los tokens de OTRAS familias que ProductChip/ProductCard leían hoy sobre `--sf-superficie` NO pasan AA de forma confiable', () => {
+  const pNayoli = derivarPaleta(NAYOLI);
+  const pMedio = derivarPaleta(MEDIO);
+  assert.ok(
+    contraste(pNayoli['tostado-3'], pNayoli.superficie) < 4.5,
+    `defecto esperado: tostado-3/superficie de NAYOLI debía estar bajo AA (fue ${contraste(pNayoli['tostado-3'], pNayoli.superficie).toFixed(3)})`,
+  );
+  assert.ok(
+    contraste(pMedio.texto, pMedio.superficie) < 4.5,
+    `defecto esperado: texto/superficie de MEDIO debía estar bajo AA (fue ${contraste(pMedio.texto, pMedio.superficie).toFixed(3)})`,
+  );
+});
+
+// ── FAMILIA `superficie`: su PROPIO par, floreado contra `--sf-superficie` (§ TEMAS-P6-FAMILIAS-1) ──
+// `--sf-superficie` es RAÍZ (RECETA), no esquema-scoped —a diferencia de `tarjeta`/`banda`, ningún
+// esquema la re-deriva—, así que su par vive en `derivarPaleta`, no en `esquemaStyle`. SIN default en
+// `globals.css` a propósito (mismo patrón que `--sf-sobre-banda`): los consumidores traen su propio
+// fallback al token de hoy, así que Nayoli (raíces null → `cssPaleta` no inyecta nada) no cambia.
+test('derivarPaleta: sobre-superficie/sobre-superficie-suave ≥4.5:1 contra `superficie`, en las 3 raíces del test', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO]) {
+    const p = derivarPaleta(raices);
+    for (const rol of ['sobre-superficie', 'sobre-superficie-suave']) {
+      assert.ok(
+        contraste(p[rol], p.superficie) >= 4.5,
+        `${rol} debe pasar AA sobre superficie (fue ${contraste(p[rol], p.superficie).toFixed(2)})`,
+      );
+    }
+  }
+});
+
+test('derivarPaleta: sobre-superficie y sobre-superficie-suave son DISTINTOS — la jerarquía principal/secundaria no se colapsa', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO]) {
+    const p = derivarPaleta(raices);
+    assert.notEqual(p['sobre-superficie'], p['sobre-superficie-suave']);
+  }
+});
+
+// ── FAMILIA `tarjeta`: el par completo — `--sf-sobre-tarjeta`/`-suave` (§ TEMAS-P6-FAMILIAS-1) ──
+// `--sf-sobre` YA EXISTE pero es INSEGURO para este rol: (a) es la MISMA var que el resto del
+// storefront usa como "texto sobre TINTA" (footer, botones, nav — su default de :root es #ffffff
+// para ESE rol, no para tarjeta), y (b) para el esquema 'crema' (tarjeta blanca fija) su valor
+// queda degenerado — blanco sobre blanco, 1:1, medido —. Reusarlo habría dejado el nombre del
+// producto invisible en CUALQUIER página sin esquema asignado (que es el caso real de Nayoli hoy en
+// /tienda, /suscripciones, y en el home mientras nadie asigne un esquema): `--sf-tarjeta` y
+// `--sf-sobre` son AMBOS #ffffff por default de `globals.css`, y ningún fallback CSS puede rescatar
+// una var que YA tiene default (var(--sf-sobre,X) nunca cae a X: la var siempre está definida). Por
+// eso el par nuevo lleva NOMBRE PROPIO, sin default en globals.css (mismo patrón que sobre-banda):
+// los 4 consumidores de esta pasada usan `var(--sf-sobre-tarjeta,var(--sf-tinta))` — Nayoli (sin
+// esquema en ningún lado) cae exactamente al texto de hoy.
+test('derivarPaleta: sobre-tarjeta (crema/default) es byte-idéntico al texto de HOY (tinta/acento-texto), no al degenerado --sf-sobre', () => {
+  const p = derivarPaleta(NAYOLI);
+  assert.equal(p.tarjeta, '#ffffff');
+  assert.equal(p.sobre, '#ffffff'); // el token viejo, sin tocar: sigue degenerado para 'crema'
+  assert.equal(p['sobre-tarjeta'], NAYOLI.tinta, 'sobre-tarjeta debe ganarle al blanco degenerado y dar la tinta');
+  assert.equal(p['sobre-tarjeta-suave'], NAYOLI.acento, 'sobre-tarjeta-suave = acento-texto de hoy, sin cambio (ya pasaba AA)');
+});
+
+test('derivarEsquema: sobre-tarjeta/sobre-tarjeta-suave ≥4.5:1 contra `tarjeta`, en los 4 esquemas × 3 raíces', () => {
+  const ids: EsquemaId[] = ['crema', 'superficie', 'oscuro', 'acento'];
+  for (const raices of [NAYOLI, NEON, MEDIO]) {
+    for (const id of ids) {
+      const p = derivarEsquema(raices, id);
+      for (const rol of ['sobre-tarjeta', 'sobre-tarjeta-suave']) {
+        assert.ok(
+          contraste(p[rol], p.tarjeta) >= 4.5,
+          `${id}.${rol} debe pasar AA sobre tarjeta (fue ${contraste(p[rol], p.tarjeta).toFixed(2)})`,
+        );
+      }
+    }
+  }
+});
+
+test('derivarEsquema: sobre-tarjeta y sobre-tarjeta-suave son DISTINTOS en los 4 esquemas — la jerarquía no se colapsa', () => {
+  for (const id of ['crema', 'superficie', 'oscuro', 'acento'] as const) {
+    const p = derivarEsquema(NAYOLI, id);
+    assert.notEqual(p['sobre-tarjeta'], p['sobre-tarjeta-suave'], `${id}: principal y secundario no deben coincidir`);
+  }
+});
+
+test('derivarEsquema: sobre-tarjeta CIERRA el hueco medido (1.215/1.249 con NAYOLI, tokens raíz sobre tarjeta esquemada)', () => {
+  // El defecto que motivó esta familia: `--sf-tinta` (root) contra la tarjeta de 'oscuro' daba
+  // 1.215:1, y `--sf-acento-texto` (root) contra la tarjeta de 'acento' daba 1.249:1 — los dos
+  // MEDIDOS contra el código de hoy, antes de este fix (§ el reporte de la tanda).
+  const oscuro = derivarEsquema(NAYOLI, 'oscuro');
+  const acentoEsq = derivarEsquema(NAYOLI, 'acento');
+  assert.ok(contraste(NAYOLI.tinta, oscuro.tarjeta) < 4.5, 'precondición: el defecto viejo debía existir en oscuro');
+  assert.ok(contraste(derivarPaleta(NAYOLI)['acento-texto'], acentoEsq.tarjeta) < 4.5, 'precondición: el defecto viejo debía existir en acento');
+  assert.ok(contraste(oscuro['sobre-tarjeta'], oscuro.tarjeta) >= 4.5);
+  assert.ok(contraste(acentoEsq['sobre-tarjeta-suave'], acentoEsq.tarjeta) >= 4.5);
 });
