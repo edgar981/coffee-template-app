@@ -469,3 +469,23 @@ Primera tanda del trabajo hacia el SEGUNDO cliente. Un censo (`ONBOARDING-CENSO-
 **Hallazgo medido que abre una ventana con fecha de cierre:** **ninguna de las tres plantillas de WhatsApp está registrada ni aprobada por Meta todavía.** Parametrizar el nombre del negocio es GRATIS hoy; en cuanto se envíe la primera, cada cambio pasa por aprobación **carácter por carácter**. **Queda como PRECONDICIÓN DE GO-LIVE de WhatsApp**, no como mejora opcional.
 
 Regla: § el primer OWNER de una tienda se crea sin sembrar la marca de otra —no ensuciar le gana a limpiar bien—, y el nombre del negocio es dato con una sola fuente, cuyo fallback nunca es el nombre de un cliente.
+
+## 2026-09-12 · La plataforma de themes gana su segunda mitad, y el repo gana una guarda de tipos (`TEMAS-P6-FAMILIAS-2`, `TEMAS-P2-BRANDSTORY-1`, `TIPOS-GUARDA-1`)
+`9e3f5be` · `0d6dd8c`, dos merges `--no-ff`
+
+Tercera y cuarta entrega de **P6**, más el slot de `brandStory` y —de rebote— la primera forma de chequear tipos que este repo tiene.
+
+**EL WORDMARK DEL FOOTER NO ESTABA EN NINGÚN SISTEMA.** El footer **vive fuera de `BANDA_IDS`**, así que `esquemaStyle` nunca lo scopea: pinta tokens raíz sobre `tinta`, sin piso. Medido, da 15–19:1 en cinco paletas y **1,085:1 en VETA** — ilegible. Ganó `sobre-tinta` (20,22:1 en VETA, sin empeorar ninguna de las otras cinco). **Se creó SIN su `-suave`**, y el worker lo justificó midiendo: wordmark y cherry son **la misma jerarquía visual**, un solo peso, y un token sin consumidor es la capacidad muerta que este repo ya prohibió dos veces.
+
+**EL MECANISMO ESTABA BIEN Y EL FONDO CONTRA EL QUE SE EVALUABA ESTABA MAL.** `acento-txt` es un auto-flip, pero **evaluado contra `acento`**, y las tarjetas de plan pintan sobre `acento-2`: 1,378:1. Reusar `acento-txt` ahí **tampoco alcanza** (1,609). El hermano evaluado contra el fondo correcto da **12,567**. Es la firma de toda esta familia: no falta mecanismo, falta que mire la superficie que sostiene el texto.
+
+**Y LA TRAMPA DEL DEFAULT DE RAÍZ SE DETECTÓ SOLA, que es la señal de que ya es doctrina.** El spec no la nombró para `acento-txt`; el worker midió que **ese token tiene default en `globals.css`**, dedujo que `var(x, fallback)` nunca caería al fallback, y que usarlo habría cambiado el color visible de Nayoli HOY. Agregó un token nuevo sin default y **declaró la ampliación de alcance en vez de ejecutarla en silencio**. Es la misma trampa que un día antes casi deja invisibles el nombre y el precio de los productos.
+
+**`brandStory` GANA SU SLOT AUNQUE NINGÚN THEME INMEDIATO LO USE, y el precedente en contra se afinó en vez de romperse.** El repo había evitado dos veces declarar un slot antes que su primera variante real («capacidad muerta»). El owner mantuvo P2 igual: *«tres de los cinco themes lo necesitan, y quiero el slot listo CON LA PLATAFORMA, no descubriéndolo theme por theme»*. **La regla queda afinada: «capacidad muerta» prohíbe un slot ESPECULATIVO; un slot con tres consumidores nombrados y fechados es PLATAFORMA.**
+
+**EL REPO NO TENÍA NINGUNA GUARDA DE TIPOS, y eso valía más que el error que la destapó.** `npm test` corre con `tsx`, que usa **esbuild**: transpila por archivo **sin resolver tipos entre módulos**. Por eso 1039 tests verdes convivían con un error de `tsc` vivo, y `package.json` no tenía forma de chequear tipos sin `next build` —que aplica migraciones—, así que **nadie podía correrlo sin tocar la base**. Ahora hay `npm run typecheck` (`tsc --noEmit`, **1,7–2,1s** medidos) y el owner lo mandó **al gate de todos los workers**: *«2s contra que tsc pase y el proyecto no compile es compra obvia»*.
+
+**El error que lo destapó no era de una sección, era de un PATRÓN**, y se descubrió porque **se mudó**: el slice de `brandStory` cambió la prueba a `subscriptionCTA` y el mismo `TS2352` reapareció sobre otra interfaz. `X as Record<string, unknown>` falla sobre **cualquier** interfaz de contenido, porque ninguna tiene index signature. Se arregló **sin ningún cast** — `'variante' in r.subscriptionCTA` —, que además dice con más precisión lo que la prueba quiere afirmar: **un cast en un test es una afirmación que el test no prueba.**
+
+Merges `--no-ff` mecánicos tras el gate del owner, trees == trees gateados, y **verificación del ÁRBOL COMBINADO** —que ninguna rama había probado— en `npm test` **1052/1052** y `npx tsc --noEmit` en **0**.
+Regla: § el mecanismo de piso puede estar bien y el FONDO contra el que evalúa estar mal; un test que castea afirma lo que no prueba; y un gate que corre con un transpilador sin chequeo de tipos no es una guarda de tipos.
