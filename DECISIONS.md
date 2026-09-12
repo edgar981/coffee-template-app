@@ -525,3 +525,21 @@ Regla: § el texto que un tercero va a aprobar carácter por carácter se parame
 
 Merge `--no-ff` mecánico tras el gate del owner sobre el TEXTO (no sobre el preview: la base de Preview tiene fila propia y sólo habría mostrado parte), tree == tree gateado (`b89d68a`), `npm test` **1064/1064** y `npx tsc --noEmit` en **0**.
 Regla: § un default que es el contenido de un cliente vivo se convierte en DATO de ese cliente antes de neutralizarse, nunca al revés; neutralizar es cambiar la estructura de la frase y no sus sustantivos; y el criterio de neutralidad se acota a lo que el schema modela.
+
+## 2026-09-12 · Los themes son DATO, y aplicar uno incompleto FALLA RUIDOSO (`TEMAS-PRESET-DATO-1` + `-CIERRE-1`)
+`6913c7a` + `fb52885`, merge `--no-ff`
+
+Pieza **0(d)** de la fase 0 del programa de THEMES. `lib/config/themes.ts` declara los cinco presets como DATO —raíces, par, forma, esquemas, orden y variante por sección— y `aplicarPreset` los escribe con la forma de `setPaginaVisible`: **merge quirúrgico, un solo write transaccional**, sin draft/publish. Por la API normal del panel harían falta ~8 llamadas HTTP; por este camino, una.
+
+**LA GUARDA ES EL SLICE, no el dato.** Hoy **casi ninguna** de esas variantes existe —`marquesina`, `tabla`, `hilo`, `chips`, `ticket`, `media`, `linea`, `collage`, `bento`, `mosaico` no están en ningún `claves`— y **`resolverVariante` cae a la canónica ante una clave desconocida SIN AVISAR**. Aplicar PLIEGO hoy daría **una tienda que no es PLIEGO, sin un solo error**: exactamente el fallo callado que este repo persigue. Por eso `aplicarPreset` **valida contra el `REGISTRY` ANTES de escribir** —variantes, bandas, esquemas, orden, par y forma— y **se niega nombrando lo que falta**, sin escribir nada. **Una validación parcial que escribe la mitad es peor que ninguna.**
+
+**Y DE ESA MISMA VALIDACIÓN SALE LA HOJA DE RUTA, medida en vez de afirmada:** `temasCompletos` deriva qué themes están listos. Hoy **1 de 6 — sólo el preset de ARRANQUE** (PLIEGO 5 faltantes · CORTE 4 · PATIO 7 · VETA 3 · VITRINA 5). Se recalcula sola cada vez que entra una variante: nadie tiene que acordarse de actualizar una lista. La guarda está **probada, no sólo escrita** — 8 de sus 18 tests fallan si se la neutraliza.
+
+**LA INVARIANTE VA EN EL DOCSTRING, no sólo en el commit:** `aplicarPreset` **nunca toca un texto ni una imagen del dueño**. El merge quirúrgico lo garantiza por construcción —sólo alcanza `tema`, `esquemas`, `orden` y `variante`—, y quien lea la función dentro de seis meses tiene que poder saberlo sin buscar el asiento. Que **no** haya guarda contra re-aplicar un preset distinto sobre un tenant ya afinado a mano está nombrado ahí como **propiedad conocida**, no como olvido: hoy no cuesta nada porque la composición nunca la toca el dueño (§ el panel NO lleva selector de composición).
+
+**EL CIERRE ES UNA LECCIÓN SOBRE QUÉ AFIRMA UN TEST.** Al mergear `main`, tres pruebas se cayeron **sin un solo defecto en `themes.ts`**: afirmaban **CUÁNTAS** variantes fallan, y `brandStory` acababa de ganar su slot (`TEMAS-P2-BRANDSTORY-1`), así que un faltante cambió de categoría. Un conteo escrito a mano que describe un conjunto que otro archivo produce es una **segunda declaración** —la falla que este repo pagó cuatro veces esta semana—. Ahora afirman **el CONJUNTO por nombre**, derivado y comparado con `deepEqual`: no se rompe cuando la plataforma crece, y **falla informando** —el día que se construya `hero·marquesina`, el test dice cuál salió de la lista en vez de «esperaba 5, recibí 4»—.
+
+**El worker arregló CINCO y no los TRES rotos**, y esa es la parte que vale: el mismo patrón vivía en PLIEGO, VETA y VITRINA, que no fallaban **por coincidencia** de que su número no cambió. Arreglar sólo lo roto habría dejado tres bombas idénticas armadas. Y la distinción más valiosa —**«sección sin slot» ≠ «clave inexistente»**, dos diagnósticos distintos— sobrevive moviendo su ejemplo de `brandStory` a **`featured`**, que sigue sin slot.
+
+Merge `--no-ff` mecánico, tree == tree gateado (`56e3c56`), `npm test` **1082/1082** y `npx tsc --noEmit` en **0**.
+Regla: § un preset que nombra una capacidad que el producto no tiene se REHÚSA nombrándola, nunca degrada en silencio; y un test que cuenta cuántos elementos fallan se rompe cuando la plataforma crece — el que nombra CUÁLES, no.
