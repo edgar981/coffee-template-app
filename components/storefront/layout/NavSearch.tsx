@@ -24,6 +24,7 @@ import {
 
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
+import { categoriasDelCatalogo } from "@/lib/productos/categorias";
 
 import { formatCOP } from "@duna/core/utils";
 
@@ -101,6 +102,15 @@ export default function NavSearch({
     ).slice(0, 6);
   }, [catalog, query]);
 
+  // Sugerencias del estado vacío: DERIVADAS del catálogo, no literales horneados —
+  // el mismo helper que alimenta las pestañas de /tienda (§ La taxonomía se DERIVA
+  // del catálogo). Un chip derivado ES una categoría que existe, así que no puede
+  // ofrecer una búsqueda sin resultados.
+  const categoriasSugeridas = useMemo(
+    () => categoriasDelCatalogo(catalog),
+    [catalog]
+  );
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -168,24 +178,21 @@ export default function NavSearch({
                     de origen.
                   </p>
 
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {[
-                      "Cold Brew",
-                      "Café Molido",
-                      "Geisha",
-                      "Suscripciones",
-                    ].map((term) => (
-                      <button
-                        key={term}
-                        onClick={() =>
-                          setQuery(term)
-                        }
-                        className="sf-pildora bg-[var(--sf-superficie)] px-4 py-2 text-xs font-medium text-[var(--sf-texto)] transition-colors hover:bg-[var(--sf-superficie-2)]"
-                      >
-                        {term}
-                      </button>
-                    ))}
-                  </div>
+                  {categoriasSugeridas.length > 0 && (
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {categoriasSugeridas.map((term) => (
+                        <button
+                          key={term}
+                          onClick={() =>
+                            setQuery(term)
+                          }
+                          className="sf-pildora bg-[var(--sf-superficie)] px-4 py-2 text-xs font-medium text-[var(--sf-texto)] transition-colors hover:bg-[var(--sf-superficie-2)]"
+                        >
+                          {term}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
