@@ -176,10 +176,10 @@ const PRESENTACIONES: SeccionConfig = {
   campos: [
     { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
     { name: 'titulo',  label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'label1',     label: 'Nombre',      hint: 'Ej. "En grano". Vacío: se usa el texto por defecto.' },
+    { name: 'label1',     label: 'Nombre',      hint: 'Ej. "Presentación Clásica". Vacío: se usa el texto por defecto.' },
     { name: 'copy1',      label: 'Descripción', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'categoria1', label: 'Presentación 1 · lleva a', categoria: true, tituloDe: 'label1', hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
-    { name: 'label2',     label: 'Nombre',      hint: 'Ej. "Molido". Vacío: se usa el texto por defecto.' },
+    { name: 'label2',     label: 'Nombre',      hint: 'Ej. "Presentación Especial". Vacío: se usa el texto por defecto.' },
     { name: 'copy2',      label: 'Descripción', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'categoria2', label: 'Presentación 2 · lleva a', categoria: true, tituloDe: 'label2', hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
     { name: 'label3',     label: 'Nombre',      opcional: true, hint: 'Ej. "Tortas".' },
@@ -327,8 +327,8 @@ const SUSCRIPCION_PLANES: SeccionConfig = {
     // un plan vaciado se muestra colgando en vez de perderse.
     { name: 'destacadoSlot',   label: 'Plan destacado',       opcional: true, opcionesDinamicas: 'destaquePlanes', hint: 'El plan que se resalta como "Más Popular". Sólo uno; la lista muestra los planes que existen.' },
     // Plan 1 (requerido). Los `benN_*` NO llevan descriptor: la lista los pasa por NOMBRE (§ bloques).
-    { name: 'nombre1',      label: 'Nombre',      hint: 'Ej. "Plan 250 g". Vacío: se usa el texto por defecto.' },
-    { name: 'descripcion1', label: 'Descripción', textarea: true, hint: 'Cantidad y frecuencia, p. ej. "Una bolsa de 250 g cada mes". Vacío: se usa el texto por defecto.' },
+    { name: 'nombre1',      label: 'Nombre',      hint: 'Ej. "Plan Básico". Vacío: se usa el texto por defecto.' },
+    { name: 'descripcion1', label: 'Descripción', textarea: true, hint: 'Qué incluye y cada cuánto llega, p. ej. "La opción de entrada, cada mes". Vacío: se usa el texto por defecto.' },
     { name: 'precio1',      label: 'Precio',      opcional: true, placeholder: '$ 45.000/mes', hint: 'Opcional, como TEXTO: escribe la moneda y la unidad, p. ej. «$ 45.000/mes» o «desde $ 40.000». Vacío: no se muestra.' },
     // Planes 2-4 (opcionales): nombre vacío → el plan no se muestra.
     { name: 'nombre2',      label: 'Nombre',      opcional: true, hint: 'Vacío: este plan no se muestra.' },
