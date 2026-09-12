@@ -590,7 +590,10 @@ test('REGISTRY.presentaciones declara `variantes` con el set cerrado y la canón
 
 test('una sección SIN `variantes` declarado no gana `variante` en el resuelto (subscriptionCTA, p. ej. — hero/presentaciones/brandStory SÍ, § EJE-5-VARIANTES-HERO y TEMAS-P2-BRANDSTORY-1)', () => {
   const r = resolverSiteContent({});
-  assert.equal((r.subscriptionCTA as Record<string, unknown>).variante, undefined);
+  // Sin cast: lo que se afirma es que la CLAVE no se ganó, no que valga `undefined` (una clave
+  // presente con valor `undefined` pasaría el `assert.equal` de antes sin que la sección
+  // realmente careciera de `variante`).
+  assert.equal('variante' in r.subscriptionCTA, false);
 });
 
 test('brandStory: sin fila, `variante` resuelve a la canónica "columnas" (byte-idéntico) — el slot que TEMAS-P2-BRANDSTORY-1 abre', () => {
