@@ -808,3 +808,17 @@ Los **nueve pares** de `lib/config/fuentes.ts` y el **`@import` de `app/globals.
 
 Merge `--no-ff` mecánico tras el gate del owner; `main` se había movido, así que la verificación fue por DIFF (idéntico al de la rama). Árbol combinado `npm test` **1104/1104** y `npx tsc --noEmit` en **0**.
 Regla: § un peso tipográfico que se pide y no se usa se descarga igual en cada visita — y quitarlo se verifica buscando, porque el navegador SINTETIZA en vez de fallar.
+
+## 2026-09-13 · Un botón que se veía activo y no hacía nada (`CHECKOUT-BOTON-ATRAS-MUERTO-1`)
+`bb44548`, merge `--no-ff`
+
+En el paso **Información** del checkout, «Atrás» hacía **`setStep(0)` sobre el paso 0**: se veía activo, respondía al hover, y **no pasaba nada**. El «Atrás» del paso de Pago hace lo mismo y ahí **sí** vuelve — el defecto era del primero, no del patrón.
+
+**Es la familia del BOTÓN MUERTO, y el repo ya la tiene nombrada**: *«las acciones que no aplican NO están, no se deshabilitan»*, y el precedente de `CustomerLink`, que renderiza texto plano cuando no hay perfil al que ir — *no dead link, no cursor-pointer promising a navigation that won't happen*. **Un control muerto en la ruta del dinero es una pregunta que el comprador se hace en el peor momento.**
+
+**LA DECISIÓN LA TOMÓ EL ORQUESTADOR de noche, con el owner durmiendo, y se deja DICHA para que sea revisable:** había dos caminos —que el botón no exista, o que salga a `/tienda`— y **se eligió que no exista**. La razón: **la salida YA existe** (la flecha del encabezado, presente en los dos pasos), y **un segundo control al mismo destino a diez píxeles del primero es cómo se llega a que uno de los dos diverja**. El owner lo gateó mirando y pasó.
+
+El comentario que queda en el código **explica por qué el botón NO está**, no qué se borró: sin eso, el próximo que mire una fila con un solo botón lo agrega de vuelta.
+
+Merge `--no-ff` mecánico tras el gate del owner, tree == tree gateado (`f3afe12`), `npm test` **1104/1104** y `npx tsc --noEmit` en **0**.
+Regla: § un control que no puede hacer nada se QUITA, no se deshabilita — y cuando la acción que ofrecía ya tiene otro control, agregarle un destino sería duplicar la salida en vez de arreglar el botón.
