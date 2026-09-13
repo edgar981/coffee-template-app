@@ -340,7 +340,11 @@ export default function Checkout() {
                       )}
                     </div>
                     <div className="flex gap-3 mt-2">
-                      <button onClick={() => setStep(0)} className="flex-1 sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)]">Atrás</button>
+                      {/* El paso Información no tiene "Atrás": es el primer paso, y la única
+                          salida ya es la flecha del encabezado (→ /tienda). Un "Atrás" acá
+                          hacía setStep(0) sobre el paso 0 — un botón activo que no hacía nada
+                          (§ CHECKOUT-BOTON-ATRAS-MUERTO-1). El botón que queda ocupa el ancho
+                          completo con flex-1: es la única acción del paso. */}
                       <button onClick={() => setStep(1)} disabled={!address.linea1 || !address.ciudad || !address.departamento || !phoneValid || (isBogota && !slot)} className="flex-1 bg-[var(--sf-tinta)] disabled:opacity-40 text-[var(--sf-sobre)] font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)]">Continuar al pago</button>
                     </div>
                   </div>
