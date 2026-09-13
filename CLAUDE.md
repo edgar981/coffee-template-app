@@ -2704,12 +2704,33 @@ Origen: retirar la nota "Pagos en línea próximamente" de la pantalla de Pagos
 (owner, 2026-08-18). Era una promesa de producto suelta en una pantalla de operación,
 no una deuda; su lugar es la hoja de ruta, no un cartel en el ledger.
 
-Va después del multitenant, y no es solo prioridad: el cobro automático toca la MISMA
-frontera que § "Decisión — Cuándo un pedido está pagado" —el `Payment` como único
-escritor del eje de cobro— y el puente con Carlos. Un webhook de PSP es un tercer
-escritor de dinero; entra cuando esa autoridad esté resuelta, no antes. El disparador
-real es **la decisión de pasarela**, que hoy no está tomada (Wompi es el candidato,
-no un hecho).
+**LA PASARELA YA ESTÁ DECIDIDA: es Wompi** (owner, 2026-09-13). Es la única con
+tarifa PUBLICADA y plazo de habilitación concreto (1–3 días hábiles) sin exigir
+Cámara de Comercio a una persona natural — lo que decide si un negocio chico
+puede usarla el día que firma; Mercado Pago gana en la firma del webhook y aun
+así se descarta porque no se pudo confirmar su cobertura de PSE en Colombia. El
+asiento con el porqué completo —qué se descartó y qué lo reabriría— vive en
+`DECISIONS.md`, `PASARELA-DECISIONES-LEDGER-1` (`4171903`).
+
+**Y el destino cambió: va a la DEMO, no después del multitenant** — el owner
+movió el disparador para adelante. Eso cambia el ORDEN, no la doctrina: el
+cobro automático sigue tocando la MISMA frontera que § "Decisión — Cuándo un
+pedido está pagado" —el `Payment` como único escritor del eje de cobro— y el
+puente con Carlos, que esta decisión no resuelve.
+
+**La preocupación por el tercer escritor de dinero QUEDÓ RESUELTA, y es lo que
+desbloquea el diseño.** Con el estado EN VUELO de un cobro (`PaymentIntent`) en
+una tabla APARTE —no un valor más de `Order.estado`, no un estado de
+`Payment`—, un webhook de PSP no entra como escritor paralelo: es un LLAMADOR
+MÁS de `registerOrderPaymentTx`, que sigue siendo el ÚNICO que crea un
+`Payment`. Hoy ese helper tiene TRES llamadores en producción
+(`app/api/orders/[id]/payments/route.ts`, `packages/core/src/orders.ts` vía
+`immediatePayment`, `packages/core/src/comprobantes.ts` vía
+`decidirComprobante`); el webhook sería el cuarto. La invariante que impide la
+plata fantasma —existe un `Payment` ⇒ la orden no está `pendiente`— no se
+toca. El diseño de `PaymentIntent`, el spike de sandbox de Wompi y el cableado
+del webhook con su reconciliación siguen sin construirse; qué queda abierto
+está en el asiento del ledger citado arriba.
 
 ### Reporte PDF descargable de Analítica
 
