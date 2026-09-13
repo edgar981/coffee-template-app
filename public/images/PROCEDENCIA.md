@@ -25,6 +25,18 @@ Licencia: **Unsplash License** en las cinco. URL de cada foto:
 que Unsplash pone en su propia URL de descarga — es evidencia primaria, no transcrita
 de memoria.
 
+## Retiros de este slice (NAYOLI-PNG-MUERTOS-1, 2026-09-12)
+
+Se borraron `cafe-nayoli-250g-grano.png`, `cafe-nayoli-250g-molido.png`,
+`cafe-nayoli-500g-grano-v2.png` y `cafe-nayoli-500g-molido-v2.png` (6,3 MB): **cero
+referencias en el repo y cero apariciones en todo el historial** (`git log -S` por
+archivo, sobre `--all`, da 0 los cuatro) — entraron como archivos y nunca los sirvió
+ni el código ni un producto sembrado. No tienen procedencia registrada porque nunca
+la tuvieron: son fotos del producto del cliente, sin autor ni licencia documentados
+en este archivo, y decirlo es más honesto que omitirlos en silencio. Sus cuatro
+`.webp` hermanos SÍ están en uso (`prisma/seed-products.ts`, y dos de ellos los sirve
+hoy la fila de `SiteContent` de Nayoli en producción) y no se tocaron.
+
 ## Regla de mantenimiento
 
 **Este archivo se actualiza al agregar o reemplazar cualquier imagen de `public/`.**
