@@ -24,6 +24,8 @@ import {
 
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
+import { categoriasDelCatalogo } from "@/lib/productos/categorias";
+import { buscarProductos } from "@/lib/productos/buscar";
 
 import { formatCOP } from "@duna/core/utils";
 
@@ -78,28 +80,22 @@ export default function NavSearch({
     };
   }, [onClose]);
 
-  const filteredProducts = useMemo(() => {
-    if (!query.trim()) return [];
+  // El predicado de coincidencia vive en lib/productos/buscar.ts (afirmable en un test);
+  // el tope de 6 es de PRESENTACIÓN (cuántas tarjetas caben en el panel), no de coincidencia,
+  // y se queda acá.
+  const filteredProducts = useMemo(
+    () => buscarProductos(catalog, query).slice(0, 6),
+    [catalog, query]
+  );
 
-    return catalog.filter(
-      (product) =>
-        product.nombre
-          .toLowerCase()
-          .includes(
-            query.toLowerCase()
-          ) ||
-        product.categoria
-          .toLowerCase()
-          .includes(
-            query.toLowerCase()
-          ) ||
-        product.origen
-          ?.toLowerCase()
-          .includes(
-            query.toLowerCase()
-          )
-    ).slice(0, 6);
-  }, [catalog, query]);
+  // Sugerencias del estado vacío: DERIVADAS del catálogo, no literales horneados —
+  // el mismo helper que alimenta las pestañas de /tienda (§ La taxonomía se DERIVA
+  // del catálogo). Un chip derivado ES una categoría que existe, así que no puede
+  // ofrecer una búsqueda sin resultados.
+  const categoriasSugeridas = useMemo(
+    () => categoriasDelCatalogo(catalog),
+    [catalog]
+  );
 
   return (
     <AnimatePresence>
@@ -168,24 +164,21 @@ export default function NavSearch({
                     de origen.
                   </p>
 
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {[
-                      "Cold Brew",
-                      "Café Molido",
-                      "Geisha",
-                      "Suscripciones",
-                    ].map((term) => (
-                      <button
-                        key={term}
-                        onClick={() =>
-                          setQuery(term)
-                        }
-                        className="sf-pildora bg-[var(--sf-superficie)] px-4 py-2 text-xs font-medium text-[var(--sf-texto)] transition-colors hover:bg-[var(--sf-superficie-2)]"
-                      >
-                        {term}
-                      </button>
-                    ))}
-                  </div>
+                  {categoriasSugeridas.length > 0 && (
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {categoriasSugeridas.map((term) => (
+                        <button
+                          key={term}
+                          onClick={() =>
+                            setQuery(term)
+                          }
+                          className="sf-pildora bg-[var(--sf-superficie)] px-4 py-2 text-xs font-medium text-[var(--sf-texto)] transition-colors hover:bg-[var(--sf-superficie-2)]"
+                        >
+                          {term}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
