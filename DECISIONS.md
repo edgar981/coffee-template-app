@@ -689,3 +689,23 @@ Las cinco rutas de stock que quedaban en `DEFAULTS` —el hero y las cuatro del 
 
 Merge `--no-ff` mecánico tras el gate del owner, tree == tree gateado (`49f7d9b`). Árbol combinado `npm test` **1101/1101** y `npx tsc --noEmit` en **0**.
 Regla: § una imagen de terceros entra al repo con su procedencia o no entra — y un default que ninguna base usa se cambia igual, porque lo que gobierna no es lo que hoy se ve sino con qué NACE el próximo despliegue.
+
+## 2026-09-12 · 6,3 MB que nadie referenció nunca (`NAYOLI-PNG-MUERTOS-1`)
+`1049a02`, merge `--no-ff`
+
+Los cuatro `public/images/cafe-nayoli-*.png` salen del repo. **CERO referencias en todo el árbol** —grep sobre código, seed, tests, CSS y config— **y CERO commits en el historial que los mencionen** (`git log -S --all`). **Entraron como archivos y nunca se referenciaron desde el código, ni una vez.** Pesaban **6,3 MB** contra los **168 KB** que suman los cuatro `.webp` hermanos.
+
+**LO QUE ESTO ACLARA, y es lo que valía medir: «las 8 fotos de Nayoli» eran TRES problemas distintos, no uno.** El pendiente estaba escrito como *«mudar los 8 al Blob antes de sacarlos del repo»*, y esa frase mezclaba tres cosas con soluciones opuestas:
+
+  - **los 4 `.png`** — sin consumidor. **No necesitan Blob ni migración: se borran.** Mudar al Blob existe para que **lo que un cliente SIRVE** siga estando cuando el archivo salga del repo; **un archivo que nadie sirve no tiene nada que preservar.**
+  - **los 2 `.webp` de 250 g** — los sirve la **fila de `SiteContent` de Nayoli** en sus dos tarjetas de Presentaciones. Ésos sí se suben por el editor, que los pone en Blob y actualiza su fila **en el mismo gesto**: la subida ES la migración.
+  - **los 2 `.webp` de 500 g** — sólo los usa `prisma/seed-products.ts`, o sea una base recién sembrada. Van con la de-Nayolificación del seed, no con esto.
+
+**Y LA PREGUNTA DEL OWNER FUE LA QUE LO DESTRABÓ: «¿qué imágenes usa la lista de productos entonces?»** Ninguna de las ocho. Medido en development: los cuatro productos apuntan a `blob.vercel-storage.com/productos/…`, portadas que el owner subió desde el panel el 2026-08-03. **El pendiente llevaba semanas escrito como un bloque de ocho archivos, y bastó preguntar quién los consume para que se partiera en tres — uno de los cuales era gratis.**
+
+**RESIDUO DECLARADO:** no se pudo verificar que ninguna fila de `Product` en PRODUCCIÓN apunte a uno de los cuatro PNG — la credencial de lectura se borró el mismo día (§ `SEC-CREDENCIAL-PROD-1`). El argumento del borrado **no depende de eso**: se sostiene en el grep del árbol y del historial, los dos en cero, y en que un path que nunca existió en el código no hay de dónde copiarlo. Y el peor caso es **una foto de producto rota con `git revert` inmediato**.
+
+`PROCEDENCIA.md` registra el retiro con su fecha y su razón — **un borrado también cambia el directorio**, y el archivo declara que se actualiza con cualquier cambio. No se les inventó procedencia: son fotos del producto del cliente y no la tenemos.
+
+Merge `--no-ff` mecánico tras el gate del owner, tree == tree gateado (`bf0ee66`), `npm test` **1101/1101** y `npx tsc --noEmit` en **0**.
+Regla: § antes de mudar un archivo al Blob hay que preguntar quién lo SIRVE — un pendiente escrito como un bloque de N archivos casi nunca es un solo problema, y la parte que nadie consume no se migra, se borra.
