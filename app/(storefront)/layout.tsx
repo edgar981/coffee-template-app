@@ -15,6 +15,7 @@ import { cssFuentes } from "@/lib/config/fuentes-style";
 import { linkFuentePar } from "@/lib/config/fuentes";
 import { cssForma } from "@/lib/config/forma-style";
 import { coloresPWA } from "@/lib/config/pwa-colores";
+import { ReducedMotionProvider } from "@/lib/animation";
 
 // El storefront se renderiza DINÁMICO (por request), no estático. Su layout lee la
 // identidad del negocio (SiteSetting) y el contenido de la home (SiteContent) de la BASE, y
@@ -113,26 +114,32 @@ export default async function StorefrontLayout({
   // recibe (documento aparte del admin), así que el `:root` no alcanza al panel (§ forma-style).
   const formaCss = cssForma(content.tema.forma);
   return (
-    <StorefrontThemeProvider>
-      {fuentesLink && <link rel="stylesheet" href={fuentesLink} />}
-      {paletaCss && <style dangerouslySetInnerHTML={{ __html: paletaCss }} />}
-      {fuentesCss && <style dangerouslySetInnerHTML={{ __html: fuentesCss }} />}
-      {formaCss && <style dangerouslySetInnerHTML={{ __html: formaCss }} />}
-      <SiteSettingsProvider value={settings}>
-        <SiteContentProvider value={content}>
-          <CartProvider>
-            {/* El wrapper del storefront: fondo y fuente de la tienda. Antes lo ponía el wrapper
-                del iframe (que además leía `?preview`, ya retirado); queda el div plano con las
-                MISMAS clases (`bg-[var(--sf-fondo)] font-inter`) para no cambiar el aspecto de la tienda. */}
-            <div className="min-h-screen bg-[var(--sf-fondo)] font-inter">
-              <StoreNav />
-              <main>{children}</main>
-              <StoreFooter />
-              <CartDrawer />
-            </div>
-          </CartProvider>
-        </SiteContentProvider>
-      </SiteSettingsProvider>
-    </StorefrontThemeProvider>
+    // ReducedMotionProvider (STOREFRONT-REDUCED-MOTION-1) envuelve TODO el árbol:
+    // hace que cualquier animación de framer-motion del storefront —hoy y la que se
+    // agregue después— respete `prefers-reduced-motion` sin que su componente tenga
+    // que declarar un guard propio. Ver `lib/animation.ts` para el mecanismo y sus límites.
+    <ReducedMotionProvider>
+      <StorefrontThemeProvider>
+        {fuentesLink && <link rel="stylesheet" href={fuentesLink} />}
+        {paletaCss && <style dangerouslySetInnerHTML={{ __html: paletaCss }} />}
+        {fuentesCss && <style dangerouslySetInnerHTML={{ __html: fuentesCss }} />}
+        {formaCss && <style dangerouslySetInnerHTML={{ __html: formaCss }} />}
+        <SiteSettingsProvider value={settings}>
+          <SiteContentProvider value={content}>
+            <CartProvider>
+              {/* El wrapper del storefront: fondo y fuente de la tienda. Antes lo ponía el wrapper
+                  del iframe (que además leía `?preview`, ya retirado); queda el div plano con las
+                  MISMAS clases (`bg-[var(--sf-fondo)] font-inter`) para no cambiar el aspecto de la tienda. */}
+              <div className="min-h-screen bg-[var(--sf-fondo)] font-inter">
+                <StoreNav />
+                <main>{children}</main>
+                <StoreFooter />
+                <CartDrawer />
+              </div>
+            </CartProvider>
+          </SiteContentProvider>
+        </SiteSettingsProvider>
+      </StorefrontThemeProvider>
+    </ReducedMotionProvider>
   );
 }
