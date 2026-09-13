@@ -32,7 +32,8 @@ test('Editorial NO lleva <link> (lo cubre el @import); un par CUSTOM sí, con su
   const l = linkFuentePar('calido');
   assert.ok(l);
   assert.match(l!, /^https:\/\/fonts\.googleapis\.com\/css2\?/);
-  assert.match(l!, /family=Fraunces:wght@400;500;600/);
+  assert.match(l!, /family=Fraunces:wght@400/);
+  assert.doesNotMatch(l!, /Fraunces:wght@400;500;600/);   // el título sólo pide el peso que se usa
   assert.match(l!, /family=Nunito\+Sans:wght@300;400;500;600;700/);
   assert.match(l!, /display=swap$/);
 });
@@ -70,14 +71,29 @@ test('linkFuentesTodas: UN link con TODAS las familias, deduplicado (Inter una s
   assert.equal((l.match(/family=/g) ?? []).length, 17);
 });
 
-test('Técnico recorta su DISPLAY a 400;600 (mitigación de peso: IBM Plex Mono no es variable)', () => {
+test('Técnico recorta su DISPLAY a un solo peso (400), como los otros ocho', () => {
   const tecnico = PARES_FUENTES.find((p) => p.clave === 'tecnico')!;
-  assert.equal(tecnico.googleTitulo, 'IBM+Plex+Mono:wght@400;600');   // display recortado, NO 400;500;600
+  assert.equal(tecnico.googleTitulo, 'IBM+Plex+Mono:wght@400');   // NI 400;600 NI 400;500;600
   assert.equal(tecnico.googleCuerpo, 'IBM+Plex+Sans:wght@300;400;500;600;700');   // cuerpo completo
   const l = linkFuentePar('tecnico');
   assert.ok(l);
-  assert.match(l!, /family=IBM\+Plex\+Mono:wght@400;600/);
+  assert.match(l!, /family=IBM\+Plex\+Mono:wght@400&/);
+  assert.doesNotMatch(l!, /IBM\+Plex\+Mono:wght@400;600/);
   assert.doesNotMatch(l!, /IBM\+Plex\+Mono:wght@400;500;600/);
+});
+
+// § FUENTES-PESOS-DISPLAY-SOBRAN-1: el storefront pinta el rol DISPLAY (.font-display/.font-playfair)
+// en un solo peso (400) — cero clases de peso Tailwind y cero `font-weight` sobre esas clases, en
+// todo app/(storefront) y components/storefront (censo + verificación, ver el comentario de cabecera
+// del archivo fuente). Pedir 500/600 descargaba un archivo por peso que nadie pinta: el navegador no
+// falla si un peso pedido no se usa, pero SÍ sintetiza un bold falso si un peso USADO no fue pedido —
+// así que la garantía barata desde capa 1 es que los NUEVE pares no puedan divergir entre sí en
+// silencio. Ver el test siguiente FALLAR revirtiendo un par a `;500;600` es la prueba de que ata algo.
+test('los NUEVE pares piden el MISMO conjunto de pesos de TÍTULO — ninguno puede divergir en silencio', () => {
+  const pesos = PARES_FUENTES.map((p) => p.googleTitulo.split(':wght@')[1]);
+  const unico = new Set(pesos);
+  assert.equal(unico.size, 1, `los pares divergen en el peso de título pedido: ${[...unico].join(' | ')}`);
+  assert.equal(unico.values().next().value, '400');   // el único peso que el storefront pinta
 });
 
 test('los CUATRO pares nuevos tienen label, descripción y <link> con sus 2 familias', () => {
@@ -101,6 +117,6 @@ test('los CUATRO pares nuevos tienen label, descripción y <link> con sus 2 fami
 test('urlGoogle arma la css2 con las dos familias del par', () => {
   assert.equal(
     urlGoogle(PAR_DEFECTO),
-    'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap',
+    'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400&family=Inter:wght@300;400;500;600;700&display=swap',
   );
 });
