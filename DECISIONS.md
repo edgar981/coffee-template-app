@@ -709,3 +709,64 @@ Los cuatro `public/images/cafe-nayoli-*.png` salen del repo. **CERO referencias 
 
 Merge `--no-ff` mecánico tras el gate del owner, tree == tree gateado (`bf0ee66`), `npm test` **1101/1101** y `npx tsc --noEmit` en **0**.
 Regla: § antes de mudar un archivo al Blob hay que preguntar quién lo SIRVE — un pendiente escrito como un bloque de N archivos casi nunca es un solo problema, y la parte que nadie consume no se migra, se borra.
+
+## 2026-09-12 · La lista Tier 1 nombraba las puertas y no lo que decide qué escriben (`TIER1-CRITERIO-DECISORES-1`)
+
+`TSCONFIG-DATOS-CLASSIFY-1` midió los accesos indexados de las rutas de dato y, de paso, contestó una
+pregunta sobre el PROTOCOLO: el criterio escrito de la lista Tier 1 (CLAUDE.md) terminaba en «cada
+puerta de escritura de stock, pagos y pedidos» — y la lista, en efecto, sólo nombraba **puertas**
+(handlers y las libs que las escriben). El censo midió tres archivos que gobiernan lo que esas puertas
+escriben, sin estar ellos mismos en la lista:
+
+  - **`packages/core/src/moliendas-opciones.ts`** — `moliendaAceptada` la llama `orders.ts:693`
+    (import en `orders.ts:6`), que sí es Tier 1. Decide qué molienda se puede comprar.
+  - **`packages/core/src/product-import.ts`** — crea productos con `crearProductoConAsiento`
+    (`product-import.ts:103`, import en `:3`), función que vive en `product-update.ts:211` — YA Tier 1.
+  - **`packages/core/src/timezone.ts`** — `dayKeyStart` alimenta `Payment.fecha` desde
+    `app/api/orders/[id]/payments/route.ts:42` (import en `:6`), que sí es Tier 1.
+
+**DOS ENTRAN, UNO NO, Y EL PORQUÉ ES LA REGLA.** `moliendas-opciones.ts` y `product-import.ts` deciden
+**si un producto se puede comprar**, la ruta del dinero una capa antes de la puerta. `timezone.ts`
+queda AFUERA: es una utilidad GENÉRICA de fechas —28 consumidores medidos (grep, excluidos tests), de
+Analítica a las automatizaciones al seed— y su conexión con el dinero es INDIRECTA, una entre tantas
+cadenas. Meterla
+pondría dos etapas sobre trabajo que no tiene nada que ver con dinero, por el peor consumidor entre
+muchos; **la protección tiene que ser proporcional al alcance del archivo, no sólo a su peor
+consumidor**.
+
+**LO QUE VALE MÁS QUE LOS DOS NOMBRES ES EL CRITERIO.** Agregar dos entradas parcha el síntoma; el
+criterio decía «puerta de escritura» y el próximo decisor se habría colado igual. Se reescribió la
+frase de CLAUDE.md para cubrir las DOS cosas — la puerta, y la función que esa puerta CONSULTA para
+decidir si la escritura procede y con qué valor — y se agregó el límite explícito, con `timezone.ts`
+como el caso que marca la frontera (alcance GENÉRICO, conexión INDIRECTA), para que el criterio no se
+vuelva infinito: casi todo termina alimentando algo de dinero por alguna cadena.
+
+**DESVIACIÓN MEDIDA respecto al spec:** el spec citaba `product-update.ts:104` (`sanitizeOpciones`)
+como la conexión de `product-import.ts` con Tier 1. Medido: `product-import.ts` NO llama
+`sanitizeOpciones` ni pasa `moliendasOpciones` en ningún punto — la fila importada nace sin opciones de
+molienda (comentario propio del archivo: "moliendas null → agrega directo"). La conexión real es
+distinta y más directa: `product-import.ts:103` llama `crearProductoConAsiento` (`product-update.ts:211`)
+sin pasar por `sanitizeOpciones`/`validarOpciones`, a diferencia de la ruta manual
+(`app/api/products/route.ts:43,55`) que sí las aplica antes de crear. O sea que `product-import.ts` es
+una SEGUNDA puerta al mismo escritor de stock, más permisiva que la primera — un argumento más fuerte
+para incluirlo, no más débil, sólo que por un camino distinto al que el spec citó. Se procedió con la
+inclusión sobre esta base medida.
+
+**LÍMITE DE VERIFICACIÓN, declarado:** este slice no pudo leer `dev-protocol/scripts/validate_spec.py`
+—vive fuera del working directory de este repo y el sandbox lo bloquea—, así que no se pudo confirmar
+por lectura directa cómo el validador extrae los disparadores de esta lista. Se preservó la forma
+estructural exacta de la línea (lista separada por comas dentro de una sola oración, con el mismo
+patrón `these measured surfaces: … and X.`) como la mitigación de mayor confianza disponible sin tocar
+el otro repo. Queda para que el orquestador confirme si su extractor toma las dos entradas nuevas.
+
+**El costo es real y se dice:** `moliendas-opciones.ts` y `product-import.ts` pasan a exigir dos etapas
+—sesión read-only primero, visto bueno del owner después— para cualquier cambio futuro. Es más lento
+a propósito.
+
+Cambio de sólo documento (`CLAUDE.md` + este archivo): sin schema, sin bytes de cliente
+(`customer_bytes.changed=false`), sin código tocado. `npm test` **1101/1101** y `npx tsc --noEmit` en
+**0** — igual al piso medido en `main` antes de la tanda; un cambio de prosa no debía mover ninguno de
+los dos, y no lo hizo.
+Regla: § el criterio de Tier 1 cubre la puerta de escritura Y la función que esa puerta consulta para
+decidir qué escribe — con un límite explícito (alcance acotado al dinero, no cualquier utilidad
+genérica que una cadena de dinero use de paso), para que no se vuelva infinito.
