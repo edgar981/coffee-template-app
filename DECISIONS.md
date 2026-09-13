@@ -858,3 +858,67 @@ Regla: § un control que no puede hacer nada se QUITA, no se deshabilita — y c
 
 Sin schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false`), sin código tocado — sólo este archivo. `npm test` **1104/1104** y `npx tsc --noEmit` en **0**, igual al piso medido en `main` antes de este asiento; un asiento de ledger no debía mover ninguno de los dos, y no lo hizo.
 Regla: § Pagos en línea (Wompi) — cobros automáticos (CLAUDE.md), a actualizar cuando el spike de `PaymentIntent` tenga forma.
+
+## 2026-09-13 · La idempotencia del webhook es INCIDENTAL, no diseñada — la columna única del PSP pasa de requisito de lista a pieza que la sostiene (`PASARELA-DOC-AL-DIA-1`)
+
+Este asiento es propio, no un append al de `PASARELA-DECISIONES-LEDGER-1` de arriba:
+ese asiento ya cerró con su propia verificación (`npm test`/`tsc` de esa foto), y esta
+entrada materializa en OTRO commit — la convención de este libro (línea 12, "Fecha =
+el commit que MATERIALIZÓ la decisión") pide una entrada nueva, no editar la vieja.
+
+**Eleva a decisión de diseño una medición que ese asiento ya había hecho** (línea 848,
+arriba: *«esa segunda entrega no crearía necesariamente un segundo Payment porque la
+orden ya no estaría `pendiente` — pero eso es protección INCIDENTAL … no idempotencia
+(reconocer el evento)»*). El owner pidió que suba de medición a regla de diseño, con
+estas palabras textuales:
+
+> HOY LA IDEMPOTENCIA ES INCIDENTAL — una segunda entrega no duplica el `Payment`
+> **porque la orden ya no está `pendiente`, no porque el evento se reconozca**. Con un
+> webhook que llega hasta 3 veces, eso no es protección: **es coincidencia**.
+>
+> Por eso la columna ÚNICA del id de transacción del PSP deja de ser «un requisito de
+> la lista» y pasa a ser LA PIEZA QUE SOSTIENE la idempotencia. Sin eso, el webhook no
+> se cablea.
+
+**Lo medido que lo sostiene, re-verificado contra el código de hoy:**
+
+- `registerOrderPaymentTx` hace un `tx.payment.create` INCONDICIONAL
+  (`packages/core/src/orders.ts:234`; la función arranca en `:227`) — no busca un
+  `Payment` existente antes de crear uno.
+- La única guarda contra un segundo `Payment` vive en el LLAMADOR, no en el helper: el
+  `SELECT … FOR UPDATE` sobre la orden en `packages/core/src/comprobantes.ts:149`,
+  dicho en su propio comentario (`:123`, *«LA GUARDA CONTRA UN SEGUNDO PAYMENT es el
+  `SELECT … FOR UPDATE` sobre la orden, NO una unique en la base (Payment no la
+  tiene)»*). Esa guarda depende de que el ESTADO de la orden haya cambiado, no de
+  reconocer el EVENTO — es justo la distinción que hace incidental a la protección de
+  hoy.
+- `Payment.referencia` es `String?` SIN `@unique`
+  (`packages/core/prisma/schema.prisma:299`; confirmado además que ningún `@@unique`
+  ni `@@index` del modelo la menciona) — hoy nada en el schema reconoce un segundo
+  evento del mismo cobro COMO duplicado.
+- El repo YA tiene el mecanismo para capturar el choque cuando exista la columna
+  única: `isUniqueViolation` (`packages/core/src/orders.ts:344`) atrapa el `P2002` de
+  Prisma, y hoy lo usa `createOrderWithCustomer` (`:598`) para deduplicar reintentos
+  concurrentes por `Order.idempotencyKey` — el mismo patrón, sobre otra columna.
+  Cablear el webhook no necesita inventar cómo capturar el choque; necesita la
+  columna que lo produzca.
+
+**Consecuencia de diseño, no de código:** cuando el webhook se cablee, la columna
+única del id de transacción del PSP —en `PaymentIntent` o donde termine viviendo— no
+es un campo más de la lista de la implementación: es la pieza sin la cual un
+reintento del webhook no puede reconocerse como EL MISMO evento, y sin ella la
+"idempotencia" del sistema sigue siendo la coincidencia de hoy.
+
+**Este asiento NO diseña esa columna** — nombre, tipo, migración siguen dependiendo
+del spike de sandbox y del diseño de `PaymentIntent` (`PASARELA-DECISIONES-LEDGER-1`,
+arriba, que ya dijo que eso no estaba decidido). Fija sólo QUÉ sostiene la
+idempotencia y POR QUÉ, no CÓMO se escribe.
+
+Regla: § Pagos en línea (Wompi) — cobros automáticos (CLAUDE.md), actualizada por este
+mismo slice; y el asiento `PASARELA-DECISIONES-LEDGER-1` de arriba, que sigue vigente
+en todo lo demás (`PaymentIntent` como tabla aparte, Wompi sobre Mercado Pago, la
+reconciliación no-opcional, las dos preguntas del spike).
+
+Sin schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false`), sin
+código tocado — sólo `CLAUDE.md` y este archivo. `npm test` **1104/1104** y
+`npx tsc --noEmit` en **0**, igual al piso medido en `main` antes de este asiento.
