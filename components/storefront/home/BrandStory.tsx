@@ -15,10 +15,10 @@ import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 // PRIMERA sección OCULTABLE: si `visible=false`, no se renderiza (self-gate). La home la rinde
 // como hermano plano (sin envoltorio ni separador), así que devolver null no deja hueco.
 const IMAGENES = [
-  { campo: "imagen1", alt: "Café",    offset: "" },
-  { campo: "imagen2", alt: "Tostado", offset: "mt-8" },
-  { campo: "imagen3", alt: "Finca",   offset: "-mt-4" },
-  { campo: "imagen4", alt: "Barista", offset: "mt-4" },
+  { campo: "imagen1", alt: "Una taza de café servida sobre una mesa de madera, con granos alrededor", offset: "" },
+  { campo: "imagen2", alt: "Cerezas de café secándose extendidas sobre una malla", offset: "mt-8" },
+  { campo: "imagen3", alt: "Las manos de un recolector mostrando cerezas rojas sobre su canasto", offset: "-mt-4" },
+  { campo: "imagen4", alt: "Una rama de cafeto con los granos todavía verdes", offset: "mt-4" },
 ] as const;
 
 export default function BrandStory({ style }: { style?: React.CSSProperties } = {}) {
