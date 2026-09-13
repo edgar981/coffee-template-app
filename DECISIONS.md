@@ -822,3 +822,39 @@ El comentario que queda en el código **explica por qué el botón NO está**, n
 
 Merge `--no-ff` mecánico tras el gate del owner, tree == tree gateado (`f3afe12`), `npm test` **1104/1104** y `npx tsc --noEmit` en **0**.
 Regla: § un control que no puede hacer nada se QUITA, no se deshabilita — y cuando la acción que ofrecía ya tiene otro control, agregarle un destino sería duplicar la salida en vez de arreglar el botón.
+
+## 2026-09-13 · Las decisiones de pasarela: Wompi, un estado «en vuelo» que es tabla aparte, y la reconciliación entra con el webhook (`PASARELA-DECISIONES-LEDGER-1`)
+
+**Elección a — el estado EN VUELO de un cobro en línea es una tabla nueva, `PaymentIntent`, no un valor más de algo existente.** Textual del owner:
+
+> «`Comprobante` y `Payment` son dos tablas porque son dos hechos. El intento y el pago también. Un
+> intento fallido no puede dejar rastro en la tabla que SIGNIFICA "esta orden está pagada", y
+> `registerOrderPaymentTx` sigue siendo el único escritor — la invariante que impide plata fantasma
+> queda intacta.»
+
+**Descartado 1 — un cuarto valor de `Order.estado`.** Barato de escribir, caro de verificar: `NON_CANCELLED_ESTADOS` (`packages/core/src/metrics/order-stat-filters.ts:125`) lleva su propio comentario admitiéndolo — *«Exhaustive over OrderStatus by construction — if a fourth estado is ever added, the `satisfies` still compiles but this list must be revisited»* (`:122-124`). Un estado nuevo que TypeScript no vigila es una mina inerte: el `satisfies` sigue en verde y las ~25 comparaciones de estado repartidas por el repo no se re-auditan solas.
+
+**Descartado 2 — darle estado al `Payment`.** Rompería `existe un Payment ⇒ la orden no está pendiente`, la mitad B de la invariante que afirma `tests/integracion/cobro-sincronizado.test.ts` (comentario en `:42`: *«existe un Payment ⇒ estado ≠ 'pendiente' (no hay pago huérfano)»*, aserción en `:54`). Es la prueba que impide la plata fantasma / el pago huérfano; un `Payment` con un estado intermedio la vuelve falsa por construcción.
+
+**Elección b — la pasarela es WOMPI.** Es la única con tarifa PUBLICADA y plazo de habilitación concreto (1–3 días hábiles) sin exigir Cámara de Comercio a una persona natural — lo que decide si un negocio chico puede usarla el día que firma. Los demás negocian tarifa por volumen, y negociar pide un volumen que el segundo cliente no tiene.
+
+**Y esto queda dicho porque el owner pidió explícitamente que quede, para que nadie lo re-abra en seis meses creyendo que no se miró: Mercado Pago gana en la firma del webhook** —HMAC-SHA256 verificada por su SDK oficial de Node, contra el `concat + SHA256` de Wompi que hay que implementar a mano— **y aun así se descarta, porque no se pudo confirmar su cobertura de PSE en Colombia.** Si algún día se confirma esa cobertura, ésa es la razón que habría que volver a pesar — no la firma, que ya perdió el argumento y no lo va a volver a ganar.
+
+**El alcance se ensancha solo: la reconciliación no es opcional.** Wompi reintenta un webhook fallido máximo 3 veces en 24 horas (30 min, 3 h, 24 h) y después desiste. Textual del owner: *«Con Wompi desistiendo a las 24 h, la RECONCILIACIÓN NO ES OPCIONAL — es parte del producto, no una mejora. Un pago aprobado cuyo webhook se perdió es plata real de un cliente real, invisible para siempre.»* Va en el MISMO programa que el webhook, no en un backlog para después.
+
+**Lo medido que encarece, verificado en el código, no supuesto:**
+
+- **No hay forma reusable de leer el body crudo.** Cero usos de `req.text()`/`request.text()` en todo `app/api` (grep, 0 resultados); `req.json()`/`request.json()` aparece **27** veces. El único webhook previo del repo, `app/api/upload/token/route.ts`, también parsea con `req.json()` (`:34`) y **delega la verificación a `storage.emitirTokenSubida`**, que envuelve `handleUpload` de `@vercel/blob/client` — el SDK de Blob hace el trabajo, no una firma verificada a mano sobre bytes crudos. No es precedente para leer y verificar un HMAC sobre el body sin parsear; es código nuevo.
+- **`registerOrderPaymentTx` no tiene idempotencia propia.** `packages/core/src/orders.ts:234` hace `tx.payment.create` incondicional — sin buscar un Payment existente antes de crear. La única guarda contra un segundo Payment vive en el LLAMADOR: el `SELECT … FOR UPDATE` sobre la orden en `packages/core/src/comprobantes.ts:149`, cuyo propio comentario (`:123`) lo dice — *«LA GUARDA CONTRA UN SEGUNDO PAYMENT es el `SELECT … FOR UPDATE` sobre la orden, NO una unique en la base (Payment no la tiene)»*. Y la consecuencia es la parte que vale: una segunda entrega del mismo evento de webhook no crearía necesariamente un segundo Payment porque la orden ya no estaría `pendiente` — pero eso es protección INCIDENTAL (depende de que el estado haya cambiado), no idempotencia (reconocer el evento). `Payment.referencia` es `String?` sin `@unique` (`packages/core/prisma/schema.prisma:299`, confirmado), así que hoy nada reconoce un segundo evento del mismo cobro COMO duplicado.
+- **Tres hallazgos que abaratan, y se escriben porque se olvidan:** `derivarCondicionPago` (`packages/core/src/orders.ts:25-31`) ya es un `else` genérico — `=== 'EFECTIVO' ? 'CONTRAENTREGA' : 'ANTICIPADO'` — así que un método de pasarela cae en ANTICIPADO sin tocar una línea. El enum Prisma `MetodoPago` ya anticipa la pasarela en su propio comentario (`packages/core/prisma/schema.prisma:368-369`): *«Manual payment methods. Extensible for online rails later (e.g. WOMPI) via `ALTER TYPE "MetodoPago" ADD VALUE 'WOMPI'`»*. Y `tienePendienteDeVerificar` (`lib/comprobante.ts:163-167`, sobre `cuantosSinVerificar` en `:152-155`) sólo cuenta comprobantes en estado `RECIBIDO`, así que un Payment nacido de un webhook — sin comprobante — no cae en el carril «Por verificar» por accidente.
+
+**Lo que este asiento NO decide, a propósito:**
+
+- **El diseño de `PaymentIntent`** — columnas, ciclo de vida, migración — no está decidido: depende de un spike en sandbox que todavía no corrió. Este asiento registra la FORMA elegida (tabla aparte) y su razón, no un schema.
+- **Nada sobre llaves productivas.** Sandbox hasta que Onix firme; el demo va en sandbox.
+- **Dos preguntas del spike quedan abiertas, y bloquean el diseño, no se contestan acá:** si `GET /v1/transactions?reference=` existe en la API de Wompi, y si las llaves de sandbox salen antes de aprobar la cuenta.
+
+**`CLAUDE.md` § «Pagos en línea (Wompi)» queda desactualizado por este asiento, y no se toca acá.** Esa sección dice hoy *«El disparador real es la decisión de pasarela, que hoy no está tomada (Wompi es el candidato, no un hecho)»* — con este asiento la decisión YA está tomada (Wompi). El resto de la sección sigue vigente: sigue gateado a la misma frontera (`Payment` como único escritor del eje de cobro) y al puente con Carlos, que este asiento no resuelve. Su actualización va con la implementación (cuando el spike y `PaymentIntent` tengan forma), no con este asiento de sólo-ledger.
+
+Sin schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false`), sin código tocado — sólo este archivo. `npm test` **1104/1104** y `npx tsc --noEmit` en **0**, igual al piso medido en `main` antes de este asiento; un asiento de ledger no debía mover ninguno de los dos, y no lo hizo.
+Regla: § Pagos en línea (Wompi) — cobros automáticos (CLAUDE.md), a actualizar cuando el spike de `PaymentIntent` tenga forma.
