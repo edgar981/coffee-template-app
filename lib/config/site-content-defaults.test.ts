@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import {
   DEFAULTS,
   REGISTRY,
@@ -1027,4 +1030,21 @@ test('DEFAULTS: ningún campo-imagen apunta a un archivo con marca de un cliente
     }
   }
   assert.deepEqual(ofensores, [], `default de imagen con marca de cliente: ${ofensores.join(' ; ')}`);
+});
+
+// ── IMAGENES-STOCK-TEMPLATE-1 (2026-09-12): toda ruta /images/… de un default APUNTA a un archivo
+// que EXISTE en `public/images/` ──────────────────────────────────────────────────────────────────
+// NO transcribe "los defaults son estas cinco rutas nuevas" — eso repetiría el cambio y se rompería
+// cada vez que alguien reemplace una foto sin tocar este test. En cambio DERIVA las rutas de
+// `valoresDeCamposImagen()` (la MISMA fuente que ya gobierna el borrado de blobs y el catcher de
+// marca de cliente arriba), filtra las que son un path ESTÁTICO de `/images/…` (una URL de Blob no
+// aplica — vive en otro storage) y afirma que el archivo está en disco. Así atrapa el error real que
+// puede pasar de verdad — un typo en el nombre, o un archivo que no se commiteó — sin volverse
+// frágil ante el próximo cambio de foto.
+test('DEFAULTS: toda ruta /images/… de un campo-imagen apunta a un archivo que existe en public/images/', () => {
+  const dirImagenes = path.join(fileURLToPath(new URL('.', import.meta.url)), '../../public/images');
+  const rutas = [...valoresDeCamposImagen()].filter(v => v.startsWith('/images/'));
+  assert.ok(rutas.length > 0, 'no se encontró ninguna ruta /images/… en los campos-imagen de DEFAULTS — ¿cambió el prefijo?');
+  const faltantes = rutas.filter(r => !existsSync(path.join(dirImagenes, r.slice('/images/'.length))));
+  assert.deepEqual(faltantes, [], `ruta de DEFAULTS sin archivo en disco: ${faltantes.join(' ; ')}`);
 });

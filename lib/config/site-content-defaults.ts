@@ -414,7 +414,7 @@ export const DEFAULTS: SiteContentData = {
       'Cuidamos cada pedido de principio a fin: eliges lo que necesitas, te confirmamos enseguida, y lo recibes tal como lo esperabas.',
     ctaPrimarioLabel: 'Ver Catálogo',
     ctaSecundarioLabel: 'Suscripción Mensual',
-    imagen: '/images/hero-beans-v1.jpg',
+    imagen: '/images/hero-cerezas-v1.jpg',
     // La canónica (§ eje 5, EJE-5-VARIANTES-HERO): Nayoli queda byte-idéntica a la curtina de hoy.
     variante: 'curtina',
   },
@@ -426,10 +426,10 @@ export const DEFAULTS: SiteContentData = {
       'Empezamos con una idea simple: que comprar algo bueno no debería ser complicado. Por eso cuidamos cada pedido como si fuera el único, desde que lo eliges hasta que lo recibes.',
     parrafo2:
       'Seguimos aquí gracias a quienes vuelven a pedir, y eso es lo que más nos importa cuidar: que la próxima vez sea tan buena como la primera.',
-    imagen1: '/images/products-9.jpg',
-    imagen2: '/images/products-7.jpeg',
-    imagen3: '/images/products-10.jpg',
-    imagen4: '/images/products-11.jpg',
+    imagen1: '/images/historia-1-v1.jpg',
+    imagen2: '/images/historia-2-v1.jpg',
+    imagen3: '/images/historia-3-v1.jpg',
+    imagen4: '/images/historia-4-v1.jpg',
     // La canónica (§ eje 5e, TEMAS-P2-BRANDSTORY-1): Nayoli queda byte-idéntica al collage de hoy.
     variante: 'columnas',
   },
