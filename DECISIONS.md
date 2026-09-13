@@ -770,3 +770,41 @@ los dos, y no lo hizo.
 Regla: § el criterio de Tier 1 cubre la puerta de escritura Y la función que esa puerta consulta para
 decidir qué escribe — con un límite explícito (alcance acotado al dinero, no cualquier utilidad
 genérica que una cadena de dinero use de paso), para que no se vuelva infinito.
+
+## 2026-09-12 · La tienda ignoraba «reducir movimiento» (`STOREFRONT-REDUCED-MOTION-1`)
+`8bf09b4`, merge `--no-ff`
+
+**Las 21 animaciones de entrada del storefront ignoraban `prefers-reduced-motion`.** A personas con trastornos vestibulares el movimiento les provoca **mareo y náusea**; el visitante ya había declarado su preferencia en el sistema operativo y el sitio la pasaba por encima.
+
+**LA PARTE QUE HACÍA INVISIBLE EL DEFECTO ES QUE PARECÍA CUBIERTO.** El repo **sí** tiene un guard global de `prefers-reduced-motion` (`app/globals.css`, cerca de `:247`) — pero neutraliza `animation-duration` y `transition-duration` **de CSS**, y **framer-motion no anima por CSS**: escribe estilos inline / WAAPI. **Lo esquivaba por construcción.** Y `NosotrosGaleria` ya usaba `useReducedMotion()`, pero **para decidir si reproduce un VIDEO**, no para su entrada. Dos mecanismos presentes, ninguno cubriendo el caso: el modo de falla más caro de encontrar.
+
+**EL ARREGLO ES UN PROVIDER, NO DOCE GUARDAS.** El spec obligó a **medir primero el camino de un solo archivo** antes de tocar los doce, y sirvió: `<MotionConfig reducedMotion="user">` en el layout del storefront. Medida su semántica en la versión instalada: los **`positionalKeys`** (x, y, scale, rotate, width, height…) pasan a instantáneos —**incluido `repeat: Infinity`**, así que la flecha en bucle del hero también queda— y **la opacidad sigue animando**. Aparecer sin desplazarse, que es la conducta correcta y no una degradación. Y **`whileInView`, `animate` y `AnimatePresence` pasan las tres por `animateTarget()`**, así que no queda residuo parcial.
+
+**LA DIFERENCIA ENTRE ARREGLAR Y HACER IMPOSIBLE, otra vez:** con doce guardas, el componente número trece se olvida. Con el provider, **no la escribe — no puede olvidarla.**
+
+**Detalle de implementación que es doctrina:** `layout.tsx` es un Server Component (async, Prisma) y **no puede importar `MotionConfig` directo** —el provider no trae `'use client'` propio—. Se envolvió en un módulo cliente dentro de `lib/animation.ts`, **el mismo patrón que ya usan `StorefrontThemeProvider`, `SiteSettingsProvider` y `CartProvider` en ese layout**.
+
+**Lo que NO se tocó, y son dos preguntas distintas que este slice mantuvo separadas:** la guarda de PREVIEW (`useIsPreview`, 64 apariciones) apaga porque dentro de un contenedor escalado la intersección no llega; `reduced-motion` apaga porque el visitante lo pidió. Que un provider cubra la segunda no vuelve redundante la primera.
+
+**Y un hallazgo que le cambia la forma al eje de movimiento que viene:** no existe «el default de duración» de framer-motion. La opacidad cae a un tween de 0,3 s, pero **las props de transform con ≤2 keyframes caen a un SPRING** (stiffness 500, damping 25), sin duración fija. **`TEMAS-P4-MOVIMIENTO-1` no puede ser «un multiplicador de duración»** — la mayor parte del movimiento no tiene duración que multiplicar. Su diseño se rehace con este dato.
+
+Merge `--no-ff` mecánico tras el gate del owner, tree == tree gateado (`d5d4d90`). Árbol combinado `npm test` **1104/1104** y `npx tsc --noEmit` en **0**.
+Regla: § un guard de `prefers-reduced-motion` escrito en CSS NO cubre lo que anima por JS — y cuando la guarda puede vivir en un provider, vive ahí: doce componentes que deben acordarse son doce oportunidades de olvidarse.
+
+## 2026-09-12 · Dos pesos tipográficos que toda página descargaba y nadie usaba (`FUENTES-PESOS-DISPLAY-SOBRAN-1`)
+`4909bdd`, merge `--no-ff`
+
+Los **nueve pares** de `lib/config/fuentes.ts` y el **`@import` de `app/globals.css:1`** pedían `wght@400;500;600` para la fuente de TÍTULOS. **Nadie usaba el 500 ni el 600:** cero clases de peso sobre `.font-display`/`.font-playfair`, cero reglas `font-weight`, en los 18 archivos que las montan.
+
+**Y el mecanismo que lo explica vale más que el hallazgo:** hay un reset **`h1..h6 { font-weight: inherit }`**, así que los títulos **no heredan el bold por defecto del navegador**. Sin ese reset, el 600 probablemente sí se usaría; con él, se descargaba para nada.
+
+**POR QUÉ UN CAMBIO DE DOS NÚMEROS EXIGIÓ UN CENSO ENSANCHADO:** si se quita un peso que algo SÍ usa, **el navegador no falla — SINTETIZA**. Toma el 400 y lo engorda por software: trazos deformes, espaciado roto, **y nada avisa**. Es la familia que este repo persigue —*no rompe, miente*— y por eso el criterio no fue «no encontré usos» sino **«busqué en estos lugares y no hay»**, con los lugares dichos.
+
+**Lo que se ahorra:** **2 archivos de fuente en TODA página** vía el `@import` global —también las de Nayoli, que corre Editorial por defecto— más 2 por cada par custom. Referencia medida en una tanda previa: **~24 KB por peso estático**.
+
+**La «excepción» resultó ser un DELTA, no un estado final.** `tecnico` ya venía en `400;600` (IBM Plex Mono no es variable en Google Fonts), así que pierde UN peso y no dos. El worker lo interpretó bien: la excepción era su edición, no su destino — **los nueve terminan en el mismo conjunto**, que es lo que permite afirmar coherencia.
+
+**LO QUE EL TEST SÍ Y NO PUEDE AFIRMAR, declarado:** atar «peso PEDIDO» a «peso USADO» de forma derivada exigiría parsear clases construidas con `cn()`, y ése no es el patrón de test puro del repo. Quedó la garantía **más débil pero real**: **los nueve pares no pueden divergir entre sí en silencio.** La fuerte vive en un lint dedicado o en el gate visual — nombrado, no fingido.
+
+Merge `--no-ff` mecánico tras el gate del owner; `main` se había movido, así que la verificación fue por DIFF (idéntico al de la rama). Árbol combinado `npm test` **1104/1104** y `npx tsc --noEmit` en **0**.
+Regla: § un peso tipográfico que se pide y no se usa se descarga igual en cada visita — y quitarlo se verifica buscando, porque el navegador SINTETIZA en vez de fallar.
