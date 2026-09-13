@@ -651,3 +651,41 @@ Regla: § un censo de superficies por DESTINO no encuentra contenido por TEMA �
 
 Merge `--no-ff` mecánico **sin gate visual** (Merge Policy A: sin schema, sin bytes de cliente —`customer_bytes.changed=false`, cero texto o conducta visible— y sin contrato cross-repo: es un tipo interno entre dos archivos del MISMO repo, y el payload de red `MapaAtencion` no cambió). tree == tree de la rama (`46e72dc`), `npm test` **1095/1095** y `npx tsc --noEmit` en **0** — igual al piso medido en `main` antes de la tanda.
 Regla: § un comentario que afirma una garantía inexistente es peor que no tenerlo — la garantía real se pone en el tipo (`Record<Union, …>` exhaustivo, derivado con `as const satisfies`), nunca en la promesa de que "el test lo dice".
+
+## 2026-09-12 · Las sugerencias del buscador no podían traer nada (`NAVSEARCH-CHIPS-MUERTOS-1` + `-CIERRE-1`)
+`2d4f547` + `e706e01`, merge `--no-ff`
+
+**TRES DE CUATRO NO TRAÍAN UN SOLO RESULTADO.** El estado vacío de `NavSearch` horneaba cuatro sugerencias —`Cold Brew`, `Café Molido`, `Geisha`, `Suscripciones`— y su filtro busca en **`nombre`, `categoria` y `origen`, no en `variedad`**. Medidas contra el catálogo REAL de Nayoli: **Cold Brew 0** (sólo existe como `metodo` de una molienda, que el filtro no mira), **Geisha 0** (su variedad es Castillo, y variedad ni se busca), **Suscripciones 0** (no es un producto y nunca va a serlo). Sólo `Café Molido` daba 2.
+
+**Y el sitio importa tanto como el número: es el estado VACÍO del buscador**, o sea el lugar exacto donde un visitante que nunca buscó nada toca para aprender qué hace la búsqueda. **Le enseñaba que está rota.**
+
+**El arreglo es la doctrina de la casa: derivar.** Las sugerencias salen de **`categoriasDelCatalogo`** —el QUINTO consumidor del mismo helper que ya alimenta las pestañas de `/tienda`, el filtro de `/admin/productos`, el combobox de categoría y los avisos del Dashboard— y salió casi gratis porque **`catalog` ya estaba en scope** del componente. *Una lista escrita a mano se queda vieja; una derivada no puede.* **Un chip derivado del catálogo no puede morir, porque su texto ES una categoría que existe.**
+
+**EL CIERRE EXISTE PORQUE EL SPEC PIDIÓ UN TEST Y SU `touches:` LO HACÍA IMPOSIBLE** —error del orquestador—. El worker se negó a escribir fuera del alcance, citó el precedente, y verificó con un script desechable. **Pero su diagnóstico de por qué era incómodo es el que armó el cierre:** `NavSearch` **no exportaba su predicado** —vivía inline en un `useMemo`—, así que cualquier test habría tenido que **reescribirlo** y habría afirmado su propia copia. Dos declaraciones del mismo conjunto, la falla que este repo pagó con `CATEGORIAS`/`CATEGORIA_LABELS`, con el schema editable de `presentaciones` y con el union de `CheckoutPayload` el mismo día.
+
+**Se extrajo a `lib/productos/buscar.ts`, que es lo que el repo hace siempre** —`tarjetasDePresentaciones`, `metodosDisponibles`, `curvaDibuja`, `estadoEntrega`, `itemsDeAtencion` nacieron todos así—: *se extrae lo que tiene la decisión para poder afirmarlo*. El tope de 6 **se quedó en el componente**, con la distinción correcta: **un tope es PRESENTACIÓN, un predicado es COINCIDENCIA.**
+
+**LA PROPIEDAD QUE AFIRMA EL TEST NO ES «LOS CHIPS FUNCIONAN»: ES EL ACOPLE** entre de dónde salen los chips y qué busca el filtro. Por eso no es tautológica, y se demostró: al sacar `categoria` del predicado el test falla **nombrando el conjunto** (`['Accesorios','Camisetas','Pantalones']`), y el histórico nombra `['Cold Brew','Geisha','Suscripciones']`.
+
+**LO QUE NO SE TOCÓ, y la distinción es la que ordena el backlog:** la línea «Busca productos, categorías o **cafés de origen**». Los chips estaban muertos **para Nayoli HOY**; ese copy es **CORRECTO para ella** y sólo estará mal para un cliente de otro rubro — es el ítem #63, con su propio disparador. Arreglarlo de paso habría dejado #63 medio hecho sin que nadie supiera qué le falta.
+
+Merge `--no-ff` mecánico tras el gate del owner; `main` se había movido, así que la verificación fue por DIFF —el merge introdujo exactamente el de la rama, nada más—. Árbol combinado `npm test` **1101/1101** y `npx tsc --noEmit` en **0**.
+Regla: § un control que ofrece una búsqueda tiene que derivarse de lo que la búsqueda puede encontrar — y para poder afirmarlo, el predicado sale del componente, porque un test que lo reescribe afirma su propia copia.
+
+## 2026-09-12 · Las cinco imágenes por defecto dejan de ser stock sin procedencia (`IMAGENES-STOCK-TEMPLATE-1`)
+`650ecf7`, merge `--no-ff`
+
+Las cinco rutas de stock que quedaban en `DEFAULTS` —el hero y las cuatro del collage de `brandStory`— pasan a cinco fotos de Unsplash **elegidas y descargadas por el owner**, con su licencia registrada.
+
+**ESTE SLICE NO MUEVE UN PÍXEL EN NINGÚN DESPLIEGUE VIVO, y eso se MIDIÓ antes de escribirlo.** Lectura read-only contra las dos bases: **producción (`ep-ancient-frog`) tiene fila de `SiteContent` con las cinco rutas viejas adentro**, y **development (`ep-still-sound`) también**. El resolver usa lo ALMACENADO; el default sólo aplica donde **no hay fila**. Los previews apuntan a development, así que **ni la tienda de Nayoli ni el preview cambian** — lo que cambia es con qué **nace un despliegue nuevo**, que hoy no existe.
+
+**De ahí salen las dos consecuencias que ordenaron el slice:** que **las cinco imágenes viejas NO se borran** —son las que Nayoli sirve HOY, y salen el día que su fila apunte a otra cosa, la misma ventana que los `cafe-nayoli-*`—, y que **el gate NO podía ser visual**. Decirlo en el spec evitó que el worker inventara una verificación que no se puede correr.
+
+**LO QUE EL SLICE COMPRA ES HIGIENE LEGAL, no una mejora visual, y conviene tenerlo escrito para que nadie lo lea como cosmética:** el template dejaba de shippear fotos de terceros **sin un solo rastro de procedencia**. `public/images/PROCEDENCIA.md` registra autor, id de Unsplash y fecha por archivo. **La licencia de Unsplash es irrevocable para lo que se descargó — pero sólo si dentro de dos años alguien puede reconstruir QUÉ y CUÁNDO.** Y deja escrita su regla de mantenimiento: *un registro de procedencia que se queda viejo es peor que ninguno, porque afirma una cadena de custodia que ya no cubre lo que hay.*
+
+**LOS CUATRO `alt` ENTRARON AL SLICE Y NO ESTABAN EN LA LISTA.** Estaban HORNEADOS en `BrandStory.tsx` y decían `Café · Tostado · Finca · Barista`; con las fotos nuevas describían algo que no está — un lector de pantalla habría anunciado «Barista» sobre una taza servida en una mesa. **Es accesibilidad, no cosmética.** El `alt=""` del hero **se queda vacío a propósito**: es decorativa de fondo al 40% bajo gradientes, y el titular ya dice lo que la sección dice.
+
+**Y EL TEST NO TRANSCRIBE EL CAMBIO.** Afirmar «los defaults son estas cinco rutas» repetiría el diff y se rompería con cada foto nueva. Afirma que **toda ruta `/images/…` de un campo-imagen apunta a un archivo que EXISTE en disco**, DERIVADA de `valoresDeCamposImagen()` —la misma fuente que ya gobierna el borrado de blobs y el catcher de marca de cliente—, filtrando los paths estáticos (una URL de Blob vive en otro storage). Con guarda de lista no-vacía, así que un cambio de prefijo falla ruidoso en vez de pasar en vacío. **Atrapa el error que de verdad ocurre —un typo, o un archivo sin commitear— y no se vuelve frágil ante el próximo cambio de foto.**
+
+Merge `--no-ff` mecánico tras el gate del owner, tree == tree gateado (`49f7d9b`). Árbol combinado `npm test` **1101/1101** y `npx tsc --noEmit` en **0**.
+Regla: § una imagen de terceros entra al repo con su procedencia o no entra — y un default que ninguna base usa se cambia igual, porque lo que gobierna no es lo que hoy se ve sino con qué NACE el próximo despliegue.
