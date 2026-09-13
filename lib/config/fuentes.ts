@@ -8,18 +8,26 @@
 // caen a su fallback (Inter/Playfair, que carga el `@import` de globals.css) → Nayoli byte-idéntico.
 // Por eso `editorial` NUNCA se guarda: el picker manda `null` para Editorial (§ resolverFuentePar).
 //
-// PESOS por ROL: display 400;500;600, cuerpo 300;400;500;600;700 en casi todos los pares. EXCEPCIÓN:
-// 'Técnico' recorta su display a 400;600 —IBM Plex Mono no tiene variable en Google Fonts, así que
-// son 3 archivos estáticos; el recorte los baja a 2— y el storefront usa el rol DISPLAY en UN solo
-// peso (400), verificado (cero clases de peso sobre `.font-display`/`.font-playfair`, cero
-// `font-weight` en globals.css), así que 400;600 alcanza.
-// El costo de red de los CINCO PRIMEROS se midió por par (latin, woff2 deduplicado): Editorial ~85 KB
-// es el MÁS pesado; Cálido/Moderno/Clásico/Nítido pesan 12–19 KB MENOS. El único que SUBE es 'Técnico':
-// ~94 KB recortado (+9 sobre Editorial; sería ~118/+33 sin el recorte de display). Va recortado a
-// propósito (mucha compra en Colombia es por datos móviles). Las cifras de los CUATRO NUEVOS son
-// ESTIMACIONES de la propuesta de diseño, NO medidas contra el CDN como las cinco actuales:
-// Robusta ~68 KB (−17 est.), Técnico ~94 KB (+9 est., recortado), Relato ~80 KB (−5 est.),
-// Cercano ~66 KB (−19 est.).
+// PESOS por ROL: display **UN SOLO PESO (400)** en los NUEVE pares; cuerpo 300;400;500;600;700 (sin
+// cambio). (§ FUENTES-PESOS-DISPLAY-SOBRAN-1, 2026-09-12): el storefront pinta el rol DISPLAY —
+// `.font-display`/`.font-playfair`— con el peso 400 SIEMPRE (verificado: cero clases de peso Tailwind
+// —font-semibold/medium/bold/light/…—, cero `fontWeight` inline, cero regla `font-weight` en
+// globals.css sobre esas clases, en TODO `app/(storefront)` y `components/storefront`; los `h1..h6`
+// no heredan bold del user-agent porque el preflight de Tailwind los resetea a `font-weight: inherit`).
+// Pedir 500/600 descargaba un archivo de fuente por peso que ningún elemento pinta — el navegador no
+// falla, SINTETIZA un bold falso si algo llegara a usarlo sin el peso pedido; el test de este archivo
+// afirma que los nueve piden el MISMO conjunto (hoy, sólo `400`), para que ninguno pueda divergir en
+// silencio. 'Técnico' YA venía recortado a `400;600` (IBM Plex Mono no es variable en Google Fonts, así
+// que cada peso es un archivo estático propio) y ahora pierde también el 600 sobrante, igual que los
+// otros ocho pierden 500;600 — el delta es distinto (1 peso vs. 2), el estado final es el mismo.
+// El costo de red de los CINCO PRIMEROS se midió por par ANTES de este recorte (latin, woff2
+// deduplicado, con display en 400;500;600 o 400;600 para Técnico): Editorial ~85 KB era el MÁS pesado;
+// Cálido/Moderno/Clásico/Nítido pesaban 12–19 KB MENOS. El único que SUBÍA era 'Técnico': ~94 KB
+// recortado (+9 sobre Editorial; ~118/+33 sin el recorte de display). Las cifras de los CUATRO NUEVOS
+// eran ESTIMACIONES de la propuesta de diseño, NO medidas contra el CDN: Robusta ~68 KB (−17 est.),
+// Técnico ~94 KB (+9 est., recortado a 400;600), Relato ~80 KB (−5 est.), Cercano ~66 KB (−19 est.).
+// Estos números son el estado ANTERIOR a este slice — bajan con el recorte a un solo peso de display,
+// pero no se re-midieron contra el CDN (§ FUENTES-PESOS-DISPLAY-SOBRAN-1 lo deja como estimación).
 //
 // SORA reemplaza a Space Grotesk en 'Moderno' (decisión del owner): Space Grotesk es la tipografía de
 // DUNA (el design system del panel), y ofrecerla a un cliente borraría la separación producto/cliente.
@@ -52,48 +60,50 @@ export const PARES_FUENTES: readonly ParFuentes[] = [
   {
     clave: 'editorial', label: 'Editorial', descripcion: 'Serif clásica con una sans legible. La de Nayoli.',
     titulo: "'Playfair Display', serif", cuerpo: "'Inter', sans-serif",
-    googleTitulo: 'Playfair+Display:wght@400;500;600', googleCuerpo: 'Inter:wght@300;400;500;600;700',
+    googleTitulo: 'Playfair+Display:wght@400', googleCuerpo: 'Inter:wght@300;400;500;600;700',
   },
   {
     clave: 'calido', label: 'Cálido', descripcion: 'Serif suave y redondeada, de tono cercano.',
     titulo: "'Fraunces', serif", cuerpo: "'Nunito Sans', sans-serif",
-    googleTitulo: 'Fraunces:wght@400;500;600', googleCuerpo: 'Nunito+Sans:wght@300;400;500;600;700',
+    googleTitulo: 'Fraunces:wght@400', googleCuerpo: 'Nunito+Sans:wght@300;400;500;600;700',
   },
   {
     clave: 'moderno', label: 'Moderno', descripcion: 'Grotesque geométrica, limpia y actual.',
     titulo: "'Sora', sans-serif", cuerpo: "'Inter', sans-serif",
-    googleTitulo: 'Sora:wght@400;500;600', googleCuerpo: 'Inter:wght@300;400;500;600;700',
+    googleTitulo: 'Sora:wght@400', googleCuerpo: 'Inter:wght@300;400;500;600;700',
   },
   {
     clave: 'clasico', label: 'Clásico', descripcion: 'Serif de libro, serena y muy legible.',
     titulo: "'Lora', serif", cuerpo: "'Source Sans 3', sans-serif",
-    googleTitulo: 'Lora:wght@400;500;600', googleCuerpo: 'Source+Sans+3:wght@300;400;500;600;700',
+    googleTitulo: 'Lora:wght@400', googleCuerpo: 'Source+Sans+3:wght@300;400;500;600;700',
   },
   {
     clave: 'nitido', label: 'Nítido', descripcion: 'Sans geométrica de titulares con cuerpo neutro.',
     titulo: "'Poppins', sans-serif", cuerpo: "'Work Sans', sans-serif",
-    googleTitulo: 'Poppins:wght@400;500;600', googleCuerpo: 'Work+Sans:wght@300;400;500;600;700',
+    googleTitulo: 'Poppins:wght@400', googleCuerpo: 'Work+Sans:wght@300;400;500;600;700',
   },
   {
     clave: 'robusta', label: 'Robusta', descripcion: 'condensada de impacto, con cuerpo grotesque industrial.',
     titulo: "'Oswald', sans-serif", cuerpo: "'Archivo', sans-serif",
-    googleTitulo: 'Oswald:wght@400;500;600', googleCuerpo: 'Archivo:wght@300;400;500;600;700',
+    googleTitulo: 'Oswald:wght@400', googleCuerpo: 'Archivo:wght@300;400;500;600;700',
   },
   {
-    // DISPLAY recortado a 400;600 (mitigación de peso): IBM Plex Mono no es variable en Google Fonts.
+    // DISPLAY a un solo peso (400), como los otros ocho: IBM Plex Mono no es variable en Google Fonts
+    // (cada peso es un archivo estático propio), así que ya venía recortado a 400;600; el 600 también
+    // sobraba (§ FUENTES-PESOS-DISPLAY-SOBRAN-1) — su delta es de 1 peso, no de 2, pero el destino es el mismo.
     clave: 'tecnico', label: 'Técnico', descripcion: 'monoespaciada de titular, del registro de la hoja de cata.',
     titulo: "'IBM Plex Mono', monospace", cuerpo: "'IBM Plex Sans', sans-serif",
-    googleTitulo: 'IBM+Plex+Mono:wght@400;600', googleCuerpo: 'IBM+Plex+Sans:wght@300;400;500;600;700',
+    googleTitulo: 'IBM+Plex+Mono:wght@400', googleCuerpo: 'IBM+Plex+Sans:wght@300;400;500;600;700',
   },
   {
     clave: 'relato', label: 'Relato', descripcion: 'sans de titular con cuerpo serif, para quien escribe párrafos.',
     titulo: "'Familjen Grotesk', sans-serif", cuerpo: "'Source Serif 4', serif",
-    googleTitulo: 'Familjen+Grotesk:wght@400;500;600', googleCuerpo: 'Source+Serif+4:wght@300;400;500;600;700',
+    googleTitulo: 'Familjen+Grotesk:wght@400', googleCuerpo: 'Source+Serif+4:wght@300;400;500;600;700',
   },
   {
     clave: 'cercano', label: 'Cercano', descripcion: 'geometría redonda y dulce, sin ninguna serif.',
     titulo: "'Quicksand', sans-serif", cuerpo: "'Mulish', sans-serif",
-    googleTitulo: 'Quicksand:wght@400;500;600', googleCuerpo: 'Mulish:wght@300;400;500;600;700',
+    googleTitulo: 'Quicksand:wght@400', googleCuerpo: 'Mulish:wght@300;400;500;600;700',
   },
 ] as const;
 
