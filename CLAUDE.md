@@ -8,9 +8,23 @@ tras tu visto bueno explícito. La suite verde no reemplaza el gate visual (capa
 sobre el preview de Vercel. La lista fue MEDIDA contra el código, no asumida —
 migraciones y schema son la memoria del producto; site-content es el schema que
 strippeaba en silencio; app/(storefront)/ son los bytes del visitante; y el resto
-es la ruta del dinero: cada puerta de escritura de stock, pagos y pedidos.
+es la ruta del dinero: cada puerta de escritura de stock, pagos y pedidos, y la
+función que esa puerta CONSULTA para decidir si la escritura procede y con qué
+valor — no sólo el handler que la ejecuta.
 
-Tier 1 slices run in a separate read-only session first, then a second stage that writes only after the owner's explicit go, over these measured surfaces: packages/core/prisma/schema.prisma, packages/core/prisma/migrations/, lib/config/site-content-schema.ts, lib/config/site-content-defaults.ts, app/(storefront)/, packages/core/src/inventory.ts, packages/core/src/fulfillment.ts, packages/core/src/product-update.ts, packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/shipping-transition.ts, app/api/checkout/route.ts, app/api/inventory/adjust/route.ts, app/api/orders/[id]/payments/route.ts, app/api/orders/route.ts, app/api/orders/[id]/address/route.ts, app/api/comprobantes/[id]/route.ts and app/api/shippings/route.ts.
+El criterio tiene un límite, o se vuelve infinito: casi todo termina alimentando
+algo de dinero por alguna cadena. Lo que entra es la función de alcance ACOTADO al
+dinero — decide qué molienda se puede comprar, con qué asiento nace un producto
+importado, qué fecha paga una orden —, no cualquier utilidad genérica que una de
+esas cadenas use de paso. `packages/core/src/timezone.ts` es el caso que marca esa
+frontera: alimenta `Payment.fecha` (vía `dayKeyStart`, consumido en
+`app/api/orders/[id]/payments/route.ts:42`) igual que alimenta Analítica, Pagos, el
+dashboard, las automatizaciones y una docena de módulos más ajenos al dinero — su
+alcance es GENÉRICO y su conexión con la puerta es INDIRECTA, y por eso se queda
+AFUERA de la lista: ponerle dos etapas a una utilidad de fechas de todo el
+producto, por una entre tantas cadenas que la consultan, sería proteger de más.
+
+Tier 1 slices run in a separate read-only session first, then a second stage that writes only after the owner's explicit go, over these measured surfaces: packages/core/prisma/schema.prisma, packages/core/prisma/migrations/, lib/config/site-content-schema.ts, lib/config/site-content-defaults.ts, app/(storefront)/, packages/core/src/inventory.ts, packages/core/src/fulfillment.ts, packages/core/src/product-update.ts, packages/core/src/product-import.ts, packages/core/src/moliendas-opciones.ts, packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/shipping-transition.ts, app/api/checkout/route.ts, app/api/inventory/adjust/route.ts, app/api/orders/[id]/payments/route.ts, app/api/orders/route.ts, app/api/orders/[id]/address/route.ts, app/api/comprobantes/[id]/route.ts and app/api/shippings/route.ts.
 
 ## Quién decide qué
 
