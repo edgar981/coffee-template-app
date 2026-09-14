@@ -441,8 +441,11 @@ título solo rara vez alcanza ("Orden CN-123456" no dice qué se puede hacer ah�
   excepción se DECLARA en el código — un diálogo sin descripción y sin el
   `undefined` explícito es indistinguible de un descuido.
 
-**La regla está cumplida en los diez `DialogContent` del repo** (2026-08-06).
-Verificable de un vistazo, y conviene correrlo al agregar un diálogo nuevo:
+**La regla se verifica con el grep de abajo, no con un conteo escrito acá.** Corrido hoy
+(2026-09-14): 4 archivos usan `<DialogContent` y los 4 cumplen — cero `PENDIENTE`. El "diez" que
+esta línea afirmaba desde 2026-08-06 nunca se había vuelto a correr, y una verificación escrita y
+nunca ejecutada es peor que no tenerla: da la sensación de estar cubierto. Conviene correrlo al
+agregar un diálogo nuevo:
 
 ```bash
 for f in $(grep -rl "<DialogContent" --include="*.tsx" . | grep -v node_modules); do
@@ -800,6 +803,16 @@ Reglas de la lista, para que siga sirviendo:
   éste está ENTRE DOS. **No hay arreglo propuesto para esta deriva acá** — hay una
   forma en evaluación del owner, y esta entrada registra el defecto y su costo, no
   la solución.
+- **LA DOCTRINA GUARDA LA REGLA Y SU PORQUÉ, NUNCA UNA MEDICIÓN NI UN INVENTARIO.**
+  Números, listas de archivos y conteos **vencen solos**; las reglas no. **Un
+  número en doctrina es una frase con fecha de vencimiento** — y nadie le pone la
+  fecha. Costo medido (`DOCTRINA-PROSPECTIVA-CENSO-1` → `DOCTRINA-MEDICIONES-
+  FUERA-1`): un censo midió 17 afirmaciones prospectivas de este archivo y **7
+  resultaron FALSAS**. **CINCO de esas siete eran mediciones o inventarios
+  disfrazados de doctrina** —«son cuatro secciones», «cinco pares», «los pesos son
+  400;500;600», «85 KB», «los diez `DialogContent`»—. **Ninguna era una regla
+  equivocada: eran datos que envejecieron.** Y las 7 las volvió falsas **un cambio
+  en OTRO subsistema**, no el trabajo sobre su propio tema.
 
 ### 46. El editor VISUAL, FASE 2 — el campo flotante para el TEXTO (Fase 1 CERRADA)
 
@@ -2035,10 +2048,11 @@ Tanda C2 (2026-09-05). El storefront gana un PAR TIPOGRÁFICO configurable, cuar
 (`{fondo, tinta, acento, fuentePar}`). **`null` = Editorial (Inter/Playfair, las de hoy), el default**,
 como las raíces en null = fábrica. La mecánica es el GEMELO de la paleta:
 
-- **SET CERRADO de 5 pares curados** (`lib/config/fuentes.ts`, puro): Editorial (default) · Cálido
-  (Fraunces+Nunito Sans) · Moderno (Sora+Inter) · Clásico (Lora+Source Sans 3) · Nítido (Poppins+Work
-  Sans). NO hay campo de fuente libre —evita subir una fuente rota o una que borre la separación
-  producto/cliente—. Pesos por ROL iguales a hoy (display 400;500;600, cuerpo 300;400;500;600;700).
+- **SET CERRADO de pares curados** (`lib/config/fuentes.ts`, puro — el registro completo,
+  `CLAVES_FUENTES`, vive ahí y crece sin que esta doctrina lo cuente; Editorial es el default y el
+  resto son variantes CUSTOM). NO hay campo de fuente libre —evita subir una fuente rota o una que
+  borre la separación producto/cliente—. Los pesos por ROL viven en el mismo archivo y ya cambiaron
+  una vez desde que se escribió esto (§ FUENTES-PESOS-DISPLAY-SOBRAN-1) — no se citan acá.
 - **`cssFuentes(fuentePar)` gemelo de `cssPaleta`** (`lib/config/fuentes-style.ts`): `:root{--sf-fuente-*}`
   o `null` (Editorial). Las clases **`.font-*` leen `var(--sf-fuente-{cuerpo,titulo}, <Inter/Playfair>)`**
   SIN renombrarse; sin la var (Editorial) caen al fallback → **Nayoli byte-idéntico** (el `@import` de
@@ -2054,8 +2068,12 @@ como las raíces en null = fábrica. La mecánica es el GEMELO de la paleta:
   panel), y un cliente vistiendo su tienda como el panel borra la separación producto/cliente. **Sora**
   (otro grotesque geométrico) ocupa "Moderno". Afirmado con test: ningún par ofrece Space Grotesk/Hanken/
   Spline.
-- **COSTO DE RED medido** (latin, woff2 deduplicado, vs Editorial el actual): **Editorial ~85 KB es el
-  MÁS pesado**; los otros cuatro pesan 12–19 KB MENOS. Ninguno pesa notablemente más.
+- **EL PESO DE LA FUENTE ES UN COSTO REAL — dónde se mide, no cuánto pesa.** Cada par CUSTOM se sirve
+  entero por `<link>` (sin next/font, § arriba) y ese peso compite con la venta en una red móvil
+  colombiana, donde el dato cuesta y tarda. El número vive y se mide en `lib/config/fuentes.ts` (cerca
+  de `:23-30`), que YA marca sus propias cifras como vencidas/estimadas tras el recorte de pesos
+  (§ FUENTES-PESOS-DISPLAY-SOBRAN-1) — una segunda copia acá sería un segundo dato podrido del mismo
+  hecho, así que esta doctrina no vuelve a llevar el KB.
 - **El schema del PUT** (`paletaEditableSchema`) gana `fuentePar` (z.enum del set + null, **REQUERIDO** —el
   tema se escribe wholesale, omitirlo lo resetearía en silencio). `guardarTemaBorrador` escribe el tema
   COMPLETO. La verificación del picker del panel es capa 3 (ruta con sesión); el mecanismo del storefront
@@ -2089,11 +2107,12 @@ requerido vacío toma el default; un opcional PRESENTE-aunque-vacío se respeta 
 `seccionEsVisible(def, sec)` combina las tres reglas; probada en capa 1 con un repeater
 sintético (deja la mecánica lista para las secciones que faltan, aunque el hero no la ejercite).
 
-**LAS SECCIONES EDITABLES HOY SON CUATRO:** hero (portada, `ocultable:false`), brandStory (Historia,
-`ocultable:true`, 4 imágenes fijas), **subscriptionCTA** (Suscripción, `ocultable:true`, **solo
-texto**), y **testimonials** (Testimonios, `ocultable:true`, la 1ª sección **REPEATER**). Suscripción
-es la más simple —casi enteramente datos sobre la cáscara genérica (`TiendaSeccionEditor`)— y aporta
-dos cosas al modelo:
+**ÉSTAS FUERON LAS PRIMERAS SECCIONES EDITABLES** (el REGISTRY completo vive en
+`lib/config/site-content-defaults.ts` y hoy declara más que estas cuatro): hero (portada,
+`ocultable:false`), brandStory (Historia, `ocultable:true`, 4 imágenes fijas), **subscriptionCTA**
+(Suscripción, `ocultable:true`, **solo texto**), y **testimonials** (Testimonios, `ocultable:true`,
+la 1ª sección **REPEATER**). Suscripción es la más simple —casi enteramente datos sobre la cáscara
+genérica (`TiendaSeccionEditor`)— y aporta dos cosas al modelo:
 - **Bullets OPCIONALES como repeater-pobre**: `bullet1..4` opcionales que el componente junta con un
   `.filter` → "hasta 4 sin hueco" (vaciar uno cierra la lista), sin arrastrar el repeater real (que la
   plataforma ya tiene; se usa si se quieren 5+ beneficios —un repeater de strings—). Se etiquetan
@@ -3581,8 +3600,9 @@ base tiene respaldos; los blobs no.**
   `body` reabre el agujero — era el update el que mentía, no el diff.
 - **Los campos que el endpoint nunca escribió siguen sin escribirse**
   (`variedad`, `proceso`, `altitudMin`, `altitudMax`, `molienda`, `notas`,
-  `notasCata`, `descripcionCorta`, `bestseller`, `badge`, `agotado`). Agregarlos
-  es una decisión de producto, no parte de este arreglo.
+  `notasCata`, `descripcionCorta`, `bestseller`, `badge`). Agregarlos
+  es una decisión de producto, no parte de este arreglo. (`agotado` salió de
+  esta lista porque ya no es columna de `Product` — se dropeó, § Backlog #8/#10.)
 - **El test va en el CARRIL, no en la suite pura**
   (`tests/integracion/patch-producto-parcial.test.ts`), y la razón importa: lo que
   se afirma no es la forma del objeto que se construye sino lo que la fila TIENE
@@ -5766,7 +5786,7 @@ la que se aceptó entre pantallas, y no se eligió: se encontró. Se cerró en l
 tanda siguiente (§ Controles de formulario), y el orden fue el correcto: migrar el
 envoltorio no exigía inventar un valor y migrar los campos sí.
 
-## Duna OS en ANGOSTO — un solo breakpoint, y el detalle sube
+## Duna OS en ANGOSTO — DOS breakpoints por ROL, y el detalle sube
 
 Tanda del 2026-08-14. Cerró los dos huecos del § Backlog #9, que por eso ya no
 está en la lista. Lo que sigue es la decisión, no el historial.
@@ -5777,32 +5797,53 @@ detalle fuera de la pantalla y había que scrollear a ciegas para descubrir que
 algo había pasado. Misma clase que el botón mudo que obligó a `useAccionGuardada`
 (§ Doble-submit).
 
-### UN solo breakpoint: 960
+### De TRES candidatos a UN breakpoint (960) — y luego a DOS, por ROL
 
 Había TRES para la misma pregunta —el 960 de `duna-split`, el `lg`=1024 de la
 navegación (default de Tailwind, elegido por nadie) y el 820 de la maqueta— y se
 unificó en el único con un motivo **derivado y escrito** (`400 + 24 + ~420 +
-32×2 = 908`, redondeado al primer valor cómodo por encima).
+32×2 = 908`, redondeado al primer valor cómodo por encima). Ésa fue la decisión
+del owner del 2026-08-14, y para el CHROME (rail vs. barra inferior) sigue siendo
+la que manda.
 
 **Debajo: el panel es sheet Y la navegación es la barra inferior. Encima: rail y
 split.** La franja 960–1024 que quedaba con barra inferior y panel al lado se
 ELIMINÓ, no se documentó: un rango con dos sistemas de navegación a la vez es una
 excepción que alguien tendría que recordar.
 
-El número vive en **tres sitios y ninguno puede leer a los otros**, así que la
-regla es que se mueven juntos:
+**REVISADO el 2026-08-17: ese 960 estaba MAL DERIVADO para el split.** Sumaba
+SIN el rail (`400+24+420+64=908→960`), así que con el rail expandido el panel
+del split quedaba en 248px — por debajo de su propio piso. Al recalcular con el
+piso del panel como token (`--duna-panel-min`, 320: `rail 240 + padding 48 +
+lista 400 + gap 24 + panel 320 = 1032`, redondeado a **1080**) quedó claro que
+había DOS preguntas distintas donde antes se asumía una sola, y por eso hoy son
+DOS breakpoints, **por ROL, no por dispositivo**:
 
-| sitio | qué expresa |
-| --- | --- |
-| `primitives.css` (`@media max-width: 959.98px`) | la forma: split, barra, hueco |
-| `primitives/layout.ts` (`DUNA_MQ_MOVIL`) | **dónde se renderiza** el detalle — el CSS no puede mover un nodo |
-| `app/globals.css` (`--breakpoint-duna: 960px`) | el chrome del admin, como variante `duna:` |
+- **¿caben dos columnas?** (1080) — decide si el detalle es el panel del split
+  (al lado) o sube como sheet.
+- **¿es una pantalla táctil de una mano?** (960, el mismo de la unificación de
+  arriba) — cuando el detalle YA es sheet, decide de qué borde sale: `--abajo`
+  (chrome móvil, barra inferior) o `--lado` (960–1080, junto al rail).
 
-**El `.98` NO es cosmético.** El breakpoint con nombre de Tailwind genera
-`min-width: 960px`; con `max-width: 960px` del otro lado, a EXACTAMENTE 960
-aplicaban las dos mitades —barra inferior y rail a la vez—. Es la franja de dos
-navegaciones otra vez, de un píxel de ancho y por eso peor: nadie la reproduce a
-mano. **Salió de grepear el CSS compilado, no de leer la fuente** — el mismo
+Ninguna media query puede leer una custom property, y el CSS no puede decidir
+DÓNDE se renderiza un nodo — por eso cada umbral tiene un gemelo en JS, y los dos
+se mueven juntos:
+
+| pregunta | sitio CSS | sitio JS |
+| --- | --- | --- |
+| ¿caben dos columnas? (1080) | `primitives.css` (`@media max-width: 1079.98px`, el colapso de `.duna-split`) | `primitives/layout.ts` (`DUNA_BP_DETALLE_AL_LADO` / `DUNA_MQ_DETALLE_AL_LADO`) |
+| ¿es táctil de una mano? (960) | `primitives.css` (`@media max-width: 959.98px`, el swap `.duna-nav-*`) + `app/globals.css` (`--breakpoint-duna: 960px`, variante `duna:`) | `primitives/layout.ts` (`DUNA_BP_SHEET_ABAJO` / `DUNA_MQ_SHEET_ABAJO`) |
+
+Si un par discrepa, el síntoma NO es que algo se vea corrido: es una franja donde
+el panel ya apiló y el sheet no monta —el detalle inalcanzable—, o donde los dos
+están a la vez y el detalle se duplica en el árbol de accesibilidad.
+
+**El `.98` NO es cosmético, en ninguno de los dos.** El breakpoint con nombre de
+Tailwind genera `min-width`; con `max-width` sin el `.98` del otro lado, al
+valor EXACTO aplicarían las dos mitades —barra inferior y rail a la vez, en el
+de 960; las dos formas del split, en el de 1080—. Es la franja de dos sistemas a
+la vez otra vez, de un píxel de ancho y por eso peor: nadie la reproduce a mano.
+**El de 960 salió de grepear el CSS compilado, no de leer la fuente** — el mismo
 principio de siempre: lo que está escrito no prueba lo que está corriendo.
 
 ### El sistema pone la FORMA; el consumidor pone la CONDUCTA
