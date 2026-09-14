@@ -70,6 +70,12 @@ nuevo importado por una ruta ya compilada es el caso que más lo dispara.
 Cómo se confirma en 10 segundos, antes de abrir cualquier otra hipótesis —
 grepear el ARTEFACTO, no la fuente:
 
+**PLANTILLA — no se corre tal cual.** `<ruta>` y `miFuncionNueva` son
+placeholders: se reemplazan por la ruta real y el símbolo que el cambio
+introduce. Exige además un dev server levantado y un cambio real que grepear —no
+es verificable en frío desde el repo—. Lo que sí es exigible siempre es la
+TÉCNICA (grepear el artefacto compilado, no la fuente), no este comando literal.
+
 ```bash
 grep -c "miFuncionNueva" .next/dev/server/app/api/<ruta>/route.js
 ```
