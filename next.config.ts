@@ -74,6 +74,72 @@ const nextConfig: NextConfig = {
         source: "/:icon(favicon\\.ico|icon\\.svg|apple-icon\\.png|icon-192\\.png|icon-512\\.png|icon-512-maskable\\.png)",
         headers: [{ key: "Cache-Control", value: "public, max-age=3600" }],
       },
+
+      // ── CSP REPORT-ONLY DE /checkout — mide la línea base, no bloquea nada ──────
+      // `Content-Security-Policy-Report-Only` REPORTA violaciones a la consola del navegador
+      // y NUNCA impide una carga — a diferencia de `Content-Security-Policy` a secas, que sí
+      // bloquearía. Por eso puede entrar HOY, sin auditar cada script del checkout uno por
+      // uno: si la política está mal escrita, el peor caso es una consola ruidosa, no una
+      // venta rota.
+      //
+      // ENTRA ANTES DEL WIDGET DE PAGO, A PROPÓSITO. Una política se estrena rompiendo
+      // cosas; estrenarla el mismo día que se integra el widget mezclaría dos fuentes de
+      // fallo en un solo deploy, y ninguna de las dos se podría señalar sola. Report-Only
+      // mide la línea base REAL del checkout —lo que YA carga hoy, sin Wompi— antes de que
+      // exista un widget que la enturbie. `CLAUDE.md` § Pagos en línea (Wompi) documenta el
+      // resto del camino a la pasarela; esto es sólo el piso de observación.
+      //
+      // ALCANCE: sólo `/checkout` (un solo `page.tsx`, sin subrutas — verificado). NO es
+      // global: una política global rompería el admin (Radix, next-themes con su propio
+      // scope, el editor de bloques) y agregaría superficie que nadie está midiendo acá.
+      //
+      // ══════ EL HALLAZGO QUE CAMBIA LA NATURALEZA DE LA DECISIÓN WIDGET-VS-REDIRECCIÓN ══════
+      // ADOPTAR EL WIDGET DE WOMPI NO ES ADOPTAR UN SCRIPT DE TERCEROS: SON HASTA TRES, Y DOS
+      // NO ESTÁN DOCUMENTADOS EN NINGÚN LADO DE SU DOC PÚBLICA. El `widget.js` de Wompi
+      // inyecta en runtime `cdn.siftscience.com` y `device.clearsale.com.br` — antifraude y
+      // *device fingerprinting* — y el dashboard del comercio NO ofrece forma de verlos ni de
+      // apagarlos: son infraestructura del PROVEEDOR, decidida por su backend. No podemos
+      // saber si están activos hoy, y si Wompi los enciende mañana, una política que no los
+      // contemple ROMPERÍA EL CHECKOUT sin que nadie sepa por qué. Por eso entran en
+      // `script-src` DESDE AHORA, aunque hoy nada los cargue: incluirlos cuesta dos líneas;
+      // excluirlos apuesta a un comportamiento de un proveedor que ya contradijo su propia
+      // doc cinco veces (ver `DECISIONS.md`, `WOMPI-REGLAS-IMPLEMENTACION-1`).
+      // ═══════════════════════════════════════════════════════════════════════════════════
+      {
+        source: "/checkout",
+        headers: [
+          {
+            key: "Content-Security-Policy-Report-Only",
+            value: [
+              // 'self' + Web Checkout de Wompi (aún no cargado) + los dos terceros de
+              // antifraude que Wompi inyecta sin avisar (ver el hallazgo arriba).
+              // 'unsafe-inline' es por `next-themes`: inyecta su script anti-flash de tema
+              // inline (`StorefrontThemeProvider`, sin nonce) en TODO el storefront, con o
+              // sin Wompi de por medio — una política que se declara estricta y lo lleva
+              // igual es peor que una que admite lo que hace.
+              "script-src 'self' https://checkout.wompi.co https://cdn.siftscience.com https://device.clearsale.com.br 'unsafe-inline'",
+              // 'self' + Google Fonts (el `@import` de `app/globals.css`). 'unsafe-inline'
+              // por los TRES `<style dangerouslySetInnerHTML>` del layout del storefront
+              // (paleta, fuentes, forma — `app/(storefront)/layout.tsx`), sin nonce.
+              "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'",
+              // Los archivos de fuente que sirve Google Fonts tras el @import de arriba.
+              "font-src 'self' https://fonts.gstatic.com",
+              // Imágenes de producto: el store de Vercel Blob (§ Storage de imágenes,
+              // CLAUDE.md) es el único origen externo medido; no hay `data:` en uso hoy.
+              "img-src 'self' https://*.public.blob.vercel-storage.com",
+              // El dominio del Web Checkout de Wompi está medido; su PATH no — Wompi lo arma
+              // en runtime — así que no se acota más que al origen.
+              "frame-src https://checkout.wompi.co",
+              // Nada del checkout de hoy llama a un origen externo (createOrder es un fetch
+              // same-origin a /api/checkout): sin el widget integrado, lo medido es 'self'.
+              "connect-src 'self'",
+              "object-src 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+            ].join("; "),
+          },
+        ],
+      },
     ];
   },
   async redirects() {
