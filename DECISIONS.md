@@ -1394,3 +1394,34 @@ Sin schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false`
 sin código tocado — sólo este archivo. `npm test` **1104/1104** y
 `npx tsc --noEmit` en **0**, igual al piso que el spec midió en `main` antes de
 este asiento.
+
+## 2026-09-14 · Dos copias de `isUniqueViolation`, unificadas antes de que el webhook fuera la tercera (`ISUNIQUEVIOLATION-UNIFICAR-1`)
+`5dfab22`, merge `--no-ff` `0b77508`
+
+**LO MEDIDO EN `PAYMENTINTENT-FORMA-CENSO-1`, confirmado carácter por carácter antes de tocar nada:**
+`isUniqueViolation` vivía sin exportar en `packages/core/src/orders.ts:344-349` (un solo llamador, en el
+mismo archivo), y `lib/automations/idempotency.ts:103` reimplementaba el MISMO chequeo de `P2002` inline.
+Las dos versiones eran equivalentes en todos los casos de entrada (`null`, `undefined`, string, objeto sin
+`code`, objeto con `code` correcto o incorrecto) — la de `orders.ts` agrega un `'code' in error` que es
+redundante con el acceso opcional de la copia inline, no un chequeo adicional real.
+
+**Es el patrón de la doctrina —dos declaraciones del mismo hecho que divergen— atrapado ANTES de morder,
+con el webhook de Wompi (`PASARELA-DECISIONES-LEDGER-1`) como tercera copia que no llegó a escribirse.**
+
+**El fix es el mínimo que el spec pedía y nada más:** `export` agregado a la función de `orders.ts` (sin
+mover el archivo — vive donde la usa su dueño original), e `idempotency.ts` la importa de
+`@duna/core/orders` —el mismo camino que ya usa `packages/core/src/shipping-transition.ts` para importar
+de un módulo hermano dentro del paquete— y borra su copia inline. Ningún llamador cambió: `createOrderWithCustomer`
+sigue reintentando hasta 5 veces, `registrarRun` sigue sin reintentar y devolviendo `false`. Diff de una
+línea en cada archivo de producción.
+
+`isUniqueViolation` no tenía test propio pese a estar en la ruta del dinero y gobernar la idempotencia de
+las automatizaciones. Se agregó `packages/core/src/orders.test.ts` (co-ubicado con su dueño, la convención
+del repo) afirmando el caso reconocido y los que la copia inline chequeaba a mano: otro código, `null`,
+`undefined`, string, objeto sin `code`.
+
+Merge `--no-ff` mecánico, tree == tree gateado (`e7b831c`). `npm test` **1110/1110** (piso 1104 + 6 tests
+nuevos) y `npx tsc --noEmit` en **0**, igual al piso que el spec midió en `main` antes de este asiento.
+Regla: dos declaraciones del mismo hecho o derivan una de la otra o hay un test que las ata — el mismo
+criterio de `site-content-schema.test.ts` (§ CLAUDE.md, El schema editable STRIPPEA lo no declarado),
+ahora en la idempotencia de automatizaciones.
