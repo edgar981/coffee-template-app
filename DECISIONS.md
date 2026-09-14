@@ -1729,3 +1729,102 @@ sólo un `href`) y `npx tsc --noEmit` en **0**, sin moverse. `npm run build` NO 
 esto cambia lo que el comprador VE: el campo de correo en `/rastrear-pedido` deja de llegar prellenado
 tras confirmar un pedido. El `approved: yes` del spec cubre los PATHS declarados en `touches:`, no el
 gate visual — ése es del owner sobre el preview de Vercel.
+
+## 2026-09-14 · `form-action` de la CSP de `/checkout` bloquearía el Web Checkout — y la elección
+widget-vs-redirección se resuelve por toggle de despliegue (`CSP-FORM-ACTION-WEBCHECKOUT-1`)
+
+**LA DIRECTIVA ESTABA ESCRITA PENSANDO SÓLO EN EL WIDGET.** `CSP-REPORT-ONLY-CHECKOUT-1` dejó
+`form-action 'self'` en `next.config.ts:138` (bloque `source: "/checkout"`, la CSP `Report-Only` de esa
+ruta). **Web Checkout** de Wompi —la otra forma de integrarse, además del widget iframeado— es un
+`<form action="https://checkout.wompi.co/p/" method="GET">` que NAVEGA fuera del sitio, y
+`form-action 'self'` a secas bloquearía exactamente ese submit. **Hoy no bloquea nada**, por dos razones
+que no se confunden: el header es `Report-Only` (nunca impide una carga, sólo reporta a la consola), y
+ese `<form>` **no existe todavía** en el repo — no hay integración de pago construida. Pero la política
+ya está escrita, y una política escrita mal que hoy es inocua es una que bloquea el día que se pase a
+enforced, sin que nadie recuerde por qué (doctrina del owner, citada en el spec de este slice).
+
+**EL FIX, una directiva, sin tocar nada más.** `form-action 'self'` → `form-action 'self'
+https://checkout.wompi.co`, con un comentario en el código que dice el motivo (el `<form>` de Web
+Checkout, que no existe todavía, y que sin el origen la política enforced lo bloquearía). Verificado
+evaluando `headers()` con `tsx` —la misma función que Next invoca para construir sus reglas—: el string
+que produce hoy para `source: "/checkout"` cambia ÚNICAMENTE en esa directiva; las otras ocho
+(`script-src`, `style-src`, `font-src`, `img-src`, `frame-src`, `connect-src`, `object-src`, `base-uri`)
+quedan byte-idénticas a `CSP-REPORT-ONLY-CHECKOUT-1`. **Sigue siendo `Content-Security-Policy-Report-Only`
+— no se pasó a enforced.**
+
+**NINGUNA OTRA DIRECTIVA DEL BLOQUE TIENE EL MISMO PROBLEMA.** Revisadas las ocho restantes contra las
+DOS formas (widget iframeado vs. Web Checkout por `<form>`): `frame-src https://checkout.wompi.co` ya
+cubre el iframe del widget y Web Checkout no usa iframe, así que no lo necesita pero tampoco lo bloquea;
+`script-src` ya incluye `checkout.wompi.co` (para el widget) y Web Checkout no carga ningún script desde
+ese origen en nuestra página —es navegación de `<form>`, no un `<script src>`—; `connect-src 'self'` no
+gobierna una navegación de nivel superior por `<form>`, sólo `fetch`/`XHR`; `img-src`, `style-src`,
+`font-src`, `object-src` y `base-uri` no tienen relación con ninguna de las dos formas de integración. La
+única directiva que un `<form action="https://checkout.wompi.co/...">` necesita es `form-action`, y era
+la única que le faltaba el origen.
+
+### LA COBERTURA ANTIFRAUDE ES LA MISMA EN LAS DOS FORMAS — medición transcrita del spec, no re-verificada por este slice
+
+El spec de este slice trae, como ya medido por `WOMPI-ANTIFRAUDE-COBERTURA-1` (bajando y leyendo los
+bundles de Wompi): **widget y Web Checkout son la misma webapp**, y el único fork en el código es
+`f !== window.top` — iframeado (widget), la inyección de Sift/ClearSale se DELEGA al padre por
+`postMessage` y corre en NUESTRO dominio; no-iframeado (Web Checkout), la webapp inyecta las mismas dos
+etiquetas en su propio documento. Mismo `fraudGroups`, mismo `sessionId`, y lo emite el backend de
+Wompi, no el cliente. **Esto disuelve el eje «seguridad vs privacidad» que parecía separar las dos
+formas: la protección antifraude es idéntica; lo único que cambia es EN QUÉ DOMINIO corren esos
+terceros.** Este slice no bajó bundles ni los releyó — transcribe la medición que el spec entregó ya
+hecha; queda marcada como tal (no re-medida en este dispatch).
+
+### QUIÉN ASUME EL CONTRACARGO — MEDIDO COMO AUSENCIA, no como respuesta
+
+Los 120 días de cobertura antifraude que Wompi publica están **confirmados textualmente** en su página
+pública de seguridad. **Quién asume la pérdida de un contracargo NO se pudo establecer con fuentes
+públicas**, y eso — la ausencia, no una suposición sobre ella — es lo que este asiento registra:
+
+- la página de seguridad de Wompi sólo **implica** impacto al comercio, sin decirlo en ninguna frase;
+- los términos y condiciones devolvieron **403** al intentar leerlos;
+- el sitemap completo de la documentación de Wompi —**90 URLs**— no tiene ninguna página dedicada a
+  antifraude, contracargo, garantía ni seguridad — la ausencia está medida contando el sitemap entero,
+  no supuesta por no haber buscado bien;
+- y la página de seguridad habla exclusivamente de "titulares de tarjetas": **cero** menciones de PSE,
+  consistente (por ausencia, no por afirmación) con que PSE —débito bancario directo— no comparte el
+  mecanismo de disputa de red de tarjetas que sostiene esos 120 días.
+
+**No se concluye que el comercio no lo asume.** Lo único que se puede afirmar es que la pregunta no
+tiene respuesta en fuentes públicas alcanzables. Esta sección, igual que la anterior, transcribe una
+medición que el spec trajo ya hecha — este slice no volvió a bajar el sitemap ni las páginas de Wompi.
+
+### DECISIÓN DEL OWNER: SE SOPORTAN LAS DOS FORMAS, ELEGIBLES POR TOGGLE DE DESPLIEGUE — no en el panel del cliente
+
+Con la cobertura antifraude disuelta como eje de decisión, queda **quién elige** entre widget embebido y
+Web Checkout por redirección. La respuesta del owner: **las dos se soportan, y el dueño de la tienda
+elige AL CONTRATAR, no en su panel de admin.**
+
+> La elección embebido-vs-redirección no es una preferencia que alguien cambie el martes. Es una
+> decisión sobre qué corre en la página de sus compradores, y ésa se toma una vez, informada, en el
+> alta. Ponerla en el panel invitaría a cambiarla sin entender qué cambia. Cambiar de opinión es un
+> redespliegue —trabajo de Duna—, el mismo patrón que ya rige para el mark, los íconos y el theme: no es
+> una limitación nueva.
+
+**Lo que hizo barata la decisión, medido:** la alternativa —un toggle en RUNTIME, leído por cliente
+desde el panel— habría exigido CSP condicional por request. `next.config.ts#headers()` es config-time
+(evaluado al build, no por request), así que una CSP que dependiera de una fila en la base habría
+exigido middleware + lectura de base de datos en el camino crítico de cada respuesta. **El toggle de
+despliegue evita esa capa entera**, y encaja con la doctrina ya escrita de un despliegue por cliente
+(`CLAUDE.md` § El código compartido no NACE siendo Nayoli/demo). La decisión de que el dueño elige al
+contratar no fue sólo doctrinal — es la que vuelve barata la opción.
+
+**El delta real entre las dos formas, medido:** el webhook, `PaymentIntent` y la reconciliación por
+`reference` (`WOMPI-REGLAS-IMPLEMENTACION-1`, arriba) son comunes a las dos. La ruta de retorno también
+es común — el `redirectUrl` opcional del widget usa el mismo formato de query params que Web Checkout,
+así que se construye una sola vez. **Lo único que difiere es la INICIACIÓN** (`<script>` embebido vs.
+`<form>` que navega), y la CSP, ya resuelta en este slice con la directiva de arriba.
+
+**ESTE SLICE NO IMPLEMENTA NADA DE ESTO.** No hay toggle, no hay `<form>` de Web Checkout, no hay
+`<script>` del widget, no hay `PaymentIntent`. El asiento registra la decisión de producto y las dos
+mediciones que la sostienen; construirlas es trabajo aparte, sin fecha fijada acá.
+
+`npm test` **1125/1125** (piso medido antes de empezar: 1125, sin cambios — el slice no tocó código de
+producto, sólo una directiva de config y este archivo) y `npx tsc --noEmit` en **0**, sin moverse. Sin
+schema, sin migración, sin bytes de cliente (una cabecera HTTP Report-Only, invisible al comprador, y
+que hoy no cambia ningún comportamiento observable — el `<form>` que la directiva anticipa no existe),
+sin contrato cross-repo. Merge Policy A aplica: sólo `next.config.ts` + `DECISIONS.md`.
