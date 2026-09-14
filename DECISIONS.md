@@ -1244,3 +1244,100 @@ código de producto tocado — sólo `DECISIONS.md` y el puntero en `CLAUDE.md`.
 este asiento.
 Regla: § Pagos en línea (Wompi) — cobros automáticos (CLAUDE.md), que gana un puntero a
 este asiento para lo medido contra el sandbox y las reglas de implementación.
+
+## 2026-09-14 · El censo es OBLIGATORIO, no complementario a la pregunta mecánica del cierre (`DERIVA-LIMITE-LEDGER-1`)
+
+**El defecto, medido.** Sobre **843 commits sin merge** de este repo (hasta `27334cd`;
+`git rev-list --no-merges --count 27334cd`), **230** tocan `CLAUDE.md`
+(`git log --no-merges --oneline 27334cd -- CLAUDE.md | wc -l`), **42** tocan
+`DECISIONS.md` (mismo comando sobre `DECISIONS.md`), y sólo **CUATRO** tocan los dos
+—`9bc286e`, `45311c2`, `b8e4ff8`, `bf99b03`, por intersección directa de las dos
+listas—. Las tres cifras se re-midieron en este slice y coinciden exactamente con
+las que trajo el spec. **No es abandono** — la doctrina se edita ~5× más seguido que
+el ledger —, es que **los dos libros son casi disjuntos**: se mantienen en slices
+separados y nada obliga a preguntar si un cambio en uno volvió falsa una frase del
+otro. Como el acople no es estructural, el arreglo tiene que ser una obligación de
+PROMPT, no de archivo.
+
+**El arreglo que ya existe, y el límite que no se vio al hacerlo.** Todo slice que
+escribe lleva ahora una pregunta mecánica al cierre: listar los símbolos y rutas que
+el diff cambió, grepear `CLAUDE.md` por cada uno, decir si la frase queda falsa, y
+NO arreglarla — va a `open_followups`. Es mecánica a propósito: en los casos
+medidos el slice que volvió falsa la frase no trabajaba sobre el tema de esa frase,
+así que preguntado directamente habría contestado, honestamente, que no.
+
+**El límite es que esa pregunta NO atrapa esta clase POR CONSTRUCCIÓN — el diff que
+mata la frase nunca la nombra.** Sirve para la deriva que el propio cambio causa; el
+CENSO es la red para la que causa OTRO subsistema, y por eso **no es complemento: es
+obligatorio.** Ésta es la distinción que hay que decir literal, porque la lectura
+fácil —"ya existe la pregunta del cierre, un censo es una capa extra de cuidado"—
+es exactamente la que el hallazgo desmiente: sin censo, la clase entera de deriva
+cruzada queda sin red.
+
+**El número que lo sostiene.** Un censo (`DOCTRINA-PROSPECTIVA-CENSO-1`, un slice
+`writes: no` sin artefacto propio, citado por su nombre en el mensaje del commit
+`b3ed114`) midió 17 afirmaciones prospectivas de `CLAUDE.md` contra el código y
+encontró **7 FALSAS**. Las **SIETE — el 100%** — las volvió falsas un cambio en OTRO
+subsistema; **CERO** fueron falsificadas por trabajo sobre su propio tema. Cuánto
+vivieron falsas, medido por el orquestador sobre el historial: la frase que citaba
+`DUNA_MQ_MOVIL` siguió citando un símbolo borrado hacía **28 días**; la que listaba
+`agotado` entre los campos que el PATCH parcial nunca escribe, **18 días** después
+de que se dropeara la columna; la de los cinco pares de fuentes, **7 días**; la de
+los pesos del rol display, **2**. La doctrina no se pudre a ritmo constante: se
+pudre EN ESCALONES, en los merges de otros.
+
+**Y el censo fue PARCIAL.** Verificado: `CLAUDE.md` medía **7392 líneas**
+(`git show eeaee15:CLAUDE.md | wc -l`) en el commit sobre el que corrió — un
+barrido dirigido de un archivo grande, con secciones enteras sin barrer. **7 falsas
+es un PISO, no un total.**
+
+**Lo que las siete tenían en común, y por qué no se repite acá.** CINCO de las
+siete eran MEDICIONES o INVENTARIOS disfrazados de doctrina, no reglas
+equivocadas — un conteo de secciones editables, un conteo de pares de fuentes, una
+lista de pesos tipográficos, un número de KB, un conteo de `DialogContent`.
+Envejecieron solas, sin que nadie las tocara. De ahí la regla que el owner dictó:
+**la doctrina guarda la REGLA y su porqué, nunca una medición ni un inventario** —
+ya escrita en `CLAUDE.md` § Backlog técnico por `DOCTRINA-MEDICIONES-FUERA-1`
+(`b3ed114`), que hace la cita del 5-de-7. Este asiento la CITA y no la reescribe:
+dos copias de una regla es el defecto que la regla misma describe.
+
+**La verificación escrita y nunca corrida — el caso `DialogContent`.**
+`CLAUDE.md` (§ Todo `DialogContent` lleva `DialogDescription`) afirmaba que la
+regla de accesibilidad estaba cumplida en los DIEZ `DialogContent` del repo, con
+el propio `grep` de verificación incluido debajo. Corrido en este slice: da **4
+archivos** —`components/ui/command.tsx`, `components/admin/PaletaSeccion.tsx`,
+`components/admin/AutomationConfigDialog.tsx`, `components/admin/ImageLightbox.tsx`—
+y los 4 cumplen, cero `PENDIENTE`. La doctrina traía el comando para verificarse a
+sí misma y **nadie lo corrió** desde que el "diez" se escribió (2026-08-06) hasta
+hoy. **Una verificación escrita y nunca ejecutada es PEOR que no tenerla — da la
+sensación de estar cubierto** (owner, 2026-09-14). `DOCTRINA-MEDICIONES-FUERA-1`
+ya reemplazó el "diez" por el resultado de hoy y esta advertencia; este asiento no
+vuelve a tocar esa frase.
+
+**La disyuntiva que sobrevive al fix puntual, y la clase que la vuelve real.** Un
+comando de auto-verificación dentro de la doctrina o se corre en el censo
+periódico, o se borra — un tercer estado, escrito y nunca corrido, es el peor de
+los tres. No es hipotético: `CLAUDE.md` trae **6 bloques ` ```bash` `** (verificado
+por conteo directo), y al menos uno de ellos —el de `DialogContent`— ya demostró
+que puede pasar más de un mes sin correrse mientras la frase que lo acompaña sigue
+afirmando su resultado como vigente. La clase — un comando ejecutable incrustado
+como evidencia de una afirmación de doctrina — existe en el archivo. No se
+enumeran ni se juzgan los seis acá: eso es trabajo de un censo futuro, no de este
+asiento.
+
+**Lo que NO se decide acá:**
+- **La CADENCIA del censo periódico queda ABIERTA.** Está propuesta; el owner no
+  la ha fijado.
+- **Las siete correcciones** viven en `CLAUDE.md`, no acá — este asiento registra
+  POR QUÉ existían y qué se aprendió, no el número correcto de secciones
+  editables, pares de fuentes o pesos tipográficos.
+- Ninguna llave, prefijo ni longitud de nada.
+
+Regla: § Backlog técnico (CLAUDE.md), donde `DOCTRINA-MEDICIONES-FUERA-1` ya
+escribió "la doctrina guarda la regla y su porqué, nunca una medición ni un
+inventario" — este asiento no toca esa sección ni ninguna otra de `CLAUDE.md`.
+
+Sin schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false`),
+sin código tocado — sólo este archivo. `npm test` **1104/1104** y
+`npx tsc --noEmit` en **0**, igual al piso que el spec midió en `main` antes de
+este asiento.
