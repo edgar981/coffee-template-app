@@ -310,8 +310,11 @@ Decisiones que NO son estilo:
 **SKEW DE VERSIÓN, aceptado con su condición** (owner, 2026-08-04): el carril
 corre Postgres 14.20 local y producción corre la versión de Neon. Se acepta
 porque el alcance son cadenas del motor —CRUD, uniques, enums—, no SQL exótico, y
-porque las 34 migraciones aplican limpias en 14. **Si el carril crece hacia SQL
-específico de versión, esta decisión se revisa.**
+porque las migraciones aplican limpias en 14 (contá cuántas hay hoy con
+`ls -d packages/core/prisma/migrations/*/ | wc -l` — el número vencía cada vez que
+se escribía, § Backlog técnico, "LA DOCTRINA GUARDA LA REGLA Y SU PORQUÉ, NUNCA UNA
+MEDICIÓN NI UN INVENTARIO"). **Si el carril crece hacia SQL específico de versión,
+esta decisión se revisa.**
 
 **Lo que el carril NO cubre, y sigue siendo del checklist manual:** UI, handlers
 HTTP completos, y el resto de la suite. Ampliarlo es una decisión, no un
@@ -1615,9 +1618,12 @@ código—.
 no-café FIRMADO — el MISMO que activa C2** (tema/estructura por cliente). El censo y la capa de copy van
 juntos: sin la capa, un censo no tiene dónde poner el resultado.
 
-**Al censo entra la FAQ del pie de /suscripciones (§ #49, 2026-09-06):** las PreguntasFrecuentes al pie de
-esa página siguen LITERALES y café-shape. No se decafeinaron con los planes-como-dato —cambiarlas rompería
-el byte-idéntico de Nayoli, igual que el resto del copy—, así que van con esta misma capa, mismo disparador.
+**LA FAQ DEL PIE DE /suscripciones YA NO ES PARTE DE ESTE CENSO — CERRADA (2026-09-12).** Dejó de ser
+literal y café-shape: `suscripcionFaq` es hoy una sección de `SiteContent` editable
+(`lib/config/site-content-defaults.ts`), con su propio editor en el panel. La cerró
+`SUSCRIPCIONES-FAQ-DATO-1` + `SUSCRIPCIONES-FAQ-EDITOR-1` (`DECISIONS.md`, 2026-09-12).
+No comparte disparador con el resto del censo de #63: se resolvió por su cuenta, antes
+de que exista la capa de copy/tema por cliente.
 
 ### 64. RESEÑAS de producto — el sistema real que reemplaza al rating borrado
 
@@ -3481,12 +3487,17 @@ Las imágenes que se suben desde el admin NO viven en `public/`: en Vercel
 el filesystem es de solo lectura en runtime, así que escribir ahí es
 imposible, no una opción descartada.
 
-- **Proveedor v1 = Vercel Blob, y SOLO a través de `lib/storage.ts`.**
-  Ningún otro archivo del repo importa `@vercel/blob` (verificable con un
-  grep, y es la condición que hace barata la revisión de proveedor). El
-  adaptador expone una interfaz propia y mínima: `storage.put(file, opts)
-  → { url }` y `storage.delete(url)`. No devuelve ni acepta un solo tipo
-  del SDK.
+- **Proveedor v1 = Vercel Blob. Del lado del SERVIDOR, SOLO a través de
+  `lib/storage.ts`** —eso sigue siendo lo que hace barata la revisión de
+  proveedor—. El adaptador expone una interfaz propia y mínima:
+  `storage.put(file, opts) → { url }` y `storage.delete(url)`. No devuelve ni
+  acepta un solo tipo del SDK. **Hay un segundo importador real, y es la cara
+  CLIENTE**: `lib/api/upload.ts` (`§ La subida DIRECTA a Blob`, arriba) importa
+  `upload` de `@vercel/blob/client` para subir del navegador directo a Blob. Es
+  la frontera del proveedor con dos caras (server + cliente), no una excepción
+  a la regla — verificable con
+  `grep -rln "@vercel/blob" --include="*.ts" --include="*.tsx" .` (fuera de esos
+  dos, ningún otro archivo lo importa).
 - **La decisión de proveedor es REVISABLE.** R2 es candidato al pasar a la
   arquitectura multitenant de Duna (misma cuenta de Cloudflare, egreso
   gratis). El costo de ese cambio debe mantenerse en "reimplementar
@@ -4052,7 +4063,7 @@ sus metadatos en el layout de su grupo.
 | `description` | copy de Nayoli (raíz) | "Panel de operación Duna." |
 | `themeColor` | `#F9F6F4` (raíz) | `#F9F6F0` claro / `#171717` oscuro |
 | favicon / icon / apple | `public/` + `metadata.icons` del grupo | `/brand/*-duna.*` |
-| manifest | Nayoli — **sigue global**, ver abajo | *(hereda el de Nayoli)* |
+| manifest | `/api/manifest` (route dinámica, § abajo) | `/duna.webmanifest` (estático propio, § abajo) |
 
 - **`title.absolute`, no `title.default`.** Un `default` de segmento hijo SIGUE
   pasando por el `template` del padre: la pestaña del panel salía
@@ -4202,7 +4213,8 @@ es NEUTRO; lo por-despliegue es DATO (SiteSetting) o env, nunca un literal de Na
   YA APLICADA a propósito** (el porqué vive DENTRO del SQL): una migración NUEVA correría también
   sobre Nayoli y PISARÍA su config real —no distingue "fresco" de "editado"—; `migrate deploy`
   salta lo ya aplicado, así que Nayoli/dev quedan intactos. Verificado: el carril de integración
-  aplica las 46 migraciones en un Postgres fresco (verde), y el build corrió `migrate deploy`
+  aplica TODAS las migraciones (`ls -d packages/core/prisma/migrations/*/ | wc -l` para el
+  número de hoy) en un Postgres fresco (verde), y el build corrió `migrate deploy`
   contra dev sin error de checksum sobre la migración editada.
 - **El noindex es OPT-IN de ocultamiento, no default.** `next.config.ts` emite `noindex` fuera de
   producción **o** con `NOINDEX=1`. La producción de un cliente real es INDEXABLE (default seguro:
@@ -4434,12 +4446,14 @@ La cadena de build, verificada contra un preview real (no "debería"):
   su `prisma.config.ts` resuelve el schema) — determinista, no depende de que npm
   corra solo el postinstall del workspace.
 - **`buildCommand`:** `npm run db:deploy -w @duna/core && next build`. El
-  `migrate deploy` corre en el contexto de core y encuentra las **36 migraciones en
-  `packages/core/prisma/migrations`** (fuente única del schema). `vercel.json` sigue
+  `migrate deploy` corre en el contexto de core y encuentra las migraciones en
+  `packages/core/prisma/migrations` (fuente única del schema; contá cuántas hay
+  hoy con `ls -d packages/core/prisma/migrations/*/ | wc -l`). `vercel.json` sigue
   con `buildCommand: "npm run build"`.
-- **`transpilePackages: ['@duna/core']`** en `next.config.ts` es OBLIGATORIO: core
-  envía TS fuente y Next debe transpilarlo; sin esto el build de producción no
-  compila el paquete de workspace.
+- **`transpilePackages` en `next.config.ts` es OBLIGATORIO** para todo paquete de
+  workspace que envíe TS fuente (hoy la lista vive en `next.config.ts`, no acá —
+  copiarla es fabricar una segunda lista que puede quedarse atrás de la real):
+  sin esto el build de producción no compila el paquete.
 - **El seed NO vive en core** (importa Better Auth + data demo de Nayoli): se queda
   en `prisma/` raíz, `npm run db:seed`. `packages/core/prisma.config.ts` no lo
   referencia.
@@ -5732,8 +5746,15 @@ de pantallas Amber Minimal.
 - diferir haría que Productos naciera con modales shadcn y hubiera que volver a
   tocarla: **difieres para no mezclar y terminas mezclando en más sitios**.
 
-**DISPARADOR: desaparece cuando Entregas, Productos y Usuarios migren.** No hay
-nada que hacer hasta entonces.
+**DISPARADOR CUMPLIDO (verificado 2026-09-14): desaparece cuando Entregas, Productos
+y Usuarios migren, y las tres ya migraron.** `/admin/entregas` **se retiró**
+(`lib/redirect-entregas.ts`: "El board de flota dejó de existir"; su fulfillment vive
+hoy en Pedidos); Productos y Usuarios ("Equipo y usuarios") quedaron en lenguaje Duna
+con la tanda del 2026-08-23 (§ Equipo y usuarios, y Perfil — "todas las verticales del
+admin están en lenguaje Duna; no queda una pantalla heredada del template"). **La
+mezcla que este disparador describía ya NO ocurre**: los cuatro diálogos se montan hoy
+sólo desde pantallas Duna OS. La sección queda como registro histórico de la decisión
+—por qué se aceptó mezclar mientras duró—, no como deuda pendiente.
 
 ### Dos superficies, no una — y la centrada va sobre `AlertDialog`
 
@@ -6169,10 +6190,12 @@ los tres que se mueven y los cuatro que no.
 La diferencia de base de Canales (creación vs pago) está DICHA en su subtítulo
 ("órdenes creadas"), no deducida. Dos bloques bajo el mismo chip contando cosas
 distintas es correcto sólo si cada uno declara qué cuenta.
-- **La concentración tiene guarda de muestra** (`MIN_CLIENTES_CONCENTRACION` = 6):
-  con 5 clientes el top-5 da 100% por aritmética, y ese 100% se lee como alarma
-  cuando solo dice que el negocio tiene cinco clientes. La LISTA se muestra igual;
-  lo que se calla es el titular. Misma familia que `MIN_ORDENES_INSIGHT`.
+- **La concentración tiene guarda de muestra** (`MIN_CLIENTES_CONCENTRACION`, definida
+  por indirección = `MIN_ORDENES_INSIGHT` en el código — el valor vive ahí, no acá; §
+  LA CONCENTRACIÓN, más abajo, documenta el piso vigente): con menos clientes que el
+  piso el top-5 da 100% por aritmética, y ese 100% se lee como alarma cuando solo dice
+  que el negocio tiene pocos clientes. La LISTA se muestra igual; lo que se calla es el
+  titular. Misma familia que `MIN_ORDENES_INSIGHT`.
 - **La recurrencia usa la fórmula unificada** con el sub "N de M", idéntica a la
   de la página de Clientes. El dashboard pasó de `kpis.tasaRetencion` a
   `recurrencia.pct` — es el MISMO número, en un campo que dice qué es.
