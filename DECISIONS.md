@@ -1337,6 +1337,59 @@ Regla: § Backlog técnico (CLAUDE.md), donde `DOCTRINA-MEDICIONES-FUERA-1` ya
 escribió "la doctrina guarda la regla y su porqué, nunca una medición ni un
 inventario" — este asiento no toca esa sección ni ninguna otra de `CLAUDE.md`.
 
+## 2026-09-14 · La segunda pasada del censo, y el sub-patrón que la abarata (`DOCTRINA-SIETE-NUEVAS-1`)
+`d96b566`, merge `--no-ff` `bfeae7a`
+
+**LA TASA.** El censo se pagó en su SEGUNDA corrida encontrando la MISMA tasa que la
+primera: **7 de 7** de las afirmaciones falsas lo eran por un cambio en OTRO
+subsistema, verificado una por una en este slice antes de tocarlas —los cuatro
+conteos de migraciones, la tabla del manifest, `MIN_CLIENTES_CONCENTRACION`, el
+importador de `@vercel/blob`, el disparador de H6, la FAQ del backlog #63 y
+`transpilePackages`—: ninguna la volvió falsa el trabajo sobre su propio párrafo; las
+siete las volvió falsas una tanda que tocaba otra cosa. Dos pasadas, dos muestras
+independientes, el mismo 100%. **La deriva doc-vs-código no es un accidente de esta
+semana: es la CONDICIÓN POR DEFECTO de una doctrina de 7.000+ líneas sin
+verificación mecánica.** Por eso el censo es obligatorio (§ `DERIVA-LIMITE-LEDGER-1`,
+arriba) y por eso existe la regla de `DOCTRINA-MEDICIONES-FUERA-1`.
+
+**EL SUB-PATRÓN, para el diseño del próximo censo.** De las siete, TRES eran
+AUTO-CONTRADICCIONES: detectables leyendo `CLAUDE.md` de corrido, sin tocar el
+código, porque la frase vencida y la frase que la corrige CONVIVEN en el mismo
+documento —a veces a pocas líneas, a veces a miles—. Es la clase más barata de
+detectar y la que más tiempo lleva viva, porque leer 7.000 líneas de corrido es
+justo lo que nadie hace: la tabla de § Identidad decía que el manifest "sigue
+global" mientras la subsección INMEDIATAMENTE siguiente documentaba su retiro.
+
+**Matizado con lo que se midió al intentar mecanizarlo, porque sin esto el
+sub-patrón se lee como "esto se automatiza" y NO es cierto.** De las tres
+auto-contradicciones, UNA era del tipo INVENTARIO (`MIN_CLIENTES_CONCENTRACION = 6`,
+contrastable contra la constante real) y UNA era DOC-CONTRA-CÓDIGO (`@vercel/blob`
+importado "SOLO" desde `lib/storage.ts` — falso, `lib/api/upload.ts` también lo
+importa) — **las dos ya tienen chequeo automático**: la de inventario lo tiene
+LITERAL (`lib/metrics/concentracion.test.ts:95`,
+`assert.equal(MIN_CLIENTES_CONCENTRACION, MIN_ORDENES_INSIGHT)`); la de
+`@vercel/blob` es mecanizable con un grep de una línea (`grep -rln "@vercel/blob"`)
+porque el símbolo
+que falsifica la frase está LITERAL en el código y en las dos frases del documento
+que se contradicen. **Pero la TERCERA —la tabla del manifest diciendo "sigue
+global" mientras la subsección INMEDIATA documenta que `app/manifest.ts` se
+retiró— era PROSA CONTRA PROSA, SIN TOKEN COMPARTIDO**: la celda de la tabla
+("Nayoli — sigue global, ver abajo") no nombra `app/manifest.ts` ni ningún otro
+símbolo — es una remisión ("ver abajo") a una prosa que la contradice. No hay
+ningún string que grepear en la celda para descubrir el conflicto; hace falta LEER
+la tabla Y la subsección y notar que afirman lo contrario una de la otra sobre el
+mismo hecho. **Ésa no es mecanizable — se queda en la lectura del censo, que es
+donde se atrapó.**
+
+**Lo que NO se decide acá:**
+- La forma concreta de un censo periódico que aproveche el sub-patrón (leer las
+  secciones que citan el mismo símbolo/archivo, no sólo grepear valores) queda
+  abierta — es diseño de un censo futuro, no de este asiento.
+- Ninguna de las siete correcciones se repite acá; viven en `CLAUDE.md`.
+
+Regla: § Backlog técnico (CLAUDE.md), sin tocar — este asiento cita la regla de
+`DOCTRINA-MEDICIONES-FUERA-1` y no la reescribe.
+
 Sin schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false`),
 sin código tocado — sólo este archivo. `npm test` **1104/1104** y
 `npx tsc --noEmit` en **0**, igual al piso que el spec midió en `main` antes de
