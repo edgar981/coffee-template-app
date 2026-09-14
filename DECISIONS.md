@@ -922,3 +922,217 @@ reconciliación no-opcional, las dos preguntas del spike).
 Sin schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false`), sin
 código tocado — sólo `CLAUDE.md` y este archivo. `npm test` **1104/1104** y
 `npx tsc --noEmit` en **0**, igual al piso medido en `main` antes de este asiento.
+
+## 2026-09-13 — LEDGER-CIERRES-VERIFICADOS-1: cierres por verificación no dejan artefacto, y el protocolo sólo sabe seguir escrituras
+
+**El hueco:** el 2026-09-12 se revisaron once ítems de backlog contra el código y
+NINGUNO se cerró con un slice — se cerraron MIDIENDO. Un ítem cerrado por verificación
+no deja commit, ni rama, ni merge, así que el auditor de cola (que sólo sabe cerrar un
+id por ENCABEZADO de ledger o por MERGE) los sigue contando abiertos — el defecto que
+la verificación existía para arreglar. Este asiento es el artefacto que faltaba para
+los ocho que un censo midió; los otros tres los cerró el orquestador a mano.
+
+### Los tres cerrados a mano, con su evidencia
+
+- **`CLAUDE-MD-PAGOS-STALE-1`** — falso: `CLAUDE.md:1827` («DROPEARON; ya no existen»)
+  nombra el modelo de métodos de pago VIEJO como retirado y describe el actual
+  (`SiteSetting.metodosPago`, lista JSON).
+- **`PAGOS-METODOS-SERVICE-TYPE-1`** — falso: `services/checkout.service.ts:22` tiene
+  `metodo: MetodoPagoTipo` (no la unión vieja sin `'breb'`), con el comentario
+  `§ CHECKOUT-BREB-CAST-1` en la línea 18 que nombra el slice que lo arregló.
+- **`PAGOS-METODOS-CHART-BREB-1`** — falso: `components/admin/PagosCurva.tsx:34`
+  declara `{ metodo: 'BREB', color: 'var(--duna-serie-6)' }` dentro de
+  `METODOS_SERIE`, y `lib/pagos/metodos-pago-enum.test.ts:58` la ata al enum de
+  Prisma (`METODOS_SERIE` cubre EXACTAMENTE los valores del enum) para que un
+  método nuevo la rompa nombrándolo.
+
+### Los ocho medidos por el censo — CINCO categorías, no dos
+
+**VIVO (2) — el defecto existe hoy:**
+
+- **`AVISOS-DOC-CORRECT-PLUMBING-CLAIM-1`** — la frase de `CLAUDE.md:1609` («cada
+  dormido es detección nueva sobre el MISMO fetch, sin tocar el lector») es FALSA, y
+  el propio repo lo demuestra: al construirse el dormido #8, `avisosDeConfiguracion`
+  (`lib/config/avisos-configuracion.ts:62-66`) ganó un **cuarto argumento
+  `ajustes: SiteSettings`** (línea 66), que en el Dashboard sale de
+  **`useSiteSettings()`** (`app/(admin)/admin/dashboard/page.tsx:97`, consumido en la
+  llamada de la línea 154) — un loader DISTINTO de `readSiteContent` /
+  `GET /api/site-content/publicado`. `DECISIONS.md:169` (el asiento de #8) ya lo dice
+  bien, sin la frase "mismo fetch" — **el propio ledger contradice la doctrina de
+  `CLAUDE.md`**. La formulación más cautelosa de `CLAUDE.md:2667` («se suma sin tocar
+  el lector») sigue siendo cierta; la que falla es la más fuerte, de `:1609`. No rompe
+  nada en producción — es riesgo de PLANEACIÓN: quien lea `:1609` para estimar el
+  costo de los avisos #3/#4 (hero/brandStory) va a subestimarlo, porque asume que
+  basta con extender el fetch existente cuando en realidad hace falta enhebrar una
+  fuente nueva (SiteSettings) al Dashboard. Costo de la corrección: 1 archivo
+  (`CLAUDE.md`), no tocado en este asiento — ver más abajo.
+- **`AVISOS-DORMANT-34-RAW-CONTENT-1`** — su premisa («0 filas de SiteContent → Nayoli
+  corre de defaults») está vencida por DOS vías: la fila se sembró el 2026-09-12, y
+  los defaults se neutralizaron en la misma tanda (`CONTENIDO-NEUTRALIZAR-1…4`) — hoy
+  `hero.titulo` es "Productos que cuentan", sin café ni Nayoli. Pero el hueco de fondo
+  sobrevive: los avisos #3/#4 (hero/brandStory) siguen sin construirse. Lo que hay que
+  corregir es la JUSTIFICACIÓN escrita («0 filas», «corre de defaults de Nayoli»), no
+  necesariamente el disparador («2º cliente»), que puede seguir valiendo por su
+  cuenta.
+
+**HECHO (4) — existía y se arregló:**
+
+- **`CHECKOUT-METODOS-OFF-TWIN-1`** — construido, pero bajo OTRO nombre:
+  `AVISOS-DORMANT-8-TWIN-1` (merge `2b6c9f7` según `DECISIONS.md:172`). El aviso
+  `checkout-sin-salida` existe (`lib/config/avisos-configuracion.ts:124`, documentado
+  en `DECISIONS.md:181`), con test que fija su clave y su orden
+  (`lib/config/avisos-configuracion.test.ts:202,224`). Son el MISMO defecto — el id
+  de backlog nunca aparece literal en el repo, así que un grep futuro por ese id
+  volvería a abrirlo si no se deja escrita la equivalencia.
+- **`EJE-5B-C2-CHROME-FOOTER-1`** — cerrado por el slice de continuación (merge
+  `9fd8d0c`), que convierte exactamente **14** literales:
+  `grep -c "sf-sobre" components/storefront/StoreFooter.tsx` da 14. Queda **un**
+  `border-white/10` (línea 190, el divisor de la bottom bar) que el propio commit
+  declaró fuera de alcance — no es un resto olvidado, es un límite escrito.
+- **`FUENTES-PESOS-DISPLAY-SOBRAN-1`** — **distinción explícita, a pedido del owner:
+  NO estaba hecho cuando el censo corrió.** Estaba VIVO, y lo cerró un slice
+  POSTERIOR: commit `4909bdd` (medido — `git show -s --format=%ai 4909bdd` →
+  `2026-09-12 22:13:08 -0500`), mergeado en `3fd2b34`. Los nueve pares de fuentes
+  pasaron a pedir `wght@400` y `globals.css` bajó `Playfair Display` a un solo peso.
+  Los otros tres HECHO de este grupo ya estaban hechos cuando sus ítems se
+  escribieron; éste se arregló DESPUÉS de que el primer censo lo mirara — dos hechos
+  distintos con la misma palabra "hecho", y hay que separarlos o el próximo lector no
+  sabe si está leyendo sobre trabajo previo o sobre trabajo que el propio censo
+  disparó. Sobre la fecha: el commit marca 2026-09-12 22:13 −05:00, el mismo día
+  calendario en que el censo corrió y DESPUÉS de esa corrida — la diferencia con
+  "hoy, 2026-09-13" que el orquestador había anunciado es de zona horaria / corte de
+  día, no de sustancia.
+- **`STOREFRONT-TIME-PROMISES-1`** — la promesa horneada ("en menos de 2 horas
+  hábiles") se retiró en la tanda de #8 (mismo merge `2b6c9f7`), por decisión del
+  owner, en las dos ramas del checkout. Hoy dicen "lo más pronto posible", con
+  comentario que documenta el retiro (`DECISIONS.md:174`, "PLAZO"). Cero promesas de
+  ENTREGA vivas. Quedan dos numéricos de GARANTÍA DE PRODUCTO ("frescura de 30 días",
+  "tostado dentro de los 7 días previos al envío") que son otra categoría, fuera del
+  alcance del ítem.
+
+**LÍMITE-DELIBERADO (1) — lo que parece pendiente es una decisión tomada:**
+
+- **`CONFIG-DEEP-LINK-POR-CAMPO-1`** — `/admin/configuracion` efectivamente no lee
+  query params: `grep -rn "useSearchParams" "app/(admin)/admin/configuracion/"` da
+  cero resultados. Pero está documentado como límite consciente en
+  `lib/config/avisos-configuracion.ts` (comentario junto a `#8`, línea 172 de
+  `DECISIONS.md`: "la convención de deep-link `?seccion&tarjeta` es del editor de
+  CONTENIDO, no de SiteSetting"), con test que fija el href actual como intencional.
+  Un límite con test no es un pendiente.
+
+**NO-SE-PUEDE-DECIDIR (1) — y es un resultado, no una falla:**
+
+- **`EJE-4-FORMA-PILLSET-1`** — la propuesta de diseño original que el ítem cita no
+  vive en este repo; sólo sobreviven citas de su conteo dentro del propio ledger que
+  la corrige. Lo remedido reconcilia en la parte medible (los `rounded-full` que
+  quedan dan 20, contra "18 círculos + 2 muertas" del ledger), pero el conteo de
+  píldoras contra la propuesta original no es verificable sin ese documento. La
+  pregunta que haría falta para resolverlo (¿la propuesta original describía 18, 20,
+  u otro número, y con qué criterio de "muerta"?) no tiene dónde buscarse — no se
+  fuerza un veredicto sin el documento.
+
+**NUNCA-FUE-DEFECTO: CERO.** Ninguno de los ocho resultó ser una afirmación que ya
+era correcta cuando se escribió — y eso es justo lo que la corrección de abajo tuvo
+que deshacer.
+
+**Conteo: 2 VIVO + 4 HECHO + 1 LÍMITE-DELIBERADO + 1 NO-SE-PUEDE-DECIDIR +
+0 NUNCA-FUE-DEFECTO = 8.** Verificado por suma directa contra la lista de arriba.
+
+### La corrección — el primer censo se equivocó, y hay que decirlo
+
+El primer censo (referenciado como parte de `BACKLOG-PODA-VERIFICADA-2`) reportó
+**«uno de los ocho NUNCA FUE DEFECTO: la afirmación de la doc ya era correcta»**, y
+ese ítem era `AVISOS-DOC-CORRECT-PLUMBING-CLAIM-1`. El re-censo lo encontró VIVO, con
+la evidencia de arriba (el cuarto argumento `ajustes: SiteSettings` que
+`CLAUDE.md:1609` no admite). **La versión anterior de este asiento lo habría cerrado
+en el ledger, por escrito, como un defecto que nunca existió** — la peor de las dos
+formas de equivocarse, porque un NUNCA-FUE-DEFECTO se lee como verificado y nadie
+vuelve a mirarlo.
+
+Los tres conteos del mismo trabajo no cuadran entre sí, y se registran los tres sin
+forzar que concuerden: el primer censo resumió 5 HECHO / 1 límite / 2 VIVO; el
+orquestador, reconstruyendo desde figuras persistidas, obtuvo 4 / 1 / 3; este
+re-censo mide 2 VIVO / 4 HECHO / 1 LÍMITE / 1 NO-SE-PUEDE-DECIDIR. Hipótesis
+plausible, escrita como hipótesis y no como hecho: el primer censo pudo haber
+plegado `EJE-4-FORMA-PILLSET-1` dentro de HECHO (contando el cableado remedido e
+ignorando que el conteo contra la propuesta original es indecidible), lo que
+convertiría 4+1 en 5 y calzaría con el 5/1/2 reportado. El 4/1/3 del orquestador no
+se explica con esa hipótesis y queda sin explicar.
+
+### Las dos fallas de protocolo — el mismo defecto en las dos direcciones
+
+**`ORCH-CENSO-SIN-TABLA-1`.** El primer censo persistió trece figuras que miden
+SÍNTOMAS ("16 ocurrencias de sf-sobre", "0 useSearchParams", "0 promesas de plazo") y
+ninguna dice qué ÍTEM cerró cada una. El mapeo síntoma → ítem vivía en la prosa del
+worker, y la prosa de un worker no se persiste: medido sobre un censo real, 42
+bloques `tool_use`, 31 de `thinking` guardados como cadena VACÍA, y UN bloque de
+texto de 84 caracteres. De ocho ids, el reporte nombraba cuatro. Costo: el censo
+entero hubo que rehacerlo, y la re-medición encontró un veredicto equivocado (el
+NUNCA-FUE-DEFECTO de arriba) que se iba a escribir en el ledger tal cual. **Y no es
+que la advertencia no estuviera escrita:** ya vive en `figures.description` del
+schema del stop-report de este mismo protocolo — es una `description`, consejo y no
+obligación, y no mordió. Documentar un requisito en un schema no lo hace cumplirse;
+ésa es la lección, no "faltaba documentación".
+
+**`ORCH-SEGUIMOS-ESCRITURAS-NO-LECTURAS-1`, el gemelo.** Un slice `writes: no` no se
+cierra solo: el auditor de cola sólo sabe cerrar un id por encabezado de ledger o por
+merge, y una investigación read-only no produce ninguno de los dos. Dos censos ya
+corridos —`TOSTADO-VIVO-CENSO-1` y `PASARELA-CENSO-MODELO-1`— quedaron vivos en la
+cola siendo trabajo YA GASTADO, y hubo que comentarlos a mano. Es la MISMA causa que
+`ORCH-CENSO-SIN-TABLA-1`, vista al revés: **el protocolo sabe seguir ESCRITURAS y no
+sabe seguir LECTURAS.** Un slice que escribe deja commit, rama, diff y encabezado —
+cuatro rastros que las herramientas leen; un slice que lee deja un JSON que ninguna
+herramienta consulta para cerrar nada. El veredicto perdido de la falla anterior y el
+cierre perdido de ésta comparten la misma raíz: el protocolo mide lo que escribe, no
+lo que averigua.
+
+**El precedente del mismo día, registrado porque el owner pidió que quede junto a
+esto:** `WOMPI-SPIKE-SANDBOX-1` volvió BLOCKED por faltar credenciales de sandbox en
+`.env` — comportamiento ESPERADO, no incidente: el worker no buscó un rodeo, no las
+pidió por otro canal, no fabricó una respuesta, y nombró la variable faltante con
+precisión suficiente para que el owner la pusiera. Una precondición ausente es
+BLOCKED, y BLOCKED es un éxito del protocolo. Cuando las llaves llegaron, resultaron
+PRODUCTIVAS (`pub_prod_`, `prv_prod_`), no de sandbox — el segundo intento no
+despachó nada: midió sólo prefijo y longitud, sin que ningún valor viajara a ningún
+lado, y encontró que "las llaves están" no era la precondición real; la precondición
+era "las llaves son de SANDBOX", verificable por PREFIJO y no por presencia. Una
+precondición verificada con el predicado equivocado es una precondición no
+verificada.
+
+### El patrón — vale más que los ocho cierres
+
+`CLAUDE.md` § Backlog técnico ya dice "PODAR LEYENDO TÍTULOS NO SIRVE — hay que
+verificar contra el CÓDIGO", con tres mordidas previas (#16, #36, #2) DENTRO de un
+mismo archivo. Este censo encuentra dos variantes nuevas:
+
+- **Entre archivos, no dentro de uno:** los cuatro HECHO de este asiento se cerraron
+  con slice, commit, asiento propio en `DECISIONS.md` y gate — y NINGUNO dejó rastro
+  en `CLAUDE.md`. El ledger queda al día porque cada slice se obliga a escribir su
+  asiento; la doctrina viva no se actualiza en el mismo commit. Como el backlog se
+  redacta leyendo `CLAUDE.md`, sigue listando como abiertas cosas que el ledger ya
+  cerró.
+- **Premisas prospectivas que vencen sin que nadie las toque:** los dos VIVO son
+  afirmaciones condicionales o de estado ajeno ("cada dormido será sobre el mismo
+  fetch", "no dispara porque hay 0 filas") que un slice POSTERIOR y no relacionado
+  volvió falsas, sin que nadie volviera a tocar la frase. La señal que esto deja
+  escrita: **un ítem de backlog que cita el estado de OTRO subsistema como premisa
+  —cuántas filas hay, que existe un fetch, cómo se comporta otro componente— tiene
+  fecha de vencimiento cada vez que ESE subsistema cambia, no sólo cuando el ítem se
+  resuelve.** No alcanza con podar leyendo el título, y tampoco alcanza con podar
+  preguntando si el ítem se resolvió: hay que revisar si las tandas de OTRAS áreas
+  invalidaron su premisa.
+
+### Lo que este asiento NO hace
+
+No toca `CLAUDE.md` — las dos frases vencidas (`:1609` y la premisa de §65 sobre
+`AVISOS-DORMANT-34-RAW-CONTENT-1`) quedan nombradas acá como pendientes, su
+corrección es otro slice con su propio `touches:`. No cierra los ítems que esperan
+una decisión de producto (`CARRITO-NO-SOBREVIVE-RELOAD-1`, `CHECKOUT-REDISENO-1`,
+`PRODUCTO-CAFE-SHAPE-1`, `ONBOARDING-RUNBOOK-1`), exentos del grep por el propio
+`CLAUDE.md`. No propone la FORMA de arreglar `ORCH-CENSO-SIN-TABLA-1` — hay una
+propuesta en evaluación del owner, no decidida; este asiento registra la falla, su
+costo medido y su causa, no la solución.
+
+Sin schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false`), sin
+código tocado — sólo este archivo. `npm test` **1104/1104** y `npx tsc --noEmit` en
+**0**, igual al piso medido en `main` antes de este asiento.
