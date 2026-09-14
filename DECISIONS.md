@@ -2001,3 +2001,63 @@ toca, y el cambio es sólo un código de estado HTTP y un nivel de log), sin con
 contrato de forma del evento lo define Wompi y no cambió; lo único nuevo es CÓMO respondemos, que Wompi
 ya trata de forma genérica como "no fue 200"). Merge Policy A aplica.
 Regla: § Pagos en línea (Wompi) — cobros automáticos (`CLAUDE.md`), sin tocar en este slice.
+
+## 2026-09-14 · La doctrina de llaves por-ESTADO (no por-rama), el go-live de Wompi
+registrado, y la frase rancia que este mismo programa volvió falsa (`DOCTRINA-DEMO-SANDBOX-1`)
+`b546c74`, merge `--no-ff` `780a01c`
+
+**Elección: la regla se escribe como propiedad del ESTADO del despliegue, no de la rama** — «un
+despliegue en estado *demo* lleva llaves de sandbox de la pasarela, aunque su rama sea `main` y su
+deploy sea "producción" en Vercel». El precedente es de este mismo repo: `DEPLOY.md` (§ Protecciones
+del demo, § Promoción a producción real) ya traza la misma partición por otro eje, `NOINDEX`
+—«ausente = indexable, el default seguro para un cliente real; la demo la pone»—, y esta doctrina es
+la MISMA distinción aplicada a las llaves de pasarela.
+
+**DEPLOY.md era la casa CONCEPTUALMENTE mejor para la mecánica** (cuál env var, en qué tabla, junto a
+`NOINDEX`/`CRON_URL`), pero **no estaba en `touches:` de este slice** (sólo `CLAUDE.md` y
+`DECISIONS.md`), así que la regla y su porqué quedaron en `CLAUDE.md` § Pagos en línea (Wompi)
+—apuntando a `DEPLOY.md` para la mecánica— y no se tocó ese archivo. **Se anota para quien abra el
+próximo slice de Wompi/deploy**: la tabla de variables de `DEPLOY.md` §2 es donde correspondería sumar
+`WOMPI_*` con la misma nota que ya llevan `NOINDEX`/`CRON_URL`.
+
+**Se registró el ítem de go-live** (paso de sandbox a llaves productivas), CON su disparador («el
+cliente decide salir a vender») y la lista de cinco puntos que fijó el owner (cuenta de Wompi del
+cliente aprobada, llaves productivas en su despliegue, URL de eventos a su dominio real, `NOINDEX`
+quitado, una transacción de verificación) — **sin construir el runbook**, por instrucción explícita.
+El argumento para NO tratarlo como "cambiar una variable": los cinco puntos pueden estar bien
+individualmente y mal en conjunto (llaves productivas con la URL de eventos aún en preview es un
+cobro real cuyo webhook no llega a ninguna parte) — la misma razón por la que las operaciones de datos
+de este repo van por runbook.
+
+**LA FRASE RANCIA (`CLAUDE.md`, § Pagos en línea (Wompi)):** «el diseño de `PaymentIntent` y el
+cableado del webhook con su reconciliación siguen sin construirse» quedó falsa en dos tercios, y las
+tres cosas se VERIFICARON contra el código antes de escribir, no se asumieron:
+
+| afirmación de la frase vieja | verificado | evidencia |
+|---|---|---|
+| "el diseño de `PaymentIntent` sigue sin construirse" | **FALSA** | `packages/core/prisma/schema.prisma:428` (`model PaymentIntent`); migración `packages/core/prisma/migrations/20260914140000_add_payment_intent` |
+| "el cableado del webhook sigue sin construirse" | **FALSA, A MEDIAS** | `app/api/webhooks/wompi/route.ts` recibe, verifica firma, ubica por `reference`, distingue duplicados/anomalías y cierra el intento (`EN_VUELO → APROBADO/FALLIDO`) — pero NO crea el `Payment`, frontera deliberada (`MetodoPago` sin valor `WOMPI` en el enum, decisión del owner pendiente) |
+| "la reconciliación sigue sin construirse" | **VERDADERA** | `grep -rniE "reconcilia\|barrido.*vencid\|expirad" lib packages app` (excluyendo tests y comentarios que sólo la MENCIONAN) — cero implementación |
+| "el barrido de intentos vencidos sigue sin construirse" | **VERDADERA** (no la nombraba la frase vieja, pero es la misma familia) | mismo grep; su disparador («cuando el webhook empiece a escribir filas», `PAYMENTINTENT-SCHEMA-1`) ya se cumplió (`WOMPI-WEBHOOK-DISPARA-BARRIDO-1`, coined en `WOMPI-WEBHOOK-RUTA-1`, abajo) |
+
+**Esta entrada CIERRA `WOMPI-WEBHOOK-DOCTRINA-PARCIAL-1`** (coined en la entrada `WOMPI-WEBHOOK-RUTA-1`
+de este mismo archivo: "actualizar esa frase cuando se toque `CLAUDE.md` por esta área"). Siguiendo la
+regla del § Backlog técnico de `CLAUDE.md` ("la doctrina guarda la regla y su porqué, nunca un
+inventario"), la frase nueva NO enumera lo construido —eso vencería solo—: apunta a
+`app/api/webhooks/wompi/route.ts` y a los asientos `WOMPI-WEBHOOK-RUTA-1` /
+`WOMPI-WEBHOOK-RACE-REINTENTO-1` para el estado exacto.
+
+**`WOMPI-WEBHOOK-DISPARA-BARRIDO-1` (el barrido de intentos vencidos) NO se cierra acá** — sigue
+abierto, sin fecha, y ninguna línea de código se tocó en este slice (`touches:` era sólo dos `.md`).
+Queda nombrado en la frase nueva de `CLAUDE.md` para que no vuelva a leerse como "deuda vaga sin
+dueño".
+
+**No se encontró ninguna otra frase de `CLAUDE.md` vencida por este programa**, más allá de la ya
+conocida y citada arriba — no se buscó exhaustivamente fuera del área Wompi/pagos, que es el alcance de
+este slice.
+
+**Ni una línea de código se tocó.** `npm test` **1125/1125** (piso medido, sin cambios; el diff es
+Markdown puro y no puede mover ese número) y `npx tsc --noEmit` en **0**. Sin schema, sin migración,
+sin bytes de cliente (`customer_bytes.changed=false` — nadie que no sea quien lee `CLAUDE.md`/
+`DECISIONS.md` ve este diff), sin contrato cross-repo. Merge Policy A aplica.
+Regla: § Pagos en línea (Wompi) — cobros automáticos (`CLAUDE.md`).
