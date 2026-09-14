@@ -1563,3 +1563,42 @@ nuevos en `lib/pagos/`, sin schema, sin bytes de cliente, sin contrato cross-rep
 `RutaDePropertyNoResuelveError` es la única superficie nueva no pedida por nombre en el spec; nace con
 su test y sin consumidores fuera de este archivo, a la espera de la ruta del webhook (Tier 1, slice
 siguiente, que sí toca `app/api/` y `PaymentIntent`).
+
+## 2026-09-14 · Las tres listas del conjunto de métodos de pago, atrapadas antes de que Wompi fuera la cuarta (`METODOS-TRES-LISTAS-1`)
+`4386358`, merge `--no-ff` `a138833`
+
+**LA TRAMPA MEDIDA ANTES DE TOCAR:** `app/api/checkout/route.ts:35` validaba `payment.metodo` con un
+arreglo literal (`z.enum(['nequi', 'daviplata', 'breb', 'transferencia', 'efectivo'])`) que no importaba
+`MetodoPagoTipo` ni `METODOS_PAGO_ORDEN` (`lib/checkout/metodos-pago.ts:13,17`) — la fuente única del
+conjunto. `services/checkout.service.ts:1,18-22` sí las importa y hasta cita `§ CHECKOUT-BREB-CAST-1`
+como el incidente que lo forzó a derivar. Hoy no había fuga hacia el comprador (un método desconocido
+da 400), pero el día que Wompi entrara a `METODOS_PAGO_ORDEN` sin tocar el route, el checkout lo habría
+**ofrecido** en la lista de opciones y **rechazado** con 400 al confirmar.
+
+**Las otras dos declaraciones, medidas por separado:**
+- **`types/payment.ts:23-42`** (el enum `MetodoPago` en MAYÚSCULAS, espejo a mano del enum de Prisma
+  `MetodoPago`) coincide byte a byte con `packages/core/prisma/schema.prisma:381-388`
+  (`NEQUI, DAVIPLATA, EFECTIVO, TRANSFERENCIA, OTRO, BREB`) — **no diverge hoy** — y ya está atado por
+  `lib/pagos/metodos-pago-enum.test.ts`, que falla nombrando el valor que falte. No se tocó.
+- **La tercera, admin-only, hallada al buscar (no citada por el spec a propósito):** `GRUPOS_PAGO`
+  (`components/admin/DatosNegocioSeccion.tsx:150-153`) particiona los cinco tipos en dos arreglos
+  literales (`['nequi','daviplata','breb','transferencia']` + `['efectivo']`) para agrupar la UI de
+  "Datos del negocio" por naturaleza del pago. Su unión **coincide hoy** con `METODOS_PAGO_ORDEN` —no
+  diverge— pero es un `{ tipos: MetodoPagoTipo[] }[]`, no un `Record`, así que TypeScript no exige que
+  cubra el conjunto entero: un método agregado a `METODOS_PAGO_ORDEN` sin tocar `GRUPOS_PAGO` no
+  rompería la compilación y simplemente desaparecería de las dos secciones de la UI admin (ninguna lo
+  filtraría dentro de su `tipos`). Fuera de `touches:` (el archivo no está en la lista aprobada) —
+  queda nombrada, no tocada.
+
+**El fix deriva, no ata con test.** `metodoPagoTipoSchema` (`lib/checkout/metodos-pago.ts`) es un
+`z.enum(METODOS_PAGO_ORDEN as [MetodoPagoTipo, ...MetodoPagoTipo[]])` — el mismo cast que ya usa
+`lib/config/site-settings-schema.ts:20` para el mismo array —, y `app/api/checkout/route.ts` lo
+consume en vez del literal. Tres tests nuevos en `lib/checkout/metodos-pago.test.ts` afirman la
+derivación (el schema acepta exactamente `METODOS_PAGO_ORDEN`, cada valor pasa el parse, y `'wompi'`
+no) — no porque la regla lo exija (derivar ya cierra la clase), sino como guardia de regresión barata
+contra que alguien reintroduzca un literal en el route.
+
+`npm test` **1125/1125** (piso medido antes de empezar: 1122; el slice sumó 3) y `npx tsc --noEmit` en
+**0**, sin moverse. Merge `--no-ff` mecánico, **tree == tree** (`db59925`) — Merge Policy A: sin
+schema, sin migración, sin bytes de cliente (el conjunto de métodos aceptados es IDÉNTICO al de antes,
+sólo cambia cómo se declara), sin contrato cross-repo. Wompi no entró a ninguna lista en este slice.
