@@ -421,20 +421,25 @@ enum MetodoPago {
 // helper, no un escritor paralelo.
 //
 // ESTA TABLA NO TIENE LLAMADORES TODAVÍA (PAYMENTINTENT-SCHEMA-1): ni webhook, ni
-// reconciliador, ni ruta. Es sólo el schema, con la capacidad que su cierre exige
-// declarada — no construida — en CLAUDE.md § Pagos en línea (Wompi).
+// reconciliador, ni ruta. Es sólo el schema. La capacidad que su cierre exige
+// —un mecanismo que cierre un intento EN_VUELO vencido sin respuesta del PSP—
+// NO ESTÁ DECLARADA todavía en ningún lado: hace falta construirla, y su forma
+// (quién dispara el barrido, con qué cadencia, con qué umbral) es del owner.
 model PaymentIntent {
   id       String @id @default(cuid())
   orden_id String
   order    Order  @relation(fields: [orden_id], references: [id], onDelete: Cascade)
 
-  // Discriminador del intento: "<numero_orden>:<intent.id del PSP>". Es el cuid
-  // de la propia fila el que hace la unicidad — sin contador que escribir ni lock
-  // que tomar. (Precedente CONTRA los contadores escritos, verificado: el gemelo
-  // de forma de `Customer.numero_ordenes` — `Customer.total_compras`, arriba —
-  // es columna de demo que el runtime nunca actualiza, CLAUDE.md § 38.) Medido
-  // contra el sandbox de Wompi (WOMPI-REGLAS-IMPLEMENTACION-1): acepta hasta 255
-  // caracteres y admite dos puntos, así que este formato entra sin ajuste.
+  // Discriminador del intento: "<numero_orden>:<cuid de esta fila>". Es el cuid
+  // de la propia fila (id, arriba) el que hace la unicidad — sin contador que
+  // escribir ni lock que tomar, y SIN depender del id de transacción del PSP:
+  // ese id todavía no existe cuando el intento nace (`pspTransactionId`, abajo,
+  // nace null y lo llena el webhook). (Precedente CONTRA los contadores
+  // escritos, verificado: el gemelo de forma de `Customer.numero_ordenes` —
+  // `Customer.total_compras`, arriba — es columna de demo que el runtime nunca
+  // actualiza, CLAUDE.md § 38.) Medido contra el sandbox de Wompi
+  // (WOMPI-REGLAS-IMPLEMENTACION-1): acepta hasta 255 caracteres y admite dos
+  // puntos, así que este formato entra sin ajuste.
   reference String @unique
 
   estado PaymentIntentEstado @default(EN_VUELO)
@@ -455,6 +460,11 @@ model PaymentIntent {
   // schema — `Order.idempotencyKey String? @unique` (arriba) — y precedente de
   // riesgo documentado — el comentario de `AutomationRun.periodo` (abajo):
   // «en Postgres dos NULL no colisionan».
+  // camelCase, no snake_case como `estado_crudo_psp` de abajo: no es un eje
+  // técnico/negocio (hay camelCase de raíz española en el schema —
+  // `descripcionCorta`, `metodoPagoPrevisto`—), es seguir al VECINO más
+  // cercano — acá, `idempotencyKey`/`providerId`/`targetId`/`tokenHash`,
+  // identificadores y tokens, todos camelCase sin excepción.
   pspTransactionId String? @unique
 
   // El ÚLTIMO estado crudo que el PSP reportó (p. ej. "DECLINED", "VOIDED"),
@@ -489,9 +499,10 @@ enum PaymentIntentEstado {
   // webhook exista; hoy nada lee este valor.
   APROBADO
   // El PSP lo rechazó, O el tiempo lo cerró sin resolución (la capacidad del
-  // barrido, declarada y no construida en este slice — ver CLAUDE.md § Pagos en
-  // línea). Ninguna de las dos crea un Payment ni distingue entre sí: el matiz
-  // real, si hubo uno, vive en `estado_crudo_psp`.
+  // barrido —un mecanismo que cierre intentos vencidos— NO ESTÁ CONSTRUIDA ni
+  // declarada en ningún lado todavía; su forma es del owner). Ninguna de las
+  // dos crea un Payment ni distingue entre sí: el matiz real, si hubo uno, vive
+  // en `estado_crudo_psp`.
   FALLIDO
 }
 
