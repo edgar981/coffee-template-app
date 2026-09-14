@@ -1602,3 +1602,74 @@ contra que alguien reintroduzca un literal en el route.
 **0**, sin moverse. Merge `--no-ff` mecánico, **tree == tree** (`db59925`) — Merge Policy A: sin
 schema, sin migración, sin bytes de cliente (el conjunto de métodos aceptados es IDÉNTICO al de antes,
 sólo cambia cómo se declara), sin contrato cross-repo. Wompi no entró a ninguna lista en este slice.
+
+## 2026-09-14 · CSP Report-Only de `/checkout` — la línea base real, antes de cualquier widget (`CSP-REPORT-ONLY-CHECKOUT-1`)
+
+**ADOPTAR EL WIDGET DE WOMPI NO ES ADOPTAR UN SCRIPT DE TERCEROS: SON HASTA TRES, Y DOS NO ESTÁN
+DOCUMENTADOS EN NINGÚN LADO DE SU DOC PÚBLICA.** Según lo medido y entregado por la investigación que
+armó este spec, `widget.js` de Wompi inyecta en runtime `cdn.siftscience.com` y
+`device.clearsale.com.br` —antifraude y *device fingerprinting*— y el dashboard del comercio no ofrece
+forma de verlos ni de apagarlos: son infraestructura del PROVEEDOR, decidida por su backend, sin SRI
+publicado y sin versión en la URL. **Eso cambia la NATURALEZA de la decisión widget-vs-redirección, no
+su costo.** Este slice no verificó esas afirmaciones de red por su cuenta —no tenía acceso a
+`WebFetch`/`WebSearch` en este dispatch—; las tomó del spec, ya "validado CLEAR" por el orquestador
+antes de arrancar, y las deja marcadas como tal en `unknowns` de su reporte.
+
+**Lo que este slice SÍ midió, directo contra el repo:** cero `next/script`/`<Script>`, cero
+`Content-Security-Policy` previo, y `app/(storefront)/checkout/` con un solo `page.tsx` sin subrutas
+(`find` sobre el directorio). `next.config.ts` ya tenía dos patrones de `headers()` por ruta —uno
+global (`/:path*`, `X-Robots-Tag`) y uno acotado por regex de archivo (`Cache-Control` de íconos)—, así
+que un tercero acotado a `/checkout` es mecánicamente idéntico a lo que ya funciona. Se confirmó
+además, leyendo el código fuente: `app/(storefront)/layout.tsx` monta EXACTAMENTE tres
+`<style dangerouslySetInnerHTML>` (paleta, fuentes, forma) condicionales a que el valor no sea `null`;
+`app/globals.css:1` trae el `@import` de Google Fonts (Inter/Playfair); y `next-themes`
+(`node_modules/next-themes/dist/index.mjs`) inyecta su script anti-flash con
+`t.createElement("script",{...,dangerouslySetInnerHTML:...})`, **sin nonce** —`StorefrontThemeProvider`
+no le pasa `nonce`—, así que `'unsafe-inline'` en `script-src` es por esto, no por Wompi. No se halló
+`<form>`, `<base>`, ni `data:image` en el árbol que monta `/checkout` (checkout page + StoreNav +
+StoreFooter + CartDrawer), así que `img-src` no lleva `data:` y `connect-src`/`form-action` quedan en
+`'self'` sin inventar orígenes — hoy `createOrder` (`services/checkout.service.ts`) es un fetch
+same-origin a `/api/checkout`.
+
+**LA POLÍTICA, sólo `Content-Security-Policy-Report-Only` (nunca bloquea, sólo reporta a la consola
+del navegador), en `next.config.ts` bajo `source: "/checkout"`:**
+
+```
+script-src 'self' https://checkout.wompi.co https://cdn.siftscience.com https://device.clearsale.com.br 'unsafe-inline'
+style-src 'self' https://fonts.googleapis.com 'unsafe-inline'
+font-src 'self' https://fonts.gstatic.com
+img-src 'self' https://*.public.blob.vercel-storage.com
+frame-src https://checkout.wompi.co
+connect-src 'self'
+object-src 'none'
+base-uri 'self'
+form-action 'self'
+```
+
+Sin `'unsafe-eval'` (no hay `eval` propio en el repo) y sin nonce (viable —`/checkout` ya es
+`force-dynamic`— pero exigiría tocar `StorefrontThemeProvider`, los tres `<style>` y el matcher de
+`proxy.ts`; eso es otro slice). Sin `default-src`: el spec enumeró nueve directivas explícitas y no
+pidió una fallback, así que agregar una habría medido algo distinto de lo que el spec definió.
+
+**POR QUÉ ENTRA ANTES DEL WIDGET, NO CON ÉL.** Una política se estrena rompiendo cosas. Estrenarla el
+mismo deploy que integra el pago mezclaría dos fuentes de fallo, y ninguna de las dos se podría señalar
+sola. Report-Only mide la línea base real —lo que YA carga en `/checkout` hoy, sin Wompi— antes de que
+un widget la enturbie.
+
+**EL LÍMITE, para que nadie crea que hay monitoreo:** este repo no tiene endpoint `report-to`/
+`report-uri`. Las violaciones sólo se ven en DevTools de quien abra `/checkout` con la consola abierta;
+no hay agregación ni alerta. Verificar que la cabecera efectivamente se emite exige un servidor
+corriendo (`next dev`/`next start`) contra una request real, y el spec pidió explícitamente NO correr
+`npm run build`; este slice no levantó ningún server. Lo que sí se comprobó sin servidor: se evaluó
+`headers()` de `next.config.ts` directamente con `tsx` —la misma función que Next invoca internamente
+para construir sus reglas— y se confirmó que para `source: "/checkout"` produce exactamente el string
+de arriba en un único objeto `{ key: "Content-Security-Policy-Report-Only", value: "..." }`. Eso prueba
+la CONFIGURACIÓN; no prueba el header en una respuesta HTTP real, que sigue sin comprobarse en este
+slice.
+
+`npm test` **1125/1125** (piso medido antes de empezar: 1125, sin cambios — el slice no tocó código de
+producto, sólo config y doc) y `npx tsc --noEmit` en **0**, sin moverse. `npm run build` NO se corrió,
+por instrucción explícita del spec. Merge `--no-ff` mecánico, **tree == tree**
+(`9234095118e4523d5be67f5d5ce90aec8a24b398`, merge `9881e91`) — Merge Policy A: sólo `next.config.ts` +
+`DECISIONS.md`, sin schema, sin bytes de cliente (una cabecera HTTP Report-Only no es texto ni pixel
+que un visitante lea — no cambia nada visible del checkout), sin contrato cross-repo.
