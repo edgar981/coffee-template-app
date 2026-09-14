@@ -341,7 +341,7 @@ export interface CreateOrderInput {
   actor?: TransitionActor;
 }
 
-function isUniqueViolation(error: unknown): boolean {
+export function isUniqueViolation(error: unknown): boolean {
   return (
     typeof error === 'object' && error !== null && 'code' in error &&
     (error as { code?: string }).code === 'P2002'
