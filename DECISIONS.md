@@ -1673,3 +1673,59 @@ por instrucción explícita del spec. Merge `--no-ff` mecánico, **tree == tree*
 (`9234095118e4523d5be67f5d5ce90aec8a24b398`, merge `9881e91`) — Merge Policy A: sólo `next.config.ts` +
 `DECISIONS.md`, sin schema, sin bytes de cliente (una cabecera HTTP Report-Only no es texto ni pixel
 que un visitante lea — no cambia nada visible del checkout), sin contrato cross-repo.
+
+## 2026-09-14 · El email del comprador sale del `href` de "Rastrear mi pedido" — AWAITING_APPROVAL (`CHECKOUT-EMAIL-EN-HREF-2`)
+
+Continúa un `RULING_NEEDED` que `CHECKOUT-EMAIL-EN-HREF-1` dejó abierto — ese slice **midió y no
+eligió**, volvió con diff vacío, y estaba bien que lo hiciera. Este slice sólo aplica la elección del
+owner.
+
+**EL HALLAZGO, que no era teórico ni dependía de Wompi.** `app/(storefront)/checkout/page.tsx` armaba
+el enlace de confirmación con `/rastrear-pedido?orden=…&email=${encodeURIComponent(info.email)}`: el
+correo del comprador viajaba **en texto plano dentro de un atributo del DOM de una página pública**.
+URL-encodeado no es lo mismo que protegido — cualquier script con acceso a esa página lo lee con un
+`querySelector('a[href*="email="]')`, sin tocar el estado de React ni el bundle de la app. Lo destapó
+un censo que buscaba otra cosa (`CSP-Y-SCRIPT-DE-TERCEROS-1`, el que midió los orígenes que inyecta
+`widget.js` de Wompi), y era cierto **hoy**, con o sin pasarela.
+
+**LA DECISIÓN (owner): opción (a), quitar el `email` del `href` y dejar sólo `?orden=…`.** Sus dos
+razones, porque son las que tienen que impedir que alguien "mejore" esto en seis meses:
+
+> Con (b) el dato personal SIGUE en la página, sólo se mueve del atributo al JavaScript. El objetivo
+> era SACARLO, no esconderlo mejor.
+
+> Un `href` estable es lo que hace que un enlace se comporte como enlace. Clic-medio, copiar-enlace,
+> abrir-en-pestaña y la vista previa son comportamientos que el comprador espera de la web entera —
+> romperlos para ahorrar un campo de tecleo cambia algo más profundo que lo que arregla.
+
+**(b) — resolver el email en el momento del clic (`useRouter`/`sessionStorage`/navegación diferida) —
+se descartó por esa segunda razón, no por costo de implementación.** Un `href` que no es la URL real
+hasta que se hace clic deja de comportarse como un link: middle-click abre una pestaña sin el dato,
+"copiar enlace" copia una URL que no busca nada, y la vista previa del navegador no coincide con el
+destino real. (a) es la única de las dos que saca el dato en vez de reubicarlo.
+
+**EL COSTO, sin adorno: el comprador llega a `/rastrear-pedido` con el campo de email VACÍO y pierde
+la búsqueda automática de un clic.** `/rastrear-pedido` lee `email` por `useSearchParams()` y sin él no
+auto-busca — eso es aceptado, no un defecto a compensar. Este slice no tocó `/rastrear-pedido`: no está
+en su `touches:`.
+
+**EL CAMBIO, una línea, dentro de `app/(storefront)/checkout/page.tsx:222`:**
+
+```diff
+- <Link href={`/rastrear-pedido?orden=${encodeURIComponent(confirmation.numero_orden)}&email=${encodeURIComponent(info.email)}`} …>
++ <Link href={`/rastrear-pedido?orden=${encodeURIComponent(confirmation.numero_orden)}`} …>
+```
+
+**El patrón NO se repite en otro lado del archivo**: es el único `<Link>` de `page.tsx` que llevaba un
+dato personal en el `href` (grep de `href=`/`Link ` sobre el archivo completo, 4 resultados, los otros
+tres sin datos de cliente). **No había test que fijara el `href` con `email`** — se buscó por
+`rastrear-pedido` y por `checkout/page` en `tests/` y no apareció ninguno; no se inventó uno nuevo, el
+cambio es una línea y su efecto es un parámetro menos en una URL.
+
+`npm test` **1125/1125** (piso medido antes de empezar: 1125, sin cambios — el slice no tocó lógica,
+sólo un `href`) y `npx tsc --noEmit` en **0**, sin moverse. `npm run build` NO se corrió.
+
+**AWAITING_APPROVAL, `stopped_on: ['customer-bytes']` — no se mergea.** `app/(storefront)/` es Tier 1 y
+esto cambia lo que el comprador VE: el campo de correo en `/rastrear-pedido` deja de llegar prellenado
+tras confirmar un pedido. El `approved: yes` del spec cubre los PATHS declarados en `touches:`, no el
+gate visual — ése es del owner sobre el preview de Vercel.
