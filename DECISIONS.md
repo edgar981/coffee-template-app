@@ -1425,3 +1425,91 @@ nuevos) y `npx tsc --noEmit` en **0**, igual al piso que el spec midió en `main
 Regla: dos declaraciones del mismo hecho o derivan una de la otra o hay un test que las ata — el mismo
 criterio de `site-content-schema.test.ts` (§ CLAUDE.md, El schema editable STRIPPEA lo no declarado),
 ahora en la idempotencia de automatizaciones.
+
+## PAYMENTINTENT-SCHEMA-1 — la tabla del INTENTO, y lo que su cierre exige (2026-09-14)
+
+`PaymentIntent` entra al schema con su migración aditiva (`20260914140000_add_payment_intent`) y **sin
+un solo llamador**: ni webhook, ni reconciliador, ni ruta. La forma la aprobó el owner tras dos censos
+(`PAYMENTINTENT-FORMA-CENSO-1`, `PAYMENTINTENT-BUCKETS-CENSO-1`): **una fila por INTENTO**, la unique
+del id de transacción del PSP **en `PaymentIntent` y no en `Payment`**, **sin FK a `Payment` en
+ninguna dirección**, y **tres buckets** (`EN_VUELO` / `APROBADO` / `FALLIDO`).
+
+La razón de la unique es la que decide todo lo demás: **el webhook llega con el id de transacción
+ANTES de saber si corresponde crear un `Payment`** —una transacción declinada no debe crear ninguno—,
+así que el reconocimiento «ya vi este id» **tiene que poder ocurrir sin pasar por el escritor de
+dinero**. `registerOrderPaymentTx` sigue siendo el único que crea un `Payment`, y el webhook será **un
+llamador más**. La columna es `String? @unique`: el id no existe cuando el intento se crea, y que
+Postgres permita muchos NULL bajo una unique tiene **precedente vivo en este mismo schema**
+(`Order.idempotencyKey`) y **precedente de riesgo documentado** (el comentario de `AutomationRun.periodo`:
+«dos NULL no colisionan»). Las dos citas describen la misma propiedad desde ángulos opuestos.
+
+**Tres buckets y no cuatro, medido contra NUESTRAS decisiones y no contra el catálogo del proveedor.**
+Ninguna decisión propia se bifurca entre «Wompi lo rechazó» y «el cliente nunca volvió»: las dos dejan
+de consultarse y ninguna crea un `Payment`. La diferencia real —una es terminal por evidencia, la otra
+por un reloj nuestro— es **una rama de código dentro del reconciliador, no un estado**. El matiz que un
+operador podría necesitar al teléfono vive en `estado_crudo_psp`, **como dato junto al hecho**, con el
+precedente de `Objetivo.omitir`. Un cuarto valor que ninguna decisión consulta sería la «mina inerte»
+que este ledger ya rechazó para un cuarto valor de `Order.estado`.
+
+**El HOLD del segundo commit fue CORRECTO y no es un defecto del lector.** Merge Policy A clasifica **la
+RAMA, no el commit** —es lo que el merge va a aterrizar— y en la rama vive la migración, que no estaba
+en el `touches:` del slice de remates: `schema.prisma` salió `TRIP-APPROVED` y `migration.sql` salió
+`TRIP` a secas. Mismo eje que ya está escrito para `customer_bytes` (`ORCH-CUSTOMER-BYTES-EJE-1`).
+
+**EL BARRIDO DE INTENTOS VENCIDOS PUEDE ESPERAR AL WEBHOOK, y la razón es medida, no una postergación.**
+Se declaró antes del merge porque podía cambiar el alcance de la migración, y **no lo cambia**:
+
+- **el disparador ya existe y es reusable tal cual** — `.github/workflows/automations-cron.yml`, cron
+  horario, POST autenticado a `app/api/cron/automations/route.ts`. (`vercel.json` **no** declara crons:
+  en plan Hobby correrían una vez al día, y el propio workflow lo documenta.) **No hace falta
+  infraestructura nueva;** lo que no existe es el código del barrido;
+- **el cliente siempre puede reintentar aunque el barrido no corra**, medido contra columnas y uniques:
+  `reference` incorpora el cuid de **cada fila nueva**, `pspTransactionId` es nullable+única, y no hay
+  unique sobre `(orden_id, estado)` — dos `EN_VUELO` de la misma orden **no chocan**;
+- **hoy no hay filas que barrer**: cero llamadores de `PaymentIntent` fuera del schema y del cliente
+  generado.
+
+**DISPARADOR DEL ÍTEM, escrito para que no quede como deuda vaga: el barrido entra cuando el webhook
+empiece a escribir filas.** Antes de eso no tiene nada que hacer.
+
+**Dos decisiones del orquestador, por medición** (el owner corrigió que eran suyas y no de producto):
+el barrido **entra al catálogo de `constants/automations.ts`** con su `configSchema`, que es lo que le
+da un umbral **configurable por el owner** en «Ajustes» sin inventar nada —precedentes `maxEdadDias` y
+`horasEntrega`— y lo hace visible junto a sus pares en vez de ser un barrido invisible. Y el **umbral
+por defecto es 48 h**: Wompi reintenta un webhook fallido **3 veces en 24 h** y después desiste, así que
+24 h es el **piso duro**; 48 h deja una ventana entera de holgura después del último reintento en vez de
+cerrar en el borde.
+
+**Y EL PUNTO CIEGO REAPARECIÓ POR SU SEGUNDA CARA.** Si las filas `EN_VUELO` se acumularan, **nadie lo
+notaría**: cero lecturas de `PaymentIntent` en `lib/atencion/` y en `packages/core/src/orders.ts`. Es
+**el mismo hueco de carriles** ya medido para una orden con intento `FALLIDO`, que el owner mandó al
+backlog. El ítem cubre **las dos caras**, no sólo el intento fallido: ni un intento fallido ni una
+acumulación de intentos en vuelo aparecen hoy en ningún carril del admin.
+
+**Dos comentarios nacieron falsos en el primer commit y se corrigieron en el segundo, sobre la misma
+rama.** El de `reference` decía que el formato era `<numero_orden>:<intent.id del PSP>` y **se
+contradecía con su propia frase siguiente**: el PSP no tiene id cuando el intento se crea —
+`pspTransactionId` nace null tres columnas más abajo—, así que un lector que lo siguiera armaría la
+referencia con un dato que no existe, **y es justo el comentario que explica la pieza que sostiene el
+diseño**. Y dos remisiones apuntaban a una declaración en `CLAUDE.md § Pagos en línea` **que no existía**:
+referencia cruzada falsa **desde el commit que la escribió**. Es la misma clase de deriva que esta semana
+se corrigió en la doctrina, **ahora naciendo en código nuevo** — y la encontró la pregunta mecánica de
+cierre, no una lectura.
+
+**Los nombres se quedan como están, y no era una mezcla.** `pspTransactionId` en camelCase porque sus
+vecinos son `idempotencyKey`, `providerId`, `targetId`, `tokenHash` —identificadores y tokens, sin
+excepción—; `estado_crudo_psp` en snake_case porque **todos** los campos `estado_*` de varias palabras del
+schema lo son (`estado_anterior`, `estado_nuevo`), cero contraejemplos. **La regla que se creía —«técnico
+vs negocio»— NO se sostiene**: hay doce campos camelCase con raíz española (`descripcionCorta`,
+`metodoPagoPrevisto`). La que sobrevive a los datos es **seguir al vecino más cercano**.
+
+**Una guarda que se interpreta deja de ser guarda.** El spec ordenaba PARAR si la herramienta de
+migración exigía una base; `prisma migrate diff --from-migrations` la exigió (pide `shadowDatabaseUrl`)
+y el worker **no paró**: usó la vía schema-a-schema, que no necesita base, y lo declaró. La intención se
+respetó —ninguna base se tocó— pero la letra decía parar. Queda escrito para no normalizarlo. **Y la
+cita correcta**, que un worker corrigió al orquestador: `CLAUDE.md` § 38 documenta `Customer.total_compras`,
+**no** `numero_ordenes`; el precedente contra los contadores escritos vale igual.
+
+Merge `--no-ff` mecánico sobre rama ya gateada por el owner, **tree == tree** (`c7eeaa7`). `npm test`
+**1110/1110** y `npx tsc --noEmit` en **0**, sin moverse. Migraciones 51 → 52. **La migración NO se
+aplicó a ninguna base:** eso es una operación de datos y es del owner, por runbook.
