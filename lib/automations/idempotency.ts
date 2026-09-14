@@ -1,5 +1,6 @@
 import prisma from '@duna/core';
 import { BUSINESS_TZ, zonedDayKey, isoWeekKey } from '@duna/core/timezone';
+import { isUniqueViolation } from '@duna/core/orders';
 import type { AutomationDef } from '@/constants/automations';
 import type { AutomationRunEstado } from '@duna/core';
 
@@ -100,7 +101,7 @@ export async function registrarRun(input: RegistrarRunInput): Promise<boolean> {
     });
     return true;
   } catch (e) {
-    if (typeof e === 'object' && e !== null && (e as { code?: string }).code === 'P2002') {
+    if (isUniqueViolation(e)) {
       return false; // ya registrado — idempotencia funcionando
     }
     // Un fallo de bitácora nunca escala: la operación de negocio ya ocurrió.
