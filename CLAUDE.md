@@ -777,6 +777,29 @@ Reglas de la lista, para que siga sirviendo:
   código —igual que la regla del artefacto (§ PRECONDICIÓN): lo que el item DICE no
   prueba lo que el código HACE—. Los items que esperan una DECISIÓN de producto (no
   un defecto) no necesitan este grep.
+- **UN ÍTEM QUE CITA EL ESTADO DE OTRO SUBSISTEMA COMO PREMISA VENCE CUANDO ESE
+  SUBSISTEMA CAMBIA, NO CUANDO EL ÍTEM SE RESUELVE.** Cuántas filas hay, que existe
+  un fetch, cómo se comporta otro componente: cada una de esas premisas tiene fecha
+  de vencimiento AJENA al ítem. No alcanza con podar leyendo el título, y TAMPOCO
+  alcanza con preguntar si el ítem se resolvió — hay que revisar si las tandas de
+  OTRAS áreas invalidaron su premisa. Pasó DOS veces en el § 65 (avisos del
+  Dashboard; corregido en `CLAUDE-MD-FRASES-VENCIDAS-1`, 2026-09-14): la frase "cada
+  dormido es detección nueva sobre el MISMO fetch" la mató la CONSTRUCCIÓN del
+  dormido #8 (ganó una fuente aparte, `useSiteSettings()`), y la premisa "no fires
+  para Nayoli hoy: los defaults SON Nayoli, 0 filas de `SiteContent`" la mató la
+  tanda `CONTENIDO-NEUTRALIZAR-1…4`. Ninguna de las dos murió por trabajo sobre SU
+  PROPIO ítem — las dos eran afirmaciones prospectivas o condicionales que nadie
+  volvió a leer.
+- **Y EL REVERSO, la otra mitad de la misma regla:** un ítem se puede cerrar con
+  slice, commit y asiento en `DECISIONS.md` y NO dejar rastro acá — el ledger queda
+  al día porque cada slice se obliga a su asiento; esta doctrina no se obliga a
+  nada. Como el backlog se redacta leyendo este archivo, sigue listando abierto lo
+  que el ledger ya cerró (medido: cuatro ítems del re-censo
+  `LEDGER-CIERRES-VERIFICADOS-1`, 2026-09-13, cerrados con evidencia y sin una línea
+  acá). El trío #16/#36/#2 de arriba era el mismo defecto DENTRO de un archivo;
+  éste está ENTRE DOS. **No hay arreglo propuesto para esta deriva acá** — hay una
+  forma en evaluación del owner, y esta entrada registra el defecto y su costo, no
+  la solución.
 
 ### 46. El editor VISUAL, FASE 2 — el campo flotante para el TEXTO (Fase 1 CERRADA)
 
@@ -1602,14 +1625,25 @@ La doctrina de lo construido —el aviso APARTE del dueño, el lector de publica
 el defecto, y el fix del schema que la tanda destapó (§ #65-B)— vive en **§ El AVISO DE CONFIGURACIÓN del
 Dashboard**. Con Nayoli sano: CERO avisos.
 
-**LO QUE QUEDA — los DORMIDOS** (no fires para Nayoli hoy: los defaults SON Nayoli, y el schema+seed
-garantizan el whatsapp): la familia "campo requerido vacío → default de Nayoli en OTRO tenant"
+**LO QUE QUEDA — los DORMIDOS**: la familia "campo requerido vacío → default de Nayoli en OTRO tenant"
 (hero/brandStory/nosotros), empty-whatsapp en checkout/suscripciones, galería con vídeo sin póster. **La
-PLOMERÍA ya está** —el lector de SiteContent publicado (`GET /api/site-content/publicado`) devuelve el
-contenido COMPLETO, así que cada dormido es detección nueva sobre el MISMO fetch, sin tocar el lector—.
+PLOMERÍA AYUDA, y el costo es BAJO — no CERO.** El lector de SiteContent publicado
+(`GET /api/site-content/publicado`) cubre lo que cruza CONTENIDO, pero no todo dormido cruza sólo eso:
+`avisosDeConfiguracion` ya ganó un cuarto argumento (`ajustes: SiteSettings`,
+`lib/config/avisos-configuracion.ts:66`) que en el Dashboard sale de un provider APARTE
+(`useSiteSettings()`, `app/(admin)/admin/dashboard/page.tsx:97`), no del mismo fetch. Verificar la
+FUENTE de cada dormido antes de estimar su costo.
 
-**Costo YA pagado: ninguno.** **DISPARADOR: el 2º cliente** (ligan a C2/#63): ahí los defaults dejan de
-SER el tenant y "campo requerido vacío → default de Nayoli" pasa a ser un defecto real que el dueño debe ver.
+**LA RAZÓN DE POR QUÉ TODAVÍA NO URGE ESTABA VENCIDA, y se corrige acá.** Decía "no fires para Nayoli
+hoy: los defaults SON Nayoli" y suponía 0 filas de `SiteContent`. Las dos murieron el 2026-09-12
+(`CONTENIDO-NEUTRALIZAR-1…4`): la fila de Nayoli se SEMBRÓ (ya no hay 0 filas), y los defaults se
+NEUTRALIZARON en la misma tanda — hoy `hero.titulo` es "Productos que cuentan"
+(`lib/config/site-content-defaults.ts:411`), sin café ni Nayoli. **El hueco SIGUE ABIERTO**: los avisos
+#3/#4 (hero/brandStory) siguen SIN CONSTRUIRSE en `avisosDeConfiguracion`. Lo vencido era la
+justificación escrita, no el estado del ítem.
+
+**Costo YA pagado: ninguno.** **DISPARADOR: el 2º cliente** (ligan a C2/#63) — sigue en pie por su
+cuenta; no dependía de la premisa que se acaba de corregir arriba.
 
 ### 67. Derivar el SCHEMA EDITABLE del REGISTRY — que ninguna divergencia pueda ocurrir
 
