@@ -1828,3 +1828,115 @@ producto, sólo una directiva de config y este archivo) y `npx tsc --noEmit` en 
 schema, sin migración, sin bytes de cliente (una cabecera HTTP Report-Only, invisible al comprador, y
 que hoy no cambia ningún comportamiento observable — el `<form>` que la directiva anticipa no existe),
 sin contrato cross-repo. Merge Policy A aplica: sólo `next.config.ts` + `DECISIONS.md`.
+
+## 2026-09-14 · La ruta del webhook de Wompi: recibe, verifica, reconoce duplicados y cierra el
+`PaymentIntent` — SIN crear ningún `Payment` (`WOMPI-WEBHOOK-RUTA-1`)
+`7bf31c2`, merge `--no-ff` `1d4fd89`
+
+**SEGUNDA ETAPA, tras `WOMPI-WEBHOOK-CENSO-1` (writes: no, sin artefacto propio — el owner aprobó
+arrancar sobre lo que ese censo midió).** `app/api/webhooks/wompi/route.ts` nace con su test co-ubicado
+(`route.test.ts`), y es el PRIMER código que toca `PaymentIntent` fuera del schema y del cliente
+generado — confirmado por grep antes de escribir una línea (`grep -rln "PaymentIntent" --include="*.ts"
+--include="*.tsx" .`, cero resultados fuera de `packages/core/prisma/schema.prisma` y
+`src/generated/`).
+
+**LA FRONTERA, y por qué está EXACTAMENTE ahí.** Crear un `Payment` exige un valor de `MetodoPago`, y
+el enum de hoy (`NEQUI | DAVIPLATA | EFECTIVO | TRANSFERENCIA | OTRO | BREB`) no tiene `WOMPI`. Usar
+`OTRO` o sumar un valor es modelar un concepto del dominio — del owner, pendiente, no de este slice. La
+ruta llega hasta escribir el desenlace en `PaymentIntent.estado` y se detiene ahí; el gancho de la etapa
+siguiente está marcado en el código, en el punto exacto donde `registerOrderPaymentTx` engancharía como
+su CUARTO llamador (los otros tres, ya citados en § Pagos en línea de `CLAUDE.md`:
+`app/api/orders/[id]/payments/route.ts`, `immediatePayment`, `decidirComprobante`).
+
+**EL CAMINO, en orden:**
+
+1. **Sin `WOMPI_EVENTS_SECRET` → 500**, sin filtrar nada (el nombre de la variable no aparece en la
+   respuesta). El endpoint queda CERRADO por defecto, no abierto.
+2. **`req.json()` alcanza** — `verificarFirmaWompi` opera sobre el evento YA PARSEADO (medido: cero
+   `req.text()` en `app/api`; 25 rutas usan `.json()` — el spec citaba 27, la diferencia no cambió
+   ninguna decisión de este slice y se anota como discrepancia medida, no corregida).
+3. **Forma mínima validada ANTES de llamar al verificador** (`comoEventoWompi`): un cuerpo sin `data`/
+   `timestamp`/`signature.{properties,checksum}` es tan intratable como una firma inválida — misma
+   puerta, 401.
+4. **Firma inválida (incluida `RutaDePropertyNoResuelveError`) → 401, nada escrito.** La ruta no
+   distingue "checksum no coincide" de "el evento no tiene la forma que `properties` promete": las dos
+   son "no se puede confiar en este evento", y reintentar SÍ ayuda si la causa fue transitoria (config,
+   secreto rotado a medias).
+5. **Se ubica por `reference`** — es la clave que NOSOTROS generamos al crear el intento (§ el comentario
+   de `PaymentIntent.reference` en el schema) y que Wompi echa de vuelta en el evento; `pspTransactionId`
+   no sirve para la PRIMERA entrega porque nace `null` hasta que el webhook lo llena. Medido y confirmado
+   contra `DECISIONS.md` (`METODOS-TRES-LISTAS-1` / el asiento de `form-action`, línea 1816-1817): "el
+   webhook… y la reconciliación por `reference` son comunes a las dos [formas]".
+6. **Referencia sin match → 200, log.** Reintentar no la hace aparecer.
+7. **Intento ya TERMINAL:** se distingue REPETIDO (mismo `pspTransactionId` ya asentado — el mismo
+   evento, de nuevo) de ANOMALÍA (contradice lo asentado) — ninguno de los dos pisa el veredicto
+   anterior. 200 en ambos, log distinto.
+8. **Status crudo → bucket** (`bucketDeStatus`, medido contra NUESTRAS decisiones —
+   `PaymentIntentEstado` en el schema— no contra el catálogo del PSP): `APPROVED`→`APROBADO`;
+   `DECLINED`/`VOIDED`/`ERROR`→`FALLIDO`; cualquier otro valor (`PENDING`, o uno nuevo de Wompi) no es
+   terminal → 200, se queda `EN_VUELO`. Preferir callar a decidir sin base.
+9. **El cierre es un `updateMany({ where: { id, estado: 'EN_VUELO' }, data: {...} } )`** — el MISMO
+   patrón que `sellar()` en `packages/core/src/comprobantes.ts` (transición condicional en UNA
+   sentencia): `count === 0` ⇒ otra entrega concurrente ya lo cerró, tratado igual que el terminal de
+   arriba.
+10. **`isUniqueViolation` envuelve la escritura** — capa DEFENSIVA sobre la unique de
+    `pspTransactionId` (la pieza que sostiene la idempotencia, `PASARELA-DOC-AL-DIA-1`): si el id de
+    transacción del evento ya pertenece a OTRA fila, el choque ocurre ACÁ, antes de cualquier llamada al
+    escritor de dinero (que en este slice no existe), y no se pisa nada. Test propio construido para
+    forzarlo (dos filas, la segunda con el `pspTransactionId` ya ocupado por la primera).
+11. **El monto NO decide nada** — se compara (`amount_in_cents` del evento, en centavos, convertido a
+    pesos) contra `monto_esperado` y se REGISTRA si difiere, nunca desvía el flujo. Releer `Order.total`
+    bajo lock es de la etapa siguiente.
+
+**EL DISEÑO ES INYECTABLE, y es lo que vuelve testeable la ruta ENTERA sin una base real.**
+`procesarEventoWompi(evento, checksumHeader, secreto, db)` recibe una interfaz ANGOSTA
+(`PaymentIntentDb`, sólo `findUnique` + `updateMany`) que el `prisma` real satisface por tener MÁS
+métodos; el test le pasa un doble en memoria con filas mutables y simula el P2002 comparando contra las
+demás filas del doble. `POST` es la única función que lee `process.env` y arma el `prisma` real —
+delgada a propósito, para que el 500 de "falta el secreto" y el 401 de "cuerpo no es JSON"/"forma
+inesperada" se prueben con un `NextRequest` real sin tocar la base (esos caminos retornan antes de
+llamar a `db`).
+
+**LOS SEIS CASOS QUE EL SPEC EXIGÍA, más tres adicionales** (14 tests en total, todos verdes): firma
+válida cierra APROBADO/FALLIDO/no-terminal (3); firma inválida por checksum y por
+`RutaDePropertyNoResuelveError` (2); `POST` sin secreto (500), con firma inválida a nivel HTTP, con
+cuerpo no-JSON y con forma inesperada (4); segunda entrega del mismo evento no duplica (1); referencia
+sin match (1); anomalía sobre intento terminal no pisa (1); y los dos adicionales: el choque P2002 entre
+dos `PaymentIntent` distintos, y la discrepancia de monto que se registra sin cambiar el desenlace.
+
+**DEVIACIÓN MEDIDA — `npm test` NO ejercita este archivo.** El script `test` de `package.json` es
+`node --import tsx --test "lib/**/*.test.ts" "constants/**/*.test.ts" "packages/core/**/*.test.ts"`:
+tres globs explícitos que NO incluyen `app/api/**`. `route.test.ts` corrió — y corre verde, 14/14 — con
+`node --import tsx --test app/api/webhooks/wompi/route.test.ts` DIRECTO, nunca por `npm test`. `touches:`
+de este slice no incluía `package.json`, así que el glob no se tocó; queda anotado para que el próximo
+que lea "`npm test` verde" en este asiento sepa que el piso citado (1125/1125) es el de la suite
+EXISTENTE sin cambios, no una prueba de que el archivo nuevo corre bajo ese comando.
+
+**DOS HALLAZGOS DEL CENSO MECÁNICO DE CIERRE, ninguno arreglado acá (fuera de `touches:`):**
+
+- **`CLAUDE.md` § Pagos en línea (Wompi), línea 2811: "el diseño de `PaymentIntent` y el cableado del
+  webhook con su reconciliación siguen sin construirse"** queda FALSA a medias: el cableado del webhook
+  YA EMPEZÓ (esta ruta recibe, verifica, reconoce y cierra `PaymentIntent`); lo que sigue sin construirse
+  es sólo el CUARTO llamador de `registerOrderPaymentTx` y el reconciliador (`GET
+  /v1/transactions?reference=`). `WOMPI-WEBHOOK-DOCTRINA-PARCIAL-1` — actualizar esa frase cuando se
+  toque `CLAUDE.md` por esta área; no se toca acá porque el archivo no está en `touches:`.
+- **`DECISIONS.md` § `PAYMENTINTENT-SCHEMA-1` (línea 1472): "el barrido entra cuando el webhook empiece
+  a escribir filas"** — ESTE SLICE es ese momento: el `updateMany` de arriba SÍ escribe filas de
+  `PaymentIntent` (EN_VUELO → APROBADO/FALLIDO). `WOMPI-WEBHOOK-DISPARA-BARRIDO-1` — el barrido de
+  intentos vencidos queda DESBLOQUEADO por su propio disparador documentado; construirlo sigue sin
+  fecha, es trabajo aparte, y se anota para que no quede como "deuda vaga" sin dueño.
+
+**UN TERCER HALLAZGO, no de doctrina sino de diseño, dejado explícito en el código y acá:** un evento
+que llega ANTES de que la etapa de checkout cree la fila `PaymentIntent` (race entre nuestra propia
+escritura y la velocidad del webhook) cae en "referencia sin match" → 200, log, sin reintento nuestro.
+Hoy es un caso TEÓRICO (nada crea filas de `PaymentIntent` todavía), así que no se resuelve acá — queda
+nombrado para cuando exista el lado que las crea.
+
+Rama propia (`slice/wompi-webhook-ruta-1`), gate DENTRO de `touches:` (sólo los tres archivos
+declarados). `npm test` **1125/1125** (piso medido antes de empezar: 1125, sin cambios — la suite
+existente no se tocó) y `npx tsc --noEmit` en **0**, sin moverse. `route.test.ts`, corrido aparte,
+**14/14**. Sin schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false` — la ruta la
+llama Wompi server-a-server, ningún comprador la ve ni la toca), sin contrato cross-repo (el contrato lo
+define Wompi, no nosotros; nada de nuestro lado lo expone). Merge Policy A aplica.
+Regla: § Pagos en línea (Wompi) — cobros automáticos (`CLAUDE.md`), sin tocar en este slice (ver el
+primer hallazgo arriba).
