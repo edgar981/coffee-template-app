@@ -1136,3 +1136,111 @@ costo medido y su causa, no la solución.
 Sin schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false`), sin
 código tocado — sólo este archivo. `npm test` **1104/1104** y `npx tsc --noEmit` en
 **0**, igual al piso medido en `main` antes de este asiento.
+
+## 2026-09-14 · Lo que el spike de sandbox midió, y las reglas que fija para la implementación (`WOMPI-REGLAS-IMPLEMENTACION-1`)
+
+`WOMPI-SPIKE-SANDBOX-1` corrió contra el sandbox real de Wompi y volvió OBSERVED. Un
+slice `writes: no` no deja artefacto — commit, rama, diff, encabezado, ninguno de los
+cuatro rastros que el protocolo sabe seguir (`ORCH-SEGUIMOS-ESCRITURAS-NO-LECTURAS-1`,
+arriba) — así que lo medido vivía únicamente en el spec del spike hasta este asiento.
+Este slice lo traslada al ledger, sin diseñar `PaymentIntent` ni escribir código de
+integración: eso sigue siendo trabajo aparte.
+
+**LA PREGUNTA GRAVE DE `PASARELA-DECISIONES-LEDGER-1` SALIÓ SÍ.** Esa entrada dejaba
+abierto *«si `GET /v1/transactions?reference=` existe en la API de Wompi»*, bloqueando
+el diseño de la reconciliación. Medido: `GET https://sandbox.wompi.co/v1/transactions?
+reference=<ref>` funciona, probado contra una transacción real creada por el propio
+spike. **La reconciliación es posible y no hay que abandonar Web Checkout.**
+
+Dos condiciones medidas mandan sobre esa respuesta:
+
+- **Sólo autoriza `WOMPI_PRIVATE_KEY`.** Con `WOMPI_PUBLIC_KEY` como Bearer, `401
+  INVALID_ACCESS_TOKEN`; con la privada, `200`. El OpenAPI oficial lo confirma
+  (`security: [{BearerPrivateKey}]` únicamente). Consecuencia de arquitectura: **el
+  reconciliador corre en el SERVIDOR y sólo ahí** — la llave privada no puede tocar el
+  cliente.
+- **Una referencia inexistente devuelve `200 {"data":[]}`, NUNCA 404.** `data` es un
+  array aunque `reference` sea única en la práctica.
+
+**La regla del reconciliador, tal como el owner la pidió explícita:**
+
+> El array vacío NO significa «no pagada». «No existe todavía» y «existe pero aún no
+> se resolvió» son indistinguibles por status HTTP — los dos son `200` con `data: []`.
+> Un reconciliador que trate el array vacío como «no pagó» va a marcar como impaga
+> una transacción que todavía no se creó. Se distingue por LONGITUD del array, y la
+> ausencia no es una respuesta negativa: es la ausencia de respuesta.
+
+Y la otra ruta se comporta al revés — lo que hace fácil equivocarse si alguien asume
+que las dos convenciones coinciden: **`GET /v1/transactions/<ID>` con un id inexistente
+sí devuelve 404.** Dos rutas, dos convenciones.
+
+**LAS DOS FIRMAS — cuál firma qué, verificado.** `WOMPI_INTEGRITY_SECRET` firma la
+petición que NOSOTROS iniciamos: `sha256_hex(reference + amount_in_cents + currency +
+<secreto>)`, concatenación plana, en ese orden, sin separadores — el spike la verificó
+recomputando el ejemplo de la doc byte a byte y dio idéntico. `WOMPI_EVENTS_SECRET`
+firma el evento que WOMPI nos manda: `sha256_hex(<valores de los campos que el evento
+lista en signature.properties, en ese orden> + timestamp + <secreto>)`, y llega en el
+header `X-Event-Checksum` y en `signature.checksum`, con el mismo valor. Los nombres de
+las variables ya cargan la distinción —`EVENTS` vs `INTEGRITY`— y ahí es donde nace el
+error clásico de confundirlas.
+
+### LA DOC DE WOMPI NO ES FUENTE DE VERDAD — SE VERIFICA CONTRA EL SANDBOX
+
+Un solo spike encontró TRES discrepancias entre lo que la documentación afirma y lo que
+el sandbox hace. No es una doc con un error: es una doc que no se puede tomar como
+contrato.
+
+1. **NO calibres el verificador de firma contra el ejemplo numérico de la doc.** El
+   ejemplo del checksum de eventos no reproduce: siguiendo la propia página paso a
+   paso, la concatenación —confirmada carácter a carácter— da un `sha256` distinto del
+   que la doc afirma. Es casi seguro un copy-paste (el mismo valor aparece antes, en el
+   cuerpo JSON de ejemplo de la misma página). La FÓRMULA EN PROSA no está en duda; su
+   ejemplo sí. Quien implemente y vea que «no coincide con la doc» va a asumir que su
+   código está mal — queda escrito para que no pierda un día.
+2. **NO te apoyes en que `GET /v1/transactions/<ID>` exija autenticación.** La doc
+   afirma explícitamente que sin auth o con llave pública retorna 404. Medido: devuelve
+   200 con la pública, con la privada, y SIN NINGÚN header. En sandbox esa restricción
+   no está aplicada hoy. El riesgo es de los dos lados: si mañana la aplican y el
+   código dependía de que no, rompe; si se asume que ya está aplicada, se confía en una
+   protección que no existe. Verificar en producción antes de asumir cualquiera de las
+   dos conductas.
+3. **Crear una transacción funciona con la llave PÚBLICA.** La prosa de la doc pide
+   privada; el OpenAPI dice pública; medido, la pública devuelve 201. Cuando la prosa y
+   el OpenAPI se contradicen, el OpenAPI acertó las dos veces — pero la regla no es
+   «creele al OpenAPI», es «medilo».
+4. **El verificador de firma lee `signature.properties` DEL EVENTO RECIBIDO, nunca una
+   lista hardcodeada** — no es una discrepancia sino una advertencia de la propia doc,
+   y es de DISEÑO. La doc dice textual: *«los valores del campo `properties` pueden
+   variar en el tiempo y en cada evento, por eso es muy importante que no los asumas
+   como un arreglo fijo dentro de tu código, sino que siempre los extraigas del
+   evento»*. En un `transaction.updated` típico son
+   `['transaction.id','transaction.status','transaction.amount_in_cents']` — ejemplo,
+   no contrato.
+
+**Lo que queda abierto, dicho como abierto:**
+
+- **La firma del webhook no se verificó contra un evento REAL** — estaba anticipado:
+  recibir un webhook exige una URL pública que un worker local no tiene. El spike
+  cerró la sub-pregunta de si había un atajo: ninguna página de la doc menciona
+  reenviar ni inspeccionar un evento ya emitido desde el dashboard. No hay reemplazo
+  documentado del túnel. Queda por confirmar en la UI del dashboard, que sólo el
+  owner puede abrir.
+- **Reintentos, confirmados en cifras:** máximo 3 en 24 h — a los 30 min, 3 h y 24 h.
+  Coincide con lo ya registrado en `PASARELA-DECISIONES-LEDGER-1` (línea 843, arriba),
+  y es lo que hace que la reconciliación sea parte del producto, no una mejora.
+- **`PaymentIntent` sigue sin diseñarse.** La columna única del id de transacción del
+  PSP sigue siendo la pieza que sostiene la idempotencia (`PASARELA-DOC-AL-DIA-1`,
+  arriba) — este asiento no la re-litiga.
+
+Este asiento NO diseña `PaymentIntent` ni escribe código de integración — sus
+columnas, ciclo de vida y migración siguen dependiendo de esa decisión, sin tomar acá.
+Ninguna llave, prefijo ni longitud de credencial aparece en este asiento: las cuatro se
+nombran por variable (`WOMPI_PUBLIC_KEY`, `WOMPI_PRIVATE_KEY`, `WOMPI_EVENTS_SECRET`,
+`WOMPI_INTEGRITY_SECRET`), nunca por valor.
+
+Sin schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false`), sin
+código de producto tocado — sólo `DECISIONS.md` y el puntero en `CLAUDE.md`. `npm test`
+**1104/1104** y `npx tsc --noEmit` en **0**, igual al piso medido en `main` antes de
+este asiento.
+Regla: § Pagos en línea (Wompi) — cobros automáticos (CLAUDE.md), que gana un puntero a
+este asiento para lo medido contra el sandbox y las reglas de implementación.
