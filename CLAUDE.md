@@ -1618,15 +1618,21 @@ social (familia #44, publicidad engañosa). Las reseñas REALES son un SISTEMA, 
 cliente que las PIDA *y* tenga volumen de ventas para que signifiquen algo.** Una reseña sobre 3 ventas
 no es prueba social, es ruido; el sistema paga cuando hay masa.
 
-### 65. AVISO de configuración del Dashboard — Fase 1 CERRADA; quedan los DORMIDOS del censo
+### 65. AVISO de configuración del Dashboard — Fase 1 y Fase 2 CERRADAS; quedan los DORMIDOS del censo
 
 **FASE 1 CERRADA (2026-09-06):** #1 destino de Presentaciones rancio + #2 tarjeta con título sin imagen.
 La doctrina de lo construido —el aviso APARTE del dueño, el lector de publicado, el enlace que aterriza EN
 el defecto, y el fix del schema que la tanda destapó (§ #65-B)— vive en **§ El AVISO DE CONFIGURACIÓN del
 Dashboard**. Con Nayoli sano: CERO avisos.
 
+**FASE 2 CERRADA (2026-09-07):** el dormido **#8** (WhatsApp vacío) y su gemelo **`checkout-sin-salida`**
+(ningún método de pago mostrable Y sin WhatsApp — el dead-end total, sin falso positivo). El checkout deja
+de prometerle al comprador confirmación "por WhatsApp" cuando `SiteSetting.whatsapp` está vacío, y el
+dueño se entera por este aviso en vez de que el defecto quede mudo. Construido en `2b6c9f7` (#8) y
+`355e8d5` (el gemelo); `DECISIONS.md` 2026-09-07 trae el porqué completo.
+
 **LO QUE QUEDA — los DORMIDOS**: la familia "campo requerido vacío → default de Nayoli en OTRO tenant"
-(hero/brandStory/nosotros), empty-whatsapp en checkout/suscripciones, galería con vídeo sin póster. **La
+(hero/brandStory/nosotros), galería con vídeo sin póster. **La
 PLOMERÍA AYUDA, y el costo es BAJO — no CERO.** El lector de SiteContent publicado
 (`GET /api/site-content/publicado`) cubre lo que cruza CONTENIDO, pero no todo dormido cruza sólo eso:
 `avisosDeConfiguracion` ya ganó un cuarto argumento (`ajustes: SiteSettings`,
@@ -2686,10 +2692,15 @@ no está gateado por sesión). El toggle en el admin (ruta con sesión) es capa 
 
 ## El AVISO DE CONFIGURACIÓN del Dashboard — el defecto de config es del DUEÑO
 
-Tanda del 2026-09-06 (§ Backlog #65, Fase 1). El Dashboard gana una BANDA que le muestra al dueño los
-defectos de CONFIGURACIÓN que dejan el storefront roto/vacío para el visitante sin que él se entere. Fase 1
-detecta dos: **#1** una tarjeta de Presentaciones cuyo destino ya no existe en el catálogo, y **#2** una
-tarjeta con título y SIN imagen. Las decisiones, que son de MODELO y no re-litigables:
+Tanda del 2026-09-06 (§ Backlog #65, Fase 1), ampliada el 2026-09-07 (Fase 2). El Dashboard gana una BANDA
+que le muestra al dueño los defectos de CONFIGURACIÓN que dejan el storefront roto/vacío para el visitante
+sin que él se entere. Fase 1 detecta dos: **#1** una tarjeta de Presentaciones cuyo destino ya no existe en
+el catálogo, y **#2** una tarjeta con título y SIN imagen. Fase 2 suma **#8** WhatsApp vacío (el checkout
+deja de prometerle al comprador confirmación por ese canal) y su gemelo **`checkout-sin-salida`** (ningún
+método de pago mostrable Y sin WhatsApp — el dead-end total); su mecanismo y el porqué de sus decisiones
+—la reutilización de `metodosDisponibles`, el aterrizaje en `/admin/configuracion` en vez de un campo
+puntual (un límite declarado, no un descuido)— viven en `lib/config/avisos-configuracion.ts` y en
+§ 65. Las decisiones de Fase 1, que son de MODELO y no re-litigables:
 
 - **[1] LOS DEFECTOS DE CONFIGURACIÓN VIVEN EN UN AVISO APARTE, NUNCA dentro de "Necesita tu atención".**
   Esa lista es la cola de trabajo del DÍA y **SE VACÍA**; un defecto de configuración se arregla UNA vez y no
@@ -2762,9 +2773,10 @@ MÁS de `registerOrderPaymentTx`, que sigue siendo el ÚNICO que crea un
 `immediatePayment`, `packages/core/src/comprobantes.ts` vía
 `decidirComprobante`); el webhook sería el cuarto. La invariante que impide la
 plata fantasma —existe un `Payment` ⇒ la orden no está `pendiente`— no se
-toca. El diseño de `PaymentIntent`, el spike de sandbox de Wompi y el cableado
-del webhook con su reconciliación siguen sin construirse; qué queda abierto
-está en el asiento del ledger citado arriba.
+toca. **El spike de sandbox de Wompi CORRIÓ** (`WOMPI-SPIKE-SANDBOX-1`, contra
+el sandbox real de Wompi); el diseño de `PaymentIntent` y el cableado del
+webhook con su reconciliación siguen sin construirse. Qué queda abierto está
+en el asiento del ledger citado arriba.
 
 **Lo medido contra el sandbox y las reglas que fija para la implementación —la
 reconciliación por `reference`, las dos firmas, y que la doc de Wompi no es
