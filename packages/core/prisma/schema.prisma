@@ -200,6 +200,10 @@ model Order {
   deliverySlot       String?
   items              OrderItem[]
   payments           Payment[]
+  // Reverse relation exigida por la FK de PaymentIntent.orden_id — ver ese modelo
+  // (junto a MetodoPago, abajo) para el porqué de la tabla. Ningún llamador escribe
+  // acá todavía (PAYMENTINTENT-SCHEMA-1): sólo el schema, sin webhook.
+  paymentIntents     PaymentIntent[]
   comprobantes       Comprobante[]
   shipping           Shipping?
   transiciones       OrderStatusTransition[]
@@ -381,6 +385,125 @@ enum MetodoPago {
   TRANSFERENCIA
   OTRO
   BREB
+}
+
+// ─── El INTENTO de un cobro en línea, no el pago ─────────────────────────────
+//
+// Decisión: PASARELA-DECISIONES-LEDGER-1 (DECISIONS.md, 2026-09-13), textual del
+// owner: «`Comprobante` y `Payment` son dos tablas porque son dos hechos. El
+// intento y el pago también. Un intento fallido no puede dejar rastro en la tabla
+// que SIGNIFICA "esta orden está pagada", y `registerOrderPaymentTx` sigue siendo
+// el único escritor — la invariante que impide plata fantasma queda intacta.»
+// Mismo argumento que separó Comprobante de Payment (arriba): son dos hechos.
+//
+// UNA FILA POR INTENTO, no por orden (PAYMENTINTENT-FORMA-CENSO-1, aprobado por
+// el owner). Una orden puede generar varios intentos —tarjeta declinada, otro
+// checkout, un reintento— y cada uno deja SU fila. Es lo que vuelve IRRELEVANTE
+// el catálogo crudo del PSP: Wompi expone APPROVED/DECLINED/VOIDED/ERROR y
+// variantes de mayúsculas, y el spike de sandbox (WOMPI-REGLAS-IMPLEMENTACION-1)
+// ya midió CINCO discrepancias doc-vs-sandbox sobre ese mismo proveedor — nada de
+// eso se diseña contra un matiz ajeno. `estado` abajo tiene sólo los TRES buckets
+// que gobiernan una decisión PROPIA; el matiz del PSP queda en
+// `estado_crudo_psp`, como dato junto al hecho, nunca como un cuarto valor
+// (mismo criterio que `Objetivo.omitir`: una guarda o un resultado externo se
+// audita en el payload, no inflando el enum de estado).
+//
+// LOS INTENTOS VIEJOS NO SE BORRAN al aprobarse uno. Owner: «son la evidencia de
+// qué intentó el cliente… mismo principio que el kardex de InventoryLog: los
+// hechos no se borran, se acumulan.»
+//
+// SIN FK A Payment EN NINGUNA DIRECCIÓN. El webhook llega con el id de
+// transacción del PSP ANTES de saber si corresponde crear un Payment — una
+// transacción declinada no debe crear ninguno —, así que el reconocimiento «ya
+// vi este id» tiene que poder ocurrir SIN pasar por el escritor de dinero.
+// `registerOrderPaymentTx` (packages/core/src/orders.ts) sigue siendo el ÚNICO
+// que crea un Payment; el día que el webhook exista, es UN LLAMADOR MÁS de ese
+// helper, no un escritor paralelo.
+//
+// ESTA TABLA NO TIENE LLAMADORES TODAVÍA (PAYMENTINTENT-SCHEMA-1): ni webhook, ni
+// reconciliador, ni ruta. Es sólo el schema. La capacidad que su cierre exige
+// —un mecanismo que cierre un intento EN_VUELO vencido sin respuesta del PSP—
+// NO ESTÁ DECLARADA todavía en ningún lado: hace falta construirla, y su forma
+// (quién dispara el barrido, con qué cadencia, con qué umbral) es del owner.
+model PaymentIntent {
+  id       String @id @default(cuid())
+  orden_id String
+  order    Order  @relation(fields: [orden_id], references: [id], onDelete: Cascade)
+
+  // Discriminador del intento: "<numero_orden>:<cuid de esta fila>". Es el cuid
+  // de la propia fila (id, arriba) el que hace la unicidad — sin contador que
+  // escribir ni lock que tomar, y SIN depender del id de transacción del PSP:
+  // ese id todavía no existe cuando el intento nace (`pspTransactionId`, abajo,
+  // nace null y lo llena el webhook). (Precedente CONTRA los contadores
+  // escritos, verificado: el gemelo de forma de `Customer.numero_ordenes` —
+  // `Customer.total_compras`, arriba — es columna de demo que el runtime nunca
+  // actualiza, CLAUDE.md § 38.) Medido contra el sandbox de Wompi
+  // (WOMPI-REGLAS-IMPLEMENTACION-1): acepta hasta 255 caracteres y admite dos
+  // puntos, así que este formato entra sin ajuste.
+  reference String @unique
+
+  estado PaymentIntentEstado @default(EN_VUELO)
+
+  // Snapshot de lo que la orden vale AL CREAR el intento — no lo que el PSP
+  // terminó confirmando (eso, cuando exista el webhook, es lo que decide si nace
+  // un Payment). El nombre NO es "monto": eso se leería como plata ya confirmada,
+  // y acá todavía no lo está.
+  monto_esperado Float
+
+  // El id que el PSP le pone a LA TRANSACCIÓN — no existe cuando el intento se
+  // crea (nace null) y lo llena el webhook cuando el PSP resuelve el intento.
+  // NULLABLE + ÚNICA es la pieza que sostiene la idempotencia del webhook
+  // (PASARELA-DOC-AL-DIA-1, DECISIONS.md): un reintento del mismo evento choca
+  // contra esta unique (P2002, capturado por `isUniqueViolation`,
+  // packages/core/src/orders.ts) en vez de crear una segunda fila. Que Postgres
+  // permita MUCHOS NULL en una columna única tiene precedente vivo en este
+  // schema — `Order.idempotencyKey String? @unique` (arriba) — y precedente de
+  // riesgo documentado — el comentario de `AutomationRun.periodo` (abajo):
+  // «en Postgres dos NULL no colisionan».
+  // camelCase, no snake_case como `estado_crudo_psp` de abajo: no es un eje
+  // técnico/negocio (hay camelCase de raíz española en el schema —
+  // `descripcionCorta`, `metodoPagoPrevisto`—), es seguir al VECINO más
+  // cercano — acá, `idempotencyKey`/`providerId`/`targetId`/`tokenHash`,
+  // identificadores y tokens, todos camelCase sin excepción.
+  pspTransactionId String? @unique
+
+  // El ÚLTIMO estado crudo que el PSP reportó (p. ej. "DECLINED", "VOIDED"),
+  // como DATO junto al hecho — nunca un cuarto valor de `PaymentIntentEstado`.
+  // Mismo par que `Shipping.zona_sugerida` junto a `Shipping.zona`: la señal
+  // cruda vive al lado de la decisión, no adentro de ella. NULLABLE a propósito:
+  // una fila que se cierra FALLIDA por el paso del tiempo sin que el PSP haya
+  // contestado nunca tuvo evidencia positiva, y esa ausencia SIGNIFICA algo — no
+  // se rellena con un centinela.
+  estado_crudo_psp String?
+
+  createdAt DateTime @default(now())
+  // El intento NACE EN_VUELO y el webhook (cuando exista) lo cierra a APROBADO/
+  // FALLIDO sobre la MISMA fila — no es append-only como AutomationRun. Sigue el
+  // patrón ya establecido para toda fila de estado mutable (Payment, Order,
+  // Shipping): @updatedAt de fábrica, no una columna inventada para el barrido
+  // de §1 de PAYMENTINTENT-SCHEMA-1 (ese barrido no necesita una marca de
+  // "última revisión" propia: su cierre es idempotente por transición de
+  // `estado`, no por una marca de tiempo revisada — ver el asiento del ledger).
+  updatedAt DateTime @updatedAt
+
+  @@index([orden_id])
+}
+
+// Bucket derivado del INTENTO, medido contra NUESTRAS decisiones, no contra el
+// catálogo crudo del PSP — ver el comentario de `PaymentIntent` arriba para el
+// porqué completo.
+enum PaymentIntentEstado {
+  // El intento se creó y espera resolución del PSP. Ningún Payment nace todavía.
+  EN_VUELO
+  // El PSP confirmó el cobro. Dispara la creación de un Payment — el día que el
+  // webhook exista; hoy nada lee este valor.
+  APROBADO
+  // El PSP lo rechazó, O el tiempo lo cerró sin resolución (la capacidad del
+  // barrido —un mecanismo que cierre intentos vencidos— NO ESTÁ CONSTRUIDA ni
+  // declarada en ningún lado todavía; su forma es del owner). Ninguna de las
+  // dos crea un Payment ni distingue entre sí: el matiz real, si hubo uno, vive
+  // en `estado_crudo_psp`.
+  FALLIDO
 }
 
 // Condición de pago de la orden (ver Order.condicion_pago). Es una CONDICIÓN,
