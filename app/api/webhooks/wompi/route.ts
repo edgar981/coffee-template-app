@@ -171,12 +171,33 @@ export async function procesarEventoWompi(
 
   const intent = await db.paymentIntent.findUnique({ where: { reference } });
   if (!intent) {
-    // Reintentar NO ayuda: la referencia no va a aparecer por reintentar el mismo
-    // evento. (Caso conocido y no resuelto acá: un evento que llega ANTES de que
-    // nuestra propia fila exista — es de la etapa que crea el `PaymentIntent` al
-    // iniciar el checkout, no de este slice.)
-    console.error(`[wompi-webhook] referencia sin match: ${reference}`);
-    return { status: 200, motivo: 'referencia sin match' };
+    // ACÁ SÍ AYUDA REINTENTAR — es la excepción a la regla general de este archivo
+    // (WOMPI-WEBHOOK-RACE-REINTENTO-1). El caso es una CARRERA, no un dato roto: la
+    // fila de `PaymentIntent` la crea la etapa que INICIA el checkout, y el webhook
+    // puede llegar un instante ANTES de que esa fila exista. Con 200 le diríamos a
+    // Wompi «ya está, no vuelvas» — y la fila puede aparecer un segundo después,
+    // dentro de la ventana de reintentos (30 min / 3 h / 24 h,
+    // WOMPI-REGLAS-IMPLEMENTACION-1). Un 200 acá pierde un pago aprobado EN
+    // SILENCIO, que es justo lo que la reconciliación existe para evitar.
+    //
+    // CÓDIGO ELEGIDO: 404. Es HONESTO — el servidor de verdad no tiene esa
+    // referencia, todavía — y es un 4xx, no un 5xx: no se lee como "el sistema está
+    // roto" en el dashboard de funciones de Vercel, que es justo la distinción que
+    // el log de abajo también hace (warn, no error).
+    // DESCARTADO 503/500: habrían disparado la MISMA retransmisión, pero un 5xx se
+    // confunde con una falla real del servidor cuando acá no hay ninguna.
+    // DESCARTADO 409: no hay conflicto de estado, hay AUSENCIA — la fila
+    // simplemente no existe todavía.
+    //
+    // LA ASIMETRÍA QUE DECIDE: una referencia genuinamente ajena o inventada se
+    // reintenta 3 veces y se acaba — inofensivo. El costo de NO reintentar es un
+    // pago aprobado perdido en silencio. Reintentar de más es barato; reintentar de
+    // menos es plata.
+    console.warn(
+      `[wompi-webhook] referencia sin match (aún): ${reference} — carrera esperada contra el` +
+        ` alta del checkout, no un bug; se responde no-200 para que Wompi reintente`,
+    );
+    return { status: 404, motivo: 'referencia sin match' };
   }
 
   // EL MONTO NO DECIDE NADA ACÁ — sólo se compara y se registra si difiere. El

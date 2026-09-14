@@ -260,16 +260,24 @@ test('segunda entrega del MISMO evento (mismo id de transacción) → no duplica
   assert.equal(filas[0].pspTransactionId, 'txn_abc');
 });
 
-// ── referencia que no matchea ninguna fila → 200, sin escribir ──────────────
+// ── referencia que no matchea ninguna fila → NO-200, para que Wompi reintente ─
+//
+// (WOMPI-WEBHOOK-RACE-REINTENTO-1) A diferencia de las otras ramas de `200`, acá el
+// reintento SÍ ayuda: la fila puede aparecer un segundo después (la crea la etapa
+// que inicia el checkout). Devolver `200` le diría a Wompi «no vuelvas» y un pago
+// aprobado se perdería en silencio. Nada se escribe en esta rama — es lo que la
+// hace segura para reintentar sin duplicar nada.
 
-test('referencia sin match en ningún PaymentIntent → 200, sin escribir', async () => {
+test('referencia sin match en ningún PaymentIntent → 404, sin escribir (para que Wompi reintente)', async () => {
   const { db, llamadas } = crearDbFake([]);
   const evento = eventoTransaccion({ reference: 'CN-no-existe:intent-x' });
 
   const resultado = await procesarEventoWompi(evento, undefined, SECRETO, db);
 
-  assert.equal(resultado.status, 200);
+  assert.equal(resultado.status, 404);
   assert.equal(resultado.motivo, 'referencia sin match');
+  // Nada se escribe: ni update de un intento (no hay ninguno) ni ninguna otra
+  // mutación — es justo lo que hace inofensivo dejar que Wompi reintente.
   assert.equal(llamadas.updateMany, 0);
 });
 
