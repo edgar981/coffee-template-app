@@ -1940,3 +1940,64 @@ llama Wompi server-a-server, ningún comprador la ve ni la toca), sin contrato c
 define Wompi, no nosotros; nada de nuestro lado lo expone). Merge Policy A aplica.
 Regla: § Pagos en línea (Wompi) — cobros automáticos (`CLAUDE.md`), sin tocar en este slice (ver el
 primer hallazgo arriba).
+
+## 2026-09-14 · «Reintentar no ayuda» era la regla general — «referencia sin match» era su excepción
+(`WOMPI-WEBHOOK-RACE-REINTENTO-1`)
+`e557752`, merge `--no-ff` (pendiente)
+
+**CIERRA EL TERCER HALLAZGO DE `WOMPI-WEBHOOK-RUTA-1`** (arriba, línea 1929-1933): la rama «referencia
+sin match» de `procesarEventoWompi` (`app/api/webhooks/wompi/route.ts`) devolvía `200` cuando un evento
+llegaba antes de que existiera la fila `PaymentIntent` correspondiente — el mismo worker que escribió la
+ruta lo dejó nombrado en el código y en ese asiento, en el mismo turno en que la escribió.
+
+**EL RAZONAMIENTO ORIGINAL ERA UNA REGLA GENERAL, Y ESTA RAMA ES SU EXCEPCIÓN.** Las demás ramas de
+`200` del archivo comparten un argumento real — reintentar el MISMO evento no cambia nada (sin
+referencia en el payload, repetido, anomalía sobre un intento ya terminal, estado no terminal, evento
+terminal sin id, cerrado por una entrega concurrente, P2002 contra otra fila) —, y ese argumento se
+aplicó por error también acá. Es FALSO en este caso puntual: **la fila puede aparecer un segundo
+después**, porque la crea la etapa que INICIA el checkout (todavía sin construir), que corre en paralelo
+a la velocidad con la que Wompi entrega el webhook. Con `200` le decíamos a Wompi que no volviera, y un
+pago aprobado se habría perdido EN SILENCIO — exactamente lo que la reconciliación por `PaymentIntent`
+existe para evitar.
+
+**EL CAMBIO: esa rama devuelve `404`, no `200`.** Elegido sobre las alternativas medidas:
+
+- **`404` (elegido):** honesto — el servidor de verdad no tiene esa referencia, todavía —, y es un
+  `4xx`: no se confunde con una falla del sistema en el dashboard de funciones de Vercel, que es la
+  misma distinción que separa este log (`console.warn`) del `console.error` de un fallo real.
+- **`503`/`500` (descartados):** habrían disparado el MISMO reintento (Wompi reintenta ante cualquier
+  respuesta que no sea `200`, confirmado en `WOMPI-REGLAS-IMPLEMENTACION-1`), pero un `5xx` se lee como
+  "el servidor está roto" cuando acá no hay ningún error — quien mire el dashboard de errores saldría a
+  buscar un bug que no existe.
+- **`409` (descartado):** no hay conflicto de estado que reportar, hay AUSENCIA — la fila simplemente no
+  existe todavía. `409` habría afirmado algo que no es cierto.
+
+**LA ASIMETRÍA QUE DECIDE, escrita en el comentario del código:** una referencia genuinamente ajena o
+inventada se reintenta 3 veces (30 min / 3 h / 24 h, `WOMPI-REGLAS-IMPLEMENTACION-1`) y se acaba —
+inofensivo. El costo de NO reintentar es un pago aprobado perdido en silencio — plata real. Reintentar de
+más es barato; reintentar de menos no lo es.
+
+**NINGUNA OTRA RAMA DE `200` SE TOCÓ**, confirmadas contra el argumento real que cada una sostiene (arriba).
+La verificación de firma, el `401`, el `500` por falta de secreto, y la frontera de
+`registerOrderPaymentTx`/`MetodoPago`/schema/checkout de `WOMPI-WEBHOOK-RUTA-1` siguen intactos —
+`touches:` de este slice era sólo `route.ts` + `route.test.ts` + este archivo.
+
+**EL TEST** (`route.test.ts`) se actualizó IN SITU (no se agregó uno paralelo): el mismo caso ahora
+afirma `status === 404` y sigue afirmando `llamadas.updateMany === 0` — nada se escribe en esa rama, que
+es lo que la hace segura para reintentar sin duplicar. Ningún otro test dependía del `200` de esa rama.
+`route.test.ts` sigue en **14/14** (mismo conteo que `WOMPI-WEBHOOK-RUTA-1`: se editó un caso existente,
+no se agregó ninguno).
+
+**EL HALLAZGO DE `WOMPI-WEBHOOK-RUTA-1` (línea 1929-1933, arriba) QUEDA CERRADO por este asiento**: ya no
+es cierto que ese caso "cae en 200, log, sin reintento nuestro" — cae en 404, con reintento. Sigue siendo
+un caso hoy TEÓRICO (nada crea filas de `PaymentIntent` todavía), y sigue sin resolverse el lado que
+las crea — eso continúa siendo trabajo aparte, sin fecha.
+
+`npm test` **1125/1125** (piso medido antes de empezar, igual al citado en `WOMPI-WEBHOOK-RUTA-1`, sin
+cambios) y `npx tsc --noEmit` en **0**, sin moverse. `route.test.ts`, corrido aparte con
+`node --import tsx --test`, **14/14**. Sin schema, sin migración, sin bytes de cliente
+(`customer_bytes.changed=false` — la ruta la llama Wompi server-a-server; ningún comprador la ve ni la
+toca, y el cambio es sólo un código de estado HTTP y un nivel de log), sin contrato cross-repo (el
+contrato de forma del evento lo define Wompi y no cambió; lo único nuevo es CÓMO respondemos, que Wompi
+ya trata de forma genérica como "no fue 200"). Merge Policy A aplica.
+Regla: § Pagos en línea (Wompi) — cobros automáticos (`CLAUDE.md`), sin tocar en este slice.
