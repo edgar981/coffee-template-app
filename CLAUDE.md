@@ -2766,6 +2766,10 @@ toca. El diseño de `PaymentIntent`, el spike de sandbox de Wompi y el cableado
 del webhook con su reconciliación siguen sin construirse; qué queda abierto
 está en el asiento del ledger citado arriba.
 
+**Lo medido contra el sandbox y las reglas que fija para la implementación —la
+reconciliación por `reference`, las dos firmas, y que la doc de Wompi no es
+fuente de verdad— viven en `DECISIONS.md`, `WOMPI-REGLAS-IMPLEMENTACION-1`.**
+
 ### Reporte PDF descargable de Analítica
 
 **La evidencia densa pertenece a un documento, no a la pantalla.** La tabla de
