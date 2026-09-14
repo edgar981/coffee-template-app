@@ -2796,6 +2796,28 @@ cobro automático sigue tocando la MISMA frontera que § "Decisión — Cuándo 
 pedido está pagado" —el `Payment` como único escritor del eje de cobro— y el
 puente con Carlos, que esta decisión no resuelve.
 
+**UN DESPLIEGUE EN ESTADO *DEMO* LLEVA LLAVES DE SANDBOX DE LA PASARELA, AUNQUE
+SU RAMA SEA `main` Y SU DEPLOY SEA «PRODUCCIÓN» EN VERCEL.** El código es el
+mismo; **lo que cambia es la CONFIGURACIÓN del despliegue** — es una propiedad
+del ESTADO para el que existe ese despliegue, no de la rama de la que salió.
+Escribirlo como propiedad de la rama es exactamente el error que esto previene:
+«está en `main` y Vercel dice production, entonces van las llaves productivas».
+
+La demo no es producción de nadie — es una tienda que se le muestra a un
+prospecto, **donde nadie debería poder pagar de verdad**. El riesgo del otro
+camino no es desperdicio: es **COBRO REAL**. Con llaves productivas, un
+visitante confundido o el propio prospecto probando el checkout podría generar
+un cobro de verdad a una tienda que todavía no opera —sin facturación, sin
+flujo de despacho, y sin que nadie lo espere—. Con sandbox eso queda
+**garantizado por construcción**.
+
+Es la MISMA partición que `NOINDEX` ya traza por otro eje (`DEPLOY.md`, §
+Protecciones del demo / § Promoción a producción real): la demo se distingue
+de la producción de un cliente real por el ESTADO del despliegue, y ese
+documento es donde vive la env var por-despliegue de las llaves de Wompi y de
+la URL de eventos del webhook — esta entrada es la REGLA y su porqué, no una
+segunda lista de variables.
+
 **La preocupación por el tercer escritor de dinero QUEDÓ RESUELTA, y es lo que
 desbloquea el diseño.** Con el estado EN VUELO de un cobro (`PaymentIntent`) en
 una tabla APARTE —no un valor más de `Order.estado`, no un estado de
@@ -2807,13 +2829,33 @@ MÁS de `registerOrderPaymentTx`, que sigue siendo el ÚNICO que crea un
 `decidirComprobante`); el webhook sería el cuarto. La invariante que impide la
 plata fantasma —existe un `Payment` ⇒ la orden no está `pendiente`— no se
 toca. **El spike de sandbox de Wompi CORRIÓ** (`WOMPI-SPIKE-SANDBOX-1`, contra
-el sandbox real de Wompi); el diseño de `PaymentIntent` y el cableado del
-webhook con su reconciliación siguen sin construirse. Qué queda abierto está
-en el asiento del ledger citado arriba.
+el sandbox real de Wompi). **`PaymentIntent` YA ESTÁ CONSTRUIDO** (tabla +
+migración) y **el webhook YA CIERRA el intento** —recibe el evento, verifica la
+firma, lo ubica por `reference`, distingue duplicados y anomalías, y lo
+transiciona `EN_VUELO → APROBADO/FALLIDO`— pero **NO crea el `Payment`**:
+frontera deliberada, porque eso exige un valor de `MetodoPago` que el enum de
+hoy no tiene (decisión del owner, pendiente). **La RECONCILIACIÓN y el barrido
+de intentos vencidos siguen sin construirse.** El estado exacto y lo que queda
+abierto vive en `app/api/webhooks/wompi/route.ts` y en `DECISIONS.md`
+(`WOMPI-WEBHOOK-RUTA-1`, `WOMPI-WEBHOOK-RACE-REINTENTO-1`) — no en un
+inventario acá.
 
 **Lo medido contra el sandbox y las reglas que fija para la implementación —la
 reconciliación por `reference`, las dos firmas, y que la doc de Wompi no es
 fuente de verdad— viven en `DECISIONS.md`, `WOMPI-REGLAS-IMPLEMENTACION-1`.**
+
+**EL PASO A LLAVES PRODUCTIVAS ES UN GO-LIVE, NO UN CAMBIO DE VARIABLE.** Cada
+uno de los puntos de abajo puede estar bien solo y mal en conjunto —llaves
+productivas con la URL de eventos todavía apuntando a una preview es un cobro
+real cuyo webhook no llega a ninguna parte—. Es la misma razón por la que las
+operaciones de datos van por runbook (§ Bases de datos). Se registra el ítem y
+su disparador; el runbook se arma cuando toque, no acá.
+
+- **DISPARADOR: el cliente decide salir a vender.**
+- **La lista, tal como la fijó el owner:** cuenta de Wompi **del cliente**
+  aprobada; llaves productivas **en su despliegue**; URL de eventos apuntando a
+  **su dominio real**; `NOINDEX` **quitado** (`DEPLOY.md`, § Promoción a
+  producción real); y **una transacción de verificación**.
 
 ### Reporte PDF descargable de Analítica
 
