@@ -1380,8 +1380,10 @@ lo resuelve). Byte-idéntico para Nayoli en las dos.
   que el sistema use. Sacarla a campo crearía una columna sin escritor operativo —la mina inerte del
   ex-`esSuscripcion` (BORRADO, § #68, por eso el grep no lo encuentra) y de `total_compras`—.
 
-**El residuo de backlog de esta tanda vive donde su disparador:** la FAQ literal al pie de /suscripciones → § #63
-(copy café-shape); los ~45 campos de la pestaña → § #46 Fase 2 (evidencia acumulada, no su disparador).
+**El residuo de backlog de esta tanda vive donde su disparador:** los ~45 campos de la pestaña → § #46 Fase 2
+(evidencia acumulada, no su disparador). La FAQ literal al pie de /suscripciones —el otro residuo original de
+esta tanda— **ya no vive en § #63**: se CERRÓ el 2026-09-12 (`SUSCRIPCIONES-FAQ-DATO-1` +
+`SUSCRIPCIONES-FAQ-EDITOR-1`; ver § #63, que ya no la cuenta como pendiente de su censo).
 
 **LA VIDA OPERATIVA sigue siendo PROYECTO, no tanda.** Suscripciones que generen órdenes recurrentes y cobro
 tocan el eje de cobro (§ El eje de COBRO — el Payment como único escritor) y el puente con Carlos —un tercer
@@ -4303,7 +4305,7 @@ rama no lo es (ver la regla de abajo).
 | Rama (Neon) | Endpoint | Rol |
 | --- | --- | --- |
 | `production` | `ep-ancient-frog-ac1v1hg5` | **PRODUCCIÓN.** La que sirve Vercel **en el entorno Production únicamente** (pooled en `DATABASE_URL`, directo en `DIRECT_DATABASE_URL`). Desde el 2026-08-02 Preview YA NO hereda estas vars — ver la fila de abajo. |
-| `development` | `ep-still-sound-acfmedf2` | Base de desarrollo. La usan el `.env` local (pooled + directo) **y los PREVIEW deploys**: desde el 2026-08-02 el entorno Preview de Vercel tiene entradas PROPIAS de `DATABASE_URL` y `DIRECT_DATABASE_URL` apuntando acá. Ramificada de production, 33/33 migraciones. |
+| `development` | `ep-still-sound-acfmedf2` | Base de desarrollo. La usan el `.env` local (pooled + directo) **y los PREVIEW deploys**: desde el 2026-08-02 el entorno Preview de Vercel tiene entradas PROPIAS de `DATABASE_URL` y `DIRECT_DATABASE_URL` apuntando acá. Ramificada de production, migraciones al día (contá cuántas hay con `ls -d packages/core/prisma/migrations/*/ | wc -l` — el número vencía cada vez que se escribía, § Backlog técnico, "LA DOCTRINA GUARDA LA REGLA Y SU PORQUÉ, NUNCA UNA MEDICIÓN NI UN INVENTARIO"). |
 | `quarantine-prod-snapshot-jul24` | `ep-solitary-mouse-ac140cla` | Snapshot CONGELADO del 2026-07-24. **No tocar ni decomisar sin decisión explícita del owner.** No es producción ni desarrollo: no leerla para diagnosticar nada. |
 | `backup-pre-purge-ago03` | `ep-super-frost-acy9dryk` | Snapshot CONGELADO del 2026-08-03, child de production, tomado justo antes de la purga pre-lanzamiento (ver abajo). Es el ÚNICO respaldo de las 120 órdenes borradas. **No tocar ni decomisar** mientras la purga siga siendo reversible por decisión del owner. |
 
