@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { formatWhatsappDisplay } from '../config/site';
 import { opcionTransferencia } from './transferencia';
 
@@ -17,6 +18,16 @@ export type MetodoPagoTipo = 'nequi' | 'daviplata' | 'breb' | 'transferencia' | 
 export const METODOS_PAGO_ORDEN: MetodoPagoTipo[] = ['nequi', 'daviplata', 'breb', 'transferencia', 'efectivo'];
 
 const TIPOS_VALIDOS = new Set<string>(METODOS_PAGO_ORDEN);
+
+/**
+ * El `z.enum` del tipo de método, DERIVADO de `METODOS_PAGO_ORDEN` — no una lista literal
+ * repetida a mano (§ METODOS-TRES-LISTAS-1: la trampa era `app/api/checkout/route.ts`
+ * re-escribiendo los cinco tipos como un arreglo aparte, sin importar esta fuente). Un método
+ * nuevo agregado ACÁ queda aceptado por el checkout sin tocar el endpoint. Mismo cast que ya
+ * usa `lib/config/site-settings-schema.ts` (zod exige una tupla no vacía para `z.enum`, y
+ * `METODOS_PAGO_ORDEN` es un array plano).
+ */
+export const metodoPagoTipoSchema = z.enum(METODOS_PAGO_ORDEN as [MetodoPagoTipo, ...MetodoPagoTipo[]]);
 
 /** Un método tal como vive en `SiteSetting.metodosPago`: su tipo + sus datos (todo string). */
 export interface MetodoPagoGuardado {
