@@ -135,7 +135,14 @@ const nextConfig: NextConfig = {
               "connect-src 'self'",
               "object-src 'none'",
               "base-uri 'self'",
-              "form-action 'self'",
+              // 'self' + Web Checkout de Wompi. El Web Checkout es un `<form
+              // action="https://checkout.wompi.co/p/" method="GET">` que NAVEGA fuera del
+              // sitio — ese `<form>` no existe todavía, así que hoy esto no cambia nada
+              // observable. Pero la política ya está escrita, y `form-action 'self'` a secas
+              // BLOQUEARÍA ese submit el día que la CSP deje de ser Report-Only. Escribirla
+              // ahora, antes de que el `<form>` exista, es la única forma de que la política
+              // enforced no rompa el checkout sin que nadie recuerde por qué.
+              "form-action 'self' https://checkout.wompi.co",
             ].join("; "),
           },
         ],
