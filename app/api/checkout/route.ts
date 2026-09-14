@@ -8,6 +8,7 @@ import { runEventAutomations } from '@/lib/automations/engine';
 import {
   direccionField, direccionDetalleField, ciudadField, departamentoField, telefonoColombiaField,
 } from '@duna/core/validation/address';
+import { metodoPagoTipoSchema } from '@/lib/checkout/metodos-pago';
 
 // Guest checkout is intentionally unauthenticated — no Better Auth session.
 // The client is trusted ONLY for product slugs, quantities and customer /
@@ -32,7 +33,11 @@ const checkoutSchema = z.object({
     franja:            z.string().trim().min(1).nullish(),
   }),
   payment: z.object({
-    metodo:     z.enum(['nequi', 'daviplata', 'breb', 'transferencia', 'efectivo']),
+    // DERIVADO de `METODOS_PAGO_ORDEN` (§ METODOS-TRES-LISTAS-1) — antes era un arreglo literal
+    // que no importaba `MetodoPagoTipo`/`METODOS_PAGO_ORDEN`, así que un método agregado a la
+    // lista real (`lib/checkout/metodos-pago.ts`) quedaba OFRECIDO por el checkout y RECHAZADO
+    // acá con 400 al confirmar, sin que nada lo delatara.
+    metodo:     metodoPagoTipoSchema,
     referencia: z.string().trim().min(1).optional(),
   }),
   items: z

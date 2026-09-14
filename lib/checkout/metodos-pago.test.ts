@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { derivarCondicionPago } from '@duna/core/orders';
 import {
   parseMetodosPago, metodosDisponibles, metodoIncompleto,
+  METODOS_PAGO_ORDEN, metodoPagoTipoSchema,
   type MetodoPagoGuardado,
 } from './metodos-pago';
 
@@ -142,4 +143,25 @@ test('§1.1 — el id de efectivo sigue siendo la cadena "efectivo", y deriva CO
 test('§1.1 — cualquier otro método deriva ANTICIPADO', () => {
   assert.equal(derivarCondicionPago('nequi'), 'ANTICIPADO');
   assert.equal(derivarCondicionPago('breb'), 'ANTICIPADO');
+});
+
+// ── § METODOS-TRES-LISTAS-1: metodoPagoTipoSchema DERIVA de METODOS_PAGO_ORDEN ───────────────
+// `app/api/checkout/route.ts` validaba `payment.metodo` con un arreglo literal aparte —dos
+// declaraciones del mismo conjunto sin atar—: si alguien agregaba un método acá sin tocar el
+// route, el checkout lo OFRECÍA y lo RECHAZABA con 400 al confirmar. `metodoPagoTipoSchema` es
+// la derivación que lo hace imposible; este test afirma que sigue siendo eso, no un literal
+// reintroducido a mano.
+
+test('metodoPagoTipoSchema acepta EXACTAMENTE los valores de METODOS_PAGO_ORDEN — ni de menos ni de más', () => {
+  assert.deepEqual([...metodoPagoTipoSchema.options], METODOS_PAGO_ORDEN);
+});
+
+test('metodoPagoTipoSchema: cada valor de METODOS_PAGO_ORDEN pasa el parse', () => {
+  for (const tipo of METODOS_PAGO_ORDEN) {
+    assert.equal(metodoPagoTipoSchema.safeParse(tipo).success, true, `"${tipo}" debería ser válido`);
+  }
+});
+
+test('metodoPagoTipoSchema: un método fuera del set (p. ej. "wompi") NO pasa el parse', () => {
+  assert.equal(metodoPagoTipoSchema.safeParse('wompi').success, false);
 });
