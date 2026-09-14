@@ -1513,3 +1513,53 @@ cita correcta**, que un worker corrigió al orquestador: `CLAUDE.md` § 38 docum
 Merge `--no-ff` mecánico sobre rama ya gateada por el owner, **tree == tree** (`c7eeaa7`). `npm test`
 **1110/1110** y `npx tsc --noEmit` en **0**, sin moverse. Migraciones 51 → 52. **La migración NO se
 aplicó a ninguna base:** eso es una operación de datos y es del owner, por runbook.
+
+## 2026-09-14 · El verificador de firma de Wompi, sin ruta ni llamadores (`WOMPI-FIRMA-VERIFICADOR-1`)
+
+Primera pieza del webhook, elegida primero por ser la más medida y la que no toca ninguna ruta de
+escritura: `lib/pagos/wompi-firma.ts` + su test co-ubicado, ambos nuevos. Función pura
+`verificarFirmaWompi(evento, secretoEventos, checksumHeader?)`; el secreto entra como parámetro, la
+función nunca lee `process.env`.
+
+**La fórmula implementada, literal:** `sha256_hex(<valores de signature.properties, en ESE orden,
+resueltos como rutas con puntos dentro de data, a cualquier profundidad> + timestamp + secreto)`,
+concatenación plana sin separadores. `properties` se lee del evento en cada llamada — nunca de una lista
+fija — y el test lo afirma con un `properties` de un solo campo (`cliente.email`) ajeno al ejemplo
+típico de la doc, que sigue verificando bien.
+
+**El caso dorado del test se calculó con la fórmula, no copiado del ejemplo numérico de la doc de
+Wompi** — ya está medido en el ledger (`WOMPI-REGLAS-IMPLEMENTACION-1`) que ese ejemplo no reproduce.
+Calibrar contra él habría fijado un bug de la documentación como si fuera el contrato.
+
+**Tres decisiones que el spec dejó abiertas, resueltas y documentadas en la cabecera del archivo:**
+
+- **Una ruta de `properties` que no resuelve a un escalar (ausente, `null`, o un objeto/array en el
+  destino) LANZA `RutaDePropertyNoResuelveError`**, no devuelve `false` en silencio. El argumento: una
+  ruta rota no es "la firma no coincide" (que compara hashes) — es "el evento no tiene la forma que
+  `properties` promete", un caso distinto que el llamador debe poder diferenciar de un intento de forjar
+  la firma. Rellenar el hueco con `''` u otro valor por defecto habría metido un dato inventado dentro
+  del hash, capaz de validar o invalidar una firma por una razón que nadie decidió a propósito.
+- **El checksum recibido se toma de `evento.signature.checksum` (el cuerpo), no de un header.** La
+  función recibe "el evento ya parseado"; un header HTTP no es parte de eso, y leerlo es
+  responsabilidad de la ruta (Tier 1, slice siguiente). Se agregó un tercer parámetro OPCIONAL,
+  `checksumHeader`, para que esa ruta futura pueda pasarlo si quiere: si se pasa y **difiere** del
+  checksum del cuerpo, la función falla cerrado devolviendo `false` sin intentar decidir cuál de los dos
+  "creer" — la discrepancia entre dos fuentes que deberían decir lo mismo es una señal de manipulación
+  por derecho propio.
+- **La comparación es en tiempo constante** (`crypto.timingSafeEqual`) con el caso de largos distintos
+  resuelto ANTES de invocarla (esa función lanza si los Buffers difieren en longitud): se compara el
+  largo primero y se devuelve `false` derecho, sin que eso filtre nada — el largo de un sha256 hex es
+  fijo (64) y público, no depende del secreto.
+
+**Doce casos de test**, incluidos los siete que el spec exigía por nombre (firma válida, firma
+inválida, orden de `properties` importa, `properties` con campos distintos del ejemplo típico,
+timestamp participa, ruta que no resuelve, largos distintos en la comparación) más cinco adicionales
+(ruta a `null`, ruta a un objeto, header que coincide, header ausente con checksum del cuerpo correcto,
+secreto equivocado).
+
+`npm test` **1122/1122** (piso medido antes de empezar: 1110; el slice sumó 12) y `npx tsc --noEmit` en
+**0**, sin moverse. Merge `--no-ff` mecánico, **tree == tree** (`4a5e823`) — Merge Policy A: dos archivos
+nuevos en `lib/pagos/`, sin schema, sin bytes de cliente, sin contrato cross-repo, sin llamadores.
+`RutaDePropertyNoResuelveError` es la única superficie nueva no pedida por nombre en el spec; nace con
+su test y sin consumidores fuera de este archivo, a la espera de la ruta del webhook (Tier 1, slice
+siguiente, que sí toca `app/api/` y `PaymentIntent`).
