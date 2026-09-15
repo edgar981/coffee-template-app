@@ -1,11 +1,13 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+import { preload } from "react-dom";
 import Link from "next/link";
 import Image from "next/image";
 
 import { ArrowRight } from "lucide-react";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
@@ -36,6 +38,34 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
   // Idéntico a la curtina (§ HeroCurtina.tsx): el 2º CTA se oculta si suscripciones está apagada.
   const mostrarCtaSuscripcion = HERO_HREFS.secundario !== '/suscripciones' || paginas.suscripciones.visible;
 
+  // EL FONDO ES VIDEO cuando el dueño lo eligió (§ HERO-VIDEO-COMO-DATO-1) — MISMA mecánica que
+  // HeroCurtina.tsx (misma sección `hero`, distinto layout): `imagenTipo` llega ya CLAMPADO por el
+  // resolver, la reproducción se dispara IMPERATIVAMENTE (`.play()`/`.pause()`, no el atributo
+  // `autoPlay`) porque `useReducedMotion()` resuelve DESPUÉS del primer render, y `muted` va también
+  // por REF (el prop de React no siempre llega al atributo del DOM; iOS bloquea el autoplay sin él).
+  // Ver los comentarios de HeroCurtina.tsx para el razonamiento completo — no se repite acá dos veces.
+  const esVideo = hero.imagenTipo === 'video';
+  const reduce = useReducedMotion();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const reproducir = esVideo && !preview && !reduce;
+
+  // EL PÓSTER SE PRE-CARGA CON PRIORIDAD ALTA — MISMA mecánica que HeroCurtina.tsx (§ HERO-VIDEO-
+  // POSTER-PRIORIDAD-1): el <video> no tiene prop de prioridad, pero el póster es un recurso de
+  // imagen aparte que sí la puede llevar. No depende de `reproducir` — el póster es lo único
+  // visible tanto si el video reproduce como si se queda quieto (preview/reduced-motion). Ver el
+  // razonamiento completo en HeroCurtina.tsx.
+  if (esVideo && hero.imagenPoster) {
+    preload(hero.imagenPoster, { as: "image", fetchPriority: "high" });
+  }
+
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = true;
+    if (reproducir) v.play().catch(() => {});
+    else v.pause();
+  }, [reproducir]);
+
   return (
     <section
       className="relative flex min-h-[92vh] flex-col overflow-hidden bg-[var(--sf-banda,var(--sf-fondo))] lg:flex-row-reverse"
@@ -43,15 +73,30 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
     >
       {/* Foto a sangre, SIN degradado encima — banda superior en móvil, mitad derecha en desktop. */}
       <div className="relative h-[42vh] w-full shrink-0 lg:h-auto lg:w-1/2">
-        <Image
-          src={hero.imagen}
-          alt=""
-          fill
-          priority
-          sizes="(min-width: 1024px) 50vw, 100vw"
-          quality={85}
-          className="object-cover"
-        />
+        {esVideo ? (
+          <video
+            ref={videoRef}
+            src={hero.imagen}
+            poster={hero.imagenPoster || undefined}
+            muted
+            loop
+            playsInline
+            preload={reproducir ? 'auto' : 'none'}
+            controls={!!reduce && !preview}
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <Image
+            src={hero.imagen}
+            alt=""
+            fill
+            priority
+            sizes="(min-width: 1024px) 50vw, 100vw"
+            quality={85}
+            className="object-cover"
+          />
+        )}
       </div>
 
       {/* Texto, alineado al gutter del sitio. */}

@@ -25,6 +25,7 @@ import {
   faqSuscripcionesVisible,
   type SeccionDef,
   type VariantesDef,
+  type SeccionKey,
 } from './site-content-defaults';
 import { hrefCategoria } from '../productos/categorias';
 
@@ -768,6 +769,93 @@ test('resolverVariante con las claves del hero: ausente/vacío/null/basura → "
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'foo'), 'curtina');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'ficha'), 'ficha');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'curtina'), 'curtina');
+});
+
+// ── EL HERO GANA VIDEO COMO DATO (§ HERO-VIDEO-COMO-DATO-1): `imagenTipo`/`imagenPoster`, el
+// SEGUNDO escalar clampado de una sección (gemelo de `variante`, vía `REGISTRY.hero.escalares`) ───
+
+test('REGISTRY.hero declara `escalares.imagenTipo` con el set cerrado y la canónica "imagen"', () => {
+  assert.deepEqual(REGISTRY.hero.escalares, { imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' } });
+});
+
+test('hero: sin fila, `imagenTipo` resuelve a la canónica "imagen" e `imagenPoster` a "" (byte-idéntico)', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.hero.imagenTipo, 'imagen');
+  assert.equal(r.hero.imagenPoster, '');
+});
+
+test('EL CASO REAL DE HOY: una fila de SiteContent que EXISTE y NO tiene `imagenTipo` en su JSON (todas las filas anteriores a este slice) cae a "imagen" — Nayoli no cambia', () => {
+  // A diferencia del test de arriba (SIN fila), acá SÍ hay fila —con otros campos del hero ya
+  // editados—, y es exactamente lo que hoy tiene cualquier `SiteContent` sembrado antes de este
+  // slice: la clave `imagenTipo` sencillamente no existe en el JSON guardado.
+  const r = resolverSiteContent({ hero: { titulo: 'Un titular ya editado', imagen: '/mi-foto.jpg' } });
+  assert.equal(r.hero.imagenTipo, 'imagen');
+  assert.equal(r.hero.imagenPoster, '');
+  assert.equal(r.hero.imagen, '/mi-foto.jpg'); // el resto de la fila no se toca
+});
+
+test('DEFAULTS.hero.imagenTipo es "imagen" e imagenPoster es "" (byte-idéntico al hero de hoy)', () => {
+  assert.equal(DEFAULTS.hero.imagenTipo, 'imagen');
+  assert.equal(DEFAULTS.hero.imagenPoster, '');
+});
+
+test('hero: `imagenTipo: "video"` guardado se respeta, y `imagen`/`imagenPoster` se conservan', () => {
+  const r = resolverSiteContent({ hero: { imagenTipo: 'video', imagen: '/v.mp4', imagenPoster: '/p.jpg' } });
+  assert.equal(r.hero.imagenTipo, 'video');
+  assert.equal(r.hero.imagen, '/v.mp4');
+  assert.equal(r.hero.imagenPoster, '/p.jpg');
+});
+
+test('hero: `imagenTipo` fuera del set cerrado (basura) cae a la canónica "imagen" — nunca lanza (ocultable:false, la ÚNICA portada)', () => {
+  for (const basura of ['audio', '', null, undefined, 42, {}, ['video']]) {
+    assert.equal(resolverSiteContent({ hero: { imagenTipo: basura } }).hero.imagenTipo, 'imagen');
+  }
+});
+
+test('resolverVariante con las claves de `imagenTipo` del hero: ausente/vacío/null/basura → "imagen"; "video" se respeta', () => {
+  assert.equal(resolverVariante(REGISTRY.hero.escalares!.imagenTipo, undefined), 'imagen');
+  assert.equal(resolverVariante(REGISTRY.hero.escalares!.imagenTipo, ''), 'imagen');
+  assert.equal(resolverVariante(REGISTRY.hero.escalares!.imagenTipo, null), 'imagen');
+  assert.equal(resolverVariante(REGISTRY.hero.escalares!.imagenTipo, 'foo'), 'imagen');
+  assert.equal(resolverVariante(REGISTRY.hero.escalares!.imagenTipo, 'video'), 'video');
+  assert.equal(resolverVariante(REGISTRY.hero.escalares!.imagenTipo, 'imagen'), 'imagen');
+});
+
+test('hero: `imagenPoster` es OPCIONAL — presente-y-vacío queda "" (el render degrada con gracia, § HeroCurtina/HeroFicha)', () => {
+  const r = resolverSiteContent({ hero: { imagenTipo: 'video', imagenPoster: '' } });
+  assert.equal(r.hero.imagenPoster, '');
+});
+
+test('una sección SIN `escalares` declarado no gana campos extra en el resuelto (brandStory, p. ej. — sólo el hero tiene `imagenTipo`)', () => {
+  const r = resolverSiteContent({});
+  assert.equal('imagenTipo' in r.brandStory, false);
+});
+
+// ── EL BORRADO DE BLOBS NO DEBE PERDER UN CAMPO-IMAGEN (§ HERO-VIDEO-COMO-DATO-1) ──────────────────
+// `imagenesDe` (site-content-blobs.ts) borra por diff los campos que `REGISTRY[seccion].imagenes`
+// nombra. Un nombre mal escrito ahí (typo, rename, un campo nuevo olvidado) deja ese blob SIN
+// borrar para siempre — el mismo defecto de mantener DOS listas a mano que ya costó #65-B, sólo que
+// del lado del BORRADO en vez del GUARDADO. DERIVADO de DEFAULTS (la instancia real), no una
+// tercera lista a mano.
+//
+// ALCANCE: secciones de campos PLANOS (no-repeater) — ahí `imagenes` nombra campos de PRIMER NIVEL,
+// comparables 1:1 contra `Object.keys(DEFAULTS[seccion])`. Las REPEATER (`nosotrosGaleria`) nombran
+// campos DE ÍTEM (`url`, `poster`), que no viven en `DEFAULTS[seccion]` (el array de items nace
+// vacío) — las cubre su propio test manual y nombrado (ver "REGISTRY.nosotrosGaleria.imagenes" más
+// abajo), no éste. Limitación NOMBRADA, como la del test derivado del schema editable (§ #65-B).
+test('todo campo de `imagenes` (secciones NO-repeater) existe en DEFAULTS[seccion] — o el borrado de blobs lo pierde en silencio', () => {
+  for (const seccion of Object.keys(REGISTRY) as SeccionKey[]) {
+    const def = REGISTRY[seccion];
+    if (def.repeater || !def.imagenes?.length) continue;
+    const camposModelo = new Set(Object.keys(DEFAULTS[seccion]));
+    const faltantes = def.imagenes.filter(f => !camposModelo.has(f));
+    assert.deepEqual(faltantes, [],
+      `«${seccion}»: REGISTRY.imagenes nombra campos que no existen en DEFAULTS (revisa un typo/rename): ${faltantes.join(', ')}`);
+  }
+});
+
+test('REGISTRY.hero.imagenes incluye AMBOS blobs del hero (imagen y su póster) — si no, el póster de un video reemplazado queda HUÉRFANO en el storage para siempre', () => {
+  assert.deepEqual(REGISTRY.hero.imagenes, ['imagen', 'imagenPoster']);
 });
 
 // ── `bandaOscuraCanonica` (§ EJE-5-VARIANTES-HERO): la canónica de darkness, VARIANT-AWARE ────────

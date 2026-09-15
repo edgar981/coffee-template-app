@@ -54,6 +54,16 @@ export const CONTENEDORES_REMUXEABLES = ['video/quicktime'] as const;
 export const MAX_VIDEO_GALERIA_BYTES = 20 * 1024 * 1024;
 
 /**
+ * Tope de peso para el VÍDEO DEL HERO (§ HERO-VIDEO-COMO-DATO-1). MENOS de la mitad que la
+ * galería (§ MAX_VIDEO_GALERIA_BYTES) — y la razón NO es la misma: en la galería el vídeo vive
+ * bajo el fold y su descarga se DIFIERE con un IntersectionObserver; en el HERO no hay dónde
+ * diferir nada — está SIEMPRE en el viewport al cargar, así que un observer dispararía al instante
+ * y equivale al atributo `autoplay` puro. Por eso compite DIRECTO con el primer pintado de la
+ * página. En red móvil colombiana, 20 MB en la portada es una tienda que no carga.
+ */
+export const MAX_VIDEO_HERO_BYTES = 8 * 1024 * 1024;
+
+/**
  * El "kind" que el cliente declara al pedir un token de subida directa (§ subirDirecto). Acota qué
  * `allowedContentTypes` firma el token: 'imagen' (portadas, hero, fotos de galería) o 'imagen-o-video'
  * (el slot de vídeo de la galería). Es una de DOS listas CONOCIDAS —nunca un comodín ni los tipos que
@@ -115,6 +125,13 @@ export const MSG_VIDEO_PRORES =
  *  del cliente ("que cargue rápido", no "en el celular"): no todos entran desde móvil. */
 export const MSG_VIDEO_GALERIA_LARGO =
   'Ese video pesa demasiado para la galería. Súbelo como un clip corto —unos 15 a 30 segundos— para que ' +
+  'cargue rápido y tus clientes no esperen.';
+
+/** Rechazo por TAMAÑO de un vídeo de HERO (§ MAX_VIDEO_HERO_BYTES). Gemelo de MSG_VIDEO_GALERIA_LARGO,
+ *  con su PROPIO tope y su PROPIO contexto: mostrarle al operador el mensaje de la galería en el hero
+ *  lo confundiría sobre CUÁL límite se está aplicando y por qué. */
+export const MSG_VIDEO_HERO_LARGO =
+  'Ese video pesa demasiado para la portada. Súbelo como un clip corto —unos 10 a 15 segundos— para que ' +
   'cargue rápido y tus clientes no esperen.';
 
 /** Elige el mensaje de rechazo según el fourcc que devolvió el parser: HEVC (hvc1/hev1/…) → la palanca

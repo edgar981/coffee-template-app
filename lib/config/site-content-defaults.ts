@@ -25,6 +25,19 @@ export interface HeroContent {
   ctaPrimarioLabel: string;
   ctaSecundarioLabel: string;
   imagen: string;
+  // El TIPO del medio de fondo (§ HERO-VIDEO-COMO-DATO-1): 'imagen' (default, byte-idéntico) o
+  // 'video'. Escalar de SECCIÓN CLAMPADO —como `variante`, dos líneas abajo—, resuelto con
+  // `resolverVariante` vía `REGISTRY.hero.escalares` (nunca un `campos`, nunca un string libre): el
+  // hero es `ocultable:false` —la ÚNICA portada del sitio—, así que un valor corrupto acá gobernaría
+  // lo primero que ve el visitante, y el resolver SOFT tiene que devolver SIEMPRE algo renderizable.
+  imagenTipo: 'imagen' | 'video';
+  // El PÓSTER del video: la imagen que se ve mientras el video buferea / antes de reproducir.
+  // OBLIGATORIO cuando `imagenTipo === 'video'` — lo exige el `.refine()` de `heroEditableSchema`
+  // (§ site-content-schema.ts), NO el resolver: el loader es SOFT (nunca lanza) y un hero de video
+  // sin póster degrada con gracia (`<video>` sin `poster` simplemente no lo muestra, § HeroCurtina/
+  // HeroFicha) — pero el WRITE no debe poder CREAR ese estado desde el editor. '' cuando
+  // `imagenTipo` es 'imagen' (default, byte-idéntico).
+  imagenPoster: string;
   // La VARIANTE de composición (§ eje 5, EJE-5-VARIANTES-HERO). 'curtina' (canónica, la de Nayoli) |
   // 'ficha'. Escalar de SECCIÓN —como `visible`—, no un `campos`: no lo toca el loop
   // requerido/opcional del resolver. Gemela de `presentaciones.variante` (§ eje 5e).
@@ -425,6 +438,10 @@ export const DEFAULTS: SiteContentData = {
     ctaPrimarioLabel: 'Ver Catálogo',
     ctaSecundarioLabel: 'Suscripción Mensual',
     imagen: '/images/hero-cerezas-v1.jpg',
+    // La canónica (§ HERO-VIDEO-COMO-DATO-1): Nayoli queda byte-idéntica — fondo por IMAGEN, sin
+    // póster (un póster sin video no significa nada).
+    imagenTipo: 'imagen',
+    imagenPoster: '',
     // La canónica (§ eje 5, EJE-5-VARIANTES-HERO): Nayoli queda byte-idéntica a la curtina de hoy.
     variante: 'curtina',
   },
@@ -653,6 +670,14 @@ export interface SeccionDef {
   /** Sección con VARIANTES de composición (§ eje 5e). Hermano de `repeater`: declara el set cerrado
    *  y la canónica; el resolver escribe `sec.variante` con `resolverVariante`. */
   variantes?: VariantesDef;
+  /** ESCALARES de sección ADICIONALES, clampados con el MISMO `resolverVariante` que `variantes`
+   *  (§ HERO-VIDEO-COMO-DATO-1) — pero por NOMBRE DE CAMPO en vez de la única ranura fija
+   *  `sec.variante`. Es lo que permite una SEGUNDA (o tercera) propiedad clampada por sección sin
+   *  un `if (key === 'hero')` hardcodeado en el loop del resolver: `hero.escalares.imagenTipo`
+   *  clampa igual que `hero.variantes` clampa `variante`, sólo que escribe `sec.imagenTipo`. NO
+   *  reemplaza a `variantes` —esa ranura sigue siendo la composición de la sección—; esto es para
+   *  escalares nuevos que no son la composición. */
+  escalares?: Record<string, VariantesDef>;
   campos: Record<string, CampoTipo>;
   /** Nombres de los campos que son IMÁGENES (blobs). Los lee el borrado de blobs reemplazados
    *  (`imagenesDe`), NO el resolver. Para un repeater la imagen vive en cada item. */
@@ -668,7 +693,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
     label: 'Portada',
     ocultable: false,
-    imagenes: ['imagen'],
+    // `imagenPoster` ENTRA acá (§ HERO-VIDEO-COMO-DATO-1) — es el SEGUNDO blob del hero, y si no se
+    // nombrara acá el borrado de blobs (`imagenesDe`, site-content-blobs.ts) nunca lo vería: el
+    // póster de un video reemplazado quedaría HUÉRFANO en el storage para siempre.
+    imagenes: ['imagen', 'imagenPoster'],
     // VARIANTES DE COMPOSICIÓN (§ eje 5, EJE-5-VARIANTES-HERO): 'curtina' es la canónica —el hero de
     // HOY, verbatim—; 'ficha' es la nueva (tipografía en tinta sobre crema, foto a sangre a la
     // derecha, sin degradado). Segunda sección con `variantes`, tras `presentaciones` (§ eje 5e).
@@ -676,6 +704,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // foto oscura a la derecha— y ningún color de texto único del nav se lee sobre las dos mitades;
     // el nav transparente-flotante cae a SÓLIDO sobre ella (§ `tratamientoNav`, esquema-style.ts).
     variantes: { claves: ['curtina', 'ficha'], canonica: 'curtina', noUniformes: ['ficha'] },
+    // ESCALARES (§ HERO-VIDEO-COMO-DATO-1): `imagenTipo` es el SEGUNDO escalar clampado de esta
+    // sección (el primero es `variante`, arriba) — MISMO mecanismo (`resolverVariante`), otra
+    // ranura. 'imagen' es la canónica: Nayoli queda byte-idéntica sin fila.
+    escalares: { imagenTipo: { claves: ['imagen', 'video'], canonica: 'imagen' } },
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',
@@ -684,6 +716,11 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       ctaPrimarioLabel: 'requerido',
       ctaSecundarioLabel: 'opcional',
       imagen: 'requerido',
+      // OPCIONAL, no requerido: el default es '' (sin video no hay póster que mostrar), y un hero
+      // de IMAGEN no necesita nunca este campo. La OBLIGATORIEDAD condicional (si hay video, hay
+      // póster) es del `.refine()` de `heroEditableSchema`, no de este mapa requerido/opcional —el
+      // mapa no puede expresar "requerido SI OTRO CAMPO vale X".
+      imagenPoster: 'opcional',
     },
   },
   brandStory: {
@@ -959,6 +996,15 @@ export function resolverSiteContent(
     // VARIANTES (§ eje 5e): resolver la composición guardada al set cerrado de la sección, o la
     // canónica. `''`, null, ausente y basura → la canónica.
     if (def.variantes) sec.variante = resolverVariante(def.variantes, storedSec.variante);
+
+    // ESCALARES (§ HERO-VIDEO-COMO-DATO-1): más escalares clampados, por NOMBRE — gemelo de
+    // VARIANTES arriba, mismo `resolverVariante`, sin la ranura fija `sec.variante`. Hoy sólo
+    // `hero.imagenTipo`; genérico para el próximo escalar clampado que aparezca.
+    if (def.escalares) {
+      for (const [campo, escalarDef] of Object.entries(def.escalares)) {
+        sec[campo] = resolverVariante(escalarDef, storedSec[campo]);
+      }
+    }
 
     out[key] = sec;
   }

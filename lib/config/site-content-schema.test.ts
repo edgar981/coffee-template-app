@@ -51,6 +51,31 @@ test('hero: `variante` SOBREVIVE al parse (si no, zod la descartaría al guardar
   assert.equal(parsed.hero!.variante, 'ficha');
 });
 
+// ─── EL HERO GANA VIDEO COMO DATO (§ HERO-VIDEO-COMO-DATO-1): imagenTipo/imagenPoster ────────────
+test('hero: `imagenTipo`/`imagenPoster` SOBREVIVEN al parse (si no, zod los descartaría al guardar)', () => {
+  const parsed = siteContentEditableSchema.parse({ hero: { imagenTipo: 'video', imagenPoster: '/p.jpg' } });
+  assert.equal(parsed.hero!.imagenTipo, 'video');
+  assert.equal(parsed.hero!.imagenPoster, '/p.jpg');
+});
+
+test('hero: `imagenTipo:"video"` SIN `imagenPoster` (o vacío/blanco) se RECHAZA — el póster es obligatorio para un video', () => {
+  assert.throws(() => siteContentEditableSchema.parse({ hero: { imagenTipo: 'video' } }));
+  assert.throws(() => siteContentEditableSchema.parse({ hero: { imagenTipo: 'video', imagenPoster: '' } }));
+  assert.throws(() => siteContentEditableSchema.parse({ hero: { imagenTipo: 'video', imagenPoster: '   ' } }));
+});
+
+test('hero: `imagenTipo` ausente o "imagen" pasa SIN `imagenPoster` — el `.refine()` sólo aplica a video, todo lo demás sigue SOFT', () => {
+  assert.doesNotThrow(() => siteContentEditableSchema.parse({ hero: {} }));
+  assert.doesNotThrow(() => siteContentEditableSchema.parse({ hero: { imagenTipo: 'imagen' } }));
+  assert.doesNotThrow(() => siteContentEditableSchema.parse({}));
+});
+
+test('hero: el mensaje del rechazo nombra el póster, no un "invalid input" genérico', () => {
+  const r = siteContentEditableSchema.safeParse({ hero: { imagenTipo: 'video' } });
+  assert.equal(r.success, false);
+  if (!r.success) assert.match(r.error.issues[0].message, /póster/i);
+});
+
 // ─── EL DERIVADO (§ Backlog #65-B, FIX 3): modelo ⊆ schema, sin una tercera lista a mano ─────────
 // Los tests de arriba prueban ÍTEM POR ÍTEM lo que sobrevive/se rechaza (la mitad de repeater). Éste
 // cierra la OTRA brecha —la que costó #65-B—: que TODO campo de PRIMER NIVEL del modelo esté en el

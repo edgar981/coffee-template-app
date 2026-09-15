@@ -1,11 +1,13 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+import { preload } from "react-dom";
 import Link from "next/link";
 import Image from "next/image";
 
 import { ArrowRight } from "lucide-react";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
@@ -36,18 +38,95 @@ export default function HeroCurtina({ style }: { style?: React.CSSProperties } =
   // `paginas` viene de DEFAULTS (siempre true), así que el 2º CTA sigue editable.
   const mostrarCtaSuscripcion = HERO_HREFS.secundario !== '/suscripciones' || paginas.suscripciones.visible;
 
+  // EL FONDO ES VIDEO cuando el dueño lo eligió (§ HERO-VIDEO-COMO-DATO-1); si no, la imagen de
+  // siempre. `imagenTipo` llega YA CLAMPADO por el resolver — nunca otro valor que 'imagen'/'video'.
+  const esVideo = hero.imagenTipo === 'video';
+  const reduce = useReducedMotion();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  // El hero SIEMPRE está en el viewport al cargar —a diferencia de la galería de /nosotros, que
+  // difiere la descarga con un IntersectionObserver porque vive bajo el fold—, así que acá no hay
+  // NADA que diferir: se reproduce apenas se puede, salvo en PREVIEW (la vista en vivo del editor
+  // queda quieta, como el resto de las secciones) o con REDUCED-MOTION (queda en el `poster`, con
+  // controles para que el visitante reproduzca si quiere — un play iniciado por el usuario es
+  // legítimo aun con esa preferencia, § NosotrosGaleria.tsx).
+  const reproducir = esVideo && !preview && !reduce;
+
+  // EL PÓSTER SE PRE-CARGA CON PRIORIDAD ALTA (§ HERO-VIDEO-POSTER-PRIORIDAD-1). El defecto que
+  // este slice cierra era de OMISIÓN, no de diseño: se razonó la prioridad del <video> (ver el
+  // comentario de `preload` más abajo) y se dejó afuera la del PÓSTER, que es un recurso de
+  // IMAGEN aparte — con `imagenTipo: 'imagen'` el <Image priority> de abajo ya emite un
+  // `<link rel="preload" as="image" fetchpriority="high">`; con video, el póster se descubría
+  // recién cuando el parser llegaba al <video> y sin ninguna señal de prioridad. Eso empeoraba el
+  // primer pintado con video respecto a sin video — justo lo que el tope de 8 MB busca evitar,
+  // porque el póster es lo ÚNICO que el visitante ve mientras el video baja.
+  //
+  // `ReactDOM.preload` (no un <link> en el JSX) es la API de React 19 para esto: inserta el
+  // recurso en el <head> durante el render — server O cliente, sin depender de dónde se llame— y
+  // dedupea por href. Va acá, en el CUERPO del render (no en el useEffect de abajo), para que
+  // emita en el HTML servido en el SSR, igual que <Image priority>.
+  //
+  // NO depende de `reproducir`: en preview/reduced-motion el video se queda quieto con
+  // `preload="none"` y el póster es lo único que se ve — SIEMPRE, no sólo mientras el video
+  // buferea — así que adelantarlo vale igual en los dos casos.
+  if (esVideo && hero.imagenPoster) {
+    preload(hero.imagenPoster, { as: "image", fetchPriority: "high" });
+  }
+
+  // La reproducción se dispara IMPERATIVAMENTE (`.play()`/`.pause()`), NO con el atributo `autoPlay`
+  // de React: `useReducedMotion()` devuelve `null` en el primer render (servidor e hidratación) y
+  // recién resuelve el valor real DESPUÉS de montar, así que el atributo `autoplay` quedaría fijado
+  // por el estado transitorio del primer render y no reaccionaría si la preferencia real difiere —
+  // un `.play()/.pause()` en el efecto sí reacciona. `muted` va TAMBIÉN por REF: el prop de React no
+  // siempre llega al atributo del DOM, e iOS bloquea el autoplay de un <video> que no esté silenciado
+  // al nivel del elemento (mismo comentario que la galería, § NosotrosGaleria.tsx).
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = true;
+    if (reproducir) v.play().catch(() => {});
+    else v.pause();
+  }, [reproducir]);
+
   return (
     <section className="relative flex min-h-[92vh] items-center overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))]" style={style}>
       <div className="absolute inset-0">
-        <Image
-          src={hero.imagen}
-          alt=""
-          fill
-          priority
-          sizes="100vw"
-          quality={85}
-          className="object-cover opacity-40"
-        />
+        {esVideo ? (
+          // VIDEO DE FONDO — autoplay simple, SIN scroll-scrub (esa es otra capacidad, con su propio
+          // censo, no ésta). El `poster` es la garantía del `.refine()` de guardado (§ site-content-
+          // schema.ts): un hero de video SIEMPRE trae póster, así que la portada nunca queda sin nada
+          // que mostrar mientras el video buferea; si igual llegara sin póster (un dato viejo, una
+          // edición directa en la base), `<video>` sin `poster` simplemente no lo muestra — no rompe.
+          // `preload="auto"` SÓLO cuando SÍ va a reproducir: es el lever disponible para EL VIDEO EN
+          // SÍ —no hay un prop de prioridad equivalente al `priority` de <Image> en este set de
+          // tipos de React (VideoHTMLAttributes no trae `fetchPriority`)—, así que adelantar la
+          // descarga del VIDEO con `preload` es lo que hay. Si no va a reproducir (preview/reduce),
+          // `preload="none"`: el póster se muestra igual sin bajar el video.
+          //
+          // EL PÓSTER ES OTRA COSA — un recurso de imagen aparte, que SÍ puede llevar prioridad; ver
+          // el `preload(...)` de ReactDOM más arriba (§ HERO-VIDEO-POSTER-PRIORIDAD-1).
+          <video
+            ref={videoRef}
+            src={hero.imagen}
+            poster={hero.imagenPoster || undefined}
+            muted
+            loop
+            playsInline
+            preload={reproducir ? 'auto' : 'none'}
+            controls={!!reduce && !preview}
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full object-cover opacity-40"
+          />
+        ) : (
+          <Image
+            src={hero.imagen}
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            quality={85}
+            className="object-cover opacity-40"
+          />
+        )}
 
         <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-tinta)]/80" />
       </div>
