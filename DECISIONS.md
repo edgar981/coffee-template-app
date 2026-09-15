@@ -3134,3 +3134,117 @@ ningún archivo Tier 1 listado en CLAUDE.md — ninguno de los dos es un archivo
 `lib/pagos/wompi-firma.ts`, `app/api/checkout/route.ts`) y que ya cerró como AWAITING_APPROVAL sin el visto
 bueno del owner sobre ESE diff. Mergear esta rama a `main` mergearía también aquel diff todavía sin
 aprobar. No se mergea nada hasta que el owner dé el visto bueno explícito sobre el conjunto.
+## 2026-09-15 — La regla de llaves de la pasarela deja de ser una intención: `register()` la hace cumplir (`PASARELA-LLAVES-COHERENTES-1`)
+
+**LA REGLA YA ESTABA ESCRITA Y NO SE CUMPLÍA.** CLAUDE.md § Pagos en línea (Wompi) dice, en mayúsculas,
+que un despliegue en estado DEMO lleva llaves de SANDBOX aunque su rama sea `main` y su deploy sea
+"producción" en Vercel. Hasta este slice esa frase no tenía nada detrás: dependía enteramente de que el
+operador no se equivocara al pegar variables de entorno en el dashboard de Vercel. Sin nada que la
+hiciera cumplir, no era una guarda — era una intención. Lo que se evita, sin eufemismo: que una tienda
+de DEMO cobre dinero real a una persona real.
+
+**LA FORMA: LISTA NEGRA, NO LISTA BLANCA (decisión del owner, con su razón textual).** *"Una lista
+blanca rompe el despliegue el día que Wompi agregue un entorno o cambie una convención; la lista negra
+sigue protegiendo contra lo único peligroso —cobrar de verdad en una tienda que no vende— y falla del
+lado seguro. Además no necesitamos afirmar el prefijo de sandbox, que es el dato que no tenemos
+medido."* Se rechaza únicamente `pub_prod_` —el prefijo de la llave pública PRODUCTIVA, confirmado por
+el owner de primera mano contra el dashboard de Wompi—; cualquier otro valor (sandbox, un prefijo que
+Wompi todavía no usa, o ninguna llave) pasa. `WOMPI_PUBLIC_KEY` es la única variable que este chequeo
+mira, porque es la única llave que NO es secreta —viaja al navegador—; las otras tres de la pasarela no
+se leen, no se comparan y no se nombran en ningún mensaje.
+
+**DÓNDE CORRE, y por qué eso importa:** `instrumentation.ts` (nuevo, raíz del repo) exporta `register()`,
+el punto que Next.js llama UNA VEZ cuando arranca una instancia nueva del servidor, antes de atender el
+primer request. Medido contra el código instalado, no asumido:
+`node_modules/next/dist/server/lib/router-utils/instrumentation-globals.external.js` memoiza la promesa
+de registro (`registerInstrumentationPromise`, corre una sola vez por proceso) y EXPLÍCITAMENTE se salta
+en build (`if (process.env.NEXT_PHASE === 'phase-production-build') return;`). Por eso el chequeo no
+puede romper `next build` por diseño de Next, no sólo porque en este entorno no hay llaves configuradas
+—se verificó además que `npm run build` da verde con la función presente—.
+
+**EL ACOPLAMIENTO, dicho explícito porque es el riesgo real del reuso:** `esDespliegueDemo()` (extraída
+de `next.config.ts`, donde antes vivía inline dentro de `headers()`) es la MISMA condición que decide si
+se emite el header `noindex` — `VERCEL_ENV !== 'production' || NOINDEX === '1'`. Se reusó a propósito
+(no se inventó una variable nueva) y el comentario de esa función en `next.config.ts` ahora dice, en el
+sitio donde alguien la va a tocar, que gobierna DOS cosas y que quitar `NOINDEX` por una razón de SEO
+desarma también este chequeo.
+
+**EL CASO QUE QUEDA SIN CUBRIR, medido y reportado (no arreglado en este slice):** la condición asume
+que el despliegue corre EN Vercel. Un self-host de este repo fuera de Vercel nunca tiene
+`VERCEL_ENV === 'production'` (la variable simplemente no existe fuera de esa plataforma), así que
+`esDespliegueDemo()` siempre devuelve `true` para él — un self-host que fuera una tienda real jamás
+podría arrancar con una llave productiva sin que este chequeo lo bloquee. Hoy el repo se despliega
+exclusivamente en Vercel (DEPLOY.md, CLAUDE.md § Migraciones y deploy), así que el caso no tiene
+instancia real conocida; se deja escrito para que no se redescubra como bug el día que alguien intente
+correr esto fuera de Vercel.
+
+**LA FUNCIÓN QUE DECIDE ES PURA, a propósito.** `verificarLlavePasarelaCoherente(esDemo, llavePublica)`
+recibe sus dos insumos por parámetro en vez de leer `process.env` adentro, para poder afirmar en un test
+(`instrumentation.test.ts`) los cuatro casos que importan: llave productiva en demo rechaza; cualquier
+otra llave en demo pasa; sin llave pasa (con o sin demo); y producción real con llave productiva pasa
+—el caso legítimo—. `register()` es la única función que lee `process.env` (`VERCEL_ENV`, `NOINDEX` vía
+`esDespliegueDemo()`, y `WOMPI_PUBLIC_KEY`) y sólo para pasárselo a la función pura.
+
+**EL MENSAJE DE ERROR nombra la variable, nunca su valor.** Dice qué se detectó (demo + llave
+productiva), por qué importa (cobro real en una tienda que no vende) y qué hacer (poner llaves de
+sandbox, o quitar la marca de demo si el despliegue sí vende). No imprime `WOMPI_PUBLIC_KEY` ni completa
+ni recortada, igual que el repo nunca imprime `DATABASE_URL`.
+
+**SIN TOGGLE DE ENCENDIDO.** Este slice no decide si Wompi está activo ni construye ningún camino de
+cobro — sólo impide una combinación peligrosa de configuración. El checkout, el webhook y `lib/pagos/`
+no se tocaron.
+
+**Gate, medido en el árbol final de la rama:** `npm test` → **1151/1151** (piso sin cambio: este slice no
+toca `lib/`/`constants/`/`packages/core`, así que el glob de `npm test` no ve ni `instrumentation.ts` ni
+su test — se corrieron aparte, `node --import tsx --test instrumentation.test.ts` → 4/4 verde). El spec
+de este slice afirmaba un piso previo de 1162/1162; medido en el HEAD de partida (`bac4496`) el piso real
+es 1151/1151 — la cifra del spec no se sostiene contra la medición y se corrige acá; no es un piso que
+este slice haya movido. `npx tsc --noEmit` → 0 errores. `npm run build` → verde (52 migraciones, sin
+pendientes; compiló, generó las páginas estáticas, sin error de tipos). Verificado además por ejecución
+directa (no sólo por los tests): con `VERCEL_ENV=preview` + `WOMPI_PUBLIC_KEY=pub_prod_…`, `register()`
+lanza con el mensaje esperado; con `VERCEL_ENV=production` + la misma llave, no lanza.
+
+**Tier 2 / AWAITING_APPROVAL — por pedido explícito del owner, no por la política de merge.** El diff no
+toca schema, no cambia bytes de cliente y no cambia un contrato cross-repo (las tres condiciones de la
+política A), así que calificaría para merge automático; el owner pidió gatear esta rama a mano
+("quiero gatearla sola"), así que la rama queda pusheada sin mergear hasta su visto bueno.
+
+Regla: § Pagos en línea (Wompi) (CLAUDE.md) · `instrumentation.ts` (`verificarLlavePasarelaCoherente`,
+`PREFIJO_LLAVE_PASARELA_PRODUCTIVA`) · `next.config.ts` (`esDespliegueDemo`, extraída y reusada).
+
+## 2026-09-15 — Un test que no corre no es una guarda: la mudanza a `lib/pagos/` (`PASARELA-LLAVES-TEST-QUE-CORRE-1`)
+
+**EL DEFECTO, DICHO SIN SUAVIZARLO:** el slice anterior (`PASARELA-LLAVES-COHERENTES-1`) escribió su
+test en `instrumentation.test.ts`, en la raíz del repo. El glob de `npm test`
+(`"lib/**/*.test.ts" "constants/**/*.test.ts" "packages/core/**/*.test.ts"`) no llega a la raíz. El
+test estaba escrito, pasaba cuando se lo invocaba a mano, y `npm test` nunca lo corría. **Un slice
+cuyo propósito entero era "una regla escrita que nadie ejecuta" shippeó un test que nadie ejecuta.**
+El worker anterior lo reportó en vez de callarlo, sin ensanchar su alcance por su cuenta — hizo bien;
+faltaba autorización para tocar `lib/`.
+
+**LA MUDANZA, sin cambiar ninguna decisión:** `verificarLlavePasarelaCoherente` y
+`PREFIJO_LLAVE_PASARELA_PRODUCTIVA` (puras, sin `process.env` adentro) se mudaron a
+`lib/pagos/llaves-pasarela.ts`, junto a `wompi-firma.ts` — su pariente exacto: la ruta del dinero,
+sin lectura de entorno adentro. Su test se mudó con ellas a `lib/pagos/llaves-pasarela.test.ts`,
+donde el glob sí llega. `instrumentation.ts` quedó como el gancho de arranque puro: lee el entorno,
+llama a la función pura, aborta con el mensaje. `instrumentation.test.ts` se borró — no quedó
+contenido propio que cubrir ahí; dejarlo habría sido un test vacío pareciendo cobertura.
+
+**EFECTO SECUNDARIO NOMBRADO, no casualidad:** al vivir bajo `lib/pagos/`, el diff tripea la
+política de merge por sí solo (el eje de cobro). El gate manual que el owner pidió deja de ser una
+clasificación forzada y pasa a ser orgánico — el código quedó donde su riesgo dice que tiene que
+estar.
+
+**Gate, medido en el árbol final:** `npm test` antes de la mudanza → **1151/1151** (coincide con el
+piso del slice anterior — la mudanza no tocó ningún archivo bajo el glob todavía). Después →
+**1155/1155**, exactamente **+4** — las cuatro pruebas de la guarda, confirmadas por nombre dentro
+de la corrida de `npm test` (antes sólo aparecían en una invocación aparte). `npx tsc --noEmit` → 0
+errores. `npm run build` → verde, sin llaves configuradas, como antes. Los cuatro casos siguen
+afirmados sin cambio de lógica (el diff de `instrumentation.ts` confirma que el cuerpo de la función
+pura no se tocó, sólo se relocalizó).
+
+**Tier 1 / AWAITING_APPROVAL — igual que su predecesor, el owner gatea esta rama a mano.**
+
+Regla: § Pagos en línea (Wompi) (CLAUDE.md) · `lib/pagos/llaves-pasarela.ts`
+(`verificarLlavePasarelaCoherente`, `PREFIJO_LLAVE_PASARELA_PRODUCTIVA`) · `instrumentation.ts`
+(el gancho, sin lógica propia).

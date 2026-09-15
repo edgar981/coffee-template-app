@@ -1,5 +1,13 @@
 import type { NextConfig } from "next";
 
+// Ver el comentario grande sobre `headers()` más abajo para el porqué completo de esta
+// condición. Se extrae como función NOMBRADA (y no se deja inline en `headers()`) para que
+// `instrumentation.ts` la reuse sin reinventar una segunda noción de "es demo" — dos
+// definiciones del mismo hecho es cómo terminan divergiendo (§ CLAUDE.md, Backlog #39).
+export function esDespliegueDemo(): boolean {
+  return process.env.VERCEL_ENV !== "production" || process.env.NOINDEX === "1";
+}
+
 const nextConfig: NextConfig = {
   /* config options here */
   // Los dos paquetes del workspace envían TS/TSX FUENTE, no build: @duna/core
@@ -33,9 +41,15 @@ const nextConfig: NextConfig = {
   // "indexable en producción" para que un cliente que no configure nada no quede oculto;
   // ocultar es el opt-in (demos). Un header cubre TODA respuesta (HTML, API, assets,
   // redirects), a diferencia de un <meta> que solo aplica a documentos HTML.
+  //
+  // AHORA GOBIERNA DOS COSAS (owner, 2026-09-15, `PASARELA-LLAVES-COHERENTES-1`): además
+  // de decidir si se emite el header noindex, `esDespliegueDemo()` decide en
+  // `instrumentation.ts` si el servidor puede arrancar con la llave pública PRODUCTIVA de
+  // la pasarela de pagos (`WOMPI_PUBLIC_KEY`) — ver CLAUDE.md § Pagos en línea (Wompi).
+  // CONSECUENCIA: quien retire `NOINDEX` de acá por una razón de SEO está desarmando
+  // TAMBIÉN ese chequeo. Leé `instrumentation.ts` antes de tocar esta función.
   async headers() {
-    const ocultarDeBuscadores =
-      process.env.VERCEL_ENV !== "production" || process.env.NOINDEX === "1";
+    const ocultarDeBuscadores = esDespliegueDemo();
     return [
       ...(ocultarDeBuscadores
         ? [{ source: "/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] }]
