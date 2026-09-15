@@ -2140,3 +2140,200 @@ schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false` —
 este archivo ve este diff), sin contrato cross-repo. Merge Policy A aplica.
 Regla: § EL TRIPWIRE PROTEGE CONTRA LA INSTRUCCIÓN, NO SÓLO CONTRA EL TERRENO (`CLAUDE.md`), sin tocar
 en este slice.
+
+## 2026-09-14 · La lista Tier 1 vencía sin avisar — tres puertas de Wompi/pagos que el criterio
+ya cubría y la lista no tenía (`TIER1-LISTA-VENCIDA-1`)
+`c503eb6` (rama `slice/tier1-lista-vencida-1`, sin mergear — `AWAITING_APPROVAL`,
+`cross-repo-contract`)
+
+**El defecto, y por qué es la peor variante de una familia ya conocida.** El § Tier 1 de
+`CLAUDE.md` dice explícitamente que "cada puerta de escritura de stock, pagos y pedidos, y la
+función que esa puerta CONSULTA para decidir si la escritura procede y con qué valor" entra a la
+lista — el mismo criterio que `TIER1-CRITERIO-DECISORES-1` (2026-09-12) escribió. Ese criterio
+condenaba a su propia lista: el programa de Wompi abrió una puerta de pagos nueva
+(`app/api/webhooks/wompi/route.ts`) y la lista no la tenía. Es la misma deriva doc-vs-código que
+este repo lleva semanas persiguiendo (§ PRECONDICIÓN, el artefacto rancio; § Backlog técnico, el
+número rancio de doctrina), pero en su variante más cara: no es una lista que describe mal el
+código, es la lista que DECIDE QUÉ SE PROTEGE. Y una guarda vencida no avisa que dejó de cubrir —
+sigue corriendo VERDE sobre un conjunto que encogió.
+
+**Cómo se descubrió: midiendo el costo de una regla nueva, no revisando la lista.** El disparador
+no fue una auditoría de la lista Tier 1 en sí: fue medir qué habría costado aplicar una regla que
+el owner propuso (censar el impacto de una política nueva) contra el estado real del repo. Al
+enumerar las puertas de dinero tocadas por el programa de Wompi para esa medición, salió que una
+de ellas no figuraba en la lista que se supone las protege. **La regla, aplicada a la lista
+vencida, no habría frenado ningún slice de Wompi** — el hallazgo fue un efecto lateral de medir
+otra cosa, no el objetivo de la medición.
+
+**PRIMER HALLAZGO — la fecha de "última medición" que el spec asumía estaba vencida ELLA MISMA.**
+El spec de este slice citaba "medida el 2026-09-06" (la fecha del encabezado de la sección: cuándo
+se AGREGÓ). Medido contra git: la lista se re-midió por última vez el **2026-09-12**
+(`TIER1-CRITERIO-DECISORES-1`, `45311c2` — sumó `moliendas-opciones.ts` y `product-import.ts`, y
+NADA la tocó entre esa fecha y el 2026-09-14 salvo este slice: `git diff 45311c2..58925b7 --
+CLAUDE.md | grep '^[+-]Tier 1 slices run'` no dio salida). Confundir "cuándo se agregó la sección"
+con "cuándo se re-midió la lista" es cómo una lista vencida sigue pareciendo fresca — se corrigió
+usando el baseline correcto (`45311c2`) para el censo, y se dejó escrita la distinción en
+`CLAUDE.md` para que no vuelva a confundirse.
+
+**EL CENSO, contra el baseline correcto (`git diff 45311c2..HEAD -- app/api/ packages/core/src/
+lib/`, 14 archivos tocados/nuevos)**:
+
+| archivo | veredicto | razón |
+|---|---|---|
+| `app/api/webhooks/wompi/route.ts` (+ test) | **ENTRA** | cierra `PaymentIntent`, será el 4º llamador de `registerOrderPaymentTx`; no existía el 2026-09-12 |
+| `lib/pagos/wompi-firma.ts` (+ test) | **ENTRA** | la función que ESA puerta consulta para decidir si el cierre procede (`verificarFirmaWompi`); tampoco existía el 2026-09-12 |
+| `lib/checkout/metodos-pago.ts` (+ test) | **ENTRA** | existía desde el 2026-09-03, pero recién el 2026-09-14 (`METODOS-TRES-LISTAS-1`, `4386358`) `app/api/checkout/route.ts` —puerta YA listada— empezó a consultar su `metodoPagoTipoSchema` para decidir si el `payment.metodo` declarado es válido antes de escribir la orden; antes de ese commit el checkout validaba contra un enum propio, sin depender de este archivo |
+| `app/api/checkout/route.ts` | ya listada | ganó la consulta de arriba; sin cambio de listado |
+| `packages/core/src/orders.ts` | ya listada | exportó `isUniqueViolation` (antes privada); sin cambio de rol |
+| `packages/core/src/orders.test.ts` | fuera de alcance | test, no puerta |
+| `lib/automations/idempotency.ts` | **NO ENTRA** | escribe `AutomationRun` (bitácora de notificaciones), no stock/pagos/pedidos; el cambio fue sólo reusar `isUniqueViolation` |
+| `lib/config/fuentes.ts` (+ test) | **NO ENTRA** | pesos tipográficos del tema, ajeno al dinero |
+| `lib/animation.ts` (+ test) | **NO ENTRA** | `prefers-reduced-motion`, ajeno al dinero |
+
+**Lo que quedó explícitamente considerado y excluido, para que no se re-litigue sin este
+razonamiento:** `lib/config/site-settings-schema.ts` y `app/api/site-settings/route.ts` también
+tocan `SiteSetting.metodosPago` (validan la lista que el DUEÑO configura), pero es CONFIGURACIÓN
+—qué métodos se OFRECEN—, no una puerta de escritura de una orden/pago/stock concretos; es el
+mismo precedente que ya dejaba fuera de la lista a la cuenta de transferencia bancaria (que vivió
+en ese mismo archivo). `lib/config/telefono.ts` es un helper de formulario genérico (parte/compone
+un teléfono compuesto) compartido por WhatsApp y el número de pago móvil — no decide nada, sólo
+reformatea texto de un input. Ninguno de los dos se agregó.
+
+**MÉTODO Y SU LÍMITE, declarados:** el censo enumeró cambios con `git diff --name-status
+<baseline>..HEAD -- app/api/ packages/core/src/ lib/` — las tres superficies que el criterio
+nombra. Deja afuera cualquier puerta nueva que viviera en `components/`, `hooks/`, `types/` o
+`middleware`/`proxy.ts`; no se encontró evidencia de que exista una (las puertas de escritura de
+este repo son sistemáticamente route handlers de `app/api/` o funciones de `packages/core/src/`/
+`lib/`, nunca componentes), pero el límite del método se deja dicho en vez de asumido.
+
+**Verificación de existencia:** las 20 rutas ya listadas antes de este slice se comprobaron
+presentes en disco (`ls -d` por cada una, sin fallos); ninguna se retiró. La lista pasa de 20 a 23
+entradas.
+
+**La declaración de vencimiento que se agregó a `CLAUDE.md`** dice que la lista es una medición con
+fecha, no una garantía perpetua, y que se re-mide cada vez que la ruta del dinero gana una puerta o
+una función consultada nueva — no en la próxima auditoría programada. Sin esa frase, esto vuelve a
+pasar y nadie sabe por qué: es la misma lección del `.next` rancio (§ PRECONDICIÓN) y de los
+números-doctrina rancios (§ Backlog técnico), aplicada a la lista que decide qué se protege.
+
+**MERGE POLICY A: este slice PARA antes del merge.** El diff toca únicamente `CLAUDE.md` y este
+archivo — sin schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false`, nadie
+que no sea quien lee `CLAUDE.md`/`DECISIONS.md` ve este diff) — pero SÍ es un cambio de
+**contrato cross-repo**: el § Tier 1 es lo que el protocolo orquestador `dev-protocol` lee para
+decidir qué archivos exigen la sesión read-only previa. `stopped_on: ['cross-repo-contract']`.
+Sin merge, sin push.
+
+`npm test` **1125/1125** (piso medido en este mismo árbol, idéntico al de la última entrada del
+ledger — un cambio de prosa no puede mover ese número, y no lo hizo) y `npx tsc --noEmit` en **0**.
+Regla: § Tier 1 — superficies protegidas (`CLAUDE.md`), el párrafo "ESTA LISTA VENCE".
+
+## 2026-09-15 · Una lista literal no puede cubrir un archivo que todavía no existe — la lista Tier 1
+gana SUBÁRBOLES, con precedencia archivo-antes-que-subárbol (`TIER1-SUBARBOLES-1`)
+`384cc0a` (rama `slice/tier1-subarboles-1`, sobre `slice/tier1-lista-vencida-1` mergeada dentro —
+sin mergear a `main`, `AWAITING_APPROVAL`, `cross-repo-contract`)
+
+**Precondición de este slice: traer `slice/tier1-lista-vencida-1` ANTES de escribir nada.** El owner
+había parado el gate de esa rama con una razón concreta —*«si lo mergeo como está vuelve a morder en
+dos semanas»*—, porque quería la doctrina de subárboles ADENTRO antes de gatear una sola vez. Este
+slice empezó con `git merge --no-ff slice/tier1-lista-vencida-1` sobre una rama nueva cortada de
+`main`; el único conflicto fue en `DECISIONS.md`, y de la forma esperable en un archivo append-only
+—las dos ramas habían agregado su entrada en el mismo punto final del archivo—, nunca de contenido:
+se resolvió conservando LAS DOS entradas completas, sin reescribir ninguna, en el orden HEAD-primero
+(`LEDGER-ESCRITOR-MERGEADO-1`, 2026-09-15, ya mergeada a `main`) seguido de la entrante
+(`TIER1-LISTA-VENCIDA-1`, 2026-09-14, todavía sin gatear). Verificado tras el merge: los tres
+archivos nuevos (`app/api/webhooks/wompi/route.ts`, `lib/pagos/wompi-firma.ts`,
+`lib/checkout/metodos-pago.ts`) aparecen en el párrafo `Tier 1 slices run…` de `CLAUDE.md`, y el
+asiento de `TIER1-LISTA-VENCIDA-1` aparece en este archivo — commit de merge `49364ef`.
+
+**El defecto, en las palabras del owner: la lista Tier 1 está escrita en RUTAS y el criterio que la
+justifica está escrito en SIGNIFICADO** (§ Tier 1: "bytes del visitante", "puerta de escritura … y la
+función que esa puerta CONSULTA"). Una lista de rutas literales sólo puede nombrar lo que YA existe;
+no puede, por construcción, cubrir un archivo que el código todavía no escribió. Es la misma familia
+doc-vs-código que este repo lleva semanas persiguiendo (§ PRECONDICIÓN, el artefacto rancio; el
+asiento anterior, la fecha rancia), en su variante estructural: no es que la lista quedara vieja, es
+que la FORMA "lista de archivos" no tiene manera de anticipar directorios nuevos.
+
+**Las dos pruebas vivas, verificadas por ejecución antes de proponer nada:**
+
+- `components/storefront/home/HeroCurtina.tsx` y `HeroFicha.tsx` (`ls components/storefront/home/`)
+  existen HOY, son variantes del hero tan bytes-del-visitante como cualquier archivo bajo
+  `app/(storefront)/` —que la lista sí nombra entera—, y no figuraban en la lista. La razón es
+  estructural: viven en `components/storefront/`, un árbol DISTINTO del directorio de rutas
+  `app/(storefront)/` (`app/(storefront)/page.tsx` los importa, pero el archivo en sí vive afuera).
+- `components/storefront/checkout/` (`ls components/storefront/checkout/` → "No such file or
+  directory") NO EXISTE todavía. El programa de composición de slots del checkout va a poner ahí la
+  cáscara y las composiciones del checkout —el mismo censo ya corrido en
+  `CHECKOUT-SLOT-COMPOSICION-FORMA-1`—, y una lista literal no puede nombrar hoy un archivo que nace
+  mañana. Es el caso que más duele: el riesgo mayor de esa etapa aterrizaría, sin este slice, fuera
+  del gate que se supone lo protege.
+
+**LA SOLUCIÓN, y de dónde sale — el mismo mecanismo que el clasificador de rutas del protocolo
+orquestador (`dev-protocol`), descrito por el owner, no leído del otro repositorio** (fuera de
+alcance de este slice): clasificar una ruta buscando primero una coincidencia por ARCHIVO y, si no
+la hay, por SUBÁRBOL, con la precedencia fijada en código para que un archivo nombrado gane incluso
+dentro de un subárbol contrario. Se replica la misma forma acá, en prosa: `CLAUDE.md` gana una
+sección de subárboles, con la precedencia escrita como regla explícita —no implícita en el orden de
+lectura— y con `packages/core/src/timezone.ts` (la exclusión ya existente en el propio § Tier 1)
+como el ejemplo que ilustra qué protege esa precedencia: si algún día alguien propusiera un subárbol
+tan ancho como `packages/core/src/` para "la ruta del dinero", la precedencia —no el nombre del
+subárbol— es lo único que lo mantendría afuera.
+
+**EL CENSO DE CANDIDATOS, contra el criterio y su límite —cada uno con las tres respuestas que el
+spec pidió, y los descartados con la suya:**
+
+| candidato | veredicto | por qué el criterio lo cubre (o no) | qué contiene hoy | por qué lo nuevo también calificaría |
+|---|---|---|---|---|
+| `components/storefront/` | **ENTRA** | "app/(storefront)/ son los bytes del visitante" — mecánicamente son las MISMAS pantallas, sólo que el archivo vive en `components/` y `app/(storefront)/*.tsx` lo importa | 27 archivos (`.tsx`/`.ts`, sin tests) medidos por ejecución el día de este slice: `CartDrawer.tsx`, `Logo.tsx`, `PreguntasFrecuentes.tsx`, `PreviewMode.tsx`, `ProductCard.tsx`, `ProductChip.tsx`, `SiteContentProvider.tsx`, `SiteSettingsProvider.tsx`, `StoreFooter.tsx`, y los subdirectorios `home/` (12), `layout/` (2), `nosotros/` (2), `suscripciones/` (2) — todos renderizados dentro de `app/(storefront)/`, sin excepción encontrada que necesite la precedencia | un archivo nuevo bajo este árbol nace para renderizarse dentro de una ruta de `app/(storefront)/` — es la condición de existencia del directorio, no una coincidencia por nombre |
+| `lib/checkout/` | **ENTRA** | "la función que esa puerta CONSULTA para decidir si la escritura procede" — `app/api/checkout/route.ts` (puerta ya listada) consulta `metodos-pago.ts` (`metodoPagoTipoSchema`, verificado con `grep -n "metodos-pago" app/api/checkout/route.ts`), que a su vez consulta `transferencia.ts` (`opcionTransferencia`, verificado con `grep -rn "from '\./transferencia'" --include="*.ts" .`: `metodos-pago.ts` es el ÚNICO importador no-test del módulo) | 2 archivos fuente (+2 tests): `metodos-pago.ts` (ya listado como archivo suelto, redundante con el subárbol y se deja así — "no retirar nada ya listado") y `transferencia.ts` (nuevo) | un archivo nuevo en este directorio nace, por lo que el directorio YA ES —checkout/dinero—, para ser consultado por esa misma cadena; no es la utilidad genérica de `timezone.ts` |
+| `lib/pagos/` | **DESCARTADO** | mezcla la función que SÍ consulta una puerta (`wompi-firma.ts`, ya listada como archivo) con utilidades de REPORTE que sólo leen y presentan lo ya escrito | 7 archivos fuente: `bucketeo.ts`, `etiquetas.ts`, `frase.ts`, `informe-pdf.ts`, `informe.ts`, `rango.ts` (formato/gráfico/PDF de la pantalla de Pagos) + `wompi-firma.ts` | un archivo nuevo en este directorio con la misma probabilidad histórica sería OTRA utilidad de reporte (el patrón dominante: 6 de 7 archivos actuales lo son) — proteger todo el directorio por la excepción sería la misma sobre-protección que el límite del § Tier 1 ya rechaza del lado de `timezone.ts` |
+| `lib/storefront/` | **DESCARTADO** | resuelve CONTENIDO (`planes-suscripcion.ts`, `presentaciones.ts`), no decide ninguna escritura de stock/pagos/pedidos; no es la excepción puntual de `site-content-schema.ts`/`site-content-defaults.ts` (esos dos entraron por el incidente del strippeo silencioso, no por ser "resolvedores de contenido" en general) | 2 archivos fuente (+3 tests) | tratarlo como subárbol repetiría, del lado del contenido, el mismo argumento "casi todo alimenta algo por alguna cadena" que el § Tier 1 ya nombra y rechaza explícitamente del lado del dinero |
+
+**Lo que la tabla NO decide por sí sola —el juicio de exclusión dentro de `components/storefront/`,
+declarado porque el spec lo pidió:** no se encontró, dentro de ese árbol, ningún archivo que debiera
+quedar FUERA de la protección (ninguna utilidad genérica ajena al storefront, ningún harness de
+prueba, nada admin-only mal ubicado) — los 27 archivos son, sin excepción, o pantallas del visitante
+o el mecanismo (providers, modo preview) que las alimenta. Por eso no hizo falta invocar la
+precedencia archivo-por-archivo DENTRO de este subárbol; la precedencia queda escrita para el caso en
+que sí haga falta, no porque este censo la haya necesitado.
+
+**"Los componentes de variante" que el owner nombró NO son una tercera categoría — ya caen dentro de
+`components/storefront/`.** `HeroCurtina.tsx`/`HeroFicha.tsx` (variantes del hero) y
+`GrindChooserMosaico.tsx`/`GrindChooserIndice.tsx` (variantes del selector de molienda) viven todos
+bajo `components/storefront/home/`, así que el subárbol único los cubre a los cuatro sin necesidad de
+una entrada separada — y a cualquier variante futura de cualquier sección, por la misma razón
+estructural (viven donde vive la sección que varían).
+
+**DESVIACIÓN medida contra el spec, no heredada:** el spec citó "28 archivos" para
+`components/storefront/`. El censo de este slice, corrido por ejecución el mismo día
+(`find components/storefront -type f \( -name "*.tsx" -o -name "*.ts" \)`), da **27** — sin ningún
+test file en el árbol (`find … | grep test` → vacío) y sin ninguna exclusión propia hecha por este
+slice. La cifra del spec era un `ledger_claim` de una medición anterior del orquestador, no
+re-verificada acá hasta ahora; la diferencia de uno no cambia ningún veredicto de la tabla y no se
+investigó más allá de confirmar que no altera el censo. Los conteos de `lib/checkout/` (4, 2 fuente)
+y `lib/pagos/` (14, 7 fuente) y `lib/storefront/` (5, 2 fuente) que el spec citó SÍ coinciden con lo
+medido acá.
+
+**Forma del documento (§2c del spec): no se reescribió el párrafo de rutas literales —sigue
+existiendo tal cual, con los tres archivos que trajo el merge de `TIER1-LISTA-VENCIDA-1`— y se le
+sumó, en párrafos nuevos inmediatamente después, la lista de subárboles con sus tres razones cada
+uno, la regla de precedencia, y los descartados con la suya. Ningún archivo se retiró; ningún número
+que venza (conteo de archivos, fecha de "última medición") quedó escrito en `CLAUDE.md` —esas cifras
+viven acá, en el ledger, donde SÍ pueden fecharse y envejecer sin volverse doctrina falsa.**
+
+**Lo que este asiento NO hace:** no corrige ni edita el asiento anterior (`TIER1-LISTA-VENCIDA-1`,
+el ledger es append-only); no retira ningún archivo ni subárbol de la lista; no cambia el criterio
+del § Tier 1 ni su límite —sólo cómo se EXPRESA el conjunto que lo cumple—; no toca una sola línea de
+código, test o schema.
+
+**MERGE POLICY A: este slice PARA antes del merge, igual que su predecesor.** El diff toca únicamente
+`CLAUDE.md` y este archivo —sin schema, sin migración, sin bytes de cliente
+(`customer_bytes.changed=false`, nadie que no sea quien lee `CLAUDE.md`/`DECISIONS.md` ve este
+diff)— pero es un cambio de **contrato cross-repo**: el § Tier 1 es lo que el protocolo `dev-protocol`
+lee para decidir qué archivos exigen la sesión read-only previa, y este slice ensancha ese contrato
+con dos subárboles enteros. `stopped_on: ['cross-repo-contract']`. Sin merge, sin push.
+
+Ni una línea de código se tocó. Sin gate de test/build por instrucción explícita del spec —dos
+archivos de texto—; el piso citado es el mismo de la entrada anterior (`npm test` **1125/1125**,
+`npx tsc --noEmit` **0**, medido en `LEDGER-ESCRITOR-MERGEADO-1`) como `ledger_claim`, no
+re-medido en este slice: un diff Markdown no puede moverlo.
+Regla: § Tier 1 — superficies protegidas (`CLAUDE.md`), el párrafo "LA LISTA TAMBIÉN GANA SUBÁRBOLES".

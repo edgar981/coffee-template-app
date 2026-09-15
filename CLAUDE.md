@@ -24,7 +24,78 @@ alcance es GENÉRICO y su conexión con la puerta es INDIRECTA, y por eso se que
 AFUERA de la lista: ponerle dos etapas a una utilidad de fechas de todo el
 producto, por una entre tantas cadenas que la consultan, sería proteger de más.
 
-Tier 1 slices run in a separate read-only session first, then a second stage that writes only after the owner's explicit go, over these measured surfaces: packages/core/prisma/schema.prisma, packages/core/prisma/migrations/, lib/config/site-content-schema.ts, lib/config/site-content-defaults.ts, app/(storefront)/, packages/core/src/inventory.ts, packages/core/src/fulfillment.ts, packages/core/src/product-update.ts, packages/core/src/product-import.ts, packages/core/src/moliendas-opciones.ts, packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/shipping-transition.ts, app/api/checkout/route.ts, app/api/inventory/adjust/route.ts, app/api/orders/[id]/payments/route.ts, app/api/orders/route.ts, app/api/orders/[id]/address/route.ts, app/api/comprobantes/[id]/route.ts and app/api/shippings/route.ts.
+Tier 1 slices run in a separate read-only session first, then a second stage that writes only after the owner's explicit go, over these measured surfaces: packages/core/prisma/schema.prisma, packages/core/prisma/migrations/, lib/config/site-content-schema.ts, lib/config/site-content-defaults.ts, app/(storefront)/, packages/core/src/inventory.ts, packages/core/src/fulfillment.ts, packages/core/src/product-update.ts, packages/core/src/product-import.ts, packages/core/src/moliendas-opciones.ts, packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/shipping-transition.ts, lib/checkout/metodos-pago.ts, lib/pagos/wompi-firma.ts, app/api/checkout/route.ts, app/api/inventory/adjust/route.ts, app/api/orders/[id]/payments/route.ts, app/api/orders/route.ts, app/api/orders/[id]/address/route.ts, app/api/comprobantes/[id]/route.ts, app/api/shippings/route.ts and app/api/webhooks/wompi/route.ts.
+
+**LA LISTA TAMBIÉN GANA SUBÁRBOLES — una lista de rutas literales no puede cubrir un archivo que
+todavía no existe.** El criterio de arriba está escrito en términos de SIGNIFICADO (bytes del
+visitante, puerta de dinero); la lista de archivos, en RUTAS. Para las categorías donde el código
+sigue naciendo archivos nuevos que cumplen el mismo significado, entran ENTEROS estos subárboles,
+bajo la MISMA precondición read-only/segunda-etapa que los archivos de arriba:
+
+- **`components/storefront/`** — la MISMA razón que ya cubre a `app/(storefront)/`: son los bytes
+  del visitante, sólo que viven como componentes que esas rutas importan en vez de vivir dentro del
+  propio directorio de rutas — mecánicamente son las mismas pantallas, relocalizadas. Cubre de una
+  vez dos huecos ya observados: las VARIANTES de una sección que ya existen y quedaban afuera por
+  vivir en este árbol en vez de en `app/(storefront)/` (`components/storefront/home/HeroCurtina.tsx`,
+  `HeroFicha.tsx`, variantes del hero; `GrindChooserMosaico.tsx`/`GrindChooserIndice.tsx`, variantes
+  del selector de molienda), y la cáscara y las composiciones que el programa del checkout va a
+  poner bajo `components/storefront/checkout/` — directorio que hoy no existe y que una lista
+  literal jamás podría nombrar de antemano. Que el admin monte varios de estos mismos archivos en la
+  vista previa en vivo del editor (`VistaTiendaEnVivo.tsx`, `PaletaSeccion.tsx`) no los saca de la
+  lista: es el MISMO archivo protegido una sola vez, no una segunda superficie.
+- **`lib/checkout/`** — la función que la puerta ya listada (`app/api/checkout/route.ts`) consulta
+  para decidir si el método de pago declarado es válido (`metodos-pago.ts`, ya nombrado arriba como
+  archivo suelto) y la que ÉSA a su vez consulta para decidir si el método transferencia se ofrece
+  (`transferencia.ts`). Un archivo nuevo en este directorio nace, por lo que el directorio YA ES,
+  para ser consultado por esa misma puerta de dinero — no es la utilidad genérica que excluye a
+  `timezone.ts` arriba.
+
+**LA PRECEDENCIA: UN ARCHIVO NOMBRADO GANA SOBRE EL SUBÁRBOL QUE LO CONTENGA.** Un subárbol nuevo no
+puede tragarse en silencio una exclusión ya decidida por su propio nombre. `packages/core/src/
+timezone.ts` es el caso ya escrito arriba —alcance genérico, conexión indirecta— y seguiría AFUERA
+aunque algún día alguien propusiera un subárbol tan ancho como `packages/core/src/` para "la ruta
+del dinero": la precedencia es lo único que lo mantendría afuera, no el nombre del subárbol que lo
+contenga.
+
+**DOS SUBÁRBOLES CANDIDATOS SE EVALUARON Y SE DESCARTARON, para que no se re-propongan sin este
+razonamiento:** `lib/pagos/` mezcla la función que SÍ consulta una puerta (`wompi-firma.ts`, ya
+listada como archivo) con utilidades de REPORTE que sólo leen y presentan lo ya escrito —el
+bucketeo del gráfico de Pagos, la frase de su encabezado, el PDF descargable— y no deciden si
+ninguna escritura procede: son la misma familia INDIRECTA que ya excluye a `timezone.ts`, del lado
+de pagos. `lib/storefront/` resuelve CONTENIDO para el visitante (los planes de suscripción, las
+tarjetas de presentaciones), pero no es la excepción ya nombrada de `site-content-schema.ts`/
+`site-content-defaults.ts` —esos dos entraron por un incidente puntual, el strippeo silencioso, no
+por ser "resolvedores de contenido" en general—; tratarlo como subárbol repetiría, del lado del
+contenido, el mismo sobre-alcance que el límite de arriba (§ el párrafo de `timezone.ts`) ya
+prohíbe del lado del dinero.
+
+**ESTA LISTA VENCE — es una medición con fecha, no una garantía perpetua.** El criterio de arriba
+no cambia; el CONJUNTO de archivos que lo cumple sí, cada vez que el código gana una puerta de
+escritura de dinero o una función nueva que esa puerta consulta. Una lista vencida **no avisa que
+dejó de cubrir**: el gate de Tier 1 sigue corriendo en VERDE sobre un conjunto que encogió — es la
+misma familia que el artefacto rancio y el número rancio de doctrina (§ PRECONDICIÓN, § Backlog
+técnico — "un número en doctrina es una frase con fecha de vencimiento"), pero en la lista que
+decide QUÉ SE PROTEGE, así que acá vencer es peor: no confunde a quien lee, deja pasar.
+
+**Re-medida el 2026-09-14** (`TIER1-LISTA-VENCIDA-1`), contra la medición del **2026-09-12**
+(`TIER1-CRITERIO-DECISORES-1`, `45311c2` — la fecha real de la última vez que esta LISTA se tocó;
+el "2026-09-06" del encabezado de la sección es cuándo se AGREGÓ la sección, no cuándo se
+re-midió por última vez, y confundir las dos fechas es cómo una lista sigue pareciendo fresca
+cuando no lo está): el programa de Wompi abrió `app/api/webhooks/wompi/route.ts` —cierra el
+`PaymentIntent` y es el llamador futuro de `registerOrderPaymentTx`, § Pagos en línea (Wompi)— y
+su verificador `lib/pagos/wompi-firma.ts` —la función que ESA puerta consulta para decidir si el
+cierre procede—; ninguno de los dos existía el 2026-09-12. Se sumó también
+`lib/checkout/metodos-pago.ts`: existía desde el 2026-09-03, pero recién el 2026-09-14
+(`METODOS-TRES-LISTAS-1`) `app/api/checkout/route.ts` —puerta YA listada— empezó a CONSULTARLO
+(`metodoPagoTipoSchema`) para decidir si el método de pago declarado es válido antes de que la
+orden se escriba; antes de ese commit el checkout validaba contra un enum propio, sin depender de
+este archivo. Las 20 rutas ya listadas se verificaron existentes y sin cambios que las saquen del
+criterio; no se retiró ninguna.
+
+**Re-medir esta lista cada vez que la ruta del dinero gane una puerta o una función consultada
+nueva** — no esperar a una auditoría programada. `git diff <última-medición>..HEAD -- app/api/
+packages/core/src/ lib/` es el punto de PARTIDA, no el criterio: cada archivo nuevo o modificado
+se juzga contra el criterio de arriba, no contra su nombre ni contra si "suena a Wompi".
 
 ## Quién decide qué
 
