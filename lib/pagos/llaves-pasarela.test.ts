@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {
   verificarLlavePasarelaCoherente,
   PREFIJO_LLAVE_PASARELA_PRODUCTIVA,
-} from './instrumentation';
+} from './llaves-pasarela';
 
-// Lista negra, no lista blanca (decisión del owner, ver instrumentation.ts): sólo se
+// Lista negra, no lista blanca (decisión del owner, ver llaves-pasarela.ts): sólo se
 // rechaza el único prefijo confirmado como productivo; cualquier otro valor pasa.
 
 test('llave productiva en un despliegue DEMO → rechaza', () => {
