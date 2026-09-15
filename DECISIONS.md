@@ -2820,3 +2820,56 @@ Regla: § HeroContent / REGISTRY.hero (`lib/config/site-content-defaults.ts`) ·
 (`lib/config/site-content-schema.ts`) · § MAX_VIDEO_HERO_BYTES (`constants/upload.ts`) · § El editor de
 la tienda dibuja por BLOQUES (CLAUDE.md, para el patrón que `renderMediaHero` extiende sin tocar
 `tienda-secciones.ts` ni `lib/tienda/bloques.ts`).
+
+## 2026-09-15 — El póster del hero se pide con prioridad, como ya hace `priority` con la imagen (`HERO-VIDEO-POSTER-PRIORIDAD-1`)
+
+**EL DEFECTO ERA DE OMISIÓN, no de diseño equivocado.** `HERO-VIDEO-COMO-DATO-1` razonó correctamente
+que el `<video>` en sí no tiene un prop de prioridad equivalente a `priority` de `<Image>` —medido:
+`VideoHTMLAttributes` no trae `fetchPriority`— y concluyó "`preload` es lo que hay". Eso es cierto DEL
+VIDEO. Pero el **póster no es el video: es un recurso de IMAGEN aparte**, y nadie le había dado
+prioridad. Con `imagenTipo:'imagen'`, `<Image priority>` ya emite un `<link rel="preload" as="image"
+fetchpriority="high">` en el `<head>`; con `imagenTipo:'video'`, el póster se descubría recién cuando
+el parser llegaba al `<video>` y sin ninguna señal de prioridad — el primer pintado empeoraba con video
+respecto a sin video, justo lo que `MAX_VIDEO_HERO_BYTES` (8 MB) existe para evitar, porque el póster es
+lo ÚNICO que el visitante ve mientras el video baja.
+
+**EL MECANISMO: `ReactDOM.preload(hero.imagenPoster, { as:'image', fetchPriority:'high' })`, no un
+`<link>` en el JSX.** Medido antes de escribir el cambio: el repo corre Next 16.2.6 / React 19.2.4,
+donde `react-dom` exporta `preload` (`node_modules/@types/react-dom/index.d.ts:94`) como la API
+dedicada a este caso — inserta el recurso en el `<head>` durante el render, en servidor o cliente sin
+depender de dónde se llame, y dedupea por href. Se prefirió sobre un `<link>` renderizado a mano porque
+es la forma que React 19 documenta para exactamente esta situación (un recurso de imagen que el
+navegador no descubre a tiempo por sí solo, como un `background-image` o —acá— el atributo `poster` de
+un `<video>`), y porque no exige razonar sobre hoisting de `<link>` en el árbol de un componente
+`'use client'`. La llamada va en el CUERPO del render (no en el `useEffect` de la reproducción), para
+que emita en el HTML servido en SSR — igual que `<Image priority>`.
+
+**NO depende de `reproducir` — es la respuesta a la pregunta que el spec dejó abierta.** El póster es lo
+único visible tanto si el video reproduce (mientras buferea) como si se queda quieto para siempre
+(preview, `prefers-reduced-motion`, `preload="none"`). Adelantarlo sólo en el caso "va a reproducir"
+dejaría sin prioridad justo el caso donde el póster ES la pantalla completa, no un estado transitorio.
+El guard es únicamente `esVideo && hero.imagenPoster`.
+
+**BYTE-IDÉNTICO CON `imagenTipo:'imagen'`, por CONSTRUCCIÓN.** `esVideo` es `false` en ese caso (`hero.
+imagenTipo === 'video'`), así que el `&&` corta antes de invocar `preload` — la única función nueva de
+este diff. Ninguna otra línea del diff es alcanzable bajo `imagenTipo:'imagen'`. Confirmado además que
+el default resuelto de Nayoli/fábrica es `imagenTipo:'imagen'` (`site-content-defaults.ts:443`), así que
+el storefront de hoy no ejecuta la rama nueva en absoluto.
+
+**EL COMENTARIO DE `preload` SE CORRIGIÓ, no se amplió por abajo**, para que quien lo lea no se quede con
+la idea de que ahí terminaba lo que se podía hacer por la prioridad: ahora dice, por separado, que el
+`<video>` en sí no tiene prop de prioridad Y que el PÓSTER sí la puede llevar, con el `preload(...)` de
+arriba como referencia.
+
+**Gate, medido en el árbol final de la rama:** `npm test` → **1151/1151** (sin tests nuevos — este slice
+no toca `lib/`/`constants/`/`packages/core`, y el repo no tiene jsdom/testing-library para afirmar por
+ejecución un efecto de render de un componente `'use client'`; ver el precedente de la entrada anterior,
+"LA MITAD DEL BYTE-IDÉNTICO QUE QUEDA POR LECTURA, no por construcción" — el byte-identidad de este
+slice es la misma clase de garantía). `npx tsc --noEmit` → 0 errores. `npm run build` → verde; el chunk
+SSR compilado del home (`.next/server/chunks/ssr/components_storefront_home_0*.js`) contiene
+`fetchPriority` e `imagenPoster` (grep sobre el artefacto, no la fuente), confirmando que el build
+incluye el cambio.
+
+**Tier 1 / AWAITING_APPROVAL.** Toca el subárbol `components/storefront/` (`HeroCurtina.tsx`/
+`HeroFicha.tsx`, ya protegidos por la misma razón que la entrada anterior) y este archivo. No se mergea
+sin el visto bueno del owner.

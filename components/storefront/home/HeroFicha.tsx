@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { preload } from "react-dom";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -47,6 +48,15 @@ export default function HeroFicha({ style }: { style?: React.CSSProperties } = {
   const reduce = useReducedMotion();
   const videoRef = useRef<HTMLVideoElement>(null);
   const reproducir = esVideo && !preview && !reduce;
+
+  // EL PÓSTER SE PRE-CARGA CON PRIORIDAD ALTA — MISMA mecánica que HeroCurtina.tsx (§ HERO-VIDEO-
+  // POSTER-PRIORIDAD-1): el <video> no tiene prop de prioridad, pero el póster es un recurso de
+  // imagen aparte que sí la puede llevar. No depende de `reproducir` — el póster es lo único
+  // visible tanto si el video reproduce como si se queda quieto (preview/reduced-motion). Ver el
+  // razonamiento completo en HeroCurtina.tsx.
+  if (esVideo && hero.imagenPoster) {
+    preload(hero.imagenPoster, { as: "image", fetchPriority: "high" });
+  }
 
   useEffect(() => {
     const v = videoRef.current;
