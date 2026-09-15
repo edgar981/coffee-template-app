@@ -3351,3 +3351,37 @@ asiento anterior del ledger. Queda anotado como seguimiento abierto.
 **Tier 1 / AWAITING_APPROVAL — por la RAMA, no por este commit.** El diff propio de este slice es un
 cambio de comentario en un archivo Tier 1 (`lib/checkout/metodos-pago.ts`, por nombre y por el subárbol
 `lib/checkout/`). No se mergea sin el visto bueno explícito del owner sobre el conjunto de la rama.
+
+## 2026-09-15 — El carril rápido del gate empieza a correr los tests de `app/` (`GATE-GLOB-CUBRE-RUTAS-API-1`)
+
+**EL HECHO, MEDIDO.** El glob del script `test` (`package.json`) corría `lib/**`, `constants/**` y
+`packages/core/**`, y dejaba AFUERA los tests bajo `app/`. Ahí vivía **1 archivo**:
+`app/api/webhooks/wompi/route.test.ts`, con **14 tests** de los casos del webhook de Wompi — el
+llamador futuro de `registerOrderPaymentTx`, la puerta que crea `Payment`. Esos 14 tests corrían
+verdes de forma aislada, pero **ningún `npm run gate` los ejecutaba**: es la CUARTA instancia de
+«un test que el gate no corre es documentación» (§ `GATE-DOS-CARRILES-1`, CLAUDE.md) y la PRIMERA
+sobre la ruta del dinero.
+
+**MEDIDO ANTES DE CABLEAR, como pidió el spec:** los 14 tests de `app/api/webhooks/wompi/route.test.ts`
+corrían verdes, cero rojo, aislados (`node --import tsx --test "app/api/webhooks/wompi/route.test.ts"`).
+No había deuda escondida — sólo tests que nadie ejecutaba en el flujo normal.
+
+**EL CAMBIO, mínimo:** se agregó `"app/**/*.test.ts"` al glob del script `test`, mismo patrón y mismas
+comillas que los tres que ya estaban (para que el runner de `node --test` expanda el glob, no el shell).
+`npm run gate` (que compone `test` + `test:integracion`) lo cubre sin tocar el script `gate` ni
+`test:integracion`. **NO se incluyó `*.test.tsx`**: los tests de COMPONENTE necesitan jsdom, que el repo
+no tiene — deuda ya encolada, fuera del alcance de este slice.
+
+**NO SE TOCÓ NINGÚN TEST NI CÓDIGO DE PRODUCTO** — sólo el glob (`package.json`) y la doctrina
+(`CLAUDE.md`, § El carril rápido cubre `app/`).
+
+**GATE, medido en el árbol final de la rama:**
+- `npm test` (antes de cablear, baseline) → **1166/1166**.
+- `npm test` (después de cablear) → **1180/1180** — **+14 tests nuevos**, exactamente los del webhook
+  de Wompi. Cero rojo.
+- `npm run test:integracion` → **193/193**, sin cambio (este slice no lo tocó).
+- `npx tsc --noEmit` → limpio.
+
+**Tier 1 — NO aplica.** `package.json` y `CLAUDE.md` no están en la lista Tier 1 ni en sus subárboles;
+este diff no toca `app/(storefront)/`, ninguna puerta de dinero, schema ni migración. Merge policy A:
+sin cambio de schema, sin bytes de cliente, sin contrato cross-repo → mergeable en verde.

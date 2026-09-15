@@ -309,6 +309,25 @@ ellos, `npm run gate` de CUALQUIER slice se pone ROJO — y ese rojo NO es un sl
 roto, es la máquina sin el prerrequisito; el mensaje del propio script
 (`scripts/test-integracion.sh`) ya trae el remedio.
 
+### El carril rápido cubre `app/` — CUARTA instancia de "test que el gate no corre"
+
+**Hecho, con fecha (`GATE-GLOB-CUBRE-RUTAS-API-1`, 2026-09-15):** el glob del script
+`test` corría `lib/**`, `constants/**` y `packages/core/**`, y dejaba AFUERA los tests
+bajo `app/` — donde vivía `app/api/webhooks/wompi/route.test.ts`, los casos del
+**webhook que crea `Payment`**. Es la CUARTA instancia de la misma familia («un test
+que el gate no corre es documentación», § GATE-DOS-CARRILES-1) y la PRIMERA sobre la
+ruta del dinero: esos 14 tests corrían verdes de forma aislada, pero **no protegían
+nada** porque ningún `npm run gate` los ejecutaba. Se agregó `"app/**/*.test.ts"` al
+glob; medido antes de cablear, corrían verdes.
+
+**LA REGLA para el que escriba un test bajo `app/`: va en el carril rápido, así que
+tiene que ser DB-FREE** (parse-only, o con la base inyectada por fake — como
+`app/api/webhooks/wompi/route.test.ts`, que inyecta su propia interfaz en vez de tocar
+Postgres). **Un test de `app/` que necesite Postgres real va a `tests/integracion/`,
+no co-ubicado con la ruta** — si no, rompe el carril rápido (capa 1, sin base) para
+todos. **El glob NO incluye `*.test.tsx`**: los tests de COMPONENTE necesitan jsdom,
+que el repo no tiene (deuda ya encolada; no es parte de este cambio).
+
 ### `tsc` NO es la capa que envía — para JSX/TSX la autoridad es `next build`
 
 `tsc --noEmit` y `next build` usan **parsers distintos**: tsc el de TypeScript, el build
