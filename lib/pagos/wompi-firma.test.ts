@@ -124,21 +124,45 @@ test('secreto equivocado → false, aunque todo lo demás sea correcto', () => {
 });
 
 // ── pesosACentavos ────────────────────────────────────────────────────────────
+//
+// UN VALOR FRACCIONARIO ACÁ ES UNA GUARDA CONTRA UN FUTURO, NO EL ARREGLO DE UN
+// DEFECTO VIVO — y hay que decirlo con todas sus letras para que nadie lea "4.35"
+// en estos tests y concluya que este sistema cobra con centavos hoy.
+//
+// Medido antes de escribir esta nota (WOMPI-INTENTO-ATOMICO-AFIRMADO-1): no hay un
+// solo campo `Decimal` en todo `schema.prisma` — `Order.total`, `costo_envio`,
+// `precio`, `monto_esperado` son todos `Float` — así que `Math.round` NO está
+// tapando una conversión implícita de `Decimal` a `Float`; ese riesgo no existe
+// en este repo. Y el camino real del total (`app/api/checkout/route.ts`,
+// `app/api/orders/route.ts`: `total = subtotal + costo_envio`, sin porcentajes,
+// sin descuentos, sin IVA) es una SUMA de precios que hoy siempre son enteros de
+// COP. O sea que HOY `pesosACentavos` nunca recibe un 4.35: cada monto real que
+// pasa por esta función ya es entero, y `pesos * 100` para un entero es exacto sin
+// redondeo. `Math.round` es la guarda para el día en que algo deje de serlo — un
+// descuento, un IVA repartido, una promoción — no la corrección de un bug que hoy
+// se esté disparando en producción.
+//
+// Con esa salvedad, la trampa que sigue siendo real (medida en Node, no inventada):
+// SI algún día un monto fraccionario entra a esta función, truncar en vez de
+// redondear pierde un centavo por el error de coma flotante de la multiplicación.
+// Es la prueba de que el día que ese futuro llegue, la guarda ya está puesta.
 
 test('pesosACentavos: un monto entero de pesos da el entero de centavos esperado', () => {
   assert.equal(pesosACentavos(25_000), 2_500_000);
   assert.equal(pesosACentavos(0), 0);
 });
 
-test('pesosACentavos: EXHIBE la trampa — truncar 4.35*100 daría 434, no 435', () => {
+test('pesosACentavos: si algún día un monto trae fracción, redondea en vez de truncar — 4.35 no puede ocurrir en el checkout de HOY', () => {
   // Medido: en JS, 4.35 * 100 === 434.99999999999994. Un `Math.trunc` (o `| 0`)
   // de ese valor da 434 — un centavo MENOS del monto real. Esta es la aserción
-  // que un `Math.trunc` haría fallar y `Math.round` no.
+  // que un `Math.trunc` haría fallar y `Math.round` no. 4.35 es un valor de
+  // laboratorio para ejercer la fórmula, no un monto que el checkout produzca hoy
+  // (ver la nota de cabecera de esta sección).
   assert.equal(Math.trunc(4.35 * 100), 434); // el bug que NO queremos
   assert.equal(pesosACentavos(4.35), 435);
 });
 
-test('pesosACentavos: el mismo defecto con 19.99 (1998.9999999999998 en JS)', () => {
+test('pesosACentavos: el mismo caso de laboratorio con 19.99 (1998.9999999999998 en JS)', () => {
   assert.equal(Math.trunc(19.99 * 100), 1998); // el bug que NO queremos
   assert.equal(pesosACentavos(19.99), 1999);
 });

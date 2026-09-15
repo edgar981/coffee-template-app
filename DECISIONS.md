@@ -2986,3 +2986,97 @@ mergea sin el visto bueno del owner sobre este diff en concreto.
 Regla: § Pagos en línea (Wompi) — cobros automáticos (CLAUDE.md), que ya cita el estado de
 `PaymentIntent` y el webhook — este asiento no reescribe esa sección; agrega el creador de intentos como
 pieza construida y sigue apagada.
+
+## 2026-09-15 — La atomicidad del creador de intentos queda AFIRMADA por un test, no explicada por un comentario (`WOMPI-INTENTO-ATOMICO-AFIRMADO-1`)
+
+**LA PROPIEDAD, con las palabras del owner.** `WOMPI-CREADOR-DE-INTENTOS-1` dejó un `PaymentIntent` que
+nace en DOS escrituras (placeholder → referencia real) dentro de la MISMA transacción que la orden, y el
+owner aceptó ese diseño por una razón puntual: *"es seguro por UNA propiedad: las dos viven en la misma
+transacción, así que nunca es observable"*. El daño si esa propiedad se pierde —si alguien mueve la
+creación del intento FUERA del `$transaction`— también quedó dicho por el owner: si el proceso muere
+entre las dos escrituras, sobrevive una fila con la referencia placeholder; el reconciliador (todavía sin
+construir) le preguntaría a Wompi por una referencia que NUNCA EXISTIÓ, y Wompi responde
+`200 {"data":[]}` — indistinguible de "todavía no se creó". El intento quedaría vivo hasta que el barrido
+lo cierre a las 48 h. El asiento anterior dejó esta garantía como un comentario en `orders.ts`; este slice
+la convierte en un test, sin tocar una sola línea de `orders.ts`.
+
+**DÓNDE VA EL TEST — medido, no supuesto.** `createOrderWithCustomer` importa `prisma` a nivel de módulo
+(`packages/core/src/orders.ts:2`), sin inyección posible: la propiedad de un `$transaction` real contra
+Postgres no se puede fingir con un mock. El repo ya tiene el carril para esto
+(`npm run test:integracion`, `scripts/test-integracion.sh`, Postgres efímero en :55432) con precedentes
+exactos de forzar fallos/concurrencia dentro de una transacción (`ajuste-concurrente.test.ts`,
+`despacho-concurrente.test.ts`), así que el test nuevo (`tests/integracion/intento-pago-atomico.test.ts`)
+sigue esa forma.
+
+**CÓMO SE FUERZA EL FALLO DENTRO DE LA TRANSACCIÓN — sin tocar `orders.ts`.** Medido: dentro de la misma
+transacción, `crearIntentoPago` escribe el `PaymentIntent` (sus dos escrituras) ANTES de que
+`immediatePayment` corra `registerOrderPaymentTx` → `tx.payment.create`. Pasando
+`immediatePayment: { metodo: 'NO_EXISTE_EN_EL_ENUM' as MetodoPago }` —un valor que el enum `MetodoPago`
+del schema rechaza y que sólo entra forzando el tipo con `as`, nunca alcanzable desde una ruta real—
+`tx.payment.create` revienta DESPUÉS de que el intento ya tuvo sus dos escrituras, dentro del mismo `tx`.
+Como el error no es una violación de unicidad (`isUniqueViolation` da `false`), `createOrderWithCustomer`
+no reintenta: propaga el error tal cual, y Prisma revierte la transacción entera. El primer test afirma
+la consecuencia directa: tras el `reject`, `prisma.order.count()` y `prisma.paymentIntent.count()` dan
+CERO — ni la orden ni el intento sobreviven, la prueba de que el intento nació y murió dentro de la MISMA
+transacción que la orden.
+
+**EL SEGUNDO TEST afirma la consecuencia observable del daño**, la que el owner nombró como mínimo
+aceptable: tras un alta exitosa, un barrido de TODA la tabla `PaymentIntent` (no sólo la fila de la orden
+creada) no encuentra ninguna fila que se haya quedado en su forma placeholder.
+
+**EL PREFIJO DEL PLACEHOLDER NO SE DUPLICÓ COMO LITERAL, medido antes de escribir el test.**
+`grep -rn "_pendiente_" --include="*.ts" .` da UNA sola aparición en todo el repo: el literal inline en
+`orders.ts:602` (`` `_pendiente_${randomUUID()}` ``) — no existe como constante exportada. Copiar ese
+literal en el test lo habría dejado de proteger el día que alguien cambie el prefijo (la guarda dejaría de
+correr sin que nadie lo note). En su lugar, el segundo test afirma la FORMA final: para cada fila de la
+tabla, `fila.reference === referenciaIntentoPago(fila.order.numero_orden, fila.id)` — una igualdad que NO
+puede cumplirse si la fila se hubiera quedado en `_pendiente_<uuid>` (esa cadena nunca contiene el `:` que
+`referenciaIntentoPago` siempre produce), así que barre el mismo hueco sin duplicar un valor que puede
+cambiar. **Propuesta, no impuesta:** si el owner prefiere una guarda literal sobre el prefijo, la salida
+barata es exportar el literal como constante nombrada (p. ej. `PLACEHOLDER_REFERENCIA_PREFIX`) desde
+`orders.ts` y que el test la importe — un cambio de una línea en un archivo Tier 1, fuera del alcance de
+este slice (`touches:` no lo incluye). Queda anotado como `open_followup`, no ejecutado.
+
+**ADVERTENCIA DE ALCANCE, dicha explícitamente y no en silencio: este test vive en un carril que el gate
+normal NO ejecuta.** `tests/integracion/**/*.test.ts` sólo corre con `npm run test:integracion` (Postgres
+efímero, prerequisito `brew install postgresql@14`). `npm test` (el gate de capa 1, `lib/**`,
+`constants/**`, `packages/core/**`) no lo toca — verificado en `package.json`, dos scripts distintos. Para
+que esta afirmación corriera donde el gate normal la vea, `test:integracion` tendría que sumarse al
+pipeline de CI/pre-merge; hoy es un carril MANUAL, aparte. Se nombra explícito porque esta misma semana ya
+se envió un test que no corría por vivir fuera de un glob (mismo modo de falla: una afirmación que existe
+en el repo pero que nadie ejecuta en el camino que importa).
+
+**EL COMENTARIO DE `pesosACentavos` — medido y corregido, sin tocar la implementación.** Verificado:
+`grep -n "Decimal" packages/core/prisma/schema.prisma` da CERO — todo monto (`Order.total`,
+`costo_envio`, `precio`, `monto_esperado`) es `Float`, así que `Math.round` no tapa ninguna conversión
+implícita de `Decimal`; ese riesgo no existe en este repo. Pero el comentario original tampoco decía lo
+que el código real hace: medido el camino del total en las DOS rutas que crean órdenes
+(`app/api/checkout/route.ts:129`, `app/api/orders/route.ts:159`), ambas computan
+`total = subtotal + costo_envio` — una SUMA, sin porcentajes, sin descuentos, sin IVA repartido — y
+`resolveOrderLines` (`packages/core/src/orders.ts:763`) multiplica `precio_unitario * cantidad` sobre
+precios que hoy siempre son enteros de COP (aunque `Product.precio` sea `Float` sin una validación de
+entero explícita — no hay una regla de negocio que lo impida, sólo que ninguna ruta de HOY produce una
+fracción). O sea: **hoy `pesosACentavos` nunca recibe un 4.35 real; `Math.round` es una guarda contra un
+FUTURO** (un descuento, un IVA repartido, una promoción), no el arreglo de un defecto vivo. Se ajustaron
+el nombre de los dos casos de test y se agregó una nota de cabecera en
+`lib/pagos/wompi-firma.test.ts` que dice esto con las palabras que merece, para que nadie lea "4.35" en el
+archivo y concluya que el sistema cobra con centavos hoy. **La implementación (`Math.round` en
+`wompi-firma.ts`) NO se tocó** — no está en `touches:` de este slice, y no hacía falta: el código ya era
+correcto, lo que estaba incompleto era la explicación.
+
+**GATE, medido en el árbol final de la rama.** `npm test` → **1162/1162**, sin cambio de piso — los
+ajustes en `wompi-firma.test.ts` son de nombre/comentario, ninguna aserción nueva ni removida en capa 1.
+`npx tsc --noEmit` → 0 errores. `npm run test:integracion` → **193/193**, piso anterior **191** (dos tests
+nuevos, ambos vistos pasar: la atomicidad y el barrido de placeholders). `npm run build` no se corrió —no
+lo pide el spec de este slice y el diff no toca nada que built afecte de forma distinta a lo ya verificado
+en el slice anterior.
+
+**Tier 1 / AWAITING_APPROVAL — por la RAMA, no por este commit.** El diff propio de este slice
+(`tests/integracion/intento-pago-atomico.test.ts`, `lib/pagos/wompi-firma.test.ts`, este asiento) no toca
+ningún archivo Tier 1 listado en CLAUDE.md — ninguno de los dos es un archivo de producción, y
+`packages/core/src/orders.ts`/`lib/pagos/wompi-firma.ts` no se editaron. Pero la RAMA
+(`slice/wompi-creador-de-intentos-1`) sigue cargando, sin pushear, el commit `52cba81` de
+`WOMPI-CREADOR-DE-INTENTOS-1`, que SÍ toca tres archivos Tier 1 (`packages/core/src/orders.ts`,
+`lib/pagos/wompi-firma.ts`, `app/api/checkout/route.ts`) y que ya cerró como AWAITING_APPROVAL sin el visto
+bueno del owner sobre ESE diff. Mergear esta rama a `main` mergearía también aquel diff todavía sin
+aprobar. No se mergea nada hasta que el owner dé el visto bueno explícito sobre el conjunto.
