@@ -2951,3 +2951,40 @@ política A), así que calificaría para merge automático; el owner pidió gate
 
 Regla: § Pagos en línea (Wompi) (CLAUDE.md) · `instrumentation.ts` (`verificarLlavePasarelaCoherente`,
 `PREFIJO_LLAVE_PASARELA_PRODUCTIVA`) · `next.config.ts` (`esDespliegueDemo`, extraída y reusada).
+
+## 2026-09-15 — Un test que no corre no es una guarda: la mudanza a `lib/pagos/` (`PASARELA-LLAVES-TEST-QUE-CORRE-1`)
+
+**EL DEFECTO, DICHO SIN SUAVIZARLO:** el slice anterior (`PASARELA-LLAVES-COHERENTES-1`) escribió su
+test en `instrumentation.test.ts`, en la raíz del repo. El glob de `npm test`
+(`"lib/**/*.test.ts" "constants/**/*.test.ts" "packages/core/**/*.test.ts"`) no llega a la raíz. El
+test estaba escrito, pasaba cuando se lo invocaba a mano, y `npm test` nunca lo corría. **Un slice
+cuyo propósito entero era "una regla escrita que nadie ejecuta" shippeó un test que nadie ejecuta.**
+El worker anterior lo reportó en vez de callarlo, sin ensanchar su alcance por su cuenta — hizo bien;
+faltaba autorización para tocar `lib/`.
+
+**LA MUDANZA, sin cambiar ninguna decisión:** `verificarLlavePasarelaCoherente` y
+`PREFIJO_LLAVE_PASARELA_PRODUCTIVA` (puras, sin `process.env` adentro) se mudaron a
+`lib/pagos/llaves-pasarela.ts`, junto a `wompi-firma.ts` — su pariente exacto: la ruta del dinero,
+sin lectura de entorno adentro. Su test se mudó con ellas a `lib/pagos/llaves-pasarela.test.ts`,
+donde el glob sí llega. `instrumentation.ts` quedó como el gancho de arranque puro: lee el entorno,
+llama a la función pura, aborta con el mensaje. `instrumentation.test.ts` se borró — no quedó
+contenido propio que cubrir ahí; dejarlo habría sido un test vacío pareciendo cobertura.
+
+**EFECTO SECUNDARIO NOMBRADO, no casualidad:** al vivir bajo `lib/pagos/`, el diff tripea la
+política de merge por sí solo (el eje de cobro). El gate manual que el owner pidió deja de ser una
+clasificación forzada y pasa a ser orgánico — el código quedó donde su riesgo dice que tiene que
+estar.
+
+**Gate, medido en el árbol final:** `npm test` antes de la mudanza → **1151/1151** (coincide con el
+piso del slice anterior — la mudanza no tocó ningún archivo bajo el glob todavía). Después →
+**1155/1155**, exactamente **+4** — las cuatro pruebas de la guarda, confirmadas por nombre dentro
+de la corrida de `npm test` (antes sólo aparecían en una invocación aparte). `npx tsc --noEmit` → 0
+errores. `npm run build` → verde, sin llaves configuradas, como antes. Los cuatro casos siguen
+afirmados sin cambio de lógica (el diff de `instrumentation.ts` confirma que el cuerpo de la función
+pura no se tocó, sólo se relocalizó).
+
+**Tier 1 / AWAITING_APPROVAL — igual que su predecesor, el owner gatea esta rama a mano.**
+
+Regla: § Pagos en línea (Wompi) (CLAUDE.md) · `lib/pagos/llaves-pasarela.ts`
+(`verificarLlavePasarelaCoherente`, `PREFIJO_LLAVE_PASARELA_PRODUCTIVA`) · `instrumentation.ts`
+(el gancho, sin lógica propia).
