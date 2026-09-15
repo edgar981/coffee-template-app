@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import prisma from '@duna/core';
-import { Prisma, MetodoPago, CondicionPago } from '@duna/core';
+import { Prisma, MetodoPago, CondicionPago, type PaymentIntent } from '@duna/core';
 import { ensureShipping, restockShippingStock } from '@duna/core/fulfillment';
 import { notifyOrderCreated } from '@duna/core/notifications';
 import type { Brand } from '@duna/core/notifications/brand';
@@ -339,6 +340,23 @@ export interface CreateOrderInput {
   // Quién crea la orden — para el asiento de CREACIÓN del libro. `undefined`/null =
   // sin humano detrás (checkout del storefront). El admin pasa su sesión.
   actor?: TransitionActor;
+  // Crea un `PaymentIntent` EN_VUELO en la MISMA transacción que la orden — la fila
+  // que sostiene un cobro en línea (Wompi). Opt-in y default `false`/ausente: SIN
+  // este flag, `createOrderWithCustomer` se comporta EXACTAMENTE como antes de
+  // `WOMPI-CREADOR-DE-INTENTOS-1` — ni una fila nueva, ni un campo nuevo en lo que
+  // devuelve. Hoy NINGÚN llamador lo pasa: la selección de método de pasarela (el
+  // widget, la ruta de retorno, el toggle por despliegue) todavía no existe — ver
+  // CLAUDE.md § Pagos en línea (Wompi) y el asiento de este slice en DECISIONS.md.
+  crearIntentoPago?: boolean;
+}
+
+/** El discriminador del `PaymentIntent`: "<numero_orden>:<cuid de la fila>" — ver
+ *  el comentario de `PaymentIntent.reference` en schema.prisma para el porqué de
+ *  este formato (el cuid de la PROPIA fila hace la unicidad, sin contador que
+ *  escribir ni lock que tomar, y sin depender de un id de PSP que todavía no
+ *  existe). Pura, para poder afirmar el formato sin una base real. */
+export function referenciaIntentoPago(numeroOrden: string, paymentIntentId: string): string {
+  return `${numeroOrden}:${paymentIntentId}`;
 }
 
 export function isUniqueViolation(error: unknown): boolean {
@@ -448,7 +466,11 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
       where:   { idempotencyKey: idem },
       include: { items: true, shipping: true, comprobantes: { orderBy: { createdAt: 'asc' } } },
     });
-    if (existing) return existing;
+    // `paymentIntent: undefined` sólo por UNIFORMIDAD DE TIPO con el retorno de la
+    // rama que sí crea uno — se omite en la serialización (ver el comentario del
+    // `return` dentro de la transacción, más abajo) y no dice nada sobre si el
+    // pedido idempotente tiene o no un intento propio.
+    if (existing) return { ...existing, paymentIntent: undefined };
   }
 
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -559,6 +581,34 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
           estadoAnterior: null, estadoNuevo: order.estado, actor: input.actor,
         });
 
+        // El CREADOR de intentos de pago (WOMPI-CREADOR-DE-INTENTOS-1). Nace EN
+        // ESTA MISMA transacción — no después — porque un intento sin orden es una
+        // fila huérfana que el barrido tendría que limpiar, y una orden con un
+        // intento que falló en crearse es una orden que nadie puede pagar en línea.
+        //
+        // DOS ESCRITURAS, no una: `reference` embebe el `id` de la propia fila (ver
+        // el comentario del modelo en schema.prisma), y Prisma sólo entrega ese id
+        // DESPUÉS del insert — no hay forma de conocerlo antes de escribir sin
+        // generarlo nosotros mismos (y el repo no tiene una librería de cuid para
+        // eso; agregar una para ahorrarse una query es más caro que la query). El
+        // placeholder es un UUID al azar, invisible fuera de esta transacción sin
+        // comprometer, y se pisa con la referencia real antes de que nadie más
+        // pueda leerlo.
+        let paymentIntent: PaymentIntent | undefined;
+        if (input.crearIntentoPago) {
+          const creado = await tx.paymentIntent.create({
+            data: {
+              orden_id:       order.id,
+              reference:      `_pendiente_${randomUUID()}`,
+              monto_esperado: order.total,
+            },
+          });
+          paymentIntent = await tx.paymentIntent.update({
+            where: { id: creado.id },
+            data:  { reference: referenciaIntentoPago(order.numero_orden, creado.id) },
+          });
+        }
+
         // "El pago ya fue recibido": born `pendiente` above, then paid RIGHT NOW
         // through the shared money-in path (Payment + estado→pagado + Shipping) —
         // same code as "Registrar pago", one transaction, so the ledger and the
@@ -577,10 +627,15 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
           await ensureShipping(tx, order);
         }
 
-        return tx.order.findUnique({
+        const orderFinal = await tx.order.findUnique({
           where:   { id: order.id },
           include: { items: true, shipping: true, comprobantes: { orderBy: { createdAt: 'asc' } } },
         });
+        // `paymentIntent` viaja SIEMPRE en el objeto — pero cuando nadie lo pidió
+        // vale `undefined`, y `JSON.stringify`/`NextResponse.json` OMITEN una clave
+        // en `undefined`: ningún caller que serialice esta respuesta entera (p.ej.
+        // `app/api/orders/route.ts`) ve un byte de más cuando el flag no se pasó.
+        return orderFinal ? { ...orderFinal, paymentIntent } : orderFinal;
       });
 
       // Order COMMITTED. Fire the "order created" notification here — AFTER the
@@ -603,7 +658,8 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
             where:   { idempotencyKey: idem },
             include: { items: true, shipping: true, comprobantes: { orderBy: { createdAt: 'asc' } } },
           });
-          if (existing) return existing;
+          // Mismo `paymentIntent: undefined` de sólo-tipo que el fast path de arriba.
+          if (existing) return { ...existing, paymentIntent: undefined };
         }
         // Otherwise it was an order-number collision → retry with a new number.
         if (attempt < 4) continue;

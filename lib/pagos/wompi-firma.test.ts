@@ -1,7 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { verificarFirmaWompi, RutaDePropertyNoResuelveError, type EventoWompi } from './wompi-firma';
+import {
+  verificarFirmaWompi,
+  RutaDePropertyNoResuelveError,
+  pesosACentavos,
+  firmarIntegridadWompi,
+  type EventoWompi,
+} from './wompi-firma';
 
 // Capa 1 — puro. El verificador de firma de eventos de Wompi.
 //
@@ -115,4 +121,84 @@ test('checksum del HEADER que COINCIDE con el del cuerpo → sigue verificando n
 
 test('secreto equivocado → false, aunque todo lo demás sea correcto', () => {
   assert.equal(verificarFirmaWompi(eventoBase(), 'otro-secreto-distinto'), false);
+});
+
+// ── pesosACentavos ────────────────────────────────────────────────────────────
+
+test('pesosACentavos: un monto entero de pesos da el entero de centavos esperado', () => {
+  assert.equal(pesosACentavos(25_000), 2_500_000);
+  assert.equal(pesosACentavos(0), 0);
+});
+
+test('pesosACentavos: EXHIBE la trampa — truncar 4.35*100 daría 434, no 435', () => {
+  // Medido: en JS, 4.35 * 100 === 434.99999999999994. Un `Math.trunc` (o `| 0`)
+  // de ese valor da 434 — un centavo MENOS del monto real. Esta es la aserción
+  // que un `Math.trunc` haría fallar y `Math.round` no.
+  assert.equal(Math.trunc(4.35 * 100), 434); // el bug que NO queremos
+  assert.equal(pesosACentavos(4.35), 435);
+});
+
+test('pesosACentavos: el mismo defecto con 19.99 (1998.9999999999998 en JS)', () => {
+  assert.equal(Math.trunc(19.99 * 100), 1998); // el bug que NO queremos
+  assert.equal(pesosACentavos(19.99), 1999);
+});
+
+// ── firmarIntegridadWompi ──────────────────────────────────────────────────────
+
+const SECRETO_INTEGRIDAD = 'secreto-de-integridad-inventado-para-el-test';
+
+/** Calcula el checksum esperado con la MISMA fórmula, sin depender de la
+ *  implementación — mismo método que `checksumEsperado` arriba, para la otra firma. */
+function checksumIntegridadEsperado(
+  reference: string,
+  amountInCents: number,
+  currency: string,
+  secreto: string,
+): string {
+  const cadena = reference + String(amountInCents) + currency + secreto;
+  return createHash('sha256').update(cadena).digest('hex');
+}
+
+test('firmarIntegridadWompi: produce el sha256 de la concatenación plana reference+monto+moneda+secreto', () => {
+  const esperado = checksumIntegridadEsperado('CN-123456:cuid_abc', 2_500_000, 'COP', SECRETO_INTEGRIDAD);
+  assert.equal(firmarIntegridadWompi('CN-123456:cuid_abc', 2_500_000, 'COP', SECRETO_INTEGRIDAD), esperado);
+});
+
+test('firmarIntegridadWompi: cambiar la referencia cambia la firma', () => {
+  const a = firmarIntegridadWompi('CN-1:x', 1000, 'COP', SECRETO_INTEGRIDAD);
+  const b = firmarIntegridadWompi('CN-2:x', 1000, 'COP', SECRETO_INTEGRIDAD);
+  assert.notEqual(a, b);
+});
+
+test('firmarIntegridadWompi: cambiar el monto en centavos cambia la firma', () => {
+  const a = firmarIntegridadWompi('CN-1:x', 1000, 'COP', SECRETO_INTEGRIDAD);
+  const b = firmarIntegridadWompi('CN-1:x', 1001, 'COP', SECRETO_INTEGRIDAD);
+  assert.notEqual(a, b);
+});
+
+test('firmarIntegridadWompi: cambiar la moneda cambia la firma', () => {
+  const a = firmarIntegridadWompi('CN-1:x', 1000, 'COP', SECRETO_INTEGRIDAD);
+  const b = firmarIntegridadWompi('CN-1:x', 1000, 'USD', SECRETO_INTEGRIDAD);
+  assert.notEqual(a, b);
+});
+
+test('firmarIntegridadWompi: secreto equivocado → firma distinta', () => {
+  const a = firmarIntegridadWompi('CN-1:x', 1000, 'COP', SECRETO_INTEGRIDAD);
+  const b = firmarIntegridadWompi('CN-1:x', 1000, 'COP', 'otro-secreto');
+  assert.notEqual(a, b);
+});
+
+test('firmarIntegridadWompi: EL ORDEN de la concatenación es reference+monto+moneda+secreto, no otro', () => {
+  const reference = 'CN-1:x';
+  const cents = 1000;
+  const currency = 'COP';
+  // La cadena en el orden CORRECTO (lo que la función debe producir) contra la
+  // cadena con el monto y la referencia INVERTIDOS — mismos cuatro valores,
+  // otro orden, otro hash. Si la implementación alguna vez concatenara en otro
+  // orden, este test lo delata donde los tests de "cambiar un campo" no pueden
+  // (esos sólo prueban que el campo PARTICIPA, no en qué posición).
+  const ordenInvertido = createHash('sha256')
+    .update(String(cents) + reference + currency + SECRETO_INTEGRIDAD)
+    .digest('hex');
+  assert.notEqual(firmarIntegridadWompi(reference, cents, currency, SECRETO_INTEGRIDAD), ordenInvertido);
 });

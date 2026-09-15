@@ -9,6 +9,12 @@ import {
   direccionField, direccionDetalleField, ciudadField, departamentoField, telefonoColombiaField,
 } from '@duna/core/validation/address';
 import { metodoPagoTipoSchema } from '@/lib/checkout/metodos-pago';
+import { pesosACentavos, firmarIntegridadWompi } from '@/lib/pagos/wompi-firma';
+
+// La moneda del store es COP, sin selector: es lo único que el checkout maneja
+// hoy (formatCOP, Order.total, todo el sistema). No es un valor inventado para
+// Wompi — es el que YA rige el resto del sistema.
+const MONEDA_WOMPI = 'COP';
 
 // Guest checkout is intentionally unauthenticated — no Better Auth session.
 // The client is trusted ONLY for product slugs, quantities and customer /
@@ -152,6 +158,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No se pudo procesar la orden' }, { status: 500 });
   }
 
+  // ── WOMPI-CREADOR-DE-INTENTOS-1: la CAPACIDAD, hoy APAGADA ──────────────────
+  // `createOrderWithCustomer` arriba NO recibe `crearIntentoPago`, así que
+  // `order.paymentIntent` es SIEMPRE `undefined` — nadie pide esto todavía: la
+  // selección de método de pasarela (el widget, la ruta de retorno, el toggle
+  // por despliegue) no existe (ver CLAUDE.md § Pagos en línea (Wompi)). Esta rama
+  // queda CABLEADA, sin disparador, para que el día que exista un llamador que sí
+  // pase el flag, la respuesta ya sepa qué devolver — decisión explícita del
+  // slice, no un olvido (DECISIONS.md, WOMPI-CREADOR-DE-INTENTOS-1).
+  let wompi: { reference: string; amountInCents: number; currency: string; signature: string } | undefined;
+  if (order.paymentIntent) {
+    const secretoIntegridad = process.env.WOMPI_INTEGRITY_SECRET;
+    if (!secretoIntegridad) {
+      // Fail ruidoso, mismo criterio que el webhook (`WOMPI_EVENTS_SECRET`): un
+      // intento sin firma no sirve para nada, y silenciarlo dejaría al cliente
+      // creyendo que puede pagar cuando no hay con qué firmar la petición.
+      console.error('[checkout] falta WOMPI_INTEGRITY_SECRET — no se puede firmar el intento de pago');
+      return NextResponse.json({ error: 'No se pudo procesar la orden' }, { status: 500 });
+    }
+    const amountInCents = pesosACentavos(order.paymentIntent.monto_esperado);
+    wompi = {
+      reference: order.paymentIntent.reference,
+      amountInCents,
+      currency: MONEDA_WOMPI,
+      signature: firmarIntegridadWompi(order.paymentIntent.reference, amountInCents, MONEDA_WOMPI, secretoIntegridad),
+    };
+  }
+
   // Campana del operador: entró una orden que nadie tecleó. Post-commit y
   // fire-and-forget — `runEventAutomations` nunca lanza, así que un aviso roto no
   // puede tumbar una venta ya cobrada al cliente.
@@ -184,6 +217,9 @@ export async function POST(req: NextRequest) {
         precio_unitario: l.precio_unitario,
         subtotal:        l.subtotal,
       })),
+      // Ausente cuando no se creó ningún intento — byte-idéntico a antes de este
+      // slice (spread de `{}`, ninguna clave nueva, ningún `null` de relleno).
+      ...(wompi ? { wompi } : {}),
     },
     { status: 201 },
   );

@@ -2873,3 +2873,116 @@ incluye el cambio.
 **Tier 1 / AWAITING_APPROVAL.** Toca el subárbol `components/storefront/` (`HeroCurtina.tsx`/
 `HeroFicha.tsx`, ya protegidos por la misma razón que la entrada anterior) y este archivo. No se mergea
 sin el visto bueno del owner.
+
+## 2026-09-15 — El creador de intentos de pago: la fila nace con la orden, apagada por falta de disparador (`WOMPI-CREADOR-DE-INTENTOS-1`)
+
+**LO QUE ES (a), y las tres cosas que deliberadamente NO son.** Este slice construye únicamente que
+exista una fila de `PaymentIntent` con su referencia y firma de integridad al crear una orden. NO
+construye el widget, NO crea la ruta de retorno, y NO inventa el toggle por despliegue que decidiría
+cuándo pedir un intento — ninguna de las tres existe todavía, y ninguna se diseñó acá.
+
+**EL HALLAZGO DEL CENSO SE CONFIRMÓ: `lib/pagos/wompi-firma.ts` sólo tenía la mitad de eventos.**
+Verificado antes de tocar nada — `grep -n "^export" lib/pagos/wompi-firma.ts` daba una sola función
+(`verificarFirmaWompi`) y `grep -rn "WOMPI_INTEGRITY_SECRET" --include="*.ts" .` daba CERO en todo el
+repo. El archivo ganó su segunda mitad: `pesosACentavos` y `firmarIntegridadWompi`.
+
+**LA FÓRMULA SALIÓ DEL LEDGER, citada, no inventada.** `WOMPI-REGLAS-IMPLEMENTACION-1` (línea ~1177 de
+este archivo): *"`WOMPI_INTEGRITY_SECRET` firma la petición que NOSOTROS iniciamos:
+`sha256_hex(reference + amount_in_cents + currency + <secreto>)`, concatenación plana, en ese orden, sin
+separadores — el spike la verificó recomputando el ejemplo de la doc byte a byte y dio idéntico."* A
+diferencia del checksum de eventos (cuyo ejemplo NO reproduce, ya documentado), éste sí fue confirmado
+byte a byte contra el sandbox — así que `firmarIntegridadWompi` implementa la fórmula tal cual, sin
+margen de reinterpretación. El módulo sigue el mismo principio que `verificarFirmaWompi`: nunca lee
+`process.env`; el secreto entra como parámetro y la ruta decide de dónde sale.
+
+**EL MONTO EN CENTAVOS — medido el defecto real, no uno hipotético.** `Order.total` y
+`PaymentIntent.monto_esperado` son `Float` (verificado en `schema.prisma`). Medido en Node:
+`4.35 * 100 === 434.99999999999994` y `19.99 * 100 === 1998.9999999999998` — truncar cualquiera de los
+dos (`Math.trunc`, `| 0`) da un centavo MENOS que el monto real. `pesosACentavos` usa `Math.round`: el
+error de coma flotante de un monto real es una fracción minúscula de centavo, muy por debajo del umbral
+de 0.5 que `Math.round` necesita para cambiar de dirección. Se buscó primero un precedente de conversión
+de dinero en el repo (`grep` sobre `Math.round`/centavos/cents/`* 100` en `lib/`, `packages/core/src`,
+`app/`) y no había ninguno en la dirección pesos→centavos — sólo la inversa, ya existente en el webhook
+(`app/api/webhooks/wompi/route.ts:103`, `amount_in_cents / 100`). El monto se calcula UNA sola vez en
+`app/api/checkout/route.ts` (`pesosACentavos(order.paymentIntent.monto_esperado)`) y ese mismo valor
+alimenta tanto la firma como el campo `amountInCents` de la respuesta — nunca dos cálculos del mismo
+monto.
+
+**POR QUÉ EL INTENTO NACE DENTRO DE LA MISMA TRANSACCIÓN que la orden.** Medido: `createOrderWithCustomer`
+(`packages/core/src/orders.ts`) abre un `prisma.$transaction` que crea el Customer, la Order, sus items y
+el asiento de transición de cobro. El creador de intentos se insertó DENTRO de esa transacción, después
+del asiento de creación y antes de la rama de `immediatePayment` — la razón es doble y no admite término
+medio: una orden con un intento que falló en crearse es una orden que nadie puede pagar en línea, y un
+intento sin orden es una fila huérfana que el barrido (todavía sin construir) tendría que limpiar. Las
+dos se evitan gratis si nacen o mueren juntas.
+
+**LA REFERENCIA EXIGIÓ DOS ESCRITURAS, medido y no evitado.** El comentario del modelo en `schema.prisma`
+es explícito: `reference` = `"<numero_orden>:<cuid de esta fila>"`, y es el `id` de la PROPIA fila
+(`@default(cuid())`) el que hace la unicidad, "sin contador que escribir ni lock que tomar". Medido: no
+hay ninguna librería de generación de cuid en el repo (`grep -rn "createId\|@paralleldrive/cuid2\|from
+'cuid'"` da cero, y `cuid` no aparece en ningún `package.json`), así que no hay forma de conocer el `id`
+que Prisma va a generar ANTES de insertar sin pasarlo explícito — y pasar un id generado por otra vía
+(p. ej. `crypto.randomUUID()`) dejaría de ser "el cuid de la propia fila" en el sentido que el schema
+describe. Se optó por DOS escrituras dentro de la misma transacción: `create` con un placeholder
+(`_pendiente_<uuid random>`, para satisfacer el `@unique` no-nulo de `reference` en el insert) y luego
+`update` con la referencia real una vez que Prisma devolvió el `id`. Costo medido: una query extra por
+intento creado, dentro de una transacción que ya hace varias (upsert de cliente, create de orden, create
+de items, insert de la transición); el placeholder nunca es visible fuera de la transacción sin
+comprometer, y si el `update` fallara la transacción entera revierte — no queda ninguna fila con el
+placeholder.
+
+**LA CAPACIDAD NACE APAGADA — verificado quién la pide hoy: NADIE.** El spec afirmaba que
+`createOrderWithCustomer` tiene TRES llamadores que no saben nada de Wompi; medido por grep
+(`grep -n "createOrderWithCustomer("` sobre archivos que no son test/script) sólo aparecen DOS de
+producción: `app/api/checkout/route.ts` y `app/api/orders/route.ts`. El tercero que el spec citaba no
+apareció en la búsqueda — se deja anotado como discrepancia medida contra el spec, sin impacto en el
+diseño: el flag es opt-in y ninguno de los dos callers lo pasa. El nuevo parámetro es
+`crearIntentoPago?: boolean`, default ausente/`false`.
+`app/api/checkout/route.ts` NO lo pasa — la selección de método de pasarela (b/c/d) no existe, así que no
+hay de dónde sacar la decisión sin inventar un disparador. Se optó por **"cableá el camino completo y
+dejalo sin disparador"** (la primera de las dos opciones del spec) en vez de un disparador inventado: la
+rama que arma la respuesta de Wompi en el checkout queda escrita, pero es código estructuralmente
+inalcanzable hoy — `order.paymentIntent` es siempre `undefined` porque nadie pide el intento. Es la
+diferencia entre «listo» y «habilitado»: la capacidad está lista, no habilitada.
+
+**GARANTÍA "SIN EL FLAG NO CAMBIA UN BYTE" — por dos mecanismos distintos, cada uno donde corresponde.**
+En `orders.ts`: la única llamada a `tx.paymentIntent.create` está detrás de un único
+`if (input.crearIntentoPago)` — sin el flag, cero filas nuevas, verificable por lectura. El objeto que
+`createOrderWithCustomer` devuelve SIEMPRE lleva la clave `paymentIntent` (para que TypeScript tenga un
+tipo uniforme entre las tres rutas de retorno: creación fresca, fast-path de idempotencia, y dedup por
+P2002), pero vale `undefined` cuando no se creó ninguno — y `JSON.stringify`/`NextResponse.json` OMITEN
+una clave en `undefined`, así que `app/api/orders/route.ts` (que hace `NextResponse.json(result, ...)`,
+un spread completo del resultado) no gana un byte nuevo en su respuesta aunque el objeto en memoria tenga
+la clave. En `app/api/checkout/route.ts`: la respuesta usa `...(wompi ? { wompi } : {})` — sin intento,
+el spread de `{}` no agrega nada.
+
+**LO QUE NO SE PUDO AFIRMAR CON UN TEST, y por qué.** `packages/core/src/orders.test.ts` corre SIN base
+(`npm test`: sólo `lib/**`, `constants/**`, `packages/core/**`, `node --test`, sin Postgres — verificado
+en `package.json`). La escritura real del `PaymentIntent` vive dentro de `Prisma.TransactionClient`, así
+que la garantía "sin el flag no se crea ninguna fila" sólo es demostrable con una base real — y eso es
+del carril de integración (`tests/integracion/`), que `touches:` de este slice no incluye. Se afirmó lo
+que SÍ es puro: el formato de `referenciaIntentoPago` (dos tests). La garantía de fila queda, hoy, por
+CONSTRUCCIÓN (el único `if` que envuelve la única llamada a `tx.paymentIntent.create`) y documentada como
+hueco, no como cubierta. Un slice de integración que la afirme contra Postgres real queda abierto (ver
+`open_followups` del reporte de este slice).
+
+**LA PREGUNTA DE VARIOS INTENTOS APROBADOS QUEDA IGUAL DE ABIERTA — no se cerró la puerta.**
+`PaymentIntent.orden_id` sigue con índice, no unique (verificado en `schema.prisma`), así que una orden
+puede tener varios intentos. Este slice no agrega ninguna unique ni asume "uno por orden" en ningún
+cálculo: cada intento tiene su propia referencia (por eso `reference` embebe el `id` de la fila, no sólo
+`numero_orden`), así que dos intentos de la misma orden coexisten sin chocar contra el `@unique`. Qué pasa
+si dos terminan `APROBADO` sigue siendo del owner, sin resolver acá.
+
+**Gate, medido en el árbol final de la rama:** `npm test` → **1162/1162** (piso previo 1151 + 11 tests
+nuevos: 9 en `lib/pagos/wompi-firma.test.ts` — `pesosACentavos` ×3, `firmarIntegridadWompi` ×6 — y 2 en
+`packages/core/src/orders.test.ts` — `referenciaIntentoPago`). `npx tsc --noEmit` → 0 errores.
+`npm run build` → verde (52 migraciones, sin pendientes; compiló, generó las páginas estáticas y
+`/api/checkout` como ruta dinámica, sin error de tipos).
+
+**Tier 1 / AWAITING_APPROVAL.** Toca TRES archivos nombrados uno por uno en la lista Tier 1 de
+CLAUDE.md: `packages/core/src/orders.ts`, `lib/pagos/wompi-firma.ts`, `app/api/checkout/route.ts`. No se
+mergea sin el visto bueno del owner sobre este diff en concreto.
+
+Regla: § Pagos en línea (Wompi) — cobros automáticos (CLAUDE.md), que ya cita el estado de
+`PaymentIntent` y el webhook — este asiento no reescribe esa sección; agrega el creador de intentos como
+pieza construida y sigue apagada.
