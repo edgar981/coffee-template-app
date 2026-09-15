@@ -2061,3 +2061,89 @@ Markdown puro y no puede mover ese número) y `npx tsc --noEmit` en **0**. Sin s
 sin bytes de cliente (`customer_bytes.changed=false` — nadie que no sea quien lee `CLAUDE.md`/
 `DECISIONS.md` ve este diff), sin contrato cross-repo. Merge Policy A aplica.
 Regla: § Pagos en línea (Wompi) — cobros automáticos (`CLAUDE.md`).
+
+## 2026-09-14 · La lista Tier 1 vencía sin avisar — tres puertas de Wompi/pagos que el criterio
+ya cubría y la lista no tenía (`TIER1-LISTA-VENCIDA-1`)
+`c503eb6` (rama `slice/tier1-lista-vencida-1`, sin mergear — `AWAITING_APPROVAL`,
+`cross-repo-contract`)
+
+**El defecto, y por qué es la peor variante de una familia ya conocida.** El § Tier 1 de
+`CLAUDE.md` dice explícitamente que "cada puerta de escritura de stock, pagos y pedidos, y la
+función que esa puerta CONSULTA para decidir si la escritura procede y con qué valor" entra a la
+lista — el mismo criterio que `TIER1-CRITERIO-DECISORES-1` (2026-09-12) escribió. Ese criterio
+condenaba a su propia lista: el programa de Wompi abrió una puerta de pagos nueva
+(`app/api/webhooks/wompi/route.ts`) y la lista no la tenía. Es la misma deriva doc-vs-código que
+este repo lleva semanas persiguiendo (§ PRECONDICIÓN, el artefacto rancio; § Backlog técnico, el
+número rancio de doctrina), pero en su variante más cara: no es una lista que describe mal el
+código, es la lista que DECIDE QUÉ SE PROTEGE. Y una guarda vencida no avisa que dejó de cubrir —
+sigue corriendo VERDE sobre un conjunto que encogió.
+
+**Cómo se descubrió: midiendo el costo de una regla nueva, no revisando la lista.** El disparador
+no fue una auditoría de la lista Tier 1 en sí: fue medir qué habría costado aplicar una regla que
+el owner propuso (censar el impacto de una política nueva) contra el estado real del repo. Al
+enumerar las puertas de dinero tocadas por el programa de Wompi para esa medición, salió que una
+de ellas no figuraba en la lista que se supone las protege. **La regla, aplicada a la lista
+vencida, no habría frenado ningún slice de Wompi** — el hallazgo fue un efecto lateral de medir
+otra cosa, no el objetivo de la medición.
+
+**PRIMER HALLAZGO — la fecha de "última medición" que el spec asumía estaba vencida ELLA MISMA.**
+El spec de este slice citaba "medida el 2026-09-06" (la fecha del encabezado de la sección: cuándo
+se AGREGÓ). Medido contra git: la lista se re-midió por última vez el **2026-09-12**
+(`TIER1-CRITERIO-DECISORES-1`, `45311c2` — sumó `moliendas-opciones.ts` y `product-import.ts`, y
+NADA la tocó entre esa fecha y el 2026-09-14 salvo este slice: `git diff 45311c2..58925b7 --
+CLAUDE.md | grep '^[+-]Tier 1 slices run'` no dio salida). Confundir "cuándo se agregó la sección"
+con "cuándo se re-midió la lista" es cómo una lista vencida sigue pareciendo fresca — se corrigió
+usando el baseline correcto (`45311c2`) para el censo, y se dejó escrita la distinción en
+`CLAUDE.md` para que no vuelva a confundirse.
+
+**EL CENSO, contra el baseline correcto (`git diff 45311c2..HEAD -- app/api/ packages/core/src/
+lib/`, 14 archivos tocados/nuevos)**:
+
+| archivo | veredicto | razón |
+|---|---|---|
+| `app/api/webhooks/wompi/route.ts` (+ test) | **ENTRA** | cierra `PaymentIntent`, será el 4º llamador de `registerOrderPaymentTx`; no existía el 2026-09-12 |
+| `lib/pagos/wompi-firma.ts` (+ test) | **ENTRA** | la función que ESA puerta consulta para decidir si el cierre procede (`verificarFirmaWompi`); tampoco existía el 2026-09-12 |
+| `lib/checkout/metodos-pago.ts` (+ test) | **ENTRA** | existía desde el 2026-09-03, pero recién el 2026-09-14 (`METODOS-TRES-LISTAS-1`, `4386358`) `app/api/checkout/route.ts` —puerta YA listada— empezó a consultar su `metodoPagoTipoSchema` para decidir si el `payment.metodo` declarado es válido antes de escribir la orden; antes de ese commit el checkout validaba contra un enum propio, sin depender de este archivo |
+| `app/api/checkout/route.ts` | ya listada | ganó la consulta de arriba; sin cambio de listado |
+| `packages/core/src/orders.ts` | ya listada | exportó `isUniqueViolation` (antes privada); sin cambio de rol |
+| `packages/core/src/orders.test.ts` | fuera de alcance | test, no puerta |
+| `lib/automations/idempotency.ts` | **NO ENTRA** | escribe `AutomationRun` (bitácora de notificaciones), no stock/pagos/pedidos; el cambio fue sólo reusar `isUniqueViolation` |
+| `lib/config/fuentes.ts` (+ test) | **NO ENTRA** | pesos tipográficos del tema, ajeno al dinero |
+| `lib/animation.ts` (+ test) | **NO ENTRA** | `prefers-reduced-motion`, ajeno al dinero |
+
+**Lo que quedó explícitamente considerado y excluido, para que no se re-litigue sin este
+razonamiento:** `lib/config/site-settings-schema.ts` y `app/api/site-settings/route.ts` también
+tocan `SiteSetting.metodosPago` (validan la lista que el DUEÑO configura), pero es CONFIGURACIÓN
+—qué métodos se OFRECEN—, no una puerta de escritura de una orden/pago/stock concretos; es el
+mismo precedente que ya dejaba fuera de la lista a la cuenta de transferencia bancaria (que vivió
+en ese mismo archivo). `lib/config/telefono.ts` es un helper de formulario genérico (parte/compone
+un teléfono compuesto) compartido por WhatsApp y el número de pago móvil — no decide nada, sólo
+reformatea texto de un input. Ninguno de los dos se agregó.
+
+**MÉTODO Y SU LÍMITE, declarados:** el censo enumeró cambios con `git diff --name-status
+<baseline>..HEAD -- app/api/ packages/core/src/ lib/` — las tres superficies que el criterio
+nombra. Deja afuera cualquier puerta nueva que viviera en `components/`, `hooks/`, `types/` o
+`middleware`/`proxy.ts`; no se encontró evidencia de que exista una (las puertas de escritura de
+este repo son sistemáticamente route handlers de `app/api/` o funciones de `packages/core/src/`/
+`lib/`, nunca componentes), pero el límite del método se deja dicho en vez de asumido.
+
+**Verificación de existencia:** las 20 rutas ya listadas antes de este slice se comprobaron
+presentes en disco (`ls -d` por cada una, sin fallos); ninguna se retiró. La lista pasa de 20 a 23
+entradas.
+
+**La declaración de vencimiento que se agregó a `CLAUDE.md`** dice que la lista es una medición con
+fecha, no una garantía perpetua, y que se re-mide cada vez que la ruta del dinero gana una puerta o
+una función consultada nueva — no en la próxima auditoría programada. Sin esa frase, esto vuelve a
+pasar y nadie sabe por qué: es la misma lección del `.next` rancio (§ PRECONDICIÓN) y de los
+números-doctrina rancios (§ Backlog técnico), aplicada a la lista que decide qué se protege.
+
+**MERGE POLICY A: este slice PARA antes del merge.** El diff toca únicamente `CLAUDE.md` y este
+archivo — sin schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false`, nadie
+que no sea quien lee `CLAUDE.md`/`DECISIONS.md` ve este diff) — pero SÍ es un cambio de
+**contrato cross-repo**: el § Tier 1 es lo que el protocolo orquestador `dev-protocol` lee para
+decidir qué archivos exigen la sesión read-only previa. `stopped_on: ['cross-repo-contract']`.
+Sin merge, sin push.
+
+`npm test` **1125/1125** (piso medido en este mismo árbol, idéntico al de la última entrada del
+ledger — un cambio de prosa no puede mover ese número, y no lo hizo) y `npx tsc --noEmit` en **0**.
+Regla: § Tier 1 — superficies protegidas (`CLAUDE.md`), el párrafo "ESTA LISTA VENCE".
