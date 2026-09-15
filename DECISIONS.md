@@ -2873,3 +2873,58 @@ incluye el cambio.
 **Tier 1 / AWAITING_APPROVAL.** Toca el subárbol `components/storefront/` (`HeroCurtina.tsx`/
 `HeroFicha.tsx`, ya protegidos por la misma razón que la entrada anterior) y este archivo. No se mergea
 sin el visto bueno del owner.
+
+## 2026-09-15 — El gate de un slice corre los DOS carriles, siempre
+`212f3bf` (Merge GATE-DOS-CARRILES-1: el gate de un slice corre los dos carriles)
+
+**Elección:** `npm run gate` compone `npm test` (capa 1, sin base) + `npm run test:integracion`
+(capa 2, Postgres efímero), en ese orden, y se corre SIEMPRE al cerrar un slice — no condicionado
+a qué paths toca el diff. Los dos scripts existentes no se tocan; `gate` sólo los encadena.
+
+**La regla del owner, con sus palabras:** «un test que el gate no corre es documentación» — la
+tercera vez en la semana de la misma familia (un test fuera de un glob, una guarda sin invocar),
+esta vez a escala de 191.
+
+**El hecho histórico, con su fecha:** el carril de integración es un script SEPARADO desde que
+nació (`e3fa241`, 2026-08-04 — verificado en `git log`). Durante **seis semanas** (2026-08-04 →
+2026-09-15) ningún gate de slice lo ejecutó: hoy son **27 archivos y 191 tests**
+(`tests/integracion/*.test.ts`, contados por ejecución) que corrían en verde sin que un solo
+cierre de slice los mirara.
+
+**Opciones evaluadas:** (a) correrlo SIEMPRE; (b) correrlo sólo cuando el diff toca ciertos paths
+(`packages/core/src`, `app/api/`…); (c) dejarlo suelto y documentado, sin componerlo.
+**Descartada (b), la intermedia, con su razón:** cuesta más de lo que ahorra a este precio —
+el carril completo mide ~21 s de tests (191) más el arranque/migración/teardown del cluster,
+contra ~8 s de `npm test`; y es una regla MÁS que mantener, que puede clasificar mal un diff, y
+que sería la PRÓXIMA que "existe pero no corre". **SIEMPRE es más barato que A VECES.**
+**Descartada (c):** es el estado que la regla del owner acaba de declarar insuficiente —
+documentación, no gate.
+
+**El prerrequisito, no gratis:** el carril necesita los binarios de Postgres (`initdb`, `pg_ctl`)
+en el PATH (`brew install postgresql@14`). Sin ellos, `npm run gate` de CUALQUIER slice se pone
+ROJO por eso y no por el slice; el mensaje del propio script (`scripts/test-integracion.sh`) ya
+trae el remedio.
+
+Regla: § El GATE de un slice corre LOS DOS CARRILES — `npm run gate` (CLAUDE.md).
+
+**Gate, medido en el árbol final de la rama (branch tree `f5186c1`, idéntico al merge tree):**
+`npm run gate` → verde. `npm test`: **1151/1151** en 7.63 s. `npm run test:integracion`:
+**191/191** en 20.72 s de tests (≈38 s de punta a punta, midiendo con `date` antes/después del
+comando completo — incluye `initdb`, `CREATE DATABASE`, `migrate deploy` y el teardown del
+cluster). `npx tsc --noEmit` → 0 errores. Ningún test se tocó, movió ni arregló.
+
+**Falla bien, verificado sin dejar ningún test roto en el árbol:** se agregó un script temporal
+`_gate_probe_falla` (`node -e "process.exit(7)" && node -e "console.log('SHOULD_NOT_RUN')"`) a
+`package.json`, se corrió con `npm run --silent _gate_probe_falla`, y se retiró en el mismo turno
+(nunca comiteado — `git status` quedó limpio antes del commit). Confirmó las dos mitades del
+mecanismo de `&&` que usa `gate`: el proceso hijo terminó con código **7** (el de la primera
+mitad) y la segunda mitad NO se ejecutó (`SHOULD_NOT_RUN` no apareció en salida). Es el mismo
+mecanismo con el que `npm test && npm run test:integracion` falla el conjunto si falla cualquiera
+de los dos, sin perder el código de salida.
+
+**Deviación medida contra el spec:** el spec afirmaba **28 archivos** en `tests/integracion/`;
+contados por `find` son **27** (191 tests coinciden). Se usó la cifra medida.
+
+**Tier 2 / COMPLETE.** No toca schema, no toca `app/(storefront)/` ni ningún byte que un
+visitante lea, no cambia un contrato cross-repo. `package.json` sólo agrega un script; `CLAUDE.md`
+y este archivo son documentación de proceso del repo, no producto.
