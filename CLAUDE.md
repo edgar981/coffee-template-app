@@ -24,7 +24,35 @@ alcance es GENÉRICO y su conexión con la puerta es INDIRECTA, y por eso se que
 AFUERA de la lista: ponerle dos etapas a una utilidad de fechas de todo el
 producto, por una entre tantas cadenas que la consultan, sería proteger de más.
 
-Tier 1 slices run in a separate read-only session first, then a second stage that writes only after the owner's explicit go, over these measured surfaces: packages/core/prisma/schema.prisma, packages/core/prisma/migrations/, lib/config/site-content-schema.ts, lib/config/site-content-defaults.ts, app/(storefront)/, packages/core/src/inventory.ts, packages/core/src/fulfillment.ts, packages/core/src/product-update.ts, packages/core/src/product-import.ts, packages/core/src/moliendas-opciones.ts, packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/shipping-transition.ts, app/api/checkout/route.ts, app/api/inventory/adjust/route.ts, app/api/orders/[id]/payments/route.ts, app/api/orders/route.ts, app/api/orders/[id]/address/route.ts, app/api/comprobantes/[id]/route.ts and app/api/shippings/route.ts.
+Tier 1 slices run in a separate read-only session first, then a second stage that writes only after the owner's explicit go, over these measured surfaces: packages/core/prisma/schema.prisma, packages/core/prisma/migrations/, lib/config/site-content-schema.ts, lib/config/site-content-defaults.ts, app/(storefront)/, packages/core/src/inventory.ts, packages/core/src/fulfillment.ts, packages/core/src/product-update.ts, packages/core/src/product-import.ts, packages/core/src/moliendas-opciones.ts, packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/shipping-transition.ts, lib/checkout/metodos-pago.ts, lib/pagos/wompi-firma.ts, app/api/checkout/route.ts, app/api/inventory/adjust/route.ts, app/api/orders/[id]/payments/route.ts, app/api/orders/route.ts, app/api/orders/[id]/address/route.ts, app/api/comprobantes/[id]/route.ts, app/api/shippings/route.ts and app/api/webhooks/wompi/route.ts.
+
+**ESTA LISTA VENCE — es una medición con fecha, no una garantía perpetua.** El criterio de arriba
+no cambia; el CONJUNTO de archivos que lo cumple sí, cada vez que el código gana una puerta de
+escritura de dinero o una función nueva que esa puerta consulta. Una lista vencida **no avisa que
+dejó de cubrir**: el gate de Tier 1 sigue corriendo en VERDE sobre un conjunto que encogió — es la
+misma familia que el artefacto rancio y el número rancio de doctrina (§ PRECONDICIÓN, § Backlog
+técnico — "un número en doctrina es una frase con fecha de vencimiento"), pero en la lista que
+decide QUÉ SE PROTEGE, así que acá vencer es peor: no confunde a quien lee, deja pasar.
+
+**Re-medida el 2026-09-14** (`TIER1-LISTA-VENCIDA-1`), contra la medición del **2026-09-12**
+(`TIER1-CRITERIO-DECISORES-1`, `45311c2` — la fecha real de la última vez que esta LISTA se tocó;
+el "2026-09-06" del encabezado de la sección es cuándo se AGREGÓ la sección, no cuándo se
+re-midió por última vez, y confundir las dos fechas es cómo una lista sigue pareciendo fresca
+cuando no lo está): el programa de Wompi abrió `app/api/webhooks/wompi/route.ts` —cierra el
+`PaymentIntent` y es el llamador futuro de `registerOrderPaymentTx`, § Pagos en línea (Wompi)— y
+su verificador `lib/pagos/wompi-firma.ts` —la función que ESA puerta consulta para decidir si el
+cierre procede—; ninguno de los dos existía el 2026-09-12. Se sumó también
+`lib/checkout/metodos-pago.ts`: existía desde el 2026-09-03, pero recién el 2026-09-14
+(`METODOS-TRES-LISTAS-1`) `app/api/checkout/route.ts` —puerta YA listada— empezó a CONSULTARLO
+(`metodoPagoTipoSchema`) para decidir si el método de pago declarado es válido antes de que la
+orden se escriba; antes de ese commit el checkout validaba contra un enum propio, sin depender de
+este archivo. Las 20 rutas ya listadas se verificaron existentes y sin cambios que las saquen del
+criterio; no se retiró ninguna.
+
+**Re-medir esta lista cada vez que la ruta del dinero gane una puerta o una función consultada
+nueva** — no esperar a una auditoría programada. `git diff <última-medición>..HEAD -- app/api/
+packages/core/src/ lib/` es el punto de PARTIDA, no el criterio: cada archivo nuevo o modificado
+se juzga contra el criterio de arriba, no contra su nombre ni contra si "suena a Wompi".
 
 ## Quién decide qué
 
