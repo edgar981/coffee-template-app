@@ -12,15 +12,22 @@
 //
 // MEDIDO CONTRA EL CÓDIGO, no contra la entrega de diseño (que vive fuera de este repo): la mayoría
 // de las CLAVES de variante que el diseño describe (marquesina, tabla, hilo, chips, ticket, media,
-// linea, collage, bento) NO EXISTEN todavía en el REGISTRY — hoy sólo `hero` (`curtina`|`ficha`) y
-// `presentaciones` (`mosaico`|`indice`) declaran `variantes`. `brandStory` y `subscriptionCTA` NO
-// tienen slot de variante (confirmado por grep: `REGISTRY.brandStory`/`.subscriptionCTA` no declaran
-// `variantes`, y sus interfaces —`BrandStoryContent`/`SubscriptionCTAContent`— no tienen campo
+// linea, collage, bento) NO EXISTEN todavía en el REGISTRY — hoy `hero` (`curtina`|`ficha`),
+// `presentaciones` (`mosaico`|`indice`) y `brandStory` (`columnas`, TEMAS-P2-BRANDSTORY-1) declaran
+// `variantes`. `subscriptionCTA` sigue SIN slot de variante (confirmado por grep: `REGISTRY.
+// subscriptionCTA` no declara `variantes`, y su interfaz —`SubscriptionCTAContent`— no tiene campo
 // `variante`); `featured`/`trustBadges` ni siquiera son `SeccionKey` (son bandas ESTRUCTURALES sin
-// sección en `SiteContentData`, § `site-content-defaults.ts`). Esto CONTRADICE una premisa del spec
-// de este slice, que afirmaba «brandStory acaba de ganar su slot con una clave» — no es así hoy; se
-// deja anotado y reportado en vez de tocar el REGISTRY (fuera de `touches`, y § doctrina «el REGISTRY
-// no se toca desde acá»).
+// sección en `SiteContentData`, § `site-content-defaults.ts`) — `featured` gana su propio slot desde
+// TEMAS-P1-FEATURED-VARIANTES-1, pero en `VARIANTES_ESTRUCTURALES` (el gemelo del REGISTRY para
+// bandas sin sección, § site-content-defaults.ts), NO en el REGISTRY mismo; `trustBadges` se deja
+// afuera de esa tabla también — ningún preset de acá pide una variante suya (capacidad muerta si se
+// declarara sin consumidor). NOTA HISTÓRICA (TEMAS-PRESET-DATO-1): al escribir este comentario el
+// spec de esa tanda afirmaba «brandStory acaba de ganar su slot con una clave» y este archivo lo
+// contradecía — medido entonces contra el `main` que esa rama tenía como base, que aún no incluía
+// `TEMAS-P2-BRANDSTORY-1` (mergeado por separado; la cronología no se reconcilió en este texto al
+// fusionarse las dos ramas). Hoy (2026-09-15, TEMAS-P1-FEATURED-VARIANTES-1) el REGISTRY real SÍ
+// declara `brandStory.variantes`, así que la frase había quedado vencida — corregida acá, sin tocar
+// el REGISTRY (§ doctrina «el REGISTRY no se toca desde acá», que sigue en pie).
 //
 // POR ESO LOS CINCO THEMES DISEÑADOS SON, A PROPÓSITO, INCOMPLETOS: `variantes` abajo registra la
 // intención COMPLETA del diseño (incluidas las claves de sección que hoy no tienen dónde vivir), y
@@ -34,7 +41,8 @@
 import { CLAVES_FUENTES, type ClaveFuentePar, resolverFuentePar } from './fuentes';
 import { CLAVES_FORMAS, type ClaveForma, resolverForma } from './formas';
 import {
-  REGISTRY, BANDA_IDS, ORDEN_DEFAULT, type SeccionDef, type BandaId, type ClaveEsquema,
+  REGISTRY, BANDA_IDS, ORDEN_DEFAULT, VARIANTES_ESTRUCTURALES,
+  type SeccionDef, type BandaId, type ClaveEsquema,
 } from './site-content-defaults';
 import { RAICES_DEFECTO } from './palette-derive';
 
@@ -111,16 +119,20 @@ export function validarPreset(preset: PresetTema): FaltanteTema[] {
     });
   }
 
-  // (a) variantes — la sección tiene que declarar `variantes` en el REGISTRY, y la clave pedida
-  // tiene que estar en su set cerrado.
+  // (a) variantes — la clave pedida tiene que declarar `variantes` en alguna de las DOS tablas que
+  // pueden dárselas: el REGISTRY (una SECCIÓN, `hero`/`presentaciones`/`brandStory` hoy) o
+  // `VARIANTES_ESTRUCTURALES` (una BANDA sin sección, `featured` hoy — TEMAS-P1-FEATURED-VARIANTES-1,
+  // § site-content-defaults.ts). Antes sólo se consultaba el REGISTRY, así que TODO pedido de
+  // `featured` fallaba con "no declara variantes" sin poder distinguir "la banda no tiene slot" de
+  // "esa composición no existe" — el mismo defecto que `TEMAS-P2-BRANDSTORY-1` ya cerró del lado de
+  // las secciones. Y la clave pedida tiene que estar en el set cerrado de la tabla que la declare.
   const registro = REGISTRY as Record<string, SeccionDef | undefined>;
   for (const [seccion, clave] of Object.entries(preset.variantes)) {
-    const def = registro[seccion];
-    const claves = def?.variantes?.claves;
+    const claves = registro[seccion]?.variantes?.claves ?? VARIANTES_ESTRUCTURALES[seccion]?.claves;
     if (!claves) {
       faltantes.push({
         regla: 'variante',
-        detalle: `${preset.clave} pide \`${seccion}·${clave}\` y la sección \`${seccion}\` no declara variantes en el REGISTRY`,
+        detalle: `${preset.clave} pide \`${seccion}·${clave}\` y \`${seccion}\` no declara variantes`,
       });
     } else if (!claves.includes(clave)) {
       faltantes.push({
@@ -181,10 +193,17 @@ export function temasCompletos(presets: readonly PresetTema[] = PRESETS): readon
  * vive donde se puede afirmar sin una base real; la transacción es un envoltorio delgado.
  *
  * INVARIANTE (la promesa del runbook): NUNCA toca un texto ni una imagen del dueño. Sólo escribe
- * `tema` (raíces + par + forma, reemplazado entero — son composición, no contenido), `esquemas` y
- * `orden` (reemplazados enteros, por la misma razón), y el campo `variante` DENTRO de cada sección
- * afectada — preservando cualquier otro campo que esa sección ya tuviera (`{ ...prev, variante }`).
- * Ninguna otra clave de `content` se toca.
+ * `tema` (raíces + par + forma, reemplazado entero — son composición, no contenido), `esquemas`,
+ * `orden` y `variantesBandas` (reemplazados enteros, por la misma razón), y el campo `variante`
+ * DENTRO de cada sección afectada — preservando cualquier otro campo que esa sección ya tuviera
+ * (`{ ...prev, variante }`). Ninguna otra clave de `content` se toca.
+ *
+ * `preset.variantes` mezcla DOS destinos bajo una sola clave plana (TEMAS-P1-FEATURED-VARIANTES-1):
+ * una entrada cuya clave ES una `SeccionKey` (tiene entrada en el REGISTRY) va DENTRO de esa sección
+ * (`content[seccion].variante`, como siempre); una entrada cuya clave es una banda ESTRUCTURAL sin
+ * sección (`featured`) va al mapa `variantesBandas` (gemelo de `esquemas`), NUNCA a
+ * `content[seccion]` directo — escribir ahí crearía una clave huérfana (`content.featured`) que
+ * ningún loader ni componente lee.
  *
  * NO VALIDA — asume que `preset` ya pasó `validarPreset` sin faltantes. Escribir con un preset
  * incompleto (una `variante` que no exista, p. ej.) dejaría esa clave en el `content` igual: la
@@ -208,10 +227,17 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
   out.esquemas = { ...preset.esquemas };
   out.orden = [...preset.orden];
 
+  const registro = REGISTRY as Record<string, SeccionDef | undefined>;
+  const variantesBandas: Record<string, string> = {};
   for (const [seccion, variante] of Object.entries(preset.variantes)) {
-    const prev = esObj(out[seccion]) ? out[seccion] : {};
-    out[seccion] = { ...prev, variante };
+    if (registro[seccion]) {
+      const prev = esObj(out[seccion]) ? out[seccion] : {};
+      out[seccion] = { ...prev, variante };
+    } else {
+      variantesBandas[seccion] = variante;
+    }
   }
+  out.variantesBandas = variantesBandas;
 
   return out;
 }
@@ -219,8 +245,10 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
 // ── Los cinco themes del diseño, tal como se declararon ──────────────────────────────────────────
 // Los datos van embebidos acá porque el diseño vive fuera de este repo. Cada uno registra la
 // intención COMPLETA de la entrega (las 5 columnas de variante: hero · featured · brandStory ·
-// presentaciones · subscriptionCTA), aun sabiendo que `featured`/`brandStory`/`subscriptionCTA` no
-// tienen dónde aplicarse hoy — `validarPreset` los nombra, no se omiten en silencio.
+// presentaciones · subscriptionCTA), aun sabiendo que ninguno de los cinco aplica completo hoy:
+// `subscriptionCTA` sigue sin slot; `hero`/`brandStory`/`presentaciones`/`featured` SÍ tienen uno,
+// pero de las composiciones que el diseño pide sólo la canónica de cada uno existe construida (§ el
+// comentario de cabecera) — `validarPreset` los nombra, no se omiten en silencio.
 
 export const PLIEGO: PresetTema = {
   clave: 'PLIEGO',
@@ -352,8 +380,10 @@ export const VITRINA: PresetTema = {
  * EL PRESET DE ARRANQUE — el único que valida COMPLETO hoy (§5). No es un theme del catálogo de
  * diseño: es Nayoli, expresada explícitamente como preset, usando SÓLO capacidades que el REGISTRY
  * ya soporta — `hero·ficha` y `presentaciones·indice` (las dos únicas variantes reales que existen
- * hoy fuera de la canónica), `brandStory` intacta (no tiene slot: no se le pide nada), un par de
- * esquemas reales, y el par/forma explícitos (`editorial`/`suave`, la propia canónica de Nayoli).
+ * hoy fuera de la canónica), `brandStory` intacta (SÍ tiene slot —canónica `columnas`,
+ * TEMAS-P2-BRANDSTORY-1— pero ARRANQUE no le pide nada: no mencionarla deja lo que ya hubiera, y
+ * Nayoli ya está en su canónica), un par de esquemas reales, y el par/forma explícitos
+ * (`editorial`/`suave`, la propia canónica de Nayoli).
  * Sirve para demostrar que `validarPreset` ACEPTA lo que sí existe, no sólo que rechaza lo que no.
  */
 export const ARRANQUE: PresetTema = {
@@ -365,7 +395,8 @@ export const ARRANQUE: PresetTema = {
   variantes: {
     hero: 'ficha',
     presentaciones: 'indice',
-    // brandStory: sin entrada — no tiene slot, así que "canónica" es simplemente no pedirle nada.
+    // brandStory: sin entrada a propósito — SÍ tiene slot (canónica `columnas`), pero no hace falta
+    // pedirlo: Nayoli ya está en su canónica, y `mergePresetEnContent` no toca lo que no se menciona.
   },
   esquemas: {
     featured: 'crema',

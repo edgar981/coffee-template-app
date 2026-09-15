@@ -311,6 +311,7 @@ export interface SiteContentData {
   tema: TemaContent;
   esquemas: EsquemasContent;
   orden: OrdenContent;
+  variantesBandas: VariantesBandasContent;
 }
 
 // META de esquemas (§ eje 5b, mitad B): el mapa bandaId→esquema que decide sobre QUÉ superficie
@@ -321,6 +322,15 @@ export interface SiteContentData {
 // Una banda AUSENTE del mapa (o con basura) = SIN OVERRIDE = su token CANÓNICO de hoy — el
 // mecanismo que mantiene a Nayoli byte-idéntica sin sembrar fila (§ `--sf-banda` en `esquema-style`).
 export type EsquemasContent = Record<string, ClaveEsquema>;
+
+// META de VARIANTES DE BANDAS ESTRUCTURALES (TEMAS-P1-FEATURED-VARIANTES-1): el mapa bandaId→variante
+// para bandas que NO son `SeccionKey` (`featured`, hoy la única) — GEMELA EXACTA de `EsquemasContent`
+// en forma y en motivo: dominio de claves ABIERTO, sin `defaults` fijo que enumerar (§
+// `resolverVariantesBandas`, key-agnóstico, abajo). Una banda AUSENTE del mapa (o con basura) = SIN
+// OVERRIDE = su canónica (§ `VARIANTES_ESTRUCTURALES`) — el mismo mecanismo de byte-identidad que
+// `esquemas`. La `variante` DENTRO de una SECCIÓN real (`hero.variante`, `brandStory.variante`) sigue
+// viviendo donde vivía: esta meta es sólo para las bandas que no tienen una sección donde guardarla.
+export type VariantesBandasContent = Record<string, string>;
 
 // META de ORDEN (§ eje 5, parte c — el orden de las bandas del home como DATO). A diferencia de
 // `esquemas` (dominio ABIERTO, cualquier bandaId), acá el dominio es CERRADO: los 7 ids de banda
@@ -571,6 +581,13 @@ export const DEFAULTS: SiteContentData = {
   // que `ORDEN_DEFAULT`. Sin fila, `.map` en `page.tsx` produce el MISMO árbol que el JSX fijo de
   // ayer → byte-idéntico.
   orden: ORDEN_DEFAULT,
+  // VARIANTES DE BANDAS ESTRUCTURALES por defecto: el mapa nace VACÍO, gemelo de `esquemas` arriba.
+  // Ninguna banda estructural tiene entrada → `featured` cae a su canónica ('cuadricula',
+  // § VARIANTES_ESTRUCTURALES) → byte-idéntico. `FeaturedProducts.tsx` no lee esta meta hoy (no
+  // tiene dispatcher, § VARIANTES_ESTRUCTURALES) — este mapa sólo tiene consumidor en `themes.ts`
+  // (`mergePresetEnContent`), que es lo que este slice le da: un sitio donde escribir sin crear una
+  // clave `content.featured` huérfana.
+  variantesBandas: {},
 };
 
 // Destinos de los CTA — ESTRUCTURA, no editable. Los labels se editan; los hrefs NO: un
@@ -642,10 +659,10 @@ export interface SeccionDef {
   imagenes?: string[];
 }
 
-// Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema`, `esquemas` y
-// `orden`, que no son secciones). El REGISTRY las cubre a todas; las cuatro metas quedan fuera a
-// propósito —cada una se resuelve aparte del loop de secciones.
-export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'esquemas' | 'orden'>;
+// Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema`, `esquemas`, `orden`
+// y `variantesBandas`, que no son secciones). El REGISTRY las cubre a todas; las cinco metas quedan
+// fuera a propósito —cada una se resuelve aparte del loop de secciones.
+export type SeccionKey = Exclude<keyof SiteContentData, 'paginas' | 'tema' | 'esquemas' | 'orden' | 'variantesBandas'>;
 
 export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   hero: {
@@ -853,6 +870,36 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   },
 };
 
+// VARIANTES DE BANDAS ESTRUCTURALES (TEMAS-P1-FEATURED-VARIANTES-1): el gemelo de `SeccionDef.
+// variantes` para bandas que NO son `SeccionKey` —`featured`/`trustBadges`, sin entrada en
+// `SiteContentData` ni en el REGISTRY (§ `bandaUniforme`, arriba)—. Sin esta tabla, un preset que
+// pide `featured·X` no tiene DÓNDE declarar la variante: `validarPreset` (themes.ts) rechazaba
+// TODO pedido de featured con "no declara variantes en el REGISTRY", sin distinguir "la composición
+// pedida no existe" de "la banda no tiene slot" — el mismo defecto que `TEMAS-P2-BRANDSTORY-1` ya
+// cerró del lado de las secciones. Medido contra `themes.ts` antes de este slice
+// (`TEMAS-P1-BANDAS-ESTRUCTURALES-FORMA-1`): las CINCO entregas del diseño piden una variante de
+// `featured` y ninguna tiene dónde resolverse.
+//
+// SÓLO `featured` HOY. `trustBadges` se deja AFUERA A PROPÓSITO (decisión del owner): ningún preset
+// del catálogo (§ themes.ts, PRESETS) pide una variante de `trustBadges` —vive sólo en los mapas de
+// `esquemas`/`orden`, nunca en `variantes`—, así que declarar un slot que nadie consume sería
+// CAPACIDAD MUERTA: la simetría con `featured` no es razón para abrirlo. Cuando un theme lo pida,
+// entra con su variante real en el mismo commit que la construye.
+//
+// `featured` canónica = 'cuadricula': la composición de HOY de `FeaturedProducts.tsx` (medida en su
+// fuente) — grid de 4 productos del catálogo, `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`, SIN
+// dispatcher (el componente no lee `variante` ni `useSiteContent()`; recibe sólo `style`, igual que
+// `brandStory` antes de que le llegara una segunda clave real). NINGÚN preset del catálogo pide
+// 'cuadricula': piden 'tabla' (PLIEGO), 'grilla' (CORTE/PATIO/VITRINA) o 'mosaico' (VETA) — tres
+// composiciones DISTINTAS entre sí y de la canónica, y NINGUNA de las tres está construida. Este
+// slice NO construye ninguna; sólo abre el slot donde declararlas el día que exista una — por eso
+// los cinco themes SIGUEN sin poder aplicarse tras este cambio (cambia el MENSAJE de `validarPreset`
+// para `featured`, de "no declara variantes" a "esa clave no existe", nunca el CONTEO de themes
+// completos, § `temasCompletos`).
+export const VARIANTES_ESTRUCTURALES: Record<string, VariantesDef> = {
+  featured: { claves: ['cuadricula'], canonica: 'cuadricula' },
+};
+
 const esVacio = (v: unknown): boolean => typeof v !== 'string' || v.trim() === '';
 const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
@@ -928,6 +975,10 @@ export function resolverSiteContent(
   // ORDEN (meta, no sección): la secuencia de bandas, resuelta aparte del loop igual que las otras
   // tres — pero con dominio CERRADO (§ `resolverOrden`, abajo), a diferencia de `esquemas`.
   out.orden = resolverOrden(raw.orden);
+  // VARIANTES DE BANDAS ESTRUCTURALES (meta, no sección): el mapa bandaId→variante para bandas sin
+  // sección (`featured`), resuelto aparte del loop igual que `esquemas` — GEMELO exacto, mismo
+  // dominio ABIERTO (§ `resolverVariantesBandas`, abajo).
+  out.variantesBandas = resolverVariantesBandas(raw.variantesBandas);
   return out as unknown as SiteContentData;
 }
 
@@ -988,6 +1039,27 @@ export function resolverEsquemas(stored: unknown): EsquemasContent {
   const out: EsquemasContent = {};
   for (const [banda, val] of Object.entries(st)) {
     if (typeof val === 'string' && ESQUEMA_IDS.has(val as ClaveEsquema)) out[banda] = val as ClaveEsquema;
+  }
+  return out;
+}
+
+/**
+ * Resuelve el mapa bandaId→variante de BANDAS ESTRUCTURALES (TEMAS-P1-FEATURED-VARIANTES-1), gemelo
+ * EXACTO de `resolverEsquemas`: KEY-AGNÓSTICO (cualquier bandaId puede tener entrada, se itera el
+ * GUARDADO). A diferencia de `resolverEsquemas` (un set CERRADO único de 4 esquemas para toda banda),
+ * acá el set de claves válidas es POR-BANDA (`VARIANTES_ESTRUCTURALES[banda].claves`) — como el set
+ * de una sección normal es por-sección (`SeccionDef.variantes.claves`). Basura, una banda sin entrada
+ * en `VARIANTES_ESTRUCTURALES`, o una clave fuera de su set: NI SIQUIERA aparece en el resultado — la
+ * misma "sin override" que `resolverEsquemas`, no un clamp a la canónica (a diferencia de
+ * `resolverVariante`, que SÍ clampa porque resuelve DENTRO de una sección que siempre necesita un
+ * valor). SOFT, nunca lanza.
+ */
+export function resolverVariantesBandas(stored: unknown): VariantesBandasContent {
+  const st = esObj(stored) ? stored : {};
+  const out: VariantesBandasContent = {};
+  for (const [banda, val] of Object.entries(st)) {
+    const def = VARIANTES_ESTRUCTURALES[banda];
+    if (def && typeof val === 'string' && def.claves.includes(val)) out[banda] = val;
   }
   return out;
 }

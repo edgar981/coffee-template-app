@@ -15,6 +15,8 @@ import {
   resolverTema,
   resolverEsquemas,
   resolverOrden,
+  resolverVariantesBandas,
+  VARIANTES_ESTRUCTURALES,
   resolverVariante,
   bandaOscuraCanonica,
   bandaUniforme,
@@ -565,6 +567,52 @@ test('resolverEsquemas: entrada no-objeto → mapa vacío, NO lanza (SOFT)', () 
 
 test('resolverEsquemas: es KEY-AGNÓSTICO — acepta cualquier bandaId, no un set fijo conocido de antemano', () => {
   assert.deepEqual(resolverEsquemas({ unaBandaQueNoExisteHoy: 'acento' }), { unaBandaQueNoExisteHoy: 'acento' });
+});
+
+// ── Las VARIANTES DE BANDAS ESTRUCTURALES (TEMAS-P1-FEATURED-VARIANTES-1): mapa bandaId→variante,
+// gemelo KEY-AGNÓSTICO de `esquemas`, para bandas sin sección (`featured`) ─────────────────────────
+
+test('variantesBandas: sin nada guardado → mapa VACÍO (byte-idéntico: sin fila, featured cae a su canónica)', () => {
+  assert.deepEqual(resolverSiteContent({}).variantesBandas, {});
+});
+
+test('variantesBandas NO es una sección: no rompe el loop de secciones, y el hero sí resuelve', () => {
+  const r = resolverSiteContent({ variantesBandas: { featured: 'cuadricula' } });
+  assert.equal(r.variantesBandas.featured, 'cuadricula');
+  assert.ok(typeof r.hero.titulo === 'string'); // las secciones siguen resolviendo
+});
+
+test('variantesBandas: SeccionKey lo excluye — el REGISTRY no tiene entrada `variantesBandas` (no es sección)', () => {
+  assert.equal('variantesBandas' in REGISTRY, false);
+});
+
+test('VARIANTES_ESTRUCTURALES: declara `featured` con su canónica `cuadricula`, y NO declara `trustBadges` (capacidad muerta evitada)', () => {
+  assert.deepEqual(VARIANTES_ESTRUCTURALES.featured, { claves: ['cuadricula'], canonica: 'cuadricula' });
+  assert.equal(VARIANTES_ESTRUCTURALES.trustBadges, undefined);
+});
+
+test('resolverVariantesBandas: una clave válida por banda se respeta', () => {
+  assert.deepEqual(resolverVariantesBandas({ featured: 'cuadricula' }), { featured: 'cuadricula' });
+});
+
+test('resolverVariantesBandas: basura por banda (clave fuera del set, no-string, ausente) NI SIQUIERA aparece en el resultado — es "sin override", no un clamp a la canónica', () => {
+  assert.deepEqual(resolverVariantesBandas({ featured: 'tabla' }), {}); // clave que ningún preset del catálogo tiene construida
+  assert.deepEqual(resolverVariantesBandas({ featured: 42 }), {});
+  assert.deepEqual(resolverVariantesBandas({ featured: null }), {});
+  assert.deepEqual(resolverVariantesBandas({}), {});
+});
+
+test('resolverVariantesBandas: entrada no-objeto → mapa vacío, NO lanza (SOFT)', () => {
+  for (const basura of [null, undefined, 'x', 42, []]) {
+    assert.deepEqual(resolverVariantesBandas(basura), {});
+  }
+});
+
+test('resolverVariantesBandas: una banda SIN entrada en VARIANTES_ESTRUCTURALES se descarta (a diferencia de `esquemas`, el set de claves es POR-BANDA, no uno global)', () => {
+  // `trustBadges` no tiene entrada en VARIANTES_ESTRUCTURALES (§ decisión del owner, capacidad
+  // muerta evitada) — cualquier valor que llegue para esa banda se descarta, aunque sea un string.
+  assert.deepEqual(resolverVariantesBandas({ trustBadges: 'cualquiera' }), {});
+  assert.deepEqual(resolverVariantesBandas({ unaBandaQueNoExisteHoy: 'x' }), {});
 });
 
 // ─── Presentaciones: el default resuelto reproduce el copy CANÓNICO declarado en DEFAULTS ───
