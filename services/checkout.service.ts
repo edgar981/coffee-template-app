@@ -14,14 +14,22 @@ export interface CheckoutPayload {
     departamento: string;                // drives Bogotá detection server-side
     franja?: string | null;              // slot id ("am"/"pm"); Bogotá only
   };
-  payment: {
-    // § CHECKOUT-BREB-CAST-1: importa el mismo tipo que el checkout usa para elegir el método
-    // (`lib/checkout/metodos-pago.ts`), en vez de repetir sus cinco literales a mano — dos
-    // declaraciones del mismo conjunto es la falla que ya se pagó con `CATEGORIAS`/
-    // `CATEGORIA_LABELS` y con el schema editable de `presentaciones`.
-    metodo: MetodoPagoTipo;
-    referencia?: string;
-  };
+  payment:
+    | {
+        // § CHECKOUT-BREB-CAST-1: importa el mismo tipo que el checkout usa para elegir el método
+        // (`lib/checkout/metodos-pago.ts`), en vez de repetir sus cinco literales a mano — dos
+        // declaraciones del mismo conjunto es la falla que ya se pagó con `CATEGORIAS`/
+        // `CATEGORIA_LABELS` y con el schema editable de `presentaciones`.
+        metodo: MetodoPagoTipo;
+        referencia?: string;
+      }
+    | {
+        // El camino APARTE de la pasarela (§ WOMPI-WIDGET-EN-EL-CANONICO-1) — NUNCA un valor
+        // más de `metodo`/`METODOS_PAGO_ORDEN` (ese set cerrado es "lo que el dueño configura
+        // en su panel"; la pasarela es un toggle de DESPLIEGUE, (d), que todavía no existe —
+        // ver `pasarelaDisponibleEnEsteDespliegue` más abajo).
+        pasarela: true;
+      };
   items: {
     slug: string;
     cantidad: number;
@@ -30,12 +38,42 @@ export interface CheckoutPayload {
   }[];
 }
 
+/**
+ * (d) EL TOGGLE POR DESPLIEGUE TODAVÍA NO EXISTE (ver CLAUDE.md § Pagos en línea, Wompi).
+ * Es el disparador MÁS CHICO y honesto que este slice puede dejar — la CAPACIDAD de pagar
+ * con la pasarela nace APAGADA, siempre `false`, hoy. Es la MISMA fuente que lee el cliente
+ * (para esconder la opción "Tarjeta, PSE y más" del checkout) y el servidor
+ * (`app/api/checkout/route.ts`, para rechazar un POST directo que la pida sin que exista
+ * (d)) — dos lecturas de esta función nunca pueden divergir porque es una sola.
+ *
+ * Cuando (d) exista, esta función se REEMPLAZA por su lectura real (env var / dato de
+ * despliegue) — no se borra a mano ni se copia en otro lado.
+ */
+export function pasarelaDisponibleEnEsteDespliegue(): boolean {
+  return false;
+}
+
 export interface CheckoutResultItem {
   producto_nombre: string;
   moliendaSeleccionada?: string | null;
   cantidad: number;
   precio_unitario: number;
   subtotal: number;
+}
+
+/**
+ * La transacción de la pasarela, YA FIRMADA por el servidor (`app/api/checkout/route.ts`,
+ * `firmarIntegridadWompi` — nunca firmada en el cliente). Presente SÓLO cuando el comprador
+ * eligió pagar con la pasarela; ausente en cualquier otro método, byte-idéntico a antes de
+ * este slice (§ WOMPI-WIDGET-EN-EL-CANONICO-1).
+ */
+export interface CheckoutResultWompi {
+  reference: string;
+  amountInCents: number;
+  currency: string;
+  signature: string;
+  /** La llave PÚBLICA de la pasarela — del navegador, no es secreta (§ lib/pagos/llaves-pasarela.ts). */
+  publicKey: string;
 }
 
 export interface CheckoutResult {
@@ -48,6 +86,7 @@ export interface CheckoutResult {
   franja?: string | null;     // slot id ("am"/"pm"), resolved to a label at render
   direccion_detalle?: string | null;
   items: CheckoutResultItem[];
+  wompi?: CheckoutResultWompi;
 }
 
 // Error de checkout que conserva los IDs de producto rechazados por stock, para

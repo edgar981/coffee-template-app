@@ -5,7 +5,11 @@ import { imagenPortada } from "@/lib/producto-imagen";
 import { ArrowLeft, Shield, Lock, CreditCard, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore } from '@/lib/cartStore';
-import { createOrder, CheckoutError, type CheckoutResult } from "@/services/checkout.service";
+import {
+  createOrder, CheckoutError, pasarelaDisponibleEnEsteDespliegue,
+  type CheckoutResult, type CheckoutPayload,
+} from "@/services/checkout.service";
+import PagoPasarela from '@/components/storefront/checkout/PagoPasarela';
 import { formatCOP } from '@duna/core/utils';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -45,6 +49,12 @@ export default function Checkout() {
   const [slot, setSlot] = useState<string | null>(null);
   const [payment, setPayment] = useState<MetodoPagoTipo>('nequi');
   const [refTransfer, setRefTransfer] = useState('');
+  // (d) el toggle por despliegue todavía no existe — hoy SIEMPRE `false` (§ el docstring de
+  // `pasarelaDisponibleEnEsteDespliegue`). Mientras lo sea, la opción "Tarjeta, PSE y más" no
+  // se renderiza y `pasarelaSeleccionada` no tiene forma de volverse `true`: el checkout es
+  // byte-idéntico a antes de este slice.
+  const pasarelaDisponible = pasarelaDisponibleEnEsteDespliegue();
+  const [pasarelaSeleccionada, setPasarelaSeleccionada] = useState(false);
   // IDs de producto rechazados por stock en el último intento — el carrito se
   // conserva y se marca la línea afectada. Se limpia al reintentar.
   const [sinStockIds, setSinStockIds] = useState<string[]>([]);
@@ -105,12 +115,27 @@ export default function Checkout() {
 
   const handleOrder = async () => {
     // Sin método disponible no hay nada que enviar — el mismo caso que deshabilita el botón más
-    // abajo (`availablePayments.length === 0`), pero acá es el TIPO el que lo exige: `metodoActivo`
-    // es `MetodoPagoTipo | null` (§ CHECKOUT-BREB-CAST-1) y el payload no acepta null. Va ANTES de
-    // `setLoading(true)`: un `return` después dejaría el botón clavado en "Procesando…" para
-    // siempre, y el `disabled` de arriba ya impide llegar acá en ese estado — esto es la guarda de
-    // TIPO, no una segunda explicación para el comprador.
-    if (!metodoActivo) return;
+    // abajo (`availablePayments.length === 0 && !pasarelaDisponible`), pero acá es el TIPO el que
+    // lo exige: `metodoActivo` es `MetodoPagoTipo | null` (§ CHECKOUT-BREB-CAST-1) y el payload no
+    // acepta null salvo por la rama de pasarela. Va ANTES de `setLoading(true)`: un `return`
+    // después dejaría el botón clavado en "Procesando…" para siempre, y el `disabled` de arriba ya
+    // impide llegar acá en ese estado — esto es la guarda de TIPO, no una segunda explicación para
+    // el comprador.
+    if (!pasarelaSeleccionada && !metodoActivo) return;
+
+    // La rama de pago se decide ACÁ, antes de tocar `loading`, para que TypeScript narrowee
+    // `metodoActivo` a no-nulo dentro de la rama que lo usa (§ WOMPI-WIDGET-EN-EL-CANONICO-1): el
+    // guard de arriba sólo prueba la DISYUNCIÓN, no cada rama por separado.
+    let payment: CheckoutPayload['payment'];
+    if (pasarelaSeleccionada) {
+      payment = { pasarela: true };
+    } else if (metodoActivo) {
+      // `CheckoutPayload.payment.metodo` acepta el mismo set cerrado que `metodoActivo`, sin cast.
+      payment = { metodo: metodoActivo, referencia: refTransfer.trim() || undefined };
+    } else {
+      return; // inalcanzable: el guard de arriba ya lo descarta.
+    }
+
     setLoading(true);
     setSinStockIds([]);
     try {
@@ -131,20 +156,15 @@ export default function Checkout() {
           departamento:      address.departamento,
           franja:            slot,
         },
-        payment: {
-          // `metodoActivo` es `MetodoPagoTipo | null` (§ CHECKOUT-BREB-CAST-1): null sólo cuando
-          // no hay ningún método disponible, y ese caso ya corta arriba en `handleOrder` antes de
-          // llegar acá. Sin cast: `CheckoutPayload.payment.metodo` acepta el mismo set cerrado.
-          metodo:     metodoActivo,
-          referencia: refTransfer.trim() || undefined,
-        },
+        payment,
         items: items.map((i) => ({
           slug:     i.slug,
           cantidad: i.quantity,
           molienda: typeof i.options?.molienda === 'string' ? i.options.molienda : null,
         })),
       });
-      // Capture the server response before emptying the cart.
+      // Capture the server response before emptying the cart. La orden ya se creó (pendiente)
+      // pase lo que pase con la pasarela — la limpieza del carrito no depende de `wompi`.
       setConfirmation(result);
       clearCart();
     } catch (e) {
@@ -157,6 +177,36 @@ export default function Checkout() {
     }
     setLoading(false);
   };
+
+  if (confirmation && confirmation.wompi) {
+    // Pago por pasarela: la orden YA existe (pendiente), pero NINGUNA pantalla puede afirmar
+    // "pagado" acá — la verdad la trae el webhook (§4, WOMPI-WIDGET-EN-EL-CANONICO-1). Por eso
+    // NO reusa la pantalla "¡Pedido recibido!" de abajo (que ese texto sí implica un pedido
+    // confirmado del lado de la tienda): se muestra "en proceso" y se monta el widget para que
+    // el comprador complete el pago.
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center pt-16 px-4">
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Clock className="w-10 h-10 text-amber-600" />
+          </div>
+          <h1 className="text-3xl font-playfair text-[var(--sf-tinta)] mb-2">Tu pedido está reservado</h1>
+          <p className="text-[var(--sf-texto)] mb-4">Completa el pago abajo para confirmarlo.</p>
+          <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
+            <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
+            <p className="text-2xl font-bold text-[var(--sf-acento-texto)] text-center">{confirmation.numero_orden}</p>
+          </div>
+          <PagoPasarela
+            reference={confirmation.wompi.reference}
+            amountInCents={confirmation.wompi.amountInCents}
+            currency={confirmation.wompi.currency}
+            signature={confirmation.wompi.signature}
+            publicKey={confirmation.wompi.publicKey}
+          />
+        </motion.div>
+      </div>
+    );
+  }
 
   if (confirmation) {
     return (
@@ -358,7 +408,7 @@ export default function Checkout() {
                 {step === 1 && (
                   <div className="space-y-4">
                     <h2 className="font-semibold text-[var(--sf-tinta)] mb-4">Método de pago</h2>
-                    {availablePayments.length === 0 ? (
+                    {availablePayments.length === 0 && !pasarelaDisponible ? (
                       // Guarda defensiva: el dueño apagó TODOS los métodos (o ninguno tiene datos). El
                       // editor exige ≥1 encendido, así que casi no pasa —pero el checkout no puede quedar
                       // mudo—: en vez de un paso sin opciones se ofrece coordinar el pago por WhatsApp.
@@ -380,16 +430,28 @@ export default function Checkout() {
                       <>
                         <div className="space-y-3">
                           {availablePayments.map(opt => (
-                            <label key={opt.id} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${metodoActivo === opt.id ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
-                              <input type="radio" name="payment" value={opt.id} checked={metodoActivo === opt.id} onChange={() => setPayment(opt.id)} className="mt-0.5 accent-[var(--sf-acento)]" />
+                            <label key={opt.id} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${!pasarelaSeleccionada && metodoActivo === opt.id ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
+                              <input type="radio" name="payment" value={opt.id} checked={!pasarelaSeleccionada && metodoActivo === opt.id} onChange={() => { setPayment(opt.id); setPasarelaSeleccionada(false); }} className="mt-0.5 accent-[var(--sf-acento)]" />
                               <div>
                                 <p className="text-sm font-semibold text-[var(--sf-tinta)]">{opt.label}</p>
                                 <p className="text-xs text-[var(--sf-texto-suave)]">{opt.desc}</p>
                               </div>
                             </label>
                           ))}
+                          {/* (d) el toggle por despliegue — hoy SIEMPRE apagado (§ pasarelaDisponible arriba),
+                              así que este bloque nunca se renderiza todavía. La caja del widget en sí vive en
+                              `PagoPasarela` (§ WOMPI-WIDGET-EN-EL-CANONICO-1); acá sólo la opción del método. */}
+                          {pasarelaDisponible && (
+                            <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${pasarelaSeleccionada ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
+                              <input type="radio" name="payment" checked={pasarelaSeleccionada} onChange={() => setPasarelaSeleccionada(true)} className="mt-0.5 accent-[var(--sf-acento)]" />
+                              <div>
+                                <p className="text-sm font-semibold text-[var(--sf-tinta)]">Tarjeta, PSE y más</p>
+                                <p className="text-xs text-[var(--sf-texto-suave)]">Paga en línea de forma segura.</p>
+                              </div>
+                            </label>
+                          )}
                         </div>
-                        {(metodoActivo === 'nequi' || metodoActivo === 'daviplata' || metodoActivo === 'breb' || metodoActivo === 'transferencia') && (
+                        {!pasarelaSeleccionada && (metodoActivo === 'nequi' || metodoActivo === 'daviplata' || metodoActivo === 'breb' || metodoActivo === 'transferencia') && (
                           <Field label="Referencia de pago (opcional)" value={refTransfer} onChange={setRefTransfer} placeholder="Número de confirmación" />
                         )}
                       </>
@@ -408,7 +470,7 @@ export default function Checkout() {
                     </div>
                     <div className="flex gap-3">
                       <button onClick={() => setStep(0)} className="flex-1 sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)]">Atrás</button>
-                      <button onClick={handleOrder} disabled={loading || availablePayments.length === 0} className="flex-1 bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors">
+                      <button onClick={handleOrder} disabled={loading || (availablePayments.length === 0 && !pasarelaDisponible)} className="flex-1 bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors">
                         {loading ? 'Procesando...' : `Confirmar pedido · ${formatCOP(total)}`}
                       </button>
                     </div>

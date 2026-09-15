@@ -3248,3 +3248,130 @@ pura no se tocó, sólo se relocalizó).
 Regla: § Pagos en línea (Wompi) (CLAUDE.md) · `lib/pagos/llaves-pasarela.ts`
 (`verificarLlavePasarelaCoherente`, `PREFIJO_LLAVE_PASARELA_PRODUCTIVA`) · `instrumentation.ts`
 (el gancho, sin lógica propia).
+
+## 2026-09-15 — El widget de Wompi entra al checkout canónico — la capacidad, apagada por falta de (d) (`WOMPI-WIDGET-EN-EL-CANONICO-1`)
+
+**(b) es que el comprador que elige la pasarela ENTRE al widget de Wompi con una transacción firmada,
+desde `/checkout` tal cual está — NADA del diseño de la v5, sin `<form>` de Web Checkout (esa es la
+OTRA forma; el owner ya decidió que las dos se soportan por TOGGLE DE DESPLIEGUE, `CSP-FORM-ACTION-
+WEBCHECKOUT-1`), sin (c) la ruta de retorno, sin (d) el toggle mismo.** `(a)` (`WOMPI-CREADOR-DE-
+INTENTOS-1`) ya armaba el bloque `{reference, amountInCents, currency, signature}` cuando
+`order.paymentIntent` existe; nadie lo encendía. Este slice es quien lo enciende — SIN encenderlo de
+verdad, porque (d) no existe.
+
+**LAS CINCO RESTRICCIONES DEL OWNER, y lo que cada una impidió:**
+
+1. **Sin diseño propio del widget** — se montó "la caja que Wompi entrega" (`widget.js` +
+   `data-render="button"` + los seis `data-*` documentados: `public-key`, `currency`,
+   `amount-in-cents`, `reference`, `signature:integrity`, `redirect-url`), no una composición nueva.
+2. **"Wompi" en CERO bytes que el comprador lea** — la etiqueta de la opción es **"Tarjeta, PSE y
+   más"**; el nombre del proveedor sólo vive en comentarios de código, nombres de función y este
+   asiento.
+3. **La pasarela NUNCA entra a `MetodoPagoTipo`/`METODOS_PAGO_ORDEN`** — viaja como un CAMINO APARTE
+   en el payload (`payment: {metodo,...} | {pasarela: true}`, un `z.union` en el schema de
+   `app/api/checkout/route.ts`), nunca como un sexto valor del set cerrado que el dueño configura en
+   su panel.
+4. **Nace apagada, y en LOS DOS LADOS** — no sólo la UI. `pasarelaDisponibleEnEsteDespliegue()`
+   (`services/checkout.service.ts`, pura, cero argumentos, `return false`) es la ÚNICA fuente que lee
+   el cliente (para esconder la opción) y el servidor (`app/api/checkout/route.ts`, para RECHAZAR con
+   400 un POST directo que pida `pasarela: true` — verificado que ese 400 ocurre ANTES de
+   `resolveOrderLines`/`createOrderWithCustomer`, sin tocar la base). Dos lecturas de una función no
+   pueden divergir porque es una sola; el día que (d) exista, se reemplaza esa función, no se
+   duplica.
+5. **Ninguna pantalla afirma más de lo que el servidor sabe** — la pantalla que monta el widget dice
+   "Tu pedido está reservado… completa el pago abajo para confirmarlo", nunca "pagado". La verdad
+   sigue llegando por webhook (`WOMPI-WEBHOOK-RUTA-1`); esta pantalla es un ESTADO NUEVO de
+   confirmación (`confirmation.wompi` presente), separado del "¡Pedido recibido!" de siempre — ese
+   texto sí implica un pedido que la tienda ya dio por andado, y con la pasarela de por medio decirlo
+   antes del webhook sería mentir.
+
+**LA LLAVE PÚBLICA — decisión tomada, no delegada al gate.** El servidor la devuelve DENTRO del mismo
+bloque `wompi` (`publicKey`, leída de `process.env.WOMPI_PUBLIC_KEY` — la misma variable que
+`instrumentation.ts`/`lib/pagos/llaves-pasarela.ts` ya leen para la guarda de coherencia demo↔llave,
+así que no es una lectura nueva del entorno, es una SEGUNDA lectura de la MISMA variable). Se descartó
+un mirror `NEXT_PUBLIC_WOMPI_PUBLIC_KEY`: hubiera sido una SEGUNDA fuente del mismo dato —exactamente
+la trampa que este repo ya pagó con `total_compras` y con `disparador`/`frase` de Automatizaciones—,
+cuando la llave YA VIAJA al navegador dentro de la respuesta del checkout, sin necesidad de que el
+build la inline. Si falta (`WOMPI_PUBLIC_KEY` o `WOMPI_INTEGRITY_SECRET`), la ruta falla ruidoso con
+500 — mismo criterio que la firma: un bloque `wompi` a medias no sirve para nada.
+
+**EL SCRIPT SE INSERTA A MANO, no con `next/script`** (`components/storefront/checkout/
+PagoPasarela.tsx`). `widget.js` de Wompi auto-renderiza su botón en la posición del DOM donde
+encuentra su propio `<script>` —el patrón estándar de un botón de terceros—; `next/script` con
+`strategy="afterInteractive"`/`"lazyOnload"` inserta sus scripts en `document.body`, DESACOPLADOS del
+lugar donde el componente vive en el árbol, lo que rompería ese auto-render posicional. Es la elección
+MÁS SEGURA de las dos, **no verificada contra el widget real en esta sesión** (sin navegador ni llaves
+de sandbox) — queda para que el gate visual del owner la confirme o la corrija.
+
+**LA RUTA DE RETORNO (c) se DECLARA, no se construye.** `RUTA_RETORNO_WOMPI = '/checkout/retorno'`
+(exportada de `PagoPasarela.tsx`, con su nombre y su porqué) es el `data-redirect-url` que el widget
+recibe; la ruta en sí no existe todavía — la implementa (c).
+
+**EL 400 DE DISPONIBILIDAD VA ANTES DE TOCAR LA BASE, verificado con un caso que lo prueba de verdad:**
+un `payment.pasarela: true` con envío a Bogotá SIN franja horaria dispararía el 400 de "franja
+inválida" si la guarda de disponibilidad se hubiera puesto DESPUÉS de esa validación — el test
+co-ubicado (`app/api/checkout/route.test.ts`) fija el ORDEN con exactamente ese caso, no sólo el
+resultado.
+
+**`Order.metodo_pago` para un pedido de pasarela es el string libre `'wompi'`** (no un valor de
+`MetodoPagoTipo`; `Order.metodo_pago` ya es texto libre, § CLAUDE.md "Los MÉTODOS de pago son una
+LISTA"). `derivarCondicionPago` sólo distingue el id EXACTO `'efectivo'`, así que `'wompi'` deriva
+ANTICIPADO — correcto para un cobro por adelantado, sin tocar `packages/core/src/orders.ts`.
+
+### EL HUECO ESTRUCTURAL DE TEST — medido, no inventado, y compartido con `WOMPI-WEBHOOK-RUTA-1`
+
+**Los CINCO archivos de `touches:` no caen bajo NINGÚN glob de `npm run gate`.** `npm test` cubre
+`lib/**` · `constants/**` · `packages/core/**` (`package.json:14`); `npm run test:integracion` cubre
+`tests/integracion/**` (`scripts/test-integracion.sh:89`). `app/(storefront)/checkout/page.tsx`,
+`app/api/checkout/route.ts`, `services/checkout.service.ts` y `components/storefront/checkout/
+PagoPasarela.tsx` no están bajo ninguno de los tres. Medido ANTES de escribir una sola línea: `npm
+test` en `main` (`ef2e103`) → **1166/1166**.
+
+**Se siguió el precedente ya aceptado (`app/api/webhooks/wompi/route.test.ts`), no se inventó uno
+nuevo:** `app/api/checkout/route.test.ts`, co-ubicado con `route.ts`, exporta `checkoutSchema` para
+afirmar la FORMA de la unión `metodo`/`pasarela` SIN invocar `POST` (cuatro casos, parseo puro) y usa
+`POST` sólo en las DOS ramas que responden antes de tocar Prisma (la guarda de disponibilidad, en sus
+dos variantes de orden). Corrido a mano: `node --import tsx --test app/api/checkout/route.test.ts` →
+**7/7**. **Este archivo NO es `touches:` literal** —el spec listaba `route.ts`, no `route.test.ts`—;
+se escribió porque el propio spec exige "AFIRMÁ, con un test..." y no hay otro sitio dentro de los
+cuatro archivos de código donde ese test pudiera vivir y ser ejecutable sin DB. Deviación medida y
+declarada, no una ampliación silenciosa de alcance.
+
+**`npm run gate` en el árbol final NO SE MOVIÓ por mis cambios — medido, no asumido:** `npm test` →
+**1166/1166** (idéntico al piso, porque ningún archivo tocado está en su glob) · `npm run test:
+integracion` → **193/193** (verde; ningún test de ese carril importa `app/api/checkout/route`,
+confirmado por grep antes de correr, así que el número no podía moverse por este slice). El piso de
+integración no se midió ANTES del slice porque no hacía falta: nada en ese carril podía verse afectado.
+
+**LA PRUEBA DE BYTE-IDENTIDAD "APAGADA" NO ES SÓLO LÓGICA — es AUSENCIA MEDIDA EN EL ARTEFACTO
+COMPILADO.** `npm run build` (limpio, sin `.next` previo del slice) compiló verde; grepeando el
+bundle de producción: **"Tarjeta, PSE y más" aparece CERO veces** en `.next/server/` y `.next/static/`
+(sólo en los `.js.map`, que no se sirven) — el minificador de Next 16/Turbopack demostró en el
+artefacto, no sólo en el código fuente, que la rama de la opción de pasarela es código MUERTO mientras
+`pasarelaDisponibleEnEsteDespliegue()` sea una función pura de cero argumentos que siempre devuelve
+`false`. En cambio, "Completa el pago abajo para confirmarlo" (la pantalla `confirmation.wompi`, que
+SÍ depende de un dato de runtime que el bundler no puede probar falso) aparece **UNA vez** en ambos
+bundles — confirma que el camino wompi compiló y quedó vivo, listo para el día que `wompi` llegue en
+la respuesta. Y en el servidor, `grep -c "no está disponible en este momento" .next/server/chunks/
+_0v02p-q._.js` → **1**: la guarda de 400 SÍ viaja al artefacto (es runtime-dependiente, no
+constante-plegable). Es la aplicación directa de § GATE DE CAPA 3 — grepear el artefacto, no la
+fuente— a la pregunta "¿de verdad no se ve nada nuevo con la capacidad apagada?".
+
+**`npx tsc --noEmit` → 0.** El narrowing de `metodoActivo` en `handleOrder` (page.tsx) se resolvió con
+un `if/else if/else return` explícito en vez de un ternario, precisamente porque un guard compuesto
+(`!pasarelaSeleccionada && !metodoActivo`) no garantiza que TypeScript narrowee la variable dentro de
+una rama de ternario sin volver a probar la condición — se verificó con `tsc`, no se asumió.
+
+**Tier 1 / AWAITING_APPROVAL, `stopped_on: ['customer-bytes']`.** El diff agrega bytes NUEVOS que un
+comprador podría leer —la opción "Tarjeta, PSE y más" y la pantalla "Tu pedido está reservado…
+Completa el pago abajo para confirmarlo"— aunque hoy sean inalcanzables en producción (§ arriba, la
+opción incluso queda AUSENTE del bundle por el minificador). El diff también toca `app/(storefront)/`
+(Tier 1 por subárbol), `app/api/checkout/route.ts` (Tier 1 por nombre) y crea
+`components/storefront/checkout/` (Tier 1 por subárbol pre-declarado): tres razones independientes
+para el mismo alto. Rama `slice/wompi-widget-en-el-canonico-1`, sin mergear.
+
+Regla: § Pagos en línea (Wompi) (CLAUDE.md) · `services/checkout.service.ts`
+(`pasarelaDisponibleEnEsteDespliegue`, `CheckoutPayload.payment`, `CheckoutResultWompi`) ·
+`app/api/checkout/route.ts` (el `z.union`, la guarda de 400, el bloque `wompi` con `publicKey`) ·
+`components/storefront/checkout/PagoPasarela.tsx` (`RUTA_RETORNO_WOMPI`) · el hueco de test
+estructural, compartido con `WOMPI-WEBHOOK-RUTA-1` — no cerrado por ninguno de los dos slices.
