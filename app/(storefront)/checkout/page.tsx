@@ -49,10 +49,11 @@ export default function Checkout() {
   const [slot, setSlot] = useState<string | null>(null);
   const [payment, setPayment] = useState<MetodoPagoTipo>('nequi');
   const [refTransfer, setRefTransfer] = useState('');
-  // (d) el toggle por despliegue todavía no existe — hoy SIEMPRE `false` (§ el docstring de
-  // `pasarelaDisponibleEnEsteDespliegue`). Mientras lo sea, la opción "Tarjeta, PSE y más" no
-  // se renderiza y `pasarelaSeleccionada` no tiene forma de volverse `true`: el checkout es
-  // byte-idéntico a antes de este slice.
+  // (d), mitad encendido (§ WOMPI-TOGGLE-DISPONIBILIDAD-1): lee la env var de despliegue
+  // (§ el docstring de `pasarelaDisponibleEnEsteDespliegue`). Sin `NEXT_PUBLIC_PASARELA_
+  // HABILITADA=1` sigue SIEMPRE `false` — la opción "Tarjeta, PSE y más" no se renderiza y
+  // `pasarelaSeleccionada` no tiene forma de volverse `true`: byte-idéntico a antes de este
+  // slice. La redirección tras el pago (la vuelta del comprador) sigue sin construirse: (c).
   const pasarelaDisponible = pasarelaDisponibleEnEsteDespliegue();
   const [pasarelaSeleccionada, setPasarelaSeleccionada] = useState(false);
   // IDs de producto rechazados por stock en el último intento — el carrito se

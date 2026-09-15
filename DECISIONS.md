@@ -3375,3 +3375,87 @@ Regla: § Pagos en línea (Wompi) (CLAUDE.md) · `services/checkout.service.ts`
 `app/api/checkout/route.ts` (el `z.union`, la guarda de 400, el bloque `wompi` con `publicKey`) ·
 `components/storefront/checkout/PagoPasarela.tsx` (`RUTA_RETORNO_WOMPI`) · el hueco de test
 estructural, compartido con `WOMPI-WEBHOOK-RUTA-1` — no cerrado por ninguno de los dos slices.
+
+## 2026-09-15 — El encendido de la pasarela: una env var, no un dato del negocio (`WOMPI-TOGGLE-DISPONIBILIDAD-1`)
+
+**(d) se parte en DOS mitades, y ésta es sólo la del ENCENDIDO — la mitad que NO toca el retorno
+sigue esperando (c), la ruta de vuelta del comprador.** `pasarelaDisponibleEnEsteDespliegue()`
+(`services/checkout.service.ts`) deja de ser `return false` fijo y lee un interruptor de despliegue:
+
+```
+NEXT_PUBLIC_PASARELA_HABILITADA === '1'   →   true ;   cualquier otro valor / ausente   →   false
+```
+
+**Un despliegue que NO declara la variable —Nayoli incluida— sigue viendo EXACTAMENTE lo mismo que
+antes de este slice**, sin cambiar un byte: la opción "Tarjeta, PSE y más" no se renderiza, y un POST
+directo que pida `pasarela: true` sigue recibiendo el mismo 400 de disponibilidad, antes de tocar la
+base (§ `WOMPI-WIDGET-EN-EL-CANONICO-1`, el mismo test que ya lo afirmaba).
+
+**EL NOMBRE, y su razón — la fijó el owner en el spec, no se re-discute acá:**
+- **`PASARELA`, no `WOMPI`:** nombra la CAPACIDAD, no el proveedor. Si el agregador cambiara algún
+  día, la variable no quedaría mintiendo — las llaves SÍ llevan `WOMPI_` (`WOMPI_PUBLIC_KEY`,
+  `WOMPI_INTEGRITY_SECRET`, …) porque ésas son de Wompi.
+- **`HABILITADA`:** dice QUÉ prende, no cómo está implementado.
+- **`NEXT_PUBLIC_`:** medido, no asumido — la función se consume en los DOS lados. El cliente
+  (`app/(storefront)/checkout/page.tsx`, `'use client'`, línea `const pasarelaDisponible =
+  pasarelaDisponibleEnEsteDespliegue()`) decide si renderiza la opción de pago; el servidor
+  (`app/api/checkout/route.ts`) decide si crea el intento o rechaza con 400. El prefijo es necesario
+  para que Next inline la variable en el bundle del cliente en BUILD — mismo patrón que
+  `NEXT_PUBLIC_STOREFRONT_MARK` (`lib/config/storefront-marca.ts`) y que `NOINDEX` (aunque éste, sin
+  prefijo, sólo se lee en servidor/build — el paralelo es la forma del interruptor por-despliegue con
+  valor `'1'`, no el prefijo en sí).
+- **Valor `'1'`**, no `'true'` ni presencia-a-secas — el mismo patrón que `NOINDEX=1` y
+  `NEXT_PUBLIC_STOREFRONT_MARK=1`.
+
+**SÓLO EL ENCENDIDO — la redirección NO se tocó.** `RUTA_RETORNO_WOMPI` sigue apuntando a
+`/checkout/retorno`, una ruta que no existe todavía; ese camino es (c) y este slice no lo adelanta. El
+widget, el `z.union` de `payment`, la firma y el webhook quedan exactamente como (a)/(b) los dejaron —
+el diff de este slice es una línea de lógica (la función) más comentarios que dejaron de describir un
+estado que ya cambió.
+
+### EL TEST — condición del owner, y el MISMO hueco estructural que (b) ya midió
+
+**Se afirmó con test que, sin la variable (y con la variable en cualquier valor que no sea el literal
+`'1'`), la función devuelve `false`; y que con `'1'` devuelve `true`.** `services/
+checkout.service.test.ts`, co-ubicado con el archivo que declara la función, siguiendo el patrón YA
+usado por `lib/automations/whatsapp-operativo.test.ts` (mutar `process.env` por test, restaurar en
+`afterEach` porque el proceso de test comparte el entorno entre archivos). Corrido a mano: **3/3**.
+
+**PERO el spec asumía que "el carril rápido ahora cubre `app/**`" — medido, y es FALSO.**
+`package.json:14` sigue siendo exactamente `"lib/**/*.test.ts" "constants/**/*.test.ts"
+"packages/core/**/*.test.ts"`, sin `app/**` ni `services/**`. Es el MISMO hueco que
+`WOMPI-WIDGET-EN-EL-CANONICO-1` ya midió y documentó para `app/api/checkout/route.test.ts` — no se
+cerró entre ese slice y éste, y la premisa del spec de dar por hecho lo contrario es una deviación,
+no un hallazgo nuevo. `services/checkout.service.test.ts` **NO se ejecuta por `npm run gate`**; se
+corre a mano con:
+
+```
+node --import tsx --test services/checkout.service.test.ts
+```
+
+**Se prefirió el archivo co-ubicado, DENTRO del `touches:` declarado del slice (`services/
+checkout.service.ts`), a mover la función a `lib/` (donde SÍ correría en el gate) — mover la función
+habría tocado un archivo que el spec no autorizó.** Cerrar el hueco de verdad —ampliar el glob de
+`npm test` a `services/**`, o mudar `pasarelaDisponibleEnEsteDespliegue` a `lib/checkout/`— es
+backlog, no de este slice; queda nombrado para que la próxima vez que alguien toque este archivo no
+lo vuelva a medir de cero.
+
+### El piso no se movió — medido en el árbol final
+
+`npm test` → **1166/1166** (idéntico al piso de `WOMPI-WIDGET-EN-EL-CANONICO-1`; los tres archivos
+tocados no están bajo su glob, así que el número no podía cambiar). `npm run test:integracion` →
+**193/193** (idéntico; nada en ese carril importa `checkout.service` ni `checkout/page.tsx`). `npx tsc
+--noEmit` → limpio. `npm run build` → `✓ Compiled successfully`.
+
+**Tier 1 / AWAITING_APPROVAL.** El diff toca `app/(storefront)/checkout/page.tsx` (Tier 1 por
+subárbol) y `services/checkout.service.ts` (la fuente única que el Tier 1 de arriba ya nombraba). Con
+la variable ausente en todo despliegue hoy, el diff no cambia ni un byte que un visitante lea —pero la
+CAPACIDAD de que cambie ahora depende de una variable de entorno que el owner tiene que declarar (o
+no) por despliegue, y eso es exactamente lo que el gate visual existe para confirmar antes de que
+cualquier despliegue real la encienda. Rama `slice/wompi-widget-en-el-canonico-1`, sin mergear.
+
+Regla: § Pagos en línea (Wompi) (CLAUDE.md) · `services/checkout.service.ts`
+(`pasarelaDisponibleEnEsteDespliegue`, ahora lee `NEXT_PUBLIC_PASARELA_HABILITADA`) ·
+`app/(storefront)/checkout/page.tsx` (el comentario junto a `pasarelaDisponible`) · el mismo hueco de
+test estructural de `WOMPI-WIDGET-EN-EL-CANONICO-1`/`WOMPI-WEBHOOK-RUTA-1`, todavía sin cerrar · (c),
+la ruta de retorno, sigue pendiente.

@@ -26,8 +26,8 @@ export interface CheckoutPayload {
     | {
         // El camino APARTE de la pasarela (§ WOMPI-WIDGET-EN-EL-CANONICO-1) — NUNCA un valor
         // más de `metodo`/`METODOS_PAGO_ORDEN` (ese set cerrado es "lo que el dueño configura
-        // en su panel"; la pasarela es un toggle de DESPLIEGUE, (d), que todavía no existe —
-        // ver `pasarelaDisponibleEnEsteDespliegue` más abajo).
+        // en su panel"; la pasarela es un toggle de DESPLIEGUE, (d) — ver
+        // `pasarelaDisponibleEnEsteDespliegue` más abajo).
         pasarela: true;
       };
   items: {
@@ -39,18 +39,24 @@ export interface CheckoutPayload {
 }
 
 /**
- * (d) EL TOGGLE POR DESPLIEGUE TODAVÍA NO EXISTE (ver CLAUDE.md § Pagos en línea, Wompi).
- * Es el disparador MÁS CHICO y honesto que este slice puede dejar — la CAPACIDAD de pagar
- * con la pasarela nace APAGADA, siempre `false`, hoy. Es la MISMA fuente que lee el cliente
- * (para esconder la opción "Tarjeta, PSE y más" del checkout) y el servidor
- * (`app/api/checkout/route.ts`, para rechazar un POST directo que la pida sin que exista
- * (d)) — dos lecturas de esta función nunca pueden divergir porque es una sola.
+ * (d), MITAD ENCENDIDO (§ WOMPI-TOGGLE-DISPONIBILIDAD-1): la CAPACIDAD de pagar con la
+ * pasarela es un interruptor de DESPLIEGUE, no un dato de negocio — por eso vive en una env
+ * var y no en `SiteSetting`. Un despliegue que NO declara la variable (Nayoli incluida) ve
+ * exactamente lo mismo que antes de este slice: la opción no aparece, y un POST directo que
+ * la pida se rechaza.
  *
- * Cuando (d) exista, esta función se REEMPLAZA por su lectura real (env var / dato de
- * despliegue) — no se borra a mano ni se copia en otro lado.
+ * `PASARELA`, no `WOMPI`: nombra la CAPACIDAD, no el proveedor — si el agregador cambiara
+ * algún día, la variable no quedaría mintiendo (las llaves sí llevan `WOMPI_`, porque ésas
+ * son de Wompi). `NEXT_PUBLIC_` porque esta función se lee en el CLIENTE (`checkout/page.tsx`,
+ * para mostrar u ocultar "Tarjeta, PSE y más") y en el SERVIDOR (`app/api/checkout/route.ts`,
+ * para crear o rechazar el intento) — es la MISMA fuente en los dos lados, así que no pueden
+ * divergir sobre si la pasarela está disponible.
+ *
+ * Es SÓLO el encendido. La redirección tras el pago (la ruta de vuelta del comprador) es (c)
+ * y sigue sin construirse — esta función no la habilita.
  */
 export function pasarelaDisponibleEnEsteDespliegue(): boolean {
-  return false;
+  return process.env.NEXT_PUBLIC_PASARELA_HABILITADA === '1';
 }
 
 export interface CheckoutResultItem {
