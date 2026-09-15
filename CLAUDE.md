@@ -4405,6 +4405,24 @@ antes quedó OBSOLETO —ahora existe—); y de `lib/config/site.ts` los **email
 **import de catálogo** (TANDA B) ya se abrió (§ El import de catálogo). Lo que queda café-shape es de
 CLIENTE, no de template: #59 (ficha del producto), #60 (footerNav), #63 (copy), #65 (defectos dormidos).
 
+### LO QUE CONFIGURA A UN TENANT PREFIERE DATO SOBRE ENV/CÓDIGO — regla de rumbo
+
+Asentado el 2026-09-15 (`NORTE-PLATAFORMA-ASIENTO-1`, DECISIONS.md): el norte de Duna es plataforma
+—base compartida, aislamiento lógico por arquitectura, alta de cliente en minutos, operación única—,
+y el modelo de hoy (despliegue por cliente) es vigente y transitorio, no el destino.
+
+**LO QUE CONFIGURA A UN TENANT PREFIERE DATO EN BASE SOBRE VARIABLE DE ENTORNO O CÓDIGO, salvo
+imposibilidad medida.** Cada decisión nueva se pesa contra el norte: si hay dos formas de costo
+similar, gana **la que acerca a plataforma o la que menos encarece la migración.**
+
+**Va ATADA a la regla de arriba (§ El código compartido no NACE siendo Nayoli/demo), no suelta: son la
+misma familia.** Defaults neutros en dato hace barata la PROPAGACIÓN entre despliegues HOY;
+configuración-de-tenant-en-dato hace barata la MIGRACIÓN a plataforma MAÑANA. Quien lea una sin la otra
+subestima el costo de dejar configuración en código.
+
+El registro de las decisiones YA tomadas bajo el supuesto por-despliegue —las que esta regla habría
+evitado si hubiera existido antes— vive en `docs/DEUDA-MIGRACION-PLATAFORMA.md`.
+
 ## Política de tema (dark mode)
 
 El storefront es light-only (paleta de marca fija). El admin soporta
