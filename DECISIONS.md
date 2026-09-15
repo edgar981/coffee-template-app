@@ -2539,3 +2539,97 @@ código del orquestador, fuera de este repositorio). Merge Policy A aplica: merg
 aprobación.
 Regla: § PRECONDICIÓN y § Bases de datos (Neon) — qué es cada endpoint (`CLAUDE.md`), citadas, sin
 tocar en este slice.
+
+## 2026-09-15 · `featured` gana dónde declarar su variante — un meta key-agnóstico, gemelo de
+`esquemas` (`TEMAS-P1-FEATURED-VARIANTES-1`)
+`7595057` (rama `slice/temas-p1-featured-variantes-1`, sobre `main` en `33a207a` — sin mergear,
+`AWAITING_APPROVAL`, toca dos archivos nombrados explícitamente en la lista Tier 1)
+
+**ETAPA 2 (ESCRITURA) DE UN TIER 1.** La etapa 1 —`TEMAS-P1-BANDAS-ESTRUCTURALES-FORMA-1`, OBSERVED—
+midió, sin escribir nada, que `featured`/`trustBadges` son bandas ESTRUCTURALES del home sin sección
+en `SiteContentData` ni entrada en el REGISTRY, y que por eso `validarPreset` (`lib/config/themes.ts`)
+rechazaba TODO pedido de variante de `featured` con "no declara variantes en el REGISTRY" — sin poder
+distinguir "la banda no tiene slot" de "esa composición no existe". El owner dio su visto bueno sobre
+esa medición; este slice es la escritura que la etapa 1 dejó preparada.
+
+**LO QUE SE CONSTRUYÓ: `content.variantesBandas`, gemelo EXACTO de `content.esquemas`.**
+`VariantesBandasContent = Record<string, string>` (`lib/config/site-content-defaults.ts`) — dominio
+de claves ABIERTO, resolvedor key-agnóstico (`resolverVariantesBandas`) que descarta basura en vez de
+clampar a una canónica (como `resolverEsquemas`, NO como `resolverVariante` — que sí clampa porque
+resuelve DENTRO de una sección que siempre necesita un valor), cableado en `resolverSiteContent` junto
+a `paginas`/`tema`/`esquemas`/`orden`. `SeccionKey` lo excluye — no es una sección, se resuelve aparte
+del loop. Su gemela de escritura, `variantesBandasEditableSchema` (`lib/config/site-content-schema.ts`,
+`z.record(z.string(), z.string())`), se declara por la misma razón que `esquemasEditableSchema`: para
+que un futuro write general no la STRIPPEE en silencio (§ #65-B) — hoy no hay editor que la escriba.
+
+**EL SET DE CLAVES POR-BANDA vive en `VARIANTES_ESTRUCTURALES`** (`site-content-defaults.ts`), gemelo
+del REGISTRY pero para bandas SIN sección. Hoy una sola entrada:
+`{ featured: { claves: ['cuadricula'], canonica: 'cuadricula' } }`.
+
+**LA CLAVE CANÓNICA, MEDIDA CONTRA EL COMPONENTE, NO INVENTADA.** Se leyó `FeaturedProducts.tsx`
+completo: un grid de 4 productos del catálogo (`grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`), sin
+dispatcher — no lee `variante` ni `useSiteContent()`, recibe sólo `style` (confirmado también por la
+etapa 1). **`cuadricula` se eligió A PROPÓSITO distinta de `tabla`/`grilla`/`mosaico`** — las tres
+claves que los cinco presets del catálogo de themes piden para `featured` (`grep -n "featured:"
+lib/config/themes.ts`) —: nombrar la canónica igual a cualquiera de esas tres habría hecho que ese
+preset dejara de fallar en `featured` sin que nadie hubiera construido esa composición real, el mismo
+defecto que este slice existe para no repetir.
+
+**ESTO NO DESTRABA NINGÚN THEME, y hay que decirlo con todas las letras.**
+`temasCompletos(PRESETS)` (`lib/config/themes.ts`) devuelve, ANTES y DESPUÉS de este slice, exactamente
+`['ARRANQUE']` — afirmado por el test ya existente `'HOY ninguno de los cinco themes del diseño valida
+completo, y ARRANQUE sí'`, que no se tocó y sigue en verde. Lo que cambia es el MENSAJE que
+`validarPreset` da para `featured`: antes "no declara variantes en el REGISTRY" (rama "sin slot");
+ahora "esa clave no existe (claves de `featured`: cuadricula)" (rama "clave inválida") — porque NINGUNO
+de los cinco presets pide `cuadricula`: piden `tabla` (PLIEGO), `grilla` (CORTE/PATIO/VITRINA) o
+`mosaico` (VETA), y ninguna de esas tres composiciones está construida. Es **PLOMERÍA NECESARIA** —sin
+ella las variantes de `featured` no tienen dónde declararse cuando se construyan— **NO desbloqueo del
+programa de themes.**
+
+**`trustBadges` QUEDA AFUERA, decisión del owner.** `grep -n "trustBadges" lib/config/themes.ts`
+muestra que la banda aparece en los mapas de `esquemas`/`orden` de los cinco presets, CERO veces en un
+mapa `variantes`. Declararle un slot en `VARIANTES_ESTRUCTURALES` sin que ningún preset lo consuma
+sería CAPACIDAD MUERTA — la simetría con `featured` no es razón para abrirlo. Cuando un theme pida una
+variante de `trustBadges`, entra con su clave real en el mismo commit que la construye.
+
+**NO SE ASCENDIÓ `featured` A `SeccionKey`.** Habría regalado un `ocultable` — un toggle de
+visibilidad que HOY no existe: `featured` se renderiza incondicionalmente en la home, gateada sólo por
+su posición en `content.orden` (la tabla `BANDAS` que `app/(storefront)/page.tsx` recorre). Fabricar
+esa capacidad no era parte de lo pedido.
+
+**NI DISPATCHER NI COMPONENTE TOCADOS.** `FeaturedProducts.tsx` no cambió una línea — el precedente es
+`brandStory` (`TEMAS-P2-BRANDSTORY-1`): abrir el slot de datos no exige construir la forma alternativa
+que lo consumiría.
+
+**EL COMENTARIO DE CABECERA DE `themes.ts` ESTABA VENCIDO, y se corrigió SÓLO lo falso.** Afirmaba
+"hoy sólo `hero` y `presentaciones` declaran `variantes`" y que `brandStory` "no tiene slot" — falso
+desde `TEMAS-P2-BRANDSTORY-1` (ya en `main`; `REGISTRY.brandStory.variantes` existe, verificado
+leyendo el REGISTRY). Se corrigieron las frases puntuales en CUATRO sitios del archivo —la cabecera, la
+introducción a los cinco themes del catálogo, y los dos comentarios de `ARRANQUE` sobre `brandStory`—
+sin reescribir ningún bloque completo. La nota histórica que queda dentro de la cabecera no afirma con
+certeza CUÁNDO se desalineó (las dos ramas —`TEMAS-PRESET-DATO-1` y `TEMAS-P2-BRANDSTORY-1`— se
+autorearon con poco más de 18 minutos de diferencia el 2026-09-11 (20:54:20 y 21:12:54,
+respectivamente), medido con `git log -1 --format="%ai"` sobre cada commit; no se afirma más de lo que
+esa medición sostiene).
+
+**Gate: capa 1 (`npm test`), verde: 1136/1136** (medido en este slice). El piso citado por la entrada
+anterior de este archivo (`LEDGER-ESCRITOR-MERGEADO-1`, más arriba) era **1125/1125**; la diferencia
+—11— son las pruebas nuevas de este slice: 8 en `lib/config/site-content-defaults.test.ts`
+(`resolverVariantesBandas` + `VARIANTES_ESTRUCTURALES` + el cableado en `resolverSiteContent`), 3 en
+`lib/config/themes.test.ts` (`featured·cuadricula` pasa, `featured·<inválida>` sigue fallando, y el
+merge quirúrgico enruta a `variantesBandas` sin crear una clave huérfana). `npm run typecheck`
+(`tsc --noEmit`): 0 errores.
+
+**BYTE-IDÉNTICO, afirmado.** `resolverSiteContent({}).variantesBandas` da `{}` — sin fila de
+`SiteContent`, `featured` cae a su canónica `cuadricula` sin que nada lo muestre distinto, porque
+`FeaturedProducts.tsx` no lee esta meta todavía (test: `'variantesBandas: sin nada guardado → mapa
+VACÍO (byte-idéntico...)'`).
+
+**Sin schema de Prisma, sin migración, sin bytes de cliente** (`customer_bytes.changed=false` —
+`FeaturedProducts.tsx` no cambió, y el único consumidor nuevo de `variantesBandas`/
+`VARIANTES_ESTRUCTURALES` es `mergePresetEnContent`, que corre desde un runbook fuera del panel; ningún
+render del storefront ni del panel cambia con este diff), **sin contrato cross-repo.** Toca DOS
+archivos nombrados EXPLÍCITAMENTE en la lista Tier 1 de `CLAUDE.md`
+(`lib/config/site-content-defaults.ts`, `lib/config/site-content-schema.ts`) — **`AWAITING_APPROVAL`**:
+no se mergea sin el visto bueno del owner sobre ESTE diff en concreto, distinto del visto bueno ya dado
+a la medición de la etapa 1.

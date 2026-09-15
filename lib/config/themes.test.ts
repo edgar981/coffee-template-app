@@ -9,7 +9,8 @@ import {
 // EL PRESET DE THEME COMO DATO (§ programa THEMES, pieza 0(d)). Puro; capa 1. Afirma:
 //  1) los cinco themes del diseño son INCOMPLETOS hoy (la validación los rechaza y nombra qué falta);
 //  2) el preset de ARRANQUE (sólo capacidades reales) es el ÚNICO que valida completo;
-//  3) el merge quirúrgico preserva todo texto/imagen del dueño, tocando sólo tema/esquemas/orden/variante;
+//  3) el merge quirúrgico preserva todo texto/imagen del dueño, tocando sólo tema/esquemas/orden/
+//     variantesBandas/variante;
 //  4) aplicar el mismo preset dos veces es idempotente.
 //
 // LOS TESTS DE PRESET NOMBRAN QUÉ FALTA, NUNCA CUÁNTO (TEMAS-PRESET-DATO-CIERRE-1). Un conteo escrito
@@ -50,23 +51,56 @@ test('la validación FALLA y NOMBRA la clave: una variante inexistente se rechaz
 });
 
 test('una variante pedida sobre una sección SIN slot se nombra distinto de una clave inexistente', () => {
-  // `brandStory` ganó su slot (TEMAS-P2-BRANDSTORY-1, ya en main: `variantes: { claves: ['columnas'] }`)
-  // y dejó de servir para este caso — hoy `brandStory·hilo` es "clave inexistente", no "sin slot".
-  // `featured` sigue siendo el caso vivo: ni siquiera es una `SeccionKey` (es una banda ESTRUCTURAL,
-  // § site-content-defaults.ts), así que el REGISTRY no tiene entrada para nombrarle variantes.
-  // (`subscriptionCTA` también calificaría — SÍ es `SeccionKey` pero no declara `variantes` — pero
-  // `featured` es el caso más claro.) La distinción SIGUE siendo comprobable.
+  // `brandStory` ganó su slot (TEMAS-P2-BRANDSTORY-1) y `featured` ganó el suyo
+  // (TEMAS-P1-FEATURED-VARIANTES-1, `VARIANTES_ESTRUCTURALES` — el gemelo del REGISTRY para bandas
+  // ESTRUCTURALES sin sección): ninguno de los dos sirve ya para este caso — hoy `brandStory·hilo` y
+  // `featured·tabla` son "clave inexistente", no "sin slot". `subscriptionCTA` es el caso vivo que
+  // queda: SÍ es `SeccionKey` pero no declara `variantes` en absoluto, así que ninguna de las DOS
+  // tablas (REGISTRY / VARIANTES_ESTRUCTURALES) tiene entrada para nombrarle variantes.
   const faltantes = validarPreset(PLIEGO);
+  const subscriptionCTA = faltantes.find((f) => f.detalle.includes('subscriptionCTA·ticket'));
+  assert.ok(subscriptionCTA, JSON.stringify(faltantes));
+  assert.ok(subscriptionCTA!.detalle.includes('no declara variantes'));
+  assert.ok(!subscriptionCTA!.detalle.includes('esa clave no existe'));
+
+  // featured·tabla, en cambio, SÍ tiene slot hoy (VARIANTES_ESTRUCTURALES.featured declara
+  // `cuadricula`) — se nombra distinto, aunque `tabla` no sea esa clave.
   const featured = faltantes.find((f) => f.detalle.includes('featured·tabla'));
   assert.ok(featured, JSON.stringify(faltantes));
-  assert.ok(featured!.detalle.includes('no declara variantes en el REGISTRY'));
-  assert.ok(!featured!.detalle.includes('esa clave no existe'));
+  assert.ok(featured!.detalle.includes('esa clave no existe'));
+  assert.ok(!featured!.detalle.includes('no declara variantes'));
 
-  // hero·marquesina, en cambio, SÍ tiene slot (hero declara `curtina`/`ficha`) — se nombra distinto.
+  // hero·marquesina, igual: SÍ tiene slot (hero declara `curtina`/`ficha`) — se nombra distinto.
   const hero = faltantes.find((f) => f.detalle.includes('hero·marquesina'));
   assert.ok(hero, JSON.stringify(faltantes));
   assert.ok(hero!.detalle.includes('esa clave no existe'));
-  assert.ok(!hero!.detalle.includes('no declara variantes en el REGISTRY'));
+  assert.ok(!hero!.detalle.includes('no declara variantes'));
+});
+
+test('featured: la clave ESTRUCTURAL canónica ("cuadricula") SÍ pasa la validación — no genera faltante de variante', () => {
+  // Preset sintético: ARRANQUE (el único completo hoy) + un pedido de featured con su canónica.
+  // Nada más cambia, así que si esto sigue completo, el slot de featured es real.
+  const sintetico: PresetTema = {
+    ...ARRANQUE,
+    clave: 'SINTETICO-FEATURED-OK',
+    variantes: { ...ARRANQUE.variantes, featured: 'cuadricula' },
+  };
+  const faltantes = validarPreset(sintetico);
+  assert.deepEqual(faltantes.filter((f) => f.regla === 'variante'), []);
+  assert.ok(presetCompleto(sintetico));
+});
+
+test('featured: una clave ESTRUCTURAL inexistente sigue fallando, y la nombra', () => {
+  const sintetico: PresetTema = {
+    ...ARRANQUE,
+    clave: 'SINTETICO-FEATURED-BAD',
+    variantes: { ...ARRANQUE.variantes, featured: 'una-que-no-existe' },
+  };
+  const faltantes = validarPreset(sintetico).filter((f) => f.regla === 'variante');
+  assert.equal(faltantes.length, 1, JSON.stringify(faltantes));
+  assert.ok(faltantes[0].detalle.includes('featured·una-que-no-existe'));
+  assert.ok(faltantes[0].detalle.includes('esa clave no existe'));
+  assert.ok(faltantes[0].detalle.includes('cuadricula')); // nombra el set cerrado real
 });
 
 test('la validación ACEPTA lo que sí existe — el preset de ARRANQUE es el único aplicable hoy', () => {
@@ -197,11 +231,12 @@ test('el merge quirúrgico PRESERVA cada campo de texto/imagen del hero, y sólo
 test('el merge quirúrgico NO TOCA una sección que el preset no menciona (brandStory queda byte-idéntica)', () => {
   const antes = CONTENT_CON_DATOS_DEL_DUEÑO;
   const despues = mergePresetEnContent(antes, ARRANQUE);
-  // ARRANQUE no pide nada de brandStory (no tiene slot) — su objeto entero debe ser el MISMO.
+  // ARRANQUE SÍ tiene dónde pedir brandStory (declara `variantes`, § TEMAS-P2-BRANDSTORY-1) pero no
+  // le pide nada — su objeto entero debe ser el MISMO.
   assert.deepEqual(despues.brandStory, antes.brandStory);
 });
 
-test('el merge quirúrgico REEMPLAZA tema/esquemas/orden enteros (son composición, no contenido)', () => {
+test('el merge quirúrgico REEMPLAZA tema/esquemas/orden/variantesBandas enteros (son composición, no contenido)', () => {
   const antes = CONTENT_CON_DATOS_DEL_DUEÑO;
   const despues = mergePresetEnContent(antes, ARRANQUE);
   assert.deepEqual(despues.tema, {
@@ -213,6 +248,18 @@ test('el merge quirúrgico REEMPLAZA tema/esquemas/orden enteros (son composici�
   });
   assert.deepEqual(despues.esquemas, { featured: 'crema', subscriptionCTA: 'acento' });
   assert.deepEqual(despues.orden, ARRANQUE.orden);
+  // ARRANQUE no pide ninguna banda ESTRUCTURAL (no menciona `featured` en `variantes`) → vacío.
+  assert.deepEqual(despues.variantesBandas, {});
+});
+
+test('el merge quirúrgico manda una banda ESTRUCTURAL (`featured`) a `variantesBandas`, NUNCA a una clave huérfana `content.featured`', () => {
+  // PLIEGO pide featured·tabla (inválido hoy, pero mergePresetEnContent NO valida — § su docstring).
+  // Antes de este slice, esto habría creado `despues.featured = { variante: 'tabla' }`: una clave
+  // que ningún loader ni componente lee (FeaturedProducts.tsx no tiene dispatcher, § VARIANTES_
+  // ESTRUCTURALES). Ahora va al mapa, como `esquemas`.
+  const despues = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, PLIEGO);
+  assert.equal(despues.featured, undefined, 'no debe crear una clave huérfana `content.featured`');
+  assert.deepEqual(despues.variantesBandas, { featured: 'tabla' });
 });
 
 test('la canónica de fuentePar/forma ("editorial"/"suave") se normaliza a null al escribir — como el picker', () => {

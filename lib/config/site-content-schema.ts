@@ -197,6 +197,18 @@ const ordenEditableSchema = z.array(z.enum(BANDA_IDS)).refine(
   { message: 'orden: una banda no puede repetirse' },
 );
 
+// META de VARIANTES DE BANDAS ESTRUCTURALES (TEMAS-P1-FEATURED-VARIANTES-1): el mapa bandaId→variante
+// para bandas SIN sección (`featured`, hoy la única — § `VARIANTES_ESTRUCTURALES`,
+// site-content-defaults.ts). Gemela de `esquemasEditableSchema`: NO es una sección —tampoco pasa por
+// el flujo borrador/publicar—; se declara acá SÓLO para que un futuro write general no la STRIPPEE en
+// silencio (§ #65-B). HOY no hay editor que la escriba —la escribe `aplicarPreset` (§ themes.ts),
+// directo sobre el `content` publicado, como `esquemas`/`orden`—. `z.record` acepta cualquier
+// bandaId (key-agnóstico, como `resolverVariantesBandas`); el VALOR es `z.string()` sin acotar al set
+// cerrado por-banda —igual que `hero.variante`/`brandStory.variante`/`presentaciones.variante`
+// arriba—, porque ese set es POR-BANDA (`VARIANTES_ESTRUCTURALES[banda].claves`) y el loader SOFT
+// (`resolverVariantesBandas`) ya es la red que descarta lo que no encaje.
+const variantesBandasEditableSchema = z.record(z.string(), z.string());
+
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   brandStory: brandStoryEditableSchema.optional(),
@@ -211,6 +223,7 @@ export const siteContentEditableSchema = z.object({
   paginas: paginasEditableSchema.optional(),
   esquemas: esquemasEditableSchema.optional(),
   orden: ordenEditableSchema.optional(),
+  variantesBandas: variantesBandasEditableSchema.optional(),
 });
 
 export type SiteContentEditable = z.infer<typeof siteContentEditableSchema>;
