@@ -3248,3 +3248,106 @@ pura no se tocó, sólo se relocalizó).
 Regla: § Pagos en línea (Wompi) (CLAUDE.md) · `lib/pagos/llaves-pasarela.ts`
 (`verificarLlavePasarelaCoherente`, `PREFIJO_LLAVE_PASARELA_PRODUCTIVA`) · `instrumentation.ts`
 (el gancho, sin lógica propia).
+
+## 2026-09-15 — El enum de métodos del panel dice, en su comentario, por qué Wompi no entra ahí (`WOMPI-NO-ES-METODO-DEL-PANEL-1`)
+
+**LA DECISIÓN DEL OWNER, con su razón, va ahora pegada al literal — no sólo acá.** Palabras del owner:
+*«ese enum es "los métodos que el dueño configura en su panel", y Wompi es toggle de despliegue: el dueño
+no lo enciende ni lo apaga.»* `MetodoPagoTipo` / `METODOS_PAGO_ORDEN` (`lib/checkout/metodos-pago.ts`) son
+los CINCO tipos que el dueño agrega o quita desde Configuración (§ PAGOS-METODOS-MODELO-1); Wompi se
+activa al configurar el DESPLIEGUE de un cliente — una decisión de una sola vez, al contratar, que sigue
+el mismo patrón que el mark, los íconos y el tema (§ El código compartido no NACE siendo Nayoli/demo,
+CLAUDE.md) — no una fila que el dueño prenda o apague. Sumarlo a esta lista le daría un toggle de panel
+que la pasarela no tiene.
+
+**LA MITAD QUE EVITA LA CONFUSIÓN: el otro enum, el de MAYÚSCULAS, SÍ va a ganar `WOMPI`.** `MetodoPago`
+(`packages/core/prisma/schema.prisma:381-388`, el de `Payment`) responde una pregunta distinta — cómo
+llegó la plata, no qué le ofrezco a elegir al cliente — y es el que un slice futuro (f) extiende con
+`ALTER TYPE "MetodoPago" ADD VALUE 'WOMPI'` (ya anotado en el comentario del propio schema y en
+`PASARELA-DECISIONES-LEDGER-1`, abajo). El comentario nuevo nombra ese enum y su archivo explícitamente,
+para que quien busque dónde poner Wompi encuentre el lugar correcto en vez de sólo una negativa.
+
+**POR QUÉ ESTO ATERRIZA ANTES DEL WIDGET, con las palabras del owner:** *«es exactamente lo que alguien
+va a hacer "obvio" en (b), y el comentario es lo que va a leer»*. El ledger no está abierto cuando
+alguien edita un enum — sólo el comentario junto al literal lo está.
+
+**CERO CAMBIO DE LÓGICA — verificado por diff, no supuesto.** `git diff main -- lib/checkout/metodos-pago.ts`
+toca sólo líneas `//` y `/** */`; ningún carácter de código se movió. `metodoPagoTipoSchema`,
+`METODOS_PAGO_ORDEN`, `TIPOS`, `CAMPOS_METODO` y las cinco funciones de descripción quedan byte-idénticas.
+
+**RE-MEDIDO, y el spec se equivocaba en un número menor.** El spec decía "162 líneas" para
+`lib/checkout/metodos-pago.ts`; medido antes de tocar nada (`wc -l`), el archivo tenía **163**. El test
+co-ubicado (`lib/checkout/metodos-pago.test.ts`) sí tenía los **21** casos que el spec citaba (`grep -c`
+sobre `test(`/`it(`). Sin impacto en ningún juicio de esta tanda — se anota porque el spec pedía
+re-medir, no confiar.
+
+**DESVIACIÓN MEDIDA: el `observed-report` que el spec cita (`WOMPI-CHECKOUT-INTENTOS-CENSO-1`) NO
+EXISTE** — ni en este archivo (`grep -n "WOMPI-CHECKOUT-INTENTOS-CENSO-1" DECISIONS.md` da cero) ni en
+`git log --all --oneline --grep`. La decisión del owner y la distinción entre los dos enums que este
+asiento documenta están sostenidas, en cambio, por asientos que SÍ existen: `PASARELA-DECISIONES-LEDGER-1`
+(2026-09-13, línea 826), `WOMPI-WEBHOOK-RUTA-1` (2026-09-14, línea 1833 — la frase «el enum de hoy … no
+tiene WOMPI … del owner, pendiente») y `WOMPI-CREADOR-DE-INTENTOS-1` (2026-09-15, línea 2931). Se anota
+como discrepancia contra el spec, sin bloquear el trabajo: el argumento del comentario no depende del
+censo citado, que no se pudo localizar.
+
+**GATE, medido en el árbol final de la rama.** `npm test` → **1162/1162**, piso previo idéntico —
+ninguna aserción se movió, sólo comentarios. `npm run test:integracion` → **193/193**, piso previo
+idéntico. `npx tsc --noEmit` → 0 errores. `npm run build` no se corrió: el spec no lo pide y el diff no
+toca nada que el build interprete distinto de la fuente ya compilada (comentarios, sin JSX).
+
+**Tier 1 / AWAITING_APPROVAL.** `lib/checkout/metodos-pago.ts` está en la lista Tier 1 por NOMBRE y por
+el subárbol `lib/checkout/`. No se mergea sin el visto bueno explícito del owner sobre este diff.
+
+Regla: § Pagos en línea (Wompi) — cobros automáticos (CLAUDE.md); este asiento no reescribe esa sección,
+documenta por qué el enum de métodos del checkout no es su lugar.
+
+## 2026-09-15 — El paréntesis de `MetodoPagoTipo` tenía dos ejemplos falsos: se queda sólo el verdadero (`WOMPI-COMENTARIO-MINUSCULAS-FIX-1`)
+
+**LA FRASE FALSA, MEDIDA ANTES DE TOCAR NADA.** El comentario que `WOMPI-NO-ES-METODO-DEL-PANEL-1` dejó
+junto a `MetodoPagoTipo` (`lib/checkout/metodos-pago.ts`) decía que Wompi se enciende al configurar el
+despliegue de un cliente *«junto con el resto de lo que ya sigue ese patrón — el mark, los íconos, el
+tema»*. De los tres ejemplos, sólo uno era cierto:
+
+- **el mark — VERDADERO.** `NEXT_PUBLIC_STOREFRONT_MARK` (`lib/config/storefront-marca.ts:21`) es una
+  variable de DESPLIEGUE: se activa al configurar el deploy del cliente, igual que Wompi se propone.
+- **el tema — FALSO, es el patrón OPUESTO.** `content.tema` es una clave de `SiteContentData`
+  (`lib/config/site-content-defaults.ts:690`) — **dato que el dueño edita desde el panel** (`/admin/tienda`,
+  § La PALETA — SiteContent, borrador/publicar), exactamente la clase de toggle-de-panel que el propio
+  párrafo dice que Wompi NO es.
+- **los íconos — FALSO, no existe.** `grep -rn "NEXT_PUBLIC.*ICON\|ICON.*despliegue\|icono.*despliegue" --include="*.ts" --include="*.tsx" .` (fuera de `node_modules`) da **cero resultados**: no hay ningún
+  toggle de despliegue de íconos en el repo. El § Identidad documenta los íconos como assets estáticos
+  por-despliegue (se reemplazan los archivos en `public/`), no como una env var — un mecanismo distinto
+  del que el paréntesis afirmaba.
+
+**POR QUÉ IMPORTA (el argumento del owner):** un comentario cuyo único trabajo es que le crean pierde su
+autoridad con UN ejemplo falso que el lector puede verificar — no resta un tercio del argumento, se lo
+lleva entero, porque ya no se puede confiar en el resto sin re-verificarlo.
+
+**LA CORRECCIÓN, mínima.** Se dejó el ejemplo verdadero y se borraron los dos falsos:
+
+```
+- junto con el resto de lo que ya sigue ese patrón — el mark, los íconos, el tema
++ el mismo patrón que ya sigue el mark
+```
+
+Se conservó el paréntesis (no se borró entero): sigue aportando que ésta es una decisión de una sola vez,
+al contratar, con un precedente real en el código — el argumento se sostiene igual de bien con un solo
+ejemplo verdadero que con tres, dos de ellos falsos.
+
+**CERO CAMBIO FUERA DEL COMENTARIO — verificado por diff.** `git diff -- lib/checkout/metodos-pago.ts`
+toca sólo dos líneas `//`, dentro del mismo párrafo que `WOMPI-NO-ES-METODO-DEL-PANEL-1` ya había escrito.
+`MetodoPagoTipo`, `METODOS_PAGO_ORDEN`, `metodoPagoTipoSchema` y el resto del archivo quedan
+byte-idénticos.
+
+**GATE: LOS DOS CARRILES, verdes.** `npm test` — 1162/1162 (capa 1, sin base). `npm run test:integracion`
+— 193/193 (Postgres efímero). `npx tsc --noEmit` limpio. Ninguno debía moverse por un cambio de comentario,
+y ninguno se movió.
+
+**LO QUE QUEDA SIN TOCAR, a propósito:** la sección `WOMPI-NO-ES-METODO-DEL-PANEL-1` de este mismo
+`DECISIONS.md` (arriba) repite el mismo trío falso en su propia prosa ("el mismo patrón que el mark, los
+íconos y el tema"). No se corrige acá — el alcance de este slice es la frase del CÓDIGO, no reescribir un
+asiento anterior del ledger. Queda anotado como seguimiento abierto.
+
+**Tier 1 / AWAITING_APPROVAL — por la RAMA, no por este commit.** El diff propio de este slice es un
+cambio de comentario en un archivo Tier 1 (`lib/checkout/metodos-pago.ts`, por nombre y por el subárbol
+`lib/checkout/`). No se mergea sin el visto bueno explícito del owner sobre el conjunto de la rama.

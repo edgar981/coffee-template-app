@@ -5,12 +5,22 @@ import { opcionTransferencia } from './transferencia';
 // Los MÉTODOS de pago del checkout son una LISTA (§ PAGOS-METODOS-MODELO-1, revierte el modelo de
 // "4 booleanos fijos + un número compartido"): el dueño AGREGA/QUITA métodos desde Configuración, y
 // cada uno lleva SU PROPIA config. Set CERRADO de CINCO tipos — no un motor de métodos arbitrarios
-// (§ backlog: Wompi/pasarelas). ESTAR EN LA LISTA ES OFRECERLO: un solo eje, sin encendido/apagado
-// aparte. La regla "¿se muestra, y con qué?" vive ACÁ (puro, capa 1): un método aparece si está en
-// la lista *y* tiene sus datos completos. El checkout guarda el tipo como string libre en la orden
-// — `derivarCondicionPago` sólo distingue el id EXACTO `'efectivo'` (§ el guardián de esa cadena);
-// quitar un método no huerfaniza órdenes viejas.
+// (por qué Wompi no es uno de ellos: el comentario junto a `MetodoPagoTipo`, abajo). ESTAR EN LA
+// LISTA ES OFRECERLO: un solo eje, sin encendido/apagado aparte. La regla "¿se muestra, y con qué?"
+// vive ACÁ (puro, capa 1): un método aparece si está en la lista *y* tiene sus datos completos. El
+// checkout guarda el tipo como string libre en la orden — `derivarCondicionPago` sólo distingue el
+// id EXACTO `'efectivo'` (§ el guardián de esa cadena); quitar un método no huerfaniza órdenes viejas.
 
+// ESTE TIPO ES «LOS MÉTODOS QUE EL DUEÑO CONFIGURA EN SU PANEL» — no todo lo que puede pagar una
+// orden. Wompi NO entra acá, y no por olvido: es un toggle de DESPLIEGUE, no de panel. Se enciende
+// al configurar el despliegue de un cliente (una decisión que se toma una vez, al contratar — el
+// mismo patrón que ya sigue el mark), no algo que el dueño
+// prenda o apague desde Configuración como hace con Nequi o Bre-B. Sumar `'wompi'` a esta lista le
+// daría un toggle de panel que la pasarela no tiene.
+//
+// `WOMPI` SÍ va a vivir en el OTRO enum de método de pago — `MetodoPago` en
+// `packages/core/prisma/schema.prisma` (el de mayúsculas, el de `Payment`) — porque ahí la pregunta
+// es otra: no «qué le ofrezco a elegir al cliente», sino «cómo llegó la plata». Ahí es donde entra.
 export type MetodoPagoTipo = 'nequi' | 'daviplata' | 'breb' | 'transferencia' | 'efectivo';
 
 /** El orden CANÓNICO — el que ve el cliente en el checkout, y el que devuelve `parseMetodosPago`
