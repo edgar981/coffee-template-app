@@ -286,6 +286,29 @@ ganar nada, y una cadena que se testea con mocks no prueba que escriba.** El
 2026-08-04 la suite pura reportaba 143/143 mientras la cadena de la campana no
 escribía una sola fila; eso no fue un test mentiroso, fue una capa faltante.
 
+### El GATE de un slice corre LOS DOS CARRILES — `npm run gate`
+
+**Decisión del owner (`GATE-DOS-CARRILES-1`, 2026-09-15): «un test que el gate no
+corre es documentación».** El carril de integración —`npm run test:integracion`,
+Postgres efímero— es un script SEPARADO desde que nació (`e3fa241`, 2026-08-04), y
+durante **seis semanas ningún gate de slice lo ejecutó**: son hoy **27 archivos y
+191 tests** (concurrencia de inventario, cadenas del motor, cobro sincronizado,
+despacho concurrente, dinero pagado por cliente…) que corrían en verde sin que un
+solo cierre de slice los mirara — el mismo modo de falla que un test fuera de un
+glob o una guarda sin invocar, a escala de 191.
+
+**El gate completo de un slice es `npm run gate`**, no `npm test` solo: primero
+`npm test` (capa 1, sin base, ~4 s), después `npm run test:integracion` (capa 2,
+Postgres efímero, § El carril de integración abajo). Falla el conjunto si falla
+cualquiera de los dos, y el rápido va PRIMERO — si `npm test` iba a fallar, que
+falle en segundos y no después de levantar un cluster.
+
+**PRERREQUISITO, y no es gratis: el carril de integración necesita los binarios de
+Postgres (`initdb`, `pg_ctl`) en el PATH** (`brew install postgresql@14`). Sin
+ellos, `npm run gate` de CUALQUIER slice se pone ROJO — y ese rojo NO es un slice
+roto, es la máquina sin el prerrequisito; el mensaje del propio script
+(`scripts/test-integracion.sh`) ya trae el remedio.
+
 ### `tsc` NO es la capa que envía — para JSX/TSX la autoridad es `next build`
 
 `tsc --noEmit` y `next build` usan **parsers distintos**: tsc el de TypeScript, el build
@@ -350,6 +373,11 @@ diagnóstico y el defecto vivo en producción entre dos merges.
 ```bash
 npm run test:integracion
 ```
+
+**Este carril YA NO se corre suelto en el gate de un slice — `npm run gate`
+(§ El GATE de un slice corre LOS DOS CARRILES, arriba) lo corre siempre, en
+segundo lugar.** Sigue existiendo como script propio para iterar sobre él sin
+esperar a `npm test`.
 
 **Prerequisito único: Postgres instalado localmente** (`brew install postgresql@14`).
 El script lo dice con esa línea si falta. No hace falta Docker, ni credenciales,
