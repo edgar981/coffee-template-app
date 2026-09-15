@@ -1,0 +1,10 @@
+:root{
+/* Elevation is used sparingly: only the cart drawer and sticky header lift. */
+--shadow-none:none;
+--shadow-header:0 1px 0 rgba(16,36,7,.08);
+--shadow-drawer:-24px 0 64px rgba(16,36,7,.18);
+--shadow-tile:0 12px 32px rgba(16,36,7,.10);
+--shadow-image:0 18px 44px rgba(16,36,7,.14);
+--overlay-scrim:rgba(16,36,7,.55);
+--blur-header:blur(6px); /* @kind other */
+}

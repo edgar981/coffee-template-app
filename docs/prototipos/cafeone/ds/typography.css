@@ -1,0 +1,43 @@
+:root{
+--font-serif:"Roboto Serif",ui-serif,Georgia,serif;
+--font-sans:"Hanken Grotesk",ui-sans-serif,system-ui,sans-serif;
+--font-display:var(--font-serif);
+--font-heading:var(--font-serif);
+--font-body:var(--font-sans);
+--font-ui:var(--font-sans);
+
+/* Display serif — hero lockups, section titles */
+--text-display-xl:clamp(72px,9vw,168px);
+--text-display-l:clamp(48px,5vw,76px);
+--text-display-m:40px;
+--text-h1:38px;
+--text-h2:32px;
+--text-h3:26px;
+--text-h4:21px;
+--text-h5:18px;
+
+/* Sans body + UI */
+--text-body-l:18px;
+--text-body-m:16px;
+--text-body-s:14px;
+--text-body-xs:13px;
+--text-label:12px;
+
+--leading-display:0.98;
+--leading-heading:1.14;
+--leading-body:1.5;
+--leading-tight:1.25;
+
+--weight-light:300;
+--weight-regular:400;
+--weight-medium:500;
+--weight-semibold:600;
+--weight-bold:700;
+
+/* Uppercase sans, widely tracked — nav, buttons, eyebrows */
+--tracking-eyebrow:.11em;
+--tracking-button:.085em;
+--tracking-nav:.06em;
+--tracking-normal:0;
+--tracking-display:-.015em;
+}

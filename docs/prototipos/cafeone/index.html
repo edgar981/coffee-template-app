@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Finca San Adolfo — Café de origen, San Adolfo, Huila</title>
+<meta name="description" content="Café de un solo origen cultivado y secado a mano en San Adolfo, Huila. Molido o en grano, en 250 g y 500 g.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 fill=%27%23102407%27/%3E%3Ctext x=%2716%27 y=%2723%27 text-anchor=%27middle%27 fill=%27%23fdfbf7%27 font-family=%27Georgia,serif%27 font-size=%2720%27%3EF%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="assets/css/tokens.css">
+<link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Saltar al contenido</a>
+
+<!-- ============================================================ HEADER -->
+<header class="site-header">
+  <div class="header-bar">
+    <a class="wordmark" href="index.html">
+      Finca San Adolfo
+      <small>San Adolfo · Huila</small>
+    </a>
+
+    <nav class="nav" aria-label="Principal">
+      <div class="nav-item">
+        <button class="nav-link" data-menu aria-expanded="false" aria-controls="mega-cafe">
+          Nuestro café
+          <span class="caret" data-icon="chevron" data-icon-size="16"></span>
+        </button>
+        <span class="badge">Cosecha 2026</span>
+      </div>
+      <div class="nav-item"><a class="nav-link" href="#historia">La finca</a></div>
+      <div class="nav-item"><a class="nav-link" href="#origen">Historia</a></div>
+      <div class="nav-item"><a class="nav-link" href="#contacto">Contacto</a></div>
+    </nav>
+
+    <div class="header-actions">
+      <span class="locale">Colombia (COP&nbsp;$) <span data-icon="chevron" data-icon-size="14"></span></span>
+
+      <div class="search-field hide-sm">
+        <form role="search"><label class="sr-only" for="q">Buscar</label>
+          <input id="q" type="search" placeholder="Buscar" autocomplete="off"></form>
+      </div>
+      <button class="icon-btn hide-sm" data-search-toggle aria-expanded="false" aria-label="Buscar" data-icon="search"></button>
+      <a class="icon-btn hide-sm" href="#contacto" aria-label="Mi cuenta" data-icon="user"></a>
+      <button class="icon-btn cart-btn" data-cart-open aria-label="Abrir el carrito" data-icon="cart">
+        <span class="badge badge--count cart-count" data-cart-count hidden>0</span>
+      </button>
+      <a class="btn btn--primary btn--sm hide-sm" href="producto.html">Comprar</a>
+      <button class="icon-btn hamburger" data-mobile-open aria-expanded="false"
+              aria-controls="mobile-nav" aria-label="Abrir el menú" data-icon="menu"></button>
+    </div>
+  </div>
+
+  <!-- Mega menu: full-width green panel, 24.5% intro / remainder -->
+  <div class="mega" id="mega-cafe">
+    <div class="mega-inner">
+      <div class="mega-intro">
+        <h2>Nuestro café <sup>(1 lote)</sup></h2>
+        <p>Un solo lote, recogido grano a grano entre marzo y junio en nuestras
+           laderas de San Adolfo. Lavado, secado al sol y empacado en la finca.</p>
+        <a class="btn btn--primary btn--md" href="producto.html">Ver producto</a>
+      </div>
+
+      <div class="mega-cols">
+        <div class="mega-col">
+          <p class="eyebrow eyebrow--light">Presentaciones</p>
+          <a class="menu-link" href="producto.html?p=Molido&t=250">Molido 250 g<span>$38.000 COP</span></a>
+          <a class="menu-link" href="producto.html?p=Molido&t=500">Molido 500 g<span>$68.000 COP</span></a>
+          <a class="menu-link" href="producto.html?p=Grano&t=250">En grano 250 g<span>$38.000 COP</span></a>
+          <a class="menu-link" href="producto.html?p=Grano&t=500">En grano 500 g<span>$68.000 COP</span></a>
+        </div>
+        <div class="mega-col">
+          <p class="eyebrow eyebrow--light">La finca</p>
+          <a class="menu-link" href="#historia">Nuestra historia</a>
+          <a class="menu-link" href="#origen">El origen</a>
+          <a class="menu-link" href="#contacto">Dónde estamos</a>
+        </div>
+        <!-- REPLACE: foto real de la finca para la tarjeta promocional -->
+        <a class="promo" href="#origen">
+          <img src="assets/img/farm-cherry-cluster.png" alt="Cerezas de café maduras en la rama" loading="lazy" width="512" height="754">
+          <h3>Origen San&nbsp;Adolfo</h3>
+          <span class="btn btn--primary btn--sm">Explorar</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ======================================================= MOBILE DRAWER -->
+<div class="mobile-nav" id="mobile-nav" role="dialog" aria-modal="true" aria-label="Menú">
+  <div class="mobile-nav-head">
+    <span class="wordmark">Finca San Adolfo</span>
+    <button class="icon-btn" data-mobile-close aria-label="Cerrar el menú" data-icon="x"></button>
+  </div>
+  <a class="m-link" style="--i:0" href="producto.html">Nuestro café</a>
+  <a class="m-link" style="--i:1" href="#historia">La finca</a>
+  <a class="m-link" style="--i:2" href="#origen">Historia</a>
+  <a class="m-link" style="--i:3" href="#contacto">Contacto</a>
+  <a class="m-link" style="--i:4" href="producto.html?p=Molido&t=250">Molido 250 g</a>
+  <a class="m-link" style="--i:5" href="producto.html?p=Molido&t=500">Molido 500 g</a>
+  <a class="m-link" style="--i:6" href="producto.html?p=Grano&t=250">En grano 250 g</a>
+  <a class="m-link" style="--i:7" href="producto.html?p=Grano&t=500">En grano 500 g</a>
+</div>
+
+<!-- =========================================================== SIDE RAIL -->
+<nav class="rail" aria-label="Redes sociales">
+  <a href="#contacto" aria-label="Facebook" data-icon="facebook" data-icon-size="18"></a>
+  <a href="#contacto" aria-label="X" data-icon="xSocial" data-icon-size="18"></a>
+  <a href="#contacto" aria-label="Pinterest" data-icon="pinterest" data-icon-size="18"></a>
+  <a href="#contacto" aria-label="Instagram" data-icon="instagram" data-icon-size="18"></a>
+  <a href="#contacto" aria-label="WhatsApp" data-icon="whatsapp" data-icon-size="18"></a>
+</nav>
+<button class="to-top" aria-label="Volver arriba" data-icon="arrowUp" data-icon-size="20"></button>
+
+<!-- ============================================================== CANVAS -->
+<div class="canvas">
+<main id="main">
+
+  <!-- ------------------------------------------------------------- HERO -->
+  <section class="hero" aria-label="Finca San Adolfo">
+    <div class="hero-media">
+      <video autoplay muted loop playsinline
+             poster="assets/img/hero-poster.jpg"
+             aria-label="Cerezas de café maduras en la rama, cubiertas de rocío">
+        <source src="assets/video/hero.mp4" type="video/mp4">
+      </video>
+    </div>
+
+    <div class="hero-inner">
+      <p class="hero-caption">
+        Hay algo profundamente meditativo en preparar un café
+        cultivado a 1.600&nbsp;msnm.
+      </p>
+      <div class="scroll-cue"><i></i><span>Desliza</span></div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------- MARQUEE -->
+  <section class="marquee" aria-label="Café fresco de San Adolfo">
+    <!-- REPLACE: foto o video del secado / tostión -->
+    <div class="marquee-bg">
+      <img src="assets/img/farm-sorting-tarp.png" alt="" loading="lazy" width="502" height="757">
+    </div>
+
+    <div class="marquee-track" data-marquee aria-hidden="true">
+      <span>Café fresco de San Adolfo — Huila — Colombia —&nbsp;</span>
+      <span>Café fresco de San Adolfo — Huila — Colombia —&nbsp;</span>
+    </div>
+
+    <!-- REPLACE: packshot real de la bolsa -->
+    <div class="marquee-card" data-marquee-card>
+      <img src="assets/img/product-bag-card.jpg" alt="Bolsa de café Finca San Adolfo" loading="lazy" width="755" height="1002">
+    </div>
+  </section>
+
+  <!-- ------------------------------------------- PRODUCTO INSIGNIA -->
+  <section class="section spotlight" id="producto" aria-labelledby="spot-h">
+    <div class="shell">
+      <div class="spotlight-grid">
+
+        <div class="spotlight-head" data-reveal>
+          <p class="eyebrow">Nuestro café</p>
+          <h2 class="display-l" id="spot-h">Un solo origen,<br>cuidado de principio<br>a fin.</h2>
+        </div>
+
+        <div class="spotlight-stage" data-reveal>
+          <div class="bag-card" data-stage>
+            <span class="badge">Cosecha 2026</span>
+            <!-- REPLACE: 4 mockups de bolsa, uno por presentación -->
+            <img src="assets/img/product-bag-card.jpg" alt="Bolsa de café molido de 250 g" width="755" height="1002">
+            <span class="bag-label" data-stage-label>Molido · 250 g</span>
+          </div>
+          <div class="stage-nav">
+            <button type="button" data-stage-prev aria-label="Presentación anterior" data-icon="arrowLeft" data-icon-size="18"></button>
+            <button type="button" data-stage-next aria-label="Presentación siguiente" data-icon="arrowRight" data-icon-size="18"></button>
+          </div>
+        </div>
+
+        <div class="spotlight-buy" data-reveal>
+          <h3 class="h3">Café Finca San Adolfo</h3>
+          <p class="muted" style="margin-top:var(--space-3)">
+            Cultivamos entre 1.500 y 1.800&nbsp;msnm, recogemos solo el grano maduro
+            y lo secamos al sol sobre marquesinas. Una taza limpia y dulce.
+          </p>
+
+          <div class="notes">
+            <span class="note-chip">Panela</span>
+            <span class="note-chip">Frutos rojos</span>
+            <span class="note-chip">Chocolate</span>
+          </div>
+
+          <div class="variant">
+            <span class="eyebrow" id="lbl-pres">Presentación</span>
+            <div class="opts" role="group" aria-labelledby="lbl-pres" data-opts="grind">
+              <button type="button" class="opt" aria-pressed="true" data-value="Molido">Molido</button>
+              <button type="button" class="opt" aria-pressed="false" data-value="En grano">En grano</button>
+            </div>
+          </div>
+
+          <div class="variant">
+            <span class="eyebrow" id="lbl-size">Tamaño</span>
+            <div class="opts" role="group" aria-labelledby="lbl-size" data-opts="size">
+              <button type="button" class="opt" aria-pressed="true" data-value="250 g">250 g</button>
+              <button type="button" class="opt" aria-pressed="false" data-value="500 g">500 g</button>
+            </div>
+          </div>
+
+          <p class="price-row">
+            <span class="price" data-price>$38.000</span>
+            <small>COP · impuestos incluidos</small>
+          </p>
+
+          <button type="button" class="btn btn--primary btn--block" data-add>
+            Agregar al carrito
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ----------------------------------------------------- PRESENTACIONES -->
+  <section class="section" id="presentaciones" aria-labelledby="pres-h">
+    <div class="shell">
+      <div class="pres-head" data-reveal>
+        <div>
+          <p class="eyebrow">Más de una forma de disfrutarlo</p>
+          <h2 class="display-l" id="pres-h" style="margin-top:var(--space-5)">Nuestro café.<br>4 presentaciones.</h2>
+        </div>
+        <a class="btn btn--primary" href="producto.html">Comprar</a>
+      </div>
+    </div>
+
+    <div class="pres-rail" data-rail role="group" aria-label="Presentaciones disponibles">
+      <!-- cards injected by home.js -->
+    </div>
+
+    <div class="shell">
+      <div class="car-nav">
+        <button type="button" data-rail-prev aria-label="Anterior" data-icon="arrowLeft" data-icon-size="20"></button>
+        <button type="button" data-rail-next aria-label="Siguiente" data-icon="arrowRight" data-icon-size="20"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- --------------------------------------------------------- HISTORIA -->
+  <section class="section historia" id="historia" aria-labelledby="hist-h">
+    <div class="shell">
+      <p class="eyebrow" style="text-align:center" data-reveal>Historia</p>
+      <h2 class="display-l" id="hist-h" data-reveal style="margin-top:var(--space-5)">Nacido de la tradición.</h2>
+
+      <div class="collage" data-collage>
+        <!-- REPLACE: paisaje de la finca -->
+        <figure><img src="assets/img/farm-cherries-branch.png" alt="Cafetal de la finca en San Adolfo" loading="lazy" width="510" height="769"></figure>
+        <!-- REPLACE: manos con cerezas -->
+        <figure><img src="assets/img/farm-hands-basin.png" alt="Manos llenas de cerezas de café" loading="lazy" width="506" height="766"></figure>
+        <!-- REPLACE: marquesinas de secado -->
+        <figure><img src="assets/img/farm-sorting-tarp.png" alt="Café en la marquesina de secado" loading="lazy" width="502" height="757"></figure>
+      </div>
+
+      <div class="historia-copy" data-reveal>
+        <p>
+          La finca es de la familia desde 1974. Tres generaciones han trabajado las
+          mismas laderas: sembramos, recogemos y beneficiamos nosotros mismos.
+          Nada sale de aquí sin haber pasado por nuestras manos.
+        </p>
+        <a class="btn btn--primary" href="#origen">Nuestra historia</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ----------------------------------------------------------- ORIGEN -->
+  <section class="section" id="origen" aria-labelledby="orig-h">
+    <div class="shell">
+      <div class="origen-grid">
+        <div class="origen-media" data-reveal-group>
+          <!-- REPLACE: preparación / pour-over -->
+          <figure><img src="assets/img/farm-cherry-cluster.png" alt="Cerezas maduras listas para la recolección" loading="lazy" width="512" height="754"></figure>
+          <!-- REPLACE: beneficiadero / marquesina -->
+          <figure><img src="assets/img/farm-cherries-branch.png" alt="Ramas cargadas de café en la finca" loading="lazy" width="510" height="769"></figure>
+        </div>
+
+        <div class="origen-copy" data-reveal>
+          <p class="eyebrow">El origen</p>
+          <h2 class="display-l" id="orig-h">Cultivado a mano en las montañas de San Adolfo, Huila.</h2>
+          <p class="lede">
+            San Adolfo está al sur del Huila, en el corredor del macizo. Recogemos
+            entre marzo y junio, fermentamos en tanque y secamos al sol hasta
+            llegar al punto. El lote se empaca completo, sin mezclas.
+          </p>
+
+          <dl class="spec-list">
+            <div><dt>Altitud</dt><dd>1.500 – 1.800 msnm</dd></div>
+            <div><dt>Variedad</dt><dd>Caturra y Colombia</dd></div>
+            <div><dt>Proceso</dt><dd>Lavado, secado al sol</dd></div>
+            <div><dt>Cosecha</dt><dd>Marzo – junio</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <div class="stats" data-stats data-reveal-group>
+        <p class="stat"><b data-count="1600" data-suffix="">0</b><span class="muted">msnm promedio</span></p>
+        <p class="stat"><b data-count="12" data-suffix="">0</b><span class="muted">hectáreas sembradas</span></p>
+        <p class="stat"><b data-count="52" data-suffix="">0</b><span class="muted">años de tradición</span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------- CTA STRIP -->
+  <section class="cta-strip" aria-label="Únete al club">
+    <!-- REPLACE: foto de barista / preparación -->
+    <img src="assets/img/farm-hands-basin.png" alt="" loading="lazy" data-parallax width="506" height="766">
+    <div class="cta-inner">
+      <a class="btn btn--onlight" href="#contacto">Únete al club</a>
+      <a class="btn btn--onlight" href="producto.html">Explorar</a>
+    </div>
+  </section>
+
+  <!-- ----------------------------------------------------------- FOOTER -->
+  <footer class="site-footer" id="contacto">
+    <div class="shell">
+      <p class="footer-mark">Finca San Adolfo</p>
+
+      <div class="footer-top">
+        <div>
+          <p class="tag">Más que una buena taza. Café de familia, desde el Huila para el mundo.</p>
+
+          <div class="newsletter">
+            <form novalidate>
+              <div class="nl-field">
+                <label class="sr-only" for="nl-email">Correo electrónico</label>
+                <input id="nl-email" type="email" required placeholder="Tu correo electrónico" autocomplete="email">
+                <button type="submit" aria-label="Suscribirme" data-icon="arrowRight" data-icon-size="20"></button>
+              </div>
+              <label class="nl-note">
+                <input type="checkbox" required>
+                <span>Al continuar aceptas nuestra <a href="#contacto">Política de Privacidad</a>.</span>
+              </label>
+            </form>
+            <p class="nl-done"><span class="tick"></span> ¡Gracias!</p>
+          </div>
+        </div>
+
+        <!-- REPLACE: mapa real (imagen estática o embed) centrado en San Adolfo, Huila -->
+        <div class="map-card">
+          <svg viewBox="0 0 640 360" role="img" aria-label="Mapa de San Adolfo, Huila, Colombia" style="width:100%;height:100%;min-height:300px;display:block">
+            <rect width="640" height="360" fill="#1a3410"/>
+            <g stroke="#26451b" stroke-width="1" fill="none">
+              <path d="M0 60 Q160 20 320 70 T640 40"/><path d="M0 130 Q170 95 330 140 T640 115"/>
+              <path d="M0 210 Q150 175 320 215 T640 190"/><path d="M0 290 Q180 255 340 295 T640 270"/>
+              <path d="M120 0 Q150 180 100 360"/><path d="M300 0 Q340 170 290 360"/><path d="M500 0 Q530 190 480 360"/>
+            </g>
+            <circle cx="320" cy="180" r="34" fill="#a70004" opacity=".18"/>
+            <circle cx="320" cy="180" r="6" fill="#a70004"/>
+            <text x="320" y="216" text-anchor="middle" fill="#fdfbf7"
+                  font-family="Roboto Serif, Georgia, serif" font-size="22">San Adolfo</text>
+          </svg>
+          <p class="map-cap">San Adolfo, Huila · 1° 41′ N, 76° 00′ O</p>
+        </div>
+      </div>
+
+      <div class="footer-cols">
+        <div>
+          <p class="eyebrow">Tienda</p>
+          <a href="producto.html?p=Molido&t=250">Molido 250 g</a>
+          <a href="producto.html?p=Molido&t=500">Molido 500 g</a>
+          <a href="producto.html?p=Grano&t=250">En grano 250 g</a>
+          <a href="producto.html?p=Grano&t=500">En grano 500 g</a>
+        </div>
+        <div>
+          <p class="eyebrow">Nosotros</p>
+          <a href="#historia">Historia</a>
+          <a href="#contacto">Instagram</a>
+          <a href="#contacto">Facebook</a>
+          <a href="#contacto">WhatsApp</a>
+          <a href="#contacto">Contacto</a>
+        </div>
+        <div>
+          <p class="eyebrow">Escríbenos</p>
+          <a href="mailto:hola@fincasanadolfo.co">hola@fincasanadolfo.co</a>
+          <a href="tel:+573000000000">+57 300 000 0000</a>
+          <a href="#contacto">Vereda El Carmen<br>San Adolfo, Huila</a>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <span>© 2026 Finca San Adolfo · San Adolfo, Huila, Colombia</span>
+        <span><a href="#contacto">Política de privacidad</a></span>
+        <span>Colombia (COP $)</span>
+      </div>
+    </div>
+  </footer>
+
+</main>
+</div><!-- /canvas -->
+
+<!-- ======================================================== CART DRAWER -->
+<div class="scrim"></div>
+<aside class="drawer" role="dialog" aria-modal="true" aria-label="Tu carrito" aria-hidden="true">
+  <div class="drawer-head">
+    <h2>Tu carrito</h2>
+    <button class="icon-btn" data-drawer-close aria-label="Cerrar el carrito" data-icon="x"></button>
+  </div>
+
+  <div class="drawer-body">
+    <div class="ship-prog">
+      <p data-ship-msg>Te faltan $120.000 para envío gratis</p>
+      <div class="ship-bar"><i data-ship-bar></i></div>
+    </div>
+    <div data-lines></div>
+  </div>
+
+  <div class="drawer-foot">
+    <div class="util-row">
+      <button type="button" data-util="util-note" aria-expanded="false" aria-controls="util-note">
+        <span data-icon="notePlus" data-icon-size="18"></span> Nota
+      </button>
+      <button type="button" data-util="util-discount" aria-expanded="false" aria-controls="util-discount">
+        <span data-icon="percent" data-icon-size="18"></span> Descuento
+      </button>
+    </div>
+    <div class="util-panel" id="util-note">
+      <label class="sr-only" for="note-f">Nota del pedido</label>
+      <textarea id="note-f" rows="3" placeholder="Instrucciones para el pedido"></textarea>
+    </div>
+    <div class="util-panel" id="util-discount">
+      <label class="sr-only" for="disc-f">Código de descuento</label>
+      <input id="disc-f" type="text" placeholder="Código de descuento">
+    </div>
+
+    <div class="totals">
+      <span>Total estimado</span>
+      <b data-total>$0 COP</b>
+    </div>
+    <p class="tax-note">Impuestos y envío se calculan al finalizar</p>
+
+    <div class="drawer-cta">
+      <button type="button" class="btn btn--primary" data-checkout>Finalizar compra</button>
+      <a class="btn btn--secondary" href="#" data-viewcart>Ver carrito</a>
+    </div>
+  </div>
+</aside>
+
+<script src="assets/js/app.js"></script>
+<script src="assets/js/home.js"></script>
+
+<!-- ==========================================================================
+     ASSETS REALES PENDIENTES  (todo lo demás es placeholder del design system)
+
+     1. assets/img/bag-molido-250.jpg   — mockup de bolsa
+     2. assets/img/bag-molido-500.jpg   — mockup de bolsa
+     3. assets/img/bag-grano-250.jpg    — mockup de bolsa
+     4. assets/img/bag-grano-500.jpg    — mockup de bolsa
+     5. assets/img/finca-paisaje.jpg    — paisaje de la finca (collage)
+     6. assets/img/finca-manos.jpg      — manos con cerezas (collage)
+     7. assets/img/finca-secado.jpg     — marquesinas de secado (collage)
+     8. assets/img/finca-pourover.jpg   — preparación en detalle (origen)
+     9. assets/img/finca-beneficio.jpg  — beneficiadero (origen)
+    10. assets/img/barista-strip.jpg    — franja ancha pre-footer (~2400×1200)
+    11. assets/img/mapa-san-adolfo.png  — mapa estático de San Adolfo, Huila
+
+     LISTO: assets/video/hero.mp4 + assets/img/hero-poster.jpg — metraje real.
+
+     Las imágenes que se usan hoy vienen del CAFEONE Design System y son
+     recortes de captura de pantalla: sirven para maqueta, no para producción.
+     ========================================================================== -->
+</body>
+</html>

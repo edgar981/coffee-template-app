@@ -1,0 +1,8 @@
+/* CAFEONE webfonts.
+   SUBSTITUTION NOTICE: the source screenshots were the only material available, so the
+   exact foundry fonts could not be identified or extracted. These are the closest
+   Google Fonts matches to the observed letterforms:
+     - headings/display: a sturdy, moderate-contrast transitional serif -> Roboto Serif
+     - body/UI:          a humanist geometric sans               -> Hanken Grotesk
+   Replace with the real files when available. */
+@import url("https://fonts.googleapis.com/css2?family=Roboto+Serif:opsz,wght@8..144,300;8..144,400;8..144,500;8..144,600;8..144,700&family=Hanken+Grotesk:wght@300;400;500;600;700&display=swap");

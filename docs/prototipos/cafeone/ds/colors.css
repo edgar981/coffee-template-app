@@ -1,0 +1,69 @@
+:root{
+/* --- Brand base --------------------------------------------------- */
+/* Deep roast green: full-bleed panels, mega-menu, footers, headings */
+--green-900:#102407;
+--green-800:#1a3410;
+--green-700:#26451b;
+--green-500:#4c6b3e;
+--green-300:#8d9c84;
+--green-200:#afb4a7;
+
+/* Signal red: every primary CTA, cart badge, progress fill */
+--red-700:#860b0c;
+--red-600:#a70004;
+--red-500:#af282b;
+--red-100:#f4dede;
+
+/* Amber: sale flags, active step markers, highlights */
+--amber-400:#f5b36a;
+--amber-300:#f7c38a;
+--amber-100:#fbe6cd;
+
+/* Warm neutrals: paper, cards, product tiles */
+--cream-50:#fdfbf7;
+--cream-100:#f2ece2;
+--cream-200:#e7e2dd;
+--cream-300:#ded0b7;
+--paper-50:#f0f0ec;
+--line-100:#f3f1ed;
+--line-200:#e9e8e0;
+--line-300:#d9d6cd;
+
+--ink-900:#12160f;
+--ink-700:#2b2f28;
+--ink-500:#5c6157;
+--ink-300:#9aa093;
+--white:#ffffff;
+
+/* --- Semantic aliases --------------------------------------------- */
+--surface-page:#fdfbf7;
+--surface-page-cool:#f0f0ec;
+--surface-card:#ffffff;
+--surface-tile:#e7e2dd;
+--surface-inverse:#102407;
+--surface-muted:#f2ece2;
+--surface-overlay:rgba(16,36,7,.72);
+
+--text-body:#2b2f28;
+--text-heading:#102407;
+--text-muted:#5c6157;
+--text-subtle:#9aa093;
+--text-on-inverse:#fdfbf7;
+--text-on-inverse-muted:#afb4a7;
+--text-on-accent:#fdfbf7;
+
+--border-hairline:#e9e8e0;
+--border-strong:#d9d6cd;
+--border-on-inverse:rgba(253,251,247,.22);
+
+--action-primary:#a70004;
+--action-primary-hover:#860b0c;
+--action-primary-active:#6e0a0b;
+--action-secondary-border:#a70004;
+--action-secondary-text:#a70004;
+
+--accent-sale:#f5b36a;
+--accent-step-active:#f5b36a;
+--accent-step-idle:#fbe6cd;
+--focus-ring:#a70004;
+}
