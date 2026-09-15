@@ -2454,3 +2454,88 @@ este slice: un diff Markdown no puede moverlo. Sin schema, sin migración, sin b
 contrato cross-repo. Merge Policy A aplica: mergea sin esperar aprobación.
 Regla: § Tier 1 — superficies protegidas (`CLAUDE.md`), sin tocar en este slice; y § Backlog técnico,
 "LA DOCTRINA GUARDA LA REGLA Y SU PORQUÉ, NUNCA UNA MEDICIÓN NI UN INVENTARIO", sin tocar en este slice.
+
+## 2026-09-15 · La prosa tapó un hueco del código: `approved: yes` autorizaba el MERGE, no sólo la
+escritura, y es la peor de cinco fallas silenciosas de la semana (`LEDGER-PROSA-TAPA-HUECO-1`)
+
+**QUÉ PASÓ.** El owner dictó una regla el 2026-09-14: *«todo slice que toque un path Tier 1 para en
+`AWAITING_APPROVAL`, tenga o no bytes visibles»*. Quedó asentada. Y no estaba corriendo: el clasificador
+de merge del orquestador —el que decide si un worker puede mergear solo— devolvía `MERGE_OK_BY_APPROVAL`
+en cuanto los paths que tripaban una condición Tier 1 estaban dentro del `touches:` aprobado por el
+owner. Un diff Tier 1 quedaba autorizado a mergear sin el gate del owner. La regla vivía en el ledger y
+no existía en el código.
+
+Se supo por `TEMAS-P1-FEATURED-VARIANTES-1` (2026-09-15, rama `slice/temas-p1-featured-variantes-1`,
+commit `7595057`, sobre `main` en `33a207a` — verificado en este slice con
+`git merge-base --is-ancestor 7595057 main`, que responde que NO: la rama existe y sigue sin mergear).
+Ese slice tocó dos archivos nombrados explícitamente en la lista Tier 1
+(`lib/config/site-content-defaults.ts`, `lib/config/site-content-schema.ts`) con aprobación explícita.
+Su worker no mergeó —porque el spec se lo prohibía en prosa— y reportó la contradicción entre el spec y
+el runner genérico, en vez de elegir uno de los dos en silencio.
+
+> UN WORKER QUE HUBIERA SEGUIDO LA MAQUINARIA EN VEZ DE LA PROSA, HABRÍA MERGEADO.
+
+**LA FRASE DEL ORQUESTADOR**, que el owner pidió que quedara literal:
+
+> LA PROSA TAPÓ UN HUECO DEL CÓDIGO EN VEZ DE DELATARLO.
+
+El spec decía `approved: yes` y, en el mismo aliento, «no lo mergees» — y el orquestador lo escribió
+creyendo que reforzaba. Era una contradicción: `approved: yes` es exactamente la autorización que el
+runner leía para permitir el merge. El párrafo hizo que el sistema se comportara bien por el motivo
+equivocado, y por eso el hueco sobrevivió a su propio slice: nada en el CÓDIGO paraba el merge, sólo una
+frase que alguien tenía que leer y obedecer.
+
+**POR QUÉ ES LA PEOR DE LA FAMILIA — cinco en una semana.** Las otras cuatro fallaban en silencio; ésta
+fallaba en silencio Y PARECÍA CUBIERTA. Las cinco, como hecho histórico de esa semana y no como
+inventario que mantener:
+
+1. la guarda escrita que nadie corrió — el comando de auto-verificación existía en texto y nadie lo
+   ejecutó;
+2. la lista Tier 1 vencida — corriendo en verde sobre un conjunto que ya había encogido;
+3. el disparador satisfecho por el REPOSITORIO en vez de por el MUNDO — «el webhook empezó a escribir
+   filas», con cero creadores reales detrás;
+4. la limpieza de ramas escrita en TRES lugares y sin correr — 45 ramas locales y 16 en origin, todas
+   mergeadas, y las 16 sirviendo un preview vivo;
+5. ésta — la regla existía en el ledger y no en el código, con una prosa encima que la hacía parecer
+   viva.
+
+Las cuatro primeras dejaban un rastro reconocible: algo escrito que nadie corrió, un número que nadie
+volvió a medir, un disparador que medía lo fácil en vez de lo real. Ésta no dejaba ese rastro — el spec
+DECÍA la regla correcta, el worker la OBEDECIÓ, y el resultado observable (sin merge) fue el correcto.
+El hueco sólo apareció porque alguien miró la MAQUINARIA detrás de esa obediencia, no el resultado que
+produjo esa vez.
+
+**LO QUE EL PROTOCOLO DEBE PREMIAR.** El hallazgo salió porque el worker reportó la CONTRADICCIÓN entre
+el spec y el runner, en vez de elegir uno. Un worker que resuelve una contradicción en silencio
+—siguiendo el spec, o siguiendo el runner— deja el hueco vivo en los dos casos: seguir el spec produce
+el comportamiento correcto una vez, sin delatar que el clasificador está roto; seguir el runner mergea
+un Tier 1 sin el gate del owner. Reportar la contradicción es la única de las tres salidas que no deja
+el hueco intacto. Se asienta como conducta a premiar en el protocolo, no como una anécdota del slice que
+la produjo.
+
+**EL ARREGLO, en una línea.** Un path Tier 1 declarado y aprobado ahora devuelve HOLD, con la nota de
+que ese HOLD ES el gate del owner y no un defecto del slice. La aprobación autoriza la ESCRITURA, nunca
+el MERGE. Un path que ninguna regla clasifica pero está declarado sigue pasando sin tripar nada. El
+arreglo vive en el repositorio del orquestador; este asiento registra la regla y su porqué, no el diff.
+
+**EL ENGANCHE CON LO YA ESCRITO.** § PRECONDICIÓN — verificación local sobre dev server reiniciado en
+frío (`CLAUDE.md`) ya tiene la frase que nombra esta familia de defectos: *«lo que está escrito no
+prueba lo que está corriendo»*. Ahí el artefacto rancio se ve como un bug del código nuevo; acá la
+prosa del spec se veía como una guarda del sistema. Es el mismo modo de falla, una capa más arriba: no
+fue el `.next` compilado lo que mintió, fue la PROSA. Y § Bases de datos (Neon) — qué es cada endpoint
+(`CLAUDE.md`) tiene el gemelo del otro lado: *«no sirve como evidencia del rol: el nombre de la rama, lo
+que diga `.env`, un comentario en el código, ni lo que alguien recuerde»* — un texto que describe el
+sistema no es el sistema, ni cuando el texto vive en un spec de orquestación en vez de en un comentario
+de código. `CLAUDE.md` ya nombraba esta familia como tres fuentes del mismo modo de falla —el
+artefacto, la base, y el spec (§ Config del contenido, «EL TRIPWIRE PROTEGE CONTRA LA INSTRUCCIÓN, NO
+SÓLO CONTRA EL TERRENO»)—; ésta es la misma tercera fuente, en su variante más cara: no un spec que
+contradice lo medido, sino un spec cuya prosa hace que el hueco del código deje de verse.
+
+Ni una línea de código de este repositorio se tocó — el hallazgo y el arreglo del clasificador viven en
+el orquestador. Sin gate de test/build por instrucción explícita del spec: un solo archivo de texto,
+sin schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false` — nadie que no sea quien
+lee `DECISIONS.md` ve este diff), sin contrato cross-repo declarado por este slice (lo que se arregla es
+código del orquestador, fuera de este repositorio). Merge Policy A aplica: mergea sin esperar
+aprobación.
+Regla: § PRECONDICIÓN y § Bases de datos (Neon) — qué es cada endpoint (`CLAUDE.md`), citadas, sin
+tocar en este slice.
