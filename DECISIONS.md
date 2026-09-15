@@ -2061,3 +2061,82 @@ Markdown puro y no puede mover ese número) y `npx tsc --noEmit` en **0**. Sin s
 sin bytes de cliente (`customer_bytes.changed=false` — nadie que no sea quien lee `CLAUDE.md`/
 `DECISIONS.md` ve este diff), sin contrato cross-repo. Merge Policy A aplica.
 Regla: § Pagos en línea (Wompi) — cobros automáticos (`CLAUDE.md`).
+
+## 2026-09-15 · Un escritor MERGEADO no es un escritor que ESCRIBE — el disparador del barrido se
+dio por cumplido sin medirlo (`LEDGER-ESCRITOR-MERGEADO-1`)
+
+**QUÉ PASÓ.** El orquestador despachó el censo para diseñar el barrido de intentos de pago vencidos
+(`BARRIDO-INTENTOS-VENCIDOS-FORMA-1`) con esta premisa en su §0: *«su disparador ya se cumplió: el
+webhook empezó a escribir filas»*. El worker de ese slice la MIDIÓ antes de heredarla —grepeó el
+repositorio buscando quién crea un `PaymentIntent`— y reportó la desviación contra su propio spec en
+vez de construir sobre ella (figura `HALLAZGO-WEBHOOK-SIN-CREADOR`, 2026-09-14): **cero creadores**.
+Este slice repitió esa medición de forma independiente, sobre el mismo `main`, y da el mismo resultado
+— ver la figura abajo. `db.paymentIntent.findUnique({ where: { reference } })` devuelve siempre `null`
+contra una base real; el `updateMany` del webhook (`app/api/webhooks/wompi/route.ts:172` y siguientes)
+nunca se ha ejecutado con efecto.
+
+**DE DÓNDE SALIÓ EL ERROR — no es del spec más reciente, es una cadena de TRES asientos.**
+`PAYMENTINTENT-SCHEMA-1` (línea 1472 de este archivo) escribió el disparador bien, como un hecho del
+MUNDO: *«el barrido entra cuando el webhook empiece a escribir filas»*. `WOMPI-WEBHOOK-RUTA-1` (línea
+1923-1927), el mismo día en que esa ruta se mergeó, lo dio por satisfecho: *«ESTE SLICE es ese momento:
+el `updateMany` de arriba SÍ escribe filas de `PaymentIntent`… `WOMPI-WEBHOOK-DISPARA-BARRIDO-1` — el
+barrido … queda DESBLOQUEADO por su propio disparador documentado»* — confundiendo que el CÓDIGO que
+escribiría ya existe con que la ESCRITURA está ocurriendo; el `updateMany` sólo corre si `findUnique`
+encuentra una fila, y sin creador nunca la encuentra. `DOCTRINA-DEMO-SANDBOX-1` (línea 2041, el asiento
+inmediatamente anterior a éste) heredó esa lectura sin re-verificarla, en su tabla de frases-vencidas de
+`CLAUDE.md`: *«su disparador … ya se cumplió (`WOMPI-WEBHOOK-DISPARA-BARRIDO-1`, coined en
+`WOMPI-WEBHOOK-RUTA-1`)»*. El spec de `BARRIDO-INTENTOS-VENCIDOS-FORMA-1` heredó esa misma frase una
+tercera vez. Los tres asientos son honestos sobre lo que CADA UNO tenía delante — ninguno mintió—, pero
+ninguno de los tres, hasta el worker que finalmente grepeó, volvió a mirar el mundo antes de repetir la
+frase.
+
+**LA REGLA, en las palabras del owner, literales:**
+
+> UN ESCRITOR MERGEADO NO ES UN ESCRITOR QUE ESCRIBE — gemela de *una guarda escrita no es una guarda
+> corrida*.
+>
+> El disparador redactado como hecho del mundo se satisface con el MUNDO, no con el REPOSITORIO.
+
+**Procedimiento que se desprende, para que la frase no quede bonita y sin uso:** un disparador
+redactado como HECHO (*«cuando empiecen a aparecer filas»*, *«cuando un cliente real lo pida»*,
+*«cuando el tráfico lo exija»*) no se cierra con `git log` ni con que la rama que lo haría posible
+mergeó — se cierra MIDIENDO el hecho: una consulta contra datos reales, un grep de creadores, un conteo
+de filas. Un merge prueba que el código que lo haría posible EXISTE; no prueba que el hecho OCURRIÓ.
+
+**LA MISMA FAMILIA QUE YA VIVE EN `CLAUDE.md`.** No es un principio nuevo: es la tercera rama de una
+familia que el propio repositorio ya nombra como *"lo escrito no prueba lo que corre"* — § PRECONDICIÓN
+(el artefacto compilado no prueba lo que el servidor ejecuta) y § Bases de datos (el nombre de la rama
+no prueba el ROL de la base). La rama SPEC de esa misma familia —una instrucción o una premisa escrita
+que el diagnóstico contradice— vive en `CLAUDE.md` § EL TRIPWIRE PROTEGE CONTRA LA INSTRUCCIÓN, NO SÓLO
+CONTRA EL TERRENO, y hoy documenta **DOS** casos previos, no tres: el spec de C1 que asumía "un repeater
+de EXACTAMENTE 2 ítems" (§ Presentaciones 2-4, la línea que nombra la familia por primera vez) y el spec
+de C3 que asumía "6 pestañas byte-idéntico" (§ La taxonomía se DERIVA del catálogo, "EL TRIPWIRE ATRAPÓ
+UN SPEC FALSO"). **Éste es el TERCERO** — mismo conteo que citó el owner, verificado acá contra el
+propio texto de `CLAUDE.md` en vez de copiado de memoria: dentro de la rama SPEC, no del total de la
+familia (esa cifra, "atrapado CINCO veces", vive en `CLAUDE.md` línea 44 y suma las tres ramas juntas,
+no sólo ésta).
+
+**EL WORKER QUEDA CITADO.** `BARRIDO-INTENTOS-VENCIDOS-FORMA-1`, figura `HALLAZGO-WEBHOOK-SIN-CREADOR`
+(2026-09-14): reportó la desviación contra el spec que lo despachó en vez de heredar su premisa, y ese
+reporte es la razón por la que este asiento existe y por la que `WOMPI-WEBHOOK-DISPARA-BARRIDO-1` sigue
+abierto de verdad, no sólo "sin fecha" — su disparador NO se cumplió todavía, pese a lo que el asiento
+anterior daba por sentado.
+
+**QUÉ NO HACE ESTE ASIENTO.** No corrige la tabla de `DOCTRINA-DEMO-SANDBOX-1` (línea 2041) ni ninguna
+frase de `CLAUDE.md` — el ledger es append-only y la corrección es ESTE asiento, no una edición del
+anterior. No agrega ni cierra ningún ítem de backlog: `WOMPI-WEBHOOK-DISPARA-BARRIDO-1` sigue vivo,
+tal como quedó nombrado, sólo que su condición de cumplimiento se corrige acá — sigue esperando un
+creador de `PaymentIntent` que hoy no existe.
+
+**Figura:** `grep -rln "paymentIntent" --include="*.ts" --include="*.tsx" .` (excluyendo `node_modules`)
+→ dos archivos, `app/api/webhooks/wompi/route.ts` y su test; ningún `.create(` de `PaymentIntent` en
+ninguno de los dos ni en el resto del repositorio (`grep -rn "PaymentIntent" --include="*.ts"
+--include="*.tsx" --include="*.prisma" .`, sin match de creación fuera del schema y del propio módulo
+del webhook).
+
+Ni una línea de código se tocó. Sin gate de test/build — es un archivo de texto, y el piso de
+`npm test`/`tsc` de `DOCTRINA-DEMO-SANDBOX-1` (1125/1125, 0 errores) no lo mueve un diff Markdown. Sin
+schema, sin migración, sin bytes de cliente (`customer_bytes.changed=false` — nadie que no sea quien lee
+este archivo ve este diff), sin contrato cross-repo. Merge Policy A aplica.
+Regla: § EL TRIPWIRE PROTEGE CONTRA LA INSTRUCCIÓN, NO SÓLO CONTRA EL TERRENO (`CLAUDE.md`), sin tocar
+en este slice.
