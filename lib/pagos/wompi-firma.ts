@@ -1,5 +1,19 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
+// ── LAS DOS FIRMAS DE WOMPI ───────────────────────────────────────────────────
+//
+// Este archivo cubre las DOS mitades de "wompi-firma": la que VERIFICAMOS (un
+// evento que Wompi nos manda) y la que CALCULAMOS (una petición que NOSOTROS
+// iniciamos). Son fórmulas y secretos DISTINTOS — `WOMPI_EVENTS_SECRET` para la
+// primera, `WOMPI_INTEGRITY_SECRET` para la segunda — y confundirlas es el error
+// clásico que el nombre de cada variable ya existe para evitar
+// (`WOMPI-REGLAS-IMPLEMENTACION-1`, DECISIONS.md). Hasta `WOMPI-CREADOR-DE-
+// INTENTOS-1` este archivo sólo tenía la primera mitad — verificado con grep
+// antes de tocarlo: cero referencias a `WOMPI_INTEGRITY_SECRET` en todo el repo.
+//
+// Las dos comparten el mismo principio de diseño: NUNCA leen `process.env` — el
+// secreto entra como parámetro, y es la RUTA quien decide de dónde sale.
+//
 // ── EL VERIFICADOR DE FIRMA DE EVENTOS DE WOMPI ──────────────────────────────
 //
 // Primera pieza del webhook: pura, sin ruta, sin base, sin `process.env`. Verifica
@@ -129,4 +143,54 @@ export function verificarFirmaWompi(
   const checksumCalculado = createHash('sha256').update(cadena).digest('hex');
 
   return compararConstante(checksumCalculado, checksumCuerpo);
+}
+
+// ── LA CONVERSIÓN A CENTAVOS — un `Float` que se multiplica por 100 NO SIEMPRE
+// da el entero que parece ────────────────────────────────────────────────────
+//
+// Wompi cobra un ENTERO de centavos (`amount_in_cents`). Nuestros montos son
+// `Float` en pesos (`Order.total`, `PaymentIntent.monto_esperado`) — y en COP no
+// hay fracción de peso, pero el TIPO sí la permite, y ahí está la trampa: medido
+// en Node, `4.35 * 100 === 434.99999999999994` y `19.99 * 100 ===
+// 1998.9999999999998`. Truncar (`Math.trunc`, `| 0`) esos valores da 434/1998 —
+// UN CENTAVO MENOS que el monto real. El error de coma flotante de un monto real
+// es de una fracción minúscula de centavo, muy por debajo del umbral de 0.5 que
+// `Math.round` necesita para cambiar de dirección, así que redondear es la
+// corrección exacta, nunca una aproximación.
+export function pesosACentavos(pesos: number): number {
+  return Math.round(pesos * 100);
+}
+
+// ── LA FIRMA DE INTEGRIDAD — la petición que NOSOTROS iniciamos ─────────────
+//
+// A diferencia de `verificarFirmaWompi` (que verifica un evento que WOMPI nos
+// manda), ésta CALCULA la firma de una petición que iniciamos nosotros — crear
+// una transacción. Fórmula medida contra el sandbox y verificada byte a byte
+// contra el ejemplo de la doc (a diferencia del ejemplo de checksum de eventos,
+// que NO reproduce — ver arriba): `WOMPI-REGLAS-IMPLEMENTACION-1`, DECISIONS.md.
+//
+//   sha256_hex(reference + amount_in_cents + currency + <secreto de integridad>)
+//
+// Concatenación PLANA, sin separadores, en ese orden — mismo patrón que el
+// verificador de eventos. `amount_in_cents` participa como STRING decimal (sin
+// separadores de miles, sin signo), igual que cualquier otro campo de la cadena.
+/**
+ * @param reference La referencia del `PaymentIntent` (formato "<numero_orden>:
+ *   <cuid de la fila>" — ver el comentario del modelo en schema.prisma).
+ * @param amountInCents El monto en CENTAVOS — el mismo valor, calculado UNA sola
+ *   vez, que se guarda como snapshot y se le manda a Wompi (`pesosACentavos`
+ *   arriba). Pasar dos cálculos distintos del mismo monto es cómo la firma
+ *   termina describiendo un cobro que no es el que se registra.
+ * @param currency El código de moneda ISO tal como lo espera Wompi (`'COP'`).
+ * @param secretoIntegridad El secreto de integridad de la cuenta Wompi. Entra
+ *   como parámetro — este módulo no lee `process.env`.
+ */
+export function firmarIntegridadWompi(
+  reference: string,
+  amountInCents: number,
+  currency: string,
+  secretoIntegridad: string,
+): string {
+  const cadena = reference + String(amountInCents) + currency + secretoIntegridad;
+  return createHash('sha256').update(cadena).digest('hex');
 }
