@@ -1,0 +1,9 @@
+:root{
+--ease-out:cubic-bezier(.22,.61,.36,1); /* @kind other */
+--ease-in-out:cubic-bezier(.45,.05,.55,.95); /* @kind other */
+--duration-fast:120ms; /* @kind other */
+--duration-base:220ms; /* @kind other */
+--duration-slow:420ms; /* @kind other */
+--duration-drawer:360ms; /* @kind other */
+--transition-color:color var(--duration-fast) var(--ease-out),background-color var(--duration-fast) var(--ease-out),border-color var(--duration-fast) var(--ease-out);
+}

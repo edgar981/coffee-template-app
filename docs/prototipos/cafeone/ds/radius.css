@@ -1,0 +1,13 @@
+:root{
+/* The theme is squared-off for interface chrome and softly rounded for imagery. */
+--radius-none:0px;
+--radius-xs:2px;
+--radius-sm:4px;
+--radius-md:8px;
+--radius-lg:12px;
+--radius-image:16px;
+--radius-tile:20px;
+--radius-pill:999px;
+--radius-button:0px;
+--radius-card:0px;
+}

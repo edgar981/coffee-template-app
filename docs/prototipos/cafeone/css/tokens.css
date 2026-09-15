@@ -1,0 +1,219 @@
+/* ==========================================================================
+   CAFEONE Design System — tokens
+   Sourced verbatim from "CAFEONE Design System.zip" (tokens/*.css).
+   Do not hand-edit values here; re-copy from the design system instead.
+   Site-specific additions live at the bottom under "SITE ADDITIONS".
+   ========================================================================== */
+
+/* --- tokens/fonts.css ------------------------------------------------ */
+/* CAFEONE webfonts.
+   SUBSTITUTION NOTICE: the source screenshots were the only material available, so the
+   exact foundry fonts could not be identified or extracted. These are the closest
+   Google Fonts matches to the observed letterforms:
+     - headings/display: a sturdy, moderate-contrast transitional serif -> Roboto Serif
+     - body/UI:          a humanist geometric sans               -> Hanken Grotesk
+   Replace with the real files when available. */
+@import url("https://fonts.googleapis.com/css2?family=Roboto+Serif:opsz,wght@8..144,300;8..144,400;8..144,500;8..144,600;8..144,700&family=Hanken+Grotesk:wght@300;400;500;600;700&display=swap");
+
+/* --- tokens/colors.css ------------------------------------------------ */
+:root{
+/* --- Brand base --------------------------------------------------- */
+/* Deep roast green: full-bleed panels, mega-menu, footers, headings */
+--green-900:#102407;
+--green-800:#1a3410;
+--green-700:#26451b;
+--green-500:#4c6b3e;
+--green-300:#8d9c84;
+--green-200:#afb4a7;
+
+/* Signal red: every primary CTA, cart badge, progress fill */
+--red-700:#860b0c;
+--red-600:#a70004;
+--red-500:#af282b;
+--red-100:#f4dede;
+
+/* Amber: sale flags, active step markers, highlights */
+--amber-400:#f5b36a;
+--amber-300:#f7c38a;
+--amber-100:#fbe6cd;
+
+/* Warm neutrals: paper, cards, product tiles */
+--cream-50:#fdfbf7;
+--cream-100:#f2ece2;
+--cream-200:#e7e2dd;
+--cream-300:#ded0b7;
+--paper-50:#f0f0ec;
+--line-100:#f3f1ed;
+--line-200:#e9e8e0;
+--line-300:#d9d6cd;
+
+--ink-900:#12160f;
+--ink-700:#2b2f28;
+--ink-500:#5c6157;
+--ink-300:#9aa093;
+--white:#ffffff;
+
+/* --- Semantic aliases --------------------------------------------- */
+--surface-page:#fdfbf7;
+--surface-page-cool:#f0f0ec;
+--surface-card:#ffffff;
+--surface-tile:#e7e2dd;
+--surface-inverse:#102407;
+--surface-muted:#f2ece2;
+--surface-overlay:rgba(16,36,7,.72);
+
+--text-body:#2b2f28;
+--text-heading:#102407;
+--text-muted:#5c6157;
+--text-subtle:#9aa093;
+--text-on-inverse:#fdfbf7;
+--text-on-inverse-muted:#afb4a7;
+--text-on-accent:#fdfbf7;
+
+--border-hairline:#e9e8e0;
+--border-strong:#d9d6cd;
+--border-on-inverse:rgba(253,251,247,.22);
+
+--action-primary:#a70004;
+--action-primary-hover:#860b0c;
+--action-primary-active:#6e0a0b;
+--action-secondary-border:#a70004;
+--action-secondary-text:#a70004;
+
+--accent-sale:#f5b36a;
+--accent-step-active:#f5b36a;
+--accent-step-idle:#fbe6cd;
+--focus-ring:#a70004;
+}
+
+/* --- tokens/typography.css ------------------------------------------------ */
+:root{
+--font-serif:"Roboto Serif",ui-serif,Georgia,serif;
+--font-sans:"Hanken Grotesk",ui-sans-serif,system-ui,sans-serif;
+--font-display:var(--font-serif);
+--font-heading:var(--font-serif);
+--font-body:var(--font-sans);
+--font-ui:var(--font-sans);
+
+/* Display serif — hero lockups, section titles */
+--text-display-xl:clamp(72px,9vw,168px);
+--text-display-l:clamp(48px,5vw,76px);
+--text-display-m:40px;
+--text-h1:38px;
+--text-h2:32px;
+--text-h3:26px;
+--text-h4:21px;
+--text-h5:18px;
+
+/* Sans body + UI */
+--text-body-l:18px;
+--text-body-m:16px;
+--text-body-s:14px;
+--text-body-xs:13px;
+--text-label:12px;
+
+--leading-display:0.98;
+--leading-heading:1.14;
+--leading-body:1.5;
+--leading-tight:1.25;
+
+--weight-light:300;
+--weight-regular:400;
+--weight-medium:500;
+--weight-semibold:600;
+--weight-bold:700;
+
+/* Uppercase sans, widely tracked — nav, buttons, eyebrows */
+--tracking-eyebrow:.11em;
+--tracking-button:.085em;
+--tracking-nav:.06em;
+--tracking-normal:0;
+--tracking-display:-.015em;
+}
+
+/* --- tokens/spacing.css ------------------------------------------------ */
+:root{
+--space-1:4px;
+--space-2:8px;
+--space-3:12px;
+--space-4:16px;
+--space-5:20px;
+--space-6:24px;
+--space-8:32px;
+--space-10:40px;
+--space-12:48px;
+--space-16:64px;
+--space-20:80px;
+--space-24:96px;
+--space-32:128px;
+
+--header-height:118px;
+--page-gutter:32px;
+--section-y:96px;
+--drawer-width:880px;
+--drawer-pad:32px;
+--button-pad-y:18px;
+--button-pad-x:28px;
+--content-max:1440px;
+}
+
+/* --- tokens/radius.css ------------------------------------------------ */
+:root{
+/* The theme is squared-off for interface chrome and softly rounded for imagery. */
+--radius-none:0px;
+--radius-xs:2px;
+--radius-sm:4px;
+--radius-md:8px;
+--radius-lg:12px;
+--radius-image:16px;
+--radius-tile:20px;
+--radius-pill:999px;
+--radius-button:0px;
+--radius-card:0px;
+}
+
+/* --- tokens/elevation.css ------------------------------------------------ */
+:root{
+/* Elevation is used sparingly: only the cart drawer and sticky header lift. */
+--shadow-none:none;
+--shadow-header:0 1px 0 rgba(16,36,7,.08);
+--shadow-drawer:-24px 0 64px rgba(16,36,7,.18);
+--shadow-tile:0 12px 32px rgba(16,36,7,.10);
+--shadow-image:0 18px 44px rgba(16,36,7,.14);
+--overlay-scrim:rgba(16,36,7,.55);
+--blur-header:blur(6px); /* @kind other */
+}
+
+/* --- tokens/motion.css ------------------------------------------------ */
+:root{
+--ease-out:cubic-bezier(.22,.61,.36,1); /* @kind other */
+--ease-in-out:cubic-bezier(.45,.05,.55,.95); /* @kind other */
+--duration-fast:120ms; /* @kind other */
+--duration-base:220ms; /* @kind other */
+--duration-slow:420ms; /* @kind other */
+--duration-drawer:360ms; /* @kind other */
+--transition-color:color var(--duration-fast) var(--ease-out),background-color var(--duration-fast) var(--ease-out),border-color var(--duration-fast) var(--ease-out);
+}
+
+/* --- SITE ADDITIONS -------------------------------------------------------
+   Values the design system does not define, needed for this build.
+   Every one is derived from an existing DS token where possible.
+   -------------------------------------------------------------------------- */
+:root{
+  /* Page frame: the canvas floats on a near-black body. Not in the DS —
+     added per the build brief. Radius is --radius-image (16px) rounded to 14px. */
+  --bg-body:#0e0e0c;
+  --frame-gap:12px;
+  --frame-radius:14px;
+
+  /* Colombian market money + locale label */
+  --currency-label:"Colombia (COP $)";
+
+  /* Scroll-reveal easing. The DS mandates one curve everywhere. */
+  --ease-reveal:var(--ease-out);
+  --duration-reveal:600ms;
+
+  /* Text protection gradient over farm photography (readme: "Protection"). */
+  --protect-grad:linear-gradient(to bottom,rgba(16,36,7,.12) 0%,rgba(16,36,7,.42) 100%);
+  --protect-grad-strong:linear-gradient(to bottom,rgba(16,36,7,.34) 0%,rgba(16,36,7,.62) 100%);
+}
