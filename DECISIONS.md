@@ -3134,3 +3134,55 @@ ningún archivo Tier 1 listado en CLAUDE.md — ninguno de los dos es un archivo
 `lib/pagos/wompi-firma.ts`, `app/api/checkout/route.ts`) y que ya cerró como AWAITING_APPROVAL sin el visto
 bueno del owner sobre ESE diff. Mergear esta rama a `main` mergearía también aquel diff todavía sin
 aprobar. No se mergea nada hasta que el owner dé el visto bueno explícito sobre el conjunto.
+
+## 2026-09-15 — El enum de métodos del panel dice, en su comentario, por qué Wompi no entra ahí (`WOMPI-NO-ES-METODO-DEL-PANEL-1`)
+
+**LA DECISIÓN DEL OWNER, con su razón, va ahora pegada al literal — no sólo acá.** Palabras del owner:
+*«ese enum es "los métodos que el dueño configura en su panel", y Wompi es toggle de despliegue: el dueño
+no lo enciende ni lo apaga.»* `MetodoPagoTipo` / `METODOS_PAGO_ORDEN` (`lib/checkout/metodos-pago.ts`) son
+los CINCO tipos que el dueño agrega o quita desde Configuración (§ PAGOS-METODOS-MODELO-1); Wompi se
+activa al configurar el DESPLIEGUE de un cliente — una decisión de una sola vez, al contratar, que sigue
+el mismo patrón que el mark, los íconos y el tema (§ El código compartido no NACE siendo Nayoli/demo,
+CLAUDE.md) — no una fila que el dueño prenda o apague. Sumarlo a esta lista le daría un toggle de panel
+que la pasarela no tiene.
+
+**LA MITAD QUE EVITA LA CONFUSIÓN: el otro enum, el de MAYÚSCULAS, SÍ va a ganar `WOMPI`.** `MetodoPago`
+(`packages/core/prisma/schema.prisma:381-388`, el de `Payment`) responde una pregunta distinta — cómo
+llegó la plata, no qué le ofrezco a elegir al cliente — y es el que un slice futuro (f) extiende con
+`ALTER TYPE "MetodoPago" ADD VALUE 'WOMPI'` (ya anotado en el comentario del propio schema y en
+`PASARELA-DECISIONES-LEDGER-1`, abajo). El comentario nuevo nombra ese enum y su archivo explícitamente,
+para que quien busque dónde poner Wompi encuentre el lugar correcto en vez de sólo una negativa.
+
+**POR QUÉ ESTO ATERRIZA ANTES DEL WIDGET, con las palabras del owner:** *«es exactamente lo que alguien
+va a hacer "obvio" en (b), y el comentario es lo que va a leer»*. El ledger no está abierto cuando
+alguien edita un enum — sólo el comentario junto al literal lo está.
+
+**CERO CAMBIO DE LÓGICA — verificado por diff, no supuesto.** `git diff main -- lib/checkout/metodos-pago.ts`
+toca sólo líneas `//` y `/** */`; ningún carácter de código se movió. `metodoPagoTipoSchema`,
+`METODOS_PAGO_ORDEN`, `TIPOS`, `CAMPOS_METODO` y las cinco funciones de descripción quedan byte-idénticas.
+
+**RE-MEDIDO, y el spec se equivocaba en un número menor.** El spec decía "162 líneas" para
+`lib/checkout/metodos-pago.ts`; medido antes de tocar nada (`wc -l`), el archivo tenía **163**. El test
+co-ubicado (`lib/checkout/metodos-pago.test.ts`) sí tenía los **21** casos que el spec citaba (`grep -c`
+sobre `test(`/`it(`). Sin impacto en ningún juicio de esta tanda — se anota porque el spec pedía
+re-medir, no confiar.
+
+**DESVIACIÓN MEDIDA: el `observed-report` que el spec cita (`WOMPI-CHECKOUT-INTENTOS-CENSO-1`) NO
+EXISTE** — ni en este archivo (`grep -n "WOMPI-CHECKOUT-INTENTOS-CENSO-1" DECISIONS.md` da cero) ni en
+`git log --all --oneline --grep`. La decisión del owner y la distinción entre los dos enums que este
+asiento documenta están sostenidas, en cambio, por asientos que SÍ existen: `PASARELA-DECISIONES-LEDGER-1`
+(2026-09-13, línea 826), `WOMPI-WEBHOOK-RUTA-1` (2026-09-14, línea 1833 — la frase «el enum de hoy … no
+tiene WOMPI … del owner, pendiente») y `WOMPI-CREADOR-DE-INTENTOS-1` (2026-09-15, línea 2931). Se anota
+como discrepancia contra el spec, sin bloquear el trabajo: el argumento del comentario no depende del
+censo citado, que no se pudo localizar.
+
+**GATE, medido en el árbol final de la rama.** `npm test` → **1162/1162**, piso previo idéntico —
+ninguna aserción se movió, sólo comentarios. `npm run test:integracion` → **193/193**, piso previo
+idéntico. `npx tsc --noEmit` → 0 errores. `npm run build` no se corrió: el spec no lo pide y el diff no
+toca nada que el build interprete distinto de la fuente ya compilada (comentarios, sin JSX).
+
+**Tier 1 / AWAITING_APPROVAL.** `lib/checkout/metodos-pago.ts` está en la lista Tier 1 por NOMBRE y por
+el subárbol `lib/checkout/`. No se mergea sin el visto bueno explícito del owner sobre este diff.
+
+Regla: § Pagos en línea (Wompi) — cobros automáticos (CLAUDE.md); este asiento no reescribe esa sección,
+documenta por qué el enum de métodos del checkout no es su lugar.
