@@ -13,8 +13,8 @@ import { opcionTransferencia } from './transferencia';
 
 // ESTE TIPO ES «LOS MÉTODOS QUE EL DUEÑO CONFIGURA EN SU PANEL» — no todo lo que puede pagar una
 // orden. Wompi NO entra acá, y no por olvido: es un toggle de DESPLIEGUE, no de panel. Se enciende
-// al configurar el despliegue de un cliente (una decisión que se toma una vez, al contratar, junto
-// con el resto de lo que ya sigue ese patrón — el mark, los íconos, el tema), no algo que el dueño
+// al configurar el despliegue de un cliente (una decisión que se toma una vez, al contratar — el
+// mismo patrón que ya sigue el mark), no algo que el dueño
 // prenda o apague desde Configuración como hace con Nequi o Bre-B. Sumar `'wompi'` a esta lista le
 // daría un toggle de panel que la pasarela no tiene.
 //
