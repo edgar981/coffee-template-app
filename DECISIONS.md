@@ -2684,3 +2684,139 @@ mecanismo, reusado, no reinventado.
 Regla: § un canal único cubre lo que pasa POR ÉL. Un mecanismo nuevo que escribe por otra vía no hereda
 la guarda por vivir en el mismo archivo ni por usar la misma librería — la pregunta antes de confiar en
 una guarda no es «¿existe?» sino «¿este camino pasa por ella?».
+
+## 2026-09-15 — El hero acepta VIDEO como dato del cliente (`HERO-VIDEO-COMO-DATO-1`)
+
+Construcción sobre las decisiones ya tomadas por el owner en la etapa de censo (`HERO-MEDIA-DATO-
+FORMA-1`, sesión read-only aparte — su reporte no dejó commit en este repo, por diseño: una investigación
+OBSERVED no lleva ledger propio). Este slice no reabre esas cuatro preguntas; las ejecuta y documenta el
+porqué, porque una elección sin su razón se vuelve una convención que el próximo no entiende.
+
+**1 · PLANO + CLAMP, no un objeto anidado `media:{}`.** `imagenTipo`/`imagenPoster` son hermanos planos
+de `imagen` en `HeroContent` (como `variante`), no un objeto. Razón mecánica: `resolverSiteContent`
+itera `def.campos` como pares string de primer nivel; un objeto anidado exigiría una TERCERA rama de
+resolución sólo para el hero (hoy hay dos: `repeater` y `variantes`). Y `imagenTipo` va CLAMPADO —nunca
+un string libre— con un mecanismo NUEVO, `SeccionDef.escalares` (`Record<string, VariantesDef>`,
+resuelto en el loop de `resolverSiteContent` con el MISMO `resolverVariante` que ya clampaba `variante`,
+sin un `if (key === 'hero')` hardcodeado): es el SEGUNDO escalar clampado de una sección, y la razón de
+que no baste con un string suelto la dio el owner — el hero es `ocultable:false`, la ÚNICA portada del
+sitio, así que un valor corrupto ahí gobernaría lo primero que ve el visitante, y el resolver SOFT tiene
+que devolver SIEMPRE algo renderizable.
+
+**2 · `.refine()` en `heroEditableSchema`: el póster es obligatorio con video, y es la ÚNICA regla DURA
+de un schema SOFT a propósito en todo lo demás.** No exige que `imagenPoster` ESTÉ (un hero de imagen
+sigue pasando con todo vacío); exige que DOS campos sean COHERENTES entre sí, y sólo cuando el dueño
+eligió video. El porqué, del owner: el editor es HOY el único camino de escritura y garantiza el orden
+póster-antes-que-video por construcción, pero esa garantía deja de alcanzar el día que exista OTRO
+camino —un import, una corrección a mano, un runbook— y ESE día el `.refine()` sigue protegiendo.
+Confiar en "el editor siempre lo hace bien" es la misma apuesta que ya perdió el schema editable de
+Presentaciones (§ #65-B, CLAUDE.md): diez campos (`categoria1/2` + los slots 3-4) se perdían en
+silencio en cada guardado porque nadie los había declarado en el schema, congelado desde C1 mientras el
+modelo creció. `.refine()` en zod 4 mantiene el `ZodObject` (con sus checks) en vez de envolverlo en un
+`ZodEffects` distinto —medido contra la fuente instalada (`node_modules/zod`, v4.4.3) con un script de
+Node antes de escribir el cambio—, así que el test derivado `camposDelSchema` (que hace `.unwrap().shape`
+sobre `siteContentEditableSchema.shape.hero`) siguió viendo el hero sin tocar el helper: se verificó
+corriendo la suite, no se asumió.
+
+**3 · `MAX_VIDEO_HERO_BYTES = 8 MB`, menos de la mitad que la galería (20 MB), y la razón NO es la
+misma tanda de motivo.** La galería difiere la descarga con un `IntersectionObserver` porque el video
+vive bajo el fold; el hero está SIEMPRE en el viewport al cargar, así que un observer dispararía al
+instante — equivale al atributo `autoplay` puro, y compite DIRECTO con el primer pintado de la página.
+En red móvil colombiana, 20 MB en la portada es una tienda que no carga. Constante + mensaje
+(`MSG_VIDEO_HERO_LARGO`) gemelos de `MAX_VIDEO_GALERIA_BYTES`/`MSG_VIDEO_GALERIA_LARGO`, con su propio
+texto ("para la portada", no "para la galería") — mostrarle al operador el mensaje equivocado lo
+confundiría sobre cuál límite se está aplicando.
+
+**RESIDUO DE REDACCIÓN, medido y documentado, no corregido — fuera de `touches:`:** el tope del hero
+NO se pudo enchufar dentro de `useSubidaImagen.ts` (`alElegirHold`), que hardcodea el tope de la GALERÍA
+al validar el archivo elegido, porque ese archivo no estaba en la lista de `touches:` de este slice.
+La solución fue un SEGUNDO chequeo, DEFENSIVO, dentro de `TiendaSeccionEditor.tsx` (en `touches:`), que
+cierra encima con el tope y el mensaje del HERO. Consecuencia medida: un archivo entre 8 y 20 MB (o
+hasta 30 MB pre-remux para un `.mov`) lo rechaza ESTE chequeo, con el mensaje correcto del hero; uno por
+encima de 20/30 MB ya lo rechazó `alElegirHold` ANTES de llegar acá, con el mensaje GENÉRICO de la
+galería ("Ese video pesa demasiado para **la galería**..."), aunque el operador esté subiendo al hero.
+**En NINGÚN caso sube al storage un video de hero por encima de su propio tope** — el hueco es de
+REDACCIÓN (qué texto ve el operador en la franja 20-30 MB+), no de TAMAÑO. Cerrarlo del todo exige
+parametrizar el tope de `alElegirHold`, lo que toca `useSubidaImagen.ts` y por lo tanto un slice propio.
+
+**4 · El fallback bajo `prefers-reduced-motion` es un `<video>` PAUSADO mostrando su `poster`, NO un
+swap a `<Image>`.** Reusa el precedente exacto de `NosotrosGaleria.tsx` (mismo mecanismo, misma razón:
+un video que arranca solo ES movimiento). Con `controls` para que el visitante reproduzca si quiere —un
+play iniciado por el usuario es legítimo aun con esa preferencia—.
+
+**LA DIFERENCIA CON LO PEDIDO LITERALMENTE, anotada a propósito:** el spec de la etapa de censo pedía
+"fallback automático a la imagen del póster"; lo que se construyó es "el `<video>` pausado con su
+`poster`" — visualmente indistinguible de una imagen, sin descargar los bytes del video, pero el
+elemento del DOM sigue siendo `<video>`, no `<Image>`. Se aceptó el mecanismo del precedente porque
+cumple la intención exacta (mostrar la imagen del póster, sin descargar el video) con menos código y
+sin una segunda decisión de qué pasa si el `<Image>` de swap también falla. Queda anotado por si algún
+día se quiere el `<Image>` real como fallback.
+
+**El disparo de reproducción es IMPERATIVO (`.play()`/`.pause()` en un efecto), no el atributo
+`autoPlay`.** Medido, no asumido: `useReducedMotion()` (framer-motion) devuelve `null` en el primer
+render —servidor e hidratación—, y sólo resuelve el valor real DESPUÉS de montar. Fijar el atributo
+`autoplay` a partir de ese estado transitorio no reacciona si la preferencia real difiere una vez
+resuelta (los navegadores no re-evalúan el autoplay al cambiar el atributo después de que el elemento ya
+cargó). Un `useEffect` con `[reproducir]` que llama `.play()`/`.pause()` sí reacciona. Es la MISMA
+técnica que ya usa `NosotrosGaleria.tsx`, aplicada sin el `IntersectionObserver` (que ahí existe para
+diferir la descarga bajo el fold; acá no hace falta porque el hero siempre está a la vista). `muted`
+también se fija por REF en el mismo efecto —el prop de React no siempre llega al atributo del DOM, e iOS
+bloquea el autoplay de un `<video>` sin eso—.
+
+**`preload`: `"auto"` sólo cuando SÍ va a reproducir; `"none"` si no (preview o reduced-motion).** No
+existe, en el set de tipos de React de este repo, un equivalente de `priority` (de `<Image>`) para
+`<video>` — medido: `VideoHTMLAttributes` (vía `MediaHTMLAttributes`) no declara `fetchPriority`, a
+diferencia de `img`/`link`/`script`. `preload="auto"` es el único lever disponible para adelantar la
+descarga cuando el video SÍ va a reproducir; cuando no (preview/reduce), `"none"` evita bajar los bytes
+del video —el `poster` se muestra igual, sin depender de `preload`—. El póster en sí no recibe un trato
+de prioridad adicional: es un atributo HTML plano (`<video poster>`), no pasa por el optimizador de
+`next/image`, así que no hay ninguna palanca de Next que aplicarle.
+
+**EL MECANISMO CONTRA EL PÓSTER HUÉRFANO, y lo que NO cierra.** `REGISTRY.hero.imagenes` pasó de
+`['imagen']` a `['imagen', 'imagenPoster']` —si no, el borrado de blobs (`imagenesDe`,
+`site-content-blobs.ts`, sin tocar en este slice) nunca vería el póster y un video reemplazado dejaría
+su póster viejo huérfano en el storage para siempre—. Dos tests DERIVADOS lo protegen contra que se
+repita con otra sección u otro campo: (a) para toda sección NO-repeater del REGISTRY, cada nombre de
+`imagenes` existe como campo en `DEFAULTS[seccion]` (atrapa un typo/rename); (b) un test nombrado que
+afirma que `REGISTRY.hero.imagenes` son exactamente los dos blobs del hero. **Lo que ninguno de los dos
+cubre, y queda como pregunta abierta:** la dirección peligrosa de verdad —un campo NUEVO que GUARDA una
+url de blob pero que alguien olvida declarar en `imagenes`— no es derivable hoy, porque nada en el
+modelo marca qué string es "un blob" y cuál es un path estático o un id cualquiera. Cerrarla exigiría un
+marcador de tipo nuevo en el REGISTRY (algo como `campos: { imagen: { blob: true } }`) que hoy no existe
+y que este slice no inventa —cambiaría la forma del REGISTRY para las diez secciones existentes por un
+caso hipotético, no el que se pidió—. Se nombra para que el owner decida si vale la pena, con el costo:
+tocar `SeccionDef`, el resolver, y re-declarar `imagenes`/`campos` de las diez secciones para que el
+marcador y la lista no diverjan (sería la MISMA clase de doble-lista que `imagenes` ya es respecto de
+`DEFAULTS`, un nivel más abajo).
+
+**LA MITAD DEL BYTE-IDÉNTICO QUE QUEDA POR LECTURA, no por construcción.** La capa del DATO está
+cubierta sin escribir un test nuevo: `site-content-defaults.test.ts` ya hacía
+`deepEqual(resolverSiteContent({}).hero, DEFAULTS.hero)`, y con `imagenTipo:'imagen'`/`imagenPoster:''`
+agregados a `DEFAULTS.hero` ese test sigue pasando sin tocarlo. Lo que NINGÚN test de este repo puede
+afirmar es que `HeroCurtina.tsx`/`HeroFicha.tsx` siguen montando `<Image>` (no `<video>`) cuando
+`imagenTipo` es `'imagen'` o está ausente — no hay jsdom ni testing-library instalados, y no se instaló
+ninguno en este slice (fuera de alcance). Se verificó por LECTURA y por DIFF: el branch `false` del
+ternario `esVideo ? <video>… : <Image>…` es, carácter por carácter, el mismo bloque `<Image src=
+{hero.imagen} alt="" fill priority sizes=… quality={85} className=…/>` que existía antes de este slice
+en los dos archivos —confirmado con `git diff` sobre el árbol final, no sólo leído una vez al escribir
+el cambio—. Esa garantía queda por LECTURA, no por construcción; no se reporta como cubierta por test.
+
+**Gate, medido en el árbol final de la rama:** `npm test` → **1151/1151** (piso previo 1136 + 15 tests
+nuevos: 11 en `site-content-defaults.test.ts`, 4 en `site-content-schema.test.ts`). `npx tsc --noEmit` →
+0 errores. `npm run build` → verde (52 migraciones, sin pendientes; compiló, generó las 48 páginas
+estáticas, sin error de tipos).
+
+**Tier 1 / AWAITING_APPROVAL.** Toca DOS archivos nombrados uno por uno en la lista Tier 1 de CLAUDE.md
+(`lib/config/site-content-defaults.ts`, `lib/config/site-content-schema.ts`) — no tres: se verificó
+contra el texto literal de la lista (§ CLAUDE.md, "Tier 1 — superficies protegidas") y `constants/
+upload.ts`/`components/admin/TiendaSeccionEditor.tsx` NO aparecen nombrados ahí, así que la cifra "tres"
+del encargo original no se sostiene contra el texto y se corrige acá (la medición manda). Además toca
+el SUBÁRBOL `components/storefront/` entero, protegido como tal por la misma doctrina —
+`components/storefront/home/HeroCurtina.tsx`/`HeroFicha.tsx` no están nombrados individualmente, pero
+son los bytes del visitante relocalizados, la misma razón que protege `app/(storefront)/`—. No se
+mergea sin el visto bueno del owner sobre este diff en concreto.
+
+Regla: § HeroContent / REGISTRY.hero (`lib/config/site-content-defaults.ts`) · § heroEditableSchema
+(`lib/config/site-content-schema.ts`) · § MAX_VIDEO_HERO_BYTES (`constants/upload.ts`) · § El editor de
+la tienda dibuja por BLOQUES (CLAUDE.md, para el patrón que `renderMediaHero` extiende sin tocar
+`tienda-secciones.ts` ni `lib/tienda/bloques.ts`).
