@@ -2633,3 +2633,54 @@ archivos nombrados EXPLÍCITAMENTE en la lista Tier 1 de `CLAUDE.md`
 (`lib/config/site-content-defaults.ts`, `lib/config/site-content-schema.ts`) — **`AWAITING_APPROVAL`**:
 no se mergea sin el visto bueno del owner sobre ESTE diff en concreto, distinto del visto bueno ya dado
 a la medición de la etapa 1.
+
+## 2026-09-15 · El canal único de reduced-motion no alcanza a un scroll-scrub — la condición que eso impone (`LEDGER-SCRUB-FUERA-DEL-CANAL-1`)
+
+`STOREFRONT-REDUCED-MOTION-1` (2026-09-12, `8bf09b4`) cerró el defecto de las 21 animaciones de entrada
+del storefront con UN canal: `MotionConfig reducedMotion="user"` (`lib/animation.ts`). **Ese canal no
+alcanza a un scroll-scrub, y no por descuido: por construcción de framer-motion.**
+
+Medido en la fuente instalada (`motion-dom` 12.40.0, `node_modules/motion-dom/dist/es/`):
+`shouldReduceMotion` sólo se lee dentro de `animateTarget()`
+(`animation/interfaces/visual-element-target.mjs:84`), que es el camino que toman los props
+DECLARATIVOS —`animate`, `whileInView`, `initial`, `AnimatePresence`— y que termina en
+`value.start(animateMotionValue(...))`. `useTransform` (`framer-motion/dist/es/value/
+use-transform.mjs`), en cambio, corre por `useCombineMotionValues`
+(`framer-motion/dist/es/value/use-combine-values.mjs`), y ese hook **escribe con `value.set(...)` en
+cada frame, nunca con `.start()`** — el camino que `shouldReduceMotion` nunca toca. Un `useTransform`
+derivado de `scrollYProgress` queda, por esa razón, fuera del canal que `STOREFRONT-REDUCED-MOTION-1`
+instaló.
+
+**Y es la misma familia que ya mordió, un nivel más adentro.** El guard viejo de `app/globals.css` (el
+bloque `prefers-reduced-motion`) no alcanzaba a framer-motion porque framer-motion no anima por CSS —
+ése fue el defecto que `STOREFRONT-REDUCED-MOTION-1` cerró. Hoy hay DOS mecanismos presentes —el de
+CSS y el de `MotionConfig`— y **ninguno cubre el scroll-scrub**: dos guardas en verde sobre un caso
+que ninguna protege.
+
+**HOY NO HAY DEFECTO VIVO — es una precaución de construcción, no un incendio.** Censado el repo
+entero:
+
+```
+grep -rnE "useScroll|useTransform|useMotionValue|useSpring|useMotionValueEvent" --include="*.ts" --include="*.tsx" . --exclude-dir=node_modules --exclude-dir=.next | wc -l
+```
+
+da **0**. Y el resto del movimiento ligado a scroll ya está cubierto por otra vía: el único
+`addEventListener('scroll')` del storefront (`components/storefront/layout/StoreNav.tsx:40`) es un
+toggle binario de estado (`scrollY > 20`), no movimiento continuo ligado al scroll; y las `@keyframes`
+de `app/globals.css` caen bajo su propio bloque `prefers-reduced-motion`.
+
+**LA CONDICIÓN QUE ESTO FIJA, para cuando exista una pieza con scroll-scrub:** cada pieza con scrub
+lleva su `useReducedMotion()` EXPLÍCITO, y con la preferencia activa no lee `scrollYProgress` en
+absoluto — fija su salida en el primer fotograma. No es una recomendación: es condición de que esa
+pieza se pueda construir. Si se construye sin ese gate por pieza, REABRE el defecto que
+`STOREFRONT-REDUCED-MOTION-1` cerró — no automáticamente, pero sí en cuanto alguien razone «ya hay un
+provider, está cubierto».
+
+**El patrón no se inventa acá — ya vive en el repo.** `NosotrosGaleria.tsx:31` gatea el autoplay de su
+vídeo con `useReducedMotion()` a mano (`reproducirEnVista = !preview && !reduce`, línea 32),
+exactamente por la misma razón: el autoplay tampoco pasa por `animateMotionValue`. Es el mismo
+mecanismo, reusado, no reinventado.
+
+Regla: § un canal único cubre lo que pasa POR ÉL. Un mecanismo nuevo que escribe por otra vía no hereda
+la guarda por vivir en el mismo archivo ni por usar la misma librería — la pregunta antes de confiar en
+una guarda no es «¿existe?» sino «¿este camino pasa por ella?».
