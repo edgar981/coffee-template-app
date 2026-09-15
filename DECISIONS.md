@@ -2337,3 +2337,120 @@ archivos de texto—; el piso citado es el mismo de la entrada anterior (`npm te
 `npx tsc --noEmit` **0**, medido en `LEDGER-ESCRITOR-MERGEADO-1`) como `ledger_claim`, no
 re-medido en este slice: un diff Markdown no puede moverlo.
 Regla: § Tier 1 — superficies protegidas (`CLAUDE.md`), el párrafo "LA LISTA TAMBIÉN GANA SUBÁRBOLES".
+
+## 2026-09-15 · Tres consecuencias del gate de los subárboles Tier 1: el conteo que prueba la forma,
+la factura aceptada, y el número que se vuelve comando (`TIER1-SUBARBOLES-CONSECUENCIAS-1`)
+
+**QUÉ ES ESTE ASIENTO.** `TIER1-SUBARBOLES-1` ya pasó el gate del owner y está mergeado a `main`
+(commit de merge `0ce9b2a`, sobre la rama `384cc0a`): la lista Tier 1 de `CLAUDE.md` ganó los
+subárboles `components/storefront/` y `lib/checkout/`, la precedencia archivo-antes-que-subárbol, y
+dos descartes razonados (`lib/pagos/`, `lib/storefront/`). Este asiento no lo reescribe —el ledger es
+append-only y su asiento sigue intacto arriba— ni toca `CLAUDE.md`. Registra TRES cosas que el owner
+dijo al gatear esa rama, que de otro modo se pierden porque vivieron en la conversación del gate y no
+quedaron escritas en ningún archivo.
+
+### (a) El conteo es la prueba de que el subárbol era la forma correcta, no una comodidad de escritura
+
+El spec que motivó `TIER1-SUBARBOLES-1` nombró DOS variantes al proponer el subárbol —`HeroCurtina.tsx`,
+`HeroFicha.tsx`—. El censo de ese slice encontró CUATRO: sumó `GrindChooserMosaico.tsx` y
+`GrindChooserIndice.tsx`, las variantes del selector de molienda, bajo el mismo árbol
+(`components/storefront/home/`). Este slice lo re-verificó de forma independiente:
+
+```
+$ find components/storefront -iname "*Hero*" -o -iname "*Grind*"
+components/storefront/home/GrindChooser.tsx
+components/storefront/home/GrindChooserIndice.tsx
+components/storefront/home/GrindChooserMosaico.tsx
+components/storefront/home/HeroCurtina.tsx
+components/storefront/home/HeroFicha.tsx
+components/storefront/home/HeroSection.tsx
+```
+
+De los seis, dos (`GrindChooser.tsx`, `HeroSection.tsx`) son los DESPACHADORES —el componente que
+decide QUÉ variante mostrar—, no variantes en sí; los cuatro restantes son las variantes. Coincide con
+lo que midió el slice anterior: cuatro, no dos.
+
+En palabras del owner, al ver el número:
+
+> El hallazgo de que eran CUATRO variantes afuera y no dos es la prueba de que el subárbol era la
+> forma correcta: una lista literal sólo habría cubierto las dos que alguien recordó.
+
+El argumento no es sobre el número en sí —cuatro contra dos—, es sobre QUIÉN lo escribe. Una lista de
+rutas literales la redacta una persona, de memoria, así que cubre lo que esa persona recuerda en el
+momento de escribirla. Un subárbol cubre lo que CUMPLE el criterio, lo recuerde alguien o no. El spec
+original recordó dos de cuatro; el criterio —"`app/(storefront)/` son los bytes del visitante"— ya
+cubría las cuatro sin que nadie tuviera que nombrarlas todas. Ésa es la garantía que el subárbol compra
+y que ninguna lista, por cuidadosa que sea, puede igualar.
+
+### (b) La factura del gate — aceptada, con su costo a la vista, y su puerta de revisión
+
+Con `components/storefront/` entero en Tier 1, todo componente nuevo del storefront entra al
+protocolo de dos etapas —sesión read-only primero, visto bueno del owner después— antes de
+escribirse. El owner lo dijo así, gateando la rama:
+
+> Con `components/storefront/` entero en Tier 1, CADA componente nuevo del storefront va a parar en
+> AWAITING_APPROVAL. Con el programa de themes por delante —las variantes de hero, presentaciones,
+> historia, suscripción, footer, más las tres composiciones del checkout— eso son muchos gates míos en
+> las próximas semanas. Es lo que pedí y lo sostengo, pero la factura llega en la tanda siguiente, no
+> dentro de un mes.
+
+Se asienta como consecuencia ACEPTADA, no como advertencia ni como deuda: el owner pidió la
+protección sabiendo el costo, y lo sostiene. La cláusula de revisión que puso al lado, también
+literal:
+
+> Si en algún momento medís que el ritmo se vuelve impracticable, traémelo con números antes de
+> proponer aflojarlo.
+
+**Lo que este asiento NO hace:** no mide el ritmo de gates de las semanas siguientes, no propone
+aflojar el Tier 1, no insinúa cómo se aflojaría. Registra que la puerta de revisión existe y QUÉ la
+abre —una medición, nunca una impresión— para que el próximo que sienta el peso de la factura sepa
+que hay un camino y cuál es, en vez de proponer sobre la marcha una excepción sin ese respaldo.
+
+### (c) La regla del número necesita un mecanismo, no disciplina — y el mecanismo ya tiene precedente en este repositorio
+
+El spec de `TIER1-SUBARBOLES-1` citó "28 archivos" para `components/storefront/`; el censo de ese
+mismo slice, corrido por ejecución, dio 27 —un `.DS_Store` inflaba el conteo del spec— (línea 2306 de
+este archivo). Es la tercera corrección de un número en tres días dentro de esta misma familia de
+slices. El owner y el orquestador lo habían acordado el 2026-09-15, y el acuerdo se incumplió en el
+mensaje siguiente al acuerdo:
+
+> Vale que el asiento registre que la regla necesita un mecanismo, no disciplina: un número en un spec
+> es una afirmación que el worker va a medir igual, así que conviene que el spec diga de dónde salió
+> el número, o que no lo diga.
+
+**El mecanismo YA TIENE PRECEDENTE en este mismo repositorio.** `CLAUDE.md` ya reemplaza al menos un
+conteo por el comando que lo produce, con la misma razón escrita al lado, en CUATRO sitios verificados
+por `grep -n "ls -d packages/core/prisma/migrations" CLAUDE.md`:
+
+| línea | sección | cita |
+|---|---|---|
+| 391-393 | § Las tres capas de verificación → El carril de integración, SKEW DE VERSIÓN | «contá cuántas hay hoy con `ls -d packages/core/prisma/migrations/*/ \| wc -l` — el número vencía cada vez que se escribía, § Backlog técnico, ...» |
+| 4337 | § El código compartido no NACE siendo Nayoli/demo | «el carril de integración aplica TODAS las migraciones (`ls -d packages/core/prisma/migrations/*/ \| wc -l` para el número de hoy) en un Postgres fresco» |
+| 4421 | § Bases de datos (Neon) — qué es cada endpoint, fila `development` | «migraciones al día (contá cuántas hay con `ls -d packages/core/prisma/migrations/*/ \| wc -l` — el número vencía cada vez que se escribía, ...)» |
+| 4572 | § Monorepo (Fase A) — `@duna/core` y la cadena de build, `buildCommand` | «fuente única del schema; contá cuántas hay hoy con `ls -d packages/core/prisma/migrations/*/ \| wc -l`» |
+
+Y la regla general que sostiene las cuatro citas vive en § Backlog técnico, línea 886:
+
+> LA DOCTRINA GUARDA LA REGLA Y SU PORQUÉ, NUNCA UNA MEDICIÓN NI UN INVENTARIO. Números, listas de
+> archivos y conteos vencen solos; las reglas no. Un número en doctrina es una frase con fecha de
+> vencimiento — y nadie le pone la fecha.
+
+**La regla que este asiento deja, en una línea: en un spec, un número que DESCRIBE EL REPOSITORIO se
+reemplaza por el comando que lo produce.** Así no hay número que pueda estar vencido —el worker lo
+produce fresco al correr el comando—, y la afirmación deja de existir como afirmación para volverse
+medición.
+
+**El límite, para que no se aplique donde no sirve:** esto vale para números que describen el
+REPOSITORIO —conteos de archivos, de líneas, de commits—, como los cuatro de la tabla de arriba. NO
+vale para números que son una DECISIÓN —un tope de 12 fotos en una galería (§ La GALERÍA de
+/nosotros, `TOPE 12`) o un breakpoint de 1080px (§ Duna OS en ANGOSTO)—. Ésos no vencen, porque no
+describen nada que el código pueda contradecir: son la elección, no una medición de ella.
+
+Ni una línea de código se tocó. Sin gate de test/build por instrucción explícita del spec —un solo
+archivo de texto—; el piso citado sigue siendo el de la entrada anterior (`npm test` **1125/1125**,
+`npx tsc --noEmit` **0**, medido en `LEDGER-ESCRITOR-MERGEADO-1`) como `ledger_claim`, no re-medido en
+este slice: un diff Markdown no puede moverlo. Sin schema, sin migración, sin bytes de cliente
+(`customer_bytes.changed=false` — nadie que no sea quien lee `DECISIONS.md` ve este diff), sin
+contrato cross-repo. Merge Policy A aplica: mergea sin esperar aprobación.
+Regla: § Tier 1 — superficies protegidas (`CLAUDE.md`), sin tocar en este slice; y § Backlog técnico,
+"LA DOCTRINA GUARDA LA REGLA Y SU PORQUÉ, NUNCA UNA MEDICIÓN NI UN INVENTARIO", sin tocar en este slice.
