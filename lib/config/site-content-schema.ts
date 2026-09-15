@@ -15,13 +15,33 @@ const heroEditableSchema = z.object({
   subtitulo: z.string().optional(),
   ctaPrimarioLabel: z.string().optional(),
   ctaSecundarioLabel: z.string().optional(),
-  // Path estático (`/images/…`) o URL de Blob — el modelo acepta ambos, así que sólo string.
+  // Path estático (`/images/…`) o URL de Blob — el modelo acepta ambos, así que sólo string. Con
+  // `imagenTipo:'video'` esta URL es la del VIDEO, no de una imagen (§ HERO-VIDEO-COMO-DATO-1).
   imagen: z.string().optional(),
   // `variante` (§ eje 5, EJE-5-VARIANTES-HERO): la COMPOSICIÓN de la sección ('curtina'|'ficha');
   // `z.string()` porque el set de claves es por-sección y el resolver SOFT (`resolverVariante`) la
   // clampa a la canónica — gemela de `presentaciones.variante`.
   variante: z.string().optional(),
-});
+  // El TIPO de medio de fondo (§ HERO-VIDEO-COMO-DATO-1): 'imagen'|'video'. `z.string()` —no
+  // `z.enum`—, MISMO motivo que `variante`: el resolver SOFT (`resolverVariante`, vía
+  // `REGISTRY.hero.escalares`) ya clampa a la canónica; el schema sólo valida el TIPO.
+  imagenTipo: z.string().optional(),
+  // El PÓSTER del video: string (url de blob), como `imagen`. El `.refine()` de abajo lo exige NO
+  // VACÍO cuando `imagenTipo === 'video'` — ver ese comentario para el porqué de esta única regla
+  // DURA en un schema que es SOFT a propósito en todo lo demás.
+  imagenPoster: z.string().optional(),
+}).refine(
+  // LA ÚNICA REGLA DURA de este schema (§ HERO-VIDEO-COMO-DATO-1, decisión del owner). NO exige que
+  // `imagenPoster` ESTÉ —un hero de IMAGEN sigue pasando con todo vacío, como siempre—: exige que
+  // DOS CAMPOS SEAN COHERENTES entre sí, y sólo cuando el dueño ELIGIÓ video. El motivo: el editor
+  // es hoy el ÚNICO camino de escritura y garantiza el orden póster-antes-que-video por
+  // construcción, pero esa garantía deja de alcanzar el día que exista OTRO camino —un import, una
+  // corrección a mano, un runbook—, y ESE día el `.refine()` sigue protegiendo. Confiar en "el
+  // editor siempre lo hace bien" es la misma apuesta que ya perdió el schema editable de
+  // Presentaciones (§ #65-B): diez campos strippeados en silencio porque nadie los declaró aquí.
+  (v) => v.imagenTipo !== 'video' || !!(v.imagenPoster && v.imagenPoster.trim() !== ''),
+  { message: 'Un hero de video necesita un póster: sin él, la portada puede quedar sin nada que mostrar mientras el video carga.', path: ['imagenPoster'] },
+);
 
 // BrandStory: h2 en UN campo (`titulo`), dos párrafos, cuatro imágenes FIJAS. `visible` porque
 // es la primera sección ocultable. Todo opcional/SOFT, como el hero: el resolver decide.

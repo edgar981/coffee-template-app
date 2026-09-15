@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Upload, Plus, ImageIcon, X } from 'lucide-react';
+import { Pencil, Upload, Plus, ImageIcon, X, Film } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import VistaTiendaEnVivo from '@/components/admin/VistaTiendaEnVivo';
 import RepeaterEditor from '@/components/admin/RepeaterEditor';
+import PosterScrubber from '@/components/admin/PosterScrubber';
 import BarraProgreso from '@/components/admin/BarraProgreso';
 import { CategoriaCombobox } from '@/components/admin/CategoriaCombobox';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
@@ -15,8 +16,12 @@ import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { quitar as quitarDeLista, ultimoLleno } from '@/lib/tienda/lista-plana';
 import { opcionesDestaque } from '@/lib/storefront/planes-suscripcion';
+import { remuxMovAMp4 } from '@/lib/video-remux';
 import { DEFAULTS, type SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
-import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
+import {
+  MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES, TIPOS_PERMITIDOS, TIPOS_VIDEO, ACCEPT_VIDEO,
+  MSG_VIDEO_NO_ADMITIDO, CONTENEDORES_REMUXEABLES, MAX_VIDEO_HERO_BYTES, MSG_VIDEO_HERO_LARGO,
+} from '@/constants/upload';
 
 // LA CÁSCARA del editor de una sección de la tienda, GENÉRICA. Todo lo que NO es específico de la
 // sección vive acá —VISTA PREVIA EN VIVO + read↔edit + autoguardado + publicar/descartar + el
@@ -127,6 +132,85 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   const [subiendoCampo, setSubiendoCampo] = useState<string | null>(null);
   useEffect(() => { if (!subida.subiendo) setSubiendoCampo(null); }, [subida.subiendo]);
 
+  // ── EL VIDEO DEL HERO (§ HERO-VIDEO-COMO-DATO-1) — SÓLO se usa cuando `seccion === 'hero'` ─────
+  // La secuencia es la MISMA que `subirVideoYPoster` de RepeaterEditor —video elegido y RETENIDO
+  // hasta elegir el póster (cancelar no deja un video huérfano), remux si es .mov, EL PÓSTER SUBE
+  // PRIMERO (si el video grande falla después, el huérfano es una imagen chica, no un video de
+  // varios MB)—, adaptada a un CAMPO PLANO: el hero no es una lista, así que no hay índice de ítem
+  // ni RepeaterEditor que reusar. NO se extrae un hook compartido con RepeaterEditor en este slice
+  // —serían dos formas (ítem de array vs campo plano) por una única sección nueva; queda anotado en
+  // el reporte del slice como algo medido y no resuelto, no como un descuido—.
+  const [heroVideoPendiente, setHeroVideoPendiente] = useState<File | null>(null);
+  const [heroConvirtiendo, setHeroConvirtiendo] = useState(false);
+  const [heroSubiendoPaso, setHeroSubiendoPaso] = useState<'convirtiendo' | 'póster' | 'vídeo' | null>(null);
+  const heroOcupado = subida.subiendo || heroConvirtiendo;
+  const heroTextoPaso = () => (heroSubiendoPaso === 'convirtiendo' ? 'Convirtiendo el video…' : `Subiendo ${heroSubiendoPaso}… ${subida.progreso ?? 0}%`);
+
+  // El TOPE del video del hero es EL SUYO (§ MAX_VIDEO_HERO_BYTES, 8 MB — menos de la mitad que la
+  // galería: el hero SIEMPRE está en el viewport, así que no hay forma de diferir la descarga si se
+  // quiere que reproduzca). `subida.elegir`/`alElegirHold` (§ useSubidaImagen.ts, GENÉRICO y fuera
+  // de `touches:` de este slice) validan tipo + CÓDEC + el tope de la GALERÍA (20 MB, hardcodeado
+  // ahí) al elegir — no conocen al hero. Este chequeo cierra ENCIMA con el tope y el mensaje
+  // CORRECTOS del hero: un archivo entre 8 y 20 MB lo rechaza ACÁ con el mensaje del hero; uno por
+  // encima de 20 MB (o de 30 MB pre-remux para un .mov) ya lo rechazó `alElegirHold` ANTES de
+  // llegar acá, con el mensaje GENÉRICO de la galería — un residuo de REDACCIÓN, documentado en
+  // DECISIONS.md, no un hueco de TAMAÑO: en ningún caso sube al storage un video de hero por
+  // encima de su propio tope.
+  const agregarVideoHero = () => {
+    subida.elegir(f => {
+      const esMov = (CONTENEDORES_REMUXEABLES as readonly string[]).includes(f.type);
+      const limite = esMov ? MAX_VIDEO_HERO_BYTES * 1.5 : MAX_VIDEO_HERO_BYTES;
+      if (f.size > limite) { setErrorServidor(MSG_VIDEO_HERO_LARGO); return; }
+      setErrorServidor(null);
+      setHeroVideoPendiente(f);
+    }, { tipos: TIPOS_VIDEO, accept: ACCEPT_VIDEO, msgError: MSG_VIDEO_NO_ADMITIDO });
+  };
+
+  const subirVideoYPosterHero = async (video: File, poster: File) => {
+    setSubiendoCampo('imagen');
+    try {
+      let videoFinal = video;
+      if ((CONTENEDORES_REMUXEABLES as readonly string[]).includes(video.type)) {
+        setHeroSubiendoPaso('convirtiendo');
+        setHeroConvirtiendo(true);
+        try { videoFinal = await remuxMovAMp4(video); }
+        finally { setHeroConvirtiendo(false); }
+        // El tope EXACTO del hero sobre lo que se SUBE (post-remux): un .mov que pasó el
+        // pre-chequeo (1.5×) pero cuya salida video-only sigue > 8 MB se rechaza acá.
+        if (videoFinal.size > MAX_VIDEO_HERO_BYTES) throw new Error(MSG_VIDEO_HERO_LARGO);
+      }
+      setHeroSubiendoPaso('póster');
+      const { url: posterUrl } = await subida.subir(poster, { kind: 'imagen' });
+      setHeroSubiendoPaso('vídeo');
+      const { url: videoUrl } = await subida.subir(videoFinal, { kind: 'imagen-o-video' });
+      // LOS TRES A LA VEZ (§ el orden es la garantía): nunca un estado persistido con video sin
+      // póster, ni con `imagenTipo` desincronizado de qué url hay en `imagen`.
+      const nf = { ...(formRef.current as Datos), imagen: videoUrl, imagenPoster: posterUrl, imagenTipo: 'video' };
+      setForm(nf); setHayBorrador(true);
+      auto.marcarSucio(nf); auto.flush();
+    } catch (err) {
+      setErrorServidor(err instanceof Error ? err.message : 'No se pudo subir el video. Reintenta.');
+    } finally {
+      setHeroVideoPendiente(null);
+      setHeroSubiendoPaso(null);
+    }
+  };
+
+  const elegirPosterParaHero = () => {
+    const v = heroVideoPendiente;
+    if (!v) return;
+    subida.elegir(poster => subirVideoYPosterHero(v, poster), { tipos: TIPOS_PERMITIDOS, accept: ACCEPT_IMAGENES, msgError: 'Formato no admitido. Usa JPG, PNG o WebP.' });
+  };
+
+  // Volver a IMAGEN: cae al valor por defecto de `imagen` —el mismo gesto que "Por defecto" ya
+  // ofrece para las demás imágenes fijas—, porque `imagen` guarda hoy la URL del VIDEO y no sirve
+  // como imagen. Nunca deja `imagenTipo:'video'` apuntando a una url que no es video, ni viceversa.
+  const volverAImagenHero = () => {
+    const nf = { ...(formRef.current as Datos), imagenTipo: 'imagen', imagen: defaults.imagen, imagenPoster: '' };
+    setForm(nf); setHayBorrador(true);
+    auto.marcarSucio(nf); auto.flush();
+  };
+
   const guardarSeccion = useCallback(async (data: Datos) => {
     const res = await fetch('/api/site-content', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -194,8 +278,12 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
   // pantalla), así que `useState(new Set())` no vuelve a correr; sin este reset, un grupo opcional
   // que abrí a mano seguiría abierto al reabrir. El colapso DERIVA de los datos (vacío → colapsado);
   // la expansión manual vive sólo mientras el editor está abierto (§ Fix 2).
-  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); };
-  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); };
+  // `heroVideoPendiente`/`heroSubiendoPaso` se resetean igual que `expandidos`/`tarjetaActiva`: es
+  // estado efímero de UI (el `File` elegido nunca se persistió), así que reabrir empieza limpio. Un
+  // upload YA en vuelo (heroOcupado) sigue corriendo en segundo plano —fire-and-forget, como el
+  // resto de las mutaciones de esta cáscara— y su `finally` limpia estos mismos estados al terminar.
+  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); };
+  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); };
 
   // ── DEEP-LINK del aviso de config del Dashboard (§ Backlog #65) ────────────────────────────────
   // El enlace del aviso aterriza EN EL DEFECTO: abre la edición de ESTA sección y resalta+scrollea el
@@ -382,10 +470,95 @@ export default function TiendaSeccionEditor({ config, categorias = [], categoria
     );
   };
 
+  // LA MEDIA DE FONDO DEL HERO — imagen (por defecto) o VIDEO (§ HERO-VIDEO-COMO-DATO-1). Vive
+  // APARTE de `renderMiniatura` (no como una rama más ahí adentro) porque el hero es la ÚNICA
+  // sección con esta dualidad —el resto de `imagenes` del REGISTRY son SIEMPRE imagen— y porque no
+  // se inventa lenguaje nuevo: reusa el vocabulario del video del repeater (miniatura=póster con
+  // badge de película, "Cambiar vídeo"/"Cambiar póster", `PosterScrubber`, `BarraProgreso`).
+  const renderMediaHero = (img: CampoImagen) => {
+    const esVideo = form.imagenTipo === 'video';
+    const url = String(form[img.name] ?? '');
+    const poster = String(form.imagenPoster ?? '');
+    const miniatura = esVideo ? poster : url;
+    const esDefault = url === String(defaults[img.name] ?? '');
+    // Dos vías comparten el mismo campo lógico ("imagen"): el alta/cambio de video COMPLETO
+    // (subiendoCampo==='imagen', con `heroSubiendoPaso` nombrando la etapa) y el reemplazo SUELTO
+    // del póster por `ponerImagen('imagenPoster')` (una subida atómica de imagen más, como
+    // cualquier otro campo-imagen de la cáscara — sin etapas propias).
+    const enVideoFlow = heroOcupado && subiendoCampo === 'imagen';
+    const enPosterSuelto = subida.subiendo && subiendoCampo === 'imagenPoster';
+    const subiendoEste = enVideoFlow || enPosterSuelto;
+    return (
+      <div key={img.name} className="duna-field" style={{ marginBottom: 'var(--duna-space-4)' }}>
+        <span className="duna-field__label">{img.label}</span>
+        {heroVideoPendiente && !heroOcupado ? (
+          <PosterScrubber
+            video={heroVideoPendiente}
+            onPoster={(p) => subirVideoYPosterHero(heroVideoPendiente, p)}
+            onSubirImagen={elegirPosterParaHero}
+            onCancelar={() => setHeroVideoPendiente(null)}
+          />
+        ) : (
+          <div style={{ display: 'flex', gap: 'var(--duna-space-3)', alignItems: 'flex-start', marginTop: 'var(--duna-space-1)' }}>
+            <span className="duna-tile" style={{ width: 'calc(var(--duna-thumb-w) * 2)', position: 'relative' }}>
+              {miniatura
+                ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={miniatura} alt="" />
+                : <ImageIcon aria-hidden width={20} height={20} />}
+              {esVideo && (
+                <Film className="h-3 w-3" style={{ position: 'absolute', right: 4, bottom: 4, color: '#fff', filter: 'drop-shadow(0 0 2px rgba(0,0,0,.8))' }} aria-label="vídeo" />
+              )}
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)', minWidth: 0 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)' }}>
+                {esVideo ? (
+                  <>
+                    <button type="button" onClick={agregarVideoHero} disabled={heroOcupado || !!heroVideoPendiente} className="duna-btn duna-btn--secondary duna-btn--sm">
+                      <Film className="h-3.5 w-3.5" /> Cambiar video
+                    </button>
+                    <button type="button" onClick={() => ponerImagen('imagenPoster')} disabled={heroOcupado} className="duna-btn duna-btn--ghost duna-btn--sm">
+                      <Upload className="h-3.5 w-3.5" /> Cambiar póster
+                    </button>
+                    <button type="button" onClick={volverAImagenHero} disabled={heroOcupado} className="duna-btn duna-btn--ghost duna-btn--sm">
+                      Usar una imagen
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => ponerImagen(img.name)} disabled={heroOcupado} className="duna-btn duna-btn--secondary duna-btn--sm">
+                      <Upload className="h-3.5 w-3.5" /> Cambiar
+                    </button>
+                    {!esDefault && (
+                      <button type="button" onClick={() => usarPorDefecto(img.name)} disabled={heroOcupado} className="duna-btn duna-btn--ghost duna-btn--sm">
+                        Por defecto
+                      </button>
+                    )}
+                    <button type="button" onClick={agregarVideoHero} disabled={heroOcupado || !!heroVideoPendiente} className="duna-btn duna-btn--ghost duna-btn--sm">
+                      <Film className="h-3.5 w-3.5" /> Usar un video
+                    </button>
+                  </>
+                )}
+              </div>
+              <span className="duna-field__hint" style={{ margin: 0 }}>
+                {subiendoEste
+                  ? (enVideoFlow ? heroTextoPaso() : `Subiendo póster… ${subida.progreso ?? 0}%`)
+                  : esVideo ? 'MP4, WebM o MOV.' : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
+              </span>
+              {subiendoEste && heroSubiendoPaso !== 'convirtiendo' && <BarraProgreso pct={subida.progreso ?? 0} />}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // MINIATURA (rule 1: la representación GRANDE es la vista previa; el form sólo identifica la foto y
   // ofrece "Cambiar"). Marco `.duna-tile` (DS): con foto la muestra recortada; VACÍO pinta un ícono
   // muted, NUNCA un `<img src="">` roto (§ Backlog #66).
   const renderMiniatura = (img: CampoImagen) => {
+    // El hero es la ÚNICA sección con dualidad imagen/video (§ HERO-VIDEO-COMO-DATO-1): su campo
+    // `imagen` se desvía a su propio render ANTES de la rama genérica de abajo, que sigue sirviendo
+    // tal cual a brandStory/presentaciones (sólo imagen, siempre).
+    if (seccion === 'hero' && img.name === 'imagen') return renderMediaHero(img);
     const val = String(form[img.name] ?? '');
     const esDefault = val === String(defaults[img.name] ?? '');
     const subiendoEste = subiendo && subiendoCampo === img.name;
