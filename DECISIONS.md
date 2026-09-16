@@ -4203,3 +4203,167 @@ Regla: § El carril de integración (CLAUDE.md) · § GATE-DOS-CARRILES-1 · `te
 wompi-payment-webhook.test.ts` (nuevo) · cierra `WOMPI-PAYMENT-WEBHOOK-INTEGRACION-1` · abre
 `WOMPI-MD-CARRIL-CONTEO-VENCIDO-1` (conteo vencido en CLAUDE.md, fuera de `touches:`) · sin rama propia
 (continuación de `slice/wompi-enum-metodo-f-1`), sin mergear.
+
+## 2026-09-15 — El reconciliador de Wompi: (h)+(i) en una sola función, por la EDAD del intento (`WOMPI-RECONCILIADOR-HI-1`)
+
+**CIERRA `WOMPI-WEBHOOK-DISPARA-BARRIDO-1`** (coined en `WOMPI-WEBHOOK-RUTA-1`) y la línea que la
+tanda de (g) dejó abierta explícitamente: *"(c)/(d)/reconciliación/barrido de intentos vencidos, sin
+construir — sin cambio de este slice"* (`WOMPI-PAYMENT-DESDE-WEBHOOK-G-1`, línea 4089 de este mismo
+archivo). El barrido YA ESTÁ CONSTRUIDO: `packages/core/src/pagos/reconciliador.ts` consulta a Wompi
+lo `EN_VUELO` joven y cierra lo vencido, en un solo tick horario.
+
+### (h) e (i) son UNA función — la razón de seguridad, medida, no supuesta
+
+El spec lo pedía fusionado y el porqué es concreto, no estilo: cerrar un intento vencido por el solo
+paso del tiempo, SIN consultar antes a Wompi, marcaría `FALLIDO` un intento que Wompi SÍ aprobó pero
+cuyo webhook se perdió — plata real dada por perdida. `reconciliarIntentoPago` por eso SIEMPRE
+consulta primero, para TODO intento `EN_VUELO` que mira, joven o vencido, y sólo cierra por edad
+cuando esa MISMA consulta no trajo un terminal. **Se afirmó con el caso más directo posible**
+(`SEGURIDAD (§0)` en `tests/integracion/wompi-reconciliador.test.ts`): un intento sembrado a 50 h
+(vencido) al que Wompi responde `APPROVED` — paga la orden, `reporte.vencidos === 0`. Nunca hay un
+camino que cierre `FALLIDO` sin haber preguntado.
+
+### La lógica de dinero se EXTRAJO, no se duplicó
+
+`app/api/webhooks/wompi/route.ts` (g) tenía inline, dentro de `transaccionConOrdenLockeada`, la
+decisión «¿la orden está pendiente? paga; si no, cobro duplicado». Se movió, letra por letra, a
+`packages/core/src/pagos/aplicar-resultado-wompi.ts` (`aplicarResultadoWompi`) — el webhook la LLAMA
+ahora en vez de reimplementarla, y el reconciliador la comparte. `bucketDeStatus` (el mapeo
+`APPROVED`/`DECLINED`/`VOIDED`/`ERROR` → `APROBADO`/`FALLIDO`) migró con ella, de privada en
+`route.ts` a exportada y compartida. Es el mismo criterio que ya evitó la divergencia de
+`razonDelServidor`/`cruzoMinimo` y de `disparador`/`frase`: una función, dos llamadores, nunca dos
+copias que puedan desalinearse.
+
+**Lo que NO se movió, a propósito: el cierre `FALLIDO`.** Ni por veredicto directo de Wompi ni por
+vencimiento de edad pasa por `aplicarResultadoWompi` — ninguno de los dos toca la Order, y el
+comentario original de (g) ya documentaba por qué: "no hay lock que tomar porque no hay decisión de
+dinero que proteger". Forzar ese camino a pasar por una función pensada para el lock de Order habría
+sido una segunda decisión de arquitectura que nadie pidió. Cada llamador (el webhook, el
+reconciliador) sigue cerrando FALLIDO con su propio `paymentIntent.updateMany` — trivial, sin lógica
+de negocio que compartir.
+
+### `packages/core` no importa de `lib/` — medido antes de tocar nada, y es lo que forma la frontera
+
+Antes de diseñar nada se corrió `grep -rn "from '@/" packages/core/src/*.ts packages/core/src/**/*.ts`
+(excluyendo `generated/`): **CERO** imports en tiempo de ejecución — los cuatro hits existentes
+(`product-form.ts`, `usuarios.ts`, `zona-config.ts`, `order-stat-filters.ts`) son TODOS `import
+type`, del alias `@/types/*`, nunca `@/lib/*` — coincide exactamente con el precedente que CLAUDE.md
+ya documenta para la precondición de Fase B. Esa medición decidió la forma: el cliente HTTP
+(`lib/pagos/wompi-api.ts`, `consultarTransaccionesPorReferencia`) vive en `lib/` porque necesita
+`fetch`/`WOMPI_PRIVATE_KEY`, nunca lo importa `reconciliador.ts` — lo recibe INYECTADO, ensamblado por
+quien invoca (el cron route, nivel app), igual que `PaymentIntentDb.notificarAtencion` en (g). Mismo
+criterio para `hrefOrden` (vive en `constants/automations.ts`, nivel app): se inyecta en
+`aplicarResultadoWompi` y en `reconciliarIntentoPago`, nunca se importa desde `packages/core`.
+
+### El disparo: un paso propio del cron, junto a las automatizaciones, nunca dentro
+
+`app/api/cron/automations/route.ts` gana `correrPasoReconciliador()`, invocado junto a
+`runScheduledAutomations` en el mismo `POST` — el motor de automatizaciones es MENSAJE-céntrico (un
+`Objetivo` es «despachar o omitir un aviso») y reconciliar (llamar una API externa, crear un `Payment`
+bajo lock) no encaja en ese loop. **Se activa SÓLO si `WOMPI_PRIVATE_KEY` está configurada** — un
+despliegue sin Wompi sigue corriendo exactamente igual que antes de este slice, sin ruido ni cambio de
+comportamiento. Un fallo del barrido (Wompi caído, un error inesperado) se loguea y viaja en la
+respuesta como `{omitido:false, error}`, nunca se propaga: no debe tumbar el resto de las
+automatizaciones programadas, ni siquiera cuando éstas ya venían `degradado` (config ilegible) — son
+dos fallas independientes, y una plata reconciliada no debería esperar a que alguien arregle un
+`AutomationSetting` roto.
+
+**El host de la API (sandbox vs. producción) se deriva de `esDespliegueDemo()`**, la MISMA fuente
+única que ya gobierna si el despliegue puede arrancar con la llave pública productiva de Wompi
+(`instrumentation.ts`, `PASARELA-LLAVES-COHERENTES-1`) — NO una env var nueva. El spec sólo pedía
+nombrar `WOMPI_PRIVATE_KEY`; agregar una segunda variable para el host habría sido una fuente más que
+podría desincronizarse de la que ya decide "¿esto es una demo?". `wompi-api.ts` en sí NUNCA lee
+`process.env` (mismo principio que `wompi-firma.ts`): el host y la llave entran como parámetro, y es
+el cron route quien decide de dónde salen.
+
+### El cap del barrido: 20, no 50 — y la cuenta que lo justifica
+
+`TOPE_POR_BARRIDO` de las automatizaciones programadas (`lib/automations/handlers/programadas.ts`) es
+**50**, pero ese barrido es sólo lectura/escritura de base — rápido y acotado. Éste hace una llamada
+HTTP a Wompi POR FILA, con su propio riesgo de timeout, y la función serverless no tiene
+`maxDuration` explícito (medida antes de decidir: `grep -n "maxDuration" app/api/cron/automations/route.ts`
+da cero), así que corre contra el default de **300 s** de Vercel Functions. Con el timeout de Wompi en
+6 s (`TIMEOUT_MS`, `lib/pagos/wompi-api.ts`) y un cap de **20**, el peor caso (las 20 consultas
+agotando su timeout) es 120 s — bajo la mitad del presupuesto, dejando margen para
+`runScheduledAutomations` (que corre en el MISMO `POST`, antes) y para las escrituras de cada fila.
+Copiar el 50 sin ajustar habría dejado un peor-caso de 400 s — por encima del límite.
+
+### DESVIACIÓN MEDIDA: el `observed-report` que cita el spec no existe
+
+El spec de este slice traía `observed-report: WOMPI-RECONCILIACION-BARRIDO-CENSO-1`. Medido ANTES de
+escribir código: `grep -rn "RECONCILIACION-BARRIDO-CENSO\|RECONCILIADOR-HI" DECISIONS.md CLAUDE.md`
+da cero, y `git log --all --oneline | grep -i reconcil` sólo trae `35b24b2`
+(`PASARELA-DECISIONES-LEDGER-1`) — ese id no existe en ningún lado del repo ni del historial. Es la
+MISMA familia que `WOMPI-CHECKOUT-INTENTOS-CENSO-1`, ya medida como inexistente por
+`WOMPI-B-ASIENTO-CORRECCION-BUNDLE-1` (línea 3284 de este archivo): un spec que cita un artefacto
+`writes:no` que nunca se commiteó. **El contenido técnico del spec (§1, §2) SÍ está sostenido** por un
+asiento real y verificable — `WOMPI-REGLAS-IMPLEMENTACION-1` (la regla del array vacío, la firma
+`WOMPI_PRIVATE_KEY`-únicamente, `GET /v1/transactions?reference=` vs. `/v1/transactions/<id>`) — así
+que el trabajo procedió sobre esa base medible, no sobre la cita fantasma.
+
+### Dos ambigüedades del spec, resueltas a favor de la regla de seguridad explícita (§0), no de la letra suelta
+
+1. **§6 pide un caso "vencido + sin resolver → FALLIDO SIN consultar".** Leído literal, contradice la
+   propia razón de seguridad de §0 del spec (cerrar por edad SIN consultar puede perder plata
+   aprobada). Se interpretó "SIN consultar" como "sin una consulta ADICIONAL" —coincide con la letra
+   de §1, "cerrar FALLIDO sin más consulta"— y el test de ese caso AFIRMA que la consulta a Wompi SÍ
+   ocurrió (`llamadas === 1`) antes de cerrar.
+2. **§3 dice "un error de red no cierra el intento (se reintenta el próximo tick, salvo que ya venció
+   por edad)".** Leído literal, un error de red sobre un intento YA vencido lo cerraría igual —de
+   nuevo, contra §0—. `reconciliarIntentoPago` NUNCA cierra por un fallo de consulta, sin importar la
+   edad: un error de red o de la API siempre deja el intento `EN_VUELO`, se reintenta el próximo tick.
+   La lectura literal de esa frase se descartó a favor de la regla de seguridad, explícita e
+   inequívoca en §0 — no hay test que la ejercite en la dirección peligrosa porque esa dirección no
+   existe en el código.
+
+### El piso, medido en el árbol final
+
+`npm test` → **1190/1190**, IDÉNTICO al piso citado por `WOMPI-PAYMENT-G-INTEGRACION-1` — ningún
+archivo de ese glob perdió ni ganó un test (`route.test.ts` de (g) sigue en su mismo conteo; los
+archivos nuevos de `packages/core/src/pagos/` no tienen test propio en `touches:`, sólo el de
+integración). `npm run test:integracion` → **208/208**, sube de los 198 citados por el slice anterior
+por exactamente **10** — las diez pruebas nuevas de `wompi-reconciliador.test.ts` (joven+aprobado,
+joven+duplicado, joven+declined, joven+vacío, vencido+sin-resolver, joven+cerca-del-umbral,
+seguridad-vencido-pero-aprobado, webhook-cierra-primero, concurrencia webhook↔reconciliador, y el cap
+del barrido); ningún otro archivo de ese carril cambió. `npx tsc --noEmit` → limpio. `npm run build`
+→ verde, `/api/cron/automations` y `/api/webhooks/wompi` ambas listadas como rutas dinámicas (`ƒ`).
+
+### Lo que este slice NO cierra, y sigue igual que antes
+
+- **`WOMPI-NOTIFICACION-CATALOGO-1`** (las dos notificaciones sin entrada en `AUTOMATION_MAP`) sigue
+  abierto — no tocado.
+- **`WOMPI-MD-CARRIL-CONTEO-VENCIDO-1`** (el conteo del carril de integración en CLAUDE.md § Backlog
+  técnico) sigue desactualizado, y ahora un poco más (208, no 198) — `CLAUDE.md` no está en
+  `touches:`.
+- **NUEVO, medido al cerrar este slice:** `CLAUDE.md` línea 2955-2956 (§ Pagos en línea (Wompi)) dice
+  *"La RECONCILIACIÓN y el barrido de intentos vencidos siguen sin construirse"* — FALSA desde este
+  slice. Follow-up nombrado: **`WOMPI-MD-RECONCILIADOR-STALE-1`** — no se toca porque `CLAUDE.md` no
+  está en `touches:`.
+- **Adyacente, medido de paso, NO causado por este slice:** la misma sección de CLAUDE.md (línea
+  2953-2954) sigue diciendo que el webhook *"NO crea el `Payment`: frontera deliberada, porque eso
+  exige un valor de `MetodoPago` que el enum de hoy no tiene (decisión del owner, pendiente)"` — falso
+  desde (f)+(g) (`WOMPI-ENUM-METODO-F-1`, `WOMPI-PAYMENT-DESDE-WEBHOOK-G-1`), antes de que este slice
+  empezara. Ya estaba marcado por `WOMPI-WEBHOOK-DOCTRINA-PAGO-STALE-1` (línea 4082 de este archivo);
+  se anota acá sólo para que quien lea este asiento no lo confunda con algo nuevo.
+- **El barrido corre SECUENCIAL, no en paralelo**, por diseño (acota la carga sobre Wompi y sobre la
+  base a la vez) — no hay follow-up de paralelizarlo: el spec no lo pidió y el orden entre filas es
+  irrelevante.
+
+**Tier 1 / AWAITING_APPROVAL, `stopped_on: ['customer-bytes']` — HEREDADO, no nuevo.** Este commit no
+agrega bytes nuevos que un operador/dueño lea: las dos notificaciones (`wompi_cobro_duplicado`,
+`wompi_monto_discrepante`) tienen el TEXTO IDÉNTICO al de (g) — se movieron de archivo, no se
+reescribieron (verificado: mismo `tipo`, `titulo`, y la misma plantilla de `mensaje`). El JSON del
+cron route no lo lee un humano directamente (log de GitHub Actions). Pero la RAMA
+`slice/wompi-enum-metodo-f-1` —contra la que se juzga la política, no el commit— ya cambió bytes de
+operador en commits previos (las notificaciones de (g), `ff9dda8`), y sigue sin mergear. Por la regla
+del eje (§ ORCH-CUSTOMER-BYTES-EJE-1), el veredicto de la RAMA sigue AWAITING_APPROVAL con el mismo
+`stopped_on`. `customer_bytes.changed` de ESTE commit es `false`; el de la RAMA sigue `true`.
+
+Regla: § Pagos en línea (Wompi) (CLAUDE.md, una frase más queda falsa — ver arriba,
+`WOMPI-MD-RECONCILIADOR-STALE-1`) · `packages/core/src/pagos/aplicar-resultado-wompi.ts` (nuevo) ·
+`packages/core/src/pagos/reconciliador.ts` (nuevo) · `lib/pagos/wompi-api.ts` (nuevo) ·
+`app/api/webhooks/wompi/route.ts` (la lógica APROBADO se extrae, el comportamiento no cambia) ·
+`app/api/cron/automations/route.ts` (gana el paso del reconciliador) ·
+`tests/integracion/wompi-reconciliador.test.ts` (nuevo, 10 casos) · cierra
+`WOMPI-WEBHOOK-DISPARA-BARRIDO-1` · abre `WOMPI-MD-RECONCILIADOR-STALE-1` (CLAUDE.md desactualizado,
+fuera de `touches:`) · sin rama propia (continuación de `slice/wompi-enum-metodo-f-1`), sin mergear.
