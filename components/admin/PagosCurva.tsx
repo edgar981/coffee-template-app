@@ -14,7 +14,7 @@ import { etiquetaEje, etiquetaBucket, type RecorteTiempo } from '@/lib/pagos/eti
 // DOS EJES INTERCAMBIABLES, y la regla de siempre: EL EJE NUNCA SE FILTRA A SÍ MISMO.
 // - modo TIEMPO (4–92 puntos): una curva sobre los buckets; filtra por MÉTODO (el select).
 // - modo MÉTODO (el recorte es 1 bucket): una barra por método; filtra por TIEMPO.
-//   Se muestran las seis y se resalta la activa; una nota lo declara.
+//   Se muestran las siete y se resalta la activa; una nota lo declara.
 // - 2–3 buckets: ni tendencia ni método → se declara y la frase de arriba ya lo dice.
 // - >92 puntos ni en meses: no dibuja, se declara.
 //
@@ -32,6 +32,9 @@ export const METODOS_SERIE: { metodo: MetodoPago; color: string }[] = [
   { metodo: 'TRANSFERENCIA', color: 'var(--duna-serie-4)' },
   { metodo: 'OTRO',          color: 'var(--duna-serie-5)' },
   { metodo: 'BREB',          color: 'var(--duna-serie-6)' },
+  // WOMPI (§ WOMPI-ENUM-METODO-F-1): --duna-serie-7 es PROVISIONAL (ver el comentario en
+  // tokens.css) — el valor definitivo lo trae la sesión de diseño.
+  { metodo: 'WOMPI',         color: 'var(--duna-serie-7)' },
 ];
 
 /**
@@ -281,7 +284,7 @@ export function PagosCurva({
             );
           })}
         </div>
-        {/* Se DECLARA sólo cuando ocurre: seis barras sobre una tabla filtrada se
+        {/* Se DECLARA sólo cuando ocurre: siete barras sobre una tabla filtrada se
             leería como fallo si no se dice. */}
         {metodoSel && (
           <p className="admin-grafico__nota">

@@ -26,10 +26,11 @@ export type MetodoPago =
   | 'EFECTIVO'
   | 'TRANSFERENCIA'
   | 'OTRO'
-  | 'BREB';
+  | 'BREB'
+  | 'WOMPI';
 
 export const METODOS_PAGO: MetodoPago[] = [
-  'NEQUI', 'DAVIPLATA', 'EFECTIVO', 'TRANSFERENCIA', 'OTRO', 'BREB',
+  'NEQUI', 'DAVIPLATA', 'EFECTIVO', 'TRANSFERENCIA', 'OTRO', 'BREB', 'WOMPI',
 ];
 
 export const METODO_PAGO_LABEL: Record<MetodoPago, string> = {
@@ -39,6 +40,9 @@ export const METODO_PAGO_LABEL: Record<MetodoPago, string> = {
   TRANSFERENCIA: 'Transferencia',
   OTRO:          'Otro',
   BREB:          'Bre-B',
+  // De cara al OPERADOR (admin), no al comprador: nombra el proveedor a propósito — a
+  // diferencia del checkout, acá no hay razón para esconderlo (§ WOMPI-ENUM-METODO-F-1).
+  WOMPI:         'Pasarela (Wompi)',
 };
 
 // Coerce a loose string (e.g. Order.metodo_pago "nequi", or a form value) to the
@@ -64,7 +68,12 @@ export function metodoPrevistoLabel(order: {
 // Groups the registered-payment methods for the "Por método" summary card. The
 // Payment enum and rows never change — this is only how the summary buckets them.
 // The ledger table + its per-method filter keep the individual methods.
-export type PaymentCategoria = 'EFECTIVO' | 'TRANSFERENCIA' | 'OTRO';
+// PASARELA (§ WOMPI-ENUM-METODO-F-1): categoría PROPIA para WOMPI, no un cuarto nombre para
+// el residual OTRO. Es plata que un webhook acredita solo, sin que un operador la registre a
+// mano — distinta de EFECTIVO (nadie la cuenta en persona), de TRANSFERENCIA (no es un riel
+// digital que el operador teclea tras verla) y de OTRO (no es "no sé clasificarla": se sabe
+// exactamente qué es, y por eso se nombra).
+export type PaymentCategoria = 'EFECTIVO' | 'TRANSFERENCIA' | 'OTRO' | 'PASARELA';
 
 export const METODO_CATEGORIA: Record<MetodoPago, PaymentCategoria> = {
   EFECTIVO:      'EFECTIVO',
@@ -74,16 +83,18 @@ export const METODO_CATEGORIA: Record<MetodoPago, PaymentCategoria> = {
   OTRO:          'OTRO',
   // Bre-B es plata que llega por un riel digital, no efectivo — mismo bucket que Nequi/Daviplata.
   BREB:          'TRANSFERENCIA',
+  WOMPI:         'PASARELA',
 };
 
 export const PAYMENT_CATEGORIA_LABEL: Record<PaymentCategoria, string> = {
   EFECTIVO:      'Efectivo',
   TRANSFERENCIA: 'Transferencia',
   OTRO:          'Otro',
+  PASARELA:      'Pasarela',
 };
 
 // Display order for the summary + filter groups.
-export const PAYMENT_CATEGORIAS: PaymentCategoria[] = ['EFECTIVO', 'TRANSFERENCIA', 'OTRO'];
+export const PAYMENT_CATEGORIAS: PaymentCategoria[] = ['EFECTIVO', 'TRANSFERENCIA', 'OTRO', 'PASARELA'];
 
 // Categories that bucket more than one method — the only ones worth offering as a
 // grouped filter option (a single-method category is identical to its method).

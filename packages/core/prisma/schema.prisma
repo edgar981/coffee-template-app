@@ -369,15 +369,27 @@ enum ComprobanteEstado {
   RECHAZADO
 }
 
-// Manual payment methods. Extensible for online rails later (e.g. WOMPI) via
-// `ALTER TYPE "MetodoPago" ADD VALUE 'WOMPI'`.
+// ESTE ENUM RESPONDE «CÓMO LLEGÓ LA PLATA» — es el de `Payment.metodo`, no el del panel del
+// dueño. Por eso WOMPI SÍ vive ACÁ, a diferencia de `MetodoPagoTipo`
+// (lib/checkout/metodos-pago.ts, minúsculas), que responde otra pregunta: «qué le ofrezco a
+// elegir al cliente en el checkout». Ahí Wompi NO entra —es un toggle de DESPLIEGUE, se
+// enciende una vez al configurar el cliente, no algo que el dueño prenda/apague desde
+// Configuración como hace con Nequi o Bre-B—. Ver el comentario junto a `MetodoPagoTipo`
+// para el porqué completo del otro lado.
 //
 // BREB (§ PAGOS-METODOS-MODELO-1, migración 20260910120100): pago por llave, el riel más
 // usado hoy en Colombia. Va al bucket TRANSFERENCIA en `METODO_CATEGORIA` (types/payment.ts)
-// — es plata que llega por un riel digital, no efectivo. `types/payment.ts` MIRROREA este
-// enum a mano (MetodoPago/METODOS_PAGO/METODO_PAGO_LABEL/METODO_CATEGORIA); un test derivado
-// (`lib/pagos/metodos-pago-enum.test.ts`) ata las dos declaraciones para que un valor nuevo
-// acá no pueda faltar allá en silencio.
+// — es plata que llega por un riel digital, no efectivo.
+//
+// WOMPI (§ WOMPI-ENUM-METODO-F-1, migración 20260915000000_metodo_pago_wompi): pago en línea
+// vía pasarela. Gana su PROPIA categoría PASARELA en `METODO_CATEGORIA` — no es efectivo, ni
+// un riel digital que el operador registra a mano, ni el residual OTRO: es plata que el
+// webhook acredita sin que un humano la mire.
+//
+// `types/payment.ts` MIRROREA este enum a mano (MetodoPago/METODOS_PAGO/METODO_PAGO_LABEL/
+// METODO_CATEGORIA) y `components/admin/PagosCurva.tsx` (METODOS_SERIE); un test derivado
+// (`lib/pagos/metodos-pago-enum.test.ts`) ata las cuatro declaraciones para que un valor
+// nuevo acá no pueda faltar allá en silencio.
 enum MetodoPago {
   NEQUI
   DAVIPLATA
@@ -385,6 +397,7 @@ enum MetodoPago {
   TRANSFERENCIA
   OTRO
   BREB
+  WOMPI
 }
 
 // ─── El INTENTO de un cobro en línea, no el pago ─────────────────────────────

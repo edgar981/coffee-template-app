@@ -1,0 +1,12 @@
+-- Wompi se suma al enum `MetodoPago` (§ WOMPI-ENUM-METODO-F-1): responde «cómo llegó la
+-- plata», y un pago acreditado por el webhook de Wompi necesita su propio valor en ese eje
+-- — no caer en 'OTRO', que dejaría el desglose «Por método» del libro de Pagos y su PDF
+-- sumando a un total sin nombrarlo (el mismo argumento que ya trajo BREB, migración
+-- 20260910120100_metodo_pago_breb).
+--
+-- Este valor SÓLO se agrega al enum: nada lo produce todavía. El `Payment` que el webhook
+-- de Wompi va a crear es trabajo aparte (WOMPI-ENUM-METODO-F-1 §6, "(g)").
+--
+-- EN SU PROPIA MIGRACIÓN, sin usar el valor todavía: Postgres no permite usar un valor de
+-- enum recién agregado en la MISMA transacción que lo agrega.
+ALTER TYPE "MetodoPago" ADD VALUE 'WOMPI';

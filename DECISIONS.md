@@ -3789,3 +3789,115 @@ tranquilidad del paso de pago, ahora TRES ramas) · el hueco de test estructural
 `WOMPI-WIDGET-EN-EL-CANONICO-1`/`WOMPI-TOGGLE-DISPONIBILIDAD-1`, todavía sin cerrar · el hallazgo del
 minificador (arriba), sin arreglar — vive en `services/checkout.service.ts`, fuera de `touches:` de
 este slice · (c), la ruta de retorno, sigue pendiente.
+
+## 2026-09-15 — WOMPI entra al enum `MetodoPago` — (f), el precedente EXACTO es BREB (`WOMPI-ENUM-METODO-F-1`)
+
+**EL VALOR SE AGREGA; NADA LO PRODUCE TODAVÍA.** `WOMPI` se suma al enum de Prisma `MetodoPago` (el de
+MAYÚSCULAS, el de `Payment.metodo` — **no** `MetodoPagoTipo`, el del panel del dueño en
+`lib/checkout/metodos-pago.ts`, que ya tenía el comentario prohibiéndolo). Es el mismo movimiento que
+`BREB` (`PAGOS-METODOS-MODELO-1`, migración `20260910120100_metodo_pago_breb`): un valor de enum sin un
+solo llamador que lo escriba. El `Payment` que el webhook de Wompi va a crear es (g), fuera de este
+slice.
+
+### La migración — copiando el precedente
+
+`ALTER TYPE "MetodoPago" ADD VALUE 'WOMPI';` en su PROPIA migración
+(`packages/core/prisma/migrations/20260915120000_metodo_pago_wompi/migration.sql`), porque Postgres no
+permite usar un valor de enum recién agregado en la misma transacción que lo crea — la razón exacta que
+ya dejó BREB en su propia migración, copiada acá. `migrate deploy` la corrió SOLA, dentro de `npm run
+build` (medido: `Datasource "db": … "ep-still-sound-acfmedf2" …` — la base de `development`, la que el
+`.env` local usa — y, releyendo el enum en esa misma base con `node --env-file=.env`, `WOMPI` ya
+aparece en `enum_range(NULL::"MetodoPago")` junto a los seis valores previos). No se corrió ningún
+`ALTER TYPE` a mano ni se tocó la base por fuera del build.
+
+### Los cuatro espejos, y la QUINTA declaración que no hizo falta tocar
+
+`types/payment.ts` (`MetodoPago`, `METODOS_PAGO`) + `components/admin/PagosCurva.tsx`
+(`METODOS_SERIE`) son los cuatro puntos que `lib/pagos/metodos-pago-enum.test.ts` ata al enum real de
+Prisma — los cuatro sumaron `WOMPI`. `METODO_DESGLOSE_LABEL` (`types/payment.ts`) es una QUINTA
+declaración `Record<MetodoPago, string>` que el test no nombra, pero **no hizo falta tocarla**: es un
+spread de `METODO_PAGO_LABEL` con un solo override (`TRANSFERENCIA: 'Bancaria'`), así que hereda
+`WOMPI` automáticamente y sigue siendo exhaustiva sin una línea nueva.
+
+**La etiqueta, de cara al OPERADOR:** `METODO_PAGO_LABEL.WOMPI = 'Pasarela (Wompi)'` — a diferencia del
+checkout (donde el nombre del proveedor se esconde, § el comentario de `MetodoPagoTipo`), acá es
+pantalla de operador y nombrar a Wompi no tiene el mismo costo.
+
+### La categoría PASARELA — la CUARTA, no un cuarto nombre para OTRO
+
+`PaymentCategoria` gana `PASARELA` (`types/payment.ts`): WOMPI NO cae en `OTRO` porque no es "no sé
+clasificarla" — se sabe exactamente qué es, plata que un webhook acredita sin que un operador la
+registre a mano, distinta de EFECTIVO, de TRANSFERENCIA (un riel digital que el operador SÍ teclea tras
+verlo) y del residual OTRO. Tocó los tres Records exhaustivos que TS obliga a completar:
+`PAYMENT_CATEGORIA_LABEL` (+ `PASARELA: 'Pasarela'`), `PAYMENT_CATEGORIAS` (+ el elemento) y
+`GRUPO_METODO_LABEL` (`app/(admin)/admin/pagos/page.tsx`, + `PASARELA: 'Pasarela'`). Con un solo método
+(`WOMPI`) en la categoría, `PAYMENT_CATEGORIAS_MULTI` sigue sin incluirla —igual que `EFECTIVO`/`OTRO`
+hoy—, así que el `<optgroup>` "Cualquier digital" sigue siendo sólo de Transferencia; nada que tocar ahí.
+
+**LA FRASE QUE SE VOLVÍA FALSA, corregida:** el comentario de `app/(admin)/admin/pagos/page.tsx` decía
+*"Cubre las TRES categorías de PaymentCategoria a propósito"*. Con PASARELA son CUATRO — se corrigió el
+número. Es la misma familia de deriva que este repo persigue (§ Backlog técnico, "un número en doctrina
+es una frase con fecha de vencimiento"), atrapada en el propio código antes de que quedara escrita mal
+en CLAUDE.md.
+
+### `--duna-serie-7` — PROVISIONAL, con su follow-up
+
+`METODOS_SERIE` necesitaba un color para la séptima barra del modo-método de Pagos. `--duna-serie-6`
+ya es de BREB, así que se agregó `--duna-serie-7` en `packages/design-system/tokens/tokens.css` (claro
+`#9E3F79`, oscuro `#D98FC0`, magenta/frambuesa — elegido A OJO para no chocar con serie-1..6 ni con
+sol/ok/bad, **sin medir ΔE2000**). Es explícitamente PROVISIONAL, marcado en el comentario de los dos
+temas: el valor definitivo lo trae la sesión de diseño (ΔE2000 contra sol/ok/bad en ambos temas, piso
+~22, distinguible de serie-6 — el mismo método que ya fijó el piso de la paleta hoy en ~22 ΔE2000).
+
+**Costo visible aceptado, no arreglado en este slice:** con WOMPI aún sin un solo `Payment` que lo use,
+esta séptima barra no tiene caso real que la dibuje hoy — es la misma clase de "capacidad sin
+escritor" que BREB tuvo entre su propia migración y `PAGOS-METODOS-LISTA-1`. El color provisional
+importa recién cuando (g) empiece a crear pagos WOMPI.
+
+**FOLLOW-UP nombrado:** `WOMPI-SERIE-COLOR-DEFINITIVO-1` — reemplazar el hex provisional de
+`--duna-serie-7` (los dos temas) por el valor medido en la sesión de diseño, cuando ésta ocurra. No es
+de este slice: (f) sólo necesitaba que el token EXISTIERA para que el test y la pantalla no rompieran.
+
+### El comentario apareado — por qué WOMPI vive en MAYÚSCULAS y no en minúsculas
+
+Junto al enum en `schema.prisma` va el comentario gemelo del de `MetodoPagoTipo`
+(`lib/checkout/metodos-pago.ts:14-23`, ya mergeado): **este enum responde «CÓMO LLEGÓ LA PLATA»**, y
+por eso WOMPI SÍ vive acá, a diferencia de `MetodoPagoTipo` —que responde «qué le ofrezco a elegir al
+cliente en el checkout», donde Wompi NO entra porque es un toggle de DESPLIEGUE (se enciende una vez al
+configurar el cliente), no algo que el dueño prenda/apague desde Configuración—. El comentario redirige
+al lector al otro enum por su CONTENIDO, no por número de este ledger.
+
+### Efecto lateral observado, no un defecto: WOMPI aparece en "Registrar Pago"
+
+`components/admin/RegisterPaymentModal.tsx` (fuera de `touches:`, no tocado) itera `METODOS_PAGO` para
+el select de método, y separa "ofrecidos"/"no ofrecidos" según `SiteSetting.metodosPago` — por diseño
+YA escrito (§ PAGOS-METODOS-SELECT-1 §2, "los métodos siguen TODOS elegibles… filtrar por lo
+configurado haría IMPOSIBLE registrar plata real que entró por un medio que el negocio no publica").
+Con `WOMPI` en `METODOS_PAGO`, "Pasarela (Wompi)" aparece ahora en el grupo "no ofrecidos" de ese
+select — el MISMO efecto automático que ya tuvo BREB al sumarse al enum, sin tocar ese archivo. No es
+observable para el comprador (es la pantalla del operador), y no es una decisión de este slice: es la
+consecuencia correcta de que los cuatro espejos queden exactos.
+
+### El piso, medido en el árbol final
+
+`npm test` → **1187/1187** (sube de los 1166 citados en `WOMPI-B8-COPY-PASARELA-1` por los merges
+posteriores a esa medición —`NORTE-DEUDA-FILA-CRON-1`, la fusión de (b)+toggle+B8—, no por este slice:
+ningún archivo que edité cae bajo el glob de un test nuevo, y `metodos-pago-enum.test.ts` ya existía).
+`npm run test:integracion` → **193/193** (idéntico al piso citado en esa misma entrada; nada en ese
+carril cambió). `npx tsc --noEmit` → limpio (tras un `npm run build` que refrescó un `.next/types`
+rancio de una sesión anterior, ajeno a este diff — los dos errores iniciales de `tsc` apuntaban a rutas
+de `checkout/retorno` que (c) todavía no construye). `npm run build` → `✓ Compiled successfully`, con
+`prisma migrate deploy` aplicando la migración de este slice contra `development`.
+
+**Tier 1 / AWAITING_APPROVAL.** El diff toca `packages/core/prisma/schema.prisma` y su migración —
+schema/migración, la primera de las tres condiciones de la política A—. Rama
+`slice/wompi-enum-metodo-f-1`, sin mergear.
+
+Regla: § Pagos en línea (Wompi) (CLAUDE.md) · `packages/core/prisma/schema.prisma` (enum `MetodoPago` +
+su comentario apareado) · `packages/core/prisma/migrations/20260915120000_metodo_pago_wompi/` ·
+`types/payment.ts` (los cuatro campos que crecen: `MetodoPago`, `METODOS_PAGO`, `METODO_PAGO_LABEL`,
+`METODO_CATEGORIA`, más `PaymentCategoria`/`PAYMENT_CATEGORIA_LABEL`/`PAYMENT_CATEGORIAS`) ·
+`components/admin/PagosCurva.tsx` (`METODOS_SERIE`) · `app/(admin)/admin/pagos/page.tsx`
+(`GRUPO_METODO_LABEL`, la frase "tres→cuatro" corregida) · `packages/design-system/tokens/tokens.css`
+(`--duna-serie-7`, PROVISIONAL) · `WOMPI-SERIE-COLOR-DEFINITIVO-1`, follow-up abierto · (g), el
+`Payment` que el webhook crea, sigue pendiente.
