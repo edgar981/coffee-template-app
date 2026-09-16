@@ -3357,6 +3357,26 @@ _0v02p-q._.js` → **1**: la guarda de 400 SÍ viaja al artefacto (es runtime-de
 constante-plegable). Es la aplicación directa de § GATE DE CAPA 3 — grepear el artefacto, no la
 fuente— a la pregunta "¿de verdad no se ve nada nuevo con la capacidad apagada?".
 
+**CORRECCIÓN (`WOMPI-B-ASIENTO-CORRECCION-BUNDLE-1`, 2026-09-15) al párrafo anterior — "cero veces en
+el bundle" dejó de ser cierto EN EL MISMO BRANCH, y este asiento no lo dijo.** La medición de arriba
+valía bajo `pasarelaDisponibleEnEsteDespliegue()` como `return false;` literal — una constante que el
+minificador podía PLEGAR. `WOMPI-TOGGLE-DISPONIBILIDAD-1` (§ abajo) cambió esa función a
+`process.env.NEXT_PUBLIC_PASARELA_HABILITADA === '1'`, leída a través de una llamada de función entre
+módulos, y **el minificador YA NO PUEDE probar la rama muerta**: medido por `WOMPI-B8-COPY-PASARELA-1`
+(§ "HALLAZGO no pedido por este slice", más abajo), **"Tarjeta, PSE y más" SÍ aparece en el bundle de
+producción** — en `c2bda60` y después, con o sin mi cambio. La garantía que se sostiene HOY es
+byte-identidad del **RENDER** — lo que un despliegue sin la env var (Nayoli, hoy) le sirve al
+visitante: la opción no se renderiza, no hay bloque `wompi` en la respuesta del checkout, no se monta
+el widget —, **NO** del **BUNDLE**, que desde `WOMPI-TOGGLE-DISPONIBILIDAD-1` contiene el código de la
+pasarela como código MUERTO en runtime (inalcanzable para cualquier visitante real, sin fuga — las
+llaves de Wompi son server-side y nunca viajan a ese bloque). Se corrige acá, sin borrar el párrafo de
+arriba, porque una frase que afirma "byte-idéntico en el artefacto" es la clase de frase que se cita
+como garantía del artefacto mucho después de que dejó de serlo — la misma deriva que este repo
+persigue en el código («lo que se afirma deja de coincidir con lo medido»), esta vez en un asiento
+propio. El follow-up que la cerraría de raíz —inlinear el check de disponibilidad para que el
+minificador vuelva a plegar la rama— ya está nombrado (§ "HALLAZGO…" de `WOMPI-B8-COPY-PASARELA-1`) y
+sigue SIN prioridad: lo que le importa a Nayoli es el render, y el render ya es byte-idéntico.
+
 **`npx tsc --noEmit` → 0.** El narrowing de `metodoActivo` en `handleOrder` (page.tsx) se resolvió con
 un `if/else if/else return` explícito en vez de un ternario, precisamente porque un guard compuesto
 (`!pasarelaSeleccionada && !metodoActivo`) no garantiza que TypeScript narrowee la variable dentro de
@@ -3365,7 +3385,10 @@ una rama de ternario sin volver a probar la condición — se verificó con `tsc
 **Tier 1 / AWAITING_APPROVAL, `stopped_on: ['customer-bytes']`.** El diff agrega bytes NUEVOS que un
 comprador podría leer —la opción "Tarjeta, PSE y más" y la pantalla "Tu pedido está reservado…
 Completa el pago abajo para confirmarlo"— aunque hoy sean inalcanzables en producción (§ arriba, la
-opción incluso queda AUSENTE del bundle por el minificador). El diff también toca `app/(storefront)/`
+opción incluso queda AUSENTE del bundle por el minificador — **ESTO DEJÓ DE VALER**, ver la
+CORRECCIÓN pegada al párrafo que lo midió: la ausencia era del bundle bajo `return false;`, no
+sobrevive a `WOMPI-TOGGLE-DISPONIBILIDAD-1`; lo que se sostiene es la ausencia del RENDER). El diff
+también toca `app/(storefront)/`
 (Tier 1 por subárbol), `app/api/checkout/route.ts` (Tier 1 por nombre) y crea
 `components/storefront/checkout/` (Tier 1 por subárbol pre-declarado): tres razones independientes
 para el mismo alto. Rama `slice/wompi-widget-en-el-canonico-1`, sin mergear.
