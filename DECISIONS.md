@@ -4880,3 +4880,82 @@ terceros de antifraude ya registrados (Sift, ClearSale) · `WOMPI-WEBHOOK-RUTA-1
 `WOMPI-RUTA-DE-RETORNO-1` como el modelado agnóstico de procedencia que esta tanda mide como activo,
 no como intención · un motor de dinero que opera sólo sobre `reference`/estado/monto es lo que hace
 barata una migración de superficie de captura — y eso se cobra después, no cuando se decide.
+
+**CORRECCIÓN (`WOMPI-API-DIRECTA-CIERRE-CORRECCION-1`, 2026-09-16) al §5 de este asiento — el cierre se
+sostenía sobre dos premisas que el owner corrigió, y un disparador que ya se cumplió.** §§1, 3 y 4 de
+arriba —el dato del owner, el motor de dinero agnóstico, la lección de método— NO se tocan: siguen
+siendo el mapa correcto. Lo que se corrige es sólo el razonamiento de cierre (§5), que decía que la
+dirección "no se adopta" y dejaba la pregunta de §2 abierta "esperando datos". Se corrige acá, SIN
+borrar el párrafo de arriba, por la misma razón que ya se dio en `WOMPI-B-ASIENTO-CORRECCION-BUNDLE-1`
+(línea ~3582 de este archivo): una frase de cierre se cita después de que dejó de ser cierta.
+
+**1 · El selector de métodos es un DEFECTO DE PRODUCTO, no un costo estético.** Medición del OWNER, de
+primera mano — se registra como suya, no como medida por este slice (misma naturaleza que §1 de
+arriba: este slice no tiene acceso al dashboard del proveedor ni a su catálogo de parámetros del
+loader):
+
+- el selector de métodos que abre el widget **no se puede restringir ni preseleccionar** — ni por
+  parámetro del loader, ni desde el dashboard del comercio, que para esto es una pantalla de sólo
+  lectura;
+- consecuencia: un tenant que sólo quiere ofrecer tarjeta y PSE no tiene forma de evitar que el
+  comprador vea TODOS los métodos que el proveedor le tenga habilitados — el owner nombra, entre
+  ellos, SU+Pay, Bancolombia QR y Compra y Paga Después.
+
+El censo original trató el segundo nivel de selección como un costo ESTÉTICO (el comprador ve una
+superficie ajena). No lo es: **es el comercio perdiendo el control sobre qué ofrece para cobrar** —una
+decisión comercial suya, no del proveedor—, y es exactamente el nivel que el comercio observado en §1
+(Home Burgers) SÍ controla al tener su propia página: ahí los métodos que se ofrecen son los que ese
+comercio eligió. Este argumento se sostiene SOLO: aunque la marca ajena no molestara en absoluto, el
+tenant seguiría sin poder decidir qué métodos ofrece.
+
+**2 · El antifraude escala con el VOLUMEN — la premisa que estaba mal.** El §2 de arriba dejaba la
+decisión "esperando datos de fraude para poder preciar el riesgo" que el widget cede gratis. El owner
+corrige esa premisa:
+
+> El valor de la cobertura antifraude escala con el VOLUMEN, y el riesgo que cubre también. Es alta
+> para una cadena con miles de transacciones y baja para una finca con pedidos contados. Esperar
+> "datos de fraude" apuntaba a un problema de ESCALA que los clientes de Duna no tienen.
+
+El trato no es simétrico como el cierre viejo lo planteaba: lo que se entrega vale poco a la escala de
+este producto, y lo que se gana —que el tenant controle su pago (§1 de esta corrección)— se cobra en
+CADA pedido, no en un evento raro de fraude.
+
+**Precisión que se agrega acá, para no cambiar un exceso por otro:** lo MEDIDO en §1 de arriba es que
+la capa de fingerprinting que el widget inyecta en el navegador (`cdn.siftscience.com`,
+`device.clearsale.com.br`) NO CARGA en la página de API directa observada. Si el proveedor evalúa
+riesgo del lado de SU SERVIDOR para transacciones nacidas por API —y con cuánta señal menos que con el
+widget— es EXTERNO y NO ESTÁ MEDIDO. Se corrige entonces sólo lo medible: se perdió la capa de
+fingerprinting de navegador que §1 documentó, no necesariamente TODA evaluación de riesgo del
+proveedor. La frase de §2 ("el antifraude no se muda: desaparece") sigue siendo correcta para lo que
+se midió —la capa de navegador—; esta corrección acota su alcance para que no se lea como una
+afirmación sobre el servidor del proveedor, que nadie midió.
+
+**3 · Un disparador ya se cumplió.** El §2 de arriba dejó abierta la pregunta de si cambiar la
+cobertura antifraude del proveedor por un checkout propio es un trato aceptable, "es del owner". El
+owner responde con un hecho, no con una hipótesis: **la demanda de un dueño de marca que no quiere
+otro logo ni métodos ajenos en su propio pago ya existe — es él mismo, para el muestrario de Duna.** No
+es una condición futura a vigilar: ya está sobre la mesa.
+
+(Nota de precisión de este slice: §2 de arriba no dejó una lista explícita rotulada "disparadores" —
+dejó la pregunta formulada como decisión pendiente del owner. Esta corrección registra que ESA
+pregunta la responde el owner ahora, con este hecho.)
+
+**4 · El nuevo estado de la dirección.** Con §§1 y 2 de esta corrección y el disparador de §3
+cumplidos, el cierre cambia de sentido:
+
+- **Wompi se cierra con el widget, y ESO NO CAMBIA.** Está construido, gateado, y el servidor se reusa
+  entero (§3 de arriba): publicarlo no cuesta nada extra, y tener la pasarela viva vale más que
+  esperar.
+- **La API directa pasa a ser el PROGRAMA SIGUIENTE** —después de cerrar Wompi y antes de lo que
+  venga—. Ya no es "una dirección viva por si acaso" (el estado que dejaba el §5 original): es lo
+  próximo.
+- **Nada de API directa se construye en esta corrección ni en la tanda que la trajo.** Su partición y
+  su censo de construcción se preparan aparte.
+
+Regla: § Pagos en línea (Wompi) (CLAUDE.md) sigue vigente como frontera técnica (`Payment` como único
+escritor del eje de cobro, el puente con Carlos) — no se toca acá; ninguno de los dos frentes queda
+gateado a "la decisión de pasarela" (ya tomada, Wompi), sino a la ejecución del programa siguiente, que
+esta corrección no abre.
+
+**GATE, los dos carriles, verde.** Este diff toca un solo archivo del ledger (`DECISIONS.md`) y ningún
+test, así que nada podía cambiar en ninguno de los dos carriles.
