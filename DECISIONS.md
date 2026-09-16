@@ -5036,10 +5036,28 @@ delante — no ahora.
 
 ### 4 · El copy de las dos aceptaciones, y lo medido sobre ellas
 
-**MEDIDO por el orquestador contra la documentación pública del proveedor** — se registra como
-medición suya, no de este slice: este slice no tiene acceso a red, y esa documentación no es este
-repo. Misma naturaleza que `WOMPI-API-DIRECTA-CIERRE-1` §1 (arriba), que ya distinguió registrar de
-verificar para un hallazgo ajeno a este repo.
+**LEÍDO por el orquestador en la documentación pública del proveedor, NO verificado contra el
+sandbox** — se registra como lectura suya, no de este slice: este slice no tiene acceso a red, y esa
+documentación no es este repo. Misma naturaleza que `WOMPI-API-DIRECTA-CIERRE-1` §1 (arriba), que ya
+distinguió registrar de verificar para un hallazgo ajeno a este repo.
+
+**CORRECCIÓN DE ATRIBUCIÓN (`API-DIRECTA-DECISIONES-ATRIBUCION-FIX-1`, 2026-09-16): esta sección
+decía "MEDIDO" y era falso en su palabra clave — no hubo medición, hubo una LECTURA.** Los hechos
+que siguen —los dos documentos, el copy, las dos condiciones de construcción— siguen SIN
+verificarse contra el comportamiento real del proveedor, y se leen como lo que son: una lectura de
+documentación, no una medición. Importa porque el MISMO día, dos afirmaciones sacadas de esa misma
+documentación —sobre qué llave autoriza crear una transacción, y sobre si se puede consultar qué
+métodos tiene habilitados un comercio— resultaron DESMENTIDAS por una medición real contra el
+sandbox (`WOMPI-REGLAS-IMPLEMENTACION-1`, arriba, y § Pagos en línea (Wompi), CLAUDE.md: "la doc de
+Wompi no es fuente de verdad, se verifica contra el sandbox"). Una lectura rotulada como medición es,
+literalmente, la clase de afirmación que ya falló dos veces.
+
+**Nota de procedencia:** esta corrección la encontró la guarda de procedencia de hechos externos del
+repo del orquestador, en su primer barrido sobre specs ya despachados — no una revisión humana ni una
+relectura. Importa registrarlo porque, en palabras del owner, es la prueba de que el mecanismo
+trabaja y no sólo se prueba a sí mismo: una guarda que sólo pasa sus propios tests demuestra que hace
+lo que su autor imaginó; una que encuentra un defecto vivo en trabajo ya despachado demuestra que
+sirve.
 
 - Los DOS documentos que el comprador acepta son del PROVEEDOR y los aloja el proveedor: sus términos
   y condiciones de uso, y su autorización de tratamiento de datos personales. **El comercio no
