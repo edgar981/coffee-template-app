@@ -3385,3 +3385,89 @@ no tiene — deuda ya encolada, fuera del alcance de este slice.
 **Tier 1 — NO aplica.** `package.json` y `CLAUDE.md` no están en la lista Tier 1 ni en sus subárboles;
 este diff no toca `app/(storefront)/`, ninguna puerta de dinero, schema ni migración. Merge policy A:
 sin cambio de schema, sin bytes de cliente, sin contrato cross-repo → mergeable en verde.
+
+## 2026-09-15 — El norte de Duna es PLATAFORMA (`NORTE-PLATAFORMA-ASIENTO-1`)
+
+**La decisión de producto más grande del proyecto hasta hoy.**
+
+### EL NORTE
+
+**EL NORTE DE DUNA ES PLATAFORMA.** Multi-tenant de **base compartida** con aislamiento **LÓGICO**
+construido por arquitectura (RLS, o un cliente de datos que inyecta el tenant por construcción), alta
+de cliente **en minutos**, **operación única**. Cuatro rasgos, y los cuatro son la decisión — no basta
+con la base compartida sin el aislamiento lógico, ni con el aislamiento sin el alta rápida: los cuatro
+juntos son lo que hace que "un cliente nuevo" deje de ser un evento de infraestructura.
+
+### EL MODELO DE HOY: VIGENTE Y TRANSITORIO
+
+El modelo actual —**un despliegue por cliente** (su propio repo/deploy, su propia base, su propio
+Vercel; ver CLAUDE.md § El código compartido no NACE siendo Nayoli/demo)— **nunca se decidió: se fue
+construyendo.** Cada cliente nuevo repitió el patrón del anterior sin que nadie fijara "así va a ser
+siempre". Hoy se confirma como **el modelo sobre el que se TERMINA lo en curso, no como el destino.**
+
+**La intención original era base compartida.** El rastro vive — vivía — en un comentario de
+`packages/core/prisma/schema.prisma`, sobre el modelo `SiteSetting`, que este slice retira (§ el
+rastro, abajo) porque una aspiración no vive en un comentario de schema: vive acá, fechada y
+confirmada.
+
+### EL RASTRO — lo que el comentario decía, antes de que este slice lo retirara
+
+`packages/core/prisma/schema.prisma`, líneas 685–691 (medidas contra `main` antes de este slice — ya
+no existen tras el retiro de abajo), en el
+comentario que precede a `model SiteSetting`:
+
+> El scope de tenant llega con el MOVIMIENTO de este modelo al esquema `duna_shop`, no con una columna
+> adelantada.
+>
+> DISPARADOR: cuando la arquitectura de TRES ESQUEMAS (duna_shop/duna_shared) llegue, esta tabla migra
+> a `duna_shop` (dato del tenant, NUNCA `duna_shared`) y el `id` singleton pasa a ser la clave de
+> tienda. Hoy nace en `public` porque el multi-schema no existe aún.
+
+Esa arquitectura de tres esquemas —`duna_shop` para el dato del tenant, `duna_shared` para lo
+compartido— es la forma concreta que la intención original le daba a "base compartida". **Hoy se
+confirma que apuntaba al norte** — no se descarta como dirección equivocada; se retira del comentario
+porque el norte ya no vive disperso en un `DISPARADOR` de schema, vive asentado acá.
+
+### QUÉ NO CAMBIA HOY
+
+- **Wompi se termina sobre lo que existe.** El programa (b)→(i) sigue su curso sin tocar; ninguna
+  llave, ningún endpoint, ninguna decisión de Wompi se reabre por este asiento.
+- **El muestrario se despliega sobre lo que existe** — monorepo + rama-por-Project, el modelo vigente.
+- **Ninguna migración arranca. Cero slices de plataforma ahora.** Este asiento fija el rumbo; no abre
+  trabajo de plataforma.
+
+### QUÉ CAMBIA DESDE HOY
+
+La regla de rumbo, en `CLAUDE.md` (§ LO QUE CONFIGURA A UN TENANT PREFIERE DATO SOBRE ENV/CÓDIGO,
+atada a § El código compartido no NACE siendo Nayoli/demo):
+
+> **LO QUE CONFIGURA A UN TENANT PREFIERE DATO EN BASE SOBRE VARIABLE DE ENTORNO O CÓDIGO, salvo
+> imposibilidad medida.** Cada decisión nueva se pesa contra el norte: si hay dos formas de costo
+> similar, gana la que acerca a plataforma o la que menos encarece la migración.
+
+Va atada a la doctrina de defaults neutros porque son la misma familia: identidad-en-dato abarata la
+PROPAGACIÓN entre despliegues hoy; configuración-de-tenant-en-dato abarata la MIGRACIÓN a plataforma
+mañana.
+
+### EL REGISTRO DE DEUDA
+
+`docs/DEUDA-MIGRACION-PLATAFORMA.md`, sembrado con nueve decisiones ya tomadas bajo el supuesto
+por-despliegue (el toggle de pasarela por env, las tres llaves de Wompi, `NOINDEX`, la guarda de
+`instrumentation.ts`, el mark inlineado en build, el cron por repo, las ~8 constraints únicas
+tenant-sensibles, los dos `CHECK` de fila única de `SiteSetting`/`SiteContent`, y el cron por Vercel
+Pro por Project). Ninguna se arregla
+en este slice — el registro las nombra para que la migración las revisite, y para que ninguna decisión
+futura las engorde en silencio. La regla de mantenimiento vive en el propio doc: cada decisión nueva
+por-despliegue tomada a sabiendas suma su fila ahí, en el momento en que se decide.
+
+### EL DIFF
+
+**Cero cambio de esquema.** `git diff -- packages/core/prisma/schema.prisma` retira 7 líneas de
+comentario (todas `//`) sobre `duna_shop`/`duna_shared`; el modelo `SiteSetting`, su `CHECK`, y el
+resto del schema quedan byte-idénticos. `CLAUDE.md` gana la regla de rumbo. `DECISIONS.md` gana este
+asiento. `docs/DEUDA-MIGRACION-PLATAFORMA.md` es nuevo.
+
+**GATE, los dos carriles.** (Cifras en el reporte del slice.)
+
+**Tier 1 / AWAITING_APPROVAL — por `schema.prisma`, aunque el cambio sea sólo de comentario.** El
+owner gatea la redacción exacta de este asiento antes del merge.

@@ -682,13 +682,6 @@ model DashboardPreference {
 // `tenant_id` hoy sería una columna siempre-igual apuntando a una tabla que no
 // existe — la clase de columna inerte que ya se retiró de `Customer` y `Product`
 // (los ex `activo`/`agotado`, § Backlog #8/#10: su valor nunca variaba del default).
-// El scope de tenant llega con el MOVIMIENTO de este modelo al esquema `duna_shop`,
-// no con una columna adelantada.
-//
-// DISPARADOR: cuando la arquitectura de TRES ESQUEMAS (duna_shop/duna_shared) llegue,
-// esta tabla migra a `duna_shop` (dato del tenant, NUNCA `duna_shared`) y el `id`
-// singleton pasa a ser la clave de tienda. Hoy nace en `public` porque el multi-schema
-// no existe aún.
 //
 // `adminEmail`/`emailReplyTo` nullable: opcionales (el destinatario de reportes de
 // equipo y el reply-to arrancan sin valor; las automatizaciones de correo nacen
