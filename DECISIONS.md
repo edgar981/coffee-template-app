@@ -4586,3 +4586,56 @@ por config apagada · `SuscripcionPlanes`/`NosotrosGaleria` como precedente del 
 por prop cuando SÍ hay riesgo de árbol sin provider (acá no lo hay, así que el número se lee por
 contexto) · la capa 3 pendiente, con disparador (e) y su lista exacta de tres estados por ver · la
 `observed-report` citada por el spec, tercera vez sin existir.
+
+## 2026-09-16 — `.gitattributes` con `merge=union` para `DECISIONS.md`: la clase de conflicto append-only deja de existir (`LEDGER-MERGE-UNION-GITATTRIBUTES-1`)
+
+**EL HECHO.** Cada rama `slice/*` que agrega un asiento a `DECISIONS.md` escribe al FINAL del
+archivo; dos ramas que ambas sumaron un asiento chocan al mergear sobre la MISMA región. La
+resolución es SIEMPRE la misma —conservar los dos bloques de asientos, en orden, sin editar una
+línea— porque dos asientos apilados no tienen una decisión adentro: no hay criterio humano que
+aportar. Es un paso manual y recordable que se repite en cada merge con ramas `slice/*` en
+paralelo, y que este repo corre seguido (la propia tanda de Wompi de esta semana es la evidencia:
+una docena de asientos apilados en pocos días).
+
+**EL MECANISMO, nativo de git.** `union` es un driver de merge de bajo nivel que, ante un
+conflicto, conserva AMBOS lados — exactamente la resolución de arriba, hecha automática. Se
+declara por `.gitattributes` (archivo nuevo en la raíz del repo; no existía) con una sola línea:
+
+```
+DECISIONS.md merge=union
+```
+
+No hace falta tocar `.git/config` ni escribir un driver de merge propio: `union` viene incluido
+en git y `.gitattributes` alcanza para activarlo sobre este archivo.
+
+**LA ADVERTENCIA, completa, porque el owner la gatea con los ojos abiertos.** `merge=union` se
+aplica a TODOS los conflictos de `DECISIONS.md`, no sólo a los append-only. Para dos asientos
+apilados —que es ~todo lo que pasa en este archivo— es la resolución correcta. Pero si dos ramas
+alguna vez EDITAN el mismo asiento (una corrección de una frase ya escrita, como la del bundle,
+`WOMPI-B-ASIENTO-CORRECCION-BUNDLE-1`), la unión apila las dos versiones EN SILENCIO —sin marcador
+de conflicto que lo delate— y con eso desaparece el checkpoint que hoy protege la resolución a
+mano: «pará si el conflicto tiene una decisión adentro». Es el precio de matar la clase: cambia un
+trabajo manual frecuente por un riesgo silencioso raro. El owner lo aceptó a sabiendas.
+
+**ALCANCE: SÓLO `DECISIONS.md`.** No se incluyó `CLAUDE.md` ni ningún otro archivo append-only del
+repo en este slice — si alguno merece el mismo trato, es un follow-up nombrado aparte, no una
+extensión de éste.
+
+**VERIFICADO — `git check-attr merge -- DECISIONS.md`:**
+- antes de este cambio: `DECISIONS.md: merge: unspecified`
+- después de este cambio: `DECISIONS.md: merge: union`
+
+**GATE, medido en el árbol final de la rama.** `npm test` → **1200/1200**. `npm run test:integracion`
+→ **208/208**. Cero rojo en los dos carriles. El diff no toca código de producto ni ningún test:
+son dos archivos, `.gitattributes` (nuevo) y este asiento.
+
+**Tier 1 / AWAITING_APPROVAL.** El diff toca `.gitattributes` (mecanismo, archivo nuevo) y
+`DECISIONS.md` (este asiento). Ningún cambio de schema, ninguna migración, ningún contrato
+cross-repo — el spec lo clasificó Tier 1 y `approved: yes`, y el slice cierra sin mergear: el
+owner/orquestador mergea vía `merge_gated`. Rama `slice/ledger-merge-union-gitattributes-1`, sin
+mergear.
+
+Regla: la clase de conflicto append-only de `DECISIONS.md` —dos asientos apilados al final del
+archivo— queda cerrada por MECANISMO (`merge=union`), no por disciplina de quien resuelve a mano;
+la excepción que sigue viva —edición concurrente del MISMO asiento, apilada en silencio sin
+marcador— queda escrita acá para quien la tope primero.

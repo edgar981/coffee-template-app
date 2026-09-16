@@ -1,0 +1,11 @@
+# DECISIONS.md es append-only: cada rama de slice suma su asiento al final, y dos
+# ramas que ambas agregaron un asiento chocan al mergear sobre la misma región.
+# La resolución es SIEMPRE conservar los dos bloques, en orden, sin editar una
+# línea — no hay criterio humano que aportar. `union` (driver nativo de git) hace
+# esa resolución sola: ante un conflicto en este archivo, conserva AMBOS lados.
+#
+# ADVERTENCIA (ver el asiento `LEDGER-MERGE-UNION-GITATTRIBUTES-1` en DECISIONS.md
+# para el razonamiento completo): esto aplica a TODO conflicto de DECISIONS.md, no
+# sólo al append-only. Si dos ramas alguna vez EDITAN el mismo asiento, `union`
+# apila las dos versiones EN SILENCIO, sin marcador de conflicto que lo delate.
+DECISIONS.md merge=union
