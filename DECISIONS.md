@@ -3789,3 +3789,104 @@ tranquilidad del paso de pago, ahora TRES ramas) · el hueco de test estructural
 `WOMPI-WIDGET-EN-EL-CANONICO-1`/`WOMPI-TOGGLE-DISPONIBILIDAD-1`, todavía sin cerrar · el hallazgo del
 minificador (arriba), sin arreglar — vive en `services/checkout.service.ts`, fuera de `touches:` de
 este slice · (c), la ruta de retorno, sigue pendiente.
+
+## 2026-09-15 — (c), la ruta de retorno de Wompi: tres estados, la verdad del webhook y no del navegador (`WOMPI-RUTA-DE-RETORNO-1`)
+
+**LA REGLA QUE GOBIERNA TODO EL DISEÑO, y va primero porque de ahí sale el resto:** el retorno del
+navegador NO ES LA FUENTE DE VERDAD — el webhook lo es. Wompi puede pasar un `status` en el query del
+redirect (`data-redirect-url`, `RUTA_RETORNO_WOMPI = '/checkout/retorno'`,
+`components/storefront/checkout/PagoPasarela.tsx:10`); esta pantalla NO LO LEE NI SE LO CREE. Sólo
+afirma lo que `PaymentIntent.estado` dice — y ese campo sólo lo escribe el webhook
+(`app/api/webhooks/wompi/route.ts`).
+
+**LO CONSTRUIDO:**
+
+- **`app/api/checkout/retorno/route.ts` (151 líneas)** — la primera lectura de `PaymentIntent` por
+  `reference` fuera del webhook (medido antes de tocar nada:
+  `grep -rn "paymentIntent.findUnique" --include="*.ts" --include="*.tsx" .` daba UNA sola aparición,
+  la del webhook). Exige `reference` + `email` — el SEGUNDO FACTOR TECLEADO, mismo patrón que
+  `/api/orders/track` (`trackOrder`, precedente literal seguido, no reinventado): la `reference`
+  (`<numero_orden>:<cuid>`) viaja en una URL de retorno que un tercero podría leer (historial,
+  referrer, analítica), y sola no puede revelar el estado de un pago ajeno. Rate-limit por IP
+  (`rateLimit`, `packages/core/src/rate-limit.ts`, `limit: 20, windowMs: 60_000` — más generoso que
+  el `10/60s` de `track` porque el comprador legítimo hace POLLING, no una consulta única) y el MISMO
+  404 genérico para referencia inexistente, orden sin `cliente_email`, o email que no coincide — sin
+  oráculo de enumeración. **Devuelve ÚNICAMENTE `{estado, numero_orden}`** — nada de monto, datos del
+  cliente ni `pspTransactionId —` afirmado por test (`assert.deepEqual(Object.keys(...).sort(), [...])`).
+  El lector se inyecta (`RetornoIntentoDb`, mismo criterio angosto-y-estructural que `PaymentIntentDb`
+  del webhook) envolviendo el `select` real del join con `order` DENTRO de un adaptador (`dbReal`) para
+  que la interfaz no tenga que reproducir el tipo `PaymentIntentSelect` de Prisma — la primera versión,
+  con `select` expuesto en la firma, no tipaba (`PrismaClient` no era asignable a la interfaz; TS2345).
+- **`app/api/checkout/retorno/route.test.ts` (169 líneas, 10 casos)** — DB-free, con el doble en
+  memoria (mismo patrón que `route.test.ts` del webhook): coincidencia exacta, coincidencia
+  normalizada (trim+minúsculas), email que no coincide, referencia inexistente, orden sin
+  `cliente_email`, los tres estados viajando SIN reinterpretarse, y la plomería de `POST` (JSON
+  inválido, campo faltante, email con forma inválida, 429 al superar el límite) — todo ANTES de tocar
+  la base, así que corre en el carril rápido (`app/**/*.test.ts`).
+- **`services/checkout.service.ts` (+39 líneas)** — `consultarRetornoPago(reference, email)`, el
+  wrapper cliente sobre la ruta de arriba. Un 429 LANZA (no es "no encontrado" — es "esperá"); mismatch
+  o referencia inexistente devuelven `null`.
+- **`app/(storefront)/checkout/retorno/page.tsx` (315 líneas)** — la pantalla. Estados como UNIÓN
+  discriminada (`Vista`), nunca un string suelto: `sin_referencia` (sin `?reference=` en la URL — nadie
+  llega sin haber pasado por el widget), `pidiendo_email`/`buscando`/`no_encontrado` (el formulario del
+  segundo factor, calco de `rastrear-pedido`), `en_vuelo` (POLLING), `aprobado`, `fallido`, `techo`
+  (indeterminado, dejó de sondear). **El correo NUNCA se lee de un query param** — aceptar `?email=`
+  acá habría anulado el segundo factor completo (cualquiera con el link del redirect tendría los dos).
+  Sin datos del comprador en pantalla: sólo `estado` (traducido a copy) + `numero_orden`, igual que la
+  respuesta del servidor.
+- **EL BACKOFF: 2, 4, 8, 16, 30s y de ahí en más cada 30s, techo de 5 minutos** (`BACKOFF_SEGUNDOS`,
+  `TECHO_MS`, del diseño del slice, no elegidos por este slice). Vive en el CLIENTE
+  (`programarSiguiente`, refs para el contador y el reloj del techo — no debe disparar un re-render
+  por sí mismo); el servidor sólo responde el estado crudo en cada consulta. Un 429/fallo transitorio
+  durante el polling NO rompe el ciclo ni reinicia el reloj del techo — sólo un throw en la consulta
+  INICIAL (el submit del formulario) se muestra al comprador (`toast.error`).
+- **CERO DEPENDENCIA DE THEME** — verificado, no asumido: el spec advertía "si te encontrás
+  necesitando algo de un theme, PARÁ" y no hizo falta pararse; la pantalla usa el mismo vocabulario
+  `--sf-*`/Tailwind crudo que `rastrear-pedido` y el resto del checkout canónico.
+
+**DESVIACIÓN MEDIDA, la MISMA que ya había medido el slice anterior — se re-verifica, no se hereda de
+un solo dicho:** el `observed-report` que este spec cita (`WOMPI-CHECKOUT-INTENTOS-CENSO-1`) SIGUE SIN
+EXISTIR — `grep -n "WOMPI-CHECKOUT-INTENTOS-CENSO-1" DECISIONS.md` da CERO líneas propias (sólo las dos
+menciones que lo citan, la de `WOMPI-NO-ES-METODO-DEL-PANEL-1` y ésta) y
+`git log --all --grep="CHECKOUT-INTENTOS-CENSO" --oneline` da vacío. La afirmación puntual que el spec
+apoyaba en ese censo —"no hay hoy ningún lector de `PaymentIntent` por `reference` fuera del
+webhook"— SÍ se re-verificó de forma independiente (el mismo `grep` de arriba, corrido ANTES de escribir
+una línea) y es CIERTA. Se anota la discrepancia contra el spec, sin bloquear el trabajo: la
+construcción no dependía del censo citado, sólo de la medición que sí se pudo hacer.
+
+**LO QUE QUEDA PARA CAPA 3, dicho explícito:** el FLUJO REAL de vuelta —qué query params pone Wompi de
+verdad en el redirect (`?reference=` es lo que este slice asume, siguiendo la instrucción del spec;
+no hay forma de confirmarlo sin una transacción de sandbox/producción real, § "capa 3" del spec) — no
+se verificó contra un pago real. El diseño es correcto pase lo que pase con el nombre exacto del query
+param, PORQUE la regla central (no creerle al navegador) no depende de qué parámetros trae la URL: el
+`reference` es sólo la llave que arranca el formulario del segundo factor, nunca la fuente de verdad.
+El backoff/techo tampoco se verificó contra un navegador real (expresable en capa 1 el CÁLCULO de la
+espera, `esperaSiguienteMs`, pero no se le escribió un test dedicado — el mecanismo de temporizador en
+sí, con `setTimeout` real, es capa 3 por naturaleza, mismo criterio que el resto del repo para
+mecanismos de reloj/temporizador en componentes cliente).
+
+**BYTE-IDENTIDAD DE NAYOLI, verificada por ejecución.** `NEXT_PUBLIC_PASARELA_HABILITADA` es
+`undefined` en este entorno (`node -e` lo confirma) — la pasarela sigue apagada, así que
+`RUTA_RETORNO_WOMPI` nunca se usa como destino de un redirect real: `grep -rn "checkout/retorno"`
+(fuera de este propio código y sus tests) da UNA sola referencia externa, la constante en
+`PagoPasarela.tsx`. La ruta EXISTE — Next no gatea páginas por feature flag — pero nadie la alcanza
+desde un pago real sin que la pasarela esté encendida; visitarla a mano sin `?reference=` cae en
+`sin_referencia`, sin afirmar nada. `next build` confirma `/checkout/retorno` y `/api/checkout/retorno`
+como `ƒ` (dinámico, heredado del layout `force-dynamic` del storefront) sin tocar ninguna ruta
+existente.
+
+**GATE, medido en el árbol final de la rama.** `npm test` → **1197/1197** (piso medido antes de
+empezar: **1187**; el slice sumó **10**, exactamente los del archivo nuevo). `npm run test:integracion`
+→ **193/193** (idéntico al piso — el resolver es DB-free, vive en el carril rápido bajo `app/**`, no
+en `tests/integracion/`). `npx tsc --noEmit` → 0 errores (tras el ajuste del adaptador `dbReal`, arriba).
+`npm run build`/`next build` → verde, sin migraciones nuevas que aplicar (no se corrió `db:deploy` para
+no tocar ninguna base ajena a este slice; el spec no pide schema y el diff no lo toca).
+
+**Tier 1 / AWAITING_APPROVAL.** El diff toca `app/(storefront)/` y `app/api/` (Tier 1 por subárbol) —
+la pantalla que le dice al comprador si su pago entró, en la ruta del dinero. Rama
+`slice/wompi-ruta-de-retorno-1`, sin mergear.
+
+Regla: § Pagos en línea (Wompi) (CLAUDE.md) · el segundo factor tecleado (precedente
+`/api/orders/track`) · el backoff con su techo, sin verificar contra un navegador real (capa 3) · el
+nombre exacto del query param de Wompi, sin confirmar contra una transacción real (capa 3) · la
+`observed-report` citada por el spec, que sigue sin existir.
