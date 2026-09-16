@@ -3890,3 +3890,111 @@ Regla: § Pagos en línea (Wompi) (CLAUDE.md) · el segundo factor tecleado (pre
 `/api/orders/track`) · el backoff con su techo, sin verificar contra un navegador real (capa 3) · el
 nombre exacto del query param de Wompi, sin confirmar contra una transacción real (capa 3) · la
 `observed-report` citada por el spec, que sigue sin existir.
+
+## 2026-09-15 — Los dos gaps del gate del owner sobre (c): el 307 del tenant sin pasarela, y la salida completa del techo (`WOMPI-RETORNO-307-Y-TECHO-1`)
+
+El owner gateó (c) (`WOMPI-RUTA-DE-RETORNO-1`, arriba) y encontró DOS huecos concretos, no una
+objeción general: la pantalla no tenía guarda de servidor para un tenant sin la pasarela, y la
+vista `techo` sólo daba UNA salida cuando el propio owner había pedido tres. Esta tanda cierra los
+dos, en la MISMA rama (`slice/wompi-ruta-de-retorno-1`) y sin tocar el lector, el segundo factor ni
+el schedule del backoff — lo que (c) ya construyó y el owner ya validó por lectura queda intacto.
+
+**GAP 1 — EL 307, ANTES DE RENDERIZAR.** `app/(storefront)/checkout/retorno/page.tsx` era enteramente
+CLIENTE (`"use client"`, `useSearchParams`), sin chequeo server-side: un tenant SIN
+`NEXT_PUBLIC_PASARELA_HABILITADA=1` que entrara a `/checkout/retorno` veía el formulario "Confirma tu
+pago" — una pantalla viva para una capacidad que ese despliegue no tiene. `page.tsx` pasó a SERVER:
+
+```
+export default async function CheckoutRetornoPage() {
+  if (!pasarelaDisponibleEnEsteDespliegue()) redirect("/checkout");
+  const settings = await getSiteSettings();
+  return <RetornoCliente tieneWhatsapp={settings.whatsapp.trim() !== ""} />;
+}
+```
+
+`redirect()` throws de forma SÍNCRONA en la primera línea del cuerpo — antes de cualquier `await` y
+antes de construir un solo nodo JSX —, así que el gate es efectivamente "antes de renderizar" por la
+forma del propio control de flujo, no por convención. **307, no 308 ni un 404, verificado leyendo la
+fuente de Next instalada** (`node_modules/next/dist/client/components/redirect.js:53`: `redirect()`
+sin segundo argumento llama a `getRedirectError(url, type, RedirectStatusCode.TemporaryRedirect)`,
+y `TemporaryRedirect = 307` en `redirect-status-code.js:13`) — el mismo comportamiento que ya
+documenta `nosotros/page.tsx` para su propio apagado por config. Es la decisión correcta porque la
+pasarela es un TOGGLE DE DESPLIEGUE (`pasarelaDisponibleEnEsteDespliegue`, § `WOMPI-TOGGLE-
+DISPONIBILIDAD-1`): puede encenderse mañana sin volver a desplegar código, así que el redirect tiene
+que seguir siendo TEMPORAL — un 308 lo cachearía como permanente en el navegador del comprador, y un
+404 diría que la ruta no existe cuando sólo está apagada (mismo argumento que ya usa /nosotros para
+su propia página apagable).
+
+**Verificado por EJECUCIÓN, no sólo por lectura del código de Next:** `npm run build` seguido de
+`npm start` (modo producción) y una petición con `redirect: 'manual'` contra
+`/checkout/retorno?reference=abc123` en este entorno (donde `NEXT_PUBLIC_PASARELA_HABILITADA` sigue
+sin definirse, igual que documenta la entrada anterior) devolvió **`status 307`,
+`location: /checkout`** — medido, no supuesto. La rama "pasarela disponible" (que SÍ renderiza
+`RetornoCliente`) no se re-probó en caliente contra el flag encendido en este entorno —encenderlo
+exige reiniciar el proceso de Node con la env var puesta, y esta sesión no tiene permiso para invocar
+`kill`/prefijar la asignación de la variable—, pero es el MISMO patrón, ya usado y ya verificado por
+ejecución, de `nosotros/page.tsx` (`if (!content.paginas.nosotros.visible) redirect("/")`) y de
+`checkout/page.tsx` (`pasarelaDisponibleEnEsteDespliegue()` leído en el mismo build): no hay
+mecanismo nuevo, sólo el mismo gate movido al lado server de una pantalla que antes no lo tenía.
+
+**GAP 2 — LA SALIDA COMPLETA DEL TECHO.** La vista `techo` tenía la salida PRINCIPAL correcta (número
+de orden + "Rastrear mi pedido" → `/rastrear-pedido?orden=…`) y le faltaban las dos que el owner
+especificó, en la jerarquía que él fijó:
+
+- **Secundaria "Volver a consultar"**: reusa `handleBuscar` tal cual —la misma función que ya
+  reinicia `intentoRef`/`inicioEnVueloRef` a cero y consulta de inmediato, sin esperar el primer
+  tramo del backoff—, así que "reintentar" y "buscar por primera vez" son literalmente el mismo
+  camino de código. `email`/`reference` siguen en scope (la vista `techo` sólo se alcanza tras un
+  `EN_VUELO` exitoso previo), así que no hace falta volver a pedir el correo. Estilo secundario
+  (outline, el mismo que ya usa "Seguir comprando" en la vista `aprobado`), no compite con la
+  principal.
+- **WhatsApp, terciaria y CONDICIONAL a `tieneWhatsapp`**: la señal booleana que el server calcula en
+  `page.tsx` (`settings.whatsapp.trim() !== ''`, mismo patrón que `checkout/page.tsx`) y baja por
+  prop a `RetornoCliente`. El NÚMERO en sí no viaja por prop —`RetornoCliente` se monta siempre
+  dentro del `SiteSettingsProvider` del layout del storefront (nunca en un árbol de preview del
+  admin, a diferencia de `SuscripcionPlanes`/`NosotrosGaleria`), así que `useSiteSettings()` da el
+  número gratis, sin una segunda fuente que pudiera divergir de la que resolvió la señal—. Sin
+  canal configurado el `<a>` NO SE RENDERIZA (`{tieneWhatsapp && (...)}`): la misma guarda de
+  veracidad que ya aplican el footer y el propio checkout — no se ofrece un camino que no existe.
+
+El owner sólo especificó estas dos salidas para el TECHO; la vista `fallido` NO se tocó — queda como
+posible follow-up, sin decidir acá (ver abajo).
+
+**EL GATE ES PARCIAL, Y QUEDA DICHO PARA QUE NO SE LEA COMO MÁS DE LO QUE FUE.** El owner gateó (c)
+por LECTURA + los tests del carril, NO visualmente — no hay evidencia de un navegador real contra
+esta pantalla, ni antes de esta tanda ni después. La CAPA 3 (§ Las tres capas de verificación,
+CLAUDE.md) sigue PENDIENTE, con disparador **(e)**: el evento real que trae al comprador de vuelta a
+esta pantalla (una transacción de sandbox/producción contra Wompi). La lista EXACTA de lo que falta
+VER, para que no quede en la memoria de nadie: los TRES estados renderizados —**aprobado**,
+**rechazado/fallido**, e **indeterminado con su backoff llegando al techo** (los tres botones nuevos
+incluidos)—. (e) los trae los TRES, no sólo el feliz.
+
+**GATE, medido en el árbol final de la rama.** `npm test` → **1197/1197** (idéntico al piso que ya
+medía la entrada anterior — este slice no agrega tests, sólo mueve/edita JSX y un `page.tsx` server).
+`npm run test:integracion` → **193/193** (idéntico). `npx tsc --noEmit` → 0 errores. `npm run build` →
+verde; `/checkout/retorno` y `/api/checkout/retorno` siguen `ƒ` (dinámico, heredado del layout
+`force-dynamic` del storefront). **Sin test nuevo para el 307**: el `touches` de este slice no incluye
+un archivo de test, y un test de este `page.tsx` exigiría mockear `@/lib/config/site-settings` —que
+importa `server-only`, y ese guard revienta al importar el módulo en un test de node plano
+independientemente de la rama que el test quiera ejercer— o levantar un harness de RSC que este repo
+no tiene (jsdom ausente, § CLAUDE.md "el glob NO incluye `*.test.tsx`"). La verificación es la de
+arriba: lectura de la fuente de Next + ejecución contra el build de producción.
+
+**DESVIACIÓN MEDIDA, TERCERA VEZ SOBRE EL MISMO HECHO — y ya no es ruido, es un patrón.** El
+`observed-report` que ESTE spec también cita (`WOMPI-CHECKOUT-INTENTOS-CENSO-1`) SIGUE SIN EXISTIR:
+`grep -n "WOMPI-CHECKOUT-INTENTOS-CENSO-1" DECISIONS.md` sigue dando cero líneas propias (sólo las
+menciones que lo citan, incluida ésta). Las dos entradas anteriores ya lo habían medido y anotado por
+separado; se re-mide acá por la misma disciplina («no se hereda de un solo dicho») y se deja
+constancia de que la tercera cita consecutiva de un censo inexistente ya no es una casualidad de
+transcripción — alguien debería dejar de citarlo, o escribirlo de una vez.
+
+**Tier 1 / AWAITING_APPROVAL.** El diff toca `app/(storefront)/checkout/retorno/` (Tier 1 por
+subárbol — la pantalla que le dice al comprador si su pago entró) y `DECISIONS.md`. Ningún cambio de
+schema, ninguna migración, ningún contrato cross-repo. Rama `slice/wompi-ruta-de-retorno-1`, sin
+mergear.
+
+Regla: § Pagos en línea (Wompi) (CLAUDE.md) · `nosotros/page.tsx` como precedente del redirect 307
+por config apagada · `SuscripcionPlanes`/`NosotrosGaleria` como precedente del `{negocio}`/`whatsapp`
+por prop cuando SÍ hay riesgo de árbol sin provider (acá no lo hay, así que el número se lee por
+contexto) · la capa 3 pendiente, con disparador (e) y su lista exacta de tres estados por ver · la
+`observed-report` citada por el spec, tercera vez sin existir.
