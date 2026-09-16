@@ -31,13 +31,16 @@ const COLS = '84px 104px minmax(70px,1.1fr) 96px 108px minmax(70px,1.3fr) 104px 
 
 // Rótulo del <optgroup> del filtro de método, por CÓMO LLEGA LA PLATA (lo que el
 // operador distingue) — no el nombre técnico de PAYMENT_CATEGORIA_LABEL (ese es
-// para el desglose «Por método»). Cubre las TRES categorías de PaymentCategoria a
+// para el desglose «Por método»). Cubre las CUATRO categorías de PaymentCategoria a
 // propósito: un método cuya categoría no tuviera rótulo acá desaparecería del
 // filtro en silencio (§ PAGOS-METODOS-SELECT-1).
 const GRUPO_METODO_LABEL: Record<PaymentCategoria, string> = {
   TRANSFERENCIA: 'Digitales',
   EFECTIVO:      'Físicos',
   OTRO:          'Otros',
+  // WOMPI es su única entrada hoy; el pago en línea es su propio riel, no un "digital" más
+  // que el operador registró a mano (§ WOMPI-ENUM-METODO-F-1).
+  PASARELA:      'Pasarela',
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────

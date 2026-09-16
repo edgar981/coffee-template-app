@@ -224,6 +224,27 @@ export class FechaFuturaError extends Error {
   }
 }
 
+// LOCKEA la fila de la Order (`FOR UPDATE`) y devuelve el par estado+total, más
+// `numero_orden` para quien necesite nombrar la orden (p.ej. una notificación).
+// `registerOrderPaymentTx` NO lockea por su cuenta (ver el comentario de arriba,
+// "sólo se compara y se registra si difiere" no aplica acá) — cada llamador de
+// producción lo hace ANTES, con la MISMA consulta cruda repetida tres veces
+// (`app/api/orders/[id]/payments/route.ts`, `decidirComprobante` en
+// comprobantes.ts, y el `SELECT 1 … FOR UPDATE` de shipping-transition.ts para su
+// propio caso). Se extrae acá — junto al escritor de dinero que protege — para que
+// un CUARTO llamador (el webhook de Wompi, WOMPI-PAYMENT-DESDE-WEBHOOK-G-1) no
+// repita la consulta por cuarta vez. Los tres llamadores existentes NO se tocan
+// en ese slice: siguen con su `$queryRaw` inline, así que esto no les cambia nada.
+export async function lockOrderForPayment(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+): Promise<{ estado: string; total: number; numero_orden: string } | null> {
+  const filas = await tx.$queryRaw<{ estado: string; total: number; numero_orden: string }[]>`
+    SELECT "estado", "total", "numero_orden" FROM "Order" WHERE "id" = ${orderId} FOR UPDATE
+  `;
+  return filas[0] ?? null;
+}
+
 // Returns the Payment and the refreshed order (with items + shipping).
 export async function registerOrderPaymentTx(
   tx: Prisma.TransactionClient,

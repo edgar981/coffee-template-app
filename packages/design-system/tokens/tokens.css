@@ -128,6 +128,12 @@
   --duna-serie-4:    #2496AB;               /* cyan (movido de #356E78, competía con ok) */
   --duna-serie-5:    #A8A399;               /* neutro · el residual "Otro" por diseño */
   --duna-serie-6:    #908A00;               /* oliva-mustard · Bre-B */
+  /* PROVISIONAL (§ WOMPI-ENUM-METODO-F-1) · Wompi. Elegida a ojo para distinguirse de
+     serie-1..6 (magenta/frambuesa, hueco de matiz que ninguna otra serie ocupa) y para
+     no chocar con sol/bad (ámbar/terracota) ni con serie-3 (morado). SIN medir ΔE2000
+     todavía — el valor definitivo lo trae la sesión de diseño (ΔE2000 vs sol/ok/bad en
+     ambos temas, piso ~22, distinguible de serie-6). No tratar este hex como decidido. */
+  --duna-serie-7:    #9E3F79;               /* PROVISIONAL · magenta/frambuesa · Wompi */
 
   /* Superficie del TOAST — tinta de marca CONSTANTE. Decisión explícita (owner):
      el toast es la voz del sistema y no se voltea con el tema (a diferencia de
@@ -336,6 +342,9 @@
   --duna-serie-4:    #52C0D6;               /* cyan (movido de #6FA8B0, competía con ok) */
   --duna-serie-5:    #6E6A60;               /* neutro · el residual "Otro" */
   --duna-serie-6:    #908A00;               /* oliva-mustard · Bre-B (mismo hex que en :root) */
+  /* PROVISIONAL (§ WOMPI-ENUM-METODO-F-1) · Wompi, aclarado para el fondo oscuro. SIN
+     medir ΔE2000 — ver el comentario en :root. No tratar este hex como decidido. */
+  --duna-serie-7:    #D98FC0;               /* PROVISIONAL · magenta/frambuesa claro · Wompi */
 
   /* --duna-toast-surface / --duna-toast-text / --duna-ok-on-ink / --duna-bad-on-ink NO se
      sobreescriben acá a propósito: el toast es superficie constante. */
