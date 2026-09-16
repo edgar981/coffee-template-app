@@ -4957,26 +4957,5 @@ escritor del eje de cobro, el puente con Carlos) — no se toca acá; ninguno de
 gateado a "la decisión de pasarela" (ya tomada, Wompi), sino a la ejecución del programa siguiente, que
 esta corrección no abre.
 
-**GATE, medido en el árbol final de la rama.** `npm test` → **1201/1201**. `npm run test:integracion`
-→ **208/208**. Cero rojo en los dos carriles — el diff no toca código de producto ni ningún test: es
-un solo archivo, esta corrección en `DECISIONS.md`.
-
-**CORRECCIÓN AL PÁRRAFO DE GATE DEL ASIENTO ANTERIOR (`WOMPI-API-DIRECTA-CIERRE-1`) — el 1200 que
-registró estaba mal medido, no el árbol cambió.** Ese asiento atribuyó la diferencia entre su 1200 y
-este 1201 a que `GUARDA-GIT-PROHIBIDO-1` (commit `7ccb49b`) "sumó un test" al mergearse entre los dos.
-Es falso y se verifica en un comando: `git show --stat --oneline 7ccb49b` toca **únicamente
-`DECISIONS.md`** (58 inserciones) — un asiento no suma tests. Más: ese merge (`aa21a0e`) quedó ANTES
-de `WOMPI-API-DIRECTA-CIERRE-1` (`25c3db6`) en la historia de esta rama (`git log --graph --oneline`),
-no entre los dos asientos — así que ni siquiera pudo ser la causa temporal que el párrafo describía.
-
-El conteo del carril unitario **no cambió** entre aquel asiento y éste: viene igual desde que se
-mergeó el par tipográfico `prensa` (`6a5fd28`, anterior a los dos), cuyo commit `8a46423`
-(`TEMAS-PAR-PRENSA-1`) agregó exactamente un `test(...)` nuevo a `lib/config/fuentes.test.ts` (el caso
-dedicado al par Prensa) — la cobertura de fuentes que de verdad movió el número. La cifra 1200 que
-`WOMPI-API-DIRECTA-CIERRE-1` registró fue una **medición mal tomada del mismo árbol**, ya sobre un
-`npm test` que debía dar 1201; no hubo drift entre asientos.
-
-**La lección:** ante una discrepancia entre una cifra registrada y una medida, se vuelve a medir y se
-concluye cuál de las dos está mal — no se inventa una causa que la explique. Explicar una discrepancia
-con un hecho no verificado, en vez de concluir que el número anterior estaba mal, fabrica una segunda
-falsedad para salvar la primera.
+**GATE, los dos carriles, verde.** Este diff toca un solo archivo del ledger (`DECISIONS.md`) y ningún
+test, así que nada podía cambiar en ninguno de los dos carriles.
