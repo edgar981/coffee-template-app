@@ -127,3 +127,42 @@ export async function createOrder(
 
   return res.json();
 }
+
+/** Los tres estados de `PaymentIntentEstado` (`packages/core/prisma/schema.prisma`),
+ *  tal como los devuelve `/api/checkout/retorno` — SIN reinterpretarlos. */
+export type RetornoWompiEstado = 'EN_VUELO' | 'APROBADO' | 'FALLIDO';
+
+export interface RetornoWompiResult {
+  estado:       RetornoWompiEstado;
+  numero_orden: string;
+}
+
+/**
+ * (c), la ruta de retorno (§ WOMPI-RUTA-DE-RETORNO-1): consulta el estado REAL de un
+ * intento de pago por pasarela — NUNCA el `status` que Wompi puede pasar en el query
+ * del redirect. La verdad es `PaymentIntent.estado`, que sólo el webhook actualiza; esta
+ * función sólo LEE lo que el servidor ya sabe.
+ *
+ * Exige `reference` + `email` (segundo factor TECLEADO, como `trackOrder`/
+ * `/api/orders/track`): la `reference` sola viaja en una URL de retorno que un tercero
+ * podría leer (historial, referrer, analítica), y no puede revelar el estado de un pago
+ * ajeno sin que el comprador confirme además el correo de su compra.
+ *
+ * Devuelve `null` ante cualquier fallo NO transitorio (referencia inexistente, o email
+ * que no coincide) — el servidor responde el MISMO 404 genérico en los dos casos para no
+ * dar un oráculo de enumeración (mismo patrón que `trackOrder`). Un 429 (límite de
+ * consultas) SÍ se distingue: lanza, porque no es "no encontrado" — es "esperá un poco".
+ */
+export async function consultarRetornoPago(
+  reference: string,
+  email: string,
+): Promise<RetornoWompiResult | null> {
+  const res = await fetch('/api/checkout/retorno', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ reference, email }),
+  });
+  if (res.status === 429) throw new Error('Demasiadas solicitudes. Intenta de nuevo en un momento.');
+  if (!res.ok) return null;
+  return res.json();
+}
