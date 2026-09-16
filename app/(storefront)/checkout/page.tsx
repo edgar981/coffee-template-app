@@ -462,11 +462,20 @@ export default function Checkout() {
                       {/* El PLAZO no lo promete el template: «en menos de 2 horas hábiles» era una
                           promesa horneada que ningún cliente eligió y que la tienda no puede garantizar
                           por despliegue (§ el censo de datos falsos: un literal que se hace pasar por
-                          compromiso del negocio). Va «lo más pronto posible» en las DOS ramas. */}
+                          compromiso del negocio). Va «lo más pronto posible» en las DOS ramas de
+                          confirmación HUMANA (con/sin WhatsApp).
+                          LA TERCERA RAMA (pasarela) GANA sobre esas dos, y no promete plazo: dice el
+                          HECHO — el pago en línea se confirma SOLO, sin que nadie del equipo lo mire
+                          (§ WOMPI-B8-COPY-PASARELA-1). Aplicarle a un comprador de pasarela cualquiera
+                          de las otras dos frases sería mentirle: nadie va a "confirmar" ese pago a mano.
+                          Las tres van ENTERAS, nunca concatenadas (regla del repo) — así ninguna queda a
+                          medias cuando falta un canal o cambia el camino de pago. */}
                       <span>
-                        {tieneWhatsapp
-                          ? 'Tu información está segura. Nuestro equipo confirmará el pago por WhatsApp y procesará tu pedido lo más pronto posible.'
-                          : 'Tu información está segura. Nuestro equipo confirmará el pago y procesará tu pedido lo más pronto posible.'}
+                        {pasarelaSeleccionada
+                          ? 'Tu información está segura. El pago se confirma automáticamente al completarse y tu pedido pasa a preparación sin que nuestro equipo tenga que revisarlo.'
+                          : tieneWhatsapp
+                            ? 'Tu información está segura. Nuestro equipo confirmará el pago por WhatsApp y procesará tu pedido lo más pronto posible.'
+                            : 'Tu información está segura. Nuestro equipo confirmará el pago y procesará tu pedido lo más pronto posible.'}
                       </span>
                     </div>
                     <div className="flex gap-3">

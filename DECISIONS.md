@@ -3459,3 +3459,88 @@ Regla: § Pagos en línea (Wompi) (CLAUDE.md) · `services/checkout.service.ts`
 `app/(storefront)/checkout/page.tsx` (el comentario junto a `pasarelaDisponible`) · el mismo hueco de
 test estructural de `WOMPI-WIDGET-EN-EL-CANONICO-1`/`WOMPI-WEBHOOK-RUTA-1`, todavía sin cerrar · (c),
 la ruta de retorno, sigue pendiente.
+
+## 2026-09-15 — La TERCERA rama de copy del checkout: el pago en línea no lo confirma un humano (`WOMPI-B8-COPY-PASARELA-1`)
+
+**EL DEFECTO, medido contra `app/(storefront)/checkout/page.tsx` en el estado que dejó
+`WOMPI-TOGGLE-DISPONIBILIDAD-1` (`c2bda60`):** la caja de tranquilidad del paso de pago tenía DOS
+ramas (con/sin canal de WhatsApp) y las dos afirmaban *"Nuestro equipo confirmará el pago … y
+procesará tu pedido"*. Con **"Tarjeta, PSE y más"** elegido (`pasarelaSeleccionada === true`) eso es
+FALSO: el pago en línea lo confirma el webhook de Wompi, no una persona (§ restricción 5 de
+`WOMPI-WIDGET-EN-EL-CANONICO-1`, *"ninguna pantalla afirma más de lo que el servidor sabe"* — esa
+restricción cubrió la pantalla de `confirmation.wompi`, pero no esta caja del PASO de pago, previa al
+submit, que quedó con las dos ramas viejas sin tocar).
+
+**EL CENSO DEL RESTO DEL CAMINO DE PASARELA, para que quede escrito qué se revisó y no sólo qué se
+tocó:**
+
+- `app/(storefront)/checkout/page.tsx:194-195` (`confirmation.wompi` truthy → "Tu pedido está
+  reservado… Completa el pago abajo para confirmarlo.") — **YA CORRECTO, no se tocó.** Es un `return`
+  TEMPRANO (línea 182) que nunca cae en la rama de "¡Pedido recibido!" ni en su ternario de
+  `tieneWhatsapp` (líneas 223-224): las dos viven en un `if` posterior, alcanzable sólo cuando
+  `confirmation.wompi` es falsy. No hay overlap — verificado leyendo el control de flujo, no supuesto.
+- `app/(storefront)/checkout/page.tsx:535` ("Compra 100% segura y verificada") — badge de confianza
+  genérico, sin condicional, sin afirmar QUIÉN confirma el pago ni CUÁNDO. No es la clase de dato que
+  B8 corrige (no promete revisión humana); se dejó igual.
+- `components/storefront/checkout/PagoPasarela.tsx` — sin copy propio (sólo monta el widget de
+  terceros en un `<div>`); nada que revisar.
+
+**LA TERCERA RAMA, y por qué GANA.** `pasarelaSeleccionada` es la condición —no `MetodoPagoTipo`, que
+no incluye a la pasarela (viaja aparte en el payload, § `WOMPI-WIDGET-EN-EL-CANONICO-1`, restricción
+3)— y se evalúa PRIMERO en el ternario: si el comprador eligió pasarela, ve la frase de pasarela,
+sin importar `tieneWhatsapp`. Las TRES frases se escriben ENTERAS (regla del repo, § el gate del canal
+WhatsApp #8: "cada frase se escribe ENTERA por rama, no un prefijo con cola variable") — no se
+concatenó un prefijo común:
+
+```
+pasarelaSeleccionada
+  ? 'Tu información está segura. El pago se confirma automáticamente al completarse y tu pedido
+     pasa a preparación sin que nuestro equipo tenga que revisarlo.'
+  : tieneWhatsapp
+    ? 'Tu información está segura. Nuestro equipo confirmará el pago por WhatsApp y procesará tu
+       pedido lo más pronto posible.'
+    : 'Tu información está segura. Nuestro equipo confirmará el pago y procesará tu pedido lo más
+       pronto posible.'
+```
+
+El texto exacto queda sujeto al gate visual del owner (byte de cara al comprador, ruta del dinero);
+esta frase es la PROPUESTA que cumple la decisión, no la palabra final.
+
+### HALLAZGO no pedido por este slice: el minificador YA NO elimina "Tarjeta, PSE y más" del artefacto
+
+**Medido, no asumido, y en DOS builds — el de `HEAD` sin mi cambio (`c2bda60`, vía `git checkout --`
+temporal) y el árbol final —, ambos con `.next` borrado antes de compilar.** `WOMPI-WIDGET-EN-EL-
+CANONICO-1` había medido **CERO** apariciones de `"Tarjeta, PSE y más"` en `.next/server/` y
+`.next/static/` (sin la env var), porque en ese momento `pasarelaDisponibleEnEsteDespliegue()` era un
+`return false;` literal, trivialmente foldeable. `WOMPI-TOGGLE-DISPONIBILIDAD-1` cambió esa función a
+`process.env.NEXT_PUBLIC_PASARELA_HABILITADA === '1'` sin re-correr ese grep — y, medido ahora, la
+cadena SÍ aparece (una vez, en `.next/server/chunks/ssr/app_(storefront)_checkout_page_tsx_0947x6.._.js`
+y su gemelo en `.next/static/`), tanto en `c2bda60` como en mi árbol final. **No es un efecto de mi
+edición** — el mismo grep contra el HEAD anterior a este slice ya lo muestra—: el minificador deja de
+poder inferir estáticamente que la comparación contra un `process.env.*` ausente es siempre `false` a
+través de la llamada de función entre módulos, aunque en runtime (con la variable ausente) el valor
+sigue siendo `false` y la rama sigue siendo inalcanzable para cualquier visitante real (verificado con
+`node -e` que `process.env.NEXT_PUBLIC_PASARELA_HABILITADA` es `undefined` en este entorno). Mi frase
+nueva de pasarela cae en la MISMA clasificación: presente en el bundle como código muerto,
+inalcanzable en producción porque depende de un `useState` que sólo se puede volver `true` desde un
+control que ese mismo `pasarelaDisponible` ya no renderiza. **No se tocó** `services/
+checkout.service.ts` (fuera de `touches:`); se deja nombrado como hallazgo, no como arreglo.
+
+### El piso, medido en el árbol final
+
+`npm test` → **1166/1166** (idéntico al piso citado en `WOMPI-TOGGLE-DISPONIBILIDAD-1`; `page.tsx` no
+cae bajo su glob — `"lib/**/*.test.ts" "constants/**/*.test.ts" "packages/core/**/*.test.ts"`, así que
+el número no podía moverse). `npm run test:integracion` → **193/193** (idéntico; nada en ese carril
+importa `checkout/page.tsx`). `npx tsc --noEmit` → limpio. `npm run build` → `✓ Compiled successfully
+in 6.1s`, con `.next` borrado antes (vía `fs.rmSync`, no `rm -rf`: el grant de esta sesión no incluye
+`rm`).
+
+**Tier 1 / AWAITING_APPROVAL.** El diff toca `app/(storefront)/checkout/page.tsx` (Tier 1 por
+subárbol) — byte de cara al comprador en la ruta del dinero; el texto exacto lo gatea el owner en el
+gate visual del conjunto (b)+(d)+B8. Rama `slice/wompi-widget-en-el-canonico-1`, sin mergear.
+
+Regla: § Pagos en línea (Wompi) (CLAUDE.md) · `app/(storefront)/checkout/page.tsx` (la caja de
+tranquilidad del paso de pago, ahora TRES ramas) · el hueco de test estructural de
+`WOMPI-WIDGET-EN-EL-CANONICO-1`/`WOMPI-TOGGLE-DISPONIBILIDAD-1`, todavía sin cerrar · el hallazgo del
+minificador (arriba), sin arreglar — vive en `services/checkout.service.ts`, fuera de `touches:` de
+este slice · (c), la ruta de retorno, sigue pendiente.
