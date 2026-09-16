@@ -381,7 +381,7 @@ enum ComprobanteEstado {
 // usado hoy en Colombia. Va al bucket TRANSFERENCIA en `METODO_CATEGORIA` (types/payment.ts)
 // — es plata que llega por un riel digital, no efectivo.
 //
-// WOMPI (§ WOMPI-ENUM-METODO-F-1, migración 20260915000000_metodo_pago_wompi): pago en línea
+// WOMPI (§ WOMPI-ENUM-METODO-F-1, migración 20260915120000_metodo_pago_wompi): pago en línea
 // vía pasarela. Gana su PROPIA categoría PASARELA en `METODO_CATEGORIA` — no es efectivo, ni
 // un riel digital que el operador registra a mano, ni el residual OTRO: es plata que el
 // webhook acredita sin que un humano la mire.
