@@ -4959,3 +4959,129 @@ esta corrección no abre.
 
 **GATE, los dos carriles, verde.** Este diff toca un solo archivo del ledger (`DECISIONS.md`) y ningún
 test, así que nada podía cambiar en ninguno de los dos carriles.
+
+## 2026-09-16 — Las decisiones del programa de API directa: el enum no se parte, la unión es paralela, la agrupación es por instrumento, y el copy de las dos aceptaciones (`API-DIRECTA-DECISIONES-PROGRAMA-1`)
+
+**POR QUÉ ESTE ASIENTO EXISTE.** `WOMPI-API-DIRECTA-CIERRE-CORRECCION-1` (arriba) dejó la API directa
+como el PROGRAMA SIGUIENTE y anotó que "su partición y su censo de construcción se preparan aparte."
+Ese censo de construcción corrió — read-only, sin escribir código — y planteó cuatro preguntas de
+diseño; el owner las resolvió en conversación. **Un censo read-only no deja asiento propio, y sin
+este asiento esas decisiones viven sólo en esa conversación.** Este asiento las pone en el libro por
+esa razón sola: **una decisión que no está en el libro no está tomada, por más que alguien la
+recuerde.** No se construye nada de API directa acá — el programa sigue sin partir, y su spike de
+sandbox sigue siendo el primer paso.
+
+### 1 · El enum de `Payment.metodo` NO gana un valor nuevo
+
+El censo preguntó si el pago por API directa necesita su propio valor en `MetodoPago`
+(`packages/core/prisma/schema.prisma:393-401`, el enum de mayúsculas de `Payment`) o reusa el `WOMPI`
+que ya existe para esta pasarela. **Reusa el que existe — no se agrega `WOMPI_API_DIRECTA` ni ningún
+valor equivalente.**
+
+El criterio ya está escrito en ese mismo enum, en el comentario de `lib/checkout/metodos-pago.ts:18-20`:
+`WOMPI` vive ahí porque la pregunta que ese enum responde es **CÓMO LLEGÓ LA PLATA**, no dónde se
+capturó la tarjeta — y llega por el mismo proveedor se capture donde se capture. **Widget contra API
+directa es DÓNDE SE CAPTURÓ LA TARJETA: nuestra superficie, no la ruta del dinero.** Es la misma
+distinción que ya cerró `WOMPI-API-DIRECTA-CIERRE-1` §3 (arriba): el motor de dinero del servidor
+—creación del intento, firma, webhook, `aplicarResultadoWompi`, reconciliador— opera sobre
+`reference`/estado/monto, nunca sobre cómo nació la transacción en el proveedor. Partir el enum
+introduciría ahí justo la distinción que ese modelo existe para no tener que hacer.
+
+**El costo de partirlo, que es lo que decide:** un valor nuevo partiría en dos el historial de cobros
+en línea del dueño el día que API directa se construya, y le pediría entender una distinción técnica
+que no le sirve para nada — el desglose «Por método» de su libro de Pagos partiría en más de una
+entrada lo que fue un solo proveedor.
+
+**El dato fino ya tiene dónde vivir**, así que nada se pierde por no partir el enum: `PaymentIntent`
+guarda `estadoCrudoPsp` (el estado crudo del proveedor) y la transacción trae su propio
+`payment_method` (con qué instrumento pagó el comprador, § 3 abajo).
+
+### 2 · Unión PARALELA, no mezclada, con los métodos manuales
+
+Los métodos de una pasarela **NO se agregan a `MetodoPagoTipo`** (`lib/checkout/metodos-pago.ts:22`,
+hoy `'nequi' | 'daviplata' | 'breb' | 'transferencia' | 'efectivo'`): van en una unión PARALELA,
+propia de la pasarela.
+
+**Son dos cosas distintas.** Un método manual es lo que el dueño CONFIGURA escribiendo SUS datos —su
+número de Nequi, su cuenta bancaria— y ya está documentado así en el propio archivo (`§ PAGOS-METODOS-
+MODELO-1`, `metodos-pago.ts:1-13`). Un método de pasarela es lo que se OFRECE a través del proveedor, y
+no guarda dato del dueño: en particular la tarjeta **no guarda nada**, porque los datos de tarjeta
+nunca tocan nuestro servidor.
+
+**Mezclarlos obliga a cada consumidor a saber cuáles traen datos y cuáles no**, y eso se paga en cada
+lectura — la misma clase de costo que ya evitó separar `Payment` de `Comprobante` (§ Comprobantes de
+pago, CLAUDE.md): dos hechos distintos, dos tipos distintos.
+
+### 3 · La agrupación de UI es por INSTRUMENTO, no por naturaleza del pago
+
+`DatosNegocioSeccion.tsx:145-153` agrupa los métodos manuales por **naturaleza de pago**: "Pagan
+antes" (nequi, daviplata, breb, transferencia) contra "Pagan al recibir" (efectivo) — una pregunta de
+flujo de caja, y discrimina bien entre los manuales.
+
+**Pero todos los métodos de pasarela son "antes"**: esa pregunta los colapsa en un grupo único y deja
+de decir nada. La pregunta que sí discrimina para ellos es **«¿CON QUÉ PAGA EL COMPRADOR?»** —
+literalmente lo que el dueño decide cuando enciende o apaga un método de pasarela—, y da CUATRO
+grupos: **tarjeta**, **débito bancario**, **billeteras**, y **financiación y puntos**.
+
+**El efecto de segundo orden es lo que justifica la unión paralela del §2 más allá de la limpieza de
+tipos.** Como son tipos DISTINTOS, las dos agrupaciones NO tienen que coincidir: los manuales
+conservan "antes / al recibir" sin tocarse; los de pasarela van por instrumento; y **ningún
+consumidor tiene que reconciliarlas, porque nunca se encuentran en la misma lista.** Con una unión
+mezclada esto habría sido imposible sin romper una de las dos agrupaciones.
+
+**Un método queda FUERA del alcance inicial de esta agrupación: el efectivo en corresponsal
+bancario.** Por instrumento es efectivo, pero la plata llega de forma asincrónica y no encaja limpio
+en ninguno de los cuatro grupos. Su grupo se decide el día que entre al catálogo, con el caso real
+delante — no ahora.
+
+### 4 · El copy de las dos aceptaciones, y lo medido sobre ellas
+
+**MEDIDO por el orquestador contra la documentación pública del proveedor** — se registra como
+medición suya, no de este slice: este slice no tiene acceso a red, y esa documentación no es este
+repo. Misma naturaleza que `WOMPI-API-DIRECTA-CIERRE-1` §1 (arriba), que ya distinguió registrar de
+verificar para un hallazgo ajeno a este repo.
+
+- Los DOS documentos que el comprador acepta son del PROVEEDOR y los aloja el proveedor: sus términos
+  y condiciones de uso, y su autorización de tratamiento de datos personales. **El comercio no
+  redacta ni aloja ninguno de los dos.**
+- **Esto DESACTIVA una dependencia que se creía:** el slice de aceptaciones NO depende de las páginas
+  legales del template que están en backlog (`siteConfig.legalNav`, hoy vacío — § Automatizaciones,
+  CLAUDE.md).
+- El proveedor no exige redacción literal de la casilla; exige que ambos enlaces estén a la vista, que
+  la aceptación sea explícita, y que se muestren las versiones más recientes — de donde sale una
+  restricción de construcción: **el enlace se renderiza SIEMPRE desde la respuesta de la API del
+  proveedor, nunca hardcodeado.**
+
+**El copy, fijado por el owner** — dos etiquetas, cada una enlazando a su propio documento:
+
+> Acepto los términos y condiciones de uso
+>
+> Autorizo el tratamiento de mis datos personales
+
+**SON DOS CASILLAS SEPARADAS, NO UNA.** Razón del owner: son dos aceptaciones distintas, y juntarlas
+en una sola casilla haría que el comprador acepte dos cosas con un gesto.
+
+**Dos condiciones de construcción que el owner fijó para ese slice:**
+- **Si la consulta al proveedor falla o no devuelve los enlaces, NO se ofrece el pago en línea.** Sin
+  los tokens de aceptación la transacción no se puede crear, así que ofrecer el método y fallar
+  después es peor que no ofrecerlo. **Cómo degrada exactamente —desaparecer de la lista, o aparecer
+  deshabilitado con explicación— es byte visible y queda PENDIENTE de decisión del owner**; se anota
+  como pendiente, no se resuelve acá.
+- **El botón de pagar no se habilita hasta que las dos casillas estén marcadas.**
+
+### 5 · Límites de este asiento
+
+- **Esto no construye nada.** El programa arranca por un spike de sandbox, aparte (§4 de
+  `WOMPI-API-DIRECTA-CIERRE-CORRECCION-1`, arriba).
+- **La partición completa NO se propone acá** — vive en el censo de construcción; este asiento
+  registra decisiones, no la ejecuta.
+
+Regla: el enum de `Payment.metodo` se reparte por CÓMO LLEGÓ LA PLATA (el proveedor), nunca por DÓNDE
+SE CAPTURÓ LA TARJETA (widget o API directa) — ese criterio ya vive en `lib/checkout/metodos-pago.ts` y
+este asiento lo extiende a API directa sin abrir un valor nuevo. La unión de métodos de pasarela es
+PARALELA a `MetodoPagoTipo`, nunca mezclada con ella, y ese es el efecto de segundo orden que permite
+que la agrupación de UI de los manuales ("antes"/"al recibir") y la de los de pasarela (por
+instrumento) diverjan sin que ningún consumidor tenga que reconciliarlas.
+
+**GATE, los dos carriles, verde.** Este diff toca un solo archivo del ledger (`DECISIONS.md`) y ningún
+test, así que nada podía cambiar en ninguno de los dos carriles.
