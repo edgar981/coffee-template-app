@@ -3865,6 +3865,17 @@ espera, `esperaSiguienteMs`, pero no se le escribió un test dedicado — el mec
 sí, con `setTimeout` real, es capa 3 por naturaleza, mismo criterio que el resto del repo para
 mecanismos de reloj/temporizador en componentes cliente).
 
+**EL CHECKLIST DE (e), explícito por instrucción del owner (2026-09-16, al gatear (c)):** para que la
+lista de lo que falta ver no quede en la memoria de nadie, éstos son los TRES estados que (e) tiene
+que traer a la vista, uno por uno:
+
+- **APROBADO** — el camino feliz: el pago entró.
+- **FALLIDO (rechazado)** — el pago que Wompi declinó.
+- **Indeterminado** — `EN_VUELO` con el backoff corriendo hasta el techo, y la vista `techo` con sus
+  salidas (rastrear / volver a consultar / WhatsApp condicional).
+
+**(e) los trae los tres, no sólo el feliz.**
+
 **BYTE-IDENTIDAD DE NAYOLI, verificada por ejecución.** `NEXT_PUBLIC_PASARELA_HABILITADA` es
 `undefined` en este entorno (`node -e` lo confirma) — la pasarela sigue apagada, así que
 `RUTA_RETORNO_WOMPI` nunca se usa como destino de un redirect real: `grep -rn "checkout/retorno"`
