@@ -3451,10 +3451,11 @@ mañana.
 
 ### EL REGISTRO DE DEUDA
 
-`docs/DEUDA-MIGRACION-PLATAFORMA.md`, sembrado con ocho decisiones ya tomadas bajo el supuesto
+`docs/DEUDA-MIGRACION-PLATAFORMA.md`, sembrado con nueve decisiones ya tomadas bajo el supuesto
 por-despliegue (el toggle de pasarela por env, las tres llaves de Wompi, `NOINDEX`, la guarda de
 `instrumentation.ts`, el mark inlineado en build, el cron por repo, las ~8 constraints únicas
-tenant-sensibles, y los dos `CHECK` de fila única de `SiteSetting`/`SiteContent`). Ninguna se arregla
+tenant-sensibles, los dos `CHECK` de fila única de `SiteSetting`/`SiteContent`, y el cron por Vercel
+Pro por Project). Ninguna se arregla
 en este slice — el registro las nombra para que la migración las revisite, y para que ninguna decisión
 futura las engorde en silencio. La regla de mantenimiento vive en el propio doc: cada decisión nueva
 por-despliegue tomada a sabiendas suma su fila ahí, en el momento en que se decide.
