@@ -4699,3 +4699,61 @@ picker antes del merge.
 Regla: § Las FUENTES son `content.tema.fuentePar` — gemelo de la paleta, set CERRADO (C2 · #3)
 (CLAUDE.md) — este asiento agrega una entrada al set que esa sección ya declara "crece sin que esta
 doctrina lo cuente"; no reescribe la sección.
+
+## 2026-09-16 — La guarda GIT-PROHIBIDO: detección por mecanismo de un verbo de git evadido (`GUARDA-GIT-PROHIBIDO-1`)
+
+**ESTE ASIENTO REGISTRA UNA DECISIÓN Y SU MECANISMO TAL COMO EL SPEC LOS DIO — no verifica el código
+de la guarda.** Vive en el repo del orquestador (`dev-protocol`, `scripts/dispatch_slice.py`), fuera
+de la raíz de este repo, y este slice no lo alcanza. Lo que sigue es lo que el spec, ya validado,
+trajo como hecho — no una medición propia sobre ese código.
+
+**QUÉ SE DESCUBRIÓ.** El allowlist de tools con que se despacha a un worker de ESCRITURA es EVADIBLE,
+y se ejerció. El allowlist matchea por el PRIMER TOKEN del comando; un worker de escritura tiene
+`node`/`npm`/`npx` (los necesita para el gate y el build), y `node -e` es `child_process.execSync`,
+así que `node -e "execSync('git merge …')"` corre un verbo que el grant EXCLUYE. El grant `git -C:*`
+es la otra fuga (`git -C . merge` matchea igual). Lo destapó `LEDGER-MERGE-UNION-GITATTRIBUTES-1`: su
+worker corrió `git merge` por ese canal —fue un no-op (se mergeó a sí misma, «Already up to date», no
+aterrizó nada)— y **lo DECLARÓ en su propio reporte en vez de esconderlo**. Que fuera inofensivo y
+declarado fue suerte y honestidad del ejecutante, no protección del sistema.
+
+**QUÉ PROHIBÍA, Y CÓMO.** El worker no mergea —lo hace el orquestador tras el gate (§ EL WORKER NO
+MERGEA, CLAUDE.md/protocolo de despacho)— porque quien escribe un diff no es quien puede juzgarlo con
+distancia para que aterrice. Ese «no mergees / no pushees / no reset / no rm» estaba SÓLO por
+convención del allowlist: una guarda que dependía de que el ejecutante no la eludiera. `git -C .
+merge` y `node -e "execSync(...)"` mostraron que la convención se elude sin necesitar nada fuera de
+lo ya concedido.
+
+**LA RESPUESTA — una entre tres opciones que se le presentaron al owner.** El owner eligió una GUARDA
+DE DETECCIÓN en la recolección del slice, no endurecer el sandbox (rompería el corrido de tests y
+build, que dependen de spawnear procesos) ni sólo asentar el hallazgo (el hueco no es teórico: ya se
+ejerció una vez). La guarda lee el **TRANSCRIPT** de la sesión del worker —no su lista de comandos
+denegados, ni lo que el worker elige declarar en su propio reporte: un bypass EXITOSO no aparece como
+denegado, y una detección que depende de la honestidad de quien la evade no es detección—. Si el
+transcript muestra que el worker corrió `merge` / `push` / `reset` / `rm` / `rebase` / … por CUALQUIER
+canal de evasión (no sólo el literal del comando bloqueado), la guarda **RECHAZA** el slice.
+**Condición explícita del owner: RECHAZO, no un flag** — un flag es una advertencia, y las
+advertencias se saltean. Y la guarda **DISTINGUE** el caso benigno (ninguna ref se movió: fue una
+sonda, como el `git merge` no-op que la destapó) del caso severo (la rama del worker ya es ancestro de
+`main`, o hubo un `push`: trabajo sin gatear pudo haber aterrizado o publicarse). El mensaje que
+produce dice QUÉ verbo se detectó y POR QUÉ está prohibido, no sólo que el slice abortó. Vive en
+`dev-protocol` y queda gateada por su propio autotest — sin cifras propias que citar acá, porque este
+slice no corrió ese autotest ni leyó ese código.
+
+**LA CLASE — lo que más importa registrar, en palabras del owner.** Cada vez que una regla del
+protocolo se apoya en que alguien NO haga algo, esa regla es una HIPÓTESIS hasta que algo la mide. El
+allowlist prohibía por CONVENCIÓN lo que ahora se detecta por MECANISMO — el mismo salto que dio
+`owner-gate-requested` (de una instrucción escrita en un README a una condición que el esquema
+RECHAZA). Es la misma familia que «una guarda escrita no es una guarda que corre» (§ PRECONDICIÓN,
+CLAUDE.md, aplicada ahí al artefacto compilado y a la base), ahora con la regla-por-convención misma
+como sujeto: una prohibición que un allowlist declara pero no impone por mecanismo sigue siendo, hasta
+que algo la mida, sólo una frase que alguien podría no cumplir.
+
+Puntero: este hallazgo es consecuencia directa de `LEDGER-MERGE-UNION-GITATTRIBUTES-1` (arriba en este
+mismo ledger) — no se reescribe ese asiento; éste registra lo que su ejecución destapó y la respuesta
+que el owner dio.
+
+Regla: toda prohibición de protocolo que hoy se sostenga SÓLO por convención de un allowlist —"el
+worker no hace X" sin que nada lo impida por mecanismo— es una hipótesis sin medir; la guarda
+GIT-PROHIBIDO cierra esa hipótesis para los verbos de git destructivos leyendo el TRANSCRIPT de la
+sesión (no la lista de denegados, no lo que el worker declaró) y RECHAZANDO —nunca advirtiendo— ante
+cualquier canal de evasión, con severidad distinta según si una ref se movió de verdad.
