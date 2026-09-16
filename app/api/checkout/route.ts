@@ -10,6 +10,7 @@ import {
 } from '@duna/core/validation/address';
 import { metodoPagoTipoSchema } from '@/lib/checkout/metodos-pago';
 import { pesosACentavos, firmarIntegridadWompi } from '@/lib/pagos/wompi-firma';
+import { pasarelaDisponibleEnEsteDespliegue } from '@/services/checkout.service';
 
 // La moneda del store es COP, sin selector: es lo único que el checkout maneja
 // hoy (formatCOP, Order.total, todo el sistema). No es un valor inventado para
@@ -21,7 +22,11 @@ const MONEDA_WOMPI = 'COP';
 // shipping details. Every price, the shipping cost, the order total, the order
 // number and the order status are computed server-side from Product records.
 
-const checkoutSchema = z.object({
+// Exportado para el test co-ubicado (`route.test.ts`, § WOMPI-WIDGET-EN-EL-CANONICO-1):
+// afirmar la FORMA del schema (la unión `metodo`/`pasarela`) no necesita invocar `POST` ni
+// tocar la base — mismo criterio que `procesarEventoWompi`/`PaymentIntentDb` exportados del
+// webhook (`app/api/webhooks/wompi/route.ts`) por la misma razón.
+export const checkoutSchema = z.object({
   customer: z.object({
     nombre:   z.string().trim().min(1),
     apellido: z.string().trim().default(''),
@@ -38,14 +43,22 @@ const checkoutSchema = z.object({
     departamento:      departamentoField,
     franja:            z.string().trim().min(1).nullish(),
   }),
-  payment: z.object({
-    // DERIVADO de `METODOS_PAGO_ORDEN` (§ METODOS-TRES-LISTAS-1) — antes era un arreglo literal
-    // que no importaba `MetodoPagoTipo`/`METODOS_PAGO_ORDEN`, así que un método agregado a la
-    // lista real (`lib/checkout/metodos-pago.ts`) quedaba OFRECIDO por el checkout y RECHAZADO
-    // acá con 400 al confirmar, sin que nada lo delatara.
-    metodo:     metodoPagoTipoSchema,
-    referencia: z.string().trim().min(1).optional(),
-  }),
+  payment: z.union([
+    z.object({
+      // DERIVADO de `METODOS_PAGO_ORDEN` (§ METODOS-TRES-LISTAS-1) — antes era un arreglo literal
+      // que no importaba `MetodoPagoTipo`/`METODOS_PAGO_ORDEN`, así que un método agregado a la
+      // lista real (`lib/checkout/metodos-pago.ts`) quedaba OFRECIDO por el checkout y RECHAZADO
+      // acá con 400 al confirmar, sin que nada lo delatara.
+      metodo:     metodoPagoTipoSchema,
+      referencia: z.string().trim().min(1).optional(),
+    }),
+    z.object({
+      // El camino APARTE de la pasarela (§ WOMPI-WIDGET-EN-EL-CANONICO-1) — NUNCA un valor más
+      // de `metodo`/`METODOS_PAGO_ORDEN`: ese set cerrado es lo que el dueño configura en su
+      // panel, y la pasarela es un toggle de DESPLIEGUE que todavía no existe (ver (d) más abajo).
+      pasarela: z.literal(true),
+    }),
+  ]),
   items: z
     .array(
       z.object({
@@ -75,6 +88,12 @@ export async function POST(req: NextRequest) {
 
   const { customer, shipping, payment, items } = parsed.data;
 
+  // `payment` es un discriminated union (§ WOMPI-WIDGET-EN-EL-CANONICO-1): o trae `metodo`
+  // (el set cerrado de `METODOS_PAGO_ORDEN`) o trae `pasarela: true` — nunca los dos. Las dos
+  // constantes derivadas abajo son la ÚNICA lectura del discriminador en toda la ruta.
+  const metodoElegido = 'metodo' in payment ? payment.metodo : null;
+  const pideWompi = 'pasarela' in payment;
+
   // Departamento is the single source of truth for Bogotá detection. It's
   // validated against the canonical list by `departamentoField` in the schema
   // above (shared with the admin add-address flow).
@@ -85,9 +104,22 @@ export async function POST(req: NextRequest) {
 
   // Business rule: "Contra entrega" (efectivo) is only valid for Bogotá D.C.
   // deliveries. Client-side hiding is UX; the server is the enforcement point.
-  if (payment.metodo === 'efectivo' && metodoEnvio !== 'bogota') {
+  if (metodoElegido === 'efectivo' && metodoEnvio !== 'bogota') {
     return NextResponse.json(
       { error: 'El pago contra entrega solo está disponible para entregas en Bogotá D.C.' },
+      { status: 400 },
+    );
+  }
+
+  // (d) EL TOGGLE POR DESPLIEGUE TODAVÍA NO EXISTE — la capacidad nace APAGADA en el
+  // SERVIDOR, sin importar lo que pida el payload. La UI ya esconde la opción (§ el
+  // checkout), pero esto es lo que impide que un POST directo con `pasarela: true` alcance
+  // `crearIntentoPago` mientras `pasarelaDisponibleEnEsteDespliegue()` siga devolviendo
+  // `false`. Va ANTES de tocar la base — ninguna fila se crea para una capacidad que este
+  // despliegue no ofrece.
+  if (pideWompi && !pasarelaDisponibleEnEsteDespliegue()) {
+    return NextResponse.json(
+      { error: 'El pago con tarjeta, PSE y más no está disponible en este momento.' },
       { status: 400 },
     );
   }
@@ -139,7 +171,12 @@ export async function POST(req: NextRequest) {
     order = await createOrderWithCustomer({
       customer:          { nombre: cliente_nombre, email: customer.email, telefono: customer.telefono },
       canal:             'directo',
-      metodo_pago:       payment.metodo,
+      // Sin método declarado (pago por pasarela) el string libre es `'wompi'` — NO entra a
+      // `MetodoPagoTipo`/`METODOS_PAGO_ORDEN` (§ arriba); `Order.metodo_pago` es texto libre
+      // (§ CLAUDE.md, Los MÉTODOS de pago son una LISTA) y `derivarCondicionPago` sólo
+      // distingue el id EXACTO `'efectivo'`, así que esta orden deriva ANTICIPADO, correcto
+      // para un cobro por adelantado.
+      metodo_pago:       metodoElegido ?? 'wompi',
       total,
       costo_envio,
       direccion_entrega: shipping.direccion,
@@ -148,6 +185,9 @@ export async function POST(req: NextRequest) {
       deliverySlot:      slot?.id ?? null,
       items:             lines,
       brand:             await buildBrand(),
+      // Sólo llega a `true` si `pideWompi` pasó la guarda de arriba — hoy siempre `false`
+      // (§ WOMPI-CREADOR-DE-INTENTOS-1, `pasarelaDisponibleEnEsteDespliegue`).
+      crearIntentoPago:  pideWompi,
     });
   } catch (error) {
     console.error('Checkout order creation failed:', error);
@@ -158,22 +198,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No se pudo procesar la orden' }, { status: 500 });
   }
 
-  // ── WOMPI-CREADOR-DE-INTENTOS-1: la CAPACIDAD, hoy APAGADA ──────────────────
-  // `createOrderWithCustomer` arriba NO recibe `crearIntentoPago`, así que
-  // `order.paymentIntent` es SIEMPRE `undefined` — nadie pide esto todavía: la
-  // selección de método de pasarela (el widget, la ruta de retorno, el toggle
-  // por despliegue) no existe (ver CLAUDE.md § Pagos en línea (Wompi)). Esta rama
-  // queda CABLEADA, sin disparador, para que el día que exista un llamador que sí
-  // pase el flag, la respuesta ya sepa qué devolver — decisión explícita del
-  // slice, no un olvido (DECISIONS.md, WOMPI-CREADOR-DE-INTENTOS-1).
-  let wompi: { reference: string; amountInCents: number; currency: string; signature: string } | undefined;
+  // ── WOMPI-WIDGET-EN-EL-CANONICO-1: el bloque firmado, TODAVÍA sin disparador real ──────
+  // `order.paymentIntent` sólo existe si `pideWompi` pasó la guarda de disponibilidad de
+  // arriba — y esa guarda devuelve `false` siempre hoy (§ `pasarelaDisponibleEnEsteDespliegue`,
+  // (d) no existe). Esta rama queda CABLEADA de punta a punta —incluida la llave pública que
+  // el widget necesita— para que el día que (d) encienda la capacidad, no haga falta tocar
+  // esta respuesta (DECISIONS.md, WOMPI-CREADOR-DE-INTENTOS-1 · WOMPI-WIDGET-EN-EL-CANONICO-1).
+  let wompi: { reference: string; amountInCents: number; currency: string; signature: string; publicKey: string } | undefined;
   if (order.paymentIntent) {
     const secretoIntegridad = process.env.WOMPI_INTEGRITY_SECRET;
-    if (!secretoIntegridad) {
-      // Fail ruidoso, mismo criterio que el webhook (`WOMPI_EVENTS_SECRET`): un
-      // intento sin firma no sirve para nada, y silenciarlo dejaría al cliente
-      // creyendo que puede pagar cuando no hay con qué firmar la petición.
-      console.error('[checkout] falta WOMPI_INTEGRITY_SECRET — no se puede firmar el intento de pago');
+    const llavePublica = process.env.WOMPI_PUBLIC_KEY;
+    if (!secretoIntegridad || !llavePublica) {
+      // Fail ruidoso, mismo criterio que el webhook (`WOMPI_EVENTS_SECRET`): un intento sin
+      // firma o sin llave pública no sirve para nada, y silenciarlo dejaría al cliente
+      // creyendo que puede pagar cuando no hay con qué firmar la petición ni con qué montar
+      // el widget. `WOMPI_PUBLIC_KEY` no es secreta (§ lib/pagos/llaves-pasarela.ts) — el
+      // riesgo acá no es exponerla, es devolver un bloque `wompi` a medias.
+      console.error('[checkout] falta WOMPI_INTEGRITY_SECRET o WOMPI_PUBLIC_KEY — no se puede firmar/mostrar el intento de pago');
       return NextResponse.json({ error: 'No se pudo procesar la orden' }, { status: 500 });
     }
     const amountInCents = pesosACentavos(order.paymentIntent.monto_esperado);
@@ -182,6 +223,7 @@ export async function POST(req: NextRequest) {
       amountInCents,
       currency: MONEDA_WOMPI,
       signature: firmarIntegridadWompi(order.paymentIntent.reference, amountInCents, MONEDA_WOMPI, secretoIntegridad),
+      publicKey: llavePublica,
     };
   }
 
