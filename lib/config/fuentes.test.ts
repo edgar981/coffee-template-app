@@ -61,14 +61,18 @@ test('linkFuentesTodas: UN link con TODAS las familias, deduplicado (Inter una s
   // Inter aparece en Editorial y Moderno con el mismo peso → una sola vez en el link combinado.
   // Es el ÚNICO par que comparte familia con otro: ningún par nuevo repite familia.
   assert.equal((l.match(/family=Inter:/g) ?? []).length, 1);
-  // Están las familias de los 9 pares (2 por par, deduplicadas: 9 pares → 17 specs, Inter una vez).
+  // Están las familias de los 10 pares (2 por par, deduplicadas: 10 pares → 20 specs, Inter una vez → 19).
   for (const fam of [
     'Playfair\\+Display', 'Fraunces', 'Sora', 'Lora', 'Poppins', 'Nunito\\+Sans', 'Source\\+Sans\\+3', 'Work\\+Sans',
     'Oswald', 'Archivo', 'IBM\\+Plex\\+Mono', 'IBM\\+Plex\\+Sans', 'Familjen\\+Grotesk', 'Source\\+Serif\\+4', 'Quicksand', 'Mulish',
+    'Roboto\\+Serif', 'Figtree',
   ]) {
     assert.match(l, new RegExp(`family=${fam}`));
   }
-  assert.equal((l.match(/family=/g) ?? []).length, 17);
+  // (TEMAS-PAR-PRENSA-1, 2026-09-15): el par 'prensa' trae DOS familias nuevas (Roboto Serif, Figtree,
+  // medido que ningún par de hoy las usa) → el conteo sube de 17 a 19 (10 pares → 20 specs, −1 por el
+  // dup de Inter). No es un test que estaba mal: es un conteo DERIVADO que sigue al set cerrado.
+  assert.equal((l.match(/family=/g) ?? []).length, 19);
 });
 
 test('Técnico recorta su DISPLAY a un solo peso (400), como los otros ocho', () => {
@@ -112,6 +116,23 @@ test('los CUATRO pares nuevos tienen label, descripción y <link> con sus 2 fami
     const l = linkFuentePar(clave as typeof par.clave);
     assert.ok(l, `${clave} debe llevar <link>`);
   }
+});
+
+test('Prensa (Roboto Serif + Figtree) — el par nuevo, misma forma que los demás (TEMAS-PAR-PRENSA-1)', () => {
+  const prensa = PARES_FUENTES.find((p) => p.clave === 'prensa')!;
+  assert.equal(prensa.label, 'Prensa');
+  assert.ok(prensa.descripcion.length > 0);
+  assert.match(prensa.titulo, /Roboto Serif/);
+  assert.match(prensa.cuerpo, /Figtree/);
+  assert.equal(prensa.googleTitulo, 'Roboto+Serif:wght@400');   // display al mismo peso único que el resto
+  assert.equal(prensa.googleCuerpo, 'Figtree:wght@300;400;500;600;700');
+  assert.equal(resolverFuentePar('prensa'), 'prensa');   // clave CUSTOM válida, no cae a null
+  const l = linkFuentePar('prensa');
+  assert.ok(l);
+  assert.match(l!, /family=Roboto\+Serif:wght@400&/);
+  assert.match(l!, /family=Figtree:wght@300;400;500;600;700/);
+  // editorial sigue siendo el default: 'prensa' no lo desplaza.
+  assert.equal(PAR_DEFECTO.clave, 'editorial');
 });
 
 test('urlGoogle arma la css2 con las dos familias del par', () => {

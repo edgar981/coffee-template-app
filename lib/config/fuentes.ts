@@ -38,7 +38,7 @@
 // server), el layout del storefront (el `<link>`) y el picker del panel (`PaletaSeccion`).
 
 // El tuple runtime del set cerrado — para el `z.enum` del schema del PUT (una sola fuente con el tipo).
-export const CLAVES_FUENTES = ['editorial', 'calido', 'moderno', 'clasico', 'nitido', 'robusta', 'tecnico', 'relato', 'cercano'] as const;
+export const CLAVES_FUENTES = ['editorial', 'calido', 'moderno', 'clasico', 'nitido', 'robusta', 'tecnico', 'relato', 'cercano', 'prensa'] as const;
 export type ClaveFuentePar = (typeof CLAVES_FUENTES)[number];
 
 export interface ParFuentes {
@@ -105,6 +105,12 @@ export const PARES_FUENTES: readonly ParFuentes[] = [
     titulo: "'Quicksand', sans-serif", cuerpo: "'Mulish', sans-serif",
     googleTitulo: 'Quicksand:wght@400', googleCuerpo: 'Mulish:wght@300;400;500;600;700',
   },
+  {
+    clave: 'prensa', label: 'Prensa',
+    descripcion: 'Serif moderno de bajo contraste con una grotesca geométrica. Sobrio y actual, sin el dramatismo de un didone.',
+    titulo: "'Roboto Serif', serif", cuerpo: "'Figtree', sans-serif",
+    googleTitulo: 'Roboto+Serif:wght@400', googleCuerpo: 'Figtree:wght@300;400;500;600;700',
+  },
 ] as const;
 
 const POR_CLAVE = new Map(PARES_FUENTES.map((p) => [p.clave, p]));
@@ -113,7 +119,7 @@ const POR_CLAVE = new Map(PARES_FUENTES.map((p) => [p.clave, p]));
 export const PAR_DEFECTO = POR_CLAVE.get('editorial')!;
 
 /** Los pares CUSTOM (todo menos el default). Un `fuentePar` guardado sólo puede ser uno de éstos. */
-const CLAVES_CUSTOM = new Set<string>(['calido', 'moderno', 'clasico', 'nitido', 'robusta', 'tecnico', 'relato', 'cercano']);
+const CLAVES_CUSTOM = new Set<string>(['calido', 'moderno', 'clasico', 'nitido', 'robusta', 'tecnico', 'relato', 'cercano', 'prensa']);
 
 /**
  * Normaliza el `fuentePar` guardado a una clave CUSTOM válida, o `null` (= Editorial, el default).
