@@ -4757,3 +4757,126 @@ worker no hace X" sin que nada lo impida por mecanismo— es una hipótesis sin 
 GIT-PROHIBIDO cierra esa hipótesis para los verbos de git destructivos leyendo el TRANSCRIPT de la
 sesión (no la lista de denegados, no lo que el worker declaró) y RECHAZANDO —nunca advirtiendo— ante
 cualquier canal de evasión, con severidad distinta según si una ref se movió de verdad.
+
+## 2026-09-16 — Cierre del censo de API directa: el dato del owner, el motor de dinero agnóstico, y la puerta que quedó abierta sin buscarla (`WOMPI-API-DIRECTA-CIERRE-1`)
+
+**ESTE ASIENTO CIERRA `WOMPI-API-DIRECTA-CENSO-1`.** Ese censo corrió read-only y no dejó asiento
+propio —`grep -n "WOMPI-API-DIRECTA-CENSO-1" DECISIONS.md` sobre el árbol antes de este commit da
+CERO líneas—, así que sus conclusiones viven acá. No se adopta ninguna dirección nueva: **Wompi
+sigue cerrado con el widget**, tal como ya está decidido en § Pagos en línea (Wompi) (CLAUDE.md).
+Este asiento es un mapa con su dato decisivo, no una hoja de ruta.
+
+**LA FORMA DEL ASIENTO TIENE DOS MITADES DE NATURALEZA DISTINTA, Y VAN SEPARADAS.** La Sección 1 es
+una MEDICIÓN DEL OWNER, hecha en un navegador propio contra un sitio público de un tercero — este
+slice no tiene red y ese sitio no es este repo, así que se registra como lo que es, nunca como algo
+que este slice verificó. La Sección 3 es lo que SÍ se midió acá, contra el propio código, con
+`file:line`. Es la misma distinción que `GUARDA-GIT-PROHIBIDO-1` (arriba) ya dejó escrita para un
+hallazgo ajeno al repo: declarar que se REGISTRA, no que se VERIFICÓ.
+
+### 1 · El dato del owner — lo que midió, y dónde para
+
+El censo había dejado abierta, como NO medible desde este repo, la pregunta que decide la dirección:
+con API directa, ¿el script antifraude del proveedor (`cdn.siftscience.com`,
+`device.clearsale.com.br` — infraestructura del PROVEEDOR que el comercio no ve ni apaga, ya
+registrada en `CSP-REPORT-ONLY-CHECKOUT-1`, línea ~1610) sigue cargando?
+
+**Lo que el owner MIDIÓ, en su propio navegador, contra un comercio colombiano público (Home
+Burgers) que cobra con Wompi por API directa:**
+- el número de tarjeta se teclea en un formulario en el propio dominio del comercio, en una ruta
+  propia con forma `/checkout/{order_id}/wompi`, con su propio DOM y su propia marca — un solo nivel
+  de selección, sin la superficie del proveedor de por medio;
+- el bundle de esa página es una página Next.js común que trae la orden por la API del propio
+  comercio y renderiza componentes propios — **no carga ningún script del proveedor de pagos**;
+- **ni `cdn.siftscience.com` ni `device.clearsale.com.br` se piden en esa página.** Primero
+  observado con un bloqueador activo —descartado como prueba, porque esos dominios son justo lo que
+  un bloqueador tapa— y **re-verificado en un navegador limpio, sin bloqueador**, que es el control
+  que vuelve la medición válida.
+
+**LO QUE NO SE MIDIÓ, dicho en vez de fingido:**
+- si esos scripts cargan al ENVIAR el pago (no al abrir la página). No se probó a propósito:
+  exigiría disparar una tokenización real contra la tienda PRODUCTIVA de un tercero, y no se
+  transacciona en el sistema vivo de otro para satisfacer una curiosidad nuestra. Incógnita
+  DECLARADA, no cerrada.
+- es UN comercio, UNA carga de página, en UN momento. Su contrato con el proveedor podría diferir
+  del nuestro.
+
+### 2 · La inversión — el hallazgo cambia la pregunta, no sólo la responde
+
+El censo TEMÍA que el tercero reapareciera con otro nombre. Lo medido dice que NO reaparece —y eso
+significa algo distinto de lo esperado—:
+
+> **El antifraude no se MUDA: DESAPARECE.** Sift y ClearSale eran cobertura que el widget daba
+> GRATIS, por ser infraestructura del proveedor. Con API directa no es que el tercero siga presente
+> de otra forma: es que esa protección se va con él.
+
+Entonces la decisión futura ya NO es sobre la marca (si el comprador ve o no la superficie de
+Wompi). Es: **¿se cambia la protección antifraude del proveedor por un checkout propio?** En cobros
+sin presencia física de la tarjeta, el fraude y los contracargos son plata del dueño — es una
+pregunta del OWNER, no del orquestador, y **no está tomada**. Este asiento sólo la deja formulada
+con su dato; no la resuelve.
+
+### 3 · Lo que sí se midió acá — el motor de dinero del servidor es agnóstico
+
+Medido contra el código, con `file:line`:
+
+- **La creación del `PaymentIntent`** (`packages/core/src/orders.ts:618-630`, dentro de
+  `createOrderWithCustomer`) sólo toma `orden_id` y `order.total` (→ `monto_esperado`); la
+  `reference` se arma como `<numero_orden>:<cuid-de-la-propia-fila>`
+  (`referenciaIntentoPago(order.numero_orden, creado.id)`). Nada de esa creación depende de qué
+  superficie va a capturar la tarjeta.
+- **La firma de integridad** (`firmarIntegridadWompi`, `lib/pagos/wompi-firma.ts:188-195`, invocada
+  desde `app/api/checkout/route.ts:225`) calcula
+  `sha256_hex(reference + amount_in_cents + currency + secreto)` — sólo `reference`, monto y moneda.
+  No entra en el cálculo NINGÚN dato de la superficie de captura (widget, API directa, checkout
+  alojado).
+- **El webhook** (`app/api/webhooks/wompi/route.ts:198-311`) ubica el intento con
+  `db.paymentIntent.findUnique({ where: { reference } })` (línea 206) y decide con
+  `bucketDeStatus(status)` (línea 265) sobre el `status` crudo del evento. Cero menciones de
+  "widget" en toda la lógica de decisión del archivo (`grep -n "widget"
+  app/api/webhooks/wompi/route.ts` → sólo aparece, si acaso, en comentarios que documentan el
+  llamador de arriba, nunca como una rama del código).
+- **`aplicarResultadoWompi`** (`packages/core/src/pagos/aplicar-resultado-wompi.ts:124-222`) —la
+  ÚNICA pieza que decide si un APROBADO se convierte en `Payment`— opera exclusivamente sobre
+  `intent.id`, `intent.orden_id`, `pspTransactionId`, `estadoCrudoPsp` y `montoConfirmado`. Ninguno
+  de esos campos codifica ni pregunta cómo nació la transacción en el proveedor.
+- **El reconciliador** (`packages/core/src/pagos/reconciliador.ts`) consulta a Wompi
+  `consultarWompi(fila.reference)` (línea 146) y reusa el MISMO `aplicarResultadoWompi` (línea 194)
+  — la misma superficie de datos, la misma indiferencia a la procedencia.
+
+**La consecuencia, que es el valor del hallazgo:** toda esta cadena —creación del intento, firma,
+webhook, `aplicarResultadoWompi`, reconciliador— opera sobre `reference` / estado / monto, nunca
+sobre la forma en que la transacción fue creada en el proveedor. Una migración a API directa
+**reescribiría sólo el lado CLIENTE** (captura de tarjeta, validación, tokenización, 3DS, errores del
+emisor). El servidor —lo caro, lo que toca la plata, lo que ya está probado— **se reusaría tal
+cual**.
+
+### 4 · La lección de método
+
+Cuando se diseñó la ruta de retorno y el cierre del intento (`WOMPI-WEBHOOK-RUTA-1`,
+`WOMPI-RUTA-DE-RETORNO-1`, arriba en este mismo ledger), se decidió que el modelo NO dependiera de
+cómo nació la transacción: el estado lo escribe el webhook sobre la `reference`, y nadie pregunta si
+esa transacción salió de un widget, de un checkout alojado o de una API. En su momento esa decisión
+no se tomó para habilitar nada — se tomó porque era el modelo correcto.
+
+**Hoy es lo que vuelve barata una dirección entera que ni siquiera estaba sobre la mesa.** Palabras
+del owner: **es la primera vez que una decisión de modelado nos deja una PUERTA ABIERTA en vez de un
+costo.** Lo habitual es lo contrario: un modelado cómodo hoy que hay que pagar después.
+
+Un modelo que no depende de la PROCEDENCIA de su dato es lo que hace barata una dirección futura — y
+eso no se sabe cuando se decide, se cobra después.
+
+### 5 · Cierre
+
+**NO se adopta la dirección de API directa. Wompi se cierra con el widget**, como ya estaba
+decidido. La pregunta abierta por §2 —si cambiar la cobertura antifraude del proveedor por un
+checkout propio es un trato aceptable— queda formulada, no resuelta; es del owner.
+
+**GATE, medido en el árbol final de la rama.** `npm test` → **1200/1200**. `npm run test:integracion`
+→ **208/208**. Cero rojo en los dos carriles — el diff no toca código de producto ni ningún test: es
+un solo archivo, este asiento en `DECISIONS.md`.
+
+Regla: § Pagos en línea (Wompi) (CLAUDE.md) · `CSP-REPORT-ONLY-CHECKOUT-1` como origen de los dos
+terceros de antifraude ya registrados (Sift, ClearSale) · `WOMPI-WEBHOOK-RUTA-1` /
+`WOMPI-RUTA-DE-RETORNO-1` como el modelado agnóstico de procedencia que esta tanda mide como activo,
+no como intención · un motor de dinero que opera sólo sobre `reference`/estado/monto es lo que hace
+barata una migración de superficie de captura — y eso se cobra después, no cuando se decide.
