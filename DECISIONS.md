@@ -4087,3 +4087,119 @@ misma forma que los otros tres) · `registerOrderPaymentTx` gana su CUARTO llama
 `WOMPI-PAYMENT-WEBHOOK-INTEGRACION-1`, follow-up abierto (la concurrencia real bajo Postgres, sin
 medir) · `WOMPI-NOTIFICACION-CATALOGO-1`, follow-up abierto (las dos notificaciones sin catálogo) ·
 (c)/(d)/reconciliación/barrido de intentos vencidos, sin construir — sin cambio de este slice.
+
+## 2026-09-15 — La brecha de `WOMPI-PAYMENT-WEBHOOK-INTEGRACION-1` se cierra: (g) contra Postgres
+real — el lock, el cobro duplicado y la idempotencia (`WOMPI-PAYMENT-G-INTEGRACION-1`)
+
+**CIERRA el follow-up que `WOMPI-PAYMENT-DESDE-WEBHOOK-G-1` dejó abierto.** Ese slice midió su lógica
+de decisión con un `db` fake en memoria (`route.test.ts`, capa 1) y dejó escrito, explícito, qué
+quedaba SIN medir: *"que el `SELECT … FOR UPDATE` efectivamente serializa dos aprobados concurrentes
+de la misma orden, y no sólo dos secuenciales… queda SIN medir en este slice"*. Este slice agrega esa
+medición — no nueva lógica, sólo el archivo de test faltante, tal como el follow-up lo nombraba:
+`tests/integracion/wompi-payment-webhook.test.ts`.
+
+**NINGÚN código de producción se tocó.** `route.ts`, `orders.ts` y `notifications/admin.ts` quedan
+exactamente como (g) los dejó — verificado con `git diff` antes de commitear: el único archivo
+cambiado además de este ledger es el test nuevo.
+
+### Por qué SÍ es de integración y no capa 1: lo que un fake no puede fingir
+
+Un `db` fake en memoria no tiene forma de reproducir un `SELECT … FOR UPDATE` real: no hay lock que
+tomar, no hay lectura fresca bajo lock, no hay unique constraint de Postgres que choque. Lo que este
+archivo mide —siguiendo la forma de `cobro-sincronizado.test.ts`, `dinero-pagado-cliente.test.ts` e
+`intento-pago-atomico.test.ts`, el precedente exacto que el spec señaló— es la propiedad, no el
+comentario que la describe: que la transacción real de Postgres (`prisma.$transaction` +
+`lockOrderForPayment`) es la que decide, no la secuencia de llamadas en JS.
+
+### `dbReal` no se exporta — se RE-ENSAMBLA, letra por letra, a partir de sus piezas públicas
+
+`touches:` de este slice es sólo `tests/integracion/wompi-payment-webhook.test.ts` + este ledger — no
+incluye `route.ts`. El adaptador `dbReal` que `POST` usa en producción es un `const` privado del
+módulo, así que el test no puede importarlo. Se reconstruyó DENTRO del archivo de test, con la MISMA
+forma, a partir de las tres piezas que `dbReal` YA usa y que sí son públicas:
+`lockOrderForPayment`/`registerOrderPaymentTx` (`@duna/core/orders`) y `createNotification`
+(`@duna/core/notifications`). Lo único importado de `route.ts` es `procesarEventoWompi` (lo que se
+mide) y el tipo `PaymentIntentDb`. No es una segunda implementación de lógica de negocio —es la misma
+plomería de wiring, sin la cual `procesarEventoWompi` no tiene con qué hablarle a una base real.
+
+### Los cinco casos, y qué afirma cada uno contra la base
+
+- **PRIMER APROBADO:** un `PaymentIntent` `EN_VUELO` real (con su `reference` final vía
+  `referenciaIntentoPago`, dos escrituras como `orders.ts` documenta) sobre una Order `pendiente` real
+  → tras `procesarEventoWompi`, exactamente UN `Payment` (`metodo: 'WOMPI'`, monto = el confirmado por
+  el evento), la Order releída queda `pagado`, el intento releído queda `APROBADO` con
+  `pspTransactionId` lleno, y el `Shipping` se auto-creó en `preparando` — el CUARTO llamador de
+  `registerOrderPaymentTx` corriendo de verdad.
+- **SEGUNDO APROBADO sobre orden ya pagada (cobro duplicado):** se paga la orden de verdad con un
+  primer intento (vía el webhook real), luego un SEGUNDO `PaymentIntent` `EN_VUELO` distinto de la
+  MISMA orden recibe `APPROVED`. Se afirmó contra la base: el segundo intento cierra `APROBADO` (el
+  hecho de Wompi se guarda), `prisma.payment.count()` sigue en 1 (cero segundo Payment), la Order
+  releída sigue `pagado` (no se reabre), y `prisma.notification.findMany({tipo:
+  'wompi_cobro_duplicado'})` trae EXACTAMENTE una fila real —`createNotification` real, no un espía—
+  con el número de orden en el mensaje y el `href` de `hrefOrden`.
+- **REINTENTO del mismo evento:** el MISMO evento entregado dos veces → `prisma.payment.count()` queda
+  en 1; la segunda entrega corta en `'repetido'` antes de tocar la transacción.
+- **El choque de `pspTransactionId` — la pieza que SÓLO Postgres puede afirmar:** dos `PaymentIntent`
+  de DOS órdenes distintas, uno YA con `pspTransactionId: 'txn_real_compartido'` asentado; un evento
+  para el OTRO intento trae ese mismo id. La unique real de la columna (no una simulación de P2002 en
+  un fake) revierte la transacción entera: el intento que recibió el evento sigue `EN_VUELO` sin
+  `pspTransactionId`, el otro no se tocó, y `prisma.payment.count()` da 0 en las dos órdenes.
+- **FALLIDO (DECLINED):** cierra `FALLIDO`, cero `Payment`, la Order releída sigue `pendiente`, cero
+  `Shipping` — sin cambios de este slice, medido igual para no dejar el bucket sin su caso base.
+
+### La idempotencia se mide contra la MISMA unique que la protege en producción
+
+El caso del choque de `pspTransactionId` es la razón de fondo por la que este archivo tenía que existir:
+el `route.test.ts` de capa 1 simula el P2002 lanzando un error con `code: 'P2002'` a mano dentro del
+fake — afirma que `isUniqueViolation` reacciona bien a ESE error, pero no que Postgres vaya a producirlo
+de verdad para este par de columnas. Acá el choque lo produce la base real, contra la constraint
+`@unique` de `pspTransactionId` en `schema.prisma` — la pieza que `PASARELA-DOC-AL-DIA-1` señala como
+la que sostiene la idempotencia.
+
+### El piso, medido en el árbol final (reconciliado contra el que `WOMPI-PAYMENT-DESDE-WEBHOOK-G-1` citó)
+
+`npm test` → **1190/1190**, IDÉNTICO al piso citado por el slice anterior — ningún archivo de ese glob
+cambió (el nuevo test vive en `tests/integracion/`, fuera de él). `npm run test:integracion` → **198/198**,
+sube de los 193 citados por exactamente **5** — las cinco pruebas de este archivo nuevo (primer
+aprobado, cobro duplicado, reintento, choque de `pspTransactionId`, fallido); ningún otro archivo de
+ese carril se tocó. `npx tsc --noEmit` → limpio, sin cambios de tipos (el archivo nuevo usa los tipos ya
+exportados por `route.ts`). `npm run gate` (los dos carriles en secuencia) → verde, con la misma cuenta.
+
+### Lo que este slice NO cierra, y sigue igual que antes
+
+- **`WOMPI-NOTIFICACION-CATALOGO-1`** (las dos notificaciones sin entrada en `AUTOMATION_MAP`) sigue
+  abierto — fuera de `touches:`, sin cambio.
+- **`WOMPI-WEBHOOK-DOCTRINA-PAGO-STALE-1`** (las dos frases de CLAUDE.md § Pagos en línea (Wompi) y la
+  línea 85 que siguen hablando del Payment/del cuarto llamador como futuro) sigue sin tocarse —
+  `CLAUDE.md` no está en `touches:` de este slice tampoco.
+- **NUEVO, medido al hacer el censo de cierre de este slice:** `CLAUDE.md` línea 294 (§ Backlog técnico,
+  GATE-DOS-CARRILES-1) dice *"son hoy **27 archivos y 191 tests**"* para el carril de integración —
+  YA estaba desactualizado antes de este slice (el piso real citado por `WOMPI-PAYMENT-DESDE-WEBHOOK-G-1`
+  era 193, no 191) y este slice lo aleja más: hoy son 198 tests en un archivo más. Es exactamente la
+  clase de frase que la propia doctrina se cuida de escribir ("un número en doctrina es una frase con
+  fecha de vencimiento") pero que igual quedó escrita como si fuera estado actual. **Follow-up nombrado:
+  `WOMPI-MD-CARRIL-CONTEO-VENCIDO-1`** — no se toca acá porque `CLAUDE.md` no está en `touches:`.
+- **La concurrencia REAL (dos llamadas VERDADERAMENTE simultáneas, `Promise.all`, al mismo
+  `PaymentIntent`/misma Order) sigue sin medirse.** Este slice mide el lock y la unique con llamadas
+  SECUENCIALES contra Postgres real (mismo criterio que el spec pidió: "primer-aprobado→un
+  Payment+orden pagada; segundo-aprobado→…; reintento→un solo Payment", los tres casos son
+  secuenciales). El precedente más cercano de concurrencia VERDADERA en este repo
+  (`ajuste-concurrente.test.ts`, `despacho-concurrente.test.ts`) dispara dos peticiones con
+  `Promise.all` sobre el MISMO recurso; el spec de este slice no lo pidió para (g) y no se agregó por
+  iniciativa propia (fuera de lo pedido). Si hiciera falta, es su propio follow-up —no se nombra uno
+  nuevo sin que el owner lo pida, para no inflar la lista de deuda con algo que nadie encargó.
+
+**Tier 1 / AWAITING_APPROVAL, `stopped_on: ['customer-bytes']` — HEREDADO, no nuevo.** El diff de este
+slice no agrega bytes nuevos que un operador/dueño lea (es un archivo de test); pero la RAMA
+`slice/wompi-enum-metodo-f-1` —contra la que se juzga la política, no el commit— YA cambió bytes de
+operador en el commit anterior (los textos de las dos notificaciones de `WOMPI-PAYMENT-DESDE-WEBHOOK-G-1`,
+`ff9dda8`), y esa rama sigue sin mergear. Por la regla del eje (§ ORCH-CUSTOMER-BYTES-EJE-1: el gate mira
+la RAMA completa contra su base, no el commit de este slice), el veredicto de la rama sigue siendo
+AWAITING_APPROVAL con el mismo `stopped_on`. `customer_bytes.changed` de ESTE commit es `false` (no
+introduce texto nuevo); el de la RAMA sigue `true` por lo ya mergeado en commits previos de la misma
+rama.
+
+Regla: § El carril de integración (CLAUDE.md) · § GATE-DOS-CARRILES-1 · `tests/integracion/
+wompi-payment-webhook.test.ts` (nuevo) · cierra `WOMPI-PAYMENT-WEBHOOK-INTEGRACION-1` · abre
+`WOMPI-MD-CARRIL-CONTEO-VENCIDO-1` (conteo vencido en CLAUDE.md, fuera de `touches:`) · sin rama propia
+(continuación de `slice/wompi-enum-metodo-f-1`), sin mergear.
