@@ -4639,3 +4639,63 @@ Regla: la clase de conflicto append-only de `DECISIONS.md` —dos asientos apila
 archivo— queda cerrada por MECANISMO (`merge=union`), no por disciplina de quien resuelve a mano;
 la excepción que sigue viva —edición concurrente del MISMO asiento, apilada en silencio sin
 marcador— queda escrita acá para quien la tope primero.
+## 2026-09-15 — El par tipográfico Prensa entra al set cerrado (`TEMAS-PAR-PRENSA-1`)
+
+**LA DECISIÓN DEL OWNER, sin margen: falta un serif moderno de bajo contraste.** Palabras trasladadas
+al `descripcion` del registro: *"Serif moderno de bajo contraste con una grotesca geométrica. Sobrio y
+actual, sin el dramatismo de un didone."* Los nueve pares existentes cubren serif clásica (Editorial),
+serif suave (Cálido), grotesque geométrica (Moderno), serif de libro (Clásico), sans geométrica
+(Nítido), condensada industrial (Robusta), monoespaciada de hoja de cata (Técnico), sans+serif de
+párrafo (Relato) y geometría redonda (Cercano) — ninguno es un serif MODERNO de bajo contraste. **Prensa**
+(`'Roboto Serif', serif` + `'Figtree', sans-serif`) llena ese hueco, y es **prerrequisito de CORTE**
+(`observed-report: CORTE-PROTOTIPO-CENSO-1`).
+
+**EL CAMBIO: una entrada nueva, en la MISMA forma que las nueve.** `CLAVES_FUENTES` gana `'prensa'`
+(al final, sin desplazar a `editorial` de la posición 0 ni de `PAR_DEFECTO`); `PARES_FUENTES` gana el
+registro con `googleTitulo: 'Roboto+Serif:wght@400'` (el mismo peso de display único que los otros
+nueve, § FUENTES-PESOS-DISPLAY-SOBRAN-1) y `googleCuerpo: 'Figtree:wght@300;400;500;600;700'` (los
+mismos cinco pesos de cuerpo). **`CLAVES_CUSTOM`** (el `Set` interno que gatea `resolverFuentePar`,
+no nombrado en el spec pero necesario) también gana `'prensa'` — sin eso, un `fuentePar: 'prensa'`
+guardado resolvería a `null` en silencio pese a aparecer seleccionable en el picker (`PaletaSeccion`
+itera `PARES_FUENTES` directo, así que la tarjeta se habría visto elegible sin serlo).
+
+**NAYOLI QUEDA BYTE-IDÉNTICA — afirmado, no supuesto.** `site-content-defaults.test.ts:526-530`
+(preexistente, sin tocar) ya cubre que sin fila de `tema.fuentePar` la resolución cae a `null` =
+Editorial; corrido en el árbol final, sigue verde. `editorial` sigue siendo `PAR_DEFECTO` y el primer
+elemento del registro — el diff no reordena ni pisa ninguno de los nueve pares existentes.
+
+**EL TEST DE CONTEO DE FAMILIAS — medido, no de memoria.** Roboto Serif y Figtree son familias que
+NINGÚN par de hoy usa (`grep -ni "roboto serif\|figtree" lib/config/fuentes.ts` daba cero antes de
+este slice). El conteo de `linkFuentesTodas()` sube de **17 a 19** (medido corriendo el test, no
+calculado a mano): 10 pares × 2 specs = 20, menos 1 por el dup de Inter (Editorial↔Moderno, el único
+que se repite) = 19. Se agrega además un test dedicado para el par nuevo (label, descripción no vacía,
+familias, `resolverFuentePar('prensa') === 'prensa'`, `linkFuentePar('prensa')` con las dos familias),
+paralelo al de "los CUATRO pares nuevos" que ya cubría robusta/tecnico/relato/cercano.
+
+**DESVIACIÓN MEDIDA: el `observed-report` citado por el spec no está en el repo.**
+`grep -rn "CORTE-PROTOTIPO-CENSO-1" .` (excluyendo `node_modules`) y `git log --all --oneline
+--grep="CORTE-PROTOTIPO-CENSO-1"` sobre el árbol previo a este commit dan cero — el ID sólo aparece
+ahora porque este mismo commit lo cita. Es la misma clase de discrepancia que `WOMPI-NO-ES-METODO-
+DEL-PANEL-1` ya registró para otro `observed-report`: se anota, no bloquea — el criterio de la Sección
+1 (el par exacto, sin margen) no depende de que el censo esté en este ledger.
+
+**EL PISO, medido en el árbol final.** `npm test` → **1188 tests, 1184 pass, 4 fail** — los 4 son
+`lib/pagos/metodos-pago-enum.test.ts` (`METODOS_PAGO`/`METODO_PAGO_LABEL`/`METODO_CATEGORIA`/
+`METODOS_SERIE` sin el valor `WOMPI` del enum `MetodoPago` de Prisma), **PRE-EXISTENTE y sin relación
+con este diff**: aislado con `git diff --stat` (sólo `lib/config/fuentes.ts` y su test) y corriendo el
+archivo en falla de forma aislada — ninguno importa nada de `lib/config/fuentes.ts`, y el enum ganó
+`WOMPI` en el merge `009c161` ya en `main` antes de que este slice empezara. No es de este `touches:`;
+se deja nombrado como *open_followup*, no como arreglo. `npm run test:integracion` (corrido aparte:
+la cadena `&&` de `npm run gate` no llega a este carril si el primero falla) → **193/193**. `npx tsc
+--noEmit` → limpio. `npm run build` → `✓ Compiled successfully in 6.1s`; `Roboto+Serif` y `Figtree`
+aparecen en `.next/server/chunks/` (grep del artefacto compilado, no de la fuente).
+
+**Tier 1 / AWAITING_APPROVAL.** `lib/config/fuentes.ts` no está en la lista de superficies Tier 1 de
+CLAUDE.md por nombre ni subárbol, pero el diff cambia bytes que el DUEÑO lee (una tarjeta nueva,
+"Prensa", en el picker de `/admin/tienda` — `customer_bytes` en el sentido del schema, que cubre
+"cliente, operador o dueño"). Rama `slice/temas-par-prensa-1`, sin mergear — el owner ve el par en el
+picker antes del merge.
+
+Regla: § Las FUENTES son `content.tema.fuentePar` — gemelo de la paleta, set CERRADO (C2 · #3)
+(CLAUDE.md) — este asiento agrega una entrada al set que esa sección ya declara "crece sin que esta
+doctrina lo cuente"; no reescribe la sección.
