@@ -3901,3 +3901,189 @@ su comentario apareado) · `packages/core/prisma/migrations/20260915120000_metod
 (`GRUPO_METODO_LABEL`, la frase "tres→cuatro" corregida) · `packages/design-system/tokens/tokens.css`
 (`--duna-serie-7`, PROVISIONAL) · `WOMPI-SERIE-COLOR-DEFINITIVO-1`, follow-up abierto · (g), el
 `Payment` que el webhook crea, sigue pendiente.
+
+## 2026-09-15 — El webhook de Wompi crea el `Payment` — (g), con el lock de Order, el cobro
+duplicado al carril de atención, y la idempotencia intacta (`WOMPI-PAYMENT-DESDE-WEBHOOK-G-1`)
+
+**LA FRONTERA QUE `WOMPI-WEBHOOK-RUTA-1` DEJÓ ABIERTA QUEDA CERRADA.** Con `WOMPI` ya en el enum
+`MetodoPago` (`WOMPI-ENUM-METODO-F-1`), `procesarEventoWompi` (`app/api/webhooks/wompi/route.ts`) deja
+de detenerse en cerrar el `PaymentIntent`: cuando el desenlace es APROBADO, llama a
+`registerOrderPaymentTx` (`packages/core/src/orders.ts`) como su **CUARTO llamador** — los otros tres:
+`app/api/orders/[id]/payments/route.ts`, `immediatePayment` (dentro de `createOrderWithCustomer`) y
+`decidirComprobante` en `comprobantes.ts`.
+
+### El hueco que la frase del owner nombra: el webhook era el ÚNICO escritor de la ruta del dinero
+sin el lock de Order — invisible hasta que alguien preguntó por dos aprobados
+
+Los otros tres llamadores de `registerOrderPaymentTx` NUNCA lo invocan sin antes lockear la Order
+(`SELECT … FOR UPDATE`) y comprobar `estado === 'pendiente'` — es la garantía contra el segundo
+Payment que ya cerró `comprobante-verificacion.test.ts` (dos comprobantes concurrentes de la misma
+orden → un solo Payment) y `cobro-sincronizado.test.ts`. El webhook, medido en la sesión de censo
+previa (`WOMPI-WEBHOOK-PAYMENT-CENSO-1`), NO tenía ese patrón — porque hasta este slice nunca llamaba
+al escritor de dinero, así que no había nada que proteger. La frontera se hace visible recién ahora,
+con la pregunta concreta: ¿qué pasa si Wompi confirma DOS veces la misma orden (dos intentos
+distintos, o un reintento de red duplicado del lado del comprador)? Sin lock, los dos leerían
+`pendiente` y crearían dos `Payment`. **(g) adopta el MISMO patrón que los otros tres, letra por
+letra** — lockear, releer fresco, decidir recién bajo el lock.
+
+### El diseño: la interfaz inyectable CRECE, no se abandona
+
+`PaymentIntentDb` gana dos miembros nuevos y conserva el patrón de doble angosto/inyectable que
+`WOMPI-WEBHOOK-RUTA-1` dejó (medido: los 14 tests existentes seguían pasando doblando sólo
+`findUnique`/`updateMany` — ninguno de esos 14 necesitó tocar su lógica, sólo su fixture, tal como el
+spec de este slice anticipaba):
+
+- **`transaccionConOrdenLockeada<T>(ordenId, fn)`** — SÓLO la usa el bucket APROBADO. Abre una
+  transacción, lockea la Order (`lockOrderForPayment`, nuevo en `orders.ts`, ver abajo), y corre `fn`
+  con esa fila releída + un `tx` angosto (`PaymentIntentTx`: cerrar el intento + `registrarPago`). El
+  bucket FALLIDO NO la usa — sigue con el `paymentIntent.updateMany` de siempre, sin transacción,
+  porque no hay decisión de dinero que proteger (como antes de este slice).
+- **`notificarAtencion(input)`** — post-commit, fire-and-forget, para el carril de atención. Nunca se
+  llama DENTRO de la transacción: una notificación no puede demorar ni abortar el cierre del cobro,
+  mismo principio que `notifyOrderCreated` post-commit en `createOrderWithCustomer`.
+
+`lockOrderForPayment` (`packages/core/src/orders.ts`, nuevo export) extrae el `SELECT … FOR UPDATE`
+que los otros tres llamadores repiten inline, para que un CUARTO no lo copie por cuarta vez. **Los
+tres existentes NO se tocaron** — siguen con su `$queryRaw` propio; el helper es sólo para el nuevo
+llamador. `POST` arma `dbReal`, el ÚNICO adaptador sobre el `prisma` real que satisface
+`PaymentIntentDb` (antes `POST` pasaba `prisma` directo, porque bastaba con `findUnique`/`updateMany`,
+que Prisma ya tiene; ahora hace falta ensamblar `transaccionConOrdenLockeada`/`notificarAtencion`, que
+Prisma no tiene de fábrica).
+
+### Los TRES caminos, medidos contra el spec
+
+- **APROBADO + orden `pendiente`** → cierra el intento y crea el Payment en la MISMA transacción
+  (`registrarPago`), con el monto que **Wompi CONFIRMÓ** (`amount_in_cents` del evento → pesos) —
+  NUNCA `monto_esperado` (el snapshot al crear el intento) ni `orden.total` (a diferencia de los otros
+  tres llamadores, que sí releen `Order.total` bajo lock porque no tienen un tercero que confirme el
+  monto de otra forma). Si el evento no trae un monto utilizable, cae a `monto_esperado` como mejor
+  valor disponible, con su propio log — caso defensivo, no ejercitado por ningún evento real medido.
+- **APROBADO + orden YA pagada** → COBRO DUPLICADO. El intento se cierra igual (el hecho de Wompi es
+  real) pero NO se crea un segundo Payment ni se reabre la orden. `notificarAtencion` dispara UNA
+  notificación (`tipo: 'wompi_cobro_duplicado'`, `href: hrefOrden(numero_orden)`) con el número de
+  orden y el monto, para que un humano decida si corresponde devolver — **la devolución NO se
+  automatiza**, como pide el spec.
+- **FALLIDO** → sin cambios de este slice: cierra el intento, no toca la Order, no hay transacción.
+
+**La discrepancia de monto (`monto_esperado` vs. el confirmado) YA se comparaba y registraba con
+`console.error` desde `WOMPI-WEBHOOK-RUTA-1`; (g) le agrega el aviso al carril de atención** cuando esa
+discrepancia ocurre sobre una orden que SÍ se pagó (`tipo: 'wompi_monto_discrepante'`) — "una orden
+pagada por un monto distinto al esperado es plata a mirar a mano", la frase exacta del spec. No se
+notifica una discrepancia sobre un evento FALLIDO o sobre un cobro duplicado (en ese caso ya notifica
+por la otra vía) — sería una segunda alarma sobre el mismo hecho.
+
+### La idempotencia — medida, no supuesta
+
+El corte pre-transacción (`intent.estado !== 'EN_VUELO'` → 'repetido'/'anomalía') sigue INTACTO y
+sigue disparando ANTES de tocar `transaccionConOrdenLockeada`: un reintento del MISMO evento nunca
+llega a la transacción una segunda vez (afirmado: `llamadas.transacciones` queda en 1 tras dos
+entregas del mismo evento). Y bajo el lock, un segundo intento **DISTINTO** de la MISMA orden que
+llega DESPUÉS de que la orden ya se pagó cae en la rama de cobro duplicado — nunca en un segundo
+`registrarPago`. Los DOS casos que el spec pedía afirmar quedaron en tests (capa 1, `route.test.ts`,
+con un doble en memoria — el detalle de por qué NO son de integración va abajo):
+
+- reintento del mismo evento → un solo Payment (`llamadas.pagosRegistrados.length === 1` tras dos
+  `procesarEventoWompi` con el mismo evento);
+- dos `PaymentIntent` distintos de la misma orden, ambos APROBADO → un solo Payment total + una sola
+  notificación de cobro duplicado.
+
+### DESVIACIÓN MEDIDA, y la más importante de este asiento: NO se agregó cobertura en
+`tests/integracion/` — el spec la pedía en su §5 y `touches:` no la nombraba
+
+El spec (§5) pide explícitamente: *"Agregá al carril de integración: primer-aprobado→un Payment+orden
+pagada; segundo-aprobado→intent APROBADO + notificación + CERO segundo Payment + orden sin reabrir;
+reintento→un solo Payment"* — y también dice, en §1, que el lock+transacción "se prueban de verdad
+contra Postgres" en ese carril. Pero `touches:` de este slice lista sólo CUATRO archivos
+(`app/api/webhooks/wompi/route.ts`, `packages/core/src/orders.ts`,
+`app/api/webhooks/wompi/route.test.ts`, `DECISIONS.md`) — **ninguno bajo `tests/integracion/`**, y la
+doctrina del propio repo (§ CLAUDE.md, "El carril rápido cubre `app/`") es explícita: *"Un test de
+`app/` que necesite Postgres real va a `tests/integracion/`, no co-ubicado con la ruta — si no, rompe
+el carril rápido (capa 1, sin base) para todos."* Cumplir la letra de §5 habría exigido escribir en un
+archivo fuera de `touches:`, y la instrucción del dispatch que gobierna este slice es explícita: *"A
+path you did not declare is not covered by an approval given for the paths you did… do not widen it
+yourself."*
+
+**Se resolvió a favor de `touches:`, no de §5.** `route.test.ts` quedó DB-free (capa 1) con un doble en
+memoria que sí prueba la LÓGICA de decisión (qué rama toma, qué se llama, qué NO se llama) para los
+tres casos —primer aprobado, cobro duplicado, reintento—, pero **sin locking real**: el doble no
+simula la concurrencia de Postgres, sólo secuencia llamadas. Lo que el spec pedía probar "de verdad
+contra Postgres" —que el `SELECT … FOR UPDATE` efectivamente serializa dos aprobados concurrentes de
+la misma orden, y no sólo dos secuenciales— **queda SIN medir en este slice**. El carril de integración
+corrió (`npm run test:integracion` → 193/193, idéntico al piso citado en `WOMPI-ENUM-METODO-F-1`) y no
+se movió, confirmando que ningún archivo de ese carril cambió.
+
+**FOLLOW-UP nombrado: `WOMPI-PAYMENT-WEBHOOK-INTEGRACION-1`** — un slice con `touches:` que SÍ incluya
+un archivo bajo `tests/integracion/` (p. ej. `tests/integracion/wompi-webhook-payment.test.ts`), armado
+sobre `dbReal`-como-real (Postgres real, dos llamadas verdaderamente concurrentes al mismo
+`PaymentIntent`/misma Order) para cerrar la brecha que este asiento deja escrita. Hasta que exista, la
+garantía de que el lock sirve bajo concurrencia REAL para este llamador específico es la MISMA
+garantía que ya tienen los otros tres (mismo patrón, mismo `FOR UPDATE`), no una medición propia de
+(g).
+
+### Los DOS espejos de doctrina que este slice vuelve FALSOS, y no se tocan (fuera de `touches:`)
+
+Censo mecánico (grep de cada símbolo/archivo que este diff cambia contra `CLAUDE.md`), con la doctrina
+que queda contradicha:
+
+- **`CLAUDE.md` § Pagos en línea (Wompi), líneas 2939-2959**: *"el webhook YA CIERRA el intento… pero
+  **NO crea el `Payment`**: frontera deliberada, porque eso exige un valor de `MetodoPago` que el enum
+  de hoy no tiene (decisión del owner, pendiente)"* — **FALSO**: el enum ya tiene `WOMPI`
+  (`WOMPI-ENUM-METODO-F-1`) y el webhook YA crea el Payment (este slice). La misma línea dice *"Hoy ese
+  helper tiene TRES llamadores en producción… el webhook sería el cuarto"* — también FALSO: son
+  CUATRO, presente, no condicional. `WOMPI-WEBHOOK-DOCTRINA-PAGO-STALE-1` — actualizar cuando se toque
+  `CLAUDE.md` por esta área; no se toca acá porque el archivo no está en `touches:`.
+- **`CLAUDE.md` línea 85** (la re-medición del 2026-09-14 de la lista Tier 1): *"…y es el llamador
+  FUTURO de `registerOrderPaymentTx`"* — el mismo defecto, dicho de otra forma: ya no es futuro. Mismo
+  follow-up (`WOMPI-WEBHOOK-DOCTRINA-PAGO-STALE-1`) lo cubre — es la MISMA frase envejeciendo en dos
+  sitios del archivo.
+
+### Notificaciones sin catálogo — deuda declarada, no un descuido
+
+`notificarAtencion` escribe `Notification{tipo: 'wompi_cobro_duplicado' | 'wompi_monto_discrepante',
+…}` directo, **sin** una entrada en `AUTOMATION_MAP` (`constants/automations.ts`, fuera de
+`touches:`). La campana ya tolera un `tipo` sin registro (`AUTOMATION_MAP[n.tipo]?.icono ?? DEFAULT_
+ICON`, `NotificationBell.tsx` — medido, no asumido): se ve con el ícono por defecto y el tratamiento
+"atención" (sol), NUNCA el rojo de `severidad: 'alerta'` que un cobro duplicado —plata a devolver—
+merecería. **FOLLOW-UP nombrado: `WOMPI-NOTIFICACION-CATALOGO-1`** — sumar las dos keys a
+`AUTOMATION_MAP` con `severidad: 'alerta'`, un ícono propio y su `disparador`/`frase`, cuando se toque
+`constants/automations.ts` por esta área. No es un defecto de este slice: el mecanismo pedido por el
+spec era `createNotification` directo, no el catálogo.
+
+### El piso, medido en el árbol final
+
+`npm test` → **1190/1190** (sube de los 1187 citados en `WOMPI-ENUM-METODO-F-1` por las 3 pruebas
+nuevas de `route.test.ts` — 17 tests en el archivo contra los 14 de antes; ningún otro archivo del
+glob se tocó). `npm run test:integracion` → **193/193** (idéntico al piso citado en esa misma entrada —
+confirma la deviación de arriba: ningún archivo de ese carril cambió). `npx tsc --noEmit` → limpio
+(exigió resolver un narrowing de TypeScript real, no cosmético: un `let` reasignado dentro del closure
+de la transacción se widenea a través del `await` que la espera, y `if (notificar)` tipaba su rama
+verdadera como `never` — reproducido en un archivo aparte antes de aceptar el fix, `notificar as
+NotificacionAtencion | null` justo antes del `if`). `npm run build` → `✓ Compiled successfully`,
+`/api/webhooks/wompi` sigue listado como ruta dinámica (`ƒ`).
+
+**Con la pasarela apagada, cero cambio de comportamiento — medido, no supuesto.** Nada en este diff
+crea una fila de `PaymentIntent`: `crearIntentoPago` sigue en `false`/ausente por defecto y ningún
+llamador lo pasa en `true` hoy (medido antes de escribir: `grep -rn "crearIntentoPago"` fuera de su
+propia declaración y este mismo archivo de doctrina da cero resultados). Sin filas `EN_VUELO`, el
+webhook recibe eventos que no matchean ninguna referencia (`404`, la rama ya existente) o simplemente
+no recibe tráfico — el camino nuevo (`transaccionConOrdenLockeada`, `registrarPago`,
+`notificarAtencion`) es código alcanzable pero nunca alcanzado mientras (a)+(b)+(d) sigan apagados.
+
+**Tier 1 / AWAITING_APPROVAL, `stopped_on: ['customer-bytes']`.** El diff no toca schema ni migración,
+y no define ni consume un contrato cross-repo (Wompi define el suyo; nada de este lado lo expone). Pero
+SÍ agrega bytes NUEVOS que el DUEÑO/OPERADOR lee: los textos de las dos notificaciones nuevas en la
+campana del admin ("Cobro duplicado de Wompi…", "Wompi cobró un monto distinto al esperado…") — la
+definición de `customer_bytes` en este protocolo incluye explícitamente lo que un OPERADOR u OWNER lee,
+no sólo lo que ve un comprador. Ninguna de las dos rutas es alcanzable hoy (pasarela apagada, arriba),
+pero el criterio de la política es sobre la RAMA, no sobre si el código ya se ejecutó. Rama
+`slice/wompi-enum-metodo-f-1` (continuación de (f), sin rama propia — así lo pidió el spec), sin
+mergear.
+
+Regla: § Pagos en línea (Wompi) (CLAUDE.md, dos frases quedan falsas — ver arriba,
+`WOMPI-WEBHOOK-DOCTRINA-PAGO-STALE-1`) · `app/api/webhooks/wompi/route.ts` (`PaymentIntentDb` crece:
+`transaccionConOrdenLockeada`, `notificarAtencion`; `PaymentIntentRow` gana `orden_id`; `dbReal`
+nuevo) · `packages/core/src/orders.ts` (`lockOrderForPayment`, nuevo export, cuarto lock de Order de la
+misma forma que los otros tres) · `registerOrderPaymentTx` gana su CUARTO llamador ·
+`WOMPI-PAYMENT-WEBHOOK-INTEGRACION-1`, follow-up abierto (la concurrencia real bajo Postgres, sin
+medir) · `WOMPI-NOTIFICACION-CATALOGO-1`, follow-up abierto (las dos notificaciones sin catálogo) ·
+(c)/(d)/reconciliación/barrido de intentos vencidos, sin construir — sin cambio de este slice.

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@duna/core';
-import { isUniqueViolation } from '@duna/core/orders';
+import { isUniqueViolation, registerOrderPaymentTx, lockOrderForPayment } from '@duna/core/orders';
+import { createNotification } from '@duna/core/notifications';
+import { hrefOrden } from '@/constants/automations';
 import {
   verificarFirmaWompi,
   RutaDePropertyNoResuelveError,
@@ -11,15 +13,11 @@ import {
 //
 // Recibe el evento, verifica su firma, reconoce un reintento (Wompi manda hasta
 // 3 en 24 h ante cualquier respuesta que no sea 200 — WOMPI-REGLAS-IMPLEMENTACION-1)
-// y cierra el `PaymentIntent` correspondiente. NO crea ningún `Payment`.
-//
-// LA FRONTERA ES A PROPÓSITO (WOMPI-WEBHOOK-RUTA-1): crear un `Payment` exige un
-// valor de `MetodoPago`, y el enum de hoy (`NEQUI | DAVIPLATA | EFECTIVO |
-// TRANSFERENCIA | OTRO | BREB`) no tiene `WOMPI`. Usar `OTRO` o agregar un valor es
-// modelar un concepto del dominio — decisión del owner, pendiente. Por eso este
-// archivo llega HASTA escribir el desenlace en `PaymentIntent` y se detiene ahí; el
-// gancho de la etapa siguiente está marcado más abajo, en el punto exacto donde
-// engancha.
+// y cierra el `PaymentIntent` correspondiente. Cuando el desenlace es APROBADO,
+// crea el `Payment` — con la Order LOCKEADA, como los otros tres llamadores de
+// `registerOrderPaymentTx` (WOMPI-PAYMENT-DESDE-WEBHOOK-G-1). El enum `MetodoPago`
+// ya tiene `WOMPI` (WOMPI-ENUM-METODO-F-1); la frontera que `WOMPI-WEBHOOK-RUTA-1`
+// dejó pendiente por eso queda cerrada.
 //
 // SIN CUERPO CRUDO: `verificarFirmaWompi` opera sobre el evento YA PARSEADO
 // (medido: cero `req.text()` en `app/api`, el resto de las rutas usa `.json()`), así
@@ -32,29 +30,63 @@ import {
 // pasa al verificador como parámetro — el verificador (`lib/pagos/wompi-firma.ts`)
 // no lee el entorno, por diseño.
 
-/** La fila de `PaymentIntent` en lo mínimo que este módulo necesita leer. */
+/** La fila de `PaymentIntent` en lo mínimo que este módulo necesita leer.
+ *  `orden_id` es NUEVO (WOMPI-PAYMENT-DESDE-WEBHOOK-G-1): es lo que deja saber a
+ *  QUÉ Order lockear cuando el desenlace es APROBADO. */
 export interface PaymentIntentRow {
   id: string;
+  orden_id: string;
   estado: 'EN_VUELO' | 'APROBADO' | 'FALLIDO';
   monto_esperado: number;
   pspTransactionId: string | null;
 }
 
+/** Lo mínimo de la Order, ya LOCKEADA (`FOR UPDATE`), que decide si un APROBADO
+ *  crea plata o es un cobro duplicado. */
+export interface OrdenLockeada {
+  estado: string;
+  total: number;
+  numero_orden: string;
+}
+
+/** Lo que el carril de atención necesita para una notificación (cobro duplicado,
+ *  monto discrepante) — la misma forma que `Notification` en `schema.prisma`. */
+export interface NotificacionAtencion {
+  tipo:    string;
+  titulo:  string;
+  mensaje: string;
+  href:    string;
+}
+
+/** Lo que el bucket APROBADO necesita DENTRO de la transacción con la Order ya
+ *  lockeada: cerrar el intento (mismo contrato que `paymentIntent.updateMany` de
+ *  `PaymentIntentDb`, abajo) y crear el Payment por el ÚNICO escritor de dinero. */
+export interface PaymentIntentTx {
+  paymentIntent: {
+    updateMany(args: {
+      where: { id: string; estado: 'EN_VUELO' };
+      data: { pspTransactionId: string; estado: 'APROBADO'; estado_crudo_psp: string };
+    }): Promise<{ count: number }>;
+  };
+  /** `registerOrderPaymentTx` como su CUARTO llamador — el monto es el que Wompi
+   *  CONFIRMÓ (§2 del spec), nunca `monto_esperado`. */
+  registrarPago(input: { monto: number; referencia: string }): Promise<void>;
+}
+
 /**
  * El cliente de `PaymentIntent` que este módulo necesita — una interfaz ANGOSTA y
- * estructural, no el `PrismaClient` completo. `prisma` (importado arriba) la
- * satisface por tener MÁS métodos que los que acá se piden; el test le pasa un
- * doble en memoria con SÓLO estos dos. Achicar la interfaz a lo que se usa es lo
- * que vuelve posible testear la ruta ENTERA (`POST` → `Response`) sin una base real.
+ * estructural, no el `PrismaClient` completo. El test le pasa un doble en memoria;
+ * `POST` arma un adaptador sobre el `prisma` real (`dbReal`, más abajo) que la
+ * satisface. Achicar la interfaz a lo que se usa es lo que vuelve posible testear
+ * la ruta ENTERA (`POST` → `Response`) sin una base real.
  */
 export interface PaymentIntentDb {
   paymentIntent: {
     findUnique(args: { where: { reference: string } }): Promise<PaymentIntentRow | null>;
-    /** Transición condicional en UNA sentencia — mismo patrón que `sellar()` en
-     *  `packages/core/src/comprobantes.ts` (`updateMany` con el estado en el
-     *  `where`): dos escrituras concurrentes sobre el MISMO intento no pueden
-     *  ambas ganar. `count === 0` ⇒ alguien más ya lo cerró entre la lectura y
-     *  esta escritura. */
+    /** Usado SÓLO por el bucket FALLIDO — no toca la Order, no abre transacción,
+     *  como antes de este slice. Transición condicional en UNA sentencia — mismo
+     *  patrón que `sellar()` en `packages/core/src/comprobantes.ts`: `count === 0`
+     *  ⇒ alguien más ya lo cerró entre la lectura y esta escritura. */
     updateMany(args: {
       where: { id: string; estado: 'EN_VUELO' };
       data: {
@@ -64,6 +96,30 @@ export interface PaymentIntentDb {
       };
     }): Promise<{ count: number }>;
   };
+  /**
+   * SÓLO la usa el bucket APROBADO. Lockea la Order (`FOR UPDATE`) y corre `fn`
+   * con esa fila releída — el mismo patrón que los otros tres llamadores de
+   * `registerOrderPaymentTx` ya siguen (`app/api/orders/[id]/payments/route.ts`,
+   * `decidirComprobante`, `immediatePayment`). Sin el lock, dos APROBADO
+   * concurrentes de la MISMA orden leerían ambos `pendiente` y crearían dos
+   * Payments — es la única forma de que el cobro duplicado (§2 del spec) sea
+   * detectable en vez de silenciosamente doble.
+   */
+  transaccionConOrdenLockeada<T>(
+    ordenId: string,
+    fn: (orden: OrdenLockeada | null, tx: PaymentIntentTx) => Promise<T>,
+  ): Promise<T>;
+  /**
+   * Post-commit, fire-and-forget — el carril de atención para lo que el webhook
+   * detecta pero no puede resolver solo: un cobro duplicado (devolver es un acto
+   * humano) o un monto que no coincide con lo esperado. Inyectable para que el
+   * test no dependa de Postgres real (`createNotification` real escribe en
+   * `Notification`). Nunca se llama DENTRO de `transaccionConOrdenLockeada`: una
+   * notificación nunca debe poder abortar ni demorar el cierre del cobro (mismo
+   * principio que `notifyOrderCreated` en `createOrderWithCustomer`,
+   * packages/core/src/orders.ts).
+   */
+  notificarAtencion(input: NotificacionAtencion): Promise<void>;
 }
 
 /**
@@ -201,10 +257,14 @@ export async function procesarEventoWompi(
   }
 
   // EL MONTO NO DECIDE NADA ACÁ — sólo se compara y se registra si difiere. El
-  // monto de un `Payment` se relee de `Order.total` BAJO LOCK; eso es de la etapa
-  // siguiente. Acá la discrepancia es información, nunca un motivo para desviar
-  // el flujo.
-  if (montoPesos !== null && montoPesos !== intent.monto_esperado) {
+  // monto de un `Payment`, cuando se crea, es el CONFIRMADO por Wompi (abajo),
+  // nunca `monto_esperado` — ese es sólo el snapshot al crear el intento. Acá la
+  // discrepancia es información: se registra siempre, y si termina pagando una
+  // orden (bucket APROBADO sobre una orden `pendiente`, más abajo) además avisa
+  // al carril de atención — una orden pagada por un monto distinto al esperado es
+  // plata a mirar a mano.
+  const discrepanciaDeMonto = montoPesos !== null && montoPesos !== intent.monto_esperado;
+  if (discrepanciaDeMonto) {
     console.error(
       `[wompi-webhook] discrepancia de monto en ${reference}: esperado ${intent.monto_esperado}, evento ${montoPesos}`,
     );
@@ -238,40 +298,165 @@ export async function procesarEventoWompi(
     return { status: 200, motivo: 'evento terminal sin id de transacción' };
   }
 
-  try {
-    const { count } = await db.paymentIntent.updateMany({
-      where: { id: intent.id, estado: 'EN_VUELO' },
-      data: { pspTransactionId, estado: bucket, estado_crudo_psp: status },
-    });
-    if (count === 0) {
-      // Perdió la carrera: otra entrega (concurrente, del mismo evento) ya cerró
-      // este intento entre nuestra lectura y esta escritura. No es un error — es
-      // el mismo caso de arriba, visto un instante después.
-      return { status: 200, motivo: 'cerrado por otra entrega concurrente' };
+  if (bucket === 'FALLIDO') {
+    // FALLIDO no toca la Order ni crea nada: cierra el intento, punto. Sin
+    // transacción — el mismo `updateMany` de siempre, no hay lock que tomar
+    // porque no hay decisión de dinero que proteger.
+    try {
+      const { count } = await db.paymentIntent.updateMany({
+        where: { id: intent.id, estado: 'EN_VUELO' },
+        data: { pspTransactionId, estado: 'FALLIDO', estado_crudo_psp: status },
+      });
+      if (count === 0) {
+        // Perdió la carrera: otra entrega concurrente ya cerró este intento entre
+        // nuestra lectura y esta escritura.
+        return { status: 200, motivo: 'cerrado por otra entrega concurrente' };
+      }
+    } catch (e) {
+      if (isUniqueViolation(e)) {
+        console.error(`[wompi-webhook] pspTransactionId ${pspTransactionId} ya pertenece a otro intento`);
+        return { status: 200, motivo: 'id de transacción ya asentado en otro intento' };
+      }
+      throw e;
     }
+    return { status: 200, motivo: 'cerrado fallido' };
+  }
+
+  // bucket === 'APROBADO'. Acá es donde el hecho de Wompi puede convertirse en
+  // plata — y por eso, a diferencia de FALLIDO, corre CON la Order lockeada.
+  // `notificar` se resuelve DESPUÉS de que la transacción confirme (nunca
+  // adentro: una notificación no puede demorar ni abortar el cierre del cobro,
+  // mismo principio que `notifyOrderCreated` post-commit en `createOrderWithCustomer`).
+  let notificar: NotificacionAtencion | null = null;
+
+  let resultado: { motivo: string };
+  try {
+    resultado = await db.transaccionConOrdenLockeada(intent.orden_id, async (orden, tx) => {
+      if (!orden) {
+        // No debería pasar — `PaymentIntent.orden_id` tiene FK a `Order` — pero
+        // preferir callar y dejar rastro a asumir una fila que no está.
+        console.error(
+          `[wompi-webhook] PaymentIntent ${intent.id} (${reference}) apunta a una Order` +
+            ` inexistente (${intent.orden_id})`,
+        );
+        return { motivo: 'orden del intento no encontrada' };
+      }
+
+      const { count } = await tx.paymentIntent.updateMany({
+        where: { id: intent.id, estado: 'EN_VUELO' },
+        data: { pspTransactionId, estado: 'APROBADO', estado_crudo_psp: status },
+      });
+      if (count === 0) {
+        // Perdió la carrera: otra entrega (concurrente, del MISMO evento) ya
+        // cerró este intento entre nuestra lectura y esta escritura — incluso bajo
+        // el lock de la Order, porque dos entregas del mismo evento pueden
+        // procesarse una tras otra (la segunda ve el intento ya terminal acá, no
+        // arriba en el chequeo pre-transacción). No es un error.
+        return { motivo: 'cerrado por otra entrega concurrente' };
+      }
+
+      // EL MONTO ES EL QUE WOMPI CONFIRMÓ — nunca `monto_esperado`, que es sólo el
+      // snapshot al crear el intento. Si el evento no trae un número utilizable
+      // (forma inesperada), `monto_esperado` es el mejor valor disponible; se dice
+      // en el log porque es la excepción, no la regla.
+      const monto = montoPesos ?? intent.monto_esperado;
+      if (montoPesos === null) {
+        console.error(
+          `[wompi-webhook] evento aprobado sin amount_in_cents utilizable en ${reference}` +
+            ` — se usa el monto esperado ($${intent.monto_esperado}) como mejor valor disponible`,
+        );
+      }
+
+      if (orden.estado !== 'pendiente') {
+        // COBRO DUPLICADO (§2 del spec): la orden YA está pagada. El hecho de
+        // Wompi es real y el intento se cierra igual (arriba), pero NO se crea un
+        // segundo Payment ni se reabre la orden. Devolver el dinero es un acto
+        // humano — se avisa al carril de atención, post-commit.
+        notificar = {
+          tipo:    'wompi_cobro_duplicado',
+          titulo:  'Cobro duplicado de Wompi',
+          mensaje:
+            `Wompi confirmó un pago de $${monto.toLocaleString('es-CO')} sobre la orden` +
+            ` ${orden.numero_orden}, que ya estaba pagada. Verificar si corresponde devolver el dinero.`,
+          href: hrefOrden(orden.numero_orden),
+        };
+        return { motivo: 'cerrado aprobado (cobro duplicado)' };
+      }
+
+      // PRIMER APROBADO sobre una orden pendiente: acá es donde el hecho de Wompi
+      // se vuelve un Payment — `registerOrderPaymentTx` como su CUARTO llamador
+      // (los otros tres: `app/api/orders/[id]/payments/route.ts`,
+      // `decidirComprobante`, `immediatePayment`), en la MISMA transacción que
+      // cerró el intento arriba.
+      await tx.registrarPago({ monto, referencia: pspTransactionId });
+
+      if (discrepanciaDeMonto) {
+        notificar = {
+          tipo:    'wompi_monto_discrepante',
+          titulo:  'Wompi cobró un monto distinto al esperado',
+          mensaje:
+            `La orden ${orden.numero_orden} esperaba $${intent.monto_esperado.toLocaleString('es-CO')}` +
+            ` y Wompi confirmó $${monto.toLocaleString('es-CO')}. La orden ya quedó pagada por el` +
+            ` monto confirmado; revisar si corresponde ajustar.`,
+          href: hrefOrden(orden.numero_orden),
+        };
+      }
+      return { motivo: 'cerrado aprobado' };
+    });
   } catch (e) {
     if (isUniqueViolation(e)) {
       // El id de transacción ya está asentado en OTRA fila de `PaymentIntent`. La
       // unique es la pieza que sostiene la idempotencia (PASARELA-DOC-AL-DIA-1) —
-      // el choque ocurre ACÁ, antes de cualquier llamada al escritor de dinero
-      // (que en este slice ni existe). No se reintenta la escritura ni se pisa nada.
+      // el choque ocurre ANTES de crear ningún Payment (la transacción entera se
+      // revierte). No se reintenta la escritura ni se pisa nada.
       console.error(`[wompi-webhook] pspTransactionId ${pspTransactionId} ya pertenece a otro intento`);
       return { status: 200, motivo: 'id de transacción ya asentado en otro intento' };
     }
     throw e;
   }
 
-  // ── GANCHO DE LA ETAPA SIGUIENTE ─────────────────────────────────────────────
-  // El `PaymentIntent` ya quedó cerrado (`bucket`). Si `bucket === 'APROBADO'`, la
-  // etapa siguiente llama acá a `registerOrderPaymentTx`
-  // (`packages/core/src/orders.ts`) — el ÚNICO escritor de `Payment` — como su
-  // CUARTO llamador, pasándole `intent.orden_id` y el monto RELEÍDO de
-  // `Order.total` bajo `SELECT … FOR UPDATE` (nunca `monto_esperado`, que es sólo
-  // un snapshot al crear el intento). Ese llamado exige un valor de `MetodoPago`,
-  // y el enum de hoy no tiene `WOMPI` — modelar eso es del owner (§ 0 del spec de
-  // este slice) y no se hace acá.
-  return { status: 200, motivo: bucket === 'APROBADO' ? 'cerrado aprobado' : 'cerrado fallido' };
+  // El `as`, no sólo el `const`, es lo que hace falta: TS narrowea `notificar` a
+  // `null` a través del `await` de arriba porque su ÚNICA reasignación visible en
+  // ESTE scope es el closure de la transacción — sin el cast, `if (notificar)` ya
+  // typa su rama verdadera como `never` (medido con `tsc`, no supuesto).
+  const aNotificar = notificar as NotificacionAtencion | null;
+  if (aNotificar) {
+    try {
+      await db.notificarAtencion(aNotificar);
+    } catch (e) {
+      // Guardado: una notificación que falla no puede volver a intentar la
+      // transacción de dinero, que ya comiteó. Se deja rastro y se sigue.
+      console.error(`[wompi-webhook] no se pudo notificar al carril de atención (${aNotificar.tipo}):`, e);
+    }
+  }
+
+  return { status: 200, motivo: resultado.motivo };
 }
+
+/**
+ * El adaptador sobre el `prisma` real que satisface `PaymentIntentDb` — la ÚNICA
+ * instancia que `POST` usa. `lockOrderForPayment`/`registerOrderPaymentTx` vienen
+ * de `packages/core/src/orders.ts` (el mismo módulo de `registerOrderPaymentTx`);
+ * `createNotification`, de `packages/core/src/notifications/admin.ts` — la campana
+ * del operador, sin almacén propio.
+ */
+const dbReal: PaymentIntentDb = {
+  paymentIntent: {
+    findUnique: (args) => prisma.paymentIntent.findUnique(args),
+    updateMany: (args) => prisma.paymentIntent.updateMany(args),
+  },
+  transaccionConOrdenLockeada: (ordenId, fn) =>
+    prisma.$transaction(async (tx) => {
+      const orden = await lockOrderForPayment(tx, ordenId);
+      return fn(orden, {
+        paymentIntent: { updateMany: (args) => tx.paymentIntent.updateMany(args) },
+        registrarPago: async ({ monto, referencia }) => {
+          await registerOrderPaymentTx(tx, ordenId, { monto, metodo: 'WOMPI', referencia });
+        },
+      });
+    }),
+  notificarAtencion: (input) => createNotification(input),
+};
 
 export async function POST(req: NextRequest) {
   const secretoEventos = process.env.WOMPI_EVENTS_SECRET;
@@ -298,6 +483,6 @@ export async function POST(req: NextRequest) {
   }
 
   const checksumHeader = req.headers.get('x-event-checksum') ?? undefined;
-  const { status, motivo } = await procesarEventoWompi(evento, checksumHeader, secretoEventos, prisma);
+  const { status, motivo } = await procesarEventoWompi(evento, checksumHeader, secretoEventos, dbReal);
   return NextResponse.json({ ok: status === 200, motivo }, { status });
 }

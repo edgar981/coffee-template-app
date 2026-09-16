@@ -12,6 +12,13 @@ import { POST, procesarEventoWompi, type PaymentIntentDb, type PaymentIntentRow 
 // fórmula que el verificador (sha256 de properties+timestamp+secreto), nunca
 // copiado del ejemplo de la doc de Wompi — está medido (WOMPI-REGLAS-
 // IMPLEMENTACION-1) que ese ejemplo no reproduce.
+//
+// WOMPI-PAYMENT-DESDE-WEBHOOK-G-1 agregó `transaccionConOrdenLockeada` y
+// `notificarAtencion` a `PaymentIntentDb`: el doble ahora también lleva un mapa de
+// Órdenes en memoria (sin locking real — eso lo prueba `tests/integracion/`, NO
+// este archivo, que se queda DB-free por la regla del carril rápido en `app/**`,
+// § CLAUDE.md "El carril rápido cubre `app/`") y registra cada `registrarPago`/
+// `notificarAtencion` para que los tests afirmen QUÉ se llamó, no sólo el status.
 
 const SECRETO = 'secreto-de-prueba-inventado-para-el-webhook-wompi';
 
@@ -48,12 +55,57 @@ function eventoTransaccion(
   return { data, timestamp: TIMESTAMP, signature: { properties: PROPERTIES, checksum } };
 }
 
-/** Un `PaymentIntent` doble en memoria, con SÓLO los dos métodos que la ruta usa
+interface OrdenFake {
+  estado: string;
+  total: number;
+  numero_orden: string;
+}
+
+interface NotificacionFake {
+  tipo: string;
+  titulo: string;
+  mensaje: string;
+  href: string;
+}
+
+/** Un `PaymentIntent` + `Order` dobles en memoria, con SÓLO lo que la ruta usa
  *  (`PaymentIntentDb`). Simula la unique de `pspTransactionId` (P2002 si otra fila
- *  YA la tiene) y la transición condicional (`count === 0` si `estado` ya cambió). */
-function crearDbFake(filasIniciales: (PaymentIntentRow & { reference: string })[]) {
-  const filas = filasIniciales.map((f) => ({ ...f }));
-  const llamadas = { findUnique: 0, updateMany: 0 };
+ *  YA la tiene), la transición condicional (`count === 0` si `estado` ya cambió) y
+ *  — nuevo en (g) — el par lock-de-orden + registro de pago + notificación, todos
+ *  como side-effects en memoria (SIN locking real: la concurrencia de verdad es
+ *  del carril de integración). */
+function crearDbFake(config: {
+  filas: (PaymentIntentRow & { reference: string })[];
+  ordenes?: Record<string, OrdenFake>;
+}) {
+  const filas = config.filas.map((f) => ({ ...f }));
+  const ordenes = new Map(Object.entries(config.ordenes ?? {}).map(([id, o]) => [id, { ...o }]));
+  const llamadas = {
+    findUnique: 0,
+    updateMany: 0,
+    transacciones: 0,
+    pagosRegistrados: [] as { ordenId: string; monto: number; referencia: string }[],
+    notificaciones: [] as NotificacionFake[],
+  };
+
+  function cerrarIntent(
+    where: { id: string; estado: 'EN_VUELO' },
+    data: { pspTransactionId: string; estado: 'APROBADO' | 'FALLIDO'; estado_crudo_psp: string },
+  ): { count: number } {
+    llamadas.updateMany++;
+    const colision = filas.find((f) => f.id !== where.id && f.pspTransactionId === data.pspTransactionId);
+    if (colision) {
+      const err = new Error('Unique constraint failed on pspTransactionId') as Error & { code: string };
+      err.code = 'P2002';
+      throw err;
+    }
+    const fila = filas.find((f) => f.id === where.id && f.estado === where.estado);
+    if (!fila) return { count: 0 };
+    fila.estado = data.estado;
+    fila.pspTransactionId = data.pspTransactionId;
+    return { count: 1 };
+  }
+
   const db: PaymentIntentDb = {
     paymentIntent: {
       async findUnique({ where }) {
@@ -62,30 +114,39 @@ function crearDbFake(filasIniciales: (PaymentIntentRow & { reference: string })[
         return fila ? { ...fila } : null;
       },
       async updateMany({ where, data }) {
-        llamadas.updateMany++;
-        const colision = filas.find((f) => f.id !== where.id && f.pspTransactionId === data.pspTransactionId);
-        if (colision) {
-          const err = new Error('Unique constraint failed on pspTransactionId') as Error & { code: string };
-          err.code = 'P2002';
-          throw err;
-        }
-        const fila = filas.find((f) => f.id === where.id && f.estado === where.estado);
-        if (!fila) return { count: 0 };
-        fila.estado = data.estado;
-        fila.pspTransactionId = data.pspTransactionId;
-        return { count: 1 };
+        return cerrarIntent(where, data);
       },
     },
+    async transaccionConOrdenLockeada(ordenId, fn) {
+      llamadas.transacciones++;
+      const orden = ordenes.get(ordenId) ?? null;
+      return fn(orden ? { ...orden } : null, {
+        paymentIntent: {
+          async updateMany({ where, data }) {
+            return cerrarIntent(where, data);
+          },
+        },
+        async registrarPago({ monto, referencia }) {
+          llamadas.pagosRegistrados.push({ ordenId, monto, referencia });
+          const o = ordenes.get(ordenId);
+          if (o) o.estado = 'pagado';
+        },
+      });
+    },
+    async notificarAtencion(input) {
+      llamadas.notificaciones.push(input);
+    },
   };
-  return { db, filas, llamadas };
+  return { db, filas, ordenes, llamadas };
 }
 
 // ── firma válida → el intento queda cerrado como corresponde ────────────────
 
-test('firma válida, APPROVED sobre un intento EN_VUELO → cierra APROBADO y asienta el id de transacción', async () => {
-  const { db, filas } = crearDbFake([
-    { id: 'pi_1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null },
-  ]);
+test('firma válida, APPROVED sobre un intento EN_VUELO con la orden PENDIENTE → cierra APROBADO, asienta el id de transacción y crea el Payment', async () => {
+  const { db, filas, ordenes, llamadas } = crearDbFake({
+    filas: [{ id: 'pi_1', orden_id: 'orden-1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null }],
+    ordenes: { 'orden-1': { estado: 'pendiente', total: 45_000, numero_orden: 'CN-100000' } },
+  });
   const evento = eventoTransaccion({ id: 'txn_abc', status: 'APPROVED', amount_in_cents: 4_500_000 });
 
   const resultado = await procesarEventoWompi(evento, undefined, SECRETO, db);
@@ -94,12 +155,18 @@ test('firma válida, APPROVED sobre un intento EN_VUELO → cierra APROBADO y as
   assert.equal(resultado.motivo, 'cerrado aprobado');
   assert.equal(filas[0].estado, 'APROBADO');
   assert.equal(filas[0].pspTransactionId, 'txn_abc');
+  // El CUARTO llamador de `registerOrderPaymentTx`: el monto es el CONFIRMADO
+  // (45.000, de los 4.500.000 centavos), la referencia es el id de transacción.
+  assert.equal(llamadas.pagosRegistrados.length, 1);
+  assert.deepEqual(llamadas.pagosRegistrados[0], { ordenId: 'orden-1', monto: 45_000, referencia: 'txn_abc' });
+  assert.equal(ordenes.get('orden-1')?.estado, 'pagado');
+  assert.equal(llamadas.notificaciones.length, 0);
 });
 
-test('firma válida, DECLINED sobre un intento EN_VUELO → cierra FALLIDO', async () => {
-  const { db, filas } = crearDbFake([
-    { id: 'pi_1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null },
-  ]);
+test('firma válida, DECLINED sobre un intento EN_VUELO → cierra FALLIDO, sin tocar la Order ni crear Payment', async () => {
+  const { db, filas, llamadas } = crearDbFake({
+    filas: [{ id: 'pi_1', orden_id: 'orden-1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null }],
+  });
   const evento = eventoTransaccion({ id: 'txn_abc', status: 'DECLINED' });
 
   const resultado = await procesarEventoWompi(evento, undefined, SECRETO, db);
@@ -108,12 +175,14 @@ test('firma válida, DECLINED sobre un intento EN_VUELO → cierra FALLIDO', asy
   assert.equal(resultado.motivo, 'cerrado fallido');
   assert.equal(filas[0].estado, 'FALLIDO');
   assert.equal(filas[0].pspTransactionId, 'txn_abc');
+  assert.equal(llamadas.transacciones, 0);
+  assert.equal(llamadas.pagosRegistrados.length, 0);
 });
 
 test('estado no terminal (PENDING) → no cierra el intento, sigue EN_VUELO', async () => {
-  const { db, filas } = crearDbFake([
-    { id: 'pi_1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null },
-  ]);
+  const { db, filas } = crearDbFake({
+    filas: [{ id: 'pi_1', orden_id: 'orden-1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null }],
+  });
   const evento = eventoTransaccion({ status: 'PENDING' });
 
   const resultado = await procesarEventoWompi(evento, undefined, SECRETO, db);
@@ -127,9 +196,9 @@ test('estado no terminal (PENDING) → no cierra el intento, sigue EN_VUELO', as
 // ── firma inválida → 401, NADA escrito ───────────────────────────────────────
 
 test('firma inválida (checksum alterado) → 401 y el intento no se toca', async () => {
-  const { db, filas, llamadas } = crearDbFake([
-    { id: 'pi_1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null },
-  ]);
+  const { db, filas, llamadas } = crearDbFake({
+    filas: [{ id: 'pi_1', orden_id: 'orden-1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null }],
+  });
   const evento = eventoTransaccion();
   const roto: EventoWompi = {
     ...evento,
@@ -146,9 +215,9 @@ test('firma inválida (checksum alterado) → 401 y el intento no se toca', asyn
 });
 
 test('un `properties` que no resuelve (RutaDePropertyNoResuelveError) → 401, tratado como firma inválida, nada escrito', async () => {
-  const { db, llamadas } = crearDbFake([
-    { id: 'pi_1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null },
-  ]);
+  const { db, llamadas } = crearDbFake({
+    filas: [{ id: 'pi_1', orden_id: 'orden-1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null }],
+  });
   const evento: EventoWompi = {
     data: { transaction: { id: 'txn_1', status: 'APPROVED' } },
     timestamp: TIMESTAMP,
@@ -240,24 +309,31 @@ test('POST: cuerpo JSON con forma inesperada (sin signature) → 401', async () 
 
 // ── segunda entrega del MISMO evento → no duplica, responde 200 ─────────────
 
-test('segunda entrega del MISMO evento (mismo id de transacción) → no duplica, responde 200 "repetido"', async () => {
-  const { db, filas, llamadas } = crearDbFake([
-    { id: 'pi_1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null },
-  ]);
+test('segunda entrega del MISMO evento (mismo id de transacción) → no duplica, responde 200 "repetido", UN solo Payment', async () => {
+  const { db, filas, ordenes, llamadas } = crearDbFake({
+    filas: [{ id: 'pi_1', orden_id: 'orden-1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null }],
+    ordenes: { 'orden-1': { estado: 'pendiente', total: 45_000, numero_orden: 'CN-100000' } },
+  });
   const evento = eventoTransaccion({ id: 'txn_abc', status: 'APPROVED' });
 
   const primero = await procesarEventoWompi(evento, undefined, SECRETO, db);
   assert.equal(primero.status, 200);
   assert.equal(primero.motivo, 'cerrado aprobado');
   assert.equal(llamadas.updateMany, 1);
+  assert.equal(llamadas.pagosRegistrados.length, 1);
 
   const segundo = await procesarEventoWompi(evento, undefined, SECRETO, db);
   assert.equal(segundo.status, 200);
   assert.equal(segundo.motivo, 'repetido');
-  // La segunda entrega no vuelve a escribir: el estado ya era terminal.
+  // La segunda entrega no vuelve a escribir el intento NI a registrar un pago —
+  // el corte pasa en el chequeo pre-transacción (`intent.estado !== 'EN_VUELO'`),
+  // así que `transaccionConOrdenLockeada` ni se llama la segunda vez.
   assert.equal(llamadas.updateMany, 1);
+  assert.equal(llamadas.transacciones, 1);
+  assert.equal(llamadas.pagosRegistrados.length, 1);
   assert.equal(filas[0].estado, 'APROBADO');
   assert.equal(filas[0].pspTransactionId, 'txn_abc');
+  assert.equal(ordenes.get('orden-1')?.estado, 'pagado');
 });
 
 // ── referencia que no matchea ninguna fila → NO-200, para que Wompi reintente ─
@@ -269,7 +345,7 @@ test('segunda entrega del MISMO evento (mismo id de transacción) → no duplica
 // hace segura para reintentar sin duplicar nada.
 
 test('referencia sin match en ningún PaymentIntent → 404, sin escribir (para que Wompi reintente)', async () => {
-  const { db, llamadas } = crearDbFake([]);
+  const { db, llamadas } = crearDbFake({ filas: [] });
   const evento = eventoTransaccion({ reference: 'CN-no-existe:intent-x' });
 
   const resultado = await procesarEventoWompi(evento, undefined, SECRETO, db);
@@ -284,9 +360,9 @@ test('referencia sin match en ningún PaymentIntent → 404, sin escribir (para 
 // ── evento aprobado sobre un intento ya terminal → no pisa y lo registra ────
 
 test('evento sobre un intento YA terminal que CONTRADICE lo asentado → ANOMALÍA, no pisa el veredicto anterior', async () => {
-  const { db, filas } = crearDbFake([
-    { id: 'pi_1', reference: 'CN-100000:intent-1', estado: 'FALLIDO', monto_esperado: 45_000, pspTransactionId: 'txn_viejo' },
-  ]);
+  const { db, filas } = crearDbFake({
+    filas: [{ id: 'pi_1', orden_id: 'orden-1', reference: 'CN-100000:intent-1', estado: 'FALLIDO', monto_esperado: 45_000, pspTransactionId: 'txn_viejo' }],
+  });
   const errorSpy = mock.method(console, 'error', () => {});
   try {
     const evento = eventoTransaccion({ id: 'txn_nuevo', status: 'APPROVED' });
@@ -306,28 +382,35 @@ test('evento sobre un intento YA terminal que CONTRADICE lo asentado → ANOMAL�
 
 // ── extra: choque de `pspTransactionId` con OTRA fila (P2002) — defensivo ───
 
-test('el id de transacción ya pertenece a OTRO PaymentIntent (P2002) → no revienta, responde 200, no pisa', async () => {
-  const { db, filas } = crearDbFake([
-    { id: 'pi_1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null },
-    { id: 'pi_2', reference: 'CN-200000:intent-2', estado: 'APROBADO', monto_esperado: 10_000, pspTransactionId: 'txn_compartido' },
-  ]);
+test('el id de transacción ya pertenece a OTRO PaymentIntent (P2002) → no revienta, responde 200, no pisa ni paga', async () => {
+  const { db, filas, llamadas } = crearDbFake({
+    filas: [
+      { id: 'pi_1', orden_id: 'orden-1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null },
+      { id: 'pi_2', orden_id: 'orden-2', reference: 'CN-200000:intent-2', estado: 'APROBADO', monto_esperado: 10_000, pspTransactionId: 'txn_compartido' },
+    ],
+    ordenes: { 'orden-1': { estado: 'pendiente', total: 45_000, numero_orden: 'CN-100000' } },
+  });
   const evento = eventoTransaccion({ id: 'txn_compartido', status: 'APPROVED' });
 
   const resultado = await procesarEventoWompi(evento, undefined, SECRETO, db);
 
   assert.equal(resultado.status, 200);
   assert.equal(resultado.motivo, 'id de transacción ya asentado en otro intento');
-  // No se pisó: `pi_1` sigue EN_VUELO, `pi_2` sigue como estaba.
+  // No se pisó: `pi_1` sigue EN_VUELO, `pi_2` sigue como estaba, y NO se creó Payment
+  // — el choque ocurre ANTES de `registrarPago`, dentro de la MISMA transacción que
+  // se revierte entera.
   assert.equal(filas[0].estado, 'EN_VUELO');
   assert.equal(filas[1].pspTransactionId, 'txn_compartido');
+  assert.equal(llamadas.pagosRegistrados.length, 0);
 });
 
-// ── extra: discrepancia de monto se registra pero no cambia el desenlace ───
+// ── extra: discrepancia de monto se registra Y avisa al carril de atención ──
 
-test('discrepancia de monto entre el evento y `monto_esperado` se REGISTRA pero no cambia el desenlace', async () => {
-  const { db, filas } = crearDbFake([
-    { id: 'pi_1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 99_999, pspTransactionId: null },
-  ]);
+test('discrepancia de monto entre el evento y `monto_esperado` se REGISTRA, no cambia el desenlace, Y notifica al carril de atención', async () => {
+  const { db, filas, llamadas } = crearDbFake({
+    filas: [{ id: 'pi_1', orden_id: 'orden-1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 99_999, pspTransactionId: null }],
+    ordenes: { 'orden-1': { estado: 'pendiente', total: 99_999, numero_orden: 'CN-100000' } },
+  });
   const errorSpy = mock.method(console, 'error', () => {});
   try {
     // 4.500.000 centavos = $45.000, distinto de los $99.999 esperados.
@@ -338,7 +421,91 @@ test('discrepancia de monto entre el evento y `monto_esperado` se REGISTRA pero 
     assert.equal(resultado.status, 200);
     assert.equal(resultado.motivo, 'cerrado aprobado');
     assert.equal(filas[0].estado, 'APROBADO');
+    // Se pagó por el monto CONFIRMADO (45.000), no por el esperado (99.999).
+    assert.equal(llamadas.pagosRegistrados.length, 1);
+    assert.equal(llamadas.pagosRegistrados[0].monto, 45_000);
     assert.ok(errorSpy.mock.calls.some((c) => String(c.arguments[0]).includes('discrepancia de monto')));
+    assert.equal(llamadas.notificaciones.length, 1);
+    assert.equal(llamadas.notificaciones[0].tipo, 'wompi_monto_discrepante');
+    assert.match(llamadas.notificaciones[0].mensaje, /CN-100000/);
+  } finally {
+    errorSpy.mock.restore();
+  }
+});
+
+// ── WOMPI-PAYMENT-DESDE-WEBHOOK-G-1: el cobro duplicado ─────────────────────
+
+test('SEGUNDO PaymentIntent APROBADO sobre una orden que YA está pagada → cierra su intento, NO crea un segundo Payment, notifica al carril de atención', async () => {
+  const { db, filas, ordenes, llamadas } = crearDbFake({
+    filas: [
+      { id: 'pi_1', orden_id: 'orden-1', reference: 'CN-100000:intent-1', estado: 'APROBADO', monto_esperado: 45_000, pspTransactionId: 'txn_primero' },
+      { id: 'pi_2', orden_id: 'orden-1', reference: 'CN-100000:intent-2', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null },
+    ],
+    ordenes: { 'orden-1': { estado: 'pagado', total: 45_000, numero_orden: 'CN-100000' } },
+  });
+  const evento = eventoTransaccion({ id: 'txn_segundo', reference: 'CN-100000:intent-2', status: 'APPROVED', amount_in_cents: 4_500_000 });
+
+  const resultado = await procesarEventoWompi(evento, undefined, SECRETO, db);
+
+  assert.equal(resultado.status, 200);
+  assert.equal(resultado.motivo, 'cerrado aprobado (cobro duplicado)');
+  // El HECHO de Wompi se guarda igual: el segundo intento SÍ cierra APROBADO.
+  assert.equal(filas[1].estado, 'APROBADO');
+  assert.equal(filas[1].pspTransactionId, 'txn_segundo');
+  // Pero NO se crea un segundo Payment ni se reabre/toca la orden.
+  assert.equal(llamadas.pagosRegistrados.length, 0);
+  assert.equal(ordenes.get('orden-1')?.estado, 'pagado');
+  // El carril de atención se entera — un solo aviso, con el número de orden.
+  assert.equal(llamadas.notificaciones.length, 1);
+  assert.equal(llamadas.notificaciones[0].tipo, 'wompi_cobro_duplicado');
+  assert.equal(llamadas.notificaciones[0].href, '/admin/pedidos?pedido=CN-100000');
+  assert.match(llamadas.notificaciones[0].mensaje, /CN-100000/);
+});
+
+test('dos PaymentIntent DISTINTOS de la MISMA orden, ambos APROBADO → UN solo Payment total y UNA sola notificación de cobro duplicado', async () => {
+  const { db, ordenes, llamadas } = crearDbFake({
+    filas: [
+      { id: 'pi_1', orden_id: 'orden-1', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null },
+      { id: 'pi_2', orden_id: 'orden-1', reference: 'CN-100000:intent-2', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null },
+    ],
+    ordenes: { 'orden-1': { estado: 'pendiente', total: 45_000, numero_orden: 'CN-100000' } },
+  });
+
+  const primero = await procesarEventoWompi(
+    eventoTransaccion({ id: 'txn_1', reference: 'CN-100000:intent-1', status: 'APPROVED', amount_in_cents: 4_500_000 }),
+    undefined, SECRETO, db,
+  );
+  assert.equal(primero.motivo, 'cerrado aprobado');
+
+  const segundo = await procesarEventoWompi(
+    eventoTransaccion({ id: 'txn_2', reference: 'CN-100000:intent-2', status: 'APPROVED', amount_in_cents: 4_500_000 }),
+    undefined, SECRETO, db,
+  );
+  assert.equal(segundo.motivo, 'cerrado aprobado (cobro duplicado)');
+
+  assert.equal(llamadas.pagosRegistrados.length, 1);
+  assert.equal(llamadas.notificaciones.length, 1);
+  assert.equal(llamadas.notificaciones[0].tipo, 'wompi_cobro_duplicado');
+  assert.equal(ordenes.get('orden-1')?.estado, 'pagado');
+});
+
+test('el PaymentIntent apunta a una Order inexistente (no debería pasar; hay FK) → no revienta, no crea Payment, no notifica', async () => {
+  const { db, filas, llamadas } = crearDbFake({
+    filas: [{ id: 'pi_1', orden_id: 'orden-fantasma', reference: 'CN-100000:intent-1', estado: 'EN_VUELO', monto_esperado: 45_000, pspTransactionId: null }],
+    ordenes: {},
+  });
+  const errorSpy = mock.method(console, 'error', () => {});
+  try {
+    const evento = eventoTransaccion({ id: 'txn_abc', status: 'APPROVED' });
+
+    const resultado = await procesarEventoWompi(evento, undefined, SECRETO, db);
+
+    assert.equal(resultado.status, 200);
+    assert.equal(resultado.motivo, 'orden del intento no encontrada');
+    // El intento no se tocó: el `!orden` corta ANTES del `updateMany`.
+    assert.equal(filas[0].estado, 'EN_VUELO');
+    assert.equal(llamadas.pagosRegistrados.length, 0);
+    assert.equal(llamadas.notificaciones.length, 0);
   } finally {
     errorSpy.mock.restore();
   }
