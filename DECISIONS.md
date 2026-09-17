@@ -5501,3 +5501,91 @@ trabajo se previene aguas arriba, y un slice que sólo existía para verificar u
 queda con el residual que esa medición no cubrió. Ninguno de los tres se cierra por esto: el panel tiene
 un modo de falla pendiente del owner, el desalineo se apoya en un predictor SIN MEDIR, y el residual del
 primero está bloqueado por una condición externa (una URL pública) que este asiento no resuelve.
+
+## 2026-09-16 — Las dos decisiones del owner sobre el panel rehecho: el aviso de lectura fallida nunca
+vacío, y el predictor del 404 se mide DENTRO del spike de sandbox (`API-DIRECTA-DECISIONES-OWNER-2-1`)
+
+### 0 · Por qué este asiento existe
+
+`API-DIRECTA-METODOS-REHECHOS-1` (arriba) dejó DOS preguntas explícitamente pendientes del owner y dijo
+que ningún slice que dependiera de ellas se construiría antes de que él respondiera: el modo de falla
+del panel de métodos (§2 de ese asiento) y si `accepted_payment_methods` predice el `404` para
+CUALQUIER tipo de método, no sólo para `BRE_B` (§3 de ese asiento, marcado `[SIN MEDIR]`). El owner las
+respondió el 2026-09-16. Este asiento las pone en el libro ANTES de que arranque la construcción de la
+cadena de API directa, porque hay slices que dependen de ellas — **una decisión que no está en el libro
+no está tomada**, y esta vez la necesita un slice que se escribe la misma noche.
+
+### 1 · El modo de falla del panel de métodos — nunca lista vacía
+
+**Decisión del owner:** si la lectura de la cuenta del proveedor FALLA al configurar, el dueño ve un
+**aviso explícito** de que no se pudo leer, con la **lista anterior intacta** y **NO editable** hasta
+que la lectura vuelva a funcionar. **Nunca una lista vacía.**
+
+La razón, con su forma, porque es lo que la hace revisable:
+
+> **Una lista vacía MIENTE.** Le diría al dueño que su cuenta no tiene métodos habilitados, y eso es
+> falso: lo que pasó es que no pudimos preguntar. Un aviso dice la verdad —no pudimos preguntar— y un
+> dato falso que parece un dato es peor que la ausencia de dato.
+
+**Por qué esta decisión NO hereda el precedente del checkout** —que era justo la pregunta abierta en
+`API-DIRECTA-METODOS-REHECHOS-1` §2 (arriba)—: en el checkout, si la consulta al proveedor falla, no se
+ofrece el pago en línea (`API-DIRECTA-DECISIONES-PROGRAMA-1` §4, arriba); ahí la consecuencia de fallar
+es no cobrar, y no ofrecer es más seguro que ofrecer y romper. Acá la consecuencia es no poder
+CONFIGURAR, que es distinta: el dueño no está a punto de perder una venta, está a punto de creerse algo
+falso sobre su propia cuenta.
+
+**Y "no editable" es la mitad que cierra el círculo:** guardar contra una lectura fallida escribiría
+configuración A CIEGAS — exactamente lo que el rehecho de ese slice (`API-DIRECTA-METODOS-REHECHOS-1`
+§2, arriba) vino a matar.
+
+**El TEXTO del aviso queda pendiente del owner para cuando el slice se construya: es byte visible.**
+Este asiento registra la FORMA de la decisión (explícito · lista anterior intacta · no editable · nunca
+vacío), no su redacción.
+
+### 2 · El predictor del 404 se mide DENTRO del spike de sandbox, no como slice propio
+
+La pregunta que `API-DIRECTA-METODOS-REHECHOS-1` §3 (arriba) dejó marcada `[SIN MEDIR]` —si
+`accepted_payment_methods` predice el `404` de forma confiable para CUALQUIER tipo de método, y no sólo
+para el único que se probó (`BRE_B`, medido en `API-DIRECTA-SPIKES-ASIENTO-1` §1.D, arriba)— se mide
+ANTES de construir el aviso de desalineo reducido.
+
+**Cómo, y el owner fue explícito en que no es grande:** se prueba, contra el sandbox, CADA tipo del
+catálogo global de métodos (ya medido de primera mano en `API-DIRECTA-SPIKES-ASIENTO-1` §1.D, arriba)
+que la cuenta del spike NO tiene habilitado, y se verifica si TODOS devuelven el mismo `404
+NOT_FOUND_ERROR` reconocible (mismo status, mismo `error.type`, `reason` que nombra el tipo). **Va
+DENTRO del spike de sandbox que ya existe** (`API-DIRECTA-SPIKE-SANDBOX-1`), no como un slice propio —es
+la misma clase de medición que las cuatro que ese spike ya corrió, no una capacidad nueva.
+
+**Qué pasa si falla, y por eso se mide antes de apoyarse en el predictor:**
+
+> Si aunque sea UN tipo de método falla distinto —status, `error.type` o `reason` que no siga el mismo
+> patrón—, el aviso de desalineo vuelve a ser el slice GRANDE de la propuesta original
+> (`API-DIRECTA-METODOS-REHECHOS-1` §3, arriba: pantalla al comprador, marca en el estado crudo del
+> proveedor, y una entrada en el catálogo de automatizaciones). El owner quiere saberlo ANTES de
+> partirlo en el slice reducido, no con un comprador delante del checkout.
+
+**Este asiento NO corre esa medición.** Registra que el owner ordenó medirla, dónde (dentro del spike de
+sandbox, no en un slice aparte) y qué decide su resultado (si el aviso queda achicado o vuelve a ser
+grande). El resultado de la medición —si el predictor aguanta o no— sigue `[SIN MEDIR]` hasta que
+alguien la corra y la escriba en el libro, con la misma regla que ya fijó `API-DIRECTA-SPIKES-ASIENTO-1`
+§0 (arriba): *"el instrumento de medición no produce citas; lo que mide es incitable hasta que alguien
+lo escriba en el libro."*
+
+### 3 · Límites de este asiento
+
+- **Esto no construye nada.** Ningún slice de la partición arranca por este asiento; sigue tocando sólo
+  `DECISIONS.md`.
+- **La partición completa sigue sin aprobarse ni cerrarse acá** — sigue viviendo fuera del libro, en la
+  figura del censo read-only (§0 de `API-DIRECTA-METODOS-REHECHOS-1`, arriba).
+- **El texto del aviso de lectura fallida (§1) queda pendiente del owner** — este asiento fija la FORMA
+  de la decisión, no su redacción byte-visible.
+- **El predictor del 404 (§2) sigue `[SIN MEDIR]`** — este asiento fija CÓMO y DÓNDE se mide, no el
+  resultado. Ningún slice que dependa de él se construye antes de esa medición.
+
+**GATE, los dos carriles, verde.** Este diff toca un solo archivo del ledger (`DECISIONS.md`) y ningún
+test, así que nada podía cambiar en ninguno de los dos carriles.
+
+Regla: una decisión del owner que responde una pregunta dejada pendiente en un asiento anterior se
+escribe en el libro ANTES de que el slice que la necesita arranque, aunque la decisión no construya
+nada por sí misma — la construcción y la decisión son dos escrituras distintas, y confundirlas es cómo
+un slice termina dependiendo de algo que sólo vive en la memoria de quien lo pidió.
