@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { clasificarCreacionTransaccion, construirDatosCreacionTransaccion } from './creacion-transaccion';
+import {
+  clasificarCreacionTransaccion, construirDatosCreacionTransaccion, construirDatosCreacionTransaccionTarjeta,
+} from './creacion-transaccion';
 import { DESCRIPTOR_NEQUI } from './metodos-pasarela';
 
 // Las cuatro ramas, con la forma real de respuesta transcrita del libro
@@ -158,8 +160,8 @@ test('firma inválida al crear una transacción de NEQUI → firma_invalida, MIS
 // DESCRIPTOR (§ API-DIRECTA-OTROS-METODOS-1, §1: "agregar el tipo siguiente es agregar un
 // descriptor, no tocar... la creación") ──────────────────────────────────────────────────────
 
-test('construirDatosCreacionTransaccion: arma el cuerpo completo con el payment_method del descriptor', () => {
-  const cuerpo = construirDatosCreacionTransaccion(
+test('construirDatosCreacionTransaccion: arma los datos completos con el payment_method del descriptor', () => {
+  const datos = construirDatosCreacionTransaccion(
     {
       reference:               'CN-100001:abc123',
       amountInCents:            5_000_00,
@@ -171,20 +173,20 @@ test('construirDatosCreacionTransaccion: arma el cuerpo completo con el payment_
     DESCRIPTOR_NEQUI,
     '300 123 4567',
   );
-  assert.deepEqual(cuerpo, {
-    acceptance_token:     'token-terminos',
-    accept_personal_auth: 'token-datos',
-    amount_in_cents:      5_000_00,
-    currency:             'COP',
-    signature:            'firma-de-prueba',
-    reference:            'CN-100001:abc123',
-    payment_method:       { type: 'NEQUI', phone_number: '3001234567' },
+  assert.deepEqual(datos, {
+    reference:               'CN-100001:abc123',
+    amountInCents:            5_000_00,
+    currency:                 'COP',
+    signature:                'firma-de-prueba',
+    acceptanceToken:          'token-terminos',
+    acceptPersonalAuthToken:  'token-datos',
+    paymentMethod:            { type: 'NEQUI', phone_number: '3001234567' },
   });
 });
 
-test('construirDatosCreacionTransaccion: el payment_method viene EXCLUSIVAMENTE del descriptor, nunca de un caso por tipo acá', () => {
+test('construirDatosCreacionTransaccion: el paymentMethod viene EXCLUSIVAMENTE del descriptor, nunca de un caso por tipo acá', () => {
   // Un descriptor "de mentira" con una forma de payment_method arbitraria — si esta función
-  // tuviera un `if` por tipo, este descriptor NO pasaría por él y el payment_method saldría
+  // tuviera un `if` por tipo, este descriptor NO pasaría por él y el paymentMethod saldría
   // distinto de lo que su propio `construirPaymentMethod` devuelve.
   const descriptorDeMentira = {
     tipo: 'INVENTADO',
@@ -192,7 +194,7 @@ test('construirDatosCreacionTransaccion: el payment_method viene EXCLUSIVAMENTE 
     campo: { rotulo: '', placeholder: '', validar: () => null },
     construirPaymentMethod: (dato: string) => ({ type: 'INVENTADO', algo_raro: dato.toUpperCase() }),
   };
-  const cuerpo = construirDatosCreacionTransaccion(
+  const datos = construirDatosCreacionTransaccion(
     {
       reference: 'r', amountInCents: 1, currency: 'COP', signature: 's',
       acceptanceToken: 'a', acceptPersonalAuthToken: 'b',
@@ -200,5 +202,44 @@ test('construirDatosCreacionTransaccion: el payment_method viene EXCLUSIVAMENTE 
     descriptorDeMentira,
     'hola',
   );
-  assert.deepEqual(cuerpo.payment_method, { type: 'INVENTADO', algo_raro: 'HOLA' });
+  assert.deepEqual(datos.paymentMethod, { type: 'INVENTADO', algo_raro: 'HOLA' });
+});
+
+// ── `construirDatosCreacionTransaccionTarjeta` — LA MISMA FORMA, PARA EL MÉTODO QUE NO VIVE
+// EN EL REGISTRO (§ API-DIRECTA-ENVIO-GENERICO-1) ───────────────────────────────────────────
+
+test('construirDatosCreacionTransaccionTarjeta: arma el mismo payment_method que crearTransaccionTarjeta armaba antes de generalizarse', () => {
+  const datos = construirDatosCreacionTransaccionTarjeta(
+    {
+      reference:               'CN-100003:xyz789',
+      amountInCents:            8_000_00,
+      currency:                 'COP',
+      signature:                'firma-tarjeta',
+      acceptanceToken:          'token-terminos',
+      acceptPersonalAuthToken:  'token-datos',
+    },
+    'tok_test_card_abc123',
+  );
+  assert.deepEqual(datos, {
+    reference:               'CN-100003:xyz789',
+    amountInCents:            8_000_00,
+    currency:                 'COP',
+    signature:                'firma-tarjeta',
+    acceptanceToken:          'token-terminos',
+    acceptPersonalAuthToken:  'token-datos',
+    paymentMethod:            { type: 'CARD', installments: 1, token: 'tok_test_card_abc123' },
+  });
+});
+
+test('construirDatosCreacionTransaccionTarjeta y construirDatosCreacionTransaccion producen la MISMA forma de datos, distinto sólo en paymentMethod', () => {
+  const comunes = {
+    reference: 'r', amountInCents: 1, currency: 'COP', signature: 's',
+    acceptanceToken: 'a', acceptPersonalAuthToken: 'b',
+  };
+  const tarjeta = construirDatosCreacionTransaccionTarjeta(comunes, 'tok_1');
+  const nequi = construirDatosCreacionTransaccion(comunes, DESCRIPTOR_NEQUI, '3001234567');
+  const { paymentMethod: pmTarjeta, ...restoTarjeta } = tarjeta;
+  const { paymentMethod: pmNequi, ...restoNequi } = nequi;
+  assert.deepEqual(restoTarjeta, restoNequi);
+  assert.notDeepEqual(pmTarjeta, pmNequi);
 });

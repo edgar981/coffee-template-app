@@ -278,23 +278,35 @@ export async function consultarAceptaciones(
 // en el SERVIDOR, que ya recibe la privada para `consultarTransaccionesPorReferencia` arriba —
 // una sola credencial por módulo es más simple de razonar que dos que hacen lo mismo.
 //
-// LOS NOMBRES DE CAMPO DEL BODY (`acceptance_token`, `accept_personal_auth`, `payment_method`
-// con `{type: 'CARD', installments, token}`) NO ESTÁN MEDIDOS CONTRA EL SANDBOX por este
-// slice —no tiene acceso a red—: son la convención pública del proveedor, LEÍDA, misma
-// salvedad que ya lleva `consultarAceptaciones` arriba para `presigned_acceptance`/
-// `presigned_personal_data_auth`, y que `services/checkout.service.ts` (`tokenizarTarjeta`)
-// ya lleva para `/v1/tokens/cards`.
+// LOS NOMBRES DE CAMPO DEL BODY (`acceptance_token`, `accept_personal_auth`, `payment_method`)
+// NO ESTÁN MEDIDOS CONTRA EL SANDBOX por este slice —no tiene acceso a red—: son la convención
+// pública del proveedor, LEÍDA, misma salvedad que ya lleva `consultarAceptaciones` arriba
+// para `presigned_acceptance`/`presigned_personal_data_auth`, y que
+// `services/checkout.service.ts` (`tokenizarTarjeta`) ya lleva para `/v1/tokens/cards`.
+//
+// GENERALIZADA A CUALQUIER MÉTODO (§ API-DIRECTA-ENVIO-GENERICO-1): esta función vivía FIJADA
+// a `payment_method: {type: 'CARD', ...}` (el único método que `API-DIRECTA-CREACION-
+// TRANSACCION-1` cableó) — `API-DIRECTA-OTROS-METODOS-1` construyó la forma extensible del
+// lado de arriba (`lib/pagos/metodos-pasarela.ts`, los descriptores) y del lado puro
+// (`construirDatosCreacionTransaccion`, `lib/pagos/creacion-transaccion.ts`), pero dejó ESTE
+// archivo sin tocar porque su spec no lo declaraba en `touches`. Ahora `datos.paymentMethod`
+// es el `payment_method` YA ARMADO por el descriptor (o, para tarjeta, armado a mano por el
+// llamador con la misma forma de siempre) — este módulo no vuelve a decidir qué tipo es: sólo
+// lo pone en el body tal cual llega. `reference`, `amountInCents`, `currency`, `signature` y
+// las dos aceptaciones NO CAMBIARON de nombre ni de forma.
 
 /** Lo que la firma de integridad ya fija —`reference`, `amountInCents`, `currency`,
  *  `signature`, calculados por el LLAMADOR con el intento que YA EXISTE, nunca recalculados
- *  acá— más lo que sólo existe en este paso: el token de tarjeta y los dos tokens de
- *  aceptación que el comprador marcó (§ API-DIRECTA-ACEPTACIONES-SERVIDOR-1). */
+ *  acá— más los dos tokens de aceptación que el comprador marcó
+ *  (§ API-DIRECTA-ACEPTACIONES-SERVIDOR-1) y el `payment_method` YA ARMADO para el método
+ *  elegido (§ API-DIRECTA-ENVIO-GENERICO-1) — tarjeta u cualquier otro tipo del registro de
+ *  `lib/pagos/metodos-pasarela.ts`, este módulo no distingue cuál. */
 export interface DatosCreacionTransaccion {
   reference: string;
   amountInCents: number;
   currency: string;
   signature: string;
-  tokenTarjeta: string;
+  paymentMethod: Record<string, unknown>;
   acceptanceToken: string;
   acceptPersonalAuthToken: string;
 }
@@ -307,14 +319,16 @@ export interface RespuestaCrudaTransaccion {
 }
 
 /**
- * Crea la transacción de tarjeta contra Wompi.
+ * Crea la transacción contra Wompi para CUALQUIER método — el `payment_method` viaja tal cual
+ * `datos.paymentMethod` lo trae (§ API-DIRECTA-ENVIO-GENERICO-1); esta función no lo arma ni lo
+ * juzga, sólo lo envía.
  *
  * @param datos Ver `DatosCreacionTransaccion`.
  * @param privateKey `WOMPI_PRIVATE_KEY` de la cuenta — el llamador decide de dónde sale, este
  *   módulo no lee `process.env`.
  * @param baseUrl El host de la API de Wompi (sandbox o producción) — el llamador decide cuál.
  */
-export async function crearTransaccionTarjeta(
+export async function crearTransaccion(
   datos: DatosCreacionTransaccion,
   privateKey: string,
   baseUrl: string,
@@ -338,11 +352,7 @@ export async function crearTransaccionTarjeta(
         currency:             datos.currency,
         signature:            datos.signature,
         reference:            datos.reference,
-        payment_method: {
-          type:         'CARD',
-          installments: 1,
-          token:        datos.tokenTarjeta,
-        },
+        payment_method:       datos.paymentMethod,
       }),
       signal: controller.signal,
     });

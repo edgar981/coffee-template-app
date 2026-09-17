@@ -10,9 +10,11 @@ import {
 } from '@duna/core/validation/address';
 import { metodoPagoTipoSchema } from '@/lib/checkout/metodos-pago';
 import { pesosACentavos, firmarIntegridadWompi } from '@/lib/pagos/wompi-firma';
-import { consultarAceptaciones, consultarMetodosAceptados, crearTransaccionTarjeta } from '@/lib/pagos/wompi-api';
+import { consultarAceptaciones, consultarMetodosAceptados, crearTransaccion } from '@/lib/pagos/wompi-api';
 import { evaluarAceptaciones } from '@/lib/pagos/aceptaciones';
-import { clasificarCreacionTransaccion } from '@/lib/pagos/creacion-transaccion';
+import {
+  clasificarCreacionTransaccion, construirDatosCreacionTransaccion, construirDatosCreacionTransaccionTarjeta,
+} from '@/lib/pagos/creacion-transaccion';
 import { DESCRIPTORES_METODO_PASARELA, metodosPasarelaParaComprador } from '@/lib/pagos/metodos-pasarela';
 import type { AceptacionesWompi } from '@/types/payment';
 import { pasarelaDisponibleEnEsteDespliegue } from '@/services/checkout.service';
@@ -333,24 +335,35 @@ export async function POST(req: NextRequest) {
   );
 }
 
-// ── API-DIRECTA-CREACION-TRANSACCION-1: crear la transacción de tarjeta ─────────────────────
+// ── API-DIRECTA-CREACION-TRANSACCION-1: crear la transacción — CUALQUIER método, desde
+//    § API-DIRECTA-ENVIO-GENERICO-1 ───────────────────────────────────────────────────────────
 //
 // SEGUNDO PASO, en un request APARTE del POST de arriba: el POST crea la orden y su intento
 // —y, para el camino de pasarela, devuelve `publicKey` + `aceptaciones`—; recién CON ESA
 // respuesta el comprador puede tokenizar la tarjeta en el navegador (§ API-DIRECTA-CAPTURA-
 // TARJETA-1, `services/checkout.service.ts`, `tokenizarTarjeta`, que llama DIRECTO a Wompi,
-// nunca a esta ruta). El token no existe todavía cuando el POST responde, así que "crear la
+// nunca a esta ruta), o teclear el dato de un método QUE NO ES TARJETA (§ API-DIRECTA-OTROS-
+// METODOS-1). El dato del método no existe todavía cuando el POST responde, así que "crear la
 // transacción" no puede vivir en esa misma llamada — vive acá, en un método HTTP nuevo sobre
 // el MISMO path, para el intento que YA EXISTE.
 //
 // PATCH, no un endpoint nuevo: esta acción completa (parchea) el checkout ya creado con la
-// pieza que faltaba —tarjeta tokenizada + las dos aceptaciones—, no reemplaza el recurso
-// (PUT) ni crea uno nuevo bajo otra ruta.
+// pieza que faltaba —el método elegido tokenizado o tecleado, más las dos aceptaciones—, no
+// reemplaza el recurso (PUT) ni crea uno nuevo bajo otra ruta.
 //
-// CABLEADO DEL LADO DEL CLIENTE (`FormularioTarjeta.tsx`, `services/checkout.service.ts`)
-// QUEDA PENDIENTE — fuera de `touches` de este slice (ver el reporte). Este handler es
-// alcanzable y probado por su forma (zod) y por la clasificación pura que consume
-// (`creacion-transaccion.test.ts`); nadie lo invoca todavía desde el navegador.
+// LO ÚNICO QUE DISTINGUE UN MÉTODO DE OTRO ES EL `payment_method` (§ API-DIRECTA-ENVIO-
+// GENERICO-1): la firma, la referencia, el monto y las dos aceptaciones se computan UNA sola
+// vez, y el handler sólo decide con qué `paymentMethod` llamar a `crearTransaccion`
+// (`lib/pagos/wompi-api.ts`) — para tarjeta, `construirDatosCreacionTransaccionTarjeta`; para
+// cualquier otro tipo, `construirDatosCreacionTransaccion` con su descriptor
+// (`lib/pagos/metodos-pasarela.ts`). Ninguna de las dos ramas reimplementa el envío ni la
+// clasificación de la respuesta (`clasificarCreacionTransaccion`, compartida).
+//
+// CABLEADO DEL LADO DEL CLIENTE (`FormularioTarjeta.tsx`, `services/checkout.service.ts`, y el
+// selector de métodos que no son tarjeta) QUEDA PENDIENTE — fuera de `touches` de este slice
+// (ver el reporte). Este handler es alcanzable y probado por su forma (zod) y por la
+// clasificación pura que consume (`creacion-transaccion.test.ts`); nadie lo invoca todavía
+// desde el navegador.
 //
 // EL TEXTO ES PROVISIONAL, PENDIENTE DE COPY DEL OWNER (igual que `FormularioTarjeta.tsx`,
 // § API-DIRECTA-CAPTURA-TARJETA-1): son mensajes nuevos, sin texto fijado, elegidos claros y
@@ -359,9 +372,10 @@ const TEXTO_ERROR_GENERICO_TRANSACCION = 'No pudimos procesar tu pago. Intenta d
 const TEXTO_INTENTO_NO_ENCONTRADO = 'No encontramos el pedido al que corresponde este pago.';
 const TEXTO_INTENTO_YA_RESUELTO = 'Este pago ya se resolvió.';
 // § API-DIRECTA-OTROS-METODOS-1 — TEXTO PROVISIONAL, PENDIENTE DE COPY DEL OWNER, igual que el
-// resto de esta constante: ver "Lo que NO se hace" del reporte del slice para el porqué.
+// resto de esta constante. Sigue viva tras § API-DIRECTA-ENVIO-GENERICO-1: un `tipo` que no
+// está en `DESCRIPTORES_METODO_PASARELA` (p. ej. PSE, que no tiene descriptor a propósito)
+// sigue sin poder crearse — eso no cambió, sólo dejó de ser el ÚNICO desenlace del camino.
 const TEXTO_METODO_PASARELA_DESCONOCIDO = 'Ese método de pago no está disponible.';
-const TEXTO_OTRO_METODO_NO_IMPLEMENTADO = 'Ese método de pago todavía no está disponible por aquí. Usa tu tarjeta o elige otro método.';
 
 const aceptacionesPatchSchema = z.object({
   // Los DOS tokens de aceptación que el comprador marcó — los MISMOS que ya vio en
@@ -434,16 +448,11 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: TEXTO_INTENTO_YA_RESUELTO }, { status: 409 });
   }
 
-  // ── EL CAMINO QUE NO ES TARJETA (§ API-DIRECTA-OTROS-METODOS-1) ───────────────────────────
-  //
-  // HONESTO sobre el límite de este slice: `crearTransaccionTarjeta` (`lib/pagos/wompi-api.ts`,
-  // fuera de `touches` de este slice) siempre manda `payment_method: {type: 'CARD', ...}` — no
-  // hay forma de generalizarla sin tocar ese archivo. Este branch valida lo que SÍ puede
-  // validar (que el tipo tenga descriptor, que el dato pase su `campo.validar` — el MISMO que
-  // ya corrió, o debió correr, en la pantalla) y responde `no_implementado`: NUNCA pretende
-  // haberle preguntado algo a Wompi que nunca se le preguntó. `construirDatosCreacionTransaccion`
-  // (`lib/pagos/creacion-transaccion.ts`) ya arma el payload exacto que se enviaría — probado,
-  // listo para conectarse el día que `wompi-api.ts` acepte un `payment_method` genérico.
+  // ── EL CAMINO QUE NO ES TARJETA (§ API-DIRECTA-OTROS-METODOS-1) — VALIDADO ANTES DE GASTAR
+  // NADA: el tipo tiene que existir en el registro y el dato tiene que pasar su
+  // `campo.validar` (el MISMO que ya corrió, o debió correr, en la pantalla) — nunca se confía
+  // en que el cliente ya lo hizo. Esto no cambió con § API-DIRECTA-ENVIO-GENERICO-1: lo que
+  // cambió es lo que pasa DESPUÉS de validar (ver el `else` de abajo).
   if ('metodoPasarela' in parsed.data) {
     const { tipo, dato } = parsed.data.metodoPasarela;
     const descriptor = DESCRIPTORES_METODO_PASARELA[tipo];
@@ -454,11 +463,7 @@ export async function PATCH(req: NextRequest) {
     if (errorDato) {
       return NextResponse.json({ tipo: 'no_implementado', error: errorDato }, { status: 400 });
     }
-    console.error(`[checkout] método de pasarela '${tipo}' recibido — el envío real a Wompi todavía no está cableado (§ API-DIRECTA-OTROS-METODOS-1)`);
-    return NextResponse.json({ tipo: 'no_implementado', error: TEXTO_OTRO_METODO_NO_IMPLEMENTADO }, { status: 501 });
   }
-
-  const { tokenTarjeta } = parsed.data;
 
   const secretoIntegridad = process.env.WOMPI_INTEGRITY_SECRET;
   const llavePrivada = process.env.WOMPI_PRIVATE_KEY;
@@ -472,26 +477,35 @@ export async function PATCH(req: NextRequest) {
 
   // El MISMO monto y la MISMA fórmula que ya produjeron la firma que el comprador vio en el
   // POST — recalculados acá, nunca recibidos del cliente, para que "el intento que ya existe"
-  // (y no lo que el navegador diga) sea lo que se firma y se manda a Wompi.
+  // (y no lo que el navegador diga) sea lo que se firma y se manda a Wompi. COMÚN a cualquier
+  // método (§ API-DIRECTA-ENVIO-GENERICO-1): lo único que distingue tarjeta de cualquier otro
+  // tipo es el `payment_method`, armado justo abajo.
   const amountInCents = pesosACentavos(intent.monto_esperado);
   const signature = firmarIntegridadWompi(reference, amountInCents, MONEDA_WOMPI, secretoIntegridad);
   const baseUrlPasarela = esDespliegueDemo() ? 'https://sandbox.wompi.co' : 'https://production.wompi.co';
+  const comunes = {
+    reference,
+    amountInCents,
+    currency: MONEDA_WOMPI,
+    signature,
+    acceptanceToken:         aceptaciones.terminos,
+    acceptPersonalAuthToken: aceptaciones.datosPersonales,
+  };
 
-  let respuestaCruda: Awaited<ReturnType<typeof crearTransaccionTarjeta>>;
+  // ── EL BLOQUE PROPIO DEL MÉTODO — lo único que cambia entre tarjeta y cualquier otro tipo
+  // (§ API-DIRECTA-ENVIO-GENERICO-1). El `else` narrowea a la variante de tarjeta porque el
+  // `if` de arriba ya cubrió — y siempre retorna en— la variante `metodoPasarela`.
+  const datos = 'metodoPasarela' in parsed.data
+    ? construirDatosCreacionTransaccion(
+        comunes,
+        DESCRIPTORES_METODO_PASARELA[parsed.data.metodoPasarela.tipo],
+        parsed.data.metodoPasarela.dato,
+      )
+    : construirDatosCreacionTransaccionTarjeta(comunes, parsed.data.tokenTarjeta);
+
+  let respuestaCruda: Awaited<ReturnType<typeof crearTransaccion>>;
   try {
-    respuestaCruda = await crearTransaccionTarjeta(
-      {
-        reference,
-        amountInCents,
-        currency: MONEDA_WOMPI,
-        signature,
-        tokenTarjeta,
-        acceptanceToken:         aceptaciones.terminos,
-        acceptPersonalAuthToken: aceptaciones.datosPersonales,
-      },
-      llavePrivada,
-      baseUrlPasarela,
-    );
+    respuestaCruda = await crearTransaccion(datos, llavePrivada, baseUrlPasarela);
   } catch (e) {
     console.error('[checkout] fallo de red creando la transacción de Wompi:', e);
     return NextResponse.json({ error: TEXTO_ERROR_GENERICO_TRANSACCION }, { status: 502 });

@@ -1,11 +1,12 @@
-import type { RespuestaCrudaTransaccion, TransaccionWompi } from './wompi-api';
+import type { DatosCreacionTransaccion, RespuestaCrudaTransaccion, TransaccionWompi } from './wompi-api';
 import { esTransaccionWompi } from './wompi-api';
 import type { DescriptorMetodoPasarela } from './metodos-pasarela';
 
 // ── LA CLASIFICACIÓN DE LA RESPUESTA DE CREAR LA TRANSACCIÓN — pura, sin red ────────────────
 //
-// (§ API-DIRECTA-CREACION-TRANSACCION-1). `crearTransaccionTarjeta` (`lib/pagos/wompi-api.ts`)
-// hace la llamada y devuelve el STATUS + BODY crudos, sin decidir nada; esta función decide
+// (§ API-DIRECTA-CREACION-TRANSACCION-1). `crearTransaccion` (`lib/pagos/wompi-api.ts`,
+// generalizada a cualquier método en § API-DIRECTA-ENVIO-GENERICO-1) hace la llamada y
+// devuelve el STATUS + BODY crudos, sin decidir nada; esta función decide
 // QUÉ PASÓ, para que el llamador (la ruta de checkout) le responda al comprador con la frase
 // correcta en vez de un "error al pagar" genérico para tres causas distintas — una SIGUE (la
 // transacción se creó), otra es CONFIGURACIÓN DEL DUEÑO (el método no está habilitado en su
@@ -81,7 +82,7 @@ function primerMensaje(x: unknown): string | null {
 }
 
 /**
- * Clasifica la respuesta CRUDA de `crearTransaccionTarjeta` — pura, sin red, sin `fetch`.
+ * Clasifica la respuesta CRUDA de `crearTransaccion` — pura, sin red, sin `fetch`.
  * Distingue al menos las cuatro ramas que la ruta de checkout necesita: creada, método no
  * habilitado, firma inválida, y cualquier otro fallo (ver la cabecera del archivo).
  */
@@ -129,12 +130,14 @@ export function clasificarCreacionTransaccion(
   return { tipo: 'otro_fallo', status, motivo: motivoGenerico };
 }
 
-// ── LA CREACIÓN, GENERALIZADA A CUALQUIER DESCRIPTOR (§ API-DIRECTA-OTROS-METODOS-1) ────────
+// ── LA CREACIÓN, GENERALIZADA A CUALQUIER DESCRIPTOR (§ API-DIRECTA-OTROS-METODOS-1, cableada
+//    en § API-DIRECTA-ENVIO-GENERICO-1) ──────────────────────────────────────────────────────
 //
 // Lo que la firma de integridad YA FIJA (`reference`, `amountInCents`, `currency`,
 // `signature`) más las DOS aceptaciones del comprador — igual que `DatosCreacionTransaccion`
-// (`lib/pagos/wompi-api.ts`), pero SIN el campo `tokenTarjeta`: eso es sólo de tarjeta, y este
-// constructor sirve a CUALQUIER descriptor de `lib/pagos/metodos-pasarela.ts`.
+// (`lib/pagos/wompi-api.ts`), pero SIN el campo `paymentMethod`: eso lo arma este módulo a
+// partir del descriptor, y este tipo sirve a CUALQUIER descriptor de
+// `lib/pagos/metodos-pasarela.ts`.
 export interface DatosComunesCreacionTransaccion {
   reference: string;
   amountInCents: number;
@@ -145,36 +148,44 @@ export interface DatosComunesCreacionTransaccion {
 }
 
 /**
- * Arma el cuerpo COMPLETO para crear una transacción de un método QUE NO ES TARJETA — puro,
+ * Arma los datos COMPLETOS para crear una transacción de un método QUE NO ES TARJETA — puro,
  * sin red. El `payment_method` sale de `descriptor.construirPaymentMethod(dato)`
  * (`lib/pagos/metodos-pasarela.ts`), nunca de un `if` por tipo acá: agregar el tipo siguiente
  * es agregar un descriptor, no tocar esta función (§ el reporte del slice, "la propiedad que
  * tiene que quedar").
  *
- * Los nombres de campo (`acceptance_token`, `accept_personal_auth`, `payment_method`) son los
- * MISMOS que ya usa `crearTransaccionTarjeta` (`lib/pagos/wompi-api.ts`) para tarjeta — misma
- * convención pública del proveedor, LEÍDA, no medida contra el sandbox por este slice (§ la
- * cabecera de este archivo, arriba).
- *
- * ESTA FUNCIÓN NO ENVÍA NADA: quien la llama decide qué hacer con el objeto que devuelve. Hoy
- * ningún llamador la manda de verdad a Wompi — `crearTransaccionTarjeta` sigue siendo la única
- * función que abre una conexión de red hacia `/v1/transactions`, y está fijada a
- * `payment_method: {type: 'CARD', ...}` (`lib/pagos/wompi-api.ts`, fuera de `touches` de este
- * slice). Generalizarla para que acepte el `payment_method` que esta función arma es el
- * trabajo que falta — ver el reporte del slice.
+ * Devuelve la MISMA forma que `crearTransaccion` (`lib/pagos/wompi-api.ts`) recibe — desde
+ * `API-DIRECTA-ENVIO-GENERICO-1`, esa función ya no está fijada a tarjeta: acepta cualquier
+ * `paymentMethod`, así que lo que esta función arma se manda TAL CUAL a Wompi, sin una segunda
+ * traducción a snake_case en el medio (esa traducción vive UNA sola vez, en `crearTransaccion`).
  */
 export function construirDatosCreacionTransaccion(
   comunes: DatosComunesCreacionTransaccion,
   descriptor: DescriptorMetodoPasarela,
   dato: string,
-): Record<string, unknown> {
+): DatosCreacionTransaccion {
   return {
-    acceptance_token:     comunes.acceptanceToken,
-    accept_personal_auth: comunes.acceptPersonalAuthToken,
-    amount_in_cents:      comunes.amountInCents,
-    currency:             comunes.currency,
-    signature:            comunes.signature,
-    reference:            comunes.reference,
-    payment_method:       descriptor.construirPaymentMethod(dato),
+    ...comunes,
+    paymentMethod: descriptor.construirPaymentMethod(dato),
+  };
+}
+
+/**
+ * Arma los datos COMPLETOS para crear una transacción de TARJETA — puro, sin red. Hermana de
+ * `construirDatosCreacionTransaccion`, para el único método que no vive en el registro de
+ * descriptores (`lib/pagos/metodos-pasarela.ts`: "TARJETA NO VIVE EN ESTE REGISTRO" — su
+ * captura es un flujo bespoke que ya tokenizó contra el proveedor, § API-DIRECTA-CAPTURA-
+ * TARJETA-1). El `token` que llega acá YA ES el resultado de esa tokenización; esta función
+ * sólo lo envuelve en la forma de `payment_method` que Wompi espera — la MISMA forma que
+ * `crearTransaccionTarjeta` armaba inline antes de generalizarse (§ API-DIRECTA-ENVIO-
+ * GENERICO-1).
+ */
+export function construirDatosCreacionTransaccionTarjeta(
+  comunes: DatosComunesCreacionTransaccion,
+  tokenTarjeta: string,
+): DatosCreacionTransaccion {
+  return {
+    ...comunes,
+    paymentMethod: { type: 'CARD', installments: 1, token: tokenTarjeta },
   };
 }
