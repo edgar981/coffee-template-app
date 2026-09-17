@@ -15,7 +15,7 @@ import { evaluarAceptaciones } from '@/lib/pagos/aceptaciones';
 import {
   clasificarCreacionTransaccion, construirDatosCreacionTransaccion, construirDatosCreacionTransaccionTarjeta,
 } from '@/lib/pagos/creacion-transaccion';
-import { clasificarAutenticacion3ds } from '@/lib/pagos/tres-ds';
+import { clasificarAutenticacion3ds, extraerContenidoDesafio3ds } from '@/lib/pagos/tres-ds';
 import { DESCRIPTORES_METODO_PASARELA, metodosPasarelaParaComprador } from '@/lib/pagos/metodos-pasarela';
 import type { AceptacionesWompi } from '@/types/payment';
 import { pasarelaDisponibleEnEsteDespliegue } from '@/services/checkout.service';
@@ -541,22 +541,32 @@ export async function PATCH(req: NextRequest) {
   // lo cierra por EDAD, nunca por la ausencia inmediata de una transacción. No se inventa acá
   // un segundo camino de limpieza que pueda desincronizarse de esa decisión.
   switch (resultado.tipo) {
-    case 'creada':
+    case 'creada': {
       // § API-DIRECTA-3DS-SIN-CHALLENGE-1: clasifica la transacción YA CREADA para distinguir
-      // el camino SIN FRICCIÓN (que el cliente sondea hasta el estado final, § el reporte del
-      // slice §C) del de DESAFÍO (detectado, no resuelto — el cliente lo declara al comprador
-      // sin inventar una pantalla de challenge). `resultado.transaccion` trae `payment_method`
+      // el camino SIN FRICCIÓN del de DESAFÍO. `resultado.transaccion` trae `payment_method`
       // TAL CUAL vino de Wompi (§ `esTransaccionWompi`, `lib/pagos/wompi-api.ts`, no valida ese
       // campo, sólo lo deja pasar).
+      const autenticacion3ds = clasificarAutenticacion3ds(resultado.transaccion);
+      // § API-DIRECTA-3DS-CON-CHALLENGE-1: el contenido del desafío se DECODIFICA ACÁ, una sola
+      // vez en el servidor (`extraerContenidoDesafio3ds`, `lib/pagos/tres-ds.ts`) — el cliente
+      // sólo recibe HTML YA decodificado, nunca el `step_data` codificado tal cual vino de
+      // Wompi. Se computa SIEMPRE (no sólo cuando `autenticacion3ds === 'desafio'`): la función
+      // es pura y nunca lanza, y calcularla incondicionalmente evita un `if` que pudiera
+      // desincronizar la condición de acá con la de `clasificarAutenticacion3ds` — cuando no
+      // hay `step_data` decodificable (el caso normal fuera de un desafío), da `null` y no se
+      // manda nada (`?? undefined`, así el campo queda AUSENTE del JSON, no `desafioHtml: null`).
+      const desafioHtml = extraerContenidoDesafio3ds(resultado.transaccion) ?? undefined;
       return NextResponse.json(
         {
           tipo: 'creada',
           id: resultado.transaccion.id,
           status: resultado.transaccion.status,
-          autenticacion3ds: clasificarAutenticacion3ds(resultado.transaccion),
+          autenticacion3ds,
+          ...(desafioHtml ? { desafioHtml } : {}),
         },
         { status: 201 },
       );
+    }
     case 'metodo_no_habilitado':
       console.error('[checkout] Wompi rechazó el método de la transacción (no habilitado para la cuenta):', resultado.motivo);
       return NextResponse.json({ tipo: 'metodo_no_habilitado', error: TEXTO_ERROR_GENERICO_TRANSACCION }, { status: 502 });

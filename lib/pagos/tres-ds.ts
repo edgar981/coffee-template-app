@@ -1,18 +1,26 @@
-// ── LA AUTENTICACIÓN 3DS PARA TARJETA, CAMINO SIN FRICCIÓN (§ API-DIRECTA-3DS-SIN-CHALLENGE-1) ──
+// ── LA AUTENTICACIÓN 3DS PARA TARJETA — SIN FRICCIÓN (API-DIRECTA-3DS-SIN-CHALLENGE-1) Y CON
+// DESAFÍO (API-DIRECTA-3DS-CON-CHALLENGE-1) ──────────────────────────────────────────────────
 //
 // 3DS existe para trasladar la responsabilidad por un contracargo fraudulento del negocio al
 // emisor de la tarjeta, cuando la autenticación se completa. **SE PIDE SIEMPRE PARA TARJETA —
-// NO HAY INTERRUPTOR** (§ el reporte del slice, §0): un toggle le pediría al dueño entender
-// responsabilidad por fraude para elegir algo cuyo default es obvio, la misma familia de "no se
-// le da un control que sólo puede usar mal" que ya rige la pasarela (no es toggle de panel) y el
-// enum de método (no se parte). Este archivo cubre SÓLO el camino SIN FRICCIÓN —el emisor
-// autentica sin pedirle nada al comprador—; el camino CON DESAFÍO es su propio slice, por
-// instrucción explícita del owner (§ el reporte).
+// NO HAY INTERRUPTOR** (§ el reporte de API-DIRECTA-3DS-SIN-CHALLENGE-1, §0): un toggle le
+// pediría al dueño entender responsabilidad por fraude para elegir algo cuyo default es obvio,
+// la misma familia de "no se le da un control que sólo puede usar mal" que ya rige la pasarela
+// (no es toggle de panel) y el enum de método (no se parte).
+//
+// CUANDO EL EMISOR PIDE UN DESAFÍO, su pantalla —que no es nuestra y no controlamos— llega
+// codificada dentro de la transacción YA CREADA y hay que decodificarla UNA vez, acá, en un
+// lugar puro y testeado (`extraerContenidoDesafio3ds`), antes de que el componente cliente la
+// embeba en un marco aislado (`components/storefront/checkout/DesafioTarjeta.tsx`). Ese marco
+// dibuja la marca de la red PORQUE EL ESQUEMA LO EXIGE, no porque el producto lo elija — es una
+// decisión de producto del owner, marcada como tal en el reporte de este slice.
 //
 // ESTE ARCHIVO TIENE DOS MITADES:
 //   - PURA (`construirPayloadNavegador3ds`, `clasificarAutenticacion3ds`,
-//     `esperaSondeoSiguienteMs`): sin red, sin DOM — testeada en `tres-ds.test.ts` (capa 1, sin
-//     base).
+//     `extraerContenidoDesafio3ds`, `esperaSondeoSiguienteMs`): sin red, sin DOM — testeada en
+//     `tres-ds.test.ts` (capa 1, sin base). `extraerContenidoDesafio3ds` corre en el SERVIDOR
+//     (usa `Buffer`, global de Node — nunca invocada desde el componente cliente, que sólo
+//     recibe el HTML YA decodificado) pero sigue siendo pura: sin red, sin I/O, determinista.
 //   - CLIENTE (`recolectarDatosNavegador3ds`): lee `window`/`screen`/`navigator` — SÓLO se
 //     invoca desde un componente `'use client'` (`FormularioTarjeta.tsx`). No se testea acá (el
 //     repo no tiene jsdom, § CLAUDE.md — "El glob NO incluye *.test.tsx: los tests de
@@ -22,14 +30,21 @@
 // LOS NOMBRES DE CAMPO DEL WIRE (`browser_color_depth`, `browser_java_enabled`,
 // `browser_language`, `browser_screen_height`, `browser_screen_width`, `browser_tz`,
 // `browser_user_agent`) Y LA FORMA DE LA RESPUESTA DEL PROVEEDOR
-// (`payment_method.extra.three_ds_auth.{current_step,current_step_status}`) NO ESTÁN MEDIDOS
-// CONTRA EL SANDBOX — este slice no tiene acceso a red, y el spike que sí corrió contra el
-// sandbox real lo declaró explícitamente afuera de su alcance («Todo 3DS — explícitamente fuera
-// del alcance de los dos spikes», `API-DIRECTA-SPIKE-SANDBOX-1`, DECISIONS.md). Son la
-// convención pública del proveedor tal como la documenta, LEÍDA, no verificada — misma
-// salvedad que ya llevan `consultarAceptaciones`/`crearTransaccion` (`lib/pagos/wompi-api.ts`)
-// y `tokenizarTarjeta` (`services/checkout.service.ts`) para sus propios campos no medidos. El
-// gate visual del owner, contra el sandbox real, es lo que confirma o corrige esto.
+// (`payment_method.extra.three_ds_auth.{current_step,current_step_status,step_data}`) NO ESTÁN
+// MEDIDOS CONTRA EL SANDBOX — ningún slice de este programa tuvo acceso a red, y el spike que sí
+// corrió contra el sandbox real lo declaró explícitamente afuera de su alcance («Todo 3DS —
+// explícitamente fuera del alcance de los dos spikes», `API-DIRECTA-SPIKE-SANDBOX-1`,
+// DECISIONS.md). Son la convención pública del proveedor tal como la documenta, LEÍDA, no
+// verificada — misma salvedad que ya llevan `consultarAceptaciones`/`crearTransaccion`
+// (`lib/pagos/wompi-api.ts`) y `tokenizarTarjeta` (`services/checkout.service.ts`) para sus
+// propios campos no medidos.
+//
+// **`step_data` EN PARTICULAR ES LA MENOS MEDIDA DE TODAS** — es DECISIÓN DE ESTE SLICE, no una
+// convención confirmada en ningún lado: se asume un STRING plano, base64, con HTML del emisor
+// (el "auto-post CReq" que el estándar EMV 3DS2 usa para el desafío embebido). Podría ser una
+// forma distinta (un objeto anidado, una URL para navegar en vez de HTML para embeber). El gate
+// visual del owner, contra el sandbox real, es lo ÚNICO que confirma o corrige esto — ver el
+// reporte del slice, que lo marca como el riesgo más grande de esta entrega.
 
 /** Lo que el proveedor pide del NAVEGADOR del comprador para evaluar el riesgo de la
  *  autenticación — NUNCA un dato de la tarjeta (ver la cabecera del archivo, y el reporte del
@@ -84,15 +99,22 @@ export function recolectarDatosNavegador3ds(): DatosNavegador3ds {
 
 export type Resultado3ds = 'sin_friccion' | 'desafio' | 'desconocido';
 
-/** La forma mínima que `clasificarAutenticacion3ds` necesita leer de la transacción YA CREADA
- *  (`TransaccionWompi`, `lib/pagos/wompi-api.ts`) — estructural, no importa ese tipo para evitar
- *  un ciclo de módulos (`wompi-api.ts` no depende de este archivo). */
+/** La forma mínima que `clasificarAutenticacion3ds`/`extraerContenidoDesafio3ds` necesitan leer
+ *  de la transacción YA CREADA (`TransaccionWompi`, `lib/pagos/wompi-api.ts`) — estructural, no
+ *  importa ese tipo para evitar un ciclo de módulos (`wompi-api.ts` no depende de este archivo,
+ *  y no está en `touches:` de este slice — ver la cabecera del archivo). `step_data` es
+ *  OPCIONAL a propósito: `TransaccionWompi` no lo declara (no está en `touches:`), y como es
+ *  optativo acá, un valor de ese tipo estructuralmente compatible se sigue pudiendo pasar sin
+ *  que TypeScript exija el campo — en RUNTIME, si el proveedor lo trae, sigue presente en el
+ *  objeto (nada lo recorta al pasar por `esTransaccionWompi`, que no valida `payment_method`). */
 export interface TransaccionConAutenticacion3ds {
   payment_method?: {
     extra?: {
       three_ds_auth?: {
         current_step?: string;
         current_step_status?: string;
+        /** El contenido del DESAFÍO, codificado — NO MEDIDO (§ la cabecera del archivo). */
+        step_data?: string;
       };
     };
   };
@@ -115,6 +137,42 @@ export function clasificarAutenticacion3ds(transaccion: TransaccionConAutenticac
   return 'desconocido';
 }
 
+// ── EL CONTENIDO DEL DESAFÍO — decodificado UNA vez, acá (§ API-DIRECTA-3DS-CON-CHALLENGE-1) ──
+
+/**
+ * Extrae y decodifica el contenido del DESAFÍO de la transacción YA CREADA — SIEMPRE `null` si
+ * falta, si no es texto, o si lo decodificado no parece un documento HTML (no arranca con `<`
+ * tras recortar espacios). **Nunca lanza**: un contenido inválido no puede romper la pantalla
+ * (§ el reporte del slice, §2) — el llamador (`FormularioTarjeta.tsx` vía la ruta PATCH) trata
+ * un `null` igual que la ausencia total del dato, y el componente cliente cae al texto honesto
+ * de espera sin iframe (el comportamiento que ya existía antes de este slice).
+ *
+ * INDEPENDIENTE de `clasificarAutenticacion3ds`: se puede clasificar `'desafio'` (por
+ * `current_step_status: 'PENDING'`) sin que `step_data` traiga nada decodificable — los dos
+ * hechos (hay desafío / hay contenido para embeberlo) no están garantizados a viajar juntos.
+ *
+ * El decodificador de Node (`Buffer.from(x, 'base64')`) NUNCA lanza sobre una entrada
+ * inválida —ignora en silencio los caracteres que no son base64—, así que el `try/catch` no
+ * cubre el decode en sí: cubre exclusivamente contra un `step_data` cuyo TIPO en runtime no sea
+ * el `string` que la interfaz declara (un objeto/array, si el proveedor cambia la forma sin que
+ * el tipo estático de este archivo se entere).
+ */
+export function extraerContenidoDesafio3ds(transaccion: TransaccionConAutenticacion3ds): string | null {
+  const stepData = transaccion.payment_method?.extra?.three_ds_auth?.step_data;
+  if (typeof stepData !== 'string' || stepData.trim() === '') return null;
+
+  let html: string;
+  try {
+    html = Buffer.from(stepData, 'base64').toString('utf-8');
+  } catch {
+    return null;
+  }
+
+  const recortado = html.trim();
+  if (recortado === '' || !recortado.startsWith('<')) return null;
+  return recortado;
+}
+
 // ── EL SONDEO CON ESPERA CRECIENTE — MISMA POLÍTICA QUE LA RUTA DE RETORNO ──────────────────
 //
 // (§ API-DIRECTA-3DS-SIN-CHALLENGE-1, §C del reporte del slice). `app/(storefront)/checkout/
@@ -129,6 +187,18 @@ export function clasificarAutenticacion3ds(transaccion: TransaccionConAutenticac
 // propia hasta que alguien lo migre a importar de acá.
 export const BACKOFF_SONDEO_SEGUNDOS = [2, 4, 8, 16, 30];
 export const TECHO_SONDEO_MS = 5 * 60 * 1000;
+
+// EL TECHO DEL DESAFÍO ES SU PROPIO VALOR, MÁS ALTO QUE `TECHO_SONDEO_MS` (§ API-DIRECTA-3DS-
+// CON-CHALLENGE-1, §2 del spec del slice: "con su techo propio, porque acá hay una persona
+// interactuando y allá no"). El sin-fricción no tiene a nadie tecleando nada — 5 minutos ya son
+// generosos para que el emisor resuelva solo. El desafío SÍ tiene a alguien completando un paso
+// en la pantalla del banco (un OTP, esperar un SMS), y cortar la espera a los 5 minutos
+// declararía "sigue sin resolver" sobre un comprador que todavía está a mitad del formulario.
+// 15 MINUTOS ES PROVISIONAL/TODO(cliente) — no hay medición de cuánto tarda un desafío real
+// contra el sandbox (§ la cabecera del archivo, "todo 3DS... explícitamente fuera del alcance
+// de los dos spikes"). El ALGORITMO de backoff es el MISMO (arriba); sólo cambia cuándo se
+// declara el techo.
+export const TECHO_SONDEO_DESAFIO_MS = 15 * 60 * 1000;
 
 export function esperaSondeoSiguienteMs(intento: number): number {
   const segundos = BACKOFF_SONDEO_SEGUNDOS[intento] ?? BACKOFF_SONDEO_SEGUNDOS[BACKOFF_SONDEO_SEGUNDOS.length - 1];

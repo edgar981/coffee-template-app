@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle, Clock, XCircle } from 'lucide-react';
 import { consultarRetornoPago } from '@/services/checkout.service';
-import { esperaSondeoSiguienteMs, TECHO_SONDEO_MS, type Resultado3ds } from '@/lib/pagos/tres-ds';
+import {
+  esperaSondeoSiguienteMs, TECHO_SONDEO_MS, TECHO_SONDEO_DESAFIO_MS, type Resultado3ds,
+} from '@/lib/pagos/tres-ds';
+import DesafioTarjeta from './DesafioTarjeta';
 
 /**
  * La ESPERA, tras crear la transacción de tarjeta con 3DS pedido (§ API-DIRECTA-3DS-SIN-
@@ -19,6 +22,14 @@ import { esperaSondeoSiguienteMs, TECHO_SONDEO_MS, type Resultado3ds } from '@/l
  * `reference` sola viaja en una URL que un tercero podría leer), acá el `email` YA ES CONOCIDO
  * —es el mismo que el comprador tecleó en el paso de Información del checkout, en la MISMA
  * sesión— así que no hay nada que re-preguntar.
+ *
+ * EL DESAFÍO (§ API-DIRECTA-3DS-CON-CHALLENGE-1) NO CAMBIA EL MECANISMO DE SONDEO — sólo qué se
+ * DIBUJA mientras se espera, y CUÁNDO se declara "sigue sin resolver" (`TECHO_SONDEO_DESAFIO_MS`,
+ * más alto que `TECHO_SONDEO_MS`, porque acá hay una PERSONA completando un paso en la pantalla
+ * de su banco — ver `lib/pagos/tres-ds.ts`). Con `desafioHtml`, la vista `en_vuelo` embebe el
+ * marco aislado (`DesafioTarjeta`) en vez de sólo texto; SIN `desafioHtml` (el desafío se
+ * detectó pero no se pudo decodificar ningún contenido), sigue el texto honesto que ya existía
+ * antes de este slice — un contenido inválido/ausente NUNCA rompe la pantalla.
  */
 export interface EsperaConfirmacionTarjetaProps {
   reference: string;
@@ -27,6 +38,10 @@ export interface EsperaConfirmacionTarjetaProps {
    *  sólo cambia el COPY de la espera (honesto sobre qué está pasando), nunca el mecanismo de
    *  sondeo: los tres casos sondean IGUAL. */
   resultado3ds: Resultado3ds;
+  /** El HTML del desafío, YA DECODIFICADO por el servidor (§ API-DIRECTA-3DS-CON-CHALLENGE-1) —
+   *  `null` cuando no hay nada que embeber (sin fricción, desconocido, o un desafío sin
+   *  contenido decodificable). Este componente nunca decodifica nada. */
+  desafioHtml: string | null;
 }
 
 type Vista = 'en_vuelo' | 'aprobado' | 'fallido' | 'techo';
@@ -35,11 +50,11 @@ type Vista = 'en_vuelo' | 'aprobado' | 'fallido' | 'techo';
 // del copy de este programa). Elegido claro y honesto para no bloquear el slice.
 const TEXTO = {
   enVueloSinFriccion: 'Estamos confirmando tu pago con tu banco. Esto puede tardar unos minutos — no cierres esta página.',
-  // § PUNTO DE EXTENSIÓN PARA EL SLICE DEL DESAFÍO: cuando `resultado3ds === 'desafio'`, este
-  // componente hoy sólo AVISA que el banco pide un paso adicional y sigue esperando por el
-  // MISMO sondeo — nunca monta un iframe, nunca le pide nada al comprador. El slice del
-  // desafío reemplaza esta rama por el marco embebido del emisor; el sondeo, y las vistas
-  // aprobado/fallido/techo de abajo, no cambian.
+  // SIN `desafioHtml` (§ API-DIRECTA-3DS-CON-CHALLENGE-1 — desafío detectado pero sin contenido
+  // decodificable, el mismo texto honesto que ya existía antes de este slice): sigue esperando
+  // por el MISMO sondeo, sin inventar una pantalla que no tiene con qué dibujarse. CON
+  // `desafioHtml`, la vista `en_vuelo` embebe `DesafioTarjeta` en su lugar (ver el render, abajo)
+  // y este texto NO se muestra — el marco aislado ya declara por su cuenta que es ajeno.
   enVueloDesafio: 'Tu banco pide un paso adicional para confirmar esta compra, que todavía no podemos completar desde aquí. Sigue esperando — si tu banco lo resuelve por su cuenta, confirmaremos el pago automáticamente.',
   aprobadoTitulo: '¡Tu pago fue aprobado!',
   aprobadoCuerpo: 'Tu pedido queda confirmado y pasa a preparación.',
@@ -49,7 +64,7 @@ const TEXTO = {
   techoCuerpo: 'Te avisaremos apenas se confirme. Puedes revisar el estado de tu pedido más tarde con tu número de orden y tu correo.',
 };
 
-export default function EsperaConfirmacionTarjeta({ reference, email, resultado3ds }: EsperaConfirmacionTarjetaProps) {
+export default function EsperaConfirmacionTarjeta({ reference, email, resultado3ds, desafioHtml }: EsperaConfirmacionTarjetaProps) {
   const [vista, setVista] = useState<Vista>('en_vuelo');
 
   // El reloj del backoff vive en refs — no debe disparar un re-render por sí mismo, sólo el
@@ -64,9 +79,13 @@ export default function EsperaConfirmacionTarjeta({ reference, email, resultado3
     };
   }, []);
 
+  // § API-DIRECTA-3DS-CON-CHALLENGE-1: el techo del DESAFÍO es más alto — hay una persona
+  // completando un paso en la pantalla de su banco, no sólo el emisor resolviendo solo.
+  const techoMs = resultado3ds === 'desafio' ? TECHO_SONDEO_DESAFIO_MS : TECHO_SONDEO_MS;
+
   const programarSiguiente = useCallback(() => {
     if (inicioRef.current === null) inicioRef.current = Date.now();
-    if (Date.now() - inicioRef.current >= TECHO_SONDEO_MS) {
+    if (Date.now() - inicioRef.current >= techoMs) {
       setVista((v) => (v === 'en_vuelo' ? 'techo' : v));
       return;
     }
@@ -89,7 +108,7 @@ export default function EsperaConfirmacionTarjeta({ reference, email, resultado3
       setVista(resultado.estado === 'APROBADO' ? 'aprobado' : 'fallido');
     }, espera);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reference, email]);
+  }, [reference, email, techoMs]);
 
   useEffect(() => {
     programarSiguiente();
@@ -139,6 +158,21 @@ export default function EsperaConfirmacionTarjeta({ reference, email, resultado3
           {resultado3ds === 'desafio' ? ` (${TEXTO.enVueloDesafio})` : ''}
         </p>
         <p className="text-xs text-[var(--sf-texto-suave)]">Número de orden: <span className="font-semibold">{numeroOrden}</span></p>
+      </div>
+    );
+  }
+
+  // § API-DIRECTA-3DS-CON-CHALLENGE-1: con contenido decodificable, la vista `en_vuelo`
+  // EMBEBE el marco aislado del emisor en vez de sólo texto — el sondeo de arriba sigue
+  // corriendo igual por debajo; `DesafioTarjeta` no lo toca ni se entera de él. SIN contenido
+  // (desafío detectado pero nada que decodificar), cae al texto honesto que ya existía.
+  if (vista === 'en_vuelo' && resultado3ds === 'desafio' && desafioHtml) {
+    return (
+      <div className="text-center space-y-3">
+        <DesafioTarjeta html={desafioHtml} />
+        <p className="text-xs text-[var(--sf-texto-suave)]">
+          No cierres esta página — confirmaremos tu pago apenas tu banco resuelva el paso de arriba.
+        </p>
       </div>
     );
   }

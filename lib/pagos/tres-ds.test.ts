@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  construirPayloadNavegador3ds, clasificarAutenticacion3ds, esperaSondeoSiguienteMs,
-  BACKOFF_SONDEO_SEGUNDOS, TECHO_SONDEO_MS,
+  construirPayloadNavegador3ds, clasificarAutenticacion3ds, extraerContenidoDesafio3ds,
+  esperaSondeoSiguienteMs, BACKOFF_SONDEO_SEGUNDOS, TECHO_SONDEO_MS, TECHO_SONDEO_DESAFIO_MS,
 } from './tres-ds';
 
 // ── `construirPayloadNavegador3ds` — el mapeo a los nombres del WIRE (§ la cabecera del
@@ -72,11 +72,79 @@ test('un current_step_status irreconocible → desconocido, no se fuerza a uno d
   assert.equal(r, 'desconocido');
 });
 
+// ── `extraerContenidoDesafio3ds` — el contenido del DESAFÍO se decodifica UNA vez, acá
+// (§ API-DIRECTA-3DS-CON-CHALLENGE-1), y un contenido inválido NUNCA rompe la pantalla ───────
+
+function base64(html: string): string {
+  return Buffer.from(html, 'utf-8').toString('base64');
+}
+
+test('extraerContenidoDesafio3ds: decodifica un `step_data` base64 válido a su HTML original', () => {
+  const html = '<html><body><form id="f" action="https://acs.ejemplo.com/challenge" method="POST"></form></body></html>';
+  const transaccion = {
+    payment_method: { extra: { three_ds_auth: { current_step: 'AUTHENTICATION', current_step_status: 'PENDING', step_data: base64(html) } } },
+  };
+  assert.equal(extraerContenidoDesafio3ds(transaccion), html);
+});
+
+test('extraerContenidoDesafio3ds: recorta espacio en blanco alrededor del HTML decodificado', () => {
+  const html = '<html><body>ok</body></html>';
+  const transaccion = {
+    payment_method: { extra: { three_ds_auth: { step_data: base64(`  \n${html}\n  `) } } },
+  };
+  assert.equal(extraerContenidoDesafio3ds(transaccion), html);
+});
+
+test('extraerContenidoDesafio3ds: sin `three_ds_auth` → null', () => {
+  assert.equal(extraerContenidoDesafio3ds({}), null);
+  assert.equal(extraerContenidoDesafio3ds({ payment_method: {} }), null);
+  assert.equal(extraerContenidoDesafio3ds({ payment_method: { extra: {} } }), null);
+});
+
+test('extraerContenidoDesafio3ds: `three_ds_auth` presente pero SIN `step_data` → null (el caso sin fricción, o un desafío sin contenido)', () => {
+  const transaccion = { payment_method: { extra: { three_ds_auth: { current_step_status: 'APPROVED' } } } };
+  assert.equal(extraerContenidoDesafio3ds(transaccion), null);
+});
+
+test('extraerContenidoDesafio3ds: `step_data` string vacío o solo espacios → null', () => {
+  assert.equal(extraerContenidoDesafio3ds({ payment_method: { extra: { three_ds_auth: { step_data: '' } } } }), null);
+  assert.equal(extraerContenidoDesafio3ds({ payment_method: { extra: { three_ds_auth: { step_data: '   ' } } } }), null);
+});
+
+test('extraerContenidoDesafio3ds: `step_data` decodifica a algo que NO empieza con "<" (no es HTML) → null, no rompe', () => {
+  const transaccion = { payment_method: { extra: { three_ds_auth: { step_data: base64('esto no es html') } } } };
+  assert.equal(extraerContenidoDesafio3ds(transaccion), null);
+});
+
+test('extraerContenidoDesafio3ds: `step_data` decodifica a sólo espacios en blanco → null', () => {
+  const transaccion = { payment_method: { extra: { three_ds_auth: { step_data: base64('   \n\t  ') } } } };
+  assert.equal(extraerContenidoDesafio3ds(transaccion), null);
+});
+
+test('extraerContenidoDesafio3ds: `step_data` con un TIPO inesperado en runtime (no string) → null, no lanza', () => {
+  // El tipo estático declara `step_data?: string`, pero en runtime el proveedor podría mandar
+  // otra forma (§ la cabecera del archivo: "podría ser una forma distinta") — nunca debe tirar.
+  const transaccion = { payment_method: { extra: { three_ds_auth: { step_data: { inesperado: true } as unknown as string } } } };
+  assert.doesNotThrow(() => extraerContenidoDesafio3ds(transaccion));
+  assert.equal(extraerContenidoDesafio3ds(transaccion), null);
+});
+
+test('extraerContenidoDesafio3ds: es INDEPENDIENTE de clasificarAutenticacion3ds — clasifica desafío sin poder decodificar nada', () => {
+  const transaccion = { payment_method: { extra: { three_ds_auth: { current_step_status: 'PENDING' } } } };
+  assert.equal(clasificarAutenticacion3ds(transaccion), 'desafio');
+  assert.equal(extraerContenidoDesafio3ds(transaccion), null);
+});
+
 // ── El sondeo — MISMA política que `RetornoCliente.tsx` (§ la cabecera del archivo) ─────────
 
 test('BACKOFF_SONDEO_SEGUNDOS y TECHO_SONDEO_MS son los MISMOS valores que RetornoCliente.tsx (2,4,8,16,30s; techo 5 min)', () => {
   assert.deepEqual(BACKOFF_SONDEO_SEGUNDOS, [2, 4, 8, 16, 30]);
   assert.equal(TECHO_SONDEO_MS, 5 * 60 * 1000);
+});
+
+test('TECHO_SONDEO_DESAFIO_MS es MAYOR que TECHO_SONDEO_MS — el desafío tiene una persona interactuando, el sin fricción no', () => {
+  assert.equal(TECHO_SONDEO_DESAFIO_MS, 15 * 60 * 1000);
+  assert.ok(TECHO_SONDEO_DESAFIO_MS > TECHO_SONDEO_MS);
 });
 
 test('esperaSondeoSiguienteMs: recorre el backoff en orden, en milisegundos', () => {

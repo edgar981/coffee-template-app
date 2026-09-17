@@ -19,9 +19,10 @@ import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
  * (§ API-DIRECTA-DESALINEO-CABLEADO-1) apenas se obtiene el token — con la autenticación 3DS
  * pedida SIEMPRE (§ API-DIRECTA-3DS-SIN-CHALLENGE-1, "no hay interruptor") y, tras crearse la
  * transacción, la ESPERA con sondeo hasta el estado final (`EsperaConfirmacionTarjeta`, § el
- * reporte del slice §C/§D). Ocupa la MISMA ranura que `PagoPasarela` (el widget) — nunca se
- * montan los dos a la vez; la elección la hace `pasarelaModoApiDirecta()` en la página
- * (`checkout/page.tsx`).
+ * reporte del slice §C/§D) — que ahora también puede mostrar el marco aislado del DESAFÍO
+ * (§ API-DIRECTA-3DS-CON-CHALLENGE-1) cuando el emisor lo pide. Ocupa la MISMA ranura que
+ * `PagoPasarela` (el widget) — nunca se montan los dos a la vez; la elección la hace
+ * `pasarelaModoApiDirecta()` en la página (`checkout/page.tsx`).
  *
  * LOS DATOS DE LA TARJETA NUNCA SALEN HACIA NUESTRO SERVIDOR: `campos` sólo se lee al armar
  * el body de `tokenizarTarjeta` (que llama directo a Wompi) y nunca se manda a `/api/checkout`
@@ -95,17 +96,23 @@ const TEXTO_CREACION_TRANSACCION_GENERICO = 'No pudimos procesar tu pago. Intent
 /**
  * ESPEJO de `confirmarTransaccionTarjeta` (`services/checkout.service.ts`,
  * § API-DIRECTA-DESALINEO-CABLEADO-1) EXTENDIDO con los datos del navegador que 3DS exige y con
- * la lectura de `autenticacion3ds` de la respuesta — ver el docstring de este componente para
- * el porqué de la duplicación (esa función no está en `touches:` de este slice). Comparte
- * `CreacionTransaccionError` (importado, no redefinido) para que `handlePagar` no tenga que
- * distinguir dos formas de fallo.
+ * la lectura de `autenticacion3ds`/`desafioHtml` de la respuesta — ver el docstring de este
+ * componente para el porqué de la duplicación (esa función no está en `touches:` de este
+ * slice). Comparte `CreacionTransaccionError` (importado, no redefinido) para que `handlePagar`
+ * no tenga que distinguir dos formas de fallo.
+ *
+ * `desafioHtml` (§ API-DIRECTA-3DS-CON-CHALLENGE-1) llega YA DECODIFICADO por el servidor
+ * (`extraerContenidoDesafio3ds`, `lib/pagos/tres-ds.ts`, corrida en `PATCH /api/checkout`) —
+ * este componente nunca decodifica nada, sólo lo recibe y lo reenvía a `EsperaConfirmacion
+ * Tarjeta` para embeberlo. `null` cuando el servidor no lo mandó (sin fricción, desconocido, o
+ * un desafío detectado sin contenido decodificable).
  */
 async function confirmarConAutenticacion3ds(input: {
   reference: string;
   tokenTarjeta: string;
   aceptaciones: { terminos: string; datosPersonales: string };
   datosNavegador3ds: ReturnType<typeof recolectarDatosNavegador3ds>;
-}): Promise<Resultado3ds> {
+}): Promise<{ resultado3ds: Resultado3ds; desafioHtml: string | null }> {
   let res: Response;
   try {
     res = await fetch('/api/checkout', {
@@ -129,7 +136,12 @@ async function confirmarConAutenticacion3ds(input: {
 
   const resultado = body as Partial<ResultadoCreacionTransaccionWompi> | null;
   if (resultado?.tipo === 'creada') {
-    return resultado.autenticacion3ds ?? 'desconocido';
+    return {
+      resultado3ds: resultado.autenticacion3ds ?? 'desconocido',
+      desafioHtml: typeof resultado.desafioHtml === 'string' && resultado.desafioHtml.trim() !== ''
+        ? resultado.desafioHtml
+        : null,
+    };
   }
 
   const tipo: 'metodo_no_habilitado' | 'firma_invalida' | 'otro_fallo' =
@@ -151,9 +163,10 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, reference, 
   const [errorTokenizacion, setErrorTokenizacion] = useState<string | null>(null);
   // Presencia = éxito COMPLETO: el token se obtuvo Y la transacción quedó creada en Wompi
   // (§ API-DIRECTA-DESALINEO-CABLEADO-1) — nunca se pone en `true` sólo por tokenizar. Trae la
-  // clasificación de 3DS (§ API-DIRECTA-3DS-SIN-CHALLENGE-1) para que la espera
-  // (`EsperaConfirmacionTarjeta`) sepa qué copy mostrar.
-  const [creada, setCreada] = useState<{ resultado3ds: Resultado3ds } | null>(null);
+  // clasificación de 3DS (§ API-DIRECTA-3DS-SIN-CHALLENGE-1) y el HTML del desafío YA
+  // DECODIFICADO (§ API-DIRECTA-3DS-CON-CHALLENGE-1) para que la espera
+  // (`EsperaConfirmacionTarjeta`) sepa qué copy/marco mostrar.
+  const [creada, setCreada] = useState<{ resultado3ds: Resultado3ds; desafioHtml: string | null } | null>(null);
 
   const aceptado = terminosMarcado && datosMarcado;
 
@@ -198,7 +211,7 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, reference, 
       // secretas: § `FormularioTarjetaProps`) — junto con los DATOS DEL NAVEGADOR que 3DS pide
       // SIEMPRE (§ API-DIRECTA-3DS-SIN-CHALLENGE-1, "no hay interruptor"; nunca un dato de la
       // tarjeta — § el docstring de `recolectarDatosNavegador3ds`, `lib/pagos/tres-ds.ts`).
-      const resultado3ds = await confirmarConAutenticacion3ds({
+      const { resultado3ds, desafioHtml } = await confirmarConAutenticacion3ds({
         reference,
         tokenTarjeta: token,
         aceptaciones: {
@@ -210,7 +223,7 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, reference, 
       // SI CUALQUIERA DE LAS DOS LLAMADAS FALLA, el comprador se queda EN ESTE FORMULARIO con
       // el error a la vista — no hay redirección, no hay pantalla nueva, y nada más se crea.
       // La ÚNICA excepción es el rechazo ESTRUCTURAL de abajo, que no vuelve a este formulario.
-      setCreada({ resultado3ds });
+      setCreada({ resultado3ds, desafioHtml });
     } catch (e) {
       if (e instanceof CreacionTransaccionError && e.tipo === 'metodo_no_habilitado') {
         // El proveedor YA RECHAZÓ el método para esta cuenta — no es la tarjeta que se
@@ -232,7 +245,12 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, reference, 
   if (creada) {
     return (
       <div className="bg-[var(--sf-superficie)] rounded-xl p-4">
-        <EsperaConfirmacionTarjeta reference={reference} email={email} resultado3ds={creada.resultado3ds} />
+        <EsperaConfirmacionTarjeta
+          reference={reference}
+          email={email}
+          resultado3ds={creada.resultado3ds}
+          desafioHtml={creada.desafioHtml}
+        />
       </div>
     );
   }
