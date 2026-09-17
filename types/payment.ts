@@ -135,6 +135,22 @@ export interface TokenTarjetaWompi {
   id: string;
 }
 
+// El resultado clasificado que devuelve `PATCH /api/checkout` al crear la transacción de
+// tarjeta por API directa (§ API-DIRECTA-CREACION-TRANSACCION-1) — la forma DE RED (JSON) del
+// mismo discriminador que `lib/pagos/creacion-transaccion.ts` clasifica del lado del servidor.
+// El cableado del cliente que consume esto (`FormularioTarjeta.tsx`, un slice futuro) no tiene
+// que reinventar los cuatro casos. `error` es el texto PROVISIONAL para el comprador —
+// pendiente de copy del owner, igual que el resto de los mensajes nuevos de este programa—;
+// las tres ramas de fallo comparten forma a propósito, porque el cliente no necesita
+// distinguirlas para decidir qué mostrar (todas terminan en "no se pudo, intenta de nuevo o
+// usa otro método"); lo que SÍ distingue es `tipo`, por si un consumidor futuro quisiera
+// tratarlas distinto (p. ej. loguear métricas separadas).
+export type ResultadoCreacionTransaccionWompi =
+  | { tipo: 'creada'; id: string; status: string }
+  | { tipo: 'metodo_no_habilitado'; error: string }
+  | { tipo: 'firma_invalida'; error: string }
+  | { tipo: 'otro_fallo'; error: string };
+
 // A registered payment as returned by the ledger endpoint. `monto` is the order
 // total snapshotted at registration; `order` is a light live snapshot for display.
 export interface Payment {

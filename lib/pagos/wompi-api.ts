@@ -47,7 +47,12 @@ export class WompiApiError extends Error {
 // la cuenta completa.
 const TIMEOUT_MS = 6_000;
 
-function esTransaccionWompi(x: unknown): x is TransaccionWompi {
+// Exportado (§ API-DIRECTA-CREACION-TRANSACCION-1) para que
+// `lib/pagos/creacion-transaccion.ts` clasifique la rama "creada" con la MISMA
+// comprobación de forma que ya usa `consultarTransaccionesPorReferencia` — dos
+// definiciones del mismo chequeo es cómo terminan divergiendo (§ CLAUDE.md,
+// el patrón que ya costó `razonDelServidor`/`cruzoMinimo` duplicados).
+export function esTransaccionWompi(x: unknown): x is TransaccionWompi {
   if (typeof x !== 'object' || x === null) return false;
   const o = x as Record<string, unknown>;
   return typeof o.id === 'string' && typeof o.status === 'string' && typeof o.amount_in_cents === 'number';
@@ -249,4 +254,112 @@ export async function consultarAceptaciones(
     terminos:        campoAceptacion(o.presigned_acceptance),
     datosPersonales: campoAceptacion(o.presigned_personal_data_auth),
   };
+}
+
+// ── LA CREACIÓN DE LA TRANSACCIÓN (§ API-DIRECTA-CREACION-TRANSACCION-1) ────────────────────
+//
+// `POST /v1/transactions` — la llamada que el motor de dinero YA EXISTENTE (el webhook,
+// `aplicarResultadoWompi`, y el reconciliador — ver la cabecera de
+// `packages/core/src/pagos/reconciliador.ts`) va a cerrar más tarde por REFERENCIA, nunca por
+// cómo nació la transacción en el proveedor. Esta función NO decide nada sobre el resultado:
+// hace la llamada y devuelve el STATUS + BODY crudos, para que `lib/pagos/creacion-
+// transaccion.ts` (puro, sin red) los clasifique.
+//
+// NO LANZA POR UN STATUS NO-200 A PROPÓSITO — a diferencia de
+// `consultarTransaccionesPorReferencia` y `fetchInfoComercio` de arriba: acá el status y el
+// cuerpo de un 422/404/401 SON el dato que el llamador necesita distinguir. Medido contra el
+// sandbox (`API-DIRECTA-SPIKES-ASIENTO-1`, DECISIONS.md): firma ausente/alterada → 422, método
+// no habilitado → 404, sin credencial → 401, cada uno con forma reconocible. Sólo un fallo de
+// RED, un TIMEOUT, o un cuerpo NO-JSON siguen siendo `WompiApiError` — esos no son una
+// respuesta que clasificar, son la ausencia de una.
+//
+// LA AUTORIZACIÓN VA CON LA LLAVE PRIVADA — decisión, no obligación: medido que las DOS llaves
+// autorizan crear (§ API-DIRECTA-SPIKES-ASIENTO-1 §1.B, DECISIONS.md), pero esta llamada vive
+// en el SERVIDOR, que ya recibe la privada para `consultarTransaccionesPorReferencia` arriba —
+// una sola credencial por módulo es más simple de razonar que dos que hacen lo mismo.
+//
+// LOS NOMBRES DE CAMPO DEL BODY (`acceptance_token`, `accept_personal_auth`, `payment_method`
+// con `{type: 'CARD', installments, token}`) NO ESTÁN MEDIDOS CONTRA EL SANDBOX por este
+// slice —no tiene acceso a red—: son la convención pública del proveedor, LEÍDA, misma
+// salvedad que ya lleva `consultarAceptaciones` arriba para `presigned_acceptance`/
+// `presigned_personal_data_auth`, y que `services/checkout.service.ts` (`tokenizarTarjeta`)
+// ya lleva para `/v1/tokens/cards`.
+
+/** Lo que la firma de integridad ya fija —`reference`, `amountInCents`, `currency`,
+ *  `signature`, calculados por el LLAMADOR con el intento que YA EXISTE, nunca recalculados
+ *  acá— más lo que sólo existe en este paso: el token de tarjeta y los dos tokens de
+ *  aceptación que el comprador marcó (§ API-DIRECTA-ACEPTACIONES-SERVIDOR-1). */
+export interface DatosCreacionTransaccion {
+  reference: string;
+  amountInCents: number;
+  currency: string;
+  signature: string;
+  tokenTarjeta: string;
+  acceptanceToken: string;
+  acceptPersonalAuthToken: string;
+}
+
+/** El status HTTP + el cuerpo TAL CUAL de Wompi — sin interpretar. La interpretación es de
+ *  `lib/pagos/creacion-transaccion.ts` (puro, sin red). */
+export interface RespuestaCrudaTransaccion {
+  status: number;
+  body: unknown;
+}
+
+/**
+ * Crea la transacción de tarjeta contra Wompi.
+ *
+ * @param datos Ver `DatosCreacionTransaccion`.
+ * @param privateKey `WOMPI_PRIVATE_KEY` de la cuenta — el llamador decide de dónde sale, este
+ *   módulo no lee `process.env`.
+ * @param baseUrl El host de la API de Wompi (sandbox o producción) — el llamador decide cuál.
+ */
+export async function crearTransaccionTarjeta(
+  datos: DatosCreacionTransaccion,
+  privateKey: string,
+  baseUrl: string,
+): Promise<RespuestaCrudaTransaccion> {
+  const url = `${baseUrl}/v1/transactions`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method:  'POST',
+      headers: {
+        Authorization:  `Bearer ${privateKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        acceptance_token:     datos.acceptanceToken,
+        accept_personal_auth: datos.acceptPersonalAuthToken,
+        amount_in_cents:      datos.amountInCents,
+        currency:             datos.currency,
+        signature:            datos.signature,
+        reference:            datos.reference,
+        payment_method: {
+          type:         'CARD',
+          installments: 1,
+          token:        datos.tokenTarjeta,
+        },
+      }),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    throw new WompiApiError(
+      `fallo de red creando la transacción de Wompi para la referencia ${datos.reference}: ${(e as Error).message}`,
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    throw new WompiApiError(`respuesta no-JSON de Wompi creando la transacción para la referencia ${datos.reference}`);
+  }
+
+  return { status: res.status, body };
 }

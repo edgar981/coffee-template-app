@@ -10,11 +10,13 @@ import {
 } from '@duna/core/validation/address';
 import { metodoPagoTipoSchema } from '@/lib/checkout/metodos-pago';
 import { pesosACentavos, firmarIntegridadWompi } from '@/lib/pagos/wompi-firma';
-import { consultarAceptaciones } from '@/lib/pagos/wompi-api';
+import { consultarAceptaciones, crearTransaccionTarjeta } from '@/lib/pagos/wompi-api';
 import { evaluarAceptaciones } from '@/lib/pagos/aceptaciones';
+import { clasificarCreacionTransaccion } from '@/lib/pagos/creacion-transaccion';
 import type { AceptacionesWompi } from '@/types/payment';
 import { pasarelaDisponibleEnEsteDespliegue } from '@/services/checkout.service';
 import { esDespliegueDemo } from '@/next.config';
+import prisma from '@duna/core';
 
 // La moneda del store es COP, sin selector: es lo único que el checkout maneja
 // hoy (formatCOP, Order.total, todo el sistema). No es un valor inventado para
@@ -293,4 +295,145 @@ export async function POST(req: NextRequest) {
     },
     { status: 201 },
   );
+}
+
+// ── API-DIRECTA-CREACION-TRANSACCION-1: crear la transacción de tarjeta ─────────────────────
+//
+// SEGUNDO PASO, en un request APARTE del POST de arriba: el POST crea la orden y su intento
+// —y, para el camino de pasarela, devuelve `publicKey` + `aceptaciones`—; recién CON ESA
+// respuesta el comprador puede tokenizar la tarjeta en el navegador (§ API-DIRECTA-CAPTURA-
+// TARJETA-1, `services/checkout.service.ts`, `tokenizarTarjeta`, que llama DIRECTO a Wompi,
+// nunca a esta ruta). El token no existe todavía cuando el POST responde, así que "crear la
+// transacción" no puede vivir en esa misma llamada — vive acá, en un método HTTP nuevo sobre
+// el MISMO path, para el intento que YA EXISTE.
+//
+// PATCH, no un endpoint nuevo: esta acción completa (parchea) el checkout ya creado con la
+// pieza que faltaba —tarjeta tokenizada + las dos aceptaciones—, no reemplaza el recurso
+// (PUT) ni crea uno nuevo bajo otra ruta.
+//
+// CABLEADO DEL LADO DEL CLIENTE (`FormularioTarjeta.tsx`, `services/checkout.service.ts`)
+// QUEDA PENDIENTE — fuera de `touches` de este slice (ver el reporte). Este handler es
+// alcanzable y probado por su forma (zod) y por la clasificación pura que consume
+// (`creacion-transaccion.test.ts`); nadie lo invoca todavía desde el navegador.
+//
+// EL TEXTO ES PROVISIONAL, PENDIENTE DE COPY DEL OWNER (igual que `FormularioTarjeta.tsx`,
+// § API-DIRECTA-CAPTURA-TARJETA-1): son mensajes nuevos, sin texto fijado, elegidos claros y
+// honestos para no bloquear el slice.
+const TEXTO_ERROR_GENERICO_TRANSACCION = 'No pudimos procesar tu pago. Intenta de nuevo o usa otro método.';
+const TEXTO_INTENTO_NO_ENCONTRADO = 'No encontramos el pedido al que corresponde este pago.';
+const TEXTO_INTENTO_YA_RESUELTO = 'Este pago ya se resolvió.';
+
+const crearTransaccionTarjetaSchema = z.object({
+  reference:    z.string().trim().min(1),
+  tokenTarjeta: z.string().trim().min(1),
+  // Los DOS tokens de aceptación que el comprador marcó — los MISMOS que ya vio en
+  // `AceptacionesPasarela` (§ API-DIRECTA-ACEPTACIONES-SERVIDOR-1), con sus enlaces a los
+  // documentos exactos que aceptó. No son secretos (viajaron ya al navegador en la respuesta
+  // del POST), así que el cliente los reenvía tal cual — Wompi es quien los valida.
+  aceptaciones: z.object({
+    terminos:        z.string().trim().min(1),
+    datosPersonales: z.string().trim().min(1),
+  }),
+});
+
+export async function PATCH(req: NextRequest) {
+  let raw: unknown;
+  try {
+    raw = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Cuerpo de la solicitud inválido' }, { status: 400 });
+  }
+
+  const parsed = crearTransaccionTarjetaSchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Datos inválidos', issues: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  const { reference, tokenTarjeta, aceptaciones } = parsed.data;
+
+  // El intento YA EXISTE — lo crea el POST de arriba. Esta ruta NUNCA crea una orden nueva ni
+  // un intento nuevo: sólo lee el que ya está, para el monto que YA se firmó una vez.
+  const intent = await prisma.paymentIntent.findUnique({
+    where:  { reference },
+    select: { estado: true, monto_esperado: true },
+  });
+
+  if (!intent) {
+    return NextResponse.json({ error: TEXTO_INTENTO_NO_ENCONTRADO }, { status: 404 });
+  }
+
+  // Ya lo cerró el webhook o el reconciliador (o ya se creó una transacción antes para esta
+  // MISMA referencia): crear otra duplicaría el intento de cobro. El motor de dinero ya
+  // existente es el único que mueve este estado — acá sólo se lee.
+  if (intent.estado !== 'EN_VUELO') {
+    return NextResponse.json({ error: TEXTO_INTENTO_YA_RESUELTO }, { status: 409 });
+  }
+
+  const secretoIntegridad = process.env.WOMPI_INTEGRITY_SECRET;
+  const llavePrivada = process.env.WOMPI_PRIVATE_KEY;
+  if (!secretoIntegridad || !llavePrivada) {
+    // Fail ruidoso, mismo criterio que el bloque `wompi` del POST de arriba: sin secreto ni
+    // llave no hay con qué crear la transacción, y silenciarlo dejaría al comprador pensando
+    // que su pago se está procesando cuando nunca se intentó.
+    console.error('[checkout] falta WOMPI_INTEGRITY_SECRET o WOMPI_PRIVATE_KEY — no se puede crear la transacción');
+    return NextResponse.json({ error: TEXTO_ERROR_GENERICO_TRANSACCION }, { status: 500 });
+  }
+
+  // El MISMO monto y la MISMA fórmula que ya produjeron la firma que el comprador vio en el
+  // POST — recalculados acá, nunca recibidos del cliente, para que "el intento que ya existe"
+  // (y no lo que el navegador diga) sea lo que se firma y se manda a Wompi.
+  const amountInCents = pesosACentavos(intent.monto_esperado);
+  const signature = firmarIntegridadWompi(reference, amountInCents, MONEDA_WOMPI, secretoIntegridad);
+  const baseUrlPasarela = esDespliegueDemo() ? 'https://sandbox.wompi.co' : 'https://production.wompi.co';
+
+  let respuestaCruda: Awaited<ReturnType<typeof crearTransaccionTarjeta>>;
+  try {
+    respuestaCruda = await crearTransaccionTarjeta(
+      {
+        reference,
+        amountInCents,
+        currency: MONEDA_WOMPI,
+        signature,
+        tokenTarjeta,
+        acceptanceToken:         aceptaciones.terminos,
+        acceptPersonalAuthToken: aceptaciones.datosPersonales,
+      },
+      llavePrivada,
+      baseUrlPasarela,
+    );
+  } catch (e) {
+    console.error('[checkout] fallo de red creando la transacción de Wompi:', e);
+    return NextResponse.json({ error: TEXTO_ERROR_GENERICO_TRANSACCION }, { status: 502 });
+  }
+
+  const resultado = clasificarCreacionTransaccion(respuestaCruda);
+
+  // LA ORDEN Y SU INTENTO YA EXISTEN Y SE QUEDAN PASE LO QUE PASE ACÁ — ninguna rama de abajo
+  // los borra ni los marca a mano. Si la transacción nunca llega a existir en Wompi (método no
+  // habilitado, firma inválida, cualquier otro fallo), el intento queda `EN_VUELO`, y el
+  // reconciliador YA TIENE la regla para exactamente ese caso — «LA REGLA DEL ARRAY VACÍO»
+  // (medida, WOMPI-REGLAS-IMPLEMENTACION-1; ver la cabecera de
+  // `packages/core/src/pagos/reconciliador.ts:26-30`): un `200 {"data":[]}` de Wompi al
+  // consultar por referencia es indistinguible de "sigue sin resolverse", así que el barrido
+  // lo cierra por EDAD, nunca por la ausencia inmediata de una transacción. No se inventa acá
+  // un segundo camino de limpieza que pueda desincronizarse de esa decisión.
+  switch (resultado.tipo) {
+    case 'creada':
+      return NextResponse.json(
+        { tipo: 'creada', id: resultado.transaccion.id, status: resultado.transaccion.status },
+        { status: 201 },
+      );
+    case 'metodo_no_habilitado':
+      console.error('[checkout] Wompi rechazó el método de la transacción (no habilitado para la cuenta):', resultado.motivo);
+      return NextResponse.json({ tipo: 'metodo_no_habilitado', error: TEXTO_ERROR_GENERICO_TRANSACCION }, { status: 502 });
+    case 'firma_invalida':
+      console.error('[checkout] Wompi rechazó la firma de integridad de la transacción:', resultado.motivo);
+      return NextResponse.json({ tipo: 'firma_invalida', error: TEXTO_ERROR_GENERICO_TRANSACCION }, { status: 502 });
+    case 'otro_fallo':
+      console.error(`[checkout] Wompi respondió ${resultado.status} al crear la transacción:`, resultado.motivo);
+      return NextResponse.json({ tipo: 'otro_fallo', error: TEXTO_ERROR_GENERICO_TRANSACCION }, { status: 502 });
+  }
 }
