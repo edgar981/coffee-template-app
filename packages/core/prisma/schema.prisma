@@ -722,6 +722,17 @@ model SiteSetting {
   // viejas de pago (cuenta bancaria + 4 booleanos + número móvil) que esa migración leyó y que
   // `20260910130000_drop_site_setting_pago_viejas` retiró — ya no existen en este modelo.
   metodosPago Json @default("[]")
+  // MÉTODOS de PASARELA (API directa, § API-DIRECTA-PANEL-METODOS-1): la lista de
+  // IDENTIFICADORES DE TIPO que el dueño eligió ofrecer, entre los que su cuenta del
+  // proveedor tiene REALMENTE habilitados — leídos en vivo de `GET /v1/merchants/info`
+  // (`lib/pagos/wompi-api.ts`), nunca de un catálogo escrito en este código. Guarda SÓLO
+  // los identificadores (strings), NUNCA `{tipo, datos}` como `metodosPago`: un método de
+  // pasarela no guarda dato del dueño — los datos de pago nunca tocan este servidor
+  // (§ API-DIRECTA-DECISIONES-PROGRAMA-1 §2) — y un campo `datos` vacío para siempre sería
+  // una mentira estructural. `[]` es un estado LEGÍTIMO (a diferencia de `metodosPago`, que
+  // exige al menos uno): la pasarela es una capacidad de DESPLIEGUE que puede estar apagada,
+  // o el dueño puede no haber elegido nada todavía de su cuenta.
+  metodosPasarela Json @default("[]")
   // La PALETA del storefront ya NO vive acá: se mudó a `SiteContent.content.tema` (§ Backlog #55)
   // para ganar el flujo borrador/publicar. SiteSetting es IDENTIDAD (guardar = en vivo al instante);
   // la paleta es CONTENIDO que se publica. Migración `drop_site_setting_palette`.

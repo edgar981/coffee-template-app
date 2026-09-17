@@ -10,6 +10,8 @@ import {
   METODOS_PAGO_ORDEN, CAMPOS_METODO, labelMetodo, metodoIncompleto,
   type MetodoPagoTipo, type MetodoPagoGuardado,
 } from '@/lib/checkout/metodos-pago';
+import { pasarelaDisponibleEnEsteDespliegue } from '@/services/checkout.service';
+import { cruzarMetodosPasarela, type MetodoPasarelaCruzado } from '@/lib/pagos/metodos-pasarela';
 import { partirTelefono, componerTelefono, INDICATIVOS } from '@/lib/config/telefono';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
@@ -56,6 +58,11 @@ interface FormState {
   instagram: string; emailRemitente: string;
   emailReplyTo: string; adminEmail: string;
   metodosPago: MetodoPagoGuardado[];
+  // Los IDENTIFICADORES que el dueño eligió ofrecer de su cuenta de pasarela — nunca
+  // `{tipo, datos}` como `metodosPago` (§ API-DIRECTA-PANEL-METODOS-1: la pasarela no
+  // guarda dato del dueño). Editable SÓLO cuando la cuenta se pudo leer (ver `cuentaPasarela`
+  // más abajo); mientras tanto viaja intacto, tal cual lo guardado.
+  metodosPasarela: string[];
 }
 
 // Los nombres de campo TEXTO PLANO que existen IDÉNTICOS en FormState y en SiteSettings — por
@@ -99,6 +106,7 @@ const DESCRIPCION_BLOQUE = {
   Contacto:  'Por dónde te escriben los clientes',
   Correos:   'Desde dónde escribe la tienda y a dónde le llegan los reportes',
   Pagos:     'Cómo te pagan en el checkout',
+  Pasarela:  'Tarjeta, PSE y los demás métodos de tu cuenta de pasarela',
 } as const;
 
 function renderEncabezadoBloque(eyebrow: keyof typeof DESCRIPCION_BLOQUE, style?: React.CSSProperties) {
@@ -110,7 +118,10 @@ function renderEncabezadoBloque(eyebrow: keyof typeof DESCRIPCION_BLOQUE, style?
   );
 }
 
-function desdeSettings(s: SiteSettings): FormState {
+// `metodosPasarela` llega APARTE (no vive en `SiteSettings`, § el fetch propio de
+// `cuentaPasarela` más abajo): es la lista GUARDADA en ese momento, tal cual — `[]` si
+// todavía no se leyó, para no bloquear el resto del formulario mientras esa lectura viaja.
+function desdeSettings(s: SiteSettings, metodosPasarela: string[]): FormState {
   const wa = partirTelefono(s.whatsapp);
   return {
     nombre:              s.nombre,
@@ -123,6 +134,7 @@ function desdeSettings(s: SiteSettings): FormState {
     emailReplyTo:        s.emailReplyTo ?? '',
     adminEmail:          s.adminEmail ?? '',
     metodosPago:         s.metodosPago,
+    metodosPasarela,
   };
 }
 
@@ -185,18 +197,137 @@ function metodoTieneDatos(m: MetodoPagoGuardado): boolean {
   return datosMetodoTexto(m).length > 0;
 }
 
+// ── LA SECCIÓN PASARELA (§ API-DIRECTA-PANEL-METODOS-1) — UNIÓN PARALELA a Pagos ──────────
+// El panel lee de `GET /api/pasarela/metodos` la lista REAL de la cuenta del proveedor, y
+// nunca ofrece un tipo que la cuenta no tenga. La respuesta siempre trae `guardado` (lo que
+// hoy vive en `SiteSetting.metodosPasarela`) junto al resultado de leer la cuenta, para que
+// el dueño nunca vea una lista vacía como si fuera "no se pudo leer".
+type RespuestaPasarelaMetodos =
+  | { ok: true; metodos: string[]; guardado: string[] }
+  | { ok: false; error: string; guardado: string[] };
+
+// El estado de la LECTURA de la cuenta — DISTINTO del estado de edición del resto de la
+// sección: se resuelve UNA vez al montar, no depende de si el dueño clickeó "Editar". Las
+// tres ramas son las tres filas de la tabla del spec: 'cargando'/'error' muestran `guardado`
+// tal cual y NO son editables; 'ok' cruza `guardado` contra `metodos` (§ metodos-pasarela.ts)
+// y ahí sí se puede prender/apagar.
+type CuentaPasarelaEstado =
+  | { tipo: 'cargando' }
+  | { tipo: 'ok'; metodos: string[]; guardado: string[] }
+  | { tipo: 'error'; guardado: string[] };
+
+function guardadoDe(estado: CuentaPasarelaEstado): string[] {
+  return estado.tipo === 'cargando' ? [] : estado.guardado;
+}
+
+// La lista de sólo-lectura compartida por LECTURA (siempre) y por EDICIÓN cuando la cuenta
+// está 'cargando' o 'error' — la MISMA vista, "esto es lo que ya tenías guardado", sin
+// controles. Etiquetas = los identificadores tal cual el proveedor los nombra: no hay
+// catálogo propio del que sacar un nombre más lindo (ésa es la razón de ser de este slice).
+function renderPasarelaSoloLectura(guardado: string[]) {
+  if (guardado.length === 0) {
+    return <p className="duna-body" style={{ margin: 0, color: 'var(--duna-muted)' }}>No ofreces ningún método de pasarela.</p>;
+  }
+  return (
+    <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
+      {guardado.map(tipo => <li key={tipo} className="duna-body">{tipo}</li>)}
+    </ul>
+  );
+}
+
+// EDICIÓN, cuenta 'ok': un checkbox por método DISPONIBLE (en la cuenta), y una fila
+// "sólo Quitar" por método GUARDADO que la cuenta ya no sostiene — nunca un checkbox que
+// pudiera reintroducirlo, porque la cuenta no lo tiene (§ "no se borra solo, pero tampoco se
+// puede re-marcar solo").
+function renderPasarelaCruzada(
+  cruzado: MetodoPasarelaCruzado[],
+  onToggle: (tipo: string, prender: boolean) => void,
+  onQuitarNoDisponible: (tipo: string) => void,
+) {
+  if (cruzado.length === 0) {
+    return <p className="duna-body" style={{ margin: 0, color: 'var(--duna-muted)' }}>Tu cuenta de pasarela no tiene métodos habilitados.</p>;
+  }
+  return (
+    <div className="duna-form duna-form--sm" style={{ gap: 'var(--duna-space-2)' }}>
+      {cruzado.map(c => (
+        <div
+          key={c.tipo}
+          className="admin-pagos-fila"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--duna-space-3)' }}
+        >
+          {c.estado === 'guardado_no_disponible' ? (
+            <>
+              <div style={{ minWidth: 0 }}>
+                <span className="duna-field__label">{c.tipo}</span>
+                <p className="duna-field__hint" style={{ margin: 0 }}>Ya no está disponible en tu cuenta.</p>
+              </div>
+              <button
+                type="button"
+                className="duna-btn duna-btn--ghost duna-btn--sm"
+                onClick={() => onQuitarNoDisponible(c.tipo)}
+              >
+                Quitar
+              </button>
+            </>
+          ) : (
+            <label className="duna-check" style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)' }}>
+              <input
+                type="checkbox"
+                className="duna-check__box"
+                checked={c.estado === 'disponible'}
+                onChange={e => onToggle(c.tipo, e.target.checked)}
+              />
+              <span className="duna-field__label">{c.tipo}</span>
+            </label>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function DatosNegocioSeccion() {
   const settings = useSiteSettings();
   const router   = useRouter();
   const guarda   = useAccionGuardada();
 
+  // La cuenta de PASARELA (§ API-DIRECTA-PANEL-METODOS-1) se lee UNA vez al montar, sin
+  // esperar a "Editar" — es lo que permite que `guardado` esté disponible desde el primer
+  // render, tanto para la LECTURA como para el arranque de la edición. `[]` inicial en
+  // `desdeSettings` de abajo se corrige apenas esta lectura resuelve (ver el efecto que sigue).
+  const [cuentaPasarela, setCuentaPasarela] = useState<CuentaPasarelaEstado>({ tipo: 'cargando' });
+
   const [editando, setEditando]           = useState(false);
-  const [form, setForm]                   = useState<FormState>(() => desdeSettings(settings));
+  const [form, setForm]                   = useState<FormState>(() => desdeSettings(settings, []));
   const [errores, setErrores]             = useState<Partial<Record<keyof FormState, string>>>({});
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
   // El método pendiente de confirmar "Quitar" — sólo cuando TIENE datos que perder
   // (§ metodoTieneDatos). Sin datos, quitar no pasa por acá.
   const [confirmarQuitar, setConfirmarQuitar] = useState<MetodoPagoGuardado | null>(null);
+
+  useEffect(() => {
+    if (!pasarelaDisponibleEnEsteDespliegue()) return;
+    let cancelado = false;
+    fetch('/api/pasarela/metodos')
+      .then(res => res.json())
+      .then((data: RespuestaPasarelaMetodos) => {
+        if (cancelado) return;
+        setCuentaPasarela(data.ok
+          ? { tipo: 'ok', metodos: data.metodos, guardado: data.guardado }
+          : { tipo: 'error', guardado: data.guardado });
+      })
+      .catch(() => { if (!cancelado) setCuentaPasarela({ tipo: 'error', guardado: [] }); });
+    return () => { cancelado = true; };
+  }, []);
+
+  // Mientras NO se está editando, `form.metodosPasarela` sigue a lo recién leído — así
+  // `abrirEdicion` (que copia `form` tal cual) siempre arranca de un dato fresco, sin
+  // depender de que la lectura haya llegado ANTES del primer render.
+  useEffect(() => {
+    if (!editando && cuentaPasarela.tipo !== 'cargando') {
+      setForm(f => ({ ...f, metodosPasarela: cuentaPasarela.guardado }));
+    }
+  }, [cuentaPasarela, editando]);
 
   // Salir de edición = el "cierre real" que la guarda de descarte protege.
   const salirDeEdicion = () => { setEditando(false); setErrores({}); setErrorServidor(null); };
@@ -205,14 +336,40 @@ export default function DatosNegocioSeccion() {
   // ¿Hay cambios sin guardar? Se compara el form contra el valor actual del provider. Los dos
   // lados quedan PARTIDOS de la misma forma (`desdeSettings`), así que la comparación sigue
   // siendo consistente: abrir "Editar" sin tocar nada no debe verse sucio.
-  const sucio = editando && JSON.stringify(form) !== JSON.stringify(desdeSettings(settings));
+  const sucio = editando && JSON.stringify(form) !== JSON.stringify(desdeSettings(settings, guardadoDe(cuentaPasarela)));
   useEffect(() => { descarte.marcarCambios(sucio); }, [sucio, descarte]);
 
   const abrirEdicion = () => {
-    setForm(desdeSettings(settings)); // arranca de lo que hay hoy
+    setForm(desdeSettings(settings, guardadoDe(cuentaPasarela))); // arranca de lo que hay hoy
     setErrores({});
     setErrorServidor(null);
     setEditando(true);
+  };
+
+  // Prender agrega el tipo a lo guardado; apagar lo saca. Sólo se llama para tipos
+  // 'disponible'/'disponible_no_ofrecido' (§ renderPasarelaCruzada) — nunca duplica, porque
+  // el checkbox ya refleja si el tipo está o no en `form.metodosPasarela`.
+  const toggleMetodoPasarela = (tipo: string, prender: boolean) => {
+    setForm(f => ({
+      ...f,
+      metodosPasarela: prender
+        ? [...f.metodosPasarela, tipo]
+        : f.metodosPasarela.filter(t => t !== tipo),
+    }));
+  };
+
+  // Quitar un método GUARDADO que la cuenta ya no sostiene: no se borra solo (§ el spec), así
+  // que esta es la única vía — con Deshacer, mismo precedente que `quitarConDeshacer` de Pagos.
+  const quitarPasarelaNoDisponible = (tipo: string) => {
+    setForm(f => ({ ...f, metodosPasarela: f.metodosPasarela.filter(t => t !== tipo) }));
+    toast.success(`${tipo} quitado.`, {
+      action: {
+        label: 'Deshacer',
+        onClick: () => setForm(f => (
+          f.metodosPasarela.includes(tipo) ? f : { ...f, metodosPasarela: [...f.metodosPasarela, tipo] }
+        )),
+      },
+    });
   };
 
   const set = (name: CampoNombre) =>
@@ -273,6 +430,7 @@ export default function DatosNegocioSeccion() {
       emailReplyTo:      form.emailReplyTo,
       adminEmail:        form.adminEmail,
       metodosPago:       form.metodosPago,
+      metodosPasarela:   form.metodosPasarela,
     };
 
     const parsed = siteSettingsEditableSchema.safeParse(payload);
@@ -305,6 +463,10 @@ export default function DatosNegocioSeccion() {
       }
       toast.success('Datos del negocio guardados.');
       setEditando(false);
+      // El `guardado` de la cuenta de pasarela queda desactualizado tras el PATCH — se corrige
+      // acá sin un fetch extra, con lo que se acaba de persistir (no cuando la lectura falló:
+      // ahí no hubo edición posible, así que no hay nada que corregir).
+      setCuentaPasarela(c => (c.tipo === 'cargando' ? c : { ...c, guardado: form.metodosPasarela }));
       router.refresh(); // re-corre el layout server → el resto del admin ve lo nuevo
     });
   };
@@ -425,6 +587,46 @@ export default function DatosNegocioSeccion() {
             </div>
           </div>
 
+          {/* Pasarela (§ API-DIRECTA-PANEL-METODOS-1) — UNIÓN PARALELA a Pagos, nunca
+              mezclada en la misma lista. Sólo aparece si la CAPACIDAD está encendida para
+              este despliegue (toggle de despliegue, no de panel). Editable SÓLO cuando la
+              cuenta se pudo leer; mientras tanto muestra lo guardado, tal cual, sin controles. */}
+          {pasarelaDisponibleEnEsteDespliegue() && (
+            <div className="admin-bloque">
+              {renderEncabezadoBloque('Pasarela', { marginBottom: 'var(--duna-space-1)' })}
+              <p className="duna-field__hint" style={{ marginTop: 0, marginBottom: 'var(--duna-space-3)' }}>
+                Tarjeta, PSE y los demás métodos de tu cuenta de pasarela. Leídos directo de tu
+                cuenta — sólo puedes ofrecer lo que ella ya tiene habilitado.
+              </p>
+
+              {errores.metodosPasarela && (
+                <p className="duna-field__error" style={{ marginBottom: 'var(--duna-space-3)' }}>{errores.metodosPasarela}</p>
+              )}
+
+              {cuentaPasarela.tipo === 'error' && (
+                // TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER (§ API-DIRECTA-PANEL-METODOS-1,
+                // sección 3 del spec: "no pudimos consultar tu cuenta", nunca "no tenés métodos").
+                <p className="duna-field__error" role="alert" style={{ marginBottom: 'var(--duna-space-3)' }}>
+                  No pudimos consultar tu cuenta de pasarela ahora mismo. Se muestra lo que ya
+                  tenías guardado; no puedes hacer cambios aquí hasta poder leerla de nuevo.
+                </p>
+              )}
+              {cuentaPasarela.tipo === 'cargando' && (
+                <p className="duna-field__hint" style={{ marginBottom: 'var(--duna-space-3)', fontStyle: 'italic' }}>
+                  Consultando tu cuenta de pasarela…
+                </p>
+              )}
+
+              {cuentaPasarela.tipo === 'ok'
+                ? renderPasarelaCruzada(
+                    cruzarMetodosPasarela(form.metodosPasarela, cuentaPasarela.metodos),
+                    toggleMetodoPasarela,
+                    quitarPasarelaNoDisponible,
+                  )
+                : renderPasarelaSoloLectura(form.metodosPasarela)}
+            </div>
+          )}
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)' }}>
             <button type="submit" className="duna-btn duna-btn--primary" disabled={guarda.enVuelo}>
               {guarda.enVuelo ? 'Guardando…' : 'Guardar cambios'}
@@ -492,6 +694,18 @@ export default function DatosNegocioSeccion() {
 
             {renderGruposPago(settings.metodosPago, renderFilaMetodoLectura)}
           </div>
+
+          {/* Pasarela — LECTURA: la lista guardada tal cual, sin llamar a la cuenta del
+              proveedor (esa lectura, y sus tres estados, sólo importan mientras se edita). */}
+          {pasarelaDisponibleEnEsteDespliegue() && (
+            <div className="admin-bloque">
+              {renderEncabezadoBloque('Pasarela', { marginBottom: 'var(--duna-space-1)' })}
+              <p className="duna-field__hint" style={{ marginTop: 0, marginBottom: 'var(--duna-space-3)' }}>
+                Los métodos de tu cuenta de pasarela que ofreces en el checkout.
+              </p>
+              {renderPasarelaSoloLectura(guardadoDe(cuentaPasarela))}
+            </div>
+          )}
         </div>
       )}
 

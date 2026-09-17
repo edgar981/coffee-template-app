@@ -35,6 +35,12 @@ export const siteSettingsEditableSchema = z.object({
   // tipo). Un método INCOMPLETO no bloquea el guardado (ámbar, no rojo): se guarda y simplemente
   // no se muestra en la tienda — las dos validaciones DURAS de este bloque son los refines de abajo.
   metodosPago: z.array(metodoPagoSchema),
+  // Los métodos de PASARELA (§ API-DIRECTA-PANEL-METODOS-1) — sólo los IDENTIFICADORES que el
+  // proveedor devolvió como habilitados para la cuenta del tenant, sin `datos` (un método de
+  // pasarela no guarda nada del dueño). SIN el refine de "al menos uno": la pasarela es una
+  // capacidad de DESPLIEGUE que puede estar apagada, y `[]` es un estado legítimo — a
+  // diferencia de `metodosPago`, el checkout no depende de que esta lista tenga algo.
+  metodosPasarela: z.array(z.string().trim().min(1)),
 }).refine(
   d => new Set(d.metodosPago.map(m => m.tipo)).size === d.metodosPago.length,
   { message: 'No puedes repetir un método de pago', path: ['metodosPago'] },
@@ -44,6 +50,9 @@ export const siteSettingsEditableSchema = z.object({
   // molienda".
   d => d.metodosPago.length > 0,
   { message: 'Deja al menos un método de pago', path: ['metodosPago'] },
+).refine(
+  d => new Set(d.metodosPasarela).size === d.metodosPasarela.length,
+  { message: 'No puedes repetir un tipo de método de pasarela', path: ['metodosPasarela'] },
 );
 
 export type SiteSettingsEditable = z.infer<typeof siteSettingsEditableSchema>;

@@ -108,3 +108,80 @@ export async function consultarTransaccionesPorReferencia(
 
   return data.filter(esTransaccionWompi);
 }
+
+// ── EL PANEL DE MÉTODOS (§ API-DIRECTA-PANEL-METODOS-1) ──────────────────────
+//
+// `GET /v1/merchants/info` — el endpoint NUEVO del comercio (el viejo, con la
+// llave en la URL, muere el 31 de octubre de 2026). Medido contra el sandbox
+// real (`API-DIRECTA-SPIKES-ASIENTO-1`, DECISIONS.md): responde `200` y trae
+// `accepted_payment_methods`, la lista de tipos que la cuenta tiene REALMENTE
+// habilitados — no un catálogo escrito en este código.
+//
+// LA LLAVE VA POR CABECERA, `x-merchant-public-key`, y es la PÚBLICA — no la
+// privada de `consultarTransaccionesPorReferencia` de arriba. Tampoco se lee de
+// `process.env` acá (mismo principio que el resto del módulo): la recibe el
+// llamador.
+//
+// LA FORMA DEL SOBRE (`{"data": {...}}`) NO fue medida de primera mano para
+// ESTE endpoint por el spike citado arriba —midió las claves de primer nivel,
+// no transcribió el sobre completo—; se asume por la misma convención que ya
+// usa `consultarTransaccionesPorReferencia` con `/v1/transactions`. Si el
+// proveedor no envuelve en `data`, esta función lo trata como forma
+// inesperada y lanza — nunca como lista vacía (ver más abajo).
+function esListaDeStrings(x: unknown): x is string[] {
+  return Array.isArray(x) && x.every(v => typeof v === 'string');
+}
+
+/**
+ * Consulta los tipos de método de pago que la cuenta del comercio tiene
+ * habilitados. Un error de red, un timeout, un status no-200, o una forma de
+ * respuesta inesperada se propagan como `WompiApiError` — NUNCA se devuelve
+ * un array vacío como forma de decir "no se pudo leer": el llamador necesita
+ * distinguir "tu cuenta no tiene métodos" (medible sólo si esta función
+ * responde) de "no pudimos preguntarle al proveedor" (esta función lanza).
+ *
+ * @param publicKey La llave PÚBLICA de la cuenta — el llamador decide de dónde
+ *   sale (`WOMPI_PUBLIC_KEY`), este módulo no lee `process.env`.
+ * @param baseUrl El host de la API de Wompi (sandbox o producción) — el
+ *   llamador decide cuál, según el estado del despliegue.
+ */
+export async function consultarMetodosAceptados(
+  publicKey: string,
+  baseUrl: string,
+): Promise<string[]> {
+  const url = `${baseUrl}/v1/merchants/info`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method:  'GET',
+      headers: { 'x-merchant-public-key': publicKey },
+      signal:  controller.signal,
+    });
+  } catch (e) {
+    throw new WompiApiError(`fallo de red consultando los métodos habilitados de Wompi: ${(e as Error).message}`);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (!res.ok) {
+    throw new WompiApiError(`Wompi respondió ${res.status} consultando los métodos habilitados`);
+  }
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    throw new WompiApiError('respuesta no-JSON de Wompi consultando los métodos habilitados');
+  }
+
+  const data = (body as { data?: unknown } | null)?.data;
+  const metodos = (data as { accepted_payment_methods?: unknown } | null)?.accepted_payment_methods;
+  if (!esListaDeStrings(metodos)) {
+    throw new WompiApiError('respuesta con forma inesperada de Wompi consultando los métodos habilitados (accepted_payment_methods)');
+  }
+
+  return metodos;
+}
