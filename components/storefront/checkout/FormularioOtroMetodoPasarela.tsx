@@ -2,8 +2,11 @@
 
 import { useState } from 'react';
 import AceptacionesPasarela from './AceptacionesPasarela';
+import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
+import { interpretarRespuestaOtroMetodo } from './interpretar-respuesta-otro-metodo';
 import type { AceptacionesWompi } from '@/types/payment';
 import type { DescriptorMetodoPasarela } from '@/lib/pagos/metodos-pasarela';
+import type { Resultado3ds } from '@/lib/pagos/tres-ds';
 
 /**
  * El camino de API DIRECTA para un método de pasarela QUE NO ES TARJETA (§ API-DIRECTA-OTROS-
@@ -15,18 +18,28 @@ import type { DescriptorMetodoPasarela } from '@/lib/pagos/metodos-pasarela';
  * OCUPA LA MISMA RANURA que `FormularioTarjeta` — la elige `SelectorMetodoPasarela.tsx` según
  * el tipo que el comprador seleccionó en el picker.
  *
- * LA CONFIRMACIÓN CONTRA NUESTRO SERVIDOR RESPONDE `no_implementado`, A PROPÓSITO — HONESTO
- * sobre el límite de este slice: enviar el pago de verdad a Wompi para un tipo que no es
- * tarjeta exige generalizar `lib/pagos/wompi-api.ts` (fuera de `touches` de este slice, ver el
- * reporte), y esta pantalla nunca pretende que el proveedor respondió algo que nunca se le
- * preguntó. El mensaje que se muestra es el que el servidor ya decide (`error`), NUNCA
- * inventado en el cliente.
+ * CHECKOUT-NEQUI-EXITO-FIX-1: ESTE COMPONENTE RECONOCE EL ÉXITO, A DIFERENCIA DE ANTES. El
+ * docstring viejo decía que el servidor SIEMPRE respondía `no_implementado` — cierto cuando se
+ * escribió, falso desde que § API-DIRECTA-ENVIO-GENERICO-1 generalizó `lib/pagos/wompi-api.ts`
+ * para aceptar cualquier `payment_method`: `PATCH /api/checkout` responde HOY `{ tipo:
+ * 'creada', ... }` para este camino también (la MISMA forma que ya usa `FormularioTarjeta`,
+ * `ResultadoCreacionTransaccionWompi`). El componente nunca miraba `body?.tipo` — sólo
+ * `body?.error`, `undefined` en éxito — así que un pago que sí se cobró se mostraba como
+ * fallido. La clasificación vive en `interpretarRespuestaOtroMetodo` (pura, testeada) y el
+ * ÉXITO cae en el MISMO molde que `FormularioTarjeta`: `EsperaConfirmacionTarjeta` (sondeo
+ * hasta el estado final, con 3DS si el proveedor lo pide). Los demás casos siguen mostrando el
+ * `error` que el servidor decide, tal cual — nunca inventado acá.
  */
 export interface FormularioOtroMetodoPasarelaProps {
   descriptor: DescriptorMetodoPasarela;
   aceptaciones: AceptacionesWompi;
   /** La `reference` del intento YA CREADO (§ el POST de `/api/checkout`). */
   reference: string;
+  /** El correo que el comprador tecleó en el paso de Información del checkout — segundo
+   *  factor YA CONOCIDO para sondear `/api/checkout/retorno` tras el éxito, igual que
+   *  `FormularioTarjeta` (§ CHECKOUT-NEQUI-EXITO-FIX-1: antes de este fix este componente no
+   *  lo necesitaba porque nunca llegaba a mostrar una espera). */
+  email: string;
 }
 
 // TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER (§ el reporte del slice, igual que
@@ -39,13 +52,17 @@ const TEXTO = {
   errorRed: 'No pudimos comunicarnos con el servidor. Intenta de nuevo.',
 };
 
-export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones, reference }: FormularioOtroMetodoPasarelaProps) {
+export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones, reference, email }: FormularioOtroMetodoPasarelaProps) {
   const [terminosMarcado, setTerminosMarcado] = useState(false);
   const [datosMarcado, setDatosMarcado] = useState(false);
   const [dato, setDato] = useState('');
   const [errorDato, setErrorDato] = useState<string | null>(null);
   const [enVuelo, setEnVuelo] = useState(false);
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
+  // Presencia = éxito: la transacción quedó CREADA en Wompi (§ CHECKOUT-NEQUI-EXITO-FIX-1).
+  // Mismo campo que `FormularioTarjeta.creada` — trae la clasificación de 3DS y el desafío ya
+  // decodificado para que `EsperaConfirmacionTarjeta` sepa qué copy/marco mostrar.
+  const [creada, setCreada] = useState<{ resultado3ds: Resultado3ds; desafioHtml: string | null } | null>(null);
 
   const aceptado = terminosMarcado && datosMarcado;
 
@@ -77,16 +94,39 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
           },
         }),
       });
-      const body = await res.json().catch(() => null) as { error?: string } | null;
-      // El servidor SIEMPRE responde `no_implementado` para este camino hoy (§ el docstring
-      // de este componente) — se muestra su `error` tal cual, nunca un texto inventado acá.
-      setErrorServidor(typeof body?.error === 'string' ? body.error : TEXTO.errorGenerico);
+      const body = await res.json().catch(() => null);
+      // La clasificación PURA y testeada (§ CHECKOUT-NEQUI-EXITO-FIX-1) — ya NO se asume que
+      // el servidor siempre falla: reconoce `tipo: 'creada'` y sigue el MISMO molde que
+      // `FormularioTarjeta` para ese caso (`EsperaConfirmacionTarjeta`, abajo).
+      const resultado = interpretarRespuestaOtroMetodo(body, TEXTO.errorGenerico);
+      if (resultado.tipo === 'exito') {
+        setCreada({ resultado3ds: resultado.resultado3ds, desafioHtml: resultado.desafioHtml });
+        return;
+      }
+      // Los dos casos de rechazo (`metodo_no_habilitado` y `error`) muestran su PROPIO mensaje
+      // —el que el servidor decide, nunca inventado acá— inline: este formulario no tiene un
+      // camino de salida distinto para el rechazo estructural (a diferencia de
+      // `FormularioTarjeta.onMetodoNoHabilitado`, § el docstring de `SelectorMetodoPasarela`).
+      setErrorServidor(resultado.mensaje);
     } catch (e) {
       setErrorServidor(e instanceof Error ? `${TEXTO.errorRed} (${e.message})` : TEXTO.errorRed);
     } finally {
       setEnVuelo(false);
     }
   };
+
+  if (creada) {
+    return (
+      <div className="bg-[var(--sf-superficie)] rounded-xl p-4">
+        <EsperaConfirmacionTarjeta
+          reference={reference}
+          email={email}
+          resultado3ds={creada.resultado3ds}
+          desafioHtml={creada.desafioHtml}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 text-left">

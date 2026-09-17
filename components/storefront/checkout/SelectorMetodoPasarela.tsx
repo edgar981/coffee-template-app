@@ -16,9 +16,11 @@ export interface SelectorMetodoPasarelaProps {
   aceptaciones: AceptacionesWompi;
   publicKey: string;
   reference: string;
-  /** El correo que el comprador tecleó en Información — sólo lo usa `FormularioTarjeta` (§
-   *  API-DIRECTA-3DS-SIN-CHALLENGE-1, segundo factor YA CONOCIDO para sondear el estado del
-   *  pago). Los métodos que no son tarjeta no lo necesitan todavía. */
+  /** El correo que el comprador tecleó en Información — segundo factor YA CONOCIDO para
+   *  sondear el estado del pago (§ API-DIRECTA-3DS-SIN-CHALLENGE-1). Lo usan LOS DOS
+   *  formularios: `FormularioTarjeta` desde que nació, y `FormularioOtroMetodoPasarela` desde
+   *  § CHECKOUT-NEQUI-EXITO-FIX-1 (antes de ese fix no lo necesitaba porque nunca llegaba a
+   *  mostrar una espera de confirmación). */
   email: string;
   /** Los tipos QUE NO SON TARJETA disponibles para ESTE comprador — el dueño los encendió Y
    *  su cuenta los tiene (§ `metodosPasarelaParaComprador`, `lib/pagos/metodos-pasarela.ts`,
@@ -108,6 +110,7 @@ export default function SelectorMetodoPasarela({
           descriptor={descriptorElegido}
           aceptaciones={aceptaciones}
           reference={reference}
+          email={email}
         />
       ) : null}
     </div>
