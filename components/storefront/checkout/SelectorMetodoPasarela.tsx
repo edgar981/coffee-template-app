@@ -16,6 +16,10 @@ export interface SelectorMetodoPasarelaProps {
   aceptaciones: AceptacionesWompi;
   publicKey: string;
   reference: string;
+  /** El correo que el comprador tecleó en Información — sólo lo usa `FormularioTarjeta` (§
+   *  API-DIRECTA-3DS-SIN-CHALLENGE-1, segundo factor YA CONOCIDO para sondear el estado del
+   *  pago). Los métodos que no son tarjeta no lo necesitan todavía. */
+  email: string;
   /** Los tipos QUE NO SON TARJETA disponibles para ESTE comprador — el dueño los encendió Y
    *  su cuenta los tiene (§ `metodosPasarelaParaComprador`, `lib/pagos/metodos-pasarela.ts`,
    *  calculado por el servidor en el POST de `/api/checkout`). Vacío → sólo tarjeta, sin
@@ -37,7 +41,7 @@ export interface SelectorMetodoPasarelaProps {
  * `DESCRIPTORES_METODO_PASARELA` — un tipo con descriptor nuevo aparece solo.
  */
 export default function SelectorMetodoPasarela({
-  aceptaciones, publicKey, reference, metodosOtros, onMetodoNoHabilitado,
+  aceptaciones, publicKey, reference, email, metodosOtros, onMetodoNoHabilitado,
 }: SelectorMetodoPasarelaProps) {
   const [tipoElegido, setTipoElegido] = useState<string>('tarjeta');
 
@@ -47,6 +51,7 @@ export default function SelectorMetodoPasarela({
         aceptaciones={aceptaciones}
         publicKey={publicKey}
         reference={reference}
+        email={email}
         onMetodoNoHabilitado={onMetodoNoHabilitado}
       />
     );
@@ -92,6 +97,7 @@ export default function SelectorMetodoPasarela({
           aceptaciones={aceptaciones}
           publicKey={publicKey}
           reference={reference}
+          email={email}
           onMetodoNoHabilitado={onMetodoNoHabilitado}
         />
       ) : descriptorElegido ? (

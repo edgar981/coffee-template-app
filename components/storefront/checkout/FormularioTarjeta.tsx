@@ -5,23 +5,37 @@ import {
   numeroTarjetaValido, parseVencimiento, vencimientoVigente, codigoSeguridadValido, nombreTitularValido,
 } from '@/lib/checkout/tarjeta';
 import {
-  tokenizarTarjeta, TokenizacionError, confirmarTransaccionTarjeta, CreacionTransaccionError,
+  tokenizarTarjeta, TokenizacionError, CreacionTransaccionError,
 } from '@/services/checkout.service';
-import type { AceptacionesWompi } from '@/types/payment';
+import type { AceptacionesWompi, ResultadoCreacionTransaccionWompi } from '@/types/payment';
+import { recolectarDatosNavegador3ds, type Resultado3ds } from '@/lib/pagos/tres-ds';
 import AceptacionesPasarela from './AceptacionesPasarela';
+import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
 
 /**
  * El camino de API DIRECTA del pago con tarjeta (§ API-DIRECTA-CAPTURA-TARJETA-1): las dos
  * casillas de aceptación de Wompi + el formulario de tarjeta, tokenizado CONTRA EL PROVEEDOR
  * desde este mismo componente, y la transacción CONFIRMADA contra NUESTRO servidor
- * (§ API-DIRECTA-DESALINEO-CABLEADO-1, `confirmarTransaccionTarjeta`) apenas se obtiene el
- * token. Ocupa la MISMA ranura que `PagoPasarela` (el widget) — nunca se montan los dos a la
- * vez; la elección la hace `pasarelaModoApiDirecta()` en la página (`checkout/page.tsx`).
+ * (§ API-DIRECTA-DESALINEO-CABLEADO-1) apenas se obtiene el token — con la autenticación 3DS
+ * pedida SIEMPRE (§ API-DIRECTA-3DS-SIN-CHALLENGE-1, "no hay interruptor") y, tras crearse la
+ * transacción, la ESPERA con sondeo hasta el estado final (`EsperaConfirmacionTarjeta`, § el
+ * reporte del slice §C/§D). Ocupa la MISMA ranura que `PagoPasarela` (el widget) — nunca se
+ * montan los dos a la vez; la elección la hace `pasarelaModoApiDirecta()` en la página
+ * (`checkout/page.tsx`).
  *
  * LOS DATOS DE LA TARJETA NUNCA SALEN HACIA NUESTRO SERVIDOR: `campos` sólo se lee al armar
  * el body de `tokenizarTarjeta` (que llama directo a Wompi) y nunca se manda a `/api/checkout`
  * ni a ningún otro endpoint propio, ni se registra en consola. Lo único que SÍ viaja a
- * `/api/checkout` es el TOKEN opaco que Wompi ya devolvió, para crear la transacción.
+ * `/api/checkout` es el TOKEN opaco que Wompi ya devolvió (para crear la transacción) y los
+ * DATOS DEL NAVEGADOR que 3DS pide (`recolectarDatosNavegador3ds`, `lib/pagos/tres-ds.ts`) —
+ * entorno del navegador, NUNCA un campo de la tarjeta (§ el reporte del slice, §B).
+ *
+ * LA CONFIRMACIÓN NO PASA POR `confirmarTransaccionTarjeta` (`services/checkout.service.ts`):
+ * ese archivo NO está en `touches:` de este slice, y extender su body/respuesta para 3DS
+ * habría exigido tocarlo. Este componente hace su PROPIO `fetch` al mismo `PATCH /api/checkout`
+ * (`confirmarConAutenticacion3ds`, abajo), reusando `CreacionTransaccionError` (importado, no
+ * redefinido) para la forma del error. `confirmarTransaccionTarjeta` queda SIN llamadores desde
+ * este archivo — anotado como open_followup del reporte del slice, no resuelto acá.
  *
  * SIN SELECTOR DE CUOTAS: se cobra en una — ofrecer cuotas es una decisión de negocio con
  * consecuencias de liquidación que nadie midió y nadie decidió (anotado por el orquestador,
@@ -38,9 +52,14 @@ import AceptacionesPasarela from './AceptacionesPasarela';
 export interface FormularioTarjetaProps {
   aceptaciones: AceptacionesWompi;
   publicKey: string;
-  /** La `reference` del intento YA CREADO (§ el POST de `/api/checkout`) — la misma que
-   *  `confirmarTransaccionTarjeta` necesita para completarlo. */
+  /** La `reference` del intento YA CREADO (§ el POST de `/api/checkout`) — la misma que la
+   *  confirmación necesita para completarlo. */
   reference: string;
+  /** El correo que el comprador tecleó en el paso de Información del checkout (§ el reporte
+   *  del slice, §C) — segundo factor YA CONOCIDO para sondear `/api/checkout/retorno` sin
+   *  volver a pedirlo (a diferencia de `RetornoCliente.tsx`, que lo pide porque llega por una
+   *  URL que un tercero podría leer). */
+  email: string;
   /** El proveedor rechazó la creación porque la cuenta ya no tiene este método habilitado
    *  (§ arriba). La página decide cómo continuar — este componente no lo intenta de nuevo. */
   onMetodoNoHabilitado: () => void;
@@ -69,10 +88,61 @@ const TEXTO = {
   tokenizacionGenerico: 'No pudimos verificar tu tarjeta. Revisa los datos e intenta de nuevo.',
   botonReposo: 'Pagar',
   botonEnVuelo: 'Verificando tarjeta…',
-  tokenObtenido: 'Tu tarjeta quedó verificada. Estamos procesando tu pago…',
 };
 
-export default function FormularioTarjeta({ aceptaciones, publicKey, reference, onMetodoNoHabilitado }: FormularioTarjetaProps) {
+const TEXTO_CREACION_TRANSACCION_GENERICO = 'No pudimos procesar tu pago. Intenta de nuevo o usa otro método.';
+
+/**
+ * ESPEJO de `confirmarTransaccionTarjeta` (`services/checkout.service.ts`,
+ * § API-DIRECTA-DESALINEO-CABLEADO-1) EXTENDIDO con los datos del navegador que 3DS exige y con
+ * la lectura de `autenticacion3ds` de la respuesta — ver el docstring de este componente para
+ * el porqué de la duplicación (esa función no está en `touches:` de este slice). Comparte
+ * `CreacionTransaccionError` (importado, no redefinido) para que `handlePagar` no tenga que
+ * distinguir dos formas de fallo.
+ */
+async function confirmarConAutenticacion3ds(input: {
+  reference: string;
+  tokenTarjeta: string;
+  aceptaciones: { terminos: string; datosPersonales: string };
+  datosNavegador3ds: ReturnType<typeof recolectarDatosNavegador3ds>;
+}): Promise<Resultado3ds> {
+  let res: Response;
+  try {
+    res = await fetch('/api/checkout', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(input),
+    });
+  } catch (e) {
+    throw new CreacionTransaccionError(
+      'otro_fallo',
+      e instanceof Error ? `No pudimos comunicarnos con el servidor: ${e.message}` : TEXTO_CREACION_TRANSACCION_GENERICO,
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    throw new CreacionTransaccionError('otro_fallo', 'El servidor respondió algo que no pudimos leer. Intenta de nuevo.');
+  }
+
+  const resultado = body as Partial<ResultadoCreacionTransaccionWompi> | null;
+  if (resultado?.tipo === 'creada') {
+    return resultado.autenticacion3ds ?? 'desconocido';
+  }
+
+  const tipo: 'metodo_no_habilitado' | 'firma_invalida' | 'otro_fallo' =
+    resultado?.tipo === 'metodo_no_habilitado' || resultado?.tipo === 'firma_invalida'
+      ? resultado.tipo
+      : 'otro_fallo';
+  const mensaje = resultado && 'error' in resultado && typeof resultado.error === 'string'
+    ? resultado.error
+    : TEXTO_CREACION_TRANSACCION_GENERICO;
+  throw new CreacionTransaccionError(tipo, mensaje);
+}
+
+export default function FormularioTarjeta({ aceptaciones, publicKey, reference, email, onMetodoNoHabilitado }: FormularioTarjetaProps) {
   const [terminosMarcado, setTerminosMarcado] = useState(false);
   const [datosMarcado, setDatosMarcado] = useState(false);
   const [campos, setCampos] = useState<CamposTarjeta>(CAMPOS_VACIOS);
@@ -80,8 +150,10 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, reference, 
   const [tokenizando, setTokenizando] = useState(false);
   const [errorTokenizacion, setErrorTokenizacion] = useState<string | null>(null);
   // Presencia = éxito COMPLETO: el token se obtuvo Y la transacción quedó creada en Wompi
-  // (§ API-DIRECTA-DESALINEO-CABLEADO-1) — nunca se pone en `true` sólo por tokenizar.
-  const [tokenObtenido, setTokenObtenido] = useState<string | null>(null);
+  // (§ API-DIRECTA-DESALINEO-CABLEADO-1) — nunca se pone en `true` sólo por tokenizar. Trae la
+  // clasificación de 3DS (§ API-DIRECTA-3DS-SIN-CHALLENGE-1) para que la espera
+  // (`EsperaConfirmacionTarjeta`) sepa qué copy mostrar.
+  const [creada, setCreada] = useState<{ resultado3ds: Resultado3ds } | null>(null);
 
   const aceptado = terminosMarcado && datosMarcado;
 
@@ -123,19 +195,22 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, reference, 
       // El token es OPACO (nunca datos de tarjeta) — recién con él se puede confirmar la
       // transacción contra NUESTRO servidor (§ API-DIRECTA-DESALINEO-CABLEADO-1). Las DOS
       // aceptaciones que el comprador ya marcó viajan de nuevo, tal cual las vio (no son
-      // secretas: § `FormularioTarjetaProps`).
-      await confirmarTransaccionTarjeta({
+      // secretas: § `FormularioTarjetaProps`) — junto con los DATOS DEL NAVEGADOR que 3DS pide
+      // SIEMPRE (§ API-DIRECTA-3DS-SIN-CHALLENGE-1, "no hay interruptor"; nunca un dato de la
+      // tarjeta — § el docstring de `recolectarDatosNavegador3ds`, `lib/pagos/tres-ds.ts`).
+      const resultado3ds = await confirmarConAutenticacion3ds({
         reference,
         tokenTarjeta: token,
         aceptaciones: {
           terminos:        aceptaciones.terminos.token,
           datosPersonales: aceptaciones.datosPersonales.token,
         },
+        datosNavegador3ds: recolectarDatosNavegador3ds(),
       });
       // SI CUALQUIERA DE LAS DOS LLAMADAS FALLA, el comprador se queda EN ESTE FORMULARIO con
       // el error a la vista — no hay redirección, no hay pantalla nueva, y nada más se crea.
       // La ÚNICA excepción es el rechazo ESTRUCTURAL de abajo, que no vuelve a este formulario.
-      setTokenObtenido(token);
+      setCreada({ resultado3ds });
     } catch (e) {
       if (e instanceof CreacionTransaccionError && e.tipo === 'metodo_no_habilitado') {
         // El proveedor YA RECHAZÓ el método para esta cuenta — no es la tarjeta que se
@@ -154,10 +229,10 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, reference, 
     }
   };
 
-  if (tokenObtenido) {
+  if (creada) {
     return (
-      <div className="bg-[var(--sf-superficie)] rounded-xl p-4 text-sm text-[var(--sf-texto)] text-center">
-        {TEXTO.tokenObtenido}
+      <div className="bg-[var(--sf-superficie)] rounded-xl p-4">
+        <EsperaConfirmacionTarjeta reference={reference} email={email} resultado3ds={creada.resultado3ds} />
       </div>
     );
   }

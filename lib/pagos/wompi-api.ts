@@ -30,6 +30,19 @@ export interface TransaccionWompi {
   id: string;
   status: string;
   amount_in_cents: number;
+  /** Presente SÓLO para tarjeta con 3DS pedido (§ API-DIRECTA-3DS-SIN-CHALLENGE-1) — el
+   *  sub-objeto que `clasificarAutenticacion3ds` (`lib/pagos/tres-ds.ts`) lee para distinguir
+   *  el camino SIN FRICCIÓN del de DESAFÍO. Opcional: `esTransaccionWompi` no lo exige, así que
+   *  su ausencia no invalida una transacción que no pidió 3DS. NO MEDIDO CONTRA EL SANDBOX —
+   *  ver la cabecera de `lib/pagos/tres-ds.ts`. */
+  payment_method?: {
+    extra?: {
+      three_ds_auth?: {
+        current_step?: string;
+        current_step_status?: string;
+      };
+    };
+  };
 }
 
 export class WompiApiError extends Error {
@@ -300,7 +313,13 @@ export async function consultarAceptaciones(
  *  acá— más los dos tokens de aceptación que el comprador marcó
  *  (§ API-DIRECTA-ACEPTACIONES-SERVIDOR-1) y el `payment_method` YA ARMADO para el método
  *  elegido (§ API-DIRECTA-ENVIO-GENERICO-1) — tarjeta u cualquier otro tipo del registro de
- *  `lib/pagos/metodos-pasarela.ts`, este módulo no distingue cuál. */
+ *  `lib/pagos/metodos-pasarela.ts`, este módulo no distingue cuál.
+ *
+ *  `threeDsAuth` es OPCIONAL a este nivel —lo trae SIEMPRE `construirDatosCreacionTransaccionTarjeta`
+ *  (tarjeta, § API-DIRECTA-3DS-SIN-CHALLENGE-1, "se pide siempre, no hay interruptor") y NUNCA
+ *  `construirDatosCreacionTransaccion` (los métodos que no son tarjeta, fuera del alcance de ese
+ *  slice) — la garantía de "siempre para tarjeta" vive en la firma de esa función constructora,
+ *  no acá. */
 export interface DatosCreacionTransaccion {
   reference: string;
   amountInCents: number;
@@ -309,6 +328,7 @@ export interface DatosCreacionTransaccion {
   paymentMethod: Record<string, unknown>;
   acceptanceToken: string;
   acceptPersonalAuthToken: string;
+  threeDsAuth?: Record<string, unknown>;
 }
 
 /** El status HTTP + el cuerpo TAL CUAL de Wompi — sin interpretar. La interpretación es de
@@ -353,6 +373,10 @@ export async function crearTransaccion(
         signature:            datos.signature,
         reference:            datos.reference,
         payment_method:       datos.paymentMethod,
+        // § API-DIRECTA-3DS-SIN-CHALLENGE-1: ausente para los métodos que no piden 3DS
+        // (todo lo que no es tarjeta, hoy). Nombre de campo NO MEDIDO — ver
+        // `lib/pagos/tres-ds.ts`.
+        ...(datos.threeDsAuth ? { three_ds_auth: datos.threeDsAuth } : {}),
       }),
       signal: controller.signal,
     });

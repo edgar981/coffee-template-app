@@ -15,6 +15,7 @@ import { evaluarAceptaciones } from '@/lib/pagos/aceptaciones';
 import {
   clasificarCreacionTransaccion, construirDatosCreacionTransaccion, construirDatosCreacionTransaccionTarjeta,
 } from '@/lib/pagos/creacion-transaccion';
+import { clasificarAutenticacion3ds } from '@/lib/pagos/tres-ds';
 import { DESCRIPTORES_METODO_PASARELA, metodosPasarelaParaComprador } from '@/lib/pagos/metodos-pasarela';
 import type { AceptacionesWompi } from '@/types/payment';
 import { pasarelaDisponibleEnEsteDespliegue } from '@/services/checkout.service';
@@ -388,10 +389,27 @@ const aceptacionesPatchSchema = z.object({
   datosPersonales: z.string().trim().min(1),
 });
 
+// § API-DIRECTA-3DS-SIN-CHALLENGE-1: los datos del NAVEGADOR del comprador, para que el
+// emisor evalúe el riesgo de la autenticación 3DS — REQUERIDO, no opcional: "se pide siempre
+// para tarjeta, no hay interruptor" (§0 del reporte del slice) se impone acá, en la puerta de
+// entrada, tanto como en la firma de `construirDatosCreacionTransaccionTarjeta`
+// (`lib/pagos/creacion-transaccion.ts`) que lo consume. NINGÚN campo de la tarjeta viaja en
+// este objeto — sólo entorno del navegador (`DatosNavegador3ds`, `lib/pagos/tres-ds.ts`).
+const datosNavegador3dsSchema = z.object({
+  colorDepth: z.number().int().positive(),
+  javaEnabled: z.boolean(),
+  language: z.string().trim().min(1),
+  screenHeight: z.number().int().positive(),
+  screenWidth: z.number().int().positive(),
+  timezoneOffsetMin: z.number().int(),
+  userAgent: z.string().trim().min(1),
+});
+
 const crearTransaccionTarjetaSchema = z.object({
   reference:    z.string().trim().min(1),
   tokenTarjeta: z.string().trim().min(1),
   aceptaciones: aceptacionesPatchSchema,
+  datosNavegador3ds: datosNavegador3dsSchema,
 });
 
 // § API-DIRECTA-OTROS-METODOS-1: el camino QUE NO ES TARJETA — el MISMO `reference` +
@@ -501,7 +519,7 @@ export async function PATCH(req: NextRequest) {
         DESCRIPTORES_METODO_PASARELA[parsed.data.metodoPasarela.tipo],
         parsed.data.metodoPasarela.dato,
       )
-    : construirDatosCreacionTransaccionTarjeta(comunes, parsed.data.tokenTarjeta);
+    : construirDatosCreacionTransaccionTarjeta(comunes, parsed.data.tokenTarjeta, parsed.data.datosNavegador3ds);
 
   let respuestaCruda: Awaited<ReturnType<typeof crearTransaccion>>;
   try {
@@ -524,8 +542,19 @@ export async function PATCH(req: NextRequest) {
   // un segundo camino de limpieza que pueda desincronizarse de esa decisión.
   switch (resultado.tipo) {
     case 'creada':
+      // § API-DIRECTA-3DS-SIN-CHALLENGE-1: clasifica la transacción YA CREADA para distinguir
+      // el camino SIN FRICCIÓN (que el cliente sondea hasta el estado final, § el reporte del
+      // slice §C) del de DESAFÍO (detectado, no resuelto — el cliente lo declara al comprador
+      // sin inventar una pantalla de challenge). `resultado.transaccion` trae `payment_method`
+      // TAL CUAL vino de Wompi (§ `esTransaccionWompi`, `lib/pagos/wompi-api.ts`, no valida ese
+      // campo, sólo lo deja pasar).
       return NextResponse.json(
-        { tipo: 'creada', id: resultado.transaccion.id, status: resultado.transaccion.status },
+        {
+          tipo: 'creada',
+          id: resultado.transaccion.id,
+          status: resultado.transaccion.status,
+          autenticacion3ds: clasificarAutenticacion3ds(resultado.transaccion),
+        },
         { status: 201 },
       );
     case 'metodo_no_habilitado':

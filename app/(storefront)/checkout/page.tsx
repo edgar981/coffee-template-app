@@ -254,6 +254,7 @@ export default function Checkout() {
               aceptaciones={confirmation.wompi.aceptaciones}
               publicKey={confirmation.wompi.publicKey}
               reference={confirmation.wompi.reference}
+              email={info.email}
               metodosOtros={metodosPasarelaOtrosDe(confirmation.wompi)}
               onMetodoNoHabilitado={handleMetodoNoHabilitado}
             />

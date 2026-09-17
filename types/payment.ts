@@ -138,15 +138,25 @@ export interface TokenTarjetaWompi {
 // El resultado clasificado que devuelve `PATCH /api/checkout` al crear la transacción de
 // tarjeta por API directa (§ API-DIRECTA-CREACION-TRANSACCION-1) — la forma DE RED (JSON) del
 // mismo discriminador que `lib/pagos/creacion-transaccion.ts` clasifica del lado del servidor.
-// El cableado del cliente que consume esto (`FormularioTarjeta.tsx`, un slice futuro) no tiene
-// que reinventar los cuatro casos. `error` es el texto PROVISIONAL para el comprador —
+// El cableado del cliente que consume esto (`FormularioTarjeta.tsx`) no tiene que reinventar
+// los cuatro casos. `error` es el texto PROVISIONAL para el comprador —
 // pendiente de copy del owner, igual que el resto de los mensajes nuevos de este programa—;
 // las tres ramas de fallo comparten forma a propósito, porque el cliente no necesita
 // distinguirlas para decidir qué mostrar (todas terminan en "no se pudo, intenta de nuevo o
 // usa otro método"); lo que SÍ distingue es `tipo`, por si un consumidor futuro quisiera
 // tratarlas distinto (p. ej. loguear métricas separadas).
+//
+// `autenticacion3ds` (§ API-DIRECTA-3DS-SIN-CHALLENGE-1) SÓLO va en la rama `'creada'`: es la
+// clasificación de `clasificarAutenticacion3ds` (`lib/pagos/tres-ds.ts`) sobre la transacción
+// YA CREADA — 'sin_friccion' (el emisor autenticó sin pedirle nada al comprador, el ÚNICO
+// camino que este slice resuelve), 'desafio' (el emisor pide un paso adicional — detectado,
+// NO resuelto; punto de extensión para el slice del desafío, ver `FormularioTarjeta.tsx`) o
+// 'desconocido' (el proveedor no trajo el dato — nunca se inventa un veredicto). Es un ESPEJO
+// A MANO de `Resultado3ds` (`lib/pagos/tres-ds.ts`) y no un `import type` de ese módulo —
+// mismo criterio que `MetodoPago` arriba: este archivo alimenta también la UI, y la forma DE
+// RED se declara acá, no se hereda del tipo interno del servidor.
 export type ResultadoCreacionTransaccionWompi =
-  | { tipo: 'creada'; id: string; status: string }
+  | { tipo: 'creada'; id: string; status: string; autenticacion3ds: 'sin_friccion' | 'desafio' | 'desconocido' }
   | { tipo: 'metodo_no_habilitado'; error: string }
   | { tipo: 'firma_invalida'; error: string }
   | { tipo: 'otro_fallo'; error: string };

@@ -1,6 +1,8 @@
 import type { DatosCreacionTransaccion, RespuestaCrudaTransaccion, TransaccionWompi } from './wompi-api';
 import { esTransaccionWompi } from './wompi-api';
 import type { DescriptorMetodoPasarela } from './metodos-pasarela';
+import type { DatosNavegador3ds } from './tres-ds';
+import { construirPayloadNavegador3ds } from './tres-ds';
 
 // ── LA CLASIFICACIÓN DE LA RESPUESTA DE CREAR LA TRANSACCIÓN — pura, sin red ────────────────
 //
@@ -179,13 +181,20 @@ export function construirDatosCreacionTransaccion(
  * sólo lo envuelve en la forma de `payment_method` que Wompi espera — la MISMA forma que
  * `crearTransaccionTarjeta` armaba inline antes de generalizarse (§ API-DIRECTA-ENVIO-
  * GENERICO-1).
+ *
+ * `datosNavegador3ds` ES UN PARÁMETRO REQUERIDO, no opcional (§ API-DIRECTA-3DS-SIN-CHALLENGE-1,
+ * §0: "SE PIDE SIEMPRE PARA TARJETA. NO HAY INTERRUPTOR") — es estructuralmente imposible
+ * armar los datos de una transacción de tarjeta SIN pedir 3DS: la firma de esta función es la
+ * garantía, no una convención que un llamador pudiera olvidar.
  */
 export function construirDatosCreacionTransaccionTarjeta(
   comunes: DatosComunesCreacionTransaccion,
   tokenTarjeta: string,
+  datosNavegador3ds: DatosNavegador3ds,
 ): DatosCreacionTransaccion {
   return {
     ...comunes,
     paymentMethod: { type: 'CARD', installments: 1, token: tokenTarjeta },
+    threeDsAuth: construirPayloadNavegador3ds(datosNavegador3ds),
   };
 }

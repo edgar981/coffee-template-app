@@ -4,6 +4,20 @@ import {
   clasificarCreacionTransaccion, construirDatosCreacionTransaccion, construirDatosCreacionTransaccionTarjeta,
 } from './creacion-transaccion';
 import { DESCRIPTOR_NEQUI } from './metodos-pasarela';
+import type { DatosNavegador3ds } from './tres-ds';
+
+// Datos de navegador de PRUEBA (§ API-DIRECTA-3DS-SIN-CHALLENGE-1) — `construirDatosCreacionTransaccionTarjeta`
+// los exige SIEMPRE (parámetro requerido, no opcional): no hay forma de armar los datos de una
+// transacción de tarjeta sin pedir 3DS.
+const NAVEGADOR_DE_PRUEBA: DatosNavegador3ds = {
+  colorDepth: 24,
+  javaEnabled: false,
+  language: 'es-CO',
+  screenHeight: 900,
+  screenWidth: 1440,
+  timezoneOffsetMin: 300,
+  userAgent: 'Mozilla/5.0 (test)',
+};
 
 // Las cuatro ramas, con la forma real de respuesta transcrita del libro
 // (§ API-DIRECTA-SPIKES-ASIENTO-1, DECISIONS.md — medido contra el sandbox real, NO
@@ -206,7 +220,8 @@ test('construirDatosCreacionTransaccion: el paymentMethod viene EXCLUSIVAMENTE d
 });
 
 // ── `construirDatosCreacionTransaccionTarjeta` — LA MISMA FORMA, PARA EL MÉTODO QUE NO VIVE
-// EN EL REGISTRO (§ API-DIRECTA-ENVIO-GENERICO-1) ───────────────────────────────────────────
+// EN EL REGISTRO (§ API-DIRECTA-ENVIO-GENERICO-1), MÁS 3DS SIEMPRE (§ API-DIRECTA-3DS-SIN-
+// CHALLENGE-1) ─────────────────────────────────────────────────────────────────────────────
 
 test('construirDatosCreacionTransaccionTarjeta: arma el mismo payment_method que crearTransaccionTarjeta armaba antes de generalizarse', () => {
   const datos = construirDatosCreacionTransaccionTarjeta(
@@ -219,6 +234,7 @@ test('construirDatosCreacionTransaccionTarjeta: arma el mismo payment_method que
       acceptPersonalAuthToken:  'token-datos',
     },
     'tok_test_card_abc123',
+    NAVEGADOR_DE_PRUEBA,
   );
   assert.deepEqual(datos, {
     reference:               'CN-100003:xyz789',
@@ -228,18 +244,52 @@ test('construirDatosCreacionTransaccionTarjeta: arma el mismo payment_method que
     acceptanceToken:          'token-terminos',
     acceptPersonalAuthToken:  'token-datos',
     paymentMethod:            { type: 'CARD', installments: 1, token: 'tok_test_card_abc123' },
+    threeDsAuth: {
+      browser_color_depth:   '24',
+      browser_java_enabled:  false,
+      browser_language:      'es-CO',
+      browser_screen_height: 900,
+      browser_screen_width:  1440,
+      browser_tz:            300,
+      browser_user_agent:    'Mozilla/5.0 (test)',
+    },
   });
 });
 
-test('construirDatosCreacionTransaccionTarjeta y construirDatosCreacionTransaccion producen la MISMA forma de datos, distinto sólo en paymentMethod', () => {
+test('construirDatosCreacionTransaccionTarjeta: SIEMPRE incluye threeDsAuth — no hay forma de omitirlo (§0, "no hay interruptor")', () => {
   const comunes = {
     reference: 'r', amountInCents: 1, currency: 'COP', signature: 's',
     acceptanceToken: 'a', acceptPersonalAuthToken: 'b',
   };
-  const tarjeta = construirDatosCreacionTransaccionTarjeta(comunes, 'tok_1');
+  const datos = construirDatosCreacionTransaccionTarjeta(comunes, 'tok_x', NAVEGADOR_DE_PRUEBA);
+  assert.ok(datos.threeDsAuth, 'threeDsAuth debe estar presente en TODA transacción de tarjeta');
+  assert.ok(Object.keys(datos.threeDsAuth).length > 0);
+});
+
+test('construirDatosCreacionTransaccionTarjeta: threeDsAuth NUNCA lleva un campo de la tarjeta — sólo los del navegador', () => {
+  const comunes = {
+    reference: 'r', amountInCents: 1, currency: 'COP', signature: 's',
+    acceptanceToken: 'a', acceptPersonalAuthToken: 'b',
+  };
+  const datos = construirDatosCreacionTransaccionTarjeta(comunes, 'tok_secreto_de_la_tarjeta', NAVEGADOR_DE_PRUEBA);
+  const claves = Object.keys(datos.threeDsAuth ?? {});
+  for (const clave of claves) {
+    assert.doesNotMatch(clave, /card|token|numero|cvv|cvc|exp_/i);
+  }
+  assert.deepEqual(JSON.stringify(datos.threeDsAuth).includes('tok_secreto_de_la_tarjeta'), false);
+});
+
+test('construirDatosCreacionTransaccionTarjeta y construirDatosCreacionTransaccion producen la MISMA forma de datos salvo paymentMethod y threeDsAuth (que sólo tarjeta lleva)', () => {
+  const comunes = {
+    reference: 'r', amountInCents: 1, currency: 'COP', signature: 's',
+    acceptanceToken: 'a', acceptPersonalAuthToken: 'b',
+  };
+  const tarjeta = construirDatosCreacionTransaccionTarjeta(comunes, 'tok_1', NAVEGADOR_DE_PRUEBA);
   const nequi = construirDatosCreacionTransaccion(comunes, DESCRIPTOR_NEQUI, '3001234567');
-  const { paymentMethod: pmTarjeta, ...restoTarjeta } = tarjeta;
+  const { paymentMethod: pmTarjeta, threeDsAuth, ...restoTarjeta } = tarjeta;
   const { paymentMethod: pmNequi, ...restoNequi } = nequi;
   assert.deepEqual(restoTarjeta, restoNequi);
   assert.notDeepEqual(pmTarjeta, pmNequi);
+  assert.ok(threeDsAuth);
+  assert.equal((nequi as { threeDsAuth?: unknown }).threeDsAuth, undefined);
 });
