@@ -239,17 +239,15 @@ function renderPasarelaSoloLectura(guardado: string[]) {
 
 // Los TRES estados que NO se pueden encender (§ PANEL-FILTRA-IMPLEMENTADOS-1) comparten forma
 // —nombre + explicación, y "Quitar" SOLO si el tipo sigue en lo guardado— y sólo difieren en el
-// TEXTO. Los dos textos nuevos son del OWNER (2026-09-17), textuales, no se reescriben.
+// TEXTO. Los textos son del OWNER. `no_cobrable` PERDIÓ su párrafo de detalle
+// (§ CHECKOUT-COPY-Y-ORDEN-PASARELA-1, 2026-09-17): queda sólo el título, sin la frase de abajo.
 const EXPLICACION_NO_ENCENDIBLE: Record<
   Exclude<EstadoMetodoPasarela, 'disponible' | 'disponible_no_ofrecido'>,
   { titulo: string; detalle?: string }
 > = {
   guardado_no_disponible: { titulo: 'Ya no está disponible en tu cuenta.' },
   no_implementado:        { titulo: 'Disponible pronto' },
-  no_cobrable: {
-    titulo: 'No disponible para cobrar',
-    detalle: 'Tu cuenta lo tiene habilitado, pero la pasarela no permite cobrar con este método.',
-  },
+  no_cobrable:            { titulo: 'No disponible para cobrar' },
 };
 
 // EDICIÓN, cuenta 'ok': un checkbox por método ENCENDIBLE (la cuenta lo tiene, el checkout sabe

@@ -12,7 +12,7 @@ import {
 } from "@/services/checkout.service";
 import PagoPasarela from '@/components/storefront/checkout/PagoPasarela';
 import SelectorMetodoPasarela from '@/components/storefront/checkout/SelectorMetodoPasarela';
-import { etiquetaMetodoPasarela } from '@/lib/pagos/aceptaciones';
+import { ETIQUETA_PAGO_PASARELA, subtituloPagoPasarela } from '@/lib/pagos/metodos-pasarela';
 import { formatCOP } from '@duna/core/utils';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -486,7 +486,7 @@ export default function Checkout() {
                           hacía setStep(0) sobre el paso 0 — un botón activo que no hacía nada
                           (§ CHECKOUT-BOTON-ATRAS-MUERTO-1). El botón que queda ocupa el ancho
                           completo con flex-1: es la única acción del paso. */}
-                      <button onClick={() => setStep(1)} disabled={!address.linea1 || !address.ciudad || !address.departamento || !phoneValid || (isBogota && !slot)} className="flex-1 bg-[var(--sf-tinta)] disabled:opacity-40 text-[var(--sf-sobre)] font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)]">Continuar al pago</button>
+                      <button onClick={() => setStep(1)} disabled={!address.linea1 || !address.ciudad || !address.departamento || !phoneValid || (isBogota && !slot)} className="flex-1 bg-[var(--sf-tinta)] disabled:opacity-40 disabled:pointer-events-none text-[var(--sf-sobre)] font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)]">Continuar al pago</button>
                     </div>
                   </div>
                   </div>
@@ -573,21 +573,19 @@ export default function Checkout() {
                               {/* La opción SÓLO se ofrece cuando el bloque de aceptación se consiguió
                                   (`pasarelaOfrecida`, § CHECKOUT-UNA-SOLA-PANTALLA-1 — "si las dos completas
                                   no se consiguen, la opción de pasarela no se ofrece"), no sólo por el
-                                  interruptor de despliegue. El LABEL en modo API DIRECTA se GENERA desde los
-                                  tipos que el servidor ya calculó (`etiquetaMetodoPasarela`, `lib/pagos/
-                                  aceptaciones.ts`) — nunca un texto fijo que mienta cuando la cuenta ofrece
-                                  más que tarjeta. TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER, las dos
-                                  ramas (ver el reporte del slice). */}
+                                  interruptor de despliegue. § CHECKOUT-COPY-Y-ORDEN-PASARELA-1: LA ETIQUETA
+                                  ES FIJA para las dos ramas (API directa y widget) — generarla desde
+                                  `metodosOtros` colisionaba con un método MANUAL que comparte nombre (dos
+                                  radios de "Nequi" uno debajo del otro). El SUBTÍTULO sí se genera
+                                  (`subtituloPagoPasarela`, `lib/pagos/metodos-pasarela.ts`) y su cola nombra
+                                  el eje real: QUIÉN CONFIRMA (instantáneo, nunca el equipo). TEXTO DEL OWNER
+                                  (2026-09-17) — ya no provisional. */}
                               {pasarelaOfrecida && bloquePasarela && (
                                 <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${pasarelaSeleccionada ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
                                   <input type="radio" name="payment" checked={pasarelaSeleccionada} onChange={() => setPasarelaSeleccionada(true)} className="mt-0.5 accent-[var(--sf-acento)]" />
                                   <div>
-                                    <p className="text-sm font-semibold text-[var(--sf-tinta)]">
-                                      {modoApiDirecta ? etiquetaMetodoPasarela(bloquePasarela.metodosOtros) : 'Tarjeta, PSE y más'}
-                                    </p>
-                                    <p className="text-xs text-[var(--sf-texto-suave)]">
-                                      {modoApiDirecta ? 'Paga con tu tarjeta de forma segura.' : 'Paga en línea de forma segura.'}
-                                    </p>
+                                    <p className="text-sm font-semibold text-[var(--sf-tinta)]">{ETIQUETA_PAGO_PASARELA}</p>
+                                    <p className="text-xs text-[var(--sf-texto-suave)]">{subtituloPagoPasarela(bloquePasarela.metodosOtros)}</p>
                                   </div>
                                 </label>
                               )}
@@ -635,7 +633,7 @@ export default function Checkout() {
                             medias cuando falta un canal o cambia el camino de pago. */}
                         <span>
                           {pasarelaSeleccionada
-                            ? 'Tu información está segura. El pago se confirma automáticamente al completarse y tu pedido pasa a preparación sin que nuestro equipo tenga que revisarlo.'
+                            ? 'Tu información está segura. El pago se confirma automáticamente y tu pedido pasa a preparación.'
                             : tieneWhatsapp
                               ? 'Tu información está segura. Nuestro equipo confirmará el pago por WhatsApp y procesará tu pedido lo más pronto posible.'
                               : 'Tu información está segura. Nuestro equipo confirmará el pago y procesará tu pedido lo más pronto posible.'}
@@ -653,7 +651,7 @@ export default function Checkout() {
                       ) : (
                         <div className="flex gap-3">
                           <button onClick={() => setStep(0)} className="flex-1 sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)]">Atrás</button>
-                          <button onClick={handleOrder} disabled={loading || (availablePayments.length === 0 && !pasarelaOfrecida)} className="flex-1 bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors">
+                          <button onClick={handleOrder} disabled={loading || (availablePayments.length === 0 && !pasarelaOfrecida)} className="flex-1 bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 disabled:pointer-events-none text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors">
                             {loading ? 'Procesando...' : `Confirmar pedido · ${formatCOP(total)}`}
                           </button>
                         </div>

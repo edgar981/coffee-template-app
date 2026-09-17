@@ -170,15 +170,10 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
   }
 
   return (
+    // § CHECKOUT-COPY-Y-ORDEN-PASARELA-1: EL ORDEN ES campos del método → ACEPTACIONES →
+    // botón Pagar — mismo cambio que `FormularioTarjeta`, misma razón (las dos casillas van
+    // justo encima del botón, donde se leen antes de apretar).
     <div className="space-y-4 text-left">
-      <AceptacionesPasarela
-        aceptaciones={aceptaciones}
-        terminosMarcado={terminosMarcado}
-        datosMarcado={datosMarcado}
-        onTerminosChange={setTerminosMarcado}
-        onDatosChange={setDatosMarcado}
-      />
-
       <div>
         <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">{campo.rotulo}</label>
         <input
@@ -195,6 +190,14 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
         {errorDato && <p className="mt-1 text-xs text-red-600">{errorDato}</p>}
       </div>
 
+      <AceptacionesPasarela
+        aceptaciones={aceptaciones}
+        terminosMarcado={terminosMarcado}
+        datosMarcado={datosMarcado}
+        onTerminosChange={setTerminosMarcado}
+        onDatosChange={setDatosMarcado}
+      />
+
       {errorServidor && (
         <p className="text-xs text-red-600">{errorServidor}</p>
       )}
@@ -203,7 +206,7 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
         type="button"
         onClick={handlePagar}
         disabled={!aceptado || enVuelo}
-        className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors"
+        className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 disabled:pointer-events-none text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors"
       >
         {enVuelo ? TEXTO.botonEnVuelo : `Pagar · ${formatCOP(monto)}`}
       </button>

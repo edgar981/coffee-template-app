@@ -5,6 +5,7 @@ import {
   checkoutSabeDibujar, TIPOS_NO_COBRABLES, esNoCobrable, paraElPanel,
   camposVisibles, esAmbientePruebasPorLlave, urlDeRedireccion, conCampoLegacy,
   agruparMetodosPasarelaPorInstrumento, ORDEN_GRUPOS_METODO_PASARELA,
+  ETIQUETA_PAGO_PASARELA, subtituloPagoPasarela,
   type DescriptorMetodoPasarela, type CampoMetodoPasarela,
   type CampoTextoLibre, type CampoEleccionCerrada, type CampoConsultaExterna,
 } from './metodos-pasarela';
@@ -644,4 +645,51 @@ test('agruparMetodosPasarelaPorInstrumento: el ORDEN de los grupos es el CANÓNI
     ORDEN_GRUPOS_METODO_PASARELA.filter((g) => g !== 'tarjeta'),
     ['debito_bancario', 'billeteras', 'financiacion_puntos'],
   );
+});
+
+// ── EL RADIO DE "PAGO EN LÍNEA" (§ CHECKOUT-COPY-Y-ORDEN-PASARELA-1) — etiqueta FIJA, subtítulo
+// GENERADO ───────────────────────────────────────────────────────────────────────────────────
+
+test('ETIQUETA_PAGO_PASARELA: es "Pago en línea", fija — no un valor derivado', () => {
+  assert.equal(ETIQUETA_PAGO_PASARELA, 'Pago en línea');
+});
+
+test('subtituloPagoPasarela: sin métodos adicionales → sólo tarjeta, sin "y más"', () => {
+  assert.equal(subtituloPagoPasarela([]), 'Tarjeta · se confirma al instante');
+});
+
+test('subtituloPagoPasarela: con UN método adicional del registro real (NEQUI) → lo nombra y cierra con "y más"', () => {
+  assert.equal(subtituloPagoPasarela(['NEQUI']), 'Tarjeta, Nequi y más · se confirma al instante');
+});
+
+test('subtituloPagoPasarela: con VARIOS métodos (registro sintético de dos entradas) → los enumera todos antes de "y más"', () => {
+  const registroDeDos: Record<string, DescriptorMetodoPasarela> = {
+    ...DESCRIPTORES_METODO_PASARELA,
+    DAVIPLATA_X: { ...DESCRIPTOR_NEQUI, tipo: 'DAVIPLATA_X', nombreVisible: 'Daviplata' },
+  };
+  assert.equal(
+    subtituloPagoPasarela(['NEQUI', 'DAVIPLATA_X'], registroDeDos),
+    'Tarjeta, Nequi, Daviplata y más · se confirma al instante',
+  );
+});
+
+test('subtituloPagoPasarela: un tipo SIN descriptor en el registro se omite en silencio, nunca revienta', () => {
+  assert.equal(subtituloPagoPasarela(['PSE']), 'Tarjeta · se confirma al instante');
+  assert.equal(subtituloPagoPasarela(['NEQUI', 'PSE']), 'Tarjeta, Nequi y más · se confirma al instante');
+});
+
+test('subtituloPagoPasarela: la cola "· se confirma al instante" CIERRA SIEMPRE, pocos métodos o muchos', () => {
+  const registroDeCuatro: Record<string, DescriptorMetodoPasarela> = {
+    ...DESCRIPTORES_METODO_PASARELA,
+    B: { ...DESCRIPTOR_NEQUI, tipo: 'B', nombreVisible: 'B' },
+    C: { ...DESCRIPTOR_NEQUI, tipo: 'C', nombreVisible: 'C' },
+    D: { ...DESCRIPTOR_NEQUI, tipo: 'D', nombreVisible: 'D' },
+  };
+  for (const metodosOtros of [[], ['NEQUI'], ['NEQUI', 'B'], ['NEQUI', 'B', 'C', 'D']]) {
+    assert.ok(subtituloPagoPasarela(metodosOtros, registroDeCuatro).endsWith('· se confirma al instante'));
+  }
+});
+
+test('subtituloPagoPasarela: nunca menciona el nombre del proveedor', () => {
+  assert.ok(!subtituloPagoPasarela(['NEQUI']).toLowerCase().includes('wompi'));
 });

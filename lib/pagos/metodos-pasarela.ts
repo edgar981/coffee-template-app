@@ -511,3 +511,58 @@ export function agruparMetodosPasarelaPorInstrumento(
     .map((grupo) => ({ grupo, tipos: porGrupo.get(grupo) ?? [] }))
     .filter((g) => g.tipos.length > 0);
 }
+
+// ── EL RADIO DE "PAGO EN LÍNEA" — ETIQUETA FIJA, SUBTÍTULO GENERADO (§ CHECKOUT-COPY-Y-ORDEN-
+//    PASARELA-1) ──────────────────────────────────────────────────────────────────────────────
+//
+// La etiqueta del radio SE GENERABA desde `metodosOtros` (`etiquetaMetodoPasarela`, `lib/pagos/
+// aceptaciones.ts`) y eso COLISIONABA con un método MANUAL que comparte nombre: con NEQUI
+// encendido en los dos lados, la lista de métodos del checkout mostraba "Nequi" (manual,
+// confirmación por el equipo) y "Tarjeta y Nequi" (pasarela, confirmación instantánea) uno
+// debajo del otro — tres vocabularios para la misma pregunta. El owner REEMPLAZA su propia
+// regla anterior (2026-09-17): generar la etiqueta desde los métodos habilitados no funciona
+// cuando un manual comparte nombre con uno de pasarela — el EJE que distingue pasarela de
+// manual es QUIÉN CONFIRMA (instantáneo vs. el equipo confirma), no qué medios hay adentro. Así
+// que la etiqueta pasa a ser FIJA para las dos ramas (API directa y widget); sólo el
+// SUBTÍTULO enumera los métodos, y su cola SIEMPRE nombra el eje real (la confirmación).
+
+/** La etiqueta FIJA del radio de pago por pasarela — nunca se genera, nunca nombra un medio
+ *  puntual (eso es del subtítulo, abajo). Vive junto al resto del copy de este programa, no
+ *  repetida en `checkout/page.tsx`, para que un cambio de texto no tenga que sincronizarse
+ *  entre dos archivos. TEXTO DEL OWNER (2026-09-17, § el spec de este slice) — no provisional. */
+export const ETIQUETA_PAGO_PASARELA = 'Pago en línea';
+
+/**
+ * El SUBTÍTULO del radio de pago por pasarela — la enumeración SÍ se genera desde
+ * `metodosOtros` (los tipos que NO son tarjeta que este comprador puede usar); la cola
+ * "· se confirma al instante" es FIJA y CIERRA SIEMPRE, sea cual sea la enumeración — es el
+ * hecho que distingue esta opción de un método manual (§ la cabecera de esta sección: el eje es
+ * QUIÉN CONFIRMA).
+ *
+ * SIN métodos adicionales: "Tarjeta · se confirma al instante" — no hay nada más que anunciar,
+ * así que no se promete nada de más. CON uno o más: "Tarjeta, {nombres} y más · se confirma al
+ * instante". "Y más" es un CIERRE FIJO de la enumeración, no la última entrada unida con "y"
+ * (`unirNombresConY`, `lib/pagos/aceptaciones.ts`, DELIBERADAMENTE no reusada acá): con un solo
+ * método adicional, "Tarjeta y Nequi y más" repetiría la "y" y leería mal; con varios, "Tarjeta,
+ * Nequi, Daviplata y más" es honesto incluso cuando la enumeración ya es completa — la cuenta
+ * puede tener tipos que el checkout todavía no sabe dibujar (`checkoutSabeDibujar`, arriba), así
+ * que "y más" no promete una lista exhaustiva.
+ *
+ * SIN CAP en la enumeración: hoy el registro real tiene un único descriptor (NEQUI), así que no
+ * hay evidencia de que la lista vaya a crecer sin límite antes de que alguien vuelva a mirar
+ * este copy — si el catálogo crece mucho, acotar la enumeración (p. ej. dos nombres + "y más")
+ * es una decisión de producto aparte, no una que este slice tuviera que anticipar.
+ *
+ * `registro` es inyectable sólo para poder probar con un descriptor sintético, mismo patrón que
+ * `agruparMetodosPasarelaPorInstrumento`/`esNoCobrable` arriba.
+ */
+export function subtituloPagoPasarela(
+  metodosOtros: string[],
+  registro: Record<string, DescriptorMetodoPasarela> = DESCRIPTORES_METODO_PASARELA,
+): string {
+  const nombres = metodosOtros
+    .map((tipo) => registro[tipo]?.nombreVisible)
+    .filter((n): n is string => Boolean(n));
+  const enumeracion = nombres.length === 0 ? 'Tarjeta' : `Tarjeta, ${nombres.join(', ')} y más`;
+  return `${enumeracion} · se confirma al instante`;
+}

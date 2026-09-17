@@ -9,20 +9,26 @@ import {
 } from '@/lib/pagos/metodos-pasarela';
 import type { AceptacionesWompi } from '@/types/payment';
 
-// TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER (§ el reporte del slice). "Tarjeta" es la
-// etiqueta de la opción que ya existía (antes sin picker, § API-DIRECTA-CAPTURA-TARJETA-1); la
-// de cada método adicional sale de `descriptor.nombreVisible` (también provisional, declarado
-// en `lib/pagos/metodos-pasarela.ts`).
-const NOMBRE_TARJETA = 'Tarjeta de crédito o débito';
+// La etiqueta de la pestaña de tarjeta — TEXTO DEL OWNER (§ CHECKOUT-COPY-Y-ORDEN-PASARELA-1,
+// 2026-09-17), ya no provisional. Antes era "Tarjeta de crédito o débito" — el NOMBRE DEL GRUPO,
+// no una pestaña: NUNCA el nombre largo del grupo va en la pestaña, la pestaña es CORTA.
+const NOMBRE_TARJETA = 'Tarjeta';
 
 // El rótulo de cada PESTAÑA — uno por `GrupoMetodoPasarela` (§3 de API-DIRECTA-DECISIONES-
-// PROGRAMA-1, DECISIONS.md; § CHECKOUT-PESTANAS-POR-INSTRUMENTO-1). TEXTO PROVISIONAL,
-// PENDIENTE DE TEXTO DEL OWNER (§ el reporte del slice) — salvo 'tarjeta', que reusa
-// `NOMBRE_TARJETA`, ya provisional desde antes de este slice.
+// PROGRAMA-1, DECISIONS.md; § CHECKOUT-PESTANAS-POR-INSTRUMENTO-1). § CHECKOUT-COPY-Y-ORDEN-
+// PASARELA-1 (2026-09-17) fijó TRES de los cuatro con texto del owner, cortos a propósito
+// (nunca el nombre largo del grupo): 'tarjeta' (reusa `NOMBRE_TARJETA`, arriba), 'billeteras'
+// (ya era corto, sin cambio) y 'debito_bancario' → "Bancos" (reemplaza "Débito bancario" —
+// declarado por adelantado, "cuando entre el que falta": hoy ningún descriptor usa este grupo,
+// así que la pestaña no se dibuja todavía). `financiacion_puntos` QUEDA PROVISIONAL — el owner
+// no lo nombró en este slice (§ el reporte del slice) y, como el grupo anterior, hoy no tiene
+// ningún descriptor que lo dibuje.
 const NOMBRES_PESTANA_PASARELA: Record<GrupoMetodoPasarela, string> = {
   tarjeta: NOMBRE_TARJETA,
-  debito_bancario: 'Débito bancario',
+  debito_bancario: 'Bancos',
   billeteras: 'Billeteras',
+  // TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER (§ el reporte del slice de CHECKOUT-COPY-Y-
+  // ORDEN-PASARELA-1): las otras tres pestañas ya tienen su texto fijo; ésta no se nombró.
   financiacion_puntos: 'Financiación y puntos',
 };
 

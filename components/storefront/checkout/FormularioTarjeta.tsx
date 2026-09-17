@@ -308,15 +308,11 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
   }
 
   return (
+    // § CHECKOUT-COPY-Y-ORDEN-PASARELA-1: EL ORDEN ES campos del método → ACEPTACIONES →
+    // botón Pagar — las dos casillas van JUSTO ENCIMA del botón, que es donde el owner dice que
+    // se leen antes de apretar. Antes las aceptaciones abrían el formulario (entre las pestañas
+    // del selector y estos campos); ahora cierran, pegadas al submit.
     <div className="space-y-4 text-left">
-      <AceptacionesPasarela
-        aceptaciones={aceptaciones}
-        terminosMarcado={terminosMarcado}
-        datosMarcado={datosMarcado}
-        onTerminosChange={setTerminosMarcado}
-        onDatosChange={setDatosMarcado}
-      />
-
       <div className="space-y-3">
         <CampoTarjeta
           label="Número de la tarjeta"
@@ -353,6 +349,14 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
         />
       </div>
 
+      <AceptacionesPasarela
+        aceptaciones={aceptaciones}
+        terminosMarcado={terminosMarcado}
+        datosMarcado={datosMarcado}
+        onTerminosChange={setTerminosMarcado}
+        onDatosChange={setDatosMarcado}
+      />
+
       {errorTokenizacion && (
         <p className="text-xs text-red-600">{errorTokenizacion}</p>
       )}
@@ -361,7 +365,7 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
         type="button"
         onClick={handlePagar}
         disabled={!aceptado || tokenizando}
-        className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors"
+        className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 disabled:pointer-events-none text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors"
       >
         {tokenizando ? TEXTO.botonEnVuelo : `Pagar · ${formatCOP(monto)}`}
       </button>
