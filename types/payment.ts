@@ -110,6 +110,22 @@ export const METODO_DESGLOSE_LABEL: Record<MetodoPago, string> = {
   TRANSFERENCIA: 'Bancaria',
 };
 
+// Lo que el checkout necesita para mostrar las DOS casillas de aceptación de Wompi
+// (§ API-DIRECTA-DECISIONES-PROGRAMA-1 §4, DECISIONS.md: "SON DOS CASILLAS SEPARADAS, NO
+// UNA"). Cada campo es un token de aceptación + el enlace público al documento que describe
+// — nada de secretos: los dos viajan del proveedor al navegador porque la creación de la
+// transacción los necesita en el body, y el enlace es lo que el comprador tiene que poder
+// abrir antes de marcar la casilla.
+export interface AceptacionWompi {
+  token:  string;
+  enlace: string;
+}
+
+export interface AceptacionesWompi {
+  terminos:        AceptacionWompi;
+  datosPersonales: AceptacionWompi;
+}
+
 // A registered payment as returned by the ledger endpoint. `monto` is the order
 // total snapshotted at registration; `order` is a light live snapshot for display.
 export interface Payment {

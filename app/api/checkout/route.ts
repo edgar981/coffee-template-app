@@ -10,7 +10,11 @@ import {
 } from '@duna/core/validation/address';
 import { metodoPagoTipoSchema } from '@/lib/checkout/metodos-pago';
 import { pesosACentavos, firmarIntegridadWompi } from '@/lib/pagos/wompi-firma';
+import { consultarAceptaciones } from '@/lib/pagos/wompi-api';
+import { evaluarAceptaciones } from '@/lib/pagos/aceptaciones';
+import type { AceptacionesWompi } from '@/types/payment';
 import { pasarelaDisponibleEnEsteDespliegue } from '@/services/checkout.service';
+import { esDespliegueDemo } from '@/next.config';
 
 // La moneda del store es COP, sin selector: es lo único que el checkout maneja
 // hoy (formatCOP, Order.total, todo el sistema). No es un valor inventado para
@@ -204,7 +208,9 @@ export async function POST(req: NextRequest) {
   // (d) no existe). Esta rama queda CABLEADA de punta a punta —incluida la llave pública que
   // el widget necesita— para que el día que (d) encienda la capacidad, no haga falta tocar
   // esta respuesta (DECISIONS.md, WOMPI-CREADOR-DE-INTENTOS-1 · WOMPI-WIDGET-EN-EL-CANONICO-1).
-  let wompi: { reference: string; amountInCents: number; currency: string; signature: string; publicKey: string } | undefined;
+  let wompi:
+    | { reference: string; amountInCents: number; currency: string; signature: string; publicKey: string; aceptaciones: AceptacionesWompi }
+    | undefined;
   if (order.paymentIntent) {
     const secretoIntegridad = process.env.WOMPI_INTEGRITY_SECRET;
     const llavePublica = process.env.WOMPI_PUBLIC_KEY;
@@ -217,14 +223,35 @@ export async function POST(req: NextRequest) {
       console.error('[checkout] falta WOMPI_INTEGRITY_SECRET o WOMPI_PUBLIC_KEY — no se puede firmar/mostrar el intento de pago');
       return NextResponse.json({ error: 'No se pudo procesar la orden' }, { status: 500 });
     }
-    const amountInCents = pesosACentavos(order.paymentIntent.monto_esperado);
-    wompi = {
-      reference: order.paymentIntent.reference,
-      amountInCents,
-      currency: MONEDA_WOMPI,
-      signature: firmarIntegridadWompi(order.paymentIntent.reference, amountInCents, MONEDA_WOMPI, secretoIntegridad),
-      publicKey: llavePublica,
-    };
+
+    // ── API-DIRECTA-ACEPTACIONES-SERVIDOR-1: las DOS casillas de aceptación ──────────────
+    // Sin las dos completas —token Y enlace, las dos aceptaciones— la transacción NO SE
+    // PUEDE CREAR en el proveedor (§ API-DIRECTA-DECISIONES-PROGRAMA-1 §4, DECISIONS.md),
+    // así que ofrecer el pago y fallar después es peor que no ofrecerlo: el bloque `wompi`
+    // entero queda AUSENTE de la respuesta, nunca a medias — el comprador no ve la causa,
+    // sólo deja de ver la opción de pagar en línea; el porqué queda en el log del servidor.
+    const baseUrlPasarela = esDespliegueDemo() ? 'https://sandbox.wompi.co' : 'https://production.wompi.co';
+    let aceptaciones: AceptacionesWompi | null = null;
+    try {
+      aceptaciones = evaluarAceptaciones(await consultarAceptaciones(llavePublica, baseUrlPasarela));
+      if (!aceptaciones) {
+        console.error('[checkout] las aceptaciones de Wompi llegaron incompletas (falta un token o un enlace) — se omite el bloque de pasarela');
+      }
+    } catch (e) {
+      console.error('[checkout] no se pudo consultar las aceptaciones de Wompi — se omite el bloque de pasarela:', e);
+    }
+
+    if (aceptaciones) {
+      const amountInCents = pesosACentavos(order.paymentIntent.monto_esperado);
+      wompi = {
+        reference: order.paymentIntent.reference,
+        amountInCents,
+        currency: MONEDA_WOMPI,
+        signature: firmarIntegridadWompi(order.paymentIntent.reference, amountInCents, MONEDA_WOMPI, secretoIntegridad),
+        publicKey: llavePublica,
+        aceptaciones,
+      };
+    }
   }
 
   // Campana del operador: entró una orden que nadie tecleó. Post-commit y
@@ -259,8 +286,9 @@ export async function POST(req: NextRequest) {
         precio_unitario: l.precio_unitario,
         subtotal:        l.subtotal,
       })),
-      // Ausente cuando no se creó ningún intento — byte-idéntico a antes de este
-      // slice (spread de `{}`, ninguna clave nueva, ningún `null` de relleno).
+      // Ausente cuando no se creó ningún intento, O cuando las dos aceptaciones no
+      // llegaron completas (§ API-DIRECTA-ACEPTACIONES-SERVIDOR-1, arriba) — en los
+      // dos casos, spread de `{}`, ninguna clave nueva, ningún `null` de relleno.
       ...(wompi ? { wompi } : {}),
     },
     { status: 201 },

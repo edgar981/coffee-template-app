@@ -24,6 +24,8 @@
 // acá sólo se devuelve el array tal cual llega, filtrado a la forma mínima
 // que hace falta leer.
 
+import type { AceptacionCruda, AceptacionesCrudas } from './aceptaciones';
+
 export interface TransaccionWompi {
   id: string;
   status: string;
@@ -109,25 +111,66 @@ export async function consultarTransaccionesPorReferencia(
   return data.filter(esTransaccionWompi);
 }
 
-// ── EL PANEL DE MÉTODOS (§ API-DIRECTA-PANEL-METODOS-1) ──────────────────────
+// ── EL PANEL DE MÉTODOS (§ API-DIRECTA-PANEL-METODOS-1) Y LAS DOS ACEPTACIONES
+//    (§ API-DIRECTA-ACEPTACIONES-SERVIDOR-1) ──────────────────────────────────
 //
 // `GET /v1/merchants/info` — el endpoint NUEVO del comercio (el viejo, con la
 // llave en la URL, muere el 31 de octubre de 2026). Medido contra el sandbox
 // real (`API-DIRECTA-SPIKES-ASIENTO-1`, DECISIONS.md): responde `200` y trae
-// `accepted_payment_methods`, la lista de tipos que la cuenta tiene REALMENTE
-// habilitados — no un catálogo escrito en este código.
+// `accepted_payment_methods` —la lista de tipos que la cuenta tiene REALMENTE
+// habilitados— Y los DOS tokens de aceptación, en la MISMA respuesta.
 //
 // LA LLAVE VA POR CABECERA, `x-merchant-public-key`, y es la PÚBLICA — no la
 // privada de `consultarTransaccionesPorReferencia` de arriba. Tampoco se lee de
 // `process.env` acá (mismo principio que el resto del módulo): la recibe el
 // llamador.
 //
+// `fetchInfoComercio` es el fetch COMPARTIDO por `consultarMetodosAceptados` y
+// `consultarAceptaciones`: las dos leen la MISMA respuesta del comercio, así
+// que extraer el fetch acá es lo que evita escribir la llamada dos veces
+// (§ API-DIRECTA-ACEPTACIONES-SERVIDOR-1: "no escribas una segunda llamada").
+// Devuelve `data` TAL CUAL, sin validar su forma — cada función pública valida
+// el campo que necesita y lanza con su propio mensaje, igual que antes de
+// extraer este helper.
+//
 // LA FORMA DEL SOBRE (`{"data": {...}}`) NO fue medida de primera mano para
 // ESTE endpoint por el spike citado arriba —midió las claves de primer nivel,
 // no transcribió el sobre completo—; se asume por la misma convención que ya
 // usa `consultarTransaccionesPorReferencia` con `/v1/transactions`. Si el
-// proveedor no envuelve en `data`, esta función lo trata como forma
-// inesperada y lanza — nunca como lista vacía (ver más abajo).
+// proveedor no envuelve en `data`, cada función pública lo trata como forma
+// inesperada (para los métodos, lanza; para las aceptaciones, ver más abajo).
+async function fetchInfoComercio(publicKey: string, baseUrl: string): Promise<unknown> {
+  const url = `${baseUrl}/v1/merchants/info`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method:  'GET',
+      headers: { 'x-merchant-public-key': publicKey },
+      signal:  controller.signal,
+    });
+  } catch (e) {
+    throw new WompiApiError(`fallo de red consultando la información del comercio de Wompi: ${(e as Error).message}`);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (!res.ok) {
+    throw new WompiApiError(`Wompi respondió ${res.status} consultando la información del comercio`);
+  }
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    throw new WompiApiError('respuesta no-JSON de Wompi consultando la información del comercio');
+  }
+
+  return (body as { data?: unknown } | null)?.data;
+}
+
 function esListaDeStrings(x: unknown): x is string[] {
   return Array.isArray(x) && x.every(v => typeof v === 'string');
 }
@@ -149,39 +192,61 @@ export async function consultarMetodosAceptados(
   publicKey: string,
   baseUrl: string,
 ): Promise<string[]> {
-  const url = `${baseUrl}/v1/merchants/info`;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method:  'GET',
-      headers: { 'x-merchant-public-key': publicKey },
-      signal:  controller.signal,
-    });
-  } catch (e) {
-    throw new WompiApiError(`fallo de red consultando los métodos habilitados de Wompi: ${(e as Error).message}`);
-  } finally {
-    clearTimeout(timeoutId);
-  }
-
-  if (!res.ok) {
-    throw new WompiApiError(`Wompi respondió ${res.status} consultando los métodos habilitados`);
-  }
-
-  let body: unknown;
-  try {
-    body = await res.json();
-  } catch {
-    throw new WompiApiError('respuesta no-JSON de Wompi consultando los métodos habilitados');
-  }
-
-  const data = (body as { data?: unknown } | null)?.data;
+  const data = await fetchInfoComercio(publicKey, baseUrl);
   const metodos = (data as { accepted_payment_methods?: unknown } | null)?.accepted_payment_methods;
   if (!esListaDeStrings(metodos)) {
     throw new WompiApiError('respuesta con forma inesperada de Wompi consultando los métodos habilitados (accepted_payment_methods)');
   }
 
   return metodos;
+}
+
+function campoString(x: unknown): string | null {
+  return typeof x === 'string' ? x : null;
+}
+
+/** Extrae `{acceptance_token, permalink}` de un sub-objeto del sobre — `null` en cada
+ *  campo que falte o no sea texto, SIN lanzar: un token/enlace ausente es un caso real
+ *  que `evaluarAceptaciones` (`lib/pagos/aceptaciones.ts`) tiene que poder distinguir,
+ *  no un sobre malformado. */
+function campoAceptacion(x: unknown): AceptacionCruda {
+  const o = x && typeof x === 'object' ? (x as Record<string, unknown>) : {};
+  return { token: campoString(o.acceptance_token), enlace: campoString(o.permalink) };
+}
+
+/**
+ * Consulta las DOS aceptaciones que el comprador debe marcar para pagar por la pasarela
+ * —los términos y condiciones de uso y la autorización de tratamiento de datos personales
+ * del PROVEEDOR (§ API-DIRECTA-DECISIONES-PROGRAMA-1 §4, DECISIONS.md: "el comercio no
+ * redacta ni aloja ninguno de los dos documentos")—. Misma llamada que
+ * `consultarMetodosAceptados`: comparten `fetchInfoComercio` porque es la MISMA respuesta
+ * del proveedor.
+ *
+ * Devuelve los DOS campos TAL CUAL llegaron (`token`/`enlace` en `null` si faltan) — SIN
+ * juzgar si están completos. Esa es la regla de negocio de `lib/pagos/aceptaciones.ts`
+ * (`evaluarAceptaciones`), puro y testeado sin red. Esta función sólo lanza como
+ * `WompiApiError` si el SOBRE mismo no tiene la forma que un objeto JSON puede tener
+ * (falla de red, timeout, status no-200, cuerpo no-JSON) — igual que
+ * `consultarMetodosAceptados`.
+ *
+ * LOS NOMBRES DE CAMPO (`presigned_acceptance`/`presigned_personal_data_auth`,
+ * `acceptance_token`/`permalink`) NO fueron medidos de primera mano contra el sandbox: el
+ * spike que midió este endpoint (`API-DIRECTA-SPIKES-ASIENTO-1`) confirmó que los DOS
+ * tokens de aceptación vienen en la respuesta, pero no transcribió el sobre completo. Se
+ * asumen por la convención pública documentada del proveedor — misma salvedad que ya
+ * lleva el comentario de la sección de arriba para la forma del sobre.
+ *
+ * @param publicKey La llave PÚBLICA de la cuenta — el llamador decide de dónde sale.
+ * @param baseUrl El host de la API de Wompi (sandbox o producción).
+ */
+export async function consultarAceptaciones(
+  publicKey: string,
+  baseUrl: string,
+): Promise<AceptacionesCrudas> {
+  const data = await fetchInfoComercio(publicKey, baseUrl);
+  const o = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+  return {
+    terminos:        campoAceptacion(o.presigned_acceptance),
+    datosPersonales: campoAceptacion(o.presigned_personal_data_auth),
+  };
 }
