@@ -293,11 +293,13 @@ export default function DatosNegocioSeccion() {
 
   // La cuenta de PASARELA (§ API-DIRECTA-PANEL-METODOS-1) se lee UNA vez al montar, sin
   // esperar a "Editar" — es lo que permite que `guardado` esté disponible desde el primer
-  // render, tanto para la LECTURA como para el arranque de la edición. `[]` inicial en
-  // `desdeSettings` de abajo se corrige apenas esta lectura resuelve (ver el efecto que sigue).
+  // render, para la LECTURA (que lee `cuentaPasarela` directo, nunca `form`) y para que
+  // `abrirEdicion` (más abajo) arranque de un dato fresco cada vez que se llama.
   const [cuentaPasarela, setCuentaPasarela] = useState<CuentaPasarelaEstado>({ tipo: 'cargando' });
 
   const [editando, setEditando]           = useState(false);
+  // `[]` de arranque para `metodosPasarela`: nadie lo lee mientras `!editando` (la LECTURA usa
+  // `cuentaPasarela` directo) — `abrirEdicion` lo re-siembra desde `cuentaPasarela` cada vez.
   const [form, setForm]                   = useState<FormState>(() => desdeSettings(settings, []));
   const [errores, setErrores]             = useState<Partial<Record<keyof FormState, string>>>({});
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
@@ -319,15 +321,6 @@ export default function DatosNegocioSeccion() {
       .catch(() => { if (!cancelado) setCuentaPasarela({ tipo: 'error', guardado: [] }); });
     return () => { cancelado = true; };
   }, []);
-
-  // Mientras NO se está editando, `form.metodosPasarela` sigue a lo recién leído — así
-  // `abrirEdicion` (que copia `form` tal cual) siempre arranca de un dato fresco, sin
-  // depender de que la lectura haya llegado ANTES del primer render.
-  useEffect(() => {
-    if (!editando && cuentaPasarela.tipo !== 'cargando') {
-      setForm(f => ({ ...f, metodosPasarela: cuentaPasarela.guardado }));
-    }
-  }, [cuentaPasarela, editando]);
 
   // Salir de edición = el "cierre real" que la guarda de descarte protege.
   const salirDeEdicion = () => { setEditando(false); setErrores({}); setErrorServidor(null); };
