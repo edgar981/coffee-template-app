@@ -1,4 +1,6 @@
 import type { MetodoPagoTipo } from '@/lib/checkout/metodos-pago';
+import type { AceptacionesWompi, TokenTarjetaWompi } from '@/types/payment';
+import { PREFIJO_LLAVE_PASARELA_PRODUCTIVA } from '@/lib/pagos/llaves-pasarela';
 
 export interface CheckoutPayload {
   customer: {
@@ -59,6 +61,27 @@ export function pasarelaDisponibleEnEsteDespliegue(): boolean {
   return process.env.NEXT_PUBLIC_PASARELA_HABILITADA === '1';
 }
 
+/**
+ * El SEGUNDO interruptor de despliegue (§ API-DIRECTA-CAPTURA-TARJETA-1): cuando la pasarela
+ * ESTÁ disponible (arriba), decide QUÉ camino ocupa esa misma ranura — el widget alojado por
+ * Wompi (default, comportamiento de hoy) o la captura de tarjeta por API directa que este
+ * slice agrega. **NUNCA se dibujan los dos**: son la misma cosa —tarjeta, capturada en dos
+ * superficies distintas— y mostrarle las dos al comprador sería la duplicación que el modelo
+ * de pagos (widget vs. API directa = DÓNDE se capturó, no una ruta de dinero distinta) existe
+ * para evitar (`API-DIRECTA-DECISIONES-PROGRAMA-1` §1, DECISIONS.md).
+ *
+ * Se lee en el CLIENTE porque decide qué COMPONENTE se monta — no cambia nada del lado del
+ * servidor: `POST /api/checkout` responde el mismo bloque `wompi` (con `publicKey` y
+ * `aceptaciones`) sin importar cuál camino lo va a consumir. Por eso este interruptor no
+ * necesita tocar `app/api/checkout/route.ts`.
+ *
+ * Sin la variable, el modo sigue siendo WIDGET: el comportamiento de hoy no cambia con este
+ * slice a menos que un despliegue la encienda a propósito.
+ */
+export function pasarelaModoApiDirecta(): boolean {
+  return process.env.NEXT_PUBLIC_PASARELA_MODO_API_DIRECTA === '1';
+}
+
 export interface CheckoutResultItem {
   producto_nombre: string;
   moliendaSeleccionada?: string | null;
@@ -80,6 +103,11 @@ export interface CheckoutResultWompi {
   signature: string;
   /** La llave PÚBLICA de la pasarela — del navegador, no es secreta (§ lib/pagos/llaves-pasarela.ts). */
   publicKey: string;
+  /** Las DOS aceptaciones del comprador —términos de uso, tratamiento de datos personales—, cada
+   *  una con su token y su enlace al documento del proveedor (§ API-DIRECTA-ACEPTACIONES-
+   *  SERVIDOR-1). El servidor sólo arma el bloque `wompi` cuando las dos llegaron completas, así
+   *  que este campo nunca es un objeto a medias — no opcional. */
+  aceptaciones: AceptacionesWompi;
 }
 
 export interface CheckoutResult {
@@ -165,4 +193,118 @@ export async function consultarRetornoPago(
   if (res.status === 429) throw new Error('Demasiadas solicitudes. Intenta de nuevo en un momento.');
   if (!res.ok) return null;
   return res.json();
+}
+
+// ── API-DIRECTA-CAPTURA-TARJETA-1: tokenizar la tarjeta CONTRA EL PROVEEDOR ──────────────
+//
+// «la tokenizacion de la tarjeta se hace contra la API del proveedor SIN que los datos de
+// tarjeta pasen por ningun servidor propio» (MEDIDO — `API-DIRECTA-SPIKES-ASIENTO-1`,
+// DECISIONS.md). Esta función es la ÚNICA que sale de este cliente directo al navegador→Wompi;
+// nunca pasa por `/api/checkout` ni por ninguna ruta nuestra, y los datos de la tarjeta no
+// viajan por ningún otro lado del código de este repo — ni a un log, ni a un estado que otra
+// función pueda leer.
+//
+// EL ENDPOINT Y LOS NOMBRES DE CAMPO (`/v1/tokens/cards`, `number`/`cvc`/`exp_month`/
+// `exp_year`/`card_holder`) NO ESTÁN MEDIDOS CONTRA EL SANDBOX — este slice no tiene acceso a
+// red. Son la convención pública del proveedor tal como la documenta, LEÍDA, no verificada
+// (misma distinción que ya corrigió `API-DIRECTA-DECISIONES-ATRIBUCION-FIX-1`, DECISIONS.md:
+// una lectura de documentación no es una medición, y la doc de Wompi ya mintió dos veces el
+// mismo día sobre otros dos hechos de este mismo programa). El gate visual del owner es lo que
+// confirma o corrige esto contra el sandbox real.
+
+export class TokenizacionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TokenizacionError';
+  }
+}
+
+/** Los cuatro campos del formulario, YA VALIDADOS por `lib/checkout/tarjeta.ts` y normalizados
+ *  (número sin espacios, mes/año de 2 dígitos) — esta función no vuelve a validar, sólo arma la
+ *  llamada. */
+export interface DatosTarjetaTokenizable {
+  numero: string;
+  /** '01'..'12' */
+  mes: string;
+  /** 2 dígitos */
+  anio: string;
+  cvv: string;
+  nombreTitular: string;
+}
+
+/**
+ * El HOST de la API de Wompi se deriva del PREFIJO de la llave pública —el mismo hecho
+ * MEDIDO por el owner contra el dashboard del proveedor que ya usa
+ * `verificarLlavePasarelaCoherente` (`lib/pagos/llaves-pasarela.ts`)—, no de una segunda
+ * variable de entorno leída en el cliente: `esDespliegueDemo()` lee `VERCEL_ENV`/`NOINDEX`,
+ * que NO son `NEXT_PUBLIC_` y por tanto no existen en el navegador (se inlinean sólo las
+ * variables con ese prefijo). El chequeo de arranque del servidor (`instrumentation.ts`)
+ * hace IMPOSIBLE que un despliegue DEMO corra con una llave que empiece con el prefijo
+ * productivo, así que esta derivación coincide con `esDespliegueDemo()` del servidor en el
+ * caso que ese chequeo protege — SALVO la ventana transicional en la que una producción real
+ * siguiera con llaves de sandbox (aceptable: la tokenización fallaría con un error de
+ * autenticación del proveedor, no con un envío de datos al host equivocado en silencio).
+ */
+function baseUrlPasarelaDesdeLlave(publicKey: string): string {
+  return publicKey.startsWith(PREFIJO_LLAVE_PASARELA_PRODUCTIVA)
+    ? 'https://production.wompi.co'
+    : 'https://sandbox.wompi.co';
+}
+
+/**
+ * Tokeniza la tarjeta CONTRA WOMPI, desde el navegador, con la llave pública que ya trajo la
+ * respuesta de `/api/checkout` (`CheckoutResultWompi.publicKey`). Devuelve el ID del token —
+ * un identificador OPACO, nunca datos de la tarjeta— o lanza `TokenizacionError` con un
+ * mensaje para mostrar en el formulario.
+ *
+ * NO CREA NINGUNA TRANSACCIÓN: eso exige el secreto de integridad (§ `firmarIntegridadWompi`)
+ * y es el slice siguiente. Acá termina el alcance: token obtenido.
+ */
+export async function tokenizarTarjeta(
+  datos: DatosTarjetaTokenizable,
+  publicKey: string,
+): Promise<string> {
+  const baseUrl = baseUrlPasarelaDesdeLlave(publicKey);
+
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}/v1/tokens/cards`, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization:  `Bearer ${publicKey}`,
+      },
+      body: JSON.stringify({
+        number:      datos.numero,
+        cvc:         datos.cvv,
+        exp_month:   datos.mes,
+        exp_year:    datos.anio,
+        card_holder: datos.nombreTitular,
+      }),
+    });
+  } catch (e) {
+    throw new TokenizacionError(
+      e instanceof Error ? `No pudimos comunicarnos con la pasarela: ${e.message}` : 'No pudimos comunicarnos con la pasarela.',
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    throw new TokenizacionError('La pasarela respondió algo que no pudimos leer. Intenta de nuevo.');
+  }
+
+  if (!res.ok) {
+    const razon = (body as { error?: { reason?: string; messages?: Record<string, string[]> } } | null)?.error;
+    const detalle = razon?.reason
+      ?? Object.values(razon?.messages ?? {}).flat()[0];
+    throw new TokenizacionError(detalle ?? 'No pudimos verificar tu tarjeta. Revisa los datos e intenta de nuevo.');
+  }
+
+  const token = (body as { data?: TokenTarjetaWompi } | null)?.data?.id;
+  if (typeof token !== 'string' || !token) {
+    throw new TokenizacionError('La pasarela no devolvió un token válido. Intenta de nuevo.');
+  }
+  return token;
 }

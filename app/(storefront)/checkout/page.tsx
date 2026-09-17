@@ -6,10 +6,11 @@ import { ArrowLeft, Shield, Lock, CreditCard, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore } from '@/lib/cartStore';
 import {
-  createOrder, CheckoutError, pasarelaDisponibleEnEsteDespliegue,
+  createOrder, CheckoutError, pasarelaDisponibleEnEsteDespliegue, pasarelaModoApiDirecta,
   type CheckoutResult, type CheckoutPayload,
 } from "@/services/checkout.service";
 import PagoPasarela from '@/components/storefront/checkout/PagoPasarela';
+import FormularioTarjeta from '@/components/storefront/checkout/FormularioTarjeta';
 import { formatCOP } from '@duna/core/utils';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -55,6 +56,11 @@ export default function Checkout() {
   // `pasarelaSeleccionada` no tiene forma de volverse `true`: byte-idéntico a antes de este
   // slice. La redirección tras el pago (la vuelta del comprador) sigue sin construirse: (c).
   const pasarelaDisponible = pasarelaDisponibleEnEsteDespliegue();
+  // El SEGUNDO interruptor de despliegue (§ API-DIRECTA-CAPTURA-TARJETA-1): con la pasarela
+  // disponible, decide cuál camino ocupa la MISMA ranura — el widget de Wompi (default) o la
+  // captura de tarjeta por API directa. Nunca los dos a la vez (ver el branch de
+  // `confirmation.wompi` más abajo).
+  const modoApiDirecta = pasarelaModoApiDirecta();
   const [pasarelaSeleccionada, setPasarelaSeleccionada] = useState(false);
   // IDs de producto rechazados por stock en el último intento — el carrito se
   // conserva y se marca la línea afectada. Se limpia al reintentar.
@@ -197,13 +203,22 @@ export default function Checkout() {
             <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
             <p className="text-2xl font-bold text-[var(--sf-acento-texto)] text-center">{confirmation.numero_orden}</p>
           </div>
-          <PagoPasarela
-            reference={confirmation.wompi.reference}
-            amountInCents={confirmation.wompi.amountInCents}
-            currency={confirmation.wompi.currency}
-            signature={confirmation.wompi.signature}
-            publicKey={confirmation.wompi.publicKey}
-          />
+          {modoApiDirecta ? (
+            // API-DIRECTA-CAPTURA-TARJETA-1: la MISMA ranura del widget, ocupada por la
+            // captura de tarjeta propia — nunca los dos a la vez (§ el interruptor de modo).
+            <FormularioTarjeta
+              aceptaciones={confirmation.wompi.aceptaciones}
+              publicKey={confirmation.wompi.publicKey}
+            />
+          ) : (
+            <PagoPasarela
+              reference={confirmation.wompi.reference}
+              amountInCents={confirmation.wompi.amountInCents}
+              currency={confirmation.wompi.currency}
+              signature={confirmation.wompi.signature}
+              publicKey={confirmation.wompi.publicKey}
+            />
+          )}
         </motion.div>
       </div>
     );
@@ -440,14 +455,23 @@ export default function Checkout() {
                             </label>
                           ))}
                           {/* (d) el toggle por despliegue — hoy SIEMPRE apagado (§ pasarelaDisponible arriba),
-                              así que este bloque nunca se renderiza todavía. La caja del widget en sí vive en
-                              `PagoPasarela` (§ WOMPI-WIDGET-EN-EL-CANONICO-1); acá sólo la opción del método. */}
+                              así que este bloque nunca se renderiza todavía. La caja de captura en sí vive en
+                              `PagoPasarela` (el widget) o `FormularioTarjeta` (API directa), según el SEGUNDO
+                              interruptor `modoApiDirecta` — acá sólo la opción del método, y el label NO es el
+                              mismo: en API directa este slice sólo soporta tarjeta, así que "Tarjeta, PSE y
+                              más" prometería de más (§ API-DIRECTA-CAPTURA-TARJETA-1, "no copies el copy del
+                              widget sin pensarlo"). TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER, las dos
+                              ramas (ver el reporte del slice). */}
                           {pasarelaDisponible && (
                             <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${pasarelaSeleccionada ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
                               <input type="radio" name="payment" checked={pasarelaSeleccionada} onChange={() => setPasarelaSeleccionada(true)} className="mt-0.5 accent-[var(--sf-acento)]" />
                               <div>
-                                <p className="text-sm font-semibold text-[var(--sf-tinta)]">Tarjeta, PSE y más</p>
-                                <p className="text-xs text-[var(--sf-texto-suave)]">Paga en línea de forma segura.</p>
+                                <p className="text-sm font-semibold text-[var(--sf-tinta)]">
+                                  {modoApiDirecta ? 'Tarjeta de crédito o débito' : 'Tarjeta, PSE y más'}
+                                </p>
+                                <p className="text-xs text-[var(--sf-texto-suave)]">
+                                  {modoApiDirecta ? 'Paga con tu tarjeta de forma segura.' : 'Paga en línea de forma segura.'}
+                                </p>
                               </div>
                             </label>
                           )}

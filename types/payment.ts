@@ -126,6 +126,15 @@ export interface AceptacionesWompi {
   datosPersonales: AceptacionWompi;
 }
 
+// El token que Wompi devuelve al tokenizar una tarjeta por API directa
+// (§ API-DIRECTA-CAPTURA-TARJETA-1) — un identificador OPACO que la creación de la
+// transacción (slice siguiente) va a usar. NUNCA lleva datos de la tarjeta; sólo se declara
+// el campo que este programa necesita leer, no el sobre completo del proveedor (que no está
+// medido contra el sandbox — ver `services/checkout.service.ts`, `tokenizarTarjeta`).
+export interface TokenTarjetaWompi {
+  id: string;
+}
+
 // A registered payment as returned by the ledger endpoint. `monto` is the order
 // total snapshotted at registration; `order` is a light live snapshot for display.
 export interface Payment {
