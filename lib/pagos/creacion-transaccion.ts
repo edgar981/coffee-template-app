@@ -30,6 +30,23 @@ import { esTransaccionWompi } from './wompi-api';
 // (`tokenizarTarjeta`, que lee `body.error.reason` y `body.error.messages` del MISMO
 // proveedor). Es una LECTURA, no una medición — misma salvedad que el resto de este módulo
 // ya declara para las formas de sobre que no vinieron transcritas byte a byte.
+//
+// `CreacionMetodoNoHabilitado.motivo` ES LA FUENTE ÚNICA QUE NOMBRA EL MÉTODO EXACTO —para las
+// DOS audiencias, no sólo una (§ API-DIRECTA-DESALINEO-AVISO-1). El DUEÑO se entera por el aviso
+// de configuración del Dashboard (`lib/config/avisos-configuracion.ts`, #9 — recibe este `motivo`
+// COMO STRING, sin parafrasearlo); el COMPRADOR se entera —cuando ese camino se cablee— por el
+// mismo `motivo`, mostrado como "ese método no está disponible ahora mismo". Que la GENERALIDAD
+// del predictor (accepted_payment_methods → 404 para CUALQUIER tipo que la cuenta no tenga, no
+// sólo para el que se probó primero) valga para el catálogo entero del proveedor, contra UNA
+// cuenta, está MEDIDO en `API-DIRECTA-SPIKE-PREDICTOR-1` (DECISIONS.md, bloque
+// `[PREDICTOR-MEDIDO]`) — no re-medido por este módulo.
+//
+// NI ESTE ARCHIVO NI EL AVISO PERSISTEN NADA: los dos son PUROS. La cadena que lleva un `motivo`
+// de una creación fallida (acá) hasta el Dashboard (`avisosDeConfiguracion`) o hasta la pantalla
+// del comprador exige que ALGÚN llamador —`app/api/checkout/route.ts` al fallar, guardando el
+// dato; `lib/config/site-settings-read.ts` exponiéndolo— la cablee. Ninguno de los dos vive en
+// `touches:` de `API-DIRECTA-DESALINEO-AVISO-1`; queda como `open_followup` de ese slice, no como
+// capacidad terminada.
 
 export interface CreacionCreada {
   tipo: 'creada';

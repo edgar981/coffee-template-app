@@ -5430,26 +5430,35 @@ devuelve el `404 NOT_FOUND_ERROR` que `API-DIRECTA-SPIKES-ASIENTO-1` §1.D ya re
 método exacto** en su `reason`—, así que avisarle al dueño sale más barato que antes: ya se sabe cuál
 método se cayó, sin adivinarlo por ausencia.
 
-**Y acá está la razón por la que NO se borra, que es lo más importante de esta sección:**
+**Y acá está la razón por la que NO se borra, que es lo más importante de esta sección — aunque la
+pregunta que sigue ya se cerró (ver el bloque `[PREDICTOR-MEDIDO]`, abajo): la respuesta también
+necesita quedar donde alguien la va a buscar.**
 
 ```
-!!!!!!!!!!  S I N   M E D I R  !!!!!!!!!!
-!!  [SIN MEDIR] -- marcador buscable por maquina
-!!  ESTO NO ES UN DATO. ES UNA PREGUNTA ABIERTA.
-!!  «si accepted_payment_methods predice el 404 de forma confiable para CUALQUIER tipo de metodo, y no solo para el unico que se probo»
-!!  NADIE MIDIO ESTO. No lo afirmes, no lo asumas, no lo cites
-!!  como hecho, no lo uses para decidir: MEDILO.
-!!  Si lo das por cierto, el slice esta mal desde su premisa.
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!  P R E D I C T O R   M E D I D O  !!!!!!!!!!
+!!  [PREDICTOR-MEDIDO] -- marcador buscable por maquina
+!!  ESTO YA ES UN DATO, NO UNA PREGUNTA ABIERTA (medido: API-DIRECTA-SPIKE-PREDICTOR-1).
+!!  «si accepted_payment_methods predice el 404 de forma confiable para CUALQUIER tipo de metodo,
+!!  y no solo para el unico que se probo» -- SI, para la cuenta medida.
+!!  Se probo CADA tipo del catalogo del proveedor que esa cuenta NO tiene habilitado -- no una
+!!  muestra de uno solo. TODOS fallaron IGUAL: mismo status, mismo error.type, y un reason que
+!!  nombra el tipo exacto que se rechazo. NINGUNO quedo sin concluir: varios exigieron completar
+!!  antes campos propios de la forma de ese tipo de metodo, y una vez completos llegaron al MISMO
+!!  rechazo por cuenta-sin-el-metodo.
+!!  EL LIMITE, sin suavizar: se midio contra UNA cuenta (la de sandbox de este repo). Que los tipos
+!!  que le faltan a ESA cuenta fallen todos igual NO prueba que toda cuenta se comporte igual.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ```
 
-Esa pregunta ya está registrada como abierta en `API-DIRECTA-SPIKES-ASIENTO-1` §2 (arriba): *"Se probó
-SÓLO `BRE_B`. Que la lista y el rechazo hayan coincidido esa vez no prueba que coincidan siempre."*
-**Lo que ese vacío obliga:** la frase «el desalineo se previene al configurar» descansa sobre un
-predictor que no está medido. Una coincidencia observada una vez no es un predictor. Si la lista y el
-rechazo llegaran a separarse aunque sea para UN tipo de método, este slice vuelve a ser el grande de
-la propuesta original —y se descubriría con un comprador delante del checkout, no en un spike—. **Queda
-achicado, y la pregunta se mide ANTES de apoyarse en ella para construir el slice reducido.**
+(MEDIDO — `API-DIRECTA-SPIKE-PREDICTOR-1`; registrado por ese spike, no re-medido por este asiento, que
+no tiene acceso a sandbox.)
+
+La pregunta que quedó abierta en `API-DIRECTA-SPIKES-ASIENTO-1` §2 (arriba) —*"Se probó SÓLO `BRE_B`. Que
+la lista y el rechazo hayan coincidido esa vez no prueba que coincidan siempre"*— **SE CERRÓ.** Una
+coincidencia observada una vez no era un predictor; el catálogo entero coincidiendo sí lo es, con el
+límite escrito arriba (una cuenta, no todas). **La frase «el desalineo se previene al configurar» ya no
+descansa sobre una pregunta sin medir: descansa sobre esta medición**, y es lo que desbloquea que
+`API-DIRECTA-DESALINEO-AVISO-1` (el slice reducido) se construya apoyado en ella.
 
 ### 4 · El primer slice se quedó casi sin trabajo
 
@@ -5487,8 +5496,9 @@ el del aviso de desalineo (§3, encoge) y el primero de la partición, el cablea
 - **La partición completa NO se aprueba ni se cierra acá.** Sigue viviendo fuera del libro, en la figura
   del censo read-only; este asiento registra el efecto de un hecho medido sobre tres de sus piezas, no
   la partición entera.
-- **El predictor de §3 queda como pregunta abierta, explícitamente sin medir.** Ningún slice que dependa
-  de él se construye antes de esa medición.
+- **El predictor de §3 quedaba como pregunta abierta, explícitamente sin medir — SE MIDIÓ después**
+  (`API-DIRECTA-SPIKE-PREDICTOR-1`, bloque `[PREDICTOR-MEDIDO]` en §3, arriba), contra UNA cuenta, con
+  ese límite escrito ahí. `API-DIRECTA-DESALINEO-AVISO-1` es el primer slice que se apoya en la medición.
 - **El modo de falla de §2 queda pendiente del owner**, sin resolverse acá.
 
 **GATE, los dos carriles, verde.** Este diff toca un solo archivo del ledger (`DECISIONS.md`) y ningún
@@ -5499,5 +5509,6 @@ REHACE, y el tamaño del rehecho depende de cuánto de la premisa vieja sobreviv
 forma porque gana una fuente de verdad que no tenía, el aviso de desalineo encoge porque parte de su
 trabajo se previene aguas arriba, y un slice que sólo existía para verificar una premisa ya medida se
 queda con el residual que esa medición no cubrió. Ninguno de los tres se cierra por esto: el panel tiene
-un modo de falla pendiente del owner, el desalineo se apoya en un predictor SIN MEDIR, y el residual del
-primero está bloqueado por una condición externa (una URL pública) que este asiento no resuelve.
+un modo de falla pendiente del owner, el desalineo se apoyaba en un predictor sin medir —medido después,
+contra una cuenta, en `API-DIRECTA-SPIKE-PREDICTOR-1` (§3, arriba)—, y el residual del primero está
+bloqueado por una condición externa (una URL pública) que este asiento no resuelve.

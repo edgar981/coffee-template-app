@@ -58,12 +58,35 @@ const HREF_DATOS_NEGOCIO = '/admin/configuracion';
  * (`categoriasListas`, TiendaSeccionEditor). El predicado de #1 es el MISMO que ese aviso
  * (`value ∉ categorias`), sacado del editor abierto al Dashboard —una sola definición de "destino roto"—.
  * #8 tampoco depende del catálogo.
+ *
+ * FASE 3 suma **#9 — TARJETA DESALINEADA CON LA CUENTA DE PASARELA** (§ API-DIRECTA-DESALINEO-AVISO-1).
+ * El residual que sobrevive tras `API-DIRECTA-METODOS-REHECHOS-1` §3 (DECISIONS.md): el panel de métodos
+ * de pasarela YA previene el desalineo AL CONFIGURAR (lee `accepted_payment_methods` en vivo, § el panel
+ * de métodos), pero la cuenta puede cambiar DESPUÉS de que el dueño configuró —el proveedor le retira un
+ * método sin que nadie de este lado se entere—. Ahí la creación de la transacción de tarjeta
+ * (`lib/pagos/creacion-transaccion.ts`, `CreacionMetodoNoHabilitado`) es la que se entera primero, y su
+ * `motivo` YA NOMBRA el tipo exacto que el proveedor rechazó — medido para un tipo en
+ * `API-DIRECTA-SPIKES-ASIENTO-1` §1.D y generalizado a CUALQUIER tipo que la cuenta no tenga por
+ * `API-DIRECTA-SPIKE-PREDICTOR-1` (DECISIONS.md, bloque `[PREDICTOR-MEDIDO]`).
+ *
+ * `desalineoTarjeta` (quinto parámetro) es ESE `motivo`, o `null`/`undefined` si no hay ninguno
+ * conocido — el módulo sigue siendo puro, capa 1, SIN red: no lo consulta, lo RECIBE. **NO ES UN DATO
+ * QUE ESTE ARCHIVO DERIVE.** Es OPCIONAL con default `undefined` A PROPÓSITO, para que los llamadores
+ * existentes (`app/(admin)/admin/dashboard/page.tsx`, `app/api/site-content/publicado/route.ts`) sigan
+ * compilando sin tocarlos.
+ *
+ * **LO QUE ESTE SLICE NO CABLEÓ, y por qué:** hoy NINGÚN llamador pasa un `desalineoTarjeta` distinto de
+ * `undefined`, así que #9 no dispara todavía en producción. Persistir el `motivo` al fallar la creación
+ * (`app/api/checkout/route.ts`), exponerlo por `SiteSettings` (`lib/config/site-settings-read.ts`) hasta
+ * este llamador, y pasarlo desde el Dashboard exige tocar esos tres archivos — ninguno estaba en el
+ * `touches:` de este slice. Queda como `open_followup`, no como capacidad terminada.
  */
 export function avisosDeConfiguracion(
   contenido: SiteContentData,
   categorias: string[],
   catalogoListo: boolean,
   ajustes: SiteSettings,
+  desalineoTarjeta?: string | null,
 ): AvisoConfig[] {
   const avisos: AvisoConfig[] = [];
   const pres = contenido.presentaciones;
@@ -135,6 +158,21 @@ export function avisosDeConfiguracion(
     avisos.push({
       clave: 'negocio-whatsapp',
       mensaje: 'No cargaste el WhatsApp del negocio: tu checkout ya no le ofrece a los compradores confirmar el pago por ese canal.',
+      href: HREF_DATOS_NEGOCIO,
+    });
+  }
+
+  // #9 — TARJETA DESALINEADA CON LA CUENTA DE PASARELA (§ el docstring de la función, arriba). Sólo
+  // dispara si ALGÚN llamador futuro llega a pasar el motivo (hoy, ninguno lo hace — ver el docstring).
+  // El texto NOMBRA el motivo TAL CUAL lo devolvió el proveedor, sin parafrasearlo: es la única forma de
+  // decir «cuál método» sin adivinar (§ el argumento del slice: «un aviso que dijera "un método de tu
+  // pasarela falló" mandaría al dueño a buscar cuál, teniendo nosotros el dato»).
+  if (desalineoTarjeta) {
+    avisos.push({
+      clave: 'pasarela-tarjeta-no-habilitada',
+      // TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER (§ API-DIRECTA-DESALINEO-AVISO-1, reporte del
+      // slice).
+      mensaje: `Wompi rechazó un cobro con tarjeta porque tu cuenta ya no tiene ese método habilitado (motivo del proveedor: "${desalineoTarjeta}"). Revisa la sección Pasarela en Configuración.`,
       href: HREF_DATOS_NEGOCIO,
     });
   }

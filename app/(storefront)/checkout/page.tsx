@@ -206,6 +206,17 @@ export default function Checkout() {
           {modoApiDirecta ? (
             // API-DIRECTA-CAPTURA-TARJETA-1: la MISMA ranura del widget, ocupada por la
             // captura de tarjeta propia — nunca los dos a la vez (§ el interruptor de modo).
+            //
+            // PENDIENTE (§ API-DIRECTA-DESALINEO-AVISO-1, reporte del slice — no construido acá):
+            // si la creación de la transacción falla por `metodo_no_habilitado`
+            // (`lib/pagos/creacion-transaccion.ts`), el comprador no debería quedar atrapado
+            // contra este formulario — debería ver un mensaje honesto y volver a un método que sí
+            // funcione, sin perder la orden ni el intento ya creados. Hoy `FormularioTarjeta` NO
+            // reporta esa falla hacia arriba (termina en "token obtenido", § su propio docstring;
+            // la creación vía PATCH todavía no la llama ningún cliente) y esta página no tiene por
+            // dónde recibirla sin agregarle a `FormularioTarjeta.tsx` / `services/checkout.
+            // service.ts` un callback que este slice no puede tocar (ninguno de los dos está en su
+            // `touches:`). Queda como `open_followup`, no como una rama sin cablear escondida acá.
             <FormularioTarjeta
               aceptaciones={confirmation.wompi.aceptaciones}
               publicKey={confirmation.wompi.publicKey}

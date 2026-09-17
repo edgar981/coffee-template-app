@@ -233,3 +233,46 @@ test('el gemelo dice la CONSECUENCIA del comprador, no el mecanismo de la config
 test('defaults SANOS siguen en CERO avisos con el gemelo puesto', () => {
   assert.equal(avisosDeConfiguracion(DEFAULTS_SANOS, CATS_ALINEADO, true, AJUSTES_SANOS).length, 0);
 });
+
+// ── #9 · TARJETA DESALINEADA CON LA CUENTA DE PASARELA ────────────────────────────────────────────
+// El panel de métodos previene el desalineo AL CONFIGURAR; este aviso es el RESIDUAL — la cuenta
+// cambió DESPUÉS, y la creación de la transacción es la que se entera primero (§ el docstring de la
+// función). Quinto parámetro OPCIONAL: sin él (los llamadores de hoy), el comportamiento no cambia.
+
+const pasarelaDesalineada = (motivo: string | null | undefined) =>
+  avisosDeConfiguracion(DEFAULTS_SANOS, CATS_ALINEADO, true, AJUSTES_SANOS, motivo)
+    .filter(a => a.clave === 'pasarela-tarjeta-no-habilitada');
+
+test('#9 sin motivo conocido (undefined) → CERO avisos, byte-idéntico a antes del quinto parámetro', () => {
+  assert.equal(avisosDeConfiguracion(DEFAULTS_SANOS, CATS_ALINEADO, true, AJUSTES_SANOS).length, 0);
+});
+
+test('#9 motivo EXPLÍCITAMENTE null → tampoco dispara (mismo criterio que "sin motivo")', () => {
+  assert.equal(pasarelaDesalineada(null).length, 0);
+});
+
+test('#9 con un motivo conocido → un aviso, que aterriza en Configuración', () => {
+  const avs = pasarelaDesalineada('Payment method CARD is not enabled for this merchant');
+  assert.equal(avs.length, 1);
+  assert.equal(avs[0].clave, 'pasarela-tarjeta-no-habilitada');
+  assert.equal(avs[0].href, '/admin/configuracion');
+});
+
+test('#9 el mensaje NOMBRA el motivo tal cual lo devolvió el proveedor, sin parafrasearlo', () => {
+  const [av] = pasarelaDesalineada('Payment method CARD is not enabled for this merchant');
+  assert.match(av.mensaje, /Payment method CARD is not enabled for this merchant/);
+});
+
+test('#9 NO depende del catálogo ni del contenido — dispara con catalogoListo false', () => {
+  const avs = avisosDeConfiguracion(DEFAULTS_SANOS, [], false, AJUSTES_SANOS, 'algún motivo')
+    .filter(a => a.clave === 'pasarela-tarjeta-no-habilitada');
+  assert.equal(avs.length, 1);
+});
+
+test('#9 convive con los otros avisos — cada defecto sigue siendo su propio aviso', () => {
+  const avisos = avisosDeConfiguracion(DEFAULTS_SANOS, CATS_ALINEADO, true, conWhatsapp(''), 'motivo x');
+  assert.deepEqual(
+    avisos.map(a => a.clave).sort(),
+    ['negocio-whatsapp', 'pasarela-tarjeta-no-habilitada'],
+  );
+});
