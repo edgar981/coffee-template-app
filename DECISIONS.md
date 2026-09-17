@@ -5244,3 +5244,118 @@ Regla: un spike read-only no deja rastro que el protocolo pueda seguir — el in
 produce citas, y lo que mide es incitable hasta que alguien lo escribe en el libro. Este asiento es esa
 escritura, y las dos preguntas B y C muestran por qué importa: una conclusión correcta sostenida en la
 premisa equivocada, y una pregunta que ningún asiento anterior había medido con una cifra real.
+
+## 2026-09-16 — El solapamiento de Bre-B entre el widget y el método manual es HIPOTÉTICO, no vivo — y
+la condición que lo activaría no la controla nadie de este lado (`BREB-SOLAPAMIENTO-ASIENTO-1`)
+
+### 0 · Por qué este asiento existe
+
+El spike `BREB-WIDGET-SOLAPAMIENTO-HOY-1` corrió read-only contra el bundle vivo del widget de Wompi y
+midió que ese widget sabe dibujar Bre-B; el owner, aparte, midió en el panel de comercios del proveedor
+que su cuenta no lo tiene habilitado. Ninguna de las dos mediciones deja rastro propio —el spike es
+read-only y la del owner vive en su sesión del panel del proveedor—, así que sin este asiento las dos
+viven sólo fuera del libro. Es la misma regla que ya fijó hoy mismo este ledger para spikes read-only
+(`API-DIRECTA-SPIKES-ASIENTO-1`, arriba): *el instrumento de medición no produce citas; lo que mide es
+incitable hasta que alguien lo escribe*. El owner ordenó este asiento el 2026-09-16 después de las dos
+mediciones, con la decisión de producto ya tomada de su lado — esta escritura la pone en el libro, no
+la toma.
+
+**Este slice no tiene acceso a red: no verifica nada de lo que sigue contra el proveedor.** Lo de abajo
+es lo que el spike y el owner midieron, transcrito con su origen.
+
+### 1 · El widget arma su lista DESDE LA CUENTA, y SABE dibujar Bre-B
+
+**Medido sobre el bundle vivo del proveedor** (`BREB-WIDGET-SOLAPAMIENTO-HOY-1`), no leído de
+documentación — la misma distinción que ya separó una lectura de una medición hoy en este ledger
+(`API-DIRECTA-DECISIONES-ATRIBUCION-FIX-1`, arriba).
+
+- El componente que monta el widget inserta el script del proveedor; ese script abre una interfaz
+  propia que carga su propia aplicación.
+- Esa aplicación trae los datos del comercio con `getMerchantByPublicKey`, contra
+  `GET /v1/merchants/{publicKey}/checkout`.
+- El render **filtra sus candidatos por `acceptedPaymentMethods`**, el arreglo que llega de la cuenta
+  — hay hasta un mensaje propio para cuando esa lista viene vacía: *«No hay métodos de pago
+  configurados para este comercio»*.
+- **`BRE_B` está en la lista de candidatos que el widget sabe dibujar**, junto a tarjeta, PSE, Nequi y
+  Daviplata.
+- Y no es un placeholder: tiene ícono propio embebido (grupo «Paga con QR Interoperable»), pantalla
+  dedicada `/qr_breb`, su propio helper, y lógica de envío que fija el tipo literal.
+
+### 2 · La cuenta del owner NO lo tiene, así que HOY NO OCURRE
+
+**Medición del OWNER**, en el panel de comercios del proveedor, el **2026-09-16** — se registra como
+suya, no como medida por este slice.
+
+Los métodos activos de esa cuenta son: Tarjetas, Nequi, PSE, Botón Bancolombia, Bancolombia QR, Compra
+y Paga Después, Daviplata y SU+Pay. **Bre-B no está.**
+
+La cuenta de sandbox de este repo tampoco lo tiene — lo midió el spike, coherente con el
+`404 NOT_FOUND_ERROR` ya registrado por `API-DIRECTA-SPIKES-ASIENTO-1` (arriba, §1.D) al probar `BRE_B`
+contra ese mismo comercio.
+
+**EL SOLAPAMIENTO ES HIPOTÉTICO, NO ESTÁ VIVO.** El widget sabe dibujar Bre-B, pero sólo lo muestra si
+la cuenta lo tiene habilitado.
+
+### 3 · La condición que NADIE CONTROLA
+
+Que una cuenta gane Bre-B no depende de este repo ni de su configuración: el owner midió que **no
+aparece como algo que el comercio pueda encender desde ese panel** — se solicita al proveedor por otra
+vía.
+
+**Es lo más importante de este asiento, y el owner lo subrayó.** Esto puede volverse real **sin que
+nosotros toquemos nada** — ni código, ni configuración, ni despliegue. Es un cambio que ocurre AFUERA y
+que nadie nos avisa. Un asiento que dijera sólo «hoy no pasa» estaría describiendo un estado que puede
+cambiar solo, sin dejar rastro de su lado — por eso el disparador de §5 va como ítem explícito y no
+como comentario al pie.
+
+### 4 · La decisión del owner — dos métodos, no uno duplicado
+
+**SON DOS MÉTODOS DISTINTOS, y se tratan como tales.** No es el mismo método listado dos veces: es una
+transferencia manual que el comprador hace por su app y que un humano confirma, contra un cobro en
+línea que se confirma solo. Distinta espera, distinto tiempo, distinta categoría en el libro de Pagos.
+Que compartan el riel es coincidencia de nombre, no de producto.
+
+**La unión paralela de `API-DIRECTA-DECISIONES-PROGRAMA-1` §2 (arriba) NO SE ROMPE**: no hay nada que
+reconciliar entre dos cosas distintas — es el mismo efecto de segundo orden que esa decisión ya
+anticipó, ahora con un caso real delante en vez de hipotético.
+
+**Lo que hay que resolver es COPY, no arquitectura — y eso es del owner.** Cuando exista el desglose por
+instrumento (§3 de `API-DIRECTA-DECISIONES-PROGRAMA-1`, arriba), el de pasarela lleva un nombre que
+diga qué es; y si hace falta, el manual también. **No se construye nada de esto ahora.**
+
+**El hecho que borra dos de las salidas que se habían considerado:** el selector del widget **no se
+puede restringir ni preseleccionar** — ni por parámetro del loader, ni desde el dashboard del comercio,
+que para esto es una pantalla de sólo lectura (`WOMPI-API-DIRECTA-CIERRE-CORRECCION-1` §1, arriba, línea
+~4897). Con eso, **la única palanca es nuestra propia entrada manual**
+(`lib/checkout/metodos-pago.ts:24`, `MetodoPagoTipo` incluye `'breb'`; línea 98, su label es «Bre-B»):
+cualquier salida de «exclusión mutua» sólo podría quitar la NUESTRA, dejando la del widget sola. Por
+eso esas salidas quedaron descartadas — no porque el owner las prefiriera, sino porque no hay lado del
+widget sobre el que actuar.
+
+### 5 · El disparador
+
+**Volvemos a esto cuando la cuenta de un tenant gane Bre-B.** Se escribe como ítem propio, no como nota
+al pie del §3, porque es un cambio que ocurre AFUERA de este repo y **nadie nos avisa** cuando pasa: no
+hay evento, no hay webhook, no hay campo que cambie de valor en nuestra base. La única forma de
+enterarse es volver a mirar el panel del comercio, y la única forma de que alguien lo haga es que este
+asiento se lo recuerde.
+
+### 6 · El rigor del spike, anotado
+
+El spike `BREB-WIDGET-SOLAPAMIENTO-HOY-1` midió el endpoint que el widget REALMENTE consume —el que
+encontró leyendo el bundle— en vez del que su propio spec le citaba, reportó la desviación, y se negó a
+asumir que las distintas rutas del comercio fueran intercambiables sin haberlo verificado.
+
+**Por qué se registra:** el spec no se lo recordaba. Es el **segundo caso del día** de disciplina de
+procedencia aplicada sin que nadie la escriba en la ocasión — la misma clase que ya registró hoy este
+mismo ledger cuando `API-DIRECTA-SPIKES-ASIENTO-1` (arriba, §2) anotó una discrepancia de conteo contra
+una corrección anterior **sin inventarle causa**, en vez de resolverla de más.
+
+**GATE, los dos carriles, verde.** Este diff toca un solo archivo del ledger (`DECISIONS.md`) y ningún
+test, así que nada podía cambiar en ninguno de los dos carriles.
+
+Regla: dos métodos que comparten riel no son un método duplicado si difieren en QUIÉN confirma y CUÁNDO
+— la unión paralela entre manuales y de pasarela ya absorbe esa diferencia sin que nadie tenga que
+reconciliarla. Un solapamiento que depende de una condición externa que nadie de este lado controla
+—y que nadie nos avisa al cruzarse— no se cierra con una frase de estado: se cierra con un disparador
+explícito que alguien vuelva a leer.
