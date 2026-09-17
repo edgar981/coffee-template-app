@@ -192,6 +192,17 @@ export default function Checkout() {
       // pase lo que pase con la pasarela — la limpieza del carrito no depende de `wompi`.
       setConfirmation(result);
       clearCart();
+      // CHECKOUT-PAGO-EN-EL-PASO-1: el formulario de pago se monta AHORA dentro del mismo paso
+      // (§ el `if (step === 1)` de abajo), sin recarga ni cambio de pantalla — así que, sin
+      // ninguna señal, la confirmación se puede sentir perdida (§ el reporte del slice). El
+      // toast es el patrón que este storefront ya usa para confirmar una acción que no navega
+      // (`components/storefront/ProductCard.tsx`, agregar al carrito): no se inventa uno nuevo.
+      // Sólo dispara para la rama de pasarela — la otra ("Pedido recibido") sigue siendo un
+      // cambio de pantalla completo que ya es su propia señal, y no es parte de este slice.
+      // TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER (§ el reporte del slice).
+      if (result.wompi) {
+        toast.success('Pedido creado. Completa el pago abajo para confirmarlo.');
+      }
     } catch (e) {
       if (e instanceof CheckoutError && e.productosSinStock?.length) {
         // No vaciamos el carrito: marcamos las líneas afectadas en el resumen
@@ -218,61 +229,15 @@ export default function Checkout() {
     setPasarelaMetodoNoHabilitado(true);
   };
 
-  if (confirmation && confirmation.wompi && !pasarelaMetodoNoHabilitado) {
-    // Pago por pasarela: la orden YA existe (pendiente), pero NINGUNA pantalla puede afirmar
-    // "pagado" acá — la verdad la trae el webhook (§4, WOMPI-WIDGET-EN-EL-CANONICO-1). Por eso
-    // NO reusa la pantalla "¡Pedido recibido!" de abajo (que ese texto sí implica un pedido
-    // confirmado del lado de la tienda): se muestra "en proceso" y se monta el widget para que
-    // el comprador complete el pago.
-    return (
-      <div className="min-h-[80vh] flex items-center justify-center pt-16 px-4">
-        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full text-center">
-          <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Clock className="w-10 h-10 text-amber-600" />
-          </div>
-          <h1 className="text-3xl font-playfair text-[var(--sf-tinta)] mb-2">Tu pedido está reservado</h1>
-          <p className="text-[var(--sf-texto)] mb-4">Completa el pago abajo para confirmarlo.</p>
-          <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
-            <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
-            <p className="text-2xl font-bold text-[var(--sf-acento-texto)] text-center">{confirmation.numero_orden}</p>
-          </div>
-          {modoApiDirecta ? (
-            // API-DIRECTA-CAPTURA-TARJETA-1: la MISMA ranura del widget, ocupada por la
-            // captura de tarjeta propia — nunca los dos a la vez (§ el interruptor de modo).
-            //
-            // Si la creación de la transacción falla por `metodo_no_habilitado`
-            // (§ API-DIRECTA-DESALINEO-CABLEADO-1), `onMetodoNoHabilitado` saca a este
-            // componente de pantalla — `pasarelaMetodoNoHabilitado` pasa a `true` y este
-            // `if` deja de matchear en el siguiente render, cayendo a la confirmación manual
-            // de abajo. La orden y su intento NO se tocan.
-            //
-            // §API-DIRECTA-OTROS-METODOS-1: `SelectorMetodoPasarela` reemplaza el montaje
-            // directo de `FormularioTarjeta` — con `metodosPasarelaOtros` vacío (hoy, sin
-            // ninguna billetera encendida) se comporta BYTE-IDÉNTICO al `FormularioTarjeta`
-            // de antes.
-            <SelectorMetodoPasarela
-              aceptaciones={confirmation.wompi.aceptaciones}
-              publicKey={confirmation.wompi.publicKey}
-              reference={confirmation.wompi.reference}
-              email={info.email}
-              metodosOtros={metodosPasarelaOtrosDe(confirmation.wompi)}
-              onMetodoNoHabilitado={handleMetodoNoHabilitado}
-            />
-          ) : (
-            <PagoPasarela
-              reference={confirmation.wompi.reference}
-              amountInCents={confirmation.wompi.amountInCents}
-              currency={confirmation.wompi.currency}
-              signature={confirmation.wompi.signature}
-              publicKey={confirmation.wompi.publicKey}
-            />
-          )}
-        </motion.div>
-      </div>
-    );
-  }
-
-  if (confirmation) {
+  // CHECKOUT-PAGO-EN-EL-PASO-1: el pago por pasarela ("Tu pedido está reservado" + el widget/
+  // formulario) ya NO es un `return` temprano que reemplaza toda la pantalla — se monta DENTRO
+  // del paso de pago del checkout normal (`step === 1`, más abajo), con los pasos y el resumen
+  // del pedido intactos alrededor. Ese branch de render vive junto al resto del paso de pago; lo
+  // único que queda acá es EXCLUIRLO de la confirmación manual de abajo, que sigue siendo un
+  // `return` completo — es la pantalla TERMINAL para el resto de los métodos (nequi, efectivo,
+  // transferencia…) y para el desvío `metodo_no_habilitado` (§ el reporte del slice: ese desvío
+  // NO cambia, sigue cayendo acá tal cual).
+  if (confirmation && !(confirmation.wompi && !pasarelaMetodoNoHabilitado)) {
     return (
         <div className="min-h-[80vh] flex items-center justify-center pt-16 px-4">
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full text-center">
@@ -341,7 +306,11 @@ export default function Checkout() {
     );
   }
 
-  if (items.length === 0) {
+  // Con la orden de pasarela ya creada (§ arriba), el carrito ya se vació —`clearCart()` en
+  // `handleOrder`— y un array vacío acá NO significa "no hay nada que comprar": significa "ya
+  // se compró y falta completar el pago". Sin esta excepción, el checkout caería al estado de
+  // carrito vacío en vez de seguir mostrando el paso de pago con la pasarela montada.
+  if (items.length === 0 && !confirmation) {
     return (
         <div className="min-h-[60vh] flex items-center justify-center pt-16">
           <div className="text-center">
@@ -471,6 +440,62 @@ export default function Checkout() {
                 {/* Step 2: Payment */}
                 {step === 1 && (
                   <div className="space-y-4">
+                    {confirmation && confirmation.wompi && !pasarelaMetodoNoHabilitado ? (
+                      // CHECKOUT-PAGO-EN-EL-PASO-1: la orden YA existe (pendiente), pero NINGUNA
+                      // pantalla puede afirmar "pagado" acá — la verdad la trae el webhook (§4,
+                      // WOMPI-WIDGET-EN-EL-CANONICO-1). Antes esto era un `return` temprano que
+                      // reemplazaba TODO el checkout (§ el reporte del slice); ahora se monta ACÁ,
+                      // dentro del paso de pago, con los pasos y el resumen del pedido intactos
+                      // alrededor (el resumen pasa a leer `confirmation`, no el carrito ya vacío —
+                      // ver el bloque de abajo, "Order Summary"). NO SE RENDERIZA NINGÚN BOTÓN
+                      // "Atrás" NI "Confirmar pedido" EN ESTA RAMA: es la garantía de que
+                      // Información/Dirección dejan de ser editables una vez que el servidor ya
+                      // creó la orden con esos datos — antes lo garantizaba el `return` temprano.
+                      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="text-center">
+                        <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Clock className="w-7 h-7 text-amber-600" />
+                        </div>
+                        <h2 className="text-xl font-playfair text-[var(--sf-tinta)] mb-2">Tu pedido está reservado</h2>
+                        <p className="text-sm text-[var(--sf-texto)] mb-4">Completa el pago abajo para confirmarlo.</p>
+                        <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
+                          <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
+                          <p className="text-2xl font-bold text-[var(--sf-acento-texto)] text-center">{confirmation.numero_orden}</p>
+                        </div>
+                        {modoApiDirecta ? (
+                          // API-DIRECTA-CAPTURA-TARJETA-1: la MISMA ranura del widget, ocupada por la
+                          // captura de tarjeta propia — nunca los dos a la vez (§ el interruptor de modo).
+                          //
+                          // Si la creación de la transacción falla por `metodo_no_habilitado`
+                          // (§ API-DIRECTA-DESALINEO-CABLEADO-1), `onMetodoNoHabilitado` saca a este
+                          // componente de pantalla — `pasarelaMetodoNoHabilitado` pasa a `true` y este
+                          // `if` deja de matchear en el siguiente render, cayendo a la confirmación
+                          // manual de abajo (el `return` de `if (confirmation && !(…))`, arriba en el
+                          // archivo). La orden y su intento NO se tocan.
+                          //
+                          // §API-DIRECTA-OTROS-METODOS-1: `SelectorMetodoPasarela` reemplaza el montaje
+                          // directo de `FormularioTarjeta` — con `metodosPasarelaOtros` vacío (hoy, sin
+                          // ninguna billetera encendida) se comporta BYTE-IDÉNTICO al `FormularioTarjeta`
+                          // de antes.
+                          <SelectorMetodoPasarela
+                            aceptaciones={confirmation.wompi.aceptaciones}
+                            publicKey={confirmation.wompi.publicKey}
+                            reference={confirmation.wompi.reference}
+                            email={info.email}
+                            metodosOtros={metodosPasarelaOtrosDe(confirmation.wompi)}
+                            onMetodoNoHabilitado={handleMetodoNoHabilitado}
+                          />
+                        ) : (
+                          <PagoPasarela
+                            reference={confirmation.wompi.reference}
+                            amountInCents={confirmation.wompi.amountInCents}
+                            currency={confirmation.wompi.currency}
+                            signature={confirmation.wompi.signature}
+                            publicKey={confirmation.wompi.publicKey}
+                          />
+                        )}
+                      </motion.div>
+                    ) : (
+                    <>
                     <h2 className="font-semibold text-[var(--sf-tinta)] mb-4">Método de pago</h2>
                     {availablePayments.length === 0 && !pasarelaDisponible ? (
                       // Guarda defensiva: el dueño apagó TODOS los métodos (o ninguno tiene datos). El
@@ -556,6 +581,8 @@ export default function Checkout() {
                         {loading ? 'Procesando...' : `Confirmar pedido · ${formatCOP(total)}`}
                       </button>
                     </div>
+                    </>
+                    )}
                   </div>
                 )}
               </div>
@@ -565,43 +592,81 @@ export default function Checkout() {
             <div>
               <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-5 sticky top-20">
                 <h3 className="font-semibold text-[var(--sf-tinta)] mb-4">Resumen del pedido</h3>
-                <div className="space-y-3 mb-4">
-                  {items.map(item => {
-                    const sinStock = sinStockIds.includes(item.id);
-                    return (
-                    <div key={item.key} className={`flex gap-3 ${sinStock ? 'sf-radio-lg -mx-1 px-1 ring-1 ring-red-300 bg-red-50/60' : ''}`}>
-                      <div className="w-12 h-12 sf-radio-lg overflow-hidden bg-[var(--sf-superficie)] shrink-0">
-                        <img src={imagenPortada(item.imagen)} alt={item.nombre} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-[var(--sf-tinta)] line-clamp-2">{item.nombre}</p>
-                        {typeof item.options?.molienda === 'string' && (
-                          <p className="text-xs text-[var(--sf-tostado-3)]">Molienda: {item.options.molienda}</p>
-                        )}
-                        <p className="text-xs text-[var(--sf-texto-suave)]">× {item.quantity}</p>
-                        {sinStock && (
-                          <p className="text-xs font-medium text-red-600 mt-0.5">Cantidad no disponible</p>
-                        )}
-                      </div>
-                      <p className="text-xs font-bold text-[var(--sf-tinta)] shrink-0">{formatCOP(item.precio * item.quantity)}</p>
+                {confirmation ? (
+                  // CHECKOUT-PAGO-EN-EL-PASO-1: con la orden de pasarela ya creada (§ el paso de
+                  // pago, arriba) el carrito ya se vació —`clearCart()` en `handleOrder`—, así que
+                  // este resumen deja de leer el carrito EN VIVO (mostraría $0/vacío) y pasa a leer
+                  // la orden que el servidor confirmó: la MISMA fuente que usa la pantalla "¡Pedido
+                  // recibido!" para el resto de los métodos de pago (arriba en el archivo). Llegar
+                  // acá con `confirmation` truthy sólo puede ser la rama de pasarela en curso — las
+                  // otras dos (métodos manuales, `metodo_no_habilitado`) ya devolvieron esa pantalla
+                  // completa antes de alcanzar este layout.
+                  <>
+                    <div className="space-y-2 mb-4">
+                      {confirmation.items.map((item, i) => (
+                        <div key={i} className="flex justify-between text-xs text-[var(--sf-texto)]">
+                          <span className="min-w-0 truncate pr-2">
+                            {item.producto_nombre}
+                            {item.moliendaSeleccionada ? ` · ${item.moliendaSeleccionada}` : ''} × {item.cantidad}
+                          </span>
+                          <span className="shrink-0 font-medium">{formatCOP(item.subtotal)}</span>
+                        </div>
+                      ))}
                     </div>
-                    );
-                  })}
-                </div>
-                <div className="space-y-2 pt-3 sf-divisor-t border-[var(--sf-linea)] text-sm">
-                  <div className="flex justify-between text-[var(--sf-texto)]">
-                    <span>Subtotal</span><span>{formatCOP(subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-[var(--sf-texto)]">
-                    <span>Envío</span>
-                    {shippingCost === null
-                      ? <span className="text-[var(--sf-texto-suave)]">Selecciona departamento</span>
-                      : <span className={shippingCost === 0 ? 'text-emerald-600' : ''}>{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost)}</span>}
-                  </div>
-                  <div className="flex justify-between font-bold text-[var(--sf-tinta)] text-base pt-1 sf-divisor-t border-[var(--sf-linea)]">
-                    <span>Total</span><span>{formatCOP(total)}</span>
-                  </div>
-                </div>
+                    <div className="space-y-2 pt-3 sf-divisor-t border-[var(--sf-linea)] text-sm">
+                      <div className="flex justify-between text-[var(--sf-texto)]">
+                        <span>Subtotal</span><span>{formatCOP(confirmation.subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-[var(--sf-texto)]">
+                        <span>Envío</span>
+                        <span className={confirmation.costo_envio === 0 ? 'text-emerald-600' : ''}>{confirmation.costo_envio === 0 ? 'Gratis' : formatCOP(confirmation.costo_envio)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-[var(--sf-tinta)] text-base pt-1 sf-divisor-t border-[var(--sf-linea)]">
+                        <span>Total</span><span>{formatCOP(confirmation.total)}</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-3 mb-4">
+                      {items.map(item => {
+                        const sinStock = sinStockIds.includes(item.id);
+                        return (
+                        <div key={item.key} className={`flex gap-3 ${sinStock ? 'sf-radio-lg -mx-1 px-1 ring-1 ring-red-300 bg-red-50/60' : ''}`}>
+                          <div className="w-12 h-12 sf-radio-lg overflow-hidden bg-[var(--sf-superficie)] shrink-0">
+                            <img src={imagenPortada(item.imagen)} alt={item.nombre} className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-[var(--sf-tinta)] line-clamp-2">{item.nombre}</p>
+                            {typeof item.options?.molienda === 'string' && (
+                              <p className="text-xs text-[var(--sf-tostado-3)]">Molienda: {item.options.molienda}</p>
+                            )}
+                            <p className="text-xs text-[var(--sf-texto-suave)]">× {item.quantity}</p>
+                            {sinStock && (
+                              <p className="text-xs font-medium text-red-600 mt-0.5">Cantidad no disponible</p>
+                            )}
+                          </div>
+                          <p className="text-xs font-bold text-[var(--sf-tinta)] shrink-0">{formatCOP(item.precio * item.quantity)}</p>
+                        </div>
+                        );
+                      })}
+                    </div>
+                    <div className="space-y-2 pt-3 sf-divisor-t border-[var(--sf-linea)] text-sm">
+                      <div className="flex justify-between text-[var(--sf-texto)]">
+                        <span>Subtotal</span><span>{formatCOP(subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-[var(--sf-texto)]">
+                        <span>Envío</span>
+                        {shippingCost === null
+                          ? <span className="text-[var(--sf-texto-suave)]">Selecciona departamento</span>
+                          : <span className={shippingCost === 0 ? 'text-emerald-600' : ''}>{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost)}</span>}
+                      </div>
+                      <div className="flex justify-between font-bold text-[var(--sf-tinta)] text-base pt-1 sf-divisor-t border-[var(--sf-linea)]">
+                        <span>Total</span><span>{formatCOP(total)}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div className="flex items-center gap-2 mt-4 text-xs text-[var(--sf-texto-suave)]">
                   <Shield className="w-3.5 h-3.5 text-[var(--sf-acento-texto)]" />
                   <span>Compra 100% segura y verificada</span>
