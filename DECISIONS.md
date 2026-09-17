@@ -5103,3 +5103,144 @@ instrumento) diverjan sin que ningún consumidor tenga que reconciliarlas.
 
 **GATE, los dos carriles, verde.** Este diff toca un solo archivo del ledger (`DECISIONS.md`) y ningún
 test, así que nada podía cambiar en ninguno de los dos carriles.
+
+## 2026-09-16 — Lo que midieron los dos spikes de sandbox de API directa: la firma es obligatoria y
+validada, las dos llaves autorizan crear pero la razón correcta era otra, el endpoint nuevo trae lo
+mismo que el viejo, y un método no habilitado falla al crear (`API-DIRECTA-SPIKES-ASIENTO-1`)
+
+### 0 · Por qué este asiento existe
+
+Dos spikes corrieron contra el sandbox real de Wompi para el programa de API directa
+(`API-DIRECTA-SPIKE-SANDBOX-1` y `API-DIRECTA-SPIKE-FIRMA-Y-ENDPOINT-1`) y los dos son **read-only**:
+sin commit, sin rama, sin asiento propio. `grep` de esos dos IDs sobre este archivo, antes de este
+commit, da CERO líneas — el mismo vacío que ya dejó `WOMPI-SPIKE-SANDBOX-1` (línea ~1090) hasta que
+`WOMPI-REGLAS-IMPLEMENTACION-1` lo trasladó al ledger, y la misma familia que `ORCH-CENSO-SIN-TABLA-1`
+(línea ~1082) ya nombró: *"el protocolo sabe seguir ESCRITURAS y no sabe seguir LECTURAS"*. Lo medido
+por los dos spikes vivía sólo en los registros del orquestador hasta este asiento.
+
+El repo del orquestador estrenó ese mismo día una guarda que exige un identificador de asiento que
+RESUELVA para que un hecho pueda entrar a un spec marcado como MEDIDO — un spike read-only no produce
+ninguno. La consecuencia, en una línea:
+
+> **El instrumento de medición no produce citas. Lo que un spike mide es incitable hasta que alguien
+> lo escriba en el libro** — y por lo tanto, para todo efecto práctico del protocolo, es como si no se
+> hubiera medido.
+
+Es la misma regla que ya rige las decisiones de este ledger —*una decisión que no está en el libro no
+está tomada*— extendida a las mediciones. Este slice **no tiene acceso a red**: no puede verificar
+ninguna de las cifras de abajo contra el proveedor. Lo que sigue es lo que los dos spikes reportaron al
+correr, con llaves de prueba verificadas por PREFIJO, transcrito con su origen — no re-medido acá.
+
+### 1 · Lo medido
+
+**A · La firma de integridad es OBLIGATORIA y además VALIDADA** (`API-DIRECTA-SPIKE-FIRMA-Y-ENDPOINT-1`).
+Con todo lo demás idéntico (mismo monto, misma moneda, mismo token de tarjeta, tokens de aceptación
+frescos), cambiando sólo la firma:
+
+- **sin el campo `signature`** → `422 INPUT_VALIDATION_ERROR`,
+  `{"signature":["Firma de integridad requerida no enviada"]}`.
+- **con `signature` bien formada pero con el último carácter alterado** → `422
+  INPUT_VALIDATION_ERROR`, `{"signature":["La firma es inválida"]}` — mensaje DISTINTO al de ausencia,
+  la prueba de que el proveedor valida el VALOR y no sólo la presencia.
+- **control positivo, con la firma correcta** → `201`, estado `PENDING`.
+
+La firma se calculó importando `firmarIntegridadWompi` tal cual (`lib/pagos/wompi-firma.ts:188`), sin
+reimplementar la fórmula ni ajustarla.
+
+> **LA CONSECUENCIA DE ARQUITECTURA, medida y no interpretada:** crear la transacción exige el secreto
+> de integridad, y ese secreto no puede viajar al navegador. **El corte cliente/servidor para la
+> creación queda forzado POR EL SECRETO.**
+
+**B · Las DOS llaves autorizan la creación — y acá está el error que la medición enderezó**
+(`API-DIRECTA-SPIKE-FIRMA-Y-ENDPOINT-1`). Sobre la creación de la transacción, cuerpo y firma
+idénticos, cambiando sólo la credencial:
+
+- **llave PÚBLICA** → `201` (`PENDING`).
+- **llave PRIVADA** → `201` (`PENDING`).
+- **sin credencial** → `401 INVALID_ACCESS_TOKEN`,
+  `reason: "Se esperaba una llave pública o privada pero no se recibió ninguna"`.
+
+El diseño venía asumiendo que la creación vive en el servidor **porque necesita la llave privada**.
+Esa premisa era falsa, y salió de una LECTURA de la documentación pública del proveedor que se había
+presentado como medición (la misma familia que `API-DIRECTA-DECISIONES-ATRIBUCION-FIX-1`, arriba, ya
+corrigió para el copy de las dos aceptaciones). La medición muestra que cualquiera de las dos llaves
+sirve: técnicamente la creación podría dispararse desde el navegador con la llave no-secreta. **Pero la
+conclusión —creación del lado del servidor— sigue siendo la correcta**, por la razón medida en A: la
+FIRMA, que sí exige un secreto.
+
+> **LLEGAMOS A LA CONCLUSIÓN CORRECTA POR LA RAZÓN EQUIVOCADA, y sólo la medición lo enderezó.** Una
+> conclusión correcta apoyada en una premisa falsa se ve exactamente igual que una bien fundada, hasta
+> que algo la mueve. Si el proveedor hubiera hecho opcional la firma, el diseño habría quedado sin
+> ningún apoyo real y nadie se habría enterado — porque la premisa que se creía sosteniéndolo nunca
+> existió.
+
+Y esto le agrega precisión a la regla que este repo ya tiene escrita (*la doc del proveedor no es
+fuente de verdad, se verifica contra el sandbox*, § Pagos en línea (Wompi), CLAUDE.md): **la doc no
+falló sola.** El ledger de este repo (`WOMPI-REGLAS-IMPLEMENTACION-1`, línea ~1207: *"crear una
+transacción funciona con la llave PÚBLICA"*) afirmaba que la creación anda con la pública; la doc leída
+para el diseño de API directa afirmaba que sólo con la privada. Ninguna de las dos estaba completa: la
+medición de este spike le dio la razón a media parte de cada una, y agrega el dato que faltaba —la
+privada TAMBIÉN autoriza, y sin credencial es `401`, no `201`.
+
+Confirmado aparte: la tokenización de la tarjeta se hace contra la API del proveedor sin que los datos
+de tarjeta pasen por ningún servidor propio.
+
+**C · El endpoint NUEVO del comercio trae todo lo que traía el viejo** (`API-DIRECTA-SPIKE-SANDBOX-1`).
+El endpoint viejo lleva la llave pública en la URL y muere el 31 de octubre de 2026; el nuevo
+(`GET /v1/merchants/info`) la manda por la cabecera `x-merchant-public-key`. Medidos los dos contra el
+mismo comercio: ambos responden `200` y traen exactamente las mismas claves de primer nivel, sin
+ninguna exclusiva de un lado ni del otro.
+
+El nuevo sí trae `accepted_payment_methods` —la lista de métodos que la cuenta tiene realmente
+habilitados— y sí trae los dos tokens de aceptación. La única diferencia observada entre las respuestas
+es un identificador por-llamada dentro de cada token, que cambia en cada llamada por diseño y no por
+endpoint.
+
+> **POR QUÉ DECIDE TANTO:** el panel del dueño no configura a ciegas. Puede ofrecerle únicamente lo que
+> su cuenta tiene, leído del proveedor.
+
+**D · Un método no habilitado FALLA AL CREAR, con un error reconocible por programa**
+(`API-DIRECTA-SPIKE-SANDBOX-1`). El catálogo global de tipos de método quedó medido de primera mano
+—no copiado de doc—, provocando el error de validación con un tipo inexistente. El comercio del spike
+tiene habilitados sólo una parte de ese catálogo.
+
+Probando un tipo del catálogo que ese comercio NO tiene habilitado (`BRE_B`), con los subcampos
+completos para descartar un error de forma: `404 NOT_FOUND_ERROR`, con
+`reason: "No hay una identidad de pago para BRE_B configurada para este comercio"`.
+
+La transacción NO se crea y muere después: falla AL CREAR, nunca llega a existir. Y el error es
+distinguible en tres ejes a la vez: el status (distinto del de validación y del de auth), el campo
+`error.type`, y el texto de `reason`, que nombra el tipo de método exacto.
+
+### 2 · Lo que sigue sin medirse
+
+Registrado como abierto, sin suavizarlo — es lo que evita que este asiento se cite de más:
+
+- **Si `accepted_payment_methods` predice el `404` de forma confiable.** Se probó SÓLO `BRE_B`. Que la
+  lista y el rechazo hayan coincidido esa vez no prueba que coincidan siempre, y de eso depende cuánto
+  se puede prevenir en configuración.
+- **La firma del webhook contra un evento REAL del proveedor** — necesita una URL pública, ya señalado
+  como abierto en `WOMPI-REGLAS-IMPLEMENTACION-1` (arriba).
+- **El significado real de los subcampos de `BRE_B`** — se rellenaron con valores plausibles sólo para
+  sortear la validación de forma, no se verificó qué significan.
+- **Referencias duplicadas y límites de tasa** — sin medir.
+- **Todo 3DS** — explícitamente fuera del alcance de los dos spikes.
+
+**Nota de procedencia, para el próximo asiento que cite éste:** §C mide sobre el mismo terreno que
+`API-DIRECTA-DECISIONES-ATRIBUCION-FIX-1` (arriba) señaló como corregido —"si se puede consultar qué
+métodos tiene habilitados un comercio"— pero esta medición (`API-DIRECTA-SPIKE-SANDBOX-1`) es la
+primera que este ledger registra con el `file:line` de una respuesta real del sandbox para esa
+pregunta; ningún asiento anterior a éste trae la cifra. Se anota la discrepancia sin resolverla: no es
+alcance de este slice reconciliar a qué medición se refería esa corrección.
+
+Este asiento no diseña `PaymentIntent` para API directa ni escribe código de integración — eso sigue
+siendo trabajo aparte, igual que dejó dicho `WOMPI-REGLAS-IMPLEMENTACION-1` para el spike de Wompi
+original.
+
+**GATE, los dos carriles, verde.** Este diff toca un solo archivo del ledger (`DECISIONS.md`) y ningún
+test, así que nada podía cambiar en ninguno de los dos carriles.
+
+Regla: un spike read-only no deja rastro que el protocolo pueda seguir — el instrumento de medición no
+produce citas, y lo que mide es incitable hasta que alguien lo escribe en el libro. Este asiento es esa
+escritura, y las dos preguntas B y C muestran por qué importa: una conclusión correcta sostenida en la
+premisa equivocada, y una pregunta que ningún asiento anterior había medido con una cifra real.
