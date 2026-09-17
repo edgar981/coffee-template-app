@@ -182,6 +182,33 @@ export interface RedireccionMetodoPasarela {
   campoUrl: string;
 }
 
+// ── LA AGRUPACIÓN DE UI ES POR INSTRUMENTO (§3 de API-DIRECTA-DECISIONES-PROGRAMA-1,
+//    DECISIONS.md — § CHECKOUT-PESTANAS-POR-INSTRUMENTO-1) ────────────────────────────────────
+//
+// El owner ya decidió los CUATRO grupos y su pregunta («¿con qué paga el comprador?»): tarjeta,
+// débito bancario, billeteras, y financiación y puntos. Esta forma sólo los NOMBRA — no los
+// reinventa ni los renombra.
+//
+// 'tarjeta' ESTÁ en la unión (la pestaña de tarjeta la necesita, § abajo), pero NINGÚN
+// descriptor de este registro puede declararla: TARJETA NO VIVE ACÁ (su flujo es bespoke, § la
+// cabecera de esta sección), así que `DescriptorMetodoPasarela.grupo` usa
+// `GrupoDescriptorMetodoPasarela` —la unión SIN 'tarjeta'— para que sea ESTRUCTURALMENTE
+// imposible que un descriptor de este archivo se declare a sí mismo tarjeta.
+export type GrupoMetodoPasarela = 'tarjeta' | 'debito_bancario' | 'billeteras' | 'financiacion_puntos';
+
+/** El orden CANÓNICO de los cuatro grupos — el mismo orden en que el owner los nombró (§3 de
+ *  API-DIRECTA-DECISIONES-PROGRAMA-1): tarjeta, débito bancario, billeteras, financiación y
+ *  puntos. Una pestaña aparece siempre en esta posición, nunca por el orden en que llegan del
+ *  proveedor ni alfabético — así el instrumento que un comprador ya conoce queda donde lo dejó
+ *  la vez anterior. */
+export const ORDEN_GRUPOS_METODO_PASARELA: readonly GrupoMetodoPasarela[] = [
+  'tarjeta', 'debito_bancario', 'billeteras', 'financiacion_puntos',
+];
+
+/** El universo de grupos que un DESCRIPTOR puede declarar — 'tarjeta' excluida a propósito
+ *  (§ la cabecera de esta sección). */
+export type GrupoDescriptorMetodoPasarela = Exclude<GrupoMetodoPasarela, 'tarjeta'>;
+
 export interface DescriptorMetodoPasarela {
   /** El tipo tal como lo nombra el proveedor — la MISMA cadena que ya cruza
    *  `cruzarMetodosPasarela` (arriba). */
@@ -189,6 +216,20 @@ export interface DescriptorMetodoPasarela {
   /** Lo que el comprador lee para elegir esta opción — TEXTO PROVISIONAL, PENDIENTE DE TEXTO
    *  DEL OWNER. */
   nombreVisible: string;
+  /** El GRUPO de instrumento al que pertenece este método, para la pestaña que lo agrupa
+   *  (§ la cabecera de esta sección) — un atributo DEL DESCRIPTOR, junto a sus campos y su
+   *  redirección, y NO una segunda lista tipo→grupo que pudiera desincronizarse del registro
+   *  el día que entre un descriptor nuevo.
+   *
+   *  OPCIONAL A PROPÓSITO — no porque un descriptor real pueda vivir sin grupo (los dos de
+   *  `DESCRIPTORES_METODO_PASARELA` lo declaran), sino para no forzarlo en los descriptores
+   *  SINTÉTICOS que ya existían en otros archivos de test (`lib/pagos/creacion-transaccion.
+   *  test.ts`, fuera de `touches` de § CHECKOUT-PESTANAS-POR-INSTRUMENTO-1) — ésos prueban la
+   *  creación de la transacción, nunca la agrupación por instrumento, así que no tienen nada
+   *  que decir sobre su pestaña. Un descriptor SIN `grupo` simplemente no agrupa
+   *  (`agruparMetodosPasarelaPorInstrumento` lo omite, abajo) — el mismo trato que un tipo sin
+   *  descriptor en el registro. */
+  grupo?: GrupoDescriptorMetodoPasarela;
   /** Los campos que este tipo le pide al comprador — CERO, UNO o MUCHOS. Sin un número
    *  adentro: es un array, no una convención de cuántas propiedades declarar. */
   campos: CampoMetodoPasarela[];
@@ -290,6 +331,10 @@ function soloDigitos(valor: string): string {
 export const DESCRIPTOR_NEQUI = conCampoLegacy<Omit<DescriptorMetodoPasarela, 'campo'>>({
   tipo: 'NEQUI',
   nombreVisible: 'Nequi',
+  // Nequi es una BILLETERA — «con qué paga el comprador» (§3 de API-DIRECTA-DECISIONES-
+  // PROGRAMA-1), no débito bancario ni financiación: el comprador paga desde el saldo de su
+  // app, sin pasar por su banco ni por una cuota.
+  grupo: 'billeteras',
   campos: [
     {
       nombre: 'numero',
@@ -367,8 +412,9 @@ export const TIPOS_NO_COBRABLES: ReadonlySet<string> = new Set<string>(['BANCOLO
 
 /** ¿Este tipo está en la lista de lo que la pasarela nunca cobra? El segundo parámetro existe
  *  SOLO para que el mecanismo se pueda probar con un tipo sintético sin tocar el registro real
- *  (que hoy está vacío, § `TIPOS_NO_COBRABLES` arriba) — en producción siempre corre con el
- *  default. */
+ *  (que hoy tiene UNA entrada, BANCOLOMBIA, § `TIPOS_NO_COBRABLES` arriba — corregido por
+ *  § CHECKOUT-PESTANAS-POR-INSTRUMENTO-1: decía "vacío", y dejó de serlo con
+ *  § PANEL-LISTA-NO-COBRABLES-1) — en producción siempre corre con el default. */
 export function esNoCobrable(tipo: string, tiposNoCobrables: ReadonlySet<string> = TIPOS_NO_COBRABLES): boolean {
   return tiposNoCobrables.has(tipo);
 }
@@ -415,4 +461,53 @@ export function metodosPasarelaParaComprador(guardados: string[], cuenta: string
     .filter((m) => m.estado === 'disponible')
     .map((m) => DESCRIPTORES_METODO_PASARELA[m.tipo])
     .filter((d): d is DescriptorMetodoPasarela => d !== undefined);
+}
+
+// ── LAS PESTAÑAS POR INSTRUMENTO (§ CHECKOUT-PESTANAS-POR-INSTRUMENTO-1) ─────────────────────
+
+/** Un grupo con AL MENOS un método — la función de abajo nunca devuelve uno vacío
+ *  (§ el reporte del slice: "una pestaña sin métodos NO se dibuja"). */
+export interface GrupoDeMetodosPasarela {
+  grupo: GrupoDescriptorMetodoPasarela;
+  /** Los tipos de este grupo, en el orden en que `metodosPasarelaParaComprador`/
+   *  `metodosOtros` los trajo — nunca reordenados dentro del grupo. */
+  tipos: string[];
+}
+
+/**
+ * Agrupa los tipos QUE NO SON TARJETA (típicamente `metodosOtros`, ya filtrado por el servidor
+ * vía `metodosPasarelaParaComprador`) por su `grupo` declarado EN EL DESCRIPTOR — nunca una
+ * segunda lista tipo→grupo, que se desincronizaría del registro el día que entre un descriptor
+ * nuevo (§ la cabecera de la sección de arriba). La tarjeta NO pasa por acá: no tiene
+ * descriptor en este registro, así que quien llama resuelve su propia pestaña por separado
+ * (§ el reporte del slice, "decí explícitamente cómo resolviste su pestaña").
+ *
+ * Devuelve sólo los grupos que terminan con AL MENOS un método, en el orden CANÓNICO de
+ * `ORDEN_GRUPOS_METODO_PASARELA` (nunca el orden de llegada) — una pestaña sin métodos no se
+ * dibuja. Un tipo SIN descriptor en `registro`, o con descriptor pero SIN `grupo` (§ el
+ * docstring de `DescriptorMetodoPasarela.grupo` — los descriptores sintéticos de otros tests
+ * no lo declaran), se omite en silencio: la misma guarda defensiva que `SelectorMetodoPasarela`
+ * ya aplicaba antes de esta agrupación, para el caso en que el registro del cliente y el del
+ * servidor lleguen a divergir.
+ *
+ * `registro` es inyectable SOLO para que el mecanismo se pueda probar con un descriptor
+ * sintético sin tocar `DESCRIPTORES_METODO_PASARELA` — mismo patrón que `esNoCobrable` arriba.
+ */
+export function agruparMetodosPasarelaPorInstrumento(
+  tipos: string[],
+  registro: Record<string, DescriptorMetodoPasarela> = DESCRIPTORES_METODO_PASARELA,
+): GrupoDeMetodosPasarela[] {
+  const porGrupo = new Map<GrupoDescriptorMetodoPasarela, string[]>();
+  for (const tipo of tipos) {
+    const descriptor = registro[tipo];
+    if (!descriptor?.grupo) continue;
+    const lista = porGrupo.get(descriptor.grupo);
+    if (lista) lista.push(tipo);
+    else porGrupo.set(descriptor.grupo, [tipo]);
+  }
+
+  return ORDEN_GRUPOS_METODO_PASARELA
+    .filter((grupo): grupo is GrupoDescriptorMetodoPasarela => grupo !== 'tarjeta')
+    .map((grupo) => ({ grupo, tipos: porGrupo.get(grupo) ?? [] }))
+    .filter((g) => g.tipos.length > 0);
 }

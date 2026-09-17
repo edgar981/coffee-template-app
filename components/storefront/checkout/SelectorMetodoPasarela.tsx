@@ -3,7 +3,10 @@
 import { useState } from 'react';
 import FormularioTarjeta from './FormularioTarjeta';
 import FormularioOtroMetodoPasarela from './FormularioOtroMetodoPasarela';
-import { DESCRIPTORES_METODO_PASARELA } from '@/lib/pagos/metodos-pasarela';
+import {
+  DESCRIPTORES_METODO_PASARELA, agruparMetodosPasarelaPorInstrumento,
+  type GrupoMetodoPasarela,
+} from '@/lib/pagos/metodos-pasarela';
 import type { AceptacionesWompi } from '@/types/payment';
 
 // TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER (§ el reporte del slice). "Tarjeta" es la
@@ -11,6 +14,34 @@ import type { AceptacionesWompi } from '@/types/payment';
 // de cada método adicional sale de `descriptor.nombreVisible` (también provisional, declarado
 // en `lib/pagos/metodos-pasarela.ts`).
 const NOMBRE_TARJETA = 'Tarjeta de crédito o débito';
+
+// El rótulo de cada PESTAÑA — uno por `GrupoMetodoPasarela` (§3 de API-DIRECTA-DECISIONES-
+// PROGRAMA-1, DECISIONS.md; § CHECKOUT-PESTANAS-POR-INSTRUMENTO-1). TEXTO PROVISIONAL,
+// PENDIENTE DE TEXTO DEL OWNER (§ el reporte del slice) — salvo 'tarjeta', que reusa
+// `NOMBRE_TARJETA`, ya provisional desde antes de este slice.
+const NOMBRES_PESTANA_PASARELA: Record<GrupoMetodoPasarela, string> = {
+  tarjeta: NOMBRE_TARJETA,
+  debito_bancario: 'Débito bancario',
+  billeteras: 'Billeteras',
+  financiacion_puntos: 'Financiación y puntos',
+};
+
+/** Una pestaña del picker: su grupo de instrumento y los tipos que agrupa. Para 'tarjeta',
+ *  `tipos` es SIEMPRE `['tarjeta']` — un marcador interno, nunca un tipo real de
+ *  `DESCRIPTORES_METODO_PASARELA` (§ abajo, `PESTANA_TARJETA`). Tipo LOCAL del componente, a
+ *  propósito distinto de `GrupoDeMetodosPasarela` (`lib/pagos/metodos-pasarela.ts`): aquél
+ *  excluye 'tarjeta' de `grupo` porque la tarjeta no vive en el registro que agrupa; acá SÍ
+ *  necesitamos poder nombrar la pestaña de tarjeta. */
+interface Pestana {
+  grupo: GrupoMetodoPasarela;
+  tipos: string[];
+}
+
+/** La pestaña de tarjeta, fija — TARJETA NO VIVE EN `DESCRIPTORES_METODO_PASARELA` (su flujo
+ *  es propio, § el registro), así que esta pestaña NO sale de
+ *  `agruparMetodosPasarelaPorInstrumento` (que sólo agrupa lo que SÍ tiene descriptor): se
+ *  resuelve acá, a mano, como la primera pestaña siempre presente cuando el picker se muestra. */
+const PESTANA_TARJETA: Pestana = { grupo: 'tarjeta', tipos: ['tarjeta'] };
 
 export interface SelectorMetodoPasarelaProps {
   aceptaciones: AceptacionesWompi;
@@ -43,20 +74,46 @@ export interface SelectorMetodoPasarelaProps {
 }
 
 /**
- * La ranura de API DIRECTA gana un SELECTOR de tipo cuando hay métodos QUE NO SON TARJETA
- * disponibles (§ API-DIRECTA-OTROS-METODOS-1). Con `metodosOtros` vacío —el caso de HOY, sin
- * ninguna billetera encendida por el dueño o soportada por su cuenta— se comporta
- * BYTE-IDÉNTICO a antes de este slice: sólo `FormularioTarjeta`, sin picker.
+ * La ranura de API DIRECTA gana un PICKER POR PESTAÑAS DE INSTRUMENTO cuando hay métodos QUE NO
+ * SON TARJETA disponibles (§ API-DIRECTA-OTROS-METODOS-1, § CHECKOUT-PESTANAS-POR-INSTRUMENTO-1
+ * — reemplaza la lista de radios apilada que este componente tenía antes: dentro del bloque de
+ * pago ya hay un radio por MÉTODO DE PAGO, y otra lista de radios encima —una por MÉTODO DE
+ * PASARELA— era "dos niveles de radios", exactamente lo que el owner pidió sacar). Con
+ * `metodosOtros` vacío —el caso de HOY, sin ninguna billetera encendida por el dueño o
+ * soportada por su cuenta— se comporta BYTE-IDÉNTICO a antes de este slice: sólo
+ * `FormularioTarjeta`, sin picker ni pestañas.
  *
- * AGREGAR EL TIPO SIGUIENTE NO TOCA ESTE COMPONENTE: itera `metodosOtros` y busca cada tipo en
- * `DESCRIPTORES_METODO_PASARELA` — un tipo con descriptor nuevo aparece solo.
+ * LAS PESTAÑAS SON POR INSTRUMENTO (tarjeta · débito bancario · billeteras · financiación y
+ * puntos, § agruparMetodosPasarelaPorInstrumento, `lib/pagos/metodos-pasarela.ts`), NO una por
+ * tipo: dos tipos del MISMO instrumento comparten pestaña. Una pestaña sin métodos NO SE
+ * DIBUJA — con el registro de hoy (sólo NEQUI, billeteras) el resultado son DOS pestañas,
+ * tarjeta y billeteras; débito bancario y financiación y puntos no aparecen.
+ *
+ * SI EL AGRUPADO DEJA UNA SOLA PESTAÑA (tarjeta sola, porque ningún tipo de `metodosOtros`
+ * resolvió a un grupo con métodos — el registro del cliente y el del servidor divergieron), NO
+ * SE DIBUJA NINGUNA PESTAÑA: una sola pestaña no sirve para elegir nada, así que se cae al MISMO
+ * camino que `metodosOtros` vacío — `FormularioTarjeta` directo, sin chrome de picker.
+ *
+ * DENTRO de una pestaña con MÁS de un tipo (hoy no ocurre — billeteras sólo tiene NEQUI), una
+ * fila de chips secundaria (BOTONES, no radios) deja elegir cuál — sigue siendo UN nivel de
+ * radio (el formulario final), con selección por botones arriba, nunca una segunda lista de
+ * `<input type="radio">`.
+ *
+ * AGREGAR EL TIPO SIGUIENTE NO TOCA ESTE COMPONENTE: declara su `grupo` en el descriptor
+ * (`lib/pagos/metodos-pasarela.ts`) y aparece solo — en su pestaña existente si comparte grupo
+ * con otro tipo, o en una pestaña nueva si es el primero de su grupo.
  */
 export default function SelectorMetodoPasarela({
   aceptaciones, publicKey, crearOrdenPasarela, monto, email, metodosOtros, onMetodoNoHabilitado,
 }: SelectorMetodoPasarelaProps) {
   const [tipoElegido, setTipoElegido] = useState<string>('tarjeta');
 
-  if (metodosOtros.length === 0) {
+  const gruposOtros = agruparMetodosPasarelaPorInstrumento(metodosOtros);
+
+  // `metodosOtros` vacío YA cae acá (agrupar [] da []) — la misma rama cubre las dos causas de
+  // "no hay nada más que tarjeta" (§ el docstring de arriba, "SI EL AGRUPADO DEJA UNA SOLA
+  // PESTAÑA"), sin dos checks separados.
+  if (gruposOtros.length === 0) {
     return (
       <FormularioTarjeta
         aceptaciones={aceptaciones}
@@ -69,40 +126,59 @@ export default function SelectorMetodoPasarela({
     );
   }
 
+  const pestanas: Pestana[] = [PESTANA_TARJETA, ...gruposOtros];
+  // Derivado de `tipoElegido`, nunca estado propio — un `grupoElegido` separado podría
+  // desincronizarse del tipo realmente activo (la misma razón por la que `loading` se deriva en
+  // otras pantallas del panel en vez de setearse aparte).
+  const pestanaActiva = pestanas.find((p) => p.tipos.includes(tipoElegido)) ?? pestanas[0];
   const descriptorElegido = tipoElegido !== 'tarjeta' ? DESCRIPTORES_METODO_PASARELA[tipoElegido] : null;
 
   return (
     <div className="space-y-4 text-left">
-      <div className="space-y-2">
-        <label
-          className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${tipoElegido === 'tarjeta' ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}
-        >
-          <input
-            type="radio" name="metodo-pasarela" checked={tipoElegido === 'tarjeta'}
-            onChange={() => setTipoElegido('tarjeta')} className="accent-[var(--sf-acento)]"
-          />
-          <span className="text-sm font-medium text-[var(--sf-tinta)]">{NOMBRE_TARJETA}</span>
-        </label>
-        {metodosOtros.map((tipo) => {
-          const descriptor = DESCRIPTORES_METODO_PASARELA[tipo];
-          // Un tipo sin descriptor no debería llegar acá (el servidor ya filtra por
-          // `metodosPasarelaParaComprador`), pero si el registro del cliente y el del
-          // servidor llegaran a divergir, se omite en silencio en vez de romper el picker.
-          if (!descriptor) return null;
-          return (
-            <label
-              key={tipo}
-              className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${tipoElegido === tipo ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}
-            >
-              <input
-                type="radio" name="metodo-pasarela" checked={tipoElegido === tipo}
-                onChange={() => setTipoElegido(tipo)} className="accent-[var(--sf-acento)]"
-              />
-              <span className="text-sm font-medium text-[var(--sf-tinta)]">{descriptor.nombreVisible}</span>
-            </label>
-          );
-        })}
+      <div role="tablist" aria-label="Elige cómo quieres pagar" className="flex gap-1 border-b-2 border-[var(--sf-linea)]">
+        {pestanas.map((p) => (
+          <button
+            key={p.grupo}
+            type="button"
+            role="tab"
+            aria-selected={pestanaActiva.grupo === p.grupo}
+            onClick={() => setTipoElegido(p.tipos[0])}
+            className={`px-4 py-2.5 -mb-0.5 text-sm font-medium border-b-2 transition-colors ${
+              pestanaActiva.grupo === p.grupo
+                ? 'border-[var(--sf-acento)] text-[var(--sf-tinta)]'
+                : 'border-transparent text-[var(--sf-texto-suave)] hover:text-[var(--sf-tinta)]'
+            }`}
+          >
+            {NOMBRES_PESTANA_PASARELA[p.grupo]}
+          </button>
+        ))}
       </div>
+
+      {/* Selector SECUNDARIO, sólo si la pestaña activa agrupa MÁS de un tipo (§ el docstring
+          de arriba) — botones, no radios: el instrumento ya se eligió arriba; esto elige CUÁL
+          método de ese instrumento, un nivel más abajo, sin apilar una segunda lista de radios. */}
+      {pestanaActiva.tipos.length > 1 && (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Elige el método">
+          {pestanaActiva.tipos.map((tipo) => {
+            const descriptor = DESCRIPTORES_METODO_PASARELA[tipo];
+            if (!descriptor) return null;
+            return (
+              <button
+                key={tipo}
+                type="button"
+                onClick={() => setTipoElegido(tipo)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                  tipoElegido === tipo
+                    ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/10 text-[var(--sf-tinta)]'
+                    : 'border-[var(--sf-linea)] text-[var(--sf-texto-suave)]'
+                }`}
+              >
+                {descriptor.nombreVisible}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {tipoElegido === 'tarjeta' ? (
         <FormularioTarjeta

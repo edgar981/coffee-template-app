@@ -4,6 +4,7 @@ import {
   cruzarMetodosPasarela, DESCRIPTOR_NEQUI, DESCRIPTORES_METODO_PASARELA, metodosPasarelaParaComprador,
   checkoutSabeDibujar, TIPOS_NO_COBRABLES, esNoCobrable, paraElPanel,
   camposVisibles, esAmbientePruebasPorLlave, urlDeRedireccion, conCampoLegacy,
+  agruparMetodosPasarelaPorInstrumento, ORDEN_GRUPOS_METODO_PASARELA,
   type DescriptorMetodoPasarela, type CampoMetodoPasarela,
   type CampoTextoLibre, type CampoEleccionCerrada, type CampoConsultaExterna,
 } from './metodos-pasarela';
@@ -188,13 +189,13 @@ test('dimensión C — sin redireccion declarada: urlDeRedireccion siempre null,
 
 test('dimensión C — DOS descriptores con redireccion, cada uno con su PROPIO nombre de campo de URL', () => {
   const descriptorA: DescriptorMetodoPasarela = {
-    tipo: 'REDIRECT_A', nombreVisible: 'A', campos: [CAMPO_TEXTO_DE_PRUEBA],
+    tipo: 'REDIRECT_A', nombreVisible: 'A', grupo: 'billeteras', campos: [CAMPO_TEXTO_DE_PRUEBA],
     redireccion: { campoUrl: 'async_payment_url' },
     construirPaymentMethod: () => ({ type: 'REDIRECT_A' }),
     campo: CAMPO_TEXTO_DE_PRUEBA,
   };
   const descriptorB: DescriptorMetodoPasarela = {
-    tipo: 'REDIRECT_B', nombreVisible: 'B', campos: [CAMPO_TEXTO_DE_PRUEBA],
+    tipo: 'REDIRECT_B', nombreVisible: 'B', grupo: 'debito_bancario', campos: [CAMPO_TEXTO_DE_PRUEBA],
     redireccion: { campoUrl: 'redirect_url' },
     construirPaymentMethod: () => ({ type: 'REDIRECT_B' }),
     campo: CAMPO_TEXTO_DE_PRUEBA,
@@ -214,7 +215,7 @@ test('dimensión C — DOS descriptores con redireccion, cada uno con su PROPIO 
 
 test('dimensión C — urlDeRedireccion: null si el campo declarado vino con un valor que no es string', () => {
   const descriptor: DescriptorMetodoPasarela = {
-    tipo: 'X', nombreVisible: 'X', campos: [CAMPO_TEXTO_DE_PRUEBA],
+    tipo: 'X', nombreVisible: 'X', grupo: 'billeteras', campos: [CAMPO_TEXTO_DE_PRUEBA],
     redireccion: { campoUrl: 'url' },
     construirPaymentMethod: () => ({}),
     campo: CAMPO_TEXTO_DE_PRUEBA,
@@ -237,7 +238,7 @@ const CAMPO_SOLO_PRUEBAS: CampoTextoLibre = {
 
 test('camposVisibles: un campo soloPruebas se OMITE fuera del ambiente de pruebas', () => {
   const descriptor: DescriptorMetodoPasarela = {
-    tipo: 'X', nombreVisible: 'X', campos: [CAMPO_TEXTO_DE_PRUEBA, CAMPO_SOLO_PRUEBAS],
+    tipo: 'X', nombreVisible: 'X', grupo: 'billeteras', campos: [CAMPO_TEXTO_DE_PRUEBA, CAMPO_SOLO_PRUEBAS],
     construirPaymentMethod: () => ({}), campo: CAMPO_TEXTO_DE_PRUEBA,
   };
   const visibles = camposVisibles(descriptor, false);
@@ -247,7 +248,7 @@ test('camposVisibles: un campo soloPruebas se OMITE fuera del ambiente de prueba
 
 test('camposVisibles: un campo soloPruebas SÍ se incluye dentro del ambiente de pruebas', () => {
   const descriptor: DescriptorMetodoPasarela = {
-    tipo: 'X', nombreVisible: 'X', campos: [CAMPO_TEXTO_DE_PRUEBA, CAMPO_SOLO_PRUEBAS],
+    tipo: 'X', nombreVisible: 'X', grupo: 'billeteras', campos: [CAMPO_TEXTO_DE_PRUEBA, CAMPO_SOLO_PRUEBAS],
     construirPaymentMethod: () => ({}), campo: CAMPO_TEXTO_DE_PRUEBA,
   };
   const visibles = camposVisibles(descriptor, true);
@@ -257,7 +258,7 @@ test('camposVisibles: un campo soloPruebas SÍ se incluye dentro del ambiente de
 
 test('camposVisibles: un campo NORMAL (sin soloPruebas) se muestra en los dos ambientes', () => {
   const descriptor: DescriptorMetodoPasarela = {
-    tipo: 'X', nombreVisible: 'X', campos: [CAMPO_TEXTO_DE_PRUEBA],
+    tipo: 'X', nombreVisible: 'X', grupo: 'billeteras', campos: [CAMPO_TEXTO_DE_PRUEBA],
     construirPaymentMethod: () => ({}), campo: CAMPO_TEXTO_DE_PRUEBA,
   };
   assert.equal(camposVisibles(descriptor, false).length, 1);
@@ -285,6 +286,10 @@ test('esAmbientePruebasPorLlave: una llave CON el prefijo productivo → false',
 const DESCRIPTOR_PRUEBA_TRES_DIMENSIONES: DescriptorMetodoPasarela = {
   tipo: 'BANCO_DIGITAL_DE_PRUEBA',
   nombreVisible: 'Banco Digital (de prueba, nunca ofrecido)',
+  // "Banco Digital" es débito bancario — el grupo en sí es incidental a este test (prueba las
+  // tres dimensiones de CAMPOS, no la agrupación por instrumento, que tiene sus propios tests
+  // más abajo).
+  grupo: 'debito_bancario',
   // A) CUATRO campos — B) de las TRES naturalezas, con un `soloPruebas` mezclado adentro para
   // probar las dos condiciones a la vez sobre el MISMO descriptor.
   campos: [CAMPO_ELECCION_DE_PRUEBA, CAMPO_TEXTO_DE_PRUEBA, CAMPO_CONSULTA_DE_PRUEBA, CAMPO_SOLO_PRUEBAS],
@@ -361,6 +366,7 @@ test('conCampoLegacy: campo derivado es EXACTAMENTE campos[0], para un descripto
   const conVarios = conCampoLegacy({
     tipo: 'X',
     nombreVisible: 'X',
+    grupo: 'billeteras',
     campos: [CAMPO_ELECCION_DE_PRUEBA, CAMPO_TEXTO_DE_PRUEBA],
     construirPaymentMethod: () => ({}),
   });
@@ -370,7 +376,7 @@ test('conCampoLegacy: campo derivado es EXACTAMENTE campos[0], para un descripto
 
 test('conCampoLegacy: lanza ruidoso si el descriptor no declara NINGÚN campo — el wire LEGACY no puede satisfacerse', () => {
   assert.throws(
-    () => conCampoLegacy({ tipo: 'SIN_CAMPOS', nombreVisible: 'X', campos: [], construirPaymentMethod: () => ({}) }),
+    () => conCampoLegacy({ tipo: 'SIN_CAMPOS', nombreVisible: 'X', grupo: 'billeteras', campos: [], construirPaymentMethod: () => ({}) }),
     /SIN_CAMPOS.*no declara ningún campo/,
   );
 });
@@ -549,4 +555,93 @@ test('el servidor RECHAZA un tipo que el checkout no sabe dibujar (PSE, sin desc
 test('el servidor RECHAZA BANCOLOMBIA (§ PANEL-LISTA-NO-COBRABLES-1: TIPOS_NO_COBRABLES ya no está vacía)', () => {
   const parsed = siteSettingsEditableSchema.safeParse(payloadDeSiteSettings(['BANCOLOMBIA']));
   assert.equal(parsed.success, false);
+});
+
+// ── LAS PESTAÑAS POR INSTRUMENTO (§ CHECKOUT-PESTANAS-POR-INSTRUMENTO-1) ─────────────────────
+
+test('agruparMetodosPasarelaPorInstrumento: con el registro real, NEQUI cae en billeteras — solo', () => {
+  const r = agruparMetodosPasarelaPorInstrumento(['NEQUI']);
+  assert.deepEqual(r, [{ grupo: 'billeteras', tipos: ['NEQUI'] }]);
+});
+
+test('agruparMetodosPasarelaPorInstrumento: sin tipos → sin grupos', () => {
+  assert.deepEqual(agruparMetodosPasarelaPorInstrumento([]), []);
+});
+
+test('agruparMetodosPasarelaPorInstrumento: un tipo sin descriptor en el registro se omite, sin producir un grupo', () => {
+  assert.deepEqual(agruparMetodosPasarelaPorInstrumento(['PSE']), []);
+});
+
+test('agruparMetodosPasarelaPorInstrumento: un descriptor CON tipo pero SIN `grupo` (como los sintéticos de creacion-transaccion.test.ts, fuera de touches de este slice) se omite igual que uno sin descriptor', () => {
+  const registroConDescriptorSinGrupo: Record<string, DescriptorMetodoPasarela> = {
+    ...DESCRIPTORES_METODO_PASARELA,
+    SIN_GRUPO: conCampoLegacy({
+      tipo: 'SIN_GRUPO', nombreVisible: 'X', campos: [{ ...CAMPO_ELECCION_DE_PRUEBA }],
+      construirPaymentMethod: () => ({}),
+    }),
+  };
+  assert.deepEqual(
+    agruparMetodosPasarelaPorInstrumento(['NEQUI', 'SIN_GRUPO'], registroConDescriptorSinGrupo),
+    [{ grupo: 'billeteras', tipos: ['NEQUI'] }],
+  );
+});
+
+test('agruparMetodosPasarelaPorInstrumento: UN GRUPO SIN MÉTODOS NO APARECE — con sólo NEQUI, débito bancario, financiación y puntos, y tarjeta no salen en el resultado', () => {
+  const grupos = agruparMetodosPasarelaPorInstrumento(['NEQUI']).map((g) => g.grupo);
+  assert.equal(grupos.includes('debito_bancario'), false);
+  assert.equal(grupos.includes('financiacion_puntos'), false);
+  // 'tarjeta' nunca sale de esta función — no vive en el registro (§ el docstring de arriba).
+  assert.equal((grupos as string[]).includes('tarjeta'), false);
+});
+
+test('agruparMetodosPasarelaPorInstrumento: CADA método cae en SU grupo — dos tipos sintéticos, grupos distintos, dos entradas separadas', () => {
+  const registroDePrueba: Record<string, DescriptorMetodoPasarela> = {
+    ...DESCRIPTORES_METODO_PASARELA,
+    BANCO_DIGITAL_X: { ...DESCRIPTOR_NEQUI, tipo: 'BANCO_DIGITAL_X', grupo: 'debito_bancario' },
+  };
+  const r = agruparMetodosPasarelaPorInstrumento(['NEQUI', 'BANCO_DIGITAL_X'], registroDePrueba);
+  assert.deepEqual(r, [
+    { grupo: 'debito_bancario', tipos: ['BANCO_DIGITAL_X'] },
+    { grupo: 'billeteras', tipos: ['NEQUI'] },
+  ]);
+});
+
+test('agruparMetodosPasarelaPorInstrumento: DOS tipos del MISMO grupo caen en la MISMA entrada, en el orden en que llegaron', () => {
+  const registroDePrueba: Record<string, DescriptorMetodoPasarela> = {
+    ...DESCRIPTORES_METODO_PASARELA,
+    OTRA_BILLETERA: { ...DESCRIPTOR_NEQUI, tipo: 'OTRA_BILLETERA' },
+  };
+  const r = agruparMetodosPasarelaPorInstrumento(['OTRA_BILLETERA', 'NEQUI'], registroDePrueba);
+  assert.deepEqual(r, [{ grupo: 'billeteras', tipos: ['OTRA_BILLETERA', 'NEQUI'] }]);
+});
+
+test('agruparMetodosPasarelaPorInstrumento: AGREGAR UN DESCRIPTOR NUEVO LO UBICA SOLO, sin tocar el resultado de los demás grupos', () => {
+  // Un descriptor sintético en un grupo que hoy no tiene ningún método (financiación y
+  // puntos) — simula "el tipo siguiente" del docstring del registro: agregarlo no exige
+  // tocar esta función ni el componente que la consume, sólo declarar su `grupo`.
+  const registroConNuevoTipo: Record<string, DescriptorMetodoPasarela> = {
+    ...DESCRIPTORES_METODO_PASARELA,
+    ADDI: { ...DESCRIPTOR_NEQUI, tipo: 'ADDI', nombreVisible: 'Addi', grupo: 'financiacion_puntos' },
+  };
+  const r = agruparMetodosPasarelaPorInstrumento(['NEQUI', 'ADDI'], registroConNuevoTipo);
+  assert.deepEqual(r, [
+    { grupo: 'billeteras', tipos: ['NEQUI'] },
+    { grupo: 'financiacion_puntos', tipos: ['ADDI'] },
+  ]);
+});
+
+test('agruparMetodosPasarelaPorInstrumento: el ORDEN de los grupos es el CANÓNICO (débito · billeteras · financiación), nunca el orden de llegada de los tipos', () => {
+  const registroDeTres: Record<string, DescriptorMetodoPasarela> = {
+    NEQUI: { ...DESCRIPTOR_NEQUI, grupo: 'billeteras' },
+    ADDI: { ...DESCRIPTOR_NEQUI, tipo: 'ADDI', grupo: 'financiacion_puntos' },
+    PSE_X: { ...DESCRIPTOR_NEQUI, tipo: 'PSE_X', grupo: 'debito_bancario' },
+  };
+  // Llegan en el orden CONTRARIO al canónico — el resultado igual sale en orden canónico.
+  const r = agruparMetodosPasarelaPorInstrumento(['ADDI', 'NEQUI', 'PSE_X'], registroDeTres);
+  assert.deepEqual(r.map((g) => g.grupo), ['debito_bancario', 'billeteras', 'financiacion_puntos']);
+  // Coincide con el orden canónico exportado, menos 'tarjeta' (nunca sale de esta función).
+  assert.deepEqual(
+    ORDEN_GRUPOS_METODO_PASARELA.filter((g) => g !== 'tarjeta'),
+    ['debito_bancario', 'billeteras', 'financiacion_puntos'],
+  );
 });
