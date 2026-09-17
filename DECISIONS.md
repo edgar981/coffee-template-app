@@ -5501,3 +5501,135 @@ trabajo se previene aguas arriba, y un slice que sólo existía para verificar u
 queda con el residual que esa medición no cubrió. Ninguno de los tres se cierra por esto: el panel tiene
 un modo de falla pendiente del owner, el desalineo se apoya en un predictor SIN MEDIR, y el residual del
 primero está bloqueado por una condición externa (una URL pública) que este asiento no resuelve.
+
+## 2026-09-17 — Lo que midió el spike de PSE: los campos que pide, de dónde sale la lista de bancos,
+qué NO devuelve al crear, cómo sale el comprador de la página, y los dos límites que el sandbox no deja
+medir (`API-DIRECTA-PSE-SPIKE-ASIENTO-1`)
+
+### 0 · Por qué este asiento existe
+
+El spike `API-DIRECTA-SPIKE-PSE-1` corrió **read-only** contra el sandbox de Wompi: sin commit, sin
+rama, sin asiento propio. Lo que midió vive sólo en los registros del orquestador, y sin este asiento es
+**incitable** — la misma regla que este ledger ya fijó el mismo mes para spikes read-only
+(`API-DIRECTA-SPIKES-ASIENTO-1`, arriba): *"el instrumento de medición no produce citas; lo que mide es
+incitable hasta que alguien lo escribe"*. El owner ordenó este asiento el 2026-09-17 y exigió
+explícitamente que los DOS límites que el spike no pudo medir entren **con su etiqueta** — son los que
+más pesan sobre el slice que viene.
+
+**Este slice no tiene acceso a red: no verifica nada de lo que sigue contra el proveedor.** Lo de abajo
+es lo que el spike midió, transcrito con su origen (`API-DIRECTA-SPIKE-PSE-1`).
+
+### 1 · Lo medido
+
+**A · Lo que PSE pide, además de lo común.** Creando con el tipo y nada más, el proveedor contesta un
+error de validación enumerando lo que falta y sus valores aceptados:
+
+- **el código de la institución financiera** — sin lista en el propio error; sale del endpoint de §B;
+- **el tipo de persona** — acepta `0` o `1`;
+- **el tipo de documento** — acepta `RC, TI, CC, TE, CE, NIT, PP, DNI, PPT, PA`;
+- **el número de documento**;
+- **la descripción del pago**.
+
+**Persona natural y persona jurídica se comportan igual**: con el tipo y el documento cambiados,
+también responde creada, **sin pedir ningún campo adicional** — no hay campo de razón social aparte.
+Se registra porque es la clase de suposición que alguien haría al construir sin haberlo medido.
+
+**B · De dónde sale la lista de bancos.** Del endpoint de instituciones financieras del proveedor, que
+**responde tanto con la llave pública como con la privada** y **falla sólo sin ninguna de las dos** —
+el mismo patrón de autorización que este ledger ya registró para otras consultas
+(`API-DIRECTA-SPIKES-ASIENTO-1` §1.C, arriba).
+
+Cada banco trae **un código** —el valor que viaja al crear— y **un nombre** —lo que ve el comprador—.
+**En sandbox son bancos DE PRUEBA** (uno que aprueba, uno que declina, uno que simula error), **no
+bancos reales**. Quien construya no debe esperar esa lista en producción.
+
+> **LO QUE ESTO CIERRA:** la lista de bancos **NO se escribe a mano en nuestro código**. Sale del
+> proveedor, igual que los métodos habilitados de la cuenta (`accepted_payment_methods`,
+> `API-DIRECTA-SPIKES-ASIENTO-1` §1.C) — misma razón, misma clase de dato vencido evitado.
+
+**C · Al crear NO vuelve ninguna URL.** La creación responde **creada y pendiente**, y **no trae la
+dirección a la que hay que mandar al comprador**. Esa dirección **aparece después**, releyendo la
+transacción, dentro de los datos extra del método de pago.
+
+Es contraintuitivo y por eso va explícito: quien construya va a buscarla en la respuesta de creación y
+**no está ahí**.
+
+**D · El comprador SALE de nuestra página.** Hay que llevar su navegador a esa dirección. Seguida sin
+navegador, **redirige a una página intermedia del proveedor**; el salto siguiente **no se pudo seguir
+por script** (ver Límite 2, abajo).
+
+**El campo de retorno se acepta y vuelve tal cual**, así que el mecanismo para traer al comprador de
+vuelta **existe**.
+
+**E · Qué tamaño tiene esto.**
+
+- **El lado del SERVIDOR es chico:** cero cambios en el webhook, la firma y la creación son las mismas,
+  el motor de dinero se reusa entero.
+- **El lado del NAVEGADOR es nuevo:** **PSE es el PRIMER método de esta cadena que saca al comprador de
+  nuestra página.** La tarjeta y la billetera se resuelven sin moverse.
+
+### 2 · Los dos límites — el owner pidió que entren con su etiqueta
+
+**LÍMITE 1 · El estado de espera NO se puede validar contra el sandbox:**
+
+```
+!!!!!!!!!!  S I N   M E D I R  !!!!!!!!!!
+!!  [SIN MEDIR] -- marcador buscable por maquina
+!!  ESTO NO SE PUDO VALIDAR CONTRA EL SANDBOX.
+!!  «la pantalla de espera de PSE: en sandbox la transaccion resuelve en poco mas de un
+!!  segundo, y nunca se observo la direccion del banco mientras la transaccion seguia
+!!  pendiente. En produccion el comprador tarda MINUTOS tecleando en su banco.»
+!!  ESA PANTALLA SE CONSTRUYE CONTRA UN COMPORTAMIENTO QUE EL SANDBOX NO PRODUCE.
+!!  No la des por probada con lo que este spike midio: no hay forma de probarla
+!!  donde se prueba todo lo demas.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+```
+
+**LÍMITE 2 · El salto final a la pantalla del banco NO se puede seguir por script:**
+
+```
+!!!!!!!!!!  S I N   M E D I R  !!!!!!!!!!
+!!  [SIN MEDIR] -- marcador buscable por maquina
+!!  ESTO NO SE PUDO SEGUIR POR SCRIPT.
+!!  «sin navegador, la pagina intermedia del proveedor responde PROHIBIDO y sin
+!!  direccion siguiente. El salto de esa pagina a la pantalla real del banco
+!!  quedo sin observar.»
+!!  NO SE SABE si es un redirect simple, un formulario auto-enviado, o algo mas.
+!!  No lo asumas al construir el flujo de PSE: MEDILO con navegador real.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+```
+
+### 3 · La pregunta abierta que decide el tamaño del slice que viene
+
+**¿La ruta de retorno que este repo YA tiene (`app/api/checkout/retorno/route.ts`,
+`WOMPI-RUTA-DE-RETORNO-1`, arriba) sirve TAL CUAL para PSE?** Esa ruta no le cree al navegador —afirma
+sólo lo que `PaymentIntent.estado` dice, escrito por el webhook— y devuelve `{estado, numero_orden}` sin
+asumir de qué método vino el pago. Que sea agnóstica de método es una lectura del código, no algo que
+este spike haya medido. **Queda registrada como pregunta ABIERTA**, y **se mide contra el código ANTES
+de escribir el slice de PSE**, no a mitad de escribirlo — si se descubre a mitad, el slice ya invirtió
+en una premisa sin verificar.
+
+**Y el hueco de forma que el owner nombró, que es más grande que PSE:** la forma extensible de los
+métodos de la pasarela se diseñó con tarjeta y billetera —los dos se resuelven **sin que el comprador
+se mueva de la página**—. PSE es el primero que exige lo contrario: sacarlo y traerlo de vuelta. **Si el
+descriptor de un método no puede expresar «este método navega afuera», eso es un hueco DE LA FORMA, no
+de PSE.** Se registra con esas palabras porque el próximo método que también navegue afuera (una
+billetera con redirect, por ejemplo) tropezaría con el mismo hueco, y confundirlo con algo específico de
+PSE haría que se arregle dos veces.
+
+### 4 · Lo que este asiento NO hace
+
+- **No diseña el slice de PSE.** No hay `PaymentIntent` nuevo, ni código de integración, ni cambios al
+  panel de métodos.
+- **No resuelve la pregunta de §3.** Queda abierta, con su condición de cuándo medirla escrita.
+- **No suaviza los dos límites de §2.** Están con su marcador exacto porque el owner pidió explícitamente
+  que no se suavizaran.
+
+**GATE, los dos carriles, verde.** Este diff toca un solo archivo del ledger (`DECISIONS.md`) y ningún
+test, así que nada podía cambiar en ninguno de los dos carriles.
+
+Regla: un spike read-only no deja rastro que el protocolo pueda seguir — lo que mide es incitable hasta
+que alguien lo escribe en el libro, y cuando lo que mide incluye un límite del propio instrumento (algo
+que el sandbox no puede reproducir, algo que un script no pudo seguir), ese límite se escribe CON SU
+ETIQUETA y sin suavizar: es la diferencia entre un hueco que el próximo slice sabe que tiene que medir, y
+uno que se descubre a mitad de construir con un comprador real delante.
