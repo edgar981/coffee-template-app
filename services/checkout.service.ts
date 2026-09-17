@@ -156,6 +156,56 @@ export async function createOrder(
   return res.json();
 }
 
+// ── § CHECKOUT-UNA-SOLA-PANTALLA-1: el bloque de aceptación de pasarela, SIN ORDEN ────────
+//
+// `GET /api/pasarela/aceptaciones` (`app/api/pasarela/aceptaciones/route.ts`) arma el MISMO
+// bloque que antes sólo viajaba pegado a la respuesta de `POST /api/checkout` — así que el
+// checkout puede pedirlo apenas el comprador entra al paso de Pago, y mostrar el formulario
+// de pasarela AHÍ MISMO, sin que exista todavía ninguna orden. La orden se sigue creando recién
+// al apretar el botón que confirma (`crearOrdenPasarela` en `checkout/page.tsx`).
+
+export interface BloqueAceptacionPasarela {
+  aceptaciones: AceptacionesWompi;
+  publicKey: string;
+  /** Los tipos QUE NO SON TARJETA disponibles para este comprador — § etiquetaMetodoPasarela
+   *  (`lib/pagos/aceptaciones.ts`) arma la etiqueta del selector a partir de esta lista. */
+  metodosOtros: string[];
+}
+
+/**
+ * `null` cuando el bloque no se pudo armar (la respuesta no vino `ok`, o el envelope no trae
+ * lo esperado) — el LLAMADOR decide qué hacer: acá, no ofrecer la opción de pasarela en el
+ * paso de Pago (§ el reporte del slice: "si las dos completas no se consiguen, la opción de
+ * pasarela NO se ofrece"). Nunca lanza — un fallo de red al pedir esto no debe tumbar el resto
+ * del checkout, que sigue funcionando con los métodos manuales.
+ */
+export async function consultarBloqueAceptacionPasarela(): Promise<BloqueAceptacionPasarela | null> {
+  let res: Response;
+  try {
+    res = await fetch('/api/pasarela/aceptaciones');
+  } catch {
+    return null;
+  }
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    return null;
+  }
+
+  const envelope = body as { ok?: unknown; aceptaciones?: unknown; publicKey?: unknown; metodosOtros?: unknown } | null;
+  if (!envelope?.ok || !envelope.aceptaciones || typeof envelope.publicKey !== 'string' || !Array.isArray(envelope.metodosOtros)) {
+    return null;
+  }
+
+  return {
+    aceptaciones: envelope.aceptaciones as AceptacionesWompi,
+    publicKey:    envelope.publicKey,
+    metodosOtros: envelope.metodosOtros.filter((v): v is string => typeof v === 'string'),
+  };
+}
+
 /** Los tres estados de `PaymentIntentEstado` (`packages/core/prisma/schema.prisma`),
  *  tal como los devuelve `/api/checkout/retorno` — SIN reinterpretarlos. */
 export type RetornoWompiEstado = 'EN_VUELO' | 'APROBADO' | 'FALLIDO';

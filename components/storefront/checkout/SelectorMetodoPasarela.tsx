@@ -15,7 +15,15 @@ const NOMBRE_TARJETA = 'Tarjeta de crédito o débito';
 export interface SelectorMetodoPasarelaProps {
   aceptaciones: AceptacionesWompi;
   publicKey: string;
-  reference: string;
+  /** Crea la orden (si todavía no existe) y devuelve la `reference` de su intento de pago, o
+   *  `null` si la creación falló (§ CHECKOUT-UNA-SOLA-PANTALLA-1). YA NO se recibe `reference`
+   *  directa: este selector se monta ANTES de que la orden exista, bajo el radio de método en
+   *  el paso de Pago — la orden nace al apretar el botón "Pagar" de cualquiera de los dos
+   *  formularios que envuelve. */
+  crearOrdenPasarela: () => Promise<string | null>;
+  /** El monto a pagar, en pesos — el botón final de cada formulario lo muestra ("Pagar · $X"),
+   *  § el reporte del slice: "el único botón que confirma dice cuánto se paga". */
+  monto: number;
   /** El correo que el comprador tecleó en Información — segundo factor YA CONOCIDO para
    *  sondear el estado del pago (§ API-DIRECTA-3DS-SIN-CHALLENGE-1). Lo usan LOS DOS
    *  formularios: `FormularioTarjeta` desde que nació, y `FormularioOtroMetodoPasarela` desde
@@ -24,8 +32,9 @@ export interface SelectorMetodoPasarelaProps {
   email: string;
   /** Los tipos QUE NO SON TARJETA disponibles para ESTE comprador — el dueño los encendió Y
    *  su cuenta los tiene (§ `metodosPasarelaParaComprador`, `lib/pagos/metodos-pasarela.ts`,
-   *  calculado por el servidor en el POST de `/api/checkout`). Vacío → sólo tarjeta, sin
-   *  picker (byte-idéntico al comportamiento previo a este slice). */
+   *  calculado por el servidor y entregado SIN CREAR ORDEN por `GET /api/pasarela/aceptaciones`
+   *  desde § CHECKOUT-UNA-SOLA-PANTALLA-1 — antes viajaba pegado a la respuesta del POST).
+   *  Vacío → sólo tarjeta, sin picker (byte-idéntico al comportamiento previo a este slice). */
   metodosOtros: string[];
   /** El proveedor rechazó la creación de la transacción de TARJETA porque su cuenta ya no
    *  tiene ese método habilitado (§ API-DIRECTA-DESALINEO-CABLEADO-1). Sólo aplica al camino
@@ -43,7 +52,7 @@ export interface SelectorMetodoPasarelaProps {
  * `DESCRIPTORES_METODO_PASARELA` — un tipo con descriptor nuevo aparece solo.
  */
 export default function SelectorMetodoPasarela({
-  aceptaciones, publicKey, reference, email, metodosOtros, onMetodoNoHabilitado,
+  aceptaciones, publicKey, crearOrdenPasarela, monto, email, metodosOtros, onMetodoNoHabilitado,
 }: SelectorMetodoPasarelaProps) {
   const [tipoElegido, setTipoElegido] = useState<string>('tarjeta');
 
@@ -52,7 +61,8 @@ export default function SelectorMetodoPasarela({
       <FormularioTarjeta
         aceptaciones={aceptaciones}
         publicKey={publicKey}
-        reference={reference}
+        crearOrdenPasarela={crearOrdenPasarela}
+        monto={monto}
         email={email}
         onMetodoNoHabilitado={onMetodoNoHabilitado}
       />
@@ -98,7 +108,8 @@ export default function SelectorMetodoPasarela({
         <FormularioTarjeta
           aceptaciones={aceptaciones}
           publicKey={publicKey}
-          reference={reference}
+          crearOrdenPasarela={crearOrdenPasarela}
+          monto={monto}
           email={email}
           onMetodoNoHabilitado={onMetodoNoHabilitado}
         />
@@ -109,7 +120,8 @@ export default function SelectorMetodoPasarela({
           key={descriptorElegido.tipo}
           descriptor={descriptorElegido}
           aceptaciones={aceptaciones}
-          reference={reference}
+          crearOrdenPasarela={crearOrdenPasarela}
+          monto={monto}
           email={email}
         />
       ) : null}

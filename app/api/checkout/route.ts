@@ -10,13 +10,13 @@ import {
 } from '@duna/core/validation/address';
 import { metodoPagoTipoSchema } from '@/lib/checkout/metodos-pago';
 import { pesosACentavos, firmarIntegridadWompi } from '@/lib/pagos/wompi-firma';
-import { consultarAceptaciones, consultarMetodosAceptados, crearTransaccion } from '@/lib/pagos/wompi-api';
-import { evaluarAceptaciones } from '@/lib/pagos/aceptaciones';
+import { crearTransaccion } from '@/lib/pagos/wompi-api';
+import { obtenerBloqueAceptacionPasarela } from '@/app/api/pasarela/aceptaciones/route';
 import {
   clasificarCreacionTransaccion, construirDatosCreacionTransaccion, construirDatosCreacionTransaccionTarjeta,
 } from '@/lib/pagos/creacion-transaccion';
 import { clasificarAutenticacion3ds, extraerContenidoDesafio3ds } from '@/lib/pagos/tres-ds';
-import { DESCRIPTORES_METODO_PASARELA, metodosPasarelaParaComprador } from '@/lib/pagos/metodos-pasarela';
+import { DESCRIPTORES_METODO_PASARELA } from '@/lib/pagos/metodos-pasarela';
 import type { AceptacionesWompi } from '@/types/payment';
 import { pasarelaDisponibleEnEsteDespliegue } from '@/services/checkout.service';
 import { esDespliegueDemo } from '@/next.config';
@@ -79,31 +79,6 @@ export const checkoutSchema = z.object({
     )
     .min(1),
 });
-
-// ── API-DIRECTA-OTROS-METODOS-1: qué métodos QUE NO SON TARJETA se le OFRECEN al comprador ──
-//
-// El MISMO cruce que ya usa el panel del dueño (`cruzarMetodosPasarela`, § API-DIRECTA-PANEL-
-// METODOS-1) — reusado vía `metodosPasarelaParaComprador`, nunca reimplementado. Falla SUAVE a
-// `[]`: si la cuenta no se puede consultar o `SiteSetting` no se puede leer, la tarjeta sigue
-// disponible por su propio camino (ver el llamador, arriba en el bloque `wompi`) — esta lista
-// es sólo para las opciones ADICIONALES, así que no vale bloquear el bloque entero por ella.
-function metodosGuardadosDesde(valor: unknown): string[] {
-  return Array.isArray(valor) ? valor.filter((v): v is string => typeof v === 'string') : [];
-}
-
-async function tiposPasarelaOtrosDisponibles(publicKey: string, baseUrl: string): Promise<string[]> {
-  try {
-    const [setting, cuenta] = await Promise.all([
-      prisma.siteSetting.findUniqueOrThrow({ where: { id: 'default' }, select: { metodosPasarela: true } }),
-      consultarMetodosAceptados(publicKey, baseUrl),
-    ]);
-    const guardado = metodosGuardadosDesde(setting.metodosPasarela);
-    return metodosPasarelaParaComprador(guardado, cuenta).map((d) => d.tipo);
-  } catch (e) {
-    console.error('[checkout] no se pudo leer los métodos de pasarela adicionales — se omiten del bloque de pasarela:', e);
-    return [];
-  }
-}
 
 export async function POST(req: NextRequest) {
   let raw: unknown;
@@ -264,33 +239,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No se pudo procesar la orden' }, { status: 500 });
     }
 
-    // ── API-DIRECTA-ACEPTACIONES-SERVIDOR-1: las DOS casillas de aceptación ──────────────
+    // ── API-DIRECTA-ACEPTACIONES-SERVIDOR-1 · § CHECKOUT-UNA-SOLA-PANTALLA-1 ─────────────
     // Sin las dos completas —token Y enlace, las dos aceptaciones— la transacción NO SE
     // PUEDE CREAR en el proveedor (§ API-DIRECTA-DECISIONES-PROGRAMA-1 §4, DECISIONS.md),
     // así que ofrecer el pago y fallar después es peor que no ofrecerlo: el bloque `wompi`
     // entero queda AUSENTE de la respuesta, nunca a medias — el comprador no ve la causa,
     // sólo deja de ver la opción de pagar en línea; el porqué queda en el log del servidor.
-    const baseUrlPasarela = esDespliegueDemo() ? 'https://sandbox.wompi.co' : 'https://production.wompi.co';
-    let aceptaciones: AceptacionesWompi | null = null;
-    try {
-      aceptaciones = evaluarAceptaciones(await consultarAceptaciones(llavePublica, baseUrlPasarela));
-      if (!aceptaciones) {
-        console.error('[checkout] las aceptaciones de Wompi llegaron incompletas (falta un token o un enlace) — se omite el bloque de pasarela');
-      }
-    } catch (e) {
-      console.error('[checkout] no se pudo consultar las aceptaciones de Wompi — se omite el bloque de pasarela:', e);
-    }
-
-    if (aceptaciones) {
+    //
+    // `obtenerBloqueAceptacionPasarela` (`app/api/pasarela/aceptaciones/route.ts`) es la MISMA
+    // función que usa `GET /api/pasarela/aceptaciones` para que el checkout pueda mostrar el
+    // formulario ANTES de crear la orden — acá se reusa para no consultar la cuenta dos veces
+    // con dos implementaciones que pudieran divergir sobre qué cuenta como "completo".
+    const bloque = await obtenerBloqueAceptacionPasarela();
+    if (!bloque) {
+      console.error('[checkout] no se pudo armar el bloque de aceptación de la pasarela — se omite el bloque de pasarela');
+    } else {
       const amountInCents = pesosACentavos(order.paymentIntent.monto_esperado);
       wompi = {
         reference: order.paymentIntent.reference,
         amountInCents,
         currency: MONEDA_WOMPI,
         signature: firmarIntegridadWompi(order.paymentIntent.reference, amountInCents, MONEDA_WOMPI, secretoIntegridad),
-        publicKey: llavePublica,
-        aceptaciones,
-        metodosPasarelaOtros: await tiposPasarelaOtrosDisponibles(llavePublica, baseUrlPasarela),
+        publicKey: bloque.publicKey,
+        aceptaciones: bloque.aceptaciones,
+        metodosPasarelaOtros: bloque.metodosOtros,
       };
     }
   }

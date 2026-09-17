@@ -9,6 +9,7 @@ import {
 } from '@/services/checkout.service';
 import type { AceptacionesWompi, ResultadoCreacionTransaccionWompi } from '@/types/payment';
 import { recolectarDatosNavegador3ds, type Resultado3ds } from '@/lib/pagos/tres-ds';
+import { formatCOP } from '@duna/core/utils';
 import AceptacionesPasarela from './AceptacionesPasarela';
 import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
 
@@ -23,6 +24,15 @@ import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
  * (§ API-DIRECTA-3DS-CON-CHALLENGE-1) cuando el emisor lo pide. Ocupa la MISMA ranura que
  * `PagoPasarela` (el widget) — nunca se montan los dos a la vez; la elección la hace
  * `pasarelaModoApiDirecta()` en la página (`checkout/page.tsx`).
+ *
+ * § CHECKOUT-UNA-SOLA-PANTALLA-1: ESTE FORMULARIO YA NO RECIBE `reference` — la orden (y su
+ * intento de pago) TODAVÍA NO EXISTEN cuando este componente se monta: se muestra apenas el
+ * comprador elige la pasarela en el selector de método, bajo el radio, en la MISMA pantalla.
+ * El botón "Pagar" de este formulario es el ÚNICO que confirma: tokeniza la tarjeta (no
+ * necesita ninguna orden — el proveedor no la conoce), y SÓLO ENTONCES pide `crearOrdenPasarela`
+ * —la orden se crea al apretar este botón, no antes— para obtener la `reference` que la
+ * confirmación de la transacción necesita. `crearOrdenPasarela` es IDEMPOTENTE: si la orden ya
+ * existe (un reintento tras un fallo de la confirmación), la reusa en vez de crear una segunda.
  *
  * LOS DATOS DE LA TARJETA NUNCA SALEN HACIA NUESTRO SERVIDOR: `campos` sólo se lee al armar
  * el body de `tokenizarTarjeta` (que llama directo a Wompi) y nunca se manda a `/api/checkout`
@@ -53,9 +63,13 @@ import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
 export interface FormularioTarjetaProps {
   aceptaciones: AceptacionesWompi;
   publicKey: string;
-  /** La `reference` del intento YA CREADO (§ el POST de `/api/checkout`) — la misma que la
-   *  confirmación necesita para completarlo. */
-  reference: string;
+  /** Crea la orden (si todavía no existe) y devuelve la `reference` de su intento de pago, o
+   *  `null` si la creación falló (la página ya mostró el motivo — stock, error del servidor).
+   *  IDEMPOTENTE: si la orden ya existe (un reintento), la reusa. */
+  crearOrdenPasarela: () => Promise<string | null>;
+  /** El monto a pagar, en pesos — para el texto del botón ("Pagar · $X"), § el reporte del
+   *  slice: "el único botón que confirma dice cuánto se paga". */
+  monto: number;
   /** El correo que el comprador tecleó en el paso de Información del checkout (§ el reporte
    *  del slice, §C) — segundo factor YA CONOCIDO para sondear `/api/checkout/retorno` sin
    *  volver a pedirlo (a diferencia de `RetornoCliente.tsx`, que lo pide porque llega por una
@@ -87,7 +101,6 @@ const TEXTO = {
   cvv:            'El código de seguridad no es válido.',
   nombreTitular: 'Escribe el nombre tal como aparece en la tarjeta.',
   tokenizacionGenerico: 'No pudimos verificar tu tarjeta. Revisa los datos e intenta de nuevo.',
-  botonReposo: 'Pagar',
   botonEnVuelo: 'Verificando tarjeta…',
 };
 
@@ -154,7 +167,7 @@ async function confirmarConAutenticacion3ds(input: {
   throw new CreacionTransaccionError(tipo, mensaje);
 }
 
-export default function FormularioTarjeta({ aceptaciones, publicKey, reference, email, onMetodoNoHabilitado }: FormularioTarjetaProps) {
+export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenPasarela, monto, email, onMetodoNoHabilitado }: FormularioTarjetaProps) {
   const [terminosMarcado, setTerminosMarcado] = useState(false);
   const [datosMarcado, setDatosMarcado] = useState(false);
   const [campos, setCampos] = useState<CamposTarjeta>(CAMPOS_VACIOS);
@@ -163,10 +176,12 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, reference, 
   const [errorTokenizacion, setErrorTokenizacion] = useState<string | null>(null);
   // Presencia = éxito COMPLETO: el token se obtuvo Y la transacción quedó creada en Wompi
   // (§ API-DIRECTA-DESALINEO-CABLEADO-1) — nunca se pone en `true` sólo por tokenizar. Trae la
-  // clasificación de 3DS (§ API-DIRECTA-3DS-SIN-CHALLENGE-1) y el HTML del desafío YA
-  // DECODIFICADO (§ API-DIRECTA-3DS-CON-CHALLENGE-1) para que la espera
-  // (`EsperaConfirmacionTarjeta`) sepa qué copy/marco mostrar.
-  const [creada, setCreada] = useState<{ resultado3ds: Resultado3ds; desafioHtml: string | null } | null>(null);
+  // `reference` de la orden que `crearOrdenPasarela` acaba de crear (§ CHECKOUT-UNA-SOLA-
+  // PANTALLA-1 — ya no llega por prop, se conoce recién acá) y la clasificación de 3DS
+  // (§ API-DIRECTA-3DS-SIN-CHALLENGE-1) con el HTML del desafío YA DECODIFICADO (§ API-DIRECTA-
+  // 3DS-CON-CHALLENGE-1) para que la espera (`EsperaConfirmacionTarjeta`) sepa qué copy/marco
+  // mostrar.
+  const [creada, setCreada] = useState<{ reference: string; resultado3ds: Resultado3ds; desafioHtml: string | null } | null>(null);
 
   const aceptado = terminosMarcado && datosMarcado;
 
@@ -178,8 +193,8 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, reference, 
     // VALIDACIÓN LOCAL PRIMERO, SIN NINGUNA LLAMADA DE RED: un formulario a medio llenar no es
     // un intento de pago fallido (decisión del orquestador, § API-DIRECTA-CAPTURA-TARJETA-1) —
     // "crear una orden por cada dígito equivocado llenaría el libro de Pagos de basura". Estos
-    // reintentos NO tocan `/api/checkout` en absoluto: la orden ya existe (se creó al confirmar
-    // el pedido, antes de llegar a esta pantalla) y no se crea una nueva por cada intento.
+    // reintentos NO tocan `/api/checkout` en absoluto — recién el envío del token, más abajo,
+    // llega a pedir la orden (§ CHECKOUT-UNA-SOLA-PANTALLA-1).
     const nuevosErrores: ErroresTarjeta = {};
     if (!numeroTarjetaValido(campos.numero)) nuevosErrores.numero = TEXTO.numero;
     const venc = parseVencimiento(campos.vencimiento);
@@ -205,12 +220,23 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, reference, 
         },
         publicKey,
       );
-      // El token es OPACO (nunca datos de tarjeta) — recién con él se puede confirmar la
-      // transacción contra NUESTRO servidor (§ API-DIRECTA-DESALINEO-CABLEADO-1). Las DOS
-      // aceptaciones que el comprador ya marcó viajan de nuevo, tal cual las vio (no son
-      // secretas: § `FormularioTarjetaProps`) — junto con los DATOS DEL NAVEGADOR que 3DS pide
-      // SIEMPRE (§ API-DIRECTA-3DS-SIN-CHALLENGE-1, "no hay interruptor"; nunca un dato de la
-      // tarjeta — § el docstring de `recolectarDatosNavegador3ds`, `lib/pagos/tres-ds.ts`).
+      // El token es OPACO (nunca datos de tarjeta) — recién con él tiene sentido que exista la
+      // orden (§ CHECKOUT-UNA-SOLA-PANTALLA-1): "la orden se crea al apretar el botón de
+      // pagar", nunca antes. `crearOrdenPasarela` es IDEMPOTENTE — un reintento tras un fallo
+      // de la confirmación reusa la MISMA orden en vez de crear una segunda. `null` = la
+      // creación falló y la página YA mostró el motivo (stock, error del servidor); este
+      // formulario no repite el error, sólo deja de avanzar.
+      const reference = await crearOrdenPasarela();
+      if (!reference) {
+        setTokenizando(false);
+        return;
+      }
+      // Recién con la `reference` se puede confirmar la transacción contra NUESTRO servidor
+      // (§ API-DIRECTA-DESALINEO-CABLEADO-1). Las DOS aceptaciones que el comprador ya marcó
+      // viajan de nuevo, tal cual las vio (no son secretas: § `FormularioTarjetaProps`) — junto
+      // con los DATOS DEL NAVEGADOR que 3DS pide SIEMPRE (§ API-DIRECTA-3DS-SIN-CHALLENGE-1,
+      // "no hay interruptor"; nunca un dato de la tarjeta — § el docstring de
+      // `recolectarDatosNavegador3ds`, `lib/pagos/tres-ds.ts`).
       const { resultado3ds, desafioHtml } = await confirmarConAutenticacion3ds({
         reference,
         tokenTarjeta: token,
@@ -220,10 +246,11 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, reference, 
         },
         datosNavegador3ds: recolectarDatosNavegador3ds(),
       });
-      // SI CUALQUIERA DE LAS DOS LLAMADAS FALLA, el comprador se queda EN ESTE FORMULARIO con
-      // el error a la vista — no hay redirección, no hay pantalla nueva, y nada más se crea.
+      // SI LA CONFIRMACIÓN FALLA, el comprador se queda EN ESTE FORMULARIO con el error a la
+      // vista — no hay redirección, no hay pantalla nueva, y ninguna orden nueva se crea (la
+      // orden ya existente queda pendiente, y un reintento la reusa vía `crearOrdenPasarela`).
       // La ÚNICA excepción es el rechazo ESTRUCTURAL de abajo, que no vuelve a este formulario.
-      setCreada({ resultado3ds, desafioHtml });
+      setCreada({ reference, resultado3ds, desafioHtml });
     } catch (e) {
       if (e instanceof CreacionTransaccionError && e.tipo === 'metodo_no_habilitado') {
         // El proveedor YA RECHAZÓ el método para esta cuenta — no es la tarjeta que se
@@ -246,7 +273,7 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, reference, 
     return (
       <div className="bg-[var(--sf-superficie)] rounded-xl p-4">
         <EsperaConfirmacionTarjeta
-          reference={reference}
+          reference={creada.reference}
           email={email}
           resultado3ds={creada.resultado3ds}
           desafioHtml={creada.desafioHtml}
@@ -310,7 +337,7 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, reference, 
         disabled={!aceptado || tokenizando}
         className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors"
       >
-        {tokenizando ? TEXTO.botonEnVuelo : TEXTO.botonReposo}
+        {tokenizando ? TEXTO.botonEnVuelo : `Pagar · ${formatCOP(monto)}`}
       </button>
     </div>
   );

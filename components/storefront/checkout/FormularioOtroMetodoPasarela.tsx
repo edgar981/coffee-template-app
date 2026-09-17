@@ -7,6 +7,7 @@ import { interpretarRespuestaOtroMetodo } from './interpretar-respuesta-otro-met
 import type { AceptacionesWompi } from '@/types/payment';
 import type { DescriptorMetodoPasarela } from '@/lib/pagos/metodos-pasarela';
 import type { Resultado3ds } from '@/lib/pagos/tres-ds';
+import { formatCOP } from '@duna/core/utils';
 
 /**
  * El camino de API DIRECTA para un método de pasarela QUE NO ES TARJETA (§ API-DIRECTA-OTROS-
@@ -29,12 +30,19 @@ import type { Resultado3ds } from '@/lib/pagos/tres-ds';
  * ÉXITO cae en el MISMO molde que `FormularioTarjeta`: `EsperaConfirmacionTarjeta` (sondeo
  * hasta el estado final, con 3DS si el proveedor lo pide). Los demás casos siguen mostrando el
  * `error` que el servidor decide, tal cual — nunca inventado acá.
+ *
+ * § CHECKOUT-UNA-SOLA-PANTALLA-1: MISMO CAMBIO QUE `FormularioTarjeta` — ya no recibe
+ * `reference`; la orden se crea al apretar "Pagar", vía `crearOrdenPasarela` (idempotente).
  */
 export interface FormularioOtroMetodoPasarelaProps {
   descriptor: DescriptorMetodoPasarela;
   aceptaciones: AceptacionesWompi;
-  /** La `reference` del intento YA CREADO (§ el POST de `/api/checkout`). */
-  reference: string;
+  /** Crea la orden (si todavía no existe) y devuelve la `reference` de su intento de pago, o
+   *  `null` si la creación falló (la página ya mostró el motivo). IDEMPOTENTE: si la orden ya
+   *  existe (un reintento), la reusa — § `FormularioTarjetaProps.crearOrdenPasarela`. */
+  crearOrdenPasarela: () => Promise<string | null>;
+  /** El monto a pagar, en pesos — para el texto del botón ("Pagar · $X"). */
+  monto: number;
   /** El correo que el comprador tecleó en el paso de Información del checkout — segundo
    *  factor YA CONOCIDO para sondear `/api/checkout/retorno` tras el éxito, igual que
    *  `FormularioTarjeta` (§ CHECKOUT-NEQUI-EXITO-FIX-1: antes de este fix este componente no
@@ -46,13 +54,12 @@ export interface FormularioOtroMetodoPasarelaProps {
 // `FormularioTarjeta.tsx`). Los rótulos del descriptor (`descriptor.campo.rotulo`/
 // `.placeholder`) también son provisionales — se declaran en `lib/pagos/metodos-pasarela.ts`.
 const TEXTO = {
-  botonReposo: 'Pagar',
   botonEnVuelo: 'Procesando…',
   errorGenerico: 'No pudimos procesar tu pago. Intenta de nuevo o usa otro método.',
   errorRed: 'No pudimos comunicarnos con el servidor. Intenta de nuevo.',
 };
 
-export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones, reference, email }: FormularioOtroMetodoPasarelaProps) {
+export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones, crearOrdenPasarela, monto, email }: FormularioOtroMetodoPasarelaProps) {
   const [terminosMarcado, setTerminosMarcado] = useState(false);
   const [datosMarcado, setDatosMarcado] = useState(false);
   const [dato, setDato] = useState('');
@@ -60,9 +67,11 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
   const [enVuelo, setEnVuelo] = useState(false);
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
   // Presencia = éxito: la transacción quedó CREADA en Wompi (§ CHECKOUT-NEQUI-EXITO-FIX-1).
-  // Mismo campo que `FormularioTarjeta.creada` — trae la clasificación de 3DS y el desafío ya
-  // decodificado para que `EsperaConfirmacionTarjeta` sepa qué copy/marco mostrar.
-  const [creada, setCreada] = useState<{ resultado3ds: Resultado3ds; desafioHtml: string | null } | null>(null);
+  // Mismo campo que `FormularioTarjeta.creada` — trae la `reference` de la orden que
+  // `crearOrdenPasarela` acaba de crear (§ CHECKOUT-UNA-SOLA-PANTALLA-1), la clasificación de
+  // 3DS y el desafío ya decodificado para que `EsperaConfirmacionTarjeta` sepa qué copy/marco
+  // mostrar.
+  const [creada, setCreada] = useState<{ reference: string; resultado3ds: Resultado3ds; desafioHtml: string | null } | null>(null);
 
   const aceptado = terminosMarcado && datosMarcado;
 
@@ -82,6 +91,14 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
     setErrorServidor(null);
     setEnVuelo(true);
     try {
+      // § CHECKOUT-UNA-SOLA-PANTALLA-1: la orden se crea al apretar "Pagar", no antes —
+      // IDEMPOTENTE (un reintento reusa la orden ya creada). `null` = la creación falló y la
+      // página ya mostró el motivo; este formulario deja de avanzar sin repetir el error.
+      const reference = await crearOrdenPasarela();
+      if (!reference) {
+        setEnVuelo(false);
+        return;
+      }
       const res = await fetch('/api/checkout', {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -100,7 +117,7 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
       // `FormularioTarjeta` para ese caso (`EsperaConfirmacionTarjeta`, abajo).
       const resultado = interpretarRespuestaOtroMetodo(body, TEXTO.errorGenerico);
       if (resultado.tipo === 'exito') {
-        setCreada({ resultado3ds: resultado.resultado3ds, desafioHtml: resultado.desafioHtml });
+        setCreada({ reference, resultado3ds: resultado.resultado3ds, desafioHtml: resultado.desafioHtml });
         return;
       }
       // Los dos casos de rechazo (`metodo_no_habilitado` y `error`) muestran su PROPIO mensaje
@@ -119,7 +136,7 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
     return (
       <div className="bg-[var(--sf-superficie)] rounded-xl p-4">
         <EsperaConfirmacionTarjeta
-          reference={reference}
+          reference={creada.reference}
           email={email}
           resultado3ds={creada.resultado3ds}
           desafioHtml={creada.desafioHtml}
@@ -161,7 +178,7 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
         disabled={!aceptado || enVuelo}
         className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors"
       >
-        {enVuelo ? TEXTO.botonEnVuelo : TEXTO.botonReposo}
+        {enVuelo ? TEXTO.botonEnVuelo : `Pagar · ${formatCOP(monto)}`}
       </button>
     </div>
   );
