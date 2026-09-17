@@ -5359,3 +5359,145 @@ Regla: dos métodos que comparten riel no son un método duplicado si difieren e
 reconciliarla. Un solapamiento que depende de una condición externa que nadie de este lado controla
 —y que nadie nos avisa al cruzarse— no se cierra con una frase de estado: se cierra con un disparador
 explícito que alguien vuelva a leer.
+
+## 2026-09-16 — Los dos slices de métodos se rehacen a la luz de `accepted_payment_methods`: el panel
+cambia de FORMA (no de tamaño), el aviso de desalineo ENCOGE sin desaparecer, y el primer slice se queda
+casi sin trabajo (`API-DIRECTA-METODOS-REHECHOS-1`)
+
+### 0 · Por qué este asiento existe
+
+La partición del programa de API directa vive HOY sólo en la figura de un censo read-only —fuera del
+libro, y por lo tanto **incitable**: es la misma regla que este mismo ledger fijó el mismo día para las
+mediciones de spike (`API-DIRECTA-SPIKES-ASIENTO-1`, arriba: *"el instrumento de medición no produce
+citas; lo que mide es incitable hasta que alguien lo escribe"*). El owner ordenó el 2026-09-16 rehacer
+los slices del panel de métodos y del aviso de desalineo a la luz de `accepted_payment_methods`, medido
+contra el sandbox y ya registrado en `API-DIRECTA-SPIKES-ASIENTO-1` (arriba). **Este asiento pone en el
+libro QUÉ CAMBIA de esos dos slices y del primero de la partición. No construye nada, y NO da la
+partición por aprobada** — la partición completa sigue sin estar en este ledger; lo que sigue describe el
+efecto de un hecho medido sobre slices que la partición nombra, no la partición misma.
+
+### 1 · El hecho medido, y la premisa falsa que desmiente
+
+> «el endpoint nuevo del comercio devuelve accepted_payment_methods con los metodos que la cuenta tiene
+> realmente habilitados, y pedir al crear un metodo que la cuenta no tiene falla con un 404
+> NOT_FOUND_ERROR reconocible por programa que nombra el metodo» (MEDIDO — `API-DIRECTA-SPIKES-ASIENTO-1`,
+> arriba, §1.C y §1.D)
+
+**Lo que ese hecho DESMIENTE:** el censo de construcción de la partición había asumido que **no hay
+forma de preguntarle al proveedor qué métodos tiene habilitados un comercio** — de esa premisa salieron
+los dos slices que este asiento rehace. **Esa premisa era falsa**, y como ya lo dejó anotado
+`API-DIRECTA-SPIKES-ASIENTO-1` (§2, arriba), era una LECTURA de documentación citada como si fuera un
+hecho verificado, la misma familia que ya corrigió `API-DIRECTA-DECISIONES-ATRIBUCION-FIX-1` (arriba)
+para el copy de las dos aceptaciones.
+
+### 2 · El slice del panel de métodos — cambia de FORMA, no de tamaño
+
+**Como estaba propuesto:** el panel le deja al dueño declarar qué métodos de la pasarela ofrece su
+tienda, eligiendo de una lista **nuestra, escrita en nuestro código**. Nada verificaba que su cuenta los
+tuviera. Configuración a ciegas.
+
+**Como queda:** el panel **lee del proveedor la lista real de esa cuenta** —con la llave pública del
+tenant, por cabecera (la misma que midió `API-DIRECTA-SPIKES-ASIENTO-1` §1.C contra
+`GET /v1/merchants/info`)— y le ofrece únicamente eso. No puede encender lo que no tiene.
+
+**Lo que eso mata de raíz, y es la mitad del valor del rehecho:**
+- **El catálogo deja de vivir en nuestro código.** El proveedor agrega o retira un tipo de método y
+  nosotros no desplegamos nada. La lista escrita a mano habría envejecido sola — la misma clase de dato
+  vencido que este ledger ya persigue en otros lados, pero en código, y peor, porque decide qué se le
+  puede cobrar a alguien.
+- **La pregunta «¿qué tipos soportamos?» desaparece del slice.** No la decidimos nosotros: la responde la
+  cuenta del dueño.
+
+**Lo que le agrega, y por eso no encoge:** una llamada al proveedor **desde el panel**, con su propio
+modo de falla.
+
+**PENDIENTE DEL OWNER, anotado y NO resuelto acá — el modo de falla es byte visible:** si la lectura de
+la cuenta falla al configurar, ¿el dueño ve la lista vacía, la lista anterior, o un aviso explícito de
+que no se pudo leer? El precedente del checkout —si la consulta al proveedor falla, no se ofrece el pago
+en línea (`API-DIRECTA-DECISIONES-PROGRAMA-1` §4, arriba)— **no se traslada solo**: allá la consecuencia
+de fallar es no cobrar; acá es no poder configurar. Son consecuencias distintas y merecen su propia
+decisión, no la heredada.
+
+### 3 · El slice del aviso de desalineo — ENCOGE, pero no desaparece
+
+**Como estaba propuesto:** un slice entero — pantalla al comprador, marca en el estado crudo del
+proveedor, y una entrada nueva en el catálogo de automatizaciones (`constants/automations.ts`) para
+avisarle al dueño.
+
+**Como queda:** el desalineo se **previene al configurar** (§2, arriba), así que lo que sobrevive es el
+**residual**: que la cuenta cambie DESPUÉS de que el dueño configuró. Ahí la creación de la transacción
+devuelve el `404 NOT_FOUND_ERROR` que `API-DIRECTA-SPIKES-ASIENTO-1` §1.D ya registró —y que **nombra el
+método exacto** en su `reason`—, así que avisarle al dueño sale más barato que antes: ya se sabe cuál
+método se cayó, sin adivinarlo por ausencia.
+
+**Y acá está la razón por la que NO se borra, que es lo más importante de esta sección:**
+
+```
+!!!!!!!!!!  S I N   M E D I R  !!!!!!!!!!
+!!  [SIN MEDIR] -- marcador buscable por maquina
+!!  ESTO NO ES UN DATO. ES UNA PREGUNTA ABIERTA.
+!!  «si accepted_payment_methods predice el 404 de forma confiable para CUALQUIER tipo de metodo, y no solo para el unico que se probo»
+!!  NADIE MIDIO ESTO. No lo afirmes, no lo asumas, no lo cites
+!!  como hecho, no lo uses para decidir: MEDILO.
+!!  Si lo das por cierto, el slice esta mal desde su premisa.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+```
+
+Esa pregunta ya está registrada como abierta en `API-DIRECTA-SPIKES-ASIENTO-1` §2 (arriba): *"Se probó
+SÓLO `BRE_B`. Que la lista y el rechazo hayan coincidido esa vez no prueba que coincidan siempre."*
+**Lo que ese vacío obliga:** la frase «el desalineo se previene al configurar» descansa sobre un
+predictor que no está medido. Una coincidencia observada una vez no es un predictor. Si la lista y el
+rechazo llegaran a separarse aunque sea para UN tipo de método, este slice vuelve a ser el grande de
+la propuesta original —y se descubriría con un comprador delante del checkout, no en un spike—. **Queda
+achicado, y la pregunta se mide ANTES de apoyarse en ella para construir el slice reducido.**
+
+### 4 · El primer slice se quedó casi sin trabajo
+
+El primero de la partición era una prueba de extremo a extremo, desechable y detrás de una bandera, y
+existía por una sola razón: verificar que las premisas técnicas aguantaran una llamada real contra el
+proveedor.
+
+Las premisas que ese cableado iba a verificar **ya las midieron los dos spikes de sandbox**
+(`API-DIRECTA-SPIKES-ASIENTO-1`, arriba): la firma sirve tal cual (§1.A), la creación autoriza con
+cualquiera de las dos llaves (§1.B), y el corte cliente/servidor para la creación queda forzado por el
+secreto de la firma, no por la llave. **El cableado desechable se quedó sin la pregunta que justificaba
+escribirlo.**
+
+**Pero no desaparece — y ésta es la parte honesta:** le queda la mitad del webhook, que la cadena del
+proveedor cierre contra un evento REAL. Eso **sigue sin medirse**, y **no se puede medir sin una URL
+pública** — ya registrado como abierto en `WOMPI-REGLAS-IMPLEMENTACION-1` (arriba) y otra vez en
+`API-DIRECTA-SPIKES-ASIENTO-1` §2 (arriba). Ese residual queda **bloqueado por esa condición**, no
+resuelto por este asiento.
+
+### 5 · El tamaño del programa
+
+Registrado de lo que este asiento afirma sobre la propuesta del censo de construcción — **no medido
+contra el ledger, porque la partición completa no vive en él** (§0, arriba): son **nueve** slices en la
+propuesta; **los nueve** caen en Tier 1 (tocan rutas de dinero, esquema o bytes de cliente); y **los
+nueve** paran para el gate del owner, porque ninguno es a la vez sin esquema, sin bytes de cliente y sin
+contrato cruzado.
+
+**De esos nueve, TRES quedan afectados por este asiento:** el del panel de métodos (§2, cambia de forma),
+el del aviso de desalineo (§3, encoge) y el primero de la partición, el cableado desechable de sandbox
+(§4, se queda casi sin trabajo, con un residual bloqueado). Los otros seis no se tocan acá.
+
+### 6 · Límites de este asiento
+
+- **Esto no construye nada.** Ningún slice de la partición arranca por este asiento.
+- **La partición completa NO se aprueba ni se cierra acá.** Sigue viviendo fuera del libro, en la figura
+  del censo read-only; este asiento registra el efecto de un hecho medido sobre tres de sus piezas, no
+  la partición entera.
+- **El predictor de §3 queda como pregunta abierta, explícitamente sin medir.** Ningún slice que dependa
+  de él se construye antes de esa medición.
+- **El modo de falla de §2 queda pendiente del owner**, sin resolverse acá.
+
+**GATE, los dos carriles, verde.** Este diff toca un solo archivo del ledger (`DECISIONS.md`) y ningún
+test, así que nada podía cambiar en ninguno de los dos carriles.
+
+Regla: un hecho medido contra el proveedor que desmiente la premisa de un slice no borra el slice —lo
+REHACE, y el tamaño del rehecho depende de cuánto de la premisa vieja sobrevive: el panel cambia de
+forma porque gana una fuente de verdad que no tenía, el aviso de desalineo encoge porque parte de su
+trabajo se previene aguas arriba, y un slice que sólo existía para verificar una premisa ya medida se
+queda con el residual que esa medición no cubrió. Ninguno de los tres se cierra por esto: el panel tiene
+un modo de falla pendiente del owner, el desalineo se apoya en un predictor SIN MEDIR, y el residual del
+primero está bloqueado por una condición externa (una URL pública) que este asiento no resuelve.
