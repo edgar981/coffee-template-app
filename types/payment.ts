@@ -172,8 +172,16 @@ export type ResultadoCreacionTransaccionWompi =
 /** El dato que el comprador tecleó para un método de pasarela QUE NO ES TARJETA — `tipo`
  *  nombra el descriptor (`lib/pagos/metodos-pasarela.ts`, `DESCRIPTORES_METODO_PASARELA`) y
  *  `dato` es el valor TAL COMO el comprador lo tecleó, sin validar todavía: el servidor valida
- *  con el MISMO descriptor (`campo.validar`) antes de usarlo — nunca confía en que el cliente
- *  ya lo hizo. */
+ *  con el MISMO descriptor (`campos[0].validar` — LEGACY, § abajo) antes de usarlo — nunca
+ *  confía en que el cliente ya lo hizo.
+ *
+ *  § API-DIRECTA-FORMA-TRES-DIMENSIONES-1: LA FORMA DEL DESCRIPTOR YA ADMITE VARIOS CAMPOS
+ *  (`DescriptorMetodoPasarela.campos: CampoMetodoPasarela[]`), pero ESTA interfaz —el WIRE
+ *  hacia `PATCH /api/checkout`— NO CAMBIÓ: sigue siendo UN SOLO `dato: string`, porque
+ *  `app/api/checkout/route.ts` es Tier 1 y quedó fuera de `touches` de ese slice (§ su
+ *  reporte). Es lo que hace que hoy `dato` sólo pueda llevar el valor del PRIMER campo del
+ *  descriptor — un tipo con más de un campo no puede describirse con esta interfaz todavía;
+ *  necesitaría un `valores: Record<string,string>` y el cambio correspondiente en la ruta. */
 export interface DatosMetodoPasarelaOtro {
   tipo: string;
   dato: string;

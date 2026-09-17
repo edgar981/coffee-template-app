@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import {
   cruzarMetodosPasarela, DESCRIPTOR_NEQUI, DESCRIPTORES_METODO_PASARELA, metodosPasarelaParaComprador,
   checkoutSabeDibujar, TIPOS_NO_COBRABLES, esNoCobrable, paraElPanel,
-  type DescriptorMetodoPasarela,
+  camposVisibles, esAmbientePruebasPorLlave, urlDeRedireccion, conCampoLegacy,
+  type DescriptorMetodoPasarela, type CampoMetodoPasarela,
+  type CampoTextoLibre, type CampoEleccionCerrada, type CampoConsultaExterna,
 } from './metodos-pasarela';
+import { PREFIJO_LLAVE_PASARELA_PRODUCTIVA } from './llaves-pasarela';
 import { siteSettingsEditableSchema } from '../config/site-settings-schema';
 
 test('las dos listas vacías → []', () => {
@@ -62,9 +65,17 @@ test('cuenta vacía, guardado con métodos → todos guardado_no_disponible', ()
   );
 });
 
-// ── EL DESCRIPTOR DE PRUEBA (NEQUI) — §API-DIRECTA-OTROS-METODOS-1 ──────────────────────────
+// ── EL DESCRIPTOR DE PRUEBA (NEQUI) — §API-DIRECTA-OTROS-METODOS-1, PORTADO A `campos`/mapa
+// por § API-DIRECTA-FORMA-TRES-DIMENSIONES-1 ────────────────────────────────────────────────
 
-test('DESCRIPTOR_NEQUI.campo.validar: acepta un celular colombiano de 10 dígitos que empieza por 3', () => {
+test('DESCRIPTOR_NEQUI: declara UN solo campo, de naturaleza texto_libre, y campo === campos[0] (compat LEGACY)', () => {
+  assert.equal(DESCRIPTOR_NEQUI.campos.length, 1);
+  assert.equal(DESCRIPTOR_NEQUI.campos[0].naturaleza, 'texto_libre');
+  assert.equal(DESCRIPTOR_NEQUI.campo, DESCRIPTOR_NEQUI.campos[0]);
+  assert.equal(DESCRIPTOR_NEQUI.redireccion, undefined);
+});
+
+test('DESCRIPTOR_NEQUI.campo.validar (LEGACY, lo que app/api/checkout/route.ts todavía invoca): acepta un celular colombiano de 10 dígitos que empieza por 3', () => {
   assert.equal(DESCRIPTOR_NEQUI.campo.validar('3001234567'), null);
 });
 
@@ -86,10 +97,281 @@ test('DESCRIPTOR_NEQUI.campo.validar: rechaza vacío', () => {
   assert.notEqual(DESCRIPTOR_NEQUI.campo.validar(''), null);
 });
 
-test('DESCRIPTOR_NEQUI.construirPaymentMethod: arma {type, phone_number} con sólo los dígitos', () => {
+test('DESCRIPTOR_NEQUI.construirPaymentMethod: arma {type, phone_number} desde el MAPA nombre→valor (naturaleza general, § API-DIRECTA-FORMA-TRES-DIMENSIONES-1)', () => {
   assert.deepEqual(
-    DESCRIPTOR_NEQUI.construirPaymentMethod('300 123 4567'),
+    DESCRIPTOR_NEQUI.construirPaymentMethod({ numero: '300 123 4567' }),
     { type: 'NEQUI', phone_number: '3001234567' },
+  );
+});
+
+// ── LAS TRES DIMENSIONES (§ API-DIRECTA-FORMA-TRES-DIMENSIONES-1) — probadas con descriptores
+// SINTÉTICOS, nunca con NEQUI: NEQUI usa sólo una de las tres (un campo, texto libre, sin
+// redirección), así que probar la forma con él repetiría el caso que la dejó corta (§ el
+// reporte del slice). ───────────────────────────────────────────────────────────────────────
+
+// -- A) CUÁNTOS campos: sin un número adentro --
+
+test('dimensión A — campos es un array: cero, uno o varios, sin ningún límite en la forma', () => {
+  const sinCampos: CampoMetodoPasarela[] = [];
+  const unCampo: CampoMetodoPasarela[] = [DESCRIPTOR_NEQUI.campos[0]];
+  const seisCampos: CampoMetodoPasarela[] = Array.from({ length: 6 }, (_, i) => ({
+    nombre: `campo_${i}`,
+    rotulo: `Campo ${i}`,
+    placeholder: '',
+    naturaleza: 'texto_libre' as const,
+    validar: () => null,
+  }));
+  assert.equal(sinCampos.length, 0);
+  assert.equal(unCampo.length, 1);
+  assert.equal(seisCampos.length, 6);
+  // El catálogo midió hasta seis en un mismo tipo (§ el spike) — la forma no rechaza ese
+  // tamaño ni ninguno mayor: es sólo la longitud de un array.
+});
+
+// -- B) DE QUÉ NATURALEZA — tres formas distintas, cada una con su propio dato adjunto --
+
+const CAMPO_TEXTO_DE_PRUEBA: CampoTextoLibre = {
+  nombre: 'documento',
+  rotulo: 'Número de documento',
+  placeholder: '1234567890',
+  naturaleza: 'texto_libre',
+  validar: (valor) => (/^\d{6,15}$/.test(valor) ? null : 'Ingresa un número de documento válido.'),
+};
+
+const CAMPO_ELECCION_DE_PRUEBA: CampoEleccionCerrada = {
+  nombre: 'banco',
+  rotulo: 'Banco',
+  naturaleza: 'eleccion_cerrada',
+  opciones: [
+    { valor: 'BANCO_A', etiqueta: 'Banco A' },
+    { valor: 'BANCO_B', etiqueta: 'Banco B' },
+  ],
+  validar: (valor) => (['BANCO_A', 'BANCO_B'].includes(valor) ? null : 'Elige un banco de la lista.'),
+};
+
+const CAMPO_CONSULTA_DE_PRUEBA: CampoConsultaExterna = {
+  nombre: 'sucursal',
+  rotulo: 'Sucursal',
+  naturaleza: 'consulta_externa',
+  fuenteConsulta: 'sucursales-del-banco-elegido',
+  validar: () => null,
+};
+
+test('dimensión B — texto_libre: el comprador teclea, valida con su propia función', () => {
+  assert.equal(CAMPO_TEXTO_DE_PRUEBA.naturaleza, 'texto_libre');
+  assert.equal(CAMPO_TEXTO_DE_PRUEBA.validar('12345678'), null);
+  assert.notEqual(CAMPO_TEXTO_DE_PRUEBA.validar('abc'), null);
+});
+
+test('dimensión B — eleccion_cerrada: la lista de opciones ES PARTE del campo, no una validación suelta', () => {
+  assert.equal(CAMPO_ELECCION_DE_PRUEBA.naturaleza, 'eleccion_cerrada');
+  assert.equal(CAMPO_ELECCION_DE_PRUEBA.opciones.length, 2);
+  assert.equal(CAMPO_ELECCION_DE_PRUEBA.validar('BANCO_A'), null);
+  assert.notEqual(CAMPO_ELECCION_DE_PRUEBA.validar('BANCO_INEXISTENTE'), null);
+});
+
+test('dimensión B — consulta_externa: declara DE DÓNDE sale la lista, no la resuelve', () => {
+  assert.equal(CAMPO_CONSULTA_DE_PRUEBA.naturaleza, 'consulta_externa');
+  assert.equal(CAMPO_CONSULTA_DE_PRUEBA.fuenteConsulta, 'sucursales-del-banco-elegido');
+  // Ningún campo así vive en el registro real todavía — § el reporte del slice.
+  assert.equal(
+    Object.values(DESCRIPTORES_METODO_PASARELA).some((d) => d.campos.some((c) => c.naturaleza === 'consulta_externa')),
+    false,
+  );
+});
+
+// -- C) SI EL MÉTODO NAVEGA AFUERA, y el nombre del campo de la URL NO es compartido --
+
+test('dimensión C — sin redireccion declarada: urlDeRedireccion siempre null, sin importar la respuesta', () => {
+  assert.equal(urlDeRedireccion(DESCRIPTOR_NEQUI, { cualquier_cosa: 'https://x.co' }), null);
+});
+
+test('dimensión C — DOS descriptores con redireccion, cada uno con su PROPIO nombre de campo de URL', () => {
+  const descriptorA: DescriptorMetodoPasarela = {
+    tipo: 'REDIRECT_A', nombreVisible: 'A', campos: [CAMPO_TEXTO_DE_PRUEBA],
+    redireccion: { campoUrl: 'async_payment_url' },
+    construirPaymentMethod: () => ({ type: 'REDIRECT_A' }),
+    campo: CAMPO_TEXTO_DE_PRUEBA,
+  };
+  const descriptorB: DescriptorMetodoPasarela = {
+    tipo: 'REDIRECT_B', nombreVisible: 'B', campos: [CAMPO_TEXTO_DE_PRUEBA],
+    redireccion: { campoUrl: 'redirect_url' },
+    construirPaymentMethod: () => ({ type: 'REDIRECT_B' }),
+    campo: CAMPO_TEXTO_DE_PRUEBA,
+  };
+  // Un nombre COMPARTIDO ('async_payment_url' buscado en la respuesta de B) fallaría acá —
+  // exactamente el modo de falla que el spike midió ("sin ruido", § el docstring del tipo).
+  assert.equal(
+    urlDeRedireccion(descriptorA, { async_payment_url: 'https://a.co/pagar' }),
+    'https://a.co/pagar',
+  );
+  assert.equal(urlDeRedireccion(descriptorA, { redirect_url: 'https://no-es-el-campo.co' }), null);
+  assert.equal(
+    urlDeRedireccion(descriptorB, { redirect_url: 'https://b.co/pagar' }),
+    'https://b.co/pagar',
+  );
+});
+
+test('dimensión C — urlDeRedireccion: null si el campo declarado vino con un valor que no es string', () => {
+  const descriptor: DescriptorMetodoPasarela = {
+    tipo: 'X', nombreVisible: 'X', campos: [CAMPO_TEXTO_DE_PRUEBA],
+    redireccion: { campoUrl: 'url' },
+    construirPaymentMethod: () => ({}),
+    campo: CAMPO_TEXTO_DE_PRUEBA,
+  };
+  assert.equal(urlDeRedireccion(descriptor, { url: 123 }), null);
+  assert.equal(urlDeRedireccion(descriptor, { url: '' }), null);
+  assert.equal(urlDeRedireccion(descriptor, {}), null);
+});
+
+// -- El campo SOLO-DE-PRUEBAS (§2 del spike) — no se renderiza fuera del ambiente de pruebas --
+
+const CAMPO_SOLO_PRUEBAS: CampoTextoLibre = {
+  nombre: 'resultado_simulado',
+  rotulo: 'Resultado a simular (sólo pruebas)',
+  placeholder: 'APPROVED',
+  naturaleza: 'texto_libre',
+  soloPruebas: true,
+  validar: () => null,
+};
+
+test('camposVisibles: un campo soloPruebas se OMITE fuera del ambiente de pruebas', () => {
+  const descriptor: DescriptorMetodoPasarela = {
+    tipo: 'X', nombreVisible: 'X', campos: [CAMPO_TEXTO_DE_PRUEBA, CAMPO_SOLO_PRUEBAS],
+    construirPaymentMethod: () => ({}), campo: CAMPO_TEXTO_DE_PRUEBA,
+  };
+  const visibles = camposVisibles(descriptor, false);
+  assert.equal(visibles.length, 1);
+  assert.equal(visibles[0].nombre, 'documento');
+});
+
+test('camposVisibles: un campo soloPruebas SÍ se incluye dentro del ambiente de pruebas', () => {
+  const descriptor: DescriptorMetodoPasarela = {
+    tipo: 'X', nombreVisible: 'X', campos: [CAMPO_TEXTO_DE_PRUEBA, CAMPO_SOLO_PRUEBAS],
+    construirPaymentMethod: () => ({}), campo: CAMPO_TEXTO_DE_PRUEBA,
+  };
+  const visibles = camposVisibles(descriptor, true);
+  assert.equal(visibles.length, 2);
+  assert.deepEqual(visibles.map((c) => c.nombre), ['documento', 'resultado_simulado']);
+});
+
+test('camposVisibles: un campo NORMAL (sin soloPruebas) se muestra en los dos ambientes', () => {
+  const descriptor: DescriptorMetodoPasarela = {
+    tipo: 'X', nombreVisible: 'X', campos: [CAMPO_TEXTO_DE_PRUEBA],
+    construirPaymentMethod: () => ({}), campo: CAMPO_TEXTO_DE_PRUEBA,
+  };
+  assert.equal(camposVisibles(descriptor, false).length, 1);
+  assert.equal(camposVisibles(descriptor, true).length, 1);
+});
+
+test('camposVisibles: DESCRIPTOR_NEQUI (ningún campo soloPruebas) se ve completo en cualquier ambiente', () => {
+  assert.equal(camposVisibles(DESCRIPTOR_NEQUI, false).length, 1);
+  assert.equal(camposVisibles(DESCRIPTOR_NEQUI, true).length, 1);
+});
+
+test('esAmbientePruebasPorLlave: una llave SIN el prefijo productivo → true (sandbox)', () => {
+  assert.equal(esAmbientePruebasPorLlave('pub_test_abc123'), true);
+  assert.equal(esAmbientePruebasPorLlave(''), true);
+});
+
+test('esAmbientePruebasPorLlave: una llave CON el prefijo productivo → false', () => {
+  assert.equal(esAmbientePruebasPorLlave(`${PREFIJO_LLAVE_PASARELA_PRODUCTIVA}abc123`), false);
+});
+
+// ── EL DESCRIPTOR DE PRUEBA QUE USA LAS TRES DIMENSIONES A LA VEZ (§ el reporte del slice) —
+// varios campos, de naturalezas distintas, y navega afuera con su propio nombre de campo. NO
+// SE OFRECE A NADIE — no vive en `DESCRIPTORES_METODO_PASARELA`, sólo en este test. ───────────
+
+const DESCRIPTOR_PRUEBA_TRES_DIMENSIONES: DescriptorMetodoPasarela = {
+  tipo: 'BANCO_DIGITAL_DE_PRUEBA',
+  nombreVisible: 'Banco Digital (de prueba, nunca ofrecido)',
+  // A) CUATRO campos — B) de las TRES naturalezas, con un `soloPruebas` mezclado adentro para
+  // probar las dos condiciones a la vez sobre el MISMO descriptor.
+  campos: [CAMPO_ELECCION_DE_PRUEBA, CAMPO_TEXTO_DE_PRUEBA, CAMPO_CONSULTA_DE_PRUEBA, CAMPO_SOLO_PRUEBAS],
+  // C) navega afuera, con SU PROPIO nombre de campo de URL — distinto del de los descriptores
+  // A/B de arriba, a propósito.
+  redireccion: { campoUrl: 'direccion_de_pago_banco_digital' },
+  construirPaymentMethod: (valores) => ({
+    type: 'BANCO_DIGITAL_DE_PRUEBA',
+    financial_institution_code: valores.banco,
+    user_legal_id: valores.documento,
+    branch_code: valores.sucursal,
+  }),
+  campo: CAMPO_ELECCION_DE_PRUEBA,
+};
+
+test('el descriptor de prueba combina las tres dimensiones a la vez: N campos, LAS TRES naturalezas, redirección propia', () => {
+  assert.equal(DESCRIPTOR_PRUEBA_TRES_DIMENSIONES.campos.length, 4);
+  assert.deepEqual(
+    DESCRIPTOR_PRUEBA_TRES_DIMENSIONES.campos.map((c) => c.naturaleza),
+    ['eleccion_cerrada', 'texto_libre', 'consulta_externa', 'texto_libre'],
+  );
+  // Las tres naturalezas están representadas — ninguna falta.
+  assert.deepEqual(
+    new Set(DESCRIPTOR_PRUEBA_TRES_DIMENSIONES.campos.map((c) => c.naturaleza)),
+    new Set(['eleccion_cerrada', 'texto_libre', 'consulta_externa']),
+  );
+  assert.equal(DESCRIPTOR_PRUEBA_TRES_DIMENSIONES.redireccion?.campoUrl, 'direccion_de_pago_banco_digital');
+});
+
+test('el descriptor de prueba: construirPaymentMethod arma el payload ENTERO desde el mapa de N valores', () => {
+  const pm = DESCRIPTOR_PRUEBA_TRES_DIMENSIONES.construirPaymentMethod({
+    banco: 'BANCO_A',
+    documento: '12345678',
+    sucursal: 'SUC-01',
+    resultado_simulado: 'APPROVED',
+  });
+  assert.deepEqual(pm, {
+    type: 'BANCO_DIGITAL_DE_PRUEBA',
+    financial_institution_code: 'BANCO_A',
+    user_legal_id: '12345678',
+    branch_code: 'SUC-01',
+  });
+});
+
+test('el descriptor de prueba: urlDeRedireccion lee EXACTAMENTE su propio campoUrl, no uno adivinado', () => {
+  assert.equal(
+    urlDeRedireccion(DESCRIPTOR_PRUEBA_TRES_DIMENSIONES, {
+      direccion_de_pago_banco_digital: 'https://banco-digital.example/pagar/abc',
+    }),
+    'https://banco-digital.example/pagar/abc',
+  );
+  // El campo de OTRO tipo (async_payment_url) no cuenta para éste — cada descriptor tiene el
+  // suyo, § dimensión C.
+  assert.equal(urlDeRedireccion(DESCRIPTOR_PRUEBA_TRES_DIMENSIONES, { async_payment_url: 'https://x.co' }), null);
+});
+
+test('el descriptor de prueba: camposVisibles filtra su campo soloPruebas fuera del ambiente de pruebas, deja los otros tres', () => {
+  const visibles = camposVisibles(DESCRIPTOR_PRUEBA_TRES_DIMENSIONES, false);
+  assert.deepEqual(visibles.map((c) => c.nombre), ['banco', 'documento', 'sucursal']);
+});
+
+test('el descriptor de prueba: camposVisibles incluye los CUATRO dentro del ambiente de pruebas', () => {
+  const visibles = camposVisibles(DESCRIPTOR_PRUEBA_TRES_DIMENSIONES, true);
+  assert.deepEqual(visibles.map((c) => c.nombre), ['banco', 'documento', 'sucursal', 'resultado_simulado']);
+});
+
+// ── `conCampoLegacy` — el puente al wire LEGACY de `app/api/checkout/route.ts` ────────────────
+
+test('conCampoLegacy (indirectamente, vía DESCRIPTOR_NEQUI): campo es SIEMPRE campos[0], nunca un valor declarado a mano', () => {
+  assert.equal(DESCRIPTOR_NEQUI.campo, DESCRIPTOR_NEQUI.campos[0]);
+});
+
+test('conCampoLegacy: campo derivado es EXACTAMENTE campos[0], para un descriptor con varios campos', () => {
+  const conVarios = conCampoLegacy({
+    tipo: 'X',
+    nombreVisible: 'X',
+    campos: [CAMPO_ELECCION_DE_PRUEBA, CAMPO_TEXTO_DE_PRUEBA],
+    construirPaymentMethod: () => ({}),
+  });
+  assert.equal(conVarios.campo, CAMPO_ELECCION_DE_PRUEBA);
+  assert.notEqual(conVarios.campo, CAMPO_TEXTO_DE_PRUEBA);
+});
+
+test('conCampoLegacy: lanza ruidoso si el descriptor no declara NINGÚN campo — el wire LEGACY no puede satisfacerse', () => {
+  assert.throws(
+    () => conCampoLegacy({ tipo: 'SIN_CAMPOS', nombreVisible: 'X', campos: [], construirPaymentMethod: () => ({}) }),
+    /SIN_CAMPOS.*no declara ningún campo/,
   );
 });
 

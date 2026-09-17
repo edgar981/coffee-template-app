@@ -5,16 +5,30 @@ import AceptacionesPasarela from './AceptacionesPasarela';
 import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
 import { interpretarRespuestaOtroMetodo } from './interpretar-respuesta-otro-metodo';
 import type { AceptacionesWompi } from '@/types/payment';
-import type { DescriptorMetodoPasarela } from '@/lib/pagos/metodos-pasarela';
+import { type DescriptorMetodoPasarela, camposVisibles, esAmbientePruebasPorLlave } from '@/lib/pagos/metodos-pasarela';
 import type { Resultado3ds } from '@/lib/pagos/tres-ds';
 import { formatCOP } from '@duna/core/utils';
 
 /**
  * El camino de API DIRECTA para un método de pasarela QUE NO ES TARJETA (§ API-DIRECTA-OTROS-
  * METODOS-1): las dos casillas de aceptación (`AceptacionesPasarela` — reusada TAL CUAL, sin
- * cambios; valen igual para este tipo que para la tarjeta, § el reporte del slice) + el ÚNICO
- * campo que el descriptor pide, validado con la MISMA función que el servidor vuelve a correr
- * (`descriptor.campo.validar`) antes de aceptar el dato.
+ * cambios; valen igual para este tipo que para la tarjeta, § el reporte del slice) + el campo
+ * que el descriptor pide, validado con la MISMA función que el servidor vuelve a correr
+ * (`descriptor.campos[0].validar`) antes de aceptar el dato.
+ *
+ * § API-DIRECTA-FORMA-TRES-DIMENSIONES-1: LEE `descriptor.campos`, NO `descriptor.campo` —
+ * `campos` es el array general que la forma nueva declara (§ `lib/pagos/metodos-pasarela.ts`),
+ * FILTRADO por `camposVisibles` para respetar `soloPruebas` (un campo que sólo existe en el
+ * ambiente de pruebas del proveedor NO se renderiza fuera de él, §2 del reporte del slice) —
+ * `esAmbientePruebasPorLlave(publicKey)` decide el ambiente por el MISMO hecho medido que ya
+ * usa `baseUrlPasarelaDesdeLlave` (`services/checkout.service.ts`) para elegir el host, no una
+ * segunda fuente. Sigue rindiendo UN SOLO campo a propósito: el wire hacia
+ * `app/api/checkout/route.ts` (Tier 1, fuera de `touches` de ese slice) sólo sabe mandar un
+ * `dato: string`, así que este formulario no puede someter más de uno todavía — el ÚNICO
+ * descriptor real (`DESCRIPTOR_NEQUI`) declara exactamente uno, sin `soloPruebas`, así que hoy
+ * esto no cambia nada de lo que el comprador ve (§ el reporte del slice, "la pantalla del
+ * método que ya existía no cambió"). Renderizar N campos generales quedaría a medias mientras
+ * el wire sólo lleve uno — ver el reporte del slice para el gap.
  *
  * OCUPA LA MISMA RANURA que `FormularioTarjeta` — la elige `SelectorMetodoPasarela.tsx` según
  * el tipo que el comprador seleccionó en el picker.
@@ -37,6 +51,10 @@ import { formatCOP } from '@duna/core/utils';
 export interface FormularioOtroMetodoPasarelaProps {
   descriptor: DescriptorMetodoPasarela;
   aceptaciones: AceptacionesWompi;
+  /** La llave PÚBLICA de la pasarela — SÓLO para derivar el ambiente (`esAmbientePruebasPorLlave`,
+   *  arriba) y decidir qué campos `soloPruebas` mostrar. La misma que `FormularioTarjeta` usa
+   *  para tokenizar; acá nunca se manda a ningún lado, sólo se lee su prefijo. */
+  publicKey: string;
   /** Crea la orden (si todavía no existe) y devuelve la `reference` de su intento de pago, o
    *  `null` si la creación falló (la página ya mostró el motivo). IDEMPOTENTE: si la orden ya
    *  existe (un reintento), la reusa — § `FormularioTarjetaProps.crearOrdenPasarela`. */
@@ -51,15 +69,21 @@ export interface FormularioOtroMetodoPasarelaProps {
 }
 
 // TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER (§ el reporte del slice, igual que
-// `FormularioTarjeta.tsx`). Los rótulos del descriptor (`descriptor.campo.rotulo`/
-// `.placeholder`) también son provisionales — se declaran en `lib/pagos/metodos-pasarela.ts`.
+// `FormularioTarjeta.tsx`). Los rótulos del descriptor (`campo.rotulo`/`.placeholder`, abajo)
+// también son provisionales — se declaran en `lib/pagos/metodos-pasarela.ts`.
 const TEXTO = {
   botonEnVuelo: 'Procesando…',
   errorGenerico: 'No pudimos procesar tu pago. Intenta de nuevo o usa otro método.',
   errorRed: 'No pudimos comunicarnos con el servidor. Intenta de nuevo.',
 };
 
-export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones, crearOrdenPasarela, monto, email }: FormularioOtroMetodoPasarelaProps) {
+export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones, publicKey, crearOrdenPasarela, monto, email }: FormularioOtroMetodoPasarelaProps) {
+  // § API-DIRECTA-FORMA-TRES-DIMENSIONES-1: EL PRIMER campo VISIBLE en este ambiente — filtra
+  // `soloPruebas` antes de elegir cuál rendir (ver el docstring de arriba para por qué este
+  // formulario sólo rinde uno pese a que la forma admite varios). Estructuralmente garantizado
+  // no-vacío: el ÚNICO descriptor real (`DESCRIPTOR_NEQUI`) declara un campo que NO es
+  // `soloPruebas`, así que sobrevive el filtro en cualquier ambiente.
+  const campo = camposVisibles(descriptor, esAmbientePruebasPorLlave(publicKey))[0] ?? descriptor.campos[0];
   const [terminosMarcado, setTerminosMarcado] = useState(false);
   const [datosMarcado, setDatosMarcado] = useState(false);
   const [dato, setDato] = useState('');
@@ -82,7 +106,7 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
 
     // VALIDACIÓN LOCAL PRIMERO, SIN NINGUNA LLAMADA DE RED — mismo criterio que
     // `FormularioTarjeta`: un campo a medio llenar no dispara un intento de pago.
-    const motivo = descriptor.campo.validar(dato);
+    const motivo = campo.validar(dato);
     if (motivo) {
       setErrorDato(motivo);
       return;
@@ -156,13 +180,16 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
       />
 
       <div>
-        <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">{descriptor.campo.rotulo}</label>
+        <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">{campo.rotulo}</label>
         <input
           type="text"
           inputMode="numeric"
           value={dato}
           onChange={(e) => setDato(e.target.value)}
-          placeholder={descriptor.campo.placeholder}
+          // `.placeholder` sólo existe en la naturaleza `texto_libre` (unión discriminada,
+          // § `lib/pagos/metodos-pasarela.ts`) — el ÚNICO descriptor real hoy (NEQUI) es de esa
+          // naturaleza, así que este ternario no cambia nada de lo que el comprador ve.
+          placeholder={campo.naturaleza === 'texto_libre' ? campo.placeholder : undefined}
           className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
         />
         {errorDato && <p className="mt-1 text-xs text-red-600">{errorDato}</p>}

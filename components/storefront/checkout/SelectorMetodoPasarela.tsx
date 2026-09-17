@@ -120,6 +120,7 @@ export default function SelectorMetodoPasarela({
           key={descriptorElegido.tipo}
           descriptor={descriptorElegido}
           aceptaciones={aceptaciones}
+          publicKey={publicKey}
           crearOrdenPasarela={crearOrdenPasarela}
           monto={monto}
           email={email}

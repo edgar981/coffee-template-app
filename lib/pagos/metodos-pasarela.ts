@@ -1,3 +1,5 @@
+import { PREFIJO_LLAVE_PASARELA_PRODUCTIVA } from './llaves-pasarela';
+
 // El CRUCE entre lo GUARDADO (`SiteSetting.metodosPasarela`, lo que el dueño eligió ofrecer)
 // y lo que la CUENTA del proveedor tiene realmente habilitado (`consultarMetodosAceptados`,
 // `lib/pagos/wompi-api.ts`) — puro, capa 1 (§ API-DIRECTA-PANEL-METODOS-1). La pantalla sólo
@@ -54,24 +56,52 @@ export function cruzarMetodosPasarela(guardados: string[], cuenta: string[]): Me
   return out;
 }
 
-// ── LA FORMA EXTENSIBLE PARA LOS MÉTODOS QUE NO SON TARJETA (§ API-DIRECTA-OTROS-METODOS-1) ──
+// ── LA FORMA EXTENSIBLE PARA LOS MÉTODOS QUE NO SON TARJETA (§ API-DIRECTA-OTROS-METODOS-1,
+//    REHECHA POR § API-DIRECTA-FORMA-TRES-DIMENSIONES-1) ─────────────────────────────────────
 //
 // TARJETA NO VIVE EN ESTE REGISTRO. Su formulario (`FormularioTarjeta.tsx`, § API-DIRECTA-
 // CAPTURA-TARJETA-1) captura varios campos y TOKENIZA contra el proveedor antes de crear la
 // transacción — un flujo bespoke que ya existe y no necesita esta forma. Lo que sigue es el
-// registro para TODO LO DEMÁS: un tipo que le pide al comprador, COMO MUCHO, UN dato, y lo
-// manda directo en el `payment_method` de la creación — sin tokenización previa.
+// registro para TODO LO DEMÁS.
 //
-// PSE QUEDA EXPLÍCITAMENTE AFUERA de este registro (§ el reporte del slice): exige una
-// REDIRECCIÓN a la banca del comprador que no existe en ningún lado de este repositorio y
-// que nadie midió contra el sandbox — escribirla a partir de la documentación es exactamente
-// lo que el spike de sandbox existe para evitar. PSE necesita su propio spike antes de tener
-// su descriptor.
+// LA FORMA VIEJA ASUMÍA UN CAMPO DE TEXTO LIBRE POR MÉTODO, PORQUE SE DISEÑÓ CON NEQUI Y NEQUI
+// PIDE UN TELÉFONO — `N = 1` se leyó como LA FORMA en vez de como EL CASO. Un spike midió el
+// catálogo entero del proveedor (`API-DIRECTA-SPIKE-FORMA-DE-METODOS-1`, registrado en
+// `API-DIRECTA-CATALOGO-METODOS-ASIENTO-1`, DECISIONS.md) y encontró que esa suposición queda
+// corta en TRES ejes a la vez — y el owner ordenó (2026-09-17) que la forma NAZCA cubriendo el
+// espacio medido, no que se ensanche un método por vez:
 //
-// AGREGAR EL TIPO SIGUIENTE ES AGREGAR UNA ENTRADA A `DESCRIPTORES_METODO_PASARELA` — nada
-// más. Ni la pantalla (que sólo itera el registro, § `components/storefront/checkout/
-// SelectorMetodoPasarela.tsx`) ni la creación (`lib/pagos/creacion-transaccion.ts`, que sólo
-// llama a `construirPaymentMethod` del descriptor elegido) necesitan un caso nuevo por tipo.
+//   A) CUÁNTOS campos — el catálogo pide hasta SEIS en un mismo tipo, y MÁS DE LA MITAD de los
+//      tipos piden más de uno. `campos` es un ARRAY, sin un número adentro.
+//   B) DE QUÉ NATURALEZA es cada campo — TEXTO LIBRE (lo que NEQUI ya pedía), ELECCIÓN DE UNA
+//      LISTA CERRADA que el proveedor enumera, o un DATO QUE SE TRAE DE OTRA CONSULTA (una
+//      lista que hay que pedirle al proveedor antes de poder mostrar el campo — la forma
+//      DECLARA de dónde sale, no la resuelve: resolverla es trabajo de quien construya el
+//      tipo que la necesite). `CampoMetodoPasarela` es una unión discriminada por
+//      `naturaleza`, no un solo shape con props opcionales.
+//   C) SI EL MÉTODO NAVEGA AFUERA — más de la mitad de los tipos medidos sacan al comprador de
+//      la página, y el campo de la RESPUESTA del proveedor donde viene esa dirección NO tiene
+//      el mismo nombre en todos los tipos. `redireccion?.campoUrl` es DATO DEL DESCRIPTOR, no
+//      una constante compartida — una forma que buscara un único nombre fallaría, SIN RUIDO,
+//      con la mitad de los tipos que sí redirigen.
+//
+// Y UN CAMPO PUEDE EXISTIR SÓLO EN EL AMBIENTE DE PRUEBAS del proveedor (`soloPruebas`, §2 del
+// spike): sirve para simular el resultado de la transacción y es un artefacto del SANDBOX, no
+// del método — fuera del ambiente de pruebas ese campo no se ofrece al comprador
+// (`camposVisibles`, más abajo).
+//
+// PSE SIGUE EXPLÍCITAMENTE AFUERA de este registro: exige un tipo `consulta_externa` (la lista
+// de bancos) que ningún descriptor real usa todavía, y nadie midió su forma de redirección
+// contra el sandbox — escribirla a partir de la documentación es exactamente lo que el spike
+// existe para evitar. PSE sigue necesitando su propio spike antes de tener su descriptor; que
+// la forma ADMITA `consulta_externa` no es lo mismo que CONSTRUIRLO (§ el reporte del slice).
+//
+// AGREGAR EL TIPO SIGUIENTE ES AGREGAR UNA ENTRADA A `DESCRIPTORES_METODO_PASARELA` — a nivel
+// de la FORMA (este registro + `lib/pagos/creacion-transaccion.ts`, que sólo llama a
+// `construirPaymentMethod` del descriptor elegido, sin un caso por tipo). Lo que SIGUE
+// necesitando trabajo aparte para un tipo con más de un campo es el WIRE hacia
+// `app/api/checkout/route.ts` — Tier 1, fuera de `touches` de este slice, ver la LEGACY de
+// abajo y el reporte del slice.
 //
 // OJO CON EL NOMBRE: el `tipo` de este registro (p. ej. `'NEQUI'`) es el vocabulario del
 // PROVEEDOR (`accepted_payment_methods` / `SiteSetting.metodosPasarela`, arriba en este mismo
@@ -79,16 +109,77 @@ export function cruzarMetodosPasarela(guardados: string[], cuenta: string[]): Me
 // minúscula), que es el método de pago MANUAL que el checkout ya ofrecía (confirmación por
 // WhatsApp, sin API directa). Son dos namespaces que sólo coinciden por casualidad de nombre.
 
-export interface CampoMetodoPasarela {
+interface CampoMetodoPasarelaBase {
+  /** La CLAVE con la que el valor de este campo viaja en el mapa que recibe
+   *  `DescriptorMetodoPasarela.construirPaymentMethod` (abajo) — NUNCA lo que el comprador
+   *  lee (eso es `rotulo`). */
+  nombre: string;
   /** Lo que el comprador lee junto al campo — TEXTO PROVISIONAL, PENDIENTE DE TEXTO DEL OWNER
    *  (§ el reporte del slice). */
   rotulo: string;
-  /** TEXTO PROVISIONAL, PENDIENTE DE TEXTO DEL OWNER. */
-  placeholder: string;
+  /** `true` si este campo SÓLO EXISTE en el ambiente de PRUEBAS del proveedor — sirve para
+   *  simular el resultado de la transacción y es un artefacto del sandbox, no del método
+   *  (§2 del spike, `API-DIRECTA-CATALOGO-METODOS-ASIENTO-1`: si desaparece en una cuenta
+   *  productiva SIGUE SIN MEDIRSE — este flag no afirma que sí; sólo evita hornear el campo a
+   *  producción mientras nadie lo confirma). Ausente/`false` en cualquier campo normal.
+   *  Fuera del ambiente de pruebas este campo NO se renderiza (`camposVisibles`, abajo). */
+  soloPruebas?: boolean;
   /** `null` si `valor` es válido para este campo; si no, el mensaje de error — TEXTO
    *  PROVISIONAL, PENDIENTE DE TEXTO DEL OWNER. Nunca lanza: el llamador (la pantalla, y el
    *  servidor antes de construir el payload) decide qué hacer con el mensaje. */
   validar: (valor: string) => string | null;
+}
+
+/** Naturaleza A: el comprador TECLEA el valor — lo que NEQUI ya pedía. */
+export interface CampoTextoLibre extends CampoMetodoPasarelaBase {
+  naturaleza: 'texto_libre';
+  /** TEXTO PROVISIONAL, PENDIENTE DE TEXTO DEL OWNER. */
+  placeholder: string;
+}
+
+export interface OpcionCampoMetodoPasarela {
+  /** El valor LITERAL que viaja al proveedor — no lo que el comprador lee. */
+  valor: string;
+  /** Lo que el comprador lee para elegir esta opción — TEXTO PROVISIONAL. */
+  etiqueta: string;
+}
+
+/** Naturaleza B: el comprador ELIGE de una lista CERRADA que el proveedor enumera (en su
+ *  propio error de validación, § el spike) — la lista es PARTE del campo, no una validación
+ *  suelta contra un array externo. */
+export interface CampoEleccionCerrada extends CampoMetodoPasarelaBase {
+  naturaleza: 'eleccion_cerrada';
+  opciones: OpcionCampoMetodoPasarela[];
+}
+
+/** Naturaleza C: el dato se TRAE de OTRA consulta al proveedor (la lista de bancos para PSE,
+ *  por ejemplo) — la forma DECLARA de dónde sale (`fuenteConsulta`, un identificador legible,
+ *  no una URL: quién resuelve la consulta decide cómo), pero NO la resuelve. Ningún descriptor
+ *  de `DESCRIPTORES_METODO_PASARELA` usa esta naturaleza todavía (§ el reporte del slice). */
+export interface CampoConsultaExterna extends CampoMetodoPasarelaBase {
+  naturaleza: 'consulta_externa';
+  /** De dónde sale la lista que hay que pedirle al proveedor antes de poder mostrar este
+   *  campo — DECLARATIVO: no dispara la consulta ni sabe cómo hacerla. */
+  fuenteConsulta: string;
+}
+
+/** Unión discriminada por `naturaleza` — la razón de ser su PROPIA dimensión (§ la cabecera de
+ *  esta sección): una forma de "N campos de texto" no puede expresar "elegí una de estas" ni
+ *  "esto se pide aparte". */
+export type CampoMetodoPasarela = CampoTextoLibre | CampoEleccionCerrada | CampoConsultaExterna;
+
+/** Ausente = el método NO saca al comprador de la página. Presente = SÍ navega afuera, y dice
+ *  en qué campo DE LA RESPUESTA del proveedor viene la dirección — NO es el mismo nombre en
+ *  todos los tipos (§ la cabecera de esta sección, dimensión C), así que cada descriptor
+ *  declara el suyo. */
+export interface RedireccionMetodoPasarela {
+  /** El nombre del campo, en el objeto que el proveedor devuelve al crear la transacción,
+   *  donde viene la URL a la que hay que mandar al comprador. La forma exacta de anidamiento
+   *  de ese objeto NO está medida contra el sandbox (ningún tipo con redirección está
+   *  habilitado en la cuenta que corrió el spike, § "lo que no se pudo medir" del asiento) —
+   *  por eso `urlDeRedireccion` (abajo) recibe el objeto YA APLANADO a las claves que le
+   *  interesan, en vez de asumir una ruta de anidamiento. */
+  campoUrl: string;
 }
 
 export interface DescriptorMetodoPasarela {
@@ -98,35 +189,121 @@ export interface DescriptorMetodoPasarela {
   /** Lo que el comprador lee para elegir esta opción — TEXTO PROVISIONAL, PENDIENTE DE TEXTO
    *  DEL OWNER. */
   nombreVisible: string;
-  /** El único dato que este tipo le pide al comprador. */
-  campo: CampoMetodoPasarela;
-  /** Arma el `payment_method` que viaja al proveedor para este tipo, a partir de un dato YA
-   *  VALIDADO por `campo.validar`. Puro: nunca toca la red — sólo construye el objeto que
+  /** Los campos que este tipo le pide al comprador — CERO, UNO o MUCHOS. Sin un número
+   *  adentro: es un array, no una convención de cuántas propiedades declarar. */
+  campos: CampoMetodoPasarela[];
+  /** Declarado sólo si este método navega afuera del checkout (dimensión C, arriba). */
+  redireccion?: RedireccionMetodoPasarela;
+  /** Arma el `payment_method` que viaja al proveedor para este tipo, a partir de un MAPA
+   *  nombre→valor —una entrada por cada `campos[i].nombre`, ya validados por su propio
+   *  `validar`—. Puro: nunca toca la red — sólo construye el objeto que
    *  `lib/pagos/creacion-transaccion.ts` empaca junto a lo que la firma ya fija. */
-  construirPaymentMethod: (dato: string) => Record<string, unknown>;
+  construirPaymentMethod: (valores: Record<string, string>) => Record<string, unknown>;
+  /** LEGACY — SIEMPRE `campos[0]`, nunca se declara a mano (lo deriva `conCampoLegacy`,
+   *  abajo). Existe ÚNICAMENTE porque `app/api/checkout/route.ts` (Tier 1, fuera de `touches`
+   *  de este slice) todavía valida y construye por un ÚNICO campo, con la forma vieja
+   *  (`descriptor.campo.validar(dato)`, `construirDatosCreacionTransaccion(comunes,
+   *  descriptor, dato: string)` en `lib/pagos/creacion-transaccion.ts`) — tocar ese wire para
+   *  que hable el mapa general es Tier 1 y queda fuera de este slice (§ el reporte). Todo
+   *  descriptor de `DESCRIPTORES_METODO_PASARELA` tiene que declarar AL MENOS un campo por
+   *  esto — `conCampoLegacy` lo hace fallar ruidoso si no. */
+  campo: CampoMetodoPasarela;
+}
+
+/**
+ * Deriva `campo` (LEGACY, arriba) de `campos[0]` — para que nunca se declare a mano y por
+ * tanto nunca pueda divergir de `campos[0]`. Lanza si `campos` está vacío: un descriptor sin
+ * ningún campo no puede satisfacer el wire LEGACY que `app/api/checkout/route.ts` todavía usa.
+ *
+ * `T` se restringe a `DescriptorMetodoPasarela` SIN `campo` (es lo que esta función agrega) —
+ * quien llama pasa ese tipo EXPLÍCITO como argumento genérico (`conCampoLegacy<Omit<
+ * DescriptorMetodoPasarela, 'campo'>>({...})`), nunca lo deja inferir del literal: inferido, el
+ * contexto de una anotación `: DescriptorMetodoPasarela` en el call site fuerza a `T` a incluir
+ * `campo` (circular — exactamente lo que esta función existe para no pedir).
+ */
+export function conCampoLegacy<T extends Omit<DescriptorMetodoPasarela, 'campo'>>(
+  descriptor: T,
+): T & { campo: CampoMetodoPasarela } {
+  const primero = descriptor.campos[0];
+  if (!primero) {
+    throw new Error(
+      `El descriptor "${descriptor.tipo}" no declara ningún campo — el wire LEGACY de ` +
+      `app/api/checkout/route.ts exige al menos uno.`,
+    );
+  }
+  return { ...descriptor, campo: primero };
+}
+
+/**
+ * ¿Este campo se muestra en ESTE ambiente? Un campo `soloPruebas` sólo se ofrece cuando
+ * `esAmbientePruebas` es verdadero (§2 del spike, arriba) — cualquier otro campo se muestra
+ * siempre. Pura: quién decide "estamos en pruebas" es responsabilidad de quien llama
+ * (`esAmbientePruebasPorLlave`, abajo, o el equivalente del servidor).
+ */
+export function camposVisibles(
+  descriptor: DescriptorMetodoPasarela,
+  esAmbientePruebas: boolean,
+): CampoMetodoPasarela[] {
+  return descriptor.campos.filter((c) => esAmbientePruebas || !c.soloPruebas);
+}
+
+/**
+ * ¿Estamos en el ambiente de PRUEBAS del proveedor? Se deriva del PREFIJO de la llave pública
+ * —el mismo hecho medido que ya usa `baseUrlPasarelaDesdeLlave`
+ * (`services/checkout.service.ts`) para elegir el host—, no de una segunda variable de entorno:
+ * `esDespliegueDemo()` lee `VERCEL_ENV`/`NOINDEX`, que no son `NEXT_PUBLIC_` y no existen en el
+ * navegador. Reusa `PREFIJO_LLAVE_PASARELA_PRODUCTIVA` (`lib/pagos/llaves-pasarela.ts`) en vez
+ * de repetir el literal — dos copias del mismo prefijo es cómo diverge una de la otra.
+ */
+export function esAmbientePruebasPorLlave(publicKeyPasarela: string): boolean {
+  return !publicKeyPasarela.startsWith(PREFIJO_LLAVE_PASARELA_PRODUCTIVA);
+}
+
+/**
+ * Extrae la URL de redirección de la respuesta de creación de la transacción, usando el
+ * `campoUrl` que EL DESCRIPTOR declaró (dimensión C, arriba) — nunca un nombre fijo. `null` si
+ * el método no redirige (`descriptor.redireccion` ausente), si el campo no vino, o si vino con
+ * un valor que no es un string no vacío. `respuesta` es el objeto YA APLANADO a las claves que
+ * interesan (la forma exacta de anidamiento de la respuesta real no está medida, § el
+ * docstring de `RedireccionMetodoPasarela`) — quien llama decide qué nivel del payload pasar.
+ */
+export function urlDeRedireccion(
+  descriptor: DescriptorMetodoPasarela,
+  respuesta: Record<string, unknown>,
+): string | null {
+  if (!descriptor.redireccion) return null;
+  const valor = respuesta[descriptor.redireccion.campoUrl];
+  return typeof valor === 'string' && valor.length > 0 ? valor : null;
 }
 
 function soloDigitos(valor: string): string {
   return valor.replace(/\D/g, '');
 }
 
-// EL TIPO DE PRUEBA (§ API-DIRECTA-OTROS-METODOS-1): una billetera que sólo pide un número de
-// celular colombiano — el mismo patrón de 10 dígitos que empieza por 3 que ya valida el resto
-// del checkout (`phoneValid`, `app/(storefront)/checkout/page.tsx`). TEXTO PROVISIONAL EN
-// TODO EL DESCRIPTOR — PENDIENTE DE TEXTO DEL OWNER (§ el reporte del slice).
-export const DESCRIPTOR_NEQUI: DescriptorMetodoPasarela = {
+// EL ÚNICO DESCRIPTOR REAL (§ API-DIRECTA-OTROS-METODOS-1): una billetera que sólo pide un
+// número de celular colombiano — el mismo patrón de 10 dígitos que empieza por 3 que ya valida
+// el resto del checkout (`phoneValid`, `app/(storefront)/checkout/page.tsx`). USA SÓLO UNA DE
+// LAS TRES DIMENSIONES (un campo, texto libre, sin redirección) — es exactamente por lo que la
+// PRUEBA de que la forma cubre las tres no se hace con este descriptor (§ el reporte del
+// slice: "probar la forma con él sería probar otra vez el caso que la dejó corta"). TEXTO
+// PROVISIONAL EN TODO EL DESCRIPTOR — PENDIENTE DE TEXTO DEL OWNER.
+export const DESCRIPTOR_NEQUI = conCampoLegacy<Omit<DescriptorMetodoPasarela, 'campo'>>({
   tipo: 'NEQUI',
   nombreVisible: 'Nequi',
-  campo: {
-    rotulo: 'Número de celular Nequi',
-    placeholder: '300 000 0000',
-    validar: (valor) =>
-      /^3\d{9}$/.test(soloDigitos(valor))
-        ? null
-        : 'Ingresa un número de celular colombiano válido (10 dígitos, empieza por 3).',
-  },
-  construirPaymentMethod: (dato) => ({ type: 'NEQUI', phone_number: soloDigitos(dato) }),
-};
+  campos: [
+    {
+      nombre: 'numero',
+      rotulo: 'Número de celular Nequi',
+      placeholder: '300 000 0000',
+      naturaleza: 'texto_libre',
+      validar: (valor) =>
+        /^3\d{9}$/.test(soloDigitos(valor))
+          ? null
+          : 'Ingresa un número de celular colombiano válido (10 dígitos, empieza por 3).',
+    },
+  ],
+  construirPaymentMethod: (valores) => ({ type: 'NEQUI', phone_number: soloDigitos(valores.numero ?? '') }),
+});
 
 /** El registro completo — agregar un tipo nuevo es agregar una entrada acá (§ la cabecera de
  *  esta sección). */

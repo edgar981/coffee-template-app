@@ -150,11 +150,17 @@ export interface DatosComunesCreacionTransaccion {
 }
 
 /**
- * Arma los datos COMPLETOS para crear una transacción de un método QUE NO ES TARJETA — puro,
- * sin red. El `payment_method` sale de `descriptor.construirPaymentMethod(dato)`
- * (`lib/pagos/metodos-pasarela.ts`), nunca de un `if` por tipo acá: agregar el tipo siguiente
- * es agregar un descriptor, no tocar esta función (§ el reporte del slice, "la propiedad que
- * tiene que quedar").
+ * LEGACY — arma los datos COMPLETOS para crear una transacción de un método QUE NO ES TARJETA
+ * a partir de UN SOLO dato de texto — puro, sin red. Existe ÚNICAMENTE porque
+ * `app/api/checkout/route.ts` (Tier 1, fuera de `touches` de § API-DIRECTA-FORMA-TRES-
+ * DIMENSIONES-1) todavía manda un único `dato: string` por el wire — la firma de esta función
+ * NO CAMBIÓ para que esa ruta siga compilando y comportándose IDÉNTICO. Internamente empaca
+ * `dato` bajo la clave del PRIMER campo del descriptor (`descriptor.campos[0].nombre`) y llama
+ * a `descriptor.construirPaymentMethod` con ese mapa de una sola entrada — por construcción
+ * SÓLO sirve para un descriptor de UN campo (hoy, el único caso real: `DESCRIPTOR_NEQUI`). Un
+ * descriptor con más de un campo necesita `construirDatosCreacionTransaccionDesdeCampos`
+ * (abajo) y un wire que mande un mapa — eso es justamente lo que falta en `route.ts` (§ el
+ * reporte del slice).
  *
  * Devuelve la MISMA forma que `crearTransaccion` (`lib/pagos/wompi-api.ts`) recibe — desde
  * `API-DIRECTA-ENVIO-GENERICO-1`, esa función ya no está fijada a tarjeta: acepta cualquier
@@ -166,9 +172,36 @@ export function construirDatosCreacionTransaccion(
   descriptor: DescriptorMetodoPasarela,
   dato: string,
 ): DatosCreacionTransaccion {
+  const [primerCampo] = descriptor.campos;
   return {
     ...comunes,
-    paymentMethod: descriptor.construirPaymentMethod(dato),
+    paymentMethod: descriptor.construirPaymentMethod(primerCampo ? { [primerCampo.nombre]: dato } : {}),
+  };
+}
+
+/**
+ * LA CREACIÓN GENERAL (§ API-DIRECTA-FORMA-TRES-DIMENSIONES-1) — arma los datos COMPLETOS para
+ * crear una transacción de un método QUE NO ES TARJETA a partir de un MAPA nombre→valor, uno
+ * por cada campo que el descriptor declare (`descriptor.campos`, `lib/pagos/metodos-
+ * pasarela.ts`) — CERO, UNO o MUCHOS, de cualquier naturaleza. El `payment_method` sale
+ * ENTERO de `descriptor.construirPaymentMethod(valores)`, nunca de un `if` por tipo acá:
+ * agregar el tipo siguiente —aunque pida varios campos— es agregar un descriptor, no tocar
+ * esta función.
+ *
+ * ES LA RESPUESTA A "¿QUÉ HARÍA FALTA PARA AGREGAR UN TIPO CON VARIOS CAMPOS?" A NIVEL DE LA
+ * FORMA (§ el reporte del slice): esta función ya es genérica en N; lo que falta para que un
+ * comprador real la ejercite es que algo por ENCIMA de esta función —el checkout, y
+ * `app/api/checkout/route.ts`— junte y mande el mapa completo, no una limitación de esta
+ * función ni del descriptor.
+ */
+export function construirDatosCreacionTransaccionDesdeCampos(
+  comunes: DatosComunesCreacionTransaccion,
+  descriptor: DescriptorMetodoPasarela,
+  valores: Record<string, string>,
+): DatosCreacionTransaccion {
+  return {
+    ...comunes,
+    paymentMethod: descriptor.construirPaymentMethod(valores),
   };
 }
 

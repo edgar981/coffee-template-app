@@ -2,8 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   clasificarCreacionTransaccion, construirDatosCreacionTransaccion, construirDatosCreacionTransaccionTarjeta,
+  construirDatosCreacionTransaccionDesdeCampos,
 } from './creacion-transaccion';
-import { DESCRIPTOR_NEQUI } from './metodos-pasarela';
+import { DESCRIPTOR_NEQUI, type DescriptorMetodoPasarela, type CampoTextoLibre, type CampoEleccionCerrada } from './metodos-pasarela';
 import type { DatosNavegador3ds } from './tres-ds';
 
 // Datos de navegador de PRUEBA (§ API-DIRECTA-3DS-SIN-CHALLENGE-1) — `construirDatosCreacionTransaccionTarjeta`
@@ -170,9 +171,12 @@ test('firma inválida al crear una transacción de NEQUI → firma_invalida, MIS
   assert.deepEqual(r, { tipo: 'firma_invalida', motivo: 'La firma es inválida' });
 });
 
-// ── `construirDatosCreacionTransaccion` — LA CREACIÓN, ARMADA CON LA FORMA PROPIA DEL
-// DESCRIPTOR (§ API-DIRECTA-OTROS-METODOS-1, §1: "agregar el tipo siguiente es agregar un
-// descriptor, no tocar... la creación") ──────────────────────────────────────────────────────
+// ── `construirDatosCreacionTransaccion` (LEGACY, un solo dato) — LA CREACIÓN, ARMADA CON LA
+// FORMA PROPIA DEL DESCRIPTOR (§ API-DIRECTA-OTROS-METODOS-1, §1: "agregar el tipo siguiente es
+// agregar un descriptor, no tocar... la creación"). Su firma NO CAMBIÓ con § API-DIRECTA-
+// FORMA-TRES-DIMENSIONES-1 — sigue siendo la que `app/api/checkout/route.ts` (Tier 1, fuera de
+// `touches`) invoca — pero por dentro empaca `dato` bajo `descriptor.campos[0].nombre` antes de
+// llamar al `construirPaymentMethod` general (mapa). ──────────────────────────────────────────
 
 test('construirDatosCreacionTransaccion: arma los datos completos con el payment_method del descriptor', () => {
   const datos = construirDatosCreacionTransaccion(
@@ -202,11 +206,15 @@ test('construirDatosCreacionTransaccion: el paymentMethod viene EXCLUSIVAMENTE d
   // Un descriptor "de mentira" con una forma de payment_method arbitraria — si esta función
   // tuviera un `if` por tipo, este descriptor NO pasaría por él y el paymentMethod saldría
   // distinto de lo que su propio `construirPaymentMethod` devuelve.
-  const descriptorDeMentira = {
+  const campoDeMentira: CampoTextoLibre = {
+    nombre: 'dato', rotulo: '', placeholder: '', naturaleza: 'texto_libre', validar: () => null,
+  };
+  const descriptorDeMentira: DescriptorMetodoPasarela = {
     tipo: 'INVENTADO',
     nombreVisible: 'Inventado',
-    campo: { rotulo: '', placeholder: '', validar: () => null },
-    construirPaymentMethod: (dato: string) => ({ type: 'INVENTADO', algo_raro: dato.toUpperCase() }),
+    campos: [campoDeMentira],
+    campo: campoDeMentira,
+    construirPaymentMethod: (valores) => ({ type: 'INVENTADO', algo_raro: (valores.dato ?? '').toUpperCase() }),
   };
   const datos = construirDatosCreacionTransaccion(
     {
@@ -217,6 +225,60 @@ test('construirDatosCreacionTransaccion: el paymentMethod viene EXCLUSIVAMENTE d
     'hola',
   );
   assert.deepEqual(datos.paymentMethod, { type: 'INVENTADO', algo_raro: 'HOLA' });
+});
+
+// ── `construirDatosCreacionTransaccionDesdeCampos` (§ API-DIRECTA-FORMA-TRES-DIMENSIONES-1) —
+// LA CREACIÓN GENERAL, con un mapa nombre→valor de N campos, PROBADA CON UN DESCRIPTOR QUE USA
+// LAS TRES DIMENSIONES A LA VEZ — nunca con NEQUI, que sólo usa una (§ el reporte del slice:
+// "probar la forma con él sería probar otra vez el caso que la dejó corta"). ──────────────────
+
+const CAMPO_BANCO_DE_PRUEBA: CampoEleccionCerrada = {
+  nombre: 'banco', rotulo: 'Banco', naturaleza: 'eleccion_cerrada',
+  opciones: [{ valor: 'BANCO_A', etiqueta: 'Banco A' }],
+  validar: () => null,
+};
+const CAMPO_DOCUMENTO_DE_PRUEBA: CampoTextoLibre = {
+  nombre: 'documento', rotulo: 'Documento', placeholder: '', naturaleza: 'texto_libre', validar: () => null,
+};
+const DESCRIPTOR_TRES_DIMENSIONES_DE_PRUEBA: DescriptorMetodoPasarela = {
+  tipo: 'BANCO_DIGITAL_DE_PRUEBA',
+  nombreVisible: 'Banco Digital (de prueba, nunca ofrecido)',
+  campos: [CAMPO_BANCO_DE_PRUEBA, CAMPO_DOCUMENTO_DE_PRUEBA],
+  redireccion: { campoUrl: 'direccion_de_pago_banco_digital' },
+  construirPaymentMethod: (valores) => ({
+    type: 'BANCO_DIGITAL_DE_PRUEBA',
+    financial_institution_code: valores.banco,
+    user_legal_id: valores.documento,
+  }),
+  campo: CAMPO_BANCO_DE_PRUEBA,
+};
+
+test('construirDatosCreacionTransaccionDesdeCampos: arma el payment_method ENTERO desde un mapa de VARIOS campos, sin un if por tipo', () => {
+  const datos = construirDatosCreacionTransaccionDesdeCampos(
+    {
+      reference: 'CN-200002:def456', amountInCents: 12_000_00, currency: 'COP',
+      signature: 'firma-de-prueba', acceptanceToken: 'token-terminos', acceptPersonalAuthToken: 'token-datos',
+    },
+    DESCRIPTOR_TRES_DIMENSIONES_DE_PRUEBA,
+    { banco: 'BANCO_A', documento: '12345678' },
+  );
+  assert.deepEqual(datos, {
+    reference: 'CN-200002:def456', amountInCents: 12_000_00, currency: 'COP',
+    signature: 'firma-de-prueba', acceptanceToken: 'token-terminos', acceptPersonalAuthToken: 'token-datos',
+    paymentMethod: { type: 'BANCO_DIGITAL_DE_PRUEBA', financial_institution_code: 'BANCO_A', user_legal_id: '12345678' },
+  });
+});
+
+test('construirDatosCreacionTransaccionDesdeCampos: sirve TAMBIÉN para un descriptor de un solo campo (DESCRIPTOR_NEQUI) — es general en N, no sólo N>1', () => {
+  const datos = construirDatosCreacionTransaccionDesdeCampos(
+    {
+      reference: 'r', amountInCents: 1, currency: 'COP', signature: 's',
+      acceptanceToken: 'a', acceptPersonalAuthToken: 'b',
+    },
+    DESCRIPTOR_NEQUI,
+    { numero: '3001234567' },
+  );
+  assert.deepEqual(datos.paymentMethod, { type: 'NEQUI', phone_number: '3001234567' });
 });
 
 // ── `construirDatosCreacionTransaccionTarjeta` — LA MISMA FORMA, PARA EL MÉTODO QUE NO VIVE
