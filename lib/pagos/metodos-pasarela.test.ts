@@ -148,11 +148,15 @@ test('checkoutSabeDibujar: un tipo cualquiera que el registro no conoce → fals
   assert.equal(checkoutSabeDibujar('BANCOLOMBIA_COLLECT'), false);
 });
 
-test('TIPOS_NO_COBRABLES: vacía hoy — el spike no dejó el identificador exacto en el repo (§ el docstring)', () => {
-  assert.equal(TIPOS_NO_COBRABLES.size, 0);
+test('TIPOS_NO_COBRABLES: BANCOLOMBIA, y sólo BANCOLOMBIA — el identificador nombrado por API-DIRECTA-CATALOGO-NOMBRA-TIPO-1 (§ el docstring)', () => {
+  assert.deepEqual([...TIPOS_NO_COBRABLES], ['BANCOLOMBIA']);
 });
 
-test('esNoCobrable: con el registro real (vacío), ningún tipo es no-cobrable', () => {
+test('esNoCobrable: con el registro real, BANCOLOMBIA es no-cobrable', () => {
+  assert.equal(esNoCobrable('BANCOLOMBIA'), true);
+});
+
+test('esNoCobrable: con el registro real, un tipo normal NO se ve afectado', () => {
   assert.equal(esNoCobrable('CARD'), false);
   assert.equal(esNoCobrable('NEQUI'), false);
   assert.equal(esNoCobrable('PSE'), false);
@@ -201,6 +205,19 @@ test('paraElPanel: un tipo YA GUARDADO que cae a no_cobrable NO se borra solo �
   assert.deepEqual(r, [{ tipo: 'TIPO_HIPOTETICO_NO_COBRABLE', estado: 'no_cobrable' }]);
 });
 
+test('paraElPanel: no_cobrable con el registro REAL — BANCOLOMBIA cae a no_cobrable, sin inyectar nada', () => {
+  const r = paraElPanel(cruzarMetodosPasarela([], ['BANCOLOMBIA']));
+  assert.deepEqual(r, [{ tipo: 'BANCOLOMBIA', estado: 'no_cobrable' }]);
+});
+
+test('paraElPanel: con el registro REAL, un tipo normal (NEQUI) en la misma cuenta NO se ve afectado por la entrada de BANCOLOMBIA', () => {
+  const r = paraElPanel(cruzarMetodosPasarela(['NEQUI'], ['BANCOLOMBIA', 'NEQUI']));
+  assert.deepEqual(r, [
+    { tipo: 'BANCOLOMBIA', estado: 'no_cobrable' },
+    { tipo: 'NEQUI', estado: 'disponible' },
+  ]);
+});
+
 test('paraElPanel: no_cobrable gana sobre no_implementado cuando un tipo es las dos cosas a la vez', () => {
   // TIPO_HIPOTETICO_NO_COBRABLE no tiene descriptor (no_implementado sería su otro destino) Y
   // está en el set inyectado de no-cobrables — el resultado tiene que ser no_cobrable, no
@@ -247,16 +264,7 @@ test('el servidor RECHAZA un tipo que el checkout no sabe dibujar (PSE, sin desc
   assert.equal(parsed.success, false);
 });
 
-// EL RECHAZO DEL SERVIDOR PARA "NO COBRABLE" NO SE PUEDE DEMOSTRAR CONTRA `siteSettingsEditableSchema`
-// CON UN TIPO REAL HOY: `TIPOS_NO_COBRABLES` está vacía a propósito (§ su docstring en
-// `metodos-pasarela.ts`) porque el spike que midió el caso no dejó el identificador exacto escrito
-// en ningún lugar del repositorio. El schema llama a `esNoCobrable(tipo)` con su default de
-// PRODUCCIÓN (esa misma lista vacía), así que no hay forma de inyectar un tipo sintético en esa
-// llamada sin mutar el registro real desde un test — exactamente lo que este archivo se niega a
-// hacer (mutar `TIPOS_NO_COBRABLES` ensuciaría estado global entre tests, y fingir un valor "real"
-// sería la misma fabricación que el docstring ya descarta). LO QUE SÍ ESTÁ PROBADO, y es lo que
-// prueba que el mecanismo funciona: `esNoCobrable`/`paraElPanel` con un set inyectado (arriba), Y
-// el MISMO patrón de refine funcionando end-to-end contra el schema para "no dibujable" (el test de
-// PSE, arriba) — el refine de "no cobrable" usa exactamente ese patrón, sólo cambia qué función pura
-// invoca. El día que `TIPOS_NO_COBRABLES` gane una entrada real, éste es el sitio para agregar el
-// caso que falta acá.
+test('el servidor RECHAZA BANCOLOMBIA (§ PANEL-LISTA-NO-COBRABLES-1: TIPOS_NO_COBRABLES ya no está vacía)', () => {
+  const parsed = siteSettingsEditableSchema.safeParse(payloadDeSiteSettings(['BANCOLOMBIA']));
+  assert.equal(parsed.success, false);
+});

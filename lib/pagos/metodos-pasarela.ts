@@ -166,26 +166,27 @@ export function checkoutSabeDibujar(tipo: string): boolean {
  * sospecha: sólo entra un tipo cuando alguien probó crear la transacción, con cualquier
  * combinación de campos, y el proveedor la rechazó SIEMPRE.
  *
- * HOY ESTÁ VACÍA, Y ESO ES DELIBERADO — no un placeholder olvidado. El spike que midió la
- * EXISTENCIA de un tipo así (`API-DIRECTA-SPIKE-FORMA-DE-METODOS-1`, registrado en
- * `API-DIRECTA-CATALOGO-METODOS-ASIENTO-1`, DECISIONS.md, "casi con certeza una etiqueta
- * agregadora que agrupa a sus hermanos bajo la marca de un banco para reportes, no un método
- * que se pueda cobrar") no dejó escrito en NINGÚN lugar del repositorio —ni ese asiento, ni su
- * commit, ni ningún otro— el identificador exacto del tipo. Se buscó antes de escribir este
- * archivo (grep sobre DECISIONS.md, el historial completo de `git log --all`, y `.scratch/`) y
- * no aparece en ninguno. Escribir acá un nombre de proveedor plausible pero no medido sería
- * fabricar un dato en la ruta del dinero — la misma familia que el rating fabricado que este
- * repo ya borró una vez (§ El RATING fabricado se BORRÓ, CLAUDE.md) — así que la lista se deja
- * vacía a propósito hasta que exista la cita puntual del tipo real. El MECANISMO (`esNoCobrable`,
- * `paraElPanel`, abajo) queda construido y probado con un tipo sintético
- * (`tests/…metodos-pasarela.test.ts`); agregar la entrada real es un paso posterior, con su
- * propia cita.
+ * `BANCOLOMBIA` ES LA ÚNICA ENTRADA, y es el identificador LITERAL que el proveedor espera en
+ * el campo de tipo de método al crear una transacción — NO el nombre visible del banco. El
+ * spike que midió el rechazo (`API-DIRECTA-SPIKE-FORMA-DE-METODOS-1`) lo registró en
+ * `API-DIRECTA-CATALOGO-METODOS-ASIENTO-1` (DECISIONS.md, § "3 · Catálogo ≠ habilitado ≠
+ * cobrable") sin nombrarlo — lo describía por su comportamiento, nunca por el identificador. El
+ * slice que iba a construir este archivo buscó ese identificador en el ledger, en todo el
+ * historial (`git log --all`) y en `.scratch/`, no lo encontró en ningún lado, y se negó a
+ * fabricar un nombre — dejó esta lista vacía en vez de inventar (la misma familia que el rating
+ * fabricado que este repo ya borró una vez, § El RATING fabricado se BORRÓ, CLAUDE.md). El
+ * nombre lo agregó la corrección posterior, **`API-DIRECTA-CATALOGO-NOMBRA-TIPO-1`**
+ * (DECISIONS.md, mismo párrafo, 2026-09-17). Es, casi con certeza, una etiqueta agregadora que
+ * agrupa a sus hermanos bajo la marca de un banco para reportes, no un método que se pueda
+ * cobrar.
  *
- * EL LÍMITE, aunque llegue a tener una entrada: se mide contra UNA cuenta. No hay evidencia de
- * que otra cuenta, con otra configuración, rechace el mismo tipo — la ausencia de una entrada
- * acá tampoco prueba que un tipo SEA cobrable, sólo que nadie lo vio rechazar siempre todavía.
+ * EL LÍMITE, con la entrada ya escrita, NO CAMBIÓ: se mide contra UNA cuenta. No hay evidencia
+ * de que otra cuenta, con otra configuración, rechace el mismo tipo — la ausencia de una entrada
+ * acá tampoco prueba que un tipo SEA cobrable, sólo que nadie lo vio rechazar siempre todavía. Y
+ * si un tipo ya listado pasara a ser cobrable en el sandbox, esta lista no se entera sola: hay
+ * que volver a medir y quitarlo a mano.
  */
-export const TIPOS_NO_COBRABLES: ReadonlySet<string> = new Set<string>([]);
+export const TIPOS_NO_COBRABLES: ReadonlySet<string> = new Set<string>(['BANCOLOMBIA']);
 
 /** ¿Este tipo está en la lista de lo que la pasarela nunca cobra? El segundo parámetro existe
  *  SOLO para que el mecanismo se pueda probar con un tipo sintético sin tocar el registro real
