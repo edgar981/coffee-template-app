@@ -5501,3 +5501,131 @@ trabajo se previene aguas arriba, y un slice que sólo existía para verificar u
 queda con el residual que esa medición no cubrió. Ninguno de los tres se cierra por esto: el panel tiene
 un modo de falla pendiente del owner, el desalineo se apoya en un predictor SIN MEDIR, y el residual del
 primero está bloqueado por una condición externa (una URL pública) que este asiento no resuelve.
+
+## 2026-09-17 — El catálogo de métodos de la pasarela no es «un campo por método»: más de la mitad pide
+varios, de tres naturalezas distintas, y más de la mitad saca al comprador de la página — y el filtro del
+panel es CATÁLOGO ≠ HABILITADO ≠ COBRABLE, tres conjuntos distintos donde sólo el tercero sirve
+(`API-DIRECTA-CATALOGO-METODOS-ASIENTO-1`)
+
+### 0 · Por qué este asiento existe
+
+El spike `API-DIRECTA-SPIKE-FORMA-DE-METODOS-1` corrió read-only y no deja rastro propio: lo que midió
+vive sólo en los registros del orquestador y es **incitable** hasta que alguien lo escribe — la misma
+regla que este ledger ya fijó para spikes read-only (`API-DIRECTA-SPIKES-ASIENTO-1`, arriba: *"el
+instrumento de medición no produce citas; lo que mide es incitable hasta que alguien lo escribe"*). El
+owner ordenó el 2026-09-17 escribirlo ANTES del slice del filtro del panel de métodos, que necesita citar
+una de sus mediciones para no depender de un hecho fuera del libro, y pidió que este asiento registre la
+distinción entre los tres conjuntos como **el criterio** del filtro, no como anécdota de un tipo de
+método.
+
+**Este slice no tiene acceso a red: no verifica nada de lo que sigue contra el proveedor.** Lo de abajo es
+lo que el spike midió, transcrito con su origen.
+
+### 1 · El espacio de casos del catálogo — medido contra el sandbox, tipo por tipo
+
+La forma extensible de los métodos de pasarela se diseñó con tarjeta y billetera. La billetera **pide un
+teléfono**, así que la forma quedó asumiendo **un campo por método**.
+
+El spike recorrió el catálogo entero y midió:
+
+- **Cuántos campos.** El máximo es **seis**, y **más de la mitad de los tipos piden más de uno**. La
+  suposición no era corta para un método: era corta para la mayoría del catálogo.
+- **De qué tipo es cada campo — dimensión propia, no un detalle de la cantidad.** Hay **texto libre**, hay
+  **elección de una lista cerrada que el proveedor enumera en su propio error de validación**, y hay
+  **datos que se traen de OTRA consulta** — la lista de bancos, el token de la tarjeta.
+
+  > **Por qué importa separarlo:** una forma que soporte «N campos de texto» no soporta «elegí una de
+  > estas opciones» ni «esta lista se pide aparte». Medir sólo la cantidad habría hecho nacer la forma
+  > corta otra vez, por otro lado.
+
+- **Quiénes sacan al comprador de la página.** Más de la mitad de los que se pudieron medir. No es una
+  rareza de un método: es la mitad del catálogo.
+- **El detalle que habría fallado en silencio:** el campo donde viene la dirección de redirección **no
+  tiene el mismo nombre en todos los tipos**. Una forma que buscara un único nombre de campo para decidir
+  «este método redirige» se equivocaría con la mitad de los que sí redirigen — y fallaría sin ruido,
+  dejando al comprador esperando una pantalla que nunca llega.
+
+**Lo que no se pudo medir:** de los tipos que esta cuenta no tiene habilitados, no se puede observar si
+redirigen — exige crear la transacción de verdad, y ese tipo la rechaza (§3, abajo, es justamente uno de
+esos casos). Queda dicho como no medido, y no se dedujo del nombre del método.
+
+### 2 · Un campo que sólo existe en pruebas
+
+Algunos tipos del catálogo piden un dato que sirve para simular el resultado de la transacción y que es
+un artefacto del AMBIENTE de pruebas, no del método en sí.
+
+```
+!!!!!!!!!!  S I N   M E D I R  !!!!!!!!!!
+!!  [SIN MEDIR] -- marcador buscable por maquina
+!!  ESTO NO ES UN DATO. ES UNA PREGUNTA ABIERTA.
+!!  «si ese campo de simulacion desaparece en una cuenta de PRODUCCION»
+!!  NADIE MIDIO ESTO. No lo afirmes, no lo asumas, no lo cites
+!!  como hecho, no lo uses para decidir: MEDILO.
+!!  Verificarlo exige una cuenta productiva, que este spike no tenia.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+```
+
+**El riesgo concreto:** si la forma del panel se construye desde lo medido en el sandbox sin distinguir
+este campo, le horneamos a producción un campo de prueba que el comprador vería en un formulario real.
+
+### 3 · Catálogo ≠ habilitado ≠ cobrable — y esto es EL CRITERIO, no una anécdota
+
+El spike midió un tipo — **`BANCOLOMBIA`**, el identificador exacto que el proveedor espera en el campo de
+tipo de método al crear una transacción, no el nombre visible del banco — que **está en el catálogo del
+proveedor**, **está entre los métodos habilitados de la cuenta**, y que **la creación de transacciones
+RECHAZA SIEMPRE**, con cualquier combinación de campos. Es, casi con certeza, una etiqueta agregadora que
+agrupa a sus hermanos bajo la marca de un banco para reportes, no un método que se pueda cobrar.
+
+**Son tres conjuntos distintos**, y el que sirve para ofrecerle algo a un comprador es el tercero:
+
+| Conjunto | De dónde sale |
+| --- | --- |
+| lo que el catálogo **enumera** | el error de validación del proveedor |
+| lo que la cuenta **habilita** | la respuesta del proveedor sobre el comercio |
+| lo que **se puede cobrar** | ninguna consulta lo devuelve |
+
+> **Y acá está la razón, en palabras del owner:** cualquiera habría construido el filtro sobre «lo que la
+> cuenta habilita» — es la lista que el proveedor devuelve, es la obvia — y este tipo habría pasado igual.
+> El conjunto correcto es el tercero, y el tercero no lo devuelve ninguna API: lo sabemos porque un spike
+> intentó crear y falló.
+
+**El caso real, y se registra porque ya ocurrió:** el owner encendió ese tipo en su panel — hizo
+exactamente lo que haría cualquier dueño: ofrecer lo que su cuenta tiene — y sus compradores no habrían
+podido pagar con él, sin ninguna advertencia.
+
+**El límite, que va escrito al lado y no se suaviza:** esto se midió contra UNA cuenta. No sabemos si otro
+comercio con otra configuración se comporta igual. No cambia la decisión —en la nuestra no es cobrable—
+pero no se afirma más de lo que se midió.
+
+**CORRECCIÓN (`API-DIRECTA-CATALOGO-NOMBRA-TIPO-1`, 2026-09-17):** esta sección describía el hallazgo sin
+nombrar el tipo — lo llamaba «un tipo» y lo describía por su comportamiento, nunca por el identificador
+que un constructor necesita para usarlo. Lo detectó el slice que iba a construir el filtro del panel de
+métodos: necesitaba excluir exactamente este tipo, buscó su identificador en el ledger, en todo el
+historial y en los borradores, no lo encontró en ningún lado, y **se negó a fabricar un nombre** — dejó su
+lista vacía en vez de inventar. Un asiento se lee bien y se usa mal, y sólo el que lo usa se entera del
+hueco.
+
+**La clase, para que quede como regla y no como incidente de un tipo de método:** la forma asumió un
+campo por método porque se diseñó con la billetera, y la billetera pide un teléfono. `N = 1` se leyó como
+LA FORMA en vez de como EL CASO — un contrato derivado de los ejemplos que se tenían a mano, en vez del
+espacio de casos. Es la misma familia que ya registró este ledger para el descubrimiento de tests del
+gate, que enumeraba los subárboles que alguien recordó y se agrandó un subárbol por falla: la diferencia
+es que aquélla se descubrió fallando, varias veces, y ésta la destapó una medición ANTES de costar.
+
+### 4 · Lo que este programa ya confirmó tres veces
+
+El motor de dinero del servidor se reusa tal cual. Ya no es un argumento: es repetición medida, en tres
+integraciones distintas —el widget, la creación por API, y el camino que saca al comprador del sitio—,
+las tres sin tocar el webhook, el reconciliador ni el modelo del intento. La decisión de modelar el motor
+agnóstico de cómo nació la transacción fue correcta, y esto es su evidencia, no su defensa.
+
+**GATE, los dos carriles, verde.** Este diff toca un solo archivo del ledger (`DECISIONS.md`) y ningún
+test, así que nada podía cambiar en ninguno de los dos carriles.
+
+Regla: el filtro que decide qué método ofrecerle a un comprador no se construye sobre lo que el proveedor
+dice que la cuenta tiene habilitado — se construye sobre lo que la cuenta puede COBRAR, y esos dos
+conjuntos no son el mismo: un tipo puede estar en el catálogo, estar habilitado, y rechazar la creación de
+todas formas. Un contrato de formulario derivado del ejemplo que se tenía a mano (un campo, la billetera)
+en vez del espacio de casos completo (hasta seis campos, de tres naturalezas, con más de la mitad
+redirigiendo por un campo que cambia de nombre) es la misma clase de error en otra superficie: se
+descubre midiendo el catálogo entero, no extrapolando del primer caso.
