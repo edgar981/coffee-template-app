@@ -11,7 +11,9 @@ import {
   type MetodoPagoTipo, type MetodoPagoGuardado,
 } from '@/lib/checkout/metodos-pago';
 import { pasarelaDisponibleEnEsteDespliegue } from '@/services/checkout.service';
-import { cruzarMetodosPasarela, type MetodoPasarelaCruzado } from '@/lib/pagos/metodos-pasarela';
+import {
+  cruzarMetodosPasarela, paraElPanel, type MetodoPasarelaCruzado, type EstadoMetodoPasarela,
+} from '@/lib/pagos/metodos-pasarela';
 import { partirTelefono, componerTelefono, INDICATIVOS } from '@/lib/config/telefono';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
@@ -235,14 +237,38 @@ function renderPasarelaSoloLectura(guardado: string[]) {
   );
 }
 
-// EDICIÓN, cuenta 'ok': un checkbox por método DISPONIBLE (en la cuenta), y una fila
-// "sólo Quitar" por método GUARDADO que la cuenta ya no sostiene — nunca un checkbox que
-// pudiera reintroducirlo, porque la cuenta no lo tiene (§ "no se borra solo, pero tampoco se
-// puede re-marcar solo").
+// Los TRES estados que NO se pueden encender (§ PANEL-FILTRA-IMPLEMENTADOS-1) comparten forma
+// —nombre + explicación, y "Quitar" SOLO si el tipo sigue en lo guardado— y sólo difieren en el
+// TEXTO. Los dos textos nuevos son del OWNER (2026-09-17), textuales, no se reescriben.
+const EXPLICACION_NO_ENCENDIBLE: Record<
+  Exclude<EstadoMetodoPasarela, 'disponible' | 'disponible_no_ofrecido'>,
+  { titulo: string; detalle?: string }
+> = {
+  guardado_no_disponible: { titulo: 'Ya no está disponible en tu cuenta.' },
+  no_implementado:        { titulo: 'Disponible pronto' },
+  no_cobrable: {
+    titulo: 'No disponible para cobrar',
+    detalle: 'Tu cuenta lo tiene habilitado, pero la pasarela no permite cobrar con este método.',
+  },
+};
+
+// EDICIÓN, cuenta 'ok': un checkbox por método ENCENDIBLE (la cuenta lo tiene, el checkout sabe
+// dibujarlo, y la pasarela lo cobra), y una fila "sólo Quitar" por cada método NO encendible que
+// SIGUE guardado — nunca un checkbox que pudiera reintroducirlo, sea porque la cuenta ya no lo
+// tiene, porque el checkout todavía no sabe dibujarlo, o porque la pasarela nunca lo cobra
+// (§ "no se borra solo, pero tampoco se puede re-marcar solo", extendida a los tres casos).
+/** Type guard, no sólo un booleano: deja que TypeScript NARROW `c.estado` en la rama `else`
+ *  al tipo de las claves de `EXPLICACION_NO_ENCENDIBLE` — sin esto, `c.estado` sigue siendo la
+ *  unión completa dentro del `else` y la indexación no compila. */
+function esEncendible(estado: EstadoMetodoPasarela): estado is 'disponible' | 'disponible_no_ofrecido' {
+  return estado === 'disponible' || estado === 'disponible_no_ofrecido';
+}
+
 function renderPasarelaCruzada(
   cruzado: MetodoPasarelaCruzado[],
+  guardado: string[],
   onToggle: (tipo: string, prender: boolean) => void,
-  onQuitarNoDisponible: (tipo: string) => void,
+  onQuitarNoEncendible: (tipo: string) => void,
 ) {
   if (cruzado.length === 0) {
     return <p className="duna-body" style={{ margin: 0, color: 'var(--duna-muted)' }}>Tu cuenta de pasarela no tiene métodos habilitados.</p>;
@@ -255,21 +281,7 @@ function renderPasarelaCruzada(
           className="admin-pagos-fila"
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--duna-space-3)' }}
         >
-          {c.estado === 'guardado_no_disponible' ? (
-            <>
-              <div style={{ minWidth: 0 }}>
-                <span className="duna-field__label">{c.tipo}</span>
-                <p className="duna-field__hint" style={{ margin: 0 }}>Ya no está disponible en tu cuenta.</p>
-              </div>
-              <button
-                type="button"
-                className="duna-btn duna-btn--ghost duna-btn--sm"
-                onClick={() => onQuitarNoDisponible(c.tipo)}
-              >
-                Quitar
-              </button>
-            </>
-          ) : (
+          {esEncendible(c.estado) ? (
             <label className="duna-check" style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)' }}>
               <input
                 type="checkbox"
@@ -279,6 +291,26 @@ function renderPasarelaCruzada(
               />
               <span className="duna-field__label">{c.tipo}</span>
             </label>
+          ) : (
+            <>
+              <div style={{ minWidth: 0 }}>
+                <span className="duna-field__label">{c.tipo}</span>
+                <p className="duna-field__hint" style={{ margin: 0 }}>{EXPLICACION_NO_ENCENDIBLE[c.estado].titulo}</p>
+                {EXPLICACION_NO_ENCENDIBLE[c.estado].detalle && (
+                  <p className="duna-field__hint" style={{ margin: 0 }}>{EXPLICACION_NO_ENCENDIBLE[c.estado].detalle}</p>
+                )}
+              </div>
+              {/* No se borra solo (§ el spec): sólo se ofrece Quitar si el tipo SIGUE guardado. */}
+              {guardado.includes(c.tipo) && (
+                <button
+                  type="button"
+                  className="duna-btn duna-btn--ghost duna-btn--sm"
+                  onClick={() => onQuitarNoEncendible(c.tipo)}
+                >
+                  Quitar
+                </button>
+              )}
+            </>
           )}
         </div>
       ))}
@@ -351,9 +383,11 @@ export default function DatosNegocioSeccion() {
     }));
   };
 
-  // Quitar un método GUARDADO que la cuenta ya no sostiene: no se borra solo (§ el spec), así
-  // que esta es la única vía — con Deshacer, mismo precedente que `quitarConDeshacer` de Pagos.
-  const quitarPasarelaNoDisponible = (tipo: string) => {
+  // Quitar un método GUARDADO que ya no es encendible —la cuenta lo perdió, el checkout no sabe
+  // dibujarlo, o la pasarela no lo cobra (§ PANEL-FILTRA-IMPLEMENTADOS-1)—: ninguno de los tres
+  // se borra solo, así que ésta es la única vía — con Deshacer, mismo precedente que
+  // `quitarConDeshacer` de Pagos.
+  const quitarPasarelaNoEncendible = (tipo: string) => {
     setForm(f => ({ ...f, metodosPasarela: f.metodosPasarela.filter(t => t !== tipo) }));
     toast.success(`${tipo} quitado.`, {
       action: {
@@ -612,9 +646,10 @@ export default function DatosNegocioSeccion() {
 
               {cuentaPasarela.tipo === 'ok'
                 ? renderPasarelaCruzada(
-                    cruzarMetodosPasarela(form.metodosPasarela, cuentaPasarela.metodos),
+                    paraElPanel(cruzarMetodosPasarela(form.metodosPasarela, cuentaPasarela.metodos)),
+                    form.metodosPasarela,
                     toggleMetodoPasarela,
-                    quitarPasarelaNoDisponible,
+                    quitarPasarelaNoEncendible,
                   )
                 : renderPasarelaSoloLectura(form.metodosPasarela)}
             </div>

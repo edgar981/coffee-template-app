@@ -3,7 +3,9 @@
 // `lib/pagos/wompi-api.ts`) — puro, capa 1 (§ API-DIRECTA-PANEL-METODOS-1). La pantalla sólo
 // dibuja lo que esta función devuelve; no reimplementa el cruce.
 //
-// TRES ESTADOS, y son los únicos que un tipo puede tener:
+// TRES ESTADOS produce ESTA función (`cruzarMetodosPasarela`), y son los únicos que puede
+// asignar — el panel los REFINA con dos más (`paraElPanel`, § PANEL-FILTRA-IMPLEMENTADOS-1,
+// más abajo), pero esta función no cambió de comportamiento por eso:
 //   - 'disponible'            : está en las DOS listas — el dueño lo ofrece y su cuenta lo
 //                                sostiene. Editable: apagarlo lo saca de lo guardado.
 //   - 'guardado_no_disponible': está guardado, pero la cuenta YA NO lo tiene. No se borra
@@ -11,8 +13,19 @@
 //                                desalineo) — el dueño lo ve marcado y sólo puede QUITARLO.
 //   - 'disponible_no_ofrecido': la cuenta lo tiene, pero el dueño no lo ofrece todavía.
 //                                Editable: prenderlo lo agrega a lo guardado.
+//
+// LOS OTROS DOS ESTADOS DEL ENUM ('no_implementado' / 'no_cobrable') los asigna `paraElPanel`,
+// NUNCA esta función — `cruzarMetodosPasarela` sólo conoce guardado×cuenta, no sabe nada de si
+// el checkout puede dibujar un tipo ni de si la pasarela lo cobra. Viven en el MISMO enum
+// (`EstadoMetodoPasarela`) para no mantener dos tipos que describen la misma pregunta ("¿qué
+// ve el dueño de este método?"), no porque esta función pueda producirlos.
 
-export type EstadoMetodoPasarela = 'disponible' | 'guardado_no_disponible' | 'disponible_no_ofrecido';
+export type EstadoMetodoPasarela =
+  | 'disponible'
+  | 'guardado_no_disponible'
+  | 'disponible_no_ofrecido'
+  | 'no_implementado'
+  | 'no_cobrable';
 
 export interface MetodoPasarelaCruzado {
   tipo: string;
@@ -120,6 +133,96 @@ export const DESCRIPTOR_NEQUI: DescriptorMetodoPasarela = {
 export const DESCRIPTORES_METODO_PASARELA: Record<string, DescriptorMetodoPasarela> = {
   NEQUI: DESCRIPTOR_NEQUI,
 };
+
+// ── EL PANEL DEJA DE OFRECER LO QUE NO SE PUEDE ENTREGAR (§ PANEL-FILTRA-IMPLEMENTADOS-1) ────
+//
+// El panel cruzaba `guardado`×`cuenta` (arriba) y dejaba encender CUALQUIER tipo que la cuenta
+// tuviera habilitado — sin preguntar si el checkout sabe DIBUJARLO ni si la pasarela lo COBRA.
+// El owner encendió tres tipos que el checkout no sabe dibujar, y uno de ellos NUNCA se puede
+// cobrar (§ el asiento citado abajo) — sus compradores no habrían visto nada de eso, sin
+// ninguna advertencia.
+//
+// CATÁLOGO, HABILITADO y COBRABLE SON TRES CONJUNTOS DISTINTOS, y sólo el tercero decide si un
+// tipo puede ENCENDERSE — el segundo (`cuenta`, arriba) sigue decidiendo si aparece en el panel
+// SIQUIERA (`cruzarMetodosPasarela` no cambió: un tipo que la cuenta no tiene sigue siendo
+// `guardado_no_disponible`, un problema DISTINTO de éste).
+
+/**
+ * ¿El checkout SABE DIBUJAR este tipo? TARJETA es su propio flujo bespoke ("TARJETA NO VIVE EN
+ * ESTE REGISTRO", § la cabecera de arriba) y siempre cuenta; cualquier otro tipo cuenta sólo si
+ * tiene un descriptor en `DESCRIPTORES_METODO_PASARELA`. Un tipo sin ninguna de las dos cosas
+ * es "Disponible pronto" en el panel: la cuenta lo tiene, pero todavía no construimos cómo
+ * pedírselo al comprador (PSE es el caso real de hoy — tiene su propio spike, sin descriptor
+ * a propósito).
+ */
+export function checkoutSabeDibujar(tipo: string): boolean {
+  return tipo === 'CARD' || tipo in DESCRIPTORES_METODO_PASARELA;
+}
+
+/**
+ * LOS TIPOS QUE LA PASARELA NUNCA COBRA, aunque la cuenta los tenga habilitados y el catálogo
+ * los enumere — un tercer conjunto, distinto de "está habilitado" y de "el checkout sabe
+ * dibujarlo" (§ la cabecera de esta sección). Cada entrada es un HALLAZGO MEDIDO, no una
+ * sospecha: sólo entra un tipo cuando alguien probó crear la transacción, con cualquier
+ * combinación de campos, y el proveedor la rechazó SIEMPRE.
+ *
+ * HOY ESTÁ VACÍA, Y ESO ES DELIBERADO — no un placeholder olvidado. El spike que midió la
+ * EXISTENCIA de un tipo así (`API-DIRECTA-SPIKE-FORMA-DE-METODOS-1`, registrado en
+ * `API-DIRECTA-CATALOGO-METODOS-ASIENTO-1`, DECISIONS.md, "casi con certeza una etiqueta
+ * agregadora que agrupa a sus hermanos bajo la marca de un banco para reportes, no un método
+ * que se pueda cobrar") no dejó escrito en NINGÚN lugar del repositorio —ni ese asiento, ni su
+ * commit, ni ningún otro— el identificador exacto del tipo. Se buscó antes de escribir este
+ * archivo (grep sobre DECISIONS.md, el historial completo de `git log --all`, y `.scratch/`) y
+ * no aparece en ninguno. Escribir acá un nombre de proveedor plausible pero no medido sería
+ * fabricar un dato en la ruta del dinero — la misma familia que el rating fabricado que este
+ * repo ya borró una vez (§ El RATING fabricado se BORRÓ, CLAUDE.md) — así que la lista se deja
+ * vacía a propósito hasta que exista la cita puntual del tipo real. El MECANISMO (`esNoCobrable`,
+ * `paraElPanel`, abajo) queda construido y probado con un tipo sintético
+ * (`tests/…metodos-pasarela.test.ts`); agregar la entrada real es un paso posterior, con su
+ * propia cita.
+ *
+ * EL LÍMITE, aunque llegue a tener una entrada: se mide contra UNA cuenta. No hay evidencia de
+ * que otra cuenta, con otra configuración, rechace el mismo tipo — la ausencia de una entrada
+ * acá tampoco prueba que un tipo SEA cobrable, sólo que nadie lo vio rechazar siempre todavía.
+ */
+export const TIPOS_NO_COBRABLES: ReadonlySet<string> = new Set<string>([]);
+
+/** ¿Este tipo está en la lista de lo que la pasarela nunca cobra? El segundo parámetro existe
+ *  SOLO para que el mecanismo se pueda probar con un tipo sintético sin tocar el registro real
+ *  (que hoy está vacío, § `TIPOS_NO_COBRABLES` arriba) — en producción siempre corre con el
+ *  default. */
+export function esNoCobrable(tipo: string, tiposNoCobrables: ReadonlySet<string> = TIPOS_NO_COBRABLES): boolean {
+  return tiposNoCobrables.has(tipo);
+}
+
+/**
+ * REFINA el cruce guardado×cuenta (`cruzarMetodosPasarela`) con la pregunta que el PANEL
+ * necesita para decidir qué dejar ENCENDER: de los tipos que la cuenta SÍ tiene
+ * (`'disponible'`/`'disponible_no_ofrecido'`), ¿el checkout sabe DIBUJARLO (`checkoutSabeDibujar`)
+ * y la pasarela lo COBRA (`!esNoCobrable`)? Si cualquiera de las dos falla, el tipo deja de ser
+ * encendible aunque la cuenta lo tenga — `'guardado_no_disponible'` (la cuenta ya no lo tiene,
+ * un problema DISTINTO: ni de dibujo ni de cobro) NO se toca.
+ *
+ * NO COBRABLE GANA SOBRE NO IMPLEMENTADO cuando un tipo fuera las dos cosas a la vez: un tipo
+ * que la pasarela nunca cobra tampoco merece la promesa de "Disponible pronto" — esa frase dice
+ * "todavía no lo construimos", y construirlo no cambiaría nada para un tipo que rechaza siempre.
+ *
+ * UN TIPO QUE YA ESTABA GUARDADO Y CAE ACÁ NO SE BORRA SOLO (§ PANEL-FILTRA-IMPLEMENTADOS-1):
+ * esta función sólo cambia el ESTADO que ve el panel; `guardados` sigue teniendo el tipo hasta
+ * que el dueño lo quite explícitamente — el llamador decide si mostrar "Quitar" comparando
+ * contra su propia lista de guardados, esta función no la necesita para clasificar.
+ */
+export function paraElPanel(
+  cruzado: MetodoPasarelaCruzado[],
+  tiposNoCobrables: ReadonlySet<string> = TIPOS_NO_COBRABLES,
+): MetodoPasarelaCruzado[] {
+  return cruzado.map(({ tipo, estado }) => {
+    if (estado === 'guardado_no_disponible') return { tipo, estado };
+    if (esNoCobrable(tipo, tiposNoCobrables)) return { tipo, estado: 'no_cobrable' as const };
+    if (!checkoutSabeDibujar(tipo)) return { tipo, estado: 'no_implementado' as const };
+    return { tipo, estado };
+  });
+}
 
 /**
  * Los tipos QUE NO SON TARJETA que se le OFRECEN AL COMPRADOR: reusa `cruzarMetodosPasarela`
