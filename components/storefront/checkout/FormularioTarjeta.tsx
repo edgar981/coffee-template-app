@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   numeroTarjetaValido, parseVencimiento, vencimientoVigente, codigoSeguridadValido, nombreTitularValido,
+  detectarRedTarjeta, type RedTarjeta,
 } from '@/lib/checkout/tarjeta';
 import {
   tokenizarTarjeta, TokenizacionError, CreacionTransaccionError,
@@ -51,6 +52,14 @@ import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
  * SIN SELECTOR DE CUOTAS: se cobra en una — ofrecer cuotas es una decisión de negocio con
  * consecuencias de liquidación que nadie midió y nadie decidió (anotado por el orquestador,
  * no construido acá).
+ *
+ * LA RED EMISORA SE DETECTA MIENTRAS SE TECLEA (§ CHECKOUT-DETECCION-EMISOR-BIN-1),
+ * PURAMENTE LOCAL: `detectarRedTarjeta` (`lib/checkout/tarjeta.ts`) sólo mira el prefijo de
+ * `campos.numero` ya en memoria del formulario — el mismo estado que alimenta la validación de
+ * Luhn — y nunca sale de este componente hacia una red ni hacia un log. Mientras no se sepa
+ * (`estado !== 'reconocida'`) no se muestra nada, y jamás bloquea el botón "Pagar": es una pista
+ * visual, no una autorización. El NOMBRE se muestra como TEXTO — el logo de cada red es marca de
+ * un tercero y este repositorio no tiene esos archivos (§ el reporte del slice).
  *
  * SI EL PROVEEDOR RECHAZA LA CREACIÓN PORQUE LA CUENTA YA NO TIENE EL MÉTODO HABILITADO
  * (`CreacionTransaccionError.tipo === 'metodo_no_habilitado'`) — un rechazo ESTRUCTURAL, no
@@ -105,6 +114,17 @@ const TEXTO = {
 };
 
 const TEXTO_CREACION_TRANSACCION_GENERICO = 'No pudimos procesar tu pago. Intenta de nuevo o usa otro método.';
+
+// TEXTO PROVISIONAL — PENDIENTE DEL OWNER (§ CHECKOUT-DETECCION-EMISOR-BIN-1, reporte del
+// slice). Los logos de estas redes son marca de terceros; este repositorio no tiene esos
+// archivos y no se descargan/copian acá. Hasta que el owner decida de dónde salen, la red
+// detectada se muestra como NOMBRE en texto, no como ícono.
+const NOMBRE_RED: Record<RedTarjeta, string> = {
+  visa: 'Visa',
+  mastercard: 'Mastercard',
+  amex: 'American Express',
+  diners: 'Diners Club',
+};
 
 /**
  * ESPEJO de `confirmarTransaccionTarjeta` (`services/checkout.service.ts`,
@@ -184,6 +204,11 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
   const [creada, setCreada] = useState<{ reference: string; resultado3ds: Resultado3ds; desafioHtml: string | null } | null>(null);
 
   const aceptado = terminosMarcado && datosMarcado;
+
+  // Sólo una PISTA visual (§ el docstring de arriba): con pocos dígitos o con un prefijo que
+  // ninguna red conocida completa, no se muestra nada — nunca se adivina y nunca se bloquea.
+  const deteccionRed = detectarRedTarjeta(campos.numero);
+  const marcaDetectada = deteccionRed.estado === 'reconocida' ? NOMBRE_RED[deteccionRed.red] : null;
 
   const handlePagar = async () => {
     // El botón ya está `disabled` sin las dos aceptaciones — esta es la guarda de tipo, no
@@ -300,6 +325,7 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
           error={errores.numero}
           inputMode="numeric"
           placeholder="0000 0000 0000 0000"
+          marcaDetectada={marcaDetectada}
         />
         <div className="grid grid-cols-2 gap-3">
           <CampoTarjeta
@@ -350,12 +376,21 @@ interface CampoTarjetaProps {
   error?: string;
   placeholder?: string;
   inputMode?: 'numeric' | 'text';
+  /** El nombre de la red emisora detectada (§ CHECKOUT-DETECCION-EMISOR-BIN-1), o `null` si
+   *  todavía no se sabe o el prefijo no cae en ninguna red reconocida — en esos dos casos no se
+   *  renderiza nada, nunca un ícono genérico esperando. Sólo lo usa el campo de número. */
+  marcaDetectada?: string | null;
 }
 
-function CampoTarjeta({ label, value, onChange, error, placeholder, inputMode }: CampoTarjetaProps) {
+function CampoTarjeta({ label, value, onChange, error, placeholder, inputMode, marcaDetectada }: CampoTarjetaProps) {
   return (
     <div>
-      <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">{label}</label>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="block text-xs font-medium text-[var(--sf-texto)]">{label}</label>
+        {marcaDetectada && (
+          <span className="text-xs font-medium text-[var(--sf-texto)]/70">{marcaDetectada}</span>
+        )}
+      </div>
       <input
         type="text"
         inputMode={inputMode}

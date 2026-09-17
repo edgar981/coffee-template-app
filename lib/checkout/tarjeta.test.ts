@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   numeroTarjetaValido, parseVencimiento, vencimientoVigente, codigoSeguridadValido, nombreTitularValido,
+  detectarRedTarjeta,
 } from './tarjeta';
 
 // ── numeroTarjetaValido (Luhn) ──────────────────────────────────────────────
@@ -117,4 +118,54 @@ test('vacío o sólo espacios es inválido', () => {
 
 test('un único carácter (tras trim) es inválido', () => {
   assert.equal(nombreTitularValido(' J '), false);
+});
+
+// ── detectarRedTarjeta ────────────────────────────────────────────────────────
+
+test('sin ningún dígito, todavía no se sabe', () => {
+  assert.deepEqual(detectarRedTarjeta(''), { estado: 'desconocido' });
+});
+
+test('Visa se reconoce con el primer dígito (siempre empieza en 4)', () => {
+  assert.deepEqual(detectarRedTarjeta('4'), { estado: 'reconocida', red: 'visa' });
+  assert.deepEqual(detectarRedTarjeta('4242 4242 4242 4242'), { estado: 'reconocida', red: 'visa' });
+});
+
+test('Mastercard, rango clásico 51–55', () => {
+  assert.deepEqual(detectarRedTarjeta('55'), { estado: 'reconocida', red: 'mastercard' });
+  assert.deepEqual(detectarRedTarjeta('5555555555554444'), { estado: 'reconocida', red: 'mastercard' });
+});
+
+test('Mastercard, rango nuevo 2221–2720 (necesita los 4 dígitos para decidir)', () => {
+  assert.deepEqual(detectarRedTarjeta('222'), { estado: 'desconocido' }); // podría ser 2221–2229
+  assert.deepEqual(detectarRedTarjeta('2223'), { estado: 'reconocida', red: 'mastercard' });
+  assert.deepEqual(detectarRedTarjeta('2223000048400011'), { estado: 'reconocida', red: 'mastercard' });
+});
+
+test('American Express, 34 o 37', () => {
+  assert.deepEqual(detectarRedTarjeta('34'), { estado: 'reconocida', red: 'amex' });
+  assert.deepEqual(detectarRedTarjeta('378282246310005'), { estado: 'reconocida', red: 'amex' });
+});
+
+test('Diners Club, 36, 38–39 o 300–305/309', () => {
+  assert.deepEqual(detectarRedTarjeta('36'), { estado: 'reconocida', red: 'diners' });
+  assert.deepEqual(detectarRedTarjeta('38520000023237'), { estado: 'reconocida', red: 'diners' });
+  assert.deepEqual(detectarRedTarjeta('300000000000004'), { estado: 'reconocida', red: 'diners' });
+  assert.deepEqual(detectarRedTarjeta('309'), { estado: 'reconocida', red: 'diners' });
+});
+
+test('pocos dígitos ambiguos entre Amex y Diners (los dos empiezan con 3): todavía no se sabe', () => {
+  assert.deepEqual(detectarRedTarjeta('3'), { estado: 'desconocido' });
+  // "30" todavía podría ser Diners (300–305 o 309) — falta el tercer dígito.
+  assert.deepEqual(detectarRedTarjeta('30'), { estado: 'desconocido' });
+});
+
+test('un prefijo que ninguna red conocida puede completar: no reconocida, sin adivinar', () => {
+  assert.deepEqual(detectarRedTarjeta('6011000000000004'), { estado: 'no_reconocida' }); // Discover, fuera de alcance
+  assert.deepEqual(detectarRedTarjeta('306'), { estado: 'no_reconocida' }); // 300–305 y 309 ya lo descartan
+  assert.deepEqual(detectarRedTarjeta('9999'), { estado: 'no_reconocida' });
+});
+
+test('espacios de agrupación se ignoran igual que en numeroTarjetaValido', () => {
+  assert.deepEqual(detectarRedTarjeta('  42 42'), { estado: 'reconocida', red: 'visa' });
 });
