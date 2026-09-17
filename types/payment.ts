@@ -151,6 +151,33 @@ export type ResultadoCreacionTransaccionWompi =
   | { tipo: 'firma_invalida'; error: string }
   | { tipo: 'otro_fallo'; error: string };
 
+// ── LOS MÉTODOS DE PASARELA QUE NO SON TARJETA (§ API-DIRECTA-OTROS-METODOS-1) ──────────────
+
+/** El dato que el comprador tecleó para un método de pasarela QUE NO ES TARJETA — `tipo`
+ *  nombra el descriptor (`lib/pagos/metodos-pasarela.ts`, `DESCRIPTORES_METODO_PASARELA`) y
+ *  `dato` es el valor TAL COMO el comprador lo tecleó, sin validar todavía: el servidor valida
+ *  con el MISMO descriptor (`campo.validar`) antes de usarlo — nunca confía en que el cliente
+ *  ya lo hizo. */
+export interface DatosMetodoPasarelaOtro {
+  tipo: string;
+  dato: string;
+}
+
+/**
+ * La respuesta de `PATCH /api/checkout` para el camino QUE NO ES TARJETA. HONESTA sobre el
+ * límite de este slice: `lib/pagos/wompi-api.ts` (`crearTransaccionTarjeta`, fuera de
+ * `touches` de este slice) siempre manda `payment_method: {type: 'CARD', ...}` — generalizarla
+ * para que acepte el `payment_method` que `construirDatosCreacionTransaccion`
+ * (`lib/pagos/creacion-transaccion.ts`, ya probado) arma es el trabajo que falta. Por eso esta
+ * respuesta NUNCA pretende que Wompi contestó algo que nunca se le preguntó — el único
+ * `tipo` que existe hoy lo dice explícito. `error` es el texto para el comprador — PROVISIONAL,
+ * PENDIENTE DE COPY DEL OWNER, igual que el resto de los mensajes nuevos de este programa.
+ */
+export interface ResultadoCreacionTransaccionOtroMetodo {
+  tipo: 'no_implementado';
+  error: string;
+}
+
 // A registered payment as returned by the ledger endpoint. `monto` is the order
 // total snapshotted at registration; `order` is a light live snapshot for display.
 export interface Payment {

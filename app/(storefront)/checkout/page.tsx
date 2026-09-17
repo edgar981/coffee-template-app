@@ -10,7 +10,7 @@ import {
   type CheckoutResult, type CheckoutPayload,
 } from "@/services/checkout.service";
 import PagoPasarela from '@/components/storefront/checkout/PagoPasarela';
-import FormularioTarjeta from '@/components/storefront/checkout/FormularioTarjeta';
+import SelectorMetodoPasarela from '@/components/storefront/checkout/SelectorMetodoPasarela';
 import { formatCOP } from '@duna/core/utils';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -25,6 +25,16 @@ import { metodosDisponibles, type MetodoPagoTipo } from '@/lib/checkout/metodos-
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 
 const STEPS = ['Información', 'Pago'];
+
+// §API-DIRECTA-OTROS-METODOS-1: `CheckoutResultWompi` (`services/checkout.service.ts`, fuera
+// de `touches` de este slice) todavía no declara `metodosPasarelaOtros` — el servidor YA lo
+// manda (`app/api/checkout/route.ts`, el bloque `wompi`). Se lee suelto acá, en el ÚNICO call
+// site, hasta que ese archivo se generalice (§ el reporte del slice); nunca `undefined` en
+// silencio si el campo faltara (deployment viejo, o el servidor todavía no lo manda).
+function metodosPasarelaOtrosDe(wompi: unknown): string[] {
+  const lista = (wompi as { metodosPasarelaOtros?: unknown } | null)?.metodosPasarelaOtros;
+  return Array.isArray(lista) ? lista.filter((v): v is string => typeof v === 'string') : [];
+}
 
 export default function Checkout() {
   const { items, subtotal, clearCart } = useCartStore();
@@ -235,10 +245,16 @@ export default function Checkout() {
             // componente de pantalla — `pasarelaMetodoNoHabilitado` pasa a `true` y este
             // `if` deja de matchear en el siguiente render, cayendo a la confirmación manual
             // de abajo. La orden y su intento NO se tocan.
-            <FormularioTarjeta
+            //
+            // §API-DIRECTA-OTROS-METODOS-1: `SelectorMetodoPasarela` reemplaza el montaje
+            // directo de `FormularioTarjeta` — con `metodosPasarelaOtros` vacío (hoy, sin
+            // ninguna billetera encendida) se comporta BYTE-IDÉNTICO al `FormularioTarjeta`
+            // de antes.
+            <SelectorMetodoPasarela
               aceptaciones={confirmation.wompi.aceptaciones}
               publicKey={confirmation.wompi.publicKey}
               reference={confirmation.wompi.reference}
+              metodosOtros={metodosPasarelaOtrosDe(confirmation.wompi)}
               onMetodoNoHabilitado={handleMetodoNoHabilitado}
             />
           ) : (

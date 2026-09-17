@@ -1,5 +1,6 @@
 import type { RespuestaCrudaTransaccion, TransaccionWompi } from './wompi-api';
 import { esTransaccionWompi } from './wompi-api';
+import type { DescriptorMetodoPasarela } from './metodos-pasarela';
 
 // ── LA CLASIFICACIÓN DE LA RESPUESTA DE CREAR LA TRANSACCIÓN — pura, sin red ────────────────
 //
@@ -126,4 +127,54 @@ export function clasificarCreacionTransaccion(
     ? error.reason
     : `Wompi respondió ${status} al crear la transacción.`;
   return { tipo: 'otro_fallo', status, motivo: motivoGenerico };
+}
+
+// ── LA CREACIÓN, GENERALIZADA A CUALQUIER DESCRIPTOR (§ API-DIRECTA-OTROS-METODOS-1) ────────
+//
+// Lo que la firma de integridad YA FIJA (`reference`, `amountInCents`, `currency`,
+// `signature`) más las DOS aceptaciones del comprador — igual que `DatosCreacionTransaccion`
+// (`lib/pagos/wompi-api.ts`), pero SIN el campo `tokenTarjeta`: eso es sólo de tarjeta, y este
+// constructor sirve a CUALQUIER descriptor de `lib/pagos/metodos-pasarela.ts`.
+export interface DatosComunesCreacionTransaccion {
+  reference: string;
+  amountInCents: number;
+  currency: string;
+  signature: string;
+  acceptanceToken: string;
+  acceptPersonalAuthToken: string;
+}
+
+/**
+ * Arma el cuerpo COMPLETO para crear una transacción de un método QUE NO ES TARJETA — puro,
+ * sin red. El `payment_method` sale de `descriptor.construirPaymentMethod(dato)`
+ * (`lib/pagos/metodos-pasarela.ts`), nunca de un `if` por tipo acá: agregar el tipo siguiente
+ * es agregar un descriptor, no tocar esta función (§ el reporte del slice, "la propiedad que
+ * tiene que quedar").
+ *
+ * Los nombres de campo (`acceptance_token`, `accept_personal_auth`, `payment_method`) son los
+ * MISMOS que ya usa `crearTransaccionTarjeta` (`lib/pagos/wompi-api.ts`) para tarjeta — misma
+ * convención pública del proveedor, LEÍDA, no medida contra el sandbox por este slice (§ la
+ * cabecera de este archivo, arriba).
+ *
+ * ESTA FUNCIÓN NO ENVÍA NADA: quien la llama decide qué hacer con el objeto que devuelve. Hoy
+ * ningún llamador la manda de verdad a Wompi — `crearTransaccionTarjeta` sigue siendo la única
+ * función que abre una conexión de red hacia `/v1/transactions`, y está fijada a
+ * `payment_method: {type: 'CARD', ...}` (`lib/pagos/wompi-api.ts`, fuera de `touches` de este
+ * slice). Generalizarla para que acepte el `payment_method` que esta función arma es el
+ * trabajo que falta — ver el reporte del slice.
+ */
+export function construirDatosCreacionTransaccion(
+  comunes: DatosComunesCreacionTransaccion,
+  descriptor: DescriptorMetodoPasarela,
+  dato: string,
+): Record<string, unknown> {
+  return {
+    acceptance_token:     comunes.acceptanceToken,
+    accept_personal_auth: comunes.acceptPersonalAuthToken,
+    amount_in_cents:      comunes.amountInCents,
+    currency:             comunes.currency,
+    signature:            comunes.signature,
+    reference:            comunes.reference,
+    payment_method:       descriptor.construirPaymentMethod(dato),
+  };
 }

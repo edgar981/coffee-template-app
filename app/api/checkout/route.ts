@@ -10,9 +10,10 @@ import {
 } from '@duna/core/validation/address';
 import { metodoPagoTipoSchema } from '@/lib/checkout/metodos-pago';
 import { pesosACentavos, firmarIntegridadWompi } from '@/lib/pagos/wompi-firma';
-import { consultarAceptaciones, crearTransaccionTarjeta } from '@/lib/pagos/wompi-api';
+import { consultarAceptaciones, consultarMetodosAceptados, crearTransaccionTarjeta } from '@/lib/pagos/wompi-api';
 import { evaluarAceptaciones } from '@/lib/pagos/aceptaciones';
 import { clasificarCreacionTransaccion } from '@/lib/pagos/creacion-transaccion';
+import { DESCRIPTORES_METODO_PASARELA, metodosPasarelaParaComprador } from '@/lib/pagos/metodos-pasarela';
 import type { AceptacionesWompi } from '@/types/payment';
 import { pasarelaDisponibleEnEsteDespliegue } from '@/services/checkout.service';
 import { esDespliegueDemo } from '@/next.config';
@@ -75,6 +76,31 @@ export const checkoutSchema = z.object({
     )
     .min(1),
 });
+
+// ── API-DIRECTA-OTROS-METODOS-1: qué métodos QUE NO SON TARJETA se le OFRECEN al comprador ──
+//
+// El MISMO cruce que ya usa el panel del dueño (`cruzarMetodosPasarela`, § API-DIRECTA-PANEL-
+// METODOS-1) — reusado vía `metodosPasarelaParaComprador`, nunca reimplementado. Falla SUAVE a
+// `[]`: si la cuenta no se puede consultar o `SiteSetting` no se puede leer, la tarjeta sigue
+// disponible por su propio camino (ver el llamador, arriba en el bloque `wompi`) — esta lista
+// es sólo para las opciones ADICIONALES, así que no vale bloquear el bloque entero por ella.
+function metodosGuardadosDesde(valor: unknown): string[] {
+  return Array.isArray(valor) ? valor.filter((v): v is string => typeof v === 'string') : [];
+}
+
+async function tiposPasarelaOtrosDisponibles(publicKey: string, baseUrl: string): Promise<string[]> {
+  try {
+    const [setting, cuenta] = await Promise.all([
+      prisma.siteSetting.findUniqueOrThrow({ where: { id: 'default' }, select: { metodosPasarela: true } }),
+      consultarMetodosAceptados(publicKey, baseUrl),
+    ]);
+    const guardado = metodosGuardadosDesde(setting.metodosPasarela);
+    return metodosPasarelaParaComprador(guardado, cuenta).map((d) => d.tipo);
+  } catch (e) {
+    console.error('[checkout] no se pudo leer los métodos de pasarela adicionales — se omiten del bloque de pasarela:', e);
+    return [];
+  }
+}
 
 export async function POST(req: NextRequest) {
   let raw: unknown;
@@ -211,7 +237,16 @@ export async function POST(req: NextRequest) {
   // el widget necesita— para que el día que (d) encienda la capacidad, no haga falta tocar
   // esta respuesta (DECISIONS.md, WOMPI-CREADOR-DE-INTENTOS-1 · WOMPI-WIDGET-EN-EL-CANONICO-1).
   let wompi:
-    | { reference: string; amountInCents: number; currency: string; signature: string; publicKey: string; aceptaciones: AceptacionesWompi }
+    | {
+        reference: string; amountInCents: number; currency: string; signature: string; publicKey: string;
+        aceptaciones: AceptacionesWompi;
+        // Los tipos QUE NO SON TARJETA disponibles para ESTE comprador (§ API-DIRECTA-OTROS-
+        // METODOS-1) — el dueño los encendió Y su cuenta los tiene, reusando el MISMO cruce que
+        // ya usa el panel (`metodosPasarelaParaComprador`, abajo). Vacío cuando no hay ninguno o
+        // cuando no se pudo consultar — la tarjeta sigue disponible por su propio camino sin
+        // importar esto.
+        metodosPasarelaOtros: string[];
+      }
     | undefined;
   if (order.paymentIntent) {
     const secretoIntegridad = process.env.WOMPI_INTEGRITY_SECRET;
@@ -252,6 +287,7 @@ export async function POST(req: NextRequest) {
         signature: firmarIntegridadWompi(order.paymentIntent.reference, amountInCents, MONEDA_WOMPI, secretoIntegridad),
         publicKey: llavePublica,
         aceptaciones,
+        metodosPasarelaOtros: await tiposPasarelaOtrosDisponibles(llavePublica, baseUrlPasarela),
       };
     }
   }
@@ -322,19 +358,43 @@ export async function POST(req: NextRequest) {
 const TEXTO_ERROR_GENERICO_TRANSACCION = 'No pudimos procesar tu pago. Intenta de nuevo o usa otro método.';
 const TEXTO_INTENTO_NO_ENCONTRADO = 'No encontramos el pedido al que corresponde este pago.';
 const TEXTO_INTENTO_YA_RESUELTO = 'Este pago ya se resolvió.';
+// § API-DIRECTA-OTROS-METODOS-1 — TEXTO PROVISIONAL, PENDIENTE DE COPY DEL OWNER, igual que el
+// resto de esta constante: ver "Lo que NO se hace" del reporte del slice para el porqué.
+const TEXTO_METODO_PASARELA_DESCONOCIDO = 'Ese método de pago no está disponible.';
+const TEXTO_OTRO_METODO_NO_IMPLEMENTADO = 'Ese método de pago todavía no está disponible por aquí. Usa tu tarjeta o elige otro método.';
+
+const aceptacionesPatchSchema = z.object({
+  // Los DOS tokens de aceptación que el comprador marcó — los MISMOS que ya vio en
+  // `AceptacionesPasarela` (§ API-DIRECTA-ACEPTACIONES-SERVIDOR-1), con sus enlaces a los
+  // documentos exactos que aceptó. No son secretos (viajaron ya al navegador en la respuesta
+  // del POST), así que el cliente los reenvía tal cual — Wompi es quien los valida. Las DOS
+  // aceptaciones valen IGUAL para cualquier tipo de pasarela — no son de la tarjeta, son del
+  // proveedor (§ API-DIRECTA-OTROS-METODOS-1, §2 del reporte del slice).
+  terminos:        z.string().trim().min(1),
+  datosPersonales: z.string().trim().min(1),
+});
 
 const crearTransaccionTarjetaSchema = z.object({
   reference:    z.string().trim().min(1),
   tokenTarjeta: z.string().trim().min(1),
-  // Los DOS tokens de aceptación que el comprador marcó — los MISMOS que ya vio en
-  // `AceptacionesPasarela` (§ API-DIRECTA-ACEPTACIONES-SERVIDOR-1), con sus enlaces a los
-  // documentos exactos que aceptó. No son secretos (viajaron ya al navegador en la respuesta
-  // del POST), así que el cliente los reenvía tal cual — Wompi es quien los valida.
-  aceptaciones: z.object({
-    terminos:        z.string().trim().min(1),
-    datosPersonales: z.string().trim().min(1),
-  }),
+  aceptaciones: aceptacionesPatchSchema,
 });
+
+// § API-DIRECTA-OTROS-METODOS-1: el camino QUE NO ES TARJETA — el MISMO `reference` +
+// `aceptaciones`, pero en vez de un token ya tokenizado, el dato que el comprador tecleó para
+// el tipo elegido (`DatosMetodoPasarelaOtro`, `types/payment.ts`). El servidor VALIDA `dato`
+// con el `campo.validar` del MISMO descriptor antes de usarlo — nunca confía en que el
+// cliente ya lo hizo (ver el handler, abajo).
+const crearTransaccionOtroMetodoSchema = z.object({
+  reference:      z.string().trim().min(1),
+  metodoPasarela: z.object({
+    tipo: z.string().trim().min(1),
+    dato: z.string().trim().min(1),
+  }),
+  aceptaciones: aceptacionesPatchSchema,
+});
+
+const crearTransaccionSchema = z.union([crearTransaccionTarjetaSchema, crearTransaccionOtroMetodoSchema]);
 
 export async function PATCH(req: NextRequest) {
   let raw: unknown;
@@ -344,7 +404,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Cuerpo de la solicitud inválido' }, { status: 400 });
   }
 
-  const parsed = crearTransaccionTarjetaSchema.safeParse(raw);
+  const parsed = crearTransaccionSchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
       { error: 'Datos inválidos', issues: parsed.error.flatten() },
@@ -352,10 +412,12 @@ export async function PATCH(req: NextRequest) {
     );
   }
 
-  const { reference, tokenTarjeta, aceptaciones } = parsed.data;
+  const { reference, aceptaciones } = parsed.data;
 
   // El intento YA EXISTE — lo crea el POST de arriba. Esta ruta NUNCA crea una orden nueva ni
-  // un intento nuevo: sólo lee el que ya está, para el monto que YA se firmó una vez.
+  // un intento nuevo: sólo lee el que ya está, para el monto que YA se firmó una vez. Se
+  // consulta ANTES de bifurcar por tipo: el hecho de que el intento exista y siga EN_VUELO no
+  // depende de con qué método se lo quiera cerrar.
   const intent = await prisma.paymentIntent.findUnique({
     where:  { reference },
     select: { estado: true, monto_esperado: true },
@@ -371,6 +433,32 @@ export async function PATCH(req: NextRequest) {
   if (intent.estado !== 'EN_VUELO') {
     return NextResponse.json({ error: TEXTO_INTENTO_YA_RESUELTO }, { status: 409 });
   }
+
+  // ── EL CAMINO QUE NO ES TARJETA (§ API-DIRECTA-OTROS-METODOS-1) ───────────────────────────
+  //
+  // HONESTO sobre el límite de este slice: `crearTransaccionTarjeta` (`lib/pagos/wompi-api.ts`,
+  // fuera de `touches` de este slice) siempre manda `payment_method: {type: 'CARD', ...}` — no
+  // hay forma de generalizarla sin tocar ese archivo. Este branch valida lo que SÍ puede
+  // validar (que el tipo tenga descriptor, que el dato pase su `campo.validar` — el MISMO que
+  // ya corrió, o debió correr, en la pantalla) y responde `no_implementado`: NUNCA pretende
+  // haberle preguntado algo a Wompi que nunca se le preguntó. `construirDatosCreacionTransaccion`
+  // (`lib/pagos/creacion-transaccion.ts`) ya arma el payload exacto que se enviaría — probado,
+  // listo para conectarse el día que `wompi-api.ts` acepte un `payment_method` genérico.
+  if ('metodoPasarela' in parsed.data) {
+    const { tipo, dato } = parsed.data.metodoPasarela;
+    const descriptor = DESCRIPTORES_METODO_PASARELA[tipo];
+    if (!descriptor) {
+      return NextResponse.json({ tipo: 'no_implementado', error: TEXTO_METODO_PASARELA_DESCONOCIDO }, { status: 400 });
+    }
+    const errorDato = descriptor.campo.validar(dato);
+    if (errorDato) {
+      return NextResponse.json({ tipo: 'no_implementado', error: errorDato }, { status: 400 });
+    }
+    console.error(`[checkout] método de pasarela '${tipo}' recibido — el envío real a Wompi todavía no está cableado (§ API-DIRECTA-OTROS-METODOS-1)`);
+    return NextResponse.json({ tipo: 'no_implementado', error: TEXTO_OTRO_METODO_NO_IMPLEMENTADO }, { status: 501 });
+  }
+
+  const { tokenTarjeta } = parsed.data;
 
   const secretoIntegridad = process.env.WOMPI_INTEGRITY_SECRET;
   const llavePrivada = process.env.WOMPI_PRIVATE_KEY;

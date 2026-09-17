@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { clasificarCreacionTransaccion } from './creacion-transaccion';
+import { clasificarCreacionTransaccion, construirDatosCreacionTransaccion } from './creacion-transaccion';
+import { DESCRIPTOR_NEQUI } from './metodos-pasarela';
 
 // Las cuatro ramas, con la forma real de respuesta transcrita del libro
 // (§ API-DIRECTA-SPIKES-ASIENTO-1, DECISIONS.md — medido contra el sandbox real, NO
@@ -116,4 +117,88 @@ test('un cuerpo irreconocible (network 500 sin sobre `error`, o `null`) → otro
   const r2 = clasificarCreacionTransaccion({ status: 503, body: 'Service Unavailable' });
   assert.equal(r2.tipo, 'otro_fallo');
   assert.equal((r2 as { status: number }).status, 503);
+});
+
+// ── LA CLASIFICACIÓN NO CAMBIA PARA UN MÉTODO QUE NO ES TARJETA (§ API-DIRECTA-OTROS-
+// METODOS-1, §2 del reporte del slice: "el rechazo por método no habilitado y el de firma
+// siguen reconociéndose igual") — el clasificador nunca mira QUÉ tipo se intentó, sólo la
+// respuesta, así que un rechazo de NEQUI se reconoce con la MISMA forma que el de BRE_B
+// (arriba, con la tarjeta) o de cualquier otro tipo. ──────────────────────────────────────────
+
+test('método NO HABILITADO para NEQUI (404 NOT_FOUND_ERROR) → metodo_no_habilitado, MISMA forma que para tarjeta', () => {
+  const r = clasificarCreacionTransaccion({
+    status: 404,
+    body: {
+      error: {
+        type:   'NOT_FOUND_ERROR',
+        reason: 'No hay una identidad de pago para NEQUI configurada para este comercio',
+      },
+    },
+  });
+  assert.deepEqual(r, {
+    tipo:   'metodo_no_habilitado',
+    motivo: 'No hay una identidad de pago para NEQUI configurada para este comercio',
+  });
+});
+
+test('firma inválida al crear una transacción de NEQUI → firma_invalida, MISMA forma que para tarjeta', () => {
+  const r = clasificarCreacionTransaccion({
+    status: 422,
+    body: {
+      error: {
+        type:     'INPUT_VALIDATION_ERROR',
+        messages: { signature: ['La firma es inválida'] },
+      },
+    },
+  });
+  assert.deepEqual(r, { tipo: 'firma_invalida', motivo: 'La firma es inválida' });
+});
+
+// ── `construirDatosCreacionTransaccion` — LA CREACIÓN, ARMADA CON LA FORMA PROPIA DEL
+// DESCRIPTOR (§ API-DIRECTA-OTROS-METODOS-1, §1: "agregar el tipo siguiente es agregar un
+// descriptor, no tocar... la creación") ──────────────────────────────────────────────────────
+
+test('construirDatosCreacionTransaccion: arma el cuerpo completo con el payment_method del descriptor', () => {
+  const cuerpo = construirDatosCreacionTransaccion(
+    {
+      reference:               'CN-100001:abc123',
+      amountInCents:            5_000_00,
+      currency:                 'COP',
+      signature:                'firma-de-prueba',
+      acceptanceToken:          'token-terminos',
+      acceptPersonalAuthToken:  'token-datos',
+    },
+    DESCRIPTOR_NEQUI,
+    '300 123 4567',
+  );
+  assert.deepEqual(cuerpo, {
+    acceptance_token:     'token-terminos',
+    accept_personal_auth: 'token-datos',
+    amount_in_cents:      5_000_00,
+    currency:             'COP',
+    signature:            'firma-de-prueba',
+    reference:            'CN-100001:abc123',
+    payment_method:       { type: 'NEQUI', phone_number: '3001234567' },
+  });
+});
+
+test('construirDatosCreacionTransaccion: el payment_method viene EXCLUSIVAMENTE del descriptor, nunca de un caso por tipo acá', () => {
+  // Un descriptor "de mentira" con una forma de payment_method arbitraria — si esta función
+  // tuviera un `if` por tipo, este descriptor NO pasaría por él y el payment_method saldría
+  // distinto de lo que su propio `construirPaymentMethod` devuelve.
+  const descriptorDeMentira = {
+    tipo: 'INVENTADO',
+    nombreVisible: 'Inventado',
+    campo: { rotulo: '', placeholder: '', validar: () => null },
+    construirPaymentMethod: (dato: string) => ({ type: 'INVENTADO', algo_raro: dato.toUpperCase() }),
+  };
+  const cuerpo = construirDatosCreacionTransaccion(
+    {
+      reference: 'r', amountInCents: 1, currency: 'COP', signature: 's',
+      acceptanceToken: 'a', acceptPersonalAuthToken: 'b',
+    },
+    descriptorDeMentira,
+    'hola',
+  );
+  assert.deepEqual(cuerpo.payment_method, { type: 'INVENTADO', algo_raro: 'HOLA' });
 });
