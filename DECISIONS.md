@@ -5512,3 +5512,115 @@ queda con el residual que esa medición no cubrió. Ninguno de los tres se cierr
 un modo de falla pendiente del owner, el desalineo se apoyaba en un predictor sin medir —medido después,
 contra una cuenta, en `API-DIRECTA-SPIKE-PREDICTOR-1` (§3, arriba)—, y el residual del primero está
 bloqueado por una condición externa (una URL pública) que este asiento no resuelve.
+
+## 2026-09-17 — La guarda que cierra la clase, y el mismo defecto en dos disfraces: el glob del gate y el
+descriptor de método de pasarela (`GATE-GUARDA-TESTS-INVISIBLES-1`)
+
+### El hecho que ordena esta tanda
+
+El glob del carril rápido (`package.json`, script `"test"`) dejó de descubrir un archivo de test **por
+QUINTA vez** en `GATE-GLOB-COMPONENTS-SERVICES-1` (commit `2f8c205`, la noche anterior a este slice):
+`services/checkout.service.test.ts` —del camino de dinero— y
+`components/storefront/checkout/interpretar-respuesta-otro-metodo.test.ts` existían, pasaban a mano, y
+**ningún `npm run gate` los ejecutaba**. Las cinco veces el arreglo fue el mismo: agregar el subárbol que
+faltaba a una lista escrita a mano (§ GATE-DOS-CARRILES-1, § El carril rápido cubre `app/` — CUARTA
+instancia —, CLAUDE.md). El owner ordenó el 2026-09-17 construir la guarda que cierra la CLASE, no la
+instancia número cinco.
+
+### Las DOS fallas que este asiento nombra JUNTAS
+
+**1 · El glob del gate.** `package.json` enumeraba los subárboles que alguien RECORDÓ declarar
+(`lib/**`, `constants/**`, `packages/core/**`, `app/**`, y ahora `components/**`, `services/**`), nunca
+el espacio completo de lugares donde un test puede nacer. Un subárbol nuevo —o uno viejo que nadie
+pensó en listar— quedaba invisible hasta que alguien lo notara a mano, y notarlo a mano es justo lo que
+falló cinco veces seguidas.
+
+**2 · El descriptor de método de pasarela.** `DescriptorMetodoPasarela` (`lib/pagos/metodos-pasarela.ts`,
+§ API-DIRECTA-OTROS-METODOS-1) declara **un solo campo** —`campo: CampoMetodoPasarela`, "el único dato
+que este tipo le pide al comprador"— porque el tipo con el que se diseñó y probó, NEQUI, es una
+billetera que sólo pide un número de celular. El propio archivo ya deja la fisura escrita: **PSE queda
+explícitamente AFUERA de este registro** porque "necesita su propio spike antes de tener su
+descriptor" — y la razón de que PSE no entre por esa puerta es que PSE no le pide UN dato al comprador,
+le pide varios (banco, tipo de documento, número de documento). El contrato de "un campo" no es un
+error de PSE: es el límite del contrato, visto ANTES de forzar a PSE dentro de él.
+
+### Por qué son el MISMO defecto
+
+**LAS DOS SON UN CONTRATO DERIVADO DE LOS CASOS QUE SE TENÍAN A MANO, EN VEZ DEL ESPACIO DE CASOS.** El
+glob se escribió mirando los subárboles que existían el día que se escribió, no "todo lugar donde un
+test pueda vivir". El descriptor se escribió mirando NEQUI, el único tipo que había cuando se diseñó,
+no "todo lo que un método de pasarela puede pedirle a un comprador". En los dos casos alguien enumeró
+los EJEMPLOS que tenía delante y los llamó "el conjunto", y el conjunto real siguió creciendo por fuera.
+
+**La diferencia entre ellas es la parte útil.** El glob se descubrió FALLANDO cinco veces —un archivo
+invisible, corriendo a mano, hasta que alguien lo notaba tarde—. El descriptor lo destapó una MEDICIÓN
+—leer el caso de PSE contra el contrato de "un campo" y ver que no entra— **antes de que costara nada**:
+PSE se dejó explícitamente afuera del registro en vez de forzarse adentro y romperse en producción. La
+misma clase de contrato angosto, dos maneras muy distintas de encontrarle el borde: una cara, una
+barata.
+
+**Por qué van en un asiento y no en dos, en la razón del owner: la lección no es sobre globs ni sobre
+métodos de pago — es sobre CÓMO SE ESCRIBEN LOS CONTRATOS ACÁ.** Separadas se leen como dos anécdotas de
+dos rincones del código; juntas se leen como una regla: un contrato que enumera los casos conocidos, en
+vez de describir el espacio que esos casos habitan, deja afuera lo que todavía no se ha visto — y no
+avisa que lo dejó afuera.
+
+### La guarda construida
+
+`lib/gate/tests-descubiertos.ts` (puro) + `lib/gate/tests-descubiertos.test.ts` (el test, descubierto
+por el propio glob que vigila — `lib/**/*.test.ts` ya lo cubre). Enumera TODO archivo `*.test.ts` del
+repositorio (excluyendo `node_modules`, `.git`, `.next`, `.vercel`, `.scratch`), lee los patrones de LOS
+DOS carriles de **sus propias fuentes** —el script `"test"` de `package.json` y la invocación de
+`node --test` al final de `scripts/test-integracion.sh`— y falla nombrando cada archivo que no cae bajo
+ninguno. **Nunca transcribe un patrón a mano**: `extraerGlobsDeComando` lee las cadenas entrecomilladas
+que terminan en `.test.ts` de cada fuente, así que un patrón agregado o retirado se sigue solo — es la
+misma cura que evita que esta guarda se vuelva, ella misma, un contrato que enumera lo que alguien
+recordó.
+
+**Por qué lee LOS DOS carriles y no sólo el rápido:** un archivo bajo `tests/integracion/` no es
+invisible — corre por el carril de integración, a propósito, porque necesita Postgres real (§ El
+carril rápido cubre `app/`, CLAUDE.md). Si la guarda sólo conociera el patrón del carril rápido,
+fallaría siempre contra esos ~30 archivos, que ya están cubiertos por el otro lado del mismo
+`npm run gate`.
+
+### La condición del owner: probada contra el caso real
+
+Con los patrones de `package.json` **tal como estaban antes de `2f8c205`** (`git show 2f8c205^:package.json`,
+sin `"components/**/*.test.ts"` ni `"services/**/*.test.ts"`) corridos contra el árbol de archivos REAL
+de hoy —los dos archivos que nacieron invisibles esa noche siguen existiendo—, la guarda nombra
+exactamente:
+
+```
+components/storefront/checkout/interpretar-respuesta-otro-metodo.test.ts
+services/checkout.service.test.ts
+```
+
+Con los patrones de HOY (leídos del `package.json` real), la misma corrida no nombra ninguno. La
+reproducción quedó además como test permanente (`archivosSinCubrir: EL CASO REAL DE ANOCHE`) dentro de
+`lib/gate/tests-descubiertos.test.ts`, contra los mismos dos archivos y los mismos patrones viejos —no
+un fixture inventado.
+
+### Su límite, impreso
+
+**La guarda afirma que todo archivo de test del repositorio CAE DENTRO de un patrón que algún carril del
+gate ejecuta. NO afirma que su CONTENIDO corra.** Un archivo descubierto cuyo contenido no se ejecuta
+—un caso saltado, un bloque que nunca se alcanza, una condición que lo apaga— sigue siendo invisible, y
+eso es otra pregunta que esta guarda no responde. El límite vive en el docstring de
+`lib/gate/tests-descubiertos.ts` y en el mensaje de falla de la propia guarda, no sólo acá.
+
+### Lo que NO se tocó
+
+El descriptor de método de pasarela (`lib/pagos/metodos-pasarela.ts`) no se modificó — esta tanda lo
+nombra como el segundo disfraz del mismo defecto, no lo generaliza a varios campos. Ese trabajo, si se
+hace, es del día en que PSE (o cualquier tipo que pida más de un dato) entre por su propio spike.
+
+**Tier 1 — no aplica a este diff.** `lib/gate/` y `DECISIONS.md` no están en la lista Tier 1 ni en sus
+subárboles, y este slice no toca `app/(storefront)/`, ninguna puerta de dinero, schema ni migración.
+Pero la RAMA (`slice/api-directa-panel-metodos-1`) sigue con commits previos que sí tocan superficie
+Tier 1 (`lib/checkout/metodos-pago.ts`), así que el conjunto sigue esperando el visto bueno del owner
+antes de mergear — este commit no lo cambia.
+
+Regla: un contrato que enumera los casos que tenía a mano, en vez de describir el espacio que esos casos
+habitan, deja afuera lo que todavía no se ha visto y no avisa que lo dejó afuera — la única diferencia
+entre encontrarle el borde por las malas (fallando en producción) o por las buenas (una medición antes
+de construir) es si alguien miró el espacio de casos antes de que el mundo se lo señalara.
