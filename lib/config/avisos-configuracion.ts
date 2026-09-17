@@ -1,5 +1,6 @@
 import { metodosDisponibles } from '../checkout/metodos-pago';
 import { tarjetasDePresentaciones } from '../storefront/presentaciones';
+import { DESCRIPTORES_METODO_PASARELA } from '../pagos/metodos-pasarela';
 import type { SiteContentData } from './site-content-defaults';
 // `import type` desde un módulo SIN `server-only` (el lector RAW): sólo viaja el TIPO y este archivo
 // sigue siendo puro (capa 1), como el `SiteContentData` de arriba.
@@ -59,34 +60,37 @@ const HREF_DATOS_NEGOCIO = '/admin/configuracion';
  * (`value ∉ categorias`), sacado del editor abierto al Dashboard —una sola definición de "destino roto"—.
  * #8 tampoco depende del catálogo.
  *
- * FASE 3 suma **#9 — TARJETA DESALINEADA CON LA CUENTA DE PASARELA** (§ API-DIRECTA-DESALINEO-AVISO-1).
- * El residual que sobrevive tras `API-DIRECTA-METODOS-REHECHOS-1` §3 (DECISIONS.md): el panel de métodos
- * de pasarela YA previene el desalineo AL CONFIGURAR (lee `accepted_payment_methods` en vivo, § el panel
- * de métodos), pero la cuenta puede cambiar DESPUÉS de que el dueño configuró —el proveedor le retira un
- * método sin que nadie de este lado se entere—. Ahí la creación de la transacción de tarjeta
- * (`lib/pagos/creacion-transaccion.ts`, `CreacionMetodoNoHabilitado`) es la que se entera primero, y su
- * `motivo` YA NOMBRA el tipo exacto que el proveedor rechazó — medido para un tipo en
- * `API-DIRECTA-SPIKES-ASIENTO-1` §1.D y generalizado a CUALQUIER tipo que la cuenta no tenga por
- * `API-DIRECTA-SPIKE-PREDICTOR-1` (DECISIONS.md, bloque `[PREDICTOR-MEDIDO]`).
+ * FASE 3 suma **#9 — MÉTODO DE PASARELA DESALINEADO CON LA CUENTA** (§ API-DIRECTA-DESALINEO-AVISO-1,
+ * cableado por § API-DIRECTA-DESALINEO-DUENO-1). El residual que sobrevive tras `API-DIRECTA-METODOS-
+ * REHECHOS-1` §3 (DECISIONS.md): el panel de métodos de pasarela YA previene el desalineo AL CONFIGURAR
+ * (lee `accepted_payment_methods` en vivo, § el panel de métodos), pero la cuenta puede cambiar DESPUÉS
+ * de que el dueño configuró —el proveedor le retira un método sin que nadie de este lado se entere—. Ahí
+ * la creación de la transacción (`lib/pagos/creacion-transaccion.ts`, `CreacionMetodoNoHabilitado`) es
+ * la que se entera primero, y `app/api/checkout/route.ts` (el PATCH, el `switch` de sus resultados)
+ * persiste el TIPO exacto —no el `motivo` en prosa, que sólo se loguea— en
+ * `PaymentIntent.metodo_rechazado`.
  *
- * `desalineoTarjeta` (quinto parámetro) es ESE `motivo`, o `null`/`undefined` si no hay ninguno
- * conocido — el módulo sigue siendo puro, capa 1, SIN red: no lo consulta, lo RECIBE. **NO ES UN DATO
- * QUE ESTE ARCHIVO DERIVE.** Es OPCIONAL con default `undefined` A PROPÓSITO, para que los llamadores
- * existentes (`app/(admin)/admin/dashboard/page.tsx`, `app/api/site-content/publicado/route.ts`) sigan
- * compilando sin tocarlos.
+ * `ajustes.metodoPasarelaDesalineado` (`SiteSettings`, `lib/config/site-settings-read.ts`) es ESE tipo,
+ * ya cruzado contra `SiteSetting.metodosPasarela` (lo que el dueño ofrece HOY) — o `null` si no hay
+ * ninguno vigente. El módulo sigue siendo puro, capa 1, SIN red: no lo consulta, lo RECIBE dentro de
+ * `ajustes`, que ya era el cuarto argumento — por eso #9 se enciende SIN que el call site del Dashboard
+ * (`app/(admin)/admin/dashboard/page.tsx`, fuera de `touches` de este slice) tenga que cambiar una línea:
+ * ya le pasaba `settings` completo.
  *
- * **LO QUE ESTE SLICE NO CABLEÓ, y por qué:** hoy NINGÚN llamador pasa un `desalineoTarjeta` distinto de
- * `undefined`, así que #9 no dispara todavía en producción. Persistir el `motivo` al fallar la creación
- * (`app/api/checkout/route.ts`), exponerlo por `SiteSettings` (`lib/config/site-settings-read.ts`) hasta
- * este llamador, y pasarlo desde el Dashboard exige tocar esos tres archivos — ninguno estaba en el
- * `touches:` de este slice. Queda como `open_followup`, no como capacidad terminada.
+ * **EL NOMBRE VISIBLE SALE DEL VOCABULARIO DEL PROVEEDOR** (`nombreVisibleMetodoPasarela`, abajo): el
+ * mensaje nombra el método exacto ("Nequi", "tarjeta"...) en vez de decir "un método de tu pasarela",
+ * que mandaría al dueño a adivinar teniendo nosotros el dato.
+ *
+ * **LÍMITE CONOCIDO, heredado de `metodoPasarelaDesalineado` (ver su docstring en
+ * `site-settings-read.ts`):** el aviso se apaga cuando el dueño QUITA el método de lo que ofrece —el
+ * cruce contra `metodosPasarela` lo hace solo, sin acuse—, pero NO detecta que la cuenta del proveedor
+ * recupere el método sin que el dueño toque nada; eso exigiría una consulta en vivo, fuera de `touches`.
  */
 export function avisosDeConfiguracion(
   contenido: SiteContentData,
   categorias: string[],
   catalogoListo: boolean,
   ajustes: SiteSettings,
-  desalineoTarjeta?: string | null,
 ): AvisoConfig[] {
   const avisos: AvisoConfig[] = [];
   const pres = contenido.presentaciones;
@@ -162,20 +166,33 @@ export function avisosDeConfiguracion(
     });
   }
 
-  // #9 — TARJETA DESALINEADA CON LA CUENTA DE PASARELA (§ el docstring de la función, arriba). Sólo
-  // dispara si ALGÚN llamador futuro llega a pasar el motivo (hoy, ninguno lo hace — ver el docstring).
-  // El texto NOMBRA el motivo TAL CUAL lo devolvió el proveedor, sin parafrasearlo: es la única forma de
-  // decir «cuál método» sin adivinar (§ el argumento del slice: «un aviso que dijera "un método de tu
-  // pasarela falló" mandaría al dueño a buscar cuál, teniendo nosotros el dato»).
-  if (desalineoTarjeta) {
+  // #9 — MÉTODO DE PASARELA DESALINEADO CON LA CUENTA (§ el docstring de la función, arriba). Dispara
+  // cuando `readSiteSettings` encontró un tipo rechazado que el dueño SIGUE ofreciendo. El texto NOMBRA
+  // el método exacto —nunca «un método de tu pasarela», que mandaría al dueño a adivinar teniendo
+  // nosotros el dato (§ el argumento del slice original, API-DIRECTA-DESALINEO-AVISO-1)—.
+  if (ajustes.metodoPasarelaDesalineado) {
+    const nombre = nombreVisibleMetodoPasarela(ajustes.metodoPasarelaDesalineado);
     avisos.push({
-      clave: 'pasarela-tarjeta-no-habilitada',
-      // TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER (§ API-DIRECTA-DESALINEO-AVISO-1, reporte del
-      // slice).
-      mensaje: `Wompi rechazó un cobro con tarjeta porque tu cuenta ya no tiene ese método habilitado (motivo del proveedor: "${desalineoTarjeta}"). Revisa la sección Pasarela en Configuración.`,
+      clave: 'pasarela-metodo-no-habilitado',
+      // TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER (§ API-DIRECTA-DESALINEO-AVISO-1, heredado;
+      // este slice sólo cambió DE QUÉ dato sale el nombre del método).
+      mensaje: `Wompi rechazó un cobro con ${nombre} porque tu cuenta ya no tiene ese método habilitado. Revisa la sección Pasarela en Configuración.`,
       href: HREF_DATOS_NEGOCIO,
     });
   }
 
   return avisos;
+}
+
+/**
+ * El nombre que el DUEÑO reconoce para un tipo de método de pasarela (§ API-DIRECTA-DESALINEO-DUENO-1)
+ * — el vocabulario del PROVEEDOR (`'CARD'`, `'NEQUI'`...) traducido a lo que ya ve en el resto del panel.
+ * TARJETA no tiene descriptor en `DESCRIPTORES_METODO_PASARELA` (§ metodos-pasarela.ts, "TARJETA NO VIVE
+ * EN ESTE REGISTRO" — su captura es un flujo bespoke), así que se nombra a mano; un tipo que el registro
+ * todavía no conozca cae al string crudo del proveedor — mejor una palabra en mayúsculas que un aviso
+ * que no dice nada.
+ */
+function nombreVisibleMetodoPasarela(tipo: string): string {
+  if (tipo === 'CARD') return 'tarjeta';
+  return DESCRIPTORES_METODO_PASARELA[tipo]?.nombreVisible ?? tipo;
 }

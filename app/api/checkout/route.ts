@@ -428,6 +428,21 @@ const crearTransaccionOtroMetodoSchema = z.object({
 
 const crearTransaccionSchema = z.union([crearTransaccionTarjetaSchema, crearTransaccionOtroMetodoSchema]);
 
+// § API-DIRECTA-DESALINEO-DUENO-1: el TIPO (vocabulario del PROVEEDOR — `'CARD'`,
+// `'NEQUI'`...) que este intento pidió, para persistirlo en `PaymentIntent.metodo_rechazado`
+// SI Y SÓLO SI la creación falla por `metodo_no_habilitado` (ver el `switch`, abajo). Para
+// tarjeta no hay descriptor en `DESCRIPTORES_METODO_PASARELA` (§ metodos-pasarela.ts, "TARJETA
+// NO VIVE EN ESTE REGISTRO") así que el tipo se nombra a mano, IDÉNTICO al `type: 'CARD'` que
+// `construirDatosCreacionTransaccionTarjeta` ya manda a Wompi (`lib/pagos/creacion-
+// transaccion.ts`) — no un literal nuevo que pudiera divergir.
+//
+// PURA, exportada para el test co-ubicado (`route.test.ts`), mismo criterio que
+// `checkoutSchema` arriba: afirmar QUÉ tipo se persistiría no necesita invocar el handler ni
+// tocar Prisma.
+export function tipoMetodoDeIntento(datos: z.infer<typeof crearTransaccionSchema>): string {
+  return 'metodoPasarela' in datos ? datos.metodoPasarela.tipo : 'CARD';
+}
+
 export async function PATCH(req: NextRequest) {
   let raw: unknown;
   try {
@@ -567,9 +582,23 @@ export async function PATCH(req: NextRequest) {
         { status: 201 },
       );
     }
-    case 'metodo_no_habilitado':
+    case 'metodo_no_habilitado': {
+      // § API-DIRECTA-DESALINEO-DUENO-1: la CAUSA EXACTA — nunca `firma_invalida` ni
+      // `otro_fallo`, ver los otros dos `case` — así que ES el momento de dejar constancia
+      // para el aviso del dueño (`lib/config/avisos-configuracion.ts`, #9). Envuelto en su
+      // propio try/catch: que ESTA escritura de higiene falle no puede tumbar la respuesta
+      // al comprador, que de por sí ya es un fallo (502) por la razón real (Wompi).
+      try {
+        await prisma.paymentIntent.update({
+          where: { reference },
+          data:  { metodo_rechazado: tipoMetodoDeIntento(parsed.data) },
+        });
+      } catch (e) {
+        console.error('[checkout] no se pudo persistir metodo_rechazado en el intento (aviso del dueño):', e);
+      }
       console.error('[checkout] Wompi rechazó el método de la transacción (no habilitado para la cuenta):', resultado.motivo);
       return NextResponse.json({ tipo: 'metodo_no_habilitado', error: TEXTO_ERROR_GENERICO_TRANSACCION }, { status: 502 });
+    }
     case 'firma_invalida':
       console.error('[checkout] Wompi rechazó la firma de integridad de la transacción:', resultado.motivo);
       return NextResponse.json({ tipo: 'firma_invalida', error: TEXTO_ERROR_GENERICO_TRANSACCION }, { status: 502 });
