@@ -5570,10 +5570,11 @@ este campo, le horneamos a producción un campo de prueba que el comprador verí
 
 ### 3 · Catálogo ≠ habilitado ≠ cobrable — y esto es EL CRITERIO, no una anécdota
 
-El spike midió un tipo que **está en el catálogo del proveedor**, **está entre los métodos habilitados de
-la cuenta**, y que **la creación de transacciones RECHAZA SIEMPRE**, con cualquier combinación de campos.
-Es, casi con certeza, una etiqueta agregadora que agrupa a sus hermanos bajo la marca de un banco para
-reportes, no un método que se pueda cobrar.
+El spike midió un tipo — **`BANCOLOMBIA`**, el identificador exacto que el proveedor espera en el campo de
+tipo de método al crear una transacción, no el nombre visible del banco — que **está en el catálogo del
+proveedor**, **está entre los métodos habilitados de la cuenta**, y que **la creación de transacciones
+RECHAZA SIEMPRE**, con cualquier combinación de campos. Es, casi con certeza, una etiqueta agregadora que
+agrupa a sus hermanos bajo la marca de un banco para reportes, no un método que se pueda cobrar.
 
 **Son tres conjuntos distintos**, y el que sirve para ofrecerle algo a un comprador es el tercero:
 
@@ -5595,6 +5596,14 @@ podido pagar con él, sin ninguna advertencia.
 **El límite, que va escrito al lado y no se suaviza:** esto se midió contra UNA cuenta. No sabemos si otro
 comercio con otra configuración se comporta igual. No cambia la decisión —en la nuestra no es cobrable—
 pero no se afirma más de lo que se midió.
+
+**CORRECCIÓN (`API-DIRECTA-CATALOGO-NOMBRA-TIPO-1`, 2026-09-17):** esta sección describía el hallazgo sin
+nombrar el tipo — lo llamaba «un tipo» y lo describía por su comportamiento, nunca por el identificador
+que un constructor necesita para usarlo. Lo detectó el slice que iba a construir el filtro del panel de
+métodos: necesitaba excluir exactamente este tipo, buscó su identificador en el ledger, en todo el
+historial y en los borradores, no lo encontró en ningún lado, y **se negó a fabricar un nombre** — dejó su
+lista vacía en vez de inventar. Un asiento se lee bien y se usa mal, y sólo el que lo usa se entera del
+hueco.
 
 **La clase, para que quede como regla y no como incidente de un tipo de método:** la forma asumió un
 campo por método porque se diseñó con la billetera, y la billetera pide un teléfono. `N = 1` se leyó como
