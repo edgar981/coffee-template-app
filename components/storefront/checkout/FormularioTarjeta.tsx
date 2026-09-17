@@ -4,31 +4,46 @@ import { useState } from 'react';
 import {
   numeroTarjetaValido, parseVencimiento, vencimientoVigente, codigoSeguridadValido, nombreTitularValido,
 } from '@/lib/checkout/tarjeta';
-import { tokenizarTarjeta, TokenizacionError } from '@/services/checkout.service';
+import {
+  tokenizarTarjeta, TokenizacionError, confirmarTransaccionTarjeta, CreacionTransaccionError,
+} from '@/services/checkout.service';
 import type { AceptacionesWompi } from '@/types/payment';
 import AceptacionesPasarela from './AceptacionesPasarela';
 
 /**
  * El camino de API DIRECTA del pago con tarjeta (§ API-DIRECTA-CAPTURA-TARJETA-1): las dos
  * casillas de aceptación de Wompi + el formulario de tarjeta, tokenizado CONTRA EL PROVEEDOR
- * desde este mismo componente. Ocupa la MISMA ranura que `PagoPasarela` (el widget) — nunca
- * se montan los dos a la vez; la elección la hace `pasarelaModoApiDirecta()` en la página
- * (`checkout/page.tsx`).
+ * desde este mismo componente, y la transacción CONFIRMADA contra NUESTRO servidor
+ * (§ API-DIRECTA-DESALINEO-CABLEADO-1, `confirmarTransaccionTarjeta`) apenas se obtiene el
+ * token. Ocupa la MISMA ranura que `PagoPasarela` (el widget) — nunca se montan los dos a la
+ * vez; la elección la hace `pasarelaModoApiDirecta()` en la página (`checkout/page.tsx`).
  *
  * LOS DATOS DE LA TARJETA NUNCA SALEN HACIA NUESTRO SERVIDOR: `campos` sólo se lee al armar
  * el body de `tokenizarTarjeta` (que llama directo a Wompi) y nunca se manda a `/api/checkout`
- * ni a ningún otro endpoint propio, ni se registra en consola.
+ * ni a ningún otro endpoint propio, ni se registra en consola. Lo único que SÍ viaja a
+ * `/api/checkout` es el TOKEN opaco que Wompi ya devolvió, para crear la transacción.
  *
  * SIN SELECTOR DE CUOTAS: se cobra en una — ofrecer cuotas es una decisión de negocio con
  * consecuencias de liquidación que nadie midió y nadie decidió (anotado por el orquestador,
  * no construido acá).
  *
- * ESTE COMPONENTE NO CREA LA TRANSACCIÓN. Eso exige el secreto de integridad (nunca puede
- * viajar al navegador) y es el slice siguiente: acá termina en token obtenido.
+ * SI EL PROVEEDOR RECHAZA LA CREACIÓN PORQUE LA CUENTA YA NO TIENE EL MÉTODO HABILITADO
+ * (`CreacionTransaccionError.tipo === 'metodo_no_habilitado'`) — un rechazo ESTRUCTURAL, no
+ * de la tarjeta que se tecleó—, este componente NO deja al comprador reintentando contra la
+ * misma pared: llama a `onMetodoNoHabilitado` y la PÁGINA (`checkout/page.tsx`) es quien
+ * decide qué mostrar en su lugar (§ el reporte del slice). Las otras dos ramas de fallo
+ * (`firma_invalida`, `otro_fallo`) sí pueden ser transitorias y se muestran inline, como
+ * cualquier error de tokenización.
  */
 export interface FormularioTarjetaProps {
   aceptaciones: AceptacionesWompi;
   publicKey: string;
+  /** La `reference` del intento YA CREADO (§ el POST de `/api/checkout`) — la misma que
+   *  `confirmarTransaccionTarjeta` necesita para completarlo. */
+  reference: string;
+  /** El proveedor rechazó la creación porque la cuenta ya no tiene este método habilitado
+   *  (§ arriba). La página decide cómo continuar — este componente no lo intenta de nuevo. */
+  onMetodoNoHabilitado: () => void;
 }
 
 interface CamposTarjeta {
@@ -57,14 +72,15 @@ const TEXTO = {
   tokenObtenido: 'Tu tarjeta quedó verificada. Estamos procesando tu pago…',
 };
 
-export default function FormularioTarjeta({ aceptaciones, publicKey }: FormularioTarjetaProps) {
+export default function FormularioTarjeta({ aceptaciones, publicKey, reference, onMetodoNoHabilitado }: FormularioTarjetaProps) {
   const [terminosMarcado, setTerminosMarcado] = useState(false);
   const [datosMarcado, setDatosMarcado] = useState(false);
   const [campos, setCampos] = useState<CamposTarjeta>(CAMPOS_VACIOS);
   const [errores, setErrores] = useState<ErroresTarjeta>({});
   const [tokenizando, setTokenizando] = useState(false);
   const [errorTokenizacion, setErrorTokenizacion] = useState<string | null>(null);
-  // Presencia = éxito: el slice siguiente retoma desde este token para crear la transacción.
+  // Presencia = éxito COMPLETO: el token se obtuvo Y la transacción quedó creada en Wompi
+  // (§ API-DIRECTA-DESALINEO-CABLEADO-1) — nunca se pone en `true` sólo por tokenizar.
   const [tokenObtenido, setTokenObtenido] = useState<string | null>(null);
 
   const aceptado = terminosMarcado && datosMarcado;
@@ -104,11 +120,35 @@ export default function FormularioTarjeta({ aceptaciones, publicKey }: Formulari
         },
         publicKey,
       );
-      // SI LA TOKENIZACIÓN FALLA, el comprador se queda EN ESTE FORMULARIO con el error a la
-      // vista — no hay redirección, no hay pantalla nueva, y nada más se crea.
+      // El token es OPACO (nunca datos de tarjeta) — recién con él se puede confirmar la
+      // transacción contra NUESTRO servidor (§ API-DIRECTA-DESALINEO-CABLEADO-1). Las DOS
+      // aceptaciones que el comprador ya marcó viajan de nuevo, tal cual las vio (no son
+      // secretas: § `FormularioTarjetaProps`).
+      await confirmarTransaccionTarjeta({
+        reference,
+        tokenTarjeta: token,
+        aceptaciones: {
+          terminos:        aceptaciones.terminos.token,
+          datosPersonales: aceptaciones.datosPersonales.token,
+        },
+      });
+      // SI CUALQUIERA DE LAS DOS LLAMADAS FALLA, el comprador se queda EN ESTE FORMULARIO con
+      // el error a la vista — no hay redirección, no hay pantalla nueva, y nada más se crea.
+      // La ÚNICA excepción es el rechazo ESTRUCTURAL de abajo, que no vuelve a este formulario.
       setTokenObtenido(token);
     } catch (e) {
-      setErrorTokenizacion(e instanceof TokenizacionError ? e.message : TEXTO.tokenizacionGenerico);
+      if (e instanceof CreacionTransaccionError && e.tipo === 'metodo_no_habilitado') {
+        // El proveedor YA RECHAZÓ el método para esta cuenta — no es la tarjeta que se
+        // tecleó. Reintentar con otro número no cambia nada, así que este formulario no
+        // ofrece reintentar: la página decide qué mostrar en su lugar (§ el docstring).
+        onMetodoNoHabilitado();
+        return;
+      }
+      setErrorTokenizacion(
+        e instanceof TokenizacionError || e instanceof CreacionTransaccionError
+          ? e.message
+          : TEXTO.tokenizacionGenerico,
+      );
     } finally {
       setTokenizando(false);
     }

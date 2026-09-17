@@ -65,6 +65,14 @@ export default function Checkout() {
   // IDs de producto rechazados por stock en el último intento — el carrito se
   // conserva y se marca la línea afectada. Se limpia al reintentar.
   const [sinStockIds, setSinStockIds] = useState<string[]>([]);
+  // El proveedor rechazó la creación de LA transacción de esta orden porque su cuenta ya no
+  // tiene el método habilitado (§ API-DIRECTA-DESALINEO-CABLEADO-1, `FormularioTarjeta.
+  // onMetodoNoHabilitado`). Es un hecho ESTRUCTURAL de ESTA sesión de checkout —no un toggle
+  // de despliegue como `pasarelaDisponible`—, así que vive en estado LOCAL, nunca se
+  // persiste: la orden y su intento YA EXISTEN y se quedan pendientes tal cual (§ el PATCH,
+  // que no los toca). Una vez en `true` no vuelve a `false`: no hay "reintentar" para esta
+  // orden (§ el reporte del slice, "no reintentar contra el mismo").
+  const [pasarelaMetodoNoHabilitado, setPasarelaMetodoNoHabilitado] = useState(false);
 
   // Bogotá-ness is derived from departamento — the single source of truth.
   const isBogota = isBogotaDC(address.departamento);
@@ -185,7 +193,22 @@ export default function Checkout() {
     setLoading(false);
   };
 
-  if (confirmation && confirmation.wompi) {
+  // El proveedor rechazó la creación de la transacción de ESTA orden porque su cuenta ya no
+  // tiene el método habilitado (§ API-DIRECTA-DESALINEO-CABLEADO-1, `FormularioTarjeta.
+  // onMetodoNoHabilitado`). "El comprador ve sólo lo que funciona": no se le vuelve a ofrecer
+  // la tarjeta para ESTA orden (`pasarelaMetodoNoHabilitado` gatea el branch de abajo), y en
+  // su lugar la pantalla cae a la MISMA confirmación manual que ya usan los demás métodos
+  // (nequi, efectivo, transferencia…) — el pedido queda reservado y el equipo coordina el
+  // pago, sin perder la orden ni el intento ya creados (ninguno de los dos se toca acá).
+  const handleMetodoNoHabilitado = () => {
+    // TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER (§ el reporte del slice, igual que el
+    // resto del copy de este programa). Explica la CONSECUENCIA que el comprador vive, no el
+    // mecanismo: no tiene por qué saber que existe un "método de pasarela".
+    toast.error('No pudimos procesar el pago con tarjeta: ese método no está disponible en este momento. Tu pedido queda reservado y te contactaremos para coordinar el pago.');
+    setPasarelaMetodoNoHabilitado(true);
+  };
+
+  if (confirmation && confirmation.wompi && !pasarelaMetodoNoHabilitado) {
     // Pago por pasarela: la orden YA existe (pendiente), pero NINGUNA pantalla puede afirmar
     // "pagado" acá — la verdad la trae el webhook (§4, WOMPI-WIDGET-EN-EL-CANONICO-1). Por eso
     // NO reusa la pantalla "¡Pedido recibido!" de abajo (que ese texto sí implica un pedido
@@ -207,19 +230,16 @@ export default function Checkout() {
             // API-DIRECTA-CAPTURA-TARJETA-1: la MISMA ranura del widget, ocupada por la
             // captura de tarjeta propia — nunca los dos a la vez (§ el interruptor de modo).
             //
-            // PENDIENTE (§ API-DIRECTA-DESALINEO-AVISO-1, reporte del slice — no construido acá):
-            // si la creación de la transacción falla por `metodo_no_habilitado`
-            // (`lib/pagos/creacion-transaccion.ts`), el comprador no debería quedar atrapado
-            // contra este formulario — debería ver un mensaje honesto y volver a un método que sí
-            // funcione, sin perder la orden ni el intento ya creados. Hoy `FormularioTarjeta` NO
-            // reporta esa falla hacia arriba (termina en "token obtenido", § su propio docstring;
-            // la creación vía PATCH todavía no la llama ningún cliente) y esta página no tiene por
-            // dónde recibirla sin agregarle a `FormularioTarjeta.tsx` / `services/checkout.
-            // service.ts` un callback que este slice no puede tocar (ninguno de los dos está en su
-            // `touches:`). Queda como `open_followup`, no como una rama sin cablear escondida acá.
+            // Si la creación de la transacción falla por `metodo_no_habilitado`
+            // (§ API-DIRECTA-DESALINEO-CABLEADO-1), `onMetodoNoHabilitado` saca a este
+            // componente de pantalla — `pasarelaMetodoNoHabilitado` pasa a `true` y este
+            // `if` deja de matchear en el siguiente render, cayendo a la confirmación manual
+            // de abajo. La orden y su intento NO se tocan.
             <FormularioTarjeta
               aceptaciones={confirmation.wompi.aceptaciones}
               publicKey={confirmation.wompi.publicKey}
+              reference={confirmation.wompi.reference}
+              onMetodoNoHabilitado={handleMetodoNoHabilitado}
             />
           ) : (
             <PagoPasarela

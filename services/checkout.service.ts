@@ -1,5 +1,5 @@
 import type { MetodoPagoTipo } from '@/lib/checkout/metodos-pago';
-import type { AceptacionesWompi, TokenTarjetaWompi } from '@/types/payment';
+import type { AceptacionesWompi, ResultadoCreacionTransaccionWompi, TokenTarjetaWompi } from '@/types/payment';
 import { PREFIJO_LLAVE_PASARELA_PRODUCTIVA } from '@/lib/pagos/llaves-pasarela';
 
 export interface CheckoutPayload {
@@ -307,4 +307,74 @@ export async function tokenizarTarjeta(
     throw new TokenizacionError('La pasarela no devolvió un token válido. Intenta de nuevo.');
   }
   return token;
+}
+
+// ── API-DIRECTA-DESALINEO-CABLEADO-1: confirmar la transacción CONTRA NUESTRO SERVIDOR ──
+//
+// Envuelve `PATCH /api/checkout` (§ API-DIRECTA-CREACION-TRANSACCION-1,
+// `app/api/checkout/route.ts`), NUNCA a Wompi directo — el secreto de integridad que esa
+// ruta necesita para firmar no puede viajar al navegador. Ese handler ya devuelve la
+// respuesta CLASIFICADA (`ResultadoCreacionTransaccionWompi`, `types/payment.ts`); este
+// wrapper no la reinterpreta, sólo la traduce a una promesa que resuelve en éxito o
+// lanza `CreacionTransaccionError` con el `tipo` intacto — es el llamador
+// (`FormularioTarjeta.tsx`) quien decide qué hacer con cada rama.
+
+export class CreacionTransaccionError extends Error {
+  tipo: 'metodo_no_habilitado' | 'firma_invalida' | 'otro_fallo';
+  constructor(tipo: 'metodo_no_habilitado' | 'firma_invalida' | 'otro_fallo', message: string) {
+    super(message);
+    this.name = 'CreacionTransaccionError';
+    this.tipo = tipo;
+  }
+}
+
+const TEXTO_CREACION_TRANSACCION_GENERICO = 'No pudimos procesar tu pago. Intenta de nuevo o usa otro método.';
+
+/**
+ * Confirma, contra NUESTRO servidor, el intento de pago que el POST de `/api/checkout` ya
+ * creó — con el token de tarjeta (§ `tokenizarTarjeta`, arriba) y las DOS aceptaciones que
+ * el comprador marcó. Resuelve sin valor cuando Wompi acepta la transacción (queda
+ * PENDING — el webhook, cuando exista, la cierra a APROBADO/FALLIDO); en cualquier otro
+ * caso lanza `CreacionTransaccionError` con el `tipo` que el servidor ya clasificó, para
+ * que el llamador distinga lo ESTRUCTURAL (`metodo_no_habilitado` — la cuenta del dueño no
+ * soporta el método; reintentar con otra tarjeta no cambia nada) de lo que SÍ podría ser
+ * transitorio (`firma_invalida`, `otro_fallo`).
+ */
+export async function confirmarTransaccionTarjeta(input: {
+  reference: string;
+  tokenTarjeta: string;
+  aceptaciones: { terminos: string; datosPersonales: string };
+}): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch('/api/checkout', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(input),
+    });
+  } catch (e) {
+    throw new CreacionTransaccionError(
+      'otro_fallo',
+      e instanceof Error ? `No pudimos comunicarnos con el servidor: ${e.message}` : TEXTO_CREACION_TRANSACCION_GENERICO,
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    throw new CreacionTransaccionError('otro_fallo', 'El servidor respondió algo que no pudimos leer. Intenta de nuevo.');
+  }
+
+  const resultado = body as Partial<ResultadoCreacionTransaccionWompi> | null;
+  if (resultado?.tipo === 'creada') return;
+
+  const tipo: 'metodo_no_habilitado' | 'firma_invalida' | 'otro_fallo' =
+    resultado?.tipo === 'metodo_no_habilitado' || resultado?.tipo === 'firma_invalida'
+      ? resultado.tipo
+      : 'otro_fallo';
+  const mensaje = resultado && 'error' in resultado && typeof resultado.error === 'string'
+    ? resultado.error
+    : TEXTO_CREACION_TRANSACCION_GENERICO;
+  throw new CreacionTransaccionError(tipo, mensaje);
 }
