@@ -24,7 +24,19 @@ alcance es GENÉRICO y su conexión con la puerta es INDIRECTA, y por eso se que
 AFUERA de la lista: ponerle dos etapas a una utilidad de fechas de todo el
 producto, por una entre tantas cadenas que la consultan, sería proteger de más.
 
-Tier 1 slices run in a separate read-only session first, then a second stage that writes only after the owner's explicit go, over these measured surfaces: packages/core/prisma/schema.prisma, packages/core/prisma/migrations/, lib/config/site-content-schema.ts, lib/config/site-content-defaults.ts, app/(storefront)/, packages/core/src/inventory.ts, packages/core/src/fulfillment.ts, packages/core/src/product-update.ts, packages/core/src/product-import.ts, packages/core/src/moliendas-opciones.ts, packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/shipping-transition.ts, packages/core/src/pagos/, lib/checkout/metodos-pago.ts, lib/pagos/wompi-firma.ts, app/api/checkout/route.ts, app/api/inventory/adjust/route.ts, app/api/orders/[id]/payments/route.ts, app/api/orders/route.ts, app/api/orders/[id]/address/route.ts, app/api/comprobantes/[id]/route.ts, app/api/shippings/route.ts, app/api/cron/automations/route.ts and app/api/webhooks/wompi/route.ts.
+**SEGUNDO EJE DE ADMISIÓN, DISTINTO DEL DE ARRIBA: EL LIBRO CUYA CORRUPCIÓN ES SILENCIOSA, no sólo
+la puerta que escribe o la función que decide.** `packages/core/src/order-transitions.ts` no es una
+puerta de escritura de stock/pagos/pedidos ni la función que una puerta consulta para decidir — el
+criterio de arriba, literal, no lo alcanza. Es el libro APPEND-ONLY del eje de cobro: la ÚNICA
+evidencia que, cuando unas órdenes aparecieron sin `Payment`, distinguió "nunca se pagó" de "se pagó
+y se revirtió" (§ COBRO-SIN-PEDIDO-ASIENTO-1, `DECISIONS.md`). Corromperlo no rompe nada que se vea
+—la orden sigue teniendo un estado, el checkout sigue respondiendo— y el único rastro de que el
+libro mintió aparece meses después, cuando alguien intenta reconstruir una secuencia y no puede. **El
+criterio: lo que falla RUIDOSO se arregla; lo que corrompe CALLADO no se descubre.** Entra a Tier 1
+por esto, no por ser una puerta ni un decisor — y el próximo candidato se juzga también contra este
+eje, no sólo contra el de arriba.
+
+Tier 1 slices run in a separate read-only session first, then a second stage that writes only after the owner's explicit go, over these measured surfaces: packages/core/prisma/schema.prisma, packages/core/prisma/migrations/, lib/config/site-content-schema.ts, lib/config/site-content-defaults.ts, app/(storefront)/, packages/core/src/inventory.ts, packages/core/src/fulfillment.ts, packages/core/src/product-update.ts, packages/core/src/product-import.ts, packages/core/src/moliendas-opciones.ts, packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/shipping-transition.ts, packages/core/src/order-transitions.ts, packages/core/src/pagos/, lib/checkout/metodos-pago.ts, lib/pagos/wompi-firma.ts, app/api/checkout/route.ts, app/api/inventory/adjust/route.ts, app/api/orders/[id]/payments/route.ts, app/api/orders/route.ts, app/api/orders/[id]/address/route.ts, app/api/comprobantes/[id]/route.ts, app/api/shippings/route.ts, app/api/products/[id]/route.ts, app/api/cron/automations/route.ts and app/api/webhooks/wompi/route.ts.
 
 **LA LISTA TAMBIÉN GANA SUBÁRBOLES — una lista de rutas literales no puede cubrir un archivo que
 todavía no existe.** El criterio de arriba está escrito en términos de SIGNIFICADO (bytes del
@@ -156,6 +168,25 @@ La auditoría (`TIER1-LISTA-VENCIDA-2`, arriba) ya midió que ningún commit pos
 tocó los tres archivos: la puerta quedó abierta tres días sin que otro slice escribiera por ella. El
 owner, al revisar las dos cosas juntas: *"La puerta estuvo abierta tres días y nadie la cruzó. No
 aprobé nada sin mirarlo — y eso fue SUERTE, no protección."*
+
+**Re-medida el 2026-09-18, TERCERA vez el mismo día** (`TIER1-DOS-CANDIDATOS-CLASIFICADOS-1`): el
+detector `tier1_puertas` venía reportando, sin que nadie los clasificara, dos candidatos más fuera de
+la lista —`packages/core/src/order-transitions.ts` y `app/api/products/[id]/route.ts`—, nombrados
+como pendientes en `TIER1-LISTA-VENCIDA-2` (§6, `DECISIONS.md`) bajo el id
+`TIER1-CANDIDATOS-ORDER-TRANSITIONS-PRODUCTS-1`. El owner los decidió, cada uno por su propia razón,
+y las dos entran a la frase canónica de arriba:
+
+- **`packages/core/src/order-transitions.ts` entra por el SEGUNDO EJE de admisión** (arriba: el modo
+  de falla silencioso), no por el criterio literal de puerta/decisor. Sus tres llamadores
+  (`orders.ts`, `fulfillment.ts`, `shipping-transition.ts`) ya estaban en la lista; el libro mismo
+  no.
+- **`app/api/products/[id]/route.ts` entra por SU MITAD NO CUBIERTA, no por el archivo entero.** El
+  `PATCH` ya delega en `aplicarPatchProducto` (`product-update.ts`, ya en la lista) — esa mitad
+  estaba protegida de forma indirecta. El `DELETE` hace `prisma.product.delete` DIRECTO, sin decider
+  intermedio: es una puerta de borrado cruda, y es la mitad que motiva la entrada. La lista protege
+  el ARCHIVO —no tiene granularidad de método HTTP—, así que las dos mitades quedan bajo Tier 1
+  aunque sólo una lo necesitara; quien re-mida este archivo debe saber que el `PATCH` ya estaba
+  cubierto antes de esta entrada y el `DELETE` es lo nuevo.
 
 **Re-medir esta lista cada vez que la ruta del dinero gane una puerta o una función consultada
 nueva** — no esperar a una auditoría programada. `git diff <última-medición>..HEAD -- app/api/

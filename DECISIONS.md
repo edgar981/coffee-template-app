@@ -6855,3 +6855,126 @@ y `approved: yes` (`approved-by: owner`, `approval-reason`: el owner confirmó e
 subárbol entero entra, con el precedente de `lib/checkout/` ya en la lista, más la puerta HTTP del
 cron por separado). **LA APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA EL MERGE** — el merge sigue gateado
 al owner, y este slice para en `AWAITING_APPROVAL` sin mergear.
+
+## 2026-09-18 — Los dos candidatos que `tier1_puertas` venía reportando sin que nadie los
+clasificara entran a Tier 1, cada uno por su propia razón (`TIER1-DOS-CANDIDATOS-CLASIFICADOS-1`)
+
+### 0 · Desviación, dicha primero — este slice tampoco pudo ejecutar el validador
+
+Mismo sandbox restringido que `TIER1-LISTA-VENCIDA-2` (§7) y `TIER1-SUBARBOL-NO-DISPARABA-1` (§0) ya
+documentaron: esta sesión está acotada al working directory de `coffee-template-app`, sin ruta al
+repositorio `dev-protocol` (donde vive el validador de specs y el detector `tier1_puertas`) ni
+credencial/URL que un `node` + `fetch` pudiera alcanzar. **No se corrió el validador ni el detector
+en este slice.** La cifra externa de §1 —qué candidatos quedan fuera de la lista hoy— es del spec,
+marcada `ledger_claim`, no re-medida contra la herramienta; lo que sí se verificó con herramientas de
+este repo es el contenido de los dos archivos (§2) y el texto exacto de la frase canónica, antes y
+después (§3).
+
+### 1 · El punto de partida — el followup ya estaba nombrado
+
+`TIER1-LISTA-VENCIDA-2` (arriba, §6) dejó nombrados, sin decidir, dos candidatos que el detector
+`tier1_puertas` reportaba fuera de la lista además de los tres que esa entrada sí resolvió:
+`packages/core/src/order-transitions.ts` y `app/api/products/[id]/route.ts`, bajo el id
+`TIER1-CANDIDATOS-ORDER-TRANSITIONS-PRODUCTS-1`, "para que la próxima re-medición de la lista Tier 1
+los evalúe contra el criterio (¿son puerta de escritura de dinero/stock/pedidos, o la función que esa
+puerta consulta?), no para que se asuma que califican." El spec de este slice trae, medido por el
+orquestador (`externo`, `kind: ledger_claim` en esta sesión): corrida hoy la figura contra el árbol
+con el subárbol de pagos ya adentro (§ `TIER1-SUBARBOL-NO-DISPARABA-1`), los únicos dos candidatos
+que quedan fuera de la lista Tier 1 son esos mismos dos — ninguno nuevo apareció entre el 2026-09-15
+y hoy.
+
+El owner los revisó y decidió que los dos entran, cada uno por una razón **distinta**, y pidió que el
+asiento las registre tal como las dio — no resumidas a una sola frase, porque son dos criterios de
+admisión diferentes y el próximo candidato se va a juzgar contra los dos por separado.
+
+### 2 · Lo medido en cada archivo, contra lo que el spec afirmaba
+
+**`packages/core/src/order-transitions.ts`** exporta una sola función, `appendOrderStatusTransition`,
+que hace `tx.orderStatusTransition.create` (línea 38) — un `INSERT` crudo, dentro del `tx` que le pasa
+el llamador. Grep de sus llamadores reales (excluyendo `.test.ts` y un comentario que sólo la nombra):
+
+```
+packages/core/src/fulfillment.ts:84
+packages/core/src/orders.ts:152,177,600
+packages/core/src/shipping-transition.ts:121
+```
+
+Los TRES archivos llamadores (`fulfillment.ts`, `orders.ts`, `shipping-transition.ts`) ya estaban en
+la lista Tier 1 antes de este slice. Coincide exacto con lo que el spec afirmaba. **Por qué NO entra
+por el criterio literal de la sección** (puerta de escritura + función consultada): `order-
+transitions.ts` no DECIDE nada — no gatea, no calcula, no rechaza; sólo escribe el asiento que el
+llamador ya decidió escribir. El criterio de admisión que lo trae es el nuevo, escrito en `CLAUDE.md`
+junto al de `timezone.ts`: es el libro APPEND-ONLY del eje de cobro, y su corrupción es SILENCIOSA —
+`DECISIONS.md` ya registró (§ `RECORRIDO-ENVIO-NO-CREADO-1`, arriba en este archivo) que
+`order-transitions.ts` es el único punto de escritura del libro que distinguió, en el incidente de
+`COBRO-SIN-PEDIDO-ASIENTO-1`, "nunca se pagó" de "se pagó y se revirtió". Nota aparte, fuera del
+alcance de este slice: el comentario de cabecera del archivo describe "Fase 2A: DEFINIDO pero aún SIN
+LLAMAR desde ningún escritor" — el grep de arriba muestra que HOY sí lo llaman los tres. El comentario
+quedó desactualizado por un cambio de otro slice; no se corrige acá (fuera de `touches:`).
+
+**`app/api/products/[id]/route.ts`** tiene DOS handlers con historias distintas, leídos completos:
+
+- **`PATCH`** arma su escritura con `aplicarPatchProducto(id, body, …)` (`@duna/core/product-update`,
+  línea 68) — la misma función que `packages/core/src/product-update.ts` ya expone y que YA está en
+  la lista Tier 1. Esta mitad estaba protegida de forma indirecta desde que ese archivo entró.
+- **`DELETE`** hace `await prisma.product.delete({ where: { id: id } })` (línea 132) DIRECTO sobre el
+  cliente de Prisma, sin pasar por ningún decider de `packages/core`. Antes del delete valida que el
+  producto no tenga `OrderItem` asociados (409 si los tiene) y después del delete borra sus blobs de
+  storage — pero la escritura que importa para Tier 1, el `.delete` sobre la tabla `Product`, es una
+  llamada cruda dentro del propio route handler.
+
+Coincide exacto con lo que el spec afirmaba. **El archivo entra por su mitad `DELETE`, no por el
+`PATCH`** — que ya estaba cubierto indirectamente y no aporta razón nueva de entrada.
+
+### 3 · El arreglo — la frase canónica, antes y después, y el criterio nuevo
+
+**Antes** (`CLAUDE.md`, tal como quedó tras `TIER1-SUBARBOL-NO-DISPARABA-1` y hasta el commit base de
+este slice):
+
+> `…packages/core/src/shipping-transition.ts, packages/core/src/pagos/, lib/checkout/
+> metodos-pago.ts…` — y, del lado de `app/api/`, `…app/api/shippings/route.ts, app/api/cron/
+> automations/route.ts and app/api/webhooks/wompi/route.ts.`
+
+**Después** (`CLAUDE.md`, línea de la enumeración):
+
+> `…packages/core/src/shipping-transition.ts, packages/core/src/order-transitions.ts,
+> packages/core/src/pagos/, lib/checkout/metodos-pago.ts…` — y `…app/api/shippings/route.ts,
+> app/api/products/[id]/route.ts, app/api/cron/automations/route.ts and app/api/webhooks/
+> wompi/route.ts.`
+
+`order-transitions.ts` quedó entre `shipping-transition.ts` y `packages/core/src/pagos/` (contiguo al
+resto de `packages/core/src/` ya enumerados); `products/[id]/route.ts` quedó entre
+`app/api/shippings/route.ts` y `app/api/cron/automations/route.ts` (contiguo al resto de rutas
+`app/api/`). Además se escribió, en el bloque de criterio de arriba de la sección (junto al párrafo de
+`timezone.ts`), el **SEGUNDO EJE DE ADMISIÓN** que el owner pidió dejar como criterio y no como excusa
+puntual de este archivo: *"lo que falla RUIDOSO se arregla; lo que corrompe CALLADO no se
+descubre."* Es un eje nuevo, distinto del que ya regía (puerta de escritura + función consultada), y
+queda escrito para que el próximo candidato se juzgue también contra él.
+
+**La lista sigue teniendo granularidad de ARCHIVO, no de método HTTP.** `app/api/products/[id]/
+route.ts` entra completo aunque sólo su `DELETE` lo necesite — el `PATCH` ya viajaba protegido por
+`product-update.ts`. Quien re-mida este archivo en el futuro debe leer esta entrada antes de asumir
+que las dos mitades se evaluaron por la misma razón.
+
+### 4 · Lo que este slice NO tocó
+
+No se agregó ninguna otra superficie a la lista. No se tocó la entrada del subárbol
+`packages/core/src/pagos/` ni la de `app/api/cron/automations/route.ts` (`TIER1-SUBARBOL-NO-
+DISPARABA-1`, `TIER1-LISTA-VENCIDA-2`) — ya están en la frase canónica y ya disparan. No se tocó
+código de producto, tests, schema ni migraciones.
+
+### Gate
+
+**`npm run gate`, los dos carriles — corrido sobre el árbol final, verde.** Fast lane (`npm test`):
+1435/1435. Carril de integración (`npm run test:integracion`, Postgres efímero): 208/208. Mismas
+cifras que las dos entradas anteriores de esta misma rama (`TIER1-LISTA-VENCIDA-2`,
+`TIER1-SUBARBOL-NO-DISPARABA-1`) — coherente con que el diff de este slice toca SÓLO `CLAUDE.md` y
+esta entrada de `DECISIONS.md`: ningún código de producto, ningún test, ningún schema, ninguna
+migración, ningún endpoint HTTP.
+
+**Tier 1 — SÍ aplica** por herencia de la rama y porque el spec lo declaró `tier: 1` con `writes: yes`
+y `approved: yes` (`approved-by: owner`, `approval-reason`: el owner decidió el 2026-09-18 que los dos
+candidatos que la figura `tier1_puertas` venía reportando sin clasificar entran a Tier 1, cada uno por
+la razón registrada en §§1-3, y pidió que el asiento las deje tal como las dio). **LA APROBACIÓN
+AUTORIZA LA ESCRITURA, NUNCA EL MERGE** — el merge sigue gateado al owner, y este slice para en
+`AWAITING_APPROVAL` sin mergear.
