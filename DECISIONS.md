@@ -7807,7 +7807,7 @@ ese slice midió exactamente el mismo tipo de gap (`components/storefront/checko
 propio alcance.
 
 **Medido igual, antes de descartarlo**: `confirmation.estado` en el camino MANUAL (el branch
-`!confirmation.wompi`) es SIEMPRE `'pendiente'` — `app/api/checkout/route.ts:240-243` crea la
+`!confirmation.wompi`) es SIEMPRE `'pendiente'` — `app/api/checkout/route.ts:238-241` crea la
 orden sin `immediatePayment` ("NO Payment here: the order starts `pendiente`; the admin registers
 the received payment later"), así que el badge de esa rama nunca varía y siempre repite lo que el
 párrafo de arriba ya dice en lenguaje del comprador ("Tu pedido está reservado. Confirmaremos el
