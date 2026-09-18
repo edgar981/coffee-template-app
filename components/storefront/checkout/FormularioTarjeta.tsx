@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useLayoutEffect, useRef, useState, type ChangeEvent, type Ref } from 'react';
 import {
   numeroTarjetaValido, parseVencimiento, vencimientoVigente, codigoSeguridadValido, nombreTitularValido,
@@ -59,16 +60,23 @@ import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
  * `campos.numero` ya en memoria del formulario — el mismo estado que alimenta la validación de
  * Luhn — y nunca sale de este componente hacia una red ni hacia un log. Mientras no se sepa
  * (`estado !== 'reconocida'`) no se muestra nada, y jamás bloquea el botón "Pagar": es una pista
- * visual, no una autorización. El NOMBRE se muestra como TEXTO — el logo de cada red es marca de
- * un tercero y este repositorio no tiene esos archivos (§ el reporte del slice).
+ * visual, no una autorización.
  *
- * JUNTO AL NOMBRE va un ÍCONO NEUTRO (§ CHECKOUT-ICONO-TARJETA-NEUTRO-1, DECISIONS.md): un
- * rectángulo redondeado sin ninguna marca, dibujado a mano (`IconoTarjetaGenerica`, abajo) en el
- * MISMO estilo de ícono que ya usa el repo (stroke 24×24, ver `SearchField` del design-system) —
- * NO un set libre, así que no hay licencia de terceros que declarar. Ocupa el MISMO slot donde
- * algún día irían los logos oficiales de cada red: es decorativo (`aria-hidden`), nunca repite
- * el nombre, y el swap futuro es reemplazar sólo este ícono por el logo de `deteccionRed.red` —
- * el layout (flex, gap, tamaño) no se mueve.
+ * § CHECKOUT-LOGOS-REDES-1 (2026-09-18, aprobado por el owner tras repetirlo tres veces): el
+ * logo OFICIAL reemplaza al nombre+ícono neutro para la red que SÍ tiene archivo —hoy sólo
+ * Mastercard; las otras cuatro no se pudieron bajar de su portal oficial sin registrarse o sin
+ * aceptar un término interactivo, y esa condición del owner (§ el reporte del slice, y
+ * `public/marcas-tarjetas/PROCEDENCIA.md`) NO se sortea buscando una fuente alternativa—.
+ * `LOGO_RED` es un mapa PARCIAL a propósito: sólo declara las redes con archivo real; el resto
+ * sigue con `NOMBRE_RED` + `IconoTarjetaGenerica` (abajo) hasta que el owner baje el resto. El
+ * logo NO se muestra junto al nombre en texto —lo REEMPLAZA, mismo slot— porque repetir
+ * "Mastercard" en texto al lado de su propio logo es ruido en un espacio de 14px de alto; el
+ * `alt` de la imagen lleva el nombre para quien no ve la imagen.
+ *
+ * `public/marcas-tarjetas/` es el directorio nuevo de esta clase de archivo —`public/brand/` es
+ * la marca de Duna, no de un tercero—, con su propio `PROCEDENCIA.md` (misma forma de tabla que
+ * `public/images/PROCEDENCIA.md`) documentando de qué URL exacta salió cada logo, cuándo, y qué
+ * bloqueó a los que faltan.
  *
  * EL NÚMERO Y EL VENCIMIENTO SE FORMATEAN MIENTRAS SE TECLEA (§ CHECKOUT-FORMATEO-CAMPOS-
  * TARJETA-1): grupos de 4 en el número ("4242 4242 4242 4242"), barra sola al segundo dígito del
@@ -149,18 +157,26 @@ const TEXTO = {
 
 const TEXTO_CREACION_TRANSACCION_GENERICO = 'No pudimos procesar tu pago. Intenta de nuevo o usa otro método.';
 
-// TEXTO PROVISIONAL — PENDIENTE DEL OWNER (§ CHECKOUT-DETECCION-EMISOR-BIN-1, reporte del
-// slice). Los logos de estas redes son marca de terceros; este repositorio no tiene esos
-// archivos y no se descargan/copian acá. Hasta que el owner decida de dónde salen, la red
-// detectada se muestra como NOMBRE en texto, no como ícono.
-// `unionpay` es texto NUEVO de este slice (§ CHECKOUT-DETECTOR-UNIONPAY-1) — nadie lo revisó
-// todavía; queda bajo el mismo "pendiente del owner" que el resto del mapa.
+// Nombre accesible de cada red — vive en el `alt` del logo (cuando hay uno, § LOGO_RED abajo)
+// o como texto visible junto al ícono neutro (cuando no).
 const NOMBRE_RED: Record<RedTarjeta, string> = {
   visa: 'Visa',
   mastercard: 'Mastercard',
   amex: 'American Express',
   diners: 'Diners Club',
   unionpay: 'UnionPay',
+};
+
+// § CHECKOUT-LOGOS-REDES-1: mapa PARCIAL a propósito — sólo las redes con logo oficial bajado
+// del portal de marca del titular (§ `public/marcas-tarjetas/PROCEDENCIA.md`, que documenta de
+// dónde salió cada archivo y qué bloqueó a las que faltan). Visa, American Express, Diners Club
+// y UnionPay quedan PENDIENTES DEL OWNER: sus portales oficiales exigen login/registro
+// (Visa, Amex) o un paso interactivo de aceptación de términos (UnionPay), o el único formato
+// disponible es EPS, que este slice no puede convertir sin desobedecer la condición de "el
+// oficial es el oficial" (Diners Club). Ninguna de las cuatro se completó con un archivo de
+// otra procedencia.
+const LOGO_RED: Partial<Record<RedTarjeta, string>> = {
+  mastercard: '/marcas-tarjetas/mastercard-symbol-v1.svg',
 };
 
 /**
@@ -246,6 +262,9 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
   // ninguna red conocida completa, no se muestra nada — nunca se adivina y nunca se bloquea.
   const deteccionRed = detectarRedTarjeta(campos.numero);
   const marcaDetectada = deteccionRed.estado === 'reconocida' ? NOMBRE_RED[deteccionRed.red] : null;
+  // `undefined` cuando la red se reconoció pero no tiene logo bajado todavía (§ LOGO_RED) — en
+  // ese caso `CampoTarjeta` cae al ícono neutro + nombre en texto, igual que antes de este slice.
+  const logoRedDetectada = deteccionRed.estado === 'reconocida' ? LOGO_RED[deteccionRed.red] : undefined;
 
   // § CHECKOUT-FORMATEO-CAMPOS-TARJETA-1: el número y el vencimiento se reformatean en cada
   // `onChange` (grupos de 4 / barra sola al 2° dígito), y el cursor que el navegador ya dejó
@@ -417,6 +436,7 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
           inputMode="numeric"
           placeholder="0000 0000 0000 0000"
           marcaDetectada={marcaDetectada}
+          logoRedDetectada={logoRedDetectada}
         />
         <div className="grid grid-cols-2 gap-3">
           <CampoTarjeta
@@ -488,6 +508,10 @@ interface CampoTarjetaProps {
    *  todavía no se sabe o el prefijo no cae en ninguna red reconocida — en esos dos casos no se
    *  renderiza nada, ni el texto ni el ícono. Sólo lo usa el campo de número. */
   marcaDetectada?: string | null;
+  /** La ruta del logo oficial de la red detectada (§ CHECKOUT-LOGOS-REDES-1, `LOGO_RED`), o
+   *  `undefined` si esa red todavía no tiene archivo. Con logo, REEMPLAZA al nombre+ícono neutro
+   *  en el mismo slot — nunca se muestran los dos juntos. */
+  logoRedDetectada?: string;
 }
 
 /**
@@ -515,12 +539,21 @@ function IconoTarjetaGenerica() {
   );
 }
 
-function CampoTarjeta({ label, value, onChange, onChangeEvento, inputRef, error, placeholder, inputMode, marcaDetectada }: CampoTarjetaProps) {
+function CampoTarjeta({ label, value, onChange, onChangeEvento, inputRef, error, placeholder, inputMode, marcaDetectada, logoRedDetectada }: CampoTarjetaProps) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
         <label className="block text-xs font-medium text-[var(--sf-texto)]">{label}</label>
-        {marcaDetectada && (
+        {marcaDetectada && logoRedDetectada && (
+          // § CHECKOUT-LOGOS-REDES-1: el logo REEMPLAZA al nombre+ícono — el `alt` lleva el
+          // nombre para quien no ve la imagen. `width`/`height` son el tamaño INTRÍNSECO real
+          // del SVG (`viewBox="0 0 152.4 108"` del Mastercard symbol, redondeado) — next/image
+          // los usa para fijar el aspect-ratio, no el tamaño en pantalla; el tamaño en pantalla
+          // lo da la clase (altura fija de 14px, la misma que el ícono neutro `w-3.5 h-3.5`; el
+          // ancho sigue la proporción real con `w-auto`, nunca se estira).
+          <Image src={logoRedDetectada} alt={marcaDetectada} width={152} height={108} className="h-3.5 w-auto" />
+        )}
+        {marcaDetectada && !logoRedDetectada && (
           <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--sf-texto)]/70">
             <IconoTarjetaGenerica />
             {marcaDetectada}
