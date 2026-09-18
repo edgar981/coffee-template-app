@@ -119,10 +119,11 @@ test('PLIEGO: raíces y forma/par válidos, pero las 5 variantes fallan — toda
   assert.equal(faltantes.filter((f) => f.regla === 'orden').length, 0);
 });
 
-test('CORTE: presentaciones·mosaico y brandStory·columnas SON válidas (las dos canónicas) — sólo hero/featured/subscriptionCTA fallan', () => {
+test('CORTE: presentaciones·mosaico, brandStory·columnas y hero·media SON válidas — sólo featured/subscriptionCTA fallan', () => {
   // brandStory·columnas coincide con la única clave que `brandStory` acepta hoy (la canónica), así
-  // que dejó de fallar apenas ganó su slot — CORTE pasó de 4 faltantes de variante a 3.
-  assert.deepEqual(seccionesQueFallanVariante(CORTE), ['featured', 'hero', 'subscriptionCTA']);
+  // que dejó de fallar apenas ganó su slot. hero·media dejó de fallar con TEMAS-HERO-MEDIA-1 (el
+  // hero ganó su tercera clave de variante) — CORTE pasó de 4 faltantes de variante a 3, y ahora a 2.
+  assert.deepEqual(seccionesQueFallanVariante(CORTE), ['featured', 'subscriptionCTA']);
 });
 
 test('VETA: hero·curtina y presentaciones·indice SÍ existen — featured/brandStory/subscriptionCTA fallan', () => {
