@@ -6978,3 +6978,135 @@ candidatos que la figura `tier1_puertas` venía reportando sin clasificar entran
 la razón registrada en §§1-3, y pidió que el asiento las deje tal como las dio). **LA APROBACIÓN
 AUTORIZA LA ESCRITURA, NUNCA EL MERGE** — el merge sigue gateado al owner, y este slice para en
 `AWAITING_APPROVAL` sin mergear.
+
+## 2026-09-18 — La transición del pago con pasarela: una sola vista de carga, el texto que dejó de
+mentir, y el éxito que dejó de ser un callejón sin salida (`CHECKOUT-TRANSICION-DEFECTOS-1`)
+
+### 0 · Qué vio el owner, en la PRIMERA transacción real
+
+El owner reportó, tras usar el camino de API directa para pagar con tarjeta en CN-597202 —la
+primera compra de este programa que llegó a `APROBADO` de verdad (`PRIMERA-TRANSACCION-REAL-
+ASIENTO-1`, arriba)—, tres defectos de la TRANSICIÓN que el comprador ve entre apretar "Pagar" y
+ver la confirmación. Dio el texto exacto del segundo y llamó al tercero "el peor de los tres",
+pidiendo explícitamente reusar la pantalla de confirmación que los métodos manuales ya tienen en
+vez de inventar una nueva, y revisar los demás estados terminales con el mismo criterio.
+
+### 1 · Defecto uno — "Verificando tarjeta" en dos vistas para el mismo momento
+
+**La causa era estructural.** `FormularioTarjeta`/`FormularioOtroMetodoPasarela` mostraban
+"Verificando tarjeta…"/"Procesando…" en su propio botón mientras tokenizaban, creaban la orden y
+confirmaban la transacción (`tokenizando`) — y apenas la transacción nacía (`creada` truthy), el
+componente se **reemplazaba a sí mismo** por `EsperaConfirmacionTarjeta`, un layout distinto
+(ícono + texto centrado) que volvía a anunciar que se estaba confirmando el pago. Un solo momento,
+dos vistas.
+
+**El arreglo:** el formulario ya NO se reemplaza. Una única señal `procesando` (`tokenizando ||
+!!creada`) bloquea los campos, las dos casillas de aceptación y el botón EN SU LUGAR durante TODO
+el camino —tokenizar, crear la orden, confirmar la transacción, Y sondear hasta que el pago
+resuelve—, y `EsperaConfirmacionTarjeta` se monta DEBAJO del botón bloqueado, dentro del MISMO
+contenedor. Para el caso común (sin desafío 3DS) ya no dibuja un panel propio: aporta sólo una
+línea de texto corta, porque el botón ya comunica el progreso. El desafío 3DS (`DesafioTarjeta`,
+el iframe del banco) sigue con su marco aislado, embebido en ese mismo contenedor — es contenido
+que genuinamente hace falta mostrar, no una segunda vista del mismo hecho.
+
+`AceptacionesPasarela` ganó un `disabled` (antes no existía ningún mecanismo para bloquearlas):
+sin él, las casillas seguían siendo clickeables mientras el pago procesaba.
+
+### 2 · Defecto dos — el texto de espera mentía para tarjeta
+
+El texto único (`EsperaConfirmacionTarjeta.TEXTO.enVueloSinFriccion`) decía: *"Estamos confirmando
+tu pago con tu banco. Esto puede tardar unos minutos — no cierres esta página."* Para tarjeta y
+billetera eso es falso en las dos afirmaciones: no hay banco de por medio en esa rama (el texto
+del banco es el de la rama de DESAFÍO, `enVueloDesafio`, que sí lo tiene y no se tocó), y la
+medición real de esta misma sesión (`PRIMERA-TRANSACCION-REAL-ASIENTO-1`, arriba) dio 5.662 a
+10.273 segundos para resolver, cuatro transacciones — no minutos.
+
+**El texto que el owner dio, textual, para tarjeta y billetera:**
+
+> «Estamos confirmando tu pago.»
+
+Sin promesa de tiempo, sin nombrar al banco. Es el único cambio de copy de este slice fuera del
+que introduce el defecto tres (los rótulos nuevos de la pantalla de éxito, abajo) y el número de
+orden agregado al rechazo (§4).
+
+### 3 · Defecto tres, "el peor" — el éxito dejó de ser un callejón sin salida
+
+**Antes de este slice**, al aprobarse el pago, el comprador veía un ícono, un título y una frase —
+sin número de orden, sin resumen de lo que compró, sin acciones. Medido contra las otras dos
+pantallas de la MISMA transición: la vista `techo` (sondeo agotado, sin resolver) SÍ mostraba el
+número de orden; y la confirmación de los métodos MANUALES (que ni siquiera cobraron) ya tenía
+pantalla completa —resumen, estado, "Rastrear mi pedido" y "Seguir comprando"—. El camino que SÍ
+cobra era el más pobre de los tres.
+
+**El arreglo reusa esa pantalla completa, no inventa una nueva** (`checkout/page.tsx`). La parte
+difícil, medida antes de escribir: la aprobación se entera MUY ADENTRO del árbol —dentro del
+sondeo de `EsperaConfirmacionTarjeta`—, y la pantalla de confirmación vive MUY AFUERA —en el
+`return` temprano de `Checkout`—. El hecho se sube por una cadena de callbacks `onAprobado`:
+`EsperaConfirmacionTarjeta` → `FormularioTarjeta`/`FormularioOtroMetodoPasarela` →
+`SelectorMetodoPasarela` → `checkout/page.tsx` (`setPasarelaAprobada(true)`). La condición del
+`return` temprano pasó de `!(confirmation.wompi && !pasarelaMetodoNoHabilitado)` a
+`!confirmation.wompi || pasarelaMetodoNoHabilitado || pasarelaAprobada` — equivalente por De
+Morgan a la original cuando `pasarelaAprobada` es `false`, así que el camino manual no cambia.
+
+**El estado mostrado se corrige, no se hereda.** `confirmation.estado` es el de la CREACIÓN de la
+orden (`pendiente` — el pago de pasarela se confirma después, por webhook); con
+`pasarelaAprobada` el badge muestra `pagado`, porque el sondeo acaba de confirmar el pago y
+mostrarle "Pendiente" al comprador que ya vio "¡Tu pago fue aprobado!" sería mentirle. El resumen
+de ítems, subtotal, envío, total y las DOS acciones son el MISMO código que ya usan los métodos
+manuales — sólo el ícono (CheckCircle esmeralda en vez de Clock ámbar), el título, el primer
+párrafo y el estado cambian según `pasarelaAprobada`.
+
+**No se rompió el defecto uno arreglando el tres.** `EsperaConfirmacionTarjeta` no dibuja nada
+cuando llama a `onAprobado` — el `FormularioTarjeta` que la contiene se desmonta como efecto del
+cambio de estado en `checkout/page.tsx`, que es un cambio de estado REAL (el pago terminó), no un
+remonte a mitad de la espera.
+
+### 4 · Los otros estados terminales, revisados con el mismo criterio
+
+El owner pidió revisar rechazado e indeterminado con la pregunta: ¿el comprador sabe QUÉ pasó, CON
+QUÉ orden, y QUÉ hacer ahora?
+
+| Estado | Antes | Después | Qué se tocó |
+| --- | --- | --- | --- |
+| **Aprobado** | Sabe qué pasó (frase pobre); NO sabe con qué orden; NO sabe qué hacer | Los tres | Bubbleado + pantalla completa reusada (§3) |
+| **Indeterminado** (`techo`, sondeo agotado) | Sabe qué pasó; sabe con qué orden; NO sabe qué hacer (sin acciones) | Los tres | Se agregaron las MISMAS dos acciones ("Rastrear mi pedido", "Seguir comprando") a la vista `techo` que `EsperaConfirmacionTarjeta` ya dibujaba — barato, porque la vista ya existía y sólo le faltaba el tercer criterio. El formulario de tarjeta/campo se OCULTA en este estado (`onTecho`, nuevo callback) para no mostrar dos respuestas al mismo momento: los campos bloqueados arriba y "sigue procesándose" abajo |
+| **Rechazado** | Sabe qué pasó; NO sabe con qué orden (la orden ya existe — la creó `crearOrdenPasarela`, idempotente); sabe qué hacer (revisar datos u otro método) | Sabe con qué orden | Se agregó el número de orden junto al mensaje de rechazo. **NO SE TOCÓ el mecanismo de reintento** — hay una pregunta abierta sobre si ofrecer "reintentar con otro método" que el owner nombró explícitamente como NO de este slice; queda para una decisión de producto aparte |
+| **Método no habilitado** (rechazo estructural, síncrono) | Los tres — ya caía en la confirmación manual completa | Sin cambios | Ya satisfacía el criterio antes de este slice; no se tocó |
+
+**`EsperaRedireccionPasarela` no se revisó** — es el camino para un tipo de pasarela con
+`descriptor.redireccion` declarado, y **ningún descriptor real lo declara hoy** (§ su propio
+docstring, verificado sin cambios); su vista `techo` también carece de número de orden con enlace
+y de acciones, pero es código inalcanzable por ningún comprador real. Anotado como open-followup,
+no arreglado.
+
+### 5 · Lo que NO se tocó
+
+Ningún archivo bajo el eje del dinero (`packages/core/`, `app/api/checkout/route.ts`,
+`services/checkout.service.ts`) — la creación de la transacción, el sondeo contra
+`/api/checkout/retorno`, el webhook y el reconciliador quedan intactos. No se construyó ningún
+mecanismo de reintento con otro método. No se tocó ningún otro texto provisional del programa
+fuera de los dos nombrados en §2 y §3.
+
+### Gate
+
+**`npm run gate`, los dos carriles, corrido sobre el árbol final, verde.** Fast lane (`npm test`):
+1435/1435. Carril de integración (`npm run test:integracion`, Postgres efímero): 208/208.
+`npm run typecheck` (`tsc --noEmit`) también corrido, sin errores.
+
+**El camino manual se verificó byte-idéntico por dos vías**, no una sola: (a) la condición nueva
+del `return` temprano de `checkout/page.tsx` es equivalente por De Morgan a la vieja cuando
+`pasarelaAprobada` es `false` (§3); y (b) cada rama condicional nueva de esa pantalla
+(`pasarelaAprobada ? … : …`) se escribió preservando el string/clase EXACTO del lado `false`,
+incluido el ORDEN de las clases Tailwind del ícono (`w-20 h-20 bg-amber-100 rounded-full …`, no
+reordenado) — un cambio de orden no altera el CSS computado, pero si algo lo compara por texto
+exacto, un reorden habría sido una diferencia falsa. No hay harness de render en este repo
+(§ CLAUDE.md, doctrina de las tres capas) para verificarlo por ejecución; el gate visual del owner
+es quien confirma esto en pantalla.
+
+**Tier 1 — SÍ aplica**: `components/storefront/checkout/` y `app/(storefront)/` son subárboles
+Tier 1 (bytes que el comprador ve). El spec lo declaró `tier: 1`, `writes: yes`, `approved: yes`
+(`approved-by: owner`, `approval-reason`: el owner vio los tres defectos en CN-597202 el
+2026-09-18, dio el texto del §2 textual, llamó al §3 "el peor" y pidió reusar la pantalla
+existente, y pidió revisar §4 con el mismo criterio sin tomar la decisión de reintento). **LA
+APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA EL MERGE** — el merge sigue gateado al owner, y este
+slice para en `AWAITING_APPROVAL` sin mergear.

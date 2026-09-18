@@ -66,6 +66,18 @@ import { formatCOP } from '@duna/core/utils';
  * con el mensaje de rechazo arriba del botón. NO aplica al camino `redireccion` —
  * `EsperaRedireccionPasarela` no tiene esta clase de fallo (§ su propio docstring: nunca afirma
  * "fallido", eso lo decide `/checkout/retorno` cuando el comprador vuelva de fuera)—.
+ *
+ * § CHECKOUT-TRANSICION-DEFECTOS-1 (2026-09-18, § el reporte del slice): MISMO REORDENAMIENTO
+ * QUE `FormularioTarjeta` — el defecto era transversal a los dos formularios de pasarela, no
+ * exclusivo de tarjeta. Este formulario ya NO SE REEMPLAZA A SÍ MISMO por la espera: el campo y
+ * el botón se BLOQUEAN EN SU LUGAR (`procesando`) durante todo el camino, y
+ * `EsperaConfirmacionTarjeta` sólo aporta, debajo del botón bloqueado, lo que el botón no puede
+ * decir (el texto de espera). Y el pago APROBADO (`onAprobado`, bubbleado) sube hasta
+ * `checkout/page.tsx`, que reemplaza TODA la transición por la MISMA pantalla "¡Pedido
+ * recibido!" que ya usan los métodos manuales. `EsperaRedireccionPasarela` NO CAMBIA — es un
+ * camino inalcanzable hoy (§ su propio docstring, "Ningún tipo real declara `redireccion`
+ * todavía") y no tiene noción de "aprobado" (nunca afirma un veredicto, sólo saca al comprador
+ * del sitio); revisarlo queda anotado como open_followup del reporte, no resuelto acá.
  */
 export interface FormularioOtroMetodoPasarelaProps {
   descriptor: DescriptorMetodoPasarela;
@@ -85,6 +97,10 @@ export interface FormularioOtroMetodoPasarelaProps {
    *  `FormularioTarjeta` (§ CHECKOUT-NEQUI-EXITO-FIX-1: antes de este fix este componente no
    *  lo necesitaba porque nunca llegaba a mostrar una espera). */
   email: string;
+  /** El pago fue APROBADO (§ CHECKOUT-TRANSICION-DEFECTOS-1) — bubbleado de
+   *  `EsperaConfirmacionTarjeta.onAprobado`. Este formulario no dibuja nada para ese caso: la
+   *  página reemplaza TODA la transición por la confirmación completa del pedido. */
+  onAprobado: () => void;
 }
 
 // TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER (§ el reporte del slice, igual que
@@ -100,7 +116,7 @@ const TEXTO = {
   pagoRechazado: 'Tu pago no fue aprobado. No se realizó ningún cobro. Revisa los datos o intenta con otro método.',
 };
 
-export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones, publicKey, crearOrdenPasarela, monto, email }: FormularioOtroMetodoPasarelaProps) {
+export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones, publicKey, crearOrdenPasarela, monto, email, onAprobado }: FormularioOtroMetodoPasarelaProps) {
   // § API-DIRECTA-FORMA-TRES-DIMENSIONES-1: EL PRIMER campo VISIBLE en este ambiente — filtra
   // `soloPruebas` antes de elegir cuál rendir (ver el docstring de arriba para por qué este
   // formulario sólo rinde uno pese a que la forma admite varios). Estructuralmente garantizado
@@ -113,19 +129,31 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
   const [errorDato, setErrorDato] = useState<string | null>(null);
   const [enVuelo, setEnVuelo] = useState(false);
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
+  // § CHECKOUT-TRANSICION-DEFECTOS-1: el número de orden que el cobro RECHAZADO dejó atrás —
+  // mismo mecanismo que `FormularioTarjeta.numeroOrdenRechazado`.
+  const [numeroOrdenRechazado, setNumeroOrdenRechazado] = useState<string | null>(null);
   // Presencia = éxito: la transacción quedó CREADA en Wompi (§ CHECKOUT-NEQUI-EXITO-FIX-1).
   // Mismo campo que `FormularioTarjeta.creada` — trae la `reference` de la orden que
   // `crearOrdenPasarela` acaba de crear (§ CHECKOUT-UNA-SOLA-PANTALLA-1), la clasificación de
   // 3DS y el desafío ya decodificado para que `EsperaConfirmacionTarjeta` sepa qué copy/marco
   // mostrar.
   const [creada, setCreada] = useState<{ reference: string; resultado3ds: Resultado3ds; desafioHtml: string | null } | null>(null);
+  // § CHECKOUT-TRANSICION-DEFECTOS-1: mismo mecanismo que `FormularioTarjeta.techo` — el sondeo
+  // se agotó sin resolver; oculta el campo bloqueado mientras `EsperaConfirmacionTarjeta` dibuja
+  // su propia respuesta completa.
+  const [techo, setTecho] = useState(false);
 
   const aceptado = terminosMarcado && datosMarcado;
+  // § CHECKOUT-TRANSICION-DEFECTOS-1: misma señal única que `FormularioTarjeta.procesando` —
+  // gobierna el disabled del campo y del botón, para bloquear EN SU LUGAR en vez de reemplazar
+  // la vista. El camino `redireccion` (abajo) no la usa: es un `return` propio, inalcanzable hoy.
+  const procesando = enVuelo || !!creada;
 
   const handlePagar = async () => {
     // Misma guarda de tipo que `FormularioTarjeta.handlePagar`: el botón ya está `disabled`
-    // sin las dos aceptaciones — esto corta la re-entrada, no explica nada nuevo al comprador.
-    if (enVuelo || !aceptado) return;
+    // sin las dos aceptaciones o mientras procesa — esto corta la re-entrada, no explica nada
+    // nuevo al comprador.
+    if (procesando || !aceptado) return;
 
     // VALIDACIÓN LOCAL PRIMERO, SIN NINGUNA LLAMADA DE RED — mismo criterio que
     // `FormularioTarjeta`: un campo a medio llenar no dispara un intento de pago.
@@ -136,6 +164,7 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
     }
     setErrorDato(null);
     setErrorServidor(null);
+    setNumeroOrdenRechazado(null);
     setEnVuelo(true);
     try {
       // § CHECKOUT-UNA-SOLA-PANTALLA-1: la orden se crea al apretar "Pagar", no antes —
@@ -183,25 +212,25 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
   // `EsperaConfirmacionTarjeta` encontró un estado final que no es `APROBADO`) — vuelve a este
   // mismo formulario, nunca a una pantalla aparte. `dato` no es secreto (§ el docstring de
   // arriba) y queda intacto; sólo se limpia `creada` para volver a mostrar el campo.
+  //
+  // § CHECKOUT-TRANSICION-DEFECTOS-1: captura el número de orden ANTES de limpiar `creada` —
+  // mismo criterio que `FormularioTarjeta.handleFallido`.
   const handleFallido = () => {
+    setNumeroOrdenRechazado(creada ? creada.reference.split(':')[0] : null);
     setCreada(null);
     setErrorServidor(TEXTO.pagoRechazado);
   };
 
-  if (creada) {
+  // § CHECKOUT-TRANSICION-DEFECTOS-1: EL CAMINO `redireccion` NO CAMBIA — sigue siendo un
+  // `return` completo, propio. Es un camino INALCANZABLE hoy (§ el docstring de arriba,
+  // "Ningún tipo real declara `redireccion` todavía") y `EsperaRedireccionPasarela` no tiene
+  // noción de "verificando" que duplicar con el botón (nunca afirma un pago en curso, sólo
+  // espera una URL a la que saltar) — el defecto de "dos vistas para el mismo momento" no
+  // aplica acá. Revisarlo queda anotado, no resuelto acá.
+  if (creada && descriptor.redireccion) {
     return (
       <div className="bg-[var(--sf-superficie)] rounded-xl p-4">
-        {descriptor.redireccion ? (
-          <EsperaRedireccionPasarela reference={creada.reference} tipo={descriptor.tipo} />
-        ) : (
-          <EsperaConfirmacionTarjeta
-            reference={creada.reference}
-            email={email}
-            resultado3ds={creada.resultado3ds}
-            desafioHtml={creada.desafioHtml}
-            onFallido={handleFallido}
-          />
-        )}
+        <EsperaRedireccionPasarela reference={creada.reference} tipo={descriptor.tipo} />
       </div>
     );
   }
@@ -210,43 +239,73 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
     // § CHECKOUT-COPY-Y-ORDEN-PASARELA-1: EL ORDEN ES campos del método → ACEPTACIONES →
     // botón Pagar — mismo cambio que `FormularioTarjeta`, misma razón (las dos casillas van
     // justo encima del botón, donde se leen antes de apretar).
+    //
+    // § CHECKOUT-TRANSICION-DEFECTOS-1: ESTE CONTENEDOR YA NO SE REEMPLAZA POR OTRO cuando
+    // `creada` (y no hay `redireccion`) — mismo cambio que `FormularioTarjeta`: el campo y el
+    // botón se BLOQUEAN EN SU LUGAR, y `EsperaConfirmacionTarjeta` se monta DEBAJO, dentro del
+    // MISMO `<div>`. La ÚNICA excepción es `techo` (§4, "indeterminado"): ahí se oculta el campo
+    // —es un cambio de estado real, y `EsperaConfirmacionTarjeta` ya dibuja la respuesta completa
+    // por su cuenta—.
     <div className="space-y-4 text-left">
-      <div>
-        <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">{campo.rotulo}</label>
-        <input
-          type="text"
-          inputMode="numeric"
-          value={dato}
-          onChange={(e) => setDato(e.target.value)}
-          // `.placeholder` sólo existe en la naturaleza `texto_libre` (unión discriminada,
-          // § `lib/pagos/metodos-pasarela.ts`) — el ÚNICO descriptor real hoy (NEQUI) es de esa
-          // naturaleza, así que este ternario no cambia nada de lo que el comprador ve.
-          placeholder={campo.naturaleza === 'texto_libre' ? campo.placeholder : undefined}
-          className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
-        />
-        {errorDato && <p className="mt-1 text-xs text-red-600">{errorDato}</p>}
-      </div>
+      {!techo && (
+        <>
+          <div>
+            <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">{campo.rotulo}</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={dato}
+              onChange={(e) => setDato(e.target.value)}
+              // `.placeholder` sólo existe en la naturaleza `texto_libre` (unión discriminada,
+              // § `lib/pagos/metodos-pasarela.ts`) — el ÚNICO descriptor real hoy (NEQUI) es de esa
+              // naturaleza, así que este ternario no cambia nada de lo que el comprador ve.
+              placeholder={campo.naturaleza === 'texto_libre' ? campo.placeholder : undefined}
+              disabled={procesando}
+              className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)] disabled:opacity-60"
+            />
+            {errorDato && <p className="mt-1 text-xs text-red-600">{errorDato}</p>}
+          </div>
 
-      <AceptacionesPasarela
-        aceptaciones={aceptaciones}
-        terminosMarcado={terminosMarcado}
-        datosMarcado={datosMarcado}
-        onTerminosChange={setTerminosMarcado}
-        onDatosChange={setDatosMarcado}
-      />
+          <AceptacionesPasarela
+            aceptaciones={aceptaciones}
+            terminosMarcado={terminosMarcado}
+            datosMarcado={datosMarcado}
+            onTerminosChange={setTerminosMarcado}
+            onDatosChange={setDatosMarcado}
+            disabled={procesando}
+          />
 
-      {errorServidor && (
-        <p className="text-xs text-red-600">{errorServidor}</p>
+          {errorServidor && (
+            <div className="text-xs text-red-600">
+              <p>{errorServidor}</p>
+              {numeroOrdenRechazado && (
+                <p className="mt-0.5 text-[var(--sf-texto-suave)]">Número de orden: <span className="font-semibold">{numeroOrdenRechazado}</span></p>
+              )}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handlePagar}
+            disabled={!aceptado || procesando}
+            className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 disabled:pointer-events-none text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors"
+          >
+            {procesando ? TEXTO.botonEnVuelo : `Pagar · ${formatCOP(monto)}`}
+          </button>
+        </>
       )}
 
-      <button
-        type="button"
-        onClick={handlePagar}
-        disabled={!aceptado || enVuelo}
-        className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 disabled:pointer-events-none text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors"
-      >
-        {enVuelo ? TEXTO.botonEnVuelo : `Pagar · ${formatCOP(monto)}`}
-      </button>
+      {creada && !descriptor.redireccion && (
+        <EsperaConfirmacionTarjeta
+          reference={creada.reference}
+          email={email}
+          resultado3ds={creada.resultado3ds}
+          desafioHtml={creada.desafioHtml}
+          onAprobado={onAprobado}
+          onFallido={handleFallido}
+          onTecho={() => setTecho(true)}
+        />
+      )}
     </div>
   );
 }

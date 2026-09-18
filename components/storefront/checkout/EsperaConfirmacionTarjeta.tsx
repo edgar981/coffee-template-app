@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle, Clock } from 'lucide-react';
+import Link from 'next/link';
+import { Clock } from 'lucide-react';
 import { consultarRetornoPago } from '@/services/checkout.service';
 import {
   esperaSondeoSiguienteMs, TECHO_SONDEO_MS, TECHO_SONDEO_DESAFIO_MS, type Resultado3ds,
@@ -38,9 +39,29 @@ import DesafioTarjeta from './DesafioTarjeta';
  * componente llama a `onFallido` y DEJA DE RENDERIZAR NADA MÁS: quien decide qué mostrar en su
  * lugar —el formulario, con los datos ya escritos intactos (salvo el CVV) y un mensaje arriba del
  * botón— es el llamador (`FormularioTarjeta`/`FormularioOtroMetodoPasarela`), no este componente.
- * `aprobado` y `techo` SÍ siguen siendo vistas propias: la primera es un cierre feliz que no
- * necesita volver a nada, y la segunda NO es un fallo —es "sigue sin resolver", honesto sobre no
- * inventar un veredicto— así que no dispara este camino.
+ *
+ * § CHECKOUT-TRANSICION-DEFECTOS-1 (2026-09-18, tres defectos que el owner vio en la PRIMERA
+ * transacción real, § el reporte del slice): ESTE COMPONENTE YA NO TIENE VISTA `aprobado` PROPIA
+ * TAMPOCO, por la misma razón que perdió `fallido`. Antes, el pago aprobado se anunciaba con un
+ * ícono + un título + una frase — sin número de orden, sin resumen, sin acciones — mientras que
+ * el camino MANUAL (que ni siquiera cobró) sí mostraba la confirmación completa. Apenas el sondeo
+ * detecta `APROBADO`, este componente llama a `onAprobado` y DEJA DE RENDERIZAR NADA MÁS: el
+ * llamador (`FormularioTarjeta`/`FormularioOtroMetodoPasarela` → `SelectorMetodoPasarela` →
+ * `checkout/page.tsx`) reemplaza TODA la transición por la MISMA pantalla "¡Pedido recibido!" que
+ * ya usan los métodos manuales — reusada, no rediseñada.
+ *
+ * Y LA VISTA `en_vuelo` SIN DESAFÍO YA NO ES UN PANEL PROPIO: antes, apenas la transacción se
+ * creaba, este componente reemplazaba AL FORMULARIO ENTERO por un ícono + un texto — la MISMA
+ * "verificación" que el botón del formulario ya venía mostrando (`tokenizando`), sólo que en un
+ * segundo layout. Dos layouts para el mismo momento es justo el defecto que el owner reportó
+ * ("aparece dos veces"). Ahora, sin desafío que embeber, este componente sólo aporta una línea de
+ * texto corta (el llamador ya bloqueó sus campos y su botón ya muestra el progreso) — nunca un
+ * panel que reemplace al formulario. `techo` SIGUE siendo una vista propia: no es un fallo — es
+ * "sigue sin resolver", honesto sobre no inventar un veredicto — así que no dispara `onFallido`
+ * ni `onAprobado`. Sí dispara `onTecho`, PERO sólo para que el llamador oculte los campos de la
+ * tarjeta bloqueados — este componente sigue dibujando su propia pantalla completa (número de
+ * orden + las mismas dos acciones que el resto de la transición), porque es un cambio de estado
+ * real (el sondeo se agotó), no un parpadeo de carga.
  */
 export interface EsperaConfirmacionTarjetaProps {
   reference: string;
@@ -53,32 +74,49 @@ export interface EsperaConfirmacionTarjetaProps {
    *  `null` cuando no hay nada que embeber (sin fricción, desconocido, o un desafío sin
    *  contenido decodificable). Este componente nunca decodifica nada. */
   desafioHtml: string | null;
+  /** El cobro fue APROBADO (§ CHECKOUT-TRANSICION-DEFECTOS-1) — el sondeo encontró el estado
+   *  final `APROBADO`. Este componente no dibuja nada para ese caso: llama a `onAprobado` y el
+   *  llamador reemplaza TODA la pantalla de la transición por la confirmación completa del
+   *  pedido. Se llama UNA vez, y no se vuelve a programar sondeo después. */
+  onAprobado: () => void;
   /** El cobro fue RECHAZADO (§ CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1) — el sondeo encontró un
    *  estado final que no es `APROBADO`. Este componente no dibuja nada para ese caso: llama a
    *  `onFallido` y el llamador decide qué mostrar (el formulario de vuelta, con sus datos
    *  intactos salvo el CVV, y un mensaje). Se llama UNA vez por transición a ese estado. */
   onFallido: () => void;
+  /** EL SONDEO SE AGOTÓ SIN RESOLVER (§ CHECKOUT-TRANSICION-DEFECTOS-1, §4: "indeterminado") —
+   *  a diferencia de `onAprobado`/`onFallido`, este componente SÍ sigue dibujando (su propia
+   *  vista `techo`, con número de orden y las dos acciones de siempre). El callback existe sólo
+   *  para que el llamador OCULTE los campos de la tarjeta bloqueados — mostrarlos arriba de la
+   *  pantalla de "sigue procesándose" sería mostrar dos respuestas al mismo momento. Se llama
+   *  UNA vez, cuando `vista` pasa a `techo`. */
+  onTecho: () => void;
 }
 
-type Vista = 'en_vuelo' | 'aprobado' | 'techo';
+type Vista = 'en_vuelo' | 'techo';
 
 // TEXTO PROVISIONAL — PENDIENTE DE COPY DEL OWNER (§ el reporte del slice, igual que el resto
-// del copy de este programa). Elegido claro y honesto para no bloquear el slice.
+// del copy de este programa), salvo `enVueloSinFriccion`: ESE es el texto que el owner dio
+// TEXTUAL (§ CHECKOUT-TRANSICION-DEFECTOS-1) para tarjeta y billetera — sin promesa de tiempo y
+// sin nombrar al banco, porque acá NO hay banco de por medio y la transacción real medida
+// (`PRIMERA-TRANSACCION-REAL-ASIENTO-1`, DECISIONS.md) resolvió en 5.6–10.3 segundos, no
+// "minutos". El texto viejo era el del desafío (`enVueloDesafio`, abajo, que SÍ tiene banco y SÍ
+// puede tardar) copiado a la rama que no lo necesitaba.
 const TEXTO = {
-  enVueloSinFriccion: 'Estamos confirmando tu pago con tu banco. Esto puede tardar unos minutos — no cierres esta página.',
+  enVueloSinFriccion: 'Estamos confirmando tu pago.',
   // SIN `desafioHtml` (§ API-DIRECTA-3DS-CON-CHALLENGE-1 — desafío detectado pero sin contenido
   // decodificable, el mismo texto honesto que ya existía antes de este slice): sigue esperando
   // por el MISMO sondeo, sin inventar una pantalla que no tiene con qué dibujarse. CON
   // `desafioHtml`, la vista `en_vuelo` embebe `DesafioTarjeta` en su lugar (ver el render, abajo)
   // y este texto NO se muestra — el marco aislado ya declara por su cuenta que es ajeno.
+  // NO SE TOCA (§ CHECKOUT-TRANSICION-DEFECTOS-1): acá SÍ hay un banco de por medio —una persona
+  // completando un paso en la pantalla de su emisor— y SÍ puede tardar.
   enVueloDesafio: 'Tu banco pide un paso adicional para confirmar esta compra, que todavía no podemos completar desde aquí. Sigue esperando — si tu banco lo resuelve por su cuenta, confirmaremos el pago automáticamente.',
-  aprobadoTitulo: '¡Tu pago fue aprobado!',
-  aprobadoCuerpo: 'Tu pedido queda confirmado y pasa a preparación.',
   techoTitulo: 'Tu pago sigue procesándose',
   techoCuerpo: 'Te avisaremos apenas se confirme. Puedes revisar el estado de tu pedido más tarde con tu número de orden y tu correo.',
 };
 
-export default function EsperaConfirmacionTarjeta({ reference, email, resultado3ds, desafioHtml, onFallido }: EsperaConfirmacionTarjetaProps) {
+export default function EsperaConfirmacionTarjeta({ reference, email, resultado3ds, desafioHtml, onAprobado, onFallido, onTecho }: EsperaConfirmacionTarjetaProps) {
   const [vista, setVista] = useState<Vista>('en_vuelo');
 
   // El reloj del backoff vive en refs — no debe disparar un re-render por sí mismo, sólo el
@@ -100,7 +138,9 @@ export default function EsperaConfirmacionTarjeta({ reference, email, resultado3
   const programarSiguiente = useCallback(() => {
     if (inicioRef.current === null) inicioRef.current = Date.now();
     if (Date.now() - inicioRef.current >= techoMs) {
+      // No vuelve a programarse tras esto — es la ÚNICA vez que esta rama se alcanza.
       setVista((v) => (v === 'en_vuelo' ? 'techo' : v));
+      onTecho();
       return;
     }
 
@@ -119,17 +159,18 @@ export default function EsperaConfirmacionTarjeta({ reference, email, resultado3
         programarSiguiente();
         return;
       }
-      // § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: un estado final que NO es `APROBADO` es un
-      // rechazo — no hay una tercera vista propia para eso acá; se delega al llamador (ver el
-      // docstring del componente) en vez de dibujar una pantalla terminal sin vuelta.
+      // § CHECKOUT-TRANSICION-DEFECTOS-1 / CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: los dos
+      // estados finales se DELEGAN al llamador — ninguno dibuja una vista propia acá (ver el
+      // docstring del componente). Ninguna rama vuelve a llamar a `programarSiguiente`: cada
+      // callback se invoca UNA sola vez por transición a su estado.
       if (resultado.estado === 'APROBADO') {
-        setVista('aprobado');
+        onAprobado();
       } else {
         onFallido();
       }
     }, espera);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reference, email, techoMs, onFallido]);
+  }, [reference, email, techoMs, onAprobado, onFallido, onTecho]);
 
   useEffect(() => {
     programarSiguiente();
@@ -143,18 +184,11 @@ export default function EsperaConfirmacionTarjeta({ reference, email, resultado3
   // primera mitad, y es lo único que hace falta mostrar/enlazar acá.
   const numeroOrden = reference.split(':')[0];
 
-  if (vista === 'aprobado') {
-    return (
-      <div className="text-center">
-        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <CheckCircle className="w-8 h-8 text-emerald-600" />
-        </div>
-        <h3 className="text-xl font-playfair text-[var(--sf-tinta)] mb-1">{TEXTO.aprobadoTitulo}</h3>
-        <p className="text-sm text-[var(--sf-texto-suave)]">{TEXTO.aprobadoCuerpo}</p>
-      </div>
-    );
-  }
-
+  // § CHECKOUT-TRANSICION-DEFECTOS-1: `techo` SIGUE siendo una vista propia que reemplaza al
+  // formulario — no es un fallo (no dispara `onFallido`) ni un parpadeo de carga: el sondeo se
+  // agotó de verdad, y eso es un cambio de estado real. Ganó las MISMAS DOS acciones que ya
+  // ofrece la confirmación de los métodos manuales (`checkout/page.tsx`) — antes sólo decía "te
+  // avisaremos" sin decirle al comprador qué hacer mientras tanto; el número de orden ya estaba.
   if (vista === 'techo') {
     return (
       <div className="text-center">
@@ -166,7 +200,24 @@ export default function EsperaConfirmacionTarjeta({ reference, email, resultado3
           {TEXTO.techoCuerpo}
           {resultado3ds === 'desafio' ? ` (${TEXTO.enVueloDesafio})` : ''}
         </p>
-        <p className="text-xs text-[var(--sf-texto-suave)]">Número de orden: <span className="font-semibold">{numeroOrden}</span></p>
+        <div className="bg-[var(--sf-superficie)] rounded-2xl p-4 mb-4 text-left">
+          <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
+          <p className="text-xl font-bold text-[var(--sf-acento-texto)] text-center">{numeroOrden}</p>
+        </div>
+        <div className="flex flex-col gap-3">
+          <Link
+            href={`/rastrear-pedido?orden=${encodeURIComponent(numeroOrden)}`}
+            className="block w-full bg-[var(--sf-tinta)] text-[var(--sf-sobre)] font-semibold py-3 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)] transition-colors"
+          >
+            Rastrear mi pedido
+          </Link>
+          <Link
+            href="/tienda"
+            className="block w-full sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3 rounded-xl text-sm hover:bg-[var(--sf-superficie)] transition-colors"
+          >
+            Seguir comprando
+          </Link>
+        </div>
       </div>
     );
   }
@@ -186,14 +237,14 @@ export default function EsperaConfirmacionTarjeta({ reference, email, resultado3
     );
   }
 
+  // § CHECKOUT-TRANSICION-DEFECTOS-1: SIN desafío que embeber, este componente ya NO dibuja un
+  // panel propio (ícono + caja centrada) — ESO era el segundo layout del mismo momento que el
+  // owner reportó. El llamador (`FormularioTarjeta`/`FormularioOtroMetodoPasarela`) ya bloqueó
+  // sus campos y su botón ya muestra el progreso; acá sólo va una línea de texto corta, dentro
+  // del MISMO contenedor que el formulario — nunca un remonte.
   return (
-    <div className="text-center">
-      <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <Clock className="w-8 h-8 text-amber-600 animate-pulse" />
-      </div>
-      <p className="text-sm text-[var(--sf-texto)]">
-        {resultado3ds === 'desafio' ? TEXTO.enVueloDesafio : TEXTO.enVueloSinFriccion}
-      </p>
-    </div>
+    <p className="text-xs text-[var(--sf-texto-suave)] text-center">
+      {resultado3ds === 'desafio' ? TEXTO.enVueloDesafio : TEXTO.enVueloSinFriccion}
+    </p>
   );
 }

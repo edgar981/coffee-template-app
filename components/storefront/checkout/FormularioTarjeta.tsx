@@ -106,6 +106,29 @@ import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
  * número, vencimiento, nombre del titular— queda TAL COMO el comprador los dejó, con el
  * mensaje de rechazo arriba del botón. Antes de este slice no había vuelta: la espera
  * mostraba una pantalla terminal sin ningún camino de regreso al formulario.
+ *
+ * § CHECKOUT-TRANSICION-DEFECTOS-1 (2026-09-18, tres defectos que el owner vio en la PRIMERA
+ * transacción real —`PRIMERA-TRANSACCION-REAL-ASIENTO-1`, DECISIONS.md—, § el reporte del
+ * slice):
+ *
+ * (1) ESTE FORMULARIO YA NO SE REEMPLAZA A SÍ MISMO POR LA ESPERA. Antes, `if (creada) return
+ * <EsperaConfirmacionTarjeta/>` cambiaba TODO el layout apenas la transacción nacía — el botón
+ * ya decía "Verificando tarjeta…" un instante antes, así que el mismo momento se anunciaba DOS
+ * VECES, en dos vistas distintas. Ahora los campos y el botón de este formulario se BLOQUEAN EN
+ * SU LUGAR (`procesando`, abajo) durante TODO el camino — tokenizar, crear la orden, confirmar
+ * la transacción, Y sondear hasta que resuelva —, y `EsperaConfirmacionTarjeta` sólo aporta,
+ * DEBAJO del botón bloqueado, lo que el botón no puede decir por sí solo (el texto de espera, o
+ * el marco del desafío 3DS). Es UNA sola vista, nunca un remonte, desde que el comprador aprieta
+ * "Pagar" hasta que el pago se resuelve.
+ *
+ * (3) EL ÉXITO YA NO ES UN CALLEJÓN SIN SALIDA. Antes, un pago APROBADO terminaba en un ícono +
+ * un título + una frase, sin número de orden, sin resumen, sin acciones — el camino que SÍ
+ * cobra (pasarela) quedaba más pobre que el que NO cobró (los métodos manuales, que sí muestran
+ * la confirmación completa). Ahora `onAprobado` (prop, bubbleada por `EsperaConfirmacionTarjeta`)
+ * sube ese hecho hasta `checkout/page.tsx`, que reemplaza TODA la transición por la MISMA
+ * pantalla "¡Pedido recibido!" que ya usan los métodos manuales — reusada, no rediseñada. Este
+ * formulario no dibuja nada para ese caso: el `return` de más abajo deja de montarse en cuanto
+ * el padre conmuta a esa pantalla.
  */
 export interface FormularioTarjetaProps {
   aceptaciones: AceptacionesWompi;
@@ -125,6 +148,10 @@ export interface FormularioTarjetaProps {
   /** El proveedor rechazó la creación porque la cuenta ya no tiene este método habilitado
    *  (§ arriba). La página decide cómo continuar — este componente no lo intenta de nuevo. */
   onMetodoNoHabilitado: () => void;
+  /** El pago fue APROBADO (§ CHECKOUT-TRANSICION-DEFECTOS-1) — bubbleado de
+   *  `EsperaConfirmacionTarjeta.onAprobado`. Este formulario no dibuja nada para ese caso: la
+   *  página reemplaza TODA la transición por la confirmación completa del pedido. */
+  onAprobado: () => void;
 }
 
 interface CamposTarjeta {
@@ -148,6 +175,10 @@ const TEXTO = {
   cvv:            'El código de seguridad no es válido.',
   nombreTitular: 'Escribe el nombre tal como aparece en la tarjeta.',
   tokenizacionGenerico: 'No pudimos verificar tu tarjeta. Revisa los datos e intenta de nuevo.',
+  // § CHECKOUT-TRANSICION-DEFECTOS-1: ESTE es el ÚNICO texto de progreso del botón, del click a
+  // "Pagar" hasta que el pago resuelve (tokenizar, crear la orden, confirmar la transacción, Y
+  // sondear) — nunca cambia de frase a mitad de camino, que era justo el defecto ("aparece dos
+  // veces").
   botonEnVuelo: 'Verificando tarjeta…',
   // § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: el cobro se creó pero el emisor lo RECHAZÓ (detectado
   // por el sondeo de `EsperaConfirmacionTarjeta`, vía `onFallido`) — no hay excepción del owner
@@ -240,13 +271,18 @@ async function confirmarConAutenticacion3ds(input: {
   throw new CreacionTransaccionError(tipo, mensaje);
 }
 
-export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenPasarela, monto, email, onMetodoNoHabilitado }: FormularioTarjetaProps) {
+export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenPasarela, monto, email, onMetodoNoHabilitado, onAprobado }: FormularioTarjetaProps) {
   const [terminosMarcado, setTerminosMarcado] = useState(false);
   const [datosMarcado, setDatosMarcado] = useState(false);
   const [campos, setCampos] = useState<CamposTarjeta>(CAMPOS_VACIOS);
   const [errores, setErrores] = useState<ErroresTarjeta>({});
   const [tokenizando, setTokenizando] = useState(false);
   const [errorTokenizacion, setErrorTokenizacion] = useState<string | null>(null);
+  // § CHECKOUT-TRANSICION-DEFECTOS-1: el número de la orden que el cobro RECHAZADO dejó atrás —
+  // `handleFallido` lo captura de `creada.reference` ANTES de limpiarla, para que el comprador
+  // sepa CON QUÉ ORDEN está reintentando (antes no se mostraba ninguna). Se limpia al volver a
+  // intentar (primera línea de `handlePagar`), igual que `errorTokenizacion`.
+  const [numeroOrdenRechazado, setNumeroOrdenRechazado] = useState<string | null>(null);
   // Presencia = éxito COMPLETO: el token se obtuvo Y la transacción quedó creada en Wompi
   // (§ API-DIRECTA-DESALINEO-CABLEADO-1) — nunca se pone en `true` sólo por tokenizar. Trae la
   // `reference` de la orden que `crearOrdenPasarela` acaba de crear (§ CHECKOUT-UNA-SOLA-
@@ -255,8 +291,17 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
   // 3DS-CON-CHALLENGE-1) para que la espera (`EsperaConfirmacionTarjeta`) sepa qué copy/marco
   // mostrar.
   const [creada, setCreada] = useState<{ reference: string; resultado3ds: Resultado3ds; desafioHtml: string | null } | null>(null);
+  // § CHECKOUT-TRANSICION-DEFECTOS-1: el sondeo se AGOTÓ sin resolver (§4, "indeterminado") —
+  // `EsperaConfirmacionTarjeta` sigue dibujando su propia pantalla (número de orden + acciones);
+  // este flag sólo oculta los campos de la tarjeta bloqueados, para no mostrar dos respuestas al
+  // mismo momento (la tarjeta "verificando" y "sigue procesándose" a la vez).
+  const [techo, setTecho] = useState(false);
 
   const aceptado = terminosMarcado && datosMarcado;
+  // § CHECKOUT-TRANSICION-DEFECTOS-1: UNA sola señal de "procesando", del click a "Pagar" hasta
+  // que el pago resuelve — gobierna el disabled de TODOS los campos y del botón, para que el
+  // formulario se BLOQUEE EN SU LUGAR en vez de reemplazarse por otra vista (§ el docstring).
+  const procesando = tokenizando || !!creada;
 
   // Sólo una PISTA visual (§ el docstring de arriba): con pocos dígitos o con un prefijo que
   // ninguna red conocida completa, no se muestra nada — nunca se adivina y nunca se bloquea.
@@ -309,9 +354,10 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
   };
 
   const handlePagar = async () => {
-    // El botón ya está `disabled` sin las dos aceptaciones — esta es la guarda de tipo, no
-    // una segunda explicación para el comprador (mismo patrón que `handleOrder` en la página).
-    if (tokenizando || !aceptado) return;
+    // El botón ya está `disabled` sin las dos aceptaciones o mientras procesa — esta es la
+    // guarda de tipo, no una segunda explicación para el comprador (mismo patrón que
+    // `handleOrder` en la página).
+    if (procesando || !aceptado) return;
 
     // VALIDACIÓN LOCAL PRIMERO, SIN NINGUNA LLAMADA DE RED: un formulario a medio llenar no es
     // un intento de pago fallido (decisión del orquestador, § API-DIRECTA-CAPTURA-TARJETA-1) —
@@ -331,6 +377,7 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
     }
     setErrores({});
     setErrorTokenizacion(null);
+    setNumeroOrdenRechazado(null);
     setTokenizando(true);
     try {
       const token = await tokenizarTarjeta(
@@ -394,97 +441,125 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
 
   // § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: EL COBRO FUE RECHAZADO (el sondeo de
   // `EsperaConfirmacionTarjeta` encontró un estado final que no es `APROBADO`) — vuelve a este
-  // mismo formulario, nunca a una pantalla aparte. `creada` se limpia para que el `if` de abajo
-  // vuelva a renderizar los campos; el CVV se borra (§ el docstring de arriba, el único campo
-  // SECRETO de la tarjeta) y el resto de `campos` — número, vencimiento, nombre del titular —
-  // queda intacto. `errores` se limpia para que no quede un borde rojo colgado de un intento
-  // anterior sobre un campo que ya se vació (el CVV).
+  // mismo formulario, nunca a una pantalla aparte. `creada` se limpia para que `procesando`
+  // vuelva a `false` y los campos se desbloqueen; el CVV se borra (§ el docstring de arriba, el
+  // único campo SECRETO de la tarjeta) y el resto de `campos` — número, vencimiento, nombre del
+  // titular — queda intacto. `errores` se limpia para que no quede un borde rojo colgado de un
+  // intento anterior sobre un campo que ya se vació (el CVV).
+  //
+  // § CHECKOUT-TRANSICION-DEFECTOS-1: captura el número de orden ANTES de limpiar `creada` —
+  // la orden ya existe (la creó `crearOrdenPasarela`, idempotente) y el comprador tiene derecho
+  // a saber CON QUÉ ORDEN está reintentando; antes no se mostraba ninguna en el rechazo.
   const handleFallido = () => {
+    setNumeroOrdenRechazado(creada ? creada.reference.split(':')[0] : null);
     setCreada(null);
     setCampos((c) => ({ ...c, cvv: '' }));
     setErrores({});
     setErrorTokenizacion(TEXTO.pagoRechazado);
   };
 
-  if (creada) {
-    return (
-      <div className="bg-[var(--sf-superficie)] rounded-xl p-4">
-        <EsperaConfirmacionTarjeta
-          reference={creada.reference}
-          email={email}
-          resultado3ds={creada.resultado3ds}
-          desafioHtml={creada.desafioHtml}
-          onFallido={handleFallido}
-        />
-      </div>
-    );
-  }
-
   return (
     // § CHECKOUT-COPY-Y-ORDEN-PASARELA-1: EL ORDEN ES campos del método → ACEPTACIONES →
     // botón Pagar — las dos casillas van JUSTO ENCIMA del botón, que es donde el owner dice que
     // se leen antes de apretar. Antes las aceptaciones abrían el formulario (entre las pestañas
     // del selector y estos campos); ahora cierran, pegadas al submit.
+    //
+    // § CHECKOUT-TRANSICION-DEFECTOS-1: ESTE CONTENEDOR YA NO SE REEMPLAZA POR OTRO — antes,
+    // `creada` truthy hacía un `return` completo a `EsperaConfirmacionTarjeta`, dos layouts para
+    // el mismo momento de "verificando". Ahora los campos y el botón se BLOQUEAN EN SU LUGAR
+    // (`procesando`) y `EsperaConfirmacionTarjeta` se monta DEBAJO del botón, dentro del MISMO
+    // `<div>` — una sola vista, del click a "Pagar" hasta que el pago resuelve. La ÚNICA
+    // excepción es `techo` (§4, "indeterminado"): ahí SÍ se ocultan los campos —es un cambio de
+    // estado real, y `EsperaConfirmacionTarjeta` ya dibuja la respuesta completa por su cuenta—.
     <div className="space-y-4 text-left">
-      <div className="space-y-3">
-        <CampoTarjeta
-          label="Número de la tarjeta"
-          value={campos.numero}
-          onChangeEvento={handleNumeroChange}
-          inputRef={numeroRef}
-          error={errores.numero}
-          inputMode="numeric"
-          placeholder="0000 0000 0000 0000"
-          marcaDetectada={marcaDetectada}
-          logoRedDetectada={logoRedDetectada}
-        />
-        <div className="grid grid-cols-2 gap-3">
-          <CampoTarjeta
-            label="Fecha de vencimiento"
-            value={campos.vencimiento}
-            onChangeEvento={handleVencimientoChange}
-            inputRef={vencimientoRef}
-            error={errores.vencimiento}
-            placeholder="MM/AA"
-          />
-          <CampoTarjeta
-            label="Código de seguridad"
-            value={campos.cvv}
-            onChange={(v) => setCampos((c) => ({ ...c, cvv: v }))}
-            error={errores.cvv}
-            inputMode="numeric"
-            placeholder="123"
-          />
-        </div>
-        <CampoTarjeta
-          label="Nombre del titular"
-          value={campos.nombreTitular}
-          onChange={(v) => setCampos((c) => ({ ...c, nombreTitular: v }))}
-          error={errores.nombreTitular}
-          placeholder="Como aparece en la tarjeta"
-        />
-      </div>
+      {!techo && (
+        <>
+          <div className="space-y-3">
+            <CampoTarjeta
+              label="Número de la tarjeta"
+              value={campos.numero}
+              onChangeEvento={handleNumeroChange}
+              inputRef={numeroRef}
+              error={errores.numero}
+              inputMode="numeric"
+              placeholder="0000 0000 0000 0000"
+              marcaDetectada={marcaDetectada}
+              logoRedDetectada={logoRedDetectada}
+              disabled={procesando}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <CampoTarjeta
+                label="Fecha de vencimiento"
+                value={campos.vencimiento}
+                onChangeEvento={handleVencimientoChange}
+                inputRef={vencimientoRef}
+                error={errores.vencimiento}
+                placeholder="MM/AA"
+                disabled={procesando}
+              />
+              <CampoTarjeta
+                label="Código de seguridad"
+                value={campos.cvv}
+                onChange={(v) => setCampos((c) => ({ ...c, cvv: v }))}
+                error={errores.cvv}
+                inputMode="numeric"
+                placeholder="123"
+                disabled={procesando}
+              />
+            </div>
+            <CampoTarjeta
+              label="Nombre del titular"
+              value={campos.nombreTitular}
+              onChange={(v) => setCampos((c) => ({ ...c, nombreTitular: v }))}
+              error={errores.nombreTitular}
+              placeholder="Como aparece en la tarjeta"
+              disabled={procesando}
+            />
+          </div>
 
-      <AceptacionesPasarela
-        aceptaciones={aceptaciones}
-        terminosMarcado={terminosMarcado}
-        datosMarcado={datosMarcado}
-        onTerminosChange={setTerminosMarcado}
-        onDatosChange={setDatosMarcado}
-      />
+          <AceptacionesPasarela
+            aceptaciones={aceptaciones}
+            terminosMarcado={terminosMarcado}
+            datosMarcado={datosMarcado}
+            onTerminosChange={setTerminosMarcado}
+            onDatosChange={setDatosMarcado}
+            disabled={procesando}
+          />
 
-      {errorTokenizacion && (
-        <p className="text-xs text-red-600">{errorTokenizacion}</p>
+          {errorTokenizacion && (
+            <div className="text-xs text-red-600">
+              <p>{errorTokenizacion}</p>
+              {/* § CHECKOUT-TRANSICION-DEFECTOS-1: sólo aparece tras un RECHAZO (§ arriba) — un
+                  error de tokenización/validación previo a crear la orden no tiene número que
+                  mostrar. */}
+              {numeroOrdenRechazado && (
+                <p className="mt-0.5 text-[var(--sf-texto-suave)]">Número de orden: <span className="font-semibold">{numeroOrdenRechazado}</span></p>
+              )}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handlePagar}
+            disabled={!aceptado || procesando}
+            className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 disabled:pointer-events-none text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors"
+          >
+            {procesando ? TEXTO.botonEnVuelo : `Pagar · ${formatCOP(monto)}`}
+          </button>
+        </>
       )}
 
-      <button
-        type="button"
-        onClick={handlePagar}
-        disabled={!aceptado || tokenizando}
-        className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 disabled:pointer-events-none text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors"
-      >
-        {tokenizando ? TEXTO.botonEnVuelo : `Pagar · ${formatCOP(monto)}`}
-      </button>
+      {creada && (
+        <EsperaConfirmacionTarjeta
+          reference={creada.reference}
+          email={email}
+          resultado3ds={creada.resultado3ds}
+          desafioHtml={creada.desafioHtml}
+          onAprobado={onAprobado}
+          onFallido={handleFallido}
+          onTecho={() => setTecho(true)}
+        />
+      )}
     </div>
   );
 }
@@ -512,6 +587,9 @@ interface CampoTarjetaProps {
    *  `undefined` si esa red todavía no tiene archivo. Con logo, REEMPLAZA al nombre+ícono neutro
    *  en el mismo slot — nunca se muestran los dos juntos. */
   logoRedDetectada?: string;
+  /** § CHECKOUT-TRANSICION-DEFECTOS-1: el campo se BLOQUEA EN SU LUGAR mientras el pago procesa
+   *  (`procesando` en el componente padre) — nunca desaparece ni se reemplaza por otra vista. */
+  disabled?: boolean;
 }
 
 /**
@@ -539,7 +617,7 @@ function IconoTarjetaGenerica() {
   );
 }
 
-function CampoTarjeta({ label, value, onChange, onChangeEvento, inputRef, error, placeholder, inputMode, marcaDetectada, logoRedDetectada }: CampoTarjetaProps) {
+function CampoTarjeta({ label, value, onChange, onChangeEvento, inputRef, error, placeholder, inputMode, marcaDetectada, logoRedDetectada, disabled }: CampoTarjetaProps) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
@@ -567,7 +645,8 @@ function CampoTarjeta({ label, value, onChange, onChangeEvento, inputRef, error,
         value={value}
         onChange={onChangeEvento ?? ((e) => onChange?.(e.target.value))}
         placeholder={placeholder}
-        className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
+        disabled={disabled}
+        className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)] disabled:opacity-60"
       />
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>

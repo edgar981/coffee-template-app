@@ -77,6 +77,10 @@ export interface SelectorMetodoPasarelaProps {
    *  tiene ese método habilitado (§ API-DIRECTA-DESALINEO-CABLEADO-1). Sólo aplica al camino
    *  de tarjeta — `FormularioOtroMetodoPasarela` no lo dispara, § el reporte del slice. */
   onMetodoNoHabilitado: () => void;
+  /** El pago fue APROBADO (§ CHECKOUT-TRANSICION-DEFECTOS-1) — bubbleado desde CUALQUIERA de
+   *  los dos formularios que este selector monta, hasta `checkout/page.tsx`, que reemplaza TODA
+   *  la transición por la confirmación completa del pedido. */
+  onAprobado: () => void;
 }
 
 /**
@@ -110,7 +114,7 @@ export interface SelectorMetodoPasarelaProps {
  * con otro tipo, o en una pestaña nueva si es el primero de su grupo.
  */
 export default function SelectorMetodoPasarela({
-  aceptaciones, publicKey, crearOrdenPasarela, monto, email, metodosOtros, onMetodoNoHabilitado,
+  aceptaciones, publicKey, crearOrdenPasarela, monto, email, metodosOtros, onMetodoNoHabilitado, onAprobado,
 }: SelectorMetodoPasarelaProps) {
   const [tipoElegido, setTipoElegido] = useState<string>('tarjeta');
 
@@ -128,6 +132,7 @@ export default function SelectorMetodoPasarela({
         monto={monto}
         email={email}
         onMetodoNoHabilitado={onMetodoNoHabilitado}
+        onAprobado={onAprobado}
       />
     );
   }
@@ -194,6 +199,7 @@ export default function SelectorMetodoPasarela({
           monto={monto}
           email={email}
           onMetodoNoHabilitado={onMetodoNoHabilitado}
+          onAprobado={onAprobado}
         />
       ) : descriptorElegido ? (
         // `key` fuerza un remonte al cambiar de tipo: cada tipo tiene su propio estado de
@@ -206,6 +212,7 @@ export default function SelectorMetodoPasarela({
           crearOrdenPasarela={crearOrdenPasarela}
           monto={monto}
           email={email}
+          onAprobado={onAprobado}
         />
       ) : null}
     </div>

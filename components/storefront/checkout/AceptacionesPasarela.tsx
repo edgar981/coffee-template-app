@@ -19,10 +19,15 @@ export interface AceptacionesPasarelaProps {
   datosMarcado: boolean;
   onTerminosChange: (marcado: boolean) => void;
   onDatosChange: (marcado: boolean) => void;
+  /** § CHECKOUT-TRANSICION-DEFECTOS-1: se bloquean mientras el pago procesa, junto con el resto
+   *  del formulario que las envuelve (`FormularioTarjeta`/`FormularioOtroMetodoPasarela`) — el
+   *  comprador ya las marcó y las mandó; destildarlas a mitad de un cobro en curso no revierte
+   *  nada. Los enlaces SIGUEN siendo clickeables (releer el documento nunca está de más). */
+  disabled?: boolean;
 }
 
 export default function AceptacionesPasarela({
-  aceptaciones, terminosMarcado, datosMarcado, onTerminosChange, onDatosChange,
+  aceptaciones, terminosMarcado, datosMarcado, onTerminosChange, onDatosChange, disabled,
 }: AceptacionesPasarelaProps) {
   return (
     <div className="space-y-2">
@@ -31,7 +36,8 @@ export default function AceptacionesPasarela({
           type="checkbox"
           checked={terminosMarcado}
           onChange={(e) => onTerminosChange(e.target.checked)}
-          className="mt-0.5 accent-[var(--sf-acento)]"
+          disabled={disabled}
+          className="mt-0.5 accent-[var(--sf-acento)] disabled:opacity-60"
         />
         <span>
           Acepto los{' '}
@@ -51,7 +57,8 @@ export default function AceptacionesPasarela({
           type="checkbox"
           checked={datosMarcado}
           onChange={(e) => onDatosChange(e.target.checked)}
-          className="mt-0.5 accent-[var(--sf-acento)]"
+          disabled={disabled}
+          className="mt-0.5 accent-[var(--sf-acento)] disabled:opacity-60"
         />
         <span>
           Autorizo el{' '}

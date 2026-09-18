@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import Link from "next/link";
 import { imagenPortada } from "@/lib/producto-imagen";
-import { ArrowLeft, Shield, Lock, CreditCard, Clock } from 'lucide-react';
+import { ArrowLeft, Shield, Lock, CreditCard, Clock, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore } from '@/lib/cartStore';
 import {
@@ -75,6 +75,11 @@ export default function Checkout() {
   // que no los toca). Una vez en `true` no vuelve a `false`: no hay "reintentar" para esta
   // orden (§ el reporte del slice, "no reintentar contra el mismo").
   const [pasarelaMetodoNoHabilitado, setPasarelaMetodoNoHabilitado] = useState(false);
+  // § CHECKOUT-TRANSICION-DEFECTOS-1: el pago por pasarela fue APROBADO — bubbleado desde el
+  // sondeo (`EsperaConfirmacionTarjeta.onAprobado`, vía `SelectorMetodoPasarela`). Local, nunca
+  // se persiste: es el hecho de ESTA sesión de checkout, igual que `pasarelaMetodoNoHabilitado`.
+  // Sólo puede pasar a `true` — no hay "reintentar" que la vuelva a `false` para la misma orden.
+  const [pasarelaAprobada, setPasarelaAprobada] = useState(false);
 
   // § CHECKOUT-UNA-SOLA-PANTALLA-1: el bloque de aceptación de pasarela —las DOS aceptaciones,
   // la llave pública, los métodos QUE NO SON TARJETA— SIN CREAR NINGUNA ORDEN. Se pide una vez,
@@ -293,25 +298,49 @@ export default function Checkout() {
   // del pedido intactos alrededor. Ese branch de render vive junto al resto del paso de pago; lo
   // único que queda acá es EXCLUIRLO de la confirmación manual de abajo, que sigue siendo un
   // `return` completo — es la pantalla TERMINAL para el resto de los métodos (nequi, efectivo,
-  // transferencia…) y para el desvío `metodo_no_habilitado` (§ el reporte del slice: ese desvío
-  // NO cambia, sigue cayendo acá tal cual).
-  if (confirmation && !(confirmation.wompi && !pasarelaMetodoNoHabilitado)) {
+  // transferencia…), para el desvío `metodo_no_habilitado` (§ el reporte del slice: ese desvío
+  // NO cambia, sigue cayendo acá tal cual) y, desde § CHECKOUT-TRANSICION-DEFECTOS-1, para el
+  // pago de pasarela YA APROBADO (`pasarelaAprobada`).
+  //
+  // § CHECKOUT-TRANSICION-DEFECTOS-1: `pasarelaAprobada` reusa esta MISMA pantalla — el owner:
+  // "buscá esa pantalla y reusala. No inventes una nueva". Antes, la única vista que un
+  // comprador de pasarela veía al aprobarse era el ícono+título+frase de
+  // `EsperaConfirmacionTarjeta`, sin número de orden, sin resumen y sin acciones — el camino que
+  // SÍ cobra terminaba MÁS POBRE que el que no cobró. El resumen de ítems/costos y las DOS
+  // acciones de abajo son EXACTAMENTE las mismas que ya usan los métodos manuales, sin tocar una
+  // sola línea de esa parte — sólo el ícono, el título, el primer párrafo y el estado cambian
+  // quién de los dos casos anuncian.
+  if (confirmation && (!confirmation.wompi || pasarelaMetodoNoHabilitado || pasarelaAprobada)) {
+    // `confirmation.estado` es el de la CREACIÓN de la orden ('pendiente' — el pago de pasarela
+    // se confirma después, por webhook). Con `pasarelaAprobada` el comprador no debe leer
+    // "pendiente": el sondeo acaba de confirmar el pago, así que el badge muestra ESE hecho.
+    const estadoMostrado = pasarelaAprobada ? 'pagado' : confirmation.estado;
     return (
         <div className="min-h-[80vh] flex items-center justify-center pt-16 px-4">
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full text-center">
-            <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Clock className="w-10 h-10 text-amber-600" />
+            <div className={`w-20 h-20 ${pasarelaAprobada ? 'bg-emerald-100' : 'bg-amber-100'} rounded-full flex items-center justify-center mx-auto mb-6`}>
+              {pasarelaAprobada
+                ? <CheckCircle className="w-10 h-10 text-emerald-600" />
+                : <Clock className="w-10 h-10 text-amber-600" />}
             </div>
-            <h1 className="text-3xl font-playfair text-[var(--sf-tinta)] mb-2">¡Pedido recibido!</h1>
-            <p className="text-[var(--sf-texto)] mb-2">Gracias, {info.nombre}. Recibimos tu pedido.</p>
-            <p className="text-sm text-[var(--sf-texto-suave)] mb-4">
-              {tieneWhatsapp
-                ? 'Tu pedido está reservado. Confirmaremos el pago por WhatsApp y luego preparamos tu envío.'
-                : 'Tu pedido está reservado. Confirmaremos el pago y luego preparamos tu envío.'}
+            <h1 className="text-3xl font-playfair text-[var(--sf-tinta)] mb-2">
+              {pasarelaAprobada ? '¡Tu pago fue aprobado!' : '¡Pedido recibido!'}
+            </h1>
+            <p className="text-[var(--sf-texto)] mb-2">
+              {pasarelaAprobada
+                ? `Gracias, ${info.nombre}. Tu pedido queda confirmado y pasa a preparación.`
+                : `Gracias, ${info.nombre}. Recibimos tu pedido.`}
             </p>
+            {!pasarelaAprobada && (
+              <p className="text-sm text-[var(--sf-texto-suave)] mb-4">
+                {tieneWhatsapp
+                  ? 'Tu pedido está reservado. Confirmaremos el pago por WhatsApp y luego preparamos tu envío.'
+                  : 'Tu pedido está reservado. Confirmaremos el pago y luego preparamos tu envío.'}
+              </p>
+            )}
             <div className="flex items-center justify-center gap-2 mb-6">
               <span className="text-xs text-[var(--sf-texto-suave)]">Estado:</span>
-              <StatusBadge status={confirmation.estado} theme="light" />
+              <StatusBadge status={estadoMostrado} theme="light" />
             </div>
             <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
               <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
@@ -614,6 +643,7 @@ export default function Checkout() {
                         email={info.email}
                         metodosOtros={bloquePasarela.metodosOtros}
                         onMetodoNoHabilitado={handleMetodoNoHabilitado}
+                        onAprobado={() => setPasarelaAprobada(true)}
                       />
                     )}
 
