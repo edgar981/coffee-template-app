@@ -7998,3 +7998,184 @@ copiado, no una categoría de warning nueva en el archivo.
   nunca") o si el owner prefiere alguna otra señal — hoy la decisión de arriba (§1) ya fija "sin
   backfill" como la respuesta, así que este follow-up es sólo para el caso de que el owner, viendo
   cuántas órdenes reales quedan así (número que este slice no pudo medir), quiera revisarlo.
+
+## 2026-09-18 — El bloque de método QUEDA BLOQUEADO por decisión del owner, la miniatura de la pantalla terminal NO se agrega, y la CLASE de la decisión que vive sólo en un comentario (`CHECKOUT-SELECTOR-BLOQUEADO-DECISION-1`)
+
+**Cierra `CHECKOUT-SELECTOR-DESBLOQUEO-POR-RECHAZO-1` y `CHECKOUT-RESUMEN-TERMINAL-FOTO-1`** (los dos
+open follow-ups de `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1` y `CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1`,
+arriba). Las dos son decisiones de PRODUCTO que un slice anterior dejó abiertas a propósito porque
+resolverlas exigía ensanchar su `touches:`; este slice no construye nada — asienta las dos decisiones
+del owner, con su porqué (o la ausencia de porqué, cuando el owner no dio uno), y una tercera cosa que
+salió de medirlas: una CLASE de decisión que ningún mecanismo del protocolo puede ver.
+
+### 1 · `CHECKOUT-SELECTOR-DESBLOQUEO-POR-RECHAZO-1` — el bloque QUEDA BLOQUEADO, y la razón es del worker que se desvió
+
+**La pregunta que quedó abierta** (`CHECKOUT-SELECTOR-NO-SE-DESMONTA-1`, arriba, §2): *"¿debería el
+bloque desbloquearse durante la ventana entre un rechazo y el clic en 'Intentar con otro método' (en
+vez de quedarse bloqueado todo el ciclo)?"*
+
+**DECISIÓN DEL OWNER: QUEDA BLOQUEADO.** No es una decisión sin fundamento a la que el owner puso fin
+por cansancio — es la decisión que el worker de `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1` ya había medido,
+en su propio §2, antes de que este asiento existiera:
+
+> **NINGÚN camino consume un cambio en `payment`/`pasarelaSeleccionada` una vez que `confirmation`
+> existe:** los botones "Atrás"/"Confirmar pedido" de `handleOrder` siguen detrás de
+> `{!confirmation && (…)}` (línea ~773, sin tocar), y no hay ningún otro `onClick` que lea esos estados
+> para volver a intentar. Desbloquear el bloque SIN el botón dejaría radios que se ven interactivos y
+> no hacen nada al clickearlos — peor que dejarlos bloqueados. `POST /api/checkout/reintento` (vía el
+> botón "Intentar con otro método") es el ÚNICO mecanismo que de verdad abre un intento nuevo.
+
+Con las palabras del owner, citadas en el `approval-reason` de este spec: *"un radio que se puede tocar
+y no cambia nada es peor que uno atenuado"*, y *"no construyas dos formas de hacer lo mismo donde sólo
+una funciona"* — el botón "Intentar con otro método" (`SelectorMetodoPasarela`, vía
+`onReintentarOtroMetodo` → `POST /api/checkout/reintento`, construido en `CHECKOUT-REINTENTO-OTRO-
+METODO-1`) YA ES el camino real y explícito; un radio desbloqueado sería una SEGUNDA forma de hacer lo
+mismo, decorativa, que no dispara nada.
+
+**REGISTRO EXPLÍCITO — la desviación del worker anterior fue CORRECTA, y eso importa tanto como la
+decisión misma.** `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1` recibió el spec pidiendo, entre otras cosas, que
+"cuando el pago se rechaza, tiene que volver a ser usable"; el worker MIDIÓ que threadear ese estado
+hasta la página exigía tocar `components/storefront/checkout/*.tsx` (fuera de su `touches:`), y que
+aunque lo hiciera, desbloquear sin el botón sería peor que no desbloquear — y lo REPORTÓ como open
+follow-up en vez de construirlo a medias o de forzar el `touches:`. **Eso es exactamente el
+comportamiento que este protocolo quiere: medir que cumplir la instrucción al pie de la letra produce
+algo peor, no cumplirla, y reportarlo con lo que se midió** — no que el worker "se cansó" del ítem ni
+que lo "pasó por alto". El seguimiento **queda CERRADO** con esta razón, no como "pendiente resuelto".
+
+**Nada se toca en el código.** `bloqueoMetodoDePago = !!confirmation` (`app/(storefront)/checkout/
+page.tsx:139`) se queda exactamente como `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1` lo dejó.
+
+### 2 · `CHECKOUT-RESUMEN-TERMINAL-FOTO-1` — la miniatura NO va a la pantalla terminal, sin razón registrada
+
+**DECISIÓN DEL OWNER: NO VA.** El owner no dio una razón, y eso se dice así — **decidido por el owner
+el 2026-09-18, sin razón registrada.** Este asiento NO inventa un porqué de diseño: un asiento que
+fabrica la justificación de una decisión ajena es peor que uno que admite no saberla, porque quien lo
+lea dentro de un año va a creer que ese porqué se midió cuando no fue así.
+
+**Lo que queda así, medido, porque es un byte que el comprador VE:** las dos listas del mismo pedido no
+se ven igual.
+
+| Lista | Dónde vive | Cuándo la ve el comprador | ¿Miniatura? |
+| --- | --- | --- | --- |
+| «Resumen del pedido» (sidebar) | `app/(storefront)/checkout/page.tsx:795-827`, rama `confirmation` (líneas 812-827) | SÓLO durante el paso de pago con pasarela en curso — la orden ya existe pero ningún estado terminal se alcanzó todavía | **SÍ** — `<img src={imagenPortada(item.producto_imagen)} …>`, línea 816, 48×48 (`w-12 h-12`) |
+| Pantalla «¡Pedido recibido!» / «¡Tu pago fue aprobado!» | `app/(storefront)/checkout/page.tsx:403-480`, lista de ítems en 435-443 | métodos manuales, `pasarelaMetodoNoHabilitado`, `pasarelaAprobada`, `intentosAgotados` — es decir, TODO desenlace, incluido el pago con pasarela ya aprobado | **NO** — sólo `producto_nombre` + `moliendaSeleccionada` + `cantidad` + `subtotal`, sin `<img>` |
+
+**El dato YA viaja para las dos.** `CheckoutResultItem.producto_imagen: string`
+(`services/checkout.service.ts:91`) es el mismo campo que alimenta las dos ramas — `confirmation.items`
+es una sola fuente. La diferencia no es de dato disponible: es que la pantalla terminal nunca pintó un
+`<img>`, ni antes ni después de `CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1`, porque esa tanda acotó su alcance
+al widget "Resumen del pedido" (§2 de ese asiento) y esta decisión confirma que se queda así.
+
+**Consecuencia concreta**: un comprador que paga por un método manual (la mayoría del tráfico hoy,
+medido en `CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1` §2 — la pasarela sigue mitad-encendida por despliegue) o
+que llega a cualquier desenlace terminal de pasarela **nunca ve la foto de lo que compró** en la
+pantalla de confirmación, aunque esa misma foto sí se le mostró un momento antes (o se le habría
+mostrado, si pasó por el paso de pago con pasarela) en el sidebar. No es un defecto que se escapó: es
+el byte que el owner decidió dejar así, sin más justificación que la decisión misma.
+
+El follow-up **queda CERRADO** con esta razón (la ausencia de razón, dicha, no una inventada).
+
+### 3 · La CLASE — una decisión que vive sólo en un comentario es invisible para el protocolo (`CLASE-DECISION-SOLO-EN-COMENTARIO-1`)
+
+**Lo que se preguntó, buscando otra cosa:** si un slice puede saber qué decisiones dependen de la
+premisa que está cambiando — por ejemplo, si al tocar `CHECKOUT-SELECTOR-DESBLOQUEO-POR-RECHAZO-1`
+hacía falta releer qué más citaba `CHECKOUT-UNA-SOLA-PANTALLA-1`, la decisión cuya premisa
+(`CHECKOUT-REINTENTO-OTRO-METODO-1` ya lo midió) quedó falsa.
+
+**Medido, y la respuesta fue otra pregunta:** `CHECKOUT-UNA-SOLA-PANTALLA-1` **NO TIENE NINGUNA ENTRADA
+PROPIA EN ESTE LIBRO.**
+
+- `grep -c "CHECKOUT-UNA-SOLA-PANTALLA-1" DECISIONS.md` → **2 apariciones**, las dos DENTRO de la
+  prosa de `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1` (líneas 7579 y 7583, arriba): una es una CITA TEXTUAL
+  del comentario del código, la otra dice cuándo nació. Ninguna es un encabezado `## …` propio — no hay
+  un `grep -n "^## .*CHECKOUT-UNA-SOLA-PANTALLA-1"` que devuelva algo.
+- `grep -c "CHECKOUT-UNA-SOLA-PANTALLA-1" CLAUDE.md` → **0**.
+- `grep -rl "CHECKOUT-UNA-SOLA-PANTALLA-1" --include="*.ts" --include="*.tsx" .` (fuera de
+  `node_modules`) → **9 archivos**, con **22 apariciones** totales, TODAS en comentarios: `app/api/
+  pasarela/aceptaciones/route.ts`, `app/api/checkout/route.ts`, `app/(storefront)/checkout/page.tsx`
+  (9 apariciones), `components/storefront/checkout/FormularioOtroMetodoPasarela.tsx`,
+  `components/storefront/checkout/FormularioTarjeta.tsx`,
+  `components/storefront/checkout/SelectorMetodoPasarela.tsx`, `services/checkout.service.ts`,
+  `lib/pagos/aceptaciones.test.ts`, `lib/pagos/aceptaciones.ts`.
+- El commit que la creó (`98217cb`, `CHECKOUT-UNA-SOLA-PANTALLA-1`, 2026-09-17 15:30:02) tocó **cero**
+  líneas de `DECISIONS.md` ni de `CLAUDE.md` (`git show --stat 98217cb`, verificado). La decisión nació
+  directo en el código, sin pasar por el libro.
+
+**Es decir: una decisión de producto real —"el selector de método sólo se muestra ANTES de que exista
+la orden"—, citada 22 veces en 9 archivos durante casi un día completo de trabajo sobre el mismo
+programa, no existe para ningún mecanismo que busque en `DECISIONS.md` o `CLAUDE.md`.** Cuando
+`CHECKOUT-REINTENTO-OTRO-METODO-1` la volvió falsa, nada la señaló como "una decisión dependiente de
+esto cambió": no hay decisión que señalar, porque el libro nunca la tuvo.
+
+**LA CLASE, con las palabras del owner:**
+
+> **UNA DECISIÓN QUE VIVE SÓLO EN UN COMENTARIO DEL CÓDIGO ES INVISIBLE PARA TODO MECANISMO DEL
+> PROTOCOLO: no se puede citar, no se puede rastrear, y vence sin que nada la mire.**
+
+**Lo que reordena la pregunta original:** *"el problema no es rastrear dependencias entre asientos —
+es que hay decisiones que no son asientos".* Buscar un grafo de dependencias entre entradas del libro
+no habría encontrado nada, porque `CHECKOUT-UNA-SOLA-PANTALLA-1` nunca fue una entrada.
+
+**Y lo que la clase NO dice:** que los comentarios sobren. Los 22 comentarios de arriba siguen siendo
+el lugar correcto para decir QUÉ hace ese código y POR QUÉ — un comentario que explica una decisión ya
+tomada, con su cita, es exactamente lo que un lector necesita al lado del código. Lo que no puede ser
+es el ÚNICO lugar donde la decisión existe: ahí deja de documentar y pasa a ser el original, y un
+original que sólo vive disperso en 9 archivos no lo relee nadie completo antes de invalidarlo.
+
+**Las otras tres instancias del día, ya en el libro, que son la misma familia** (para que se lean
+juntas, no como hechos sueltos):
+
+| Instancia | Fecha | Qué mide |
+| --- | --- | --- |
+| `CHECKOUT-REINTENTO-CENSO-1`, §2 (arriba) | 2026-09-18 | una conclusión angosta —medida para `metodo_no_habilitado`, donde reintentar de verdad no cambia nada— escrita en el código y en la prosa de OTRO ledger ya cerrado como si fuera una decisión YA CERRADA, y aplicada ancha al caso distinto del rechazo del emisor. Ese mismo asiento nombra "DÓNDE vive" —"no en un asiento ni en un reporte, sino en un comentario del código"— como lo que agrava la instancia. |
+| `COBRO-SIN-PEDIDO-ASIENTO-1` (arriba) | 2026-09-18 | el censo de las frases de `CLAUDE.md` (el archivo de doctrina) que el mismo incidente de "Wompi cobró y la tienda no se enteró" volvió falsas — frases correctas cuando se escribieron, vencidas por trabajo posterior del mismo programa. |
+| `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1`, §4 (arriba) | 2026-09-18 | la premisa de `CHECKOUT-UNA-SOLA-PANTALLA-1` (nacida ~21 h antes) muerta por `CHECKOUT-REINTENTO-OTRO-METODO-1` — "el commit INMEDIATAMENTE ANTERIOR en esta misma rama", en palabras del owner citadas ahí: *"esa premisa la mató el slice del reintento una hora antes"*. |
+
+**Son la misma familia: una decisión no vence sola — la vence trabajo posterior, y el trabajo que la
+mata casi nunca sabe que la está matando.** Las tres de arriba ya estaban en asientos que SÍ existen en
+el libro; lo que este asiento agrega es el caso límite de la familia — una decisión que ni siquiera
+llegó a tener un asiento propio del que pudiera desprenderse una premisa vencida, porque nunca hubo
+asiento. Es la misma clase, un peldaño más abajo: no "el asiento envejeció sin que nadie lo releyera",
+sino "nunca hubo asiento que releer".
+
+### 4 · El mecanismo que no se construye — medido y descartado a propósito, no olvidado (`CHECKOUT-AVISO-COMENTARIOS-TOCADOS-1`)
+
+**Se midió un aviso posible:** un gate que, al ver un diff tocar un archivo con comentarios de
+decisión (el patrón `§ IDENTIFICADOR-N` que este mismo programa usa en 9+ archivos), imprimiera "este
+diff toca archivos con comentarios de decisión — releelos".
+
+**Medido contra el propio diff de `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1`** (el slice que destapó todo
+esto): ese slice tocó `app/(storefront)/checkout/page.tsx`, que por sí solo lleva 9 de las 22
+apariciones de `CHECKOUT-UNA-SOLA-PANTALLA-1` más otras dos docenas de comentarios de otros
+identificadores del mismo programa (`CHECKOUT-PAGO-EN-EL-PASO-1`, `CHECKOUT-UNA-SOLA-PANTALLA-1`,
+`CHECKOUT-ESTADO-LITERAL-CONFIRMACION-1`, …). Un aviso a nivel de ARCHIVO habría nombrado decenas de
+decisiones para que el worker encontrara la UNA que de verdad estaba cambiando.
+
+**DECISIÓN DEL OWNER: NO SE CONSTRUYE TODAVÍA.** Con sus palabras: *"Es exactamente el ruido que ya
+sabemos que se saltea."* Queda MEDIDO y ENCOLADO, sin prioridad — una capacidad medida y descartada a
+propósito es distinta de una que a nadie se le ocurrió, y esa diferencia se pierde si no queda escrita.
+**Si alguna vez entra, entra ACOTADO AL DIFF** (qué comentarios de decisión tocan las LÍNEAS que el
+diff realmente cambia, no todos los que viven en el ARCHIVO) — un aviso a nivel de archivo es, medido
+arriba, el mismo ruido que ya se sabe inútil.
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido sobre el árbol final. Ver el reporte del slice para el
+resultado exacto (passed/failed/wall_seconds) — no se transcribe acá para no duplicar un número que
+puede volver a medirse. El diff de este slice es EXCLUSIVAMENTE esta entrada de `DECISIONS.md`: ningún
+archivo de código, test, schema ni migración se tocó, así que no había manera de que ninguno de los dos
+carriles cambiara de veredicto respecto de la entrada inmediatamente anterior de esta misma rama.
+
+### Deviations
+
+Ninguna. El spec pidió medir y asentar dos decisiones del owner más la clase que salió de medirlas, y
+eso es exactamente lo que este asiento hace — sin tocar código, tests, comentarios ni `CLAUDE.md`, y
+sin construir el mecanismo del §4.
+
+### Open follow-ups
+
+- `CHECKOUT-AVISO-COMENTARIOS-TOCADOS-1`: construir el aviso "este diff toca archivos/líneas con
+  comentarios de decisión — releelos", ACOTADO AL DIFF (líneas cambiadas), no al archivo completo —
+  medido en §4 de este asiento que a nivel de archivo es ruido que ya se sabe que se saltea. No se
+  construye ahora porque el owner lo descartó explícitamente para esta ronda ("es exactamente el ruido
+  que ya sabemos que se saltea"); queda encolado sin prioridad.
