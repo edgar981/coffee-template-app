@@ -6424,3 +6424,108 @@ describe y corrige el razonamiento sobre superficies Tier 1 ya aterrizadas: el w
 configuración de métodos de pasarela). El slice tenía aprobación explícita del owner para ESCRIBIR
 (`approved-by: owner`, `approval-reason` del spec: *"LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL
 MERGE"*) — el merge sigue gateado al owner, igual que el resto de la rama.
+
+## 2026-09-18 — El Recorrido decía «Envío creado» sin que existiera ningún envío: la etiqueta
+nombraba el REGISTRO, no el HECHO (`RECORRIDO-ENVIO-NO-CREADO-1`)
+
+### El hecho
+
+El owner lo vio el 2026-09-18 en el panel, mirando el recorrido de la primera orden que se cobró de
+verdad (CN-597202, `PRIMERA-TRANSACCION-REAL-ASIENTO-1`): apenas la orden se cobra, el recorrido
+anuncia **«Envío creado»**. Ningún envío se creó — lo que existe es una fila en `preparando`; nadie
+empacó nada ni se lo entregó a un transportador.
+
+### La clase
+
+**La etiqueta nombraba el REGISTRO (la fila que nace), no el HECHO (lo que le pasó al paquete).**
+Literalmente cierta —una fila se creó— y falsa para quien la lee, que entiende que su pedido ya
+salió. Un nombre tomado del modelo de datos en vez del mundo del que lo lee.
+
+### Lo que agrava el defecto — el propio archivo ya lo advertía
+
+`lib/pedidos/recorrido.ts` traía DOS caminos al mismo estado `preparando`. El mapa `FULFILLMENT`
+(línea 58 del archivo antes de este cambio, línea 59 después) ya declaraba
+`preparando: 'Envío en preparación'`; una rama especial en `etiquetaTransicion`
+—`if (t.estado_anterior === null) return 'Envío creado';`— la salteaba para la creación,
+devolviendo un string escrito a mano en la propia rama de `fulfillment` en vez de consultar el mapa.
+El mismo hecho tenía DOS nombres en el mismo archivo, y el que corría al nacer el envío era el que
+mentía.
+
+Y el archivo se contradecía solo: el comentario que antecede a `TITULO_CREADO`/`TITULO_PAGADO`/
+`TITULO_ENTREGADO` ya decía, unas líneas más arriba del propio defecto, por qué esto no debía pasar:
+**"Son LAS MISMAS que las del libro a propósito: es el mismo hecho, y decirlo con otras palabras
+haría creer que es otra cosa."** Exactamente lo que pasó.
+
+### La palabra — la que el mapa ya tenía, no una tercera
+
+El owner propuso «Preparando envío». El mapa `FULFILLMENT` ya declaraba **«Envío en preparación»**
+(`lib/pedidos/recorrido.ts:59`) para el mismo estado `preparando`. El owner confirmó (2026-09-18,
+tras plantearle la disyuntiva): *"me parece bien tu decisión Envío en preparación"*. Se usó la del
+mapa: deja el estado con UN solo nombre en todo el sistema en vez de sumar un tercero, que es
+exactamente el defecto que este slice cierra. Cambiar esa palabra en el futuro es cambiar UNA línea
+(`lib/pedidos/recorrido.ts:59`, la entrada `preparando` del `Record<ShippingEstado, string>`
+`FULFILLMENT`) y alcanza a los dos casos que la consultan (la creación y cualquier otro destino a
+`preparando` que no sea `fallido→preparando`).
+
+### Qué se tocó y qué NO
+
+- Se borró la rama `if (t.estado_anterior === null) return 'Envío creado';` de la mitad
+  `fulfillment` de `etiquetaTransicion` (`lib/pedidos/recorrido.ts`); ese caso cae ahora al
+  `return FULFILLMENT[t.estado_nuevo as ShippingEstado] ?? t.estado_nuevo;` general, como cualquier
+  otro destino sin FROM especial.
+- **NO se tocó el otro caso especial de la misma función** —`fallido→preparando` → `'Entrega
+  reprogramada'`—: ÉSE sí depende del estado anterior por una razón real (un mapa por destino solo
+  daría «Envío en preparación» también para una entrega reprogramada tras fallar, que es un hecho
+  distinto). El comentario que justifica el vocabulario (líneas 36-44 del archivo) se reescribió para
+  decir por qué la creación dejó de necesitar un caso propio mientras el de la reprogramación lo
+  sigue necesitando — no para cambiar la decisión de mantenerlo.
+- Se actualizaron **3 asserts** en `lib/pedidos/recorrido.test.ts` que afirmaban la etiqueta vieja:
+  dos esperaban `'Envío creado'` como la etiqueta de la transición `null→preparando` (uno sobre
+  `etiquetaTransicion` sola, otro sobre `recorridoDelPedido` con libro completo); el tercero la
+  listaba entre las etiquetas que NO debían inventarse en una orden anterior al libro (grandfathered).
+  Esa tercera entrada se retiró de la lista en vez de actualizarse: el string ya no es producible por
+  el código, así que afirmar su ausencia deja de probar nada — la afirmación real de ese test (que
+  «Envío en preparación» tampoco se inventa sin timestamp real) se conservó intacta.
+
+### Alcance medido — dónde se ve, y qué más del módulo nombra el registro en vez del hecho
+
+- **Dónde aparece la etiqueta:** un solo consumidor. `recorridoDelPedido`/`PasoRecorrido`
+  (`lib/pedidos/recorrido.ts`) sólo lo importa `app/(admin)/admin/pedidos/page.tsx:30`, que mapea
+  `p.titulo` DIRECTO a la prop `title` del `Timeline` del design system
+  (`app/(admin)/admin/pedidos/page.tsx:1239-1244`, sin transformación de texto). Grep del literal
+  viejo y de los símbolos exportados (`recorridoDelPedido`, `PasoRecorrido`, `etiquetaTransicion`)
+  sobre el repo completo (excluido `node_modules`): cero resultados fuera de `lib/pedidos/
+  recorrido.ts` y su test. Cero en `app/(storefront)/`, cero en las plantillas de correo de
+  `packages/core`/`lib/automations/channels/email.ts`, cero en `packages/design-system/
+  reference.html`. La etiqueta VIEJA («Envío creado») y la NUEVA («Envío en preparación») viven las
+  dos SÓLO en el panel, en el detalle de un pedido, dentro de la sección "Recorrido del pedido" — el
+  mismo sitio donde el owner la vio.
+- **El resto del mapa (`FULFILLMENT` y `COBRO` completos):** se revisaron las cinco entradas de
+  `FULFILLMENT` (`preparando, en_ruta, entregado, fallido, cancelado`) y las tres de `COBRO`
+  (`pendiente, pagado, cancelado`) contra los cinco escritores reales del libro
+  (`packages/core/src/order-transitions.ts` es el único punto de escritura; lo llaman
+  `packages/core/src/fulfillment.ts`, `packages/core/src/shipping-transition.ts` — dos sitios— y
+  `packages/core/src/orders.ts` —dos sitios—). Ninguna otra etiqueta nombra el registro en vez del
+  hecho: las cinco de `FULFILLMENT` describen lo que le pasó al paquete (despachado, entregado,
+  entrega fallida, envío anulado, y ahora "en preparación" en vez de "creado") y las tres de `COBRO`
+  describen lo que le pasó a la plata (pago registrado, pago revertido, pedido cancelado). No se
+  encontró una segunda instancia de esta clase en el módulo; si aparece en uso real, es decisión del
+  owner, no de este slice.
+
+### La etiqueta que ve el operador, tal cual queda en pantalla
+
+**«Envío en preparación»** — sin comillas ni sufijo, en la fila del `Timeline` correspondiente a la
+transición `null→preparando` del eje `fulfillment`.
+
+### Gate
+
+**`npm run gate`, los dos carriles — corrido sobre el árbol final, verde.** Fast lane (`npm test`):
+1435/1435. Carril de integración (`npm run test:integracion`, Postgres efímero): 208/208. El diff de
+este slice toca `lib/pedidos/recorrido.ts`, `lib/pedidos/recorrido.test.ts` y esta entrada de
+`DECISIONS.md` — ningún cambio de schema, ninguna migración, ningún endpoint HTTP.
+
+**Tier 1 — SÍ aplica** por herencia de la rama (`slice/api-directa-panel-metodos-1`) y porque el spec
+lo declaró `tier: 1` con `writes: yes` y `approved: yes` (`approved-by: owner`,
+`approval-reason`: el owner vio el defecto en el panel el 2026-09-18 y propuso la palabra; se usó la
+que el mapa ya tenía en su lugar, y el owner la confirmó). **LA APROBACIÓN AUTORIZA LA ESCRITURA,
+NUNCA EL MERGE** — el merge sigue gateado al owner.

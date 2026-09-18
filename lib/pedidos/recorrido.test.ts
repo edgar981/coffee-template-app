@@ -35,13 +35,16 @@ const titulos = (o: OrdenParaRecorrido) => recorridoDelPedido(o).map(p => p.titu
 
 // ─── VOCABULARIO ─────────────────────────────────────────────────────────────
 
-test('la etiqueta depende del FROM, no sólo del estado nuevo', () => {
-  // Los dos pares que un mapa por estado destino colapsaría en uno, diciendo lo
-  // mismo para hechos opuestos.
+test('la etiqueta depende del FROM sólo cuando el destino solo no basta', () => {
+  // El par de cobro: un mapa por estado destino colapsaría los dos en uno, diciendo
+  // lo mismo para hechos opuestos.
   assert.equal(etiquetaTransicion({ eje: 'cobro', estado_anterior: null, estado_nuevo: 'pendiente' }), 'Pedido creado');
   assert.equal(etiquetaTransicion({ eje: 'cobro', estado_anterior: 'pagado', estado_nuevo: 'pendiente' }), 'Pago revertido');
 
-  assert.equal(etiquetaTransicion({ eje: 'fulfillment', estado_anterior: null, estado_nuevo: 'preparando' }), 'Envío creado');
+  // En fulfillment, en cambio, la creación (`null→preparando`) NO necesita su propio
+  // caso: el mapa YA dice "Envío en preparación" para `preparando`, y eso es correcto
+  // también para la creación. Sólo `fallido→preparando` necesita el FROM.
+  assert.equal(etiquetaTransicion({ eje: 'fulfillment', estado_anterior: null, estado_nuevo: 'preparando' }), 'Envío en preparación');
   assert.equal(etiquetaTransicion({ eje: 'fulfillment', estado_anterior: 'fallido', estado_nuevo: 'preparando' }), 'Entrega reprogramada');
 });
 
@@ -84,7 +87,7 @@ test('con libro: los dos ejes MEZCLADOS y el más reciente ARRIBA', () => {
       asiento('fulfillment', 'preparando', 'en_ruta',    '2026-05-03T08:00:00.000Z', 'Ana'),
     ],
   });
-  assert.deepEqual(titulos(o), ['Despachado', 'Envío creado', 'Pago registrado', 'Pedido creado']);
+  assert.deepEqual(titulos(o), ['Despachado', 'Envío en preparación', 'Pago registrado', 'Pedido creado']);
   assert.deepEqual(
     recorridoDelPedido(o).map(p => p.actor),
     ['Ana', null, 'Cajera', null],
@@ -202,7 +205,7 @@ test('orden ANTERIOR al libro, pagada y entregada: TRES puntos y NINGUNO inventa
 
   // LA AFIRMACIÓN QUE IMPORTA: los pasos que NO tienen timestamp real no aparecen.
   // Si algún día alguien "completa" el recorrido de una orden vieja, esto se cae.
-  for (const inventado of ['Envío creado', 'Envío en preparación', 'Despachado', 'Pedido cancelado', 'Entrega fallida']) {
+  for (const inventado of ['Envío en preparación', 'Despachado', 'Pedido cancelado', 'Entrega fallida']) {
     assert.ok(!pasos.some(p => p.titulo === inventado), `NO se inventa "${inventado}"`);
   }
 });
