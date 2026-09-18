@@ -330,6 +330,10 @@ export async function POST(req: NextRequest) {
       direccion_detalle: shipping.direccion_detalle ?? null,
       items: lines.map((l) => ({
         producto_nombre: l.producto_nombre,
+        // § CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1: la instantánea de la portada, para que el
+        // resumen del pedido pueda dibujarla DESPUÉS de crear la orden — sin este campo el
+        // resumen no tiene de dónde leer la imagen apenas el carrito se vacía.
+        producto_imagen: l.producto_imagen,
         moliendaSeleccionada: l.moliendaSeleccionada,
         cantidad:        l.cantidad,
         precio_unitario: l.precio_unitario,

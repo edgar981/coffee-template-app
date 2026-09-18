@@ -253,6 +253,13 @@ model OrderItem {
   orden_id             String
   producto_id          String?
   producto_nombre      String
+  // La portada del producto AL MOMENTO DE COMPRAR — INSTANTÁNEA, la MISMA decisión que ya
+  // protege `producto_nombre`/`precio_unitario` (§ CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1): el
+  // resumen del pedido no se resuelve contra el producto vivo, para que un rediseño de la
+  // ficha no le cambie la foto a una compra ya hecha. Nullable, SIN backfill: toda fila
+  // anterior a este slice queda en null a propósito — rellenarla con la imagen actual
+  // fabricaría la misma mentira que esta columna existe para impedir.
+  producto_imagen      String?
   // Molienda elegida por el cliente al comprar (snapshot, p. ej. "Media").
   moliendaSeleccionada String?
   cantidad             Int

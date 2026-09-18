@@ -332,6 +332,11 @@ export interface CreateOrderInput {
   items: Array<{
     producto_id?: string | null;
     producto_nombre: string;
+    // La portada al momento de comprar — INSTANTÁNEA, § CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1
+    // (`OrderItem.producto_imagen`). Opcional porque ningún llamador la exige: los dos
+    // callers reales (checkout, "Nueva Orden") pasan directo la salida de
+    // `resolveOrderLines`, que ya la trae.
+    producto_imagen?: string | null;
     moliendaSeleccionada?: string | null;
     cantidad: number;
     precio_unitario?: number | null;
@@ -685,6 +690,7 @@ export async function createOrderWithCustomer(input: CreateOrderInput) {
               create: input.items.map((l) => ({
                 producto_id:          l.producto_id ?? null,
                 producto_nombre:      l.producto_nombre,
+                producto_imagen:      l.producto_imagen ?? null,
                 moliendaSeleccionada: l.moliendaSeleccionada ?? null,
                 cantidad:             l.cantidad,
                 precio_unitario:      l.precio_unitario ?? null,
@@ -807,6 +813,11 @@ export interface RawOrderLine {
 export interface ResolvedOrderLine {
   producto_id: string;
   producto_nombre: string;
+  // La INSTANTÁNEA de la portada — § CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1. `Product.imagen` es
+  // `String @default('')`, nunca null, así que este campo copia esa cadena tal cual (incluida
+  // vacía si el producto no tiene foto); `imagenPortada()` es quien decide el fallback al
+  // renderizar, no este resolver.
+  producto_imagen: string;
   moliendaSeleccionada: string | null;
   cantidad: number;
   precio_unitario: number;
@@ -878,6 +889,7 @@ export async function resolveOrderLines(
     return {
       producto_id:          product.id,
       producto_nombre:      product.nombre,
+      producto_imagen:      product.imagen,
       moliendaSeleccionada: item.molienda ?? null,
       cantidad:             item.cantidad,
       precio_unitario,

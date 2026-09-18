@@ -16,7 +16,6 @@ import { interpretarRespuestaReintento } from '@/components/storefront/checkout/
 import { ETIQUETA_PAGO_PASARELA, subtituloPagoPasarela } from '@/lib/pagos/metodos-pasarela';
 import { formatCOP } from '@duna/core/utils';
 import { toast } from 'sonner';
-import StatusBadge from '@/components/ui/StatusBadge';
 import {
   computeShippingCost,
   getShippingMethod,
@@ -402,10 +401,6 @@ export default function Checkout() {
   // (cae al "else" del ícono/título/párrafo de abajo, que no distingue entre las dos causas: las
   // dos son "no se pudo cobrar con tarjeta, el equipo coordina el pago").
   if (confirmation && (!confirmation.wompi || pasarelaMetodoNoHabilitado || pasarelaAprobada || intentosAgotados)) {
-    // `confirmation.estado` es el de la CREACIÓN de la orden ('pendiente' — el pago de pasarela
-    // se confirma después, por webhook). Con `pasarelaAprobada` el comprador no debe leer
-    // "pendiente": el sondeo acaba de confirmar el pago, así que el badge muestra ESE hecho.
-    const estadoMostrado = pasarelaAprobada ? 'pagado' : confirmation.estado;
     return (
         <div className="min-h-[80vh] flex items-center justify-center pt-16 px-4">
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full text-center">
@@ -429,10 +424,10 @@ export default function Checkout() {
                   : 'Tu pedido está reservado. Confirmaremos el pago y luego preparamos tu envío.'}
               </p>
             )}
-            <div className="flex items-center justify-center gap-2 mb-6">
-              <span className="text-xs text-[var(--sf-texto-suave)]">Estado:</span>
-              <StatusBadge status={estadoMostrado} theme="light" />
-            </div>
+            {/* § CHECKOUT-ESTADO-LITERAL-CONFIRMACION-1: el badge con el estado crudo ("Estado:
+                Pendiente"/"Pagado") se retiró de las DOS ramas de esta pantalla — la frase de
+                arriba ya le dice al comprador qué pasó, en su idioma, y el nombre del estado del
+                modelo no le agrega nada. */}
             <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
               <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
               <p className="text-2xl font-bold text-[var(--sf-acento-texto)] mb-4 text-center">{confirmation.numero_orden}</p>
@@ -808,14 +803,25 @@ export default function Checkout() {
                   // otras dos (métodos manuales, `metodo_no_habilitado`) ya devolvieron esa pantalla
                   // completa antes de alcanzar este layout.
                   <>
-                    <div className="space-y-2 mb-4">
+                    {/* § CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1: la miniatura vuelve, con el MISMO
+                        tratamiento que la rama del carrito de abajo (mismo tamaño, misma forma,
+                        misma posición) — copiado, no reinventado. `imagenPortada` cae al
+                        placeholder de marca si `producto_imagen` viene vacía (producto sin foto,
+                        o una orden anterior a este slice, que nace sin instantánea): la línea
+                        sigue dibujándose, nunca una imagen rota. */}
+                    <div className="space-y-3 mb-4">
                       {confirmation.items.map((item, i) => (
-                        <div key={i} className="flex justify-between text-xs text-[var(--sf-texto)]">
-                          <span className="min-w-0 truncate pr-2">
-                            {item.producto_nombre}
-                            {item.moliendaSeleccionada ? ` · ${item.moliendaSeleccionada}` : ''} × {item.cantidad}
-                          </span>
-                          <span className="shrink-0 font-medium">{formatCOP(item.subtotal)}</span>
+                        <div key={i} className="flex gap-3">
+                          <div className="w-12 h-12 sf-radio-lg overflow-hidden bg-[var(--sf-superficie)] shrink-0">
+                            <img src={imagenPortada(item.producto_imagen)} alt={item.producto_nombre} className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex-1 min-w-0 flex justify-between text-xs text-[var(--sf-texto)]">
+                            <span className="min-w-0 truncate pr-2">
+                              {item.producto_nombre}
+                              {item.moliendaSeleccionada ? ` · ${item.moliendaSeleccionada}` : ''} × {item.cantidad}
+                            </span>
+                            <span className="shrink-0 font-medium">{formatCOP(item.subtotal)}</span>
+                          </div>
                         </div>
                       ))}
                     </div>

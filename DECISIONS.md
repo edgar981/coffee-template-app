@@ -7848,3 +7848,153 @@ que puede volver a medirse.
   el desenlace de un número Mastercard designado (Wompi los publica en su consola de comercio de
   pruebas) — hoy el runbook no tiene ningún dato propio de esa red, sólo la observación de gate de
   §12.
+
+---
+
+## 2026-09-18 — El resumen del pedido pierde la foto al crearse la orden: la INSTANTÁNEA que faltaba, y por qué era eso y no un bug de render (`CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1`)
+
+### 0 · El hecho medido
+
+`checkout/page.tsx` tiene el widget «Resumen del pedido» (h3, línea 795 en el árbol final de este
+slice — única aparición del texto en el archivo) con DOS ramas por `confirmation ? … : …` (líneas
+796-881 en el árbol final): ANTES de crear la orden lee `items` (el carrito) y pinta una miniatura
+de 48×48 (`w-12 h-12 sf-radio-lg
+overflow-hidden bg-[var(--sf-superficie)] shrink-0` + `<img src={imagenPortada(item.imagen)}
+…/>`); DESPUÉS lee `confirmation.items` (`CheckoutResultItem[]`, la respuesta del servidor) y ese
+tipo **no tenía campo de imagen** (`services/checkout.service.ts:85-91`, medido antes de tocar
+nada) — la rama de confirmación nunca pintaba ninguna `<img>`. La diferencia era, tal como pedía el
+spec, una sola línea: la presencia/ausencia del bloque `<img>`.
+
+**Por qué el resumen no podía simplemente "seguir leyendo el carrito":** `handleOrder`/
+`crearOrdenPasarela` llaman `clearCart()` en el mismo tick que `setConfirmation(result)` —
+decisión ya tomada y correcta (§ CHECKOUT-PAGO-EN-EL-PASO-1: el carrito se vacía porque la compra
+ya se hizo), así que leer `items` tras ese punto mostraría un carrito vacío. El bug no estaba en
+DE DÓNDE lee el resumen — eso ya era correcto —, estaba en que la fuente nueva (`CheckoutResult`)
+nunca cargó la imagen. Medido, no asumido: `resolveOrderLines` (`packages/core/src/orders.ts`)
+leía `product.nombre`/`product.precio` de la fila pero nunca `product.imagen`, así que la
+información NUNCA salió de la base hacia la respuesta — no es que se perdiera en el camino, es que
+jamás se pidió.
+
+### 1 · La instantánea — la MISMA decisión que ya protege nombre y precio
+
+`OrderItem` ya copia `producto_nombre`/`precio_unitario` al crear la fila, en vez de resolverlos
+por la FK `producto_id` en cada lectura — es una instantánea DE HECHO, aunque el único comentario
+EXPLÍCITO con la palabra "snapshot" en el modelo, antes de este slice, estaba en el campo vecino
+(`moliendaSeleccionada`, `schema.prisma:256` original: *"Molienda elegida por el cliente al
+comprar (snapshot, p. ej. 'Media')"*) — no en nombre/precio. La razón es la misma para los tres
+campos: que el historial de una compra no cambie si el catálogo cambia después. La imagen es el
+mismo tipo de dato con el mismo riesgo — un producto rediseñado no debe cambiarle la foto a una
+orden de hace tres meses—, así que sigue la MISMA forma, no una nueva. Palabras del owner
+(`approval-reason`): *"Una orden es el
+registro de lo que el comprador compró. Si la foto se resuelve en vivo, un producto rediseñado le
+cambia la foto a una compra de hace tres meses."*
+
+- **`OrderItem.producto_imagen String?`** (`schema.prisma`), nullable, SIN default — migración
+  `20260918120000_add_order_item_producto_imagen` (aditiva, `ALTER TABLE … ADD COLUMN`, mismo
+  patrón que `20260917120000_add_payment_intent_metodo_rechazado`).
+- **`ResolvedOrderLine.producto_imagen: string`** (`packages/core/src/orders.ts`) — copia
+  `product.imagen` TAL CUAL (`String @default('')`, nunca null en el modelo de Producto), sin
+  decidir fallback: eso lo hace `imagenPortada()` al renderizar, no el resolver.
+- **`CreateOrderInput.items[].producto_imagen?: string | null`** — opcional a propósito: los DOS
+  callers reales de `createOrderWithCustomer` (`app/api/checkout/route.ts`, `app/api/orders/
+  route.ts`) pasan la salida de `resolveOrderLines` directo como `items`, así que la traen gratis;
+  los tres tests que construyen `CreateOrderInput` a mano (`order-transitions.test.ts`,
+  `intento-pago-atomico.test.ts`, `cobro-sincronizado.test.ts`) no la mandan y siguen compilando.
+- **La escritura** (`items: { create: … }` dentro de la transacción de `createOrderWithCustomer`)
+  agrega `producto_imagen: l.producto_imagen ?? null`.
+- **`app/api/checkout/route.ts`** agrega `producto_imagen: l.producto_imagen` a la respuesta —
+  sale de `lines` (la MISMA resolución pre-orden), no de releer `order.items` de la base.
+- **`CheckoutResultItem.producto_imagen: string`** (`services/checkout.service.ts`) — requerido,
+  como `producto_nombre`/`precio_unitario`: el servidor siempre lo manda ahora.
+
+**SIN BACKFILL, y es la otra cara de la misma decisión.** Toda fila de `OrderItem` escrita ANTES de
+esta migración queda con `producto_imagen = null` para siempre — rellenarla con la imagen ACTUAL
+del producto fabricaría exactamente la mentira que la instantánea existe para impedir (una compra
+vieja mostrando una foto que el comprador nunca vio). `imagenPortada(null)` cae al placeholder de
+marca (`lib/producto-imagen.ts`, ya existente, sin tocar): la fila sigue dibujándose, con un
+placeholder en vez de una imagen rota — cumple "una línea sin imagen tiene que seguir dibujándose"
+sin código nuevo, porque el helper ya trata `''`/`null`/`undefined` igual.
+
+**Cuántas órdenes existentes quedan con `producto_imagen = null`: NO SE PUDO MEDIR.** Se intentó un
+`prisma.orderItem.count()` contra la base que resuelve `DATABASE_URL` del `.env` de esta sesión (el
+host resuelve a `ep-still-sound…`, el hostname de `development` según CLAUDE.md § Bases de datos) y
+la consulta devolvió `P2021 — the table "public.OrderItem" does not exist in the current database`:
+la base a la que esta sesión efectivamente se conectó no tiene el schema de este repo aplicado, así
+que no es comparable a la `development` real y no se puede confiar en un conteo contra ella. No se
+insistió — verificar el ROL de una base antes de operar contra ella es la regla, y acá no se pudo
+verificar. Queda como pregunta abierta para quien corra el gate visual: contar `SELECT
+count(*) FROM "OrderItem"` contra la base real de destino antes de decidir si backfillear (que
+igual está descartado por diseño, arriba) o simplemente aceptar el placeholder para el histórico.
+
+### 2 · Alcance: SÓLO el widget «Resumen del pedido» — el porqué de no tocar la pantalla terminal
+
+El archivo tiene un TERCER lugar que también pinta `confirmation.items` sin imagen: la pantalla
+"¡Pedido recibido!" (el `return` de las líneas 403-480, alcanzado para métodos manuales,
+`metodo_no_habilitado`, `pasarelaAprobada` e `intentosAgotados`). **No se tocó**, y es una decisión
+medida, no un olvido:
+
+- El spec pide encontrar "las dos ramas del resumen" y dice "la diferencia se ve en UNA línea" —
+  eso describe exactamente el ternario `confirmation ? … : …` de un solo widget (dos ramas, un
+  `<img>` de diferencia), no una comparación entre el widget del sidebar y la pantalla terminal
+  (que nunca tuvo una versión "antes" con imagen que perder: siempre leyó `confirmation.items`,
+  porque sólo existe una vez que la orden ya se creó).
+- El `observed-report` (`CHECKOUT-SELECTOR-NO-SE-DESMONTA-1`) y el resto del "reporte de cambio de
+  pantalla" citado en el `approval-reason` (`CHECKOUT-REINTENTO-CENSO-1`,
+  `CHECKOUT-REINTENTO-OTRO-METODO-1`, `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1`) son, medido por sus
+  propios asientos, sobre el flujo de PASARELA en API DIRECTA — el caso donde el comprador se queda
+  en la MISMA página/paso al crear la orden (`CHECKOUT-PAGO-EN-EL-PASO-1`). Ahí es donde "de
+  repente la foto no está, pero nada más se movió" se siente como un defecto; en la pantalla
+  terminal el comprador YA sabe que cambió de pantalla (ícono, "¡Pedido recibido!", "Número de
+  orden"), así que no es la misma sensación que el owner describió.
+
+**Diferencia visible que queda, nombrada como pide el spec:** la pantalla "¡Pedido recibido!"
+(métodos manuales, la mayoría del tráfico hoy porque la pasarela sigue mitad-encendida por
+despliegue) sigue sin miniatura en su lista de ítems (líneas 435-443). El dato YA viaja en
+`confirmation.items[].producto_imagen` — agregarla ahí es sólo JSX, sin tocar servidor ni schema—,
+pero no se hizo porque el spec apunta a "el resumen" (singular, con sus "dos ramas") y esa pantalla
+no es ese widget. Queda para que el owner decida si también la quiere ahí.
+
+### 3 · El estado literal — cierra `CHECKOUT-ESTADO-LITERAL-CONFIRMACION-1`
+
+El follow-up medido por `CHECKOUT-GATE-VISUAL-HALLAZGOS-1` (§3b, arriba: el literal vivía en
+`app/(storefront)/checkout/page.tsx:432-435`, fuera de su `touches:`) se ejecuta acá, con el mismo
+alcance que ese asiento ya había medido: las DOS ramas (pasarela aprobada y manual) comparten el
+MISMO bloque (`estadoMostrado` + `<span>Estado:</span>` + `<StatusBadge>`), así que sacarlo de ese
+bloque compartido lo saca de las dos a la vez — no hizo falta un segundo cambio por rama. Se
+retiraron también `estadoMostrado` (const que sólo alimentaba el badge) y el import de
+`StatusBadge` (quedó sin otro consumidor en el archivo, verificado por grep). El párrafo que ya
+dice el hecho en lenguaje del comprador ("Tu pedido está reservado…" / "Tu pedido queda
+confirmado…") no se tocó.
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido sobre el árbol final: 1458/1458 (capa 1, `npm test`,
+5.10 s) + 208/208 (capa 2, `npm run test:integracion`, 14.71 s), 0 fallas en las dos. La migración
+nueva se aplicó limpia contra el Postgres efímero del carril de integración (sin error durante
+"Aplicando migraciones…"). `tsc --noEmit` y `eslint` sobre los cinco archivos tocados: 0 errores.
+`eslint` reporta 4 warnings en `checkout/page.tsx`: dos preexistentes sin relación
+(`CreditCard`/`AnimatePresence` importados sin uso, verificado que el diff no toca esas líneas) y
+dos `@next/next/no-img-element` por el `<img>` crudo — uno YA existía (línea 849, la miniatura del
+carrito, sin tocar) y el otro es la miniatura nueva de este slice (línea 816): es el MISMO patrón
+copiado, no una categoría de warning nueva en el archivo.
+
+### Deviations
+
+- Ninguna sobre el mecanismo de la instantánea. La única desviación de alcance es la nombrada en
+  §2: la pantalla terminal ("¡Pedido recibido!") no ganó la miniatura, por no ser el widget que el
+  spec describe con "las dos ramas del resumen" — medido y reportado, no ensanchado.
+- El conteo de órdenes existentes sin foto (§1) no se pudo medir — la base alcanzable desde esta
+  sesión no tiene el schema del repo aplicado (`P2021`), así que no es la `development` real y no
+  se puede confiar en ningún número que saliera de ahí.
+
+### Open follow-ups
+
+- `CHECKOUT-RESUMEN-TERMINAL-FOTO-1`: agregar la miniatura también a la lista de ítems de la
+  pantalla "¡Pedido recibido!" (`app/(storefront)/checkout/page.tsx`, líneas 435-443) — el dato ya
+  viaja en `CheckoutResultItem.producto_imagen`, así que es sólo JSX. No se hizo en este slice
+  porque esa pantalla no es el widget "Resumen del pedido" que el spec acotó (§2).
+- `CHECKOUT-BACKFILL-IMAGEN-ORDENES-VIEJAS-DECISION-1`: decidir si las órdenes anteriores a este
+  slice se quedan mostrando el placeholder de marca para siempre (consistente con "sin backfill,
+  nunca") o si el owner prefiere alguna otra señal — hoy la decisión de arriba (§1) ya fija "sin
+  backfill" como la respuesta, así que este follow-up es sólo para el caso de que el owner, viendo
+  cuántas órdenes reales quedan así (número que este slice no pudo medir), quiera revisarlo.

@@ -84,6 +84,11 @@ export function pasarelaModoApiDirecta(): boolean {
 
 export interface CheckoutResultItem {
   producto_nombre: string;
+  // La instantánea de la portada (§ CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1, `OrderItem.
+  // producto_imagen`) — NUNCA se resuelve contra el producto vivo, misma razón que
+  // `producto_nombre`/`precio_unitario` de abajo. Cadena vacía si el producto no tenía foto
+  // al comprar; el render la pasa por `imagenPortada()` para el fallback, no acá.
+  producto_imagen: string;
   moliendaSeleccionada?: string | null;
   cantidad: number;
   precio_unitario: number;
