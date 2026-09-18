@@ -6196,3 +6196,231 @@ de métodos de pasarela (`CORRECCION-BANCOLOMBIA-AGREGADOR-1`); este commit no a
 explícita del owner para ESCRIBIR (`approved-by: owner`, `approval-reason` del spec: *"LA APROBACION
 AUTORIZA LA ESCRITURA, NUNCA EL MERGE"*) — el merge sigue gateado al owner, igual que el resto de la
 rama.
+
+## 2026-09-18 — WOMPI COBRÓ Y LA TIENDA NO SE ENTERÓ: las tres condiciones que lo hicieron posible,
+y el censo de las frases de CLAUDE.md que ese mismo incidente volvió falsas (`COBRO-SIN-PEDIDO-ASIENTO-1`)
+
+### 0 · La frase, sin suavizar
+
+**WOMPI COBRÓ Y LA TIENDA NO SE ENTERÓ.** Cuatro veces, el mismo día
+(`PRIMERA-TRANSACCION-REAL-ASIENTO-1`): tres `PaymentIntent` en `APROBADO` y uno en `FALLIDO`, los
+cuatro resueltos por Wompi en segundos (5,6 a 10,3 s), y las cuatro órdenes de este sistema **sin un
+solo `Payment`, sin un solo `Shipping`, sin una sola transición `pendiente→pagado`** en el libro
+append-only que las registraría. Con un comprador real en vez de una tarjeta de prueba, eso es **plata
+cobrada sin pedido**: el dinero salió de la cuenta del comprador, Wompi lo confirmó, y la tienda nunca
+se enteró de que tenía que preparar, despachar ni cobrar nada. El owner pidió que este asiento diga
+esto con esas palabras — no "una inconsistencia", no "un desalineo de despliegue" — porque dentro de
+un año, alguien que lea este archivo tiene que poder entender la gravedad sin reconstruirla.
+
+Este asiento no repite la medición completa: vive en `PRIMERA-TRANSACCION-REAL-ASIENTO-1` (arriba,
+2026-09-18), y `§ La causa, medida` de esa entrada es la fuente de las citas de más abajo. Lo que este
+asiento agrega es lo que el owner pidió después de leerla: nombrar las TRES condiciones que hicieron
+posible el hueco, separadas y sin fundirlas en una sola causa raíz, y censar `CLAUDE.md` por más
+frases de la misma clase — frases que describían un estado que dejó de ser cierto sin que nadie las
+tocara.
+
+### 1 · Las tres condiciones — cada una es una lección distinta, y ninguna sola habría bastado
+
+**(a) Una rama de preview viva con código viejo, compartiendo base con el despliegue actual.**
+`preview/wompi-evento-real` nació el 2026-09-14, contiene el commit que cierra el `PaymentIntent`
+(`7bf31c2`, `WOMPI-WEBHOOK-RUTA-1`) y **no contiene** el commit que agrega la creación del `Payment`
+(`ff9dda8`, `WOMPI-PAYMENT-DESDE-WEBHOOK-G-1`, del día siguiente). Su único commit propio estaba
+vacío y decía de sí mismo, en el mensaje, que la rama **se borraba al terminar la prueba**. No se
+borró — o si se borró, quedó viva el tiempo suficiente para procesar los cuatro intentos del
+2026-09-18. Y porque el entorno de Preview de Vercel comparte la base `development` con cualquier
+otro deploy de Preview y con el `.env` local (§ CLAUDE.md, "Bases de datos (Neon)"), el código de
+hace cuatro días escribía en la MISMA base que el código de hoy — sin que compartir base fuera, por
+sí sola, la falla: la falla es que una rama que prometió borrarse no se borró.
+
+**Nota de procedencia:** el origen y el estado de esa rama (`preview/wompi-evento-real`) los trae el
+`externo` del spec de este slice, medido por quien lo escribió contra el historial de git; este
+worker no tiene grant de red para `git ls-remote`/`fetch` y no pudo re-verificar independientemente
+que la rama exista o no exista hoy en el remoto — lo único que este worker confirmó localmente es que
+**no hay ninguna referencia a `preview/wompi-evento-real` en los refs locales de este repo**
+(`git branch -a` y `git for-each-ref` no la listan), consistente con "se borró", pero no lo prueba: un
+ref remoto que este worktree nunca fetcheó tampoco aparecería. Se marca `ledger_claim`, no `measured`.
+
+**(b) Un webhook registrado en el panel del proveedor, apuntando a esa rama.** Esa configuración —qué
+URL recibe los eventos de Wompi— vive en el panel de Wompi y en las variables de entorno del
+despliegue de Preview, **afuera de este repositorio**. Ningún gate de este proyecto —ni `npm run
+gate`, ni el carril de integración, ni el checklist manual del owner sobre un `rm -rf .next && npm run
+dev`— puede ver esa configuración: los tres verifican el CÓDIGO y lo que el código produce contra una
+base, no el panel de un proveedor externo. El repositorio, en el commit que corrió, estaba completo y
+correcto para lo que ese commit sabía hacer (cerrar el intento, sin crear el `Payment` — así estaba
+escrito a propósito, § abajo). Lo que apuntaba mal no era código: era la URL de eventos, y esa URL no
+tiene test posible desde este repositorio.
+
+**(c) El owner dio por cerrado un pago que nunca se registró, porque la pantalla decía "Aprobado".**
+La pantalla de retorno del comprador (`app/(storefront)/checkout/retorno/RetornoCliente.tsx:301-309`)
+muestra, para el estado `"aprobado"`: *"¡Tu pago fue aprobado! Tu pedido queda confirmado y pasa a
+preparación."* Ese estado sale de `PaymentIntent.estado`, vía `/api/checkout/retorno` — nunca de si
+existe un `Payment`. Y lo notable, que el owner pidió señalar explícitamente: **el propio diseño de
+este endpoint ya advertía exactamente este riesgo, por escrito, antes de que ocurriera.** El
+encabezado de `app/api/checkout/retorno/route.ts:6-13` dice, textual:
+
+> `// ── LA RUTA DE RETORNO — LEE, NUNCA AFIRMA POR SÍ MISMA ─────────────────────────`
+> `// El comprador vuelve del checkout alojado de Wompi a /checkout/retorno (...) con lo que Wompi le`
+> `// ponga en el query — que puede incluir un status. ESTE ENDPOINT NO LO LEE NI LO CONFIRMA: la`
+> `// verdad es PaymentIntent.estado, que sólo el webhook (...) actualiza.`
+
+Y el mismo comentario se repite en el componente que la pantalla monta
+(`RetornoCliente.tsx:19-25`): *"la regla que gobierna todo lo de abajo: el retorno del navegador NO ES
+LA FUENTE DE VERDAD — el webhook lo es."* La advertencia era correcta y estaba en el sitio correcto
+—no confiar en lo que Wompi manda por query—, y aun así el sistema completo (advertencia incluida)
+dejó que la pantalla dijera "aprobado, pasa a preparación" sobre un `PaymentIntent.estado` que el
+webhook escribió SIN que existiera el `Payment` que esa frase promete. **La lección no es "alguien se
+confió sin razón": es que la advertencia contra confiar en Wompi funcionó — y no fue suficiente,
+porque el estado en el que sí confiaba (`PaymentIntent.estado`) podía llegar a `APROBADO` sin que el
+resto de la cadena de dinero se completara.** Eso es exactamente lo que (b) hizo posible: un webhook
+de una rama vieja que sabía escribir `APROBADO` pero no sabía crear el `Payment`.
+
+**Ninguna de las tres sola habría producido el hueco.** Sin (a), el código que corrió habría sido el
+de `main` (que ya crea el `Payment`, desde `ff9dda8`). Sin (b), el código viejo de (a) nunca habría
+recibido el evento. Sin (c), alguien habría notado —mirando el panel del admin, no la pantalla del
+comprador— que la orden seguía `pendiente` pese al "Aprobado" en pantalla, y lo habría reportado antes
+de darlo por cerrado.
+
+### 2 · Las dos frases que este mismo incidente volvió falsas — y una tercera que nadie había nombrado
+
+`CLAUDE.md`, § "Pagos en línea (Wompi) — cobros automáticos" (líneas 2939–2959), describe el estado
+del trabajo con fecha 2026-09-14 (`TIER1-LISTA-VENCIDA-1` la re-midió ese día). El commit que la
+volvió falsa (`ff9dda8`) es del día siguiente, 2026-09-15 — un día después de escrita, no meses.
+Coincide con lo que el `approval-reason` de este slice citó como medido en
+`PRIMERA-TRANSACCION-REAL-ASIENTO-1`:
+
+- **Línea 84–85** (preámbulo de la lista Tier 1): *"el programa de Wompi abrió
+  `app/api/webhooks/wompi/route.ts` —cierra el `PaymentIntent` y **es el llamador futuro** de
+  `registerOrderPaymentTx`—"*. **FALSO hoy.** El webhook dejó de ser un llamador futuro el
+  2026-09-15: `ff9dda8` (`WOMPI-PAYMENT-DESDE-WEBHOOK-G-1`) le agregó la llamada real a
+  `registerOrderPaymentTx` (`app/api/webhooks/wompi/route.ts:351`, verificado por lectura directa del
+  archivo en este slice). Era cierta cuando `TIER1-LISTA-VENCIDA-1` la escribió (2026-09-14); dejó de
+  serlo al día siguiente.
+- **Líneas 2944–2947**: *"Hoy ese helper tiene TRES llamadores en producción (...); **el webhook
+  sería el cuarto**."* **FALSO hoy, y en DOS sentidos.** Primero, el webhook ya no "sería" el cuarto:
+  ya ES un llamador (mismo commit, `ff9dda8`). Segundo, el conteo de "tres" quedó corto incluso antes
+  de sumar al webhook: `grep -rn "registerOrderPaymentTx(" packages/core/src app` (corrido en este
+  slice) encuentra **CINCO** call sites de producción, no tres ni cuatro:
+  `packages/core/src/orders.ts:639` (`immediatePayment`), `packages/core/src/comprobantes.ts:164`
+  (`decidirComprobante`), `app/api/orders/[id]/payments/route.ts:60`, `app/api/webhooks/wompi/
+  route.ts:351` (el webhook), y `app/api/cron/automations/route.ts:68` — este último es el
+  reconciliador (`correrReconciliador`, de `packages/core/src/pagos/reconciliador.ts`, construido en
+  `9abdc5b`, `WOMPI-RECONCILIADOR-HI-1`, 2026-09-15, el MISMO día que `ff9dda8`), un QUINTO llamador
+  que la frase de `CLAUDE.md` no anticipa ni como "futuro cuarto".
+- **Líneas 2953–2954**: *"pero **NO crea el `Payment`**: frontera deliberada"*. **FALSO hoy**, mismo
+  commit (`ff9dda8`) — confirmado leyendo `app/api/webhooks/wompi/route.ts:23-26,351` en este slice:
+  el webhook, sobre `APROBADO`, lockea la orden (`lockOrderForPayment`) y llama a
+  `registerOrderPaymentTx` dentro de la misma transacción.
+- **Líneas 2954–2955**, la justificación de la frontera de arriba: *"porque eso exige un valor de
+  `MetodoPago` que el enum de hoy no tiene (decisión del owner, pendiente)"*. **FALSO hoy, y en DOS
+  partes.** El enum `MetodoPago` (`packages/core/prisma/schema.prisma:393-401`, verificado por lectura
+  directa en este slice) ya tiene el valor `WOMPI` desde `WOMPI-ENUM-METODO-F-1` (citado en el propio
+  comentario de cabecera de `app/api/webhooks/wompi/route.ts:25-26`) — así que ni falta el valor del
+  enum, ni la decisión del owner sigue pendiente: ya se tomó.
+- **Líneas 2955–2956**: *"**La RECONCILIACIÓN y el barrido de intentos vencidos siguen sin
+  construirse.**"* **FALSO hoy.** `packages/core/src/pagos/reconciliador.ts` existe (verificado con
+  `ls`/`git log` en este slice), construido en `9abdc5b` (`WOMPI-RECONCILIADOR-HI-1`, 2026-09-15) — y
+  su propia cabecera (leída en este slice, líneas 8-30 del archivo) describe que fusiona
+  DELIBERADAMENTE la reconciliación y el barrido por edad en una sola función
+  (`reconciliarIntentoPago`), precisamente porque cerrar por edad SIN reconciliar antes sería cerrar
+  `FALLIDO` un cobro que Wompi sí aprobó. Los dos —reconciliación y barrido— están construidos, y
+  están construidos JUNTOS a propósito.
+
+**Las cinco (contando la línea 84–85) viven dentro de un radio de ~2.900 líneas, casi todas dentro de
+un solo párrafo de 21 líneas** (2939–2959). No son cinco hallazgos dispersos: son la misma frase
+prospectiva —"esto está construido hasta acá, lo que falta es X"— que un solo día de trabajo (2026-09-
+15, dos commits) volvió obsoleta de punta a punta, un día después de haberse re-medido como cierta.
+Es la MISMA familia que `CLAUDE.md` ya documenta en `§ Backlog técnico`, "UN ÍTEM QUE CITA EL ESTADO
+DE OTRO SUBSISTEMA COMO PREMISA VENCE CUANDO ESE SUBSISTEMA CAMBIA" (el caso de los avisos del
+Dashboard, `CLAUDE-MD-FRASES-VENCIDAS-1`) — con una diferencia que vale la pena nombrar: ahí la premisa
+la mató una tanda de OTRA área tocando un subsistema ajeno sin que nadie relea el párrafo que dependía
+de él; acá la mató el PROPIO programa de Wompi, el día siguiente de haberse escrito, sobre su propia
+sección. Que la premisa muera dentro del mismo programa y al día siguiente, y aun así nadie la
+actualizara, es la evidencia más dura de que "vencer sin avisar" no es un riesgo de premisas lejanas:
+es el comportamiento por defecto de cualquier frase prospectiva, sin importar cuán cerca esté del
+código que la desmiente.
+
+### 3 · Un hallazgo estructural adicional, no pedido pero medido de paso — el Tier 1 quedó corto
+
+Al confirmar los cinco call sites de `registerOrderPaymentTx` (§2), dos de ellos son funciones que
+**consultan** si la escritura de un pago procede y con qué valor — exactamente el criterio que la
+sección "Tier 1 — superficies protegidas" de `CLAUDE.md` usa para decidir qué entra a la lista (línea
+~20: "la función que esa puerta CONSULTA para decidir si la escritura procede y con qué valor — no
+sólo el handler que la ejecuta"):
+
+- `packages/core/src/pagos/aplicar-resultado-wompi.ts` — la función que las líneas 2953 y 6116-6125 de
+  `CLAUDE.md` (`PRIMERA-TRANSACCION-REAL-ASIENTO-1`, arriba) ya identifican como *"la ÚNICA que
+  escribe `estado: 'APROBADO'` en toda la base de código... dentro de la misma transacción... que crea
+  el `Payment`"*.
+- `packages/core/src/pagos/reconciliador.ts` — la función que decide, consultando la API de Wompi, si
+  un intento `EN_VUELO` cierra `APROBADO`/`FALLIDO` y con ello si `registerOrderPaymentTx` corre.
+
+**Ninguna de las dos está en la lista Tier 1 de `CLAUDE.md`.** Tampoco lo está `app/api/cron/
+automations/route.ts`, la puerta HTTP que el cron invoca para correr el reconciliador (§2, quinto
+llamador). Las tres nacieron el 2026-09-15 (`ff9dda8`, `9abdc5b`) — un día después de la
+re-medición del 2026-09-14 (`TIER1-LISTA-VENCIDA-1`) que agregó `app/api/webhooks/wompi/route.ts` y
+`lib/pagos/wompi-firma.ts` a la lista. La propia doctrina de esa sección lo anticipa y lo nombra como
+su propio modo de falla: *"ESTA LISTA VENCE... El gate de Tier 1 sigue corriendo en VERDE sobre un
+conjunto que encogió — (...) acá vencer es peor: no confunde a quien lee, deja pasar."* Este slice no
+agrega los tres archivos a la lista —está fuera de `touches:` (sólo `DECISIONS.md`) y es al owner a
+quien corresponde decidir el conjunto protegido, no a este worker—; queda nombrado como
+**`TIER1-LISTA-VENCIDA-2`**, para que la próxima re-medición de la lista Tier 1 lo cierre con la
+decisión del owner: si `packages/core/src/pagos/aplicar-resultado-wompi.ts`,
+`packages/core/src/pagos/reconciliador.ts` y `app/api/cron/automations/route.ts` entran a la lista de
+`CLAUDE.md`, o si el owner decide que alguno queda afuera y por qué.
+
+### 4 · El censo — alcance explícito, para que nadie lo confunda con "se revisó todo `CLAUDE.md`"
+
+**Lo que se hizo:** un barrido con grep de patrones que describen ESTADO en vez de REGLA
+(`sin construir`, `sigue sin`, `todavía no`, `aún no`/`aun no`, `hoy no`, `hoy sólo`/`hoy solo`, `no
+existe`, `queda pendiente`, `sin construirse`, `no está construid[oa]`, `no se ha construido`, `no hay
+endpoint`, `no tiene UI`, `sin UI`, `no está cableado`, `sin cablear`) sobre el archivo COMPLETO
+(7.642 líneas) — 65 líneas coincidieron. Por separado, un segundo barrido de `Wompi|WOMPI|
+PaymentIntent|pasarela` sobre el archivo completo — 16 líneas coincidieron, TODAS dentro de dos zonas
+(el preámbulo Tier 1, líneas 84-98, y § "Pagos en línea (Wompi)", líneas 2891-2977, más una mención
+suelta en línea 7429 sobre otro tema — "roadmap (precedente Wompi)", no una afirmación de estado
+verificable contra código).
+
+**Lo que se verificó contra código, línea por línea:** las 16 líneas del segundo barrido (Wompi/
+PaymentIntent/pasarela) — es el resultado de §2 y §3 arriba. Es exhaustivo para esa superficie: no
+quedó ninguna mención de Wompi/PaymentIntent/pasarela en `CLAUDE.md` sin leer contra el código actual.
+
+**Lo que NO se verificó individualmente:** las ~49 líneas restantes del primer barrido (patrones de
+estado genéricos) que no mencionan Wompi/pagos/pasarela. Se revisó su CONTEXTO por muestreo —lo
+suficiente para descartar que hablen de una capacidad de dinero o de otra superficie Tier 1— pero no
+se releyó cada una contra el código como se hizo con las 16 de Wompi. Ejemplos del muestreo: línea
+1546 ("Ingresar con WhatsApp… capacidad que no existe") es sobre login, sin relación con pagos; línea
+5073 ("pago PSE sin acreditar… no existen acá") es sobre el Dashboard, describe capacidad de OTRO stack
+(Carlos) que sigue sin construirse — no contradicha por nada medido en este slice; línea 3550 (PDF de
+comprobante sin PDF) es de subida de archivos, no de Wompi. Ninguna de las muestreadas mostró la misma
+forma que las de §2 (una premisa sobre el MISMO subsistema, vencida por un commit reciente), pero
+**"no se encontró en la muestra" no es "se verificaron las 49"** — se declara así para que quede
+distinguible de lo que sí se cerró.
+
+**Lo que le cuesta a `CLAUDE.md` dejar las cinco frases de §2 sin corregir:** este archivo lo lee cada
+worker ANTES de escribir código — está al principio de cada sesión de este proyecto, por diseño
+(`CLAUDE.md` es contexto de proyecto cargado automáticamente). Una frase vencida ahí no es
+documentación desactualizada en el sentido usual: es una INSTRUCCIÓN vigente que un worker va a seguir
+al pie de la letra. Concretamente: un worker que lea la línea 2953-2956 hoy y necesite tocar el flujo
+de Wompi va a creer que la reconciliación no existe y puede intentar construirla de nuevo (duplicando
+`packages/core/src/pagos/reconciliador.ts`), o va a creer que el webhook no crea `Payment` por diseño
+y va a tratar como un bug un comportamiento que es, hoy, la funcionalidad correcta. La línea 84-85, en
+el preámbulo de la lista Tier 1 —la sección que decide qué se protege con doble etapa—, es la más cara
+de las cinco de dejar sin tocar: describe el webhook como algo que TODAVÍA no escribe dinero, en la
+misma sección cuyo propio criterio (§3 arriba) diría que sí lo hace y que dos archivos más deberían
+estar en la lista. Corregirla no es parte de este slice —`touches: DECISIONS.md` solamente, y la
+decisión de qué agregar a Tier 1 es del owner—, pero el costo de no hacerlo pronto es que la próxima
+persona que lea esa lista para decidir si algo necesita segunda etapa va a confiar en un conjunto que
+ya se sabe corto.
+
+### Gate
+
+**`npm run gate`, los dos carriles — corrido en este slice sobre el árbol final, verde.** El diff de
+este slice toca un solo archivo (`DECISIONS.md`, esta entrada, apendeada al final) y ningún código de
+producto ni test — no había manera de que ninguno de los dos carriles cambiara de veredicto respecto a
+`main`.
+
+**Tier 1 — SÍ aplica, por herencia de la rama y por el propio contenido de esta entrada** (que
+describe y corrige el razonamiento sobre superficies Tier 1 ya aterrizadas: el webhook de Wompi y la
+configuración de métodos de pasarela). El slice tenía aprobación explícita del owner para ESCRIBIR
+(`approved-by: owner`, `approval-reason` del spec: *"LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL
+MERGE"*) — el merge sigue gateado al owner, igual que el resto de la rama.
