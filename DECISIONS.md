@@ -7358,3 +7358,212 @@ la clase de la conclusión estirada quedara registrada como CLASE —no como an�
 y que se censaran más comentarios de la misma forma). **LA APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA
 EL MERGE** — el merge sigue gateado al owner, y este slice para en `AWAITING_APPROVAL` sin
 mergear.
+
+## 2026-09-18 — El reintento de pago con OTRO MÉTODO, opción A construida, y el techo de
+redirección deja de ser un callejón (`CHECKOUT-REINTENTO-OTRO-METODO-1`)
+
+**Cierra `CHECKOUT-REINTENTO-MECANISMO-1`** (el open_followup de `CHECKOUT-REINTENTO-CENSO-1`,
+arriba: "¿qué hace el comprador cuando el emisor rechaza su tarjeta?") — la respuesta construida
+acá es la opción A del §0.
+
+### 0 · La decisión del owner, y por qué manda
+
+El censo del reintento (`CHECKOUT-REINTENTO-CENSO-1`, arriba) midió que el rechazo del emisor es
+el ÚNICO estado terminal de la transición de pasarela sin ninguna salida real: el formulario
+reactivaba los mismos campos, pero cualquier reintento —misma tarjeta, otra tarjeta, u otro
+método— pegaba contra la MISMA `reference` ya cerrada (`intent.estado !== 'EN_VUELO'` → 409 "Este
+pago ya se resolvió") en un ciclo que nunca terminaba. El owner eligió, entre dos opciones (A:
+intento nuevo sobre la misma orden; B: cancelar y crear una orden nueva), la opción A, con su
+razón textual:
+
+> «La seguridad de B depende de que cancelar la orden vieja sea obligatorio y sincrónico —o sea,
+> de disciplina—; la de A no depende de nada, porque el aprobado tardío cae sobre la misma orden y
+> toma el carril de cobro duplicado que ya existe.»
+
+Fijó además: tope de TRES intentos por orden (el cuarto no se ofrece, y el comprador ve el número
+de orden y las dos acciones — como el resto de los estados terminales); el copy exacto del botón
+("Intentar con otro método") y del mensaje de rechazo (dos oraciones: "Tu pago no fue aprobado. No
+se realizó ningún cobro."); y pidió cerrar en el mismo slice `CHECKOUT-REDIRECCION-TECHO-SIN-
+ACCIONES-1`, la misma clase de defecto en `EsperaRedireccionPasarela`.
+
+### 1 · Por qué la opción A no necesita una guarda nueva de doble cobro
+
+Medido (`CHECKOUT-REINTENTO-CENSO-1`): `aplicarResultadoWompi` (`packages/core/src/pagos/
+aplicar-resultado-wompi.ts`) lockea la Order y compara `orden.estado !== 'pendiente'` — POR ORDEN,
+nunca por intento ni por cantidad de `PaymentIntent`. Un segundo (o tercer) intento aprobado tarde
+sobre una orden ya pagada cae en la rama "cobro duplicado" que ya existe: se asienta el hecho de
+Wompi, no se crea un segundo `Payment`, se notifica al carril de atención. Este slice NO tocó esa
+función, el webhook ni el reconciliador — la garantía preexistente ya cubre N intentos.
+
+### 2 · Lo construido — servidor
+
+**`packages/core/src/orders.ts`** gana el mecanismo de reintento, sin migración (el schema ya
+soporta N `PaymentIntent` por `Order` — `orden_id` no es `@unique`, medido en el censo):
+
+- **`TOPE_INTENTOS_PAGO_POR_ORDEN = 3`** — constante nombrada, con el argumento del owner escrito
+  al lado ("un formulario de tarjeta sin tope es una superficie de prueba de tarjetas robadas").
+- **`decidirReintentoPago(orden, intentosExistentes)`** — la decisión PURA (sin Prisma): "sigue
+  pendiente" se verifica ANTES que el tope (otra pestaña pudo haber pagado mientras tanto), y sólo
+  entonces se compara el conteo contra el tope. Extraída para poder afirmarla en un test sin base
+  — el mismo criterio de siempre ("se extrae lo que tiene la decisión para poder afirmarlo").
+- **`crearIntentoPagoDeReintento(numeroOrden)`** — lockea la orden (`FOR UPDATE`, mismo patrón que
+  `lockOrderForPayment`), cuenta los intentos existentes BAJO ese lock, corre la decisión pura, y
+  si es `permitido` crea el `PaymentIntent` con el MISMO patrón de dos escrituras (placeholder →
+  referencia real) que ya usa `createOrderWithCustomer`. Decisión y escritura son atómicas: dos
+  "Intentar con otro método" concurrentes sobre la misma orden no pueden colarse los dos por
+  encima del tope.
+
+**`app/api/checkout/route.ts`** — el bloque que arma la respuesta `wompi` (firma + aceptaciones)
+del POST original se EXTRAJO a `armarBloqueWompiPago(reference, montoEsperado)`, exportada, sin
+cambiar una sola rama de comportamiento del POST (mismo texto de error, mismo status). Es la pieza
+que el reintento necesitaba reusar — dos implementaciones de "qué cuenta como bloque completo"
+habría sido la misma clase de divergencia que ya pagaron `razonDelServidor`/`cruzoMinimo`.
+
+**`app/api/checkout/reintento/route.ts`** (nuevo) — la ÚNICA puerta que abre un intento nuevo.
+`POST { numero_orden }` → `crearIntentoPagoDeReintento` → si `creado`, `armarBloqueWompiPago` pide
+un bloque de aceptación FRESCO (el MISMO mecanismo — `obtenerBloqueAceptacionPasarela` — que ya usa
+la creación original, nunca uno cacheado) y responde `{ tipo: 'creado', wompi }`. El cliente no
+manda ningún dato de aceptación en este POST — sólo `numero_orden` — así que no existe ruta por la
+que un token viejo pudiera colarse. `PATCH /api/checkout` NO SE TOCÓ: su guarda `intent.estado !==
+'EN_VUELO'` sigue siendo la que impide reusar un intento cerrado — este endpoint sólo le da, de
+nuevo, un intento `EN_VUELO` legítimo contra el cual confirmar.
+
+### 3 · Lo construido — cliente
+
+`FormularioTarjeta.tsx` y `FormularioOtroMetodoPasarela.tsx` ganan, los dos, el MISMO mecanismo
+(el defecto era transversal a los dos formularios de pasarela, no exclusivo de tarjeta —
+`CHECKOUT-TRANSICION-DEFECTOS-1` ya lo trató así):
+
+- **`rechazado` (booleano) reemplaza los campos por la vista de rechazo** cuando el sondeo detecta
+  un estado final que no es `APROBADO` — nunca conviven las dos respuestas al mismo momento (mismo
+  criterio que ya cerró `techo` en `CHECKOUT-TRANSICION-DEFECTOS-1`). Se distingue de un error de
+  VALIDACIÓN/TOKENIZACIÓN previo a crear la orden (ese sí deja los campos a la vista: no hay ningún
+  intento que reintentar, porque nunca se creó ninguno).
+- **El texto del owner, textual: "Tu pago no fue aprobado. No se realizó ningún cobro."** — DOS
+  oraciones. El texto anterior (`pagoRechazado`) tenía una TERCERA ("Revisa los datos o intenta con
+  otro método.") que se retiró: ese trabajo ahora lo hace el botón, no una frase que lo anticipa.
+- **El botón "Intentar con otro método"** (texto del owner, textual) llama a `onReintentarOtroMetodo`
+  — bubbleado por `SelectorMetodoPasarela` hasta `checkout/page.tsx`, que hace TODO el trabajo
+  (fetch al endpoint nuevo, clasificación de la respuesta, actualización de estado). El formulario
+  local sólo bloquea el botón mientras la promesa viaja (`reintentando`).
+
+`checkout/page.tsx` gana `reintentarConOtroMetodo`:
+
+- **Al conseguir un intento nuevo**: reemplaza `confirmation.wompi` por el bloque nuevo, reemplaza
+  `bloquePasarela` (aceptaciones + publicKey + metodosOtros) por los valores FRESCOS que la
+  respuesta trajo, y avanza `reintentoKey` — la ÚNICA `key` de `<SelectorMetodoPasarela>`, que
+  fuerza su REMONTE completo con la `reference` nueva (picker limpio, de vuelta en la pestaña
+  tarjeta, sin el error de rechazo colgado). `reintentoKey` SÓLO avanza acá — nunca durante la
+  creación inicial del primer intento (que remontaría el formulario a mitad de un `handlePagar` en
+  vuelo, un defecto que se evitó a propósito, no un accidente evitado por casualidad).
+- **Si la orden ya no está pendiente y su estado es `pagado`** (otra pestaña la pagó mientras el
+  comprador decidía reintentar — el servidor lo verificó bajo lock): `setPasarelaAprobada(true)`,
+  la MISMA pantalla de éxito de `CHECKOUT-TRANSICION-DEFECTOS-1`. Cualquier OTRO estado no-pendiente
+  (p. ej. `cancelado`) cae al mensaje genérico — fuera de alcance de este slice, no hay pantalla
+  propia para ese caso.
+- **Si el servidor responde `tope_alcanzado`**: `setIntentosAgotados(true)` — flag NUEVA que se
+  agregó a la MISMA condición que ya dispara la pantalla completa "¡Pedido recibido!" reusada por
+  `pasarelaMetodoNoHabilitado`/`pasarelaAprobada` (`CHECKOUT-TRANSICION-DEFECTOS-1`). El comprador
+  ve el número de orden y las dos acciones — TEXTO DEL OWNER, cumplido literal: "al agotarse, el
+  comprador ve el número de orden y las dos acciones, como el resto de los estados terminales".
+
+### 4 · `EsperaRedireccionPasarela` — el techo deja de ser un callejón (`CHECKOUT-REDIRECCION-
+TECHO-SIN-ACCIONES-1`)
+
+Su vista `techo` (el sondeo de la dirección de redirección se agotó sin encontrarla) decía "Todavía
+no pudimos abrir la página de pago" sin número de orden ni ninguna acción — el MISMO defecto que
+`EsperaConfirmacionTarjeta.techo` tenía antes de `CHECKOUT-TRANSICION-DEFECTOS-1`. Se cerró con la
+MISMA forma: la caja de "Número de orden" (derivado de `reference.split(':')[0]`, la MISMA
+convención que ya usa `EsperaConfirmacionTarjeta`) + "Rastrear mi pedido" / "Seguir comprando". Este
+camino sigue siendo INALCANZABLE hoy por ningún comprador real —ningún descriptor real declara
+`redireccion`, medido en `CHECKOUT-REINTENTO-CENSO-1`—; se cierra igual porque el owner lo pidió
+explícito y porque dejarlo abierto "es garantizar que vuelva".
+
+### 5 · Deviations medidas contra `touches:`
+
+**`tests/integracion/` no está en `touches:` de este slice** (sólo `components/storefront/
+checkout/`, `app/(storefront)/checkout/`, `app/api/checkout/`, `packages/core/src/orders.ts`,
+`DECISIONS.md`), así que la ATOMICIDAD del lock+conteo de `crearIntentoPagoDeReintento` (dos
+reintentos concurrentes sobre la misma orden) NO se verificó contra Postgres real en este slice —
+sólo la decisión PURA que corre bajo ese lock (`decidirReintentoPago`, con tests en `app/api/
+checkout/reintento/route.test.ts`). El mecanismo de lock en sí (`FOR UPDATE` sobre la Order) es el
+MISMO patrón ya afirmado por el carril para `lockOrderForPayment`/`registerOrderPaymentTx`
+(`cobro-sincronizado.test.ts`) y para el creador de intentos original (`intento-pago-atomico.
+test.ts`) — no una construcción nueva sin precedente probado, pero la instancia NUEVA
+(`crearIntentoPagoDeReintento`) no tiene su propio test de concurrencia con base real. Abierto como
+open_followup.
+
+**Un archivo de test nuevo bajo `components/storefront/checkout/` rompe una guarda AJENA a este
+slice** — descubierto al correr el gate, no anticipado por el spec. `lib/gate/tests-descubiertos.
+test.ts` ("archivosSinCubrir: EL CASO REAL DE ANOCHE") reproduce un incidente histórico
+re-escaneando el árbol REAL del repo contra los patrones DE ANTES de `GATE-GLOB-COMPONENTS-
+SERVICES-1`, y afirma con `assert.deepEqual` que el resultado son EXACTAMENTE los dos archivos que
+quedaron invisibles esa noche. Como ese test re-escanea el árbol VIVO (no un fixture congelado),
+CUALQUIER archivo `*.test.ts` nuevo bajo `components/`, `services/` o `app/` que no exista todavía
+en esa lista hardcodeada rompe la igualdad exacta — medido: crear `components/storefront/checkout/
+interpretar-respuesta-reintento.test.ts` hizo que `archivosSinCubrir` devolviera TRES en vez de
+DOS. `lib/gate/` no está en `touches:` de este slice, así que esa guarda no se tocó. La resolución
+fue de UBICACIÓN, no de contenido: el clasificador PURO del lado cliente
+(`interpretarRespuestaReintento`) se quedó en `components/storefront/checkout/` (junto a su hermano
+`interpretar-respuesta-otro-metodo.ts`, que es un archivo `.ts`, no `.test.ts` — no dispara la
+guarda), pero SU TEST se escribió en `app/api/checkout/reintento/route.test.ts` (que sí estaba
+cubierto incluso por los patrones de esa noche, `app/**/*.test.ts`), evitando el archivo nuevo bajo
+`components/` que habría disparado la regresión. **La guarda queda con un defecto de diseño sin
+arreglar, nombrado como open_followup**: re-escanea el árbol vivo contra un snapshot de patrones
+congelado, así que cualquier archivo de test legítimo bajo un subárbol que ganó su glob DESPUÉS del
+incidente sigue rompiendo la reproducción histórica para siempre — el fix correcto sería congelar
+también la LISTA DE ARCHIVOS de esa noche (no sólo los patrones), no algo para decidir en este
+slice.
+
+**Un candidato nuevo para la lista canónica de Tier 1, no agregado** (CLAUDE.md no está en
+`touches:`): `app/api/checkout/reintento/route.ts` es, por el criterio de la propia doctrina, una
+puerta de escritura de dinero —crea un `PaymentIntent` nuevo— nacida en este slice. La frase
+canónica de Tier 1 (CLAUDE.md, § el párrafo largo tras "PRECONDICIÓN") no la nombra todavía.
+Abierto como open_followup para que un slice de doctrina la mida y la agregue, con el mismo
+criterio que ya usó `TIER1-DOS-CANDIDATOS-CLASIFICADOS-1`.
+
+### 6 · Lo que NO se hizo
+
+Ninguna orden nueva se crea en ningún camino (la opción B, descartada). Ningún archivo del eje del
+dinero fuera de `touches:` se tocó — el webhook, el reconciliador y `aplicarResultadoWompi` quedan
+intactos. Ningún otro texto provisional del programa se tocó fuera de los dos nombrados (§3 —el
+mensaje de rechazo— y este mismo mensaje en `FormularioOtroMetodoPasarela`). `CHECKOUT-OTRO-
+METODO-SIN-SALIDA-1` (¿el rechazo `metodo_no_habilitado` en el camino Nequi/otro-método debería
+caer a la confirmación manual?) sigue sin decidirse — es una pregunta DISTINTA (rechazo
+ESTRUCTURAL, síncrono, en la creación de la transacción), no el rechazo del EMISOR que este slice
+resuelve.
+
+### Gate
+
+**`npm run gate`, los dos carriles, corrido sobre el árbol final — verde.** Fast lane (`npm test`):
+1457/1457 (1457 = 1456 antes de este slice + 1, neto, tras contar los tests nuevos de este slice
+menos el archivo movido — medido por ejecución, no por conteo de líneas agregadas). Carril de
+integración (`npm run test:integracion`, Postgres efímero): 208/208, sin cambio de número —
+ningún test de este carril se agregó ni se tocó (§5, la deviation de arriba). `npx tsc --noEmit`
+también corrido, sin errores.
+
+**El camino manual y los otros métodos de pago quedan intactos**: `handleOrder`, `crearOrdenPasarela`
+(para el PRIMER intento) y el resto de la transición del checkout no cambiaron ni una línea de su
+lógica — sólo ganaron el nuevo prop `onReintentarOtroMetodo`, que se reenvía sin interpretarlo.
+
+**La secuencia completa que ve un comprador rechazado, hasta agotar el tope** (medida contra el
+código, no ejecutada en navegador — no hay harness de render en este repo, § CLAUDE.md doctrina de
+las tres capas; el gate visual del owner confirma esto en pantalla):
+
+1. Aprieta "Pagar" con tarjeta A → el emisor rechaza (intento #1, `FALLIDO`) → ve "Tu pago no fue
+   aprobado. No se realizó ningún cobro." + el número de orden + "Intentar con otro método".
+2. Clickea el botón → `POST /api/checkout/reintento` crea el intento #2 con aceptaciones frescas →
+   `SelectorMetodoPasarela` remonta, picker limpio en la pestaña tarjeta.
+3. Aprieta "Pagar" con tarjeta B (u otro método) → rechazo de nuevo (intento #2, `FALLIDO`) → MISMA
+   vista de rechazo.
+4. Clickea otra vez → intento #3, mismo ciclo.
+5. Si el intento #3 también es rechazado y el comprador clickea "Intentar con otro método" una
+   tercera vez: el servidor cuenta 3 intentos existentes ≥ el tope → `tope_alcanzado` → la página
+   muestra la pantalla completa "¡Pedido recibido!" con el número de orden y las dos acciones
+   (Rastrear mi pedido / Seguir comprando) — sin ofrecer un cuarto intento.
+
+**Tier 1 — SÍ aplica**: el spec lo declaró `tier: 1`, `writes: yes`, `approved: yes`
+(`approved-by: owner`, `approval-reason`: el owner eligió la opción A el 2026-09-18 con la razón
+del §0, fijó el tope en tres, el copy del botón y del mensaje, y pidió cerrar en el mismo slice el
+hueco de `EsperaRedireccionPasarela`). **LA APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA EL MERGE** — el
+merge sigue gateado al owner, y este slice para en `AWAITING_APPROVAL` sin mergear.

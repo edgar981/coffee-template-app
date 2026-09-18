@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { Clock, ExternalLink } from 'lucide-react';
 import { esperaSondeoSiguienteMs, TECHO_SONDEO_MS } from '@/lib/pagos/tres-ds';
 import type { ResultadoRedireccionPasarela } from '@/types/payment';
@@ -24,6 +25,17 @@ import type { ResultadoRedireccionPasarela } from '@/types/payment';
  * reporte del slice): la orden y el intento SIGUEN existiendo — el reconciliador
  * (`packages/core/src/pagos/reconciliador.ts`) es quien eventualmente se ocupa de un intento
  * que nunca resuelve. La vista `techo` lo dice así, sin afirmar éxito ni fracaso.
+ *
+ * § CHECKOUT-REDIRECCION-TECHO-SIN-ACCIONES-1 (2026-09-18, `CHECKOUT-REINTENTO-OTRO-METODO-1`
+ * — "es la misma clase que acabás de cerrar, en el componente de al lado, y dejarlo abierto es
+ * garantizar que vuelva", owner): esta vista `techo` tenía el MISMO defecto que
+ * `EsperaConfirmacionTarjeta.techo` tenía antes de § CHECKOUT-TRANSICION-DEFECTOS-1 — decía
+ * "sigue procesándose" sin número de orden ni ninguna acción, dejando al comprador sin saber
+ * qué pedido es ni qué hacer mientras tanto. MISMA FORMA que esa vista: la caja de número de
+ * orden + "Rastrear mi pedido" / "Seguir comprando". El `numeroOrden` sale de la MISMA
+ * convención que ya usan `EsperaConfirmacionTarjeta`/`FormularioTarjeta`
+ * (`reference.split(':')[0]`, `referenciaIntentoPago` en `packages/core/src/orders.ts`) — no
+ * una tercera forma de leerlo.
  */
 export interface EsperaRedireccionPasarelaProps {
   /** La `reference` del `PaymentIntent` que acaba de crear la transacción. */
@@ -47,6 +59,10 @@ const TEXTO = {
 
 export default function EsperaRedireccionPasarela({ reference, tipo }: EsperaRedireccionPasarelaProps) {
   const [vista, setVista] = useState<Vista>('esperando');
+
+  // `reference` se arma como `<numero_orden>:<cuid-de-la-propia-fila>` (`referenciaIntentoPago`,
+  // `packages/core/src/orders.ts`) — MISMA convención que ya lee `EsperaConfirmacionTarjeta`.
+  const numeroOrden = reference.split(':')[0];
 
   // El reloj del backoff vive en refs — no debe disparar un re-render por sí mismo, sólo el
   // RESULTADO de cada consulta cambia `vista` (mismo patrón que `EsperaConfirmacionTarjeta.tsx`
@@ -113,7 +129,25 @@ export default function EsperaRedireccionPasarela({ reference, tipo }: EsperaRed
           <Clock className="w-8 h-8 text-amber-600" />
         </div>
         <h3 className="text-xl font-playfair text-[var(--sf-tinta)] mb-1">{TEXTO.techoTitulo}</h3>
-        <p className="text-sm text-[var(--sf-texto-suave)]">{TEXTO.techoCuerpo}</p>
+        <p className="text-sm text-[var(--sf-texto-suave)] mb-3">{TEXTO.techoCuerpo}</p>
+        <div className="bg-[var(--sf-superficie)] rounded-2xl p-4 mb-4 text-left">
+          <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
+          <p className="text-xl font-bold text-[var(--sf-acento-texto)] text-center">{numeroOrden}</p>
+        </div>
+        <div className="flex flex-col gap-3">
+          <Link
+            href={`/rastrear-pedido?orden=${encodeURIComponent(numeroOrden)}`}
+            className="block w-full bg-[var(--sf-tinta)] text-[var(--sf-sobre)] font-semibold py-3 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)] transition-colors"
+          >
+            Rastrear mi pedido
+          </Link>
+          <Link
+            href="/tienda"
+            className="block w-full sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3 rounded-xl text-sm hover:bg-[var(--sf-superficie)] transition-colors"
+          >
+            Seguir comprando
+          </Link>
+        </div>
       </div>
     );
   }

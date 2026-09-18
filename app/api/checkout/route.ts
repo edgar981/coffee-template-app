@@ -31,6 +31,66 @@ import prisma from '@duna/core';
 // Wompi — es el que YA rige el resto del sistema.
 const MONEDA_WOMPI = 'COP';
 
+export interface BloqueWompiPago {
+  reference: string; amountInCents: number; currency: string; signature: string; publicKey: string;
+  aceptaciones: AceptacionesWompi;
+  // Los tipos QUE NO SON TARJETA disponibles para ESTE comprador (§ API-DIRECTA-OTROS-
+  // METODOS-1) — el dueño los encendió Y su cuenta los tiene, reusando el MISMO cruce que
+  // ya usa el panel (`metodosPasarelaParaComprador`, abajo). Vacío cuando no hay ninguno o
+  // cuando no se pudo consultar — la tarjeta sigue disponible por su propio camino sin
+  // importar esto.
+  metodosPasarelaOtros: string[];
+}
+
+export type ResultadoBloqueWompiPago =
+  | { ok: true; bloque: BloqueWompiPago }
+  | { ok: false; razon: 'sin_config' | 'sin_aceptacion' };
+
+/**
+ * Arma el bloque `wompi` FIRMADO para un intento YA CREADO — la pieza que
+ * comparten el POST original (§ WOMPI-WIDGET-EN-EL-CANONICO-1) y el reintento
+ * con otro método (§ CHECKOUT-REINTENTO-OTRO-METODO-1, `app/api/checkout/
+ * reintento/route.ts`): las DOS piden un bloque de aceptación FRESCO
+ * (`obtenerBloqueAceptacionPasarela` — el MISMO mecanismo, nunca uno nuevo ni
+ * uno cacheado) y firman el monto que ya se snapshoteó al crear el intento.
+ * Extraída para que las dos rutas no puedan divergir sobre qué cuenta como
+ * "completo" — dos lecturas de la misma decisión es como `razonDelServidor`/
+ * `cruzoMinimo` terminaron duplicados y divergiendo (CLAUDE.md).
+ *
+ * `ok: false` distingue POR QUÉ no hay bloque — el llamador decide qué hacer
+ * con cada razón (hoy los dos llamadores tratan `sin_config` como un 500
+ * ruidoso, y `sin_aceptacion` como "omitir el bloque, seguir sin pasarela").
+ */
+export async function armarBloqueWompiPago(
+  reference: string,
+  montoEsperado: number,
+): Promise<ResultadoBloqueWompiPago> {
+  const secretoIntegridad = process.env.WOMPI_INTEGRITY_SECRET;
+  const llavePublica = process.env.WOMPI_PUBLIC_KEY;
+  if (!secretoIntegridad || !llavePublica) return { ok: false, razon: 'sin_config' };
+
+  // `obtenerBloqueAceptacionPasarela` (`app/api/pasarela/aceptaciones/route.ts`) es la MISMA
+  // función que usa `GET /api/pasarela/aceptaciones` para que el checkout pueda mostrar el
+  // formulario ANTES de crear la orden — acá se reusa para no consultar la cuenta dos veces
+  // con dos implementaciones que pudieran divergir sobre qué cuenta como "completo".
+  const bloque = await obtenerBloqueAceptacionPasarela();
+  if (!bloque) return { ok: false, razon: 'sin_aceptacion' };
+
+  const amountInCents = pesosACentavos(montoEsperado);
+  return {
+    ok: true,
+    bloque: {
+      reference,
+      amountInCents,
+      currency: MONEDA_WOMPI,
+      signature: firmarIntegridadWompi(reference, amountInCents, MONEDA_WOMPI, secretoIntegridad),
+      publicKey: bloque.publicKey,
+      aceptaciones: bloque.aceptaciones,
+      metodosPasarelaOtros: bloque.metodosOtros,
+    },
+  };
+}
+
 // Guest checkout is intentionally unauthenticated — no Better Auth session.
 // The client is trusted ONLY for product slugs, quantities and customer /
 // shipping details. Every price, the shipping cost, the order total, the order
@@ -218,56 +278,28 @@ export async function POST(req: NextRequest) {
   // (d) no existe). Esta rama queda CABLEADA de punta a punta —incluida la llave pública que
   // el widget necesita— para que el día que (d) encienda la capacidad, no haga falta tocar
   // esta respuesta (DECISIONS.md, WOMPI-CREADOR-DE-INTENTOS-1 · WOMPI-WIDGET-EN-EL-CANONICO-1).
-  let wompi:
-    | {
-        reference: string; amountInCents: number; currency: string; signature: string; publicKey: string;
-        aceptaciones: AceptacionesWompi;
-        // Los tipos QUE NO SON TARJETA disponibles para ESTE comprador (§ API-DIRECTA-OTROS-
-        // METODOS-1) — el dueño los encendió Y su cuenta los tiene, reusando el MISMO cruce que
-        // ya usa el panel (`metodosPasarelaParaComprador`, abajo). Vacío cuando no hay ninguno o
-        // cuando no se pudo consultar — la tarjeta sigue disponible por su propio camino sin
-        // importar esto.
-        metodosPasarelaOtros: string[];
-      }
-    | undefined;
+  let wompi: BloqueWompiPago | undefined;
   if (order.paymentIntent) {
-    const secretoIntegridad = process.env.WOMPI_INTEGRITY_SECRET;
-    const llavePublica = process.env.WOMPI_PUBLIC_KEY;
-    if (!secretoIntegridad || !llavePublica) {
-      // Fail ruidoso, mismo criterio que el webhook (`WOMPI_EVENTS_SECRET`): un intento sin
-      // firma o sin llave pública no sirve para nada, y silenciarlo dejaría al cliente
-      // creyendo que puede pagar cuando no hay con qué firmar la petición ni con qué montar
-      // el widget. `WOMPI_PUBLIC_KEY` no es secreta (§ lib/pagos/llaves-pasarela.ts) — el
-      // riesgo acá no es exponerla, es devolver un bloque `wompi` a medias.
-      console.error('[checkout] falta WOMPI_INTEGRITY_SECRET o WOMPI_PUBLIC_KEY — no se puede firmar/mostrar el intento de pago');
-      return NextResponse.json({ error: 'No se pudo procesar la orden' }, { status: 500 });
-    }
-
-    // ── API-DIRECTA-ACEPTACIONES-SERVIDOR-1 · § CHECKOUT-UNA-SOLA-PANTALLA-1 ─────────────
-    // Sin las dos completas —token Y enlace, las dos aceptaciones— la transacción NO SE
-    // PUEDE CREAR en el proveedor (§ API-DIRECTA-DECISIONES-PROGRAMA-1 §4, DECISIONS.md),
-    // así que ofrecer el pago y fallar después es peor que no ofrecerlo: el bloque `wompi`
-    // entero queda AUSENTE de la respuesta, nunca a medias — el comprador no ve la causa,
-    // sólo deja de ver la opción de pagar en línea; el porqué queda en el log del servidor.
-    //
-    // `obtenerBloqueAceptacionPasarela` (`app/api/pasarela/aceptaciones/route.ts`) es la MISMA
-    // función que usa `GET /api/pasarela/aceptaciones` para que el checkout pueda mostrar el
-    // formulario ANTES de crear la orden — acá se reusa para no consultar la cuenta dos veces
-    // con dos implementaciones que pudieran divergir sobre qué cuenta como "completo".
-    const bloque = await obtenerBloqueAceptacionPasarela();
-    if (!bloque) {
+    const resultado = await armarBloqueWompiPago(order.paymentIntent.reference, order.paymentIntent.monto_esperado);
+    if (!resultado.ok) {
+      if (resultado.razon === 'sin_config') {
+        // Fail ruidoso, mismo criterio que el webhook (`WOMPI_EVENTS_SECRET`): un intento sin
+        // firma o sin llave pública no sirve para nada, y silenciarlo dejaría al cliente
+        // creyendo que puede pagar cuando no hay con qué firmar la petición ni con qué montar
+        // el widget. `WOMPI_PUBLIC_KEY` no es secreta (§ lib/pagos/llaves-pasarela.ts) — el
+        // riesgo acá no es exponerla, es devolver un bloque `wompi` a medias.
+        console.error('[checkout] falta WOMPI_INTEGRITY_SECRET o WOMPI_PUBLIC_KEY — no se puede firmar/mostrar el intento de pago');
+        return NextResponse.json({ error: 'No se pudo procesar la orden' }, { status: 500 });
+      }
+      // ── API-DIRECTA-ACEPTACIONES-SERVIDOR-1 · § CHECKOUT-UNA-SOLA-PANTALLA-1 ─────────────
+      // Sin las dos completas —token Y enlace, las dos aceptaciones— la transacción NO SE
+      // PUEDE CREAR en el proveedor (§ API-DIRECTA-DECISIONES-PROGRAMA-1 §4, DECISIONS.md),
+      // así que ofrecer el pago y fallar después es peor que no ofrecerlo: el bloque `wompi`
+      // entero queda AUSENTE de la respuesta, nunca a medias — el comprador no ve la causa,
+      // sólo deja de ver la opción de pagar en línea; el porqué queda en el log del servidor.
       console.error('[checkout] no se pudo armar el bloque de aceptación de la pasarela — se omite el bloque de pasarela');
     } else {
-      const amountInCents = pesosACentavos(order.paymentIntent.monto_esperado);
-      wompi = {
-        reference: order.paymentIntent.reference,
-        amountInCents,
-        currency: MONEDA_WOMPI,
-        signature: firmarIntegridadWompi(order.paymentIntent.reference, amountInCents, MONEDA_WOMPI, secretoIntegridad),
-        publicKey: bloque.publicKey,
-        aceptaciones: bloque.aceptaciones,
-        metodosPasarelaOtros: bloque.metodosOtros,
-      };
+      wompi = resultado.bloque;
     }
   }
 

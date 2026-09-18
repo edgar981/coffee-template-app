@@ -12,6 +12,7 @@ import {
 } from "@/services/checkout.service";
 import PagoPasarela from '@/components/storefront/checkout/PagoPasarela';
 import SelectorMetodoPasarela from '@/components/storefront/checkout/SelectorMetodoPasarela';
+import { interpretarRespuestaReintento } from '@/components/storefront/checkout/interpretar-respuesta-reintento';
 import { ETIQUETA_PAGO_PASARELA, subtituloPagoPasarela } from '@/lib/pagos/metodos-pasarela';
 import { formatCOP } from '@duna/core/utils';
 import { toast } from 'sonner';
@@ -80,6 +81,18 @@ export default function Checkout() {
   // se persiste: es el hecho de ESTA sesión de checkout, igual que `pasarelaMetodoNoHabilitado`.
   // Sólo puede pasar a `true` — no hay "reintentar" que la vuelva a `false` para la misma orden.
   const [pasarelaAprobada, setPasarelaAprobada] = useState(false);
+  // § CHECKOUT-REINTENTO-OTRO-METODO-1 (opción A, DECISIONS.md — el owner): TRES intentos de
+  // pago por orden, EN TOTAL — el servidor los cuenta y los aplica
+  // (`crearIntentoPagoDeReintento`, `@duna/core/orders`); esta bandera sólo refleja que el
+  // CUARTO no se ofreció. Local, nunca se persiste, igual que `pasarelaMetodoNoHabilitado` —
+  // sólo puede pasar a `true`.
+  const [intentosAgotados, setIntentosAgotados] = useState(false);
+  // Cambia SÓLO cuando un reintento consigue un `PaymentIntent` nuevo — nunca en la creación
+  // inicial (que no debe remontar `SelectorMetodoPasarela` a mitad de un `handlePagar` en
+  // vuelo). Es la `key` que fuerza el remonte de ese componente con la `reference` nueva, para
+  // que el formulario arranque LIMPIO (campos vacíos, sin el error de rechazo colgado) — el
+  // mismo mecanismo que ya usa `key={descriptorElegido.tipo}` al cambiar de pestaña.
+  const [reintentoKey, setReintentoKey] = useState(0);
 
   // § CHECKOUT-UNA-SOLA-PANTALLA-1: el bloque de aceptación de pasarela —las DOS aceptaciones,
   // la llave pública, los métodos QUE NO SON TARJETA— SIN CREAR NINGUNA ORDEN. Se pide una vez,
@@ -292,6 +305,67 @@ export default function Checkout() {
     setPasarelaMetodoNoHabilitado(true);
   };
 
+  // § CHECKOUT-REINTENTO-OTRO-METODO-1 (opción A, DECISIONS.md `CHECKOUT-REINTENTO-CENSO-1` —
+  // el owner): un pago rechazado por el EMISOR se reintenta con un intento de pago NUEVO sobre
+  // la MISMA orden — nunca una orden nueva. Bubbleada desde `FormularioTarjeta`/
+  // `FormularioOtroMetodoPasarela` (vía `SelectorMetodoPasarela`), después de que el comprador
+  // clickea "Intentar con otro método" en la vista de rechazo.
+  //
+  // `POST /api/checkout/reintento` cuenta y aplica el TOPE en el SERVIDOR
+  // (`crearIntentoPagoDeReintento`, `@duna/core/orders`) y pide aceptaciones FRESCAS
+  // (`armarBloqueWompiPago`, el MISMO mecanismo — `obtenerBloqueAceptacionPasarela` — que ya usa
+  // la creación original) — este cliente sólo manda el número de orden y reacciona a la
+  // clasificación pura de la respuesta (`interpretarRespuestaReintento`).
+  //
+  // AL CONSEGUIRLO: se reemplaza `confirmation.wompi` por el bloque nuevo, se reemplaza
+  // `bloquePasarela` por las aceptaciones frescas (para que `AceptacionesPasarela` las muestre,
+  // no las viejas que el comprador ya vio), y `reintentoKey` avanza — lo que REMONTA
+  // `SelectorMetodoPasarela` con la `reference` nueva, arrancando el picker desde cero (tarjeta
+  // por defecto, formularios limpios). NUNCA se toca `items`/`clearCart`: la orden ya existe, no
+  // hay nada del carrito que limpiar de nuevo.
+  const reintentarConOtroMetodo = async (): Promise<void> => {
+    if (!confirmation) return;
+    let body: unknown = null;
+    try {
+      const res = await fetch('/api/checkout/reintento', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ numero_orden: confirmation.numero_orden }),
+      });
+      body = await res.json().catch(() => null);
+    } catch (e) {
+      toast.error(e instanceof Error ? `No pudimos comunicarnos con el servidor: ${e.message}` : 'No pudimos comunicarnos con el servidor.');
+      return;
+    }
+
+    const resultado = interpretarRespuestaReintento(body, 'No pudimos procesar tu solicitud. Intenta de nuevo.');
+    if (resultado.tipo === 'creado') {
+      setConfirmation((c) => (c ? { ...c, wompi: resultado.wompi } : c));
+      setBloquePasarela({
+        aceptaciones: resultado.wompi.aceptaciones,
+        publicKey:    resultado.wompi.publicKey,
+        metodosOtros: resultado.wompi.metodosPasarelaOtros,
+      });
+      setReintentoKey((k) => k + 1);
+      return;
+    }
+    if (resultado.tipo === 'ya_pagada') {
+      // Otra pestaña pagó la orden mientras el comprador decidía reintentar — el servidor ya lo
+      // verificó bajo lock (§ el docstring del endpoint); acá sólo se refleja el hecho.
+      setPasarelaAprobada(true);
+      return;
+    }
+    if (resultado.tipo === 'tope_alcanzado') {
+      // TEXTO DEL OWNER (2026-09-18): "al agotarse, el comprador ve el número de orden y las
+      // dos acciones, como el resto de los estados terminales" — se reusa la MISMA pantalla que
+      // ya usa `pasarelaMetodoNoHabilitado` (abajo, el `if` de la confirmación completa).
+      toast.error('Ya intentaste pagar varias veces y no fue posible completar el cobro. Tu pedido queda reservado y te contactaremos para coordinar el pago.');
+      setIntentosAgotados(true);
+      return;
+    }
+    toast.error(resultado.mensaje);
+  };
+
   // CHECKOUT-PAGO-EN-EL-PASO-1: el pago por pasarela ("Tu pedido está reservado" + el widget/
   // formulario) ya NO es un `return` temprano que reemplaza toda la pantalla — se monta DENTRO
   // del paso de pago del checkout normal (`step === 1`, más abajo), con los pasos y el resumen
@@ -310,7 +384,13 @@ export default function Checkout() {
   // acciones de abajo son EXACTAMENTE las mismas que ya usan los métodos manuales, sin tocar una
   // sola línea de esa parte — sólo el ícono, el título, el primer párrafo y el estado cambian
   // quién de los dos casos anuncian.
-  if (confirmation && (!confirmation.wompi || pasarelaMetodoNoHabilitado || pasarelaAprobada)) {
+  //
+  // § CHECKOUT-REINTENTO-OTRO-METODO-1: `intentosAgotados` reusa la MISMA pantalla, por la MISMA
+  // razón — MISMO texto del owner ("el comprador ve el número de orden y las dos acciones, como
+  // el resto de los estados terminales") y MISMO tratamiento que `pasarelaMetodoNoHabilitado`
+  // (cae al "else" del ícono/título/párrafo de abajo, que no distingue entre las dos causas: las
+  // dos son "no se pudo cobrar con tarjeta, el equipo coordina el pago").
+  if (confirmation && (!confirmation.wompi || pasarelaMetodoNoHabilitado || pasarelaAprobada || intentosAgotados)) {
     // `confirmation.estado` es el de la CREACIÓN de la orden ('pendiente' — el pago de pasarela
     // se confirma después, por webhook). Con `pasarelaAprobada` el comprador no debe leer
     // "pendiente": el sondeo acaba de confirmar el pago, así que el badge muestra ESE hecho.
@@ -633,9 +713,17 @@ export default function Checkout() {
                         que "Pagar" cree la orden (no se remonta cuando `confirmation` aparece, ni
                         cuando desaparece el bloque de arriba): así conserva su progreso interno
                         (tokenizando, esperando confirmación) sin depender de en qué rama esté la
-                        página. Su botón "Pagar · $X" es el ÚNICO que confirma. */}
+                        página. Su botón "Pagar · $X" es el ÚNICO que confirma.
+
+                        § CHECKOUT-REINTENTO-OTRO-METODO-1: LA ÚNICA excepción a "no se remonta"
+                        — `key={reintentoKey}` fuerza el remonte cuando un reintento consigue un
+                        `PaymentIntent` nuevo (`reintentarConOtroMetodo`, arriba), para que el
+                        picker arranque LIMPIO con la `reference` nueva en vez de seguir mostrando
+                        el formulario ya rechazado. `reintentoKey` sólo avanza ahí — nunca durante
+                        la creación inicial. */}
                     {pasarelaSeleccionada && modoApiDirecta && bloquePasarela && !pasarelaMetodoNoHabilitado && (
                       <SelectorMetodoPasarela
+                        key={reintentoKey}
                         aceptaciones={bloquePasarela.aceptaciones}
                         publicKey={bloquePasarela.publicKey}
                         crearOrdenPasarela={crearOrdenPasarela}
@@ -644,6 +732,7 @@ export default function Checkout() {
                         metodosOtros={bloquePasarela.metodosOtros}
                         onMetodoNoHabilitado={handleMetodoNoHabilitado}
                         onAprobado={() => setPasarelaAprobada(true)}
+                        onReintentarOtroMetodo={reintentarConOtroMetodo}
                       />
                     )}
 

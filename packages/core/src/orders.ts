@@ -380,6 +380,106 @@ export function referenciaIntentoPago(numeroOrden: string, paymentIntentId: stri
   return `${numeroOrden}:${paymentIntentId}`;
 }
 
+// ─── Reintento de pago con OTRO MÉTODO, sobre una orden EXISTENTE ────────────
+//
+// § CHECKOUT-REINTENTO-OTRO-METODO-1 — opción A, decidida por el owner
+// (DECISIONS.md, `CHECKOUT-REINTENTO-CENSO-1`): un pago rechazado por el
+// emisor se reintenta con un intento de pago NUEVO sobre la MISMA orden —
+// NUNCA una orden nueva. La razón, textual: «la seguridad de [crear otra
+// orden y cancelar la vieja] depende de que cancelar sea obligatorio y
+// sincrónico —disciplina—; la de A no depende de nada, porque el aprobado
+// tardío del intento viejo cae sobre la MISMA orden y toma el carril de cobro
+// duplicado que YA EXISTE» — medido (CHECKOUT-REINTENTO-CENSO-1):
+// `aplicarResultadoWompi` compara `orden.estado !== 'pendiente'` bajo su
+// propio lock, POR ORDEN y no por intento, así que cubre cualquier cantidad
+// de intentos sin una línea más. Esta función NO es una segunda guarda de
+// doble cobro: sólo decide si vale la pena abrir un intento MÁS.
+
+// TRES intentos de pago por orden, EN TOTAL (contando el primero) — «un
+// formulario de tarjeta sin tope es una superficie de prueba de tarjetas
+// robadas, y hoy nada lo limita» (owner). El cuarto no se ofrece.
+export const TOPE_INTENTOS_PAGO_POR_ORDEN = 3;
+
+export type DecisionReintentoPago =
+  | { tipo: 'permitido' }
+  | { tipo: 'tope_alcanzado' }
+  | { tipo: 'no_pendiente'; estado: string }
+  | { tipo: 'no_encontrada' };
+
+/**
+ * La decisión PURA de si un reintento puede abrir un intento más — SIN tocar
+ * la base. `crearIntentoPagoDeReintento` (abajo) la corre DENTRO del mismo
+ * `SELECT … FOR UPDATE` que cuenta los intentos existentes, para que la
+ * decisión y la escritura sean atómicas: dos "Intentar con otro método"
+ * concurrentes sobre la MISMA orden no pueden colarse los dos por encima del
+ * tope. Separarla en una función pura es lo que permite afirmar el TOPE y la
+ * guarda de "sigue pendiente" SIN Postgres — se extrae lo que tiene la
+ * decisión para poder afirmarlo en un test (mismo criterio que
+ * `derivarCondicionPago`, arriba).
+ *
+ * `orden` es `null` cuando el `numero_orden` no resuelve a ninguna fila.
+ * "Sigue pendiente" se verifica ANTES que el tope: otra pestaña pudo haber
+ * pagado la orden mientras el comprador decidía reintentar, y ese hecho
+ * importa más que cuántos intentos lleva.
+ */
+export function decidirReintentoPago(
+  orden: { estado: string } | null,
+  intentosExistentes: number,
+): DecisionReintentoPago {
+  if (!orden) return { tipo: 'no_encontrada' };
+  if (orden.estado !== 'pendiente') return { tipo: 'no_pendiente', estado: orden.estado };
+  if (intentosExistentes >= TOPE_INTENTOS_PAGO_POR_ORDEN) return { tipo: 'tope_alcanzado' };
+  return { tipo: 'permitido' };
+}
+
+export type ResultadoIntentoPagoReintento =
+  | { tipo: 'creado'; reference: string; montoEsperado: number }
+  | { tipo: 'tope_alcanzado' }
+  | { tipo: 'no_pendiente'; estado: string }
+  | { tipo: 'no_encontrada' };
+
+/**
+ * Crea un `PaymentIntent` NUEVO para una orden que YA EXISTE — nunca una
+ * orden nueva (§ arriba). Lockea la fila de la orden (`FOR UPDATE`, mismo
+ * patrón que `lockOrderForPayment`) y, bajo ESE lock, cuenta los intentos ya
+ * existentes (el rechazado incluido) y corre `decidirReintentoPago` —
+ * decisión y escritura en la MISMA transacción, así que el tope no se puede
+ * saltar con dos reintentos concurrentes sobre la misma orden.
+ *
+ * MISMO patrón de DOS escrituras que el creador de intentos de
+ * `createOrderWithCustomer` (arriba): el `reference` embebe el `id` de la
+ * propia fila, que Prisma sólo entrega DESPUÉS del insert.
+ */
+export async function crearIntentoPagoDeReintento(
+  numeroOrden: string,
+): Promise<ResultadoIntentoPagoReintento> {
+  return prisma.$transaction(async (tx) => {
+    const filas = await tx.$queryRaw<{ id: string; numero_orden: string; estado: string; total: number }[]>`
+      SELECT "id", "numero_orden", "estado", "total" FROM "Order" WHERE "numero_orden" = ${numeroOrden} FOR UPDATE
+    `;
+    const orden = filas[0] ?? null;
+    if (!orden) return { tipo: 'no_encontrada' };
+
+    const intentosExistentes = await tx.paymentIntent.count({ where: { orden_id: orden.id } });
+    const decision = decidirReintentoPago(orden, intentosExistentes);
+    if (decision.tipo !== 'permitido') return decision;
+
+    const creado = await tx.paymentIntent.create({
+      data: {
+        orden_id:       orden.id,
+        reference:      `_pendiente_${randomUUID()}`,
+        monto_esperado: orden.total,
+      },
+    });
+    const actualizado = await tx.paymentIntent.update({
+      where: { id: creado.id },
+      data:  { reference: referenciaIntentoPago(orden.numero_orden, creado.id) },
+    });
+
+    return { tipo: 'creado', reference: actualizado.reference, montoEsperado: actualizado.monto_esperado };
+  });
+}
+
 export function isUniqueViolation(error: unknown): boolean {
   return (
     typeof error === 'object' && error !== null && 'code' in error &&

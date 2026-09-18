@@ -81,6 +81,10 @@ export interface SelectorMetodoPasarelaProps {
    *  los dos formularios que este selector monta, hasta `checkout/page.tsx`, que reemplaza TODA
    *  la transición por la confirmación completa del pedido. */
   onAprobado: () => void;
+  /** § CHECKOUT-REINTENTO-OTRO-METODO-1: bubbleado desde CUALQUIERA de los dos formularios
+   *  hasta `checkout/page.tsx` — abre un intento de pago NUEVO sobre la MISMA orden tras un
+   *  rechazo del emisor. Este selector sólo lo reenvía; no sabe nada de tope ni de aceptaciones. */
+  onReintentarOtroMetodo: () => Promise<void>;
 }
 
 /**
@@ -115,6 +119,7 @@ export interface SelectorMetodoPasarelaProps {
  */
 export default function SelectorMetodoPasarela({
   aceptaciones, publicKey, crearOrdenPasarela, monto, email, metodosOtros, onMetodoNoHabilitado, onAprobado,
+  onReintentarOtroMetodo,
 }: SelectorMetodoPasarelaProps) {
   const [tipoElegido, setTipoElegido] = useState<string>('tarjeta');
 
@@ -133,6 +138,7 @@ export default function SelectorMetodoPasarela({
         email={email}
         onMetodoNoHabilitado={onMetodoNoHabilitado}
         onAprobado={onAprobado}
+        onReintentarOtroMetodo={onReintentarOtroMetodo}
       />
     );
   }
@@ -200,6 +206,7 @@ export default function SelectorMetodoPasarela({
           email={email}
           onMetodoNoHabilitado={onMetodoNoHabilitado}
           onAprobado={onAprobado}
+          onReintentarOtroMetodo={onReintentarOtroMetodo}
         />
       ) : descriptorElegido ? (
         // `key` fuerza un remonte al cambiar de tipo: cada tipo tiene su propio estado de
@@ -213,6 +220,7 @@ export default function SelectorMetodoPasarela({
           monto={monto}
           email={email}
           onAprobado={onAprobado}
+          onReintentarOtroMetodo={onReintentarOtroMetodo}
         />
       ) : null}
     </div>

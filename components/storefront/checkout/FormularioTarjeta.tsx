@@ -100,12 +100,22 @@ import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
  *
  * § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: SI EL COBRO SE CREA PERO EL EMISOR LO RECHAZA — el
  * sondeo de `EsperaConfirmacionTarjeta` lo detecta de forma ASÍNCRONA, después de que este
- * `handlePagar` ya terminó—, `handleFallido` (abajo) vuelve a este mismo formulario: `creada`
- * se limpia (deja de renderizar la espera), el CVV se borra (es el único campo de la tarjeta
- * que cuenta como SECRETO — no sobrevive a un intento fallido) y el resto de los campos —
- * número, vencimiento, nombre del titular— queda TAL COMO el comprador los dejó, con el
- * mensaje de rechazo arriba del botón. Antes de este slice no había vuelta: la espera
- * mostraba una pantalla terminal sin ningún camino de regreso al formulario.
+ * `handlePagar` ya terminó—, `handleFallido` (abajo) vuelve a este mismo formulario, nunca a una
+ * pantalla aparte: `creada` se limpia (deja de renderizar la espera) y el CVV se borra (es el
+ * único campo de la tarjeta que cuenta como SECRETO — no sobrevive a un intento fallido). Antes
+ * de este slice no había vuelta: la espera mostraba una pantalla terminal sin ningún camino de
+ * regreso al formulario.
+ *
+ * § CHECKOUT-REINTENTO-OTRO-METODO-1 (2026-09-18, opción A del owner, DECISIONS.md
+ * `CHECKOUT-REINTENTO-CENSO-1`): EL RECHAZO YA NO REACTIVA LOS MISMOS CAMPOS — los reemplaza por
+ * el mensaje de rechazo (`rechazado`, abajo) y el botón "Intentar con otro método", que abre un
+ * `PaymentIntent` NUEVO sobre la MISMA orden con aceptaciones FRESCAS (`onReintentarOtroMetodo`,
+ * resuelto en `checkout/page.tsx`). Antes de este slice, "Pagar" seguía disponible sobre la
+ * MISMA `reference` cerrada — un ciclo de 409 ("Este pago ya se resolvió") que nunca terminaba,
+ * medido en `CHECKOUT-REINTENTO-CENSO-1`. TRES intentos por orden en total; el cuarto no se
+ * ofrece — el servidor lo rechaza (`crearIntentoPagoDeReintento`, `@duna/core/orders`) y la
+ * página reemplaza la pantalla entera por la confirmación con el número de orden y las dos
+ * acciones, igual que los demás estados terminales.
  *
  * § CHECKOUT-TRANSICION-DEFECTOS-1 (2026-09-18, tres defectos que el owner vio en la PRIMERA
  * transacción real —`PRIMERA-TRANSACCION-REAL-ASIENTO-1`, DECISIONS.md—, § el reporte del
@@ -152,6 +162,15 @@ export interface FormularioTarjetaProps {
    *  `EsperaConfirmacionTarjeta.onAprobado`. Este formulario no dibuja nada para ese caso: la
    *  página reemplaza TODA la transición por la confirmación completa del pedido. */
   onAprobado: () => void;
+  /** § CHECKOUT-REINTENTO-OTRO-METODO-1: el comprador pidió reintentar tras un rechazo del
+   *  EMISOR (`handleFallido`, abajo) — abre un `PaymentIntent` NUEVO sobre la MISMA orden, con
+   *  aceptaciones frescas, y hace que la página REMONTE `SelectorMetodoPasarela` con la
+   *  `reference` nueva. Este formulario no decide nada de eso: sólo dispara la promesa y
+   *  muestra un texto intermedio mientras viaja (`reintentando`, abajo) — si el pedido falla
+   *  (tope alcanzado, la orden ya no está pendiente, un error de red), el llamador decide qué
+   *  mostrar (la pantalla terminal, o un toast) y este componente queda intacto, listo para que
+   *  el comprador vuelva a intentarlo. */
+  onReintentarOtroMetodo: () => Promise<void>;
 }
 
 interface CamposTarjeta {
@@ -180,10 +199,16 @@ const TEXTO = {
   // sondear) — nunca cambia de frase a mitad de camino, que era justo el defecto ("aparece dos
   // veces").
   botonEnVuelo: 'Verificando tarjeta…',
-  // § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: el cobro se creó pero el emisor lo RECHAZÓ (detectado
-  // por el sondeo de `EsperaConfirmacionTarjeta`, vía `onFallido`) — no hay excepción del owner
-  // todavía, mismo estado provisional que el resto de este archivo.
-  pagoRechazado: 'Tu pago no fue aprobado. No se realizó ningún cobro. Revisa los datos o intenta con otro método.',
+  // § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1 / CHECKOUT-REINTENTO-OTRO-METODO-1: el cobro se
+  // creó pero el emisor lo RECHAZÓ (detectado por el sondeo de `EsperaConfirmacionTarjeta`, vía
+  // `onFallido`) — TEXTO DEL OWNER, textual (2026-09-18), ya no provisional: DOS oraciones, sin
+  // la tercera que invitaba a "revisar datos o intentar con otro método" — ese tercer trabajo
+  // ahora lo hace el botón "Intentar con otro método" (abajo), no una frase que lo anticipa.
+  pagoRechazado: 'Tu pago no fue aprobado. No se realizó ningún cobro.',
+  // § CHECKOUT-REINTENTO-OTRO-METODO-1: TEXTO DEL OWNER, textual — dice qué va a pasar y no
+  // promete que el mismo método vaya a funcionar.
+  botonReintentar: 'Intentar con otro método',
+  botonReintentarEnVuelo: 'Preparando…',
 };
 
 const TEXTO_CREACION_TRANSACCION_GENERICO = 'No pudimos procesar tu pago. Intenta de nuevo o usa otro método.';
@@ -271,7 +296,7 @@ async function confirmarConAutenticacion3ds(input: {
   throw new CreacionTransaccionError(tipo, mensaje);
 }
 
-export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenPasarela, monto, email, onMetodoNoHabilitado, onAprobado }: FormularioTarjetaProps) {
+export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenPasarela, monto, email, onMetodoNoHabilitado, onAprobado, onReintentarOtroMetodo }: FormularioTarjetaProps) {
   const [terminosMarcado, setTerminosMarcado] = useState(false);
   const [datosMarcado, setDatosMarcado] = useState(false);
   const [campos, setCampos] = useState<CamposTarjeta>(CAMPOS_VACIOS);
@@ -283,6 +308,16 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
   // sepa CON QUÉ ORDEN está reintentando (antes no se mostraba ninguna). Se limpia al volver a
   // intentar (primera línea de `handlePagar`), igual que `errorTokenizacion`.
   const [numeroOrdenRechazado, setNumeroOrdenRechazado] = useState<string | null>(null);
+  // § CHECKOUT-REINTENTO-OTRO-METODO-1: distingue el RECHAZO DEL EMISOR (tras crear la
+  // transacción — `handleFallido`) de un error de VALIDACIÓN/TOKENIZACIÓN previo (que no creó
+  // ninguna orden todavía): sólo el primero reemplaza los campos por la vista de reintento —
+  // un error de validación deja los campos a la vista, con "Pagar" disponible para corregir y
+  // reintentar SIN abrir un intento nuevo (no hace falta: nunca se creó ninguno).
+  const [rechazado, setRechazado] = useState(false);
+  // El clic en "Intentar con otro método" está en vuelo — bloquea el botón mientras
+  // `onReintentarOtroMetodo` viaja al servidor (mismo criterio de doble-submit que `procesando`
+  // más abajo, pero acotado a este botón: la página decide qué pasa después).
+  const [reintentando, setReintentando] = useState(false);
   // Presencia = éxito COMPLETO: el token se obtuvo Y la transacción quedó creada en Wompi
   // (§ API-DIRECTA-DESALINEO-CABLEADO-1) — nunca se pone en `true` sólo por tokenizar. Trae la
   // `reference` de la orden que `crearOrdenPasarela` acaba de crear (§ CHECKOUT-UNA-SOLA-
@@ -378,6 +413,7 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
     setErrores({});
     setErrorTokenizacion(null);
     setNumeroOrdenRechazado(null);
+    setRechazado(false);
     setTokenizando(true);
     try {
       const token = await tokenizarTarjeta(
@@ -456,6 +492,27 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
     setCampos((c) => ({ ...c, cvv: '' }));
     setErrores({});
     setErrorTokenizacion(TEXTO.pagoRechazado);
+    // § CHECKOUT-REINTENTO-OTRO-METODO-1: reemplaza los campos por la vista de reintento — el
+    // owner: "el cuarto no se ofrece", pero el primero, segundo y tercero SÍ, con un intento de
+    // pago NUEVO cada vez (nunca reintentando contra el mismo, que es lo que dejaba al
+    // comprador en un ciclo de 409 antes de este slice).
+    setRechazado(true);
+  };
+
+  // § CHECKOUT-REINTENTO-OTRO-METODO-1: dispara el reintento — la PÁGINA hace todo el trabajo
+  // (pide el intento nuevo con aceptaciones frescas, y si lo consigue, REMONTA
+  // `SelectorMetodoPasarela` con la `reference` nueva, lo que desmonta este propio componente).
+  // Si el pedido falla (tope alcanzado, la orden ya no está pendiente, un error de red), la
+  // página decide qué mostrar (la pantalla terminal, o un toast) y este componente sigue
+  // montado, en `rechazado`, listo para un nuevo clic.
+  const handleReintentarOtroMetodo = async () => {
+    if (reintentando) return;
+    setReintentando(true);
+    try {
+      await onReintentarOtroMetodo();
+    } finally {
+      setReintentando(false);
+    }
   };
 
   return (
@@ -472,7 +529,7 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
     // excepción es `techo` (§4, "indeterminado"): ahí SÍ se ocultan los campos —es un cambio de
     // estado real, y `EsperaConfirmacionTarjeta` ya dibuja la respuesta completa por su cuenta—.
     <div className="space-y-4 text-left">
-      {!techo && (
+      {!techo && !rechazado && (
         <>
           <div className="space-y-3">
             <CampoTarjeta
@@ -526,15 +583,12 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
             disabled={procesando}
           />
 
+          {/* Sólo un error de VALIDACIÓN/TOKENIZACIÓN previo a crear la orden llega acá — un
+              RECHAZO del emisor (`handleFallido`) pone `rechazado=true` y salta a la vista de
+              abajo, que nunca comparte este bloque (§ CHECKOUT-REINTENTO-OTRO-METODO-1). */}
           {errorTokenizacion && (
             <div className="text-xs text-red-600">
               <p>{errorTokenizacion}</p>
-              {/* § CHECKOUT-TRANSICION-DEFECTOS-1: sólo aparece tras un RECHAZO (§ arriba) — un
-                  error de tokenización/validación previo a crear la orden no tiene número que
-                  mostrar. */}
-              {numeroOrdenRechazado && (
-                <p className="mt-0.5 text-[var(--sf-texto-suave)]">Número de orden: <span className="font-semibold">{numeroOrdenRechazado}</span></p>
-              )}
             </div>
           )}
 
@@ -547,6 +601,33 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
             {procesando ? TEXTO.botonEnVuelo : `Pagar · ${formatCOP(monto)}`}
           </button>
         </>
+      )}
+
+      {/* § CHECKOUT-REINTENTO-OTRO-METODO-1: EL RECHAZO DEL EMISOR — reemplaza los campos de la
+          tarjeta (nunca los muestra a la vez que este mensaje: dos respuestas al mismo momento
+          es justo lo que § CHECKOUT-TRANSICION-DEFECTOS-1 vino a cerrar para `techo`, y este
+          caso es el mismo patrón). El botón abre un intento de pago NUEVO sobre la MISMA orden
+          — nunca reintenta contra la `reference` ya cerrada, que es lo que dejaba al comprador
+          en un ciclo de 409 antes de este slice. Al tercer rechazo el servidor responde
+          `tope_alcanzado` y la PÁGINA reemplaza toda esta pantalla por la confirmación con el
+          número de orden y las dos acciones — este componente no dibuja ese caso. */}
+      {!techo && rechazado && (
+        <div className="space-y-4 text-center">
+          <div className="text-xs text-red-600">
+            <p>{TEXTO.pagoRechazado}</p>
+            {numeroOrdenRechazado && (
+              <p className="mt-0.5 text-[var(--sf-texto-suave)]">Número de orden: <span className="font-semibold">{numeroOrdenRechazado}</span></p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={handleReintentarOtroMetodo}
+            disabled={reintentando}
+            className="w-full sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)] disabled:opacity-60 disabled:pointer-events-none transition-colors"
+          >
+            {reintentando ? TEXTO.botonReintentarEnVuelo : TEXTO.botonReintentar}
+          </button>
+        </div>
       )}
 
       {creada && (

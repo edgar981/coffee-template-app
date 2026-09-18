@@ -61,11 +61,22 @@ import { formatCOP } from '@duna/core/utils';
  *
  * § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: SI EL COBRO SE CREA PERO EL EMISOR LO RECHAZA —
  * detectado de forma ASÍNCRONA por el sondeo de `EsperaConfirmacionTarjeta`, vía `onFallido` —
- * `handleFallido` (abajo) vuelve a este mismo formulario: `creada` se limpia y el `dato` que el
- * comprador tecleó (no es secreto, § `FormularioTarjetaProps` para el criterio) queda intacto,
- * con el mensaje de rechazo arriba del botón. NO aplica al camino `redireccion` —
- * `EsperaRedireccionPasarela` no tiene esta clase de fallo (§ su propio docstring: nunca afirma
- * "fallido", eso lo decide `/checkout/retorno` cuando el comprador vuelva de fuera)—.
+ * `handleFallido` (abajo) vuelve a este mismo formulario, nunca a una pantalla aparte. NO
+ * aplica al camino `redireccion` — `EsperaRedireccionPasarela` no tiene esta clase de fallo
+ * (§ su propio docstring: nunca afirma "fallido", eso lo decide `/checkout/retorno` cuando el
+ * comprador vuelva de fuera)—.
+ *
+ * § CHECKOUT-REINTENTO-OTRO-METODO-1 (2026-09-18, opción A del owner, DECISIONS.md
+ * `CHECKOUT-REINTENTO-CENSO-1`): EL RECHAZO YA NO DEJA EL CAMPO A LA VISTA CON "Pagar"
+ * disponible — lo reemplaza por el mensaje de rechazo (`rechazado`, abajo) y el botón "Intentar
+ * con otro método", MISMO mecanismo que `FormularioTarjeta.tsx` (el defecto era transversal a
+ * los dos formularios de pasarela, § el reporte del slice de `CHECKOUT-TRANSICION-DEFECTOS-1`):
+ * abre un `PaymentIntent` NUEVO sobre la MISMA orden con aceptaciones FRESCAS
+ * (`onReintentarOtroMetodo`, resuelto en `checkout/page.tsx`). Antes de este slice, "Pagar"
+ * seguía disponible sobre la MISMA `reference` ya cerrada — un ciclo de 409 que nunca terminaba
+ * (medido, `CHECKOUT-REINTENTO-CENSO-1`). TRES intentos por orden en total; el cuarto lo
+ * rechaza el servidor (`crearIntentoPagoDeReintento`, `@duna/core/orders`) y la página
+ * reemplaza la pantalla entera por la confirmación con el número de orden y las dos acciones.
  *
  * § CHECKOUT-TRANSICION-DEFECTOS-1 (2026-09-18, § el reporte del slice): MISMO REORDENAMIENTO
  * QUE `FormularioTarjeta` — el defecto era transversal a los dos formularios de pasarela, no
@@ -101,6 +112,11 @@ export interface FormularioOtroMetodoPasarelaProps {
    *  `EsperaConfirmacionTarjeta.onAprobado`. Este formulario no dibuja nada para ese caso: la
    *  página reemplaza TODA la transición por la confirmación completa del pedido. */
   onAprobado: () => void;
+  /** § CHECKOUT-REINTENTO-OTRO-METODO-1: el comprador pidió reintentar tras un rechazo del
+   *  EMISOR (`handleFallido`, abajo) — MISMO contrato que `FormularioTarjetaProps.
+   *  onReintentarOtroMetodo`: la página hace todo el trabajo (aceptaciones frescas + intento
+   *  nuevo) y remonta `SelectorMetodoPasarela` si lo consigue. */
+  onReintentarOtroMetodo: () => Promise<void>;
 }
 
 // TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER (§ el reporte del slice, igual que
@@ -110,13 +126,16 @@ const TEXTO = {
   botonEnVuelo: 'Procesando…',
   errorGenerico: 'No pudimos procesar tu pago. Intenta de nuevo o usa otro método.',
   errorRed: 'No pudimos comunicarnos con el servidor. Intenta de nuevo.',
-  // § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: el cobro se creó pero el emisor lo RECHAZÓ
-  // (detectado por el sondeo de `EsperaConfirmacionTarjeta`, vía `onFallido`) — mismo texto
-  // provisional que `FormularioTarjeta.tsx` para el mismo hecho.
-  pagoRechazado: 'Tu pago no fue aprobado. No se realizó ningún cobro. Revisa los datos o intenta con otro método.',
+  // § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1 / CHECKOUT-REINTENTO-OTRO-METODO-1: el cobro se
+  // creó pero el emisor lo RECHAZÓ (detectado por el sondeo de `EsperaConfirmacionTarjeta`, vía
+  // `onFallido`) — MISMO texto del owner (textual, 2026-09-18) que `FormularioTarjeta.tsx`.
+  pagoRechazado: 'Tu pago no fue aprobado. No se realizó ningún cobro.',
+  // § CHECKOUT-REINTENTO-OTRO-METODO-1: MISMO texto del owner que `FormularioTarjeta.tsx`.
+  botonReintentar: 'Intentar con otro método',
+  botonReintentarEnVuelo: 'Preparando…',
 };
 
-export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones, publicKey, crearOrdenPasarela, monto, email, onAprobado }: FormularioOtroMetodoPasarelaProps) {
+export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones, publicKey, crearOrdenPasarela, monto, email, onAprobado, onReintentarOtroMetodo }: FormularioOtroMetodoPasarelaProps) {
   // § API-DIRECTA-FORMA-TRES-DIMENSIONES-1: EL PRIMER campo VISIBLE en este ambiente — filtra
   // `soloPruebas` antes de elegir cuál rendir (ver el docstring de arriba para por qué este
   // formulario sólo rinde uno pese a que la forma admite varios). Estructuralmente garantizado
@@ -132,6 +151,13 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
   // § CHECKOUT-TRANSICION-DEFECTOS-1: el número de orden que el cobro RECHAZADO dejó atrás —
   // mismo mecanismo que `FormularioTarjeta.numeroOrdenRechazado`.
   const [numeroOrdenRechazado, setNumeroOrdenRechazado] = useState<string | null>(null);
+  // § CHECKOUT-REINTENTO-OTRO-METODO-1: MISMO mecanismo que `FormularioTarjeta.rechazado` —
+  // distingue el RECHAZO DEL EMISOR (que reemplaza el campo por la vista de reintento) de un
+  // error de VALIDACIÓN previo a crear la orden (que deja el campo a la vista, sin abrir un
+  // intento nuevo porque nunca se creó ninguno).
+  const [rechazado, setRechazado] = useState(false);
+  // El clic en "Intentar con otro método" está en vuelo.
+  const [reintentando, setReintentando] = useState(false);
   // Presencia = éxito: la transacción quedó CREADA en Wompi (§ CHECKOUT-NEQUI-EXITO-FIX-1).
   // Mismo campo que `FormularioTarjeta.creada` — trae la `reference` de la orden que
   // `crearOrdenPasarela` acaba de crear (§ CHECKOUT-UNA-SOLA-PANTALLA-1), la clasificación de
@@ -165,6 +191,7 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
     setErrorDato(null);
     setErrorServidor(null);
     setNumeroOrdenRechazado(null);
+    setRechazado(false);
     setEnVuelo(true);
     try {
       // § CHECKOUT-UNA-SOLA-PANTALLA-1: la orden se crea al apretar "Pagar", no antes —
@@ -219,6 +246,21 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
     setNumeroOrdenRechazado(creada ? creada.reference.split(':')[0] : null);
     setCreada(null);
     setErrorServidor(TEXTO.pagoRechazado);
+    // § CHECKOUT-REINTENTO-OTRO-METODO-1: reemplaza el campo por la vista de reintento — MISMO
+    // mecanismo que `FormularioTarjeta.handleFallido`.
+    setRechazado(true);
+  };
+
+  // § CHECKOUT-REINTENTO-OTRO-METODO-1: MISMO mecanismo que
+  // `FormularioTarjeta.handleReintentarOtroMetodo` — la página hace todo el trabajo.
+  const handleReintentarOtroMetodo = async () => {
+    if (reintentando) return;
+    setReintentando(true);
+    try {
+      await onReintentarOtroMetodo();
+    } finally {
+      setReintentando(false);
+    }
   };
 
   // § CHECKOUT-TRANSICION-DEFECTOS-1: EL CAMINO `redireccion` NO CAMBIA — sigue siendo un
@@ -247,7 +289,7 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
     // —es un cambio de estado real, y `EsperaConfirmacionTarjeta` ya dibuja la respuesta completa
     // por su cuenta—.
     <div className="space-y-4 text-left">
-      {!techo && (
+      {!techo && !rechazado && (
         <>
           <div>
             <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">{campo.rotulo}</label>
@@ -275,12 +317,12 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
             disabled={procesando}
           />
 
+          {/* Sólo el rechazo ESTRUCTURAL (`metodo_no_habilitado`) o un error genérico previo a
+              crear la orden llegan acá — un RECHAZO del EMISOR (`handleFallido`) pone
+              `rechazado=true` y salta a la vista de abajo (§ CHECKOUT-REINTENTO-OTRO-METODO-1). */}
           {errorServidor && (
             <div className="text-xs text-red-600">
               <p>{errorServidor}</p>
-              {numeroOrdenRechazado && (
-                <p className="mt-0.5 text-[var(--sf-texto-suave)]">Número de orden: <span className="font-semibold">{numeroOrdenRechazado}</span></p>
-              )}
             </div>
           )}
 
@@ -293,6 +335,28 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
             {procesando ? TEXTO.botonEnVuelo : `Pagar · ${formatCOP(monto)}`}
           </button>
         </>
+      )}
+
+      {/* § CHECKOUT-REINTENTO-OTRO-METODO-1: EL RECHAZO DEL EMISOR — MISMO patrón que
+          `FormularioTarjeta.tsx`: reemplaza el campo, nunca lo muestra a la vez que este
+          mensaje. El botón abre un intento de pago NUEVO sobre la MISMA orden. */}
+      {!techo && rechazado && (
+        <div className="space-y-4 text-center">
+          <div className="text-xs text-red-600">
+            <p>{errorServidor}</p>
+            {numeroOrdenRechazado && (
+              <p className="mt-0.5 text-[var(--sf-texto-suave)]">Número de orden: <span className="font-semibold">{numeroOrdenRechazado}</span></p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={handleReintentarOtroMetodo}
+            disabled={reintentando}
+            className="w-full sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)] disabled:opacity-60 disabled:pointer-events-none transition-colors"
+          >
+            {reintentando ? TEXTO.botonReintentarEnVuelo : TEXTO.botonReintentar}
+          </button>
+        </div>
       )}
 
       {creada && !descriptor.redireccion && (
