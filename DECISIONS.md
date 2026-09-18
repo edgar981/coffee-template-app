@@ -6746,3 +6746,112 @@ y `approved: yes` (`approved-by: owner`, `approval-reason`: el owner leyó el ha
 respuesta con costo sobre `tier1_puertas` que este asiento trae en §§1-6). **LA APROBACIÓN AUTORIZA
 LA ESCRITURA, NUNCA EL MERGE** — el merge sigue gateado al owner, y este slice para en
 `AWAITING_APPROVAL` sin mergear, tal como el dispatch lo exige.
+
+## 2026-09-18 — El subárbol `packages/core/src/pagos/` estaba escrito y no disparaba: la frase
+canónica de la que el validador deriva, no la prosa que lo justifica, es la que cuenta
+(`TIER1-SUBARBOL-NO-DISPARABA-1`)
+
+### 0 · Desviación, dicha primero — este slice no pudo ejecutar el validador
+
+Esta sesión está en el mismo sandbox restringido que `TIER1-LISTA-VENCIDA-2` (§7 de esa entrada, arriba)
+ya documentó: acotada al working directory de `coffee-template-app`, sin ruta a `dev-protocol` (donde
+vive el validador que deriva disparadores de specs contra `CLAUDE.md`) ni credencial/URL que un `node`
++ `fetch` pudiera alcanzar. **No se corrió el validador en este slice.** Lo que sigue en esta entrada
+—salvo la cifra "externa" de §1, que es del spec y se marca como tal— es lo que SÍ se pudo verificar
+con herramientas de este repo: el texto exacto de la frase canónica, antes y después, línea por línea.
+
+### 1 · El defecto medido (externo, ledger_claim del spec — no re-medido en esta sesión)
+
+`TIER1-LISTA-VENCIDA-2` decidió que `packages/core/src/pagos/` entra a Tier 1 como SUBÁRBOL y lo
+escribió en el bullet de arriba, § "LA LISTA TAMBIÉN GANA SUBÁRBOLES" (la justificación de frontera
+arquitectónica del paquete). **Nunca lo escribió en la frase canónica** —la enumeración de una sola
+línea, "Tier 1 slices run in a separate read-only session…", de la que el validador de specs deriva
+qué ruta dispara el gate—. El mismo commit (`94bfaec`) sí tocó esa frase para sumar `app/api/cron/
+automations/route.ts` (verificado en esta sesión, `git show 94bfaec -- CLAUDE.md`, línea del diff con
+el `+`: la enumeración termina en `…app/api/shippings/route.ts, app/api/cron/automations/route.ts and
+app/api/webhooks/wompi/route.ts.` — sin `packages/core/src/pagos/` en ningún punto de esa lista). El
+spec de este slice trae, medido por el orquestador contra ese estado: la derivación de disparadores
+del validador daba `app/api/cron/automations/route.ts` como disparador nuevo y **no** daba
+`packages/core/src/pagos/`; un spec de prueba que declarara tocar
+`packages/core/src/pagos/reconciliador.ts` **no disparaba** el gate de Tier 1, y moviendo el subárbol
+a la frase canónica el mismo spec de prueba **sí dispara**, con el mensaje de que esa ruta está bajo
+`packages/core/src/pagos`. Esta cifra es del spec (`externo`); no se re-corrió el validador en esta
+sesión (§0).
+
+### 2 · El arreglo — la frase canónica, antes y después
+
+**Antes** (`CLAUDE.md`, la línea de la enumeración, medida con `git show 94bfaec -- CLAUDE.md`, tal
+como quedó tras esa entrada y hasta el commit base de este slice):
+
+> `…packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/
+> shipping-transition.ts, lib/checkout/metodos-pago.ts, lib/pagos/wompi-firma.ts…`
+
+**Después** (`CLAUDE.md`, línea 27 de este árbol):
+
+> `…packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/
+> shipping-transition.ts, packages/core/src/pagos/, lib/checkout/metodos-pago.ts, lib/pagos/
+> wompi-firma.ts…`
+
+`packages/core/src/pagos/` quedó insertado entre `packages/core/src/shipping-transition.ts` y
+`lib/checkout/metodos-pago.ts` — contiguo al resto de los archivos de `packages/core/src/` ya
+enumerados, con la barra final que la propia frase usa para marcar directorio (mismo patrón que
+`app/(storefront)/` y `packages/core/prisma/migrations/`). El resto de la frase no se tocó. La
+justificación de subárbol en el bullet de arriba (§ LA LISTA TAMBIÉN GANA SUBÁRBOLES) tampoco se
+tocó: sigue siendo la misma, y sigue siendo correcta — lo que faltaba no era la razón, era que la
+razón llegara a la frase que el validador lee.
+
+### 3 · La clase
+
+**UNA ADVERTENCIA ESCRITA SOBRE UN MECANISMO NO ES UN MECANISMO.** Y MÁS EXACTO TODAVÍA: **UN
+MECANISMO QUE SÓLO IMPRIME NO ES UN GATE — ES UNA ADVERTENCIA CON MÁS PASOS.** Son las dos frases que
+`TIER1-LISTA-VENCIDA-2` (arriba, §3) ya dejó escritas con las palabras del owner, sobre el detector
+`tier1_puertas`: para dos de los tres archivos de esa re-medición el mecanismo YA existía y los venía
+reportando; lo que faltaba no era el mecanismo, era que algo BLOQUEARA sobre su salida.
+
+**Y el eslabón que agrega ESTE caso, el mismo hueso una capa más abajo: una entrada ESCRITA en una
+lista no es una entrada EN la lista.** El subárbol estaba razonado, documentado, con su propio bullet
+—no era descuido ni omisión de contenido—, y el conjunto protegido no creció ni un archivo, porque el
+validador deriva de UNA frase, no de la sección entera. Se parece a estar cubierto. Es la misma
+sensación de cobertura que `CLAUDE.md` ya documenta en otro caso, § "Todo `DialogContent` lleva
+`DialogDescription`": *"una verificación escrita y nunca ejecutada es peor que no tenerla: da la
+sensación de estar cubierto"* (línea 604). Ahí la guarda que nunca corrió era un `grep` manual que
+nadie volvía a invocar; acá es el validador automático, corriendo siempre, pero leyendo una frase que
+la entrada nueva nunca alcanzó.
+
+### 4 · La auditoría — las dos frases juntas, instrucción del owner
+
+`TIER1-LISTA-VENCIDA-2` (arriba, §1) ya midió, con `git log --all` por archivo, que ningún commit
+posterior al 2026-09-15 tocó `packages/core/src/pagos/aplicar-resultado-wompi.ts`,
+`packages/core/src/pagos/reconciliador.ts` ni `app/api/cron/automations/route.ts`: la puerta quedó
+abierta del 2026-09-15 al 2026-09-18 (tres días) sin que otro slice escribiera por ella. El owner, al
+revisar esa auditoría junto con el hallazgo de esta entrada, pidió que las dos frases fueran juntas,
+porque las dos son ciertas y ninguna borra la otra:
+
+> *"La puerta estuvo abierta tres días y nadie la cruzó. No aprobé nada sin mirarlo — y eso fue
+> SUERTE, no protección."*
+
+### 5 · El límite de la figura — impreso, no enterrado
+
+El detector que busca puertas de dinero fuera de la lista (`tier1_puertas`) implementa sólo la mitad
+EJECUTORA del criterio de Tier 1 —llamadas que escriben en las tablas del eje— y no la mitad
+DECISORA —la función que una puerta CONSULTA para decidir si la escritura procede y con qué valor—.
+Es la mitad que dejó pasar a `reconciliador.ts` (medido en `TIER1-LISTA-VENCIDA-2`, §4: cero llamadas
+`prisma.`/`tx.` directas en todo el archivo, porque sus escrituras pasan por un parámetro `db`
+inyectado). **La consecuencia que hay que dejar escrita:** un decider de dinero que nazca FUERA de
+`packages/core/src/pagos/` —o de cualquier otro subárbol o archivo ya protegido— vuelve a ser
+invisible para el detector, exactamente como `reconciliador.ts` lo fue hasta que el owner lo nombró a
+mano. Este slice resuelve que el subárbol de HOY dispare; no cierra la clase de "un decider nuevo
+puede nacer sin que nada lo note".
+
+### Gate
+
+**`npm run gate`, los dos carriles — corrido sobre el árbol final, verde.** El diff de este slice
+toca `CLAUDE.md` (la entrada del subárbol en la frase canónica + este párrafo de doctrina) y esta
+entrada de `DECISIONS.md` — ningún código de producto, ningún test, ningún schema, ninguna migración,
+ningún endpoint HTTP.
+
+**Tier 1 — SÍ aplica** por herencia de la rama y porque el spec lo declaró `tier: 1` con `writes: yes`
+y `approved: yes` (`approved-by: owner`, `approval-reason`: el owner confirmó el 2026-09-18 que el
+subárbol entero entra, con el precedente de `lib/checkout/` ya en la lista, más la puerta HTTP del
+cron por separado). **LA APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA EL MERGE** — el merge sigue gateado
+al owner, y este slice para en `AWAITING_APPROVAL` sin mergear.

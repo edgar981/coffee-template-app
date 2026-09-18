@@ -24,7 +24,7 @@ alcance es GENÉRICO y su conexión con la puerta es INDIRECTA, y por eso se que
 AFUERA de la lista: ponerle dos etapas a una utilidad de fechas de todo el
 producto, por una entre tantas cadenas que la consultan, sería proteger de más.
 
-Tier 1 slices run in a separate read-only session first, then a second stage that writes only after the owner's explicit go, over these measured surfaces: packages/core/prisma/schema.prisma, packages/core/prisma/migrations/, lib/config/site-content-schema.ts, lib/config/site-content-defaults.ts, app/(storefront)/, packages/core/src/inventory.ts, packages/core/src/fulfillment.ts, packages/core/src/product-update.ts, packages/core/src/product-import.ts, packages/core/src/moliendas-opciones.ts, packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/shipping-transition.ts, lib/checkout/metodos-pago.ts, lib/pagos/wompi-firma.ts, app/api/checkout/route.ts, app/api/inventory/adjust/route.ts, app/api/orders/[id]/payments/route.ts, app/api/orders/route.ts, app/api/orders/[id]/address/route.ts, app/api/comprobantes/[id]/route.ts, app/api/shippings/route.ts, app/api/cron/automations/route.ts and app/api/webhooks/wompi/route.ts.
+Tier 1 slices run in a separate read-only session first, then a second stage that writes only after the owner's explicit go, over these measured surfaces: packages/core/prisma/schema.prisma, packages/core/prisma/migrations/, lib/config/site-content-schema.ts, lib/config/site-content-defaults.ts, app/(storefront)/, packages/core/src/inventory.ts, packages/core/src/fulfillment.ts, packages/core/src/product-update.ts, packages/core/src/product-import.ts, packages/core/src/moliendas-opciones.ts, packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/shipping-transition.ts, packages/core/src/pagos/, lib/checkout/metodos-pago.ts, lib/pagos/wompi-firma.ts, app/api/checkout/route.ts, app/api/inventory/adjust/route.ts, app/api/orders/[id]/payments/route.ts, app/api/orders/route.ts, app/api/orders/[id]/address/route.ts, app/api/comprobantes/[id]/route.ts, app/api/shippings/route.ts, app/api/cron/automations/route.ts and app/api/webhooks/wompi/route.ts.
 
 **LA LISTA TAMBIÉN GANA SUBÁRBOLES — una lista de rutas literales no puede cubrir un archivo que
 todavía no existe.** El criterio de arriba está escrito en términos de SIGNIFICADO (bytes del
@@ -121,6 +121,41 @@ línea de arriba. La auditoría completa, por qué el detector automático de pu
 (`tier1_puertas`, del protocolo dev-protocol) vio dos de los tres y no al reconciliador, y la
 respuesta con costo a si ese detector puede derivar esta lista en vez de que alguien la mantenga,
 viven en `DECISIONS.md`, `TIER1-LISTA-VENCIDA-2`.
+
+**Re-medida el 2026-09-18, SEGUNDA vez el mismo día** (`TIER1-SUBARBOL-NO-DISPARABA-1`):
+`packages/core/src/pagos/` había entrado como subárbol en el bullet de arriba (§ LA LISTA TAMBIÉN
+GANA SUBÁRBOLES) pero **NUNCA en la frase canónica de la enumeración**, la línea de la que el
+validador de specs deriva sus disparadores. Medido (externo, `TIER1-LISTA-VENCIDA-2`): corrida la
+derivación de disparadores contra el `CLAUDE.md` de ese momento, `app/api/cron/automations/route.ts`
+SÍ aparecía como disparador nuevo y `packages/core/src/pagos/` NO aparecía; un spec que declarara
+tocar `packages/core/src/pagos/reconciliador.ts` **no disparaba** el gate de Tier 1. Se sumó el
+subárbol a la frase canónica de arriba (entre `shipping-transition.ts` y `lib/checkout/
+metodos-pago.ts`); la justificación en prosa del bullet de subárboles no se tocó — sigue siendo la
+misma, y sigue siendo correcta.
+
+**UNA ADVERTENCIA ESCRITA SOBRE UN MECANISMO NO ES UN MECANISMO.** Y MÁS EXACTO TODAVÍA: **UN
+MECANISMO QUE SÓLO IMPRIME NO ES UN GATE — ES UNA ADVERTENCIA CON MÁS PASOS.** Son las palabras del
+owner sobre `TIER1-LISTA-VENCIDA-2` (arriba): para dos de los tres archivos de esa re-medición el
+mecanismo (`tier1_puertas`) YA existía y los venía reportando; lo que faltaba no era el mecanismo —
+era que algo BLOQUEARA sobre su salida. **Y el eslabón que agrega este caso, el mismo hueso una capa
+más abajo: una entrada ESCRITA en una lista no es una entrada EN la lista.** Se parece a estar
+cubierto — la misma sensación de cobertura que § Todo `DialogContent` lleva `DialogDescription`
+documenta con otra guarda ("una verificación escrita y nunca ejecutada es peor que no tenerla: da la
+sensación de estar cubierto"). Acá la guarda que nunca corrió no era un `grep` manual olvidado: era
+el validador automático leyendo la frase de la que deriva, mientras la entrada real dormía dos
+párrafos más abajo, en prosa.
+
+**El límite que sigue sin cerrarse, dicho para que no se entierre:** el detector que busca puertas
+fuera de la lista implementa sólo la mitad EJECUTORA del criterio (§ TIER1-LISTA-VENCIDA-2, arriba) —
+un decider que nazca FUERA de todo subárbol o archivo ya protegido sigue siendo invisible para él.
+Este arreglo cierra el caso de HOY (el subárbol ya dispara); no cierra la clase: la próxima función
+consultora que nazca suelta, fuera de toda ruta protegida, vuelve a ser invisible hasta que alguien
+la note.
+
+La auditoría (`TIER1-LISTA-VENCIDA-2`, arriba) ya midió que ningún commit posterior al 2026-09-15
+tocó los tres archivos: la puerta quedó abierta tres días sin que otro slice escribiera por ella. El
+owner, al revisar las dos cosas juntas: *"La puerta estuvo abierta tres días y nadie la cruzó. No
+aprobé nada sin mirarlo — y eso fue SUERTE, no protección."*
 
 **Re-medir esta lista cada vez que la ruta del dinero gane una puerta o una función consultada
 nueva** — no esperar a una auditoría programada. `git diff <última-medición>..HEAD -- app/api/
