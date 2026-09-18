@@ -600,10 +600,10 @@ export const DEFAULTS: SiteContentData = {
   orden: ORDEN_DEFAULT,
   // VARIANTES DE BANDAS ESTRUCTURALES por defecto: el mapa nace VACÍO, gemelo de `esquemas` arriba.
   // Ninguna banda estructural tiene entrada → `featured` cae a su canónica ('cuadricula',
-  // § VARIANTES_ESTRUCTURALES) → byte-idéntico. `FeaturedProducts.tsx` no lee esta meta hoy (no
-  // tiene dispatcher, § VARIANTES_ESTRUCTURALES) — este mapa sólo tiene consumidor en `themes.ts`
-  // (`mergePresetEnContent`), que es lo que este slice le da: un sitio donde escribir sin crear una
-  // clave `content.featured` huérfana.
+  // § VARIANTES_ESTRUCTURALES) → byte-idéntico. `FeaturedProducts.tsx` SÍ lee esta meta desde
+  // TEMAS-FEATURED-GRILLA-1 (es el dispatcher entre `cuadricula`/`grilla`); antes de ese slice el
+  // único consumidor era `themes.ts` (`mergePresetEnContent`), que sigue siendo el sitio donde un
+  // preset escribe sin crear una clave `content.featured` huérfana.
   variantesBandas: {},
 };
 
@@ -923,18 +923,23 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
 // CAPACIDAD MUERTA: la simetría con `featured` no es razón para abrirlo. Cuando un theme lo pida,
 // entra con su variante real en el mismo commit que la construye.
 //
-// `featured` canónica = 'cuadricula': la composición de HOY de `FeaturedProducts.tsx` (medida en su
-// fuente) — grid de 4 productos del catálogo, `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`, SIN
-// dispatcher (el componente no lee `variante` ni `useSiteContent()`; recibe sólo `style`, igual que
-// `brandStory` antes de que le llegara una segunda clave real). NINGÚN preset del catálogo pide
-// 'cuadricula': piden 'tabla' (PLIEGO), 'grilla' (CORTE/PATIO/VITRINA) o 'mosaico' (VETA) — tres
-// composiciones DISTINTAS entre sí y de la canónica, y NINGUNA de las tres está construida. Este
-// slice NO construye ninguna; sólo abre el slot donde declararlas el día que exista una — por eso
-// los cinco themes SIGUEN sin poder aplicarse tras este cambio (cambia el MENSAJE de `validarPreset`
-// para `featured`, de "no declara variantes" a "esa clave no existe", nunca el CONTEO de themes
-// completos, § `temasCompletos`).
+// `featured` canónica = 'cuadricula': la composición de HOY de `FeaturedProductsCuadricula.tsx`
+// (medida en su fuente, antes de TEMAS-FEATURED-GRILLA-1 vivía en `FeaturedProducts.tsx` sin
+// dispatcher) — grid de 4 productos del catálogo, `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`.
+// NINGÚN preset del catálogo pide 'cuadricula': piden 'tabla' (PLIEGO), 'grilla' (CORTE/PATIO/
+// VITRINA) o 'mosaico' (VETA) — tres composiciones DISTINTAS entre sí y de la canónica.
+//
+// `'grilla'` SE SUMÓ EN TEMAS-FEATURED-GRILLA-1 (`FeaturedProductsGrilla.tsx`): una MALLA de 6
+// productos, `grid-cols-2 sm:grid-cols-3 lg:grid-cols-4` (el ritmo de columnas que ya usa `/tienda`
+// para esta misma tarjeta) — deliberadamente DISTINTA de la canónica (más ítems, otra retícula), no
+// la canónica con otro nombre. `FeaturedProducts.tsx` YA ES el dispatcher que elige entre las dos
+// (§ `content.variantesBandas.featured`, gemelo de `HeroSection`/`GrindChooser` pero leyendo esta
+// meta en vez de `sección.variante`). `'tabla'` (PLIEGO) y `'mosaico'` (VETA) SIGUEN sin construir —
+// una variante por slice—, así que los cinco themes SIGUEN sin poder aplicarse completos tras este
+// cambio (CORTE/PATIO/VITRINA dejan de fallar en `featured`, pero siguen fallando en otras
+// secciones; § `temasCompletos` — el conteo de themes completos no cambia, sigue en `['ARRANQUE']`).
 export const VARIANTES_ESTRUCTURALES: Record<string, VariantesDef> = {
-  featured: { claves: ['cuadricula'], canonica: 'cuadricula' },
+  featured: { claves: ['cuadricula', 'grilla'], canonica: 'cuadricula' },
 };
 
 const esVacio = (v: unknown): boolean => typeof v !== 'string' || v.trim() === '';

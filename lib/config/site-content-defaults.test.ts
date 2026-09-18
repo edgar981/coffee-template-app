@@ -583,17 +583,42 @@ test('variantesBandas NO es una sección: no rompe el loop de secciones, y el he
   assert.ok(typeof r.hero.titulo === 'string'); // las secciones siguen resolviendo
 });
 
+// ── El DESPACHADOR de `featured` (`FeaturedProducts.tsx`, TEMAS-FEATURED-GRILLA-1) lee
+// `variantesBandas.featured` con `?? FeaturedProductsCuadricula` como red — estos tres casos son los
+// que ese `??` tiene que cubrir, afirmados acá (la ÚNICA capa testeable sin jsdom, § CLAUDE.md "el
+// glob NO incluye *.test.tsx"): sin override → AUSENTE del mapa → el dispatcher cae a la canónica;
+// con la clave nueva → PRESENTE → el dispatcher elige `FeaturedProductsGrilla`; con basura → tampoco
+// sobrevive → cae a la canónica, sin lanzar.
+test('el despachador de featured: sin variante guardada, la clave está AUSENTE → cae a la canónica (cuadricula)', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.variantesBandas.featured, undefined);
+});
+
+test('el despachador de featured: con "grilla" guardado, la clave está PRESENTE → el dispatcher elige FeaturedProductsGrilla', () => {
+  const r = resolverSiteContent({ variantesBandas: { featured: 'grilla' } });
+  assert.equal(r.variantesBandas.featured, 'grilla');
+});
+
+test('el despachador de featured: una clave basura no sobrevive → AUSENTE → cae a la canónica sin lanzar', () => {
+  const r = resolverSiteContent({ variantesBandas: { featured: 'una-clave-basura' } });
+  assert.equal(r.variantesBandas.featured, undefined);
+});
+
 test('variantesBandas: SeccionKey lo excluye — el REGISTRY no tiene entrada `variantesBandas` (no es sección)', () => {
   assert.equal('variantesBandas' in REGISTRY, false);
 });
 
-test('VARIANTES_ESTRUCTURALES: declara `featured` con su canónica `cuadricula`, y NO declara `trustBadges` (capacidad muerta evitada)', () => {
-  assert.deepEqual(VARIANTES_ESTRUCTURALES.featured, { claves: ['cuadricula'], canonica: 'cuadricula' });
+test('VARIANTES_ESTRUCTURALES: declara `featured` con su canónica `cuadricula` y la variante `grilla` (TEMAS-FEATURED-GRILLA-1), y NO declara `trustBadges` (capacidad muerta evitada)', () => {
+  assert.deepEqual(VARIANTES_ESTRUCTURALES.featured, { claves: ['cuadricula', 'grilla'], canonica: 'cuadricula' });
   assert.equal(VARIANTES_ESTRUCTURALES.trustBadges, undefined);
 });
 
 test('resolverVariantesBandas: una clave válida por banda se respeta', () => {
   assert.deepEqual(resolverVariantesBandas({ featured: 'cuadricula' }), { featured: 'cuadricula' });
+});
+
+test('resolverVariantesBandas: "grilla" (TEMAS-FEATURED-GRILLA-1) también se respeta — no es sólo la canónica la que sobrevive', () => {
+  assert.deepEqual(resolverVariantesBandas({ featured: 'grilla' }), { featured: 'grilla' });
 });
 
 test('resolverVariantesBandas: basura por banda (clave fuera del set, no-string, ausente) NI SIQUIERA aparece en el resultado — es "sin override", no un clamp a la canónica', () => {
