@@ -107,6 +107,13 @@ const nextConfig: NextConfig = {
       // global: una política global rompería el admin (Radix, next-themes con su propio
       // scope, el editor de bloques) y agregaría superficie que nadie está midiendo acá.
       //
+      // ESTA POLÍTICA NO TIENE DESTINO DE REPORTES (`CSP-NO-CONOCE-A-WOMPI-1`, medido: no hay
+      // `report-uri`/`report-to` acá ni en ningún otro lado del repo). Sin destino, "reporta"
+      // sólo a la consola de quien tenga las herramientas de desarrollador abiertas en ESE
+      // momento — a nadie más. Es cómo el owner encontró esto de casualidad, mirando otra
+      // cosa, y no por un tablero. Construir ese destino es su propio slice (§ DECISIONS.md,
+      // `CSP-NO-CONOCE-A-WOMPI-1`); esto sólo deja escrito que hoy no existe.
+      //
       // ══════ EL HALLAZGO QUE CAMBIA LA NATURALEZA DE LA DECISIÓN WIDGET-VS-REDIRECCIÓN ══════
       // ADOPTAR EL WIDGET DE WOMPI NO ES ADOPTAR UN SCRIPT DE TERCEROS: SON HASTA TRES, Y DOS
       // NO ESTÁN DOCUMENTADOS EN NINGÚN LADO DE SU DOC PÚBLICA. El `widget.js` de Wompi
@@ -143,10 +150,40 @@ const nextConfig: NextConfig = {
               "img-src 'self' https://*.public.blob.vercel-storage.com",
               // El dominio del Web Checkout de Wompi está medido; su PATH no — Wompi lo arma
               // en runtime — así que no se acota más que al origen.
-              "frame-src https://checkout.wompi.co",
-              // Nada del checkout de hoy llama a un origen externo (createOrder es un fetch
-              // same-origin a /api/checkout): sin el widget integrado, lo medido es 'self'.
-              "connect-src 'self'",
+              //
+              // + `https://vercel.live`: NO es del producto — es el widget de comentarios/
+              // feedback que Vercel INYECTA SOLO en despliegues de PREVIEW (nunca en
+              // producción real de un cliente), y fue lo segundo que el owner vio violar la
+              // política durante el gate del 2026-09-18 sobre un preview
+              // (`CHECKOUT-GATE-VISUAL-HALLAZGOS-1`, MEDIDO). Se incluye igual, sin gatear por
+              // entorno: esta política es estática (no lee `esDespliegueDemo()`), y un origen
+              // de más en `frame-src` para un widget que producción real simplemente no carga
+              // no abre ninguna superficie — mientras que gatearlo exigiría una condición
+              // nueva en esta función por un costo que no se está pagando.
+              "frame-src https://checkout.wompi.co https://vercel.live",
+              //
+              // ESTE COMENTARIO YA NO ES CIERTO Y ES EL DEFECTO QUE ESTE SLICE CIERRA
+              // (`CSP-NO-CONOCE-A-WOMPI-1`): decía "nada del checkout de hoy llama a un origen
+              // externo (createOrder es un fetch same-origin a /api/checkout)". Eso describía
+              // el checkout ANTES de `API-DIRECTA-CAPTURA-TARJETA-1`: hoy `tokenizarTarjeta`
+              // (`services/checkout.service.ts`) tokeniza la tarjeta llamando DIRECTO desde el
+              // NAVEGADOR del comprador al host de Wompi — por diseño, para que el dato de la
+              // tarjeta nunca pase por nuestro servidor (§ CLAUDE.md, Pagos en línea (Wompi)).
+              //
+              // `https://sandbox.wompi.co` — MEDIDO: es lo que el owner vio violar
+              // `connect-src 'self'` en la consola, en una compra real contra el deployment de
+              // PREVIEW (`CHECKOUT-GATE-VISUAL-HALLAZGOS-1`), y coincide con el host que
+              // `baseUrlPasarelaDesdeLlave` (`services/checkout.service.ts`) elige cuando la
+              // llave pública NO empieza con el prefijo productivo (`lib/pagos/llaves-
+              // pasarela.ts`, `PREFIJO_LLAVE_PASARELA_PRODUCTIVA`).
+              //
+              // `https://production.wompi.co` — DEDUCIDO DEL CÓDIGO, NO MEDIDO EN USO: nadie
+              // corrió este flujo contra producción todavía. Pero `baseUrlPasarelaDesdeLlave`
+              // elige EXACTAMENTE este host cuando la llave pública SÍ empieza con ese
+              // prefijo, así que omitirlo dejaría la política rota el día que un despliegue
+              // real active la pasarela — bloqueada en el navegador, sin log de servidor que
+              // lo delate (§ el modo de falla, más abajo en el asiento de este slice).
+              "connect-src 'self' https://sandbox.wompi.co https://production.wompi.co",
               "object-src 'none'",
               "base-uri 'self'",
               // 'self' + Web Checkout de Wompi. El Web Checkout es un `<form

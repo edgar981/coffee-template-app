@@ -8179,3 +8179,136 @@ sin construir el mecanismo del §4.
   medido en §4 de este asiento que a nivel de archivo es ruido que ya se sabe que se saltea. No se
   construye ahora porque el owner lo descartó explícitamente para esta ronda ("es exactamente el ruido
   que ya sabemos que se saltea"); queda encolado sin prioridad.
+
+## 2026-09-18 — La política de seguridad del checkout no conocía a Wompi: dos orígenes MEDIDOS se agregan, la política SIGUE en modo reporte, y lo que falta para activarla queda encolado (`CSP-NO-CONOCE-A-WOMPI-1`)
+
+**El owner vio esto de casualidad, no por un tablero:** durante el gate visual del 2026-09-18
+(`CHECKOUT-GATE-VISUAL-HALLAZGOS-1`), con la consola del navegador abierta en una compra real contra
+el deployment de preview, aparecieron dos violaciones de la CSP en modo reporte de `/checkout`
+(`next.config.ts`): conectarse a `https://sandbox.wompi.co/v1/tokens/cards` viola `connect-src 'self'`,
+y embeber `https://vercel.live` viola `frame-src`. Aprobó este slice con dos condiciones fijas: los
+orígenes que se agreguen salen de lo MEDIDO —no de la doc del proveedor ni de una lista plausible—, y
+la política **queda en modo reporte, sin activar**.
+
+### 1 · El defecto, y por qué el propio comentario ya explicaba su vencimiento
+
+El comentario que hoy es falso vivía junto a `connect-src`: *"Nada del checkout de hoy llama a un
+origen externo (createOrder es un fetch same-origin a /api/checkout): sin el widget integrado, lo
+medido es 'self'."* Eso describía el checkout de ANTES de `API-DIRECTA-CAPTURA-TARJETA-1`. Desde ese
+slice, `tokenizarTarjeta` (`services/checkout.service.ts`) llama DIRECTO desde el NAVEGADOR del
+comprador al host de Wompi —por diseño, para que el dato de la tarjeta nunca pase por nuestro
+servidor—, y la política nunca se actualizó para contemplarlo. Es la misma familia que ya nombró
+`CHECKOUT-SELECTOR-NO-SE-DESMONTA-1` y `COBRO-SIN-PEDIDO-ASIENTO-1` el mismo día —una premisa correcta
+cuando se escribió, muerta por trabajo posterior del mismo programa sin que nadie la releyera— pero
+**ésta es distinta en una cosa que hay que decir con todas las letras: las otras confundían a quien
+leía; ésta, activada, IMPIDE EL COBRO.** Con las palabras del owner en el `approval-reason` de este
+spec: es la única pendiente que puede romper el cobro entero, y es gratis arreglarla ahora porque el
+arreglo es configuración.
+
+### 2 · ¿Hay violaciones acumuladas? — medido: NO HAY DESTINO DE REPORTES
+
+El owner razonó que, si la política ya reporta, debía haber una lista de dominios faltantes medida en
+uso real esperando en algún lado. Se buscó en la propia política (`next.config.ts`) una directiva
+`report-uri`/`report-to`, y luego en todo el repo (`grep -rn "report-uri\|report-to\|Report-To\|csp-
+report\|reporting-endpoints"`, fuera de `node_modules`/`.next`): **cero resultados, en cualquiera de
+los dos.**
+
+**No hay nada acumulado — y ESO es el hallazgo, no un callejón sin salida.** Una política en modo
+reporte sin destino de reportes sólo escribe en la consola de quien tenga las herramientas de
+desarrollador abiertas en ESE momento. No reporta a un tablero, a un log, ni a nadie que no esté
+mirando esa pestaña en ese instante — reporta a nadie. Por construcción, la única forma de que alguien
+se entere de una violación es tropezarse con ella mientras hace otra cosa, que es exactamente lo que le
+pasó al owner. Queda como punto abierto en el §4, no se construye en este slice.
+
+### 3 · Qué se agregó, y de dónde sale cada origen
+
+**`frame-src` gana `https://vercel.live`.** MEDIDO: es la segunda violación que el owner vio, y
+corresponde al widget de comentarios/feedback que **Vercel INYECTA SOLO en despliegues de PREVIEW**
+—nunca en producción real de un cliente—, no a nada que el código de este repo cargue. Se decidió
+incluirlo de todas formas, marcado en el comentario como artefacto del ENTORNO y no del producto, sin
+gatear por `esDespliegueDemo()`: la política es hoy un valor estático (no lee ninguna condición de
+entorno), y un origen de más en `frame-src` para un widget que la producción real de un cliente
+simplemente no carga no abre ninguna superficie nueva — mientras que gatearlo exigiría meter una
+condición nueva en `headers()` por un costo que no se está pagando.
+
+**`connect-src` gana DOS orígenes, con procedencia distinta cada uno:**
+
+- **`https://sandbox.wompi.co` — MEDIDO.** Es exactamente lo que el owner vio violar la política en la
+  consola, contra el deployment de preview. Coincide con el host que `baseUrlPasarelaDesdeLlave`
+  (`services/checkout.service.ts:303-307`) elige cuando la llave pública NO empieza con el prefijo
+  productivo (`PREFIJO_LLAVE_PASARELA_PRODUCTIVA = "pub_prod_"`, `lib/pagos/llaves-pasarela.ts`).
+- **`https://production.wompi.co` — DEDUCIDO DEL CÓDIGO, NO MEDIDO EN USO.** Nadie corrió este flujo
+  contra producción; no hay medición de éste. Pero es el MISMO helper, `baseUrlPasarelaDesdeLlave`, el
+  que elige EXACTAMENTE este host cuando la llave pública SÍ empieza con ese prefijo — es una lectura
+  directa del código, no una lista plausible ni la doc del proveedor. Omitirlo habría dejado la
+  política rota el día que un despliegue real active la pasarela: bloqueada en el navegador del
+  comprador, sin que el código de decisión (`baseUrlPasarelaDesdeLlave`) tenga forma de saberlo — ver
+  el modo de falla en el §4.
+
+**Lo que se investigó y NO se pudo acotar: el marco del desafío del emisor (3DS "con challenge").**
+`DesafioTarjeta.tsx` embebe el HTML del emisor con `srcDoc` (nunca `src`) dentro de un iframe
+`sandbox="allow-scripts allow-forms"` — sin `allow-same-origin` ni `allow-top-navigation`. El propio
+HTML del emisor se auto-envía por un `<script>` inline hacia el ACS (Access Control Server) de SU
+banco, y esa navegación DENTRO del iframe también cae bajo `frame-src` — CSP gatea cada navegación de
+un contexto anidado, no sólo la carga inicial. El ACS es del BANCO EMISOR de la tarjeta del comprador,
+distinto para cada banco (Bancolombia, Davivienda, Nu, …) y ninguno de los dos spikes de este programa
+(`API-DIRECTA-SPIKE-SANDBOX-1`) lo ejercitó — está explícitamente fuera de su alcance (`lib/pagos/
+tres-ds.ts`, cabecera del archivo: "Todo 3DS — explícitamente fuera del alcance de los dos spikes").
+**No se agrega ningún origen para esto: es un problema abierto, no una lista que falte completar** — si
+el origen varía por banco emisor, una lista de dominios estáticos en `next.config.ts` estructuralmente
+no puede cubrirlo. Queda nombrado en el §4.
+
+**Lo que NO se tocó, y por qué:** `script-src`, `style-src`, `font-src`, `img-src`, `object-src`,
+`base-uri` y `form-action` — ninguna violación medida las señaló, y tocarlas sin medición sería
+exactamente lo que el owner prohibió ("no de una lista plausible"). Tampoco se activó la política
+(sigue siendo `Content-Security-Policy-Report-Only`, nunca `Content-Security-Policy`) ni se construyó
+ningún destino de reportes.
+
+### 4 · Qué falta para poder activarla — encolado, no resuelto acá
+
+**El modo de falla, que es el argumento entero:** si esta política se activa (deja de ser Report-Only)
+con un origen faltante, la llamada se BLOQUEA EN EL NAVEGADOR del comprador. El servidor no se entera
+—no hay un fetch que falle del lado del server, no hay nada que loguear—, y el comprador ve un fallo de
+pago sin causa visible. Un cobro que muere del lado del cliente es invisible desde donde este equipo
+mira sus logs. Por eso activarla sin lo siguiente resuelto es cambiar un riesgo futuro por uno
+inmediato:
+
+- **Destino de reportes.** Hoy no existe (§2). Sin él, activar la política es operar a ciegas: la
+  primera vez que bloquee algo real, nadie lo va a saber hasta que un comprador se queje.
+- **El desafío 3DS del emisor nunca se ejercitó contra un banco real** (§3, el ACS). Si su origen
+  varía por banco, `frame-src` con una lista fija de dominios no puede cubrirlo sin, quizás, aflojar la
+  directiva para ese caso — y eso es una decisión de producto/seguridad que no se toma en este slice.
+- **`https://production.wompi.co` nunca se ejercitó en uso real** (§3). Se agregó DEDUCIDO del código,
+  no medido; activar la política sin haber corrido al menos una compra real de producción con este
+  origen sería apostar a que la deducción es correcta sin haberla visto correr.
+- **El propio comentario de la política ya documentó un hallazgo sobre terceros inyectados sin
+  avisar:** el `widget.js` de Wompi mete en runtime `cdn.siftscience.com` y `device.clearsale.com.br`
+  sin que el dashboard del comercio ofrezca verlos ni apagarlos —infraestructura decidida por el
+  backend del proveedor (`next.config.ts`, el bloque "EL HALLAZGO QUE CAMBIA LA NATURALEZA…")—. Si
+  Wompi agrega o cambia un tercero así en cualquier directiva, una política ya activada rompería el
+  checkout sin aviso previo, por el mismo motivo que el `script-src` de hoy ya se defiende de eso
+  incluyendo los tres orígenes por adelantado.
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido sobre el árbol final. El diff de este slice es
+`next.config.ts` (comentarios + dos directivas de la CSP) y esta entrada de `DECISIONS.md`: ningún
+archivo de código de producto, test, schema ni migración se tocó.
+
+### Deviations
+
+Ninguna. El spec pidió medir de dónde sale cada origen nuevo y decidir sobre `vercel.live` con su
+justificación, y eso es lo que este asiento y el diff de `next.config.ts` hacen — sin activar la
+política, sin construir el destino de reportes, y sin tocar ninguna otra directiva.
+
+### Open follow-ups
+
+- `CSP-DESTINO-DE-REPORTES-1`: construir el destino de reportes (`report-to`/`report-uri` o el
+  mecanismo equivalente) para que la política en modo reporte deje de "reportar a nadie" (§2). Sin
+  esto, activar la política más adelante seguiría siendo operar a ciegas sobre lo que rompe.
+- `CSP-DESAFIO-3DS-ORIGEN-EMISOR-1`: medir contra un desafío 3DS real de al menos un banco emisor si
+  el origen del ACS es acotable en `frame-src` o si es estructuralmente imposible de cubrir con una
+  lista fija (§3-§4) — hoy es un problema abierto, no resuelto.
+- `CSP-PRODUCCION-WOMPI-SIN-MEDIR-1`: correr al menos una compra real contra producción con
+  `WOMPI_PUBLIC_KEY` productiva y confirmar que `https://production.wompi.co` es, en efecto, el único
+  host adicional que aparece — hoy ese origen está deducido del código, nunca medido en uso (§3).
