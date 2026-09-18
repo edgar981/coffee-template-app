@@ -128,6 +128,17 @@ export default function Checkout() {
   // INTENTA pedir el bloque): acá se decide si el radio se MUESTRA.
   const pasarelaOfrecida = pasarelaDisponible && bloquePasarela !== null;
 
+  // § CHECKOUT-SELECTOR-NO-SE-DESMONTA-1: la razón que hacía desmontar el bloque "Método de
+  // pago" al crear la orden ("el método ya no sería editable") quedó FALSA con
+  // CHECKOUT-REINTENTO-OTRO-METODO-1: el botón "Intentar con otro método" (dentro de
+  // `SelectorMetodoPasarela`, más abajo) SÍ deja al comprador volver a elegir método una vez que
+  // la orden existe. El bloque se queda VISIBLE y se BLOQUEA (`disabled` + el mismo tratamiento
+  // visual que los campos de `FormularioTarjeta`/`AceptacionesPasarela`) mientras dura el pago
+  // de pasarela, en vez de desaparecer. Sólo puede ser `true` en el camino de pasarela API
+  // DIRECTA: los métodos manuales y el widget de Wompi ya reemplazan la pantalla entera (el
+  // `return` de arriba, o la rama `modoApiDirecta === false`) antes de llegar a este bloque.
+  const bloqueoMetodoDePago = !!confirmation;
+
   // El MONTO A MOSTRAR en el botón que paga: antes de crear la orden, el total en vivo del
   // carrito; después, el total que el SERVIDOR confirmó — el carrito ya se vació
   // (`clearCart()`), así que `total` (derivado del carrito) dejaría de ser el monto real apenas
@@ -642,67 +653,67 @@ export default function Checkout() {
                       </motion.div>
                     ) : (
                     <>
-                    {/* § CHECKOUT-UNA-SOLA-PANTALLA-1: el selector de método sólo se muestra
-                        ANTES de que exista la orden — una vez creada, "Información"/"Dirección"
-                        y el método elegido ya no son editables (misma garantía que antes tenía
-                        el `return` temprano de arriba). */}
-                    {!confirmation && (
+                    {/* § CHECKOUT-SELECTOR-NO-SE-DESMONTA-1: este bloque YA NO SE DESMONTA al
+                        crear la orden. Antes lo hacía porque "el método elegido ya no sería
+                        editable una vez creada la orden" — esa premisa quedó FALSA con
+                        CHECKOUT-REINTENTO-OTRO-METODO-1 (una hora antes, en este mismo
+                        programa): el botón "Intentar con otro método" de `SelectorMetodoPasarela`
+                        (más abajo) SÍ deja al comprador volver a elegir. Se queda VISIBLE y se
+                        BLOQUEA (`bloqueoMetodoDePago`, arriba) con el mismo tratamiento que los
+                        campos de `FormularioTarjeta`/`AceptacionesPasarela` — nunca desaparece. */}
+                    <h2 className="font-semibold text-[var(--sf-tinta)] mb-4">Método de pago</h2>
+                    {availablePayments.length === 0 && !pasarelaOfrecida ? (
+                      // Guarda defensiva: el dueño apagó TODOS los métodos (o ninguno tiene datos). El
+                      // editor exige ≥1 encendido, así que casi no pasa —pero el checkout no puede quedar
+                      // mudo—: en vez de un paso sin opciones se ofrece coordinar el pago por WhatsApp.
+                      //
+                      // ESTA GUARDA NO SE PUEDE GATEAR CON UN BORRADO, y es lo que la separa de las otras
+                      // dos promesas de canal de esta página: aquéllas tienen una frase a la que caer (la
+                      // misma sin el canal), y ÉSTA ES EL FALLBACK MISMO —quitarle el canal la dejaría
+                      // muda—. Así que sin WhatsApp no se borra: se le cambia el DESTINO por uno honesto
+                      // ("vuelve más tarde"), que no inventa un canal que no existe ni le enseña al
+                      // comprador la mala configuración de la tienda. Cada rama se escribe ENTERA (§ el
+                      // gate del canal, #8). El dueño se entera del combo —sin pago Y sin canal, que es
+                      // una venta muerta— por el aviso `checkout-sin-salida` del Dashboard.
+                      <div className="bg-[var(--sf-superficie)] rounded-xl p-4 text-sm text-[var(--sf-texto)]">
+                        {tieneWhatsapp
+                          ? 'No hay un método de pago disponible ahora mismo. Escríbenos por WhatsApp para coordinar el pago y completar tu pedido.'
+                          : 'No podemos completar tu pedido en este momento. Vuelve a intentarlo más tarde.'}
+                      </div>
+                    ) : (
                       <>
-                        <h2 className="font-semibold text-[var(--sf-tinta)] mb-4">Método de pago</h2>
-                        {availablePayments.length === 0 && !pasarelaOfrecida ? (
-                          // Guarda defensiva: el dueño apagó TODOS los métodos (o ninguno tiene datos). El
-                          // editor exige ≥1 encendido, así que casi no pasa —pero el checkout no puede quedar
-                          // mudo—: en vez de un paso sin opciones se ofrece coordinar el pago por WhatsApp.
-                          //
-                          // ESTA GUARDA NO SE PUEDE GATEAR CON UN BORRADO, y es lo que la separa de las otras
-                          // dos promesas de canal de esta página: aquéllas tienen una frase a la que caer (la
-                          // misma sin el canal), y ÉSTA ES EL FALLBACK MISMO —quitarle el canal la dejaría
-                          // muda—. Así que sin WhatsApp no se borra: se le cambia el DESTINO por uno honesto
-                          // ("vuelve más tarde"), que no inventa un canal que no existe ni le enseña al
-                          // comprador la mala configuración de la tienda. Cada rama se escribe ENTERA (§ el
-                          // gate del canal, #8). El dueño se entera del combo —sin pago Y sin canal, que es
-                          // una venta muerta— por el aviso `checkout-sin-salida` del Dashboard.
-                          <div className="bg-[var(--sf-superficie)] rounded-xl p-4 text-sm text-[var(--sf-texto)]">
-                            {tieneWhatsapp
-                              ? 'No hay un método de pago disponible ahora mismo. Escríbenos por WhatsApp para coordinar el pago y completar tu pedido.'
-                              : 'No podemos completar tu pedido en este momento. Vuelve a intentarlo más tarde.'}
-                          </div>
-                        ) : (
-                          <>
-                            <div className="space-y-3">
-                              {availablePayments.map(opt => (
-                                <label key={opt.id} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${!pasarelaSeleccionada && metodoActivo === opt.id ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
-                                  <input type="radio" name="payment" value={opt.id} checked={!pasarelaSeleccionada && metodoActivo === opt.id} onChange={() => { setPayment(opt.id); setPasarelaSeleccionada(false); }} className="mt-0.5 accent-[var(--sf-acento)]" />
-                                  <div>
-                                    <p className="text-sm font-semibold text-[var(--sf-tinta)]">{opt.label}</p>
-                                    <p className="text-xs text-[var(--sf-texto-suave)]">{opt.desc}</p>
-                                  </div>
-                                </label>
-                              ))}
-                              {/* La opción SÓLO se ofrece cuando el bloque de aceptación se consiguió
-                                  (`pasarelaOfrecida`, § CHECKOUT-UNA-SOLA-PANTALLA-1 — "si las dos completas
-                                  no se consiguen, la opción de pasarela no se ofrece"), no sólo por el
-                                  interruptor de despliegue. § CHECKOUT-COPY-Y-ORDEN-PASARELA-1: LA ETIQUETA
-                                  ES FIJA para las dos ramas (API directa y widget) — generarla desde
-                                  `metodosOtros` colisionaba con un método MANUAL que comparte nombre (dos
-                                  radios de "Nequi" uno debajo del otro). El SUBTÍTULO sí se genera
-                                  (`subtituloPagoPasarela`, `lib/pagos/metodos-pasarela.ts`) y su cola nombra
-                                  el eje real: QUIÉN CONFIRMA (instantáneo, nunca el equipo). TEXTO DEL OWNER
-                                  (2026-09-17) — ya no provisional. */}
-                              {pasarelaOfrecida && bloquePasarela && (
-                                <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${pasarelaSeleccionada ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
-                                  <input type="radio" name="payment" checked={pasarelaSeleccionada} onChange={() => setPasarelaSeleccionada(true)} className="mt-0.5 accent-[var(--sf-acento)]" />
-                                  <div>
-                                    <p className="text-sm font-semibold text-[var(--sf-tinta)]">{ETIQUETA_PAGO_PASARELA}</p>
-                                    <p className="text-xs text-[var(--sf-texto-suave)]">{subtituloPagoPasarela(bloquePasarela.metodosOtros)}</p>
-                                  </div>
-                                </label>
-                              )}
-                            </div>
-                            {!pasarelaSeleccionada && (metodoActivo === 'nequi' || metodoActivo === 'daviplata' || metodoActivo === 'breb' || metodoActivo === 'transferencia') && (
-                              <Field label="Referencia de pago (opcional)" value={refTransfer} onChange={setRefTransfer} placeholder="Número de confirmación" />
-                            )}
-                          </>
+                        <div className="space-y-3">
+                          {availablePayments.map(opt => (
+                            <label key={opt.id} className={`flex items-start gap-3 p-4 rounded-xl border-2 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${!pasarelaSeleccionada && metodoActivo === opt.id ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
+                              <input type="radio" name="payment" value={opt.id} checked={!pasarelaSeleccionada && metodoActivo === opt.id} onChange={() => { setPayment(opt.id); setPasarelaSeleccionada(false); }} disabled={bloqueoMetodoDePago} className="mt-0.5 accent-[var(--sf-acento)] disabled:pointer-events-none" />
+                              <div>
+                                <p className="text-sm font-semibold text-[var(--sf-tinta)]">{opt.label}</p>
+                                <p className="text-xs text-[var(--sf-texto-suave)]">{opt.desc}</p>
+                              </div>
+                            </label>
+                          ))}
+                          {/* La opción SÓLO se ofrece cuando el bloque de aceptación se consiguió
+                              (`pasarelaOfrecida`, § CHECKOUT-UNA-SOLA-PANTALLA-1 — "si las dos completas
+                              no se consiguen, la opción de pasarela no se ofrece"), no sólo por el
+                              interruptor de despliegue. § CHECKOUT-COPY-Y-ORDEN-PASARELA-1: LA ETIQUETA
+                              ES FIJA para las dos ramas (API directa y widget) — generarla desde
+                              `metodosOtros` colisionaba con un método MANUAL que comparte nombre (dos
+                              radios de "Nequi" uno debajo del otro). El SUBTÍTULO sí se genera
+                              (`subtituloPagoPasarela`, `lib/pagos/metodos-pasarela.ts`) y su cola nombra
+                              el eje real: QUIÉN CONFIRMA (instantáneo, nunca el equipo). TEXTO DEL OWNER
+                              (2026-09-17) — ya no provisional. */}
+                          {pasarelaOfrecida && bloquePasarela && (
+                            <label className={`flex items-start gap-3 p-4 rounded-xl border-2 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${pasarelaSeleccionada ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
+                              <input type="radio" name="payment" checked={pasarelaSeleccionada} onChange={() => setPasarelaSeleccionada(true)} disabled={bloqueoMetodoDePago} className="mt-0.5 accent-[var(--sf-acento)] disabled:pointer-events-none" />
+                              <div>
+                                <p className="text-sm font-semibold text-[var(--sf-tinta)]">{ETIQUETA_PAGO_PASARELA}</p>
+                                <p className="text-xs text-[var(--sf-texto-suave)]">{subtituloPagoPasarela(bloquePasarela.metodosOtros)}</p>
+                              </div>
+                            </label>
+                          )}
+                        </div>
+                        {!pasarelaSeleccionada && (metodoActivo === 'nequi' || metodoActivo === 'daviplata' || metodoActivo === 'breb' || metodoActivo === 'transferencia') && (
+                          <Field label="Referencia de pago (opcional)" value={refTransfer} onChange={setRefTransfer} placeholder="Número de confirmación" disabled={bloqueoMetodoDePago} />
                         )}
                       </>
                     )}
@@ -884,15 +895,22 @@ interface FieldProps {
   type?: string;
 
   placeholder?: string;
+
+  // § CHECKOUT-SELECTOR-NO-SE-DESMONTA-1: el bloque de método necesita bloquear "Referencia de
+  // pago" en su lugar en vez de desmontarla — mismo criterio que los campos de
+  // `FormularioTarjeta` (`disabled` + `disabled:opacity-60`). Los demás llamadores de `Field`
+  // no lo pasan, así que quedan sin cambio (`undefined` → no disabled).
+  disabled?: boolean;
 }
 
-function Field({ label, value, onChange, type = 'text', placeholder }: FieldProps) {
+function Field({ label, value, onChange, type = 'text', placeholder, disabled }: FieldProps) {
   return (
     <div>
       <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">{label}</label>
       <input
         type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
+        disabled={disabled}
+        className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)] disabled:opacity-60 disabled:pointer-events-none"
       />
     </div>
   );

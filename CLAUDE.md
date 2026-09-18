@@ -36,7 +36,7 @@ criterio: lo que falla RUIDOSO se arregla; lo que corrompe CALLADO no se descubr
 por esto, no por ser una puerta ni un decisor — y el próximo candidato se juzga también contra este
 eje, no sólo contra el de arriba.
 
-Tier 1 slices run in a separate read-only session first, then a second stage that writes only after the owner's explicit go, over these measured surfaces: packages/core/prisma/schema.prisma, packages/core/prisma/migrations/, lib/config/site-content-schema.ts, lib/config/site-content-defaults.ts, app/(storefront)/, packages/core/src/inventory.ts, packages/core/src/fulfillment.ts, packages/core/src/product-update.ts, packages/core/src/product-import.ts, packages/core/src/moliendas-opciones.ts, packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/shipping-transition.ts, packages/core/src/order-transitions.ts, packages/core/src/pagos/, lib/checkout/metodos-pago.ts, lib/pagos/wompi-firma.ts, app/api/checkout/route.ts, app/api/inventory/adjust/route.ts, app/api/orders/[id]/payments/route.ts, app/api/orders/route.ts, app/api/orders/[id]/address/route.ts, app/api/comprobantes/[id]/route.ts, app/api/shippings/route.ts, app/api/products/[id]/route.ts, app/api/cron/automations/route.ts and app/api/webhooks/wompi/route.ts.
+Tier 1 slices run in a separate read-only session first, then a second stage that writes only after the owner's explicit go, over these measured surfaces: packages/core/prisma/schema.prisma, packages/core/prisma/migrations/, lib/config/site-content-schema.ts, lib/config/site-content-defaults.ts, app/(storefront)/, packages/core/src/inventory.ts, packages/core/src/fulfillment.ts, packages/core/src/product-update.ts, packages/core/src/product-import.ts, packages/core/src/moliendas-opciones.ts, packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/shipping-transition.ts, packages/core/src/order-transitions.ts, packages/core/src/pagos/, lib/checkout/metodos-pago.ts, lib/pagos/wompi-firma.ts, app/api/checkout/route.ts, app/api/checkout/reintento/route.ts, app/api/inventory/adjust/route.ts, app/api/orders/[id]/payments/route.ts, app/api/orders/route.ts, app/api/orders/[id]/address/route.ts, app/api/comprobantes/[id]/route.ts, app/api/shippings/route.ts, app/api/products/[id]/route.ts, app/api/cron/automations/route.ts and app/api/webhooks/wompi/route.ts.
 
 **LA LISTA TAMBIÉN GANA SUBÁRBOLES — una lista de rutas literales no puede cubrir un archivo que
 todavía no existe.** El criterio de arriba está escrito en términos de SIGNIFICADO (bytes del
@@ -187,6 +187,18 @@ y las dos entran a la frase canónica de arriba:
   el ARCHIVO —no tiene granularidad de método HTTP—, así que las dos mitades quedan bajo Tier 1
   aunque sólo una lo necesitara; quien re-mida este archivo debe saber que el `PATCH` ya estaba
   cubierto antes de esta entrada y el `DELETE` es lo nuevo.
+
+**Re-medida el 2026-09-18, CUARTA vez el mismo día** (`CHECKOUT-SELECTOR-NO-SE-DESMONTA-1`):
+`app/api/checkout/reintento/route.ts` nació esa misma tarde, en `CHECKOUT-REINTENTO-OTRO-METODO-1`
+(el commit inmediatamente anterior en esta rama) — es la ÚNICA puerta que abre un `PaymentIntent`
+NUEVO sobre una orden YA EXISTENTE, por el criterio literal (puerta de escritura del eje del
+dinero). El `git diff` de aquel slice lo dejó FUERA de `touches:` (declaraba sólo
+`components/storefront/checkout/`, `app/(storefront)/checkout/`, `app/api/checkout/`,
+`packages/core/src/orders.ts`, `DECISIONS.md` — la ruta cae bajo ese `app/api/checkout/` de prosa,
+pero **la frase canónica sólo nombraba el archivo suelto `app/api/checkout/route.ts`**, no el
+subárbol) — el mismo patrón que `TIER1-SUBARBOL-NO-DISPARABA-1` ya documentó: una entrada escrita
+en prosa no es una entrada en la frase de la que el validador deriva sus disparadores. Se sumó
+`app/api/checkout/reintento/route.ts` como archivo suelto, junto a `app/api/checkout/route.ts`.
 
 **Re-medir esta lista cada vez que la ruta del dinero gane una puerta o una función consultada
 nueva** — no esperar a una auditoría programada. `git diff <última-medición>..HEAD -- app/api/

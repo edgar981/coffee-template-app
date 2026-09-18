@@ -7567,3 +7567,136 @@ las tres capas; el gate visual del owner confirma esto en pantalla):
 del §0, fijó el tope en tres, el copy del botón y del mensaje, y pidió cerrar en el mismo slice el
 hueco de `EsperaRedireccionPasarela`). **LA APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA EL MERGE** — el
 merge sigue gateado al owner, y este slice para en `AWAITING_APPROVAL` sin mergear.
+
+## 2026-09-18 — El bloque «Método de pago» deja de desmontarse: la premisa que lo justificaba la mató nuestro propio slice anterior, y es la TERCERA instancia de la clase (`CHECKOUT-SELECTOR-NO-SE-DESMONTA-1`)
+
+### 0 · El hecho medido
+
+`checkout/page.tsx` desmontaba el bloque «Método de pago» (el h2 + la lista de radios entre
+métodos manuales y la opción de pasarela) apenas `confirmation` existía —`{!confirmation && (…)}`—,
+con un comentario que decía por qué:
+
+> § CHECKOUT-UNA-SOLA-PANTALLA-1: el selector de método sólo se muestra ANTES de que exista la
+> orden — una vez creada, "Información"/"Dirección" y el método elegido ya no son editables
+> (misma garantía que antes tenía el `return` temprano de arriba).
+
+**Medido: ese comentario nació en `98217cb` (`CHECKOUT-UNA-SOLA-PANTALLA-1`, 2026-09-17
+15:30:02) y su premisa quedó FALSA en `2a76697` (`CHECKOUT-REINTENTO-OTRO-METODO-1`, 2026-09-18
+12:18:16) — el commit INMEDIATAMENTE ANTERIOR en esta misma rama, ~21 h después de escrito.** Ese
+slice construyó el botón "Intentar con otro método" (`FormularioTarjeta.tsx`/
+`FormularioOtroMetodoPasarela.tsx`, vía `SelectorMetodoPasarela`, `onReintentarOtroMetodo` →
+`POST /api/checkout/reintento`) que abre un `PaymentIntent` NUEVO sobre la MISMA orden y deja al
+comprador elegir de nuevo — exactamente lo que el comentario decía que no iba a volver a pasar. El
+`approval-reason` de este slice lo dice con las palabras del owner: *"si el bloque no está, ese
+botón tiene que reconstruir en pantalla algo que ya existía. Lo que se desmonta hay que volver a
+montar."*
+
+### 1 · Lo construido
+
+`checkout/page.tsx` gana `bloqueoMetodoDePago = !!confirmation` (derivado, junto a
+`pasarelaOfrecida`). El bloque «Método de pago» **YA NO se desmonta**: se quitó el wrapper
+`{!confirmation && (…)}` y el `<h2>` + la lista de radios se renderizan SIEMPRE. Mientras
+`bloqueoMetodoDePago` es `true`:
+
+- Cada `<input type="radio">` (los métodos manuales Y la opción de pasarela) gana
+  `disabled={bloqueoMetodoDePago}` + `disabled:pointer-events-none` en su propia clase — el MISMO
+  atributo que usan los campos de `FormularioTarjeta.tsx` (`CampoTarjeta`, `disabled={procesando}`)
+  y las dos casillas de `AceptacionesPasarela.tsx` un nivel más abajo, no una guarda nueva.
+- El `<label>` que envuelve cada opción gana `opacity-60 cursor-not-allowed` (computado en JS, no
+  vía el pseudo-selector `disabled:` — un `<label>` no es un control con estado disabled propio):
+  mismo resultado visual que `disabled:opacity-60` en los campos de tarjeta.
+- `Field` (el componente LOCAL de este archivo, usado para "Referencia de pago") gana un prop
+  `disabled?: boolean` nuevo, threadeado con la misma clase `disabled:opacity-60
+  disabled:pointer-events-none`. Los demás llamadores de `Field` (Nombre, Apellido, Correo,
+  Dirección, Detalles, Ciudad) no lo pasan → sin cambio de comportamiento para ellos.
+
+**Alcance verificado, no supuesto**: `bloqueoMetodoDePago` sólo puede ser `true` dentro de la rama
+API DIRECTA del paso de pago. El camino de métodos MANUALES sale por el `return` temprano de la
+línea ~393 (`!confirmation.wompi` → pantalla "¡Pedido recibido!" completa) antes de llegar a este
+bloque; el WIDGET de Wompi sale por la rama `confirmation.wompi && !modoApiDirecta` de la línea
+~621 (una vista distinta, declarada "TAL CUAL estaba antes de este slice", no tocada). Ningún otro
+flujo cambia de comportamiento.
+
+### 2 · Lo que NO se construyó — medido y reportado, como pidió el spec
+
+**"Cuando el pago se rechaza, tiene que volver a ser usable" no se implementó de forma granular.**
+Medido: la página NO tiene ninguna señal para "este intento se rechazó, pero el ciclo sigue
+abierto" — el estado `rechazado` (booleano local que reemplaza los campos por la vista de rechazo
++ el botón de reintento) vive DENTRO de `FormularioTarjeta.tsx`/`FormularioOtroMetodoPasarela.tsx`
+y nunca se bubblea hasta `checkout/page.tsx`. La página sólo conoce estados TERMINALES
+(`pasarelaAprobada`, `pasarelaMetodoNoHabilitado`, `intentosAgotados`) — y los tres, al ser
+terminales, ya reemplazan la pantalla ENTERA antes de que este bloque se renderice, así que no hay
+nada que desbloquear ahí.
+
+**Threadear `rechazado` hasta la página exige tocar `components/storefront/checkout/*.tsx`, que
+NO está en el `touches:` de este slice** (`app/(storefront)/checkout/`, `CLAUDE.md`,
+`DECISIONS.md` — verificado contra el spec, no supuesto). Por eso `bloqueoMetodoDePago` se queda
+`true` durante TODO el ciclo de pasarela (desde que la orden existe hasta un desenlace terminal),
+incluidos los reintentos — no se desbloquea entre intentos.
+
+**La pregunta del spec, medida: "¿el botón sigue haciendo falta, o el bloque desbloqueado ya
+alcanza?"** El botón SIGUE haciendo falta, sin condición. Aunque el bloque se desbloqueara,
+NINGÚN camino consume un cambio en `payment`/`pasarelaSeleccionada` una vez que `confirmation`
+existe: los botones "Atrás"/"Confirmar pedido" de `handleOrder` siguen detrás de
+`{!confirmation && (…)}` (línea ~773, sin tocar), y no hay ningún otro `onClick` que lea esos
+estados para volver a intentar. Desbloquear el bloque SIN el botón dejaría radios que se ven
+interactivos y no hacen nada al clickearlos — peor que dejarlos bloqueados. `POST /api/checkout/
+reintento` (vía el botón) es el ÚNICO mecanismo que de verdad abre un intento nuevo. El botón NO
+se tocó.
+
+**Open follow-up, para el owner** — `CHECKOUT-SELECTOR-DESBLOQUEO-POR-RECHAZO-1`: ¿debería el
+bloque desbloquearse durante la ventana entre un rechazo y el clic en "Intentar con otro método"
+(en vez de quedarse bloqueado todo el ciclo)? Es una decisión de PRODUCTO (qué ve el comprador en
+ese instante), y construirla exige ampliar `touches:` a `components/storefront/checkout/` — no se
+decide ni se construye en este slice.
+
+### 3 · La ruta del reintento entra a Tier 1
+
+`app/api/checkout/reintento/route.ts` (nacida en `2a76697`, el mismo commit del §0) es una puerta
+de escritura del eje del dinero por el criterio literal —abre un `PaymentIntent` NUEVO sobre una
+orden ya existente— y NO estaba en la frase canónica de `CLAUDE.md` (línea 39): esa frase sólo
+nombraba el archivo suelto `app/api/checkout/route.ts`, no el subárbol `app/api/checkout/`. El
+propio asiento de `CHECKOUT-REINTENTO-OTRO-METODO-1` (§5, arriba) declaraba su `touches:` como
+`app/api/checkout/` (el subárbol, para SU alcance de escritura) — pero el `touches:` de un slice y
+la frase canónica de Tier 1 son dos listas DISTINTAS, y una entrada en la primera no mueve la
+segunda. Es la MISMA clase que `TIER1-SUBARBOL-NO-DISPARABA-1` ya documentó: una entrada escrita en
+PROSA (o en el `touches:` de otro slice) no es una entrada en la FRASE de la que el validador
+deriva sus disparadores. Se agregó `app/api/checkout/reintento/route.ts` como archivo suelto,
+junto a `app/api/checkout/route.ts` — en la frase (CLAUDE.md línea 39) y en un párrafo de
+re-medición nuevo ("CUARTA vez el mismo día", § Tier 1 — superficies protegidas).
+
+### 4 · La clase — tercera instancia, y la más rápida en morir
+
+**Una decisión no vence sola — la vence trabajo posterior, y el trabajo que la mata casi nunca
+sabe que la está matando.** Dos instancias ya viven en el libro:
+
+- **`COBRO-SIN-PEDIDO-ASIENTO-1`** (arriba, 2026-09-18): cinco frases de `CLAUDE.md` sobre el
+  programa de Wompi, correctas cuando `TIER1-LISTA-VENCIDA-1` las re-midió el 2026-09-14, quedaron
+  falsas UN DÍA DESPUÉS por dos commits (`ff9dda8`, `9abdc5b`) del MISMO programa, sobre su PROPIA
+  sección — y nadie las releyó hasta que el incidente real las destapó.
+- **`CLAUDE-MD-FRASES-VENCIDAS-1`** (`CLAUDE.md`, § Backlog técnico, 2026-09-14): "cada dormido es
+  detección nueva sobre el MISMO fetch" y "no fires para Nayoli hoy" —dos premisas del § 65,
+  correctas cuando se escribieron, muertas por tandas de OTRA área (la construcción del dormido #8,
+  y `CONTENIDO-NEUTRALIZAR-1…4`) que nunca releyeron el párrafo que dependía de ellas.
+
+**Esta es la tercera, y la que muere MÁS RÁPIDO de las tres**: el comentario de `checkout/
+page.tsx` (98217cb, 2026-09-17 15:30:02) quedó falso por `2a76697` (2026-09-18 12:18:16) — ~21
+horas, el commit INMEDIATAMENTE ANTERIOR en la misma rama, del MISMO programa, escrito por la
+MISMA sesión de trabajo que había dejado la premisa. No hizo falta que pasara un día ni que otra
+área tocara algo ajeno: bastó el slice siguiente. Con las palabras del owner, citadas en el
+`approval-reason` de este spec: *"esa premisa la mató el slice del reintento una hora antes, que le
+da al comprador un botón para cambiar de método."*
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido sobre el árbol final. Ver el reporte del slice para el
+resultado exacto y las cifras (passed/failed/wall_seconds) — no se transcriben acá para no
+duplicar un número que puede volver a medirse.
+
+### Deviations
+
+Ninguna sobre el mecanismo de bloqueo en sí. La única desviación medida es de ALCANCE: el spec
+pedía "cuando el pago se rechaza, tiene que volver a ser usable" y este slice no lo construyó —
+§2 mide por qué (`components/storefront/checkout/` fuera de `touches:`) y lo deja como
+`CHECKOUT-SELECTOR-DESBLOQUEO-POR-RECHAZO-1`, tal como el propio spec autorizaba ("medí… y decilo…
+no borres el botón… dejá que lo decida el owner").
