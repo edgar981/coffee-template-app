@@ -5922,3 +5922,92 @@ SUBÁRBOLES, la misma razón que ya cubre `app/(storefront)/`), y el diff cambia
 comprador ve (un ícono nuevo en el formulario de tarjeta). El slice tenía aprobación explícita del
 owner para ESCRIBIR (`approved-by: owner`, spec del ledger) — nunca para mergear; el merge sigue
 gateado al owner, igual que el resto de la rama.
+
+## 2026-09-17 — La CLASE: una evidencia real, estirada hasta cubrir una pregunta que no responde —
+tres instancias de estos dos días, y la misma forma que el owner también cometió, dos veces, en este
+mismo programa (`CLASE-EVIDENCIA-ESTIRADA-1`)
+
+### 0 · Por qué este asiento existe
+
+El owner ordenó, el 2026-09-17, registrar como CLASE un razonamiento que se repitió estos dos días de
+este mismo programa (API directa / Wompi). En ninguna de las instancias se inventó un dato: había una
+medición real detrás de cada una. Lo que falló fue el SALTO — se contestó, con esa medición, una
+pregunta DISTINTA de la que ella respondía. Este asiento no repite la corrección de ninguna instancia
+por separado — cada una ya tiene su propio asiento, citado abajo —; existe para nombrar el PATRÓN que
+las une, porque un patrón sin nombre vuelve a pasar.
+
+### 1 · La clase, en sus tres instancias
+
+| Lo que se midió (real) | Lo que se concluyó (estirado) | El salto | Corregido en |
+| --- | --- | --- | --- |
+| el portal de descarga de las cuatro redes de tarjeta exige aceptar un acuerdo de licencia o registrarse como socio antes de entregar los archivos de marca (`SPIKE-GUIAS-DE-MARCA-REDES-1`, read-only) | mostrar la marca (el logo) en el checkout exige ese mismo acuerdo | **descargar ≠ usar** | `CHECKOUT-ICONO-TARJETA-NEUTRO-1` |
+| el identificador `BANCOLOMBIA` a secas es rechazado SIEMPRE como tipo al crear la transacción, con cualquier combinación de campos (`API-DIRECTA-CATALOGO-METODOS-ASIENTO-1`) | con ese banco no se cobra | **un identificador ≠ un banco** | `CORRECCION-BANCOLOMBIA-AGREGADOR-1` |
+| la documentación pública del proveedor dice que crear la transacción exige la llave PRIVADA | esa afirmación estaba MEDIDA | **leer ≠ medir** | `API-DIRECTA-SPIKES-ASIENTO-1` §B (y `API-DIRECTA-DECISIONES-ATRIBUCION-FIX-1`, el mismo defecto sobre el mismo día de lectura) |
+
+Ninguna fila de la izquierda es falsa — las tres siguen siendo ciertas, palabra por palabra, después de
+la corrección. Lo falso nació al escribir la columna de la derecha con más ALCANCE del que la medición
+de la izquierda cubría.
+
+### 2 · Lo que el owner pidió que quede escrito, y es lo que cambia qué se hace con esto
+
+El owner pidió explícitamente que este asiento diga que **el OWNER cometió la misma forma DOS veces en
+este mismo programa**, las dos asumiendo carga legal sin medirla: una sobre el cumplimiento exigido por
+el manejo de datos de tarjeta, y otra sobre estas mismas marcas de red. Esto lo registra el asiento por
+orden directa del owner (§ `approval-reason` de este slice) — no es una medición de este slice contra el
+resto del programa, y se marca así: es el propio owner dando cuenta de su razonamiento, no un hallazgo
+que este worker haya verificado línea por línea contra conversaciones anteriores.
+
+> **NO es un error del orquestador: es una FORMA DE RAZONAR QUE LOS DOS TIENEN.**
+
+**Por qué esa distinción no es cortesía, y es la parte útil de este asiento:** si se registrara como un
+defecto DEL ORQUESTADOR, el remedio natural sería una guarda que lo vigile a él — y esa guarda no habría
+atrapado NINGUNA de las dos veces que el owner cometió la misma forma, porque en esas dos el orquestador
+no era quien concluía. El remedio de una forma de razonar COMPARTIDA no es vigilancia sobre un actor: es
+una pregunta que los dos —owner y orquestador— se hacen antes de concluir, la misma pregunta, en el mismo
+punto de la cadena. Vigilar a uno solo de los dos deja la otra mitad del patrón exactamente donde estaba.
+
+### 3 · La pregunta que la atrapa
+
+> **Antes de concluir: ¿la pregunta que respondió mi medición es LA MISMA que estoy contestando?**
+
+**Y el olor característico, para reconocerla en el momento en que aparece, no después:** la evidencia es
+de una DISPONIBILIDAD — se puede bajar, se puede llamar, está en la lista, el portal la entrega o la
+niega — y la conclusión es sobre un DERECHO o una CAPACIDAD — se puede usar, se puede cobrar, está
+permitido. Las tres instancias de la tabla tienen exactamente esa forma: "el portal lo entrega" (disponibilidad)
+contra "se puede usar" (derecho); "el tipo se crea" (disponibilidad de un identificador) contra "el banco
+cobra" (capacidad de un método); "la documentación lo dice" (disponibilidad de una afirmación escrita)
+contra "está medido" (verificación real). **Las dos suenan a lo mismo y no lo son**, y esa semejanza de
+sonido es justo lo que hace que el salto pase desapercibido en el momento de escribirlo.
+
+### 4 · Quién la encontró, en las tres — y por qué importa que ninguna la encontró una relectura
+
+| Instancia | Quién la desmintió | Con qué |
+| --- | --- | --- |
+| las marcas (descargar ≠ usar) | **el owner**, con evidencia propia | comercios que muestran las marcas de red sin haber pasado por el acuerdo de licencia del portal de descarga |
+| el identificador (`BANCOLOMBIA`) | **el owner**, con evidencia propia | paga habitualmente con ese banco, y el panel del proveedor le muestra ese método activo |
+| la documentación (llave privada) | **una medición contra el sandbox** | `API-DIRECTA-SPIKE-FIRMA-Y-ENDPOINT-1`: mismo cuerpo y firma, cambiando sólo la credencial — la llave pública también autoriza la creación |
+
+**NINGUNA la encontró una relectura del texto que la afirmaba.** Las tres las desmintió alguien que fue
+a mirar el mundo — dos veces el owner, mirando su propia experiencia como cliente y el panel real del
+proveedor; una vez un spike, mirando la respuesta real del sandbox. Un texto bien escrito, con su
+medición real citada al lado, no se delata a sí mismo: hay que salir a comprobarlo contra algo que no sea
+el propio texto.
+
+### 5 · La regla
+
+**Una evidencia de disponibilidad no responde una pregunta de derecho o de capacidad. Antes de concluir,
+la pregunta que se contesta tiene que ser la misma que la medición respondió — y si no lo es, la medición
+no alcanza para la conclusión, hay que ir a buscar la que sí responde.**
+
+### Gate
+
+**`npm run gate`, los dos carriles, verde.** El diff de este slice toca un solo archivo
+(`DECISIONS.md`, una entrada nueva al final) y ningún test ni código de producto — no había manera de
+que ninguno de los dos carriles cambiara de veredicto.
+
+**Tier 1 — SÍ aplica, mismo criterio que el resto de esta rama.** El asiento describe y corrige el
+razonamiento de trabajo que ya aterrizó en `app/(storefront)/` (vía `CHECKOUT-ICONO-TARJETA-NEUTRO-1`) y
+en la configuración de métodos de pasarela (vía `CORRECCION-BANCOLOMBIA-AGREGADOR-1`) — Tier 1 por
+herencia de esas dos superficies, no porque este diff en sí mismo toque código. El slice tenía
+aprobación explícita del owner para ESCRIBIR (`approved-by: owner`, spec del ledger) — nunca para
+mergear; el merge sigue gateado al owner, igual que el resto de la rama.
