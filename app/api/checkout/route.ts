@@ -441,9 +441,15 @@ export async function PATCH(req: NextRequest) {
   // un intento nuevo: sólo lee el que ya está, para el monto que YA se firmó una vez. Se
   // consulta ANTES de bifurcar por tipo: el hecho de que el intento exista y siga EN_VUELO no
   // depende de con qué método se lo quiera cerrar.
+  // `order: { select: { cliente_email: true } }` — MISMO patrón que `RetornoIntentoDb`
+  // (`app/api/checkout/retorno/route.ts`, `dbReal`): `PaymentIntent.orden_id` es una FK
+  // REQUERIDA, así que `order` nunca es `null` acá. El correo lo trae la fila de la orden
+  // (`Order.cliente_email`, escrito al crearla desde `checkoutSchema.customer.email`,
+  // REQUERIDO en ese schema) — nunca se le vuelve a pedir al comprador (§ PASARELA-FALTA-
+  // EL-CORREO-1, abajo).
   const intent = await prisma.paymentIntent.findUnique({
     where:  { reference },
-    select: { estado: true, monto_esperado: true },
+    select: { estado: true, monto_esperado: true, order: { select: { cliente_email: true } } },
   });
 
   if (!intent) {
@@ -489,6 +495,23 @@ export async function PATCH(req: NextRequest) {
   // (y no lo que el navegador diga) sea lo que se firma y se manda a Wompi. COMÚN a cualquier
   // método (§ API-DIRECTA-ENVIO-GENERICO-1): lo único que distingue tarjeta de cualquier otro
   // tipo es el `payment_method`, armado justo abajo.
+  // § PASARELA-FALTA-EL-CORREO-1: EL PROVEEDOR EXIGE EL CORREO DEL COMPRADOR COMO CAMPO DE
+  // PRIMER NIVEL PARA CREAR CUALQUIER TRANSACCIÓN (medido, `API-DIRECTA-SPIKE-NEQUI-FALLA-1`,
+  // citado en el spec de este slice: el MISMO cuerpo que este handler arma, sin el correo, fue
+  // rechazado por el sandbox; agregando SÓLO ese campo, la creación pasó). El correo YA EXISTE
+  // — lo capturó el checkout al crear la orden (`checkoutSchema.customer.email`, requerido) y
+  // quedó en `Order.cliente_email` — así que NUNCA se le vuelve a pedir al comprador acá. Fail
+  // ruidoso si no está: un correo inventado en una transacción de dinero es peor que un fallo,
+  // mismo criterio que el secreto/llave de arriba. En la práctica esto nunca debería disparar
+  // — el único llamador que crea un `PaymentIntent` es este mismo endpoint (POST, arriba), con
+  // el email ya validado por zod — pero `cliente_email` es nullable en el schema y esta rama
+  // no confía en esa garantía sin verificarla.
+  const correoComprador = intent.order.cliente_email;
+  if (!correoComprador) {
+    console.error(`[checkout] la orden de la referencia ${reference} no tiene cliente_email — no se puede crear la transacción sin el correo del comprador`);
+    return NextResponse.json({ error: TEXTO_ERROR_GENERICO_TRANSACCION }, { status: 500 });
+  }
+
   const amountInCents = pesosACentavos(intent.monto_esperado);
   const signature = firmarIntegridadWompi(reference, amountInCents, MONEDA_WOMPI, secretoIntegridad);
   const baseUrlPasarela = esDespliegueDemo() ? 'https://sandbox.wompi.co' : 'https://production.wompi.co';
@@ -499,6 +522,7 @@ export async function PATCH(req: NextRequest) {
     signature,
     acceptanceToken:         aceptaciones.terminos,
     acceptPersonalAuthToken: aceptaciones.datosPersonales,
+    customerEmail:           correoComprador,
   };
 
   // ── EL BLOQUE PROPIO DEL MÉTODO — lo único que cambia entre tarjeta y cualquier otro tipo

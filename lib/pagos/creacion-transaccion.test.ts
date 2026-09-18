@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   clasificarCreacionTransaccion, construirDatosCreacionTransaccion, construirDatosCreacionTransaccionTarjeta,
@@ -6,6 +6,10 @@ import {
 } from './creacion-transaccion';
 import { DESCRIPTOR_NEQUI, type DescriptorMetodoPasarela, type CampoTextoLibre, type CampoEleccionCerrada } from './metodos-pasarela';
 import type { DatosNavegador3ds } from './tres-ds';
+// § PASARELA-FALTA-EL-CORREO-1 — el test de abajo intercepta `fetch` para afirmar el CUERPO
+// que `crearTransaccion` (`./wompi-api`) manda al proveedor, sin golpear la red — mismo patrón
+// que `services/checkout.service.test.ts` (`stubFetch`/`afterEach` sobre `global.fetch`).
+import { crearTransaccion } from './wompi-api';
 
 // Datos de navegador de PRUEBA (§ API-DIRECTA-3DS-SIN-CHALLENGE-1) — `construirDatosCreacionTransaccionTarjeta`
 // los exige SIEMPRE (parámetro requerido, no opcional): no hay forma de armar los datos de una
@@ -204,7 +208,7 @@ test('cuerpoCrudo NUNCA puede llevar un dato de tarjeta: la función que lo prod
   // registrar (`app/api/checkout/route.ts`).
   const comunes = {
     reference: 'r', amountInCents: 1, currency: 'COP', signature: 's',
-    acceptanceToken: 'a', acceptPersonalAuthToken: 'b',
+    acceptanceToken: 'a', acceptPersonalAuthToken: 'b', customerEmail: 'comprador@example.com',
   };
   const datosConTarjeta = construirDatosCreacionTransaccionTarjeta(
     comunes, 'tok_secreto_de_tarjeta_jamas_debe_salir', NAVEGADOR_DE_PRUEBA,
@@ -236,6 +240,7 @@ test('construirDatosCreacionTransaccion: arma los datos completos con el payment
       signature:                'firma-de-prueba',
       acceptanceToken:          'token-terminos',
       acceptPersonalAuthToken:  'token-datos',
+      customerEmail:            'comprador@example.com',
     },
     DESCRIPTOR_NEQUI,
     '300 123 4567',
@@ -247,6 +252,7 @@ test('construirDatosCreacionTransaccion: arma los datos completos con el payment
     signature:                'firma-de-prueba',
     acceptanceToken:          'token-terminos',
     acceptPersonalAuthToken:  'token-datos',
+    customerEmail:            'comprador@example.com',
     paymentMethod:            { type: 'NEQUI', phone_number: '3001234567' },
   });
 });
@@ -268,7 +274,7 @@ test('construirDatosCreacionTransaccion: el paymentMethod viene EXCLUSIVAMENTE d
   const datos = construirDatosCreacionTransaccion(
     {
       reference: 'r', amountInCents: 1, currency: 'COP', signature: 's',
-      acceptanceToken: 'a', acceptPersonalAuthToken: 'b',
+      acceptanceToken: 'a', acceptPersonalAuthToken: 'b', customerEmail: 'comprador@example.com',
     },
     descriptorDeMentira,
     'hola',
@@ -307,6 +313,7 @@ test('construirDatosCreacionTransaccionDesdeCampos: arma el payment_method ENTER
     {
       reference: 'CN-200002:def456', amountInCents: 12_000_00, currency: 'COP',
       signature: 'firma-de-prueba', acceptanceToken: 'token-terminos', acceptPersonalAuthToken: 'token-datos',
+      customerEmail: 'comprador@example.com',
     },
     DESCRIPTOR_TRES_DIMENSIONES_DE_PRUEBA,
     { banco: 'BANCO_A', documento: '12345678' },
@@ -314,6 +321,7 @@ test('construirDatosCreacionTransaccionDesdeCampos: arma el payment_method ENTER
   assert.deepEqual(datos, {
     reference: 'CN-200002:def456', amountInCents: 12_000_00, currency: 'COP',
     signature: 'firma-de-prueba', acceptanceToken: 'token-terminos', acceptPersonalAuthToken: 'token-datos',
+    customerEmail: 'comprador@example.com',
     paymentMethod: { type: 'BANCO_DIGITAL_DE_PRUEBA', financial_institution_code: 'BANCO_A', user_legal_id: '12345678' },
   });
 });
@@ -322,7 +330,7 @@ test('construirDatosCreacionTransaccionDesdeCampos: sirve TAMBIÉN para un descr
   const datos = construirDatosCreacionTransaccionDesdeCampos(
     {
       reference: 'r', amountInCents: 1, currency: 'COP', signature: 's',
-      acceptanceToken: 'a', acceptPersonalAuthToken: 'b',
+      acceptanceToken: 'a', acceptPersonalAuthToken: 'b', customerEmail: 'comprador@example.com',
     },
     DESCRIPTOR_NEQUI,
     { numero: '3001234567' },
@@ -343,6 +351,7 @@ test('construirDatosCreacionTransaccionTarjeta: arma el mismo payment_method que
       signature:                'firma-tarjeta',
       acceptanceToken:          'token-terminos',
       acceptPersonalAuthToken:  'token-datos',
+      customerEmail:            'comprador@example.com',
     },
     'tok_test_card_abc123',
     NAVEGADOR_DE_PRUEBA,
@@ -354,6 +363,7 @@ test('construirDatosCreacionTransaccionTarjeta: arma el mismo payment_method que
     signature:                'firma-tarjeta',
     acceptanceToken:          'token-terminos',
     acceptPersonalAuthToken:  'token-datos',
+    customerEmail:            'comprador@example.com',
     paymentMethod:            { type: 'CARD', installments: 1, token: 'tok_test_card_abc123' },
     threeDsAuth: {
       browser_color_depth:   '24',
@@ -370,7 +380,7 @@ test('construirDatosCreacionTransaccionTarjeta: arma el mismo payment_method que
 test('construirDatosCreacionTransaccionTarjeta: SIEMPRE incluye threeDsAuth — no hay forma de omitirlo (§0, "no hay interruptor")', () => {
   const comunes = {
     reference: 'r', amountInCents: 1, currency: 'COP', signature: 's',
-    acceptanceToken: 'a', acceptPersonalAuthToken: 'b',
+    acceptanceToken: 'a', acceptPersonalAuthToken: 'b', customerEmail: 'comprador@example.com',
   };
   const datos = construirDatosCreacionTransaccionTarjeta(comunes, 'tok_x', NAVEGADOR_DE_PRUEBA);
   assert.ok(datos.threeDsAuth, 'threeDsAuth debe estar presente en TODA transacción de tarjeta');
@@ -380,7 +390,7 @@ test('construirDatosCreacionTransaccionTarjeta: SIEMPRE incluye threeDsAuth — 
 test('construirDatosCreacionTransaccionTarjeta: threeDsAuth NUNCA lleva un campo de la tarjeta — sólo los del navegador', () => {
   const comunes = {
     reference: 'r', amountInCents: 1, currency: 'COP', signature: 's',
-    acceptanceToken: 'a', acceptPersonalAuthToken: 'b',
+    acceptanceToken: 'a', acceptPersonalAuthToken: 'b', customerEmail: 'comprador@example.com',
   };
   const datos = construirDatosCreacionTransaccionTarjeta(comunes, 'tok_secreto_de_la_tarjeta', NAVEGADOR_DE_PRUEBA);
   const claves = Object.keys(datos.threeDsAuth ?? {});
@@ -393,7 +403,7 @@ test('construirDatosCreacionTransaccionTarjeta: threeDsAuth NUNCA lleva un campo
 test('construirDatosCreacionTransaccionTarjeta y construirDatosCreacionTransaccion producen la MISMA forma de datos salvo paymentMethod y threeDsAuth (que sólo tarjeta lleva)', () => {
   const comunes = {
     reference: 'r', amountInCents: 1, currency: 'COP', signature: 's',
-    acceptanceToken: 'a', acceptPersonalAuthToken: 'b',
+    acceptanceToken: 'a', acceptPersonalAuthToken: 'b', customerEmail: 'comprador@example.com',
   };
   const tarjeta = construirDatosCreacionTransaccionTarjeta(comunes, 'tok_1', NAVEGADOR_DE_PRUEBA);
   const nequi = construirDatosCreacionTransaccion(comunes, DESCRIPTOR_NEQUI, '3001234567');
@@ -403,4 +413,74 @@ test('construirDatosCreacionTransaccionTarjeta y construirDatosCreacionTransacci
   assert.notDeepEqual(pmTarjeta, pmNequi);
   assert.ok(threeDsAuth);
   assert.equal((nequi as { threeDsAuth?: unknown }).threeDsAuth, undefined);
+});
+
+// ── § PASARELA-FALTA-EL-CORREO-1 — LA CREACIÓN LLEVA EL CORREO DEL COMPRADOR, CAMPO DE
+// PRIMER NIVEL (`customer_email`), PARA CUALQUIER MÉTODO ─────────────────────────────────────
+//
+// Medido contra el sandbox (`API-DIRECTA-SPIKE-NEQUI-FALLA-1`, citado en el spec de este
+// slice): el proveedor RECHAZA la creación de una transacción sin este campo — el MISMO cuerpo
+// que este módulo arma, sin el correo, fue rechazado; agregando SÓLO ese campo, la creación
+// pasó. Antes de este slice `DatosComunesCreacionTransaccion` no tenía este campo y
+// `crearTransaccion` (`./wompi-api`) nunca lo mandaba, así que NINGÚN camino de creación —ni el
+// de tarjeta ni el de cualquier otro método, los dos arman su body con la MISMA función— podía
+// haber funcionado nunca.
+//
+// Estos dos tests interceptan `fetch` (nunca golpean la red) para afirmar el CUERPO real que
+// `crearTransaccion` envía — no basta con afirmar que `DatosCreacionTransaccion` TIENE el
+// campo: hay que afirmar que LLEGA al `JSON.stringify` del fetch, que es donde vivía el
+// defecto (el tipo podía tener el campo y el `body` seguir sin mandarlo, si `crearTransaccion`
+// no lo leyera).
+
+const fetchOriginal = global.fetch;
+afterEach(() => { global.fetch = fetchOriginal; });
+
+/** Reemplaza `global.fetch` por un doble que NUNCA toca la red, responde con el `status`/`body`
+ *  dados, y expone el cuerpo (ya parseado) que el llamador mandó — para afirmar qué viajó. */
+function stubFetchCapturandoCuerpo(status: number, respuesta: unknown) {
+  let cuerpoEnviado: Record<string, unknown> | undefined;
+  global.fetch = (async (_url: unknown, init?: { body?: string }) => {
+    cuerpoEnviado = init?.body ? JSON.parse(init.body) : undefined;
+    return { status, json: async () => respuesta } as unknown as Response;
+  }) as unknown as typeof fetch;
+  return () => cuerpoEnviado;
+}
+
+test('crearTransaccion (tarjeta): el cuerpo que se manda al proveedor lleva `customer_email`, campo de PRIMER NIVEL — sin él el proveedor rechaza la creación (§ PASARELA-FALTA-EL-CORREO-1)', async () => {
+  const leerCuerpo = stubFetchCapturandoCuerpo(201, {
+    data: { id: 'trx-tarjeta', status: 'PENDING', amount_in_cents: 10_000_00 },
+  });
+  const datos = construirDatosCreacionTransaccionTarjeta(
+    {
+      reference: 'CN-900001:cuid1', amountInCents: 10_000_00, currency: 'COP', signature: 's',
+      acceptanceToken: 'a', acceptPersonalAuthToken: 'b', customerEmail: 'comprador@example.com',
+    },
+    'tok_test_card_abc123',
+    NAVEGADOR_DE_PRUEBA,
+  );
+
+  await crearTransaccion(datos, 'llave-privada-de-prueba', 'https://sandbox.wompi.co');
+
+  const cuerpo = leerCuerpo();
+  assert.equal(cuerpo?.customer_email, 'comprador@example.com');
+  // TOP-LEVEL — junto a `reference`, no anidado dentro de `payment_method` ni de otro sobre.
+  assert.ok(Object.prototype.hasOwnProperty.call(cuerpo ?? {}, 'customer_email'));
+});
+
+test('crearTransaccion (NEQUI, no-tarjeta): el mismo `customer_email` viaja para CUALQUIER método — el defecto no era exclusivo de tarjeta ni de la billetera (§ PASARELA-FALTA-EL-CORREO-1)', async () => {
+  const leerCuerpo = stubFetchCapturandoCuerpo(201, {
+    data: { id: 'trx-nequi', status: 'PENDING', amount_in_cents: 5_000_00 },
+  });
+  const datos = construirDatosCreacionTransaccion(
+    {
+      reference: 'CN-900002:cuid2', amountInCents: 5_000_00, currency: 'COP', signature: 's',
+      acceptanceToken: 'a', acceptPersonalAuthToken: 'b', customerEmail: 'otro-comprador@example.com',
+    },
+    DESCRIPTOR_NEQUI,
+    '3001234567',
+  );
+
+  await crearTransaccion(datos, 'llave-privada-de-prueba', 'https://sandbox.wompi.co');
+
+  assert.equal(leerCuerpo()?.customer_email, 'otro-comprador@example.com');
 });

@@ -150,10 +150,18 @@ export function clasificarCreacionTransaccion(
 //    en § API-DIRECTA-ENVIO-GENERICO-1) ──────────────────────────────────────────────────────
 //
 // Lo que la firma de integridad YA FIJA (`reference`, `amountInCents`, `currency`,
-// `signature`) más las DOS aceptaciones del comprador — igual que `DatosCreacionTransaccion`
-// (`lib/pagos/wompi-api.ts`), pero SIN el campo `paymentMethod`: eso lo arma este módulo a
-// partir del descriptor, y este tipo sirve a CUALQUIER descriptor de
-// `lib/pagos/metodos-pasarela.ts`.
+// `signature`) más las DOS aceptaciones del comprador y su CORREO (§ PASARELA-FALTA-EL-
+// CORREO-1 — invariante del comprador, no del método: el proveedor lo exige para CUALQUIER
+// `payment_method`) — igual que `DatosCreacionTransaccion` (`lib/pagos/wompi-api.ts`), pero SIN
+// el campo `paymentMethod`: eso lo arma este módulo a partir del descriptor, y este tipo sirve
+// a CUALQUIER descriptor de `lib/pagos/metodos-pasarela.ts`.
+//
+// `customerEmail` viaja acá, en lo COMÚN, y no como parámetro aparte de cada constructora: las
+// tres funciones de abajo (`construirDatosCreacionTransaccion`,
+// `construirDatosCreacionTransaccionDesdeCampos`, `construirDatosCreacionTransaccionTarjeta`)
+// devuelven `{ ...comunes, ... }`, así que agregarlo acá basta para que las tres lo propaguen
+// sin tocar su cuerpo — ninguna decide nada sobre el correo, sólo lo dejan pasar, igual que ya
+// hacen con `reference`/`signature`.
 export interface DatosComunesCreacionTransaccion {
   reference: string;
   amountInCents: number;
@@ -161,6 +169,7 @@ export interface DatosComunesCreacionTransaccion {
   signature: string;
   acceptanceToken: string;
   acceptPersonalAuthToken: string;
+  customerEmail: string;
 }
 
 /**

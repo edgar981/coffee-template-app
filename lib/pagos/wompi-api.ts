@@ -311,9 +311,10 @@ export async function consultarAceptaciones(
 /** Lo que la firma de integridad ya fija —`reference`, `amountInCents`, `currency`,
  *  `signature`, calculados por el LLAMADOR con el intento que YA EXISTE, nunca recalculados
  *  acá— más los dos tokens de aceptación que el comprador marcó
- *  (§ API-DIRECTA-ACEPTACIONES-SERVIDOR-1) y el `payment_method` YA ARMADO para el método
- *  elegido (§ API-DIRECTA-ENVIO-GENERICO-1) — tarjeta u cualquier otro tipo del registro de
- *  `lib/pagos/metodos-pasarela.ts`, este módulo no distingue cuál.
+ *  (§ API-DIRECTA-ACEPTACIONES-SERVIDOR-1), el CORREO del comprador (§ abajo) y el
+ *  `payment_method` YA ARMADO para el método elegido (§ API-DIRECTA-ENVIO-GENERICO-1) —
+ *  tarjeta u cualquier otro tipo del registro de `lib/pagos/metodos-pasarela.ts`, este módulo
+ *  no distingue cuál.
  *
  *  `threeDsAuth` es OPCIONAL a este nivel —lo trae SIEMPRE `construirDatosCreacionTransaccionTarjeta`
  *  (tarjeta, § API-DIRECTA-3DS-SIN-CHALLENGE-1, "se pide siempre, no hay interruptor") y NUNCA
@@ -328,6 +329,19 @@ export interface DatosCreacionTransaccion {
   paymentMethod: Record<string, unknown>;
   acceptanceToken: string;
   acceptPersonalAuthToken: string;
+  /** § PASARELA-FALTA-EL-CORREO-1 — REQUERIDO, no opcional: SIN este campo el proveedor
+   *  RECHAZA la creación para CUALQUIER método, tarjeta incluida (medido contra el sandbox,
+   *  `API-DIRECTA-SPIKE-NEQUI-FALLA-1`, citado en el spec de este slice — el MISMO cuerpo que
+   *  este módulo arma, sin el correo, fue rechazado; agregando SÓLO ese campo, la creación
+   *  pasó). Antes de este slice ningún camino de creación lo mandaba —ni el de tarjeta ni el
+   *  de cualquier otro método—, así que ningún cobro por API directa pudo haber funcionado
+   *  nunca; ver el reporte del slice para la verificación de que el camino de tarjeta corría
+   *  la MISMA `crearTransaccion` de abajo, sin el campo, igual que los demás.
+   *
+   *  NOMBRE DE CAMPO `customer_email`, TOP-LEVEL (junto a `reference`, no anidado) — MEDIDO
+   *  contra el sandbox por el spike citado arriba, no una lectura de la doc pública (a
+   *  diferencia de los demás nombres de campo de este archivo, que sí llevan esa salvedad). */
+  customerEmail: string;
   threeDsAuth?: Record<string, unknown>;
   /** § API-DIRECTA-MECANISMO-REDIRECCION-1 — LA DIRECCIÓN A LA QUE EL PROVEEDOR DEBE DEVOLVER
    *  AL COMPRADOR tras completar el pago fuera del checkout. OPCIONAL a este nivel, igual que
@@ -387,6 +401,9 @@ export async function crearTransaccion(
         currency:             datos.currency,
         signature:            datos.signature,
         reference:            datos.reference,
+        // § PASARELA-FALTA-EL-CORREO-1: campo TOP-LEVEL requerido por el proveedor para
+        // CUALQUIER método — ver el docstring de `DatosCreacionTransaccion.customerEmail`.
+        customer_email:       datos.customerEmail,
         payment_method:       datos.paymentMethod,
         // § API-DIRECTA-3DS-SIN-CHALLENGE-1: ausente para los métodos que no piden 3DS
         // (todo lo que no es tarjeta, hoy). Nombre de campo NO MEDIDO — ver
