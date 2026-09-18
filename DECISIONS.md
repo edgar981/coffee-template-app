@@ -5727,3 +5727,127 @@ siempre" a "con este banco no se cobra" es el mismo salto que ya cerró este led
 un test que enumera los ejemplos que tenía a mano a "el espacio de casos", de un spike que midió un
 tipo a "el catálogo entero"—, y esta vez el salto llegó hasta el panel que ve el dueño antes de que
 alguien lo revisara. Quien mide un caso, escribe ESE caso.
+
+## 2026-09-17 — El diccionario panel↔API no existe del lado de la máquina: el mapeo que aportó el
+owner, con su grado de evidencia, y por qué cruzar los dos vocabularios sin él ya produjo una
+conclusión falsa (`MAPEO-PANEL-API-ASIENTO-1`)
+
+### 0 · El hallazgo raíz — por qué este asiento es el que evita la próxima conclusión falsa
+
+**EL PROVEEDOR NO PUBLICA NOMBRES LEGIBLES PARA SUS TIPOS DE MÉTODO.** Medido
+(`API-DIRECTA-SPIKE-COBRABLES-Y-NOMBRES-1`, el mismo re-spike que cerró `CORRECCION-BANCOLOMBIA-
+AGREGADOR-1`, arriba): el campo de nombre de la información de comercio de la cuenta **repite el
+identificador de máquina** — no hay un segundo campo con el texto que el dueño lee en su panel. Y ni
+siquiera el bundle del propio widget de pago del proveedor trae esos textos: la única traducción
+legible que el proveedor da en ningún lado es para un **subvalor** (los bancos dentro de una lista
+cerrada), **nunca para el TIPO de método**.
+
+**El diccionario entre lo que el dueño VE en el panel de su proveedor y lo que la API LLAMA no existe
+del lado de la máquina. Sale del panel del comercio, o no sale.** Cualquier afirmación que cruce esos
+dos vocabularios sin ese diccionario es **falsa por construcción** — no por descuido de quien la
+escribe, sino porque no hay dato del lado de la máquina que la pueda sostener.
+
+**Esto ya costó una conclusión falsa que llegó a `main`.** El asiento original del catálogo de métodos
+midió que el identificador `BANCOLOMBIA` rechaza siempre la creación de una transacción — una medición
+correcta y ANGOSTA — y se escribió (y el panel del dueño la heredó, en su etiqueta) como si dijera algo
+ANCHO: que con ese banco no se cobra. Eso era falso, y **lo desmintió el owner con evidencia PROPIA**
+(paga con ese banco habitualmente; su panel del proveedor le muestra el método activo), no una
+revisión de quien escribió el asiento (`CORRECCION-BANCOLOMBIA-AGREGADOR-1`, arriba, íntegro). Este
+asiento registra el diccionario que hace posible no repetir ese salto.
+
+### 1 · El diccionario — tres niveles de evidencia, y no se mezclan
+
+Un mapeo sin su grado de confianza es exactamente lo que produjo el error de arriba: una fila
+MEDIDA y una fila adivinada, escritas con la misma autoridad visual, se leen igual de ciertas. Por
+eso van en tres bloques separados, nunca en una sola tabla sin marcar.
+
+**MEDIDO — el proveedor mismo lo confirma:**
+
+| Nombre en el panel del proveedor | Identificador de API |
+| --- | --- |
+| Bancolombia (el botón/checkbox de transferencia) | `BANCOLOMBIA_TRANSFER` |
+
+Evidencia: al crear una transacción con `BANCOLOMBIA_TRANSFER`, **el propio proveedor devuelve una
+dirección de redirección que contiene ese mismo nombre de flujo** (medido en
+`API-DIRECTA-SPIKE-COBRABLES-Y-NOMBRES-1`, ya citado sin nombrar el identificador en
+`CORRECCION-BANCOLOMBIA-AGREGADOR-1` §1, arriba — ahí decía sólo "un identificador hermano"; este
+asiento es el que lo nombra). **No es un parecido de nombre entre dos listas: es el proveedor mismo
+nombrando su propio camino dentro de su propia respuesta.** Es la fila con la evidencia más fuerte de
+las nueve.
+
+**INFERIDO por coincidencia directa de nombre** (el nombre del panel y el identificador de API
+coinciden letra por letra o son la traducción obvia del mismo término; nadie lo confirmó pidiendo que
+el proveedor lo diga):
+
+| Nombre en el panel del proveedor | Identificador de API |
+| --- | --- |
+| Tarjetas | `CARD` |
+| Nequi | `NEQUI` |
+| PSE | `PSE` |
+| Daviplata | `DAVIPLATA` |
+
+**INFERIDO POR DESCARTE — el nivel más débil de los tres, dicho así por el owner al aportarlo:**
+
+| Nombre en el panel del proveedor | Identificador de API |
+| --- | --- |
+| Bancolombia QR | `BANCOLOMBIA_QR` |
+| Compra y Paga Después Bancolombia | `BANCOLOMBIA_BNPL` |
+| SU+Pay | `SU_PLUS` |
+
+**[MAPEO-PENDIENTE-VERIFICAR] — marcador buscable por máquina.** Estas tres filas son lo que queda
+después de emparejar los nombres del panel que sí tienen una coincidencia clara contra el resto del
+catálogo de identificadores — nunca se pidió al proveedor que las confirme una por una, y no hay
+respuesta del proveedor (ni una redirección, ni un mensaje de error) que las respalde como sí la tiene
+`BANCOLOMBIA_TRANSFER`. **Quedan abiertas hasta que algo las confirme** — un intento de creación real
+con cada una, o una respuesta del proveedor que las nombre, del mismo tipo que confirmó la primera
+fila.
+
+**El mapeo lo aportó el OWNER desde su panel PRODUCTIVO — no es un spike.** Todos los spikes de este
+programa (`API-DIRECTA-SPIKE-COBRABLES-Y-NOMBRES-1` y los anteriores) miden contra el SANDBOX, que es
+**otra cuenta**, con su propia configuración y su propio catálogo habilitado. El owner trajo estas
+nueve filas el 2026-09-17 mirando el panel de SU cuenta productiva. Las dos fuentes no se mezclan sin
+decirlo: una fila de este diccionario describe el panel productivo del owner, no necesariamente lo que
+un spike futuro contra el sandbox va a encontrar, y viceversa.
+
+### 2 · La consecuencia de producto — trabajo de copy que ninguna estimación de este programa había contado
+
+**Si el panel del dueño va a mostrarle estos métodos, los nombres visibles los ponemos NOSOTROS.**
+
+No es un detalle de implementación: acabamos de medir en §0 que esos nombres **no vienen de la API**
+— no existen ahí, en ningún endpoint, para ningún tipo. Así que cada método que el programa termine
+soportando necesita su nombre visible **escrito por nosotros**, y ese copy —como todo el copy de este
+programa— **es del owner**, no una traducción que el código pueda inferir del identificador de
+máquina (`BANCOLOMBIA_TRANSFER` no se convierte solo en "Bancolombia", ni `SU_PLUS` en "SU+Pay"; son
+el mismo salto de vocabulario que este asiento existe para no volver a dar sin evidencia).
+
+**Y el riesgo que esto abre, dicho:** si el nombre que nuestro panel le muestra al dueño **no
+coincide** con el nombre que ve en el panel de su proveedor, el dueño va a buscar un método por el
+nombre que conoce y va a encontrar otro (o ninguno) — el mismo problema de dos vocabularios sin
+diccionario de §0, ahora del lado de NUESTRO producto en vez del lado de la API. Este diccionario es
+lo que permite escribir el copy nuestro sin repetir ese salto: nombrar `BANCOLOMBIA_TRANSFER` como
+"Bancolombia" en nuestro panel es seguro porque la fila MEDIDA lo respalda; nombrar `SU_PLUS` como
+"SU+Pay" hoy sería la MISMA generalización angosta-a-ancha que este ledger ya corrigió una vez —
+todavía es sólo descarte.
+
+**Abre un seguimiento, no lo resuelve acá:** este slice sólo escribe el diccionario (`touches:
+DECISIONS.md`); escribir el copy del panel a partir de él —y confirmar las tres filas por descarte
+antes de nombrarlas en una pantalla que el dueño lee— es trabajo de un slice propio.
+
+- **`MAPEO-PANEL-COPY-NOMBRES-1`** — escribir en el código los nombres visibles de
+  `DESCRIPTORES_METODO_PASARELA` / el panel de métodos a partir de este diccionario, confirmando antes
+  las tres filas `[MAPEO-PENDIENTE-VERIFICAR]` (§1) o dejándolas con su nombre de máquina hasta que se
+  confirmen — nunca inventando el nombre legible por descarte solo.
+
+### 3 · La regla
+
+**Un diccionario entre dos vocabularios que no comparten fuente no se puede escribir con un solo
+nivel de confianza: cada fila necesita decir CÓMO se sabe lo que dice, y una fila sin evidencia
+fuerte no autoriza a una pantalla que el dueño lee a hablar como si la tuviera.**
+
+**GATE, los dos carriles, verde** (`npm run gate`: capa 1 y capa 2, sin fallos).
+
+**Tier 1 — no aplica a este diff.** `DECISIONS.md` no está en la lista Tier 1 ni en sus subárboles, y
+este slice no toca `app/(storefront)/`, ninguna puerta de dinero, schema ni migración — es un asiento,
+sin código. La RAMA (`slice/api-directa-panel-metodos-1`) sigue con commits previos que sí tocan
+superficie Tier 1 (`lib/checkout/metodos-pago.ts`), así que el conjunto sigue esperando el visto bueno
+del owner antes de mergear — este commit no lo cambia.
