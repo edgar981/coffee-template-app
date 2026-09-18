@@ -66,6 +66,22 @@ import { formatCOP } from '@duna/core/utils';
  * (§ su propio docstring: nunca afirma "fallido", eso lo decide `/checkout/retorno` cuando el
  * comprador vuelva de fuera)—.
  *
+ * § CHECKOUT-OTRO-METODO-SIN-SALIDA-1 (2026-09-18, decisión del owner, DECISIONS.md
+ * `CHECKOUT-REINTENTO-CENSO-1` §3): SI EL PROVEEDOR RECHAZA LA CREACIÓN PORQUE LA CUENTA YA NO
+ * TIENE ESTE MÉTODO HABILITADO (`resultado.tipo === 'metodo_no_habilitado'`) — un rechazo
+ * ESTRUCTURAL, no del dato que se tecleó — este formulario YA NO lo muestra inline como
+ * cualquier otro error: llama a `onMetodoNoHabilitado` (el MISMO mecanismo que
+ * `FormularioTarjeta` ya usaba) y la PÁGINA decide qué mostrar en su lugar — hoy, la MISMA
+ * confirmación manual con número de orden y las dos acciones que ya usa tarjeta
+ * (`checkout/page.tsx`, `handleMetodoNoHabilitado`). Antes de este slice el discriminador
+ * `metodo_no_habilitado` ya existía en `interpretarRespuestaOtroMetodo` pero nadie lo
+ * consultaba para decidir distinto — el comprador se quedaba con el mensaje del servidor
+ * inline y ningún lugar a donde ir; era el ÚNICO camino de rechazo estructural del checkout
+ * sin salida (censado y nombrado, nunca arreglado, en `CHECKOUT-REINTENTO-CENSO-1` §3, id
+ * `CHECKOUT-OTRO-METODO-SIN-SALIDA-1`). El rechazo del EMISOR (`handleFallido`, abajo) NO
+ * cambia — sigue siendo su propio camino, con reintento y tope; los dos rechazos son
+ * distintos y no se mezclan (§ el docstring de `FormularioTarjeta.tsx`, el mismo deslinde).
+ *
  * § CHECKOUT-REINTENTO-OTRO-METODO-1 (2026-09-18, opción A del owner, DECISIONS.md
  * `CHECKOUT-REINTENTO-CENSO-1`): EL RECHAZO YA NO DEJA EL CAMPO A LA VISTA CON "Pagar"
  * disponible — lo reemplaza por el mensaje de rechazo (`rechazado`, abajo) y el botón "Intentar
@@ -108,6 +124,12 @@ export interface FormularioOtroMetodoPasarelaProps {
    *  `FormularioTarjeta` (§ CHECKOUT-NEQUI-EXITO-FIX-1: antes de este fix este componente no
    *  lo necesitaba porque nunca llegaba a mostrar una espera). */
   email: string;
+  /** § CHECKOUT-OTRO-METODO-SIN-SALIDA-1: el proveedor rechazó la creación de la transacción
+   *  porque su cuenta ya no tiene ESTE método habilitado (`interpretarRespuestaOtroMetodo`
+   *  clasificándolo como `metodo_no_habilitado`) — MISMO contrato que
+   *  `FormularioTarjetaProps.onMetodoNoHabilitado`. La página decide cómo continuar — este
+   *  componente no lo intenta de nuevo. */
+  onMetodoNoHabilitado: () => void;
   /** El pago fue APROBADO (§ CHECKOUT-TRANSICION-DEFECTOS-1) — bubbleado de
    *  `EsperaConfirmacionTarjeta.onAprobado`. Este formulario no dibuja nada para ese caso: la
    *  página reemplaza TODA la transición por la confirmación completa del pedido. */
@@ -135,7 +157,7 @@ const TEXTO = {
   botonReintentarEnVuelo: 'Preparando…',
 };
 
-export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones, publicKey, crearOrdenPasarela, monto, email, onAprobado, onReintentarOtroMetodo }: FormularioOtroMetodoPasarelaProps) {
+export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones, publicKey, crearOrdenPasarela, monto, email, onMetodoNoHabilitado, onAprobado, onReintentarOtroMetodo }: FormularioOtroMetodoPasarelaProps) {
   // § API-DIRECTA-FORMA-TRES-DIMENSIONES-1: EL PRIMER campo VISIBLE en este ambiente — filtra
   // `soloPruebas` antes de elegir cuál rendir (ver el docstring de arriba para por qué este
   // formulario sólo rinde uno pese a que la forma admite varios). Estructuralmente garantizado
@@ -223,10 +245,16 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
         setCreada({ reference, resultado3ds: resultado.resultado3ds, desafioHtml: resultado.desafioHtml });
         return;
       }
-      // Los dos casos de rechazo (`metodo_no_habilitado` y `error`) muestran su PROPIO mensaje
-      // —el que el servidor decide, nunca inventado acá— inline: este formulario no tiene un
-      // camino de salida distinto para el rechazo estructural (a diferencia de
-      // `FormularioTarjeta.onMetodoNoHabilitado`, § el docstring de `SelectorMetodoPasarela`).
+      // § CHECKOUT-OTRO-METODO-SIN-SALIDA-1: el rechazo ESTRUCTURAL (la cuenta ya no tiene
+      // este método habilitado) NO se muestra inline — reintentar contra la misma pared no
+      // cambia nada. MISMO camino que `FormularioTarjeta`: la página decide qué mostrar
+      // (la confirmación manual con número de orden y las dos acciones).
+      if (resultado.tipo === 'metodo_no_habilitado') {
+        onMetodoNoHabilitado();
+        return;
+      }
+      // `error` (validación previa a crear la orden, firma inválida, fallo genérico…) sí
+      // muestra el mensaje del servidor inline — es transitorio, y "Pagar" sigue disponible.
       setErrorServidor(resultado.mensaje);
     } catch (e) {
       setErrorServidor(e instanceof Error ? `${TEXTO.errorRed} (${e.message})` : TEXTO.errorRed);
@@ -317,9 +345,11 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
             disabled={procesando}
           />
 
-          {/* Sólo el rechazo ESTRUCTURAL (`metodo_no_habilitado`) o un error genérico previo a
-              crear la orden llegan acá — un RECHAZO del EMISOR (`handleFallido`) pone
-              `rechazado=true` y salta a la vista de abajo (§ CHECKOUT-REINTENTO-OTRO-METODO-1). */}
+          {/* § CHECKOUT-OTRO-METODO-SIN-SALIDA-1: el rechazo ESTRUCTURAL (`metodo_no_habilitado`)
+              YA NO llega acá — sale por `onMetodoNoHabilitado` antes de setear `errorServidor`
+              (arriba). Sólo un error de VALIDACIÓN/TOKENIZACIÓN previo a crear la orden llega a
+              este bloque — un RECHAZO del EMISOR (`handleFallido`) pone `rechazado=true` y salta
+              a la vista de abajo (§ CHECKOUT-REINTENTO-OTRO-METODO-1). */}
           {errorServidor && (
             <div className="text-xs text-red-600">
               <p>{errorServidor}</p>

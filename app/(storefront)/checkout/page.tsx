@@ -68,12 +68,14 @@ export default function Checkout() {
   // conserva y se marca la línea afectada. Se limpia al reintentar.
   const [sinStockIds, setSinStockIds] = useState<string[]>([]);
   // El proveedor rechazó la creación de LA transacción de esta orden porque su cuenta ya no
-  // tiene el método habilitado (§ API-DIRECTA-DESALINEO-CABLEADO-1, `FormularioTarjeta.
-  // onMetodoNoHabilitado`). Es un hecho ESTRUCTURAL de ESTA sesión de checkout —no un toggle
-  // de despliegue como `pasarelaDisponible`—, así que vive en estado LOCAL, nunca se
-  // persiste: la orden y su intento YA EXISTEN y se quedan pendientes tal cual (§ el PATCH,
-  // que no los toca). Una vez en `true` no vuelve a `false`: no hay "reintentar" para esta
-  // orden (§ el reporte del slice, "no reintentar contra el mismo").
+  // tiene el método habilitado (§ API-DIRECTA-DESALINEO-CABLEADO-1). § CHECKOUT-OTRO-METODO-
+  // SIN-SALIDA-1 (2026-09-18): dispara desde `FormularioTarjeta.onMetodoNoHabilitado` O desde
+  // `FormularioOtroMetodoPasarela.onMetodoNoHabilitado` — CUALQUIERA de los dos formularios
+  // que `SelectorMetodoPasarela` monta, mismo tratamiento. Es un hecho ESTRUCTURAL de ESTA
+  // sesión de checkout —no un toggle de despliegue como `pasarelaDisponible`—, así que vive en
+  // estado LOCAL, nunca se persiste: la orden y su intento YA EXISTEN y se quedan pendientes
+  // tal cual (§ el PATCH, que no los toca). Una vez en `true` no vuelve a `false`: no hay
+  // "reintentar" para esta orden (§ el reporte del slice, "no reintentar contra el mismo").
   const [pasarelaMetodoNoHabilitado, setPasarelaMetodoNoHabilitado] = useState(false);
   // § CHECKOUT-TRANSICION-DEFECTOS-1: el pago por pasarela fue APROBADO — bubbleado desde el
   // sondeo (`EsperaConfirmacionTarjeta.onAprobado`, vía `SelectorMetodoPasarela`). Local, nunca
@@ -301,16 +303,23 @@ export default function Checkout() {
   };
 
   // El proveedor rechazó la creación de la transacción de ESTA orden porque su cuenta ya no
-  // tiene el método habilitado (§ API-DIRECTA-DESALINEO-CABLEADO-1, `FormularioTarjeta.
-  // onMetodoNoHabilitado`). "El comprador ve sólo lo que funciona": no se le vuelve a ofrecer
-  // la tarjeta para ESTA orden (`pasarelaMetodoNoHabilitado` gatea el branch de abajo), y en
-  // su lugar la pantalla cae a la MISMA confirmación manual que ya usan los demás métodos
-  // (nequi, efectivo, transferencia…) — el pedido queda reservado y el equipo coordina el
-  // pago, sin perder la orden ni el intento ya creados (ninguno de los dos se toca acá).
+  // tiene el método habilitado (§ API-DIRECTA-DESALINEO-CABLEADO-1). § CHECKOUT-OTRO-METODO-
+  // SIN-SALIDA-1 (2026-09-18): este handler YA NO es exclusivo de tarjeta — lo dispara
+  // CUALQUIERA de los dos formularios de pasarela (tarjeta o billeteras/otro-método), § el
+  // docstring de `pasarelaMetodoNoHabilitado` arriba. "El comprador ve sólo lo que funciona":
+  // no se le vuelve a ofrecer la pasarela para ESTA orden (`pasarelaMetodoNoHabilitado` gatea
+  // el branch de abajo), y en su lugar la pantalla cae a la MISMA confirmación manual que ya
+  // usan los demás métodos (nequi, efectivo, transferencia…) — el pedido queda reservado y el
+  // equipo coordina el pago, sin perder la orden ni el intento ya creados (ninguno de los dos
+  // se toca acá).
   const handleMetodoNoHabilitado = () => {
     // TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER (§ el reporte del slice, igual que el
     // resto del copy de este programa). Explica la CONSECUENCIA que el comprador vive, no el
-    // mecanismo: no tiene por qué saber que existe un "método de pasarela".
+    // mecanismo: no tiene por qué saber que existe un "método de pasarela". SIGUE MENCIONANDO
+    // "tarjeta" EXPLÍCITAMENTE — este slice NO tocó copy (fuera de alcance, § el spec); con el
+    // camino de billeteras cayendo acá por primera vez, ese texto es impreciso para un
+    // comprador que intentó pagar con Nequi. Anotado como hallazgo abierto (no arreglado acá),
+    // § DECISIONS.md `CHECKOUT-OTRO-METODO-SIN-SALIDA-1`.
     toast.error('No pudimos procesar el pago con tarjeta: ese método no está disponible en este momento. Tu pedido queda reservado y te contactaremos para coordinar el pago.');
     setPasarelaMetodoNoHabilitado(true);
   };

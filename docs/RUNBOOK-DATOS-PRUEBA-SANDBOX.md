@@ -307,7 +307,7 @@ gateando una pantalla con la Mastercard de §12 sin saber si el defecto era suyo
 | --- | --- | --- | --- |
 | tarjeta que aprueba | `4242424242424242`, exp `12/29`, CVV `123`, titular `APRUEBA TEST` | desenlace final (`APPROVED`) | §4, esta corrida |
 | tarjeta que declina | `4111111111111111`, exp `12/29`, CVV `123`, titular `DECLINA TEST` | desenlace final (`DECLINED`) | §5, esta corrida |
-| tarjeta Mastercard | no identificada — el owner no registró el número que tecleó | **NINGUNA medida por este runbook**; sólo hay la observación de gate de §12 | §12 |
+| tarjeta Mastercard | brand `MASTERCARD`, últimos 4 dígitos `4444` (consistente con el número de prueba público `5555555555554444` — el PAN completo nunca lo tuvo este repo, § §12 de abajo) | desenlace final (`ERROR`, dos veces) | §12, medido 2026-09-18 contra transacciones ya existentes en `development` |
 | Nequi que aprueba | `3991111111` | desenlace final (`APPROVED`) | §6, esta corrida (2 veces) + `API-DIRECTA-SPIKE-NEQUI-FALLA-1` (creación) |
 | Nequi que NO sirve | cualquier número no designado (probado: `3001234567` → `ERROR`, "Número no válido en Sandbox") | desenlace final (`ERROR`) | §6, esta corrida |
 | `customer_email` | cualquier dirección con forma válida (usado: `sandbox-test@duna.solutions`) | creación (`201`) para las 5 transacciones de esta corrida | §7, esta corrida |
@@ -317,50 +317,67 @@ gateando una pantalla con la Mastercard de §12 sin saber si el defecto era suyo
 
 ---
 
-## 12 · Mastercard — NUNCA MEDIDA por este runbook; una OBSERVACIÓN DE GATE, no de laboratorio
+## 12 · Mastercard — MEDIDA (2026-09-18, `CHECKOUT-OTRO-METODO-SIN-SALIDA-1`): rechazada por el
+sandbox, sin código de procesador — y la distinción que evita leerla de más
 
-**Por qué esta sección existe** (§ CHECKOUT-GATE-VISUAL-HALLAZGOS-1, 2026-09-18): el owner pagó,
-en el deployment real, con una tarjeta de prueba de Mastercard, y la transacción terminó en «Tu
-pago no fue aprobado». El spec que pidió este arreglo daba por cierto que **este runbook** ya
-tenía medida la TOKENIZACIÓN de esa tarjeta y sólo le faltaba el desenlace — medido antes de
-escribir esta sección: **eso es falso.** Un grep de `mastercard`/`5555`/`brand` en este archivo
-(antes de esta sección) da **cero** filas: las únicas tarjetas que este runbook tokenizó de punta
-a punta son las dos VISA de §4 y §5. La única mención de Mastercard en todo el programa es el
-RANGO IIN de `lib/checkout/tarjeta.ts` (`RANGOS_POR_RED.mastercard`, 51–55 / 2221–2720) — una
-regla puramente LOCAL de reconocimiento de prefijo (§ CHECKOUT-DETECCION-EMISOR-BIN-1, el mismo
-archivo: "nunca sale de este componente hacia una red ni hacia un log"), que no habla con Wompi
-ni prueba si el proveedor procesa esa red. El único dato con una llamada real al sandbox detrás
-para una red que NO es Visa es UnionPay (`SPIKE-REDES-QUE-PROCESA-1`, citado en el mismo archivo),
-y ese hallazgo tampoco quedó en `DECISIONS.md` con su cuerpo de llamada — grep de `unionpay` (sin
-mayúsculas) sobre `DECISIONS.md`: cero filas. Así que la premisa del spec no describe a ESTE
-runbook: describe, en el mejor de los casos, un hueco de trazabilidad de OTRO spike, que este
-slice no tenía la instrucción de re-medir ni de completar.
+**Historia de esta sección.** Nació como observación de gate sin medir (§ el asiento de
+`CHECKOUT-GATE-VISUAL-HALLAZGOS-1`, 2026-09-18): el owner pagó con una Mastercard de prueba en el
+deployment real y vio «Tu pago no fue aprobado», sin que nadie volviera a consultar esa
+transacción. El spec de `CHECKOUT-OTRO-METODO-SIN-SALIDA-1` pidió MEDIR esa observación contra el
+proveedor antes de escribir nada — y de paso trajo una cifra ya calculada ("las doce transacciones
+aprobadas de toda la base son la misma VISA 4242424242424242", "las dos transacciones de la
+tarjeta 5555555555554444 devuelven ERROR…") que **no tenía asiento en ningún lado del repo**: no
+está en `DECISIONS.md`, no está en este runbook, y no venía de ningún spike encontrado. Se
+verificó de cero, contra `development` (la base de este entorno, § `CLAUDE.md` — Bases de datos) y
+el sandbox real de Wompi, sin fabricar ni un spike nuevo de tokenización: se leyeron los
+`PaymentIntent` YA EXISTENTES en la base (21 filas, medidas con
+`npx tsx --env-file=.env .scratch/query-payment-intents.ts`) y se consultó CADA UNO con
+`pspTransactionId` contra `GET /v1/transactions/{id}` (llave `prv_test_`, sandbox — verificado el
+prefijo antes de disparar nada, § §1 de arriba).
 
-**Lo que este slice NO hizo, por instrucción explícita** (§ "SIN MEDIR" del spec): no se volvió a
-pagar con Mastercard contra el sandbox, no se tokenizó ningún número Mastercard, y no se consultó
-de nuevo la transacción que el owner corrió. Nada de lo de abajo es medición de laboratorio.
+**Lo medido, transacción por transacción — 14 filas con `pspTransactionId`, contra el sandbox
+real, 2026-09-18:**
 
-**Lo único que hay es la OBSERVACIÓN DEL GATE del owner, y se registra como tal:**
+| referencia | estado en `PaymentIntent` | status de Wompi | status_message | processor_response_code | brand · últimos 4 |
+| --- | --- | --- | --- | --- | --- |
+| CN-522747 | FALLIDO / ERROR | `ERROR` | «La tarjeta usada no es admitida para el ambiente Sandbox» | (ninguno) | MASTERCARD · `4444` |
+| CN-226488 (2do intento) | FALLIDO / ERROR | `ERROR` | «La tarjeta usada no es admitida para el ambiente Sandbox» | (ninguno) | MASTERCARD · `4444` |
+| CN-226488 (1er intento) | FALLIDO / DECLINED | `DECLINED` | «La transacción fue rechazada (Sandbox)» | `12` | VISA · `1111` |
+| CN-787363 | FALLIDO / ERROR | `ERROR` | «Número no válido en Sandbox» | (ninguno) | — (NEQUI, no tarjeta) |
+| las 10 restantes | APROBADO / APPROVED | `APPROVED` | (ninguno) | `00` | VISA · `4242`, las 10 |
 
-| qué | valor |
-| --- | --- |
-| quién lo observó | el owner, gateando el checkout sobre el deployment real (no una corrida de este runbook) |
-| cuándo | 2026-09-18 |
-| qué tarjeta | «la tarjeta de prueba de Mastercard» — el owner no dejó el número, el vencimiento, el CVV ni el nombre del titular usados |
-| qué pasó | la transacción terminó en el estado de FALLIDO del checkout (`TEXTO.pagoRechazado`, `components/storefront/checkout/FormularioTarjeta.tsx`): «Tu pago no fue aprobado. No se realizó ningún cobro.» |
-| qué NO se sabe | el `status_message`/`processor_response_code` de Wompi para ese intento (nadie volvió a consultar la transacción por referencia), si el número tecleado era uno de los "designados" del sandbox (§4, §6 — el patrón que YA se repitió con Nequi: un número arbitrario no llega a un desenlace útil) o uno inventado, y si el rechazo fue del EMISOR (lo que este checkout ya maneja, § `CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1`) o de otra causa |
+**CONFIRMADO contra lo que el spec citó, con una corrección medida:** las DOS transacciones de
+Mastercard (brand `MASTERCARD`, últimos 4 `4444` — consistente con el número público
+`5555555555554444`, aunque el PAN completo nunca lo tuvo este repo, § `FormularioTarjeta.tsx`:
+"LOS DATOS DE LA TARJETA NUNCA SALEN HACIA NUESTRO SERVIDOR", así que los últimos 4 son lo único
+que el proveedor entrega y lo único que se puede afirmar como medido) SÍ devuelven `ERROR` con ese
+mensaje textual exacto y SIN `processor_response_code` — coincide. La VISA que declina con código
+`12` también coincide (es el primer intento de CN-226488, `4111111111111111` — el mismo candidato
+"declina" de §5). **Lo que NO coincide: las transacciones APROBADAS son 10, no doce** — contadas
+sobre las 21 filas completas de `PaymentIntent` de esta base, sin excluir ninguna. Las 10 SÍ son,
+las diez, la misma VISA `4242424242424242` (§4) — eso sí coincide. La cifra de "doce" que traía el
+spec no se pudo reproducir contra esta base y se corrige acá con la medida real; no hay una
+segunda base de datos donde buscar las dos que faltan (§ `CLAUDE.md`, Bases de datos: `development`
+es la única que este entorno de checkout usa).
 
-**Lo que esto NO permite concluir, para que nadie lo estire de más:** esta observación **no dice
-que Mastercard "no aprueba" en el sandbox de Wompi en general.** Dice que UN intento, con datos no
-registrados, en un momento no vuelto a consultar, terminó rechazado — exactamente el mismo tipo de
-resultado (`DECLINED`/`ERROR`) que §5 y §6 ya muestran que el sandbox devuelve normalmente para
-números NO designados. Sin el número que se tecleó, no hay forma de distinguir "Mastercard no
-tokeniza en este sandbox" de "ese número puntual no era uno de los designados" — la MISMA
-distinción que §6 tuvo que hacer explícita para Nequi.
+**LA DISTINCIÓN QUE HACE ÚTIL EL DATO, para que nadie lo lea de más — «ese número» ≠ «esa red»:**
+lo medido es que **ESE NÚMERO** (el que tokenizó las dos transacciones de arriba, con últimos 4
+`4444`) no es de los designados de esta cuenta de sandbox — exactamente el mismo patrón que §6 ya
+midió para Nequi (`3001234567` → `ERROR` "Número no válido en Sandbox", mientras `3991111111` sí
+resuelve). **NO está medido que la red Mastercard esté deshabilitada para esta cuenta** — eso
+exigiría probar con OTRO número Mastercard designado por el sandbox (que Wompi publica en su
+consola de comercio de pruebas), y **este slice no lo hizo**: no se tokenizó ningún número nuevo,
+sólo se consultaron transacciones YA CREADAS por sesiones de checkout anteriores. Son dos
+afirmaciones distintas y sólo la primera está medida.
 
-**Lo que SÍ cambia con esta sección**: la fila `mastercard` de §11 deja de estar ausente
-(silenciosa) y pasa a decir, explícitamente, "ninguna medición propia de este runbook, sólo esta
-observación de gate" — para que la próxima persona que necesite una tarjeta Mastercard de prueba
-sepa que tiene que MEDIRLA (repitiendo la cadena de §3 con un número Mastercard real del sandbox,
-número que Wompi publica en su propia consola de comercio de pruebas), no asumir ninguno de los
-dos resultados a partir de lo de acá arriba.
+**Qué se le dice a quien venga mañana:** la ÚNICA tarjeta con desenlace medido hasta `APPROVED` en
+todo este runbook sigue siendo la VISA `4242424242424242` de §4 (y sus 9 repeticiones en la base,
+arriba). Un número que tokeniza bien no es un número que aprueba — tokenizar y cobrar son dos
+etapas distintas del proveedor (§8 de arriba, el `acceptance_token`, ya mostró que "se creó algo"
+no significa "se resolvió bien"), y esa confusión es justo la que costó la corrida del owner: una
+Mastercard que sí tokenizó (si tokenizó — no medido acá tampoco, sólo se vio el desenlace) terminó
+en `ERROR` al crear la transacción, no al tokenizar.
+
+**Lo que sigue sin medirse, y por qué no se mide acá:** si un SEGUNDO número Mastercard (distinto
+de `…4444`) resolvería distinto. Repetir la cadena de §3 con ese número es la única forma de
+saberlo, y no es parte de este slice — nombrarlo es lo que corresponde, no adivinarlo.

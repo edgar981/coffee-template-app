@@ -73,9 +73,13 @@ export interface SelectorMetodoPasarelaProps {
    *  desde § CHECKOUT-UNA-SOLA-PANTALLA-1 — antes viajaba pegado a la respuesta del POST).
    *  Vacío → sólo tarjeta, sin picker (byte-idéntico al comportamiento previo a este slice). */
   metodosOtros: string[];
-  /** El proveedor rechazó la creación de la transacción de TARJETA porque su cuenta ya no
-   *  tiene ese método habilitado (§ API-DIRECTA-DESALINEO-CABLEADO-1). Sólo aplica al camino
-   *  de tarjeta — `FormularioOtroMetodoPasarela` no lo dispara, § el reporte del slice. */
+  /** El proveedor rechazó la creación de la transacción porque su cuenta ya no tiene ese
+   *  método habilitado (§ API-DIRECTA-DESALINEO-CABLEADO-1). § CHECKOUT-OTRO-METODO-SIN-
+   *  SALIDA-1 (2026-09-18): este selector lo reenvía a CUALQUIERA de los dos formularios que
+   *  monta — tarjeta y el camino de billeteras/otro-método por igual, MISMO tratamiento.
+   *  Antes de ese slice sólo `FormularioTarjeta` lo disparaba; el camino de otro-método
+   *  mostraba el rechazo estructural inline, sin salida (censado y cerrado en `DECISIONS.md`,
+   *  `CHECKOUT-OTRO-METODO-SIN-SALIDA-1`). */
   onMetodoNoHabilitado: () => void;
   /** El pago fue APROBADO (§ CHECKOUT-TRANSICION-DEFECTOS-1) — bubbleado desde CUALQUIERA de
    *  los dos formularios que este selector monta, hasta `checkout/page.tsx`, que reemplaza TODA
@@ -219,6 +223,7 @@ export default function SelectorMetodoPasarela({
           crearOrdenPasarela={crearOrdenPasarela}
           monto={monto}
           email={email}
+          onMetodoNoHabilitado={onMetodoNoHabilitado}
           onAprobado={onAprobado}
           onReintentarOtroMetodo={onReintentarOtroMetodo}
         />

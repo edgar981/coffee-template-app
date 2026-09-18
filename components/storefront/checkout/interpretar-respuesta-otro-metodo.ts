@@ -34,12 +34,14 @@ export type ResultadoRespuestaOtroMetodo =
  * se inventa un mensaje más específico que el que el servidor mandó.
  *
  * `metodo_no_habilitado` se devuelve como su PROPIO caso — nunca aplanado contra `'error'` —
- * aunque hoy los dos se muestren igual en pantalla (inline, con el mismo mensaje del
- * servidor): a diferencia de `FormularioTarjeta`, este formulario NO ofrece un camino de
- * salida distinto para el rechazo estructural (`SelectorMetodoPasarela` no le pasa
- * `onMetodoNoHabilitado` — decisión ya tomada, § el reporte del slice), así que no hay UI
- * propia que construir acá. Lo que sí importa es que el discriminador exista: quien reciba
- * este resultado puede decidir distinto sin tener que volver a tocar esta función.
+ * porque desde § CHECKOUT-OTRO-METODO-SIN-SALIDA-1 (2026-09-18, decisión del owner) el
+ * llamador SÍ decide distinto para él: `FormularioOtroMetodoPasarela` llama a su
+ * `onMetodoNoHabilitado` (el MISMO mecanismo que `FormularioTarjeta` ya usaba) en vez de
+ * mostrar este caso inline — el rechazo ESTRUCTURAL cae a la misma confirmación manual que
+ * ya usa tarjeta, nunca a un error sin salida. Antes de ese slice el discriminador existía
+ * pero nadie lo consultaba para esto (`SelectorMetodoPasarela` no le pasaba
+ * `onMetodoNoHabilitado` a este formulario) — quedó registrado como hallazgo abierto en
+ * `DECISIONS.md`, `CHECKOUT-OTRO-METODO-SIN-SALIDA-1`, y este slice lo cierra.
  */
 export function interpretarRespuestaOtroMetodo(
   body: unknown,

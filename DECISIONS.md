@@ -8312,3 +8312,146 @@ política, sin construir el destino de reportes, y sin tocar ninguna otra direct
 - `CSP-PRODUCCION-WOMPI-SIN-MEDIR-1`: correr al menos una compra real contra producción con
   `WOMPI_PUBLIC_KEY` productiva y confirmar que `https://production.wompi.co` es, en efecto, el único
   host adicional que aparece — hoy ese origen está deducido del código, nunca medido en uso (§3).
+
+## 2026-09-18 — El camino de billeteras/otro-método cae a la misma confirmación manual que tarjeta,
+la Mastercard del gate queda MEDIDA (no observada), y un hueco que nadie pidió arreglar
+(`CHECKOUT-OTRO-METODO-SIN-SALIDA-1`)
+
+### 0 · La decisión del owner, y por qué manda
+
+**Cierra el hallazgo nombrado en `DECISIONS.md`, `CHECKOUT-REINTENTO-CENSO-1` §3** — "¿el rechazo
+`metodo_no_habilitado` en el camino Nequi/otro-método debería caer a la misma confirmación manual
+que ya usa tarjeta?" El owner respondió que sí, con su razón textual:
+
+> «Ningún camino de pago termina en un callejón, y el comprador siempre sale con su número de
+> orden y dos acciones.»
+
+### 1 · El fix — el mismo mecanismo que tarjeta ya tenía, reenviado al otro formulario
+
+El discriminador `metodo_no_habilitado` de `interpretarRespuestaOtroMetodo`
+(`components/storefront/checkout/interpretar-respuesta-otro-metodo.ts`) YA EXISTÍA como su propio
+caso desde `CHECKOUT-NEQUI-EXITO-FIX-1` — lo que faltaba era que alguien lo CONSULTARA para decidir
+distinto. `FormularioOtroMetodoPasarela.tsx` lo aplanaba contra `error` y lo mostraba inline
+(`errorServidor`), sin ningún botón que llevara a otro lado — el ÚNICO camino de rechazo
+estructural del checkout sin salida, medido y nombrado (nunca arreglado) en el censo anterior.
+
+- **`FormularioOtroMetodoPasarela` gana `onMetodoNoHabilitado: () => void`**, MISMO contrato que
+  `FormularioTarjetaProps.onMetodoNoHabilitado`. En `handlePagar`, la rama `resultado.tipo ===
+  'metodo_no_habilitado'` llama a `onMetodoNoHabilitado()` y retorna — YA NO cae a
+  `setErrorServidor`. La rama `error` (validación previa, firma inválida, fallo genérico) sigue
+  mostrando el mensaje del servidor inline, sin cambios.
+- **`SelectorMetodoPasarela.tsx`** ya recibía `onMetodoNoHabilitado` como prop (se lo pasaba sólo a
+  `FormularioTarjeta`) — se agrega el mismo `onMetodoNoHabilitado={onMetodoNoHabilitado}` al render
+  de `FormularioOtroMetodoPasarela`. Ningún otro cambio: la página (`checkout/page.tsx`) no gana
+  ningún mecanismo nuevo — `handleMetodoNoHabilitado` y el branch de la confirmación manual
+  (`pasarelaMetodoNoHabilitado`) ya existían y ya distinguían "método de pasarela" en general, no
+  "tarjeta" en particular; sólo nadie los alcanzaba desde el otro camino.
+- **El rechazo del EMISOR (`handleFallido`, con su reintento y su tope de tres) NO se tocó.** Es la
+  distinción que el spec pidió no confundir: `metodo_no_habilitado` es ESTRUCTURAL (la cuenta no
+  tiene el método — reintentar no cambia nada) y cae a la confirmación manual; un rechazo del
+  emisor SÍ puede ser transitorio y sigue teniendo su propio camino de reintento, sin tocar.
+- **Ningún endpoint ni schema cambió.** El servidor ya clasificaba y devolvía `tipo:
+  'metodo_no_habilitado'` desde antes de este slice (Tier 1, fuera de `touches`) — el defecto era
+  enteramente del CLIENTE, en qué hacía con esa clasificación.
+- **HALLAZGO COLATERAL, no arreglado a propósito** (fuera de alcance — "NO cambies el copy de
+  ninguna pantalla", el spec): `handleMetodoNoHabilitado` (`checkout/page.tsx`) sigue mostrando
+  `toast.error('No pudimos procesar el pago con tarjeta: …')` — texto que, antes de este slice, sólo
+  disparaba el camino de tarjeta y ahora también dispara desde el camino de billeteras/otro-método.
+  Un comprador que intentó pagar con Nequi y choca contra `metodo_no_habilitado` ve un toast que
+  menciona "tarjeta" sin haber tecleado ninguna. Es un texto EXISTENTE que una nueva ruta hace
+  alcanzable con un significado impreciso, no un texto nuevo — se anota, no se toca (§ Open
+  follow-ups).
+
+### 2 · La Mastercard del gate — de OBSERVACIÓN a MEDIDA, y una cifra del spec que no se sostuvo
+
+El spec citó una cifra ya calculada ("las dos transacciones de la tarjeta `5555555555554444`
+devuelven `ERROR` […], una VISA distinta devuelve `DECLINED` con código `12`, y las doce
+transacciones aprobadas de toda la base son la misma VISA `4242424242424242`") **advertida
+explícitamente como SIN MEDIR — ningún spike la había dejado asentada en el repo.** Se verificó
+contra `development` (`DATABASE_URL`, la única base que este entorno de checkout usa — ver
+`CLAUDE.md`, Bases de datos) y el sandbox real de Wompi (`WOMPI_PRIVATE_KEY`, prefijo `prv_test_`
+verificado antes de disparar nada), sin crear ninguna transacción nueva: se leyeron los 21
+`PaymentIntent` YA EXISTENTES en la base y se consultó cada uno de los 14 con `pspTransactionId`
+contra `GET /v1/transactions/{id}`.
+
+**Confirmado:** las dos transacciones de Mastercard (brand `MASTERCARD`, últimos 4 `4444`)
+devuelven `ERROR` con el mensaje textual «La tarjeta usada no es admitida para el ambiente
+Sandbox» y SIN `processor_response_code` — exacto. La VISA que declina con código `12` también es
+exacta (el primer intento de la orden `CN-226488`, `4111111111111111`, el mismo candidato "declina"
+del runbook §5).
+
+**NO confirmado, y corregido con la medida real: las transacciones aprobadas son DIEZ, no doce.**
+Contadas sobre las 21 filas completas de `PaymentIntent` de esta base — sin excluir ninguna, sin
+una segunda base donde buscar las dos que faltarían—. Las 10 SÍ son, las diez, la misma VISA
+`4242424242424242` (eso sí coincide con lo que el spec citó). La cifra de "doce" no se pudo
+reproducir y se corrige en el runbook (§3 de abajo), no se repite como si fuera cierta.
+
+**La distinción que el spec pidió escribir, y que el runbook ya recoge (§12,
+`docs/RUNBOOK-DATOS-PRUEBA-SANDBOX.md`):** lo medido es que ESE NÚMERO (últimos 4 `4444`) no es de
+los designados de esta cuenta de sandbox — el mismo patrón que el runbook §6 ya midió para Nequi.
+NO está medido que la red Mastercard esté deshabilitada para la cuenta: eso exigiría tokenizar OTRO
+número Mastercard designado por el sandbox, y este slice no lo hizo — sólo consultó transacciones
+ya creadas por sesiones de checkout anteriores, nunca tokenizó nada nuevo.
+
+**El runbook (`docs/RUNBOOK-DATOS-PRUEBA-SANDBOX.md`, §11 y §12) se reescribió** con la tabla
+completa de las 14 transacciones con `pspTransactionId`, la corrección de "doce" a "diez", y la
+distinción de arriba — reemplaza la sección que sólo registraba la observación de gate sin medir.
+
+### 3 · Un hueco que el spec encontró sin buscarlo — NOMBRADO, no investigado ni arreglado
+
+**Medido, con el mismo mecanismo de arriba:** de los 21 `PaymentIntent` de la base, **7** quedaron
+`EN_VUELO` sin `pspTransactionId` — nunca llegaron a crear una transacción contra Wompi (el
+comprador nunca tecleó el token, o la creación falló antes de llamar a `POST /v1/transactions`, o
+abandonó el checkout). Se consultó `GET /v1/transactions?reference=...` para cada una de las 7
+referencias contra el sandbox real: **las 7 devuelven un array vacío** — el proveedor nunca tuvo
+noticia de ellas.
+
+**El spec citó "seis intentos en vuelo cuyas referencias el proveedor devuelve vacías" — también
+SIN MEDIR, y también corregido: son SIETE, no seis**, contadas sobre las mismas 21 filas.
+
+**No se investiga ni se arregla acá — nombrarlo es el trabajo, con id propio:
+`CHECKOUT-INTENTOS-EN-VUELO-VACIOS-1`.** No está establecido si esto es un modo de falla real (una
+creación que falla en silencio antes de golpear a Wompi) o el rastro normal de un comprador que
+llega hasta el formulario de pago y nunca aprieta "Pagar" — las 7 filas son de fechas y horas
+distintas, extendidas entre el 2026-09-16 y el 2026-09-18, consistente con abandono normal de
+checkout más que con un fallo sistemático puntual. **Abierto para quien lo tome:** si conviene un
+barrido que cierre estos intentos a `FALLIDO` por edad (el mismo mecanismo que el reconciliador ya
+tiene para intentos `EN_VUELO` con transacción, § `packages/core/src/pagos/reconciliador.ts`), o si
+son inofensivos porque nunca movieron plata ni bloquean nada — hoy `PaymentIntent.orden_id` no es
+`@unique`, así que estas filas huérfanas no impiden que la orden reciba un intento nuevo.
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido sobre el árbol final — **verde**: `npm test` 1458/1458,
+`npm run test:integracion` 208/208, cero fallos en los dos. El test de capa 1 que cubre el
+discriminador tocado (`components/storefront/checkout/interpretar-respuesta-otro-metodo.test.ts`)
+sigue fuera del glob de `npm run gate` (§ `GATE-GLOB-COMPONENTS-TEST-1`, ya anotado en ese mismo
+archivo) — se corrió aparte, directo (`node --import tsx --test
+"components/storefront/checkout/interpretar-respuesta-otro-metodo.test.ts"`), 7/7 verde; no se
+tocó su lógica, sólo su comentario, así que su cobertura no cambia de alcance.
+
+### Deviations
+
+**Dos cifras del spec, marcadas SIN MEDIR, no se sostuvieron contra la medición — reportadas, no
+calladas:** "doce transacciones aprobadas" mide DIEZ (§2); "seis intentos en vuelo con referencia
+vacía" miden SIETE (§3). Las dos correcciones quedan escritas donde alguien las va a buscar: la
+primera en el runbook, la segunda en el `open_followup` que nombra el hallazgo.
+
+### Open follow-ups
+
+- `CHECKOUT-INTENTOS-EN-VUELO-VACIOS-1`: 7 `PaymentIntent` `EN_VUELO` sin `pspTransactionId`, cuyas
+  referencias el sandbox de Wompi no reconoce (§3) — decidir si necesitan un barrido de cierre por
+  edad o si son inofensivos tal cual.
+- `CHECKOUT-TOAST-METODO-NO-HABILITADO-MENCIONA-TARJETA-1`: el toast de
+  `handleMetodoNoHabilitado` (`checkout/page.tsx`) dice "No pudimos procesar el pago con tarjeta"
+  también para el camino de billeteras/otro-método, desde este slice (§1) — imprime texto impreciso
+  para un comprador de Nequi. Fuera de alcance de este slice (copy, en manos del owner).
+- El segundo número Mastercard designado por el sandbox, para saber si la red está deshabilitada
+  para esta cuenta o si sólo `…4444` no es un número reconocido (§2) — no se investiga sin
+  instrucción explícita de tokenizar contra el proveedor.
+
+### Tier 1 y aprobación
+
+El spec lo declaró `tier: 1`, `writes: yes`, `approved: yes` (`approved-by: owner`), con la razón
+citada arriba (§0). **LA APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA EL MERGE** — este slice para en
+`AWAITING_APPROVAL` sin mergear, continuando la rama `slice/api-directa-panel-metodos-1`.
