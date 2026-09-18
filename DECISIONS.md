@@ -6011,3 +6011,188 @@ en la configuración de métodos de pasarela (vía `CORRECCION-BANCOLOMBIA-AGREG
 herencia de esas dos superficies, no porque este diff en sí mismo toque código. El slice tenía
 aprobación explícita del owner para ESCRIBIR (`approved-by: owner`, spec del ledger) — nunca para
 mergear; el merge sigue gateado al owner, igual que el resto de la rama.
+
+## 2026-09-18 — La primera compra de prueba cruzó el sistema entero: Wompi la aprobó, y la orden se
+quedó sin cobrar — la base contradice el supuesto de tres días (`PRIMERA-TRANSACCION-REAL-ASIENTO-1`)
+
+### 0 · Qué pidió el owner, y qué cambia con este asiento
+
+El owner reportó el 2026-09-18 que una compra de prueba —tarjeta de prueba, tokenización, creación de
+la transacción— llegó a **APROBADO** en Wompi por primera vez, y pidió asentarlo: durante tres días
+*«el camino de pago funciona»* fue un supuesto, no una medición. Pidió además confirmar en la base que
+la orden quedó `pagado` con su `Payment`, y si cerró por webhook o por reconciliador.
+
+**La medición de este asiento confirma la mitad del supuesto y refuta la otra.** El lado de Wompi
+—tokenizar, crear la transacción, resolver a APROBADO— sí ocurrió, medido en la base. El lado de
+NUESTRO sistema —crear el `Payment`, mover la orden a `pagado`, crear el `Shipping`— **no ocurrió
+para ninguna de las órdenes de esta sesión**, y la contradicción es más profunda de lo que la
+pregunta original anticipaba: el ÚNICO código de este repositorio que puede escribir
+`PaymentIntent.estado = 'APROBADO'` es también, en la MISMA transacción de base de datos, el único
+código que crea el `Payment` — así que "aprobado sin `Payment`" es un estado que el código actual no
+debería poder producir. Se produjo igual. Eso es el hallazgo, y va primero.
+
+### 1 · Lo que la base confirmó — consulta por consulta
+
+**Consulta 1 — el `PaymentIntent` `APROBADO` más reciente**
+(`prisma.paymentIntent.findFirst({ where: { estado: 'APROBADO' }, orderBy: { updatedAt: 'desc' } })`,
+vía el adaptador real de `packages/core/client.ts` — `PrismaPg` + `DATABASE_URL` del `.env` local, que
+por `esDespliegueDemo()` es la base de `development`/sandbox, nunca producción):
+
+| campo | valor |
+| --- | --- |
+| `id` | `cmu6z2mtt000b04l50awuv08f` |
+| `reference` | `CN-661330:cmu6z2mtt000b04l50awuv08f` |
+| `estado` | `APROBADO` |
+| `pspTransactionId` | `12189137-1789736789-68783` |
+| `estado_crudo_psp` | `APPROVED` |
+| `createdAt` → `updatedAt` | `13:06:26.705Z` → `13:06:35.896Z` (**9.191 s** para resolver) |
+
+**No es la única fila así.** Ampliando a TODOS los `PaymentIntent` (11 filas en total, todas del
+2026-09-16 al 2026-09-18), hay **TRES** en `APROBADO` y **UNA** en `FALLIDO`, todas de hoy
+(2026-09-18), todas resueltas en segundos:
+
+| orden | estado | `pspTransactionId` | `estado_crudo_psp` | segundos para resolver |
+| --- | --- | --- | --- | --- |
+| CN-787363 | FALLIDO | `12189137-1789735811-82348` | `ERROR` | 6.852 |
+| CN-237913 | APROBADO | `12189137-1789736553-25883` | `APPROVED` | 10.273 |
+| CN-612115 | APROBADO | `12189137-1789736684-78238` | `APPROVED` | 5.662 |
+| CN-661330 | APROBADO | `12189137-1789736789-68783` | `APPROVED` | 9.191 |
+
+Las siete filas restantes siguen `EN_VUELO` (nunca resolvieron) — una de ellas, CN-182716, tiene una
+orden que SÍ está `pagado`, pero por un `Payment` de método `TRANSFERENCIA` registrado ~2 horas
+DESPUÉS por el flujo manual de "Registrar Pago" — no por esta pasarela ni por este intento, que sigue
+`EN_VUELO` y huérfano.
+
+**Consulta 2 — la Order de cada intento APROBADO/FALLIDO**
+(`prisma.order.findUnique({ where: { id: intent.orden_id } })`): las CUATRO siguen `estado: 'pendiente'`.
+Ninguna es `'pagado'` — el valor que el propio schema usa para una orden cobrada
+(`packages/core/src/orders.ts:274`, `transitionOrder(tx, orderId, { estado: 'pagado' }, …)` dentro de
+`registerOrderPaymentTx`; el campo es `Order.estado String @default("pendiente")`,
+`schema.prisma:172`, sin enum — el valor `'pagado'` es convención de código, no restricción de tipo).
+
+**Consulta 3 — `Payment` de esas cuatro órdenes**
+(`prisma.payment.findMany({ where: { orden_id } })`): **cero filas**, en las cuatro.
+
+**Consulta 4 — `Shipping` de esas cuatro órdenes**
+(`prisma.shipping.findMany({ where: { orden_id } })`): **cero filas**, en las cuatro. El código dice
+que `registerOrderPaymentTx` también crea el `Shipping` (`packages/core/src/orders.ts:270-276`,
+comentario: *"Moves order → pagado AND auto-creates the Shipping in `preparando`"*) — no se creó
+porque `registerOrderPaymentTx` nunca corrió para estas órdenes (§2).
+
+**Consulta 5, la que cierra la duda de "¿se revirtió después?"** — `OrderStatusTransition`, el libro
+append-only de transiciones (`schema.prisma:221-249`, `eje: 'cobro'|'fulfillment'`, escrito SIEMPRE
+dentro de la misma transacción que mueve `Order.estado`, vía `appendOrderStatusTransition`):
+para las cuatro órdenes hay **una sola fila cada una** — la de creación
+(`estado_anterior: null → estado_nuevo: 'pendiente'`, `actor_id/actor_nombre: null`). **Cero filas
+`pendiente → pagado`.** Esto no es un dato que pueda mentir por un revert posterior: es append-only,
+y confirma lo mismo que `Order.updatedAt === Order.createdAt` al bit (medido: los dos timestamps de
+CN-661330 son literalmente `2026-09-18T13:06:26.243Z`, exactos) — la fila de la orden NUNCA se tocó
+después de crearse.
+
+**Consulta 6, la que descarta la rama de "cobro duplicado"** — `Notification` filtrada por
+`tipo`/`titulo`/`mensaje` conteniendo "wompi"/"Wompi": **cero filas en TODA la base.** La única otra
+forma en que `aplicarResultadoWompi` puede cerrar un `APROBADO` sin crear `Payment` —la orden ya
+estaba pagada, así que es cobro duplicado— deja una `Notification` (`tipo: 'wompi_cobro_duplicado'`,
+`packages/core/src/pagos/aplicar-resultado-wompi.ts:180-188`). No hay ninguna. Y de todos modos las
+cuatro órdenes siguen `pendiente`, no `pagado`, así que esa rama tampoco explicaría lo que se ve.
+
+**RESPUESTA A LA PREGUNTA DEL OWNER, MEDIDA: la orden NO quedó pagada.** Wompi aprobó el cobro
+(`estado_crudo_psp: APPROVED`, `processor_response_code` no se volvió a leer en esta corrida pero el
+`pspTransactionId` es real); nuestro sistema no lo registró como plata. El comprador de esta prueba
+—si hubiera sido un comprador real— habría pagado con su tarjeta sin que la tienda se enterara.
+
+### 2 · Webhook o reconciliador — la pregunta tiene una respuesta más incómoda que "no se sabe cuál"
+
+**La base no distingue quién cerró un intento.** Leído el modelo completo (`schema.prisma:441-529`):
+los únicos campos de `PaymentIntent` además de `estado` son `pspTransactionId`, `estado_crudo_psp` y
+`metodo_rechazado` — ninguno registra el MECANISMO (webhook vs. reconciliador vs. cualquier otra
+cosa) que hizo la escritura. Eso, por sí solo, ya sería el hallazgo que el spec de este slice
+anticipaba: *"el día que un pago se cierre tarde, nadie va a poder decir si el webhook no llegó o si
+llegó y se ignoró"*. Se nombra y se deja — no es de este slice proponer el campo.
+
+**Pero la medición no se detiene en "no se sabe": hay una razón medida para creer que NINGUNO de los
+dos, tal como están escritos hoy, produjo lo que la base muestra.**
+
+- **Los ÚNICOS dos escritores posibles**, medidos por lectura exhaustiva del código (grep de
+  `estado: 'APROBADO'` en todo el repo, cero resultados fuera de estos dos sitios): el `POST` del
+  webhook (`app/api/webhooks/wompi/route.ts:171-331`, `procesarEventoWompi`) y el reconciliador
+  (`packages/core/src/pagos/reconciliador.ts:143-227`, `reconciliarIntentoPago`, disparado por
+  `app/api/cron/automations/route.ts`). **Los dos, sin excepción, invocan
+  `aplicarResultadoWompi`** (`packages/core/src/pagos/aplicar-resultado-wompi.ts:124-222`), y esa
+  función es la ÚNICA que escribe `estado: 'APROBADO'` en toda la base de código —y lo hace DENTRO de
+  la misma transacción (`db.transaccionConOrdenLockeada`) que crea el `Payment` (si la orden está
+  `pendiente`) o registra el cobro duplicado (si no lo está). No existe, hoy, un camino de código que
+  deje `estado: 'APROBADO'` sin una de esas dos consecuencias.
+- **El reconciliador SÓLO se dispara por hora en punto** (`.github/workflows/automations-cron.yml:22`,
+  `cron: '0 * * * *'` UTC, más un `workflow_dispatch:17-24` para disparo manual desde la pestaña
+  Actions) contra `CRON_URL` —una URL de despliegue, no `localhost`—. Las cuatro resoluciones
+  midieron **5.6 a 10.3 segundos** entre creación y cierre (§1): muy rápido para el cron programado
+  (que espera hasta 59 minutos), y el `workflow_dispatch` manual sólo pega contra el despliegue de
+  `CRON_URL`, no contra esta base local salvo que ese despliegue comparta la base `development`
+  (posible — Preview la comparte, § CLAUDE.md "Bases de datos" — pero no verificable desde acá sin
+  acceso al historial de Actions, fuera de alcance de este slice).
+- **El webhook necesita una URL pública que Wompi pueda alcanzar.** Si corrió, corrió contra un
+  despliegue con esa URL configurada del lado de Wompi — otra vez, no verificable desde una consulta
+  a la base.
+
+**CONCLUSIÓN MEDIDA, y es el hallazgo real de esta pregunta:** no es que "no se sabe si fue el webhook
+o el reconciliador" — es que **el estado observado (`APROBADO` sin `Payment`, sin `Shipping`, sin
+transición, sin notificación) no es un desenlace que NINGUNO de los dos, corriendo su código actual
+hasta el final, pueda producir.** Atribuirlo a uno de los dos sería inventar una explicación que la
+base no sostiene. Lo único que la base sostiene es que ALGO —con acceso a la llave privada de Wompi y
+a esta base de datos— escribió `pspTransactionId` + `estado: 'APROBADO'`/`'FALLIDO'` +
+`estado_crudo_psp` sin pasar por el camino que crea el `Payment`. **Qué fue eso queda como
+UNKNOWN de este slice**, no como una atribución a medias.
+
+### 3 · Qué supuesto muere, y qué NO prueba esta transacción
+
+**Muere:** que "el camino de pago funciona" fuera un supuesto sin medir. Ahora está medido, y la
+medición tiene dos mitades con veredictos distintos — el lado de Wompi (tokenización → creación →
+resolución) SÍ funciona de punta a punta contra el sandbox real, desde el navegador; el lado de
+"la orden queda pagada en nuestro sistema" **no se sostiene con la evidencia de esta sesión**, y no
+por falta de medición: se midió y salió negativo.
+
+**No prueba, y se enumera para que nadie lo asuma:**
+- **el camino RECHAZADO en un checkout real** — esta sesión sí midió un `FALLIDO` (CN-787363,
+  `estado_crudo_psp: ERROR`), pero con el MISMO defecto: tampoco se puede confirmar qué mecanismo lo
+  cerró, por la misma razón de §2 (aunque el camino FALLIDO no crea `Payment` por diseño, así que ahí
+  la ausencia de `Payment` es ESPERADA, no un hallazgo);
+- **el camino INDETERMINADO** (`PENDING` que nunca resuelve, el barrido por edad de 48 h) — ningún
+  intento de esta sesión llegó a `EN_VUELO` vencido;
+- **otro método de pago** (Nequi, Daviplata, Bre-B, PSE) llegando a `pagado` en ESTE sistema — el
+  runbook citado abajo midió Nequi contra Wompi directo, sin pasar por este repo (§4);
+- **producción** — las cuatro filas de esta consulta viven en la base de `.env` local
+  (`development`/sandbox por `esDespliegueDemo()`), nunca se tocó la base de `production`;
+- **que el `Payment` se cree correctamente cuando SÍ corre el camino completo** — eso lo cubre el
+  carril de integración (`WOMPI-PAYMENT-G-INTEGRACION-1`, `b738413`), contra un doble en memoria, no
+  contra el sandbox real; esta sesión no lo re-ejerció.
+
+### 4 · Los dos hechos de sandbox que trae el spec, atribuidos a su fuente
+
+- **La tarjeta que aprueba**: `4242424242424242`, vencimiento `12/29`, CVV `123`, titular de texto
+  libre, tokeniza `201` y la transacción resuelve a `APPROVED` con `processor_response_code: "00"`
+  (MEDIDO — § `RUNBOOK-DATOS-PRUEBA-SANDBOX-1`, `docs/RUNBOOK-DATOS-PRUEBA-SANDBOX.md` §4).
+- **Nequi**: en el sandbox, el teléfono `3991111111` resuelve a `APPROVED` (medido dos corridas
+  separadas); un número arbitrario, `3001234567`, resuelve a `ERROR` con
+  `status_message: "Número no válido en Sandbox"` (MEDIDO — § `RUNBOOK-DATOS-PRUEBA-SANDBOX-1`,
+  `docs/RUNBOOK-DATOS-PRUEBA-SANDBOX.md` §6).
+
+Ninguno de los dos se re-midió en este slice — se citan tal como el runbook los dejó, porque el
+runbook habló DIRECTO con la API REST de Wompi (`docs/RUNBOOK-DATOS-PRUEBA-SANDBOX.md` §10: *"esta
+corrida habló directo con la API REST de Wompi, sin pasar por ninguna ruta de este repo"*) — nunca
+tocó esta base, así que no puede confirmar ni contradecir lo que §1–§2 de este asiento midieron.
+
+### Gate
+
+**`npm run gate`, los dos carriles, verde.** El diff de este slice toca `DECISIONS.md` (esta entrada)
+y `docs/RUNBOOK-DATOS-PRUEBA-SANDBOX.md` no se tocó (era el commit anterior de la rama) — sin cambios
+de código ni de test.
+
+**Tier 1 — SÍ aplica, por herencia de la rama, mismo criterio que las dos entradas anteriores.** La
+rama (`slice/api-directa-panel-metodos-1`) ya tiene bytes que el comprador ve
+(`CHECKOUT-ICONO-TARJETA-NEUTRO-1`, un ícono en el formulario de tarjeta del checkout) y configuración
+de métodos de pasarela (`CORRECCION-BANCOLOMBIA-AGREGADOR-1`); este commit no agrega ninguno nuevo
+—es lectura de base + un asiento—, pero el EJE es la rama, no el commit. El slice tenía aprobación
+explícita del owner para ESCRIBIR (`approved-by: owner`, `approval-reason` del spec: *"LA APROBACION
+AUTORIZA LA ESCRITURA, NUNCA EL MERGE"*) — el merge sigue gateado al owner, igual que el resto de la
+rama.
