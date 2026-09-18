@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState, type ChangeEvent, type Ref } from 'react';
 import {
   numeroTarjetaValido, parseVencimiento, vencimientoVigente, codigoSeguridadValido, nombreTitularValido,
-  detectarRedTarjeta, type RedTarjeta,
+  detectarRedTarjeta, formatearNumeroTarjeta, formatearVencimientoCampo, reformatearCampoTarjeta,
+  type RedTarjeta,
 } from '@/lib/checkout/tarjeta';
 import {
   tokenizarTarjeta, TokenizacionError, CreacionTransaccionError,
@@ -68,6 +69,18 @@ import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
  * algún día irían los logos oficiales de cada red: es decorativo (`aria-hidden`), nunca repite
  * el nombre, y el swap futuro es reemplazar sólo este ícono por el logo de `deteccionRed.red` —
  * el layout (flex, gap, tamaño) no se mueve.
+ *
+ * EL NÚMERO Y EL VENCIMIENTO SE FORMATEAN MIENTRAS SE TECLEA (§ CHECKOUT-FORMATEO-CAMPOS-
+ * TARJETA-1): grupos de 4 en el número ("4242 4242 4242 4242"), barra sola al segundo dígito del
+ * vencimiento ("12/" antes de que el comprador la teclee). Es formateo de PANTALLA nomás — las
+ * funciones puras viven en `lib/checkout/tarjeta.ts` (`formatearNumeroTarjeta`,
+ * `formatearVencimientoCampo`, `reformatearCampoTarjeta`) y este componente sólo las invoca desde
+ * `onChange`, reposicionando el cursor por CANTIDAD DE DÍGITOS vistos (no por índice de carácter)
+ * para que borrar, pegar y corregir un dígito del medio no quede atrapado contra un separador ni
+ * salte el cursor al final. Lo que sale de estos campos hacia `tokenizarTarjeta` sigue siendo
+ * dígitos puros: el número se manda sin espacios (`campos.numero.replace(/\s+/g, '')`, ya
+ * existía) y el vencimiento se manda como `{ mes, anio }` ya separados de la barra por
+ * `parseVencimiento` — el string CON separador nunca sale de esta pantalla.
  *
  * SI EL PROVEEDOR RECHAZA LA CREACIÓN PORQUE LA CUENTA YA NO TIENE EL MÉTODO HABILITADO
  * (`CreacionTransaccionError.tipo === 'metodo_no_habilitado'`) — un rechazo ESTRUCTURAL, no
@@ -231,6 +244,48 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
   const deteccionRed = detectarRedTarjeta(campos.numero);
   const marcaDetectada = deteccionRed.estado === 'reconocida' ? NOMBRE_RED[deteccionRed.red] : null;
 
+  // § CHECKOUT-FORMATEO-CAMPOS-TARJETA-1: el número y el vencimiento se reformatean en cada
+  // `onChange` (grupos de 4 / barra sola al 2° dígito), y el cursor que el navegador ya dejó
+  // tras la edición hay que RECOLOCARLO tras el reformateo — si no, cualquier corrección en el
+  // medio del valor manda el cursor al final. React no deja setear `selectionStart` en el mismo
+  // ciclo que cambia `value` (el DOM todavía no tiene el string nuevo), así que la posición
+  // deseada se guarda en un ref y se aplica en un `useLayoutEffect` que corre DESPUÉS de que
+  // React pintó el valor reformateado — antes de que el navegador pinte el frame, para que no
+  // se vea saltar.
+  const numeroRef = useRef<HTMLInputElement>(null);
+  const vencimientoRef = useRef<HTMLInputElement>(null);
+  const cursorPendienteRef = useRef<{ campo: 'numero' | 'vencimiento'; cursor: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const pendiente = cursorPendienteRef.current;
+    if (!pendiente) return;
+    cursorPendienteRef.current = null;
+    const el = pendiente.campo === 'numero' ? numeroRef.current : vencimientoRef.current;
+    el?.setSelectionRange(pendiente.cursor, pendiente.cursor);
+  }, [campos.numero, campos.vencimiento]);
+
+  const handleNumeroChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const el = e.target;
+    const { valor, cursor } = reformatearCampoTarjeta(
+      formatearNumeroTarjeta,
+      el.value,
+      el.selectionStart ?? el.value.length,
+    );
+    cursorPendienteRef.current = { campo: 'numero', cursor };
+    setCampos((c) => ({ ...c, numero: valor }));
+  };
+
+  const handleVencimientoChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const el = e.target;
+    const { valor, cursor } = reformatearCampoTarjeta(
+      formatearVencimientoCampo,
+      el.value,
+      el.selectionStart ?? el.value.length,
+    );
+    cursorPendienteRef.current = { campo: 'vencimiento', cursor };
+    setCampos((c) => ({ ...c, vencimiento: valor }));
+  };
+
   const handlePagar = async () => {
     // El botón ya está `disabled` sin las dos aceptaciones — esta es la guarda de tipo, no
     // una segunda explicación para el comprador (mismo patrón que `handleOrder` en la página).
@@ -353,7 +408,8 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
         <CampoTarjeta
           label="Número de la tarjeta"
           value={campos.numero}
-          onChange={(v) => setCampos((c) => ({ ...c, numero: v }))}
+          onChangeEvento={handleNumeroChange}
+          inputRef={numeroRef}
           error={errores.numero}
           inputMode="numeric"
           placeholder="0000 0000 0000 0000"
@@ -361,9 +417,10 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
         />
         <div className="grid grid-cols-2 gap-3">
           <CampoTarjeta
-            label="Vencimiento"
+            label="Fecha de vencimiento"
             value={campos.vencimiento}
-            onChange={(v) => setCampos((c) => ({ ...c, vencimiento: v }))}
+            onChangeEvento={handleVencimientoChange}
+            inputRef={vencimientoRef}
             error={errores.vencimiento}
             placeholder="MM/AA"
           />
@@ -412,7 +469,15 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
 interface CampoTarjetaProps {
   label: string;
   value: string;
-  onChange: (value: string) => void;
+  /** El caso simple (CVV, nombre del titular): el valor ya listo, sin reformateo. */
+  onChange?: (value: string) => void;
+  /** El caso con formateo (número, vencimiento — § CHECKOUT-FORMATEO-CAMPOS-TARJETA-1): el
+   *  consumidor necesita el evento crudo para leer `selectionStart` y recolocar el cursor tras
+   *  reformatear. Cuando está presente, REEMPLAZA a `onChange` — nunca se pasan los dos. */
+  onChangeEvento?: (e: ChangeEvent<HTMLInputElement>) => void;
+  /** Sólo lo necesitan los campos con `onChangeEvento`, para aplicar la posición de cursor tras
+   *  el reformateo (`useLayoutEffect` en el componente padre). */
+  inputRef?: Ref<HTMLInputElement>;
   error?: string;
   placeholder?: string;
   inputMode?: 'numeric' | 'text';
@@ -447,7 +512,7 @@ function IconoTarjetaGenerica() {
   );
 }
 
-function CampoTarjeta({ label, value, onChange, error, placeholder, inputMode, marcaDetectada }: CampoTarjetaProps) {
+function CampoTarjeta({ label, value, onChange, onChangeEvento, inputRef, error, placeholder, inputMode, marcaDetectada }: CampoTarjetaProps) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
@@ -460,10 +525,11 @@ function CampoTarjeta({ label, value, onChange, error, placeholder, inputMode, m
         )}
       </div>
       <input
+        ref={inputRef}
         type="text"
         inputMode={inputMode}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={onChangeEvento ?? ((e) => onChange?.(e.target.value))}
         placeholder={placeholder}
         className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
       />

@@ -180,3 +180,101 @@ export function detectarRedTarjeta(numeroCrudo: string): DeteccionRedTarjeta {
   }
   return algoEsPosible ? { estado: 'desconocido' } : { estado: 'no_reconocida' };
 }
+
+// ── FORMATEO DE PANTALLA (§ CHECKOUT-FORMATEO-CAMPOS-TARJETA-1) ─────────────────────────────
+//
+// TODO lo de acá abajo es formateo VISUAL, nunca dato: entra un string tecleado/pegado y sale un
+// string para mostrar en el input. Ninguna de estas funciones habla con la red ni decide si un
+// valor es válido — eso lo sigue haciendo `numeroTarjetaValido`/`parseVencimiento`, arriba, sobre
+// el MISMO valor formateado (los separadores que insertan estas funciones ya los toleran esas
+// dos: `numeroTarjetaValido` los quita con `replace(/\s+/g, '')` y `parseVencimiento` espera la
+// barra). Lo que viaja al proveedor sigue sin separadores: `FormularioTarjeta` arma el body de
+// `tokenizarTarjeta` quitándolos (`numero.replace(/\s+/g, '')`) y `parseVencimiento` entrega
+// `{ mes, anio }` ya separados de la barra — el string CON separador nunca sale de la pantalla.
+
+const TOPE_DIGITOS_NUMERO = 19; // el mismo tope de `numeroTarjetaValido`.
+const TOPE_DIGITOS_VENCIMIENTO = 6; // MM (2) + AAAA (4), el año largo que `parseVencimiento` acepta.
+
+/**
+ * Agrupa el número de tarjeta en bloques de 4 separados por un espacio ("4242 4242 4242 4242").
+ * Descarta cualquier carácter que no sea dígito ANTES de reagrupar — así da igual si `valorCrudo`
+ * ya trae separadores (se re-derivan) o no: pegar formateado o pegar en crudo termina en el mismo
+ * resultado. Cortado a 19 dígitos, el tope real de un PAN.
+ */
+export function formatearNumeroTarjeta(valorCrudo: string): string {
+  const digitos = valorCrudo.replace(/\D+/g, '').slice(0, TOPE_DIGITOS_NUMERO);
+  return digitos.replace(/(\d{4})(?=\d)/g, '$1 ');
+}
+
+/**
+ * Formatea el vencimiento como "MM/AA" (o "MM/AAAA" si se pega un año largo): la barra se inserta
+ * SOLA apenas hay 2 dígitos —"12" pasa a "12/" sin que el comprador la teclee—, y desde ahí el
+ * resto de los dígitos tecleados o pegados cae detrás de ella. Con 0 o 1 dígito no hay mes
+ * completo todavía, así que no se inserta nada. Igual que el número: cualquier separador que ya
+ * traiga `valorCrudo` se descarta y se re-deriva, así que pegar con o sin barra da lo mismo.
+ */
+export function formatearVencimientoCampo(valorCrudo: string): string {
+  const digitos = valorCrudo.replace(/\D+/g, '').slice(0, TOPE_DIGITOS_VENCIMIENTO);
+  if (digitos.length < 2) return digitos;
+  return `${digitos.slice(0, 2)}/${digitos.slice(2)}`;
+}
+
+/** Cuántos dígitos hay en `valor` antes (sin incluir) la posición `hasta` — un separador no cuenta. */
+function digitosAntesDe(valor: string, hasta: number): number {
+  let n = 0;
+  for (let i = 0; i < hasta && i < valor.length; i++) {
+    if (/\d/.test(valor[i])) n++;
+  }
+  return n;
+}
+
+/**
+ * La posición, dentro de `formateado`, que queda INMEDIATAMENTE DESPUÉS de haber visto `n`
+ * dígitos (o al final si `formateado` tiene menos de `n` dígitos). Un separador nunca "atrapa" el
+ * cursor: si el dígito `n` es el último antes de un separador, el cursor queda pegado a ese
+ * dígito, nunca del otro lado.
+ */
+function cursorTrasNDigitos(formateado: string, n: number): number {
+  if (n <= 0) return 0;
+  let vistos = 0;
+  for (let i = 0; i < formateado.length; i++) {
+    if (/\d/.test(formateado[i])) {
+      vistos++;
+      if (vistos === n) return i + 1;
+    }
+  }
+  return formateado.length;
+}
+
+export interface CampoTarjetaFormateado {
+  valor: string;
+  /** Dónde debe quedar el cursor dentro de `valor` tras reformatear. */
+  cursor: number;
+}
+
+/**
+ * Reformatea el valor de un campo tras una edición (tecla, borrado o pegado) y recoloca el
+ * cursor por CANTIDAD DE DÍGITOS vistos, no por índice de carácter — el índice cambia cada vez
+ * que un separador se inserta o se retira, y por eso reposicionar por índice es lo que hace que
+ * un input enmascarado "salte al final" o quede atrapado contra un separador que se reinserta
+ * solo. `valorNuevo`/`cursorNuevo` son el valor y la posición del cursor QUE YA DEJÓ el navegador
+ * tras la edición (p. ej. `e.target.value` y `e.target.selectionStart`) — esta función no sabe
+ * nada de eventos del DOM, sólo recibe strings y números.
+ *
+ * Cubre las cuatro formas de editar que le importan a un campo enmascarado:
+ * - teclear de corrido: el cursor avanza con cada dígito nuevo, nunca se cae para atrás;
+ * - borrar sobre un separador: al borrar el carácter separador el conteo de dígitos ANTES del
+ *   cursor no cambia, así que el cursor reformateado queda pegado al dígito de al lado — el
+ *   próximo borrado sí quita un dígito real, nunca hace falta borrar "contra la nada";
+ * - pegar (con o sin separadores): el cursor pegado al final del pegado cae al final del
+ *   resultado reformateado, sin importar cuántos separadores insertó o quitó el formateo.
+ */
+export function reformatearCampoTarjeta(
+  formatear: (valor: string) => string,
+  valorNuevo: string,
+  cursorNuevo: number,
+): CampoTarjetaFormateado {
+  const digitosAntesDelCursor = digitosAntesDe(valorNuevo, cursorNuevo);
+  const valor = formatear(valorNuevo);
+  return { valor, cursor: cursorTrasNDigitos(valor, digitosAntesDelCursor) };
+}
