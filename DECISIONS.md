@@ -6702,9 +6702,10 @@ las dos es parte del alcance de este slice (`touches: CLAUDE.md, DECISIONS.md`, 
 archivos que el owner ya decidió) y este worker no decide por ellas. Contexto mínimo, medido de paso
 en esta sesión sin profundizar: `order-transitions.ts` tiene al menos una escritura directa
 (`tx.orderStatusTransition.create`, línea 38) que matchea el patrón EJECUTOR del detector — es
-coherente con que `tier1_puertas` lo haya encontrado. Quedan nombrados para que la próxima
-re-medición de la lista Tier 1 los evalúe contra el criterio (¿son puerta de escritura de dinero/
-stock/pedidos, o la función que esa puerta consulta?), no para que se asuma que califican.
+coherente con que `tier1_puertas` lo haya encontrado. Quedan nombrados como **`TIER1-CANDIDATOS-
+ORDER-TRANSITIONS-PRODUCTS-1`** para que la próxima re-medición de la lista Tier 1 los evalúe contra
+el criterio (¿son puerta de escritura de dinero/stock/pedidos, o la función que esa puerta consulta?),
+no para que se asuma que califican.
 
 ### 7 · Limitación declarada — no se pudo correr el validador ni el detector desde esta sesión
 
