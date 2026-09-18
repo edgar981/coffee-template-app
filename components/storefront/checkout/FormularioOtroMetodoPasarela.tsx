@@ -58,6 +58,14 @@ import { formatCOP } from '@duna/core/utils';
  * hasta que el pago se confirme), byte-idéntico a como ya funcionaba NEQUI (sin
  * `redireccion`). Ningún tipo real declara `redireccion` todavía (§ el reporte del slice) — esta
  * rama es alcanzable hoy sólo por su forma, no por ningún comprador real.
+ *
+ * § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: SI EL COBRO SE CREA PERO EL EMISOR LO RECHAZA —
+ * detectado de forma ASÍNCRONA por el sondeo de `EsperaConfirmacionTarjeta`, vía `onFallido` —
+ * `handleFallido` (abajo) vuelve a este mismo formulario: `creada` se limpia y el `dato` que el
+ * comprador tecleó (no es secreto, § `FormularioTarjetaProps` para el criterio) queda intacto,
+ * con el mensaje de rechazo arriba del botón. NO aplica al camino `redireccion` —
+ * `EsperaRedireccionPasarela` no tiene esta clase de fallo (§ su propio docstring: nunca afirma
+ * "fallido", eso lo decide `/checkout/retorno` cuando el comprador vuelva de fuera)—.
  */
 export interface FormularioOtroMetodoPasarelaProps {
   descriptor: DescriptorMetodoPasarela;
@@ -86,6 +94,10 @@ const TEXTO = {
   botonEnVuelo: 'Procesando…',
   errorGenerico: 'No pudimos procesar tu pago. Intenta de nuevo o usa otro método.',
   errorRed: 'No pudimos comunicarnos con el servidor. Intenta de nuevo.',
+  // § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: el cobro se creó pero el emisor lo RECHAZÓ
+  // (detectado por el sondeo de `EsperaConfirmacionTarjeta`, vía `onFallido`) — mismo texto
+  // provisional que `FormularioTarjeta.tsx` para el mismo hecho.
+  pagoRechazado: 'Tu pago no fue aprobado. No se realizó ningún cobro. Revisa los datos o intenta con otro método.',
 };
 
 export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones, publicKey, crearOrdenPasarela, monto, email }: FormularioOtroMetodoPasarelaProps) {
@@ -167,6 +179,15 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
     }
   };
 
+  // § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: EL COBRO FUE RECHAZADO (el sondeo de
+  // `EsperaConfirmacionTarjeta` encontró un estado final que no es `APROBADO`) — vuelve a este
+  // mismo formulario, nunca a una pantalla aparte. `dato` no es secreto (§ el docstring de
+  // arriba) y queda intacto; sólo se limpia `creada` para volver a mostrar el campo.
+  const handleFallido = () => {
+    setCreada(null);
+    setErrorServidor(TEXTO.pagoRechazado);
+  };
+
   if (creada) {
     return (
       <div className="bg-[var(--sf-superficie)] rounded-xl p-4">
@@ -178,6 +199,7 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
             email={email}
             resultado3ds={creada.resultado3ds}
             desafioHtml={creada.desafioHtml}
+            onFallido={handleFallido}
           />
         )}
       </div>

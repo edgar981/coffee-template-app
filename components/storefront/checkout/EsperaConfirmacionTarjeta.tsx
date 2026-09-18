@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle, Clock, XCircle } from 'lucide-react';
+import { CheckCircle, Clock } from 'lucide-react';
 import { consultarRetornoPago } from '@/services/checkout.service';
 import {
   esperaSondeoSiguienteMs, TECHO_SONDEO_MS, TECHO_SONDEO_DESAFIO_MS, type Resultado3ds,
@@ -30,6 +30,17 @@ import DesafioTarjeta from './DesafioTarjeta';
  * marco aislado (`DesafioTarjeta`) en vez de sólo texto; SIN `desafioHtml` (el desafío se
  * detectó pero no se pudo decodificar ningún contenido), sigue el texto honesto que ya existía
  * antes de este slice — un contenido inválido/ausente NUNCA rompe la pantalla.
+ *
+ * § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: ESTE COMPONENTE YA NO TIENE VISTA `fallido` PROPIA.
+ * Antes, un cobro rechazado dejaba al comprador en una pantalla terminal sin vuelta —el
+ * formulario de tarjeta/otro método no se volvía a mostrar, así que reintentar exigía salir del
+ * checkout—. Ahora, apenas el sondeo detecta un estado que no es `APROBADO` (ni `EN_VUELO`), este
+ * componente llama a `onFallido` y DEJA DE RENDERIZAR NADA MÁS: quien decide qué mostrar en su
+ * lugar —el formulario, con los datos ya escritos intactos (salvo el CVV) y un mensaje arriba del
+ * botón— es el llamador (`FormularioTarjeta`/`FormularioOtroMetodoPasarela`), no este componente.
+ * `aprobado` y `techo` SÍ siguen siendo vistas propias: la primera es un cierre feliz que no
+ * necesita volver a nada, y la segunda NO es un fallo —es "sigue sin resolver", honesto sobre no
+ * inventar un veredicto— así que no dispara este camino.
  */
 export interface EsperaConfirmacionTarjetaProps {
   reference: string;
@@ -42,9 +53,14 @@ export interface EsperaConfirmacionTarjetaProps {
    *  `null` cuando no hay nada que embeber (sin fricción, desconocido, o un desafío sin
    *  contenido decodificable). Este componente nunca decodifica nada. */
   desafioHtml: string | null;
+  /** El cobro fue RECHAZADO (§ CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1) — el sondeo encontró un
+   *  estado final que no es `APROBADO`. Este componente no dibuja nada para ese caso: llama a
+   *  `onFallido` y el llamador decide qué mostrar (el formulario de vuelta, con sus datos
+   *  intactos salvo el CVV, y un mensaje). Se llama UNA vez por transición a ese estado. */
+  onFallido: () => void;
 }
 
-type Vista = 'en_vuelo' | 'aprobado' | 'fallido' | 'techo';
+type Vista = 'en_vuelo' | 'aprobado' | 'techo';
 
 // TEXTO PROVISIONAL — PENDIENTE DE COPY DEL OWNER (§ el reporte del slice, igual que el resto
 // del copy de este programa). Elegido claro y honesto para no bloquear el slice.
@@ -58,13 +74,11 @@ const TEXTO = {
   enVueloDesafio: 'Tu banco pide un paso adicional para confirmar esta compra, que todavía no podemos completar desde aquí. Sigue esperando — si tu banco lo resuelve por su cuenta, confirmaremos el pago automáticamente.',
   aprobadoTitulo: '¡Tu pago fue aprobado!',
   aprobadoCuerpo: 'Tu pedido queda confirmado y pasa a preparación.',
-  fallidoTitulo: 'Tu pago no fue aprobado',
-  fallidoCuerpo: 'No te preocupes, no se realizó ningún cobro. Puedes intentarlo de nuevo o usar otro método.',
   techoTitulo: 'Tu pago sigue procesándose',
   techoCuerpo: 'Te avisaremos apenas se confirme. Puedes revisar el estado de tu pedido más tarde con tu número de orden y tu correo.',
 };
 
-export default function EsperaConfirmacionTarjeta({ reference, email, resultado3ds, desafioHtml }: EsperaConfirmacionTarjetaProps) {
+export default function EsperaConfirmacionTarjeta({ reference, email, resultado3ds, desafioHtml, onFallido }: EsperaConfirmacionTarjetaProps) {
   const [vista, setVista] = useState<Vista>('en_vuelo');
 
   // El reloj del backoff vive en refs — no debe disparar un re-render por sí mismo, sólo el
@@ -105,10 +119,17 @@ export default function EsperaConfirmacionTarjeta({ reference, email, resultado3
         programarSiguiente();
         return;
       }
-      setVista(resultado.estado === 'APROBADO' ? 'aprobado' : 'fallido');
+      // § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: un estado final que NO es `APROBADO` es un
+      // rechazo — no hay una tercera vista propia para eso acá; se delega al llamador (ver el
+      // docstring del componente) en vez de dibujar una pantalla terminal sin vuelta.
+      if (resultado.estado === 'APROBADO') {
+        setVista('aprobado');
+      } else {
+        onFallido();
+      }
     }, espera);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reference, email, techoMs]);
+  }, [reference, email, techoMs, onFallido]);
 
   useEffect(() => {
     programarSiguiente();
@@ -130,18 +151,6 @@ export default function EsperaConfirmacionTarjeta({ reference, email, resultado3
         </div>
         <h3 className="text-xl font-playfair text-[var(--sf-tinta)] mb-1">{TEXTO.aprobadoTitulo}</h3>
         <p className="text-sm text-[var(--sf-texto-suave)]">{TEXTO.aprobadoCuerpo}</p>
-      </div>
-    );
-  }
-
-  if (vista === 'fallido') {
-    return (
-      <div className="text-center">
-        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <XCircle className="w-8 h-8 text-red-600" />
-        </div>
-        <h3 className="text-xl font-playfair text-[var(--sf-tinta)] mb-1">{TEXTO.fallidoTitulo}</h3>
-        <p className="text-sm text-[var(--sf-texto-suave)]">{TEXTO.fallidoCuerpo}</p>
       </div>
     );
   }

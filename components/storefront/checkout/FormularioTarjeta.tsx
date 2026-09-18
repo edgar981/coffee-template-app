@@ -76,6 +76,15 @@ import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
  * decide qué mostrar en su lugar (§ el reporte del slice). Las otras dos ramas de fallo
  * (`firma_invalida`, `otro_fallo`) sí pueden ser transitorias y se muestran inline, como
  * cualquier error de tokenización.
+ *
+ * § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: SI EL COBRO SE CREA PERO EL EMISOR LO RECHAZA — el
+ * sondeo de `EsperaConfirmacionTarjeta` lo detecta de forma ASÍNCRONA, después de que este
+ * `handlePagar` ya terminó—, `handleFallido` (abajo) vuelve a este mismo formulario: `creada`
+ * se limpia (deja de renderizar la espera), el CVV se borra (es el único campo de la tarjeta
+ * que cuenta como SECRETO — no sobrevive a un intento fallido) y el resto de los campos —
+ * número, vencimiento, nombre del titular— queda TAL COMO el comprador los dejó, con el
+ * mensaje de rechazo arriba del botón. Antes de este slice no había vuelta: la espera
+ * mostraba una pantalla terminal sin ningún camino de regreso al formulario.
  */
 export interface FormularioTarjetaProps {
   aceptaciones: AceptacionesWompi;
@@ -119,6 +128,10 @@ const TEXTO = {
   nombreTitular: 'Escribe el nombre tal como aparece en la tarjeta.',
   tokenizacionGenerico: 'No pudimos verificar tu tarjeta. Revisa los datos e intenta de nuevo.',
   botonEnVuelo: 'Verificando tarjeta…',
+  // § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: el cobro se creó pero el emisor lo RECHAZÓ (detectado
+  // por el sondeo de `EsperaConfirmacionTarjeta`, vía `onFallido`) — no hay excepción del owner
+  // todavía, mismo estado provisional que el resto de este archivo.
+  pagoRechazado: 'Tu pago no fue aprobado. No se realizó ningún cobro. Revisa los datos o intenta con otro método.',
 };
 
 const TEXTO_CREACION_TRANSACCION_GENERICO = 'No pudimos procesar tu pago. Intenta de nuevo o usa otro método.';
@@ -302,6 +315,20 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
     }
   };
 
+  // § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1: EL COBRO FUE RECHAZADO (el sondeo de
+  // `EsperaConfirmacionTarjeta` encontró un estado final que no es `APROBADO`) — vuelve a este
+  // mismo formulario, nunca a una pantalla aparte. `creada` se limpia para que el `if` de abajo
+  // vuelva a renderizar los campos; el CVV se borra (§ el docstring de arriba, el único campo
+  // SECRETO de la tarjeta) y el resto de `campos` — número, vencimiento, nombre del titular —
+  // queda intacto. `errores` se limpia para que no quede un borde rojo colgado de un intento
+  // anterior sobre un campo que ya se vació (el CVV).
+  const handleFallido = () => {
+    setCreada(null);
+    setCampos((c) => ({ ...c, cvv: '' }));
+    setErrores({});
+    setErrorTokenizacion(TEXTO.pagoRechazado);
+  };
+
   if (creada) {
     return (
       <div className="bg-[var(--sf-superficie)] rounded-xl p-4">
@@ -310,6 +337,7 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
           email={email}
           resultado3ds={creada.resultado3ds}
           desafioHtml={creada.desafioHtml}
+          onFallido={handleFallido}
         />
       </div>
     );
