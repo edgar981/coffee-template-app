@@ -51,17 +51,34 @@ test('la validación FALLA y NOMBRA la clave: una variante inexistente se rechaz
 });
 
 test('una variante pedida sobre una sección SIN slot se nombra distinto de una clave inexistente', () => {
-  // `brandStory` ganó su slot (TEMAS-P2-BRANDSTORY-1) y `featured` ganó el suyo
+  // `brandStory` ganó su slot (TEMAS-P2-BRANDSTORY-1), `featured` ganó el suyo
   // (TEMAS-P1-FEATURED-VARIANTES-1, `VARIANTES_ESTRUCTURALES` — el gemelo del REGISTRY para bandas
-  // ESTRUCTURALES sin sección): ninguno de los dos sirve ya para este caso — hoy `brandStory·hilo` y
-  // `featured·tabla` son "clave inexistente", no "sin slot". `subscriptionCTA` es el caso vivo que
-  // queda: SÍ es `SeccionKey` pero no declara `variantes` en absoluto, así que ninguna de las DOS
-  // tablas (REGISTRY / VARIANTES_ESTRUCTURALES) tiene entrada para nombrarle variantes.
+  // ESTRUCTURALES sin sección) y `subscriptionCTA` ganó el suyo (TEMAS-SUBSCRIPTIONCTA-LINEA-1):
+  // ninguno de los tres sirve ya para este caso — hoy `brandStory·hilo`, `featured·tabla` y
+  // `subscriptionCTA·ticket` son "clave inexistente", no "sin slot". `testimonials` es el caso vivo
+  // que queda: SÍ es `SeccionKey` pero no declara `variantes` en absoluto, así que ninguna de las
+  // DOS tablas (REGISTRY / VARIANTES_ESTRUCTURALES) tiene entrada para nombrarle variantes. Ningún
+  // preset del catálogo pide una variante de `testimonials`, así que se ejerce con un preset
+  // SINTÉTICO (como los de featured, abajo).
+  const sintetico: PresetTema = {
+    ...ARRANQUE,
+    clave: 'SINTETICO-TESTIMONIALS-SIN-SLOT',
+    variantes: { ...ARRANQUE.variantes, testimonials: 'lo-que-sea' },
+  };
+  const faltantesSintetico = validarPreset(sintetico);
+  const testimonials = faltantesSintetico.find((f) => f.detalle.includes('testimonials·lo-que-sea'));
+  assert.ok(testimonials, JSON.stringify(faltantesSintetico));
+  assert.ok(testimonials!.detalle.includes('no declara variantes'));
+  assert.ok(!testimonials!.detalle.includes('esa clave no existe'));
+
   const faltantes = validarPreset(PLIEGO);
+
+  // subscriptionCTA·ticket, ahora que la sección SÍ tiene slot (TEMAS-SUBSCRIPTIONCTA-LINEA-1) —
+  // se nombra distinto, aunque `ticket` no sea ninguna de las dos claves reales (`bloque`/`linea`).
   const subscriptionCTA = faltantes.find((f) => f.detalle.includes('subscriptionCTA·ticket'));
   assert.ok(subscriptionCTA, JSON.stringify(faltantes));
-  assert.ok(subscriptionCTA!.detalle.includes('no declara variantes'));
-  assert.ok(!subscriptionCTA!.detalle.includes('esa clave no existe'));
+  assert.ok(subscriptionCTA!.detalle.includes('esa clave no existe'));
+  assert.ok(!subscriptionCTA!.detalle.includes('no declara variantes'));
 
   // featured·tabla, en cambio, SÍ tiene slot hoy (VARIANTES_ESTRUCTURALES.featured declara
   // `cuadricula`) — se nombra distinto, aunque `tabla` no sea esa clave.
@@ -119,11 +136,14 @@ test('PLIEGO: raíces y forma/par válidos, pero las 5 variantes fallan — toda
   assert.equal(faltantes.filter((f) => f.regla === 'orden').length, 0);
 });
 
-test('CORTE: presentaciones·mosaico, brandStory·columnas y hero·media SON válidas — sólo featured/subscriptionCTA fallan', () => {
+test('CORTE: presentaciones·mosaico, brandStory·columnas y subscriptionCTA·linea SON válidas — sólo hero/featured fallan', () => {
   // brandStory·columnas coincide con la única clave que `brandStory` acepta hoy (la canónica), así
-  // que dejó de fallar apenas ganó su slot. hero·media dejó de fallar con TEMAS-HERO-MEDIA-1 (el
-  // hero ganó su tercera clave de variante) — CORTE pasó de 4 faltantes de variante a 3, y ahora a 2.
-  assert.deepEqual(seccionesQueFallanVariante(CORTE), ['featured', 'subscriptionCTA']);
+  // que dejó de fallar apenas ganó su slot — CORTE pasó de 4 faltantes de variante a 3. Y
+  // subscriptionCTA·linea es EXACTAMENTE la clave nueva que TEMAS-SUBSCRIPTIONCTA-LINEA-1 construyó
+  // (§ SubscriptionCTALinea.tsx) — CORTE pasó de 3 faltantes de variante a 2. hero·media y
+  // featured·grilla siguen SIN construir (fuera de alcance de este slice): CORTE sigue sin poder
+  // aplicarse completo — ver `temasCompletos` más abajo para lo que le falta HOY.
+  assert.deepEqual(seccionesQueFallanVariante(CORTE), ['featured', 'hero']);
 });
 
 test('VETA: hero·curtina y presentaciones·indice SÍ existen — featured/brandStory/subscriptionCTA fallan', () => {
@@ -156,8 +176,9 @@ test('VITRINA: fuentePar y forma SIN DECIDIR (null) se nombran como faltantes, d
   assert.ok(forma, JSON.stringify(faltantes));
   assert.ok(fuentePar!.detalle.includes('no tiene un par tipográfico decidido'));
   assert.ok(forma!.detalle.includes('no tiene una forma decidida'));
-  // hero·ficha y presentaciones·indice SÍ existen hoy.
-  assert.deepEqual(seccionesQueFallanVariante(VITRINA), ['brandStory', 'featured', 'subscriptionCTA']);
+  // hero·ficha, presentaciones·indice y subscriptionCTA·linea SÍ existen hoy (la última, desde
+  // TEMAS-SUBSCRIPTIONCTA-LINEA-1) — VITRINA pasó de 3 faltantes de variante a 2.
+  assert.deepEqual(seccionesQueFallanVariante(VITRINA), ['brandStory', 'featured']);
 });
 
 test('regla (b): una banda inexistente y un esquema inexistente se nombran por separado', () => {
