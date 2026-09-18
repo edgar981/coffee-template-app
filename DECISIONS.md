@@ -7110,3 +7110,251 @@ Tier 1 (bytes que el comprador ve). El spec lo declaró `tier: 1`, `writes: yes`
 existente, y pidió revisar §4 con el mismo criterio sin tomar la decisión de reintento). **LA
 APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA EL MERGE** — el merge sigue gateado al owner, y este
 slice para en `AWAITING_APPROVAL` sin mergear.
+
+## 2026-09-18 — El censo del reintento, medido de nuevo para dejar asiento, y la clase que
+convierte en falsa la frase "sabe qué hacer" del ledger anterior (`CHECKOUT-REINTENTO-CENSO-1`)
+
+### 0 · Por qué este slice mide otra vez lo que un censo ya midió
+
+El censo del mecanismo de reintento del pago por pasarela corrió antes como slice de SÓLO
+LECTURA — y por eso no dejó asiento: sus hallazgos vivían en un reporte que ningún slice
+posterior puede citar como medición (la guarda de procedencia del protocolo lo rechaza, con
+razón — un id que no resuelve en el libro no es una medición, es una afirmación externa). Este
+slice vuelve a medir cada afirmación contra el código, con archivo y línea, y deja el asiento
+que el censo debió dejar.
+
+### 1 · Lo medido — las tres capas, el proveedor tapado, la guarda de doble cobro, el carrito
+
+**¿Puede una orden tener más de un intento de pago?** Las tres capas, medidas por separado:
+
+- **Schema**: `PaymentIntent.orden_id` (`packages/core/prisma/schema.prisma:443`) NO tiene
+  `@unique` — sólo `@@index([orden_id])` (línea 523). Nada en el schema prohíbe una segunda fila
+  con la misma `orden_id`.
+- **El código que crea intentos**: hay UN solo call site de `paymentIntent.create` en todo el
+  repo (medido: `grep -rn "paymentIntent.create"` da un único resultado) — dentro de
+  `createOrderWithCustomer` (`packages/core/src/orders.ts:619-630`), y sólo cuando
+  `input.crearIntentoPago` es `true`. Ese create ocurre SIEMPRE junto con la creación de una
+  Order NUEVA, en la misma transacción. Ningún código crea un `PaymentIntent` adicional para una
+  Order YA EXISTENTE. Así que "una orden tiene a lo sumo un intento" es hoy un HECHO DE
+  OMISIÓN — nadie escribió el código que crearía el segundo —, no una restricción del modelo.
+- **Lecturas que asuman "el intento de la orden" en singular**: ninguna. Todo `findUnique` sobre
+  `paymentIntent` filtra por `reference` (la clave única del propio intento, no de la orden):
+  `app/api/checkout/route.ts:450`, `app/api/checkout/retorno/route.ts:76,103`,
+  `app/api/webhooks/wompi/route.ts:206,342`. El único `findFirst` (`lib/config/site-settings-
+  read.ts:76`) filtra por `metodo_rechazado IN (...)` a través de TODOS los intentos del negocio
+  (para el aviso del dueño), no por `orden_id` de una orden puntual. Y el único `findMany`
+  (`app/api/cron/automations/route.ts:73`, el reconciliador) trae TODOS los `EN_VUELO` del
+  sistema, sin acotar por orden. Cero lecturas que se romperían si una orden tuviera dos.
+
+**El mecanismo real: la orden reutiliza el MISMO intento entre reintentos, por diseño — no
+crea uno nuevo.** `crearOrdenPasarela` (`app/(storefront)/checkout/page.tsx:259-278`) es
+IDEMPOTENTE por estado de React: `if (confirmation?.wompi) return confirmation.wompi.reference;`
+— mientras la pestaña del navegador siga viva, CUALQUIER submit posterior (tarjeta u otro
+método, en cualquier pestaña del picker) devuelve la MISMA `reference` sin volver a crear
+orden ni intento. Es lo que hace verdad, hoy, la afirmación de la capa anterior: no porque el
+sistema lo prohíba, sino porque el único camino de creación nunca vuelve a dispararse dentro de
+la misma sesión de checkout.
+
+**Las aceptaciones del proveedor — una consulta por carga de página, reusada sin límite.**
+`bloquePasarela` se pide UNA vez (`useEffect` con deps `[pasarelaDisponible]`,
+`checkout/page.tsx:93-100`, vía `consultarBloqueAceptacionPasarela()`) y queda en estado de
+React para toda la sesión. Un segundo envío —de cualquier método, en cualquier pestaña— reusa
+los MISMOS tokens de aceptación (`aceptaciones.terminos.token`/`.datosPersonales.token`) sin
+volver a pedirlos. No se midió ningún defecto en esto: los tokens de aceptación de Wompi no son
+de un solo uso por transacción (no hay código que los invalide tras un intento), así que
+reusarlos entre reintentos no es el problema.
+
+**EL ERROR DEL PROVEEDOR QUE HOY NO SE VE, y cuál lo tapa.** `PATCH /api/checkout`
+(`app/api/checkout/route.ts:450-464`) es la ruta que confirma la transacción contra Wompi.
+Antes de llamar a Wompi por CUALQUIER cosa, lee el intento por `reference` y corta en seco:
+
+```ts
+if (intent.estado !== 'EN_VUELO') {
+  return NextResponse.json({ error: TEXTO_INTENTO_YA_RESUELTO }, { status: 409 });
+}
+```
+
+(`TEXTO_INTENTO_YA_RESUELTO = 'Este pago ya se resolvió.'`, línea 350.) Este chequeo es NUESTRO,
+no del proveedor, y responde ANTES de que el handler arme la firma o llame a Wompi (la llamada a
+Wompi ocurre más abajo en el mismo archivo, después de este `if`). Así que en TODO reintento
+contra una `reference` cuyo intento ya cerró, Wompi nunca es consultado — cualquier respuesta que
+el proveedor pudiera dar sobre el NUEVO intento (otra tarjeta, otro método) es invisible, porque
+nuestro propio guardián de estado responde primero. **Nuestra guarda de idempotencia (`intent.
+estado !== 'EN_VUELO'`) tapa al proveedor.**
+
+Y el intento SÍ cierra a `FALLIDO` de forma permanente apenas el emisor rechaza: el webhook
+(`app/api/webhooks/wompi/route.ts:279-301`) transiciona `EN_VUELO → FALLIDO` en un
+`updateMany` condicional, y NINGÚN código en el repo vuelve a poner `estado: 'EN_VUELO'` como
+dato de escritura (medido: `grep -rn "estado:\s*'EN_VUELO'"` sólo aparece del lado `where`, en
+`aplicar-resultado-wompi.ts:153`, `webhooks/wompi/route.ts:285` y `cron/automations/route.ts:84`
+— nunca del lado `data`). Un `PaymentIntent` FALLIDO es fallido para siempre.
+
+**La guarda contra el doble cobro — qué compara, y por qué cubre N intentos gratis.**
+`aplicarResultadoWompi` (`packages/core/src/pagos/aplicar-resultado-wompi.ts:142-207`) lockea la
+Order (`FOR UPDATE`, vía `transaccionConOrdenLockeada`) y compara `orden.estado !== 'pendiente'`
+(línea 175) — NO compara contra el intento, contra `pspTransactionId`, ni contra cuántos
+`PaymentIntent` tiene la orden. Compara el ESTADO DE LA ORDEN bajo lock. Por construcción, esto
+cubre cualquier cantidad de intentos sobre la misma orden sin escribir una línea más: si un
+segundo intento (hoy inalcanzable, pero el schema lo permitiría) fuera APROBADO después de que
+el primero ya pagó, el segundo lee `orden.estado === 'pagado'` bajo el mismo lock y cae en la
+rama "COBRO DUPLICADO" (línea 176-189: se asienta el hecho de Wompi, NO se crea un segundo
+`Payment`, se notifica al carril de atención). El invariante que importa —"nunca dos `Payment`
+por la misma plata"— vive en la ORDEN, no en el conteo de intentos.
+
+**El carrito.** `clearCart()` se llama UNA sola vez, dentro del `try` de la PRIMERA creación
+exitosa de orden (`handleOrder`, línea 227, y `crearOrdenPasarela`, línea 265) — nunca en el
+camino de reintento (`crearOrdenPasarela`'s early-return de la línea 260 no lo toca). Un
+reintento no necesita el carrito: la orden y sus líneas ya quedaron escritas en la base en la
+primera creación: `total`/`items` los sirve la orden persistida, no el store del carrito. La
+guarda `items.length === 0 && !confirmation` (línea 400) es la que impediría mostrar "carrito
+vacío" durante un reintento — y funciona porque `confirmation` sigue siendo verdadero.
+
+### 2 · La clase: una conclusión angosta escrita como decisión cerrada
+
+**El comentario** (`checkout/page.tsx:70-76`, sobre `pasarelaMetodoNoHabilitado`):
+
+> El proveedor rechazó la creación de la transacción de esta orden porque su cuenta ya no
+> tiene el método habilitado […] Una vez en `true` no vuelve a `false`: no hay "reintentar" para
+> esta orden (§ el reporte del slice, "no reintentar contra el mismo").
+
+**Medido: para QUÉ caso se decidió.** `metodo_no_habilitado` es un rechazo ESTRUCTURAL —la
+cuenta de Wompi del negocio no tiene ese método de pago encendido— que ocurre SÍNCRONO, en la
+CREACIÓN de la transacción (`FormularioTarjeta.tsx:424-431`), antes de que exista ningún
+veredicto del emisor. Reintentar con otra tarjeta no cambia nada porque el defecto no está en la
+tarjeta: está en la cuenta. Sobre ESE caso, la conclusión es correcta y el caso SÍ tiene una
+salida real hoy: `handleMetodoNoHabilitado` (línea 287-293) cae a la MISMA pantalla de
+confirmación manual que usan nequi/efectivo/transferencia (línea 313, `!confirmation.wompi ||
+pasarelaMetodoNoHabilitado || pasarelaAprobada` → `return`) — el pedido queda reservado, el
+comprador ve su número de orden y sabe que el equipo lo va a contactar.
+
+**La misma conclusión —"no hay salida para esta orden, no reintentes"— se aplicó, en la
+redacción del reporte de `CHECKOUT-TRANSICION-DEFECTOS-1` (§4, la tabla de estados
+terminales), al caso DISTINTO del rechazo del EMISOR** (la tarjeta declinada por el banco, un
+hecho ASÍNCRONO que el sondeo detecta después). Esa tabla afirma, para "Rechazado": *"sabe qué
+hacer (revisar datos u otro método)"* — dando por sentado que el mecanismo de reintento
+FUNCIONA para ese caso. Medido: NO funciona, por la cadena completa del §1:
+
+1. `onFallido` (`EsperaConfirmacionTarjeta.tsx:166-170`) sólo se dispara cuando el sondeo lee
+   `PaymentIntent.estado !== 'EN_VUELO'` y no es `APROBADO` — es decir, cuando el intento YA
+   está en `FALLIDO` en la base. El comprador nunca ve el mensaje de rechazo ANTES de que el
+   intento se haya cerrado para siempre.
+2. `handleFallido` (`FormularioTarjeta.tsx:453-459` y su gemelo en
+   `FormularioOtroMetodoPasarela.tsx:218-222`) limpia `creada` y reactiva el formulario —
+   invitando a "revisar datos" y reintentar.
+3. **Cualquier reintento —misma tarjeta, otra tarjeta, u otra pestaña del picker (Nequi)— llama
+   de nuevo a `crearOrdenPasarela()`, que devuelve la MISMA `reference` (§1: idempotencia por
+   estado de React), y el PATCH subsiguiente choca de inmediato contra `intent.estado !==
+   'EN_VUELO'` → 409, "Este pago ya se resolvió".** El formulario vuelve a mostrar ese mismo
+   error, re-habilitado, en un ciclo que no puede resolver nunca — porque el intento cerrado no
+   vuelve a abrirse (§1).
+4. **"Otro método" tampoco es una salida real**: las pestañas de `SelectorMetodoPasarela`
+   (`components/storefront/checkout/SelectorMetodoPasarela.tsx:116-220`) se renderizan
+   INDEPENDIENTES de si ya existe una orden — no hay guarda que las oculte tras un rechazo—, pero
+   las DOS reciben la MISMA `crearOrdenPasarela` (líneas 198 y 212), así que cambiar de pestaña
+   pega contra el MISMO intento cerrado.
+5. **Ni recargar la página ayuda**: `useCartStore` no persiste (medido: `grep -n "persist\|
+   localStorage\|sessionStorage" lib/cartStore.tsx` no da resultados), así que un F5 pierde
+   `confirmation` (vuelve a `null`) Y `items` (vuelve a `[]`) a la vez — y la guarda de la línea
+   400 (`items.length === 0 && !confirmation`) manda a la pantalla genérica de "Tu carrito está
+   vacío", sin ningún rastro de la orden ni del número para rastrearla.
+
+**Es decir: el rechazo del emisor es el ÚNICO estado terminal de la transición
+(§ CHECKOUT-TRANSICION-DEFECTOS-1 §4: aprobado, indeterminado, rechazado, método no habilitado)
+que hoy no tiene ninguna salida** — ni un botón que funcione, ni un reload que recupere algo. La
+UI simula que ofrece una (campos reactivados, mensaje de "revisa e intenta de nuevo"), lo cual
+es más engañoso que no ofrecer nada: invita a una acción que está garantizado que va a fallar de
+la misma forma, siempre.
+
+**La forma de la clase, en las palabras del owner:** una conclusión angosta —medida para un
+caso donde reintentar genuinamente no cambia nada (`metodo_no_habilitado`)— aplicada ancha
+—a un caso donde reintentar sí tendría sentido (rechazo del emisor), si el mecanismo lo
+permitiera—, y escrita en el código como decisión YA CERRADA. Es la misma forma que el caso, ya
+conocido, de medir un identificador de banco contra una cuenta y concluir sobre el método
+entero, y que el caso de citar una lectura de documentación como si fuera una medición. Lo que
+agrava esta instancia es DÓNDE vive: no en un asiento ni en un reporte, sino en un comentario
+del código y en la prosa de un ledger ya cerrado — el lugar exacto donde alguien va a buscar si
+la pregunta "¿esto ya se decidió?" tiene respuesta, y va a encontrar que sí.
+
+**Lo que este slice NO hace**: no construye el mecanismo de reintento (crear un intento nuevo
+cuando el anterior cerró `FALLIDO`, o alguna otra forma). Es explícitamente la próxima decisión
+de producto, fuera de este slice — se deja abierta como open_followup, con id
+**`CHECKOUT-REINTENTO-MECANISMO-1`**: ¿qué hace el comprador cuando el emisor rechaza su
+tarjeta? — decisión de producto (RULING_NEEDED), no de este slice.
+
+### 2b · La gemela, en el otro repositorio — no verificada desde acá
+
+Mientras se escribía el spec de este slice, una guarda del ORQUESTADOR (no de este repo — vive
+en el repositorio de las herramientas del protocolo dev-protocol) rechazó un spec que citaba una
+referencia de sección con el símbolo `§` (p. ej. "§4"), leyéndola como si fuera una cifra escrita
+a mano sobre el repositorio en vez de un puntero a una sección. El comentario de esa guarda YA
+declaraba que las referencias de sección debían ignorarse como estructura del spec, pero su
+código sólo cubría UNA de las dos formas en que un spec puede citar una sección — la otra forma
+quedó sin cubrir pese a que el comentario prometía cubrirla. Se corrigió el código de esa guarda
+para que hiciera lo que su propio comentario ya afirmaba.
+
+**Es la MISMA forma que §2, en otro material**: un comentario que promete más de lo que el
+código hace (la guarda "ignora las referencias de sección" en general; su código sólo ignoraba
+una de las dos formas), en vez de una conclusión angosta aplicada ancha sobre un caso de
+negocio. Y la ironía que la vuelve memorable: esa guarda rechazó, por este defecto, un spec que
+iba precisamente a censar declaraciones más anchas que su propia implementación — y ella misma
+era una instancia de la misma clase, encontrada en el acto de hacer su trabajo sobre ese tema.
+
+**Esta instancia vive en el OTRO repositorio, no en `coffee-template-app`.** No se verificó
+desde acá —no hay acceso a ese repositorio en esta sesión— y no se presenta como medida por este
+slice: es un `ledger_claim` que viene del spec, registrado acá porque el owner pidió
+explícitamente que las dos formas de la misma clase queden juntas en un solo asiento.
+
+### 3 · El censo de comentarios que declaran cerrado un caso más ancho del que midieron
+
+**Alcance recorrido, explícito**: se buscaron patrones de cierre (`no hay`, `nunca se`, `jamás`,
+`descartado`, `decisión (tomada|cerrada)`) en los subárboles del dinero y del checkout —
+`packages/core/src`, `app/api/{checkout,webhooks,cron,orders,comprobantes,inventory,products,
+shippings}`, `lib/{checkout,pagos}`, `components/storefront/checkout`,
+`services/checkout.service.ts` — **105 apariciones**, revisadas una por una contra su alcance
+medido. **NO se recorrió** el resto de `app/api` (rutas de admin), `components/admin`, el resto
+de `lib/`, ni `packages/design-system` — este censo es PARCIAL, acotado a donde el owner pidió
+empezar.
+
+**Un segundo hallazgo de la misma familia, más leve y más honesto que el de §2** —
+`components/storefront/checkout/interpretar-respuesta-otro-metodo.ts:36-42`:
+
+> `metodo_no_habilitado` se devuelve como su PROPIO caso […] aunque hoy los dos se muestren
+> igual en pantalla […] este formulario NO ofrece un camino de salida distinto para el rechazo
+> estructural (`SelectorMetodoPasarela` no le pasa `onMetodoNoHabilitado` — decisión ya tomada,
+> § el reporte del slice), así que no hay UI propia que construir acá.
+
+**Qué midió**: que hoy nadie construyó una salida propia para `metodo_no_habilitado` en el
+camino Nequi/otro-método (a diferencia de tarjeta, que sí cae a la confirmación manual, §2).
+**Qué declara**: "decisión ya tomada" — leído junto al comentario de `checkout/page.tsx:75-76`
+(§2), un lector puede concluir que el caso está resuelto de la misma forma para los dos
+caminos. **Qué queda sin volver a preguntarse por eso**: si `metodo_no_habilitado` en el camino
+Nequi también debería caer a la confirmación manual (como tarjeta), o si de verdad amerita una
+respuesta distinta. A diferencia de §2, este comentario SÍ se declara reversible en su propia
+frase ("quien reciba este resultado puede decidir distinto sin tener que volver a tocar esta
+función") — no es una conclusión cerrada disfrazada de cerrada, es una conclusión abierta que
+un lector apurado podría leer como cerrada por la vecindad con la frase de tarjeta. Se anota
+como candidato de la misma familia, no como una instancia tan grave como §2, con id
+**`CHECKOUT-OTRO-METODO-SIN-SALIDA-1`**: ¿el rechazo `metodo_no_habilitado` en el camino Nequi/
+otro-método debería caer a la misma confirmación manual que ya usa tarjeta? — decisión de
+producto, no de este slice.
+
+**Ningún otro de los 105 resultó ser una conclusión angosta aplicada ancha.** La gran mayoría
+son afirmaciones LOCALES y correctamente acotadas ("sin referencia no hay por dónde ubicar el
+intento", "sin secreto no hay forma de verificar ningún evento", "FALLIDO no toca la Order
+porque no hay decisión de dinero que proteger") — el caso medido y el caso declarado coinciden.
+No se arregló ninguno de los dos hallazgos de este censo: sólo se nombran.
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido sobre el árbol final — **verde**. El diff de este
+slice es EXCLUSIVAMENTE esta entrada de `DECISIONS.md`: ningún archivo de código, test, schema
+ni migración se tocó, así que las cifras de la corrida coinciden con las de las dos entradas
+inmediatamente anteriores de esta misma rama.
+
+**Tier 1 — SÍ aplica**: el spec lo declaró `tier: 1`, `writes: yes`, `approved: yes`
+(`approved-by: owner`, `approval-reason`: el censo del reintento corrió como slice de sólo
+lectura y no dejó asiento; el owner pidió que este slice midiera de nuevo y dejara el asiento, que
+la clase de la conclusión estirada quedara registrada como CLASE —no como anécdota del checkout—,
+y que se censaran más comentarios de la misma forma). **LA APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA
+EL MERGE** — el merge sigue gateado al owner, y este slice para en `AWAITING_APPROVAL` sin
+mergear.
