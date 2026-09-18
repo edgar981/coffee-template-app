@@ -317,6 +317,33 @@ export function urlDeRedireccion(
   return typeof valor === 'string' && valor.length > 0 ? valor : null;
 }
 
+// ── LA RELECTURA — § API-DIRECTA-MECANISMO-REDIRECCION-1 ────────────────────────────────────
+//
+// `urlDeRedireccion` (arriba) YA sabía extraer con el nombre de campo del descriptor; lo que
+// faltaba era el CONSUMIDOR — medido antes de este slice: cero referencias a `urlDeRedireccion`
+// fuera de este archivo y su test (§ el reporte del slice, §0). Esta función es la primera
+// pieza de ese consumidor: dada la lista CRUDA que devuelve `consultarTransaccionesPorReferencia`
+// (`lib/pagos/wompi-api.ts`) para una referencia —que puede traer MÁS de una transacción si hubo
+// más de un intento de crear la transacción para la misma referencia—, prueba cada una en el
+// orden en que llegaron y devuelve la PRIMERA con una dirección utilizable.
+//
+// `null` — nunca un error — cuando NINGUNA transacción de la lista trae la dirección todavía
+// (incluida la lista vacía, § "la regla del array vacío" que ya usa el reconciliador:
+// `200 {"data":[]}` no es un veredicto, es "sigue sin aparecer"). El LLAMADOR decide qué hacer
+// con ese `null` — reintentar con el backoff, o rendirse al llegar al techo (§A del reporte del
+// slice: "si la dirección no aparece, NO inventes un veredicto") — esta función sólo mira lo que
+// YA HAY en la respuesta que se le pasó, nunca vuelve a consultar por su cuenta.
+export function urlDeRedireccionEnLista(
+  descriptor: DescriptorMetodoPasarela,
+  transacciones: Record<string, unknown>[],
+): string | null {
+  for (const transaccion of transacciones) {
+    const url = urlDeRedireccion(descriptor, transaccion);
+    if (url) return url;
+  }
+  return null;
+}
+
 function soloDigitos(valor: string): string {
   return valor.replace(/\D/g, '');
 }

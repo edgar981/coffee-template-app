@@ -329,6 +329,21 @@ export interface DatosCreacionTransaccion {
   acceptanceToken: string;
   acceptPersonalAuthToken: string;
   threeDsAuth?: Record<string, unknown>;
+  /** § API-DIRECTA-MECANISMO-REDIRECCION-1 — LA DIRECCIÓN A LA QUE EL PROVEEDOR DEBE DEVOLVER
+   *  AL COMPRADOR tras completar el pago fuera del checkout. OPCIONAL a este nivel, igual que
+   *  `threeDsAuth`: SOLO presente cuando el descriptor del método declara `redireccion`
+   *  (`lib/pagos/metodos-pasarela.ts`) — hoy, NINGÚN descriptor real la declara, así que este
+   *  campo nunca viaja en producción todavía.
+   *
+   *  NOMBRE DE CAMPO NO MEDIDO CONTRA EL SANDBOX — misma salvedad que ya llevan `three_ds_auth`/
+   *  `browser_*` en este archivo: `redirect_url`, TOP-LEVEL (junto a `payment_method`, no
+   *  anidado dentro), es la convención pública documentada del proveedor para métodos
+   *  asíncronos (PSE y similares), LEÍDA, no confirmada contra una transacción real — ningún
+   *  spike de este programa tuvo un tipo con redirección habilitado en la cuenta que probó
+   *  (§ el reporte del slice de API-DIRECTA-CATALOGO-METODOS-ASIENTO-1, "lo que no se pudo
+   *  medir"). El gate visual del owner, contra el sandbox real con un método que SÍ redirija, es
+   *  lo que confirma o corrige esto — igual que ya es el caso para el desafío 3DS. */
+  redirectUrl?: string;
 }
 
 /** El status HTTP + el cuerpo TAL CUAL de Wompi — sin interpretar. La interpretación es de
@@ -377,6 +392,10 @@ export async function crearTransaccion(
         // (todo lo que no es tarjeta, hoy). Nombre de campo NO MEDIDO — ver
         // `lib/pagos/tres-ds.ts`.
         ...(datos.threeDsAuth ? { three_ds_auth: datos.threeDsAuth } : {}),
+        // § API-DIRECTA-MECANISMO-REDIRECCION-1: ausente para todo método que no navega afuera
+        // (todos, hoy — ningún descriptor real declara `redireccion`). Nombre de campo NO
+        // MEDIDO — ver el docstring de `DatosCreacionTransaccion.redirectUrl`, arriba.
+        ...(datos.redirectUrl ? { redirect_url: datos.redirectUrl } : {}),
       }),
       signal: controller.signal,
     });

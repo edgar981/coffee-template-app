@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import AceptacionesPasarela from './AceptacionesPasarela';
 import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
+import EsperaRedireccionPasarela from './EsperaRedireccionPasarela';
 import { interpretarRespuestaOtroMetodo } from './interpretar-respuesta-otro-metodo';
 import type { AceptacionesWompi } from '@/types/payment';
 import { type DescriptorMetodoPasarela, camposVisibles, esAmbientePruebasPorLlave } from '@/lib/pagos/metodos-pasarela';
@@ -47,6 +48,16 @@ import { formatCOP } from '@duna/core/utils';
  *
  * § CHECKOUT-UNA-SOLA-PANTALLA-1: MISMO CAMBIO QUE `FormularioTarjeta` — ya no recibe
  * `reference`; la orden se crea al apretar "Pagar", vía `crearOrdenPasarela` (idempotente).
+ *
+ * § API-DIRECTA-MECANISMO-REDIRECCION-1: TRAS CREAR, LA RANURA DE ESPERA SE ELIGE POR EL
+ * DESCRIPTOR, NO POR UN NUEVO CAMPO DEL SERVIDOR. `descriptor.redireccion` (dimensión C,
+ * `lib/pagos/metodos-pasarela.ts`) YA LE DICE a este componente si el tipo navega afuera del
+ * checkout — el cliente no necesita que `PATCH /api/checkout` se lo repita. Con
+ * `redireccion` declarada, la espera es `EsperaRedireccionPasarela` (sondea hasta encontrar la
+ * dirección y saca al comprador); sin ella, sigue siendo `EsperaConfirmacionTarjeta` (sondea
+ * hasta que el pago se confirme), byte-idéntico a como ya funcionaba NEQUI (sin
+ * `redireccion`). Ningún tipo real declara `redireccion` todavía (§ el reporte del slice) — esta
+ * rama es alcanzable hoy sólo por su forma, no por ningún comprador real.
  */
 export interface FormularioOtroMetodoPasarelaProps {
   descriptor: DescriptorMetodoPasarela;
@@ -159,12 +170,16 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
   if (creada) {
     return (
       <div className="bg-[var(--sf-superficie)] rounded-xl p-4">
-        <EsperaConfirmacionTarjeta
-          reference={creada.reference}
-          email={email}
-          resultado3ds={creada.resultado3ds}
-          desafioHtml={creada.desafioHtml}
-        />
+        {descriptor.redireccion ? (
+          <EsperaRedireccionPasarela reference={creada.reference} tipo={descriptor.tipo} />
+        ) : (
+          <EsperaConfirmacionTarjeta
+            reference={creada.reference}
+            email={email}
+            resultado3ds={creada.resultado3ds}
+            desafioHtml={creada.desafioHtml}
+          />
+        )}
       </div>
     );
   }

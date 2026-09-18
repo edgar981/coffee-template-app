@@ -202,6 +202,23 @@ export interface ResultadoCreacionTransaccionOtroMetodo {
   error: string;
 }
 
+// La respuesta de `POST /api/pasarela/redireccion` (§ API-DIRECTA-MECANISMO-REDIRECCION-1): UN
+// intento de RELECTURA de la transacción, buscando la dirección externa a la que hay que mandar
+// al comprador para un método que navega fuera del checkout (dimensión C de
+// `lib/pagos/metodos-pasarela.ts`, `RedireccionMetodoPasarela` — "la creación de la transacción
+// no devuelve la dirección; aparece DESPUÉS, releyendo la transacción", medido,
+// API-DIRECTA-PSE-SPIKE-ASIENTO-1).
+//
+// `url: null` ES EL CASO NORMAL "todavía no aparece" — NUNCA un error ni un veredicto de fallo:
+// el cliente (`components/storefront/checkout/EsperaRedireccionPasarela.tsx`) decide, con el
+// MISMO backoff que ya reusa de `lib/pagos/tres-ds.ts`, si reintenta o se rinde al llegar al
+// techo. Un fallo TRANSITORIO de la consulta (red, timeout) es una respuesta DISTINTA
+// (`{ error }`, 502) — nunca se aplana contra `url: null`, para no confundir "sigue sin
+// aparecer" con "no se pudo ni preguntar".
+export interface ResultadoRedireccionPasarela {
+  url: string | null;
+}
+
 // A registered payment as returned by the ledger endpoint. `monto` is the order
 // total snapshotted at registration; `order` is a light live snapshot for display.
 export interface Payment {

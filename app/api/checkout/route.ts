@@ -20,6 +20,10 @@ import { DESCRIPTORES_METODO_PASARELA } from '@/lib/pagos/metodos-pasarela';
 import type { AceptacionesWompi } from '@/types/payment';
 import { pasarelaDisponibleEnEsteDespliegue } from '@/services/checkout.service';
 import { esDespliegueDemo } from '@/next.config';
+// § API-DIRECTA-MECANISMO-REDIRECCION-1: la MISMA ruta de retorno que ya usa el camino del
+// widget (`PagoPasarela.tsx`, § WOMPI-WIDGET-EN-EL-CANONICO-1) — un solo lugar para el nombre
+// de esa ruta, para que un cambio no tenga que sincronizarse entre los dos caminos.
+import { RUTA_RETORNO_WOMPI } from '@/components/storefront/checkout/PagoPasarela';
 import prisma from '@duna/core';
 
 // La moneda del store es COP, sin selector: es lo único que el checkout maneja
@@ -500,13 +504,32 @@ export async function PATCH(req: NextRequest) {
   // ── EL BLOQUE PROPIO DEL MÉTODO — lo único que cambia entre tarjeta y cualquier otro tipo
   // (§ API-DIRECTA-ENVIO-GENERICO-1). El `else` narrowea a la variante de tarjeta porque el
   // `if` de arriba ya cubrió — y siempre retorna en— la variante `metodoPasarela`.
-  const datos = 'metodoPasarela' in parsed.data
+  const datosBase = 'metodoPasarela' in parsed.data
     ? construirDatosCreacionTransaccion(
         comunes,
         DESCRIPTORES_METODO_PASARELA[parsed.data.metodoPasarela.tipo],
         parsed.data.metodoPasarela.dato,
       )
     : construirDatosCreacionTransaccionTarjeta(comunes, parsed.data.tokenTarjeta, parsed.data.datosNavegador3ds);
+
+  // § API-DIRECTA-MECANISMO-REDIRECCION-1: SÓLO para un tipo que declara `redireccion`
+  // (dimensión C, `lib/pagos/metodos-pasarela.ts`) — hoy NINGÚN descriptor real la declara
+  // (`campo.redireccion` NO MEDIDO contra el sandbox, ver el docstring de
+  // `DatosCreacionTransaccion.redirectUrl`, `lib/pagos/wompi-api.ts`), así que esta rama nunca
+  // se ejercita todavía. TARJETA nunca cae acá: no vive en `DESCRIPTORES_METODO_PASARELA`
+  // (§ metodos-pasarela.ts, "TARJETA NO VIVE EN ESTE REGISTRO"), así que no tiene `redireccion`
+  // que declarar. La dirección de retorno es `/checkout/retorno` (§ WOMPI-RUTA-DE-RETORNO-1,
+  // YA EXISTE — no se toca) con `?reference=`, el segundo dato que esa ruta necesita del
+  // comprador (el primero, el correo, lo teclea él mismo al volver).
+  const descriptorElegido = 'metodoPasarela' in parsed.data
+    ? DESCRIPTORES_METODO_PASARELA[parsed.data.metodoPasarela.tipo]
+    : null;
+  const datos = descriptorElegido?.redireccion
+    ? {
+        ...datosBase,
+        redirectUrl: `${req.nextUrl.origin}${RUTA_RETORNO_WOMPI}?reference=${encodeURIComponent(reference)}`,
+      }
+    : datosBase;
 
   let respuestaCruda: Awaited<ReturnType<typeof crearTransaccion>>;
   try {

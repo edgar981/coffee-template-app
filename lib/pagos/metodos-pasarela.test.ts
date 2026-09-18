@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   cruzarMetodosPasarela, DESCRIPTOR_NEQUI, DESCRIPTORES_METODO_PASARELA, metodosPasarelaParaComprador,
   checkoutSabeDibujar, TIPOS_NO_COBRABLES, esNoCobrable, paraElPanel,
-  camposVisibles, esAmbientePruebasPorLlave, urlDeRedireccion, conCampoLegacy,
+  camposVisibles, esAmbientePruebasPorLlave, urlDeRedireccion, urlDeRedireccionEnLista, conCampoLegacy,
   agruparMetodosPasarelaPorInstrumento, ORDEN_GRUPOS_METODO_PASARELA,
   ETIQUETA_PAGO_PASARELA, subtituloPagoPasarela,
   type DescriptorMetodoPasarela, type CampoMetodoPasarela,
@@ -224,6 +224,52 @@ test('dimensión C — urlDeRedireccion: null si el campo declarado vino con un 
   assert.equal(urlDeRedireccion(descriptor, { url: 123 }), null);
   assert.equal(urlDeRedireccion(descriptor, { url: '' }), null);
   assert.equal(urlDeRedireccion(descriptor, {}), null);
+});
+
+// -- urlDeRedireccionEnLista — § API-DIRECTA-MECANISMO-REDIRECCION-1: EL CONSUMIDOR que la
+// dimensión C tenía declarada pero nadie llamaba. UN CUARTO nombre de campo, distinto de los
+// tres que ya usa este archivo (`direccion_de_pago_banco_digital`, `async_payment_url`,
+// `redirect_url`) — probarlo con un nombre repetido volvería a probar el caso particular, y el
+// nombre VARIABLE es justo la trampa que el mecanismo tiene que esquivar (§2 del reporte). --
+
+const DESCRIPTOR_REDIRECCION_EN_LISTA: DescriptorMetodoPasarela = {
+  tipo: 'REDIRECT_EN_LISTA_DE_PRUEBA', nombreVisible: 'De prueba (nunca ofrecido)', grupo: 'billeteras',
+  campos: [CAMPO_TEXTO_DE_PRUEBA],
+  redireccion: { campoUrl: 'pasarela_redireccion_href' },
+  construirPaymentMethod: () => ({ type: 'REDIRECT_EN_LISTA_DE_PRUEBA' }),
+  campo: CAMPO_TEXTO_DE_PRUEBA,
+};
+
+test('urlDeRedireccionEnLista: lista vacía → null, nunca un error — "sigue sin aparecer", no un veredicto', () => {
+  assert.equal(urlDeRedireccionEnLista(DESCRIPTOR_REDIRECCION_EN_LISTA, []), null);
+});
+
+test('urlDeRedireccionEnLista: ninguna transacción de la lista trae el campo → null', () => {
+  assert.equal(
+    urlDeRedireccionEnLista(DESCRIPTOR_REDIRECCION_EN_LISTA, [
+      { id: 't1', status: 'PENDING' },
+      { id: 't2', status: 'PENDING', otro_campo: 'https://no-es-el-que-declara-el-descriptor.co' },
+    ]),
+    null,
+  );
+});
+
+test('urlDeRedireccionEnLista: la PRIMERA transacción que trae el campo declarado gana', () => {
+  assert.equal(
+    urlDeRedireccionEnLista(DESCRIPTOR_REDIRECCION_EN_LISTA, [
+      { id: 't1', status: 'PENDING' },
+      { id: 't2', status: 'PENDING', pasarela_redireccion_href: 'https://banco.example/pagar/t2' },
+      { id: 't3', status: 'PENDING', pasarela_redireccion_href: 'https://banco.example/pagar/t3' },
+    ]),
+    'https://banco.example/pagar/t2',
+  );
+});
+
+test('urlDeRedireccionEnLista: sin redireccion declarada en el descriptor → siempre null, sin importar la lista', () => {
+  assert.equal(
+    urlDeRedireccionEnLista(DESCRIPTOR_NEQUI, [{ id: 't1', status: 'PENDING', pasarela_redireccion_href: 'https://x.co' }]),
+    null,
+  );
 });
 
 // -- El campo SOLO-DE-PRUEBAS (§2 del spike) — no se renderiza fuera del ambiente de pruebas --
