@@ -407,6 +407,19 @@ export function checkoutSabeDibujar(tipo: string): boolean {
  * acá tampoco prueba que un tipo SEA cobrable, sólo que nadie lo vio rechazar siempre todavía. Y
  * si un tipo ya listado pasara a ser cobrable en el sandbox, esta lista no se entera sola: hay
  * que volver a medir y quitarlo a mano.
+ *
+ * **CORRECCIÓN (`CORRECCION-BANCOLOMBIA-AGREGADOR-1`, DECISIONS.md, 2026-09-17):** el asiento que
+ * registró este hallazgo (`API-DIRECTA-CATALOGO-METODOS-ASIENTO-1`) medía sólo el IDENTIFICADOR
+ * `BANCOLOMBIA` y lo escribió como si dijera algo del BANCO — una medición angosta reportada como
+ * afirmación ancha. El owner lo desmintió con evidencia propia (paga con ese banco habitualmente y
+ * su panel del proveedor muestra el método activo) y un re-spike
+ * (`API-DIRECTA-SPIKE-COBRABLES-Y-NOMBRES-1`) confirmó las DOS cosas a la vez: el identificador a
+ * secas SIGUE sin poder crearse (la creación rechaza el TIPO por inválido, no por "la cuenta no lo
+ * tiene" — esa distinción se había perdido), Y al menos DOS identificadores HERMANOS del mismo
+ * banco (con sufijo sobre el mismo nombre) SÍ crearon la transacción con éxito. **Con ese banco SE
+ * COBRA.** Esta lista sigue teniendo razón sobre `BANCOLOMBIA`: ese identificador exacto nunca se
+ * puede encender. Lo que cambia es que "no cobrable" describe SÓLO a este identificador — nunca al
+ * banco que agrupa.
  */
 export const TIPOS_NO_COBRABLES: ReadonlySet<string> = new Set<string>(['BANCOLOMBIA']);
 

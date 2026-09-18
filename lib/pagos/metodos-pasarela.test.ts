@@ -437,6 +437,15 @@ test('checkoutSabeDibujar: un tipo cualquiera que el registro no conoce → fals
   assert.equal(checkoutSabeDibujar('BANCOLOMBIA_COLLECT'), false);
 });
 
+// CORRECCIÓN (`CORRECCION-BANCOLOMBIA-AGREGADOR-1`, DECISIONS.md, 2026-09-17): estos tres tests
+// siguen afirmando lo mismo que antes de la corrección — el identificador `BANCOLOMBIA` a secas
+// sigue sin poder crearse nunca, y `paraElPanel` sigue clasificándolo `no_cobrable` — porque ESO
+// no cambió. Lo que cambió es la INTERPRETACIÓN: "no_cobrable" describe sólo a este identificador,
+// no al banco. Con ese banco SÍ se cobra, por identificadores hermanos (con sufijo) que un
+// re-spike (`API-DIRECTA-SPIKE-COBRABLES-Y-NOMBRES-1`) vio crear la transacción con éxito — ningún
+// hermano tiene descriptor ni entra a este registro todavía, así que no hay una aserción nueva que
+// escribir acá; la corrección vive en el docstring de `TIPOS_NO_COBRABLES` y en el texto del panel
+// (`components/admin/DatosNegocioSeccion.tsx`).
 test('TIPOS_NO_COBRABLES: BANCOLOMBIA, y sólo BANCOLOMBIA — el identificador nombrado por API-DIRECTA-CATALOGO-NOMBRA-TIPO-1 (§ el docstring)', () => {
   assert.deepEqual([...TIPOS_NO_COBRABLES], ['BANCOLOMBIA']);
 });

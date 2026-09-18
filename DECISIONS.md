@@ -5624,3 +5624,106 @@ Regla: un contrato que enumera los casos que tenía a mano, en vez de describir 
 habitan, deja afuera lo que todavía no se ha visto y no avisa que lo dejó afuera — la única diferencia
 entre encontrarle el borde por las malas (fallando en producción) o por las buenas (una medición antes
 de construir) es si alguien miró el espacio de casos antes de que el mundo se lo señalara.
+
+## 2026-09-17 — BANCOLOMBIA no es "no cobrable": es una etiqueta de agrupación, y con ese banco SÍ se
+cobra por otros identificadores — una medición angosta reportada como afirmación ancha
+(`CORRECCION-BANCOLOMBIA-AGREGADOR-1`)
+
+### 0 · Por qué este asiento existe, y la clase del error que corrige
+
+El asiento del catálogo de métodos (`API-DIRECTA-CATALOGO-METODOS-ASIENTO-1`, con su corrección de
+nombre `API-DIRECTA-CATALOGO-NOMBRA-TIPO-1` — los dos viven en `main`, **no son ancestros de esta
+rama**: `slice/api-directa-panel-metodos-1` divergió de `main` antes de que esos dos commits
+aterrizaran ahí, así que este asiento no puede citar su texto literal y lo cita por ID) midió que el
+identificador `BANCOLOMBIA` **rechaza siempre** la creación de una transacción, con cualquier
+combinación de campos. Esa medición es correcta, y es ANGOSTA: mide un identificador.
+
+Se escribió — y el panel de métodos la heredó (`PANEL-LISTA-NO-COBRABLES-1`, título "No disponible
+para cobrar") — como si dijera algo ANCHO: que con ese banco no se cobra. **Eso es FALSO.**
+
+**QUIÉN LO ENCONTRÓ:** el owner, con evidencia PROPIA — paga con ese banco habitualmente, y el panel
+del proveedor le muestra ese método activo. No fue una revisión de quien escribió el asiento
+original; fue el dueño usando su propia cuenta. El owner ordenó re-medir.
+
+**LA CLASE, para que quede como regla y no como incidente de un banco:** una medición angosta
+reportada como afirmación general. No falló la medición —el identificador sigue rechazando siempre—;
+falló CÓMO SE ESCRIBIÓ, y el error llegó a dos lugares: a `main` (el asiento) y al panel que ve el
+dueño (la etiqueta).
+
+### 1 · Lo medido — el re-spike (`API-DIRECTA-SPIKE-COBRABLES-Y-NOMBRES-1`)
+
+Igual que los spikes read-only anteriores de este programa, éste no deja rastro propio: lo que midió
+vive en los registros del orquestador y es incitable hasta que alguien lo escribe (la misma regla que
+ya fijó `API-DIRECTA-SPIKES-ASIENTO-1`). Este slice **no tiene acceso a red**: no re-verifica nada de
+lo que sigue contra el proveedor — lo transcribe, con su origen.
+
+- **El identificador `BANCOLOMBIA` a secas SIGUE sin ser un tipo creable.** La creación lo rechaza
+  diciendo que el TIPO no es válido — distinto de "esta cuenta no tiene este método". Esa distinción
+  —tipo inválido vs. cuenta sin el método— es la que el asiento original perdió al escribir sólo
+  "rechaza siempre".
+- **Los identificadores HERMANOS, con sufijo sobre el mismo nombre de banco, SÍ se cobran.** Al menos
+  DOS se crearon con éxito. Con ese banco se cobra.
+- **Hay evidencia de CUÁL hermano corresponde al botón que el dueño ve en su panel, y no es por
+  parecido de nombre:** al crear la transacción con ese identificador, el proveedor devuelve una
+  dirección de redirección que contiene ese mismo nombre de flujo.
+- **DOS hermanos quedaron SIN CLASIFICAR** — no se pudo pasar su validación de forma. **NO MEDIDO**:
+  no se afirma nada sobre ellos, ni que cobren ni que no.
+
+### 2 · La raíz — por qué esto pasó, y por qué puede volver a pasar si no se nombra
+
+**El proveedor NO devuelve, en ningún endpoint, un nombre legible por una persona para sus tipos de
+método.** El campo de nombre repite el identificador de máquina. La tabla de traducción entre lo que
+el dueño ve en SU panel (el del proveedor) y lo que la API llama **no existe del lado de la
+máquina** — sólo puede salir del panel del dueño.
+
+Estábamos cruzando dos vocabularios sin tabla de traducción, y eso produce conclusiones falsas **por
+construcción**, no por descuido. Cualquier hallazgo futuro sobre "qué identificador corresponde a qué
+botón del panel del proveedor" corre el mismo riesgo mientras esa tabla no exista — no hay forma de
+resolverlo desde el código, sólo desde el panel del dueño.
+
+### 3 · Lo que se corrige, y lo que NO
+
+- **El hecho medido no cambia:** `BANCOLOMBIA` (el identificador exacto) sigue sin poder crearse
+  nunca. `TIPOS_NO_COBRABLES` (`lib/pagos/metodos-pasarela.ts`) se queda con esa única entrada — su
+  docstring gana la corrección, citando este asiento, aclarando que describe el IDENTIFICADOR, nunca
+  el banco.
+- **La etiqueta del panel** (`EXPLICACION_NO_ENCENDIBLE.no_cobrable.titulo`,
+  `components/admin/DatosNegocioSeccion.tsx`) cambia de "No disponible para cobrar" —que un dueño lee
+  como "no puedo cobrar con este banco"— a un texto corto que dice lo que es: una etiqueta de
+  agrupación del proveedor, no un método. **TEXTO PROVISIONAL, PENDIENTE DE TEXTO DEL OWNER**, mismo
+  criterio que el resto del copy de este programa.
+- **NO se renombran `esNoCobrable` / `TIPOS_NO_COBRABLES` / el estado `no_cobrable` del enum
+  (`EstadoMetodoPasarela`).** Los usa `lib/config/site-settings-schema.ts` (fuera de `touches` de
+  este slice), y los tres nombres siguen siendo literalmente ciertos sobre el IDENTIFICADOR
+  `BANCOLOMBIA` — nunca se puede crear una transacción con ese tipo. Lo falso no era el nombre del
+  código: era la interpretación ancha que el asiento y el panel dejaban pasar sin decir "esto es del
+  identificador, no del banco". Renombrar esos símbolos habría exigido tocar
+  `lib/config/site-settings-schema.ts` (el refine que usa `esNoCobrable` y su mensaje "Hay un método
+  de pasarela que tu cuenta no puede cobrar", que tiene el MISMO problema de framing) — abre un
+  `open_followup`, no se hace acá.
+- **No se agregan descriptores nuevos, no se activa ningún método nuevo, no se toca el servidor de
+  dinero ni el esquema.**
+
+### 4 · El límite, sin suavizar
+
+Esto sigue midiéndose contra UNA cuenta, como el asiento original. Los DOS hermanos sin clasificar
+siguen sin clasificar. Que dos hermanos cobren no prueba que TODOS los hermanos cobren, ni que el
+patrón se sostenga en otra cuenta con otra configuración — sólo que "con ese banco no se cobra" era
+falso para la cuenta medida.
+
+### 5 · Verificación
+
+`lib/pagos/metodos-pasarela.test.ts` sigue afirmando exactamente lo mismo que antes sobre
+`BANCOLOMBIA`: cae en `no_cobrable`, sigue sin ser encendible, y el servidor lo sigue rechazando al
+guardar (`siteSettingsEditableSchema`) — ese comportamiento NO cambió, y no había ninguna aserción
+que reescribir. Lo que gana es un comentario que documenta la corrección al lado de esos tests, para
+que la próxima lectura no vuelva a leer "no_cobrable" como "no se cobra con este banco".
+
+**GATE, los dos carriles, verde.**
+
+Regla: un hallazgo medido contra UNA cuenta describe lo que midió — un identificador, un campo, un
+tipo — y la escritura tiene que quedarse en ese alcance. Generalizar de "este identificador rechaza
+siempre" a "con este banco no se cobra" es el mismo salto que ya cerró este ledger en otras formas —de
+un test que enumera los ejemplos que tenía a mano a "el espacio de casos", de un spike que midió un
+tipo a "el catálogo entero"—, y esta vez el salto llegó hasta el panel que ve el dueño antes de que
+alguien lo revisara. Quien mide un caso, escribe ESE caso.

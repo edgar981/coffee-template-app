@@ -241,13 +241,21 @@ function renderPasarelaSoloLectura(guardado: string[]) {
 // —nombre + explicación, y "Quitar" SOLO si el tipo sigue en lo guardado— y sólo difieren en el
 // TEXTO. Los textos son del OWNER. `no_cobrable` PERDIÓ su párrafo de detalle
 // (§ CHECKOUT-COPY-Y-ORDEN-PASARELA-1, 2026-09-17): queda sólo el título, sin la frase de abajo.
+//
+// CORRECCIÓN (`CORRECCION-BANCOLOMBIA-AGREGADOR-1`, DECISIONS.md, 2026-09-17): el título de
+// `no_cobrable` decía "No disponible para cobrar" — una frase que el dueño lee como "no puedo
+// cobrar con este banco", y eso es FALSO: con ese banco SÍ se cobra, por otros identificadores
+// (§ CORRECCION-BANCOLOMBIA-AGREGADOR-1, DECISIONS.md). Lo que sigue siendo cierto es que ESTE
+// identificador no se puede encender: no es un método, es una etiqueta de agrupación del
+// proveedor — el título nuevo dice ESO, no "no cobrable". TEXTO PROVISIONAL, PENDIENTE DE TEXTO
+// DEL OWNER, como el resto del copy de este programa.
 const EXPLICACION_NO_ENCENDIBLE: Record<
   Exclude<EstadoMetodoPasarela, 'disponible' | 'disponible_no_ofrecido'>,
   { titulo: string; detalle?: string }
 > = {
   guardado_no_disponible: { titulo: 'Ya no está disponible en tu cuenta.' },
   no_implementado:        { titulo: 'Disponible pronto' },
-  no_cobrable:            { titulo: 'No disponible para cobrar' },
+  no_cobrable:            { titulo: 'Es una etiqueta agregadora del proveedor, no un método propio' },
 };
 
 // EDICIÓN, cuenta 'ok': un checkbox por método ENCENDIBLE (la cuenta lo tiene, el checkout sabe
