@@ -6529,3 +6529,218 @@ lo declaró `tier: 1` con `writes: yes` y `approved: yes` (`approved-by: owner`,
 `approval-reason`: el owner vio el defecto en el panel el 2026-09-18 y propuso la palabra; se usó la
 que el mapa ya tenía en su lugar, y el owner la confirmó). **LA APROBACIÓN AUTORIZA LA ESCRITURA,
 NUNCA EL MERGE** — el merge sigue gateado al owner.
+
+## 2026-09-18 — La lista Tier 1 recupera las tres superficies que le faltaban, y la auditoría del
+owner sobre si algún slice pasó por la puerta abierta, y si un detector automático puede reemplazar
+a quien mantiene la lista (`TIER1-LISTA-VENCIDA-2`)
+
+### 0 · Qué pidió el owner, y qué se hizo
+
+`COBRO-SIN-PEDIDO-ASIENTO-1` (arriba, mismo día) midió que `packages/core/src/pagos/
+aplicar-resultado-wompi.ts`, `packages/core/src/pagos/reconciliador.ts` y `app/api/cron/automations/
+route.ts` cumplen el criterio de Tier 1 —dos son deciders de la puerta de Wompi, el tercero es su
+puerta HTTP— y no estaban en la lista. El owner leyó ese hallazgo y decidió que los tres entran; no
+hay nada que evaluar sobre SI entran. Pidió tres cosas más: (a) decidir la GRANULARIDAD —archivos
+sueltos o el subárbol que los contiene—, mirando el directorio entero, no asumiendo; (b) una
+auditoría medida de si algún slice escribió por la puerta que quedó abierta entre el 2026-09-15 (cuando
+los tres nacieron) y hoy; y (c) la respuesta, con su costo, a si el detector automático de puertas de
+dinero del protocolo (`tier1_puertas`) puede derivar esta lista en vez de que alguien la mantenga a
+mano.
+
+Se hizo: los tres entraron a `CLAUDE.md` (`packages/core/src/pagos/` como SUBÁRBOL, `app/api/cron/
+automations/route.ts` como archivo suelto); la auditoría se re-corrió con órdenes de git propias y
+coincidió con la de `COBRO-SIN-PEDIDO-ASIENTO-1`; y la pregunta sobre `tier1_puertas` se contestó
+midiendo el propio código de los tres archivos, no repitiendo lo que el spec ya afirmaba.
+
+### 1 · La auditoría — verificada de nuevo, con órdenes propias, y coincide
+
+`git log --all --oneline -- <archivo>` sobre los tres, corrido en esta sesión:
+
+| archivo | commits (todo `--all`) | fecha(s) |
+| --- | --- | --- |
+| `packages/core/src/pagos/aplicar-resultado-wompi.ts` | `9abdc5b` (único) | 2026-09-15 |
+| `packages/core/src/pagos/reconciliador.ts` | `9abdc5b` (único) | 2026-09-15 |
+| `app/api/cron/automations/route.ts` | `9abdc5b` + `5cb71c8` | 2026-09-15 y 2026-07-28 |
+
+Coincide exactamente con lo que `COBRO-SIN-PEDIDO-ASIENTO-1` había medido y el spec citó. **Ningún
+commit posterior al 2026-09-15 toca ninguno de los tres.** `git log --oneline 9abdc5b..HEAD | wc -l`
+da **71 commits** entre el nacimiento de `packages/core/src/pagos/` y el HEAD de hoy —la rama trae
+consigo el programa entero de API directa/checkout que corrió en paralelo, no sólo los cinco commits
+más recientes del eje de Wompi—; de esos 71, CERO tocan alguno de los tres archivos (confirmado por
+el `git log --all` por-archivo de la tabla de arriba, que ya los enumera completos). **Respuesta al
+owner: ningún slice escribió por la puerta que quedó abierta.** Eso es una respuesta buena, pero no
+borra que la puerta estuvo abierta del 2026-09-15 al 2026-09-18 (3 días) sin la doble etapa que el
+resto de la ruta del dinero ya tiene.
+
+**Límite de esta auditoría, dicho:** un `git log` mide este repositorio. No mide si alguien, en esos
+tres días, tocó estos archivos fuera de un commit —trabajo local sin commitear, una sesión que los
+leyó sin escribir, o cualquier cosa que no deje rastro en `git`—; tampoco mide nada de lo que pudo
+pasar en el otro repositorio (dev-protocol) que orquesta estos slices. Es evidencia de que NINGÚN
+COMMIT los tocó, no de que NADIE los miró.
+
+### 2 · La granularidad — subárbol para `packages/core/src/pagos/`, archivo suelto para el cron
+
+Se abrió el directorio y se miró TODO lo que vive ahí, no se asumió:
+
+```
+packages/core/src/pagos/
+├── aplicar-resultado-wompi.ts   (10.770 bytes)
+└── reconciliador.ts             (11.510 bytes)
+```
+
+**Los dos son deciders de dinero, sin excepción — homogéneo hoy.** Pero el argumento para el SUBÁRBOL
+no es el conteo de hoy (dos archivos, los dos en alcance): es la frontera arquitectónica que el
+propio repo ya documenta en `§ Monorepo` — `packages/core` es "schema + cliente Prisma + data-access
+de DOMINIO", mientras que el reporte, la presentación y las utilidades de UI viven en `lib/` (nivel
+app). Un archivo nuevo que nazca en `packages/core/src/pagos/` nace, POR ESA FRONTERA, siendo
+data-access de dominio de pagos — no puede nacer siendo un bucketeo de gráfico o una frase de
+encabezado, porque ESO vive en `lib/pagos/` (ya evaluado como subárbol y DESCARTADO en la
+re-medición del 2026-09-14, exactamente por mezclar deciders con reporte). Es el mismo argumento que
+ya sostiene a `lib/checkout/` como subárbol ("un archivo nuevo en este directorio nace… para ser
+consultado por esa misma puerta de dinero"), aplicado a la mitad `packages/core` de la misma puerta.
+
+Se verificó que `packages/core/src/` YA usa subdirectorios como agrupación por CONCERN —no es una
+convención inventada para este slice—: `notifications/`, `metrics/` y `validation/` ya existen ahí
+junto a `pagos/`, cada uno agrupando un tema de dominio. `pagos/` es uno más de esos, y su tema
+(pagos) es, por construcción del propio criterio de Tier 1, la ruta del dinero.
+
+**`app/api/cron/automations/route.ts` entra como ARCHIVO SUELTO, no como subárbol.** No hay
+directorio que evaluar: es una sola ruta HTTP, el mismo tipo de entrada que las otras nueve rutas
+`app/api/*` ya listadas. Mezcla dos cosas en el MISMO archivo —el paso de automatizaciones
+(mensaje-céntrico, ajeno al dinero) y el paso del reconciliador de Wompi (la puerta que corre
+`correrReconciliador`)—, pero eso no cambia la granularidad: la puerta HTTP entera entra, igual que
+`app/api/orders/route.ts` ya entraba entero aunque maneje más que sólo el eje de cobro.
+
+### 3 · La ironía — la doctrina describía este modo de falla, y falló igual
+
+`CLAUDE.md` ya dice, en la misma sección que hoy se corrige: *"ESTA LISTA VENCE — es una medición con
+fecha, no una garantía perpetua… Una lista vencida no avisa que dejó de cubrir: el gate de Tier 1
+sigue corriendo en VERDE sobre un conjunto que encogió… acá vencer es peor: no confunde a quien lee,
+DEJA PASAR."* Y venció igual: la re-medición anterior (`TIER1-LISTA-VENCIDA-1`) es del 2026-09-14; los
+tres archivos nacieron el 2026-09-15, UN DÍA DESPUÉS de haberse re-medido como cierta. La distancia
+entre "se verificó que la lista estaba al día" y "la lista quedó corta" fue de 24 horas.
+
+**La clase, con las palabras del owner:** una advertencia escrita sobre un mecanismo no es un
+mecanismo. Es la hermana de "una guarda escrita no es una guarda corrida", aplicada a una guarda que
+predijo su propia falla y no pudo evitarla.
+
+**Y hay una vuelta más, medida en este slice y no en el anterior:** de los tres archivos, DOS
+(`aplicar-resultado-wompi.ts` y `app/api/cron/automations/route.ts`) ya estaban siendo reportados por
+un detector automático (`tier1_puertas`, del protocolo dev-protocol) — el spec que dispatchó este
+slice trae esa salida medida contra este repo HOY: cuatro rutas candidatas, incluidas esas dos, y NO
+`reconciliador.ts`. Así que la lección es más dura que "faltaba un mecanismo": para dos de los tres,
+**el mecanismo existía y funcionaba**. Lo que faltaba era que algo BLOQUEARA sobre su salida — un
+detector que sólo se imprime cuando alguien corre el comando de estado del despachador, y que nada
+lee ni gatea, no es un gate: es una advertencia con más pasos.
+
+### 4 · Por qué el detector ve dos de los tres y no al reconciliador — medido en el código, no en el spec
+
+El spec citó, como medido en `COBRO-SIN-PEDIDO-ASIENTO-1`, que `tier1_puertas` busca un patrón de
+EJECUCIÓN —llamadas `prisma.<tabla>.<create|update|delete|upsert>` o `tx.<tabla>.<…>`— y no explica
+por qué el reconciliador queda afuera. Se verificó grepeando los tres archivos en esta sesión:
+
+| archivo | llamadas `prisma.`/`tx.` directas a `create/update/delete/upsert` |
+| --- | --- |
+| `aplicar-resultado-wompi.ts` | SÍ — `tx.paymentIntent.updateMany(...)`, línea 152 |
+| `app/api/cron/automations/route.ts` | SÍ — `prisma.paymentIntent.updateMany(...)`, líneas 60 y 83 |
+| `reconciliador.ts` | **CERO** — ningún `prisma.` ni `tx.` en todo el archivo |
+
+**`reconciliador.ts` no tiene ni una sola llamada `prisma.`/`tx.` porque nunca importa Prisma.** Todas
+sus escrituras pasan por un parámetro `db: ReconciliadorDb` INYECTADO —`db.paymentIntent.updateMany`,
+`db.cerrarVencido`— el mismo patrón de dependency injection que usa todo `packages/core` para poder
+testear su lógica sin una base real (documentado en la propia cabecera del archivo: "packages/core
+NO importa de lib/"). El patrón `db.<algo>.updateMany` no matchea `prisma.` ni `tx.`, así que un
+detector que busca el patrón EJECUTOR literal es estructuralmente ciego a esta función — no por un
+bug del detector, sino porque `reconciliador.ts` es, por diseño, la mitad CONSULTORA de la puerta: la
+función que DECIDE si `aplicarResultadoWompi` corre, no la que ejecuta el `UPDATE`.
+
+**Esto mapea exacto al propio criterio de Tier 1** (`CLAUDE.md`, línea ~11-13): *"cada puerta de
+escritura de stock, pagos y pedidos, Y la función que esa puerta CONSULTA para decidir si la
+escritura procede y con qué valor — no sólo el handler que la ejecuta."* `tier1_puertas` implementa
+sólo la primera mitad (el handler que ejecuta, vía el patrón `prisma./tx.` + verbo de escritura). La
+segunda mitad —la función CONSULTORA— es exactamente la que dejó pasar a `reconciliador.ts`. No es
+que el detector esté mal: cubre medio criterio, y la mitad que le falta es la que importa acá.
+
+### 5 · La respuesta al owner, con costo — ¿puede el detector derivar la lista?
+
+**No hoy, y no sin trabajo adicional que tiene su propio precio.** Tres caminos, sin elegir:
+
+1. **Lista de nombres de funciones decisoras** (p. ej. `registerOrderPaymentTx`, `aplicarResultado*`)
+   que el detector busca como LLAMADAS, no como ejecuciones literales — barato de escribir (una lista
+   más al lado de la de tablas del eje), pero repite el MISMO defecto que esta lista Tier 1 tiene hoy:
+   una lista de nombres a mano que vence cada vez que nace una función decisora nueva. No cierra la
+   clase, la mueve un nivel.
+2. **Call-graph real** (qué función llama a qué, transitivo, hasta encontrar un `prisma.`/`tx.` de
+   escritura N saltos abajo) — cierra la clase de verdad, pero es una herramienta de otro orden: un
+   grep de un archivo no alcanza, hace falta un analizador de AST/tipos que siga imports entre
+   módulos. Semanas, no horas; y sigue siendo del otro repositorio (dev-protocol), no de éste.
+3. **Detección por FORMA DEL PARÁMETRO INYECTADO**: buscar, con un analizador consciente de tipos
+   (no grep plano), cualquier función que reciba un parámetro cuyo TIPO declare métodos
+   `create/update/delete/upsert` sobre una tabla del eje —`db: ReconciliadorDb` calificaría aunque
+   nunca llame a `prisma.` directo—. Costo medio: más que grep, mucho menos que un call-graph
+   completo, porque no necesita seguir la cadena entera —sólo leer la firma de la función y el shape
+   del tipo del parámetro.
+
+**La decisión de granularidad del §2 YA resuelve parte de esto, sin tocar el detector.** Con
+`packages/core/src/pagos/` como subárbol protegido, CUALQUIER archivo que nazca ahí —decisor o
+ejecutor, visible o invisible para `tier1_puertas`— ya está cubierto por la doctrina, porque la
+protección la da la RUTA, no el patrón de código que el detector reconoce. Eso cierra el hueco
+ESPECÍFICO que dejó pasar a `reconciliador.ts` sin que el detector aprenda nada nuevo. **Lo que NO
+cierra**: un decider de dinero nuevo que nazca FUERA de un subárbol o archivo ya protegido —por
+ejemplo, una función consultora nueva como archivo suelto en `packages/core/src/` (no bajo `pagos/`)
+o en `app/api/`— seguiría siendo invisible para `tier1_puertas` de la misma manera que
+`reconciliador.ts` lo fue, hasta que alguien la note y la agregue a mano, con el mismo riesgo de
+vencimiento que motivó este slice. El detector sigue siendo una señal útil para la mitad EJECUTORA
+—encontró dos de tres sin que nadie se lo pidiera—, no un sustituto de la re-medición manual.
+
+### 6 · Los otros dos candidatos que el detector reportó — nombrados, no decididos
+
+El spec trae, medido HOY contra este repo por `tier1_puertas`, que además de `aplicar-resultado-
+wompi.ts` y `app/api/cron/automations/route.ts` el detector devuelve otras DOS rutas fuera de la
+lista Tier 1: `packages/core/src/order-transitions.ts` y `app/api/products/[id]/route.ts`. Ninguna de
+las dos es parte del alcance de este slice (`touches: CLAUDE.md, DECISIONS.md`, y sólo sobre los tres
+archivos que el owner ya decidió) y este worker no decide por ellas. Contexto mínimo, medido de paso
+en esta sesión sin profundizar: `order-transitions.ts` tiene al menos una escritura directa
+(`tx.orderStatusTransition.create`, línea 38) que matchea el patrón EJECUTOR del detector — es
+coherente con que `tier1_puertas` lo haya encontrado. Quedan nombrados para que la próxima
+re-medición de la lista Tier 1 los evalúe contra el criterio (¿son puerta de escritura de dinero/
+stock/pedidos, o la función que esa puerta consulta?), no para que se asuma que califican.
+
+### 7 · Limitación declarada — no se pudo correr el validador ni el detector desde esta sesión
+
+El spec (§1) pidió medir, ejecutando el validador de specs de dev-protocol, que un spec que tocara
+`packages/core/src/pagos/` o `app/api/cron/automations/route.ts` ahora DISPARA el gate de Tier 1, y
+que ANTES de este cambio no disparaba — las dos direcciones. **No se pudo hacer.** Esta sesión está
+en un sandbox restringido al working directory de `coffee-template-app`: un intento de `find`/`ls`
+fuera de él (buscando el repositorio dev-protocol, donde vive ese validador y el detector
+`tier1_puertas`) fue rechazado por la herramienta misma con el mensaje *"Claude Code may only search
+files in the allowed working directories for this session"*. No hay ruta de red tampoco (no hay
+credencial ni URL de un servicio que exponga esa herramienta) — la única vía disponible (`node` +
+`fetch`) no tiene nada que alcanzar sin esa ubicación.
+
+**Esto es una limitación real, no un detalle omitido.** No se pudo verificar, en esta sesión, que la
+entrada nueva en `CLAUDE.md` efectivamente cambia el comportamiento del validador de specs ni del
+detector `tier1_puertas`. Lo que SÍ se verificó, con herramientas dentro de este repo: (a) el texto
+agregado sigue el MISMO patrón léxico que las entradas existentes que sí disparan hoy (mismo formato
+de ruta, mismas comillas invertidas, mismo verbo "entran"/"protegidas" que el resto de la lista), y
+(b) el contenido semántico de los tres archivos —confirmado leyendo el código— cumple el criterio
+escrito en la cabecera de la sección. Ninguna de las dos cosas es una PRUEBA de que el validador los
+reconoce; son el máximo que se pudo verificar sin acceso a la herramienta que efectivamente los lee.
+El owner y la próxima re-medición deben saber esto: la lista quedó corregida en TEXTO, sin
+confirmación de que el MECANISMO la lee — que es, con ironía, el mismo modo de falla que motivó este
+slice (§3).
+
+### Gate
+
+**`npm run gate`, los dos carriles — corrido sobre el árbol final, verde.** Fast lane (`npm test`):
+1435/1435. Carril de integración (`npm run test:integracion`, Postgres efímero): 208/208. Mismas
+cifras que el asiento anterior de esta misma rama (`RECORRIDO-ENVIO-NO-CREADO-1`) — coherente con que
+el diff de este slice toca SÓLO `CLAUDE.md` y esta entrada de `DECISIONS.md`: ningún código de
+producto, ningún test, ningún schema, ninguna migración, ningún endpoint HTTP.
+
+**Tier 1 — SÍ aplica** por herencia de la rama y porque el spec lo declaró `tier: 1` con `writes: yes`
+y `approved: yes` (`approved-by: owner`, `approval-reason`: el owner leyó el hallazgo de
+`COBRO-SIN-PEDIDO-ASIENTO-1` y decidió que los tres archivos entran; pidió además la auditoría y la
+respuesta con costo sobre `tier1_puertas` que este asiento trae en §§1-6). **LA APROBACIÓN AUTORIZA
+LA ESCRITURA, NUNCA EL MERGE** — el merge sigue gateado al owner, y este slice para en
+`AWAITING_APPROVAL` sin mergear, tal como el dispatch lo exige.

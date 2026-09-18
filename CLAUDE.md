@@ -24,7 +24,7 @@ alcance es GENÉRICO y su conexión con la puerta es INDIRECTA, y por eso se que
 AFUERA de la lista: ponerle dos etapas a una utilidad de fechas de todo el
 producto, por una entre tantas cadenas que la consultan, sería proteger de más.
 
-Tier 1 slices run in a separate read-only session first, then a second stage that writes only after the owner's explicit go, over these measured surfaces: packages/core/prisma/schema.prisma, packages/core/prisma/migrations/, lib/config/site-content-schema.ts, lib/config/site-content-defaults.ts, app/(storefront)/, packages/core/src/inventory.ts, packages/core/src/fulfillment.ts, packages/core/src/product-update.ts, packages/core/src/product-import.ts, packages/core/src/moliendas-opciones.ts, packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/shipping-transition.ts, lib/checkout/metodos-pago.ts, lib/pagos/wompi-firma.ts, app/api/checkout/route.ts, app/api/inventory/adjust/route.ts, app/api/orders/[id]/payments/route.ts, app/api/orders/route.ts, app/api/orders/[id]/address/route.ts, app/api/comprobantes/[id]/route.ts, app/api/shippings/route.ts and app/api/webhooks/wompi/route.ts.
+Tier 1 slices run in a separate read-only session first, then a second stage that writes only after the owner's explicit go, over these measured surfaces: packages/core/prisma/schema.prisma, packages/core/prisma/migrations/, lib/config/site-content-schema.ts, lib/config/site-content-defaults.ts, app/(storefront)/, packages/core/src/inventory.ts, packages/core/src/fulfillment.ts, packages/core/src/product-update.ts, packages/core/src/product-import.ts, packages/core/src/moliendas-opciones.ts, packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/shipping-transition.ts, lib/checkout/metodos-pago.ts, lib/pagos/wompi-firma.ts, app/api/checkout/route.ts, app/api/inventory/adjust/route.ts, app/api/orders/[id]/payments/route.ts, app/api/orders/route.ts, app/api/orders/[id]/address/route.ts, app/api/comprobantes/[id]/route.ts, app/api/shippings/route.ts, app/api/cron/automations/route.ts and app/api/webhooks/wompi/route.ts.
 
 **LA LISTA TAMBIÉN GANA SUBÁRBOLES — una lista de rutas literales no puede cubrir un archivo que
 todavía no existe.** El criterio de arriba está escrito en términos de SIGNIFICADO (bytes del
@@ -49,6 +49,17 @@ bajo la MISMA precondición read-only/segunda-etapa que los archivos de arriba:
   (`transferencia.ts`). Un archivo nuevo en este directorio nace, por lo que el directorio YA ES,
   para ser consultado por esa misma puerta de dinero — no es la utilidad genérica que excluye a
   `timezone.ts` arriba.
+- **`packages/core/src/pagos/`** — nació el 2026-09-15 (`9abdc5b`, `WOMPI-RECONCILIADOR-HI-1`) con
+  DOS archivos, los dos deciders de la puerta de Wompi: `aplicar-resultado-wompi.ts` es la ÚNICA
+  función de toda la base que escribe `estado: 'APROBADO'` en un `PaymentIntent`, dentro de la MISMA
+  transacción que crea el `Payment` — decide si un resultado de Wompi se convierte en plata, y con
+  qué monto—; `reconciliador.ts` es la que CONSULTA la API de Wompi para decidir si un intento
+  `EN_VUELO` cierra `APROBADO`/`FALLIDO` y con ello si la primera corre. **No es `lib/pagos/`**, ya
+  evaluado y descartado arriba por mezclar la función que consulta una puerta con utilidades de
+  REPORTE: éste es un directorio de `packages/core/src/`, la capa de DATA-ACCESS de DOMINIO
+  (§ Monorepo) — no la app-level donde vive el reporte—, así que un archivo nuevo ahí nace para ser
+  data-access de dominio de pagos, no la utilidad genérica que excluye a `timezone.ts`. Homogéneo por
+  la frontera arquitectónica del paquete, no por el conteo de archivos de hoy.
 
 **LA PRECEDENCIA: UN ARCHIVO NOMBRADO GANA SOBRE EL SUBÁRBOL QUE LO CONTENGA.** Un subárbol nuevo no
 puede tragarse en silencio una exclusión ya decidida por su propio nombre. `packages/core/src/
@@ -91,6 +102,25 @@ cierre procede—; ninguno de los dos existía el 2026-09-12. Se sumó también
 orden se escriba; antes de ese commit el checkout validaba contra un enum propio, sin depender de
 este archivo. Las 20 rutas ya listadas se verificaron existentes y sin cambios que las saquen del
 criterio; no se retiró ninguna.
+
+**Re-medida el 2026-09-18** (`TIER1-LISTA-VENCIDA-2`), contra la medición del **2026-09-14**
+(`TIER1-LISTA-VENCIDA-1`, arriba): el MISMO día 2026-09-15 que `ff9dda8` conectó
+`app/api/webhooks/wompi/route.ts` a `registerOrderPaymentTx` (§ COBRO-SIN-PEDIDO-ASIENTO-1,
+`DECISIONS.md`), otro commit del mismo día —`9abdc5b`, `WOMPI-RECONCILIADOR-HI-1`— hizo nacer
+`packages/core/src/pagos/` (dos archivos, los dos deciders de esa misma puerta) y conectó
+`app/api/cron/automations/route.ts` —existía desde el 2026-07-28 (`5cb71c8`) sin ese llamador— al
+reconciliador como su puerta HTTP. Ninguno de los tres entró a la lista en la re-medición del
+2026-09-14, un día antes de nacer: la propia lista vencida por la razón que ella misma predice
+(§ arriba, "ESTA LISTA VENCE… no confunde a quien lee, deja pasar"). Verificado con `git log --all`
+sobre cada archivo: `aplicar-resultado-wompi.ts` y `reconciliador.ts` tienen UN SOLO commit en toda
+su historia (`9abdc5b`); `app/api/cron/automations/route.ts` tiene ese mismo más `5cb71c8`; ningún
+commit posterior los tocó — la puerta quedó abierta del 2026-09-15 al 2026-09-18 sin que otro slice
+escribiera por ella. `packages/core/src/pagos/` entró como SUBÁRBOL (arriba, mismo criterio que
+`lib/checkout/`); `app/api/cron/automations/route.ts` entró como archivo suelto, en la lista de la
+línea de arriba. La auditoría completa, por qué el detector automático de puertas
+(`tier1_puertas`, del protocolo dev-protocol) vio dos de los tres y no al reconciliador, y la
+respuesta con costo a si ese detector puede derivar esta lista en vez de que alguien la mantenga,
+viven en `DECISIONS.md`, `TIER1-LISTA-VENCIDA-2`.
 
 **Re-medir esta lista cada vez que la ruta del dinero gane una puerta o una función consultada
 nueva** — no esperar a una auditoría programada. `git diff <última-medición>..HEAD -- app/api/
