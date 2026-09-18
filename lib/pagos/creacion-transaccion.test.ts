@@ -44,96 +44,98 @@ test('200 con la misma forma también cuenta como creada (por si el proveedor no
 });
 
 test('firma AUSENTE (422 INPUT_VALIDATION_ERROR) → firma_invalida, con el texto transcrito del libro', () => {
-  const r = clasificarCreacionTransaccion({
-    status: 422,
-    body: {
-      error: {
-        type:     'INPUT_VALIDATION_ERROR',
-        messages: { signature: ['Firma de integridad requerida no enviada'] },
-      },
+  const cuerpo = {
+    error: {
+      type:     'INPUT_VALIDATION_ERROR',
+      messages: { signature: ['Firma de integridad requerida no enviada'] },
     },
-  });
-  assert.deepEqual(r, { tipo: 'firma_invalida', motivo: 'Firma de integridad requerida no enviada' });
+  };
+  const r = clasificarCreacionTransaccion({ status: 422, body: cuerpo });
+  assert.deepEqual(r, { tipo: 'firma_invalida', motivo: 'Firma de integridad requerida no enviada', cuerpoCrudo: cuerpo });
 });
 
 test('firma ALTERADA (422 INPUT_VALIDATION_ERROR) → firma_invalida, con un mensaje DISTINTO al de ausencia', () => {
-  const r = clasificarCreacionTransaccion({
-    status: 422,
-    body: {
-      error: {
-        type:     'INPUT_VALIDATION_ERROR',
-        messages: { signature: ['La firma es inválida'] },
-      },
+  const cuerpo = {
+    error: {
+      type:     'INPUT_VALIDATION_ERROR',
+      messages: { signature: ['La firma es inválida'] },
     },
-  });
-  assert.deepEqual(r, { tipo: 'firma_invalida', motivo: 'La firma es inválida' });
+  };
+  const r = clasificarCreacionTransaccion({ status: 422, body: cuerpo });
+  assert.deepEqual(r, { tipo: 'firma_invalida', motivo: 'La firma es inválida', cuerpoCrudo: cuerpo });
 });
 
 test('método NO HABILITADO (404 NOT_FOUND_ERROR) → metodo_no_habilitado, con el motivo que nombra el tipo exacto', () => {
-  const r = clasificarCreacionTransaccion({
-    status: 404,
-    body: {
-      error: {
-        type:   'NOT_FOUND_ERROR',
-        reason: 'No hay una identidad de pago para BRE_B configurada para este comercio',
-      },
+  const cuerpo = {
+    error: {
+      type:   'NOT_FOUND_ERROR',
+      reason: 'No hay una identidad de pago para BRE_B configurada para este comercio',
     },
-  });
+  };
+  const r = clasificarCreacionTransaccion({ status: 404, body: cuerpo });
   assert.deepEqual(r, {
     tipo:   'metodo_no_habilitado',
     motivo: 'No hay una identidad de pago para BRE_B configurada para este comercio',
+    cuerpoCrudo: cuerpo,
   });
 });
 
 test('SIN CREDENCIAL (401 INVALID_ACCESS_TOKEN) → otro_fallo, no se descarta el caso aunque no debería ocurrir', () => {
-  const r = clasificarCreacionTransaccion({
-    status: 401,
-    body: {
-      error: {
-        type:   'INVALID_ACCESS_TOKEN',
-        reason: 'Se esperaba una llave pública o privada pero no se recibió ninguna',
-      },
+  const cuerpo = {
+    error: {
+      type:   'INVALID_ACCESS_TOKEN',
+      reason: 'Se esperaba una llave pública o privada pero no se recibió ninguna',
     },
-  });
+  };
+  const r = clasificarCreacionTransaccion({ status: 401, body: cuerpo });
   assert.deepEqual(r, {
     tipo:   'otro_fallo',
     status: 401,
     motivo: 'Se esperaba una llave pública o privada pero no se recibió ninguna',
+    cuerpoCrudo: cuerpo,
   });
 });
 
-test('422 INPUT_VALIDATION_ERROR sin mensaje de `signature` → otro_fallo (validación de OTRO campo, no la firma)', () => {
-  const r = clasificarCreacionTransaccion({
-    status: 422,
-    body: {
-      error: {
-        type:     'INPUT_VALIDATION_ERROR',
-        messages: { amount_in_cents: ['El monto es requerido'] },
+test('422 INPUT_VALIDATION_ERROR sin mensaje de `signature` → otro_fallo (validación de OTRO campo, no la firma), Y EL CUERPO COMPLETO — con TODOS los campos que Wompi enumeró — sigue viajando en `cuerpoCrudo` aunque `motivo` sea el genérico', () => {
+  const cuerpo = {
+    error: {
+      type:     'INPUT_VALIDATION_ERROR',
+      messages: {
+        amount_in_cents:        ['El monto es requerido'],
+        'payment_method.type':  ['payment_method.type debe ser uno de: CARD, NEQUI, PSE, BANCOLOMBIA_TRANSFER'],
       },
     },
-  });
+  };
+  const r = clasificarCreacionTransaccion({ status: 422, body: cuerpo });
   assert.equal(r.tipo, 'otro_fallo');
   assert.equal((r as { status: number }).status, 422);
+  // `motivo` es el recorte genérico (no hay `error.reason` en un 422 de validación) — no dice
+  // nada de los DOS campos que Wompi sí enumeró. Es justo lo que `cuerpoCrudo` existe para no
+  // perder (§ PASARELA-LOG-CUERPO-DEL-ERROR-1).
+  assert.equal((r as { motivo: string }).motivo, 'Wompi respondió 422 al crear la transacción.');
+  assert.deepEqual((r as { cuerpoCrudo: unknown }).cuerpoCrudo, cuerpo);
 });
 
-test('201 con éxito pero sin la forma esperada (sin `data`, o `data` incompleto) → otro_fallo, nunca "creada" a medias', () => {
-  const sinData = clasificarCreacionTransaccion({ status: 201, body: {} });
+test('201 con éxito pero sin la forma esperada (sin `data`, o `data` incompleto) → otro_fallo, nunca "creada" a medias, con el cuerpo completo en `cuerpoCrudo`', () => {
+  const cuerpoSinData = {};
+  const sinData = clasificarCreacionTransaccion({ status: 201, body: cuerpoSinData });
   assert.equal(sinData.tipo, 'otro_fallo');
+  assert.deepEqual((sinData as { cuerpoCrudo: unknown }).cuerpoCrudo, cuerpoSinData);
 
-  const dataIncompleta = clasificarCreacionTransaccion({
-    status: 201,
-    body:   { data: { id: 'trx-3' } }, // falta status y amount_in_cents
-  });
+  const cuerpoIncompleto = { data: { id: 'trx-3' } }; // falta status y amount_in_cents
+  const dataIncompleta = clasificarCreacionTransaccion({ status: 201, body: cuerpoIncompleto });
   assert.equal(dataIncompleta.tipo, 'otro_fallo');
+  assert.deepEqual((dataIncompleta as { cuerpoCrudo: unknown }).cuerpoCrudo, cuerpoIncompleto);
 });
 
-test('un cuerpo irreconocible (network 500 sin sobre `error`, o `null`) → otro_fallo, con el status', () => {
+test('un cuerpo irreconocible (network 500 sin sobre `error`, o `null`) → otro_fallo, con el status y el cuerpo (aunque sea `null` o texto) tal cual llegó', () => {
   const r1 = clasificarCreacionTransaccion({ status: 500, body: null });
-  assert.deepEqual(r1, { tipo: 'otro_fallo', status: 500, motivo: 'Wompi respondió 500 al crear la transacción.' });
+  assert.deepEqual(r1, { tipo: 'otro_fallo', status: 500, motivo: 'Wompi respondió 500 al crear la transacción.', cuerpoCrudo: null });
 
   const r2 = clasificarCreacionTransaccion({ status: 503, body: 'Service Unavailable' });
   assert.equal(r2.tipo, 'otro_fallo');
   assert.equal((r2 as { status: number }).status, 503);
+  assert.equal((r2 as { cuerpoCrudo: unknown }).cuerpoCrudo, 'Service Unavailable');
 });
 
 // ── LA CLASIFICACIÓN NO CAMBIA PARA UN MÉTODO QUE NO ES TARJETA (§ API-DIRECTA-OTROS-
@@ -143,32 +145,79 @@ test('un cuerpo irreconocible (network 500 sin sobre `error`, o `null`) → otro
 // (arriba, con la tarjeta) o de cualquier otro tipo. ──────────────────────────────────────────
 
 test('método NO HABILITADO para NEQUI (404 NOT_FOUND_ERROR) → metodo_no_habilitado, MISMA forma que para tarjeta', () => {
-  const r = clasificarCreacionTransaccion({
-    status: 404,
-    body: {
-      error: {
-        type:   'NOT_FOUND_ERROR',
-        reason: 'No hay una identidad de pago para NEQUI configurada para este comercio',
-      },
+  const cuerpo = {
+    error: {
+      type:   'NOT_FOUND_ERROR',
+      reason: 'No hay una identidad de pago para NEQUI configurada para este comercio',
     },
-  });
+  };
+  const r = clasificarCreacionTransaccion({ status: 404, body: cuerpo });
   assert.deepEqual(r, {
     tipo:   'metodo_no_habilitado',
     motivo: 'No hay una identidad de pago para NEQUI configurada para este comercio',
+    cuerpoCrudo: cuerpo,
   });
 });
 
 test('firma inválida al crear una transacción de NEQUI → firma_invalida, MISMA forma que para tarjeta', () => {
-  const r = clasificarCreacionTransaccion({
-    status: 422,
-    body: {
-      error: {
-        type:     'INPUT_VALIDATION_ERROR',
-        messages: { signature: ['La firma es inválida'] },
+  const cuerpo = {
+    error: {
+      type:     'INPUT_VALIDATION_ERROR',
+      messages: { signature: ['La firma es inválida'] },
+    },
+  };
+  const r = clasificarCreacionTransaccion({ status: 422, body: cuerpo });
+  assert.deepEqual(r, { tipo: 'firma_invalida', motivo: 'La firma es inválida', cuerpoCrudo: cuerpo });
+});
+
+// ── EL CUERPO COMPLETO DEL RECHAZO LLEGA AL RESULTADO QUE EL LLAMADOR REGISTRA, Y NUNCA UN
+// CAMPO DE TARJETA (§ PASARELA-LOG-CUERPO-DEL-ERROR-1) ──────────────────────────────────────
+
+test('cuerpoCrudo lleva el CUERPO COMPLETO del rechazo — un 422 real ENUMERA varios campos con sus valores aceptados (MEDIDO, § API-DIRECTA-SPIKES-ASIENTO-1), y ninguno se pierde aunque `motivo` sólo pueda nombrar uno', () => {
+  const cuerpoDelProveedor = {
+    error: {
+      type:     'INPUT_VALIDATION_ERROR',
+      messages: {
+        amount_in_cents:       ['El monto es requerido'],
+        'payment_method.type': [
+          'payment_method.type debe ser uno de: CARD, NEQUI, PSE, BANCOLOMBIA_TRANSFER, BANCOLOMBIA_COLLECT',
+        ],
       },
     },
+  };
+  const r = clasificarCreacionTransaccion({ status: 422, body: cuerpoDelProveedor });
+  assert.equal(r.tipo, 'otro_fallo');
+  assert.deepEqual((r as { cuerpoCrudo: unknown }).cuerpoCrudo, cuerpoDelProveedor);
+  // el cuerpo completo trae los DOS campos enumerados; `motivo` no puede nombrar ninguno de
+  // los dos (no hay `error.reason` en un 422 de validación) — es exactamente lo que se perdía.
+  const cuerpoComoTexto = JSON.stringify((r as { cuerpoCrudo: unknown }).cuerpoCrudo);
+  assert.ok(cuerpoComoTexto.includes('amount_in_cents'));
+  assert.ok(cuerpoComoTexto.includes('BANCOLOMBIA_TRANSFER'));
+});
+
+test('cuerpoCrudo NUNCA puede llevar un dato de tarjeta: la función que lo produce sólo recibe la RESPUESTA de Wompi, nunca `datos`/`payment_method`', () => {
+  // El token de tarjeta vive en `datos.paymentMethod.token`, armado por
+  // `construirDatosCreacionTransaccionTarjeta` — esa función NUNCA se le pasa a
+  // `clasificarCreacionTransaccion`, cuya firma sólo toma `{status, body}`
+  // (`RespuestaCrudaTransaccion`). Se arma acá, en el MISMO scope, para demostrar que aunque
+  // el token exista al lado, no hay ruta por la que llegue al resultado que el llamador va a
+  // registrar (`app/api/checkout/route.ts`).
+  const comunes = {
+    reference: 'r', amountInCents: 1, currency: 'COP', signature: 's',
+    acceptanceToken: 'a', acceptPersonalAuthToken: 'b',
+  };
+  const datosConTarjeta = construirDatosCreacionTransaccionTarjeta(
+    comunes, 'tok_secreto_de_tarjeta_jamas_debe_salir', NAVEGADOR_DE_PRUEBA,
+  );
+  assert.ok(JSON.stringify(datosConTarjeta).includes('tok_secreto_de_tarjeta_jamas_debe_salir'));
+
+  // La respuesta de Wompi (lo único que clasificarCreacionTransaccion recibe) es una respuesta
+  // de rechazo REAL, sin ningún dato de tarjeta — como toda respuesta de error del proveedor.
+  const r = clasificarCreacionTransaccion({
+    status: 404,
+    body: { error: { type: 'NOT_FOUND_ERROR', reason: 'El método de pago no está habilitado para esta cuenta.' } },
   });
-  assert.deepEqual(r, { tipo: 'firma_invalida', motivo: 'La firma es inválida' });
+  assert.equal(JSON.stringify(r).includes('tok_secreto_de_tarjeta_jamas_debe_salir'), false);
 });
 
 // ── `construirDatosCreacionTransaccion` (LEGACY, un solo dato) — LA CREACIÓN, ARMADA CON LA

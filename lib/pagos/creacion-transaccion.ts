@@ -51,6 +51,16 @@ import { construirPayloadNavegador3ds } from './tres-ds';
 // dato; `lib/config/site-settings-read.ts` exponiéndolo— la cablee. Ninguno de los dos vive en
 // `touches:` de `API-DIRECTA-DESALINEO-AVISO-1`; queda como `open_followup` de ese slice, no como
 // capacidad terminada.
+//
+// `cuerpoCrudo` (§ PASARELA-LOG-CUERPO-DEL-ERROR-1) — el CUERPO COMPLETO de la respuesta del
+// proveedor, tal cual llegó, en las TRES ramas de rechazo. `motivo` ya existía y es un RECORTE
+// (un solo mensaje, o un `reason` genérico cuando no hay uno específico); un 422 de validación
+// real ENUMERA todos los campos que faltan con sus valores aceptados (MEDIDO,
+// § API-DIRECTA-SPIKES-ASIENTO-1), y ese detalle se perdía porque nada lo conservaba más allá de
+// `motivo`. `cuerpoCrudo` es simplemente `respuesta.body` — esta función NUNCA recibe
+// `DatosCreacionTransaccion` (la firma de `clasificarCreacionTransaccion` sólo toma
+// `RespuestaCrudaTransaccion`), así que es ESTRUCTURALMENTE imposible que `cuerpoCrudo` cargue el
+// `payment_method`/token que NOSOTROS mandamos: sólo puede llevar lo que WOMPI respondió.
 
 export interface CreacionCreada {
   tipo: 'creada';
@@ -60,17 +70,20 @@ export interface CreacionCreada {
 export interface CreacionMetodoNoHabilitado {
   tipo: 'metodo_no_habilitado';
   motivo: string;
+  cuerpoCrudo: unknown;
 }
 
 export interface CreacionFirmaInvalida {
   tipo: 'firma_invalida';
   motivo: string;
+  cuerpoCrudo: unknown;
 }
 
 export interface CreacionOtroFallo {
   tipo: 'otro_fallo';
   status: number;
   motivo: string;
+  cuerpoCrudo: unknown;
 }
 
 export type ResultadoCreacionTransaccion =
@@ -103,6 +116,7 @@ export function clasificarCreacionTransaccion(
       tipo:   'otro_fallo',
       status,
       motivo: 'Wompi respondió con éxito pero la transacción no trae la forma esperada.',
+      cuerpoCrudo: body,
     };
   }
 
@@ -113,7 +127,7 @@ export function clasificarCreacionTransaccion(
     const motivo = typeof error?.reason === 'string'
       ? error.reason
       : 'El método de pago no está habilitado para esta cuenta.';
-    return { tipo: 'metodo_no_habilitado', motivo };
+    return { tipo: 'metodo_no_habilitado', motivo, cuerpoCrudo: body };
   }
 
   if (status === 422 && tipoError === 'INPUT_VALIDATION_ERROR') {
@@ -122,14 +136,14 @@ export function clasificarCreacionTransaccion(
       : null;
     const motivoFirma = primerMensaje(messages?.signature);
     if (motivoFirma) {
-      return { tipo: 'firma_invalida', motivo: motivoFirma };
+      return { tipo: 'firma_invalida', motivo: motivoFirma, cuerpoCrudo: body };
     }
   }
 
   const motivoGenerico = typeof error?.reason === 'string'
     ? error.reason
     : `Wompi respondió ${status} al crear la transacción.`;
-  return { tipo: 'otro_fallo', status, motivo: motivoGenerico };
+  return { tipo: 'otro_fallo', status, motivo: motivoGenerico, cuerpoCrudo: body };
 }
 
 // ── LA CREACIÓN, GENERALIZADA A CUALQUIER DESCRIPTOR (§ API-DIRECTA-OTROS-METODOS-1, cableada

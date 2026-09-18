@@ -591,14 +591,37 @@ export async function PATCH(req: NextRequest) {
       } catch (e) {
         console.error('[checkout] no se pudo persistir metodo_rechazado en el intento (aviso del dueño):', e);
       }
-      console.error('[checkout] Wompi rechazó el método de la transacción (no habilitado para la cuenta):', resultado.motivo);
+      // § PASARELA-LOG-CUERPO-DEL-ERROR-1: `resultado.cuerpoCrudo` es el CUERPO COMPLETO de la
+      // respuesta de Wompi (tal cual llegó) — `motivo` es un recorte y a veces no alcanza a
+      // decir la razón exacta. Nunca lleva datos de tarjeta: viene de la RESPUESTA del
+      // proveedor, nunca de `datos`/`payment_method` (lo que NOSOTROS mandamos), que esta rama
+      // ni siquiera tiene en scope.
+      console.error(
+        '[checkout] Wompi rechazó el método de la transacción (no habilitado para la cuenta):',
+        resultado.motivo,
+        resultado.cuerpoCrudo,
+      );
       return NextResponse.json({ tipo: 'metodo_no_habilitado', error: TEXTO_ERROR_GENERICO_TRANSACCION }, { status: 502 });
     }
     case 'firma_invalida':
-      console.error('[checkout] Wompi rechazó la firma de integridad de la transacción:', resultado.motivo);
+      // § PASARELA-LOG-CUERPO-DEL-ERROR-1: mismo criterio que arriba — el cuerpo completo,
+      // nunca datos de tarjeta.
+      console.error(
+        '[checkout] Wompi rechazó la firma de integridad de la transacción:',
+        resultado.motivo,
+        resultado.cuerpoCrudo,
+      );
       return NextResponse.json({ tipo: 'firma_invalida', error: TEXTO_ERROR_GENERICO_TRANSACCION }, { status: 502 });
     case 'otro_fallo':
-      console.error(`[checkout] Wompi respondió ${resultado.status} al crear la transacción:`, resultado.motivo);
+      // § PASARELA-LOG-CUERPO-DEL-ERROR-1: ESTA es la rama que se llevaba la peor parte del
+      // defecto — un 422 de validación que no es de `signature` caía acá con `motivo` genérico
+      // ("Wompi respondió 422...") mientras el cuerpo real enumeraba los campos exactos que
+      // faltaban. Ahora el cuerpo completo viaja con `resultado.cuerpoCrudo`.
+      console.error(
+        `[checkout] Wompi respondió ${resultado.status} al crear la transacción:`,
+        resultado.motivo,
+        resultado.cuerpoCrudo,
+      );
       return NextResponse.json({ tipo: 'otro_fallo', error: TEXTO_ERROR_GENERICO_TRANSACCION }, { status: 502 });
   }
 }
