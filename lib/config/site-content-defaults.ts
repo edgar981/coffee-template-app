@@ -121,6 +121,13 @@ export interface SubscriptionCTAContent {
   bullet3: string;
   bullet4: string;
   ctaLabel: string;
+  // La VARIANTE de composición (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e). 'bloque' (canónica, la de
+  // Nayoli — texto + tarjetas de plan en dos columnas) | 'linea' (franja horizontal condensada: el
+  // gancho, el título y el botón en una línea; el subtítulo y los bullets NO se renderizan en esa
+  // composición, § SubscriptionCTALinea.tsx). Escalar de SECCIÓN —como `visible`—, no un `campos`: no
+  // lo toca el loop requerido/opcional del resolver. Gemela de `hero.variante`/`brandStory.variante`/
+  // `presentaciones.variante`.
+  variante: string;
 }
 
 // Testimonios ("Lo que dicen nuestros clientes"): la PRIMERA sección REPEATER — un encabezado de
@@ -492,6 +499,8 @@ export const DEFAULTS: SiteContentData = {
     bullet3: 'Se renueva automáticamente, sin líos',
     bullet4: 'Pausa o cancela cuando quieras',
     ctaLabel: 'Ver los planes',
+    // La canónica (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e): Nayoli queda byte-idéntica al bloque de hoy.
+    variante: 'bloque',
   },
   testimonials: {
     visible: true,
@@ -782,6 +791,12 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   subscriptionCTA: {
     label: 'Suscripción',
     ocultable: true,
+    // VARIANTES DE COMPOSICIÓN (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e): 'bloque' es la canónica —el
+    // layout de HOY, verbatim (§ SubscriptionCTABloque)—; 'linea' es la nueva (franja horizontal
+    // condensada, § SubscriptionCTALinea). Cuarta sección con `variantes`, tras hero/brandStory/
+    // presentaciones. `noUniformes`: NO — las dos composiciones se apoyan en el fondo SÓLIDO de la
+    // banda (`bg-[var(--sf-banda,var(--sf-tinta-2))]`), ninguna es bi-tonal.
+    variantes: { claves: ['bloque', 'linea'], canonica: 'bloque' },
     // Sin `imagenes`: sección de solo texto. Los bullets son OPCIONALES → vaciarlos los omite (el
     // componente los junta con `.filter`), así que dan "hasta 4" sin hueco, no "4 slots fijos".
     campos: {
