@@ -243,6 +243,11 @@ function digitosAntesDe(valor: string, hasta: number): number {
  * dígitos (o al final si `formateado` tiene menos de `n` dígitos). Un separador nunca "atrapa" el
  * cursor: si el dígito `n` es el último antes de un separador, el cursor queda pegado a ese
  * dígito, nunca del otro lado.
+ *
+ * ESTA REGLA ES PARA EDITAR EN EL MEDIO (§ CHECKOUT-GATE-VISUAL-HALLAZGOS-1, el docstring de
+ * `reformatearCampoTarjeta`) — su llamador la SALTA cuando el cursor está al final de todo lo
+ * tecleado, para que teclear hacia adelante pase cualquier separador recién insertado en vez de
+ * quedar pegado antes de él.
  */
 function cursorTrasNDigitos(formateado: string, n: number): number {
   if (n <= 0) return 0;
@@ -272,12 +277,34 @@ export interface CampoTarjetaFormateado {
  * nada de eventos del DOM, sólo recibe strings y números.
  *
  * Cubre las cuatro formas de editar que le importan a un campo enmascarado:
- * - teclear de corrido: el cursor avanza con cada dígito nuevo, nunca se cae para atrás;
+ * - teclear de corrido: el cursor avanza con cada dígito nuevo, nunca se cae para atrás — y
+ *   PASA cualquier separador que el propio dígito recién tecleado haga aparecer (§ CHECKOUT-
+ *   GATE-VISUAL-HALLAZGOS-1, abajo);
+ * - corregir un dígito del medio: el cursor queda pegado al dígito insertado, nunca arrastrado
+ *   al final del string;
  * - borrar sobre un separador: al borrar el carácter separador el conteo de dígitos ANTES del
  *   cursor no cambia, así que el cursor reformateado queda pegado al dígito de al lado — el
  *   próximo borrado sí quita un dígito real, nunca hace falta borrar "contra la nada";
  * - pegar (con o sin separadores): el cursor pegado al final del pegado cae al final del
  *   resultado reformateado, sin importar cuántos separadores insertó o quitó el formateo.
+ *
+ * § CHECKOUT-GATE-VISUAL-HALLAZGOS-1 (2026-09-18, gate visual del owner): CUANDO EL CURSOR QUEDA
+ * AL FINAL DE TODO LO TECLEADO (no hay ni un dígito más adelante en `valorNuevo` — se está
+ * TECLEANDO HACIA ADELANTE, no editando en el medio), el cursor final es el FINAL DEL RESULTADO
+ * FORMATEADO — incluso si eso implica pasar un separador que el propio dígito recién tecleado
+ * hizo aparecer. La regla de `cursorTrasNDigitos` de abajo ("un separador nunca atrapa el
+ * cursor; éste queda pegado al dígito, nunca del otro lado") es la correcta para EDITAR EN EL
+ * MEDIO —es lo que hace que el próximo borrado quite un dígito real, no la nada— pero aplicada
+ * tal cual a un dígito tecleado AL FINAL deja el cursor ANTES de un separador que el mismo tecleo
+ * insertó: es la misma decisión, medida para un caso (editar en el medio), aplicada a uno más
+ * ancho (seguir tecleando hacia adelante) donde da el resultado contrario al que se quiere.
+ *
+ * Pasa con el VENCIMIENTO al segundo dígito ("12" → "12/", la barra recién aparece ahí): sin este
+ * caso, el cursor quedaba pegado ANTES de la barra — funcionalmente inofensivo (el tercer dígito
+ * cae del lado correcto igual, porque `formatearVencimientoCampo` reinserta la barra en el mismo
+ * lugar) pero se SENTÍA mal, que fue justo lo que el owner reportó. No pasa con el NÚMERO: su
+ * espacio de agrupación aparece ANTES del dígito que lo dispara ("4242 4", nunca "42424 "), así
+ * que un tecleo de corrido nunca queda exactamente en ese límite.
  */
 export function reformatearCampoTarjeta(
   formatear: (valor: string) => string,
@@ -286,5 +313,8 @@ export function reformatearCampoTarjeta(
 ): CampoTarjetaFormateado {
   const digitosAntesDelCursor = digitosAntesDe(valorNuevo, cursorNuevo);
   const valor = formatear(valorNuevo);
+  if (digitosAntesDelCursor === digitosAntesDe(valorNuevo, valorNuevo.length)) {
+    return { valor, cursor: valor.length };
+  }
   return { valor, cursor: cursorTrasNDigitos(valor, digitosAntesDelCursor) };
 }

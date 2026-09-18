@@ -281,10 +281,18 @@ test('número — valor incompleto: cursor sigue al final de lo tecleado', () =>
   assert.equal(r.cursor, 3);
 });
 
+// § CHECKOUT-GATE-VISUAL-HALLAZGOS-1: el gate visual del owner reportó que, al teclear los dos
+// primeros dígitos, el cursor quedaba ANTES de la barra recién insertada (no daba la sensación
+// de haber avanzado), aunque el tercer dígito cayera del lado correcto igual. Este test afirmaba
+// esa misma posición (`cursor === 2`, antes de la barra) bajo un TÍTULO que ya decía lo que
+// debía pasar ("el cursor pasa la barra") — el nombre y la aserción se contradecían. Ahora la
+// aserción seguí al título: el cursor queda DESPUÉS de la barra (posición 3, el final de "12/"),
+// porque el segundo dígito se tecleó AL FINAL de lo escrito, no en el medio (§ el docstring de
+// `reformatearCampoTarjeta`).
 test('vencimiento — teclear de corrido: el cursor pasa la barra recién insertada', () => {
   const r = reformatearCampoTarjeta(formatearVencimientoCampo, '12', 2);
   assert.equal(r.valor, '12/');
-  assert.equal(r.cursor, 2); // pegado al '2', antes de la barra — el próximo dígito cae detrás.
+  assert.equal(r.cursor, 3); // al final, DESPUÉS de la barra — el tercer dígito cae detrás de ella.
 });
 
 test('vencimiento — borrar hacia atrás sobre la barra: no se traba', () => {
@@ -315,6 +323,19 @@ test('vencimiento — valor incompleto: un solo dígito no lleva barra ni mueve 
   const r = reformatearCampoTarjeta(formatearVencimientoCampo, '1', 1);
   assert.equal(r.valor, '1');
   assert.equal(r.cursor, 1);
+});
+
+// § CHECKOUT-GATE-VISUAL-HALLAZGOS-1: el caso que el fix de arriba NO debe romper — corregir un
+// dígito del medio sigue pegando el cursor al dígito insertado, nunca arrastrándolo al final.
+test('vencimiento — corregir un dígito del medio no salta al final', () => {
+  // Valor mostrado "12/26"; el comprador ubica el cursor entre el "1" y el "2" (posición 1) y
+  // teclea "9": el navegador entrega "192/26" con el cursor en 2 (justo después del "9").
+  const r = reformatearCampoTarjeta(formatearVencimientoCampo, '192/26', 2);
+  assert.equal(r.valor, '19/226');
+  // El cursor queda pegado al '9' recién insertado — no hay más dígitos aquí, así que el separador
+  // se re-deriva del lado correcto, pero el cursor NO se cae hacia el final del string.
+  assert.equal(r.cursor, 2);
+  assert.notEqual(r.cursor, r.valor.length);
 });
 
 test('cursor en el MEDIO del valor (corregir un dígito) no salta al final', () => {

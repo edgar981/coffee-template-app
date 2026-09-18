@@ -116,6 +116,10 @@ fila de las tablas de abajo nombra la llamada que la produjo.
 
 ## 4 · La tarjeta que APRUEBA
 
+**Profundidad medida: DESENLACE FINAL** (no sólo tokenización) — ver la tabla de §10, que existe
+justamente porque no toda fila de este documento llega tan lejos (§12 lo deja explícito para
+Mastercard, que no llega a ninguna de las dos).
+
 | campo | valor usado en esta corrida |
 | --- | --- |
 | número | `4242424242424242` |
@@ -146,6 +150,8 @@ esta corrida.
 
 ## 5 · La tarjeta que DECLINA
 
+**Profundidad medida: DESENLACE FINAL.**
+
 | campo | valor usado en esta corrida |
 | --- | --- |
 | número | `4111111111111111` |
@@ -163,6 +169,10 @@ programa) y funcionó al primer intento — no hizo falta buscar un segundo.
 ---
 
 ## 6 · Nequi — el hallazgo que el spike anterior dejó abierto, y uno más fuerte
+
+**Profundidad medida: DESENLACE FINAL, para los dos números** (`APPROVED` y `ERROR` son estados
+terminales — Nequi no tokeniza, así que acá no hay una etapa de "sólo tokenización" que declarar
+por separado).
 
 **Lo que citaba el spec de este slice** (`API-DIRECTA-SPIKE-NEQUI-FALLA-1`): el teléfono
 `3991111111` fue aceptado para CREAR la transacción (`201 PENDING`), pero ese spike nunca
@@ -288,13 +298,69 @@ no cierra el `PaymentIntent` de este repo. Eso queda fuera del alcance medido ac
 
 ## 11 · Resumen — la tabla que alguien copia y pega
 
-| dato | valor medido | fuente |
-| --- | --- | --- |
-| tarjeta que aprueba | `4242424242424242`, exp `12/29`, CVV `123`, titular `APRUEBA TEST` | §4, esta corrida |
-| tarjeta que declina | `4111111111111111`, exp `12/29`, CVV `123`, titular `DECLINA TEST` | §5, esta corrida |
-| Nequi que aprueba | `3991111111` | §6, esta corrida (2 veces) + `API-DIRECTA-SPIKE-NEQUI-FALLA-1` (creación) |
-| Nequi que NO sirve | cualquier número no designado (probado: `3001234567` → `ERROR`, "Número no válido en Sandbox") | §6, esta corrida |
-| `customer_email` | cualquier dirección con forma válida (usado: `sandbox-test@duna.solutions`) | §7, esta corrida |
-| documento (tarjeta) | no se pide a $50.000 COP | §9, esta corrida |
-| `acceptance_token` | de un solo uso — pedir uno nuevo antes de CADA creación | §8, esta corrida |
-| host del servidor | sandbox si `esDespliegueDemo()`, medido leyendo `next.config.ts:7` | §2 |
+**La columna "profundidad" es la que el gate visual del owner del 2026-09-18 (§12) obligó a
+agregar**: una fila de esta tabla sin decir hasta dónde llegó su medición se lee igual de
+confiable tenga desenlace final o sólo tokenización, y eso es exactamente lo que dejó a alguien
+gateando una pantalla con la Mastercard de §12 sin saber si el defecto era suyo o del dato.
+
+| dato | valor medido | profundidad | fuente |
+| --- | --- | --- | --- |
+| tarjeta que aprueba | `4242424242424242`, exp `12/29`, CVV `123`, titular `APRUEBA TEST` | desenlace final (`APPROVED`) | §4, esta corrida |
+| tarjeta que declina | `4111111111111111`, exp `12/29`, CVV `123`, titular `DECLINA TEST` | desenlace final (`DECLINED`) | §5, esta corrida |
+| tarjeta Mastercard | no identificada — el owner no registró el número que tecleó | **NINGUNA medida por este runbook**; sólo hay la observación de gate de §12 | §12 |
+| Nequi que aprueba | `3991111111` | desenlace final (`APPROVED`) | §6, esta corrida (2 veces) + `API-DIRECTA-SPIKE-NEQUI-FALLA-1` (creación) |
+| Nequi que NO sirve | cualquier número no designado (probado: `3001234567` → `ERROR`, "Número no válido en Sandbox") | desenlace final (`ERROR`) | §6, esta corrida |
+| `customer_email` | cualquier dirección con forma válida (usado: `sandbox-test@duna.solutions`) | creación (`201`) para las 5 transacciones de esta corrida | §7, esta corrida |
+| documento (tarjeta) | no se pide a $50.000 COP | creación (`201`), sin campo de documento | §9, esta corrida |
+| `acceptance_token` | de un solo uso — pedir uno nuevo antes de CADA creación | comportamiento del proveedor al reusarlo | §8, esta corrida |
+| host del servidor | sandbox si `esDespliegueDemo()`, medido leyendo `next.config.ts:7` | lectura de código, no de una llamada | §2 |
+
+---
+
+## 12 · Mastercard — NUNCA MEDIDA por este runbook; una OBSERVACIÓN DE GATE, no de laboratorio
+
+**Por qué esta sección existe** (§ CHECKOUT-GATE-VISUAL-HALLAZGOS-1, 2026-09-18): el owner pagó,
+en el deployment real, con una tarjeta de prueba de Mastercard, y la transacción terminó en «Tu
+pago no fue aprobado». El spec que pidió este arreglo daba por cierto que **este runbook** ya
+tenía medida la TOKENIZACIÓN de esa tarjeta y sólo le faltaba el desenlace — medido antes de
+escribir esta sección: **eso es falso.** Un grep de `mastercard`/`5555`/`brand` en este archivo
+(antes de esta sección) da **cero** filas: las únicas tarjetas que este runbook tokenizó de punta
+a punta son las dos VISA de §4 y §5. La única mención de Mastercard en todo el programa es el
+RANGO IIN de `lib/checkout/tarjeta.ts` (`RANGOS_POR_RED.mastercard`, 51–55 / 2221–2720) — una
+regla puramente LOCAL de reconocimiento de prefijo (§ CHECKOUT-DETECCION-EMISOR-BIN-1, el mismo
+archivo: "nunca sale de este componente hacia una red ni hacia un log"), que no habla con Wompi
+ni prueba si el proveedor procesa esa red. El único dato con una llamada real al sandbox detrás
+para una red que NO es Visa es UnionPay (`SPIKE-REDES-QUE-PROCESA-1`, citado en el mismo archivo),
+y ese hallazgo tampoco quedó en `DECISIONS.md` con su cuerpo de llamada — grep de `unionpay` (sin
+mayúsculas) sobre `DECISIONS.md`: cero filas. Así que la premisa del spec no describe a ESTE
+runbook: describe, en el mejor de los casos, un hueco de trazabilidad de OTRO spike, que este
+slice no tenía la instrucción de re-medir ni de completar.
+
+**Lo que este slice NO hizo, por instrucción explícita** (§ "SIN MEDIR" del spec): no se volvió a
+pagar con Mastercard contra el sandbox, no se tokenizó ningún número Mastercard, y no se consultó
+de nuevo la transacción que el owner corrió. Nada de lo de abajo es medición de laboratorio.
+
+**Lo único que hay es la OBSERVACIÓN DEL GATE del owner, y se registra como tal:**
+
+| qué | valor |
+| --- | --- |
+| quién lo observó | el owner, gateando el checkout sobre el deployment real (no una corrida de este runbook) |
+| cuándo | 2026-09-18 |
+| qué tarjeta | «la tarjeta de prueba de Mastercard» — el owner no dejó el número, el vencimiento, el CVV ni el nombre del titular usados |
+| qué pasó | la transacción terminó en el estado de FALLIDO del checkout (`TEXTO.pagoRechazado`, `components/storefront/checkout/FormularioTarjeta.tsx`): «Tu pago no fue aprobado. No se realizó ningún cobro.» |
+| qué NO se sabe | el `status_message`/`processor_response_code` de Wompi para ese intento (nadie volvió a consultar la transacción por referencia), si el número tecleado era uno de los "designados" del sandbox (§4, §6 — el patrón que YA se repitió con Nequi: un número arbitrario no llega a un desenlace útil) o uno inventado, y si el rechazo fue del EMISOR (lo que este checkout ya maneja, § `CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1`) o de otra causa |
+
+**Lo que esto NO permite concluir, para que nadie lo estire de más:** esta observación **no dice
+que Mastercard "no aprueba" en el sandbox de Wompi en general.** Dice que UN intento, con datos no
+registrados, en un momento no vuelto a consultar, terminó rechazado — exactamente el mismo tipo de
+resultado (`DECLINED`/`ERROR`) que §5 y §6 ya muestran que el sandbox devuelve normalmente para
+números NO designados. Sin el número que se tecleó, no hay forma de distinguir "Mastercard no
+tokeniza en este sandbox" de "ese número puntual no era uno de los designados" — la MISMA
+distinción que §6 tuvo que hacer explícita para Nequi.
+
+**Lo que SÍ cambia con esta sección**: la fila `mastercard` de §11 deja de estar ausente
+(silenciosa) y pasa a decir, explícitamente, "ninguna medición propia de este runbook, sólo esta
+observación de gate" — para que la próxima persona que necesite una tarjeta Mastercard de prueba
+sepa que tiene que MEDIRLA (repitiendo la cadena de §3 con un número Mastercard real del sandbox,
+número que Wompi publica en su propia consola de comercio de pruebas), no asumir ninguno de los
+dos resultados a partir de lo de acá arriba.

@@ -7700,3 +7700,151 @@ pedía "cuando el pago se rechaza, tiene que volver a ser usable" y este slice n
 §2 mide por qué (`components/storefront/checkout/` fuera de `touches:`) y lo deja como
 `CHECKOUT-SELECTOR-DESBLOQUEO-POR-RECHAZO-1`, tal como el propio spec autorizaba ("medí… y decilo…
 no borres el botón… dejá que lo decida el owner").
+
+## 2026-09-18 — Los tres hallazgos del gate visual del owner: el botón que decía otra fase, el cursor de la barra, y el runbook sin decir hasta dónde midió (`CHECKOUT-GATE-VISUAL-HALLAZGOS-1`)
+
+### 0 · Qué pidió el owner
+
+Tres hallazgos del gate visual sobre el deployment real (2026-09-18): (1) el botón de pago decía
+"Verificando tarjeta…" mientras, en la MISMA vista, la línea de abajo decía "Estamos confirmando
+tu pago." — pidió que el botón dijera algo acorde a la fase real, en el registro de la línea de
+abajo; (2) al teclear los dos primeros dígitos del vencimiento la barra aparece bien pero el
+cursor queda ANTES de ella (el tercer dígito sí cae del lado correcto); (3) la tarjeta de prueba
+de Mastercard no llegó a aprobado en el deployment real, y el spec advertía [SIN MEDIR] que el
+runbook de datos de prueba sólo tenía medida su tokenización. También pidió sacar la etiqueta
+"Estado: Pagada" de la confirmación (3b), con el cuidado de medir si el camino manual la necesita.
+
+### 1 · El botón sigue la fase real, medida del estado — no del reloj
+
+`FormularioTarjeta.procesando` (`tokenizando || !!creada`) gobernaba UN solo texto de botón
+(`TEXTO.botonEnVuelo`, "Verificando tarjeta…") durante TODA la espera — incluida la fase, después
+de `creada`, en la que `EsperaConfirmacionTarjeta` ya sondea y muestra su propia línea
+("Estamos confirmando tu pago."). El botón afirmaba un hecho VENCIDO (la tarjeta ya se tokenizó)
+mientras la línea de abajo afirmaba el hecho ACTUAL, a la vez.
+
+**Elegido: el botón dice el hecho actual, y la línea de abajo deja de repetirlo cuando no aporta
+nada nuevo.** `TEXTO.botonConfirmando` ("Confirmando tu pago…", MISMO registro que "Estamos
+confirmando tu pago." — sin inventar un tercero) se muestra apenas `creada` existe. Y
+`EsperaConfirmacionTarjeta` gana `botonYaMuestraFaseConfirmando` (default `false`, sin romper a
+`FormularioOtroMetodoPasarela`, que no lo pasa): con él, SIN desafío 3DS, el párrafo
+`enVueloSinFriccion` no se dibuja — el botón ya dijo lo mismo. CON desafío, la línea sigue
+mostrándose siempre: ahí aporta algo que el botón no puede decir (el marco embebido del emisor, o
+la explicación de que hay un banco de por medio), así que no es un duplicado.
+
+**El texto exacto que ve el comprador, por fase** (`FormularioTarjeta`):
+
+| fase | texto del botón |
+| --- | --- |
+| formulario en reposo | `Pagar · $X` |
+| tokenizando (antes de crear la orden) | `Verificando tarjeta…` |
+| orden creada, esperando al emisor (con o sin desafío) | `Confirmando tu pago…` |
+| rechazo del emisor, esperando reintento | `Intentar con otro método` / `Preparando…` (sin cambios) |
+
+`FormularioOtroMetodoPasarela` NO se tocó: su botón sigue diciendo `Procesando…` durante las dos
+fases, y `EsperaConfirmacionTarjeta` le sigue mostrando su línea sin desafío — no está en el spec
+de este slice, y tocarlo habría sido ensanchar el fix hacia una superficie que el owner no
+gateó. Anotado como open follow-up.
+
+### 2 · El cursor del vencimiento — la regla de "editar en el medio", aplicada a "teclear al final"
+
+`cursorTrasNDigitos` declara que un separador nunca atrapa el cursor: el cursor queda pegado al
+dígito, nunca del otro lado. Es la regla correcta para EDITAR EN EL MEDIO (así el próximo borrado
+quita un dígito real). Aplicada tal cual a un dígito tecleado AL FINAL de lo escrito —el caso del
+vencimiento al segundo dígito, donde la barra recién aparece— deja el cursor ANTES de la barra en
+vez de después: funcionalmente inofensivo (el tercer dígito cae del lado correcto igual, porque
+`formatearVencimientoCampo` re-deriva la barra en el mismo lugar) pero se sintió mal, que fue
+justo lo que el owner reportó. Es la misma familia que el libro ya viene anotando: una decisión
+medida para un caso (editar en el medio), aplicada a uno más ancho (seguir tecleando hacia
+adelante) donde da el resultado contrario.
+
+`reformatearCampoTarjeta` ahora distingue los dos casos por la MISMA información que ya tenía —sin
+cambiar su firma ni pedir el valor anterior—: si el cursor queda al final de TODOS los dígitos
+tecleados (nada más adelante en `valorNuevo`), el resultado es el final del string formateado,
+pase lo que pase con los separadores; si no, sigue la regla de `cursorTrasNDigitos` de siempre.
+
+**Verificado que no rompe lo que la regla vieja protegía** (§ mid-edit, borrar, pegar) —
+recalculado a mano para cada test existente antes de tocar código, y los 57 tests de
+`lib/checkout/tarjeta.test.ts` (incluidos los 2 nuevos: la corrección del test cuyo TÍTULO ya
+decía "el cursor pasa la barra" pero cuya ASERCIÓN afirmaba lo contrario —`cursor === 2`, antes de
+la barra—, y el test nuevo de corregir un dígito del medio del vencimiento) pasan verdes.
+
+### 3 · El runbook no decía hasta dónde medía — y el Mastercard del owner no estaba, no a medias
+
+**Medido, no asumido**: el `[SIN MEDIR]` del spec decía que "el runbook de datos de prueba solo
+tenía medida la TOKENIZACIÓN" de la tarjeta Mastercard que el owner usó. Un grep de
+`mastercard`/`5555`/`brand` sobre `docs/RUNBOOK-DATOS-PRUEBA-SANDBOX.md` (antes de este slice) da
+CERO filas — las únicas tarjetas que ese documento tokenizó de punta a punta son las dos VISA de
+§4/§5. La premisa del spec es FALSA tal como está escrita: no es que el runbook midiera sólo la
+tokenización de Mastercard, es que NO LA MENCIONA. La única referencia a Mastercard en el
+programa es el rango IIN puramente LOCAL de `lib/checkout/tarjeta.ts` (detección de red por
+prefijo, nunca habla con el proveedor); la única red no-Visa con una llamada real al sandbox
+documentada es UnionPay (`SPIKE-REDES-QUE-PROCESA-1`, citado en ese mismo archivo), y tampoco
+tiene asiento propio en `DECISIONS.md` (grep de `unionpay`: cero filas).
+
+**Corregido** (`docs/RUNBOOK-DATOS-PRUEBA-SANDBOX.md`): cada tarjeta que el runbook ya medía (§4,
+§5, §6) gana una línea explícita de "profundidad medida" (tokenización vs. desenlace final), y
+la tabla resumen (§11) gana una columna "profundidad". Se agregó §12, íntegro, para la
+Mastercard: documenta que NINGUNA medición de este runbook la cubre, y deja la observación del
+GATE del owner (2026-09-18: pagó con una Mastercard de prueba en el deployment real y la
+transacción terminó rechazada) marcada explícitamente como observación de gate — no medición de
+laboratorio, no reproducible (no se guardó el número usado, no se volvió a consultar la
+transacción). Declara también lo que esa observación NO permite concluir: no dice que Mastercard
+"no aprueba" en general, sólo que un intento puntual, con datos no registrados, terminó
+rechazado — el mismo tipo de resultado que §6 ya mostró para un Nequi no designado.
+
+**No se re-midió contra el proveedor** (instrucción explícita del spec) — nadie pagó de nuevo con
+Mastercard, nadie tokenizó un número Mastercard nuevo.
+
+### 3b · El estado literal de la confirmación — MEDIDO fuera de `touches:`, no tocado
+
+El literal "Estado: Pagada"/"Estado: Pendiente" vive en el bloque de confirmación compartido de
+`app/(storefront)/checkout/page.tsx:432-435` (`estadoMostrado` + `<StatusBadge>`), NO en
+`components/storefront/checkout/` ni en `lib/checkout/` — los dos únicos subárboles de código que
+el `touches:` de este slice declara. Medido antes de tocar nada, siguiendo el mismo criterio que
+el asiento inmediatamente anterior de esta rama (`CHECKOUT-SELECTOR-NO-SE-DESMONTA-1`, §3 y §4):
+ese slice midió exactamente el mismo tipo de gap (`components/storefront/checkout/` fuera de su
+`touches:`) para el desbloqueo del selector, y lo dejó como open follow-up en vez de ensanchar su
+propio alcance.
+
+**Medido igual, antes de descartarlo**: `confirmation.estado` en el camino MANUAL (el branch
+`!confirmation.wompi`) es SIEMPRE `'pendiente'` — `app/api/checkout/route.ts:240-243` crea la
+orden sin `immediatePayment` ("NO Payment here: the order starts `pendiente`; the admin registers
+the received payment later"), así que el badge de esa rama nunca varía y siempre repite lo que el
+párrafo de arriba ya dice en lenguaje del comprador ("Tu pedido está reservado. Confirmaremos el
+pago…"). El razonamiento del owner en el `approval-reason` ("si ya se le dice al cliente que su
+pago fue aprobado o está pendiente, no hace falta el estado literal") cubre explícitamente los
+DOS casos — no sólo el de pasarela aprobada—, así que de haber podido tocar el archivo, la
+recomendación habría sido sacar la etiqueta de las DOS ramas, no sólo de la de pasarela.
+
+**No se tocó ningún byte de `app/(storefront)/checkout/page.tsx`** — fuera de `touches:`, y la
+instrucción del protocolo es parar y decirlo, no ensanchar. Open follow-up:
+`CHECKOUT-ESTADO-LITERAL-CONFIRMACION-1`.
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido sobre el árbol final. Ver el reporte del slice para el
+resultado exacto (passed/failed/wall_seconds) — no se transcribe acá para no duplicar un número
+que puede volver a medirse.
+
+### Deviations
+
+- El `[SIN MEDIR]` del spec sobre el runbook resultó FALSO tal como estaba escrito (§3, arriba):
+  no medía "sólo tokenización" de Mastercard, no la mencionaba en absoluto. Corregido con la
+  medición real, no con la premisa.
+- 3b (sacar "Estado: Pagada") no se ejecutó: el archivo que lo requiere
+  (`app/(storefront)/checkout/page.tsx`) no está en `touches:`. Ver §3b.
+
+### Open follow-ups
+
+- `CHECKOUT-ESTADO-LITERAL-CONFIRMACION-1`: sacar la etiqueta "Estado: X" del bloque de
+  confirmación compartido en `app/(storefront)/checkout/page.tsx` (líneas ~432-435), en las DOS
+  ramas (pasarela aprobada y manual) — medido que las dos ya dicen el mismo hecho en lenguaje del
+  comprador, § 3b arriba. No se hizo por estar fuera de `touches:`.
+- `CHECKOUT-OTRO-METODO-BOTON-FASE-1`: `FormularioOtroMetodoPasarela` tiene la misma forma del
+  defecto del §1 (su botón dice `Procesando…` durante las dos fases, y `EsperaConfirmacionTarjeta`
+  le sigue mostrando su línea sin desafío) — no se tocó porque el gate del owner no lo reportó y
+  no estaba en el spec de este slice.
+- `CHECKOUT-MASTERCARD-MEDIR-DESENLACE-1`: medir de verdad, contra el sandbox, la tokenización y
+  el desenlace de un número Mastercard designado (Wompi los publica en su consola de comercio de
+  pruebas) — hoy el runbook no tiene ningún dato propio de esa red, sólo la observación de gate de
+  §12.

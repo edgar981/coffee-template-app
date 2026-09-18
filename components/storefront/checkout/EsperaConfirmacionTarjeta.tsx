@@ -91,6 +91,15 @@ export interface EsperaConfirmacionTarjetaProps {
    *  pantalla de "sigue procesándose" sería mostrar dos respuestas al mismo momento. Se llama
    *  UNA vez, cuando `vista` pasa a `techo`. */
   onTecho: () => void;
+  /** § CHECKOUT-GATE-VISUAL-HALLAZGOS-1: el llamador YA MUESTRA, en su propio botón bloqueado,
+   *  el mismo hecho que esta vista `en_vuelo` diría en su párrafo (`enVueloSinFriccion`,
+   *  "Estamos confirmando tu pago.") — así que ese párrafo no se dibuja: repetirlo sería afirmar
+   *  el mismo hecho dos veces en la misma vista, que es exactamente lo que el owner reportó
+   *  (el botón decía "Verificando tarjeta…" y esta línea decía "Estamos confirmando tu pago.",
+   *  a la vez). Default `false` — sin pasarlo, el comportamiento es el de siempre. SÓLO afecta
+   *  el caso SIN desafío 3DS: con desafío, esta vista aporta el marco embebido del emisor (o su
+   *  explicación), que el botón no puede decir por sí solo y no es un duplicado. */
+  botonYaMuestraFaseConfirmando?: boolean;
 }
 
 type Vista = 'en_vuelo' | 'techo';
@@ -116,7 +125,7 @@ const TEXTO = {
   techoCuerpo: 'Te avisaremos apenas se confirme. Puedes revisar el estado de tu pedido más tarde con tu número de orden y tu correo.',
 };
 
-export default function EsperaConfirmacionTarjeta({ reference, email, resultado3ds, desafioHtml, onAprobado, onFallido, onTecho }: EsperaConfirmacionTarjetaProps) {
+export default function EsperaConfirmacionTarjeta({ reference, email, resultado3ds, desafioHtml, onAprobado, onFallido, onTecho, botonYaMuestraFaseConfirmando = false }: EsperaConfirmacionTarjetaProps) {
   const [vista, setVista] = useState<Vista>('en_vuelo');
 
   // El reloj del backoff vive en refs — no debe disparar un re-render por sí mismo, sólo el
@@ -236,6 +245,13 @@ export default function EsperaConfirmacionTarjeta({ reference, email, resultado3
       </div>
     );
   }
+
+  // § CHECKOUT-GATE-VISUAL-HALLAZGOS-1: SIN desafío, si el llamador YA dice este mismo hecho por
+  // su cuenta (su botón bloqueado), esta línea no se dibuja — el botón bloqueado de arriba ya lo
+  // dijo, y una segunda afirmación del mismo hecho en la misma vista es justo lo que el owner
+  // reportó (§ el docstring de `botonYaMuestraFaseConfirmando`). CON desafío, esta línea SIGUE
+  // mostrándose siempre (abajo): ahí no es un duplicado, es información que el botón no puede dar.
+  if (resultado3ds !== 'desafio' && botonYaMuestraFaseConfirmando) return null;
 
   // § CHECKOUT-TRANSICION-DEFECTOS-1: SIN desafío que embeber, este componente ya NO dibuja un
   // panel propio (ícono + caja centrada) — ESO era el segundo layout del mismo momento que el

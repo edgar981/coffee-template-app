@@ -139,6 +139,26 @@ import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
  * pantalla "¡Pedido recibido!" que ya usan los métodos manuales — reusada, no rediseñada. Este
  * formulario no dibuja nada para ese caso: el `return` de más abajo deja de montarse en cuanto
  * el padre conmuta a esa pantalla.
+ *
+ * § CHECKOUT-GATE-VISUAL-HALLAZGOS-1 (2026-09-18, gate visual del owner sobre el deployment real):
+ * EL BOTÓN YA NO DICE LO MISMO EN LAS DOS FASES DE `procesando`. Antes, `TEXTO.botonEnVuelo`
+ * ("Verificando tarjeta…") cubría TANTO la tokenización (antes de que exista `creada`) COMO la
+ * espera de confirmación (después, mientras `EsperaConfirmacionTarjeta` sondea) — así que el
+ * owner vio, en la MISMA vista, el botón diciendo que verifica la tarjeta mientras la línea de
+ * abajo (`EsperaConfirmacionTarjeta`) decía que se está confirmando el pago: dos afirmaciones del
+ * mismo momento, y la del botón ya estaba VENCIDA (la tarjeta ya se tokenizó; lo que sigue es
+ * esperar al emisor). Ahora el botón sigue la fase real, medida del propio estado —`!!creada`—,
+ * no del reloj: `TEXTO.botonEnVuelo` sólo se ve MIENTRAS SE TOKENIZA (`tokenizando && !creada`);
+ * apenas `creada` existe, dice `TEXTO.botonConfirmando` ("Confirmando tu pago…"), en el MISMO
+ * registro que ya eligió el owner para la línea de espera ("Estamos confirmando tu pago.") — sin
+ * inventar un tercer texto.
+ *
+ * Y EL HECHO NO SE AFIRMA DOS VECES: con `creada` y SIN desafío 3DS, el botón ya dice
+ * "Confirmando tu pago…", así que el párrafo de `EsperaConfirmacionTarjeta` para ese mismo caso
+ * (`enVueloSinFriccion`) SOBRA — se lo pasa `botonYaMuestraFaseConfirmando` para que no lo repita
+ * (ver el docstring de esa prop). La rama del DESAFÍO (`resultado3ds === 'desafio'`) NO se toca:
+ * ahí el texto de abajo aporta algo que el botón no puede decir (el marco embebido del emisor, o
+ * la explicación de que hay un banco de por medio) — no es un duplicado, es información nueva.
  */
 export interface FormularioTarjetaProps {
   aceptaciones: AceptacionesWompi;
@@ -194,11 +214,18 @@ const TEXTO = {
   cvv:            'El código de seguridad no es válido.',
   nombreTitular: 'Escribe el nombre tal como aparece en la tarjeta.',
   tokenizacionGenerico: 'No pudimos verificar tu tarjeta. Revisa los datos e intenta de nuevo.',
-  // § CHECKOUT-TRANSICION-DEFECTOS-1: ESTE es el ÚNICO texto de progreso del botón, del click a
-  // "Pagar" hasta que el pago resuelve (tokenizar, crear la orden, confirmar la transacción, Y
-  // sondear) — nunca cambia de frase a mitad de camino, que era justo el defecto ("aparece dos
-  // veces").
+  // § CHECKOUT-GATE-VISUAL-HALLAZGOS-1: SÓLO mientras se tokeniza (`tokenizando && !creada`) —
+  // tokenizar, y pedir la orden. Antes cubría también la espera posterior a `creada`, lo que
+  // hacía que el botón siguiera "verificando la tarjeta" mientras la línea de abajo ya decía que
+  // se estaba confirmando el pago (§ el docstring de arriba). Esa fase ahora tiene su propio
+  // texto, `botonConfirmando`, abajo.
   botonEnVuelo: 'Verificando tarjeta…',
+  // § CHECKOUT-GATE-VISUAL-HALLAZGOS-1: la fase POSTERIOR a tokenizar — la orden ya existe
+  // (`creada`) y se espera a que el emisor resuelva. Mismo registro que
+  // `EsperaConfirmacionTarjeta.TEXTO.enVueloSinFriccion` ("Estamos confirmando tu pago.") a
+  // propósito: es el mismo hecho, dicho por el botón en vez de por la línea de abajo (que, para
+  // el caso sin desafío, deja de mostrarlo — ver `botonYaMuestraFaseConfirmando`).
+  botonConfirmando: 'Confirmando tu pago…',
   // § CHECKOUT-ERROR-EN-LA-MISMA-PANTALLA-1 / CHECKOUT-REINTENTO-OTRO-METODO-1: el cobro se
   // creó pero el emisor lo RECHAZÓ (detectado por el sondeo de `EsperaConfirmacionTarjeta`, vía
   // `onFallido`) — TEXTO DEL OWNER, textual (2026-09-18), ya no provisional: DOS oraciones, sin
@@ -598,7 +625,9 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
             disabled={!aceptado || procesando}
             className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-acento-3)] disabled:opacity-60 disabled:pointer-events-none text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors"
           >
-            {procesando ? TEXTO.botonEnVuelo : `Pagar · ${formatCOP(monto)}`}
+            {/* § CHECKOUT-GATE-VISUAL-HALLAZGOS-1: el texto sigue la FASE real (¿existe `creada`
+                todavía?), medida del estado — nunca del reloj. */}
+            {creada ? TEXTO.botonConfirmando : procesando ? TEXTO.botonEnVuelo : `Pagar · ${formatCOP(monto)}`}
           </button>
         </>
       )}
@@ -639,6 +668,10 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
           onAprobado={onAprobado}
           onFallido={handleFallido}
           onTecho={() => setTecho(true)}
+          // § CHECKOUT-GATE-VISUAL-HALLAZGOS-1: el botón de arriba YA dice "Confirmando tu
+          // pago…" mientras `creada` existe — sin desafío 3DS, que `EsperaConfirmacionTarjeta`
+          // repita el mismo hecho en un segundo texto es justo el defecto que el owner reportó.
+          botonYaMuestraFaseConfirmando
         />
       )}
     </div>
