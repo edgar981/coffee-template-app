@@ -372,6 +372,7 @@ export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 // (grep vivo contra el código, no supuesto — verificar de nuevo si un componente cambia su fallback):
 //   hero            → var(--sf-tinta)      (HeroCurtina.tsx, variante 'curtina') → OSCURA
 //                     var(--sf-fondo)      (HeroFicha.tsx, variante 'ficha')     → clara
+//                     var(--sf-tinta)      (HeroMedia.tsx, variante 'media')     → OSCURA
 //   brandStory      → var(--sf-tinta)      (BrandStory.tsx)         → OSCURA
 //   subscriptionCTA → var(--sf-tinta-2)    (SubscriptionCTA.tsx)    → OSCURA
 //   trustBadges     → var(--sf-fondo)      (TrustBadges.tsx)        → clara
@@ -394,11 +395,12 @@ export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 export const BANDAS_OSCURAS: ReadonlySet<BandaId> = new Set<BandaId>(['hero', 'brandStory', 'subscriptionCTA']);
 
 /** La darkness CANÓNICA (sin esquema) de una banda, dependiente de su VARIANTE cuando la
- *  tiene. Hoy sólo el HERO: 'curtina' es OSCURA (fondo `--sf-tinta`), 'ficha' es CLARA (fondo
- *  `--sf-fondo`) — atado al fallback `bg-[var(--sf-banda,<token>)]` de cada componente, como
- *  `BANDAS_OSCURAS`. El resto de las bandas no varían con la variante → `BANDAS_OSCURAS`. */
+ *  tiene. Hoy sólo el HERO: 'curtina' y 'media' (§ TEMAS-HERO-MEDIA-1) son OSCURAS (fondo
+ *  `--sf-tinta`), 'ficha' es CLARA (fondo `--sf-fondo`) — atado al fallback
+ *  `bg-[var(--sf-banda,<token>)]` de cada componente, como `BANDAS_OSCURAS`. El resto de las
+ *  bandas no varían con la variante → `BANDAS_OSCURAS`. */
 export function bandaOscuraCanonica(bandaId: BandaId, variante?: string): boolean {
-  if (bandaId === 'hero') return variante !== 'ficha'; // curtina/ausente = oscura; ficha = clara
+  if (bandaId === 'hero') return variante !== 'ficha'; // curtina/media/ausente = oscura; ficha = clara
   return BANDAS_OSCURAS.has(bandaId);
 }
 
@@ -698,12 +700,22 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // póster de un video reemplazado quedaría HUÉRFANO en el storage para siempre.
     imagenes: ['imagen', 'imagenPoster'],
     // VARIANTES DE COMPOSICIÓN (§ eje 5, EJE-5-VARIANTES-HERO): 'curtina' es la canónica —el hero de
-    // HOY, verbatim—; 'ficha' es la nueva (tipografía en tinta sobre crema, foto a sangre a la
-    // derecha, sin degradado). Segunda sección con `variantes`, tras `presentaciones` (§ eje 5e).
+    // HOY, verbatim—; 'ficha' es la bi-tonal (tipografía en tinta sobre crema, foto a sangre a la
+    // derecha, sin degradado); 'media' (§ TEMAS-HERO-MEDIA-1) es la TERCERA — la media (imagen o
+    // video) llena la sección a opacidad plena, SIN el velo oscuro que atenúa a la curtina, y el
+    // texto vive en una TARJETA (`--sf-tarjeta`/`--sf-sobre-tarjeta`) que flota sobre ella, en vez de
+    // apoyarse en los tokens `--sf-sobre-banda` (pensados para un fondo de banda aproximadamente
+    // plano — el que la curtina logra atenuando la foto al 40%, no el que esta variante quiere). Un
+    // degradado angosto arriba (mismo tono `--sf-tinta`/60 que ya usa la curtina en ese mismo punto,
+    // § HeroMedia.tsx) mantiene el nav legible sin necesitar `noUniformes`: la sección sigue siendo
+    // UN solo plano de media, no partida en dos zonas de color como la ficha.
+    // Segunda sección con `variantes`, tras `presentaciones` (§ eje 5e).
     // `noUniformes: ['ficha']` (§ EJE-5-NAV-UNIFORME): la ficha es BI-TONAL —crema a la izquierda,
     // foto oscura a la derecha— y ningún color de texto único del nav se lee sobre las dos mitades;
     // el nav transparente-flotante cae a SÓLIDO sobre ella (§ `tratamientoNav`, esquema-style.ts).
-    variantes: { claves: ['curtina', 'ficha'], canonica: 'curtina', noUniformes: ['ficha'] },
+    // 'media' NO entra acá: es uniforme (un solo plano de media), así que el nav sigue flotando
+    // transparente — su legibilidad la garantiza el degradado superior, no el fallback a sólido.
+    variantes: { claves: ['curtina', 'ficha', 'media'], canonica: 'curtina', noUniformes: ['ficha'] },
     // ESCALARES (§ HERO-VIDEO-COMO-DATO-1): `imagenTipo` es el SEGUNDO escalar clampado de esta
     // sección (el primero es `variante`, arriba) — MISMO mecanismo (`resolverVariante`), otra
     // ranura. 'imagen' es la canónica: Nayoli queda byte-idéntica sin fila.

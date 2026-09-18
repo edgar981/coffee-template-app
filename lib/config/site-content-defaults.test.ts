@@ -764,8 +764,11 @@ test('REGISTRY.brandStory declara `variantes` con UNA sola clave (la canónica) 
 // ── EL HERO GANA VARIANTES (§ EJE-5-VARIANTES-HERO): segunda sección con `variantes`, gemela de
 // Presentaciones (§ eje 5e) ──────────────────────────────────────────────────────────────────────
 
-test('REGISTRY.hero declara `variantes` con el set cerrado, la canónica y `noUniformes: [\'ficha\']` (§ EJE-5-NAV-UNIFORME)', () => {
-  assert.deepEqual(REGISTRY.hero.variantes, { claves: ['curtina', 'ficha'], canonica: 'curtina', noUniformes: ['ficha'] });
+test('REGISTRY.hero declara `variantes` con el set cerrado (curtina/ficha/media), la canónica y `noUniformes: [\'ficha\']` (§ EJE-5-NAV-UNIFORME, TEMAS-HERO-MEDIA-1)', () => {
+  assert.deepEqual(
+    REGISTRY.hero.variantes,
+    { claves: ['curtina', 'ficha', 'media'], canonica: 'curtina', noUniformes: ['ficha'] },
+  );
 });
 
 test('hero: sin fila, `variante` resuelve a la canónica "curtina" (byte-idéntico)', () => {
@@ -787,13 +790,19 @@ test('hero: una `variante` guardada fuera del set cae a la canónica', () => {
   assert.equal(r.hero.variante, 'curtina');
 });
 
-test('resolverVariante con las claves del hero: ausente/vacío/null/basura → "curtina"; "ficha" se respeta', () => {
+test('resolverVariante con las claves del hero: ausente/vacío/null/basura → "curtina"; "ficha" y "media" se respetan', () => {
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, undefined), 'curtina');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, ''), 'curtina');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, null), 'curtina');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'foo'), 'curtina');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'ficha'), 'ficha');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'curtina'), 'curtina');
+  assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'media'), 'media');
+});
+
+test('hero: una `variante` guardada "media" se respeta, y resuelve igual que las otras dos (§ TEMAS-HERO-MEDIA-1)', () => {
+  const r = resolverSiteContent({ hero: { variante: 'media' } });
+  assert.equal(r.hero.variante, 'media');
 });
 
 // ── EL HERO GANA VIDEO COMO DATO (§ HERO-VIDEO-COMO-DATO-1): `imagenTipo`/`imagenPoster`, el

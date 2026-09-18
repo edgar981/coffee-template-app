@@ -90,20 +90,6 @@ test('featured: la clave ESTRUCTURAL canónica ("cuadricula") SÍ pasa la valida
   assert.ok(presetCompleto(sintetico));
 });
 
-test('featured: "grilla" (TEMAS-FEATURED-GRILLA-1, la que piden CORTE/PATIO/VITRINA) SÍ pasa la validación', () => {
-  // Gemelo del test de "cuadricula" arriba: 'grilla' se construyó en TEMAS-FEATURED-GRILLA-1
-  // (`FeaturedProductsGrilla.tsx`), así que ahora es una clave real de `VARIANTES_ESTRUCTURALES.
-  // featured.claves`, no una que sólo se acepta en el papel.
-  const sintetico: PresetTema = {
-    ...ARRANQUE,
-    clave: 'SINTETICO-FEATURED-GRILLA-OK',
-    variantes: { ...ARRANQUE.variantes, featured: 'grilla' },
-  };
-  const faltantes = validarPreset(sintetico);
-  assert.deepEqual(faltantes.filter((f) => f.regla === 'variante'), []);
-  assert.ok(presetCompleto(sintetico));
-});
-
 test('featured: una clave ESTRUCTURAL inexistente sigue fallando, y la nombra', () => {
   const sintetico: PresetTema = {
     ...ARRANQUE,
@@ -133,11 +119,11 @@ test('PLIEGO: raíces y forma/par válidos, pero las 5 variantes fallan — toda
   assert.equal(faltantes.filter((f) => f.regla === 'orden').length, 0);
 });
 
-test('CORTE: presentaciones·mosaico, brandStory·columnas y featured·grilla SON válidas — sólo hero/subscriptionCTA fallan', () => {
+test('CORTE: presentaciones·mosaico, brandStory·columnas y hero·media SON válidas — sólo featured/subscriptionCTA fallan', () => {
   // brandStory·columnas coincide con la única clave que `brandStory` acepta hoy (la canónica), así
-  // que dejó de fallar apenas ganó su slot — CORTE pasó de 4 faltantes de variante a 3. Y
-  // featured·grilla se construyó en TEMAS-FEATURED-GRILLA-1 — CORTE pasa de 3 a 2.
-  assert.deepEqual(seccionesQueFallanVariante(CORTE), ['hero', 'subscriptionCTA']);
+  // que dejó de fallar apenas ganó su slot. hero·media dejó de fallar con TEMAS-HERO-MEDIA-1 (el
+  // hero ganó su tercera clave de variante) — CORTE pasó de 4 faltantes de variante a 3, y ahora a 2.
+  assert.deepEqual(seccionesQueFallanVariante(CORTE), ['featured', 'subscriptionCTA']);
 });
 
 test('VETA: hero·curtina y presentaciones·indice SÍ existen — featured/brandStory/subscriptionCTA fallan', () => {
@@ -148,14 +134,13 @@ test('VETA: hero·curtina y presentaciones·indice SÍ existen — featured/bran
   assert.equal(faltantes.filter((f) => f.regla === 'esquema').length, 0);
 });
 
-test('PATIO: brandStory·columnas y featured·grilla SON válidas — hero/presentaciones/subscriptionCTA fallan, Y el orden nombra `banner` y `faq` como bandas inexistentes', () => {
+test('PATIO: brandStory·columnas SÍ es válida (es la canónica) — hero/featured/presentaciones/subscriptionCTA fallan, Y el orden nombra `banner` y `faq` como bandas inexistentes', () => {
   // Igual que CORTE: brandStory·columnas coincide con la canónica y dejó de fallar — PATIO pasó de
-  // 5 faltantes de variante a 4. Y featured·grilla se construyó en TEMAS-FEATURED-GRILLA-1 — PATIO
-  // pasa de 4 a 3.
+  // 5 faltantes de variante a 4.
   const faltantes = validarPreset(PATIO);
   assert.deepEqual(
     seccionesQueFallanVariante(PATIO),
-    ['hero', 'presentaciones', 'subscriptionCTA'],
+    ['featured', 'hero', 'presentaciones', 'subscriptionCTA'],
   );
   const orden = faltantes.filter((f) => f.regla === 'orden');
   assert.equal(orden.length, 2);
@@ -171,9 +156,8 @@ test('VITRINA: fuentePar y forma SIN DECIDIR (null) se nombran como faltantes, d
   assert.ok(forma, JSON.stringify(faltantes));
   assert.ok(fuentePar!.detalle.includes('no tiene un par tipográfico decidido'));
   assert.ok(forma!.detalle.includes('no tiene una forma decidida'));
-  // hero·ficha y presentaciones·indice SÍ existen hoy, y featured·grilla se construyó en
-  // TEMAS-FEATURED-GRILLA-1 — VITRINA pasa de 3 faltantes de variante a 2.
-  assert.deepEqual(seccionesQueFallanVariante(VITRINA), ['brandStory', 'subscriptionCTA']);
+  // hero·ficha y presentaciones·indice SÍ existen hoy.
+  assert.deepEqual(seccionesQueFallanVariante(VITRINA), ['brandStory', 'featured', 'subscriptionCTA']);
 });
 
 test('regla (b): una banda inexistente y un esquema inexistente se nombran por separado', () => {
