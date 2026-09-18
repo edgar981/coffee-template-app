@@ -83,21 +83,30 @@ export function nombreTitularValido(nombreCrudo: string): boolean {
 // registra nada en consola. Entra por parámetro y devuelve una estructura — el mismo contrato
 // que el resto de este archivo.
 //
-// QUÉ REDES SE RECONOCEN, Y DE DÓNDE SALIÓ LA LISTA: se buscó en este repositorio (CLAUDE.md,
-// DECISIONS.md, `types/payment.ts`, `lib/pagos/*`, `services/checkout.service.ts`) algo
-// registrado sobre qué redes acepta Wompi — NO HAY NADA. Ni un enum, ni una lista, ni un
-// comentario. Así que se cubren las CUATRO redes de uso corriente en Colombia: Visa, Mastercard,
-// American Express y Diners Club (las mismas que `codigoSeguridadValido`, arriba, ya distingue
-// por largo de CVV — Amex a 4 dígitos, el resto a 3). Discover y otras redes regionales quedan
-// fuera por ser marginales en este mercado; si el owner confirma otra, se agrega acá, en un solo
-// lugar.
+// QUÉ REDES SE RECONOCEN, Y DE DÓNDE SALIÓ LA LISTA: Visa, Mastercard, American Express y Diners
+// Club partieron de una SUPOSICIÓN — "de uso corriente en Colombia", sin fuente del proveedor
+// detrás, porque en su momento no se encontró nada registrado en este repositorio (CLAUDE.md,
+// DECISIONS.md, `types/payment.ts`, `lib/pagos/*`, `services/checkout.service.ts`) sobre qué
+// redes acepta Wompi. ESE COMENTARIO YA NO ES CIERTO: `SPIKE-REDES-QUE-PROCESA-1` tokenizó de
+// verdad contra el sandbox del proveedor y MIDIÓ que UnionPay SÍ procesa — y este detector la
+// marcaba `no_reconocida`. Es el defecto INVERSO al que parece obvio: no le prometíamos al
+// comprador un cobro que iba a fallar, le NEGÁBAMOS uno que sí iba a funcionar (CHECKOUT-
+// DETECTOR-UNIONPAY-1). Se agrega acá, con el rango publicado de su esquema.
+//
+// Discover sigue fuera por marginal en este mercado (sin medir contra el proveedor). El mismo
+// spike nombra OTRA red más, que el proveedor cita en su propio mensaje de error, pero NINGÚN
+// número de prueba logró tokenizarla: no hay forma de afirmar ni descartar que el proveedor la
+// procese. Agregarla sin esa confirmación crearía el defecto CONTRARIO al que este slice arregla
+// (prometer una red que el proveedor rechace), así que se queda AFUERA — pregunta abierta,
+// `CHECKOUT-RED-SIN-CONFIRMAR-1`, hasta que algo la tokenice de verdad o el proveedor la
+// descarte explícitamente.
 //
 // El PREFIJO de cada red es un rango numérico de N dígitos (los rangos IIN publicados de cada
 // esquema, no datos de ninguna tarjeta particular): Visa siempre empieza en 4; Mastercard en
-// 51–55, o en el rango nuevo 2221–2720; Amex en 34 o 37; Diners en 36, 38–39, 300–305 o 309. Los
-// cuatro son DISJUNTOS entre sí (ningún par de rangos comparte un mismo segundo dígito), así que
-// nunca hay dos redes reconocidas a la vez para un mismo prefijo.
-export type RedTarjeta = 'visa' | 'mastercard' | 'amex' | 'diners';
+// 51–55, o en el rango nuevo 2221–2720; Amex en 34 o 37; Diners en 36, 38–39, 300–305 o 309;
+// UnionPay en 62. Las cinco son DISJUNTAS entre sí (ningún par de rangos comparte un mismo
+// segundo dígito), así que nunca hay dos redes reconocidas a la vez para un mismo prefijo.
+export type RedTarjeta = 'visa' | 'mastercard' | 'amex' | 'diners' | 'unionpay';
 
 /**
  * Resultado de la detección — «todavía no se sabe» es un caso de primera clase, no un error:
@@ -120,7 +129,7 @@ interface RangoIin {
   largo: number;
 }
 
-const REDES_ORDEN: RedTarjeta[] = ['visa', 'mastercard', 'amex', 'diners'];
+const REDES_ORDEN: RedTarjeta[] = ['visa', 'mastercard', 'amex', 'diners', 'unionpay'];
 
 const RANGOS_POR_RED: Record<RedTarjeta, RangoIin[]> = {
   visa: [{ min: 4, max: 4, largo: 1 }],
@@ -138,6 +147,7 @@ const RANGOS_POR_RED: Record<RedTarjeta, RangoIin[]> = {
     { min: 300, max: 305, largo: 3 },
     { min: 309, max: 309, largo: 3 },
   ],
+  unionpay: [{ min: 62, max: 62, largo: 2 }],
 };
 
 /**

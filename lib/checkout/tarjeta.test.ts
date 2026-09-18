@@ -160,8 +160,18 @@ test('pocos dígitos ambiguos entre Amex y Diners (los dos empiezan con 3): toda
   assert.deepEqual(detectarRedTarjeta('30'), { estado: 'desconocido' });
 });
 
+test('UnionPay, rango 62 (§ CHECKOUT-DETECTOR-UNIONPAY-1 — el proveedor SÍ la procesa)', () => {
+  assert.deepEqual(detectarRedTarjeta('62'), { estado: 'reconocida', red: 'unionpay' });
+  assert.deepEqual(detectarRedTarjeta('6200000000000005'), { estado: 'reconocida', red: 'unionpay' });
+});
+
+test('un solo "6" todavía podría completarse hacia UnionPay (62): no se sabe, no se descarta', () => {
+  assert.deepEqual(detectarRedTarjeta('6'), { estado: 'desconocido' });
+});
+
 test('un prefijo que ninguna red conocida puede completar: no reconocida, sin adivinar', () => {
   assert.deepEqual(detectarRedTarjeta('6011000000000004'), { estado: 'no_reconocida' }); // Discover, fuera de alcance
+  assert.deepEqual(detectarRedTarjeta('61'), { estado: 'no_reconocida' }); // vecino de UnionPay (62), no lo es
   assert.deepEqual(detectarRedTarjeta('306'), { estado: 'no_reconocida' }); // 300–305 y 309 ya lo descartan
   assert.deepEqual(detectarRedTarjeta('9999'), { estado: 'no_reconocida' });
 });

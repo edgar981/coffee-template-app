@@ -153,11 +153,14 @@ const TEXTO_CREACION_TRANSACCION_GENERICO = 'No pudimos procesar tu pago. Intent
 // slice). Los logos de estas redes son marca de terceros; este repositorio no tiene esos
 // archivos y no se descargan/copian acá. Hasta que el owner decida de dónde salen, la red
 // detectada se muestra como NOMBRE en texto, no como ícono.
+// `unionpay` es texto NUEVO de este slice (§ CHECKOUT-DETECTOR-UNIONPAY-1) — nadie lo revisó
+// todavía; queda bajo el mismo "pendiente del owner" que el resto del mapa.
 const NOMBRE_RED: Record<RedTarjeta, string> = {
   visa: 'Visa',
   mastercard: 'Mastercard',
   amex: 'American Express',
   diners: 'Diners Club',
+  unionpay: 'UnionPay',
 };
 
 /**
