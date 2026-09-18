@@ -5851,3 +5851,74 @@ este slice no toca `app/(storefront)/`, ninguna puerta de dinero, schema ni migr
 sin código. La RAMA (`slice/api-directa-panel-metodos-1`) sigue con commits previos que sí tocan
 superficie Tier 1 (`lib/checkout/metodos-pago.ts`), así que el conjunto sigue esperando el visto bueno
 del owner antes de mergear — este commit no lo cambia.
+
+## 2026-09-17 — Un ícono NEUTRO en vez de los logos oficiales de las redes, mientras el costo de
+licenciarlos no se pague — decisión REVERSIBLE (`CHECKOUT-ICONO-TARJETA-NEUTRO-1`)
+
+### Qué se decidió
+
+Junto al nombre de la red detectada en el formulario de tarjeta (`FormularioTarjeta.tsx`,
+§ CHECKOUT-DETECCION-EMISOR-BIN-1) va ahora un **ícono de tarjeta NEUTRO** — un rectángulo
+redondeado sin ningún detalle interno, dibujado por este slice, sin marca de ninguna red. NO son
+los logos oficiales de Visa/Mastercard/Amex/Diners. El ícono señala «tarjeta reconocida»; el
+nombre en texto, que ya existía, sigue diciendo CUÁL.
+
+### Por qué — es un costo medido, no una preferencia visual
+
+Un slice **fue a buscar los logos oficiales** de las cuatro redes y **midió, intentándolo de
+verdad, que los cuatro portales de marca exigen aceptar un acuerdo de licencia o registrarse como
+socio antes de entregar los archivos**. No es una suposición sobre cómo funcionan las licencias de
+marca: es lo que devolvieron los cuatro portales al intentarlo. Ese slice volvió `BLOCKED`.
+
+Ese acuerdo **no es un costo de una sola vez**: se propagaría a **cada despliegue de cliente** de
+este template (§ El código compartido no NACE siendo Nayoli/demo — cada despliegue es su propio
+repo/deploy). Aceptar una licencia de marca de cuatro redes de pago por cada tenant que se levante
+no es un costo que valga hoy por un ícono junto a un campo de formulario.
+
+### Por qué es REVERSIBLE, y qué garantiza que revertir no mueva nada más
+
+El ícono vive en el **mismo slot** donde irían los logos oficiales — no se inventó un lugar nuevo
+que el slice de los logos tendría que desarmar. `IconoTarjetaGenerica` es un componente aislado
+dentro de `CampoTarjeta`, montado en un `<span className="inline-flex items-center gap-1 …">`
+junto al nombre; el tamaño (`w-3.5 h-3.5`), el `gap` y la posición (antes del texto) son del
+contenedor, no del ícono. **El slice de los logos oficiales ya está escrito y sigue en cola**: el
+día que el owner acepte los acuerdos, reemplaza el `<svg>` de `IconoTarjetaGenerica` (o el
+componente entero) por el logo de `deteccionRed.red` correspondiente, y el layout que lo rodea no
+se toca.
+
+### El disparador, como ítem propio — y que descansa en que alguien vuelva a leerlo
+
+**Se revisa si:**
+- **algún tenant lo pide** (un cliente del template pregunta por qué no ve los logos reales de su
+  pasarela), o
+- **el material de venta lo necesita** (una demo o un pitch para el que el ícono genérico no
+  alcanza).
+
+**No hay mecanismo que avise cuando cualquiera de los dos pase.** Este asiento es la única red de
+seguridad: si nadie vuelve a leerlo, el ícono neutro se queda indefinidamente aunque el disparador
+ya haya ocurrido. Es la misma familia que un ítem de Backlog técnico sin fecha de vencimiento — se
+anota acá porque no hay otro lugar donde este disparador viva.
+
+### El ícono — de dónde salió
+
+**Dibujado por este slice, en línea, sin ninguna dependencia nueva.** Un `<rect>` con esquinas
+redondeadas (`viewBox="0 0 24 24"`, stroke `currentColor`, sin relleno) — el mismo estilo de ícono
+que ya usa el repo (ver `SearchField` de `@duna/design-system`, mismo `viewBox` y trazo). **NO es
+el `CreditCard` de `lucide-react`** — ya instalado y en uso en este mismo directorio
+(`EsperaConfirmacionTarjeta.tsx`) — porque ese ícono trae una línea horizontal partiendo el
+rectángulo (la banda magnética), y esa línea es exactamente la "franja" que la condición del owner
+prohíbe. No se tomó de ningún set de íconos libres, así que no hay licencia de terceros que
+declarar.
+
+### Gate
+
+**`npm run gate`, los dos carriles, verde.** El diff no toca lógica (`lib/checkout/tarjeta.ts` no
+se tocó — la detección sigue siendo la ya construida y testeada), sólo JSX presentacional y este
+asiento.
+
+**Tier 1 — SÍ aplica, y por eso el slice paró en `AWAITING_APPROVAL`.**
+`components/storefront/checkout/` es subárbol Tier 1 (§ Tier 1 — LA LISTA TAMBIÉN GANA
+SUBÁRBOLES, la misma razón que ya cubre `app/(storefront)/`), y el diff cambia bytes que el
+comprador ve (un ícono nuevo en el formulario de tarjeta). El slice tenía aprobación explícita del
+owner para ESCRIBIR (`approved-by: owner`, spec del ledger) — nunca para mergear; el merge sigue
+gateado al owner, igual que el resto de la rama.

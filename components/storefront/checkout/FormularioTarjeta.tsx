@@ -61,6 +61,14 @@ import EsperaConfirmacionTarjeta from './EsperaConfirmacionTarjeta';
  * visual, no una autorización. El NOMBRE se muestra como TEXTO — el logo de cada red es marca de
  * un tercero y este repositorio no tiene esos archivos (§ el reporte del slice).
  *
+ * JUNTO AL NOMBRE va un ÍCONO NEUTRO (§ CHECKOUT-ICONO-TARJETA-NEUTRO-1, DECISIONS.md): un
+ * rectángulo redondeado sin ninguna marca, dibujado a mano (`IconoTarjetaGenerica`, abajo) en el
+ * MISMO estilo de ícono que ya usa el repo (stroke 24×24, ver `SearchField` del design-system) —
+ * NO un set libre, así que no hay licencia de terceros que declarar. Ocupa el MISMO slot donde
+ * algún día irían los logos oficiales de cada red: es decorativo (`aria-hidden`), nunca repite
+ * el nombre, y el swap futuro es reemplazar sólo este ícono por el logo de `deteccionRed.red` —
+ * el layout (flex, gap, tamaño) no se mueve.
+ *
  * SI EL PROVEEDOR RECHAZA LA CREACIÓN PORQUE LA CUENTA YA NO TIENE EL MÉTODO HABILITADO
  * (`CreacionTransaccionError.tipo === 'metodo_no_habilitado'`) — un rechazo ESTRUCTURAL, no
  * de la tarjeta que se tecleó—, este componente NO deja al comprador reintentando contra la
@@ -382,8 +390,33 @@ interface CampoTarjetaProps {
   inputMode?: 'numeric' | 'text';
   /** El nombre de la red emisora detectada (§ CHECKOUT-DETECCION-EMISOR-BIN-1), o `null` si
    *  todavía no se sabe o el prefijo no cae en ninguna red reconocida — en esos dos casos no se
-   *  renderiza nada, nunca un ícono genérico esperando. Sólo lo usa el campo de número. */
+   *  renderiza nada, ni el texto ni el ícono. Sólo lo usa el campo de número. */
   marcaDetectada?: string | null;
+}
+
+/**
+ * Ícono de tarjeta NEUTRO (§ CHECKOUT-ICONO-TARJETA-NEUTRO-1) — un rectángulo redondeado sin
+ * ningún detalle interno. A propósito NO es el `CreditCard` de lucide-react (ese trae una línea
+ * horizontal partiendo el rectángulo, la "franja" que la condición del owner prohíbe) ni nada con
+ * círculos superpuestos: sólo el contorno de una tarjeta, que es lo más genérico que un ícono de
+ * tarjeta puede ser. `aria-hidden` porque es decorativo — el nombre de la red ya está en el
+ * `<span>` de al lado, en texto.
+ */
+function IconoTarjetaGenerica() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="w-3.5 h-3.5 shrink-0"
+    >
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+    </svg>
+  );
 }
 
 function CampoTarjeta({ label, value, onChange, error, placeholder, inputMode, marcaDetectada }: CampoTarjetaProps) {
@@ -392,7 +425,10 @@ function CampoTarjeta({ label, value, onChange, error, placeholder, inputMode, m
       <div className="flex items-center justify-between mb-1.5">
         <label className="block text-xs font-medium text-[var(--sf-texto)]">{label}</label>
         {marcaDetectada && (
-          <span className="text-xs font-medium text-[var(--sf-texto)]/70">{marcaDetectada}</span>
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--sf-texto)]/70">
+            <IconoTarjetaGenerica />
+            {marcaDetectada}
+          </span>
         )}
       </div>
       <input
