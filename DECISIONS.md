@@ -5660,6 +5660,109 @@ lo escriba en el libro."*
   de la decisión, no su redacción byte-visible.
 - **El predictor del 404 (§2) sigue `[SIN MEDIR]`** — este asiento fija CÓMO y DÓNDE se mide, no el
   resultado. Ningún slice que dependa de él se construye antes de esa medición.
+## 2026-09-16 — El censo de la vertical restaurante estaba sobredimensionado: Toscana vende por la página, igual que Nayoli (`TOSCANA-CENSO-CORRECCION-1`)
+
+**Este asiento registra una CORRECCIÓN del owner sobre un censo read-only** (`TOSCANA-VERTICAL-
+RESTAURANTE-CENSO-1`), no una nueva medición del repositorio. El censo corrió sin escribir —midió qué le
+falta al template para operar un restaurante real, **Toscana**— y por correr read-only su mapa vivía
+sólo fuera del libro: nadie podía leerlo, y por tanto nadie podía contradecirlo. El owner lo corrigió el
+2026-09-16 sobre tres puntos concretos y ordenó dejar la versión corregida por escrito **sin volver a
+correr el censo** — lo que cambió no es ninguna medición del repositorio, es el caso.
+
+### 0 · La premisa que estaba mal, y que arrastró todo lo demás
+
+El censo se preguntó qué le falta al template para un negocio **que NO vende en línea**, y clasificó
+todo contra esa idea — carrito y checkout como capacidad ajena a Toscana, a reemplazar por un canal
+manual.
+
+**Medición del owner, que conoce el negocio: Toscana VENDE POR LA PÁGINA, igual que Nayoli — carrito,
+checkout y WhatsApp.** No es un tenant sin ventas.
+
+Eso invalida la clasificación entera, no un ítem suelto de ella. La hipótesis "no vende en línea" era
+del orquestador, no una medición contra el negocio real, y el censo construyó su lista de capacidad
+nueva encima de esa hipótesis. **Un censo puede medir bien el repositorio y aun así responder la
+pregunta equivocada** cuando la pregunta misma descansa en un supuesto sobre el mundo que nadie verificó
+contra quien lo conoce.
+
+### 1 · Las tres correcciones
+
+**A · Sedes — sobredimensionado.** El censo pidió sedes y horarios como capacidad nueva, midiendo que no
+existe ningún andamiaje para eso. **Toscana tiene UNA sede.** Eso es un campo de dirección del negocio
+—el mismo tipo de dato plano que ya vive en `SiteSetting` (§ Config del negocio, `CLAUDE.md`)—, no un
+modelo de sedes con su propia tabla. La diferencia que importa: **un campo, no una tabla.**
+
+**B · Pedir por la página — no es capacidad nueva.** El censo pidió «ordenar por WhatsApp o por una app
+de terceros» como REEMPLAZO del checkout. No hace falta: el camino que Toscana usa ya existe y ya está
+construido — el mismo carrito, el mismo checkout y el mismo enlace de WhatsApp que usa Nayoli (§ Los
+MÉTODOS de pago son una LISTA, § El eje de COBRO, `CLAUDE.md`). Sale de la lista de capacidad nueva
+porque no hay nada que construir: es el flujo que el template ya sirve.
+
+**C · Lo único real: STOCK OPCIONAL.** De todo lo que el censo llamó capacidad nueva, lo que queda en
+pie es que un ítem de menú no tiene stock. El censo lo midió bien y con rutas: hoy TODO producto lleva
+inventario, descuenta al despacho y alerta al cruzar el mínimo — un concepto que para un menú de
+restaurante no aplica, no un dato que falta.
+
+**Y esto no es un hallazgo del censo: es un hueco que este mismo repositorio ya se había anotado a sí
+mismo y nunca había medido.** El Backlog técnico ya trae la entrada exacta —**§ Backlog #61, "STOCK
+OPCIONAL — por producto o por despliegue"** (`CLAUDE.md`)— con esta frase textual como su disparador:
+*"DISPARADOR: el primer cliente FIRMADO que no cuenta stock (restaurante, servicios, producción por
+encargo)."* Un restaurante ya era, con nombre, el caso que ese ítem esperaba. El censo no descubrió el
+hueco: encontró el hueco que el backlog ya nombraba y que ningún slice había medido ni construido
+todavía. **El ítem #61 no se toca por este asiento** —sigue con su disparador tal como está escrito, y
+Toscana es ahora la evidencia concreta de que ese disparador puede ocurrir, no una orden de construirlo—.
+
+### 2 · Lo que el censo midió bien y sigue en pie — no se borra
+
+Una medición no se vuelve falsa porque cambie el caso, y esta distinción es la que hace valer el
+asiento:
+
+- **El template no puede apagar sus rutas de tienda y de checkout.** El mecanismo de apagar páginas
+  existe (`content.paginas`, `lib/config/site-content-defaults.ts:576-578`) y hoy cubre exactamente DOS
+  páginas —`nosotros` y `suscripciones`— sin entrada para `tienda` ni para `checkout`. Verificado por
+  ejecución sobre el código, no por lectura del censo: `StoreNav` (`components/storefront/layout/
+  StoreNav.tsx:23-29`) arma el enlace "Tienda" como literal incondicional del array de links, mientras
+  "Suscripciones" y "Nosotros" están envueltos en `paginas.suscripciones.visible ? […] : []` y
+  `paginas.nosotros.visible ? […] : []` respectivamente — tienda es el único de los tres sin guarda. El
+  CTA principal del hero está clavado a `/tienda` (`HERO_HREFS.primario`, `lib/config/site-content-
+  defaults.ts:614`, `= '/tienda'`) y el hero tiene `ocultable: false` (misma fuente, línea 695) — no se
+  puede esconder ni redirigir esa sección desde el editor.
+- **Eso es verdad del template y NO es problema de Toscana**, porque Toscana sí vende. Queda registrado
+  como propiedad conocida del producto, no como pendiente de esta vertical — y el día que aparezca un
+  tenant que de verdad no venda en línea, esta medición le sirve tal cual, sin tener que volver a
+  correrla.
+- **Tampoco se borra lo que el censo encontró y el owner no había nombrado:** no existe ningún mecanismo
+  para ocultarle secciones enteras del PANEL a un tenant por vertical de negocio, y el propio código lo
+  admite como pendiente — `constants/dashboard-widgets.ts` documenta la "costura MULTITENANT" (un
+  filtro por vertical de negocio sobre el catálogo de widgets) como NO CONSTRUIDA (§ Dashboard
+  personalizable, `CLAUDE.md`). Esta pieza se reporta como **ledger_claim** del censo original, no
+  como medición propia de este asiento — no se re-auditó `ADMIN_NAV` línea por línea para confirmar la
+  ausencia total del mecanismo; lo que sí se verificó por grep es que el ÚNICO lugar del repo que nombra
+  esa costura la nombra como pendiente.
+- **Ni el límite dicho:** el material de referencia de Toscana —su carta, su ritmo de operación, su
+  forma concreta— no está en este repositorio, así que nada sobre eso se midió ni se registra acá. Lo
+  único que este asiento afirma es lo que el owner corrigió y lo que el código deja verificar.
+
+### 3 · La lección para el protocolo
+
+**Un censo que parte de una hipótesis sobre el mundo mide bien y responde mal.** El repositorio se puede
+medir con rutas —greps, líneas, ejecución—; el negocio no está en el repositorio, y sólo lo puede decir
+quien lo conoce. **La hipótesis sobre el negocio tiene que llegar del owner ANTES de clasificar, no
+después de que el mapa ya esté hecho.** Un censo que arranca sin esa hipótesis confirmada no está
+midiendo con un vacío honesto: está midiendo con una hipótesis implícita del propio orquestador, y esa
+hipótesis se cuela en cada clasificación sin que nadie la vea entrar.
+
+### 4 · Alcance y límites de este asiento
+
+- **No construye nada de la vertical restaurante.** Ningún campo de sede, ninguna capacidad de stock
+  opcional, ningún cambio de checkout arranca por este asiento. Es un mapa corregido, no un programa.
+- **No reabre el Backlog #61.** Queda exactamente como estaba, con Toscana como evidencia de que su
+  disparador es alcanzable — no como instrucción de construirlo ahora.
+- **No re-corre el censo original**, y no reclasifica nada que el censo no haya tocado ya. Las
+  correcciones son las tres que el owner dio; lo demás del censo —lo que este asiento no menciona—
+  sigue viviendo sólo en los registros del orquestador, fuera del libro, tal como estaba.
+
+**GATE, los dos carriles, verde.** Este diff toca un solo archivo del ledger (`DECISIONS.md`) y ningún
+test, así que nada podía cambiar en ninguno de los dos carriles.
 ## 2026-09-17 — El catálogo de métodos de la pasarela no es «un campo por método»: más de la mitad pide
 varios, de tres naturalezas distintas, y más de la mitad saca al comprador de la página — y el filtro del
 panel es CATÁLOGO ≠ HABILITADO ≠ COBRABLE, tres conjuntos distintos donde sólo el tercero sirve
