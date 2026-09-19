@@ -8626,7 +8626,8 @@ hacia afuera adicional que reportar primero.
   comentario miente sobre el estado del código. Fuera de alcance de este slice (`touches:
   DECISIONS.md` solamente) — actualizar los dos comentarios es un cambio de código de una línea cada
   uno, para quien lo tome.
-- La doctrina del gate de Tier 1 (`CLAUDE.md`) no nombra, HOY, que mergear a `main` es el ACTO que
-  dispara `prisma migrate deploy` contra producción (§2 de este asiento, la consecuencia que pidió
-  el owner) — sólo documenta el hecho técnico en § Migraciones y deploy. Fuera de `touches:` de este
-  slice (sólo `DECISIONS.md`); es una edición de `CLAUDE.md`, para quien la tome.
+- `CLAUDE-MD-DISPARADOR-ES-EL-MERGE-1`: la doctrina del gate de Tier 1 (`CLAUDE.md`) no nombra, HOY,
+  que mergear a `main` es el ACTO que dispara `prisma migrate deploy` contra producción (§2 de este
+  asiento, la consecuencia que pidió el owner) — sólo documenta el hecho técnico en § Migraciones y
+  deploy. Fuera de `touches:` de este slice (sólo `DECISIONS.md`); es una edición de `CLAUDE.md`,
+  para quien la tome.
