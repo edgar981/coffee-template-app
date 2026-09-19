@@ -9127,15 +9127,25 @@ que no se puede expresar/simplifica" habría sido una afirmación sin medir).
 
 ### Open follow-ups
 
-Ninguno nuevo con id propio. El CTA faltante (`#1` de arriba) y las tres simplificaciones (`#2`-`#4`)
+Ninguno de backlog de producto. El CTA faltante (`#1` de arriba) y las tres simplificaciones (`#2`-`#4`)
 quedan nombrados en el comentario de cabecera de `GrindChooserRiel.tsx` como piezas del prototipo que
 esta variante no expresa o simplifica — no se abre un ítem de backlog para ninguna: ninguna tiene costo
 pagado ni caso pedido todavía, y `CLAUDE.md` (Backlog técnico) no está en `touches:` de este slice.
 
-**Hallazgo incidental, fuera de `touches:`, no corregido:** el comentario de cabecera de `themes.ts`
-(línea ~17-18 antes de este diff) afirma «`subscriptionCTA` sigue SIN slot de variante», y eso es FALSO
-desde `TEMAS-SUBSCRIPTIONCTA-LINEA-1` — `SubscriptionCTAContent` declara `variante` y
-`REGISTRY.subscriptionCTA.variantes` existe (verificado: `CORTE.variantes.subscriptionCTA = 'linea'`
-valida sin faltante). Es una staleness PRE-EXISTENTE, no causada por este diff — no se corrigió porque
-`themes.ts` está en `touches:` para el cambio de `presentaciones`, no para una limpieza de un párrafo
-no relacionado. Id sugerido para quien lo tome: `THEMES-COMENTARIO-SUBSCRIPTIONCTA-VENCIDO-1`.
+**Dos hallazgos incidentales, fuera de `touches:`, NO corregidos** — encontrados al hacer el grep de
+cierre de este slice contra `themes.ts` (el archivo que este diff SÍ toca), pero ninguno de los dos lo
+causó este diff: son staleness PRE-EXISTENTE, de comentarios que quedaron atrás cada vez que OTRO slice
+construyó una variante nueva. No se corrigieron porque `themes.ts` está en `touches:` para el cambio de
+`presentaciones`, no para una limpieza de párrafos no relacionados con este cambio.
+
+1. El comentario de cabecera (línea ~17-18 antes de este diff) afirma «`subscriptionCTA` sigue SIN
+   slot de variante», y eso es FALSO desde `TEMAS-SUBSCRIPTIONCTA-LINEA-1` — `SubscriptionCTAContent`
+   declara `variante` y `REGISTRY.subscriptionCTA.variantes` existe (verificado: `CORTE.variantes.
+   subscriptionCTA = 'linea'` valida sin faltante). Id sugerido: `THEMES-COMENTARIO-SUBSCRIPTIONCTA-
+   VENCIDO-1`.
+2. El docstring de `ARRANQUE` (antes de este diff) afirma que `hero·ficha` y `presentaciones·indice`
+   son «las dos únicas variantes reales que existen hoy fuera de la canónica» — y eso YA era falso
+   antes de este slice: `hero·media`, `featured·grilla`, `brandStory·centrada` y `subscriptionCTA·
+   linea` ya existían (todas construidas por slices anteriores de esta misma rama). Con `presentaciones·
+   riel` sumado por este slice, la lista de variantes reales no-canónicas crece a seis. Id sugerido:
+   `THEMES-COMENTARIO-ARRANQUE-VARIANTES-VENCIDO-1`.
