@@ -56,12 +56,39 @@ function trim(v: string | undefined): string {
   return (v ?? '').trim();
 }
 
+/**
+ * LA FRASE QUE DECLARA QUE ESTE MÉTODO ES MANUAL (§ CHECKOUT-COPY-NEQUI-MANUAL-1).
+ *
+ * Nequi, Daviplata y Bre-B son instrumentos que TAMBIÉN puede cobrar la pasarela API directa
+ * (`lib/pagos/metodos-pasarela.ts`) — cuando eso pasa, los dos métodos conviven en el MISMO
+ * paso de pago (§ `SelectorMetodoPasarela`, `components/storefront/checkout/`), y compartir el
+ * nombre del riel es coincidencia, no el mismo producto: uno lo confirma una persona del
+ * equipo, el otro se confirma solo. `DECISIONS.md`, `BREB-SOLAPAMIENTO-ASIENTO-1` §4
+ * (2026-09-16) ya fijó la regla para el caso de Bre-B — "SON DOS MÉTODOS DISTINTOS […] Lo que
+ * hay que resolver es COPY, no arquitectura" — y esta constante es esa resolución, aplicada a
+ * los TRES tipos manuales que pueden coincidir con un medio de la pasarela (no sólo Bre-B):
+ * nequi, daviplata, breb. `transferencia` y `efectivo` quedan AFUERA — ninguno comparte nombre
+ * de riel con un tipo de la pasarela (§ el reporte del slice).
+ *
+ * Describe la CONSECUENCIA que vive el comprador, no el mecanismo: no dice "esto es manual" ni
+ * nombra una pasarela, que el comprador no tiene por qué conocer. Y NO promete un plazo — sólo
+ * el HECHO de que un humano lo revisa, nunca un "en N horas" que el negocio no puede garantizar.
+ *
+ * UNA sola fuente para los tres tipos: dos copias de la misma frase es cómo una tanda futura las
+ * deja divergir sin que nadie lo note (misma familia que `razonDelServidor`/`cruzoMinimo`,
+ * CLAUDE.md).
+ *
+ * TEXTO PROVISIONAL — PENDIENTE DE TEXTO DEL OWNER (§ el reporte del slice).
+ */
+export const CONFIRMA_EL_EQUIPO = 'El equipo confirma tu pago.';
+
 /** La instrucción "Enviar a <número>" compartida por Nequi y Daviplata — mismo formateo de
- *  siempre (`formatWhatsappDisplay` sin el `+57 `). `null` = sin número, incompleto. */
+ *  siempre (`formatWhatsappDisplay` sin el `+57 `), + `CONFIRMA_EL_EQUIPO` (arriba). `null` =
+ *  sin número, incompleto. */
 function movilDesc(datos: Record<string, string>): string | null {
   const numero = trim(datos.numero);
   if (!numero) return null;
-  return `Enviar a ${formatWhatsappDisplay(numero).replace(/^\+57\s*/, '')}`;
+  return `Enviar a ${formatWhatsappDisplay(numero).replace(/^\+57\s*/, '')}. ${CONFIRMA_EL_EQUIPO}`;
 }
 
 /** La opción de transferencia, DERIVADA de `opcionTransferencia` (la definición única de "cuenta
@@ -80,8 +107,8 @@ function transferenciaDesc(datos: Record<string, string>): string | null {
 function brebDesc(datos: Record<string, string>): string | null {
   const llave = trim(datos.llave);
   // La llave se MUESTRA tal cual la escribió el dueño: el checkout no la valida ni la parsea,
-  // sólo la exhibe para que el cliente la copie.
-  return llave ? `Enviar a la llave ${llave}` : null;
+  // sólo la exhibe para que el cliente la copie. + `CONFIRMA_EL_EQUIPO` (arriba).
+  return llave ? `Enviar a la llave ${llave}. ${CONFIRMA_EL_EQUIPO}` : null;
 }
 
 interface TipoMetodoDef {

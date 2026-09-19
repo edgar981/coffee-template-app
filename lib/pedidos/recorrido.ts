@@ -35,10 +35,13 @@ export interface PasoRecorrido {
 
 // ─── VOCABULARIO ─────────────────────────────────────────────────────────────
 //
-// La etiqueta depende de los TRES datos, no sólo del estado nuevo: `null→pendiente`
-// es "Pedido creado" y `pagado→pendiente` es "Pago revertido"; `null→preparando`
-// es "Envío creado" y `fallido→preparando` es "Entrega reprogramada". Colapsarlo a
-// un mapa por estado destino diría lo mismo para hechos opuestos.
+// La etiqueta depende del FROM sólo cuando el DESTINO solo no basta para distinguir
+// dos hechos opuestos. En cobro sí hace falta: `null→pendiente` es "Pedido creado" y
+// `pagado→pendiente` es "Pago revertido" — un mapa por estado destino diría lo mismo
+// para los dos, así que la creación se resuelve aparte. En fulfillment el ÚNICO caso
+// así es `fallido→preparando` ("Entrega reprogramada"): la creación (`null→preparando`)
+// NO necesita su propio caso, porque el mapa YA dice lo que hay que decir cuando el
+// envío nace ("Envío en preparación") — nada más lo consulta.
 //
 // Los mapas se tipan `Record<OrderStatus,…>` y `Record<ShippingEstado,…>` para que
 // agregar un estado al dominio SIN etiqueta no compile. Es la única forma de que
@@ -80,7 +83,6 @@ export function etiquetaTransicion(t: Pick<OrderStatusTransition, 'eje' | 'estad
     if (t.estado_anterior === null) return TITULO_CREADO;
     return COBRO[t.estado_nuevo as OrderStatus] ?? t.estado_nuevo;
   }
-  if (t.estado_anterior === null)      return 'Envío creado';
   if (t.estado_anterior === 'fallido' && t.estado_nuevo === 'preparando') return 'Entrega reprogramada';
   return FULFILLMENT[t.estado_nuevo as ShippingEstado] ?? t.estado_nuevo;
 }
