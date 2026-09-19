@@ -232,6 +232,32 @@ test('subscriptionCTA es OCULTABLE y NO tiene imagenes (sección de solo texto)'
   assert.equal(seccionEsVisible(def, { visible: true }), true);
 });
 
+// ── subscriptionCTA GANA VARIANTES (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e): cuarta sección con
+// `variantes`, gemela de hero/brandStory/presentaciones ──────────────────────────────────────────
+
+test('subscriptionCTA: sin fila, `variante` resuelve a la canónica "bloque" (byte-idéntico)', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.subscriptionCTA.variante, 'bloque');
+});
+
+test('DEFAULTS.subscriptionCTA.variante es "bloque" (byte-idéntico al bloque de hoy)', () => {
+  assert.equal(DEFAULTS.subscriptionCTA.variante, 'bloque');
+});
+
+test('subscriptionCTA: una `variante` guardada válida se respeta', () => {
+  const r = resolverSiteContent({ subscriptionCTA: { variante: 'linea' } });
+  assert.equal(r.subscriptionCTA.variante, 'linea');
+});
+
+test('subscriptionCTA: una `variante` guardada fuera del set cae a la canónica', () => {
+  const r = resolverSiteContent({ subscriptionCTA: { variante: 'no-existe' } });
+  assert.equal(r.subscriptionCTA.variante, 'bloque');
+});
+
+test('REGISTRY.subscriptionCTA declara `variantes` con el set cerrado y la canónica, SIN `noUniformes`', () => {
+  assert.deepEqual(REGISTRY.subscriptionCTA.variantes, { claves: ['bloque', 'linea'], canonica: 'bloque' });
+});
+
 // ── PLATAFORMA: el resolver de arrays (repeater), y el DEFECTO LATENTE que destapa ─────
 //
 // El REGISTRY ganó `repeater:{itemsKey}` hace tandas (lo leen `seccionEsVisible` e `imagenesDe`),
@@ -583,17 +609,42 @@ test('variantesBandas NO es una sección: no rompe el loop de secciones, y el he
   assert.ok(typeof r.hero.titulo === 'string'); // las secciones siguen resolviendo
 });
 
+// ── El DESPACHADOR de `featured` (`FeaturedProducts.tsx`, TEMAS-FEATURED-GRILLA-1) lee
+// `variantesBandas.featured` con `?? FeaturedProductsCuadricula` como red — estos tres casos son los
+// que ese `??` tiene que cubrir, afirmados acá (la ÚNICA capa testeable sin jsdom, § CLAUDE.md "el
+// glob NO incluye *.test.tsx"): sin override → AUSENTE del mapa → el dispatcher cae a la canónica;
+// con la clave nueva → PRESENTE → el dispatcher elige `FeaturedProductsGrilla`; con basura → tampoco
+// sobrevive → cae a la canónica, sin lanzar.
+test('el despachador de featured: sin variante guardada, la clave está AUSENTE → cae a la canónica (cuadricula)', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.variantesBandas.featured, undefined);
+});
+
+test('el despachador de featured: con "grilla" guardado, la clave está PRESENTE → el dispatcher elige FeaturedProductsGrilla', () => {
+  const r = resolverSiteContent({ variantesBandas: { featured: 'grilla' } });
+  assert.equal(r.variantesBandas.featured, 'grilla');
+});
+
+test('el despachador de featured: una clave basura no sobrevive → AUSENTE → cae a la canónica sin lanzar', () => {
+  const r = resolverSiteContent({ variantesBandas: { featured: 'una-clave-basura' } });
+  assert.equal(r.variantesBandas.featured, undefined);
+});
+
 test('variantesBandas: SeccionKey lo excluye — el REGISTRY no tiene entrada `variantesBandas` (no es sección)', () => {
   assert.equal('variantesBandas' in REGISTRY, false);
 });
 
-test('VARIANTES_ESTRUCTURALES: declara `featured` con su canónica `cuadricula`, y NO declara `trustBadges` (capacidad muerta evitada)', () => {
-  assert.deepEqual(VARIANTES_ESTRUCTURALES.featured, { claves: ['cuadricula'], canonica: 'cuadricula' });
+test('VARIANTES_ESTRUCTURALES: declara `featured` con su canónica `cuadricula` y la variante `grilla` (TEMAS-FEATURED-GRILLA-1), y NO declara `trustBadges` (capacidad muerta evitada)', () => {
+  assert.deepEqual(VARIANTES_ESTRUCTURALES.featured, { claves: ['cuadricula', 'grilla'], canonica: 'cuadricula' });
   assert.equal(VARIANTES_ESTRUCTURALES.trustBadges, undefined);
 });
 
 test('resolverVariantesBandas: una clave válida por banda se respeta', () => {
   assert.deepEqual(resolverVariantesBandas({ featured: 'cuadricula' }), { featured: 'cuadricula' });
+});
+
+test('resolverVariantesBandas: "grilla" (TEMAS-FEATURED-GRILLA-1) también se respeta — no es sólo la canónica la que sobrevive', () => {
+  assert.deepEqual(resolverVariantesBandas({ featured: 'grilla' }), { featured: 'grilla' });
 });
 
 test('resolverVariantesBandas: basura por banda (clave fuera del set, no-string, ausente) NI SIQUIERA aparece en el resultado — es "sin override", no un clamp a la canónica', () => {
@@ -714,12 +765,13 @@ test('REGISTRY.presentaciones declara `variantes` con el set cerrado y la canón
   assert.deepEqual(REGISTRY.presentaciones.variantes, { claves: ['mosaico', 'indice'], canonica: 'mosaico' });
 });
 
-test('una sección SIN `variantes` declarado no gana `variante` en el resuelto (subscriptionCTA, p. ej. — hero/presentaciones/brandStory SÍ, § EJE-5-VARIANTES-HERO y TEMAS-P2-BRANDSTORY-1)', () => {
+test('una sección SIN `variantes` declarado no gana `variante` en el resuelto (testimonials, p. ej. — hero/brandStory/presentaciones/subscriptionCTA SÍ, § EJE-5-VARIANTES-HERO, TEMAS-P2-BRANDSTORY-1 y TEMAS-SUBSCRIPTIONCTA-LINEA-1)', () => {
   const r = resolverSiteContent({});
   // Sin cast: lo que se afirma es que la CLAVE no se ganó, no que valga `undefined` (una clave
   // presente con valor `undefined` pasaría el `assert.equal` de antes sin que la sección
-  // realmente careciera de `variante`).
-  assert.equal('variante' in r.subscriptionCTA, false);
+  // realmente careciera de `variante`). `subscriptionCTA` ya NO sirve de ejemplo — ganó su slot en
+  // TEMAS-SUBSCRIPTIONCTA-LINEA-1; `testimonials` sigue sin `variantes` declarado.
+  assert.equal('variante' in r.testimonials, false);
 });
 
 test('brandStory: sin fila, `variante` resuelve a la canónica "columnas" (byte-idéntico) — el slot que TEMAS-P2-BRANDSTORY-1 abre', () => {
@@ -739,8 +791,11 @@ test('REGISTRY.brandStory declara `variantes` con UNA sola clave (la canónica) 
 // ── EL HERO GANA VARIANTES (§ EJE-5-VARIANTES-HERO): segunda sección con `variantes`, gemela de
 // Presentaciones (§ eje 5e) ──────────────────────────────────────────────────────────────────────
 
-test('REGISTRY.hero declara `variantes` con el set cerrado, la canónica y `noUniformes: [\'ficha\']` (§ EJE-5-NAV-UNIFORME)', () => {
-  assert.deepEqual(REGISTRY.hero.variantes, { claves: ['curtina', 'ficha'], canonica: 'curtina', noUniformes: ['ficha'] });
+test('REGISTRY.hero declara `variantes` con el set cerrado (curtina/ficha/media), la canónica y `noUniformes: [\'ficha\']` (§ EJE-5-NAV-UNIFORME, TEMAS-HERO-MEDIA-1)', () => {
+  assert.deepEqual(
+    REGISTRY.hero.variantes,
+    { claves: ['curtina', 'ficha', 'media'], canonica: 'curtina', noUniformes: ['ficha'] },
+  );
 });
 
 test('hero: sin fila, `variante` resuelve a la canónica "curtina" (byte-idéntico)', () => {
@@ -762,13 +817,19 @@ test('hero: una `variante` guardada fuera del set cae a la canónica', () => {
   assert.equal(r.hero.variante, 'curtina');
 });
 
-test('resolverVariante con las claves del hero: ausente/vacío/null/basura → "curtina"; "ficha" se respeta', () => {
+test('resolverVariante con las claves del hero: ausente/vacío/null/basura → "curtina"; "ficha" y "media" se respetan', () => {
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, undefined), 'curtina');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, ''), 'curtina');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, null), 'curtina');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'foo'), 'curtina');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'ficha'), 'ficha');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'curtina'), 'curtina');
+  assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'media'), 'media');
+});
+
+test('hero: una `variante` guardada "media" se respeta, y resuelve igual que las otras dos (§ TEMAS-HERO-MEDIA-1)', () => {
+  const r = resolverSiteContent({ hero: { variante: 'media' } });
+  assert.equal(r.hero.variante, 'media');
 });
 
 // ── EL HERO GANA VIDEO COMO DATO (§ HERO-VIDEO-COMO-DATO-1): `imagenTipo`/`imagenPoster`, el
@@ -913,9 +974,10 @@ test('bandaUniforme: una banda ESTRUCTURAL sin sección (trustBadges/featured) �
   assert.equal(bandaUniforme('featured', undefined), true);
 });
 
-test('bandaUniforme: una sección SIN `variantes` declarado (subscriptionCTA) → true, para cualquier `variante` recibida', () => {
+test('bandaUniforme: subscriptionCTA·bloque y ·linea → true (sin `noUniformes` declarado, § TEMAS-SUBSCRIPTIONCTA-LINEA-1)', () => {
+  assert.equal(bandaUniforme('subscriptionCTA', 'bloque'), true);
+  assert.equal(bandaUniforme('subscriptionCTA', 'linea'), true);
   assert.equal(bandaUniforme('subscriptionCTA', undefined), true);
-  assert.equal(bandaUniforme('subscriptionCTA', 'ficha'), true);
 });
 
 test('bandaUniforme: brandStory·columnas → true (sin `noUniformes` declarado, § TEMAS-P2-BRANDSTORY-1)', () => {
@@ -941,9 +1003,14 @@ test('varianteDeBanda: una banda ESTRUCTURAL sin sección en SiteContentData (tr
   assert.equal(varianteDeBanda(r, 'featured'), undefined);
 });
 
-test('varianteDeBanda: una sección SIN `variantes` declarado (subscriptionCTA) → undefined, aunque SÍ sea una sección', () => {
+test('varianteDeBanda: subscriptionCTA resuelve a "bloque" con los DEFAULTS resueltos (sin fila) — TEMAS-SUBSCRIPTIONCTA-LINEA-1', () => {
   const r = resolverSiteContent({});
-  assert.equal(varianteDeBanda(r, 'subscriptionCTA'), undefined);
+  assert.equal(varianteDeBanda(r, 'subscriptionCTA'), 'bloque');
+});
+
+test('varianteDeBanda: subscriptionCTA resuelve a "linea" cuando se guarda esa variante', () => {
+  const r = resolverSiteContent({ subscriptionCTA: { variante: 'linea' } });
+  assert.equal(varianteDeBanda(r, 'subscriptionCTA'), 'linea');
 });
 
 test('varianteDeBanda: brandStory resuelve a "columnas" con los DEFAULTS resueltos (sin fila) — TEMAS-P2-BRANDSTORY-1', () => {

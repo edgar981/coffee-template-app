@@ -7,8 +7,12 @@ import {
 } from './themes';
 
 // EL PRESET DE THEME COMO DATO (§ programa THEMES, pieza 0(d)). Puro; capa 1. Afirma:
-//  1) los cinco themes del diseño son INCOMPLETOS hoy (la validación los rechaza y nombra qué falta);
-//  2) el preset de ARRANQUE (sólo capacidades reales) es el ÚNICO que valida completo;
+//  1) la guarda DISTINGUE completo de incompleto y NOMBRA qué falta, por regla — con casos SINTÉTICOS,
+//     nunca fotografiando cuántos/cuáles de los cinco themes del diseño validan completo hoy (ese
+//     número AVANZA con cada variante que se construye, y no es una propiedad del código a afirmar);
+//  2) ARRANQUE (sólo capacidades reales) valida completo SIEMPRE — es una garantía de DISEÑO, no un
+//     estado de avance; el catálogo real puede sumarle compañía (CORTE ya lo hizo, ver abajo) sin que
+//     esta garantía deje de sostenerse;
 //  3) el merge quirúrgico preserva todo texto/imagen del dueño, tocando sólo tema/esquemas/orden/
 //     variantesBandas/variante;
 //  4) aplicar el mismo preset dos veces es idempotente.
@@ -20,6 +24,20 @@ import {
 // `assert.equal(…, 5)` rompe igual que si lo tuviera. Por eso cada assert de abajo nombra el CONJUNTO
 // de secciones que fallan (ordenado, comparado con `deepEqual`), derivado del propio `detalle` — una
 // lista que no existe no puede divergir.
+//
+// Y NI SIQUIERA EL CONJUNTO NOMBRADO SE FOTOGRAFÍA ENTERO (TEMAS-TESTS-SIN-FOTO-1). Integrar TRES
+// variantes nuevas de golpe (hero·media, featured·grilla, subscriptionCTA·linea) rompió CUATRO tests
+// que enumeraban «hoy fallan exactamente estas secciones» — no por un defecto de `themes.ts` (que este
+// slice NO toca), sino porque el conjunto nombrado es OTRA foto, sólo que más fina que un conteo. La
+// clase es la misma que ya cerró TEMAS-PRESET-DATO-CIERRE-1 (una lista mantenida a mano que el mundo
+// mueve sola) y la misma que el schema editable STRIPPEA-lo-no-declarado / CATEGORIAS≠CATEGORIA_LABELS
+// (DECISIONS.md): dos declaraciones del mismo conjunto divergen apenas una de las dos deja de tocarse
+// a mano. Donde una sección PASÓ a validar completo (CORTE) o donde una ÚNICA variante dejó de fallar
+// dentro de un preset que sigue incompleto (PATIO, VITRINA), el test ya NO reafirma el conjunto
+// restante completo — sólo el hecho MONÓTONO (una vez válida, una clave nunca vuelve a ser inválida
+// sin que `themes.ts` cambie) de que esa variante puntual dejó de fallar, más un booleano de
+// completitud. Un booleano y un `.includes()` no dejan de romperse jamás — pero SÓLO se rompen en el
+// hito real (un preset completa del todo), no en cada paso intermedio de construcción de otra sección.
 function seccionDeFaltanteVariante(f: FaltanteTema): string {
   assert.equal(f.regla, 'variante', `no es un faltante de variante: ${JSON.stringify(f)}`);
   const m = f.detalle.match(/pide `([^`]+)·/);
@@ -33,12 +51,25 @@ function seccionesQueFallanVariante(preset: PresetTema): string[] {
     .sort();
 }
 
-test('HOY ninguno de los cinco themes del diseño valida completo, y ARRANQUE sí', () => {
-  for (const p of [PLIEGO, CORTE, PATIO, VETA, VITRINA]) {
-    assert.ok(!presetCompleto(p), `${p.clave} debería estar incompleto`);
-  }
+test('ARRANQUE valida completo SIEMPRE, y la guarda DISTINGUE completo de incompleto (con datos sintéticos, no con el catálogo real)', () => {
+  // ARRANQUE es la única garantía ESTABLE del catálogo: se construye sólo con capacidades que YA
+  // existen (§ su docstring), así que validar completo hoy es una propiedad de DISEÑO, no un estado de
+  // avance. El resto del catálogo (PLIEGO/CORTE/PATIO/VETA/VITRINA) AVANZA a medida que sus variantes
+  // se construyen —CORTE ya completó, integrando hero·media + featured·grilla sobre lo que ya tenía
+  // (brandStory·columnas, presentaciones·mosaico, subscriptionCTA·linea)— así que «cuántos/cuáles
+  // valen completo hoy» NO se afirma acá: es la foto que TEMAS-TESTS-SIN-FOTO-1 existe para dejar de
+  // escribir. Cada preset real tiene su propio test más abajo, con la afirmación que SÍ es estable.
   assert.ok(presetCompleto(ARRANQUE), 'ARRANQUE debería validar completo');
-  assert.deepEqual(temasCompletos(PRESETS).map((p) => p.clave), ['ARRANQUE']);
+  assert.ok(temasCompletos(PRESETS).some((p) => p.clave === 'ARRANQUE'));
+
+  // Que la guarda REALMENTE distinga (no que siempre devuelva `true`) se prueba con un preset
+  // SINTÉTICO construido a propósito — nunca con el catálogo real, que es justo lo que avanza solo.
+  const incompleto: PresetTema = {
+    ...ARRANQUE,
+    clave: 'SINTETICO-INCOMPLETO',
+    variantes: { ...ARRANQUE.variantes, hero: 'una-clave-que-no-existe' },
+  };
+  assert.ok(!presetCompleto(incompleto));
 });
 
 test('la validación FALLA y NOMBRA la clave: una variante inexistente se rechaza por nombre', () => {
@@ -51,17 +82,34 @@ test('la validación FALLA y NOMBRA la clave: una variante inexistente se rechaz
 });
 
 test('una variante pedida sobre una sección SIN slot se nombra distinto de una clave inexistente', () => {
-  // `brandStory` ganó su slot (TEMAS-P2-BRANDSTORY-1) y `featured` ganó el suyo
+  // `brandStory` ganó su slot (TEMAS-P2-BRANDSTORY-1), `featured` ganó el suyo
   // (TEMAS-P1-FEATURED-VARIANTES-1, `VARIANTES_ESTRUCTURALES` — el gemelo del REGISTRY para bandas
-  // ESTRUCTURALES sin sección): ninguno de los dos sirve ya para este caso — hoy `brandStory·hilo` y
-  // `featured·tabla` son "clave inexistente", no "sin slot". `subscriptionCTA` es el caso vivo que
-  // queda: SÍ es `SeccionKey` pero no declara `variantes` en absoluto, así que ninguna de las DOS
-  // tablas (REGISTRY / VARIANTES_ESTRUCTURALES) tiene entrada para nombrarle variantes.
+  // ESTRUCTURALES sin sección) y `subscriptionCTA` ganó el suyo (TEMAS-SUBSCRIPTIONCTA-LINEA-1):
+  // ninguno de los tres sirve ya para este caso — hoy `brandStory·hilo`, `featured·tabla` y
+  // `subscriptionCTA·ticket` son "clave inexistente", no "sin slot". `testimonials` es el caso vivo
+  // que queda: SÍ es `SeccionKey` pero no declara `variantes` en absoluto, así que ninguna de las
+  // DOS tablas (REGISTRY / VARIANTES_ESTRUCTURALES) tiene entrada para nombrarle variantes. Ningún
+  // preset del catálogo pide una variante de `testimonials`, así que se ejerce con un preset
+  // SINTÉTICO (como los de featured, abajo).
+  const sintetico: PresetTema = {
+    ...ARRANQUE,
+    clave: 'SINTETICO-TESTIMONIALS-SIN-SLOT',
+    variantes: { ...ARRANQUE.variantes, testimonials: 'lo-que-sea' },
+  };
+  const faltantesSintetico = validarPreset(sintetico);
+  const testimonials = faltantesSintetico.find((f) => f.detalle.includes('testimonials·lo-que-sea'));
+  assert.ok(testimonials, JSON.stringify(faltantesSintetico));
+  assert.ok(testimonials!.detalle.includes('no declara variantes'));
+  assert.ok(!testimonials!.detalle.includes('esa clave no existe'));
+
   const faltantes = validarPreset(PLIEGO);
+
+  // subscriptionCTA·ticket, ahora que la sección SÍ tiene slot (TEMAS-SUBSCRIPTIONCTA-LINEA-1) —
+  // se nombra distinto, aunque `ticket` no sea ninguna de las dos claves reales (`bloque`/`linea`).
   const subscriptionCTA = faltantes.find((f) => f.detalle.includes('subscriptionCTA·ticket'));
   assert.ok(subscriptionCTA, JSON.stringify(faltantes));
-  assert.ok(subscriptionCTA!.detalle.includes('no declara variantes'));
-  assert.ok(!subscriptionCTA!.detalle.includes('esa clave no existe'));
+  assert.ok(subscriptionCTA!.detalle.includes('esa clave no existe'));
+  assert.ok(!subscriptionCTA!.detalle.includes('no declara variantes'));
 
   // featured·tabla, en cambio, SÍ tiene slot hoy (VARIANTES_ESTRUCTURALES.featured declara
   // `cuadricula`) — se nombra distinto, aunque `tabla` no sea esa clave.
@@ -119,10 +167,16 @@ test('PLIEGO: raíces y forma/par válidos, pero las 5 variantes fallan — toda
   assert.equal(faltantes.filter((f) => f.regla === 'orden').length, 0);
 });
 
-test('CORTE: presentaciones·mosaico y brandStory·columnas SON válidas (las dos canónicas) — sólo hero/featured/subscriptionCTA fallan', () => {
-  // brandStory·columnas coincide con la única clave que `brandStory` acepta hoy (la canónica), así
-  // que dejó de fallar apenas ganó su slot — CORTE pasó de 4 faltantes de variante a 3.
-  assert.deepEqual(seccionesQueFallanVariante(CORTE), ['featured', 'hero', 'subscriptionCTA']);
+test('CORTE: las 5 variantes que pide YA EXISTEN — CORTE valida COMPLETO', () => {
+  // brandStory·columnas (la canónica) y presentaciones·mosaico (la canónica) ya validaban; luego se
+  // construyeron, en orden, subscriptionCTA·linea (TEMAS-SUBSCRIPTIONCTA-LINEA-1), hero·media
+  // (TEMAS-HERO-MEDIA-1) y featured·grilla (TEMAS-FEATURED-GRILLA-1) — las tres piezas que le
+  // faltaban. Con las cinco válidas, CORTE se une a ARRANQUE como preset aplicable HOY. Se afirma por
+  // COMPLETITUD DERIVADA (`[]`/`presetCompleto`), no enumerando qué dejó de fallar: una vez que un
+  // preset completa, no hay lista que mantener — sólo puede seguir completo (monótono, mientras
+  // `themes.ts` no pierda una variante ya construida).
+  assert.deepEqual(validarPreset(CORTE), []);
+  assert.ok(presetCompleto(CORTE));
 });
 
 test('VETA: hero·curtina y presentaciones·indice SÍ existen — featured/brandStory/subscriptionCTA fallan', () => {
@@ -133,14 +187,18 @@ test('VETA: hero·curtina y presentaciones·indice SÍ existen — featured/bran
   assert.equal(faltantes.filter((f) => f.regla === 'esquema').length, 0);
 });
 
-test('PATIO: brandStory·columnas SÍ es válida (es la canónica) — hero/featured/presentaciones/subscriptionCTA fallan, Y el orden nombra `banner` y `faq` como bandas inexistentes', () => {
-  // Igual que CORTE: brandStory·columnas coincide con la canónica y dejó de fallar — PATIO pasó de
-  // 5 faltantes de variante a 4.
+test('PATIO: featured·grilla YA ES válida (TEMAS-FEATURED-GRILLA-1) — PATIO sigue sin validar completo, y el orden sigue nombrando `banner` y `faq` como bandas inexistentes', () => {
+  // brandStory·columnas (la canónica) ya validaba; featured·grilla se sumó con TEMAS-FEATURED-
+  // GRILLA-1. NO se reafirma acá el conjunto COMPLETO de lo que aún falta (hero·collage,
+  // presentaciones·chips, subscriptionCTA·ticket) — esa es la foto que TEMAS-TESTS-SIN-FOTO-1 existe
+  // para dejar de escribir: se rompería de nuevo apenas UNA de esas tres gane su clave, sin que este
+  // archivo tenga ningún defecto. Lo que se afirma es monótono: `featured` dejó de fallar (y no puede
+  // volver a fallar sin que `themes.ts` pierda una variante ya construida) y PATIO, en conjunto,
+  // sigue incompleto — un hecho que sólo cambiará el día que las tres piezas pendientes existan, y ese
+  // día es a ESE preset al que le toca volverse a mirar (como acaba de pasarle a CORTE, arriba).
   const faltantes = validarPreset(PATIO);
-  assert.deepEqual(
-    seccionesQueFallanVariante(PATIO),
-    ['featured', 'hero', 'presentaciones', 'subscriptionCTA'],
-  );
+  assert.ok(!seccionesQueFallanVariante(PATIO).includes('featured'), JSON.stringify(faltantes));
+  assert.ok(!presetCompleto(PATIO));
   const orden = faltantes.filter((f) => f.regla === 'orden');
   assert.equal(orden.length, 2);
   assert.ok(orden.some((f) => f.detalle.includes('`banner`')));
@@ -155,8 +213,13 @@ test('VITRINA: fuentePar y forma SIN DECIDIR (null) se nombran como faltantes, d
   assert.ok(forma, JSON.stringify(faltantes));
   assert.ok(fuentePar!.detalle.includes('no tiene un par tipográfico decidido'));
   assert.ok(forma!.detalle.includes('no tiene una forma decidida'));
-  // hero·ficha y presentaciones·indice SÍ existen hoy.
-  assert.deepEqual(seccionesQueFallanVariante(VITRINA), ['brandStory', 'featured', 'subscriptionCTA']);
+  // hero·ficha, presentaciones·indice, subscriptionCTA·linea (TEMAS-SUBSCRIPTIONCTA-LINEA-1) y ahora
+  // featured·grilla (TEMAS-FEATURED-GRILLA-1) SÍ existen hoy. NO se reafirma el conjunto completo de
+  // lo que aún falta (hoy, sólo brandStory·hilo) — es la foto que TEMAS-TESTS-SIN-FOTO-1 existe para
+  // dejar de escribir: se rompería de nuevo apenas `brandStory` gane una segunda variante. Lo que se
+  // afirma es monótono: `featured` dejó de fallar y VITRINA, en conjunto, sigue sin validar completo.
+  assert.ok(!seccionesQueFallanVariante(VITRINA).includes('featured'), JSON.stringify(faltantes));
+  assert.ok(!presetCompleto(VITRINA));
 });
 
 test('regla (b): una banda inexistente y un esquema inexistente se nombran por separado', () => {
