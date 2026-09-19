@@ -1,6 +1,6 @@
-// ─── EL MOTOR DE COLOR DEL STOREFRONT · derivar 31 tintas de 3 RAÍCES ─────────
+// ─── EL MOTOR DE COLOR DEL STOREFRONT · derivar 32 tintas de 3 RAÍCES ─────────
 //
-// El cliente elige 3 RAÍCES —fondo · tinta · acento—; las otras 28 tintas del
+// El cliente elige 3 RAÍCES —fondo · tinta · acento—; las otras 29 tintas del
 // storefront (§ globals.css `--sf-*`, + los 4 pares de familia de § TEMAS-P6-FAMILIAS-1 +
 // `sobre-tinta`/`sobre-acento`/`sobre-acento-2` de § TEMAS-P6-FAMILIAS-2)
 // se DERIVAN acá. 28 colores no son configurables; 3 sí. La derivación es una
@@ -37,6 +37,35 @@
 
 export type RaicesPaleta = { fondo: string; tinta: string; acento: string };
 export type PaletaDerivada = Record<string, string>; // clave = nombre de var sin `--sf-`
+
+// ── LOS EJES DECLARABLES POR EL TEMA (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1) ──────────────
+// ADITIVO, no un cambio de la derivación por defecto: los DOS ejes de abajo son OPCIONALES y
+// AUSENTES = el comportamiento de HOY, byte a byte. Nacen de un defecto medido gateando el
+// mirador contra el prototipo (CORTE, `themes.ts`) con un acento de ACCIÓN pura (rojo, no un tono
+// cálido): el texto de lectura salía rojizo y el botón primario salía beige, porque los DOS roles
+// afectados siempre nacen del ACENTO, sin importar qué SIGNIFIQUE el acento de ese cliente. La
+// decisión del owner (2026-09-19) fue no tocar la derivación PARA TODOS —"no se mueve a un
+// cliente real en producción por una necesidad del muestrario"— sino agregar una RAÍZ NUEVA en el
+// PRESET que declare, explícitamente, de dónde sale cada familia. Ningún color nuevo: sólo una
+// elección de qué raíz YA EXISTENTE manda.
+//
+// `origenTexto` — de qué raíz nacen los TRES roles de TEXTO DE LECTURA que hoy nacen del acento
+// (`texto`/`texto-suave`/`acento-texto`; § el comentario de la RECETA, más abajo, sobre CUÁLES
+// roles nacidos del acento se excluyeron por ser BOTÓN-LABEL o decorativos, no lectura).
+// Ausente/`'acento'` = hoy; `'tinta'` = esos tres roles se re-derivan de la TINTA (misma mezcla,
+// mismos pesos — sólo cambia CUÁL raíz es la dominante).
+//
+// `origenAccion` — de qué token nace el nuevo rol `accion` (§ abajo, junto a `tarjeta`/`sobre`):
+// el fondo de una ACCIÓN PRIMARIA que hoy pinta con la familia cálida `tostado` (los CTA de
+// hero/subscriptionCTA, § `components/storefront/home/*`). Ausente/`'tostado'` = hoy (byte a
+// byte: `accion` COPIA el valor de `tostado`); `'acento'` = la acción usa el ACENTO crudo, el
+// color de acción real del cliente.
+export type OrigenTexto = 'acento' | 'tinta';
+export type OrigenAccion = 'tostado' | 'acento';
+export interface EjesPaleta {
+  origenTexto?: OrigenTexto;
+  origenAccion?: OrigenAccion;
+}
 
 /** Las 3 RAÍCES por defecto = la paleta de Nayoli (§ globals.css `--sf-fondo/tinta/acento`). Un
  *  deployment sin `content.tema` (raíces null) DERIVA de éstas. Fuente ÚNICA para los consumidores
@@ -143,6 +172,29 @@ export function pisoContraste(hex: string, bg: string, objetivo = 4.5, dir: Dire
 // Los pesos que reproducen a Nayoli (medido, best-fit por token). `piso: true` = rol de
 // TEXTO sobre fondo → se florea. El resto NO se florea (superficie, decorativo, o
 // claro-sobre-oscuro). Ver la regla de dirección arriba.
+//
+// CENSO DE ROLES NACIDOS DEL ACENTO (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1, `EjesPaleta` arriba)
+// — cuáles son TEXTO DE LECTURA y cuáles NO, y por qué `origenTexto` sólo mueve a los tres primeros:
+//   · `texto`/`texto-suave` (abajo, `a:'acento'`) — el CUERPO de lectura de todo el storefront
+//     (`--sf-texto`/`-suave`) y, vía `esquema-style.ts`, `--sf-sobre-banda`/`-suave` (el texto que
+//     se apoya directo en el fondo de una banda). MUEVEN con `origenTexto`.
+//   · `acento-texto` (abajo, `a:b:'acento'`) — documentado en el propio nombre como "el acento
+//     como TEXTO"; es el fallback de `--sf-sobre-banda` para una banda SIN esquema asignado, y se
+//     lee directo en decenas de sitios (números de orden, eyebrows, links) en TODO el storefront.
+//     MUEVE con `origenTexto`.
+//   · `acento-txt` (NO en esta RECETA, se computa aparte más abajo) — el texto QUE VA SOBRE una
+//     superficie de acento (el label de un botón). Su función es de CONTRASTE contra el acento
+//     —auto-flip blanco/tinta—, no un tono derivado DEL acento: no es "texto que nace del acento",
+//     es "texto que convive con el acento". NO mueve.
+//   · `acento-2`/`acento-3`/`acento-4` (abajo, variantes de mezcla acento/tinta o acento/fondo) —
+//     se leen como texto en un puñado de sitios AJENOS al home (el cuerpo de `/nosotros`, el nav
+//     móvil, un hover de "ver todos") pero su nombre y su receta los declaran variantes de MATIZ
+//     del acento, no la familia "texto" — y ninguno de esos sitios lo renderiza el mirador de
+//     presets (`app/(storefront)/page.tsx`, la home). NO mueven en este slice; medido, no
+//     recorrido a ciegas — si un preset futuro necesitara também esas superficies, es su propio
+//     censo, no una extensión silenciosa de este.
+//   · `tostado`/`tostado-2..8` — decorativos/hover, nunca reading text. NO mueven (y uno de ellos,
+//     `tostado`, es justo el DEFAULT del nuevo rol `accion`, abajo).
 const RECETA: Record<string, { a: keyof RaicesPaleta; b: keyof RaicesPaleta; w: number; piso?: boolean }> = {
   superficie:   { a: 'fondo',  b: 'acento', w: 0.09 },
   linea:        { a: 'fondo',  b: 'acento', w: 0.16 },
@@ -165,14 +217,18 @@ const RECETA: Record<string, { a: keyof RaicesPaleta; b: keyof RaicesPaleta; w: 
 };
 
 /**
- * Deriva las 31 tintas `--sf-*` de las 3 raíces (3 raíces + 18 de la RECETA + `acento-txt` +
+ * Deriva las 32 tintas `--sf-*` de las 3 raíces (3 raíces + 18 de la RECETA + `acento-txt` +
  * `tarjeta`/`sobre` — § eje 5b — + `sobre-superficie`/`-suave` + `sobre-tarjeta`/`-suave` —
- * § TEMAS-P6-FAMILIAS-1 — + `sobre-tinta` + `sobre-acento`/`sobre-acento-2` — § TEMAS-P6-FAMILIAS-2).
- * Devuelve un mapa {nombre → hex} listo para inyectar como CSS vars. Las 3 raíces se copian tal
- * cual; el resto se mezcla; los roles de texto se florean sobre el fondo (o, para los pares
- * nuevos, sobre SU PROPIA superficie — § el comentario de cada uno, abajo).
+ * § TEMAS-P6-FAMILIAS-1 — + `sobre-tinta` + `sobre-acento`/`sobre-acento-2` — § TEMAS-P6-FAMILIAS-2 —
+ * + `accion` — § TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1). Devuelve un mapa {nombre → hex} listo para
+ * inyectar como CSS vars. Las 3 raíces se copian tal cual; el resto se mezcla; los roles de texto se
+ * florean sobre el fondo (o, para los pares nuevos, sobre SU PROPIA superficie — § el comentario de
+ * cada uno, abajo).
+ *
+ * `ejes` (§ `EjesPaleta`, arriba) es OPCIONAL y ADITIVO — `{}`/ausente reproduce EXACTAMENTE el
+ * comportamiento de siempre; sólo un tema que declare `origenTexto`/`origenAccion` cambia algo.
  */
-export function derivarPaleta(raices: RaicesPaleta): PaletaDerivada {
+export function derivarPaleta(raices: RaicesPaleta, ejes: EjesPaleta = {}): PaletaDerivada {
   const { fondo, tinta, acento } = raices;
   const out: PaletaDerivada = { fondo, tinta, acento };
   for (const [nombre, r] of Object.entries(RECETA)) {
@@ -182,6 +238,17 @@ export function derivarPaleta(raices: RaicesPaleta): PaletaDerivada {
     let hex = r.a === r.b ? raices[r.a] : mezclar(raices[r.a], raices[r.b], r.w);
     if (r.piso) hex = pisoContraste(hex, fondo, 4.5);
     out[nombre] = hex;
+  }
+  // origenTexto === 'tinta' (§ EjesPaleta, arriba): re-deriva los TRES roles de texto de lectura
+  // nacidos del acento —MISMOS pesos de la RECETA (0.34/0.12/0), sólo se invierte cuál raíz manda
+  // (`a`)—, así que un tema que NO declara este eje (el `if` ni corre) queda BYTE-IDÉNTICO. Va
+  // ACÁ, antes de `sobre-tarjeta-suave` (abajo) y de que `derivarEsquema` lea `acento-texto`/
+  // `texto`/`texto-suave` como su `base`: todo lo que downstream lee estos tres roles hereda el
+  // origen declarado sin que haga falta tocarlo aparte.
+  if (ejes.origenTexto === 'tinta') {
+    out['acento-texto'] = pisoContraste(tinta, fondo, 4.5);
+    out['texto'] = pisoContraste(mezclar(tinta, acento, RECETA.texto.w), fondo, 4.5);
+    out['texto-suave'] = pisoContraste(mezclar(tinta, acento, RECETA['texto-suave'].w), fondo, 4.5);
   }
   // sobre-superficie / sobre-superficie-suave (§ TEMAS-P6-FAMILIAS-1): el PAR de la familia
   // `superficie` — texto DIRECTO sobre `--sf-superficie` (el fondo de paneles/pills, p.ej.
@@ -280,6 +347,18 @@ export function derivarPaleta(raices: RaicesPaleta): PaletaDerivada {
   // para Nayoli, byte-idéntico al `--sf-acento-texto` de hoy.
   out['sobre-tarjeta'] = sobreTarjetaDe(out['tarjeta'], tinta);
   out['sobre-tarjeta-suave'] = pisoContraste(out['acento-texto'], out['tarjeta'], 4.5);
+  // accion (§ EjesPaleta, arriba): el fondo de una ACCIÓN PRIMARIA — hoy los CTA de
+  // `components/storefront/home/{HeroCurtina,HeroFicha,HeroMedia,SubscriptionCTABloque,
+  // SubscriptionCTALinea}.tsx`, que pintaban `bg-[var(--sf-tostado)]` DIRECTO. La INDIRECCIÓN: un
+  // rol nuevo, SIN color propio — DEFAULT = copia exacta de `tostado` (byte a byte: son las MISMAS
+  // 5 clases que hoy leen `--sf-tostado`, ahora vía `--sf-accion` con fallback a `--sf-tostado` en
+  // el propio JSX, así que Nayoli/cualquier tema que no declare este eje queda IDÉNTICO) — y
+  // `origenAccion === 'acento'` lo hace apuntar al ACENTO crudo, el color de acción real del
+  // cliente, sin florear (mismo trato que `--sf-acento` cuando pinta un botón/badge — nunca se
+  // florea, es superficie, no texto). NO se tocó el hover de esos 5 CTA (`--sf-tostado-4` literal):
+  // el spec pide la indirección del FONDO, no repintar cada lugar a mano; el hover queda como
+  // residuo conocido y declarado (§ DECISIONS.md, TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1).
+  out['accion'] = ejes.origenAccion === 'acento' ? acento : out['tostado'];
   return out;
 }
 

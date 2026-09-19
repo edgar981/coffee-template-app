@@ -1,4 +1,4 @@
-import { derivarPaleta } from './palette-derive';
+import { derivarPaleta, type EjesPaleta } from './palette-derive';
 
 // Puente entre las RAÍCES de SiteSetting y el CSS que inyecta el layout del storefront.
 // Deriva las tintas que produce `derivarPaleta` y arma un `:root{ --sf-*: … }` para un
@@ -27,16 +27,27 @@ let memo: { clave: string; css: string } | null = null;
  * si el cliente no configuró paleta (las tres null) → cae a los defaults de `globals.css`
  * (Nayoli byte-idéntico, sin depender de una siembra). Los valores son hex del motor —
  * seguros para un `<style>`—; el write ya rechazó cualquier basura (§ palette-schema).
+ *
+ * `ejes` (§ `EjesPaleta`, `palette-derive.ts`, TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1) es OPCIONAL
+ * y ADITIVO: ausente = el comportamiento de siempre. Sólo `theme-mirador.ts` lo pasa hoy, con lo
+ * que el preset (CORTE) declaró en `content.tema.origenTexto`/`origenAccion` — el layout real del
+ * storefront sigue llamando a esta función con TRES argumentos, sin `ejes`, y da lo mismo de
+ * siempre porque ningún tenant real declara estos dos campos (§ TemaContent, site-content-
+ * defaults.ts).
  */
 export function cssPaleta(
   fondo: string | null,
   tinta: string | null,
   acento: string | null,
+  ejes?: EjesPaleta,
 ): string | null {
   if (!fondo || !tinta || !acento) return null;
-  const clave = `${fondo}|${tinta}|${acento}`;
+  // La clave del memo INCLUYE los ejes: dos llamadas con las MISMAS raíces pero ejes distintos
+  // (posible en el mirador, que recalcula por request) no pueden compartir un CSS cacheado del
+  // otro eje — el memo cachea por RESULTADO, no sólo por raíz.
+  const clave = `${fondo}|${tinta}|${acento}|${ejes?.origenTexto ?? ''}|${ejes?.origenAccion ?? ''}`;
   if (memo?.clave === clave) return memo.css;
-  const p = derivarPaleta({ fondo, tinta, acento });
+  const p = derivarPaleta({ fondo, tinta, acento }, ejes);
   const css = `:root{${Object.entries(p).map(([k, v]) => `--sf-${k}:${v}`).join(';')}}`;
   memo = { clave, css };
   return css;

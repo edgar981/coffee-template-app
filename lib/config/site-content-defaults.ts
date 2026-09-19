@@ -8,7 +8,7 @@
 
 import { resolverFuentePar, type ClaveFuentePar } from './fuentes';
 import { resolverForma, type ClaveForma } from './formas';
-import type { EsquemaId } from './palette-derive';
+import type { EsquemaId, OrigenTexto, OrigenAccion } from './palette-derive';
 
 // Alias con el vocabulario de esta capa (§ eje 5b, mitad B — el EFECTO en el home). Es EL MISMO
 // tipo que `EsquemaId` de `palette-derive.ts` (el MOTOR ya lo declaró): 'crema' | 'superficie' |
@@ -314,6 +314,14 @@ export interface TemaContent {
   // los radios de hoy, 1.5/1/0.75rem) — como `fuentePar` en null = Editorial. Un valor CUSTOM
   // ('recta'|'minima') hace que el layout inyecte cssForma (§ forma-style).
   forma: ClaveForma | null;
+  // LOS DOS EJES ADITIVOS (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1, `EjesPaleta` en
+  // `palette-derive.ts`). `null` = el comportamiento de HOY (texto/acento-texto nacen del acento;
+  // la acción primaria pinta con `tostado`) — NINGÚN escritor real los pone hoy: no hay campo en
+  // `paletaEditableSchema` ni en el editor del panel, así que para todo tenant existente y para
+  // Nayoli quedan SIEMPRE `null`. Sólo `mergePresetEnContent` (`themes.ts`) los escribe, con el
+  // valor del `PresetTema` aplicado — y de los 6 presets del catálogo, sólo CORTE los declara.
+  origenTexto: OrigenTexto | null;
+  origenAccion: OrigenAccion | null;
 }
 
 export interface SiteContentData {
@@ -598,6 +606,8 @@ export const DEFAULTS: SiteContentData = {
     acento: null,
     fuentePar: null,   // Editorial (Inter/Playfair) — el default byte-idéntico
     forma: null,       // Suave (radios de hoy) — el default byte-idéntico
+    origenTexto: null, // texto/texto-suave/acento-texto nacen del acento — el default byte-idéntico
+    origenAccion: null, // la acción primaria pinta con `tostado` — el default byte-idéntico
   },
   // ESQUEMAS por defecto: el mapa nace VACÍO a propósito (§ eje 5b, mitad B). Ninguna banda tiene
   // entrada → todas caen a su token CANÓNICO de hoy (tinta/tinta-2/fondo/superficie, cada una la
@@ -1097,10 +1107,17 @@ export function resolverTema(stored: unknown, defaults: unknown): TemaContent {
   // El par tipográfico y la forma: clave CUSTOM válida, o null (Editorial/Suave). `resolverFuentePar`/
   // `resolverForma` normalizan null, la clave del default y basura → null (§ fuentes, § formas). No usan
   // `defaults` porque el default ES null.
+  //
+  // origenTexto/origenAccion (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1): SOFT, igual que las raíces —
+  // sólo un valor del set cerrado sobrevive, cualquier otra cosa (ausente, basura, un string que no
+  // es el único miembro no-default) cae a `null`. Sin `defaults`, por la misma razón que fuentePar/
+  // forma: el default DE ESTOS DOS ES `null` (§ el docstring de `TemaContent`).
   return {
     fondo: raiz('fondo'), tinta: raiz('tinta'), acento: raiz('acento'),
     fuentePar: resolverFuentePar(st['fuentePar']),
     forma: resolverForma(st['forma']),
+    origenTexto: st['origenTexto'] === 'tinta' ? 'tinta' : null,
+    origenAccion: st['origenAccion'] === 'acento' ? 'acento' : null,
   };
 }
 

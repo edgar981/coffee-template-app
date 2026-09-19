@@ -200,7 +200,7 @@ export default function HeroCurtina({ style }: { style?: React.CSSProperties } =
           >
             <Link
               href={HERO_HREFS.primario}
-              className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-tostado)] px-8 py-4 text-sm font-semibold text-[var(--sf-tinta)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--sf-tostado-4)]"
+              className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-tinta)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--sf-tostado-4)]"
             >
               {hero.ctaPrimarioLabel}
 

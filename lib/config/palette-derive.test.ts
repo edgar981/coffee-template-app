@@ -23,10 +23,10 @@ test('las 3 raíces se copian tal cual', () => {
   assert.equal(p.acento, '#8b4513');
 });
 
-test('deriva las 31 tintas (3 raíces + 18 de la RECETA + acento-txt + tarjeta/sobre + los 4 pares de §TEMAS-P6-FAMILIAS-1 + los 3 de §TEMAS-P6-FAMILIAS-2)', () => {
+test('deriva las 32 tintas (3 raíces + 18 de la RECETA + acento-txt + tarjeta/sobre + los 4 pares de §TEMAS-P6-FAMILIAS-1 + los 3 de §TEMAS-P6-FAMILIAS-2 + accion de §TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1)', () => {
   const p = derivarPaleta(NAYOLI);
-  assert.equal(Object.keys(p).length, 31);
-  for (const k of ['superficie','linea','superficie-2','tinta-2','acento-2','acento-3','acento-4','acento-texto','acento-txt','texto','texto-suave','tostado','tostado-2','tostado-3','tostado-4','tostado-5','tostado-6','tostado-7','tostado-8','tarjeta','sobre','sobre-superficie','sobre-superficie-suave','sobre-tarjeta','sobre-tarjeta-suave','sobre-tinta','sobre-acento','sobre-acento-2']) {
+  assert.equal(Object.keys(p).length, 32);
+  for (const k of ['superficie','linea','superficie-2','tinta-2','acento-2','acento-3','acento-4','acento-texto','acento-txt','texto','texto-suave','tostado','tostado-2','tostado-3','tostado-4','tostado-5','tostado-6','tostado-7','tostado-8','tarjeta','sobre','sobre-superficie','sobre-superficie-suave','sobre-tarjeta','sobre-tarjeta-suave','sobre-tinta','sobre-acento','sobre-acento-2','accion']) {
     assert.match(p[k], /^#[0-9a-f]{6}$/, `${k} debe ser hex`);
   }
 });
@@ -399,6 +399,101 @@ function leerVarCssRaiz(nombre: string): string {
   if (!m) throw new Error(`no se encontró --${nombre} en app/globals.css`);
   return m[1];
 }
+
+// ── §TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1 — los EJES declarables (`origenTexto`/`origenAccion`) ──
+// Nacen del gate del mirador de CORTE contra el prototipo: con un acento de ACCIÓN pura (rojo), el
+// texto de lectura salía rojizo y el botón primario salía beige, porque los tres roles de TEXTO
+// (`texto`/`texto-suave`/`acento-texto`) y el fondo de una acción primaria (`tostado`) siempre nacen
+// del acento, sin importar qué signifique el acento del cliente. La raíz aditiva del preset (§
+// `EjesPaleta`, `palette-derive.ts`) deja elegir el origen SIN mover un byte de quien no lo declara.
+const CORTE_RAICES: RaicesPaleta = { fondo: '#fdfbf7', tinta: '#102407', acento: '#a70004' };
+
+test('EjesPaleta ausente ES `{}` — byte-idéntico al segundo parámetro explícito, en las 3 raíces del test', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO, CORTE_RAICES]) {
+    assert.deepEqual(derivarPaleta(raices), derivarPaleta(raices, {}));
+  }
+});
+
+test('accion: AUSENTE `origenAccion` es BYTE-IDÉNTICO a `tostado` — la indirección del botón primario', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO, CORTE_RAICES]) {
+    const p = derivarPaleta(raices);
+    assert.equal(p.accion, p.tostado);
+  }
+});
+
+test('accion: `origenAccion: "acento"` apunta al ACENTO CRUDO, sin florear (superficie, no texto)', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO, CORTE_RAICES]) {
+    const p = derivarPaleta(raices, { origenAccion: 'acento' });
+    assert.equal(p.accion, raices.acento);
+  }
+});
+
+test('origenAccion: "acento" NO mueve ningún otro rol — sólo `accion` cambia', () => {
+  const sinEje = derivarPaleta(CORTE_RAICES);
+  const conEje = derivarPaleta(CORTE_RAICES, { origenAccion: 'acento' });
+  for (const k of Object.keys(sinEje)) {
+    if (k === 'accion') continue;
+    assert.equal(conEje[k], sinEje[k], `${k} no debería moverse por origenAccion`);
+  }
+});
+
+test('AUSENTE/`origenTexto: "acento"` es BYTE-IDÉNTICO — texto/texto-suave/acento-texto no cambian', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO, CORTE_RAICES]) {
+    const sinEje = derivarPaleta(raices);
+    const explicito = derivarPaleta(raices, { origenTexto: 'acento' });
+    for (const k of ['texto', 'texto-suave', 'acento-texto']) {
+      assert.equal(explicito[k], sinEje[k], `${k} no debería moverse con origenTexto:'acento'`);
+    }
+  }
+});
+
+test('origenTexto: "tinta" — acento-texto pasa a ser la TINTA flooreada contra fondo (no el acento)', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO, CORTE_RAICES]) {
+    const p = derivarPaleta(raices, { origenTexto: 'tinta' });
+    assert.equal(p['acento-texto'], pisoContraste(raices.tinta, raices.fondo, 4.5));
+  }
+});
+
+test('origenTexto: "tinta" — texto/texto-suave reusan el MISMO peso de la RECETA, con la raíz invertida', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO, CORTE_RAICES]) {
+    const p = derivarPaleta(raices, { origenTexto: 'tinta' });
+    assert.equal(p.texto, pisoContraste(mezclar(raices.tinta, raices.acento, 0.34), raices.fondo, 4.5));
+    assert.equal(p['texto-suave'], pisoContraste(mezclar(raices.tinta, raices.acento, 0.12), raices.fondo, 4.5));
+  }
+});
+
+test('origenTexto: "tinta" — los tres roles SIGUEN pasando el piso de AA contra fondo, en las 3 raíces + CORTE', () => {
+  for (const raices of [NAYOLI, NEON, MEDIO, CORTE_RAICES]) {
+    const p = derivarPaleta(raices, { origenTexto: 'tinta' });
+    for (const rol of ['acento-texto', 'texto', 'texto-suave']) {
+      assert.ok(contraste(p[rol], p.fondo) >= 4.5, `${rol} debe pasar AA sobre fondo (fue ${contraste(p[rol], p.fondo).toFixed(2)})`);
+    }
+  }
+});
+
+test('origenTexto: "tinta" NO mueve ningún otro rol — sólo texto/texto-suave/acento-texto cambian (y lo que hereda de acento-texto)', () => {
+  const sinEje = derivarPaleta(CORTE_RAICES);
+  const conEje = derivarPaleta(CORTE_RAICES, { origenTexto: 'tinta' });
+  const puedeMoverse = new Set(['texto', 'texto-suave', 'acento-texto', 'sobre-tarjeta-suave']);
+  for (const k of Object.keys(sinEje)) {
+    if (puedeMoverse.has(k)) continue;
+    assert.equal(conEje[k], sinEje[k], `${k} no debería moverse por origenTexto`);
+  }
+});
+
+test('CORTE (acento de ACCIÓN pura, rojo): SIN los ejes declarados el defecto medido está presente — texto/acento-texto salen del acento (rojizo)', () => {
+  const p = derivarPaleta(CORTE_RAICES);
+  // acento-texto es el acento CRUDO (ya pasa AA contra fondo, así que el piso no lo mueve) — el
+  // "rojizo" que el owner reportó gateando el mirador.
+  assert.equal(p['acento-texto'], CORTE_RAICES.acento);
+  assert.equal(p.accion, p.tostado); // el botón primario sale "beige" (tostado), no del acento.
+});
+
+test('CORTE con los DOS ejes declarados: acento-texto pasa a ser la TINTA exacta (el titular del prototipo) y accion el ACENTO exacto', () => {
+  const p = derivarPaleta(CORTE_RAICES, { origenTexto: 'tinta', origenAccion: 'acento' });
+  assert.equal(p['acento-texto'], CORTE_RAICES.tinta);
+  assert.equal(p.accion, CORTE_RAICES.acento);
+});
 
 // VISTO FALLAR con el hex viejo (#a07050) antes de este slice: tostado-3/superficie 3.511,
 // tostado-3/fondo 3.992, tostado-3/tarjeta 4.261 — los 3 bajo AA (4.5). Con #8c5d3e: 4.614 /

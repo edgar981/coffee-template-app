@@ -96,3 +96,13 @@ test('clave inválida o preset incompleto → contenidoConPresetDeVista ya devol
   const out = cssMiradorTema(sinCambio, DEFECTO);
   assert.equal(out, null);
 });
+
+// §TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1 — CORTE es el único preset que declara origenTexto/
+// origenAccion, y el mirador es el ÚNICO punto de la cadena real donde `content.tema.origenTexto`/
+// `origenAccion` llegan a `cssPaleta` (§ el comentario de `cssMiradorTema`, arriba).
+test('con CORTE aplicado → --sf-acento-texto sale de la TINTA (no del acento rojizo) y --sf-accion del ACENTO (no de tostado)', () => {
+  const conCorte = contenidoConPresetDeVista(DEFECTO, 'CORTE');
+  const out = cssMiradorTema(conCorte, DEFECTO)!;
+  assert.match(out.paletaCss!, /--sf-acento-texto:#102407/); // = raices.tinta EXACTA de CORTE
+  assert.match(out.paletaCss!, /--sf-accion:#a70004/);        // = raices.acento EXACTA de CORTE
+});

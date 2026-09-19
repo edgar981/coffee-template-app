@@ -32,3 +32,26 @@ test('memo: mismas raíces devuelven exactamente la misma cadena', () => {
   const b = cssPaleta('#faf7f4', '#1a0f08', '#8b4513');
   assert.equal(a, b);
 });
+
+// ── §TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1 — `ejes` es OPCIONAL/ADITIVO ────────────────────────
+test('sin `ejes` (3 argumentos) es BYTE-IDÉNTICO a pasar `{}` explícito', () => {
+  const raices: [string, string, string] = ['#fdfbf7', '#102407', '#a70004'];
+  assert.equal(cssPaleta(...raices), cssPaleta(...raices, {}));
+});
+
+test('`ejes` cambia el CSS emitido — el memo NO sirve un resultado de otro eje para las MISMAS raíces', () => {
+  const raices: [string, string, string] = ['#fdfbf7', '#102407', '#a70004'];
+  const sinEjes = cssPaleta(...raices);
+  const conEjes = cssPaleta(...raices, { origenTexto: 'tinta', origenAccion: 'acento' });
+  assert.notEqual(sinEjes, conEjes);
+  // Y volver a pedir el primero (SIN ejes) tras haber pedido el segundo (mismas raíces, CON ejes)
+  // debe devolver el original, no el del medio quedado en el memo de una sola entrada.
+  assert.equal(cssPaleta(...raices), sinEjes);
+});
+
+test('`ejes` declarado se refleja en el hex de `--sf-accion`/`--sf-acento-texto`', () => {
+  const raices: [string, string, string] = ['#fdfbf7', '#102407', '#a70004'];
+  const css = cssPaleta(...raices, { origenTexto: 'tinta', origenAccion: 'acento' })!;
+  assert.match(css, /--sf-accion:#a70004/);
+  assert.match(css, /--sf-acento-texto:#102407/);
+});

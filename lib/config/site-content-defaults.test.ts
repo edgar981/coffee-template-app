@@ -515,7 +515,7 @@ test('faqSuscripcionesVisible: capacidad ENCENDIDA + FAQ con ítems pero su prop
 // ── El TEMA (paleta): clave no-sección, gemela de `paginas` ───────────────────
 
 test('tema: sin nada guardado → las 3 raíces + el par en null (el storefront cae a los defaults de código)', () => {
-  assert.deepEqual(resolverSiteContent({}).tema, { fondo: null, tinta: null, acento: null, fuentePar: null, forma: null });
+  assert.deepEqual(resolverSiteContent({}).tema, { fondo: null, tinta: null, acento: null, fuentePar: null, forma: null, origenTexto: null, origenAccion: null });
 });
 
 test('tema NO es una sección: no rompe el loop de secciones, y el hero sí resuelve', () => {
@@ -533,26 +533,42 @@ test('resolverTema: raíz hex válida se respeta; null/vacío/basura/no-hex → 
   const def = { fondo: null, tinta: null, acento: null };
   assert.deepEqual(
     resolverTema({ fondo: '#FAF7F4', tinta: '#1a0f08', acento: '#8b4513' }, def),
-    { fondo: '#FAF7F4', tinta: '#1a0f08', acento: '#8b4513', fuentePar: null, forma: null },
+    { fondo: '#FAF7F4', tinta: '#1a0f08', acento: '#8b4513', fuentePar: null, forma: null, origenTexto: null, origenAccion: null },
   );
   // no-hex / vacío / hex de 3 dígitos / número → null (la defensa del loader SOFT: un valor corrupto
   // editado a mano NO llega al motor de derivación)
   assert.deepEqual(
     resolverTema({ fondo: 'rojo', tinta: '', acento: '#abc', extra: 42 }, def),
-    { fondo: null, tinta: null, acento: null, fuentePar: null, forma: null },
+    { fondo: null, tinta: null, acento: null, fuentePar: null, forma: null, origenTexto: null, origenAccion: null },
   );
   // parcial: sólo fondo puesto, las otras dos en null (el write exige las 3-o-ninguna; el loader no lo asume)
-  assert.deepEqual(resolverTema({ fondo: '#123456' }, def), { fondo: '#123456', tinta: null, acento: null, fuentePar: null, forma: null });
+  assert.deepEqual(resolverTema({ fondo: '#123456' }, def), { fondo: '#123456', tinta: null, acento: null, fuentePar: null, forma: null, origenTexto: null, origenAccion: null });
   // entrada no-objeto → todo al default, NO lanza (SOFT)
-  assert.deepEqual(resolverTema('basura', def), { fondo: null, tinta: null, acento: null, fuentePar: null, forma: null });
-  assert.deepEqual(resolverTema(null, def), { fondo: null, tinta: null, acento: null, fuentePar: null, forma: null });
+  assert.deepEqual(resolverTema('basura', def), { fondo: null, tinta: null, acento: null, fuentePar: null, forma: null, origenTexto: null, origenAccion: null });
+  assert.deepEqual(resolverTema(null, def), { fondo: null, tinta: null, acento: null, fuentePar: null, forma: null, origenTexto: null, origenAccion: null });
 });
 
 test('resolverTema: un DEFAULT hex se usa cuando el guardado no trae raíz válida (defensa simétrica)', () => {
   // Hoy los defaults del tema son null, pero la mecánica del default hex es la misma que en `paginas`:
   // si el default fuera un hex, se usaría ante un guardado inválido. Fija el contrato del fallback.
   const def = { fondo: '#000000', tinta: '#ffffff', acento: '#8b4513' };
-  assert.deepEqual(resolverTema({ fondo: 'basura' }, def), { fondo: '#000000', tinta: '#ffffff', acento: '#8b4513', fuentePar: null, forma: null });
+  assert.deepEqual(resolverTema({ fondo: 'basura' }, def), { fondo: '#000000', tinta: '#ffffff', acento: '#8b4513', fuentePar: null, forma: null, origenTexto: null, origenAccion: null });
+});
+
+test('resolverTema: origenTexto/origenAccion (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1) — SOFT, sólo el valor no-default del set cerrado sobrevive', () => {
+  const def = { fondo: null, tinta: null, acento: null };
+  assert.equal(resolverTema({ origenTexto: 'tinta' }, def).origenTexto, 'tinta');
+  assert.equal(resolverTema({ origenAccion: 'acento' }, def).origenAccion, 'acento');
+  // basura, el propio default (que no existe como string a guardar), y ausente → null
+  assert.equal(resolverTema({ origenTexto: 'acento' }, def).origenTexto, null);
+  assert.equal(resolverTema({ origenTexto: 'inexistente' }, def).origenTexto, null);
+  assert.equal(resolverTema({ origenAccion: 'tostado' }, def).origenAccion, null);
+  assert.equal(resolverTema({ origenAccion: 'inexistente' }, def).origenAccion, null);
+  assert.equal(resolverTema({}, def).origenTexto, null);
+  assert.equal(resolverTema({}, def).origenAccion, null);
+  // entrada no-objeto → NO lanza (SOFT)
+  assert.equal(resolverTema('basura', def).origenTexto, null);
+  assert.equal(resolverTema('basura', def).origenAccion, null);
 });
 
 test('resolverTema: fuentePar CUSTOM válido se respeta; editorial/null/basura → null (§ fuentes)', () => {

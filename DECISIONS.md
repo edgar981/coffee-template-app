@@ -9414,3 +9414,167 @@ sopesada y dejada en `crema` por la lectura conservadora de "tinta punctual").
   `CORTE`), la duda sopesada y no resuelta sobre si `subscriptionCTA` debería ser `'oscuro'` (§
   arriba, las dos lecturas). Disparador: el próximo gate del mirador del owner, mirando
   específicamente esa banda.
+
+## 2026-09-19 — Un preset puede declarar de dónde nace su texto de lectura y su acción primaria — raíz ADITIVA, cero bytes movidos para quien no la declara (`TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1`)
+
+**El defecto, dos de los tres que `CORTE-ESQUEMAS-INVERTIDOS-1` dejó explícitamente sin tocar**
+("el owner pidió no mezclarlos con éste"), medidos gateando el mirador contra el prototipo:
+
+1. **El texto de lectura sobre `--sf-banda` salía rojizo.**
+2. **El botón primario salía beige.**
+
+Los dos comparten la MISMA causa: el motor de paleta (`palette-derive.ts`, compartido por los seis
+presets del catálogo) hace nacer del ACENTO tanto el texto de lectura como el fondo de una acción
+primaria, sin importar qué SIGNIFIQUE el acento de ese cliente. El acento de CORTE
+(`raices.acento = '#a70004'`) es COLOR DE ACCIÓN puro —medido contra el prototipo,
+`--action-primary` (`docs/prototipos/cafeone/ds/colors.css:59`)—, no un tono cálido de lectura, así
+que el texto salía rojizo (`--sf-texto`/`--sf-acento-texto`, derivados del acento) y el botón salía
+beige (`--sf-tostado`, la mezcla acento/fondo que un cliente de acento CÁLIDO usa para un CTA suave,
+pero que con un acento rojo da un rosado apagado, no la acción vívida que el prototipo pinta).
+
+### La decisión del owner (2026-09-19), textual
+
+> «Raíz nueva y ADITIVA — un preset puede declarar "mi texto de lectura sale de la tinta", default =
+> lo de hoy. Nayoli no se mueve un byte, y la elección queda ESCRITA en el preset en vez de escondida
+> en el motor. Y lo mismo para el botón: que el preset pueda apuntar su acción al color de acción.»
+
+**Lo que descartó, con su razón:** cambiar la derivación PARA TODOS. *"No se mueve a un cliente real
+en producción por una necesidad del muestrario."* CORTE es el ÚNICO de los seis presets que declara
+los dos ejes nuevos; los otros cinco (PLIEGO, PATIO, VETA, VITRINA, ARRANQUE) y todo tenant real
+quedan exactamente como estaban — afirmado por test (`themes.test.ts`, "CORTE es el ÚNICO preset...").
+
+### El censo de roles nacidos del acento (§2 del spec) — cuáles son texto de lectura y cuáles no
+
+Hecho en el comentario de la `RECETA` (`palette-derive.ts`), no sólo acá, para que quede donde el
+próximo que toque un rol lo lea:
+
+| rol | nace de | uso real | ¿mueve con `origenTexto`? |
+| --- | --- | --- | --- |
+| `texto` / `texto-suave` | acento (w 0.34/0.12 hacia tinta) | `--sf-texto`/`-suave` (cuerpo de TODO el storefront) + `--sf-sobre-banda`/`-suave` (vía `esquema-style.ts`) | **SÍ** |
+| `acento-texto` | acento crudo, floreado | fallback de `--sf-sobre-banda` sin esquema; leído DIRECTO en decenas de sitios (números de orden, eyebrows, links) | **SÍ** |
+| `acento-txt` | auto-flip blanco/tinta (NO el hue del acento) | texto SOBRE un botón/badge de acento — es contraste, no un tono derivado | NO — no "nace" del acento, convive con él |
+| `acento-2`/`acento-3`/`acento-4` | acento mezclado con tinta/fondo | cuerpo de `/nosotros`, nav móvil, hover de "ver todos" — NINGUNO en el home que el mirador renderiza | NO — medido, no recorrido a ciegas; fuera del home |
+| `tostado`/`tostado-2..8` | acento mezclado con fondo | decorativo/hover (bordes, miniaturas) | NO — nunca texto de lectura |
+
+**El eje `origenTexto` mueve `texto`/`texto-suave`/`acento-texto`** (los tres marcados arriba), con
+la MISMA mezcla y los MISMOS pesos de la RECETA — sólo se invierte cuál raíz manda (`mezclar(tinta,
+acento, 0.34)` en vez de `mezclar(acento, tinta, 0.34)`, y `acento-texto` pasa a ser la tinta cruda
+floreada contra fondo, en vez del acento crudo). `acento-2`/`-3`/`-4` NO se tocan: no los renderiza
+el home de CORTE (`app/(storefront)/page.tsx`) y moverlos sería extender el alcance sin evidencia de
+esta pantalla — medido por lectura de sus consumidores, no supuesto.
+
+### El eje de la acción — la indirección, medida antes de aplicarla
+
+**Cinco lugares del storefront pintan hoy el fondo de una acción primaria con `--sf-tostado`**
+(grep de `bg-\[var(--sf-tostado)\]` sobre `<Link`/`<button>` de acción, excluyendo decorativos):
+`HeroCurtina.tsx:203`, `HeroFicha.tsx:147`, `HeroMedia.tsx:164`, `SubscriptionCTABloque.tsx:77`,
+`SubscriptionCTALinea.tsx:65`. Un sexto uso (`SubscriptionCTABloque.tsx:72`, el punto decorativo
+antes de cada beneficio) se DEJÓ intacto — no es una acción, es un bullet.
+
+**La forma: un rol nuevo `accion` en `derivarPaleta`**, sin color propio — DEFAULT = copia EXACTA de
+`tostado` (byte a byte), y `origenAccion:'acento'` lo hace apuntar al acento crudo (sin florear, es
+superficie de botón/badge, el mismo trato que `--sf-acento`). Los cinco lugares pasan de
+`bg-[var(--sf-tostado)]` a `bg-[var(--sf-accion,var(--sf-tostado))]` — el fallback es lo que
+mantiene byte-idéntico a quien no inyecta `<style>` (Nayoli: sin raíces custom, `cssPaleta` no
+inyecta nada, `--sf-accion` queda indefinida, y el fallback resuelve a `--sf-tostado`, IDÉNTICO a
+hoy). **NO se tocó el hover** (`--sf-tostado-4` literal en los cinco): el spec pide la indirección
+del FONDO, no repintar cada lugar a mano; queda declarado como residuo — con `origenAccion:'acento'`
+el hover de esos cinco CTA sigue siendo un tono cálido, no una variante del acento.
+
+### Cómo se probó la byte-identidad (§1 del spec — la invariante que manda)
+
+`derivarPaleta(NAYOLI)` con y sin el segundo parámetro (`{}` explícito) es la misma cadena JSON
+(medido, `node --import tsx`). El test que se queda en el repo:
+`palette-derive.test.ts`, `'EjesPaleta ausente ES {} — byte-idéntico al segundo parámetro explícito,
+en las 3 raíces del test'` — corre sobre NAYOLI/NEON/MEDIO/CORTE, las cuatro. Además: 34 de los 35
+tests preexistentes de `palette-derive.test.ts` pasaron SIN TOCAR (el único que cambió fue el conteo
+de claves, 31→32, porque `accion` se suma al mapa); ningún otro valor de ningún rol se movió.
+
+### Los contrastes que salen (§2 del spec)
+
+Medido con `derivarPaleta(CORTE_RAICES, ejes)` (`CORTE_RAICES = { fondo:'#fdfbf7', tinta:'#102407',
+acento:'#a70004' }`):
+
+| token | SIN los ejes (hoy) | CON `origenTexto:'tinta', origenAccion:'acento'` | contraste contra fondo (con los ejes) |
+| --- | --- | --- | --- |
+| `acento-texto` | `#a70004` (= acento crudo) | `#102407` (= **tinta EXACTA** — el `--text-heading` del prototipo) | 15.91:1 |
+| `texto` | `#732a00` | `#3d3000` | 12.53:1 |
+| `texto-suave` | `#961700` | `#1d2a00` | 14.69:1 |
+| `tostado` (sin cambio, es el default de `accion`) | `#d8a378` | `#d8a378` | — (decorativo) |
+| `accion` | `#d8a378` (= tostado) | `#a70004` (= **acento EXACTO** — el `--action-primary` del prototipo) | — (superficie) |
+
+Los tres roles de texto SIGUEN pasando el piso de AA (≥4.5:1) en las 4 raíces del test
+(NAYOLI/NEON/MEDIO/CORTE) — mismo mecanismo `pisoContraste`, mismo objetivo, ningún atajo.
+
+### Lo que NO llega — el residuo declarado, medido contra `touches:`
+
+**Los `esquemas` de banda (`esquemaStyle`/`derivarEsquema`) NO reciben los ejes en este slice.**
+`esquemaStyle` (`lib/config/esquema-style.ts`) tiene un ÚNICO llamador —
+`app/(storefront)/page.tsx:78`, `esquemaStyle(esquemas[bandaId], tema.fondo, tema.tinta,
+tema.acento)`— y ese archivo NO está en `touches:` de este slice (sólo
+`app/(storefront)/tienda/[slug]/page.tsx`). Sin poder tocar ese call site, agregar un parámetro
+`ejes` a `derivarEsquema`/`esquemaStyle` sería código MUERTO —nadie lo llamaría con un valor real—,
+y la doctrina de este repo (`CLAUDE.md`, ex-#68) es explícita: el código muerto no reserva el lugar
+de la capacidad futura, así que NO se agregó.
+
+**Consecuencia medida:** de las 7 bandas de CORTE, `esquemas` asigna esquema a 5 (`trustBadges`,
+`featured`, `brandStory`, `presentaciones`, `subscriptionCTA` — todas 'crema' salvo `brandStory` en
+'superficie'). Para esas 5, `esquemaStyle` computa `derivarEsquema(raices, id)` SIN los ejes
+declarados, así que su `--sf-sobre-banda`/`-suave` (fijado como estilo INLINE en la `<section>`, que
+gana sobre cualquier `:root` por especificidad) sigue naciendo del acento — el texto rojizo
+persiste ahí. Las 2 bandas SIN esquema asignado (`hero`, `testimonials`) caen al fallback
+`var(--sf-sobre-banda, var(--sf-acento-texto))`, que SÍ lee el `:root` corregido por este slice — ahí
+el fix aplica completo. El fix del BOTÓN (`accion`) no tiene este problema: los 5 CTA leen la var
+directo en su propia clase, sin pasar por `esquemaStyle`.
+
+### Gate
+
+- **`npm test`** (capa 1, sin base): **1508/1508**, 0 fail — +18 sobre el piso de
+  `CORTE-ESQUEMAS-INVERTIDOS-1` (1490), los 18 nuevos de este slice (11 en `palette-derive.test.ts`,
+  1 en `site-content-defaults.test.ts`, 2 en `themes.test.ts`, 3 en `palette-style.test.ts`, 1 en
+  `theme-mirador.test.ts`).
+- **`npm run test:integracion`** (Postgres 14.20 efímero, capa 2): **208/208**, 0 fail — idéntico al
+  piso anterior (este slice no toca ninguna cadena del carril).
+- **`npx tsc --noEmit`**: limpio, sin salida.
+- **`npx next build`**: `✓ Compiled successfully`. Verificado sobre el ARTEFACTO (no sólo la fuente):
+  `grep -rl "sf-accion" .next` encuentra el token en el chunk CSS
+  (`--sf-accion,var(--sf-tostado)` literal) y en los chunks JS de
+  `components_storefront_home_*` y de `lib_config_palette-derive`.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, mismo gate del mirador que aprobó `CORTE-ESQUEMAS-INVERTIDOS-1`).
+Los archivos tocados (`lib/config/palette-derive.ts`, `lib/config/themes.ts`,
+`components/storefront/home/*`) están en la lista de Tier 1 (`components/storefront/` gana el
+subárbol entero por el criterio de "bytes del visitante"). Contra MERGE POLICY A: **sin
+schema/migración** (ningún archivo de `packages/core/prisma/`), **sin contrato cross-repo**, pero
+**SÍ bytes de cliente** — el diff cambia valores que `cssPaleta`/las 5 clases de CTA traducen en
+`--sf-*` reales, y el mirador (`app/(storefront)/page.tsx`, gateado por `?tema=`, NO por sesión) los
+sirve sobre la ruta pública `/`. `customer_bytes.changed: true`. La rama entera
+(`slice/corte-reescritura-prototipo-1`) ya venía `AWAITING_APPROVAL`; este slice individual también
+clasifica `AWAITING_APPROVAL` por cuenta propia.
+
+### Deviations
+
+Ninguna del spec en la MECÁNICA (la raíz aditiva, los dos ejes, la indirección del botón). Una
+decisión no dictada explícitamente por el spec: qué roles nacidos del acento entran al eje
+`origenTexto` (`texto`/`texto-suave`/`acento-texto`) y cuáles quedan fuera (`acento-2`/`-3`/`-4`,
+`tostado*`) — medida contra qué renderiza el home de CORTE, no adivinada (§ el censo, arriba).
+
+### Open follow-ups
+
+- `TEMAS-ESQUEMA-ORIGEN-PENDIENTE-1` — `app/(storefront)/page.tsx:78` (el único llamador de
+  `esquemaStyle`), fuera de `touches:` de este slice. Mientras no se actualice para pasar
+  `content.tema.origenTexto`/`origenAccion` a `esquemaStyle`→`derivarEsquema`→`derivarPaleta`, las
+  bandas CON esquema asignado (5 de 7 en CORTE) siguen mostrando `--sf-sobre-banda`/`-suave`
+  nacidos del acento, aunque el `:root` ya esté corregido. Disparador: el próximo gate del mirador
+  del owner, si sigue viendo texto rojizo DENTRO de esas 5 bandas después de este slice.
+- `TEMAS-DERIVADOS-19-VENCIDO-1` — `CLAUDE.md:2271` ("Lo que se calcula solo — los 19 derivados de
+  `derivarPaleta`") y su gemelo en código, `components/admin/PaletaSeccion.tsx:431` ("Los 19
+  DERIVADOS (todo menos las 3 raíces editables)"). Medido, no supuesto: `derivados.length` (línea
+  432, `Object.keys(derivada).filter(...)`) YA daba **28** antes de este slice —el "19" estaba
+  vencido desde antes, no lo volvió falso este diff— y pasa a **29** con el nuevo rol `accion`. Este
+  slice no lo corrige: `components/admin/` no está en `touches:`, y `CLAUDE.md` tampoco. Disparador:
+  la próxima tanda que toque `PaletaSeccion.tsx` o la doctrina de la paleta del panel — ahí se
+  actualiza el número (o, mejor, se deriva el conteo del propio `derivados.length` en el copy en vez
+  de un literal, para que no vuelva a vencer).

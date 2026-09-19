@@ -183,6 +183,30 @@ test('CORTE: las 5 variantes que pide YA EXISTEN — CORTE valida COMPLETO', () 
   assert.ok(presetCompleto(CORTE));
 });
 
+test('CORTE es el ÚNICO preset del catálogo que declara origenTexto/origenAccion (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1)', () => {
+  assert.equal(CORTE.origenTexto, 'tinta');
+  assert.equal(CORTE.origenAccion, 'acento');
+  for (const preset of PRESETS) {
+    if (preset.clave === 'CORTE') continue;
+    assert.equal(preset.origenTexto, undefined, `${preset.clave} no debería declarar origenTexto`);
+    assert.equal(preset.origenAccion, undefined, `${preset.clave} no debería declarar origenAccion`);
+  }
+});
+
+test('mergePresetEnContent(_, CORTE): el tema resultante lleva los dos ejes declarados; los demás presets escriben null', () => {
+  const conCorte = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, CORTE);
+  const temaCorte = conCorte.tema as Record<string, unknown>;
+  assert.equal(temaCorte.origenTexto, 'tinta');
+  assert.equal(temaCorte.origenAccion, 'acento');
+
+  for (const preset of [PLIEGO, PATIO, VETA, VITRINA, ARRANQUE]) {
+    const despues = mergePresetEnContent(CONTENT_CON_DATOS_DEL_DUEÑO, preset);
+    const tema = despues.tema as Record<string, unknown>;
+    assert.equal(tema.origenTexto, null, `${preset.clave} debe escribir origenTexto:null`);
+    assert.equal(tema.origenAccion, null, `${preset.clave} debe escribir origenAccion:null`);
+  }
+});
+
 test('presentaciones: la clave nueva "riel" (CORTE-PRESENTACIONES-RIEL-1) SÍ pasa la validación — no genera faltante de variante', () => {
   // Preset sintético: ARRANQUE (el único completo con datos sintéticos, § arriba) + un pedido de
   // presentaciones·riel. Nada más cambia, así que si esto sigue completo, la clave es real —
@@ -326,6 +350,10 @@ test('el merge quirúrgico REEMPLAZA tema/esquemas/orden/variantesBandas enteros
     acento: ARRANQUE.raices.acento,
     fuentePar: null, // resolverFuentePar('editorial') → normaliza la canónica a null
     forma: null,     // resolverForma('suave') → ídem
+    // ARRANQUE no declara los dos ejes de § TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1 → null (el
+    // default, byte-idéntico).
+    origenTexto: null,
+    origenAccion: null,
   });
   assert.deepEqual(despues.esquemas, { featured: 'crema', subscriptionCTA: 'acento' });
   assert.deepEqual(despues.orden, ARRANQUE.orden);

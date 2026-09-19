@@ -47,7 +47,7 @@ import {
   REGISTRY, BANDA_IDS, ORDEN_DEFAULT, VARIANTES_ESTRUCTURALES,
   type SeccionDef, type BandaId, type ClaveEsquema,
 } from './site-content-defaults';
-import { RAICES_DEFECTO } from './palette-derive';
+import { RAICES_DEFECTO, type OrigenTexto, type OrigenAccion } from './palette-derive';
 
 const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
@@ -77,6 +77,15 @@ const ESQUEMAS_VALIDOS: readonly ClaveEsquema[] = ['crema', 'superficie', 'oscur
  * de que TypeScript la descarte en silencio.
  *
  * `esquemas`: bandaId (de `BANDA_IDS`) → esquema deseado. `orden`: la secuencia de bandaId deseada.
+ *
+ * `origenTexto`/`origenAccion` (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1, OPCIONALES) — la RAÍZ
+ * ADITIVA que declara de dónde nace el texto de lectura y la acción primaria del storefront
+ * (`EjesPaleta`, `palette-derive.ts`). AUSENTE en un preset = el comportamiento de HOY, byte a
+ * byte (el mismo criterio que `fuentePar`/`forma` en `null`, pero acá la ausencia de la CLAVE
+ * misma es la forma de "sin declarar" — no un valor `null` que haya que escribir a mano en cada
+ * uno de los otros cinco presets). Nace de un acento que es COLOR DE ACCIÓN puro (CORTE, rojo): un
+ * acento así no sirve como fuente de texto de lectura ni como tono cálido de botón, así que el
+ * preset lo dice explícitamente en vez de que el motor lo asuma para TODOS los clientes.
  */
 export interface PresetTema {
   clave: string;
@@ -87,6 +96,8 @@ export interface PresetTema {
   variantes: Readonly<Record<string, string>>;
   esquemas: Readonly<Partial<Record<BandaId, ClaveEsquema>>>;
   orden: readonly string[];
+  origenTexto?: OrigenTexto;
+  origenAccion?: OrigenAccion;
 }
 
 /** Lo que le falta a un preset para poder aplicarse, por REGLA (§3 a-d) y por NOMBRE. */
@@ -196,7 +207,8 @@ export function temasCompletos(presets: readonly PresetTema[] = PRESETS): readon
  * vive donde se puede afirmar sin una base real; la transacción es un envoltorio delgado.
  *
  * INVARIANTE (la promesa del runbook): NUNCA toca un texto ni una imagen del dueño. Sólo escribe
- * `tema` (raíces + par + forma, reemplazado entero — son composición, no contenido), `esquemas`,
+ * `tema` (raíces + par + forma + los dos ejes de origen de § TEMAS-ROLES-DECLARADOS-POR-EL-
+ * PRESET-1, reemplazado entero — son composición, no contenido), `esquemas`,
  * `orden` y `variantesBandas` (reemplazados enteros, por la misma razón), y el campo `variante`
  * DENTRO de cada sección afectada — preservando cualquier otro campo que esa sección ya tuviera
  * (`{ ...prev, variante }`). Ninguna otra clave de `content` se toca.
@@ -226,6 +238,10 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
     acento: preset.raices.acento,
     fuentePar: resolverFuentePar(preset.fuentePar),
     forma: resolverForma(preset.forma),
+    // AUSENTE en el preset → null (el default, byte-idéntico) — el mismo `?? null` que ya hace
+    // falta para escribir un `TemaContent` completo (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1).
+    origenTexto: preset.origenTexto ?? null,
+    origenAccion: preset.origenAccion ?? null,
   };
   out.esquemas = { ...preset.esquemas };
   out.orden = [...preset.orden];
@@ -376,6 +392,19 @@ export const CORTE: PresetTema = {
   },
   // «usa el default de hoy, sin reordenar» (§2) — el mismo ORDEN_DEFAULT que ya usa Nayoli.
   orden: ORDEN_DEFAULT,
+  // origenTexto/origenAccion (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1, DECISIONS.md) — el defecto
+  // que el owner reportó gateando este mirador contra el prototipo, y que `CORTE-ESQUEMAS-
+  // INVERTIDOS-1` dejó explícitamente sin tocar: `--action-primary` de CORTE (`raices.acento`,
+  // #a70004) es COLOR DE ACCIÓN puro —no un tono cálido de lectura—, y el motor de paleta
+  // (`palette-derive.ts`) hacía nacer del acento TANTO el texto de lectura (rojizo) COMO el fondo
+  // de la acción primaria (`tostado`, un mix acento/fondo que con un acento rojo sale beige/rosado,
+  // no rojo). CORTE es el ÚNICO de los seis presets que declara los dos ejes — los otros cinco (y
+  // todo tenant real) quedan exactamente como estaban, byte a byte (§ el test de
+  // `palette-derive.test.ts` que lo afirma).
+  origenTexto: 'tinta',   // texto/texto-suave/acento-texto nacen de la TINTA — el `--text-heading`
+                          // del prototipo (`docs/prototipos/cafeone/ds/colors.css:48`) ES la tinta.
+  origenAccion: 'acento', // el fondo de la acción primaria (hoy `tostado`) nace del ACENTO crudo —
+                          // el `--action-primary` real del prototipo (`colors.css:59`).
 };
 
 export const PATIO: PresetTema = {

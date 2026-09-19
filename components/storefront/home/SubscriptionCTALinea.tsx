@@ -62,7 +62,7 @@ export default function SubscriptionCTALinea({ style }: { style?: React.CSSPrope
           </div>
           <Link
             href="/suscripciones"
-            className="inline-flex shrink-0 items-center gap-2 bg-[var(--sf-tostado)] hover:bg-[var(--sf-tostado-4)] text-[var(--sf-tinta)] font-semibold px-6 py-3 sf-pildora text-sm transition-all hover:-translate-y-0.5"
+            className="inline-flex shrink-0 items-center gap-2 bg-[var(--sf-accion,var(--sf-tostado))] hover:bg-[var(--sf-tostado-4)] text-[var(--sf-tinta)] font-semibold px-6 py-3 sf-pildora text-sm transition-all hover:-translate-y-0.5"
           >
             {subscriptionCTA.ctaLabel} <ArrowRight className="w-4 h-4" />
           </Link>
