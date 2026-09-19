@@ -9453,15 +9453,28 @@ próximo que toque un rol lo lea:
 | `texto` / `texto-suave` | acento (w 0.34/0.12 hacia tinta) | `--sf-texto`/`-suave` (cuerpo de TODO el storefront) + `--sf-sobre-banda`/`-suave` (vía `esquema-style.ts`) | **SÍ** |
 | `acento-texto` | acento crudo, floreado | fallback de `--sf-sobre-banda` sin esquema; leído DIRECTO en decenas de sitios (números de orden, eyebrows, links) | **SÍ** |
 | `acento-txt` | auto-flip blanco/tinta (NO el hue del acento) | texto SOBRE un botón/badge de acento — es contraste, no un tono derivado | NO — no "nace" del acento, convive con él |
-| `acento-2`/`acento-3`/`acento-4` | acento mezclado con tinta/fondo | cuerpo de `/nosotros`, nav móvil, hover de "ver todos" — NINGUNO en el home que el mirador renderiza | NO — medido, no recorrido a ciegas; fuera del home |
+| `acento-2` | acento mezclado con tinta (w 0.64) | fallback INERTE en el home (`--sf-sobre-tarjeta-suave` en `TestimonialSection`, `--sf-sobre-banda` en `TrustBadges`) — el token primario SIEMPRE está definido para un tema de raíces custom, así que no pinta nada en CORTE; SÍ pinta fuera del home (`/nosotros`, nav móvil) | NO |
+| `acento-3` | acento mezclado con tinta (w 0.41) | color de HOVER (sin fallback) del link "Ver todos los productos" en `FeaturedProductsGrilla` — CORTE SÍ monta esa banda (`featured:'grilla'`) | NO (ver el porqué, abajo) |
+| `acento-4` | acento mezclado con fondo (w 0.31) | ningún consumidor dentro de las 7 piezas que CORTE monta — vive en `StoreNav` (nav móvil), ajeno al home | NO |
 | `tostado`/`tostado-2..8` | acento mezclado con fondo | decorativo/hover (bordes, miniaturas) | NO — nunca texto de lectura |
 
 **El eje `origenTexto` mueve `texto`/`texto-suave`/`acento-texto`** (los tres marcados arriba), con
 la MISMA mezcla y los MISMOS pesos de la RECETA — sólo se invierte cuál raíz manda (`mezclar(tinta,
 acento, 0.34)` en vez de `mezclar(acento, tinta, 0.34)`, y `acento-texto` pasa a ser la tinta cruda
-floreada contra fondo, en vez del acento crudo). `acento-2`/`-3`/`-4` NO se tocan: no los renderiza
-el home de CORTE (`app/(storefront)/page.tsx`) y moverlos sería extender el alcance sin evidencia de
-esta pantalla — medido por lectura de sus consumidores, no supuesto.
+floreada contra fondo, en vez del acento crudo).
+
+**CORRECCIÓN DE MEDICIÓN, sobre esta misma tabla:** un primer censo afirmó que `acento-2`/`-3`/`-4`
+"no los renderiza el home de CORTE" para los TRES — **medido de nuevo, era falso para `acento-3`**:
+sí pinta, en el hover del link de arriba. Se corrige acá y en el comentario de `palette-derive.ts`
+(la fuente donde vive el censo real) antes de cerrar el slice — el error se encontró releyendo el
+propio censo contra un grep de los 7 archivos, no lo señaló nadie de afuera. `acento-3` NO se movió
+igual: el defecto que el owner reportó era sobre el texto EN REPOSO, y `acento-3` es un matiz de
+HOVER sobre un link cuyo reposo (`--sf-sobre-banda`/`acento-texto` de la banda `featured`, CON
+esquema asignado en CORTE) ya cae en el residuo declarado abajo (§ Lo que NO llega) — mover sólo el
+hover sin el reposo sería peor que dejar los dos como estaban. `acento-2` queda fuera porque es
+fallback inerte (el token primario siempre gana); `acento-4` porque no aparece en ninguna de las 7
+piezas que CORTE monta. Ninguno de los tres se tocó — el error estaba en el PORQUÉ que se había
+escrito para dos de ellos, no en la decisión final.
 
 ### El eje de la acción — la indirección, medida antes de aplicarla
 

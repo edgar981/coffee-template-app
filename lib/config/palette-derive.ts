@@ -187,12 +187,28 @@ export function pisoContraste(hex: string, bg: string, objetivo = 4.5, dir: Dire
 //     —auto-flip blanco/tinta—, no un tono derivado DEL acento: no es "texto que nace del acento",
 //     es "texto que convive con el acento". NO mueve.
 //   · `acento-2`/`acento-3`/`acento-4` (abajo, variantes de mezcla acento/tinta o acento/fondo) —
-//     se leen como texto en un puñado de sitios AJENOS al home (el cuerpo de `/nosotros`, el nav
-//     móvil, un hover de "ver todos") pero su nombre y su receta los declaran variantes de MATIZ
-//     del acento, no la familia "texto" — y ninguno de esos sitios lo renderiza el mirador de
-//     presets (`app/(storefront)/page.tsx`, la home). NO mueven en este slice; medido, no
-//     recorrido a ciegas — si un preset futuro necesitara também esas superficies, es su propio
-//     censo, no una extensión silenciosa de este.
+//     su nombre y su receta los declaran variantes de MATIZ del acento, no la familia "texto".
+//     CENSADOS por sitio, no descartados a ciegas (medido con grep sobre los 7 componentes que
+//     CORTE realmente monta, `HeroMedia`/`FeaturedProductsGrilla`/`BrandStoryCentrada`/
+//     `GrindChooserRiel`/`SubscriptionCTALinea`/`TrustBadges`/`TestimonialSection`):
+//       - `acento-2` SÍ aparece en el home (fallback de `--sf-sobre-tarjeta-suave` en
+//         `TestimonialSection` y de `--sf-sobre-banda` en `TrustBadges`), pero como FALLBACK —
+//         inerte para cualquier tema de raíces custom (CORTE incluido), porque el token primario
+//         SIEMPRE está definido ahí (`--sf-sobre-tarjeta-suave` lo emite `derivarPaleta` siempre;
+//         `--sf-sobre-banda` lo fija `esquemaStyle` en línea para toda banda con esquema asignado,
+//         y `trustBadges` tiene uno en CORTE). No pinta nada para CORTE.
+//       - `acento-3` SÍ PINTA — es el color de HOVER del link "Ver todos los productos" en
+//         `FeaturedProductsGrilla` (`hover:text-[var(--sf-acento-3)]`, sin fallback), que CORTE sí
+//         monta (`featured: 'grilla'`). Es un matiz de hover de un link cuyo color EN REPOSO ya
+//         cae en la misma zona gris del §"lo que NO llega" (banda con esquema asignado); moverlo
+//         solo en hover sin mover el reposo sería peor que dejarlo — así que NO se movió, y queda
+//         nombrado, no invisible (§ DECISIONS.md, TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1).
+//       - `acento-4` NO aparece en ninguno de los 7 componentes — su único consumidor real
+//         (`StoreNav`, la burbuja "Mi" del nav móvil) es ajeno al home.
+//     NO mueven en este slice — el defecto medido por el owner era sobre el texto EN REPOSO
+//     (`texto`/`texto-suave`/`acento-texto`), no sobre matices de hover; si un preset futuro
+//     necesitara mover también hovers o el cuerpo de `/nosotros`, es su propio censo, no una
+//     extensión silenciosa de éste.
 //   · `tostado`/`tostado-2..8` — decorativos/hover, nunca reading text. NO mueven (y uno de ellos,
 //     `tostado`, es justo el DEFAULT del nuevo rol `accion`, abajo).
 const RECETA: Record<string, { a: keyof RaicesPaleta; b: keyof RaicesPaleta; w: number; piso?: boolean }> = {
