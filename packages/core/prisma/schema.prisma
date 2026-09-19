@@ -253,6 +253,13 @@ model OrderItem {
   orden_id             String
   producto_id          String?
   producto_nombre      String
+  // La portada del producto AL MOMENTO DE COMPRAR — INSTANTÁNEA, la MISMA decisión que ya
+  // protege `producto_nombre`/`precio_unitario` (§ CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1): el
+  // resumen del pedido no se resuelve contra el producto vivo, para que un rediseño de la
+  // ficha no le cambie la foto a una compra ya hecha. Nullable, SIN backfill: toda fila
+  // anterior a este slice queda en null a propósito — rellenarla con la imagen actual
+  // fabricaría la misma mentira que esta columna existe para impedir.
+  producto_imagen      String?
   // Molienda elegida por el cliente al comprar (snapshot, p. ej. "Media").
   moliendaSeleccionada String?
   cantidad             Int
@@ -489,6 +496,27 @@ model PaymentIntent {
   // se rellena con un centinela.
   estado_crudo_psp String?
 
+  // El TIPO DE MÉTODO (vocabulario del PROVEEDOR — `'CARD'`, `'NEQUI'`..., el mismo
+  // namespace que `SiteSetting.metodosPasarela` y `DESCRIPTORES_METODO_PASARELA`,
+  // `lib/pagos/metodos-pasarela.ts`) que Wompi rechazó por NO tenerlo habilitado en la
+  // cuenta (§ API-DIRECTA-DESALINEO-DUENO-1). NUNCA el `motivo` en prosa de
+  // `CreacionMetodoNoHabilitado` (`lib/pagos/creacion-transaccion.ts`) — ese texto sólo
+  // se loguea, nunca se persiste.
+  //
+  // NACE NULL, y SÓLO se escribe cuando `clasificarCreacionTransaccion` devuelve
+  // `tipo: 'metodo_no_habilitado'` PARA ESTE intento — nunca por `firma_invalida` ni
+  // `otro_fallo` (ver el `switch` del PATCH en `app/api/checkout/route.ts`). Es estado
+  // de UN INTENTO, no un ajuste del negocio (decisión del owner, API-DIRECTA-DESALINEO-
+  // DUENO-1) — por eso vive acá y no en `SiteSetting`.
+  //
+  // DISTINTO de `estado_crudo_psp` (arriba), y A PROPÓSITO: aquél es del RECONCILIADOR y
+  // del barrido de vencidos (packages/core/src/pagos/reconciliador.ts) — su contrato
+  // asume que `null` en un intento cerrado por edad significa "nunca hubo evidencia
+  // positiva del PSP". Éste es del DUEÑO, se escribe en la CREACIÓN (con el intento
+  // todavía EN_VUELO, antes de que exista una transacción real del PSP), y ninguna
+  // cadena de dinero lo lee.
+  metodo_rechazado String?
+
   createdAt DateTime @default(now())
   // El intento NACE EN_VUELO y el webhook (cuando exista) lo cierra a APROBADO/
   // FALLIDO sobre la MISMA fila — no es append-only como AutomationRun. Sigue el
@@ -500,6 +528,14 @@ model PaymentIntent {
   updatedAt DateTime @updatedAt
 
   @@index([orden_id])
+  // El aviso del dueño (§ API-DIRECTA-DESALINEO-DUENO-1, `lib/config/site-settings-read.ts`)
+  // consulta `WHERE metodo_rechazado IN (<lo que el dueño ofrece hoy>) ORDER BY updatedAt DESC
+  // LIMIT 1` — nunca `WHERE metodo_rechazado IS NOT NULL` a secas, para no depender de un
+  // índice parcial que la sintaxis de Prisma no puede declarar. Con esta columna casi siempre
+  // NULL, un índice compuesto normal (mismo patrón que `AutomationRun_automationKey_createdAt`,
+  // arriba) deja esa consulta en un index scan por cada tipo del IN —acotado por cuántos métodos
+  // el dueño ofrece, nunca por cuántos `PaymentIntent` existen—, no un recorrido de la tabla.
+  @@index([metodo_rechazado, updatedAt(sort: Desc)])
 }
 
 // Bucket derivado del INTENTO, medido contra NUESTRAS decisiones, no contra el
@@ -722,6 +758,17 @@ model SiteSetting {
   // viejas de pago (cuenta bancaria + 4 booleanos + número móvil) que esa migración leyó y que
   // `20260910130000_drop_site_setting_pago_viejas` retiró — ya no existen en este modelo.
   metodosPago Json @default("[]")
+  // MÉTODOS de PASARELA (API directa, § API-DIRECTA-PANEL-METODOS-1): la lista de
+  // IDENTIFICADORES DE TIPO que el dueño eligió ofrecer, entre los que su cuenta del
+  // proveedor tiene REALMENTE habilitados — leídos en vivo de `GET /v1/merchants/info`
+  // (`lib/pagos/wompi-api.ts`), nunca de un catálogo escrito en este código. Guarda SÓLO
+  // los identificadores (strings), NUNCA `{tipo, datos}` como `metodosPago`: un método de
+  // pasarela no guarda dato del dueño — los datos de pago nunca tocan este servidor
+  // (§ API-DIRECTA-DECISIONES-PROGRAMA-1 §2) — y un campo `datos` vacío para siempre sería
+  // una mentira estructural. `[]` es un estado LEGÍTIMO (a diferencia de `metodosPago`, que
+  // exige al menos uno): la pasarela es una capacidad de DESPLIEGUE que puede estar apagada,
+  // o el dueño puede no haber elegido nada todavía de su cuenta.
+  metodosPasarela Json @default("[]")
   // La PALETA del storefront ya NO vive acá: se mudó a `SiteContent.content.tema` (§ Backlog #55)
   // para ganar el flujo borrador/publicar. SiteSetting es IDENTIDAD (guardar = en vivo al instante);
   // la paleta es CONTENIDO que se publica. Migración `drop_site_setting_palette`.

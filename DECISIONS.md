@@ -5430,26 +5430,35 @@ devuelve el `404 NOT_FOUND_ERROR` que `API-DIRECTA-SPIKES-ASIENTO-1` §1.D ya re
 método exacto** en su `reason`—, así que avisarle al dueño sale más barato que antes: ya se sabe cuál
 método se cayó, sin adivinarlo por ausencia.
 
-**Y acá está la razón por la que NO se borra, que es lo más importante de esta sección:**
+**Y acá está la razón por la que NO se borra, que es lo más importante de esta sección — aunque la
+pregunta que sigue ya se cerró (ver el bloque `[PREDICTOR-MEDIDO]`, abajo): la respuesta también
+necesita quedar donde alguien la va a buscar.**
 
 ```
-!!!!!!!!!!  S I N   M E D I R  !!!!!!!!!!
-!!  [SIN MEDIR] -- marcador buscable por maquina
-!!  ESTO NO ES UN DATO. ES UNA PREGUNTA ABIERTA.
-!!  «si accepted_payment_methods predice el 404 de forma confiable para CUALQUIER tipo de metodo, y no solo para el unico que se probo»
-!!  NADIE MIDIO ESTO. No lo afirmes, no lo asumas, no lo cites
-!!  como hecho, no lo uses para decidir: MEDILO.
-!!  Si lo das por cierto, el slice esta mal desde su premisa.
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!  P R E D I C T O R   M E D I D O  !!!!!!!!!!
+!!  [PREDICTOR-MEDIDO] -- marcador buscable por maquina
+!!  ESTO YA ES UN DATO, NO UNA PREGUNTA ABIERTA (medido: API-DIRECTA-SPIKE-PREDICTOR-1).
+!!  «si accepted_payment_methods predice el 404 de forma confiable para CUALQUIER tipo de metodo,
+!!  y no solo para el unico que se probo» -- SI, para la cuenta medida.
+!!  Se probo CADA tipo del catalogo del proveedor que esa cuenta NO tiene habilitado -- no una
+!!  muestra de uno solo. TODOS fallaron IGUAL: mismo status, mismo error.type, y un reason que
+!!  nombra el tipo exacto que se rechazo. NINGUNO quedo sin concluir: varios exigieron completar
+!!  antes campos propios de la forma de ese tipo de metodo, y una vez completos llegaron al MISMO
+!!  rechazo por cuenta-sin-el-metodo.
+!!  EL LIMITE, sin suavizar: se midio contra UNA cuenta (la de sandbox de este repo). Que los tipos
+!!  que le faltan a ESA cuenta fallen todos igual NO prueba que toda cuenta se comporte igual.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ```
 
-Esa pregunta ya está registrada como abierta en `API-DIRECTA-SPIKES-ASIENTO-1` §2 (arriba): *"Se probó
-SÓLO `BRE_B`. Que la lista y el rechazo hayan coincidido esa vez no prueba que coincidan siempre."*
-**Lo que ese vacío obliga:** la frase «el desalineo se previene al configurar» descansa sobre un
-predictor que no está medido. Una coincidencia observada una vez no es un predictor. Si la lista y el
-rechazo llegaran a separarse aunque sea para UN tipo de método, este slice vuelve a ser el grande de
-la propuesta original —y se descubriría con un comprador delante del checkout, no en un spike—. **Queda
-achicado, y la pregunta se mide ANTES de apoyarse en ella para construir el slice reducido.**
+(MEDIDO — `API-DIRECTA-SPIKE-PREDICTOR-1`; registrado por ese spike, no re-medido por este asiento, que
+no tiene acceso a sandbox.)
+
+La pregunta que quedó abierta en `API-DIRECTA-SPIKES-ASIENTO-1` §2 (arriba) —*"Se probó SÓLO `BRE_B`. Que
+la lista y el rechazo hayan coincidido esa vez no prueba que coincidan siempre"*— **SE CERRÓ.** Una
+coincidencia observada una vez no era un predictor; el catálogo entero coincidiendo sí lo es, con el
+límite escrito arriba (una cuenta, no todas). **La frase «el desalineo se previene al configurar» ya no
+descansa sobre una pregunta sin medir: descansa sobre esta medición**, y es lo que desbloquea que
+`API-DIRECTA-DESALINEO-AVISO-1` (el slice reducido) se construya apoyado en ella.
 
 ### 4 · El primer slice se quedó casi sin trabajo
 
@@ -5487,8 +5496,9 @@ el del aviso de desalineo (§3, encoge) y el primero de la partición, el cablea
 - **La partición completa NO se aprueba ni se cierra acá.** Sigue viviendo fuera del libro, en la figura
   del censo read-only; este asiento registra el efecto de un hecho medido sobre tres de sus piezas, no
   la partición entera.
-- **El predictor de §3 queda como pregunta abierta, explícitamente sin medir.** Ningún slice que dependa
-  de él se construye antes de esa medición.
+- **El predictor de §3 quedaba como pregunta abierta, explícitamente sin medir — SE MIDIÓ después**
+  (`API-DIRECTA-SPIKE-PREDICTOR-1`, bloque `[PREDICTOR-MEDIDO]` en §3, arriba), contra UNA cuenta, con
+  ese límite escrito ahí. `API-DIRECTA-DESALINEO-AVISO-1` es el primer slice que se apoya en la medición.
 - **El modo de falla de §2 queda pendiente del owner**, sin resolverse acá.
 
 **GATE, los dos carriles, verde.** Este diff toca un solo archivo del ledger (`DECISIONS.md`) y ningún
@@ -5629,3 +5639,2806 @@ todas formas. Un contrato de formulario derivado del ejemplo que se tenía a man
 en vez del espacio de casos completo (hasta seis campos, de tres naturalezas, con más de la mitad
 redirigiendo por un campo que cambia de nombre) es la misma clase de error en otra superficie: se
 descubre midiendo el catálogo entero, no extrapolando del primer caso.
+un modo de falla pendiente del owner, el desalineo se apoyaba en un predictor sin medir —medido después,
+contra una cuenta, en `API-DIRECTA-SPIKE-PREDICTOR-1` (§3, arriba)—, y el residual del primero está
+bloqueado por una condición externa (una URL pública) que este asiento no resuelve.
+
+## 2026-09-17 — La guarda que cierra la clase, y el mismo defecto en dos disfraces: el glob del gate y el
+descriptor de método de pasarela (`GATE-GUARDA-TESTS-INVISIBLES-1`)
+
+### El hecho que ordena esta tanda
+
+El glob del carril rápido (`package.json`, script `"test"`) dejó de descubrir un archivo de test **por
+QUINTA vez** en `GATE-GLOB-COMPONENTS-SERVICES-1` (commit `2f8c205`, la noche anterior a este slice):
+`services/checkout.service.test.ts` —del camino de dinero— y
+`components/storefront/checkout/interpretar-respuesta-otro-metodo.test.ts` existían, pasaban a mano, y
+**ningún `npm run gate` los ejecutaba**. Las cinco veces el arreglo fue el mismo: agregar el subárbol que
+faltaba a una lista escrita a mano (§ GATE-DOS-CARRILES-1, § El carril rápido cubre `app/` — CUARTA
+instancia —, CLAUDE.md). El owner ordenó el 2026-09-17 construir la guarda que cierra la CLASE, no la
+instancia número cinco.
+
+### Las DOS fallas que este asiento nombra JUNTAS
+
+**1 · El glob del gate.** `package.json` enumeraba los subárboles que alguien RECORDÓ declarar
+(`lib/**`, `constants/**`, `packages/core/**`, `app/**`, y ahora `components/**`, `services/**`), nunca
+el espacio completo de lugares donde un test puede nacer. Un subárbol nuevo —o uno viejo que nadie
+pensó en listar— quedaba invisible hasta que alguien lo notara a mano, y notarlo a mano es justo lo que
+falló cinco veces seguidas.
+
+**2 · El descriptor de método de pasarela.** `DescriptorMetodoPasarela` (`lib/pagos/metodos-pasarela.ts`,
+§ API-DIRECTA-OTROS-METODOS-1) declara **un solo campo** —`campo: CampoMetodoPasarela`, "el único dato
+que este tipo le pide al comprador"— porque el tipo con el que se diseñó y probó, NEQUI, es una
+billetera que sólo pide un número de celular. El propio archivo ya deja la fisura escrita: **PSE queda
+explícitamente AFUERA de este registro** porque "necesita su propio spike antes de tener su
+descriptor" — y la razón de que PSE no entre por esa puerta es que PSE no le pide UN dato al comprador,
+le pide varios (banco, tipo de documento, número de documento). El contrato de "un campo" no es un
+error de PSE: es el límite del contrato, visto ANTES de forzar a PSE dentro de él.
+
+### Por qué son el MISMO defecto
+
+**LAS DOS SON UN CONTRATO DERIVADO DE LOS CASOS QUE SE TENÍAN A MANO, EN VEZ DEL ESPACIO DE CASOS.** El
+glob se escribió mirando los subárboles que existían el día que se escribió, no "todo lugar donde un
+test pueda vivir". El descriptor se escribió mirando NEQUI, el único tipo que había cuando se diseñó,
+no "todo lo que un método de pasarela puede pedirle a un comprador". En los dos casos alguien enumeró
+los EJEMPLOS que tenía delante y los llamó "el conjunto", y el conjunto real siguió creciendo por fuera.
+
+**La diferencia entre ellas es la parte útil.** El glob se descubrió FALLANDO cinco veces —un archivo
+invisible, corriendo a mano, hasta que alguien lo notaba tarde—. El descriptor lo destapó una MEDICIÓN
+—leer el caso de PSE contra el contrato de "un campo" y ver que no entra— **antes de que costara nada**:
+PSE se dejó explícitamente afuera del registro en vez de forzarse adentro y romperse en producción. La
+misma clase de contrato angosto, dos maneras muy distintas de encontrarle el borde: una cara, una
+barata.
+
+**Por qué van en un asiento y no en dos, en la razón del owner: la lección no es sobre globs ni sobre
+métodos de pago — es sobre CÓMO SE ESCRIBEN LOS CONTRATOS ACÁ.** Separadas se leen como dos anécdotas de
+dos rincones del código; juntas se leen como una regla: un contrato que enumera los casos conocidos, en
+vez de describir el espacio que esos casos habitan, deja afuera lo que todavía no se ha visto — y no
+avisa que lo dejó afuera.
+
+### La guarda construida
+
+`lib/gate/tests-descubiertos.ts` (puro) + `lib/gate/tests-descubiertos.test.ts` (el test, descubierto
+por el propio glob que vigila — `lib/**/*.test.ts` ya lo cubre). Enumera TODO archivo `*.test.ts` del
+repositorio (excluyendo `node_modules`, `.git`, `.next`, `.vercel`, `.scratch`), lee los patrones de LOS
+DOS carriles de **sus propias fuentes** —el script `"test"` de `package.json` y la invocación de
+`node --test` al final de `scripts/test-integracion.sh`— y falla nombrando cada archivo que no cae bajo
+ninguno. **Nunca transcribe un patrón a mano**: `extraerGlobsDeComando` lee las cadenas entrecomilladas
+que terminan en `.test.ts` de cada fuente, así que un patrón agregado o retirado se sigue solo — es la
+misma cura que evita que esta guarda se vuelva, ella misma, un contrato que enumera lo que alguien
+recordó.
+
+**Por qué lee LOS DOS carriles y no sólo el rápido:** un archivo bajo `tests/integracion/` no es
+invisible — corre por el carril de integración, a propósito, porque necesita Postgres real (§ El
+carril rápido cubre `app/`, CLAUDE.md). Si la guarda sólo conociera el patrón del carril rápido,
+fallaría siempre contra esos ~30 archivos, que ya están cubiertos por el otro lado del mismo
+`npm run gate`.
+
+### La condición del owner: probada contra el caso real
+
+Con los patrones de `package.json` **tal como estaban antes de `2f8c205`** (`git show 2f8c205^:package.json`,
+sin `"components/**/*.test.ts"` ni `"services/**/*.test.ts"`) corridos contra el árbol de archivos REAL
+de hoy —los dos archivos que nacieron invisibles esa noche siguen existiendo—, la guarda nombra
+exactamente:
+
+```
+components/storefront/checkout/interpretar-respuesta-otro-metodo.test.ts
+services/checkout.service.test.ts
+```
+
+Con los patrones de HOY (leídos del `package.json` real), la misma corrida no nombra ninguno. La
+reproducción quedó además como test permanente (`archivosSinCubrir: EL CASO REAL DE ANOCHE`) dentro de
+`lib/gate/tests-descubiertos.test.ts`, contra los mismos dos archivos y los mismos patrones viejos —no
+un fixture inventado.
+
+### Su límite, impreso
+
+**La guarda afirma que todo archivo de test del repositorio CAE DENTRO de un patrón que algún carril del
+gate ejecuta. NO afirma que su CONTENIDO corra.** Un archivo descubierto cuyo contenido no se ejecuta
+—un caso saltado, un bloque que nunca se alcanza, una condición que lo apaga— sigue siendo invisible, y
+eso es otra pregunta que esta guarda no responde. El límite vive en el docstring de
+`lib/gate/tests-descubiertos.ts` y en el mensaje de falla de la propia guarda, no sólo acá.
+
+### Lo que NO se tocó
+
+El descriptor de método de pasarela (`lib/pagos/metodos-pasarela.ts`) no se modificó — esta tanda lo
+nombra como el segundo disfraz del mismo defecto, no lo generaliza a varios campos. Ese trabajo, si se
+hace, es del día en que PSE (o cualquier tipo que pida más de un dato) entre por su propio spike.
+
+**Tier 1 — no aplica a este diff.** `lib/gate/` y `DECISIONS.md` no están en la lista Tier 1 ni en sus
+subárboles, y este slice no toca `app/(storefront)/`, ninguna puerta de dinero, schema ni migración.
+Pero la RAMA (`slice/api-directa-panel-metodos-1`) sigue con commits previos que sí tocan superficie
+Tier 1 (`lib/checkout/metodos-pago.ts`), así que el conjunto sigue esperando el visto bueno del owner
+antes de mergear — este commit no lo cambia.
+
+Regla: un contrato que enumera los casos que tenía a mano, en vez de describir el espacio que esos casos
+habitan, deja afuera lo que todavía no se ha visto y no avisa que lo dejó afuera — la única diferencia
+entre encontrarle el borde por las malas (fallando en producción) o por las buenas (una medición antes
+de construir) es si alguien miró el espacio de casos antes de que el mundo se lo señalara.
+
+## 2026-09-17 — BANCOLOMBIA no es "no cobrable": es una etiqueta de agrupación, y con ese banco SÍ se
+cobra por otros identificadores — una medición angosta reportada como afirmación ancha
+(`CORRECCION-BANCOLOMBIA-AGREGADOR-1`)
+
+### 0 · Por qué este asiento existe, y la clase del error que corrige
+
+El asiento del catálogo de métodos (`API-DIRECTA-CATALOGO-METODOS-ASIENTO-1`, con su corrección de
+nombre `API-DIRECTA-CATALOGO-NOMBRA-TIPO-1` — los dos viven en `main`, **no son ancestros de esta
+rama**: `slice/api-directa-panel-metodos-1` divergió de `main` antes de que esos dos commits
+aterrizaran ahí, así que este asiento no puede citar su texto literal y lo cita por ID) midió que el
+identificador `BANCOLOMBIA` **rechaza siempre** la creación de una transacción, con cualquier
+combinación de campos. Esa medición es correcta, y es ANGOSTA: mide un identificador.
+
+Se escribió — y el panel de métodos la heredó (`PANEL-LISTA-NO-COBRABLES-1`, título "No disponible
+para cobrar") — como si dijera algo ANCHO: que con ese banco no se cobra. **Eso es FALSO.**
+
+**QUIÉN LO ENCONTRÓ:** el owner, con evidencia PROPIA — paga con ese banco habitualmente, y el panel
+del proveedor le muestra ese método activo. No fue una revisión de quien escribió el asiento
+original; fue el dueño usando su propia cuenta. El owner ordenó re-medir.
+
+**LA CLASE, para que quede como regla y no como incidente de un banco:** una medición angosta
+reportada como afirmación general. No falló la medición —el identificador sigue rechazando siempre—;
+falló CÓMO SE ESCRIBIÓ, y el error llegó a dos lugares: a `main` (el asiento) y al panel que ve el
+dueño (la etiqueta).
+
+### 1 · Lo medido — el re-spike (`API-DIRECTA-SPIKE-COBRABLES-Y-NOMBRES-1`)
+
+Igual que los spikes read-only anteriores de este programa, éste no deja rastro propio: lo que midió
+vive en los registros del orquestador y es incitable hasta que alguien lo escribe (la misma regla que
+ya fijó `API-DIRECTA-SPIKES-ASIENTO-1`). Este slice **no tiene acceso a red**: no re-verifica nada de
+lo que sigue contra el proveedor — lo transcribe, con su origen.
+
+- **El identificador `BANCOLOMBIA` a secas SIGUE sin ser un tipo creable.** La creación lo rechaza
+  diciendo que el TIPO no es válido — distinto de "esta cuenta no tiene este método". Esa distinción
+  —tipo inválido vs. cuenta sin el método— es la que el asiento original perdió al escribir sólo
+  "rechaza siempre".
+- **Los identificadores HERMANOS, con sufijo sobre el mismo nombre de banco, SÍ se cobran.** Al menos
+  DOS se crearon con éxito. Con ese banco se cobra.
+- **Hay evidencia de CUÁL hermano corresponde al botón que el dueño ve en su panel, y no es por
+  parecido de nombre:** al crear la transacción con ese identificador, el proveedor devuelve una
+  dirección de redirección que contiene ese mismo nombre de flujo.
+- **DOS hermanos quedaron SIN CLASIFICAR** — no se pudo pasar su validación de forma. **NO MEDIDO**:
+  no se afirma nada sobre ellos, ni que cobren ni que no.
+
+### 2 · La raíz — por qué esto pasó, y por qué puede volver a pasar si no se nombra
+
+**El proveedor NO devuelve, en ningún endpoint, un nombre legible por una persona para sus tipos de
+método.** El campo de nombre repite el identificador de máquina. La tabla de traducción entre lo que
+el dueño ve en SU panel (el del proveedor) y lo que la API llama **no existe del lado de la
+máquina** — sólo puede salir del panel del dueño.
+
+Estábamos cruzando dos vocabularios sin tabla de traducción, y eso produce conclusiones falsas **por
+construcción**, no por descuido. Cualquier hallazgo futuro sobre "qué identificador corresponde a qué
+botón del panel del proveedor" corre el mismo riesgo mientras esa tabla no exista — no hay forma de
+resolverlo desde el código, sólo desde el panel del dueño.
+
+### 3 · Lo que se corrige, y lo que NO
+
+- **El hecho medido no cambia:** `BANCOLOMBIA` (el identificador exacto) sigue sin poder crearse
+  nunca. `TIPOS_NO_COBRABLES` (`lib/pagos/metodos-pasarela.ts`) se queda con esa única entrada — su
+  docstring gana la corrección, citando este asiento, aclarando que describe el IDENTIFICADOR, nunca
+  el banco.
+- **La etiqueta del panel** (`EXPLICACION_NO_ENCENDIBLE.no_cobrable.titulo`,
+  `components/admin/DatosNegocioSeccion.tsx`) cambia de "No disponible para cobrar" —que un dueño lee
+  como "no puedo cobrar con este banco"— a un texto corto que dice lo que es: una etiqueta de
+  agrupación del proveedor, no un método. **TEXTO PROVISIONAL, PENDIENTE DE TEXTO DEL OWNER**, mismo
+  criterio que el resto del copy de este programa.
+- **NO se renombran `esNoCobrable` / `TIPOS_NO_COBRABLES` / el estado `no_cobrable` del enum
+  (`EstadoMetodoPasarela`).** Los usa `lib/config/site-settings-schema.ts` (fuera de `touches` de
+  este slice), y los tres nombres siguen siendo literalmente ciertos sobre el IDENTIFICADOR
+  `BANCOLOMBIA` — nunca se puede crear una transacción con ese tipo. Lo falso no era el nombre del
+  código: era la interpretación ancha que el asiento y el panel dejaban pasar sin decir "esto es del
+  identificador, no del banco". Renombrar esos símbolos habría exigido tocar
+  `lib/config/site-settings-schema.ts` (el refine que usa `esNoCobrable` y su mensaje "Hay un método
+  de pasarela que tu cuenta no puede cobrar", que tiene el MISMO problema de framing) — abre un
+  `open_followup`, no se hace acá.
+- **No se agregan descriptores nuevos, no se activa ningún método nuevo, no se toca el servidor de
+  dinero ni el esquema.**
+
+### 4 · El límite, sin suavizar
+
+Esto sigue midiéndose contra UNA cuenta, como el asiento original. Los DOS hermanos sin clasificar
+siguen sin clasificar. Que dos hermanos cobren no prueba que TODOS los hermanos cobren, ni que el
+patrón se sostenga en otra cuenta con otra configuración — sólo que "con ese banco no se cobra" era
+falso para la cuenta medida.
+
+### 5 · Verificación
+
+`lib/pagos/metodos-pasarela.test.ts` sigue afirmando exactamente lo mismo que antes sobre
+`BANCOLOMBIA`: cae en `no_cobrable`, sigue sin ser encendible, y el servidor lo sigue rechazando al
+guardar (`siteSettingsEditableSchema`) — ese comportamiento NO cambió, y no había ninguna aserción
+que reescribir. Lo que gana es un comentario que documenta la corrección al lado de esos tests, para
+que la próxima lectura no vuelva a leer "no_cobrable" como "no se cobra con este banco".
+
+**GATE, los dos carriles, verde.**
+
+Regla: un hallazgo medido contra UNA cuenta describe lo que midió — un identificador, un campo, un
+tipo — y la escritura tiene que quedarse en ese alcance. Generalizar de "este identificador rechaza
+siempre" a "con este banco no se cobra" es el mismo salto que ya cerró este ledger en otras formas —de
+un test que enumera los ejemplos que tenía a mano a "el espacio de casos", de un spike que midió un
+tipo a "el catálogo entero"—, y esta vez el salto llegó hasta el panel que ve el dueño antes de que
+alguien lo revisara. Quien mide un caso, escribe ESE caso.
+
+## 2026-09-17 — El diccionario panel↔API no existe del lado de la máquina: el mapeo que aportó el
+owner, con su grado de evidencia, y por qué cruzar los dos vocabularios sin él ya produjo una
+conclusión falsa (`MAPEO-PANEL-API-ASIENTO-1`)
+
+### 0 · El hallazgo raíz — por qué este asiento es el que evita la próxima conclusión falsa
+
+**EL PROVEEDOR NO PUBLICA NOMBRES LEGIBLES PARA SUS TIPOS DE MÉTODO.** Medido
+(`API-DIRECTA-SPIKE-COBRABLES-Y-NOMBRES-1`, el mismo re-spike que cerró `CORRECCION-BANCOLOMBIA-
+AGREGADOR-1`, arriba): el campo de nombre de la información de comercio de la cuenta **repite el
+identificador de máquina** — no hay un segundo campo con el texto que el dueño lee en su panel. Y ni
+siquiera el bundle del propio widget de pago del proveedor trae esos textos: la única traducción
+legible que el proveedor da en ningún lado es para un **subvalor** (los bancos dentro de una lista
+cerrada), **nunca para el TIPO de método**.
+
+**El diccionario entre lo que el dueño VE en el panel de su proveedor y lo que la API LLAMA no existe
+del lado de la máquina. Sale del panel del comercio, o no sale.** Cualquier afirmación que cruce esos
+dos vocabularios sin ese diccionario es **falsa por construcción** — no por descuido de quien la
+escribe, sino porque no hay dato del lado de la máquina que la pueda sostener.
+
+**Esto ya costó una conclusión falsa que llegó a `main`.** El asiento original del catálogo de métodos
+midió que el identificador `BANCOLOMBIA` rechaza siempre la creación de una transacción — una medición
+correcta y ANGOSTA — y se escribió (y el panel del dueño la heredó, en su etiqueta) como si dijera algo
+ANCHO: que con ese banco no se cobra. Eso era falso, y **lo desmintió el owner con evidencia PROPIA**
+(paga con ese banco habitualmente; su panel del proveedor le muestra el método activo), no una
+revisión de quien escribió el asiento (`CORRECCION-BANCOLOMBIA-AGREGADOR-1`, arriba, íntegro). Este
+asiento registra el diccionario que hace posible no repetir ese salto.
+
+### 1 · El diccionario — tres niveles de evidencia, y no se mezclan
+
+Un mapeo sin su grado de confianza es exactamente lo que produjo el error de arriba: una fila
+MEDIDA y una fila adivinada, escritas con la misma autoridad visual, se leen igual de ciertas. Por
+eso van en tres bloques separados, nunca en una sola tabla sin marcar.
+
+**MEDIDO — el proveedor mismo lo confirma:**
+
+| Nombre en el panel del proveedor | Identificador de API |
+| --- | --- |
+| Bancolombia (el botón/checkbox de transferencia) | `BANCOLOMBIA_TRANSFER` |
+
+Evidencia: al crear una transacción con `BANCOLOMBIA_TRANSFER`, **el propio proveedor devuelve una
+dirección de redirección que contiene ese mismo nombre de flujo** (medido en
+`API-DIRECTA-SPIKE-COBRABLES-Y-NOMBRES-1`, ya citado sin nombrar el identificador en
+`CORRECCION-BANCOLOMBIA-AGREGADOR-1` §1, arriba — ahí decía sólo "un identificador hermano"; este
+asiento es el que lo nombra). **No es un parecido de nombre entre dos listas: es el proveedor mismo
+nombrando su propio camino dentro de su propia respuesta.** Es la fila con la evidencia más fuerte de
+las nueve.
+
+**INFERIDO por coincidencia directa de nombre** (el nombre del panel y el identificador de API
+coinciden letra por letra o son la traducción obvia del mismo término; nadie lo confirmó pidiendo que
+el proveedor lo diga):
+
+| Nombre en el panel del proveedor | Identificador de API |
+| --- | --- |
+| Tarjetas | `CARD` |
+| Nequi | `NEQUI` |
+| PSE | `PSE` |
+| Daviplata | `DAVIPLATA` |
+
+**INFERIDO POR DESCARTE — el nivel más débil de los tres, dicho así por el owner al aportarlo:**
+
+| Nombre en el panel del proveedor | Identificador de API |
+| --- | --- |
+| Bancolombia QR | `BANCOLOMBIA_QR` |
+| Compra y Paga Después Bancolombia | `BANCOLOMBIA_BNPL` |
+| SU+Pay | `SU_PLUS` |
+
+**[MAPEO-PENDIENTE-VERIFICAR] — marcador buscable por máquina.** Estas tres filas son lo que queda
+después de emparejar los nombres del panel que sí tienen una coincidencia clara contra el resto del
+catálogo de identificadores — nunca se pidió al proveedor que las confirme una por una, y no hay
+respuesta del proveedor (ni una redirección, ni un mensaje de error) que las respalde como sí la tiene
+`BANCOLOMBIA_TRANSFER`. **Quedan abiertas hasta que algo las confirme** — un intento de creación real
+con cada una, o una respuesta del proveedor que las nombre, del mismo tipo que confirmó la primera
+fila.
+
+**El mapeo lo aportó el OWNER desde su panel PRODUCTIVO — no es un spike.** Todos los spikes de este
+programa (`API-DIRECTA-SPIKE-COBRABLES-Y-NOMBRES-1` y los anteriores) miden contra el SANDBOX, que es
+**otra cuenta**, con su propia configuración y su propio catálogo habilitado. El owner trajo estas
+nueve filas el 2026-09-17 mirando el panel de SU cuenta productiva. Las dos fuentes no se mezclan sin
+decirlo: una fila de este diccionario describe el panel productivo del owner, no necesariamente lo que
+un spike futuro contra el sandbox va a encontrar, y viceversa.
+
+### 2 · La consecuencia de producto — trabajo de copy que ninguna estimación de este programa había contado
+
+**Si el panel del dueño va a mostrarle estos métodos, los nombres visibles los ponemos NOSOTROS.**
+
+No es un detalle de implementación: acabamos de medir en §0 que esos nombres **no vienen de la API**
+— no existen ahí, en ningún endpoint, para ningún tipo. Así que cada método que el programa termine
+soportando necesita su nombre visible **escrito por nosotros**, y ese copy —como todo el copy de este
+programa— **es del owner**, no una traducción que el código pueda inferir del identificador de
+máquina (`BANCOLOMBIA_TRANSFER` no se convierte solo en "Bancolombia", ni `SU_PLUS` en "SU+Pay"; son
+el mismo salto de vocabulario que este asiento existe para no volver a dar sin evidencia).
+
+**Y el riesgo que esto abre, dicho:** si el nombre que nuestro panel le muestra al dueño **no
+coincide** con el nombre que ve en el panel de su proveedor, el dueño va a buscar un método por el
+nombre que conoce y va a encontrar otro (o ninguno) — el mismo problema de dos vocabularios sin
+diccionario de §0, ahora del lado de NUESTRO producto en vez del lado de la API. Este diccionario es
+lo que permite escribir el copy nuestro sin repetir ese salto: nombrar `BANCOLOMBIA_TRANSFER` como
+"Bancolombia" en nuestro panel es seguro porque la fila MEDIDA lo respalda; nombrar `SU_PLUS` como
+"SU+Pay" hoy sería la MISMA generalización angosta-a-ancha que este ledger ya corrigió una vez —
+todavía es sólo descarte.
+
+**Abre un seguimiento, no lo resuelve acá:** este slice sólo escribe el diccionario (`touches:
+DECISIONS.md`); escribir el copy del panel a partir de él —y confirmar las tres filas por descarte
+antes de nombrarlas en una pantalla que el dueño lee— es trabajo de un slice propio.
+
+- **`MAPEO-PANEL-COPY-NOMBRES-1`** — escribir en el código los nombres visibles de
+  `DESCRIPTORES_METODO_PASARELA` / el panel de métodos a partir de este diccionario, confirmando antes
+  las tres filas `[MAPEO-PENDIENTE-VERIFICAR]` (§1) o dejándolas con su nombre de máquina hasta que se
+  confirmen — nunca inventando el nombre legible por descarte solo.
+
+### 3 · La regla
+
+**Un diccionario entre dos vocabularios que no comparten fuente no se puede escribir con un solo
+nivel de confianza: cada fila necesita decir CÓMO se sabe lo que dice, y una fila sin evidencia
+fuerte no autoriza a una pantalla que el dueño lee a hablar como si la tuviera.**
+
+**GATE, los dos carriles, verde** (`npm run gate`: capa 1 y capa 2, sin fallos).
+
+**Tier 1 — no aplica a este diff.** `DECISIONS.md` no está en la lista Tier 1 ni en sus subárboles, y
+este slice no toca `app/(storefront)/`, ninguna puerta de dinero, schema ni migración — es un asiento,
+sin código. La RAMA (`slice/api-directa-panel-metodos-1`) sigue con commits previos que sí tocan
+superficie Tier 1 (`lib/checkout/metodos-pago.ts`), así que el conjunto sigue esperando el visto bueno
+del owner antes de mergear — este commit no lo cambia.
+
+## 2026-09-17 — Un ícono NEUTRO en vez de los logos oficiales de las redes, mientras el costo de
+licenciarlos no se pague — decisión REVERSIBLE (`CHECKOUT-ICONO-TARJETA-NEUTRO-1`)
+
+### Qué se decidió
+
+Junto al nombre de la red detectada en el formulario de tarjeta (`FormularioTarjeta.tsx`,
+§ CHECKOUT-DETECCION-EMISOR-BIN-1) va ahora un **ícono de tarjeta NEUTRO** — un rectángulo
+redondeado sin ningún detalle interno, dibujado por este slice, sin marca de ninguna red. NO son
+los logos oficiales de Visa/Mastercard/Amex/Diners. El ícono señala «tarjeta reconocida»; el
+nombre en texto, que ya existía, sigue diciendo CUÁL.
+
+### Por qué — es un costo medido, no una preferencia visual
+
+Un slice **fue a buscar los logos oficiales** de las cuatro redes y **midió, intentándolo de
+verdad, que los cuatro portales de marca exigen aceptar un acuerdo de licencia o registrarse como
+socio antes de entregar los archivos**. No es una suposición sobre cómo funcionan las licencias de
+marca: es lo que devolvieron los cuatro portales al intentarlo. Ese slice volvió `BLOCKED`.
+
+Ese acuerdo **no es un costo de una sola vez**: se propagaría a **cada despliegue de cliente** de
+este template (§ El código compartido no NACE siendo Nayoli/demo — cada despliegue es su propio
+repo/deploy). Aceptar una licencia de marca de cuatro redes de pago por cada tenant que se levante
+no es un costo que valga hoy por un ícono junto a un campo de formulario.
+
+### Por qué es REVERSIBLE, y qué garantiza que revertir no mueva nada más
+
+El ícono vive en el **mismo slot** donde irían los logos oficiales — no se inventó un lugar nuevo
+que el slice de los logos tendría que desarmar. `IconoTarjetaGenerica` es un componente aislado
+dentro de `CampoTarjeta`, montado en un `<span className="inline-flex items-center gap-1 …">`
+junto al nombre; el tamaño (`w-3.5 h-3.5`), el `gap` y la posición (antes del texto) son del
+contenedor, no del ícono. **El slice de los logos oficiales ya está escrito y sigue en cola**: el
+día que el owner acepte los acuerdos, reemplaza el `<svg>` de `IconoTarjetaGenerica` (o el
+componente entero) por el logo de `deteccionRed.red` correspondiente, y el layout que lo rodea no
+se toca.
+
+### El disparador, como ítem propio — y que descansa en que alguien vuelva a leerlo
+
+**Se revisa si:**
+- **algún tenant lo pide** (un cliente del template pregunta por qué no ve los logos reales de su
+  pasarela), o
+- **el material de venta lo necesita** (una demo o un pitch para el que el ícono genérico no
+  alcanza).
+
+**No hay mecanismo que avise cuando cualquiera de los dos pase.** Este asiento es la única red de
+seguridad: si nadie vuelve a leerlo, el ícono neutro se queda indefinidamente aunque el disparador
+ya haya ocurrido. Es la misma familia que un ítem de Backlog técnico sin fecha de vencimiento — se
+anota acá porque no hay otro lugar donde este disparador viva.
+
+### El ícono — de dónde salió
+
+**Dibujado por este slice, en línea, sin ninguna dependencia nueva.** Un `<rect>` con esquinas
+redondeadas (`viewBox="0 0 24 24"`, stroke `currentColor`, sin relleno) — el mismo estilo de ícono
+que ya usa el repo (ver `SearchField` de `@duna/design-system`, mismo `viewBox` y trazo). **NO es
+el `CreditCard` de `lucide-react`** — ya instalado y en uso en este mismo directorio
+(`EsperaConfirmacionTarjeta.tsx`) — porque ese ícono trae una línea horizontal partiendo el
+rectángulo (la banda magnética), y esa línea es exactamente la "franja" que la condición del owner
+prohíbe. No se tomó de ningún set de íconos libres, así que no hay licencia de terceros que
+declarar.
+
+### Gate
+
+**`npm run gate`, los dos carriles, verde.** El diff no toca lógica (`lib/checkout/tarjeta.ts` no
+se tocó — la detección sigue siendo la ya construida y testeada), sólo JSX presentacional y este
+asiento.
+
+**Tier 1 — SÍ aplica, y por eso el slice paró en `AWAITING_APPROVAL`.**
+`components/storefront/checkout/` es subárbol Tier 1 (§ Tier 1 — LA LISTA TAMBIÉN GANA
+SUBÁRBOLES, la misma razón que ya cubre `app/(storefront)/`), y el diff cambia bytes que el
+comprador ve (un ícono nuevo en el formulario de tarjeta). El slice tenía aprobación explícita del
+owner para ESCRIBIR (`approved-by: owner`, spec del ledger) — nunca para mergear; el merge sigue
+gateado al owner, igual que el resto de la rama.
+
+## 2026-09-17 — La CLASE: una evidencia real, estirada hasta cubrir una pregunta que no responde —
+tres instancias de estos dos días, y la misma forma que el owner también cometió, dos veces, en este
+mismo programa (`CLASE-EVIDENCIA-ESTIRADA-1`)
+
+### 0 · Por qué este asiento existe
+
+El owner ordenó, el 2026-09-17, registrar como CLASE un razonamiento que se repitió estos dos días de
+este mismo programa (API directa / Wompi). En ninguna de las instancias se inventó un dato: había una
+medición real detrás de cada una. Lo que falló fue el SALTO — se contestó, con esa medición, una
+pregunta DISTINTA de la que ella respondía. Este asiento no repite la corrección de ninguna instancia
+por separado — cada una ya tiene su propio asiento, citado abajo —; existe para nombrar el PATRÓN que
+las une, porque un patrón sin nombre vuelve a pasar.
+
+### 1 · La clase, en sus tres instancias
+
+| Lo que se midió (real) | Lo que se concluyó (estirado) | El salto | Corregido en |
+| --- | --- | --- | --- |
+| el portal de descarga de las cuatro redes de tarjeta exige aceptar un acuerdo de licencia o registrarse como socio antes de entregar los archivos de marca (`SPIKE-GUIAS-DE-MARCA-REDES-1`, read-only) | mostrar la marca (el logo) en el checkout exige ese mismo acuerdo | **descargar ≠ usar** | `CHECKOUT-ICONO-TARJETA-NEUTRO-1` |
+| el identificador `BANCOLOMBIA` a secas es rechazado SIEMPRE como tipo al crear la transacción, con cualquier combinación de campos (`API-DIRECTA-CATALOGO-METODOS-ASIENTO-1`) | con ese banco no se cobra | **un identificador ≠ un banco** | `CORRECCION-BANCOLOMBIA-AGREGADOR-1` |
+| la documentación pública del proveedor dice que crear la transacción exige la llave PRIVADA | esa afirmación estaba MEDIDA | **leer ≠ medir** | `API-DIRECTA-SPIKES-ASIENTO-1` §B (y `API-DIRECTA-DECISIONES-ATRIBUCION-FIX-1`, el mismo defecto sobre el mismo día de lectura) |
+
+Ninguna fila de la izquierda es falsa — las tres siguen siendo ciertas, palabra por palabra, después de
+la corrección. Lo falso nació al escribir la columna de la derecha con más ALCANCE del que la medición
+de la izquierda cubría.
+
+### 2 · Lo que el owner pidió que quede escrito, y es lo que cambia qué se hace con esto
+
+El owner pidió explícitamente que este asiento diga que **el OWNER cometió la misma forma DOS veces en
+este mismo programa**, las dos asumiendo carga legal sin medirla: una sobre el cumplimiento exigido por
+el manejo de datos de tarjeta, y otra sobre estas mismas marcas de red. Esto lo registra el asiento por
+orden directa del owner (§ `approval-reason` de este slice) — no es una medición de este slice contra el
+resto del programa, y se marca así: es el propio owner dando cuenta de su razonamiento, no un hallazgo
+que este worker haya verificado línea por línea contra conversaciones anteriores.
+
+> **NO es un error del orquestador: es una FORMA DE RAZONAR QUE LOS DOS TIENEN.**
+
+**Por qué esa distinción no es cortesía, y es la parte útil de este asiento:** si se registrara como un
+defecto DEL ORQUESTADOR, el remedio natural sería una guarda que lo vigile a él — y esa guarda no habría
+atrapado NINGUNA de las dos veces que el owner cometió la misma forma, porque en esas dos el orquestador
+no era quien concluía. El remedio de una forma de razonar COMPARTIDA no es vigilancia sobre un actor: es
+una pregunta que los dos —owner y orquestador— se hacen antes de concluir, la misma pregunta, en el mismo
+punto de la cadena. Vigilar a uno solo de los dos deja la otra mitad del patrón exactamente donde estaba.
+
+### 3 · La pregunta que la atrapa
+
+> **Antes de concluir: ¿la pregunta que respondió mi medición es LA MISMA que estoy contestando?**
+
+**Y el olor característico, para reconocerla en el momento en que aparece, no después:** la evidencia es
+de una DISPONIBILIDAD — se puede bajar, se puede llamar, está en la lista, el portal la entrega o la
+niega — y la conclusión es sobre un DERECHO o una CAPACIDAD — se puede usar, se puede cobrar, está
+permitido. Las tres instancias de la tabla tienen exactamente esa forma: "el portal lo entrega" (disponibilidad)
+contra "se puede usar" (derecho); "el tipo se crea" (disponibilidad de un identificador) contra "el banco
+cobra" (capacidad de un método); "la documentación lo dice" (disponibilidad de una afirmación escrita)
+contra "está medido" (verificación real). **Las dos suenan a lo mismo y no lo son**, y esa semejanza de
+sonido es justo lo que hace que el salto pase desapercibido en el momento de escribirlo.
+
+### 4 · Quién la encontró, en las tres — y por qué importa que ninguna la encontró una relectura
+
+| Instancia | Quién la desmintió | Con qué |
+| --- | --- | --- |
+| las marcas (descargar ≠ usar) | **el owner**, con evidencia propia | comercios que muestran las marcas de red sin haber pasado por el acuerdo de licencia del portal de descarga |
+| el identificador (`BANCOLOMBIA`) | **el owner**, con evidencia propia | paga habitualmente con ese banco, y el panel del proveedor le muestra ese método activo |
+| la documentación (llave privada) | **una medición contra el sandbox** | `API-DIRECTA-SPIKE-FIRMA-Y-ENDPOINT-1`: mismo cuerpo y firma, cambiando sólo la credencial — la llave pública también autoriza la creación |
+
+**NINGUNA la encontró una relectura del texto que la afirmaba.** Las tres las desmintió alguien que fue
+a mirar el mundo — dos veces el owner, mirando su propia experiencia como cliente y el panel real del
+proveedor; una vez un spike, mirando la respuesta real del sandbox. Un texto bien escrito, con su
+medición real citada al lado, no se delata a sí mismo: hay que salir a comprobarlo contra algo que no sea
+el propio texto.
+
+### 5 · La regla
+
+**Una evidencia de disponibilidad no responde una pregunta de derecho o de capacidad. Antes de concluir,
+la pregunta que se contesta tiene que ser la misma que la medición respondió — y si no lo es, la medición
+no alcanza para la conclusión, hay que ir a buscar la que sí responde.**
+
+### Gate
+
+**`npm run gate`, los dos carriles, verde.** El diff de este slice toca un solo archivo
+(`DECISIONS.md`, una entrada nueva al final) y ningún test ni código de producto — no había manera de
+que ninguno de los dos carriles cambiara de veredicto.
+
+**Tier 1 — SÍ aplica, mismo criterio que el resto de esta rama.** El asiento describe y corrige el
+razonamiento de trabajo que ya aterrizó en `app/(storefront)/` (vía `CHECKOUT-ICONO-TARJETA-NEUTRO-1`) y
+en la configuración de métodos de pasarela (vía `CORRECCION-BANCOLOMBIA-AGREGADOR-1`) — Tier 1 por
+herencia de esas dos superficies, no porque este diff en sí mismo toque código. El slice tenía
+aprobación explícita del owner para ESCRIBIR (`approved-by: owner`, spec del ledger) — nunca para
+mergear; el merge sigue gateado al owner, igual que el resto de la rama.
+
+## 2026-09-18 — La primera compra de prueba cruzó el sistema entero: Wompi la aprobó, y la orden se
+quedó sin cobrar — la base contradice el supuesto de tres días (`PRIMERA-TRANSACCION-REAL-ASIENTO-1`)
+
+### 0 · Qué pidió el owner, y qué cambia con este asiento
+
+El owner reportó el 2026-09-18 que una compra de prueba —tarjeta de prueba, tokenización, creación de
+la transacción— llegó a **APROBADO** en Wompi por primera vez, y pidió asentarlo: durante tres días
+*«el camino de pago funciona»* fue un supuesto, no una medición. Pidió además confirmar en la base que
+la orden quedó `pagado` con su `Payment`, y si cerró por webhook o por reconciliador.
+
+**La medición de este asiento confirma la mitad del supuesto y refuta la otra.** El lado de Wompi
+—tokenizar, crear la transacción, resolver a APROBADO— sí ocurrió, medido en la base. El lado de
+NUESTRO sistema —crear el `Payment`, mover la orden a `pagado`, crear el `Shipping`— **no ocurrió
+para ninguna de las órdenes de esta sesión**, y la contradicción es más profunda de lo que la
+pregunta original anticipaba: el ÚNICO código de este repositorio que puede escribir
+`PaymentIntent.estado = 'APROBADO'` es también, en la MISMA transacción de base de datos, el único
+código que crea el `Payment` — así que "aprobado sin `Payment`" es un estado que el código actual no
+debería poder producir. Se produjo igual. Eso es el hallazgo, y va primero.
+
+### 1 · Lo que la base confirmó — consulta por consulta
+
+**Consulta 1 — el `PaymentIntent` `APROBADO` más reciente**
+(`prisma.paymentIntent.findFirst({ where: { estado: 'APROBADO' }, orderBy: { updatedAt: 'desc' } })`,
+vía el adaptador real de `packages/core/client.ts` — `PrismaPg` + `DATABASE_URL` del `.env` local, que
+por `esDespliegueDemo()` es la base de `development`/sandbox, nunca producción):
+
+| campo | valor |
+| --- | --- |
+| `id` | `cmu6z2mtt000b04l50awuv08f` |
+| `reference` | `CN-661330:cmu6z2mtt000b04l50awuv08f` |
+| `estado` | `APROBADO` |
+| `pspTransactionId` | `12189137-1789736789-68783` |
+| `estado_crudo_psp` | `APPROVED` |
+| `createdAt` → `updatedAt` | `13:06:26.705Z` → `13:06:35.896Z` (**9.191 s** para resolver) |
+
+**No es la única fila así.** Ampliando a TODOS los `PaymentIntent` (11 filas en total, todas del
+2026-09-16 al 2026-09-18), hay **TRES** en `APROBADO` y **UNA** en `FALLIDO`, todas de hoy
+(2026-09-18), todas resueltas en segundos:
+
+| orden | estado | `pspTransactionId` | `estado_crudo_psp` | segundos para resolver |
+| --- | --- | --- | --- | --- |
+| CN-787363 | FALLIDO | `12189137-1789735811-82348` | `ERROR` | 6.852 |
+| CN-237913 | APROBADO | `12189137-1789736553-25883` | `APPROVED` | 10.273 |
+| CN-612115 | APROBADO | `12189137-1789736684-78238` | `APPROVED` | 5.662 |
+| CN-661330 | APROBADO | `12189137-1789736789-68783` | `APPROVED` | 9.191 |
+
+Las siete filas restantes siguen `EN_VUELO` (nunca resolvieron) — una de ellas, CN-182716, tiene una
+orden que SÍ está `pagado`, pero por un `Payment` de método `TRANSFERENCIA` registrado ~2 horas
+DESPUÉS por el flujo manual de "Registrar Pago" — no por esta pasarela ni por este intento, que sigue
+`EN_VUELO` y huérfano.
+
+**Consulta 2 — la Order de cada intento APROBADO/FALLIDO**
+(`prisma.order.findUnique({ where: { id: intent.orden_id } })`): las CUATRO siguen `estado: 'pendiente'`.
+Ninguna es `'pagado'` — el valor que el propio schema usa para una orden cobrada
+(`packages/core/src/orders.ts:274`, `transitionOrder(tx, orderId, { estado: 'pagado' }, …)` dentro de
+`registerOrderPaymentTx`; el campo es `Order.estado String @default("pendiente")`,
+`schema.prisma:172`, sin enum — el valor `'pagado'` es convención de código, no restricción de tipo).
+
+**Consulta 3 — `Payment` de esas cuatro órdenes**
+(`prisma.payment.findMany({ where: { orden_id } })`): **cero filas**, en las cuatro.
+
+**Consulta 4 — `Shipping` de esas cuatro órdenes**
+(`prisma.shipping.findMany({ where: { orden_id } })`): **cero filas**, en las cuatro. El código dice
+que `registerOrderPaymentTx` también crea el `Shipping` (`packages/core/src/orders.ts:270-276`,
+comentario: *"Moves order → pagado AND auto-creates the Shipping in `preparando`"*) — no se creó
+porque `registerOrderPaymentTx` nunca corrió para estas órdenes (§2).
+
+**Consulta 5, la que cierra la duda de "¿se revirtió después?"** — `OrderStatusTransition`, el libro
+append-only de transiciones (`schema.prisma:221-249`, `eje: 'cobro'|'fulfillment'`, escrito SIEMPRE
+dentro de la misma transacción que mueve `Order.estado`, vía `appendOrderStatusTransition`):
+para las cuatro órdenes hay **una sola fila cada una** — la de creación
+(`estado_anterior: null → estado_nuevo: 'pendiente'`, `actor_id/actor_nombre: null`). **Cero filas
+`pendiente → pagado`.** Esto no es un dato que pueda mentir por un revert posterior: es append-only,
+y confirma lo mismo que `Order.updatedAt === Order.createdAt` al bit (medido: los dos timestamps de
+CN-661330 son literalmente `2026-09-18T13:06:26.243Z`, exactos) — la fila de la orden NUNCA se tocó
+después de crearse.
+
+**Consulta 6, la que descarta la rama de "cobro duplicado"** — `Notification` filtrada por
+`tipo`/`titulo`/`mensaje` conteniendo "wompi"/"Wompi": **cero filas en TODA la base.** La única otra
+forma en que `aplicarResultadoWompi` puede cerrar un `APROBADO` sin crear `Payment` —la orden ya
+estaba pagada, así que es cobro duplicado— deja una `Notification` (`tipo: 'wompi_cobro_duplicado'`,
+`packages/core/src/pagos/aplicar-resultado-wompi.ts:180-188`). No hay ninguna. Y de todos modos las
+cuatro órdenes siguen `pendiente`, no `pagado`, así que esa rama tampoco explicaría lo que se ve.
+
+**RESPUESTA A LA PREGUNTA DEL OWNER, MEDIDA: la orden NO quedó pagada.** Wompi aprobó el cobro
+(`estado_crudo_psp: APPROVED`, `processor_response_code` no se volvió a leer en esta corrida pero el
+`pspTransactionId` es real); nuestro sistema no lo registró como plata. El comprador de esta prueba
+—si hubiera sido un comprador real— habría pagado con su tarjeta sin que la tienda se enterara.
+
+### 2 · Webhook o reconciliador — la pregunta tiene una respuesta más incómoda que "no se sabe cuál"
+
+**La base no distingue quién cerró un intento.** Leído el modelo completo (`schema.prisma:441-529`):
+los únicos campos de `PaymentIntent` además de `estado` son `pspTransactionId`, `estado_crudo_psp` y
+`metodo_rechazado` — ninguno registra el MECANISMO (webhook vs. reconciliador vs. cualquier otra
+cosa) que hizo la escritura. Eso, por sí solo, ya sería el hallazgo que el spec de este slice
+anticipaba: *"el día que un pago se cierre tarde, nadie va a poder decir si el webhook no llegó o si
+llegó y se ignoró"*. Se nombra y se deja — no es de este slice proponer el campo.
+
+**Pero la medición no se detiene en "no se sabe": hay una razón medida para creer que NINGUNO de los
+dos, tal como están escritos hoy, produjo lo que la base muestra.**
+
+- **Los ÚNICOS dos escritores posibles**, medidos por lectura exhaustiva del código (grep de
+  `estado: 'APROBADO'` en todo el repo, cero resultados fuera de estos dos sitios): el `POST` del
+  webhook (`app/api/webhooks/wompi/route.ts:171-331`, `procesarEventoWompi`) y el reconciliador
+  (`packages/core/src/pagos/reconciliador.ts:143-227`, `reconciliarIntentoPago`, disparado por
+  `app/api/cron/automations/route.ts`). **Los dos, sin excepción, invocan
+  `aplicarResultadoWompi`** (`packages/core/src/pagos/aplicar-resultado-wompi.ts:124-222`), y esa
+  función es la ÚNICA que escribe `estado: 'APROBADO'` en toda la base de código —y lo hace DENTRO de
+  la misma transacción (`db.transaccionConOrdenLockeada`) que crea el `Payment` (si la orden está
+  `pendiente`) o registra el cobro duplicado (si no lo está). No existe, hoy, un camino de código que
+  deje `estado: 'APROBADO'` sin una de esas dos consecuencias.
+- **El reconciliador SÓLO se dispara por hora en punto** (`.github/workflows/automations-cron.yml:22`,
+  `cron: '0 * * * *'` UTC, más un `workflow_dispatch:17-24` para disparo manual desde la pestaña
+  Actions) contra `CRON_URL` —una URL de despliegue, no `localhost`—. Las cuatro resoluciones
+  midieron **5.6 a 10.3 segundos** entre creación y cierre (§1): muy rápido para el cron programado
+  (que espera hasta 59 minutos), y el `workflow_dispatch` manual sólo pega contra el despliegue de
+  `CRON_URL`, no contra esta base local salvo que ese despliegue comparta la base `development`
+  (posible — Preview la comparte, § CLAUDE.md "Bases de datos" — pero no verificable desde acá sin
+  acceso al historial de Actions, fuera de alcance de este slice).
+- **El webhook necesita una URL pública que Wompi pueda alcanzar.** Si corrió, corrió contra un
+  despliegue con esa URL configurada del lado de Wompi — otra vez, no verificable desde una consulta
+  a la base.
+
+**CONCLUSIÓN MEDIDA, y es el hallazgo real de esta pregunta:** no es que "no se sabe si fue el webhook
+o el reconciliador" — es que **el estado observado (`APROBADO` sin `Payment`, sin `Shipping`, sin
+transición, sin notificación) no es un desenlace que NINGUNO de los dos, corriendo su código actual
+hasta el final, pueda producir.** Atribuirlo a uno de los dos sería inventar una explicación que la
+base no sostiene. Lo único que la base sostiene es que ALGO —con acceso a la llave privada de Wompi y
+a esta base de datos— escribió `pspTransactionId` + `estado: 'APROBADO'`/`'FALLIDO'` +
+`estado_crudo_psp` sin pasar por el camino que crea el `Payment`. **Qué fue eso queda como
+UNKNOWN de este slice**, no como una atribución a medias.
+
+### 3 · Qué supuesto muere, y qué NO prueba esta transacción
+
+**Muere:** que "el camino de pago funciona" fuera un supuesto sin medir. Ahora está medido, y la
+medición tiene dos mitades con veredictos distintos — el lado de Wompi (tokenización → creación →
+resolución) SÍ funciona de punta a punta contra el sandbox real, desde el navegador; el lado de
+"la orden queda pagada en nuestro sistema" **no se sostiene con la evidencia de esta sesión**, y no
+por falta de medición: se midió y salió negativo.
+
+**No prueba, y se enumera para que nadie lo asuma:**
+- **el camino RECHAZADO en un checkout real** — esta sesión sí midió un `FALLIDO` (CN-787363,
+  `estado_crudo_psp: ERROR`), pero con el MISMO defecto: tampoco se puede confirmar qué mecanismo lo
+  cerró, por la misma razón de §2 (aunque el camino FALLIDO no crea `Payment` por diseño, así que ahí
+  la ausencia de `Payment` es ESPERADA, no un hallazgo);
+- **el camino INDETERMINADO** (`PENDING` que nunca resuelve, el barrido por edad de 48 h) — ningún
+  intento de esta sesión llegó a `EN_VUELO` vencido;
+- **otro método de pago** (Nequi, Daviplata, Bre-B, PSE) llegando a `pagado` en ESTE sistema — el
+  runbook citado abajo midió Nequi contra Wompi directo, sin pasar por este repo (§4);
+- **producción** — las cuatro filas de esta consulta viven en la base de `.env` local
+  (`development`/sandbox por `esDespliegueDemo()`), nunca se tocó la base de `production`;
+- **que el `Payment` se cree correctamente cuando SÍ corre el camino completo** — eso lo cubre el
+  carril de integración (`WOMPI-PAYMENT-G-INTEGRACION-1`, `b738413`), contra un doble en memoria, no
+  contra el sandbox real; esta sesión no lo re-ejerció.
+
+### 4 · Los dos hechos de sandbox que trae el spec, atribuidos a su fuente
+
+- **La tarjeta que aprueba**: `4242424242424242`, vencimiento `12/29`, CVV `123`, titular de texto
+  libre, tokeniza `201` y la transacción resuelve a `APPROVED` con `processor_response_code: "00"`
+  (MEDIDO — § `RUNBOOK-DATOS-PRUEBA-SANDBOX-1`, `docs/RUNBOOK-DATOS-PRUEBA-SANDBOX.md` §4).
+- **Nequi**: en el sandbox, el teléfono `3991111111` resuelve a `APPROVED` (medido dos corridas
+  separadas); un número arbitrario, `3001234567`, resuelve a `ERROR` con
+  `status_message: "Número no válido en Sandbox"` (MEDIDO — § `RUNBOOK-DATOS-PRUEBA-SANDBOX-1`,
+  `docs/RUNBOOK-DATOS-PRUEBA-SANDBOX.md` §6).
+
+Ninguno de los dos se re-midió en este slice — se citan tal como el runbook los dejó, porque el
+runbook habló DIRECTO con la API REST de Wompi (`docs/RUNBOOK-DATOS-PRUEBA-SANDBOX.md` §10: *"esta
+corrida habló directo con la API REST de Wompi, sin pasar por ninguna ruta de este repo"*) — nunca
+tocó esta base, así que no puede confirmar ni contradecir lo que §1–§2 de este asiento midieron.
+
+### Gate
+
+**`npm run gate`, los dos carriles, verde.** El diff de este slice toca `DECISIONS.md` (esta entrada)
+y `docs/RUNBOOK-DATOS-PRUEBA-SANDBOX.md` no se tocó (era el commit anterior de la rama) — sin cambios
+de código ni de test.
+
+**Tier 1 — SÍ aplica, por herencia de la rama, mismo criterio que las dos entradas anteriores.** La
+rama (`slice/api-directa-panel-metodos-1`) ya tiene bytes que el comprador ve
+(`CHECKOUT-ICONO-TARJETA-NEUTRO-1`, un ícono en el formulario de tarjeta del checkout) y configuración
+de métodos de pasarela (`CORRECCION-BANCOLOMBIA-AGREGADOR-1`); este commit no agrega ninguno nuevo
+—es lectura de base + un asiento—, pero el EJE es la rama, no el commit. El slice tenía aprobación
+explícita del owner para ESCRIBIR (`approved-by: owner`, `approval-reason` del spec: *"LA APROBACION
+AUTORIZA LA ESCRITURA, NUNCA EL MERGE"*) — el merge sigue gateado al owner, igual que el resto de la
+rama.
+
+## 2026-09-18 — WOMPI COBRÓ Y LA TIENDA NO SE ENTERÓ: las tres condiciones que lo hicieron posible,
+y el censo de las frases de CLAUDE.md que ese mismo incidente volvió falsas (`COBRO-SIN-PEDIDO-ASIENTO-1`)
+
+### 0 · La frase, sin suavizar
+
+**WOMPI COBRÓ Y LA TIENDA NO SE ENTERÓ.** Cuatro veces, el mismo día
+(`PRIMERA-TRANSACCION-REAL-ASIENTO-1`): tres `PaymentIntent` en `APROBADO` y uno en `FALLIDO`, los
+cuatro resueltos por Wompi en segundos (5,6 a 10,3 s), y las cuatro órdenes de este sistema **sin un
+solo `Payment`, sin un solo `Shipping`, sin una sola transición `pendiente→pagado`** en el libro
+append-only que las registraría. Con un comprador real en vez de una tarjeta de prueba, eso es **plata
+cobrada sin pedido**: el dinero salió de la cuenta del comprador, Wompi lo confirmó, y la tienda nunca
+se enteró de que tenía que preparar, despachar ni cobrar nada. El owner pidió que este asiento diga
+esto con esas palabras — no "una inconsistencia", no "un desalineo de despliegue" — porque dentro de
+un año, alguien que lea este archivo tiene que poder entender la gravedad sin reconstruirla.
+
+Este asiento no repite la medición completa: vive en `PRIMERA-TRANSACCION-REAL-ASIENTO-1` (arriba,
+2026-09-18), y `§ La causa, medida` de esa entrada es la fuente de las citas de más abajo. Lo que este
+asiento agrega es lo que el owner pidió después de leerla: nombrar las TRES condiciones que hicieron
+posible el hueco, separadas y sin fundirlas en una sola causa raíz, y censar `CLAUDE.md` por más
+frases de la misma clase — frases que describían un estado que dejó de ser cierto sin que nadie las
+tocara.
+
+### 1 · Las tres condiciones — cada una es una lección distinta, y ninguna sola habría bastado
+
+**(a) Una rama de preview viva con código viejo, compartiendo base con el despliegue actual.**
+`preview/wompi-evento-real` nació el 2026-09-14, contiene el commit que cierra el `PaymentIntent`
+(`7bf31c2`, `WOMPI-WEBHOOK-RUTA-1`) y **no contiene** el commit que agrega la creación del `Payment`
+(`ff9dda8`, `WOMPI-PAYMENT-DESDE-WEBHOOK-G-1`, del día siguiente). Su único commit propio estaba
+vacío y decía de sí mismo, en el mensaje, que la rama **se borraba al terminar la prueba**. No se
+borró — o si se borró, quedó viva el tiempo suficiente para procesar los cuatro intentos del
+2026-09-18. Y porque el entorno de Preview de Vercel comparte la base `development` con cualquier
+otro deploy de Preview y con el `.env` local (§ CLAUDE.md, "Bases de datos (Neon)"), el código de
+hace cuatro días escribía en la MISMA base que el código de hoy — sin que compartir base fuera, por
+sí sola, la falla: la falla es que una rama que prometió borrarse no se borró.
+
+**Nota de procedencia:** el origen y el estado de esa rama (`preview/wompi-evento-real`) los trae el
+`externo` del spec de este slice, medido por quien lo escribió contra el historial de git; este
+worker no tiene grant de red para `git ls-remote`/`fetch` y no pudo re-verificar independientemente
+que la rama exista o no exista hoy en el remoto — lo único que este worker confirmó localmente es que
+**no hay ninguna referencia a `preview/wompi-evento-real` en los refs locales de este repo**
+(`git branch -a` y `git for-each-ref` no la listan), consistente con "se borró", pero no lo prueba: un
+ref remoto que este worktree nunca fetcheó tampoco aparecería. Se marca `ledger_claim`, no `measured`.
+
+**(b) Un webhook registrado en el panel del proveedor, apuntando a esa rama.** Esa configuración —qué
+URL recibe los eventos de Wompi— vive en el panel de Wompi y en las variables de entorno del
+despliegue de Preview, **afuera de este repositorio**. Ningún gate de este proyecto —ni `npm run
+gate`, ni el carril de integración, ni el checklist manual del owner sobre un `rm -rf .next && npm run
+dev`— puede ver esa configuración: los tres verifican el CÓDIGO y lo que el código produce contra una
+base, no el panel de un proveedor externo. El repositorio, en el commit que corrió, estaba completo y
+correcto para lo que ese commit sabía hacer (cerrar el intento, sin crear el `Payment` — así estaba
+escrito a propósito, § abajo). Lo que apuntaba mal no era código: era la URL de eventos, y esa URL no
+tiene test posible desde este repositorio.
+
+**(c) El owner dio por cerrado un pago que nunca se registró, porque la pantalla decía "Aprobado".**
+La pantalla de retorno del comprador (`app/(storefront)/checkout/retorno/RetornoCliente.tsx:301-309`)
+muestra, para el estado `"aprobado"`: *"¡Tu pago fue aprobado! Tu pedido queda confirmado y pasa a
+preparación."* Ese estado sale de `PaymentIntent.estado`, vía `/api/checkout/retorno` — nunca de si
+existe un `Payment`. Y lo notable, que el owner pidió señalar explícitamente: **el propio diseño de
+este endpoint ya advertía exactamente este riesgo, por escrito, antes de que ocurriera.** El
+encabezado de `app/api/checkout/retorno/route.ts:6-13` dice, textual:
+
+> `// ── LA RUTA DE RETORNO — LEE, NUNCA AFIRMA POR SÍ MISMA ─────────────────────────`
+> `// El comprador vuelve del checkout alojado de Wompi a /checkout/retorno (...) con lo que Wompi le`
+> `// ponga en el query — que puede incluir un status. ESTE ENDPOINT NO LO LEE NI LO CONFIRMA: la`
+> `// verdad es PaymentIntent.estado, que sólo el webhook (...) actualiza.`
+
+Y el mismo comentario se repite en el componente que la pantalla monta
+(`RetornoCliente.tsx:19-25`): *"la regla que gobierna todo lo de abajo: el retorno del navegador NO ES
+LA FUENTE DE VERDAD — el webhook lo es."* La advertencia era correcta y estaba en el sitio correcto
+—no confiar en lo que Wompi manda por query—, y aun así el sistema completo (advertencia incluida)
+dejó que la pantalla dijera "aprobado, pasa a preparación" sobre un `PaymentIntent.estado` que el
+webhook escribió SIN que existiera el `Payment` que esa frase promete. **La lección no es "alguien se
+confió sin razón": es que la advertencia contra confiar en Wompi funcionó — y no fue suficiente,
+porque el estado en el que sí confiaba (`PaymentIntent.estado`) podía llegar a `APROBADO` sin que el
+resto de la cadena de dinero se completara.** Eso es exactamente lo que (b) hizo posible: un webhook
+de una rama vieja que sabía escribir `APROBADO` pero no sabía crear el `Payment`.
+
+**Ninguna de las tres sola habría producido el hueco.** Sin (a), el código que corrió habría sido el
+de `main` (que ya crea el `Payment`, desde `ff9dda8`). Sin (b), el código viejo de (a) nunca habría
+recibido el evento. Sin (c), alguien habría notado —mirando el panel del admin, no la pantalla del
+comprador— que la orden seguía `pendiente` pese al "Aprobado" en pantalla, y lo habría reportado antes
+de darlo por cerrado.
+
+### 2 · Las dos frases que este mismo incidente volvió falsas — y una tercera que nadie había nombrado
+
+`CLAUDE.md`, § "Pagos en línea (Wompi) — cobros automáticos" (líneas 2939–2959), describe el estado
+del trabajo con fecha 2026-09-14 (`TIER1-LISTA-VENCIDA-1` la re-midió ese día). El commit que la
+volvió falsa (`ff9dda8`) es del día siguiente, 2026-09-15 — un día después de escrita, no meses.
+Coincide con lo que el `approval-reason` de este slice citó como medido en
+`PRIMERA-TRANSACCION-REAL-ASIENTO-1`:
+
+- **Línea 84–85** (preámbulo de la lista Tier 1): *"el programa de Wompi abrió
+  `app/api/webhooks/wompi/route.ts` —cierra el `PaymentIntent` y **es el llamador futuro** de
+  `registerOrderPaymentTx`—"*. **FALSO hoy.** El webhook dejó de ser un llamador futuro el
+  2026-09-15: `ff9dda8` (`WOMPI-PAYMENT-DESDE-WEBHOOK-G-1`) le agregó la llamada real a
+  `registerOrderPaymentTx` (`app/api/webhooks/wompi/route.ts:351`, verificado por lectura directa del
+  archivo en este slice). Era cierta cuando `TIER1-LISTA-VENCIDA-1` la escribió (2026-09-14); dejó de
+  serlo al día siguiente.
+- **Líneas 2944–2947**: *"Hoy ese helper tiene TRES llamadores en producción (...); **el webhook
+  sería el cuarto**."* **FALSO hoy, y en DOS sentidos.** Primero, el webhook ya no "sería" el cuarto:
+  ya ES un llamador (mismo commit, `ff9dda8`). Segundo, el conteo de "tres" quedó corto incluso antes
+  de sumar al webhook: `grep -rn "registerOrderPaymentTx(" packages/core/src app` (corrido en este
+  slice) encuentra **CINCO** call sites de producción, no tres ni cuatro:
+  `packages/core/src/orders.ts:639` (`immediatePayment`), `packages/core/src/comprobantes.ts:164`
+  (`decidirComprobante`), `app/api/orders/[id]/payments/route.ts:60`, `app/api/webhooks/wompi/
+  route.ts:351` (el webhook), y `app/api/cron/automations/route.ts:68` — este último es el
+  reconciliador (`correrReconciliador`, de `packages/core/src/pagos/reconciliador.ts`, construido en
+  `9abdc5b`, `WOMPI-RECONCILIADOR-HI-1`, 2026-09-15, el MISMO día que `ff9dda8`), un QUINTO llamador
+  que la frase de `CLAUDE.md` no anticipa ni como "futuro cuarto".
+- **Líneas 2953–2954**: *"pero **NO crea el `Payment`**: frontera deliberada"*. **FALSO hoy**, mismo
+  commit (`ff9dda8`) — confirmado leyendo `app/api/webhooks/wompi/route.ts:23-26,351` en este slice:
+  el webhook, sobre `APROBADO`, lockea la orden (`lockOrderForPayment`) y llama a
+  `registerOrderPaymentTx` dentro de la misma transacción.
+- **Líneas 2954–2955**, la justificación de la frontera de arriba: *"porque eso exige un valor de
+  `MetodoPago` que el enum de hoy no tiene (decisión del owner, pendiente)"*. **FALSO hoy, y en DOS
+  partes.** El enum `MetodoPago` (`packages/core/prisma/schema.prisma:393-401`, verificado por lectura
+  directa en este slice) ya tiene el valor `WOMPI` desde `WOMPI-ENUM-METODO-F-1` (citado en el propio
+  comentario de cabecera de `app/api/webhooks/wompi/route.ts:25-26`) — así que ni falta el valor del
+  enum, ni la decisión del owner sigue pendiente: ya se tomó.
+- **Líneas 2955–2956**: *"**La RECONCILIACIÓN y el barrido de intentos vencidos siguen sin
+  construirse.**"* **FALSO hoy.** `packages/core/src/pagos/reconciliador.ts` existe (verificado con
+  `ls`/`git log` en este slice), construido en `9abdc5b` (`WOMPI-RECONCILIADOR-HI-1`, 2026-09-15) — y
+  su propia cabecera (leída en este slice, líneas 8-30 del archivo) describe que fusiona
+  DELIBERADAMENTE la reconciliación y el barrido por edad en una sola función
+  (`reconciliarIntentoPago`), precisamente porque cerrar por edad SIN reconciliar antes sería cerrar
+  `FALLIDO` un cobro que Wompi sí aprobó. Los dos —reconciliación y barrido— están construidos, y
+  están construidos JUNTOS a propósito.
+
+**Las cinco (contando la línea 84–85) viven dentro de un radio de ~2.900 líneas, casi todas dentro de
+un solo párrafo de 21 líneas** (2939–2959). No son cinco hallazgos dispersos: son la misma frase
+prospectiva —"esto está construido hasta acá, lo que falta es X"— que un solo día de trabajo (2026-09-
+15, dos commits) volvió obsoleta de punta a punta, un día después de haberse re-medido como cierta.
+Es la MISMA familia que `CLAUDE.md` ya documenta en `§ Backlog técnico`, "UN ÍTEM QUE CITA EL ESTADO
+DE OTRO SUBSISTEMA COMO PREMISA VENCE CUANDO ESE SUBSISTEMA CAMBIA" (el caso de los avisos del
+Dashboard, `CLAUDE-MD-FRASES-VENCIDAS-1`) — con una diferencia que vale la pena nombrar: ahí la premisa
+la mató una tanda de OTRA área tocando un subsistema ajeno sin que nadie relea el párrafo que dependía
+de él; acá la mató el PROPIO programa de Wompi, el día siguiente de haberse escrito, sobre su propia
+sección. Que la premisa muera dentro del mismo programa y al día siguiente, y aun así nadie la
+actualizara, es la evidencia más dura de que "vencer sin avisar" no es un riesgo de premisas lejanas:
+es el comportamiento por defecto de cualquier frase prospectiva, sin importar cuán cerca esté del
+código que la desmiente.
+
+### 3 · Un hallazgo estructural adicional, no pedido pero medido de paso — el Tier 1 quedó corto
+
+Al confirmar los cinco call sites de `registerOrderPaymentTx` (§2), dos de ellos son funciones que
+**consultan** si la escritura de un pago procede y con qué valor — exactamente el criterio que la
+sección "Tier 1 — superficies protegidas" de `CLAUDE.md` usa para decidir qué entra a la lista (línea
+~20: "la función que esa puerta CONSULTA para decidir si la escritura procede y con qué valor — no
+sólo el handler que la ejecuta"):
+
+- `packages/core/src/pagos/aplicar-resultado-wompi.ts` — la función que las líneas 2953 y 6116-6125 de
+  `CLAUDE.md` (`PRIMERA-TRANSACCION-REAL-ASIENTO-1`, arriba) ya identifican como *"la ÚNICA que
+  escribe `estado: 'APROBADO'` en toda la base de código... dentro de la misma transacción... que crea
+  el `Payment`"*.
+- `packages/core/src/pagos/reconciliador.ts` — la función que decide, consultando la API de Wompi, si
+  un intento `EN_VUELO` cierra `APROBADO`/`FALLIDO` y con ello si `registerOrderPaymentTx` corre.
+
+**Ninguna de las dos está en la lista Tier 1 de `CLAUDE.md`.** Tampoco lo está `app/api/cron/
+automations/route.ts`, la puerta HTTP que el cron invoca para correr el reconciliador (§2, quinto
+llamador). Las tres nacieron el 2026-09-15 (`ff9dda8`, `9abdc5b`) — un día después de la
+re-medición del 2026-09-14 (`TIER1-LISTA-VENCIDA-1`) que agregó `app/api/webhooks/wompi/route.ts` y
+`lib/pagos/wompi-firma.ts` a la lista. La propia doctrina de esa sección lo anticipa y lo nombra como
+su propio modo de falla: *"ESTA LISTA VENCE... El gate de Tier 1 sigue corriendo en VERDE sobre un
+conjunto que encogió — (...) acá vencer es peor: no confunde a quien lee, deja pasar."* Este slice no
+agrega los tres archivos a la lista —está fuera de `touches:` (sólo `DECISIONS.md`) y es al owner a
+quien corresponde decidir el conjunto protegido, no a este worker—; queda nombrado como
+**`TIER1-LISTA-VENCIDA-2`**, para que la próxima re-medición de la lista Tier 1 lo cierre con la
+decisión del owner: si `packages/core/src/pagos/aplicar-resultado-wompi.ts`,
+`packages/core/src/pagos/reconciliador.ts` y `app/api/cron/automations/route.ts` entran a la lista de
+`CLAUDE.md`, o si el owner decide que alguno queda afuera y por qué.
+
+### 4 · El censo — alcance explícito, para que nadie lo confunda con "se revisó todo `CLAUDE.md`"
+
+**Lo que se hizo:** un barrido con grep de patrones que describen ESTADO en vez de REGLA
+(`sin construir`, `sigue sin`, `todavía no`, `aún no`/`aun no`, `hoy no`, `hoy sólo`/`hoy solo`, `no
+existe`, `queda pendiente`, `sin construirse`, `no está construid[oa]`, `no se ha construido`, `no hay
+endpoint`, `no tiene UI`, `sin UI`, `no está cableado`, `sin cablear`) sobre el archivo COMPLETO
+(7.642 líneas) — 65 líneas coincidieron. Por separado, un segundo barrido de `Wompi|WOMPI|
+PaymentIntent|pasarela` sobre el archivo completo — 16 líneas coincidieron, TODAS dentro de dos zonas
+(el preámbulo Tier 1, líneas 84-98, y § "Pagos en línea (Wompi)", líneas 2891-2977, más una mención
+suelta en línea 7429 sobre otro tema — "roadmap (precedente Wompi)", no una afirmación de estado
+verificable contra código).
+
+**Lo que se verificó contra código, línea por línea:** las 16 líneas del segundo barrido (Wompi/
+PaymentIntent/pasarela) — es el resultado de §2 y §3 arriba. Es exhaustivo para esa superficie: no
+quedó ninguna mención de Wompi/PaymentIntent/pasarela en `CLAUDE.md` sin leer contra el código actual.
+
+**Lo que NO se verificó individualmente:** las ~49 líneas restantes del primer barrido (patrones de
+estado genéricos) que no mencionan Wompi/pagos/pasarela. Se revisó su CONTEXTO por muestreo —lo
+suficiente para descartar que hablen de una capacidad de dinero o de otra superficie Tier 1— pero no
+se releyó cada una contra el código como se hizo con las 16 de Wompi. Ejemplos del muestreo: línea
+1546 ("Ingresar con WhatsApp… capacidad que no existe") es sobre login, sin relación con pagos; línea
+5073 ("pago PSE sin acreditar… no existen acá") es sobre el Dashboard, describe capacidad de OTRO stack
+(Carlos) que sigue sin construirse — no contradicha por nada medido en este slice; línea 3550 (PDF de
+comprobante sin PDF) es de subida de archivos, no de Wompi. Ninguna de las muestreadas mostró la misma
+forma que las de §2 (una premisa sobre el MISMO subsistema, vencida por un commit reciente), pero
+**"no se encontró en la muestra" no es "se verificaron las 49"** — se declara así para que quede
+distinguible de lo que sí se cerró.
+
+**Lo que le cuesta a `CLAUDE.md` dejar las cinco frases de §2 sin corregir:** este archivo lo lee cada
+worker ANTES de escribir código — está al principio de cada sesión de este proyecto, por diseño
+(`CLAUDE.md` es contexto de proyecto cargado automáticamente). Una frase vencida ahí no es
+documentación desactualizada en el sentido usual: es una INSTRUCCIÓN vigente que un worker va a seguir
+al pie de la letra. Concretamente: un worker que lea la línea 2953-2956 hoy y necesite tocar el flujo
+de Wompi va a creer que la reconciliación no existe y puede intentar construirla de nuevo (duplicando
+`packages/core/src/pagos/reconciliador.ts`), o va a creer que el webhook no crea `Payment` por diseño
+y va a tratar como un bug un comportamiento que es, hoy, la funcionalidad correcta. La línea 84-85, en
+el preámbulo de la lista Tier 1 —la sección que decide qué se protege con doble etapa—, es la más cara
+de las cinco de dejar sin tocar: describe el webhook como algo que TODAVÍA no escribe dinero, en la
+misma sección cuyo propio criterio (§3 arriba) diría que sí lo hace y que dos archivos más deberían
+estar en la lista. Corregirla no es parte de este slice —`touches: DECISIONS.md` solamente, y la
+decisión de qué agregar a Tier 1 es del owner—, pero el costo de no hacerlo pronto es que la próxima
+persona que lea esa lista para decidir si algo necesita segunda etapa va a confiar en un conjunto que
+ya se sabe corto.
+
+### Gate
+
+**`npm run gate`, los dos carriles — corrido en este slice sobre el árbol final, verde.** El diff de
+este slice toca un solo archivo (`DECISIONS.md`, esta entrada, apendeada al final) y ningún código de
+producto ni test — no había manera de que ninguno de los dos carriles cambiara de veredicto respecto a
+`main`.
+
+**Tier 1 — SÍ aplica, por herencia de la rama y por el propio contenido de esta entrada** (que
+describe y corrige el razonamiento sobre superficies Tier 1 ya aterrizadas: el webhook de Wompi y la
+configuración de métodos de pasarela). El slice tenía aprobación explícita del owner para ESCRIBIR
+(`approved-by: owner`, `approval-reason` del spec: *"LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL
+MERGE"*) — el merge sigue gateado al owner, igual que el resto de la rama.
+
+## 2026-09-18 — El Recorrido decía «Envío creado» sin que existiera ningún envío: la etiqueta
+nombraba el REGISTRO, no el HECHO (`RECORRIDO-ENVIO-NO-CREADO-1`)
+
+### El hecho
+
+El owner lo vio el 2026-09-18 en el panel, mirando el recorrido de la primera orden que se cobró de
+verdad (CN-597202, `PRIMERA-TRANSACCION-REAL-ASIENTO-1`): apenas la orden se cobra, el recorrido
+anuncia **«Envío creado»**. Ningún envío se creó — lo que existe es una fila en `preparando`; nadie
+empacó nada ni se lo entregó a un transportador.
+
+### La clase
+
+**La etiqueta nombraba el REGISTRO (la fila que nace), no el HECHO (lo que le pasó al paquete).**
+Literalmente cierta —una fila se creó— y falsa para quien la lee, que entiende que su pedido ya
+salió. Un nombre tomado del modelo de datos en vez del mundo del que lo lee.
+
+### Lo que agrava el defecto — el propio archivo ya lo advertía
+
+`lib/pedidos/recorrido.ts` traía DOS caminos al mismo estado `preparando`. El mapa `FULFILLMENT`
+(línea 58 del archivo antes de este cambio, línea 59 después) ya declaraba
+`preparando: 'Envío en preparación'`; una rama especial en `etiquetaTransicion`
+—`if (t.estado_anterior === null) return 'Envío creado';`— la salteaba para la creación,
+devolviendo un string escrito a mano en la propia rama de `fulfillment` en vez de consultar el mapa.
+El mismo hecho tenía DOS nombres en el mismo archivo, y el que corría al nacer el envío era el que
+mentía.
+
+Y el archivo se contradecía solo: el comentario que antecede a `TITULO_CREADO`/`TITULO_PAGADO`/
+`TITULO_ENTREGADO` ya decía, unas líneas más arriba del propio defecto, por qué esto no debía pasar:
+**"Son LAS MISMAS que las del libro a propósito: es el mismo hecho, y decirlo con otras palabras
+haría creer que es otra cosa."** Exactamente lo que pasó.
+
+### La palabra — la que el mapa ya tenía, no una tercera
+
+El owner propuso «Preparando envío». El mapa `FULFILLMENT` ya declaraba **«Envío en preparación»**
+(`lib/pedidos/recorrido.ts:59`) para el mismo estado `preparando`. El owner confirmó (2026-09-18,
+tras plantearle la disyuntiva): *"me parece bien tu decisión Envío en preparación"*. Se usó la del
+mapa: deja el estado con UN solo nombre en todo el sistema en vez de sumar un tercero, que es
+exactamente el defecto que este slice cierra. Cambiar esa palabra en el futuro es cambiar UNA línea
+(`lib/pedidos/recorrido.ts:59`, la entrada `preparando` del `Record<ShippingEstado, string>`
+`FULFILLMENT`) y alcanza a los dos casos que la consultan (la creación y cualquier otro destino a
+`preparando` que no sea `fallido→preparando`).
+
+### Qué se tocó y qué NO
+
+- Se borró la rama `if (t.estado_anterior === null) return 'Envío creado';` de la mitad
+  `fulfillment` de `etiquetaTransicion` (`lib/pedidos/recorrido.ts`); ese caso cae ahora al
+  `return FULFILLMENT[t.estado_nuevo as ShippingEstado] ?? t.estado_nuevo;` general, como cualquier
+  otro destino sin FROM especial.
+- **NO se tocó el otro caso especial de la misma función** —`fallido→preparando` → `'Entrega
+  reprogramada'`—: ÉSE sí depende del estado anterior por una razón real (un mapa por destino solo
+  daría «Envío en preparación» también para una entrega reprogramada tras fallar, que es un hecho
+  distinto). El comentario que justifica el vocabulario (líneas 36-44 del archivo) se reescribió para
+  decir por qué la creación dejó de necesitar un caso propio mientras el de la reprogramación lo
+  sigue necesitando — no para cambiar la decisión de mantenerlo.
+- Se actualizaron **3 asserts** en `lib/pedidos/recorrido.test.ts` que afirmaban la etiqueta vieja:
+  dos esperaban `'Envío creado'` como la etiqueta de la transición `null→preparando` (uno sobre
+  `etiquetaTransicion` sola, otro sobre `recorridoDelPedido` con libro completo); el tercero la
+  listaba entre las etiquetas que NO debían inventarse en una orden anterior al libro (grandfathered).
+  Esa tercera entrada se retiró de la lista en vez de actualizarse: el string ya no es producible por
+  el código, así que afirmar su ausencia deja de probar nada — la afirmación real de ese test (que
+  «Envío en preparación» tampoco se inventa sin timestamp real) se conservó intacta.
+
+### Alcance medido — dónde se ve, y qué más del módulo nombra el registro en vez del hecho
+
+- **Dónde aparece la etiqueta:** un solo consumidor. `recorridoDelPedido`/`PasoRecorrido`
+  (`lib/pedidos/recorrido.ts`) sólo lo importa `app/(admin)/admin/pedidos/page.tsx:30`, que mapea
+  `p.titulo` DIRECTO a la prop `title` del `Timeline` del design system
+  (`app/(admin)/admin/pedidos/page.tsx:1239-1244`, sin transformación de texto). Grep del literal
+  viejo y de los símbolos exportados (`recorridoDelPedido`, `PasoRecorrido`, `etiquetaTransicion`)
+  sobre el repo completo (excluido `node_modules`): cero resultados fuera de `lib/pedidos/
+  recorrido.ts` y su test. Cero en `app/(storefront)/`, cero en las plantillas de correo de
+  `packages/core`/`lib/automations/channels/email.ts`, cero en `packages/design-system/
+  reference.html`. La etiqueta VIEJA («Envío creado») y la NUEVA («Envío en preparación») viven las
+  dos SÓLO en el panel, en el detalle de un pedido, dentro de la sección "Recorrido del pedido" — el
+  mismo sitio donde el owner la vio.
+- **El resto del mapa (`FULFILLMENT` y `COBRO` completos):** se revisaron las cinco entradas de
+  `FULFILLMENT` (`preparando, en_ruta, entregado, fallido, cancelado`) y las tres de `COBRO`
+  (`pendiente, pagado, cancelado`) contra los cinco escritores reales del libro
+  (`packages/core/src/order-transitions.ts` es el único punto de escritura; lo llaman
+  `packages/core/src/fulfillment.ts`, `packages/core/src/shipping-transition.ts` — dos sitios— y
+  `packages/core/src/orders.ts` —dos sitios—). Ninguna otra etiqueta nombra el registro en vez del
+  hecho: las cinco de `FULFILLMENT` describen lo que le pasó al paquete (despachado, entregado,
+  entrega fallida, envío anulado, y ahora "en preparación" en vez de "creado") y las tres de `COBRO`
+  describen lo que le pasó a la plata (pago registrado, pago revertido, pedido cancelado). No se
+  encontró una segunda instancia de esta clase en el módulo; si aparece en uso real, es decisión del
+  owner, no de este slice.
+
+### La etiqueta que ve el operador, tal cual queda en pantalla
+
+**«Envío en preparación»** — sin comillas ni sufijo, en la fila del `Timeline` correspondiente a la
+transición `null→preparando` del eje `fulfillment`.
+
+### Gate
+
+**`npm run gate`, los dos carriles — corrido sobre el árbol final, verde.** Fast lane (`npm test`):
+1435/1435. Carril de integración (`npm run test:integracion`, Postgres efímero): 208/208. El diff de
+este slice toca `lib/pedidos/recorrido.ts`, `lib/pedidos/recorrido.test.ts` y esta entrada de
+`DECISIONS.md` — ningún cambio de schema, ninguna migración, ningún endpoint HTTP.
+
+**Tier 1 — SÍ aplica** por herencia de la rama (`slice/api-directa-panel-metodos-1`) y porque el spec
+lo declaró `tier: 1` con `writes: yes` y `approved: yes` (`approved-by: owner`,
+`approval-reason`: el owner vio el defecto en el panel el 2026-09-18 y propuso la palabra; se usó la
+que el mapa ya tenía en su lugar, y el owner la confirmó). **LA APROBACIÓN AUTORIZA LA ESCRITURA,
+NUNCA EL MERGE** — el merge sigue gateado al owner.
+
+## 2026-09-18 — La lista Tier 1 recupera las tres superficies que le faltaban, y la auditoría del
+owner sobre si algún slice pasó por la puerta abierta, y si un detector automático puede reemplazar
+a quien mantiene la lista (`TIER1-LISTA-VENCIDA-2`)
+
+### 0 · Qué pidió el owner, y qué se hizo
+
+`COBRO-SIN-PEDIDO-ASIENTO-1` (arriba, mismo día) midió que `packages/core/src/pagos/
+aplicar-resultado-wompi.ts`, `packages/core/src/pagos/reconciliador.ts` y `app/api/cron/automations/
+route.ts` cumplen el criterio de Tier 1 —dos son deciders de la puerta de Wompi, el tercero es su
+puerta HTTP— y no estaban en la lista. El owner leyó ese hallazgo y decidió que los tres entran; no
+hay nada que evaluar sobre SI entran. Pidió tres cosas más: (a) decidir la GRANULARIDAD —archivos
+sueltos o el subárbol que los contiene—, mirando el directorio entero, no asumiendo; (b) una
+auditoría medida de si algún slice escribió por la puerta que quedó abierta entre el 2026-09-15 (cuando
+los tres nacieron) y hoy; y (c) la respuesta, con su costo, a si el detector automático de puertas de
+dinero del protocolo (`tier1_puertas`) puede derivar esta lista en vez de que alguien la mantenga a
+mano.
+
+Se hizo: los tres entraron a `CLAUDE.md` (`packages/core/src/pagos/` como SUBÁRBOL, `app/api/cron/
+automations/route.ts` como archivo suelto); la auditoría se re-corrió con órdenes de git propias y
+coincidió con la de `COBRO-SIN-PEDIDO-ASIENTO-1`; y la pregunta sobre `tier1_puertas` se contestó
+midiendo el propio código de los tres archivos, no repitiendo lo que el spec ya afirmaba.
+
+### 1 · La auditoría — verificada de nuevo, con órdenes propias, y coincide
+
+`git log --all --oneline -- <archivo>` sobre los tres, corrido en esta sesión:
+
+| archivo | commits (todo `--all`) | fecha(s) |
+| --- | --- | --- |
+| `packages/core/src/pagos/aplicar-resultado-wompi.ts` | `9abdc5b` (único) | 2026-09-15 |
+| `packages/core/src/pagos/reconciliador.ts` | `9abdc5b` (único) | 2026-09-15 |
+| `app/api/cron/automations/route.ts` | `9abdc5b` + `5cb71c8` | 2026-09-15 y 2026-07-28 |
+
+Coincide exactamente con lo que `COBRO-SIN-PEDIDO-ASIENTO-1` había medido y el spec citó. **Ningún
+commit posterior al 2026-09-15 toca ninguno de los tres.** `git log --oneline 9abdc5b..HEAD | wc -l`
+da **71 commits** entre el nacimiento de `packages/core/src/pagos/` y el HEAD de hoy —la rama trae
+consigo el programa entero de API directa/checkout que corrió en paralelo, no sólo los cinco commits
+más recientes del eje de Wompi—; de esos 71, CERO tocan alguno de los tres archivos (confirmado por
+el `git log --all` por-archivo de la tabla de arriba, que ya los enumera completos). **Respuesta al
+owner: ningún slice escribió por la puerta que quedó abierta.** Eso es una respuesta buena, pero no
+borra que la puerta estuvo abierta del 2026-09-15 al 2026-09-18 (3 días) sin la doble etapa que el
+resto de la ruta del dinero ya tiene.
+
+**Límite de esta auditoría, dicho:** un `git log` mide este repositorio. No mide si alguien, en esos
+tres días, tocó estos archivos fuera de un commit —trabajo local sin commitear, una sesión que los
+leyó sin escribir, o cualquier cosa que no deje rastro en `git`—; tampoco mide nada de lo que pudo
+pasar en el otro repositorio (dev-protocol) que orquesta estos slices. Es evidencia de que NINGÚN
+COMMIT los tocó, no de que NADIE los miró.
+
+### 2 · La granularidad — subárbol para `packages/core/src/pagos/`, archivo suelto para el cron
+
+Se abrió el directorio y se miró TODO lo que vive ahí, no se asumió:
+
+```
+packages/core/src/pagos/
+├── aplicar-resultado-wompi.ts   (10.770 bytes)
+└── reconciliador.ts             (11.510 bytes)
+```
+
+**Los dos son deciders de dinero, sin excepción — homogéneo hoy.** Pero el argumento para el SUBÁRBOL
+no es el conteo de hoy (dos archivos, los dos en alcance): es la frontera arquitectónica que el
+propio repo ya documenta en `§ Monorepo` — `packages/core` es "schema + cliente Prisma + data-access
+de DOMINIO", mientras que el reporte, la presentación y las utilidades de UI viven en `lib/` (nivel
+app). Un archivo nuevo que nazca en `packages/core/src/pagos/` nace, POR ESA FRONTERA, siendo
+data-access de dominio de pagos — no puede nacer siendo un bucketeo de gráfico o una frase de
+encabezado, porque ESO vive en `lib/pagos/` (ya evaluado como subárbol y DESCARTADO en la
+re-medición del 2026-09-14, exactamente por mezclar deciders con reporte). Es el mismo argumento que
+ya sostiene a `lib/checkout/` como subárbol ("un archivo nuevo en este directorio nace… para ser
+consultado por esa misma puerta de dinero"), aplicado a la mitad `packages/core` de la misma puerta.
+
+Se verificó que `packages/core/src/` YA usa subdirectorios como agrupación por CONCERN —no es una
+convención inventada para este slice—: `notifications/`, `metrics/` y `validation/` ya existen ahí
+junto a `pagos/`, cada uno agrupando un tema de dominio. `pagos/` es uno más de esos, y su tema
+(pagos) es, por construcción del propio criterio de Tier 1, la ruta del dinero.
+
+**`app/api/cron/automations/route.ts` entra como ARCHIVO SUELTO, no como subárbol.** No hay
+directorio que evaluar: es una sola ruta HTTP, el mismo tipo de entrada que las otras nueve rutas
+`app/api/*` ya listadas. Mezcla dos cosas en el MISMO archivo —el paso de automatizaciones
+(mensaje-céntrico, ajeno al dinero) y el paso del reconciliador de Wompi (la puerta que corre
+`correrReconciliador`)—, pero eso no cambia la granularidad: la puerta HTTP entera entra, igual que
+`app/api/orders/route.ts` ya entraba entero aunque maneje más que sólo el eje de cobro.
+
+### 3 · La ironía — la doctrina describía este modo de falla, y falló igual
+
+`CLAUDE.md` ya dice, en la misma sección que hoy se corrige: *"ESTA LISTA VENCE — es una medición con
+fecha, no una garantía perpetua… Una lista vencida no avisa que dejó de cubrir: el gate de Tier 1
+sigue corriendo en VERDE sobre un conjunto que encogió… acá vencer es peor: no confunde a quien lee,
+DEJA PASAR."* Y venció igual: la re-medición anterior (`TIER1-LISTA-VENCIDA-1`) es del 2026-09-14; los
+tres archivos nacieron el 2026-09-15, UN DÍA DESPUÉS de haberse re-medido como cierta. La distancia
+entre "se verificó que la lista estaba al día" y "la lista quedó corta" fue de 24 horas.
+
+**La clase, con las palabras del owner:** una advertencia escrita sobre un mecanismo no es un
+mecanismo. Es la hermana de "una guarda escrita no es una guarda corrida", aplicada a una guarda que
+predijo su propia falla y no pudo evitarla.
+
+**Y hay una vuelta más, medida en este slice y no en el anterior:** de los tres archivos, DOS
+(`aplicar-resultado-wompi.ts` y `app/api/cron/automations/route.ts`) ya estaban siendo reportados por
+un detector automático (`tier1_puertas`, del protocolo dev-protocol) — el spec que dispatchó este
+slice trae esa salida medida contra este repo HOY: cuatro rutas candidatas, incluidas esas dos, y NO
+`reconciliador.ts`. Así que la lección es más dura que "faltaba un mecanismo": para dos de los tres,
+**el mecanismo existía y funcionaba**. Lo que faltaba era que algo BLOQUEARA sobre su salida — un
+detector que sólo se imprime cuando alguien corre el comando de estado del despachador, y que nada
+lee ni gatea, no es un gate: es una advertencia con más pasos.
+
+### 4 · Por qué el detector ve dos de los tres y no al reconciliador — medido en el código, no en el spec
+
+El spec citó, como medido en `COBRO-SIN-PEDIDO-ASIENTO-1`, que `tier1_puertas` busca un patrón de
+EJECUCIÓN —llamadas `prisma.<tabla>.<create|update|delete|upsert>` o `tx.<tabla>.<…>`— y no explica
+por qué el reconciliador queda afuera. Se verificó grepeando los tres archivos en esta sesión:
+
+| archivo | llamadas `prisma.`/`tx.` directas a `create/update/delete/upsert` |
+| --- | --- |
+| `aplicar-resultado-wompi.ts` | SÍ — `tx.paymentIntent.updateMany(...)`, línea 152 |
+| `app/api/cron/automations/route.ts` | SÍ — `prisma.paymentIntent.updateMany(...)`, líneas 60 y 83 |
+| `reconciliador.ts` | **CERO** — ningún `prisma.` ni `tx.` en todo el archivo |
+
+**`reconciliador.ts` no tiene ni una sola llamada `prisma.`/`tx.` porque nunca importa Prisma.** Todas
+sus escrituras pasan por un parámetro `db: ReconciliadorDb` INYECTADO —`db.paymentIntent.updateMany`,
+`db.cerrarVencido`— el mismo patrón de dependency injection que usa todo `packages/core` para poder
+testear su lógica sin una base real (documentado en la propia cabecera del archivo: "packages/core
+NO importa de lib/"). El patrón `db.<algo>.updateMany` no matchea `prisma.` ni `tx.`, así que un
+detector que busca el patrón EJECUTOR literal es estructuralmente ciego a esta función — no por un
+bug del detector, sino porque `reconciliador.ts` es, por diseño, la mitad CONSULTORA de la puerta: la
+función que DECIDE si `aplicarResultadoWompi` corre, no la que ejecuta el `UPDATE`.
+
+**Esto mapea exacto al propio criterio de Tier 1** (`CLAUDE.md`, línea ~11-13): *"cada puerta de
+escritura de stock, pagos y pedidos, Y la función que esa puerta CONSULTA para decidir si la
+escritura procede y con qué valor — no sólo el handler que la ejecuta."* `tier1_puertas` implementa
+sólo la primera mitad (el handler que ejecuta, vía el patrón `prisma./tx.` + verbo de escritura). La
+segunda mitad —la función CONSULTORA— es exactamente la que dejó pasar a `reconciliador.ts`. No es
+que el detector esté mal: cubre medio criterio, y la mitad que le falta es la que importa acá.
+
+### 5 · La respuesta al owner, con costo — ¿puede el detector derivar la lista?
+
+**No hoy, y no sin trabajo adicional que tiene su propio precio.** Tres caminos, sin elegir:
+
+1. **Lista de nombres de funciones decisoras** (p. ej. `registerOrderPaymentTx`, `aplicarResultado*`)
+   que el detector busca como LLAMADAS, no como ejecuciones literales — barato de escribir (una lista
+   más al lado de la de tablas del eje), pero repite el MISMO defecto que esta lista Tier 1 tiene hoy:
+   una lista de nombres a mano que vence cada vez que nace una función decisora nueva. No cierra la
+   clase, la mueve un nivel.
+2. **Call-graph real** (qué función llama a qué, transitivo, hasta encontrar un `prisma.`/`tx.` de
+   escritura N saltos abajo) — cierra la clase de verdad, pero es una herramienta de otro orden: un
+   grep de un archivo no alcanza, hace falta un analizador de AST/tipos que siga imports entre
+   módulos. Semanas, no horas; y sigue siendo del otro repositorio (dev-protocol), no de éste.
+3. **Detección por FORMA DEL PARÁMETRO INYECTADO**: buscar, con un analizador consciente de tipos
+   (no grep plano), cualquier función que reciba un parámetro cuyo TIPO declare métodos
+   `create/update/delete/upsert` sobre una tabla del eje —`db: ReconciliadorDb` calificaría aunque
+   nunca llame a `prisma.` directo—. Costo medio: más que grep, mucho menos que un call-graph
+   completo, porque no necesita seguir la cadena entera —sólo leer la firma de la función y el shape
+   del tipo del parámetro.
+
+**La decisión de granularidad del §2 YA resuelve parte de esto, sin tocar el detector.** Con
+`packages/core/src/pagos/` como subárbol protegido, CUALQUIER archivo que nazca ahí —decisor o
+ejecutor, visible o invisible para `tier1_puertas`— ya está cubierto por la doctrina, porque la
+protección la da la RUTA, no el patrón de código que el detector reconoce. Eso cierra el hueco
+ESPECÍFICO que dejó pasar a `reconciliador.ts` sin que el detector aprenda nada nuevo. **Lo que NO
+cierra**: un decider de dinero nuevo que nazca FUERA de un subárbol o archivo ya protegido —por
+ejemplo, una función consultora nueva como archivo suelto en `packages/core/src/` (no bajo `pagos/`)
+o en `app/api/`— seguiría siendo invisible para `tier1_puertas` de la misma manera que
+`reconciliador.ts` lo fue, hasta que alguien la note y la agregue a mano, con el mismo riesgo de
+vencimiento que motivó este slice. El detector sigue siendo una señal útil para la mitad EJECUTORA
+—encontró dos de tres sin que nadie se lo pidiera—, no un sustituto de la re-medición manual.
+
+### 6 · Los otros dos candidatos que el detector reportó — nombrados, no decididos
+
+El spec trae, medido HOY contra este repo por `tier1_puertas`, que además de `aplicar-resultado-
+wompi.ts` y `app/api/cron/automations/route.ts` el detector devuelve otras DOS rutas fuera de la
+lista Tier 1: `packages/core/src/order-transitions.ts` y `app/api/products/[id]/route.ts`. Ninguna de
+las dos es parte del alcance de este slice (`touches: CLAUDE.md, DECISIONS.md`, y sólo sobre los tres
+archivos que el owner ya decidió) y este worker no decide por ellas. Contexto mínimo, medido de paso
+en esta sesión sin profundizar: `order-transitions.ts` tiene al menos una escritura directa
+(`tx.orderStatusTransition.create`, línea 38) que matchea el patrón EJECUTOR del detector — es
+coherente con que `tier1_puertas` lo haya encontrado.
+
+**Nombrados como `TIER1-CANDIDATOS-ORDER-TRANSITIONS-PRODUCTS-1`** para que la próxima re-medición de
+la lista Tier 1 los evalúe contra el criterio (¿son puerta de escritura de dinero/stock/pedidos, o la
+función que esa puerta consulta?), no para que se asuma que califican.
+
+### 7 · Limitación declarada — no se pudo correr el validador ni el detector desde esta sesión
+
+El spec (§1) pidió medir, ejecutando el validador de specs de dev-protocol, que un spec que tocara
+`packages/core/src/pagos/` o `app/api/cron/automations/route.ts` ahora DISPARA el gate de Tier 1, y
+que ANTES de este cambio no disparaba — las dos direcciones. **No se pudo hacer.** Esta sesión está
+en un sandbox restringido al working directory de `coffee-template-app`: un intento de `find`/`ls`
+fuera de él (buscando el repositorio dev-protocol, donde vive ese validador y el detector
+`tier1_puertas`) fue rechazado por la herramienta misma con el mensaje *"Claude Code may only search
+files in the allowed working directories for this session"*. No hay ruta de red tampoco (no hay
+credencial ni URL de un servicio que exponga esa herramienta) — la única vía disponible (`node` +
+`fetch`) no tiene nada que alcanzar sin esa ubicación.
+
+**Esto es una limitación real, no un detalle omitido.** No se pudo verificar, en esta sesión, que la
+entrada nueva en `CLAUDE.md` efectivamente cambia el comportamiento del validador de specs ni del
+detector `tier1_puertas`. Lo que SÍ se verificó, con herramientas dentro de este repo: (a) el texto
+agregado sigue el MISMO patrón léxico que las entradas existentes que sí disparan hoy (mismo formato
+de ruta, mismas comillas invertidas, mismo verbo "entran"/"protegidas" que el resto de la lista), y
+(b) el contenido semántico de los tres archivos —confirmado leyendo el código— cumple el criterio
+escrito en la cabecera de la sección. Ninguna de las dos cosas es una PRUEBA de que el validador los
+reconoce; son el máximo que se pudo verificar sin acceso a la herramienta que efectivamente los lee.
+El owner y la próxima re-medición deben saber esto: la lista quedó corregida en TEXTO, sin
+confirmación de que el MECANISMO la lee — que es, con ironía, el mismo modo de falla que motivó este
+slice (§3).
+
+### Gate
+
+**`npm run gate`, los dos carriles — corrido sobre el árbol final, verde.** Fast lane (`npm test`):
+1435/1435. Carril de integración (`npm run test:integracion`, Postgres efímero): 208/208. Mismas
+cifras que el asiento anterior de esta misma rama (`RECORRIDO-ENVIO-NO-CREADO-1`) — coherente con que
+el diff de este slice toca SÓLO `CLAUDE.md` y esta entrada de `DECISIONS.md`: ningún código de
+producto, ningún test, ningún schema, ninguna migración, ningún endpoint HTTP.
+
+**Tier 1 — SÍ aplica** por herencia de la rama y porque el spec lo declaró `tier: 1` con `writes: yes`
+y `approved: yes` (`approved-by: owner`, `approval-reason`: el owner leyó el hallazgo de
+`COBRO-SIN-PEDIDO-ASIENTO-1` y decidió que los tres archivos entran; pidió además la auditoría y la
+respuesta con costo sobre `tier1_puertas` que este asiento trae en §§1-6). **LA APROBACIÓN AUTORIZA
+LA ESCRITURA, NUNCA EL MERGE** — el merge sigue gateado al owner, y este slice para en
+`AWAITING_APPROVAL` sin mergear, tal como el dispatch lo exige.
+
+## 2026-09-18 — El subárbol `packages/core/src/pagos/` estaba escrito y no disparaba: la frase
+canónica de la que el validador deriva, no la prosa que lo justifica, es la que cuenta
+(`TIER1-SUBARBOL-NO-DISPARABA-1`)
+
+### 0 · Desviación, dicha primero — este slice no pudo ejecutar el validador
+
+Esta sesión está en el mismo sandbox restringido que `TIER1-LISTA-VENCIDA-2` (§7 de esa entrada, arriba)
+ya documentó: acotada al working directory de `coffee-template-app`, sin ruta a `dev-protocol` (donde
+vive el validador que deriva disparadores de specs contra `CLAUDE.md`) ni credencial/URL que un `node`
++ `fetch` pudiera alcanzar. **No se corrió el validador en este slice.** Lo que sigue en esta entrada
+—salvo la cifra "externa" de §1, que es del spec y se marca como tal— es lo que SÍ se pudo verificar
+con herramientas de este repo: el texto exacto de la frase canónica, antes y después, línea por línea.
+
+### 1 · El defecto medido (externo, ledger_claim del spec — no re-medido en esta sesión)
+
+`TIER1-LISTA-VENCIDA-2` decidió que `packages/core/src/pagos/` entra a Tier 1 como SUBÁRBOL y lo
+escribió en el bullet de arriba, § "LA LISTA TAMBIÉN GANA SUBÁRBOLES" (la justificación de frontera
+arquitectónica del paquete). **Nunca lo escribió en la frase canónica** —la enumeración de una sola
+línea, "Tier 1 slices run in a separate read-only session…", de la que el validador de specs deriva
+qué ruta dispara el gate—. El mismo commit (`94bfaec`) sí tocó esa frase para sumar `app/api/cron/
+automations/route.ts` (verificado en esta sesión, `git show 94bfaec -- CLAUDE.md`, línea del diff con
+el `+`: la enumeración termina en `…app/api/shippings/route.ts, app/api/cron/automations/route.ts and
+app/api/webhooks/wompi/route.ts.` — sin `packages/core/src/pagos/` en ningún punto de esa lista). El
+spec de este slice trae, medido por el orquestador contra ese estado: la derivación de disparadores
+del validador daba `app/api/cron/automations/route.ts` como disparador nuevo y **no** daba
+`packages/core/src/pagos/`; un spec de prueba que declarara tocar
+`packages/core/src/pagos/reconciliador.ts` **no disparaba** el gate de Tier 1, y moviendo el subárbol
+a la frase canónica el mismo spec de prueba **sí dispara**, con el mensaje de que esa ruta está bajo
+`packages/core/src/pagos`. Esta cifra es del spec (`externo`); no se re-corrió el validador en esta
+sesión (§0).
+
+### 2 · El arreglo — la frase canónica, antes y después
+
+**Antes** (`CLAUDE.md`, la línea de la enumeración, medida con `git show 94bfaec -- CLAUDE.md`, tal
+como quedó tras esa entrada y hasta el commit base de este slice):
+
+> `…packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/
+> shipping-transition.ts, lib/checkout/metodos-pago.ts, lib/pagos/wompi-firma.ts…`
+
+**Después** (`CLAUDE.md`, línea 27 de este árbol):
+
+> `…packages/core/src/orders.ts, packages/core/src/comprobantes.ts, packages/core/src/
+> shipping-transition.ts, packages/core/src/pagos/, lib/checkout/metodos-pago.ts, lib/pagos/
+> wompi-firma.ts…`
+
+`packages/core/src/pagos/` quedó insertado entre `packages/core/src/shipping-transition.ts` y
+`lib/checkout/metodos-pago.ts` — contiguo al resto de los archivos de `packages/core/src/` ya
+enumerados, con la barra final que la propia frase usa para marcar directorio (mismo patrón que
+`app/(storefront)/` y `packages/core/prisma/migrations/`). El resto de la frase no se tocó. La
+justificación de subárbol en el bullet de arriba (§ LA LISTA TAMBIÉN GANA SUBÁRBOLES) tampoco se
+tocó: sigue siendo la misma, y sigue siendo correcta — lo que faltaba no era la razón, era que la
+razón llegara a la frase que el validador lee.
+
+### 3 · La clase
+
+**UNA ADVERTENCIA ESCRITA SOBRE UN MECANISMO NO ES UN MECANISMO.** Y MÁS EXACTO TODAVÍA: **UN
+MECANISMO QUE SÓLO IMPRIME NO ES UN GATE — ES UNA ADVERTENCIA CON MÁS PASOS.** Son las dos frases que
+`TIER1-LISTA-VENCIDA-2` (arriba, §3) ya dejó escritas con las palabras del owner, sobre el detector
+`tier1_puertas`: para dos de los tres archivos de esa re-medición el mecanismo YA existía y los venía
+reportando; lo que faltaba no era el mecanismo, era que algo BLOQUEARA sobre su salida.
+
+**Y el eslabón que agrega ESTE caso, el mismo hueso una capa más abajo: una entrada ESCRITA en una
+lista no es una entrada EN la lista.** El subárbol estaba razonado, documentado, con su propio bullet
+—no era descuido ni omisión de contenido—, y el conjunto protegido no creció ni un archivo, porque el
+validador deriva de UNA frase, no de la sección entera. Se parece a estar cubierto. Es la misma
+sensación de cobertura que `CLAUDE.md` ya documenta en otro caso, § "Todo `DialogContent` lleva
+`DialogDescription`": *"una verificación escrita y nunca ejecutada es peor que no tenerla: da la
+sensación de estar cubierto"* (línea 604). Ahí la guarda que nunca corrió era un `grep` manual que
+nadie volvía a invocar; acá es el validador automático, corriendo siempre, pero leyendo una frase que
+la entrada nueva nunca alcanzó.
+
+### 4 · La auditoría — las dos frases juntas, instrucción del owner
+
+`TIER1-LISTA-VENCIDA-2` (arriba, §1) ya midió, con `git log --all` por archivo, que ningún commit
+posterior al 2026-09-15 tocó `packages/core/src/pagos/aplicar-resultado-wompi.ts`,
+`packages/core/src/pagos/reconciliador.ts` ni `app/api/cron/automations/route.ts`: la puerta quedó
+abierta del 2026-09-15 al 2026-09-18 (tres días) sin que otro slice escribiera por ella. El owner, al
+revisar esa auditoría junto con el hallazgo de esta entrada, pidió que las dos frases fueran juntas,
+porque las dos son ciertas y ninguna borra la otra:
+
+> *"La puerta estuvo abierta tres días y nadie la cruzó. No aprobé nada sin mirarlo — y eso fue
+> SUERTE, no protección."*
+
+### 5 · El límite de la figura — impreso, no enterrado
+
+El detector que busca puertas de dinero fuera de la lista (`tier1_puertas`) implementa sólo la mitad
+EJECUTORA del criterio de Tier 1 —llamadas que escriben en las tablas del eje— y no la mitad
+DECISORA —la función que una puerta CONSULTA para decidir si la escritura procede y con qué valor—.
+Es la mitad que dejó pasar a `reconciliador.ts` (medido en `TIER1-LISTA-VENCIDA-2`, §4: cero llamadas
+`prisma.`/`tx.` directas en todo el archivo, porque sus escrituras pasan por un parámetro `db`
+inyectado). **La consecuencia que hay que dejar escrita:** un decider de dinero que nazca FUERA de
+`packages/core/src/pagos/` —o de cualquier otro subárbol o archivo ya protegido— vuelve a ser
+invisible para el detector, exactamente como `reconciliador.ts` lo fue hasta que el owner lo nombró a
+mano. Este slice resuelve que el subárbol de HOY dispare; no cierra la clase de "un decider nuevo
+puede nacer sin que nada lo note".
+
+### Gate
+
+**`npm run gate`, los dos carriles — corrido sobre el árbol final, verde.** El diff de este slice
+toca `CLAUDE.md` (la entrada del subárbol en la frase canónica + este párrafo de doctrina) y esta
+entrada de `DECISIONS.md` — ningún código de producto, ningún test, ningún schema, ninguna migración,
+ningún endpoint HTTP.
+
+**Tier 1 — SÍ aplica** por herencia de la rama y porque el spec lo declaró `tier: 1` con `writes: yes`
+y `approved: yes` (`approved-by: owner`, `approval-reason`: el owner confirmó el 2026-09-18 que el
+subárbol entero entra, con el precedente de `lib/checkout/` ya en la lista, más la puerta HTTP del
+cron por separado). **LA APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA EL MERGE** — el merge sigue gateado
+al owner, y este slice para en `AWAITING_APPROVAL` sin mergear.
+
+## 2026-09-18 — Los dos candidatos que `tier1_puertas` venía reportando sin que nadie los
+clasificara entran a Tier 1, cada uno por su propia razón (`TIER1-DOS-CANDIDATOS-CLASIFICADOS-1`)
+
+### 0 · Desviación, dicha primero — este slice tampoco pudo ejecutar el validador
+
+Mismo sandbox restringido que `TIER1-LISTA-VENCIDA-2` (§7) y `TIER1-SUBARBOL-NO-DISPARABA-1` (§0) ya
+documentaron: esta sesión está acotada al working directory de `coffee-template-app`, sin ruta al
+repositorio `dev-protocol` (donde vive el validador de specs y el detector `tier1_puertas`) ni
+credencial/URL que un `node` + `fetch` pudiera alcanzar. **No se corrió el validador ni el detector
+en este slice.** La cifra externa de §1 —qué candidatos quedan fuera de la lista hoy— es del spec,
+marcada `ledger_claim`, no re-medida contra la herramienta; lo que sí se verificó con herramientas de
+este repo es el contenido de los dos archivos (§2) y el texto exacto de la frase canónica, antes y
+después (§3).
+
+### 1 · El punto de partida — el followup ya estaba nombrado
+
+`TIER1-LISTA-VENCIDA-2` (arriba, §6) dejó nombrados, sin decidir, dos candidatos que el detector
+`tier1_puertas` reportaba fuera de la lista además de los tres que esa entrada sí resolvió:
+`packages/core/src/order-transitions.ts` y `app/api/products/[id]/route.ts`, bajo el id
+`TIER1-CANDIDATOS-ORDER-TRANSITIONS-PRODUCTS-1`, "para que la próxima re-medición de la lista Tier 1
+los evalúe contra el criterio (¿son puerta de escritura de dinero/stock/pedidos, o la función que esa
+puerta consulta?), no para que se asuma que califican." El spec de este slice trae, medido por el
+orquestador (`externo`, `kind: ledger_claim` en esta sesión): corrida hoy la figura contra el árbol
+con el subárbol de pagos ya adentro (§ `TIER1-SUBARBOL-NO-DISPARABA-1`), los únicos dos candidatos
+que quedan fuera de la lista Tier 1 son esos mismos dos — ninguno nuevo apareció entre el 2026-09-15
+y hoy.
+
+El owner los revisó y decidió que los dos entran, cada uno por una razón **distinta**, y pidió que el
+asiento las registre tal como las dio — no resumidas a una sola frase, porque son dos criterios de
+admisión diferentes y el próximo candidato se va a juzgar contra los dos por separado.
+
+### 2 · Lo medido en cada archivo, contra lo que el spec afirmaba
+
+**`packages/core/src/order-transitions.ts`** exporta una sola función, `appendOrderStatusTransition`,
+que hace `tx.orderStatusTransition.create` (línea 38) — un `INSERT` crudo, dentro del `tx` que le pasa
+el llamador. Grep de sus llamadores reales (excluyendo `.test.ts` y un comentario que sólo la nombra):
+
+```
+packages/core/src/fulfillment.ts:84
+packages/core/src/orders.ts:152,177,600
+packages/core/src/shipping-transition.ts:121
+```
+
+Los TRES archivos llamadores (`fulfillment.ts`, `orders.ts`, `shipping-transition.ts`) ya estaban en
+la lista Tier 1 antes de este slice. Coincide exacto con lo que el spec afirmaba. **Por qué NO entra
+por el criterio literal de la sección** (puerta de escritura + función consultada): `order-
+transitions.ts` no DECIDE nada — no gatea, no calcula, no rechaza; sólo escribe el asiento que el
+llamador ya decidió escribir. El criterio de admisión que lo trae es el nuevo, escrito en `CLAUDE.md`
+junto al de `timezone.ts`: es el libro APPEND-ONLY del eje de cobro, y su corrupción es SILENCIOSA —
+`DECISIONS.md` ya registró (§ `RECORRIDO-ENVIO-NO-CREADO-1`, arriba en este archivo) que
+`order-transitions.ts` es el único punto de escritura del libro que distinguió, en el incidente de
+`COBRO-SIN-PEDIDO-ASIENTO-1`, "nunca se pagó" de "se pagó y se revirtió". Nota aparte, fuera del
+alcance de este slice: el comentario de cabecera del archivo describe "Fase 2A: DEFINIDO pero aún SIN
+LLAMAR desde ningún escritor" — el grep de arriba muestra que HOY sí lo llaman los tres. El comentario
+quedó desactualizado por un cambio de otro slice; no se corrige acá (fuera de `touches:`).
+
+**`app/api/products/[id]/route.ts`** tiene DOS handlers con historias distintas, leídos completos:
+
+- **`PATCH`** arma su escritura con `aplicarPatchProducto(id, body, …)` (`@duna/core/product-update`,
+  línea 68) — la misma función que `packages/core/src/product-update.ts` ya expone y que YA está en
+  la lista Tier 1. Esta mitad estaba protegida de forma indirecta desde que ese archivo entró.
+- **`DELETE`** hace `await prisma.product.delete({ where: { id: id } })` (línea 132) DIRECTO sobre el
+  cliente de Prisma, sin pasar por ningún decider de `packages/core`. Antes del delete valida que el
+  producto no tenga `OrderItem` asociados (409 si los tiene) y después del delete borra sus blobs de
+  storage — pero la escritura que importa para Tier 1, el `.delete` sobre la tabla `Product`, es una
+  llamada cruda dentro del propio route handler.
+
+Coincide exacto con lo que el spec afirmaba. **El archivo entra por su mitad `DELETE`, no por el
+`PATCH`** — que ya estaba cubierto indirectamente y no aporta razón nueva de entrada.
+
+### 3 · El arreglo — la frase canónica, antes y después, y el criterio nuevo
+
+**Antes** (`CLAUDE.md`, tal como quedó tras `TIER1-SUBARBOL-NO-DISPARABA-1` y hasta el commit base de
+este slice):
+
+> `…packages/core/src/shipping-transition.ts, packages/core/src/pagos/, lib/checkout/
+> metodos-pago.ts…` — y, del lado de `app/api/`, `…app/api/shippings/route.ts, app/api/cron/
+> automations/route.ts and app/api/webhooks/wompi/route.ts.`
+
+**Después** (`CLAUDE.md`, línea de la enumeración):
+
+> `…packages/core/src/shipping-transition.ts, packages/core/src/order-transitions.ts,
+> packages/core/src/pagos/, lib/checkout/metodos-pago.ts…` — y `…app/api/shippings/route.ts,
+> app/api/products/[id]/route.ts, app/api/cron/automations/route.ts and app/api/webhooks/
+> wompi/route.ts.`
+
+`order-transitions.ts` quedó entre `shipping-transition.ts` y `packages/core/src/pagos/` (contiguo al
+resto de `packages/core/src/` ya enumerados); `products/[id]/route.ts` quedó entre
+`app/api/shippings/route.ts` y `app/api/cron/automations/route.ts` (contiguo al resto de rutas
+`app/api/`). Además se escribió, en el bloque de criterio de arriba de la sección (junto al párrafo de
+`timezone.ts`), el **SEGUNDO EJE DE ADMISIÓN** que el owner pidió dejar como criterio y no como excusa
+puntual de este archivo: *"lo que falla RUIDOSO se arregla; lo que corrompe CALLADO no se
+descubre."* Es un eje nuevo, distinto del que ya regía (puerta de escritura + función consultada), y
+queda escrito para que el próximo candidato se juzgue también contra él.
+
+**La lista sigue teniendo granularidad de ARCHIVO, no de método HTTP.** `app/api/products/[id]/
+route.ts` entra completo aunque sólo su `DELETE` lo necesite — el `PATCH` ya viajaba protegido por
+`product-update.ts`. Quien re-mida este archivo en el futuro debe leer esta entrada antes de asumir
+que las dos mitades se evaluaron por la misma razón.
+
+### 4 · Lo que este slice NO tocó
+
+No se agregó ninguna otra superficie a la lista. No se tocó la entrada del subárbol
+`packages/core/src/pagos/` ni la de `app/api/cron/automations/route.ts` (`TIER1-SUBARBOL-NO-
+DISPARABA-1`, `TIER1-LISTA-VENCIDA-2`) — ya están en la frase canónica y ya disparan. No se tocó
+código de producto, tests, schema ni migraciones.
+
+### Gate
+
+**`npm run gate`, los dos carriles — corrido sobre el árbol final, verde.** Fast lane (`npm test`):
+1435/1435. Carril de integración (`npm run test:integracion`, Postgres efímero): 208/208. Mismas
+cifras que las dos entradas anteriores de esta misma rama (`TIER1-LISTA-VENCIDA-2`,
+`TIER1-SUBARBOL-NO-DISPARABA-1`) — coherente con que el diff de este slice toca SÓLO `CLAUDE.md` y
+esta entrada de `DECISIONS.md`: ningún código de producto, ningún test, ningún schema, ninguna
+migración, ningún endpoint HTTP.
+
+**Tier 1 — SÍ aplica** por herencia de la rama y porque el spec lo declaró `tier: 1` con `writes: yes`
+y `approved: yes` (`approved-by: owner`, `approval-reason`: el owner decidió el 2026-09-18 que los dos
+candidatos que la figura `tier1_puertas` venía reportando sin clasificar entran a Tier 1, cada uno por
+la razón registrada en §§1-3, y pidió que el asiento las deje tal como las dio). **LA APROBACIÓN
+AUTORIZA LA ESCRITURA, NUNCA EL MERGE** — el merge sigue gateado al owner, y este slice para en
+`AWAITING_APPROVAL` sin mergear.
+
+## 2026-09-18 — La transición del pago con pasarela: una sola vista de carga, el texto que dejó de
+mentir, y el éxito que dejó de ser un callejón sin salida (`CHECKOUT-TRANSICION-DEFECTOS-1`)
+
+### 0 · Qué vio el owner, en la PRIMERA transacción real
+
+El owner reportó, tras usar el camino de API directa para pagar con tarjeta en CN-597202 —la
+primera compra de este programa que llegó a `APROBADO` de verdad (`PRIMERA-TRANSACCION-REAL-
+ASIENTO-1`, arriba)—, tres defectos de la TRANSICIÓN que el comprador ve entre apretar "Pagar" y
+ver la confirmación. Dio el texto exacto del segundo y llamó al tercero "el peor de los tres",
+pidiendo explícitamente reusar la pantalla de confirmación que los métodos manuales ya tienen en
+vez de inventar una nueva, y revisar los demás estados terminales con el mismo criterio.
+
+### 1 · Defecto uno — "Verificando tarjeta" en dos vistas para el mismo momento
+
+**La causa era estructural.** `FormularioTarjeta`/`FormularioOtroMetodoPasarela` mostraban
+"Verificando tarjeta…"/"Procesando…" en su propio botón mientras tokenizaban, creaban la orden y
+confirmaban la transacción (`tokenizando`) — y apenas la transacción nacía (`creada` truthy), el
+componente se **reemplazaba a sí mismo** por `EsperaConfirmacionTarjeta`, un layout distinto
+(ícono + texto centrado) que volvía a anunciar que se estaba confirmando el pago. Un solo momento,
+dos vistas.
+
+**El arreglo:** el formulario ya NO se reemplaza. Una única señal `procesando` (`tokenizando ||
+!!creada`) bloquea los campos, las dos casillas de aceptación y el botón EN SU LUGAR durante TODO
+el camino —tokenizar, crear la orden, confirmar la transacción, Y sondear hasta que el pago
+resuelve—, y `EsperaConfirmacionTarjeta` se monta DEBAJO del botón bloqueado, dentro del MISMO
+contenedor. Para el caso común (sin desafío 3DS) ya no dibuja un panel propio: aporta sólo una
+línea de texto corta, porque el botón ya comunica el progreso. El desafío 3DS (`DesafioTarjeta`,
+el iframe del banco) sigue con su marco aislado, embebido en ese mismo contenedor — es contenido
+que genuinamente hace falta mostrar, no una segunda vista del mismo hecho.
+
+`AceptacionesPasarela` ganó un `disabled` (antes no existía ningún mecanismo para bloquearlas):
+sin él, las casillas seguían siendo clickeables mientras el pago procesaba.
+
+### 2 · Defecto dos — el texto de espera mentía para tarjeta
+
+El texto único (`EsperaConfirmacionTarjeta.TEXTO.enVueloSinFriccion`) decía: *"Estamos confirmando
+tu pago con tu banco. Esto puede tardar unos minutos — no cierres esta página."* Para tarjeta y
+billetera eso es falso en las dos afirmaciones: no hay banco de por medio en esa rama (el texto
+del banco es el de la rama de DESAFÍO, `enVueloDesafio`, que sí lo tiene y no se tocó), y la
+medición real de esta misma sesión (`PRIMERA-TRANSACCION-REAL-ASIENTO-1`, arriba) dio 5.662 a
+10.273 segundos para resolver, cuatro transacciones — no minutos.
+
+**El texto que el owner dio, textual, para tarjeta y billetera:**
+
+> «Estamos confirmando tu pago.»
+
+Sin promesa de tiempo, sin nombrar al banco. Es el único cambio de copy de este slice fuera del
+que introduce el defecto tres (los rótulos nuevos de la pantalla de éxito, abajo) y el número de
+orden agregado al rechazo (§4).
+
+### 3 · Defecto tres, "el peor" — el éxito dejó de ser un callejón sin salida
+
+**Antes de este slice**, al aprobarse el pago, el comprador veía un ícono, un título y una frase —
+sin número de orden, sin resumen de lo que compró, sin acciones. Medido contra las otras dos
+pantallas de la MISMA transición: la vista `techo` (sondeo agotado, sin resolver) SÍ mostraba el
+número de orden; y la confirmación de los métodos MANUALES (que ni siquiera cobraron) ya tenía
+pantalla completa —resumen, estado, "Rastrear mi pedido" y "Seguir comprando"—. El camino que SÍ
+cobra era el más pobre de los tres.
+
+**El arreglo reusa esa pantalla completa, no inventa una nueva** (`checkout/page.tsx`). La parte
+difícil, medida antes de escribir: la aprobación se entera MUY ADENTRO del árbol —dentro del
+sondeo de `EsperaConfirmacionTarjeta`—, y la pantalla de confirmación vive MUY AFUERA —en el
+`return` temprano de `Checkout`—. El hecho se sube por una cadena de callbacks `onAprobado`:
+`EsperaConfirmacionTarjeta` → `FormularioTarjeta`/`FormularioOtroMetodoPasarela` →
+`SelectorMetodoPasarela` → `checkout/page.tsx` (`setPasarelaAprobada(true)`). La condición del
+`return` temprano pasó de `!(confirmation.wompi && !pasarelaMetodoNoHabilitado)` a
+`!confirmation.wompi || pasarelaMetodoNoHabilitado || pasarelaAprobada` — equivalente por De
+Morgan a la original cuando `pasarelaAprobada` es `false`, así que el camino manual no cambia.
+
+**El estado mostrado se corrige, no se hereda.** `confirmation.estado` es el de la CREACIÓN de la
+orden (`pendiente` — el pago de pasarela se confirma después, por webhook); con
+`pasarelaAprobada` el badge muestra `pagado`, porque el sondeo acaba de confirmar el pago y
+mostrarle "Pendiente" al comprador que ya vio "¡Tu pago fue aprobado!" sería mentirle. El resumen
+de ítems, subtotal, envío, total y las DOS acciones son el MISMO código que ya usan los métodos
+manuales — sólo el ícono (CheckCircle esmeralda en vez de Clock ámbar), el título, el primer
+párrafo y el estado cambian según `pasarelaAprobada`.
+
+**No se rompió el defecto uno arreglando el tres.** `EsperaConfirmacionTarjeta` no dibuja nada
+cuando llama a `onAprobado` — el `FormularioTarjeta` que la contiene se desmonta como efecto del
+cambio de estado en `checkout/page.tsx`, que es un cambio de estado REAL (el pago terminó), no un
+remonte a mitad de la espera.
+
+### 4 · Los otros estados terminales, revisados con el mismo criterio
+
+El owner pidió revisar rechazado e indeterminado con la pregunta: ¿el comprador sabe QUÉ pasó, CON
+QUÉ orden, y QUÉ hacer ahora?
+
+| Estado | Antes | Después | Qué se tocó |
+| --- | --- | --- | --- |
+| **Aprobado** | Sabe qué pasó (frase pobre); NO sabe con qué orden; NO sabe qué hacer | Los tres | Bubbleado + pantalla completa reusada (§3) |
+| **Indeterminado** (`techo`, sondeo agotado) | Sabe qué pasó; sabe con qué orden; NO sabe qué hacer (sin acciones) | Los tres | Se agregaron las MISMAS dos acciones ("Rastrear mi pedido", "Seguir comprando") a la vista `techo` que `EsperaConfirmacionTarjeta` ya dibujaba — barato, porque la vista ya existía y sólo le faltaba el tercer criterio. El formulario de tarjeta/campo se OCULTA en este estado (`onTecho`, nuevo callback) para no mostrar dos respuestas al mismo momento: los campos bloqueados arriba y "sigue procesándose" abajo |
+| **Rechazado** | Sabe qué pasó; NO sabe con qué orden (la orden ya existe — la creó `crearOrdenPasarela`, idempotente); sabe qué hacer (revisar datos u otro método) | Sabe con qué orden | Se agregó el número de orden junto al mensaje de rechazo. **NO SE TOCÓ el mecanismo de reintento** — hay una pregunta abierta sobre si ofrecer "reintentar con otro método" que el owner nombró explícitamente como NO de este slice; queda para una decisión de producto aparte |
+| **Método no habilitado** (rechazo estructural, síncrono) | Los tres — ya caía en la confirmación manual completa | Sin cambios | Ya satisfacía el criterio antes de este slice; no se tocó |
+
+**`EsperaRedireccionPasarela` no se revisó** — es el camino para un tipo de pasarela con
+`descriptor.redireccion` declarado, y **ningún descriptor real lo declara hoy** (§ su propio
+docstring, verificado sin cambios); su vista `techo` también carece de número de orden con enlace
+y de acciones, pero es código inalcanzable por ningún comprador real. Anotado como open-followup,
+no arreglado.
+
+### 5 · Lo que NO se tocó
+
+Ningún archivo bajo el eje del dinero (`packages/core/`, `app/api/checkout/route.ts`,
+`services/checkout.service.ts`) — la creación de la transacción, el sondeo contra
+`/api/checkout/retorno`, el webhook y el reconciliador quedan intactos. No se construyó ningún
+mecanismo de reintento con otro método. No se tocó ningún otro texto provisional del programa
+fuera de los dos nombrados en §2 y §3.
+
+### Gate
+
+**`npm run gate`, los dos carriles, corrido sobre el árbol final, verde.** Fast lane (`npm test`):
+1435/1435. Carril de integración (`npm run test:integracion`, Postgres efímero): 208/208.
+`npm run typecheck` (`tsc --noEmit`) también corrido, sin errores.
+
+**El camino manual se verificó byte-idéntico por dos vías**, no una sola: (a) la condición nueva
+del `return` temprano de `checkout/page.tsx` es equivalente por De Morgan a la vieja cuando
+`pasarelaAprobada` es `false` (§3); y (b) cada rama condicional nueva de esa pantalla
+(`pasarelaAprobada ? … : …`) se escribió preservando el string/clase EXACTO del lado `false`,
+incluido el ORDEN de las clases Tailwind del ícono (`w-20 h-20 bg-amber-100 rounded-full …`, no
+reordenado) — un cambio de orden no altera el CSS computado, pero si algo lo compara por texto
+exacto, un reorden habría sido una diferencia falsa. No hay harness de render en este repo
+(§ CLAUDE.md, doctrina de las tres capas) para verificarlo por ejecución; el gate visual del owner
+es quien confirma esto en pantalla.
+
+**Tier 1 — SÍ aplica**: `components/storefront/checkout/` y `app/(storefront)/` son subárboles
+Tier 1 (bytes que el comprador ve). El spec lo declaró `tier: 1`, `writes: yes`, `approved: yes`
+(`approved-by: owner`, `approval-reason`: el owner vio los tres defectos en CN-597202 el
+2026-09-18, dio el texto del §2 textual, llamó al §3 "el peor" y pidió reusar la pantalla
+existente, y pidió revisar §4 con el mismo criterio sin tomar la decisión de reintento). **LA
+APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA EL MERGE** — el merge sigue gateado al owner, y este
+slice para en `AWAITING_APPROVAL` sin mergear.
+
+## 2026-09-18 — El censo del reintento, medido de nuevo para dejar asiento, y la clase que
+convierte en falsa la frase "sabe qué hacer" del ledger anterior (`CHECKOUT-REINTENTO-CENSO-1`)
+
+### 0 · Por qué este slice mide otra vez lo que un censo ya midió
+
+El censo del mecanismo de reintento del pago por pasarela corrió antes como slice de SÓLO
+LECTURA — y por eso no dejó asiento: sus hallazgos vivían en un reporte que ningún slice
+posterior puede citar como medición (la guarda de procedencia del protocolo lo rechaza, con
+razón — un id que no resuelve en el libro no es una medición, es una afirmación externa). Este
+slice vuelve a medir cada afirmación contra el código, con archivo y línea, y deja el asiento
+que el censo debió dejar.
+
+### 1 · Lo medido — las tres capas, el proveedor tapado, la guarda de doble cobro, el carrito
+
+**¿Puede una orden tener más de un intento de pago?** Las tres capas, medidas por separado:
+
+- **Schema**: `PaymentIntent.orden_id` (`packages/core/prisma/schema.prisma:443`) NO tiene
+  `@unique` — sólo `@@index([orden_id])` (línea 523). Nada en el schema prohíbe una segunda fila
+  con la misma `orden_id`.
+- **El código que crea intentos**: hay UN solo call site de `paymentIntent.create` en todo el
+  repo (medido: `grep -rn "paymentIntent.create"` da un único resultado) — dentro de
+  `createOrderWithCustomer` (`packages/core/src/orders.ts:619-630`), y sólo cuando
+  `input.crearIntentoPago` es `true`. Ese create ocurre SIEMPRE junto con la creación de una
+  Order NUEVA, en la misma transacción. Ningún código crea un `PaymentIntent` adicional para una
+  Order YA EXISTENTE. Así que "una orden tiene a lo sumo un intento" es hoy un HECHO DE
+  OMISIÓN — nadie escribió el código que crearía el segundo —, no una restricción del modelo.
+- **Lecturas que asuman "el intento de la orden" en singular**: ninguna. Todo `findUnique` sobre
+  `paymentIntent` filtra por `reference` (la clave única del propio intento, no de la orden):
+  `app/api/checkout/route.ts:450`, `app/api/checkout/retorno/route.ts:76,103`,
+  `app/api/webhooks/wompi/route.ts:206,342`. El único `findFirst` (`lib/config/site-settings-
+  read.ts:76`) filtra por `metodo_rechazado IN (...)` a través de TODOS los intentos del negocio
+  (para el aviso del dueño), no por `orden_id` de una orden puntual. Y el único `findMany`
+  (`app/api/cron/automations/route.ts:73`, el reconciliador) trae TODOS los `EN_VUELO` del
+  sistema, sin acotar por orden. Cero lecturas que se romperían si una orden tuviera dos.
+
+**El mecanismo real: la orden reutiliza el MISMO intento entre reintentos, por diseño — no
+crea uno nuevo.** `crearOrdenPasarela` (`app/(storefront)/checkout/page.tsx:259-278`) es
+IDEMPOTENTE por estado de React: `if (confirmation?.wompi) return confirmation.wompi.reference;`
+— mientras la pestaña del navegador siga viva, CUALQUIER submit posterior (tarjeta u otro
+método, en cualquier pestaña del picker) devuelve la MISMA `reference` sin volver a crear
+orden ni intento. Es lo que hace verdad, hoy, la afirmación de la capa anterior: no porque el
+sistema lo prohíba, sino porque el único camino de creación nunca vuelve a dispararse dentro de
+la misma sesión de checkout.
+
+**Las aceptaciones del proveedor — una consulta por carga de página, reusada sin límite.**
+`bloquePasarela` se pide UNA vez (`useEffect` con deps `[pasarelaDisponible]`,
+`checkout/page.tsx:93-100`, vía `consultarBloqueAceptacionPasarela()`) y queda en estado de
+React para toda la sesión. Un segundo envío —de cualquier método, en cualquier pestaña— reusa
+los MISMOS tokens de aceptación (`aceptaciones.terminos.token`/`.datosPersonales.token`) sin
+volver a pedirlos. No se midió ningún defecto en esto: los tokens de aceptación de Wompi no son
+de un solo uso por transacción (no hay código que los invalide tras un intento), así que
+reusarlos entre reintentos no es el problema.
+
+**EL ERROR DEL PROVEEDOR QUE HOY NO SE VE, y cuál lo tapa.** `PATCH /api/checkout`
+(`app/api/checkout/route.ts:450-464`) es la ruta que confirma la transacción contra Wompi.
+Antes de llamar a Wompi por CUALQUIER cosa, lee el intento por `reference` y corta en seco:
+
+```ts
+if (intent.estado !== 'EN_VUELO') {
+  return NextResponse.json({ error: TEXTO_INTENTO_YA_RESUELTO }, { status: 409 });
+}
+```
+
+(`TEXTO_INTENTO_YA_RESUELTO = 'Este pago ya se resolvió.'`, línea 350.) Este chequeo es NUESTRO,
+no del proveedor, y responde ANTES de que el handler arme la firma o llame a Wompi (la llamada a
+Wompi ocurre más abajo en el mismo archivo, después de este `if`). Así que en TODO reintento
+contra una `reference` cuyo intento ya cerró, Wompi nunca es consultado — cualquier respuesta que
+el proveedor pudiera dar sobre el NUEVO intento (otra tarjeta, otro método) es invisible, porque
+nuestro propio guardián de estado responde primero. **Nuestra guarda de idempotencia (`intent.
+estado !== 'EN_VUELO'`) tapa al proveedor.**
+
+Y el intento SÍ cierra a `FALLIDO` de forma permanente apenas el emisor rechaza: el webhook
+(`app/api/webhooks/wompi/route.ts:279-301`) transiciona `EN_VUELO → FALLIDO` en un
+`updateMany` condicional, y NINGÚN código en el repo vuelve a poner `estado: 'EN_VUELO'` como
+dato de escritura (medido: `grep -rn "estado:\s*'EN_VUELO'"` sólo aparece del lado `where`, en
+`aplicar-resultado-wompi.ts:153`, `webhooks/wompi/route.ts:285` y `cron/automations/route.ts:84`
+— nunca del lado `data`). Un `PaymentIntent` FALLIDO es fallido para siempre.
+
+**La guarda contra el doble cobro — qué compara, y por qué cubre N intentos gratis.**
+`aplicarResultadoWompi` (`packages/core/src/pagos/aplicar-resultado-wompi.ts:142-207`) lockea la
+Order (`FOR UPDATE`, vía `transaccionConOrdenLockeada`) y compara `orden.estado !== 'pendiente'`
+(línea 175) — NO compara contra el intento, contra `pspTransactionId`, ni contra cuántos
+`PaymentIntent` tiene la orden. Compara el ESTADO DE LA ORDEN bajo lock. Por construcción, esto
+cubre cualquier cantidad de intentos sobre la misma orden sin escribir una línea más: si un
+segundo intento (hoy inalcanzable, pero el schema lo permitiría) fuera APROBADO después de que
+el primero ya pagó, el segundo lee `orden.estado === 'pagado'` bajo el mismo lock y cae en la
+rama "COBRO DUPLICADO" (línea 176-189: se asienta el hecho de Wompi, NO se crea un segundo
+`Payment`, se notifica al carril de atención). El invariante que importa —"nunca dos `Payment`
+por la misma plata"— vive en la ORDEN, no en el conteo de intentos.
+
+**El carrito.** `clearCart()` se llama UNA sola vez, dentro del `try` de la PRIMERA creación
+exitosa de orden (`handleOrder`, línea 227, y `crearOrdenPasarela`, línea 265) — nunca en el
+camino de reintento (`crearOrdenPasarela`'s early-return de la línea 260 no lo toca). Un
+reintento no necesita el carrito: la orden y sus líneas ya quedaron escritas en la base en la
+primera creación: `total`/`items` los sirve la orden persistida, no el store del carrito. La
+guarda `items.length === 0 && !confirmation` (línea 400) es la que impediría mostrar "carrito
+vacío" durante un reintento — y funciona porque `confirmation` sigue siendo verdadero.
+
+### 2 · La clase: una conclusión angosta escrita como decisión cerrada
+
+**El comentario** (`checkout/page.tsx:70-76`, sobre `pasarelaMetodoNoHabilitado`):
+
+> El proveedor rechazó la creación de la transacción de esta orden porque su cuenta ya no
+> tiene el método habilitado […] Una vez en `true` no vuelve a `false`: no hay "reintentar" para
+> esta orden (§ el reporte del slice, "no reintentar contra el mismo").
+
+**Medido: para QUÉ caso se decidió.** `metodo_no_habilitado` es un rechazo ESTRUCTURAL —la
+cuenta de Wompi del negocio no tiene ese método de pago encendido— que ocurre SÍNCRONO, en la
+CREACIÓN de la transacción (`FormularioTarjeta.tsx:424-431`), antes de que exista ningún
+veredicto del emisor. Reintentar con otra tarjeta no cambia nada porque el defecto no está en la
+tarjeta: está en la cuenta. Sobre ESE caso, la conclusión es correcta y el caso SÍ tiene una
+salida real hoy: `handleMetodoNoHabilitado` (línea 287-293) cae a la MISMA pantalla de
+confirmación manual que usan nequi/efectivo/transferencia (línea 313, `!confirmation.wompi ||
+pasarelaMetodoNoHabilitado || pasarelaAprobada` → `return`) — el pedido queda reservado, el
+comprador ve su número de orden y sabe que el equipo lo va a contactar.
+
+**La misma conclusión —"no hay salida para esta orden, no reintentes"— se aplicó, en la
+redacción del reporte de `CHECKOUT-TRANSICION-DEFECTOS-1` (§4, la tabla de estados
+terminales), al caso DISTINTO del rechazo del EMISOR** (la tarjeta declinada por el banco, un
+hecho ASÍNCRONO que el sondeo detecta después). Esa tabla afirma, para "Rechazado": *"sabe qué
+hacer (revisar datos u otro método)"* — dando por sentado que el mecanismo de reintento
+FUNCIONA para ese caso. Medido: NO funciona, por la cadena completa del §1:
+
+1. `onFallido` (`EsperaConfirmacionTarjeta.tsx:166-170`) sólo se dispara cuando el sondeo lee
+   `PaymentIntent.estado !== 'EN_VUELO'` y no es `APROBADO` — es decir, cuando el intento YA
+   está en `FALLIDO` en la base. El comprador nunca ve el mensaje de rechazo ANTES de que el
+   intento se haya cerrado para siempre.
+2. `handleFallido` (`FormularioTarjeta.tsx:453-459` y su gemelo en
+   `FormularioOtroMetodoPasarela.tsx:218-222`) limpia `creada` y reactiva el formulario —
+   invitando a "revisar datos" y reintentar.
+3. **Cualquier reintento —misma tarjeta, otra tarjeta, u otra pestaña del picker (Nequi)— llama
+   de nuevo a `crearOrdenPasarela()`, que devuelve la MISMA `reference` (§1: idempotencia por
+   estado de React), y el PATCH subsiguiente choca de inmediato contra `intent.estado !==
+   'EN_VUELO'` → 409, "Este pago ya se resolvió".** El formulario vuelve a mostrar ese mismo
+   error, re-habilitado, en un ciclo que no puede resolver nunca — porque el intento cerrado no
+   vuelve a abrirse (§1).
+4. **"Otro método" tampoco es una salida real**: las pestañas de `SelectorMetodoPasarela`
+   (`components/storefront/checkout/SelectorMetodoPasarela.tsx:116-220`) se renderizan
+   INDEPENDIENTES de si ya existe una orden — no hay guarda que las oculte tras un rechazo—, pero
+   las DOS reciben la MISMA `crearOrdenPasarela` (líneas 198 y 212), así que cambiar de pestaña
+   pega contra el MISMO intento cerrado.
+5. **Ni recargar la página ayuda**: `useCartStore` no persiste (medido: `grep -n "persist\|
+   localStorage\|sessionStorage" lib/cartStore.tsx` no da resultados), así que un F5 pierde
+   `confirmation` (vuelve a `null`) Y `items` (vuelve a `[]`) a la vez — y la guarda de la línea
+   400 (`items.length === 0 && !confirmation`) manda a la pantalla genérica de "Tu carrito está
+   vacío", sin ningún rastro de la orden ni del número para rastrearla.
+
+**Es decir: el rechazo del emisor es el ÚNICO estado terminal de la transición
+(§ CHECKOUT-TRANSICION-DEFECTOS-1 §4: aprobado, indeterminado, rechazado, método no habilitado)
+que hoy no tiene ninguna salida** — ni un botón que funcione, ni un reload que recupere algo. La
+UI simula que ofrece una (campos reactivados, mensaje de "revisa e intenta de nuevo"), lo cual
+es más engañoso que no ofrecer nada: invita a una acción que está garantizado que va a fallar de
+la misma forma, siempre.
+
+**La forma de la clase, en las palabras del owner:** una conclusión angosta —medida para un
+caso donde reintentar genuinamente no cambia nada (`metodo_no_habilitado`)— aplicada ancha
+—a un caso donde reintentar sí tendría sentido (rechazo del emisor), si el mecanismo lo
+permitiera—, y escrita en el código como decisión YA CERRADA. Es la misma forma que el caso, ya
+conocido, de medir un identificador de banco contra una cuenta y concluir sobre el método
+entero, y que el caso de citar una lectura de documentación como si fuera una medición. Lo que
+agrava esta instancia es DÓNDE vive: no en un asiento ni en un reporte, sino en un comentario
+del código y en la prosa de un ledger ya cerrado — el lugar exacto donde alguien va a buscar si
+la pregunta "¿esto ya se decidió?" tiene respuesta, y va a encontrar que sí.
+
+**Lo que este slice NO hace**: no construye el mecanismo de reintento (crear un intento nuevo
+cuando el anterior cerró `FALLIDO`, o alguna otra forma). Es explícitamente la próxima decisión
+de producto, fuera de este slice — se deja abierta como open_followup, con id
+**`CHECKOUT-REINTENTO-MECANISMO-1`**: ¿qué hace el comprador cuando el emisor rechaza su
+tarjeta? — decisión de producto (RULING_NEEDED), no de este slice.
+
+### 2b · La gemela, en el otro repositorio — no verificada desde acá
+
+Mientras se escribía el spec de este slice, una guarda del ORQUESTADOR (no de este repo — vive
+en el repositorio de las herramientas del protocolo dev-protocol) rechazó un spec que citaba una
+referencia de sección con el símbolo `§` (p. ej. "§4"), leyéndola como si fuera una cifra escrita
+a mano sobre el repositorio en vez de un puntero a una sección. El comentario de esa guarda YA
+declaraba que las referencias de sección debían ignorarse como estructura del spec, pero su
+código sólo cubría UNA de las dos formas en que un spec puede citar una sección — la otra forma
+quedó sin cubrir pese a que el comentario prometía cubrirla. Se corrigió el código de esa guarda
+para que hiciera lo que su propio comentario ya afirmaba.
+
+**Es la MISMA forma que §2, en otro material**: un comentario que promete más de lo que el
+código hace (la guarda "ignora las referencias de sección" en general; su código sólo ignoraba
+una de las dos formas), en vez de una conclusión angosta aplicada ancha sobre un caso de
+negocio. Y la ironía que la vuelve memorable: esa guarda rechazó, por este defecto, un spec que
+iba precisamente a censar declaraciones más anchas que su propia implementación — y ella misma
+era una instancia de la misma clase, encontrada en el acto de hacer su trabajo sobre ese tema.
+
+**Esta instancia vive en el OTRO repositorio, no en `coffee-template-app`.** No se verificó
+desde acá —no hay acceso a ese repositorio en esta sesión— y no se presenta como medida por este
+slice: es un `ledger_claim` que viene del spec, registrado acá porque el owner pidió
+explícitamente que las dos formas de la misma clase queden juntas en un solo asiento.
+
+### 3 · El censo de comentarios que declaran cerrado un caso más ancho del que midieron
+
+**Alcance recorrido, explícito**: se buscaron patrones de cierre (`no hay`, `nunca se`, `jamás`,
+`descartado`, `decisión (tomada|cerrada)`) en los subárboles del dinero y del checkout —
+`packages/core/src`, `app/api/{checkout,webhooks,cron,orders,comprobantes,inventory,products,
+shippings}`, `lib/{checkout,pagos}`, `components/storefront/checkout`,
+`services/checkout.service.ts` — **105 apariciones**, revisadas una por una contra su alcance
+medido. **NO se recorrió** el resto de `app/api` (rutas de admin), `components/admin`, el resto
+de `lib/`, ni `packages/design-system` — este censo es PARCIAL, acotado a donde el owner pidió
+empezar.
+
+**Un segundo hallazgo de la misma familia, más leve y más honesto que el de §2** —
+`components/storefront/checkout/interpretar-respuesta-otro-metodo.ts:36-42`:
+
+> `metodo_no_habilitado` se devuelve como su PROPIO caso […] aunque hoy los dos se muestren
+> igual en pantalla […] este formulario NO ofrece un camino de salida distinto para el rechazo
+> estructural (`SelectorMetodoPasarela` no le pasa `onMetodoNoHabilitado` — decisión ya tomada,
+> § el reporte del slice), así que no hay UI propia que construir acá.
+
+**Qué midió**: que hoy nadie construyó una salida propia para `metodo_no_habilitado` en el
+camino Nequi/otro-método (a diferencia de tarjeta, que sí cae a la confirmación manual, §2).
+**Qué declara**: "decisión ya tomada" — leído junto al comentario de `checkout/page.tsx:75-76`
+(§2), un lector puede concluir que el caso está resuelto de la misma forma para los dos
+caminos. **Qué queda sin volver a preguntarse por eso**: si `metodo_no_habilitado` en el camino
+Nequi también debería caer a la confirmación manual (como tarjeta), o si de verdad amerita una
+respuesta distinta. A diferencia de §2, este comentario SÍ se declara reversible en su propia
+frase ("quien reciba este resultado puede decidir distinto sin tener que volver a tocar esta
+función") — no es una conclusión cerrada disfrazada de cerrada, es una conclusión abierta que
+un lector apurado podría leer como cerrada por la vecindad con la frase de tarjeta. Se anota
+como candidato de la misma familia, no como una instancia tan grave como §2, con id
+**`CHECKOUT-OTRO-METODO-SIN-SALIDA-1`**: ¿el rechazo `metodo_no_habilitado` en el camino Nequi/
+otro-método debería caer a la misma confirmación manual que ya usa tarjeta? — decisión de
+producto, no de este slice.
+
+**Ningún otro de los 105 resultó ser una conclusión angosta aplicada ancha.** La gran mayoría
+son afirmaciones LOCALES y correctamente acotadas ("sin referencia no hay por dónde ubicar el
+intento", "sin secreto no hay forma de verificar ningún evento", "FALLIDO no toca la Order
+porque no hay decisión de dinero que proteger") — el caso medido y el caso declarado coinciden.
+No se arregló ninguno de los dos hallazgos de este censo: sólo se nombran.
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido sobre el árbol final — **verde**. El diff de este
+slice es EXCLUSIVAMENTE esta entrada de `DECISIONS.md`: ningún archivo de código, test, schema
+ni migración se tocó, así que las cifras de la corrida coinciden con las de las dos entradas
+inmediatamente anteriores de esta misma rama.
+
+**Tier 1 — SÍ aplica**: el spec lo declaró `tier: 1`, `writes: yes`, `approved: yes`
+(`approved-by: owner`, `approval-reason`: el censo del reintento corrió como slice de sólo
+lectura y no dejó asiento; el owner pidió que este slice midiera de nuevo y dejara el asiento, que
+la clase de la conclusión estirada quedara registrada como CLASE —no como anécdota del checkout—,
+y que se censaran más comentarios de la misma forma). **LA APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA
+EL MERGE** — el merge sigue gateado al owner, y este slice para en `AWAITING_APPROVAL` sin
+mergear.
+
+## 2026-09-18 — El reintento de pago con OTRO MÉTODO, opción A construida, y el techo de
+redirección deja de ser un callejón (`CHECKOUT-REINTENTO-OTRO-METODO-1`)
+
+**Cierra `CHECKOUT-REINTENTO-MECANISMO-1`** (el open_followup de `CHECKOUT-REINTENTO-CENSO-1`,
+arriba: "¿qué hace el comprador cuando el emisor rechaza su tarjeta?") — la respuesta construida
+acá es la opción A del §0.
+
+### 0 · La decisión del owner, y por qué manda
+
+El censo del reintento (`CHECKOUT-REINTENTO-CENSO-1`, arriba) midió que el rechazo del emisor es
+el ÚNICO estado terminal de la transición de pasarela sin ninguna salida real: el formulario
+reactivaba los mismos campos, pero cualquier reintento —misma tarjeta, otra tarjeta, u otro
+método— pegaba contra la MISMA `reference` ya cerrada (`intent.estado !== 'EN_VUELO'` → 409 "Este
+pago ya se resolvió") en un ciclo que nunca terminaba. El owner eligió, entre dos opciones (A:
+intento nuevo sobre la misma orden; B: cancelar y crear una orden nueva), la opción A, con su
+razón textual:
+
+> «La seguridad de B depende de que cancelar la orden vieja sea obligatorio y sincrónico —o sea,
+> de disciplina—; la de A no depende de nada, porque el aprobado tardío cae sobre la misma orden y
+> toma el carril de cobro duplicado que ya existe.»
+
+Fijó además: tope de TRES intentos por orden (el cuarto no se ofrece, y el comprador ve el número
+de orden y las dos acciones — como el resto de los estados terminales); el copy exacto del botón
+("Intentar con otro método") y del mensaje de rechazo (dos oraciones: "Tu pago no fue aprobado. No
+se realizó ningún cobro."); y pidió cerrar en el mismo slice `CHECKOUT-REDIRECCION-TECHO-SIN-
+ACCIONES-1`, la misma clase de defecto en `EsperaRedireccionPasarela`.
+
+### 1 · Por qué la opción A no necesita una guarda nueva de doble cobro
+
+Medido (`CHECKOUT-REINTENTO-CENSO-1`): `aplicarResultadoWompi` (`packages/core/src/pagos/
+aplicar-resultado-wompi.ts`) lockea la Order y compara `orden.estado !== 'pendiente'` — POR ORDEN,
+nunca por intento ni por cantidad de `PaymentIntent`. Un segundo (o tercer) intento aprobado tarde
+sobre una orden ya pagada cae en la rama "cobro duplicado" que ya existe: se asienta el hecho de
+Wompi, no se crea un segundo `Payment`, se notifica al carril de atención. Este slice NO tocó esa
+función, el webhook ni el reconciliador — la garantía preexistente ya cubre N intentos.
+
+### 2 · Lo construido — servidor
+
+**`packages/core/src/orders.ts`** gana el mecanismo de reintento, sin migración (el schema ya
+soporta N `PaymentIntent` por `Order` — `orden_id` no es `@unique`, medido en el censo):
+
+- **`TOPE_INTENTOS_PAGO_POR_ORDEN = 3`** — constante nombrada, con el argumento del owner escrito
+  al lado ("un formulario de tarjeta sin tope es una superficie de prueba de tarjetas robadas").
+- **`decidirReintentoPago(orden, intentosExistentes)`** — la decisión PURA (sin Prisma): "sigue
+  pendiente" se verifica ANTES que el tope (otra pestaña pudo haber pagado mientras tanto), y sólo
+  entonces se compara el conteo contra el tope. Extraída para poder afirmarla en un test sin base
+  — el mismo criterio de siempre ("se extrae lo que tiene la decisión para poder afirmarlo").
+- **`crearIntentoPagoDeReintento(numeroOrden)`** — lockea la orden (`FOR UPDATE`, mismo patrón que
+  `lockOrderForPayment`), cuenta los intentos existentes BAJO ese lock, corre la decisión pura, y
+  si es `permitido` crea el `PaymentIntent` con el MISMO patrón de dos escrituras (placeholder →
+  referencia real) que ya usa `createOrderWithCustomer`. Decisión y escritura son atómicas: dos
+  "Intentar con otro método" concurrentes sobre la misma orden no pueden colarse los dos por
+  encima del tope.
+
+**`app/api/checkout/route.ts`** — el bloque que arma la respuesta `wompi` (firma + aceptaciones)
+del POST original se EXTRAJO a `armarBloqueWompiPago(reference, montoEsperado)`, exportada, sin
+cambiar una sola rama de comportamiento del POST (mismo texto de error, mismo status). Es la pieza
+que el reintento necesitaba reusar — dos implementaciones de "qué cuenta como bloque completo"
+habría sido la misma clase de divergencia que ya pagaron `razonDelServidor`/`cruzoMinimo`.
+
+**`app/api/checkout/reintento/route.ts`** (nuevo) — la ÚNICA puerta que abre un intento nuevo.
+`POST { numero_orden }` → `crearIntentoPagoDeReintento` → si `creado`, `armarBloqueWompiPago` pide
+un bloque de aceptación FRESCO (el MISMO mecanismo — `obtenerBloqueAceptacionPasarela` — que ya usa
+la creación original, nunca uno cacheado) y responde `{ tipo: 'creado', wompi }`. El cliente no
+manda ningún dato de aceptación en este POST — sólo `numero_orden` — así que no existe ruta por la
+que un token viejo pudiera colarse. `PATCH /api/checkout` NO SE TOCÓ: su guarda `intent.estado !==
+'EN_VUELO'` sigue siendo la que impide reusar un intento cerrado — este endpoint sólo le da, de
+nuevo, un intento `EN_VUELO` legítimo contra el cual confirmar.
+
+### 3 · Lo construido — cliente
+
+`FormularioTarjeta.tsx` y `FormularioOtroMetodoPasarela.tsx` ganan, los dos, el MISMO mecanismo
+(el defecto era transversal a los dos formularios de pasarela, no exclusivo de tarjeta —
+`CHECKOUT-TRANSICION-DEFECTOS-1` ya lo trató así):
+
+- **`rechazado` (booleano) reemplaza los campos por la vista de rechazo** cuando el sondeo detecta
+  un estado final que no es `APROBADO` — nunca conviven las dos respuestas al mismo momento (mismo
+  criterio que ya cerró `techo` en `CHECKOUT-TRANSICION-DEFECTOS-1`). Se distingue de un error de
+  VALIDACIÓN/TOKENIZACIÓN previo a crear la orden (ese sí deja los campos a la vista: no hay ningún
+  intento que reintentar, porque nunca se creó ninguno).
+- **El texto del owner, textual: "Tu pago no fue aprobado. No se realizó ningún cobro."** — DOS
+  oraciones. El texto anterior (`pagoRechazado`) tenía una TERCERA ("Revisa los datos o intenta con
+  otro método.") que se retiró: ese trabajo ahora lo hace el botón, no una frase que lo anticipa.
+- **El botón "Intentar con otro método"** (texto del owner, textual) llama a `onReintentarOtroMetodo`
+  — bubbleado por `SelectorMetodoPasarela` hasta `checkout/page.tsx`, que hace TODO el trabajo
+  (fetch al endpoint nuevo, clasificación de la respuesta, actualización de estado). El formulario
+  local sólo bloquea el botón mientras la promesa viaja (`reintentando`).
+
+`checkout/page.tsx` gana `reintentarConOtroMetodo`:
+
+- **Al conseguir un intento nuevo**: reemplaza `confirmation.wompi` por el bloque nuevo, reemplaza
+  `bloquePasarela` (aceptaciones + publicKey + metodosOtros) por los valores FRESCOS que la
+  respuesta trajo, y avanza `reintentoKey` — la ÚNICA `key` de `<SelectorMetodoPasarela>`, que
+  fuerza su REMONTE completo con la `reference` nueva (picker limpio, de vuelta en la pestaña
+  tarjeta, sin el error de rechazo colgado). `reintentoKey` SÓLO avanza acá — nunca durante la
+  creación inicial del primer intento (que remontaría el formulario a mitad de un `handlePagar` en
+  vuelo, un defecto que se evitó a propósito, no un accidente evitado por casualidad).
+- **Si la orden ya no está pendiente y su estado es `pagado`** (otra pestaña la pagó mientras el
+  comprador decidía reintentar — el servidor lo verificó bajo lock): `setPasarelaAprobada(true)`,
+  la MISMA pantalla de éxito de `CHECKOUT-TRANSICION-DEFECTOS-1`. Cualquier OTRO estado no-pendiente
+  (p. ej. `cancelado`) cae al mensaje genérico — fuera de alcance de este slice, no hay pantalla
+  propia para ese caso.
+- **Si el servidor responde `tope_alcanzado`**: `setIntentosAgotados(true)` — flag NUEVA que se
+  agregó a la MISMA condición que ya dispara la pantalla completa "¡Pedido recibido!" reusada por
+  `pasarelaMetodoNoHabilitado`/`pasarelaAprobada` (`CHECKOUT-TRANSICION-DEFECTOS-1`). El comprador
+  ve el número de orden y las dos acciones — TEXTO DEL OWNER, cumplido literal: "al agotarse, el
+  comprador ve el número de orden y las dos acciones, como el resto de los estados terminales".
+
+### 4 · `EsperaRedireccionPasarela` — el techo deja de ser un callejón (`CHECKOUT-REDIRECCION-
+TECHO-SIN-ACCIONES-1`)
+
+Su vista `techo` (el sondeo de la dirección de redirección se agotó sin encontrarla) decía "Todavía
+no pudimos abrir la página de pago" sin número de orden ni ninguna acción — el MISMO defecto que
+`EsperaConfirmacionTarjeta.techo` tenía antes de `CHECKOUT-TRANSICION-DEFECTOS-1`. Se cerró con la
+MISMA forma: la caja de "Número de orden" (derivado de `reference.split(':')[0]`, la MISMA
+convención que ya usa `EsperaConfirmacionTarjeta`) + "Rastrear mi pedido" / "Seguir comprando". Este
+camino sigue siendo INALCANZABLE hoy por ningún comprador real —ningún descriptor real declara
+`redireccion`, medido en `CHECKOUT-REINTENTO-CENSO-1`—; se cierra igual porque el owner lo pidió
+explícito y porque dejarlo abierto "es garantizar que vuelva".
+
+### 5 · Deviations medidas contra `touches:`
+
+**`tests/integracion/` no está en `touches:` de este slice** (sólo `components/storefront/
+checkout/`, `app/(storefront)/checkout/`, `app/api/checkout/`, `packages/core/src/orders.ts`,
+`DECISIONS.md`), así que la ATOMICIDAD del lock+conteo de `crearIntentoPagoDeReintento` (dos
+reintentos concurrentes sobre la misma orden) NO se verificó contra Postgres real en este slice —
+sólo la decisión PURA que corre bajo ese lock (`decidirReintentoPago`, con tests en `app/api/
+checkout/reintento/route.test.ts`). El mecanismo de lock en sí (`FOR UPDATE` sobre la Order) es el
+MISMO patrón ya afirmado por el carril para `lockOrderForPayment`/`registerOrderPaymentTx`
+(`cobro-sincronizado.test.ts`) y para el creador de intentos original (`intento-pago-atomico.
+test.ts`) — no una construcción nueva sin precedente probado, pero la instancia NUEVA
+(`crearIntentoPagoDeReintento`) no tiene su propio test de concurrencia con base real. Abierto como
+open_followup.
+
+**Un archivo de test nuevo bajo `components/storefront/checkout/` rompe una guarda AJENA a este
+slice** — descubierto al correr el gate, no anticipado por el spec. `lib/gate/tests-descubiertos.
+test.ts` ("archivosSinCubrir: EL CASO REAL DE ANOCHE") reproduce un incidente histórico
+re-escaneando el árbol REAL del repo contra los patrones DE ANTES de `GATE-GLOB-COMPONENTS-
+SERVICES-1`, y afirma con `assert.deepEqual` que el resultado son EXACTAMENTE los dos archivos que
+quedaron invisibles esa noche. Como ese test re-escanea el árbol VIVO (no un fixture congelado),
+CUALQUIER archivo `*.test.ts` nuevo bajo `components/`, `services/` o `app/` que no exista todavía
+en esa lista hardcodeada rompe la igualdad exacta — medido: crear `components/storefront/checkout/
+interpretar-respuesta-reintento.test.ts` hizo que `archivosSinCubrir` devolviera TRES en vez de
+DOS. `lib/gate/` no está en `touches:` de este slice, así que esa guarda no se tocó. La resolución
+fue de UBICACIÓN, no de contenido: el clasificador PURO del lado cliente
+(`interpretarRespuestaReintento`) se quedó en `components/storefront/checkout/` (junto a su hermano
+`interpretar-respuesta-otro-metodo.ts`, que es un archivo `.ts`, no `.test.ts` — no dispara la
+guarda), pero SU TEST se escribió en `app/api/checkout/reintento/route.test.ts` (que sí estaba
+cubierto incluso por los patrones de esa noche, `app/**/*.test.ts`), evitando el archivo nuevo bajo
+`components/` que habría disparado la regresión. **La guarda queda con un defecto de diseño sin
+arreglar, nombrado como open_followup**: re-escanea el árbol vivo contra un snapshot de patrones
+congelado, así que cualquier archivo de test legítimo bajo un subárbol que ganó su glob DESPUÉS del
+incidente sigue rompiendo la reproducción histórica para siempre — el fix correcto sería congelar
+también la LISTA DE ARCHIVOS de esa noche (no sólo los patrones), no algo para decidir en este
+slice.
+
+**Un candidato nuevo para la lista canónica de Tier 1, no agregado** (CLAUDE.md no está en
+`touches:`): `app/api/checkout/reintento/route.ts` es, por el criterio de la propia doctrina, una
+puerta de escritura de dinero —crea un `PaymentIntent` nuevo— nacida en este slice. La frase
+canónica de Tier 1 (CLAUDE.md, § el párrafo largo tras "PRECONDICIÓN") no la nombra todavía.
+Abierto como open_followup para que un slice de doctrina la mida y la agregue, con el mismo
+criterio que ya usó `TIER1-DOS-CANDIDATOS-CLASIFICADOS-1`.
+
+### 6 · Lo que NO se hizo
+
+Ninguna orden nueva se crea en ningún camino (la opción B, descartada). Ningún archivo del eje del
+dinero fuera de `touches:` se tocó — el webhook, el reconciliador y `aplicarResultadoWompi` quedan
+intactos. Ningún otro texto provisional del programa se tocó fuera de los dos nombrados (§3 —el
+mensaje de rechazo— y este mismo mensaje en `FormularioOtroMetodoPasarela`). `CHECKOUT-OTRO-
+METODO-SIN-SALIDA-1` (¿el rechazo `metodo_no_habilitado` en el camino Nequi/otro-método debería
+caer a la confirmación manual?) sigue sin decidirse — es una pregunta DISTINTA (rechazo
+ESTRUCTURAL, síncrono, en la creación de la transacción), no el rechazo del EMISOR que este slice
+resuelve.
+
+### Gate
+
+**`npm run gate`, los dos carriles, corrido sobre el árbol final — verde.** Fast lane (`npm test`):
+1457/1457 (1457 = 1456 antes de este slice + 1, neto, tras contar los tests nuevos de este slice
+menos el archivo movido — medido por ejecución, no por conteo de líneas agregadas). Carril de
+integración (`npm run test:integracion`, Postgres efímero): 208/208, sin cambio de número —
+ningún test de este carril se agregó ni se tocó (§5, la deviation de arriba). `npx tsc --noEmit`
+también corrido, sin errores.
+
+**El camino manual y los otros métodos de pago quedan intactos**: `handleOrder`, `crearOrdenPasarela`
+(para el PRIMER intento) y el resto de la transición del checkout no cambiaron ni una línea de su
+lógica — sólo ganaron el nuevo prop `onReintentarOtroMetodo`, que se reenvía sin interpretarlo.
+
+**La secuencia completa que ve un comprador rechazado, hasta agotar el tope** (medida contra el
+código, no ejecutada en navegador — no hay harness de render en este repo, § CLAUDE.md doctrina de
+las tres capas; el gate visual del owner confirma esto en pantalla):
+
+1. Aprieta "Pagar" con tarjeta A → el emisor rechaza (intento #1, `FALLIDO`) → ve "Tu pago no fue
+   aprobado. No se realizó ningún cobro." + el número de orden + "Intentar con otro método".
+2. Clickea el botón → `POST /api/checkout/reintento` crea el intento #2 con aceptaciones frescas →
+   `SelectorMetodoPasarela` remonta, picker limpio en la pestaña tarjeta.
+3. Aprieta "Pagar" con tarjeta B (u otro método) → rechazo de nuevo (intento #2, `FALLIDO`) → MISMA
+   vista de rechazo.
+4. Clickea otra vez → intento #3, mismo ciclo.
+5. Si el intento #3 también es rechazado y el comprador clickea "Intentar con otro método" una
+   tercera vez: el servidor cuenta 3 intentos existentes ≥ el tope → `tope_alcanzado` → la página
+   muestra la pantalla completa "¡Pedido recibido!" con el número de orden y las dos acciones
+   (Rastrear mi pedido / Seguir comprando) — sin ofrecer un cuarto intento.
+
+**Tier 1 — SÍ aplica**: el spec lo declaró `tier: 1`, `writes: yes`, `approved: yes`
+(`approved-by: owner`, `approval-reason`: el owner eligió la opción A el 2026-09-18 con la razón
+del §0, fijó el tope en tres, el copy del botón y del mensaje, y pidió cerrar en el mismo slice el
+hueco de `EsperaRedireccionPasarela`). **LA APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA EL MERGE** — el
+merge sigue gateado al owner, y este slice para en `AWAITING_APPROVAL` sin mergear.
+
+## 2026-09-18 — El bloque «Método de pago» deja de desmontarse: la premisa que lo justificaba la mató nuestro propio slice anterior, y es la TERCERA instancia de la clase (`CHECKOUT-SELECTOR-NO-SE-DESMONTA-1`)
+
+### 0 · El hecho medido
+
+`checkout/page.tsx` desmontaba el bloque «Método de pago» (el h2 + la lista de radios entre
+métodos manuales y la opción de pasarela) apenas `confirmation` existía —`{!confirmation && (…)}`—,
+con un comentario que decía por qué:
+
+> § CHECKOUT-UNA-SOLA-PANTALLA-1: el selector de método sólo se muestra ANTES de que exista la
+> orden — una vez creada, "Información"/"Dirección" y el método elegido ya no son editables
+> (misma garantía que antes tenía el `return` temprano de arriba).
+
+**Medido: ese comentario nació en `98217cb` (`CHECKOUT-UNA-SOLA-PANTALLA-1`, 2026-09-17
+15:30:02) y su premisa quedó FALSA en `2a76697` (`CHECKOUT-REINTENTO-OTRO-METODO-1`, 2026-09-18
+12:18:16) — el commit INMEDIATAMENTE ANTERIOR en esta misma rama, ~21 h después de escrito.** Ese
+slice construyó el botón "Intentar con otro método" (`FormularioTarjeta.tsx`/
+`FormularioOtroMetodoPasarela.tsx`, vía `SelectorMetodoPasarela`, `onReintentarOtroMetodo` →
+`POST /api/checkout/reintento`) que abre un `PaymentIntent` NUEVO sobre la MISMA orden y deja al
+comprador elegir de nuevo — exactamente lo que el comentario decía que no iba a volver a pasar. El
+`approval-reason` de este slice lo dice con las palabras del owner: *"si el bloque no está, ese
+botón tiene que reconstruir en pantalla algo que ya existía. Lo que se desmonta hay que volver a
+montar."*
+
+### 1 · Lo construido
+
+`checkout/page.tsx` gana `bloqueoMetodoDePago = !!confirmation` (derivado, junto a
+`pasarelaOfrecida`). El bloque «Método de pago» **YA NO se desmonta**: se quitó el wrapper
+`{!confirmation && (…)}` y el `<h2>` + la lista de radios se renderizan SIEMPRE. Mientras
+`bloqueoMetodoDePago` es `true`:
+
+- Cada `<input type="radio">` (los métodos manuales Y la opción de pasarela) gana
+  `disabled={bloqueoMetodoDePago}` + `disabled:pointer-events-none` en su propia clase — el MISMO
+  atributo que usan los campos de `FormularioTarjeta.tsx` (`CampoTarjeta`, `disabled={procesando}`)
+  y las dos casillas de `AceptacionesPasarela.tsx` un nivel más abajo, no una guarda nueva.
+- El `<label>` que envuelve cada opción gana `opacity-60 cursor-not-allowed` (computado en JS, no
+  vía el pseudo-selector `disabled:` — un `<label>` no es un control con estado disabled propio):
+  mismo resultado visual que `disabled:opacity-60` en los campos de tarjeta.
+- `Field` (el componente LOCAL de este archivo, usado para "Referencia de pago") gana un prop
+  `disabled?: boolean` nuevo, threadeado con la misma clase `disabled:opacity-60
+  disabled:pointer-events-none`. Los demás llamadores de `Field` (Nombre, Apellido, Correo,
+  Dirección, Detalles, Ciudad) no lo pasan → sin cambio de comportamiento para ellos.
+
+**Alcance verificado, no supuesto**: `bloqueoMetodoDePago` sólo puede ser `true` dentro de la rama
+API DIRECTA del paso de pago. El camino de métodos MANUALES sale por el `return` temprano de la
+línea ~393 (`!confirmation.wompi` → pantalla "¡Pedido recibido!" completa) antes de llegar a este
+bloque; el WIDGET de Wompi sale por la rama `confirmation.wompi && !modoApiDirecta` de la línea
+~621 (una vista distinta, declarada "TAL CUAL estaba antes de este slice", no tocada). Ningún otro
+flujo cambia de comportamiento.
+
+### 2 · Lo que NO se construyó — medido y reportado, como pidió el spec
+
+**"Cuando el pago se rechaza, tiene que volver a ser usable" no se implementó de forma granular.**
+Medido: la página NO tiene ninguna señal para "este intento se rechazó, pero el ciclo sigue
+abierto" — el estado `rechazado` (booleano local que reemplaza los campos por la vista de rechazo
++ el botón de reintento) vive DENTRO de `FormularioTarjeta.tsx`/`FormularioOtroMetodoPasarela.tsx`
+y nunca se bubblea hasta `checkout/page.tsx`. La página sólo conoce estados TERMINALES
+(`pasarelaAprobada`, `pasarelaMetodoNoHabilitado`, `intentosAgotados`) — y los tres, al ser
+terminales, ya reemplazan la pantalla ENTERA antes de que este bloque se renderice, así que no hay
+nada que desbloquear ahí.
+
+**Threadear `rechazado` hasta la página exige tocar `components/storefront/checkout/*.tsx`, que
+NO está en el `touches:` de este slice** (`app/(storefront)/checkout/`, `CLAUDE.md`,
+`DECISIONS.md` — verificado contra el spec, no supuesto). Por eso `bloqueoMetodoDePago` se queda
+`true` durante TODO el ciclo de pasarela (desde que la orden existe hasta un desenlace terminal),
+incluidos los reintentos — no se desbloquea entre intentos.
+
+**La pregunta del spec, medida: "¿el botón sigue haciendo falta, o el bloque desbloqueado ya
+alcanza?"** El botón SIGUE haciendo falta, sin condición. Aunque el bloque se desbloqueara,
+NINGÚN camino consume un cambio en `payment`/`pasarelaSeleccionada` una vez que `confirmation`
+existe: los botones "Atrás"/"Confirmar pedido" de `handleOrder` siguen detrás de
+`{!confirmation && (…)}` (línea ~773, sin tocar), y no hay ningún otro `onClick` que lea esos
+estados para volver a intentar. Desbloquear el bloque SIN el botón dejaría radios que se ven
+interactivos y no hacen nada al clickearlos — peor que dejarlos bloqueados. `POST /api/checkout/
+reintento` (vía el botón) es el ÚNICO mecanismo que de verdad abre un intento nuevo. El botón NO
+se tocó.
+
+**Open follow-up, para el owner** — `CHECKOUT-SELECTOR-DESBLOQUEO-POR-RECHAZO-1`: ¿debería el
+bloque desbloquearse durante la ventana entre un rechazo y el clic en "Intentar con otro método"
+(en vez de quedarse bloqueado todo el ciclo)? Es una decisión de PRODUCTO (qué ve el comprador en
+ese instante), y construirla exige ampliar `touches:` a `components/storefront/checkout/` — no se
+decide ni se construye en este slice.
+
+### 3 · La ruta del reintento entra a Tier 1
+
+`app/api/checkout/reintento/route.ts` (nacida en `2a76697`, el mismo commit del §0) es una puerta
+de escritura del eje del dinero por el criterio literal —abre un `PaymentIntent` NUEVO sobre una
+orden ya existente— y NO estaba en la frase canónica de `CLAUDE.md` (línea 39): esa frase sólo
+nombraba el archivo suelto `app/api/checkout/route.ts`, no el subárbol `app/api/checkout/`. El
+propio asiento de `CHECKOUT-REINTENTO-OTRO-METODO-1` (§5, arriba) declaraba su `touches:` como
+`app/api/checkout/` (el subárbol, para SU alcance de escritura) — pero el `touches:` de un slice y
+la frase canónica de Tier 1 son dos listas DISTINTAS, y una entrada en la primera no mueve la
+segunda. Es la MISMA clase que `TIER1-SUBARBOL-NO-DISPARABA-1` ya documentó: una entrada escrita en
+PROSA (o en el `touches:` de otro slice) no es una entrada en la FRASE de la que el validador
+deriva sus disparadores. Se agregó `app/api/checkout/reintento/route.ts` como archivo suelto,
+junto a `app/api/checkout/route.ts` — en la frase (CLAUDE.md línea 39) y en un párrafo de
+re-medición nuevo ("CUARTA vez el mismo día", § Tier 1 — superficies protegidas).
+
+### 4 · La clase — tercera instancia, y la más rápida en morir
+
+**Una decisión no vence sola — la vence trabajo posterior, y el trabajo que la mata casi nunca
+sabe que la está matando.** Dos instancias ya viven en el libro:
+
+- **`COBRO-SIN-PEDIDO-ASIENTO-1`** (arriba, 2026-09-18): cinco frases de `CLAUDE.md` sobre el
+  programa de Wompi, correctas cuando `TIER1-LISTA-VENCIDA-1` las re-midió el 2026-09-14, quedaron
+  falsas UN DÍA DESPUÉS por dos commits (`ff9dda8`, `9abdc5b`) del MISMO programa, sobre su PROPIA
+  sección — y nadie las releyó hasta que el incidente real las destapó.
+- **`CLAUDE-MD-FRASES-VENCIDAS-1`** (`CLAUDE.md`, § Backlog técnico, 2026-09-14): "cada dormido es
+  detección nueva sobre el MISMO fetch" y "no fires para Nayoli hoy" —dos premisas del § 65,
+  correctas cuando se escribieron, muertas por tandas de OTRA área (la construcción del dormido #8,
+  y `CONTENIDO-NEUTRALIZAR-1…4`) que nunca releyeron el párrafo que dependía de ellas.
+
+**Esta es la tercera, y la que muere MÁS RÁPIDO de las tres**: el comentario de `checkout/
+page.tsx` (98217cb, 2026-09-17 15:30:02) quedó falso por `2a76697` (2026-09-18 12:18:16) — ~21
+horas, el commit INMEDIATAMENTE ANTERIOR en la misma rama, del MISMO programa, escrito por la
+MISMA sesión de trabajo que había dejado la premisa. No hizo falta que pasara un día ni que otra
+área tocara algo ajeno: bastó el slice siguiente. Con las palabras del owner, citadas en el
+`approval-reason` de este spec: *"esa premisa la mató el slice del reintento una hora antes, que le
+da al comprador un botón para cambiar de método."*
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido sobre el árbol final. Ver el reporte del slice para el
+resultado exacto y las cifras (passed/failed/wall_seconds) — no se transcriben acá para no
+duplicar un número que puede volver a medirse.
+
+### Deviations
+
+Ninguna sobre el mecanismo de bloqueo en sí. La única desviación medida es de ALCANCE: el spec
+pedía "cuando el pago se rechaza, tiene que volver a ser usable" y este slice no lo construyó —
+§2 mide por qué (`components/storefront/checkout/` fuera de `touches:`) y lo deja como
+`CHECKOUT-SELECTOR-DESBLOQUEO-POR-RECHAZO-1`, tal como el propio spec autorizaba ("medí… y decilo…
+no borres el botón… dejá que lo decida el owner").
+
+## 2026-09-18 — Los tres hallazgos del gate visual del owner: el botón que decía otra fase, el cursor de la barra, y el runbook sin decir hasta dónde midió (`CHECKOUT-GATE-VISUAL-HALLAZGOS-1`)
+
+### 0 · Qué pidió el owner
+
+Tres hallazgos del gate visual sobre el deployment real (2026-09-18): (1) el botón de pago decía
+"Verificando tarjeta…" mientras, en la MISMA vista, la línea de abajo decía "Estamos confirmando
+tu pago." — pidió que el botón dijera algo acorde a la fase real, en el registro de la línea de
+abajo; (2) al teclear los dos primeros dígitos del vencimiento la barra aparece bien pero el
+cursor queda ANTES de ella (el tercer dígito sí cae del lado correcto); (3) la tarjeta de prueba
+de Mastercard no llegó a aprobado en el deployment real, y el spec advertía [SIN MEDIR] que el
+runbook de datos de prueba sólo tenía medida su tokenización. También pidió sacar la etiqueta
+"Estado: Pagada" de la confirmación (3b), con el cuidado de medir si el camino manual la necesita.
+
+### 1 · El botón sigue la fase real, medida del estado — no del reloj
+
+`FormularioTarjeta.procesando` (`tokenizando || !!creada`) gobernaba UN solo texto de botón
+(`TEXTO.botonEnVuelo`, "Verificando tarjeta…") durante TODA la espera — incluida la fase, después
+de `creada`, en la que `EsperaConfirmacionTarjeta` ya sondea y muestra su propia línea
+("Estamos confirmando tu pago."). El botón afirmaba un hecho VENCIDO (la tarjeta ya se tokenizó)
+mientras la línea de abajo afirmaba el hecho ACTUAL, a la vez.
+
+**Elegido: el botón dice el hecho actual, y la línea de abajo deja de repetirlo cuando no aporta
+nada nuevo.** `TEXTO.botonConfirmando` ("Confirmando tu pago…", MISMO registro que "Estamos
+confirmando tu pago." — sin inventar un tercero) se muestra apenas `creada` existe. Y
+`EsperaConfirmacionTarjeta` gana `botonYaMuestraFaseConfirmando` (default `false`, sin romper a
+`FormularioOtroMetodoPasarela`, que no lo pasa): con él, SIN desafío 3DS, el párrafo
+`enVueloSinFriccion` no se dibuja — el botón ya dijo lo mismo. CON desafío, la línea sigue
+mostrándose siempre: ahí aporta algo que el botón no puede decir (el marco embebido del emisor, o
+la explicación de que hay un banco de por medio), así que no es un duplicado.
+
+**El texto exacto que ve el comprador, por fase** (`FormularioTarjeta`):
+
+| fase | texto del botón |
+| --- | --- |
+| formulario en reposo | `Pagar · $X` |
+| tokenizando (antes de crear la orden) | `Verificando tarjeta…` |
+| orden creada, esperando al emisor (con o sin desafío) | `Confirmando tu pago…` |
+| rechazo del emisor, esperando reintento | `Intentar con otro método` / `Preparando…` (sin cambios) |
+
+`FormularioOtroMetodoPasarela` NO se tocó: su botón sigue diciendo `Procesando…` durante las dos
+fases, y `EsperaConfirmacionTarjeta` le sigue mostrando su línea sin desafío — no está en el spec
+de este slice, y tocarlo habría sido ensanchar el fix hacia una superficie que el owner no
+gateó. Anotado como open follow-up.
+
+### 2 · El cursor del vencimiento — la regla de "editar en el medio", aplicada a "teclear al final"
+
+`cursorTrasNDigitos` declara que un separador nunca atrapa el cursor: el cursor queda pegado al
+dígito, nunca del otro lado. Es la regla correcta para EDITAR EN EL MEDIO (así el próximo borrado
+quita un dígito real). Aplicada tal cual a un dígito tecleado AL FINAL de lo escrito —el caso del
+vencimiento al segundo dígito, donde la barra recién aparece— deja el cursor ANTES de la barra en
+vez de después: funcionalmente inofensivo (el tercer dígito cae del lado correcto igual, porque
+`formatearVencimientoCampo` re-deriva la barra en el mismo lugar) pero se sintió mal, que fue
+justo lo que el owner reportó. Es la misma familia que el libro ya viene anotando: una decisión
+medida para un caso (editar en el medio), aplicada a uno más ancho (seguir tecleando hacia
+adelante) donde da el resultado contrario.
+
+`reformatearCampoTarjeta` ahora distingue los dos casos por la MISMA información que ya tenía —sin
+cambiar su firma ni pedir el valor anterior—: si el cursor queda al final de TODOS los dígitos
+tecleados (nada más adelante en `valorNuevo`), el resultado es el final del string formateado,
+pase lo que pase con los separadores; si no, sigue la regla de `cursorTrasNDigitos` de siempre.
+
+**Verificado que no rompe lo que la regla vieja protegía** (§ mid-edit, borrar, pegar) —
+recalculado a mano para cada test existente antes de tocar código, y los 57 tests de
+`lib/checkout/tarjeta.test.ts` (incluidos los 2 nuevos: la corrección del test cuyo TÍTULO ya
+decía "el cursor pasa la barra" pero cuya ASERCIÓN afirmaba lo contrario —`cursor === 2`, antes de
+la barra—, y el test nuevo de corregir un dígito del medio del vencimiento) pasan verdes.
+
+### 3 · El runbook no decía hasta dónde medía — y el Mastercard del owner no estaba, no a medias
+
+**Medido, no asumido**: el `[SIN MEDIR]` del spec decía que "el runbook de datos de prueba solo
+tenía medida la TOKENIZACIÓN" de la tarjeta Mastercard que el owner usó. Un grep de
+`mastercard`/`5555`/`brand` sobre `docs/RUNBOOK-DATOS-PRUEBA-SANDBOX.md` (antes de este slice) da
+CERO filas — las únicas tarjetas que ese documento tokenizó de punta a punta son las dos VISA de
+§4/§5. La premisa del spec es FALSA tal como está escrita: no es que el runbook midiera sólo la
+tokenización de Mastercard, es que NO LA MENCIONA. La única referencia a Mastercard en el
+programa es el rango IIN puramente LOCAL de `lib/checkout/tarjeta.ts` (detección de red por
+prefijo, nunca habla con el proveedor); la única red no-Visa con una llamada real al sandbox
+documentada es UnionPay (`SPIKE-REDES-QUE-PROCESA-1`, citado en ese mismo archivo), y tampoco
+tiene asiento propio en `DECISIONS.md` (grep de `unionpay`: cero filas).
+
+**Corregido** (`docs/RUNBOOK-DATOS-PRUEBA-SANDBOX.md`): cada tarjeta que el runbook ya medía (§4,
+§5, §6) gana una línea explícita de "profundidad medida" (tokenización vs. desenlace final), y
+la tabla resumen (§11) gana una columna "profundidad". Se agregó §12, íntegro, para la
+Mastercard: documenta que NINGUNA medición de este runbook la cubre, y deja la observación del
+GATE del owner (2026-09-18: pagó con una Mastercard de prueba en el deployment real y la
+transacción terminó rechazada) marcada explícitamente como observación de gate — no medición de
+laboratorio, no reproducible (no se guardó el número usado, no se volvió a consultar la
+transacción). Declara también lo que esa observación NO permite concluir: no dice que Mastercard
+"no aprueba" en general, sólo que un intento puntual, con datos no registrados, terminó
+rechazado — el mismo tipo de resultado que §6 ya mostró para un Nequi no designado.
+
+**No se re-midió contra el proveedor** (instrucción explícita del spec) — nadie pagó de nuevo con
+Mastercard, nadie tokenizó un número Mastercard nuevo.
+
+### 3b · El estado literal de la confirmación — MEDIDO fuera de `touches:`, no tocado
+
+El literal "Estado: Pagada"/"Estado: Pendiente" vive en el bloque de confirmación compartido de
+`app/(storefront)/checkout/page.tsx:432-435` (`estadoMostrado` + `<StatusBadge>`), NO en
+`components/storefront/checkout/` ni en `lib/checkout/` — los dos únicos subárboles de código que
+el `touches:` de este slice declara. Medido antes de tocar nada, siguiendo el mismo criterio que
+el asiento inmediatamente anterior de esta rama (`CHECKOUT-SELECTOR-NO-SE-DESMONTA-1`, §3 y §4):
+ese slice midió exactamente el mismo tipo de gap (`components/storefront/checkout/` fuera de su
+`touches:`) para el desbloqueo del selector, y lo dejó como open follow-up en vez de ensanchar su
+propio alcance.
+
+**Medido igual, antes de descartarlo**: `confirmation.estado` en el camino MANUAL (el branch
+`!confirmation.wompi`) es SIEMPRE `'pendiente'` — `app/api/checkout/route.ts:238-241` crea la
+orden sin `immediatePayment` ("NO Payment here: the order starts `pendiente`; the admin registers
+the received payment later"), así que el badge de esa rama nunca varía y siempre repite lo que el
+párrafo de arriba ya dice en lenguaje del comprador ("Tu pedido está reservado. Confirmaremos el
+pago…"). El razonamiento del owner en el `approval-reason` ("si ya se le dice al cliente que su
+pago fue aprobado o está pendiente, no hace falta el estado literal") cubre explícitamente los
+DOS casos — no sólo el de pasarela aprobada—, así que de haber podido tocar el archivo, la
+recomendación habría sido sacar la etiqueta de las DOS ramas, no sólo de la de pasarela.
+
+**No se tocó ningún byte de `app/(storefront)/checkout/page.tsx`** — fuera de `touches:`, y la
+instrucción del protocolo es parar y decirlo, no ensanchar. Open follow-up:
+`CHECKOUT-ESTADO-LITERAL-CONFIRMACION-1`.
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido sobre el árbol final. Ver el reporte del slice para el
+resultado exacto (passed/failed/wall_seconds) — no se transcribe acá para no duplicar un número
+que puede volver a medirse.
+
+### Deviations
+
+- El `[SIN MEDIR]` del spec sobre el runbook resultó FALSO tal como estaba escrito (§3, arriba):
+  no medía "sólo tokenización" de Mastercard, no la mencionaba en absoluto. Corregido con la
+  medición real, no con la premisa.
+- 3b (sacar "Estado: Pagada") no se ejecutó: el archivo que lo requiere
+  (`app/(storefront)/checkout/page.tsx`) no está en `touches:`. Ver §3b.
+
+### Open follow-ups
+
+- `CHECKOUT-ESTADO-LITERAL-CONFIRMACION-1`: sacar la etiqueta "Estado: X" del bloque de
+  confirmación compartido en `app/(storefront)/checkout/page.tsx` (líneas ~432-435), en las DOS
+  ramas (pasarela aprobada y manual) — medido que las dos ya dicen el mismo hecho en lenguaje del
+  comprador, § 3b arriba. No se hizo por estar fuera de `touches:`.
+- `CHECKOUT-OTRO-METODO-BOTON-FASE-1`: `FormularioOtroMetodoPasarela` tiene la misma forma del
+  defecto del §1 (su botón dice `Procesando…` durante las dos fases, y `EsperaConfirmacionTarjeta`
+  le sigue mostrando su línea sin desafío) — no se tocó porque el gate del owner no lo reportó y
+  no estaba en el spec de este slice.
+- `CHECKOUT-MASTERCARD-MEDIR-DESENLACE-1`: medir de verdad, contra el sandbox, la tokenización y
+  el desenlace de un número Mastercard designado (Wompi los publica en su consola de comercio de
+  pruebas) — hoy el runbook no tiene ningún dato propio de esa red, sólo la observación de gate de
+  §12.
+
+---
+
+## 2026-09-18 — El resumen del pedido pierde la foto al crearse la orden: la INSTANTÁNEA que faltaba, y por qué era eso y no un bug de render (`CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1`)
+
+### 0 · El hecho medido
+
+`checkout/page.tsx` tiene el widget «Resumen del pedido» (h3, línea 795 en el árbol final de este
+slice — única aparición del texto en el archivo) con DOS ramas por `confirmation ? … : …` (líneas
+796-881 en el árbol final): ANTES de crear la orden lee `items` (el carrito) y pinta una miniatura
+de 48×48 (`w-12 h-12 sf-radio-lg
+overflow-hidden bg-[var(--sf-superficie)] shrink-0` + `<img src={imagenPortada(item.imagen)}
+…/>`); DESPUÉS lee `confirmation.items` (`CheckoutResultItem[]`, la respuesta del servidor) y ese
+tipo **no tenía campo de imagen** (`services/checkout.service.ts:85-91`, medido antes de tocar
+nada) — la rama de confirmación nunca pintaba ninguna `<img>`. La diferencia era, tal como pedía el
+spec, una sola línea: la presencia/ausencia del bloque `<img>`.
+
+**Por qué el resumen no podía simplemente "seguir leyendo el carrito":** `handleOrder`/
+`crearOrdenPasarela` llaman `clearCart()` en el mismo tick que `setConfirmation(result)` —
+decisión ya tomada y correcta (§ CHECKOUT-PAGO-EN-EL-PASO-1: el carrito se vacía porque la compra
+ya se hizo), así que leer `items` tras ese punto mostraría un carrito vacío. El bug no estaba en
+DE DÓNDE lee el resumen — eso ya era correcto —, estaba en que la fuente nueva (`CheckoutResult`)
+nunca cargó la imagen. Medido, no asumido: `resolveOrderLines` (`packages/core/src/orders.ts`)
+leía `product.nombre`/`product.precio` de la fila pero nunca `product.imagen`, así que la
+información NUNCA salió de la base hacia la respuesta — no es que se perdiera en el camino, es que
+jamás se pidió.
+
+### 1 · La instantánea — la MISMA decisión que ya protege nombre y precio
+
+`OrderItem` ya copia `producto_nombre`/`precio_unitario` al crear la fila, en vez de resolverlos
+por la FK `producto_id` en cada lectura — es una instantánea DE HECHO, aunque el único comentario
+EXPLÍCITO con la palabra "snapshot" en el modelo, antes de este slice, estaba en el campo vecino
+(`moliendaSeleccionada`, `schema.prisma:256` original: *"Molienda elegida por el cliente al
+comprar (snapshot, p. ej. 'Media')"*) — no en nombre/precio. La razón es la misma para los tres
+campos: que el historial de una compra no cambie si el catálogo cambia después. La imagen es el
+mismo tipo de dato con el mismo riesgo — un producto rediseñado no debe cambiarle la foto a una
+orden de hace tres meses—, así que sigue la MISMA forma, no una nueva. Palabras del owner
+(`approval-reason`): *"Una orden es el
+registro de lo que el comprador compró. Si la foto se resuelve en vivo, un producto rediseñado le
+cambia la foto a una compra de hace tres meses."*
+
+- **`OrderItem.producto_imagen String?`** (`schema.prisma`), nullable, SIN default — migración
+  `20260918120000_add_order_item_producto_imagen` (aditiva, `ALTER TABLE … ADD COLUMN`, mismo
+  patrón que `20260917120000_add_payment_intent_metodo_rechazado`).
+- **`ResolvedOrderLine.producto_imagen: string`** (`packages/core/src/orders.ts`) — copia
+  `product.imagen` TAL CUAL (`String @default('')`, nunca null en el modelo de Producto), sin
+  decidir fallback: eso lo hace `imagenPortada()` al renderizar, no el resolver.
+- **`CreateOrderInput.items[].producto_imagen?: string | null`** — opcional a propósito: los DOS
+  callers reales de `createOrderWithCustomer` (`app/api/checkout/route.ts`, `app/api/orders/
+  route.ts`) pasan la salida de `resolveOrderLines` directo como `items`, así que la traen gratis;
+  los tres tests que construyen `CreateOrderInput` a mano (`order-transitions.test.ts`,
+  `intento-pago-atomico.test.ts`, `cobro-sincronizado.test.ts`) no la mandan y siguen compilando.
+- **La escritura** (`items: { create: … }` dentro de la transacción de `createOrderWithCustomer`)
+  agrega `producto_imagen: l.producto_imagen ?? null`.
+- **`app/api/checkout/route.ts`** agrega `producto_imagen: l.producto_imagen` a la respuesta —
+  sale de `lines` (la MISMA resolución pre-orden), no de releer `order.items` de la base.
+- **`CheckoutResultItem.producto_imagen: string`** (`services/checkout.service.ts`) — requerido,
+  como `producto_nombre`/`precio_unitario`: el servidor siempre lo manda ahora.
+
+**SIN BACKFILL, y es la otra cara de la misma decisión.** Toda fila de `OrderItem` escrita ANTES de
+esta migración queda con `producto_imagen = null` para siempre — rellenarla con la imagen ACTUAL
+del producto fabricaría exactamente la mentira que la instantánea existe para impedir (una compra
+vieja mostrando una foto que el comprador nunca vio). `imagenPortada(null)` cae al placeholder de
+marca (`lib/producto-imagen.ts`, ya existente, sin tocar): la fila sigue dibujándose, con un
+placeholder en vez de una imagen rota — cumple "una línea sin imagen tiene que seguir dibujándose"
+sin código nuevo, porque el helper ya trata `''`/`null`/`undefined` igual.
+
+**Cuántas órdenes existentes quedan con `producto_imagen = null`: NO SE PUDO MEDIR.** Se intentó un
+`prisma.orderItem.count()` contra la base que resuelve `DATABASE_URL` del `.env` de esta sesión (el
+host resuelve a `ep-still-sound…`, el hostname de `development` según CLAUDE.md § Bases de datos) y
+la consulta devolvió `P2021 — the table "public.OrderItem" does not exist in the current database`:
+la base a la que esta sesión efectivamente se conectó no tiene el schema de este repo aplicado, así
+que no es comparable a la `development` real y no se puede confiar en un conteo contra ella. No se
+insistió — verificar el ROL de una base antes de operar contra ella es la regla, y acá no se pudo
+verificar. Queda como pregunta abierta para quien corra el gate visual: contar `SELECT
+count(*) FROM "OrderItem"` contra la base real de destino antes de decidir si backfillear (que
+igual está descartado por diseño, arriba) o simplemente aceptar el placeholder para el histórico.
+
+### 2 · Alcance: SÓLO el widget «Resumen del pedido» — el porqué de no tocar la pantalla terminal
+
+El archivo tiene un TERCER lugar que también pinta `confirmation.items` sin imagen: la pantalla
+"¡Pedido recibido!" (el `return` de las líneas 403-480, alcanzado para métodos manuales,
+`metodo_no_habilitado`, `pasarelaAprobada` e `intentosAgotados`). **No se tocó**, y es una decisión
+medida, no un olvido:
+
+- El spec pide encontrar "las dos ramas del resumen" y dice "la diferencia se ve en UNA línea" —
+  eso describe exactamente el ternario `confirmation ? … : …` de un solo widget (dos ramas, un
+  `<img>` de diferencia), no una comparación entre el widget del sidebar y la pantalla terminal
+  (que nunca tuvo una versión "antes" con imagen que perder: siempre leyó `confirmation.items`,
+  porque sólo existe una vez que la orden ya se creó).
+- El `observed-report` (`CHECKOUT-SELECTOR-NO-SE-DESMONTA-1`) y el resto del "reporte de cambio de
+  pantalla" citado en el `approval-reason` (`CHECKOUT-REINTENTO-CENSO-1`,
+  `CHECKOUT-REINTENTO-OTRO-METODO-1`, `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1`) son, medido por sus
+  propios asientos, sobre el flujo de PASARELA en API DIRECTA — el caso donde el comprador se queda
+  en la MISMA página/paso al crear la orden (`CHECKOUT-PAGO-EN-EL-PASO-1`). Ahí es donde "de
+  repente la foto no está, pero nada más se movió" se siente como un defecto; en la pantalla
+  terminal el comprador YA sabe que cambió de pantalla (ícono, "¡Pedido recibido!", "Número de
+  orden"), así que no es la misma sensación que el owner describió.
+
+**Diferencia visible que queda, nombrada como pide el spec:** la pantalla "¡Pedido recibido!"
+(métodos manuales, la mayoría del tráfico hoy porque la pasarela sigue mitad-encendida por
+despliegue) sigue sin miniatura en su lista de ítems (líneas 435-443). El dato YA viaja en
+`confirmation.items[].producto_imagen` — agregarla ahí es sólo JSX, sin tocar servidor ni schema—,
+pero no se hizo porque el spec apunta a "el resumen" (singular, con sus "dos ramas") y esa pantalla
+no es ese widget. Queda para que el owner decida si también la quiere ahí.
+
+### 3 · El estado literal — cierra `CHECKOUT-ESTADO-LITERAL-CONFIRMACION-1`
+
+El follow-up medido por `CHECKOUT-GATE-VISUAL-HALLAZGOS-1` (§3b, arriba: el literal vivía en
+`app/(storefront)/checkout/page.tsx:432-435`, fuera de su `touches:`) se ejecuta acá, con el mismo
+alcance que ese asiento ya había medido: las DOS ramas (pasarela aprobada y manual) comparten el
+MISMO bloque (`estadoMostrado` + `<span>Estado:</span>` + `<StatusBadge>`), así que sacarlo de ese
+bloque compartido lo saca de las dos a la vez — no hizo falta un segundo cambio por rama. Se
+retiraron también `estadoMostrado` (const que sólo alimentaba el badge) y el import de
+`StatusBadge` (quedó sin otro consumidor en el archivo, verificado por grep). El párrafo que ya
+dice el hecho en lenguaje del comprador ("Tu pedido está reservado…" / "Tu pedido queda
+confirmado…") no se tocó.
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido sobre el árbol final: 1458/1458 (capa 1, `npm test`,
+5.10 s) + 208/208 (capa 2, `npm run test:integracion`, 14.71 s), 0 fallas en las dos. La migración
+nueva se aplicó limpia contra el Postgres efímero del carril de integración (sin error durante
+"Aplicando migraciones…"). `tsc --noEmit` y `eslint` sobre los cinco archivos tocados: 0 errores.
+`eslint` reporta 4 warnings en `checkout/page.tsx`: dos preexistentes sin relación
+(`CreditCard`/`AnimatePresence` importados sin uso, verificado que el diff no toca esas líneas) y
+dos `@next/next/no-img-element` por el `<img>` crudo — uno YA existía (línea 849, la miniatura del
+carrito, sin tocar) y el otro es la miniatura nueva de este slice (línea 816): es el MISMO patrón
+copiado, no una categoría de warning nueva en el archivo.
+
+### Deviations
+
+- Ninguna sobre el mecanismo de la instantánea. La única desviación de alcance es la nombrada en
+  §2: la pantalla terminal ("¡Pedido recibido!") no ganó la miniatura, por no ser el widget que el
+  spec describe con "las dos ramas del resumen" — medido y reportado, no ensanchado.
+- El conteo de órdenes existentes sin foto (§1) no se pudo medir — la base alcanzable desde esta
+  sesión no tiene el schema del repo aplicado (`P2021`), así que no es la `development` real y no
+  se puede confiar en ningún número que saliera de ahí.
+
+### Open follow-ups
+
+- `CHECKOUT-RESUMEN-TERMINAL-FOTO-1`: agregar la miniatura también a la lista de ítems de la
+  pantalla "¡Pedido recibido!" (`app/(storefront)/checkout/page.tsx`, líneas 435-443) — el dato ya
+  viaja en `CheckoutResultItem.producto_imagen`, así que es sólo JSX. No se hizo en este slice
+  porque esa pantalla no es el widget "Resumen del pedido" que el spec acotó (§2).
+- `CHECKOUT-BACKFILL-IMAGEN-ORDENES-VIEJAS-DECISION-1`: decidir si las órdenes anteriores a este
+  slice se quedan mostrando el placeholder de marca para siempre (consistente con "sin backfill,
+  nunca") o si el owner prefiere alguna otra señal — hoy la decisión de arriba (§1) ya fija "sin
+  backfill" como la respuesta, así que este follow-up es sólo para el caso de que el owner, viendo
+  cuántas órdenes reales quedan así (número que este slice no pudo medir), quiera revisarlo.
+
+## 2026-09-18 — El bloque de método QUEDA BLOQUEADO por decisión del owner, la miniatura de la pantalla terminal NO se agrega, y la CLASE de la decisión que vive sólo en un comentario (`CHECKOUT-SELECTOR-BLOQUEADO-DECISION-1`)
+
+**Cierra `CHECKOUT-SELECTOR-DESBLOQUEO-POR-RECHAZO-1` y `CHECKOUT-RESUMEN-TERMINAL-FOTO-1`** (los dos
+open follow-ups de `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1` y `CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1`,
+arriba). Las dos son decisiones de PRODUCTO que un slice anterior dejó abiertas a propósito porque
+resolverlas exigía ensanchar su `touches:`; este slice no construye nada — asienta las dos decisiones
+del owner, con su porqué (o la ausencia de porqué, cuando el owner no dio uno), y una tercera cosa que
+salió de medirlas: una CLASE de decisión que ningún mecanismo del protocolo puede ver.
+
+### 1 · `CHECKOUT-SELECTOR-DESBLOQUEO-POR-RECHAZO-1` — el bloque QUEDA BLOQUEADO, y la razón es del worker que se desvió
+
+**La pregunta que quedó abierta** (`CHECKOUT-SELECTOR-NO-SE-DESMONTA-1`, arriba, §2): *"¿debería el
+bloque desbloquearse durante la ventana entre un rechazo y el clic en 'Intentar con otro método' (en
+vez de quedarse bloqueado todo el ciclo)?"*
+
+**DECISIÓN DEL OWNER: QUEDA BLOQUEADO.** No es una decisión sin fundamento a la que el owner puso fin
+por cansancio — es la decisión que el worker de `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1` ya había medido,
+en su propio §2, antes de que este asiento existiera:
+
+> **NINGÚN camino consume un cambio en `payment`/`pasarelaSeleccionada` una vez que `confirmation`
+> existe:** los botones "Atrás"/"Confirmar pedido" de `handleOrder` siguen detrás de
+> `{!confirmation && (…)}` (línea ~773, sin tocar), y no hay ningún otro `onClick` que lea esos estados
+> para volver a intentar. Desbloquear el bloque SIN el botón dejaría radios que se ven interactivos y
+> no hacen nada al clickearlos — peor que dejarlos bloqueados. `POST /api/checkout/reintento` (vía el
+> botón "Intentar con otro método") es el ÚNICO mecanismo que de verdad abre un intento nuevo.
+
+Con las palabras del owner, citadas en el `approval-reason` de este spec: *"un radio que se puede tocar
+y no cambia nada es peor que uno atenuado"*, y *"no construyas dos formas de hacer lo mismo donde sólo
+una funciona"* — el botón "Intentar con otro método" (`SelectorMetodoPasarela`, vía
+`onReintentarOtroMetodo` → `POST /api/checkout/reintento`, construido en `CHECKOUT-REINTENTO-OTRO-
+METODO-1`) YA ES el camino real y explícito; un radio desbloqueado sería una SEGUNDA forma de hacer lo
+mismo, decorativa, que no dispara nada.
+
+**REGISTRO EXPLÍCITO — la desviación del worker anterior fue CORRECTA, y eso importa tanto como la
+decisión misma.** `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1` recibió el spec pidiendo, entre otras cosas, que
+"cuando el pago se rechaza, tiene que volver a ser usable"; el worker MIDIÓ que threadear ese estado
+hasta la página exigía tocar `components/storefront/checkout/*.tsx` (fuera de su `touches:`), y que
+aunque lo hiciera, desbloquear sin el botón sería peor que no desbloquear — y lo REPORTÓ como open
+follow-up en vez de construirlo a medias o de forzar el `touches:`. **Eso es exactamente el
+comportamiento que este protocolo quiere: medir que cumplir la instrucción al pie de la letra produce
+algo peor, no cumplirla, y reportarlo con lo que se midió** — no que el worker "se cansó" del ítem ni
+que lo "pasó por alto". El seguimiento **queda CERRADO** con esta razón, no como "pendiente resuelto".
+
+**Nada se toca en el código.** `bloqueoMetodoDePago = !!confirmation` (`app/(storefront)/checkout/
+page.tsx:139`) se queda exactamente como `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1` lo dejó.
+
+### 2 · `CHECKOUT-RESUMEN-TERMINAL-FOTO-1` — la miniatura NO va a la pantalla terminal, sin razón registrada
+
+**DECISIÓN DEL OWNER: NO VA.** El owner no dio una razón, y eso se dice así — **decidido por el owner
+el 2026-09-18, sin razón registrada.** Este asiento NO inventa un porqué de diseño: un asiento que
+fabrica la justificación de una decisión ajena es peor que uno que admite no saberla, porque quien lo
+lea dentro de un año va a creer que ese porqué se midió cuando no fue así.
+
+**Lo que queda así, medido, porque es un byte que el comprador VE:** las dos listas del mismo pedido no
+se ven igual.
+
+| Lista | Dónde vive | Cuándo la ve el comprador | ¿Miniatura? |
+| --- | --- | --- | --- |
+| «Resumen del pedido» (sidebar) | `app/(storefront)/checkout/page.tsx:795-827`, rama `confirmation` (líneas 812-827) | SÓLO durante el paso de pago con pasarela en curso — la orden ya existe pero ningún estado terminal se alcanzó todavía | **SÍ** — `<img src={imagenPortada(item.producto_imagen)} …>`, línea 816, 48×48 (`w-12 h-12`) |
+| Pantalla «¡Pedido recibido!» / «¡Tu pago fue aprobado!» | `app/(storefront)/checkout/page.tsx:403-480`, lista de ítems en 435-443 | métodos manuales, `pasarelaMetodoNoHabilitado`, `pasarelaAprobada`, `intentosAgotados` — es decir, TODO desenlace, incluido el pago con pasarela ya aprobado | **NO** — sólo `producto_nombre` + `moliendaSeleccionada` + `cantidad` + `subtotal`, sin `<img>` |
+
+**El dato YA viaja para las dos.** `CheckoutResultItem.producto_imagen: string`
+(`services/checkout.service.ts:91`) es el mismo campo que alimenta las dos ramas — `confirmation.items`
+es una sola fuente. La diferencia no es de dato disponible: es que la pantalla terminal nunca pintó un
+`<img>`, ni antes ni después de `CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1`, porque esa tanda acotó su alcance
+al widget "Resumen del pedido" (§2 de ese asiento) y esta decisión confirma que se queda así.
+
+**Consecuencia concreta**: un comprador que paga por un método manual (la mayoría del tráfico hoy,
+medido en `CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1` §2 — la pasarela sigue mitad-encendida por despliegue) o
+que llega a cualquier desenlace terminal de pasarela **nunca ve la foto de lo que compró** en la
+pantalla de confirmación, aunque esa misma foto sí se le mostró un momento antes (o se le habría
+mostrado, si pasó por el paso de pago con pasarela) en el sidebar. No es un defecto que se escapó: es
+el byte que el owner decidió dejar así, sin más justificación que la decisión misma.
+
+El follow-up **queda CERRADO** con esta razón (la ausencia de razón, dicha, no una inventada).
+
+### 3 · La CLASE — una decisión que vive sólo en un comentario es invisible para el protocolo (`CLASE-DECISION-SOLO-EN-COMENTARIO-1`)
+
+**Lo que se preguntó, buscando otra cosa:** si un slice puede saber qué decisiones dependen de la
+premisa que está cambiando — por ejemplo, si al tocar `CHECKOUT-SELECTOR-DESBLOQUEO-POR-RECHAZO-1`
+hacía falta releer qué más citaba `CHECKOUT-UNA-SOLA-PANTALLA-1`, la decisión cuya premisa
+(`CHECKOUT-REINTENTO-OTRO-METODO-1` ya lo midió) quedó falsa.
+
+**Medido, y la respuesta fue otra pregunta:** `CHECKOUT-UNA-SOLA-PANTALLA-1` **NO TIENE NINGUNA ENTRADA
+PROPIA EN ESTE LIBRO.**
+
+- `grep -c "CHECKOUT-UNA-SOLA-PANTALLA-1" DECISIONS.md` → **2 apariciones**, las dos DENTRO de la
+  prosa de `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1` (líneas 7579 y 7583, arriba): una es una CITA TEXTUAL
+  del comentario del código, la otra dice cuándo nació. Ninguna es un encabezado `## …` propio — no hay
+  un `grep -n "^## .*CHECKOUT-UNA-SOLA-PANTALLA-1"` que devuelva algo.
+- `grep -c "CHECKOUT-UNA-SOLA-PANTALLA-1" CLAUDE.md` → **0**.
+- `grep -rl "CHECKOUT-UNA-SOLA-PANTALLA-1" --include="*.ts" --include="*.tsx" .` (fuera de
+  `node_modules`) → **9 archivos**, con **22 apariciones** totales, TODAS en comentarios: `app/api/
+  pasarela/aceptaciones/route.ts`, `app/api/checkout/route.ts`, `app/(storefront)/checkout/page.tsx`
+  (9 apariciones), `components/storefront/checkout/FormularioOtroMetodoPasarela.tsx`,
+  `components/storefront/checkout/FormularioTarjeta.tsx`,
+  `components/storefront/checkout/SelectorMetodoPasarela.tsx`, `services/checkout.service.ts`,
+  `lib/pagos/aceptaciones.test.ts`, `lib/pagos/aceptaciones.ts`.
+- El commit que la creó (`98217cb`, `CHECKOUT-UNA-SOLA-PANTALLA-1`, 2026-09-17 15:30:02) tocó **cero**
+  líneas de `DECISIONS.md` ni de `CLAUDE.md` (`git show --stat 98217cb`, verificado). La decisión nació
+  directo en el código, sin pasar por el libro.
+
+**Es decir: una decisión de producto real —"el selector de método sólo se muestra ANTES de que exista
+la orden"—, citada 22 veces en 9 archivos durante casi un día completo de trabajo sobre el mismo
+programa, no existe para ningún mecanismo que busque en `DECISIONS.md` o `CLAUDE.md`.** Cuando
+`CHECKOUT-REINTENTO-OTRO-METODO-1` la volvió falsa, nada la señaló como "una decisión dependiente de
+esto cambió": no hay decisión que señalar, porque el libro nunca la tuvo.
+
+**LA CLASE, con las palabras del owner:**
+
+> **UNA DECISIÓN QUE VIVE SÓLO EN UN COMENTARIO DEL CÓDIGO ES INVISIBLE PARA TODO MECANISMO DEL
+> PROTOCOLO: no se puede citar, no se puede rastrear, y vence sin que nada la mire.**
+
+**Lo que reordena la pregunta original:** *"el problema no es rastrear dependencias entre asientos —
+es que hay decisiones que no son asientos".* Buscar un grafo de dependencias entre entradas del libro
+no habría encontrado nada, porque `CHECKOUT-UNA-SOLA-PANTALLA-1` nunca fue una entrada.
+
+**Y lo que la clase NO dice:** que los comentarios sobren. Los 22 comentarios de arriba siguen siendo
+el lugar correcto para decir QUÉ hace ese código y POR QUÉ — un comentario que explica una decisión ya
+tomada, con su cita, es exactamente lo que un lector necesita al lado del código. Lo que no puede ser
+es el ÚNICO lugar donde la decisión existe: ahí deja de documentar y pasa a ser el original, y un
+original que sólo vive disperso en 9 archivos no lo relee nadie completo antes de invalidarlo.
+
+**Las otras tres instancias del día, ya en el libro, que son la misma familia** (para que se lean
+juntas, no como hechos sueltos):
+
+| Instancia | Fecha | Qué mide |
+| --- | --- | --- |
+| `CHECKOUT-REINTENTO-CENSO-1`, §2 (arriba) | 2026-09-18 | una conclusión angosta —medida para `metodo_no_habilitado`, donde reintentar de verdad no cambia nada— escrita en el código y en la prosa de OTRO ledger ya cerrado como si fuera una decisión YA CERRADA, y aplicada ancha al caso distinto del rechazo del emisor. Ese mismo asiento nombra "DÓNDE vive" —"no en un asiento ni en un reporte, sino en un comentario del código"— como lo que agrava la instancia. |
+| `COBRO-SIN-PEDIDO-ASIENTO-1` (arriba) | 2026-09-18 | el censo de las frases de `CLAUDE.md` (el archivo de doctrina) que el mismo incidente de "Wompi cobró y la tienda no se enteró" volvió falsas — frases correctas cuando se escribieron, vencidas por trabajo posterior del mismo programa. |
+| `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1`, §4 (arriba) | 2026-09-18 | la premisa de `CHECKOUT-UNA-SOLA-PANTALLA-1` (nacida ~21 h antes) muerta por `CHECKOUT-REINTENTO-OTRO-METODO-1` — "el commit INMEDIATAMENTE ANTERIOR en esta misma rama", en palabras del owner citadas ahí: *"esa premisa la mató el slice del reintento una hora antes"*. |
+
+**Son la misma familia: una decisión no vence sola — la vence trabajo posterior, y el trabajo que la
+mata casi nunca sabe que la está matando.** Las tres de arriba ya estaban en asientos que SÍ existen en
+el libro; lo que este asiento agrega es el caso límite de la familia — una decisión que ni siquiera
+llegó a tener un asiento propio del que pudiera desprenderse una premisa vencida, porque nunca hubo
+asiento. Es la misma clase, un peldaño más abajo: no "el asiento envejeció sin que nadie lo releyera",
+sino "nunca hubo asiento que releer".
+
+### 4 · El mecanismo que no se construye — medido y descartado a propósito, no olvidado (`CHECKOUT-AVISO-COMENTARIOS-TOCADOS-1`)
+
+**Se midió un aviso posible:** un gate que, al ver un diff tocar un archivo con comentarios de
+decisión (el patrón `§ IDENTIFICADOR-N` que este mismo programa usa en 9+ archivos), imprimiera "este
+diff toca archivos con comentarios de decisión — releelos".
+
+**Medido contra el propio diff de `CHECKOUT-SELECTOR-NO-SE-DESMONTA-1`** (el slice que destapó todo
+esto): ese slice tocó `app/(storefront)/checkout/page.tsx`, que por sí solo lleva 9 de las 22
+apariciones de `CHECKOUT-UNA-SOLA-PANTALLA-1` más otras dos docenas de comentarios de otros
+identificadores del mismo programa (`CHECKOUT-PAGO-EN-EL-PASO-1`, `CHECKOUT-UNA-SOLA-PANTALLA-1`,
+`CHECKOUT-ESTADO-LITERAL-CONFIRMACION-1`, …). Un aviso a nivel de ARCHIVO habría nombrado decenas de
+decisiones para que el worker encontrara la UNA que de verdad estaba cambiando.
+
+**DECISIÓN DEL OWNER: NO SE CONSTRUYE TODAVÍA.** Con sus palabras: *"Es exactamente el ruido que ya
+sabemos que se saltea."* Queda MEDIDO y ENCOLADO, sin prioridad — una capacidad medida y descartada a
+propósito es distinta de una que a nadie se le ocurrió, y esa diferencia se pierde si no queda escrita.
+**Si alguna vez entra, entra ACOTADO AL DIFF** (qué comentarios de decisión tocan las LÍNEAS que el
+diff realmente cambia, no todos los que viven en el ARCHIVO) — un aviso a nivel de archivo es, medido
+arriba, el mismo ruido que ya se sabe inútil.
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido sobre el árbol final. Ver el reporte del slice para el
+resultado exacto (passed/failed/wall_seconds) — no se transcribe acá para no duplicar un número que
+puede volver a medirse. El diff de este slice es EXCLUSIVAMENTE esta entrada de `DECISIONS.md`: ningún
+archivo de código, test, schema ni migración se tocó, así que no había manera de que ninguno de los dos
+carriles cambiara de veredicto respecto de la entrada inmediatamente anterior de esta misma rama.
+
+### Deviations
+
+Ninguna. El spec pidió medir y asentar dos decisiones del owner más la clase que salió de medirlas, y
+eso es exactamente lo que este asiento hace — sin tocar código, tests, comentarios ni `CLAUDE.md`, y
+sin construir el mecanismo del §4.
+
+### Open follow-ups
+
+- `CHECKOUT-AVISO-COMENTARIOS-TOCADOS-1`: construir el aviso "este diff toca archivos/líneas con
+  comentarios de decisión — releelos", ACOTADO AL DIFF (líneas cambiadas), no al archivo completo —
+  medido en §4 de este asiento que a nivel de archivo es ruido que ya se sabe que se saltea. No se
+  construye ahora porque el owner lo descartó explícitamente para esta ronda ("es exactamente el ruido
+  que ya sabemos que se saltea"); queda encolado sin prioridad.
+
+## 2026-09-18 — La política de seguridad del checkout no conocía a Wompi: dos orígenes MEDIDOS se agregan, la política SIGUE en modo reporte, y lo que falta para activarla queda encolado (`CSP-NO-CONOCE-A-WOMPI-1`)
+
+**El owner vio esto de casualidad, no por un tablero:** durante el gate visual del 2026-09-18
+(`CHECKOUT-GATE-VISUAL-HALLAZGOS-1`), con la consola del navegador abierta en una compra real contra
+el deployment de preview, aparecieron dos violaciones de la CSP en modo reporte de `/checkout`
+(`next.config.ts`): conectarse a `https://sandbox.wompi.co/v1/tokens/cards` viola `connect-src 'self'`,
+y embeber `https://vercel.live` viola `frame-src`. Aprobó este slice con dos condiciones fijas: los
+orígenes que se agreguen salen de lo MEDIDO —no de la doc del proveedor ni de una lista plausible—, y
+la política **queda en modo reporte, sin activar**.
+
+### 1 · El defecto, y por qué el propio comentario ya explicaba su vencimiento
+
+El comentario que hoy es falso vivía junto a `connect-src`: *"Nada del checkout de hoy llama a un
+origen externo (createOrder es un fetch same-origin a /api/checkout): sin el widget integrado, lo
+medido es 'self'."* Eso describía el checkout de ANTES de `API-DIRECTA-CAPTURA-TARJETA-1`. Desde ese
+slice, `tokenizarTarjeta` (`services/checkout.service.ts`) llama DIRECTO desde el NAVEGADOR del
+comprador al host de Wompi —por diseño, para que el dato de la tarjeta nunca pase por nuestro
+servidor—, y la política nunca se actualizó para contemplarlo. Es la misma familia que ya nombró
+`CHECKOUT-SELECTOR-NO-SE-DESMONTA-1` y `COBRO-SIN-PEDIDO-ASIENTO-1` el mismo día —una premisa correcta
+cuando se escribió, muerta por trabajo posterior del mismo programa sin que nadie la releyera— pero
+**ésta es distinta en una cosa que hay que decir con todas las letras: las otras confundían a quien
+leía; ésta, activada, IMPIDE EL COBRO.** Con las palabras del owner en el `approval-reason` de este
+spec: es la única pendiente que puede romper el cobro entero, y es gratis arreglarla ahora porque el
+arreglo es configuración.
+
+### 2 · ¿Hay violaciones acumuladas? — medido: NO HAY DESTINO DE REPORTES
+
+El owner razonó que, si la política ya reporta, debía haber una lista de dominios faltantes medida en
+uso real esperando en algún lado. Se buscó en la propia política (`next.config.ts`) una directiva
+`report-uri`/`report-to`, y luego en todo el repo (`grep -rn "report-uri\|report-to\|Report-To\|csp-
+report\|reporting-endpoints"`, fuera de `node_modules`/`.next`): **cero resultados, en cualquiera de
+los dos.**
+
+**No hay nada acumulado — y ESO es el hallazgo, no un callejón sin salida.** Una política en modo
+reporte sin destino de reportes sólo escribe en la consola de quien tenga las herramientas de
+desarrollador abiertas en ESE momento. No reporta a un tablero, a un log, ni a nadie que no esté
+mirando esa pestaña en ese instante — reporta a nadie. Por construcción, la única forma de que alguien
+se entere de una violación es tropezarse con ella mientras hace otra cosa, que es exactamente lo que le
+pasó al owner. Queda como punto abierto en el §4, no se construye en este slice.
+
+### 3 · Qué se agregó, y de dónde sale cada origen
+
+**`frame-src` gana `https://vercel.live`.** MEDIDO: es la segunda violación que el owner vio, y
+corresponde al widget de comentarios/feedback que **Vercel INYECTA SOLO en despliegues de PREVIEW**
+—nunca en producción real de un cliente—, no a nada que el código de este repo cargue. Se decidió
+incluirlo de todas formas, marcado en el comentario como artefacto del ENTORNO y no del producto, sin
+gatear por `esDespliegueDemo()`: la política es hoy un valor estático (no lee ninguna condición de
+entorno), y un origen de más en `frame-src` para un widget que la producción real de un cliente
+simplemente no carga no abre ninguna superficie nueva — mientras que gatearlo exigiría meter una
+condición nueva en `headers()` por un costo que no se está pagando.
+
+**`connect-src` gana DOS orígenes, con procedencia distinta cada uno:**
+
+- **`https://sandbox.wompi.co` — MEDIDO.** Es exactamente lo que el owner vio violar la política en la
+  consola, contra el deployment de preview. Coincide con el host que `baseUrlPasarelaDesdeLlave`
+  (`services/checkout.service.ts:303-307`) elige cuando la llave pública NO empieza con el prefijo
+  productivo (`PREFIJO_LLAVE_PASARELA_PRODUCTIVA = "pub_prod_"`, `lib/pagos/llaves-pasarela.ts`).
+- **`https://production.wompi.co` — DEDUCIDO DEL CÓDIGO, NO MEDIDO EN USO.** Nadie corrió este flujo
+  contra producción; no hay medición de éste. Pero es el MISMO helper, `baseUrlPasarelaDesdeLlave`, el
+  que elige EXACTAMENTE este host cuando la llave pública SÍ empieza con ese prefijo — es una lectura
+  directa del código, no una lista plausible ni la doc del proveedor. Omitirlo habría dejado la
+  política rota el día que un despliegue real active la pasarela: bloqueada en el navegador del
+  comprador, sin que el código de decisión (`baseUrlPasarelaDesdeLlave`) tenga forma de saberlo — ver
+  el modo de falla en el §4.
+
+**Lo que se investigó y NO se pudo acotar: el marco del desafío del emisor (3DS "con challenge").**
+`DesafioTarjeta.tsx` embebe el HTML del emisor con `srcDoc` (nunca `src`) dentro de un iframe
+`sandbox="allow-scripts allow-forms"` — sin `allow-same-origin` ni `allow-top-navigation`. El propio
+HTML del emisor se auto-envía por un `<script>` inline hacia el ACS (Access Control Server) de SU
+banco, y esa navegación DENTRO del iframe también cae bajo `frame-src` — CSP gatea cada navegación de
+un contexto anidado, no sólo la carga inicial. El ACS es del BANCO EMISOR de la tarjeta del comprador,
+distinto para cada banco (Bancolombia, Davivienda, Nu, …) y ninguno de los dos spikes de este programa
+(`API-DIRECTA-SPIKE-SANDBOX-1`) lo ejercitó — está explícitamente fuera de su alcance (`lib/pagos/
+tres-ds.ts`, cabecera del archivo: "Todo 3DS — explícitamente fuera del alcance de los dos spikes").
+**No se agrega ningún origen para esto: es un problema abierto, no una lista que falte completar** — si
+el origen varía por banco emisor, una lista de dominios estáticos en `next.config.ts` estructuralmente
+no puede cubrirlo. Queda nombrado en el §4.
+
+**Lo que NO se tocó, y por qué:** `script-src`, `style-src`, `font-src`, `img-src`, `object-src`,
+`base-uri` y `form-action` — ninguna violación medida las señaló, y tocarlas sin medición sería
+exactamente lo que el owner prohibió ("no de una lista plausible"). Tampoco se activó la política
+(sigue siendo `Content-Security-Policy-Report-Only`, nunca `Content-Security-Policy`) ni se construyó
+ningún destino de reportes.
+
+### 4 · Qué falta para poder activarla — encolado, no resuelto acá
+
+**El modo de falla, que es el argumento entero:** si esta política se activa (deja de ser Report-Only)
+con un origen faltante, la llamada se BLOQUEA EN EL NAVEGADOR del comprador. El servidor no se entera
+—no hay un fetch que falle del lado del server, no hay nada que loguear—, y el comprador ve un fallo de
+pago sin causa visible. Un cobro que muere del lado del cliente es invisible desde donde este equipo
+mira sus logs. Por eso activarla sin lo siguiente resuelto es cambiar un riesgo futuro por uno
+inmediato:
+
+- **Destino de reportes.** Hoy no existe (§2). Sin él, activar la política es operar a ciegas: la
+  primera vez que bloquee algo real, nadie lo va a saber hasta que un comprador se queje.
+- **El desafío 3DS del emisor nunca se ejercitó contra un banco real** (§3, el ACS). Si su origen
+  varía por banco, `frame-src` con una lista fija de dominios no puede cubrirlo sin, quizás, aflojar la
+  directiva para ese caso — y eso es una decisión de producto/seguridad que no se toma en este slice.
+- **`https://production.wompi.co` nunca se ejercitó en uso real** (§3). Se agregó DEDUCIDO del código,
+  no medido; activar la política sin haber corrido al menos una compra real de producción con este
+  origen sería apostar a que la deducción es correcta sin haberla visto correr.
+- **El propio comentario de la política ya documentó un hallazgo sobre terceros inyectados sin
+  avisar:** el `widget.js` de Wompi mete en runtime `cdn.siftscience.com` y `device.clearsale.com.br`
+  sin que el dashboard del comercio ofrezca verlos ni apagarlos —infraestructura decidida por el
+  backend del proveedor (`next.config.ts`, el bloque "EL HALLAZGO QUE CAMBIA LA NATURALEZA…")—. Si
+  Wompi agrega o cambia un tercero así en cualquier directiva, una política ya activada rompería el
+  checkout sin aviso previo, por el mismo motivo que el `script-src` de hoy ya se defiende de eso
+  incluyendo los tres orígenes por adelantado.
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido sobre el árbol final. El diff de este slice es
+`next.config.ts` (comentarios + dos directivas de la CSP) y esta entrada de `DECISIONS.md`: ningún
+archivo de código de producto, test, schema ni migración se tocó.
+
+### Deviations
+
+Ninguna. El spec pidió medir de dónde sale cada origen nuevo y decidir sobre `vercel.live` con su
+justificación, y eso es lo que este asiento y el diff de `next.config.ts` hacen — sin activar la
+política, sin construir el destino de reportes, y sin tocar ninguna otra directiva.
+
+### Open follow-ups
+
+- `CSP-DESTINO-DE-REPORTES-1`: construir el destino de reportes (`report-to`/`report-uri` o el
+  mecanismo equivalente) para que la política en modo reporte deje de "reportar a nadie" (§2). Sin
+  esto, activar la política más adelante seguiría siendo operar a ciegas sobre lo que rompe.
+- `CSP-DESAFIO-3DS-ORIGEN-EMISOR-1`: medir contra un desafío 3DS real de al menos un banco emisor si
+  el origen del ACS es acotable en `frame-src` o si es estructuralmente imposible de cubrir con una
+  lista fija (§3-§4) — hoy es un problema abierto, no resuelto.
+- `CSP-PRODUCCION-WOMPI-SIN-MEDIR-1`: correr al menos una compra real contra producción con
+  `WOMPI_PUBLIC_KEY` productiva y confirmar que `https://production.wompi.co` es, en efecto, el único
+  host adicional que aparece — hoy ese origen está deducido del código, nunca medido en uso (§3).
