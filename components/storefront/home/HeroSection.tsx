@@ -3,6 +3,7 @@
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import HeroCurtina from "@/components/storefront/home/HeroCurtina";
 import HeroFicha from "@/components/storefront/home/HeroFicha";
+import HeroMedia from "@/components/storefront/home/HeroMedia";
 
 // La Portada — DISPATCHER de VARIANTES DE COMPOSICIÓN (§ eje 5, EJE-5-VARIANTES-HERO). Segunda
 // sección con `variantes` tras Presentaciones (§ eje 5e); mismo patrón: este componente sólo elige
@@ -14,6 +15,7 @@ import HeroFicha from "@/components/storefront/home/HeroFicha";
 const VARIANTES: Record<string, typeof HeroCurtina> = {
   curtina: HeroCurtina,
   ficha: HeroFicha,
+  media: HeroMedia, // § TEMAS-HERO-MEDIA-1
 };
 
 export default function HeroSection({ style }: { style?: React.CSSProperties } = {}) {

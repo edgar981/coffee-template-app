@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { derivarCondicionPago } from '@duna/core/orders';
 import {
   parseMetodosPago, metodosDisponibles, metodoIncompleto,
-  METODOS_PAGO_ORDEN, metodoPagoTipoSchema,
+  METODOS_PAGO_ORDEN, metodoPagoTipoSchema, CONFIRMA_EL_EQUIPO,
   type MetodoPagoGuardado,
 } from './metodos-pago';
 
@@ -110,6 +110,36 @@ test('efectivo sólo con isBogota: true', () => {
 
 test('lista vacía → checkout sin opciones (guarda defensiva del checkout)', () => {
   assert.deepEqual(metodosDisponibles([], { isBogota: true }), []);
+});
+
+// ── § CHECKOUT-COPY-NEQUI-MANUAL-1: el manual dice que un HUMANO lo confirma ─────────────────
+// Nequi, Daviplata y Bre-B son los ÚNICOS tipos manuales que pueden coincidir con un medio de la
+// pasarela (API directa) en el MISMO paso de pago (§ el reporte del slice, y el docstring de
+// `CONFIRMA_EL_EQUIPO` en metodos-pago.ts). La frase sale de UNA sola constante — estos tests
+// afirman que los tres la LLEVAN y que transferencia/efectivo NO la ganaron de rebote (la prueba
+// de que no quedó escrita en dos lugares: si alguien la duplicara a mano en otro `desc`, este
+// archivo seguiría en verde con la constante SIN usar ahí — por eso el import de
+// `CONFIRMA_EL_EQUIPO`, no un literal repetido en el test).
+
+test('Nequi y Daviplata declaran que el equipo confirma el pago, no un plazo', () => {
+  const m = metodosDisponibles([nequi('+573155766064'), daviplata('+573155766064')], { isBogota: true });
+  for (const opt of m) {
+    assert.ok(opt.desc.includes(CONFIRMA_EL_EQUIPO), `"${opt.desc}" debería incluir "${CONFIRMA_EL_EQUIPO}"`);
+  }
+  assert.doesNotMatch(CONFIRMA_EL_EQUIPO, /hora|día|minuto/i);
+});
+
+test('Bre-B declara que el equipo confirma el pago', () => {
+  const [op] = metodosDisponibles([breb('correo@negocio.com')], { isBogota: true });
+  assert.ok(op.desc.includes(CONFIRMA_EL_EQUIPO));
+});
+
+test('transferencia y efectivo NO llevan la frase de confirmación manual — no comparten riel con la pasarela', () => {
+  const [t] = metodosDisponibles([transferencia()], { isBogota: true });
+  assert.ok(!t.desc.includes(CONFIRMA_EL_EQUIPO));
+
+  const [e] = metodosDisponibles([efectivo], { isBogota: true });
+  assert.ok(!e.desc.includes(CONFIRMA_EL_EQUIPO));
 });
 
 // ── metodoIncompleto ──────────────────────────────────────────────────────────────────────────

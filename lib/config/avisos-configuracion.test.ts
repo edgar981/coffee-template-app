@@ -37,14 +37,15 @@ const METODOS_SANOS: MetodoPagoGuardado[] = [
   { tipo: 'efectivo', datos: {} },
 ];
 
-// La IDENTIDAD sana de referencia: lo único que este módulo mira de `SiteSettings` es `whatsapp` y
-// `metodosPago`, pero el fixture se declara COMPLETO para que agregar un campo al tipo rompa acá y
-// no en silencio.
+// La IDENTIDAD sana de referencia: lo único que este módulo mira de `SiteSettings` es `whatsapp`,
+// `metodosPago` y `metodoPasarelaDesalineado`, pero el fixture se declara COMPLETO para que agregar un
+// campo al tipo rompa acá y no en silencio.
 const AJUSTES_SANOS: SiteSettings = {
   nombre: 'Café Nayoli', tagline: '', descripcionFooter: '',
   whatsapp: '+573155766064', instagram: '', emailRemitente: '',
   emailReplyTo: null, adminEmail: null,
   metodosPago: METODOS_SANOS,
+  metodoPasarelaDesalineado: null,
 };
 const conWhatsapp = (whatsapp: string): SiteSettings => ({ ...AJUSTES_SANOS, whatsapp });
 
@@ -232,4 +233,61 @@ test('el gemelo dice la CONSECUENCIA del comprador, no el mecanismo de la config
 
 test('defaults SANOS siguen en CERO avisos con el gemelo puesto', () => {
   assert.equal(avisosDeConfiguracion(DEFAULTS_SANOS, CATS_ALINEADO, true, AJUSTES_SANOS).length, 0);
+});
+
+// ── #9 · MÉTODO DE PASARELA DESALINEADO CON LA CUENTA ───────────────────────────────────────────────
+// El panel de métodos previene el desalineo AL CONFIGURAR; este aviso es el RESIDUAL — la cuenta
+// cambió DESPUÉS, y la creación de la transacción es la que se entera primero (§ el docstring de la
+// función). Ya no es un quinto parámetro: viaja en `ajustes.metodoPasarelaDesalineado` (§ API-DIRECTA-
+// DESALINEO-DUENO-1) — `readSiteSettings` ya lo cruzó contra `metodosPasarela`, así que acá sólo se
+// simula el RESULTADO de ese cruce, no el cruce en sí (eso lo cubre el carril de integración, fuera de
+// `touches` de este slice).
+const conDesalineo = (tipo: string | null): SiteSettings => ({ ...AJUSTES_SANOS, metodoPasarelaDesalineado: tipo });
+const pasarelaDesalineada = (tipo: string | null) =>
+  avisosDeConfiguracion(DEFAULTS_SANOS, CATS_ALINEADO, true, conDesalineo(tipo))
+    .filter(a => a.clave === 'pasarela-metodo-no-habilitado');
+
+test('#9 sin desalineo (null) → CERO avisos, byte-idéntico a AJUSTES_SANOS', () => {
+  assert.equal(avisosDeConfiguracion(DEFAULTS_SANOS, CATS_ALINEADO, true, AJUSTES_SANOS).length, 0);
+});
+
+test('#9 metodoPasarelaDesalineado NULL explícito → tampoco dispara (mismo criterio que ausente)', () => {
+  assert.equal(pasarelaDesalineada(null).length, 0);
+});
+
+test('#9 con un tipo desalineado → un aviso, que aterriza en Configuración', () => {
+  const avs = pasarelaDesalineada('CARD');
+  assert.equal(avs.length, 1);
+  assert.equal(avs[0].clave, 'pasarela-metodo-no-habilitado');
+  assert.equal(avs[0].href, '/admin/configuracion');
+});
+
+test('#9 el mensaje NOMBRA el método exacto — CARD se lee "tarjeta"', () => {
+  const [av] = pasarelaDesalineada('CARD');
+  assert.match(av.mensaje, /tarjeta/);
+  assert.doesNotMatch(av.mensaje, /CARD/, 'no deja el código crudo del proveedor en el texto');
+});
+
+test('#9 el mensaje NOMBRA el método exacto — NEQUI se lee "Nequi" (su nombreVisible del registro)', () => {
+  const [av] = pasarelaDesalineada('NEQUI');
+  assert.match(av.mensaje, /Nequi/);
+});
+
+test('#9 un tipo QUE EL REGISTRO NO CONOCE TODAVÍA cae a su propio string, no revienta', () => {
+  const [av] = pasarelaDesalineada('BANCOLOMBIA_QR');
+  assert.match(av.mensaje, /BANCOLOMBIA_QR/);
+});
+
+test('#9 NO depende del catálogo ni del contenido — dispara con catalogoListo false', () => {
+  const avs = avisosDeConfiguracion(DEFAULTS_SANOS, [], false, conDesalineo('CARD'))
+    .filter(a => a.clave === 'pasarela-metodo-no-habilitado');
+  assert.equal(avs.length, 1);
+});
+
+test('#9 convive con los otros avisos — cada defecto sigue siendo su propio aviso', () => {
+  const avisos = avisosDeConfiguracion(DEFAULTS_SANOS, CATS_ALINEADO, true, { ...conWhatsapp(''), metodoPasarelaDesalineado: 'CARD' });
+  assert.deepEqual(
+    avisos.map(a => a.clave).sort(),
+    ['negocio-whatsapp', 'pasarela-metodo-no-habilitado'],
+  );
 });

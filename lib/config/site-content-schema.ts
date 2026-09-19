@@ -83,6 +83,9 @@ const presentacionesEditableSchema = z.object({
 // SubscriptionCTA: solo texto (sin imágenes). `bullet1..4` opcionales — el resolver los omite
 // vacíos y el componente los junta con `.filter` (hasta 4, sin hueco). `ctaLabel` editable; el href
 // es estructura. Todo opcional/SOFT, como los otros.
+// `variante` (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e): la COMPOSICIÓN de la sección
+// ('bloque'|'linea'); `z.string()` porque el set de claves es por-sección y el resolver SOFT
+// (`resolverVariante`) la clampa a la canónica — gemela de `hero.variante`/`presentaciones.variante`.
 const subscriptionCTAEditableSchema = z.object({
   visible: z.boolean().optional(),
   eyebrow: z.string().optional(),
@@ -93,6 +96,7 @@ const subscriptionCTAEditableSchema = z.object({
   bullet3: z.string().optional(),
   bullet4: z.string().optional(),
   ctaLabel: z.string().optional(),
+  variante: z.string().optional(),
 });
 
 // Testimonios: sección repeater. Encabezado (eyebrow/titulo) + un ARRAY de ítems. Cada ítem SOFT:
