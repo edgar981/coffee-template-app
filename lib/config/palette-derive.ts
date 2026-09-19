@@ -460,9 +460,21 @@ function sobreTarjetaDe(tarjeta: string, tinta: string): string {
  * medido— así que reusarlo ahí repetiría el hueco que home-2 cierra.
  *
  * La cablea `esquema-style.ts` (§ eje 5b, mitad B y home-2).
+ *
+ * `ejes` (§ `EjesPaleta`, TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1 → TEMAS-ESQUEMA-ORIGEN-PENDIENTE-1)
+ * es OPCIONAL y ADITIVO, igual que en `derivarPaleta`: ausente/`{}` reproduce EXACTAMENTE el
+ * comportamiento de siempre. NO hay una segunda regla de origen acá — `ejes` se PASA tal cual a
+ * `derivarPaleta` para `base`, y `texto`/`texto-suave`/`acento-texto` heredan el origen declarado
+ * SOLOS: las tres ramas de abajo (crema, y las dos de superficie no-crema) re-floreán esos roles a
+ * partir de `base['acento-texto']`/`base['texto']`/`base['tostado']`/`base['acento-txt']`, que YA
+ * traen el origen aplicado (mismo mecanismo que el comentario de `derivarPaleta` describe para
+ * `sobre-tarjeta-suave`). Antes de este parámetro, una banda CON esquema asignado (§ esquema-style.ts)
+ * no tenía forma de recibir el origen que el preset declaró — el `:root` ya lo aplicaba (vía
+ * `cssMiradorTema`→`cssPaleta`), pero las 8 vars locales que `esquemaStyle` inyecta en la `<section>`
+ * de la banda seguían naciendo de `derivarPaleta(raices)` SIN ejes.
  */
-export function derivarEsquema(raices: RaicesPaleta, id: EsquemaId): PaletaDerivada {
-  const base = derivarPaleta(raices);
+export function derivarEsquema(raices: RaicesPaleta, id: EsquemaId, ejes: EjesPaleta = {}): PaletaDerivada {
+  const base = derivarPaleta(raices, ejes);
   if (id === 'crema') return base;
 
   const superficie = id === 'superficie' ? base.superficie : id === 'oscuro' ? raices.tinta : raices.acento;

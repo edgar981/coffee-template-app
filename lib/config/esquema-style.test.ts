@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { esquemaStyle, bandaEsOscura, tratamientoNav } from './esquema-style';
-import { RAICES_DEFECTO, derivarEsquema, contraste } from './palette-derive';
+import { RAICES_DEFECTO, derivarEsquema, contraste, type RaicesPaleta } from './palette-derive';
 import { BANDA_IDS, BANDAS_OSCURAS, type EsquemasContent } from './site-content-defaults';
 
 // Capa 1 del PUENTE banda→esquema (§ eje 5b, mitad B). Sin base — lógica pura.
@@ -105,6 +105,68 @@ test('esquemaStyle: raíces null (fábrica) cae a RAICES_DEFECTO — mismas raí
 test('esquemaStyle: raíces CUSTOM (no-null) se usan tal cual, no caen a RAICES_DEFECTO', () => {
   const s = esquemaStyle('crema', '#f0f0f0', '#101010', '#123456');
   assert.equal(s['--sf-banda'], '#f0f0f0');
+});
+
+// ── `ejes` (§ TEMAS-ESQUEMA-ORIGEN-PENDIENTE-1) — cierra el residuo de TEMAS-ROLES-DECLARADOS-
+// POR-EL-PRESET-1: hasta este slice, `esquemaStyle` no tenía cómo recibir el origen que el preset
+// declaró, así que una banda CON esquema asignado seguía inyectando `--sf-sobre-banda`/`-suave`
+// nacidos del acento aunque el `:root` ya estuviera corregido.
+
+const CORTE_RAICES: RaicesPaleta = { fondo: '#fdfbf7', tinta: '#102407', acento: '#a70004' };
+
+test('esquemaStyle: `ejes` AUSENTE es BYTE-IDÉNTICO al comportamiento de siempre (los cinco tests de arriba no dependían de este parámetro)', () => {
+  for (const id of ['crema', 'superficie', 'oscuro', 'acento'] as const) {
+    assert.deepEqual(esquemaStyle(id, null, null, null), esquemaStyle(id, null, null, null, undefined));
+    assert.deepEqual(esquemaStyle(id, null, null, null), esquemaStyle(id, null, null, null, {}));
+  }
+});
+
+test('esquemaStyle: `ejes` se pasa TAL CUAL a `derivarEsquema` — mismo motor, sin redefinir la derivación (con CORTE + los dos ejes)', () => {
+  const ejes = { origenTexto: 'tinta' as const, origenAccion: 'acento' as const };
+  for (const id of ['crema', 'superficie', 'oscuro', 'acento'] as const) {
+    const p = derivarEsquema(CORTE_RAICES, id, ejes);
+    const s = esquemaStyle(id, CORTE_RAICES.fondo, CORTE_RAICES.tinta, CORTE_RAICES.acento, ejes);
+    assert.deepEqual(s, {
+      '--sf-banda': p.fondo,
+      '--sf-tarjeta': p.tarjeta,
+      '--sf-sobre': p.sobre,
+      '--sf-sobre-tarjeta': p['sobre-tarjeta'],
+      '--sf-sobre-tarjeta-suave': p['sobre-tarjeta-suave'],
+      '--sf-linea-sobre': p.linea,
+      '--sf-sobre-banda': p.texto,
+      '--sf-sobre-banda-suave': p['texto-suave'],
+    });
+  }
+});
+
+test('esquemaStyle: CORTE — declarar `origenTexto:"tinta"` MUEVE `--sf-sobre-tarjeta-suave` DENTRO de una banda con esquema, en los 4 esquemas (el token deriva SIEMPRE de acento-texto, § derivarEsquema)', () => {
+  // `--sf-sobre-tarjeta-suave` (deriva de `acento-texto`, § palette-derive.ts) se mueve en LOS
+  // CUATRO esquemas. `--sf-sobre-banda` (deriva de `texto`) NO se mueve en 'oscuro'/'acento' — ese
+  // rol reusa `tostado`/`acento-txt` para texto claro-sobre-oscuro (§ `textoClaroSobreOscuro`,
+  // independiente de `origenTexto` por diseño, no un hueco de este slice), así que se verifica
+  // acá con el token que SIEMPRE hereda el origen, no con el que depende de la dirección del piso.
+  for (const id of ['crema', 'superficie', 'oscuro', 'acento'] as const) {
+    const sinEje = esquemaStyle(id, CORTE_RAICES.fondo, CORTE_RAICES.tinta, CORTE_RAICES.acento);
+    const conEje = esquemaStyle(id, CORTE_RAICES.fondo, CORTE_RAICES.tinta, CORTE_RAICES.acento, { origenTexto: 'tinta' });
+    assert.notEqual(conEje['--sf-sobre-tarjeta-suave'], sinEje['--sf-sobre-tarjeta-suave'], `${id}: --sf-sobre-tarjeta-suave debe moverse al declarar origenTexto:'tinta'`);
+  }
+});
+
+test('esquemaStyle: CORTE — declarar `origenTexto:"tinta"` MUEVE `--sf-sobre-banda` en las bandas CLARAS de CORTE (crema/superficie, las 5 que el preset asigna), no en oscuro/acento', () => {
+  for (const id of ['crema', 'superficie'] as const) {
+    const sinEje = esquemaStyle(id, CORTE_RAICES.fondo, CORTE_RAICES.tinta, CORTE_RAICES.acento);
+    const conEje = esquemaStyle(id, CORTE_RAICES.fondo, CORTE_RAICES.tinta, CORTE_RAICES.acento, { origenTexto: 'tinta' });
+    assert.notEqual(conEje['--sf-sobre-banda'], sinEje['--sf-sobre-banda'], `${id}: --sf-sobre-banda debe moverse al declarar origenTexto:'tinta'`);
+  }
+});
+
+test('esquemaStyle: CORTE con los DOS ejes — --sf-sobre-banda(-suave) sigue ≥4.5:1 contra --sf-banda, en los 4 esquemas', () => {
+  const ejes = { origenTexto: 'tinta' as const, origenAccion: 'acento' as const };
+  for (const id of ['crema', 'superficie', 'oscuro', 'acento'] as const) {
+    const s = esquemaStyle(id, CORTE_RAICES.fondo, CORTE_RAICES.tinta, CORTE_RAICES.acento, ejes);
+    assert.ok(contraste(s['--sf-sobre-banda'], s['--sf-banda']) >= 4.5, `${id}: --sf-sobre-banda debe leerse sobre --sf-banda`);
+    assert.ok(contraste(s['--sf-sobre-banda-suave'], s['--sf-banda']) >= 4.5, `${id}: --sf-sobre-banda-suave debe leerse sobre --sf-banda`);
+  }
 });
 
 // ── bandaEsOscura: el nav ─────────────────────────────────────────────────────

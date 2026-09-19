@@ -74,8 +74,16 @@ export default async function Home({
     ? contenidoConPresetDeVista(contentPublicado, Array.isArray(temaPedido) ? temaPedido[0] : temaPedido)
     : contentPublicado;
   const { esquemas, tema, orden } = content;
+  // origenTexto/origenAccion (§ TEMAS-ESQUEMA-ORIGEN-PENDIENTE-1, cierra el residuo que
+  // TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1 dejó nombrado): el MISMO mapeo null->undefined que ya
+  // usa `cssMiradorTema` para el `:root` (§ theme-mirador.ts) -- acá para las bandas CON esquema
+  // asignado, que hasta este slice derivaban sus 8 vars locales SIN el origen declarado por el
+  // preset. `null` (todo tenant real, y los 5 presets del catálogo que no declaran estos ejes) se
+  // convierte en `undefined`, que es lo que `derivarPaleta` entiende como "sin declarar" -> byte-
+  // idéntico para quien no lo declara.
+  const ejesTema = { origenTexto: tema.origenTexto ?? undefined, origenAccion: tema.origenAccion ?? undefined };
   const bandaStyle = (bandaId: string) =>
-    esquemaStyle(esquemas[bandaId], tema.fondo, tema.tinta, tema.acento) as React.CSSProperties;
+    esquemaStyle(esquemas[bandaId], tema.fondo, tema.tinta, tema.acento, ejesTema) as React.CSSProperties;
   // EL EJE COMPLETO (§ CORTE-MIRADOR-EJES-COMPLETOS-1) — ver el comentario de arriba. `null` cuando
   // no hay override (el caso de siempre): no se calcula nada de más.
   const miradorCss = cssMiradorTema(content, contentPublicado);

@@ -495,6 +495,54 @@ test('CORTE con los DOS ejes declarados: acento-texto pasa a ser la TINTA exacta
   assert.equal(p.accion, CORTE_RAICES.acento);
 });
 
+// ── §TEMAS-ESQUEMA-ORIGEN-PENDIENTE-1 — `derivarEsquema` hereda `ejes`, no una segunda regla ──────
+// El residuo que TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1 dejó nombrado: `derivarEsquema` calculaba su
+// `base` con `derivarPaleta(raices)` SIN `ejes`, así que las bandas CON esquema asignado (§
+// esquema-style.ts) seguían derivando `texto`/`texto-suave`/`acento-texto` del acento aunque el
+// `:root` ya estuviera corregido. El fix es threadear `ejes` a `derivarPaleta` dentro de
+// `derivarEsquema` — NADA MÁS: las tres ramas (crema y las dos no-crema) ya leen esos roles DESDE
+// `base`, así que heredan el origen sin lógica nueva (§ el comentario de `derivarEsquema`).
+
+test('derivarEsquema: `ejes` AUSENTE/`{}` es BYTE-IDÉNTICO al comportamiento de siempre, en los 4 esquemas + CORTE', () => {
+  const ids: EsquemaId[] = ['crema', 'superficie', 'oscuro', 'acento'];
+  for (const raices of [NAYOLI, NEON, MEDIO, CORTE_RAICES]) {
+    for (const id of ids) {
+      assert.deepEqual(derivarEsquema(raices, id), derivarEsquema(raices, id, {}));
+    }
+  }
+});
+
+test('derivarEsquema: CORTE — declarar `origenTexto:"tinta"` MUEVE acento-texto DENTRO de una banda con esquema (el residuo que este slice cierra), en los 4 esquemas', () => {
+  // Antes de este slice, `derivarEsquema` no tenía forma de recibir `ejes`: las 8 vars locales de
+  // una banda con esquema asignado (§ esquema-style.ts) quedaban SIEMPRE en el valor de abajo
+  // (`derivarEsquema(CORTE_RAICES, id)`, sin ejes), aunque el `:root` ya estuviera corregido.
+  for (const id of ['crema', 'superficie', 'oscuro', 'acento'] as const) {
+    const sinEje = derivarEsquema(CORTE_RAICES, id)['acento-texto'];
+    const conEje = derivarEsquema(CORTE_RAICES, id, { origenTexto: 'tinta' })['acento-texto'];
+    assert.notEqual(conEje, sinEje, `${id}: acento-texto debe moverse al declarar origenTexto:'tinta'`);
+  }
+});
+
+test('derivarEsquema: CORTE CON los DOS ejes — texto/texto-suave/acento-texto pasan el piso AA contra su superficie, en los 4 esquemas', () => {
+  for (const id of ['crema', 'superficie', 'oscuro', 'acento'] as const) {
+    const p = derivarEsquema(CORTE_RAICES, id, { origenTexto: 'tinta', origenAccion: 'acento' });
+    for (const rol of ['texto', 'texto-suave', 'acento-texto'] as const) {
+      assert.ok(
+        contraste(p[rol], p.fondo) >= 4.5,
+        `${id}.${rol} debe pasar AA sobre su superficie (fue ${contraste(p[rol], p.fondo).toFixed(2)})`,
+      );
+    }
+  }
+});
+
+test('derivarEsquema: `ejes` NO mueve `fondo` — bandaEsOscura/tratamientoNav (que sólo leen `fondo`) no necesitan este parámetro', () => {
+  for (const id of ['crema', 'superficie', 'oscuro', 'acento'] as const) {
+    const sinEjes = derivarEsquema(CORTE_RAICES, id).fondo;
+    const conEjes = derivarEsquema(CORTE_RAICES, id, { origenTexto: 'tinta', origenAccion: 'acento' }).fondo;
+    assert.equal(conEjes, sinEjes, `${id}: fondo no debe moverse por los ejes de texto/acción`);
+  }
+});
+
 // VISTO FALLAR con el hex viejo (#a07050) antes de este slice: tostado-3/superficie 3.511,
 // tostado-3/fondo 3.992, tostado-3/tarjeta 4.261 — los 3 bajo AA (4.5). Con #8c5d3e: 4.614 /
 // 5.246 / 5.599 — los 3 pasan.

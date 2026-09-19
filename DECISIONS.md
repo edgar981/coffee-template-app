@@ -9591,3 +9591,142 @@ decisión no dictada explícitamente por el spec: qué roles nacidos del acento 
   la próxima tanda que toque `PaletaSeccion.tsx` o la doctrina de la paleta del panel — ahí se
   actualiza el número (o, mejor, se deriva el conteo del propio `derivados.length` en el copy en vez
   de un literal, para que no vuelva a vencer).
+
+## 2026-09-19 — El origen declarado por el preset llega a las BANDAS con esquema asignado, no sólo al `:root` (`TEMAS-ESQUEMA-ORIGEN-PENDIENTE-1`)
+
+**Cierra el residuo que `TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1` dejó nombrado** (arriba, § Open
+follow-ups de esa entrada): esa tanda hizo que un preset pudiera declarar de qué raíz nace su texto
+de lectura (`origenTexto`) y su acción primaria (`origenAccion`), y lo hizo llegar al `:root` (vía
+`cssMiradorTema`→`cssPaleta`→`derivarPaleta`). Pero **NO** llegaba a las bandas con un ESQUEMA
+asignado (§ eje 5b): `derivarEsquema` calculaba su `base` con `derivarPaleta(raices)` — SIN el
+segundo parámetro `ejes` —, así que las 8 vars locales que `esquemaStyle` inyecta en la `<section>`
+de esa banda seguían naciendo del acento. La razón de que quedara sin tocar entonces: el único
+llamador real de `esquemaStyle` es `app/(storefront)/page.tsx:78`, y ese archivo no estaba en
+`touches:` de aquella tanda — agregar el parámetro sin poder tocar el call site habría sido código
+MUERTO (CLAUDE.md, ex-#68: el código muerto no reserva el lugar de una capacidad futura).
+
+### Qué faltaba y cómo se conectó
+
+**Una sola cosa: pasar `ejes` por el camino que ya existía, sin inventar una segunda regla.**
+
+- **`derivarEsquema(raices, id, ejes: EjesPaleta = {})`** (`lib/config/palette-derive.ts:476`) — el
+  tercer parámetro, OPCIONAL y ADITIVO (default `{}`, mismo patrón que `derivarPaleta`), se pasa TAL
+  CUAL a `derivarPaleta(raices, ejes)` para computar `base`. **Nada más se tocó**: las tres ramas de
+  la función (crema, y las dos no-crema) ya leen `texto`/`texto-suave`/`acento-texto` DESDE `base`,
+  así que heredan el origen declarado sin lógica nueva — exactamente lo que el comentario de
+  `derivarPaleta` (§ TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1, la nota sobre `sobre-tarjeta-suave`) ya
+  anticipaba: "todo lo que downstream lee estos tres roles hereda el origen declarado sin que haga
+  falta tocarlo aparte".
+- **`esquemaStyle(id, fondo, tinta, acento, ejes?: EjesPaleta)`** (`lib/config/esquema-style.ts:66`)
+  — quinto parámetro opcional, se pasa a `derivarEsquema(raicesResueltas(...), id, ejes)`.
+- **El ÚNICO call site** (`app/(storefront)/page.tsx:84-86`) arma `ejesTema` con el MISMO mapeo
+  null→undefined que ya usaba `theme-mirador.ts` para el `:root` (`origenTexto: tema.origenTexto ??
+  undefined, origenAccion: tema.origenAccion ?? undefined`) y lo pasa como quinto argumento de
+  `esquemaStyle`.
+- **`bandaEsOscura`/`tratamientoNav` NO se tocaron.** Sólo leen `derivarEsquema(...).fondo`, y `fondo`
+  no depende de `origenTexto`/`origenAccion` (esos dos ejes sólo mueven roles de TEXTO y el rol
+  `accion` — nunca la superficie/fondo del esquema). Afirmado por test: `fondo` es idéntico con y sin
+  los ejes, en los 4 esquemas.
+
+### La invariante — probada, no supuesta
+
+`ejes` ausente/`{}` es BYTE-IDÉNTICO al comportamiento de siempre, en los 4 esquemas × 4 raíces
+(NAYOLI/NEON/MEDIO/CORTE) — `palette-derive.test.ts`, `'derivarEsquema: ejes AUSENTE/{} es
+BYTE-IDÉNTICO...'`. Ningún preset salvo CORTE declara estos dos campos (§ `TEMAS-ROLES-DECLARADOS-
+POR-EL-PRESET-1`, sin cambio), así que PLIEGO/PATIO/VETA/VITRINA/ARRANQUE y todo tenant real quedan
+exactamente como estaban.
+
+### La tabla que el owner va a ver — banda por banda, CORTE
+
+Medido con `esquemaStyle(id, CORTE.raices, ejes)` para las 5 bandas que el preset asigna, y con
+`derivarPaleta(CORTE.raices, ejes)` para el hero (sin esquema, cae al `:root`) — `ANTES` = sin los
+ejes (el estado previo a este slice); `DESPUÉS` = con `origenTexto:'tinta', origenAccion:'acento'`
+(el estado que este slice entrega):
+
+| banda (esquema) | token leído por el eyebrow/título sobre la banda | ANTES | DESPUÉS |
+| --- | --- | --- | --- |
+| trustBadges (crema) | `--sf-sobre-banda` | `#732a00` (rojizo) | `#3d3000` (verde-oliva, el `--text-heading` del prototipo) |
+| featured (crema) | `--sf-sobre-banda` | `#732a00` | `#3d3000` |
+| brandStory (superficie) | `--sf-sobre-banda` | `#732a00` | `#3d3000` |
+| presentaciones (crema) | `--sf-sobre-banda` | `#732a00` | `#3d3000` |
+| subscriptionCTA (crema) | `--sf-sobre-banda` | `#732a00` | `#3d3000` |
+| **hero** (SIN esquema — el par pendiente que el spec pidió revisar) | `--sf-sobre-tarjeta-suave` (el párrafo de `HeroMedia.tsx:153`) | `#a70004` (el acento crudo, rojizo) | `#102407` (la tinta exacta) |
+
+**El hero YA estaba corregido — por el `:root`, no por este slice.** El hero (`variantes.hero:
+'media'`) no tiene esquema asignado (`CORTE.esquemas` no trae la clave `hero`), así que
+`esquemaStyle` le devuelve `{}` y sus tokens `--sf-sobre-tarjeta`/`-suave` caen al `:root` global —
+que `cssMiradorTema` (§ `TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1`, sin cambio en este slice) YA
+alimenta con `ejes`. Medido: `derivarPaleta(CORTE.raices)['sobre-tarjeta-suave']` = `#a70004` (el
+defecto, ANTES de la tanda anterior) vs `derivarPaleta(CORTE.raices, ejes)['sobre-tarjeta-suave']` =
+`#102407` (ya corregido, sin que este slice tocara nada del hero). El título del hero
+(`--sf-sobre-tarjeta`, `HeroMedia.tsx:140`) nunca tuvo el defecto: es un auto-flip blanco/tinta con
+piso, independiente de `origenTexto` en las dos direcciones — confirmado, `#102407` en las dos
+columnas.
+
+**Ninguna banda queda con el texto rojizo.** Los subtítulos (`--sf-sobre-banda-suave`) y el hover de
+`acento-3` (§ el residuo declarado en `TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1`, no tocado por este
+slice — su reposo ya cambia con este fix, pero el matiz de hover en sí sigue sin moverse) no están en
+la tabla porque ninguno era el "texto EN REPOSO" que el spec pidió medir arriba, pero se verificaron
+igual: `--sf-sobre-banda-suave` pasa de `#961700` a `#1d2a00` en las 5 bandas (mismo patrón).
+
+### Gate
+
+- **`npm test`** (capa 1, sin base): **1517/1517**, 0 fail — +9 sobre el piso de
+  `TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1` (1508): 4 nuevos en `palette-derive.test.ts` (la
+  byte-identidad de `ejes` ausente en `derivarEsquema`, el diferencial de `acento-texto` con
+  `origenTexto:'tinta'` en los 4 esquemas, el piso AA con los dos ejes, y que `ejes` no mueve
+  `fondo`) + 5 nuevos en `esquema-style.test.ts` (byte-identidad, el mismo motor que `derivarEsquema`,
+  el diferencial de `--sf-sobre-tarjeta-suave` en los 4 esquemas, el diferencial de `--sf-sobre-banda`
+  en los 2 esquemas claros (crema/superficie) que CORTE realmente asigna a sus 5 bandas, y el piso AA
+  con los dos ejes).
+- **`npm run test:integracion`** (Postgres 14.20 efímero, capa 2): **208/208**, 0 fail — idéntico al
+  piso anterior (este slice no toca ninguna cadena del carril; ningún archivo de
+  `packages/core/`/`app/api/` en el diff).
+- **`npx tsc --noEmit`**: limpio, sin salida.
+- **`npx next build`**: `✓ Compiled successfully`. Verificado sobre el ARTEFACTO (no sólo la fuente,
+  vía un script de Node que lee los chunks — el `grep` de shell tropezaba con los cuantificadores de
+  regex de la ruta): `.next/server/chunks/ssr/_0baz7fz._.js` trae `"derivarEsquema",0,function(a,b,
+  c={}){let d=n(a,c);...}` (el tercer parámetro `c` — `ejes` — se pasa a `n`, la `derivarPaleta`
+  compilada) y `.next/server/chunks/ssr/_07-ylst._.js` trae el call site de la página con el quinto
+  argumento: `z={origenTexto:x.origenTexto??void 0,origenAccion:x.origenAccion??void 0}` seguido de
+  `esquemaStyle(w[a],x.fondo,x.tinta,x.acento,z)`.
+
+### Un descubrimiento durante la escritura de los tests — NO todo rol nacido del acento se mueve igual en toda superficie
+
+El primer test que escribí para el diferencial usaba `--sf-sobre-banda` (mapea a `p.texto`) contra
+los 4 esquemas del catálogo (`crema`/`superficie`/`oscuro`/`acento`) y **falló para `oscuro`**:
+`p.texto` para una superficie OSCURA no reusa la mezcla acento/tinta de la RECETA — reusa `tostado`/
+`acento-txt` (§ `textoClaroSobreOscuro`, `palette-derive.ts`, doctrina de ANTES de este slice, sin
+tocar), que no dependen de `origenTexto`. Es un invariante del DISEÑO (un texto cálido-y-claro sobre
+fondo oscuro, no un piso raso), no un hueco de este slice: **irrelevante en la práctica**, porque
+CORTE sólo asigna esquemas `crema`/`superficie` a sus 5 bandas (ninguna `oscuro`/`acento`) — medido,
+`CORTE.esquemas` (`themes.ts:386-392`). El test se corrigió para verificar el diferencial con
+`--sf-sobre-tarjeta-suave` (que SÍ deriva de `acento-texto`, y ESE rol se mueve en los 4 esquemas
+sin excepción) y, aparte, con `--sf-sobre-banda` restringido a los 2 esquemas claros (crema/
+superficie) que CORTE realmente usa. Ninguna corrección de código — sólo del test, antes de que el
+error se colara en el gate.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, mismo gate del mirador). Los archivos tocados
+(`lib/config/palette-derive.ts`, `lib/config/esquema-style.ts`, `app/(storefront)/page.tsx`) están
+en la lista de Tier 1 (`components/storefront/`/`app/(storefront)/` — bytes del visitante). Contra
+MERGE POLICY A: **sin schema/migración**, **sin contrato cross-repo**, pero **SÍ bytes de cliente**
+— el diff cambia valores que las 5 bandas con esquema traducen en `--sf-*` reales sobre la ruta
+pública `/`, gateada por `?tema=` (no por sesión). `customer_bytes.changed: true`. La rama entera
+(`slice/corte-reescritura-prototipo-1`) ya venía `AWAITING_APPROVAL`; este slice individual también
+clasifica `AWAITING_APPROVAL` por cuenta propia.
+
+### Deviations
+
+Ninguna del spec en la mecánica (threadear `ejes` por el camino existente, sin segunda regla). Una
+corrección de MEDICIÓN sobre la marcha (no del spec): el primer borrador de un test asumía que TODO
+rol nacido del acento se mueve igual en las 4 superficies de esquema — medido y refutado (§ arriba,
+"Un descubrimiento durante la escritura de los tests").
+
+### Open follow-ups
+
+Ninguno nuevo. El residuo de `--sf-acento-3` (hover del link de `FeaturedProductsGrilla`) que
+`TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1` dejó nombrado sigue igual: es un matiz de HOVER, no el
+texto en reposo, y su reposo (`--sf-sobre-banda`, la MISMA banda `featured`) ya se corrige con este
+slice — mover también el hover sería una extensión no pedida por este spec.

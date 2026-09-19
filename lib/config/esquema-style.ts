@@ -1,4 +1,4 @@
-import { derivarEsquema, contraste, RAICES_DEFECTO, type EsquemaId, type RaicesPaleta } from './palette-derive';
+import { derivarEsquema, contraste, RAICES_DEFECTO, type EsquemaId, type RaicesPaleta, type EjesPaleta } from './palette-derive';
 import { bandaOscuraCanonica, bandaUniforme, type BandaId, type EsquemasContent } from './site-content-defaults';
 
 // Puente entre UN esquema asignado a una BANDA (§ SiteContentData.esquemas, eje 5b mitad B) y las
@@ -53,15 +53,25 @@ const raicesResueltas = (fondo: string | null, tinta: string | null, acento: str
  * familia `superficie` (`--sf-sobre-superficie`/`-suave`) NO entra a esta lista: `--sf-superficie`
  * es RAÍZ y ningún esquema la re-deriva, así que su par vive sólo en `derivarPaleta`/`cssPaleta`,
  * nunca acá (§ palette-derive.ts).
+ *
+ * `ejes` (§ `EjesPaleta`, `palette-derive.ts`, TEMAS-ESQUEMA-ORIGEN-PENDIENTE-1) es OPCIONAL y
+ * ADITIVO -- ausente/`{}` reproduce EXACTAMENTE el comportamiento de siempre. Se pasa TAL CUAL a
+ * `derivarEsquema`, el MISMO motor y la MISMA regla que ya mueve el `:root` (vía `cssMiradorTema`
+ * -> `cssPaleta`): sin este parámetro, una banda CON esquema asignado seguía derivando sus 8 vars
+ * locales de `derivarPaleta(raices)` SIN el origen declarado por el preset, así que `--sf-sobre-
+ * banda`/`-suave` (y el resto de la familia texto) volvían a nacer del acento DENTRO de esa banda
+ * aunque el `:root` ya estuviera corregido -- el residuo que `TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1`
+ * dejó nombrado (DECISIONS.md) por no poder tocar el único call site (`app/(storefront)/page.tsx`).
  */
 export function esquemaStyle(
   id: EsquemaId | null | undefined,
   fondo: string | null,
   tinta: string | null,
   acento: string | null,
+  ejes?: EjesPaleta,
 ): Record<string, string> {
   if (!id) return {};
-  const p = derivarEsquema(raicesResueltas(fondo, tinta, acento), id);
+  const p = derivarEsquema(raicesResueltas(fondo, tinta, acento), id, ejes);
   return {
     '--sf-banda': p.fondo,
     '--sf-tarjeta': p.tarjeta,
