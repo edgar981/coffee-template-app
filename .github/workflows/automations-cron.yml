@@ -71,7 +71,24 @@ jobs:
             | tee respuesta.json
 
           echo ""
+
+          # QUIÉN respondió, no sólo QUÉ hizo (CRON-CONTRA-QUE-DEPLOYMENT-1). Si CRON_URL
+          # apunta a un deployment VIVO pero equivocado (uno viejo, un preview), el endpoint
+          # responde 200 y este job se pondría en verde igual — es el mismo modo de falla
+          # que esta misma semana dejó cobrando a un webhook mal apuntado, sin que nada lo
+          # avisara. "null" (ENTORNO/COMMIT ausentes de la respuesta, o `jq` sin poder leer
+          # el JSON) NO cuenta como producción: se trata igual que un entorno equivocado,
+          # abajo — no hay forma de VERIFICAR que respondió producción, así que no se asume.
+          ENTORNO=$(jq -r '.deployment.entorno // "null"' respuesta.json 2>/dev/null || echo "null")
+          COMMIT=$(jq -r '.deployment.commit // "null"' respuesta.json 2>/dev/null || echo "null")
+
           echo "### Barrido de automatizaciones" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Deployment:** entorno=\`${ENTORNO}\` · commit=\`${COMMIT}\`" >> "$GITHUB_STEP_SUMMARY"
           echo '```json' >> "$GITHUB_STEP_SUMMARY"
           cat respuesta.json >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${ENTORNO}" != "production" ]; then
+            echo "::error::El barrido respondió desde el entorno '${ENTORNO}' (commit ${COMMIT}), no 'production'. CRON_URL apunta a un deployment que no es la producción real — el mismo defecto que esta semana dejó cobrando a un webhook mal apuntado, sin que nada lo avisara. Corregí la variable CRON_URL (Settings → Secrets and variables → Actions → Variables) para que apunte al dominio de PRODUCCIÓN."
+            exit 1
+          fi

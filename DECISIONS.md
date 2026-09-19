@@ -8787,3 +8787,129 @@ enlaces de pasarela, campos de identidad ausentes) coinciden con lo que el spec 
   (Ley 1581 / Estatuto del Consumidor, § el comentario citado en §1) y cablearla a `legalNav`— sigue
   sin hacerse. Depende de `LEGALES-IDENTIDAD-ALTA-CLIENTE-1` para tener con qué sustituir la
   plantilla.
+
+## 2026-09-18 — El barrido horario dice contra qué deployment corrió, y el flujo de trabajo FALLA si no es producción (`CRON-CONTRA-QUE-DEPLOYMENT-1`)
+
+### 0 · El defecto, y por qué es el mismo que ya costó
+
+El flujo de trabajo que dispara `/api/cron/automations` cada hora ya falla ruidoso cuando `CRON_URL`
+está vacía, cuando `CRON_SECRET` no coincide, o cuando el servidor responde 4xx/5xx (`--fail-with-
+body`). Lo que no cubría: si `CRON_URL` apunta a un deployment VIVO pero EQUIVOCADO —uno viejo, uno de
+vista previa que alguien dejó pegado en la variable del repo— el endpoint responde 200, el job de
+Actions queda VERDE, y el barrido corre contra el deployment que no es. Todas las horas.
+
+No es hipotético: es la misma clase de incidente que esta semana dejó un webhook de Wompi apuntando a
+un deployment viejo, cobrándole al comprador sin que la tienda se enterara —una URL configurada AFUERA
+del repositorio, mal apuntada, con el chequeo automático en verde porque el endpoint SÍ respondía. El
+owner pidió la vuelta del orquestador con esta doctrina explícita: **un mecanismo que sólo imprime no
+es un gate** (§ CLAUDE.md, TIER1-LISTA-VENCIDA-2/`TIER1-DOS-CANDIDATOS-CLASIFICADOS-1`). Por eso este
+slice no agrega un dato al resumen y se va: bloquea.
+
+### 1 · Qué devuelve el endpoint — `deployment.entorno` / `deployment.commit`
+
+`identidadDelDeployment()` (`app/api/cron/automations/route.ts`) agrega un campo `deployment` a las
+DOS respuestas que el endpoint ya devolvía (200 de éxito y 503 `degradado`):
+
+```json
+{ "deployment": { "entorno": "production" | "preview" | "development" | null, "commit": "<sha>" | null } }
+```
+
+- **`entorno` sale de `process.env.VERCEL_ENV`** — la MISMA env var que ya lee `esDespliegueDemo()`
+  tres líneas más arriba en este mismo archivo (`import { esDespliegueDemo } from '@/next.config'`).
+  No se inventa una segunda forma de preguntar "dónde estoy corriendo": el repo YA tiene la
+  convención (`lib/storage.ts`, `lib/auth.ts`, `next.config.ts`, `packages/core/src/notifications/
+  data.ts`) y este slice la sigue, no la reinventa.
+- **`commit` sale de `process.env.VERCEL_GIT_COMMIT_SHA`** — la System Environment Variable oficial
+  de Vercel para el SHA del commit que originó el build. Ningún archivo del repo la leía todavía
+  (`grep -rn "VERCEL_GIT_COMMIT_SHA" --include="*.ts" --include="*.tsx" --include="*.md" .` daba cero
+  antes de este slice), así que no hay una segunda convención con la que pudiera chocar.
+- **Ausente → `null` explícito, nunca un string inventado.** Corriendo fuera de Vercel (local, otro
+  proveedor) las dos vars no existen y las dos resuelven a `null` — nunca "desconocido" ni un
+  fallback que se lea como dato real (§ CLAUDE.md, "Principio rector del admin — defaults
+  inteligentes… preferir callar a adivinar mal", aplicado acá al campo, no a un valor de UI).
+- **No se agregó nada más.** Ni versión, ni hora del sistema, ni una bandera nueva — sólo los dos
+  campos que el spec pidió. El resto del cuerpo (`ok`, `horaBogota`, `ejecutadas`,
+  `omitidasPorHora`, `inactivas`, `runs`, `porEstado`, `reconciliador`, `duracionMs`, y el `error`/
+  `degradado` del camino 503) no cambió de nombre, de orden ni de tipo — se agregó una clave, no se
+  reordenó ninguna. El diff completo de `route.ts` está en el commit de este slice.
+
+### 2 · Qué hace el flujo de trabajo — mostrar SIEMPRE, bloquear si no es producción
+
+`.github/workflows/automations-cron.yml` extrae `deployment.entorno` y `deployment.commit` de la
+respuesta con `jq` y hace dos cosas nuevas, después del `curl` que ya existía:
+
+1. **Lo imprime SIEMPRE en el resumen del job** (`$GITHUB_STEP_SUMMARY`), como una línea propia
+   ("**Deployment:** entorno=`production` · commit=`abc123f`") ANTES del volcado JSON completo que
+   el workflow ya hacía. El volcado del cuerpo entero ya mostraba el campo si alguien lo abría y
+   grepeaba, pero eso es exactamente la falla que el §0 describe — un dato correcto que nadie lee
+   dentro de un job verde no es un gate, y por eso se destaca en su propia línea, no sólo dentro del
+   bloque de código.
+2. **Falla el job si `entorno` no es exactamente la cadena `"production"`.** `jq -r
+   '.deployment.entorno // "null"'` — el operador `//` de jq dispara tanto con la clave AUSENTE como
+   con un valor JSON `null` explícito, así que las dos formas de "no sé quién respondió" caen en la
+   misma rama. Ese resultado (`"null"`, `"preview"`, `"development"`, o cualquier string que no sea
+   `"production"`) hace que el `if` compare distinto de `"production"` y el script termine con
+   `echo "::error::…"` + `exit 1`.
+
+El mensaje de error dice CUÁL fue el entorno, CUÁL el commit, y QUÉ HACER (corregir `CRON_URL` en
+Settings → Secrets and variables → Actions → Variables) — no sólo que el entorno no era el esperado.
+Es la condición que el spec puso explícita: "un rechazo que no dice qué hacer se resuelve borrando la
+guarda". Un futuro operador que vea el job rojo tiene, en el mismo mensaje, el nombre exacto de la
+variable a revisar y el motivo (la misma clase de incidente que el webhook de Wompi).
+
+**La consecuencia deliberada, escrita donde se ve:** apuntar este workflow a un preview A PROPÓSITO,
+para probarlo, VA A FALLAR — y eso es correcto. El comentario del propio paso del workflow lo dice
+antes del `if`, no como una nota aparte que alguien tendría que recordar.
+
+### 3 · Fail-closed sobre la ausencia de la variable — la decisión pedida explícitamente
+
+El spec pedía decidir y justificar, no dejar la pregunta abierta: **si `VERCEL_ENV` no existe (el
+servidor corre fuera de Vercel, o alguien la deshabilitó), el endpoint devuelve `entorno: null`, y el
+workflow lo trata IGUAL que un entorno equivocado — BLOQUEA, no deja pasar.**
+
+La razón: este mecanismo existe específicamente para el caso en que no se puede CONFIAR en que quien
+respondió es la producción real. Un `entorno: null` es exactamente esa incertidumbre — no hay forma
+de verificar que la respuesta vino de producción, así que asumir que sí (dejar pasar) reintroduce el
+mismo agujero que el slice cierra: un 200 sin identidad verificable, tratado como si estuviera bien.
+Fail-closed es además coherente con el resto del archivo: el propio endpoint ya falla cerrado sin
+`CRON_SECRET` configurado ("un despliegue al que se le olvidó la env var debe fallar ruidosamente, no
+quedar expuesto" — comentario ya existente en `route.ts`). La alternativa (dejar pasar sobre `null`)
+era defendible sólo si el objetivo fuera "avisar cuando sabemos que está mal"; el objetivo pedido era
+"bloquear cuando no podemos probar que está bien", y ésa es la lectura que se implementó.
+
+**Nada de esto se probó contra Vercel real** (no hay forma de correr un deployment de Vercel desde
+este slice): la garantía es por LECTURA del código —`identidadDelDeployment()` en `route.ts`, y la
+comparación de `jq`/`if` en el workflow, verificadas con payloads simulados (`production`, `preview`,
+sin campo `deployment`, y `entorno: null` explícito) que confirman las cuatro caen donde el diseño
+dice. El primer barrido real contra el deployment de producción es la verificación en uso; no se
+puede adelantar desde acá.
+
+### Lo que NO se hizo
+
+No se tocó la lógica de `runScheduledAutomations` ni la de `correrReconciliador`/`correrPasoReconciliador`
+— sólo se agregó el campo `deployment` alrededor de las dos llamadas existentes. No se tocaron las otras
+ramas de fallo del workflow (secreto ausente, URL ausente, 4xx/5xx) — siguen intactas, línea por línea.
+No se expuso ningún secreto: `deployment` sólo lleva `entorno` y `commit`, los dos ya públicos por
+definición (el commit es del repo público del template; el entorno lo revela el propio dominio). No se
+corrió `npm run build`. No se mergeó ni se hizo push a `main`.
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido dos veces sobre el árbol final: la primera corrida del carril
+de integración dio 207/208 (una falla aislada, no reproducida); la segunda corrida — y una tercera del
+`gate` completo después— dieron **1458/1458** (capa 1) y **208/208** (capa 2), sin fallos, en dos
+corridas consecutivas. La falla aislada de la primera corrida no se pudo atribuir a este diff: el
+mismo archivo de test volvió a pasar sin cambiar una línea, y el diff de este slice no toca ningún
+código que ese carril ejercite (inventario, pagos, kardex, checkout) — se documenta como una
+observación, no como un defecto de este slice. `npm run typecheck` (`tsc --noEmit`) también limpio.
+
+### Deviations
+
+Ninguna respecto del spec. El spec dejó dos decisiones explícitas al criterio de este slice
+—dónde vive la identidad del deployment en la respuesta, y cómo se comporta la ausencia de
+`VERCEL_ENV`— y las dos están resueltas y justificadas arriba (§1 y §3).
+
+### Open follow-ups
+
+Ninguno nuevo. El slice cierra su propio alcance: identidad + bloqueo, sin tocar las otras ramas de
+fallo ya existentes ni la lógica de negocio del barrido.

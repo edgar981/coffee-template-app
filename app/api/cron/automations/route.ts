@@ -41,6 +41,20 @@ import { esDespliegueDemo } from '@/next.config';
 // corre igual — el mismo principio de aislamiento que ya rige el motor de
 // automatizaciones (una automatización rota no puede tumbar una venta).
 
+/** Quién respondió — no QUÉ hizo. `entorno` y `commit` salen de las System
+ *  Environment Variables que Vercel expone en runtime; es la MISMA fuente que ya
+ *  lee `esDespliegueDemo()` (VERCEL_ENV) en este mismo archivo, así que no se
+ *  inventa una segunda forma de preguntar "dónde estoy corriendo". Ausentes
+ *  (fuera de Vercel, o la env var deshabilitada) → `null` explícito, nunca un
+ *  string inventado — un "desconocido" que se lee como dato sería peor que un
+ *  hueco declarado (§ CLAUDE.md, defaults inteligentes: preferir callar). */
+function identidadDelDeployment() {
+  return {
+    entorno: process.env.VERCEL_ENV ?? null,
+    commit:  process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+  };
+}
+
 /** Comparación en tiempo constante: una comparación normal filtra el secreto por
  *  temporización, un carácter a la vez. */
 function secretoValido(recibido: string, esperado: string): boolean {
@@ -157,6 +171,7 @@ export async function POST(req: NextRequest) {
       {
         ok: false, degradado: true, error: 'No se pudo leer la configuración de automatizaciones',
         reconciliador,
+        deployment: identidadDelDeployment(),
       },
       { status: 503 },
     );
@@ -177,6 +192,7 @@ export async function POST(req: NextRequest) {
     runs:            report.runs,
     porEstado,
     reconciliador,
+    deployment:      identidadDelDeployment(),
     duracionMs:      Date.now() - inicio,
   });
 }
