@@ -9258,3 +9258,159 @@ que se releyó `themes.ts` completo por contenido antes de editar, no se confió
 - `THEMES-CINCO-THEMES-COMENTARIO-VENCIDO-1` — `lib/config/themes.ts:249-253`, ídem.
 - `CLAUDE-SUBARBOL-GRINDCHOOSER-EJEMPLO-VENCIDO-1` — `CLAUDE.md:52`, ídem; bajo prioridad porque no
   afirma exclusividad, sólo cita un ejemplo incompleto.
+
+## 2026-09-19 — Superficie y tinta estaban INVERTIDAS: CORTE pintaba tres bandas de contenido con la raíz tinta como lienzo, y el prototipo nunca lo hace (`CORTE-ESQUEMAS-INVERTIDOS-1`)
+
+**El defecto, palabras del owner, mirando el mirador contra el prototipo lado a lado:** *"Superficie
+y tinta están INVERTIDAS. El prototipo es página CREMA con tinta verde profundo. El verde profundo
+es TINTA y superficies de acento PUNTUALES (nav, footer), no el canvas."*
+
+### La CLASE: un eje que se deja quieto no es un eje neutral
+
+`CORTE-REESCRITURA-PROTOTIPO-1` cambió las tres raíces de CORTE (`fondo`/`tinta`/`acento`) leyendo
+el prototipo, pero **no volvió a decidir el eje `esquemas`** — el mapa bandaId→esquema que dice QUÉ
+banda se pinta con qué superficie. Ese mapa venía de ANTES de la reescritura, pensado contra la
+paleta vieja (`tinta:'#0c0b0a'`, casi negro): con esas raíces, `trustBadges`/`featured`/`brandStory`
+en `'oscuro'` (= `raices.tinta` como lienzo completo) daban "casi negro sobre neutro cálido" — un
+acento tonal más, no una superficie que gritara. Con `tinta:'#102407'` (verde profundo, la raíz que
+`CORTE-REESCRITURA-PROTOTIPO-1` sí leyó del prototipo), la MISMA asignación pasó a pintar tres bandas
+completas de verde saturado — el valor del mapa no cambió; lo que significa, sí, porque cambió
+aquello de lo que depende. Es la misma familia que la doctrina ya nombra para artefactos y bases
+(§ CLAUDE.md, PRECONDICIÓN): lo que quedó escrito no prueba lo que corre; acá, además, lo que quedó
+escrito ni siquiera prueba lo que ANTES corría, porque las raíces de las que depende cambiaron
+debajo.
+
+### QUÉ HACE `esquemas` — el mecanismo, medido antes de tocar el mapa
+
+`preset.esquemas: Partial<Record<BandaId, ClaveEsquema>>` (`lib/config/themes.ts`) se traduce a CSS
+por banda vía `esquemaStyle` (`lib/config/esquema-style.ts`) → `derivarEsquema` (`lib/config/
+palette-derive.ts:369`). Los CUATRO esquemas del set cerrado, derivados de las TRES raíces de CORTE
+(medido con `derivarEsquema`, no supuesto):
+
+| esquema | qué pinta como lienzo | hex resultante con raíces de CORTE |
+| --- | --- | --- |
+| `crema` | `raices.fondo` tal cual (`derivarPaleta` base) | `#fdfbf7` |
+| `superficie` | mezcla `fondo`+`acento` al 9% (`palette-derive.ts:147`) | `#f3eadb` |
+| `oscuro` | `raices.tinta` completa | `#102407` |
+| `acento` | `raices.acento` completa | `#a70004` |
+
+`'oscuro'` no es "un verde ligeramente distinto": es la RAÍZ TINTA entera como fondo de la banda,
+byte a byte. Con tres bandas de contenido en `'oscuro'`, un visitante del mirador ve tres paneles
+verde-profundo consecutivos donde el prototipo no tiene ninguno.
+
+### Banda por banda, contra el prototipo versionado (`docs/prototipos/cafeone/`)
+
+Metodología: `grep` del token semántico (`--surface-page`/`--surface-page-cool`/`--surface-inverse`)
+contra `css/tokens.css` y `css/app.css`, y lectura de `index.html` para ubicar la sección real que
+cada banda de CORTE compone (según su `variante` en el mismo preset). Los usos de `--surface-
+inverse` como LIENZO en TODO el prototipo (grep completo, `css/app.css`) son: el header en su estado
+sólido (188,191), el mega-menú (253,302,329), el cajón del carrito (674), el pie de página (633) y
+el toast (836) — CINCO usos, los cinco de CHROME, cero de banda de contenido del home.
+
+| banda (CORTE) | variante | sección del prototipo medida | superficie medida | esquema ANTES | esquema DESPUÉS | canvas resultante |
+| --- | --- | --- | --- | --- | --- | --- |
+| `trustBadges` | (sin variante propia) | sin análogo directo — no hay franja de insignias en el prototipo | sin evidencia de lienzo oscuro | `oscuro` | `crema` | `#fdfbf7` |
+| `featured` | `grilla` | `.spotlight`, `#producto` (`index.html:160`) | `background:var(--surface-page)` (`css/app.css:436`) | `oscuro` | `crema` | `#fdfbf7` |
+| `brandStory` | `centrada` | `.historia`, `#historia` (`index.html:250`) | `background:var(--surface-page-cool)` (`css/app.css:564`) | `oscuro` | `superficie` | `#f3eadb` |
+| `presentaciones` | `riel` | `#presentaciones`, `class="section"` SIN override de fondo (`index.html:226`) | hereda `body{background:var(--surface-page)}` (`css/app.css:43`) | `superficie` | `crema` | `#fdfbf7` |
+| `subscriptionCTA` | `linea` | sin lienzo sólido en el prototipo (ver abajo) | — | `crema` | `crema` (sin cambio) | `#fdfbf7` |
+
+**`brandStory` no calza EXACTO** (`#f3eadb` derivado vs. `#f0f0ec` medido en el prototipo): son la
+misma FAMILIA ("superficie apenas distinta de la página"; nuestro `'superficie'` mezcla `fondo` con
+9% de `acento`, así que hereda un matiz tibio del rojo de CORTE en vez del gris frío del prototipo).
+Calzar el hex exacto exigiría tocar las RAÍCES o el motor de derivación — los dos fuera de
+`touches:` de este slice, y el segundo es justo lo que el spec prohíbe explícitamente tocar
+(§ abajo, "Lo que NO se arregló acá"). Reportado, no disimulado.
+
+**`presentaciones`: el `'superficie'` viejo no tenía respaldo en el prototipo.** La banda entera
+—`GrindChooserRiel.tsx:112`, `bg-[var(--sf-banda,var(--sf-fondo))]`— hereda el fondo de página; sólo
+la MINIATURA de cada tarjeta usa un tono aparte, y ese tono sale de `--sf-linea` (línea 182 del
+componente), no de `--sf-tarjeta` — el token que `esquemaStyle` sí mueve por banda. O sea que
+`'superficie'` estaba cambiando un dato (el fondo de la banda entera) para intentar afectar un
+efecto visual (la miniatura) que ese eje ni siquiera gobierna.
+
+### `subscriptionCTA` — considerado `'oscuro'` y descartado; la duda queda abierta, no resuelta a ciegas
+
+El análogo más cercano del prototipo a una franja de "suscríbete"/"únete" es `.cta-strip`
+(`aria-label="Únete al club"`, `index.html:313`), la banda inmediatamente ANTES del footer — la
+misma posición relativa que `subscriptionCTA` ocupa en `ORDEN_DEFAULT` (penúltima, justo antes de
+`testimonials`, que a su vez precede al chrome del footer). Pero esa banda del prototipo **no es un
+lienzo sólido**: es una FOTO (`farm-hands-basin.png`) con `--protect-grad` encima (`css/app.css:620`,
+un degradado `rgba(16,36,7,…)` — la raíz tinta con alfa, `tokens.css:217` — sobre la imagen, no un
+`background-color` plano). El newsletter REAL del prototipo (el formulario "Tu correo electrónico")
+vive DENTRO del `<footer>` (`index.html:323-331`, `--surface-inverse`), no en una banda de contenido
+aparte.
+
+Se sopesaron dos lecturas y se optó por la conservadora:
+
+1. **Pintar `oscuro`** — argumento: la posición (penúltima banda, justo donde el prototipo tiene su
+   franja más oscura antes del pie) y que el newsletter real vive en un lienzo `--surface-inverse`.
+2. **Dejar `crema`** (la elegida) — argumento: no hay NINGÚN lienzo sólido de tinta en el prototipo
+   fuera del chrome que el owner nombró explícitamente ("nav, footer"); la evidencia de (1) es
+   POSICIONAL, no un `background-color` medido, y el estándar que motiva este slice es reducir el
+   uso de tinta-como-canvas a lo punctual, no encontrarle un cuarto sitio.
+
+Se documentó la duda en el propio comentario de `themes.ts` (no sólo acá) para que el próximo gate
+del owner la resuelva con el mirador delante, en vez de que quede enterrada en un mensaje de commit.
+
+### Lo que NO se arregló acá — los otros dos defectos, con su causa medida
+
+El owner reportó dos defectos más el mismo gate, y pidió EXPLÍCITAMENTE no mezclarlos con éste:
+
+1. **El texto de lectura sobre `--sf-banda`.**
+2. **El botón primario.**
+
+Los dos comparten causa, YA medida (no en este slice, se repite acá porque el owner la citó al
+aprobar): ninguno de los dos sale de la raíz `tinta` — los dos se DERIVAN del `acento` (`#a70004`,
+rojo) por el motor de paleta (`palette-derive.ts`, compartido por TODOS los inquilinos, no sólo
+CORTE). Tocar el motor para que el rojo se vea "menos mal" habría tapado el defecto de superficies
+que este slice sí resuelve, y viceversa — un arreglo que compensa otro hace que los dos queden
+invisibles. Este slice **no tocó `palette-derive.ts` ni `esquema-style.ts`**, verificado por
+`git diff --name-only` (única salida: `lib/config/themes.ts`, `DECISIONS.md`).
+
+### Gate
+
+- **`npm test`** (capa 1, sin base): **1490/1490**, 0 fail — idéntico al piso de
+  `CORTE-COMENTARIOS-VENCIDOS-1` (este slice cambia datos, no agrega ni quita tests).
+- **`npm run test:integracion`** (Postgres 14.20 efímero, capa 2): **208/208**, 0 fail — idéntico al
+  mismo piso.
+- **La guarda de completitud** (`validarPreset(CORTE)` / `presetCompleto(CORTE)`, ejercida por el
+  test `'CORTE: las 5 variantes que pide YA EXISTEN — CORTE valida COMPLETO'`): sigue en verde — el
+  cambio fue de VALORES dentro del set cerrado (`crema`/`superficie`/`oscuro`/`acento`), nunca de
+  claves de banda ni de nombres de esquema, así que la regla (b) de `validarPreset` no tenía forma
+  de reaccionar.
+- **`npx tsc --noEmit`**: limpio, sin salida.
+- **`npx next build`**: `✓ Compiled successfully`, sin error.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, misma sesión, mismo gate del mirador). El archivo tocado
+(`lib/config/themes.ts`) está nombrado en la lista de Tier 1. Contra MERGE POLICY A: **sin
+schema/migración** (ningún archivo de `packages/core/prisma/`), **sin contrato cross-repo**, pero
+**SÍ bytes de cliente** — a diferencia de `CORTE-COMENTARIOS-VENCIDOS-1` (comentarios puros), este
+diff cambia VALORES que `esquemaStyle` traduce en `--sf-banda`/`--sf-sobre-banda`/etc. reales, y el
+mirador (`app/(storefront)/page.tsx`, gateado por `?tema=` — NO por sesión) los sirve sobre la ruta
+pública `/`. `customer_bytes.changed: true`. La rama entera (`slice/corte-reescritura-prototipo-1`)
+ya venía `AWAITING_APPROVAL` por los slices anteriores que tocan `components/storefront/home/`; este
+slice individual también clasifica `AWAITING_APPROVAL` por cuenta propia (no sólo por herencia de la
+rama), porque su propio diff cambia colores que el mirador sirve.
+
+### Deviations
+
+Ninguna del spec. La única decisión no dictada por el spec fue la de `subscriptionCTA` (§ arriba,
+sopesada y dejada en `crema` por la lectura conservadora de "tinta punctual").
+
+### Open follow-ups
+
+- `CORTE-SUPERFICIE-MATIZ-TIBIO-1` — `lib/config/palette-derive.ts:147` (el peso `w:0.09` de
+  `superficie`), el esquema `'superficie'` deriva SIEMPRE hacia el `acento` del cliente, así que para
+  CORTE (acento rojo) da un cream tibio (`#f3eadb`) en vez del gris frío del prototipo (`#f0f0ec`,
+  `--surface-page-cool`). No es un bug — es la fórmula compartida por los cuatro presets — pero es la
+  brecha que impide que `brandStory` calce EXACTO. Tocar el motor está fuera de `touches:` de este
+  slice y el owner pidió no mezclarlo con los otros dos defectos reportados (§ arriba). Disparador: si
+  el próximo gate del owner marca a `brandStory` como "todavía no calza" con el estándar de verse
+  igual al prototipo.
+- `CORTE-SUBSCRIPTIONCTA-ESQUEMA-DUDA-1` — `lib/config/themes.ts` (comentario de `esquemas` en
+  `CORTE`), la duda sopesada y no resuelta sobre si `subscriptionCTA` debería ser `'oscuro'` (§
+  arriba, las dos lecturas). Disparador: el próximo gate del mirador del owner, mirando
+  específicamente esa banda.

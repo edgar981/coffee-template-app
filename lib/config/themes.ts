@@ -334,11 +334,44 @@ export const CORTE: PresetTema = {
     presentaciones: 'riel',
     subscriptionCTA: 'linea',
   },
+  // `esquemas` (§ CORTE-ESQUEMAS-INVERTIDOS-1, DECISIONS.md) — REESCRITO banda por banda contra el
+  // prototipo; no es un ajuste del mapa anterior. EL DEFECTO: `CORTE-REESCRITURA-PROTOTIPO-1` cambió
+  // las tres raíces (§ arriba) y no volvió a decidir ESTE eje — las tres asignaciones 'oscuro' de
+  // antes (pensadas contra otra paleta, donde daban "casi negro sobre neutro cálido") pasaron a
+  // pintar trustBadges/featured/brandStory con la RAÍZ TINTA (#102407) como lienzo COMPLETO. El
+  // prototipo no hace eso: su body es `--surface-page` (docs/prototipos/cafeone/css/tokens.css:57,
+  // #fdfbf7) y `--surface-inverse` (tokens.css:61, #102407) sólo pinta CHROME —header en su estado
+  // sólido, mega-menú, cajón del carrito, pie de página, toast (grep de `surface-inverse` en
+  // css/app.css: 188-329, 633-674, 836)—, NUNCA una banda de contenido del home. Owner (2026-09-19):
+  // «el verde profundo es TINTA y superficies de acento PUNTUALES (nav, footer), no el canvas».
+  //   trustBadges → sin análogo directo en el prototipo (no hay franja de insignias); sin evidencia
+  //     de lienzo oscuro para esta banda, se deja en la página — 'crema'.
+  //   featured·grilla → `.spotlight` (index.html:160, "Nuestro café"),
+  //     `background:var(--surface-page)` (css/app.css:436) — 'crema'.
+  //   brandStory·centrada → `.historia` (index.html:250), `background:var(--surface-page-cool)`
+  //     (css/app.css:564) — una superficie APENAS distinta de la página, ni la página exacta ni la
+  //     tinta — 'superficie' (deriva a #f3eadb con las raíces de CORTE, medido con `derivarEsquema`;
+  //     el prototipo da #f0f0ec — misma FAMILIA de "superficie apenas distinta", no puede calzar
+  //     exacto sin tocar las raíces, fuera de `touches` de este slice).
+  //   presentaciones·riel → `#presentaciones` es `class="section"` SIN override de fondo
+  //     (index.html:226); el body ya es `--surface-page` (css/app.css:43) — 'crema' (antes
+  //     'superficie', que la distinguía de la página sin que el prototipo lo pida; sólo
+  //     `.pres-media`, la miniatura de CADA tarjeta —no la banda—, usa `--surface-tile`,
+  //     tokens.css:60, y ese token no lo gobierna este eje: `GrindChooserRiel.tsx` pinta esa
+  //     miniatura con `--sf-linea`, no con `--sf-tarjeta`).
+  //   subscriptionCTA·linea → SIN CAMBIO, 'crema'. El análogo más cercano del prototipo es
+  //     `.cta-strip` ("Únete al club", index.html:313), pero es una FOTO con `--protect-grad`
+  //     (css/app.css:620 — un degradado teñido de tinta SOBRE una imagen, tokens.css:217), no un
+  //     lienzo sólido; el newsletter real vive DENTRO del pie (index.html:323-331,
+  //     `--surface-inverse`). Se consideró 'oscuro' por la POSICIÓN (última banda antes de
+  //     testimonials/pie, igual que el cta-strip antes del pie) y se descartó: es evidencia de
+  //     posición, no un lienzo sólido medido, y el estándar del owner es tinta PUNTUAL (nav, footer)
+  //     — se prefiere la lectura conservadora. Queda como duda abierta, no una decisión ciega.
   esquemas: {
-    trustBadges: 'oscuro',
-    featured: 'oscuro',
-    brandStory: 'oscuro',
-    presentaciones: 'superficie',
+    trustBadges: 'crema',
+    featured: 'crema',
+    brandStory: 'superficie',
+    presentaciones: 'crema',
     subscriptionCTA: 'crema',
   },
   // «usa el default de hoy, sin reordenar» (§2) — el mismo ORDEN_DEFAULT que ya usa Nayoli.
