@@ -9149,3 +9149,112 @@ construyó una variante nueva. No se corrigieron porque `themes.ts` está en `to
    linea` ya existían (todas construidas por slices anteriores de esta misma rama). Con `presentaciones·
    riel` sumado por este slice, la lista de variantes reales no-canónicas crece a seis. Id sugerido:
    `THEMES-COMENTARIO-ARRANQUE-VARIANTES-VENCIDO-1`.
+
+## 2026-09-18 — Los cuatro comentarios vencidos de la noche, corregidos como REGLA, no como estado nuevo (`CORTE-COMENTARIOS-VENCIDOS-1`)
+
+**Por qué:** la propia noche de CORTE dejó la lección escrita dos veces (§ arriba,
+`CORTE-PRESENTACIONES-RIEL-1`, hallazgos 1 y 2) y una vez más en `CORTE-BRANDSTORY-COLLAGE-1`
+por omisión: un comentario que describe el ESTADO de una composición en vez de la REGLA que lo
+gobierna vence en silencio en cuanto otro slice construye una composición nueva, y el que lo lee
+después le cree. Las cuatro correcciones de esta tanda no reemplazan un número por otro —eso
+volvería a vencer en el próximo slice—: apuntan a la ESTRUCTURA que hay que leer para saber la
+respuesta hoy.
+
+### Las CUATRO vencidas, qué decían y qué dicen ahora
+
+| # | Ubicación (antes de este diff) | Decía | Dice ahora |
+| --- | --- | --- | --- |
+| 1 | `lib/config/themes.ts:15-19` (comentario de cabecera) | «hoy `hero`\|`presentaciones`\|`brandStory` declaran `variantes`… `subscriptionCTA` sigue SIN slot de variante» | Apunta a `REGISTRY.<seccion>.variantes.claves` como la fuente, y nombra por qué no se enumera: "cada slice que construye una composición nueva mueve esa lista". No vuelve a enumerar qué secciones tienen slot. |
+| 2 | `lib/config/themes.ts:427-429` (docstring de `ARRANQUE`) | «`hero·ficha` y `presentaciones·indice` (las dos únicas variantes reales que existen hoy fuera de la canónica)» | Mismos dos ejemplos, pero SIN la palabra "únicas": "dos variantes no-canónicas YA CONSTRUIDAS (NO las únicas… grep `REGISTRY.<seccion>.variantes.claves` para el set vigente)". |
+| 3 | `CLAUDE.md:1754-1755` (§58, backlog) | «brandStory (el collage 2×2)» | «brandStory (los 4 campos `imagen1..4`)» — el CAMPO es estable entre composiciones; la FORMA (collage 2×2) dejó de serlo el mismo día, cuando `CORTE-BRANDSTORY-COLLAGE-1` sumó `centrada`. |
+| 4 | `CLAUDE.md:2612-2615` (§ La PANTALLA, "LA MINIATURA") | «scale-to-FIT… (letterbox mínimo — hero y BrandStory son ~16:9)… BrandStory: bloque de texto + collage» | El letterbox se dice DEPENDIENTE de "la FORMA de la composición ACTIVA de esa sección", con el porqué (`columnas` es ~16:9 a dos columnas; `centrada` es más alta, apilada) en vez de una cifra fija por sección. |
+
+**Forma usada en las CUATRO: reescribir como regla/puntero, no como estado corregido.** Ninguna
+quedó diciendo "hoy hay seis" o "hoy hay dos composiciones" — la #2 explícitamente evita repetir el
+conteo que `CORTE-PRESENTACIONES-RIEL-1` ya vio volverse falso una vez (de 4 a 6 en un solo día). Las
+cuatro señalan la estructura viva (`REGISTRY.<seccion>.variantes.claves`, o "la composición activa")
+en vez de copiar su contenido de hoy.
+
+### La frase canónica de Tier 1 — NO tocada
+
+El diff no roza la línea 39 de `CLAUDE.md` (la enumeración de superficies protegidas que el
+validador de specs deriva sus disparadores): `git diff -- CLAUDE.md` no tiene ningún hunk que la
+incluya, verificado leyendo el diff completo antes de este cierre.
+
+### §3 del spec — hallazgos adicionales, medidos, NO corregidos (fuera de `touches:` de esta corrección quirúrgica)
+
+Buscando otros pasajes de la MISMA clase en los DOS archivos tocados, sin arreglarlos:
+
+1. **`lib/config/themes.ts:126`** (docstring de `validarPreset`, regla (a)): «el REGISTRY (una
+   SECCIÓN, `hero`/`presentaciones`/`brandStory` hoy)» — no nombra a `subscriptionCTA`, que también
+   declara `variantes` en el REGISTRY (`REGISTRY.subscriptionCTA.variantes.claves = ['bloque',
+   'linea']`, § `TEMAS-SUBSCRIPTIONCTA-LINEA-1`) desde antes de esta rama. Id sugerido:
+   `THEMES-VALIDARPRESET-DOCSTRING-VENCIDO-1`.
+2. **`lib/config/themes.ts:249-253`** (comentario "Los cinco themes del diseño…"): afirma
+   «`subscriptionCTA` sigue sin slot» (falso, igual que el hallazgo 1 de arriba, en OTRA ubicación) y
+   «sólo la canónica de cada uno existe construida» (falso: `brandStory·centrada` y
+   `presentaciones·indice`/`riel` son composiciones NO-canónicas ya construidas). Id sugerido:
+   `THEMES-CINCO-THEMES-COMENTARIO-VENCIDO-1`.
+3. **`CLAUDE.md:52`** (§ Tier 1, subárbol `components/storefront/`): cita
+   «`GrindChooserMosaico.tsx`/`GrindChooserIndice.tsx`, variantes del selector de molienda» como
+   ejemplo de por qué el subárbol gana admisión — hoy existe una TERCERA variante real,
+   `GrindChooserRiel.tsx` (`CORTE-PRESENTACIONES-RIEL-1`), no nombrada. No afirma exclusividad (no
+   dice "las únicas"), así que es un ejemplo desactualizado, no una afirmación falsa — igual se
+   nombra porque describe el mismo estado que ya venció dos veces esta noche. Id sugerido:
+   `CLAUDE-SUBARBOL-GRINDCHOOSER-EJEMPLO-VENCIDO-1`. **Esta línea está a dos párrafos de la frase
+   canónica de Tier 1 (línea 39) — no se tocó, ni se acercó el diff a ella.**
+
+Ningún hallazgo de esta lista se corrigió: los tres viven en ubicaciones DISTINTAS de las cuatro
+vencidas nombradas por el spec (líneas distintas, párrafos distintos), y `CORTE-COMENTARIOS-
+VENCIDOS-1` fue dimensionado para esas cuatro — ensancharlo a un quinto/sexto/séptimo arreglo habría
+producido el diff de "cuarenta correcciones" que la doctrina de esta tanda explícitamente evita
+(un diff de cuatro se lee; uno de más no se aprueba).
+
+### Gate
+
+`npm run gate` en el árbol final:
+
+- **`npm test`** (capa 1, sin base): **1490/1490**, 0 fail — idéntico al piso reportado por
+  `CORTE-PRESENTACIONES-RIEL-1` (este slice no tocó lógica, sólo comentarios).
+- **`npm run test:integracion`** (Postgres 14.20 efímero, capa 2): **208/208**, 0 fail — idéntico al
+  piso reportado por `CORTE-PRESENTACIONES-RIEL-1`.
+- **`npx tsc --noEmit`**: limpio, sin salida.
+- **`npx next build`**: `✓ Compiled successfully`, 51/51 páginas generadas, sin error.
+
+**Cero bytes de cliente cambiados, confirmado por el propio diff, no supuesto.** `git diff
+--name-only` da exactamente dos archivos: `CLAUDE.md` y `lib/config/themes.ts`. Los dos cambios en
+`themes.ts` son EXCLUSIVAMENTE líneas `//`/`/** */` (comentarios) — ninguna línea de código
+ejecutable, ningún literal que el storefront lea, se tocó. `themes.ts` no se importa desde
+ningún componente del storefront ni desde ninguna ruta pública (sólo desde `site-content-write.ts`,
+el runbook de onboarding); y aun si lo fuera, el contenido de los comentarios no llega a ningún
+bundle. El build (`next build`) es la prueba de que el archivo sigue compilando igual.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (mismo owner, misma noche, misma razón que el resto de esta rama). El
+archivo `CLAUDE.md` y `lib/config/themes.ts` están en `touches:`, y `lib/config/themes.ts` es un
+archivo suelto ya nombrado en la lista de Tier 1 vía su rol en `site-content-write.ts` — pero el
+criterio real es MERGE POLICY A: **ningún byte de cliente cambia** (§ arriba, confirmado por el
+diff), **ninguna migración ni schema**, y **ningún contrato cross-repo**. Los tres pasan limpio. La
+única razón por la que este slice sigue clasificando `AWAITING_APPROVAL` es que `continues-branch`
+apunta a `slice/corte-reescritura-prototipo-1`, que YA está `AWAITING_APPROVAL` por los slices
+anteriores de la misma rama (bytes de cliente en `components/storefront/home/`) — el owner tiene que
+ver el mirador completo, con SUS cuatro slices, antes de un merge. Este slice individualmente no
+tiene `stopped_on: customer-bytes` propio (no cambió ningún byte de cliente), pero no se mergea
+solo: sigue en la rama compartida, sin mergear.
+
+### Deviations
+
+Ninguna. El spec pedía "buscarlas por lo que dicen, no por número de línea" — se hizo: las líneas
+citadas en el spec externo (§ arriba) habían quedado desactualizadas por los commits de la propia
+rama entre el momento en que se escribió el spec y el momento en que se corrió este slice (el
+archivo creció de 429 a 454 líneas entre `CORTE-BRANDSTORY-COLLAGE-1` y el HEAD de este slice), así
+que se releyó `themes.ts` completo por contenido antes de editar, no se confió en un número.
+
+### Open follow-ups
+
+- `THEMES-VALIDARPRESET-DOCSTRING-VENCIDO-1` — `lib/config/themes.ts:126`, corregir cuando se toque
+  ese archivo por otra razón (no vale la pena un slice de un solo comentario más).
+- `THEMES-CINCO-THEMES-COMENTARIO-VENCIDO-1` — `lib/config/themes.ts:249-253`, ídem.
+- `CLAUDE-SUBARBOL-GRINDCHOOSER-EJEMPLO-VENCIDO-1` — `CLAUDE.md:52`, ídem; bajo prioridad porque no
+  afirma exclusividad, sólo cita un ejemplo incompleto.

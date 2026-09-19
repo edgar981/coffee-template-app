@@ -12,12 +12,14 @@
 //
 // MEDIDO CONTRA EL CÓDIGO, no contra la entrega de diseño (que vive fuera de este repo): la mayoría
 // de las CLAVES de variante que el diseño describe (marquesina, tabla, hilo, chips, ticket, media,
-// linea, collage, bento) NO EXISTEN todavía en el REGISTRY — hoy `hero` (`curtina`|`ficha`),
-// `presentaciones` (`mosaico`|`indice`|`riel`, CORTE-PRESENTACIONES-RIEL-1) y `brandStory`
-// (`columnas`, TEMAS-P2-BRANDSTORY-1) declaran `variantes`. `subscriptionCTA` sigue SIN slot de
-// variante (confirmado por grep: `REGISTRY.
-// subscriptionCTA` no declara `variantes`, y su interfaz —`SubscriptionCTAContent`— no tiene campo
-// `variante`); `featured`/`trustBadges` ni siquiera son `SeccionKey` (son bandas ESTRUCTURALES sin
+// linea, collage, bento) NO EXISTEN todavía en el REGISTRY. QUÉ SECCIÓN declara `variantes` y con
+// qué claves NO se enumera acá: se lee en `REGISTRY.<seccion>.variantes.claves`
+// (`site-content-defaults.ts`), porque cada slice que construye una composición nueva mueve esa
+// lista, y una copia congelada de "quién tiene slot" vence sola — medido dos veces sobre ESTE MISMO
+// párrafo (`CORTE-PRESENTACIONES-RIEL-1`, `DECISIONS.md`: la afirmación de que `subscriptionCTA`
+// no tenía slot, y la lista de claves de `brandStory`, quedaron describiendo un REGISTRY que ya no
+// era — § `THEMES-COMENTARIO-SUBSCRIPTIONCTA-VENCIDO-1`, corregido en `CORTE-COMENTARIOS-
+// VENCIDOS-1`). `featured`/`trustBadges` ni siquiera son `SeccionKey` (son bandas ESTRUCTURALES sin
 // sección en `SiteContentData`, § `site-content-defaults.ts`) — `featured` gana su propio slot desde
 // TEMAS-P1-FEATURED-VARIANTES-1, pero en `VARIANTES_ESTRUCTURALES` (el gemelo del REGISTRY para
 // bandas sin sección, § site-content-defaults.ts), NO en el REGISTRY mismo; `trustBadges` se deja
@@ -424,9 +426,13 @@ export const VITRINA: PresetTema = {
 /**
  * EL PRESET DE ARRANQUE — el único que valida COMPLETO hoy (§5). No es un theme del catálogo de
  * diseño: es Nayoli, expresada explícitamente como preset, usando SÓLO capacidades que el REGISTRY
- * ya soporta — `hero·ficha` y `presentaciones·indice` (las dos únicas variantes reales que existen
- * hoy fuera de la canónica), `brandStory` intacta (SÍ tiene slot —canónica `columnas`,
- * TEMAS-P2-BRANDSTORY-1— pero ARRANQUE no le pide nada: no mencionarla deja lo que ya hubiera, y
+ * ya soporta — `hero·ficha` y `presentaciones·indice`, dos variantes no-canónicas YA CONSTRUIDAS
+ * (NO las únicas que existen hoy fuera de sus canónicas — ese conteo cambia con cada slice que suma
+ * una composición; grep `REGISTRY.<seccion>.variantes.claves` para el set vigente. Esta frase decía
+ * "las dos únicas" y quedó vencida sin que nadie la tocara — § `THEMES-COMENTARIO-ARRANQUE-
+ * VARIANTES-VENCIDO-1`, corregido en `CORTE-COMENTARIOS-VENCIDOS-1`), `brandStory` intacta (SÍ
+ * tiene slot —canónica `columnas`, TEMAS-P2-BRANDSTORY-1— pero ARRANQUE no le pide nada: no
+ * mencionarla deja lo que ya hubiera, y
  * Nayoli ya está en su canónica), un par de esquemas reales, y el par/forma explícitos
  * (`editorial`/`suave`, la propia canónica de Nayoli).
  * Sirve para demostrar que `validarPreset` ACEPTA lo que sí existe, no sólo que rechaza lo que no.

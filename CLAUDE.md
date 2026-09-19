@@ -1751,8 +1751,11 @@ en el storefront (las celdas usan `object-cover` con proporción fija) y el clie
 elegir QUÉ parte se muestra**. Una foto vertical de una bolsa de café puede quedar decapitada, y
 hoy no hay control.
 
-**Aplica a TODO campo `tipo:'imagen'`**, no sólo a `presentaciones`: hero, brandStory (el collage
-2×2), `presentaciones` (las 2 tarjetas), la galería de /nosotros. Es transversal a SiteContent.
+**Aplica a TODO campo `tipo:'imagen'`**, no sólo a `presentaciones`: hero, brandStory (los 4 campos
+`imagen1..4`), `presentaciones` (las 2 tarjetas), la galería de /nosotros. Es transversal a
+SiteContent. (Antes decía "brandStory (el collage 2×2)" — eso describía UNA composición de
+`brandStory·columnas`; con `brandStory·centrada` construida, § CORTE-BRANDSTORY-COLLAGE-1, la banda
+ya no tiene una sola forma. Los CAMPOS son estables entre composiciones; la forma no.)
 
 **Alcance MÍNIMO escrito, para no sobre-ingeniar:** un **PUNTO FOCAL** —clic en la imagen del
 editor marca el punto que debe quedar visible → se guarda como `object-position` (dos números,
@@ -2606,10 +2609,14 @@ flujo FINAL, tras evaluar y retirar un iframe intermedio (ver "por qué se retir
   accidente. Edición independiente: **"Editar"** abre, **"Listo"** cierra (flush del pendiente).
 - **LA MINIATURA es la MISMA vista, sólo encuadrada distinto** (no una segunda representación que
   pueda divergir — la razón por la que se retiró el iframe). `VistaTiendaEnVivo` gana un modo
-  `compacto`: **scale-to-FIT de la sección ENTERA** en una caja 16:9, centrada (letterbox mínimo —
-  hero y BrandStory son ~16:9). NO es una franja superior: como las secciones CENTRAN su contenido
+  `compacto`: **scale-to-FIT de la sección ENTERA** en una caja 16:9, centrada. **El letterbox
+  depende de la FORMA de la composición ACTIVA de esa sección, no es un dato fijo por sección**
+  (antes esto decía "hero y BrandStory son ~16:9" — cierto sólo mientras `brandStory` tenía una única
+  composición, `columnas`; con `brandStory·centrada` construida —título+collage+párrafo apilados, más
+  alta que ~16:9—, § CORTE-BRANDSTORY-COLLAGE-1, la misma sección letterboxea distinto según qué
+  variante esté activa). NO es una franja superior: como las secciones CENTRAN su contenido
   (`items-center` + `py`), una franja lideraría con el padding; el fit muestra la composición real
-  (el hero: imagen + título; BrandStory: bloque de texto + collage). La vista es INERTE
+  que esté activa, sea cual sea. La vista es INERTE
   (`pointer-events:none`) para que el clic abra Editar, no navegue por sus links. La sección OCULTA
   no renderiza miniatura (se auto-oculta → vacío): muestra el aviso muted "No se muestra en la
   tienda". El costo (montar el componente real por tarjeta) es el MISMO que la lectura ya pagaba.
