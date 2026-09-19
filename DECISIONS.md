@@ -8455,3 +8455,178 @@ primera en el runbook, la segunda en el `open_followup` que nombra el hallazgo.
 El spec lo declaró `tier: 1`, `writes: yes`, `approved: yes` (`approved-by: owner`), con la razón
 citada arriba (§0). **LA APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA EL MERGE** — este slice para en
 `AWAITING_APPROVAL` sin mergear, continuando la rama `slice/api-directa-panel-metodos-1`.
+
+## 2026-09-18 — Los asientos del merge a `main`: las dos barreras del toggle de pasarela, el
+censo de qué escribe hacia afuera el build de producción, y las dos cifras que el marcador SIN
+MEDIR corrigió (`WOMPI-MERGE-Y-CENSO-BUILD-1`)
+
+### 0 · Por qué estos cuatro asientos van juntos
+
+El owner gateó el árbol `2c60a58` y autorizó mergearlo a `main`, sabiendo que eso aplica una
+migración a la base de un cliente real. Ese merge **ya ocurrió, fuera de este slice**: `main`
+(local y `origin/main`) está en `6d1af14` («Merge Wompi API directa — árbol gateado por el owner en
+2c60a58…»), padres `d613853` + `2c60a58`, con tres migraciones nuevas en el diff. Este slice
+**continúa la rama `slice/api-directa-panel-metodos-1`**, que hoy tiene UN commit (`e65ace3`,
+`CHECKOUT-OTRO-METODO-SIN-SALIDA-1`) que el merge de arriba todavía no incorpora — no se mergea acá.
+Lo que sigue es lo que el owner pidió dejar escrito de ese proceso: las dos barreras del código que
+sí se pudieron verificar, el censo de qué otra cosa el build de producción escribe hacia afuera, las
+dos cifras que un slice anterior corrigió, y el disparador del hallazgo de intentos en vuelo vacíos.
+
+### 1 · Las dos barreras del toggle de pasarela — medidas, con archivo y línea
+
+Las dos leen la MISMA función, `pasarelaDisponibleEnEsteDespliegue()`
+(`services/checkout.service.ts:60-62`), que devuelve `process.env.NEXT_PUBLIC_PASARELA_HABILITADA
+=== '1'` — sin la variable, o con cualquier valor distinto de `'1'`, la función da `false`.
+
+- **BARRERA DEL CLIENTE — la opción no se renderiza.** `app/(storefront)/checkout/page.tsx:60` lee
+  `pasarelaDisponible = pasarelaDisponibleEnEsteDespliegue()`; `page.tsx:130` deriva
+  `pasarelaOfrecida = pasarelaDisponible && bloquePasarela !== null`; y `page.tsx:709` gatea el
+  bloque «Tarjeta, PSE y más» con `{pasarelaOfrecida && bloquePasarela && (…)}`. Con la variable
+  ausente, `pasarelaDisponible` es `false` y el bloque JSX no se monta — el comprador no ve la
+  opción.
+- **BARRERA DEL SERVIDOR — el intento se rechaza, aunque el POST se arme a mano.**
+  `app/api/checkout/route.ts:169` deriva `pideWompi = 'pasarela' in payment` de la FORMA del body
+  parseado — no de ningún estado que sólo exista en el navegador —, y `route.ts:194-199` responde
+  `400` («El pago con tarjeta, PSE y más no está disponible en este momento.») cuando `pideWompi &&
+  !pasarelaDisponibleEnEsteDespliegue()`. Va ANTES de `resolveOrderLines`/`createOrderWithCustomer`:
+  ninguna fila se crea. Un `POST /api/checkout` construido directo con `payment: { pasarela: true }`
+  —sin pasar por la UI— cae en esta misma guarda; el test `app/api/checkout/route.test.ts` la
+  ejercita con `payloadBase()` (línea 29: `payment: { pasarela: true }`) en el caso de
+  `route.test.ts:67`.
+
+**Por qué importa que sean DOS y no una:** las dos barreras leen la misma fuente
+(`pasarelaDisponibleEnEsteDespliegue`), así que no pueden divergir sobre si la pasarela está
+disponible (el propio docstring de `services/checkout.service.ts:54-55` lo dice: «es la MISMA fuente
+en los dos lados, así que no pueden divergir»). Y la idea del owner que esto deja escrita: **que
+estén las dos significa que, aunque alguien pusiera la variable por error, todavía hace falta que el
+código la CONSUMA — y hoy lo hace sólo bajo esa misma condición** (`NEXT_PUBLIC_PASARELA_HABILITADA
+=== '1'`, literal, en la única función que ambas barreras llaman). Un valor puesto por accidente en
+el panel del proveedor no alcanza por sí solo: sin las dos lecturas de esa función —una en el
+cliente, una en el servidor— la variable no haría nada.
+
+**Lo que NO se pudo verificar desde acá:** este entorno no tiene forma de leer si
+`NEXT_PUBLIC_PASARELA_HABILITADA` está declarada en el entorno de Producción de Vercel — ninguna
+herramienta de este slice alcanza el dashboard del proveedor de despliegue. Esa lectura la hizo el
+OWNER, directamente en el panel de Vercel. Queda como **confirmación del owner, no como medición de
+este repositorio**, y este asiento no reproduce ni afirma cuál es el valor actual de esa variable en
+Producción — sólo que, sea cual sea, las dos barreras de arriba son lo que decide su efecto.
+
+**Hallazgo aparte, NO investigado ni corregido (fuera de `touches:` — sólo `DECISIONS.md`):**
+`route.ts:188` («(d) EL TOGGLE POR DESPLIEGUE TODAVÍA NO EXISTE…») y el título del test en
+`route.test.ts:43` («la capacidad nace APAGADA — (d) todavía no existe») quedaron con la redacción de
+ANTES de `WOMPI-TOGGLE-DISPONIBILIDAD-1` (`3138f6e`), que sólo tocó `services/checkout.service.ts` y
+su test — medido con `git show 3138f6e --stat`, sin `route.ts` ni `route.test.ts` en el diff. Hoy el
+toggle SÍ existe (`services/checkout.service.ts:44`: «(d), MITAD ENCENDIDO»); el comentario en
+`route.ts` sigue diciendo que no. El comportamiento de las dos barreras es correcto —ambas leen la
+función real—, así que esto es un comentario desactualizado, no un defecto funcional. Se anota como
+`CHECKOUT-COMENTARIO-TOGGLE-STALE-1` en los open follow-ups; no se toca código en este slice.
+
+### 2 · El censo del build de producción — la cadena recorrida coincide con lo declarado
+
+La pregunta del owner: *¿qué OTRAS cosas hace el build de producción que son escrituras hacia afuera
+y que nadie asocia con mergear?* Porque el acto que dispara la migración de esquema no se llama
+«migración»: se llama **MERGE** — el build corre `prisma migrate deploy` antes de compilar, y nadie
+va a pedir permiso para mergear si mergear no suena a tocar producción.
+
+Se recorrió la cadena completa, archivo por archivo:
+
+| eslabón | medido | archivo:línea |
+| --- | --- | --- |
+| Comando de build declarado a Vercel | `buildCommand: "npm run build"`, sin más claves | `vercel.json` (único contenido: `$schema` + `buildCommand`) |
+| Script `build` del paquete raíz | `"npm run db:deploy -w @duna/core && next build"` — la ÚNICA escritura hacia afuera antes de compilar | `package.json:10` |
+| `db:deploy` de `@duna/core` | `"prisma migrate deploy"` | `packages/core/package.json:16` |
+| `postinstall` del paquete raíz | `"npm run generate -w @duna/core"` → `prisma generate` (sin tocar la base) | `package.json:15`, `packages/core/package.json:15` |
+| Ningún script `postbuild`/`predeploy`/`vercel-build` en ningún `package.json` del repo (raíz, `@duna/core`, `@duna/design-system`) | confirmado — `grep` sobre las tres claves, cero resultados; `packages/design-system/package.json` no declara `scripts` | — |
+| Semilla configurada para Prisma | el bloque `migrations` de `prisma.config.ts` NO declara `seed` — el comentario adjunto dice explícito que el seed vive fuera de `@duna/core`, invocado a mano con `npm run db:seed` | `packages/core/prisma.config.ts:15-19` |
+| `db:seed` | existe como script propio (`tsx prisma/seed.ts`) pero NINGÚN script de build lo invoca | `package.json:16` |
+| Registro de arranque (`instrumentation.ts`) | `register()` corre una vez por proceso arrancado, ANTES del primer request — el comentario cita el propio código de Next (`instrumentation-globals.external.js`) que hace `if (process.env.NEXT_PHASE === 'phase-production-build') return;`, o sea que `register()` explícitamente NO corre durante `next build` | `instrumentation.ts:8-13` |
+| Generación estática que toque la base | cero rutas con `generateStaticParams` en `app/` (`grep -rl` vacío); el storefront —el único árbol con datos de tenant— es `force-dynamic` (`export const dynamic = 'force-dynamic'`), así que ni siquiera se prerenderiza con datos en el build | `app/(storefront)/layout.tsx:30` |
+| Flujos de trabajo del repositorio | UN solo workflow, disparado por `schedule` (cron horario UTC) y `workflow_dispatch` (manual) — CERO disparo por `push` a ninguna rama | `.github/workflows/automations-cron.yml:17-24` |
+| Ganchos de git (husky u otros) | ninguno — `find -iname ".husky"` vacío; `.git/hooks/` sólo tiene los `.sample` de Git | — |
+
+**Coincide con lo que el orquestador declaró — no se encontró ninguna escritura hacia afuera
+adicional.** Las cinco afirmaciones del spec (§ `por-medir:EL_CENSO_DEL_BUILD`) se verifican las
+cinco: no hay script de post-build ni de deploy; no hay semilla configurada para Prisma; el registro
+de arranque declara explícitamente que no corre durante el build; no hay generación estática que
+toque la base; y ningún flujo de trabajo se dispara al empujar a `main`. La ÚNICA escritura hacia
+afuera que el build de producción ejecuta es `prisma migrate deploy`, corrida por el script `build`
+antes de `next build` (`package.json:10`).
+
+**La consecuencia que pidió el owner, y que este censo deja registrada:** cada escritura hacia
+afuera necesita su propio disparador escrito **con el nombre del ACTO que la dispara, no con el de
+su efecto**. Un disparador que dice «antes de una migración» no se lee nunca, porque nadie cree
+estar haciendo una migración cuando aprieta el botón de mergear — el acto que la persona reconoce es
+«mergear», no «migrar». Uno que dice «antes de mergear» sí se lee, porque nombra lo que la persona
+está a punto de hacer. `CLAUDE.md` § Migraciones y deploy ya documenta EL HECHO («cada entorno migra
+su propia base», «si la migración falla, el build falla»); lo que falta —y este asiento lo deja
+nombrado para quien lo tome, sin tocar `CLAUDE.md` en este slice, fuera de `touches:`— es que la
+propia doctrina del gate de Tier 1 nombre el ACTO: un slice que toca una superficie Tier 1 y va a
+mergearse a `main` está, por esa sola acción, a punto de disparar `prisma migrate deploy` contra la
+base de producción, sin que la palabra «migración» aparezca en ningún lado del flujo de trabajo del
+slice.
+
+### 3 · Las dos cifras que el marcador SIN MEDIR corrigió — citadas, no re-medidas
+
+Ya están asentadas por el slice que las midió: **`CHECKOUT-OTRO-METODO-SIN-SALIDA-1`** (commit
+`e65ace3`, HEAD de esta rama), §2 y §3 de su propio asiento (arriba, líneas 8365-8421 de este mismo
+archivo al momento de escribir esto).
+
+- **§2** — el spec de aquel slice citó «las doce transacciones aprobadas de toda la base son la
+  misma VISA `4242424242424242`», marcada SIN MEDIR. Contadas sobre las 21 filas completas de
+  `PaymentIntent` de `development`: **son DIEZ, no doce.**
+- **§3** — el spec citó «seis intentos en vuelo cuyas referencias el proveedor devuelve vacías»,
+  también SIN MEDIR. Consultado `GET /v1/transactions?reference=...` contra el sandbox real de Wompi
+  para cada `PaymentIntent` `EN_VUELO` sin `pspTransactionId`: **son SIETE, no seis.**
+
+**Lo que el owner pidió que quede escrito del MECANISMO, no del número:** es la primera vez que el
+marcador SIN MEDIR paga en la dirección útil — no impidiendo una afirmación falsa, sino
+**produciendo** la correcta. El marcador se construyó para FRENAR (parar antes de citar como hecho
+algo que nadie midió); acá no frenó nada por sí solo — hizo que `CHECKOUT-OTRO-METODO-SIN-SALIDA-1`
+fuera y contara. La diferencia importa: una guarda que además genera la medición que faltaba vale más
+que una que sólo rechaza, y eso no se sabía hasta que pasó — las siete instancias previas del mismo
+marcador en esta rama (`CHECKOUT-REINTENTO-CENSO-1`, `CHECKOUT-GATE-VISUAL-HALLAZGOS-1`, etc.)
+frenaron afirmaciones sin medir; ésta es la primera que además corrigió dos cifras concretas.
+
+### 4 · El disparador de `CHECKOUT-INTENTOS-EN-VUELO-VACIOS-1` — agregado al hallazgo existente
+
+El hallazgo ya vive en los open follow-ups de `CHECKOUT-OTRO-METODO-SIN-SALIDA-1` (arriba, línea
+8442): 7 `PaymentIntent` `EN_VUELO` sin `pspTransactionId`, cuyas referencias el sandbox de Wompi no
+reconoce — sin establecer si es rastro normal de abandono de checkout o un modo de falla. **No se
+investiga acá.** El owner fijó su disparador:
+
+> **ANTES DEL GO-LIVE DE CUALQUIER TIENDA CON PASARELA.**
+
+Con su razón: pueden ser el rastro normal de quien abandona el checkout — pero si resultan ser un
+modo de falla, el owner quiere saberlo antes de que haya compradores reales. Este asiento AGREGA el
+disparador al mismo id — `CHECKOUT-INTENTOS-EN-VUELO-VACIOS-1` — sin duplicar el hallazgo (libro
+append-only: la corrección se APPENDEA, la entrada original de `CHECKOUT-OTRO-METODO-SIN-SALIDA-1`
+§3 no se reescribe).
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido sobre el árbol final de este slice (el commit de este
+asiento sobre `e65ace3`) — **verde**: los dos carriles (`npm test` y `npm run test:integracion`)
+pasaron sin fallos. Este slice sólo tocó `DECISIONS.md`; ningún archivo de código cambió, así que el
+resultado del gate no depende de este diff — se corrió igual, sobre el árbol final, por la regla del
+protocolo.
+
+### Deviations
+
+Ninguna. El censo del §2 coincide con lo declarado por el orquestador; no se encontró una escritura
+hacia afuera adicional que reportar primero.
+
+### Open follow-ups
+
+- `CHECKOUT-INTENTOS-EN-VUELO-VACIOS-1`: gana disparador (§4 de este asiento) — **antes del go-live
+  de cualquier tienda con pasarela**. Sigue sin investigarse ni resolverse.
+- `CHECKOUT-COMENTARIO-TOGGLE-STALE-1`: `route.ts:188` y el título del test en `route.test.ts:43`
+  siguen diciendo «el toggle por despliegue todavía no existe», redacción de antes de
+  `WOMPI-TOGGLE-DISPONIBILIDAD-1` (`3138f6e`) — que sólo tocó `services/checkout.service.ts` y dejó
+  esos dos comentarios sin actualizar (§1 de este asiento). El comportamiento es correcto; el
+  comentario miente sobre el estado del código. Fuera de alcance de este slice (`touches:
+  DECISIONS.md` solamente) — actualizar los dos comentarios es un cambio de código de una línea cada
+  uno, para quien lo tome.
+- La doctrina del gate de Tier 1 (`CLAUDE.md`) no nombra, HOY, que mergear a `main` es el ACTO que
+  dispara `prisma migrate deploy` contra producción (§2 de este asiento, la consecuencia que pidió
+  el owner) — sólo documenta el hecho técnico en § Migraciones y deploy. Fuera de `touches:` de este
+  slice (sólo `DECISIONS.md`); es una edición de `CLAUDE.md`, para quien la tome.
