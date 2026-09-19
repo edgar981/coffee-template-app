@@ -1,5 +1,9 @@
 import { PRESETS, validarPreset, mergePresetEnContent } from './themes';
 import type { SiteContentData } from './site-content-defaults';
+import { cssPaleta } from './palette-style';
+import { cssFuentes } from './fuentes-style';
+import { linkFuentePar } from './fuentes';
+import { cssForma } from './forma-style';
 
 // EL MIRADOR DE PRESETS (§ TEMAS-MIRADOR-PRESET-1). `aplicarPreset` (`site-content-write.ts`)
 // PERSISTE un preset — corre desde un runbook de onboarding, nunca desde el panel del cliente
@@ -28,4 +32,46 @@ export function contenidoConPresetDeVista(
   // — el merge sólo REEMPLAZA `tema`/`esquemas`/`orden`/`variantesBandas` y el campo `variante`
   // dentro de las secciones que el preset nombra, preservando todo lo demás intacto.
   return mergePresetEnContent(content as unknown as Record<string, unknown>, preset) as unknown as SiteContentData;
+}
+
+/** Las cuatro piezas del `<style>`/`<link>` del EJE COMPLETO del mirador — `null` cada una cuando
+ * el eje correspondiente no tiene override (misma regla que ya rige el `<style>` del layout: sin
+ * paleta/par/forma custom, no se emite nada). */
+export interface MiradorCss {
+  paletaCss: string | null;
+  fuentesCss: string | null;
+  fuentesLink: string | null;
+  formaCss: string | null;
+}
+
+// EL EJE COMPLETO DEL MIRADOR (§ CORTE-MIRADOR-EJES-COMPLETOS-1). El `<style>` de `:root` que pinta
+// paleta/par-tipográfico/forma lo emite `layout.tsx`, que NUNCA ve `searchParams` (§ el comentario de
+// `page.tsx`) — así que sin esto el mirador cambiaba las BANDAS pero el `:root` seguía leyendo el
+// content PUBLICADO. La salida es el ORDEN DE FUENTE: lo que `page.tsx` devuelve se renderiza DESPUÉS
+// del `<style>` del layout, así que un segundo bloque con las MISMAS vars, emitido desde la página,
+// gana sin subir especificidad y sin tocar el layout (que sigue sirviendo el árbol de siempre a quien
+// no manda `?tema=`).
+//
+// REUSA los MISMOS constructores que ya usa `layout.tsx` para el content publicado — `cssPaleta`/
+// `cssFuentes`/`linkFuentePar`/`cssForma` — nunca una segunda lógica de composición que pudiera
+// divergir de la que el layout ya corre (la misma razón por la que este archivo reusa
+// `mergePresetEnContent` en vez de reescribir el merge).
+//
+// `null` cuando `content === contentPublicado` (sin `?tema=`, clave que no nombra ningún preset, o
+// preset incompleto — `contenidoConPresetDeVista` ya decidió eso arriba, y esta función NO agrega un
+// segundo criterio): el mirador NUNCA LANZA, y un preset a medias dibujado a medias es peor que no
+// dibujarlo. Con `content` sin cambios no hay NADA que reforzar — el `:root` del layout ya es correcto
+// para lo que se está mostrando — así que ni siquiera se recalculan las cuatro piezas.
+export function cssMiradorTema(
+  content: SiteContentData,
+  contentPublicado: SiteContentData,
+): MiradorCss | null {
+  if (content === contentPublicado) return null;
+  const { fondo, tinta, acento, fuentePar, forma } = content.tema;
+  return {
+    paletaCss: cssPaleta(fondo, tinta, acento),
+    fuentesCss: cssFuentes(fuentePar),
+    fuentesLink: linkFuentePar(fuentePar),
+    formaCss: cssForma(forma),
+  };
 }

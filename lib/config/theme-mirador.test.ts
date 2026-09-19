@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { contenidoConPresetDeVista } from './theme-mirador';
+import { contenidoConPresetDeVista, cssMiradorTema } from './theme-mirador';
 import { resolverSiteContent } from './site-content-defaults';
 import { CORTE } from './themes';
 
@@ -56,4 +56,43 @@ test('aplicar CORTE dos veces es idempotente (mismo resultado, misma garantía q
 // test lo delata ANTES de que alguien se pregunte por qué el mirador dejó de mostrar sus bandas.
 test('fixture: CORTE sigue siendo un preset del catálogo (si esto falla, revisar themes.ts, no este archivo)', () => {
   assert.equal(CORTE.clave, 'CORTE');
+});
+
+// EL EJE COMPLETO (§ CORTE-MIRADOR-EJES-COMPLETOS-1). `cssMiradorTema` es la mitad que arma el
+// SEGUNDO `<style>`/`<link>` que `page.tsx` emite para que el `:root` deje de leer sólo el content
+// PUBLICADO. Afirma las TRES invariantes del spec del lado de esta función: sin override devuelve
+// `null` (nada que renderizar); con un override, reusa LOS MISMOS constructores que ya usa el
+// layout (mismos valores que `cssPaleta`/`cssFuentes`/`linkFuentePar`/`cssForma` producirían a mano
+// contra las raíces/fuentePar/forma de CORTE — no una segunda composición que pudiera divergir).
+
+test('sin override (content === contentPublicado) → null, nada que renderizar de más', () => {
+  const out = cssMiradorTema(DEFECTO, DEFECTO);
+  assert.equal(out, null);
+});
+
+test('con CORTE aplicado → las CUATRO piezas del eje completo, no sólo la paleta', () => {
+  const conCorte = contenidoConPresetDeVista(DEFECTO, 'CORTE');
+  const out = cssMiradorTema(conCorte, DEFECTO);
+  assert.notEqual(out, null);
+  // paleta: la tinta CRUDA de CORTE (§ themes.ts, `raices.tinta`) aparece literal — es el mismo
+  // valor que hace que el HERO (sin esquema propio, cae a `var(--sf-banda,var(--sf-tinta))`)
+  // herede la paleta de CORTE una vez que este `:root` gana por orden de fuente.
+  assert.match(out!.paletaCss!, /--sf-tinta:#102407/);
+  assert.match(out!.paletaCss!, /--sf-fondo:#fdfbf7/);
+  // par tipográfico: CORTE usa 'prensa' (Roboto Serif / Figtree) — NO editorial, así que las
+  // cuatro piezas del eje están presentes, no sólo la paleta (§ el hallazgo que motiva el slice:
+  // el par y la forma nunca llegaban al `:root`).
+  assert.match(out!.fuentesCss!, /--sf-fuente-titulo:'Roboto Serif'/);
+  assert.ok(out!.fuentesLink!.includes('Roboto+Serif') && out!.fuentesLink!.includes('Figtree'));
+  // forma: CORTE usa 'recta' (radios 0/0/0, la regla explícita del prototipo).
+  assert.match(out!.formaCss!, /--radius-3xl:0/);
+  assert.match(out!.formaCss!, /--radius-2xl:0/);
+  assert.match(out!.formaCss!, /--radius-xl:0/);
+});
+
+test('clave inválida o preset incompleto → contenidoConPresetDeVista ya devolvió la MISMA referencia, así que cssMiradorTema también da null', () => {
+  const sinCambio = contenidoConPresetDeVista(DEFECTO, 'VITRINA');
+  assert.equal(sinCambio, DEFECTO); // fixture: confirma que este caso entra por la rama "sin cambio"
+  const out = cssMiradorTema(sinCambio, DEFECTO);
+  assert.equal(out, null);
 });

@@ -10,7 +10,7 @@ import { getSiteSettings } from "@/lib/config/site-settings";
 import { getSiteContent } from "@/lib/config/site-content";
 import { esquemaStyle } from "@/lib/config/esquema-style";
 import { resolverOrden, type BandaId } from "@/lib/config/site-content-defaults";
-import { contenidoConPresetDeVista } from "@/lib/config/theme-mirador";
+import { contenidoConPresetDeVista, cssMiradorTema } from "@/lib/config/theme-mirador";
 import { SiteContentProvider } from "@/components/storefront/SiteContentProvider";
 import { esDespliegueDemo } from "@/next.config";
 // v1: Newsletter hidden — restore import when the newsletter feature ships
@@ -48,10 +48,21 @@ import { esDespliegueDemo } from "@/next.config";
 //
 // `searchParams` sólo existe en `page.tsx` (un Layout NO lo recibe, por diseño de Next — evita que
 // un layout compartido se vuelva dependiente de un query de una ruta hija), así que el mirador vive
-// acá y no en `layout.tsx`: el `<style>` de paleta/fuentes/forma que el layout inyecta en `:root`
-// sigue leyendo el content PUBLICADO tal cual, sin el override. Lo que SÍ cambia con el mirador son
-// las bandas de esta página (via el `SiteContentProvider` anidado de abajo, que sombrea al del
-// layout para este subárbol) — es lo que hace falta para VER las tres composiciones nuevas.
+// acá y no en `layout.tsx`. CONSECUENCIA (§ CORTE-REESCRITURA-PROTOTIPO-1, HALLAZGO MEDIDO): el
+// `<style>` de paleta/fuentes/forma que el layout inyecta en `:root` lee SIEMPRE el content
+// PUBLICADO — nunca ve el override —, así que con sólo las bandas propagadas el mirador mostraba la
+// paleta en apenas 5 de 7 bandas (las que un preset le asigna esquema; el hero y testimonials, sin
+// esquema, siguen cayendo al `:root` — § `esquemaStyle`) y NUNCA el par tipográfico ni la forma.
+//
+// EL EJE COMPLETO (§ CORTE-MIRADOR-EJES-COMPLETOS-1, `cssMiradorTema`): un SEGUNDO `<style>`/`<link>`
+// con las MISMAS vars, emitido acá — reusando LOS MISMOS constructores que usa `layout.tsx`
+// (`cssPaleta`/`cssFuentes`/`linkFuentePar`/`cssForma`), nunca una segunda composición —, gana por
+// ORDEN DE FUENTE: lo que esta página devuelve se renderiza DESPUÉS del `<style>` del layout (es
+// hijo de `<main>{children}</main>`), así que a igual especificidad (`:root`) el segundo bloque
+// pisa al primero, sin tocar `layout.tsx`. `cssMiradorTema` devuelve `null` cuando
+// `content === contentPublicado` (sin `?tema=`, clave inválida, preset incompleto —
+// `contenidoConPresetDeVista` ya lo decidió), así que fuera del mirador activo no se emite nada de
+// más: la salida sigue siendo `bandas` a secas (línea de abajo, sin tocar).
 export default async function Home({
   searchParams,
 }: {
@@ -65,6 +76,9 @@ export default async function Home({
   const { esquemas, tema, orden } = content;
   const bandaStyle = (bandaId: string) =>
     esquemaStyle(esquemas[bandaId], tema.fondo, tema.tinta, tema.acento) as React.CSSProperties;
+  // EL EJE COMPLETO (§ CORTE-MIRADOR-EJES-COMPLETOS-1) — ver el comentario de arriba. `null` cuando
+  // no hay override (el caso de siempre): no se calcula nada de más.
+  const miradorCss = cssMiradorTema(content, contentPublicado);
 
   const BANDAS: Record<BandaId, (style: React.CSSProperties) => React.ReactNode> = {
     hero: (style) => <HeroSection style={style} />,
@@ -91,5 +105,18 @@ export default async function Home({
   // (es un Context.Provider), así que anidarlo sólo cuando hay override es una precaución, no una
   // necesidad de paridad visual — pero es la que deja el camino común sin tocar ni un nodo de más.
   if (content === contentPublicado) return bandas;
-  return <SiteContentProvider value={content}>{bandas}</SiteContentProvider>;
+  return (
+    <SiteContentProvider value={content}>
+      {/* EL EJE COMPLETO del mirador (§ CORTE-MIRADOR-EJES-COMPLETOS-1): sólo se renderiza cuando
+          `miradorCss` no es null, es decir, cuando `content` de verdad cambió — nunca con el
+          mirador inactivo. Va DENTRO de `<main>` (hijo de `bandas`' contenedor), así que en el HTML
+          servido aparece DESPUÉS del `<style>` del layout y gana por orden de fuente sin subir
+          especificidad. Mismo orden que usa el layout: link de fuentes, luego paleta/fuentes/forma. */}
+      {miradorCss?.fuentesLink && <link rel="stylesheet" href={miradorCss.fuentesLink} />}
+      {miradorCss?.paletaCss && <style dangerouslySetInnerHTML={{ __html: miradorCss.paletaCss }} />}
+      {miradorCss?.fuentesCss && <style dangerouslySetInnerHTML={{ __html: miradorCss.fuentesCss }} />}
+      {miradorCss?.formaCss && <style dangerouslySetInnerHTML={{ __html: miradorCss.formaCss }} />}
+      {bandas}
+    </SiteContentProvider>
+  );
 }

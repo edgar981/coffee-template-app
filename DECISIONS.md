@@ -8632,3 +8632,163 @@ justo el criterio de cierre que él mismo fijó.
   mostrar la paleta de CORTE porque el preset no le asigna `esquema`, evaluar si CORTE debe asignarle
   uno (hoy deliberadamente no lo tiene — sólo 5 de 7 bandas). Depende del follow-up anterior; no se
   decide acá.
+
+## 2026-09-18 — El mirador muestra los TRES ejes completos, y el hero los hereda SIN tocar el preset (`CORTE-MIRADOR-EJES-COMPLETOS-1`)
+
+**El estándar, otra vez palabras del owner:** *"CORTE como está hoy NO ALCANZA. No es 'el preset
+valida' — es que cuando abra el mirador tiene que verse como el prototipo."* `CORTE-REESCRITURA-
+PROTOTIPO-1` (arriba, mismo día) dejó los VALORES correctos y midió, sin arreglarlo, que el MECANISMO
+del mirador no podía mostrarlos: el `<style>` de `:root` que pinta paleta/par-tipográfico/forma vive
+en `app/(storefront)/layout.tsx`, que NUNCA recibe `searchParams` (diseño de Next, no un olvido) — así
+que sólo 5 de 7 bandas (las que CORTE le asigna `esquema`) veían la paleta nueva, y NINGUNA veía el
+par tipográfico ni la forma. Dos follow-ups quedaron abiertos: `CORTE-MIRADOR-PROPAGACION-PARCIAL-1`
+(arreglar el mecanismo) y `CORTE-HERO-SIN-ESQUEMA-1` (si tras arreglarlo el hero seguía sin paleta,
+evaluar asignarle esquema). Este slice cierra el primero, y con eso responde el segundo sin necesitar
+tocarlo.
+
+### El mecanismo — un SEGUNDO `<style>`/`<link>`, emitido desde la página, que gana por ORDEN DE FUENTE
+
+`searchParams` sigue sin llegar a `layout.tsx` — eso no se pelea, es diseño de Next. La salida:
+`page.tsx` (que SÍ recibe `searchParams`) emite un SEGUNDO bloque con las MISMAS vars `:root` — vía
+la función nueva `cssMiradorTema` (`lib/config/theme-mirador.ts:65-77`) — que se renderiza DESPUÉS del
+`<style>` del layout, porque es hijo de `<main>{children}</main>`. A igual especificidad (`:root`), el
+que viene DESPUÉS en el documento gana, sin subir especificidad y sin tocar `layout.tsx`.
+
+**`cssMiradorTema` NO es una segunda lógica de composición: reusa LOS MISMOS constructores que ya usa
+el layout** — `cssPaleta` (`palette-style.ts`), `cssFuentes`/`linkFuentePar` (`fuentes-style.ts`/
+`fuentes.ts`), `cssForma` (`forma-style.ts`) — contra las raíces/fuentePar/forma de `content.tema` ya
+resuelto por `contenidoConPresetDeVista`. Es el mismo criterio que ya regía ese archivo: reusar
+`mergePresetEnContent` en vez de reescribir el merge (§ el comentario original de `theme-mirador.ts`).
+
+`cssMiradorTema(content, contentPublicado)` devuelve `null` cuando `content === contentPublicado`
+—la MISMA comparación que ya gateaba el `SiteContentProvider` anidado— así que no agrega un SEGUNDO
+criterio de "¿hay override?": delega esa pregunta entera a `contenidoConPresetDeVista`, que ya la
+resuelve (sin clave, clave inválida, preset incompleto → misma referencia). `page.tsx` sólo renderiza
+las cuatro piezas (`fuentesLink`, `paletaCss`, `fuentesCss`, `formaCss`) dentro de la rama
+`content !== contentPublicado`, que ya existía para el `SiteContentProvider`.
+
+### Las TRES invariantes — medidas, no supuestas
+
+Dev server (`next dev --webpack`, proceso NUEVO arrancado para este slice — NO se pudo correr
+`rm -rf .next` primero, ver Deviations) en `http://localhost:3001`, consultado con `node`+`fetch`
+(no hay `curl` concedido):
+
+| invariante | medición | resultado |
+| --- | --- | --- |
+| (1) sin `?tema=` → byte-idéntico | `GET /` — conteo de `<style>`, y grep de bytes de CORTE (`#102407`, `sf-fuente-titulo`, `--radius-3xl:0`) | **1 sólo `<style>`** (el `formaCss` que YA emitía `layout.tsx` para lo que hay publicado en `development` — nada nuevo), **CERO** bytes de CORTE. La rama nueva de `page.tsx` (`if (content === contentPublicado) return bandas;`) no se tocó — no depende sólo de esta medición. |
+| (2) fuera de demo, el parámetro ni se lee | lectura de código — `esDespliegueDemo()` (`next.config.ts:7-9`) sigue siendo el ÚNICO gate, sin tocar; `cssMiradorTema` corre DESPUÉS de que `content` ya decidió si hay override | el guard es el MISMO de `CORTE-REESCRITURA-PROTOTIPO-1` — no se agregó una segunda fuente |
+| (3) clave inválida / preset a medias → contenido tal cual, nunca lanza | `GET /?tema=NO-EXISTE` y `GET /?tema=VITRINA` (VITRINA: `fuentePar`/`forma` sin decidir) | los DOS devuelven **200**, **1 sólo `<style>`**, **CERO** bytes de CORTE — idéntico a (1) |
+
+`npm test` (capa 1) trae las mismas tres afirmaciones DERIVADAS (`theme-mirador.test.ts`, ver Gate):
+`cssMiradorTema(DEFECTO, DEFECTO)` → `null`; con CORTE aplicado → las CUATRO piezas (paleta, fuentes,
+link, forma) con los valores exactos medidos en `CORTE-REESCRITURA-PROTOTIPO-1`; con VITRINA (a medias)
+→ `null`, porque `contenidoConPresetDeVista` ya devolvió la misma referencia.
+
+### `?tema=CORTE` — las CUATRO piezas presentes, medidas por CONTENIDO, no por conteo
+
+`GET /?tema=CORTE`: **4** `<style>` (1 del layout + 3 del mirador) y **2** `<link>` de Google Fonts
+(el par preload+stylesheet que Next genera solo para UN `<link rel="stylesheet">` — no son dos
+inyecciones). Contenido exacto de los tres bloques nuevos, en el ORDEN en que salen en el documento
+(el layout primero, el mirador después — así es como gana):
+
+```
+[0] (layout, sin cambios)  :root{--radius-3xl:10px;--radius-2xl:8px;--radius-xl:6px;...}
+[1] (mirador) :root{--sf-fondo:#fdfbf7;--sf-tinta:#102407;--sf-acento:#a70004;...}
+[2] (mirador) :root{--sf-fuente-titulo:'Roboto Serif', serif;--sf-fuente-cuerpo:'Figtree', sans-serif}
+[3] (mirador) :root{--radius-3xl:0;--radius-2xl:0;--radius-xl:0;...}
+```
+
+`[3]` pisa a `[0]` para `--radius-3xl/2xl/xl` (0 gana sobre 10px/8px/6px) por ser el ÚLTIMO en el
+documento — la prueba directa del mecanismo de orden de fuente, no una inferencia.
+
+### El HERO — medido, no leído en el código: SÍ hereda por `:root`, CASO (a), no se toca el preset
+
+El spec pedía medir, no suponer. Se leyó primero el código —`HeroMedia.tsx:84` (la variante `media`
+que CORTE elige) y `HeroCurtina.tsx:91` comparten
+`className="...bg-[var(--sf-banda,var(--sf-tinta))]"`, y `CORTE.esquemas` (`themes.ts:321-327`) no
+nombra `hero`— así que `esquemaStyle(undefined,…)` devuelve `{}` (sin `--sf-banda` inline) y la
+banda cae a `--sf-tinta`, una var de `:root`. Y se CONFIRMÓ contra el HTML servido:
+
+```
+<section class="relative flex min-h-[92vh] items-end overflow-hidden bg-[var(--sf-banda,var(--sf-tinta))]">
+```
+
+— sin atributo `style=""` en absoluto (el nodo pasa de `class="..."` directo a `>`). Con `--sf-tinta`
+definida UNA sola vez en todo el documento (por el bloque `[1]` del mirador, arriba — el layout no
+tenía paleta publicada en `development`), el hero resuelve a `#102407`, la tinta de CORTE. **CASO (a)
+del spec: el hero YA toma la paleta del mirador por herencia — no se toca `themes.ts`.**
+`CORTE-HERO-SIN-ESQUEMA-1` (follow-up citado arriba) queda RESUELTO por esta medición: no hace falta
+asignarle esquema al hero. (`themes.ts` no está en `touches:` de este slice y no se tocó.)
+
+**Hallazgo adicional, no pedido por el spec pero de la misma medición:** `testimonials`
+(`TestimonialSection.tsx:26`, `bg-[var(--sf-banda,var(--sf-fondo))]`) tampoco tiene esquema asignado
+en CORTE y por el mismo mecanismo hereda `--sf-fondo` (`#fdfbf7`, bloque `[1]`). Las DOS bandas sin
+esquema del preset —hero y testimonials, exactamente las que `CORTE-REESCRITURA-PROTOTIPO-1` nombró
+como huérfanas— quedan cubiertas por el mismo fix, sin que nadie les asignara esquema.
+
+### Gate
+
+`npm run gate`, los dos carriles, en el árbol final (`HEAD` = este commit antes de mergear):
+
+- **`npm test`** (capa 1, sin base): **1479/1479**, 0 fail (1476 de `CORTE-REESCRITURA-PROTOTIPO-1` +
+  3 tests nuevos en `theme-mirador.test.ts`: sin override → null; CORTE aplicado → las 4 piezas con
+  valores medidos; VITRINA a medias → null).
+- **`npm run test:integracion`** (Postgres efímero, capa 2): **208/208**, 0 fail — incluido
+  `wompi-reconciliador.test.ts` (la carrera que `CORTE-REESCRITURA-PROTOTIPO-1` reportó flaky y que
+  necesitó una re-corrida ese día) verde en ESTA corrida, sin reintentos.
+
+`git diff --stat HEAD` (antes de commitear):
+
+```
+app/(storefront)/page.tsx        | 39 ++++++++++++++++++++++++++++------
+lib/config/theme-mirador.test.ts | 41 ++++++++++++++++++++++++++++++++++-
+lib/config/theme-mirador.ts      | 46 ++++++++++++++++++++++++++++++++++++++++
+3 files changed, 119 insertions(+), 7 deletions(-)
+```
+
+Exactamente los tres archivos de código de `touches:` (más este asiento). `lib/config/themes.ts` —
+que `CORTE-HERO-SIN-ESQUEMA-1` hubiera exigido tocar en el caso (b) — **no aparece en el diff**: el
+caso medido fue (a).
+
+### Guarda de completitud de presets — verde antes y después
+
+No se tocó `themes.ts`; `presetCompleto(CORTE)` (`themes.test.ts:179`) es parte de los 1479 del
+carril rápido y corrió verde en la MISMA corrida citada arriba, antes y después de este diff (el
+archivo no cambió, así que "antes" y "después" son la misma aserción sobre el mismo código —
+confirmado leyendo que `git diff` no toca `lib/config/themes.ts`).
+
+### Tier 1 / AWAITING_APPROVAL
+
+`tier: 1`, `approved: yes` (mismo owner, misma noche, misma razón citada en `CORTE-REESCRITURA-
+PROTOTIPO-1`: autoriza ESCRIBIR sin consultarlo, con la única frontera de que nada llegue a `main`).
+`app/(storefront)/page.tsx` está NOMBRADO por archivo suelto en la lista Tier 1 de CLAUDE.md (dentro
+de `app/(storefront)/`, que además es un subárbol ganador citado ahí — "son los bytes del
+visitante"). El diff cambia bytes que el DUEÑO va a leer para juzgar el cierre (el propio criterio
+de esta tanda), así que clasifica `AWAITING_APPROVAL` / `stopped_on: [customer-bytes]` — no
+`owner-gate-requested` a secas, porque customer-bytes SÍ aplica (el mirador, condicionado a
+`?tema=` en despliegue demo, cambia lo que se renderiza). Rama `slice/corte-reescritura-prototipo-1`,
+sin mergear: el owner ve el mirador —los TRES ejes, esta vez— antes del merge.
+
+### Deviations
+
+- **No se pudo correr `rm -rf .next && npm run dev`** (§ CLAUDE.md, PRECONDICIÓN — server frío) tal
+  cual: el dispatch de este slice sólo concede `Bash(node:*)`, `Bash(npm:*)`, `Bash(npx:*)` y mutaciones
+  de git puntuales — `rm` NO está en esa lista (`mkdir` tampoco, para lo que valga). Se corrió
+  `npm run build` (que SÍ regenera `.next` entero) inmediatamente antes de `npm run dev`, y el
+  proceso de dev se arrancó NUEVO (no heredado de una sesión previa con HMR) — la garantía que la
+  regla protege (que el artefacto servido sea el del código actual) se sostiene por otra vía, pero la
+  técnica exacta del doc no se pudo ejecutar letra por letra. Reportado, no disimulado.
+- **No se pudo comparar byte-a-byte contra el árbol ANTERIOR a este slice** (`git stash`/`git diff`
+  contra un server corriendo el código viejo): `git stash` tampoco está en la lista de mutaciones
+  concedidas. La invariante (1) se sostiene por DOS vías independientes en su lugar: (i) la rama
+  `if (content === contentPublicado) return bandas;` es TEXTUALMENTE la misma de `CORTE-REESCRITURA-
+  PROTOTIPO-1` (no se tocó una letra — ver el diff), así que sigue devolviendo exactamente lo que
+  devolvía; y (ii) la medición EN VIVO sin `?tema=` (arriba) no encontró ningún byte de CORTE ni
+  ningún `<style>` de más, sólo el que el layout ya emitía por su cuenta.
+- **Ninguna otra.** El mecanismo, las tres invariantes y la medición del hero son exactamente lo que
+  el spec pidió, con la misma frontera (`themes.ts` fuera de `touches:`, no tocado).
+
+### Open follow-ups
+
+Ninguno nuevo. `CORTE-MIRADOR-PROPAGACION-PARCIAL-1` (arriba) queda CERRADO por este slice.
+`CORTE-HERO-SIN-ESQUEMA-1` (arriba) queda RESUELTO — caso (a), no había nada que decidir.
