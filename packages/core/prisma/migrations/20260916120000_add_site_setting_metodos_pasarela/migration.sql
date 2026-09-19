@@ -1,0 +1,13 @@
+-- Métodos de PASARELA (API directa, § API-DIRECTA-PANEL-METODOS-1): la lista de tipos de
+-- método que el dueño eligió ofrecer, entre los que su cuenta del proveedor tiene REALMENTE
+-- habilitados. Se guarda SÓLO la lista de IDENTIFICADORES DE TIPO (strings) — NUNCA
+-- `{tipo, datos}` como `metodosPago`: un método de pasarela no guarda dato del dueño, los
+-- datos de pago nunca tocan este servidor (§ API-DIRECTA-DECISIONES-PROGRAMA-1 §2). Un campo
+-- `datos` vacío para siempre sería una mentira estructural.
+--
+-- ADITIVA PURA, SIN BACKFILL: la capacidad es NUEVA, ninguna fila existente tenía esto
+-- configurado antes. `[]` es un estado LEGÍTIMO — a diferencia de `metodosPago` (que exige al
+-- menos uno porque el checkout necesita alguna forma de cobrar), un tenant con la pasarela
+-- apagada para este despliegue, o que aún no eligió qué ofrecer de su cuenta, no es un error
+-- de configuración.
+ALTER TABLE "SiteSetting" ADD COLUMN "metodosPasarela" JSONB NOT NULL DEFAULT '[]'::jsonb;

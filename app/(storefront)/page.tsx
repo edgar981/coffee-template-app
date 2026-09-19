@@ -10,6 +10,9 @@ import { getSiteSettings } from "@/lib/config/site-settings";
 import { getSiteContent } from "@/lib/config/site-content";
 import { esquemaStyle } from "@/lib/config/esquema-style";
 import { resolverOrden, type BandaId } from "@/lib/config/site-content-defaults";
+import { contenidoConPresetDeVista } from "@/lib/config/theme-mirador";
+import { SiteContentProvider } from "@/components/storefront/SiteContentProvider";
+import { esDespliegueDemo } from "@/next.config";
 // v1: Newsletter hidden — restore import when the newsletter feature ships
 // import Newsletter from "@/components/storefront/home/Newsletter";
 
@@ -33,8 +36,32 @@ import { resolverOrden, type BandaId } from "@/lib/config/site-content-defaults"
 // ÚNICA banda con un prop extra (`negocio`); las demás sólo toman `style`. Sin fila, `orden` resuelve
 // al orden de HOY → mismo árbol que el JSX fijo de ayer → byte-idéntico. Newsletter queda FUERA del
 // registro y de `BANDA_IDS`: sigue oculta/comentada en v1, así que nunca aparece en `orden`.
-export default async function Home() {
-  const [{ nombre }, content] = await Promise.all([getSiteSettings(), getSiteContent()]);
+//
+// EL MIRADOR DE `?tema=CLAVE` (§ TEMAS-MIRADOR-PRESET-1). `aplicarPreset` (`site-content-write.ts`)
+// PERSISTE un preset y no tiene llamador — no hay forma de MIRAR una variante nueva sin mover al
+// tenant que corre en la misma base que el despliegue de desarrollo comparte. Esta rama NUNCA
+// ESCRIBE: `contenidoConPresetDeVista` superpone el preset EN MEMORIA, sólo para esta respuesta, y
+// se ignora sin rastro si la clave no existe o el preset está incompleto (`validarPreset` decide, no
+// un criterio propio acá). Sólo corre fuera de producción real (`esDespliegueDemo()`, la MISMA
+// fuente que ya gobierna el noindex y las llaves de Wompi en `next.config.ts`) — en producción el
+// parámetro se ignora por completo, ni se lee.
+//
+// `searchParams` sólo existe en `page.tsx` (un Layout NO lo recibe, por diseño de Next — evita que
+// un layout compartido se vuelva dependiente de un query de una ruta hija), así que el mirador vive
+// acá y no en `layout.tsx`: el `<style>` de paleta/fuentes/forma que el layout inyecta en `:root`
+// sigue leyendo el content PUBLICADO tal cual, sin el override. Lo que SÍ cambia con el mirador son
+// las bandas de esta página (via el `SiteContentProvider` anidado de abajo, que sombrea al del
+// layout para este subárbol) — es lo que hace falta para VER las tres composiciones nuevas.
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const [{ nombre }, contentPublicado] = await Promise.all([getSiteSettings(), getSiteContent()]);
+  const { tema: temaPedido } = await searchParams;
+  const content = esDespliegueDemo()
+    ? contenidoConPresetDeVista(contentPublicado, Array.isArray(temaPedido) ? temaPedido[0] : temaPedido)
+    : contentPublicado;
   const { esquemas, tema, orden } = content;
   const bandaStyle = (bandaId: string) =>
     esquemaStyle(esquemas[bandaId], tema.fondo, tema.tinta, tema.acento) as React.CSSProperties;
@@ -49,7 +76,7 @@ export default async function Home() {
     testimonials: (style) => <TestimonialSection style={style} />,
   };
 
-  return (
+  const bandas = (
     <>
       {resolverOrden(orden).map((id) => (
         <Fragment key={id}>{BANDAS[id](bandaStyle(id))}</Fragment>
@@ -58,4 +85,11 @@ export default async function Home() {
       {/* <Newsletter style={bandaStyle('newsletter')} /> */}
     </>
   );
+
+  // Sin mirador (el caso de SIEMPRE, incluida toda producción real): ni un Provider de más — el
+  // árbol queda BYTE-IDÉNTICO al de antes de este slice. `SiteContentProvider` no emite HTML propio
+  // (es un Context.Provider), así que anidarlo sólo cuando hay override es una precaución, no una
+  // necesidad de paridad visual — pero es la que deja el camino común sin tocar ni un nodo de más.
+  if (content === contentPublicado) return bandas;
+  return <SiteContentProvider value={content}>{bandas}</SiteContentProvider>;
 }

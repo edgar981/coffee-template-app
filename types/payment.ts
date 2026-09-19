@@ -110,6 +110,115 @@ export const METODO_DESGLOSE_LABEL: Record<MetodoPago, string> = {
   TRANSFERENCIA: 'Bancaria',
 };
 
+// Lo que el checkout necesita para mostrar las DOS casillas de aceptación de Wompi
+// (§ API-DIRECTA-DECISIONES-PROGRAMA-1 §4, DECISIONS.md: "SON DOS CASILLAS SEPARADAS, NO
+// UNA"). Cada campo es un token de aceptación + el enlace público al documento que describe
+// — nada de secretos: los dos viajan del proveedor al navegador porque la creación de la
+// transacción los necesita en el body, y el enlace es lo que el comprador tiene que poder
+// abrir antes de marcar la casilla.
+export interface AceptacionWompi {
+  token:  string;
+  enlace: string;
+}
+
+export interface AceptacionesWompi {
+  terminos:        AceptacionWompi;
+  datosPersonales: AceptacionWompi;
+}
+
+// El token que Wompi devuelve al tokenizar una tarjeta por API directa
+// (§ API-DIRECTA-CAPTURA-TARJETA-1) — un identificador OPACO que la creación de la
+// transacción (slice siguiente) va a usar. NUNCA lleva datos de la tarjeta; sólo se declara
+// el campo que este programa necesita leer, no el sobre completo del proveedor (que no está
+// medido contra el sandbox — ver `services/checkout.service.ts`, `tokenizarTarjeta`).
+export interface TokenTarjetaWompi {
+  id: string;
+}
+
+// El resultado clasificado que devuelve `PATCH /api/checkout` al crear la transacción de
+// tarjeta por API directa (§ API-DIRECTA-CREACION-TRANSACCION-1) — la forma DE RED (JSON) del
+// mismo discriminador que `lib/pagos/creacion-transaccion.ts` clasifica del lado del servidor.
+// El cableado del cliente que consume esto (`FormularioTarjeta.tsx`) no tiene que reinventar
+// los cuatro casos. `error` es el texto PROVISIONAL para el comprador —
+// pendiente de copy del owner, igual que el resto de los mensajes nuevos de este programa—;
+// las tres ramas de fallo comparten forma a propósito, porque el cliente no necesita
+// distinguirlas para decidir qué mostrar (todas terminan en "no se pudo, intenta de nuevo o
+// usa otro método"); lo que SÍ distingue es `tipo`, por si un consumidor futuro quisiera
+// tratarlas distinto (p. ej. loguear métricas separadas).
+//
+// `autenticacion3ds` (§ API-DIRECTA-3DS-SIN-CHALLENGE-1) SÓLO va en la rama `'creada'`: es la
+// clasificación de `clasificarAutenticacion3ds` (`lib/pagos/tres-ds.ts`) sobre la transacción
+// YA CREADA — 'sin_friccion' (el emisor autenticó sin pedirle nada al comprador), 'desafio' (el
+// emisor pide un paso adicional) o 'desconocido' (el proveedor no trajo el dato — nunca se
+// inventa un veredicto). Es un ESPEJO A MANO de `Resultado3ds` (`lib/pagos/tres-ds.ts`) y no un
+// `import type` de ese módulo — mismo criterio que `MetodoPago` arriba: este archivo alimenta
+// también la UI, y la forma DE RED se declara acá, no se hereda del tipo interno del servidor.
+//
+// `desafioHtml` (§ API-DIRECTA-3DS-CON-CHALLENGE-1) SÓLO viaja cuando `autenticacion3ds ===
+// 'desafio'` Y el servidor pudo decodificar el contenido (`extraerContenidoDesafio3ds`,
+// `lib/pagos/tres-ds.ts`, corrida UNA vez en el servidor — el cliente nunca decodifica nada,
+// sólo embebe este HTML YA decodificado). AUSENTE (no `null`: `undefined` se omite del JSON) en
+// los otros dos casos, y también ausente si el desafío se detectó pero el contenido no se pudo
+// decodificar — el cliente trata la ausencia igual que antes de este slice: cae al texto
+// honesto de espera, sin iframe, sin inventar una pantalla que no tiene con qué dibujarse.
+export type ResultadoCreacionTransaccionWompi =
+  | { tipo: 'creada'; id: string; status: string; autenticacion3ds: 'sin_friccion' | 'desafio' | 'desconocido'; desafioHtml?: string }
+  | { tipo: 'metodo_no_habilitado'; error: string }
+  | { tipo: 'firma_invalida'; error: string }
+  | { tipo: 'otro_fallo'; error: string };
+
+// ── LOS MÉTODOS DE PASARELA QUE NO SON TARJETA (§ API-DIRECTA-OTROS-METODOS-1) ──────────────
+
+/** El dato que el comprador tecleó para un método de pasarela QUE NO ES TARJETA — `tipo`
+ *  nombra el descriptor (`lib/pagos/metodos-pasarela.ts`, `DESCRIPTORES_METODO_PASARELA`) y
+ *  `dato` es el valor TAL COMO el comprador lo tecleó, sin validar todavía: el servidor valida
+ *  con el MISMO descriptor (`campos[0].validar` — LEGACY, § abajo) antes de usarlo — nunca
+ *  confía en que el cliente ya lo hizo.
+ *
+ *  § API-DIRECTA-FORMA-TRES-DIMENSIONES-1: LA FORMA DEL DESCRIPTOR YA ADMITE VARIOS CAMPOS
+ *  (`DescriptorMetodoPasarela.campos: CampoMetodoPasarela[]`), pero ESTA interfaz —el WIRE
+ *  hacia `PATCH /api/checkout`— NO CAMBIÓ: sigue siendo UN SOLO `dato: string`, porque
+ *  `app/api/checkout/route.ts` es Tier 1 y quedó fuera de `touches` de ese slice (§ su
+ *  reporte). Es lo que hace que hoy `dato` sólo pueda llevar el valor del PRIMER campo del
+ *  descriptor — un tipo con más de un campo no puede describirse con esta interfaz todavía;
+ *  necesitaría un `valores: Record<string,string>` y el cambio correspondiente en la ruta. */
+export interface DatosMetodoPasarelaOtro {
+  tipo: string;
+  dato: string;
+}
+
+/**
+ * La respuesta de `PATCH /api/checkout` para el camino QUE NO ES TARJETA. HONESTA sobre el
+ * límite de este slice: `lib/pagos/wompi-api.ts` (`crearTransaccionTarjeta`, fuera de
+ * `touches` de este slice) siempre manda `payment_method: {type: 'CARD', ...}` — generalizarla
+ * para que acepte el `payment_method` que `construirDatosCreacionTransaccion`
+ * (`lib/pagos/creacion-transaccion.ts`, ya probado) arma es el trabajo que falta. Por eso esta
+ * respuesta NUNCA pretende que Wompi contestó algo que nunca se le preguntó — el único
+ * `tipo` que existe hoy lo dice explícito. `error` es el texto para el comprador — PROVISIONAL,
+ * PENDIENTE DE COPY DEL OWNER, igual que el resto de los mensajes nuevos de este programa.
+ */
+export interface ResultadoCreacionTransaccionOtroMetodo {
+  tipo: 'no_implementado';
+  error: string;
+}
+
+// La respuesta de `POST /api/pasarela/redireccion` (§ API-DIRECTA-MECANISMO-REDIRECCION-1): UN
+// intento de RELECTURA de la transacción, buscando la dirección externa a la que hay que mandar
+// al comprador para un método que navega fuera del checkout (dimensión C de
+// `lib/pagos/metodos-pasarela.ts`, `RedireccionMetodoPasarela` — "la creación de la transacción
+// no devuelve la dirección; aparece DESPUÉS, releyendo la transacción", medido,
+// API-DIRECTA-PSE-SPIKE-ASIENTO-1).
+//
+// `url: null` ES EL CASO NORMAL "todavía no aparece" — NUNCA un error ni un veredicto de fallo:
+// el cliente (`components/storefront/checkout/EsperaRedireccionPasarela.tsx`) decide, con el
+// MISMO backoff que ya reusa de `lib/pagos/tres-ds.ts`, si reintenta o se rinde al llegar al
+// techo. Un fallo TRANSITORIO de la consulta (red, timeout) es una respuesta DISTINTA
+// (`{ error }`, 502) — nunca se aplana contra `url: null`, para no confundir "sigue sin
+// aparecer" con "no se pudo ni preguntar".
+export interface ResultadoRedireccionPasarela {
+  url: string | null;
+}
+
 // A registered payment as returned by the ledger endpoint. `monto` is the order
 // total snapshotted at registration; `order` is a light live snapshot for display.
 export interface Payment {

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
-import { POST, checkoutSchema } from './route';
+import { POST, checkoutSchema, tipoMetodoDeIntento } from './route';
 import { pasarelaDisponibleEnEsteDespliegue } from '@/services/checkout.service';
 
 // NOTA DE ALCANCE (§ WOMPI-WIDGET-EN-EL-CANONICO-1): este archivo, como su gemelo
@@ -82,4 +82,26 @@ test('POST: el 400 de disponibilidad ocurre ANTES que el de franja horaria (Bogo
   assert.equal(res.status, 400);
   const body = await res.json();
   assert.match(body.error, /no está disponible/i);
+});
+
+// ── tipoMetodoDeIntento (§ API-DIRECTA-DESALINEO-DUENO-1) ───────────────────────────────────────────
+// Lo que el PATCH persistiría en `PaymentIntent.metodo_rechazado` SI la creación falla por
+// `metodo_no_habilitado` — pura, sin Prisma ni red, así que se afirma acá sin las restricciones que
+// mantienen al resto de este archivo lejos de la base (ver la NOTA DE ALCANCE, arriba). El `switch` de
+// `PATCH` sólo llama a `prisma.paymentIntent.update` en la rama EXACTA `case 'metodo_no_habilitado'`
+// (ver `route.ts`) — nunca en `'creada'`, `'firma_invalida'` ni `'otro_fallo'` — así que afirmar QUÉ
+// tipo calcularía esa escritura cubre la mitad pura de "sólo se escribe en el caso exacto"; la otra
+// mitad (que el `switch` no llama al `.update` en los otros tres casos) se verifica leyendo el código,
+// no hay Prisma efímero en este archivo para ejercitarlo en vivo.
+
+test('tipoMetodoDeIntento: el camino de TARJETA computa "CARD" — el mismo literal que ya manda Wompi', () => {
+  const datos = { reference: 'CN-1:abc', tokenTarjeta: 'tok_test_1', aceptaciones: { terminos: 't', datosPersonales: 'd' }, datosNavegador3ds: {
+    colorDepth: 24, javaEnabled: false, language: 'es-CO', screenHeight: 800, screenWidth: 600, timezoneOffsetMin: 300, userAgent: 'test',
+  } };
+  assert.equal(tipoMetodoDeIntento(datos), 'CARD');
+});
+
+test('tipoMetodoDeIntento: el camino QUE NO ES TARJETA computa el tipo tal cual llegó (vocabulario del proveedor)', () => {
+  const datos = { reference: 'CN-1:abc', metodoPasarela: { tipo: 'NEQUI', dato: '3001234567' }, aceptaciones: { terminos: 't', datosPersonales: 'd' } };
+  assert.equal(tipoMetodoDeIntento(datos), 'NEQUI');
 });
