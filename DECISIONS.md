@@ -8442,3 +8442,193 @@ política, sin construir el destino de reportes, y sin tocar ninguna otra direct
 - `CSP-PRODUCCION-WOMPI-SIN-MEDIR-1`: correr al menos una compra real contra producción con
   `WOMPI_PUBLIC_KEY` productiva y confirmar que `https://production.wompi.co` es, en efecto, el único
   host adicional que aparece — hoy ese origen está deducido del código, nunca medido en uso (§3).
+
+## 2026-09-18 — CORTE toma paleta/fuente/forma del prototipo versionado (`CORTE-REESCRITURA-PROTOTIPO-1`)
+
+**El estándar, palabras del owner:** *"CORTE como está hoy NO ALCANZA. No es 'el preset valida' — es
+que cuando abra el mirador tiene que verse como el prototipo. Ese es el criterio de cierre."* Lo
+construido hasta este slice era la PLOMERÍA (§ themes.ts: dónde se declara una variante, cómo se
+elige); los tres valores de CORTE (`fondo:'#efece6'`, `tinta:'#0c0b0a'`, `acento:'#a3643a'`,
+`fuentePar:'moderno'`, `forma:'minima'`) no salían de ninguna medición — validaban contra el REGISTRY
+(la GUARDA), pero no contra el DISEÑO. Este slice los reescribe leyendo el prototipo versionado del
+repo (`docs/prototipos/cafeone/`), la única fuente: no hay ningún censo del prototipo en este libro
+(se buscó y no está — igual que `CORTE-PROTOTIPO-CENSO-1`, citado por `TEMAS-PAR-PRENSA-1` arriba,
+tampoco tiene entrada).
+
+### La paleta — rol→rol, no rampa→raíz
+
+El preset guarda ROLES (`fondo`/`tinta`/`acento`), así que se leyeron los TOKENS SEMÁNTICOS del
+prototipo (qué rol cumple cada color), no su rampa de base. Cada mapeo se verificó con el USO real en
+el propio CSS del prototipo, no sólo con el nombre del token:
+
+| rol del preset | token semántico del prototipo | valor | dónde se declara | dónde se USA (confirma el rol) |
+| --- | --- | --- | --- | --- |
+| `fondo` | `--surface-page` | `#fdfbf7` | `docs/prototipos/cafeone/ds/colors.css:39` | `.canvas{…;background:var(--surface-page)}` (`app.css:39,43`) — el contenedor que envuelve TODO el contenido del sitio (8 usos en `app.css`, `grep -c`); confirmado por el propio README del prototipo, que en su tabla "Brief vs. design system" (`README.md:69`) llama a este token literal **"canvas"**: `--canvas:#F7F3EA` (brief) → `--surface-page:#fdfbf7` (DS, lo que se usó) |
+| `tinta` | `--text-heading` | `#102407` | `colors.css:48` | todo titular h1..h6 (19 usos en `app.css`, `grep -c`); coincide con `--surface-inverse` (`colors.css:43`) y con `--green-900` (`colors.css:4`), el fondo de los paneles a sangre completa del prototipo — el mismo rol que nuestra `tinta` cumple como fondo oscuro del hero. El README (`README.md:67`) lo llama **"green-deep"** en el brief → `--green-900:#102407` en el DS |
+| `acento` | `--action-primary` | `#a70004` | `colors.css:59` | `.btn--primary{background:var(--action-primary)}` (`app.css:134`) y 16 usos más (`grep -c` da 17) — todo CTA primario, incl. `.skip-link` (`app.css:71-73`). El README (`README.md:68`) lo llama **"burgundy"** en el brief → `--action-primary:#a70004` en el DS |
+
+**CORRECCIÓN sobre `.canvas` vs `<body>`, medida al revisar este asiento antes de cerrarlo:** el
+`<body>` HTML real del prototipo NO usa `--surface-page` — usa `--bg-body:#0e0e0c`
+(`tokens.css:203-205`, casi negro), un marco de `--frame-gap` que sólo se ve como gutter alrededor del
+`.canvas` (el propio README, línea 75: *"El lienzo flota con `--frame-gap` y `--frame-radius`"*). Y el
+propio comentario de `tokens.css:203-204` lo declara ajeno al DS: *"Page frame: the canvas floats on a
+near-black body. **Not in the DS** — added per the build brief."* — `--bg-body`/`--frame-gap` son un
+AÑADIDO del sitio, no un token del CAFEONE Design System; `--surface-page` SÍ lo es (§ README, la tabla
+brief↔DS). El primer borrador de este asiento citaba `body{background:var(--surface-page)}`, que no
+existe — `--surface-page` es del `.canvas`, no del `<body>`. La elección de `fondo = --surface-page`
+SIGUE EN PIE, ahora con MÁS respaldo, no menos: nuestro storefront no tiene el tratamiento de
+marco/gutter del prototipo (`bg-[var(--sf-fondo)]` va en el `<div>` raíz que envuelve TODO, como el
+`.canvas`, no como el `<body>` casi negro que sólo se asoma 1-2rem en los bordes), y el token que sí
+pertenece al DS —el que el propio README nombra "canvas" en su tabla de equivalencias— es
+`--surface-page`, no el añadido de sitio `--bg-body`. Lo que se corrige es la CITA del selector, no el
+mapeo.
+
+Valores viejos → nuevos: `#efece6`→`#fdfbf7`, `#0c0b0a`→`#102407`, `#a3643a`→`#a70004`. Los tres eran
+inventados; los tres nuevos están medidos, con archivo y línea.
+
+### El par tipográfico — `'prensa'`, con el cuerpo declarado NO-EXACTO
+
+`lib/config/fuentes.ts` es un catálogo CERRADO a propósito (§ CLAUDE.md, "Las FUENTES son
+`content.tema.fuentePar`") — este slice NO agrega una entrada. Se usa el que más se acerca:
+
+- **`'prensa'` (Roboto Serif / Figtree) — ya en el catálogo, y YA declarado prerrequisito de CORTE.**
+  Confirmado: `TEMAS-PAR-PRENSA-1` (2026-09-15, más arriba en este libro) dice literal *"Prensa … llena
+  ese hueco, y es **prerrequisito de CORTE** (`observed-report: CORTE-PROTOTIPO-CENSO-1`)"* — y hasta
+  este slice, CORTE usaba `'moderno'` (Sora/Inter), no `'prensa'`. Esta reescritura es la que hace
+  cierta esa cita.
+- **El TITULAR calza EXACTO:** `--font-serif`/`--font-heading` del prototipo
+  (`docs/prototipos/cafeone/ds/typography.css:2,5`) es `'Roboto Serif'`, byte-a-byte el `titulo` de
+  `'prensa'` (`lib/config/fuentes.ts:111`).
+- **El CUERPO NO calza — reportado, no disimulado.** El prototipo usa `'Hanken Grotesk'`
+  (`typography.css:3,6`); `'prensa'` trae `'Figtree'` (`fuentes.ts:112`). Ningún par del catálogo trae
+  Hanken Grotesk (es la sans del PANEL DUNA — `--duna-font-ui`, CLAUDE.md — y ofrecerla al cliente
+  borraría la separación producto/cliente, la misma razón por la que 'Moderno' usa Sora y no Space
+  Grotesk). De los diez pares, `'prensa'` es el único con el TITULAR exacto; es el que menos se aleja.
+
+### La forma — `'minima'` → `'recta'`, la regla explícita del prototipo
+
+El prototipo declara la regla en la cabecera de su propio CSS: *"Buttons and interface chrome are
+SQUARE (--radius-button:0). Never round one."* (`docs/prototipos/cafeone/css/app.css:8`; mismo valor
+en `docs/prototipos/cafeone/ds/radius.css:11` `--radius-button:0px` y `:12` `--radius-card:0px`).
+
+Los TRES tokens que nuestro sistema efectivamente LEE hoy (`--radius-3xl/2xl/xl`, § formas.ts "LO QUE
+ESTA MITAD CONECTA") gobiernan, medido por grep, botones/tarjetas/inputs del storefront
+(`rounded-xl`/`rounded-2xl`/`rounded-3xl` en `app/(storefront)/tienda/[slug]/page.tsx`,
+`app/(storefront)/checkout/page.tsx`, `app/(storefront)/rastrear-pedido/page.tsx` y otros — botones
+primarios, inputs, tarjetas de resumen), no sólo imágenes. `'recta'` (`radius3xl/2xl/xl` = `'0'`,
+`formas.ts:76`) es el único match exacto de las tres formas del set cerrado; `'minima'` (el valor
+viejo, 6-10px) contradice la regla explícita del prototipo. Las imágenes SÍ se redondean en el
+prototipo (`--radius-image:16px`/`--radius-tile:20px`), pero ese rol lo cubre `--sf-radio-lg`, hoy
+INERTE en nuestro sistema (§ formas.ts) — no hay valor propio del set cerrado que lo represente
+todavía; no se inventa uno.
+
+### Lo que NO se tocó (verificado, no supuesto)
+
+- **Ningún otro preset del catálogo** (PLIEGO/PATIO/VETA/VITRINA/ARRANQUE): diff de `themes.ts`
+  acotado al bloque de `CORTE` (medido con `git diff`, ver Gate).
+- **Las variantes/esquemas/orden de CORTE** (`hero:'media'`, `featured:'grilla'`,
+  `brandStory:'columnas'`, `presentaciones:'mosaico'`, `subscriptionCTA:'linea'`, los 5 `esquemas`, y
+  `orden:ORDEN_DEFAULT`) — intactos, byte a byte.
+- **El mirador** (`app/(storefront)/page.tsx`, `lib/config/theme-mirador.ts`) — cero líneas tocadas.
+- **El preset que corre el sitio publicado.** `aplicarPreset` (`lib/config/site-content-write.ts:160`)
+  tiene CERO llamadores en todo el repo (`grep -rn "aplicarPreset\b"` da sólo su propia definición y
+  comentarios de doctrina) — nada aplica un preset del catálogo a la base. El mirador mismo sólo corre
+  con `esDespliegueDemo()` en `true` (`process.env.VERCEL_ENV !== "production" || NOINDEX === "1"`,
+  `next.config.ts:7`), así que en producción real ni se lee el query param. El contenido publicado
+  (`SiteContent.content.tema` en la base) es independiente de este catálogo; este slice no lo tocó ni
+  pudo tocarlo (no escribe la base).
+
+### HALLAZGO MEDIDO — el mirador, tal como está construido, no puede mostrar el eje completo hoy
+
+**No es parte de este `touches:` arreglarlo — "El mirador. Funciona; no lo toques" — pero es central
+para juzgar si el criterio de cierre del owner se cumple, y se reporta sin disimular.** Se midió
+leyendo `app/(storefront)/page.tsx`, `app/(storefront)/layout.tsx` y `lib/config/esquema-style.ts`
+(no se infiere; se trazó el dato):
+
+- **El `<style>` de paleta/fuentes/forma lo emite `app/(storefront)/layout.tsx`**, que **NO recibe
+  `searchParams`** (comentario propio en `page.tsx:49-51`: "un Layout NO lo recibe, por diseño de
+  Next"). Ese `<style>` lee `getSiteContent()` — el content PUBLICADO — siempre, sin el override del
+  mirador. Es decir: **el par tipográfico y la forma (radios) de CORTE NUNCA se ven al abrir
+  `?tema=CORTE`**, aunque los valores estén perfectos — el mismo `:root` de siempre gobierna toda la
+  página.
+- **La paleta SÍ llega, pero SÓLO a las bandas con `esquema` asignado.** `page.tsx` pasa el `tema`
+  overrideado a `esquemaStyle(esquemas[bandaId], tema.fondo, tema.tinta, tema.acento)` por banda
+  (`page.tsx:65-67`); `esquemaStyle` (`lib/config/esquema-style.ts:57-83`) SIN esquema asignado
+  devuelve `{}` — cero vars locales, la banda cae al `:root` global (publicado, no CORTE). **CORTE NO
+  asigna esquema a `hero` ni a `testimonials`** (su mapa `esquemas` sólo nombra `trustBadges`,
+  `featured`, `brandStory`, `presentaciones`, `subscriptionCTA` — `themes.ts`, bloque `CORTE`): el
+  HERO —la pieza más grande y visible de la composición `media` que CORTE eligió— sigue con el fondo
+  (`--sf-tinta` vía `bg-[var(--sf-banda,var(--sf-tinta))]`, `HeroMedia.tsx`) y el botón primario
+  (`--sf-tostado`) del sitio PUBLICADO, no de CORTE.
+- **Consecuencia:** con los valores de este slice, `?tema=CORTE` va a mostrar la paleta nueva en 5 de
+  7 bandas, y NO va a mostrar el par tipográfico ni la forma en ninguna. El hero — lo primero que se
+  ve — no cambia de color. El criterio del owner ("se ve como el prototipo") no se cumple TODAVÍA con
+  sólo este slice; falta que el mirador propague `tema.fuentePar`/`tema.forma` al `<style>` del layout
+  y que CORTE (o el mecanismo del mirador) resuelva la paleta también para bandas sin esquema. Ninguno
+  de los dos es parte de este `touches:` (sólo `lib/config/themes.ts` y este libro).
+
+### Guarda de presets (`temasCompletos`) — verde antes y después, medido
+
+```
+ANTES:  completos: CORTE,ARRANQUE   (CORTE faltantes: [])
+DESPUÉS: completos: CORTE,ARRANQUE  (CORTE faltantes: [])
+```
+
+Medido corriendo `temasCompletos(PRESETS)` y `validarPreset(CORTE)` antes y después del cambio
+(`node --import tsx`, capa 1, sin tocar la base). CORTE sigue completo — la reescritura cambió
+VALORES, no la FORMA del preset (`raices`/`fuentePar`/`forma` siguen decididos y en sus sets
+cerrados), así que ninguna de las cuatro reglas de `validarPreset` (variante/esquema/orden/par-forma)
+se ve afectada.
+
+### Gate
+
+`npm run gate`, los dos carriles, en el árbol final:
+
+- **`npm test`** (capa 1, sin base): **1476/1476**, 0 fail.
+- **`npm run test:integracion`** (Postgres efímero, capa 2): **primera corrida 207/208** — falló
+  `tests/integracion/wompi-reconciliador.test.ts:2` ("CONCURRENCIA: webhook y reconciliador
+  procesando el MISMO evento A LA VEZ"), un test de carrera real entre dos transacciones concurrentes
+  sobre Wompi. **Re-corrida completa del carril: 208/208.** No es un re-run hasta que dé verde sin
+  explicación: el diff de este slice es `lib/config/themes.ts` (un archivo de datos puro, sin
+  import de nada del eje de pagos — `git diff --stat`, abajo) y `DECISIONS.md`; no hay forma de que
+  una reescritura de paleta/fuente/forma de un preset de theme mueva el timing de una transacción de
+  Postgres sobre `PaymentIntent`. `git log --oneline -- tests/integracion/wompi-reconciliador.test.ts`
+  da UN solo commit en su historia (`9abdc5b`, `WOMPI-RECONCILIADOR-HI-1`, no tocado en este slice) —
+  la falla es una carrera pre-existente del propio test, no de este diff.
+
+`git diff --stat HEAD` (antes de commitear): `lib/config/themes.ts | 37 ++++++++++++++++++++++++++++++++++---` —
+el único archivo de código tocado; `DECISIONS.md` es este asiento.
+
+### Tier 1 / AWAITING_APPROVAL
+
+El spec ya lo declara `tier: 1`, `approved: yes` con la razón del owner citada arriba, `exec: no`.
+`lib/config/themes.ts` no está nombrado por archivo suelto en la lista Tier 1 de CLAUDE.md, pero cae
+bajo el criterio de bytes que el DUEÑO lee (el preset alimenta el mirador que el owner va a abrir para
+juzgar el cierre) — la misma clase que ya motivó AWAITING_APPROVAL en `TEMAS-PAR-PRENSA-1`. Rama
+`slice/corte-reescritura-prototipo-1`, sin mergear: el owner ve el mirador antes del merge, que es
+justo el criterio de cierre que él mismo fijó.
+
+### Deviations
+
+- **El `observed-report: TEMAS-MIRADOR-PRESET-1` citado por el spec no tiene entrada en este libro** —
+  sólo existe como commit (`c428d19`, `TEMAS-MIRADOR-PRESET-1: mirador de presets de theme por
+  ?tema=CLAVE, sin tocar la base`; `git log --all --grep` y `grep -rn` sobre el repo dan sólo ese
+  commit y comentarios de código que lo citan, cero entrada de libro). Misma clase que la desviación ya
+  registrada en `TEMAS-PAR-PRENSA-1` para `CORTE-PROTOTIPO-CENSO-1`: se anota, no bloquea — el criterio
+  de la Sección 1-3 del spec (leer el prototipo, mapear roles, usar el par más cercano) no depende de
+  que ese asiento exista.
+- **Ninguna otra.** El spec pidió paleta+fuente+forma de CORTE, medidos contra el prototipo, con lo
+  no-decidido resuelto siguiendo el prototipo y reportado — es lo que este asiento y el diff hacen.
+
+### Open follow-ups
+
+- `CORTE-MIRADOR-PROPAGACION-PARCIAL-1`: el mirador (`app/(storefront)/page.tsx`,
+  `theme-mirador.ts`) no propaga `tema.fuentePar`/`tema.forma` al `<style>` del layout (que lee sólo
+  el content PUBLICADO) ni resuelve la paleta para bandas SIN esquema asignado (hero, testimonials) —
+  § HALLAZGO MEDIDO arriba. Sin esto, ningún valor de CORTE puede cumplir el criterio de cierre del
+  owner ("se ve como el prototipo") en el hero. Es un cambio al MECANISMO del mirador
+  (`page.tsx`/`layout.tsx`/`theme-mirador.ts`), fuera de `touches:` de este slice.
+- `CORTE-HERO-SIN-ESQUEMA-1`: si el mirador se arregla (follow-up de arriba) y el hero SIGUE sin
+  mostrar la paleta de CORTE porque el preset no le asigna `esquema`, evaluar si CORTE debe asignarle
+  uno (hoy deliberadamente no lo tiene — sólo 5 de 7 bandas). Depende del follow-up anterior; no se
+  decide acá.

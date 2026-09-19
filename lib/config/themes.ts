@@ -277,9 +277,40 @@ export const PLIEGO: PresetTema = {
 export const CORTE: PresetTema = {
   clave: 'CORTE',
   label: 'Corte',
-  raices: { fondo: '#efece6', tinta: '#0c0b0a', acento: '#a3643a' },
-  fuentePar: 'moderno',   // Sora/Inter
-  forma: 'minima',
+  // MEDIDO contra el prototipo versionado (`docs/prototipos/cafeone/`), no inventado — reescritura
+  // de CORTE-REESCRITURA-PROTOTIPO-1 (DECISIONS.md). Los valores viejos (`#efece6`/`#0c0b0a`/`#a3643a`,
+  // `moderno`, `minima`) no salían de ninguna medición; el estándar del owner es que abrir el mirador
+  // se vea como el prototipo, y eso exige leer sus TOKENS SEMÁNTICOS (qué ROL cumple cada color), no
+  // su rampa. El preset guarda ROLES (fondo/tinta/acento), así que se mapea rol→rol:
+  //   fondo  = --surface-page  (docs/prototipos/cafeone/ds/colors.css:39) — el body del prototipo
+  //            (`background:var(--surface-page)`, css/app.css:43) pinta exactamente este color.
+  //   tinta  = --text-heading  (colors.css:48) — el color de TODO titular (h1..h6, css/app.css:93-113)
+  //            y coincide con `--surface-inverse` (colors.css:43), el verde-café oscuro de los paneles
+  //            a sangre completa; es el mismo rol que nuestra `tinta` cumple como fondo oscuro (hero).
+  //   acento = --action-primary (colors.css:59) — el color de TODO CTA primario
+  //            (`.btn--primary{background:var(--action-primary)}`, css/app.css:73,134).
+  raices: { fondo: '#fdfbf7', tinta: '#102407', acento: '#a70004' },
+  // 'prensa' (Roboto Serif / Figtree) — el par que TEMAS-PAR-PRENSA-1 (DECISIONS.md, 2026-09-15) sumó
+  // al catálogo declarando EXPLÍCITAMENTE «es prerrequisito de CORTE», y hasta este slice CORTE no lo
+  // usaba (traía 'moderno', Sora/Inter). El TITULAR calza EXACTO: `--font-serif`/`--font-heading` del
+  // prototipo (docs/prototipos/cafeone/ds/typography.css:2,5) es 'Roboto Serif', igual que `titulo` de
+  // 'prensa' (fuentes.ts). El CUERPO NO calza exacto: el prototipo usa 'Hanken Grotesk'
+  // (typography.css:3,6) y 'prensa' trae 'Figtree' — el catálogo es CERRADO (no se agrega una entrada
+  // nueva para este slice) y 'prensa' es, medido contra los diez pares, el que más se acerca (el único
+  // con el titular EXACTO). Reportado, no disimulado.
+  fuentePar: 'prensa',
+  // 'recta' (radios 0/0/0) — el prototipo lo declara en su propia cabecera de CSS: «Buttons and
+  // interface chrome are SQUARE (--radius-button:0). Nunca se redondea un botón»
+  // (docs/prototipos/cafeone/css/app.css:8; el mismo valor en radius.css:11 `--radius-button:0px` y
+  // :12 `--radius-card:0px`). Los TRES tokens que nuestro sistema efectivamente LEE hoy
+  // (`--radius-3xl/2xl/xl`, que en el storefront gobiernan botones/tarjetas/inputs — grep de
+  // `rounded-2xl`/`rounded-xl` en app/(storefront) y components/storefront, no sólo imágenes) son
+  // 0/0/0 en 'recta' (formas.ts), el único match exacto del set cerrado. 'minima' (el valor viejo,
+  // 6-10px) contradice la regla explícita del prototipo. Las imágenes SÍ se redondean en el prototipo
+  // (`--radius-image:16px`/`--radius-tile:20px`), pero ese rol lo cubre `--sf-radio-lg` — hoy INERTE
+  // en nuestro sistema (§ formas.ts, "LO QUE ESTA MITAD CONECTA vs LO QUE QUEDA INERTE"), así que no
+  // hay valor propio del set cerrado que lo represente todavía.
+  forma: 'recta',
   variantes: {
     hero: 'media',
     featured: 'grilla',
