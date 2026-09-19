@@ -1,52 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getCatalog } from "@/lib/api/products";
-import type { Product } from "@/types/product";
-import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
-import Link from "next/link";
-import ProductCard from "../ProductCard";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import FeaturedProductsCuadricula from "@/components/storefront/home/FeaturedProductsCuadricula";
+import FeaturedProductsGrilla from "@/components/storefront/home/FeaturedProductsGrilla";
 
-const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
+// La banda de Destacados — DISPATCHER de VARIANTES DE COMPOSICIÓN (§ TEMAS-FEATURED-GRILLA-1),
+// gemelo de HeroSection/GrindChooser en la FORMA (mapa de claves → componente, `?? canónica` como
+// red), pero DISTINTO en la FUENTE: `featured` es una banda ESTRUCTURAL, sin sección propia en
+// `SiteContentData` (§ `VARIANTES_ESTRUCTURALES`, `site-content-defaults.ts`) — así que su clave no
+// vive en `content.featured.variante` (esa clave no existe: escribir ahí crearía una huérfana, §
+// `mergePresetEnContent`), sino en la META key-agnóstica `content.variantesBandas.featured`.
+//
+// La registry del home (`app/(storefront)/page.tsx`) sigue montando ESTE componente sin cambios —
+// `featured: (style) => <FeaturedProducts style={style} />`—; el dispatch de variante vive DENTRO,
+// no en esa registry. `featured` no tiene gate de visibilidad propio (no es `SeccionKey`): su
+// posición en `content.orden` decide si se monta, no `visible`.
+const VARIANTES: Record<string, typeof FeaturedProductsCuadricula> = {
+  cuadricula: FeaturedProductsCuadricula,
+  grilla: FeaturedProductsGrilla,
+};
 
 export default function FeaturedProducts({ style }: { style?: React.CSSProperties } = {}) {
-  // Fuente única: catálogo público desde la DB (petición compartida/memoizada).
-  const [catalog, setCatalog] = useState<Product[]>([]);
-  useEffect(() => {
-    getCatalog().then(setCatalog).catch(() => setCatalog([]));
-  }, []);
+  const { variantesBandas } = useSiteContent();
 
-  const featured = catalog.slice(0, 4);
-
-  return (
-    <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Eyebrow/título/link SOBRE EL FONDO de la banda: `--sf-sobre-banda` con el literal de hoy
-              como fallback (§ eje 5b, home-2). Las ProductCard de la grilla NO se tocan: su texto va
-              sobre `--sf-tarjeta`, no sobre la banda. */}
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="flex items-end justify-between mb-12">
-            <div>
-              <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">Nuestro Catálogo</p>
-              <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]">Selección del mes</h2>
-            </div>
-            <Link href="/tienda" className="hidden sm:flex items-center gap-1 text-sm font-medium text-[var(--sf-sobre-banda,var(--sf-acento-texto))] hover:text-[var(--sf-acento-3)] transition-colors">
-              Ver todo <ArrowRight className="w-4 h-4" />
-            </Link>
-          </motion.div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {featured.map((p, i) => (
-              <motion.div key={p.id} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} transition={{ delay: i * 0.08 }}>
-                <ProductCard product={p} sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw" />
-              </motion.div>
-            ))}
-          </div>
-          <div className="mt-8 text-center sm:hidden">
-            <Link href="/tienda" className="inline-flex items-center gap-1 text-sm font-medium text-[var(--sf-sobre-banda,var(--sf-acento-texto))]">Ver todos los productos <ArrowRight className="w-4 h-4" /></Link>
-          </div>
-        </div>
-      </section>
-  )
+  // `?? FeaturedProductsCuadricula` es la red: `resolverVariantesBandas` NO clampa (a diferencia de
+  // `resolverVariante`) — sin override guardado la clave está AUSENTE del mapa, y una clave basura
+  // tampoco sobrevive a ese resolver (§ su docstring: "ni siquiera aparece en el resultado"). Las dos
+  // caen acá, en la canónica, sin lanzar.
+  const Layout = VARIANTES[variantesBandas.featured] ?? FeaturedProductsCuadricula;
+  return <Layout style={style} />;
 }
-
-

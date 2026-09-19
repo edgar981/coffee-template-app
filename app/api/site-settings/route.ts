@@ -42,6 +42,9 @@ export async function PATCH(req: NextRequest) {
   //
   // Las 9 columnas viejas de pago (bancoNombre…pagoMovilNumero) ya NO EXISTEN
   // (§ PAGOS-METODOS-DROP-VIEJAS-1): su dato vive en `metodosPago`, más abajo.
+  //
+  // `metodosPasarela` (§ API-DIRECTA-PANEL-METODOS-1) es una unión PARALELA a
+  // `metodosPago`, nunca mezclada: sólo identificadores de tipo, sin `datos`.
   await prisma.siteSetting.update({
     where: { id: 'default' },
     data: {
@@ -54,6 +57,7 @@ export async function PATCH(req: NextRequest) {
       emailReplyTo:      d.emailReplyTo || null,
       adminEmail:        d.adminEmail || null,
       metodosPago:       d.metodosPago,
+      metodosPasarela:   d.metodosPasarela,
     },
   });
   return NextResponse.json({ ok: true });

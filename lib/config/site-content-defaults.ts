@@ -121,6 +121,13 @@ export interface SubscriptionCTAContent {
   bullet3: string;
   bullet4: string;
   ctaLabel: string;
+  // La VARIANTE de composición (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e). 'bloque' (canónica, la de
+  // Nayoli — texto + tarjetas de plan en dos columnas) | 'linea' (franja horizontal condensada: el
+  // gancho, el título y el botón en una línea; el subtítulo y los bullets NO se renderizan en esa
+  // composición, § SubscriptionCTALinea.tsx). Escalar de SECCIÓN —como `visible`—, no un `campos`: no
+  // lo toca el loop requerido/opcional del resolver. Gemela de `hero.variante`/`brandStory.variante`/
+  // `presentaciones.variante`.
+  variante: string;
 }
 
 // Testimonios ("Lo que dicen nuestros clientes"): la PRIMERA sección REPEATER — un encabezado de
@@ -372,6 +379,7 @@ export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 // (grep vivo contra el código, no supuesto — verificar de nuevo si un componente cambia su fallback):
 //   hero            → var(--sf-tinta)      (HeroCurtina.tsx, variante 'curtina') → OSCURA
 //                     var(--sf-fondo)      (HeroFicha.tsx, variante 'ficha')     → clara
+//                     var(--sf-tinta)      (HeroMedia.tsx, variante 'media')     → OSCURA
 //   brandStory      → var(--sf-tinta)      (BrandStory.tsx)         → OSCURA
 //   subscriptionCTA → var(--sf-tinta-2)    (SubscriptionCTA.tsx)    → OSCURA
 //   trustBadges     → var(--sf-fondo)      (TrustBadges.tsx)        → clara
@@ -394,11 +402,12 @@ export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 export const BANDAS_OSCURAS: ReadonlySet<BandaId> = new Set<BandaId>(['hero', 'brandStory', 'subscriptionCTA']);
 
 /** La darkness CANÓNICA (sin esquema) de una banda, dependiente de su VARIANTE cuando la
- *  tiene. Hoy sólo el HERO: 'curtina' es OSCURA (fondo `--sf-tinta`), 'ficha' es CLARA (fondo
- *  `--sf-fondo`) — atado al fallback `bg-[var(--sf-banda,<token>)]` de cada componente, como
- *  `BANDAS_OSCURAS`. El resto de las bandas no varían con la variante → `BANDAS_OSCURAS`. */
+ *  tiene. Hoy sólo el HERO: 'curtina' y 'media' (§ TEMAS-HERO-MEDIA-1) son OSCURAS (fondo
+ *  `--sf-tinta`), 'ficha' es CLARA (fondo `--sf-fondo`) — atado al fallback
+ *  `bg-[var(--sf-banda,<token>)]` de cada componente, como `BANDAS_OSCURAS`. El resto de las
+ *  bandas no varían con la variante → `BANDAS_OSCURAS`. */
 export function bandaOscuraCanonica(bandaId: BandaId, variante?: string): boolean {
-  if (bandaId === 'hero') return variante !== 'ficha'; // curtina/ausente = oscura; ficha = clara
+  if (bandaId === 'hero') return variante !== 'ficha'; // curtina/media/ausente = oscura; ficha = clara
   return BANDAS_OSCURAS.has(bandaId);
 }
 
@@ -492,6 +501,8 @@ export const DEFAULTS: SiteContentData = {
     bullet3: 'Se renueva automáticamente, sin líos',
     bullet4: 'Pausa o cancela cuando quieras',
     ctaLabel: 'Ver los planes',
+    // La canónica (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e): Nayoli queda byte-idéntica al bloque de hoy.
+    variante: 'bloque',
   },
   testimonials: {
     visible: true,
@@ -600,10 +611,10 @@ export const DEFAULTS: SiteContentData = {
   orden: ORDEN_DEFAULT,
   // VARIANTES DE BANDAS ESTRUCTURALES por defecto: el mapa nace VACÍO, gemelo de `esquemas` arriba.
   // Ninguna banda estructural tiene entrada → `featured` cae a su canónica ('cuadricula',
-  // § VARIANTES_ESTRUCTURALES) → byte-idéntico. `FeaturedProducts.tsx` no lee esta meta hoy (no
-  // tiene dispatcher, § VARIANTES_ESTRUCTURALES) — este mapa sólo tiene consumidor en `themes.ts`
-  // (`mergePresetEnContent`), que es lo que este slice le da: un sitio donde escribir sin crear una
-  // clave `content.featured` huérfana.
+  // § VARIANTES_ESTRUCTURALES) → byte-idéntico. `FeaturedProducts.tsx` SÍ lee esta meta desde
+  // TEMAS-FEATURED-GRILLA-1 (es el dispatcher entre `cuadricula`/`grilla`); antes de ese slice el
+  // único consumidor era `themes.ts` (`mergePresetEnContent`), que sigue siendo el sitio donde un
+  // preset escribe sin crear una clave `content.featured` huérfana.
   variantesBandas: {},
 };
 
@@ -698,12 +709,22 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // póster de un video reemplazado quedaría HUÉRFANO en el storage para siempre.
     imagenes: ['imagen', 'imagenPoster'],
     // VARIANTES DE COMPOSICIÓN (§ eje 5, EJE-5-VARIANTES-HERO): 'curtina' es la canónica —el hero de
-    // HOY, verbatim—; 'ficha' es la nueva (tipografía en tinta sobre crema, foto a sangre a la
-    // derecha, sin degradado). Segunda sección con `variantes`, tras `presentaciones` (§ eje 5e).
+    // HOY, verbatim—; 'ficha' es la bi-tonal (tipografía en tinta sobre crema, foto a sangre a la
+    // derecha, sin degradado); 'media' (§ TEMAS-HERO-MEDIA-1) es la TERCERA — la media (imagen o
+    // video) llena la sección a opacidad plena, SIN el velo oscuro que atenúa a la curtina, y el
+    // texto vive en una TARJETA (`--sf-tarjeta`/`--sf-sobre-tarjeta`) que flota sobre ella, en vez de
+    // apoyarse en los tokens `--sf-sobre-banda` (pensados para un fondo de banda aproximadamente
+    // plano — el que la curtina logra atenuando la foto al 40%, no el que esta variante quiere). Un
+    // degradado angosto arriba (mismo tono `--sf-tinta`/60 que ya usa la curtina en ese mismo punto,
+    // § HeroMedia.tsx) mantiene el nav legible sin necesitar `noUniformes`: la sección sigue siendo
+    // UN solo plano de media, no partida en dos zonas de color como la ficha.
+    // Segunda sección con `variantes`, tras `presentaciones` (§ eje 5e).
     // `noUniformes: ['ficha']` (§ EJE-5-NAV-UNIFORME): la ficha es BI-TONAL —crema a la izquierda,
     // foto oscura a la derecha— y ningún color de texto único del nav se lee sobre las dos mitades;
     // el nav transparente-flotante cae a SÓLIDO sobre ella (§ `tratamientoNav`, esquema-style.ts).
-    variantes: { claves: ['curtina', 'ficha'], canonica: 'curtina', noUniformes: ['ficha'] },
+    // 'media' NO entra acá: es uniforme (un solo plano de media), así que el nav sigue flotando
+    // transparente — su legibilidad la garantiza el degradado superior, no el fallback a sólido.
+    variantes: { claves: ['curtina', 'ficha', 'media'], canonica: 'curtina', noUniformes: ['ficha'] },
     // ESCALARES (§ HERO-VIDEO-COMO-DATO-1): `imagenTipo` es el SEGUNDO escalar clampado de esta
     // sección (el primero es `variante`, arriba) — MISMO mecanismo (`resolverVariante`), otra
     // ranura. 'imagen' es la canónica: Nayoli queda byte-idéntica sin fila.
@@ -782,6 +803,12 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   subscriptionCTA: {
     label: 'Suscripción',
     ocultable: true,
+    // VARIANTES DE COMPOSICIÓN (TEMAS-SUBSCRIPTIONCTA-LINEA-1, § eje 5e): 'bloque' es la canónica —el
+    // layout de HOY, verbatim (§ SubscriptionCTABloque)—; 'linea' es la nueva (franja horizontal
+    // condensada, § SubscriptionCTALinea). Cuarta sección con `variantes`, tras hero/brandStory/
+    // presentaciones. `noUniformes`: NO — las dos composiciones se apoyan en el fondo SÓLIDO de la
+    // banda (`bg-[var(--sf-banda,var(--sf-tinta-2))]`), ninguna es bi-tonal.
+    variantes: { claves: ['bloque', 'linea'], canonica: 'bloque' },
     // Sin `imagenes`: sección de solo texto. Los bullets son OPCIONALES → vaciarlos los omite (el
     // componente los junta con `.filter`), así que dan "hasta 4" sin hueco, no "4 slots fijos".
     campos: {
@@ -923,18 +950,23 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
 // CAPACIDAD MUERTA: la simetría con `featured` no es razón para abrirlo. Cuando un theme lo pida,
 // entra con su variante real en el mismo commit que la construye.
 //
-// `featured` canónica = 'cuadricula': la composición de HOY de `FeaturedProducts.tsx` (medida en su
-// fuente) — grid de 4 productos del catálogo, `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`, SIN
-// dispatcher (el componente no lee `variante` ni `useSiteContent()`; recibe sólo `style`, igual que
-// `brandStory` antes de que le llegara una segunda clave real). NINGÚN preset del catálogo pide
-// 'cuadricula': piden 'tabla' (PLIEGO), 'grilla' (CORTE/PATIO/VITRINA) o 'mosaico' (VETA) — tres
-// composiciones DISTINTAS entre sí y de la canónica, y NINGUNA de las tres está construida. Este
-// slice NO construye ninguna; sólo abre el slot donde declararlas el día que exista una — por eso
-// los cinco themes SIGUEN sin poder aplicarse tras este cambio (cambia el MENSAJE de `validarPreset`
-// para `featured`, de "no declara variantes" a "esa clave no existe", nunca el CONTEO de themes
-// completos, § `temasCompletos`).
+// `featured` canónica = 'cuadricula': la composición de HOY de `FeaturedProductsCuadricula.tsx`
+// (medida en su fuente, antes de TEMAS-FEATURED-GRILLA-1 vivía en `FeaturedProducts.tsx` sin
+// dispatcher) — grid de 4 productos del catálogo, `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`.
+// NINGÚN preset del catálogo pide 'cuadricula': piden 'tabla' (PLIEGO), 'grilla' (CORTE/PATIO/
+// VITRINA) o 'mosaico' (VETA) — tres composiciones DISTINTAS entre sí y de la canónica.
+//
+// `'grilla'` SE SUMÓ EN TEMAS-FEATURED-GRILLA-1 (`FeaturedProductsGrilla.tsx`): una MALLA de 6
+// productos, `grid-cols-2 sm:grid-cols-3 lg:grid-cols-4` (el ritmo de columnas que ya usa `/tienda`
+// para esta misma tarjeta) — deliberadamente DISTINTA de la canónica (más ítems, otra retícula), no
+// la canónica con otro nombre. `FeaturedProducts.tsx` YA ES el dispatcher que elige entre las dos
+// (§ `content.variantesBandas.featured`, gemelo de `HeroSection`/`GrindChooser` pero leyendo esta
+// meta en vez de `sección.variante`). `'tabla'` (PLIEGO) y `'mosaico'` (VETA) SIGUEN sin construir —
+// una variante por slice—, así que los cinco themes SIGUEN sin poder aplicarse completos tras este
+// cambio (CORTE/PATIO/VITRINA dejan de fallar en `featured`, pero siguen fallando en otras
+// secciones; § `temasCompletos` — el conteo de themes completos no cambia, sigue en `['ARRANQUE']`).
 export const VARIANTES_ESTRUCTURALES: Record<string, VariantesDef> = {
-  featured: { claves: ['cuadricula'], canonica: 'cuadricula' },
+  featured: { claves: ['cuadricula', 'grilla'], canonica: 'cuadricula' },
 };
 
 const esVacio = (v: unknown): boolean => typeof v !== 'string' || v.trim() === '';
