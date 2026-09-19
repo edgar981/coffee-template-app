@@ -14,42 +14,71 @@ import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { HERO_HREFS } from "@/lib/config/site-content-defaults";
 import { fadeUp } from "@/lib/animation";
 
-// LA VARIANTE "MEDIA" (§ eje 5, EJE-5-VARIANTES-HERO, TEMAS-HERO-MEDIA-1): la TERCERA composición —
-// donde curtina y ficha tratan la foto/video como ACOMPAÑAMIENTO (la curtina la atenúa al 40% detrás
-// de un velo oscuro; la ficha la confina a la mitad de la pantalla), acá la media ES la superficie
-// dominante: llena la sección A OPACIDAD PLENA, sin atenuar, y el texto vive en una TARJETA que flota
-// sobre ella — "se apoya sobre ella", literal — en vez de repartirse suelto sobre el fondo.
+// LA VARIANTE "MEDIA" (§ eje 5, EJE-5-VARIANTES-HERO, TEMAS-HERO-MEDIA-1; SIN TARJETA desde
+// HERO-MEDIA-SIN-TARJETA-1) — la TERCERA composición: donde curtina y ficha tratan la foto/video como
+// ACOMPAÑAMIENTO (la curtina la atenúa al 40% detrás de un velo oscuro; la ficha la confina a la
+// mitad de la pantalla), acá la media ES la superficie dominante: llena la sección A OPACIDAD PLENA,
+// sin atenuar, y el texto vive DIRECTO sobre ella, al pie, alineado a la izquierda — sin tarjeta.
 //
 // MISMOS SIETE CAMPOS DE CONTENIDO que curtina/ficha (eyebrow, titulo, tituloEnfasis, subtitulo, los
 // dos CTA, imagen/imagenTipo/imagenPoster) — no se agrega dato nuevo. Mismos destinos de CTA
 // (`HERO_HREFS`, estructura).
 //
-// POR QUÉ UNA TARJETA Y NO EL VELO DE LA CURTINA: el velo de la curtina funciona porque, atenuada al
-// 40%, la foto se mezcla con el fondo de la sección (`--sf-tinta`) hasta acercarse a un plano casi
-// sólido — sólo ASÍ los tokens `--sf-sobre-banda`/`-suave` (pensados para leer contra un fondo de
-// banda aproximadamente PLANO, § esquema-style.ts) garantizan su piso de contraste. Subir la opacidad
-// de la media para que domine rompe esa aproximación: el texto quedaría leyendo contra una foto
-// arbitraria del cliente, que el sistema de temas no puede prometer legible. La salida NO es inventar
-// un tratamiento de contraste nuevo (la guarda de esta sección: § el comentario de abajo) — es la que
-// YA existe para exactamente este problema: poner el texto sobre `--sf-tarjeta`, con su par
-// `--sf-sobre-tarjeta`/`-suave` GARANTIZADO por `derivarEsquema`/`pisoContraste` (§ palette-derive.ts,
-// § esquema-style.ts) contra la tarjeta, no contra la foto. Mismo patrón que ya usan las tarjetas de
-// TestimonialSection/Newsletter — sólo que acá la tarjeta flota sobre el hero en vez de vivir en una
-// grilla.
+// LA TARJETA SE RETIRÓ POR DECISIÓN DEL OWNER (2026-09-19, HERO-MEDIA-SIN-TARJETA-1): «la tarjeta es
+// lo que hace que nuestro hero se lea como plantilla y el del prototipo como editorial». El
+// prototipo (`docs/prototipos/cafeone/`) nunca puso el texto en una caja — lo pone directo sobre la
+// media, con un VELO (`--protect-grad-strong`, `css/tokens.css:218`: `linear-gradient(to bottom,
+// rgba(16,36,7,.34) 0%, rgba(16,36,7,.62) 100%)`, aplicado sobre TODA la media vía `.hero-media::after
+// {inset:0}`, `css/app.css:373`) que oscurece progresivamente hacia el pie, donde vive el texto
+// (`.hero-inner{...justify-content:flex-end}`, `css/app.css:374-378`).
 //
-// EL DEGRADADO SUPERIOR es la ÚNICA atenuación que esta variante aplica, y es angosto A PROPÓSITO:
-// existe sólo para que el NAV transparente-flotante (que no tiene tarjeta debajo) siga leyéndose —
-// mismo tono y misma intensidad que el tramo superior del velo de la curtina (`--sf-tinta`/60, ver
-// HeroCurtina.tsx), así que la sección sigue clasificando OSCURA por el mismo contrato que la curtina
-// (`bandaOscuraCanonica`, § site-content-defaults.ts: cualquier variante que no sea 'ficha' es
-// oscura) sin tocar esa función. El resto de la media —el 80%+ inferior de la sección, donde vive la
-// tarjeta— queda SIN atenuar: ahí es donde "la media domina".
+// EL VELO NO SE INVENTÓ: se REUSA el que YA construyó `HeroCurtina.tsx` para el MISMO problema —texto
+// claro directo sobre media, sin caja— `bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent
+// to-[var(--sf-tinta)]/80`, cubriendo TODA la media (`inset-0`, no sólo el tercio superior de antes).
+// Es la MISMA forma que el velo del prototipo (oscurece hacia el pie, donde está el texto) con los
+// valores YA calibrados de este sistema (tokens `--sf-tinta`, ya usados en el resto del storefront) en
+// vez de los literales RGB del prototipo — mismo mecanismo, valores del propio repo. El tramo superior
+// (60%) es el MISMO que ya protegía al NAV transparente-flotante (sin tocar `noUniformes`, la sección
+// sigue siendo un solo plano de media); el tramo inferior (80%) es NUEVO — antes lo resolvía la
+// tarjeta clara, ahora lo resuelve el velo oscuro sobre la media a plena opacidad. Contraste medido
+// (blanco sobre el velo al 80%, contra tres fotos CLARAS de referencia — arena `rgb(232,222,200)`,
+// casi-blanco `rgb(245,245,240)`, crema `rgb(238,230,214)`): 9.61:1 / 8.97:1 / 9.38:1 — el subtítulo
+// (`--sf-sobre-banda-suave`, blanco al ~70%) sobre el mismo velo: 5.69:1 / 5.38:1 / 5.58:1 — los tres
+// casos superan AA (4.5:1) con margen amplio incluso en la foto MÁS clara. El tramo superior (60%,
+// SIN cambios respecto de antes) da 4.68:1–5.32:1 sobre las mismas tres fotos — el mismo piso que
+// `HeroCurtina.tsx` ya acepta para su propio nav.
+//
+// LOS TOKENS DE TEXTO PASAN DE `--sf-sobre-tarjeta`* A `--sf-sobre-banda`*, verbatim los de
+// `HeroCurtina.tsx` (eyebrow/título/énfasis/CTA-secundario con fallback blanco/tostado; subtítulo con
+// el blanco-suave `color-mix`) — la sección sigue clasificando OSCURA
+// (`bandaOscuraCanonica('hero','media')` = true, § site-content-defaults.ts, sin tocar), así que el
+// mismo par de tokens que ya sirve a la curtina (banda oscura, sin esquema asignado) sirve acá. El CTA
+// PRIMARIO NO se tocó: ya leía `--sf-accion` (el color de la ACCIÓN, § TEMAS-ROLES-DECLARADOS-POR-EL-
+// PRESET-1), idéntico al de curtina/ficha — la única superficie que cambia de familia de token es el
+// CTA SECUNDARIO (outline), que antes leía contra la tarjeta clara (`--sf-linea`/`--sf-sobre-tarjeta`)
+// y ahora lee contra la banda oscura (`--sf-linea-sobre`/`--sf-sobre-banda`, igual que curtina) — es
+// el mismo texto que cambia de fondo, no un color nuevo que se inventa.
+//
+// QUIÉN USA ESTA VARIANTE (medido antes de tocar, para no romper un inquilino ajeno al muestrario):
+// `grep -rn "'media'" lib/config/themes.ts` da UN solo preset, `CORTE.variantes.hero`. Ningún otro
+// preset (PLIEGO/PATIO/VETA/VITRINA/ARRANQUE) usa 'media' para hero, y `hero.variantes.canonica` es
+// 'curtina' — un tenant SIN preset aplicado (todo tenant real hoy, incluida Nayoli) nunca ve esta
+// variante. `aplicarPreset` (`site-content-write.ts`) es la ÚNICA función que PERSISTIRÍA un preset en
+// `SiteContent`, y no tiene un solo llamador (corre desde un runbook manual de onboarding, § el
+// comentario de `theme-mirador.ts`) — así que el ÚNICO camino de hoy a esta variante es el mirador
+// `?tema=CORTE`, y ESE camino sólo se lee fuera de producción real (`esDespliegueDemo()`, § el
+// comentario de `app/(storefront)/page.tsx`). Cambiar este archivo no mueve un solo byte de ningún
+// tenant persistido — sólo cambia lo que el mirador de CORTE muestra.
+//
+// EL DEGRADADO SUPERIOR SE FUSIONÓ CON EL INFERIOR — antes eran dos elementos (un `<div>` angosto
+// arriba para el nav, la tarjeta clara abajo para el texto); ahora es UN solo velo full-height sobre
+// TODA la media, igual que el `.hero-media::after{inset:0}` del prototipo. El resto de la media —el
+// tramo medio, donde el gradiente pasa por transparente— queda SIN atenuar: ahí sigue siendo cierto
+// que "la media domina".
 //
 // SIN INDICADOR DE SCROLL: la ficha (una de las dos variantes que ya existen) tampoco lo lleva —no es
 // una capacidad nueva que esta variante retira, es un elemento que YA es opcional entre las
-// variantes—. Con la media a opacidad plena y sin velo en la mitad inferior, un texto suelto ahí
-// (fuera de la tarjeta) tendría el mismo problema de contraste que el degradado angosto existe para
-// evitar en el nav; no se inventa un segundo mecanismo para un elemento decorativo.
+// variantes—.
 //
 // VIDEO COMO DATO (§ HERO-VIDEO-COMO-DATO-1) y REDUCED MOTION: MISMA mecánica que HeroCurtina.tsx/
 // HeroFicha.tsx (misma sección `hero`, distinto layout) — `imagenTipo` ya clampado por el resolver,
@@ -108,9 +137,10 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
           />
         )}
 
-        {/* El ÚNICO velo de esta variante: angosto, arriba, sólo para el nav — ver el comentario de
-            cabecera. Mismo tono que el tramo superior de la curtina (`--sf-tinta`/60). */}
-        <div className="absolute inset-x-0 top-0 h-1/3 bg-linear-to-b from-[var(--sf-tinta)]/60 to-transparent" />
+        {/* EL VELO — full-height, § comentario de cabecera. Verbatim el de `HeroCurtina.tsx`: oscurece
+            el tramo superior (protege al nav) y el tramo inferior (protege al texto, que vive al
+            pie), transparente en el medio — ahí "la media domina". */}
+        <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-tinta)]/80" />
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-12 sm:px-6 sm:pb-16 lg:px-8 lg:pb-20">
@@ -120,16 +150,14 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
           initial={preview ? false : 'hidden'}
           animate="visible"
           variants={{ visible: { transition: { staggerChildren: 0.15 } } }}
-          // LA TARJETA — donde "el texto se apoya sobre la media" (§ comentario de cabecera). Mismo
-          // vocabulario que TestimonialSection.tsx (`bg-[var(--sf-tarjeta)]`, `sf-borde
-          // border-[var(--sf-linea)]`, `rounded-2xl`→3xl por ser el bloque principal del hero,
-          // `shadow-2xl` porque flota sobre media a opacidad plena, no sobre un fondo plano).
-          className="max-w-xl rounded-3xl bg-[var(--sf-tarjeta)] p-8 shadow-2xl sf-borde border-[var(--sf-linea)] sm:p-10"
+          // SIN TARJETA (§ comentario de cabecera, HERO-MEDIA-SIN-TARJETA-1): el texto va directo
+          // sobre el velo, al pie, alineado a la izquierda — sólo el ancho máximo del bloque.
+          className="max-w-xl"
         >
           {hero.eyebrow && (
             <motion.p
               variants={fadeUp}
-              className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))]"
+              className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-[var(--sf-sobre-banda,var(--sf-tostado))]"
             >
               {hero.eyebrow}
             </motion.p>
@@ -137,20 +165,20 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
 
           <motion.h1
             variants={fadeUp}
-            className="mb-6 font-playfair text-4xl leading-[1.1] text-[var(--sf-sobre-tarjeta,var(--sf-tinta))] sm:text-5xl lg:text-6xl"
+            className="mb-6 font-playfair text-4xl leading-[1.1] text-[var(--sf-sobre-banda,white)] sm:text-5xl lg:text-6xl"
           >
             {hero.titulo}
             {hero.tituloEnfasis && (
               <>
                 <br />
-                <em className="italic text-[var(--sf-sobre-tarjeta-suave,var(--sf-acento-texto))]">{hero.tituloEnfasis}</em>
+                <em className="italic text-[var(--sf-sobre-banda,var(--sf-tostado))]">{hero.tituloEnfasis}</em>
               </>
             )}
           </motion.h1>
 
           <motion.p
             variants={fadeUp}
-            className="mb-8 max-w-md text-lg leading-relaxed text-[var(--sf-sobre-tarjeta-suave,var(--sf-texto))]"
+            className="mb-8 max-w-md text-lg leading-relaxed text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_70%,transparent))]"
           >
             {hero.subtitulo}
           </motion.p>
@@ -171,7 +199,7 @@ export default function HeroMedia({ style }: { style?: React.CSSProperties } = {
             {hero.ctaSecundarioLabel && mostrarCtaSuscripcion && (
               <Link
                 href={HERO_HREFS.secundario}
-                className="inline-flex items-center gap-2 sf-pildora border border-[var(--sf-linea)] px-8 py-4 text-sm font-medium text-[var(--sf-sobre-tarjeta,var(--sf-tinta))] transition-all duration-200 hover:bg-[var(--sf-linea)]/40"
+                className="inline-flex items-center gap-2 sf-pildora border border-[var(--sf-linea-sobre,white)]/30 px-8 py-4 text-sm font-medium text-[var(--sf-sobre-banda,white)] transition-all duration-200 hover:border-[var(--sf-linea-sobre,white)]/60 hover:bg-white/10"
               >
                 {hero.ctaSecundarioLabel}
               </Link>

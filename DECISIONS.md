@@ -9730,3 +9730,123 @@ Ninguno nuevo. El residuo de `--sf-acento-3` (hover del link de `FeaturedProduct
 `TEMAS-ROLES-DECLARADOS-POR-EL-PRESET-1` dejó nombrado sigue igual: es un matiz de HOVER, no el
 texto en reposo, y su reposo (`--sf-sobre-banda`, la MISMA banda `featured`) ya se corrige con este
 slice — mover también el hover sería una extensión no pedida por este spec.
+
+## 2026-09-19 — HeroMedia sin tarjeta: el texto va directo sobre la media, con el velo del prototipo
+
+**Decisión del owner (2026-09-19), comparando capturas del prototipo contra el mirador:** «sacá la
+tarjeta del hero. El texto va directo sobre la media, al pie, con el velo protector del prototipo —
+sin fondo de tarjeta, sin esquinas redondeadas, sin sombra. La tarjeta es lo que hace que nuestro
+hero se lea como plantilla y el del prototipo como editorial.» No es una propuesta evaluada por este
+slice: es lo que se construyó.
+
+### Qué desapareció, qué apareció
+
+- **Desapareció**: el contenedor `rounded-3xl bg-[var(--sf-tarjeta)] p-8 shadow-2xl sf-borde
+  border-[var(--sf-linea)] sm:p-10` que envolvía el bloque de texto de `HeroMedia.tsx`, y con él los
+  tokens `--sf-sobre-tarjeta`/`--sf-sobre-tarjeta-suave` que leían CONTRA la tarjeta (eyebrow, título,
+  énfasis, subtítulo, CTA secundario).
+- **Apareció**: el texto directo sobre la media, al pie (`items-end`, sin cambio — ya lo tenía),
+  alineado a la izquierda (sin cambio), con los tokens `--sf-sobre-banda`/`--sf-sobre-banda-suave` —
+  verbatim los que ya usa `HeroCurtina.tsx` para el mismo problema (banda OSCURA sin esquema
+  asignado). El velo angosto de antes (sólo el tercio superior, sólo para el nav) se fusionó con un
+  velo FULL-HEIGHT sobre toda la media: `bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent
+  to-[var(--sf-tinta)]/80` — el MISMO gradiente que `HeroCurtina.tsx` ya usa para su propio velo, no
+  uno inventado. El tramo superior (60%) es el que ya protegía al nav; el tramo inferior (80%) es
+  nuevo — antes lo resolvía la tarjeta clara, ahora lo resuelve el velo oscuro sobre la media a plena
+  opacidad. El CTA secundario (outline) cambió de familia de token —de `--sf-linea`/
+  `--sf-sobre-tarjeta` (fondo claro) a `--sf-linea-sobre`/`--sf-sobre-banda` (fondo oscuro), también
+  verbatim de `HeroCurtina.tsx`—. El CTA primario NO se tocó: ya leía `--sf-accion`, igual que
+  curtina/ficha.
+
+### El mecanismo del velo — copiado, no inventado
+
+El prototipo (`docs/prototipos/cafeone/`) nunca puso el texto en una caja: lo pone directo sobre la
+media, con `--protect-grad-strong` (`css/tokens.css:218`: `linear-gradient(to bottom,
+rgba(16,36,7,.34) 0%, rgba(16,36,7,.62) 100%)`), aplicado sobre TODA la media vía
+`.hero-media::after{inset:0}` (`css/app.css:373`), que oscurece progresivamente hacia el pie, donde
+vive el texto (`.hero-inner{...justify-content:flex-end}`, `css/app.css:374-378`).
+
+Ese mecanismo YA existe en este repo — `HeroCurtina.tsx` lo construyó para el mismo problema (texto
+claro directo sobre media, sin caja) con los tokens propios del sistema (`--sf-tinta`, ya usado en
+el resto del storefront) en vez de los literales RGB del prototipo. Se REUSÓ ese gradiente verbatim,
+extendido a cubrir la media entera (`inset-0`, antes sólo el tercio superior) — misma forma que el
+velo del prototipo (oscurece hacia el pie), valores ya calibrados de este repo.
+
+### Contraste medido — contra tres fotos CLARAS, no sólo una oscura
+
+Medido con la fórmula WCAG (luminancia relativa sRGB → ratio de contraste), componiendo el velo
+tinta-coloreado (`#102407`, la raíz `tinta` de CORTE) sobre tres fotos de referencia CLARAS:
+
+| foto de referencia | rgb | contraste blanco vs. velo 80% (pie, texto) | contraste blanco vs. velo 60% (tope, nav) | contraste subtítulo-suave vs. velo 80% |
+| --- | --- | --- | --- | --- |
+| arena | `232,222,200` | **9.61:1** | 5.32:1 | **5.69:1** |
+| casi-blanco (cielo) | `245,245,240` | **8.97:1** | 4.68:1 | **5.38:1** |
+| crema | `238,230,214` | **9.38:1** | 5.08:1 | **5.58:1** |
+
+El texto del pie (título/eyebrow/CTA en blanco pleno, sobre el velo al 80% donde vive el bloque de
+texto) supera AAA (7:1) contra las tres fotos. El subtítulo (blanco al ~70%, la textura más floja del
+bloque) supera AA (4.5:1) con margen en las tres. El tramo superior (60%, sin cambio respecto de
+antes, protege al nav) da 4.68:1–5.32:1 — el mismo piso que `HeroCurtina.tsx` ya acepta hoy para su
+propio nav; no es un piso nuevo que este slice introduce, es el que el repo ya tenía funcionando.
+
+### Quién más usaba la variante — medido antes de tocar
+
+`grep -rn "'media'" lib/config/themes.ts` da UN solo preset con `hero: 'media'`: `CORTE`. Los otros
+cinco (PLIEGO, PATIO, VETA, VITRINA, ARRANQUE) no lo usan, y la canónica de `hero.variantes` es
+`'curtina'` — un tenant sin preset aplicado nunca ve esta variante. `aplicarPreset`
+(`lib/config/site-content-write.ts:160`) es la ÚNICA función que PERSISTIRÍA un preset en
+`SiteContent`, y no tiene un solo llamador (corre desde un runbook manual de onboarding, nunca desde
+el panel del cliente). El único camino de HOY a esta variante es el mirador `?tema=CORTE`
+(`contenidoConPresetDeVista`, `lib/config/theme-mirador.ts`), que sólo se lee fuera de producción
+real (`esDespliegueDemo()`, `app/(storefront)/page.tsx`). **Conclusión: no hubo que decidir entre
+"cambiar para todos" o "una composición nueva por variante"** — la composición YA es por variante
+(`media` es una de tres), y ningún inquilino real queda afectado porque ningún inquilino real la
+usa: el cambio sólo mueve lo que el mirador de CORTE muestra.
+
+### Lo que NO se tocó
+
+Ninguna otra banda, ningún otro preset, el motor de paleta (`palette-derive.ts`, `esquema-style.ts`)
+intacto. `git diff --stat` de la rama para este slice: un solo archivo,
+`components/storefront/home/HeroMedia.tsx` (68 inserciones, 40 borrados). Nayoli (sin preset,
+`hero.variante` cae a `'curtina'`) no cambia un byte: `HeroMedia.tsx` no es el componente que
+renderiza su hero.
+
+### Gate
+
+- **`npm run gate`** (los dos carriles, sobre el árbol final): capa 1 (`npm test`) **1517/1517**, 0
+  fail; capa 2 (`npm run test:integracion`, Postgres 14 efímero) **208/208**, 0 fail. Mismo piso que
+  el slice anterior (`TEMAS-ESQUEMA-ORIGEN-PENDIENTE-1`) — este slice no tocó ningún archivo de
+  `packages/core/`/`app/api/`/`lib/` con test propio, así que el piso no debía moverse y no se movió.
+- **`npx tsc --noEmit`**: limpio.
+- **`npx eslint components/storefront/home/HeroMedia.tsx`**: limpio.
+- **`npx next build`**: `✓ Compiled successfully`. Verificado sobre el ARTEFACTO de producción
+  (`.next/server` + `.next/static`, excluyendo `.next/dev` — un directorio rancio de una sesión
+  previa que SÍ conserva el marcador viejo, y es la evidencia de por qué el grep tiene que apuntar al
+  build fresco y no a cualquier `.next/*`): el marcador viejo (`shadow-2xl sf-borde
+  border-[var(--sf-linea)] sm:p-10`) da **0** en los 590 archivos JS del build fresco; el marcador
+  nuevo (`via-transparent to-[var(--sf-tinta)]/80`) y `sf-linea-sobre` aparecen en los chunks del
+  home (`components_storefront_home_0_-amj8._.js` y sus pares cliente/servidor).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, 2026-09-19, sin gate previo — comparó capturas del prototipo y del
+mirador directamente). El único archivo tocado (`components/storefront/home/HeroMedia.tsx`) está en
+`components/storefront/` (Tier 1 — bytes del visitante). Contra MERGE POLICY A: **sin
+schema/migración**, **sin contrato cross-repo**, pero **SÍ bytes de cliente** — el diff cambia lo que
+se sirve en la ruta pública `/`, aunque hoy sólo alcanzable por `?tema=CORTE` en demo.
+`customer_bytes.changed: true` (la RAMA lo cambia, § el eje de admisión de `customer_bytes` —
+`slice/corte-reescritura-prototipo-1` ya venía `AWAITING_APPROVAL` por los slices anteriores de la
+misma rama). Este slice individual también clasifica `AWAITING_APPROVAL` por cuenta propia.
+
+### Deviations
+
+Ninguna. El spec pedía verificar quién más usa la variante antes de tocarla, verificar el velo del
+prototipo y el del repo antes de escribir uno nuevo, y medir el contraste sobre una foto clara — las
+tres verificaciones se hicieron ANTES de escribir código, y los tres resultados (un solo preset
+afectado, dos velos reusables, contraste sobrado) confirmaron que el camino más simple —reusar el
+gradiente y los tokens que `HeroCurtina.tsx` ya tiene, sin tocar ningún otro archivo— era también el
+correcto.
+
+### Open follow-ups
+
+Ninguno nuevo.
