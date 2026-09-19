@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import GrindChooser from '@/components/storefront/home/GrindChooser';
+import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
+import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import {
   DEFAULTS,
   REGISTRY,
@@ -26,6 +31,7 @@ import {
   type SeccionDef,
   type VariantesDef,
   type SeccionKey,
+  type PresentacionesContent,
 } from './site-content-defaults';
 import { hrefCategoria } from '../productos/categorias';
 
@@ -756,13 +762,112 @@ test('presentaciones: una `variante` guardada válida se respeta', () => {
   assert.equal(r.presentaciones.variante, 'indice');
 });
 
+// CORTE-PRESENTACIONES-RIEL-1: 'riel' (tarjetas en un riel horizontal con controles, § GrindChooserRiel)
+// es la TERCERA clave del set — la misma mecánica, un valor más.
+test('presentaciones: la `variante` "riel" (CORTE-PRESENTACIONES-RIEL-1) se respeta', () => {
+  const r = resolverSiteContent({ presentaciones: { variante: 'riel' } });
+  assert.equal(r.presentaciones.variante, 'riel');
+});
+
 test('presentaciones: una `variante` guardada fuera del set cae a la canónica', () => {
   const r = resolverSiteContent({ presentaciones: { variante: 'no-existe' } });
   assert.equal(r.presentaciones.variante, 'mosaico');
 });
 
-test('REGISTRY.presentaciones declara `variantes` con el set cerrado y la canónica', () => {
-  assert.deepEqual(REGISTRY.presentaciones.variantes, { claves: ['mosaico', 'indice'], canonica: 'mosaico' });
+test('REGISTRY.presentaciones declara `variantes` con el set cerrado (incluido "riel") y la canónica', () => {
+  assert.deepEqual(REGISTRY.presentaciones.variantes, { claves: ['mosaico', 'indice', 'riel'], canonica: 'mosaico' });
+});
+
+// ── GrindChooserRiel (§ CORTE-PRESENTACIONES-RIEL-1): render REAL, vía el DISPATCHER ────────────
+//
+// `renderToStaticMarkup` sobre el ÁRBOL REAL (dispatcher `GrindChooser` incluido, no la pieza
+// aislada) — mismo patrón que `lib/storefront/planes-suscripcion-componente.test.ts`: SSR a texto,
+// sin jsdom (§ CLAUDE.md, "El glob NO incluye *.test.tsx — los tests de COMPONENTE necesitan jsdom,
+// que el repo no tiene"). Viven ACÁ (`lib/config/`, no un `.test.ts` bajo `components/storefront/
+// home/`) por el mismo carril del gate: un archivo nuevo bajo `components/` cae fuera de los
+// patrones que `lib/gate/tests-descubiertos.test.ts` reproduce como "los que quedaron invisibles
+// anoche" (`patronesDeAnoche`, que nunca incluyó `components/**`), y ese test compara ese conjunto
+// contra el árbol REAL del repo — cualquier archivo nuevo bajo `components/` se sumaría a esa lista
+// congelada y la rompería, aunque el archivo SÍ esté cubierto por el glob VIGENTE de "npm test".
+// `lib/config/**/*.test.ts` estaba en los patrones de esa noche Y sigue estándolo hoy, así que un
+// archivo nuevo acá no mueve esa foto histórica. `lib/gate/tests-descubiertos.test.ts` no está en
+// `touches` de este slice — no se toca.
+function renderGrindChooser(pres: PresentacionesContent, opts: { preview?: boolean } = {}): string {
+  const content = { ...DEFAULTS, presentaciones: pres };
+  const arbol = React.createElement(SiteContentProvider, {
+    value: content,
+    children: React.createElement(GrindChooser),
+  });
+  return renderToStaticMarkup(opts.preview ? React.createElement(PreviewProvider, { children: arbol }) : arbol);
+}
+
+const nEnlaces = (html: string) => (html.match(/<a /g) || []).length;
+
+test('el DISPATCHER enruta "riel" a GrindChooserRiel', () => {
+  const html = renderGrindChooser({ ...DEFAULTS.presentaciones, variante: 'riel' });
+  assert.ok(html.includes('grind-riel-track'), 'la clase del track del riel debe aparecer en el HTML');
+});
+
+test('el DISPATCHER sigue enrutando "mosaico" y "indice" a sus componentes — sin regresión al sumar "riel"', () => {
+  const htmlMosaico = renderGrindChooser({ ...DEFAULTS.presentaciones, variante: 'mosaico' });
+  assert.ok(htmlMosaico.includes('aspect-[4/5]'), 'fingerprint del mosaico (la tile con overlay)');
+  assert.ok(!htmlMosaico.includes('grind-riel-track'));
+
+  const htmlIndice = renderGrindChooser({ ...DEFAULTS.presentaciones, variante: 'indice' });
+  assert.ok(htmlIndice.includes('divide-y'), 'fingerprint del índice (la lista con divisores)');
+  assert.ok(!htmlIndice.includes('grind-riel-track'));
+});
+
+// LA CARDINALIDAD MÍNIMA de esta sección son DOS tarjetas — slots 1-2, siempre requeridas
+// (§ `tarjetasDePresentaciones`); los defaults (arriba, `DEFAULTS.presentaciones`) son exactamente
+// ese mínimo (3-4 vacíos). El riel tiene que verse bien ahí: dos tarjetas, sin nada roto, con los
+// controles naciendo DESHABILITADOS en SSR (§ el comentario de `GrindChooserRiel.tsx` — sin
+// `useEffect`, el estado seguro es no prometer un desplazamiento que no se pudo medir).
+test('riel: cardinalidad MÍNIMA (2 tarjetas, los defaults) — no se ve roto sin nada que desplazar', () => {
+  const html = renderGrindChooser({ ...DEFAULTS.presentaciones, variante: 'riel' });
+  assert.equal(nEnlaces(html), 2, 'las 2 tarjetas requeridas, cada una un <a>');
+  assert.ok(html.includes(DEFAULTS.presentaciones.label1));
+  assert.ok(html.includes(DEFAULTS.presentaciones.label2));
+  assert.ok(html.includes('Presentación anterior'));
+  assert.ok(html.includes('Presentación siguiente'));
+  const deshabilitados = (html.match(/disabled=""/g) || []).length;
+  assert.equal(deshabilitados, 2, 'sin medición de scroll (SSR), los dos botones nacen deshabilitados');
+});
+
+test('riel: cardinalidad MÁXIMA (4 tarjetas, los slots 3-4 llenos) — las cuatro se muestran', () => {
+  const pres: PresentacionesContent = {
+    ...DEFAULTS.presentaciones,
+    variante: 'riel',
+    label3: 'Presentación Tercera',
+    copy3: 'Una tercera opción.',
+    label4: 'Presentación Cuarta',
+    copy4: 'Una cuarta opción.',
+  };
+  const html = renderGrindChooser(pres);
+  assert.equal(nEnlaces(html), 4);
+  assert.ok(html.includes('Presentación Tercera') && html.includes('Presentación Cuarta'));
+});
+
+test('riel: el marcador `data-sf-tarjeta` del puente vista→formulario sólo aparece en preview', () => {
+  const pres = { ...DEFAULTS.presentaciones, variante: 'riel' };
+  const htmlPublico = renderGrindChooser(pres);
+  const htmlPreview = renderGrindChooser(pres, { preview: true });
+  assert.ok(!htmlPublico.includes('data-sf-tarjeta'), 'la tienda pública no debe emitir el atributo');
+  assert.ok(htmlPreview.includes('data-sf-tarjeta="1"'));
+  assert.ok(htmlPreview.includes('data-sf-tarjeta="2"'));
+});
+
+test('riel: una tarjeta SIN imagen (el default, sin fila sembrada) no rompe — sin `<img src="">`', () => {
+  // Los defaults nacen con `imagen1`/`imagen2` vacíos (§ MARCA-CLIENTE-PRESENTACIONES-1) — la tarjeta
+  // se muestra igual (criterio OR de `tarjetasDePresentaciones`), con el hueco de marca `--sf-linea`,
+  // nunca un `<img src="">` roto.
+  const html = renderGrindChooser({ ...DEFAULTS.presentaciones, variante: 'riel' });
+  assert.ok(!html.includes('src=""'));
+});
+
+test('presentaciones NO visible → el riel no renderiza nada (el gate de visibilidad vive en el DISPATCHER)', () => {
+  const html = renderGrindChooser({ ...DEFAULTS.presentaciones, variante: 'riel', visible: false });
+  assert.equal(html, '');
 });
 
 test('una sección SIN `variantes` declarado no gana `variante` en el resuelto (testimonials, p. ej. — hero/brandStory/presentaciones/subscriptionCTA SÍ, § EJE-5-VARIANTES-HERO, TEMAS-P2-BRANDSTORY-1 y TEMAS-SUBSCRIPTIONCTA-LINEA-1)', () => {
@@ -978,9 +1083,12 @@ test('bandaUniforme: hero·curtina (o variante ausente) → true', () => {
   assert.equal(bandaUniforme('hero', undefined), true);
 });
 
-test('bandaUniforme: presentaciones·mosaico e ·indice → true (ninguna variante de presentaciones es partida)', () => {
+test('bandaUniforme: presentaciones·mosaico, ·indice y ·riel → true (ninguna variante de presentaciones es partida)', () => {
+  // 'riel' (CORTE-PRESENTACIONES-RIEL-1) no entra a `noUniformes` de `presentaciones` — la banda del
+  // riel es un solo tono sólido, como mosaico e índice, nunca bi-tonal.
   assert.equal(bandaUniforme('presentaciones', 'mosaico'), true);
   assert.equal(bandaUniforme('presentaciones', 'indice'), true);
+  assert.equal(bandaUniforme('presentaciones', 'riel'), true);
 });
 
 test('bandaUniforme: una banda ESTRUCTURAL sin sección (trustBadges/featured) → true — sin `variantes` declaradas, uniforme por default', () => {

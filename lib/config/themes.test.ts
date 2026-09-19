@@ -172,12 +172,29 @@ test('CORTE: las 5 variantes que pide YA EXISTEN — CORTE valida COMPLETO', () 
   // subscriptionCTA·linea (TEMAS-SUBSCRIPTIONCTA-LINEA-1), hero·media (TEMAS-HERO-MEDIA-1),
   // featured·grilla (TEMAS-FEATURED-GRILLA-1) y brandStory·centrada (CORTE-BRANDSTORY-COLLAGE-1,
   // que reemplazó a brandStory·columnas en el preset — la canónica seguía validando, pero el
-  // prototipo pide la composición centrada). Con las cinco válidas, CORTE se une a ARRANQUE como
-  // preset aplicable HOY. Se afirma por COMPLETITUD DERIVADA (`[]`/`presetCompleto`), no enumerando
-  // qué dejó de fallar: una vez que un preset completa, no hay lista que mantener — sólo puede
-  // seguir completo (monótono, mientras `themes.ts` no pierda una variante ya construida).
+  // prototipo pide la composición centrada). Con las cinco válidas, CORTE se unió a ARRANQUE como
+  // preset aplicable — y presentaciones·riel (CORTE-PRESENTACIONES-RIEL-1) reemplazó después a
+  // presentaciones·mosaico en el preset por la misma razón que brandStory: la canónica seguía
+  // validando, pero el prototipo pide el riel horizontal, no el grid. Se afirma por COMPLETITUD
+  // DERIVADA (`[]`/`presetCompleto`), no enumerando qué dejó de fallar: una vez que un preset
+  // completa, no hay lista que mantener — sólo puede seguir completo (monótono, mientras `themes.ts`
+  // no pierda una variante ya construida).
   assert.deepEqual(validarPreset(CORTE), []);
   assert.ok(presetCompleto(CORTE));
+});
+
+test('presentaciones: la clave nueva "riel" (CORTE-PRESENTACIONES-RIEL-1) SÍ pasa la validación — no genera faltante de variante', () => {
+  // Preset sintético: ARRANQUE (el único completo con datos sintéticos, § arriba) + un pedido de
+  // presentaciones·riel. Nada más cambia, así que si esto sigue completo, la clave es real —
+  // independiente de que CORTE, arriba, YA la ejerza contra el preset real.
+  const sintetico: PresetTema = {
+    ...ARRANQUE,
+    clave: 'SINTETICO-PRESENTACIONES-RIEL-OK',
+    variantes: { ...ARRANQUE.variantes, presentaciones: 'riel' },
+  };
+  const faltantes = validarPreset(sintetico);
+  assert.deepEqual(faltantes.filter((f) => f.regla === 'variante'), []);
+  assert.ok(presetCompleto(sintetico));
 });
 
 test('VETA: hero·curtina y presentaciones·indice SÍ existen — featured/brandStory/subscriptionCTA fallan', () => {

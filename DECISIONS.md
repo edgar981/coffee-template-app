@@ -8938,3 +8938,204 @@ quedan nombrados en el comentario de cabecera de `BrandStoryCentrada.tsx` como p
 que esta variante no expresa — no se abre un ítem de backlog para ninguna de las dos: ninguna tiene
 costo pagado ni caso pedido todavía, y `CLAUDE.md` (Backlog técnico) no está en `touches:` de este
 slice.
+
+## 2026-09-18 — Presentaciones gana su tercera composición: RIEL horizontal con controles, medida contra el prototipo (`CORTE-PRESENTACIONES-RIEL-1`)
+
+**El estándar, otra vez palabras del owner:** *"CORTE como está hoy NO ALCANZA. Cuando abra el mirador
+tiene que verse como el prototipo."* Los tres ejes ya estaban (`CORTE-REESCRITURA-PROTOTIPO-1`,
+`CORTE-MIRADOR-EJES-COMPLETOS-1`) y la historia ya ganó su segunda composición
+(`CORTE-BRANDSTORY-COLLAGE-1`, mismo día). Esta tanda sigue con la banda de Presentaciones
+("¿Cómo tomas tu café?"): su sección `.presentaciones` en el prototipo (`index.html:225-247`,
+`css/app.css:508-559`, `js/home.js:90-190`) NO es ninguna de nuestras dos composiciones — ni el grid
+del mosaico ni la lista numerada del índice — es un CARRUSEL horizontal (`.pres-rail`) con controles de
+avance (`.car-nav`) y una cabecera partida (`.pres-head`, título de un lado, un CTA del otro).
+
+### La composición — medida contra `docs/prototipos/cafeone/`, no inventada
+
+Dos rasgos distinguen al riel de lo que ya teníamos: **la cabecera se parte** (`.pres-head{display:
+flex;justify-content:space-between}`, `app.css:508-511`) en vez de apilar eyebrow+título solos, y **las
+tarjetas se desplazan** en una fila horizontal (`.pres-rail{display:flex;overflow-x:auto;scroll-snap-
+type:x mandatory}`, `app.css:512-519`) en vez de apilarse en un grid o enumerarse en una lista vertical.
+`js/home.js:90-190` mueve ese riel con TRES mecanismos: `scrollTo` nativo disparado por los botones
+prev/next (`railScrollTo`, `js/home.js:127-134`), arrastre de mouse (`pointerdown`/`pointermove`,
+`:150-175`), y un resaltado de la tarjeta centrada por scroll (`markActive`/`centreIndex`, `:113-125`).
+
+### El desplazamiento es NATIVO — el estándar del owner, no una elección de estilo
+
+*"El riel tiene que ser usable sin los botones... desplazamiento nativo primero; los controles empujan
+ese mismo desplazamiento, no un estado paralelo."* `GrindChooserRiel.tsx` es un `overflow-x-auto` +
+`scroll-snap` normal; los botones prev/next llaman `track.scrollBy(...)` sobre ESE MISMO elemento — no
+mueven un índice que se traduce después a un `transform`. El track lleva `tabIndex={0}` para que un
+usuario de teclado lo enfoque y lo desplace con las flechas nativas del navegador sin pasar por los
+botones. **`prefers-reduced-motion` se lee a mano** (`window.matchMedia`, el MISMO patrón que ya usa
+`app/(storefront)/checkout/page.tsx` para su propio `window.scrollTo`) porque el `<MotionConfig
+reducedMotion="user">` del layout (§ `lib/animation.ts`) sólo cubre animaciones de `framer-motion`, no
+un `Element.scrollBy` nativo.
+
+**El estado `puedeAtras`/`puedeAdelante` sólo deshabilita los botones, nunca oculta tarjetas ni bloquea
+el scroll.** Se mide contra `scrollWidth`/`clientWidth` del propio track, recalculado en cada `scroll` y
+`resize`. En SSR (sin `useEffect`) los dos botones nacen deshabilitados — el estado seguro: nunca
+prometen un desplazamiento que todavía no se pudo medir.
+
+### La cardinalidad MÍNIMA de la sección son DOS tarjetas, y ahí "no hay nada que desplazar" es el caso NORMAL
+
+`tarjetasDePresentaciones` (`lib/storefront/presentaciones.ts`) fuerza los slots 1-2 siempre
+(`req: true`); 3-4 son opcionales. El mínimo real de esta sección es **2**, no 1 — a diferencia de lo
+que el spec sugería ("un riel con una sola tarjeta"), medido contra el propio helper antes de escribir
+el componente. Con los DEFAULTS (2 tarjetas, imágenes vacías), en la mayoría de anchos de escritorio
+las dos caben sin nada que desplazar: los dos botones nacen deshabilitados y el riel se ve como una fila
+corta y quieta, no como un carrusel roto. Afirmado en el carril (`site-content-defaults.test.ts`): con
+los defaults, la cardinalidad mínima renderiza 2 `<a>`, las dos etiquetas, y los dos botones con
+`disabled=""` en el HTML servido (SSR, sin medición de scroll todavía).
+
+### Lo que el prototipo tiene y esta variante NO puede expresar, o simplifica a propósito — medido, reportado, no improvisado
+
+1. **El CTA "Comprar" de `.pres-head`** (`index.html:233`). `PresentacionesContent`
+   (`site-content-defaults.ts`) no declara ningún campo de link/label para esta sección — ni la
+   canónica (`GrindChooserMosaico`) lo tiene: esa banda no lleva CTA propio (misma doctrina que ya citó
+   `CORTE-BRANDSTORY-COLLAGE-1` para su propio CTA faltante). Agregar un campo es escritura de esquema,
+   fuera de `touches:`. **No se disimuló con un `<a>` fijo ni un "Comprar" quemado**: la mitad "acción"
+   de la cabecera partida la ocupan, en su lugar, los controles de avance del propio riel (prev/next) —
+   son REALES y NECESARIOS para el riel (no texto inventado), y cumplen el mismo rol visual de
+   "antetítulo+título de un lado, acción del otro" sin fabricar un dato que el modelo no tiene.
+2. **`quick-acts`** (ojo/carrito sobre cada tarjeta, `js/home.js:99-102`): acciones de FICHA DE
+   PRODUCTO (vista rápida, agregar UNA variante al carrito). Las tarjetas de esta sección son enlaces a
+   CATEGORÍA (`TarjetaPresentacion.href`, vía `hrefCategoria`), no a un producto puntual — no hay "esa"
+   variante que agregar. Se omiten.
+3. **El resaltado de la tarjeta centrada** (`.pres-card.is-active`, `markActive`/`centreIndex`,
+   `js/home.js:113-125`): exige rastrear qué tarjeta está al medio del viewport en cada frame de
+   scroll. No es necesario para que el riel sea usable ni se lea como riel (la cabecera partida + el
+   desplazamiento + los controles ya lo hacen); se deja fuera para no sumar una segunda fuente de
+   estado sobre el mismo scroll.
+4. **El arrastre con el mouse** (`pointerdown`/`pointermove`, `js/home.js:150-175`): el `overflow-x-
+   auto` nativo ya da drag por touch/trackpad y una barra de scroll utilizable; emular arrastre de mouse
+   es una capa de JS que el desplazamiento nativo no necesita para ser usable.
+5. **"Ver café {label}"** — la tarjeta del riel NO repite el texto de CTA que sí lleva el mosaico. No es
+   una pieza del prototipo (que no lo tiene: su `.pres-meta` sólo muestra nombre + precio) ni una
+   limitación del modelo — es una decisión: `GrindChooserMosaico` sí lo lleva y ya está anotado como
+   copy café-shape (§ CLAUDE.md, Backlog #63, "Ver café {label}"); sumar la MISMA frase a una tercera
+   tarjeta habría extendido esa deuda ya documentada sin necesidad (el índice tampoco la lleva). El
+   `<h3>` + párrafo + el card entero como `<Link>` ya cumplen el rol de la acción.
+
+Ninguna de las cinco piezas se disimuló con texto fijo, un `href` quemado ni un campo inventado — las
+cinco están medidas y nombradas en el comentario de cabecera de `GrindChooserRiel.tsx`.
+
+### El mecanismo — el mismo patrón que ya usan Hero/BrandStory/SubscriptionCTA
+
+`GrindChooser.tsx` (el dispatcher) YA existía con dos claves (`mosaico`/`indice`) desde antes de esta
+rama — no hubo que separarlo de un layout único, a diferencia de `BrandStory.tsx` en el slice anterior.
+Se sumó la tercera entrada a su tabla `VARIANTES` (`riel: GrindChooserRiel`) y el archivo nuevo,
+`GrindChooserRiel.tsx`. `GrindChooserMosaico.tsx` y `GrindChooserIndice.tsx` **no se tocaron** — cero
+líneas de diff en los dos, verificado con `git status`/`git diff --stat` sobre el árbol final.
+
+`REGISTRY.presentaciones.variantes.claves` pasó de `['mosaico', 'indice']` a
+`['mosaico', 'indice', 'riel']`; la `canonica` sigue siendo `'mosaico'`. `noUniformes` sigue SIN
+declararse para `presentaciones`: ninguna de las tres composiciones es bi-tonal (todas de un solo tono
+sólido sobre `bg-[var(--sf-banda,var(--sf-fondo))]`), así que el nav transparente-flotante se comporta
+igual sobre las tres — afirmado en el carril (`bandaUniforme('presentaciones', 'riel') === true`).
+
+### CORTE apunta a la variante nueva — único punto tocado en `themes.ts`
+
+`CORTE.variantes.presentaciones` pasó de `'mosaico'` a `'riel'`. Es el único cambio al catálogo de
+presets: PLIEGO/PATIO/VETA/VITRINA/ARRANQUE no se tocaron, y ninguno de los cinco pide una variante de
+`presentaciones` que se haya visto afectada por sumar `'riel'` al set —VETA/VITRINA/ARRANQUE ya pedían
+`'indice'` (válida, sin cambiar), PLIEGO/PATIO piden `'chips'` (clave inexistente, sigue fallando igual:
+agregar una tercera clave real no puede volver válida una clave que no es ninguna de las tres).
+
+### Byte-identidad de la canónica y del índice — por construcción, no por prueba de render
+
+El repo no tiene jsdom (§ CLAUDE.md, "El glob NO incluye `*.test.tsx`"), así que la byte-identidad de
+`mosaico` no se verifica con un diff de HTML puro: se sostiene porque `GrindChooserMosaico.tsx` no
+recibió ni una línea de cambio en este slice (extraído VERBATIM en una tanda anterior a ésta) y
+`DEFAULTS.presentaciones.variante` sigue siendo `'mosaico'` — Nayoli, sin fila ni preset aplicado, sigue
+resolviendo a la canónica exactamente como antes. Reforzado con SSR real (`renderToStaticMarkup`, mismo
+patrón que `lib/storefront/planes-suscripcion-componente.test.ts`): el dispatcher sigue enrutando
+`'mosaico'`/`'indice'` a sus fingerprints de siempre (`aspect-[4/5]`/`divide-y`) y NINGUNO de los dos
+emite la clase del riel (`grind-riel-track`).
+
+Estos tests de render viven en `lib/config/site-content-defaults.test.ts`, NO en un `.test.ts` nuevo
+bajo `components/storefront/home/` — un archivo nuevo ahí cae fuera de los patrones que
+`lib/gate/tests-descubiertos.test.ts` reproduce como "los que quedaron invisibles anoche"
+(`patronesDeAnoche`, que nunca incluyó `components/**`), y esa guarda compara ese conjunto CONGELADO
+contra el árbol REAL del repo: cualquier archivo nuevo bajo `components/` se sumaría a esa lista y la
+rompería, aunque esté cubierto por el glob VIGENTE de `npm test`. `lib/config/**/*.test.ts` estaba en
+los patrones de esa noche Y sigue estándolo hoy, así que un archivo nuevo ahí no mueve esa foto
+histórica. Medido, no evitado por accidente: el primer intento SÍ fue un archivo nuevo bajo
+`components/storefront/home/`, y `npm test` lo delató (`archivosSinCubrir` nombró el archivo nuevo como
+tercer "invisible de anoche"). `lib/gate/tests-descubiertos.test.ts` no está en `touches:` de este
+slice — no se tocó.
+
+### Gate
+
+`npm run gate` en el árbol final:
+
+- **`npm test`** (capa 1, sin base): **1490/1490**, 0 fail.
+- **`npm run test:integracion`** (Postgres efímero, capa 2): **208/208**, 0 fail.
+- **`npx tsc --noEmit`**: limpio.
+- **`npx next build`** (autoridad para JSX/TSX, § CLAUDE.md "tsc ≠ SWC"): compila; `/` sigue `ƒ`
+  (dinámico, sin cambio de comportamiento de render); 51/51 páginas.
+- **Artefacto, no fuente**: `grep -c grind-riel-track` sobre los DOS chunks del server que traen
+  `components_storefront_home` (`.next/server/chunks/ssr/components_storefront_home_0~nh7mf._.js` y
+  `components_storefront_home_0_-amj8._.js`) → **1** en cada uno — el símbolo nuevo SÍ está en el
+  artefacto compilado, no sólo en la fuente.
+
+### Guarda de completitud de presets — verde antes y después
+
+`presetCompleto(CORTE)` sigue en `[]`/`true` (`themes.test.ts`): con `'riel'` ya en
+`REGISTRY.presentaciones.variantes.claves`, la validación de esa entrada pasa igual que pasaba con
+`'mosaico'`. Ningún otro preset del catálogo cambió de resultado — `seccionesQueFallanVariante` para
+PLIEGO/VETA/PATIO/VITRINA sigue nombrando exactamente los mismos conjuntos que antes de este diff (no
+se reafirmó ese conjunto completo en los tests, por la misma razón que `TEMAS-TESTS-SIN-FOTO-1` ya
+documentó: es una foto que se rompe sola con cada variante nueva, sin que el código tenga un defecto).
+
+### Tier 1 / AWAITING_APPROVAL
+
+`tier: 1`, `approved: yes` (mismo owner, misma noche, misma razón citada en `CORTE-REESCRITURA-
+PROTOTIPO-1` y en `CORTE-BRANDSTORY-COLLAGE-1`: autoriza ESCRIBIR sin consultarlo, con la única
+frontera de que nada llegue a `main`). `components/storefront/home/` es un subárbol GANADOR de la lista
+Tier 1 de CLAUDE.md ("son los bytes del visitante"). El diff cambia bytes que el DUEÑO va a leer para
+juzgar el cierre —el mirador con `?tema=CORTE`—, así que clasifica `AWAITING_APPROVAL` /
+`stopped_on: [customer-bytes]`. Rama `slice/corte-reescritura-prototipo-1`, sin mergear: el owner ve el
+mirador —presentaciones en riel, esta vez— antes del merge.
+
+**El invariante del tenant se sostiene igual que en los slices anteriores de esta rama:** sin `?tema=`
+(todo tráfico real, y todo despliegue fuera de demo) la home sigue resolviendo `presentaciones.variante`
+a `'mosaico'` — la canónica — porque ninguna fila de `SiteContent` cambió y
+`DEFAULTS.presentaciones.variante` sigue siendo `'mosaico'`. Este slice no escribió en ninguna base.
+
+### Deviations
+
+**El spec sugería el caso de cardinalidad mínima como "una sola tarjeta"; medido contra
+`tarjetasDePresentaciones`, el mínimo real es DOS** (slots 1-2 son `req: true`, siempre presentes) — no
+existe hoy un camino para que esta sección renderice una sola tarjeta. Se verificó por el código, no se
+adivinó, y el test de cardinalidad mínima se escribió contra el mínimo REAL (2), no contra el literal
+del spec. No cambia ninguna otra decisión del slice: la doctrina de "que no se vea roto sin nada que
+desplazar" aplica igual con 2.
+
+**El archivo de test de la variante nueva se movió de `components/storefront/home/
+GrindChooserRiel.test.ts` a `lib/config/site-content-defaults.test.ts`** (§ arriba, "Byte-identidad").
+No estaba en el plan inicial: se escribió primero como archivo separado (el precedente más obvio,
+`lib/storefront/planes-suscripcion-componente.test.ts`, sugiere un archivo dedicado), se corrió
+`npm test`, y `lib/gate/tests-descubiertos.test.ts` lo marcó como un tercer archivo "invisible de
+anoche" — un test PRE-EXISTENTE fuera de `touches:` que no se podía tocar. Se movió el contenido al dentro de
+`touches:` (`lib/config/site-content-defaults.test.ts`) en vez de ensanchar el diff a un archivo ajeno.
+
+Ninguna otra. El spec pedía leer el prototipo (HTML + CSS) antes de escribir — se leyeron
+`index.html:225-247` y `css/app.css:508-559`, y además `js/home.js:90-190` para entender el mecanismo
+de scroll del prototipo (no estaba pedido explícitamente citar el JS, pero sin leerlo la nota de "lo
+que no se puede expresar/simplifica" habría sido una afirmación sin medir).
+
+### Open follow-ups
+
+Ninguno nuevo con id propio. El CTA faltante (`#1` de arriba) y las tres simplificaciones (`#2`-`#4`)
+quedan nombrados en el comentario de cabecera de `GrindChooserRiel.tsx` como piezas del prototipo que
+esta variante no expresa o simplifica — no se abre un ítem de backlog para ninguna: ninguna tiene costo
+pagado ni caso pedido todavía, y `CLAUDE.md` (Backlog técnico) no está en `touches:` de este slice.
+
+**Hallazgo incidental, fuera de `touches:`, no corregido:** el comentario de cabecera de `themes.ts`
+(línea ~17-18 antes de este diff) afirma «`subscriptionCTA` sigue SIN slot de variante», y eso es FALSO
+desde `TEMAS-SUBSCRIPTIONCTA-LINEA-1` — `SubscriptionCTAContent` declara `variante` y
+`REGISTRY.subscriptionCTA.variantes` existe (verificado: `CORTE.variantes.subscriptionCTA = 'linea'`
+valida sin faltante). Es una staleness PRE-EXISTENTE, no causada por este diff — no se corrigió porque
+`themes.ts` está en `touches:` para el cambio de `presentaciones`, no para una limpieza de un párrafo
+no relacionado. Id sugerido para quien lo tome: `THEMES-COMENTARIO-SUBSCRIPTIONCTA-VENCIDO-1`.

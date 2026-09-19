@@ -778,9 +778,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // tarjeta no se muestra si no se llena). `categoriaN` = el DESTINO (§ el destino es DATO).
     imagenes: ['imagen1', 'imagen2', 'imagen3', 'imagen4'],
     // VARIANTES DE COMPOSICIÓN (§ eje 5e): 'mosaico' es la canónica —el GrindChooser de HOY,
-    // verbatim—; 'indice' es la nueva (filas numeradas). Ninguna otra sección declara `variantes`
-    // en este slice.
-    variantes: { claves: ['mosaico', 'indice'], canonica: 'mosaico' },
+    // verbatim—; 'indice' es la de filas numeradas; 'riel' (§ CORTE-PRESENTACIONES-RIEL-1) es la
+    // TERCERA — tarjetas en un riel horizontal con desplazamiento nativo y controles, medida contra
+    // el prototipo (`GrindChooserRiel.tsx`).
+    variantes: { claves: ['mosaico', 'indice', 'riel'], canonica: 'mosaico' },
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',

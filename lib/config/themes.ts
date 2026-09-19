@@ -13,8 +13,9 @@
 // MEDIDO CONTRA EL CÓDIGO, no contra la entrega de diseño (que vive fuera de este repo): la mayoría
 // de las CLAVES de variante que el diseño describe (marquesina, tabla, hilo, chips, ticket, media,
 // linea, collage, bento) NO EXISTEN todavía en el REGISTRY — hoy `hero` (`curtina`|`ficha`),
-// `presentaciones` (`mosaico`|`indice`) y `brandStory` (`columnas`, TEMAS-P2-BRANDSTORY-1) declaran
-// `variantes`. `subscriptionCTA` sigue SIN slot de variante (confirmado por grep: `REGISTRY.
+// `presentaciones` (`mosaico`|`indice`|`riel`, CORTE-PRESENTACIONES-RIEL-1) y `brandStory`
+// (`columnas`, TEMAS-P2-BRANDSTORY-1) declaran `variantes`. `subscriptionCTA` sigue SIN slot de
+// variante (confirmado por grep: `REGISTRY.
 // subscriptionCTA` no declara `variantes`, y su interfaz —`SubscriptionCTAContent`— no tiene campo
 // `variante`); `featured`/`trustBadges` ni siquiera son `SeccionKey` (son bandas ESTRUCTURALES sin
 // sección en `SiteContentData`, § `site-content-defaults.ts`) — `featured` gana su propio slot desde
@@ -311,17 +312,24 @@ export const CORTE: PresetTema = {
   // en nuestro sistema (§ formas.ts, "LO QUE ESTA MITAD CONECTA vs LO QUE QUEDA INERTE"), así que no
   // hay valor propio del set cerrado que lo represente todavía.
   forma: 'recta',
-  // `brandStory: 'centrada'` (§ CORTE-BRANDSTORY-COLLAGE-1) — hasta este slice CORTE pedía la
+  // `brandStory: 'centrada'` (§ CORTE-BRANDSTORY-COLLAGE-1) — hasta ese slice CORTE pedía la
   // canónica ('columnas') porque era la ÚNICA clave que `brandStory.variantes` declaraba; el estándar
   // del owner es que el mirador se vea como el prototipo, y su sección `.historia` es la composición
   // CENTRADA (eyebrow+título al medio, collage a lo ancho, párrafo debajo — no la de dos columnas).
   // Con la clave ya construida (`REGISTRY.brandStory.variantes.claves`, site-content-defaults.ts),
-  // este es el único punto del catálogo de presets que este slice toca.
+  // ese fue el único punto del catálogo de presets que ese slice tocó.
+  //
+  // `presentaciones: 'riel'` (§ CORTE-PRESENTACIONES-RIEL-1) — hasta este slice CORTE pedía la
+  // canónica ('mosaico'), la única clave real cuando se reescribió el preset. La sección
+  // `.presentaciones` del prototipo (`index.html:225-247`) es un RIEL horizontal con controles, no el
+  // grid de tarjetas de la canónica; con la clave ya construida
+  // (`REGISTRY.presentaciones.variantes.claves`, site-content-defaults.ts), este es el único punto del
+  // catálogo de presets que este slice toca.
   variantes: {
     hero: 'media',
     featured: 'grilla',
     brandStory: 'centrada',
-    presentaciones: 'mosaico',
+    presentaciones: 'riel',
     subscriptionCTA: 'linea',
   },
   esquemas: {
