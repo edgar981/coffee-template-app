@@ -8631,3 +8631,159 @@ hacia afuera adicional que reportar primero.
   asiento, la consecuencia que pidió el owner) — sólo documenta el hecho técnico en § Migraciones y
   deploy. Fuera de `touches:` de este slice (sólo `DECISIONS.md`); es una edición de `CLAUDE.md`,
   para quien la tome.
+
+## 2026-09-18 — El censo de las páginas legales: cero rutas, la plantilla fija sobre dato por
+tenant, y el camino manual del checkout sin ningún enlace legal (`LEGALES-CENSO-TAMANO-1`)
+
+### 0 · Lo medido de nuevo — el censo de sólo lectura no dejó su propio asiento
+
+Un censo read-only midió esto antes de este slice y su reporte no vive en el libro. Se re-midió acá,
+con archivo y línea, en vez de transcribirlo.
+
+- **Páginas legales como ruta pública del storefront: CERO.** `find "app/(storefront)" -maxdepth 2
+  -name "page.tsx"` da siete rutas: `checkout`, `nosotros`, `page.tsx` (home), `preguntas-frecuentes`,
+  `rastrear-pedido`, `suscripciones`, `tienda`. Ninguna es legal/términos/privacidad; un `find`
+  filtrando por esos tres patrones da cero resultados.
+- **El arreglo que las enlazaría en el pie ya existe, vacío.** `siteConfig.legalNav` (`lib/config/
+  site.ts:83`) es `[] as NavLink[]`. La condición que hace que el pie no dibuje nada con el array
+  vacío es `legalNav.length > 0` en `components/storefront/StoreFooter.tsx:197` — con cero elementos,
+  todo el bloque `<div className="flex gap-4">...` (líneas 198-208) no se monta.
+- **Los dos enlaces del camino de pasarela salen del PROVEEDOR, no de este repo.**
+  `AceptacionesPasarela.tsx:45` (`aceptaciones.terminos.enlace`) y `:66`
+  (`aceptaciones.datosPersonales.enlace`) apuntan a `presigned_acceptance.permalink` y
+  `presigned_personal_data_auth.permalink`, leídos de la respuesta de Wompi por
+  `consultarAceptaciones` (`lib/pagos/wompi-api.ts:260-270`, `campoAceptacion` en `:230-233`). Esto ya
+  estaba decidido y escrito: `API-DIRECTA-DECISIONES-PROGRAMA-1` §4 (arriba, línea 5062-5064) dice
+  "Los DOS documentos que el comprador acepta son del PROVEEDOR y los aloja el proveedor… El comercio
+  no redacta ni aloja ninguno de los dos", y líneas 5065-5067 ya declaraban que ese slice "NO depende
+  de las páginas legales del template que están en backlog". Esta re-medición lo confirma contra el
+  código vigente, no lo descubre.
+- **Los tres campos de identidad del negocio (razón social, NIT, domicilio) no existen en ningún
+  campo del sistema.** `model SiteSetting` (`packages/core/prisma/schema.prisma:740-777`) declara
+  `nombre, tagline, descripcionFooter, whatsapp, instagram, emailRemitente, emailReplyTo, adminEmail,
+  metodosPago, metodosPasarela, createdAt, updatedAt` — ninguno de los tres. `grep -ni
+  "razonSocial|razon_social|\bnit\b|domicilio"` sobre el schema completo y `lib/config/*.ts` da CERO
+  resultados.
+
+### 1 · El comentario que ya nombraba la deuda — citado textual
+
+Junto al arreglo vacío hay un comentario que ya sabía que faltaba, y ya decía cuándo vencía. Cita
+textual, `lib/config/site.ts:80-83`:
+
+> ```
+> // legalNav vacío temporalmente — páginas legales pendientes de redacción
+> // con el cliente antes de lanzamiento (Ley 1581 / Estatuto del Consumidor).
+> // La fila legal del footer solo se renderiza si este array tiene elementos.
+> legalNav: [] as NavLink[],
+> ```
+
+**Alguien lo escribió sabiendo, y nadie lo cobró hasta hoy. UNA DEUDA ESCRITA NO ES UNA DEUDA CON
+DISPARADOR.**
+
+Y es la versión mínima de la familia de esta semana: esa nota hasta decía cuándo vencía —*antes de
+lanzamiento*— y aun así no alcanzó, porque nada conectaba esa frase con el acto de lanzar. Falla por
+lo mismo que fallaría *«antes de una migración»* (§ el asiento de arriba, `WOMPI-MERGE-Y-CENSO-
+BUILD-1`, §2: «nadie cree estar lanzando hasta que ya lanzó»): un disparador que nombra el EFECTO en
+vez del ACTO no se lee en el momento en que el acto ocurre.
+
+El otro sitio que ya citaba esta misma deuda, sin resolverla, es `CLAUDE.md:7601-7607` (el
+prerequisito de `reactivacion_cliente`): «Conecta con las páginas legales pendientes (Ley 1581) — ver
+`siteConfig.legalNav`, hoy vacío.» Dos citas de la misma deuda, en dos archivos, y ninguna la cerró
+—porque ninguna de las dos es un disparador, las dos son una descripción.
+
+### 2 · La decisión del owner: PLANTILLA FIJA, no dato por tenant
+
+**El texto legal va como PLANTILLA FIJA con los datos del negocio sustituidos, NO como contenido
+editable por cada tienda. Decisión TOMADA; nada se construye en este slice.**
+
+Las razones, del owner:
+
+- **El texto estatutario es idéntico para cualquier comercio colombiano**, y el repositorio ya tiene
+  este patrón funcionando en otra superficie: el canal WhatsApp de automatizaciones. `DispatchRequest`
+  (`lib/automations/channels/types.ts:8-14`) declara, línea 13: «WhatsApp en gramática Meta: plantilla
+  + variables posicionales, nunca texto libre» — plantilla fija aprobada por Meta, con variables del
+  tenant/orden sustituidas adentro, exactamente la forma que se decide acá para el texto legal.
+- **La advertencia que cierra la discusión:** *«una casilla del checkout apuntando a una página legal
+  vacía sería peor que la ausencia actual»* — y el dato-por-tenant garantiza que eso pase con el
+  primer comercio que no la llene. Una plantilla fija con los datos del negocio sustituidos no puede
+  quedar vacía: el texto está, sólo faltan los campos de identidad (§4, abajo).
+- **La salida si algún día hace falta texto propio:** *«si algún día un cliente necesita texto propio,
+  se le sustituye la plantilla. Eso es más barato que construir el editor para todos.»* — sustituir un
+  archivo es más barato que construir y mantener un editor de texto legal para cada tenant que nunca
+  lo va a necesitar.
+
+### 3 · El hueco del camino manual — item propio, independiente de las páginas legales
+
+**El camino MANUAL del checkout (nequi, daviplata, breb, transferencia, efectivo, sin pasarela) no
+tiene NINGÚN enlace legal.** Verificado: `grep -rn "legalNav|/legal|/terminos|/privacidad"` sobre
+`app/(storefront)/checkout` y `components/storefront/checkout` da CERO resultados. `AceptacionesPasarela`
+sólo se monta dentro de `SelectorMetodoPasarela`, y ese bloque sólo aparece cuando `pasarelaSeleccionada
+&& modoApiDirecta && bloquePasarela` (`app/(storefront)/checkout/page.tsx:739`) — el radio del método
+manual (línea 719, `metodoActivo === 'nequi' || 'daviplata' || 'breb' || 'transferencia'`) sólo agrega
+un campo opcional de "Referencia de pago" (línea 720), sin casilla ni enlace de ningún tipo.
+
+> Quien paga por transferencia no acepta términos de nadie.
+
+Esto es INDEPENDIENTE de las páginas legales del template (§0-§2, arriba): existe HOY, con o sin
+ellas — es un hueco del camino manual del checkout, no una consecuencia de `legalNav` vacío. Se
+nombra con su propio identificador y no se pliega en éste:
+
+- **`CHECKOUT-MANUAL-SIN-ACEPTACION-LEGAL-1`** — el camino manual del checkout no ofrece ninguna
+  aceptación de términos ni de tratamiento de datos al comprador. Qué debería aceptar ese comprador y
+  dónde iría la casilla es una medición aparte, que el owner ya pidió y que este slice NO mide ni
+  resuelve — sólo deja el hueco marcado, con su archivo y línea.
+
+### 4 · Los tres datos de identidad son del ALTA DE UN CLIENTE, no de las páginas legales
+
+**Razón social, NIT y domicilio no existen en ningún campo del sistema** (§0, arriba — `SiteSetting`
+no los declara, y el grep sobre el schema completo da cero). Sea plantilla fija o dato por tenant, esos
+tres campos hay que agregarlos igual — y son del ALTA DE UN CLIENTE, no de las páginas legales: sin
+ellos, la plantilla fija de §2 no tiene con qué sustituir la identidad del comercio en el texto.
+
+Su lugar no es este repositorio solo: van al cuestionario de alta y al runbook de incorporación, que
+es donde van a hacer falta cada vez — cada cliente nuevo necesita los tres antes de poder publicar
+texto legal correcto, y preguntarlos una vez por cliente en un cuestionario es más barato que
+descubrir su ausencia cada vez que alguien construye la plantilla.
+
+**LÍMITE: esos artefactos —cuestionario de alta, runbook de incorporación— viven fuera de este
+repositorio.** Verificado: no existe ningún archivo `cuestionario*` ni `runbook*` de incorporación de
+cliente en el repo (`grep -rln "cuestionario\|alta de cliente\|alta de un cliente" --include="*.md"
+.` da sólo dos coincidencias, ninguna es un cuestionario — son menciones de "alta de cliente en
+minutos" en `CLAUDE.md:4519` y `docs/DEUDA-MIGRACION-PLATAFORMA.md:4`, sobre el norte de plataforma,
+no sobre un cuestionario de onboarding). **Este slice no puede tocarlos ni verificar que existan.**
+Consecuencia: los tres campos de identidad quedan marcados como PENDIENTES fuera de este repositorio
+— no se dan por hechos, no se crea el artefacto que los pediría, y no se agrega ninguna columna a
+`SiteSetting` para sostenerlos.
+
+### 5 · Lo que NO se hizo
+
+No se crearon páginas, rutas, enlaces ni campos. No se redactó texto legal, ni de ejemplo. No se midió
+ni se resolvió el hueco del camino manual (§3) — sólo se nombró. No se corrió `npm run build`. No se
+mergeó ni se hizo push a `main`.
+
+### Gate
+
+`npm run gate`, los dos carriles, corrido sobre el árbol final de este slice — **verde**: `npm test`
+(capa 1, sin base) y `npm run test:integracion` (capa 2, Postgres efímero) pasaron sin fallos. Este
+slice sólo tocó `DECISIONS.md`; ningún archivo de código cambió, así que el resultado del gate no
+depende de este diff — se corrió igual, sobre el árbol final, por la regla del protocolo.
+
+### Deviations
+
+Ninguna. Las cuatro mediciones del spec (rutas legales, condición del footer, origen de los dos
+enlaces de pasarela, campos de identidad ausentes) coinciden con lo que el spec describía.
+
+### Open follow-ups
+
+- `CHECKOUT-MANUAL-SIN-ACEPTACION-LEGAL-1` (§3, arriba): el camino manual del checkout no ofrece
+  ninguna aceptación legal al comprador. Qué debería aceptar y dónde iría la casilla es una medición
+  aparte, pendiente, que este slice no resuelve.
+- `LEGALES-IDENTIDAD-ALTA-CLIENTE-1` (§4, arriba): razón social, NIT y domicilio no existen en ningún
+  campo del sistema; son del cuestionario de alta y del runbook de incorporación de un cliente nuevo,
+  artefactos que viven FUERA de este repositorio y que este slice no puede crear ni verificar. Sin
+  ellos, la plantilla fija de §2 no tiene con qué sustituir la identidad del comercio.
+- `LEGALES-PLANTILLA-CONSTRUCCION-1`: la decisión de §2 (plantilla fija, no dato por tenant) está
+  tomada y asentada; construir la plantilla —redactar el texto con el cliente antes de lanzamiento
+  (Ley 1581 / Estatuto del Consumidor, § el comentario citado en §1) y cablearla a `legalNav`— sigue
+  sin hacerse. Depende de `LEGALES-IDENTIDAD-ALTA-CLIENTE-1` para tener con qué sustituir la
+  plantilla.
