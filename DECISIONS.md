@@ -8792,3 +8792,149 @@ sin mergear: el owner ve el mirador —los TRES ejes, esta vez— antes del merg
 
 Ninguno nuevo. `CORTE-MIRADOR-PROPAGACION-PARCIAL-1` (arriba) queda CERRADO por este slice.
 `CORTE-HERO-SIN-ESQUEMA-1` (arriba) queda RESUELTO — caso (a), no había nada que decidir.
+
+## 2026-09-18 — La historia gana su segunda composición: CENTRADA, medida contra el prototipo, y el CTA que el modelo no puede expresar (`CORTE-BRANDSTORY-COLLAGE-1`)
+
+**El estándar, otra vez palabras del owner:** *"CORTE como está hoy NO ALCANZA. Cuando abra el mirador
+tiene que verse como el prototipo."* Los ejes ya estaban (paleta/par/forma, `CORTE-REESCRITURA-
+PROTOTIPO-1`, `CORTE-MIRADOR-EJES-COMPLETOS-1`); lo que faltaba —dicho en la misma frase— eran «las
+composiciones que ese prototipo tiene y CORTE hoy no». La banda de historia era el caso más medible:
+`brandStory.variantes` tenía UNA sola clave, la canónica, el único set cerrado de una banda con
+`variantes` declaradas sin segunda opción (medido en `CORTE-MIRADOR-EJES-COMPLETOS-1`, citado como
+`externo` en el spec).
+
+### La composición — medida contra `docs/prototipos/cafeone/`, no inventada
+
+La sección `.historia` (`index.html:250-273`) NO es lo que hoy tenemos: eyebrow y `<h2>` CENTRADOS
+(`css/app.css:565`, `.historia .display-l{text-align:center}`), un `.collage` de TRES figuras EN FILA
+con offset/rotación (`app.css:566-576`), y un párrafo + un CTA cerrando abajo, también centrado
+(`.historia-copy{max-width:56ch;margin-inline:auto;text-align:center}`, `app.css:577`). El fondo del
+prototipo es `--surface-page-cool` (claro), distinto del `--surface-inverse` oscuro que pinta el resto
+de sus paneles a sangre completa — pero eso NO se copió: `bandaOscuraCanonica` (`site-content-
+defaults.ts`) declara a `brandStory` oscura para CUALQUIER variante, sin bifurcar por variante como sí
+hace `hero` — tocar esa bifurcación es una decisión de sistema fuera de este slice (no está en
+`touches:`), así que la nueva composición sigue oscura (`bg-[var(--sf-banda,var(--sf-tinta))]`), igual
+que la canónica.
+
+### La cardinalidad DIFIERE del prototipo, y se resolvió con el dato que el modelo YA tiene
+
+El `.collage` del prototipo dibuja TRES figuras (`index.html:257-261`); `BrandStoryContent` sólo
+declara CUATRO campos de imagen (`imagen1..4`), los mismos que ya usa la canónica. No se inventó un
+quinto campo (escritura de esquema, fuera de `touches:`) ni se descartó una de las cuatro para calzar
+el número del prototipo: las CUATRO se muestran en fila, con el MISMO patrón de offset vertical que ya
+usaba la canónica para su 2×2 (`""`, `mt-8`/`sm:mt-8`, `-mt-4`/`sm:-mt-4`, `mt-4`/`sm:mt-4` — no se
+inventó una escala nueva), más una leve rotación por figura que se endereza al entrar en vista.
+
+### Lo que el prototipo tiene y esta variante NO puede expresar — medido, reportado, no improvisado
+
+1. **El CTA "Nuestra historia" → `#origen`** (`index.html:270`). `BrandStoryContent` no declara ningún
+   campo de link/label para esta sección — ni siquiera la canónica lo tiene: la doctrina ya declaraba
+   que "la home lleva el ANZUELO, sin CTA propio" (§ site-content-defaults.ts, comentario de la página
+   /nosotros). Agregar un campo de CTA es escritura de esquema — fuera de `touches:` de este slice. La
+   variante nueva se construyó SIN el botón, no con un `<a href="#">` fijo ni un texto quemado.
+2. **El motor de scroll-scrub del prototipo** (`js/home.js:284-301`, `FSA.scrub`): cada figura rota y
+   se traslada en función del progreso de scroll de la sección — un motor propio que este repo no
+   tiene, y construirlo sería una pieza de infraestructura, no una composición. Se aproxima con una
+   entrada en CAPAS vía `whileInView` (framer-motion, ya en uso en todo el storefront): cada figura
+   asienta desde una leve rotación/traslación a `rotate:0`, en cascada, sin el scrub continuo del
+   prototipo.
+
+Ninguna de las dos piezas se disimuló con un texto fijo o un href quemado en el componente — la
+composición se construyó SIN ellas, medidas y nombradas en el comentario de cabecera de
+`BrandStoryCentrada.tsx`.
+
+### El mecanismo — el mismo patrón que ya usan Hero/GrindChooser/SubscriptionCTA
+
+Hasta este slice, `BrandStory.tsx` ERA el layout entero (única clave, sin dispatcher). Se separó en
+tres archivos, mismo patrón que las otras tres bandas con `variantes`:
+
+- **`BrandStoryColumnas.tsx`** — extracción VERBATIM del `BrandStory.tsx` de ayer (mismo JSX, mismos
+  tokens, mismo comentario de contraste), función renombrada. El gate de visibilidad SALIÓ de acá.
+- **`BrandStoryCentrada.tsx`** — la composición nueva, arriba.
+- **`BrandStory.tsx`** — DISPATCHER: hace `seccionEsVisible` una vez, y elige `VARIANTES[brandStory.
+  variante] ?? BrandStoryColumnas` (la red de siempre: una `variante` inesperada cae a la canónica).
+
+`REGISTRY.brandStory.variantes.claves` pasó de `['columnas']` a `['columnas', 'centrada']`; la
+`canonica` sigue siendo `'columnas'`. `noUniformes` sigue SIN declararse: ninguna de las dos
+composiciones es bi-tonal (las dos son de un solo tono sólido), así que el nav transparente-flotante
+se comporta igual sobre las dos.
+
+### CORTE apunta a la variante nueva — único punto tocado en `themes.ts`
+
+`CORTE.variantes.brandStory` pasó de `'columnas'` a `'centrada'`. Es el único cambio al catálogo de
+presets: PLIEGO/PATIO/VETA/VITRINA/ARRANQUE no se tocaron, y ninguno de los cuatro pide una variante
+de `brandStory` que se haya visto afectada (PATIO sigue pidiendo `'columnas'`, válida; VETA `'bento'`
+y VITRINA `'hilo'` siguen siendo claves inexistentes, sin cambiar).
+
+### Byte-identidad de la canónica — por construcción, no por prueba de render
+
+El repo no tiene jsdom (§ CLAUDE.md, "El glob NO incluye `*.test.tsx`"), así que la byte-identidad de
+`columnas` no se verifica con un diff de HTML: se sostiene porque `BrandStoryColumnas.tsx` es una
+extracción VERBATIM (mismo JSX carácter por carácter, sólo el nombre de la función y el import del
+gate cambiaron) y `DEFAULTS.brandStory.variante` sigue siendo `'columnas'` — Nayoli, sin fila ni preset
+aplicado, sigue resolviendo a la canónica exactamente como antes. Afirmado en capa 1: `resolverVariante`
+con las claves de `brandStory` (ausente/vacío/null/basura → `'columnas'`; `'centrada'` se respeta), y
+`bandaUniforme`/`bandaOscuraCanonica` sin cambiar para ninguna de las dos claves.
+
+### Gate
+
+`npm run gate` en el árbol final:
+
+- **`npm test`** (capa 1, sin base): **1481/1481**, 0 fail.
+- **`npm run test:integracion`** (Postgres efímero 14.20, capa 2): **208/208**, 0 fail.
+- **`npx tsc --noEmit`**: limpio.
+- **`npm run build`** (autoridad para JSX/TSX, § CLAUDE.md "tsc ≠ SWC"): compila; `/` sigue `ƒ`
+  (dinámico, sin cambio de comportamiento de render).
+- **Artefacto, no fuente**: `grep -c centrada`/`grep -c columnas` sobre
+  `.next/server/chunks/ssr/components_storefront_home_0~nh7mf._.js` (el chunk que trae `sm:-mt-4`/
+  `sm:mt-8`, las clases exclusivas de la variante nueva) → **1** cada uno — el símbolo nuevo SÍ está en
+  el artefacto compilado, no sólo en la fuente.
+
+### Guarda de completitud de presets — verde antes y después
+
+`presetCompleto(CORTE)` sigue en `[]`/`true` (`themes.test.ts`): con `'centrada'` ya en
+`REGISTRY.brandStory.variantes.claves`, la validación de esa entrada pasa igual que pasaba con
+`'columnas'`. Ningún otro preset del catálogo cambió de resultado — `seccionesQueFallanVariante` para
+PLIEGO/VETA/PATIO/VITRINA sigue nombrando exactamente los mismos conjuntos que antes de este diff.
+
+### Tier 1 / AWAITING_APPROVAL
+
+`tier: 1`, `approved: yes` (mismo owner, misma noche, misma razón citada en `CORTE-REESCRITURA-
+PROTOTIPO-1`: autoriza ESCRIBIR sin consultarlo, con la única frontera de que nada llegue a `main`).
+`components/storefront/home/` es un subárbol GANADOR de la lista Tier 1 de CLAUDE.md ("son los bytes
+del visitante"). El diff cambia bytes que el DUEÑO va a leer para juzgar el cierre —el propio criterio
+de esta tanda, el mirador con `?tema=CORTE`—, así que clasifica `AWAITING_APPROVAL` /
+`stopped_on: [customer-bytes]`. Rama `slice/corte-reescritura-prototipo-1`, sin mergear: el owner ve
+el mirador —la historia centrada, esta vez— antes del merge.
+
+**El invariante del tenant se sostiene igual que en los dos slices anteriores de esta rama:** sin
+`?tema=` (todo tráfico real, y todo despliegue fuera de demo) la home sigue resolviendo `brandStory.
+variante` a `'columnas'` — la canónica — porque ninguna fila de `SiteContent` cambió y `DEFAULTS.
+brandStory.variante` sigue siendo `'columnas'`. Este slice no escribió en ninguna base.
+
+### Deviations
+
+**DESVIACIÓN MEDIDA (misma familia que la de `TEMAS-HERO-MEDIA-1`, `86fe52e`):** el `externo` del spec
+cita `CORTE-MIRADOR-EJES-COMPLETOS-1` como la fuente de «de todas las bandas estructurales con
+variantes declaradas, la de historia es la unica cuyo set cerrado tiene UNA sola clave». Se grepeó la
+sección completa de esa entrada (`DECISIONS.md:8636-8794`, este mismo archivo) y **esa frase no está
+ahí** — esa entrada mide el eje completo del mirador (paleta/fuentes/forma), no el conteo de claves por
+banda. El CONTENIDO TÉCNICO del spec SÍ está sostenido por evidencia real, verificada de forma
+independiente ANTES de escribir: se leyó `REGISTRY` en `lib/config/site-content-defaults.ts` (antes de
+este diff) y se confirmó a mano que `hero.variantes.claves` tenía 3, `presentaciones.variantes.claves`
+2, `subscriptionCTA.variantes.claves` 2, y `brandStory.variantes.claves` exactamente **1** —
+`['columnas']`— la única de las cuatro secciones con `variantes` declaradas con un set cerrado de un
+solo elemento. El trabajo procedió sobre esa medición directa, no sobre la cita ausente.
+
+Ninguna otra. El spec pedía leer el prototipo (HTML + CSS) antes de escribir — se leyó `index.html:249-273`
+y `css/app.css:561-578`, y además `js/home.js:284-301` para entender el mecanismo de animación que el
+prototipo usa (no estaba pedido explícitamente, pero sin leerlo la nota de "lo que no se puede
+expresar" habría sido una afirmación sin medir).
+
+### Open follow-ups
+
+Ninguno nuevo con id propio. El CTA de la sección (`#1` de arriba) y el motor de scroll-scrub (`#2`)
+quedan nombrados en el comentario de cabecera de `BrandStoryCentrada.tsx` como piezas del prototipo
+que esta variante no expresa — no se abre un ítem de backlog para ninguna de las dos: ninguna tiene
+costo pagado ni caso pedido todavía, y `CLAUDE.md` (Backlog técnico) no está en `touches:` de este
+slice.

@@ -784,8 +784,22 @@ test('brandStory: una `variante` guardada fuera del set cae a la canónica', () 
   assert.equal(r.brandStory.variante, 'columnas');
 });
 
-test('REGISTRY.brandStory declara `variantes` con UNA sola clave (la canónica) y SIN `noUniformes`', () => {
-  assert.deepEqual(REGISTRY.brandStory.variantes, { claves: ['columnas'], canonica: 'columnas' });
+test('REGISTRY.brandStory declara `variantes` con DOS claves (columnas/centrada), la canónica "columnas", y SIN `noUniformes` (§ CORTE-BRANDSTORY-COLLAGE-1)', () => {
+  assert.deepEqual(REGISTRY.brandStory.variantes, { claves: ['columnas', 'centrada'], canonica: 'columnas' });
+});
+
+test('resolverVariante con las claves de brandStory: ausente/vacío/null/basura → "columnas"; "centrada" se respeta (§ CORTE-BRANDSTORY-COLLAGE-1)', () => {
+  assert.equal(resolverVariante(REGISTRY.brandStory.variantes!, undefined), 'columnas');
+  assert.equal(resolverVariante(REGISTRY.brandStory.variantes!, ''), 'columnas');
+  assert.equal(resolverVariante(REGISTRY.brandStory.variantes!, null), 'columnas');
+  assert.equal(resolverVariante(REGISTRY.brandStory.variantes!, 'foo'), 'columnas');
+  assert.equal(resolverVariante(REGISTRY.brandStory.variantes!, 'columnas'), 'columnas');
+  assert.equal(resolverVariante(REGISTRY.brandStory.variantes!, 'centrada'), 'centrada');
+});
+
+test('brandStory: una `variante` guardada "centrada" se respeta, y resuelve igual que "columnas" (§ CORTE-BRANDSTORY-COLLAGE-1)', () => {
+  const r = resolverSiteContent({ brandStory: { variante: 'centrada' } });
+  assert.equal(r.brandStory.variante, 'centrada');
 });
 
 // ── EL HERO GANA VARIANTES (§ EJE-5-VARIANTES-HERO): segunda sección con `variantes`, gemela de
@@ -980,8 +994,9 @@ test('bandaUniforme: subscriptionCTA·bloque y ·linea → true (sin `noUniforme
   assert.equal(bandaUniforme('subscriptionCTA', undefined), true);
 });
 
-test('bandaUniforme: brandStory·columnas → true (sin `noUniformes` declarado, § TEMAS-P2-BRANDSTORY-1)', () => {
+test('bandaUniforme: brandStory·columnas y ·centrada → true (sin `noUniformes` declarado — ninguna de las dos es bi-tonal, § CORTE-BRANDSTORY-COLLAGE-1)', () => {
   assert.equal(bandaUniforme('brandStory', 'columnas'), true);
+  assert.equal(bandaUniforme('brandStory', 'centrada'), true);
   assert.equal(bandaUniforme('brandStory', undefined), true);
 });
 

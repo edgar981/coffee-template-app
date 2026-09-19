@@ -311,10 +311,16 @@ export const CORTE: PresetTema = {
   // en nuestro sistema (§ formas.ts, "LO QUE ESTA MITAD CONECTA vs LO QUE QUEDA INERTE"), así que no
   // hay valor propio del set cerrado que lo represente todavía.
   forma: 'recta',
+  // `brandStory: 'centrada'` (§ CORTE-BRANDSTORY-COLLAGE-1) — hasta este slice CORTE pedía la
+  // canónica ('columnas') porque era la ÚNICA clave que `brandStory.variantes` declaraba; el estándar
+  // del owner es que el mirador se vea como el prototipo, y su sección `.historia` es la composición
+  // CENTRADA (eyebrow+título al medio, collage a lo ancho, párrafo debajo — no la de dos columnas).
+  // Con la clave ya construida (`REGISTRY.brandStory.variantes.claves`, site-content-defaults.ts),
+  // este es el único punto del catálogo de presets que este slice toca.
   variantes: {
     hero: 'media',
     featured: 'grilla',
-    brandStory: 'columnas',
+    brandStory: 'centrada',
     presentaciones: 'mosaico',
     subscriptionCTA: 'linea',
   },

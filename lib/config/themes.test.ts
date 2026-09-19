@@ -168,13 +168,14 @@ test('PLIEGO: raíces y forma/par válidos, pero las 5 variantes fallan — toda
 });
 
 test('CORTE: las 5 variantes que pide YA EXISTEN — CORTE valida COMPLETO', () => {
-  // brandStory·columnas (la canónica) y presentaciones·mosaico (la canónica) ya validaban; luego se
-  // construyeron, en orden, subscriptionCTA·linea (TEMAS-SUBSCRIPTIONCTA-LINEA-1), hero·media
-  // (TEMAS-HERO-MEDIA-1) y featured·grilla (TEMAS-FEATURED-GRILLA-1) — las tres piezas que le
-  // faltaban. Con las cinco válidas, CORTE se une a ARRANQUE como preset aplicable HOY. Se afirma por
-  // COMPLETITUD DERIVADA (`[]`/`presetCompleto`), no enumerando qué dejó de fallar: una vez que un
-  // preset completa, no hay lista que mantener — sólo puede seguir completo (monótono, mientras
-  // `themes.ts` no pierda una variante ya construida).
+  // presentaciones·mosaico (la canónica) ya validaba; luego se construyeron, en orden,
+  // subscriptionCTA·linea (TEMAS-SUBSCRIPTIONCTA-LINEA-1), hero·media (TEMAS-HERO-MEDIA-1),
+  // featured·grilla (TEMAS-FEATURED-GRILLA-1) y brandStory·centrada (CORTE-BRANDSTORY-COLLAGE-1,
+  // que reemplazó a brandStory·columnas en el preset — la canónica seguía validando, pero el
+  // prototipo pide la composición centrada). Con las cinco válidas, CORTE se une a ARRANQUE como
+  // preset aplicable HOY. Se afirma por COMPLETITUD DERIVADA (`[]`/`presetCompleto`), no enumerando
+  // qué dejó de fallar: una vez que un preset completa, no hay lista que mantener — sólo puede
+  // seguir completo (monótono, mientras `themes.ts` no pierda una variante ya construida).
   assert.deepEqual(validarPreset(CORTE), []);
   assert.ok(presetCompleto(CORTE));
 });

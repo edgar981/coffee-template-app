@@ -1,0 +1,92 @@
+"use client";
+
+import { motion } from "framer-motion";
+import Image from "next/image";
+import { fadeUp } from "@/lib/animation";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { useIsPreview } from "@/components/storefront/PreviewMode";
+
+// LA VARIANTE CANÓNICA (§ eje 5e, CORTE-BRANDSTORY-COLLAGE-1): "Nuestra Historia" a dos columnas —
+// texto de un lado, collage 2×2 de cuatro imágenes fijas del otro — el BrandStory de SIEMPRE,
+// extraído VERBATIM al separar el mecanismo de variantes del dispatcher (`BrandStory.tsx`). El gate
+// de visibilidad (`seccionEsVisible`) vive en el DISPATCHER, no acá — esta variante asume que ya se
+// decidió mostrarla.
+const IMAGENES = [
+  { campo: "imagen1", alt: "Una taza de café servida sobre una mesa de madera, con granos alrededor", offset: "" },
+  { campo: "imagen2", alt: "Cerezas de café secándose extendidas sobre una malla", offset: "mt-8" },
+  { campo: "imagen3", alt: "Las manos de un recolector mostrando cerezas rojas sobre su canasto", offset: "-mt-4" },
+  { campo: "imagen4", alt: "Una rama de cafeto con los granos todavía verdes", offset: "mt-4" },
+] as const;
+
+export default function BrandStoryColumnas({ style }: { style?: React.CSSProperties } = {}) {
+  const { brandStory } = useSiteContent();
+  const preview = useIsPreview();
+
+  // En la VISTA PREVIA del panel, las entradas por `whileInView` quedarían INVISIBLES: dentro del
+  // contenedor escalado (`transform: scale`) la intersección con el viewport no llega. Se cambia
+  // `whileInView`→`animate` con `initial={false}`: el elemento descansa en su estado visible desde
+  // el primer render, sin animación de entrada. Fuera de preview, idéntico a hoy. (Mismo criterio
+  // que HeroSection, ahí escrito para esta sección.)
+  return (
+    <section id="nuestra-historia" className="py-24 bg-[var(--sf-banda,var(--sf-tinta))]" style={style}>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <motion.div
+            initial={preview ? false : "hidden"}
+            animate={preview ? "visible" : undefined}
+            whileInView={preview ? undefined : "visible"}
+            viewport={preview ? undefined : { once: true }}
+            variants={fadeUp}
+          >
+            {/* `--sf-tostado` era FIJO (§ eje 5b, home-2 — mismo hueco que el eyebrow del hero):
+                `--sf-sobre-banda` con `--sf-tostado` de fallback preserva hoy y se adapta por esquema.
+                EL TÍTULO/PÁRRAFOS (§ eje 5b, home-3) estaban en `--sf-sobre` —floreado contra la
+                TARJETA— y daban 1.07:1 al asignar 'crema' a esta banda (canónica oscura). Se apoyan
+                DIRECTO en el fondo de la banda: el título va a `--sf-sobre-banda`; los párrafos
+                (con el /60 de diseño) van a `--sf-sobre-banda-suave`, SIN el modificador `/NN` de
+                Tailwind encima (reduciría el `texto-suave` ya floreado por debajo de AA), con el
+                alfa horneado en el fallback (`color-mix(in oklab, white 60%, transparent)` — la
+                MISMA fórmula que Tailwind genera para `/60` — así que sin esquema el resultado es el
+                mismo píxel que `text-white/60` de siempre). */}
+            {brandStory.eyebrow && (
+              <p className="text-[var(--sf-sobre-banda,var(--sf-tostado))] text-xs font-medium tracking-[0.2em] uppercase mb-4">
+                {brandStory.eyebrow}
+              </p>
+            )}
+            <h2 className="text-4xl sm:text-5xl font-playfair text-[var(--sf-sobre-banda,white)] leading-tight mb-6">
+              {brandStory.titulo}
+            </h2>
+            <p className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] leading-relaxed mb-6 text-base">
+              {brandStory.parrafo1}
+            </p>
+            {brandStory.parrafo2 && (
+              <p className="text-[var(--sf-sobre-banda-suave,color-mix(in_oklab,white_60%,transparent))] leading-relaxed mb-8 text-base">
+                {brandStory.parrafo2}
+              </p>
+            )}
+          </motion.div>
+          <motion.div
+            initial={preview ? false : { opacity: 0, scale: 0.95 }}
+            animate={preview ? { opacity: 1, scale: 1 } : undefined}
+            whileInView={preview ? undefined : { opacity: 1, scale: 1 }}
+            viewport={preview ? undefined : { once: true }}
+            transition={preview ? undefined : { duration: 0.6 }}
+            className="grid grid-cols-2 gap-4"
+          >
+            {IMAGENES.map(({ campo, alt, offset }) => (
+              <div key={campo} className={`relative h-48 overflow-hidden rounded-2xl ${offset}`}>
+                <Image
+                  src={brandStory[campo]}
+                  alt={alt}
+                  fill
+                  sizes="(max-width: 768px) 50vw, 25vw"
+                  className="object-cover"
+                />
+              </div>
+            ))}
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  );
+}

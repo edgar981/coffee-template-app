@@ -59,9 +59,9 @@ export interface BrandStoryContent {
   imagen2: string;
   imagen3: string;
   imagen4: string;
-  // La VARIANTE de composición (§ eje 5e, TEMAS-P2-BRANDSTORY-1). 'columnas' es la ÚNICA clave hoy
-  // —y la canónica—: abre el slot para la PLATAFORMA de themes (tres de los cinco themes del programa
-  // la necesitan) sin construir ninguna forma alternativa todavía. Escalar de SECCIÓN —como
+  // La VARIANTE de composición (§ eje 5e, TEMAS-P2-BRANDSTORY-1). 'columnas' es la canónica; 'centrada'
+  // (§ CORTE-BRANDSTORY-COLLAGE-1) es la segunda clave — eyebrow+título centrados, el mismo collage a
+  // lo ancho, el párrafo debajo (§ REGISTRY.brandStory.variantes). Escalar de SECCIÓN —como
   // `visible`—, no un `campos`: no lo toca el loop requerido/opcional del resolver. Gemela de
   // `hero.variante`/`presentaciones.variante`.
   variante: string;
@@ -748,14 +748,16 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     label: 'Historia',
     ocultable: true,
     imagenes: ['imagen1', 'imagen2', 'imagen3', 'imagen4'],
-    // VARIANTES DE COMPOSICIÓN (§ eje 5e, TEMAS-P2-BRANDSTORY-1) — PRERREQUISITO del programa de
-    // themes, no una forma nueva: 'columnas' es la ÚNICA clave y la canónica —el layout de HOY,
-    // verbatim (texto a un lado, collage 2×2 al otro, `grid-cols-1 lg:grid-cols-2`)—. Abre el slot
-    // para que el theme que la necesite (tres de los cinco del programa) declare su alternativa sin
-    // tocar esta mecánica; el día que exista una segunda clave, `BrandStory.tsx` gana su dispatcher.
-    // `noUniformes`: NO — la banda es de un solo tono sólido (`bg-[var(--sf-banda,var(--sf-tinta))]`),
-    // nunca bi-tonal, y con una sola clave no hay otra variante con la que discrepar.
-    variantes: { claves: ['columnas'], canonica: 'columnas' },
+    // VARIANTES DE COMPOSICIÓN (§ eje 5e, TEMAS-P2-BRANDSTORY-1) — 'columnas' es la canónica —el
+    // layout de HOY, verbatim (texto a un lado, collage 2×2 al otro, `grid-cols-1 lg:grid-cols-2`)—.
+    // 'centrada' (§ CORTE-BRANDSTORY-COLLAGE-1) es la SEGUNDA clave — la que abrió el slot con UNA
+    // sola clave: eyebrow+título centrados, el collage de las mismas 4 imágenes A LO ANCHO debajo, y
+    // el párrafo cerrando abajo, medida contra `docs/prototipos/cafeone/` (§ su comentario de
+    // cabecera en `BrandStoryCentrada.tsx` — qué piezas del prototipo esta variante NO expresa).
+    // `BrandStory.tsx` ganó su dispatcher en el mismo slice.
+    // `noUniformes`: NO en NINGUNA de las dos — la banda es de un solo tono sólido
+    // (`bg-[var(--sf-banda,var(--sf-tinta))]`) en las dos composiciones, nunca bi-tonal.
+    variantes: { claves: ['columnas', 'centrada'], canonica: 'columnas' },
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',
