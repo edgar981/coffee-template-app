@@ -10005,5 +10005,10 @@ coinciden exacto), § arriba.
 
 ### Open follow-ups
 
-Ninguno nuevo. Los diez sitios sólo-hover (§ arriba, tercera condición) quedan nombrados pero fuera
-de este slice — son la misma familia, otro spec.
+**`PALETA-HOVER-TEXTO-SOBRE-SUPERFICIE-1`**: los diez sitios sólo-hover (§ arriba, tercera
+condición — `checkout/page.tsx` ×4, `RetornoCliente.tsx` ×2, `EsperaRedireccionPasarela.tsx` ×1,
+`EsperaConfirmacionTarjeta.tsx` ×1, `FormularioOtroMetodoPasarela.tsx` ×1,
+`FormularioTarjeta.tsx` ×1) tienen texto en reposo sobre el fondo de página que pasa a
+`--sf-superficie` SÓLO en `:hover`, sin el par `sobre-superficie`/`sobre-superficie-suave` en esa
+transición. Es la misma familia de defecto, un spec propio — no se ejecuta acá porque el owner lo
+excluyó explícitamente de este slice (tercera condición).
