@@ -9850,3 +9850,160 @@ correcto.
 ### Open follow-ups
 
 Ninguno nuevo.
+
+## 2026-09-20 — PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: el texto floreado-contra-fondo migra a
+`sobre-superficie` en los sitios que lo pintan directo sobre `--sf-superficie`
+
+**Decisión del owner (2026-09-20), sobre el censo `PALETA-CONSUMIDORES-TEXTO-CENSO-1`**: arreglar
+los sitios que pintan `--sf-texto`/`--sf-texto-suave`/`--sf-acento-texto`/`--sf-tinta` —el token de
+texto floreado contra `--sf-fondo`— directo sobre `--sf-superficie`, en vez del par que el motor
+construyó exactamente para eso (`--sf-sobre-superficie`/`-suave`, § TEMAS-P6-FAMILIAS-1). El par ya
+tenía DOS consumidores correctos (`ProductChip.tsx`, `ProductCard.tsx`); el resto del storefront
+—incluido el camino del dinero, el resumen de la orden y las cajas de número de orden del retorno
+de pasarela— seguía pintando el token viejo, sin el piso de contraste que esa familia garantiza
+contra la superficie real (medida en el comentario de `ProductChip.tsx`: 2.30–3.63:1, nunca ≥4.5).
+
+### Las tres condiciones del owner, y cómo se cumplieron
+
+1. **El patrón se replica LITERAL, sin variante nueva.** Cada sitio se migró al MISMO wrap que ya
+   usan los dos archivos correctos: `var(--sf-sobre-superficie[-suave],var(--sf-<token de hoy>))` —
+   el token viejo como fallback, nunca una forma nueva. Cero cambios al motor
+   (`palette-derive.ts`/`esquema-style.ts`), cero presets, cero esquemas, cero bandas.
+2. **El inquilino por defecto (Nayoli) queda byte-idéntico, VERIFICADO.** `--sf-sobre-superficie`/
+   `-suave` NO tienen default en `app/globals.css` (grep, 0 resultados) — la MISMA garantía
+   estructural que ya protege a `ProductChip`/`ProductCard` en producción: sin raíces custom
+   (`content.tema` null), `cssPaleta` devuelve `null` y no inyecta ningún `<style>`, así que el
+   `var(...)` cae SIEMPRE al fallback. Confirmado sobre el artefacto de producción fresco
+   (`npm run build`): el token nuevo aparece en los chunks (`.next/server/chunks/ssr/
+   app_(storefront)_checkout_page_tsx_*`, y en `.next/static/chunks/*`), y `app/globals.css` sigue
+   sin una sola definición `--sf-sobre-superficie:`.
+3. **Los sitios SOLO-hover quedan afuera, nombrados.** Diez `hover:bg-[var(--sf-superficie)]` no se
+   tocaron —`checkout/page.tsx:479,506,783,787` (pre-migración: 502,774,778 + el "Seguir comprando"
+   de la confirmación), `RetornoCliente.tsx` (dos "Volver a consultar"/"Seguir comprando"),
+   `EsperaRedireccionPasarela.tsx` (un "Seguir comprando"), `EsperaConfirmacionTarjeta.tsx` (un
+   "Seguir comprando"), `FormularioOtroMetodoPasarela.tsx` (un botón de reintento),
+   `FormularioTarjeta.tsx` (un botón de reintento), `CartDrawer.tsx` (el botón de cerrar)—: el
+   defecto ahí es transitorio (el texto en reposo vive sobre el fondo de página, no sobre la
+   superficie) y es la MISMA familia pero otro slice.
+
+### El sitio cuya ubicación se DECIDIÓ, no se midió
+
+`EsperaRedireccionPasarela.tsx`, la rama `redirigiendo`/`esperando` (línea ~162): su `<p>` no tiene
+fondo propio en ese archivo, y su único llamador (`FormularioOtroMetodoPasarela.tsx`, vía
+`SelectorMetodoPasarela`) lo monta DENTRO de un `bg-[var(--sf-superficie)]` — así que el fondo real
+no se puede leer desde el propio archivo del componente. Por instrucción del orquestador se trató
+COMO SI estuviera sobre la superficie (la dirección conservadora), y esa decisión se dejó escrita en
+el código junto al cambio.
+
+**La premisa se verificó, no se asumió**: "la superficie es más oscura que la página, así que el
+texto floreado para ella contrasta MÁS si termina sobre la página" se midió con las funciones reales
+del motor (`derivarPaleta`/`contraste`/`mezclar`) contra las 7 paletas del repo (NAYOLI, NEON, MEDIO
+de `palette-derive.test.ts` + los 5 presets con raíces propias de `themes.ts`: PLIEGO, CORTE, PATIO,
+VITRINA — ARRANQUE reusa `RAICES_DEFECTO`, idéntico a NAYOLI). En las 7, el contraste de
+`sobre-superficie`/`sobre-superficie-suave` contra `--sf-fondo` fue MAYOR O IGUAL que contra
+`--sf-superficie` — nunca menor, incluida MEDIO (fondo oscuro, donde la superficie es más CLARA que
+el fondo en luminancia absoluta, pero el contraste conservador se sostiene igual). El script de
+verificación no se conserva (vivió en `.scratch/`, gitignored); el resultado queda acá.
+
+### El censo: ocho archivos, seis pantallas, y el conteo que DIFIERE del externo
+
+El spec citaba (externo, `PALETA-CONSUMIDORES-TEXTO-CENSO-1`, `kind: ledger_claim`, no re-medido por
+ese slice) **veintitrés** sitios persistentes en **ocho archivos** y **seis pantallas**, más **unos
+diez** sitios adicionales sólo-en-hover. Este slice remidió el censo desde cero, leyendo cada
+archivo con `sf-superficie` en `app/(storefront)/` y `components/storefront/` y clasificando cada
+`text-[var(--sf-{texto,texto-suave,acento-texto,tinta})]` según si su fondo persistente (propio o del
+contenedor en el MISMO archivo) es `--sf-superficie`:
+
+| # | archivo | sitios migrados |
+| --- | --- | --- |
+| 1 | `app/(storefront)/tienda/page.tsx` | 4 (header: título+subtítulo; 2 pills de filtro) |
+| 2 | `app/(storefront)/tienda/[slug]/page.tsx` | 3 (pill de nota de cata; selector de cantidad; título "También te puede gustar") |
+| 3 | `app/(storefront)/checkout/page.tsx` | 13 (resumen de orden: 8; prefijo "+57": 1; caja "reservado": 2; mensaje sin método: 1; nota de candado: 1) |
+| 4 | `app/(storefront)/checkout/retorno/RetornoCliente.tsx` | 8 (4 cajas "Número de orden" × 2 líneas) |
+| 5 | `components/storefront/layout/NavSearch.tsx` | 1 (pill de categoría sugerida) |
+| 6 | `components/storefront/suscripciones/SuscripcionPasos.tsx` | 3 (título; label de paso; descripción de paso) |
+| 7 | `components/storefront/checkout/EsperaRedireccionPasarela.tsx` | 3 (caja "Número de orden" × 2; + el sitio decidido-no-medido) |
+| 8 | `components/storefront/checkout/EsperaConfirmacionTarjeta.tsx` | 2 (caja "Número de orden" × 2) |
+| | **total** | **37** |
+
+**El conteo de ARCHIVOS (8) y de PANTALLAS (6: tienda, producto, checkout, retorno, suscripciones,
+búsqueda) coincide exacto con el externo — eso confirma que la SUPERFICIE identificada es la misma.**
+El conteo de SITIOS PERSISTENTES (37 medido contra 23 citado) y el de sitios sólo-hover (10 medido,
+coincide con "unos diez" del spec) NO coinciden en el primer número. La hipótesis más simple es que
+el censo externo contaba por CAJA/CONTENEDOR (una unidad por `bg-[var(--sf-superficie)]`, sin
+desagregar cada línea de texto dentro), mientras que este slice contó por INSTANCIA DE CLASSNAME (la
+unidad real de la edición mecánica) — con esa granularidad, el propio resumen de la orden de
+`checkout/page.tsx` aporta 8 sitios de un solo contenedor. Es una DIVERGENCIA DE MEDICIÓN, no de
+superficie: no se encontró ningún archivo o pantalla adicional fuera de los 8/6 ya citados por el
+spec, y el conteo de 37 es el que se migró completo, verificado por re-grep contra cada archivo
+tocado (cero instancias bare de `text-[var(--sf-{texto,texto-suave,acento-texto,tinta})]` restantes
+dentro de un `bg-[var(--sf-superficie)]` persistente, en los 8 archivos).
+
+**Íconos EXCLUIDOS a propósito.** Dos usos de `text-[var(--sf-acento-texto)]` sobre un ícono SVG
+(el candado de `checkout/page.tsx`, línea 747→756; el ícono del Shield en el resumen de la orden vía
+tarjeta, fuera de superficie) NO se migraron: "texto floreado" es TEXTO —el patrón establecido en
+`ProductChip`/`ProductCard` sólo toca `<p>`—, y un ícono decorativo no es lectura. Queda nombrado
+para que un censo futuro no lo cuente como pendiente sin decidirlo.
+
+**`--sf-tinta` SÍ entra en el alcance**, pese a no ser un token RECETA-derivado (es una de las 3
+raíces, no "floreado" en sentido técnico): el propio comentario de `ProductChip.tsx` la nombra
+explícitamente como uno de los tokens que medían 2.30–3.63:1 contra la superficie ("de OTRAS
+familias"), y el mapeo ya establecido la trata igual que `texto`/`acento-texto` (rol primario →
+`sobre-superficie`). No es una variante nueva: es seguir el precedente escrito.
+
+### La regla que sale de este hallazgo
+
+**Quien crea una capacidad para arreglar un defecto migra a TODOS sus consumidores, o nombra
+explícitamente los que deja.** El par `sobre-superficie`/`sobre-superficie-suave` se construyó
+(§ TEMAS-P6-FAMILIAS-1) y sólo se cableó en los DOS sitios de esa misma tanda — el resto del
+storefront, incluido el camino del dinero, quedó con el defecto que la capacidad existía para
+cerrar, sin que nadie lo notara hasta este censo. Una primitiva nueva sin migración completa (o sin
+un follow-up nombrado) dura exactamente lo que tarda alguien en mirar el censo con el terreno real.
+
+### Gate
+
+- **`npx tsc --noEmit`**: limpio, DESPUÉS de corregir dos bugs de sintaxis propios introducidos al
+  editar (`checkout/page.tsx` y `tienda/[slug]/page.tsx`): un comentario `{/* */}` (sintaxis JSX,
+  válida sólo dentro de children JSX) se usó por error dentro de una expresión JS —
+  `cond ? ( {/* comentario */} <div>...`, donde el `(` abre una expresión y `{/* */}` se parsea como
+  un objeto vacío seguido de JSX, sintaxis inválida—. Corregido a `//` (comentario de línea, válido
+  en expresión JS), el mismo estilo que ya usaban los comentarios vecinos en esos tres puntos. Es la
+  MISMA familia que § `tsc` ≠ SWC de `CLAUDE.md`: un `tsc` en verde no prueba que el JSX compile —acá
+  el primer `tsc` SÍ atrapó el error (list de 17 errores en cascada desde los 3 puntos rotos), así
+  que no hizo falta llegar a `next build` para encontrarlo, pero `next build` se corrió igual después
+  por ser la autoridad declarada para JSX/TSX.
+- **`npx next build`**: `✓ Compiled successfully`. Verificado sobre el artefacto: el token nuevo
+  (`--sf-sobre-superficie`) aparece en los chunks server/cliente de las rutas tocadas; `globals.css`
+  sigue sin una definición de default para él (0 matches).
+- **`npm run gate`** (los dos carriles, sobre el árbol final): capa 1 (`npm test`) **1517/1517**, 0
+  fail; capa 2 (`npm run test:integracion`, Postgres 14 efímero) **208/208**, 0 fail. Mismo piso que
+  el slice anterior de esta rama (`HERO-MEDIA-SIN-TARJETA-1`) — este slice no tocó ningún archivo con
+  test propio (son 8 archivos de presentación, sin lógica), así que el piso no debía moverse y no se
+  movió.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, 2026-09-20, sobre el censo `PALETA-CONSUMIDORES-TEXTO-CENSO-1`,
+con las tres condiciones de arriba). Los 8 archivos tocados están en `app/(storefront)/` y
+`components/storefront/` — Tier 1, bytes del visitante. Contra MERGE POLICY A: **sin
+schema/migración**, **sin contrato cross-repo**, pero **SÍ bytes de cliente** — el diff cambia
+className en pantallas públicas (`/tienda`, `/tienda/[slug]`, `/checkout`, `/checkout/retorno`,
+`/suscripciones`, el buscador de nav). `customer_bytes.changed: true`, `customer_bytes.strings: []`
+—el texto visible (español, "Número de orden", etc.) no cambia, sólo el wiring de color compilado; es
+el caso "vacío con `changed: true` es legítimo" que la doctrina ya nombra—. La rama
+(`slice/corte-reescritura-prototipo-1`) ya venía `AWAITING_APPROVAL` por los slices anteriores; este
+slice individual también clasifica `AWAITING_APPROVAL` por cuenta propia.
+
+### Deviations
+
+Ninguna en la mecánica del wrap (literal, el patrón ya establecido). Dos correcciones sobre la
+marcha, ninguna del spec: (1) los dos bugs de sintaxis `{/* */}`-en-expresión-JS, encontrados y
+corregidos por `tsc` antes de cerrar; (2) el conteo propio (37 sitios persistentes) DIFIERE del
+citado en el spec (23, marcado `ledger_claim`, no remedido por ese slice) — se reporta como
+divergencia de granularidad de conteo (caja vs. instancia), no de superficie (archivos y pantallas
+coinciden exacto), § arriba.
+
+### Open follow-ups
+
+Ninguno nuevo. Los diez sitios sólo-hover (§ arriba, tercera condición) quedan nombrados pero fuera
+de este slice — son la misma familia, otro spec.

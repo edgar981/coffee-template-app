@@ -428,12 +428,16 @@ export default function Checkout() {
                 Pendiente"/"Pagado") se retiró de las DOS ramas de esta pantalla — la frase de
                 arriba ya le dice al comprador qué pasó, en su idioma, y el nombre del estado del
                 modelo no le agrega nada. */}
+            {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie`
+                migrado al par `var(--sf-sobre-superficie[-suave],<token de hoy>)`
+                (§ TEMAS-P6-FAMILIAS-1) — el token viejo queda como fallback, byte-idéntico
+                para Nayoli (raíces null, sin inyección de la familia `superficie`). */}
             <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
-              <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-acento-texto)] mb-4 text-center">{confirmation.numero_orden}</p>
+              <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
+              <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] mb-4 text-center">{confirmation.numero_orden}</p>
               <div className="space-y-2 pt-3 sf-divisor-t border-[var(--sf-linea)]">
                 {confirmation.items.map((item, i) => (
-                  <div key={i} className="flex justify-between text-xs text-[var(--sf-texto)]">
+                  <div key={i} className="flex justify-between text-xs text-[var(--sf-sobre-superficie,var(--sf-texto))]">
                     <span className="min-w-0 truncate pr-2">
                       {item.producto_nombre}
                       {item.moliendaSeleccionada ? ` · ${item.moliendaSeleccionada}` : ''} × {item.cantidad}
@@ -443,15 +447,15 @@ export default function Checkout() {
                 ))}
               </div>
               <div className="space-y-2 pt-3 mt-3 sf-divisor-t border-[var(--sf-linea)] text-sm">
-                <div className="flex justify-between text-[var(--sf-texto)]">
+                <div className="flex justify-between text-[var(--sf-sobre-superficie,var(--sf-texto))]">
                   <span>Subtotal</span><span>{formatCOP(confirmation.subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-[var(--sf-texto)]">
+                <div className="flex justify-between text-[var(--sf-sobre-superficie,var(--sf-texto))]">
                   <span>Envío</span>
                   <span className={confirmation.costo_envio === 0 ? 'text-emerald-600' : ''}>{confirmation.costo_envio === 0 ? 'Gratis' : formatCOP(confirmation.costo_envio)}</span>
                 </div>
                 {confirmation.metodo_envio && (
-                  <div className="flex justify-between text-[var(--sf-texto)]">
+                  <div className="flex justify-between text-[var(--sf-sobre-superficie,var(--sf-texto))]">
                     <span>Entrega</span>
                     <span className="text-right">
                       {getShippingMethod(confirmation.metodo_envio)?.label ?? confirmation.metodo_envio}
@@ -460,12 +464,12 @@ export default function Checkout() {
                   </div>
                 )}
                 {confirmation.direccion_detalle && (
-                  <div className="flex justify-between text-[var(--sf-texto)]">
+                  <div className="flex justify-between text-[var(--sf-sobre-superficie,var(--sf-texto))]">
                     <span>Detalles</span>
                     <span className="text-right">{confirmation.direccion_detalle}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-bold text-[var(--sf-tinta)] text-base pt-1 sf-divisor-t border-[var(--sf-linea)]">
+                <div className="flex justify-between font-bold text-[var(--sf-sobre-superficie,var(--sf-tinta))] text-base pt-1 sf-divisor-t border-[var(--sf-linea)]">
                   <span>Total</span><span>{formatCOP(confirmation.total)}</span>
                 </div>
               </div>
@@ -536,7 +540,8 @@ export default function Checkout() {
                     <div>
                       <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Teléfono / WhatsApp *</label>
                       <div className="flex items-stretch">
-                        <span className="inline-flex items-center px-3 rounded-l-xl sf-borde-t sf-borde-b sf-borde-l border-[var(--sf-linea)] bg-[var(--sf-superficie)] text-sm font-medium text-[var(--sf-texto)] select-none">+57</span>
+                        {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1 */}
+                        <span className="inline-flex items-center px-3 rounded-l-xl sf-borde-t sf-borde-b sf-borde-l border-[var(--sf-linea)] bg-[var(--sf-superficie)] text-sm font-medium text-[var(--sf-sobre-superficie,var(--sf-texto))] select-none">+57</span>
                         <input
                           type="tel" inputMode="numeric" value={info.telefono}
                           onChange={e => setInfo({ ...info, telefono: e.target.value })} placeholder="300 000 0000"
@@ -634,9 +639,10 @@ export default function Checkout() {
                         </div>
                         <h2 className="text-xl font-playfair text-[var(--sf-tinta)] mb-2">Tu pedido está reservado</h2>
                         <p className="text-sm text-[var(--sf-texto)] mb-4">Completa el pago abajo para confirmarlo.</p>
+                        {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1 */}
                         <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
-                          <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
-                          <p className="text-2xl font-bold text-[var(--sf-acento-texto)] text-center">{confirmation.numero_orden}</p>
+                          <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
+                          <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{confirmation.numero_orden}</p>
                         </div>
                         <PagoPasarela
                           reference={confirmation.wompi.reference}
@@ -670,7 +676,8 @@ export default function Checkout() {
                       // comprador la mala configuración de la tienda. Cada rama se escribe ENTERA (§ el
                       // gate del canal, #8). El dueño se entera del combo —sin pago Y sin canal, que es
                       // una venta muerta— por el aviso `checkout-sin-salida` del Dashboard.
-                      <div className="bg-[var(--sf-superficie)] rounded-xl p-4 text-sm text-[var(--sf-texto)]">
+                      // PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1
+                      <div className="bg-[var(--sf-superficie)] rounded-xl p-4 text-sm text-[var(--sf-sobre-superficie,var(--sf-texto))]">
                         {tieneWhatsapp
                           ? 'No hay un método de pago disponible ahora mismo. Escríbenos por WhatsApp para coordinar el pago y completar tu pedido.'
                           : 'No podemos completar tu pedido en este momento. Vuelve a intentarlo más tarde.'}
@@ -743,7 +750,9 @@ export default function Checkout() {
                     )}
 
                     {!confirmation && (
-                      <div className="bg-[var(--sf-superficie)] rounded-xl p-4 flex items-start gap-2 text-xs text-[var(--sf-texto)]">
+                      // PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: sólo el TEXTO migra (§ el patrón es
+                      // para lectura, no para color de ícono decorativo — el ícono se deja).
+                      <div className="bg-[var(--sf-superficie)] rounded-xl p-4 flex items-start gap-2 text-xs text-[var(--sf-sobre-superficie,var(--sf-texto))]">
                         <Lock className="w-3.5 h-3.5 text-[var(--sf-acento-texto)] shrink-0 mt-0.5" />
                         {/* El PLAZO no lo promete el template: «en menos de 2 horas hábiles» era una
                             promesa horneada que ningún cliente eligió y que la tienda no puede garantizar

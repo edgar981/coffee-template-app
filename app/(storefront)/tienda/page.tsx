@@ -97,11 +97,13 @@ function ShopInner() {
   return (
       <div className="pt-16">
         {/* Page Header */}
+        {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie` migrado
+            al par `var(--sf-sobre-superficie,<token de hoy>)` (§ TEMAS-P6-FAMILIAS-1). */}
         <div className="bg-[var(--sf-superficie)] sf-divisor-b border-[var(--sf-linea)] py-12">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-              <h1 className="text-4xl font-playfair text-[var(--sf-tinta)] mb-2">Nuestra Tienda</h1>
-              <p className="text-[var(--sf-texto)] text-sm">{catalog === null ? "Cargando" : `${catalog.length} productos`} · Origen colombiano</p>
+              <h1 className="text-4xl font-playfair text-[var(--sf-sobre-superficie,var(--sf-tinta))] mb-2">Nuestra Tienda</h1>
+              <p className="text-[var(--sf-sobre-superficie,var(--sf-texto))] text-sm">{catalog === null ? "Cargando" : `${catalog.length} productos`} · Origen colombiano</p>
             </motion.div>
           </div>
         </div>
@@ -135,7 +137,7 @@ function ShopInner() {
                   {/* DERIVADAS del catálogo: "Todos" + las categorías reales. El label es la categoría misma. */}
                   {['all', ...categorias].map(k => (
                     <button key={k} onClick={() => setCatFilter(k)}
-                      className={`px-3 py-1.5 sf-pildora text-xs font-medium transition-colors ${catFilter === k ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : 'bg-[var(--sf-superficie)] text-[var(--sf-texto)] hover:bg-[var(--sf-linea)]'}`}>
+                      className={`px-3 py-1.5 sf-pildora text-xs font-medium transition-colors ${catFilter === k ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : 'bg-[var(--sf-superficie)] text-[var(--sf-sobre-superficie,var(--sf-texto))] hover:bg-[var(--sf-linea)]'}`}>
                       {k === 'all' ? 'Todos' : k}
                     </button>
                   ))}
@@ -149,7 +151,7 @@ function ShopInner() {
                 <div className="flex flex-wrap gap-2">
                   {[['all', 'Todos'], ...Object.entries(TOSTADO_LABELS)].map(([k, v]) => (
                     <button key={k} onClick={() => setTostadoFilter(k as RoastLevel | "all")}
-                      className={`px-3 py-1.5 sf-pildora text-xs font-medium transition-colors ${tostadoFilter === k ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : 'bg-[var(--sf-superficie)] text-[var(--sf-texto)] hover:bg-[var(--sf-linea)]'}`}>
+                      className={`px-3 py-1.5 sf-pildora text-xs font-medium transition-colors ${tostadoFilter === k ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : 'bg-[var(--sf-superficie)] text-[var(--sf-sobre-superficie,var(--sf-texto))] hover:bg-[var(--sf-linea)]'}`}>
                       {v}
                     </button>
                   ))}

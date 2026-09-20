@@ -172,7 +172,8 @@ export default function NavSearch({
                           onClick={() =>
                             setQuery(term)
                           }
-                          className="sf-pildora bg-[var(--sf-superficie)] px-4 py-2 text-xs font-medium text-[var(--sf-texto)] transition-colors hover:bg-[var(--sf-superficie-2)]"
+                          // PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1
+                          className="sf-pildora bg-[var(--sf-superficie)] px-4 py-2 text-xs font-medium text-[var(--sf-sobre-superficie,var(--sf-texto))] transition-colors hover:bg-[var(--sf-superficie-2)]"
                         >
                           {term}
                         </button>

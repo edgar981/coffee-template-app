@@ -209,9 +209,11 @@ export default function EsperaConfirmacionTarjeta({ reference, email, resultado3
           {TEXTO.techoCuerpo}
           {resultado3ds === 'desafio' ? ` (${TEXTO.enVueloDesafio})` : ''}
         </p>
+        {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie` migrado
+            al par `var(--sf-sobre-superficie[-suave],<token de hoy>)` (§ TEMAS-P6-FAMILIAS-1). */}
         <div className="bg-[var(--sf-superficie)] rounded-2xl p-4 mb-4 text-left">
-          <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
-          <p className="text-xl font-bold text-[var(--sf-acento-texto)] text-center">{numeroOrden}</p>
+          <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
+          <p className="text-xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{numeroOrden}</p>
         </div>
         <div className="flex flex-col gap-3">
           <Link

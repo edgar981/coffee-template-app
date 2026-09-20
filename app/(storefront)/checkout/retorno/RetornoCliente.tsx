@@ -241,9 +241,12 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
             <p className="text-sm text-[var(--sf-texto-suave)] mb-6">
               Esto puede tardar unos minutos. No cierres esta página; se actualiza sola.
             </p>
+            {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie`
+                migrado al par `var(--sf-sobre-superficie[-suave],<token de hoy>)`
+                (§ TEMAS-P6-FAMILIAS-1) — token viejo como fallback, byte-idéntico para Nayoli. */}
             <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 text-left">
-              <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-acento-texto)] text-center">{vista.numeroOrden}</p>
+              <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
+              <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{vista.numeroOrden}</p>
             </div>
           </>
         )}
@@ -258,9 +261,10 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
               Te avisaremos apenas se confirme. Puedes revisar el estado de tu pedido más tarde con tu número de
               orden y tu correo.
             </p>
+            {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1 */}
             <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
-              <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-acento-texto)] text-center">{vista.numeroOrden}</p>
+              <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
+              <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{vista.numeroOrden}</p>
             </div>
             {/* Jerarquía fijada por el owner (§2, WOMPI-RETORNO-307-Y-TECHO-1): principal = número +
                 rastrear-pedido; secundaria = "Volver a consultar"; WhatsApp = terciaria y CONDICIONAL
@@ -307,9 +311,10 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
             <p className="text-sm text-[var(--sf-texto-suave)] mb-6">
               Tu pedido queda confirmado y pasa a preparación.
             </p>
+            {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1 */}
             <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
-              <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-acento-texto)] text-center">{vista.numeroOrden}</p>
+              <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
+              <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{vista.numeroOrden}</p>
             </div>
             <div className="flex flex-col gap-3">
               <Link
@@ -337,9 +342,10 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
             <p className="text-sm text-[var(--sf-texto-suave)] mb-6">
               No te preocupes, no se realizó ningún cobro. Puedes volver a la tienda e intentarlo de nuevo.
             </p>
+            {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1 */}
             <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
-              <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-acento-texto)] text-center">{vista.numeroOrden}</p>
+              <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
+              <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{vista.numeroOrden}</p>
             </div>
             <Link
               href="/tienda"

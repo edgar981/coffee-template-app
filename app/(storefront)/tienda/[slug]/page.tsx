@@ -270,7 +270,9 @@ export default function ProductPage({
                   <p className="text-xs font-semibold text-[var(--sf-texto)] uppercase tracking-wide mb-2">Notas de cata</p>
                   <div className="flex flex-wrap gap-2">
                     {product.notasCata!.map(n => (
-                      <span key={n} className="text-sm bg-[var(--sf-superficie)] text-[var(--sf-texto)] px-3 py-1 sf-pildora sf-borde border-[var(--sf-linea)]">{n}</span>
+                      // PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie`
+                      // migrado al par `var(--sf-sobre-superficie,<token de hoy>)`.
+                      <span key={n} className="text-sm bg-[var(--sf-superficie)] text-[var(--sf-sobre-superficie,var(--sf-texto))] px-3 py-1 sf-pildora sf-borde border-[var(--sf-linea)]">{n}</span>
                     ))}
                   </div>
                 </div>
@@ -318,9 +320,11 @@ export default function ProductPage({
                 {product.disponible ? (
                   <div className="space-y-3">
                     <div className="flex items-center gap-4">
+                      {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie`
+                          migrado al par `var(--sf-sobre-superficie,<token de hoy>)`. */}
                       <div className="flex items-center gap-2 bg-[var(--sf-superficie)] rounded-xl px-1">
                         <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-9 h-9 flex items-center justify-center hover:bg-[var(--sf-linea)] sf-radio-lg transition-colors cursor-pointer"><Minus className="w-4 h-4" /></button>
-                        <span className="w-8 text-center font-semibold text-[var(--sf-tinta)]">{qty}</span>
+                        <span className="w-8 text-center font-semibold text-[var(--sf-sobre-superficie,var(--sf-tinta))]">{qty}</span>
                         <button
                           onClick={() =>
                             setQty((q) => {
@@ -376,9 +380,11 @@ export default function ProductPage({
 
       {/* Related */}
       {related.length > 0 && (
+        // PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie` migrado
+        // al par `var(--sf-sobre-superficie,<token de hoy>)`.
         <div className="bg-[var(--sf-superficie)] py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-            <h2 className="mb-8 font-playfair text-2xl text-[var(--sf-tinta)]">
+            <h2 className="mb-8 font-playfair text-2xl text-[var(--sf-sobre-superficie,var(--sf-tinta))]">
               También te puede gustar
             </h2>
 

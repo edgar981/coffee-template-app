@@ -19,9 +19,13 @@ export default function SuscripcionPasos() {
   const pasos = pasosDeSuscripcion(c);
 
   return (
+    // PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie` migrado al
+    // par `var(--sf-sobre-superficie,<token de hoy>)` (§ TEMAS-P6-FAMILIAS-1) — el token viejo
+    // queda como fallback, byte-idéntico para Nayoli. `--sf-tostado` (línea del "0N") NO migra:
+    // es decorativo, nunca formó parte de la familia floreada-contra-fondo.
     <section className="py-16 bg-[var(--sf-superficie)]">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-playfair text-[var(--sf-tinta)] text-center mb-10">{c.titulo}</h2>
+        <h2 className="text-2xl font-playfair text-[var(--sf-sobre-superficie,var(--sf-tinta))] text-center mb-10">{c.titulo}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
           {pasos.map((paso, i) => {
             const Icono = ICONOS[i];
@@ -31,8 +35,8 @@ export default function SuscripcionPasos() {
                   <Icono className="w-5 h-5 text-[var(--sf-acento-txt)]" />
                 </div>
                 <p className="text-[var(--sf-tostado)] text-xs font-bold mb-1">{String(i + 1).padStart(2, '0')}</p>
-                <p className="font-semibold text-[var(--sf-tinta)] mb-1 text-sm">{paso.label}</p>
-                <p className="text-xs text-[var(--sf-texto)]">{paso.descripcion}</p>
+                <p className="font-semibold text-[var(--sf-sobre-superficie,var(--sf-tinta))] mb-1 text-sm">{paso.label}</p>
+                <p className="text-xs text-[var(--sf-sobre-superficie,var(--sf-texto))]">{paso.descripcion}</p>
               </div>
             );
           })}

@@ -130,9 +130,11 @@ export default function EsperaRedireccionPasarela({ reference, tipo }: EsperaRed
         </div>
         <h3 className="text-xl font-playfair text-[var(--sf-tinta)] mb-1">{TEXTO.techoTitulo}</h3>
         <p className="text-sm text-[var(--sf-texto-suave)] mb-3">{TEXTO.techoCuerpo}</p>
+        {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie` migrado
+            al par `var(--sf-sobre-superficie[-suave],<token de hoy>)` (§ TEMAS-P6-FAMILIAS-1). */}
         <div className="bg-[var(--sf-superficie)] rounded-2xl p-4 mb-4 text-left">
-          <p className="text-xs text-[var(--sf-texto-suave)] mb-1 text-center">Número de orden</p>
-          <p className="text-xl font-bold text-[var(--sf-acento-texto)] text-center">{numeroOrden}</p>
+          <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
+          <p className="text-xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{numeroOrden}</p>
         </div>
         <div className="flex flex-col gap-3">
           <Link
@@ -152,12 +154,18 @@ export default function EsperaRedireccionPasarela({ reference, tipo }: EsperaRed
     );
   }
 
+  // PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: este `<p>` NO tiene fondo propio en este archivo — su
+  // único llamador (`FormularioOtroMetodoPasarela.tsx`) lo monta DENTRO de un
+  // `bg-[var(--sf-superficie)]`, así que el fondo real no se puede leer acá. DECIDIDO, no medido: se
+  // trata como si estuviera sobre la superficie (la dirección conservadora — verificado con las 7
+  // paletas del repo, `sobre-superficie` da MÁS contraste contra `fondo` que contra `superficie` en
+  // las 7, nunca menos, así que el wrap es seguro caiga donde caiga).
   return (
     <div className="text-center">
       <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
         <ExternalLink className="w-8 h-8 text-amber-600 animate-pulse" />
       </div>
-      <p className="text-sm text-[var(--sf-texto)]">
+      <p className="text-sm text-[var(--sf-sobre-superficie,var(--sf-texto))]">
         {vista === 'redirigiendo' ? TEXTO.redirigiendo : TEXTO.esperando}
       </p>
     </div>
