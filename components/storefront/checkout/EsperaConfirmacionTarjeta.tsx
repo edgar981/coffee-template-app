@@ -210,10 +210,14 @@ export default function EsperaConfirmacionTarjeta({ reference, email, resultado3
           {resultado3ds === 'desafio' ? ` (${TEXTO.enVueloDesafio})` : ''}
         </p>
         {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie` migrado
-            al par `var(--sf-sobre-superficie[-suave],<token de hoy>)` (§ TEMAS-P6-FAMILIAS-1). */}
+            al par `var(--sf-sobre-superficie[-suave],<token de hoy>)` (§ TEMAS-P6-FAMILIAS-1) --
+            salvo el número de orden, cuyo fallback era `--sf-acento-texto`: para un inquilino
+            CON paleta ese par vale OTRO color que `--sf-acento-texto`. PALETA-MIGRACION-SACAR-
+            LOS-QUE-MUEVEN-1 lo revirtió -- § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1,
+            DECISIONS.md. */}
         <div className="bg-[var(--sf-superficie)] rounded-2xl p-4 mb-4 text-left">
           <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
-          <p className="text-xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{numeroOrden}</p>
+          <p className="text-xl font-bold text-[var(--sf-acento-texto)] text-center">{numeroOrden}</p>
         </div>
         <div className="flex flex-col gap-3">
           <Link

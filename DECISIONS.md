@@ -10012,3 +10012,110 @@ condición — `checkout/page.tsx` ×4, `RetornoCliente.tsx` ×2, `EsperaRedirec
 `--sf-superficie` SÓLO en `:hover`, sin el par `sobre-superficie`/`sobre-superficie-suave` en esa
 transición. Es la misma familia de defecto, un spec propio — no se ejecuta acá porque el owner lo
 excluyó explícitamente de este slice (tercera condición).
+
+## 2026-09-20 — PALETA-MIGRACION-SACAR-LOS-QUE-MUEVEN-1: revertir los 14 sitios cuyo respaldo NO
+era el token de texto — mueven el color del inquilino por defecto
+
+**Ejecuta la condición textual del owner al aprobar `PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1`
+(§ arriba, 2026-09-20): «Nayoli byte-idéntica, verificada y reportada como tal. Si algún sitio la
+mueve, ESE SALE DEL SLICE y viene a mi gate solo».** Ese slice verificó y reportó el caso literal
+—Nayoli con `content.tema` NULL, donde `--sf-sobre-superficie` no tiene default y el `var(...)`
+SIEMPRE cae al fallback, byte a byte—, pero la condición del owner habla de un color que se MUEVE
+"en una tienda real", y una tienda real con paleta propia NO cae al fallback: el motor inyecta
+`--sf-sobre-superficie`/`-suave` para cualquier `content.tema` no-null, así que el par se pinta
+SIEMPRE, sea cual sea el valor. **El fallback nunca protege a un inquilino CON paleta** — protege
+sólo el caso null, que es Nayoli sola.
+
+### La medición: `derivarPaleta(RAICES_DEFECTO)` — el "inquilino por defecto" es ARRANQUE, no Nayoli-null
+
+El "inquilino por defecto" de la condición del owner no es la Nayoli literal (raíces null, sin
+inyección) sino un inquilino QUE SÍ TIENE paleta con los mismos números que Nayoli — el preset
+`ARRANQUE` (`themes.ts:502-519`, `raices: RAICES_DEFECTO`) es exactamente ese caso: pasa por el
+motor, así que `sobre-superficie`/`-suave` se computan de verdad, no caen a fallback.
+
+Medido con `derivarPaleta(RAICES_DEFECTO)` (`.scratch/verificar-sitios-migrados-mueven.ts`, no
+conservado — gitignored, resultado acá):
+
+| token nuevo | valor | token viejo (fallback) | valor | ¿mueve? |
+| --- | --- | --- | --- | --- |
+| `sobre-superficie` | `#613211` | `texto` | `#613211` | NO |
+| `sobre-superficie-suave` | `#7c3e12` | `texto-suave` | `#7c3e12` | NO |
+| `sobre-superficie` | `#613211` | `acento-texto` | `#8b4513` | **SÍ** |
+| `sobre-superficie` | `#613211` | `tinta` | `#1a0f08` | **SÍ** |
+
+La razón está en `palette-derive.ts` (`:266-267` vs `:286-287`): `texto`/`texto-suave` y
+`sobre-superficie`/`-suave` REUSAN la MISMA mezcla acento/tinta a los MISMOS pesos (0.34/0.12,
+comentario de `:275`, "reusa los mismos candidatos") — sólo difiere contra QUÉ se floreacontrastan
+(`fondo` vs `superficie`), y para `RAICES_DEFECTO` los dos floreos convergen al mismo hex. En
+cambio `acento-texto` (`:265`, `pisoContraste(tinta,fondo,4.5)`, floreo del hex CRUDO de `tinta`
+sin mezcla con `acento`) y `tinta` (raíz sin derivar) parten de un candidato COMPLETAMENTE
+distinto a la mezcla acento/tinta-al-34%: no hay razón matemática para que coincidan, y no
+coinciden.
+
+### Los 14 sitios revertidos
+
+Sólo se tocó el `className` de cada sitio (vuelta al token viejo, sin el wrap) más el comentario
+que lo documentaba; ningún otro carácter del archivo cambió.
+
+| archivo | sitios | fallback que tenían |
+| --- | --- | --- |
+| `app/(storefront)/tienda/page.tsx` | 1 (h1 "Nuestra Tienda") | `--sf-tinta` |
+| `app/(storefront)/tienda/[slug]/page.tsx` | 2 (cantidad del selector; h2 "También te puede gustar") | `--sf-tinta` |
+| `app/(storefront)/checkout/page.tsx` | 3 (número de orden × 2 ramas; Total del resumen) | `--sf-acento-texto` ×2, `--sf-tinta` ×1 |
+| `app/(storefront)/checkout/retorno/RetornoCliente.tsx` | 4 (número de orden, las 4 ramas: enVuelo/techo/aprobado/fallido) | `--sf-acento-texto` |
+| `components/storefront/checkout/EsperaConfirmacionTarjeta.tsx` | 1 (número de orden) | `--sf-acento-texto` |
+| `components/storefront/checkout/EsperaRedireccionPasarela.tsx` | 1 (número de orden) | `--sf-acento-texto` |
+| `components/storefront/suscripciones/SuscripcionPasos.tsx` | 2 (h2 del título; label de cada paso) | `--sf-tinta` |
+| **total** | **14** | |
+
+Ningún sitio con fallback `--sf-texto`/`--sf-texto-suave` se tocó — ésos SON el caso "no mueve"
+(§ tabla de arriba), y quedan migrados tal como los dejó `PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1`.
+
+### La verificación del owner: TODOS los sitios que QUEDAN migrados resuelven igual, para el
+inquilino por defecto
+
+Medido con `.scratch/verificar-sitios-quedan-migrados.ts` (no conservado): barrido del árbol real
+(`grep -rl "sf-sobre-superficie" --include="*.tsx" "app/(storefront)" components/storefront`), no
+una lista escrita a mano, comparando cada `var(--sf-sobre-superficie[-suave],var(--sf-<token>))`
+contra `derivarPaleta(RAICES_DEFECTO)`:
+
+- **26 sitios totales** con el wrap en el árbol tras este slice.
+- **2 diferencias, las DOS en `ProductChip.tsx`** (`:16`, `:20`) — **fuera de alcance de
+  `PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1`**: son los DOS consumidores que YA existían ANTES de
+  esa migración (`TEMAS-P6-FAMILIAS-1`, no tocados por el commit `399aff2`), y su fallback
+  (`--sf-tostado-3`/`--sf-tinta`) es DELIBERADAMENTE distinto — el propio comentario de
+  `ProductChip.tsx:10-13` documenta que el par `sobre-superficie` se construyó PORQUE esos dos
+  tokens medían 2.30–3.63:1 contra la superficie real (bajo AA); que el nuevo valor difiera del
+  viejo ahí es el ÉXITO del fix, no un defecto.
+- **Los 24 sitios restantes (26 − 2 fuera de alcance) — CERO diferencias.** Para el inquilino con
+  la paleta de `RAICES_DEFECTO`, todo sitio que la migración de `PALETA-MIGRAR-TEXTO-SOBRE-
+  SUPERFICIE-1` dejó migrado (23, tras revertir los 14 de este slice sobre los 37 originales) más
+  el consumidor pre-existente `ProductCard.tsx` (1) resuelven al MISMO hex que antes del wrap.
+
+### Gate
+
+`npx tsc --noEmit`: limpio. `npx next build`: `✓ Compiled successfully`. `npm test` (capa 1):
+**1517/1517**, 0 fail. `npm run test:integracion` (capa 2, Postgres 14 efímero): **208/208**, 0
+fail. Mismo piso que `PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1` (este slice no tocó ningún archivo
+con test propio — son 7 archivos de presentación, sin lógica).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, 2026-09-20, condición dada al aprobar el slice anterior — ver
+cabecera de este asiento). Los 7 archivos tocados están en `app/(storefront)/` y
+`components/storefront/` — Tier 1, bytes del visitante. Contra MERGE POLICY A: **sin
+schema/migración**, **sin contrato cross-repo**, pero **SÍ bytes de cliente** — el diff revierte
+`className` en pantallas públicas (`/tienda`, `/tienda/[slug]`, `/checkout`, `/checkout/retorno`,
+`/suscripciones`). `customer_bytes.changed: true`, `customer_bytes.strings: []` — el texto visible
+no cambia, sólo el wiring de color compilado. `AWAITING_APPROVAL`.
+
+### Open follow-ups
+
+**`PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1`**: los 14 sitios de la tabla de arriba SIGUEN con el
+defecto de contraste original contra `--sf-superficie` que `PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1`
+existía para cerrar — sólo que, a diferencia de los 23 que sí quedaron migrados, arreglarlos
+CAMBIA el color visible del inquilino por defecto (y de cualquier tenant con paleta propia), no
+sólo el de una paleta custom hipotética. Es una decisión de PRODUCTO —qué color debe llevar el
+número de orden y los títulos que hoy pintan `--sf-acento-texto`/`--sf-tinta` sobre una superficie
+elevada—, no una continuación mecánica del mismo wrap; por eso queda para el gate propio del owner,
+no se resuelve acá con un tercer token.
