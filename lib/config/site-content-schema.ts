@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BANDA_IDS } from './site-content-defaults';
+import { BANDA_IDS, MENU_ITEM_IDS, MENU_CTA_DESTINOS } from './site-content-defaults';
 
 // Forma EDITABLE del contenido del storefront. La corren el PATCH (la que MANDA) y el editor
 // (aviso temprano) — como el schema de SiteSetting.
@@ -248,6 +248,38 @@ const cromoEditableSchema = z.object({
   navBadge: z.string().optional(),
 });
 
+// El MENÚ del nav (§ CROMO-MENU-COMO-DATO-1). A diferencia de `cromo`/`esquemas`/`orden` de arriba,
+// ESTA sí es una SECCIÓN de verdad (pasa por el flujo borrador/publicar de siempre, § REGISTRY.menu
+// en site-content-defaults.ts) — se declara acá por la MISMA razón que todas las demás secciones:
+// zod descarta lo no declarado, y un campo del modelo sin su entrada acá se STRIPPEA en silencio al
+// guardar (§65-B).
+//
+// `posicion1/2/3` y `ctaDestino` son del WRITE ESTRICTO sobre sus DOS sets cerrados
+// (`MENU_ITEM_IDS`/`MENU_CTA_DESTINOS`, la MISMA lista que lee el render en `site-content-
+// defaults.ts` — declarada una vez, sin una segunda copia que pueda desincronizarse) — mismo
+// criterio que `ordenEditableSchema`/`esquemasEditableSchema`: el WRITE puede ser más estricto que
+// el LOADER (`resolverOrdenMenu`/`menuCtaHref`, que absorben basura SOFT para no romper una lectura
+// ya guardada). `z.literal('')` convive con el enum porque el campo puede llegar vacío —posición
+// SIN elegir (el resolver la completa con la canónica) o CTA APAGADO (`ctaDestino` sin `ctaLabel`)—
+// y un enum solo no acepta la cadena vacía.
+const menuEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  labelTienda: z.string().optional(),
+  labelSuscripciones: z.string().optional(),
+  labelNosotros: z.string().optional(),
+  posicion1: z.union([z.enum(MENU_ITEM_IDS), z.literal('')]).optional(),
+  posicion2: z.union([z.enum(MENU_ITEM_IDS), z.literal('')]).optional(),
+  posicion3: z.union([z.enum(MENU_ITEM_IDS), z.literal('')]).optional(),
+  ctaLabel: z.string().optional(),
+  ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+}).refine(
+  (v) => {
+    const vals = [v.posicion1, v.posicion2, v.posicion3].filter((x) => !!x);
+    return new Set(vals).size === vals.length;
+  },
+  { message: 'menu: un ítem no puede ocupar dos posiciones a la vez', path: ['posicion1'] },
+);
+
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   brandStory: brandStoryEditableSchema.optional(),
@@ -259,6 +291,7 @@ export const siteContentEditableSchema = z.object({
   suscripcionPlanes: suscripcionPlanesEditableSchema.optional(),
   suscripcionPasos: suscripcionPasosEditableSchema.optional(),
   suscripcionFaq: suscripcionFaqEditableSchema.optional(),
+  menu: menuEditableSchema.optional(),
   paginas: paginasEditableSchema.optional(),
   cromo: cromoEditableSchema.optional(),
   esquemas: esquemasEditableSchema.optional(),

@@ -285,6 +285,48 @@ export interface SuscripcionFaqContent {
   items: SuscripcionFaqItem[];
 }
 
+// Los TRES ítems CONOCIDOS del menú del nav (§ CROMO-MENU-COMO-DATO-1) — set CERRADO: no se
+// agregan ni se quitan ítems, sólo se RENOMBRAN y se REORDENAN. El orden CANÓNICO (el de
+// `StoreNav.tsx` antes de este slice) es tienda → suscripciones → nosotros.
+export const MENU_ITEM_IDS = ['tienda', 'suscripciones', 'nosotros'] as const;
+export type MenuItemId = typeof MENU_ITEM_IDS[number];
+
+// El SET CERRADO de destinos del CTA del menú — mismo patrón que `HERO_HREFS` (abajo): el dueño
+// ELIGE entre rutas que YA EXISTEN, nunca escribe una libre. Declarado UNA vez: tanto el render
+// (`menuCtaHref`, abajo) como el validador del schema (`site-content-schema.ts`) leen esta lista,
+// para que no diverjan.
+export const MENU_CTA_DESTINOS = ['/tienda', '/suscripciones', '/nosotros'] as const;
+export type MenuCtaDestino = typeof MENU_CTA_DESTINOS[number];
+
+// El MENÚ del nav (§ CROMO-MENU-COMO-DATO-1). Los TRES ítems son CONOCIDOS —`MENU_ITEM_IDS`—, no un
+// repeater: sus RUTAS son ESTRUCTURA (como `HERO_HREFS`), sólo la ETIQUETA de cada uno es dato
+// (patrón `ctaPrimarioLabel`: requerido, vacío → el literal de hoy). `ocultable:false` — el menú
+// entero no se apaga; cada ítem individual sigue gateado por `paginas.*.visible`, SIN CAMBIO
+// (§ VISIBILIDAD se queda como hoy — renombrar no es encender).
+//
+// LAS POSICIONES SON `content.orden` (§ orden de bandas) SPLIT EN TRES CAMPOS ESCALARES en vez de
+// un array: la cáscara del editor sólo pinta campos de texto/select nativos —no hay UI de
+// arrastrar-para-reordenar—, así que la MISMA idea de `orden` (una secuencia de ids, SOFT, siempre
+// completa, la basura cae a la canónica) se expresa como tres selects nativos de opciones fijas
+// (`MENU_ITEM_IDS`), uno por posición. `resolverOrdenMenu` (abajo) dedupe y completa exactamente
+// como `resolverOrden` — gemela, no una copia literal: el dominio es distinto (`MenuItemId`, no
+// `BandaId`), así que es su propia función, del mismo tamaño y forma.
+export interface MenuContent {
+  visible: boolean;
+  labelTienda: string;
+  labelSuscripciones: string;
+  labelNosotros: string;
+  posicion1: string;
+  posicion2: string;
+  posicion3: string;
+  // El CTA (§ CROMO-MENU-COMO-DATO-1): AMBOS opcionales, default vacío → el CTA no se muestra — hoy
+  // no hay CTA en el nav, así que el default es Nayoli byte-idéntica. `ctaDestino` es del SET
+  // CERRADO `MENU_CTA_DESTINOS`; un valor fuera del set (basura, o el schema ya lo rechaza al
+  // guardar) hace que `menuCtaHref` no lo renderice — preferir callar a un link roto.
+  ctaLabel: string;
+  ctaDestino: string;
+}
+
 // META de páginas: qué páginas del storefront están ENCENDIDAS. NO es una sección (no lleva `campos`
 // ni la resuelve el loop de secciones); es una capacidad —una página existe y se puede apagar—. Hoy
 // /nosotros y /suscripciones son CAPACIDADES apagables (la home no se apaga). `suscripciones`
@@ -366,6 +408,7 @@ export interface SiteContentData {
   suscripcionPlanes: SuscripcionPlanesContent;
   suscripcionPasos: SuscripcionPasosContent;
   suscripcionFaq: SuscripcionFaqContent;
+  menu: MenuContent;
   paginas: PaginasContent;
   tema: TemaContent;
   cromo: CromoContent;
@@ -616,6 +659,20 @@ export const DEFAULTS: SiteContentData = {
     visible: true,
     titulo: 'Preguntas frecuentes',
     items: [],
+  },
+  // El MENÚ por defecto: los TRES labels y el orden de HOY (`StoreNav.tsx`, antes de este slice) —
+  // tienda → suscripciones → nosotros—, y el CTA APAGADO (los dos campos vacíos). Byte-idéntico sin
+  // fila (§ CROMO-MENU-COMO-DATO-1, la invariante del slice).
+  menu: {
+    visible: true,
+    labelTienda: 'Tienda',
+    labelSuscripciones: 'Suscripciones',
+    labelNosotros: 'Nosotros',
+    posicion1: 'tienda',
+    posicion2: 'suscripciones',
+    posicion3: 'nosotros',
+    ctaLabel: '',
+    ctaDestino: '',
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
@@ -985,6 +1042,27 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       },
     },
   },
+  // El MENÚ del nav (§ CROMO-MENU-COMO-DATO-1). `ocultable:false` — como el hero, el menú no se
+  // apaga entero; renombrar/reordenar no es lo mismo que encender/apagar. Sin `imagenes` (no lleva
+  // ninguna). Las posiciones y el CTA son 'requerido'/'opcional' STRINGS PLANOS a propósito —el
+  // resolver genérico no valida pertenencia a un set cerrado, sólo default-vs-omit—; el set cerrado
+  // lo impone el SCHEMA (§ site-content-schema.ts, `menuEditableSchema`) al escribir, y el RENDER
+  // (`resolverOrdenMenu`/`menuCtaHref`, abajo) lo vuelve a filtrar SOFT al leer, para que un dato
+  // corrupto por otra vía (un `UPDATE` a mano, una fila vieja) no produzca un link roto.
+  menu: {
+    label: 'Menú',
+    ocultable: false,
+    campos: {
+      labelTienda: 'requerido',
+      labelSuscripciones: 'requerido',
+      labelNosotros: 'requerido',
+      posicion1: 'requerido',
+      posicion2: 'requerido',
+      posicion3: 'requerido',
+      ctaLabel: 'opcional',
+      ctaDestino: 'opcional',
+    },
+  },
 };
 
 // VARIANTES DE BANDAS ESTRUCTURALES (TEMAS-P1-FEATURED-VARIANTES-1): el gemelo de `SeccionDef.
@@ -1259,6 +1337,80 @@ export function resolverOrden(stored: unknown): BandaId[] {
     if (!vistos.has(id)) out.push(id);
   }
   return out;
+}
+
+const MENU_ITEM_ID_SET: ReadonlySet<string> = new Set(MENU_ITEM_IDS);
+
+/** Resuelve las 3 posiciones guardadas del menú (§ CROMO-MENU-COMO-DATO-1, posibles vacías/basura/
+ *  duplicadas) al orden final de ids: las válidas y sin repetir, en el orden en que aparecen; lo
+ *  faltante se completa con las canónicas restantes, en su orden canónico. GEMELA de `resolverOrden`
+ *  (mismo algoritmo — válido-y-primero-visto, luego rellenar con lo que falte en orden canónico—,
+ *  otro dominio: `MenuItemId` en vez de `BandaId`), no una copia literal: `resolverOrden` está
+ *  atada al tipo `BandaId[]`, así que generalizarla habría tocado el eje de bandas que este slice
+ *  no toca. Un tenant que no edita nada da EXACTAMENTE `MENU_ITEM_IDS` — el orden de hoy. */
+export function resolverOrdenMenu(posiciones: readonly unknown[]): MenuItemId[] {
+  const out: MenuItemId[] = [];
+  const vistos = new Set<MenuItemId>();
+  for (const v of posiciones) {
+    if (typeof v === 'string' && MENU_ITEM_ID_SET.has(v) && !vistos.has(v as MenuItemId)) {
+      out.push(v as MenuItemId);
+      vistos.add(v as MenuItemId);
+    }
+  }
+  for (const id of MENU_ITEM_IDS) {
+    if (!vistos.has(id)) out.push(id);
+  }
+  return out;
+}
+
+/** El LABEL editable de un ítem del menú (§ CROMO-MENU-COMO-DATO-1) — patrón `ctaPrimarioLabel`. */
+export function labelDeItemMenu(menu: MenuContent, id: MenuItemId): string {
+  if (id === 'tienda') return menu.labelTienda;
+  if (id === 'suscripciones') return menu.labelSuscripciones;
+  return menu.labelNosotros;
+}
+
+const MENU_PATHS: Record<MenuItemId, string> = {
+  tienda: '/tienda',
+  suscripciones: '/suscripciones',
+  nosotros: '/nosotros',
+};
+
+// A qué página gatea cada ítem (§ VISIBILIDAD se queda como hoy): `tienda` no tiene página que
+// apagar (SIEMPRE visible, como hoy); `suscripciones`/`nosotros` siguen leyendo
+// `paginas.*.visible`, SIN CAMBIO — renombrar no es encender.
+const MENU_PAGE_GATE: Partial<Record<MenuItemId, 'nosotros' | 'suscripciones'>> = {
+  suscripciones: 'suscripciones',
+  nosotros: 'nosotros',
+};
+
+/** Los ítems del menú a MOSTRAR, en el orden resuelto, con su label editable y su ruta —lo que
+ *  `StoreNav.tsx` necesita para pintar el nav de escritorio y el drawer móvil (§ CROMO-MENU-COMO-
+ *  DATO-1). El vocabulario ES la decisión de producto (qué se ve y en qué orden), así que vive acá
+ *  y no en un `if` dentro del componente —mismo criterio que `estadoEntrega`/`lib/metrics/
+ *  titulares.ts` (§ doctrina). */
+export function itemsDeMenu(content: SiteContentData): { id: MenuItemId; label: string; path: string }[] {
+  const orden = resolverOrdenMenu([content.menu.posicion1, content.menu.posicion2, content.menu.posicion3]);
+  return orden
+    .filter((id) => {
+      const gate = MENU_PAGE_GATE[id];
+      return !gate || content.paginas[gate].visible;
+    })
+    .map((id) => ({ id, label: labelDeItemMenu(content.menu, id), path: MENU_PATHS[id] }));
+}
+
+const MENU_CTA_DESTINO_SET: ReadonlySet<string> = new Set(MENU_CTA_DESTINOS);
+
+/** El href del CTA del menú, o `null` si no debe mostrarse: sin label, sin destino válido (fuera
+ *  del set cerrado), o apuntando a una página apagada (§ paginas.*.visible) — preferir callar a un
+ *  link roto, mismo criterio que `opcionTransferencia`/el CTA de suscripciones sin whatsapp. */
+export function menuCtaHref(content: SiteContentData): string | null {
+  const { ctaLabel, ctaDestino } = content.menu;
+  if (ctaLabel.trim() === '') return null;
+  if (!MENU_CTA_DESTINO_SET.has(ctaDestino)) return null;
+  if (ctaDestino === '/suscripciones' && !content.paginas.suscripciones.visible) return null;
+  if (ctaDestino === '/nosotros' && !content.paginas.nosotros.visible) return null;
+  return ctaDestino;
 }
 
 // Resuelve el array de items de una sección repeater. Cada ítem: los campos `requerido`/`opcional`

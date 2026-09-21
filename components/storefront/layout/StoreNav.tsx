@@ -11,22 +11,19 @@ import { STOREFRONT_TIENE_MARK } from '@/lib/config/storefront-marca';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { tratamientoNav } from '@/lib/config/esquema-style';
-import { resolverOrden, varianteDeBanda } from '@/lib/config/site-content-defaults';
+import { resolverOrden, varianteDeBanda, itemsDeMenu, menuCtaHref } from '@/lib/config/site-content-defaults';
 
 export default function StoreNav() {
   const { nombre, tagline } = useSiteSettings();
-  // "Nosotros" es RUTA (/nosotros), y sólo aparece si la página está ENCENDIDA (§ paginas.nosotros).
-  // Apagada, el enlace desaparece. Antes era un ancla a la home (`/#nuestra-historia`), cuyo
-  // active-state por `pathname.startsWith` nunca matcheaba —la ruta real lo arregla—.
+  // El MENÚ es DATO (§ CROMO-MENU-COMO-DATO-1): `itemsDeMenu` resuelve las etiquetas + el orden
+  // editables sobre el set CERRADO de tres ítems, y sigue gateando "Nosotros"/"Suscripciones" por
+  // `paginas.*.visible`, SIN CAMBIO (renombrar no es encender). Con `content.menu` en su default —
+  // ningún tenant lo edita— `links` es EXACTAMENTE el array de hoy: label/path de las tres rutas, en
+  // el mismo orden. El CTA (`menuCtaHref`) nace apagado (`null`) hasta que el dueño lo configure.
   const content = useSiteContent();
-  const { paginas, esquemas, tema, orden, cromo } = content;
-  const links = [
-    { label: 'Tienda', path: '/tienda' },
-    // Suscripciones y Nosotros son CAPACIDADES apagables: su link aparece sólo si la página está viva
-    // (§ paginas.*.visible). Un link a una página que redirige a la home sería un enlace muerto.
-    ...(paginas.suscripciones.visible ? [{ label: 'Suscripciones', path: '/suscripciones' }] : []),
-    ...(paginas.nosotros.visible ? [{ label: 'Nosotros', path: '/nosotros' }] : []),
-  ];
+  const { esquemas, tema, orden, cromo } = content;
+  const links = itemsDeMenu(content);
+  const ctaHref = menuCtaHref(content);
 
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -126,6 +123,18 @@ export default function StoreNav() {
                   {l.label}
                 </Link>
               ))}
+              {/* El CTA del menú (§ CROMO-MENU-COMO-DATO-1): apagado por defecto (`ctaHref` null), así
+                  que Nayoli no gana nada acá. Se pinta como ACCIÓN —un botón, no un link plano—,
+                  tomando la FORMA del bloque `/cuenta` muerto de más abajo (pill con fondo de tinte),
+                  no su destino ni su contenido. */}
+              {ctaHref && (
+                <Link
+                  href={ctaHref}
+                  className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-medium transition-colors ${navClaro ? 'bg-[var(--sf-sobre)]/10 text-[var(--sf-sobre)] hover:bg-[var(--sf-sobre)]/20' : 'bg-[var(--sf-acento)]/10 text-[var(--sf-acento-4)] hover:bg-[var(--sf-acento)]/20'}`}
+                >
+                  {content.menu.ctaLabel}
+                </Link>
+              )}
             </nav>
 
             <NavSearch
@@ -171,6 +180,17 @@ export default function StoreNav() {
               {links.map(l => (
                 <Link key={l.path} href={l.path} onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2 sf-divisor-b border-[var(--sf-superficie)] last:border-0">{l.label}</Link>
               ))}
+              {/* El CTA del menú (§ CROMO-MENU-COMO-DATO-1), la misma pieza que el desktop nav —
+                  pintada como acción, no como link plano—. */}
+              {ctaHref && (
+                <Link
+                  href={ctaHref}
+                  onClick={() => setMobileOpen(false)}
+                  className="inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium bg-[var(--sf-acento)]/10 text-[var(--sf-acento-4)]"
+                >
+                  {content.menu.ctaLabel}
+                </Link>
+              )}
               {/* v1: /cuenta link hidden — restore when account feature ships */}
               {/* <Link href="/cuenta" onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2">Mi Cuenta</Link> */}
               <Link href="/rastrear-pedido" onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2">Rastrear Pedido</Link>

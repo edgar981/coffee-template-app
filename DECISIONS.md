@@ -10425,3 +10425,200 @@ resucitado en `false`/`''` en silencio), no una preferencia de nombre.
   superficie al header fijo (banda/logo/sub-encabezado/badge); el drawer es una superficie de
   chrome más que el prototipo no describe con el mismo detalle. Disparador: si el próximo gate del
   owner lo nota como inconsistente al abrir el menú en angosto.
+
+## 2026-09-21 — El menú del nav se vuelve dato del tenant — etiquetas y orden editables, un CTA sobre un set cerrado (`CROMO-MENU-COMO-DATO-1`) — RULING_NEEDED
+
+**El programa (owner, "se parece al prototipo", 2026-09-21), punto 1b, `CROMO-MENU-COMO-DATO-CENSO-1`
+(censo previo, `9a7ab97e2ab8`):** el menú era un array literal de tres ítems conocidos con etiqueta y
+ruta fijas. El owner falló a favor de la lectura recomendada: **ítems CONOCIDOS con etiqueta editable
++ reorden, destinos de un SET CERRADO (nunca una lista libre — misma doctrina que `HERO_HREFS`), y un
+CTA opcional**, con default = el menú de hoy, Nayoli byte-idéntica.
+
+### El MODELO — todo dentro de `touches:`
+
+`SiteContentData.menu` (`MenuContent`, `lib/config/site-content-defaults.ts`) es una SECCIÓN de
+verdad (en `REGISTRY`, pasa por el flujo borrador/publicar de siempre) con ocho campos:
+
+| campo | tipo | default | qué es |
+| --- | --- | --- | --- |
+| `labelTienda`/`labelSuscripciones`/`labelNosotros` | requerido | `'Tienda'`/`'Suscripciones'`/`'Nosotros'` | la etiqueta editable de cada ítem CONOCIDO — patrón `ctaPrimarioLabel` |
+| `posicion1`/`posicion2`/`posicion3` | requerido | `'tienda'`/`'suscripciones'`/`'nosotros'` | el ORDEN, SPLIT en tres campos escalares (§ abajo) |
+| `ctaLabel`/`ctaDestino` | opcional | `''`/`''` | el CTA, apagado por defecto |
+
+**Las RUTAS son ESTRUCTURA, no dato** — `MENU_PATHS` (interno) mapea cada uno de los TRES ids
+CONOCIDOS (`MENU_ITEM_IDS = ['tienda','suscripciones','nosotros'] as const`, el set cerrado) a su
+ruta fija. No se agregan ni se quitan ítems; sólo se renombran y se reordenan.
+
+**El CTA vive sobre `MENU_CTA_DESTINOS = ['/tienda','/suscripciones','/nosotros'] as const`** —
+declarado UNA vez en `site-content-defaults.ts`, y tanto el render (`menuCtaHref`) como el validador
+del schema (`menuEditableSchema`, `site-content-schema.ts`) leen esa misma lista. Un destino fuera
+del set (por ejemplo una URL externa) se **rechaza al guardar** (schema) y, si llegara igual por otra
+vía (un `UPDATE` a mano, una fila vieja), **no se renderiza** (`menuCtaHref` vuelve a filtrar contra
+el mismo set — SOFT, preferir callar a un link roto).
+
+**LA VISIBILIDAD NO SE TOCÓ.** `itemsDeMenu` sigue gateando "Suscripciones"/"Nosotros" por
+`paginas.suscripciones.visible`/`paginas.nosotros.visible`, exactamente como el array literal de
+hoy — renombrar no es encender. `tienda` no tiene página que apagar y sigue siempre presente.
+
+### EL ORDEN — por qué son TRES campos escalares y no un array
+
+El spec pedía seguir la FORMA de `content.orden` (las bandas del home): una secuencia SOFT, siempre
+completa, donde la basura cae a la canónica — sin repetir su LÓGICA (el dominio es distinto,
+`MenuItemId` no `BandaId`, y `resolverOrden` está atada al tipo `BandaId[]`).
+
+**La cáscara del editor (`TiendaSeccionEditor`) sólo pinta campos de texto/select nativos — no hay
+mecanismo de arrastrar-para-reordenar un array** (el que sí existe, en `RepeaterEditor`, es de
+flechas sobre una LISTA dinámica, no aplicable a tres campos fijos). Así que la misma idea de
+`orden` se expresa como TRES campos escalares (`posicion1/2/3`), cada uno un `<select>` nativo de
+opciones fijas (`MENU_ITEM_IDS`) — el patrón ya establecido (`destacadoSlot`, `opciones` en
+`CampoTexto`, § Controles de formulario, el select es NATIVO). `resolverOrdenMenu` (gemela de
+`resolverOrden`, mismo algoritmo: válido-y-primero-visto, luego rellenar con lo que falte en orden
+canónico) los recompone en la secuencia final. Afirmado con 8 tests (dedupe, basura, parcial, orden
+editado) más dos que documentan el BORDE medido: una STRING no perteneciente al set cerrado
+(`'inicio'`) **sobrevive el resolver genérico** (`esVacio` sólo mira vacío/no-vacío, no pertenencia)
+y es `resolverOrdenMenu`, río abajo, quien la descarta — el faltante entra por el relleno canónico
+AL FINAL, no en su slot original (mismo comportamiento, medido, que ya tiene `resolverOrden`).
+
+### LA INVARIANTE — probada, no supuesta
+
+> Un tenant que no edita nada rinde el mismo menú que hoy: mismas etiquetas, mismo orden, sin CTA.
+
+Probada por la CAPA DE DATOS (lo que `StoreNav.tsx` consume directo, sin editorializar):
+
+```
+itemsDeMenu(resolverSiteContent({})) === [
+  { id: 'tienda', label: 'Tienda', path: '/tienda' },
+  { id: 'suscripciones', label: 'Suscripciones', path: '/suscripciones' },
+  { id: 'nosotros', label: 'Nosotros', path: '/nosotros' },
+]
+menuCtaHref(resolverSiteContent({})) === null
+```
+
+`lib/config/menu-como-dato.test.ts` lo afirma con `assert.deepEqual` (no `assert.ok`), tanto sobre
+`DEFAULTS.menu` como sobre `resolverSiteContent({}).menu` (sin fila, el camino real de producción).
+
+**StoreNav.tsx NO se renderizó** (la MISMA frontera ya medida en `cromo-tematizable.test.ts`:
+`usePathname()` fuera de un árbol real de Next.js da `null`, y `pathname.startsWith(...)` revienta —
+una línea ajena a este slice). `links = itemsDeMenu(content)` y `ctaHref = menuCtaHref(content)` son
+pass-through DIRECTOS en `StoreNav.tsx` — verificar sus salidas es verificar exactamente lo que el
+componente pinta, sin necesitar el render. **La verificación en NAVEGADOR real (capa 3) queda fuera
+de este slice** — es del gate visual del owner, no de una sesión de escritura aislada; no se afirma
+acá porque no se ejecutó.
+
+### RULING_NEEDED — el panel ("el dueño renombra y reordena ahí") no cabe en `touches:`
+
+**El hallazgo, MEDIDO antes de decidir, no supuesto:** `components/admin/tienda-secciones.ts` define
+`SeccionVista` como una unión LITERAL de nombres (no derivada de `SeccionKey`), y
+`components/admin/VistaTiendaEnVivo.tsx:43` la consume así:
+
+```ts
+const COMPONENTES: Record<SeccionVista, ComponentType> = { hero: HeroSection, /* … */ };
+```
+
+Un `Record` sobre una unión es EXHAUSTIVO: agregar `'menu'` a `SeccionVista` (el paso obligado para
+que `TiendaPaginas`/`TiendaSeccionEditor` puedan mostrar un editor de menú, § "Sumá su edición al
+panel") exige una entrada `menu` en ese mapa, en un archivo que **no está en `touches:`**.
+
+Se verificó por EJECUCIÓN, no por lectura del tipo: se agregó `'menu'` a `SeccionVista` (un cambio de
+una línea), se corrió `npx tsc --noEmit`, y se revirtió antes de escribir nada más:
+
+```
+components/admin/VistaTiendaEnVivo.tsx(43,7): error TS2741: Property 'menu' is missing in type
+'{ hero: …; /* … */ }' but required in type 'Record<SeccionVista, ComponentType>'.
+```
+
+**Y no es un fix de una línea.** `VistaTiendaEnVivo.tsx` renderiza el componente REAL del storefront
+dentro de un árbol que sólo monta `SiteContentProvider` + `PreviewProvider` — sin `CartProvider` ni
+el `SiteSettingsProvider` DEL STOREFRONT. `StoreNav.tsx` importa `useCartStore` (`lib/cartStore.tsx`)
+y `useSiteSettings` (`components/storefront/SiteSettingsProvider`) — los DOS lanzan fuera de su
+árbol (medido leyendo el código: son los mismos hooks-con-throw-duro que ya mordieron a
+`ProductCard` en `/admin/configuracion`, § CLAUDE.md "Montar un componente en OTRO árbol de
+providers no lo atrapa ni `tsc` ni el build"). Montar `StoreNav` ahí SIN esos dos providers
+reventaría en runtime; con ellos, monta un header `position:fixed` pensado para el viewport real
+dentro de una caja `EscalaDesktop` diseñada para bandas de contenido (hero/brandStory/…) — una
+anatomía distinta, no sólo un wiring que falta.
+
+**La pregunta, en una frase:** ¿el editor del menú entra al pipeline genérico de vista-previa-en-vivo
+(ensanchando `touches:` a `VistaTiendaEnVivo.tsx` + resolver el árbol de providers que StoreNav
+necesita), o es un editor BESPOKE sin vista previa —como `PaletaSeccion` para `tema`— (un componente
+nuevo, también fuera de `touches:`, wireado en `app/(admin)/admin/tienda/page.tsx`)? **Las dos rutas
+tocan al menos un archivo fuera de `touches:` aprobado — no es mío ensancharlo.**
+
+- **Opción 1 — pipeline genérico.** Consecuencia medida: além del `Record` exhaustivo, exige envolver
+  el árbol de `VistaTiendaEnVivo` con `CartProvider`+`SiteSettingsProvider` (locales a esa rama, para
+  no afectar a los demás consumidores) y decidir cómo se ve un header `fixed` dentro de una caja
+  pensada para contenido — una decisión de forma, no sólo de cableado.
+- **Opción 2 — editor bespoke, sin preview.** Consecuencia: nuevo componente + wiring en
+  `app/(admin)/admin/tienda/page.tsx` (fuera de `touches:` igual), pero no toca el `Record`
+  compartido del que dependen las OTRAS nueve secciones — el mismo patrón ya vigente para `tema`
+  (`PaletaSeccion`, su propio endpoint, sin vista previa en vivo del nav).
+- **Opción 3 — este slice, tal cual.** El dato, el schema (con sus DOS sets cerrados validados al
+  guardar) y el render quedan completos y afirmados; el campo YA es editable por el `PUT`/`POST`
+  genéricos de `/api/site-content` (no gateados por sección — `guardarBorrador` escribe cualquier
+  clave, y `menu` YA está en `REGISTRY` así que `publicarSeccion`/`descartarSeccion` ya lo aceptan);
+  lo que falta es el FORMULARIO para que el dueño lo use sin tocar la API a mano.
+
+**Bloqueado:** el formulario en `/admin/tienda` ("el dueño renombra y reordena ahí").
+
+**Hecho de todos modos, y no depende de la ruling:** el modelo completo (`MenuContent`,
+`MENU_ITEM_IDS`, `MENU_CTA_DESTINOS`, `DEFAULTS.menu`, `REGISTRY.menu`, `resolverOrdenMenu`,
+`labelDeItemMenu`, `itemsDeMenu`, `menuCtaHref`), el schema (`menuEditableSchema`, los dos sets
+cerrados rechazados al guardar), `StoreNav.tsx` consumiendo el dato en desktop y en el drawer móvil
+con el CTA pintado como botón (tomando la FORMA del bloque `/cuenta` muerto, no su contenido), y 37
+tests nuevos en `lib/config/menu-como-dato.test.ts`.
+
+### Gate
+
+- **`npm test`** (capa 1, sin base): **1572/1572**, 0 fail — sube de 1535 (piso citado por
+  `CROMO-NAV-FOOTER-TEMATIZABLE-1`) por los 37 tests nuevos de `menu-como-dato.test.ts`.
+- **`npm run test:integracion`** (Postgres 14.20 efímero, capa 2): **208/208**, 0 fail — mismo piso
+  que el slice anterior; este slice no agrega ni toca ningún test de integración (no hay schema ni
+  migración).
+- **`npx tsc --noEmit`**: limpio tras un fix (el primer `.refine()` con un type predicate mal tipado
+  sobre una unión con `''` no compilaba — `TS2677`; se corrigió quitando el predicado, que no hacía
+  falta para el uso real).
+- **`npx next build`**: `✓ Compiled successfully`, TypeScript limpio, las 51 rutas generadas sin
+  error. Corrido DIRECTO (sin `db:deploy`) por la misma razón que `CROMO-NAV-FOOTER-TEMATIZABLE-1`:
+  no tocar la base de `.env` con una migración que este slice no trae (no hay ninguna).
+- **`npx eslint`** sobre los 4 archivos tocados/nuevos: limpio tras retirar `paginas` del destructure
+  de `StoreNav.tsx` (quedó sin uso al mover la lógica de visibilidad a `itemsDeMenu`/`menuCtaHref`).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, "se parece al prototipo", 2026-09-21, punto 1b, sobre el censo
+`CROMO-MENU-COMO-DATO-CENSO-1`). `lib/config/site-content-schema.ts` y `lib/config/
+site-content-defaults.ts` están en la frase canónica de Tier 1; `components/storefront/` entra por
+el subárbol ya ganado (bytes del visitante).
+
+Contra MERGE POLICY A: **sin schema/migración** (JSON de dominio, no `packages/core/prisma/`),
+**sin contrato cross-repo**, pero **SÍ bytes de cliente** — `StoreNav.tsx` es la ruta pública `/`
+(y toda página del storefront). `customer_bytes.changed: true`. `customer_bytes.strings: []` — CON
+`content.menu` en su default (Nayoli, y todo tenant que no lo edite) el HTML que produce
+`itemsDeMenu`/`menuCtaHref` es byte-idéntico al array literal de hoy (probado arriba): cambian bytes
+COMPILADOS (de dónde sale el array), ningún texto visible nuevo.
+
+**Verdicto: `RULING_NEEDED`**, no `AWAITING_APPROVAL` — el obstáculo no es "falta el gate visual del
+owner sobre bytes de cliente" (eso aplicaría igual si el panel existiera), es que **el panel pedido
+por el spec no cabe en el `touches:` aprobado**, y expandirlo no es una decisión de esta sesión.
+
+### Deviations
+
+Ninguna del MODELO, el schema, ni el render (mecanismo exacto al spec: ítems conocidos con etiqueta
+editable, orden vía tres campos escalares, CTA sobre set cerrado, default = hoy). La desviación es
+de ALCANCE: `components/admin/tienda-secciones.ts` **quedó SIN TOCAR** — el spec lo listaba en
+`touches:` esperando que hospedara la edición del menú, y hacerlo (agregar `'menu'` a `SeccionVista`
++ una entrada en `SECCIONES_TIENDA`) rompe la compilación de `VistaTiendaEnVivo.tsx`, fuera de
+`touches:` (medido arriba, § RULING_NEEDED). No se intentó un fix parcial ahí para "cumplir la
+letra" — un archivo tocado sin ningún efecto real (ninguna entrada nueva, porque cualquier entrada
+real exige el `Record` completo) sería peor que dejarlo intacto y decir por qué.
+
+### Open follow-ups
+
+- `CROMO-MENU-PANEL-EDITOR-1` — construir el formulario de `/admin/tienda` para el menú, una vez el
+  owner elija entre pipeline genérico (ensanchando `touches:` a `VistaTiendaEnVivo.tsx` + resolver
+  sus providers) o editor bespoke (nuevo componente + wiring en `app/(admin)/admin/tienda/page.tsx`,
+  patrón `PaletaSeccion`). No se prioriza a sí mismo — depende de la `RULING_NEEDED` de arriba.
+- `CROMO-MENU-CAPA3-1` — verificación en navegador real (capa 3) de que el menú de Nayoli se ve
+  igual que antes de este slice, y de que un menú editado (etiqueta/orden/CTA) se ve correctamente.
+  No se ejecutó en esta sesión (§ arriba, "La verificación en NAVEGADOR real queda fuera de este
+  slice"). Disparador: el próximo gate visual del owner sobre esta rama.
