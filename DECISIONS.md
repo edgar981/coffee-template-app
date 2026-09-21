@@ -8954,9 +8954,10 @@ como un conteo nuevo que el próximo slice vuelve a vencer:
 
 - **`lib/config/themes.ts:13-23`** (comentario de cabecera) afirmaba que `subscriptionCTA` seguía
   SIN slot de variante. Falso desde `TEMAS-SUBSCRIPTIONCTA-LINEA-1`: `REGISTRY.subscriptionCTA.
-  variantes.claves = ['bloque', 'linea']` (`site-content-defaults.ts:803-808`, confirmado por
-  lectura directa). Se reescribió apuntando a `REGISTRY.<seccion>.variantes.claves` como la fuente
-  viva, sin volver a enumerar qué secciones tienen slot hoy.
+  variantes.claves = ['bloque', 'linea']` (`site-content-defaults.ts:811`, dentro del bloque
+  `subscriptionCTA: {` que arranca en la línea 803 — confirmado por lectura directa). Se reescribió
+  apuntando a `REGISTRY.<seccion>.variantes.claves` como la fuente viva, sin volver a enumerar qué
+  secciones tienen slot hoy.
 - **La entrada `TEMAS-PRESET-DATO-1` de este mismo libro (§ arriba, `2026-09-12`)** decía «Hoy 1 de
   6 — sólo el preset de ARRANQUE (PLIEGO 5 faltantes · CORTE 4 · PATIO 7 · VETA 3 · VITRINA 5)». Ya
   no es cierto: `CORTE` valida COMPLETO hoy (`validarPreset(CORTE) === []` y `presetCompleto(CORTE)`,
