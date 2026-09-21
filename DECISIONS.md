@@ -11173,3 +11173,176 @@ decidir.
   `SeccionVista` exhaustivo). No depende de `SPOTLIGHT-CABLEADO-HOME-1` para EXISTIR como dato
   editable (el `PUT`/`POST` genéricos ya lo aceptan), pero sin cableado en la home no hay vista
   previa que mostrar.
+
+## 2026-09-21 — SPOTLIGHT como VARIANTE de `featured`: cableado completo, gate ROJO por dos tests fuera de `touches:` (`SPOTLIGHT-CABLEADO-HOME-1`)
+
+**La RULING de `SPOTLIGHT-BANDA-1` se resolvió a favor de la Opción B** (owner, sobre la medición de
+esa sesión: la banda independiente exigía capacidad nueva —`resolverOrden` removiendo, o `featured`
+ocultable—; la variante reusa el dispatcher que YA existe). Este slice conecta `spotlight` como
+tercera variante de `featured`, junto a `cuadricula`/`grilla`, sin sumarla a `BANDA_IDS` y sin tocar
+`app/(storefront)/page.tsx` ni `resolverOrden` — exactamente el `touches:` aprobado.
+
+### EL CABLEADO
+
+- **`VARIANTES_ESTRUCTURALES.featured.claves`** (`site-content-defaults.ts`) gana `'spotlight'`:
+  `['cuadricula', 'grilla', 'spotlight']`, canónica sin cambiar. Sin esto `resolverVariantesBandas`
+  descartaría la clave como basura y `validarPreset` marcaría a CORTE INCOMPLETO —el mirador
+  `?tema=CORTE` la ignoraría en silencio, la MISMA regresión que la sección RULING_NEEDED de
+  `SPOTLIGHT-BANDA-1` ya midió para la Opción A mal aplicada—.
+- **`FeaturedProducts.tsx`** (el dispatcher YA construido en `TEMAS-FEATURED-GRILLA-1`) gana la
+  rama `spotlight: Spotlight` en su mapa `VARIANTES`. `Spotlight.tsx` **no se tocó** — mismo import,
+  misma firma (`{ style }?`), mismo dato leído por `useSiteContent()`. El tipo del mapa se ensanchó
+  de `typeof FeaturedProductsCuadricula` (nunca `null`) a `(props?) => ReactElement | null`, porque
+  `Spotlight` SÍ puede devolver `null` (hide-on-empty + el gate de `visible`, los dos de
+  `SPOTLIGHT-BANDA-1`) — forzar el tipo viejo habría exigido reescribir ese `return null` para
+  calzar, y eso sí habría sido tocar el componente.
+- **`CORTE.variantes.featured`** pasa de `'grilla'` a `'spotlight'` (`themes.ts`). MEDIDO contra el
+  prototipo (`docs/prototipos/cafeone/index.html:159-217`, `id="producto"`, `aria-labelledby=
+  "spot-h"`, clase `spotlight`): la sección "Producto insignia" es un ÚNICO producto con badge de
+  cosecha, selector de molienda/tamaño, notas de cata y "Agregar al carrito" — exactamente lo que
+  `Spotlight.tsx` construye, no la malla de 6 que `'grilla'` pintaba ahí (la mejor variante
+  DISPONIBLE cuando `TEMAS-FEATURED-GRILLA-1` se escribió; `SPOTLIGHT-BANDA-1` no existía todavía).
+  El comentario `featured·grilla → .spotlight (index.html:160, "Nuestro café")` de
+  `CORTE-ESQUEMAS-INVERTIDOS-1` pasó a `featured·spotlight → .spotlight` — el nombre de la clase del
+  prototipo YA era literalmente "spotlight"; el esquema (`'crema'`) no cambia, es del `BANDA_ID`
+  `featured`, no de su composición.
+- **El hallazgo no anticipado por el spec: `spotlight.visible` nace `false`** (§ `SPOTLIGHT-BANDA-1`,
+  "LA ÚNICA SECCIÓN QUE NACE OFF" — su motivo mecánico, `spotlight` fuera de `BANDA_IDS`, sigue
+  vigente y NO se tocó). Sin más, CORTE habría elegido la variante `'spotlight'` y `Spotlight.tsx`
+  habría devuelto `null` de todos modos —la variante "elegida" y en blanco a la vez—, porque el
+  campo que `mergePresetEnContent` escribe (`content[seccion].variante`) no es el mismo que
+  `Spotlight.tsx` consulta para decidir si se muestra (`content.spotlight.visible`). Se cerró
+  agregando a `mergePresetEnContent`: cuando la variante resultante de `featured` es `'spotlight'`,
+  fuerza `content.spotlight.visible = true` (`{ ...prev, visible: true }`, preservando cualquier
+  `eyebrow`/`titulo`/pin que el dueño ya hubiera puesto — MISMA forma que ya usa para `variante`).
+  Documentado en el docstring de `mergePresetEnContent` y en el comentario de `DEFAULTS.spotlight`.
+  Afirmado en el carril: `mergePresetEnContent` NO toca `spotlight.visible` para un preset que no
+  elige esa variante (PATIO, que sigue en `'grilla'`).
+
+### QUÉ MUESTRA `?tema=CORTE` AHORA, CONTRA EL PROTOTIPO
+
+Antes de este slice: la malla de 6 productos ("Nuestro Catálogo" / "Selección del mes",
+`FeaturedProductsGrilla`). Después: `Spotlight` — un producto único con badge, selector de
+molienda, notas de cata, el control de "otra talla" (si `otroTamanoSlug` resuelve) y "Agregar al
+carrito", calzando la anatomía del prototipo. **CORTE no fija un pin** (`productoSlug`/
+`otroTamanoSlug` quedan vacíos en el preset, fuera del alcance de este cableado): sobre el catálogo
+real de Nayoli, `productoSpotlight` cae al PRIMER producto (§ el fallback declarado de
+`SPOTLIGHT-BANDA-1`), no a uno curado.
+
+**DEVIACIÓN MEDIDA, no corregida (fuera de `touches:`, Spotlight.tsx no se reescribe):**
+`Spotlight.tsx` NO consume `tema.escalaDisplay` en su `h2` —a diferencia de
+`FeaturedProductsCuadricula`/`Grilla`, que sí leen `fontSizeDisplay(tema.escalaDisplay, 'l')`—, así
+que el `escalaDisplay:'amplia'` que CORTE declara (§ `TEMAS-ESCALA-DISPLAY-1`, medido contra
+`spot-h` del prototipo) deja de tener efecto sobre el titular de esta banda al pasar de `'grilla'`
+a `'spotlight'`: el h2 de Spotlight sigue en `text-3xl sm:text-4xl` fijo. Antes de este slice, con
+`'grilla'`, ese mismo preset SÍ agrandaba el titular (era el ÚNICO consumidor real de
+`escalaDisplay:'amplia'`, según el propio comentario de `FeaturedProductsGrilla.tsx:33-37`). Es un
+defecto REAL contra la fidelidad al prototipo, medido y no oculto — abre follow-up abajo.
+
+### BYTE-IDENTIDAD DE NAYOLI, POR RENDER
+
+`lib/config/spotlight-cableado.test.ts` (15 tests, todos vistos pasar y 4 vistos fallar al revertir
+la línea `spotlight: Spotlight,` del dispatcher — no vacuos):
+
+- `renderToStaticMarkup` de `FeaturedProducts` con `resolverSiteContent({})` (Nayoli, sin fila) es
+  **BYTE A BYTE IGUAL** a montar `FeaturedProductsCuadricula` directo — la variante por defecto no
+  cambió una letra.
+- `contenidoConPresetDeVista(nayoli, undefined)` (sin `?tema=`) devuelve la MISMA referencia — el
+  mirador no toca nada sin la query param.
+- `contenidoConPresetDeVista(nayoli, 'CORTE')` cambia `variantesBandas.featured` a `'spotlight'` y
+  `spotlight.visible` a `true`; el render resultante deja de contener "Selección del mes"/"Nuestro
+  Catálogo" — la lista plana desaparece bajo CORTE.
+- **Límite declarado del carril** (heredado de `spotlight-banda.test.ts`): `Spotlight.tsx` fetchea
+  el catálogo en un `useEffect`, que `renderToStaticMarkup` nunca ejecuta (un solo paso de render
+  síncrono) — así que en TODO render de este archivo el catálogo interno de `Spotlight` queda en
+  `[]` y el componente rinde vacío por hide-on-empty, sea cual sea `visible`. La prueba de "se montó
+  Spotlight" es por tanto NEGATIVA (el texto de Cuadricula/Grilla desaparece) más una lectura DIRECTA
+  de la fuente (`FeaturedProducts.tsx` importa `Spotlight` y lo asigna a la clave `'spotlight'`), no
+  "se ve el producto" — eso exigiría jsdom + un catálogo real, que este repo no tiene para `.tsx`
+  (§ CLAUDE.md).
+
+### GATE — ROJO, por DOS asserts fuera de `touches:` que el cambio pedido por el spec vuelve stale
+
+**`npm test`: 1624 intentados, 1622 pass, 2 fail.** Sube de 1609 (piso de `SPOTLIGHT-BANDA-1`) por
+los 15 tests nuevos de `spotlight-cableado.test.ts` (1609 + 15 = 1624, cuadra exacto) — de esos
+1624, dos de los YA EXISTENTES antes de este slice (dentro del piso de 1609) son justamente los que
+ahora fallan; no se agregó ni restó ningún test viejo. Los dos fallos:
+
+| archivo:línea | qué afirma | por qué falla |
+| --- | --- | --- |
+| `lib/config/site-content-defaults.test.ts:670` | `deepEqual(VARIANTES_ESTRUCTURALES.featured, { claves: ['cuadricula','grilla'], canonica:'cuadricula' })` | la lista real ahora es `['cuadricula','grilla','spotlight']` — el spec pide explícitamente sumar la clave (§1, "para que resolverVariante la acepte") |
+| `lib/config/theme-mirador.test.ts:36` | `equal(out.variantesBandas.featured, 'grilla')` sobre `contenidoConPresetDeVista(_, 'CORTE')` | CORTE ahora pide `'spotlight'`, por la MISMA decisión de este slice |
+
+**Los dos son consecuencia MECÁNICA, directa y no evitable del cambio que el spec pide** —no hay
+forma de sumar `'spotlight'` a `VARIANTES_ESTRUCTURALES.featured.claves` sin invalidar un
+`deepEqual` que fotografía el conjunto exacto, ni de mover `CORTE.variantes.featured` sin invalidar
+un `equal` que fotografía su valor exacto—. Medido ANTES de escribir nada (`npm test` en el árbol
+sin tocar: 1609/1609) y confirmado por REVERSIÓN (comentar `spotlight: Spotlight,` en el dispatcher
+hace fallar 4 de los 15 tests nuevos, ninguno de los dos de la tabla — o sea el fallo de la tabla
+NO es un bug de este slice, es la definición cambiando bajo un test que la fotografía).
+
+**Ninguno de los dos archivos está en `touches:`** (`lib/config/site-content-defaults.test.ts`,
+`lib/config/theme-mirador.test.ts`) — sólo `lib/config/spotlight-cableado.test.ts` lo está. Por
+protocolo («el diff se queda DENTRO de `touches:`; si el trabajo necesita un archivo fuera, PARAR y
+decirlo, no ensancharlo por cuenta propia»), **no se tocaron.** El fix es de una línea cada uno
+(actualizar el array/el string al valor nuevo, MISMO patrón que ya usó `TEMAS-FEATURED-GRILLA-1`
+cuando sumó `'grilla'` a esta misma lista) y no cambia ningún comportamiento — sólo re-fotografía el
+conjunto/valor que este slice cambió a propósito.
+
+- **`npm run test:integracion`**: **208/208**, 0 fail — idéntico al piso de `SPOTLIGHT-BANDA-1`; este
+  slice no toca `packages/core/`, `tests/integracion/` ni ninguna migración.
+- **`npx tsc --noEmit`**: limpio, tras ensanchar el tipo de `VARIANTES` en `FeaturedProducts.tsx`
+  (§ arriba) — sin ese ensanche, `Element | null` de `Spotlight` no calzaba contra
+  `typeof FeaturedProductsCuadricula`.
+- **`npx next build`**: `✓ Compiled successfully` (9.1s), todas las rutas generadas sin error.
+- **`npx eslint`** sobre los 4 archivos tocados: **4 errores, todos `react/no-children-prop`**, los
+  cuatro en `spotlight-cableado.test.ts`, mismo patrón (`React.createElement(X, { value, children:
+  … })`) que YA tienen, sin corregir, `hero-agregados.test.ts` (2) y `escala-display.test.ts` (1) —
+  medido corriendo eslint sobre esos dos archivos, que no forman parte de este slice. No es una
+  clase de defecto nueva: es el mismo patrón heredado, consistente con el precedente ya aceptado.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, sobre la RULING de `SPOTLIGHT-BANDA-1`: "se elige la VARIANTE").
+`lib/config/site-content-defaults.ts` está en la frase canónica de Tier 1; `components/storefront/`
+entra por el subárbol ya ganado (bytes del visitante).
+
+Verdicto: **`GATE_RED`** — el gate completo corrió sobre el árbol final y falló (2/1622 en `npm
+test`). No es `AWAITING_APPROVAL`: el motivo de parada no es una condición de la política A —es que
+el gate no cerró en verde—, y `GATE_RED` es el verdicto que corresponde cuando eso pasa,
+independientemente de si el diff en sí es de bytes de cliente (que sí lo es: `customer_bytes.
+changed=true`, ver abajo).
+
+### Deviations
+
+Ninguna del MECANISMO pedido por el spec (los tres pasos —sumar la clave, la rama del dispatcher,
+CORTE eligiendo la variante— se hicieron tal cual). Dos desviaciones de ALCANCE, ambas medidas antes
+de decidir:
+
+1. **`spotlight.visible` forzado en `mergePresetEnContent`** — no estaba en los tres pasos literales
+   del spec, pero es estructuralmente inevitable: sin esto, CORTE elegiría la variante y el slot de
+   `featured` quedaría vacío (medido con el gate visual mental del propio invariante del spec: "Sólo
+   CORTE... rinde el spotlight" — sin este cambio, CORTE NO lo rendía, sólo lo "elegía"). Se
+   implementó dentro de `themes.ts` (en `touches:`), sin tocar `site-content-defaults.ts` más allá
+   de documentar por qué el default sigue en `false`.
+2. **Dos archivos fuera de `touches:` quedaron con asserts stale** (`site-content-defaults.test.ts`,
+   `theme-mirador.test.ts`) — NO se tocaron, por protocolo. El gate queda ROJO por esto, no por un
+   defecto del mecanismo. Ver § GATE y Open follow-ups.
+
+### Open follow-ups
+
+- `SPOTLIGHT-STALE-ASSERTS-1` — actualizar los dos asserts stale (`lib/config/
+  site-content-defaults.test.ts:670`, agregar `'spotlight'` al array esperado;
+  `lib/config/theme-mirador.test.ts:36`, cambiar `'grilla'` por `'spotlight'`). Cambio de una línea
+  cada uno, cero riesgo — son fotografías del MISMO valor que este slice cambió a propósito. Cierra
+  el `GATE_RED` de esta entrada. Necesita `touches:` propio o ampliado, porque esta sesión no puede
+  tocarlos.
+- `SPOTLIGHT-ESCALADISPLAY-1` — `Spotlight.tsx` no lee `tema.escalaDisplay` en su `h2`, así que
+  `CORTE.escalaDisplay:'amplia'` (medido contra `spot-h` del prototipo, `TEMAS-ESCALA-DISPLAY-1`)
+  dejó de tener efecto sobre esta banda al pasar de `'grilla'` a `'spotlight'`. Requiere tocar
+  `Spotlight.tsx` (fuera de `touches:` de este slice, y explícitamente "no reescribir" en el spec).
+  Fidelidad al prototipo, no urgente — el titular sigue siendo legible, sólo no es "ENORME" como en
+  `spot-h`.
+- Los tres follow-ups de `SPOTLIGHT-BANDA-1` (`SPOTLIGHT-PIN-RANCIO-AVISO-1`,
+  `SPOTLIGHT-PANEL-EDITOR-1`) **YA NO están bloqueados por "sin cableado en la home"** — este slice
+  cableó la banda. Se re-priorizan aparte; no se tocan acá.

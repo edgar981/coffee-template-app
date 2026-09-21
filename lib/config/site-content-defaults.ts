@@ -657,6 +657,14 @@ export const DEFAULTS: SiteContentData = {
   // banda conocida, sin excepción). Sin pin (`productoSlug`/`otroTamanoSlug` vacíos): sin efecto
   // mientras la sección esté OFF, y el día que se encienda cae al PRIMER producto del catálogo
   // (§ `productoSpotlight`).
+  //
+  // ESTE DEFAULT NO SE TOCÓ EN SPOTLIGHT-CABLEADO-HOME-1 (§ VARIANTES_ESTRUCTURALES, arriba), aunque
+  // esa tanda conecta `spotlight` como variante de `featured` — sigue sin sumarse a `BANDA_IDS`, así
+  // que el motivo mecánico de arriba sigue vigente sin cambios, y Nayoli (variante 'cuadricula') no
+  // monta `<Spotlight>` nunca, con este `visible` en cualquier valor. Lo que hace que la VARIANTE se
+  // vea de verdad es `mergePresetEnContent` (`themes.ts`): fuerza `visible:true` SÓLO cuando el
+  // preset pide `featured·spotlight` — un tenant que use la variante no puede quedar con la banda
+  // encendida-por-elección-de-composición pero apagada-por-el-campo-de-abajo.
   spotlight: {
     visible: false,
     eyebrow: '',
@@ -811,9 +819,10 @@ export const DEFAULTS: SiteContentData = {
   // VARIANTES DE BANDAS ESTRUCTURALES por defecto: el mapa nace VACÍO, gemelo de `esquemas` arriba.
   // Ninguna banda estructural tiene entrada → `featured` cae a su canónica ('cuadricula',
   // § VARIANTES_ESTRUCTURALES) → byte-idéntico. `FeaturedProducts.tsx` SÍ lee esta meta desde
-  // TEMAS-FEATURED-GRILLA-1 (es el dispatcher entre `cuadricula`/`grilla`); antes de ese slice el
-  // único consumidor era `themes.ts` (`mergePresetEnContent`), que sigue siendo el sitio donde un
-  // preset escribe sin crear una clave `content.featured` huérfana.
+  // TEMAS-FEATURED-GRILLA-1 (es el dispatcher entre `cuadricula`/`grilla`/`spotlight`, la última
+  // sumada en SPOTLIGHT-CABLEADO-HOME-1); antes de ese primer slice el único consumidor era
+  // `themes.ts` (`mergePresetEnContent`), que sigue siendo el sitio donde un preset escribe sin
+  // crear una clave `content.featured` huérfana.
   variantesBandas: {},
 };
 
@@ -1208,20 +1217,29 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
 // `featured` canónica = 'cuadricula': la composición de HOY de `FeaturedProductsCuadricula.tsx`
 // (medida en su fuente, antes de TEMAS-FEATURED-GRILLA-1 vivía en `FeaturedProducts.tsx` sin
 // dispatcher) — grid de 4 productos del catálogo, `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`.
-// NINGÚN preset del catálogo pide 'cuadricula': piden 'tabla' (PLIEGO), 'grilla' (CORTE/PATIO/
-// VITRINA) o 'mosaico' (VETA) — tres composiciones DISTINTAS entre sí y de la canónica.
+// NINGÚN preset del catálogo pide 'cuadricula': piden 'tabla' (PLIEGO), 'grilla' (PATIO/VITRINA),
+// 'mosaico' (VETA) o 'spotlight' (CORTE) — composiciones DISTINTAS entre sí y de la canónica.
 //
 // `'grilla'` SE SUMÓ EN TEMAS-FEATURED-GRILLA-1 (`FeaturedProductsGrilla.tsx`): una MALLA de 6
 // productos, `grid-cols-2 sm:grid-cols-3 lg:grid-cols-4` (el ritmo de columnas que ya usa `/tienda`
 // para esta misma tarjeta) — deliberadamente DISTINTA de la canónica (más ítems, otra retícula), no
-// la canónica con otro nombre. `FeaturedProducts.tsx` YA ES el dispatcher que elige entre las dos
+// la canónica con otro nombre. `FeaturedProducts.tsx` YA ES el dispatcher que elige entre las tres
 // (§ `content.variantesBandas.featured`, gemelo de `HeroSection`/`GrindChooser` pero leyendo esta
 // meta en vez de `sección.variante`). `'tabla'` (PLIEGO) y `'mosaico'` (VETA) SIGUEN sin construir —
-// una variante por slice—, así que los cinco themes SIGUEN sin poder aplicarse completos tras este
-// cambio (CORTE/PATIO/VITRINA dejan de fallar en `featured`, pero siguen fallando en otras
-// secciones; § `temasCompletos` — el conteo de themes completos no cambia, sigue en `['ARRANQUE']`).
+// una variante por slice—, así que esos dos themes SIGUEN sin poder aplicarse completos tras este
+// cambio (PATIO/VITRINA dejan de fallar en `featured` desde TEMAS-FEATURED-GRILLA-1, pero siguen
+// fallando en otras secciones; § `temasCompletos`).
+//
+// `'spotlight'` SE SUMÓ EN SPOTLIGHT-CABLEADO-HOME-1 (`components/storefront/home/Spotlight.tsx`,
+// § SPOTLIGHT-BANDA-1 para el modelo): un solo producto PINEADO con su selector de molienda, notas
+// de cata y carrito — reemplaza a la lista plana en el preset que la elija, sin sumar `spotlight`
+// a `BANDA_IDS` (la RULING de SPOTLIGHT-BANDA-1 descartó la banda independiente porque exigía que
+// `resolverOrden` ganara la capacidad de REMOVER una banda; la variante reusa el dispatcher que ya
+// existe). CORTE es hoy el único preset que la pide — su `.spotlight` es LITERALMENTE la sección
+// "Producto insignia" del prototipo (`docs/prototipos/cafeone/index.html:159-217`, un solo producto
+// con selector y carrito), no la malla de 6 que 'grilla' pintaba ahí antes de este slice.
 export const VARIANTES_ESTRUCTURALES: Record<string, VariantesDef> = {
-  featured: { claves: ['cuadricula', 'grilla'], canonica: 'cuadricula' },
+  featured: { claves: ['cuadricula', 'grilla', 'spotlight'], canonica: 'cuadricula' },
 };
 
 const esVacio = (v: unknown): boolean => typeof v !== 'string' || v.trim() === '';

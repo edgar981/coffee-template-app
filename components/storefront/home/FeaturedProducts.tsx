@@ -3,6 +3,7 @@
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import FeaturedProductsCuadricula from "@/components/storefront/home/FeaturedProductsCuadricula";
 import FeaturedProductsGrilla from "@/components/storefront/home/FeaturedProductsGrilla";
+import Spotlight from "@/components/storefront/home/Spotlight";
 
 // La banda de Destacados — DISPATCHER de VARIANTES DE COMPOSICIÓN (§ TEMAS-FEATURED-GRILLA-1),
 // gemelo de HeroSection/GrindChooser en la FORMA (mapa de claves → componente, `?? canónica` como
@@ -15,9 +16,26 @@ import FeaturedProductsGrilla from "@/components/storefront/home/FeaturedProduct
 // `featured: (style) => <FeaturedProducts style={style} />`—; el dispatch de variante vive DENTRO,
 // no en esa registry. `featured` no tiene gate de visibilidad propio (no es `SeccionKey`): su
 // posición en `content.orden` decide si se monta, no `visible`.
-const VARIANTES: Record<string, typeof FeaturedProductsCuadricula> = {
+//
+// `'spotlight'` SE SUMÓ EN SPOTLIGHT-CABLEADO-HOME-1 (§ DECISIONS.md, SPOTLIGHT-BANDA-1): un solo
+// producto PINEADO, con su selector de molienda/notas/carrito REUSADOS VERBATIM
+// (`components/storefront/home/Spotlight.tsx`, construido y probado en SPOTLIGHT-BANDA-1 — este
+// archivo no lo reescribe, sólo lo conecta al MISMO mapa que ya despachaba `cuadricula`/`grilla`).
+// `Spotlight` calza la MISMA firma que las otras dos (`{ style }?`) y lee su propio dato de
+// `content.spotlight` por `useSiteContent()` — no recibe props nuevas, así que el dispatcher no
+// necesita distinguir un tercer caso especial. `Spotlight.tsx` SE AUTO-OCULTA si
+// `content.spotlight.visible` es `false`: el preset que elige esta variante tiene que encenderlo
+// también (§ `mergePresetEnContent`, `themes.ts`) o el slot de `featured` queda vacío.
+//
+// EL TIPO DEL MAPA SE ENSANCHA A `ReactElement | null` (antes `typeof FeaturedProductsCuadricula`,
+// que nunca devuelve `null`): `Spotlight` SÍ puede —hide-on-empty y el gate de `visible`, los dos ya
+// construidos en SPOTLIGHT-BANDA-1, no se tocan acá—, así que forzar el tipo viejo habría exigido
+// reescribir su `return null` para calzar, justo lo que este slice no hace.
+type BandaFeatured = (props?: { style?: React.CSSProperties }) => React.ReactElement | null;
+const VARIANTES: Record<string, BandaFeatured> = {
   cuadricula: FeaturedProductsCuadricula,
   grilla: FeaturedProductsGrilla,
+  spotlight: Spotlight,
 };
 
 export default function FeaturedProducts({ style }: { style?: React.CSSProperties } = {}) {

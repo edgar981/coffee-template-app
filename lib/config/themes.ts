@@ -231,8 +231,11 @@ export function temasCompletos(presets: readonly PresetTema[] = PRESETS): readon
  * TEMATIZABLE-1, los 3 ejes de chrome de nav/footer, reemplazado entero por la misma razón —
  * composición, no contenido, y META APARTE de `tema` a propósito, ver el docstring de
  * `CromoContent`), `esquemas`, `orden` y `variantesBandas` (reemplazados enteros, por la misma
- * razón), y el campo `variante` DENTRO de cada sección afectada — preservando cualquier otro campo
- * que esa sección ya tuviera (`{ ...prev, variante }`). Ninguna otra clave de `content` se toca.
+ * razón), el campo `variante` DENTRO de cada sección afectada — preservando cualquier otro campo
+ * que esa sección ya tuviera (`{ ...prev, variante }`) — y, SÓLO cuando la variante resultante de
+ * `featured` es 'spotlight' (§ SPOTLIGHT-CABLEADO-HOME-1), el campo `visible` DENTRO de
+ * `content.spotlight` (mismo `{ ...prev, visible: true }`, MISMA razón: es composición —qué banda
+ * se ve, no qué dice—, no contenido del dueño). Ninguna otra clave de `content` se toca.
  *
  * `preset.variantes` mezcla DOS destinos bajo una sola clave plana (TEMAS-P1-FEATURED-VARIANTES-1):
  * una entrada cuya clave ES una `SeccionKey` (tiene entrada en el REGISTRY) va DENTRO de esa sección
@@ -288,6 +291,24 @@ export function mergePresetEnContent(content: Record<string, unknown>, preset: P
     }
   }
   out.variantesBandas = variantesBandas;
+
+  // SPOTLIGHT COMO VARIANTE DE `featured` (§ SPOTLIGHT-CABLEADO-HOME-1): `Spotlight.tsx` (NO
+  // reescrito por este slice) revisa `seccionEsVisible(REGISTRY.spotlight, spotlight)` ANTES de
+  // pintar un solo nodo — el mismo gate que protege a `DEFAULTS.spotlight` de encenderse SOLA
+  // (§ site-content-defaults.ts, "nace OFF"; ese default sigue en `false`, sin tocar, porque el
+  // motivo mecánico que lo justifica —`spotlight` fuera de `BANDA_IDS`— sigue vigente). Pero un
+  // preset que ELIGE la variante 'spotlight' para `featured` está pidiendo, por definición, que esa
+  // banda se VEA: sin esto, CORTE aplicaría la variante y `Spotlight` devolvería `null`
+  // (`spotlight.visible` seguiría en su default `false`), dejando el slot de `featured` vacío — la
+  // variante "elegida" y "en blanco" a la vez. Se enciende SÓLO cuando la variante resultante es
+  // 'spotlight' (nunca para 'cuadricula'/'grilla', ni para ningún otro preset), preservando
+  // cualquier otro campo que la sección ya tuviera (`{ ...prev, visible: true }`, igual que el
+  // `variante` de arriba) — así un tenant que ya haya editado `eyebrow`/`titulo`/el pin no los
+  // pierde al aplicar el preset.
+  if (variantesBandas.featured === 'spotlight' && registro.spotlight) {
+    const prevSpotlight = esObj(out.spotlight) ? out.spotlight : {};
+    out.spotlight = { ...prevSpotlight, visible: true };
+  }
 
   return out;
 }
@@ -374,9 +395,18 @@ export const CORTE: PresetTema = {
   // grid de tarjetas de la canónica; con la clave ya construida
   // (`REGISTRY.presentaciones.variantes.claves`, site-content-defaults.ts), este es el único punto del
   // catálogo de presets que este slice toca.
+  //
+  // `featured: 'spotlight'` (§ SPOTLIGHT-CABLEADO-HOME-1) — hasta este slice CORTE pedía 'grilla'
+  // (una malla de 6 productos, TEMAS-FEATURED-GRILLA-1). MEDIDO contra el prototipo
+  // (`docs/prototipos/cafeone/index.html:159-217`, id="producto", aria-labelledby="spot-h"): la
+  // sección "Producto insignia" es un ÚNICO producto con badge de cosecha, selector de
+  // molienda/tamaño, notas de cata y "Agregar al carrito" — exactamente lo que
+  // `components/storefront/home/Spotlight.tsx` construye (§ SPOTLIGHT-BANDA-1), no la malla de 6
+  // que 'grilla' pintaba ahí. 'grilla' era la mejor variante DISPONIBLE en su momento (SPOTLIGHT-
+  // BANDA-1 todavía no existía); con la variante real construida, CORTE se re-mide contra ella.
   variantes: {
     hero: 'media',
-    featured: 'grilla',
+    featured: 'spotlight',
     brandStory: 'centrada',
     presentaciones: 'riel',
     subscriptionCTA: 'linea',
@@ -393,8 +423,11 @@ export const CORTE: PresetTema = {
   // «el verde profundo es TINTA y superficies de acento PUNTUALES (nav, footer), no el canvas».
   //   trustBadges → sin análogo directo en el prototipo (no hay franja de insignias); sin evidencia
   //     de lienzo oscuro para esta banda, se deja en la página — 'crema'.
-  //   featured·grilla → `.spotlight` (index.html:160, "Nuestro café"),
-  //     `background:var(--surface-page)` (css/app.css:436) — 'crema'.
+  //   featured·spotlight → `.spotlight` (index.html:160, "Nuestro café") — el nombre de clase del
+  //     prototipo es LITERALMENTE "spotlight", el mismo que la variante que hoy vive ahí (§
+  //     SPOTLIGHT-CABLEADO-HOME-1; esta asignación de esquema se escribió cuando 'grilla' ocupaba el
+  //     slot y no cambia con la variante — el esquema es del BANDA_ID `featured`, no de su
+  //     composición) — `background:var(--surface-page)` (css/app.css:436) — 'crema'.
   //   brandStory·centrada → `.historia` (index.html:250), `background:var(--surface-page-cool)`
   //     (css/app.css:564) — una superficie APENAS distinta de la página, ni la página exacta ni la
   //     tinta — 'superficie' (deriva a #f3eadb con las raíces de CORTE, medido con `derivarEsquema`;
