@@ -8869,3 +8869,146 @@ lo estuvo, así que se usó la vía alternativa de Node descrita en §4 en vez d
 
 Ninguno nuevo. Esta tanda no encontró patrones faltantes en el gate ni deuda adicional en el módulo de
 la guarda.
+
+## 2026-09-21 · `aplicarPreset` gana su primer llamador — el runbook de onboarding, con dos guardas de escritura (`ONBOARDING-APLICAR-PRESET-SCRIPT-2`)
+
+**Por qué:** `MUESTRARIO-DESPLIEGUE-CENSO-1` midió que `aplicarPreset` (`lib/config/site-content-write.ts`) —
+la única función que persiste la COMPOSICIÓN de un tema (esquema · orden · variante), construida en
+`TEMAS-PRESET-DATO-1`— **no tenía un solo llamador**. Confirmado de nuevo acá (`grep -rn
+"aplicarPreset(" --include="*.ts" --include="*.tsx" .`, excluyendo `node_modules`, sólo la propia
+definición). La composición no se edita desde el panel por diseño (retiro de
+EJE-5-ORDEN-EDITOR-1/EJE-5-VARIANTES-EDITOR, § arriba); sin un script de mano que la invoque, el
+catálogo de presets (`PRESETS`, `themes.ts`) no tenía forma de llegar a la base de ningún tenant.
+`prisma/aplicar-preset.ts` es ese llamador — GENÉRICO (toma la clave del preset como argumento; nada
+acá nombra a un cliente), siguiendo el molde de `prisma/crear-owner.ts` (lectura de env, fallo
+RUIDOSO, exposición en `package.json` como `db:aplicar-preset`).
+
+**LAS DOS GUARDAS DE ESCRITURA, condición textual del owner, y por qué las dos:** *"Un script
+genérico que reescribe el tema de una tienda, corrido contra la base equivocada, le cambia el sitio
+a un cliente vivo sin que nadie lo note hasta que el cliente llama."*
+
+1. **Antes de tocar la base, IMPRIME contra qué está conectado y a QUIÉN va a tocar** — host y
+   nombre de la base de `DATABASE_URL` (nunca credenciales: `conexionVisible` sólo extrae
+   `URL.hostname`/`URL.pathname`, que estructuralmente no pueden cargar usuario ni contraseña — lo
+   afirma un test que revisa las CLAVES del objeto devuelto, no sólo su contenido) y el
+   `SiteSetting.nombre` que esa base tiene AHORA MISMO, leído fresco en cada corrida.
+2. **Exige que el operador TIPEE ese mismo nombre.** `confirmacionValida` (pura, sin DB) es la
+   guarda entera: coincidencia EXACTA (recorta sólo espacio en blanco de los BORDES) o aborta —
+   vacío, "y", "s", otro case, o el nombre de OTRO tenant, todos dan `false`. Sin terminal
+   interactiva (`process.stdin.isTTY` falso — un CI, un pipe) el default es NO ESCRIBIR; la vía
+   no-interactiva es `CONFIRMAR_TENANT`, que tiene que repetir el nombre EXACTO — no es un `--force`
+   ciego que salta la comprobación, es la MISMA comprobación por otro canal.
+
+**`aplicarPreset` y el merge quirúrgico NO se tocaron** — el script los importa tal cual de
+`site-content-write.ts`/`themes.ts` y sólo agrega las dos guardas de arriba. Ninguna ruta del
+storefront ni del panel se tocó (el script no monta UI ni endpoint, la misma frontera que
+`themes.ts` ya declaraba); **cero bytes de cliente** — un script de mano no cambia lo que ve un
+visitante hasta que alguien lo corre. `git diff --name-only main` da exactamente cuatro archivos:
+`lib/config/aplicar-preset-guardas.test.ts` (nuevo), `prisma/aplicar-preset.ts` (nuevo),
+`lib/config/themes.ts`, `package.json` — ninguno bajo `app/(storefront)/` ni
+`components/storefront/`.
+
+### ESTA ES LA SEGUNDA CORRIDA (SCRIPT-2), NO LA PRIMERA — por qué la primera se rechazó y qué cambia acá
+
+Existe una corrida previa, `ONBOARDING-APLICAR-PRESET-SCRIPT-1` (commit `4b7d673`, rama
+`slice/onboarding-aplicar-preset-script-1`, **NO mergeada, NO ancestro de este `main`** — verificado
+con `git merge-base --is-ancestor 4b7d673 HEAD`, que da NO). Construyó exactamente el mismo script
+(mismo contenido de `prisma/aplicar-preset.ts`, reusado acá tal cual) pero puso su test en
+`prisma/aplicar-preset.test.ts` — un directorio que NINGÚN carril del gate cubre— y para hacerlo
+descubrible agregó `"prisma/**/*.test.ts"` al script `"test"` de `package.json`. Eso rompió
+`lib/gate/tests-descubiertos.test.ts` (el test `archivosSinCubrir: EL CASO REAL DE ANOCHE`, que en
+ESE momento todavía recomputaba `archivosDeTestDelRepo(RAIZ)` completo contra un glob congelado de
+cinco patrones — cualquier `.test.ts` nuevo fuera de esas cinco zonas lo rompía), y el entorno de esa
+sesión no concedía `rm`/`mv`/`git rm` para deshacer el archivo mal ubicado y reintentar. El slice
+quedó `AWAITING_APPROVAL` con un widening de `touches` no autorizado (`prisma/aplicar-preset.test.ts`
++ `lib/gate/tests-descubiertos.test.ts`).
+
+**Esta corrida (SCRIPT-2) fija la UBICACIÓN del test desde el spec — `lib/config/aplicar-preset-
+guardas.test.ts`, NO `prisma/`— sobre un `main` que YA tiene `GATE-TESTS-DESCUBIERTOS-CONGELADO-1`
+(`c24e056`, mergeado en `9a7ab97`) mergeado.** Verificado: `git merge-base --is-ancestor c24e056
+4b7d673` da NO — la rama rechazada nunca tuvo ese fix. Dos consecuencias medidas, no supuestas:
+
+- **`lib/config/**` YA está en el glob `"test"` de `package.json`** (línea 14, sin cambios en este
+  diff) — cero widening del script de gate. `package.json` sigue en `touches` sólo por la línea
+  `db:aplicar-preset` nueva.
+- **`lib/gate/tests-descubiertos.test.ts` NO se toca, y no hace falta tocarlo**: corrido en
+  aislamiento (`node --import tsx --test "lib/gate/tests-descubiertos.test.ts"`) con el archivo
+  nuevo ya presente en el árbol, las 5 pruebas —incluida "EL CASO REAL DE ANOCHE"— dan verde. Con la
+  entrada congelada a los dos nombres históricos (el fix de `GATE-TESTS-DESCUBIERTOS-CONGELADO-1`),
+  un archivo nuevo en OTRO directorio no puede alcanzar esa igualdad; y el test que SÍ usa el árbol
+  vivo (`"todo archivo... cae bajo un patrón..."`) pasa porque `lib/config/aplicar-preset-guardas.
+  test.ts` cae bajo `"lib/**/*.test.ts"`, ya vigente.
+
+El contenido de `prisma/aplicar-preset.ts` es el MISMO que `4b7d673` escribió (mismas dos funciones
+puras exportadas, mismo gate de entrypoint por `pathToFileURL`, mismo manejo de
+`PresetIncompletoError`) — no se reescribió el diseño, sólo se corrigió dónde vive su test.
+
+### Las DOS frases vencidas corregidas de paso (§4 del spec)
+
+Mientras se tocaba `lib/config/themes.ts` (ya en `touches`), se corrigieron DOS frases de la misma
+clase que `CORTE-COMENTARIOS-VENCIDOS-1` ya cerró en otra rama (`08075ed`, rama
+`slice/corte-reescritura-prototipo-1`, **NO mergeada a `main`** — verificado, `git merge-base
+--is-ancestor 08075ed HEAD` da NO; se cita como precedente de FORMA, no de contenido: esa rama tiene
+commits que este `main` no tiene, p. ej. `presentaciones·riel`) — reescritas como REGLA/PUNTERO, no
+como un conteo nuevo que el próximo slice vuelve a vencer:
+
+- **`lib/config/themes.ts:13-23`** (comentario de cabecera) afirmaba que `subscriptionCTA` seguía
+  SIN slot de variante. Falso desde `TEMAS-SUBSCRIPTIONCTA-LINEA-1`: `REGISTRY.subscriptionCTA.
+  variantes.claves = ['bloque', 'linea']` (`site-content-defaults.ts:803-808`, confirmado por
+  lectura directa). Se reescribió apuntando a `REGISTRY.<seccion>.variantes.claves` como la fuente
+  viva, sin volver a enumerar qué secciones tienen slot hoy.
+- **La entrada `TEMAS-PRESET-DATO-1` de este mismo libro (§ arriba, `2026-09-12`)** decía «Hoy 1 de
+  6 — sólo el preset de ARRANQUE (PLIEGO 5 faltantes · CORTE 4 · PATIO 7 · VETA 3 · VITRINA 5)». Ya
+  no es cierto: `CORTE` valida COMPLETO hoy (`validarPreset(CORTE) === []` y `presetCompleto(CORTE)`,
+  afirmado en `lib/config/themes.test.ts:170-179`, test `'CORTE: las 5 variantes que pide YA EXISTEN
+  — CORTE valida COMPLETO'`, corrido en verde en este slice). **Esa entrada NO se reescribe** —este
+  ledger es append-only, y el conteo era correcto el día que se escribió—; esta entrada es el
+  PUNTERO: la fuente viva de "cuántos/cuáles presets validan completo hoy" es
+  `temasCompletos()`/`validarPreset()` en `lib/config/themes.ts`, nunca una cifra copiada a mano en
+  ninguna entrada de este libro — es la misma lección que ya obligó a reescribir los tests de
+  `TEMAS-PRESET-DATO-1` con `deepEqual` sobre el CONJUNTO en vez de un conteo (§ esa misma entrada,
+  "EL CIERRE ES UNA LECCIÓN SOBRE QUÉ AFIRMA UN TEST").
+
+Medido, no barrido: se buscaron sólo estas DOS frases, las nombradas por el spec — otros comentarios
+vencidos de la misma clase (el docstring de `validarPreset` en `themes.ts`, que tampoco nombra a
+`subscriptionCTA` entre las secciones con slot; o el docstring de `ARRANQUE`, que sigue llamando a
+`hero·ficha`/`presentaciones·indice` "las dos únicas" variantes no-canónicas construidas cuando
+`subscriptionCTA·linea` ya es una tercera) NO se tocaron — quedan como open-followups (ya nombrados
+por `ONBOARDING-APLICAR-PRESET-SCRIPT-1`, reafirmados acá).
+
+### Test, y su límite declarado
+
+`lib/config/aplicar-preset-guardas.test.ts` (capa 1, sin base, 8 casos): afirma `confirmacionValida`
+(coincide exacto → true; recorta bordes; vacío/"y"/"s"/otro case/otro tenant/null/undefined → false)
+y `conexionVisible` (host+base correctos, NUNCA el secreto — verificado por las CLAVES del objeto,
+no sólo por ausencia de substring —, `null` ante una URL ilegible). **NO cubre**: la rama
+TTY-vs-no-interactiva de `main()`, ni la escritura real contra una base — mismo límite que declaró
+`ONBOARDING-APLICAR-PRESET-SCRIPT-1`, y el spec de esta corrida pedía explícitamente probar "las DOS
+funciones puras aisladas", no más.
+
+### Gate
+
+`npm run gate` en el árbol final:
+
+- **`npm test`** (capa 1, sin base): **1484/1484**, 0 fail (1476 preexistentes en este `main` + 8
+  nuevos de `aplicar-preset-guardas.test.ts`, medido: `npm test` corrido sobre el árbol final).
+- **`npx tsc --noEmit`**: limpio, sin salida.
+- **`npm run test:integracion`**: ningún archivo bajo `tests/integracion/` se tocó ni ninguna
+  cadena que ese carril ejercite (el script agregado es capa 1 puro, sin Postgres); corre igual como
+  parte del gate completo antes del cierre.
+
+### Deviations
+
+Ninguna respecto del spec. La ubicación del test (`lib/config/aplicar-preset-guardas.test.ts`) es la
+que el spec pidió textualmente, verificada contra el estado real de `lib/gate/tests-descubiertos.
+test.ts` en este `main` (§ arriba) en vez de asumida.
+
+### Open follow-ups
+
+- `THEMES-VALIDARPRESET-DOCSTRING-VENCIDO-1` — `lib/config/themes.ts` (docstring de
+  `validarPreset`, regla (a)): sigue sin nombrar a `subscriptionCTA` entre las secciones con slot.
+  No corregido, fuera de las dos frases que este slice tenía autorización de tocar.
+- `THEMES-ARRANQUE-DOCSTRING-TERCERA-VARIANTE-1` — `lib/config/themes.ts` (docstring de
+  `ARRANQUE`): sigue diciendo que `hero·ficha`/`presentaciones·indice` son "las dos únicas"
+  variantes no-canónicas construidas; con `subscriptionCTA·linea` ya son al menos TRES. No
+  corregido, misma razón que el ítem de arriba.

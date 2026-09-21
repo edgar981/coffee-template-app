@@ -12,12 +12,16 @@
 //
 // MEDIDO CONTRA EL CÓDIGO, no contra la entrega de diseño (que vive fuera de este repo): la mayoría
 // de las CLAVES de variante que el diseño describe (marquesina, tabla, hilo, chips, ticket, media,
-// linea, collage, bento) NO EXISTEN todavía en el REGISTRY — hoy `hero` (`curtina`|`ficha`),
-// `presentaciones` (`mosaico`|`indice`) y `brandStory` (`columnas`, TEMAS-P2-BRANDSTORY-1) declaran
-// `variantes`. `subscriptionCTA` sigue SIN slot de variante (confirmado por grep: `REGISTRY.
-// subscriptionCTA` no declara `variantes`, y su interfaz —`SubscriptionCTAContent`— no tiene campo
-// `variante`); `featured`/`trustBadges` ni siquiera son `SeccionKey` (son bandas ESTRUCTURALES sin
-// sección en `SiteContentData`, § `site-content-defaults.ts`) — `featured` gana su propio slot desde
+// linea, collage, bento) NO EXISTEN todavía en el REGISTRY. QUÉ SECCIÓN declara `variantes`, y con
+// qué claves, NO se enumera acá: se lee en `REGISTRY.<seccion>.variantes.claves` (`site-content-
+// defaults.ts`), porque cada slice que construye una composición nueva mueve esa lista, y una
+// lista congelada de "quién tiene slot hoy" vence sola — medido sobre ESTE MISMO párrafo
+// (ONBOARDING-APLICAR-PRESET-SCRIPT-2): afirmaba que `subscriptionCTA` seguía SIN slot de
+// variante, y hoy sí lo tiene (`variantes: { claves: ['bloque', 'linea'] }`, §
+// TEMAS-SUBSCRIPTIONCTA-LINEA-1) — corregido acá, misma clase de staleness que
+// `CORTE-COMENTARIOS-VENCIDOS-1` ya cerró (en otra rama, no mergeada, citada como precedente de
+// forma) para este mismo párrafo. `featured`/`trustBadges` ni siquiera son `SeccionKey` (son
+// bandas ESTRUCTURALES sin sección en `SiteContentData`, § `site-content-defaults.ts`) — `featured` gana su propio slot desde
 // TEMAS-P1-FEATURED-VARIANTES-1, pero en `VARIANTES_ESTRUCTURALES` (el gemelo del REGISTRY para
 // bandas sin sección, § site-content-defaults.ts), NO en el REGISTRY mismo; `trustBadges` se deja
 // afuera de esa tabla también — ningún preset de acá pide una variante suya (capacidad muerta si se
