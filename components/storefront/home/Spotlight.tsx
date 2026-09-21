@@ -17,6 +17,7 @@ import { fadeUp } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible, productoSpotlight, productoOtraTalla } from "@/lib/config/site-content-defaults";
+import { fontSizeDisplay } from "@/lib/config/escala-display";
 
 // LA BANDA SPOTLIGHT (§ SPOTLIGHT-BANDA-1) — un solo producto PINEADO, con su selector de
 // molienda, notas de cata y "Agregar al carrito" REUSADOS VERBATIM (medido:
@@ -32,8 +33,12 @@ import { REGISTRY, seccionEsVisible, productoSpotlight, productoOtraTalla } from
 // `app/(storefront)/page.tsx` — este archivo EXISTE y COMPILA, listo para conectarse el día que
 // esa RULING se resuelva, pero hoy no lo alcanza ningún preset.
 export default function Spotlight({ style }: { style?: React.CSSProperties } = {}) {
-  const { spotlight } = useSiteContent();
+  const { spotlight, tema } = useSiteContent();
   const preview = useIsPreview();
+  // ESCALA DE DISPLAY (§ TEMAS-ESCALA-DISPLAY-1, SPOTLIGHT-CIERRE-1) — mismo mecanismo que
+  // FeaturedProductsGrilla.tsx: `undefined` sin escala declarada → NO se toca el `style`, el h2
+  // sigue rindiendo `text-3xl sm:text-4xl` (byte-idéntico); sólo CORTE ('amplia') lo agranda.
+  const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');
 
   const [catalog, setCatalog] = useState<Product[]>([]);
   useEffect(() => {
@@ -86,7 +91,7 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
               <p className="text-[var(--sf-sobre-banda,var(--sf-acento-texto))] text-xs font-medium tracking-[0.2em] uppercase mb-2">{spotlight.eyebrow}</p>
             )}
             {spotlight.titulo && (
-              <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]">{spotlight.titulo}</h2>
+              <h2 className="text-3xl sm:text-4xl font-playfair text-[var(--sf-sobre-banda,var(--sf-tinta))]" style={displayL ? { fontSize: displayL } : undefined}>{spotlight.titulo}</h2>
             )}
           </motion.div>
         )}

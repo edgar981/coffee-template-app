@@ -33,7 +33,8 @@ test('CORTE (completo) → las tres bandas nuevas quedan pedidas en el content r
   const out = contenidoConPresetDeVista(DEFECTO, 'CORTE');
   assert.notEqual(out, DEFECTO);
   assert.equal(out.hero.variante, 'media');
-  assert.equal(out.variantesBandas.featured, 'grilla');
+  // SPOTLIGHT-CABLEADO-HOME-1: CORTE pasó de pedir `featured: 'grilla'` a `featured: 'spotlight'`.
+  assert.equal(out.variantesBandas.featured, 'spotlight');
   assert.equal(out.subscriptionCTA.variante, 'linea');
 });
 

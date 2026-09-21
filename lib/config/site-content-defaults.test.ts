@@ -666,8 +666,8 @@ test('variantesBandas: SeccionKey lo excluye — el REGISTRY no tiene entrada `v
   assert.equal('variantesBandas' in REGISTRY, false);
 });
 
-test('VARIANTES_ESTRUCTURALES: declara `featured` con su canónica `cuadricula` y la variante `grilla` (TEMAS-FEATURED-GRILLA-1), y NO declara `trustBadges` (capacidad muerta evitada)', () => {
-  assert.deepEqual(VARIANTES_ESTRUCTURALES.featured, { claves: ['cuadricula', 'grilla'], canonica: 'cuadricula' });
+test('VARIANTES_ESTRUCTURALES: declara `featured` con su canónica `cuadricula` y las variantes `grilla`/`spotlight` (TEMAS-FEATURED-GRILLA-1, SPOTLIGHT-CABLEADO-HOME-1), y NO declara `trustBadges` (capacidad muerta evitada)', () => {
+  assert.deepEqual(VARIANTES_ESTRUCTURALES.featured, { claves: ['cuadricula', 'grilla', 'spotlight'], canonica: 'cuadricula' });
   assert.equal(VARIANTES_ESTRUCTURALES.trustBadges, undefined);
 });
 

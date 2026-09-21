@@ -11346,3 +11346,95 @@ de decidir:
 - Los tres follow-ups de `SPOTLIGHT-BANDA-1` (`SPOTLIGHT-PIN-RANCIO-AVISO-1`,
   `SPOTLIGHT-PANEL-EDITOR-1`) **YA NO están bloqueados por "sin cableado en la home"** — este slice
   cableó la banda. Se re-priorizan aparte; no se tocan acá.
+
+## 2026-09-21 — Cierre de `SPOTLIGHT-CABLEADO-HOME-1`: los dos asserts stale + el titular sin escala (`SPOTLIGHT-CIERRE-1`)
+
+Cierra los dos follow-ups que `SPOTLIGHT-CABLEADO-HOME-1` (arriba) dejó abiertos y midió sin poder
+tocar: `SPOTLIGHT-STALE-ASSERTS-1` (el `GATE_RED`) y `SPOTLIGHT-ESCALADISPLAY-1` (la deviation
+medida). No se repite el razonamiento de esa entrada — el cableado en sí (la variante, el
+dispatcher, CORTE eligiéndola) ya está hecho y no se tocó acá; sólo se citan sus conclusiones.
+
+### LOS DOS ASSERTS
+
+- `lib/config/site-content-defaults.test.ts:670` fotografiaba `VARIANTES_ESTRUCTURALES.featured ===
+  { claves: ['cuadricula', 'grilla'], canonica: 'cuadricula' }`. El valor REAL desde
+  `SPOTLIGHT-CABLEADO-HOME-1` es `['cuadricula', 'grilla', 'spotlight']` (medido en
+  `site-content-defaults.ts:1242`, sin tocar) — se actualizó el `deepEqual` al valor nuevo.
+- `lib/config/theme-mirador.test.ts:36` fotografiaba `contenidoConPresetDeVista(_, 'CORTE')
+  .variantesBandas.featured === 'grilla'`. El valor real es `'spotlight'` (medido en
+  `themes.ts:409`, sin tocar) — se actualizó el `equal` al valor nuevo.
+
+Los dos son la MISMA clase de fix: re-fotografiar un valor que el cambio legítimo de
+`SPOTLIGHT-CABLEADO-HOME-1` volvió viejo, no aflojar un test. Ninguno de los dos toca lógica.
+
+### EL TITULAR — `Spotlight.tsx` ahora consume `fontSizeDisplay`
+
+`Spotlight.tsx` gana `const { spotlight, tema } = useSiteContent();` (destructura `tema`, antes sólo
+`spotlight`) y `const displayL = fontSizeDisplay(tema.escalaDisplay, 'l');`, aplicado al `h2` del
+titular con el MISMO patrón que `FeaturedProductsGrilla.tsx:38-39,50` (`style={displayL ? {
+fontSize: displayL } : undefined}`) — mismo import (`@/lib/config/escala-display`), misma firma,
+mismo rol (`'l'`, el h2 de una banda de sección — no `'xl'`, que es sólo el h1 del hero). No se
+inventó un mecanismo nuevo.
+
+Contrato de `fontSizeDisplay` (`escala-display.ts:66-69`, sin tocar): `escala === null → undefined`
+→ el llamador no toca `style` → el `h2` sigue rindiendo su clase Tailwind de hoy
+(`text-3xl sm:text-4xl`) byte-idéntico. Con `escala: 'amplia'` (sólo CORTE la declara,
+`escala-display.ts:11-12`) → el `clamp(48px, 5vw, 76px)` de `CLAMP_L`.
+
+**LA INVARIANTE queda cerrada por construcción, no por un test nuevo de render**: `Spotlight.tsx`
+sólo tiene UN llamador a `fontSizeDisplay`, con el MISMO argumento (`tema.escalaDisplay`) que
+`FeaturedProductsGrilla` ya usa y que `escala-display.ts` ya prueba en capa 1
+(`escala-display.test.ts`, fuera de `touches:`, no tocado) — no hay una segunda función que pudiera
+divergir sobre qué hace `null` vs `'amplia'`.
+
+**NO SE AGREGÓ un test de render nuevo**, y es una desviación medida, no un olvido: el propio
+`spotlight-cableado.test.ts` (§ `SPOTLIGHT-CABLEADO-HOME-1`, "BYTE-IDENTIDAD DE NAYOLI, POR RENDER")
+ya documenta el límite del carril — `Spotlight.tsx` fetchea el catálogo en un `useEffect` que
+`renderToStaticMarkup` nunca ejecuta, así que `producto` es SIEMPRE `null` en ese harness y el
+componente entero rinde vacío (`if (!producto) return null;` corre ANTES de armar el JSX del `h2`,
+`Spotlight.tsx:59`) — no hay forma de renderizar el `h2` escalado con la infraestructura de test
+actual sin mockear `fetch`, y ese archivo (`spotlight-cableado.test.ts`) no está en `touches:` de
+este slice. Escribir esa infraestructura nueva, o tocar `spotlight-cableado.test.ts`/
+`spotlight-banda.test.ts` para hospedar el test, habría ensanchado el diff fuera de los 4 archivos
+declarados. La verificación que sí corre dentro de `touches:` es de código (el mismo mecanismo que
+`FeaturedProductsGrilla` ya prueba con éxito en su propia banda) + el gate completo en verde (abajo).
+
+### Gate
+
+`npm test`: **1624/1624**, 0 fail — mismo total que el piso de `SPOTLIGHT-CABLEADO-HOME-1`
+(1624 intentados, ahí 2 fallaban); acá los mismos 1624 pasan, cero tests agregados o quitados.
+`npm run test:integracion`: **208/208**, 0 fail — idéntico al piso, sin tocar `packages/core/` ni
+`tests/integracion/`. `npx tsc --noEmit`: limpio. `npx next build`: `✓ Compiled successfully` (6.6s),
+todas las rutas generadas sin error.
+
+`npx eslint` sobre los 3 archivos de código tocados: 1 warning + 2 errores, los TRES preexistentes y
+fuera del diff de este slice —confirmado con `git diff --stat` (el `.test.ts` de site-content-
+defaults sólo cambió 2 líneas, ninguna de las que el linter marca) y por lectura del propio archivo—:
+el warning de `react-hooks/set-state-in-effect` en `Spotlight.tsx:57` es el `useEffect` de
+`molienda` que YA existía sin tocar (línea sin diff); los dos `react/no-children-prop` de
+`site-content-defaults.test.ts:823,827` son el mismo patrón `React.createElement(X, { value,
+children })` que `SPOTLIGHT-CABLEADO-HOME-1` ya documentó como heredado y sin corregir en
+`hero-agregados.test.ts`/`escala-display.test.ts`.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, sobre `SPOTLIGHT-CABLEADO-HOME-1`: cierra su `GATE_RED` y su
+deviation medida). `lib/config/site-content-defaults.ts`/`theme-mirador.ts` están en la frase
+canónica de Tier 1 vía sus `.test.ts`; `components/storefront/` entra por el subárbol ya ganado
+(bytes del visitante) — Spotlight.tsx cambia bytes que el visitante ve (el tamaño del titular bajo
+CORTE), así que `customer_bytes.changed = true`. `stopped_on: [customer-bytes]` →
+`AWAITING_APPROVAL`, por protocolo (el worker nunca mergea, § "quién decide qué").
+
+### Deviations
+
+1. **No se agregó test de render para el `h2` escalado** (§ arriba) — la infraestructura de render
+   síncrono de este repo no puede montar `Spotlight` con `producto` resuelto sin mockear `fetch`, y
+   los archivos que hospedan sus tests hoy no están en `touches:`. La verificación queda en que el
+   mecanismo es idéntico, línea por línea, al de `FeaturedProductsGrilla` (ya probado) + el gate
+   completo en verde.
+
+### Open follow-ups
+
+- Ninguno nuevo. Los dos que este slice cierra (`SPOTLIGHT-STALE-ASSERTS-1`,
+  `SPOTLIGHT-ESCALADISPLAY-1`, ambos de `SPOTLIGHT-CABLEADO-HOME-1`) quedan resueltos por el diff de
+  arriba, no re-abiertos.
