@@ -243,14 +243,12 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
             </p>
             {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie`
                 migrado al par `var(--sf-sobre-superficie[-suave],<token de hoy>)`
-                (§ TEMAS-P6-FAMILIAS-1) — token viejo como fallback, byte-idéntico para Nayoli --
-                salvo el número de orden, cuyo fallback era `--sf-acento-texto`: para un
-                inquilino CON paleta ese par vale OTRO color que `--sf-acento-texto`.
-                PALETA-MIGRACION-SACAR-LOS-QUE-MUEVEN-1 lo revirtió -- § PALETA-ACENTO-TINTA-
-                SOBRE-SUPERFICIE-1, DECISIONS.md. */}
+                (§ TEMAS-P6-FAMILIAS-1) — token viejo como fallback, byte-idéntico para Nayoli.
+                El número de orden (fallback `--sf-acento-texto`) migró en PALETA-MIGRAR-ACENTO-
+                TINTA-1 (§ PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md). */}
             <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 text-left">
               <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-acento-texto)] text-center">{vista.numeroOrden}</p>
+              <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{vista.numeroOrden}</p>
             </div>
           </>
         )}
@@ -265,12 +263,13 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
               Te avisaremos apenas se confirme. Puedes revisar el estado de tu pedido más tarde con tu número de
               orden y tu correo.
             </p>
-            {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1 -- el número de orden tenía fallback
-                `--sf-acento-texto`, revertido por PALETA-MIGRACION-SACAR-LOS-QUE-MUEVEN-1
-                (§ PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md). */}
+            {/* El número de orden (fallback `--sf-acento-texto`) migró en PALETA-MIGRAR-
+                ACENTO-TINTA-1 -- § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md. Este es
+                uno de los TRES sitios que sólo se ven cuando el sondeo de retorno AGOTA su techo
+                (5 min, `TECHO_MS` arriba). */}
             <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
               <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-acento-texto)] text-center">{vista.numeroOrden}</p>
+              <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{vista.numeroOrden}</p>
             </div>
             {/* Jerarquía fijada por el owner (§2, WOMPI-RETORNO-307-Y-TECHO-1): principal = número +
                 rastrear-pedido; secundaria = "Volver a consultar"; WhatsApp = terciaria y CONDICIONAL
@@ -317,12 +316,11 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
             <p className="text-sm text-[var(--sf-texto-suave)] mb-6">
               Tu pedido queda confirmado y pasa a preparación.
             </p>
-            {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1 -- el número de orden tenía fallback
-                `--sf-acento-texto`, revertido por PALETA-MIGRACION-SACAR-LOS-QUE-MUEVEN-1
-                (§ PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md). */}
+            {/* El número de orden (fallback `--sf-acento-texto`) migró en PALETA-MIGRAR-
+                ACENTO-TINTA-1 -- § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md. */}
             <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
               <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-acento-texto)] text-center">{vista.numeroOrden}</p>
+              <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{vista.numeroOrden}</p>
             </div>
             <div className="flex flex-col gap-3">
               <Link
@@ -350,12 +348,11 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
             <p className="text-sm text-[var(--sf-texto-suave)] mb-6">
               No te preocupes, no se realizó ningún cobro. Puedes volver a la tienda e intentarlo de nuevo.
             </p>
-            {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1 -- el número de orden tenía fallback
-                `--sf-acento-texto`, revertido por PALETA-MIGRACION-SACAR-LOS-QUE-MUEVEN-1
-                (§ PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md). */}
+            {/* El número de orden (fallback `--sf-acento-texto`) migró en PALETA-MIGRAR-
+                ACENTO-TINTA-1 -- § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md. */}
             <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
               <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-acento-texto)] text-center">{vista.numeroOrden}</p>
+              <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{vista.numeroOrden}</p>
             </div>
             <Link
               href="/tienda"

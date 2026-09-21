@@ -321,13 +321,12 @@ export default function ProductPage({
                   <div className="space-y-3">
                     <div className="flex items-center gap-4">
                       {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie`
-                          migrado al par `var(--sf-sobre-superficie,<token de hoy>)` -- salvo el
-                          span de la cantidad, revertido por PALETA-MIGRACION-SACAR-LOS-QUE-MUEVEN-1
-                          (fallback `--sf-tinta`, no `--sf-texto`; § PALETA-ACENTO-TINTA-SOBRE-
-                          SUPERFICIE-1, DECISIONS.md). */}
+                          migrado al par `var(--sf-sobre-superficie,<token de hoy>)`. El span de la
+                          cantidad (fallback `--sf-tinta`, no `--sf-texto`) migró en PALETA-MIGRAR-
+                          ACENTO-TINTA-1 -- § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md. */}
                       <div className="flex items-center gap-2 bg-[var(--sf-superficie)] rounded-xl px-1">
                         <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-9 h-9 flex items-center justify-center hover:bg-[var(--sf-linea)] sf-radio-lg transition-colors cursor-pointer"><Minus className="w-4 h-4" /></button>
-                        <span className="w-8 text-center font-semibold text-[var(--sf-tinta)]">{qty}</span>
+                        <span className="w-8 text-center font-semibold text-[var(--sf-sobre-superficie,var(--sf-tinta))]">{qty}</span>
                         <button
                           onClick={() =>
                             setQty((q) => {
@@ -383,13 +382,11 @@ export default function ProductPage({
 
       {/* Related */}
       {related.length > 0 && (
-        // PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1 revirtió este h2 (PALETA-MIGRACION-SACAR-LOS-QUE-
-        // MUEVEN-1): su fallback era `--sf-tinta`, y para un inquilino CON paleta el par
-        // sobre-superficie vale OTRO color que `--sf-tinta` -- § PALETA-ACENTO-TINTA-SOBRE-
-        // SUPERFICIE-1, DECISIONS.md.
+        // Este h2 (fallback `--sf-tinta`) migró en PALETA-MIGRAR-ACENTO-TINTA-1 --
+        // § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md.
         <div className="bg-[var(--sf-superficie)] py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-            <h2 className="mb-8 font-playfair text-2xl text-[var(--sf-tinta)]">
+            <h2 className="mb-8 font-playfair text-2xl text-[var(--sf-sobre-superficie,var(--sf-tinta))]">
               También te puede gustar
             </h2>
 

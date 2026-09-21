@@ -431,14 +431,16 @@ export default function Checkout() {
             {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie`
                 migrado al par `var(--sf-sobre-superficie[-suave],<token de hoy>)`
                 (§ TEMAS-P6-FAMILIAS-1) — el token viejo queda como fallback, byte-idéntico
-                para Nayoli (raíces null, sin inyección de la familia `superficie`) -- salvo el
-                número de orden de abajo, cuyo fallback era `--sf-acento-texto`: para un
-                inquilino CON paleta ese par vale OTRO color que `--sf-acento-texto`.
-                PALETA-MIGRACION-SACAR-LOS-QUE-MUEVEN-1 lo revirtió -- § PALETA-ACENTO-TINTA-
-                SOBRE-SUPERFICIE-1, DECISIONS.md. */}
+                para Nayoli (raíces null, sin inyección de la familia `superficie`). El número de
+                orden de abajo (fallback `--sf-acento-texto`) migró ACÁ, no en esa tanda:
+                PALETA-MIGRAR-ACENTO-TINTA-1 (§ PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1,
+                DECISIONS.md) — el par vale OTRO color que `--sf-acento-texto` para un inquilino
+                CON paleta, y esta vez el owner aprobó ese cambio de tono para arreglar PATIO/
+                VETA. NO LIMPIAR EL FALLBACK: sin `content.tema`, el token nuevo no se inyecta y
+                el fallback es la única salida que pinta. */}
             <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
               <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-acento-texto)] mb-4 text-center">{confirmation.numero_orden}</p>
+              <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] mb-4 text-center">{confirmation.numero_orden}</p>
               <div className="space-y-2 pt-3 sf-divisor-t border-[var(--sf-linea)]">
                 {confirmation.items.map((item, i) => (
                   <div key={i} className="flex justify-between text-xs text-[var(--sf-sobre-superficie,var(--sf-texto))]">
@@ -473,10 +475,9 @@ export default function Checkout() {
                     <span className="text-right">{confirmation.direccion_detalle}</span>
                   </div>
                 )}
-                {/* PALETA-MIGRACION-SACAR-LOS-QUE-MUEVEN-1: el Total tenía fallback `--sf-tinta`
-                    (no `--sf-texto`) -- revertido, § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1,
-                    DECISIONS.md. */}
-                <div className="flex justify-between font-bold text-[var(--sf-tinta)] text-base pt-1 sf-divisor-t border-[var(--sf-linea)]">
+                {/* PALETA-MIGRAR-ACENTO-TINTA-1: el Total tiene fallback `--sf-tinta` (no
+                    `--sf-texto`), § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md. */}
+                <div className="flex justify-between font-bold text-[var(--sf-sobre-superficie,var(--sf-tinta))] text-base pt-1 sf-divisor-t border-[var(--sf-linea)]">
                   <span>Total</span><span>{formatCOP(confirmation.total)}</span>
                 </div>
               </div>
@@ -646,12 +647,12 @@ export default function Checkout() {
                         </div>
                         <h2 className="text-xl font-playfair text-[var(--sf-tinta)] mb-2">Tu pedido está reservado</h2>
                         <p className="text-sm text-[var(--sf-texto)] mb-4">Completa el pago abajo para confirmarlo.</p>
-                        {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1 -- el número de orden tenía
-                            fallback `--sf-acento-texto`, revertido por PALETA-MIGRACION-SACAR-LOS-
-                            QUE-MUEVEN-1 (§ PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md). */}
+                        {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1, y el número de orden (fallback
+                            `--sf-acento-texto`) migrado en PALETA-MIGRAR-ACENTO-TINTA-1
+                            (§ PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md). */}
                         <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
                           <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
-                          <p className="text-2xl font-bold text-[var(--sf-acento-texto)] text-center">{confirmation.numero_orden}</p>
+                          <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{confirmation.numero_orden}</p>
                         </div>
                         <PagoPasarela
                           reference={confirmation.wompi.reference}

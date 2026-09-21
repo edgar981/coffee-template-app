@@ -23,12 +23,11 @@ export default function SuscripcionPasos() {
     // par `var(--sf-sobre-superficie,<token de hoy>)` (§ TEMAS-P6-FAMILIAS-1) — el token viejo
     // queda como fallback, byte-idéntico para Nayoli. `--sf-tostado` (línea del "0N") NO migra:
     // es decorativo, nunca formó parte de la familia floreada-contra-fondo. El título y el label
-    // de cada paso, en cambio, tenían fallback `--sf-tinta` (no `--sf-texto`): para un inquilino
-    // CON paleta ese par vale OTRO color que `--sf-tinta`. PALETA-MIGRACION-SACAR-LOS-QUE-MUEVEN-1
-    // los revirtió -- § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md.
+    // de cada paso (fallback `--sf-tinta`, no `--sf-texto`) migraron en PALETA-MIGRAR-ACENTO-
+    // TINTA-1 -- § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md.
     <section className="py-16 bg-[var(--sf-superficie)]">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-playfair text-[var(--sf-tinta)] text-center mb-10">{c.titulo}</h2>
+        <h2 className="text-2xl font-playfair text-[var(--sf-sobre-superficie,var(--sf-tinta))] text-center mb-10">{c.titulo}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
           {pasos.map((paso, i) => {
             const Icono = ICONOS[i];
@@ -38,7 +37,7 @@ export default function SuscripcionPasos() {
                   <Icono className="w-5 h-5 text-[var(--sf-acento-txt)]" />
                 </div>
                 <p className="text-[var(--sf-tostado)] text-xs font-bold mb-1">{String(i + 1).padStart(2, '0')}</p>
-                <p className="font-semibold text-[var(--sf-tinta)] mb-1 text-sm">{paso.label}</p>
+                <p className="font-semibold text-[var(--sf-sobre-superficie,var(--sf-tinta))] mb-1 text-sm">{paso.label}</p>
                 <p className="text-xs text-[var(--sf-sobre-superficie,var(--sf-texto))]">{paso.descripcion}</p>
               </div>
             );

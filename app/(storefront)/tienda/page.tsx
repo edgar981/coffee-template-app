@@ -98,15 +98,13 @@ function ShopInner() {
       <div className="pt-16">
         {/* Page Header */}
         {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie` migrado
-            al par `var(--sf-sobre-superficie,<token de hoy>)` (§ TEMAS-P6-FAMILIAS-1) -- salvo el
-            h1 de abajo: su fallback era `--sf-tinta`, y para un inquilino CON paleta ese par vale
-            OTRO color que `--sf-tinta` (no el mismo caso que `--sf-texto`). PALETA-MIGRACION-
-            SACAR-LOS-QUE-MUEVEN-1 lo revirtió -- § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1,
-            DECISIONS.md. */}
+            al par `var(--sf-sobre-superficie,<token de hoy>)` (§ TEMAS-P6-FAMILIAS-1). El h1 de
+            abajo (fallback `--sf-tinta`) migró en PALETA-MIGRAR-ACENTO-TINTA-1 --
+            § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md. */}
         <div className="bg-[var(--sf-superficie)] sf-divisor-b border-[var(--sf-linea)] py-12">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-              <h1 className="text-4xl font-playfair text-[var(--sf-tinta)] mb-2">Nuestra Tienda</h1>
+              <h1 className="text-4xl font-playfair text-[var(--sf-sobre-superficie,var(--sf-tinta))] mb-2">Nuestra Tienda</h1>
               <p className="text-[var(--sf-sobre-superficie,var(--sf-texto))] text-sm">{catalog === null ? "Cargando" : `${catalog.length} productos`} · Origen colombiano</p>
             </motion.div>
           </div>

@@ -10119,3 +10119,115 @@ sólo el de una paleta custom hipotética. Es una decisión de PRODUCTO —qué 
 número de orden y los títulos que hoy pintan `--sf-acento-texto`/`--sf-tinta` sobre una superficie
 elevada—, no una continuación mecánica del mismo wrap; por eso queda para el gate propio del owner,
 no se resuelve acá con un tercer token.
+
+## 2026-09-20 — PALETA-MIGRAR-ACENTO-TINTA-1: los 14 sitios migran al par `sobre-superficie`,
+esta vez con el gate propio del owner cumplido
+
+**Cierra el follow-up `PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1` de arriba.** El owner sacó estos 14
+sitios del slice anterior por su propia condición ("si algún sitio mueve el color del inquilino por
+defecto, ESE SALE DEL SLICE"), pidió el censo con color, pantalla y camino del dinero, lo recibió, y
+decidió migrarlos. Su razón textual: **«dejarlo como está NO es neutral — no migrar es elegir dejar
+dos presets rotos para no cambiarle el tono a cuatro que funcionan».**
+
+### La forma: el MISMO wrap que `PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1`, nada nuevo
+
+Los 14 sitios (7 archivos, la misma tabla que el asiento de arriba) pasan de leer `--sf-acento-texto`
+u `--sf-tinta` CRUDO a `var(--sf-sobre-superficie,var(--sf-acento-texto))` /
+`var(--sf-sobre-superficie,var(--sf-tinta))` — literal el mismo par `sobre-superficie` (nunca
+`-suave`: los 14 son títulos/números en negrita, ningún texto secundario) que ya usan los 23 sitios
+que `PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1` dejó migrados. Ninguna variante nueva, ningún token
+nuevo, ningún preset tocado — sólo el `className` de cada sitio y su comentario.
+
+**EL FALLBACK NO SE LIMPIA, Y ESO QUEDA DICHO ACÁ PARA QUE NO SE VUELVA A DISCUTIR:** un inquilino
+que no fijó paleta (Nayoli, `content.tema` null) nunca inyecta `--sf-sobre-superficie` — el motor
+sólo la computa cuando `content.tema` existe (`palette-derive.ts:283-285`) — así que para ESE
+inquilino el token nuevo NO EXISTE y el fallback (`--sf-acento-texto`/`--sf-tinta`) es LO ÚNICO que
+pinta el texto. Parece decoración y es la única salida de un estado real; borrarlo dejaría a Nayoli
+con un `var(--sf-sobre-superficie)` sin segundo argumento, que el navegador resuelve a
+`currentColor`/transparente. No es deuda — es la forma correcta del wrap.
+
+### PRIMERA VERIFICACIÓN PEDIDA — los dos presets rotos, medidos DESPUÉS de migrar, no inferidos
+
+Medido con `derivarPaleta` de `lib/config/palette-derive.ts` contra las raíces REALES de los seis
+presets del catálogo (`lib/config/themes.ts`, `PRESETS`) — `.scratch/verificar-acento-tinta.ts`, no
+conservado (gitignored), resultado acá. Contraste WCAG (`contraste()`, el mismo cálculo que
+`pisoContraste` usa para su piso de 4.5): el color que el sitio pinta contra `--sf-superficie`
+derivada de ESE preset, no contra `--sf-fondo`.
+
+| preset | raíces (línea) | acento-como-texto ANTES (`acento-texto` vs `superficie`) | tinta ANTES (`tinta` cruda vs `superficie`) | `sobre-superficie` DESPUÉS (vs `superficie`) | veredicto |
+| --- | --- | --- | --- | --- | --- |
+| PLIEGO | `themes.ts:275` | 5.238 | 14.518 | 7.892 | ya pasaba cómodo — cambia de tono, sigue muy arriba del piso |
+| CORTE | `themes.ts:311` | 13.780 | 13.780 | 8.544 | ya pasaba cómodo (declara `origenTexto:'tinta'`, § arriba) — cambia de tono, sigue muy arriba del piso |
+| **PATIO** | `themes.ts:413` | **4.140 — bajo AA (4.5)** | 13.911 | **5.506 — sobre AA** | **ROTO → arreglado** |
+| **VETA** | `themes.ts:440` | 5.822 | **1.194 — prácticamente ilegible** | **4.612 — sobre AA** | **ROTO → arreglado** |
+| VITRINA | `themes.ts:462` | 5.016 | 16.671 | 8.219 | ya pasaba cómodo — cambia de tono, sigue muy arriba del piso |
+| ARRANQUE | `themes.ts:505` (= `RAICES_DEFECTO`) | 5.811 | 15.407 | 8.714 | ya pasaba cómodo — cambia de tono, sigue muy arriba del piso |
+
+**PATIO** es el preset con el acento-como-texto bajo el mínimo de accesibilidad (4.140 < 4.5) — el
+número de orden, en `--sf-acento-texto` crudo, no se leía bien sobre su propia superficie. **VETA**
+es el preset con la tinta sobre superficie oscura casi ilegible (1.194:1, prácticamente el mismo
+color sobre sí mismo — `raices.tinta = #080605` contra una `superficie` derivada de un `fondo` casi
+igual de oscuro, `#16120e`). Los dos quedan sobre el piso de 4.5 tras migrar (5.506 y 4.612). Los
+otros cuatro presets (PLIEGO, CORTE, VITRINA, ARRANQUE) ya pasaban cómodos con el valor de hoy —el
+cambio de tono no los acerca al piso, los deja igual de holgados del otro lado (7.9–8.7:1)—, que es
+exactamente lo que el owner aceptó pagar.
+
+### SEGUNDA VERIFICACIÓN PEDIDA — los nueve sitios del camino del dinero, uno por uno
+
+De los 14, **NUEVE** viven donde se paga o se confirma un pago — el checkout, el retorno de la
+pasarela, y las dos pantallas de espera de un cobro por pasarela (tarjeta / redirección). Los otros
+cinco (la cantidad del selector y el "también te puede gustar" de la ficha de producto, el h1 de
+`/tienda`, el título y el label de cada paso de `/suscripciones`) no tocan dinero.
+
+| # | archivo:línea | pantalla / vista (como se ve) | ¿sólo-en-agote-de-sondeo? |
+| --- | --- | --- | --- |
+| 1 | `app/(storefront)/checkout/page.tsx:443` | Checkout — confirmación terminal ("¡Pedido recibido!" / "¡Tu pago fue aprobado!"), caja "Número de orden" | no — se ve en el flujo normal (orden manual, pasarela aprobada, método no habilitado) y también con `intentosAgotados` |
+| 2 | `app/(storefront)/checkout/page.tsx:480` | La misma pantalla — línea "Total" del resumen | no |
+| 3 | `app/(storefront)/checkout/page.tsx:655` | Checkout, modo widget de pasarela — "Tu pedido está reservado", caja "Número de orden" | no — se ve siempre que el widget está montado |
+| 4 | `app/(storefront)/checkout/retorno/RetornoCliente.tsx:251` | `/checkout/retorno` — vista `en_vuelo` ("Estamos confirmando tu pago"), caja "Número de orden" | no — se ve mientras el sondeo sigue, antes de agotar |
+| 5 | `app/(storefront)/checkout/retorno/RetornoCliente.tsx:272` | `/checkout/retorno` — vista `techo` ("Tu pago sigue procesándose"), caja "Número de orden" | **SÍ — sólo tras 5 min sin resolver (`TECHO_MS`)** |
+| 6 | `app/(storefront)/checkout/retorno/RetornoCliente.tsx:323` | `/checkout/retorno` — vista `aprobado` ("¡Tu pago fue aprobado!"), caja "Número de orden" | no |
+| 7 | `app/(storefront)/checkout/retorno/RetornoCliente.tsx:355` | `/checkout/retorno` — vista `fallido` ("Tu pago no fue aprobado"), caja "Número de orden" | no |
+| 8 | `components/storefront/checkout/EsperaConfirmacionTarjeta.tsx:219` | Espera de confirmación de tarjeta (dentro del checkout) — vista `techo` ("Tu pago sigue procesándose"), caja "Número de orden" | **SÍ — sólo tras agotar `techoMs` (el sondeo del 3DS/tarjeta)** |
+| 9 | `components/storefront/checkout/EsperaRedireccionPasarela.tsx:141` | Espera de redirección a la pasarela (dentro del checkout) — vista `techo` ("Todavía no pudimos abrir la página de pago"), caja "Número de orden" | **SÍ — sólo tras agotar `TECHO_SONDEO_MS`** |
+
+**Los TRES que sólo aparecen cuando un sondeo se agota son las filas 5, 8 y 9** — las tres vistas
+`techo` de los tres componentes que sondean (`RetornoCliente`, `EsperaConfirmacionTarjeta`,
+`EsperaRedireccionPasarela`), verificado leyendo cada componente: las tres son la única rama que se
+alcanza cuando `Date.now() - inicio >= <su propio techo>` y ninguna otra condición las dispara. La
+razón del owner para nombrarlos aparte: **si algún día algo se ve mal en el checkout de un cliente
+con tema, ese listado es lo primero que alguien va a leer** — y un defecto en una pantalla que sólo
+aparece una vez cada muchos intentos (el sondeo normal resuelve en segundos, medido en
+`PRIMERA-TRANSACCION-REAL-ASIENTO-1`: 5.6–10.3s) puede vivir meses sin que nadie lo reporte, porque
+quien llega a esa pantalla ya está en el peor momento de su compra y no vuelve a describir un color.
+
+### Lo que NO se tocó
+
+El motor de paleta (`palette-derive.ts`) — cero tokens nuevos, cero pisos nuevos. Ningún preset de
+`themes.ts`. Los 10 sitios sólo-hover nombrados en `PALETA-HOVER-TEXTO-SOBRE-SUPERFICIE-1` (arriba) —
+siguen sin el wrap, fuera de alcance de este slice. Los 23 sitios que `PALETA-MIGRAR-TEXTO-SOBRE-
+SUPERFICIE-1` dejó migrados — sin cambio, siguen con fallback `--sf-texto`/`--sf-texto-suave`.
+
+### Gate
+
+`npx tsc --noEmit`: limpio. `npm run build`: `✓ Compiled successfully`, sin errores (verificado con
+`grep -iE "error|failed to compile"` sobre la salida completa — cero coincidencias). `npm run gate`
+(capa 1 + capa 2, un solo corte sobre el árbol final): **capa 1 1517/1517, capa 2 208/208, 0 fail** —
+el MISMO piso que `PALETA-MIGRACION-SACAR-LOS-QUE-MUEVEN-1` (este slice no tocó ningún archivo con
+test propio: son los mismos 7 archivos de presentación, sin lógica, del asiento anterior).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, 2026-09-20 — la aprobación citada al inicio de este asiento).
+Mismos 7 archivos que el slice anterior, en `app/(storefront)/` y `components/storefront/` — Tier 1,
+bytes del visitante. Contra MERGE POLICY A: **sin schema/migración**, **sin contrato cross-repo**,
+pero **SÍ bytes de cliente** — el diff cambia el color CALCULADO (no el texto) de 14 sitios en
+pantallas públicas (`/tienda`, `/tienda/[slug]`, `/checkout`, `/checkout/retorno`, `/suscripciones`).
+`customer_bytes.changed: true`, `customer_bytes.strings: []` — ningún texto visible cambia, sólo el
+tono resuelto para un inquilino con paleta propia (para Nayoli, raíces null, el fallback deja los 14
+sitios byte-idénticos — cero cambio). `AWAITING_APPROVAL`.
+
+### Open follow-ups
+
+Ninguno nuevo. `PALETA-HOVER-TEXTO-SOBRE-SUPERFICIE-1` (arriba) sigue abierto, sin tocar por este
+slice.
