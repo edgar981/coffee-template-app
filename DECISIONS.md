@@ -8992,11 +8992,18 @@ funciones puras aisladas", no más.
 `npm run gate` en el árbol final:
 
 - **`npm test`** (capa 1, sin base): **1484/1484**, 0 fail (1476 preexistentes en este `main` + 8
-  nuevos de `aplicar-preset-guardas.test.ts`, medido: `npm test` corrido sobre el árbol final).
-- **`npx tsc --noEmit`**: limpio, sin salida.
-- **`npm run test:integracion`**: ningún archivo bajo `tests/integracion/` se tocó ni ninguna
-  cadena que ese carril ejercite (el script agregado es capa 1 puro, sin Postgres); corre igual como
-  parte del gate completo antes del cierre.
+  nuevos de `aplicar-preset-guardas.test.ts`, medido: `npm test` corrido sobre el árbol final, dos
+  veces — antes y después de la corrección de cita de §arriba, las dos en 1484/1484).
+- **`npx tsc --noEmit`**: limpio, sin salida, en las dos corridas.
+- **`npm run test:integracion`** (Postgres 14.20 efímero): **208/208** en la corrida final. La
+  PRIMERA corrida (antes de la corrección de cita) dio **207/208** — un solo fallo en
+  `tests/integracion/wompi-reconciliador.test.ts`, test `'CONCURRENCIA: webhook y reconciliador
+  procesando el MISMO evento A LA VEZ'`, un archivo que este slice NO toca ni importa (verificado:
+  sus imports son `@duna/core/orders`, `@duna/core/notifications`, `@/constants/automations`,
+  `@/lib/pagos/wompi-firma`, `@/app/api/webhooks/wompi/route`, `./fixtures` — ninguno en `touches`).
+  Re-corrida INMEDIATA sobre el MISMO árbol (sin tocar una línea) dio 208/208 — la carrera que ese
+  test ejercita (`Promise.all` de dos escritores concurrentes bajo lock) es intermitente por
+  naturaleza, y no es atribuible a este diff. Ver `WOMPI-RECONCILIADOR-CONCURRENCIA-FLAKY-1` abajo.
 
 ### Deviations
 
@@ -9013,3 +9020,11 @@ test.ts` en este `main` (§ arriba) en vez de asumida.
   `ARRANQUE`): sigue diciendo que `hero·ficha`/`presentaciones·indice` son "las dos únicas"
   variantes no-canónicas construidas; con `subscriptionCTA·linea` ya son al menos TRES. No
   corregido, misma razón que el ítem de arriba.
+- `WOMPI-RECONCILIADOR-CONCURRENCIA-FLAKY-1` — `tests/integracion/wompi-reconciliador.test.ts`, el
+  test `'CONCURRENCIA: webhook y reconciliador procesando el MISMO evento A LA VEZ'` falló una de
+  las dos corridas de este slice sobre el MISMO árbol sin cambios, con `resultadoWebhook.motivo`
+  fuera de los dos valores esperados (`'cerrado aprobado'`/`'cerrado por otra entrega
+  concurrente'`). No investigado ni corregido: el archivo no está en `touches` de este slice y su
+  cadena (webhook + reconciliador de Wompi) es ajena por completo a `aplicarPreset`/`themes.ts`. Si
+  la intermitencia se repite, el test necesita mirar qué TERCER valor de `motivo` puede devolver
+  `procesarEventoWompi` bajo esa carrera — la aserción de hoy sólo contempla dos.
