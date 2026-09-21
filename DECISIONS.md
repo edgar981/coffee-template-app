@@ -11509,6 +11509,17 @@ hook que ya usan `HeroCurtina`/`HeroMedia`/`NosotrosGaleria` para decisiones que
 cubre), a diferencia del cue del hero (`hero-agregados.test.ts`, § "no debe leer la variable
 `reduce`"), que SÍ está cubierto porque anima `y` vía `animate={{ y: [...] }}` declarativo.
 
+**ESTO ES EXACTAMENTE LA CONDICIÓN QUE `LEDGER-SCRUB-FUERA-DEL-CANAL-1` (2026-09-15, § arriba)
+DEJÓ ESCRITA "para cuando exista una pieza con scroll-scrub".** Esa entrada midió, contra la MISMA
+fuente instalada, que `MotionConfig`/el canal único de `STOREFRONT-REDUCED-MOTION-1` no alcanza a un
+`useTransform` derivado de scroll (`.set()` vía `useCombineMotionValues`, nunca `.start()`) y fijó la
+condición: *"cada pieza con scrub lleva su `useReducedMotion()` EXPLÍCITO… no es una recomendación:
+es condición de que esa pieza se pueda construir"*. Este slice es la PRIMERA pieza real con
+scroll-scrub del repo, y cumple esa condición por la misma razón que la fijó, no por coincidencia. Su
+censo (`grep -rnE "useScroll|useTransform|useMotionValue|useSpring|useMotionValueEvent" …`) daba **0**
+el 2026-09-15; con este slice deja de dar 0 — la condición que esa entrada dejó escrita para "cuando
+exista" pasa a tener su primer caso real, cumplida.
+
 `estatico = preview || !!reduce` colapsa las DOS razones por las que el collage no puede depender del
 scroll real: movimiento reducido, y la vista previa del editor (que renderiza dentro de un contenedor
 escalado sin scroll de verdad — mismo criterio que el resto de la variante). Con `estatico`,
@@ -11543,6 +11554,13 @@ smoke-render que confirma que el cambio ADITIVO en `lib/animation.ts` no le romp
 idéntico al piso, sin tocar `packages/core/` ni `tests/integracion/`. `npx tsc --noEmit`: limpio.
 `npx next build`: `✓ Compiled successfully`, `/` sigue `ƒ` (dinámica, sin cambio de esa naturaleza),
 todas las rutas generadas sin error.
+
+**Artefacto, no fuente** (mismo criterio que `CORTE-BRANDSTORY-COLLAGE-1`): `grep -c "deg) translateY("
+.next/server/chunks/ssr/_087qzld._.js` → **1** (el fragmento literal del template string de
+`transformAcomodo`) y `grep -c '"start end"' …` → **1** (el offset de `useProgresoAcomodo`) — el motor
+nuevo SÍ está en el artefacto compilado, no sólo en la fuente. (El nombre del chunk es del build local
+de este slice y puede variar en otro build; el comando se deja como TÉCNICA, no como ruta fija — § el
+mismo aviso que CLAUDE.md hace sobre el `grep -c` de la PRECONDICIÓN.)
 
 ### Tier 1 / clasificación de merge policy
 
